@@ -1,0 +1,564 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OMRS — 错题重构系统</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<div class="shell">
+  <header>
+    <div class="logo">
+      <div class="logo-icon">鬼</div>
+      <div><h1>OMRS</h1><p>Obsidian 错题重构系统</p></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" onclick="doScan()">🔄 重新扫描</button>
+      <button class="btn primary" onclick="switchTab('create')">＋ 录入题目</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">仪表盘</div>
+    <div class="tab" data-tab="data" onclick="switchTab('data')">数据</div>
+    <div class="tab" data-tab="questions" onclick="switchTab('questions')">题目库</div>
+    <div class="tab" data-tab="schedule" onclick="switchTab('schedule')">复习调度</div>
+    <div class="tab" data-tab="feedback" onclick="switchTab('feedback')">反馈录入</div>
+    <div class="tab" data-tab="create" onclick="switchTab('create')">录入题目</div>
+    <div class="tab" data-tab="history" onclick="switchTab('history')">历史记录</div>
+    <div class="tab" data-tab="reports" onclick="switchTab('reports')">报告</div>
+    <div class="tab" data-tab="settings" onclick="switchTab('settings')">设置</div>
+  </div>
+
+  <!-- ====== 仪表盘 ====== -->
+  <div class="panel active" id="panel-dashboard">
+    <div class="stat-grid">
+      <div class="stat-card c1"><div class="stat-label">总题数</div><div class="stat-value" id="s-total">—</div></div>
+      <div class="stat-card c2"><div class="stat-label">已击杀</div><div class="stat-value" id="s-killed">—</div><div class="stat-sub" id="s-kill-pct"></div></div>
+      <div class="stat-card c3"><div class="stat-label">待攻克</div><div class="stat-value" id="s-attack">—</div></div>
+      <div class="stat-card c4"><div class="stat-label">平均熟练度</div><div class="stat-value" id="s-avgm">—</div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><div class="card-title">📚 科目分布</div><div id="chart-subjects"></div></div>
+      <div class="card"><div class="card-title">📅 近 30 天活动</div><div id="chart-activity"></div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><div class="card-title">📊 熟练度分布</div><div id="chart-mastery"></div></div>
+      <div class="card"><div class="card-title">📈 每日练习趋势</div><div id="chart-trend"></div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><div class="card-title">🔍 难度-熟练度散点图</div><div id="chart-scatter"></div></div>
+      <div class="card"><div class="card-title">⚠️ 待复习队列预警</div><div id="chart-alerts"></div></div>
+    </div>
+    <div class="card"><div class="card-title">⚡ 难度分布</div><div id="chart-diff"></div></div>
+  </div>
+
+  <!-- ====== 数据（复盘） ====== -->
+  <div class="panel" id="panel-data">
+    <div class="sched-controls" style="justify-content:space-between">
+      <div style="font-size:.82rem;color:var(--fg2)">
+        全面复盘数据。<span style="color:var(--fg3)">导出为 Markdown：上半部分是程序生成的复盘统计，下半部分是原始历史 + JSON，可直接发给 AI 做个性化分析。</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" onclick="loadAnalytics()">🔄 刷新</button>
+        <button class="btn primary" onclick="exportReview()">📤 导出复盘报告</button>
+      </div>
+    </div>
+    <div id="data-status" style="font-size:.8rem;margin:4px 0 14px"></div>
+
+    <div class="stat-grid" id="data-kpi"></div>
+    <div class="stat-grid" id="data-kpi2" style="margin-top:-10px"></div>
+
+    <div class="cols">
+      <div class="card"><div class="card-title">📚 科目维度（最薄弱在前）</div><div class="tbl-wrap" id="data-subjects"></div></div>
+      <div class="card"><div class="card-title">🏷️ 分类维度（最薄弱 Top 15）</div><div class="tbl-wrap" id="data-categories"></div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><div class="card-title">📊 熟练度分布（原始）</div><div id="data-mastery"></div></div>
+      <div class="card"><div class="card-title">📉 熟练度分布（衰减后）</div><div id="data-decayed"></div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><div class="card-title">🎚️ EF 分布（越低越不稳定）</div><div id="data-ef"></div></div>
+      <div class="card"><div class="card-title">⚡ 难度分布</div><div id="data-difficulty"></div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><div class="card-title">🔁 连续答对(Repetition)分布</div><div id="data-repetition"></div></div>
+      <div class="card"><div class="card-title">📆 复习间隔(Interval)分布</div><div id="data-interval"></div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><div class="card-title">🎯 各主观分正确率</div><div id="data-score-acc"></div></div>
+      <div class="card"><div class="card-title">📈 按周正确率（近 12 周）</div><div class="tbl-wrap" id="data-weekly"></div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><div class="card-title">🗓️ 按星期复习量</div><div id="data-weekday"></div></div>
+      <div class="card"><div class="card-title">🕐 按时段复习量</div><div id="data-hour"></div></div>
+    </div>
+    <div class="cols">
+      <div class="card"><div class="card-title">⏳ 未来 7 天到期预测</div><div id="data-forecast"></div></div>
+      <div class="card"><div class="card-title">⚠️ 复习预警</div><div id="data-alerts"></div></div>
+    </div>
+    <div class="card" style="margin-bottom:20px"><div class="card-title">🔥 顽固题 Leech（累计答错最多）</div><div class="tbl-wrap" id="data-leeches"></div></div>
+    <div class="card"><div class="card-title">🧗 屡练不熟（复习≥3次且熟练度&lt;40%）</div><div class="tbl-wrap" id="data-struggling"></div></div>
+  </div>
+
+  <!-- ====== 题目库 ====== -->
+    <div class="panel" id="panel-questions">
+    <div class="filter-bar">
+      <input type="text" id="q-search" placeholder="搜索 UID / 科目 / 分类 / 标签…" class="input filter-input-wide" oninput="filterQ()">
+      <select id="q-filter-subj" class="input" onchange="filterQ()"><option value="">全部科目</option></select>
+      <select id="q-filter-category" class="input" onchange="filterQ()"><option value="">全部分类</option></select>
+      <select id="q-filter-tag" class="input" onchange="filterQ()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select>
+      <select id="q-filter-ktag" class="input" onchange="filterQ()"><option value="">全部标签</option></select>
+      <input type="number" id="q-filter-diff-min" class="input filter-mini" min="1" max="10" placeholder="难度≥" oninput="filterQ()">
+      <input type="number" id="q-filter-diff-max" class="input filter-mini" min="1" max="10" placeholder="难度≤" oninput="filterQ()">
+      <input type="number" id="q-filter-mastery-min" class="input filter-mini" min="0" max="100" placeholder="熟练度≥%" oninput="filterQ()">
+      <input type="number" id="q-filter-mastery-max" class="input filter-mini" min="0" max="100" placeholder="熟练度≤%" oninput="filterQ()">
+      <select id="q-sort" class="input" onchange="filterQ()">
+        <option value="mastery-asc">熟练度 ↑</option>
+        <option value="mastery-desc">熟练度 ↓</option>
+        <option value="diff-desc">难度 ↓</option>
+        <option value="diff-asc">难度 ↑</option>
+        <option value="date-desc">最近复习优先</option>
+        <option value="due-asc">到期日 ↑</option>
+        <option value="due-desc">到期日 ↓</option>
+      </select>
+      <select id="q-filter-due" class="input" onchange="filterQ()">
+        <option value="">全部到期状态</option>
+        <option value="overdue">已逾期</option>
+        <option value="today">今日到期</option>
+        <option value="3days">3天内到期</option>
+        <option value="7days">7天内到期</option>
+        <option value="future">未到期</option>
+      </select>
+    </div>
+    <div class="temp-summary-row">
+      <div class="filter-note">题库支持按科目、分类、状态标签、知识标签、难度、熟练度和到期状态联合筛选。</div>
+      <div class="view-switch">
+        <button class="btn sm toggle" id="q-view-table" onclick="setQView('table')">表格式</button>
+        <button class="btn sm toggle" id="q-view-gallery" onclick="setQView('gallery')">画廊式</button>
+      </div>
+    </div>
+    <div class="tbl-wrap" id="q-table-wrap">
+      <table><thead><tr><th>UID</th><th>科目</th><th>分类</th><th>难度</th><th>熟练度</th><th>衰减后</th><th>次数</th><th>上次复习</th><th>到期</th><th>状态</th><th></th></tr></thead>
+      <tbody id="q-tbody"></tbody></table>
+    </div>
+    <div class="question-gallery-wrap" id="q-gallery-wrap"></div>
+  </div>
+
+  <div class="panel" id="panel-schedule">
+    <!-- 双入口按钮 -->
+    <div class="entry-btns">
+      <button class="btn primary" id="btn-regular-review" onclick="showRecommendPanel()">开始常规复习</button>
+      <button class="btn" id="btn-export" onclick="showExportPanel()">导出</button>
+      <button class="btn sm" onclick="refreshSessions()" style="margin-left:auto">刷新</button>
+    </div>
+
+    <!-- ====== 推荐面板 ====== -->
+    <div id="recommend-panel" style="display:none">
+      <div class="filter-bar">
+        <select id="rec-subject" class="input" onchange="loadRecommendations()"><option value="">全部科目</option></select>
+        <input type="number" id="rec-due-count" value="10" min="1" max="50" class="input" style="width:64px" title="到期列表最大题数" onchange="loadRecommendations()">
+        <input type="number" id="rec-prof-count" value="10" min="1" max="50" class="input" style="width:64px" title="熟练度列表最大题数" onchange="loadRecommendations()">
+        <button class="btn sm" onclick="loadRecommendations()">刷新推荐</button>
+        <span id="rec-status" class="status-text"></span>
+      </div>
+      <div class="filter-bar">
+        <input type="text" id="rec-search" placeholder="搜索 UID / 科目 / 分类 / 标签…" class="input filter-input-wide" oninput="renderDualLists()">
+        <select id="rec-filter-category" class="input" onchange="renderDualLists()"><option value="">全部分类</option></select>
+        <select id="rec-filter-tag" class="input" onchange="renderDualLists()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select>
+        <select id="rec-filter-ktag" class="input" onchange="renderDualLists()"><option value="">全部标签</option></select>
+        <input type="number" id="rec-filter-diff-min" class="input filter-mini" min="1" max="10" placeholder="难度≥" oninput="renderDualLists()">
+        <input type="number" id="rec-filter-diff-max" class="input filter-mini" min="1" max="10" placeholder="难度≤" oninput="renderDualLists()">
+        <input type="number" id="rec-filter-mastery-min" class="input filter-mini" min="0" max="100" placeholder="熟练度≥%" oninput="renderDualLists()">
+        <input type="number" id="rec-filter-mastery-max" class="input filter-mini" min="0" max="100" placeholder="熟练度≤%" oninput="renderDualLists()">
+        <select id="rec-filter-sort" class="input" onchange="renderDualLists()">
+          <option value="mastery-asc">熟练度 ↑</option>
+          <option value="mastery-desc">熟练度 ↓</option>
+          <option value="diff-desc">难度 ↓</option>
+          <option value="diff-asc">难度 ↑</option>
+          <option value="date-desc">最近复习优先</option>
+          <option value="due-asc">到期日 ↑</option>
+          <option value="due-desc">到期日 ↓</option>
+        </select>
+        <select id="rec-filter-due" class="input" onchange="renderDualLists()">
+          <option value="">全部到期状态</option>
+          <option value="overdue">已逾期</option>
+          <option value="today">今日到期</option>
+          <option value="3days">3天内到期</option>
+          <option value="7days">7天内到期</option>
+          <option value="future">未到期</option>
+        </select>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:.75rem;color:var(--fg3)">双列表：到期（SM-2 驱动）+ 熟练度（薄弱优先），勾选后确认生成</span>
+        <div class="view-switch">
+          <button class="btn sm toggle" id="rec-view-flat" onclick="setRecView('flat')">平铺式</button>
+          <button class="btn sm toggle" id="rec-view-gallery" onclick="setRecView('gallery')">画廊式</button>
+        </div>
+      </div>
+      <div class="cols" id="rec-dual-lists">
+        <div class="card">
+          <div class="card-title">📌 到期列表 <span style="font-weight:400;font-size:.7rem;color:var(--fg3)" id="rec-due-label"></span></div>
+          <div class="filter-note">SM-2 到期制：Due_Date ≤ 今天，按逾期优先 + EF 升序排列</div>
+          <div id="rec-due-list"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">📊 熟练度列表 <span style="font-weight:400;font-size:.7rem;color:var(--fg3)" id="rec-prof-label"></span></div>
+          <div class="filter-note">未到期题目按薄弱程度排列（难度高、熟练度低、久未复习优先）</div>
+          <div id="rec-prof-list"></div>
+        </div>
+      </div>
+
+      <!-- 已选栏 -->
+      <div id="rec-selection-bar" style="margin-top:16px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);display:none">
+        <div class="temp-summary-row">
+          <div>
+            <span class="summary-text" id="rec-selected-count">已选: 0 道</span>
+            <span style="font-size:.74rem;color:var(--fg3);margin-left:12px" id="rec-est-time"></span>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn sm" onclick="previewSelection()">预览计划</button>
+            <button class="btn primary" onclick="confirmSchedule()">确认生成计划</button>
+            <button class="btn sm" onclick="smartConfirm()">一键智能确认</button>
+            <button class="btn sm danger" onclick="clearRecommendSelection()">清空已选</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 预览面板 -->
+      <div id="rec-preview-panel" style="display:none;margin-top:16px"></div>
+    </div>
+
+    <!-- ====== 导出面板 ====== -->
+    <div id="export-panel" style="display:none">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">导出 HTML — 全题库筛选</div>
+        <div class="filter-note">勾选题目后导出为<strong>自包含 HTML</strong>（图片已内嵌）。A4 打印版用浏览器打印/另存 PDF；屏幕版可滚动阅读、答案默认隐藏便于自测。可选题目与是否附带答案。</div>
+        <div class="filter-bar">
+          <input type="text" id="pick-search" placeholder="搜索 UID / 科目 / 分类 / 标签…" class="input filter-input-wide" oninput="renderExportPicker()">
+          <select id="pick-subject" class="input" onchange="renderExportPicker()"><option value="">全部科目</option></select>
+          <select id="pick-category" class="input" onchange="renderExportPicker()"><option value="">全部分类</option></select>
+          <select id="pick-tag" class="input" onchange="renderExportPicker()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select>
+          <select id="pick-ktag" class="input" onchange="renderExportPicker()"><option value="">全部标签</option></select>
+          <input type="number" id="pick-diff-min" class="input filter-mini" min="1" max="10" placeholder="难度≥" oninput="renderExportPicker()">
+          <input type="number" id="pick-diff-max" class="input filter-mini" min="1" max="10" placeholder="难度≤" oninput="renderExportPicker()">
+          <input type="number" id="pick-mastery-min" class="input filter-mini" min="0" max="100" placeholder="熟练度≥%" oninput="renderExportPicker()">
+          <input type="number" id="pick-mastery-max" class="input filter-mini" min="0" max="100" placeholder="熟练度≤%" oninput="renderExportPicker()">
+          <select id="pick-sort" class="input" onchange="renderExportPicker()">
+            <option value="mastery-asc">熟练度 ↑</option>
+            <option value="mastery-desc">熟练度 ↓</option>
+            <option value="diff-desc">难度 ↓</option>
+            <option value="diff-asc">难度 ↑</option>
+            <option value="date-desc">最近复习优先</option>
+          </select>
+        </div>
+        <div class="temp-summary-row">
+          <div>
+            <div id="export-summary" class="summary-text">正在准备题库…</div>
+          </div>
+          <div class="view-switch">
+            <button class="btn sm toggle" id="export-view-flat" onclick="setExportView('flat')">平铺式</button>
+            <button class="btn sm toggle" id="export-view-gallery" onclick="setExportView('gallery')">画廊式</button>
+          </div>
+        </div>
+        <div class="temp-actions">
+          <button class="btn sm" onclick="selectFilteredExportItems()">选择当前筛选</button>
+          <button class="btn sm" onclick="clearFilteredExportItems()">移除当前筛选</button>
+          <button class="btn sm danger" onclick="clearExportSelection()">清空已选</button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--fg2);margin-left:12px;cursor:pointer">
+            <input type="checkbox" id="export-include-answers" style="accent-color:var(--accent)">
+            附带答案
+          </label>
+          <span class="view-switch" style="margin-left:8px">
+            <button class="btn sm toggle active" data-expvar="a4" onclick="setExportVariant('a4')">A4 打印版</button>
+            <button class="btn sm toggle" data-expvar="screen" onclick="setExportVariant('screen')">屏幕版</button>
+          </span>
+          <button class="btn primary" onclick="doExportSelected()">导出选中</button>
+          <span id="export-status" class="status-text"></span>
+        </div>
+        <div id="export-selection"></div>
+        <div id="export-picker"></div>
+      </div>
+    </div>
+
+    <!-- ====== Session 历史列表 ====== -->
+    <div class="card" id="sessions-section">
+      <div class="card-title">历史 Session</div>
+      <div class="filter-note">常规 Session（EXP-）会持久化，可导出和反馈。自定义练习（TMP-）不在此列表。</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--fg2);cursor:pointer">
+          <input type="checkbox" id="sch-include-answers" style="accent-color:var(--accent)">
+          导出时附带答案
+        </label>
+        <span class="view-switch">
+          <button class="btn sm toggle active" data-expvar="a4" onclick="setExportVariant('a4')">A4 打印版</button>
+          <button class="btn sm toggle" data-expvar="screen" onclick="setExportVariant('screen')">屏幕版</button>
+        </span>
+      </div>
+      <div id="sch-sessions-list"></div>
+      <div id="sch-preview" style="margin-top:14px"></div>
+      <span id="sch-status" class="status-text"></span>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-feedback">
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <label style="font-size:.78rem;color:var(--fg3)">选择 Session:</label>
+      <select id="fb-session-picker" class="input" style="min-width:260px" onchange="onFbSessionChange()">
+        <option value="">— 手动录入(不关联 session) —</option>
+      </select>
+      <button class="btn sm" onclick="refreshFbSessionPicker()">🔄</button>
+      <button class="btn sm" onclick="addFbRow()">＋ 添加行</button>
+      <span id="fb-session-info" style="font-size:.72rem;color:var(--fg3)"></span>
+    </div>
+    <div class="fb-grid" id="fb-grid"></div>
+    <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+      <button class="btn primary" onclick="submitFb()" id="fb-submit">提交反馈</button>
+      <span id="fb-status" style="font-size:.8rem"></span>
+    </div>
+    <div id="fb-results" style="margin-top:14px"></div>
+  </div>
+
+  <!-- ====== 录入题目 ====== -->
+  <div class="panel" id="panel-create">
+    <div class="cols" style="grid-template-columns:1fr 1fr">
+      <div class="card">
+        <div class="card-title">📝 录入新题目</div>
+        <p style="font-size:.78rem;color:var(--fg3);margin-bottom:18px;line-height:1.6">
+          粘贴题目图片，点「提取并填充信息」让 AI 填好科目 / 分类 / 难度；答案可粘图后「提取答案」转成文本，也可手动输入。题目正文/答案/图片均可直接录入。
+        </p>
+        <div class="create-form">
+          <div class="form-group">
+            <label>题目图片（粘贴 / 拖拽 / 点击选择，可多张）</label>
+            <div id="cr-q-paste" class="paste-zone" tabindex="0" onclick="crPickFiles('q')" onfocus="crSetPasteTarget('q')" ondragover="crDragOver(event,'q')" ondragleave="crDragLeave(event,'q')" ondrop="crHandleDrop(event,'q')">
+              <div class="paste-zone-hint">📋 粘贴题目截图（Ctrl / ⌘ + V）· 拖拽 · 或点击选择</div>
+            </div>
+            <input type="file" id="cr-q-file" accept="image/*" multiple style="display:none" onchange="crFileInput(event,'q')">
+            <div class="paste-actions"><button type="button" class="btn sm" onclick="crReadClipboard('q')">📋 从剪贴板读取到「题目」</button></div>
+            <div id="cr-q-images" class="img-previews"></div>
+            <div class="ai-row">
+              <button class="btn" id="cr-classify-btn" onclick="crClassify()" disabled>🤖 提取并填充信息</button>
+              <span id="cr-classify-status" class="ai-status"></span>
+            </div>
+            <div class="hint">AI 读取<strong>第 1 张</strong>题目图片，自动填充下方<strong>科目 / 分类 / 难度 / 相关知识点</strong>（不抄题、不解题，题目以图片随题保存）。需先在「设置 → AI 自动识别」配置 API。</div>
+          </div>
+          <div class="form-group">
+            <label>科目 *</label>
+            <input id="cr-subject" class="input" placeholder="数学、物理、化学…" list="cr-subj-list">
+            <div class="hint">输入已有科目或新建</div>
+          </div>
+          <div class="form-group">
+            <label>分类 (知识点) *</label>
+            <input id="cr-category" class="input" placeholder="隐圆模型、动能定理…" list="cr-cat-list">
+            <div class="hint">同一分类的题目放在同一文件夹下</div>
+          </div>
+          <div class="form-group">
+            <label>难度 (1-10)</label>
+            <div style="display:flex;align-items:center;gap:10px">
+              <input type="range" id="cr-diff" min="1" max="10" value="5" style="flex:1" oninput="document.getElementById('cr-diff-val').textContent=this.value">
+              <span id="cr-diff-val" style="font-family:'JetBrains Mono',monospace;font-size:1rem;color:var(--accent);width:24px">5</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>相关知识点 (可选)</label>
+            <input id="cr-related" class="input" placeholder="导数应用, 手拉手模型" list="cr-ktag-list">
+            <div class="hint">逗号分隔，写入 YAML 为 [[双链]]。「提取并填充信息」只会从<strong>已有分类 / 已有知识点</strong>里挑（不造新词）；手动输入建议也从下拉的已有项里选。</div>
+          </div>
+          <div class="form-group">
+            <label>题目正文 (可选)</label>
+            <textarea id="cr-question" class="input" rows="4" placeholder="可手动输入题干；留空也行（题目以上方图片为准）。AI 不会自动抄写题目。"></textarea>
+            <div class="hint">支持 LaTeX（如 $x^2+1$）与多行；题目图片会自动嵌入到题面。</div>
+          </div>
+          <div class="form-group">
+            <label>答案图片（可选，粘贴 / 拖拽 / 点击选择）</label>
+            <div id="cr-a-paste" class="paste-zone" tabindex="0" onclick="crPickFiles('a')" onfocus="crSetPasteTarget('a')" ondragover="crDragOver(event,'a')" ondragleave="crDragLeave(event,'a')" ondrop="crHandleDrop(event,'a')">
+              <div class="paste-zone-hint">📋 粘贴答案截图（Ctrl / ⌘ + V）· 拖拽 · 或点击选择</div>
+            </div>
+            <input type="file" id="cr-a-file" accept="image/*" multiple style="display:none" onchange="crFileInput(event,'a')">
+            <div class="paste-actions"><button type="button" class="btn sm" onclick="crReadClipboard('a')">📋 从剪贴板读取到「答案」</button></div>
+            <div id="cr-a-images" class="img-previews"></div>
+            <div class="ai-row">
+              <button class="btn" id="cr-extract-btn" onclick="crExtractAnswer()" disabled>🤖 提取答案</button>
+              <span id="cr-extract-status" class="ai-status"></span>
+            </div>
+            <div class="hint">AI 读取<strong>第 1 张</strong>答案图片，把答案/解析<strong>提取为文本</strong>填入下方。也可不提取（答案图直接嵌入答案区）或手动输入。</div>
+          </div>
+          <div class="form-group">
+            <label>答案 / 解析 (可选)</label>
+            <textarea id="cr-answer" class="input" rows="3" placeholder="写入 # 答案 区域；可由「提取答案」自动填充或手动输入。"></textarea>
+          </div>
+          <div class="form-group">
+            <label>笔记本页码 (可选)</label>
+            <input id="cr-note" class="input" placeholder="p.23">
+            <div class="hint">写入 YAML 的「页码」字段，便于回查纸质笔记。</div>
+          </div>
+          <div class="form-group">
+            <label>错因 (可选)</label>
+            <textarea id="cr-cause" class="input" rows="2" placeholder="为什么做错？（如：辅助角范围搞错）。写入 # 备注 的「## 错因」，导出时会带上。"></textarea>
+          </div>
+          <button class="btn primary" onclick="doCreate()" id="cr-btn">创建题目</button>
+        </div>
+        <div id="cr-result"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📖 使用说明</div>
+        <div style="font-size:.8rem;color:var(--fg2);line-height:1.8">
+          <p><strong>1.</strong> 在「题目图片」区 <code>Ctrl/⌘+V</code> 粘贴题目截图（也可拖拽 / 点击选择）</p>
+          <p><strong>2.</strong> 点「🤖 提取并填充信息」→ AI 自动填好<strong>科目 / 分类 / 难度</strong>（不抄题）</p>
+          <p><strong>3.</strong> 答案可在「答案图片」区粘图后点「🤖 提取答案」转成文本，或手动输入 / 直接留图</p>
+          <p><strong>4.</strong> 核对各字段，点「创建题目」即写入；题目与答案图片都会嵌入对应区域</p>
+          <p style="color:var(--fg3)"><strong>提示：</strong>系统自动编号，文件为 <code>错题/科目/分类/分类N.md</code>，图片存入 <code>错题/附件/</code>。AI 需先在「设置」中配置。</p>
+          <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+          <p style="color:var(--fg3)"><strong>文件结构示例：</strong></p>
+          <pre style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:.72rem;font-family:'JetBrains Mono',monospace;line-height:1.6;overflow-x:auto;margin-top:6px;color:var(--fg2)">错题/
+├── 数学/
+│   ├── 数学.md          ← 锚点(自动)
+│   └── 隐圆模型/
+│       ├── 隐圆模型.md   ← 锚点(自动)
+│       ├── 隐圆模型1.md  ← 题目
+│       └── 隐圆模型2.md  ← 题目
+└── 物理/
+    └── 动能定理/
+        ├── 动能定理1.md
+        └── 动能定理2.md</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 设置 ====== -->
+  <div class="panel" id="panel-settings">
+    <div class="cols" style="grid-template-columns:1fr 1fr">
+      <div class="card">
+        <div class="card-title">⚙️ 服务设置</div>
+        <div class="form-group" style="margin-top:12px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="st-allow-external" style="width:18px;height:18px;accent-color:var(--accent)">
+            <span>允许外部访问（绑定 0.0.0.0）</span>
+          </label>
+          <div class="hint">开启后，其他设备可通过<b>本机的局域网 IP</b>（如 192.168.x.x:端口）访问；本机始终用 127.0.0.1。<b>不要在浏览器输入 0.0.0.0</b>（它只是「监听所有网卡」的占位地址，无法访问）。修改后需重启生效，启动时控制台会打印可访问的网址。</div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:18px">
+          <button class="btn primary" onclick="saveSettings()">💾 保存并重启</button>
+          <button class="btn danger" onclick="doRestart()">🔄 立即重启</button>
+        </div>
+        <div id="st-status" style="margin-top:14px;font-size:.82rem"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">🤖 AI 自动识别</div>
+        <p style="font-size:.78rem;color:var(--fg3);margin-bottom:14px;line-height:1.6">
+          配置 <b>OpenAI 兼容</b>接口（<code>/v1/chat/completions</code> 协议）后，即可在「录入题目」页粘贴图片用 AI 自动识别填充。需使用支持<strong>图片输入</strong>的多模态模型。
+        </p>
+        <div class="form-group">
+          <label>API 地址 (Base URL)</label>
+          <input id="st-ai-base" class="input" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1">
+          <div class="hint">填到 <code>/v1</code> 即可（会自动补 <code>/chat/completions</code>）。例：OpenAI <code>https://api.openai.com/v1</code>；阿里云百炼 <code>https://dashscope.aliyuncs.com/compatible-mode/v1</code>。</div>
+        </div>
+        <div class="form-group">
+          <label>API Key</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="st-ai-key" class="input" type="password" placeholder="sk-..." style="flex:1" autocomplete="off">
+            <button class="btn sm" type="button" onclick="toggleAiKey()" id="st-ai-key-toggle">显示</button>
+          </div>
+          <div class="hint">仅保存在本机 <code>错题/.omrs/config.json</code>，调用时由本地后端转发，不经第三方。</div>
+        </div>
+        <div class="form-group">
+          <label>模型（需支持图片输入）</label>
+          <input id="st-ai-model" class="input" placeholder="qwen-vl-max" list="st-ai-model-list">
+          <datalist id="st-ai-model-list">
+            <option value="qwen-vl-max"><option value="qwen-vl-plus"><option value="qwen3-vl-plus"><option value="qwen3-vl-flash"><option value="qwen3.7-plus"><option value="gpt-4o"><option value="gpt-4o-mini">
+          </datalist>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="st-ai-restrict" style="width:18px;height:18px;accent-color:var(--accent)" checked>
+            <span>仅从已有知识点中选择</span>
+          </label>
+          <div class="hint">开启（默认）：AI 识别题目时，<b>相关知识点只能取自「已有分类 ∪ 已有知识点」</b>，模型造的新词会被剔除——标签更统一、便于按知识点筛选复盘。关闭：当没有贴切的已有项时，允许 AI 新建知识点（最多 4 个，仍优先复用已有）。<b>仅影响知识点；科目 / 分类一直允许在无合适项时新建。</b></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:6px">
+          <button class="btn primary" onclick="saveAiSettings()">💾 保存 AI 配置</button>
+        </div>
+        <div id="st-ai-settings-status" style="margin-top:12px;font-size:.82rem"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">ℹ️ 关于</div>
+        <div style="font-size:.8rem;color:var(--fg2);line-height:1.8">
+          <p><strong>OMRS</strong> — Obsidian 错题重构系统</p>
+          <p>后端入口：<code>omrs_engine.py</code></p>
+          <p>前端文件：<code>omrs_dashboard.html</code> + <code>assets/</code>（样式与脚本）</p>
+          <p>数据目录：<code>错题/.omrs/</code></p>
+          <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+          <p style="color:var(--fg3)">重启期间页面可能短暂无响应，请稍候自动刷新。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 历史记录 ====== -->
+  <div class="panel" id="panel-history">
+    <div class="tbl-wrap">
+      <table><thead><tr><th>Log ID</th><th>UID</th><th>日期</th><th>主观分</th><th>对错</th><th>Session</th><th>备注</th></tr></thead>
+      <tbody id="h-tbody"></tbody></table>
+    </div>
+  </div>
+
+  <!-- ====== 报告 ====== -->
+  <div class="panel" id="panel-reports">
+    <div class="cols" style="grid-template-columns:1fr 2fr">
+      <div class="card">
+        <div class="card-title">📤 创建报告</div>
+        <p style="font-size:.78rem;color:var(--fg3);margin-bottom:16px;line-height:1.7">
+          上传 AI 生成的分析报告（纯 HTML）。报告由本程序托管，可在浏览器直接打开；报告内可用
+          <code>&lt;img src="/api/image?name=图片名"&gt;</code> 引用题目图片。
+        </p>
+        <div class="form-group">
+          <label>报告名称 *</label>
+          <input id="rp-name" class="input" placeholder="如：6 月薄弱点分析">
+        </div>
+        <div class="form-group">
+          <label>HTML 文件 *</label>
+          <input type="file" id="rp-file" class="input" accept=".html,.htm,text/html">
+          <div class="hint">选择 AI 给你的 .html 报告文件</div>
+        </div>
+        <button class="btn primary" id="rp-btn" onclick="createReport()">上传并创建</button>
+        <div id="rp-status" style="margin-top:12px;font-size:.82rem"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📑 已托管报告</div>
+        <div id="rp-list" style="margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-close" onclick="closeModal()">✕</div>
+    <h2 id="modal-title"></h2>
+    <div class="q-meta" id="modal-meta"></div>
+    <div class="q-body" id="modal-body"></div>
+    <div class="q-notes" id="modal-notes"></div>
+    <div class="q-answer" id="modal-answer"></div>
+    <div class="q-history" id="modal-hist"></div>
+  </div>
+</div>
+<datalist id="uid-list"></datalist>
+<datalist id="cr-subj-list"></datalist>
+<datalist id="cr-cat-list"></datalist>
+<datalist id="cr-ktag-list"></datalist>
+
+<script src="assets/core.js"></script>
+<script src="assets/dashboard.js"></script>
+<script src="assets/questions.js"></script>
+<script src="assets/schedule.js"></script>
+<script src="assets/recommend.js"></script>
+<script src="assets/data.js"></script>
+<script src="assets/reports.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

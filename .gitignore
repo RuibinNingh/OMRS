@@ -1,0 +1,30 @@
+# Python/runtime cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local logs and generated output
+/logs/
+*.log
+*.tmp
+*.bak
+*.bak.*
+
+# Personal OMRS vault data
+错题/
+临时/
+
+# AI scratch workspace with extracted private images
+AI/omrs_work/
+
+# Local editor/OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local Git history backup created when resetting publish history
+.git-history-backup*/

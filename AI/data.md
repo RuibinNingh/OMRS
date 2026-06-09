@@ -1,0 +1,184 @@
+# 数据结构
+
+> 对应源文件：`omrs/common.py`、`omrs/indexing.py`
+
+---
+
+## 1. UID 规则
+
+- UID = Markdown 文件名（不含 `.md`）。
+- 文件名必须以数字结尾，例：`三角函数1.md`、`工业流程题3.md`。
+- UID 在整个题库中必须唯一，`scan_vault()` 检测冲突并抛出错误。
+- **不要修改文件名**，一旦改变 UID 将导致历史数据失联。
+
+---
+
+## 2. mastery_data.csv
+
+路径：`错题/.omrs/mastery_data.csv`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `UID` | string | 题目唯一标识 |
+| `File_Path` | string | 相对于 vault 根目录的路径 |
+| `Subject` | string | 科目（如 数学、化学） |
+| `Category` | string | 分类（如 三角函数） |
+| `Difficulty` | int(1–10) | 难度，重建索引时从 Markdown 同步 |
+| `Mastery` | float(0–1) | 当前熟练度 |
+| `EF` | float(1.3–3.0) | 易错因子（SM-2 变体） |
+| `Attempts` | int | 累计练习次数 |
+| `High_Correct_Streak` | int | 连续高分答对次数，达到 2 次才自动击杀 |
+| `Last_Review` | date | 最后复习日期（ISO 格式 YYYY-MM-DD） |
+| `Interval` | int | SM-2 当前间隔（天数），旧数据默认为 0 |
+| `Due_Date` | date | SM-2 下次到期日，旧数据默认为 Last_Review（即立即到期） |
+| `Repetition` | int | SM-2 连续答对次数（n），答错重置为 0 |
+| `Current_Tag` | string | 状态标签（如 #状态/待攻克） |
+| `Entry_Date` | date | 题目录入日期 |
+| `Knowledge_Tags` | string | 知识点标签，`|` 分隔 |
+
+**注意：** `Last_Review` 历史数据可能包含 `YYYY/M/D` 格式，`parse_date()` 已做兼容。
+**注意：** SM-2 字段（`Interval`、`Due_Date`、`Repetition`）为 2026-05 新增，旧数据通过 `resolve_sm2_fields()` 自动填充默认值。
+**写盘安全：** 该文件经 `save_csv(..., backup=True)` 写入——先写 `.tmp` 并 `fsync`，再 `os.replace` 原子覆盖，避免写一半损坏；覆盖前滚动备份为 `mastery_data.csv.bak.1/2/3`（`.1` 最新，保留 3 份）。反馈与重建索引均走此路径。
+
+---
+
+## 3. history_log.csv
+
+路径：`错题/.omrs/history_log.csv`
+
+**写入方式：** 只增不改，反馈时经 `append_csv()` **追加写**新行（不再整表覆盖），崩溃不会截断已有历史。`Log_ID` 序号 `NNN` 取「全量历史行数 + 1」起算，为全局递增（非每日重置）。该文件也是 leech 检测（algorithm.md §11）的数据来源。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `Log_ID` | string | `LOG-YYYYMMDD-NNN` |
+| `UID` | string | 题目 UID |
+| `Date` | string | `YYYY-MM-DD HH:MM` |
+| `Action` | string | 目前固定为 `Feedback` |
+| `Sub_Score` | int | 主观分 0–10 |
+| `Is_Correct` | 0/1 | 是否答对 |
+| `Session_ID` | string | 所属 Session ID |
+| `Note` | string | 备注（可为空） |
+
+---
+
+## 4. sessions.csv
+
+路径：`错题/.omrs/sessions.csv`
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `Session_ID` | string | `EXP-YYYYMMDDHHmmss`（含冲突后缀 A-Z） |
+| `Created_At` | string | 创建时间 |
+| `Subject_Filter` | string | 科目筛选条件（空=全科） |
+| `Count` | int | 题目数量 |
+| `UIDs` | JSON | 题目列表，新格式为 `[{"uid":"...","source":"due|proficiency"}]`，兼容旧格式 `["uid1","uid2"]` |
+| `Status` | string | `active` 或 `completed` |
+| `Completed_At` | string | 完成时间（可为空） |
+
+临时调度（`TMP-` 前缀）**不写入**此文件。
+**注意：** `UIDs` 新格式中 `source` 字段标记题目来源（`due`=到期列表，`proficiency`=熟练度列表），用于反馈时区分 SM-2 排期策略。
+
+---
+
+## 5. Markdown 题目格式
+
+```markdown
+---
+科目: 数学
+分类: [[三角函数]]
+难度: 7
+相关知识点:
+  - 二倍角公式
+  - 辅助角公式
+tags:
+  - 状态/待攻克
+  - 知识点/三角函数
+---
+
+# 题目
+
+题目内容……
+
+# 历史
+
+2026-04-19 主观:6, 对
+2026-04-22 主观:8, 对, 备注:注意辅助角范围
+```
+
+> **录入说明**：`POST /api/create` 除建骨架外，可直接写入 `# 题目`、`# 答案`、以及 `# 备注` 的 `## 错因`（由 `cause` 字段写入，导出会带上；`## 关联` 子标题保留）；YAML 可含可选 `页码` 字段。题目图存为 `错题/附件/<uid>-q-N.<ext>` 并嵌入 `# 题目`，答案图存为 `<uid>-a-N.<ext>` 并嵌入 `# 答案`。「AI 自动识别」分两步：`classify` 读题目图回填科目/分类/难度/相关知识点（不抄题；知识点可与分类重叠），`answer` 读答案图把答案提取为文本——最终以文件实际内容为准。
+
+> **LaTeX 公式（导出 HTML）**：题目/答案/错因中的 `$...$`（行内）与 `$$...$$`（行间）当前在 HTML 导出里以**辨识用样式**（棕色等距）呈现源码，**尚未接入 KaTeX 真渲染**（留作后续；接入时只需替换导出模板的 `mathText`，后端不动）。Obsidian 内仍按其自身 LaTeX 渲染显示。注：旧 docx 导出曾用 `_latex_to_omml` 转 Word 原生公式（OMML），已随 docx 一并移除。
+
+### 历史记录格式
+```
+YYYY-MM-DD 主观:N, 对/错[, 备注:文字]
+```
+
+### 标签约定
+
+| 标签 | 含义 |
+|---|---|
+| `状态/待攻克` | 尚未掌握，正在复习 |
+| `状态/已击杀` | 高分答对，视为掌握 |
+| `标签/易错坑` | 曾高分但答错（粗心/陷阱） |
+
+---
+
+## 6. 重建索引行为（`build_index()`）
+
+- 扫描所有以数字结尾的 `.md` 文件。
+- 已有记录：同步 `Subject`、`Category`、`Difficulty`、`Current_Tag`、`Knowledge_Tags`，保留 `Mastery`、`EF`、`Attempts` 等学习数据。
+- 新增记录：初始化 `Mastery=0.0`、`EF=2.5`、`Attempts=0`、`High_Correct_Streak=0`。
+
+---
+
+## 7. 日志文件
+
+路径：`错题/logs/omrs_YYYY-MM-DD.log`（位于 vault 本级目录内）
+
+每日一个文件，记录以下事件：
+
+| 事件类型 | 触发时机 |
+|---|---|
+| `FEEDBACK` | 每条反馈处理后 |
+| `SCHEDULE` | 每次调度执行后 |
+| `INDEX` | 每次重建索引后 |
+
+---
+
+## 8. config.json
+
+路径：`错题/.omrs/config.json`
+
+| 键 | 类型 | 说明 |
+|---|---|---|
+| `allow_external` | bool | 是否绑定 0.0.0.0（见 frontend.md 设置页） |
+| `tuning` | object | 算法可调参数覆盖，键与默认值见 algorithm.md §10；仅接受已知键且为数字 |
+| `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`） |
+| `ai_api_key` | string | AI 接口密钥（Bearer），仅存本机 |
+| `ai_model` | string | AI 模型名（需支持图片输入，如 `gpt-4o`） |
+| `ai_restrict_tags` | bool | 「AI 自动识别」是否把相关知识点限定在「已有分类 ∪ 已有知识点」内。默认 `true`（缺失按 `true`）；`false` 时允许 AI 在无贴切已有项时新建知识点（上限 4 个） |
+
+`load_tuning()` 带进程内缓存，`save_config()` 写入后自动失效缓存；UI 改配置后会重启，亦保证生效。  
+`ai_*`/`ai_restrict_tags` 供「AI 自动识别」（见 api.md `/api/ai-recognize`）使用：由 `load_config()` 每次读盘，**保存即生效、无需重启**；`save_config()` 按键合并，可单独提交。`load_config()` 的缺省键集中在 `common.CONFIG_DEFAULTS`（`allow_external=false`、`ai_restrict_tags=true`）。
+
+---
+
+## 9. report/（AI 分析报告托管）
+
+> 对应源文件：`omrs/reports.py`
+
+| 路径 | 说明 |
+|---|---|
+| `错题/report/<id>.html` | 单份报告的纯 HTML 文件 |
+| `错题/report/index.json` | 报告索引数组：`[{id, name, filename, created_at, size}]` |
+
+- `id` 形如 `RPT-YYYYMMDDHHMMSS`（同秒冲突加 `-N`）。`created_at` 由后端在创建时记录。
+- 报告由 `GET /api/report/view?id=` 同源提供（`text/html`），因此报告内可直接用 `<img src="/api/image?name=<URL编码文件名>">` 引用题目图片——这是「报告引用题目图片」的对接方式。
+- 题目图片文件名可从 `/api/question?uid=` 的 `images`、`/api/stats` 与 `/api/analytics` 的 items `images` 字段，或导出复盘报告 JSON 中获得（均由 `extract_images()` 从题面 `![[名]]`/`![](路径)` 解析，取 basename）。
+
+---
+
+## 10. File_Path 分隔符注意
+
+历史数据的 `File_Path` 可能含 **Windows 反斜杠**（如 `错题\数学\xx.md`，数据在 Windows 上录入）。读取题目文件时需归一化：`get_question_content()` 与 `analytics._question_images()` 已做 `replace("\\","/")` 后再 `os.path.join`，保证 Linux/Windows 都能命中。新增读 md 的代码也应照此处理。

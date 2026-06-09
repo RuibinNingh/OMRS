@@ -1,0 +1,73 @@
+/* OMRS A4 打印版样式 —— 安静、学术、为打印而生。
+ * 几何完全沿用旧 docx：A4 / 上下 0.5in / 左右 0.25in / 双栏 / 栏距 0.5in。 */
+:root{
+  --ink:#1c1a17; --accent:#8b5e3c; --muted:#6b6358; --rule:#d9d2c7; --warn:#c0392b;
+  --col-w:348.85px; --col-h:1026.52px; --gap:48px; --mar-tb:48px; --mar-lr:24px;
+  --serif:"Songti SC","STSong","SimSun","Noto Serif CJK SC","Source Han Serif SC",serif;
+  --sans:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",system-ui,sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:#f1ede6;color:var(--ink);
+  font-family:var(--serif);-webkit-font-smoothing:antialiased;}
+
+.page{width:793.7px;height:1122.52px;background:#fff;margin:0 auto 22px;
+  position:relative;overflow:hidden;box-shadow:0 2px 14px rgba(60,50,35,.16);}
+.page-inner{position:absolute;left:var(--mar-lr);top:var(--mar-tb);
+  width:calc(100% - var(--mar-lr)*2);height:var(--col-h);display:flex;gap:var(--gap);}
+.col{width:var(--col-w);height:var(--col-h);overflow:hidden;}
+.pagenum{position:absolute;left:0;right:0;bottom:14px;text-align:center;
+  font-family:var(--sans);font-size:9px;color:#b3a896;letter-spacing:1px;}
+.measurer{position:absolute;left:-99999px;top:0;visibility:hidden;}
+
+.blk{margin:0;}
+.doc-title{font-size:21px;font-weight:700;letter-spacing:.5px;padding-bottom:5px;}
+.doc-sub{font-family:var(--sans);font-size:11px;color:var(--muted);padding-bottom:3px;}
+.doc-note{font-family:var(--sans);font-size:11px;color:var(--muted);
+  padding-bottom:12px;border-bottom:1.5px solid var(--rule);margin-bottom:10px;}
+.section{font-size:15px;font-weight:700;color:var(--accent);padding:6px 0 8px;
+  border-bottom:1px solid var(--rule);margin-bottom:8px;letter-spacing:1px;}
+
+.q-head{padding:10px 0 5px;border-left:2.5px solid var(--accent);
+  padding-left:7px;margin-left:-9px;}
+.q-head .no{font-size:13.5px;font-weight:700;}
+.q-head .uid{font-size:11px;font-weight:700;color:var(--accent);margin-left:4px;}
+.q-head .meta{font-family:var(--sans);font-size:10.5px;color:var(--muted);margin-top:3px;}
+.q-head .tags{font-family:var(--sans);font-size:10px;color:var(--accent);margin-top:2px;}
+
+.q-text{font-size:12px;line-height:1.5;padding-bottom:4px;text-align:justify;}
+.q-text .math{font-family:var(--sans);color:var(--accent);}
+.q-note{font-family:var(--sans);font-size:11px;line-height:1.45;padding:3px 6px;
+  margin:3px 0;background:#faf7f2;border-radius:3px;}
+.q-note b{color:var(--accent);}
+
+.slice{overflow:hidden;display:block;margin:2px 0;}
+.slice img{display:block;}
+.slice.clip-warn{outline:1.5px dashed var(--warn);}
+
+.ans-text{font-size:11.5px;line-height:1.5;padding-bottom:3px;text-align:justify;}
+.ans-empty{font-size:11px;color:#a59b8b;padding-bottom:3px;}
+
+.fb-row{font-family:var(--sans);font-size:11px;display:flex;justify-content:space-between;
+  gap:8px;padding:5px 2px;border-bottom:1px solid var(--rule);}
+.fb-row .u{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.fb-row .c{color:var(--muted);white-space:nowrap;}
+
+#bar{position:fixed;top:0;left:0;right:0;height:44px;background:#2c2620;color:#f1ede6;
+  display:flex;align-items:center;gap:14px;padding:0 16px;z-index:99;
+  font-family:var(--sans);font-size:13px;box-shadow:0 1px 8px rgba(0,0,0,.3);}
+#bar button{font-family:inherit;font-size:13px;background:var(--accent);color:#fff;border:0;
+  border-radius:5px;padding:7px 14px;cursor:pointer;}
+#bar .stat{color:#cdc3b4;margin-left:auto;}
+#bar label{display:flex;align-items:center;gap:5px;cursor:pointer;color:#cdc3b4;}
+#stage{padding:64px 0 40px;}
+
+@page{size:A4;margin:0;}
+@media print{
+  html,body{background:#fff;}
+  #bar{display:none;}
+  #stage{padding:0;}
+  .page{margin:0;box-shadow:none;break-after:page;}
+  .page:last-child{break-after:auto;}
+  body.debug .slice{outline:none;}
+}
+body.debug .slice{outline:1px solid rgba(192,57,43,.45);}
