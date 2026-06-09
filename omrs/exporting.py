@@ -314,18 +314,67 @@ _A4_BODY = """<div id="bar">
 </div>
 <div id="stage"></div>"""
 
-_SCREEN_BODY = """<div id="topbar">
-  <span class="brand">OMRS 错题本</span>
-  <span class="sub" id="count"></span>
+_SCREEN_BODY = """<div id="bar">
+  <div class="brand">
+    <span class="mark">O</span>
+    <span class="ttl">错题复习<small id="barSub">加载中…</small></span>
+  </div>
   <span class="spacer"></span>
-  <input class="search" id="search" placeholder="搜索题目 / 标签 / 分类…">
-  <button id="btnAns">显示全部答案</button>
+  <div class="ring" title="作答进度">
+    <svg width="38" height="38"><circle class="track" cx="19" cy="19" r="16" fill="none" stroke-width="3"></circle><circle class="fill" cx="19" cy="19" r="16" fill="none" stroke-width="3" stroke-linecap="round" stroke-dasharray="100" stroke-dashoffset="100"></circle></svg>
+    <span class="pct">0%</span>
+  </div>
+  <button class="icon-btn" id="progBtn" title="作答情况" aria-label="作答情况">☰</button>
 </div>
-<div id="filters"></div>
-<div id="list"></div>
-<div id="empty" class="hidden">没有匹配的题目</div>
+
+<div id="stage">
+  <div id="track"></div>
+</div>
+
+<div id="nav">
+  <button class="nbtn" id="prevBtn" title="上一题" aria-label="上一题">‹</button>
+  <button class="nbtn" id="nextNavBtn" title="下一题" aria-label="下一题">›</button>
+  <span class="mid" id="navMid"></span>
+  <button class="next" id="nextBtn"><span>下一题</span><span>→</span></button>
+</div>
+
+<div id="sheet">
+  <div class="scrim"></div>
+  <div class="panel">
+    <div class="grip"></div>
+    <div class="sh-head">
+      <h2>作答情况</h2>
+      <span class="sh-close" id="sheetClose" aria-label="关闭">✕</span>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="st-done">0</div><div class="k">已作答</div></div>
+      <div class="stat g"><div class="v" id="st-right">0</div><div class="k">答对</div></div>
+      <div class="stat r"><div class="v" id="st-wrong">0</div><div class="k">答错</div></div>
+    </div>
+    <div class="subj-break" id="subjBreak"></div>
+    <div class="rubric-guide">
+      <div class="rg-ttl">评分标准 · 满分 10 分</div>
+      <div class="rg-grid">
+        <div class="rg-cell ok"><b>答对 · 7–10 分</b><span>思路与过程清晰，真正掌握</span></div>
+        <div class="rg-cell warm"><b>答对 · 0–6 分</b><span>答案对但不熟，靠印象或猜中</span></div>
+        <div class="rg-cell warm"><b>答错 · 7–10 分</b><span>思路基本对，栽在细节/计算</span></div>
+        <div class="rg-cell bad"><b>答错 · 0–6 分</b><span>关键步骤没掌握，需重点重练</span></div>
+      </div>
+    </div>
+    <div class="jump">
+      <div class="j-ttl">跳转到题目</div>
+      <div class="grid" id="grid"></div>
+    </div>
+    <div class="sh-actions">
+      <button id="jumpFirstUngraded">跳到第一道未判定</button>
+      <button class="reset" id="resetBtn">清空记录</button>
+    </div>
+    <div class="saved-tag" id="savedTag">进度自动保存在本设备</div>
+  </div>
+</div>
+
 <div id="lightbox"><img alt=""></div>
-<footer>OMRS · 屏幕阅读版 · 点击图片可放大，答案默认隐藏便于自测</footer>"""
+<div id="toast"></div>"""
 
 
 def _build_html(data, variant):

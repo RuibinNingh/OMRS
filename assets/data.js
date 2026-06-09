@@ -119,7 +119,7 @@ async function exportReview(){
   try{
     const response=await fetch('/api/export-review');
     if(!response.ok){let m='导出失败';try{m=(await response.json()).msg||m}catch(e){}status.innerHTML=`<span style="color:var(--red)">✕ ${escapeHtml(m)}</span>`;return}
-    await downloadDocxResponse(response,`OMRS-复盘-${new Date().toISOString().slice(0,10)}.md`,'data-status');
+    await downloadExportResponse(response,`OMRS-复盘-${new Date().toISOString().slice(0,10)}.html`,'data-status');
   }catch(e){status.innerHTML=`<span style="color:var(--red)">✕ ${escapeHtml(e.message)}</span>`}
 }
 
