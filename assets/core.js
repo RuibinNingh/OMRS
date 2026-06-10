@@ -3,6 +3,11 @@ let DATA=null,ALL_UIDS=[],SESSIONS=[],ACTIVE_FB_SESSION='';
 let EXPORT_SELECTION=[],EXPORT_VIEW='flat',Q_VIEW='table',QUESTION_CACHE={},QUESTION_PENDING={},fbRows=[];
 let REC_DATA=null,REC_SELECTED={},REC_VIEW='flat',REC_PREVIEW_MODE='list';
 let CR_Q_IMAGES=[],CR_A_IMAGES=[],CR_IMG_SEQ=0;
+let CR_QUEUE=[],CR_QUEUE_ACTIVE_ID=null,CR_DRAFT_SEQ=0;
+
+function parseLooseJson(text){let t=String(text??'').trim();const fence=t.match(/^```[a-zA-Z0-9]*\s*\n?([\s\S]*?)\n?```$/);if(fence)t=fence[1].trim();if(!t)throw new Error('内容为空');return JSON.parse(t)}
+async function copyTextToClipboard(text){try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(text);return true}}catch(e){}try{const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();const ok=document.execCommand('copy');document.body.removeChild(ta);return ok}catch(e){return false}}
+function looseBool(v){if(v===true||v===1||v==='1')return true;if(v===false||v===0||v==='0')return false;const s=String(v??'').trim().toLowerCase();if(['true','yes','y','对','correct','right'].includes(s))return true;if(['false','no','n','错','incorrect','wrong'].includes(s))return false;return null}
 
 async function api(path,options){const response=await fetch(path,options);const isJson=(response.headers.get('Content-Type')||'').includes('application/json');const payload=isJson?await response.json():null;if(!response.ok){throw new Error(payload?.msg||payload?.error||`HTTP ${response.status}`)}return payload}
 

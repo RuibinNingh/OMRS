@@ -329,6 +329,69 @@
     rebuild(); closeSheet(); toast("已清空作答记录");
   }
 
+  /* ---------- 作答 JSON（对接主程序「提交反馈 → 导入作答 JSON」） ---------- */
+  function sessionId() {
+    if (D.meta && D.meta.session_id) return D.meta.session_id;
+    const m = ((D.meta && D.meta.sub) || "").match(/Session:\s*(\S+)/);   // 旧导出件兜底
+    return m ? m[1] : "";
+  }
+  function buildAnswersJson() {
+    const items = [];
+    QS.forEach((q, i) => {
+      const it = itemOf(i);
+      if (it.verdict !== "right" && it.verdict !== "wrong") return;       // 只导出已判定的题
+      items.push({
+        uid: q.uid,
+        is_correct: it.verdict === "right",
+        sub_score: it.score == null ? (it.verdict === "right" ? 10 : 4) : it.score,
+      });
+    });
+    const d = new Date(), p = n => String(n).padStart(2, "0");
+    return {
+      type: "omrs-feedback", version: 1,
+      session_id: sessionId(),
+      exported_at: d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()),
+      total: N, graded: items.length, items: items,
+    };
+  }
+  function copyTextLegacy(text) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+  function copyText(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text).then(() => true).catch(() => copyTextLegacy(text));
+    }
+    return Promise.resolve(copyTextLegacy(text));
+  }
+  function downloadJson(text) {
+    try {
+      const blob = new Blob([text], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "OMRS-作答-" + (sessionId() || "export") + ".json";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1200);
+      return true;
+    } catch (e) { return false; }
+  }
+  function copyAnswersJson() {
+    const payload = buildAnswersJson();
+    if (!payload.graded) { toast("还没有已判定的题目，先判几道再复制"); return; }
+    const text = JSON.stringify(payload);
+    copyText(text).then(ok => {
+      if (ok) { toast("已复制 " + payload.graded + " 条作答，去主程序「提交反馈」页导入"); return; }
+      // 剪贴板不可用（个别环境）→ 退化为下载 .json 文件，导入页同样可粘贴其内容
+      toast(downloadJson(text) ? "剪贴板不可用，已改为下载 JSON 文件" : "复制失败，请尝试在其他浏览器打开");
+    });
+  }
+
   /* ---------- 滑动手势 ---------- */
   function bindSwipe() {
     const stage = document.getElementById("stage");
@@ -398,6 +461,8 @@
     document.querySelector("#sheet .scrim").onclick = closeSheet;
     document.getElementById("sheetClose").onclick = closeSheet;
     document.getElementById("resetBtn").onclick = resetAll;
+    const cj = document.getElementById("copyJsonBtn");
+    if (cj) cj.onclick = copyAnswersJson;
     document.getElementById("jumpFirstUngraded").onclick = () => {
       const idx = QS.findIndex((q, i) => !itemOf(i).verdict);
       closeSheet(); goto(idx < 0 ? 0 : idx, false);

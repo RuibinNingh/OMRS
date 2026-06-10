@@ -20,7 +20,7 @@ from .common import questions_root
 
 REPORT_DIR = "report"
 _INDEX = "index.json"
-_ID_RE = re.compile(r"^RPT-[0-9A-Za-z]+$")
+_ID_RE = re.compile(r"^RPT-[0-9A-Za-z]+(?:-\d+)?$")
 
 
 def reports_dir(vault: str) -> str:

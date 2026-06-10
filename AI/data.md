@@ -182,3 +182,30 @@ YYYY-MM-DD 主观:N, 对/错[, 备注:文字]
 ## 10. File_Path 分隔符注意
 
 历史数据的 `File_Path` 可能含 **Windows 反斜杠**（如 `错题\数学\xx.md`，数据在 Windows 上录入）。读取题目文件时需归一化：`get_question_content()` 与 `analytics._question_images()` 已做 `replace("\\","/")` 后再 `os.path.join`，保证 Linux/Windows 都能命中。新增读 md 的代码也应照此处理。
+
+## 11. JSON 交换格式（外部 AI 录题 / 屏幕版作答回传）
+
+两种**前端层**交换格式（不落盘、不进 CSV，仅在导入框/剪贴板流转）。解析均经 `core.js::parseLooseJson`：容忍 ```` ```json ```` 围栏包裹；顶层接受完整对象、对应数组字段或裸数组。
+
+**① 题目 JSON**（外部 AI 按「复制 AI 提示词」生成 → 录入页「导入到队列」；字段与 `POST /api/create` 一一对应）：
+
+```json
+{"type":"omrs-questions","version":1,"questions":[
+  {"subject":"数学","category":"三角函数","difficulty":7,
+   "related_tags":["二倍角公式"],
+   "question_text":"……（含 $...$ / $$...$$ LaTeX，可多行）",
+   "answer_text":"……","cause":"辅助角符号搞错","note":"p.23"}
+]}
+```
+
+宽容度（`crNormalizeDraft`）：`difficulty` 钳 1–10（缺省 5）；`related_tags` 接受数组或 `,，、|` 分隔字符串、剥 `[[ ]]`、去重限 8；兼容别名 `question`/`answer`/`knowledge_tags`；科目/分类/正文/答案全空的对象丢弃。队列草稿即此结构 + `id` 字段，存 `localStorage["omrs_create_queue_v1"]`。
+
+**② 作答 JSON**（屏幕版「复制作答 JSON」生成 → 反馈页「导入作答 JSON」）：
+
+```json
+{"type":"omrs-feedback","version":1,"session_id":"EXP-20260610213000",
+ "exported_at":"2026-06-10 21:30","total":16,"graded":12,
+ "items":[{"uid":"三角函数1","is_correct":true,"sub_score":9}]}
+```
+
+仅包含**已判定**的题。导入侧（`schedule.js::importFeedbackJson`）：`is_correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` 缺省按对→10 / 错→4、钳 0–10 取整；`session_id` 在 sessions.csv 中则自动选中关联，否则仍按该 ID 写入 history_log（TMP- 临时卷亦可），为空按手动录入。填充后不自动提交，须人工核对。两个导入框互相识别误贴类型并引导去正确页面。

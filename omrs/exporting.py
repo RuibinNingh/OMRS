@@ -266,6 +266,8 @@ def _build_export_data(vault, session_id, questions, include_answers):
         "meta": {
             "title": "OMRS 错题复习清单",
             "sub": f"Session: {session_id}    生成日期: {today}    共 {len(questions)} 道题",
+            # 供屏幕版「复制作答 JSON」回填，主程序反馈页按此 ID 关联 Session
+            "session_id": session_id,
         },
         "questions": [],
         "feedback": [],
@@ -364,6 +366,9 @@ _SCREEN_BODY = """<div id="bar">
     <div class="jump">
       <div class="j-ttl">跳转到题目</div>
       <div class="grid" id="grid"></div>
+    </div>
+    <div class="sh-actions">
+      <button class="share" id="copyJsonBtn">📋 复制作答 JSON（导入主程序反馈）</button>
     </div>
     <div class="sh-actions">
       <button id="jumpFirstUngraded">跳到第一道未判定</button>

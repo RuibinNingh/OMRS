@@ -2,17 +2,19 @@ import datetime
 import os
 
 
-_LOG_DIR = None
+_LOG_DIRS = {}
 
 
 def _get_log_dir(vault: str) -> str:
-    global _LOG_DIR
-    if _LOG_DIR:
-        return _LOG_DIR
-    # logs 放在 vault 本级目录内
-    log_dir = os.path.join(os.path.abspath(vault), "logs")
+    # 按 vault 缓存日志目录：单一全局变量会让同进程内处理的第二个 vault
+    # 把日志写到第一个 vault 的目录里（串台）。以绝对路径为键各自缓存。
+    key = os.path.abspath(vault)
+    cached = _LOG_DIRS.get(key)
+    if cached:
+        return cached
+    log_dir = os.path.join(key, "logs")
     os.makedirs(log_dir, exist_ok=True)
-    _LOG_DIR = log_dir
+    _LOG_DIRS[key] = log_dir
     return log_dir
 
 

@@ -71,6 +71,10 @@ def compute_priority(decayed_mastery, ef, days, tag, mastery,
     """
     t = tuning or DEFAULT_TUNING
     eff_diff = ef_to_difficulty(ef)
+    # decayed_mastery / days 直接参与算术，做与函数内其它参数一致的脏数据保护，
+    # 避免 CSV 异常值或上游误传非数字时整次调度/统计崩溃。
+    decayed_mastery = max(0.0, min(1.0, _safe_float(decayed_mastery, 0.0)))
+    days = max(0, _safe_int(days, 0))
     priority = (1 - decayed_mastery) * (eff_diff / 10.0) \
         + (days / t["priority_days_divisor"]) * t["priority_days_weight"]
     if "待攻克" in (tag or "") and _safe_float(mastery, 0) < t["attack_mastery_threshold"]:
