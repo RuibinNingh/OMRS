@@ -2,7 +2,7 @@
 
 > 入口：`omrs_dashboard.html`（仅结构）。样式与脚本拆分到 `assets/` 资源文件夹。
 
-无第三方依赖、无构建步骤，所有图表使用纯 CSS + 内联 SVG 实现。
+无构建步骤。后端与本地前端代码不需要打包依赖；页面运行时外链 Google Fonts，并从 `assets/vendor/katex/` 本地加载 KaTeX 渲染 LaTeX（不可用时降级为可辨识的公式源码片段）。所有图表使用纯 CSS + 内联 SVG 实现。
 
 ## 文件组织（assets/）
 
@@ -56,8 +56,14 @@ assets/
 - 卡片形式，异步拉取 `/api/question?uid=...` 渲染题面。
 - 卡片中同样使用 `.m-bar` / `.m-bar-fill` 渲染熟练度进度条。
 - 题面中的 `![[图片.png]]`、`![[图片.png|300]]`、`![alt](路径)` 均改写为 `/api/image?name=...`。
-- 使用 `renderMdContent()` 统一处理 HTML 转义与图片替换。
+- 使用 `renderMdContent()` 统一处理 HTML 转义、图片替换与 `$...$` / `$$...$$` LaTeX 渲染。
 - 题目详情缓存在 `QUESTION_CACHE` / `QUESTION_PENDING`，避免重复请求。
+
+### 通用 Markdown / LaTeX 渲染
+- `renderMdContent()` 只允许三类受控 HTML：图片 `<img>`、KaTeX 输出、降级公式 `<span class="math">`；普通文本始终先转义。
+- 支持 Obsidian 图片 `![[name.png]]`、`![[name.png|300]]` 和 Markdown 图片 `![alt](path)`，图片名统一取 basename 后走 `/api/image?name=...`。
+- 支持行内 `$...$` 和行间 `$$...$$`。KaTeX 加载成功时使用 `katex.renderToString(..., {throwOnError:false})`；加载失败时保留公式内容并加 `.math` 样式。
+- 题目库 Modal 的题面、备注、答案，调度/推荐中的题目预览，以及即时练习的题面、答案、备注都应复用该函数；不要再用 `<pre>${escapeHtml(...)}</pre>` 展示需要图片或公式的字段。
 
 ---
 
@@ -127,7 +133,7 @@ assets/
 4. 用户判对/错并给 0-10 主观分，结果存在 `INSTANT_RESULTS`。
 5. 「提交已判定」调用 `POST /api/feedback`，`session_id` 使用 `IMM-YYYYMMDDHHMMSS`，只写历史与 mastery 更新，不创建调度 Session。
 
-即时练习复用 `renderMdContent()` 处理题面/答案图片，复用 `process_feedback()` 的熟练度、EF、SM-2 更新逻辑。
+即时练习复用 `renderMdContent()` 处理题面、答案、备注中的图片与 LaTeX，复用 `process_feedback()` 的熟练度、EF、SM-2 更新逻辑。
 
 ---
 

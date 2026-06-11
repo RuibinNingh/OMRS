@@ -72,7 +72,7 @@ function instRender(){
   const ktags=(q.knowledge_tags||item.knowledge_tags||[]).map(tag=>`<span class="tag" style="background:var(--accent-bg);color:var(--accent2)">${escapeHtml(tag)}</span>`).join('');
   const masteryPct=(asNumber(item.mastery,0)*100).toFixed(0);
   const answerHtml=row.revealed
-    ? `<div class="instant-block instant-answer"><div class="instant-label">答案</div><div class="instant-md">${renderMdContent(q.answer||'（无答案内容）')}</div>${(q.notes||'').trim()?`<div class="instant-label" style="margin-top:12px">备注</div><div class="instant-notes">${escapeHtml(q.notes)}</div>`:''}</div>`
+    ? `<div class="instant-block instant-answer"><div class="instant-label">答案</div><div class="instant-md">${renderMdContent(q.answer||'（无答案内容）')}</div>${(q.notes||'').trim()?`<div class="instant-label" style="margin-top:12px">备注</div><div class="instant-notes">${renderMdContent(q.notes)}</div>`:''}</div>`
     : `<div class="instant-answer-locked"><button class="btn primary" onclick="instReveal()">显示答案</button></div>`;
   const grading=row.revealed?`<div class="instant-grade">
     <div class="fb-toggle">

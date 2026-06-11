@@ -64,7 +64,7 @@ AI/
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（`styles.css` 与拆分的 JS）|
 | 数据目录 | `错题/.omrs/` |
-| 无第三方依赖 | Python 端、前端均不引入第三方库（导出改 HTML 后已移除 Pillow，恢复零依赖）|
+| 依赖边界 | Python 端无第三方库；前端无构建依赖，页面运行时外链 Google Fonts，KaTeX 作为本地静态资源放在 `assets/vendor/katex/`（不可用时公式降级显示源码片段）|
 
 ---
 
