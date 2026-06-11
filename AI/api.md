@@ -79,8 +79,16 @@
 ### `/api/report/view?id=<report_id>`
 以 `text/html` 返回指定报告内容（同源，报告内 `/api/image?name=...` 可正常加载题图）。前端「报告」页点「浏览」即新标签打开此 URL。
 
-### `/api/recommend?due_count=10&prof_count=10&subject=数学`
+### `/api/recommend?due_count=10&prof_count=10&subject=数学&category=三角函数&knowledge_tag=二倍角公式`
 返回双列表推荐（到期列表 + 熟练度列表），互斥分配。
+
+可选筛选参数：
+
+| 参数 | 说明 |
+|---|---|
+| `subject` | 科目精确匹配 |
+| `category` | 分类精确匹配 |
+| `knowledge_tag` | 相关知识点精确匹配（命中 `Knowledge_Tags` 中任一项） |
 
 **响应字段：**
 
@@ -150,12 +158,13 @@
 {
   "session_id": "EXP-20260422120000",
   "feedbacks": [
-    { "uid": "三角函数1", "sub_score": 8, "is_correct": true, "note": "" }
+    { "uid": "三角函数1", "sub_score": 8, "is_correct": true, "source": "due", "note": "" }
   ]
 }
 ```
 
 `sub_score` 范围 0–10，越大越熟练。
+`source` 可选，取值 `due` / `proficiency`。若 `session_id` 对应持久化 Session，则优先使用 Session 中保存的来源；无 Session 的即时练习可逐题传 `source` 以保留 SM-2 策略差异。
 
 **响应：** 每条反馈的 `label`、`old_mastery`、`new_mastery`、`tag`、`source`、`new_interval`、`new_due_date`。
 

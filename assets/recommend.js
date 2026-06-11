@@ -25,6 +25,30 @@ function normalizeRecItem(item){if(!item)return item;if(item.due_date)return ite
 function applyRecFilters(items,filters){return filterItems(items.map(normalizeRecItem),filters)}
 function getFilteredRecData(){if(!REC_DATA)return{due:[],proficiency:[]};const filters=getFilterState('rec');return{due:applyRecFilters(REC_DATA.due||[],filters),proficiency:applyRecFilters(REC_DATA.proficiency||[],filters)}}
 
+function addRecItemsToSelection(items,source){
+  (items||[]).forEach(item=>{if(item?.uid)REC_SELECTED[item.uid]=source||item._source||'due'});
+}
+function selectFilteredRecommendations(){
+  const filtered=getFilteredRecData();
+  addRecItemsToSelection(filtered.due,'due');
+  addRecItemsToSelection(filtered.proficiency,'proficiency');
+  renderDualLists();
+  updateRecSelectionBar();
+}
+function selectAllRecommendations(){
+  if(!REC_DATA)return;
+  addRecItemsToSelection(REC_DATA.due||[],'due');
+  addRecItemsToSelection(REC_DATA.proficiency||[],'proficiency');
+  renderDualLists();
+  updateRecSelectionBar();
+}
+function clearFilteredRecommendations(){
+  const filtered=getFilteredRecData();
+  [...filtered.due,...filtered.proficiency].forEach(item=>{if(item?.uid)delete REC_SELECTED[item.uid]});
+  renderDualLists();
+  updateRecSelectionBar();
+}
+
 async function loadRecommendations(){
   const subject=document.getElementById('rec-subject').value||'';
   const dueCount=Math.max(1,Math.min(50,asNumber(document.getElementById('rec-due-count').value,10)));

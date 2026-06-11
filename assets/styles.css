@@ -224,3 +224,41 @@ textarea.input{width:100%;display:block;resize:vertical;line-height:1.6;font-siz
 .preview-card{padding:16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px}
 .preview-group-header{font-size:.78rem;font-weight:700;color:var(--accent2);margin:14px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
 .entry-btns{display:flex;gap:12px;margin-bottom:20px}
+
+/* ── Instant practice ── */
+.instant-topbar{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px}
+.instant-filters{justify-content:flex-end;margin-bottom:0}
+.instant-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px}
+.instant-review{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--card-shadow);padding:20px}
+.instant-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;border-bottom:1px solid var(--border);padding-bottom:14px;margin-bottom:16px}
+.instant-head .uid{font-weight:800;color:var(--accent2);font-size:1rem}
+.instant-head .meta-line{font-size:.74rem;color:var(--fg3);margin-top:4px;line-height:1.7}
+.instant-head .tag-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.instant-pos{font-family:'JetBrains Mono',monospace;color:var(--accent);font-weight:800;white-space:nowrap}
+.instant-block{margin-top:14px}
+.instant-label{font-size:.72rem;color:var(--fg3);font-weight:700;letter-spacing:.5px;margin-bottom:6px}
+.instant-md{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:16px 18px;font-size:.9rem;line-height:1.85;white-space:pre-wrap}
+.instant-md img{max-width:100%;height:auto;border-radius:4px;margin:8px 0;display:block}
+.instant-answer .instant-md{background:rgba(39,134,74,0.04);border-color:rgba(39,134,74,0.18)}
+.instant-notes{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-size:.82rem;line-height:1.7;white-space:pre-wrap;color:var(--fg2)}
+.instant-answer-locked{display:flex;justify-content:center;align-items:center;min-height:104px;background:var(--bg);border:1px dashed var(--border2);border-radius:6px;margin-top:14px}
+.instant-grade{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
+.instant-score{display:flex;align-items:center;gap:10px;min-width:280px;flex:1}
+.instant-score span{font-size:.76rem;color:var(--fg3);white-space:nowrap}
+.instant-score input{flex:1}
+.instant-score strong{font-family:'JetBrains Mono',monospace;color:var(--accent2);font-size:1rem;width:24px;text-align:right}
+.instant-nav{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:18px}
+.instant-side{align-self:start;position:sticky;top:12px}
+.instant-summary{font-size:.8rem;color:var(--fg2);margin-bottom:12px;line-height:1.6}
+.instant-queue{display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow:auto;padding-right:2px}
+.instant-qbtn{width:100%;display:grid;grid-template-columns:28px minmax(0,1fr) 46px;gap:8px;align-items:center;text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 10px;cursor:pointer;color:var(--fg2);font-family:inherit}
+.instant-qbtn:hover{border-color:var(--accent-light)}
+.instant-qbtn.active{border-color:var(--accent);background:var(--accent-bg)}
+.instant-qbtn.correct{border-left:3px solid var(--green)}
+.instant-qbtn.wrong{border-left:3px solid var(--red)}
+.instant-qbtn span{font-family:'JetBrains Mono',monospace;color:var(--fg3);font-size:.72rem}
+.instant-qbtn strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem;color:var(--accent2)}
+.instant-qbtn em{font-style:normal;color:var(--fg3);font-size:.68rem;text-align:right}
+.instant-results{margin-top:12px}
+
+@media(max-width:1000px){.instant-layout{grid-template-columns:1fr}.instant-side{position:static}.instant-topbar{display:block}.instant-filters{justify-content:flex-start;margin-top:12px}.instant-queue{max-height:none}}

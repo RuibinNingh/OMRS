@@ -96,11 +96,15 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 due_count = int(params.get("due_count", 10))
                 prof_count = int(params.get("prof_count", 10))
                 subject = params.get("subject") or None
+                category = params.get("category") or None
+                knowledge_tag = params.get("knowledge_tag") or None
                 rec = generate_recommendations(
                     self.vault_path,
                     due_count=max(1, min(50, due_count)),
                     prof_count=max(1, min(50, prof_count)),
                     subject=subject,
+                    category=category,
+                    knowledge_tag=knowledge_tag,
                 )
                 self._json({"status": "ok", **rec})
             except Exception as exc:

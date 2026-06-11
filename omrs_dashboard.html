@@ -25,6 +25,7 @@
     <div class="tab" data-tab="data" onclick="switchTab('data')">数据</div>
     <div class="tab" data-tab="questions" onclick="switchTab('questions')">题目库</div>
     <div class="tab" data-tab="schedule" onclick="switchTab('schedule')">复习调度</div>
+    <div class="tab" data-tab="instant" onclick="switchTab('instant')">即时练习</div>
     <div class="tab" data-tab="feedback" onclick="switchTab('feedback')">反馈录入</div>
     <div class="tab" data-tab="create" onclick="switchTab('create')">录入题目</div>
     <div class="tab" data-tab="history" onclick="switchTab('history')">历史记录</div>
@@ -199,6 +200,12 @@
           <button class="btn sm toggle" id="rec-view-gallery" onclick="setRecView('gallery')">画廊式</button>
         </div>
       </div>
+      <div class="temp-actions">
+        <button class="btn sm" onclick="selectFilteredRecommendations()">选择当前筛选</button>
+        <button class="btn sm primary" onclick="selectAllRecommendations()">全选推荐</button>
+        <button class="btn sm" onclick="clearFilteredRecommendations()">移除当前筛选</button>
+        <button class="btn sm danger" onclick="clearRecommendSelection()">清空已选</button>
+      </div>
       <div class="cols" id="rec-dual-lists">
         <div class="card">
           <div class="card-title">📌 到期列表 <span style="font-weight:400;font-size:.7rem;color:var(--fg3)" id="rec-due-label"></span></div>
@@ -301,6 +308,37 @@
       <div id="sch-sessions-list"></div>
       <div id="sch-preview" style="margin-top:14px"></div>
       <span id="sch-status" class="status-text"></span>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-instant">
+    <div class="card instant-topbar">
+      <div>
+        <div class="card-title">即时练习</div>
+        <div id="inst-status" class="status-text">按推荐算法取题，不写入调度 Session。</div>
+      </div>
+      <div class="filter-bar instant-filters">
+        <select id="inst-subject" class="input"><option value="">全部科目</option></select>
+        <select id="inst-category" class="input"><option value="">全部分类</option></select>
+        <select id="inst-ktag" class="input"><option value="">全部标签</option></select>
+        <input type="number" id="inst-count" class="input filter-mini" min="1" max="50" value="10" title="练习题数">
+        <button class="btn primary" onclick="instLoadPractice()">加载推荐</button>
+      </div>
+    </div>
+    <div class="instant-layout">
+      <div class="instant-main">
+        <div id="inst-empty" class="card empty">
+          <div class="icon">▶</div>
+          <p>点击「加载推荐」开始。</p>
+        </div>
+        <div id="inst-review" class="instant-review" style="display:none"></div>
+      </div>
+      <aside class="card instant-side">
+        <div class="card-title">练习队列</div>
+        <div id="inst-summary" class="instant-summary">尚未加载</div>
+        <div id="inst-queue" class="instant-queue"></div>
+        <div id="inst-submit-results" class="instant-results"></div>
+      </aside>
     </div>
   </div>
 
@@ -590,6 +628,7 @@
 <script src="assets/questions.js"></script>
 <script src="assets/schedule.js"></script>
 <script src="assets/recommend.js"></script>
+<script src="assets/instant.js"></script>
 <script src="assets/data.js"></script>
 <script src="assets/reports.js"></script>
 <script src="assets/app.js"></script>

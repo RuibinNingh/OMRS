@@ -183,7 +183,8 @@ def schedule_questions(vault, count=10, subject=None, exclude_uids=None):
 
 
 def generate_recommendations(vault, due_count=10, prof_count=10,
-                             subject=None, exclude_uids=None):
+                             subject=None, category=None, knowledge_tag=None,
+                             exclude_uids=None):
     """生成双列表推荐：到期列表 + 熟练度列表，互斥分配。
 
     返回:
@@ -213,6 +214,12 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
             continue
 
         if subject and row.get("Subject", "") != subject:
+            continue
+
+        if category and row.get("Category", "") != category:
+            continue
+
+        if knowledge_tag and knowledge_tag not in _knowledge_tags(row):
             continue
 
         if is_due(row.get("Due_Date", ""), today):
@@ -290,6 +297,10 @@ def _normalize_uid_list(uids):
         seen.add(uid)
         clean.append(uid)
     return clean
+
+
+def _knowledge_tags(row):
+    return [tag for tag in row.get("Knowledge_Tags", "").split("|") if tag]
 
 
 def _safe_int(value, default=0):

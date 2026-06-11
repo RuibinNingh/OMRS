@@ -60,7 +60,7 @@ def process_feedback(vault, feedbacks, session_id=""):
             continue
 
         row = resolve_sm2_fields(row_map[uid])
-        source = uid_sources.get(uid, "due")
+        source = uid_sources.get(uid) or _parse_source(feedback.get("source")) or "due"
         old_mastery = _safe_float(row.get("Mastery", 0))
         # 先把本次复习计入 Attempts，再判定冷启动：
         # 冷启动门 `attempts < 3` 现在统计「含本次」的复习次数，
@@ -182,6 +182,13 @@ def _parse_bool(value):
         if normalized in {"0", "false", "no", "n", "incorrect", "wrong", "错"}:
             return False
     raise ValueError("对错字段必须是布尔值")
+
+
+def _parse_source(value):
+    value = str(value or "").strip()
+    if value in {"due", "proficiency"}:
+        return value
+    return ""
 
 
 def _session_feedback_complete(vault, session_id, history):

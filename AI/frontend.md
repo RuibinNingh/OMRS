@@ -7,7 +7,7 @@
 ## 文件组织（assets/）
 
 ```
-omrs_dashboard.html   ← 仅 HTML 结构，<link> 引样式 + 7 个 <script> 引脚本
+omrs_dashboard.html   ← 仅 HTML 结构，<link> 引样式 + 多个 <script> 引脚本
 assets/
 ├── styles.css        ← 全部样式（原 <style> 内联块抽出）
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染
@@ -15,6 +15,7 @@ assets/
 ├── questions.js      ← 题目库表格/画廊视图 + 题目 Modal
 ├── schedule.js       ← 复习调度：导出选题、Session 列表/创建/预览/删除
 ├── recommend.js      ← 推荐面板（双列表 + 勾选确认）
+├── instant.js        ← 即时练习：推荐取题、在线翻答案、即时反馈
 ├── data.js           ← 数据复盘页 + 复盘报告导出
 ├── reports.js        ← 报告托管页：列表/上传创建/浏览/删除
 └── app.js            ← 应用入口：switchTab/reloadData/设置 + 录入页图片粘贴/AI 识别/AI 设置 + init()
@@ -62,7 +63,7 @@ assets/
 
 ## 3. 筛选控件（`filterItems()`）
 
-全局筛选，题库页和临时调度页共用：
+全局筛选，题库页、调度页和即时练习页共用：
 
 | 控件 | 对应字段 |
 |---|---|
@@ -92,9 +93,10 @@ assets/
 1. `GET /api/recommend` 获取双列表（到期 + 熟练度，互斥不重复）
 2. 用户勾选题目（两侧列表均可勾选），实时显示已选计数 + 预计耗时
 3. 可选操作：
-   - **预览计划**：展示 4 种视图（列表/卡片/分组/时间）
-   - **一键智能确认**：自动勾选到期列表前 N 道题
-   - **确认生成计划**：`POST /api/confirm-schedule`
+    - **预览计划**：展示 4 种视图（列表/卡片/分组/时间）
+    - **一键智能确认**：自动勾选到期列表前 N 道题
+   - **选择当前筛选 / 全选推荐 / 移除当前筛选**：批量维护已选题目
+    - **确认生成计划**：`POST /api/confirm-schedule`
 4. ≥2 题生成 EXP- Session（写入 sessions.csv，必须反馈），1 题生成 TMP- 批次
 
 ### 四种预览视图
@@ -114,7 +116,22 @@ assets/
 
 ---
 
-## 5. 临时调度 vs 常规 Session
+## 5. 即时练习
+
+入口 Tab：`即时练习`；面板 `#panel-instant`；脚本 `assets/instant.js`。
+
+流程：
+1. `GET /api/recommend` 按算法取双列表推荐，可传 `subject` / `category` / `knowledge_tag` 筛选。
+2. 前端合并到期列表与熟练度列表，按数量上限形成 `INSTANT_QUEUE`，不调用 `/api/confirm-schedule`，不写 `sessions.csv`。
+3. 每题在线拉 `/api/question?uid=...`，先显示题面，点击后显示答案与备注。
+4. 用户判对/错并给 0-10 主观分，结果存在 `INSTANT_RESULTS`。
+5. 「提交已判定」调用 `POST /api/feedback`，`session_id` 使用 `IMM-YYYYMMDDHHMMSS`，只写历史与 mastery 更新，不创建调度 Session。
+
+即时练习复用 `renderMdContent()` 处理题面/答案图片，复用 `process_feedback()` 的熟练度、EF、SM-2 更新逻辑。
+
+---
+
+## 6. 临时调度 vs 常规 Session
 
 | 维度 | 自定义练习（TMP） | 常规 Session（EXP） |
 |---|---|---|
