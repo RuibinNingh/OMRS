@@ -35,7 +35,9 @@ html,body{margin:0;padding:0;background:#f1ede6;color:var(--ink);
 .q-head .tags{font-family:var(--sans);font-size:10px;color:var(--accent);margin-top:2px;}
 
 .q-text{font-size:12px;line-height:1.5;padding-bottom:4px;text-align:justify;}
-.q-text .math{font-family:var(--sans);color:var(--accent);}
+.q-text .math,.q-note .math,.ans-text .math{font-family:var(--sans);color:inherit;}
+.math.display{display:block;margin:3px 0;text-align:center;}
+.math .katex{font-size:1em;}
 .q-note{font-family:var(--sans);font-size:11px;line-height:1.45;padding:3px 6px;
   margin:3px 0;background:#faf7f2;border-radius:3px;}
 .q-note b{color:var(--accent);}

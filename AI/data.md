@@ -107,7 +107,7 @@ tags:
 
 > **录入说明**：`POST /api/create` 除建骨架外，可直接写入 `# 题目`、`# 答案`、以及 `# 备注` 的 `## 错因`（由 `cause` 字段写入，导出会带上；`## 关联` 子标题保留）；YAML 可含可选 `页码` 字段。题目图存为 `错题/附件/<uid>-q-N.<ext>` 并嵌入 `# 题目`，答案图存为 `<uid>-a-N.<ext>` 并嵌入 `# 答案`。「AI 自动识别」分两步：`classify` 读题目图回填科目/分类/难度/相关知识点（不抄题；知识点可与分类重叠），`answer` 读答案图把答案提取为文本——最终以文件实际内容为准。
 
-> **LaTeX 公式（导出 HTML）**：题目/答案/错因中的 `$...$`（行内）与 `$$...$$`（行间）当前在 HTML 导出里以**辨识用样式**（棕色等距）呈现源码，**尚未接入 KaTeX 真渲染**（留作后续；接入时只需替换导出模板的 `mathText`，后端不动）。Obsidian 内仍按其自身 LaTeX 渲染显示。注：旧 docx 导出曾用 `_latex_to_omml` 转 Word 原生公式（OMML），已随 docx 一并移除。
+> **LaTeX 公式（导出 HTML）**：题目/答案/错因中的 `$...$`（行内）与 `$$...$$`（行间）会在 HTML 导出里由内联 KaTeX 渲染；A4 与屏幕版导出都会把 KaTeX CSS/JS/字体嵌入单个 HTML 文件，离线打开仍可显示公式。若 KaTeX 资源缺失或个别公式解析失败，会安全降级为原始公式文本。Obsidian 内仍按其自身 LaTeX 渲染显示。注：旧 docx 导出曾用 `_latex_to_omml` 转 Word 原生公式（OMML），已随 docx 一并移除。
 
 ### 历史记录格式
 ```
@@ -183,24 +183,11 @@ YYYY-MM-DD 主观:N, 对/错[, 备注:文字]
 
 历史数据的 `File_Path` 可能含 **Windows 反斜杠**（如 `错题\数学\xx.md`，数据在 Windows 上录入）。读取题目文件时需归一化：`get_question_content()` 与 `analytics._question_images()` 已做 `replace("\\","/")` 后再 `os.path.join`，保证 Linux/Windows 都能命中。新增读 md 的代码也应照此处理。
 
-## 11. JSON 交换格式（外部 AI 录题 / 屏幕版作答回传）
+## 11. JSON 交换格式（屏幕版 / 外部 AI 反馈回传）
 
-两种**前端层**交换格式（不落盘、不进 CSV，仅在导入框/剪贴板流转）。解析均经 `core.js::parseLooseJson`：容忍 ```` ```json ```` 围栏包裹；顶层接受完整对象、对应数组字段或裸数组。
+当前只保留**反馈 JSON** 这一种外部导入格式（不落盘、不进 CSV，仅在导入框/剪贴板流转）。题目录入页不再提供外部 AI 题目 JSON 队列导入；录题仍走表单、图片粘贴和内置 AI 识别。
 
-**① 题目 JSON**（外部 AI 按「复制 AI 提示词」生成 → 录入页「导入到队列」；字段与 `POST /api/create` 一一对应）：
-
-```json
-{"type":"omrs-questions","version":1,"questions":[
-  {"subject":"数学","category":"三角函数","difficulty":7,
-   "related_tags":["二倍角公式"],
-   "question_text":"……（含 $...$ / $$...$$ LaTeX，可多行）",
-   "answer_text":"……","cause":"辅助角符号搞错","note":"p.23"}
-]}
-```
-
-宽容度（`crNormalizeDraft`）：`difficulty` 钳 1–10（缺省 5）；`related_tags` 接受数组或 `,，、|` 分隔字符串、剥 `[[ ]]`、去重限 8；兼容别名 `question`/`answer`/`knowledge_tags`；科目/分类/正文/答案全空的对象丢弃。队列草稿即此结构 + `id` 字段，存 `localStorage["omrs_create_queue_v1"]`。
-
-**② 作答 JSON**（屏幕版「复制作答 JSON」生成 → 反馈页「导入作答 JSON」）：
+**反馈 JSON** 可由屏幕版「复制作答 JSON」生成，也可由反馈页「复制 AI 反馈提示词」交给外部 AI 按批改结果整理后生成。解析经 `core.js::parseLooseJson`：容忍 ```` ```json ```` 围栏包裹；顶层接受完整对象、`items` / `feedbacks` 数组字段或裸数组。
 
 ```json
 {"type":"omrs-feedback","version":1,"session_id":"EXP-20260610213000",
@@ -208,4 +195,4 @@ YYYY-MM-DD 主观:N, 对/错[, 备注:文字]
  "items":[{"uid":"三角函数1","is_correct":true,"sub_score":9}]}
 ```
 
-仅包含**已判定**的题。导入侧（`schedule.js::importFeedbackJson`）：`is_correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` 缺省按对→10 / 错→4、钳 0–10 取整；`session_id` 在 sessions.csv 中则自动选中关联，否则仍按该 ID 写入 history_log（TMP- 临时卷亦可），为空按手动录入。填充后不自动提交，须人工核对。两个导入框互相识别误贴类型并引导去正确页面。
+仅包含**已判定**的题。导入侧（`schedule.js::importFeedbackJson`）：`is_correct` / `correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` / `score` 缺省按对→10 / 错→4、钳 0–10 取整；`session_id` 在 sessions.csv 中则自动选中关联，否则仍按该 ID 写入 history_log（TMP- 临时卷亦可），为空按手动录入。填充后不自动提交，须人工核对。若误贴旧题目 JSON，会提示当前只支持反馈 JSON。

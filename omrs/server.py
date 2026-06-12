@@ -2,6 +2,7 @@ import datetime
 import http.server
 import json
 import os
+import time
 import urllib.parse
 
 from .common import HISTORY_HEADERS, history_path, load_config, load_csv, save_config
@@ -21,10 +22,13 @@ from .sessions import (
     list_sessions,
 )
 from .stats import get_question_content, get_stats
+from .version import __version__
 
 
 class OMRSHandler(http.server.SimpleHTTPRequestHandler):
     vault_path = "."
+    started_at = datetime.datetime.now(datetime.timezone.utc)
+    started_monotonic = time.monotonic()
 
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -33,6 +37,21 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
         if path == "/api/stats":
             self._json(get_stats(self.vault_path))
+        elif path == "/api/status":
+            try:
+                stats = get_stats(self.vault_path)
+                self._json(
+                    {
+                        "status": "ok",
+                        "version": __version__,
+                        "started_at": self.started_at.isoformat(),
+                        "uptime_seconds": int(time.monotonic() - self.started_monotonic),
+                        "question_count": int(stats.get("total", 0)),
+                        "vault_path": os.path.abspath(self.vault_path),
+                    }
+                )
+            except Exception as exc:
+                self._json({"status": "error", "version": __version__, "msg": str(exc)}, 500)
         elif path == "/api/analytics":
             try:
                 self._json(get_analytics(self.vault_path))

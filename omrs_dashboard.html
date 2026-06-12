@@ -355,13 +355,17 @@
       <span id="fb-session-info" style="font-size:.72rem;color:var(--fg3)"></span>
     </div>
     <div class="card" style="margin-bottom:14px">
-      <div class="card-title">📥 从屏幕版导入作答 JSON</div>
+      <div class="card-title">📥 从屏幕版或 AI 导入反馈</div>
       <p style="font-size:.76rem;color:var(--fg3);line-height:1.6;margin-bottom:8px">
-        手机/平板上用<strong>屏幕版导出件</strong>复习完后，打开「作答情况」抽屉点「复制作答 JSON」，粘贴到下方即可一键填充反馈（自动关联 Session，核对后再提交）。
+        <strong>屏幕版：</strong>复习完后在「作答情况」抽屉点「复制作答 JSON」并粘贴。<strong>AI：</strong>先复制提示词，把你的纸面批改结果或口述反馈发给 AI，让它整理成同一份反馈 JSON 后粘贴。
       </p>
-      <textarea id="fb-json" class="input" rows="3" placeholder='粘贴形如 {"type":"omrs-feedback","session_id":"EXP-…","items":[{"uid":"…","is_correct":true,"sub_score":9}]} 的 JSON'></textarea>
       <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
-        <button class="btn sm primary" onclick="importFeedbackJson()">导入作答 JSON</button>
+        <button class="btn sm" onclick="copyFeedbackAiPrompt()">复制 AI 反馈提示词</button>
+        <span id="fb-prompt-status" style="font-size:.75rem"></span>
+      </div>
+      <textarea id="fb-json" class="input" rows="5" style="margin-top:10px" placeholder='粘贴形如 {"type":"omrs-feedback","session_id":"EXP-…","items":[{"uid":"…","is_correct":true,"sub_score":9,"note":""}]} 的 JSON'></textarea>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
+        <button class="btn sm primary" onclick="importFeedbackJson()">导入反馈 JSON</button>
         <span id="fb-json-status" style="font-size:.75rem"></span>
       </div>
     </div>
@@ -452,28 +456,11 @@
           </div>
           <div style="display:flex;gap:10px;flex-wrap:wrap">
             <button class="btn primary" onclick="doCreate()" id="cr-btn">创建题目</button>
-            <button class="btn" onclick="crStashForm()" title="把当前已填的文字字段存为队列草稿，分多次完成录入（图片不随草稿保存）">⏳ 暂存到队列</button>
           </div>
         </div>
         <div id="cr-result"></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
-      <div class="card">
-        <div class="card-title">📥 JSON 导入与录入队列 <span id="cr-queue-count" style="font-weight:400;font-size:.72rem;color:var(--fg3)"></span></div>
-        <p style="font-size:.78rem;color:var(--fg3);line-height:1.6;margin-bottom:10px">
-          不配置 API 也能用 AI 录题：<strong>复制提示词</strong> → 发给任意 AI（附上题目/答案截图）→ 把它回复的 JSON 粘贴到下方导入。草稿进入队列后可<strong>分多次</strong>逐条「填入表单」配图创建，或纯文字「直接创建」；队列保存在本机浏览器，关页不丢。
-        </p>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-          <button class="btn" onclick="crCopyPrompt()">📋 复制 AI 提示词</button>
-          <span id="cr-prompt-status" style="font-size:.75rem"></span>
-        </div>
-        <textarea id="cr-json" class="input" rows="5" placeholder='粘贴 AI 生成的 JSON（支持单题对象、questions 数组，带 ```json 围栏也可以）'></textarea>
-        <div style="display:flex;gap:10px;align-items:center;margin:8px 0 12px;flex-wrap:wrap">
-          <button class="btn primary sm" onclick="crImportJson()">导入到队列</button>
-          <span id="cr-json-status" style="font-size:.75rem"></span>
-        </div>
-        <div id="cr-queue"></div>
-      </div>
       <div class="card">
         <div class="card-title">📖 使用说明</div>
         <div style="font-size:.8rem;color:var(--fg2);line-height:1.8">
@@ -482,7 +469,6 @@
           <p><strong>3.</strong> 答案可在「答案图片」区粘图后点「🤖 提取答案」转成文本，或手动输入 / 直接留图</p>
           <p><strong>4.</strong> 核对各字段，点「创建题目」即写入；题目与答案图片都会嵌入对应区域</p>
           <p style="color:var(--fg3)"><strong>提示：</strong>系统自动编号，文件为 <code>错题/科目/分类/分类N.md</code>，图片存入 <code>错题/附件/</code>。AI 需先在「设置」中配置。</p>
-          <p style="color:var(--fg3)"><strong>无 API 方案：</strong>用上方卡片「复制 AI 提示词」→ 任意 AI 配截图生成 JSON → 导入队列分批创建。中途要走？点「暂存到队列」存草稿，回来继续。</p>
           <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
           <p style="color:var(--fg3)"><strong>文件结构示例：</strong></p>
           <pre style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:.72rem;font-family:'JetBrains Mono',monospace;line-height:1.6;overflow-x:auto;margin-top:6px;color:var(--fg2)">错题/
@@ -519,6 +505,19 @@
           <button class="btn danger" onclick="doRestart()">🔄 立即重启</button>
         </div>
         <div id="st-status" style="margin-top:14px;font-size:.82rem"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">🟢 运行状态</div>
+        <div class="status-grid" id="st-runtime">
+          <div><span>版本</span><strong id="st-runtime-version">—</strong></div>
+          <div><span>运行时间</span><strong id="st-runtime-uptime">—</strong></div>
+          <div><span>托管题目</span><strong id="st-runtime-count">—</strong></div>
+          <div><span>状态</span><strong id="st-runtime-state">加载中</strong></div>
+        </div>
+        <div class="hint" id="st-runtime-vault" style="margin-top:12px"></div>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button class="btn sm" onclick="loadRuntimeStatus()">刷新状态</button>
+        </div>
       </div>
       <div class="card">
         <div class="card-title">🤖 AI 自动识别</div>

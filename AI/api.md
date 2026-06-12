@@ -30,6 +30,22 @@
 
 ---
 
+### `/api/status`
+返回服务运行状态，用于辨别当前运行的 OMRS 版本和题库实例。
+
+**响应字段：**
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `status` | string | 当前服务状态，正常为 `ok` |
+| `version` | string | OMRS 版本号，当前为 `v1.0.0` |
+| `started_at` | string | 服务启动时间（ISO 8601，UTC） |
+| `uptime_seconds` | int | 已运行秒数 |
+| `question_count` | int | 当前托管题目数 |
+| `vault_path` | string | 当前服务使用的 vault 根路径 |
+
+---
+
 ### `/api/analytics`
 返回「数据」复盘页所需的全面派生统计（不新增持久化，实时从 `mastery_data.csv` + `history_log.csv` 计算）。对应源文件：`omrs/analytics.py` → `get_analytics()`。
 

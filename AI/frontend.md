@@ -177,14 +177,15 @@ assets/
 - `ai_restrict_tags` 开关含义：开启时 `classify` 的知识点被后端硬过滤为「已有分类 ∪ 已有知识点」；关闭时允许 AI 在无贴切已有项时新建知识点（仍优先复用，上限 4 个）。仅影响知识点，**科目/分类一直允许新建**。
 - 仅作配置入口；实际识别在「录入题目」页触发，调用 `POST /api/ai-recognize`（后端转发，见 api.md）。
 
-### 关于
-展示项目基本信息（入口文件、前端文件、数据目录）和重启提示。
+### 运行状态 / 关于
+- **运行状态**：进入设置页时 `loadSettings()` 会额外调用 `GET /api/status`，在卡片中展示版本号、已运行时间、托管题目数、服务状态和 vault 路径；「刷新状态」按钮可手动重新读取。
+- **关于**：展示项目基本信息（入口文件、前端文件、数据目录）和重启提示。
 
 ---
 
 ## 7. 录入题目页（`panel-create`）与提交后表单状态
 
-> 脚本分布：表单提交 `doCreate` / 重置 `resetCreateForm` 在 `assets/schedule.js`；科目/分类 datalist `populateCreateLists` 在 `core.js`；**图片处理、AI 识别、AI 设置、JSON 导入/录入队列/AI 提示词**在 `assets/app.js`；题目图与答案图分别暂存在全局 `CR_Q_IMAGES` / `CR_A_IMAGES`（`CR_IMG_SEQ` 为自增 id），队列全局 `CR_QUEUE` / `CR_QUEUE_ACTIVE_ID` / `CR_DRAFT_SEQ` 与通用工具 `parseLooseJson` / `copyTextToClipboard` / `looseBool` 均在 `core.js` 声明；反馈页 JSON 导入 `importFeedbackJson` 在 `assets/schedule.js`。
+> 脚本分布：表单提交 `doCreate` / 重置 `resetCreateForm` 在 `assets/schedule.js`；科目/分类 datalist `populateCreateLists` 在 `core.js`；**图片处理、AI 识别、AI 设置、运行状态加载**在 `assets/app.js`；题目图与答案图分别暂存在全局 `CR_Q_IMAGES` / `CR_A_IMAGES`（`CR_IMG_SEQ` 为自增 id）；通用工具 `parseLooseJson` / `copyTextToClipboard` / `looseBool` 均在 `core.js` 声明；反馈页 JSON 导入 `importFeedbackJson` 与 AI 反馈提示词 `copyFeedbackAiPrompt` 在 `assets/schedule.js`。
 
 录入页左卡有两个图片区，各配一个 AI 按钮，可混用手动录入：
 - **题目图片区**（`#cr-q-paste` / `#cr-q-file` / `#cr-q-images`）：粘贴/拖拽/点击选择题目截图，随题保存并嵌入 `# 题目`。按钮 **「🤖 提取并填充信息」**（`#cr-classify-btn`）→ `crClassify()` 取第 1 张题目图 `POST /api/ai-recognize {mode:'classify', subject, category}`，回填**科目/分类/难度/相关知识点**（不抄题、不解题）。其中 `knowledge_tags` 是否限定在「已有分类 ∪ 已有知识点」由设置页 `ai_restrict_tags` 开关决定（默认开=硬约束；关=允许新建，上限 4 个）。**用户已填的科目/分类会作为 hint 传给模型（要求其沿用），且前端只填空缺项、不覆盖已填值；知识点与已填的合并去重；难度给估计值。** 状态写 `#cr-classify-status`。
@@ -197,19 +198,15 @@ assets/
 - 拖拽 / 点击选择按区独立（`crHandleDrop` / `crPickFiles` 带 `kind` 参数 `'q'|'a'`）。缩略图带删除 ✕ 与序号（`crRenderImages(kind)`），并据此启用/禁用对应按钮。
 - 提交时 `doCreate` 把两区图片分别映射为 `question_images` / `answer_images` 一并发送；成功提示含已保存图片数。
 
-**JSON 导入与录入队列（右列顶部卡片，支持「分多次录入」，无 API 也能 AI 录题）**：
-- **「📋 复制 AI 提示词」**（`crCopyPrompt` → `crBuildPrompt`）：客户端即时拼提示词并复制——含 8 条转写/分类规则、**当前已有科目/分类/知识点清单**（来自 `crTaxonomy()`，从 `DATA.items` 现算）、输出 JSON 骨架与「禁用 Markdown 围栏」指令。把提示词发给任意 AI（配题目/答案截图），让其产出标准题目 JSON（格式见 `data.md` §11）。
-- **「导入到队列」**（`crImportJson`）：解析 `#cr-json` 粘贴内容（`parseLooseJson` 容忍 ```` ```json ```` 围栏；接受完整对象 / `questions` 数组 / 裸数组 / 单题对象）。每条经 `crNormalizeDraft` 清洗（字段 trim、难度钳 1–10、`related_tags` 兼容字符串/数组并去 `[[ ]]`、四要素全空则丢弃）后入队；**恰好 1 题且表单全空时自动填入表单**。误贴「作答 JSON」会提示去「提交反馈」页。
-- **录入队列**（`#cr-queue`，`crRenderQueue`）：草稿持久化在 `localStorage`（key `omrs_create_queue_v1`，`crLoadQueue`/`crSaveQueue`，关页不丢，**跨会话分多次处理**）。每条可 **填入表单**（`crLoadDraft`，覆盖文字字段并标记激活草稿，图片不随草稿保存需手动配图）/ **直接创建**（`crCreateDraftDirect`，confirm 后无图 `POST /api/create`，成功即出队）/ 删除；尾部可清空队列。
-- **「⏳ 暂存到队列」**（表单底部，`crStashForm`）：把当前已填文字字段快照为草稿入队（表单不清空、图片不入草稿），中途离开可回来从队列继续——单题也能分多次完成。
-- 创建成功的出队钩子：`doCreate` 成功后调 `crOnCreated()`，若表单内容来自队列草稿（`CR_QUEUE_ACTIVE_ID`）则自动移除该草稿。
+录入页不再提供外部 AI 题目 JSON 导入，也不再维护本地录入队列；外部 JSON 导入只保留在反馈页。
 
-**反馈页「从屏幕版导入作答 JSON」**（`panel-feedback` 顶部卡片，`importFeedbackJson` in `schedule.js`）：
-- 粘贴屏幕版导出件「复制作答 JSON」的产物（格式见 `data.md` §11；同样容忍围栏、接受 `items`/`feedbacks`/裸数组），逐条校验 `uid` 非空、`is_correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` 缺省按对→10 / 错→4、钳 0–10。
-- `session_id` 在 `SESSIONS` 中 → 自动选中 picker 并关联；不在列表（如 TMP- 临时卷）→ 仍以该 ID 提交写入历史并在 `#fb-session-info` 说明；无 ID → 按手动录入。填充 `fbRows` 后 `renderFb()`，**不自动提交**——用户核对后点「提交反馈」。误贴「题目 JSON」会提示去「录入题目」页。
+**反馈页「从屏幕版或 AI 导入反馈」**（`panel-feedback` 顶部卡片，`importFeedbackJson` / `copyFeedbackAiPrompt` in `schedule.js`）：
+- **屏幕版导入**：粘贴屏幕版导出件「复制作答 JSON」的产物（格式见 `data.md` §11；容忍围栏、接受 `items`/`feedbacks`/裸数组），逐条校验 `uid` 非空、`is_correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` 缺省按对→10 / 错→4、钳 0–10。
+- **AI 导入**：「复制 AI 反馈提示词」会按当前已选 Session / 反馈行生成 UID 清单与输出骨架，让外部 AI 根据纸面批改结果或口述反馈整理为同一份 `omrs-feedback` JSON。导入端兼容 AI 常见别名：`correct` 等价 `is_correct`，`score` 等价 `sub_score`。
+- `session_id` 在 `SESSIONS` 中 → 自动选中 picker 并关联；不在列表（如 TMP- 临时卷）→ 仍以该 ID 提交写入历史并在 `#fb-session-info` 说明；无 ID → 按手动录入。填充 `fbRows` 后 `renderFb()`，**不自动提交**——用户核对后点「提交反馈」。误贴旧题目 JSON 时提示当前只支持反馈 JSON。
 
 提交后表单状态：
-- 新题目创建成功后，清空全部输入框、两区图片与两处 AI 状态，难度滑块恢复为 5；保留创建成功提示；若该次内容载自队列草稿则同步出队。
+- 新题目创建成功后，清空全部输入框、两区图片与两处 AI 状态，难度滑块恢复为 5；保留创建成功提示。
 - 反馈提交成功后，清空反馈行和 Session 选择状态；保留处理结果列表，便于核对本次提交。
 
 ---

@@ -32,6 +32,7 @@ NOTES_SECTION = "备注"
 ANSWER_SECTION = "答案"
 
 _TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "export_templates")
+_KATEX_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "vendor", "katex")
 
 _EMBED_WIKI_RE = re.compile(r"!\[\[([^\]|]+?)(?:\|(\d+))?\]\]")
 _EMBED_MD_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
@@ -308,6 +309,41 @@ def _read_template(filename):
         return file.read()
 
 
+def _font_mime(path):
+    ext = os.path.splitext(path)[1].lower()
+    return {
+        ".woff2": "font/woff2",
+        ".woff": "font/woff",
+        ".ttf": "font/ttf",
+    }.get(ext, "application/octet-stream")
+
+
+def _read_katex_bundle():
+    css_path = os.path.join(_KATEX_DIR, "katex.min.css")
+    js_path = os.path.join(_KATEX_DIR, "katex.min.js")
+    if not (os.path.isfile(css_path) and os.path.isfile(js_path)):
+        return "", ""
+
+    with open(css_path, "r", encoding="utf-8") as file:
+        css = file.read()
+    with open(js_path, "r", encoding="utf-8") as file:
+        js = file.read()
+
+    def inline_font(match):
+        font_rel = match.group(1)
+        font_path = os.path.normpath(os.path.join(_KATEX_DIR, font_rel.replace("/", os.sep)))
+        font_root = os.path.join(_KATEX_DIR, "fonts") + os.sep
+        if not (font_path.startswith(font_root) and os.path.isfile(font_path)):
+            return match.group(0)
+        with open(font_path, "rb") as file:
+            encoded = base64.b64encode(file.read()).decode("ascii")
+        return f"url(data:{_font_mime(font_path)};base64,{encoded})"
+
+    css = re.sub(r"url\((?:['\"]?)(fonts/[^)'\"]+)(?:['\"]?)\)", inline_font, css)
+    js = js.replace("</", "<\\/")
+    return css, js
+
+
 _A4_BODY = """<div id="bar">
   <strong>OMRS · A4 打印版</strong>
   <button id="btnPrint">打印 / 导出 PDF</button>
@@ -386,6 +422,7 @@ def _build_html(data, variant):
     variant = "screen" if variant == "screen" else "a4"
     css = _read_template(f"{variant}.css")
     js = _read_template(f"{variant}.js")
+    katex_css, katex_js = _read_katex_bundle()
     body = _SCREEN_BODY if variant == "screen" else _A4_BODY
     title = "OMRS 错题本 · 屏幕版" if variant == "screen" else "OMRS 错题本 · A4 打印版"
 
@@ -398,9 +435,11 @@ def _build_html(data, variant):
         '<meta charset="UTF-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         f"<title>{title}</title>\n"
+        f"<style>\n{katex_css}\n</style>\n"
         f"<style>\n{css}\n</style>\n"
         "</head>\n<body>\n"
         f"{body}\n"
+        f"<script>\n{katex_js}\n</script>\n"
         f"<script>window.OMRS_DATA = {data_json};</script>\n"
         f"<script>\n{js}\n</script>\n"
         "</body>\n</html>\n"

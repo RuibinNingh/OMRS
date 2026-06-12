@@ -51,11 +51,24 @@
 
   /* ---------- 小工具 ---------- */
   function el(t, c, x) { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  function renderMath(node, latex, display) {
+    if (window.katex && typeof window.katex.render === "function") {
+      try {
+        window.katex.render(latex, node, { displayMode: !!display, throwOnError: false, strict: "ignore", trust: false, output: "html" });
+        return;
+      } catch (e) { /* fallback below */ }
+    }
+    node.textContent = latex;
+  }
   function mathText(node, text) {
-    String(text == null ? "" : text).split(/(\$\$[^$]+\$\$|\$[^$\n]+\$)/).forEach(p => {
+    String(text == null ? "" : text).split(/(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/).forEach(p => {
       if (!p) return;
       const disp = p.startsWith("$$") && p.endsWith("$$"), inl = !disp && p.startsWith("$") && p.endsWith("$");
-      if (disp || inl) node.appendChild(el("span", "math", disp ? p.slice(2, -2) : p.slice(1, -1)));
+      if (disp || inl) {
+        const s = el("span", disp ? "math display" : "math");
+        renderMath(s, disp ? p.slice(2, -2) : p.slice(1, -1), disp);
+        node.appendChild(s);
+      }
       else node.appendChild(document.createTextNode(p));
     });
   }

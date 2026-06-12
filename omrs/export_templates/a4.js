@@ -134,12 +134,21 @@
     })));
   }
   function mathText(e, text) {
-    // 把 $...$ / $$...$$ 渲染为辨识用的样式片段（无 KaTeX 依赖；纯文本原样）
-    const parts = String(text).split(/(\$\$[^$]+\$\$|\$[^$\n]+\$)/);
+    const parts = String(text).split(/(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/);
     for (const p of parts) {
       if (!p) continue;
       const disp = p.startsWith("$$") && p.endsWith("$$"), inl = !disp && p.startsWith("$") && p.endsWith("$");
-      if (disp || inl) { const s = el("span", "math", disp ? p.slice(2, -2) : p.slice(1, -1)); e.appendChild(s); }
+      if (disp || inl) {
+        const s = el("span", disp ? "math display" : "math");
+        const latex = disp ? p.slice(2, -2) : p.slice(1, -1);
+        if (window.katex && typeof window.katex.render === "function") {
+          try { window.katex.render(latex, s, { displayMode: !!disp, throwOnError: false, strict: "ignore", trust: false, output: "html" }); }
+          catch (error) { s.textContent = latex; }
+        } else {
+          s.textContent = latex;
+        }
+        e.appendChild(s);
+      }
       else e.appendChild(document.createTextNode(p));
     }
     return e;

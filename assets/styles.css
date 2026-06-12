@@ -141,6 +141,10 @@ textarea.input{width:100%;display:block;resize:vertical;line-height:1.6;font-siz
 .ai-status.ok{color:var(--green)}
 .ai-status.err{color:var(--red)}
 .ai-status.busy{color:var(--accent)}
+.status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.status-grid>div{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;min-width:0}
+.status-grid span{display:block;font-size:.66rem;color:var(--fg3);margin-bottom:4px}
+.status-grid strong{display:block;font-family:'JetBrains Mono',monospace;font-size:.9rem;color:var(--accent2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ── Modal ── */
 .modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.25);z-index:999;display:none;align-items:center;justify-content:center;backdrop-filter:blur(2px)}

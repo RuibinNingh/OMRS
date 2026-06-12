@@ -4,7 +4,6 @@ let EXPORT_SELECTION=[],EXPORT_VIEW='flat',Q_VIEW='table',QUESTION_CACHE={},QUES
 let REC_DATA=null,REC_SELECTED={},REC_VIEW='flat',REC_PREVIEW_MODE='list';
 let INSTANT_DATA=null,INSTANT_QUEUE=[],INSTANT_INDEX=0,INSTANT_RESULTS={},INSTANT_SESSION_ID='';
 let CR_Q_IMAGES=[],CR_A_IMAGES=[],CR_IMG_SEQ=0;
-let CR_QUEUE=[],CR_QUEUE_ACTIVE_ID=null,CR_DRAFT_SEQ=0;
 
 function parseLooseJson(text){let t=String(text??'').trim();const fence=t.match(/^```[a-zA-Z0-9]*\s*\n?([\s\S]*?)\n?```$/);if(fence)t=fence[1].trim();if(!t)throw new Error('内容为空');return JSON.parse(t)}
 async function copyTextToClipboard(text){try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(text);return true}}catch(e){}try{const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();const ok=document.execCommand('copy');document.body.removeChild(ta);return ok}catch(e){return false}}

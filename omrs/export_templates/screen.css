@@ -84,8 +84,9 @@ body{background:var(--bg);color:var(--fg);font-family:var(--sans);
 .qbody{padding:16px 18px}
 .qbody p{font-size:1rem;line-height:1.74;margin:8px 0;color:var(--fg);word-wrap:break-word}
 .qbody p:first-child{margin-top:0}
-.math{font-family:var(--mono);color:var(--accent2);background:var(--accent-bg);
-  border-radius:4px;padding:1px 5px;font-size:.94em}
+.math{font-family:inherit;color:inherit;background:transparent;border-radius:0;padding:0;font-size:1em}
+.math.display{display:block;margin:10px 0;text-align:center}
+.math .katex{font-size:1em}
 .qbody img,.ans img{max-width:100%;height:auto;display:block;margin:12px auto;
   border-radius:var(--radius-sm);border:1px solid var(--border);cursor:zoom-in}
 
