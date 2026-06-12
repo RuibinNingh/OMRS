@@ -4,7 +4,9 @@
 
 | 日期 | 主题 | 摘要 |
 |---|---|---|
-| 2026-06-12 | [feedback-import-status](2026-06-12_feedback-import-status.md) | 移除录入题目页的外部 JSON 导入与录入队列，只保留表单/图片/内置 AI 识别；反馈页改为「从屏幕版或 AI 导入反馈」，新增 AI 反馈提示词复制并兼容 `correct`/`score` 字段；新增版本模块 `v1.0.0`、`GET /api/status` 运行状态接口，并在设置页展示版本、运行时间、托管题目数、状态和 vault 路径。 |
+| 2026-06-12 | [version-1.0.1](2026-06-12_version-1.0.1.md) | 版本号更新为 `v1.0.1`，同步 `/api/status` 后端常量与 AI 文档中的当前版本说明。 |
+| 2026-06-12 | [instant-queue-meta](2026-06-12_instant-queue-meta.md) | 即时练习右侧「练习队列」补充每题熟练度百分比、Due_Date 和相对到期状态，队列浏览时不用点进题目也能判断优先级。 |
+| 2026-06-12 | [feedback-import-status](2026-06-12_feedback-import-status.md) | 移除录入题目页的外部 JSON 导入与录入队列，只保留表单/图片/内置 AI 识别；反馈页改为「从屏幕版或 AI 导入反馈」，新增 AI 反馈提示词复制并兼容 `correct`/`score` 字段；新增版本模块、`GET /api/status` 运行状态接口，并在设置页展示版本、运行时间、托管题目数、状态和 vault 路径。 |
 | 2026-06-12 | [render-md-latex](2026-06-12_render-md-latex.md) | 修复题目库「查看」Modal 中备注和答案不渲染图片/LaTeX：`renderMdContent()` 升级为统一安全渲染器，支持 Obsidian/Markdown 图片与 `$...$`/`$$...$$`，KaTeX 改为本地静态资源加载、不可用时降级显示；题目库、复习调度详情查看、即时练习题面/答案/备注统一复用该入口。补丁：屏幕版/A4 导出 HTML 也会内联 KaTeX CSS/JS/字体，离线导出件不再把 LaTeX 显示成代码块样式。 |
 | 2026-06-11 | [instant-practice](2026-06-11_instant-practice.md) | 新增「即时练习」页：按 `/api/recommend` 算法直接取题，支持科目/分类/知识点筛选，在线看题、翻答案、判对错与 0–10 分，提交时走 `/api/feedback` 写回 mastery/历史但不生成调度 Session（使用 `IMM-` 历史标记，并逐题保留 `due/proficiency` 来源）。调度推荐面板新增「选择当前筛选 / 全选推荐 / 移除当前筛选」，`/api/recommend` 同步支持 `category` 与 `knowledge_tag` 参数。 |
 | 2026-06-10 | [json-entry-pipeline](2026-06-10_json-entry-pipeline.md) | **录入系统改造：外部 AI → JSON → 录入/反馈管线**。录入页新增「JSON 导入与录入队列」：「复制 AI 提示词」（含当前科目/分类/知识点清单 + 输出骨架，发给任意 AI 配截图即可生成规范 JSON，**不依赖 API 配置**）；导入容忍围栏/裸数组/单题，草稿入队存 `localStorage` **跨会话分多次**处理（填入表单配图创建 / 纯文字直接创建 / 暂存当前表单），创建成功自动出队。屏幕版抽屉新增「**复制作答 JSON**」（仅已判定题，clipboard→execCommand→下载三级兜底；`meta` 注入 `session_id`），反馈页新增「导入作答 JSON」自动关联 Session 填充反馈行、核对后提交。新增 `data.md` §11 两种交换格式。行为级 32/32 断言 + 屏幕版端到端（判定→复制→结构校验）全过。 |

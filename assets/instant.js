@@ -3,6 +3,12 @@ function instTimestamp(){const d=new Date();const p=n=>String(n).padStart(2,'0')
 function instBuildParams(count){const params=new URLSearchParams({due_count:String(count),prof_count:String(count)});const subject=document.getElementById('inst-subject')?.value||'';const category=document.getElementById('inst-category')?.value||'';const knowledgeTag=document.getElementById('inst-ktag')?.value||'';if(subject)params.set('subject',subject);if(category)params.set('category',category);if(knowledgeTag)params.set('knowledge_tag',knowledgeTag);return params}
 function instMergeRecommendations(data,count){const rows=[];const seen=new Set();const add=(items,source)=>{(items||[]).forEach(item=>{if(!item?.uid||seen.has(item.uid))return;seen.add(item.uid);rows.push({...item,_source:source})})};add(data?.due,'due');add(data?.proficiency,'proficiency');return rows.slice(0,count)}
 function instSourceLabel(source){return source==='due'?'到期':'熟练度'}
+function instQueueMeta(item){
+  const masteryPct=(asNumber(item.mastery,0)*100).toFixed(0);
+  const dueDays=getDueDays(item);
+  const dueDate=item.due_date||'—';
+  return `熟练度 ${masteryPct}% · 到期 ${escapeHtml(dueDate)} ${formatDueInfo(dueDays)}`;
+}
 function instAnsweredCount(){return Object.values(INSTANT_RESULTS).filter(row=>row.correct===true||row.correct===false).length}
 function instResult(uid){if(!INSTANT_RESULTS[uid])INSTANT_RESULTS[uid]={revealed:false,score:null,correct:null};return INSTANT_RESULTS[uid]}
 function instCurrentItem(){return INSTANT_QUEUE[INSTANT_INDEX]||null}
@@ -123,7 +129,7 @@ function instRenderSide(){
     const row=INSTANT_RESULTS[item.uid];
     const answeredRow=row&&(row.correct===true||row.correct===false);
     const cls=['instant-qbtn',index===INSTANT_INDEX?'active':'',answeredRow?(row.correct?'correct':'wrong'):''].filter(Boolean).join(' ');
-    return `<button class="${cls}" onclick="instGo(${index})"><span>${index+1}</span><strong>${escapeHtml(item.uid)}</strong><em>${instSourceLabel(item._source)}</em></button>`;
+    return `<button class="${cls}" onclick="instGo(${index})"><span>${index+1}</span><div class="instant-qmain"><strong>${escapeHtml(item.uid)}</strong><small>${instQueueMeta(item)}</small></div><em>${instSourceLabel(item._source)}</em></button>`;
   }).join('');
 }
 

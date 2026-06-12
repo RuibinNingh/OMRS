@@ -268,7 +268,10 @@ textarea.input{width:100%;display:block;resize:vertical;line-height:1.6;font-siz
 .instant-qbtn.correct{border-left:3px solid var(--green)}
 .instant-qbtn.wrong{border-left:3px solid var(--red)}
 .instant-qbtn span{font-family:'JetBrains Mono',monospace;color:var(--fg3);font-size:.72rem}
+.instant-qmain{min-width:0;display:flex;flex-direction:column;gap:3px}
 .instant-qbtn strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.78rem;color:var(--accent2)}
+.instant-qbtn small{font-size:.68rem;color:var(--fg3);line-height:1.35}
+.instant-qbtn small span{font-family:inherit;font-size:inherit}
 .instant-qbtn em{font-style:normal;color:var(--fg3);font-size:.68rem;text-align:right}
 .instant-results{margin-top:12px}
 

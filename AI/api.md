@@ -38,7 +38,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `status` | string | 当前服务状态，正常为 `ok` |
-| `version` | string | OMRS 版本号，当前为 `v1.0.0` |
+| `version` | string | OMRS 版本号，当前为 `v1.0.1` |
 | `started_at` | string | 服务启动时间（ISO 8601，UTC） |
 | `uptime_seconds` | int | 已运行秒数 |
 | `question_count` | int | 当前托管题目数 |

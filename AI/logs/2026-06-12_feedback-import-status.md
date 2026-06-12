@@ -7,7 +7,7 @@
 ## 改动
 
 - `omrs/version.py`
-  - 新增版本元数据，当前版本为 `v1.0.0`。
+  - 新增版本元数据。
 - `omrs/server.py`
   - 新增 `GET /api/status`，返回 `version`、`started_at`、`uptime_seconds`、`question_count`、`vault_path` 与运行状态。
 - `omrs_dashboard.html`
