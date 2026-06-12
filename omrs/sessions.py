@@ -97,6 +97,11 @@ def _active_session_uids(sessions):
     return uids
 
 
+def active_session_uids(vault):
+    """Return UIDs already assigned to active persistent sessions."""
+    return _active_session_uids(_load_sessions(vault))
+
+
 def get_session_uid_sources(vault, session_id):
     """获取 session 中各 UID 的来源映射 {uid: source}。"""
     sessions = _load_sessions(vault)
@@ -148,6 +153,14 @@ def create_session_from_selection(vault, selected_items, subject=None):
     """
     omrs_data_dir(vault)
     sessions = _load_sessions(vault)
+    selected_uids = [item["uid"] for item in selected_items if item.get("uid")]
+    active_overlap = sorted(set(selected_uids) & _active_session_uids(sessions))
+    if active_overlap:
+        sample = "、".join(active_overlap[:10])
+        extra = "..." if len(active_overlap) > 10 else ""
+        raise RuntimeError(
+            f"所选题目中有 {len(active_overlap)} 道已在进行中的 Session 中：{sample}{extra}"
+        )
     existing = {session["Session_ID"] for session in sessions}
     base = f"EXP-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
     session_id = _resolve_session_id(existing, base)
@@ -167,8 +180,7 @@ def create_session_from_selection(vault, selected_items, subject=None):
     _save_sessions(vault, sessions)
 
     from .scheduling import get_items_by_uids
-    uids = [item["uid"] for item in selected_items]
-    items = get_items_by_uids(vault, uids)
+    items = get_items_by_uids(vault, selected_uids)
     for item in items:
         match = next((s for s in selected_items if s["uid"] == item["uid"]), None)
         item["_source"] = match["source"] if match else "due"

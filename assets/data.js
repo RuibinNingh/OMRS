@@ -9,6 +9,30 @@ function _bars(id,rows){const el=document.getElementById(id);if(!el)return;if(!r
 function _tbl(id,headers,rows){const el=document.getElementById(id);if(!el)return;if(!rows.length){el.innerHTML='<div class="empty"><p>暂无数据</p></div>';return}el.innerHTML=`<table><thead><tr>${headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`}
 function masteryCls(i){return i<3?'red':i<6?'yellow':i<8?'blue':'green'}
 function accColor(v){return v===null?'var(--fg3)':v>=.8?'var(--green)':v>=.5?'var(--yellow)':'var(--red)'}
+function renderSubjectRadar(rows){
+  const el=document.getElementById('data-subject-radar');if(!el)return;
+  const subjects=[...(rows||[])].filter(s=>s&&s.subject).sort((a,b)=>String(a.subject).localeCompare(String(b.subject),'zh-CN'));
+  if(subjects.length<3){el.innerHTML='<div class="empty-inline">科目少于 3 个，暂不显示雷达图</div>';return}
+  const w=520,h=300,cx=w/2,cy=145,r=98,levels=[.25,.5,.75,1];
+  const angle=i=>-Math.PI/2+(Math.PI*2*i/subjects.length);
+  const point=(value,i)=>{const a=angle(i);const rr=r*value;return{x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr}};
+  const ring=level=>subjects.map((_,i)=>{const p=point(level,i);return`${p.x},${p.y}`}).join(' ');
+  const axes=subjects.map((s,i)=>{const end=point(1,i);const label=point(1.18,i);const anchor=Math.abs(label.x-cx)<8?'middle':label.x>cx?'start':'end';return`<line x1="${cx}" y1="${cy}" x2="${end.x}" y2="${end.y}" stroke="rgba(0,0,0,.08)"/><text x="${label.x}" y="${label.y+4}" font-size="12" fill="#5f5750" text-anchor="${anchor}">${escapeHtml(s.subject)}</text>`}).join('');
+  const dataPoints=subjects.map((s,i)=>point(Math.max(0,Math.min(1,asNumber(s.avg_mastery,0))),i));
+  const polygon=dataPoints.map(p=>`${p.x},${p.y}`).join(' ');
+  const dots=dataPoints.map((p,i)=>{const s=subjects[i];const value=pctFmt(s.avg_mastery);const color=asNumber(s.avg_mastery,0)>=.8?'#27864a':asNumber(s.avg_mastery,0)>=.5?'#b8860b':'#c0392b';return`<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="${color}" stroke="#fff" stroke-width="1.5"><title>${escapeHtml(s.subject)} · ${value}</title></circle>`}).join('');
+  const grid=levels.map(level=>`<polygon points="${ring(level)}" fill="none" stroke="rgba(0,0,0,.08)"/><text x="${cx+4}" y="${cy-r*level+4}" font-size="10" fill="#8a8178">${Math.round(level*100)}%</text>`).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:300px;display:block">${grid}${axes}<polygon points="${polygon}" fill="rgba(139,94,60,.18)" stroke="#8b5e3c" stroke-width="2.5" stroke-linejoin="round"/>${dots}<text x="${cx}" y="${h-12}" font-size="12" fill="#777" text-anchor="middle">各科平均熟练度</text></svg>`;
+}
+function renderDataScatter(items){
+  const el=document.getElementById('data-scatter');if(!el)return;
+  const scatter=(items||[]).filter(pt=>pt&&pt.difficulty!=null&&pt.mastery!=null);
+  if(!scatter.length){el.innerHTML='<div class="empty"><p>暂无数据</p></div>';return}
+  const sw=640,sh=300,spPad=34,spBaseY=sh-spPad,spPlotW=sw-spPad*2,spPlotH=sh-spPad*2;
+  let scatterGrid='';[0,.25,.5,.75,1].forEach(v=>{const y=spBaseY-v*spPlotH;scatterGrid+=`<line x1="${spPad}" y1="${y}" x2="${sw-spPad}" y2="${y}" stroke="rgba(0,0,0,.07)"/><text x="${spPad-8}" y="${y+4}" font-size="11" fill="#777" text-anchor="end">${Math.round(v*100)}%</text>`});[1,3,5,7,10].forEach(v=>{const x=spPad+((v-1)/9)*spPlotW;scatterGrid+=`<line x1="${x}" y1="${spPad}" x2="${x}" y2="${spBaseY}" stroke="rgba(0,0,0,.05)"/><text x="${x}" y="${sh-13}" font-size="11" fill="#777" text-anchor="middle">${v}</text>`});
+  const circles=scatter.map(pt=>{const difficulty=Math.max(1,Math.min(10,asNumber(pt.difficulty,5)));const mastery=Math.max(0,Math.min(1,asNumber(pt.mastery,0)));const cx=spPad+((difficulty-1)/9)*spPlotW;const cy=spBaseY-mastery*spPlotH;const color=mastery>.8?'#27864a':mastery>.4?'#b8860b':'#c0392b';return`<circle cx="${cx}" cy="${cy}" r="4.5" fill="${color}" opacity="0.78" stroke="#fff" stroke-width="1.5"><title>${escapeHtml(pt.uid)} · D${difficulty} · M${(mastery*100).toFixed(0)}%</title></circle>`}).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${sw} ${sh}" style="width:100%;height:280px;display:block"><rect x="${spPad}" y="${spPad}" width="${spPlotW}" height="${spPlotH}" fill="rgba(0,0,0,0.025)" rx="6"/>${scatterGrid}<line x1="${spPad}" y1="${spBaseY}" x2="${sw-spPad}" y2="${spBaseY}" stroke="#b9b2aa"/><line x1="${spPad}" y1="${spPad}" x2="${spPad}" y2="${spBaseY}" stroke="#b9b2aa"/><text x="${sw/2}" y="${sh-2}" font-size="12" fill="#666" text-anchor="middle">难度</text><text x="13" y="${sh/2}" font-size="12" fill="#666" transform="rotate(-90 13,${sh/2})">熟练度</text>${circles}</svg>`;
+}
 
 function renderAnalytics(){
   const a=ANALYTICS;if(!a)return;
@@ -25,11 +49,13 @@ function renderAnalytics(){
     _kpiCard('c3','近 30 天复习',ov.reviews_last_30,`近 7 天 ${ov.reviews_last_7}`);
 
   // 科目维度
+  renderSubjectRadar(a.subjects);
   _tbl('data-subjects',['科目','题数','击杀','待攻克','leech','平均熟练','EF','正确率'],
     a.subjects.map(s=>[`<b style="color:var(--accent2)">${escapeHtml(s.subject)}</b>`,s.total,s.killed,s.attacking,
       s.leech?`<span style="color:var(--red)">${s.leech}</span>`:0,
       `<span style="color:${accColor(s.avg_mastery)}">${pctFmt(s.avg_mastery)}</span>`,s.avg_ef,
       `<span style="color:${accColor(s.accuracy)}">${pctFmt(s.accuracy)}</span>`]));
+  renderDataScatter(a.items);
 
   // 分类维度 Top 15
   _tbl('data-categories',['分类','科目','题数','平均熟练','复习','正确率','leech'],
@@ -122,4 +148,3 @@ async function exportReview(){
     await downloadExportResponse(response,`OMRS-复盘-${new Date().toISOString().slice(0,10)}.html`,'data-status');
   }catch(e){status.innerHTML=`<span style="color:var(--red)">✕ ${escapeHtml(e.message)}</span>`}
 }
-

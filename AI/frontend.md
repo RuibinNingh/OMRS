@@ -34,9 +34,8 @@ assets/
 | 图表 | HTML 容器 | 数据来源 | 实现方式 |
 |---|---|---|---|
 | 熟练度分布直方图 | `chart-mastery` | `stats.mastery_histogram` | CSS flex 横向条形图，10 个桶固定渲染；`30-60%` 使用 `.bar-fill.yellow`，`90-100%` 桶显示 `Mastery ∈ [0.9, 1.0]` |
-| 每日练习趋势 | `chart-trend` | `stats.daily_trend` | SVG `<polyline>` + `<linearGradient>` 面积图 |
-| 难度-熟练度散点图 | `chart-scatter` | `stats.scatter_data` | SVG `<circle>`，悬停显示 UID tooltip |
-| 待复习队列预警 | `chart-alerts` | `stats.review_alert` | 四宫格彩色卡片 |
+| 待复习队列预警 | `chart-alerts` | `stats.review_alert` | 二乘二彩色卡片，位于首页第二行，优先暴露今日行动信号 |
+| 每日练习趋势 | `chart-trend` | `stats.daily_trend` | SVG `<polyline>` + `<linearGradient>` 面积图，含圆点与数据标签 |
 
 预警指标定义（后端 `stats.py` 计算）：
 - **急需复习**：衰减后熟练度 < 30% 且超过 7 天未复习
@@ -222,8 +221,9 @@ assets/
 | 区块 | 容器 | 形式 |
 |---|---|---|
 | KPI（两行各 4 张） | `data-kpi`/`data-kpi2` | stat-card：总复习/正确率/连续/leech；平均熟练度/EF/活跃天数/近 30 天 |
-| 科目维度 | `data-subjects` | 表格（最薄弱在前） |
+| 科目维度 | `data-subject-radar`/`data-subjects` | 雷达图显示各科平均熟练度，表格按最薄弱在前 |
 | 分类维度 Top 15 | `data-categories` | 表格 |
+| 难度-熟练度散点图 | `data-scatter` | SVG `<circle>`，基于 `analytics.items`，悬停显示 UID tooltip |
 | 熟练度分布（原始/衰减后） | `data-mastery`/`data-decayed` | 条形图 |
 | EF / 难度 / Repetition / Interval 分布 | `data-ef`/`data-difficulty`/`data-repetition`/`data-interval` | 条形图 |
 | 各主观分正确率 | `data-score-acc` | 条形图（值显示「正确率(次数)」） |

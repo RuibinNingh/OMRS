@@ -77,7 +77,7 @@ EF 越低 = 越不稳定 = 越难 = 权重越高。EF=3.0→难度 1，EF=1.3→
 ### 关键约束
 - 已击杀题目**不设**熟练度下限（早期版本有 `max(mastery, 0.85)` 的错误下限，已删除）。
 - 常规调度会跳过 `#状态/已击杀` 或 `Mastery = 1.0` 的题目；只有在答错后回退为 `#状态/待攻克`，才会重新进入调度。
-- 新建 Session 时会排除仍处于 `active` 状态的旧 Session 题目，避免连续创建重复调度同一批题。
+- 新建 Session 和 `/api/recommend` 推荐时都会排除仍处于 `active` 状态的旧 Session 题目，避免连续创建或确认重复调度同一批题。
 - `count < 0` 会按 `0` 处理；CSV 中异常数值会回退到安全默认值，避免整次调度失败。
 - 日期解析使用 `parse_date()`（见 `common.py`），兼容 `YYYY-MM-DD` 和 `YYYY/M/D`；解析失败按 30 天处理。
 
@@ -130,6 +130,8 @@ EF 越低 = 越不稳定 = 越难 = 权重越高。EF=3.0→难度 1，EF=1.3→
 
 > 对应源文件：`omrs/scheduling.py`  
 > API 端点：`/api/recommend`
+
+后端调用 `/api/recommend` 时会传入当前 active Session 的 UID 排除集；若前端 stale 或手工请求在 `/api/confirm-schedule` 中提交了已被 active Session 占用的 UID，确认阶段会拒绝创建重复 Session。
 
 ### 互斥分配逻辑
 

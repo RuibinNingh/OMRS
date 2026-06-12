@@ -48,14 +48,13 @@
       <div class="card"><div class="card-title">📅 近 30 天活动</div><div id="chart-activity"></div></div>
     </div>
     <div class="cols">
-      <div class="card"><div class="card-title">📊 熟练度分布</div><div id="chart-mastery"></div></div>
+      <div class="card"><div class="card-title">⚠️ 待复习队列预警</div><div id="chart-alerts"></div></div>
       <div class="card"><div class="card-title">📈 每日练习趋势</div><div id="chart-trend"></div></div>
     </div>
     <div class="cols">
-      <div class="card"><div class="card-title">🔍 难度-熟练度散点图</div><div id="chart-scatter"></div></div>
-      <div class="card"><div class="card-title">⚠️ 待复习队列预警</div><div id="chart-alerts"></div></div>
+      <div class="card"><div class="card-title">📊 熟练度分布</div><div id="chart-mastery"></div></div>
+      <div class="card"><div class="card-title">⚡ 难度分布</div><div id="chart-diff"></div></div>
     </div>
-    <div class="card"><div class="card-title">⚡ 难度分布</div><div id="chart-diff"></div></div>
   </div>
 
   <!-- ====== 数据（复盘） ====== -->
@@ -75,33 +74,34 @@
     <div class="stat-grid" id="data-kpi2" style="margin-top:-10px"></div>
 
     <div class="cols">
-      <div class="card"><div class="card-title">📚 科目维度（最薄弱在前）</div><div class="tbl-wrap" id="data-subjects"></div></div>
+      <div class="card"><div class="card-title">📚 科目维度（最薄弱在前）</div><div id="data-subject-radar"></div><div class="tbl-wrap" id="data-subjects"></div></div>
       <div class="card"><div class="card-title">🏷️ 分类维度（最薄弱 Top 15）</div><div class="tbl-wrap" id="data-categories"></div></div>
     </div>
     <div class="cols">
+      <div class="card"><div class="card-title">🔍 难度-熟练度散点图</div><div id="data-scatter"></div></div>
       <div class="card"><div class="card-title">📊 熟练度分布（原始）</div><div id="data-mastery"></div></div>
+    </div>
+    <div class="cols">
       <div class="card"><div class="card-title">📉 熟练度分布（衰减后）</div><div id="data-decayed"></div></div>
-    </div>
-    <div class="cols">
       <div class="card"><div class="card-title">🎚️ EF 分布（越低越不稳定）</div><div id="data-ef"></div></div>
+    </div>
+    <div class="cols">
       <div class="card"><div class="card-title">⚡ 难度分布</div><div id="data-difficulty"></div></div>
-    </div>
-    <div class="cols">
       <div class="card"><div class="card-title">🔁 连续答对(Repetition)分布</div><div id="data-repetition"></div></div>
+    </div>
+    <div class="cols">
       <div class="card"><div class="card-title">📆 复习间隔(Interval)分布</div><div id="data-interval"></div></div>
-    </div>
-    <div class="cols">
       <div class="card"><div class="card-title">🎯 各主观分正确率</div><div id="data-score-acc"></div></div>
+    </div>
+    <div class="cols">
       <div class="card"><div class="card-title">📈 按周正确率（近 12 周）</div><div class="tbl-wrap" id="data-weekly"></div></div>
-    </div>
-    <div class="cols">
       <div class="card"><div class="card-title">🗓️ 按星期复习量</div><div id="data-weekday"></div></div>
-      <div class="card"><div class="card-title">🕐 按时段复习量</div><div id="data-hour"></div></div>
     </div>
     <div class="cols">
+      <div class="card"><div class="card-title">🕐 按时段复习量</div><div id="data-hour"></div></div>
       <div class="card"><div class="card-title">⏳ 未来 7 天到期预测</div><div id="data-forecast"></div></div>
-      <div class="card"><div class="card-title">⚠️ 复习预警</div><div id="data-alerts"></div></div>
     </div>
+    <div class="card" style="margin-bottom:20px"><div class="card-title">⚠️ 复习预警</div><div id="data-alerts"></div></div>
     <div class="card" style="margin-bottom:20px"><div class="card-title">🔥 顽固题 Leech（累计答错最多）</div><div class="tbl-wrap" id="data-leeches"></div></div>
     <div class="card"><div class="card-title">🧗 屡练不熟（复习≥3次且熟练度&lt;40%）</div><div class="tbl-wrap" id="data-struggling"></div></div>
   </div>

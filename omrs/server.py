@@ -20,6 +20,7 @@ from .sessions import (
     delete_session,
     get_session,
     list_sessions,
+    active_session_uids,
 )
 from .stats import get_question_content, get_stats
 from .version import __version__
@@ -68,7 +69,6 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     f"attachment; filename=\"OMRS-review.md\"; filename*=UTF-8''{filename_encoded}",
                 )
                 self.send_header("Content-Length", str(len(payload)))
-                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(payload)
             except Exception as exc:
@@ -105,7 +105,6 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
                 self.send_header("Content-Length", str(len(html)))
-                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(html)
             except Exception as exc:
@@ -124,6 +123,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     subject=subject,
                     category=category,
                     knowledge_tag=knowledge_tag,
+                    exclude_uids=active_session_uids(self.vault_path),
                 )
                 self._json({"status": "ok", **rec})
             except Exception as exc:
@@ -142,7 +142,6 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(data)))
-                self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Cache-Control", "max-age=86400")
                 self.end_headers()
                 self.wfile.write(data)
@@ -153,7 +152,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         elif path.startswith("/assets/"):
             self._serve_asset(path)
         else:
-            super().do_GET()
+            self.send_error(404)
 
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("utf-8")
@@ -335,7 +334,6 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     f"attachment; filename=\"{filename}\"; filename*=UTF-8''{filename_encoded}",
                 )
                 self.send_header("Content-Length", str(len(payload)))
-                self.send_header("Access-Control-Allow-Origin", "*")
                 self.end_headers()
                 self.wfile.write(payload)
             except Exception as exc:
@@ -348,7 +346,6 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
 
@@ -397,7 +394,6 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()

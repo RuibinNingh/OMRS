@@ -98,6 +98,8 @@
 ### `/api/recommend?due_count=10&prof_count=10&subject=数学&category=三角函数&knowledge_tag=二倍角公式`
 返回双列表推荐（到期列表 + 熟练度列表），互斥分配。
 
+后端会排除仍处于 `active` 状态的持久化 Session 中已有的 UID，避免同一题重复进入多个进行中 Session。
+
 可选筛选参数：
 
 | 参数 | 说明 |
@@ -138,6 +140,8 @@
 
 ### `/assets/<file>`
 通用静态资源路由（`_serve_asset()`），提供 `assets/` 下的样式与脚本（css/js/图片等），含路径穿越防护。原 `/omrs_dashboard.js` 路由已移除（脚本已拆分到 `assets/`）。
+
+服务端是白名单静态路由：除 `/`、`/index.html`、`/assets/` 和明确 API 端点外，其余路径返回 404，不透传仓库文件；API 响应不主动设置跨域读取头。
 
 ---
 
@@ -286,6 +290,8 @@
 **响应：**
 - ≥2 题：常规 Session（EXP- 前缀），写入 sessions.csv，`session_type: "exp"`
 - 1 题：自定义调度（TMP- 前缀），不写入 sessions.csv，`session_type: "tmp"`
+
+如果请求包含已在 active Session 中的 UID，后端返回 400 并拒绝创建，避免重复调度。
 
 ---
 

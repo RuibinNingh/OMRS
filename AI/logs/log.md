@@ -4,7 +4,10 @@
 
 | 日期 | 主题 | 摘要 |
 |---|---|---|
+| 2026-06-12 | [dashboard-data-chart-split](2026-06-12_dashboard-data-chart-split.md) | 调整仪表盘/数据页图表分工：首页移除难度-熟练度散点图并提前待复习队列预警；数据页新增科目熟练度雷达图和散点图。 |
 | 2026-06-12 | [version-1.0.1](2026-06-12_version-1.0.1.md) | 版本号更新为 `v1.0.1`，同步 `/api/status` 后端常量与 AI 文档中的当前版本说明。 |
+| 2026-06-12 | [static-cors-hardening](2026-06-12_static-cors-hardening.md) | 封住 HTTP 静态兜底和跨域读取风险：未知路径直接 404，不再暴露仓库文件；API/导出/图片响应移除 `Access-Control-Allow-Origin: *`。 |
+| 2026-06-12 | [active-session-recommend](2026-06-12_active-session-recommend.md) | 修复常规复习推荐未排除 active Session 题目的问题：`/api/recommend` 复用 active UID 排除集，确认生成 Session 时拒绝重复 UID，并同步 API/算法文档。 |
 | 2026-06-12 | [instant-queue-meta](2026-06-12_instant-queue-meta.md) | 即时练习右侧「练习队列」补充每题熟练度百分比、Due_Date 和相对到期状态，队列浏览时不用点进题目也能判断优先级。 |
 | 2026-06-12 | [feedback-import-status](2026-06-12_feedback-import-status.md) | 移除录入题目页的外部 JSON 导入与录入队列，只保留表单/图片/内置 AI 识别；反馈页改为「从屏幕版或 AI 导入反馈」，新增 AI 反馈提示词复制并兼容 `correct`/`score` 字段；新增版本模块、`GET /api/status` 运行状态接口，并在设置页展示版本、运行时间、托管题目数、状态和 vault 路径。 |
 | 2026-06-12 | [render-md-latex](2026-06-12_render-md-latex.md) | 修复题目库「查看」Modal 中备注和答案不渲染图片/LaTeX：`renderMdContent()` 升级为统一安全渲染器，支持 Obsidian/Markdown 图片与 `$...$`/`$$...$$`，KaTeX 改为本地静态资源加载、不可用时降级显示；题目库、复习调度详情查看、即时练习题面/答案/备注统一复用该入口。补丁：屏幕版/A4 导出 HTML 也会内联 KaTeX CSS/JS/字体，离线导出件不再把 LaTeX 显示成代码块样式。 |
