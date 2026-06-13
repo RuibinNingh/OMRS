@@ -4,6 +4,9 @@
 
 | 日期 | 主题 | 摘要 |
 |---|---|---|
+| 2026-06-13 | [history-sort-toggle](2026-06-13_history-sort-toggle.md) | 历史 Ledger 时间线新增排序选择器，可在旧→新和新→旧之间切换并记住选择。 |
+| 2026-06-12 | [ledger-ui-and-migration-audit](2026-06-12_ledger-ui-and-migration-audit.md) | 补完 Ledger 前端体验和迁移工具：题目编辑按钮改为下拉菜单，历史页改为竖线时间线并加入操作面板，迁移脚本支持审计报告与 AI 检查提示词。 |
+| 2026-06-12 | [ledger-architecture](2026-06-12_ledger-architecture.md) | v1.1.0 Ledger 架构升级：新增 SQLite 不可变提交链、投影重建、旧数据迁移备份、工作区自检、题目迁移、Markdown 原文编辑和 Ledger 历史修正 API。 |
 | 2026-06-12 | [dashboard-data-chart-split](2026-06-12_dashboard-data-chart-split.md) | 调整仪表盘/数据页图表分工：首页移除难度-熟练度散点图并提前待复习队列预警；数据页新增科目熟练度雷达图和散点图。 |
 | 2026-06-12 | [version-1.0.1](2026-06-12_version-1.0.1.md) | 版本号更新为 `v1.0.1`，同步 `/api/status` 后端常量与 AI 文档中的当前版本说明。 |
 | 2026-06-12 | [static-cors-hardening](2026-06-12_static-cors-hardening.md) | 封住 HTTP 静态兜底和跨域读取风险：未知路径直接 404，不再暴露仓库文件；API/导出/图片响应移除 `Access-Control-Allow-Origin: *`。 |

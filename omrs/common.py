@@ -119,7 +119,17 @@ def parse_yaml_frontmatter(content: str) -> dict:
             current_key = kv.group(1).strip()
             val = kv.group(2).strip().strip('"').strip("'")
             if val:
-                meta[current_key] = val
+                if val == "[]":
+                    meta[current_key] = []
+                elif val.startswith("[") and val.endswith("]") and not val.startswith("[["):
+                    inner = val[1:-1].strip()
+                    meta[current_key] = [
+                        item.strip().strip('"').strip("'")
+                        for item in inner.split(",")
+                        if item.strip()
+                    ] if inner else []
+                else:
+                    meta[current_key] = val
                 list_vals = []
             else:
                 list_vals = []
@@ -171,7 +181,10 @@ def extract_tag(meta: dict) -> str:
 
 
 def extract_category(meta: dict) -> str:
-    return re.sub(r"\[\[|\]\]", "", meta.get("分类", "")).strip()
+    raw = meta.get("分类", "")
+    if isinstance(raw, list):
+        raw = raw[0] if raw else ""
+    return re.sub(r"\[\[|\]\]", "", str(raw)).strip()
 
 
 def extract_knowledge_tags(meta: dict) -> list:

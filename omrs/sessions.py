@@ -10,6 +10,8 @@ from .common import (
     save_csv,
     sessions_path,
 )
+from .ledger import append_commit
+from .projections import rebuild_projection
 from .scheduling import generate_recommendations, schedule_questions
 
 
@@ -134,6 +136,18 @@ def create_session(vault, count=10, subject=None):
         }
     )
     _save_sessions(vault, sessions)
+    append_commit(vault, "api", "session.create", f"创建 Session {session_id}", {
+        "session": {
+            "session_id": session_id,
+            "created_at": now_iso,
+            "subject_filter": subject or "",
+            "count": len(uids),
+            "items": uids,
+            "status": "active",
+            "completed_at": "",
+        }
+    })
+    rebuild_projection(vault)
     clean = [{key: value for key, value in item.items() if not key.startswith("_")} for item in items]
     return {
         "session_id": session_id,
@@ -178,6 +192,18 @@ def create_session_from_selection(vault, selected_items, subject=None):
         }
     )
     _save_sessions(vault, sessions)
+    append_commit(vault, "api", "session.create", f"创建 Session {session_id}", {
+        "session": {
+            "session_id": session_id,
+            "created_at": now_iso,
+            "subject_filter": subject or "",
+            "count": len(selected_items),
+            "items": selected_items,
+            "status": "active",
+            "completed_at": "",
+        }
+    })
+    rebuild_projection(vault)
 
     from .scheduling import get_items_by_uids
     items = get_items_by_uids(vault, selected_uids)
@@ -255,24 +281,32 @@ def get_session(vault, session_id):
 
 
 def delete_session(vault, session_id):
-    sessions = _load_sessions(vault)
-    before = len(sessions)
-    sessions = [session for session in sessions if session["Session_ID"] != session_id]
-    if len(sessions) == before:
+    if not get_session(vault, session_id):
         return False
-    _save_sessions(vault, sessions)
+    append_commit(vault, "api", "session.retract", f"撤销 Session {session_id}", {
+        "session_id": session_id,
+        "reason": "兼容 /api/session/delete 调用",
+    })
+    rebuild_projection(vault)
     return True
 
 
 def mark_session_completed(vault, session_id):
     sessions = _load_sessions(vault)
     changed = False
+    completed_at = ""
     for session in sessions:
         if session["Session_ID"] == session_id and session.get("Status") != "completed":
             session["Status"] = "completed"
-            session["Completed_At"] = datetime.datetime.now().isoformat(timespec="seconds")
+            completed_at = datetime.datetime.now().isoformat(timespec="seconds")
+            session["Completed_At"] = completed_at
             changed = True
             break
     if changed:
         _save_sessions(vault, sessions)
+        append_commit(vault, "api", "session.complete", f"完成 Session {session_id}", {
+            "session_id": session_id,
+            "completed_at": completed_at,
+        })
+        rebuild_projection(vault)
     return changed

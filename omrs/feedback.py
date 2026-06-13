@@ -5,18 +5,16 @@ import re
 from .common import (
     HISTORY_HEADERS,
     MASTERY_HEADERS,
-    append_csv,
     calc_sm2_interval,
-    compute_due_date,
     history_path,
     load_csv,
     load_tuning,
     mastery_path,
     omrs_data_dir,
     resolve_sm2_fields,
-    save_csv,
 )
-from .log_utils import log_feedback
+from .ledger import append_commit, connect
+from .projections import rebuild_projection
 from .scheduling import _safe_float, _safe_int, compute_mastery_update
 from .sessions import get_session, get_session_uid_sources, mark_session_completed
 
@@ -32,8 +30,8 @@ def process_feedback(vault, feedbacks, session_id=""):
     rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
     row_map = {row["UID"]: row for row in rows}
     history = load_csv(history_path(vault), HISTORY_HEADERS)
-    new_history_rows = []  # 仅本次新增，用于追加写
     explicit_session_id = bool(session_id)
+    question_ids = _question_ids_by_uid(vault)
 
     # 获取题目来源映射（到期 vs 熟练度）
     uid_sources = {}
@@ -43,7 +41,8 @@ def process_feedback(vault, feedbacks, session_id=""):
     if not session_id:
         session_id = f"EXP-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
     results = []
-    log_counter = len(history) + 1
+    commit_feedbacks = []
+    now = datetime.datetime.now(datetime.timezone.utc)
 
     for feedback in feedbacks:
         uid = (feedback.get("uid") or "").strip()
@@ -57,6 +56,10 @@ def process_feedback(vault, feedbacks, session_id=""):
 
         if uid not in row_map:
             results.append({"uid": uid, "status": "error", "msg": "UID 未找到"})
+            continue
+        question_id = question_ids.get(uid)
+        if not question_id:
+            results.append({"uid": uid, "status": "error", "msg": "题目缺少 question_id，请先扫描工作区"})
             continue
 
         row = resolve_sm2_fields(row_map[uid])
@@ -76,13 +79,6 @@ def process_feedback(vault, feedbacks, session_id=""):
             tuning,
         )
 
-        row["Mastery"] = str(update["mastery"])
-        row["EF"] = str(update["ef"])
-        row["Attempts"] = str(new_attempts)
-        row["High_Correct_Streak"] = update["high_correct_streak"]
-        row["Last_Review"] = datetime.date.today().isoformat()
-
-        # ── SM-2 排期更新 ──
         old_interval = _safe_int(row.get("Interval", 0), 0)
         old_repetition = _safe_int(row.get("Repetition", 0), 0)
 
@@ -98,43 +94,21 @@ def process_feedback(vault, feedbacks, session_id=""):
             new_repetition = 0
             new_interval = 1  # 答错重置为 1 天
 
-        row["Repetition"] = str(new_repetition)
-        row["Interval"] = str(new_interval)
-        row["Due_Date"] = compute_due_date(
-            datetime.date.today().isoformat(), new_interval
-        )
-
-        if update["tag_action"] == "kill":
-            row["Current_Tag"] = f"#{STATUS_KILLED}"
-        elif not is_correct and STATUS_KILLED in row.get("Current_Tag", ""):
-            row["Current_Tag"] = f"#{STATUS_ATTACKING}"
-
-        now = datetime.datetime.now()
-        history_row = {
-            "Log_ID": f"LOG-{now.strftime('%Y%m%d')}-{log_counter:03d}",
+        commit_feedbacks.append({
+            "question_id": question_id,
+            "uid_at_that_time": uid,
+            "session_id": session_id,
+            "source": source,
+            "is_correct": is_correct,
+            "sub_score": sub_score,
+            "note": note,
+            "occurred_at": datetime.date.today().isoformat(),
+            "recorded_at": now.isoformat(timespec="seconds"),
+        })
+        history.append({
             "UID": uid,
-            "Date": now.strftime("%Y-%m-%d %H:%M"),
-            "Action": "Feedback",
-            "Sub_Score": str(sub_score),
-            "Is_Correct": "1" if is_correct else "0",
             "Session_ID": session_id,
-            "Note": note,
-        }
-        history.append(history_row)        # 内存：供完成度判定
-        new_history_rows.append(history_row)  # 仅本次新增：供追加写
-        log_counter += 1
-
-        _writeback_md(vault, row, sub_score, is_correct, note, update)
-        log_feedback(
-            vault,
-            uid,
-            sub_score,
-            is_correct,
-            old_mastery,
-            update["mastery"],
-            update["label"],
-            session_id,
-        )
+        })
 
         results.append(
             {
@@ -150,14 +124,24 @@ def process_feedback(vault, feedbacks, session_id=""):
             }
         )
 
-    save_csv(mastery_path(vault), MASTERY_HEADERS, rows, backup=True)
-    append_csv(history_path(vault), HISTORY_HEADERS, new_history_rows)
+    if commit_feedbacks:
+        append_commit(vault, "api", "review.batch_submit", f"提交 {len(commit_feedbacks)} 条练习反馈", {
+            "session_id": session_id,
+            "feedbacks": commit_feedbacks,
+        })
+        rebuild_projection(vault)
     if explicit_session_id and _session_feedback_complete(vault, session_id, history):
         try:
             mark_session_completed(vault, session_id)
         except Exception:
             pass
     return results
+
+
+def _question_ids_by_uid(vault):
+    with connect(vault) as db:
+        rows = db.execute("SELECT question_id, uid FROM question_projection WHERE archived = 0").fetchall()
+    return {row["uid"]: row["question_id"] for row in rows}
 
 
 def _parse_sub_score(value):
@@ -186,7 +170,7 @@ def _parse_bool(value):
 
 def _parse_source(value):
     value = str(value or "").strip()
-    if value in {"due", "proficiency"}:
+    if value in {"due", "proficiency", "instant", "manual", "legacy_unknown"}:
         return value
     return ""
 

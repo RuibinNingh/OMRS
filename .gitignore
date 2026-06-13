@@ -28,3 +28,7 @@ desktop.ini
 
 # Local Git history backup created when resetting publish history
 .git-history-backup*/
+
+#我的工作任务文件夹
+/Task/
+/tool/

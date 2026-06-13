@@ -12,7 +12,7 @@ assets/
 ├── styles.css        ← 全部样式（原 <style> 内联块抽出）
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染
 ├── dashboard.js      ← 仪表盘图表 renderDash
-├── questions.js      ← 题目库表格/画廊视图 + 题目 Modal
+├── questions.js      ← 题目库表格/画廊视图 + 题目 Modal + Markdown 原文编辑/迁移入口
 ├── schedule.js       ← 复习调度：导出选题、Session 列表/创建/预览/删除
 ├── recommend.js      ← 推荐面板（双列表 + 勾选确认）
 ├── instant.js        ← 即时练习：推荐取题、在线翻答案、即时反馈
@@ -57,6 +57,13 @@ assets/
 - 题面中的 `![[图片.png]]`、`![[图片.png|300]]`、`![alt](路径)` 均改写为 `/api/image?name=...`。
 - 使用 `renderMdContent()` 统一处理 HTML 转义、图片替换与 `$...$` / `$$...$$` LaTeX 渲染。
 - 题目详情缓存在 `QUESTION_CACHE` / `QUESTION_PENDING`，避免重复请求。
+
+### 编辑菜单
+- List View 和 Gallery View 每题都有「编辑」按钮。
+- 点击后在按钮下方自然展开操作列表，不再用编号 prompt 选择操作。
+- 「迁移到其他分类」调用 `POST /api/question/move`，后端按目标分类已有 UID 的最小缺口分配新 UID。
+- 「编辑 Markdown」调用 `GET /api/question/raw` 打开纯文本 textarea，保存时调用 `POST /api/question/markdown`。编辑器不做富文本渲染，完整显示 `.md` 原文。
+- 保存后立即刷新数据；如果只改正文，后端只更新 fingerprint；如果改 YAML 结构化字段，后端写 metadata update commit。
 
 ### 通用 Markdown / LaTeX 渲染
 - `renderMdContent()` 只允许三类受控 HTML：图片 `<img>`、KaTeX 输出、降级公式 `<span class="math">`；普通文本始终先转义。
@@ -178,7 +185,28 @@ assets/
 
 ### 运行状态 / 关于
 - **运行状态**：进入设置页时 `loadSettings()` 会额外调用 `GET /api/status`，在卡片中展示版本号、已运行时间、托管题目数、服务状态和 vault 路径；「刷新状态」按钮可手动重新读取。
+- `GET /api/status` 还返回 `workspace_scan`，用于判断最近一次后台/手动自检是否发现冲突。
 - **关于**：展示项目基本信息（入口文件、前端文件、数据目录）和重启提示。
+
+### 工作区扫描
+- 原「扫描」按钮继续走 `/api/scan` 兼容入口。
+- 后端服务启动后也会立即扫描，并每 10 分钟后台扫描一次。
+
+---
+
+## 6.1 历史记录页
+
+历史页现在读取 `/api/history` 的 Ledger commit，而不是只显示 `history_log.csv` 表格。
+
+- 视觉结构为竖线时间线：旧节点在上方，最新节点在底部，进入页面后自动滚到底部。
+- 顶部提供排序选择：`旧 → 新（最新在底部）` 或 `新 → 旧（最新在顶部）`，选择会保存在浏览器本地。
+- 每个节点显示时间、摘要、commit_id、source、seq 和 commit_type。
+- `legacy.bootstrap` 等大 payload 会在详情里做摘要/截断，避免页面被完整迁移数据撑爆。
+- 支持节点内操作面板：
+  - `review.batch_submit`：选择批次内某条反馈，执行修改、撤销、恢复。
+  - 含 `session_id` 的节点：撤销整次 Session 或恢复 Session。
+  - 非 genesis 节点：追加 `state.restore`，还原结构化状态到该 seq。
+- 所有按钮都调用历史修正 API 追加新 commit，不会修改旧节点。
 
 ---
 

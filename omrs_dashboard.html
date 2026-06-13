@@ -572,9 +572,22 @@
 
   <!-- ====== 历史记录 ====== -->
   <div class="panel" id="panel-history">
-    <div class="tbl-wrap">
-      <table><thead><tr><th>Log ID</th><th>UID</th><th>日期</th><th>主观分</th><th>对错</th><th>Session</th><th>备注</th></tr></thead>
-      <tbody id="h-tbody"></tbody></table>
+    <div class="history-shell">
+      <div class="history-toolbar">
+        <div>
+          <div class="card-title">Ledger 时间线</div>
+          <div class="helper-inline">排序可切换；所有修正只追加新节点。</div>
+        </div>
+        <div class="history-tools">
+          <select id="history-sort" class="input" onchange="setHistorySort(this.value)">
+            <option value="asc">旧 → 新（最新在底部）</option>
+            <option value="desc">新 → 旧（最新在顶部）</option>
+          </select>
+          <button class="btn sm" onclick="loadHist()">刷新</button>
+        </div>
+      </div>
+      <div class="history-timeline" id="history-timeline"></div>
+      <div class="history-status" id="history-status"></div>
     </div>
   </div>
 
@@ -617,6 +630,19 @@
     <div class="q-notes" id="modal-notes"></div>
     <div class="q-answer" id="modal-answer"></div>
     <div class="q-history" id="modal-hist"></div>
+  </div>
+</div>
+<div class="modal-overlay" id="md-editor" onclick="if(event.target===this)closeMarkdownEditor()">
+  <div class="modal" style="max-width:980px">
+    <div class="modal-close" onclick="closeMarkdownEditor()">✕</div>
+    <h2>编辑 Markdown</h2>
+    <div class="q-meta"><span id="md-edit-uid"></span><span id="md-edit-path"></span></div>
+    <textarea id="md-edit-text" class="input" style="width:100%;height:58vh;font-family:'JetBrains Mono',monospace;font-size:.82rem;line-height:1.6"></textarea>
+    <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:12px">
+      <span id="md-edit-status" style="margin-right:auto;font-size:.8rem;color:var(--fg3)"></span>
+      <button class="btn" onclick="closeMarkdownEditor()">取消</button>
+      <button class="btn primary" onclick="saveMarkdownEditor()">保存</button>
+    </div>
   </div>
 </div>
 <datalist id="uid-list"></datalist>

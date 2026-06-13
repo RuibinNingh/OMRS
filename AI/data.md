@@ -2,6 +2,8 @@
 
 > 对应源文件：`omrs/common.py`、`omrs/indexing.py`
 
+> v1.1.0 起，结构化状态的唯一可信来源是 `错题/.omrs/ledger.db`。本文件中的 CSV 仍会由投影器导出，用于兼容既有前端、调试查看和旧数据迁移；不要再把 CSV 当成核心运行时事实源。详见 `ledger.md`。
+
 ---
 
 ## 1. UID 规则
@@ -9,11 +11,11 @@
 - UID = Markdown 文件名（不含 `.md`）。
 - 文件名必须以数字结尾，例：`三角函数1.md`、`工业流程题3.md`。
 - UID 在整个题库中必须唯一，`scan_vault()` 检测冲突并抛出错误。
-- **不要修改文件名**，一旦改变 UID 将导致历史数据失联。
+- 可以通过网页迁移或文件管理器改名；系统依靠 Markdown YAML 的 `_omrs_id` 识别同一道题，历史反馈引用隐藏 `question_id`，不会只靠 UID 关联。
 
 ---
 
-## 2. mastery_data.csv
+## 2. mastery_data.csv（兼容投影）
 
 路径：`错题/.omrs/mastery_data.csv`
 
@@ -42,11 +44,11 @@
 
 ---
 
-## 3. history_log.csv
+## 3. history_log.csv（兼容投影）
 
 路径：`错题/.omrs/history_log.csv`
 
-**写入方式：** 只增不改，反馈时经 `append_csv()` **追加写**新行（不再整表覆盖），崩溃不会截断已有历史。`Log_ID` 序号 `NNN` 取「全量历史行数 + 1」起算，为全局递增（非每日重置）。该文件也是 leech 检测（algorithm.md §11）的数据来源。
+**写入方式：** v1.1.0 后由 `rebuild_projection()` 从 Ledger 导出。新增反馈先写 `review.batch_submit` commit，再重建该兼容表。该文件仍供旧表格、导出和调试查看使用。
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -61,7 +63,7 @@
 
 ---
 
-## 4. sessions.csv
+## 4. sessions.csv（兼容投影）
 
 路径：`错题/.omrs/sessions.csv`
 
@@ -80,13 +82,32 @@
 
 ---
 
+## 4.1 ledger.db
+
+路径：`错题/.omrs/ledger.db`
+
+核心表：
+
+- `commits`：不可变提交链。
+- `question_projection` / `question_knowledge_points`：题目结构化投影。
+- `mastery_projection`：熟练度、EF、SM-2 排期投影。
+- `session_projection`：Session 投影。
+- `workspace_fingerprint`：Markdown 工作区自检指纹。
+- `snapshots`：重放缓存。
+
+旧 CSV 可删除并从 Ledger 重建；Ledger 不应删除。
+
+---
+
 ## 5. Markdown 题目格式
 
 ```markdown
 ---
+_omrs_id: OP-000001
 科目: 数学
 分类: [[三角函数]]
 难度: 7
+页码:
 相关知识点:
   - 二倍角公式
   - 辅助角公式
@@ -101,18 +122,19 @@ tags:
 
 # 历史
 
-2026-04-19 主观:6, 对
-2026-04-22 主观:8, 对, 备注:注意辅助角范围
+<!-- 该区域不再作为算法事实源；网页时间线读取 Ledger。 -->
 ```
 
 > **录入说明**：`POST /api/create` 除建骨架外，可直接写入 `# 题目`、`# 答案`、以及 `# 备注` 的 `## 错因`（由 `cause` 字段写入，导出会带上；`## 关联` 子标题保留）；YAML 可含可选 `页码` 字段。题目图存为 `错题/附件/<uid>-q-N.<ext>` 并嵌入 `# 题目`，答案图存为 `<uid>-a-N.<ext>` 并嵌入 `# 答案`。「AI 自动识别」分两步：`classify` 读题目图回填科目/分类/难度/相关知识点（不抄题；知识点可与分类重叠），`answer` 读答案图把答案提取为文本——最终以文件实际内容为准。
 
 > **LaTeX 公式（导出 HTML）**：题目/答案/错因中的 `$...$`（行内）与 `$$...$$`（行间）会在 HTML 导出里由内联 KaTeX 渲染；A4 与屏幕版导出都会把 KaTeX CSS/JS/字体嵌入单个 HTML 文件，离线打开仍可显示公式。若 KaTeX 资源缺失或个别公式解析失败，会安全降级为原始公式文本。Obsidian 内仍按其自身 LaTeX 渲染显示。注：旧 docx 导出曾用 `_latex_to_omml` 转 Word 原生公式（OMML），已随 docx 一并移除。
 
-### 历史记录格式
+### 历史记录格式（兼容）
 ```
 YYYY-MM-DD 主观:N, 对/错[, 备注:文字]
 ```
+
+v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复结构化状态、算法状态、Session 和统计，不承诺恢复 Markdown 正文旧版本。
 
 ### 标签约定
 

@@ -38,11 +38,12 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `status` | string | 当前服务状态，正常为 `ok` |
-| `version` | string | OMRS 版本号，当前为 `v1.0.1` |
+| `version` | string | OMRS 版本号，当前为 `v1.1.0` |
 | `started_at` | string | 服务启动时间（ISO 8601，UTC） |
 | `uptime_seconds` | int | 已运行秒数 |
 | `question_count` | int | 当前托管题目数 |
 | `vault_path` | string | 当前服务使用的 vault 根路径 |
+| `workspace_scan` | object | 最近一次工作区自检状态：时间、变更数、冲突数、冲突列表和错误 |
 
 ---
 
@@ -78,11 +79,18 @@
 ### `/api/question?uid=<uid>`
 返回题目的完整内容（题面、历史、标签、知识点）。另含 `images` 字段：题面引用的图片文件名列表（解析 `![[名]]`/`![](路径)`），与 `/api/image?name=` 对接，供报告引图。
 
-### `/api/history`
-返回最近 100 条 `history_log.csv` 记录。
+### `/api/history?before_seq=&limit=`
+返回 Ledger 时间线，旧 `history_log.csv` 兼容记录仍放在 `history` 字段中。
+
+**响应字段：**
+- `commits`：按时间自上而下排列的提交节点，含 `seq`、`commit_id`、`created_at`、`source`、`commit_type`、`message`、`summary`、`payload`。
+- `history`：最近 100 条兼容 CSV 记录，供旧表格或调试使用。
+
+### `/api/ledger/verify`
+校验不可变提交链，返回 `{status, valid, commits, head_commit_id, errors}`。
 
 ### `/api/scan`
-触发重建索引（`build_index()`），返回更新后的题目数量。
+兼容扫描入口：触发工作区自检与投影重建，返回更新后的题目数量。
 
 ### `/api/image?name=<filename>`
 以二进制流返回 `错题/附件/` 中的图片文件。**这是报告/前端引用题目图片的统一入口**：报告 HTML 内用 `<img src="/api/image?name=<URL编码文件名>">` 即可显示对应题图（同源由本程序提供）。
@@ -161,7 +169,7 @@
 ---
 
 ### `POST /api/session/delete`
-删除指定 Session。
+兼容旧入口。v1.1.0 内部不物理删除 Session，而是追加 `session.retract` commit。
 
 **请求体：**
 ```json
@@ -171,7 +179,7 @@
 ---
 
 ### `POST /api/feedback`
-提交本次练习反馈，更新熟练度、EF、标签，并回写 Markdown 历史。
+提交本次练习反馈。v1.1.0 起先追加 `review.batch_submit` commit，再重建熟练度、EF、标签、Session 和兼容 CSV 投影；Markdown 历史不再作为算法事实源。
 
 **请求体：**
 ```json
@@ -184,7 +192,7 @@
 ```
 
 `sub_score` 范围 0–10，越大越熟练。
-`source` 可选，取值 `due` / `proficiency`。若 `session_id` 对应持久化 Session，则优先使用 Session 中保存的来源；无 Session 的即时练习可逐题传 `source` 以保留 SM-2 策略差异。
+`source` 可选，取值 `due` / `proficiency` / `instant` / `manual` / `legacy_unknown`。若 `session_id` 对应持久化 Session，则优先使用 Session 中保存的来源；无 Session 的即时练习可逐题传 `source` 以保留 SM-2 策略差异。
 
 **响应：** 每条反馈的 `label`、`old_mastery`、`new_mastery`、`tag`、`source`、`new_interval`、`new_due_date`。
 
@@ -222,7 +230,44 @@
 | `answer_images` | array | 答案图：每项 `{data}`，存为 `<uid>-a-N.<ext>`，以 `![[名]]` 追加到 `# 答案` |
 
 **响应：** `{ "status":"ok", "uid", "file_path", "images":[全部], "question_images":[...], "answer_images":[...], "message" }`。  
-图片存到 `错题/附件/`；建索引失败会回滚（删除本次 md 与已存图片）。图片服务仅支持 PNG/JPEG/GIF。
+图片存到 `错题/附件/`；文件名含 UID 与 `_omrs_id` 短后缀，避免迁移后附件覆盖。建索引失败会回滚（删除本次 md 与已存图片）。图片服务仅支持 PNG/JPEG/GIF。
+
+### `POST /api/workspace/scan`
+手动触发工作区自检。会检测正文变化、结构化 YAML 修改、文件移动/改名、新增 Markdown、文件消失和冲突。
+
+### `GET /api/question/raw?uid=<uid>`
+返回题目的完整 Markdown 原文与文件路径，用于纯文本编辑器。
+
+### `POST /api/question/markdown`
+保存完整 Markdown 原文。
+
+请求体：
+```json
+{ "uid": "三角函数1", "markdown": "---\n_omrs_id: OP-000001\n..." }
+```
+
+若用户试图修改 `_omrs_id`，后端拒绝保存。保存后立即执行该文件的结构化字段自检：仅正文变化不写 commit；结构化字段变化写 `question.metadata_update_external`。
+
+### `POST /api/question/move`
+迁移题目到目标分类，使用最小缺口 UID 分配算法。
+
+请求体：
+```json
+{ "uid": "三角函数4", "subject": "数学", "category": "二次函数" }
+```
+
+响应返回新 UID、旧 UID 和新路径。迁移不重命名旧附件。
+
+### 历史修正端点
+
+以下端点都只追加 commit，不修改旧记录：
+
+- `POST /api/history/review/replace`
+- `POST /api/history/review/retract`
+- `POST /api/history/review/restore`
+- `POST /api/history/session/retract`
+- `POST /api/history/session/restore`
+- `POST /api/history/state/restore`
 
 ---
 

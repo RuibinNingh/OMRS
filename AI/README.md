@@ -60,7 +60,7 @@ AI/
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v1.0.1 |
+| 当前版本 | v1.1.0 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（`styles.css` 与拆分的 JS）|
@@ -78,4 +78,5 @@ AI/
 | `data.md` | mastery/history/sessions CSV 字段、Markdown 题目格式、UID 规则、config.json（**含 `ai_*` 配置**）、日志、report/ 报告存储、File_Path 分隔符 |
 | `frontend.md` | assets/ 多文件结构与加载约定；仪表盘、题目库、调度/推荐、数据复盘页、报告托管页、设置（**含录入页两图片区 + AI 提取/答案、AI 配置卡片**）|
 | `export.md` | **错题导出 HTML 架构**：A4 打印版浏览器端分页/切片引擎（缝带算法、FORCE/PACK 两种切片机制、页码）、屏幕阅读版功能、模板位置 `omrs/export_templates/`、为何 HTML 胜过 docx（无引擎依赖/无保真度差，移除 Pillow）|
+| `ledger.md` | **v1.1.0 Ledger 架构**：不可变提交链、投影缓存、隐藏 question_id、工作区自检、历史修正、迁移和正文不做版本控制的边界 |
 | `logs/log.md` | 变更日志总索引 |

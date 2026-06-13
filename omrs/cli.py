@@ -12,6 +12,7 @@ from .scheduling import _normalize_uid_list, schedule_questions
 from .server import OMRSHandler
 from .sessions import create_session, delete_session, get_session, list_sessions
 from .stats import get_stats
+from .workspace_sync import start_workspace_scanner
 
 
 def _lan_ips():
@@ -106,6 +107,7 @@ def main():
         except RuntimeError as exc:
             print(str(exc))
             raise SystemExit(1)
+        start_workspace_scanner(vault)
         OMRSHandler._restart_cmd = [
             sys.executable,
             os.path.abspath(sys.argv[0]),

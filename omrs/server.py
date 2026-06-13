@@ -13,6 +13,9 @@ from .creation import create_question
 from .exporting import _find_image, _read_image_info, export_schedule_artifact
 from .feedback import process_feedback
 from .indexing import build_index
+from .ledger import append_commit, verify_ledger
+from .projections import ledger_history, rebuild_projection
+from .question_ops import get_question_raw, move_question, save_question_markdown
 from .scheduling import generate_recommendations
 from .sessions import (
     create_session,
@@ -24,6 +27,7 @@ from .sessions import (
 )
 from .stats import get_question_content, get_stats
 from .version import __version__
+from .workspace_sync import get_scan_status, scan_workspace
 
 
 class OMRSHandler(http.server.SimpleHTTPRequestHandler):
@@ -49,6 +53,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                         "uptime_seconds": int(time.monotonic() - self.started_monotonic),
                         "question_count": int(stats.get("total", 0)),
                         "vault_path": os.path.abspath(self.vault_path),
+                        "workspace_scan": get_scan_status(self.vault_path),
                     }
                 )
             except Exception as exc:
@@ -84,12 +89,29 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self._json(session)
         elif path == "/api/question":
             self._json(get_question_content(self.vault_path, params.get("uid", "")))
+        elif path == "/api/question/raw":
+            try:
+                self._json({"status": "ok", **get_question_raw(self.vault_path, params.get("uid", ""))})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 404)
         elif path == "/api/history":
-            self._json({"history": load_csv(history_path(self.vault_path), HISTORY_HEADERS)[-100:]})
+            try:
+                before = params.get("before_seq") or None
+                limit = int(params.get("limit", 100))
+                self._json({
+                    "status": "ok",
+                    "commits": ledger_history(self.vault_path, before, max(1, min(500, limit))),
+                    "history": load_csv(history_path(self.vault_path), HISTORY_HEADERS)[-100:],
+                })
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/ledger/verify":
+            self._json(verify_ledger(self.vault_path))
         elif path == "/api/scan":
             try:
+                scan = scan_workspace(self.vault_path)
                 index = build_index(self.vault_path)
-                self._json({"status": "ok", "count": len(index)})
+                self._json({"status": "ok", "count": len(index), "scan": scan})
             except RuntimeError as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/config":
@@ -99,6 +121,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({"status": "ok", "reports": list_reports(self.vault_path)})
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
+
         elif path == "/api/report/view":
             try:
                 html = get_report_html(self.vault_path, params.get("id", ""))
@@ -243,6 +266,55 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
 
+        elif path == "/api/workspace/scan":
+            try:
+                self._json({"status": "ok", **scan_workspace(self.vault_path)})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/question/markdown":
+            try:
+                data = json.loads(body) if body else {}
+                result = save_question_markdown(
+                    self.vault_path,
+                    data.get("uid", ""),
+                    data.get("markdown", ""),
+                )
+                self._json({"status": "ok", **result})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/question/move":
+            try:
+                data = json.loads(body) if body else {}
+                result = move_question(
+                    self.vault_path,
+                    data.get("uid", ""),
+                    data.get("subject", ""),
+                    data.get("category", ""),
+                )
+                self._json({"status": "ok", **result})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/history/review/replace":
+            self._history_commit("review.replace", "修改旧反馈", body)
+
+        elif path == "/api/history/review/retract":
+            self._history_commit("review.retract", "撤销旧反馈", body)
+
+        elif path == "/api/history/review/restore":
+            self._history_commit("review.restore", "恢复旧反馈", body)
+
+        elif path == "/api/history/session/retract":
+            self._history_commit("session.retract", "撤销 Session", body)
+
+        elif path == "/api/history/session/restore":
+            self._history_commit("session.restore", "恢复 Session", body)
+
+        elif path == "/api/history/state/restore":
+            self._history_commit("state.restore", "还原到历史节点", body)
+
         elif path == "/api/report/create":
             try:
                 data = json.loads(body) if body else {}
@@ -362,6 +434,15 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _history_commit(self, commit_type, message, body):
+        try:
+            data = json.loads(body) if body else {}
+            commit = append_commit(self.vault_path, "api", commit_type, message, data)
+            rebuild_projection(self.vault_path)
+            self._json({"status": "ok", **commit})
+        except Exception as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
 
     _ASSET_TYPES = {
         ".css": "text/css", ".js": "application/javascript",

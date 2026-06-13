@@ -2,6 +2,8 @@
 
 > 对应源文件：`omrs/scheduling.py`
 
+> v1.1.0 起，反馈事件先写入 Ledger，再由 `omrs/projections.py` 重放为 `mastery_projection` 和兼容 `mastery_data.csv`。核心算法函数保持不变，事实来源从 CSV 快照升级为可重放事件流。
+
 ---
 
 ## 1. 时间衰减 `time_decay(mastery, days_since, factor=30, base=5)`
@@ -164,14 +166,16 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ## 8. 反馈闭环中的 SM-2 更新
 
-> 对应源文件：`omrs/feedback.py`
+> 对应源文件：`omrs/feedback.py`、`omrs/projections.py`
 
 反馈提交后：
-1. 计算熟练度更新（`compute_mastery_update()`，逻辑不变）
-2. 查询 Session 中该 UID 的来源（`due` / `proficiency`）
-3. 根据来源调用 `calc_sm2_interval()` 计算新间隔
-4. 更新 `Interval`、`Due_Date`、`Repetition` 三个字段
-5. 自定义练习（TMP-）不触发此流程（不写入 mastery_data.csv）
+1. `POST /api/feedback` 解析并校验反馈。
+2. 追加 `review.batch_submit` commit，记录 `question_id`、当时 UID、来源、分数、对错、备注和时间。
+3. `rebuild_projection()` 按有效事件流重放 `compute_mastery_update()` 与 `calc_sm2_interval()`。
+4. 导出 `mastery_data.csv` / `history_log.csv` 兼容投影。
+5. 撤销 Session、撤销/替换/恢复旧反馈时，不写逆向补丁，而是从有效事件流重新计算相关算法状态。
+
+临时/即时练习可传 `source=instant|manual|due|proficiency`；持久化 Session 反馈优先采用 Session 中保存的来源。
 
 ---
 
