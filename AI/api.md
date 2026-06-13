@@ -89,6 +89,20 @@
 ### `/api/ledger/verify`
 校验不可变提交链，返回 `{status, valid, commits, head_commit_id, errors}`。
 
+### `/api/optimize/summary`
+返回设置页“优化”块所需状态：依赖状态、当前存储体积和最近压缩任务。
+
+**响应字段：**
+- `dependencies.pillow`：Pillow 是否可用与版本。缺失时 PNG 优化不可用。
+- `dependencies.jpegtran`：`jpegtran` 是否可用。缺失时 JPG/JPEG 无损优化不可用。
+- `sizes.data_chain`：活跃 `.omrs` 数据大小，排除 `legacy_backup`、`backups` 和 zip。
+- `sizes.question_files`：`错题/` 下非 `.omrs`、非 `附件` 的题目/报告等文件大小。
+- `sizes.question_images`：`错题/附件/` 下附件大小。
+- `images`：图片数量与图片字节数。
+
+### `/api/optimize/job?id=<job_id>`
+查询图片压缩后台任务。返回 `{status:"ok", job}`，`job` 含 `status/job_id/total/processed/saved_bytes/current_file/errors/done`。
+
 ### `/api/scan`
 兼容扫描入口：触发工作区自检与投影重建，返回更新后的题目数量。
 
@@ -317,6 +331,39 @@
 后端会先返回响应，然后在后台线程中关闭当前服务器、延迟 1.5 秒释放端口，再启动新进程接管同一端口。
 
 **响应：** `{ "status": "ok", "msg": "正在重启..." }`
+
+### `POST /api/backup/export`
+打包整个 `错题/` 目录并以 zip 下载，文件名 `OMRS-backup-YYYYMMDD-HHMMSS.zip`。响应头 `X-OMRS-Backup-Token` 是本次会话压缩图片前的备份凭证；备份 zip 不写入数据目录，由浏览器下载给用户保存。
+
+### `POST /api/backup/import`
+导入用户选择的备份 zip（`multipart/form-data` 字段 `file`），只做校验和预览，不立即覆盖当前数据。
+
+**响应：** `{ "status":"ok", "restore_id", "preview": { "filename", "files", "bytes", "md_files", "image_files", "has_attachments" } }`
+
+### `POST /api/backup/restore`
+按 `restore_id` 恢复备份，恢复前后端会先在临时目录重建索引，验证通过后才替换当前 `错题/` 目录。
+
+**请求体：**
+```json
+{ "restore_id": "restore-xxxx", "confirm": true }
+```
+
+**响应：** `{ "status":"ok", "restored": true, "question_count": 155 }`
+
+### `POST /api/optimize/scan`
+启动图片快扫后台任务。快扫只枚举 `错题/附件/` 图片、统计格式与体积，并筛出可进入深扫压缩的范围；不会生成优化副本，也不会做像素校验。PNG 在 Pillow 可用时进入深扫范围；JPG/JPEG 仅在 `jpegtran` 可用时进入深扫范围；GIF/WebP/BMP 只统计跳过原因。
+
+**响应：** `{ "status":"ok", "job": { "kind":"scan", "job_id", "total", "processed", "done" } }`。前端继续轮询 `/api/optimize/job?id=<job_id>`；完成后 `job.result` 含 `{ "exact": false, "scan_id", "candidate_count", "potential_bytes", "candidates", "skipped" }`。
+
+### `POST /api/optimize/compress`
+启动深扫压缩后台任务。必须先通过 `/api/backup/export` 获得有效 `backup_token`，并显式确认。任务会逐张生成优化副本、校验 PNG 像素一致或调用 `jpegtran`，只在新文件更小时替换原文件。
+
+**请求体：**
+```json
+{ "scan_id": "scan-xxxx", "backup_token": "backup-xxxx", "confirm": true }
+```
+
+**响应：** `{ "status":"ok", "job": { "job_id", "status", "total", "processed", "saved_bytes" } }`
 
 ### `POST /api/confirm-schedule`
 根据用户勾选的题目生成 Session。

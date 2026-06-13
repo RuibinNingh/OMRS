@@ -14,6 +14,15 @@ from .exporting import _find_image, _read_image_info, export_schedule_artifact
 from .feedback import process_feedback
 from .indexing import build_index
 from .ledger import append_commit, verify_ledger
+from .optimization import (
+    create_backup_export,
+    get_job,
+    prepare_backup_import,
+    restore_backup,
+    scan_compression,
+    start_compression,
+    storage_summary,
+)
 from .projections import ledger_history, rebuild_projection
 from .question_ops import get_question_raw, move_question, save_question_markdown
 from .scheduling import generate_recommendations
@@ -107,6 +116,17 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/ledger/verify":
             self._json(verify_ledger(self.vault_path))
+        elif path == "/api/optimize/summary":
+            try:
+                self._json(storage_summary(self.vault_path))
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/optimize/job":
+            job = get_job(params.get("id", ""))
+            if not job:
+                self._json({"status": "error", "msg": "job 不存在"}, 404)
+            else:
+                self._json({"status": "ok", "job": job})
         elif path == "/api/scan":
             try:
                 scan = scan_workspace(self.vault_path)
@@ -178,8 +198,11 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(404)
 
     def do_POST(self):
-        body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("utf-8")
         path = urllib.parse.urlparse(self.path).path
+        if path == "/api/backup/import":
+            self._handle_backup_import()
+            return
+        body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("utf-8")
 
         if path == "/api/schedule":
             try:
@@ -269,6 +292,52 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/workspace/scan":
             try:
                 self._json({"status": "ok", **scan_workspace(self.vault_path)})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/optimize/scan":
+            try:
+                self._json(scan_compression(self.vault_path))
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/optimize/compress":
+            try:
+                data = json.loads(body) if body else {}
+                self._json(start_compression(
+                    self.vault_path,
+                    data.get("scan_id", ""),
+                    data.get("backup_token", ""),
+                    confirm=bool(data.get("confirm")),
+                ))
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/backup/export":
+            try:
+                payload, filename, token = create_backup_export(self.vault_path)
+                filename_encoded = urllib.parse.quote(filename)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header(
+                    "Content-Disposition",
+                    f"attachment; filename=\"{filename}\"; filename*=UTF-8''{filename_encoded}",
+                )
+                self.send_header("Content-Length", str(len(payload)))
+                self.send_header("X-OMRS-Backup-Token", token)
+                self.end_headers()
+                self.wfile.write(payload)
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/backup/restore":
+            try:
+                data = json.loads(body) if body else {}
+                self._json(restore_backup(
+                    self.vault_path,
+                    data.get("restore_id", ""),
+                    confirm=bool(data.get("confirm")),
+                ))
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
 
@@ -412,6 +481,44 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({"status": "error", "msg": str(exc)}, 400)
         else:
             self._json({"error": "not found"}, 404)
+
+    def _handle_backup_import(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            content_type = self.headers.get("Content-Type", "")
+            body = self.rfile.read(length)
+            filename, payload = self._multipart_file(body, content_type)
+            result = prepare_backup_import(self.vault_path, payload, filename)
+            self._json(result)
+        except Exception as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+
+    def _multipart_file(self, body, content_type):
+        if "multipart/form-data" not in content_type:
+            filename = self.headers.get("X-Filename", "backup.zip")
+            return filename, body
+        marker = "boundary="
+        if marker not in content_type:
+            raise ValueError("缺少 multipart boundary")
+        boundary = content_type.split(marker, 1)[1].strip().strip('"')
+        delimiter = ("--" + boundary).encode("utf-8")
+        for part in body.split(delimiter):
+            if b"Content-Disposition" not in part or b"\r\n\r\n" not in part:
+                continue
+            headers, payload = part.split(b"\r\n\r\n", 1)
+            if payload.endswith(b"\r\n"):
+                payload = payload[:-2]
+            header_text = headers.decode("utf-8", errors="ignore")
+            if "filename=" not in header_text:
+                continue
+            filename = "backup.zip"
+            for item in header_text.split(";"):
+                item = item.strip()
+                if item.startswith("filename="):
+                    filename = item.split("=", 1)[1].strip().strip('"') or filename
+                    break
+            return os.path.basename(filename), payload
+        raise ValueError("未找到上传的备份文件")
 
     def _json(self, data, code=200):
         body = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")

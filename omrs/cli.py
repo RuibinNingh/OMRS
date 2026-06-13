@@ -8,6 +8,7 @@ from .common import QUESTIONS_DIR, load_config, questions_root
 from .creation import create_question
 from .exporting import export_schedule_artifact
 from .indexing import build_index
+from .optimization import ensure_image_dependencies_interactive
 from .scheduling import _normalize_uid_list, schedule_questions
 from .server import OMRSHandler
 from .sessions import create_session, delete_session, get_session, list_sessions
@@ -99,6 +100,7 @@ def main():
 
     elif args.command == "serve":
         OMRSHandler.vault_path = vault
+        ensure_image_dependencies_interactive()
         config = load_config(vault)
         bind_host = "" if config.get("allow_external") else "127.0.0.1"
         try:

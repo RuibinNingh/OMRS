@@ -507,6 +507,17 @@
         <div id="st-status" style="margin-top:14px;font-size:.82rem"></div>
       </div>
       <div class="card">
+        <div class="card-title">ℹ️ 关于</div>
+        <div style="font-size:.8rem;color:var(--fg2);line-height:1.8">
+          <p><strong>OMRS</strong> — Obsidian 错题重构系统</p>
+          <p>后端入口：<code>omrs_engine.py</code></p>
+          <p>前端文件：<code>omrs_dashboard.html</code> + <code>assets/</code>（样式与脚本）</p>
+          <p>数据目录：<code>错题/.omrs/</code></p>
+          <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+          <p style="color:var(--fg3)">重启期间页面可能短暂无响应，请稍候自动刷新。</p>
+        </div>
+      </div>
+      <div class="card">
         <div class="card-title">🟢 运行状态</div>
         <div class="status-grid" id="st-runtime">
           <div><span>版本</span><strong id="st-runtime-version">—</strong></div>
@@ -556,16 +567,40 @@
         </div>
         <div id="st-ai-settings-status" style="margin-top:12px;font-size:.82rem"></div>
       </div>
-      <div class="card">
-        <div class="card-title">ℹ️ 关于</div>
-        <div style="font-size:.8rem;color:var(--fg2);line-height:1.8">
-          <p><strong>OMRS</strong> — Obsidian 错题重构系统</p>
-          <p>后端入口：<code>omrs_engine.py</code></p>
-          <p>前端文件：<code>omrs_dashboard.html</code> + <code>assets/</code>（样式与脚本）</p>
-          <p>数据目录：<code>错题/.omrs/</code></p>
-          <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
-          <p style="color:var(--fg3)">重启期间页面可能短暂无响应，请稍候自动刷新。</p>
+      <div class="card optimize-card">
+        <div class="card-title">🧹 优化</div>
+        <div class="opt-layout">
+          <div class="opt-donut-wrap">
+            <svg class="opt-callout-lines" id="opt-callout-lines" viewBox="0 0 260 210" aria-hidden="true"></svg>
+            <div class="opt-donut" id="opt-donut" style="--a:0deg;--b:0deg;--c:360deg">
+              <div>
+                <strong id="opt-total">—</strong>
+                <span>当前占用</span>
+              </div>
+            </div>
+            <div class="opt-callouts" id="opt-callouts"></div>
+          </div>
+          <div class="opt-side">
+            <div id="opt-legend" class="opt-legend"></div>
+            <div id="opt-deps" class="hint"></div>
+          </div>
         </div>
+        <div class="opt-actions">
+          <button class="btn primary" onclick="exportOptimizeBackup()">导出备份</button>
+          <button class="btn" onclick="document.getElementById('opt-import-file').click()">导入备份</button>
+          <input type="file" id="opt-import-file" accept=".zip,application/zip" style="display:none" onchange="importOptimizeBackup(event)">
+          <button class="btn" id="opt-scan-btn" onclick="scanOptimizeImages()">扫描压缩</button>
+          <button class="btn danger" id="opt-compress-btn" onclick="confirmOptimizeCompression()" disabled>确认压缩</button>
+        </div>
+        <div class="opt-progress" id="opt-progress" style="display:none">
+          <div class="opt-progress-head">
+            <span id="opt-progress-text">准备中</span>
+            <strong id="opt-progress-percent">0%</strong>
+          </div>
+          <div class="opt-progress-track"><div id="opt-progress-fill"></div></div>
+          <div class="hint" id="opt-progress-file"></div>
+        </div>
+        <div id="opt-status" style="margin-top:12px;font-size:.82rem"></div>
       </div>
     </div>
   </div>

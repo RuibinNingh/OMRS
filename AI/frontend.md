@@ -183,6 +183,13 @@ assets/
 - `ai_restrict_tags` 开关含义：开启时 `classify` 的知识点被后端硬过滤为「已有分类 ∪ 已有知识点」；关闭时允许 AI 在无贴切已有项时新建知识点（仍优先复用，上限 4 个）。仅影响知识点，**科目/分类一直允许新建**。
 - 仅作配置入口；实际识别在「录入题目」页触发，调用 `POST /api/ai-recognize`（后端转发，见 api.md）。
 
+### 优化
+- 设置页新增“优化”卡片：进入设置页时 `loadSettings()` 调用 `GET /api/optimize/summary`，用 CSS 环状图展示“数据链 / 题目文件 / 题目图片”三类大小，并显示 Pillow、jpegtran 依赖状态；环图外侧有分类标签和引线，右侧仍保留数值图例。
+- **导出备份**：`exportOptimizeBackup()` → `POST /api/backup/export`，复用 `downloadExportResponse()` 下载 `OMRS-backup-YYYYMMDD-HHMMSS.zip`，并保存响应头 `X-OMRS-Backup-Token` 到前端内存。
+- **导入备份**：用户选择 zip 后 `importOptimizeBackup()` 用 `multipart/form-data` 调 `POST /api/backup/import`，显示文件数/大小/Markdown/图片预览；用户二次确认后调 `POST /api/backup/restore {restore_id, confirm:true}`。
+- **扫描压缩**：`scanOptimizeImages()` → `POST /api/optimize/scan` 启动快扫 job，随后轮询 `GET /api/optimize/job?id=`；快扫中显示已扫描/总图片数，完成后环状图第三类从“题目图片”切换为“待深扫图片”，同时保留原题图总量说明。
+- **确认压缩**：只有“快扫完成 + 当前会话已导出备份 + 有候选文件”时启用。`confirmOptimizeCompression()` 二次确认风险后调用 `POST /api/optimize/compress`，深扫压缩任务继续轮询 `GET /api/optimize/job?id=` 更新进度条、当前文件、已检查体积、实际已节省大小和环状图。
+
 ### 运行状态 / 关于
 - **运行状态**：进入设置页时 `loadSettings()` 会额外调用 `GET /api/status`，在卡片中展示版本号、已运行时间、托管题目数、服务状态和 vault 路径；「刷新状态」按钮可手动重新读取。
 - `GET /api/status` 还返回 `workspace_scan`，用于判断最近一次后台/手动自检是否发现冲突。
