@@ -4,6 +4,10 @@
 
 | 日期 | 主题 | 摘要 |
 |---|---|---|
+| 2026-06-14 | [version-1.1.1](2026-06-14_version-1.1.1.md) | 版本号更新为 `v1.1.1`：历史修正恢复更可靠，历史页改为题目优先摘要和默认只读修正模式，并同步当前版本文档。 |
+| 2026-06-14 | [history-ui-guardrails](2026-06-14_history-ui-guardrails.md) | 历史页新增默认关闭的修正模式，「还原历史」改名为「修正记录」，主时间线改为题目 UID 优先摘要，降低误触风险。 |
+| 2026-06-14 | [history-restore-projection-fix](2026-06-14_history-restore-projection-fix.md) | 修复历史反馈/Session 撤销后无法真正恢复的问题：投影器保留原始反馈提交并从 baseline 重放，历史修正 API 追加前校验目标，前端使用后端完整撤销状态。 |
+| 2026-06-14 | [history-correction-lane](2026-06-14_history-correction-lane.md) | 历史页把反馈修正、Session 撤销/恢复和状态还原移入「还原历史」独立列表，主时间线只展示非修正节点；每个主节点默认只露出一个「修改概要」折叠块。 |
 | 2026-06-13 | [image-optimization-backup](2026-06-13_image-optimization-backup.md) | 设置页新增优化块：按数据链/题目文件/题目图片展示环状图，支持备份导出与导入恢复、图片快扫进度、备份门槛确认后的深扫无损压缩进度。 |
 | 2026-06-13 | [history-sort-toggle](2026-06-13_history-sort-toggle.md) | 历史 Ledger 时间线新增排序选择器，可在旧→新和新→旧之间切换并记住选择。 |
 | 2026-06-12 | [ledger-ui-and-migration-audit](2026-06-12_ledger-ui-and-migration-audit.md) | 补完 Ledger 前端体验和迁移工具：题目编辑按钮改为下拉菜单，历史页改为竖线时间线并加入操作面板，迁移脚本支持审计报告与 AI 检查提示词。 |

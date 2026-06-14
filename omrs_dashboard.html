@@ -6,7 +6,7 @@
 <title>OMRS — 错题重构系统</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-<link rel="stylesheet" href="assets/styles.css">
+<link rel="stylesheet" href="assets/styles.css?v=20260614-history-ui">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -611,16 +611,19 @@
       <div class="history-toolbar">
         <div>
           <div class="card-title">Ledger 时间线</div>
-          <div class="helper-inline">排序可切换；所有修正只追加新节点。</div>
+          <div class="helper-inline">默认只读浏览；需要改历史时先开启「修正模式」，撤销/恢复/替换记录集中在「修正记录」。</div>
         </div>
         <div class="history-tools">
           <select id="history-sort" class="input" onchange="setHistorySort(this.value)">
             <option value="asc">旧 → 新（最新在底部）</option>
             <option value="desc">新 → 旧（最新在顶部）</option>
           </select>
+          <button class="btn sm" id="history-edit-toggle" onclick="toggleHistoryEditMode()">修正模式：关</button>
+          <button class="btn sm" onclick="toggleHistoryCorrections()">修正记录 <span id="history-correction-count">0</span></button>
           <button class="btn sm" onclick="loadHist()">刷新</button>
         </div>
       </div>
+      <div class="history-corrections" id="history-corrections" hidden></div>
       <div class="history-timeline" id="history-timeline"></div>
       <div class="history-status" id="history-status"></div>
     </div>
@@ -688,7 +691,7 @@
 <script src="assets/core.js"></script>
 <script src="assets/dashboard.js"></script>
 <script src="assets/questions.js"></script>
-<script src="assets/schedule.js"></script>
+<script src="assets/schedule.js?v=20260614-history-ui"></script>
 <script src="assets/recommend.js"></script>
 <script src="assets/instant.js"></script>
 <script src="assets/data.js"></script>

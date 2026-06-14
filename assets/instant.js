@@ -1,4 +1,5 @@
 // === assets/instant.js — 即时练习：推荐取题、在线翻答案、即时反馈 ===
+let INSTANT_SUBMITTING = false;
 function instTimestamp(){const d=new Date();const p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`}
 function instBuildParams(count){const params=new URLSearchParams({due_count:String(count),prof_count:String(count)});const subject=document.getElementById('inst-subject')?.value||'';const category=document.getElementById('inst-category')?.value||'';const knowledgeTag=document.getElementById('inst-ktag')?.value||'';if(subject)params.set('subject',subject);if(category)params.set('category',category);if(knowledgeTag)params.set('knowledge_tag',knowledgeTag);return params}
 function instMergeRecommendations(data,count){const rows=[];const seen=new Set();const add=(items,source)=>{(items||[]).forEach(item=>{if(!item?.uid||seen.has(item.uid))return;seen.add(item.uid);rows.push({...item,_source:source})})};add(data?.due,'due');add(data?.proficiency,'proficiency');return rows.slice(0,count)}
@@ -24,6 +25,7 @@ async function instLoadPractice(){
     INSTANT_QUEUE=instMergeRecommendations(data,count);
     INSTANT_INDEX=0;
     INSTANT_RESULTS={};
+    INSTANT_SUBMITTING=false;
     INSTANT_SESSION_ID=`IMM-${instTimestamp()}`;
     document.getElementById('inst-submit-results').innerHTML='';
     if(!INSTANT_QUEUE.length){
@@ -123,7 +125,7 @@ function instRenderSide(){
   if(!summary||!queue)return;
   const answered=instAnsweredCount();
   summary.innerHTML=INSTANT_QUEUE.length
-    ? `<div>已判定 ${answered} / ${INSTANT_QUEUE.length}</div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm primary" id="inst-submit" onclick="instSubmitPractice()" ${answered?'':'disabled'}>提交已判定</button><button class="btn sm" onclick="instJumpNextOpen()" ${answered===INSTANT_QUEUE.length?'disabled':''}>未判定</button></div>`
+    ? `<div>已判定 ${answered} / ${INSTANT_QUEUE.length}</div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm primary" id="inst-submit" onclick="instSubmitPractice()" ${answered&&!INSTANT_SUBMITTING?'':'disabled'}>提交已判定</button><button class="btn sm" onclick="instJumpNextOpen()" ${answered===INSTANT_QUEUE.length?'disabled':''}>未判定</button></div>`
     : '尚未加载';
   queue.innerHTML=INSTANT_QUEUE.map((item,index)=>{
     const row=INSTANT_RESULTS[item.uid];
@@ -134,17 +136,20 @@ function instRenderSide(){
 }
 
 async function instSubmitPractice(){
+  if(INSTANT_SUBMITTING)return;
   const itemMap={};INSTANT_QUEUE.forEach(item=>{itemMap[item.uid]=item});
   const rows=Object.entries(INSTANT_RESULTS)
     .filter(([,row])=>row.correct===true||row.correct===false)
     .map(([uid,row])=>({uid,sub_score:row.score==null?(row.correct?8:4):row.score,is_correct:row.correct,source:itemMap[uid]?._source||'due',note:'即时练习'}));
   if(!rows.length){alert('还没有已判定题目');return}
+  INSTANT_SUBMITTING=true;
   const button=document.getElementById('inst-submit');
   const status=document.getElementById('inst-status');
   if(button)button.disabled=true;
   if(status)status.textContent='提交中...';
   try{
     const result=await api('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({feedbacks:rows,session_id:INSTANT_SESSION_ID||`IMM-${instTimestamp()}`})});
+    INSTANT_RESULTS={};
     if(status)status.innerHTML=`<span style="color:var(--green)">✓ 已提交 ${rows.length} 条反馈</span>`;
     document.getElementById('inst-submit-results').innerHTML='<div class="card-title" style="margin-top:14px">提交结果</div>'+(result.results||[]).map(row=>{
       const ok=row.status==='ok';
@@ -157,5 +162,7 @@ async function instSubmitPractice(){
   }catch(error){
     if(status)status.innerHTML=`<span style="color:var(--red)">✕ ${escapeHtml(error.message)}</span>`;
     if(button)button.disabled=false;
+  }finally{
+    INSTANT_SUBMITTING=false;
   }
 }

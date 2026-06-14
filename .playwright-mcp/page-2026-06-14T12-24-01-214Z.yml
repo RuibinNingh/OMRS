@@ -1,0 +1,81 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: 鬼
+      - generic [ref=e6]:
+        - heading "OMRS" [level=1] [ref=e7]
+        - paragraph [ref=e8]: Obsidian 错题重构系统
+    - generic [ref=e9]:
+      - button "🔄 重新扫描" [ref=e10] [cursor=pointer]
+      - button "＋ 录入题目" [ref=e11] [cursor=pointer]
+  - generic [ref=e12]:
+    - generic [ref=e13] [cursor=pointer]: 仪表盘
+    - generic [ref=e14] [cursor=pointer]: 数据
+    - generic [ref=e15] [cursor=pointer]: 题目库
+    - generic [ref=e16] [cursor=pointer]: 复习调度
+    - generic [ref=e17] [cursor=pointer]: 即时练习
+    - generic [ref=e18] [cursor=pointer]: 反馈录入
+    - generic [ref=e19] [cursor=pointer]: 录入题目
+    - generic [ref=e20] [cursor=pointer]: 历史记录
+    - generic [ref=e21] [cursor=pointer]: 报告
+    - generic [ref=e22] [cursor=pointer]: 设置
+  - generic [ref=e302]:
+    - generic [ref=e303]:
+      - generic [ref=e304]:
+        - generic [ref=e305]: Ledger 时间线
+        - generic [ref=e306]: 这是只读数据链；修正操作在节点内「修改 / 撤销 / 还原」中展开，已撤销/还原记录见「还原历史」。
+      - generic [ref=e307]:
+        - combobox [ref=e308] [cursor=pointer]:
+          - option "旧 → 新（最新在底部）" [selected]
+          - option "新 → 旧（最新在顶部）"
+        - button "还原历史 13" [ref=e309] [cursor=pointer]:
+          - text: 还原历史
+          - generic [ref=e310]: "13"
+        - button "刷新" [ref=e311] [cursor=pointer]
+    - generic [ref=e312]:
+      - generic [ref=e315]:
+        - generic [ref=e316]:
+          - generic [ref=e317]:
+            - generic [ref=e318]: 2026-06-12 14:08:29
+            - generic [ref=e319]: 初始化 Ledger
+          - generic [ref=e320]: system.genesis
+        - generic [ref=e321]:
+          - generic [ref=e322]: GENESIS
+          - generic [ref=e323]: system
+          - generic [ref=e324]: seq 1
+        - group [ref=e326]:
+          - generic "查看详情" [ref=e327] [cursor=pointer]
+      - generic [ref=e330]:
+        - generic [ref=e331]:
+          - generic [ref=e332]:
+            - generic [ref=e333]: 2026-06-12 14:08:29
+            - generic [ref=e334]: 迁移旧数据：155 道题
+          - generic [ref=e335]: legacy.bootstrap
+        - generic [ref=e336]:
+          - generic [ref=e337]: CMT-000002
+          - generic [ref=e338]: migration
+          - generic [ref=e339]: seq 2
+        - generic [ref=e340]:
+          - group [ref=e341]:
+            - generic "查看详情" [ref=e342] [cursor=pointer]
+          - group [ref=e343]:
+            - generic "修改 / 撤销 / 还原" [ref=e344] [cursor=pointer]
+      - generic [ref=e347]:
+        - generic [ref=e348]:
+          - generic [ref=e349]:
+            - generic [ref=e350]: 2026-06-13 10:45:07
+            - generic [ref=e351]: 提交 1 条练习反馈
+          - generic [ref=e352]: review.batch_submit
+        - generic [ref=e353]:
+          - generic [ref=e354]: CMT-000003
+          - generic [ref=e355]: api
+          - generic [ref=e356]: seq 3
+        - generic [ref=e357]:
+          - group [ref=e358]:
+            - generic "查看详情" [ref=e359] [cursor=pointer]
+          - group [ref=e360]:
+            - generic "修改 / 撤销 / 还原" [ref=e361] [cursor=pointer]
+            - option "#1 数学作图2" [selected]
+            - option "答对" [selected]
+            - option "答错"
+    - generic [ref=e362]: 主时间线 3 个节点（7 个已撤销已隐藏）；还原历史 13 条

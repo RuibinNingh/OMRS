@@ -236,6 +236,12 @@ def get_commit(vault: str, seq: int):
         return _row_to_commit(row) if row else None
 
 
+def get_commit_by_id(vault: str, commit_id: str):
+    with connect(vault) as db:
+        row = db.execute("SELECT * FROM commits WHERE commit_id = ?", (commit_id,)).fetchone()
+        return _row_to_commit(row) if row else None
+
+
 def _row_to_commit(row):
     return {
         "seq": row["seq"],

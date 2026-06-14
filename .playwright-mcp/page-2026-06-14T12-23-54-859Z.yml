@@ -1,0 +1,257 @@
+- generic [ref=e2]:
+  - banner [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: 鬼
+      - generic [ref=e6]:
+        - heading "OMRS" [level=1] [ref=e7]
+        - paragraph [ref=e8]: Obsidian 错题重构系统
+    - generic [ref=e9]:
+      - button "🔄 重新扫描" [ref=e10] [cursor=pointer]
+      - button "＋ 录入题目" [ref=e11] [cursor=pointer]
+  - generic [ref=e12]:
+    - generic [ref=e13] [cursor=pointer]: 仪表盘
+    - generic [ref=e14] [cursor=pointer]: 数据
+    - generic [ref=e15] [cursor=pointer]: 题目库
+    - generic [ref=e16] [cursor=pointer]: 复习调度
+    - generic [ref=e17] [cursor=pointer]: 即时练习
+    - generic [ref=e18] [cursor=pointer]: 反馈录入
+    - generic [ref=e19] [cursor=pointer]: 录入题目
+    - generic [ref=e20] [cursor=pointer]: 历史记录
+    - generic [ref=e21] [cursor=pointer]: 报告
+    - generic [ref=e22] [cursor=pointer]: 设置
+  - generic [ref=e23]:
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - generic [ref=e26]: 总题数
+        - generic [ref=e27]: "155"
+      - generic [ref=e28]:
+        - generic [ref=e29]: 已击杀
+        - generic [ref=e30]: "52"
+        - generic [ref=e31]: 34% 击杀率
+      - generic [ref=e32]:
+        - generic [ref=e33]: 待攻克
+        - generic [ref=e34]: "103"
+      - generic [ref=e35]:
+        - generic [ref=e36]: 平均熟练度
+        - generic [ref=e37]: 40%
+    - generic [ref=e38]:
+      - generic [ref=e39]:
+        - generic [ref=e40]: 📚 科目分布
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - generic [ref=e43]: 化学
+            - generic [ref=e48]: "28"
+          - generic [ref=e49]:
+            - generic [ref=e50]: 历史
+            - generic [ref=e55]: "13"
+          - generic [ref=e56]:
+            - generic [ref=e57]: 数学
+            - generic [ref=e62]: "59"
+          - generic [ref=e63]:
+            - generic [ref=e64]: 物理
+            - generic [ref=e69]: "39"
+          - generic [ref=e70]:
+            - generic [ref=e71]: 语文
+            - generic [ref=e76]: "6"
+          - generic [ref=e77]:
+            - generic [ref=e78]: 道法
+            - generic [ref=e82]: "10"
+      - generic [ref=e83]:
+        - generic [ref=e84]: 📅 近 30 天活动
+        - generic [ref=e86]:
+          - 'generic "2026-05-16: 0次" [ref=e87]'
+          - 'generic "2026-05-17: 0次" [ref=e88]'
+          - 'generic "2026-05-18: 10次" [ref=e89]': "10"
+          - 'generic "2026-05-19: 0次" [ref=e90]'
+          - 'generic "2026-05-20: 13次" [ref=e91]': "13"
+          - 'generic "2026-05-21: 0次" [ref=e92]'
+          - 'generic "2026-05-22: 0次" [ref=e93]'
+          - 'generic "2026-05-23: 0次" [ref=e94]'
+          - 'generic "2026-05-24: 0次" [ref=e95]'
+          - 'generic "2026-05-25: 38次" [ref=e96]': "38"
+          - 'generic "2026-05-26: 0次" [ref=e97]'
+          - 'generic "2026-05-27: 0次" [ref=e98]'
+          - 'generic "2026-05-28: 0次" [ref=e99]'
+          - 'generic "2026-05-29: 0次" [ref=e100]'
+          - 'generic "2026-05-30: 0次" [ref=e101]'
+          - 'generic "2026-05-31: 0次" [ref=e102]'
+          - 'generic "2026-06-01: 20次" [ref=e103]': "20"
+          - 'generic "2026-06-02: 0次" [ref=e104]'
+          - 'generic "2026-06-03: 0次" [ref=e105]'
+          - 'generic "2026-06-04: 0次" [ref=e106]'
+          - 'generic "2026-06-05: 0次" [ref=e107]'
+          - 'generic "2026-06-06: 0次" [ref=e108]'
+          - 'generic "2026-06-07: 0次" [ref=e109]'
+          - 'generic "2026-06-08: 0次" [ref=e110]'
+          - 'generic "2026-06-09: 32次" [ref=e111]': "32"
+          - 'generic "2026-06-10: 0次" [ref=e112]'
+          - 'generic "2026-06-11: 0次" [ref=e113]'
+          - 'generic "2026-06-12: 3次" [ref=e114]': "3"
+          - 'generic "2026-06-13: 1次" [ref=e115]': "1"
+          - 'generic "2026-06-14: 0次" [ref=e116]'
+    - generic [ref=e117]:
+      - generic [ref=e118]:
+        - generic [ref=e119]: ⚠️ 待复习队列预警
+        - generic [ref=e121]:
+          - generic [ref=e122]:
+            - generic [ref=e123]: 急需复习
+            - generic [ref=e124]: "65"
+            - generic [ref=e125]: 衰减熟练度<30%且超过7天未复习
+          - generic [ref=e126]:
+            - generic [ref=e127]: 警告队列
+            - generic [ref=e128]: "42"
+            - generic [ref=e129]: 衰减熟练度<50%且超过14天未复习
+          - generic [ref=e130]:
+            - generic [ref=e131]: 长期冷落
+            - generic [ref=e132]: "11"
+            - generic [ref=e133]: 超过30天未复习
+          - generic [ref=e134]:
+            - generic [ref=e135]: 建议今日复习
+            - generic [ref=e136]: "89"
+            - generic [ref=e137]: 基于调度优先级建议复习总量
+      - generic [ref=e138]:
+        - generic [ref=e139]: 📈 每日练习趋势
+        - img [ref=e141]:
+          - generic [ref=e142]: "0"
+          - generic [ref=e143]: "10"
+          - generic [ref=e144]: "19"
+          - generic [ref=e145]: "29"
+          - generic [ref=e146]: "38"
+          - 'generic "2026-05-16: 0次"'
+          - 'generic "2026-05-17: 0次"'
+          - 'generic "2026-05-18: 10次" [ref=e147]'
+          - 'generic "2026-05-19: 0次"'
+          - 'generic "2026-05-20: 13次" [ref=e148]'
+          - 'generic "2026-05-21: 0次"'
+          - 'generic "2026-05-22: 0次"'
+          - 'generic "2026-05-23: 0次"'
+          - 'generic "2026-05-24: 0次"'
+          - 'generic "2026-05-25: 38次" [ref=e149]'
+          - 'generic "2026-05-26: 0次"'
+          - 'generic "2026-05-27: 0次"'
+          - 'generic "2026-05-28: 0次"'
+          - 'generic "2026-05-29: 0次"'
+          - 'generic "2026-05-30: 0次"'
+          - 'generic "2026-05-31: 0次"'
+          - 'generic "2026-06-01: 20次" [ref=e150]'
+          - 'generic "2026-06-02: 0次"'
+          - 'generic "2026-06-03: 0次"'
+          - 'generic "2026-06-04: 0次"'
+          - 'generic "2026-06-05: 0次"'
+          - 'generic "2026-06-06: 0次"'
+          - 'generic "2026-06-07: 0次"'
+          - 'generic "2026-06-08: 0次"'
+          - 'generic "2026-06-09: 32次" [ref=e151]'
+          - 'generic "2026-06-10: 0次"'
+          - 'generic "2026-06-11: 0次"'
+          - 'generic "2026-06-12: 3次" [ref=e152]'
+          - 'generic "2026-06-13: 1次" [ref=e153]'
+          - 'generic "2026-06-14: 0次"'
+          - 'generic "2026-05-16: 0次" [ref=e156]'
+          - 'generic "2026-05-17: 0次" [ref=e157]'
+          - 'generic "2026-05-18: 10次" [ref=e158]'
+          - generic [ref=e159]: "10"
+          - 'generic "2026-05-19: 0次" [ref=e160]'
+          - 'generic "2026-05-20: 13次" [ref=e161]'
+          - generic [ref=e162]: "13"
+          - 'generic "2026-05-21: 0次" [ref=e163]'
+          - 'generic "2026-05-22: 0次" [ref=e164]'
+          - 'generic "2026-05-23: 0次" [ref=e165]'
+          - 'generic "2026-05-24: 0次" [ref=e166]'
+          - 'generic "2026-05-25: 38次" [ref=e167]'
+          - generic [ref=e168]: "38"
+          - 'generic "2026-05-26: 0次" [ref=e169]'
+          - 'generic "2026-05-27: 0次" [ref=e170]'
+          - 'generic "2026-05-28: 0次" [ref=e171]'
+          - 'generic "2026-05-29: 0次" [ref=e172]'
+          - 'generic "2026-05-30: 0次" [ref=e173]'
+          - 'generic "2026-05-31: 0次" [ref=e174]'
+          - 'generic "2026-06-01: 20次" [ref=e175]'
+          - generic [ref=e176]: "20"
+          - 'generic "2026-06-02: 0次" [ref=e177]'
+          - 'generic "2026-06-03: 0次" [ref=e178]'
+          - 'generic "2026-06-04: 0次" [ref=e179]'
+          - 'generic "2026-06-05: 0次" [ref=e180]'
+          - 'generic "2026-06-06: 0次" [ref=e181]'
+          - 'generic "2026-06-07: 0次" [ref=e182]'
+          - 'generic "2026-06-08: 0次" [ref=e183]'
+          - 'generic "2026-06-09: 32次" [ref=e184]'
+          - generic [ref=e185]: "32"
+          - 'generic "2026-06-10: 0次" [ref=e186]'
+          - 'generic "2026-06-11: 0次" [ref=e187]'
+          - 'generic "2026-06-12: 3次" [ref=e188]'
+          - 'generic "2026-06-13: 1次" [ref=e189]'
+          - generic [ref=e190]: "1"
+          - 'generic "2026-06-14: 0次" [ref=e191]'
+          - generic [ref=e192]: 近30天
+          - generic [ref=e193]: 练习次数
+          - generic [ref=e194]: 05-16
+          - generic [ref=e195]: 05-31
+          - generic [ref=e196]: 06-14
+    - generic [ref=e197]:
+      - generic [ref=e198]:
+        - generic [ref=e199]: 📊 熟练度分布
+        - generic [ref=e200]:
+          - generic [ref=e201]:
+            - generic [ref=e202]: 0-10%
+            - generic [ref=e205]: "61"
+          - generic [ref=e206]:
+            - generic [ref=e207]: 10-20%
+            - generic [ref=e210]: "6"
+          - generic [ref=e211]:
+            - generic [ref=e212]: 20-30%
+            - generic [ref=e215]: "3"
+          - generic [ref=e216]:
+            - generic [ref=e217]: 30-40%
+            - generic [ref=e220]: "8"
+          - generic [ref=e221]:
+            - generic [ref=e222]: 40-50%
+            - generic [ref=e225]: "17"
+          - generic [ref=e226]:
+            - generic [ref=e227]: 50-60%
+            - generic [ref=e230]: "20"
+          - generic [ref=e231]:
+            - generic [ref=e232]: 60-70%
+            - generic [ref=e235]: "1"
+          - generic [ref=e236]:
+            - generic [ref=e237]: 70-80%
+            - generic [ref=e239]: "0"
+          - generic [ref=e240]:
+            - generic [ref=e241]: 80-90%
+            - generic [ref=e243]: "0"
+          - generic [ref=e244]:
+            - generic [ref=e245]: 90-100%
+            - generic [ref=e248]: "39"
+      - generic [ref=e249]:
+        - generic [ref=e250]: ⚡ 难度分布
+        - generic [ref=e251]:
+          - generic [ref=e252]:
+            - generic [ref=e253]: Lv.1
+            - generic [ref=e255]: "0"
+          - generic [ref=e256]:
+            - generic [ref=e257]: Lv.2
+            - generic [ref=e260]: "3"
+          - generic [ref=e261]:
+            - generic [ref=e262]: Lv.3
+            - generic [ref=e265]: "17"
+          - generic [ref=e266]:
+            - generic [ref=e267]: Lv.4
+            - generic [ref=e270]: "26"
+          - generic [ref=e271]:
+            - generic [ref=e272]: Lv.5
+            - generic [ref=e275]: "25"
+          - generic [ref=e276]:
+            - generic [ref=e277]: Lv.6
+            - generic [ref=e280]: "36"
+          - generic [ref=e281]:
+            - generic [ref=e282]: Lv.7
+            - generic [ref=e285]: "23"
+          - generic [ref=e286]:
+            - generic [ref=e287]: Lv.8
+            - generic [ref=e290]: "21"
+          - generic [ref=e291]:
+            - generic [ref=e292]: Lv.9
+            - generic [ref=e295]: "3"
+          - generic [ref=e296]:
+            - generic [ref=e297]: Lv.10
+            - generic [ref=e300]: "1"

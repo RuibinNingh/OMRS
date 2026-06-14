@@ -68,8 +68,11 @@ def _empty_state():
         "uid_to_question_id": {},
         "mastery": {},
         "mastery_baseline": {},
+        "question_tag_baseline": {},
         "sessions": {},
         "history": [],
+        "legacy_history": [],
+        "review_commits": [],
         "retracted_sessions": set(),
         "retracted_reviews": set(),
         "restored_reviews": set(),
@@ -123,6 +126,7 @@ def apply_commit(vault: str, state: dict, commit: dict):
             question["archived"] = False
             question["updated_seq"] = seq
             state["uid_to_question_id"][question["uid"]] = question_id
+            _remember_question_tag_baseline(state, question_id)
     elif ctype in {"question.metadata_update", "question.metadata_update_external"}:
         question_id = payload.get("question_id")
         question = state["questions"].get(question_id)
@@ -131,6 +135,7 @@ def apply_commit(vault: str, state: dict, commit: dict):
             question.update(_normalize_question_fields(after, question))
             question["updated_seq"] = seq
             state["uid_to_question_id"][question["uid"]] = question_id
+            _remember_question_tag_baseline(state, question_id)
     elif ctype in {"question.archive", "question.archive_external"}:
         question = state["questions"].get(payload.get("question_id"))
         if question:
@@ -230,13 +235,15 @@ def _apply_legacy_bootstrap(state, payload, seq):
     for row in payload.get("history_rows", []):
         uid = row.get("UID", "")
         qid = row.get("question_id") or state["uid_to_question_id"].get(uid)
-        state["history"].append({
+        legacy_row = {
             **row,
             "_legacy": True,
             "_question_id": qid,
             "_commit_id": "legacy.bootstrap",
             "_review_index": len(state["history"]),
-        })
+        }
+        state["legacy_history"].append(dict(legacy_row))
+        state["history"].append(legacy_row)
 
 
 def _upsert_question(state, question, seq):
@@ -251,6 +258,13 @@ def _upsert_question(state, question, seq):
         state["uid_to_question_id"][merged["uid"]] = question_id
     state["mastery"].setdefault(question_id, {**DEFAULT_MASTERY, "updated_seq": seq})
     state["mastery_baseline"].setdefault(question_id, dict(state["mastery"][question_id]))
+    _remember_question_tag_baseline(state, question_id)
+
+
+def _remember_question_tag_baseline(state, question_id):
+    question = state["questions"].get(question_id)
+    if question:
+        state["question_tag_baseline"][question_id] = question.get("current_tag", "#状态/待攻克")
 
 
 def _normalize_question_fields(question, fallback=None):
@@ -277,10 +291,12 @@ def _normalize_question_fields(question, fallback=None):
     }
 
 
-def _apply_review_batch(vault, state, commit):
+def _apply_review_batch(vault, state, commit, record=True):
     payload = commit["payload"] or {}
     reviews = payload.get("feedbacks") or payload.get("reviews") or []
     session_id = payload.get("session_id", "")
+    if record:
+        state["review_commits"].append(copy.deepcopy(commit))
     for idx, review in enumerate(reviews):
         effective = _effective_review(state, commit["commit_id"], idx, review)
         if effective is None:
@@ -386,32 +402,15 @@ def _recompute_mastery_from_history(vault, state, seq):
     base = {}
     for qid in state["questions"]:
         base[qid] = dict(state.get("mastery_baseline", {}).get(qid, {**DEFAULT_MASTERY, "updated_seq": seq}))
-    history = list(state["history"])
     state["mastery"] = base
-    state["history"] = []
-    pseudo_commits = {}
-    for row in history:
-        commit_id = row.get("_commit_id", "")
-        idx = _safe_int(row.get("_review_index"), 0)
-        if commit_id == "legacy.bootstrap":
-            state["history"].append(row)
-            continue
-        pseudo_commits.setdefault(commit_id, {"commit_id": commit_id, "seq": seq, "created_at": row.get("Date", ""), "payload": {"feedbacks": []}})
-        feedbacks = pseudo_commits[commit_id]["payload"]["feedbacks"]
-        while len(feedbacks) <= idx:
-            feedbacks.append({})
-        feedbacks[idx] = {
-            "question_id": row.get("_question_id"),
-            "uid_at_that_time": row.get("UID"),
-            "sub_score": row.get("Sub_Score"),
-            "is_correct": row.get("Is_Correct") == "1",
-            "session_id": row.get("Session_ID"),
-            "note": row.get("Note"),
-            "recorded_at": row.get("Date"),
-            "source": "legacy_unknown" if row.get("_legacy") else "manual",
-        }
-    for commit in pseudo_commits.values():
-        _apply_review_batch(vault, state, commit)
+    for qid, question in state["questions"].items():
+        if qid in state["question_tag_baseline"]:
+            question["current_tag"] = state["question_tag_baseline"][qid]
+    state["history"] = [dict(row) for row in state.get("legacy_history", [])]
+    for commit in state.get("review_commits", []):
+        replay = copy.deepcopy(commit)
+        replay["seq"] = seq
+        _apply_review_batch(vault, state, replay, record=False)
 
 
 def _write_projection_tables(db, state):
@@ -549,6 +548,14 @@ def ledger_history(vault: str, before_seq=None, limit=100):
             "payload": payload,
         })
     return items
+
+
+def ledger_retraction_state(vault: str):
+    state = _project_state(vault, read_commits(vault, ascending=True))
+    return {
+        "retracted_sessions": sorted(sid for sid in state["retracted_sessions"] if sid),
+        "retracted_reviews": sorted(state["retracted_reviews"]),
+    }
 
 
 def _commit_summary(commit):

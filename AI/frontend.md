@@ -205,11 +205,17 @@ assets/
 
 历史页现在读取 `/api/history` 的 Ledger commit，而不是只显示 `history_log.csv` 表格。
 
-- 视觉结构为竖线时间线：旧节点在上方，最新节点在底部，进入页面后自动滚到底部。
+- 视觉结构为竖线时间线：旧节点在上方，最新节点在底部，进入页面后自动滚到底部；主时间线只展示非修正、且**当前未被撤销**的节点。
 - 顶部提供排序选择：`旧 → 新（最新在底部）` 或 `新 → 旧（最新在顶部）`，选择会保存在浏览器本地。
-- 每个节点显示时间、摘要、commit_id、source、seq 和 commit_type。
-- `legacy.bootstrap` 等大 payload 会在详情里做摘要/截断，避免页面被完整迁移数据撑爆。
-- 支持节点内操作面板：
+- 顶部提供「修正模式」开关：默认关闭，主节点只读；开启后才显示 `修改 / 撤销 / 还原` 操作面板，避免日常浏览时误触危险操作。
+- 顶部提供「修正记录」按钮：`review.replace`、`review.retract`、`review.restore`、`session.retract`、`session.restore`、`state.restore` 等修正节点从主时间线移出，集中在该列表里查看。
+- **被撤销的节点从主时间线隐藏**：优先使用 `/api/history` 返回的完整链 `retraction_state`；旧响应则回退到前端按 seq 顺序重放 `session.retract/restore`、`review.retract/restore`（前端函数 `historyRetractionState`）。`session.create` 整个 Session 被撤销、或 `review.batch_submit` 批次内所有反馈都被撤销（或其 Session 被撤销）时，该主节点（`isNodeRetracted`）不再显示，状态栏提示「N 个已撤销已隐藏」。Ledger 底层仍保留全部 commit，不做删除。
+- 隐藏的节点可在「修正记录」面板恢复：被撤销且**当前仍处于撤销态**的 `session.retract` / `review.retract` 修正行带「恢复」按钮（`correctionRestoreButton`），点按调用对应 restore API 追加新 commit，节点随即回到主时间线。
+- 每个节点显示时间、题目优先摘要、副标题、commit_id、source、seq 和 commit_type；`review.batch_submit` 标题优先展示 UID（单题直接显示题目，多题显示前几题），副标题再显示有效题数、对错和已撤销条数。
+- 节点默认只显示头部数据；下方挂只读 `查看详情` 折叠块。开启修正模式后，再额外显示默认关闭的 `修改 / 撤销 / 还原` 操作折叠块。
+- 无可操作内容的节点（如 `legacy.bootstrap`、外部扫描类）**不显示**操作折叠块，只保留 `查看详情`。
+- `legacy.bootstrap` 等大 payload 会在「查看详情」里做摘要/截断，避免页面被完整迁移数据撑爆。
+- 操作折叠块内的面板：
   - `review.batch_submit`：选择批次内某条反馈，执行修改、撤销、恢复。
   - 含 `session_id` 的节点：撤销整次 Session 或恢复 Session。
   - 非 genesis 节点：追加 `state.restore`，还原结构化状态到该 seq。

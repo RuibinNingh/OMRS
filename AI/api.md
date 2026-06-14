@@ -38,7 +38,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `status` | string | 当前服务状态，正常为 `ok` |
-| `version` | string | OMRS 版本号，当前为 `v1.1.0` |
+| `version` | string | OMRS 版本号，当前为 `v1.1.1` |
 | `started_at` | string | 服务启动时间（ISO 8601，UTC） |
 | `uptime_seconds` | int | 已运行秒数 |
 | `question_count` | int | 当前托管题目数 |
@@ -84,6 +84,7 @@
 
 **响应字段：**
 - `commits`：按时间自上而下排列的提交节点，含 `seq`、`commit_id`、`created_at`、`source`、`commit_type`、`message`、`summary`、`payload`。
+- `retraction_state`：后端基于完整 Ledger 重放出的当前撤销集合，含 `retracted_sessions` 与 `retracted_reviews`，供前端在只加载最近节点时仍能正确隐藏/恢复。
 - `history`：最近 100 条兼容 CSV 记录，供旧表格或调试使用。
 
 ### `/api/ledger/verify`
@@ -282,6 +283,8 @@
 - `POST /api/history/session/retract`
 - `POST /api/history/session/restore`
 - `POST /api/history/state/restore`
+
+提交前会校验目标：反馈修正要求 `target_commit_id` 指向 `review.batch_submit` 且 `target_review_index` 未越界；Session 修正要求该 Session 曾在 Ledger 中出现；`state.restore` 要求目标 `seq` 存在。校验失败返回 400，不追加脏 commit。
 
 ---
 
