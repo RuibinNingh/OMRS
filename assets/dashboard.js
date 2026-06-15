@@ -1,6 +1,168 @@
-// === assets/dashboard.js — 仪表盘图表 renderDash + 最近动态 ===
-function recentLedgerRow(row,rs){const fam=(typeof historyCommitFamily==='function')?historyCommitFamily(row.commit_type):'system';const dt=(row.created_at||'').replace('T',' ').slice(0,16);const title=(typeof historyNodeTitle==='function')?historyNodeTitle(row,rs):(row.summary||row.commit_type);let chip='';if(row.commit_type==='review.batch_submit'&&typeof historyReviewBatchStats==='function'){const s=historyReviewBatchStats(row,rs);chip=`<span class="recent-chip">${s.correct} 对 · ${s.wrong} 错</span>`}return `<div class="recent-row"><span class="recent-dot fam-${fam}"></span><div class="recent-mid"><div class="recent-title">${escapeHtml(title)}</div><div class="recent-meta">${escapeHtml(row.commit_id||'')} · seq ${escapeHtml(row.seq)}</div></div>${chip}<span class="recent-time">${escapeHtml(dt||'GENESIS')}</span></div>`}
-async function renderRecentLedger(){const box=document.getElementById('recent-ledger');if(!box)return;let commits=window.HISTORY_COMMITS,rs=window.HISTORY_RETRACTION_STATE;try{if(!commits||!commits.length){const r=await api('/api/history?limit=12');commits=r.commits||[];rs=r.retraction_state||null}}catch(e){box.innerHTML='<div class="empty-inline">暂无动态（需后端运行）</div>';return}if(!commits||!commits.length){box.innerHTML='<div class="empty-inline">暂无动态</div>';return}const state=(typeof normalizeHistoryRetractionState==='function'&&normalizeHistoryRetractionState(rs))||(typeof historyRetractionState==='function'?historyRetractionState(commits):{retractedSessions:new Set(),retractedReviews:new Set()});const rows=[...commits].sort((a,b)=>asNumber(b.seq,0)-asNumber(a.seq,0)).filter(r=>{const corr=(typeof isHistoryCorrection==='function')?isHistoryCorrection(r):false;const retr=(typeof isNodeRetracted==='function')?isNodeRetracted(r,state):false;return !corr&&!retr}).slice(0,4);if(!rows.length){box.innerHTML='<div class="empty-inline">暂无动态</div>';return}box.innerHTML=rows.map(r=>recentLedgerRow(r,state)).join('')}
+// === assets/dashboard.js: 仪表盘图表 renderDash + 最近动态 ===
+function dashClamp(value,min,max){return Math.max(min,Math.min(max,value))}
+function dashValue(value){return asNumber(value,0)}
+function dashPct(value,max){return dashClamp(dashValue(value)/Math.max(1,dashValue(max))*100,0,100)}
+function dashDateKey(date){const y=date.getFullYear();const m=String(date.getMonth()+1).padStart(2,'0');const d=String(date.getDate()).padStart(2,'0');return`${y}-${m}-${d}`}
+function dashEmpty(text='暂无数据'){return`<div class="empty"><p>${escapeHtml(text)}</p></div>`}
+function dashBarRows(rows,{mode='plain'}={}){
+  if(!rows.length)return dashEmpty();
+  return`<div class="chart-bars ${mode==='compact'?'compact':''}">`+rows.map(row=>`<div class="chart-row ${row.tone||''}">
+    <div class="chart-row-head">
+      <span class="chart-name">${escapeHtml(row.label)}</span>
+      <span class="chart-meta">${escapeHtml(row.meta||'')}</span>
+      <span class="chart-value">${escapeHtml(row.value)}</span>
+    </div>
+    <div class="chart-track"><div class="chart-fill ${row.fill||'accent'}" style="width:${dashClamp(row.pct,0,100)}%"></div></div>
+  </div>`).join('')+`</div>`;
+}
+function dashSmoothPoints(points){
+  if(!points.length)return'';
+  if(points.length===1)return`M ${points[0].x} ${points[0].y}`;
+  let path=`M ${points[0].x} ${points[0].y}`;
+  for(let i=1;i<points.length;i+=1){
+    const prev=points[i-1],cur=points[i];
+    const midX=(prev.x+cur.x)/2;
+    path+=` C ${midX} ${prev.y}, ${midX} ${cur.y}, ${cur.x} ${cur.y}`;
+  }
+  return path;
+}
+function recentLedgerRow(row,rs){
+  const fam=(typeof historyCommitFamily==='function')?historyCommitFamily(row.commit_type):'system';
+  const dt=(row.created_at||'').replace('T',' ').slice(0,16);
+  const title=(typeof historyNodeTitle==='function')?historyNodeTitle(row,rs):(row.summary||row.commit_type);
+  let chip='';
+  if(row.commit_type==='review.batch_submit'&&typeof historyReviewBatchStats==='function'){
+    const s=historyReviewBatchStats(row,rs);
+    chip=`<span class="recent-chip">${s.correct} 对 · ${s.wrong} 错</span>`;
+  }
+  return`<div class="recent-row"><span class="recent-dot fam-${fam}"></span><div class="recent-mid"><div class="recent-title">${escapeHtml(title)}</div><div class="recent-meta">${escapeHtml(row.commit_id||'')} · seq ${escapeHtml(row.seq)}</div></div>${chip}<span class="recent-time">${escapeHtml(dt||'GENESIS')}</span></div>`;
+}
+async function renderRecentLedger(){
+  const box=document.getElementById('recent-ledger');if(!box)return;
+  let commits=window.HISTORY_COMMITS,rs=window.HISTORY_RETRACTION_STATE;
+  try{
+    if(!commits||!commits.length){
+      const r=await api('/api/history?limit=12');
+      commits=r.commits||[];
+      rs=r.retraction_state||null;
+    }
+  }catch(e){
+    box.innerHTML='<div class="empty-inline">暂无动态（需要后端运行）</div>';
+    return;
+  }
+  if(!commits||!commits.length){box.innerHTML='<div class="empty-inline">暂无动态</div>';return}
+  const state=(typeof normalizeHistoryRetractionState==='function'&&normalizeHistoryRetractionState(rs))||(typeof historyRetractionState==='function'?historyRetractionState(commits):{retractedSessions:new Set(),retractedReviews:new Set()});
+  const rows=[...commits].sort((a,b)=>asNumber(b.seq,0)-asNumber(a.seq,0)).filter(r=>{
+    const corr=(typeof isHistoryCorrection==='function')?isHistoryCorrection(r):false;
+    const retr=(typeof isNodeRetracted==='function')?isNodeRetracted(r,state):false;
+    return !corr&&!retr;
+  }).slice(0,4);
+  box.innerHTML=rows.length?rows.map(r=>recentLedgerRow(r,state)).join(''):'<div class="empty-inline">暂无动态</div>';
+}
+function renderActivityHeatmap(activity){
+  const el=document.getElementById('chart-activity');if(!el)return;
+  const days=[];const today=new Date();
+  for(let i=29;i>=0;i-=1){
+    const dt=new Date(today);
+    dt.setDate(dt.getDate()-i);
+    const key=dashDateKey(dt);
+    days.push({key,day:dt.getDate(),weekday:'日一二三四五六'[dt.getDay()],count:dashValue((activity||{})[key])});
+  }
+  const max=Math.max(1,...days.map(d=>d.count));
+  const total=days.reduce((sum,d)=>sum+d.count,0);
+  const active=days.filter(d=>d.count>0).length;
+  const peak=days.reduce((best,d)=>d.count>best.count?d:best,days[0]||{count:0,key:''});
+  const cells=days.map(d=>{
+    const level=d.count?Math.max(1,Math.ceil(d.count/max*4)):0;
+    return`<div class="activity-cell heat-${level}" title="${escapeAttr(d.key)}：${d.count} 次" aria-label="${escapeAttr(d.key)} ${d.count} 次"><span>${d.day}</span><small>${escapeHtml(d.weekday)}</small></div>`;
+  }).join('');
+  el.innerHTML=`<div class="activity-shell">
+    <div class="activity-stats">
+      <span><strong>${total}</strong> 次复习</span>
+      <span><strong>${active}</strong> 天活跃</span>
+      <span><strong>${peak.count}</strong> 单日峰值</span>
+    </div>
+    <div class="activity-heatmap">${cells}</div>
+    <div class="activity-legend"><span>少</span><i class="heat-0"></i><i class="heat-1"></i><i class="heat-2"></i><i class="heat-3"></i><i class="heat-4"></i><span>多</span></div>
+  </div>`;
+}
+function renderSubjectChart(subjectDist){
+  const el=document.getElementById('chart-subjects');if(!el)return;
+  const entries=Object.entries(subjectDist||{}).sort((a,b)=>dashValue(b[1]?.total)-dashValue(a[1]?.total));
+  if(!entries.length){el.innerHTML=dashEmpty();return}
+  const max=Math.max(1,...entries.map(([,value])=>dashValue(value.total)));
+  el.innerHTML='<div class="subject-bars">'+entries.map(([name,value])=>{
+    const total=dashValue(value.total),killed=dashValue(value.killed),killPct=total?killed/total*100:0,totalPct=dashPct(total,max);
+    return`<div class="subject-row">
+      <div class="subject-head"><span>${escapeHtml(name)}</span><strong>${total}</strong></div>
+      <div class="subject-track">
+        <div class="subject-total" style="width:${totalPct}%"></div>
+        <div class="subject-killed" style="width:${dashClamp(killPct,0,100)}%"></div>
+      </div>
+      <div class="subject-foot"><span>已击杀 ${killed}</span><span>${killPct.toFixed(0)}%</span></div>
+    </div>`;
+  }).join('')+'</div>';
+}
+function renderMasteryChart(histogram){
+  const el=document.getElementById('chart-mastery');if(!el)return;
+  const mh=histogram||{};const keys=['0-10','10-20','20-30','30-40','40-50','50-60','60-70','70-80','80-90','90-100'];
+  const max=Math.max(1,...keys.map(k=>dashValue(mh[k])));
+  if(!Object.keys(mh).length){el.innerHTML=dashEmpty();return}
+  el.innerHTML=dashBarRows(keys.map((key,idx)=>{
+    const count=dashValue(mh[key]);
+    return{label:`${key}%`,meta:idx<3?'危险':idx<6?'拉升':idx<8?'稳定':'掌握',value:String(count),pct:dashPct(count,max),fill:idx<3?'red':idx<6?'yellow':idx<8?'blue':'green'};
+  }),{mode:'compact'});
+}
+function renderDifficultyChart(dist){
+  const el=document.getElementById('chart-diff');if(!el)return;
+  const values=Array.from({length:10},(_,i)=>dashValue((dist||{})[String(i+1)]));
+  const max=Math.max(1,...values);
+  el.innerHTML=`<div class="level-bars">`+values.map((count,idx)=>{
+    const level=idx+1;
+    const tone=level<=3?'easy':level<=6?'mid':level<=8?'hard':'risk';
+    return`<div class="level-bar ${tone}" title="Lv.${level}：${count} 题">
+      <div class="level-fill" style="height:${dashPct(count,max)}%"></div>
+      <span>${level}</span>
+      <b>${count}</b>
+    </div>`;
+  }).join('')+`</div>`;
+}
+function renderAlertCards(alertData){
+  const el=document.getElementById('chart-alerts');if(!el)return;
+  const data=alertData||{};
+  const alerts=[
+    {label:'急需复习',val:data.urgent||0,desc:'熟练度低且较久未复习',tone:'danger'},
+    {label:'警告队列',val:data.warning||0,desc:'熟练度开始衰减',tone:'warning'},
+    {label:'长期冷落',val:data.cold||0,desc:'超过 30 天未复习',tone:'cool'},
+    {label:'今日建议',val:data.total_due||0,desc:'按优先级建议复习',tone:'accent'},
+  ];
+  el.innerHTML=`<div class="alert-grid">`+alerts.map(a=>`<div class="alert-card ${a.tone}">
+    <div><span>${escapeHtml(a.label)}</span><p>${escapeHtml(a.desc)}</p></div>
+    <strong>${escapeHtml(a.val)}</strong>
+  </div>`).join('')+`</div>`;
+}
+function renderTrendChart(trend){
+  const el=document.getElementById('chart-trend');if(!el)return;
+  const data=trend||{};const dates=Object.keys(data).sort();
+  if(!dates.length){el.innerHTML=dashEmpty();return}
+  const max=Math.max(1,...Object.values(data).map(dashValue));
+  const total=Object.values(data).reduce((sum,v)=>sum+dashValue(v),0);
+  const last=dashValue(data[dates[dates.length-1]]);
+  const w=680,h=286,padL=44,padR=18,padT=18,padB=38,baseY=h-padB,plotH=h-padT-padB,plotW=w-padL-padR;
+  const pts=dates.map((dt,i)=>{const x=padL+(i/(dates.length-1||1))*plotW;const y=baseY-(dashValue(data[dt])/max)*plotH;return{dt,value:dashValue(data[dt]),x,y}});
+  const linePath=dashSmoothPoints(pts);
+  const areaPath=pts.length?`${linePath} L ${pts[pts.length-1].x} ${baseY} L ${pts[0].x} ${baseY} Z`:'';
+  const grid=Array.from({length:5},(_,i)=>{const y=baseY-(i/4)*plotH;const val=Math.round(max*i/4);return`<line x1="${padL}" y1="${y}" x2="${w-padR}" y2="${y}" class="chart-grid-line"/><text x="${padL-10}" y="${y+4}" class="chart-axis" text-anchor="end">${val}</text>`}).join('');
+  const labels=pts.filter((_,i)=>i===0||i===pts.length-1||i===Math.floor(pts.length/2)).map(pt=>`<text x="${pt.x}" y="${h-12}" class="chart-axis" text-anchor="${pt.x===padL?'start':pt.x===w-padR?'end':'middle'}">${pt.dt.slice(5)}</text>`).join('');
+  const markers=pts.filter(pt=>pt.value>0).map(pt=>`<circle cx="${pt.x}" cy="${pt.y}" r="${pt.value===max?5:3.5}" class="${pt.value===max?'trend-peak':'trend-dot'}"><title>${escapeHtml(pt.dt)}：${pt.value} 次</title></circle>`).join('');
+  el.innerHTML=`<div class="trend-shell">
+    <div class="trend-summary"><span><strong>${total}</strong> 近 30 天</span><span><strong>${last}</strong> 最近一天</span><span><strong>${max}</strong> 单日最高</span></div>
+    <svg viewBox="0 0 ${w} ${h}" class="trend-svg" role="img" aria-label="每日练习趋势">
+      <defs><linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--blue)" stop-opacity=".34"/><stop offset="100%" stop-color="var(--blue)" stop-opacity=".02"/></linearGradient></defs>
+      ${grid}<path d="${areaPath}" class="trend-area"/><path d="${linePath}" class="trend-line"/>${markers}<line x1="${padL}" y1="${baseY}" x2="${w-padR}" y2="${baseY}" class="chart-axis-line"/>${labels}
+    </svg>
+  </div>`;
+}
 function renderDash(){
   const d=DATA;
   document.getElementById('s-total').textContent=d.total;
@@ -8,32 +170,11 @@ function renderDash(){
   document.getElementById('s-kill-pct').textContent=d.total?`${(d.killed/d.total*100).toFixed(0)}% 击杀率`:'';
   document.getElementById('s-attack').textContent=d.attacking;
   document.getElementById('s-avgm').textContent=`${(d.avg_mastery*100).toFixed(0)}%`;
-  const sc=document.getElementById('chart-subjects');sc.innerHTML='';
-  const subjectEntries=Object.entries(d.subject_dist||{});
-  const mx=Math.max(1,...subjectEntries.map(([,value])=>value.total||0));
-  subjectEntries.forEach(([name,value])=>{const killPct=value.total?value.killed/value.total*100:0;sc.innerHTML+=`<div class="bar-row"><div class="bar-label">${escapeHtml(name)}</div><div class="bar-track"><div class="bar-fill green" style="width:${killPct}%"></div></div><div class="bar-track" style="flex:.4"><div class="bar-fill accent" style="width:${value.total/mx*100}%"></div></div><div class="bar-val">${value.total}</div></div>`});
-  if(!subjectEntries.length)sc.innerHTML='<div class="empty"><p>暂无数据</p></div>';
-  const mc=document.getElementById('chart-mastery');mc.innerHTML='';
-  const mh=d.mastery_histogram||{};const mhMax=Math.max(1,...Object.values(mh));
-  ['0-10','10-20','20-30','30-40','40-50','50-60','60-70','70-80','80-90','90-100'].forEach((label,idx)=>{const key=`${idx*10}-${(idx+1)*10}`;const count=mh[key]||0;const cls=idx<3?'red':idx<6?'yellow':idx<8?'blue':'green';mc.innerHTML+=`<div class="bar-row"><div class="bar-label">${label}%</div><div class="bar-track"><div class="bar-fill ${cls}" style="width:${count/mhMax*100}%"></div></div><div class="bar-val">${count}</div></div>`});
-  if(!Object.keys(mh).length)mc.innerHTML='<div class="empty"><p>暂无数据</p></div>';
-  const ac=document.getElementById('chart-activity');const hm=document.createElement('div');hm.className='heatmap';ac.innerHTML='';ac.appendChild(hm);const today=new Date();for(let i=29;i>=0;i-=1){const dt=new Date(today);dt.setDate(dt.getDate()-i);const key=dt.toISOString().slice(0,10);const count=(d.recent_activity||{})[key]||0;const alpha=count?Math.min(.12+count*.12,.68):.04;hm.innerHTML+=`<div class="heat-cell" style="background:rgba(var(--accent-rgb),${alpha});color:var(--fg2)" title="${key}: ${count}次">${count||''}</div>`}
-  const tc=document.getElementById('chart-trend');tc.innerHTML='';
-  const trend=d.daily_trend||{};const trendDates=Object.keys(trend).sort();
-  const trendMax=Math.max(1,...Object.values(trend));
-  const w=640,h=300,p=34,baseY=h-p,plotH=h-p*2,plotW=w-p*2;
-  const trendPoints=trendDates.map((dt,i)=>{const x=p+(i/(trendDates.length-1||1))*plotW;const y=baseY-(trend[dt]/trendMax)*plotH;return{dt,value:trend[dt],x,y}});
-  const points=trendPoints.map(pt=>`${pt.x},${pt.y}`).join(' ');
-  let trendGrid='';for(let i=0;i<=4;i+=1){const y=baseY-(i/4)*plotH;const value=Math.round((trendMax*i)/4);trendGrid+=`<line x1="${p}" y1="${y}" x2="${w-p}" y2="${y}" stroke="var(--border)"/><text x="${p-8}" y="${y+4}" font-size="11" fill="var(--fg3)" text-anchor="end">${value}</text>`}
-  let bars='';let markers='';trendPoints.forEach((pt,i)=>{const bh=(pt.value/trendMax)*plotH;bars+=`<rect x="${pt.x-5}" y="${baseY-bh}" width="10" height="${bh}" fill="var(--accent)" fill-opacity="0.22" rx="3"><title>${pt.dt}: ${pt.value}次</title></rect>`;const showLabel=pt.value>0&&(trendPoints.length<=16||i%2===0||pt.value===trendMax);markers+=`<circle cx="${pt.x}" cy="${pt.y}" r="${pt.value?4.5:3}" fill="var(--bg2)" stroke="var(--accent)" stroke-width="2"><title>${pt.dt}: ${pt.value}次</title></circle>${showLabel?`<text x="${pt.x}" y="${Math.max(14,pt.y-9)}" font-size="11" fill="var(--accent2)" font-weight="700" text-anchor="middle">${pt.value}</text>`:''}`});
-  const trendDateLabels=trendPoints.filter((_,i)=>i===0||i===trendPoints.length-1||i===Math.floor(trendPoints.length/2)).map(pt=>`<text x="${pt.x}" y="${h-11}" font-size="11" fill="var(--fg3)" text-anchor="${pt.x===p?'start':pt.x===w-p?'end':'middle'}">${pt.dt.slice(5)}</text>`).join('');
-  tc.innerHTML=trendDates.length?`<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:280px;display:block"><defs><linearGradient id="trendGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--accent)" stop-opacity="0.34"/><stop offset="100%" stop-color="var(--accent)" stop-opacity="0.03"/></linearGradient></defs>${trendGrid}${bars}<polygon points="${p},${baseY} ${points} ${w-p},${baseY}" fill="url(#trendGrad)"/><polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${markers}<line x1="${p}" y1="${baseY}" x2="${w-p}" y2="${baseY}" stroke="var(--border2)"/><line x1="${p}" y1="${p}" x2="${p}" y2="${baseY}" stroke="var(--border2)"/><text x="${w/2}" y="${h-2}" font-size="12" fill="var(--fg2)" text-anchor="middle">近30天</text><text x="13" y="${h/2}" font-size="12" fill="var(--fg2)" transform="rotate(-90 13,${h/2})">练习次数</text>${trendDateLabels}</svg>`:'<div class="empty"><p>暂无数据</p></div>';
-  const al=document.getElementById('chart-alerts');al.innerHTML='';
-  const alertData=d.review_alert||{};
-  const alerts=[{label:'急需复习',val:alertData.urgent||0,desc:'衰减熟练度<30%且超过7天未复习',color:'var(--red)'},{label:'警告队列',val:alertData.warning||0,desc:'衰减熟练度<50%且超过14天未复习',color:'var(--yellow)'},{label:'长期冷落',val:alertData.cold||0,desc:'超过30天未复习',color:'var(--blue)'},{label:'建议今日复习',val:alertData.total_due||0,desc:'基于调度优先级建议复习总量',color:'var(--accent)'}];
-  al.innerHTML=`<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">`+alerts.map(a=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:14px;text-align:center;border-top:3px solid ${a.color}"><div style="font-size:.7rem;color:var(--fg3);margin-bottom:4px">${escapeHtml(a.label)}</div><div style="font-size:1.6rem;font-weight:900;color:${a.color};font-family:'JetBrains Mono',monospace">${a.val}</div><div style="font-size:.65rem;color:var(--fg3);margin-top:4px">${escapeHtml(a.desc)}</div></div>`).join('')+`</div>`;
-  const dc=document.getElementById('chart-diff');dc.innerHTML='';
-  const maxDiff=Math.max(1,...Object.values(d.difficulty_dist||{}).map(value=>asNumber(value,0)));
-  for(let i=1;i<=10;i+=1){const count=asNumber((d.difficulty_dist||{})[String(i)],0);const cls=i<=3?'green':i<=6?'blue':i<=8?'accent':'red';dc.innerHTML+=`<div class="bar-row"><div class="bar-label">Lv.${i}</div><div class="bar-track"><div class="bar-fill ${cls}" style="width:${count/maxDiff*100}%"></div></div><div class="bar-val">${count}</div></div>`}
+  renderSubjectChart(d.subject_dist);
+  renderActivityHeatmap(d.recent_activity);
+  renderAlertCards(d.review_alert);
+  renderTrendChart(d.daily_trend);
+  renderMasteryChart(d.mastery_histogram);
+  renderDifficultyChart(d.difficulty_dist);
   renderRecentLedger();
 }

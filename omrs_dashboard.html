@@ -7,7 +7,7 @@
 <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'')}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-<link rel="stylesheet" href="assets/styles.css?v=20260615-glass">
+<link rel="stylesheet" href="assets/styles.css?v=20260615-modern-charts">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -73,16 +73,16 @@
       <div id="recent-ledger"><div class="empty-inline">加载中…</div></div>
     </div>
     <div class="cols">
-      <div class="card"><div class="card-title">📚 科目分布</div><div id="chart-subjects"></div></div>
-      <div class="card"><div class="card-title">📅 近 30 天活动</div><div id="chart-activity"></div></div>
+      <div class="card"><div class="card-title">科目分布</div><div id="chart-subjects"></div></div>
+      <div class="card"><div class="card-title">近 30 天活动</div><div id="chart-activity"></div></div>
     </div>
     <div class="cols">
-      <div class="card"><div class="card-title">⚠️ 待复习队列预警</div><div id="chart-alerts"></div></div>
-      <div class="card"><div class="card-title">📈 每日练习趋势</div><div id="chart-trend"></div></div>
+      <div class="card"><div class="card-title">待复习队列预警</div><div id="chart-alerts"></div></div>
+      <div class="card"><div class="card-title">每日练习趋势</div><div id="chart-trend"></div></div>
     </div>
     <div class="cols">
-      <div class="card"><div class="card-title">📊 熟练度分布</div><div id="chart-mastery"></div></div>
-      <div class="card"><div class="card-title">⚡ 难度分布</div><div id="chart-diff"></div></div>
+      <div class="card"><div class="card-title">熟练度分布</div><div id="chart-mastery"></div></div>
+      <div class="card"><div class="card-title">难度分布</div><div id="chart-diff"></div></div>
     </div>
   </div>
 
@@ -825,7 +825,7 @@
 <datalist id="cr-ktag-list"></datalist>
 
 <script src="assets/core.js"></script>
-<script src="assets/dashboard.js"></script>
+<script src="assets/dashboard.js?v=20260615-modern-charts"></script>
 <script src="assets/questions.js"></script>
 <script src="assets/schedule.js?v=20260615-split"></script>
 <script src="assets/export.js?v=20260615-split"></script>
