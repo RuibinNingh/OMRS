@@ -4,36 +4,58 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OMRS — 错题重构系统</title>
+<script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'')}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-<link rel="stylesheet" href="assets/styles.css?v=20260614-history-ui">
+<link rel="stylesheet" href="assets/styles.css?v=20260615-glass">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 20V10M12 20V5M19 20v-7"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9.5h16M9 3v4M15 3v4"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5 18 12 8 18.5z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 6"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.5l3 1.8"/></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 8h16M4 16h16"/><circle cx="9" cy="8" r="2.3"/><circle cx="15" cy="16" r="2.3"/></symbol>
+<symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+</defs></svg>
 <div class="shell">
-  <header>
-    <div class="logo">
-      <div class="logo-icon">鬼</div>
-      <div><h1>OMRS</h1><p>Obsidian 错题重构系统</p></div>
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-mark">鬼</div>
+      <div class="brand-text"><h1>OMRS</h1><p>错题重构系统</p></div>
+      <button class="sidebar-collapse" onclick="toggleSidebar()" title="折叠 / 展开侧栏" aria-label="折叠或展开侧栏"><svg class="nav-ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
     </div>
-    <div class="header-actions">
-      <button class="btn" onclick="doScan()">🔄 重新扫描</button>
-      <button class="btn primary" onclick="switchTab('create')">＋ 录入题目</button>
+    <nav class="sidebar-nav">
+      <div class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')"><svg class="nav-ico" aria-hidden="true"><use href="#i-home"/></svg><span>仪表盘</span></div>
+      <div class="tab" data-tab="data" onclick="switchTab('data')"><svg class="nav-ico" aria-hidden="true"><use href="#i-chart"/></svg><span>数据复盘</span></div>
+      <div class="tab" data-tab="questions" onclick="switchTab('questions')"><svg class="nav-ico" aria-hidden="true"><use href="#i-folder"/></svg><span>题目库</span></div>
+      <div class="tab" data-tab="schedule" onclick="switchTab('schedule')"><svg class="nav-ico" aria-hidden="true"><use href="#i-calendar"/></svg><span>复习调度</span></div>
+      <div class="tab" data-tab="instant" onclick="switchTab('instant')"><svg class="nav-ico" aria-hidden="true"><use href="#i-play"/></svg><span>即时练习</span></div>
+      <div class="tab" data-tab="feedback" onclick="switchTab('feedback')"><svg class="nav-ico" aria-hidden="true"><use href="#i-check"/></svg><span>反馈录入</span></div>
+      <div class="tab" data-tab="create" onclick="switchTab('create')"><svg class="nav-ico" aria-hidden="true"><use href="#i-plus"/></svg><span>录入题目</span></div>
+      <div class="tab" data-tab="history" onclick="switchTab('history')"><svg class="nav-ico" aria-hidden="true"><use href="#i-clock"/></svg><span>历史记录</span></div>
+      <div class="tab" data-tab="reports" onclick="switchTab('reports')"><svg class="nav-ico" aria-hidden="true"><use href="#i-file"/></svg><span>报告</span></div>
+      <div class="nav-spacer"></div>
+      <div class="tab" data-tab="settings" onclick="switchTab('settings')"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></div>
+    </nav>
+    <div class="sidebar-foot" id="sidebar-foot">v1.5.0 · 本地服务</div>
+  </aside>
+  <div class="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
+  <main class="content">
+    <div class="topbar">
+      <button class="topbar-hamburger" onclick="toggleDrawer()" aria-label="打开菜单"><svg class="nav-ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
+      <div class="topbar-title" id="topbar-title">仪表盘</div>
+      <div class="topbar-actions">
+        <button class="btn" onclick="doScan()">重新扫描</button>
+        <button class="btn primary" onclick="switchTab('create')">＋ 录入题目</button>
+      </div>
     </div>
-  </header>
-
-  <div class="tabs">
-    <div class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">仪表盘</div>
-    <div class="tab" data-tab="data" onclick="switchTab('data')">数据</div>
-    <div class="tab" data-tab="questions" onclick="switchTab('questions')">题目库</div>
-    <div class="tab" data-tab="schedule" onclick="switchTab('schedule')">复习调度</div>
-    <div class="tab" data-tab="instant" onclick="switchTab('instant')">即时练习</div>
-    <div class="tab" data-tab="feedback" onclick="switchTab('feedback')">反馈录入</div>
-    <div class="tab" data-tab="create" onclick="switchTab('create')">录入题目</div>
-    <div class="tab" data-tab="history" onclick="switchTab('history')">历史记录</div>
-    <div class="tab" data-tab="reports" onclick="switchTab('reports')">报告</div>
-    <div class="tab" data-tab="settings" onclick="switchTab('settings')">设置</div>
-  </div>
 
   <!-- ====== 仪表盘 ====== -->
   <div class="panel active" id="panel-dashboard">
@@ -42,6 +64,13 @@
       <div class="stat-card c2"><div class="stat-label">已击杀</div><div class="stat-value" id="s-killed">—</div><div class="stat-sub" id="s-kill-pct"></div></div>
       <div class="stat-card c3"><div class="stat-label">待攻克</div><div class="stat-value" id="s-attack">—</div></div>
       <div class="stat-card c4"><div class="stat-label">平均熟练度</div><div class="stat-value" id="s-avgm">—</div></div>
+    </div>
+    <div class="card" style="margin-bottom:20px">
+      <div class="recent-head">
+        <div class="card-title" style="margin-bottom:0">最近动态</div>
+        <button class="btn sm" onclick="switchTab('history')">完整时间线 →</button>
+      </div>
+      <div id="recent-ledger"><div class="empty-inline">加载中…</div></div>
     </div>
     <div class="cols">
       <div class="card"><div class="card-title">📚 科目分布</div><div id="chart-subjects"></div></div>
@@ -314,33 +343,36 @@
   </div>
 
   <div class="panel" id="panel-instant">
-    <div class="card instant-topbar">
-      <div>
+    <!-- 顶部：设置 / 筛选 -->
+    <div class="card inst-setup">
+      <div class="inst-setup-head">
         <div class="card-title">即时练习</div>
         <div id="inst-status" class="status-text">按推荐算法取题，不写入调度 Session。</div>
       </div>
-      <div class="filter-bar instant-filters">
+      <div class="inst-filters">
         <select id="inst-subject" class="input"><option value="">全部科目</option></select>
         <select id="inst-category" class="input"><option value="">全部分类</option></select>
         <select id="inst-ktag" class="input"><option value="">全部标签</option></select>
-        <input type="number" id="inst-count" class="input filter-mini" min="1" max="50" value="10" title="练习题数">
+        <label class="inst-count-field"><span>题数</span><input type="number" id="inst-count" min="1" max="50" value="10" title="练习题数"></label>
         <button class="btn primary" onclick="instLoadPractice()">加载推荐</button>
       </div>
     </div>
-    <div class="instant-layout">
-      <div class="instant-main">
+
+    <!-- 工作台：用 grid-area 排布；移动端重排为 进度 → 队列 → 题卡 → 结果 -->
+    <div class="inst-work">
+      <div id="inst-summary" class="inst-progress">尚未加载</div>
+      <div class="inst-queue-wrap">
+        <div class="inst-rail-label">队列</div>
+        <div id="inst-queue" class="instant-queue"></div>
+      </div>
+      <div class="inst-main">
         <div id="inst-empty" class="card empty">
           <div class="icon">▶</div>
-          <p>点击「加载推荐」开始。</p>
+          <p>点击「加载推荐」开始按算法练习。</p>
         </div>
         <div id="inst-review" class="instant-review" style="display:none"></div>
       </div>
-      <aside class="card instant-side">
-        <div class="card-title">练习队列</div>
-        <div id="inst-summary" class="instant-summary">尚未加载</div>
-        <div id="inst-queue" class="instant-queue"></div>
-        <div id="inst-submit-results" class="instant-results"></div>
-      </aside>
+      <div id="inst-submit-results" class="instant-results"></div>
     </div>
   </div>
 
@@ -354,21 +386,23 @@
       <button class="btn sm" onclick="addFbRow()">＋ 添加行</button>
       <span id="fb-session-info" style="font-size:.72rem;color:var(--fg3)"></span>
     </div>
-    <div class="card" style="margin-bottom:14px">
-      <div class="card-title">📥 从屏幕版或 AI 导入反馈</div>
-      <p style="font-size:.76rem;color:var(--fg3);line-height:1.6;margin-bottom:8px">
-        <strong>屏幕版：</strong>复习完后在「作答情况」抽屉点「复制作答 JSON」并粘贴。<strong>AI：</strong>先复制提示词，把你的纸面批改结果或口述反馈发给 AI，让它整理成同一份反馈 JSON 后粘贴。
-      </p>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
-        <button class="btn sm" onclick="copyFeedbackAiPrompt()">复制 AI 反馈提示词</button>
-        <span id="fb-prompt-status" style="font-size:.75rem"></span>
+    <details class="fb-import">
+      <summary>📥 从屏幕版 / AI 导入反馈</summary>
+      <div class="fb-import-body">
+        <p style="font-size:.76rem;color:var(--fg3);line-height:1.6;margin-bottom:8px">
+          <strong>屏幕版：</strong>复习完后在「作答情况」抽屉点「复制作答 JSON」并粘贴。<strong>AI：</strong>先复制提示词，把你的纸面批改结果或口述反馈发给 AI，让它整理成同一份反馈 JSON 后粘贴。
+        </p>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <button class="btn sm" onclick="copyFeedbackAiPrompt()">复制 AI 反馈提示词</button>
+          <span id="fb-prompt-status" style="font-size:.75rem"></span>
+        </div>
+        <textarea id="fb-json" class="input" rows="5" style="margin-top:10px" placeholder='粘贴形如 {"type":"omrs-feedback","session_id":"EXP-…","items":[{"uid":"…","is_correct":true,"sub_score":9,"note":""}]} 的 JSON'></textarea>
+        <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
+          <button class="btn sm primary" onclick="importFeedbackJson()">导入反馈 JSON</button>
+          <span id="fb-json-status" style="font-size:.75rem"></span>
+        </div>
       </div>
-      <textarea id="fb-json" class="input" rows="5" style="margin-top:10px" placeholder='粘贴形如 {"type":"omrs-feedback","session_id":"EXP-…","items":[{"uid":"…","is_correct":true,"sub_score":9,"note":""}]} 的 JSON'></textarea>
-      <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
-        <button class="btn sm primary" onclick="importFeedbackJson()">导入反馈 JSON</button>
-        <span id="fb-json-status" style="font-size:.75rem"></span>
-      </div>
-    </div>
+    </details>
     <div class="fb-grid" id="fb-grid"></div>
     <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
       <button class="btn primary" onclick="submitFb()" id="fb-submit">提交反馈</button>
@@ -379,99 +413,129 @@
 
   <!-- ====== 录入题目 ====== -->
   <div class="panel" id="panel-create">
-    <div class="cols" style="grid-template-columns:1fr 1fr">
-      <div class="card">
-        <div class="card-title">📝 录入新题目</div>
-        <p style="font-size:.78rem;color:var(--fg3);margin-bottom:18px;line-height:1.6">
-          粘贴题目图片，点「提取并填充信息」让 AI 填好科目 / 分类 / 难度；答案可粘图后「提取答案」转成文本，也可手动输入。题目正文/答案/图片均可直接录入。
-        </p>
-        <div class="create-form">
-          <div class="form-group">
-            <label>题目图片（粘贴 / 拖拽 / 点击选择，可多张）</label>
-            <div id="cr-q-paste" class="paste-zone" tabindex="0" onclick="crPickFiles('q')" onfocus="crSetPasteTarget('q')" ondragover="crDragOver(event,'q')" ondragleave="crDragLeave(event,'q')" ondrop="crHandleDrop(event,'q')">
-              <div class="paste-zone-hint">📋 粘贴题目截图（Ctrl / ⌘ + V）· 拖拽 · 或点击选择</div>
+    <!-- 步骤导航：截图 → 识别 → 核对 → 保存（真序列，故用编号） -->
+    <div class="cr-steps">
+      <span class="cr-step done"><i>1</i>截图</span><span class="cr-step-arrow">→</span>
+      <span class="cr-step done"><i>2</i>识别</span><span class="cr-step-arrow">→</span>
+      <span class="cr-step now"><i>3</i>核对</span><span class="cr-step-arrow">→</span>
+      <span class="cr-step"><i>4</i>保存</span>
+    </div>
+
+    <!-- 双栏工作台：左=截图工作区，右=结构化题卡 -->
+    <div class="cr-workbench">
+
+      <!-- 左：截图工作区 -->
+      <div class="card cr-pane">
+        <div class="cr-seclabel">截图工作区</div>
+
+        <!-- 题目截图（默认粘贴目标；.paste-active 由 crSetPasteTarget 切换，目标标记走 CSS ::after） -->
+        <div class="cr-shot">
+          <div class="cr-shot-head"><span>题目截图</span></div>
+          <div id="cr-q-paste" class="paste-zone" tabindex="0" onclick="crPickFiles('q')" onfocus="crSetPasteTarget('q')" ondragover="crDragOver(event,'q')" ondragleave="crDragLeave(event,'q')" ondrop="crHandleDrop(event,'q')">
+            <div class="paste-zone-hint">拖拽 · 点击 · Ctrl / ⌘ + V 粘到此</div>
+          </div>
+          <input type="file" id="cr-q-file" accept="image/*" multiple style="display:none" onchange="crFileInput(event,'q')">
+          <div id="cr-q-images" class="img-previews"></div>
+          <div class="paste-actions"><button type="button" class="btn sm" onclick="crReadClipboard('q')">📋 从剪贴板读取到「题目」</button></div>
+          <div class="ai-row">
+            <button class="btn" id="cr-classify-btn" onclick="crClassify()" disabled>🤖 识别题目信息</button>
+            <span id="cr-classify-status" class="ai-status"></span>
+          </div>
+          <div class="hint">AI 读取<strong>第 1 张</strong>题目图，自动填右侧<strong>科目 / 分类 / 难度 / 知识点</strong>（不抄题、不解题）。需先在「设置 → AI 自动识别」配置。</div>
+        </div>
+
+        <hr class="cr-div">
+
+        <!-- 答案截图 -->
+        <div class="cr-shot">
+          <div class="cr-shot-head"><span>答案截图</span><span class="cr-shot-opt">可选</span></div>
+          <div id="cr-a-paste" class="paste-zone" tabindex="0" onclick="crPickFiles('a')" onfocus="crSetPasteTarget('a')" ondragover="crDragOver(event,'a')" ondragleave="crDragLeave(event,'a')" ondrop="crHandleDrop(event,'a')">
+            <div class="paste-zone-hint">拖拽 · 点击 · Ctrl / ⌘ + V 粘到此</div>
+          </div>
+          <input type="file" id="cr-a-file" accept="image/*" multiple style="display:none" onchange="crFileInput(event,'a')">
+          <div id="cr-a-images" class="img-previews"></div>
+          <div class="paste-actions"><button type="button" class="btn sm" onclick="crReadClipboard('a')">📋 从剪贴板读取到「答案」</button></div>
+          <div class="ai-row">
+            <button class="btn" id="cr-extract-btn" onclick="crExtractAnswer()" disabled>🤖 提取答案文本</button>
+            <span id="cr-extract-status" class="ai-status"></span>
+          </div>
+          <div class="hint">AI 读取<strong>第 1 张</strong>答案图，把答案 / 解析<strong>提取为文本</strong>填到右侧；也可不提取（答案图直接随题嵌入）。</div>
+        </div>
+
+        <div class="cr-tip"><span class="cr-tip-ico">i</span>Ctrl / ⌘ + V 会粘到高亮的区域，点另一个区即可切换粘贴目标。</div>
+      </div>
+
+      <!-- 右：题卡内容 -->
+      <div class="card cr-pane">
+        <div class="cr-seclabel">题卡内容</div>
+
+        <!-- AI 自动填充组：科目 / 分类 / 难度 / 知识点 -->
+        <div class="cr-aigroup">
+          <div class="cr-aigroup-head"><span class="cr-aigroup-title">🤖 AI 自动填充</span><span class="cr-aigroup-tag">可改</span></div>
+          <div class="cr-row2">
+            <div class="form-group" style="margin-bottom:0">
+              <label>科目 *</label>
+              <input id="cr-subject" class="input" placeholder="数学、物理、化学…" list="cr-subj-list">
             </div>
-            <input type="file" id="cr-q-file" accept="image/*" multiple style="display:none" onchange="crFileInput(event,'q')">
-            <div class="paste-actions"><button type="button" class="btn sm" onclick="crReadClipboard('q')">📋 从剪贴板读取到「题目」</button></div>
-            <div id="cr-q-images" class="img-previews"></div>
-            <div class="ai-row">
-              <button class="btn" id="cr-classify-btn" onclick="crClassify()" disabled>🤖 提取并填充信息</button>
-              <span id="cr-classify-status" class="ai-status"></span>
+            <div class="form-group" style="margin-bottom:0">
+              <label>分类（知识点）*</label>
+              <input id="cr-category" class="input" placeholder="隐圆模型、动能定理…" list="cr-cat-list">
             </div>
-            <div class="hint">AI 读取<strong>第 1 张</strong>题目图片，自动填充下方<strong>科目 / 分类 / 难度 / 相关知识点</strong>（不抄题、不解题，题目以图片随题保存）。需先在「设置 → AI 自动识别」配置 API。</div>
           </div>
-          <div class="form-group">
-            <label>科目 *</label>
-            <input id="cr-subject" class="input" placeholder="数学、物理、化学…" list="cr-subj-list">
-            <div class="hint">输入已有科目或新建</div>
-          </div>
-          <div class="form-group">
-            <label>分类 (知识点) *</label>
-            <input id="cr-category" class="input" placeholder="隐圆模型、动能定理…" list="cr-cat-list">
-            <div class="hint">同一分类的题目放在同一文件夹下</div>
-          </div>
-          <div class="form-group">
-            <label>难度 (1-10)</label>
-            <div style="display:flex;align-items:center;gap:10px">
+          <div class="form-group" style="margin:14px 0 0">
+            <label>难度（1–10）</label>
+            <div style="display:flex;align-items:center;gap:12px">
               <input type="range" id="cr-diff" min="1" max="10" value="5" style="flex:1" oninput="document.getElementById('cr-diff-val').textContent=this.value">
-              <span id="cr-diff-val" style="font-family:'JetBrains Mono',monospace;font-size:1rem;color:var(--accent);width:24px">5</span>
+              <span id="cr-diff-val" style="font-family:'JetBrains Mono',monospace;font-size:1rem;color:var(--accent);width:24px;text-align:right">5</span>
             </div>
           </div>
-          <div class="form-group">
-            <label>相关知识点 (可选)</label>
+          <div class="form-group" style="margin:14px 0 0">
+            <label>相关知识点（可选）</label>
             <input id="cr-related" class="input" placeholder="导数应用, 手拉手模型" list="cr-ktag-list">
-            <div class="hint">逗号分隔，写入 YAML 为 [[双链]]。「提取并填充信息」只会从<strong>已有分类 / 已有知识点</strong>里挑（不造新词）；手动输入建议也从下拉的已有项里选。</div>
-          </div>
-          <div class="form-group">
-            <label>题目正文 (可选)</label>
-            <textarea id="cr-question" class="input" rows="4" placeholder="可手动输入题干；留空也行（题目以上方图片为准）。AI 不会自动抄写题目。"></textarea>
-            <div class="hint">支持 LaTeX（如 $x^2+1$）与多行；题目图片会自动嵌入到题面。</div>
-          </div>
-          <div class="form-group">
-            <label>答案图片（可选，粘贴 / 拖拽 / 点击选择）</label>
-            <div id="cr-a-paste" class="paste-zone" tabindex="0" onclick="crPickFiles('a')" onfocus="crSetPasteTarget('a')" ondragover="crDragOver(event,'a')" ondragleave="crDragLeave(event,'a')" ondrop="crHandleDrop(event,'a')">
-              <div class="paste-zone-hint">📋 粘贴答案截图（Ctrl / ⌘ + V）· 拖拽 · 或点击选择</div>
-            </div>
-            <input type="file" id="cr-a-file" accept="image/*" multiple style="display:none" onchange="crFileInput(event,'a')">
-            <div class="paste-actions"><button type="button" class="btn sm" onclick="crReadClipboard('a')">📋 从剪贴板读取到「答案」</button></div>
-            <div id="cr-a-images" class="img-previews"></div>
-            <div class="ai-row">
-              <button class="btn" id="cr-extract-btn" onclick="crExtractAnswer()" disabled>🤖 提取答案</button>
-              <span id="cr-extract-status" class="ai-status"></span>
-            </div>
-            <div class="hint">AI 读取<strong>第 1 张</strong>答案图片，把答案/解析<strong>提取为文本</strong>填入下方。也可不提取（答案图直接嵌入答案区）或手动输入。</div>
-          </div>
-          <div class="form-group">
-            <label>答案 / 解析 (可选)</label>
-            <textarea id="cr-answer" class="input" rows="3" placeholder="写入 # 答案 区域；可由「提取答案」自动填充或手动输入。"></textarea>
-          </div>
-          <div class="form-group">
-            <label>笔记本页码 (可选)</label>
-            <input id="cr-note" class="input" placeholder="p.23">
-            <div class="hint">写入 YAML 的「页码」字段，便于回查纸质笔记。</div>
-          </div>
-          <div class="form-group">
-            <label>错因 (可选)</label>
-            <textarea id="cr-cause" class="input" rows="2" placeholder="为什么做错？（如：辅助角范围搞错）。写入 # 备注 的「## 错因」，导出时会带上。"></textarea>
-          </div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap">
-            <button class="btn primary" onclick="doCreate()" id="cr-btn">创建题目</button>
+            <div class="hint">逗号分隔，写入 YAML 为 [[双链]]。「识别题目信息」默认只从<strong>已有分类 / 知识点</strong>里挑（设置可放开）。</div>
           </div>
         </div>
-        <div id="cr-result"></div>
+
+        <div class="form-group">
+          <label>题目正文 <span class="cr-opt">· 可留空</span></label>
+          <textarea id="cr-question" class="input" rows="3" placeholder="AI 不会替你抄题；需要纯文本检索时再手动补充。支持 LaTeX，如 $x^2+1$。"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>答案 / 解析 <span class="cr-opt">· 可选</span></label>
+          <textarea id="cr-answer" class="input" rows="3" placeholder="写入 # 答案 区域；可由「提取答案文本」自动填充，或手动输入。"></textarea>
+        </div>
+
+        <!-- 错因：错题本的核心字段，给它独立的暖色块 -->
+        <div class="cr-cause">
+          <label class="cr-cause-head" for="cr-cause"><span class="cr-flag">⚑</span> 错因 · 这道题为什么错？</label>
+          <textarea id="cr-cause" class="input" rows="2" placeholder="如：审题时把开区间当成闭区间。写入 # 备注 的「## 错因」，导出时会带上。"></textarea>
+          <div class="cr-cause-foot"><span class="cr-flag">★</span> 错题本的核心——复习时先看这里。</div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0">
+          <label>笔记本页码 <span class="cr-opt">· 可选</span></label>
+          <input id="cr-note" class="input" placeholder="p.23" style="max-width:160px">
+        </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:16px;min-width:0">
-      <div class="card">
-        <div class="card-title">📖 使用说明</div>
-        <div style="font-size:.8rem;color:var(--fg2);line-height:1.8">
-          <p><strong>1.</strong> 在「题目图片」区 <code>Ctrl/⌘+V</code> 粘贴题目截图（也可拖拽 / 点击选择）</p>
-          <p><strong>2.</strong> 点「🤖 提取并填充信息」→ AI 自动填好<strong>科目 / 分类 / 难度</strong>（不抄题）</p>
-          <p><strong>3.</strong> 答案可在「答案图片」区粘图后点「🤖 提取答案」转成文本，或手动输入 / 直接留图</p>
-          <p><strong>4.</strong> 核对各字段，点「创建题目」即写入；题目与答案图片都会嵌入对应区域</p>
-          <p style="color:var(--fg3)"><strong>提示：</strong>系统自动编号，文件为 <code>错题/科目/分类/分类N.md</code>，图片存入 <code>错题/附件/</code>。AI 需先在「设置」中配置。</p>
-          <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
-          <p style="color:var(--fg3)"><strong>文件结构示例：</strong></p>
-          <pre style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:.72rem;font-family:'JetBrains Mono',monospace;line-height:1.6;overflow-x:auto;margin-top:6px;color:var(--fg2)">错题/
+    </div>
+
+    <!-- 提交栏（横跨双栏底部） -->
+    <div class="cr-actionbar">
+      <div class="cr-actionbar-info"><span class="cr-tip-ico ok">✓</span>核对无误后保存：写入对应科目 / 分类文件夹，题目与答案图自动嵌入，随后可在「题目库」查看。</div>
+      <div class="cr-actionbar-btns">
+        <button class="btn" type="button" onclick="resetCreateForm()">重置</button>
+        <button class="btn primary" id="cr-btn" onclick="doCreate()">创建题目</button>
+      </div>
+    </div>
+    <div id="cr-result"></div>
+
+    <!-- 文件结构与说明（折叠，默认收起） -->
+    <details class="cr-help">
+      <summary>文件结构与说明</summary>
+      <div class="cr-help-body">
+        <p>系统自动编号，题目文件为 <code>错题/科目/分类/分类N.md</code>，图片存入 <code>错题/附件/</code>。AI 识别需先在「设置 → AI 自动识别」中配置 API。</p>
+        <pre>错题/
 ├── 数学/
 │   ├── 数学.md          ← 锚点(自动)
 │   └── 隐圆模型/
@@ -482,15 +546,31 @@
     └── 动能定理/
         ├── 动能定理1.md
         └── 动能定理2.md</pre>
-        </div>
       </div>
-      </div>
-    </div>
+    </details>
   </div>
 
   <!-- ====== 设置 ====== -->
   <div class="panel" id="panel-settings">
     <div class="cols" style="grid-template-columns:1fr 1fr">
+      <div class="card">
+        <div class="card-title">🎨 外观</div>
+        <div class="form-group" style="margin-top:12px">
+          <label class="hint" style="margin-bottom:6px;display:block">主题</label>
+          <div class="theme-switch" id="st-theme-switch">
+            <button class="theme-opt" data-theme="light" onclick="setThemeMode('light')">浅色</button>
+            <button class="theme-opt" data-theme="dark" onclick="setThemeMode('dark')">深色</button>
+          </div>
+          <div class="hint" style="margin-top:8px">题目截图多为浅色，默认浅色阅读最自然；夜里可切深色。设置保存在本浏览器。</div>
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="st-invert-img" style="width:18px;height:18px;accent-color:var(--accent)" onchange="setInvertImg(this.checked)">
+            <span>深色模式下反转题目图片颜色</span>
+          </label>
+          <div class="hint">简易反转：白底变黑、黑字变白（<code>filter: invert(1)</code>），让浅色截图在深色下不刺眼。<b>仅深色模式生效</b>，彩色会一并反相，后续可再做智能保色。</div>
+        </div>
+      </div>
       <div class="card">
         <div class="card-title">⚙️ 服务设置</div>
         <div class="form-group" style="margin-top:12px">
@@ -505,6 +585,28 @@
           <button class="btn danger" onclick="doRestart()">🔄 立即重启</button>
         </div>
         <div id="st-status" style="margin-top:14px;font-size:.82rem"></div>
+        <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+          <div class="svc-sub-title">数据备份</div>
+          <div class="hint" style="margin:5px 0 12px">把整个「错题」目录打包成 .zip 下载留存；导入会校验后覆盖恢复。压缩图片前如需保险，可先在这里导出一份。</div>
+          <div class="opt-actions" style="margin-top:0">
+            <div class="opt-action" id="svc-a-export" onclick="exportOptimizeBackup()">
+              <div class="opt-action-icon aicon-export"><svg viewBox="0 0 24 24"><path d="M12 3v12"></path><polyline points="7 10 12 15 17 10"></polyline><path d="M4 19h16"></path></svg></div>
+              <div>
+                <div class="opt-action-name">导出备份</div>
+                <div class="opt-action-desc hint">下载完整 .zip 存档</div>
+              </div>
+            </div>
+            <div class="opt-action" id="svc-a-import" onclick="document.getElementById('opt-import-file').click()">
+              <div class="opt-action-icon aicon-import"><svg viewBox="0 0 24 24"><path d="M12 15V3"></path><polyline points="7 8 12 3 17 8"></polyline><path d="M4 19h16"></path></svg></div>
+              <div>
+                <div class="opt-action-name">导入备份</div>
+                <div class="opt-action-desc hint">从 .zip 校验后恢复</div>
+              </div>
+            </div>
+          </div>
+          <input type="file" id="opt-import-file" accept=".zip,application/zip" style="display:none" onchange="importOptimizeBackup(event)">
+          <div id="svc-backup-status" style="margin-top:12px;font-size:.82rem"></div>
+        </div>
       </div>
       <div class="card">
         <div class="card-title">ℹ️ 关于</div>
@@ -569,28 +671,44 @@
       </div>
       <div class="card optimize-card">
         <div class="card-title">🧹 优化</div>
-        <div class="opt-layout">
-          <div class="opt-donut-wrap">
-            <svg class="opt-callout-lines" id="opt-callout-lines" viewBox="0 0 260 210" aria-hidden="true"></svg>
-            <div class="opt-donut" id="opt-donut" style="--a:0deg;--b:0deg;--c:360deg">
-              <div>
-                <strong id="opt-total">—</strong>
-                <span>当前占用</span>
-              </div>
-            </div>
-            <div class="opt-callouts" id="opt-callouts"></div>
+        <div class="opt-head">
+          <div class="opt-head-left">
+            <div class="opt-head-title">存储概览</div>
+            <div class="opt-head-sub hint" id="opt-head-sub">加载中</div>
           </div>
-          <div class="opt-side">
-            <div id="opt-legend" class="opt-legend"></div>
-            <div id="opt-deps" class="hint"></div>
+          <div class="opt-head-total" id="opt-total">—</div>
+        </div>
+        <div class="opt-metrics">
+          <div class="opt-metric" id="opt-m-data">
+            <div class="opt-metric-label" id="opt-l-data">数据链</div>
+            <div class="opt-metric-value" id="opt-v-data">—</div>
+            <div class="opt-metric-detail hint" id="opt-d-data"></div>
+            <div class="opt-metric-bar"><div id="opt-b-data"></div></div>
+          </div>
+          <div class="opt-metric" id="opt-m-files">
+            <div class="opt-metric-label" id="opt-l-files">题目文件</div>
+            <div class="opt-metric-value" id="opt-v-files">—</div>
+            <div class="opt-metric-detail hint" id="opt-d-files"></div>
+            <div class="opt-metric-bar"><div id="opt-b-files"></div></div>
+          </div>
+          <div class="opt-metric" id="opt-m-images">
+            <div class="opt-metric-label" id="opt-l-images">题目图片</div>
+            <div class="opt-metric-value" id="opt-v-images">—</div>
+            <div class="opt-metric-detail hint" id="opt-d-images"></div>
+            <div class="opt-metric-bar"><div id="opt-b-images"></div></div>
           </div>
         </div>
-        <div class="opt-actions">
-          <button class="btn primary" onclick="exportOptimizeBackup()">导出备份</button>
-          <button class="btn" onclick="document.getElementById('opt-import-file').click()">导入备份</button>
-          <input type="file" id="opt-import-file" accept=".zip,application/zip" style="display:none" onchange="importOptimizeBackup(event)">
-          <button class="btn" id="opt-scan-btn" onclick="scanOptimizeImages()">扫描压缩</button>
-          <button class="btn danger" id="opt-compress-btn" onclick="confirmOptimizeCompression()" disabled>确认压缩</button>
+        <div class="opt-bar-wrap">
+          <div class="opt-bar">
+            <div class="opt-bar-seg seg-data" id="opt-seg-data"></div>
+            <div class="opt-bar-seg seg-files" id="opt-seg-files"></div>
+            <div class="opt-bar-seg seg-images" id="opt-seg-images"></div>
+          </div>
+          <div class="opt-bar-legend">
+            <span><i class="opt-dot" style="background:var(--accent)"></i>数据链</span>
+            <span><i class="opt-dot" style="background:var(--green)"></i>题目文件</span>
+            <span><i class="opt-dot" style="background:var(--blue)"></i>题目图片</span>
+          </div>
         </div>
         <div class="opt-progress" id="opt-progress" style="display:none">
           <div class="opt-progress-head">
@@ -600,6 +718,23 @@
           <div class="opt-progress-track"><div id="opt-progress-fill"></div></div>
           <div class="hint" id="opt-progress-file"></div>
         </div>
+        <div class="opt-actions">
+          <div class="opt-action" id="opt-a-scan" onclick="scanOptimizeImages()">
+            <div class="opt-action-icon aicon-scan"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"></circle><line x1="16.5" y1="16.5" x2="21" y2="21"></line></svg></div>
+            <div>
+              <div class="opt-action-name">扫描图片</div>
+              <div class="opt-action-desc hint">快速扫描可无损压缩的图片，不改动任何文件</div>
+            </div>
+          </div>
+          <div class="opt-action disabled" id="opt-a-compress" onclick="confirmOptimizeCompression()">
+            <div class="opt-action-icon aicon-compress"><svg viewBox="0 0 24 24"><polyline points="4 10 10 10 10 4"></polyline><polyline points="20 14 14 14 14 20"></polyline><line x1="10" y1="10" x2="4" y2="4"></line><line x1="14" y1="14" x2="20" y2="20"></line></svg></div>
+            <div>
+              <div class="opt-action-name">确认压缩</div>
+              <div class="opt-action-desc hint" id="opt-compress-hint">扫描图片后可压缩</div>
+            </div>
+          </div>
+        </div>
+        <div class="opt-deps" id="opt-deps" style="margin-top:14px"></div>
         <div id="opt-status" style="margin-top:12px;font-size:.82rem"></div>
       </div>
     </div>
@@ -656,6 +791,7 @@
       </div>
     </div>
   </div>
+  </main>
 </div>
 
 <!-- Modal -->
@@ -691,11 +827,14 @@
 <script src="assets/core.js"></script>
 <script src="assets/dashboard.js"></script>
 <script src="assets/questions.js"></script>
-<script src="assets/schedule.js?v=20260614-history-ui"></script>
+<script src="assets/schedule.js?v=20260615-split"></script>
+<script src="assets/export.js?v=20260615-split"></script>
+<script src="assets/feedback.js?v=20260615-split"></script>
+<script src="assets/history.js?v=20260615-split"></script>
 <script src="assets/recommend.js"></script>
-<script src="assets/instant.js"></script>
+<script src="assets/instant.js?v=20260614-pages"></script>
 <script src="assets/data.js"></script>
 <script src="assets/reports.js"></script>
-<script src="assets/app.js"></script>
+<script src="assets/app.js?v=20260615-sidebar"></script>
 </body>
 </html>

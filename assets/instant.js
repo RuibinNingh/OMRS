@@ -98,13 +98,19 @@ function instRender(){
   const review=document.getElementById('inst-review');
   review.style.display='block';
   review.innerHTML=`<div class="instant-head">
-    <div>
-      <div class="uid">${escapeHtml(item.uid)} <span class="tag ${item._source==='due'?'attack':'trap'}">${instSourceLabel(item._source)}</span></div>
-      <div class="meta-line">${escapeHtml(item.subject||q.subject||'')} · ${escapeHtml(item.category||q.category||'')} · 难度 ${escapeHtml(item.difficulty||q.difficulty||'?')} · 熟练度 ${masteryPct}% · 到期 ${formatDueInfo(dueDays)}</div>
-      <div class="tag-row">${ktags}</div>
+    <div class="instant-headl">
+      <div class="instant-pos">题 ${INSTANT_INDEX+1} / ${INSTANT_QUEUE.length}</div>
+      <div class="instant-uid">${escapeHtml(item.uid)} <span class="tag ${item._source==='due'?'attack':'trap'}">${instSourceLabel(item._source)}</span></div>
     </div>
-    <div class="instant-pos">${INSTANT_INDEX+1} / ${INSTANT_QUEUE.length}</div>
+    <div class="instant-chips">
+      <span class="chip">${escapeHtml(item.subject||q.subject||'')}</span>
+      <span class="chip">${escapeHtml(item.category||q.category||'')}</span>
+      <span class="chip">难度 ${escapeHtml(item.difficulty||q.difficulty||'?')}</span>
+      <span class="chip">熟练度 ${masteryPct}%</span>
+    </div>
   </div>
+  <div class="instant-prog"><div style="width:${Math.round((INSTANT_INDEX+1)/Math.max(1,INSTANT_QUEUE.length)*100)}%"></div></div>
+  ${ktags?`<div class="instant-tagrow">${ktags}</div>`:''}
   <div class="instant-block">
     <div class="instant-label">题目</div>
     <div class="instant-md">${renderMdContent(q.question||'（无题目内容）')}</div>
@@ -131,7 +137,8 @@ function instRenderSide(){
     const row=INSTANT_RESULTS[item.uid];
     const answeredRow=row&&(row.correct===true||row.correct===false);
     const cls=['instant-qbtn',index===INSTANT_INDEX?'active':'',answeredRow?(row.correct?'correct':'wrong'):''].filter(Boolean).join(' ');
-    return `<button class="${cls}" onclick="instGo(${index})"><span>${index+1}</span><div class="instant-qmain"><strong>${escapeHtml(item.uid)}</strong><small>${instQueueMeta(item)}</small></div><em>${instSourceLabel(item._source)}</em></button>`;
+    const mk=index===INSTANT_INDEX?'<span class="qmk cur"></span>':(answeredRow?(row.correct?'<span class="qmk ok">✓</span>':'<span class="qmk no">✗</span>'):'<span class="qmk up"></span>');
+    return `<button class="${cls}" onclick="instGo(${index})"><span class="qn">${index+1}</span><div class="instant-qmain"><strong>${escapeHtml(item.uid)}</strong><small>${instQueueMeta(item)}</small></div>${mk}</button>`;
   }).join('');
 }
 

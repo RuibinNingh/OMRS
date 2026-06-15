@@ -500,8 +500,8 @@ def _valid_backup_token(token):
 def start_compression(vault, scan_id, backup_token, confirm=False):
     if not confirm:
         raise ValueError("压缩图片需要 confirm=true")
-    if not _valid_backup_token(backup_token):
-        raise ValueError("请先导出备份，再启动压缩")
+    # 备份不再强制：用户可在「服务设置」自行导出备份，但压缩不依赖有效令牌。
+    # backup_token 仍接受（API 形状不变），仅用于审计，不作为前置条件。
     with _LOCK:
         if any(job.get("status") in ("queued", "running") for job in _JOBS.values()):
             raise ValueError("已有压缩任务正在运行")

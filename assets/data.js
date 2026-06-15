@@ -17,21 +17,28 @@ function renderSubjectRadar(rows){
   const angle=i=>-Math.PI/2+(Math.PI*2*i/subjects.length);
   const point=(value,i)=>{const a=angle(i);const rr=r*value;return{x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr}};
   const ring=level=>subjects.map((_,i)=>{const p=point(level,i);return`${p.x},${p.y}`}).join(' ');
-  const axes=subjects.map((s,i)=>{const end=point(1,i);const label=point(1.18,i);const anchor=Math.abs(label.x-cx)<8?'middle':label.x>cx?'start':'end';return`<line x1="${cx}" y1="${cy}" x2="${end.x}" y2="${end.y}" stroke="rgba(0,0,0,.08)"/><text x="${label.x}" y="${label.y+4}" font-size="12" fill="#5f5750" text-anchor="${anchor}">${escapeHtml(s.subject)}</text>`}).join('');
+  const axes=subjects.map((s,i)=>{const end=point(1,i);const label=point(1.18,i);const anchor=Math.abs(label.x-cx)<8?'middle':label.x>cx?'start':'end';return`<line x1="${cx}" y1="${cy}" x2="${end.x}" y2="${end.y}" stroke="var(--border)"/><text x="${label.x}" y="${label.y+4}" font-size="12" fill="var(--fg2)" text-anchor="${anchor}">${escapeHtml(s.subject)}</text>`}).join('');
   const dataPoints=subjects.map((s,i)=>point(Math.max(0,Math.min(1,asNumber(s.avg_mastery,0))),i));
   const polygon=dataPoints.map(p=>`${p.x},${p.y}`).join(' ');
-  const dots=dataPoints.map((p,i)=>{const s=subjects[i];const value=pctFmt(s.avg_mastery);const color=asNumber(s.avg_mastery,0)>=.8?'#27864a':asNumber(s.avg_mastery,0)>=.5?'#b8860b':'#c0392b';return`<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="${color}" stroke="#fff" stroke-width="1.5"><title>${escapeHtml(s.subject)} · ${value}</title></circle>`}).join('');
-  const grid=levels.map(level=>`<polygon points="${ring(level)}" fill="none" stroke="rgba(0,0,0,.08)"/><text x="${cx+4}" y="${cy-r*level+4}" font-size="10" fill="#8a8178">${Math.round(level*100)}%</text>`).join('');
-  el.innerHTML=`<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:300px;display:block">${grid}${axes}<polygon points="${polygon}" fill="rgba(139,94,60,.18)" stroke="#8b5e3c" stroke-width="2.5" stroke-linejoin="round"/>${dots}<text x="${cx}" y="${h-12}" font-size="12" fill="#777" text-anchor="middle">各科平均熟练度</text></svg>`;
+  const dots=dataPoints.map((p,i)=>{const s=subjects[i];const value=pctFmt(s.avg_mastery);const color=asNumber(s.avg_mastery,0)>=.8?'var(--green)':asNumber(s.avg_mastery,0)>=.5?'var(--yellow)':'var(--red)';return`<circle cx="${p.x}" cy="${p.y}" r="4.5" fill="${color}" stroke="var(--bg2)" stroke-width="1.5"><title>${escapeHtml(s.subject)} · ${value}</title></circle>`}).join('');
+  const grid=levels.map(level=>`<polygon points="${ring(level)}" fill="none" stroke="var(--border)"/><text x="${cx+4}" y="${cy-r*level+4}" font-size="10" fill="var(--fg3)">${Math.round(level*100)}%</text>`).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:300px;display:block">${grid}${axes}<polygon points="${polygon}" fill="var(--accent)" fill-opacity="0.18" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/>${dots}<text x="${cx}" y="${h-12}" font-size="12" fill="var(--fg3)" text-anchor="middle">各科平均熟练度</text></svg>`;
 }
 function renderDataScatter(items){
   const el=document.getElementById('data-scatter');if(!el)return;
-  const scatter=(items||[]).filter(pt=>pt&&pt.difficulty!=null&&pt.mastery!=null);
-  if(!scatter.length){el.innerHTML='<div class="empty"><p>暂无数据</p></div>';return}
-  const sw=640,sh=300,spPad=34,spBaseY=sh-spPad,spPlotW=sw-spPad*2,spPlotH=sh-spPad*2;
-  let scatterGrid='';[0,.25,.5,.75,1].forEach(v=>{const y=spBaseY-v*spPlotH;scatterGrid+=`<line x1="${spPad}" y1="${y}" x2="${sw-spPad}" y2="${y}" stroke="rgba(0,0,0,.07)"/><text x="${spPad-8}" y="${y+4}" font-size="11" fill="#777" text-anchor="end">${Math.round(v*100)}%</text>`});[1,3,5,7,10].forEach(v=>{const x=spPad+((v-1)/9)*spPlotW;scatterGrid+=`<line x1="${x}" y1="${spPad}" x2="${x}" y2="${spBaseY}" stroke="rgba(0,0,0,.05)"/><text x="${x}" y="${sh-13}" font-size="11" fill="#777" text-anchor="middle">${v}</text>`});
-  const circles=scatter.map(pt=>{const difficulty=Math.max(1,Math.min(10,asNumber(pt.difficulty,5)));const mastery=Math.max(0,Math.min(1,asNumber(pt.mastery,0)));const cx=spPad+((difficulty-1)/9)*spPlotW;const cy=spBaseY-mastery*spPlotH;const color=mastery>.8?'#27864a':mastery>.4?'#b8860b':'#c0392b';return`<circle cx="${cx}" cy="${cy}" r="4.5" fill="${color}" opacity="0.78" stroke="#fff" stroke-width="1.5"><title>${escapeHtml(pt.uid)} · D${difficulty} · M${(mastery*100).toFixed(0)}%</title></circle>`}).join('');
-  el.innerHTML=`<svg viewBox="0 0 ${sw} ${sh}" style="width:100%;height:280px;display:block"><rect x="${spPad}" y="${spPad}" width="${spPlotW}" height="${spPlotH}" fill="rgba(0,0,0,0.025)" rx="6"/>${scatterGrid}<line x1="${spPad}" y1="${spBaseY}" x2="${sw-spPad}" y2="${spBaseY}" stroke="#b9b2aa"/><line x1="${spPad}" y1="${spPad}" x2="${spPad}" y2="${spBaseY}" stroke="#b9b2aa"/><text x="${sw/2}" y="${sh-2}" font-size="12" fill="#666" text-anchor="middle">难度</text><text x="13" y="${sh/2}" font-size="12" fill="#666" transform="rotate(-90 13,${sh/2})">熟练度</text>${circles}</svg>`;
+  const pts=(items||[]).filter(pt=>pt&&pt.difficulty!=null&&pt.mastery!=null);
+  if(!pts.length){el.innerHTML='<div class="empty"><p>暂无数据</p></div>';return}
+  const BANDS=5;const bins={};
+  pts.forEach(pt=>{const d=Math.max(1,Math.min(10,Math.round(asNumber(pt.difficulty,5))));const m=Math.max(0,Math.min(1,asNumber(pt.mastery,0)));let b=Math.floor(m*BANDS);if(b>=BANDS)b=BANDS-1;const k=d+'_'+b;if(!bins[k])bins[k]={d,b,count:0,msum:0};bins[k].count++;bins[k].msum+=m});
+  const arr=Object.values(bins);
+  const sw=640,sh=300,pad=36,baseY=sh-pad,plotW=sw-pad*2,plotH=sh-pad*2;
+  let grid='';for(let i=0;i<=BANDS;i+=1){const y=baseY-(i/BANDS)*plotH;grid+=`<line x1="${pad}" y1="${y}" x2="${sw-pad}" y2="${y}" stroke="var(--border)"/>`}
+  [0,20,40,60,80,100].forEach(v=>{const y=baseY-(v/100)*plotH;grid+=`<text x="${pad-8}" y="${y+4}" font-size="11" fill="var(--fg3)" text-anchor="end">${v}%</text>`});
+  [1,2,3,4,5,6,7,8,9,10].forEach(v=>{const x=pad+((v-1)/9)*plotW;grid+=`<text x="${x}" y="${sh-13}" font-size="11" fill="var(--fg3)" text-anchor="middle">${v}</text>`});
+  const masteryColor=m=>m>=.7?'var(--green)':m>=.45?'var(--yellow)':'var(--red)';
+  const bandLabel=b=>`${b*20}–${b*20+20}%`;
+  const bubbles=arr.sort((a,b)=>b.count-a.count).map(o=>{const x=pad+((o.d-1)/9)*plotW;const y=baseY-((o.b+0.5)/BANDS)*plotH;const r=Math.max(4,Math.min(26,Math.sqrt(o.count)*4.6));const avg=o.msum/o.count;return `<circle cx="${x}" cy="${y}" r="${r}" fill="${masteryColor(avg)}" opacity="0.82" stroke="var(--bg2)" stroke-width="1.5"><title>难度 ${o.d} · 熟练度 ${bandLabel(o.b)} · ${o.count} 题（均 ${(avg*100).toFixed(0)}%）</title></circle>`}).join('');
+  el.innerHTML=`<svg viewBox="0 0 ${sw} ${sh}" style="width:100%;height:280px;display:block"><rect x="${pad}" y="${pad}" width="${plotW}" height="${plotH}" fill="var(--bg3)" opacity="0.5" rx="6"/>${grid}<line x1="${pad}" y1="${baseY}" x2="${sw-pad}" y2="${baseY}" stroke="var(--border2)"/><line x1="${pad}" y1="${pad}" x2="${pad}" y2="${baseY}" stroke="var(--border2)"/><text x="${sw/2}" y="${sh-1}" font-size="12" fill="var(--fg2)" text-anchor="middle">难度</text><text x="13" y="${sh/2}" font-size="12" fill="var(--fg2)" transform="rotate(-90 13,${sh/2})">熟练度</text>${bubbles}</svg><div class="scatter-legend"><span><i style="background:var(--red)"></i>低</span><span><i style="background:var(--yellow)"></i>中</span><span><i style="background:var(--green)"></i>高</span><span class="scatter-legend-note">圆越大 = 题目越多 · 颜色 = 熟练度</span></div>`;
 }
 
 function renderAnalytics(){
@@ -93,7 +100,7 @@ function renderAnalytics(){
   // 按时段（24 格热力）
   const hourEl=document.getElementById('data-hour');const bh=a.behavior.by_hour;
   const hMax=Math.max(1,...Object.values(bh));
-  hourEl.innerHTML=`<div class="heatmap">${Array.from({length:24},(_,h)=>{const c=bh[h]||bh[String(h)]||0;const alpha=c?Math.min(.12+c/hMax*.55,.7):.03;return `<div class="heat-cell" style="background:rgba(139,94,60,${alpha})" title="${h}:00 — ${c} 次">${String(h).padStart(2,'0')}</div>`}).join('')}</div><div style="font-size:.65rem;color:var(--fg3);margin-top:6px">每格为一个小时（00–23），颜色越深复习越多</div>`;
+  hourEl.innerHTML=`<div class="heatmap">${Array.from({length:24},(_,h)=>{const c=bh[h]||bh[String(h)]||0;const alpha=c?Math.min(.12+c/hMax*.55,.7):.03;return `<div class="heat-cell" style="background:rgba(var(--accent-rgb),${alpha})" title="${h}:00 — ${c} 次">${String(h).padStart(2,'0')}</div>`}).join('')}</div><div style="font-size:.65rem;color:var(--fg3);margin-top:6px">每格为一个小时（00–23），颜色越深复习越多</div>`;
 
   // 到期预测
   const fc=a.forecast;
@@ -106,12 +113,12 @@ function renderAnalytics(){
   // 预警
   const al=a.review_alert;
   const cells=[
-    {label:'逾期',val:al.overdue,color:'#c0392b'},
-    {label:'今日到期',val:al.due_today,color:'#b8860b'},
-    {label:'急需复习',val:al.urgent,color:'#c0392b'},
-    {label:'警告队列',val:al.warning,color:'#b8860b'},
-    {label:'长期冷落',val:al.cold,color:'#2e6da4'},
-    {label:'顽固题',val:al.leech,color:'#8b5e3c'},
+    {label:'逾期',val:al.overdue,color:'var(--red)'},
+    {label:'今日到期',val:al.due_today,color:'var(--yellow)'},
+    {label:'急需复习',val:al.urgent,color:'var(--red)'},
+    {label:'警告队列',val:al.warning,color:'var(--yellow)'},
+    {label:'长期冷落',val:al.cold,color:'var(--blue)'},
+    {label:'顽固题',val:al.leech,color:'var(--accent)'},
   ];
   document.getElementById('data-alerts').innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">`+cells.map(c=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;border-top:3px solid ${c.color}"><div style="font-size:.68rem;color:var(--fg3);margin-bottom:4px">${escapeHtml(c.label)}</div><div style="font-size:1.5rem;font-weight:900;color:${c.color};font-family:'JetBrains Mono',monospace">${c.val}</div></div>`).join('')+`</div>`;
 

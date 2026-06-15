@@ -4,6 +4,16 @@
 
 无构建步骤。后端与本地前端代码不需要打包依赖；页面运行时外链 Google Fonts，并从 `assets/vendor/katex/` 本地加载 KaTeX 渲染 LaTeX（不可用时降级为可辨识的公式源码片段）。所有图表使用纯 CSS + 内联 SVG 实现。
 
+> **v1.2.0 视觉刷新（精修暖色）**：`styles.css` 的 `:root` 收敛为「编辑式暖色」——卡片去阴影/去 stat-card 顶部彩条、`.bar-fill.*` 由渐变改纯色、发丝级分隔线。新增语义族变量 `--fam-review`（复习/绿）、`--fam-session`（Session/蓝）、`--fam-question`（题目/棕）、`--fam-system`（系统/灰），用于时间线圆点、commit 类型标签和仪表盘「最近动态」圆点。`:root` 下方保留一段注释版「夜间账本」深色 token，整段替换即切深色；但仪表盘雷达/热力/趋势图与散点仍有内联浅色需先改用 `var()` 才能正确切到深色。图表内联色尽量走 `var()`（散点已改）。
+
+> **v1.3.0 深色模式 + 现代化**：浅色为默认，深色由设置页「外观」切换并存 `localStorage('omrs-theme')`；`<head>` 内联脚本在首帧前给 `<html>` 打 `data-theme` / `data-invert-img` 防闪。`:root` 圆角加大（`--radius:10 / -sm:8 / -lg:14`）、恢复柔和阴影 `--card-shadow`、新增 `--accent-rgb`；`[data-theme="dark"]` 为完整深色 token。`dashboard.js`/`data.js` 图表颜色已**全部 token 化**（含 SVG fill/gradient 改 `var()`+opacity），深色可正确显示。深色 + 「反转题图」开启时，`.q-md / .q-body / .gallery-preview / .instant-md / .instant-notes` 内 `img` 套 `filter:invert(1)`（简易白↔黑，彩色一并反相，保色版待后续）。
+
+> **v1.4.0 应用骨架（侧边栏 shell）**：顶部 `<header>` + `.tabs` 横条 → 左侧 `<aside class="sidebar">`（`.sidebar-brand` 品牌 + `.sidebar-nav`）+ `<main class="content">`（`.topbar` 页面标题 + 动作按钮）。导航项**仍是 `.tab[data-tab]` + `onclick="switchTab()"`**，`switchTab` 逻辑不变，只新增：按 `name→中文` 映射更新 `#topbar-title`。图标为 `<body>` 顶部一段隐藏 `<svg><symbol id="i-*">` 雪碧图，导航用 `<svg class="nav-ico"><use href="#i-*"/></svg>`（描边走 `currentColor`，无外部图标依赖）。`modal-overlay` 与 `datalist` 仍是 `.shell` 外的兄弟节点。响应式：≤860px 侧栏转为顶部横向滚动条。
+
+> **v1.4.2 页面内部现代化（首批两页）**：即时练习 `instRender` 题头改「题 N/M + chip + 进度条」、`instRenderSide` 队列项右侧改状态圆点（对/错/当前/未答）；反馈录入 `renderFb` 改卡片行（对/错分段 + 分数滑杆 + 备注 + 按 UID 反查科目分类）并在顶部加实时对错统计条。字段与 `/api/feedback`、`/api/recommend` 接口不变。**侧边栏应用式 shell 为下一独立改动**。
+
+> **v1.5.0 深色主题：暖石墨 Warm Graphite**：早期 v1.5.0 的「玻璃拟态」深色（半透明卡片 + `backdrop-filter` 模糊 + body 四道极光径向渐变 + 紫青 `--grad`/`--glow` 辉光 + 渐变裁切文字）整段下线，改为与浅色同源的「暖石墨」——浅色用近黑墨、深色用骨白墨，互为镜像。`[data-theme="dark"]` token 改为实色暖面（`--bg:#1a1916` 等暖中性梯度）、发丝描边、单色骨白墨：`--accent` 由紫 `#b794f6` 改骨白 `#ece7df`、`--accent-fg` 深墨，故 `.btn.primary` 成「浅底深字」与浅色「深底白字」镜像；语义色由霓虹 400 收成大地色（黏土红 / 鼠尾草绿 / 赭黄 / 灰灰蓝）。删除 `--grad`/`--glow` 与 body 极光、玻璃卡片 / 玻璃侧栏 / 渐变按钮 / 紫色激活态 / 渐变 `.stat-value` 等深色特例，卡片 / 数值 / 进度条 / 品牌块 / 激活态全部回退到 token 驱动（深色覆盖块由约 53 行瘦到 ~16 行）。图表内联色仍走 `var()`，自动跟随。版本号不变（仍 v1.5.0）。
+
 ## 文件组织（assets/）
 
 ```
@@ -13,7 +23,10 @@ assets/
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染
 ├── dashboard.js      ← 仪表盘图表 renderDash
 ├── questions.js      ← 题目库表格/画廊视图 + 题目 Modal + Markdown 原文编辑/迁移入口
-├── schedule.js       ← 复习调度：导出选题、Session 列表/创建/预览/删除
+├── schedule.js       ← 复习 Session：创建/预览/删除/列表 + 工作区扫描 + 录入提交（doCreate/resetCreateForm）
+├── export.js         ← 错题导出：选题/画廊预览、A4/屏幕变体、下载（v1.5.0 从 schedule.js 拆出）
+├── feedback.js       ← 反馈录入页：session 选择、行编辑、AI 提示词、JSON 导入、提交（v1.5.0 从 schedule.js 拆出）
+├── history.js        ← 数据复盘/历史：Ledger 时间线、修正面板、撤销/恢复/还原（v1.5.0 从 schedule.js 拆出）
 ├── recommend.js      ← 推荐面板（双列表 + 勾选确认）
 ├── instant.js        ← 即时练习：推荐取题、在线翻答案、即时反馈
 ├── data.js           ← 数据复盘页 + 复盘报告导出
@@ -26,6 +39,7 @@ assets/
 - **加载顺序固定**：`core.js` 最先（定义全部全局变量，只能声明一次，不可在其他文件重复 `let`）；`app.js` 最后（末尾 `init()` 自调用，依赖前面所有文件已就绪）。
 - 后端由 `/assets/<file>` 通用静态路由提供（`server.py` → `_serve_asset()`，含路径穿越防护与按扩展名的 content-type）。原 `/omrs_dashboard.js` 路由已移除。
 - 修改样式 → 改 `assets/styles.css`；改某模块行为 → 改对应 `assets/*.js`；新增全局工具 → 放 `core.js`。
+- **拆分（v1.5.0）**：原 `schedule.js`（约 100 行的杂烩，混了导出 / Session / 反馈页 / 录入提交 / 历史时间线 / 扫描）按职责拆为 `export.js`、`feedback.js`、`history.js`，`schedule.js` 仅留 Session + 扫描 + 录入提交。因共享全局作用域且行内 `onclick` 在运行时调用，拆分只是「搬运函数 + 增加 `<script>`」，函数名 / 签名 / 调用关系全不变；加载顺序：四者都在 `core.js` 之后、`app.js` 之前。
 
 ---
 
@@ -36,6 +50,7 @@ assets/
 | 熟练度分布直方图 | `chart-mastery` | `stats.mastery_histogram` | CSS flex 横向条形图，10 个桶固定渲染；`30-60%` 使用 `.bar-fill.yellow`，`90-100%` 桶显示 `Mastery ∈ [0.9, 1.0]` |
 | 待复习队列预警 | `chart-alerts` | `stats.review_alert` | 二乘二彩色卡片，位于首页第二行，优先暴露今日行动信号 |
 | 每日练习趋势 | `chart-trend` | `stats.daily_trend` | SVG `<polyline>` + `<linearGradient>` 面积图，含圆点与数据标签 |
+| 最近动态（Ledger） | `recent-ledger` | `GET /api/history?limit=12`（或复用已加载的 `window.HISTORY_COMMITS`） | `dashboard.js::renderRecentLedger()`：取最近 4 条「非修正、未撤销」的主链节点，渲染精致行——族色圆点 + `historyNodeTitle()` 标题 + `commit_id/seq` + 复习节点显示「N 对 · N 错」chip；卡片右上「完整时间线 →」跳 `switchTab('history')`。复用时间线的 `historyCommitFamily/historyNodeTitle/historyReviewBatchStats/isNodeRetracted` 等函数（现于 `history.js`），故 `dashboard.js` 于运行时（所有脚本就绪后）调用。`renderDash()` 末尾 fire-and-forget 调用它 |
 
 预警指标定义（后端 `stats.py` 计算）：
 - **急需复习**：衰减后熟练度 < 30% 且超过 7 天未复习
@@ -141,6 +156,10 @@ assets/
 
 即时练习复用 `renderMdContent()` 处理题面、答案、备注中的图片与 LaTeX，复用 `process_feedback()` 的熟练度、EF、SM-2 更新逻辑。
 
+> **布局重设计（v1.5.0，响应式工作台）**：原「顶栏 + `1fr/320px` 双栏（题卡 / `<aside>` 队列）」改为 `.inst-work` 网格工作台，用 `grid-template-areas` 排布四块（`#inst-summary` 进度+提交 / `.inst-queue-wrap` 队列 / `.inst-main` 题卡 / `#inst-submit-results` 结果），DOM 顺序不变也能在窄屏重排。**桌面**：左题卡（1fr）+ 右栏（进度+提交置顶 → 队列竖列 → 提交结果）。**移动端（≤900px）**：重排为 进度+提交 → 队列 → 题卡 → 结果；队列从竖列表变成**横向圆点条**（`.instant-queue` 转 flex-row 横滚，`.instant-qbtn` 隐藏 `.instant-qmain`、只留 `.qn` + `.qmk`，点按跳题）；评分 `.instant-grade` 竖排整行（`.fb-toggle` 占满 + 主观分滑杆单独一行，去掉写死的 `min-width:280px`）；导航 `.instant-nav` 改 2 列网格（「下一道未判定」整行 + 上/下各半）；题头 `.instant-head` 竖排（位置 / UID 一行、chips 落下一行）；筛选 `.inst-filters` 转 2×2 网格全宽，题数加可见标签（`.inst-count-field`）。提交按钮（JS 渲染在 `#inst-summary` 内）随进度块置顶，不再埋在侧栏底部。**清理**：移除 v1.4.2 叠加遗留的孤立 / 失效规则（`.instant-topbar` / `.instant-layout` / `.instant-side` / `.instant-summary` / `.instant-filters` 与 `.instant-head .uid` / `.meta-line` / `.tag-row`），相关样式收拢成一段。**纯 HTML 骨架 + CSS：`instant.js`、所有 `#inst-*` id 与 `instLoadPractice` / `instGo` / `instReveal` / `instSetVerdict` / `instSetScore` / `instSubmitPractice` 等逻辑、`/api/recommend`·`/api/feedback` 流程均未改。版本不变（仍 v1.5.0）。**
+>
+> **同日修订**：① 桌面右栏队列会随题卡高度变化而上下漂移 / 看似居中——`.inst-work` 由 `grid-template-areas` 改为显式列/行 + 末尾 `1fr` 空行吸收题卡多出的高度，队列改为稳定贴顶；移动端 `.inst-work` 改 `display:flex` 竖排（DOM 顺序天然即 进度→队列→题卡→结果）、`align-items:stretch` 占满宽，筛选项加 `min-width:0` 让 2 列等宽、题数标签 `white-space:nowrap`。② 深色「反转题图」失效——旧规则错指 `.instant-qmain img`（队列项无图），改为正确的 `.instant-md img` / `.instant-notes img`（题面 / 答案 / 备注图）。
+
 ---
 
 ## 6. 临时调度 vs 常规 Session
@@ -167,12 +186,21 @@ assets/
 
 位于「设置」标签页，包含以下功能卡片：
 
+### 外观（主题 / 题图反转）
+- `浅色 / 深色` 分段开关 `#st-theme-switch`（`setThemeMode()`）写 `localStorage('omrs-theme')` 并切 `<html data-theme>`；**浅色为默认**（题目截图多为浅色，浅色阅读最自然）。
+- 「深色模式下反转题目图片颜色」`#st-invert-img`（`setInvertImg()`）写 `localStorage('omrs-invert-img')` 并切 `<html data-invert-img>`；仅在 `[data-theme="dark"][data-invert-img="1"]` 时对题图 `img` 应用 `filter:invert(1)`（简易白↔黑）。
+- `syncThemeControls()` 回填两个控件状态，`loadSettings()` 末尾调用。两项状态仅存浏览器 localStorage，**不入 config.json / Ledger**，故无需重启。
+
 ### 服务设置
 - **允许外部访问**：开关绑定 `config.allow_external`。
   - 关闭（默认）：服务器绑定 `127.0.0.1`，仅限本机访问。
   - 开启：服务器绑定 `0.0.0.0`，局域网/公网可访问。
 - **保存并重启**：先 `POST /api/config` 保存配置，再 `POST /api/restart` 触发重启。前端在请求成功后延迟 2.5 秒自动刷新页面。
 - **立即重启**：直接调用 `POST /api/restart`，不修改配置。
+- **数据备份**（卡片下半，`数据备份` 分隔区；**v1.5.0 起从「优化」卡移到这里**，导出/导入函数不变，仅 DOM 位置与状态元素变化）：
+  - **导出备份**（操作卡 `#svc-a-export`）：`exportOptimizeBackup()` → `POST /api/backup/export`，复用 `downloadExportResponse()` 下载 `OMRS-backup-YYYYMMDD-HHMMSS.zip`，并把响应头 `X-OMRS-Backup-Token` 存入 `OPT_BACKUP_TOKEN`（v1.5.0 起仅作记录，压缩不再依赖它）。
+  - **导入备份**（操作卡 `#svc-a-import` → 触发隐藏 `#opt-import-file`）：`importOptimizeBackup()` 用 `multipart/form-data` 调 `POST /api/backup/import` 预览（文件数/大小/Markdown/图片），二次确认后 `POST /api/backup/restore {restore_id, confirm:true}` 覆盖恢复并 `reloadData()`。
+  - 状态写 `#svc-backup-status`。
 
 重启期间前端预期连接中断，catch 后不报错，继续等待刷新。
 
@@ -183,12 +211,11 @@ assets/
 - `ai_restrict_tags` 开关含义：开启时 `classify` 的知识点被后端硬过滤为「已有分类 ∪ 已有知识点」；关闭时允许 AI 在无贴切已有项时新建知识点（仍优先复用，上限 4 个）。仅影响知识点，**科目/分类一直允许新建**。
 - 仅作配置入口；实际识别在「录入题目」页触发，调用 `POST /api/ai-recognize`（后端转发，见 api.md）。
 
-### 优化
-- 设置页新增“优化”卡片：进入设置页时 `loadSettings()` 调用 `GET /api/optimize/summary`，用 CSS 环状图展示“数据链 / 题目文件 / 题目图片”三类大小，并显示 Pillow、jpegtran 依赖状态；环图外侧有分类标签和引线，右侧仍保留数值图例。
-- **导出备份**：`exportOptimizeBackup()` → `POST /api/backup/export`，复用 `downloadExportResponse()` 下载 `OMRS-backup-YYYYMMDD-HHMMSS.zip`，并保存响应头 `X-OMRS-Backup-Token` 到前端内存。
-- **导入备份**：用户选择 zip 后 `importOptimizeBackup()` 用 `multipart/form-data` 调 `POST /api/backup/import`，显示文件数/大小/Markdown/图片预览；用户二次确认后调 `POST /api/backup/restore {restore_id, confirm:true}`。
-- **扫描压缩**：`scanOptimizeImages()` → `POST /api/optimize/scan` 启动快扫 job，随后轮询 `GET /api/optimize/job?id=`；快扫中显示已扫描/总图片数，完成后环状图第三类从“题目图片”切换为“待深扫图片”，同时保留原题图总量说明。
-- **确认压缩**：只有“快扫完成 + 当前会话已导出备份 + 有候选文件”时启用。`confirmOptimizeCompression()` 二次确认风险后调用 `POST /api/optimize/compress`，深扫压缩任务继续轮询 `GET /api/optimize/job?id=` 更新进度条、当前文件、已检查体积、实际已节省大小和环状图。
+### 优化（存储概览 + 图片压缩）
+- 进入设置页 `loadSettings()` 调 `GET /api/optimize/summary`，`renderOptimizeChart()` 渲染：① 顶部「存储概览」标题 + 副标题状态（刚刚更新 / 扫描中… / 压缩中… / 快扫完成，由 `updateOptimizeControls()` 据 `OPT_JOB_TIMER`+`OPT_SCAN` 推断）+ 右侧总占用大数（`#opt-total`，取 `optValues()` 的 `center`）；② 三张**指标卡** `#opt-m-data/-files/-images`（写 `opt-l-/v-/d-/b-*`：标签取自 `item.label`、值 `formatBytes`、明细=文件数+note、卡底 3px 比例条按 `item.color`）；③ 一条**堆叠比例条** `#opt-seg-data/-files/-images` + 图例；④ 依赖 pill `#opt-deps`（Pillow / jpegtran / 题图总量）。**v1.5.0 起删除环状图**（信息密度低；连同引线 / `renderOptimizeCalloutLines` 一并移除）。
+- **扫描图片**（操作卡 `#opt-a-scan`）：`scanOptimizeImages()` → `POST /api/optimize/scan` 起快扫 job，`startOptimizeScanPolling()` 轮询 `GET /api/optimize/job?id=`；进度区 `#opt-progress`（**固定占位**、无任务 `display:none`，不再 pop-in）显示已扫描/总数，`#opt-m-images` 加 `.scanning` 暖色高亮，完成后第三张卡标签切「可压缩大小 / 待深扫图片」。
+- **确认压缩**（操作卡 `#opt-a-compress`）：`updateOptimizeControls()` 在「Pillow 可用 + 快扫有候选」时解锁——**v1.5.0 起不再要求先导出备份**。`confirmOptimizeCompression()` 仍弹**二次确认**（提示会改写图片、可先到「服务设置 → 数据备份」导出），随后 `POST /api/optimize/compress {scan_id, backup_token, confirm:true}`（`backup_token` 允许为空：后端 `start_compression` 已去掉令牌强制校验，只保留 `confirm`），`startOptimizeJobPolling()` 轮询进度/已节省，结束后 `loadOptimizeSummary()` 刷新。
+- 扫描/压缩结果状态写 `#opt-status`；备份状态写 `#svc-backup-status`（在服务设置卡）。全局 `OPT_SUMMARY/OPT_SCAN/OPT_BACKUP_TOKEN/OPT_JOB_TIMER` 保留语义不变。
 
 ### 运行状态 / 关于
 - **运行状态**：进入设置页时 `loadSettings()` 会额外调用 `GET /api/status`，在卡片中展示版本号、已运行时间、托管题目数、服务状态和 vault 路径；「刷新状态」按钮可手动重新读取。
@@ -206,6 +233,7 @@ assets/
 历史页现在读取 `/api/history` 的 Ledger commit，而不是只显示 `history_log.csv` 表格。
 
 - 视觉结构为竖线时间线：旧节点在上方，最新节点在底部，进入页面后自动滚到底部；主时间线只展示非修正、且**当前未被撤销**的节点。
+- **节点按 commit 族着色（v1.2.0）**：`renderHistoryNode` 调 `historyCommitFamily(commit_type)` 给节点加 `fam-review/fam-session/fam-question/fam-system` 类——圆点和 commit 类型标签据此取 `--fam-*` 色。`review.batch_submit` 节点额外由 `historyReviewVisual()` 渲染「对错配比条 + 每题色块」（对=`--green`、错=`--red`、已撤销=`--bg4`），不展开即可看出本批练习结果。
 - 顶部提供排序选择：`旧 → 新（最新在底部）` 或 `新 → 旧（最新在顶部）`，选择会保存在浏览器本地。
 - 顶部提供「修正模式」开关：默认关闭，主节点只读；开启后才显示 `修改 / 撤销 / 还原` 操作面板，避免日常浏览时误触危险操作。
 - 顶部提供「修正记录」按钮：`review.replace`、`review.retract`、`review.restore`、`session.retract`、`session.restore`、`state.restore` 等修正节点从主时间线移出，集中在该列表里查看。
@@ -225,22 +253,24 @@ assets/
 
 ## 7. 录入题目页（`panel-create`）与提交后表单状态
 
-> 脚本分布：表单提交 `doCreate` / 重置 `resetCreateForm` 在 `assets/schedule.js`；科目/分类 datalist `populateCreateLists` 在 `core.js`；**图片处理、AI 识别、AI 设置、运行状态加载**在 `assets/app.js`；题目图与答案图分别暂存在全局 `CR_Q_IMAGES` / `CR_A_IMAGES`（`CR_IMG_SEQ` 为自增 id）；通用工具 `parseLooseJson` / `copyTextToClipboard` / `looseBool` 均在 `core.js` 声明；反馈页 JSON 导入 `importFeedbackJson` 与 AI 反馈提示词 `copyFeedbackAiPrompt` 在 `assets/schedule.js`。
+> 脚本分布：表单提交 `doCreate` / 重置 `resetCreateForm` 在 `assets/schedule.js`；科目/分类 datalist `populateCreateLists` 在 `core.js`；**图片处理、AI 识别、AI 设置、运行状态加载**在 `assets/app.js`；题目图与答案图分别暂存在全局 `CR_Q_IMAGES` / `CR_A_IMAGES`（`CR_IMG_SEQ` 为自增 id）；通用工具 `parseLooseJson` / `copyTextToClipboard` / `looseBool` 均在 `core.js` 声明；反馈页 JSON 导入 `importFeedbackJson` 与 AI 反馈提示词 `copyFeedbackAiPrompt` 在 `assets/feedback.js`。
 
-录入页左卡有两个图片区，各配一个 AI 按钮，可混用手动录入：
-- **题目图片区**（`#cr-q-paste` / `#cr-q-file` / `#cr-q-images`）：粘贴/拖拽/点击选择题目截图，随题保存并嵌入 `# 题目`。按钮 **「🤖 提取并填充信息」**（`#cr-classify-btn`）→ `crClassify()` 取第 1 张题目图 `POST /api/ai-recognize {mode:'classify', subject, category}`，回填**科目/分类/难度/相关知识点**（不抄题、不解题）。其中 `knowledge_tags` 是否限定在「已有分类 ∪ 已有知识点」由设置页 `ai_restrict_tags` 开关决定（默认开=硬约束；关=允许新建，上限 4 个）。**用户已填的科目/分类会作为 hint 传给模型（要求其沿用），且前端只填空缺项、不覆盖已填值；知识点与已填的合并去重；难度给估计值。** 状态写 `#cr-classify-status`。
-- **答案图片区**（`#cr-a-paste` / `#cr-a-file` / `#cr-a-images`）：粘贴/拖拽/点击选择答案截图，嵌入 `# 答案`。按钮 **「🤖 提取答案」**（`#cr-extract-btn`）→ `crExtractAnswer()` 取第 1 张答案图 `POST /api/ai-recognize {mode:'answer'}`，把答案/解析**提取为文本**填入 `#cr-answer`。也可不提取（答案图直接嵌入）或手动输入。状态写 `#cr-extract-status`。
-- 字段顺序（自动填充项集中在上方）：`#cr-subject`/`#cr-category`/`#cr-diff`/`#cr-related`（相关知识点，**classify 会自动填**，紧随难度之后；输入框挂 `cr-ktag-list` datalist，由 `populateCreateLists` 填入「已有分类 ∪ 已有知识点」供手动挑选）、`#cr-question`（题目正文，**手动可选**，AI 不抄题）、答案图片区、`#cr-answer`（答案文本）、`#cr-note`（页码）、`#cr-cause`（**错因**，写入 `# 备注` 的 `## 错因`）。
+> **布局重设计（v1.5.0，双栏工作台）**：原「左卡＝整张表单 / 右卡＝使用说明」改为**双栏工作台** `.cr-workbench`（≤900px 转单列）：**左栏「截图工作区」**`.card` 放两个截图区（题目 / 答案，中间 `.cr-div` 发丝分隔 + `.cr-tip` 提示），**右栏「题卡内容」**`.card` 放结构化字段。顶部 `.cr-steps` 编号步骤条（截图→识别→核对→保存——真序列才编号）；底部 `.cr-actionbar` 横跨双栏，含「重置」（直接调既有 `resetCreateForm()`）+「创建题目」（`#cr-btn`）与一行静态保存说明，`#cr-result` 紧随其后；原使用说明 / 文件结构树收进底部折叠块 `<details class="cr-help">`。右栏的科目 / 分类 / 难度 / 相关知识点包进 `.cr-aigroup` 卡片（标题「🤖 AI 自动填充 · 可改」，提示这组可被识别自动填、且可改）；**错因** `#cr-cause` 独立成暖色块 `.cr-cause`（`--trap-bg` 微染 + `.cr-flag` 赭色旗标 + 「复习时先看这里」脚注，作为错题本的核心字段）。**纯样式 + 结构改动：所有 `#cr-*` 元素 id、内联处理函数、`doCreate`/`crClassify`/`crExtractAnswer`/`crSetPasteTarget` 等逻辑与后端接口全部不变。**
+
+录入页有两个图片区（现分列于左栏上下），各配一个 AI 按钮，可混用手动录入：
+- **题目图片区**（`#cr-q-paste` / `#cr-q-file` / `#cr-q-images`）：粘贴/拖拽/点击选择题目截图，随题保存并嵌入 `# 题目`。按钮 **「🤖 识别题目信息」**（`#cr-classify-btn`）→ `crClassify()` 取第 1 张题目图 `POST /api/ai-recognize {mode:'classify', subject, category}`，回填**科目/分类/难度/相关知识点**（不抄题、不解题）。其中 `knowledge_tags` 是否限定在「已有分类 ∪ 已有知识点」由设置页 `ai_restrict_tags` 开关决定（默认开=硬约束；关=允许新建，上限 4 个）。**用户已填的科目/分类会作为 hint 传给模型（要求其沿用），且前端只填空缺项、不覆盖已填值；知识点与已填的合并去重；难度给估计值。** 状态写 `#cr-classify-status`。
+- **答案图片区**（`#cr-a-paste` / `#cr-a-file` / `#cr-a-images`）：粘贴/拖拽/点击选择答案截图，嵌入 `# 答案`。按钮 **「🤖 提取答案文本」**（`#cr-extract-btn`）→ `crExtractAnswer()` 取第 1 张答案图 `POST /api/ai-recognize {mode:'answer'}`，把答案/解析**提取为文本**填入 `#cr-answer`。也可不提取（答案图直接嵌入）或手动输入。状态写 `#cr-extract-status`。
+- 字段分两栏：**左栏（截图工作区）** 题目截图区 + 答案截图区；**右栏（题卡内容）** 自上而下为 `.cr-aigroup`{`#cr-subject` / `#cr-category`（并排）/ `#cr-diff` 难度滑杆 / `#cr-related` 相关知识点（**classify 自动填**，挂 `cr-ktag-list` datalist，由 `populateCreateLists` 填入「已有分类 ∪ 已有知识点」供手动挑选）} → `#cr-question`（题目正文，**手动可选**，AI 不抄题）→ `#cr-answer`（答案文本）→ `#cr-cause`（**错因**，`.cr-cause` 暖色块，写入 `# 备注` 的 `## 错因`）→ `#cr-note`（页码）。
 
 图片交互（题目区 / 答案区各一套）：
 - **显式读取剪贴板**：每个区下方有「📋 从剪贴板读取到「题目/答案」」按钮 → `crReadClipboard(kind)`（用 `navigator.clipboard.read()`，需 https 或 localhost 且浏览器授权；无图 / 不支持 / 被拒时弹提示）。这是把图读到**指定区**的最可靠方式，解决「想粘到答案却进了题目」。
-- **Ctrl/⌘+V 粘贴**：`document` 级 `paste` 监听仅本页激活时拦截图片；落到「当前目标区」——由 `crSetPasteTarget`（点击/聚焦某区、点其「读取剪贴板」时）记录，默认题目区；目标区会高亮（`.paste-active`）提示 Ctrl+V 将粘到此；文本粘贴不受影响。
+- **Ctrl/⌘+V 粘贴**：`document` 级 `paste` 监听仅本页激活时拦截图片；落到「当前目标区」——由 `crSetPasteTarget`（点击/聚焦某区、点其「读取剪贴板」时）记录，默认题目区；目标区会高亮（`.paste-active`，并由 CSS `::after` 角标「粘贴目标」始终跟随当前目标区）提示 Ctrl+V 将粘到此；文本粘贴不受影响。
 - 拖拽 / 点击选择按区独立（`crHandleDrop` / `crPickFiles` 带 `kind` 参数 `'q'|'a'`）。缩略图带删除 ✕ 与序号（`crRenderImages(kind)`），并据此启用/禁用对应按钮。
 - 提交时 `doCreate` 把两区图片分别映射为 `question_images` / `answer_images` 一并发送；成功提示含已保存图片数。
 
 录入页不再提供外部 AI 题目 JSON 导入，也不再维护本地录入队列；外部 JSON 导入只保留在反馈页。
 
-**反馈页「从屏幕版或 AI 导入反馈」**（`panel-feedback` 顶部卡片，`importFeedbackJson` / `copyFeedbackAiPrompt` in `schedule.js`）：
+**反馈页「从屏幕版或 AI 导入反馈」**（`panel-feedback` 顶部卡片，`importFeedbackJson` / `copyFeedbackAiPrompt` in `feedback.js`）：
 - **屏幕版导入**：粘贴屏幕版导出件「复制作答 JSON」的产物（格式见 `data.md` §11；容忍围栏、接受 `items`/`feedbacks`/裸数组），逐条校验 `uid` 非空、`is_correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` 缺省按对→10 / 错→4、钳 0–10。
 - **AI 导入**：「复制 AI 反馈提示词」会按当前已选 Session / 反馈行生成 UID 清单与输出骨架，让外部 AI 根据纸面批改结果或口述反馈整理为同一份 `omrs-feedback` JSON。导入端兼容 AI 常见别名：`correct` 等价 `is_correct`，`score` 等价 `sub_score`。
 - `session_id` 在 `SESSIONS` 中 → 自动选中 picker 并关联；不在列表（如 TMP- 临时卷）→ 仍以该 ID 提交写入历史并在 `#fb-session-info` 说明；无 ID → 按手动录入。填充 `fbRows` 后 `renderFb()`，**不自动提交**——用户核对后点「提交反馈」。误贴旧题目 JSON 时提示当前只支持反馈 JSON。
@@ -264,7 +294,7 @@ assets/
 | KPI（两行各 4 张） | `data-kpi`/`data-kpi2` | stat-card：总复习/正确率/连续/leech；平均熟练度/EF/活跃天数/近 30 天 |
 | 科目维度 | `data-subject-radar`/`data-subjects` | 雷达图显示各科平均熟练度，表格按最薄弱在前 |
 | 分类维度 Top 15 | `data-categories` | 表格 |
-| 难度-熟练度散点图 | `data-scatter` | SVG `<circle>`，基于 `analytics.items`，悬停显示 UID tooltip |
+| 难度×熟练度密度图 | `data-scatter` | 按（难度 1–10 × 熟练度 5 档）分箱的气泡图：`<circle>` 半径 = 该格题量（`sqrt(count)`，封顶 26）、填色 = 该格平均熟练度（`--red` 低 / `--yellow` 中 / `--green` 高），悬停 `<title>` 显示题量与均值。取代旧的逐点散点（散点只能看大致分布、无法反映题量）；纯内联 SVG，颜色全部走 `var()` |
 | 熟练度分布（原始/衰减后） | `data-mastery`/`data-decayed` | 条形图 |
 | EF / 难度 / Repetition / Interval 分布 | `data-ef`/`data-difficulty`/`data-repetition`/`data-interval` | 条形图 |
 | 各主观分正确率 | `data-score-acc` | 条形图（值显示「正确率(次数)」） |
