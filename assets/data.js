@@ -115,9 +115,9 @@ function renderAnalytics(){
   const cells=[
     {label:'逾期',val:al.overdue,color:'var(--red)'},
     {label:'今日到期',val:al.due_today,color:'var(--yellow)'},
-    {label:'急需复习',val:al.urgent,color:'var(--red)'},
-    {label:'警告队列',val:al.warning,color:'var(--yellow)'},
-    {label:'长期冷落',val:al.cold,color:'var(--blue)'},
+    {label:'未来3天到期',val:al.due_next_3_days,color:'var(--yellow)'},
+    {label:'未来7天到期',val:al.due_next_7_days,color:'var(--blue)'},
+    {label:'未到期低熟练度',val:al.low_mastery_not_due,color:'var(--accent)'},
     {label:'顽固题',val:al.leech,color:'var(--accent)'},
   ];
   document.getElementById('data-alerts').innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">`+cells.map(c=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;border-top:3px solid ${c.color}"><div style="font-size:.68rem;color:var(--fg3);margin-bottom:4px">${escapeHtml(c.label)}</div><div style="font-size:1.5rem;font-weight:900;color:${c.color};font-family:'JetBrains Mono',monospace">${c.val}</div></div>`).join('')+`</div>`;

@@ -232,6 +232,13 @@ ANSWER_PROMPT = (
 )
 
 
+QUESTION_TEXT_PROMPT = (
+    "请提取图片中这道题的【题目正文】，整理为清晰的纯文本。"
+    "保留必要的题干、条件、选项、图表说明与换行；数学公式可用 $...$ 或 $$...$$ 表示。"
+    "只输出题目内容本身，不要解题，不要补充答案、解析、分类建议或多余说明，也不要使用 Markdown 代码块。"
+)
+
+
 def classify_question(vault: str, image_data_url: str, timeout: int = 90,
                       hint_subject: str = "", hint_category: str = "",
                       restrict_tags: bool = None) -> dict:
@@ -292,13 +299,21 @@ def extract_answer(vault: str, image_data_url: str, timeout: int = 90) -> dict:
     return {"mode": "answer", "answer": _strip_fences(content)}
 
 
+def extract_question_text(vault: str, image_data_url: str, timeout: int = 90) -> dict:
+    """读题目图片，只提取题目正文，返回 {question_text}。"""
+    content = _call_model(vault, QUESTION_TEXT_PROMPT, image_data_url, max_tokens=2000, timeout=timeout)
+    return {"mode": "question_text", "question_text": _strip_fences(content)}
+
+
 def recognize_question(vault: str, image_data_url: str, mode: str = "classify", timeout: int = 90,
                        hint_subject: str = "", hint_category: str = "",
                        restrict_tags: bool = None) -> dict:
     """统一入口：mode='classify' 填科目/分类/难度/知识点（可带 hint，restrict_tags 控制是否
-    限定已有知识点，None=读 config）；mode='answer' 提取答案文本。"""
+    限定已有知识点，None=读 config）；mode='answer' 提取答案文本；mode='question_text' 提取题目文本。"""
     if mode == "answer":
         return extract_answer(vault, image_data_url, timeout=timeout)
+    if mode in {"question_text", "question"}:
+        return extract_question_text(vault, image_data_url, timeout=timeout)
     return classify_question(vault, image_data_url, timeout=timeout,
                              hint_subject=hint_subject, hint_category=hint_category,
                              restrict_tags=restrict_tags)

@@ -439,9 +439,10 @@
           <div class="paste-actions"><button type="button" class="btn sm" onclick="crReadClipboard('q')">📋 从剪贴板读取到「题目」</button></div>
           <div class="ai-row">
             <button class="btn" id="cr-classify-btn" onclick="crClassify()" disabled>🤖 识别题目信息</button>
+            <button class="btn" id="cr-question-text-btn" onclick="crExtractQuestionText()" disabled>🤖 提取题目文本</button>
             <span id="cr-classify-status" class="ai-status"></span>
           </div>
-          <div class="hint">AI 读取<strong>第 1 张</strong>题目图，自动填右侧<strong>科目 / 分类 / 难度 / 知识点</strong>（不抄题、不解题）。需先在「设置 → AI 自动识别」配置。</div>
+          <div class="hint">AI 读取<strong>第 1 张</strong>题目图：可自动填右侧<strong>科目 / 分类 / 难度 / 知识点</strong>，也可把题目正文提取到文本框。需先在「设置 → AI 自动识别」配置。</div>
         </div>
 
         <hr class="cr-div">
@@ -497,8 +498,8 @@
         </div>
 
         <div class="form-group">
-          <label>题目正文 <span class="cr-opt">· 可留空</span></label>
-          <textarea id="cr-question" class="input" rows="3" placeholder="AI 不会替你抄题；需要纯文本检索时再手动补充。支持 LaTeX，如 $x^2+1$。"></textarea>
+          <label>题目正文 <span class="cr-opt">· 可留空 / 可提取</span></label>
+          <textarea id="cr-question" class="input" rows="3" placeholder="可手动输入，或点击左侧「提取题目文本」从题目截图自动填充。支持 LaTeX，如 $x^2+1$。"></textarea>
         </div>
 
         <div class="form-group">

@@ -131,10 +131,10 @@ function renderAlertCards(alertData){
   const el=document.getElementById('chart-alerts');if(!el)return;
   const data=alertData||{};
   const alerts=[
-    {label:'急需复习',val:data.urgent||0,desc:'熟练度低且较久未复习',tone:'danger'},
-    {label:'警告队列',val:data.warning||0,desc:'熟练度开始衰减',tone:'warning'},
-    {label:'长期冷落',val:data.cold||0,desc:'超过 30 天未复习',tone:'cool'},
-    {label:'今日建议',val:data.total_due||0,desc:'按优先级建议复习',tone:'accent'},
+    {label:'今日到期',val:data.due_today||0,desc:'按复习间隔排到今天的卡片数',tone:'danger'},
+    {label:'未来3天到期',val:data.due_next_3_days||0,desc:'明天起 3 天内到期的卡片数',tone:'warning'},
+    {label:'未来7天到期',val:data.due_next_7_days||0,desc:'明天起 7 天内到期的卡片数',tone:'cool'},
+    {label:'未到期低熟练度',val:data.low_mastery_not_due||0,desc:'未到期但仍建议复习的低熟练度卡片数',tone:'accent'},
   ];
   el.innerHTML=`<div class="alert-grid">`+alerts.map(a=>`<div class="alert-card ${a.tone}">
     <div><span>${escapeHtml(a.label)}</span><p>${escapeHtml(a.desc)}</p></div>

@@ -311,10 +311,12 @@ def get_analytics(vault):
     forecast["overdue"] = 0
     forecast["7+"] = 0
     urgent = warning = cold = total_due = 0
+    due_next_3_days = due_next_7_days = low_mastery_not_due = 0
     for it in items:
         if it["is_killed"]:
             continue
         dd = parse_date(it["due_date"])
+        delta = None
         if dd:
             delta = (dd - today).days
             if delta < 0:
@@ -327,8 +329,14 @@ def get_analytics(vault):
                 forecast[str(delta)] += 1
             else:
                 forecast["7+"] += 1
+            if 1 <= delta <= 3:
+                due_next_3_days += 1
+            if 1 <= delta <= 7:
+                due_next_7_days += 1
         days = it["days_since_review"] if it["days_since_review"] else days_since_review(it["last_review"], today, 30)
         dm = it["decayed_mastery"]
+        if delta is not None and delta > 0 and dm < 0.5:
+            low_mastery_not_due += 1
         if dm < 0.3 and days > 7:
             urgent += 1
         if dm < 0.5 and days > 14:
@@ -384,7 +392,12 @@ def get_analytics(vault):
         "forecast": forecast,
         "review_alert": {"urgent": urgent, "warning": warning, "cold": cold,
                          "total_due": overdue + due_today, "leech": leech_total,
-                         "overdue": overdue, "due_today": due_today},
+                         "overdue": overdue, "due_today": due_today,
+                         "due_next_3_days": due_next_3_days,
+                         "due_next_7_days": due_next_7_days,
+                         "due_within_3_days": due_today + due_next_3_days,
+                         "due_within_7_days": due_today + due_next_7_days,
+                         "low_mastery_not_due": low_mastery_not_due},
         "weak_spots": {
             "leeches": leeches, "struggling": struggling,
             "traps": traps, "recently_killed": recently_killed,
@@ -501,7 +514,11 @@ def build_review_markdown(vault):
     L.append(f"- 逾期 **{fc['overdue']}** 题，今日到期 **{fc['0']}** 题。\n")
     L.append("- 未来 7 天到期预测：" +
              "，".join(f"+{i}天 {fc[str(i)]}" for i in range(1, 8)) + f"，7天以上 {fc['7+']}\n")
-    L.append(f"- 预警：急需 {al['urgent']}、警告 {al['warning']}、长期冷落 {al['cold']}、顽固题 {al['leech']}\n")
+    L.append(
+        f"- 队列提醒：今日到期 {al['due_today']}、未来3天到期 {al['due_next_3_days']}、"
+        f"未来7天到期 {al['due_next_7_days']}、未到期但熟练度较低 {al['low_mastery_not_due']}、"
+        f"顽固题 {al['leech']}\n"
+    )
 
     ws = a["weak_spots"]
     L.append("\n## 8. 薄弱点与顽固题\n")

@@ -12,7 +12,9 @@ from .common import (
     load_csv,
     load_tuning,
     mastery_path,
+    parse_date,
     parse_yaml_frontmatter,
+    resolve_sm2_fields,
     split_sections,
 )
 from .scheduling import (
@@ -29,7 +31,7 @@ from .scheduling import (
 
 
 def get_stats(vault):
-    rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
+    rows = [resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)]
     history = load_csv(history_path(vault), HISTORY_HEADERS)
     tuning = load_tuning(vault)
     fail_counts = build_fail_counts(history)
@@ -115,6 +117,11 @@ def get_stats(vault):
     warning = 0
     cold = 0
     total_due = 0
+    overdue = 0
+    due_today = 0
+    due_next_3_days = 0
+    due_next_7_days = 0
+    low_mastery_not_due = 0
     leech = 0
     for row in rows:
         mastery = _safe_float(row.get("Mastery", 0))
@@ -135,6 +142,20 @@ def get_stats(vault):
             cold += 1
         if is_leech(fail_counts.get(uid, 0), mastery, tag, tuning):
             leech += 1
+        dd = parse_date(row.get("Due_Date", ""))
+        due_delta = None
+        if dd:
+            due_delta = (dd - today).days
+            if due_delta < 0:
+                overdue += 1
+            elif due_delta == 0:
+                due_today += 1
+            if 1 <= due_delta <= 3:
+                due_next_3_days += 1
+            if 1 <= due_delta <= 7:
+                due_next_7_days += 1
+        if due_delta is not None and due_delta > 0 and decayed_mastery < 0.5:
+            low_mastery_not_due += 1
         priority = compute_priority(
             decayed_mastery, _safe_float(row.get("EF", 2.5), 2.5),
             days, tag, mastery, fail_counts.get(uid, 0), tuning,
@@ -160,6 +181,13 @@ def get_stats(vault):
             "warning": warning,
             "cold": cold,
             "total_due": total_due,
+            "overdue": overdue,
+            "due_today": due_today,
+            "due_next_3_days": due_next_3_days,
+            "due_next_7_days": due_next_7_days,
+            "due_within_3_days": due_today + due_next_3_days,
+            "due_within_7_days": due_today + due_next_7_days,
+            "low_mastery_not_due": low_mastery_not_due,
             "leech": leech,
         },
         "items": items,
