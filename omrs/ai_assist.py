@@ -30,6 +30,7 @@ def collect_taxonomy(vault: str) -> dict:
     """从 mastery_data.csv 汇总当前的科目/分类/知识点（去重、排序）。"""
     rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
     subjects, categories, ktags = set(), set(), set()
+    categories_by_subject = {}
     for row in rows:
         subject = (row.get("Subject") or "").strip()
         if subject:
@@ -37,6 +38,8 @@ def collect_taxonomy(vault: str) -> dict:
         category = (row.get("Category") or "").strip()
         if category:
             categories.add(category)
+        if subject and category:
+            categories_by_subject.setdefault(subject, set()).add(category)
         for tag in (row.get("Knowledge_Tags") or "").split("|"):
             tag = tag.strip()
             if tag:
@@ -44,8 +47,50 @@ def collect_taxonomy(vault: str) -> dict:
     return {
         "subjects": sorted(subjects),
         "categories": sorted(categories),
+        "categories_by_subject": {
+            subject: sorted(cats)
+            for subject, cats in sorted(categories_by_subject.items())
+        },
         "knowledge_tags": sorted(ktags),
     }
+
+
+def _format_category_tree(taxonomy: dict) -> str:
+    """把分类按科目分组展示给模型，避免把不同学科的同名/近义分类混用。"""
+    grouped = taxonomy.get("categories_by_subject") or {}
+    if not grouped:
+        return "（暂无，可自行命名）"
+    lines = []
+    for subject in taxonomy.get("subjects") or sorted(grouped):
+        cats = grouped.get(subject) or []
+        if cats:
+            lines.append(f"- {subject}: " + "、".join(cats))
+    return "\n".join(lines) or "（暂无，可自行命名）"
+
+
+def _categories_for_subject(taxonomy: dict, subject: str) -> set:
+    grouped = taxonomy.get("categories_by_subject") or {}
+    return set(grouped.get((subject or "").strip(), []))
+
+
+def _normalize_subject_category(parsed: dict, taxonomy: dict,
+                                hint_subject: str = "",
+                                hint_category: str = "") -> tuple:
+    """应用用户 hint，并拒绝“已有分类跨科目误用”。"""
+    subject = (hint_subject or parsed.get("subject") or "").strip()
+    category = (hint_category or parsed.get("category") or "").strip()
+    if hint_category:
+        return subject, category
+
+    all_categories = set(taxonomy.get("categories") or [])
+    subject_categories = _categories_for_subject(taxonomy, subject)
+    grouped = taxonomy.get("categories_by_subject") or {}
+    category_subjects = {
+        item_subject for item_subject, cats in grouped.items() if category in cats
+    }
+    if category in all_categories and category_subjects and subject not in category_subjects:
+        category = ""
+    return subject, category
 
 
 def _ai_config(vault: str):
@@ -199,14 +244,17 @@ def _call_model(vault: str, user_text: str, image_data_url: str, max_tokens: int
 CLASSIFY_TEMPLATE = """你是错题分类助手。请只根据图片中的题目，判断它的【科目】【分类】【难度】【相关知识点】，用于自动填充录入表单。不要转写题目原文，也不要解题。
 
 已有科目：%s
-已有分类：%s
+已有分类（按科目分组；每个分类只属于它所在的科目）：
+%s
 已有知识点：%s
 
 要求：
-1. subject / category 尽量从上面「已有」列表里选最贴切的；确实没有合适项时才用一个简洁名称新建。
-2. difficulty 为 1-10 的整数（10 最难），按题目综合难度估计。
-3. knowledge_tags 为本题考查的知识点数组（0-4 个，按重要性排序）。**只能从上面的「已有分类」和「已有知识点」中原样挑选，禁止创造、改写或拆分出任何新词**；知识点可与分类重叠，若所选 category 属于「已有分类」，通常也应作为其中一个 knowledge_tag。没有合适的已有项时，返回空数组 []。
-4. 只输出一个 JSON 对象，不要任何解释文字、也不要用 Markdown 代码块包裹。键固定如下：
+1. 先判断 subject，再判断 category。若 subject 属于「已有科目」，必须原样使用已有科目名。
+2. category 必须严格属于所选 subject：只能从「已有分类」里该 subject 行下面选择。禁止把其他科目的分类拿来使用；即使分类名看起来很贴切，也不能跨科目借用。
+3. 若所选 subject 下没有贴切的已有 category，才为该 subject 新建一个简洁分类名；不要从其他 subject 下面挑相近分类。
+4. difficulty 为 1-10 的整数（10 最难），按题目综合难度估计。
+5. knowledge_tags 为本题考查的知识点数组（0-4 个，按重要性排序）。**只能从上面的「所选科目下的已有分类」和「已有知识点」中原样挑选，禁止创造、改写或拆分出任何新词**；知识点可与分类重叠，若所选 category 属于所选科目的已有分类，通常也应作为其中一个 knowledge_tag。没有合适的已有项时，返回空数组 []。
+6. 只输出一个 JSON 对象，不要任何解释文字、也不要用 Markdown 代码块包裹。键固定如下：
 {"subject": "", "category": "", "difficulty": 5, "knowledge_tags": []}"""
 
 
@@ -214,14 +262,17 @@ CLASSIFY_TEMPLATE = """你是错题分类助手。请只根据图片中的题目
 CLASSIFY_TEMPLATE_OPEN = """你是错题分类助手。请只根据图片中的题目，判断它的【科目】【分类】【难度】【相关知识点】，用于自动填充录入表单。不要转写题目原文，也不要解题。
 
 已有科目：%s
-已有分类：%s
+已有分类（按科目分组；每个分类只属于它所在的科目）：
+%s
 已有知识点：%s
 
 要求：
-1. subject / category 尽量从上面「已有」列表里选最贴切的；确实没有合适项时才用一个简洁名称新建。
-2. difficulty 为 1-10 的整数（10 最难），按题目综合难度估计。
-3. knowledge_tags 为本题考查的知识点数组（0-4 个，按重要性排序）。**优先从上面的「已有分类」「已有知识点」里挑选**；只有当确实没有贴切的已有项时，才用简洁、规范的名称新建（避免生僻缩写、避免把一个知识点拆成多个）。知识点可与分类重叠，若所选 category 属于「已有分类」，通常也应作为其中一个 knowledge_tag。
-4. 只输出一个 JSON 对象，不要任何解释文字、也不要用 Markdown 代码块包裹。键固定如下：
+1. 先判断 subject，再判断 category。若 subject 属于「已有科目」，必须原样使用已有科目名。
+2. category 必须严格属于所选 subject：只能从「已有分类」里该 subject 行下面选择。禁止把其他科目的分类拿来使用；即使分类名看起来很贴切，也不能跨科目借用。
+3. 若所选 subject 下没有贴切的已有 category，才为该 subject 新建一个简洁分类名；不要从其他 subject 下面挑相近分类。
+4. difficulty 为 1-10 的整数（10 最难），按题目综合难度估计。
+5. knowledge_tags 为本题考查的知识点数组（0-4 个，按重要性排序）。**优先从上面的「所选科目下的已有分类」「已有知识点」里挑选**；只有当确实没有贴切的已有项时，才用简洁、规范的名称新建（避免生僻缩写、避免把一个知识点拆成多个）。知识点可与分类重叠，若所选 category 属于所选科目的已有分类，通常也应作为其中一个 knowledge_tag。
+6. 只输出一个 JSON 对象，不要任何解释文字、也不要用 Markdown 代码块包裹。键固定如下：
 {"subject": "", "category": "", "difficulty": 5, "knowledge_tags": []}"""
 
 
@@ -258,7 +309,7 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
     template = CLASSIFY_TEMPLATE if restrict_tags else CLASSIFY_TEMPLATE_OPEN
     user_text = template % (
         "、".join(taxonomy["subjects"]) or "（暂无，可自行命名）",
-        "、".join(taxonomy["categories"]) or "（暂无，可自行命名）",
+        _format_category_tree(taxonomy),
         "、".join(taxonomy["knowledge_tags"]) or "（暂无）",
     )
     hints = []
@@ -274,18 +325,24 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
         )
     content = _call_model(vault, user_text, image_data_url, max_tokens=600, timeout=timeout)
     parsed = _extract_json(content)
+    subject, category = _normalize_subject_category(
+        parsed, taxonomy, hint_subject=hint_subject.strip(), hint_category=hint_category.strip()
+    )
     tags = _as_str_list(parsed.get("knowledge_tags", []))
     if restrict_tags:
-        # 硬约束：相关知识点只能取自「已有分类 ∪ 已有知识点」，模型若造新词一律剔除
-        allowed = set(taxonomy["categories"]) | set(taxonomy["knowledge_tags"])
+        # 硬约束：相关知识点只能取自「所选科目的已有分类 ∪ 已有知识点」。
+        # 未识别出科目时保留历史行为，允许使用全库已有分类。
+        subject_categories = _categories_for_subject(taxonomy, subject)
+        allowed_categories = subject_categories if subject else set(taxonomy["categories"])
+        allowed = allowed_categories | set(taxonomy["knowledge_tags"])
         tags = [tag for tag in tags if tag in allowed]
     else:
         # 允许新建：仅按提示词约定限制数量（已去重 / 去 [[]] 由 _as_str_list 处理）
         tags = tags[:4]
     return {
         "mode": "classify",
-        "subject": str(parsed.get("subject", "")).strip(),
-        "category": str(parsed.get("category", "")).strip(),
+        "subject": subject,
+        "category": category,
         "difficulty": _clamp_difficulty(parsed.get("difficulty", 5)),
         "knowledge_tags": tags,
         "restrict_tags": restrict_tags,

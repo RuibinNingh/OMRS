@@ -303,12 +303,12 @@
 
 | `mode` | 用途 | 提示词 | 返回 |
 |---|---|---|---|
-| `classify`（默认） | 读**题目**图，判断科目/分类/难度/相关知识点（不抄题、不解题） | 注入当前科目/分类/知识点；`ai_restrict_tags=true` 时要求 knowledge_tags **只能取自已有分类+已有知识点**，`false` 时**优先复用、无贴切项才可新建**；只输出 `{"subject","category","difficulty","knowledge_tags"}` JSON | `{subject, category, difficulty, knowledge_tags, restrict_tags, raw}` |
+| `classify`（默认） | 读**题目**图，判断科目/分类/难度/相关知识点（不抄题、不解题） | 注入当前科目、按科目分组的分类树、知识点；要求先定科目，再只能从该科目下选分类，禁止跨科目借用分类；`ai_restrict_tags=true` 时要求 knowledge_tags **只能取自所选科目下的已有分类+已有知识点**，`false` 时**优先复用、无贴切项才可新建**；只输出 `{"subject","category","difficulty","knowledge_tags"}` JSON | `{subject, category, difficulty, knowledge_tags, restrict_tags, raw}` |
 | `question_text` | 读**题目**图，把题干/条件/选项/图表说明提取为纯文本 | 要求只输出题目正文，不解题、不补答案/解析 | `{question_text}` |
 | `answer` | 读**答案**图，把答案/解析提取为纯文本 | 要求只输出答案文本 | `{answer}` |
 
 **响应：** `{ "status":"ok", "mode", ...上表字段 }`。
-- `classify`：`difficulty` 夹在 1-10；`restrict_tags` 回传本次实际采用的开关值；`knowledge_tags` 在 `restrict_tags=true` 时由后端**硬过滤**为「已有分类 ∪ 已有知识点」的子集（模型若造新词一律剔除，空池则返回 `[]`），在 `false` 时仅归一化去重并**上限 4 个**（允许新词）；模型未按 JSON 返回时 `raw` 回传原文（前端可提示重试）。
+- `classify`：`difficulty` 夹在 1-10；`restrict_tags` 回传本次实际采用的开关值；若模型返回“已有分类但不属于所选科目”的组合，后端会清空 `category` 防止误填；`knowledge_tags` 在 `restrict_tags=true` 时由后端**硬过滤**为「所选科目下的已有分类 ∪ 已有知识点」的子集（模型若造新词一律剔除，空池则返回 `[]`），在 `false` 时仅归一化去重并**上限 4 个**（允许新词）；模型未按 JSON 返回时 `raw` 回传原文（前端可提示重试）。
 - `question_text`：`question_text` 为去围栏后的题目正文纯文本，前端填入 `#cr-question`。
 - `answer`：`answer` 为去围栏后的纯文本。
 - 未配置 `ai_base_url/ai_api_key/ai_model`、网络不可达、上游 HTTP 错误或解析失败 → `{ "status":"error", "msg":"…" }` + 400。
