@@ -17,6 +17,23 @@ def write_mastery(vault, rows):
 
 
 class AiAssistTaxonomyTests(unittest.TestCase):
+    def test_answer_prompt_requires_visible_explanation(self):
+        prompt = ai_assist.ANSWER_PROMPT
+
+        self.assertIn("所有可见的【答案和解析】", prompt)
+        self.assertIn("两部分都必须保留", prompt)
+        self.assertIn("绝对不能只输出最终答案", prompt)
+        self.assertIn("不能概括、压缩或省略解析", prompt)
+        self.assertIn("确实只有答案而没有解析，才只输出答案", prompt)
+
+    def test_extract_answer_preserves_full_model_reply(self):
+        reply = "【答案】B\n\n【解析】第一步。\n第二步。"
+        with mock.patch.object(ai_assist, "_call_model", return_value=reply) as call:
+            result = ai_assist.extract_answer("vault", "data:image/png;base64,xxx")
+
+        self.assertEqual(result["answer"], reply)
+        self.assertEqual(call.call_args.args[1], ai_assist.ANSWER_PROMPT)
+
     def test_collect_taxonomy_groups_categories_by_subject(self):
         with tempfile.TemporaryDirectory() as vault:
             write_mastery(
