@@ -1,8 +1,9 @@
 /* OMRS A4 打印版样式 —— 安静、学术、为打印而生。
- * 几何完全沿用旧 docx：A4 / 上下 0.5in / 左右 0.25in / 双栏 / 栏距 0.5in。 */
+ * 几何沿用旧 docx：A4 / 上下 0.5in / 左右 0.25in / 双栏 / 栏距 0.5in。
+ * 页脚额外预留安全带，避开浏览器/打印机底部裁切区。 */
 :root{
   --ink:#1c1a17; --accent:#8b5e3c; --muted:#6b6358; --rule:#d9d2c7; --warn:#c0392b;
-  --col-w:348.85px; --col-h:1026.52px; --gap:48px; --mar-tb:48px; --mar-lr:24px;
+  --col-w:348.85px; --col-h:994.39px; --gap:48px; --mar-tb:48px; --mar-lr:24px;
   --serif:"Songti SC","STSong","SimSun","Noto Serif CJK SC","Source Han Serif SC",serif;
   --sans:"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",system-ui,sans-serif;
 }
@@ -15,7 +16,7 @@ html,body{margin:0;padding:0;background:#f1ede6;color:var(--ink);
 .page-inner{position:absolute;left:var(--mar-lr);top:var(--mar-tb);
   width:calc(100% - var(--mar-lr)*2);height:var(--col-h);display:flex;gap:var(--gap);}
 .col{width:var(--col-w);height:var(--col-h);overflow:hidden;}
-.pagenum{position:absolute;left:0;right:0;bottom:14px;text-align:center;
+.pagenum{position:absolute;left:0;right:0;bottom:32px;text-align:center;
   font-family:var(--sans);font-size:9px;color:#b3a896;letter-spacing:1px;}
 .measurer{position:absolute;left:-99999px;top:0;visibility:hidden;}
 

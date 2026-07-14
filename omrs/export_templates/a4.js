@@ -11,8 +11,9 @@
   const MM = 3.779528;
   const PAGE_W = 210 * MM, PAGE_H = 297 * MM;
   const MARGIN_TB = 12.7 * MM, MARGIN_LR = 6.35 * MM, COL_GAP = 12.7 * MM;
+  const FOOTER_SAFE = 8.5 * MM;
   const COL_W = (PAGE_W - 2 * MARGIN_LR - COL_GAP) / 2;
-  const COL_H = PAGE_H - 2 * MARGIN_TB;
+  const COL_H = PAGE_H - 2 * MARGIN_TB - FOOTER_SAFE;
   const SAFETY = 4, MIN_FILL = 40, MIN_SLICE = 28, WHITE_THR = 245, ORPHAN = 56;
 
   // ---- 像素分析：每行墨量 + 干净缝带 ----

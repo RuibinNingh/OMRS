@@ -121,7 +121,7 @@ function renderDifficultyChart(dist){
     const level=idx+1;
     const tone=level<=3?'easy':level<=6?'mid':level<=8?'hard':'risk';
     return`<div class="level-bar ${tone}" title="Lv.${level}：${count} 题">
-      <div class="level-fill" style="height:${dashPct(count,max)}%"></div>
+      ${count>0?`<div class="level-fill" style="height:${dashPct(count,max)}%"></div>`:''}
       <span>${level}</span>
       <b>${count}</b>
     </div>`;
