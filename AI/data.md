@@ -204,6 +204,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复�
 - `id` 形如 `RPT-YYYYMMDDHHMMSS`（同秒冲突加 `-N`）。`created_at` 由后端在创建时记录。
 - 报告由 `GET /api/report/view?id=` 同源提供（`text/html`），因此报告内可直接用 `<img src="/api/image?name=<URL编码文件名>">` 引用题目图片——这是「报告引用题目图片」的对接方式。
 - 题目图片文件名可从 `/api/question?uid=` 的 `images`、`/api/stats` 与 `/api/analytics` 的 items `images` 字段，或导出复盘报告 JSON 中获得（均由 `extract_images()` 从题面 `![[名]]`/`![](路径)` 解析，取 basename）。
+- 报告页下载 AI 分析材料时，可选择不带图片的单个 Markdown，或包含 Markdown + `images/` 的 ZIP。ZIP 只收录 `items[].images` 引用且仍存在的题面图片，不包含未引用附件；其中图片只供 AI 阅读，生成的托管 HTML 仍按上一条 `/api/image?name=` 规则引用。
 
 ---
 

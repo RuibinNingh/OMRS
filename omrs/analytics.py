@@ -7,8 +7,10 @@
 """
 
 import datetime
+import io
 import json
 import os
+import zipfile
 
 from .common import (
     HISTORY_HEADERS,
@@ -573,3 +575,41 @@ def build_review_markdown(vault):
     md = "\n".join(L)
     filename = f"OMRS-复盘-{today}.md"
     return md.encode("utf-8"), filename
+
+
+def build_review_export(vault, include_images=False):
+    """生成供 AI 分析的下载材料。
+
+    默认返回轻量 Markdown；需要图片时返回 ZIP，内含同一份 Markdown 和题面实际
+    引用的图片。图片文件名保持不变，以便 AI 生成报告时按 `/api/image?name=` 规则
+    引用，而不是写入只能在 ZIP 内使用的相对路径。
+
+    返回 (bytes, filename, content_type)。
+    """
+    payload, markdown_name = build_review_markdown(vault)
+    if not include_images:
+        return payload, markdown_name, "text/markdown; charset=utf-8"
+
+    # 延迟导入，避免 analytics 与导出模板模块形成不必要的启动依赖。
+    from .exporting import _find_image
+
+    analytics = get_analytics(vault)
+    image_names = []
+    seen = set()
+    for item in analytics.get("items", []):
+        for raw_name in item.get("images", []):
+            name = os.path.basename(str(raw_name or "").replace("\\", "/"))
+            if name and name not in seen:
+                seen.add(name)
+                image_names.append(name)
+
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(markdown_name, payload)
+        for name in image_names:
+            path = _find_image(vault, name)
+            if path and os.path.isfile(path):
+                archive.write(path, f"images/{name}")
+
+    today = datetime.date.today().isoformat()
+    return output.getvalue(), f"OMRS-AI数据-{today}-含图片.zip", "application/zip"

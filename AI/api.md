@@ -66,7 +66,12 @@
 | `items` | 全量题目快照（含 `eff_difficulty`/`fail_count`/`is_leech`/`is_killed` 等） |
 
 ### `/api/export-review`
-导出复盘报告 Markdown 文件（`text/markdown`）。对应 `build_review_markdown()`。文件含两部分：**一、复盘数据**（程序统计的表格，供人阅读）；**二、历史数据（供 AI 分析）**——全量题目快照表 + 完整复习历史表 + 一个 ```json``` 机器可读块（派生指标 + items + 原始 history）。文件名 `OMRS-复盘-YYYY-MM-DD.md`（经 `filename*=UTF-8''` 传递中文名；plain `filename` 用 ASCII 回退，避免 HTTP 头 latin-1 编码错误）。
+导出供 AI 使用的复盘材料，对应 `build_review_export()`：
+
+- 默认或 `?include_images=0`：返回 Markdown（`text/markdown`）。文件含两部分：**一、复盘数据**（程序统计的表格，供人阅读）；**二、历史数据（供 AI 分析）**——全量题目快照表 + 完整复习历史表 + 一个 ```json``` 机器可读块（派生指标 + items + 原始 history）。文件名 `OMRS-复盘-YYYY-MM-DD.md`。
+- `?include_images=1`：返回 ZIP（`application/zip`），内含同一份 Markdown 和 `images/` 目录；只打包全量题目快照 `items[].images` 实际引用且当前存在的题面图片，去重并保持原文件名。文件名 `OMRS-AI数据-YYYY-MM-DD-含图片.zip`。
+
+两种响应均以 `filename*=UTF-8''` 传递中文名，plain `filename` 使用 ASCII 回退，避免 HTTP 头 latin-1 编码错误。ZIP 内的 `images/` 只用于向 AI 提供视觉上下文；AI 生成的最终托管报告仍须通过 `/api/image?name=<URL编码文件名>` 引用图片，不能使用 ZIP 相对路径。
 
 ---
 

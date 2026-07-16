@@ -6,7 +6,7 @@ import time
 import urllib.parse
 
 from .common import HISTORY_HEADERS, history_path, load_config, load_csv, save_config
-from .analytics import build_review_markdown, get_analytics
+from .analytics import build_review_export, get_analytics
 from .reports import create_report, delete_report, get_report_html, list_reports
 from .ai_assist import recognize_question
 from .creation import create_question
@@ -74,13 +74,17 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/export-review":
             try:
-                payload, filename = build_review_markdown(self.vault_path)
+                include_images = params.get("include_images", "").strip().lower() in {"1", "true", "yes"}
+                payload, filename, content_type = build_review_export(
+                    self.vault_path, include_images=include_images
+                )
                 filename_encoded = urllib.parse.quote(filename)
                 self.send_response(200)
-                self.send_header("Content-Type", "text/markdown; charset=utf-8")
+                self.send_header("Content-Type", content_type)
                 self.send_header(
                     "Content-Disposition",
-                    f"attachment; filename=\"OMRS-review.md\"; filename*=UTF-8''{filename_encoded}",
+                    f"attachment; filename=\"OMRS-AI-data.{'zip' if include_images else 'md'}\"; "
+                    f"filename*=UTF-8''{filename_encoded}",
                 )
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()

@@ -7,7 +7,7 @@
 <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'')}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-<link rel="stylesheet" href="assets/styles.css?v=20260615-modern-charts">
+<link rel="stylesheet" href="assets/styles.css?v=20260716-ai-report">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -767,13 +767,29 @@
 
   <!-- ====== 报告 ====== -->
   <div class="panel" id="panel-reports">
-    <div class="cols" style="grid-template-columns:1fr 2fr">
+    <div class="cols rp-layout">
       <div class="card">
         <div class="card-title">📤 创建报告</div>
         <p style="font-size:.78rem;color:var(--fg3);margin-bottom:16px;line-height:1.7">
-          上传 AI 生成的分析报告（纯 HTML）。报告由本程序托管，可在浏览器直接打开；报告内可用
-          <code>&lt;img src="/api/image?name=图片名"&gt;</code> 引用题目图片。
+          先准备分析材料并交给 AI，再上传 AI 生成的纯 HTML 报告。报告由本程序托管，可在浏览器直接打开。
         </p>
+        <div class="rp-ai-kit">
+          <div class="rp-ai-kit-head">
+            <div>
+              <strong>AI 分析材料</strong>
+              <span>提示词会按图片选项自动调整</span>
+            </div>
+            <label class="rp-image-option" for="rp-include-images">
+              <input type="checkbox" id="rp-include-images" onchange="updateReportMaterialHint()">
+              <span>包含题目图片</span>
+            </label>
+          </div>
+          <div class="rp-material-actions">
+            <button class="btn" id="rp-prompt-btn" onclick="copyReportAiPrompt()">复制 AI 报告提示词</button>
+            <button class="btn" id="rp-data-btn" onclick="downloadReportData()">下载分析数据</button>
+          </div>
+          <div class="rp-material-hint" id="rp-material-hint">下载 Markdown 数据文件，不包含图片文件。</div>
+        </div>
         <div class="form-group">
           <label>报告名称 *</label>
           <input id="rp-name" class="input" placeholder="如：6 月薄弱点分析">
@@ -835,7 +851,7 @@
 <script src="assets/recommend.js"></script>
 <script src="assets/instant.js?v=20260614-pages"></script>
 <script src="assets/data.js"></script>
-<script src="assets/reports.js"></script>
+<script src="assets/reports.js?v=20260716-ai-report"></script>
 <script src="assets/app.js?v=20260615-sidebar"></script>
 </body>
 </html>
