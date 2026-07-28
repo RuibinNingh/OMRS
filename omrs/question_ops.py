@@ -98,6 +98,37 @@ def move_question(vault: str, uid: str, target_subject: str, target_category: st
     return {"uid": target_uid, "old_uid": uid, "file_path": rel}
 
 
+def delete_question(vault: str, uid: str):
+    """Delete one question's Markdown file and append an immutable archive event."""
+    row = _projection_by_uid(vault, uid)
+    if not row:
+        raise RuntimeError(f"UID 不存在: {uid}")
+    path = _question_file_path(vault, row)
+    if not os.path.isfile(path):
+        raise RuntimeError(f"题目 Markdown 文件不存在: {row['file_path']}")
+
+    os.remove(path)
+    append_commit(vault, "api", "question.archive", f"删除题目 {uid}", {
+        "question_id": row["question_id"],
+        "uid_at_that_time": uid,
+        "file_path": row["file_path"],
+        "reason": "通过题目库删除",
+    })
+    state = rebuild_projection(vault)
+    update_fingerprints(vault, [
+        {
+            "question_id": question.get("question_id"),
+            "uid": question.get("uid"),
+            "file_path": question.get("file_path"),
+            "metadata_hash": question.get("metadata_hash"),
+            "content_hash": question.get("content_hash"),
+        }
+        for question in state["questions"].values()
+        if not question.get("archived")
+    ])
+    return {"uid": uid, "file_path": row["file_path"], "archived": True}
+
+
 def _projection_by_uid(vault, uid):
     with connect(vault) as db:
         row = db.execute(
@@ -105,6 +136,14 @@ def _projection_by_uid(vault, uid):
             (uid,),
         ).fetchone()
     return dict(row) if row else None
+
+
+def _question_file_path(vault, row):
+    root = os.path.abspath(questions_root(vault))
+    path = os.path.abspath(os.path.join(vault, row["file_path"]))
+    if os.path.commonpath([root, path]) != root:
+        raise RuntimeError("题目文件路径不在错题目录内")
+    return path
 
 
 def _next_uid(qroot, category):

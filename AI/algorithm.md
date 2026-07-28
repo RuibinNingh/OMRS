@@ -14,8 +14,8 @@ decayed = mastery × e^( -days / (mastery×factor + base) )
 
 - **衰减常数**随熟练度升高而增大，熟练度越高衰减越慢。
 - `mastery = 0` 时直接返回 `0.0`。
-- 例：mastery=0.9，30天后衰减到约 0.70；mastery=0.3，30天后衰减到约 0.16。
-- `factor`/`base` 默认 `30`/`5`，可经 `config.json` 的 `tuning`（`decay_mastery_factor`/`decay_base`）覆盖，见 §10。
+- 按默认 `factor=30`、`base=5`：mastery=0.9 时 30 天后约为 0.352；mastery=0.3 时 30 天后约为 0.035。
+- `factor`/`base` 默认 `30`/`5`，可经 `config.json` 的 `tuning`（`decay_mastery_factor`/`decay_base`）覆盖，见 §9。
 
 ---
 
@@ -46,7 +46,7 @@ decayed = mastery × e^( -days / (mastery×factor + base) )
 - 答错：`EF = max(1.3, EF - ef_down)`（默认 `-0.2`）
 - 低分 AND 答对：EF 不变。
 
-> 上述阈值/增量均可经 `tuning` 覆盖（`high_score_threshold`/`kill_streak`/`ef_cold_attempts`/`ef_up`/`ef_down`），见 §10。
+> 上述阈值/增量均可经 `tuning` 覆盖（`high_score_threshold`/`kill_streak`/`ef_cold_attempts`/`ef_up`/`ef_down`），见 §9。
 
 ---
 
@@ -58,13 +58,13 @@ decayed = mastery × e^( -days / (mastery×factor + base) )
 priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 ```
 
-- **`eff_diff` 不再是静态 `Difficulty` 字段**，而是由 EF 反推的「有效难度」（见 §3.1）。`Difficulty` 仍保留在 CSV / 展示 / 导出，但不再喂给优先级公式——因为它恒为 5、从不随表现变化，只会向优先级灌噪声。真正自适应的是 EF。
+- **`eff_diff` 不再是静态 `Difficulty` 字段**，而是由 EF 反推的「有效难度」（见 §3.1）。`Difficulty` 仍保留在 CSV / 展示 / 导出，可由人工或 AI 在录入时设为 1–10；但它只是静态初始估计，不会随复习表现自适应，因此不再喂给优先级公式。真正自适应的是 EF。
 
 额外加成：
 - 标签含 `待攻克` 且 `mastery < attack_mastery_threshold`（默认 0.3）：`priority += attack_bonus`（默认 0.5）
-- **leech（顽固题）**：`fail_count >= leech_fail_threshold`（默认 4）且未击杀：`priority += leech_priority_bonus`（默认 0.4），见 §11
+- **leech（顽固题）**：`fail_count >= leech_fail_threshold`（默认 4）且未击杀：`priority += leech_priority_bonus`（默认 0.4），见 §10
 
-`60`/`0.3` 即 `priority_days_divisor`/`priority_days_weight`，连同上述加成阈值均可经 `tuning` 覆盖，见 §10。
+`60`/`0.3` 即 `priority_days_divisor`/`priority_days_weight`，连同上述加成阈值均可经 `tuning` 覆盖，见 §9。
 
 排序：降序，取前 `count` 条。
 
@@ -100,6 +100,8 @@ EF 越低 = 越不稳定 = 越难 = 权重越高。EF=3.0→难度 1，EF=1.3→
 从 CSV 行转为统一的题目对象，供 `/api/stats` 和临时调度使用。
 
 - `decayed_mastery`：以当日为基准计算衰减值。
+- `interval`、`due_date`、`repetition`：SM-2 排期字段。
+- `_source`：推荐来源标记（`due` / `proficiency`），仅在推荐/确认流程中赋值。
 - 日期解析失败时：`days = 0`（列表视图语义：今天刚看过）。
 - `high_correct_streak`：连续高分答对次数，供前端展示和调试确认。
 
@@ -179,23 +181,11 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ---
 
-## 9. `_row_to_item()` — 题库条目转换
-
-从 CSV 行转为统一的题目对象，供 `/api/stats` 和临时调度使用。
-
-- `decayed_mastery`：以当日为基准计算衰减值。
-- `interval`、`due_date`、`repetition`：SM-2 排期字段。
-- `_source`：推荐来源标记（`due` / `proficiency`），仅在推荐/确认流程中赋值。
-- 日期解析失败时：`days = 0`（列表视图语义：今天刚看过）。
-- `high_correct_streak`：连续高分答对次数，供前端展示和调试确认。
-
----
-
-## 10. 可调参数 tuning
+## 9. 可调参数 tuning
 
 > 对应源文件：`omrs/common.py` → `DEFAULT_TUNING` / `load_tuning()`
 
-此前散落在代码里的「魔法数字」已集中为一份默认表，可在 `错题/.omrs/config.json` 的 `"tuning"` 键下覆盖（只列要改的项即可，其余取默认）。改完需重启服务生效（`save_config()` 会失效进程内缓存）。
+此前散落在代码里的「魔法数字」已集中为一份默认表，可在 `错题/.omrs/config.json` 的 `"tuning"` 键下覆盖（只列要改的项即可，其余取默认）。通过 `POST /api/config` / `save_config()` 保存时会立即失效该 vault 的进程内缓存，后续请求直接使用新值，无需重启；若绕过程序直接编辑文件，则需重启或显式调用 `reset_tuning_cache()`。
 
 | 键 | 默认 | 含义 |
 |---|---|---|
@@ -207,7 +197,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 | `priority_days_divisor` / `priority_days_weight` | 60 / 0.3 | 优先级时间项（§3） |
 | `attack_bonus` / `attack_mastery_threshold` | 0.5 / 0.3 | 待攻克加成（§3） |
 | `proficiency_factor` | 0.7 | 熟练度来源答对的间隔折中系数（§6） |
-| `leech_fail_threshold` / `leech_priority_bonus` | 4 / 0.4 | leech 判定与加成（§11） |
+| `leech_fail_threshold` / `leech_priority_bonus` | 4 / 0.4 | leech 判定与加成（§10） |
 
 `config.json` 示例：
 
@@ -222,7 +212,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ---
 
-## 11. Leech（顽固题）检测
+## 10. Leech（顽固题）检测
 
 > 对应源文件：`omrs/scheduling.py` → `build_fail_counts()` / `is_leech()`
 

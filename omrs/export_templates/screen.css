@@ -89,6 +89,10 @@ body{background:var(--bg);color:var(--fg);font-family:var(--sans);
 .math .katex{font-size:1em}
 .qbody img,.ans img{max-width:100%;height:auto;display:block;margin:12px auto;
   border-radius:var(--radius-sm);border:1px solid var(--border);cursor:zoom-in}
+.md-table-wrap{overflow-x:auto;margin:12px 0;border:1px solid var(--border);border-radius:var(--radius-sm)}
+.md-table{width:100%;border-collapse:collapse;font-size:.82rem;line-height:1.5;background:var(--bg2)}
+.md-table th,.md-table td{padding:7px 9px;border-right:1px solid var(--border);border-bottom:1px solid var(--border);text-align:left;vertical-align:top;white-space:normal}
+.md-table th:last-child,.md-table td:last-child{border-right:0}.md-table tr:last-child td{border-bottom:0}.md-table th{background:var(--bg3);font-weight:700}
 
 /* 错因 / 关联 批注 */
 .note{font-size:.82rem;line-height:1.62;background:#faf6f0;border:1px solid var(--border);

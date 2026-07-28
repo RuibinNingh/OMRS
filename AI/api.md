@@ -25,8 +25,8 @@
 | `mastery_histogram` | object | 10个区间的题数分布，其中 `90-100` 桶包含 `Mastery = 1.0` |
 | `daily_trend` | object | 近30天每日练习趋势 |
 | `scatter_data` | array | 每题的散点数据 |
-| `review_alert` | object | 预警统计（urgent/warning/cold/total_due/leech） |
-| `items` | array | 所有题目条目，每条含 `fail_count`（累计答错次数）、`is_leech`（顽固题标记）与 `images`（题面引用的图片文件名列表） |
+| `review_alert` | object | 到期与风险统计：`overdue`、`due_today`、`due_next_3_days`（明天起 3 天）、`due_next_7_days`（明天起 7 天）、`due_within_3_days`、`due_within_7_days`、`low_mastery_not_due`；兼容保留 `urgent`/`warning`/`cold`/`total_due`/`leech` |
+| `items` | array | 所有题目条目，每条含 `fail_count`（累计答错次数）与 `is_leech`（顽固题标记）；该端点不返回 `images`，需要图片名时使用 `/api/question` 或 `/api/analytics` |
 
 ---
 
@@ -38,7 +38,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `status` | string | 当前服务状态，正常为 `ok` |
-| `version` | string | OMRS 版本号，当前为 `v1.1.1` |
+| `version` | string | 从 `omrs.version.__version__` 读取的 OMRS 版本号，当前为 `v1.6.0` |
 | `started_at` | string | 服务启动时间（ISO 8601，UTC） |
 | `uptime_seconds` | int | 已运行秒数 |
 | `question_count` | int | 当前托管题目数 |
@@ -61,7 +61,7 @@
 | `accuracy` | `by_score`（各主观分次数/答对/正确率）、`weekly`（近 12 周复习/答对/正确率） |
 | `behavior` | `by_weekday`（周一..周日）、`by_hour`（0–23）、`daily_trend`（近 30 天） |
 | `forecast` | 未来 7 天到期预测 + `overdue` |
-| `review_alert` | urgent/warning/cold/total_due/leech/overdue/due_today |
+| `review_alert` | `overdue`、`due_today`、`due_next_3_days`、`due_next_7_days`、`due_within_3_days`、`due_within_7_days`、`low_mastery_not_due`、`leech`；兼容保留 `urgent`/`warning`/`cold`/`total_due` |
 | `weak_spots` | `leeches`/`struggling`/`traps`/`recently_killed` 列表 |
 | `items` | 全量题目快照（含 `eff_difficulty`/`fail_count`/`is_leech`/`is_killed` 等） |
 
@@ -143,7 +143,7 @@
 | `due` | array | 到期题目列表（Due_Date ≤ 今天），按逾期优先+EF升序排列 |
 | `proficiency` | array | 熟练度题目列表（Due_Date > 今天），按薄弱程度降序排列 |
 
-每条题目含 `_source`（`due`/`proficiency`）、`_overdue_days`、`fail_count`、`is_leech` 等元数据。leech 题（algorithm.md §11）在熟练度列表会获得优先级加成。
+每条题目含 `_source`（`due`/`proficiency`）、`_overdue_days`、`fail_count`、`is_leech` 等元数据。leech 题（algorithm.md §10）在熟练度列表会获得优先级加成。
 
 ---
 
@@ -155,7 +155,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `allow_external` | bool | 是否允许外部访问（绑定 0.0.0.0） |
-| `tuning` | object | 算法可调参数（若已设置），键见 algorithm.md §10 |
+| `tuning` | object | 算法可调参数（若已设置），键见 algorithm.md §9 |
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`），可空 |
 | `ai_api_key` | string | AI 接口密钥（Bearer），可空 |
 | `ai_model` | string | AI 模型名（需支持图片输入，如 `gpt-4o`），可空 |
@@ -276,6 +276,16 @@
 { "uid": "三角函数4", "subject": "数学", "category": "二次函数" }
 ```
 
+### `POST /api/question/delete`
+
+删除一个题目的 Markdown 正文，并追加 `question.archive` Ledger commit。请求体：
+
+```json
+{ "uid": "三角函数4" }
+```
+
+成功响应包含 `uid`、原 `file_path` 与 `archived: true`。题目会从题库、统计、调度和兼容 CSV 投影中移除，历史反馈和账本记录保留。附件图片不会自动删除，因为它们可能被其他题目引用；已删除的 Markdown 正文不在 Ledger 中，不能通过结构化恢复取回。
+
 响应返回新 UID、旧 UID 和新路径。迁移不重命名旧附件。
 
 ### 历史修正端点
@@ -310,12 +320,12 @@
 |---|---|---|---|
 | `classify`（默认） | 读**题目**图，判断科目/分类/难度/相关知识点（不抄题、不解题） | 注入当前科目、按科目分组的分类树、知识点；要求先定科目，再只能从该科目下选分类，禁止跨科目借用分类；`ai_restrict_tags=true` 时要求 knowledge_tags **只能取自所选科目下的已有分类+已有知识点**，`false` 时**优先复用、无贴切项才可新建**；只输出 `{"subject","category","difficulty","knowledge_tags"}` JSON | `{subject, category, difficulty, knowledge_tags, restrict_tags, raw}` |
 | `question_text` | 读**题目**图，把题干/条件/选项/图表说明提取为纯文本 | 要求只输出题目正文，不解题、不补答案/解析 | `{question_text}` |
-| `answer` | 读**答案**图，把答案/解析提取为纯文本 | 要求只输出答案文本 | `{answer}` |
+| `answer` | 读**答案**图，忠实转录全部可见答案与解析 | 保留详解、推导、计算步骤、选项说明、原顺序和必要换行；禁止概括、压缩、省略或补写，只有图片确实没有解析时才只返回答案 | `{answer}` |
 
 **响应：** `{ "status":"ok", "mode", ...上表字段 }`。
 - `classify`：`difficulty` 夹在 1-10；`restrict_tags` 回传本次实际采用的开关值；若模型返回“已有分类但不属于所选科目”的组合，后端会清空 `category` 防止误填；`knowledge_tags` 在 `restrict_tags=true` 时由后端**硬过滤**为「所选科目下的已有分类 ∪ 已有知识点」的子集（模型若造新词一律剔除，空池则返回 `[]`），在 `false` 时仅归一化去重并**上限 4 个**（允许新词）；模型未按 JSON 返回时 `raw` 回传原文（前端可提示重试）。
 - `question_text`：`question_text` 为去围栏后的题目正文纯文本，前端填入 `#cr-question`。
-- `answer`：`answer` 为去围栏后的纯文本。
+- `answer`：`answer` 只去掉包裹整段响应的代码围栏和首尾空白，模型返回的答案/解析正文及内部换行原样保留。
 - 未配置 `ai_base_url/ai_api_key/ai_model`、网络不可达、上游 HTTP 错误或解析失败 → `{ "status":"error", "msg":"…" }` + 400。
 
 ---
@@ -343,7 +353,7 @@
 **响应：** `{ "status": "ok", "msg": "正在重启..." }`
 
 ### `POST /api/backup/export`
-打包整个 `错题/` 目录并以 zip 下载，文件名 `OMRS-backup-YYYYMMDD-HHMMSS.zip`。响应头 `X-OMRS-Backup-Token` 是本次会话压缩图片前的备份凭证；备份 zip 不写入数据目录，由浏览器下载给用户保存。
+打包整个 `错题/` 目录并以 zip 下载，文件名 `OMRS-backup-YYYYMMDD-HHMMSS.zip`。响应头仍返回 `X-OMRS-Backup-Token` 供审计与兼容，但图片压缩不再强制要求先备份；备份 zip 不写入数据目录，由浏览器下载给用户保存。
 
 ### `POST /api/backup/import`
 导入用户选择的备份 zip（`multipart/form-data` 字段 `file`），只做校验和预览，不立即覆盖当前数据。
@@ -366,12 +376,14 @@
 **响应：** `{ "status":"ok", "job": { "kind":"scan", "job_id", "total", "processed", "done" } }`。前端继续轮询 `/api/optimize/job?id=<job_id>`；完成后 `job.result` 含 `{ "exact": false, "scan_id", "candidate_count", "potential_bytes", "candidates", "skipped" }`。
 
 ### `POST /api/optimize/compress`
-启动深扫压缩后台任务。必须先通过 `/api/backup/export` 获得有效 `backup_token`，并显式确认。任务会逐张生成优化副本、校验 PNG 像素一致或调用 `jpegtran`，只在新文件更小时替换原文件。
+启动深扫压缩后台任务。必须显式 `confirm=true`；`backup_token` 为兼容保留的可选审计字段，可以为空。任务会逐张生成优化副本、校验 PNG 像素一致或调用 `jpegtran`，只在新文件更小时替换原文件。
 
 **请求体：**
 ```json
-{ "scan_id": "scan-xxxx", "backup_token": "backup-xxxx", "confirm": true }
+{ "scan_id": "scan-xxxx", "backup_token": "", "confirm": true }
 ```
+
+前端仍在确认框中建议用户先导出备份，但这不是后端前置条件。
 
 **响应：** `{ "status":"ok", "job": { "job_id", "status", "total", "processed", "saved_bytes" } }`
 
@@ -411,10 +423,12 @@
 可选字段：
 - `"format"`：`"a4"`（打印版，默认）或 `"screen"`（屏幕阅读版）。为兼容旧调用，`"docx"`/`"word"`/`"html"`/空 一律按 `a4` 处理。
 - `"include_answers": true`：在「一、题目」「二、反馈勾选表」之后追加「三、答案」一节。
+- `"question_gap_lines": 0`：A4 题目之间预留的空行数，后端钳制到 `0–20`；默认 `0`，屏幕版忽略该留白。
+- `"a4_two_columns": true`：A4 是否使用双栏，默认 `true`；设为 `false` 时整份导出使用单栏。屏幕版忽略该字段。
 
 返回 HTML 文件流（`Content-Type: text/html; charset=utf-8`），文件名 `OMRS-{session}-{a4|screen}.html`（经 `filename*=UTF-8''` 传中文/带后缀名）。临时调度导出的批次号前缀为 `TMP-`，不写入 `sessions.csv`。
 
-**版面与长图切片全部在浏览器端完成**（见 `export.md`）：Python 仅读题、解析分节、抽 `![[名]]`/`![](路径)` 嵌入并把图片读成 base64，连同模板 JS/CSS 内联进 HTML；A4 的双栏分页与超长图按白缝切片由打开文件的浏览器即时计算（所见即所打印，无跨渲染器保真度差，也不再依赖 Pillow）。题目与答案走同一条解析路径（`exporting._text_to_blocks`），两处图片一致处理。`$...$`/`$$...$$` 暂以辨识样式呈现（未接 KaTeX，留作后续）。
+**版面与长图切片全部在浏览器端完成**（见 `export.md`）：Python 读题、解析分节，把文字、图片和 Markdown 表格转换为结构化块，图片读成 base64，再将模板 JS/CSS 和本地 KaTeX CSS/JS/字体全部内联。A4 的分页与超长图白缝切片由打开文件的浏览器即时计算；题目与答案走同一条 `_text_to_blocks()` 路径。`$...$` / `$$...$$` 在 A4 与屏幕版均由内联 KaTeX 离线渲染，失败时降级显示原公式。栏模式只由 `a4_two_columns` 决定；前端每次导出 A4 时都会确认，含表格或长公式时可选单栏保留列宽。
 
 题目块显示 UID、科目、分类、难度、状态标签和知识点标签，便于打印后按标签复盘。
 

@@ -570,6 +570,8 @@ def _commit_summary(commit):
         return f"新增题目：{q.get('uid', '')}"
     if ctype in {"question.move", "question.move_external"}:
         return f"迁移题目：{payload.get('from_uid', '')} -> {payload.get('to_uid', '')}"
+    if ctype in {"question.archive", "question.archive_external"}:
+        return f"归档题目：{payload.get('uid_at_that_time', '')}"
     if ctype.startswith("review."):
         return commit["message"]
     if ctype.startswith("session."):

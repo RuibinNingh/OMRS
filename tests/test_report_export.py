@@ -55,3 +55,50 @@ def test_review_export_with_images_packages_only_referenced_files(monkeypatch, t
         ]
         assert archive.read("images/first.png") == b"png-data"
         assert archive.read("images/second.jpg") == b"jpg-data"
+
+
+def test_markdown_table_becomes_a_structured_export_block():
+    blocks = exporting._text_to_blocks(
+        "unused",
+        "| 选项 | 离子方程式 | 化学方程式 |\n"
+        "| --- | --- | --- |\n"
+        "| A | $H^+ + OH^-$ | $CH_3COOH + NaOH$ |",
+    )
+
+    assert blocks == [{
+        "t": "table",
+        "headers": ["选项", "离子方程式", "化学方程式"],
+        "rows": [["A", "$H^+ + OH^-$", "$CH_3COOH + NaOH$"]],
+    }]
+
+
+def test_export_data_keeps_a4_question_gap_line_count():
+    data = exporting._build_export_data(
+        "unused",
+        "EXP-test",
+        [{"uid": "q-1", "question": "题目", "answer": "", "subject": "数学"}],
+        False,
+        question_gap_lines=3,
+    )
+
+    assert data["meta"]["question_gap_lines"] == 3
+    assert exporting._normalize_question_gap_lines("99") == 20
+    assert exporting._normalize_question_gap_lines("bad") == 0
+
+
+def test_a4_export_embeds_formula_boundary_continuation_layout():
+    html = exporting._build_html(
+        {
+            "meta": {"a4_two_columns": True},
+            "questions": [],
+            "feedback": [],
+            "answers": [],
+        },
+        "a4",
+    )
+
+    assert "function formulaBreakOffsets" in html
+    assert "function splitFormulaText" in html
+    assert "function placeText" in html
+    assert "node.getBoundingClientRect().bottom - col.getBoundingClientRect().top" in html
+    assert "pages.push(page); mount.appendChild(page);" in html

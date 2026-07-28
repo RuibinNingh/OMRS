@@ -243,11 +243,50 @@ def _img_payload(vault, name):
     return {"src": f"data:{content_type};base64,{b64}", "w": width, "h": height}
 
 
+def _split_markdown_table_row(line):
+    """拆分 Markdown 表格行，支持用反斜杠转义的竖线。"""
+    source = (line or "").strip().strip("|")
+    cells, current = [], []
+    index = 0
+    while index < len(source):
+        char = source[index]
+        if char == "\\" and index + 1 < len(source) and source[index + 1] == "|":
+            current.append("|")
+            index += 2
+            continue
+        if char == "|":
+            cells.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+        index += 1
+    cells.append("".join(current).strip())
+    return cells
+
+
+def _is_markdown_table_separator(line):
+    cells = _split_markdown_table_row(line)
+    return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
+
+
 def _text_to_blocks(vault, text):
     """把一段多行正文转成块列表：每个非空文字行 -> {t:'txt'}，每个嵌入图 -> {t:'img'}。
     细粒度按行成块，既保留原排版语义，也让浏览器端在双栏里填得更紧。"""
     blocks = []
-    for raw in (text or "").split("\n"):
+    lines = (text or "").split("\n")
+    index = 0
+    while index < len(lines):
+        if index + 1 < len(lines) and "|" in lines[index] and _is_markdown_table_separator(lines[index + 1]):
+            headers = _split_markdown_table_row(lines[index])
+            index += 2
+            rows = []
+            while index < len(lines) and lines[index].strip() and "|" in lines[index]:
+                cells = _split_markdown_table_row(lines[index])
+                rows.append((cells + [""] * len(headers))[:len(headers)])
+                index += 1
+            blocks.append({"t": "table", "headers": headers, "rows": rows})
+            continue
+        raw = lines[index]
         line = raw.rstrip()
         embeds, remaining = _extract_embeds(line)
         if remaining:
@@ -258,10 +297,25 @@ def _text_to_blocks(vault, text):
                 blocks.append({"t": "img", "img": payload})
             else:
                 blocks.append({"t": "txt", "text": f"[图片缺失: {name}]"})
+        index += 1
     return blocks
 
 
-def _build_export_data(vault, session_id, questions, include_answers):
+def _normalize_question_gap_lines(value):
+    """将题间空行限制在适合 A4 排版的安全范围内。"""
+    try:
+        return max(0, min(20, int(value)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _normalize_a4_two_columns(value):
+    if isinstance(value, str):
+        return value.strip().lower() not in {"0", "false", "no", "off"}
+    return bool(value)
+
+
+def _build_export_data(vault, session_id, questions, include_answers, question_gap_lines=0, a4_two_columns=True):
     today = datetime.date.today().isoformat()
     data = {
         "meta": {
@@ -269,6 +323,8 @@ def _build_export_data(vault, session_id, questions, include_answers):
             "sub": f"Session: {session_id}    生成日期: {today}    共 {len(questions)} 道题",
             # 供屏幕版「复制作答 JSON」回填，主程序反馈页按此 ID 关联 Session
             "session_id": session_id,
+            "question_gap_lines": _normalize_question_gap_lines(question_gap_lines),
+            "a4_two_columns": _normalize_a4_two_columns(a4_two_columns),
         },
         "questions": [],
         "feedback": [],
@@ -449,14 +505,14 @@ def _build_html(data, variant):
 # --------------------------------------------------------------------------
 # 对外入口
 # --------------------------------------------------------------------------
-def export_schedule_html(vault, uids=None, session_id="", include_answers=False, variant="a4"):
+def export_schedule_html(vault, uids=None, session_id="", include_answers=False, variant="a4", question_gap_lines=0, a4_two_columns=True):
     session_id, questions = _load_export_questions(vault, uids, session_id)
-    data = _build_export_data(vault, session_id, questions, include_answers)
+    data = _build_export_data(vault, session_id, questions, include_answers, question_gap_lines, a4_two_columns)
     html_text = _build_html(data, variant)
     return html_text.encode("utf-8"), session_id
 
 
-def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False):
+def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True):
     """导出错题清单为自包含 HTML。
 
     export_format: 'a4'（打印版，默认）/ 'screen'（屏幕阅读版）。
@@ -465,6 +521,6 @@ def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4"
     """
     fmt = (export_format or "a4").strip().lower()
     variant = "screen" if fmt == "screen" else "a4"
-    data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant)
+    data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant, question_gap_lines, a4_two_columns)
     filename = f"OMRS-{session_id}-{variant}.html"
     return data, session_id, filename, "text/html; charset=utf-8"
