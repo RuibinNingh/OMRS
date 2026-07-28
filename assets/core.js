@@ -5,6 +5,28 @@ let REC_DATA=null,REC_SELECTED={},REC_VIEW='flat',REC_PREVIEW_MODE='list';
 let INSTANT_DATA=null,INSTANT_QUEUE=[],INSTANT_INDEX=0,INSTANT_RESULTS={},INSTANT_SESSION_ID='';
 let CR_Q_IMAGES=[],CR_A_IMAGES=[],CR_IMG_SEQ=0;
 
+const LEDGER_TIME_ZONE_KEY='omrs-ledger-time-zone';
+
+function ledgerTimeZone(){
+  try{return localStorage.getItem(LEDGER_TIME_ZONE_KEY)||'local'}catch(e){return'local'}
+}
+function formatLedgerTime(value){
+  const raw=String(value||'').trim();
+  if(!raw)return'';
+  // 旧记录没有时区偏移时无法可靠转换；保留其原有的本地墙上时间。
+  if(!/(?:Z|[+-]\d{2}:\d{2})$/i.test(raw))return raw.replace('T',' ').slice(0,19);
+  const date=new Date(raw);
+  if(Number.isNaN(date.getTime()))return raw.replace('T',' ').slice(0,19);
+  const options={year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'};
+  const zone=ledgerTimeZone();
+  if(zone!=='local')options.timeZone=zone;
+  try{
+    const parts=new Intl.DateTimeFormat('zh-CN',options).formatToParts(date);
+    const values=Object.fromEntries(parts.filter(part=>part.type!=='literal').map(part=>[part.type,part.value]));
+    return `${values.year}-${values.month}-${values.day} ${values.hour}:${values.minute}:${values.second}`;
+  }catch(e){return raw.replace('T',' ').slice(0,19)}
+}
+
 function parseLooseJson(text){let t=String(text??'').trim();const fence=t.match(/^```[a-zA-Z0-9]*\s*\n?([\s\S]*?)\n?```$/);if(fence)t=fence[1].trim();if(!t)throw new Error('内容为空');return JSON.parse(t)}
 async function copyTextToClipboard(text){try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(text);return true}}catch(e){}try{const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.focus();ta.select();const ok=document.execCommand('copy');document.body.removeChild(ta);return ok}catch(e){return false}}
 function looseBool(v){if(v===true||v===1||v==='1')return true;if(v===false||v===0||v==='0')return false;const s=String(v??'').trim().toLowerCase();if(['true','yes','y','对','correct','right'].includes(s))return true;if(['false','no','n','错','incorrect','wrong'].includes(s))return false;return null}

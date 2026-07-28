@@ -70,6 +70,7 @@ def main():
     export_parser.add_argument("--session", default=None, help="导出已有 session_id，跳过重新调度")
     export_parser.add_argument("--uids", default=None, help="逗号分隔的 UID 列表，直接导出临时调度")
     export_parser.add_argument("--format", choices=["a4", "screen"], default="a4", help="导出格式：a4 打印版 / screen 屏幕阅读版")
+    export_parser.add_argument("--question-gap-lines", type=int, default=0, help="A4 每道题之间预留的空行数（0-20，默认 0）")
 
     sessions_parser = sub.add_parser("sessions", help="管理持久化调度 sessions")
     sessions_parser.add_argument("action", choices=["list", "show", "delete", "new"])
@@ -161,6 +162,7 @@ def main():
                 None,
                 args.session,
                 args.format,
+                question_gap_lines=args.question_gap_lines,
             )
         elif args.uids:
             payload, session_id, default_name, _ = export_schedule_artifact(
@@ -168,6 +170,7 @@ def main():
                 _normalize_uid_list(args.uids.split(",")),
                 "",
                 args.format,
+                question_gap_lines=args.question_gap_lines,
             )
         else:
             session = create_session(vault, args.count, args.subject)
@@ -179,6 +182,7 @@ def main():
                 None,
                 session["session_id"],
                 args.format,
+                question_gap_lines=args.question_gap_lines,
             )
         output = args.output or os.path.join(os.getcwd(), default_name)
         with open(output, "wb") as file:

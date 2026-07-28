@@ -52,7 +52,7 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `Log_ID` | string | `LOG-YYYYMMDD-NNN` |
+| `Log_ID` | string | Ledger 新反馈为 `{commit_id}-{index:03d}`，如 `CMT-000002-001`；`legacy.bootstrap` 导入的旧历史行可能保留原有值 |
 | `UID` | string | 题目 UID |
 | `Date` | string | `YYYY-MM-DD HH:MM` |
 | `Action` | string | 目前固定为 `Feedback` |
@@ -93,7 +93,7 @@
 - `mastery_projection`：熟练度、EF、SM-2 排期投影。
 - `session_projection`：Session 投影。
 - `workspace_fingerprint`：Markdown 工作区自检指纹。
-- `snapshots`：重放缓存。
+- `snapshots`：预留的持久化快照表；当前投影器尚未读写此表。`_project_state()` 只在单次重放过程中维护内存快照，`rebuild_projection()` 仍从完整提交链重放。
 
 旧 CSV 可删除并从 Ledger 重建；Ledger 不应删除。
 
@@ -125,9 +125,11 @@ tags:
 <!-- 该区域不再作为算法事实源；网页时间线读取 Ledger。 -->
 ```
 
-> **录入说明**：`POST /api/create` 除建骨架外，可直接写入 `# 题目`、`# 答案`、以及 `# 备注` 的 `## 错因`（由 `cause` 字段写入，导出会带上；`## 关联` 子标题保留）；YAML 可含可选 `页码` 字段。题目图存为 `错题/附件/<uid>-q-N.<ext>` 并嵌入 `# 题目`，答案图存为 `<uid>-a-N.<ext>` 并嵌入 `# 答案`。「AI 自动识别」支持三种用途：`classify` 读题目图只回填科目/分类/难度/相关知识点（不抄题；知识点可与分类重叠），`question_text` 读题目图把题目正文提取为文本，`answer` 读答案图把答案提取为文本——最终以文件实际内容为准。
+> **录入说明**：`POST /api/create` 除建骨架外，可直接写入 `# 题目`、`# 答案`、以及 `# 备注` 的 `## 错因`（由 `cause` 字段写入，导出会带上；`## 关联` 子标题保留）；YAML 可含可选 `页码` 字段。题目图存为 `错题/附件/<uid>-q-N.<ext>` 并嵌入 `# 题目`，答案图存为 `<uid>-a-N.<ext>` 并嵌入 `# 答案`。「AI 自动识别」支持三种用途：`classify` 读题目图只回填科目/分类/难度/相关知识点（不抄题；知识点可与分类重叠），`question_text` 读题目图把题目正文提取为文本，`answer` 忠实转录答案图内全部可见答案、解析、推导与步骤——最终以文件实际内容为准。
 
 > **LaTeX 公式（导出 HTML）**：题目/答案/错因中的 `$...$`（行内）与 `$$...$$`（行间）会在 HTML 导出里由内联 KaTeX 渲染；A4 与屏幕版导出都会把 KaTeX CSS/JS/字体嵌入单个 HTML 文件，离线打开仍可显示公式。若 KaTeX 资源缺失或个别公式解析失败，会安全降级为原始公式文本。Obsidian 内仍按其自身 LaTeX 渲染显示。注：旧 docx 导出曾用 `_latex_to_omml` 转 Word 原生公式（OMML），已随 docx 一并移除。
+
+> **Markdown 表格支持子集**：题目或答案可写“表头行 + `---` 分隔行 + 数据行”的管道表格，单元格内的竖线写为 `\|`。主程序预览、A4 和屏幕版会渲染为真实 `<table>`，公式仍走 KaTeX；主程序预览也能渲染备注中的表格，但当前导出只把题目和答案送入结构化表格解析。缺单元格补空，超出表头的单元格忽略，对齐冒号当前不保留语义；A4 导出时可通过 `a4_two_columns=false` 让整份文件使用单栏，前端会在导出前确认栏模式。
 
 ### 历史记录格式（兼容）
 ```
@@ -181,7 +183,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复�
 | 键 | 类型 | 说明 |
 |---|---|---|
 | `allow_external` | bool | 是否绑定 0.0.0.0（见 frontend.md 设置页） |
-| `tuning` | object | 算法可调参数覆盖，键与默认值见 algorithm.md §10；仅接受已知键且为数字 |
+| `tuning` | object | 算法可调参数覆盖，键与默认值见 algorithm.md §9；仅接受已知键且为数字 |
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`） |
 | `ai_api_key` | string | AI 接口密钥（Bearer），仅存本机 |
 | `ai_model` | string | AI 模型名（需支持图片输入，如 `gpt-4o`） |
@@ -203,7 +205,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复�
 
 - `id` 形如 `RPT-YYYYMMDDHHMMSS`（同秒冲突加 `-N`）。`created_at` 由后端在创建时记录。
 - 报告由 `GET /api/report/view?id=` 同源提供（`text/html`），因此报告内可直接用 `<img src="/api/image?name=<URL编码文件名>">` 引用题目图片——这是「报告引用题目图片」的对接方式。
-- 题目图片文件名可从 `/api/question?uid=` 的 `images`、`/api/stats` 与 `/api/analytics` 的 items `images` 字段，或导出复盘报告 JSON 中获得（均由 `extract_images()` 从题面 `![[名]]`/`![](路径)` 解析，取 basename）。
+- 题目图片文件名可从 `/api/question?uid=` 的 `images`、`/api/analytics` 的 `items[].images`，或导出复盘报告 JSON 中获得（均由 `extract_images()` 从题面 `![[名]]`/`![](路径)` 解析，取 basename）；`/api/stats` 的 `items` 不含 `images`。
 - 报告页下载 AI 分析材料时，可选择不带图片的单个 Markdown，或包含 Markdown + `images/` 的 ZIP。ZIP 只收录 `items[].images` 引用且仍存在的题面图片，不包含未引用附件；其中图片只供 AI 阅读，生成的托管 HTML 仍按上一条 `/api/image?name=` 规则引用。
 
 ---
@@ -224,4 +226,4 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复�
  "items":[{"uid":"三角函数1","is_correct":true,"sub_score":9}]}
 ```
 
-仅包含**已判定**的题。导入侧（`schedule.js::importFeedbackJson`）：`is_correct` / `correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` / `score` 缺省按对→10 / 错→4、钳 0–10 取整；`session_id` 在 sessions.csv 中则自动选中关联，否则仍按该 ID 写入 history_log（TMP- 临时卷亦可），为空按手动录入。填充后不自动提交，须人工核对。若误贴旧题目 JSON，会提示当前只支持反馈 JSON。
+仅包含**已判定**的题。导入侧（`assets/feedback.js::importFeedbackJson`）：`is_correct` / `correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` / `score` 缺省按对→10 / 错→4、钳 0–10 取整；`session_id` 在 sessions.csv 中则自动选中关联，否则仍按该 ID 写入 history_log（TMP- 临时卷亦可），为空按手动录入。填充后不自动提交，须人工核对。若误贴旧题目 JSON，会提示当前只支持反馈 JSON。

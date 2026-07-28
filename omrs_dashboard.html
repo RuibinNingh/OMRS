@@ -44,7 +44,7 @@
       <div class="nav-spacer"></div>
       <div class="tab" data-tab="settings" onclick="switchTab('settings')"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></div>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.5.0 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.6.0 · 本地服务</div>
   </aside>
   <div class="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
   <main class="content">
@@ -310,6 +310,11 @@
             <input type="checkbox" id="export-include-answers" style="accent-color:var(--accent)">
             附带答案
           </label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:.8rem;color:var(--fg2);cursor:pointer" title="仅影响 A4 打印版；每行约为正文一行的高度">
+            题间留白
+            <input type="number" id="export-question-gap" class="input filter-mini" min="0" max="20" step="1" value="0" aria-label="每道题之间空多少行">
+            行
+          </label>
           <span class="view-switch" style="margin-left:8px">
             <button class="btn sm toggle active" data-expvar="a4" onclick="setExportVariant('a4')">A4 打印版</button>
             <button class="btn sm toggle" data-expvar="screen" onclick="setExportVariant('screen')">屏幕版</button>
@@ -330,6 +335,11 @@
         <label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--fg2);cursor:pointer">
           <input type="checkbox" id="sch-include-answers" style="accent-color:var(--accent)">
           导出时附带答案
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--fg2);cursor:pointer" title="仅影响 A4 打印版；每行约为正文一行的高度">
+          题间留白
+          <input type="number" id="sch-question-gap" class="input filter-mini" min="0" max="20" step="1" value="0" aria-label="每道题之间空多少行">
+          行
         </label>
         <span class="view-switch">
           <button class="btn sm toggle active" data-expvar="a4" onclick="setExportVariant('a4')">A4 打印版</button>
@@ -570,6 +580,20 @@
             <span>深色模式下反转题目图片颜色</span>
           </label>
           <div class="hint">简易反转：白底变黑、黑字变白（<code>filter: invert(1)</code>），让浅色截图在深色下不刺眼。<b>仅深色模式生效</b>，彩色会一并反相，后续可再做智能保色。</div>
+        </div>
+        <div class="form-group">
+          <label for="st-ledger-time-zone">Ledger 时间线时区</label>
+          <select id="st-ledger-time-zone" class="input" onchange="setLedgerTimeZone(this.value)">
+            <option value="local">跟随浏览器</option>
+            <option value="Asia/Shanghai">中国标准时间（UTC+8）</option>
+            <option value="UTC">UTC（账本原始时区）</option>
+            <option value="Asia/Tokyo">日本标准时间（UTC+9）</option>
+            <option value="Asia/Singapore">新加坡时间（UTC+8）</option>
+            <option value="Europe/London">伦敦时间</option>
+            <option value="America/New_York">纽约时间</option>
+            <option value="America/Los_Angeles">洛杉矶时间</option>
+          </select>
+          <div class="hint">Ledger 继续以 UTC 保存，切换只影响「历史记录」与仪表盘「最近动态」的显示。设置保存在本浏览器，无需重启。</div>
         </div>
       </div>
       <div class="card">
@@ -841,17 +865,17 @@
 <datalist id="cr-cat-list"></datalist>
 <datalist id="cr-ktag-list"></datalist>
 
-<script src="assets/core.js"></script>
-<script src="assets/dashboard.js?v=20260615-modern-charts"></script>
+<script src="assets/core.js?v=20260728-ledger-timezone"></script>
+<script src="assets/dashboard.js?v=20260728-ledger-timezone"></script>
 <script src="assets/questions.js"></script>
 <script src="assets/schedule.js?v=20260615-split"></script>
-<script src="assets/export.js?v=20260615-split"></script>
+<script src="assets/export.js?v=20260724-question-gap"></script>
 <script src="assets/feedback.js?v=20260615-split"></script>
-<script src="assets/history.js?v=20260615-split"></script>
+<script src="assets/history.js?v=20260728-ledger-timezone"></script>
 <script src="assets/recommend.js"></script>
 <script src="assets/instant.js?v=20260614-pages"></script>
 <script src="assets/data.js"></script>
-<script src="assets/reports.js?v=20260716-ai-report"></script>
-<script src="assets/app.js?v=20260615-sidebar"></script>
+<script src="assets/reports.js?v=20260716-ai-report-v2"></script>
+<script src="assets/app.js?v=20260728-ledger-timezone"></script>
 </body>
 </html>

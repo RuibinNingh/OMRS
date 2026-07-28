@@ -28,7 +28,7 @@ function dashSmoothPoints(points){
 }
 function recentLedgerRow(row,rs){
   const fam=(typeof historyCommitFamily==='function')?historyCommitFamily(row.commit_type):'system';
-  const dt=(row.created_at||'').replace('T',' ').slice(0,16);
+  const dt=formatLedgerTime(row.created_at).slice(0,16);
   const title=(typeof historyNodeTitle==='function')?historyNodeTitle(row,rs):(row.summary||row.commit_type);
   let chip='';
   if(row.commit_type==='review.batch_submit'&&typeof historyReviewBatchStats==='function'){

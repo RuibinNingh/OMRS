@@ -57,51 +57,112 @@
     wrap.appendChild(im); if (mark) wrap.classList.add(mark); return wrap;
   }
 
-  function layout(blocks, mount) {
+  function layout(blocks, mount, singleColumn) {
     const warnings = [];
-    const measurer = el("div", "measurer"); measurer.style.width = COL_W + "px";
+    const colW = singleColumn ? PAGE_W - 2 * MARGIN_LR : COL_W;
+    const measurer = el("div", "measurer"); measurer.style.width = colW + "px";
     mount.parentNode.insertBefore(measurer, mount);
     const pages = [];
     let page = null, colIdx = 0, col = null, y = 0;
     function newPage() {
-      page = el("div", "page"); const inner = el("div", "page-inner");
-      const c0 = el("div", "col"), c1 = el("div", "col"); inner.appendChild(c0); inner.appendChild(c1);
-      page.appendChild(inner); page._cols = [c0, c1]; pages.push(page); colIdx = 0; col = c0; y = 0;
+      page = el("div", singleColumn ? "page single" : "page"); const inner = el("div", "page-inner");
+      const c0 = el("div", "col"); inner.appendChild(c0);
+      const cols = [c0];
+      if (!singleColumn) { const c1 = el("div", "col"); inner.appendChild(c1); cols.push(c1); }
+      page.appendChild(inner); page._cols = cols; pages.push(page); mount.appendChild(page); colIdx = 0; col = c0; y = 0;
     }
-    function nextCol() { if (colIdx === 0) { colIdx = 1; col = page._cols[1]; y = 0; } else { newPage(); } }
-    function put(node, h) { col.appendChild(node); y += h; }
+    function nextCol() { if (!singleColumn && colIdx === 0) { colIdx = 1; col = page._cols[1]; y = 0; } else { newPage(); } }
+    // 先测量只是快速判断；真正落位后再以 DOM 的实际底边为准，避免字体/行距差异把内容塞出栏底。
+    function put(node) {
+      col.appendChild(node);
+      const used = node.getBoundingClientRect().bottom - col.getBoundingClientRect().top;
+      if (used > COL_H + 0.5) { col.removeChild(node); return false; }
+      y = used;
+      return true;
+    }
+    function forcePut(node) {
+      col.appendChild(node);
+      y = node.getBoundingClientRect().bottom - col.getBoundingClientRect().top;
+    }
     function measure(node) { measurer.appendChild(node); const h = node.getBoundingClientRect().height; measurer.removeChild(node); return h; }
+
+    function formulaBreakOffsets(text) {
+      const source = String(text || "");
+      const token = /(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/g;
+      const offsets = [];
+      let match;
+      while ((match = token.exec(source))) offsets.push(match.index);
+      return offsets;
+    }
+
+    // 只在整段放不下时才动公式：把“公式之前的文字”留在当前栏，公式及后文从下一栏继续。
+    // 从靠后的公式开始试，尽可能少地移动文字；普通文本没有公式边界时仍沿用原来的整段换栏。
+    function splitFormulaText(b, source) {
+      const offsets = formulaBreakOffsets(source);
+      for (let i = offsets.length - 1; i >= 0; i--) {
+        const cut = offsets[i];
+        const prefix = source.slice(0, cut);
+        if (!prefix.trim()) continue;
+        const prefixNode = b.build(prefix);
+        const prefixH = measure(prefixNode);
+        if (y + prefixH > COL_H + 0.5 || !put(prefixNode)) continue;
+        nextCol();
+        return placeText(b, source.slice(cut));
+      }
+      return false;
+    }
+
+    function placeText(b, source) {
+      const node = b.build(source);
+      const h = measure(node);
+      if (y + h <= COL_H + 0.5 && put(node)) return true;
+      if (splitFormulaText(b, source)) return true;
+      nextCol();
+      if (put(node)) return true;
+      // 已确认的极端场景：单个公式即使在新栏也过高；不在本次改动中缩放或重写公式。
+      forcePut(node);
+      return false;
+    }
 
     newPage();
     for (const b of blocks) {
       if (b.kind === "image") { placeImage(b); continue; }
+      if (b.kind === "text") { placeText(b, b.text); continue; }
       const node = b.build(); const h = measure(node);
       if (b.keepNext && COL_H - y < h + ORPHAN) nextCol();
       if (y + h > COL_H + 0.5) nextCol();
-      put(node, h);
+      if (!put(node)) { nextCol(); if (!put(node)) forcePut(node); }
     }
 
     function placeImage(b) {
       const im = b.imgEl;
       if (!im || !im.naturalWidth) { return; } // 解码失败：跳过(不致命)
       const naturalW = im.naturalWidth, naturalH = im.naturalHeight;
-      const dispScale = COL_W / naturalW, dispH = naturalH * dispScale;
+      const dispScale = colW / naturalW, dispH = naturalH * dispScale;
       if (b.keepNextHeader && COL_H - y < 64) nextCol();
-      if (dispH <= COL_H - y + 0.5) { put(sliceEl(b.src, COL_W, naturalW, 0, naturalH), dispH); return; }
+      if (dispH <= COL_H - y + 0.5) {
+        const node = sliceEl(b.src, colW, naturalW, 0, naturalH);
+        if (!put(node)) { nextCol(); put(node); }
+        return;
+      }
       const an = analyze(im);
       let start = 0;
       while (start < naturalH) {
         const remDisp = COL_H - y, remPx = remDisp / dispScale, colPx = COL_H / dispScale;
         const restPx = naturalH - start, restDisp = restPx * dispScale;
-        if (restDisp <= remDisp + 0.5) { put(sliceEl(b.src, COL_W, naturalW, start, naturalH), restDisp); return; }
+        if (restDisp <= remDisp + 0.5) {
+          const node = sliceEl(b.src, colW, naturalW, start, naturalH);
+          if (!put(node)) { nextCol(); put(node); }
+          return;
+        }
         const fitsAColumn = restDisp <= COL_H + 0.5;
         if (fitsAColumn) {
           if (remDisp >= MIN_FILL) {
             const cap = Math.max(MIN_SLICE, Math.floor(remPx - SAFETY / dispScale));
             const cut = findCut(an, start, cap);
-            if (cut !== null) { put(sliceEl(b.src, COL_W, naturalW, start, cut), (cut - start) * dispScale); start = cut; nextCol(); continue; }
+            if (cut !== null) { const node = sliceEl(b.src, colW, naturalW, start, cut); if (!put(node)) { nextCol(); put(node); } start = cut; nextCol(); continue; }
           }
-          nextCol(); put(sliceEl(b.src, COL_W, naturalW, start, naturalH), restDisp); return;
+          nextCol(); const node = sliceEl(b.src, colW, naturalW, start, naturalH); if (!put(node)) forcePut(node); return;
         }
         let cap = Math.max(MIN_SLICE, Math.floor((remDisp >= MIN_FILL ? remPx : colPx) - SAFETY / dispScale));
         cap = Math.min(cap, Math.floor(colPx - SAFETY / dispScale));
@@ -113,13 +174,14 @@
           warnings.push("「" + (b.label || "?") + "」图无干净白缝，于 " + start + "→" + cut + "px 被迫切，可能擦到内容");
         }
         if (cut <= start) cut = Math.min(start + Math.floor(cap), naturalH - 1);
-        put(sliceEl(b.src, COL_W, naturalW, start, cut, mark), (cut - start) * dispScale);
+        const node = sliceEl(b.src, colW, naturalW, start, cut, mark);
+        if (!put(node)) { nextCol(); if (!put(node)) forcePut(node); }
         start = cut; nextCol();
       }
     }
 
     measurer.remove();
-    pages.forEach((p, i) => { const f = el("div", "pagenum", (i + 1) + " / " + pages.length); p.appendChild(f); mount.appendChild(p); });
+    pages.forEach((p, i) => { const f = el("div", "pagenum", (i + 1) + " / " + pages.length); p.appendChild(f); });
     return { pages: pages.length, warnings };
   }
 
@@ -155,8 +217,28 @@
     return e;
   }
   function txtBlock(cls, text, keepNext, withMath) {
-    return { keepNext: !!keepNext, build: () => { const e = el("div", "blk " + cls); withMath ? mathText(e, text) : (e.textContent = text); return e; } };
+    return {
+      kind: withMath ? "text" : "",
+      keepNext: !!keepNext,
+      text: String(text || ""),
+      build: value => {
+        const e = el("div", "blk " + cls);
+        const source = value == null ? text : value;
+        withMath ? mathText(e, source) : (e.textContent = source);
+        return e;
+      },
+    };
   }
+  function questionGapBlock(lines) { return { build: () => {
+    const e = el("div", "blk question-gap");
+    e.style.setProperty("--gap-lines", String(lines));
+    return e;
+  } }; }
+  function tableBlock(table) { return { kind: "table", build: () => {
+    const wrap = el("div", "blk md-table-wrap"), node = el("table", "md-table"), thead = el("thead"), head = el("tr");
+    (table.headers || []).forEach(cell => { const th = el("th"); mathText(th, cell); head.appendChild(th); }); thead.appendChild(head); node.appendChild(thead);
+    const tbody = el("tbody"); (table.rows || []).forEach(row => { const tr = el("tr"); (row || []).forEach(cell => { const td = el("td"); mathText(td, cell); tr.appendChild(td); }); tbody.appendChild(tr); }); node.appendChild(tbody); wrap.appendChild(node); return wrap;
+  } }; }
   function headBlock(q) {
     return { keepNext: true, build: () => {
       const e = el("div", "blk q-head");
@@ -179,11 +261,13 @@
     if (D.meta && D.meta.sub) B.push(txtBlock("doc-sub", D.meta.sub));
     B.push(txtBlock("doc-note", "请在下方空白处作答，完成后在末尾的反馈表中打分和勾选对错。"));
     B.push(txtBlock("section", "一、题目", true));
-    (D.questions || []).forEach(q => {
+    const questionGapLines = Math.max(0, Math.min(20, Number(D.meta && D.meta.question_gap_lines) || 0));
+    (D.questions || []).forEach((q, index) => {
       B.push(headBlock(q)); let first = true;
-      q.blocks.forEach(b => { if (b.t === "img") B.push(imgBlock(b, q.uid, first)); else B.push(txtBlock("q-text", b.text, false, true)); first = false; });
+      q.blocks.forEach(b => { if (b.t === "img") B.push(imgBlock(b, q.uid, first)); else if (b.t === "table") B.push(tableBlock(b)); else B.push(txtBlock("q-text", b.text, false, true)); first = false; });
       if (q.notes && q.notes["错因"]) B.push(noteBlock("错因", q.notes["错因"]));
       if (q.notes && q.notes["关联"]) B.push(noteBlock("关联", q.notes["关联"]));
+      if (questionGapLines && index < D.questions.length - 1) B.push(questionGapBlock(questionGapLines));
     });
     if (D.feedback && D.feedback.length) {
       B.push(txtBlock("section", "二、反馈勾选表", true));
@@ -196,7 +280,7 @@
         B.push(ansHeadBlock(a));
         if (!a.blocks.length) { B.push(txtBlock("ans-empty", "（暂无答案）")); return; }
         let first = true;
-        a.blocks.forEach(b => { if (b.t === "img") B.push(imgBlock(b, a.uid, first)); else B.push(txtBlock("ans-text", b.text, false, true)); first = false; });
+        a.blocks.forEach(b => { if (b.t === "img") B.push(imgBlock(b, a.uid, first)); else if (b.t === "table") B.push(tableBlock(b)); else B.push(txtBlock("ans-text", b.text, false, true)); first = false; });
       });
     }
     return B;
@@ -205,7 +289,8 @@
   function run() {
     const mount = document.getElementById("stage");
     const t0 = performance.now();
-    const res = layout(buildBlocks(), mount);
+    const blocks = buildBlocks();
+    const res = layout(blocks, mount, !(D.meta && D.meta.a4_two_columns !== false));
     const ms = (performance.now() - t0).toFixed(0);
     const stat = document.getElementById("stat");
     if (stat) stat.textContent = res.pages + " 页 · 排版 " + ms + "ms" + (res.warnings.length ? " · ⚠" + res.warnings.length + " 处被迫切穿" : " · 无切穿");

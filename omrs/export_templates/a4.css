@@ -16,6 +16,8 @@ html,body{margin:0;padding:0;background:#f1ede6;color:var(--ink);
 .page-inner{position:absolute;left:var(--mar-lr);top:var(--mar-tb);
   width:calc(100% - var(--mar-lr)*2);height:var(--col-h);display:flex;gap:var(--gap);}
 .col{width:var(--col-w);height:var(--col-h);overflow:hidden;}
+.page.single .page-inner{display:block;}
+.page.single .col{width:100%;}
 .pagenum{position:absolute;left:0;right:0;bottom:32px;text-align:center;
   font-family:var(--sans);font-size:9px;color:#b3a896;letter-spacing:1px;}
 .measurer{position:absolute;left:-99999px;top:0;visibility:hidden;}
@@ -24,9 +26,9 @@ html,body{margin:0;padding:0;background:#f1ede6;color:var(--ink);
 .doc-title{font-size:21px;font-weight:700;letter-spacing:.5px;padding-bottom:5px;}
 .doc-sub{font-family:var(--sans);font-size:11px;color:var(--muted);padding-bottom:3px;}
 .doc-note{font-family:var(--sans);font-size:11px;color:var(--muted);
-  padding-bottom:12px;border-bottom:1.5px solid var(--rule);margin-bottom:10px;}
-.section{font-size:15px;font-weight:700;color:var(--accent);padding:6px 0 8px;
-  border-bottom:1px solid var(--rule);margin-bottom:8px;letter-spacing:1px;}
+  padding-bottom:22px;border-bottom:1.5px solid var(--rule);}
+.section{font-size:15px;font-weight:700;color:var(--accent);padding:6px 0 16px;
+  border-bottom:1px solid var(--rule);letter-spacing:1px;}
 
 .q-head{padding:10px 0 5px;border-left:2.5px solid var(--accent);
   padding-left:7px;margin-left:-9px;}
@@ -36,14 +38,23 @@ html,body{margin:0;padding:0;background:#f1ede6;color:var(--ink);
 .q-head .tags{font-family:var(--sans);font-size:10px;color:var(--accent);margin-top:2px;}
 
 .q-text{font-size:12px;line-height:1.5;padding-bottom:4px;text-align:justify;}
+.question-gap{height:calc(var(--gap-lines, 0) * 18px);}
+.md-table-wrap{width:100%;padding:3px 0 6px;overflow:hidden}
+.md-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:var(--sans);font-size:9px;line-height:1.35}
+.md-table th,.md-table td{padding:3px 4px;border:1px solid var(--rule);text-align:left;vertical-align:top;word-break:break-word}.md-table th{background:#f5f1ea;font-weight:700}
+/* 表格题切换为单栏排版；为化学式预留充足列宽，防止 KaTeX 被挤成碎片。 */
+.md-table th:first-child,.md-table td:first-child{width:8%;white-space:nowrap}
+.md-table th:nth-child(2),.md-table td:nth-child(2){width:39%}
+.md-table th:nth-child(3),.md-table td:nth-child(3){width:53%}
+.md-table .math{font-size:.83em;white-space:nowrap}
 .q-text .math,.q-note .math,.ans-text .math{font-family:var(--sans);color:inherit;}
-.math.display{display:block;margin:3px 0;text-align:center;}
+.math.display{display:block;margin:0;padding:3px 0;text-align:center;}
 .math .katex{font-size:1em;}
-.q-note{font-family:var(--sans);font-size:11px;line-height:1.45;padding:3px 6px;
-  margin:3px 0;background:#faf7f2;border-radius:3px;}
+.q-note{font-family:var(--sans);font-size:11px;line-height:1.45;padding:6px 6px;
+  background:#faf7f2;border-radius:3px;}
 .q-note b{color:var(--accent);}
 
-.slice{overflow:hidden;display:block;margin:2px 0;}
+.slice{overflow:hidden;display:block;}
 .slice img{display:block;}
 .slice.clip-warn{outline:1.5px dashed var(--warn);}
 

@@ -60,6 +60,8 @@ tags:
 - `workspace_fingerprint`
 - `snapshots`
 
+其中数据库 `snapshots` 表目前只是预留结构，投影器尚未持久化或读取它。`_project_state()` 会在单次重放内对每 100 个 seq 和 `state.restore` 节点保存内存快照；跨请求的 `rebuild_projection()` 仍从完整链重放，这也是 `optimization.md` 记录的性能债。
+
 投影可删除重建；`rebuild_projection()` 会从 Ledger 重新导出兼容 CSV：
 
 - `mastery_data.csv`
@@ -84,6 +86,8 @@ tags:
 - `occurred_at`
 - `recorded_at`
 
+题目库的单题删除会先删除目标 Markdown，再追加 `question.archive` commit。投影会将该题标记为 archived 并从活动题库/兼容 CSV 排除，但既有提交与反馈仍可审计；因为正文不进入 Ledger，删除后的 Markdown 正文无法由 Ledger 恢复。附件图片保留，以避免删掉可能被其他题引用的文件。
+
 历史修正只追加新 commit：
 
 - `POST /api/history/review/replace`
@@ -94,6 +98,20 @@ tags:
 - `POST /api/history/state/restore`
 
 `POST /api/session/delete` 兼容旧前端，但内部语义改为 `session.retract`。
+
+### 修正投影如何重放
+
+修正 commit 不直接写“反向熟练度补丁”。`_project_state()` 保存题目初始 `mastery_baseline` / `question_tag_baseline` 和原始 `review_commits`，并维护：
+
+- `retracted_sessions`
+- `retracted_reviews` / `restored_reviews`
+- `review_replacements`
+
+遇到 `review.retract`、`review.restore`、`review.replace`、`session.retract` 或 `session.restore` 后，投影器从 baseline 重新播放全部有效 review：被撤销的反馈跳过，恢复后重新采用原反馈，替换则把 replacement 合并到原记录；被撤销 Session 的反馈整体跳过。这样恢复操作会真正重新计算 Mastery、EF、SM-2、标签和兼容 history，而不是只改变 UI 状态。
+
+`state.restore` 会取目标 `target_seq` 的内存快照；若没有快照，则递归重放到该 seq，再继续处理还原 commit 之后的新提交。`ledger_retraction_state()` 把有效的 Session/反馈撤销集合提供给 `/api/history` 和前端。
+
+`server.py::_history_commit()` 在追加前校验目标：反馈修正必须指向存在的 `review.batch_submit` 和合法 `target_review_index`，Session 修正必须指向链上出现过的 Session，`state.restore` 的 seq 必须存在。无效请求返回 400，不写脏 commit。对应回归测试在 `tests/test_history_projection.py`。
 
 ---
 
@@ -111,6 +129,7 @@ tags:
 - 文件移动或改名：通过 `_omrs_id` 写 `question.move_external`。
 - 新增 Markdown 且缺少 `_omrs_id`：分配 `OP-*` 并写 `question.create_external`。
 - 文件消失：写 `question.archive_external`。
+- 题目库主动删除：删除 Markdown 后写 `question.archive`，并重建投影与完整 `workspace_fingerprint`；后者会移除已归档题目的旧指纹，避免后续扫描重复追加外部归档事件。
 - 重复 UID、重复 `_omrs_id` 等冲突不会静默覆盖，会写入扫描状态并返回冲突。
 
 手动触发入口：`POST /api/workspace/scan`。

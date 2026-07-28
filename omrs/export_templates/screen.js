@@ -75,6 +75,11 @@
   function renderBlocks(container, blocks) {
     (blocks || []).forEach(b => {
       if (b.t === "img") { const im = el("img"); im.src = b.img.src; im.loading = "lazy"; im.alt = ""; container.appendChild(im); }
+      else if (b.t === "table") {
+        const wrap = el("div", "md-table-wrap"), table = el("table", "md-table"), thead = el("thead"), tr = el("tr");
+        (b.headers || []).forEach(cell => { const th = el("th"); mathText(th, cell); tr.appendChild(th); }); thead.appendChild(tr); table.appendChild(thead);
+        const tbody = el("tbody"); (b.rows || []).forEach(row => { const rowEl = el("tr"); (row || []).forEach(cell => { const td = el("td"); mathText(td, cell); rowEl.appendChild(td); }); tbody.appendChild(rowEl); }); table.appendChild(tbody); wrap.appendChild(table); container.appendChild(wrap);
+      }
       else { const p = el("p"); mathText(p, b.text); container.appendChild(p); }
     });
   }

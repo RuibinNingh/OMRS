@@ -6,7 +6,7 @@
 
 > **v1.2.0 视觉刷新（精修暖色）**：`styles.css` 的 `:root` 收敛为「编辑式暖色」——卡片去阴影/去 stat-card 顶部彩条、`.bar-fill.*` 由渐变改纯色、发丝级分隔线。新增语义族变量 `--fam-review`（复习/绿）、`--fam-session`（Session/蓝）、`--fam-question`（题目/棕）、`--fam-system`（系统/灰），用于时间线圆点、commit 类型标签和仪表盘「最近动态」圆点。`:root` 下方保留一段注释版「夜间账本」深色 token，整段替换即切深色；但仪表盘雷达/热力/趋势图与散点仍有内联浅色需先改用 `var()` 才能正确切到深色。图表内联色尽量走 `var()`（散点已改）。
 
-> **v1.3.0 深色模式 + 现代化**：浅色为默认，深色由设置页「外观」切换并存 `localStorage('omrs-theme')`；`<head>` 内联脚本在首帧前给 `<html>` 打 `data-theme` / `data-invert-img` 防闪。`:root` 圆角加大（`--radius:10 / -sm:8 / -lg:14`）、恢复柔和阴影 `--card-shadow`、新增 `--accent-rgb`；`[data-theme="dark"]` 为完整深色 token。`dashboard.js`/`data.js` 图表颜色已**全部 token 化**（含 SVG fill/gradient 改 `var()`+opacity），深色可正确显示。深色 + 「反转题图」开启时，`.q-md / .q-body / .gallery-preview / .instant-md / .instant-notes` 内 `img` 套 `filter:invert(1)`（简易白↔黑，彩色一并反相，保色版待后续）。
+> **v1.3.0 深色模式 + 现代化**：首次打开且本地没有主题设置时，`<head>` 启动脚本当前选择**深色**；之后由设置页「外观」切换并存 `localStorage('omrs-theme')`。内联脚本在首帧前给 `<html>` 打 `data-theme` / `data-invert-img` 防闪。`:root` 圆角加大（`--radius:10 / -sm:8 / -lg:14`）、恢复柔和阴影 `--card-shadow`、新增 `--accent-rgb`；`[data-theme="dark"]` 为完整深色 token。`dashboard.js`/`data.js` 图表颜色已**全部 token 化**（含 SVG fill/gradient 改 `var()`+opacity），深色可正确显示。深色 + 「反转题图」开启时，`.q-md / .q-body / .gallery-preview / .instant-md / .instant-notes` 内 `img` 套 `filter:invert(1)`（简易白↔黑，彩色一并反相，保色版待后续）。
 
 > **v1.4.0 应用骨架（侧边栏 shell）**：顶部 `<header>` + `.tabs` 横条 → 左侧 `<aside class="sidebar">`（`.sidebar-brand` 品牌 + `.sidebar-nav`）+ `<main class="content">`（`.topbar` 页面标题 + 动作按钮）。导航项**仍是 `.tab[data-tab]` + `onclick="switchTab()"`**，`switchTab` 逻辑不变，只新增：按 `name→中文` 映射更新 `#topbar-title`。图标为 `<body>` 顶部一段隐藏 `<svg><symbol id="i-*">` 雪碧图，导航用 `<svg class="nav-ico"><use href="#i-*"/></svg>`（描边走 `currentColor`，无外部图标依赖）。`modal-overlay` 与 `datalist` 仍是 `.shell` 外的兄弟节点。响应式：≤860px 侧栏转为顶部横向滚动条。
 
@@ -22,9 +22,9 @@ assets/
 ├── styles.css        ← 全部样式（原 <style> 内联块抽出）
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染
 ├── dashboard.js      ← 仪表盘图表 renderDash
-├── questions.js      ← 题目库表格/画廊视图 + 题目 Modal + Markdown 原文编辑/迁移入口
+├── questions.js      ← 题目库表格/画廊视图 + 题目 Modal + 安全 Markdown/LaTeX/表格渲染 + 原文编辑/迁移/删除入口
 ├── schedule.js       ← 复习 Session：创建/预览/删除/列表 + 工作区扫描 + 录入提交（doCreate/resetCreateForm）
-├── export.js         ← 错题导出：选题/画廊预览、A4/屏幕变体、下载（v1.5.0 从 schedule.js 拆出）
+├── export.js         ← 错题导出：选题/画廊预览、A4/屏幕变体、A4 单双栏确认、题间留白、下载（v1.5.0 从 schedule.js 拆出）
 ├── feedback.js       ← 反馈录入页：session 选择、行编辑、AI 提示词、JSON 导入、提交（v1.5.0 从 schedule.js 拆出）
 ├── history.js        ← 数据复盘/历史：Ledger 时间线、修正面板、撤销/恢复/还原（v1.5.0 从 schedule.js 拆出）
 ├── recommend.js      ← 推荐面板（双列表 + 勾选确认）
@@ -47,16 +47,22 @@ assets/
 
 | 图表 | HTML 容器 | 数据来源 | 实现方式 |
 |---|---|---|---|
-| 熟练度分布直方图 | `chart-mastery` | `stats.mastery_histogram` | CSS flex 横向条形图，10 个桶固定渲染；`30-60%` 使用 `.bar-fill.yellow`，`90-100%` 桶显示 `Mastery ∈ [0.9, 1.0]` |
-| 待复习队列预警 | `chart-alerts` | `stats.review_alert` | 二乘二彩色卡片，位于首页第二行，优先暴露今日行动信号 |
-| 每日练习趋势 | `chart-trend` | `stats.daily_trend` | SVG `<polyline>` + `<linearGradient>` 面积图，含圆点与数据标签 |
+| 科目分布 | `chart-subjects` | `stats.subject_dist` | `.subject-bars` 按题量降序；底层总量条与前景“已击杀占比”条叠加，并显示题数与击杀率 |
+| 近 30 天活动 | `chart-activity` | `stats.recent_activity` | 30 个本地日期热力格，按当期最大次数分 0–4 级；同时显示总复习、活跃天数和单日峰值 |
+| 待复习队列预警 | `chart-alerts` | `stats.review_alert` | 二乘二卡片：今日到期、未来 3 天、未来 7 天、未到期低熟练度 |
+| 每日练习趋势 | `chart-trend` | `stats.daily_trend` | 内联 SVG 平滑三次曲线路径 + 面积填充 + 非零点标记，顶部显示 30 天总量、最近一天和峰值 |
+| 熟练度分布 | `chart-mastery` | `stats.mastery_histogram` | 10 个固定区间的横向条；按危险/拉升/稳定/掌握分色，宽度相对当前最大桶归一化 |
+| 难度分布 | `chart-diff` | `stats.difficulty_dist` | Lv.1–10 固定竖向轨道；1–3 easy、4–6 mid、7–8 hard、9–10 risk。零题等级保留轨道、标签和数字 `0`，但不创建 `.level-fill`，避免最小高度造成假柱 |
 | 最近动态（Ledger） | `recent-ledger` | `GET /api/history?limit=12`（或复用已加载的 `window.HISTORY_COMMITS`） | `dashboard.js::renderRecentLedger()`：取最近 4 条「非修正、未撤销」的主链节点，渲染精致行——族色圆点 + `historyNodeTitle()` 标题 + `commit_id/seq` + 复习节点显示「N 对 · N 错」chip；卡片右上「完整时间线 →」跳 `switchTab('history')`。复用时间线的 `historyCommitFamily/historyNodeTitle/historyReviewBatchStats/isNodeRetracted` 等函数（现于 `history.js`），故 `dashboard.js` 于运行时（所有脚本就绪后）调用。`renderDash()` 末尾 fire-and-forget 调用它 |
 
-预警指标定义（后端 `stats.py` 计算）：
-- **急需复习**：衰减后熟练度 < 30% 且超过 7 天未复习
-- **警告队列**：衰减后熟练度 < 50% 且超过 14 天未复习
-- **长期冷落**：超过 30 天未复习
-- **建议今日**：调度优先级 > 0.3
+仪表盘四张到期卡的定义（后端 `stats.py`）：
+
+- **今日到期**：`Due_Date == today`；逾期题由 API 单独统计为 `overdue`，不并入该卡。
+- **未来 3 天到期**：`1 <= due_delta <= 3`；不含今天。
+- **未来 7 天到期**：`1 <= due_delta <= 7`；包含“未来 3 天”集合，不是互斥分桶。
+- **未到期低熟练度**：有未来 `Due_Date` 且 `decayed_mastery < 0.5`。
+
+API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表盘不再用它们渲染四卡。
 
 ---
 
@@ -78,6 +84,7 @@ assets/
 - 点击后在按钮下方自然展开操作列表，不再用编号 prompt 选择操作。
 - 「迁移到其他分类」调用 `POST /api/question/move`，后端按目标分类已有 UID 的最小缺口分配新 UID。
 - 「编辑 Markdown」调用 `GET /api/question/raw` 打开纯文本 textarea，保存时调用 `POST /api/question/markdown`。编辑器不做富文本渲染，完整显示 `.md` 原文。
+- 「删除题目」调用 `POST /api/question/delete`；二次确认明确说明会删除 Markdown 正文、只保留 Ledger 归档和历史反馈、附件图片不删。成功后清除详情缓存，重载题库与历史时间线。
 - 保存后立即刷新数据；如果只改正文，后端只更新 fingerprint；如果改 YAML 结构化字段，后端写 metadata update commit。
 
 ### 通用 Markdown / LaTeX 渲染
@@ -86,6 +93,8 @@ assets/
 - 支持行内 `$...$` 和行间 `$$...$$`。KaTeX 加载成功时使用 `katex.renderToString(..., {throwOnError:false})`；加载失败时保留公式内容并加 `.math` 样式。
 - 题目库 Modal 的题面、备注、答案，调度/推荐中的题目预览，以及即时练习的题面、答案、备注都应复用该函数；不要再用 `<pre>${escapeHtml(...)}</pre>` 展示需要图片或公式的字段。
 
+- 支持带表头和分隔行的 Markdown 表格（分隔单元格匹配 `:?-{3,}:?`，`\|` 表示单元格内竖线）。`renderMdContent()` 逐行识别后输出 `.md-table-wrap > table.md-table`，缺失单元格补空、超出表头的单元格忽略。
+- 表格单元格继续走 `renderMdInline()`，因此文本先转义，图片和 LaTeX 仍遵循同一安全规则；小屏通过 `.md-table-wrap` 横向滚动。这里不是通用 Markdown 引擎，标题、粗体、列表等语法仍按普通文本显示。
 ---
 
 ## 3. 筛选控件（`filterItems()`）
@@ -186,10 +195,11 @@ assets/
 
 位于「设置」标签页，包含以下功能卡片：
 
-### 外观（主题 / 题图反转）
-- `浅色 / 深色` 分段开关 `#st-theme-switch`（`setThemeMode()`）写 `localStorage('omrs-theme')` 并切 `<html data-theme>`；**浅色为默认**（题目截图多为浅色，浅色阅读最自然）。
+### 外观（主题 / 题图反转 / Ledger 时区）
+- `浅色 / 深色` 分段开关 `#st-theme-switch`（`setThemeMode()`）写 `localStorage('omrs-theme')` 并切 `<html data-theme>`；当前首帧脚本在没有保存值时选择**深色**。页面里“默认浅色”的帮助文案尚未同步，已列入 `optimization.md`。
 - 「深色模式下反转题目图片颜色」`#st-invert-img`（`setInvertImg()`）写 `localStorage('omrs-invert-img')` 并切 `<html data-invert-img>`；仅在 `[data-theme="dark"][data-invert-img="1"]` 时对题图 `img` 应用 `filter:invert(1)`（简易白↔黑）。
-- `syncThemeControls()` 回填两个控件状态，`loadSettings()` 末尾调用。两项状态仅存浏览器 localStorage，**不入 config.json / Ledger**，故无需重启。
+- `#st-ledger-time-zone` 可选「跟随浏览器」（默认）、中国标准时间、UTC 和若干常用 IANA 时区；`setLedgerTimeZone()` 将选择写到 `localStorage('omrs-ledger-time-zone')`，立即重绘 Ledger 时间线和仪表盘最近动态。`formatLedgerTime()` 只转换带 `Z` 或 `±HH:MM` 偏移的时间戳；没有偏移的旧记录保留原有墙上时间，避免无依据地猜测来源时区。
+- `syncThemeControls()` 与 `syncLedgerTimeZoneControl()` 由 `loadSettings()` 回填控件状态。外观和时区状态仅存浏览器 localStorage，**不入 config.json / Ledger**，故无需重启。
 
 ### 服务设置
 - **允许外部访问**：开关绑定 `config.allow_external`。
@@ -239,7 +249,7 @@ assets/
 - 顶部提供「修正记录」按钮：`review.replace`、`review.retract`、`review.restore`、`session.retract`、`session.restore`、`state.restore` 等修正节点从主时间线移出，集中在该列表里查看。
 - **被撤销的节点从主时间线隐藏**：优先使用 `/api/history` 返回的完整链 `retraction_state`；旧响应则回退到前端按 seq 顺序重放 `session.retract/restore`、`review.retract/restore`（前端函数 `historyRetractionState`）。`session.create` 整个 Session 被撤销、或 `review.batch_submit` 批次内所有反馈都被撤销（或其 Session 被撤销）时，该主节点（`isNodeRetracted`）不再显示，状态栏提示「N 个已撤销已隐藏」。Ledger 底层仍保留全部 commit，不做删除。
 - 隐藏的节点可在「修正记录」面板恢复：被撤销且**当前仍处于撤销态**的 `session.retract` / `review.retract` 修正行带「恢复」按钮（`correctionRestoreButton`），点按调用对应 restore API 追加新 commit，节点随即回到主时间线。
-- 每个节点显示时间、题目优先摘要、副标题、commit_id、source、seq 和 commit_type；`review.batch_submit` 标题优先展示 UID（单题直接显示题目，多题显示前几题），副标题再显示有效题数、对错和已撤销条数。
+- 每个节点显示时间、题目优先摘要、副标题、commit_id、source、seq 和 commit_type；`formatLedgerTime()` 将带时区偏移的 Ledger `created_at` 按设置页时区显示，仪表盘最近动态复用同一格式化函数；`review.batch_submit` 标题优先展示 UID（单题直接显示题目，多题显示前几题），副标题再显示有效题数、对错和已撤销条数。
 - 节点默认只显示头部数据；下方挂只读 `查看详情` 折叠块。开启修正模式后，再额外显示默认关闭的 `修改 / 撤销 / 还原` 操作折叠块。
 - 无可操作内容的节点（如 `legacy.bootstrap`、外部扫描类）**不显示**操作折叠块，只保留 `查看详情`。
 - `legacy.bootstrap` 等大 payload 会在「查看详情」里做摘要/截断，避免页面被完整迁移数据撑爆。
@@ -259,7 +269,7 @@ assets/
 
 录入页有两个图片区（现分列于左栏上下），题目区配两个 AI 按钮、答案区配一个 AI 按钮，可混用手动录入：
 - **题目图片区**（`#cr-q-paste` / `#cr-q-file` / `#cr-q-images`）：粘贴/拖拽/点击选择题目截图，随题保存并嵌入 `# 题目`。按钮 **「🤖 识别题目信息」**（`#cr-classify-btn`）→ `crClassify()` 取第 1 张题目图 `POST /api/ai-recognize {mode:'classify', subject, category}`，只回填**科目/分类/难度/相关知识点**（不抄题、不解题）。按钮 **「🤖 提取题目文本」**（`#cr-question-text-btn`）→ `crExtractQuestionText()` 取第 1 张题目图 `POST /api/ai-recognize {mode:'question_text'}`，把题干/条件/选项/图表说明**提取为文本**填入 `#cr-question`。其中 `knowledge_tags` 是否限定在「已有分类 ∪ 已有知识点」由设置页 `ai_restrict_tags` 开关决定（默认开=硬约束；关=允许新建，上限 4 个）。**用户已填的科目/分类会作为 hint 传给模型（要求其沿用），且前端只填空缺项、不覆盖已填值；知识点与已填的合并去重；难度给估计值。** 两个题目区按钮共用状态 `#cr-classify-status`。
-- **答案图片区**（`#cr-a-paste` / `#cr-a-file` / `#cr-a-images`）：粘贴/拖拽/点击选择答案截图，嵌入 `# 答案`。按钮 **「🤖 提取答案文本」**（`#cr-extract-btn`）→ `crExtractAnswer()` 取第 1 张答案图 `POST /api/ai-recognize {mode:'answer'}`，把答案/解析**提取为文本**填入 `#cr-answer`。也可不提取（答案图直接嵌入）或手动输入。状态写 `#cr-extract-status`。
+- **答案图片区**（`#cr-a-paste` / `#cr-a-file` / `#cr-a-images`）：粘贴/拖拽/点击选择答案截图，嵌入 `# 答案`。按钮 **「🤖 提取答案文本」**（`#cr-extract-btn`）→ `crExtractAnswer()` 取第 1 张答案图 `POST /api/ai-recognize {mode:'answer'}`，要求模型忠实保留图片内全部答案、解析、推导和步骤，不得摘要或补写，再填入 `#cr-answer`。也可不提取（答案图直接嵌入）或手动输入。状态写 `#cr-extract-status`。
 - 字段分两栏：**左栏（截图工作区）** 题目截图区 + 答案截图区；**右栏（题卡内容）** 自上而下为 `.cr-aigroup`{`#cr-subject` / `#cr-category`（并排）/ `#cr-diff` 难度滑杆 / `#cr-related` 相关知识点（**classify 自动填**，挂 `cr-ktag-list` datalist，由 `populateCreateLists` 填入「已有分类 ∪ 已有知识点」供手动挑选）} → `#cr-question`（题目正文，可留空、手动输入或由 `question_text` 提取）→ `#cr-answer`（答案文本）→ `#cr-cause`（**错因**，`.cr-cause` 暖色块，写入 `# 备注` 的 `## 错因`）→ `#cr-note`（页码）。
 
 图片交互（题目区 / 答案区各一套）：
@@ -325,7 +335,7 @@ assets/
 > 对应 Tab：`报告`（历史记录与设置之间）；面板 `#panel-reports`；脚本 `assets/reports.js`（在 data.js 后、app.js 前加载）。后端见 `omrs/reports.py` 与 api.md 报告端点。
 
 - **创建**：填名称 + 选 `.html` 文件 → `createReport()` 用 `FileReader.readAsText` 读出 HTML 文本，`POST /api/report/create {name, html}`。
-- **准备 AI 材料**：创建卡片提供「复制 AI 报告提示词」和「下载分析数据」。`#rp-include-images` 控制是否带题图：关闭时下载 Markdown；开启时请求 `/api/export-review?include_images=1` 下载 Markdown + `images/` 的 ZIP。提示词同步切换图片约束，并要求 AI 只返回可直接上传的完整单文件 HTML、不得虚构数据或引用外部资源。
+- **准备 AI 材料**：创建卡片提供「复制 AI 报告提示词」和「下载分析数据」。`#rp-include-images` 控制是否带题图：关闭时下载 Markdown；开启时请求 `/api/export-review?include_images=1` 下载 Markdown + `images/` 的 ZIP。提示词同步切换图片约束，并要求 AI 只返回可直接上传的完整单文件 HTML、不得虚构数据。报告允许通过 HTTPS 使用外部字体、图表和图标资源，但禁止广告/追踪脚本，并要求依赖加载失败时核心内容仍可阅读。
 - **列表**：`loadReports()` 拉 `/api/reports`，`renderReports()` 用 `sched-item` 样式列出（名称 / 创建时间 / 大小 / id）。
 - **浏览**：`openReport(id)` → `window.open('/api/report/view?id=...')` 新标签打开。因同源，报告内 `<img src="/api/image?name=...">` 能正常加载题图。
 - **删除**：`deleteReport(id)` → `POST /api/report/delete`。

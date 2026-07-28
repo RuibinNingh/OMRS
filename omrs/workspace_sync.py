@@ -163,6 +163,7 @@ def _scan_workspace_locked(vault: str):
 def update_fingerprints(vault: str, questions: list):
     now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
     with connect(vault) as db:
+        db.execute("DELETE FROM workspace_fingerprint")
         for question in questions:
             if not question.get("file_path"):
                 continue

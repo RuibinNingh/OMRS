@@ -24,7 +24,7 @@ from .optimization import (
     storage_summary,
 )
 from .projections import ledger_history, ledger_retraction_state, rebuild_projection
-from .question_ops import get_question_raw, move_question, save_question_markdown
+from .question_ops import delete_question, get_question_raw, move_question, save_question_markdown
 from .scheduling import generate_recommendations
 from .sessions import (
     create_session,
@@ -371,6 +371,14 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
 
+        elif path == "/api/question/delete":
+            try:
+                data = json.loads(body) if body else {}
+                result = delete_question(self.vault_path, data.get("uid", ""))
+                self._json({"status": "ok", **result})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
         elif path == "/api/history/review/replace":
             self._history_commit("review.replace", "修改旧反馈", body)
 
@@ -462,6 +470,8 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 session_id = data.get("session_id", "")
                 export_format = (data.get("format") or "a4").strip().lower()
                 include_answers = bool(data.get("include_answers", False))
+                question_gap_lines = data.get("question_gap_lines", 0)
+                a4_two_columns = data.get("a4_two_columns", True)
                 if not uids and not session_id:
                     self._json({"status": "error", "msg": "需要 session_id 或 uids"}, 400)
                     return
@@ -471,6 +481,8 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     session_id,
                     export_format,
                     include_answers=include_answers,
+                    question_gap_lines=question_gap_lines,
+                    a4_two_columns=a4_two_columns,
                 )
                 filename_encoded = urllib.parse.quote(filename)
                 self.send_response(200)
