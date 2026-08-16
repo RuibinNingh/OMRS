@@ -87,9 +87,9 @@ EF 越低 = 越不稳定 = 越难 = 权重越高。EF=3.0→难度 1，EF=1.3→
 
 ## 4. 已击杀状态回退规则
 
-已击杀题目答错后：
-- `feedback.py`：将 `Current_Tag` 从 `#状态/已击杀` 降级为 `#状态/待攻克`。
-- `_writeback_md()`：同步将 Markdown 文件内的 `- 状态/已击杀` 替换为 `- 状态/待攻克`。
+已击杀题目答错后，投影器 `projections.py::_apply_single_review()` 会把该题的 `current_tag` 从 `#状态/已击杀` 降级为 `#状态/待攻克`（高分答对并达成击杀条件时置为 `#状态/已击杀`），并反映到 `mastery_data.csv` 的 `Current_Tag`。
+
+v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `feedback.py::_writeback_md()` 已随 Ledger 架构移除）：结构化标签的唯一事实源是 Ledger 投影，Markdown YAML 只作为输入——外部人工改动由工作区自检以 `question.metadata_update_external` 记录。因此 Obsidian 中看到的 YAML 标签可能与投影标签不一致，属设计边界（详见 `ledger.md` §3）。
 
 目的：防止调度持续低估已回退题目的复习优先级。
 

@@ -1,0 +1,11 @@
+# Keep the Windows packaging script compatible with cmd.exe.
+*.bat text eol=crlf
+
+# Keep source, documentation, and service files normalized in Git.
+*.py text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.service text eol=lf

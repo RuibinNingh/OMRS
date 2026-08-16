@@ -7,6 +7,7 @@ import urllib.parse
 
 from .common import HISTORY_HEADERS, history_path, load_config, load_csv, save_config
 from .analytics import build_review_export, get_analytics
+from .catalog import build_tree
 from .reports import create_report, delete_report, get_report_html, list_reports
 from .ai_assist import recognize_question
 from .creation import create_question
@@ -138,6 +139,11 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 index = build_index(self.vault_path)
                 self._json({"status": "ok", "count": len(index), "scan": scan})
             except RuntimeError as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/tree":
+            try:
+                self._json({"status": "ok", **build_tree(self.vault_path)})
+            except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/config":
             self._json(load_config(self.vault_path))
@@ -424,6 +430,26 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             import time
 
             def _restart():
+                # When OMRS is managed by systemd, let systemd own the
+                # lifecycle.  The old self-reexec path exits successfully;
+                # with Restart=on-failure systemd then correctly leaves the
+                # service stopped, and the child is killed with the unit.
+                service_name = os.environ.get("OMRS_SYSTEMD_SERVICE", "").strip()
+                if service_name:
+                    try:
+                        result = subprocess.run(
+                            ["systemctl", "restart", "--no-block", service_name],
+                            stdin=subprocess.DEVNULL,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            check=False,
+                        )
+                        if result.returncode == 0:
+                            return
+                    except OSError:
+                        pass
+
+                # Fallback for a manually launched OMRS process.
                 self.server.shutdown()
                 time.sleep(1.5)
                 cmd = getattr(OMRSHandler, "_restart_cmd", None)

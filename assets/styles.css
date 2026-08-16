@@ -17,20 +17,22 @@
 }
 /* 深色主题「暖石墨 Warm Graphite」：实色分层暖面 + 发丝描边 + 单色骨白墨。与浅色同源——浅色用近黑墨、深色用骨白墨，互为镜像；无玻璃拟态、无渐变、无辉光。由设置页「外观」切换，状态存 localStorage('omrs-theme')，<head> 内联脚本尽早应用以防闪烁 */
 [data-theme="dark"]{
-  --bg:#1a1916;--bg2:#211f1c;--bg3:#2b2925;--bg4:#3a3732;
-  --fg:#ece7df;--fg2:#a39c91;--fg3:#6f685e;
-  --accent:#ece7df;--accent2:#fbf7f0;--accent-light:rgba(236,231,223,0.40);--accent-bg:rgba(236,231,223,0.09);--accent-fg:#1a1916;
-  --red:#d98a7e;--green:#82ab8b;--yellow:#cda35f;--blue:#7e9bbf;
-  --kill-bg:rgba(130,171,139,0.16);--kill-fg:#9cc4a4;
-  --attack-bg:rgba(217,138,126,0.16);--attack-fg:#e4a89e;
-  --trap-bg:rgba(205,163,95,0.16);--trap-fg:#dcbb86;
-  --fam-review:#82ab8b;--fam-session:#7e9bbf;--fam-question:#b3a48f;--fam-system:#8d877c;
+  /* v1.7.0 对比度修订：页面底色再压暗一档、卡片改实色，卡片与页面之间靠「实色 + 可见描边」分层，
+     不再靠几乎看不见的半透明白叠加；三级文字与语义色统一抬到 4.5:1 以上 */
+  --bg:#141311;--bg2:#211f1d;--bg3:#2e2b27;--bg4:#433f38;
+  --fg:#f0ebe3;--fg2:#b3aa9e;--fg3:#8f887c;
+  --accent:#ece7df;--accent2:#fbf7f0;--accent-light:rgba(236,231,223,0.46);--accent-bg:rgba(236,231,223,0.11);--accent-fg:#17150f;
+  --red:#e59a8c;--green:#8fbf9a;--yellow:#dcb06a;--blue:#8fb0d8;
+  --kill-bg:rgba(143,191,154,0.20);--kill-fg:#a8d3b2;
+  --attack-bg:rgba(229,154,140,0.20);--attack-fg:#efb2a6;
+  --trap-bg:rgba(220,176,106,0.20);--trap-fg:#e8c793;
+  --fam-review:#8fbf9a;--fam-session:#8fb0d8;--fam-question:#c2b39c;--fam-system:#a09889;
   --accent-rgb:236,231,223;
-  --red-rgb:217,138,126;--green-rgb:130,171,139;--yellow-rgb:205,163,95;--blue-rgb:126,155,191;
-  --chart-surface:rgba(255,255,255,0.035);--chart-line:rgba(236,231,223,0.11);
-  --border:rgba(236,231,223,0.10);--border2:rgba(236,231,223,0.17);
-  --shadow:0 1px 2px rgba(0,0,0,0.30);
-  --card-shadow:0 1px 2px rgba(0,0,0,0.28);
+  --red-rgb:229,154,140;--green-rgb:143,191,154;--yellow-rgb:220,176,106;--blue-rgb:143,176,216;
+  --chart-surface:rgba(255,255,255,0.055);--chart-line:rgba(236,231,223,0.17);
+  --border:rgba(236,231,223,0.13);--border2:rgba(236,231,223,0.23);
+  --shadow:0 1px 2px rgba(0,0,0,0.42);
+  --card-shadow:0 1px 3px rgba(0,0,0,0.40);
 }
 html{font-size:15px;scroll-behavior:smooth}
 body{background:var(--bg);color:var(--fg);font-family:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;min-height:100vh}
@@ -378,7 +380,6 @@ textarea.input{width:100%;display:block;resize:vertical;line-height:1.6;font-siz
 .instant-score input{flex:1}
 .instant-score strong{font-family:'JetBrains Mono',monospace;color:var(--accent2);font-size:1rem;width:24px;text-align:right}
 .instant-nav{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:18px}
-.instant-queue{display:flex;flex-direction:column;gap:8px;max-height:55vh;overflow:auto;padding-right:2px}
 .instant-qbtn{width:100%;display:grid;grid-template-columns:28px minmax(0,1fr) 46px;gap:8px;align-items:center;text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;cursor:pointer;color:var(--fg2);font-family:inherit}
 .instant-qbtn:hover{border-color:var(--accent-light)}
 .instant-qbtn.active{border-color:var(--accent);background:var(--accent-bg)}
@@ -425,7 +426,7 @@ textarea.input{width:100%;display:block;resize:vertical;line-height:1.6;font-siz
 
 /* Modern dashboard charts */
 .stat-card,.card{border-color:var(--border);background:linear-gradient(180deg,var(--bg2),color-mix(in srgb,var(--bg2) 88%,var(--bg) 12%));box-shadow:var(--card-shadow),inset 0 1px 0 color-mix(in srgb,var(--fg) 5%,transparent)}
-[data-theme="dark"] .stat-card,[data-theme="dark"] .card{background:linear-gradient(180deg,rgba(255,255,255,0.045),rgba(255,255,255,0.024));box-shadow:0 14px 38px rgba(0,0,0,0.18),inset 0 1px 0 rgba(255,255,255,0.04)}
+[data-theme="dark"] .stat-card,[data-theme="dark"] .card{background:var(--bg2);border-color:var(--border);box-shadow:0 10px 26px rgba(0,0,0,0.26)}
 .card-title{display:flex;align-items:center;gap:8px;color:var(--fg);font-weight:800;text-wrap:pretty}
 .card-title::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-bg)}
 .chart-bars{display:flex;flex-direction:column;gap:13px}
@@ -659,7 +660,7 @@ html[data-sidebar="collapsed"] .sidebar-nav .tab{justify-content:center;padding-
 
 /* ── v1.5.0 深色改版「暖石墨」：移除玻璃拟态 / 极光渐变 / 辉光，改为实色暖面 + 发丝描边。卡片/数值/进度条/品牌块/激活态等基础规则已走 var()，由上方 token 直接驱动，无需深色特例；此处只留少量必要的深色微调。浅色主题保持中性，不受影响 ── */
 [data-theme="dark"] body{background:var(--bg)}
-[data-theme="dark"] .sidebar{background:#161410;border-right:1px solid var(--border)}
+[data-theme="dark"] .sidebar{background:#0f0e0c;border-right:1px solid var(--border)}
 [data-theme="dark"] .topbar{border-bottom:1px solid var(--border)}
 [data-theme="dark"] .modal-overlay{background:rgba(10,9,7,0.62);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
 /* 内层小块：在所属卡片之上抬升一档暖色（极淡骨白叠加，替代原半透明白） */
@@ -778,4 +779,133 @@ html[data-sidebar="collapsed"] .sidebar-nav .tab{justify-content:center;padding-
   .instant-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px}
   .instant-nav .btn{justify-content:center}
   .instant-nav .btn:nth-child(2){grid-column:1 / -1;order:-1}
+}
+
+/* ══════════════════════════════════════════════════════════
+   v1.7.0 深色对比度修订：逐条修掉「深色下看不清」的硬编码
+   起因是几处规则写死了浅色时代的颜色（深绿答案块、深绿/深蓝
+   时间线标签、白字压浅色语义色），token 换成深色后它们不跟着走。
+   浅色主题完全不受影响，全部规则都限定在 [data-theme="dark"]。
+   ══════════════════════════════════════════════════════════ */
+
+/* 答案区：原本写死 rgba(39,134,74,.04)，在深色底上等于没有；改走 --green-rgb */
+[data-theme="dark"] .modal .q-answer .q-md,
+[data-theme="dark"] .instant-answer .instant-md{background:rgba(var(--green-rgb),0.10);border-color:rgba(var(--green-rgb),0.30)}
+
+/* Ledger 时间线的族标签：原本写死深绿 / 深蓝的 10% 底，深色下几乎全黑 */
+[data-theme="dark"] .timeline-head .tag.fam-review{background:rgba(var(--green-rgb),0.18);color:var(--fam-review)}
+[data-theme="dark"] .timeline-head .tag.fam-session{background:rgba(var(--blue-rgb),0.18);color:var(--fam-session)}
+[data-theme="dark"] .timeline-head .tag.fam-question{background:var(--accent-bg);color:var(--fg)}
+[data-theme="dark"] .timeline-head .tag.fam-system{background:var(--bg3);color:var(--fg2)}
+
+/* 热力格：空档 7% 在深色下看不出网格；最深一档是浅绿底，白字反而糊 */
+[data-theme="dark"] .heat-0{background:rgba(var(--green-rgb),0.14)}
+[data-theme="dark"] .heat-1{background:rgba(var(--green-rgb),0.30)}
+[data-theme="dark"] .heat-2{background:rgba(var(--green-rgb),0.48)}
+[data-theme="dark"] .heat-3{background:rgba(var(--green-rgb),0.70);color:#17150f}
+[data-theme="dark"] .heat-4{color:#17150f}
+[data-theme="dark"] .heat-cell{color:var(--fg2)}
+
+/* 柱状图：渐变低位停在 .42 会淡进背景，柱子看着像被截断 */
+[data-theme="dark"] .level-bar.easy .level-fill{background:linear-gradient(180deg,var(--green),rgba(var(--green-rgb),.58))}
+[data-theme="dark"] .level-bar.mid .level-fill{background:linear-gradient(180deg,var(--blue),rgba(var(--blue-rgb),.58))}
+[data-theme="dark"] .level-bar.hard .level-fill{background:linear-gradient(180deg,var(--yellow),rgba(var(--yellow-rgb),.58))}
+[data-theme="dark"] .level-bar.risk .level-fill{background:linear-gradient(180deg,var(--red),rgba(var(--red-rgb),.58))}
+[data-theme="dark"] .bar-fill.green,[data-theme="dark"] .chart-fill.green{background:linear-gradient(90deg,rgba(var(--green-rgb),.82),var(--green))}
+[data-theme="dark"] .bar-fill.red,[data-theme="dark"] .chart-fill.red{background:linear-gradient(90deg,rgba(var(--red-rgb),.82),var(--red))}
+[data-theme="dark"] .bar-fill.yellow,[data-theme="dark"] .chart-fill.yellow{background:linear-gradient(90deg,rgba(var(--yellow-rgb),.82),var(--yellow))}
+[data-theme="dark"] .bar-fill.blue,[data-theme="dark"] .chart-fill.blue{background:linear-gradient(90deg,rgba(var(--blue-rgb),.82),var(--blue))}
+[data-theme="dark"] .bar-fill.accent,[data-theme="dark"] .chart-fill.accent{background:linear-gradient(90deg,rgba(var(--accent-rgb),.70),var(--accent))}
+[data-theme="dark"] .bar-track,[data-theme="dark"] .m-bar{background:rgba(236,231,223,0.10)}
+
+/* 危险按钮 hover：浅色语义红 + 白字 = 糊；深色下改深墨字 */
+[data-theme="dark"] .btn.danger:hover{color:#17150f}
+/* 内层小块由 4% 抬到 7%，卡中卡才分得出层 */
+[data-theme="dark"] .instant-md,[data-theme="dark"] .instant-notes,[data-theme="dark"] .instant-answer-locked,
+[data-theme="dark"] .instant-qbtn,[data-theme="dark"] .rec-item,[data-theme="dark"] .sched-item,
+[data-theme="dark"] .selection-row,[data-theme="dark"] .picker-row,[data-theme="dark"] .fb-note{background:rgba(236,231,223,0.07);border-color:var(--border)}
+[data-theme="dark"] .btn{background:rgba(236,231,223,0.07);color:var(--fg2)}
+[data-theme="dark"] .btn:hover{background:rgba(236,231,223,0.14);color:var(--fg)}
+[data-theme="dark"] .input{background:var(--bg3)}
+[data-theme="dark"] table th{color:var(--fg2)}
+[data-theme="dark"] .img-thumb .img-del,[data-theme="dark"] .img-thumb .img-idx{background:rgba(0,0,0,.70)}
+
+/* ══════════════════════════════════════════════════════════
+   行动推荐（仪表盘顶部卡，assets/actions.js）
+   ══════════════════════════════════════════════════════════ */
+.act-card{padding:20px 22px}
+.act-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.act-sub{font-size:.74rem;color:var(--fg3)}
+.act-target{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;flex-shrink:0}
+.act-target-num{font-size:1.7rem;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--fg)}
+.act-target-label{font-size:.66rem;color:var(--fg3);letter-spacing:1px;margin-top:3px}
+.act-list{display:flex;flex-direction:column;gap:9px}
+.act-item{position:relative;display:grid;grid-template-columns:auto auto 1fr auto;grid-template-areas:"rail icon body metric" "rail icon buttons buttons";
+  gap:2px 12px;align-items:center;padding:12px 14px 12px 16px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg)}
+.act-rail{grid-area:rail;position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px;background:var(--fg3)}
+.act-icon{grid-area:icon;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;font-weight:700;background:var(--bg3);color:var(--fg2);flex-shrink:0}
+.act-body{grid-area:body;min-width:0}
+.act-title{font-size:.88rem;font-weight:700;color:var(--fg);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.act-level{font-size:.62rem;font-weight:700;letter-spacing:.5px;padding:1px 7px;border-radius:999px;background:var(--bg3);color:var(--fg3)}
+.act-detail{font-size:.76rem;color:var(--fg2);line-height:1.65;margin-top:3px}
+.act-metric{grid-area:metric;font-family:'JetBrains Mono',monospace;font-size:1.3rem;font-weight:900;color:var(--fg3);align-self:center}
+.act-buttons{grid-area:buttons;display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+.act-more{margin-top:10px;width:100%;justify-content:center}
+.act-item.lv-urgent{background:rgba(var(--red-rgb),0.07);border-color:rgba(var(--red-rgb),0.32)}
+.act-item.lv-urgent .act-rail{background:var(--red)}
+.act-item.lv-urgent .act-icon{background:rgba(var(--red-rgb),0.20);color:var(--red)}
+.act-item.lv-urgent .act-level{background:rgba(var(--red-rgb),0.20);color:var(--red)}
+.act-item.lv-urgent .act-metric{color:var(--red)}
+.act-item.lv-warn{background:rgba(var(--yellow-rgb),0.07);border-color:rgba(var(--yellow-rgb),0.32)}
+.act-item.lv-warn .act-rail{background:var(--yellow)}
+.act-item.lv-warn .act-icon{background:rgba(var(--yellow-rgb),0.20);color:var(--yellow)}
+.act-item.lv-warn .act-level{background:rgba(var(--yellow-rgb),0.20);color:var(--yellow)}
+.act-item.lv-warn .act-metric{color:var(--yellow)}
+.act-item.lv-info .act-rail{background:var(--blue)}
+.act-item.lv-info .act-icon{background:rgba(var(--blue-rgb),0.18);color:var(--blue)}
+.act-item.lv-good{background:rgba(var(--green-rgb),0.07);border-color:rgba(var(--green-rgb),0.30)}
+.act-item.lv-good .act-rail{background:var(--green)}
+.act-item.lv-good .act-icon{background:rgba(var(--green-rgb),0.20);color:var(--green)}
+.act-item.lv-good .act-level{background:rgba(var(--green-rgb),0.20);color:var(--green)}
+.act-item.lv-good .act-metric{color:var(--green)}
+@media(max-width:720px){
+  .act-item{grid-template-columns:auto 1fr;grid-template-areas:"icon body" "icon metric" "buttons buttons"}
+  .act-metric{text-align:left;font-size:1.05rem}
+  .act-head{flex-direction:column;align-items:flex-start;gap:8px}
+  .act-target{flex-direction:row;align-items:baseline;gap:8px}
+}
+
+/* ══════════════════════════════════════════════════════════
+   目录页：工作区文件夹树（assets/catalog.js）
+   ══════════════════════════════════════════════════════════ */
+.catalog-bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.catalog-check{display:inline-flex;align-items:center;gap:6px;font-size:.76rem;color:var(--fg2);cursor:pointer}
+.tree-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--bg)}
+.tree-row{display:flex;align-items:center;gap:8px;padding:7px 12px 7px calc(12px + var(--depth,0) * 18px);
+  font-size:.8rem;border-bottom:1px solid var(--border);min-height:36px}
+.tree-row:last-child{border-bottom:none}
+.tree-dir{cursor:pointer;background:var(--bg2);font-weight:600;color:var(--fg)}
+.tree-dir:hover{background:var(--bg3)}
+.tree-file{color:var(--fg2)}
+.tree-file.clickable{cursor:pointer}
+.tree-file:hover{background:var(--bg3);color:var(--fg)}
+.tree-caret{width:12px;flex-shrink:0;color:var(--fg3);font-size:.7rem;text-align:center}
+.tree-ico{flex-shrink:0;font-size:.85rem;line-height:1}
+.tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tree-badges{display:flex;gap:5px;flex-shrink:0}
+.tree-badge{font-size:.63rem;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--bg3);color:var(--fg2);white-space:nowrap}
+.tree-badge.due{background:rgba(var(--yellow-rgb),0.20);color:var(--yellow)}
+.tree-badge.leech{background:rgba(var(--red-rgb),0.20);color:var(--red)}
+.tree-right{display:flex;align-items:center;gap:7px;flex-shrink:0;font-size:.72rem}
+.tree-num{font-family:'JetBrains Mono',monospace;color:var(--fg3);min-width:34px;text-align:right}
+.tree-due{font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap}
+.tree-due.overdue{background:rgba(var(--red-rgb),0.20);color:var(--red)}
+.tree-due.today{background:rgba(var(--yellow-rgb),0.20);color:var(--yellow)}
+.tree-due.warn{background:var(--bg3);color:var(--fg3)}
+.tree-copy{border:none;background:transparent;color:var(--fg3);cursor:pointer;font-size:.8rem;padding:2px 4px;border-radius:4px;line-height:1}
+.tree-copy:hover{background:var(--bg4);color:var(--fg)}
+@media(max-width:720px){
+  .tree-row{padding-left:calc(8px + var(--depth,0) * 12px);font-size:.76rem}
+  .tree-badges{display:none}
 }

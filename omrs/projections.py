@@ -272,7 +272,9 @@ def _normalize_question_fields(question, fallback=None):
     metadata = question.get("metadata") or {}
     knowledge = question.get("knowledge_tags")
     if knowledge is None:
-        knowledge = question.get("knowledge_points", [])
+        knowledge = question.get("knowledge_points")
+    if knowledge is None:
+        knowledge = fallback.get("knowledge_tags", [])
     if isinstance(knowledge, str):
         knowledge = [tag for tag in knowledge.split("|") if tag]
     return {
@@ -283,7 +285,7 @@ def _normalize_question_fields(question, fallback=None):
         "category": question.get("category") or question.get("Category") or metadata.get("分类") or fallback.get("category", ""),
         "difficulty": _safe_int(question.get("difficulty") or question.get("Difficulty") or metadata.get("难度"), 5),
         "current_tag": question.get("current_tag") or question.get("Current_Tag") or fallback.get("current_tag", "#状态/待攻克"),
-        "knowledge_tags": list(knowledge or fallback.get("knowledge_tags", [])),
+        "knowledge_tags": list(knowledge or []),
         "metadata": metadata or fallback.get("metadata", {}),
         "metadata_hash": question.get("metadata_hash", fallback.get("metadata_hash", "")),
         "content_hash": question.get("content_hash", fallback.get("content_hash", "")),

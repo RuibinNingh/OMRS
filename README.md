@@ -13,7 +13,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 - 一个 **HTML/CSS/JS 单页前端**（`omrs_dashboard.html` + `assets/`）负责录入、即时练习、复习 Session、反馈、数据复盘与导出。
 - 没有构建步骤，题库、算法、Ledger、复习和导出均可离线使用；AI 图片识别、Google Fonts 以及报告中用户选择的 HTTPS 外部资源属于可选联网能力。
 
-当前版本：**v1.6.0**。
+当前版本：**v1.8.0**。
 
 ---
 
@@ -25,10 +25,12 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 | **记忆算法** | 时间衰减 `time_decay`、熟练度状态机 `compute_mastery_update`、SM-2 间隔、易错因子 EF、统一优先级 `compute_priority`、Leech（顽固题）检测 |
 | **即时练习** | 浏览器内直接做、在线翻答案、即时反馈（分数滑杆 + 对错） |
 | **复习 Session** | 调度器挑题 → 列表预览 → 启动 Session → 反馈录入 |
+| **行动推荐** | 仪表盘顶部按当前题库状态排出「现在该做什么」：逾期、今日到期、未录反馈的 Session、顽固题、久未复习、最薄弱科目/分类等，每条带数字依据和一键跳转 |
+| **目录** | 树状展示 `错题/` 的真实文件夹结构，每层标注题量、待复习、顽固题与平均熟练度；支持搜索、展开折叠、显示非题目文件，点题目文件直接开详情 |
 | **数据复盘** | 仪表盘（统计/雷达/热力/散点/趋势）、Ledger 时间线、历史修正（显式开启修正模式）、撤销/恢复/还原 |
 | **错题导出** | **自包含 HTML**（图片 base64 内联），分 **A4 打印版**（双栏/单栏可选 + 长图缝带切片）与 **屏幕版**（卡片 + 判分 + 进度持久化） |
 | **报告托管** | 上传/浏览/删除复盘报告，浏览器内直接查看 |
-| **外观** | 深色（首次打开默认，**暖石墨 Warm Graphite**）/ 浅色（编辑式暖色）切换；Ledger 时间线可按浏览器或设置页所选时区显示 |
+| **外观** | 深色（首次打开默认，**暖石墨 Warm Graphite**）/ 浅色（编辑式暖色）切换；v1.7.0 重配深色对比度（三级文字与语义色达标、卡片改实色分层）；Ledger 时间线可按浏览器或设置页所选时区显示 |
 | **数据可信** | v1.1.0 起改用不可变 **Ledger 提交链** 作为结构化状态的唯一事实源；CSV 仅作兼容投影；学习、调度和 Session 状态可重放还原 |
 
 ---
@@ -46,6 +48,17 @@ python omrs_engine.py serve
 ```
 
 启动后访问 <http://localhost:8471/>。
+
+### Linux / systemd
+
+项目可部署在任意本地路径（以下以 `/opt/omrs` 为例），由 systemd 持久化运行：
+
+```bash
+sudo systemctl enable --now omrs.service
+sudo systemctl status omrs.service
+```
+
+可参考 [`deploy/omrs.service`](deploy/omrs.service)。服务默认监听 TCP 8471；如需局域网访问，请在 `错题/.omrs/config.json` 中启用 `allow_external: true`，并仅对受信任的 LAN 网段放行端口。核心运行路径只依赖 Python 标准库，无需额外安装第三方包。
 
 ### 打包给 AI 协助
 
@@ -70,6 +83,7 @@ pack_for_ai.bat
 │   ├── projections.py      ← 重放 Ledger 导出 CSV / 内存投影
 │   ├── scheduling.py       ← 记忆算法（衰减/状态机/SM-2/优先级/Leech）
 │   ├── ai_assist.py        ← AI 识别（外部大模型调用）
+│   ├── catalog.py          ← 目录树（只读扫盘，供「目录」页）
 │   ├── exporting.py        ← 错题 HTML 导出
 │   ├── feedback.py / sessions.py / creation.py
 │   ├── analytics.py / stats.py / reports.py
@@ -79,7 +93,8 @@ pack_for_ai.bat
 │   ├── styles.css
 │   ├── core.js / app.js / dashboard.js / questions.js
 │   ├── schedule.js / export.js / feedback.js / history.js
-│   ├── recommend.js / instant.js / data.js / reports.js
+│   ├── recommend.js / actions.js / catalog.js
+│   ├── instant.js / data.js / reports.js
 │   └── vendor/katex/       ← KaTeX（本地，公式离线渲染）
 ├── 错题/                   ← 题库（Markdown + Obsidian 双链）
 │   ├── .omrs/              ← 结构化数据目录（Ledger / 投影 / 备份）
@@ -159,6 +174,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 | POST | `/api/create` | 录入新题 |
 | POST | `/api/feedback` | 提交一次反馈 |
 | GET | `/api/recommend` | 获取到期/熟练度双列表推荐 |
+| GET | `/api/tree` | 错题目录树（只读扫盘，供「目录」页） |
 | POST | `/api/schedule` | 创建复习 Session |
 | POST | `/api/ai-recognize` | AI 识别图片 |
 | GET | `/api/ledger/verify` | 校验提交链完整性 |
@@ -174,6 +190,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 - **KaTeX** 放在 `assets/vendor/katex/`，公式离线渲染；不可用时降级显示源码。
 - **响应式**：≤860px 侧栏自动转为顶部横滚条。
 - **侧边栏应用式 shell** + 雪碧图图标，无外部图标库依赖。
+- **行动推荐 / 目录树纯前端派生**：行动推荐只读已加载的 `/api/stats` + `/api/sessions`，不新增接口；目录页结构取自 `/api/tree`，熟练度等状态由本地题库按路径前缀叠加。
 
 加载顺序（`core.js` → 模块 → `app.js`）详见 [`AI/frontend.md`](AI/frontend.md)。
 
@@ -220,7 +237,7 @@ AI/
 - [ ] **服务器单线程** — `ai-recognize` 调用大模型时整界面卡死，需换 `ThreadingHTTPServer` + 文件锁。
 - [ ] **投影全量重放** — `rebuild_projection` 随历史线性变慢，需定期落投影快照。
 - [ ] **后端路由超长 if/elif** — `server.py` 的 `do_GET`/`do_POST` 是手写分支链，可收成派发表。
-- [ ] **CSS 重复定义** — `styles.css` 多次「现代化」后留下了真实叠加债，需按组件集中收拢。
+- [ ] **CSS 重复定义** — `styles.css` 多次「现代化」后留下了真实叠加债，需按组件集中收拢。v1.7.0 已清掉深色下写死浅色的几处（答案块、时间线标签、热力格、柱状渐变），但同名规则的多处叠加仍在。
 
 ---
 
@@ -241,6 +258,8 @@ AI/
 
 | 版本 | 说明 |
 |---|---|
+| v1.8.0 | 跨行块级 LaTeX 在题目页/A4/屏幕版完整渲染；设置页重启交给 systemd，避免服务停机 |
+| v1.7.0 | 仪表盘行动推荐、目录页（错题文件夹树 + `GET /api/tree`）、深色模式对比度重配 |
 | v1.6.0 | 单题删除（Ledger 归档）与可配置 Ledger 时间线时区；汇总 v1.5.0 后的导出、AI 录入、仪表盘和报告托管改进 |
 | v1.5.0 | 暖石墨深色主题 + 录入/即时/优化页重做、模块拆分与全宽布局 |
 | v1.1.1 | 历史修正体验修复（撤销/恢复真正生效）；历史页只读浏览需显式开启修正模式；时间线改为题目优先 |

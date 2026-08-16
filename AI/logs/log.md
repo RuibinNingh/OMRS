@@ -15,3 +15,11 @@
 | 2026-07-24 | 导出修复 | A4 公式续栏与防截断 | [查看](2026-07-24_formula-pagination.md) |
 | 2026-07-28 | 前端修复 | Ledger 时间线时区显示 | [查看](2026-07-28_ledger-timezone.md) |
 | 2026-07-28 | 版本发布 | v1.6.0 单题删除与 v1.5.0 后变更汇总 | [查看](2026-07-28_question-deletion-release.md) |
+| 2026-08-01 | 数据整理 | 数学题目分类纠正 | [查看](2026-08-01-reclassify-quadratic.md) |
+| 2026-08-06 | 数据迁移 | 分类标点与知识点清空 | [查看](2026-08-06_category-punctuation-migration.md) |
+| 2026-08-07 | 数据纠正 | 分类文件名与编号修复 | [查看](2026-08-07_category-filename-fix.md) |
+| 2026-08-14 | 文档治理 | 审计偏差修复（文档-代码同步） | [查看](2026-08-14_doc-code-sync-audit-fixes.md) |
+| 2026-08-16 | 新功能 + 前端修复 | 行动推荐、目录页与深色对比度修订（v1.7.0） | [查看](2026-08-16_action-plan-dark-contrast-catalog.md) |
+| 2026-08-16 | 前端/导出修复 | 答案跨行 LaTeX 渲染 | [查看](2026-08-16_answer-math-rendering.md) |
+| 2026-08-16 | 服务修复 | 设置页重启生命周期 | [查看](2026-08-16_omrs-settings-restart-fix.md) |
+| 2026-08-16 | 版本发布 | v1.8.0 跨行公式与 systemd 重启修复 | [查看](2026-08-16_v1.8.0-release.md) |

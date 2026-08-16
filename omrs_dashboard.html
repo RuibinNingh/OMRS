@@ -7,7 +7,7 @@
 <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'')}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-<link rel="stylesheet" href="assets/styles.css?v=20260716-ai-report">
+<link rel="stylesheet" href="assets/styles.css?v=20260816-catalog-dark">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -22,6 +22,8 @@
 <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.5l3 1.8"/></symbol>
 <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></symbol>
 <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 8h16M4 16h16"/><circle cx="9" cy="8" r="2.3"/><circle cx="15" cy="16" r="2.3"/></symbol>
+<symbol id="i-tree" viewBox="0 0 24 24"><path d="M5 4v13a1 1 0 0 0 1 1h4M5 9h5M10 18h4"/><rect x="12" y="2.5" width="8" height="4" rx="1"/><rect x="12" y="10" width="8" height="4" rx="1"/><rect x="12" y="17" width="8" height="4" rx="1"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4"/></symbol>
 <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
 </defs></svg>
 <div class="shell">
@@ -35,6 +37,7 @@
       <div class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')"><svg class="nav-ico" aria-hidden="true"><use href="#i-home"/></svg><span>仪表盘</span></div>
       <div class="tab" data-tab="data" onclick="switchTab('data')"><svg class="nav-ico" aria-hidden="true"><use href="#i-chart"/></svg><span>数据复盘</span></div>
       <div class="tab" data-tab="questions" onclick="switchTab('questions')"><svg class="nav-ico" aria-hidden="true"><use href="#i-folder"/></svg><span>题目库</span></div>
+      <div class="tab" data-tab="catalog" onclick="switchTab('catalog')"><svg class="nav-ico" aria-hidden="true"><use href="#i-tree"/></svg><span>目录</span></div>
       <div class="tab" data-tab="schedule" onclick="switchTab('schedule')"><svg class="nav-ico" aria-hidden="true"><use href="#i-calendar"/></svg><span>复习调度</span></div>
       <div class="tab" data-tab="instant" onclick="switchTab('instant')"><svg class="nav-ico" aria-hidden="true"><use href="#i-play"/></svg><span>即时练习</span></div>
       <div class="tab" data-tab="feedback" onclick="switchTab('feedback')"><svg class="nav-ico" aria-hidden="true"><use href="#i-check"/></svg><span>反馈录入</span></div>
@@ -44,7 +47,7 @@
       <div class="nav-spacer"></div>
       <div class="tab" data-tab="settings" onclick="switchTab('settings')"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></div>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.6.0 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.8.0 · 本地服务</div>
   </aside>
   <div class="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
   <main class="content">
@@ -65,6 +68,7 @@
       <div class="stat-card c3"><div class="stat-label">待攻克</div><div class="stat-value" id="s-attack">—</div></div>
       <div class="stat-card c4"><div class="stat-label">平均熟练度</div><div class="stat-value" id="s-avgm">—</div></div>
     </div>
+    <div class="card act-card" id="action-plan" style="margin-bottom:20px"><div class="empty-inline">正在计算行动推荐…</div></div>
     <div class="card" style="margin-bottom:20px">
       <div class="recent-head">
         <div class="card-title" style="margin-bottom:0">最近动态</div>
@@ -177,6 +181,23 @@
       <tbody id="q-tbody"></tbody></table>
     </div>
     <div class="question-gallery-wrap" id="q-gallery-wrap"></div>
+  </div>
+
+  <!-- ====== 目录（工作区文件夹树） ====== -->
+  <div class="panel" id="panel-catalog">
+    <div class="stat-grid" id="catalog-stat"></div>
+    <div class="card">
+      <div class="catalog-bar">
+        <input type="text" id="catalog-search" class="input filter-input-wide" placeholder="搜索文件夹 / 文件名…" oninput="catalogSearch(this.value)">
+        <label class="catalog-check"><input type="checkbox" id="catalog-all-files" onchange="catalogToggleAllFiles(this.checked)"> 显示图片等其他文件</label>
+        <button class="btn sm" onclick="catalogExpandAll()">全部展开</button>
+        <button class="btn sm" onclick="catalogCollapseAll()">全部折叠</button>
+        <button class="btn sm" onclick="loadCatalog(true)">🔄 重新读取</button>
+      </div>
+      <div class="filter-note">目录直接读取 <code>错题/</code> 磁盘结构，<code>.omrs/</code> 数据目录不在其中。点题目文件可直接打开详情。</div>
+      <div id="catalog-status" class="status-text" style="margin:6px 0 10px"></div>
+      <div class="tree-wrap" id="catalog-tree"><div class="empty-inline">加载目录中…</div></div>
+    </div>
   </div>
 
   <div class="panel" id="panel-schedule">
@@ -873,6 +894,8 @@
 <script src="assets/feedback.js?v=20260615-split"></script>
 <script src="assets/history.js?v=20260728-ledger-timezone"></script>
 <script src="assets/recommend.js"></script>
+<script src="assets/actions.js?v=20260816-action-plan"></script>
+<script src="assets/catalog.js?v=20260816-catalog"></script>
 <script src="assets/instant.js?v=20260614-pages"></script>
 <script src="assets/data.js"></script>
 <script src="assets/reports.js?v=20260716-ai-report-v2"></script>

@@ -2,7 +2,7 @@
  * 功能：单卡全屏阅读 → 显示答案 → 判对错 + 打分 → 翻到下一题；
  *       滑动/方向键翻题；底部进度抽屉（总览统计 + 学科分解 + 跳转网格）；
  *       全部判定与当前位置存入 localStorage，刷新不丢；可一键重置。
- * 数据形状见 exporting.py：{meta, questions:[{idx,uid,subject,category,difficulty,tags,blocks,notes}], answers:[{uid,blocks}]}。
+ * 数据形状见 exporting.py：{meta, questions:[{idx,uid,subject,category,difficulty,tags,blocks,notes}], answers:[{idx,uid,blocks}]}。
  */
 (function () {
   "use strict";

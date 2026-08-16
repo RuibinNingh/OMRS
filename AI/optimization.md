@@ -23,7 +23,8 @@
   **后续**:`app.js`(26KB,含录入页图片/AI 逻辑 + init)与 `recommend.js` 也偏大,可在需要时再拆;前端整体可考虑迁移原生 ES Module(浏览器免构建),但**前提是先把行内 `onclick` 换成 `addEventListener`**(模块作用域下行内 handler 失效)。
 
 - [ ] **CSS 一层层叠,有真实重复定义** — 影响:中 / 工作量:中 / 风险:低
-  `styles.css` 里 `.form-group`、`.fb-toggle`、`.instant-head` 等被定义两遍(历次「现代化」往后追加却没删旧的)。注意约 30 个「重复」里不少是合理的响应式 / 深色 `@media` 覆盖,不算债;上面这几个是真叠加债。建议按组件集中收拢(配合截图回归)。即时练习页已清理了一批孤立规则,重复的 `.shell` 也已删除(全宽改造时)。
+  `styles.css` 里 `.form-group`、`.fb-toggle`、`.instant-head` 等被定义两遍(历次「现代化」往后追加却没删旧的)。注意约 30 个「重复」里不少是合理的响应式 / 深色 `@media` 覆盖,不算债;上面这几个是真叠加债。建议按组件集中收拢(配合截图回归)。即时练习页已清理了一批孤立规则,重复的 `.shell` 也已删除(全宽改造时)；2026-08-13 已收拢 `.instant-queue` 的重复定义(删除 v1.4.2 遗留的 55vh 段,保留 v1.5.0 的 62vh 段)。
+  另有一类相关但不同的债在 v1.7.0 清掉:**规则里写死浅色时代的颜色**(`.q-answer .q-md` 的深绿底、时间线 `.fam-review/.fam-session` 标签、`.heat-*` 的白字与 7% 空档、柱状渐变的低位停点、`.btn.danger:hover` 的白字)。这些不是重复定义,而是 token 切深色后它们不跟着走,表现为「深色下看不清」。已统一改为 `var(--*)` / `rgba(var(--*-rgb), α)` 并集中在文件末尾的深色修订段。**新增规则不要再写裸十六进制或裸 `rgba(r,g,b,a)`。**
 
 - [ ] **后端路由是超长 if/elif** — 影响:中 / 工作量:中
   `server.py` 的 `do_GET`(~150 行)/ `do_POST`(~280 行)是手写分支链,`json.loads(body)` 重复十几次。可收成 `{(method, path): handler}` 派发表 + 统一 body 解析。纯整理,降认知负担。
@@ -34,7 +35,8 @@
 ## 健壮性
 
 - [ ] **测试覆盖仍偏低** — 影响:中高 / 工作量:中
-  当前已有 `test_history_projection.py`、`test_ai_assist_taxonomy.py`、`test_report_export.py`，覆盖历史撤销/恢复/替换、AI 分类约束与答案提示词、报告材料及部分 HTML 导出契约；当前工作区还增加 Markdown 表格与题间留白测试。核心缺口仍是 `compute_mastery_update` / `compute_priority` / SM-2 的边界、Ledger append→projection 集成、CSV/Markdown 异常输入和浏览器端 A4/屏幕模板回归。
+  当前已有 `test_history_projection.py`、`test_ai_assist_taxonomy.py`、`test_report_export.py`，覆盖历史撤销/恢复/替换、AI 分类约束与答案提示词、报告材料及部分 HTML 导出契约；当前工作区还增加 Markdown 表格与题间留白测试。v1.7.0 增加 `test_catalog_tree.py`(目录树:分层计数、`.omrs` 排除、非题目文件分类、孤立文件、缺目录降级)与 `tests/smoke_frontend_actions_catalog.js`(Node + 最小 DOM 桩,跑行动推荐规则集与目录树渲染/折叠/搜索)。核心缺口仍是 `compute_mastery_update` / `compute_priority` / SM-2 的边界、Ledger append→projection 集成、CSV/Markdown 异常输入和浏览器端 A4/屏幕模板回归。
+  **测试运行方式不统一**:`test_report_export.py` 是 pytest 风格(用 `monkeypatch` / `tmp_path` fixture),其余四个是 `unittest`。`python3 -m unittest discover -s tests` 会静默跳过前者。要么补一份 `conftest`/统一到 pytest,要么把那一个改写成 unittest。
 
 - [ ] **首次主题与页面提示不一致** — 影响:低 / 工作量:低
   `omrs_dashboard.html` 首帧脚本在 `omrs-theme` 不存在时实际选择深色，但设置页帮助文案仍写“默认浅色”。应明确产品意图后统一启动逻辑、页面提示、根 README 和 `AI/frontend.md`；当前文档按真实启动行为记录为默认深色。

@@ -269,9 +269,34 @@ def _is_markdown_table_separator(line):
     return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells)
 
 
+def _display_math_delimiter_count(line):
+    """统计一行中未转义的 `$$` 分隔符数量。"""
+    source = str(line or "")
+    count = 0
+    index = 0
+    while index + 1 < len(source):
+        if source[index:index + 2] == "$$" and (index == 0 or source[index - 1] != "\\"):
+            count += 1
+            index += 2
+        else:
+            index += 1
+    return count
+
+
+def _find_display_math_end(lines, start):
+    """找到从 ``start`` 行开始的跨行 `$$...$$` 结束行。"""
+    delimiters = 0
+    for index in range(start, len(lines)):
+        delimiters += _display_math_delimiter_count(lines[index])
+        if delimiters and delimiters % 2 == 0:
+            return index
+    return None
+
+
 def _text_to_blocks(vault, text):
     """把一段多行正文转成块列表：每个非空文字行 -> {t:'txt'}，每个嵌入图 -> {t:'img'}。
-    细粒度按行成块，既保留原排版语义，也让浏览器端在双栏里填得更紧。"""
+    细粒度按行成块，既保留原排版语义，也让浏览器端在双栏里填得更紧；跨行 `$$...$$`
+    会先合并为一个文字块，确保完整交给 KaTeX。"""
     blocks = []
     lines = (text or "").split("\n")
     index = 0
@@ -286,8 +311,17 @@ def _text_to_blocks(vault, text):
                 index += 1
             blocks.append({"t": "table", "headers": headers, "rows": rows})
             continue
-        raw = lines[index]
-        line = raw.rstrip()
+        line = lines[index].rstrip()
+        delimiter_count = _display_math_delimiter_count(line)
+        if delimiter_count % 2 == 1:
+            end = _find_display_math_end(lines, index)
+            if end is not None:
+                line = "\n".join(lines[index:end + 1]).rstrip()
+                index = end + 1
+            else:
+                index += 1
+        else:
+            index += 1
         embeds, remaining = _extract_embeds(line)
         if remaining:
             blocks.append({"t": "txt", "text": remaining})
@@ -297,7 +331,6 @@ def _text_to_blocks(vault, text):
                 blocks.append({"t": "img", "img": payload})
             else:
                 blocks.append({"t": "txt", "text": f"[图片缺失: {name}]"})
-        index += 1
     return blocks
 
 

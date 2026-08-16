@@ -72,6 +72,32 @@ def test_markdown_table_becomes_a_structured_export_block():
     }]
 
 
+def test_multiline_display_math_stays_one_export_text_block():
+    source = r"""前文
+$$
+\begin{cases}
+f(-1) < 0 \\
+f(2) < 0
+\end{cases}
+$$
+后文"""
+    blocks = exporting._text_to_blocks("unused", source)
+
+    assert blocks == [
+        {"t": "txt", "text": "前文"},
+        {
+            "t": "txt",
+            "text": r"""$$
+\begin{cases}
+f(-1) < 0 \\
+f(2) < 0
+\end{cases}
+$$""",
+        },
+        {"t": "txt", "text": "后文"},
+    ]
+
+
 def test_export_data_keeps_a4_question_gap_line_count():
     data = exporting._build_export_data(
         "unused",

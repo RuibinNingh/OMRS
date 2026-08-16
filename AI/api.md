@@ -54,16 +54,17 @@
 
 | 字段 | 说明 |
 |---|---|
+| `generated_at` | string，服务生成该响应的时间（ISO 8601，UTC） |
 | `overview` | 总题数/已击杀/待攻克/leech/从未复习、平均熟练度/衰减后/EF/复习次数、总复习次数/答对/答错/正确率、活跃天数/当前连续/最长连续、近 7/30 天复习、首次/最近复习 |
 | `subjects` | 各科目：题数、击杀、待攻克、leech、平均熟练度、平均 EF、复习次数、正确率（按平均熟练度升序） |
 | `categories` | 各分类：题数、平均熟练度、复习次数、正确率、leech（按平均熟练度升序） |
 | `distributions` | `mastery_histogram`/`decayed_histogram`（各 10 桶）、`ef_dist`/`difficulty_dist`/`repetition_dist`/`interval_dist` |
 | `accuracy` | `by_score`（各主观分次数/答对/正确率）、`weekly`（近 12 周复习/答对/正确率） |
 | `behavior` | `by_weekday`（周一..周日）、`by_hour`（0–23）、`daily_trend`（近 30 天） |
-| `forecast` | 未来 7 天到期预测 + `overdue` |
+| `forecast` | 未来 7 天到期预测（键 `"0"`..`"7"`）+ `"7+"`（7 天以上）+ `overdue` |
 | `review_alert` | `overdue`、`due_today`、`due_next_3_days`、`due_next_7_days`、`due_within_3_days`、`due_within_7_days`、`low_mastery_not_due`、`leech`；兼容保留 `urgent`/`warning`/`cold`/`total_due` |
 | `weak_spots` | `leeches`/`struggling`/`traps`/`recently_killed` 列表 |
-| `items` | 全量题目快照（含 `eff_difficulty`/`fail_count`/`is_leech`/`is_killed` 等） |
+| `items` | 全量题目快照（含 `eff_difficulty`/`fail_count`/`is_leech`/`is_killed`/`images` 等） |
 
 ### `/api/export-review`
 导出供 AI 使用的复盘材料，对应 `build_review_export()`：
@@ -111,6 +112,33 @@
 
 ### `/api/scan`
 兼容扫描入口：触发工作区自检与投影重建，返回更新后的题目数量。
+
+### `/api/tree`
+返回 `错题/` 工作区的目录树，供「目录」页展示。**只读扫盘**：不写 Ledger、不改投影、不触发自检，每次请求现走一遍磁盘。源文件 `omrs/catalog.py`。
+
+- 跳过所有以 `.` 开头的目录，因此 `错题/.omrs/`（Ledger 与投影所在）不在树里；返回值单独用 `data_dir` 字段说明它的位置。
+- 递归深度上限 `MAX_DEPTH = 12`，超出的分支置 `truncated: true` 并停止下探。
+- 文件按扩展名分成四类 `kind`：`question`（匹配 `FILE_PATTERN`，即以数字结尾的 `.md`）、`markdown`（其他 `.md`，如分类索引页）、`image`、`other`。
+- `question` 类文件带 `uid`，并按 `mastery_data.csv` 投影补 `indexed` / `subject` / `category` / `tag`。`indexed:false` 表示磁盘上有、题库投影里还没有（通常是手动放进来还没扫描）。
+- 题目未建立 `错题/` 目录时返回空树而不是报错。
+
+```json
+{
+  "status": "ok",
+  "root": {
+    "name": "错题", "path": "错题", "type": "dir",
+    "children": [ { "name": "数学", "path": "错题/数学", "type": "dir", "children": [], "files": [],
+                    "question_count": 2, "file_count": 4, "size": 585, "truncated": false } ],
+    "files": [],
+    "question_count": 3, "file_count": 7, "size": 899, "truncated": false
+  },
+  "summary": { "dirs": 4, "files": 7, "questions": 3, "size": 899, "orphans": 0, "truncated": false },
+  "indexed_total": 3,
+  "data_dir": "错题/.omrs"
+}
+```
+
+`question_count` / `file_count` / `size` 都是含子目录的累计值。`summary.orphans` 是全树 `indexed:false` 的题目文件数。熟练度、到期日等学习状态**不在本接口内**，前端「目录」页由本地 `/api/stats` 的 `items` 按路径前缀聚合后叠加显示。
 
 ### `/api/image?name=<filename>`
 以二进制流返回 `错题/附件/` 中的图片文件。**这是报告/前端引用题目图片的统一入口**：报告 HTML 内用 `<img src="/api/image?name=<URL编码文件名>">` 即可显示对应题图（同源由本程序提供）。
@@ -246,8 +274,8 @@
 | `question_text` | string | 题目正文，写入 `# 题目`；为空则写占位提示 |
 | `answer_text` | string | 写入 `# 答案` |
 | `cause` | string | 错因（为什么做错），写入 `# 备注` 的 `## 错因` 子标题（导出会带上）；`## 关联` 子标题保留 |
-| `question_images` | array | 题目图：每项 `{data}`，存为 `<uid>-q-N.<ext>`，以 `![[名]]` 追加到 `# 题目` |
-| `answer_images` | array | 答案图：每项 `{data}`，存为 `<uid>-a-N.<ext>`，以 `![[名]]` 追加到 `# 答案` |
+| `question_images` | array | 题目图：每项 `{data}`，存为 `<uid>-<omrs_id 短后缀>-q-N.<ext>`（如 `力学1-0135-q-1.png`），以 `![[名]]` 追加到 `# 题目` |
+| `answer_images` | array | 答案图：每项 `{data}`，存为 `<uid>-<omrs_id 短后缀>-a-N.<ext>`，以 `![[名]]` 追加到 `# 答案` |
 
 **响应：** `{ "status":"ok", "uid", "file_path", "images":[全部], "question_images":[...], "answer_images":[...], "message" }`。  
 图片存到 `错题/附件/`；文件名含 UID 与 `_omrs_id` 短后缀，避免迁移后附件覆盖。建索引失败会回滚（删除本次 md 与已存图片）。图片服务仅支持 PNG/JPEG/GIF。
@@ -348,7 +376,7 @@
 ### `POST /api/restart`
 触发程序重启。
 
-后端会先返回响应，然后在后台线程中关闭当前服务器、延迟 1.5 秒释放端口，再启动新进程接管同一端口。
+后端会先返回响应。由 systemd 管理的实例通过 `systemctl restart --no-block omrs.service` 交给服务管理器重新拉起，避免主进程正常退出后 `Restart=on-failure` 将服务留在 stopped 状态；手工命令启动的实例仍使用关闭服务器、延迟 1.5 秒后启动新进程的回退路径。
 
 **响应：** `{ "status": "ok", "msg": "正在重启..." }`
 

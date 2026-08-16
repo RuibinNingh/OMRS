@@ -144,6 +144,23 @@ class HistoryProjectionTests(unittest.TestCase):
         self.assertEqual(state["history"][0]["Is_Correct"], "0")
         self.assertEqual(state["history"][0]["Note"], "修正")
 
+    def test_metadata_update_can_clear_knowledge_tags(self):
+        initial = legacy_commit()
+        initial["payload"]["questions"][0]["knowledge_tags"] = ["旧知识点"]
+        state = self.project(
+            [
+                initial,
+                commit(
+                    2,
+                    "CMT-000002",
+                    "question.metadata_update_external",
+                    {"question_id": "Q1", "after": {"question_id": "Q1", "knowledge_tags": []}},
+                ),
+            ]
+        )
+
+        self.assertEqual(state["questions"]["Q1"]["knowledge_tags"], [])
+
 
 if __name__ == "__main__":
     unittest.main()

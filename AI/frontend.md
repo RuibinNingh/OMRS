@@ -4,15 +4,19 @@
 
 无构建步骤。后端与本地前端代码不需要打包依赖；页面运行时外链 Google Fonts，并从 `assets/vendor/katex/` 本地加载 KaTeX 渲染 LaTeX（不可用时降级为可辨识的公式源码片段）。所有图表使用纯 CSS + 内联 SVG 实现。
 
-> **v1.2.0 视觉刷新（精修暖色）**：`styles.css` 的 `:root` 收敛为「编辑式暖色」——卡片去阴影/去 stat-card 顶部彩条、`.bar-fill.*` 由渐变改纯色、发丝级分隔线。新增语义族变量 `--fam-review`（复习/绿）、`--fam-session`（Session/蓝）、`--fam-question`（题目/棕）、`--fam-system`（系统/灰），用于时间线圆点、commit 类型标签和仪表盘「最近动态」圆点。`:root` 下方保留一段注释版「夜间账本」深色 token，整段替换即切深色；但仪表盘雷达/热力/趋势图与散点仍有内联浅色需先改用 `var()` 才能正确切到深色。图表内联色尽量走 `var()`（散点已改）。
+> **v1.2.0 视觉刷新（精修暖色）**：`styles.css` 的 `:root` 收敛为「编辑式暖色」——卡片去阴影/去 stat-card 顶部彩条、发丝级分隔线。图表条 `.bar-fill.*`/`.chart-fill.*` 以 `rgba(var(--accent-rgb),…)` 淡入主色的渐变填充（见 L500–505 的 `linear-gradient` 段，后者覆盖早期纯色定义）。新增语义族变量 `--fam-review`（复习/绿）、`--fam-session`（Session/蓝）、`--fam-question`（题目/棕）、`--fam-system`（系统/灰），用于时间线圆点、commit 类型标签和仪表盘「最近动态」圆点。`:root` 下方保留一段注释版「夜间账本」深色 token，整段替换即切深色；但仪表盘雷达/热力/趋势图与散点仍有内联浅色需先改用 `var()` 才能正确切到深色。图表内联色尽量走 `var()`（散点已改）。
 
-> **v1.3.0 深色模式 + 现代化**：首次打开且本地没有主题设置时，`<head>` 启动脚本当前选择**深色**；之后由设置页「外观」切换并存 `localStorage('omrs-theme')`。内联脚本在首帧前给 `<html>` 打 `data-theme` / `data-invert-img` 防闪。`:root` 圆角加大（`--radius:10 / -sm:8 / -lg:14`）、恢复柔和阴影 `--card-shadow`、新增 `--accent-rgb`；`[data-theme="dark"]` 为完整深色 token。`dashboard.js`/`data.js` 图表颜色已**全部 token 化**（含 SVG fill/gradient 改 `var()`+opacity），深色可正确显示。深色 + 「反转题图」开启时，`.q-md / .q-body / .gallery-preview / .instant-md / .instant-notes` 内 `img` 套 `filter:invert(1)`（简易白↔黑，彩色一并反相，保色版待后续）。
+> **v1.3.0 深色模式 + 现代化**：首次打开且本地没有主题设置时，`<head>` 启动脚本当前选择**深色**；之后由设置页「外观」切换并存 `localStorage('omrs-theme')`。内联脚本在首帧前给 `<html>` 打 `data-theme` / `data-invert-img` 防闪。`:root` 圆角加大（`--radius:14 / -sm:10 / -lg:20`）、恢复柔和阴影 `--card-shadow`、新增 `--accent-rgb`；`[data-theme="dark"]` 为完整深色 token。`dashboard.js`/`data.js` 图表颜色已**全部 token 化**（含 SVG fill/gradient 改 `var()`+opacity），深色可正确显示。深色 + 「反转题图」开启时，`.q-md / .q-body / .gallery-preview / .instant-md / .instant-notes` 内 `img` 套 `filter:invert(1)`（简易白↔黑，彩色一并反相，保色版待后续）。
 
 > **v1.4.0 应用骨架（侧边栏 shell）**：顶部 `<header>` + `.tabs` 横条 → 左侧 `<aside class="sidebar">`（`.sidebar-brand` 品牌 + `.sidebar-nav`）+ `<main class="content">`（`.topbar` 页面标题 + 动作按钮）。导航项**仍是 `.tab[data-tab]` + `onclick="switchTab()"`**，`switchTab` 逻辑不变，只新增：按 `name→中文` 映射更新 `#topbar-title`。图标为 `<body>` 顶部一段隐藏 `<svg><symbol id="i-*">` 雪碧图，导航用 `<svg class="nav-ico"><use href="#i-*"/></svg>`（描边走 `currentColor`，无外部图标依赖）。`modal-overlay` 与 `datalist` 仍是 `.shell` 外的兄弟节点。响应式：≤860px 侧栏转为顶部横向滚动条。
 
 > **v1.4.2 页面内部现代化（首批两页）**：即时练习 `instRender` 题头改「题 N/M + chip + 进度条」、`instRenderSide` 队列项右侧改状态圆点（对/错/当前/未答）；反馈录入 `renderFb` 改卡片行（对/错分段 + 分数滑杆 + 备注 + 按 UID 反查科目分类）并在顶部加实时对错统计条。字段与 `/api/feedback`、`/api/recommend` 接口不变。**侧边栏应用式 shell 为下一独立改动**。
 
 > **v1.5.0 深色主题：暖石墨 Warm Graphite**：早期 v1.5.0 的「玻璃拟态」深色（半透明卡片 + `backdrop-filter` 模糊 + body 四道极光径向渐变 + 紫青 `--grad`/`--glow` 辉光 + 渐变裁切文字）整段下线，改为与浅色同源的「暖石墨」——浅色用近黑墨、深色用骨白墨，互为镜像。`[data-theme="dark"]` token 改为实色暖面（`--bg:#1a1916` 等暖中性梯度）、发丝描边、单色骨白墨：`--accent` 由紫 `#b794f6` 改骨白 `#ece7df`、`--accent-fg` 深墨，故 `.btn.primary` 成「浅底深字」与浅色「深底白字」镜像；语义色由霓虹 400 收成大地色（黏土红 / 鼠尾草绿 / 赭黄 / 灰灰蓝）。删除 `--grad`/`--glow` 与 body 极光、玻璃卡片 / 玻璃侧栏 / 渐变按钮 / 紫色激活态 / 渐变 `.stat-value` 等深色特例，卡片 / 数值 / 进度条 / 品牌块 / 激活态全部回退到 token 驱动（深色覆盖块由约 53 行瘦到 ~16 行）。图表内联色仍走 `var()`，自动跟随。版本号不变（仍 v1.5.0）。
+
+> **v1.7.0 行动推荐 + 目录页 + 深色对比度修订**：① 仪表盘顶部新增「行动推荐」卡（`#action-plan`，在「最近动态」上方），脚本 `assets/actions.js`，见 §1.1；② 侧栏在「题目库」和「复习调度」之间新增「目录」页（`#panel-catalog`，图标 `#i-tree`），脚本 `assets/catalog.js`，数据来自新接口 `GET /api/tree`，见 §2.1；③ `styles.css` 的 `[data-theme="dark"]` token 与若干写死浅色的规则按对比度重配，见 §10。版本号提到 **v1.7.0**（`omrs/version.py` + HTML 侧栏 `v1.7.0 · 本地服务`）。
+
+> **v1.6.0 单题删除与 Ledger 时区**：题目库编辑菜单新增「删除题目」（二次确认 → `POST /api/question/delete`，删除正文、Ledger 归档、附件图片保留，见 §2 编辑菜单与 `api.md`）；设置页「外观」新增 Ledger 时区选择（见 §6 外观）。调度页顶部为「开始常规复习」+「导出」双按钮（见 §4）。HTML 侧栏品牌区硬编码 `v1.6.0 · 本地服务`，运行时由 `setSidebarVersion()` 按 `/api/status` 覆盖。
 
 ## 文件组织（assets/）
 
@@ -23,11 +27,13 @@ assets/
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染
 ├── dashboard.js      ← 仪表盘图表 renderDash
 ├── questions.js      ← 题目库表格/画廊视图 + 题目 Modal + 安全 Markdown/LaTeX/表格渲染 + 原文编辑/迁移/删除入口
-├── schedule.js       ← 复习 Session：创建/预览/删除/列表 + 工作区扫描 + 录入提交（doCreate/resetCreateForm）
+├── schedule.js       ← 复习 Session：预览/删除/列表 + 工作区扫描 + 录入提交（doCreate/resetCreateForm）；旧「新建 Session」（createSession/POST /api/schedule）UI 入口已随推荐面板移除，端点保留兼容
 ├── export.js         ← 错题导出：选题/画廊预览、A4/屏幕变体、A4 单双栏确认、题间留白、下载（v1.5.0 从 schedule.js 拆出）
 ├── feedback.js       ← 反馈录入页：session 选择、行编辑、AI 提示词、JSON 导入、提交（v1.5.0 从 schedule.js 拆出）
 ├── history.js        ← 数据复盘/历史：Ledger 时间线、修正面板、撤销/恢复/还原（v1.5.0 从 schedule.js 拆出）
 ├── recommend.js      ← 推荐面板（双列表 + 勾选确认）
+├── actions.js        ← 行动推荐：由 DATA + SESSIONS 派生「现在该做什么」（v1.7.0 新增）
+├── catalog.js        ← 目录页：错题/ 文件夹树，读 GET /api/tree（v1.7.0 新增）
 ├── instant.js        ← 即时练习：推荐取题、在线翻答案、即时反馈
 ├── data.js           ← 数据复盘页 + 复盘报告导出
 ├── reports.js        ← 报告托管页：列表/上传创建/浏览/删除
@@ -36,6 +42,7 @@ assets/
 
 **加载约定（重要）：**
 - 脚本均为普通 `<script>`（非 ES module），共享同一全局作用域；顶层 `let`/`const` 跨文件可见，行内 `onclick` 仍可直接调用各函数。
+- **新增文件的插入位置（v1.7.0）**：`actions.js` 和 `catalog.js` 排在 `recommend.js` 之后、`instant.js` 之前。两者都只在运行时被调用（`renderDash()` / `switchTab('catalog')`），对同批次内的先后不敏感，但必须在 `core.js` 之后——它们依赖 `getItems` / `getDueDays` / `isKilledItem` / `daysSinceReview` / `escapeHtml` 等。
 - **加载顺序固定**：`core.js` 最先（定义全部全局变量，只能声明一次，不可在其他文件重复 `let`）；`app.js` 最后（末尾 `init()` 自调用，依赖前面所有文件已就绪）。
 - 后端由 `/assets/<file>` 通用静态路由提供（`server.py` → `_serve_asset()`，含路径穿越防护与按扩展名的 content-type）。原 `/omrs_dashboard.js` 路由已移除。
 - 修改样式 → 改 `assets/styles.css`；改某模块行为 → 改对应 `assets/*.js`；新增全局工具 → 放 `core.js`。
@@ -66,6 +73,42 @@ API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表�
 
 ---
 
+## 1.1 行动推荐（`assets/actions.js`，v1.7.0）
+
+容器 `#action-plan`，位于仪表盘 stat 卡之下、「最近动态」之上。**纯前端派生模块**：只读已经加载好的 `DATA`（`/api/stats`）与 `SESSIONS`（`/api/sessions`），不新增接口、不写 Ledger、不改任何持久化状态。刷新时机跟着 `renderDash()`（末尾调 `renderActionPlan()`）与 `refreshSessions()`（拉完 session 后若 `DATA` 已就绪再重画一次，「未反馈 Session」那条依赖它）；`init()` 在 `refreshSessions()` 之后也补调一次。
+
+### 规则集（`buildActionPlan()`）
+
+按 `level` 排序输出，四级：`urgent` / `warn` / `info` / `good`（`ACTION_LEVEL_META` 定义排序 rank 与中文标签）。除「题库为空」外，所有判据都排除已击杀题（`actionActiveItems()` 用 `isKilledItem`）。
+
+| key | level | 触发条件 | 主按钮落点 |
+|---|---|---|---|
+| `empty` | info | 题库 0 题（此时直接返回，不再算其他规则） | 录入题目页 |
+| `overdue` | urgent | `getDueDays(item) < 0` | 即时练习（`actionGoInstant`） |
+| `due_today` | warn | `getDueDays(item) === 0` | 复习调度 → 推荐面板 |
+| `pending_feedback` | warn | `SESSIONS` 中 `status === 'active'` | 反馈录入（复用 `feedbackSession`） |
+| `leech` | urgent | `item.is_leech` | 数据复盘页（顽固题表） |
+| `untouched` | info | `attempts === 0` 且 ≥3 道 | 题库，按录入时间排序 |
+| `cold` | warn | `last_review` 距今 > 30 天且 ≥3 道 | 题库，按最近复习排序 |
+| `idle` | warn(≥7天) / info | `daily_trend` 里最后一个非零日距今 ≥3 天 | 即时练习，题数预设 5 |
+| `never` | info | 完全没有练习记录 | 即时练习 |
+| `low_not_due` | info | 未到期但 `decayed_mastery < 0.5` 且 ≥3 道 | 题库，未到期 + 熟练度升序 |
+| `weak_subject` | info | 最薄弱科目（≥3 题）平均衰减熟练度 < 0.55 | 即时练习，预设该科目 |
+| `weak_category` | info | 最薄弱分类（≥3 题）平均 < 0.45 | 即时练习，预设该分类 |
+| `all_good` | good | 上述规则没产生任何 urgent / warn | 即时练习 |
+
+`actionWeakestGroup(items, field, minCount)` 要求组内至少 `minCount` 道题、且总组数 > 1，避免一两道题就把某科目均值拉到底。
+
+### 渲染与交互
+
+- `renderActionPlan()` 默认只渲染前 4 条，其余折叠在「还有 N 条建议，展开 ↓」（`toggleActionPlanAll()` 切 `ACTION_SHOW_ALL`）。
+- 卡头右上的「建议今天练 N 道」由 `actionTodayTarget()` 算：逾期 + 今日到期，再加最多 3 道顽固题，封顶 20。
+- 按钮的回调是**闭包**，存在 `ACTION_PLAN[i].actions[j].run` 上，行内 `onclick` 只写 `runActionPlanItem(i,j)` 下标——不要改成把函数名拼进 HTML 字符串。
+- 跳转辅助：`actionGoQuestions(preset)` 会**先清空**题库页全部筛选控件再套 preset，然后 `switchTab('questions')` + `renderQ()`；`actionGoInstant(preset)` 同理清空 `inst-*` 后 `instLoadPractice()`。preset 的键就是元素 id。
+- 样式在 `styles.css` 的 `.act-*` 段，等级色由 `.lv-urgent/.lv-warn/.lv-info/.lv-good` 决定，全部走 `--red-rgb` 等 token，深浅色自动跟随。≤720px 时改为图标 + 正文两列、按钮整行。
+
+---
+
 ## 2. 双视图
 
 ### 平铺式（List View）
@@ -90,11 +133,39 @@ API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表�
 ### 通用 Markdown / LaTeX 渲染
 - `renderMdContent()` 只允许三类受控 HTML：图片 `<img>`、KaTeX 输出、降级公式 `<span class="math">`；普通文本始终先转义。
 - 支持 Obsidian 图片 `![[name.png]]`、`![[name.png|300]]` 和 Markdown 图片 `![alt](path)`，图片名统一取 basename 后走 `/api/image?name=...`。
-- 支持行内 `$...$` 和行间 `$$...$$`。KaTeX 加载成功时使用 `katex.renderToString(..., {throwOnError:false})`；加载失败时保留公式内容并加 `.math` 样式。
+- 支持行内 `$...$` 和行间 `$$...$$`，包括跨多行的 `$$` 块（先合并后再交给 KaTeX，`cases` 等环境不会被按行拆散）。KaTeX 加载成功时使用 `katex.renderToString(..., {throwOnError:false})`；加载失败时保留公式内容并加 `.math` 样式。
 - 题目库 Modal 的题面、备注、答案，调度/推荐中的题目预览，以及即时练习的题面、答案、备注都应复用该函数；不要再用 `<pre>${escapeHtml(...)}</pre>` 展示需要图片或公式的字段。
 
 - 支持带表头和分隔行的 Markdown 表格（分隔单元格匹配 `:?-{3,}:?`，`\|` 表示单元格内竖线）。`renderMdContent()` 逐行识别后输出 `.md-table-wrap > table.md-table`，缺失单元格补空、超出表头的单元格忽略。
 - 表格单元格继续走 `renderMdInline()`，因此文本先转义，图片和 LaTeX 仍遵循同一安全规则；小屏通过 `.md-table-wrap` 横向滚动。这里不是通用 Markdown 引擎，标题、粗体、列表等语法仍按普通文本显示。
+---
+
+## 2.1 目录页（`assets/catalog.js`，v1.7.0）
+
+Tab `目录`（侧栏图标 `#i-tree`，位于「题目库」与「复习调度」之间）；面板 `#panel-catalog`；`switchTab('catalog')` 触发 `loadCatalog()`。后端见 `omrs/catalog.py` 与 `api.md` 的 `GET /api/tree`。
+
+### 数据来源与叠加
+
+两份数据在前端合并，职责分开：
+
+- **结构**来自 `GET /api/tree`——磁盘上真实的文件夹与文件，包括非题目文件。首次加载后缓存在 `CATALOG_TREE`，「🔄 重新读取」走 `loadCatalog(true)` 强制重取。
+- **学习状态**来自本地 `DATA.items`，由 `catalogBuildStats()` 按 `item.path` 的路径前缀逐层累加到每个文件夹上（题量、已击杀、待复习、顽固题、衰减熟练度之和）。`/api/tree` 里没有这些字段，不要去后端加——它是只读扫盘接口，加上就得跟着投影一起维护。
+- **降级**：`/api/tree` 请求失败时 `catalogFallbackTree()` 按 `DATA.items` 的 `File_Path` 拼一棵树，此时只有题目文件、没有尺寸，状态栏会说明「后端未响应」。
+
+### 渲染
+
+`renderCatalog()` 递归输出扁平的 `.tree-row` 序列，靠 CSS 自定义属性 `--depth` 控制缩进（`padding-left: calc(12px + var(--depth) * 18px)`），不是嵌套 DOM——所以整棵树是一次 `innerHTML` 赋值，展开/折叠也是整树重绘。
+
+- 展开状态存在 `CATALOG_OPEN`（Set of path）。首次加载默认展开根 + 第一层；`catalogExpandAll()` / `catalogCollapseAll()` 批量切换。
+- 文件夹行右侧：题量 chip、待复习 chip（`.tree-badge.due`）、顽固题 chip（`.tree-badge.leech`）、该目录平均衰减熟练度条（复用 `.m-bar`）、复制相对路径按钮。
+- 题目文件行右侧：逾期/今日到期 chip、熟练度条与百分比；未进投影的显示「未入库」。点击调 `catalogOpenQuestion(uid)` → `viewQ(uid)` 开题目 Modal（该题在 `DATA.items` 里才可点）。
+- 搜索框 `catalogSearch()` 写 `CATALOG_QUERY`（小写）。`catalogMatches()` 递归判断「自己或任一后代命中」，命中期间**所有节点视为展开**（`open` 判定里 `|| !!CATALOG_QUERY`），不改动 `CATALOG_OPEN`，清空搜索后回到原来的展开状态。
+- 「显示图片等其他文件」复选框切 `CATALOG_SHOW_ALL_FILES`，关闭时只列 `kind === 'question'` 的文件。
+- 顶部 `#catalog-stat` 四张 stat 卡：文件夹数 / 题目文件 / 全部文件 / 占用；`#catalog-status` 汇报降级、孤立文件、层级截断和当前筛选词。
+- `reloadData()` 里若目录页正处于激活状态且 `CATALOG_TREE` 已有，会重画一次——录题或提交反馈后目录上的熟练度条随之更新，但**不会重新扫盘**（结构变化仍需点「重新读取」或顶栏「重新扫描」）。
+
+样式在 `styles.css` 的 `.catalog-bar` / `.tree-*` 段。≤720px 缩小缩进步长并隐藏 chip 列。
+
 ---
 
 ## 3. 筛选控件（`filterItems()`）
@@ -122,7 +193,9 @@ API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表�
 
 复习调度页面顶部双按钮：
 - **开始常规复习** → 推荐面板（双列表推荐 → 勾选 → 预览 → 确认生成 EXP- Session）
-- **自定义练习** → 全题库筛选面板（与旧版临时调度相同，生成 TMP- 批次）
+- **导出** → 全题库筛选导出面板（`assets/export.js`）：勾选题目后直接导出 A4/屏幕版自包含 HTML，批次号 TMP-，不写 `sessions.csv`
+
+旧「自定义练习」（新建 Session 表单）入口已移除：TMP- 批次现由两条路径产生——推荐面板**单题确认**，或「导出」面板**导出选中**（`POST /api/export` 传 `uids`）。`POST /api/schedule` 端点保留兼容，前端不再调用。
 
 ### 推荐面板流程
 
@@ -178,16 +251,15 @@ API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表�
 | 选题方式 | 前端手动筛选勾选 | 双列表推荐 + 勾选确认 |
 | 持久化 | 不写 `sessions.csv` | 写入 `sessions.csv` |
 | 批次号前缀 | `TMP-YYYYMMDDHHMMSS` | `EXP-YYYYMMDDHHmmss` |
-| SM-2 影响 | 不更新 Interval/Due_Date | 根据来源差异化更新 |
+| SM-2 影响 | 反馈同样更新 Interval/Due_Date（无 Session 来源时按 `due` 处理，可逐题传 `source`） | 根据来源差异化更新 |
 | 反馈闭环 | 可选 | 必须反馈 |
 | 导出方式 | `POST /api/export` 传 `uids` | `POST /api/export` 传 `session_id` |
 
-自定义练习操作：
-- 当前筛选全选
-- 当前筛选批量移除
-- 清空已选
-- 生成自定义练习（TMP-）
-- 直接导出 HTML（A4 打印版 / 屏幕版）
+自定义练习操作（「导出」面板，`assets/export.js`）：
+- 选择当前筛选 / 移除当前筛选 / 清空已选（`selectFilteredExportItems` / `clearFilteredExportItems` / `clearExportSelection`）
+- 平铺式 / 画廊式切换，每行/卡可单独加入/移除，题目可预览（`viewQ`）
+- A4 打印版 / 屏幕版切换（`setExportVariant`）、附带答案、题间留白（`getQuestionGapLines`）
+- 导出选中（`doExportSelected` → `POST /api/export` 传 `uids`，批次号 TMP-，不写 `sessions.csv`）
 
 ---
 
@@ -344,3 +416,37 @@ API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表�
 ### 报告如何引用题目图片（与后端对接）
 
 AI 生成报告时，对某道题用 `<img src="/api/image?name=<URL编码文件名>">` 即可显示其原图（让人一眼认出是哪道题）。文件名来源：`/api/question?uid=` 或 items 的 `images` 字段、或导出复盘报告 JSON。即使下载了含 `images/` 的 ZIP，该目录也只供 AI 读取，最终 HTML 仍不得引用相对路径、`file://` 或 base64。仅在“由本程序托管 + 在程序内打开”时 `/api/image` 才加载（同源）；脱离服务直接双击本地 HTML 不会显示题图。
+
+---
+
+## 10. 主题与深色对比度（`styles.css`，v1.7.0 修订）
+
+主题切换机制不变（见 §6 外观：`<head>` 内联脚本 + `localStorage('omrs-theme')` + `<html data-theme>`）。本节记录 v1.7.0 为解决「深色下配色显示不明显」所做的两层改动，浅色 `:root` 未改。
+
+### token 层（`[data-theme="dark"]`）
+
+| 变量 | v1.6.0 | v1.7.0 | 原因 |
+|---|---|---|---|
+| `--bg` | `#1a1916` | `#141311` | 页面底压暗一档，给卡片让出层次 |
+| `--bg2` / `--bg3` / `--bg4` | `#211f1c` / `#2b2925` / `#3a3732` | `#211f1d` / `#2e2b27` / `#433f38` | 内层面依次拉开 |
+| `--fg` / `--fg2` / `--fg3` | `#ece7df` / `#a39c91` / `#6f685e` | `#f0ebe3` / `#b3aa9e` / `#8f887c` | `--fg3` 原本对 `--bg2` 只有约 3:1，抬到约 4.7:1 |
+| `--red` / `--green` / `--yellow` / `--blue` | `#d98a7e` / `#82ab8b` / `#cda35f` / `#7e9bbf` | `#e59a8c` / `#8fbf9a` / `#dcb06a` / `#8fb0d8` | 语义四色整体提亮一档，对 `--bg2` 均 ≥7:1；`--*-rgb` 同步 |
+| `--kill/attack/trap-bg` | `.16` | `.20` | 状态 chip 底色需要看得出 |
+| `--border` / `--border2` | `.10` / `.17` | `.13` / `.23` | 深色下卡片主要靠描边区分，不能太淡 |
+| `--chart-surface` / `--chart-line` | `.035` / `.11` | `.055` / `.17` | 空热力格与坐标网格原本近乎不可见 |
+| `--accent-fg` | `#1a1916` | `#17150f` | 跟随新底色 |
+
+`.stat-card` / `.card` 的深色规则由半透明白渐变（`rgba(255,255,255,.045→.024)`）改为**实色 `var(--bg2)` + `--border` 描边 + 更实的投影**；侧栏由 `#161410` 改 `#0f0e0c`。
+
+### 规则层：写死浅色的几处
+
+根因是这些规则写死了浅色时代的颜色，token 切深色后它们不跟着走。全部新增为 `[data-theme="dark"]` 覆盖，集中在 `styles.css` 末尾「v1.7.0 深色对比度修订」注释段：
+
+- `.modal .q-answer .q-md` / `.instant-answer .instant-md`：原 `rgba(39,134,74,.04)` 深绿底，深色下等于没有 → 改 `rgba(var(--green-rgb),.10)`，边框 `.30`。
+- `.timeline-head .tag.fam-review` / `.fam-session`：原写死 `rgba(47,125,79,.1)` / `rgba(53,106,156,.1)` → 改走 `--green-rgb` / `--blue-rgb` 的 `.18`；`.fam-question` / `.fam-system` 一并改用 token 前景色。
+- `.heat-0`～`.heat-4`：空档 `.07` 看不出网格 → `.14`；中间档同步抬；`.heat-3` / `.heat-4` 的白字压浅绿底 → 改深墨 `#17150f`；`.heat-cell` 文字改 `--fg2`。
+- `.level-fill` 与 `.bar-fill` / `.chart-fill` 的渐变低位：原停在 `.42` / `.72`，深色下淡进背景让柱子像被截断 → 抬到 `.58` / `.82`（accent 抬到 `.70`）；`.bar-track` / `.m-bar` 轨道改 `rgba(236,231,223,.10)`。
+- `.btn.danger:hover`：`color:#fff` 压在浅色语义红上 → 深色下改 `#17150f`。
+- 卡中卡（`.instant-md` / `.rec-item` / `.sched-item` / `.picker-row` 等）由 `.04` 抬到 `.07` 并补描边；`.btn` 底 `.05→.07`、hover `.10→.14` 并明确前景色；`.input` 深色底改 `--bg3`；`.img-thumb` 角标底改 `.70`。
+
+**维护约定**：新写深色规则一律走 `var(--*)` 或 `rgba(var(--*-rgb), α)`，不要再写死十六进制或裸 `rgba(r,g,b,a)`；确需固定的深墨字用 `#17150f`（与 `--accent-fg` 同值）。

@@ -13,6 +13,8 @@ __pycache__/
 *.tmp
 *.bak
 *.bak.*
+/DEPLOYMENT_SOURCE.json
+AI/logs/*mini-host-deploy*.md
 
 # Personal OMRS vault data
 错题/

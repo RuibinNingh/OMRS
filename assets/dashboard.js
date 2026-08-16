@@ -177,4 +177,6 @@ function renderDash(){
   renderMasteryChart(d.mastery_histogram);
   renderDifficultyChart(d.difficulty_dist);
   renderRecentLedger();
+  // 行动推荐依赖 DATA + SESSIONS，两份数据都就绪后再画（actions.js 于 recommend.js 之后加载）
+  if(typeof renderActionPlan==='function')renderActionPlan();
 }

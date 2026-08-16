@@ -102,7 +102,7 @@ AI/
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v1.6.0 |
+| 当前版本 | v1.8.0 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（`styles.css` 与拆分的 JS）|
@@ -116,9 +116,9 @@ AI/
 | 文件 | 说明 |
 |---|---|
 | `algorithm.md` | 时间衰减、compute_mastery_update 状态机、统一优先级 `compute_priority`（EF 反推的有效难度）、SM-2、双列表推荐、Leech 检测、可调参数 tuning |
-| `api.md` | GET/POST 端点、请求体、返回字段（含 analytics/export-review/reports/image、AI 识别 `ai-recognize` 与导出参数） |
+| `api.md` | GET/POST 端点、请求体、返回字段（含 analytics/export-review/reports/image、目录树 `tree`、AI 识别 `ai-recognize` 与导出参数） |
 | `data.md` | mastery/history/sessions CSV 字段、Markdown 题目格式与支持子集、UID、config.json、日志、report/ 报告存储、File_Path 分隔符 |
-| `frontend.md` | assets/ 多文件结构与加载约定；仪表盘、题目库、调度/推荐、数据复盘、报告托管、设置与 AI 录入 |
+| `frontend.md` | assets/ 多文件结构与加载约定；仪表盘与行动推荐、题目库、目录页、调度/推荐、数据复盘、报告托管、设置与 AI 录入、深色对比度约定 |
 | `export.md` | A4/屏幕版自包含 HTML：浏览器分页/切片、Markdown 表格、题间留白、模板与导出入口 |
 | `ledger.md` | **v1.1.0 Ledger 架构**：不可变提交链、投影缓存、隐藏 question_id、工作区自检、历史修正、迁移和正文不做版本控制的边界 |
 | `optimization.md` | 当前技术债、风险边界、已有测试覆盖与已完成优化 |

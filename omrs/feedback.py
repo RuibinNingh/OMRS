@@ -1,11 +1,10 @@
 import datetime
-import os
-import re
 
 from .common import (
     HISTORY_HEADERS,
     MASTERY_HEADERS,
     calc_sm2_interval,
+    compute_due_date,
     history_path,
     load_csv,
     load_tuning,
@@ -17,11 +16,6 @@ from .ledger import append_commit, connect
 from .projections import rebuild_projection
 from .scheduling import _safe_float, _safe_int, compute_mastery_update
 from .sessions import get_session, get_session_uid_sources, mark_session_completed
-
-
-STATUS_ATTACKING = "状态/待攻克"
-STATUS_KILLED = "状态/已击杀"
-TRAP_TAG = "标签/易错坑"
 
 
 def process_feedback(vault, feedbacks, session_id=""):
@@ -86,13 +80,16 @@ def process_feedback(vault, feedbacks, session_id=""):
             new_repetition = old_repetition + 1
             new_interval = calc_sm2_interval(
                 old_interval, new_repetition,
-                _safe_float(row.get("EF", 2.5), 2.5),
+                update["ef"],
                 source=source,
                 proficiency_factor=tuning["proficiency_factor"],
             )
         else:
             new_repetition = 0
             new_interval = 1  # 答错重置为 1 天
+        # 与投影器 _apply_single_review 的排期口径一致：occurred_at 当日 + 新 EF/间隔
+        occurred = datetime.date.today().isoformat()
+        new_due_date = compute_due_date(occurred, new_interval)
 
         commit_feedbacks.append({
             "question_id": question_id,
@@ -120,7 +117,7 @@ def process_feedback(vault, feedbacks, session_id=""):
                 "tag": row["Current_Tag"],
                 "source": source,
                 "new_interval": new_interval,
-                "new_due_date": row["Due_Date"],
+                "new_due_date": new_due_date,
             }
         )
 
@@ -192,98 +189,3 @@ def _session_feedback_complete(vault, session_id, history):
         if log.get("Session_ID") == session_id and log.get("UID")
     }
     return required <= completed
-
-
-def _writeback_md(vault, row, sub_score, is_correct, note, update):
-    file_path = os.path.join(vault, row["File_Path"])
-    if not os.path.exists(file_path):
-        return
-    with open(file_path, "r", encoding="utf-8") as file:
-        content = file.read()
-
-    today = datetime.date.today().isoformat()
-    correctness = "对" if is_correct else "错"
-    note_part = f", 备注:{note}" if note else ""
-    new_line = f"{today} 主观:{sub_score}, {correctness}{note_part}"
-
-    if "# 历史" in content:
-        content = content.rstrip() + "\n" + new_line + "\n"
-    else:
-        content = content.rstrip() + "\n\n# 历史\n" + new_line + "\n"
-
-    content = _update_frontmatter_tags(content, update, is_correct)
-
-    with open(file_path, "w", encoding="utf-8") as file:
-        file.write(content)
-
-
-def _update_frontmatter_tags(content, update, is_correct):
-    match = re.match(r"^(---\s*\n)(.*?)(\n---)", content, re.DOTALL)
-    if not match:
-        return content
-
-    frontmatter = match.group(2)
-    body = content[match.end(3):]
-    lines = frontmatter.splitlines()
-
-    tags_idx = None
-    for idx, line in enumerate(lines):
-        if line.strip() == "tags:":
-            tags_idx = idx
-            break
-
-    if tags_idx is None:
-        return content
-
-    tag_indent = "  "
-    tag_start = tags_idx + 1
-    tag_end = tag_start
-    for idx in range(tag_start, len(lines)):
-        line = lines[idx]
-        stripped = line.strip()
-        if not stripped:
-            tag_end = idx + 1
-            continue
-        if re.match(r"^\s*-\s+", line):
-            tag_end = idx + 1
-            continue
-        break
-
-    tags = []
-    for line in lines[tag_start:tag_end]:
-        stripped = line.strip()
-        if stripped.startswith("- "):
-            tags.append(stripped[2:].strip())
-
-    tags = _normalize_tags(tags, update, is_correct)
-    tag_lines = [f"{tag_indent}- {tag}" for tag in tags]
-    new_lines = lines[:tag_start] + tag_lines + lines[tag_end:]
-    new_frontmatter = "\n".join(new_lines)
-    return f"{match.group(1)}{new_frontmatter}{match.group(3)}{body}"
-
-
-def _normalize_tags(tags, update, is_correct):
-    normalized = []
-    seen = set()
-    for tag in tags:
-        if tag not in seen:
-            normalized.append(tag)
-            seen.add(tag)
-
-    if update["tag_action"] == "kill":
-        normalized = [
-            STATUS_KILLED if tag == STATUS_ATTACKING else tag for tag in normalized
-        ]
-        if STATUS_KILLED not in normalized:
-            normalized.insert(0, STATUS_KILLED)
-        normalized = [tag for tag in normalized if tag != STATUS_ATTACKING]
-    elif not is_correct and STATUS_KILLED in normalized:
-        normalized = [
-            STATUS_ATTACKING if tag == STATUS_KILLED else tag for tag in normalized
-        ]
-
-    if update["tag_action"] == "trap" and TRAP_TAG not in normalized:
-        insert_at = 1 if normalized else 0
-        normalized.insert(insert_at, TRAP_TAG)
-
-    return normalized

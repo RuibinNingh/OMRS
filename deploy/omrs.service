@@ -1,0 +1,22 @@
+[Unit]
+Description=OMRS personal mistake notebook
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Create a dedicated service account and grant it ownership of /opt/omrs
+# before enabling this unit in a production installation.
+User=omrs
+Group=omrs
+WorkingDirectory=/opt/omrs
+ExecStart=/usr/bin/python3 /opt/omrs/omrs_engine.py --vault /opt/omrs serve --port 8471
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+Environment=PYTHONUNBUFFERED=1
+Environment=OMRS_SYSTEMD_SERVICE=omrs.service
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

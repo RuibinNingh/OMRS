@@ -14,13 +14,11 @@
 import datetime
 import json
 import os
-import re
 
 from .common import questions_root
 
 REPORT_DIR = "report"
 _INDEX = "index.json"
-_ID_RE = re.compile(r"^RPT-[0-9A-Za-z]+(?:-\d+)?$")
 
 
 def reports_dir(vault: str) -> str:
@@ -61,10 +59,6 @@ def list_reports(vault: str) -> list:
     alive = [it for it in items if os.path.isfile(os.path.join(rdir, it.get("filename", "")))]
     alive.sort(key=lambda it: it.get("created_at", ""), reverse=True)
     return alive
-
-
-def _valid_id(report_id: str) -> bool:
-    return bool(report_id) and bool(_ID_RE.match(report_id))
 
 
 def create_report(vault: str, name: str, html: str) -> dict:
