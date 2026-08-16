@@ -1,5 +1,5 @@
-# Keep the Windows packaging script compatible with cmd.exe.
-*.bat text eol=crlf
+# Keep the Windows packaging script byte-for-byte compatible with cmd.exe.
+*.bat -text
 
 # Keep source, documentation, and service files normalized in Git.
 *.py text eol=lf
