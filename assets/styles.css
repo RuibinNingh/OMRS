@@ -101,7 +101,7 @@ tbody td{padding:8px 10px;border-bottom:1px solid var(--bg3);color:var(--fg2);wh
 tbody tr{transition:background .12s}
 tbody tr:hover{background:var(--accent-bg)}
 .tag{display:inline-block;padding:2px 7px;border-radius:4px;font-size:.66rem;font-weight:600;letter-spacing:.3px}
-.tag.kill{background:var(--kill-bg);color:var(--kill-fg)}.tag.attack{background:var(--attack-bg);color:var(--attack-fg)}.tag.trap{background:var(--trap-bg);color:var(--trap-fg)}
+.tag.kill{background:var(--kill-bg);color:var(--kill-fg)}.tag.attack{background:var(--attack-bg);color:var(--attack-fg)}.tag.trap{background:var(--trap-bg);color:var(--trap-fg)}.tag.suspended{background:var(--bg3);color:var(--fg3);border:1px dashed var(--border2)}
 
 /* ── Mastery bar ── */
 .m-bar{width:72px;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle;margin-right:5px}
@@ -237,6 +237,8 @@ textarea.input{width:100%;display:block;resize:vertical;line-height:1.6;font-siz
 .gallery-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
 .gallery-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px}
 .gallery-card.selected{border-color:var(--accent);box-shadow:0 0 0 2px rgba(var(--accent-rgb),0.15)}
+.gallery-card.q-card-suspended{opacity:.72;border-style:dashed}
+tbody tr.q-row-suspended{opacity:.68}
 .gallery-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .gallery-meta{font-size:.72rem;color:var(--fg3);line-height:1.7}
 .gallery-preview{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;min-height:160px;max-height:240px;overflow:auto;white-space:pre-wrap;line-height:1.7;font-size:.82rem}
@@ -595,11 +597,13 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 .fb-toggle span.active-correct{background:var(--kill-bg);color:var(--kill-fg);font-weight:600}
 .fb-toggle span.active-wrong{background:var(--attack-bg);color:var(--attack-fg);font-weight:600}
 .instant-score input{accent-color:var(--accent)}
-.fb-tally{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:13px 16px;margin-bottom:14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.fb-tally-big{font-size:1.15rem;font-weight:700;font-family:'JetBrains Mono',monospace;white-space:nowrap}
-.fb-tally-st{display:flex;gap:14px;font-size:.82rem;color:var(--fg2);white-space:nowrap}
+.fb-tally{position:sticky;top:12px;z-index:30;background:var(--bg2);background:color-mix(in srgb,var(--bg2) 90%,transparent);border:1px solid var(--border2);border-radius:999px;padding:10px 16px;margin:0 auto 14px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;box-shadow:0 8px 26px rgba(0,0,0,.16);backdrop-filter:blur(14px) saturate(1.15)}
+.fb-tally-big{font-size:1.05rem;font-weight:700;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.fb-tally-st{display:flex;gap:14px;font-size:.78rem;color:var(--fg2);white-space:nowrap}
 .fb-tally-st .g{color:var(--green)}.fb-tally-st .r{color:var(--red)}.fb-tally-st .u{color:var(--fg3)}
 .fb-tally-bar{flex:1;min-width:120px;height:7px;border-radius:999px;overflow:hidden;display:flex;background:var(--bg3)}
+.fb-question-line{display:flex;align-items:center;gap:8px;min-width:0}
+.fb-index{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-width:30px;height:30px;padding:0 7px;border-radius:999px;background:var(--accent-bg);border:1px solid var(--border2);color:var(--accent2);font-family:'JetBrains Mono',monospace;font-size:.76rem;font-weight:800}
 .fb-row2{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:10px 14px;align-items:center;margin-bottom:10px;box-shadow:var(--card-shadow)}
 .fb-who{min-width:0}
 .fb-uid{font-family:'JetBrains Mono',monospace;font-size:.84rem;font-weight:600;background:transparent;border:none;color:var(--fg);padding:0;width:100%}
@@ -612,7 +616,7 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 .fb-del{flex-shrink:0}
 .fb-note{grid-column:1/3;font-size:.82rem;padding:7px 11px;border-radius:var(--radius);border:1px solid var(--border);background:var(--bg);color:var(--fg);font-family:inherit;width:100%}
 .fb-note:focus{outline:none;border-color:var(--accent)}
-@media(max-width:600px){.fb-row2{grid-template-columns:1fr}.fb-ctrl{justify-content:flex-start}.instant-chips{justify-content:flex-start}}
+@media(max-width:600px){.fb-tally{top:8px;border-radius:22px;gap:8px 12px;padding:9px 12px}.fb-tally-bar{order:3;flex-basis:100%;min-width:0}.fb-row2{grid-template-columns:1fr}.fb-ctrl{justify-content:flex-start}.instant-chips{justify-content:flex-start}}
 
 /* ── v1.4.3：反馈导入卡折叠 ── */
 .fb-import{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:14px;box-shadow:var(--card-shadow)}
@@ -828,6 +832,15 @@ html[data-sidebar="collapsed"] .sidebar-nav .tab{justify-content:center;padding-
 [data-theme="dark"] .btn:hover{background:rgba(236,231,223,0.14);color:var(--fg)}
 [data-theme="dark"] .input{background:var(--bg3)}
 [data-theme="dark"] table th{color:var(--fg2)}
+
+/* ── v1.8.1：分批反馈工作流 ── */
+.fb-session-bar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--card-shadow)}
+.fb-session-picker-wrap{display:flex;flex-direction:column;gap:5px;min-width:260px}
+.fb-session-picker-wrap label{font-weight:700}
+.fb-session-info{font-size:.76rem;color:var(--fg2);min-height:2.1em;display:flex;align-items:center;line-height:1.4}
+.fb-session-info strong{color:var(--accent2);font-family:'JetBrains Mono',monospace}
+@media(max-width:600px){.fb-session-bar{align-items:stretch}.fb-session-picker-wrap{min-width:0;width:100%}.fb-session-bar>.btn{flex:1}.fb-session-info{width:100%;min-height:1.8em}}
+
 [data-theme="dark"] .img-thumb .img-del,[data-theme="dark"] .img-thumb .img-idx{background:rgba(0,0,0,.70)}
 
 /* ══════════════════════════════════════════════════════════

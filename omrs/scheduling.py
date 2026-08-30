@@ -7,6 +7,7 @@ from .common import (
     SM2_EF_MAX,
     SM2_EF_MIN,
     is_due,
+    is_suspended_row,
     load_csv,
     load_tuning,
     mastery_path,
@@ -146,6 +147,8 @@ def schedule_questions(vault, count=10, subject=None, exclude_uids=None):
     excluded = set(_normalize_uid_list(exclude_uids))
 
     for row in rows:
+        if is_suspended_row(row):
+            continue
         if subject and row.get("Subject", "") != subject:
             continue
         if row.get("UID", "") in excluded:
@@ -204,6 +207,8 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
 
     for row in rows:
         uid = row.get("UID", "")
+        if is_suspended_row(row):
+            continue
         if uid in excluded:
             continue
         row = resolve_sm2_fields(row)
@@ -344,6 +349,7 @@ def _row_to_item(row, today=None, fail_count=0, tuning=None):
         "tag": tag,
         "entry_date": row.get("Entry_Date", ""),
         "knowledge_tags": [k for k in row.get("Knowledge_Tags", "").split("|") if k],
+        "suspended": is_suspended_row(row),
         "fail_count": _safe_int(fail_count, 0),
         "is_leech": is_leech(fail_count, mastery, tag, t),
     }
@@ -356,5 +362,8 @@ def get_items_by_uids(vault, uids):
     missing = [uid for uid in clean_uids if uid not in row_map]
     if missing:
         raise RuntimeError("以下 UID 不存在: " + ", ".join(missing))
+    suspended = [uid for uid in clean_uids if is_suspended_row(row_map[uid])]
+    if suspended:
+        raise RuntimeError("以下 UID 已停用，不能加入复习: " + ", ".join(suspended))
     today = datetime.date.today()
     return [_row_to_item(row_map[uid], today) for uid in clean_uids]

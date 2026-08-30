@@ -2,8 +2,10 @@ import datetime
 import json
 
 from .common import (
+    HISTORY_HEADERS,
     MASTERY_HEADERS,
     SESSIONS_HEADERS,
+    history_path,
     load_csv,
     mastery_path,
     omrs_data_dir,
@@ -97,6 +99,31 @@ def _active_session_uids(sessions):
             continue
         uids.update(_decode_uids(session.get("UIDs", "[]")))
     return uids
+
+
+def _session_feedback_progress(session, history):
+    """Return unique submitted/pending UIDs in the Session's original order."""
+    ordered_uids = []
+    seen = set()
+    for uid in _decode_uids(session.get("UIDs", "[]")):
+        if uid and uid not in seen:
+            ordered_uids.append(uid)
+            seen.add(uid)
+    session_id = session.get("Session_ID", "")
+    submitted_set = {
+        row.get("UID", "")
+        for row in history
+        if row.get("Session_ID") == session_id and row.get("UID", "") in seen
+    }
+    feedback_uids = [uid for uid in ordered_uids if uid in submitted_set]
+    pending_uids = [uid for uid in ordered_uids if uid not in submitted_set]
+    return {
+        "feedback_uids": feedback_uids,
+        "pending_uids": pending_uids,
+        "feedback_count": len(feedback_uids),
+        "pending_count": len(pending_uids),
+        "feedback_complete": bool(ordered_uids) and not pending_uids,
+    }
 
 
 def active_session_uids(vault):
@@ -227,6 +254,7 @@ def list_sessions(vault, status=None):
     if status:
         sessions = [session for session in sessions if session.get("Status") == status]
     sessions.sort(key=lambda session: session.get("Created_At", ""), reverse=True)
+    history = load_csv(history_path(vault), HISTORY_HEADERS)
     return [
         {
             "session_id": session["Session_ID"],
@@ -236,6 +264,7 @@ def list_sessions(vault, status=None):
             "status": session.get("Status", "active"),
             "completed_at": session.get("Completed_At", ""),
             "uids": _decode_uids(session.get("UIDs", "[]")),
+            **_session_feedback_progress(session, history),
         }
         for session in sessions
     ]
@@ -250,6 +279,7 @@ def get_session(vault, session_id):
     uid_source_map = {item["uid"]: item["source"] for item in session_items}
     uids = [item["uid"] for item in session_items]
     rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
+    history = load_csv(history_path(vault), HISTORY_HEADERS)
     row_map = {row["UID"]: row for row in rows}
     items = []
     for uid in uids:
@@ -276,6 +306,7 @@ def get_session(vault, session_id):
         "count": _safe_int(match.get("Count", 0), 0),
         "status": match.get("Status", "active"),
         "completed_at": match.get("Completed_At", ""),
+        **_session_feedback_progress(match, history),
         "items": items,
     }
 

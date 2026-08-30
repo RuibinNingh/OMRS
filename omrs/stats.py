@@ -9,6 +9,7 @@ from .common import (
     extract_knowledge_tags,
     extract_tag,
     history_path,
+    is_suspended_row,
     load_csv,
     load_tuning,
     mastery_path,
@@ -32,21 +33,26 @@ from .scheduling import (
 
 def get_stats(vault):
     rows = [resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)]
+    active_rows = [row for row in rows if not is_suspended_row(row)]
+    suspended_count = len(rows) - len(active_rows)
     history = load_csv(history_path(vault), HISTORY_HEADERS)
+    active_uids = {row.get("UID", "") for row in active_rows}
+    active_history = [log for log in history if log.get("UID", "") in active_uids]
     tuning = load_tuning(vault)
-    fail_counts = build_fail_counts(history)
+    active_fail_counts = build_fail_counts(active_history)
+    all_fail_counts = build_fail_counts(history)
     today = datetime.date.today()
 
-    total = len(rows)
+    total = len(active_rows)
     killed = sum(
         1
-        for row in rows
+        for row in active_rows
         if is_killed_state(_safe_float(row.get("Mastery", 0)), row.get("Current_Tag", ""))
     )
-    avg_mastery = sum(_safe_float(row.get("Mastery", 0)) for row in rows) / total if total else 0
+    avg_mastery = sum(_safe_float(row.get("Mastery", 0)) for row in active_rows) / total if total else 0
 
     subject_dist = {}
-    for row in rows:
+    for row in active_rows:
         subject = row.get("Subject", "未分类")
         if subject not in subject_dist:
             subject_dist[subject] = {"total": 0, "killed": 0, "sum_m": 0}
@@ -60,12 +66,12 @@ def get_stats(vault):
         del data["sum_m"]
 
     diff_dist = {}
-    for row in rows:
+    for row in active_rows:
         difficulty = row.get("Difficulty", "5")
         diff_dist[difficulty] = diff_dist.get(difficulty, 0) + 1
 
     recent = {}
-    for log in history:
+    for log in active_history:
         dt = log.get("Date", "")[:10]
         try:
             if (today - datetime.date.fromisoformat(dt)).days <= 30:
@@ -88,7 +94,7 @@ def get_stats(vault):
         )
 
     daily_counts = {}
-    for log in history:
+    for log in active_history:
         dt = log.get("Date", "")[:10]
         if dt:
             daily_counts[dt] = daily_counts.get(dt, 0) + 1
@@ -98,7 +104,7 @@ def get_stats(vault):
         daily_trend[dt] = daily_counts.get(dt, 0)
 
     scatter_data = []
-    for row in rows:
+    for row in active_rows:
         mastery = _safe_float(row.get("Mastery", 0))
         days = days_since_review(row.get("Last_Review", ""), today, 0)
         scatter_data.append(
@@ -123,7 +129,7 @@ def get_stats(vault):
     due_next_7_days = 0
     low_mastery_not_due = 0
     leech = 0
-    for row in rows:
+    for row in active_rows:
         mastery = _safe_float(row.get("Mastery", 0))
         tag = row.get("Current_Tag", "")
         uid = row.get("UID", "")
@@ -140,7 +146,7 @@ def get_stats(vault):
             warning += 1
         if days > 30:
             cold += 1
-        if is_leech(fail_counts.get(uid, 0), mastery, tag, tuning):
+        if is_leech(active_fail_counts.get(uid, 0), mastery, tag, tuning):
             leech += 1
         dd = parse_date(row.get("Due_Date", ""))
         due_delta = None
@@ -158,15 +164,16 @@ def get_stats(vault):
             low_mastery_not_due += 1
         priority = compute_priority(
             decayed_mastery, _safe_float(row.get("EF", 2.5), 2.5),
-            days, tag, mastery, fail_counts.get(uid, 0), tuning,
+            days, tag, mastery, active_fail_counts.get(uid, 0), tuning,
         )
         if priority > 0.3:
             total_due += 1
 
-    items = [_row_to_item(row, today, fail_counts.get(row.get("UID", ""), 0), tuning) for row in rows]
+    items = [_row_to_item(row, today, all_fail_counts.get(row.get("UID", ""), 0), tuning) for row in rows]
 
     return {
         "total": total,
+        "suspended": suspended_count,
         "killed": killed,
         "attacking": total - killed,
         "avg_mastery": round(avg_mastery, 3),
@@ -217,6 +224,7 @@ def get_question_content(vault, uid):
         "answer": sections.get("答案", ""),
         "history": sections.get("历史", ""),
         "tag": extract_tag(meta),
+        "suspended": is_suspended_row(row),
         "knowledge_tags": extract_knowledge_tags(meta),
         "images": extract_images(question_text),
     }

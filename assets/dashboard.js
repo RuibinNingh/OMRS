@@ -170,6 +170,8 @@ function renderDash(){
   document.getElementById('s-kill-pct').textContent=d.total?`${(d.killed/d.total*100).toFixed(0)}% 击杀率`:'';
   document.getElementById('s-attack').textContent=d.attacking;
   document.getElementById('s-avgm').textContent=`${(d.avg_mastery*100).toFixed(0)}%`;
+  const suspendedEl=document.getElementById('s-suspended');
+  if(suspendedEl)suspendedEl.textContent=d.suspended||0;
   renderSubjectChart(d.subject_dist);
   renderActivityHeatmap(d.recent_activity);
   renderAlertCards(d.review_alert);

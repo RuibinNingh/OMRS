@@ -15,7 +15,8 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `total` | int | 题目总数 |
+| `total` | int | 活跃题目总数，不含停用题 |
+| `suspended` | int | 停用题目数；停用题仍出现在 `items` 中供题库管理 |
 | `killed` | int | 已击杀数 |
 | `attacking` | int | 未击杀数 |
 | `avg_mastery` | float | 平均熟练度 |
@@ -26,7 +27,7 @@
 | `daily_trend` | object | 近30天每日练习趋势 |
 | `scatter_data` | array | 每题的散点数据 |
 | `review_alert` | object | 到期与风险统计：`overdue`、`due_today`、`due_next_3_days`（明天起 3 天）、`due_next_7_days`（明天起 7 天）、`due_within_3_days`、`due_within_7_days`、`low_mastery_not_due`；兼容保留 `urgent`/`warning`/`cold`/`total_due`/`leech` |
-| `items` | array | 所有题目条目，每条含 `fail_count`（累计答错次数）与 `is_leech`（顽固题标记）；该端点不返回 `images`，需要图片名时使用 `/api/question` 或 `/api/analytics` |
+| `items` | array | 所有未归档题目条目（含停用题），每条含 `suspended`、`fail_count`（累计答错次数）与 `is_leech`（顽固题标记）；停用题只用于题库管理，不参与统计/调度；该端点不返回 `images`，需要图片名时使用 `/api/question` 或 `/api/analytics` |
 
 ---
 
@@ -55,7 +56,7 @@
 | 字段 | 说明 |
 |---|---|
 | `generated_at` | string，服务生成该响应的时间（ISO 8601，UTC） |
-| `overview` | 总题数/已击杀/待攻克/leech/从未复习、平均熟练度/衰减后/EF/复习次数、总复习次数/答对/答错/正确率、活跃天数/当前连续/最长连续、近 7/30 天复习、首次/最近复习 |
+| `overview` | 总题数/停用数（停用题不进入分析）/已击杀/待攻克/leech/从未复习、平均熟练度/衰减后/EF/复习次数、总复习次数/答对/答错/正确率、活跃天数/当前连续/最长连续、近 7/30 天复习、首次/最近复习 |
 | `subjects` | 各科目：题数、击杀、待攻克、leech、平均熟练度、平均 EF、复习次数、正确率（按平均熟练度升序） |
 | `categories` | 各分类：题数、平均熟练度、复习次数、正确率、leech（按平均熟练度升序） |
 | `distributions` | `mastery_histogram`/`decayed_histogram`（各 10 桶）、`ef_dist`/`difficulty_dist`/`repetition_dist`/`interval_dist` |
@@ -77,10 +78,17 @@
 ---
 
 ### `/api/sessions?status=active`
-返回常规 Session 列表，可按 `status` 过滤。
+返回常规 Session 列表，可按 `status` 过滤。每个 Session 附带分批反馈进度：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `feedback_uids` | array | 已提交过反馈的 UID，按 Session 原始顺序去重 |
+| `pending_uids` | array | 尚未提交反馈的 UID，按 Session 原始顺序去重 |
+| `feedback_count` / `pending_count` | int | 已录入 / 待录入题数 |
+| `feedback_complete` | bool | 是否所有 Session 题目都已有反馈 |
 
 ### `/api/session?id=<session_id>`
-返回单个 Session 及其 UIDs 对应的题目详情。
+返回单个 Session 及其 UIDs 对应的题目详情，并返回与 `/api/sessions` 相同的分批反馈进度字段。
 
 ### `/api/question?uid=<uid>`
 返回题目的完整内容（题面、历史、标签、知识点）。另含 `images` 字段：题面引用的图片文件名列表（解析 `![[名]]`/`![](路径)`），与 `/api/image?name=` 对接，供报告引图。
@@ -303,6 +311,28 @@
 ```json
 { "uid": "三角函数4", "subject": "数学", "category": "二次函数" }
 ```
+
+### `POST /api/question/suspend`
+
+停用题目但保留 Markdown 正文和所有历史。停用后题目不进入复习调度、统计、数据分析或导出；只追加 `question.suspend` Ledger commit。
+
+请求体：
+```json
+{ "uid": "三角函数4", "reason": "暂不复习" }
+```
+
+成功响应：`{"status":"ok","uid":"三角函数4","suspended":true}`。重复停用返回 400。
+
+### `POST /api/question/resume`
+
+恢复已停用题目，保留原有熟练度、SM-2 排期和历史；只追加 `question.resume` Ledger commit。恢复后立即重新参与调度与统计。
+
+请求体：
+```json
+{ "uid": "三角函数4", "reason": "恢复复习" }
+```
+
+成功响应：`{"status":"ok","uid":"三角函数4","suspended":false}`。未停用或不存在返回 400。
 
 ### `POST /api/question/delete`
 

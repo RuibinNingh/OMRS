@@ -20,6 +20,7 @@ from .common import (
     ATTACHMENTS_DIR,
     MASTERY_HEADERS,
     load_csv,
+    is_suspended_row,
     mastery_path,
     questions_root,
     split_sections,
@@ -201,7 +202,7 @@ def _load_export_questions(vault, uids=None, session_id=""):
     questions = []
     for uid in uids:
         row = row_map.get(uid)
-        if not row:
+        if not row or is_suspended_row(row):
             continue
         file_path = os.path.join(vault, row.get("File_Path", ""))
         if not os.path.exists(file_path):

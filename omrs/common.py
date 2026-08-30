@@ -38,6 +38,7 @@ MASTERY_HEADERS = [
     "Current_Tag",
     "Entry_Date",
     "Knowledge_Tags",
+    "Suspended",
 ]
 HISTORY_HEADERS = [
     "Log_ID",
@@ -49,6 +50,16 @@ HISTORY_HEADERS = [
     "Session_ID",
     "Note",
 ]
+
+
+def is_suspended_row(row):
+    """Return whether a legacy mastery row is marked as suspended.
+
+    Older CSV files do not have the column and therefore remain active.
+    """
+    return str((row or {}).get("Suspended", "")).strip().lower() in {"1", "true", "yes"}
+
+
 ATTACHMENTS_DIR = "附件"
 
 

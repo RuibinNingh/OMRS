@@ -53,7 +53,7 @@ tags:
 
 `omrs/projections.py` 从提交链重放出以下投影表：
 
-- `question_projection`
+- `question_projection`（含 `suspended` 停用标记）
 - `question_knowledge_points`
 - `mastery_projection`
 - `session_projection`
@@ -87,6 +87,8 @@ tags:
 - `recorded_at`
 
 题目库的单题删除会先删除目标 Markdown，再追加 `question.archive` commit。投影会将该题标记为 archived 并从活动题库/兼容 CSV 排除，但既有提交与反馈仍可审计；因为正文不进入 Ledger，删除后的 Markdown 正文无法由 Ledger 恢复。附件图片保留，以避免删掉可能被其他题引用的文件。
+
+题目停用不删除 Markdown，只追加 `question.suspend`；恢复只追加 `question.resume`。两类 commit 都携带 `question_id`、当时 UID、文件路径和可选 `reason`，投影列 `suspended` 与兼容 CSV 列 `Suspended` 据此派生。停用题保留在题库管理列表和历史链中，但从调度、统计、分析、反馈和复习导出中排除；恢复后沿用原有 Mastery/SM-2 状态。
 
 历史修正只追加新 commit：
 

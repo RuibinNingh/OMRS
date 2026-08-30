@@ -98,6 +98,43 @@ def move_question(vault: str, uid: str, target_subject: str, target_category: st
     return {"uid": target_uid, "old_uid": uid, "file_path": rel}
 
 
+def suspend_question(vault: str, uid: str, reason: str = ""):
+    row = _projection_by_uid(vault, uid)
+    if not row:
+        raise RuntimeError(f"UID 不存在: {uid}")
+    if row.get("suspended"):
+        raise RuntimeError(f"题目已停用: {uid}")
+    append_commit(vault, "api", "question.suspend", f"停用题目 {uid}", {
+        "question_id": row["question_id"],
+        "uid_at_that_time": uid,
+        "file_path": row["file_path"],
+        "reason": reason or "通过题目库停用",
+    })
+    rebuild_projection(vault)
+    return {"uid": uid, "suspended": True}
+
+
+def resume_question(vault: str, uid: str, reason: str = ""):
+    with connect(vault) as db:
+        row = db.execute(
+            "SELECT * FROM question_projection WHERE uid = ? AND archived = 0",
+            (uid,),
+        ).fetchone()
+    if not row:
+        raise RuntimeError(f"UID 不存在: {uid}")
+    row = dict(row)
+    if not row.get("suspended"):
+        raise RuntimeError(f"题目未停用: {uid}")
+    append_commit(vault, "api", "question.resume", f"恢复题目 {uid}", {
+        "question_id": row["question_id"],
+        "uid_at_that_time": uid,
+        "file_path": row["file_path"],
+        "reason": reason or "通过题目库恢复",
+    })
+    rebuild_projection(vault)
+    return {"uid": uid, "suspended": False}
+
+
 def delete_question(vault: str, uid: str):
     """Delete one question's Markdown file and append an immutable archive event."""
     row = _projection_by_uid(vault, uid)

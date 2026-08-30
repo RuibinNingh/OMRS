@@ -16,6 +16,7 @@
   const COL_H = PAGE_H - 2 * MARGIN_TB - FOOTER_SAFE;
   const SAFETY = 4, MIN_FILL = 40, MIN_SLICE = 28, WHITE_THR = 245, ORPHAN = 56;
 
+
   // ---- 像素分析：每行墨量 + 干净缝带 ----
   const _cache = new Map();
   function analyze(img) {
@@ -124,14 +125,26 @@
       return false;
     }
 
-    newPage();
-    for (const b of blocks) {
-      if (b.kind === "image") { placeImage(b); continue; }
-      if (b.kind === "text") { placeText(b, b.text); continue; }
+    function placePlainBlock(b) {
       const node = b.build(); const h = measure(node);
       if (b.keepNext && COL_H - y < h + ORPHAN) nextCol();
       if (y + h > COL_H + 0.5) nextCol();
-      if (!put(node)) { nextCol(); if (!put(node)) forcePut(node); }
+      if (put(node)) return true;
+      nextCol();
+      if (put(node)) return true;
+      forcePut(node);
+      return false;
+    }
+
+    function placeContentBlock(b) {
+      if (b.kind === "image") { placeImage(b); return true; }
+      if (b.kind === "text") return placeText(b, b.text);
+      return placePlainBlock(b);
+    }
+
+    newPage();
+    for (const b of blocks) {
+      placeContentBlock(b);
     }
 
     function placeImage(b) {
@@ -264,7 +277,12 @@
     const questionGapLines = Math.max(0, Math.min(20, Number(D.meta && D.meta.question_gap_lines) || 0));
     (D.questions || []).forEach((q, index) => {
       B.push(headBlock(q)); let first = true;
-      q.blocks.forEach(b => { if (b.t === "img") B.push(imgBlock(b, q.uid, first)); else if (b.t === "table") B.push(tableBlock(b)); else B.push(txtBlock("q-text", b.text, false, true)); first = false; });
+      q.blocks.forEach(b => {
+        if (b.t === "img") B.push(imgBlock(b, q.uid, first));
+        else if (b.t === "table") B.push(tableBlock(b));
+        else B.push(txtBlock("q-text", b.text, false, true));
+        first = false;
+      });
       if (q.notes && q.notes["错因"]) B.push(noteBlock("错因", q.notes["错因"]));
       if (q.notes && q.notes["关联"]) B.push(noteBlock("关联", q.notes["关联"]));
       if (questionGapLines && index < D.questions.length - 1) B.push(questionGapBlock(questionGapLines));
@@ -288,6 +306,8 @@
 
   function run() {
     const mount = document.getElementById("stage");
+    // 只在字体稳定后排版一次；打印直接复用这份固定 A4 DOM，保证浏览与打印一致。
+    mount.replaceChildren();
     const t0 = performance.now();
     const blocks = buildBlocks();
     const res = layout(blocks, mount, !(D.meta && D.meta.a4_two_columns !== false));
@@ -297,9 +317,34 @@
     if (res.warnings.length) console.warn("切片告警:\n" + res.warnings.join("\n"));
     window.__OMRS_RESULT = res;
   }
+
+  function waitForTwoFrames() {
+    return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }
+
+  async function initialRun() {
+    await preload();
+    // 先等页面已有字体，再生成含 KaTeX 的 DOM。
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    await waitForTwoFrames();
+    // KaTeX 字体是在 run() 创建数学节点后才会被浏览器请求；必须再等一次，
+    // 否则首轮测量用 fallback 字体，打印时字体完成会把栏底内容挤出去。
+    run();
+    if (document.fonts && document.fonts.ready) await document.fonts.ready;
+    await waitForTwoFrames();
+    // 用最终字体重新测量，打印直接复用这份固定 A4 DOM，保证浏览与打印一致。
+    run();
+    const printButton = document.getElementById("btnPrint");
+    if (printButton) printButton.disabled = false;
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
-    const p = document.getElementById("btnPrint"); if (p) p.onclick = () => window.print();
+    const p = document.getElementById("btnPrint");
+    if (p) {
+      p.disabled = true;
+      p.onclick = () => window.print();
+    }
     const d = document.getElementById("btnDebug"); if (d) d.onchange = e => document.body.classList.toggle("debug", e.target.checked);
-    preload().then(run);
+    initialRun();
   });
 })();

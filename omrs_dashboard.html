@@ -7,7 +7,7 @@
 <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'')}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-<link rel="stylesheet" href="assets/styles.css?v=20260816-catalog-dark">
+<link rel="stylesheet" href="assets/styles.css?v=20260831-question-suspend">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -47,7 +47,7 @@
       <div class="nav-spacer"></div>
       <div class="tab" data-tab="settings" onclick="switchTab('settings')"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></div>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.8.0 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.9.0 · 本地服务</div>
   </aside>
   <div class="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
   <main class="content">
@@ -67,6 +67,7 @@
       <div class="stat-card c2"><div class="stat-label">已击杀</div><div class="stat-value" id="s-killed">—</div><div class="stat-sub" id="s-kill-pct"></div></div>
       <div class="stat-card c3"><div class="stat-label">待攻克</div><div class="stat-value" id="s-attack">—</div></div>
       <div class="stat-card c4"><div class="stat-label">平均熟练度</div><div class="stat-value" id="s-avgm">—</div></div>
+      <div class="stat-card c5"><div class="stat-label">停用题目</div><div class="stat-value" id="s-suspended">—</div><div class="stat-sub">不参与复习与统计</div></div>
     </div>
     <div class="card act-card" id="action-plan" style="margin-bottom:20px"><div class="empty-inline">正在计算行动推荐…</div></div>
     <div class="card" style="margin-bottom:20px">
@@ -168,9 +169,14 @@
         <option value="7days">7天内到期</option>
         <option value="future">未到期</option>
       </select>
+      <select id="q-filter-suspended" class="input" onchange="filterQ()">
+        <option value="">活动题目（不含停用）</option>
+        <option value="suspended">仅停用题目</option>
+        <option value="all">含停用全部</option>
+      </select>
     </div>
     <div class="temp-summary-row">
-      <div class="filter-note">题库支持按科目、分类、状态标签、知识标签、难度、熟练度和到期状态联合筛选。</div>
+      <div class="filter-note">题库支持按科目、分类、状态标签、知识标签、难度、熟练度、到期状态和停用状态联合筛选。停用题仅可在题库管理中恢复。</div>
       <div class="view-switch">
         <button class="btn sm toggle" id="q-view-table" onclick="setQView('table')">表格式</button>
         <button class="btn sm toggle" id="q-view-gallery" onclick="setQView('gallery')">画廊式</button>
@@ -408,14 +414,11 @@
   </div>
 
   <div class="panel" id="panel-feedback">
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-      <label style="font-size:.78rem;color:var(--fg3)">选择 Session:</label>
-      <select id="fb-session-picker" class="input" style="min-width:260px" onchange="onFbSessionChange()">
-        <option value="">— 手动录入(不关联 session) —</option>
-      </select>
-      <button class="btn sm" onclick="refreshFbSessionPicker()">🔄</button>
+    <div class="fb-session-bar">
+      <div class="fb-session-picker-wrap"><label style="font-size:.78rem;color:var(--fg3)">继续录入 Session</label><select id="fb-session-picker" class="input" style="min-width:260px" onchange="onFbSessionChange()"><option value="">— 手动录入（不关联 Session）—</option></select></div>
+      <button class="btn sm" onclick="refreshFbSessionPicker()" title="刷新 Session 进度">🔄 刷新</button>
       <button class="btn sm" onclick="addFbRow()">＋ 添加行</button>
-      <span id="fb-session-info" style="font-size:.72rem;color:var(--fg3)"></span>
+      <span id="fb-session-info" class="fb-session-info"></span>
     </div>
     <details class="fb-import">
       <summary>📥 从屏幕版 / AI 导入反馈</summary>
@@ -886,15 +889,15 @@
 <datalist id="cr-cat-list"></datalist>
 <datalist id="cr-ktag-list"></datalist>
 
-<script src="assets/core.js?v=20260728-ledger-timezone"></script>
-<script src="assets/dashboard.js?v=20260728-ledger-timezone"></script>
-<script src="assets/questions.js"></script>
-<script src="assets/schedule.js?v=20260615-split"></script>
+<script src="assets/core.js?v=20260831-question-suspend"></script>
+<script src="assets/dashboard.js?v=20260831-question-suspend"></script>
+<script src="assets/questions.js?v=20260831-question-suspend"></script>
+<script src="assets/schedule.js?v=20260828-feedback-ui"></script>
 <script src="assets/export.js?v=20260724-question-gap"></script>
-<script src="assets/feedback.js?v=20260615-split"></script>
+<script src="assets/feedback.js?v=20260829-feedback-sequence"></script>
 <script src="assets/history.js?v=20260728-ledger-timezone"></script>
 <script src="assets/recommend.js"></script>
-<script src="assets/actions.js?v=20260816-action-plan"></script>
+<script src="assets/actions.js?v=20260831-question-suspend"></script>
 <script src="assets/catalog.js?v=20260816-catalog"></script>
 <script src="assets/instant.js?v=20260614-pages"></script>
 <script src="assets/data.js"></script>

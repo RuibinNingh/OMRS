@@ -65,6 +65,7 @@ def init_db(db):
             metadata_hash TEXT NOT NULL,
             content_hash  TEXT,
             archived      INTEGER NOT NULL DEFAULT 0,
+            suspended     INTEGER NOT NULL DEFAULT 0,
             updated_seq   INTEGER NOT NULL
         );
 
@@ -125,6 +126,11 @@ def init_db(db):
         );
         """
     )
+    columns = {row["name"] for row in db.execute("PRAGMA table_info(question_projection)").fetchall()}
+    if "suspended" not in columns:
+        db.execute(
+            "ALTER TABLE question_projection ADD COLUMN suspended INTEGER NOT NULL DEFAULT 0"
+        )
     db.execute(
         "INSERT OR IGNORE INTO workspace_scan_status "
         "(id, change_count, conflict_count, conflicts_json) VALUES (1, 0, 0, '[]')"

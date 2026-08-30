@@ -16,17 +16,20 @@
 
 > **v1.7.0 行动推荐 + 目录页 + 深色对比度修订**：① 仪表盘顶部新增「行动推荐」卡（`#action-plan`，在「最近动态」上方），脚本 `assets/actions.js`，见 §1.1；② 侧栏在「题目库」和「复习调度」之间新增「目录」页（`#panel-catalog`，图标 `#i-tree`），脚本 `assets/catalog.js`，数据来自新接口 `GET /api/tree`，见 §2.1；③ `styles.css` 的 `[data-theme="dark"]` token 与若干写死浅色的规则按对比度重配，见 §10。版本号提到 **v1.7.0**（`omrs/version.py` + HTML 侧栏 `v1.7.0 · 本地服务`）。
 
-> **v1.6.0 单题删除与 Ledger 时区**：题目库编辑菜单新增「删除题目」（二次确认 → `POST /api/question/delete`，删除正文、Ledger 归档、附件图片保留，见 §2 编辑菜单与 `api.md`）；设置页「外观」新增 Ledger 时区选择（见 §6 外观）。调度页顶部为「开始常规复习」+「导出」双按钮（见 §4）。HTML 侧栏品牌区硬编码 `v1.6.0 · 本地服务`，运行时由 `setSidebarVersion()` 按 `/api/status` 覆盖。
+> **v1.8.2 部分判定提交 + 吸顶概览**：反馈页不再要求本批所有题都先判定；点击「提交反馈」时只提交已经选择「对 / 错」的题，未判定题自动保留到下一批。`fb-tally` 以吸顶“灵动岛”样式显示总数、对/错/未判和进度条，滚动题目时持续可见；每道反馈题增加序号徽标，选择已部分录入的 Session 时仍显示该题在 Session 原始题目列表中的序号，不会因过滤已录入题而从 1 重新编号。HTML 的 `styles.css`、`schedule.js`、`feedback.js` 资源查询参数同步更新，避免浏览器缓存旧交互。
+
+> **v1.8.1 分批反馈交互优化**：`GET /api/sessions` 与 `GET /api/session` 的每个 Session 现在附带 `feedback_uids`、`pending_uids`、`feedback_count`、`pending_count`、`feedback_complete`，按 Session 原始题目顺序去重。反馈页选择 Session 时调用 `fbRowsForSession()` 自动只载入 `pending_uids`，已录入题目不再进入编辑行；顶部显示 `已录入 / 总数` 与剩余题数，Session 列表按钮改为「继续录入」。一次提交成功后保留当前 Session，刷新数据并自动载入剩余题目；全部完成时显示无需重复提交。反馈 JSON 导入同样自动跳过该 Session 已录入 UID，并在状态栏报告跳过数量；手动反馈仍可通过「添加行」使用。
+
+> **v1.9.0 题目停用机制**：题目库支持停用/恢复。停用题目保留 Markdown、题目库管理入口和 Ledger 历史，但不参与复习调度、行动推荐、统计、数据分析、反馈和复习导出；题目库筛选提供活动/仅停用/全部三种口径，仪表盘显示停用数。
 
 ## 文件组织（assets/）
-
 ```
 omrs_dashboard.html   ← 仅 HTML 结构，<link> 引样式 + 多个 <script> 引脚本
 assets/
 ├── styles.css        ← 全部样式（原 <style> 内联块抽出）
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染
 ├── dashboard.js      ← 仪表盘图表 renderDash
-├── questions.js      ← 题目库表格/画廊视图 + 题目 Modal + 安全 Markdown/LaTeX/表格渲染 + 原文编辑/迁移/删除入口
+├── questions.js      ← 题目库表格/画廊视图 + 题目 Modal + 安全 Markdown/LaTeX/表格渲染 + 原文编辑/迁移/删除/停用恢复入口
 ├── schedule.js       ← 复习 Session：预览/删除/列表 + 工作区扫描 + 录入提交（doCreate/resetCreateForm）；旧「新建 Session」（createSession/POST /api/schedule）UI 入口已随推荐面板移除，端点保留兼容
 ├── export.js         ← 错题导出：选题/画廊预览、A4/屏幕变体、A4 单双栏确认、题间留白、下载（v1.5.0 从 schedule.js 拆出）
 ├── feedback.js       ← 反馈录入页：session 选择、行编辑、AI 提示词、JSON 导入、提交（v1.5.0 从 schedule.js 拆出）
@@ -79,7 +82,7 @@ API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表�
 
 ### 规则集（`buildActionPlan()`）
 
-按 `level` 排序输出，四级：`urgent` / `warn` / `info` / `good`（`ACTION_LEVEL_META` 定义排序 rank 与中文标签）。除「题库为空」外，所有判据都排除已击杀题（`actionActiveItems()` 用 `isKilledItem`）。
+按 `level` 排序输出，四级：`urgent` / `warn` / `info` / `good`（`ACTION_LEVEL_META` 定义排序 rank 与中文标签）。除「题库为空」外，所有判据都排除已击杀题和停用题（`actionActiveItems()` 过滤 `!item.suspended && !isKilledItem(item)`）。
 
 | key | level | 触发条件 | 主按钮落点 |
 |---|---|---|---|
@@ -110,6 +113,11 @@ API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表�
 ---
 
 ## 2. 双视图
+
+### 题目停用筛选与操作
+
+题目库顶部 `#q-filter-suspended` 默认选择“活动题目（不含停用）”，也可切换“仅停用题目”或“含停用全部”。停用题行/卡片以灰色虚线弱化，并显示“停用”标签；编辑菜单根据状态显示“停用题目”或“恢复题目”。操作调用 `POST /api/question/suspend` / `POST /api/question/resume`，成功后刷新题库和历史动态。
+
 
 ### 平铺式（List View）
 - 高密度列表，每行显示 UID、科目、分类、难度、熟练度进度条、标签。

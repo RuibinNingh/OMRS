@@ -25,7 +25,14 @@ from .optimization import (
     storage_summary,
 )
 from .projections import ledger_history, ledger_retraction_state, rebuild_projection
-from .question_ops import delete_question, get_question_raw, move_question, save_question_markdown
+from .question_ops import (
+    delete_question,
+    get_question_raw,
+    move_question,
+    resume_question,
+    save_question_markdown,
+    suspend_question,
+)
 from .scheduling import generate_recommendations
 from .sessions import (
     create_session,
@@ -372,6 +379,30 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     data.get("uid", ""),
                     data.get("subject", ""),
                     data.get("category", ""),
+                )
+                self._json({"status": "ok", **result})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/question/suspend":
+            try:
+                data = json.loads(body) if body else {}
+                result = suspend_question(
+                    self.vault_path,
+                    data.get("uid", ""),
+                    data.get("reason", ""),
+                )
+                self._json({"status": "ok", **result})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/question/resume":
+            try:
+                data = json.loads(body) if body else {}
+                result = resume_question(
+                    self.vault_path,
+                    data.get("uid", ""),
+                    data.get("reason", ""),
                 )
                 self._json({"status": "ok", **result})
             except Exception as exc:

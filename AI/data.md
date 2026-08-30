@@ -37,6 +37,7 @@
 | `Current_Tag` | string | 状态标签（如 #状态/待攻克） |
 | `Entry_Date` | date | 题目录入日期 |
 | `Knowledge_Tags` | string | 知识点标签，`|` 分隔 |
+| `Suspended` | 0/1 | 题目停用标记；`1` 时保留题目行供管理/筛选，但不参与调度、统计、分析、反馈或复习导出；没有该列的旧 CSV 按 `0` 处理 |
 
 **注意：** `Last_Review` 历史数据可能包含 `YYYY/M/D` 格式，`parse_date()` 已做兼容。
 **注意：** SM-2 字段（`Interval`、`Due_Date`、`Repetition`）为 2026-05 新增，旧数据通过 `resolve_sm2_fields()` 自动填充默认值。

@@ -23,3 +23,9 @@
 | 2026-08-16 | 前端/导出修复 | 答案跨行 LaTeX 渲染 | [查看](2026-08-16_answer-math-rendering.md) |
 | 2026-08-16 | 服务修复 | 设置页重启生命周期 | [查看](2026-08-16_omrs-settings-restart-fix.md) |
 | 2026-08-16 | 版本发布 | v1.8.0 跨行公式与 systemd 重启修复 | [查看](2026-08-16_v1.8.0-release.md) |
+| 2026-08-28 | 前端优化 | 部分判定提交、序号与吸顶概览（v1.8.2） | [查看](2026-08-28_partial-feedback-ui-followup.md) |
+| 2026-08-28 | 前端优化 | 分批反馈 Session 进度与自动续录（v1.8.1） | [查看](2026-08-28_partial-feedback-ui.md) |
+| 2026-08-29 | 前端修复 | 分批反馈序号保持 Session 原始顺序 | [查看](2026-08-29_feedback-sequence-numbering.md) |
+| 2026-08-30 | 导出修复 | A4 打印题目栏底裁切 | [查看](2026-08-30_a4-print-question-clipping.md) |
+| 2026-08-30 | 导出修正 | A4 采用块级防截断，取消整题留白 | [查看](2026-08-30_a4-print-no-waste.md) |
+| 2026-08-31 | 新功能 | 题目停用/恢复机制（v1.9.0） | [查看](2026-08-31_question-suspend.md) |

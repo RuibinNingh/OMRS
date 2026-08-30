@@ -52,7 +52,7 @@ function actionGoFeedback(sessionId) {
 
 // ── 派生指标 ──
 function actionActiveItems() {
-  return getItems().filter(item => !isKilledItem(item));
+  return getItems().filter(item => !item.suspended && !isKilledItem(item));
 }
 function actionRecentReviewCount(days) {
   const trend = DATA?.daily_trend || {};

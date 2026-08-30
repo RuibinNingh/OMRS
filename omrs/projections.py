@@ -11,6 +11,7 @@ from .common import (
     calc_sm2_interval,
     compute_due_date,
     history_path,
+    is_suspended_row,
     load_tuning,
     mastery_path,
     save_csv,
@@ -146,6 +147,16 @@ def apply_commit(vault: str, state: dict, commit: dict):
         if question:
             question["archived"] = False
             question["updated_seq"] = seq
+    elif ctype == "question.suspend":
+        question = state["questions"].get(payload.get("question_id"))
+        if question and not question.get("archived"):
+            question["suspended"] = True
+            question["updated_seq"] = seq
+    elif ctype == "question.resume":
+        question = state["questions"].get(payload.get("question_id"))
+        if question and not question.get("archived"):
+            question["suspended"] = False
+            question["updated_seq"] = seq
     elif ctype == "session.create":
         session = payload.get("session") or payload
         sid = session.get("session_id")
@@ -210,6 +221,9 @@ def _apply_legacy_bootstrap(state, payload, seq):
         question_id = row.get("question_id") or state["uid_to_question_id"].get(row.get("UID"))
         if not question_id:
             continue
+        question = state["questions"].get(question_id)
+        if question and is_suspended_row(row):
+            question["suspended"] = True
         state["mastery"][question_id] = {
             "mastery": _safe_float(row.get("Mastery"), 0.0),
             "ef": _safe_float(row.get("EF"), 2.5),
@@ -252,7 +266,13 @@ def _upsert_question(state, question, seq):
     if not question_id:
         return
     old = state["questions"].get(question_id, {})
-    merged = {**old, **question, "updated_seq": seq, "archived": bool(question.get("archived", False))}
+    merged = {
+        **old,
+        **question,
+        "updated_seq": seq,
+        "archived": bool(question.get("archived", old.get("archived", False))),
+        "suspended": bool(question.get("suspended", old.get("suspended", False))),
+    }
     state["questions"][question_id] = merged
     if merged.get("uid"):
         state["uid_to_question_id"][merged["uid"]] = question_id
@@ -290,6 +310,7 @@ def _normalize_question_fields(question, fallback=None):
         "metadata_hash": question.get("metadata_hash", fallback.get("metadata_hash", "")),
         "content_hash": question.get("content_hash", fallback.get("content_hash", "")),
         "archived": bool(question.get("archived", fallback.get("archived", False))),
+        "suspended": bool(question.get("suspended", fallback.get("suspended", False))),
     }
 
 
@@ -425,8 +446,8 @@ def _write_projection_tables(db, state):
             """
             INSERT OR REPLACE INTO question_projection
             (question_id, uid, file_path, subject, category, difficulty, current_tag,
-             metadata_json, metadata_hash, content_hash, archived, updated_seq)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             metadata_json, metadata_hash, content_hash, archived, suspended, updated_seq)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 qid,
@@ -440,6 +461,7 @@ def _write_projection_tables(db, state):
                 question.get("metadata_hash", ""),
                 question.get("content_hash", ""),
                 1 if question.get("archived") else 0,
+                1 if question.get("suspended") else 0,
                 _safe_int(question.get("updated_seq"), 0),
             ),
         )
@@ -517,6 +539,7 @@ def export_legacy_csv(vault: str, state=None):
             "Current_Tag": question.get("current_tag", "#状态/待攻克"),
             "Entry_Date": question.get("metadata", {}).get("录入日期", ""),
             "Knowledge_Tags": "|".join(question.get("knowledge_tags", [])),
+            "Suspended": "1" if question.get("suspended") else "0",
         })
     rows.sort(key=lambda item: (item["Subject"], item["Category"], item["UID"]))
     save_csv(mastery_path(vault), MASTERY_HEADERS, rows, backup=True)
@@ -574,6 +597,9 @@ def _commit_summary(commit):
         return f"迁移题目：{payload.get('from_uid', '')} -> {payload.get('to_uid', '')}"
     if ctype in {"question.archive", "question.archive_external"}:
         return f"归档题目：{payload.get('uid_at_that_time', '')}"
+    if ctype in {"question.suspend", "question.resume"}:
+        action = "停用" if ctype == "question.suspend" else "恢复"
+        return f"{action}题目：{payload.get('uid_at_that_time', payload.get('uid', ''))}"
     if ctype.startswith("review."):
         return commit["message"]
     if ctype.startswith("session."):

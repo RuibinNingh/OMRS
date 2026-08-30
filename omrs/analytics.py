@@ -17,6 +17,7 @@ from .common import (
     MASTERY_HEADERS,
     extract_images,
     history_path,
+    is_suspended_row,
     load_csv,
     load_tuning,
     mastery_path,
@@ -110,8 +111,11 @@ def _bucket_label(value, edges, labels):
 
 
 def get_analytics(vault):
-    rows = [resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)]
-    history = load_csv(history_path(vault), HISTORY_HEADERS)
+    all_rows = [resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)]
+    suspended_uids = {row.get("UID", "") for row in all_rows if is_suspended_row(row)}
+    rows = [row for row in all_rows if row.get("UID", "") not in suspended_uids]
+    all_history = load_csv(history_path(vault), HISTORY_HEADERS)
+    history = [row for row in all_history if row.get("UID", "") not in suspended_uids]
     tuning = load_tuning(vault)
     fail_counts = build_fail_counts(history)
     today = datetime.date.today()
@@ -360,6 +364,7 @@ def get_analytics(vault):
         "generated_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "overview": {
             "total": total, "killed": killed, "attacking": total - killed,
+            "suspended_count": len(suspended_uids),
             "leech": leech_total, "never_reviewed": never_reviewed,
             "avg_mastery": round(sum_m / total, 3) if total else 0,
             "avg_decayed_mastery": round(sum_dm / total, 3) if total else 0,
@@ -432,7 +437,11 @@ def build_review_markdown(vault):
     返回 (bytes, filename)。
     """
     a = get_analytics(vault)
-    history = load_csv(history_path(vault), HISTORY_HEADERS)
+    active_uids = {item.get("uid", "") for item in a.get("items", [])}
+    history = [
+        row for row in load_csv(history_path(vault), HISTORY_HEADERS)
+        if row.get("UID", "") in active_uids
+    ]
     today = datetime.date.today().isoformat()
     ov = a["overview"]
 

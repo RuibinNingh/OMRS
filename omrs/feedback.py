@@ -26,6 +26,7 @@ def process_feedback(vault, feedbacks, session_id=""):
     history = load_csv(history_path(vault), HISTORY_HEADERS)
     explicit_session_id = bool(session_id)
     question_ids = _question_ids_by_uid(vault)
+    suspended_uids = _suspended_uids(vault)
 
     # 获取题目来源映射（到期 vs 熟练度）
     uid_sources = {}
@@ -54,6 +55,10 @@ def process_feedback(vault, feedbacks, session_id=""):
         question_id = question_ids.get(uid)
         if not question_id:
             results.append({"uid": uid, "status": "error", "msg": "题目缺少 question_id，请先扫描工作区"})
+            continue
+
+        if uid in suspended_uids:
+            results.append({"uid": uid, "status": "error", "msg": "题目已停用，不能提交反馈；请先恢复"})
             continue
 
         row = resolve_sm2_fields(row_map[uid])
@@ -139,6 +144,14 @@ def _question_ids_by_uid(vault):
     with connect(vault) as db:
         rows = db.execute("SELECT question_id, uid FROM question_projection WHERE archived = 0").fetchall()
     return {row["uid"]: row["question_id"] for row in rows}
+
+
+def _suspended_uids(vault):
+    with connect(vault) as db:
+        rows = db.execute(
+            "SELECT uid FROM question_projection WHERE archived = 0 AND suspended = 1"
+        ).fetchall()
+    return {row["uid"] for row in rows}
 
 
 def _parse_sub_score(value):
