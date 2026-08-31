@@ -17,24 +17,20 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 
 ---
 
-## 技术栈
+## 已知技术债
 
-当前 OMRS 的技术栈已经明确，核心路径保持轻量、无构建、无必装第三方运行时依赖：
+完整清单见 [`AI/optimization.md`](AI/optimization.md)。目前最值得优先处理的是：
 
-| 层次 | 技术 | 用途 / 边界 |
-|---|---|---|
-| 后端 | **Python 3 标准库** | CLI、HTTP API、题库扫描、记忆算法、调度、反馈和导出；主要使用 `http.server`、`socketserver`、`sqlite3`、`csv`、`json`、`hashlib`、`urllib` |
-| 数据存储 | **Markdown + Obsidian Vault** | 题目正文、答案、备注、图片引用和双链分类 |
-| 结构化状态 | **SQLite Ledger** | 不可变提交链、题目/熟练度/Session 投影、历史修正与可重放恢复 |
-| 兼容投影 | **CSV** | `mastery_data.csv`、`history_log.csv`、`sessions.csv`，由 Ledger 重建，供兼容、调试和迁移使用 |
-| 前端 | **HTML5 + CSS3 + Vanilla JavaScript** | 单页仪表盘、题目库、复习、反馈、数据复盘和报告管理；无 React/Vue 等框架、无 npm 构建步骤 |
-| 数学渲染 | **本地 vendored KaTeX** | 题目预览和导出 HTML 的 LaTeX 公式渲染，可离线工作 |
-| 图表 | **CSS + 原生 SVG** | 仪表盘图表、热力图、趋势图和散点图，不依赖 ECharts/Chart.js |
-| 服务部署 | **Python 内置 HTTP Server / systemd** | Windows 使用 `run.bat`，Linux 可使用 `deploy/omrs.service`；默认端口 `8471` |
-| 测试 | **Python unittest + Node.js smoke scripts** | 后端回归测试、前端静态/行为冒烟测试 |
-| 可选能力 | **OpenAI-compatible HTTP API、Pillow** | AI 图片识别和可选图片优化；不属于核心运行时必需依赖 |
+| 优先级 | 技术债 | 影响 | 建议方向 |
+|---|---|---|---|
+| 高 | HTTP 服务单线程 | AI 识别等慢请求会阻塞整个界面 | 改用线程化 HTTP Server，并为 CSV、Markdown、Ledger 写入增加统一锁 |
+| 中高 | Ledger 每次全量重放 | 历史提交增长后，反馈/录入后的重建耗时线性增加 | 引入按 seq 的持久化快照和增量重放 |
+| 中 | 前端大量 `innerHTML` + 行内 `onclick` | DOM 高频重建、事件逻辑与模板耦合，也阻碍 ES Module 化 | 先对反馈行、队列等高频区域采用局部更新和事件委托 |
+| 中 | 后端 `server.py` 路由分支过长 | 请求解析和错误处理重复，维护成本高 | 改为路由表 + 统一请求体解析 |
+| 中 | 测试框架与覆盖不完整 | 当前 `unittest` 与 pytest 风格测试混用，核心算法边界覆盖仍不足 | 统一测试入口，补齐算法、Ledger 集成、异常输入和浏览器回归 |
+| 低 | 局域网模式无用户认证 | `allow_external` 开启后同网段客户端可读写 | 仅在可信 LAN 使用，后续再设计认证与权限模型 |
 
-**依赖边界：** 当前仓库没有 `requirements.txt`、`pyproject.toml` 或 `package.json`；核心启动无需 `pip install` 或 `npm install`。AI 识别、Google Fonts、Pillow 图片优化和 systemd 分别属于可选联网、可选工具或 Linux 部署能力。
+这些项目是已知的维护与扩展成本，不影响当前核心功能运行；其中线程化服务、增量投影和鉴权涉及架构/安全边界，实施前应单独设计和验证。
 
 ---
 
