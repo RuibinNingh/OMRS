@@ -25,4 +25,4 @@ v1.9.0 推送后进行独立代码审查，发现停用题仍可能进入熟练�
 
 ## 发布
 
-这是对已发布 `c2f435b release: publish v1.9.0` 的后续修复，已完成本地验证，待提交并推送到 `main`。生产服务未重启，仍需单独授权上线。
+这是对已发布 `c2f435b release: publish v1.9.0` 的后续修复，已完成本地验证，并以 `55998b2 fix: harden question suspension boundaries` 提交推送到 `main`。生产服务未重启，仍需单独授权上线。
