@@ -49,6 +49,7 @@ HISTORY_HEADERS = [
     "Is_Correct",
     "Session_ID",
     "Note",
+    "Question_ID",
 ]
 
 

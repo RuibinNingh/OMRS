@@ -6,6 +6,7 @@ from .common import (
     MASTERY_HEADERS,
     SESSIONS_HEADERS,
     history_path,
+    is_suspended_row,
     load_csv,
     mastery_path,
     omrs_data_dir,
@@ -19,6 +20,14 @@ from .scheduling import generate_recommendations, schedule_questions
 
 def _load_sessions(vault):
     return load_csv(sessions_path(vault), SESSIONS_HEADERS)
+
+
+def _suspended_uids(vault):
+    return {
+        row.get("UID", "")
+        for row in load_csv(mastery_path(vault), MASTERY_HEADERS)
+        if is_suspended_row(row)
+    }
 
 
 def _save_sessions(vault, rows):
@@ -101,12 +110,13 @@ def _active_session_uids(sessions):
     return uids
 
 
-def _session_feedback_progress(session, history):
-    """Return unique submitted/pending UIDs in the Session's original order."""
+def _session_feedback_progress(session, history, suspended_uids=None):
+    """Return unique submitted/pending UIDs in the visible original order."""
+    suspended_uids = suspended_uids or set()
     ordered_uids = []
     seen = set()
     for uid in _decode_uids(session.get("UIDs", "[]")):
-        if uid and uid not in seen:
+        if uid and uid not in seen and uid not in suspended_uids:
             ordered_uids.append(uid)
             seen.add(uid)
     session_id = session.get("Session_ID", "")
@@ -202,6 +212,11 @@ def create_session_from_selection(vault, selected_items, subject=None):
         raise RuntimeError(
             f"所选题目中有 {len(active_overlap)} 道已在进行中的 Session 中：{sample}{extra}"
         )
+    from .scheduling import get_items_by_uids
+    items = get_items_by_uids(vault, selected_uids)
+    for item in items:
+        match = next((s for s in selected_items if s["uid"] == item["uid"]), None)
+        item["_source"] = match["source"] if match else "due"
     existing = {session["Session_ID"] for session in sessions}
     base = f"EXP-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
     session_id = _resolve_session_id(existing, base)
@@ -232,12 +247,6 @@ def create_session_from_selection(vault, selected_items, subject=None):
     })
     rebuild_projection(vault)
 
-    from .scheduling import get_items_by_uids
-    items = get_items_by_uids(vault, selected_uids)
-    for item in items:
-        match = next((s for s in selected_items if s["uid"] == item["uid"]), None)
-        item["_source"] = match["source"] if match else "due"
-
     return {
         "session_id": session_id,
         "created_at": now_iso,
@@ -255,19 +264,27 @@ def list_sessions(vault, status=None):
         sessions = [session for session in sessions if session.get("Status") == status]
     sessions.sort(key=lambda session: session.get("Created_At", ""), reverse=True)
     history = load_csv(history_path(vault), HISTORY_HEADERS)
-    return [
-        {
+    suspended_uids = _suspended_uids(vault)
+    result = []
+    for session in sessions:
+        visible_uids = [
+            uid for uid in _decode_uids(session.get("UIDs", "[]"))
+            if uid not in suspended_uids
+        ]
+        if session.get("Status", "active") == "active" and not visible_uids:
+            continue
+        progress = _session_feedback_progress(session, history, suspended_uids)
+        result.append({
             "session_id": session["Session_ID"],
             "created_at": session.get("Created_At", ""),
             "subject_filter": session.get("Subject_Filter", ""),
-            "count": _safe_int(session.get("Count", 0), 0),
+            "count": len(visible_uids),
             "status": session.get("Status", "active"),
             "completed_at": session.get("Completed_At", ""),
-            "uids": _decode_uids(session.get("UIDs", "[]")),
-            **_session_feedback_progress(session, history),
-        }
-        for session in sessions
-    ]
+            "uids": visible_uids,
+            **progress,
+        })
+    return result
 
 
 def get_session(vault, session_id):
@@ -276,6 +293,8 @@ def get_session(vault, session_id):
     if not match:
         return None
     session_items = _decode_session_items(match.get("UIDs", "[]"))
+    suspended_uids = _suspended_uids(vault)
+    session_items = [item for item in session_items if item["uid"] not in suspended_uids]
     uid_source_map = {item["uid"]: item["source"] for item in session_items}
     uids = [item["uid"] for item in session_items]
     rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
@@ -303,10 +322,10 @@ def get_session(vault, session_id):
         "session_id": match["Session_ID"],
         "created_at": match.get("Created_At", ""),
         "subject_filter": match.get("Subject_Filter", ""),
-        "count": _safe_int(match.get("Count", 0), 0),
+        "count": len(uids),
         "status": match.get("Status", "active"),
         "completed_at": match.get("Completed_At", ""),
-        **_session_feedback_progress(match, history),
+        **_session_feedback_progress(match, history, suspended_uids),
         "items": items,
     }
 

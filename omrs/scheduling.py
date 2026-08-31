@@ -44,12 +44,16 @@ def ef_to_difficulty(ef) -> float:
     return max(1.0, min(10.0, diff))
 
 
-def build_fail_counts(history) -> dict:
-    """从 history_log 统计每个 UID 的累计答错次数（Is_Correct == 0）。"""
+def build_fail_counts(history, uid_by_question_id=None) -> dict:
+    """统计累计答错次数；可按稳定 question_id 映射到当前 UID。"""
     counts = {}
     for log in history or []:
         if str(log.get("Is_Correct", "")).strip() == "0":
-            uid = (log.get("UID") or "").strip()
+            question_id = (log.get("Question_ID") or "").strip()
+            if question_id and uid_by_question_id is not None:
+                uid = (uid_by_question_id.get(question_id) or "").strip()
+            else:
+                uid = (log.get("UID") or "").strip()
             if uid:
                 counts[uid] = counts.get(uid, 0) + 1
     return counts

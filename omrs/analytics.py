@@ -25,6 +25,7 @@ from .common import (
     resolve_sm2_fields,
     split_sections,
 )
+from .ledger import connect
 from .scheduling import (
     _safe_float,
     _safe_int,
@@ -112,12 +113,35 @@ def _bucket_label(value, edges, labels):
 
 def get_analytics(vault):
     all_rows = [resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)]
-    suspended_uids = {row.get("UID", "") for row in all_rows if is_suspended_row(row)}
-    rows = [row for row in all_rows if row.get("UID", "") not in suspended_uids]
+    with connect(vault) as db:
+        projection_rows = db.execute(
+            "SELECT question_id, uid, suspended, archived FROM question_projection"
+        ).fetchall()
+    suspended_uids = {
+        row.get("UID", "") for row in all_rows if is_suspended_row(row)
+    }
+    suspended_uids.update(
+        row["uid"] for row in projection_rows if not row["archived"] and row["suspended"]
+    )
+    active_uids = {row.get("UID", "") for row in all_rows if row.get("UID", "") not in suspended_uids}
+    uid_by_qid = {row["question_id"]: row["uid"] for row in projection_rows if not row["archived"]}
+    qid_by_uid = {uid: qid for qid, uid in uid_by_qid.items()}
+    active_qids = {
+        row["question_id"] for row in projection_rows
+        if not row["archived"] and not row["suspended"]
+    }
+    rows = [row for row in all_rows if row.get("UID", "") in active_uids]
     all_history = load_csv(history_path(vault), HISTORY_HEADERS)
-    history = [row for row in all_history if row.get("UID", "") not in suspended_uids]
+    history = [
+        row for row in all_history
+        if (
+            row.get("Question_ID") in active_qids
+            if row.get("Question_ID")
+            else row.get("UID", "") in active_uids
+        )
+    ]
     tuning = load_tuning(vault)
-    fail_counts = build_fail_counts(history)
+    fail_counts = build_fail_counts(history, uid_by_qid)
     today = datetime.date.today()
 
     total = len(rows)
@@ -149,6 +173,7 @@ def get_analytics(vault):
         sum_attempts += attempts
         items.append({
             "uid": uid,
+            "question_id": qid_by_uid.get(uid, ""),
             "subject": row.get("Subject", ""),
             "category": row.get("Category", ""),
             "difficulty": _safe_int(row.get("Difficulty", 5), 5),
@@ -438,9 +463,14 @@ def build_review_markdown(vault):
     """
     a = get_analytics(vault)
     active_uids = {item.get("uid", "") for item in a.get("items", [])}
+    active_qids = {item.get("question_id", "") for item in a.get("items", []) if item.get("question_id")}
     history = [
         row for row in load_csv(history_path(vault), HISTORY_HEADERS)
-        if row.get("UID", "") in active_uids
+        if (
+            row.get("Question_ID") in active_qids
+            if row.get("Question_ID")
+            else row.get("UID", "") in active_uids
+        )
     ]
     today = datetime.date.today().isoformat()
     ov = a["overview"]

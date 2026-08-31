@@ -27,4 +27,10 @@ if (JSON.stringify(filtered('suspended')) !== JSON.stringify(['paused'])) throw 
 if (JSON.stringify(filtered('all')) !== JSON.stringify(['active', 'paused'])) throw new Error('含停用筛选失败');
 vm.runInContext('DATA = {items: [{uid:"active", mastery:0.2}, {uid:"paused", mastery:0.2, suspended:true}]};', sandbox);
 if (sandbox.actionActiveItems().map(item => item.uid).join(',') !== 'active') throw new Error('行动计划仍包含停用题');
-console.log('停用题前端筛选与行动计划验证通过');
+vm.runInContext('DATA = {items: [{uid:"paused", mastery:0.2, suspended:true, is_leech:true}]};', sandbox);
+if (sandbox.buildActionPlan().some(item => item.key === 'leech')) throw new Error('顽固题行动建议仍包含停用题');
+ element('q-filter-suspended').value = 'suspended';
+ sandbox.actionResetQuestionFilters();
+if (element('q-filter-suspended').value !== '') throw new Error('行动推荐跳转未清除停用筛选');
+if (sandbox.jsArg("a'b").includes("'")) throw new Error('题目 UID 未做 JavaScript 参数安全编码');
+console.log('停用题前端筛选、行动计划与跳转验证通过');

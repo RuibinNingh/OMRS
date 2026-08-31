@@ -312,6 +312,8 @@
 { "uid": "三角函数4", "subject": "数学", "category": "二次函数" }
 ```
 
+> **访问边界：** OMRS 当前没有用户认证；开启 `allow_external` 时应仅在可信局域网使用。停用/恢复端点会校验浏览器 `Origin`（若存在）与 `Host` 同源，但无 `Origin` 的脚本调用仍按现有本地 API 兼容策略放行。
+
 ### `POST /api/question/suspend`
 
 停用题目但保留 Markdown 正文和所有历史。停用后题目不进入复习调度、统计、数据分析或导出；只追加 `question.suspend` Ledger commit。
@@ -321,7 +323,7 @@
 { "uid": "三角函数4", "reason": "暂不复习" }
 ```
 
-成功响应：`{"status":"ok","uid":"三角函数4","suspended":true}`。重复停用返回 400。
+成功响应：`{"status":"ok","uid":"三角函数4","suspended":true}`。重复停用返回 400。浏览器请求若带 `Origin`，必须与当前 `Host` 完全一致；无 `Origin` 的本地脚本调用保持兼容。
 
 ### `POST /api/question/resume`
 
@@ -333,6 +335,8 @@
 ```
 
 成功响应：`{"status":"ok","uid":"三角函数4","suspended":false}`。未停用或不存在返回 400。
+
+停用题目会从尚未完成的 Session API 题目列表和待反馈计数中排除；原始 Session 记录仍保留在 Ledger / sessions 投影中以便审计。若一个活动 Session 的题目全部已停用，则不再出现在活动 Session 管理列表。
 
 ### `POST /api/question/delete`
 

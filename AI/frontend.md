@@ -107,7 +107,7 @@ API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表�
 - `renderActionPlan()` 默认只渲染前 4 条，其余折叠在「还有 N 条建议，展开 ↓」（`toggleActionPlanAll()` 切 `ACTION_SHOW_ALL`）。
 - 卡头右上的「建议今天练 N 道」由 `actionTodayTarget()` 算：逾期 + 今日到期，再加最多 3 道顽固题，封顶 20。
 - 按钮的回调是**闭包**，存在 `ACTION_PLAN[i].actions[j].run` 上，行内 `onclick` 只写 `runActionPlanItem(i,j)` 下标——不要改成把函数名拼进 HTML 字符串。
-- 跳转辅助：`actionGoQuestions(preset)` 会**先清空**题库页全部筛选控件再套 preset，然后 `switchTab('questions')` + `renderQ()`；`actionGoInstant(preset)` 同理清空 `inst-*` 后 `instLoadPractice()`。preset 的键就是元素 id。
+- 跳转辅助：`actionGoQuestions(preset)` 会**先清空**题库页全部筛选控件（含停用状态）再套 preset，然后 `switchTab('questions')` + `renderQ()`；`actionGoInstant(preset)` 同理清空 `inst-*` 后 `instLoadPractice()`。preset 的键就是元素 id。
 - 样式在 `styles.css` 的 `.act-*` 段，等级色由 `.lv-urgent/.lv-warn/.lv-info/.lv-good` 决定，全部走 `--red-rgb` 等 token，深浅色自动跟随。≤720px 时改为图标 + 正文两列、按钮整行。
 
 ---

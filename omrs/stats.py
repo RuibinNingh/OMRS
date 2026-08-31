@@ -18,6 +18,7 @@ from .common import (
     resolve_sm2_fields,
     split_sections,
 )
+from .ledger import connect
 from .scheduling import (
     _row_to_item,
     _safe_float,
@@ -33,14 +34,36 @@ from .scheduling import (
 
 def get_stats(vault):
     rows = [resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)]
-    active_rows = [row for row in rows if not is_suspended_row(row)]
-    suspended_count = len(rows) - len(active_rows)
     history = load_csv(history_path(vault), HISTORY_HEADERS)
+    with connect(vault) as db:
+        projection_rows = db.execute(
+            "SELECT question_id, uid, suspended, archived FROM question_projection"
+        ).fetchall()
+    projected_suspended_uids = {
+        row["uid"] for row in projection_rows if not row["archived"] and row["suspended"]
+    }
+    active_rows = [
+        row for row in rows
+        if not is_suspended_row(row) and row.get("UID", "") not in projected_suspended_uids
+    ]
+    suspended_count = len(rows) - len(active_rows)
     active_uids = {row.get("UID", "") for row in active_rows}
-    active_history = [log for log in history if log.get("UID", "") in active_uids]
+    uid_by_qid = {row["question_id"]: row["uid"] for row in projection_rows if not row["archived"]}
+    active_qids = {
+        row["question_id"] for row in projection_rows
+        if not row["archived"] and not row["suspended"]
+    }
+    active_history = [
+        log for log in history
+        if (
+            log.get("Question_ID") in active_qids
+            if log.get("Question_ID")
+            else log.get("UID", "") in active_uids
+        )
+    ]
     tuning = load_tuning(vault)
-    active_fail_counts = build_fail_counts(active_history)
-    all_fail_counts = build_fail_counts(history)
+    active_fail_counts = build_fail_counts(active_history, uid_by_qid)
+    all_fail_counts = build_fail_counts(history, uid_by_qid)
     today = datetime.date.today()
 
     total = len(active_rows)
@@ -85,7 +108,7 @@ def get_stats(vault):
         key = f"{bucket * 10}-{(bucket + 1) * 10}"
         mastery_histogram[key] = sum(
             1
-            for row in rows
+            for row in active_rows
             if (
                 lo <= _safe_float(row.get("Mastery", 0)) <= 1.0
                 if bucket == 9

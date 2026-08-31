@@ -251,6 +251,7 @@ def _apply_legacy_bootstrap(state, payload, seq):
         qid = row.get("question_id") or state["uid_to_question_id"].get(uid)
         legacy_row = {
             **row,
+            "Question_ID": row.get("Question_ID") or qid or "",
             "_legacy": True,
             "_question_id": qid,
             "_commit_id": "legacy.bootstrap",
@@ -415,6 +416,7 @@ def _history_row(commit, idx, question_id, review, session_id):
         "Is_Correct": "1" if review.get("is_correct") else "0",
         "Session_ID": session_id or review.get("session_id", ""),
         "Note": review.get("note", ""),
+        "Question_ID": question_id,
         "_question_id": question_id,
         "_commit_id": commit["commit_id"],
         "_review_index": idx,

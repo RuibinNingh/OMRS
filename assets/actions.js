@@ -15,7 +15,7 @@ const ACTION_LEVEL_META = {
 // ── 跳转辅助：带着筛选条件落到能立刻动手的页面 ──
 function actionResetQuestionFilters() {
   const ids = ['q-search', 'q-filter-subj', 'q-filter-category', 'q-filter-tag', 'q-filter-ktag',
-    'q-filter-diff-min', 'q-filter-diff-max', 'q-filter-mastery-min', 'q-filter-mastery-max', 'q-filter-due'];
+    'q-filter-diff-min', 'q-filter-diff-max', 'q-filter-mastery-min', 'q-filter-mastery-max', 'q-filter-due', 'q-filter-suspended'];
   ids.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   const sort = document.getElementById('q-sort');
   if (sort) sort.value = 'mastery-asc';
@@ -148,7 +148,7 @@ function buildActionPlan() {
   }
 
   // 4. 顽固题：反复错，靠再刷一遍通常没用，要换方法
-  const leeches = items.filter(item => item.is_leech);
+  const leeches = active.filter(item => item.is_leech);
   if (leeches.length) {
     push({
       key: 'leech', level: 'urgent', icon: '⟳', metric: String(leeches.length),

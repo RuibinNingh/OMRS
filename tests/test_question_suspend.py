@@ -4,13 +4,14 @@ import tempfile
 import unittest
 
 from omrs.analytics import get_analytics
-from omrs.common import HISTORY_HEADERS, MASTERY_HEADERS, history_path, load_csv, mastery_path
+from omrs.common import HISTORY_HEADERS, MASTERY_HEADERS, history_path, load_csv, mastery_path, sessions_path
 from omrs.creation import create_question
 from omrs.feedback import process_feedback
 from omrs.exporting import export_schedule_artifact
 from omrs.ledger import connect, read_commits, verify_ledger
-from omrs.question_ops import resume_question, suspend_question
+from omrs.question_ops import move_question, resume_question, suspend_question
 from omrs.scheduling import generate_recommendations, get_items_by_uids, schedule_questions
+from omrs.sessions import create_session, create_session_from_selection, list_sessions
 from omrs.stats import get_stats
 
 
@@ -49,6 +50,7 @@ class QuestionSuspendTests(unittest.TestCase):
             stats = get_stats(vault.name)
             self.assertEqual(stats["total"], 2)
             self.assertEqual(stats["suspended"], 1)
+            self.assertEqual(sum(stats["mastery_histogram"].values()), stats["total"])
             self.assertEqual({item["uid"] for item in stats["items"]}, {q["uid"] for q in questions})
             self.assertTrue(next(item for item in stats["items"] if item["uid"] == target["uid"])["suspended"])
 
@@ -61,6 +63,46 @@ class QuestionSuspendTests(unittest.TestCase):
                 get_items_by_uids(vault.name, [target["uid"]])
             with self.assertRaisesRegex(RuntimeError, "没有可导出的题目"):
                 export_schedule_artifact(vault.name, [target["uid"]], "", "screen")
+
+    def test_selection_rejects_suspended_uid_before_persisting_session(self):
+        vault, questions = self.make_vault()
+        with vault:
+            target = questions[0]
+            suspend_question(vault.name, target["uid"])
+            before_sessions = load_csv(sessions_path(vault.name), [])
+            before_commits = len(read_commits(vault.name, ascending=True))
+            with self.assertRaisesRegex(RuntimeError, "已停用"):
+                create_session_from_selection(vault.name, [{"uid": target["uid"], "source": "due"}])
+            self.assertEqual(load_csv(sessions_path(vault.name), []), before_sessions)
+            self.assertEqual(len(read_commits(vault.name, ascending=True)), before_commits)
+
+    def test_active_session_hides_questions_suspended_after_session_creation(self):
+        vault, questions = self.make_vault()
+        with vault:
+            target, other = questions[:2]
+            session = create_session_from_selection(
+                vault.name,
+                [{"uid": target["uid"], "source": "due"}, {"uid": other["uid"], "source": "due"}],
+            )
+            suspend_question(vault.name, target["uid"])
+            listed = list_sessions(vault.name, status="active")
+            current = next(row for row in listed if row["session_id"] == session["session_id"])
+            self.assertNotIn(target["uid"], current["uids"])
+            self.assertNotIn(target["uid"], current["pending_uids"])
+            self.assertEqual(current["pending_count"], 1)
+
+    def test_moved_and_suspended_question_history_is_excluded_by_stable_identity(self):
+        vault, questions = self.make_vault()
+        with vault:
+            target = questions[0]
+            process_feedback(vault.name, [{"uid": target["uid"], "sub_score": 8, "is_correct": True}])
+            moved = move_question(vault.name, target["uid"], "数学", "新分类")
+            suspend_question(vault.name, moved["uid"])
+            analytics = get_analytics(vault.name)
+            self.assertEqual(analytics["overview"]["total_reviews"], 0)
+            resume_question(vault.name, moved["uid"])
+            restored = get_analytics(vault.name)
+            self.assertEqual(restored["overview"]["total_reviews"], 1)
 
     def test_suspend_removes_history_from_analytics_but_resume_restores_question(self):
         vault, questions = self.make_vault()

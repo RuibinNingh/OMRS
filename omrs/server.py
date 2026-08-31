@@ -386,6 +386,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
         elif path == "/api/question/suspend":
             try:
+                self._validate_same_origin()
                 data = json.loads(body) if body else {}
                 result = suspend_question(
                     self.vault_path,
@@ -398,6 +399,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
         elif path == "/api/question/resume":
             try:
+                self._validate_same_origin()
                 data = json.loads(body) if body else {}
                 result = resume_question(
                     self.vault_path,
@@ -593,6 +595,16 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     break
             return os.path.basename(filename), payload
         raise ValueError("未找到上传的备份文件")
+
+    def _validate_same_origin(self):
+        """Reject cross-origin browser writes while keeping CLI POSTs compatible."""
+        origin = (self.headers.get("Origin") or "").strip()
+        if not origin:
+            return
+        parsed = urllib.parse.urlparse(origin)
+        host = (self.headers.get("Host") or "").strip()
+        if not parsed.netloc or parsed.netloc != host:
+            raise ValueError("拒绝跨站状态修改请求")
 
     def _json(self, data, code=200):
         body = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")

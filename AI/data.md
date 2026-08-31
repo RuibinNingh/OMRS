@@ -61,6 +61,7 @@
 | `Is_Correct` | 0/1 | 是否答对 |
 | `Session_ID` | string | 所属 Session ID |
 | `Note` | string | 备注（可为空） |
+| `Question_ID` | string | 稳定题目身份；新反馈与重建后的 legacy 历史均写入，用于题目改名/迁移后的分析归属 |
 
 ---
 
