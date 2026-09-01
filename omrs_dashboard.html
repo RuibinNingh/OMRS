@@ -656,6 +656,12 @@
           <input type="file" id="opt-import-file" accept=".zip,application/zip" style="display:none" onchange="importOptimizeBackup(event)">
           <div id="svc-backup-status" style="margin-top:12px;font-size:.82rem"></div>
         </div>
+        <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)">
+          <div class="svc-sub-title">源码协助</div>
+          <div class="hint" style="margin:5px 0 12px">下载仅包含 Git 已跟踪源码、测试和项目文档的脱敏 .zip；不含「错题」题库、附件、运行数据、日志或生成导出文件。</div>
+          <button class="btn" onclick="exportSanitizedSource()">⬇️ 下载脱敏源码</button>
+          <div id="svc-source-status" style="margin-top:10px;font-size:.82rem"></div>
+        </div>
       </div>
       <div class="card">
         <div class="card-title">ℹ️ 关于</div>
@@ -902,6 +908,6 @@
 <script src="assets/instant.js?v=20260614-pages"></script>
 <script src="assets/data.js"></script>
 <script src="assets/reports.js?v=20260716-ai-report-v2"></script>
-<script src="assets/app.js?v=20260728-ledger-timezone"></script>
+<script src="assets/app.js?v=20260901-source-export"></script>
 </body>
 </html>

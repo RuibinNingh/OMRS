@@ -43,6 +43,7 @@ from .sessions import (
     active_session_uids,
 )
 from .stats import get_question_content, get_stats
+from .source_export import create_source_export
 from .version import __version__
 from .workspace_sync import get_scan_status, scan_workspace
 
@@ -78,6 +79,21 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/analytics":
             try:
                 self._json(get_analytics(self.vault_path))
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/source/export":
+            try:
+                payload, filename, _meta = create_source_export(self.vault_path)
+                filename_encoded = urllib.parse.quote(filename)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header(
+                    "Content-Disposition",
+                    f"attachment; filename=\"{filename}\"; filename*=UTF-8''{filename_encoded}",
+                )
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/export-review":

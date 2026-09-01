@@ -67,6 +67,9 @@
 | `weak_spots` | `leeches`/`struggling`/`traps`/`recently_killed` 列表 |
 | `items` | 全量题目快照（含 `eff_difficulty`/`fail_count`/`is_leech`/`is_killed`/`images` 等） |
 
+### `/api/source/export`
+生成并下载脱敏源码 ZIP。内容来自当前 Git 仓库中已跟踪的源码、测试和项目文档；明确排除 `错题/`、`临时/`、`AI/logs/`、`AI/omrs_work/`、`logs/`、`DEPLOYMENT_SOURCE.json` 和 `OMRS-EXP-*` 生成文件。ZIP 根目录为 `OMRS/`，并附带 `SOURCE_EXPORT_MANIFEST.txt` 列出导出范围。若当前目录不是 Git 仓库则返回 400，不读取未跟踪文件。
+
 ### `/api/export-review`
 导出供 AI 使用的复盘材料，对应 `build_review_export()`：
 
