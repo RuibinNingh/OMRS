@@ -31,3 +31,5 @@
 | 2026-08-31 | 新功能 | 题目停用/恢复机制（v1.9.0） | [查看](2026-08-31_question-suspend.md) |
 | 2026-08-31 | 后续修复 | 题目停用边界、稳定身份与 Session 过滤 | [查看](2026-08-31_question-suspend-followup.md) |
 | 2026-09-01 | 新功能 | 设置页下载脱敏源码 | [查看](2026-09-01_sanitized-source-export.md) |
+| 2026-09-02 | 修复 | 打包源码缺 qview.js（git 未跟踪导致） | [查看](2026-09-02_source-export-missing-qview.md) |
+| 2026-09-01 | 共享题目视图（qview）+ 反馈录入工作台 | [`2026-09-01_feedback-workbench.md`](2026-09-01_feedback-workbench.md) |
