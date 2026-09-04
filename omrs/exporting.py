@@ -15,6 +15,7 @@ import os
 import re
 import struct
 import urllib.parse
+import colorsys
 
 from .common import (
     ATTACHMENTS_DIR,
@@ -24,6 +25,8 @@ from .common import (
     mastery_path,
     questions_root,
     split_sections,
+    extract_category,
+    parse_yaml_frontmatter,
 )
 from .sessions import get_session
 
@@ -217,6 +220,11 @@ def _load_export_questions(vault, uids=None, session_id=""):
                 "category": row.get("Category", ""),
                 "difficulty": row.get("Difficulty", "?"),
                 "tags": _format_export_tags(row),
+                "labels": [
+                    label.strip()
+                    for label in str(row.get("Labels", "") or "").split("|")
+                    if label.strip()
+                ],
                 "question": sections.get(QUESTION_SECTION, "").strip(),
                 "notes": sections.get(NOTES_SECTION, "").strip(),
                 "answer": sections.get(ANSWER_SECTION, "").strip(),
@@ -364,6 +372,15 @@ def _build_export_data(vault, session_id, questions, include_answers, question_g
         "feedback": [],
         "answers": [],
     }
+    try:
+        from .labels import load_labels
+        label_colors = {
+            item["name"]: item.get("color", "#64748b")
+            for item in load_labels(vault).get("labels", [])
+            if not item.get("archived")
+        }
+    except Exception:
+        label_colors = {}
     for index, question in enumerate(questions, 1):
         data["questions"].append(
             {
@@ -373,6 +390,7 @@ def _build_export_data(vault, session_id, questions, include_answers, question_g
                 "category": question.get("category", ""),
                 "difficulty": question.get("difficulty", "?"),
                 "tags": question.get("tags", ""),
+                "labels": _board_label_objects(question.get("labels", []), label_colors),
                 "blocks": _text_to_blocks(vault, question.get("question", "") or "(无题目内容)"),
                 "notes": _parse_notes_subsections(question.get("notes", "")) or {},
             }
@@ -558,3 +576,366 @@ def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4"
     data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant, question_gap_lines, a4_two_columns)
     filename = f"OMRS-{session_id}-{variant}.html"
     return data, session_id, filename, "text/html; charset=utf-8"
+
+
+# --------------------------------------------------------------------------
+# 展示板导出
+# --------------------------------------------------------------------------
+
+# Board output is intentionally kept as a separate template pair so that the
+# browser preview and exported file share exactly the same layout rules.
+
+def _board_label_ink(color):
+    # Match labels.js::lblInk(color, "light"): print uses a white paper
+    # background, so the same-hue text is lowered until the 18% chip surface
+    # reaches WCAG AA contrast.  The stored label color is never changed.
+    try:
+        value = color.lstrip("#")
+        if len(value) == 3:
+            value = "".join(ch * 2 for ch in value)
+        if len(value) != 6:
+            raise ValueError
+        r, g, b = int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16)
+        background = tuple(round(component * .18 + 255 * .82) for component in (r, g, b))
+
+        def luminance(rgb):
+            values = []
+            for component in rgb:
+                value = component / 255
+                values.append(value / 12.92 if value <= .03928 else ((value + .055) / 1.055) ** 2.4)
+            return .2126 * values[0] + .7152 * values[1] + .0722 * values[2]
+
+        def contrast(rgb):
+            first, second = luminance(rgb), luminance(background)
+            return (max(first, second) + .05) / (min(first, second) + .05)
+
+        hue, _lightness, saturation = colorsys.rgb_to_hls(r / 255, g / 255, b / 255)
+        saturation = max(saturation, .35)
+        candidates = []
+        lightness = .02
+        while lightness <= .58:
+            red, green, blue = colorsys.hls_to_rgb(hue, lightness, saturation)
+            candidate = tuple(round(value * 255) for value in (red, green, blue))
+            candidates.append(candidate)
+            if contrast(candidate) >= 4.5:
+                return "#{:02x}{:02x}{:02x}".format(*candidate)
+            lightness += .01
+        candidates.append((0, 0, 0))
+        best = max(candidates, key=contrast)
+        return "#{:02x}{:02x}{:02x}".format(*best)
+    except Exception:
+        return "#64748b"
+
+
+def _board_question(vault, item):
+    file_path = str(item.get("file_path") or "")
+    if not file_path:
+        row = next((r for r in load_csv(mastery_path(vault), MASTERY_HEADERS) if r.get("UID") == item.get("uid")), {})
+        file_path = row.get("File_Path", "")
+    path = os.path.join(vault, file_path.replace("\\", os.sep).replace("/", os.sep))
+    if not os.path.isfile(path):
+        return None
+    with open(path, "r", encoding="utf-8") as file:
+        content = file.read()
+    sections = split_sections(content)
+    meta = parse_yaml_frontmatter(content)
+    return {
+        "uid": item.get("uid", ""),
+        "subject": meta.get("科目", item.get("subject", "")),
+        "category": extract_category(meta) or item.get("category", ""),
+        "difficulty": meta.get("难度", item.get("difficulty", "")),
+        "question": sections.get(QUESTION_SECTION, "").strip(),
+        "answer": sections.get(ANSWER_SECTION, "").strip(),
+        "labels": item.get("labels") or [],
+    }
+
+
+def _board_text_html(text, vault=None):
+    """Render board text without dropping tables or image blocks.
+
+    Board pagination treats tables as atomic DOM nodes, just like the A4
+    exporter.  Text remains escaped plain HTML; the board template deliberately
+    keeps the paper layout small and quiet rather than introducing a second
+    Markdown renderer.
+    """
+    blocks = _text_to_blocks(vault or _BOARD_VAULT, text)
+    html = []
+    for block in blocks:
+        if block.get("t") == "img":
+            image = block.get("img") or {}
+            html.append(
+                f'<img class="bd-img" src="{_escape_html(image.get("src", ""))}" '
+                f'alt="{_escape_html(image.get("name", ""))}">'
+            )
+        elif block.get("t") == "table":
+            headers = block.get("headers") or []
+            rows = block.get("rows") or []
+            head = "".join(f"<th>{_escape_html(cell)}</th>" for cell in headers)
+            body = "".join(
+                "<tr>" + "".join(f"<td>{_escape_html(cell)}</td>" for cell in row) + "</tr>"
+                for row in rows
+            )
+            html.append(
+                f'<div class="bd-table-wrap"><table class="bd-table"><thead><tr>{head}</tr>'
+                f"<tbody>{body}</tbody></table></div>"
+            )
+        else:
+            html.append(f"<p>{_escape_html(block.get('text', ''))}</p>")
+    return "".join(html) or "<p>（无题目内容）</p>"
+
+
+def _escape_html(value):
+    return (
+        str(value or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#39;")
+    )
+
+
+def _board_label_html(labels):
+    # labels is a list of {name,color} or names. The exporter does not need the
+    # label registry to be available: unknown names use the neutral slate color.
+    result = []
+    for raw in labels or []:
+        if isinstance(raw, dict):
+            name, color = raw.get("name", ""), raw.get("color", "#64748b")
+        else:
+            name, color = str(raw), "#64748b"
+        if not str(name).strip():
+            continue
+        rgb = "100,116,139"
+        try:
+            hex_color = str(color).lstrip("#")
+            if len(hex_color) == 3:
+                hex_color = "".join(ch * 2 for ch in hex_color)
+            if len(hex_color) != 6:
+                raise ValueError
+            rgb = ",".join(str(int(hex_color[i:i + 2], 16)) for i in (0, 2, 4))
+        except Exception:
+            pass
+        result.append(
+            f'<span class="lbl" style="--lrgb:{rgb};--link:{_board_label_ink(str(color))}">'
+            f"{_escape_html(name)}</span>"
+        )
+    return "".join(result)
+
+
+def _board_text_line_estimate(text, max_chars=31):
+    """Estimate rendered board-text height in line units.
+
+    The exporter deliberately does not clip正文.  This estimate is only used to
+    choose a page break before the browser renders the fixed A4 sheet; images
+    consume a conservative block allowance so they are not silently pushed
+    outside the left column.
+    """
+    lines = 0
+    for source in str(text or "").splitlines() or [""]:
+        embeds, remaining = _extract_embeds(source)
+        if remaining:
+            lines += max(1, (len(remaining) + max_chars - 1) // max_chars)
+        for _name, _width in embeds:
+            lines += 14  # max-height: 240px at roughly 18px text line height
+    return max(1, lines)
+
+
+def _board_label_objects(labels, colors):
+    result = []
+    for name in labels or []:
+        name = str(name or "").strip()
+        if not name:
+            continue
+        color = colors.get(name, "#64748b")
+        result.append({
+            "name": name,
+            "color": color,
+            "ink": _board_label_ink(color),
+        })
+    return result
+
+
+def export_board_html(vault, board_id, include_answers=None, page_start=1, page_end=None,
+                      overrides=None):
+    """Export a board as a self-contained A4 HTML document.
+
+    Pagination is calculated for the whole board first.  ``page_start`` and
+    ``page_end`` then select already-numbered pages, so printing page 3 alone
+    still displays the absolute footer number ``3``.  The board template owns
+    the final DOM/CSS and intentionally emits no right-column note element.
+    """
+    from .boards import board_items_for_export
+
+    board, items = board_items_for_export(vault, board_id)
+    settings = {**board.get("print", {}), **(overrides or {})}
+    if include_answers is None:
+        include_answers = settings.get("answers") == "append"
+
+    global _BOARD_VAULT
+    _BOARD_VAULT = vault
+    valid_pairs = []
+    for item in items:
+        question = _board_question(vault, item)
+        if question:
+            valid_pairs.append((question, item))
+    if not valid_pairs:
+        raise RuntimeError("展示板没有可导出的题目")
+
+    try:
+        from .labels import load_labels
+        label_colors = {
+            item["name"]: item.get("color", "#64748b")
+            for item in load_labels(vault).get("labels", [])
+            if not item.get("archived")
+        }
+    except Exception:
+        label_colors = {}
+
+    try:
+        ratio = max(.30, min(.55, float(settings.get("note_ratio", .42))))
+    except (TypeError, ValueError):
+        ratio = .42
+    try:
+        gap_lines = max(0, min(24, int(settings.get("gap_lines", 6))))
+    except (TypeError, ValueError):
+        gap_lines = 6
+    try:
+        binding_mm = max(10, min(40, int(settings.get("binding_mm", 22))))
+    except (TypeError, ValueError):
+        binding_mm = 22
+
+    # The left content column is about 53 lines high after the fixed header.
+    # Keep a small safety margin for font metrics and never cap a long question:
+    # a capped estimate would make a long block overflow instead of moving it.
+    page_budget = 49
+    pages, current, used = [], [], 0
+    for index, (question, item) in enumerate(valid_pairs, 1):
+        extra = max(0, min(24, int(item.get("extra_gap_lines", 0) or 0)))
+        height = _board_text_line_estimate(question.get("question", "")) + 2 + gap_lines + extra
+        if current and used + height > page_budget:
+            pages.append(current)
+            current, used = [], 0
+        current.append((index, question, item))
+        used += height
+    if current:
+        pages.append(current)
+
+    answer_page = None
+    if include_answers:
+        answer_rows = []
+        for index, (question, _item) in enumerate(valid_pairs, 1):
+            answer_rows.append({
+                "index": index,
+                "uid": question["uid"],
+                "html": _board_text_html(question.get("answer", ""), vault),
+            })
+        answer_page = {
+            "number": len(pages) + 1,
+            "binding_px": binding_mm * 3.7795,
+            "note_ratio": ratio,
+            "answers": answer_rows,
+        }
+
+    total_pages = len(pages) + (1 if answer_page else 0)
+    try:
+        start = max(1, int(page_start or 1))
+    except (TypeError, ValueError):
+        start = 1
+    open_end = page_end in (None, "")
+    if open_end:
+        end = total_pages
+    else:
+        try:
+            end = int(page_end)
+        except (TypeError, ValueError):
+            end = total_pages
+        if end < start:
+            raise ValueError("打印范围起始页不能大于结束页")
+        end = min(total_pages, end)
+    if start > total_pages or end < start:
+        raise RuntimeError("打印范围没有可导出的页")
+
+    all_pages = []
+    selected_pages = []
+    for page_number, rows in enumerate(pages, 1):
+        rendered_questions = []
+        for index, question, item in rows:
+            labels = _board_label_objects(
+                question.get("labels", []) if settings.get("show_labels", True) else [],
+                label_colors,
+            )
+            meta = ""
+            if settings.get("show_meta", True):
+                meta = (
+                    f"{question.get('subject', '')} · {question.get('category', '')} · "
+                    f"难度 {question.get('difficulty', '')}"
+                )
+            rendered_questions.append({
+                "index": index,
+                "uid": question["uid"],
+                "labels": labels,
+                "meta": meta,
+                "html": _board_text_html(question.get("question", ""), vault),
+                "gap_px": gap_lines * 18,
+                "extra_gap_px": max(0, min(24, int(item.get("extra_gap_lines", 0) or 0))) * 18,
+            })
+        rendered_page = {
+            "number": page_number,
+            "binding_px": binding_mm * 3.7795,
+            "note_ratio": ratio,
+            "questions": rendered_questions,
+        }
+        all_pages.append(rendered_page)
+        if start <= page_number <= end:
+            selected_pages.append(rendered_page)
+    if answer_page and start <= answer_page["number"] <= end:
+        selected_pages.append(answer_page)
+
+    all_questions = [
+        question
+        for page in all_pages
+        for question in page["questions"]
+    ]
+    data = {
+        "pages": selected_pages,
+        # ``all_questions`` lets the browser reflow with real font/image
+        # geometry before applying the requested absolute page range.  The
+        # legacy ``pages`` field remains for consumers that only inspect the
+        # server estimate.
+        "all_questions": all_questions,
+        "answers": answer_page["answers"] if answer_page else [],
+        "binding_px": binding_mm * 3.7795,
+        "binding_marks": settings.get("binding_marks", "none")
+        if settings.get("binding_marks") in {"none", "3hole", "26hole"}
+        else "none",
+        "note_ratio": ratio,
+        "include_answers": bool(answer_page),
+        "board_id": str(board.get("id") or board_id),
+        "page_start": start,
+        "page_end": end,
+        "open_end": open_end,
+        "estimated_total_pages": total_pages,
+        "estimated_selected_page_count": len(selected_pages),
+    }
+    css = _read_template("board.css")
+    js = _read_template("board.js")
+    data_json = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    html = (
+        "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
+        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+        f"<meta name=\"omrs-page-count\" content=\"{len(selected_pages)}\">"
+        f"<meta name=\"omrs-estimated-page-count\" content=\"{len(selected_pages)}\">"
+        f"<meta name=\"omrs-total-page-count\" content=\"{total_pages}\">"
+        f"<meta name=\"omrs-page-start\" content=\"{start}\">"
+        f"<meta name=\"omrs-page-end\" content=\"{end}\">"
+        f"<meta name=\"omrs-open-end\" content=\"{'1' if open_end else '0'}\">"
+        "<title>错题集</title><style>" + css + "</style></head><body>"
+        '<div class="toolbar">展示板打印预览<button onclick="window.print()">打印 / 导出 PDF</button></div>'
+        '<div id="stage"></div>'
+        f"<script>window.OMRS_DATA = {data_json};</script>"
+        "<script>" + js + "</script></body></html>"
+    )
+    return html.encode("utf-8")
+
+_BOARD_VAULT = ""

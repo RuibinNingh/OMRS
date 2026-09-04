@@ -103,6 +103,22 @@ function renderSubjectChart(subjectDist){
     </div>`;
   }).join('')+'</div>';
 }
+function renderLabelChart(items){
+  const el=document.getElementById('chart-labels');if(!el)return;
+  const counts={};
+  (items||[]).filter(item=>!item.suspended).forEach(item=>{
+    (item.labels||[]).forEach(label=>{
+      const name=String(label||'').trim();if(name)counts[name]=(counts[name]||0)+1;
+    });
+  });
+  const entries=Object.entries(counts).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'zh-CN'));
+  if(!entries.length){el.innerHTML=dashEmpty('还没有用户标记');return}
+  const max=Math.max(1,...entries.map(([,count])=>count));
+  el.innerHTML=`<div class="label-dist-list">${entries.map(([name,count])=>{
+    const chip=typeof lblChip==='function'?lblChip(name,{lg:true}):escapeHtml(name);
+    return`<div class="label-dist-row"><div class="label-dist-head"><span>${chip}</span><strong>${count}</strong></div><div class="chart-track"><div class="chart-fill accent" style="width:${dashPct(count,max)}%"></div></div></div>`;
+  }).join('')}</div>`;
+}
 function renderMasteryChart(histogram){
   const el=document.getElementById('chart-mastery');if(!el)return;
   const mh=histogram||{};const keys=['0-10','10-20','20-30','30-40','40-50','50-60','60-70','70-80','80-90','90-100'];
@@ -173,6 +189,7 @@ function renderDash(){
   const suspendedEl=document.getElementById('s-suspended');
   if(suspendedEl)suspendedEl.textContent=d.suspended||0;
   renderSubjectChart(d.subject_dist);
+  renderLabelChart(d.items);
   renderActivityHeatmap(d.recent_activity);
   renderAlertCards(d.review_alert);
   renderTrendChart(d.daily_trend);

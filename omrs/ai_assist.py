@@ -93,11 +93,15 @@ def _normalize_subject_category(parsed: dict, taxonomy: dict,
     return subject, category
 
 
-def _ai_config(vault: str):
+def _ai_config(vault: str, purpose: str = ""):
+    """purpose: '' | 'detect' | 'extract' | 'classify'。按用途读 ai_model_<purpose>，缺省回退 ai_model。"""
     cfg = load_config(vault)
     base = (cfg.get("ai_base_url") or "").strip().rstrip("/")
     key = (cfg.get("ai_api_key") or "").strip()
-    model = (cfg.get("ai_model") or "").strip()
+    model = ""
+    if purpose:
+        model = (cfg.get(f"ai_model_{purpose}") or "").strip()
+    model = model or (cfg.get("ai_model") or "").strip()
     return base, key, model
 
 
@@ -174,9 +178,10 @@ def _extract_json(text: str) -> dict:
     return {}
 
 
-def _call_model(vault: str, user_text: str, image_data_url: str, max_tokens: int, timeout: int) -> str:
-    """组 OpenAI 兼容请求并返回模型回复的文本内容。错误以 ValueError 抛出。"""
-    base, key, model = _ai_config(vault)
+def _call_model(vault: str, user_text: str, image_data_url: str, max_tokens: int, timeout: int,
+                purpose: str = "") -> str:
+    """组 OpenAI 兼容请求并返回模型回复的文本内容。错误以 ValueError 抛出。purpose 选择按用途配置的模型。"""
+    base, key, model = _ai_config(vault, purpose)
     missing = [name for name, val in (("API 地址", base), ("API Key", key), ("模型", model)) if not val]
     if missing:
         raise ValueError("尚未配置 AI：请在「设置 → AI 自动识别」中填写 " + "、".join(missing))
@@ -327,7 +332,7 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
             + "。这些已指定的值请**原样沿用、不要改动**（即按它们填回对应字段），"
             "并据此判断其余字段（难度、知识点）。"
         )
-    content = _call_model(vault, user_text, image_data_url, max_tokens=600, timeout=timeout)
+    content = _call_model(vault, user_text, image_data_url, max_tokens=600, timeout=timeout, purpose="classify")
     parsed = _extract_json(content)
     subject, category = _normalize_subject_category(
         parsed, taxonomy, hint_subject=hint_subject.strip(), hint_category=hint_category.strip()
@@ -378,3 +383,145 @@ def recognize_question(vault: str, image_data_url: str, mode: str = "classify", 
     return classify_question(vault, image_data_url, timeout=timeout,
                              hint_subject=hint_subject, hint_category=hint_category,
                              restrict_tags=restrict_tags)
+
+
+# ────────────────────────── 收件箱：框选 / 带可转性判断的提取 ──────────────────────────
+
+DETECT_PROMPT = """这是一张错题相关的图片（%s）。请定位图中每道题的【题目区域】和【答案/解析区域】。
+
+要求：
+1. 题目区域：题干、选项、题图所在的矩形；答案区域：答案、解析、推导所在的矩形。UI 装饰（导航栏、标签页、广告、视频卡片、评论）一律不要。
+2. 若图中有多道题，用 card 区分（同一道题的题目与答案 card 相同，从 1 起）。
+3. bbox_2d 为 [x1, y1, x2, y2]，使用 0-1000 的相对坐标（左上角 0,0；右下角 1000,1000）。
+4. 只输出 JSON 数组，不要解释、不要 Markdown 代码块：
+[{"label": "question", "card": 1, "bbox_2d": [x1, y1, x2, y2], "confidence": 0.9}, {"label": "answer", "card": 1, "bbox_2d": [x1, y1, x2, y2], "confidence": 0.9}]
+找不到某类区域就省略它；整张图什么都没有则输出 []。"""
+
+_LAYOUT_HINT = {
+    "zuoyebang": "作业帮 App 截图：题目在顶部「识别题目」卡片里，答案在下方「答案」标题之后；中间的「本题精讲」「相关视频」是广告，不要框",
+    "photo": "教材 / 试卷拍照，可能有多道题和几何图形，题图要包含在题目区域内",
+    "plain": "已裁好的题图，通常整张图就是题目",
+    "other": "来源未知",
+}
+
+JUDGE_SUFFIX = """
+
+另外请判断这块内容【能否忠实地转成纯文本 + LaTeX】：含几何图形、函数图像、手写、复杂版式（无法用 Markdown 表格表示的表格）时为不可转。
+最终只输出一个 JSON 对象，不要 Markdown 代码块：
+{"convertible": true, "reason": "一句话说明依据（如：纯文字+公式 / 含几何图形）", "text": "转录后的正文；不可转时可为空字符串"}"""
+
+
+def parse_detect_output(text: str, image_width: int = 0, image_height: int = 0) -> list:
+    """把模型的定位输出解析成归一化框 [{role, card, x, y, w, h, conf}]。
+
+    兼容三种坐标：Qwen3-VL 的 0-1000 相对坐标（默认）；Qwen2.5-VL 风格的绝对像素
+    （任一坐标 > 1000 且给了图片尺寸时按像素换算）；0-1 小数。"""
+    cleaned = _strip_fences(text or "")
+    start, end = cleaned.find("["), cleaned.rfind("]")
+    if start == -1 or end == -1 or end <= start:
+        return []
+    try:
+        arr = json.loads(cleaned[start:end + 1])
+    except Exception:
+        return []
+    if not isinstance(arr, list):
+        return []
+    boxes = []
+    for item in arr:
+        if not isinstance(item, dict):
+            continue
+        bbox = item.get("bbox_2d") or item.get("bbox") or item.get("box")
+        if not (isinstance(bbox, (list, tuple)) and len(bbox) == 4):
+            continue
+        try:
+            x1, y1, x2, y2 = [float(v) for v in bbox]
+        except (TypeError, ValueError):
+            continue
+        if max(x1, y1, x2, y2) <= 1.0:
+            sx = sy = 1.0
+        elif max(x1, y1, x2, y2) > 1000 and image_width and image_height:
+            sx, sy = 1.0 / image_width, 1.0 / image_height
+        else:
+            sx = sy = 1.0 / 1000.0
+        x1, x2 = sorted((x1 * sx, x2 * sx))
+        y1, y2 = sorted((y1 * sy, y2 * sy))
+        x1, y1 = max(0.0, min(1.0, x1)), max(0.0, min(1.0, y1))
+        x2, y2 = max(0.0, min(1.0, x2)), max(0.0, min(1.0, y2))
+        if x2 - x1 <= 0.005 or y2 - y1 <= 0.005:
+            continue
+        label = str(item.get("label") or item.get("role") or "question").strip().lower()
+        role = "answer" if label.startswith(("answer", "答案", "解析")) else "question"
+        try:
+            card = max(1, int(item.get("card", 1) or 1))
+        except (TypeError, ValueError):
+            card = 1
+        try:
+            conf = float(item.get("confidence", item.get("conf", 0.7)) or 0.7)
+        except (TypeError, ValueError):
+            conf = 0.7
+        boxes.append({"role": role, "card": card, "x": x1, "y": y1, "w": x2 - x1, "h": y2 - y1,
+                      "conf": max(0.0, min(1.0, conf))})
+    return boxes
+
+
+def detect_regions(vault: str, image_data_url: str, layout: str = "other", timeout: int = 120) -> list:
+    """读整图（或长图条带），返回归一化题目/答案框。模型不支持定位时返回 []。"""
+    prompt = DETECT_PROMPT % _LAYOUT_HINT.get(layout, _LAYOUT_HINT["other"])
+    content = _call_model(vault, prompt, image_data_url, max_tokens=800, timeout=timeout, purpose="detect")
+    return parse_detect_output(content)
+
+
+def extract_region(vault: str, image_data_url: str, role: str = "question", judge: bool = True,
+                   timeout: int = 120) -> dict:
+    """读一个裁剪区域，转录文本；judge=True 时同时判断能否转文本。
+
+    返回 {convertible, reason, text}。模型没按 JSON 返回时，把全文当作 text、convertible=True。"""
+    base_prompt = ANSWER_PROMPT if role == "answer" else QUESTION_TEXT_PROMPT
+    if judge:
+        prompt = base_prompt + JUDGE_SUFFIX
+    else:
+        prompt = base_prompt
+    content = _call_model(vault, prompt, image_data_url, max_tokens=4000, timeout=timeout, purpose="extract")
+    if not judge:
+        return {"convertible": True, "reason": "", "text": _strip_fences(content)}
+    parsed = _extract_json(content)
+    if not parsed or "text" not in parsed:
+        return {"convertible": True, "reason": "模型未按 JSON 返回，按可转处理", "text": _strip_fences(content)}
+    return {
+        "convertible": bool(parsed.get("convertible", True)),
+        "reason": str(parsed.get("reason") or ""),
+        "text": str(parsed.get("text") or ""),
+    }
+
+
+def detect_regions_local(url: str, image_data_url: str, layout: str = "other",
+                         image_width: int = 0, image_height: int = 0, timeout: int = 60) -> list:
+    """本地检测服务 provider（`local_http`）：训好的 YOLO / ONNX 服务按与 detect 单元一致的协议返回框。
+
+    请求：`POST <url>`，JSON `{image: dataURL, layout, width, height}`。
+    响应：JSON 数组 `[{label, card, bbox_2d:[x1,y1,x2,y2], confidence}]`，或对象 `{boxes:[…]}`。
+    坐标可以是 0–1000 相对、0–1 小数或绝对像素（给了 width/height 时），与 VLM 输出同样经
+    parse_detect_output 归一化。主程序保持零依赖，只用 urllib。"""
+    url = (url or "").strip()
+    if not url:
+        raise ValueError("尚未配置本地检测服务地址（inbox_local_detect_url）")
+    body = json.dumps({"image": image_data_url, "layout": layout, "width": image_width, "height": image_height},
+                      ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(url, data=body, method="POST",
+                                     headers={"Content-Type": "application/json", "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw = response.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        raise ValueError(f"本地检测服务返回 HTTP {exc.code}") from exc
+    except urllib.error.URLError as exc:
+        raise ValueError(f"连不上本地检测服务：{exc.reason}") from exc
+    try:
+        parsed = json.loads(raw)
+    except Exception as exc:
+        raise ValueError("本地检测服务未返回 JSON") from exc
+    if isinstance(parsed, dict):
+        parsed = parsed.get("boxes") or parsed.get("regions") or []
+    if not isinstance(parsed, list):
+        raise ValueError("本地检测服务返回格式不对：需要数组或 {boxes:[…]}")
+    return parse_detect_output(json.dumps(parsed), image_width, image_height)

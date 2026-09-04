@@ -10,6 +10,7 @@ from .common import (
     append_csv,
     calc_sm2_interval,
     compute_due_date,
+    extract_labels,
     history_path,
     is_suspended_row,
     load_tuning,
@@ -298,6 +299,15 @@ def _normalize_question_fields(question, fallback=None):
         knowledge = fallback.get("knowledge_tags", [])
     if isinstance(knowledge, str):
         knowledge = [tag for tag in knowledge.split("|") if tag]
+    labels = question.get("labels")
+    if labels is None:
+        labels = question.get("Labels")
+    if labels is None:
+        labels = metadata.get("标记")
+    if labels is None:
+        labels = fallback.get("labels", [])
+    if isinstance(labels, str):
+        labels = [label for label in labels.split("|") if label]
     return {
         "question_id": question.get("question_id") or question.get("_omrs_id") or fallback.get("question_id", ""),
         "uid": question.get("uid") or question.get("UID") or fallback.get("uid", ""),
@@ -307,6 +317,7 @@ def _normalize_question_fields(question, fallback=None):
         "difficulty": _safe_int(question.get("difficulty") or question.get("Difficulty") or metadata.get("难度"), 5),
         "current_tag": question.get("current_tag") or question.get("Current_Tag") or fallback.get("current_tag", "#状态/待攻克"),
         "knowledge_tags": list(knowledge or []),
+        "labels": list(labels or []),
         "metadata": metadata or fallback.get("metadata", {}),
         "metadata_hash": question.get("metadata_hash", fallback.get("metadata_hash", "")),
         "content_hash": question.get("content_hash", fallback.get("content_hash", "")),
@@ -441,6 +452,7 @@ def _recompute_mastery_from_history(vault, state, seq):
 def _write_projection_tables(db, state):
     db.execute("DELETE FROM question_projection")
     db.execute("DELETE FROM question_knowledge_points")
+    db.execute("DELETE FROM question_labels")
     db.execute("DELETE FROM mastery_projection")
     db.execute("DELETE FROM session_projection")
     for qid, question in state["questions"].items():
@@ -472,6 +484,12 @@ def _write_projection_tables(db, state):
                 db.execute(
                     "INSERT OR IGNORE INTO question_knowledge_points(question_id, knowledge_point) VALUES (?, ?)",
                     (qid, tag),
+                )
+        for label in question.get("labels", []):
+            if label:
+                db.execute(
+                    "INSERT OR IGNORE INTO question_labels(question_id, label) VALUES (?, ?)",
+                    (qid, label),
                 )
     for qid, mastery in state["mastery"].items():
         db.execute(
@@ -541,6 +559,7 @@ def export_legacy_csv(vault: str, state=None):
             "Current_Tag": question.get("current_tag", "#状态/待攻克"),
             "Entry_Date": question.get("metadata", {}).get("录入日期", ""),
             "Knowledge_Tags": "|".join(question.get("knowledge_tags", [])),
+            "Labels": "|".join(question.get("labels", [])),
             "Suspended": "1" if question.get("suspended") else "0",
         })
     rows.sort(key=lambda item: (item["Subject"], item["Category"], item["UID"]))

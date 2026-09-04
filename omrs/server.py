@@ -11,9 +11,21 @@ from .catalog import build_tree
 from .reports import create_report, delete_report, get_report_html, list_reports
 from .ai_assist import recognize_question
 from .creation import create_question
-from .exporting import _find_image, _read_image_info, export_schedule_artifact
+from .exporting import _find_image, _read_image_info, export_schedule_artifact, export_board_html
+from .labels import delete_label, list_label_defs, merge_labels, save_label
+from .boards import (
+    add_items as board_add_items,
+    create_board,
+    delete_board,
+    duplicate_board,
+    get_board,
+    list_boards,
+    remove_items as board_remove_items,
+    update_board,
+)
 from .feedback import process_feedback
 from .indexing import build_index
+from . import inbox as inbox_mod
 from .ledger import append_commit, get_commit, get_commit_by_id, read_commits, verify_ledger
 from .optimization import (
     create_backup_export,
@@ -56,10 +68,25 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
-        params = dict(urllib.parse.parse_qsl(parsed.query))
+        query_pairs = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+        params = dict(query_pairs)
+
+        if path.startswith("/api/inbox/") or path == "/m":
+            self._inbox_get(path, params)
+            return
 
         if path == "/api/stats":
             self._json(get_stats(self.vault_path))
+        elif path == "/api/labels":
+            self._json({"status": "ok", "labels": list_label_defs(self.vault_path)})
+        elif path == "/api/boards":
+            self._json({"status": "ok", "boards": list_boards(self.vault_path)})
+        elif path == "/api/board":
+            board = get_board(self.vault_path, params.get("id", ""))
+            if board is None:
+                self._json({"status": "error", "msg": "展示板不存在"}, 404)
+            else:
+                self._json({"status": "ok", "board": board})
         elif path == "/api/status":
             try:
                 stats = get_stats(self.vault_path)
@@ -193,6 +220,8 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 subject = params.get("subject") or None
                 category = params.get("category") or None
                 knowledge_tag = params.get("knowledge_tag") or None
+                requested_labels = [value for key, value in query_pairs if key == "label" and value]
+                label = requested_labels if requested_labels else (params.get("label") or None)
                 rec = generate_recommendations(
                     self.vault_path,
                     due_count=max(1, min(50, due_count)),
@@ -200,6 +229,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     subject=subject,
                     category=category,
                     knowledge_tag=knowledge_tag,
+                    label=label,
                     exclude_uids=active_session_uids(self.vault_path),
                 )
                 self._json({"status": "ok", **rec})
@@ -235,6 +265,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         path = urllib.parse.urlparse(self.path).path
         if path == "/api/backup/import":
             self._handle_backup_import()
+            return
+        if path.startswith("/api/inbox/"):
+            self._inbox_post(path)
             return
         body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("utf-8")
 
@@ -291,6 +324,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     difficulty=int(data.get("difficulty", 5)),
                     note=data.get("note", ""),
                     related_tags=data.get("related_tags", []),
+                    labels=data.get("labels", []),
                     question_text=data.get("question_text", ""),
                     answer_text=data.get("answer_text", ""),
                     cause=data.get("cause", ""),
@@ -320,6 +354,86 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 data = json.loads(body) if body else {}
                 save_config(self.vault_path, data)
                 self._json({"status": "ok"})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/label/save":
+            try:
+                data = json.loads(body) if body else {}
+                result = save_label(
+                    self.vault_path,
+                    value=data.get("id"),
+                    name=data.get("name"),
+                    color=data.get("color"),
+                    priority_bonus=data.get("priority_bonus"),
+                    order=data.get("order"),
+                )
+                self._json({"status": "ok", "label": result})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/label/delete":
+            try:
+                data = json.loads(body) if body else {}
+                result = delete_label(
+                    self.vault_path,
+                    data.get("id") or data.get("name"),
+                    detach=data.get("detach", True) is not False,
+                )
+                self._json({"status": "ok", **result})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/label/merge":
+            try:
+                data = json.loads(body) if body else {}
+                result = merge_labels(
+                    self.vault_path,
+                    data.get("from") or data.get("source"),
+                    data.get("into") or data.get("target"),
+                )
+                self._json({"status": "ok", **result})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/question/labels":
+            try:
+                data = json.loads(body) if body else {}
+                from .question_ops import set_question_labels
+                result = set_question_labels(
+                    self.vault_path, data.get("uid", ""), data.get("labels") or [],
+                )
+                self._json({"status": "ok", **result})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/questions/labels":
+            try:
+                data = json.loads(body) if body else {}
+                from .question_ops import set_question_labels
+                uids = list(dict.fromkeys(
+                    str(uid).strip() for uid in data.get("uids") or [] if str(uid).strip()
+                ))
+                add = [str(value).strip() for value in data.get("add") or [] if str(value).strip()]
+                remove = {str(value).strip() for value in data.get("remove") or [] if str(value).strip()}
+                changed = 0
+                failed = []
+                for uid in uids:
+                    try:
+                        question = get_question_content(self.vault_path, uid)
+                        current = list(question.get("labels") or [])
+                        next_labels = [
+                            value for value in dict.fromkeys(current + add)
+                            if value not in remove
+                        ]
+                        result = set_question_labels(
+                            self.vault_path, uid, next_labels, scan=False,
+                        )
+                        changed += int(result.get("changed", False))
+                    except Exception as exc:
+                        failed.append({"uid": uid, "msg": str(exc)})
+                scan = scan_workspace(self.vault_path) if changed else {"status": "ok", "changes": 0, "conflicts": []}
+                self._json({"status": "ok", "changed": changed, "failed": failed, "scan": scan})
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
 
@@ -547,6 +661,32 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 include_answers = bool(data.get("include_answers", False))
                 question_gap_lines = data.get("question_gap_lines", 0)
                 a4_two_columns = data.get("a4_two_columns", True)
+                if export_format == "board":
+                    board_id = str(data.get("board_id") or data.get("id") or "").strip()
+                    if not board_id:
+                        self._json({"status": "error", "msg": "board_id 不能为空"}, 400)
+                        return
+                    payload = export_board_html(
+                        self.vault_path,
+                        board_id,
+                        include_answers=data.get("include_answers"),
+                        page_start=data.get("page_start", 1),
+                        page_end=data.get("page_end"),
+                        overrides=data.get("overrides") if isinstance(data.get("overrides"), dict) else None,
+                    )
+                    board = get_board(self.vault_path, board_id) or {}
+                    filename = f"OMRS-board-{board.get('name') or board_id}.html"
+                    filename_encoded = urllib.parse.quote(filename)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/html; charset=utf-8")
+                    self.send_header(
+                        "Content-Disposition",
+                        f"attachment; filename=\"{filename}\"; filename*=UTF-8''{filename_encoded}",
+                    )
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
                 if not uids and not session_id:
                     self._json({"status": "error", "msg": "需要 session_id 或 uids"}, 400)
                     return
@@ -571,8 +711,180 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(payload)
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/create":
+            try:
+                data = json.loads(body) if body else {}
+                uids = list(data.get("uids") or [])
+                if data.get("label") and not uids:
+                    rows = get_stats(self.vault_path).get("items", [])
+                    uids = [
+                        row.get("uid") for row in rows
+                        if data.get("label") in (row.get("labels") or [])
+                    ]
+                board = create_board(
+                    self.vault_path,
+                    data.get("name", ""),
+                    uids,
+                    data.get("label", ""),
+                )
+                self._json({"status": "ok", "board": board})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/update":
+            try:
+                data = json.loads(body) if body else {}
+                board_id = str(data.get("id") or "").strip()
+                if not board_id:
+                    raise ValueError("展示板 id 不能为空")
+                changes = {key: data[key] for key in ("name", "note", "print", "items", "source_labels", "last_printed_page") if key in data}
+                self._json({"status": "ok", "board": update_board(self.vault_path, board_id, **changes)})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/items/add":
+            try:
+                data = json.loads(body) if body else {}
+                self._json({"status": "ok", "board": board_add_items(
+                    self.vault_path, str(data.get("id") or ""), data.get("uids") or [], data.get("position"),
+                )})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/items/remove":
+            try:
+                data = json.loads(body) if body else {}
+                self._json({"status": "ok", "board": board_remove_items(
+                    self.vault_path, str(data.get("id") or ""), data.get("uids") or [],
+                )})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/duplicate":
+            try:
+                data = json.loads(body) if body else {}
+                self._json({"status": "ok", "board": duplicate_board(
+                    self.vault_path, str(data.get("id") or ""), data.get("name", ""),
+                )})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/delete":
+            try:
+                data = json.loads(body) if body else {}
+                ok = delete_board(self.vault_path, str(data.get("id") or ""))
+                self._json({"status": "ok" if ok else "error", "deleted": ok})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
         else:
             self._json({"error": "not found"}, 404)
+
+    # ────────────── 收件箱 /api/inbox/* 与手机上传页 /m ──────────────
+    def _inbox_get(self, path, params):
+        try:
+            if path == "/m":
+                self._serve("assets/inbox_mobile.html", "text/html")
+            elif path == "/api/inbox/items":
+                self._json({"status": "ok", "items": inbox_mod.list_items(
+                    self.vault_path, status=params.get("status") or None)})
+            elif path == "/api/inbox/item":
+                self._json({"status": "ok", "item": inbox_mod.get_item(self.vault_path, params.get("id", ""))})
+            elif path == "/api/inbox/raw":
+                mime, data = inbox_mod.raw_file(self.vault_path, params.get("id", ""))
+                self.send_response(200)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "private, max-age=86400")
+                self.end_headers()
+                self.wfile.write(data)
+            elif path == "/api/inbox/job":
+                self._json({"status": "ok", "job": inbox_mod.get_job(self.vault_path, params.get("id", ""))})
+            elif path == "/api/inbox/slice-plan":
+                plan = inbox_mod.slice_plan(int(params.get("width", 0) or 0), int(params.get("height", 0) or 0))
+                self._json({"status": "ok", "strips": [{"y0": a, "y1": b} for a, b in plan]})
+            elif path == "/api/inbox/dataset/stats":
+                self._json({"status": "ok", **inbox_mod.dataset_stats(self.vault_path)})
+            elif path == "/api/inbox/dataset/export":
+                data = inbox_mod.export_dataset(self.vault_path, fmt=params.get("format", "omrs_jsonl"),
+                                                include_raw=params.get("raw", "1") != "0")
+                stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header("Content-Disposition", f'attachment; filename="omrs-dataset-{stamp}.zip"')
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+            else:
+                self._json({"status": "error", "msg": "not found"}, 404)
+        except Exception as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+
+    def _multipart_files(self, body, content_type):
+        """解析 multipart 里的全部文件 → [(filename, bytes)]。"""
+        marker = "boundary="
+        if marker not in content_type:
+            raise ValueError("缺少 multipart boundary")
+        boundary = content_type.split(marker, 1)[1].strip().strip('"').split(";")[0]
+        delimiter = ("--" + boundary).encode("utf-8")
+        files = []
+        for part in body.split(delimiter):
+            if b"Content-Disposition" not in part or b"\r\n\r\n" not in part:
+                continue
+            headers, payload = part.split(b"\r\n\r\n", 1)
+            if payload.endswith(b"\r\n"):
+                payload = payload[:-2]
+            header_text = headers.decode("utf-8", errors="ignore")
+            if "filename=" not in header_text:
+                continue
+            filename = "image"
+            # 只看 Content-Disposition 行，避免把 Content-Type 行拼进文件名
+            header_text = next((line for line in header_text.split("\r\n") if "Content-Disposition" in line), header_text)
+            for item in header_text.split(";"):
+                item = item.strip()
+                if item.startswith("filename="):
+                    filename = item.split("=", 1)[1].strip().strip('"') or filename
+                    break
+            files.append((os.path.basename(filename), payload))
+        return files
+
+    def _inbox_post(self, path):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            content_type = self.headers.get("Content-Type", "")
+            body = self.rfile.read(length)
+            if path == "/api/inbox/upload":
+                if "multipart/form-data" in content_type:
+                    files = self._multipart_files(body, content_type)
+                    source = "phone" if "Mobile" in (self.headers.get("User-Agent") or "") else "desktop"
+                    result = inbox_mod.upload_images(self.vault_path, files, source=source)
+                else:
+                    data = json.loads(body.decode("utf-8") or "{}")
+                    files = []
+                    for entry in data.get("images", []):
+                        mime, raw = inbox_mod._data_url_bytes(entry.get("data") if isinstance(entry, dict) else entry)
+                        files.append((entry.get("name", "image") if isinstance(entry, dict) else "image", raw))
+                    result = inbox_mod.upload_images(self.vault_path, files, source=data.get("source", "desktop"))
+                self._json({"status": "ok", **result})
+                return
+            data = json.loads(body.decode("utf-8") or "{}")
+            if path == "/api/inbox/item/update":
+                self._json({"status": "ok", "item": inbox_mod.update_item(self.vault_path, data.get("id", ""), data)})
+            elif path == "/api/inbox/discard":
+                ids = data.get("ids") or ([data["id"]] if data.get("id") else [])
+                self._json({"status": "ok", "results": [inbox_mod.discard_item(self.vault_path, i) for i in ids]})
+            elif path == "/api/inbox/jobs":
+                self._json({"status": "ok", "job": inbox_mod.start_job(self.vault_path, data.get("type", ""), data)})
+            elif path == "/api/inbox/commit":
+                self._json({"status": "ok", **inbox_mod.commit_item(
+                    self.vault_path, data.get("id", ""), card=data.get("card", 1),
+                    form=data.get("form") or {}, crops=data.get("crops") or {})})
+            elif path == "/api/inbox/crops":
+                saved = [inbox_mod.save_crop(self.vault_path, rid, url) for rid, url in (data.get("crops") or {}).items()]
+                self._json({"status": "ok", "saved": len(saved)})
+            elif path == "/api/inbox/cleanup":
+                days = data.get("discarded_days")
+                self._json({"status": "ok", **inbox_mod.cleanup(
+                    self.vault_path, discarded_days=int(days) if days not in (None, "") else None,
+                    crops=bool(data.get("crops")))})
+            else:
+                self._json({"status": "error", "msg": "not found"}, 404)
+        except Exception as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
 
     def _handle_backup_import(self):
         try:

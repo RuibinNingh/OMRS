@@ -13,7 +13,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 - 一个 **HTML/CSS/JS 单页前端**（`omrs_dashboard.html` + `assets/`）负责录入、即时练习、复习 Session、反馈、数据复盘与导出。
 - 没有构建步骤，题库、算法、Ledger、复习和导出均可离线使用；AI 图片识别、Google Fonts 以及报告中用户选择的 HTTPS 外部资源属于可选联网能力。
 
-当前版本：**v1.9.0**。
+当前版本：**v1.14.0**。
 
 ---
 
@@ -25,7 +25,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 |---|---|---|---|
 | 高 | HTTP 服务单线程 | AI 识别等慢请求会阻塞整个界面 | 改用线程化 HTTP Server，并为 CSV、Markdown、Ledger 写入增加统一锁 |
 | 中高 | Ledger 每次全量重放 | 历史提交增长后，反馈/录入后的重建耗时线性增加 | 引入按 seq 的持久化快照和增量重放 |
-| 中 | 前端大量 `innerHTML` + 行内 `onclick` | DOM 高频重建、事件逻辑与模板耦合，也阻碍 ES Module 化 | 先对反馈行、队列等高频区域采用局部更新和事件委托 |
+| 中 | 前端大量 `innerHTML` + 行内 `onclick` | DOM 高频重建、事件逻辑与模板耦合，也阻碍 ES Module 化 | 反馈工作台已在 v1.10.0 改为局部更新 + 事件委托；其余列表页仍待处理 |
 | 中 | 后端 `server.py` 路由分支过长 | 请求解析和错误处理重复，维护成本高 | 改为路由表 + 统一请求体解析 |
 | 中 | 测试框架与覆盖不完整 | 当前 `unittest` 与 pytest 风格测试混用，核心算法边界覆盖仍不足 | 统一测试入口，补齐算法、Ledger 集成、异常输入和浏览器回归 |
 | 低 | 局域网模式无用户认证 | `allow_external` 开启后同网段客户端可读写 | 仅在可信 LAN 使用，后续再设计认证与权限模型 |
@@ -38,14 +38,19 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 
 | 模块 | 能力 |
 |---|---|
-| **题目录入** | 两图片区（题面 / 答案）、Markdown 原文编辑、Obsidian 双链分类、`![[image]]` 嵌入图、AI 识别（外部大模型，按需调用）；题目库可单题停用/恢复（不参与复习与统计）或删除并保留可审计归档记录 |
+| **收件箱录入** | v1.12.0 起「录入题目」页改为 **上传 → 处理 → 录入** 三步：手机在同一 Wi-Fi 打开 `http://<局域网IP>:8471/m` 直接投整张截图（sha256 去重）；电脑端在网页上框题目 / 答案（可多题卡），每块可「转文本」（AI 转录 + 判断能否转）或「保留图片」；AI 框选（长图自动切片）、沿用上一张框位、整图即题目、批量勾选处理；就绪的题卡填科目分类后一键写入题库。所有框位、AI 原框、采纳方式、转换决策留作训练数据，「AI 训练」页可看统计并导出 JSONL / YOLO 数据集。v1.13.0：框选可选提供方（多模态模型 / 零联网的版式模板 / 训好后的本地检测服务）、每 N 张盲标作干净评估集、置信度达标自动转文本并就绪、上传即自动处理（需 Pillow）、超期丢弃图自动清理，都在「AI 训练」页配置。原单题表单保留为「快速录入」。详见 `AI/inbox.md` |
+| **题目录入（快速）** | 两图片区（题面 / 答案）、Markdown 原文编辑、Obsidian 双链分类、`![[image]]` 嵌入图、AI 识别（外部大模型，按需调用）；题目库可单题停用/恢复（不参与复习与统计）或删除并保留可审计归档记录 |
 | **记忆算法** | 时间衰减 `time_decay`、熟练度状态机 `compute_mastery_update`、SM-2 间隔、易错因子 EF、统一优先级 `compute_priority`、Leech（顽固题）检测 |
 | **即时练习** | 浏览器内直接做、在线翻答案、即时反馈（分数滑杆 + 对错） |
-| **复习 Session** | 调度器挑题 → 列表预览 → 反馈录入；支持分批提交，反馈页序号始终对应 Session 原始题目顺序 |
+| **复习 Session** | 调度器挑题 → 列表预览 → 反馈录入。v1.10.0 起反馈页是「题目列表 / 题目视图 / 判定面板」三栏工作台：录反馈时直接看到本 Session 全部题目（已录入置灰）、题面与答案双栏并排、可就地编辑 Markdown，不必来回切页；支持 J/K 切题、1 对 2 错、⌘/Ctrl+↵ 提交等快捷键。仍支持分批提交，序号始终对应 Session 原始题目顺序 |
+| **答题卡回填** | v1.11.0 起可把答题卡扫描（OMR）的正式结果 JSON 读进反馈页：选中该 Session → 在 OMR 识别详情页复制 `/api/v1/recognitions/<id>/result` JSON → 点「📋 读剪贴板填写」或直接 ⌘/Ctrl+V，按题号自动填对错与 0–10 主观分。只接受顶层 `recognition_id/template_id/mode/status/questions/unresolved` 协议，明确拒绝旧 raw/items、裸数组与包装层；`unresolved` 涉及的题不自动猜测，转人工处理。Anki 模式仍按 `questions[].answer` 映射为 OMRS 评分。 |
 | **行动推荐** | 仪表盘顶部按当前题库状态排出「现在该做什么」：逾期、今日到期、未录反馈的 Session、顽固题、久未复习、最薄弱科目/分类等，每条带数字依据和一键跳转 |
 | **目录** | 树状展示 `错题/` 的真实文件夹结构，每层标注题量、待复习、顽固题与平均熟练度；支持搜索、展开折叠、显示非题目文件，点题目文件直接开详情 |
+| **用户标记** | 自定义名称与颜色的 `<=>` 芯片；录入、题库、反馈、推荐、即时练习和展示板均可添加/筛选，支持批量编辑、改名、删除、合并；默认不改变调度，设置 `priority_bonus` 后才参与优先级 |
+| **展示板** | 持久化题目引用集合，可拖拽/菜单排序、按标记同步、设置题间距和装订孔位，导出左题右空 A4 纸；标题固定为「错题集」，支持绝对页码、打印范围与高水位 |
+| **题库交互重设计** | 筛选抽屉、激活条件 chips、列设置、舒适/紧凑密度、命名视图预设和批量加入展示板/打标记/停用/导出 |
 | **数据复盘** | 仪表盘（统计/雷达/热力/散点/趋势）、Ledger 时间线、历史修正（显式开启修正模式）、撤销/恢复/还原 |
-| **错题导出** | **自包含 HTML**（图片 base64 内联），分 **A4 打印版**（双栏/单栏可选 + 长图缝带切片）与 **屏幕版**（卡片 + 判分 + 进度持久化） |
+| **错题导出** | **自包含 HTML**（图片 base64 内联），分 **A4 打印版**、**展示板左题右空版** 与 **屏幕版**（卡片 + 判分 + 进度持久化） |
 | **报告托管** | 上传/浏览/删除复盘报告，浏览器内直接查看 |
 | **源码协助** | 设置页下载仅含 Git 已跟踪源码、测试和项目文档的脱敏 ZIP；自动排除个人题库、附件、运行数据、日志和生成导出文件 |
 | **外观** | 深色（首次打开默认，**暖石墨 Warm Graphite**）/ 浅色（编辑式暖色）切换；v1.7.0 重配深色对比度（三级文字与语义色达标、卡片改实色分层）；Ledger 时间线可按浏览器或设置页所选时区显示 |
@@ -100,26 +105,34 @@ pack_for_ai.bat
 │   ├── ledger.py           ← 不可变提交链（SQLite）
 │   ├── projections.py      ← 重放 Ledger 导出 CSV / 内存投影
 │   ├── scheduling.py       ← 记忆算法（衰减/状态机/SM-2/优先级/Leech）
-│   ├── ai_assist.py        ← AI 识别（外部大模型调用）
+│   ├── ai_assist.py        ← AI 识别（外部大模型调用；含框选 detect 与可转性判断）
+│   ├── inbox.py            ← 收件箱：上传 / 区域 / 后台 job / 提交 / 数据集（v1.12.0）
 │   ├── catalog.py          ← 目录树（只读扫盘，供「目录」页）
+│   ├── labels.py           ← 用户标记定义与题目标记级联
+│   ├── boards.py           ← 展示板引用与打印设置（不进入 Ledger）
 │   ├── exporting.py        ← 错题 HTML 导出
 │   ├── feedback.py / sessions.py / creation.py
 │   ├── analytics.py / stats.py / reports.py
 │   ├── migration.py / workspace_sync.py / indexing.py
-│   └── export_templates/   ← A4 / 屏幕版 HTML 模板（CSS + JS）
+│   └── export_templates/   ← A4 / 展示板 / 屏幕版 HTML 模板（CSS + JS）
 ├── assets/                 ← 前端静态资源（无构建）
 │   ├── styles.css
 │   ├── core.js / app.js / dashboard.js / questions.js
+│   ├── qview.js            ← 共享题目视图（题面/答案双栏），Modal / 反馈台 / 即时练习 / 画廊共用
 │   ├── schedule.js / export.js / feedback.js / history.js
 │   ├── recommend.js / actions.js / catalog.js
 │   ├── instant.js / data.js / reports.js
+│   ├── inbox.js            ← 收件箱录入流程（v1.12.0）；inbox_mobile.html 为手机上传页
+│   ├── labels.js / qtable.js / board.js ← 标记、题库重设计与展示板交互（v1.14.0）
 │   └── vendor/katex/       ← KaTeX（本地，公式离线渲染）
 ├── 错题/                   ← 题库（Markdown + Obsidian 双链）
 │   ├── .omrs/              ← 结构化数据目录（Ledger / 投影 / 备份）
 │   │   ├── ledger.db       ← v1.1.0+ 唯一可信事实源
 │   │   ├── mastery_data.csv
 │   │   ├── history_log.csv
-│   │   └── sessions.csv
+│   │   ├── sessions.csv
+│   │   ├── labels.json       ← 用户标记定义
+│   │   └── boards.json       ← 展示板引用与打印设置
 │   └── report/             ← 托管的 AI HTML 报告与 index.json
 ├── tests/                  ← 历史投影、AI 分类/提取、报告/导出回归测试
 ├── tool/migrate_ledger.py  ← 数据迁移工具
@@ -189,14 +202,31 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 | GET | `/api/stats` | 题库条目 + 全部统计图表数据 |
 | GET | `/api/status` | 服务状态 + 版本 + 工作区自检 |
 | GET | `/api/analytics` | 分析聚合 |
+| GET | `/api/labels` | 用户标记定义与引用数 |
+| GET | `/api/boards` | 展示板列表 |
+| GET | `/api/board?id=...` | 展示板详情与解析后的题目引用 |
 | POST | `/api/create` | 录入新题 |
 | POST | `/api/feedback` | 提交一次反馈 |
+| POST | `/api/label/save` | 创建/更新用户标记 |
+| POST | `/api/label/delete` | 删除标记并可解绑题目引用 |
+| POST | `/api/label/merge` | 合并两个用户标记 |
+| POST | `/api/question/labels` | 覆盖单题标记 |
+| POST | `/api/questions/labels` | 批量添加/移除标记 |
+| POST | `/api/board/create` | 创建展示板 |
+| POST | `/api/board/update` | 更新展示板、排序与打印高水位 |
+| POST | `/api/board/items/add` | 向展示板添加题目 |
+| POST | `/api/board/items/remove` | 从展示板移除题目 |
+| POST | `/api/board/duplicate` | 复制展示板 |
+| POST | `/api/board/delete` | 删除展示板 |
+| POST | `/api/export` | 导出 A4/屏幕版；`format:"board"` 导出展示板左题右空版 |
 | POST | `/api/question/suspend` | 停用题目（保留正文与历史） |
 | POST | `/api/question/resume` | 恢复题目 |
 | GET | `/api/recommend` | 获取到期/熟练度双列表推荐 |
 | GET | `/api/tree` | 错题目录树（只读扫盘，供「目录」页） |
 | POST | `/api/schedule` | 创建复习 Session |
 | POST | `/api/ai-recognize` | AI 识别图片 |
+| * | `/api/inbox/*` | 收件箱：上传 / 框选 / 后台识别 job / 提交 / 数据集（见 `AI/inbox.md`） |
+| GET | `/m` | 手机上传页 |
 | GET | `/api/ledger/verify` | 校验提交链完整性 |
 
 ---
@@ -221,6 +251,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 导出为**单文件 HTML**，图片 base64 内联、KaTeX 字体 data URI 内联——拷到任何带浏览器的设备都能打开。
 
 - **A4 打印版**（默认）：导出时选择双栏或整份单栏；内容块会尽量填满栏位，放不下的块完整移到下一栏而不截断，临近栏底的公式文字按公式边界续栏，长图按白缝切片（缝带算法）；初次排版等待字体稳定，浏览器预览和打印复用同一版面，所见即所打印。
+- **展示板左题右空版**：以 `boards.json` 的持久化题目引用为输入，左侧按题目顺序排版、右侧完全留白；标题固定为「错题集」，支持 22mm 装订边、题间距、孔位标记、末页附答案、绝对页码、打印范围和已打印页高水位。
 - **屏幕版**：卡片式复习 App，可判对错、打分、记录进度（持久化到 localStorage）。
 
 旧 docx 导出方案已被完全替换——HTML 既解决了「长图被截断 / 双栏栏底留白」问题，也让基础导出不再依赖 Pillow。详见 [`AI/export.md`](AI/export.md)。
@@ -243,6 +274,9 @@ AI/
 ├── ledger.md       ← Ledger 架构
 ├── export.md       ← 错题导出 HTML 架构
 ├── optimization.md ← 优化空间 / 技术债清单
+├── inbox.md        ← 收件箱录入流程
+├── labels.md       ← 用户标记定义、YAML 与投影
+├── board.md        ← 展示板引用、版面与打印范围
 └── logs/           ← 逐次会话的详细变更记录
 ```
 
@@ -278,6 +312,9 @@ AI/
 
 | 版本 | 说明 |
 |---|---|
+| v1.14.0 | 用户标记、持久化展示板（左题右空 A4/打印范围/绝对页码）、题库筛选抽屉与批量交互重设计 |
+| v1.13.0 | 收件箱：框选提供方（多模态模型 / 版式模板零联网 / 本地检测服务 `local_http`）、盲标评估集、置信度自动就绪与上传即自动处理、超期丢弃图与裁图缓存清理、大裁图改 JPEG、拒绝计数增量化 |
+| v1.12.0 | 收件箱录入流程：上传 → 处理（框选 / 转文本 / 留图）→ 录入；手机上传页；AI 框选与可转性判断走后台 job；训练数据集统计与导出 |
 | v1.8.2 | 分批提交增强：允许只提交已判定题目，未判定题目自动保留；反馈卡片吸顶显示进度，题目行增加批次序号 |
 | v1.8.0 | 跨行块级 LaTeX 在题目页/A4/屏幕版完整渲染；设置页重启交给 systemd，避免服务停机 |
 | v1.7.0 | 仪表盘行动推荐、目录页（错题文件夹树 + `GET /api/tree`）、深色模式对比度重配 |

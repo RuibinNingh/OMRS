@@ -38,6 +38,7 @@ MASTERY_HEADERS = [
     "Current_Tag",
     "Entry_Date",
     "Knowledge_Tags",
+    "Labels",
     "Suspended",
 ]
 HISTORY_HEADERS = [
@@ -92,7 +93,16 @@ def config_path(vault: str) -> str:
 
 # 配置默认值：缺失键按此回退。ai_restrict_tags 默认 True，与历史行为一致
 # （AI 识别的知识点硬过滤为「已有分类 ∪ 已有知识点」）。
-CONFIG_DEFAULTS = {"allow_external": False, "ai_restrict_tags": True}
+CONFIG_DEFAULTS = {"allow_external": False, "ai_restrict_tags": True,
+                   # 收件箱按用途选模型：留空回退 ai_model（detect 需支持定位输出，extract 建议用 OCR 类模型）
+                   "ai_model_detect": "", "ai_model_extract": "", "ai_model_classify": "",
+                   # 收件箱框选提供方与自动策略（见 AI/inbox.md §4/§8）
+                   "inbox_detect_provider": "vlm",      # vlm | template | local_http
+                   "inbox_local_detect_url": "",        # local_http：本地检测服务 POST 地址
+                   "inbox_blind_every": 0,              # 每 N 张盲标（不展示 AI 框，只留痕作评估集）；0 关闭
+                   "inbox_auto_ready_conf": 0.0,        # 置信度 ≥ 阈值时自动转文本并置就绪；0 关闭
+                   "inbox_auto_on_upload": False,       # 上传后自动跑 detect（→ 自动策略）；需 Pillow
+                   "inbox_discard_keep_days": 7}        # 丢弃的原图保留天数，超期清理
 
 
 def load_config(vault: str) -> dict:
@@ -217,6 +227,23 @@ def extract_knowledge_tags(meta: dict) -> list:
         for tag in tags
         if isinstance(tag, str) and tag.startswith("知识点/")
     ]
+
+
+def extract_labels(meta: dict) -> list:
+    """读取用户维护的 YAML ``标记`` 列表，旧题目没有时返回空列表。"""
+    raw = meta.get("标记", [])
+    if isinstance(raw, str):
+        raw = [raw] if raw.strip() else []
+    if not isinstance(raw, list):
+        return []
+    result = []
+    seen = set()
+    for value in raw:
+        value = str(value or "").strip().strip('"').strip("'")
+        if value and value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
 
 
 def extract_images(text: str) -> list:
@@ -356,6 +383,7 @@ DEFAULT_TUNING = {
     # Leech（顽固题）检测
     "leech_fail_threshold": 4,   # 历史累计答错次数 ≥ 此值标记为 leech
     "leech_priority_bonus": 0.4,  # leech 在熟练度列表的优先级加成
+    "label_bonus_cap": 1.0,       # 用户标记 priority_bonus 的总上限
 }
 
 _TUNING_CACHE = {}

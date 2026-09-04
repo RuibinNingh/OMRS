@@ -37,6 +37,7 @@
 | `Current_Tag` | string | 状态标签（如 #状态/待攻克） |
 | `Entry_Date` | date | 题目录入日期 |
 | `Knowledge_Tags` | string | 知识点标签，`|` 分隔 |
+| `Labels` | string | 用户标记名称，`|` 分隔；旧 CSV 缺列时按空处理 |
 | `Suspended` | 0/1 | 题目停用标记；`1` 时保留题目行供管理/筛选，但不参与调度、统计、分析、反馈或复习导出；没有该列的旧 CSV 按 `0` 处理 |
 
 **注意：** `Last_Review` 历史数据可能包含 `YYYY/M/D` 格式，`parse_date()` 已做兼容。
@@ -113,6 +114,9 @@ _omrs_id: OP-000001
 相关知识点:
   - 二倍角公式
   - 辅助角公式
+标记:
+  - 考前必看
+  - 计算失误
 tags:
   - 状态/待攻克
   - 知识点/三角函数
@@ -149,6 +153,10 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复�
 | `状态/待攻克` | 尚未掌握，正在复习 |
 | `状态/已击杀` | 高分答对，视为掌握 |
 | `标签/易错坑` | 曾高分但答错（粗心/陷阱） |
+
+`tags` 中的状态和知识点兼容旧题格式；v1.14.0 的用户自定义横切标记单独使用
+顶层 YAML 列表 `标记:`，不要把它写回 `tags`。`标记: []` 是显式清空，
+标记名称按出现顺序去重，名称本身不保存 `labels.json` 的内部 id。
 
 ---
 
@@ -231,3 +239,61 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复�
 ```
 
 仅包含**已判定**的题。导入侧（`assets/feedback.js::importFeedbackJson`）：`is_correct` / `correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` / `score` 缺省按对→10 / 错→4、钳 0–10 取整；`session_id` 在 sessions.csv 中则自动选中关联，否则仍按该 ID 写入 history_log（TMP- 临时卷亦可），为空按手动录入。填充后不自动提交，须人工核对。若误贴旧题目 JSON，会提示当前只支持反馈 JSON。
+
+
+---
+
+## 12. 收件箱 `错题/.omrs/inbox/`（v1.12.0）
+
+`inbox.db`（SQLite：items / regions / cards / jobs / meta；v1.13.0 items 多 `blind`、`blind_boxes` 两列，`connect()` 对旧库 ALTER 补齐）、`raw/<sha256>.<ext>`（上传原件）、`crops/`（裁剪缓存，可重建）、`annotations.jsonl`（append-only 标注事件）。区域坐标归一化 0–1。字段与状态机见 `AI/inbox.md` §2。不参与备份导出以外的任何投影；`item.commit` 事件里记录了创建出的 `uid` / `question_id` 便于回溯。
+
+`config.json` 新增键：`ai_model_detect`、`ai_model_extract`、`ai_model_classify`（string，留空回退 `ai_model`；`CONFIG_DEFAULTS` 均为空串）。v1.13.0 再加 `inbox_detect_provider`（`vlm`）、`inbox_local_detect_url`（`""`）、`inbox_blind_every`（0）、`inbox_auto_ready_conf`（0.0）、`inbox_auto_on_upload`（false）、`inbox_discard_keep_days`（7），含义见 `AI/inbox.md` §8。丢弃项超期清理后 `items.file` 为 NULL、原图文件删除，行与 `annotations.jsonl` 事件保留。
+
+---
+
+## 13. 用户标记 `labels.json`（v1.14.0）
+
+路径：`错题/.omrs/labels.json`。这是标记定义表，不是题目归属的第二份事实源：
+题目真正保存的是 Markdown YAML 中可读的 `标记:` 名称。文件格式如下：
+
+```json
+{
+  "version": 1,
+  "labels": [{
+    "id": "LB-20260904-a1b2c3",
+    "name": "考前必看",
+    "color": "#dc2626",
+    "order": 1,
+    "priority_bonus": 0.0,
+    "archived": false,
+    "created_at": "2026-09-04T12:00:00+00:00"
+  }]
+}
+```
+
+- `id` 只用于标记定义管理；题目 YAML 不引用它，方便在 Obsidian 中直接读写。
+- `name` 必须唯一，不能包含换行或 `|`；`color` 规范化为 `#rrggbb`。
+- `order` 控制选择器顺序；`priority_bonus` 是可选的调度加成，默认 `0.0`。
+- 当前定义文件使用临时文件 + `fsync` + `os.replace` 原子写，尚未滚动 `.bak`。
+- 题目标记进入 Ledger 的方式是 `question.metadata_update_external`，投影器同时
+ 维护 `question_labels(question_id, label)` 和 CSV 的 `Labels` 列。
+
+---
+
+## 14. 展示板 `boards.json`（v1.14.0）
+
+路径：`错题/.omrs/boards.json`。展示板是呈现层引用集合，不进入 Ledger，也不
+复制题目正文。文件写入会滚动 `.bak.1/2/3`，再使用临时文件、`fsync` 和
+`os.replace` 原子替换。
+
+板记录包含板元数据、打印设置和 `items[]`。每个条目同时保存
+`question_id` 与 `uid`；读取优先稳定的 `question_id`，UID 只做显示和降级兜底。
+`print` 当前字段为 `note_ratio`、`gap_lines`、`binding_mm`、`binding_marks`、
+`answers`、`show_labels`、`show_meta`；旧的 `note_align`、`note_min_lines`、
+`note_pattern` 会被忽略。`gap_lines` 默认 6，单题可以用
+`extra_gap_lines` 追加 0–24 行。
+
+停用题继续保留在板内但导出跳过；题目删除或无法按稳定身份解析时显示
+`missing`，不会自动从板文件中删除。`last_printed_page` 是打印高水位，供前端
+默认选择下一页并在确认打印后推进。备份整个 `错题/` 目录时，`labels.json`、
+`boards.json` 都随 `.omrs/` 一起进入备份。

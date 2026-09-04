@@ -1,7 +1,7 @@
 import os
 import re
 
-from .common import extract_category, extract_knowledge_tags, extract_tag, parse_yaml_frontmatter, questions_root
+from .common import extract_category, extract_knowledge_tags, extract_tag, extract_labels, parse_yaml_frontmatter, questions_root
 from .ledger import append_commit, connect
 from .projections import rebuild_projection
 from .workspace_sync import content_hash, metadata_hash, scan_workspace, update_fingerprints
@@ -34,6 +34,33 @@ def save_question_markdown(vault: str, uid: str, markdown: str):
     _atomic_write_text(path, markdown)
     scan_workspace(vault)
     return {"uid": uid, "file_path": row["file_path"], "bytes": len(markdown.encode("utf-8"))}
+
+
+def set_question_labels(vault: str, uid: str, labels, scan=True):
+    """覆盖题目的 YAML ``标记`` 字段。
+
+    ``scan=False`` 只写文件，供标记改名/合并在批量完成后统一扫描；
+    正常 API 调用默认立即扫描并追加 metadata update commit。
+    """
+    row = _projection_by_uid(vault, uid)
+    if not row:
+        raise RuntimeError(f"UID 不存在: {uid}")
+    clean = []
+    seen = set()
+    for value in labels or []:
+        value = str(value or "").strip()
+        if value and value not in seen:
+            seen.add(value)
+            clean.append(value)
+    path = _question_file_path(vault, row)
+    with open(path, "r", encoding="utf-8") as file:
+        content = file.read()
+    updated = _replace_frontmatter_list_field(content, "标记", clean)
+    if updated != content:
+        _atomic_write_text(path, updated)
+        if scan:
+            scan_workspace(vault)
+    return {"uid": uid, "labels": clean, "changed": updated != content}
 
 
 def move_question(vault: str, uid: str, target_subject: str, target_category: str):
@@ -208,6 +235,30 @@ def _replace_frontmatter_field(content, key, value):
     else:
         body = f"{body}\n{key}: {value}"
     return f"{match.group(1)}{body}{match.group(3)}{content[match.end(3):]}"
+
+
+def _replace_frontmatter_list_field(content, key, values):
+    """替换 YAML frontmatter 中的列表字段，保留其它字段与正文。"""
+    match = re.match(r"^(---\s*\n)(.*?)(\n---)", content, re.DOTALL)
+    if not match:
+        raise RuntimeError("题目缺少 YAML frontmatter")
+    body = match.group(2)
+    lines = body.splitlines()
+    start = next((i for i, line in enumerate(lines)
+                  if re.match(rf"^{re.escape(key)}\s*:", line)), None)
+    replacement = [f"{key}: []"] if not values else [
+        f"{key}:",
+        *[f'  - "{str(value).replace(chr(34), chr(92) + chr(34))}"' for value in values],
+    ]
+    if start is None:
+        lines.extend(replacement)
+    else:
+        end = start + 1
+        while end < len(lines) and re.match(r"^\s+-\s+", lines[end]):
+            end += 1
+        lines[start:end] = replacement
+    new_body = "\n".join(lines)
+    return f"{match.group(1)}{new_body}{match.group(3)}{content[match.end(3):]}"
 
 
 def _atomic_write_text(path, content):

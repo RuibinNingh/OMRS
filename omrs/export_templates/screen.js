@@ -51,6 +51,23 @@
 
   /* ---------- 小工具 ---------- */
   function el(t, c, x) { const e = document.createElement(t); if (c) e.className = c; if (x != null) e.textContent = x; return e; }
+  function labelRgb(value) {
+    let hex = String(value || "#64748b").replace(/^#/, "");
+    if (/^[0-9a-f]{3}$/i.test(hex)) hex = hex.split("").map(ch => ch + ch).join("");
+    if (!/^[0-9a-f]{6}$/i.test(hex)) hex = "64748b";
+    return [0, 2, 4].map(index => parseInt(hex.slice(index, index + 2), 16));
+  }
+  function appendLabelChips(parent, labels) {
+    (Array.isArray(labels) ? labels : []).forEach(raw => {
+      const item = typeof raw === "string" ? { name: raw, color: "#64748b" } : (raw || {});
+      const name = String(item.name || "").trim();
+      if (!name) return;
+      const chip = el("span", "omrs-lbl", name);
+      chip.style.setProperty("--lbl-rgb", labelRgb(item.color).join(","));
+      chip.style.setProperty("--lbl-ink", item.ink || "#475569");
+      parent.appendChild(chip);
+    });
+  }
   function renderMath(node, latex, display) {
     if (window.katex && typeof window.katex.render === "function") {
       try {
@@ -107,6 +124,11 @@
     if (q.category) meta.appendChild(el("span", null, "分类 " + q.category));
     head.appendChild(meta);
 
+    if (q.labels && q.labels.length) {
+      const labels = el("div", "labels");
+      appendLabelChips(labels, q.labels);
+      head.appendChild(labels);
+    }
     if (q.tags) {
       const tw = el("div", "tags");
       q.tags.split("·").map(s => s.trim()).filter(Boolean).forEach(t => tw.appendChild(el("span", "tag", t)));

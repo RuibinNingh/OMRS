@@ -22,6 +22,12 @@
 
 > **v1.9.0 题目停用机制**：题目库支持停用/恢复。停用题目保留 Markdown、题目库管理入口和 Ledger 历史，但不参与复习调度、行动推荐、统计、数据分析、反馈和复习导出；题目库筛选提供活动/仅停用/全部三种口径，仪表盘显示停用数。
 
+> **v1.10.0 共享题目视图（qview）+ 反馈工作台**：新增 `assets/qview.js`，把原来分散在 `viewQ()`、画廊卡 `.gallery-preview` 和 `instRender()` 的三份题目渲染副本收敛成一个组件，见 §2.2。基于它做了两件用户可见的事：① 题目 Modal 改双栏（题面 | 答案+备注+历史）、加宽到 1180px、支持 `←/→` 在当前列表上下文内翻页；② 反馈录入页从「一列表单」改成三栏工作台（题目列表 / 题目视图 / 判定面板），录反馈时能直接看题和就地编辑，见 §5.1。即时练习的题面/答案块也换成 qview。版本号提到 **v1.10.0**（`omrs/version.py` + HTML 侧栏）。
+
+> **v1.11.0 答题卡扫描回填 + 画廊预览修复**：反馈录入页接上答题卡扫描项目（OMR）的正式 `/api/v1/recognitions/{id}/result` 结果 JSON——扫完卡在识别详情页点「复制结果 JSON」，回本页点「📋 读剪贴板填写」或直接 `⌘`/`Ctrl`+`V`，按题号自动填对错与主观分，见 §5.1.1。OMR 导入只接受顶层 `recognition_id/template_id/mode/status/questions/unresolved`，明确拒绝旧 raw/items、裸数组和包装层。全部在前端完成，`/api/feedback` 零改动。同时修掉画廊缩略预览顶部凭空多出约 220px 空白的问题：`.gallery-preview` 上给旧版纯文本预览留的 `white-space:pre-wrap`，把 v1.10.0 起装进去的 qview 结构化 HTML 里标签之间的换行也渲染成了空行，见 §2.2 末尾。版本号提到 **v1.11.0**（`omrs/version.py` + HTML 侧栏 + 根 `README.md`）。
+
+> **v1.14.0 展示板 + 用户标记 + 题库交互重设计**：题库新增筛选抽屉、激活条件 chips、列/密度设置、视图预设、批量操作和键盘导航；用户标记以 `<=>` 芯片显示，名称写入题目 YAML，支持单题/批量编辑、改名、删除、合并、按标记筛选与可选调度加成；展示板保存题目引用，支持排序、打印范围、高水位和左题右空 A4 导出。页面与导出统一采用 18% 淡底 + 彩色字标记样式。
+
 > **设置页源码协助**：服务设置新增「下载脱敏源码」按钮，调用 `GET /api/source/export` 下载仅含 Git 已跟踪源码、测试和项目文档的 ZIP；不读取未跟踪文件，并排除个人题库、附件、运行数据、日志和生成导出文件。包内 `SOURCE_EXPORT_MANIFEST.txt` 记录导出范围。
 
 ## 文件组织（assets/）
@@ -31,22 +37,33 @@ assets/
 ├── styles.css        ← 全部样式（原 <style> 内联块抽出）
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染
 ├── dashboard.js      ← 仪表盘图表 renderDash
+├── labels.js         ← 用户标记芯片、LabelPicker、标记管理与筛选状态
 ├── questions.js      ← 题目库表格/画廊视图 + 题目 Modal + 安全 Markdown/LaTeX/表格渲染 + 原文编辑/迁移/删除/停用恢复入口
+├── qtable.js         ← 题库筛选抽屉、激活 chips、批量条、列设置、密度、视图预设与快捷键
+├── qview.js          ← 共享题目视图：题面/答案双栏组件 + Modal 翻页（v1.10.0 新增，见 §2.2）
 ├── schedule.js       ← 复习 Session：预览/删除/列表 + 工作区扫描 + 录入提交（doCreate/resetCreateForm）；旧「新建 Session」（createSession/POST /api/schedule）UI 入口已随推荐面板移除，端点保留兼容
 ├── export.js         ← 错题导出：选题/画廊预览、A4/屏幕变体、A4 单双栏确认、题间留白、下载（v1.5.0 从 schedule.js 拆出）
-├── feedback.js       ← 反馈录入页：session 选择、行编辑、AI 提示词、JSON 导入、提交（v1.5.0 从 schedule.js 拆出）
+├── feedback.js       ← 反馈录入工作台：session 选择、题目列表/判定面板、AI 提示词、JSON 导入、提交（v1.5.0 从 schedule.js 拆出；v1.10.0 改三栏；v1.11.0 加答题卡扫描 JSON 解析）
 ├── history.js        ← 数据复盘/历史：Ledger 时间线、修正面板、撤销/恢复/还原（v1.5.0 从 schedule.js 拆出）
 ├── recommend.js      ← 推荐面板（双列表 + 勾选确认）
 ├── actions.js        ← 行动推荐：由 DATA + SESSIONS 派生「现在该做什么」（v1.7.0 新增）
 ├── catalog.js        ← 目录页：错题/ 文件夹树，读 GET /api/tree（v1.7.0 新增）
 ├── instant.js        ← 即时练习：推荐取题、在线翻答案、即时反馈
 ├── data.js           ← 数据复盘页 + 复盘报告导出
+├── board.js           ← 展示板 CRUD、排序、添加题目、打印预览和高水位
 ├── reports.js        ← 报告托管页：列表/上传创建/浏览/删除
 └── app.js            ← 应用入口：switchTab/reloadData/设置 + 录入页图片粘贴/AI 识别/AI 设置 + init()
 ```
 
 **加载约定（重要）：**
 - 脚本均为普通 `<script>`（非 ES module），共享同一全局作用域；顶层 `let`/`const` 跨文件可见，行内 `onclick` 仍可直接调用各函数。
+- **v1.14.0 加载顺序**：`labels.js` 在 `questions.js` 之前，供题库渲染直接调用
+  `lblChip()`；`qtable.js` 在 `questions.js` 之后、`qview.js` 之前；`board.js`
+  在 `export.js` 之后、`app.js` 之前。当前 HTML 的完整顺序为
+  `core → labels → dashboard → questions → qtable → qview → schedule → export →
+  feedback → history → recommend → actions → catalog → instant → data → inbox →
+  board → reports → app`。
+- **新增文件的插入位置（v1.10.0）**：`qview.js` 必须排在 `questions.js` 之后、`schedule.js` 之前——它依赖 questions.js 的 `renderMdContent` / `ensureQuestionDetail` / `QUESTION_CACHE`，而 `feedback.js`、`instant.js`、`export.js`、`data.js` 又依赖它的 `qvRender` / `qvHtml` / `qvSetContext`。
 - **新增文件的插入位置（v1.7.0）**：`actions.js` 和 `catalog.js` 排在 `recommend.js` 之后、`instant.js` 之前。两者都只在运行时被调用（`renderDash()` / `switchTab('catalog')`），对同批次内的先后不敏感，但必须在 `core.js` 之后——它们依赖 `getItems` / `getDueDays` / `isKilledItem` / `daysSinceReview` / `escapeHtml` 等。
 - **加载顺序固定**：`core.js` 最先（定义全部全局变量，只能声明一次，不可在其他文件重复 `let`）；`app.js` 最后（末尾 `init()` 自调用，依赖前面所有文件已就绪）。
 - 后端由 `/assets/<file>` 通用静态路由提供（`server.py` → `_serve_asset()`，含路径穿越防护与按扩展名的 content-type）。原 `/omrs_dashboard.js` 路由已移除。
@@ -126,14 +143,15 @@ API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表�
 - 可直接点击加入/移除临时调度选题。
 
 ### 画廊式（Gallery View）
-- 卡片形式，异步拉取 `/api/question?uid=...` 渲染题面。
+- 卡片形式，异步拉取 `/api/question?uid=...` 渲染题面；v1.10.0 起缩略预览走 `qvHtml(detail, item, QV_CARD_OPTS)`（`bare` + `clamp:6`），与 Modal、反馈台同一份渲染。导出选题器的画廊卡同理。
+- v1.11.0 修掉预览框顶部约 220px 的空白：容器上的 `white-space:pre-wrap` 会把 qview HTML 里标签之间的换行渲染成空行，见 §2.2 末尾。
 - 卡片中同样使用 `.m-bar` / `.m-bar-fill` 渲染熟练度进度条。
 - 题面中的 `![[图片.png]]`、`![[图片.png|300]]`、`![alt](路径)` 均改写为 `/api/image?name=...`。
 - 使用 `renderMdContent()` 统一处理 HTML 转义、图片替换与 `$...$` / `$$...$$` LaTeX 渲染。
 - 题目详情缓存在 `QUESTION_CACHE` / `QUESTION_PENDING`，避免重复请求。
 
 ### 编辑菜单
-- List View 和 Gallery View 每题都有「编辑」按钮。
+- List View 和 Gallery View 每题都有「编辑」按钮；v1.10.0 起题目 Modal、反馈工作台和即时练习题卡内也直接带「编辑 Markdown」等操作按钮（由 qview 的 `actions` 渲染），不必退回列表找入口。
 - 点击后在按钮下方自然展开操作列表，不再用编号 prompt 选择操作。
 - 「迁移到其他分类」调用 `POST /api/question/move`，后端按目标分类已有 UID 的最小缺口分配新 UID。
 - 「编辑 Markdown」调用 `GET /api/question/raw` 打开纯文本 textarea，保存时调用 `POST /api/question/markdown`。编辑器不做富文本渲染，完整显示 `.md` 原文。
@@ -178,6 +196,78 @@ Tab `目录`（侧栏图标 `#i-tree`，位于「题目库」与「复习调度�
 
 ---
 
+## 2.2 共享题目视图 qview（`assets/qview.js`，v1.10.0）
+
+在此之前，同一份题目内容有三处互不相同的渲染副本：`viewQ()` 的 `.q-body/.q-md/.q-answer-md`、画廊卡的 `.gallery-preview`、即时练习的 `.instant-block/.instant-md`。三处各自演化，改一处样式其余两处不跟。qview 把它们收敛成一个组件，「反馈页能看题」和「预览改双栏」这两件事因此变成同一件事的两个用法。
+
+### 对外接口
+
+```js
+qvHtml(q, item, opts)          // 纯函数：详情 + 投影条目 → HTML，可在 node 侧单测
+qvRender(mount, uid, opts)     // 挂载：走 ensureQuestionDetail 缓存 → 渲染 → 登记 QV_MOUNTS
+qvInvalidate(uid)              // 清 QUESTION_CACHE[uid]，重绘所有挂着该 uid 的容器
+qvSetContext(name, uids)       // 登记一段 uid 序列，供 Modal 翻页使用
+```
+
+`opts` 默认值：`layout:'split'`（`'stack'` 为单栏）、`reveal:true`、`showAnswer/showNotes/showHistory/showMeta:true`、`bare:false`、`actions:[]`、`clamp:0`。
+
+- **`reveal:false` 不渲染答案 DOM**，只渲染「显示答案」按钮（`opts.onReveal` 回调）——少渲染一遍 KaTeX，也不必担心答案躺在 DOM 里被翻出来。
+- `actions` 可含 `'edit'`（编辑 Markdown）、`'suspend'`（按当前状态自动显示停用/恢复）、`'delete'`、`'open'`（跳题目库并按 UID 过滤）。按钮只转调 questions.js 已有的全局函数，qview 自己不写业务逻辑。
+- `bare:true` + `clamp:N` 供画廊缩略卡使用：去掉正文边框底色、按行数截断。
+- `QUESTION_CACHE` 的降级副本带 `_fallback:true` 标记（由 `ensureQuestionDetail` 写入），qview 据此渲染「无法加载题目预览 + 重试」而不是把坏数据当正文显示；重试即 `qvInvalidate`。
+
+### 交互与 DOM 约定
+
+- 结构：`.qv > .qv-head`（UID / chips / 工具栏）+ `.qv-q`（题目）+ `.qv-a`（答案 / 备注 / 做题历史 `<details>`）。
+- **不把函数名拼进 HTML 字符串**：所有按钮带 `data-qv-act`，由文件底部一个文档级委托处理器分发；翻页按钮带 `data-qv-nav`。
+- **双栏塌陷用容器查询**（`container-type:inline-size` + `@container qv (max-width:680px)`），因为同一个组件既进 1180px 的 Modal、又进约 420px 的反馈中栏和 300px 的画廊卡，只有容器查询能让三处各自决定；`@supports not` 下降级为 900px 视口断点。
+- 答案块走 `rgba(var(--green-rgb),α)`，不再有写死浅色的 `rgba(39,134,74,.04)`；深色无需单独规则。深色「反转题图」的选择器覆盖 `.qv .q-md img`。
+
+### 四处调用点
+
+| 调用点 | 用法 |
+|---|---|
+| `viewQ(uid, context)` | `qvRender('#modal-stage', uid, {layout:'split', actions:['edit','suspend','delete']})` |
+| `fbRenderStage()` | `qvRender('#fb-stage', uid, {layout:'split', actions:['edit','suspend','open']})` |
+| `instRender()` | `qvRender('#inst-qv', uid, {reveal:row.revealed, showHistory:false, actions:['edit'], onReveal:instReveal})` |
+| 画廊 / 导出选题卡片 | `qvHtml(detail, item, QV_CARD_OPTS)`，即 `{layout:'stack', showMeta:false, showAnswer:false, showNotes:false, showHistory:false, bare:true, clamp:6}` |
+
+### 画廊缩略预览与 `white-space`（v1.11.0 修复）
+
+`.gallery-preview` 上有一条 `white-space:pre-wrap`，是 v1.10.0 之前留下的——那时框里装的是一段纯文本。改用 qview 之后框里装的是 HTML，而 `qvHtml()` 是多行模板字符串，标签之间带换行和缩进；`pre-wrap` 下这些纯空白文本节点**不会折叠**，每个都渲染成空行：
+
+```
+<div class="qv …">          ← 后面 "\n    " = 2 行
+    <section class="qv-q">  ← 后面 "\n    " = 2 行
+    <div class="qv-label">题目</div>
+    <div class="q-md" …>…</div>
+  </section>                ← 前后各一段空白 = 4 行
+  </div>
+```
+
+合计 10 个空行 × `.82rem × 1.7 ≈ 22.3px` ≈ **223px**，而预览框 `max-height` 只有 240px——题面被挤到框底还要滚动，「题目」标签上方有约 89px 空白。这与题目内容无关，所有卡片完全一致。
+
+修复只动样式，不碰 `qview.js`：
+
+```css
+.gallery-preview .qv{white-space:normal}
+[data-theme="dark"] .qv-bare .q-md{background:transparent}
+```
+
+第一条关掉 qview 子树继承来的 `pre-wrap`；正文自己的 `.qv .q-md` 单独声明了 `white-space:pre-wrap`，直接命中元素，优先于继承，所以题目里的换行照常保留。`recommend.js` 的画廊仍走 `renderMdContent()` 老路径、DOM 里没有 `.qv`，不受影响，其容器上的 `pre-wrap` 保留。
+
+第二条是同一处的另一个 bug：`bare:true` 本意是给缩略卡去掉正文的边框底色，但深色主题的 `[data-theme="dark"] .qv .q-md`（三个类）权重高于 `.qv-bare .q-md`（两个类），把底色又加了回去，缩略卡看起来像「卡中卡」。
+
+### 题目 Modal（双栏 + 翻页）
+
+`omrs_dashboard.html` 原来的 `#modal-title` / `#modal-meta` / `#modal-body` / `#modal-notes` / `#modal-answer` / `#modal-hist` 六个节点，由 `.qv-nav` 翻页条 + 单个挂载点 `#modal-stage` 取代；`.modal-wide` 放宽到 `min(1180px,94vw)` / `88vh`。
+
+`viewQ(uid, context)` 的第二个参数是可选的翻页上下文，可传 uid 数组，也可传 `qvSetContext()` 登记过的上下文名；不传就退化成单题，行为与改版前一致。现有上下文：`'q'`（题目库表格 + 画廊，按当前筛选结果）、`'export'`（导出选题器）、`'export-selection'`（已选导出列表）、`'leech'`（数据复盘的顽固题 + 屡练不熟表）。
+
+`Esc` 关闭（`app.js` 既有监听），`←/→` 翻页（qview 自己监听，Markdown 编辑器打开时让位）。`#md-editor` 的 `z-index` 由 999 抬到 1000，否则从 Modal 里点「编辑 Markdown」会叠在同层；`saveMarkdownEditor()` / `suspendQuestion()` / `resumeQuestion()` 成功后追加 `qvInvalidate(uid)`，让底下的 Modal 或反馈舞台同步刷新。
+
+---
+
 ## 3. 筛选控件（`filterItems()`）
 
 全局筛选，题库页、调度页和即时练习页共用：
@@ -192,6 +282,52 @@ Tab `目录`（侧栏图标 `#i-tree`，位于「题目库」与「复习调度�
 | 难度上下限 | `difficulty` |
 | 熟练度上下限 | `mastery` |
 | 排序 | 多种排序方式 |
+
+### 3.1 用户标记筛选
+
+`filterItems()` 额外接受 `labels: string[]` 与 `labelMode: 'any'|'all'`。
+全文搜索同时匹配标记名；`any` 为命中任一标记，`all` 要求全部命中。题库、推荐、
+导出选题、即时练习和展示板添加题目都复用这份筛选语义。
+
+### 3.2 题库页（`assets/qtable.js`，v1.14.0）
+
+`#panel-questions` 的常驻工作栏只保留搜索、筛选、排序和列/密度菜单。难度、
+熟练度、到期、状态、停用、知识点和标记等高级条件进入右侧 `#qb-drawer`；命中
+条件显示为可单独清除的 chips，计数条同时显示逾期、待攻克、顽固题、停用和当前
+命中数量。
+
+默认表格列为：勾选、UID/科目·分类、标记、熟练度、到期、状态和操作。难度、衰减后、
+次数、上次复习、EF 可在列设置中打开；行密度支持舒适/紧凑。批量条提供加入展示板、
+打标记、停用/恢复、导出和清空选择。所有行统一收进 `⋯` 菜单，整行可进入题目
+Modal；`B`/`L` 分别执行批量加入展示板/批量打标记，`/` 搜索、`F` 筛选、`V` 切换
+表格/画廊，方向键移动行游标，Space 勾选，Enter 打开题目，Esc 清空选择。
+
+列和密度存于 `localStorage`；命名视图把筛选字段、标记、排序、视图、列设置和
+密度存于 `localStorage('omrs-question-views')`，不上传服务端。
+
+### 3.3 标记组件与接入
+
+`assets/labels.js` 的 `lblChip()` / `lblChips()` 输出 `<=>` 双尖形芯片：
+屏幕、Modal、展示板和导出均为同色体系，只按位置使用 18px / 20px / 15px 尺寸。
+底色恒定为原色 18% 透明度，文字由 `lblInk()` 按浅/深主题钳亮度；不再存在
+`solid` / `soft` 配色变体。`LabelPicker` 支持搜索、新建、最近标记、键盘
+上下移动/Space/Enter/Esc，批量条和反馈判定面板分别复用单题覆盖与批量添加/移除 API。
+
+标记接入录入表单、收件箱题卡、题库、题目 Modal、反馈、即时练习、推荐、导出、
+展示板、数据复盘和仪表盘。数据页显示按标记正确率/平均分，仪表盘显示活动题目的
+标记分布；`boardQuickAdd()` 统一处理各页面的「加入展示板」入口。
+
+### 3.4 展示板页（`assets/board.js`，v1.14.0）
+
+侧栏「题目库」与「目录」之间新增「展示板」Tab。页面分为板列表、板内容和版面
+设置三栏。板内容支持批量添加、按标记同步、拖拽/菜单排序、单题额外留白、预览、
+移除、清空；缺失题与停用题保留并提示，导出时跳过。板设置去抖 500ms 保存，包含
+留白占比、题间距、装订边、孔位标记、答案和打印范围。
+
+打印预览使用板内绝对页码。`last_printed_page` 作为高水位，使默认范围为下一页起；
+确认预览窗口已打印后才向主页面推进高水位。中间插题或整体重排且已有高水位时，
+前端提示后续页码可能变化。快捷键为 `N` 新建、`A` 添加、`P` 预览、方向键选择、
+Ctrl/Cmd+方向键排序、Enter 打开、Delete 移除。
 
 ---
 
@@ -246,11 +382,116 @@ Tab `目录`（侧栏图标 `#i-tree`，位于「题目库」与「复习调度�
 4. 用户判对/错并给 0-10 主观分，结果存在 `INSTANT_RESULTS`。
 5. 「提交已判定」调用 `POST /api/feedback`，`session_id` 使用 `IMM-YYYYMMDDHHMMSS`，只写历史与 mastery 更新，不创建调度 Session。
 
-即时练习复用 `renderMdContent()` 处理题面、答案、备注中的图片与 LaTeX，复用 `process_feedback()` 的熟练度、EF、SM-2 更新逻辑。
+即时练习复用 `process_feedback()` 的熟练度、EF、SM-2 更新逻辑。**v1.10.0 起题面 / 答案 / 备注块由 qview 渲染**（`instRender()` 内 `qvRender('#inst-qv', uid, {reveal:row.revealed, showHistory:false, actions:['edit'], onReveal:instReveal})`），原 `.instant-block` / `.instant-md` / `.instant-notes` / `.instant-answer-locked` 及其样式已删除，未翻答案时不再渲染答案 DOM，题卡内也多了「编辑 Markdown」入口。`instRender` / `instGo` / `instReveal` / `instSetVerdict` / `instSetScore` / `instSubmitPractice` 的签名与 `/api/recommend`·`/api/feedback` 流程均未改。
 
 > **布局重设计（v1.5.0，响应式工作台）**：原「顶栏 + `1fr/320px` 双栏（题卡 / `<aside>` 队列）」改为 `.inst-work` 网格工作台，用 `grid-template-areas` 排布四块（`#inst-summary` 进度+提交 / `.inst-queue-wrap` 队列 / `.inst-main` 题卡 / `#inst-submit-results` 结果），DOM 顺序不变也能在窄屏重排。**桌面**：左题卡（1fr）+ 右栏（进度+提交置顶 → 队列竖列 → 提交结果）。**移动端（≤900px）**：重排为 进度+提交 → 队列 → 题卡 → 结果；队列从竖列表变成**横向圆点条**（`.instant-queue` 转 flex-row 横滚，`.instant-qbtn` 隐藏 `.instant-qmain`、只留 `.qn` + `.qmk`，点按跳题）；评分 `.instant-grade` 竖排整行（`.fb-toggle` 占满 + 主观分滑杆单独一行，去掉写死的 `min-width:280px`）；导航 `.instant-nav` 改 2 列网格（「下一道未判定」整行 + 上/下各半）；题头 `.instant-head` 竖排（位置 / UID 一行、chips 落下一行）；筛选 `.inst-filters` 转 2×2 网格全宽，题数加可见标签（`.inst-count-field`）。提交按钮（JS 渲染在 `#inst-summary` 内）随进度块置顶，不再埋在侧栏底部。**清理**：移除 v1.4.2 叠加遗留的孤立 / 失效规则（`.instant-topbar` / `.instant-layout` / `.instant-side` / `.instant-summary` / `.instant-filters` 与 `.instant-head .uid` / `.meta-line` / `.tag-row`），相关样式收拢成一段。**纯 HTML 骨架 + CSS：`instant.js`、所有 `#inst-*` id 与 `instLoadPractice` / `instGo` / `instReveal` / `instSetVerdict` / `instSetScore` / `instSubmitPractice` 等逻辑、`/api/recommend`·`/api/feedback` 流程均未改。版本不变（仍 v1.5.0）。**
 >
 > **同日修订**：① 桌面右栏队列会随题卡高度变化而上下漂移 / 看似居中——`.inst-work` 由 `grid-template-areas` 改为显式列/行 + 末尾 `1fr` 空行吸收题卡多出的高度，队列改为稳定贴顶；移动端 `.inst-work` 改 `display:flex` 竖排（DOM 顺序天然即 进度→队列→题卡→结果）、`align-items:stretch` 占满宽，筛选项加 `min-width:0` 让 2 列等宽、题数标签 `white-space:nowrap`。② 深色「反转题图」失效——旧规则错指 `.instant-qmain img`（队列项无图），改为正确的 `.instant-md img` / `.instant-notes img`（题面 / 答案 / 备注图）。
+
+---
+
+## 5.1 反馈录入工作台（`assets/feedback.js`，v1.10.0；答题卡导入 v1.11.0）
+
+入口 Tab：`反馈录入`；面板 `#panel-feedback`。骨架与即时练习的 `.inst-work` 同源——反馈录入本质上就是同一个复习流程，只是题目已经在纸面上做完了，因此复用那套已经调好的三栏布局和移动端重排规则，而不是再造一套。
+
+### 布局
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│ [Session ▾] 已录 3/12·剩 9 [🔄 刷新] [📋 读剪贴板填写] [＋ 添加行]   │
+├────────────┬──────────────────────────────────┬────────────────────┤
+│ ① .fb-rail │ ② .fb-stage（qview split）        │ ③ .fb-panel        │
+│  题目列表   │  题目 | 答案 / 备注 / 做题历史     │  判定 · 统计 · 提交 │
+└────────────┴──────────────────────────────────┴────────────────────┘
+```
+
+- 桌面：`236px / minmax(0,1fr) / 300px`，rail 与判定面板都 `position:sticky`。
+- ≤1160px：判定面板落到底部通栏并吸底。
+- ≤820px：三栏塌成竖排，rail 转横向滚动条并隐藏 `.fb-railmain`（只留序号 + 状态点），做法与 `.instant-queue` 一致。
+
+### rail 显示**全部**题目，不只是待录入的
+
+只渲染 `pending_uids` 是「切换太多次」的隐形推手——用户看不到已录的题录成了什么，也没有 Session 全貌。`fbRailEntries(session, rows)`（纯函数，已导出可单测）改为渲染 `sessionUniqueUids(session)` 全量：
+
+- **序号沿用 Session 原始顺序**（`fbSessionPositions()`，v1.8.2 明确修过的行为，不能回退）。
+- 已录入的行 `.is-done` 置灰 + `✔`，可点击查看题目内容，但判定面板显示只读提示，不可编辑。
+- 待录入的行按 `fbRows[i].correct` 显示状态点：`✓` / `✗` / 当前高亮 / `○` 未判。
+- 导入或手动添加、但不属于本 Session 的行追加在列表末尾（`entry.extra`），判定面板为其显示可编辑的 UID 字段。
+
+**这不需要改 `fbSessionProgress()` 的返回契约**——它本来就同时返回 `feedback_uids` 和 `pending_uids`，渲染层多读一个字段即可，`tests/test_feedback_ui.js` 保持绿。
+
+### 渲染层拆三块，停止整块 innerHTML
+
+```js
+fbRenderRail()      // 只重绘题目列表
+fbRenderPanel()     // 只重绘右侧判定面板
+fbRenderStage()     // 只在当前题变化时调用 → qvRender
+renderFb()          // 三者依次调用；名字保留，兼容既有调用点
+```
+
+`renderFb()` 这个名字必须保留，`onFbSessionChange` / `importFeedbackJson` / `addFbRow` / `submitFb` 都在调它。点「对 / 错」只走 `fbPatchRailRow()`（就地改一行的 class 与状态点）+ `fbRenderPanel()`，题目 DOM 与 KaTeX 不重渲染；`FB_STAGE_UID` 记录舞台上正在显示的 uid，相同则跳过重绘。
+
+判定面板内的控件全部走 `data-fb-act` 事件委托（`fbBindPanel()` 在 `#panel-feedback` 上绑一次），rail 行走 `data-fb-go="<下标>"`；不再把函数名和下标拼进行内 `onclick`。
+
+### 状态与快捷键
+
+- 游标 `FB_CURSOR` 是 rail 条目下标，每次渲染前经 `fbSetCursor()` 夹取，切 Session / 导入后自动定位到第一道未判定题。
+- 分数默认值随判定走：用户没手动拖过时点「对」置 9、点「错」置 4（与 `importFeedbackJson()` 的 `correct?10:4` 同一心智）；拖过之后 `row.scoreTouched=true`，不再自动改。
+- 快捷键（`fbHandleKey`，仅在本面板激活、Modal / Markdown 编辑器未打开、焦点不在输入控件时生效）：`J`/`↓` 下一题、`K`/`↑` 上一题、`1` 判对、`2` 判错、`0`–`9` 设主观分（需已判定）、`Enter` 跳下一道未判定、`E` 打开当前题的 Markdown 编辑器、`⌘`/`Ctrl`+`V` 读答题卡 JSON（见 §5.1.1）、`⌘`/`Ctrl`+`Enter` 提交。面板底部一行极小字提示，不做弹窗帮助。
+
+### 5.1.1 答题卡扫描 JSON 导入（v1.11.0）
+
+纸面复习的闭环原本断在「批改结果怎么回到 OMRS」：要么手工逐题点，要么把结果口述给 AI 让它拼反馈 JSON。v1.11.0 接上答题卡扫描项目（OMR）的正式结果输出——扫完卡在识别详情页复制 `/api/v1/recognitions/{id}/result` JSON，回本页读剪贴板，逐题自动落到判定面板上。
+
+**全部在前端完成**，`/api/feedback` 与提交体 `{uid, sub_score, is_correct, note}` 零改动。
+
+#### 题号 → UID 的对应关系
+
+答题卡上只有题号，没有 UID。唯一的对应依据是**当前 Session 的题目顺序**：OMR 的 `seq N` ↔ `sessionUniqueUids(session)[N-1]`，与 `omrs/exporting.py` 打印「第 N 题 [UID]」时用的 `enumerate(questions, 1)` 是同一个口径。因此**没选 Session 就直接拒绝导入**，不做任何猜测。
+
+已知边界：导出答题卡之后再停用某道题，`list_sessions` 会把它从 `uids` 里滤掉，其后所有题号整体前移，纸面与 Session 不再对齐。UI 与导入面板都写明了这一点，中栏题面就是核对手段。
+
+#### 唯一接受的 OMR JSON 形态（`omrReadSheet`）
+
+OMR 剪贴板导入只接受 `GET /api/v1/recognitions/{id}/result` 返回的**顶层对象**：
+
+```json
+{
+  "recognition_id": 12,
+  "template_id": "omrs-2col-normal-30q-tm-v2",
+  "mode": "omrs",
+  "status": "ready",
+  "questions": [{"seq": 1, "page": 1, "result": "C", "level": "9"}],
+  "unresolved": []
+}
+```
+
+六个顶层字段 `recognition_id/template_id/mode/status/questions/unresolved` 必须齐全，`questions` 与 `unresolved` 必须是数组。旧的完整原始记录 `{id,status,template_id,items:[...]}`、详情页 `detail_json`、裸 `items` 数组、`{recognition|record|result|data: ...}` 包装层和扫描记录列表都明确拒绝；错误信息会要求回 OMR 识别详情页点击「复制结果 JSON」。OMRS 不再读取 `raw_value/result_status/manual_value/darkness`，也不再按选项集合反推字段种类，证据到结论的规则只留在 OMR 的 `service.result_export`。
+
+#### 逐题判定规则
+
+- **OMRS mode**：直接读取 `questions[].result`（`C/W`）与 `questions[].level`（字符串 `0`–`10`）；level 为 `null` 且对应字段不在 `unresolved` 时，仍按对错给默认分 `correct?10:4`。
+- **Anki mode**：保留原有 SM-2 映射，读取 `questions[].answer`（`A`=错/1 分，`H`=对/5，`G`=对/8，`E`=对/10）。
+- **custom mode**：`questions[].answer` 只有选项、推不出对错，一律留给人工。
+- `unresolved` 是唯一的待复核信号：只要某个 `seq` 有 unresolved 字段，该题就不自动填写；字段名与状态以 `OMR：` 前缀写进备注，进入三栏工作台人工处理。即使 `questions` 内同时出现了值，也不覆盖 unresolved。
+- 任务级：`failed` 拒绝导入；`uploaded`/`queued`/`processing` 提示尚未识别完；`needs_review` 可读取，但其中 unresolved 题仍全部转人工。
+- 超出 Session 题数的题号、以及本 Session 已录入过的 UID，都跳过并在状态行报告计数；全部题号都超范围时直接提示「多半选错了 Session」。
+
+#### 三个入口，一套解析
+
+`fbImportText()` → `fbPayloadKind()` 分流 → `fbImportOmrScan()` 或 `fbImportFeedbackPayload()`。三个入口都同时接受答题卡 JSON 和反馈 JSON：
+
+1. 顶栏「📋 读剪贴板填写」（`fbReadClipboardAndFill`，走 `navigator.clipboard.readText`）
+2. 本面板内直接 `⌘`/`Ctrl`+`V`（`fbHandlePaste`，document 级监听，焦点在输入控件时让位）
+3. 折叠面板里的粘贴框 +「导入 JSON」（`importFeedbackJson`）
+
+第 2 条不是锦上添花：`navigator.clipboard` 只在 HTTPS 或 localhost 可用，局域网 `http://` 打开时按钮会失效，粘贴事件是那种情况下唯一能用的路径，两者都失败时才退回粘贴框。
+
+解析器不依赖 core.js 的 `asNumber`（内部用 `omrInt`/`omrScore`），因此可在 node 侧单独 `require` 出来测：`tests/test_omr_import.js` 覆盖正式协议、旧协议拒绝、OMRS/Anki 映射、unresolved 与状态边界，`tests/smoke_feedback_omr_import.js` 用 vm + 最小 DOM 桩跑整条接线。
+
+### 不变的部分
+
+`fbRows` 行结构只多一个 `scoreTouched` 布尔；`fbRowsForSubmit()` 与提交体 `{uid, sub_score, is_correct, note}` 完全不变；`/api/feedback` 零改动；分批提交与「未判定题保留到下一批」的 v1.8.2 行为不变；JSON 导入与 AI 提示词路径不变。
 
 ---
 
@@ -448,6 +689,8 @@ AI 生成报告时，对某道题用 `<img src="/api/image?name=<URL编码文件
 
 `.stat-card` / `.card` 的深色规则由半透明白渐变（`rgba(255,255,255,.045→.024)`）改为**实色 `var(--bg2)` + `--border` 描边 + 更实的投影**；侧栏由 `#161410` 改 `#0f0e0c`。
 
+> **v1.10.0 清理**：`.modal .q-answer .q-md` 和 `.instant-answer .instant-md` 两条写死 `rgba(39,134,74,.04)` 的答案块规则，随 qview 落地一并删除——新的 `.qv .q-answer-md` 直接走 `rgba(var(--green-rgb),α)`，深色不需要单独补丁，对应的 `[data-theme="dark"]` 特例也已移除。深色「反转题图」的选择器改为 `.q-md img` / `.qv .q-md img` / `.gallery-preview img`。
+
 ### 规则层：写死浅色的几处
 
 根因是这些规则写死了浅色时代的颜色，token 切深色后它们不跟着走。全部新增为 `[data-theme="dark"]` 覆盖，集中在 `styles.css` 末尾「v1.7.0 深色对比度修订」注释段：
@@ -460,3 +703,10 @@ AI 生成报告时，对某道题用 `<img src="/api/image?name=<URL编码文件
 - 卡中卡（`.instant-md` / `.rec-item` / `.sched-item` / `.picker-row` 等）由 `.04` 抬到 `.07` 并补描边；`.btn` 底 `.05→.07`、hover `.10→.14` 并明确前景色；`.input` 深色底改 `--bg3`；`.img-thumb` 角标底改 `.70`。
 
 **维护约定**：新写深色规则一律走 `var(--*)` 或 `rgba(var(--*-rgb), α)`，不要再写死十六进制或裸 `rgba(r,g,b,a)`；确需固定的深墨字用 `#17150f`（与 `--accent-fg` 同值）。
+
+
+---
+
+## 7.1 收件箱录入流程（`assets/inbox.js`，v1.12.0）
+
+`#panel-create` 改为顶部 `.ib-flow`：**上传 → 处理 → 录入**（编号真序列）+ AI 训练 + 快速录入；原单题表单整段搬进 `#ib-stage-quick`，所有 `#cr-*` id 与 `doCreate` / `crClassify` 等逻辑不变。新脚本 `assets/inbox.js` 排在 `data.js` 之后、`reports.js` 之前（依赖 `core.js` 的 `api`/`escapeHtml` 与 `questions.js` 的 `renderMdContent`）；`switchTab('create')` 调 `inboxInit()`。样式集中在 `styles.css` 末段，类名全部 `ib-` 前缀；画布标注色 `--ib-role-*` 固定不随主题。粘贴分流：`ibPaste`（捕获阶段）只在上传阶段拦截图片；`crHandlePaste` 只在快速录入阶段生效。设置页「AI 自动识别」新增三个按用途的模型输入框（`#st-ai-model-detect/-extract/-classify`），随 `saveAiSettings` 一起保存。交互细节、job 轮询、沿用框位的像素锚定规则见 `AI/inbox.md` §5。v1.13.0：处理页 / 队列脚 / 批量条加「▦ 模板框选」（`ibDetect(ids, 'template')`，零联网）；「AI 训练」页加盲标评估集与存储概览、清理按钮、以及「框选提供方与自动策略」表单（`.ib-pl-grid`，`ibLoadPolicy / ibSavePolicy` 读写 `/api/config` 的 `inbox_*` 键，与设置页共用同一 config）；大裁图自动改 JPEG。

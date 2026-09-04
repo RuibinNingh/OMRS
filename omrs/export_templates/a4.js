@@ -51,6 +51,23 @@
   function leastInk(an, lo, hi) { let m = Infinity, my = lo; for (let y = lo; y <= hi; y++) if (an.ink[y] < m) { m = an.ink[y]; my = y; } return my; }
 
   function el(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  function labelRgb(value) {
+    let hex = String(value || "#64748b").replace(/^#/, "");
+    if (/^[0-9a-f]{3}$/i.test(hex)) hex = hex.split("").map(ch => ch + ch).join("");
+    if (!/^[0-9a-f]{6}$/i.test(hex)) hex = "64748b";
+    return [0, 2, 4].map(index => parseInt(hex.slice(index, index + 2), 16));
+  }
+  function appendLabelChips(parent, labels) {
+    (Array.isArray(labels) ? labels : []).forEach(raw => {
+      const item = typeof raw === "string" ? { name: raw, color: "#64748b" } : (raw || {});
+      const name = String(item.name || "").trim();
+      if (!name) return;
+      const chip = el("span", "lbl print", name);
+      chip.style.setProperty("--lbl-rgb", labelRgb(item.color).join(","));
+      chip.style.setProperty("--lbl-ink", item.ink || "#475569");
+      parent.appendChild(chip);
+    });
+  }
   function sliceEl(src, dispW, naturalW, y0, y1, mark) {
     const scale = dispW / naturalW;
     const wrap = el("div", "slice"); wrap.style.width = dispW + "px"; wrap.style.height = (y1 - y0) * scale + "px";
@@ -255,7 +272,13 @@
   function headBlock(q) {
     return { keepNext: true, build: () => {
       const e = el("div", "blk q-head");
-      const l1 = el("div"); l1.innerHTML = '<span class="no">第 ' + q.idx + ' 题</span><span class="uid">[' + esc(q.uid) + ']</span>'; e.appendChild(l1);
+      const l1 = el("div", "q-head-line");
+      l1.appendChild(el("span", "no", "第 " + q.idx + " 题"));
+      l1.appendChild(el("span", "uid", "[" + q.uid + "]"));
+      const labels = el("span", "labels");
+      appendLabelChips(labels, q.labels);
+      if (labels.childNodes.length) l1.appendChild(labels);
+      e.appendChild(l1);
       e.appendChild(el("div", "meta", "科目: " + q.subject + "    分类: " + q.category + "    难度: " + q.difficulty + "/10"));
       if (q.tags) e.appendChild(el("div", "tags", "标签: " + q.tags));
       return e;

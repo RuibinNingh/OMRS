@@ -50,7 +50,7 @@ decayed = mastery × e^( -days / (mastery×factor + base) )
 
 ---
 
-## 3. 调度优先级 `compute_priority(decayed_mastery, ef, days, tag, mastery, fail_count=0, tuning=None)`
+## 3. 调度优先级 `compute_priority(decayed_mastery, ef, days, tag, mastery, fail_count=0, tuning=None, labels=None, label_bonuses=None)`
 
 > 统一公式，集中在 `scheduling.py`。此前在 `schedule_questions()`、`generate_recommendations()`、`stats.py` 各写一份，已合并，避免三处逻辑漂移。
 
@@ -65,6 +65,23 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 - **leech（顽固题）**：`fail_count >= leech_fail_threshold`（默认 4）且未击杀：`priority += leech_priority_bonus`（默认 0.4），见 §10
 
 `60`/`0.3` 即 `priority_days_divisor`/`priority_days_weight`，连同上述加成阈值均可经 `tuning` 覆盖，见 §9。
+
+### 3.2 用户标记加成（v1.14.0，可选）
+
+题目上的用户标记不改变状态机，也不默认参与调度。只有标记定义的
+`priority_bonus` 设置为正数时，`compute_priority()` 才加入：
+
+```text
+label_bonus = clamp(
+    Σ max(0, priority_bonus[题目上的每个标记]),
+    0,
+    label_bonus_cap
+)
+```
+
+默认 `priority_bonus=0.0`，因此不改变 v1.13.0 的推荐顺序。总加成默认由
+`label_bonus_cap=1.0` 封顶；标记定义、调度推荐和题目条目的连接方式见
+`labels.md`。
 
 排序：降序，取前 `count` 条。
 
@@ -142,7 +159,8 @@ v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `fe
 
 ```
 1. 遍历所有非已击杀题目
-2. 先按可选筛选项裁剪：科目 `subject`、分类 `category`、知识点 `knowledge_tag`
+2. 先按可选筛选项裁剪：科目 `subject`、分类 `category`、知识点 `knowledge_tag`、
+   用户标记 `label`（可重复，OR）
 3. Due_Date ≤ 今天 → 到期列表
 4. Due_Date > 今天 → 熟练度列表
 ```
@@ -163,7 +181,9 @@ v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `fe
 priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 ```
 
-待攻克且 mastery < 0.3 额外 +0.5；leech 额外 +0.4。
+待攻克且 mastery < 0.3 额外 +0.5；leech 额外 +0.4。标记定义存在正
+`priority_bonus` 时再加 `label_bonus`，并受 `label_bonus_cap` 封顶；缺省均为
+0，不影响未配置标记的题目。
 
 ---
 
@@ -199,6 +219,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 | `attack_bonus` / `attack_mastery_threshold` | 0.5 / 0.3 | 待攻克加成（§3） |
 | `proficiency_factor` | 0.7 | 熟练度来源答对的间隔折中系数（§6） |
 | `leech_fail_threshold` / `leech_priority_bonus` | 4 / 0.4 | leech 判定与加成（§10） |
+| `label_bonus_cap` | 1.0 | 同一题所有用户标记 `priority_bonus` 的加成上限（§3.2）；默认标记加成仍为 0 |
 
 `config.json` 示例：
 

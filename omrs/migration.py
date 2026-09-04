@@ -11,6 +11,7 @@ from .common import (
     config_path,
     extract_category,
     extract_knowledge_tags,
+    extract_labels,
     extract_tag,
     history_path,
     load_csv,
@@ -24,7 +25,7 @@ from .ledger import append_commit, has_commits, reserve_operation_id
 from .workspace_sync import content_hash, metadata_hash, scan_question_files, update_fingerprints
 
 
-KNOWN_TEMPLATE_KEYS = ("_omrs_id", "科目", "分类", "难度", "页码", "相关知识点", "tags")
+KNOWN_TEMPLATE_KEYS = ("_omrs_id", "科目", "分类", "难度", "页码", "相关知识点", "标记", "tags")
 
 
 def ensure_ledger_bootstrap(vault: str):
@@ -48,7 +49,16 @@ def ensure_ledger_bootstrap(vault: str):
             category=extract_category(meta) or old.get("Category") or item["category"],
             difficulty=meta.get("难度") or old.get("Difficulty") or "5",
             page=meta.get("页码", ""),
-            related_tags=extract_knowledge_tags(meta) or _split_tags(old.get("Knowledge_Tags", "")),
+            related_tags=(
+                extract_knowledge_tags(meta)
+                if "相关知识点" in meta
+                else _split_tags(old.get("Knowledge_Tags", ""))
+            ),
+            labels=(
+                extract_labels(meta)
+                if "标记" in meta
+                else _split_tags(old.get("Labels", ""))
+            ),
             current_tag=extract_tag(meta) or old.get("Current_Tag") or "#状态/待攻克",
         )
         if changed:
@@ -113,9 +123,11 @@ def normalize_markdown_template(
     difficulty,
     page="",
     related_tags=None,
+    labels=None,
     current_tag="#状态/待攻克",
 ):
     related_tags = related_tags or []
+    labels = labels or []
     meta = parse_yaml_frontmatter(content)
     body = content
     match = re.match(r"^---\s*\n.*?\n---\s*\n?", content, re.DOTALL)
@@ -129,12 +141,15 @@ def normalize_markdown_template(
         "难度": str(difficulty or meta.get("难度") or "5"),
         "页码": str(page or meta.get("页码", "")),
         "相关知识点": related_tags,
+        "标记": labels,
         "tags": [tag or "状态/待攻克"],
     }
     # Preserve known existing values unless they were empty and the caller
     # supplied a fallback. _omrs_id is always authoritative.
     if meta.get("相关知识点") and not related_tags:
         fields["相关知识点"] = extract_knowledge_tags(meta)
+    if meta.get("标记") and not labels:
+        fields["标记"] = extract_labels(meta)
     if meta.get("tags"):
         tags = meta["tags"] if isinstance(meta["tags"], list) else [meta["tags"]]
         if not any(str(item).startswith("状态/") for item in tags):
@@ -163,6 +178,12 @@ def _format_frontmatter(fields):
             lines.append(f"  - \"{clean}\"")
     else:
         lines.append("相关知识点: []")
+    label_values = [str(label).strip() for label in fields.get("标记", []) if str(label).strip()]
+    if label_values:
+        lines.append("标记:")
+        lines.extend(f'  - "{label.replace(chr(34), chr(92) + chr(34))}"' for label in label_values)
+    else:
+        lines.append("标记: []")
     lines.append("tags:")
     for tag in fields.get("tags") or ["状态/待攻克"]:
         lines.append(f"  - {str(tag).replace('#', '')}")
@@ -195,6 +216,7 @@ def _question_payload(vault, item, meta, question_id, content):
         "difficulty": meta.get("难度", "5"),
         "current_tag": extract_tag(meta),
         "knowledge_tags": extract_knowledge_tags(meta),
+        "labels": extract_labels(meta),
         "metadata": meta,
         "metadata_hash": metadata_hash(meta),
         "content_hash": content_hash(content),

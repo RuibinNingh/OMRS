@@ -4,6 +4,7 @@ import os
 import re
 
 from .common import ATTACHMENTS_DIR, questions_root
+from .common import extract_labels
 from .ledger import append_commit, reserve_operation_id
 from .migration import ensure_ledger_bootstrap
 from .projections import rebuild_projection
@@ -99,13 +100,19 @@ def _section_body(text, image_names):
 
 
 def _build_markdown(question_id, subject, category, difficulty, today, note, related_tags,
-                    question_text, answer_text, cause, q_images, a_images):
+                    question_text, answer_text, cause, q_images, a_images, labels=None):
     related_lines = ["相关知识点: []"]
     if related_tags:
         lines = [f'  - "[[{tag.strip()}]]"' for tag in related_tags if str(tag).strip()]
         if lines:
             related_lines = ["相关知识点:"] + lines
     related_section = "\n".join(related_lines)
+    label_values = [str(label).strip() for label in (labels or []) if str(label).strip()]
+    label_section = "标记: []"
+    if label_values:
+        label_section = "标记:\n" + "\n".join(
+            f'  - "{label.replace(chr(34), chr(92) + chr(34))}"' for label in label_values
+        )
 
     question_body = _section_body(question_text, q_images) or "（请在 Obsidian 中编辑此题目内容）"
     answer_body = _section_body(answer_text, a_images)
@@ -121,6 +128,7 @@ _omrs_id: {question_id}
 难度: {difficulty}
 页码: {str(note).strip() if note else ''}
 {related_section}
+{label_section}
 tags:
   - 状态/待攻克
 录入日期: {today}
@@ -141,7 +149,7 @@ tags:
 
 def create_question(vault, subject, category, difficulty, note="", related_tags=None,
                     question_text="", answer_text="", cause="",
-                    question_images=None, answer_images=None):
+                    question_images=None, answer_images=None, labels=None):
     ensure_ledger_bootstrap(vault)
     qroot = questions_root(vault)
     category_dir = os.path.join(qroot, subject, category)
@@ -178,6 +186,7 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
     content = _build_markdown(
         question_id, subject, category, difficulty, today, note, related_tags or [],
         question_text, answer_text, cause, q_names, a_names,
+        labels=labels or [],
     )
 
     _atomic_write_text(filepath, content)
@@ -193,6 +202,7 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
             "difficulty": difficulty,
             "current_tag": "#状态/待攻克",
             "knowledge_tags": related_tags or [],
+            "labels": labels or [],
             "metadata": {
                 "_omrs_id": question_id,
                 "科目": subject,
@@ -200,6 +210,7 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
                 "难度": str(difficulty),
                 "页码": note or "",
                 "相关知识点": related_tags or [],
+                "标记": labels or [],
                 "tags": ["状态/待攻克"],
             },
             "metadata_hash": metadata_hash({
@@ -209,6 +220,7 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
                 "难度": str(difficulty),
                 "页码": note or "",
                 "相关知识点": related_tags or [],
+                "标记": labels or [],
                 "tags": ["状态/待攻克"],
             }),
             "content_hash": content_hash(content),

@@ -75,6 +75,12 @@ def init_db(db):
             PRIMARY KEY (question_id, knowledge_point)
         );
 
+        CREATE TABLE IF NOT EXISTS question_labels (
+            question_id TEXT NOT NULL,
+            label       TEXT NOT NULL,
+            PRIMARY KEY (question_id, label)
+        );
+
         CREATE TABLE IF NOT EXISTS mastery_projection (
             question_id           TEXT PRIMARY KEY,
             mastery               REAL NOT NULL,

@@ -74,6 +74,13 @@ body{background:var(--bg);color:var(--fg);font-family:var(--sans);
   background:var(--accent-light);border-radius:5px;padding:3px 8px;white-space:nowrap}
 .qhead .meta{font-size:.74rem;color:var(--fg2);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .qhead .meta .sep{color:var(--bg4)}
+.qhead .labels{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;min-width:0}
+.omrs-lbl{--lbl-rgb:100,116,139;--lbl-ink:#475569;display:inline-flex;align-items:center;
+  height:18px;max-width:100%;padding:0 11px;font-size:.66rem;font-weight:600;
+  line-height:18px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;background:rgba(var(--lbl-rgb),.18);color:var(--lbl-ink);
+  clip-path:polygon(8px 0,calc(100% - 8px) 0,100% 50%,calc(100% - 8px) 100%,
+    8px 100%,0 50%)}
 .qhead .tags{margin-top:6px;display:flex;gap:5px;flex-wrap:wrap}
 .qhead .tag{font-size:.66rem;color:var(--accent2);background:var(--bg3);border-radius:999px;padding:2px 9px}
 .qhead .state-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--bg4);flex-shrink:0}

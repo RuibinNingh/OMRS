@@ -51,7 +51,11 @@ function qvChips(detail, item) {
     else push(`${dueDays} 天后到期`);
   }
   if (item.suspended) push('已停用', 'muted');
-  return chips.join('');
+  const uid = detail.uid || item.uid || '';
+  const labels = typeof lblChips === 'function'
+    ? lblChips(detail.labels || item.labels || [], { lg: true, add: true, uid })
+    : '';
+  return chips.join('') + labels;
 }
 
 function qvToolsHtml(uid, actions) {
@@ -69,6 +73,10 @@ function qvToolsHtml(uid, actions) {
         return '<button type="button" class="btn sm danger" data-qv-act="delete">删除题目</button>';
       case 'open':
         return '<button type="button" class="btn sm" data-qv-act="open">在题目库打开</button>';
+      case 'board':
+        return '<button type="button" class="btn sm" data-qv-act="board">加入展示板</button>';
+      case 'labels':
+        return '<button type="button" class="btn sm" data-qv-act="labels">编辑标记</button>';
       default:
         return '';
     }
@@ -220,6 +228,8 @@ function qvHandleClick(event) {
   if (action === 'retry') { qvInvalidate(state?.uid || uid); return; }
   if (!uid) return;
   if (action === 'edit' && typeof openMarkdownEditor === 'function') openMarkdownEditor(uid);
+  else if (action === 'board' && typeof boardQuickAdd === 'function') boardQuickAdd(uid);
+  else if (action === 'labels' && typeof openLabelPicker === 'function') openLabelPicker(uid, button);
   else if (action === 'suspend' && typeof suspendQuestion === 'function') suspendQuestion(uid);
   else if (action === 'resume' && typeof resumeQuestion === 'function') resumeQuestion(uid);
   else if (action === 'delete' && typeof deleteQuestion === 'function') deleteQuestion(uid);

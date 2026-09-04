@@ -1,14 +1,17 @@
 // === assets/instant.js — 即时练习：推荐取题、在线翻答案、即时反馈 ===
 let INSTANT_SUBMITTING = false;
 function instTimestamp(){const d=new Date();const p=n=>String(n).padStart(2,'0');return`${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`}
-function instBuildParams(count){const params=new URLSearchParams({due_count:String(count),prof_count:String(count)});const subject=document.getElementById('inst-subject')?.value||'';const category=document.getElementById('inst-category')?.value||'';const knowledgeTag=document.getElementById('inst-ktag')?.value||'';if(subject)params.set('subject',subject);if(category)params.set('category',category);if(knowledgeTag)params.set('knowledge_tag',knowledgeTag);return params}
+function instBuildParams(count){const params=new URLSearchParams({due_count:String(count),prof_count:String(count)});const subject=document.getElementById('inst-subject')?.value||'';const category=document.getElementById('inst-category')?.value||'';const knowledgeTag=document.getElementById('inst-ktag')?.value||'';if(subject)params.set('subject',subject);if(category)params.set('category',category);if(knowledgeTag)params.set('knowledge_tag',knowledgeTag);if(typeof selectedLabelNamesFor==='function')selectedLabelNamesFor('inst').forEach(label=>params.append('label',label));return params}
+function instFilterItems(items){const filters={...(typeof getFilterState==='function'?getFilterState('inst'):{})};filters.sort='none';return typeof filterItems==='function'?filterItems(items||[],filters):(items||[])}
 function instMergeRecommendations(data,count){const rows=[];const seen=new Set();const add=(items,source)=>{(items||[]).forEach(item=>{if(!item?.uid||seen.has(item.uid))return;seen.add(item.uid);rows.push({...item,_source:source})})};add(data?.due,'due');add(data?.proficiency,'proficiency');return rows.slice(0,count)}
 function instSourceLabel(source){return source==='due'?'到期':'熟练度'}
+function instLabelsHtml(item,options={}){return typeof lblChips==='function'?lblChips(item?.labels||[],options):''}
 function instQueueMeta(item){
   const masteryPct=(asNumber(item.mastery,0)*100).toFixed(0);
   const dueDays=getDueDays(item);
   const dueDate=item.due_date||'—';
-  return `熟练度 ${masteryPct}% · 到期 ${escapeHtml(dueDate)} ${formatDueInfo(dueDays)}`;
+  const labels=instLabelsHtml(item);
+  return `熟练度 ${masteryPct}% · 到期 ${escapeHtml(dueDate)} ${formatDueInfo(dueDays)}${labels?' · ':''}${labels}`;
 }
 function instAnsweredCount(){return Object.values(INSTANT_RESULTS).filter(row=>row.correct===true||row.correct===false).length}
 function instResult(uid){if(!INSTANT_RESULTS[uid])INSTANT_RESULTS[uid]={revealed:false,score:null,correct:null};return INSTANT_RESULTS[uid]}
@@ -22,7 +25,10 @@ async function instLoadPractice(){
   try{
     const data=await api(`/api/recommend?${instBuildParams(count).toString()}`);
     INSTANT_DATA=data;
-    INSTANT_QUEUE=instMergeRecommendations(data,count);
+    INSTANT_QUEUE=instMergeRecommendations({
+      due:instFilterItems(data?.due),
+      proficiency:instFilterItems(data?.proficiency),
+    },count);
     INSTANT_INDEX=0;
     INSTANT_RESULTS={};
     INSTANT_SUBMITTING=false;
@@ -78,10 +84,8 @@ function instRender(){
   const row=instResult(item.uid);
   const score=row.score==null?5:row.score;
   const ktags=(q.knowledge_tags||item.knowledge_tags||[]).map(tag=>`<span class="tag" style="background:var(--accent-bg);color:var(--accent2)">${escapeHtml(tag)}</span>`).join('');
+  const labels=instLabelsHtml({...item,labels:q.labels||item.labels||[]});
   const masteryPct=(asNumber(item.mastery,0)*100).toFixed(0);
-  const answerHtml=row.revealed
-    ? `<div class="instant-block instant-answer"><div class="instant-label">答案</div><div class="instant-md">${renderMdContent(q.answer||'（无答案内容）')}</div>${(q.notes||'').trim()?`<div class="instant-label" style="margin-top:12px">备注</div><div class="instant-notes">${renderMdContent(q.notes)}</div>`:''}</div>`
-    : `<div class="instant-answer-locked"><button class="btn primary" onclick="instReveal()">显示答案</button></div>`;
   const grading=row.revealed?`<div class="instant-grade">
     <div class="fb-toggle">
       <span class="${row.correct===true?'active-correct':''}" onclick="instSetVerdict(true)">✓ 对</span>
@@ -93,7 +97,6 @@ function instRender(){
       <strong id="inst-score-val">${score}</strong>
     </div>
   </div>`:'';
-  const dueDays=getDueDays(item);
   document.getElementById('inst-empty').style.display='none';
   const review=document.getElementById('inst-review');
   review.style.display='block';
@@ -110,18 +113,16 @@ function instRender(){
     </div>
   </div>
   <div class="instant-prog"><div style="width:${Math.round((INSTANT_INDEX+1)/Math.max(1,INSTANT_QUEUE.length)*100)}%"></div></div>
-  ${ktags?`<div class="instant-tagrow">${ktags}</div>`:''}
-  <div class="instant-block">
-    <div class="instant-label">题目</div>
-    <div class="instant-md">${renderMdContent(q.question||'（无题目内容）')}</div>
-  </div>
-  ${answerHtml}
+  ${labels||ktags?`<div class="instant-tagrow">${labels}${ktags}</div>`:''}
+  <div class="instant-block" id="inst-qv"></div>
   ${grading}
   <div class="instant-nav">
     <button class="btn" onclick="instPrev()" ${INSTANT_INDEX<=0?'disabled':''}>上一题</button>
     <button class="btn" onclick="instJumpNextOpen()">下一道未判定</button>
     <button class="btn" onclick="instNext()" ${INSTANT_INDEX>=INSTANT_QUEUE.length-1?'disabled':''}>下一题</button>
   </div>`;
+  // 题面 / 答案 / 备注交给共享的 qview 组件，与题目 Modal、反馈工作台同一份渲染
+  qvRender('#inst-qv',item.uid,{layout:'split',reveal:row.revealed,showHistory:false,actions:['edit','board','labels'],onReveal:instReveal});
   instRenderSide();
 }
 

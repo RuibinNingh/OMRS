@@ -1,0 +1,23 @@
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:#e8e6e1;color:#211f1b}
+body{font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif}
+.toolbar{position:sticky;top:0;z-index:3;padding:10px 14px;background:#211f1b;color:#f8f6f1;font:14px sans-serif}
+.toolbar button{margin-left:12px;padding:5px 12px;border:1px solid #aaa;border-radius:5px;background:#fff;color:#211f1b}
+.bd-page{position:relative;width:793.7px;height:1122.52px;margin:18px auto;background:#fff;overflow:hidden;box-shadow:0 2px 12px #0003;page-break-after:always}
+.bd-inner{position:absolute;left:var(--binding);right:37.8px;top:45.4px;bottom:45.4px;overflow:visible}
+.bd-head{height:27px;border-bottom:1px solid #e0d9cd;margin-bottom:12px;font:700 13px/21px "Songti SC","STSong","SimSun",serif;letter-spacing:.5px}
+.bd-left{width:auto;height:calc(100% - 39px);overflow:visible}
+.bd-question{break-inside:avoid;font:12px/1.55 "Songti SC","STSong","SimSun",serif;padding:0 0 calc(var(--gap) + var(--extra-gap)) 0}
+.bd-qhead{display:flex;align-items:center;gap:6px;min-width:0;height:22px;overflow:hidden;white-space:nowrap;border-left:2.5px solid #8b5e3c;padding-left:7px;margin-left:-9px}
+.bd-no{font-weight:700;flex:0 0 auto}.bd-uid{font:700 10px "PingFang SC",sans-serif;color:#8b5e3c;flex:0 0 auto}
+.bd-labels{display:flex;gap:3px;min-width:0;overflow:hidden;flex:1}.lbl{display:inline-flex;align-items:center;height:15px;max-width:100%;padding:0 10px;font:600 9.5px/15px sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(var(--lrgb),.18);color:var(--link);clip-path:polygon(7px 0,calc(100% - 7px) 0,100% 50%,calc(100% - 7px) 100%,7px 100%,0 50%)}
+.bd-meta{margin:2px 0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b6358;font:10px/14px sans-serif}
+.bd-text{white-space:pre-wrap;overflow-wrap:anywhere}.bd-text p{margin:0 0 3px;overflow-wrap:anywhere}.bd-img{display:block;max-width:100%;height:auto;object-fit:contain;margin:5px 0}.bd-img-slice{overflow:hidden;margin:5px 0}.bd-img-slice img{display:block;max-width:none;height:auto}
+.bd-footer{position:absolute;left:0;right:0;bottom:32px;text-align:center;color:#b3a896;font:9px sans-serif;letter-spacing:1px}
+.bd-binding-marks{position:absolute;width:8px;pointer-events:none}
+.bd-binding-mark{position:absolute;left:0;width:8px;height:8px;transform:translateY(-50%);border:1px solid #c8c1b7;border-radius:50%;background:transparent}
+.bd-table-wrap{width:100%;overflow:hidden;margin:5px 0 7px}.bd-table{width:100%;border-collapse:collapse;table-layout:fixed;font:10px/1.35 "Noto Sans SC","Microsoft YaHei",sans-serif}.bd-table th,.bd-table td{padding:3px 4px;border:1px solid #d9d2c7;vertical-align:top;word-break:break-word}.bd-table th{font-weight:700;background:#f5f1ea}
+.bd-answer{width:calc(100% - 24px);height:calc(100% - 39px);font:11px/1.45 "Songti SC","STSong","SimSun",serif;padding-top:10px;overflow:visible}
+.bd-answer h2{font-size:13px;border-bottom:1px solid #e0d9cd;padding-bottom:4px}.bd-answer-row{margin:8px 0}
+@page{size:A4 portrait;margin:0}
+@media print{html,body{background:#fff}.toolbar{display:none}.bd-page{margin:0;box-shadow:none}}

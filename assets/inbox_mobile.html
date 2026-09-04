@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>OMRS 收件箱 · 手机上传</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,'PingFang SC','Noto Sans SC',sans-serif;background:#141311;color:#f0ebe3;min-height:100vh;padding:env(safe-area-inset-top) 16px 32px}
+h1{font-size:1.1rem;padding:18px 0 4px;display:flex;justify-content:space-between;align-items:center}
+h1 small{font-size:.7rem;color:#8fbf9a;font-weight:400}
+.hint{font-size:.74rem;color:#8f887c;line-height:1.6;margin:4px 0 16px}
+label.up{display:block;background:#ece7df;color:#17150f;border-radius:16px;padding:22px 16px;text-align:center;font-weight:700;font-size:1rem}
+label.up small{display:block;font-weight:400;color:#5b5750;font-size:.72rem;margin-top:4px}
+input[type=file]{display:none}
+.list{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;justify-content:space-between;align-items:center;background:#211f1d;border:1px solid rgba(236,231,223,.13);border-radius:12px;padding:10px 12px;font-size:.8rem}
+.row .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-right:10px}
+.ok{color:#8fbf9a}.err{color:#e59a8c}.busy{color:#dcb06a}.dup{color:#8f887c}
+.bar{height:3px;background:#2e2b27;border-radius:2px;margin-top:6px;overflow:hidden}.bar i{display:block;height:100%;background:#8fb0d8;width:0;transition:width .2s}
+.foot{margin-top:22px;font-size:.7rem;color:#8f887c;line-height:1.6}
+</style>
+</head>
+<body>
+<h1>OMRS 收件箱 <small id="st">●</small></h1>
+<div class="hint">在这里选截图上传，回电脑「录入题目」页处理即可。手机端不裁剪；相同图片自动合并。</div>
+<label class="up">选择截图上传<small>可多选 · 支持整张长截图</small><input type="file" id="f" accept="image/*" multiple></label>
+<div class="list" id="list"></div>
+<div class="foot">上传的原图保存在 <code>错题/.omrs/inbox/raw/</code>，不会直接进题库。</div>
+<script>
+const list=document.getElementById('list');const st=document.getElementById('st');
+fetch('/api/status').then(r=>r.json()).then(s=>{st.textContent='● 已连接 '+(s.version||'')}).catch(()=>{st.textContent='● 未连接';st.className='err'});
+document.getElementById('f').addEventListener('change',async e=>{
+  const files=[...e.target.files];e.target.value='';
+  for(const file of files){
+    const row=document.createElement('div');row.className='row';
+    row.innerHTML=`<span class="n">${file.name}</span><span class="busy">上传中</span>`;list.prepend(row);
+    const fd=new FormData();fd.append('file',file,file.name);
+    try{
+      const r=await fetch('/api/inbox/upload',{method:'POST',body:fd});const j=await r.json();
+      if(!r.ok)throw new Error(j.msg||('HTTP '+r.status));
+      const s=row.lastElementChild;
+      if(j.items&&j.items.length){s.textContent='✓ 已收 '+j.items[0].width+'×'+j.items[0].height;s.className='ok'}
+      else if(j.duplicates&&j.duplicates.length){s.textContent='已存在，合并';s.className='dup'}
+      else{s.textContent='未接收';s.className='err'}
+    }catch(err){row.lastElementChild.textContent='✕ '+err.message;row.lastElementChild.className='err'}
+  }
+});
+</script>
+</body>
+</html>

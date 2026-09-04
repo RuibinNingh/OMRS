@@ -31,6 +31,22 @@
 
 ---
 
+### `/api/labels`
+返回未归档的用户标记定义。每项包含 `id`、`name`、`color`、`order`、
+`priority_bonus`、`archived`、`created_at` 和引用题目数 `count`。
+
+### `/api/boards`
+返回展示板列表。每项包含 `id`、`name`、`note`、`count`、`created_at`、
+`updated_at`、`print`、`last_printed_page`、`missing` 和 `suspended`。
+
+### `/api/board?id=<board_id>`
+返回指定展示板及解析后的题目引用。每个 `items[]` 附带
+`question_id`、当前 `uid`、`subject`、`category`、`difficulty`、`mastery`、
+`due_date`、`labels`、`suspended`、`missing`、`added_at`、`extra_gap_lines` 和 `pin`。
+读取时优先按 `question_id` 命中；题目删除或无法解析时保留引用并标记 `missing`。
+
+---
+
 ### `/api/status`
 返回服务运行状态，用于辨别当前运行的 OMRS 版本和题库实例。
 
@@ -39,7 +55,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `status` | string | 当前服务状态，正常为 `ok` |
-| `version` | string | 从 `omrs.version.__version__` 读取的 OMRS 版本号，当前为 `v1.6.0` |
+| `version` | string | 从 `omrs.version.__version__` 读取的 OMRS 版本号，当前为 `v1.14.0` |
 | `started_at` | string | 服务启动时间（ISO 8601，UTC） |
 | `uptime_seconds` | int | 已运行秒数 |
 | `question_count` | int | 当前托管题目数 |
@@ -60,7 +76,7 @@
 | `subjects` | 各科目：题数、击杀、待攻克、leech、平均熟练度、平均 EF、复习次数、正确率（按平均熟练度升序） |
 | `categories` | 各分类：题数、平均熟练度、复习次数、正确率、leech（按平均熟练度升序） |
 | `distributions` | `mastery_histogram`/`decayed_histogram`（各 10 桶）、`ef_dist`/`difficulty_dist`/`repetition_dist`/`interval_dist` |
-| `accuracy` | `by_score`（各主观分次数/答对/正确率）、`weekly`（近 12 周复习/答对/正确率） |
+| `accuracy` | `by_score`（各主观分次数/答对/正确率）、`weekly`（近 12 周复习/答对/正确率）、`by_label`（按标记的题数/复习/答对/正确率/平均分） |
 | `behavior` | `by_weekday`（周一..周日）、`by_hour`（0–23）、`daily_trend`（近 30 天） |
 | `forecast` | 未来 7 天到期预测（键 `"0"`..`"7"`）+ `"7+"`（7 天以上）+ `overdue` |
 | `review_alert` | `overdue`、`due_today`、`due_next_3_days`、`due_next_7_days`、`due_within_3_days`、`due_within_7_days`、`low_mastery_not_due`、`leech`；兼容保留 `urgent`/`warning`/`cold`/`total_due` |
@@ -174,6 +190,7 @@
 | `subject` | 科目精确匹配 |
 | `category` | 分类精确匹配 |
 | `knowledge_tag` | 相关知识点精确匹配（命中 `Knowledge_Tags` 中任一项） |
+| `label` | 用户标记精确匹配；可重复传递，多个标记按 OR 过滤 |
 
 **响应字段：**
 
@@ -268,6 +285,7 @@
   "difficulty": 6,
   "note": "p.23",
   "related_tags": ["二倍角公式"],
+  "labels": ["考前必看"],
   "question_text": "题目正文（可选，含 LaTeX/多行）",
   "answer_text": "答案/解析（可选）",
   "cause": "错因（可选，写入 ## 错因）",
@@ -282,6 +300,7 @@
 | `difficulty` | int | 难度 1-10，默认 5 |
 | `note` | string | 笔记本页码，写入 YAML `页码`（此前被忽略，现已生效） |
 | `related_tags` | array | 相关知识点，写入 YAML `相关知识点` 为 `[[双链]]` |
+| `labels` | array | 用户标记名称，写入 YAML `标记`；名称去重，默认空列表 |
 | `question_text` | string | 题目正文，写入 `# 题目`；为空则写占位提示 |
 | `answer_text` | string | 写入 `# 答案` |
 | `cause` | string | 错因（为什么做错），写入 `# 备注` 的 `## 错因` 子标题（导出会带上）；`## 关联` 子标题保留 |
@@ -290,6 +309,82 @@
 
 **响应：** `{ "status":"ok", "uid", "file_path", "images":[全部], "question_images":[...], "answer_images":[...], "message" }`。  
 图片存到 `错题/附件/`；文件名含 UID 与 `_omrs_id` 短后缀，避免迁移后附件覆盖。建索引失败会回滚（删除本次 md 与已存图片）。图片服务仅支持 PNG/JPEG/GIF。
+
+### `POST /api/label/save`
+创建或更新用户标记定义。题目 Markdown 保存的是标记名称，不是定义的内部
+`id`；更新名称时会级联重写所有引用题目的 YAML，并统一重建投影。
+
+**请求体：**
+```json
+{
+  "id": "LB-20260904-a1b2c3",
+  "name": "考前必看",
+  "color": "#dc2626",
+  "priority_bonus": 0.3,
+  "order": 1
+}
+```
+
+- `id` 可省略；省略时创建新定义，提供时更新已有定义。
+- `name` 必填且唯一，不能含换行或 `|`；`color` 归一化为 `#rrggbb`。
+- `priority_bonus` 钳制到 `0–1`，默认 `0`；`order` 控制选择器顺序。
+
+**响应：** `{"status":"ok","label":{...,"count":0,"affected":0}}`。更新名称时
+`affected` 是实际改写题目数；没有改名时为 `0`。不存在或校验失败返回 HTTP 400。
+
+### `POST /api/label/delete`
+删除标记定义。默认先从所有题目的 YAML `标记:` 中移除该名称，再删除定义。
+
+**请求体：**
+```json
+{ "id": "LB-20260904-a1b2c3", "detach": true }
+```
+
+`id` 也可传标记名称；`detach` 传 `false` 时保留题目中的旧名称引用。
+
+**响应：** `{"status":"ok","deleted":true,"name":"考前必看","affected":12}`。
+`affected` 是被解绑题目数。
+
+### `POST /api/label/merge`
+把一个标记合并到另一个标记。引用源标记的题目会保留其它标记，并去重后
+改为目标标记；完成后删除源定义。
+
+**请求体：**
+```json
+{ "from": "计算失误", "into": "考前必看" }
+```
+
+也兼容字段名 `source` / `target`。**响应：**
+`{"status":"ok","merged":true,"from":"计算失误","into":"考前必看","affected":8}`。
+
+### `POST /api/question/labels`
+覆盖单道题目的用户标记。
+
+**请求体：**
+```json
+{ "uid": "三角函数1", "labels": ["考前必看", "计算失误"] }
+```
+
+名称会去空白、去重；`labels: []` 表示显式清空。成功响应为
+`{"status":"ok","uid":"三角函数1","labels":[...],"changed":true}`。有变化时会
+重写 Markdown、追加 `question.metadata_update_external` 并重建投影；同样内容重复提交
+不会产生新 commit。
+
+### `POST /api/questions/labels`
+批量给多道题添加或移除标记。
+
+**请求体：**
+```json
+{
+  "uids": ["三角函数1", "三角函数2"],
+  "add": ["考前必看"],
+  "remove": ["已打印"]
+}
+```
+
+操作按题目逐条执行，`add` 与 `remove` 同时命中时以移除为准。**响应：**
+`{"status":"ok","changed":2,"failed":[],"scan":{...}}`；`changed` 是实际发生
+文件变化的题目数，失败项包含 `uid` 与 `msg`，所有成功改动完成后最多统一扫描一次。
 
 ### `POST /api/workspace/scan`
 手动触发工作区自检。会检测正文变化、结构化 YAML 修改、文件移动/改名、新增 Markdown、文件消失和冲突。
@@ -497,6 +592,124 @@
 
 题目块显示 UID、科目、分类、难度、状态标签和知识点标签，便于打印后按标签复盘。
 
+#### 展示板模式：`format:"board"`
+
+展示板模式使用持久化展示板，而不是 `session_id` / `uids`：
+
+```json
+{
+  "format": "board",
+  "board_id": "BD-20260904-a1b2c3",
+  "include_answers": false,
+  "page_start": 3,
+  "page_end": 4,
+  "overrides": {
+    "note_ratio": 0.42,
+    "gap_lines": 6,
+    "binding_mm": 22,
+    "binding_marks": "none",
+    "answers": "none",
+    "show_labels": true,
+    "show_meta": true
+  }
+}
+```
+
+- `board_id` 必填，也兼容使用 `id`；板内引用按 `question_id` 优先解析。
+- `include_answers` 省略时沿用板设置 `print.answers`，传 `true` 时在末页追加答案附页。
+- `page_start` 默认 `1`；省略 `page_end` 表示导出到整板最后一页。分页先按整板
+  计算，再裁剪范围，所以单独导出第 3 页时页脚仍是绝对页码 `3`。
+- `overrides` 只覆盖本次导出的版面设置，不回写 `boards.json`；字段与板的
+  `print` 相同。停用题和缺失题保留在板内显示，但导出时跳过。
+
+响应仍是 `text/html; charset=utf-8` 的文件流，不是 JSON；文件名为
+`OMRS-board-<板名>.html`。HTML 自包含 `board.css` / `board.js` 与题图数据，
+每页页眉固定为「错题集」，页脚只显示当前页码，右侧留白不生成边框、底纹或笔记
+元素。确认打印后，展示板前端通过 `POST /api/board/update` 推进
+`last_printed_page`。
+
+### `POST /api/board/create`
+创建展示板，可选地在创建时加入题目或按一个标记初始化。
+
+**请求体：**
+```json
+{ "name": "三角函数", "uids": ["三角函数1", "三角函数2"], "label": "考前必看" }
+```
+
+`uids` 只加入当前可解析的题目并自动去重；当 `uids` 为空且提供 `label` 时，
+会把当前统计中的所有匹配题加入板内。**响应：** `{"status":"ok","board":{...}}`，
+其中 `board.items[]` 是已解析的条目详情。
+
+### `POST /api/board/update`
+部分更新展示板元数据、版面设置、打印高水位或条目顺序。
+
+**请求体：**
+```json
+{
+  "id": "BD-20260904-a1b2c3",
+  "name": "月考前",
+  "note": "只在系统内显示",
+  "print": { "gap_lines": 8, "binding_marks": "3hole" },
+  "items": [
+    {
+      "question_id": "OP-000123",
+      "uid": "三角函数1",
+      "added_at": "2026-09-04T12:00:00+00:00",
+      "extra_gap_lines": 2,
+      "pin": false
+    }
+  ],
+  "last_printed_page": 3
+}
+```
+
+各字段均可省略；`print` 是覆盖式合并，`items` 是**整体覆盖**而不是追加。
+`items` 中每项同时保存 `question_id` 与 `uid`，`extra_gap_lines` 钳制到 `0–24`。
+成功响应为 `{"status":"ok","board":{...}}`。
+
+### `POST /api/board/items/add`
+向展示板追加或插入题目引用。已存在的 UID 或稳定 `question_id` 会被跳过。
+
+**请求体：**
+```json
+{ "id": "BD-20260904-a1b2c3", "uids": ["三角函数3"], "position": 0 }
+```
+
+`position` 可省略，省略时追加到板尾；成功响应为完整的 `board` 对象。
+
+### `POST /api/board/items/remove`
+按 UID 或 `question_id` 移除展示板条目，不影响题目本身。
+
+**请求体：**
+```json
+{ "id": "BD-20260904-a1b2c3", "uids": ["三角函数3"] }
+```
+
+**响应：** `{"status":"ok","board":{...}}`。
+
+### `POST /api/board/duplicate`
+复制展示板的版面设置、备注、标记来源和现存题目引用；新板的打印高水位从
+`0` 开始，缺失题不会复制。
+
+**请求体：**
+```json
+{ "id": "BD-20260904-a1b2c3", "name": "月考前-副本" }
+```
+
+**响应：** `{"status":"ok","board":{...}}`。
+
+### `POST /api/board/delete`
+删除展示板记录，不删除题目、标记或 Ledger 数据。
+
+**请求体：**
+```json
+{ "id": "BD-20260904-a1b2c3" }
+```
+
+成功响应为 `{"status":"ok","deleted":true}`；展示板不存在时返回
+`{"status":"error","deleted":false}`。板数据的原子写入与备份规则见 `AI/board.md`
+和 `AI/data.md`。
+
 ---
 
 ### `POST /api/report/create`
@@ -515,3 +728,12 @@
 删除指定报告（文件 + 索引条目）。
 
 **请求体：** `{ "id": "RPT-..." }`
+
+
+---
+
+## 收件箱端点 `/api/inbox/*` 与 `/m`（v1.12.0）
+
+上传 → 框选 → 转换 → 提交 的暂存层，**不进 Ledger**；`commit` 复用 `create_question`。完整定义、job 单元格式、数据模型见 `AI/inbox.md` §3。速览：`POST /upload`（multipart 多文件，sha256 去重）、`GET /items`、`GET /raw?id=`、`POST /item/update`（整体覆盖 regions/cards/layout/status，`ready` 服务端校验）、`POST /discard`、`GET /slice-plan`、`POST /jobs`（detect / extract / classify / auto 后台线程；detect 单元可指定 `provider: vlm|template|local_http` 与 `blind`）、`GET /job?id=`、`POST /crops`、`POST /commit`、`GET /dataset/stats`（v1.13.0 多 `blind`、`storage`）、`GET /dataset/export`、`POST /cleanup`（v1.13.0：超期丢弃原图 / 裁图缓存）、`GET /m`（手机上传页）。`POST /api/config` 可写 `inbox_*` 策略键（见 `AI/inbox.md` §8）。
+
+`/api/ai-recognize` 行为不变；`ai_assist.py` 新增 `detect_regions`、`extract_region`、`parse_detect_output`，并按用途读 `ai_model_detect / ai_model_extract / ai_model_classify`（缺省回退 `ai_model`）。

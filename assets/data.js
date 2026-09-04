@@ -92,6 +92,13 @@ function renderAnalytics(){
   _tbl('data-weekly',['周','复习','答对','正确率'],
     a.accuracy.weekly.map(w=>[escapeHtml(w.week),w.reviews,w.correct,
       `<span style="color:${accColor(w.accuracy)}">${pctFmt(w.accuracy)}</span>`]));
+  _tbl('data-label-accuracy',['标记','题数','复习','答对','正确率','平均分'],
+    (a.accuracy.by_label||[]).map(item=>[
+      typeof lblChip==='function'?lblChip(item.label,{lg:true}):escapeHtml(item.label),
+      item.questions,item.reviews,item.correct,
+      `<span style="color:${accColor(item.accuracy)}">${pctFmt(item.accuracy)}</span>`,
+      item.avg_score==null?'—':item.avg_score,
+    ]));
 
   // 按星期
   const wd=a.behavior.by_weekday;
@@ -123,7 +130,8 @@ function renderAnalytics(){
   document.getElementById('data-alerts').innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">`+cells.map(c=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;border-top:3px solid ${c.color}"><div style="font-size:.68rem;color:var(--fg3);margin-bottom:4px">${escapeHtml(c.label)}</div><div style="font-size:1.5rem;font-weight:900;color:${c.color};font-family:'JetBrains Mono',monospace">${c.val}</div></div>`).join('')+`</div>`;
 
   // Leech / 屡练不熟
-  const leechBtn=u=>`<button class="btn sm" onclick="viewQ('${escapeAttr(u)}')">查看</button>`;
+  qvSetContext('leech',[...a.weak_spots.leeches,...a.weak_spots.struggling].map(it=>it.uid));
+  const leechBtn=u=>`<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" onclick="viewQ(${jsArg(u)},'leech')">查看</button>${typeof boardQuickAdd==='function'?`<button class="btn sm" onclick="boardQuickAdd(${jsArg(u)})">加入展示板</button>`:''}</div>`;
   _tbl('data-leeches',['UID','科目','分类','答错','熟练度','EF','复习',''],
     a.weak_spots.leeches.map(it=>[`<b style="color:var(--accent2)">${escapeHtml(it.uid)}</b>`,escapeHtml(it.subject||''),escapeHtml(it.category||''),
       `<span style="color:var(--red);font-weight:700">${it.fail_count}</span>`,

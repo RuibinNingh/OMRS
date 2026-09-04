@@ -24,6 +24,7 @@ function estimateTime(count){return count<3?count*10+'分钟':count<7?count*8+'�
 function normalizeRecItem(item){if(!item)return item;if(item.due_date)return item;const od=item._overdue_days;if(od==null)return item;const d=new Date();d.setDate(d.getDate()-od);return{...item,due_date:d.toISOString().slice(0,10)}}
 function applyRecFilters(items,filters){return filterItems(items.map(normalizeRecItem),filters)}
 function getFilteredRecData(){if(!REC_DATA)return{due:[],proficiency:[]};const filters=getFilterState('rec');return{due:applyRecFilters(REC_DATA.due||[],filters),proficiency:applyRecFilters(REC_DATA.proficiency||[],filters)}}
+function recLabelsHtml(item, options={}){return typeof lblChips==='function'?lblChips(item?.labels||[],options):''}
 
 function addRecItemsToSelection(items,source){
   (items||[]).forEach(item=>{if(item?.uid)REC_SELECTED[item.uid]=source||item._source||'due'});
@@ -56,7 +57,10 @@ async function loadRecommendations(){
   const status=document.getElementById('rec-status');
   status.textContent='加载中...';
   try{
-    REC_DATA=await api(`/api/recommend?due_count=${dueCount}&prof_count=${profCount}${subject?`&subject=${encodeURIComponent(subject)}`:''}`);
+    const params=new URLSearchParams({due_count:String(dueCount),prof_count:String(profCount)});
+    if(subject)params.set('subject',subject);
+    getFilterState('rec').labels.forEach(label=>params.append('label',label));
+    REC_DATA=await api(`/api/recommend?${params.toString()}`);
     REC_SELECTED={};
     renderDualLists();
     updateRecSelectionBar();
@@ -114,7 +118,8 @@ function renderRecGalleryList(items,source){
     return `<div class="gallery-card ${selected?'selected':''}">
       <div class="gallery-head">
         <div><div class="uid">${escapeHtml(item.uid)} ${dueBadge}</div>
-        <div class="gallery-meta">${escapeHtml(item.subject||'')} · ${escapeHtml(item.category||'')}<br>难度 ${escapeHtml(item.difficulty)} · EF ${ef} · 来源: ${source==='due'?'到期':'熟练度'}</div></div>
+        <div class="gallery-meta">${escapeHtml(item.subject||'')} · ${escapeHtml(item.category||'')}<br>难度 ${escapeHtml(item.difficulty)} · EF ${ef} · 来源: ${source==='due'?'到期':'熟练度'}</div>
+        <div class="tag-row">${recLabelsHtml(item)}</div></div>
         <span class="tag ${(item.tag||'').includes('已击杀')?'kill':'attack'}">${escapeHtml(tagLabel)}</span>
       </div>
       <div class="question-progress-row"><div class="question-progress-main"><span>熟练度</span><span class="m-bar"><span class="m-bar-fill" style="width:${masteryPct}%;background:${masteryColor}"></span></span><span>${masteryPct}%</span></div></div>
@@ -157,7 +162,7 @@ function renderRecItem(item,source){
     <input type="checkbox" ${selected?'checked':''} onclick="event.stopPropagation();toggleRecSelection('${escapeAttr(item.uid)}','${source}')">
     <div class="rec-item-body">
       <div class="uid">${escapeHtml(item.uid)} ${dueBadge}</div>
-      <div class="meta">${escapeHtml(item.subject||'')} · ${escapeHtml(item.category||'')} · EF ${ef} · <span class="tag ${(item.tag||'').includes('已击杀')?'kill':'attack'}">${escapeHtml(tagLabel)}</span></div>
+      <div class="meta">${escapeHtml(item.subject||'')} · ${escapeHtml(item.category||'')} · EF ${ef} · <span class="tag ${(item.tag||'').includes('已击杀')?'kill':'attack'}">${escapeHtml(tagLabel)}</span>${recLabelsHtml(item)}</div>
     </div>
     <div class="rec-item-right">
       <div><span class="m-bar"><span class="m-bar-fill" style="width:${masteryPct}%;background:${masteryColor}"></span></span> ${masteryPct}%</div>
@@ -250,7 +255,7 @@ function renderPreviewList(items){
     const estTime=Math.max(3,Math.round(asNumber(item.difficulty,5)*1.5));
     return `<div class="sched-item">
       <div><div class="uid">${i+1}. ${escapeHtml(item.uid)} ${sourceLabel}</div>
-      <div class="meta-line">${escapeHtml(item.subject||'')} · ${escapeHtml(item.category||'')} · 难度 ${escapeHtml(item.difficulty)} · 预计 ${estTime} 分钟</div></div>
+      <div class="meta-line">${escapeHtml(item.subject||'')} · ${escapeHtml(item.category||'')} · 难度 ${escapeHtml(item.difficulty)} · 预计 ${estTime} 分钟 ${recLabelsHtml(item)}</div></div>
       <div class="priority">M=${(asNumber(item.mastery,0)*100).toFixed(0)}%</div>
     </div>`;
   }).join('');
@@ -264,6 +269,7 @@ function renderPreviewCards(items){
       <div class="gallery-head"><div><div class="uid">${escapeHtml(item.uid)}</div>
       <div class="gallery-meta">${escapeHtml(item.subject||'')} · ${escapeHtml(item.category||'')}<br>难度 ${escapeHtml(item.difficulty)} · 来源: ${sourceLabel}</div></div>
       <span class="tag ${(item.tag||'').includes('已击杀')?'kill':'attack'}">${escapeHtml((item.tag||'').replace(/#/g,''))}</span></div>
+      <div class="tag-row">${recLabelsHtml(item)}</div>
       <div class="question-progress-row"><span>熟练度 ${masteryPct}%</span></div>
       <button class="btn sm" onclick="viewQ('${escapeAttr(item.uid)}')">查看详情</button>
     </div>`;
@@ -282,7 +288,7 @@ function renderPreviewGroups(items){
     return `<div class="preview-group-header">${escapeHtml(subject)} (${group.length} 道, 约 ${estTime} 分钟)</div>
     ${group.map((item,i)=>
       `<div class="sched-item"><div><div class="uid">${i+1}. ${escapeHtml(item.uid)}</div>
-      <div class="meta-line">${escapeHtml(item.category||'')} · 难度 ${escapeHtml(item.difficulty)} · 来源: ${item._source==='due'?'到期':'熟练度'}</div></div>
+      <div class="meta-line">${escapeHtml(item.category||'')} · 难度 ${escapeHtml(item.difficulty)} · 来源: ${item._source==='due'?'到期':'熟练度'} ${recLabelsHtml(item)}</div></div>
       <div class="priority">M=${(asNumber(item.mastery,0)*100).toFixed(0)}%</div></div>`
     ).join('')}`;
   }).join('');
@@ -294,7 +300,7 @@ function renderPreviewTime(items){
     const estTime=Math.max(3,Math.round(asNumber(item.difficulty,5)*1.5));
     return `<div class="sched-item">
       <div><div class="uid">${i+1}. ${escapeHtml(item.uid)}</div>
-      <div class="meta-line">${escapeHtml(item.subject||'')} · ${escapeHtml(item.category||'')} · 难度 ${escapeHtml(item.difficulty)} · 预计 ${estTime} 分钟</div></div>
+      <div class="meta-line">${escapeHtml(item.subject||'')} · ${escapeHtml(item.category||'')} · 难度 ${escapeHtml(item.difficulty)} · 预计 ${estTime} 分钟 ${recLabelsHtml(item)}</div></div>
       <div class="priority">${estTime}分</div>
     </div>`;
   }).join('');

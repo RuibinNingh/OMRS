@@ -6,6 +6,7 @@ from .common import (
     MASTERY_HEADERS,
     extract_category,
     extract_images,
+    extract_labels,
     extract_knowledge_tags,
     extract_tag,
     history_path,
@@ -62,6 +63,8 @@ def get_stats(vault):
         )
     ]
     tuning = load_tuning(vault)
+    from .labels import label_priority_map
+    label_bonuses = label_priority_map(vault)
     active_fail_counts = build_fail_counts(active_history, uid_by_qid)
     all_fail_counts = build_fail_counts(history, uid_by_qid)
     today = datetime.date.today()
@@ -188,6 +191,8 @@ def get_stats(vault):
         priority = compute_priority(
             decayed_mastery, _safe_float(row.get("EF", 2.5), 2.5),
             days, tag, mastery, active_fail_counts.get(uid, 0), tuning,
+            labels=[label.strip() for label in str(row.get("Labels", "") or "").split("|") if label.strip()],
+            label_bonuses=label_bonuses,
         )
         if priority > 0.3:
             total_due += 1
@@ -249,5 +254,6 @@ def get_question_content(vault, uid):
         "tag": extract_tag(meta),
         "suspended": is_suspended_row(row),
         "knowledge_tags": extract_knowledge_tags(meta),
+        "labels": extract_labels(meta),
         "images": extract_images(question_text),
     }

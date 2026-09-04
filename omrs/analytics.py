@@ -16,6 +16,7 @@ from .common import (
     HISTORY_HEADERS,
     MASTERY_HEADERS,
     extract_images,
+    extract_labels,
     history_path,
     is_suspended_row,
     load_csv,
@@ -190,6 +191,7 @@ def get_analytics(vault):
             "due_date": row.get("Due_Date", ""),
             "last_review": row.get("Last_Review", ""),
             "tag": tag,
+            "labels": [label.strip() for label in str(row.get("Labels", "") or "").split("|") if label.strip()],
             "days_since_review": days,
             "images": _question_images(vault, row.get("File_Path", "")),
         })
@@ -198,6 +200,13 @@ def get_analytics(vault):
     total_reviews = len(history)
     total_correct = sum(1 for h in history if str(h.get("Is_Correct", "")).strip() == "1")
     total_wrong = total_reviews - total_correct
+    history_by_qid = {}
+    for row in history:
+        question_id = (row.get("Question_ID") or "").strip()
+        if not question_id:
+            question_id = qid_by_uid.get((row.get("UID") or "").strip(), "")
+        if question_id:
+            history_by_qid.setdefault(question_id, []).append(row)
     review_dates = []
     by_weekday = {w: 0 for w in WEEKDAYS}
     by_hour = {h: 0 for h in range(24)}
@@ -330,6 +339,46 @@ def get_analytics(vault):
         weekly_accuracy.append({"week": wk, "reviews": cnt, "correct": cor,
                                 "accuracy": _accuracy(cor, cnt)})
 
+    # ── 标记维度 ──
+    # 一次复习可以同时计入题目上的多个标记；这是有意的重叠统计，
+    # 用来回答“带有某个标记的题复习表现如何”，而不是把题目强行归入单一桶。
+    label_buckets = {}
+    for item in items:
+        for label in item.get("labels", []):
+            bucket = label_buckets.setdefault(label, {
+                "label": label,
+                "question_ids": set(),
+                "reviews": 0,
+                "correct": 0,
+                "score_sum": 0.0,
+                "score_count": 0,
+            })
+            question_id = item.get("question_id") or qid_by_uid.get(item.get("uid", ""), "")
+            if question_id:
+                bucket["question_ids"].add(question_id)
+                for review in history_by_qid.get(question_id, []):
+                    bucket["reviews"] += 1
+                    if str(review.get("Is_Correct", "")).strip() == "1":
+                        bucket["correct"] += 1
+                    try:
+                        bucket["score_sum"] += float(review.get("Sub_Score", ""))
+                        bucket["score_count"] += 1
+                    except (TypeError, ValueError):
+                        pass
+    label_accuracy = []
+    for bucket in label_buckets.values():
+        label_accuracy.append({
+            "label": bucket["label"],
+            "questions": len(bucket["question_ids"]),
+            "reviews": bucket["reviews"],
+            "correct": bucket["correct"],
+            "wrong": bucket["reviews"] - bucket["correct"],
+            "accuracy": _accuracy(bucket["correct"], bucket["reviews"]),
+            "avg_score": round(bucket["score_sum"] / bucket["score_count"], 2)
+            if bucket["score_count"] else None,
+        })
+    label_accuracy.sort(key=lambda value: (-value["reviews"], value["label"]))
+
     # 每日趋势（近 30 天）
     daily_trend = {}
     for off in range(30):
@@ -415,6 +464,7 @@ def get_analytics(vault):
         "accuracy": {
             "by_score": score_accuracy,
             "weekly": weekly_accuracy,
+            "by_label": label_accuracy,
         },
         "behavior": {
             "by_weekday": by_weekday,

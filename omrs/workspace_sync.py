@@ -9,6 +9,7 @@ from .common import (
     FILE_PATTERN,
     extract_category,
     extract_knowledge_tags,
+    extract_labels,
     extract_tag,
     parse_yaml_frontmatter,
     questions_root,
@@ -28,6 +29,7 @@ def metadata_hash(meta: dict) -> str:
         "难度": str(meta.get("难度", "")),
         "页码": str(meta.get("页码", "")),
         "相关知识点": extract_knowledge_tags(meta),
+        "标记": extract_labels(meta),
         "tags": meta.get("tags", []),
     }
     return hashlib.sha256(canonical_json(structured).encode("utf-8")).hexdigest()
@@ -286,6 +288,7 @@ def _question_payload(item, question_id):
         "difficulty": meta.get("难度", "5"),
         "current_tag": extract_tag(meta),
         "knowledge_tags": extract_knowledge_tags(meta),
+        "labels": extract_labels(meta),
         "metadata": meta,
         "metadata_hash": metadata_hash(meta),
         "content_hash": content_hash(item["content"]),
@@ -304,6 +307,7 @@ def _projection_to_question(row):
         "category": row.get("category", ""),
         "difficulty": row.get("difficulty", 5),
         "current_tag": row.get("current_tag", ""),
+        "labels": [value.strip() for value in str(row.get("labels", "") or "").split("|") if value.strip()],
     }
 
 

@@ -68,7 +68,7 @@ def is_leech(fail_count, mastery, tag, tuning=None) -> bool:
 
 
 def compute_priority(decayed_mastery, ef, days, tag, mastery,
-                     fail_count=0, tuning=None) -> float:
+                     fail_count=0, tuning=None, labels=None, label_bonuses=None) -> float:
     """统一的调度优先级公式（此前在 3 处各写一份，现集中于此）。
 
     priority = (1-decayed)×(eff_diff/10) + (days/divisor)×weight
@@ -86,6 +86,14 @@ def compute_priority(decayed_mastery, ef, days, tag, mastery,
         priority += t["attack_bonus"]
     if is_leech(fail_count, mastery, tag, t):
         priority += t["leech_priority_bonus"]
+    if labels and label_bonuses:
+        try:
+            priority += min(
+                max(0.0, float(t.get("label_bonus_cap", 1.0))),
+                sum(max(0.0, float(label_bonuses.get(label, 0) or 0)) for label in labels),
+            )
+        except (TypeError, ValueError):
+            pass
     return priority
 
 
@@ -150,6 +158,8 @@ def schedule_questions(vault, count=10, subject=None, exclude_uids=None):
     count = max(0, _safe_int(count, 10))
     excluded = set(_normalize_uid_list(exclude_uids))
 
+    from .labels import label_priority_map
+    label_bonuses = label_priority_map(vault)
     for row in rows:
         if is_suspended_row(row):
             continue
@@ -172,6 +182,7 @@ def schedule_questions(vault, count=10, subject=None, exclude_uids=None):
         priority = compute_priority(
             decayed_mastery, _safe_float(row.get("EF", 2.5), 2.5),
             days, tag, mastery, tuning=tuning,
+            labels=_row_labels(row), label_bonuses=label_bonuses,
         )
 
         scored.append(
@@ -191,7 +202,7 @@ def schedule_questions(vault, count=10, subject=None, exclude_uids=None):
 
 def generate_recommendations(vault, due_count=10, prof_count=10,
                              subject=None, category=None, knowledge_tag=None,
-                             exclude_uids=None):
+                             label=None, exclude_uids=None):
     """生成双列表推荐：到期列表 + 熟练度列表，互斥分配。
 
     返回:
@@ -203,6 +214,11 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
     history = load_csv(history_path(vault), HISTORY_HEADERS)
     fail_counts = build_fail_counts(history)
     tuning = load_tuning(vault)
+    from .labels import label_priority_map
+    label_bonuses = label_priority_map(vault)
+    requested_labels = [label] if isinstance(label, str) else [
+        str(value).strip() for value in (label or []) if str(value).strip()
+    ]
     today = datetime.date.today()
     excluded = set(_normalize_uid_list(exclude_uids))
 
@@ -230,6 +246,10 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
 
         if knowledge_tag and knowledge_tag not in _knowledge_tags(row):
             continue
+        if requested_labels and not any(
+            value in _row_labels(row) for value in requested_labels
+        ):
+            continue
 
         if is_due(row.get("Due_Date", ""), today):
             due_candidates.append(row)
@@ -255,6 +275,7 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
         priority = compute_priority(
             decayed, _safe_float(row.get("EF", 2.5), 2.5),
             days, tag, mastery, fail_counts.get(uid, 0), tuning,
+            labels=_row_labels(row), label_bonuses=label_bonuses,
         )
         prof_scored.append((priority, row))
 
@@ -353,10 +374,15 @@ def _row_to_item(row, today=None, fail_count=0, tuning=None):
         "tag": tag,
         "entry_date": row.get("Entry_Date", ""),
         "knowledge_tags": [k for k in row.get("Knowledge_Tags", "").split("|") if k],
+        "labels": _row_labels(row),
         "suspended": is_suspended_row(row),
         "fail_count": _safe_int(fail_count, 0),
         "is_leech": is_leech(fail_count, mastery, tag, t),
     }
+
+
+def _row_labels(row):
+    return [label.strip() for label in str(row.get("Labels", "") or "").split("|") if label.strip()]
 
 
 def get_items_by_uids(vault, uids):

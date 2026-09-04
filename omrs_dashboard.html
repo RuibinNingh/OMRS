@@ -7,7 +7,7 @@
 <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'')}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-<link rel="stylesheet" href="assets/styles.css?v=20260831-question-suspend">
+<link rel="stylesheet" href="assets/styles.css?v=20260903-inbox">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -23,6 +23,10 @@
 <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/></symbol>
 <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 8h16M4 16h16"/><circle cx="9" cy="8" r="2.3"/><circle cx="15" cy="16" r="2.3"/></symbol>
 <symbol id="i-tree" viewBox="0 0 24 24"><path d="M5 4v13a1 1 0 0 0 1 1h4M5 9h5M10 18h4"/><rect x="12" y="2.5" width="8" height="4" rx="1"/><rect x="12" y="10" width="8" height="4" rx="1"/><rect x="12" y="17" width="8" height="4" rx="1"/></symbol>
+<symbol id="i-board" viewBox="0 0 24 24"><path d="M4 5h16M4 11h16M4 17h9"/><path d="M17 15v5M14.5 17.5h5"/></symbol>
+<symbol id="i-label" viewBox="0 0 24 24"><path d="M4 12 8 5h8l4 7-4 7H8z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5h16l-6 7v6l-4 2v-8z"/></symbol>
+<symbol id="i-columns" viewBox="0 0 24 24"><rect x="4" y="5" width="6" height="14" rx="1"/><rect x="14" y="5" width="6" height="14" rx="1"/></symbol>
 <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.4"/></symbol>
 <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
 </defs></svg>
@@ -37,6 +41,7 @@
       <div class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')"><svg class="nav-ico" aria-hidden="true"><use href="#i-home"/></svg><span>仪表盘</span></div>
       <div class="tab" data-tab="data" onclick="switchTab('data')"><svg class="nav-ico" aria-hidden="true"><use href="#i-chart"/></svg><span>数据复盘</span></div>
       <div class="tab" data-tab="questions" onclick="switchTab('questions')"><svg class="nav-ico" aria-hidden="true"><use href="#i-folder"/></svg><span>题目库</span></div>
+      <div class="tab" data-tab="board" onclick="switchTab('board')"><svg class="nav-ico" aria-hidden="true"><use href="#i-board"/></svg><span>展示板</span></div>
       <div class="tab" data-tab="catalog" onclick="switchTab('catalog')"><svg class="nav-ico" aria-hidden="true"><use href="#i-tree"/></svg><span>目录</span></div>
       <div class="tab" data-tab="schedule" onclick="switchTab('schedule')"><svg class="nav-ico" aria-hidden="true"><use href="#i-calendar"/></svg><span>复习调度</span></div>
       <div class="tab" data-tab="instant" onclick="switchTab('instant')"><svg class="nav-ico" aria-hidden="true"><use href="#i-play"/></svg><span>即时练习</span></div>
@@ -47,7 +52,7 @@
       <div class="nav-spacer"></div>
       <div class="tab" data-tab="settings" onclick="switchTab('settings')"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></div>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.9.0 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.12.0 · 本地服务</div>
   </aside>
   <div class="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
   <main class="content">
@@ -81,6 +86,7 @@
       <div class="card"><div class="card-title">科目分布</div><div id="chart-subjects"></div></div>
       <div class="card"><div class="card-title">近 30 天活动</div><div id="chart-activity"></div></div>
     </div>
+    <div class="card" style="margin-bottom:20px"><div class="card-title">标记分布</div><div id="chart-labels"></div></div>
     <div class="cols">
       <div class="card"><div class="card-title">待复习队列预警</div><div id="chart-alerts"></div></div>
       <div class="card"><div class="card-title">每日练习趋势</div><div id="chart-trend"></div></div>
@@ -131,6 +137,7 @@
       <div class="card"><div class="card-title">📈 按周正确率（近 12 周）</div><div class="tbl-wrap" id="data-weekly"></div></div>
       <div class="card"><div class="card-title">🗓️ 按星期复习量</div><div id="data-weekday"></div></div>
     </div>
+    <div class="card" style="margin-bottom:20px"><div class="card-title">🏷️ 按标记正确率 / 平均分</div><div class="tbl-wrap" id="data-label-accuracy"></div></div>
     <div class="cols">
       <div class="card"><div class="card-title">🕐 按时段复习量</div><div id="data-hour"></div></div>
       <div class="card"><div class="card-title">⏳ 未来 7 天到期预测</div><div id="data-forecast"></div></div>
@@ -142,16 +149,9 @@
 
   <!-- ====== 题目库 ====== -->
     <div class="panel" id="panel-questions">
-    <div class="filter-bar">
-      <input type="text" id="q-search" placeholder="搜索 UID / 科目 / 分类 / 标签…" class="input filter-input-wide" oninput="filterQ()">
-      <select id="q-filter-subj" class="input" onchange="filterQ()"><option value="">全部科目</option></select>
-      <select id="q-filter-category" class="input" onchange="filterQ()"><option value="">全部分类</option></select>
-      <select id="q-filter-tag" class="input" onchange="filterQ()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select>
-      <select id="q-filter-ktag" class="input" onchange="filterQ()"><option value="">全部标签</option></select>
-      <input type="number" id="q-filter-diff-min" class="input filter-mini" min="1" max="10" placeholder="难度≥" oninput="filterQ()">
-      <input type="number" id="q-filter-diff-max" class="input filter-mini" min="1" max="10" placeholder="难度≤" oninput="filterQ()">
-      <input type="number" id="q-filter-mastery-min" class="input filter-mini" min="0" max="100" placeholder="熟练度≥%" oninput="filterQ()">
-      <input type="number" id="q-filter-mastery-max" class="input filter-mini" min="0" max="100" placeholder="熟练度≤%" oninput="filterQ()">
+    <div class="qb-bar">
+      <input type="text" id="q-search" placeholder="搜索 UID / 科目 / 分类 / 知识点 / 标记…" class="input qb-search" oninput="filterQ()">
+      <button class="btn" type="button" onclick="qbToggleDrawer()"><svg class="nav-ico" aria-hidden="true"><use href="#i-filter"/></svg> 筛选<span id="qb-filter-badge" class="qb-badge" style="display:none"></span></button>
       <select id="q-sort" class="input" onchange="filterQ()">
         <option value="mastery-asc">熟练度 ↑</option>
         <option value="mastery-desc">熟练度 ↓</option>
@@ -161,32 +161,70 @@
         <option value="due-asc">到期日 ↑</option>
         <option value="due-desc">到期日 ↓</option>
       </select>
-      <select id="q-filter-due" class="input" onchange="filterQ()">
-        <option value="">全部到期状态</option>
-        <option value="overdue">已逾期</option>
-        <option value="today">今日到期</option>
-        <option value="3days">3天内到期</option>
-        <option value="7days">7天内到期</option>
-        <option value="future">未到期</option>
-      </select>
-      <select id="q-filter-suspended" class="input" onchange="filterQ()">
-        <option value="">活动题目（不含停用）</option>
-        <option value="suspended">仅停用题目</option>
-        <option value="all">含停用全部</option>
-      </select>
-    </div>
-    <div class="temp-summary-row">
-      <div class="filter-note">题库支持按科目、分类、状态标签、知识标签、难度、熟练度、到期状态和停用状态联合筛选。停用题仅可在题库管理中恢复。</div>
-      <div class="view-switch">
-        <button class="btn sm toggle" id="q-view-table" onclick="setQView('table')">表格式</button>
-        <button class="btn sm toggle" id="q-view-gallery" onclick="setQView('gallery')">画廊式</button>
+      <div class="qb-menu-wrap"><button class="btn" type="button" data-qb-menu-toggle="columns"><svg class="nav-ico" aria-hidden="true"><use href="#i-columns"/></svg> 列 / 密度 ▾</button>
+        <div class="qb-pop-menu" data-qb-menu="columns">
+          <div class="qb-menu-title">列设置</div>
+          <label><input type="checkbox" data-qb-column="difficulty"> 难度</label>
+          <label><input type="checkbox" data-qb-column="decayed"> 衰减后</label>
+          <label><input type="checkbox" data-qb-column="attempts"> 次数</label>
+          <label><input type="checkbox" data-qb-column="last_review"> 上次复习</label>
+          <label><input type="checkbox" data-qb-column="ef"> EF</label>
+          <div class="qb-menu-sep"></div>
+          <div class="qb-menu-title">行密度</div>
+          <button type="button" data-qb-density="comfortable">舒适</button>
+          <button type="button" data-qb-density="compact">紧凑</button>
+          <div class="qb-menu-sep"></div>
+          <button type="button" data-qb-view-save>保存当前视图…</button>
+          <button type="button" data-qb-view-manage>管理视图…</button>
+        </div>
       </div>
     </div>
+    <div class="qb-counts" id="qb-counts"></div>
+    <div class="qb-chips" id="qb-chips"></div>
+    <div class="qb-wrap" id="qb-wrap">
+      <div class="temp-summary-row">
+        <div class="filter-note">高级筛选收在右侧抽屉；整行点击可查看题目，勾选后可批量打标记或加入展示板。</div>
+        <div class="view-switch">
+          <button class="btn sm toggle" id="q-view-table" onclick="setQView('table')">表格式</button>
+          <button class="btn sm toggle" id="q-view-gallery" onclick="setQView('gallery')">画廊式</button>
+        </div>
+      </div>
+      <aside class="qb-drawer" id="qb-drawer" aria-label="题库筛选">
+        <div class="card-title">筛选题库</div>
+        <div class="qb-drawer-grid">
+          <label>科目<select id="q-filter-subj" class="input" onchange="filterQ()"><option value="">全部科目</option></select></label>
+          <label>分类<select id="q-filter-category" class="input" onchange="filterQ()"><option value="">全部分类</option></select></label>
+          <label>状态<select id="q-filter-tag" class="input" onchange="filterQ()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select></label>
+          <label>知识点<select id="q-filter-ktag" class="input" onchange="filterQ()"><option value="">全部知识点</option></select></label>
+          <label>难度≥<input type="number" id="q-filter-diff-min" class="input" min="1" max="10" placeholder="1" oninput="filterQ()"></label>
+          <label>难度≤<input type="number" id="q-filter-diff-max" class="input" min="1" max="10" placeholder="10" oninput="filterQ()"></label>
+          <label>熟练度≥%<input type="number" id="q-filter-mastery-min" class="input" min="0" max="100" placeholder="0" oninput="filterQ()"></label>
+          <label>熟练度≤%<input type="number" id="q-filter-mastery-max" class="input" min="0" max="100" placeholder="100" oninput="filterQ()"></label>
+          <label class="qb-label-filter">标记<span id="q-label-filter-list" class="label-filter-list"></span></label>
+          <label>标记匹配<select id="q-label-mode" class="input" onchange="filterQ()"><option value="any">任一</option><option value="all">全部</option></select></label>
+          <label>到期<select id="q-filter-due" class="input" onchange="filterQ()"><option value="">全部到期状态</option><option value="overdue">已逾期</option><option value="today">今日到期</option><option value="3days">3天内到期</option><option value="7days">7天内到期</option><option value="future">未到期</option></select></label>
+          <label>题目<select id="q-filter-suspended" class="input" onchange="filterQ()"><option value="">活动题目（不含停用）</option><option value="suspended">仅停用题目</option><option value="all">含停用全部</option></select></label>
+          <div class="qb-drawer-extra"><label>快捷视图</label><div id="qb-view-menu" class="qb-view-menu"></div><button class="btn sm" type="button" data-qb-view-save>保存当前视图</button><button class="btn sm ghost" type="button" data-qb-view-manage>管理视图…</button></div>
+        </div>
+        <div class="qb-drawer-actions"><button class="btn sm" onclick="qbResetFilters()">重置</button><button class="btn sm primary" onclick="qbToggleDrawer()">应用</button></div>
+      </aside>
+    </div>
     <div class="tbl-wrap" id="q-table-wrap">
-      <table><thead><tr><th>UID</th><th>科目</th><th>分类</th><th>难度</th><th>熟练度</th><th>衰减后</th><th>次数</th><th>上次复习</th><th>到期</th><th>状态</th><th></th></tr></thead>
+      <table><thead><tr><th><input type="checkbox" id="qb-select-all" onchange="qbSelectAll(this.checked)"></th><th>UID / 题目</th><th>标记</th><th>熟练度</th><th>到期</th><th>状态</th><th></th></tr></thead>
       <tbody id="q-tbody"></tbody></table>
     </div>
     <div class="question-gallery-wrap" id="q-gallery-wrap"></div>
+    <div class="qb-batchbar" id="qb-batchbar" style="display:none"><strong>✓ 已选 <span id="qb-selected-count">0</span> 题</strong><button class="btn sm" onclick="qbBatchBoard()">加入展示板</button><button class="btn sm" onclick="qbBatchLabels()">打标记</button><button class="btn sm" onclick="qbBatchSuspend()">停用/恢复</button><button class="btn sm" onclick="qbBatchExport()">导出</button><button class="btn sm ghost" onclick="qbClearSelection()">清空</button></div>
+  </div>
+
+  <!-- ====== 展示板 ====== -->
+  <div class="panel" id="panel-board">
+    <div class="bd-head"><div><div class="card-title" style="margin-bottom:3px">展示板</div><div class="hint">把题目组织成可反复重排、追加和打印的左题右空纸面；板名只在系统内使用。</div></div><div class="bd-head-actions"><button class="btn primary" onclick="boardCreate()">＋ 新建板</button><button class="btn" onclick="boardExportCurrent()">导出</button><button class="btn" onclick="boardPrintPreview()">🖨 打印预览</button></div></div>
+    <div class="bd-layout">
+      <div class="card bd-list" id="bd-list"><div class="empty-inline">加载展示板…</div></div>
+      <div class="card bd-content" id="bd-content"><div class="empty-inline">请选择或新建一个展示板。</div></div>
+      <aside class="card bd-settings" id="bd-settings"><div class="empty-inline">选择展示板后设置版面。</div></aside>
+    </div>
   </div>
 
   <!-- ====== 目录（工作区文件夹树） ====== -->
@@ -224,10 +262,12 @@
         <span id="rec-status" class="status-text"></span>
       </div>
       <div class="filter-bar">
-        <input type="text" id="rec-search" placeholder="搜索 UID / 科目 / 分类 / 标签…" class="input filter-input-wide" oninput="renderDualLists()">
+        <input type="text" id="rec-search" placeholder="搜索 UID / 科目 / 分类 / 状态 / 知识点 / 标记…" class="input filter-input-wide" oninput="renderDualLists()">
         <select id="rec-filter-category" class="input" onchange="renderDualLists()"><option value="">全部分类</option></select>
         <select id="rec-filter-tag" class="input" onchange="renderDualLists()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select>
-        <select id="rec-filter-ktag" class="input" onchange="renderDualLists()"><option value="">全部标签</option></select>
+        <select id="rec-filter-ktag" class="input" onchange="renderDualLists()"><option value="">全部知识点</option></select>
+        <span id="rec-label-filter-list" class="label-filter-list" aria-label="标记筛选"></span>
+        <select id="rec-label-mode" class="input" onchange="renderDualLists()"><option value="any">标记任一</option><option value="all">标记全部</option></select>
         <input type="number" id="rec-filter-diff-min" class="input filter-mini" min="1" max="10" placeholder="难度≥" oninput="renderDualLists()">
         <input type="number" id="rec-filter-diff-max" class="input filter-mini" min="1" max="10" placeholder="难度≤" oninput="renderDualLists()">
         <input type="number" id="rec-filter-mastery-min" class="input filter-mini" min="0" max="100" placeholder="熟练度≥%" oninput="renderDualLists()">
@@ -303,11 +343,13 @@
         <div class="card-title">导出 HTML — 全题库筛选</div>
         <div class="filter-note">勾选题目后导出为<strong>自包含 HTML</strong>（图片已内嵌）。A4 打印版用浏览器打印/另存 PDF，可选是否附带答案；屏幕版是手机/平板上的复习 App（一题一屏、看答案、判对错并打分、进度自动保存），<strong>始终附带答案</strong>。</div>
         <div class="filter-bar">
-          <input type="text" id="pick-search" placeholder="搜索 UID / 科目 / 分类 / 标签…" class="input filter-input-wide" oninput="renderExportPicker()">
+        <input type="text" id="pick-search" placeholder="搜索 UID / 科目 / 分类 / 状态 / 知识点 / 标记…" class="input filter-input-wide" oninput="renderExportPicker()">
           <select id="pick-subject" class="input" onchange="renderExportPicker()"><option value="">全部科目</option></select>
           <select id="pick-category" class="input" onchange="renderExportPicker()"><option value="">全部分类</option></select>
           <select id="pick-tag" class="input" onchange="renderExportPicker()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select>
-          <select id="pick-ktag" class="input" onchange="renderExportPicker()"><option value="">全部标签</option></select>
+          <select id="pick-ktag" class="input" onchange="renderExportPicker()"><option value="">全部知识点</option></select>
+          <span id="pick-label-filter-list" class="label-filter-list" aria-label="标记筛选"></span>
+          <select id="pick-label-mode" class="input" onchange="renderExportPicker()"><option value="any">标记任一</option><option value="all">标记全部</option></select>
           <input type="number" id="pick-diff-min" class="input filter-mini" min="1" max="10" placeholder="难度≥" oninput="renderExportPicker()">
           <input type="number" id="pick-diff-max" class="input filter-mini" min="1" max="10" placeholder="难度≤" oninput="renderExportPicker()">
           <input type="number" id="pick-mastery-min" class="input filter-mini" min="0" max="100" placeholder="熟练度≥%" oninput="renderExportPicker()">
@@ -389,7 +431,9 @@
       <div class="inst-filters">
         <select id="inst-subject" class="input"><option value="">全部科目</option></select>
         <select id="inst-category" class="input"><option value="">全部分类</option></select>
-        <select id="inst-ktag" class="input"><option value="">全部标签</option></select>
+        <select id="inst-ktag" class="input"><option value="">全部知识点</option></select>
+        <span id="inst-label-filter-list" class="label-filter-list" aria-label="标记筛选"></span>
+        <select id="inst-label-mode" class="input"><option value="any">标记任一</option><option value="all">标记全部</option></select>
         <label class="inst-count-field"><span>题数</span><input type="number" id="inst-count" min="1" max="50" value="10" title="练习题数"></label>
         <button class="btn primary" onclick="instLoadPractice()">加载推荐</button>
       </div>
@@ -417,36 +461,170 @@
     <div class="fb-session-bar">
       <div class="fb-session-picker-wrap"><label style="font-size:.78rem;color:var(--fg3)">继续录入 Session</label><select id="fb-session-picker" class="input" style="min-width:260px" onchange="onFbSessionChange()"><option value="">— 手动录入（不关联 Session）—</option></select></div>
       <button class="btn sm" onclick="refreshFbSessionPicker()" title="刷新 Session 进度">🔄 刷新</button>
+      <button class="btn sm primary" onclick="fbReadClipboardAndFill()" title="读取剪贴板里的 OMR /result 顶层 JSON 或反馈 JSON，按题号自动填写本 Session">📋 读剪贴板填写</button>
       <button class="btn sm" onclick="addFbRow()">＋ 添加行</button>
       <span id="fb-session-info" class="fb-session-info"></span>
     </div>
     <details class="fb-import">
-      <summary>📥 从屏幕版 / AI 导入反馈</summary>
+      <summary>📥 导入反馈：答题卡扫描 / 屏幕版 / AI</summary>
       <div class="fb-import-body">
         <p style="font-size:.76rem;color:var(--fg3);line-height:1.6;margin-bottom:8px">
-          <strong>屏幕版：</strong>复习完后在「作答情况」抽屉点「复制作答 JSON」并粘贴。<strong>AI：</strong>先复制提示词，把你的纸面批改结果或口述反馈发给 AI，让它整理成同一份反馈 JSON 后粘贴。
+          <strong>答题卡：</strong>先在上面选中这张卡对应的 Session，在 OMR 识别详情页点击「复制结果 JSON」；
+          该内容来自 <code>/api/v1/recognitions/&lt;id&gt;/result</code>，顶层含
+          <code>recognition_id / template_id / mode / status / questions / unresolved</code>。
+          回到本页点「📋 读剪贴板填写」，也可以在本页空白处直接按 <kbd>Ctrl</kbd>/<kbd>⌘</kbd>+<kbd>V</kbd>。
+          题号按 Session 的题目顺序对应 UID，与 A4 导出打印的「第 N 题」是同一个顺序。<br>
+          <strong>屏幕版：</strong>复习完后在「作答情况」抽屉点「复制作答 JSON」并粘贴。
+          <strong>AI：</strong>先复制提示词，把纸面批改结果或口述反馈发给 AI，让它整理成同一份反馈 JSON 后粘贴。
+        </p>
+        <p class="fb-import-warn">
+          只接受上述 <code>/result</code> 顶层协议；旧的原始识别记录 <code>items</code>、裸数组和包装层会明确拒绝。
+          <code>unresolved</code> 涉及的题不会自动猜测，字段与状态会写进备注并留给你人工判定。
+          导出答题卡之后又停用过题目的话，纸面题号会整体前移——提交前请对着中栏题面核一遍。
         </p>
         <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
           <button class="btn sm" onclick="copyFeedbackAiPrompt()">复制 AI 反馈提示词</button>
           <span id="fb-prompt-status" style="font-size:.75rem"></span>
         </div>
-        <textarea id="fb-json" class="input" rows="5" style="margin-top:10px" placeholder='粘贴形如 {"type":"omrs-feedback","session_id":"EXP-…","items":[{"uid":"…","is_correct":true,"sub_score":9,"note":""}]} 的 JSON'></textarea>
+        <textarea id="fb-json" class="input" rows="5" style="margin-top:10px" placeholder='粘贴 OMR /result 顶层 JSON（{"recognition_id":12,"template_id":"omrs-…","mode":"omrs","status":"ready","questions":[{"seq":1,"result":"C","level":"9"}],"unresolved":[]}），或反馈 JSON（{"type":"omrs-feedback","session_id":"EXP-…","items":[{"uid":"…","is_correct":true,"sub_score":9}]}）'></textarea>
         <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
-          <button class="btn sm primary" onclick="importFeedbackJson()">导入反馈 JSON</button>
+          <button class="btn sm primary" onclick="importFeedbackJson()">导入 JSON</button>
           <span id="fb-json-status" style="font-size:.75rem"></span>
         </div>
       </div>
     </details>
-    <div class="fb-grid" id="fb-grid"></div>
-    <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
-      <button class="btn primary" onclick="submitFb()" id="fb-submit">提交反馈</button>
-      <span id="fb-status" style="font-size:.8rem"></span>
+    <div class="fb-work">
+      <aside class="fb-rail" id="fb-rail" aria-label="本 Session 题目列表"></aside>
+      <div class="fb-stage card" id="fb-stage"></div>
+      <div class="fb-panel card" id="fb-panel"></div>
     </div>
+    <div id="fb-status" style="font-size:.8rem;margin-top:14px"></div>
     <div id="fb-results" style="margin-top:14px"></div>
   </div>
 
   <!-- ====== 录入题目 ====== -->
   <div class="panel" id="panel-create">
+    <!-- v1.12.0 收件箱录入流程：上传 → 处理 → 录入 是真序列，故编号；AI 训练 / 快速录入不在序列里 -->
+    <div class="ib-flow">
+      <div class="ib-flow-step on" data-stage="upload" data-ib-stage="upload"><i>1</i><div><div class="fs-name">上传</div><div class="fs-sub">手机 / 电脑投进收件箱</div></div><div class="fs-count"><span id="ib-c-pending">0</span><small>待处理</small></div></div>
+      <div class="ib-flow-arrow">→</div>
+      <div class="ib-flow-step" data-stage="process" data-ib-stage="process"><i>2</i><div><div class="fs-name">处理</div><div class="fs-sub">框题目 / 答案，转文本或留图</div></div><div class="fs-count"><span id="ib-c-boxed">0</span><small>已框选</small></div></div>
+      <div class="ib-flow-arrow">→</div>
+      <div class="ib-flow-step" data-stage="create" data-ib-stage="create"><i>3</i><div><div class="fs-name">录入</div><div class="fs-sub">核对题卡，写入题库</div></div><div class="fs-count"><span id="ib-c-ready">0</span><small>待创建</small></div></div>
+      <div class="ib-flow-step aux" data-stage="train" data-ib-stage="train"><i>✦</i><div><div class="fs-name">AI 训练</div><div class="fs-sub">框选与转文本的人工数据</div></div></div>
+      <div class="ib-flow-step aux" data-stage="quick" data-ib-stage="quick"><i>⚡</i><div><div class="fs-name">快速录入</div><div class="fs-sub">单题表单，剪贴板一贴即录</div></div></div>
+    </div>
+
+    <!-- ① 上传 / 收件箱 -->
+    <section class="ib-stage on" id="ib-stage-upload">
+      <div class="ib-up-layout">
+        <div>
+          <div class="ib-dropzone" id="ib-dropzone" onclick="ibPickFiles()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="ibDrop(event)">
+            <div style="font-size:1.6rem;margin-bottom:6px">⇣</div>
+            <div><b>拖入或粘贴多张截图</b>，也可以点击选择文件</div>
+            <div class="hint" style="margin-top:4px">整张作业帮截图直接丢进来，不用先裁。相同图片（sha256 一致）自动合并。</div>
+            <div class="row"><button class="btn sm" type="button" onclick="event.stopPropagation();ibPickFiles()">选择文件…</button><button class="btn sm" type="button" onclick="event.stopPropagation();ibReadClipboard()">📋 从剪贴板读取</button><span class="hint" id="ib-up-status"></span></div>
+            <input type="file" id="ib-file" accept="image/*" multiple style="display:none" onchange="ibFileInput(event)">
+          </div>
+          <div class="ib-inbox-head">
+            <label style="display:flex;align-items:center;gap:6px;font-size:.76rem;cursor:pointer"><input type="checkbox" class="ib-chk" id="ib-sel-all" onchange="ibSelectAllVisible(this.checked)"> 全选（当前筛选）</label>
+            <span class="hint" id="ib-count"></span>
+            <div class="filters" id="ib-filters">
+              <span class="ib-chip on" data-f="all" data-ib-filter="all">全部</span><span class="ib-chip" data-f="pending" data-ib-filter="pending">待处理</span><span class="ib-chip" data-f="boxed" data-ib-filter="boxed">已框选</span><span class="ib-chip" data-f="ready" data-ib-filter="ready">待创建</span><span class="ib-chip" data-f="done" data-ib-filter="done">已录入</span>
+            </div>
+          </div>
+          <div class="ib-grid" id="ib-grid"></div>
+        </div>
+        <aside class="ib-up-side">
+          <div class="card">
+            <div class="card-title">📱 手机直接上传</div>
+            <div class="hint" style="font-size:.76rem;line-height:1.7">同一 Wi-Fi 下用手机浏览器打开 <code id="ib-lan-url">http://&lt;本机局域网 IP&gt;:8471/m</code>（需在「设置 → 服务设置」打开允许外部访问，启动时控制台会打印地址）。手机端只上传不裁剪，进的就是左边这个收件箱。</div>
+          </div>
+          <div class="card" style="margin-top:14px">
+            <div class="card-title">这一步做什么</div>
+            <div class="hint" style="font-size:.74rem;line-height:1.7">收件箱是<b>暂存区</b>，不写题库、不进 Ledger。原图存在 <code>错题/.omrs/inbox/raw/</code>；即使题目之后转成文本、不再需要图，原图和你框的位置也留作训练数据（「AI 训练」页可导出）。<br><br>勾选几张后底部会出现批量操作：<b>AI 框选</b>只对勾选的图跑；<b>沿用上一张框位</b>适合连续同版式截图；<b>整图即题目</b>适合已裁好的题图。</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ② 处理 -->
+    <section class="ib-stage" id="ib-stage-process">
+      <div class="ib-proc">
+        <div class="ib-pq">
+          <div class="ib-pq-head"><input type="checkbox" class="ib-chk" id="ib-pq-all" onchange="ibQueue().forEach(i=>this.checked?IB.sel.add(i.id):IB.sel.delete(i.id));ibRenderQueue();ibRenderInbox()" title="全选队列"><span class="t">处理队列</span><span class="n" id="ib-pq-n"></span></div>
+          <div class="ib-pq-list" id="ib-pq-list"></div>
+          <div class="ib-pq-foot"><button class="btn sm" type="button" onclick="ibDetectSelected()">🤖 AI 框选<span id="ib-pq-sel-n"></span></button><button class="btn sm" type="button" onclick="ibDetectSelected('template')" title="零联网模板框选">▦ 模板</button><button class="btn sm" type="button" onclick="ibApplyLastSelected()">沿用框位</button></div>
+        </div>
+        <div class="ib-pc">
+          <div class="ib-pc-tools">
+            <button class="btn sm" type="button" onclick="ibStep(-1)" title="上一张">←</button><button class="btn sm" type="button" onclick="ibStep(1)" title="下一张（Enter）">→</button>
+            <span class="fname" id="ib-pc-fname"></span>
+            <div class="ib-seg roles" id="ib-role-seg" title="画框角色（Q / A / X）"><button type="button" data-v="question" class="on" onclick="ibSetDrawRole('question')">题目 <span class="ib-kbd">Q</span></button><button type="button" data-v="answer" onclick="ibSetDrawRole('answer')">答案 <span class="ib-kbd">A</span></button><button type="button" data-v="ignore" onclick="ibSetDrawRole('ignore')">忽略 <span class="ib-kbd">X</span></button></div>
+          </div>
+          <div class="ib-pc-tools">
+            <button class="btn sm" type="button" onclick="ibDetectCurrent()">🤖 AI 框选此图</button><button class="btn sm" type="button" onclick="ibDetectCurrent('template')" title="零联网：按作业帮版式 / 最近一张同版式样本给初始框">▦ 模板框选</button><button class="btn sm" type="button" onclick="ibWholeImage()" title="不需要裁：整张图就是题目">整图即题目</button><button class="btn sm" type="button" onclick="ibApplyLast()" title="套用上一张处理过的图的框">沿用上一张框位</button><span class="grow"></span><button class="btn sm" type="button" onclick="ibClearBoxes()">清空框</button>
+          </div>
+          <div class="ib-pc-scroll" id="ib-pc-scroll"><div class="ib-stage-img" id="ib-stage-img"><img id="ib-stage-src" alt=""></div></div>
+          <div class="ib-pc-foot"><span>拖拽空白处画框</span><span><span class="ib-kbd">Q</span>/<span class="ib-kbd">A</span>/<span class="ib-kbd">X</span> 切角色</span><span><span class="ib-kbd">Del</span> 删框</span><span><span class="ib-kbd">Enter</span> 下一张</span><span><span class="ib-kbd">⌘/Ctrl</span>+<span class="ib-kbd">Enter</span> 转文本</span><span class="grow"></span><span id="ib-pc-zoom" class="mono"></span></div>
+        </div>
+        <div class="ib-ps">
+          <div class="ib-ps-head">
+            <div class="t">区域与转换 <span class="hint" id="ib-ps-card-n"></span></div>
+            <div class="meta" id="ib-ps-meta"></div>
+            <div class="layout"><span>版式</span><select class="input" style="width:auto;padding:3px 8px;font-size:.7rem" id="ib-layout" onchange="ibSetLayout(this.value)"><option value="zuoyebang">作业帮截图</option><option value="photo">拍照 / 扫描</option><option value="plain">已裁好的题图</option><option value="other">其他</option></select><span class="hint" style="margin-left:auto">作为训练标签记录</span></div>
+          </div>
+          <div class="ib-ps-body" id="ib-ps-body"></div>
+          <div class="ib-ps-foot"><button class="btn sm" type="button" onclick="ibAddCard()" title="同一张图里的第 2 道题">+ 新题卡</button><button class="btn sm danger" type="button" onclick="ibDiscardCurrent()">丢弃</button><span class="grow"></span><button class="btn sm" type="button" onclick="ibExtractAll()">转换文本</button><button class="btn sm primary" type="button" onclick="ibMarkReady()">标记就绪 →</button></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ③ 录入 -->
+    <section class="ib-stage" id="ib-stage-create">
+      <div class="ib-cr-head">
+        <label style="display:flex;align-items:center;gap:6px;font-size:.76rem;cursor:pointer"><input type="checkbox" class="ib-chk" id="ib-cr-all" onchange="ibSelectAllCards(this.checked)"> 全选</label>
+        <span class="hint" id="ib-cr-count"></span><span class="grow"></span>
+        <button class="btn sm" type="button" onclick="ibClassifySelected()">🤖 AI 识别题目信息（勾选）</button><button class="btn sm primary" type="button" onclick="ibCommitSelected()">创建勾选的题目</button>
+      </div>
+      <div id="ib-cards"></div>
+    </section>
+
+    <!-- AI 训练 -->
+    <section class="ib-stage" id="ib-stage-train"><div id="ib-train">
+      <div class="ib-tr-grid">
+        <div class="ib-stat"><div class="l">已留存原图</div><div class="v" id="ib-tr-imgs">—</div><div class="s" id="ib-tr-imgs-sub"></div></div>
+        <div class="ib-stat"><div class="l">人工确认的框</div><div class="v" id="ib-tr-boxes">—</div><div class="s" id="ib-tr-boxes-sub"></div></div>
+        <div class="ib-stat"><div class="l">AI 框选采纳率</div><div class="v" id="ib-tr-adopt">—</div><div class="s" id="ib-tr-adopt-sub"></div></div>
+        <div class="ib-stat"><div class="l">转文本判断一致率</div><div class="v" id="ib-tr-agree">—</div><div class="s" id="ib-tr-agree-sub"></div></div>
+      </div>
+      <div class="ib-tr-cols">
+        <div class="card"><div class="card-title">数据集构成</div><div id="ib-tr-layouts"></div><div class="hint" style="margin:14px 0 8px">转换决策（按区域）</div><div id="ib-tr-convert"></div></div>
+        <div class="card"><div class="card-title">导出与模型</div>
+          <div class="hint" style="line-height:1.7">每次 AI 框选都记录「AI 原框 / 人工最终框 / 采纳方式」，人工否决 AI 转文本判断也会留痕；全部事件在 <code>错题/.omrs/inbox/annotations.jsonl</code>。框选模型按用途在「设置 → AI 自动识别」里分别配置（detect 需支持定位输出；extract 建议用 OCR 类模型）。</div>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center"><select class="input" id="ib-tr-fmt" style="width:auto"><option value="omrs_jsonl">OMRS JSONL（归一化框）</option><option value="yolo">YOLO txt + JSONL</option></select><button class="btn sm primary" type="button" onclick="ibExportDataset()">导出数据集（含原图）</button><button class="btn sm" type="button" onclick="ibLoadStats()">刷新</button></div>
+          <div class="hint" style="margin-top:14px;line-height:1.7"><b>盲标评估集</b><br><span id="ib-tr-blind">—</span></div>
+          <div class="hint" style="margin-top:12px;line-height:1.7"><b>存储</b><br><span id="ib-tr-storage">—</span></div>
+          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" type="button" onclick="ibCleanup(false)" title="按下方「丢弃保留天数」删除超期的已丢弃原图；上传时也会自动执行">清理超期丢弃图</button><button class="btn sm" type="button" onclick="ibCleanup(true)" title="crops/ 可随时清空，需要时由前端或 Pillow 重建">清空裁图缓存</button></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px"><div class="card-title">框选提供方与自动策略</div>
+        <div class="hint" style="line-height:1.7">「AI 框选」按钮默认走这里选的提供方；处理页的「模板框选」按钮总是走模板。本地检测服务协议：<code>POST {image, layout, width, height}</code> → <code>[{label, card, bbox_2d:[x1,y1,x2,y2], confidence}]</code>（坐标 0–1000 / 0–1 / 像素均可）。</div>
+        <div class="ib-pl-grid">
+          <div><label class="hint" style="display:block;margin-bottom:3px">框选提供方</label><select class="input" id="ib-pl-provider" onchange="ibPolicyToggle()"><option value="vlm">vlm — 设置里的多模态模型（联网）</option><option value="template">template — 版式模板（零联网）</option><option value="local_http">local_http — 本地检测服务（训好的 YOLO/ONNX）</option></select></div>
+          <div id="ib-pl-local-row"><label class="hint" style="display:block;margin-bottom:3px">本地检测服务地址</label><input class="input" id="ib-pl-local" placeholder="http://127.0.0.1:8600/detect"></div>
+          <div><label class="hint" style="display:block;margin-bottom:3px">每 N 张盲标（0 = 关闭）</label><input class="input" id="ib-pl-blind" type="number" min="0" step="1" placeholder="0"><div class="hint" style="margin-top:3px">盲标的图不展示 AI 框，人工画完后成对留痕，作干净评估集，避免标注被模型带偏</div></div>
+          <div><label class="hint" style="display:block;margin-bottom:3px">自动就绪的置信度阈值（0 = 关闭）</label><input class="input" id="ib-pl-conf" type="number" min="0" max="1" step="0.05" placeholder="0"><div class="hint" style="margin-top:3px">AI 框全部 ≥ 阈值时自动转文本（含可转性判断）并置就绪；服务端裁图需 Pillow</div></div>
+          <div><label class="hint" style="display:block;margin-bottom:3px">上传后自动处理</label><label style="display:flex;align-items:center;gap:6px;font-size:.8rem;cursor:pointer"><input type="checkbox" class="ib-chk" id="ib-pl-upload"> 手机 / 电脑上传即自动框选（无人值守，配合上面的阈值）</label></div>
+          <div><label class="hint" style="display:block;margin-bottom:3px">丢弃的原图保留天数</label><input class="input" id="ib-pl-days" type="number" min="0" step="1" placeholder="7"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;align-items:center"><button class="btn sm primary" type="button" onclick="ibSavePolicy()">保存策略</button><span id="ib-pl-status" class="hint"></span></div>
+      </div>
+    </div></section>
+
+    <!-- 快速录入：原单题表单原样保留（#cr-* id 与 app.js / schedule.js 逻辑不变） -->
+    <section class="ib-stage" id="ib-stage-quick">
+
     <!-- 步骤导航：截图 → 识别 → 核对 → 保存（真序列，故用编号） -->
     <div class="cr-steps">
       <span class="cr-step done"><i>1</i>截图</span><span class="cr-step-arrow">→</span>
@@ -549,9 +727,13 @@
         </div>
 
         <div class="form-group" style="margin-bottom:0">
-          <label>笔记本页码 <span class="cr-opt">· 可选</span></label>
-          <input id="cr-note" class="input" placeholder="p.23" style="max-width:160px">
-        </div>
+            <label>标记 <span class="cr-opt">· 可选</span></label>
+            <div id="cr-labels" class="lbl-form-row" data-lbl-create-target="1"></div>
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>笔记本页码 <span class="cr-opt">· 可选</span></label>
+            <input id="cr-note" class="input" placeholder="p.23" style="max-width:160px">
+          </div>
       </div>
     </div>
 
@@ -583,6 +765,9 @@
         └── 动能定理2.md</pre>
       </div>
     </details>
+    </section>
+    <div class="ib-batchbar" id="ib-batchbar"><span class="n"><span id="ib-bb-n">0</span> 张已选</span><button class="btn sm" type="button" onclick="ibDetectSelected()">🤖 AI 框选</button><button class="btn sm" type="button" onclick="ibDetectSelected('template')">▦ 模板框选</button><button class="btn sm" type="button" onclick="ibApplyLastSelected()">沿用上一张框位</button><button class="btn sm" type="button" onclick="ibWholeSelected()">整图即题目</button><span class="sep"></span><button class="btn sm primary" type="button" onclick="ibOpenSelected()">去处理 →</button><button class="btn sm danger" type="button" onclick="ibDiscardSelected()">丢弃</button><button class="btn sm" type="button" onclick="ibClearSel()">✕</button></div>
+    <div class="ib-toast" id="ib-toast"></div>
   </div>
 
   <!-- ====== 设置 ====== -->
@@ -709,8 +894,14 @@
           <label>模型（需支持图片输入）</label>
           <input id="st-ai-model" class="input" placeholder="qwen-vl-max" list="st-ai-model-list">
           <datalist id="st-ai-model-list">
-            <option value="qwen-vl-max"><option value="qwen-vl-plus"><option value="qwen3-vl-plus"><option value="qwen3-vl-flash"><option value="qwen3.7-plus"><option value="gpt-4o"><option value="gpt-4o-mini">
+            <option value="qwen-vl-max"><option value="qwen-vl-plus"><option value="qwen3-vl-plus"><option value="qwen3-vl-flash"><option value="qwen3.7-plus"><option value="qwen3.5-ocr"><option value="qwen-vl-ocr"><option value="gpt-4o"><option value="gpt-4o-mini">
           </datalist>
+          <div class="hint" style="margin-top:10px">收件箱按用途选模型（留空则用上面的默认模型）：</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:6px">
+            <div><label class="hint" style="display:block;margin-bottom:3px">框选 detect（需支持定位输出）</label><input id="st-ai-model-detect" class="input" placeholder="qwen3-vl-plus" list="st-ai-model-list"></div>
+            <div><label class="hint" style="display:block;margin-bottom:3px">转文本 extract（建议 OCR 类）</label><input id="st-ai-model-extract" class="input" placeholder="qwen3.5-ocr" list="st-ai-model-list"></div>
+            <div><label class="hint" style="display:block;margin-bottom:3px">分类 classify</label><input id="st-ai-model-classify" class="input" placeholder="qwen3-vl-flash" list="st-ai-model-list"></div>
+          </div>
         </div>
         <div class="form-group">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
@@ -867,14 +1058,14 @@
 
 <!-- Modal -->
 <div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
-  <div class="modal">
+  <div class="modal modal-wide">
     <div class="modal-close" onclick="closeModal()">✕</div>
-    <h2 id="modal-title"></h2>
-    <div class="q-meta" id="modal-meta"></div>
-    <div class="q-body" id="modal-body"></div>
-    <div class="q-notes" id="modal-notes"></div>
-    <div class="q-answer" id="modal-answer"></div>
-    <div class="q-history" id="modal-hist"></div>
+    <div class="qv-nav" id="qv-nav">
+      <button type="button" class="btn sm" data-qv-nav="prev">← 上一题</button>
+      <span id="qv-nav-pos"></span>
+      <button type="button" class="btn sm" data-qv-nav="next">下一题 →</button>
+    </div>
+    <div id="modal-stage"></div>
   </div>
 </div>
 <div class="modal-overlay" id="md-editor" onclick="if(event.target===this)closeMarkdownEditor()">
@@ -896,17 +1087,22 @@
 <datalist id="cr-ktag-list"></datalist>
 
 <script src="assets/core.js?v=20260831-question-suspend"></script>
+<script src="assets/labels.js?v=20260903-labels"></script>
 <script src="assets/dashboard.js?v=20260831-question-suspend"></script>
-<script src="assets/questions.js?v=20260831-question-suspend"></script>
+<script src="assets/questions.js?v=20260901-qview"></script>
+<script src="assets/qtable.js?v=20260903-qtable"></script>
+<script src="assets/qview.js?v=20260901-qview"></script>
 <script src="assets/schedule.js?v=20260828-feedback-ui"></script>
-<script src="assets/export.js?v=20260724-question-gap"></script>
-<script src="assets/feedback.js?v=20260829-feedback-sequence"></script>
+<script src="assets/export.js?v=20260901-qview"></script>
+<script src="assets/feedback.js?v=20260902-omr-result-protocol"></script>
 <script src="assets/history.js?v=20260728-ledger-timezone"></script>
 <script src="assets/recommend.js"></script>
 <script src="assets/actions.js?v=20260831-question-suspend"></script>
 <script src="assets/catalog.js?v=20260816-catalog"></script>
-<script src="assets/instant.js?v=20260614-pages"></script>
-<script src="assets/data.js"></script>
+<script src="assets/instant.js?v=20260901-qview"></script>
+<script src="assets/data.js?v=20260901-qview"></script>
+<script src="assets/inbox.js?v=20260903-inbox"></script>
+<script src="assets/board.js?v=20260903-board"></script>
 <script src="assets/reports.js?v=20260716-ai-report-v2"></script>
 <script src="assets/app.js?v=20260901-source-export"></script>
 </body>
