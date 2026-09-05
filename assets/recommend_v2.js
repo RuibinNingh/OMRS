@@ -44,15 +44,24 @@ async function loadRecommendationsV2(){
 
     // 获取标记筛选
     const filters = getFilterState('rec-v2');
-    filters.labels.forEach(label => params.append('label', label));
+    if (filters.labels && filters.labels.length > 0) {
+      filters.labels.forEach(label => params.append('label', label));
+    }
 
     const rawData = await api(`/api/recommend?${params.toString()}`);
+
+    // 调试：检查API返回的数据
+    console.log('API返回数据:', rawData);
+    console.log('到期题目数:', (rawData.due || []).length);
+    console.log('熟练度题目数:', (rawData.proficiency || []).length);
 
     // 合并到期和熟练度列表
     const allItems = [
       ...(rawData.due || []).map(item => ({...item, _source: 'due', _priority_boost: 1.5})),
       ...(rawData.proficiency || []).map(item => ({...item, _source: 'proficiency', _priority_boost: 1.0}))
     ];
+
+    console.log('合并后题目数:', allItems.length);
 
     // 根据练习模式进行智能推荐
     let recommended = [];
@@ -70,6 +79,8 @@ async function loadRecommendationsV2(){
       // 全部模式：展示所有题目
       recommended = allItems;
     }
+
+    console.log('推荐后题目数:', recommended.length);
 
     REC_DATA_V2 = recommended;
     REC_SELECTED_V2 = {};
@@ -627,13 +638,20 @@ function getFilterState(prefix) {
     due: ''
   };
 
-  const getId = (suffix) => `${prefix}-${suffix}`;
+  // 根据prefix构建正确的ID
+  // 对于rec-v2，HTML中的ID格式是 rec-search-v2 而不是 rec-v2-search
+  const getId = (suffix) => {
+    if (prefix === 'rec-v2') {
+      return `rec-${suffix}-v2`;
+    }
+    return `${prefix}-${suffix}`;
+  };
 
   const searchEl = document.getElementById(getId('search'));
   if (searchEl) state.search = searchEl.value.toLowerCase().trim();
 
-  const subjectEl = document.getElementById(getId('filter-category'));
-  if (subjectEl) state.category = subjectEl.value;
+  const categoryEl = document.getElementById(getId('filter-category'));
+  if (categoryEl) state.category = categoryEl.value;
 
   const tagEl = document.getElementById(getId('filter-tag'));
   if (tagEl) state.tag = tagEl.value;
@@ -664,7 +682,12 @@ function getFilterState(prefix) {
 
   // 获取选中的标记
   if (typeof getActiveLabels === 'function') {
-    state.labels = getActiveLabels(prefix);
+    try {
+      state.labels = getActiveLabels(prefix);
+    } catch (e) {
+      console.warn('Failed to get active labels:', e);
+      state.labels = [];
+    }
   }
 
   return state;
