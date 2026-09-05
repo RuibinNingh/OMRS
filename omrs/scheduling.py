@@ -281,15 +281,20 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
 
     prof_scored.sort(key=lambda x: x[0], reverse=True)
 
+    # 如果请求的数量很大（>=500），返回所有题目（用于前端智能推荐）
+    # 否则按原逻辑限制数量
+    effective_due_count = len(due_candidates) if due_count >= 500 else due_count
+    effective_prof_count = len(prof_scored) if prof_count >= 500 else prof_count
+
     due_result = []
-    for row in due_candidates[:due_count]:
+    for row in due_candidates[:effective_due_count]:
         item = _row_to_item(row, today, fail_counts.get(row.get("UID", ""), 0), tuning)
         item["_source"] = "due"
         item["_overdue_days"] = _overdue_days(row.get("Due_Date", ""), today)
         due_result.append(item)
 
     prof_result = []
-    for _, row in prof_scored[:prof_count]:
+    for _, row in prof_scored[:effective_prof_count]:
         item = _row_to_item(row, today, fail_counts.get(row.get("UID", ""), 0), tuning)
         item["_source"] = "proficiency"
         prof_result.append(item)
