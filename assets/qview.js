@@ -176,6 +176,17 @@ async function qvInvalidate(uid) {
   await Promise.all(targets.map(([mount, opts]) => qvRender(mount, key, opts)));
 }
 
+// 纯重绘：不动详情缓存，只把已挂载的容器按当前设置（如题面换行模式）重画一遍
+function qvRerenderAll() {
+  QV_MOUNTS.forEach((state, mount) => {
+    if (!mount.isConnected) { QV_MOUNTS.delete(mount); return; }
+    const detail = QUESTION_CACHE[state.uid];
+    if (!detail) return;
+    const item = (typeof getItemByUid === 'function' && getItemByUid(state.uid)) || {};
+    mount.innerHTML = qvHtml(detail, item, state.opts);
+  });
+}
+
 function qvGoQuestions(uid) {
   if (typeof closeModal === 'function') closeModal();
   if (typeof switchTab === 'function') switchTab('questions');
@@ -250,4 +261,4 @@ if (typeof document !== 'undefined') {
   document.addEventListener('keydown', qvHandleKey);
 }
 
-if (typeof module !== 'undefined') module.exports = { qvHtml, qvChips, qvToolsHtml, qvSetContext, qvContext, QV_DEFAULTS };
+if (typeof module !== 'undefined') module.exports = { qvHtml, qvChips, qvToolsHtml, qvSetContext, qvContext, qvRerenderAll, QV_DEFAULTS };

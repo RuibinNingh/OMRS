@@ -7,7 +7,7 @@
 <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'')}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-<link rel="stylesheet" href="assets/styles.css?v=20260904-board-rework">
+<link rel="stylesheet" href="assets/styles.css?v=20260905-qb-layout">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -166,24 +166,37 @@
           <button class="btn sm toggle" id="q-view-table" type="button" onclick="setQView('table')" title="表格式（V 切换）">表格</button>
           <button class="btn sm toggle" id="q-view-gallery" type="button" onclick="setQView('gallery')" title="画廊式（V 切换）">画廊</button>
         </div>
-        <div class="qb-menu-wrap"><button class="btn" type="button" data-qb-menu-toggle="columns" title="列设置 / 行密度 / 视图预设"><svg class="nav-ico" aria-hidden="true"><use href="#i-columns"/></svg> 列 / 密度 ▾</button>
-          <div class="qb-pop-menu" data-qb-menu="columns">
-            <div class="qb-menu-title">列设置</div>
-            <label><input type="checkbox" data-qb-column="labels"> 标记</label>
-            <label><input type="checkbox" data-qb-column="mastery"> 熟练度</label>
-            <label><input type="checkbox" data-qb-column="due"> 到期</label>
-            <label><input type="checkbox" data-qb-column="status"> 状态</label>
-            <label><input type="checkbox" data-qb-column="difficulty"> 难度</label>
-            <label><input type="checkbox" data-qb-column="decayed"> 衰减后</label>
-            <label><input type="checkbox" data-qb-column="attempts"> 次数</label>
-            <label><input type="checkbox" data-qb-column="last_review"> 上次复习</label>
-            <label><input type="checkbox" data-qb-column="ef"> EF</label>
-            <div class="qb-menu-sep"></div>
-            <div class="qb-menu-title">行密度</div>
+        <div class="qb-menu-wrap"><button class="btn" type="button" data-qb-menu-toggle="columns" title="显示设置：列 / 列数 / 密度 / 视图预设"><svg class="nav-ico" aria-hidden="true"><use href="#i-columns"/></svg> <span id="qb-layout-label">列 / 密度</span> ▾</button>
+          <div class="qb-pop-menu" data-qb-menu="columns" data-view="table">
+            <div class="qb-only-table">
+              <div class="qb-menu-title">列设置</div>
+              <label><input type="checkbox" data-qb-column="labels"> 标记</label>
+              <label><input type="checkbox" data-qb-column="mastery"> 熟练度</label>
+              <label><input type="checkbox" data-qb-column="due"> 到期</label>
+              <label><input type="checkbox" data-qb-column="status"> 状态</label>
+              <label><input type="checkbox" data-qb-column="difficulty"> 难度</label>
+              <label><input type="checkbox" data-qb-column="decayed"> 衰减后</label>
+              <label><input type="checkbox" data-qb-column="attempts"> 次数</label>
+              <label><input type="checkbox" data-qb-column="last_review"> 上次复习</label>
+              <label><input type="checkbox" data-qb-column="ef"> EF</label>
+              <div class="qb-menu-sep"></div>
+            </div>
+            <div class="qb-only-gallery">
+              <div class="qb-menu-title">列数 <span class="qb-menu-kbd">[ ]</span></div>
+              <div class="seg block qb-cols-seg"><button type="button" data-qb-cols="0" title="按卡片最小宽度自动铺满">自动</button><button type="button" data-qb-cols="1">1</button><button type="button" data-qb-cols="2">2</button><button type="button" data-qb-cols="3">3</button><button type="button" data-qb-cols="4">4</button><button type="button" data-qb-cols="5">5</button><button type="button" data-qb-cols="6">6</button></div>
+              <div class="qb-menu-sep"></div>
+              <label><input type="checkbox" data-qb-gallery-detail> 显示元数据（科目 / 上次复习 / 知识点）</label>
+              <div class="qb-menu-sep"></div>
+            </div>
+            <div class="qb-menu-title"><span class="qb-only-table">行密度</span><span class="qb-only-gallery">卡片密度</span></div>
             <div class="seg block qb-density-seg"><button type="button" data-qb-density="comfortable">舒适</button><button type="button" data-qb-density="compact">紧凑</button></div>
+            <div class="qb-menu-sep"></div>
+            <div class="qb-menu-title">题面换行</div>
+            <div class="seg block qb-md-seg"><button type="button" data-qb-md="lean" title="忽略原文里单个换行，只在空行处分段">简略</button><button type="button" data-qb-md="full" title="保留原文每一处换行，选项 / 小问各占一行">完整</button></div>
             <div class="qb-menu-sep"></div>
             <button type="button" data-qb-view-save>存为视图…</button>
             <button type="button" data-qb-view-manage>管理视图…</button>
+            <button type="button" data-qb-layout-reset>恢复默认显示</button>
           </div>
         </div>
       </div>
@@ -1201,12 +1214,12 @@
 <datalist id="cr-cat-list"></datalist>
 <datalist id="cr-ktag-list"></datalist>
 
-<script src="assets/core.js?v=20260904-board-rework"></script>
-<script src="assets/labels.js?v=20260904-board-rework"></script>
+<script src="assets/core.js?v=20260905-gallery-lean"></script>
+<script src="assets/labels.js?v=20260905-gallery-lean"></script>
 <script src="assets/dashboard.js?v=20260831-question-suspend"></script>
-<script src="assets/questions.js?v=20260904-board-rework"></script>
-<script src="assets/qtable.js?v=20260904-board-rework"></script>
-<script src="assets/qview.js?v=20260901-qview"></script>
+<script src="assets/questions.js?v=20260905-qb-layout"></script>
+<script src="assets/qtable.js?v=20260905-qb-layout"></script>
+<script src="assets/qview.js?v=20260905-qb-layout"></script>
 <script src="assets/schedule.js?v=20260828-feedback-ui"></script>
 <script src="assets/export.js?v=20260901-qview"></script>
 <script src="assets/feedback.js?v=20260902-omr-result-protocol"></script>
@@ -1218,7 +1231,7 @@
 <script src="assets/instant.js?v=20260901-qview"></script>
 <script src="assets/data.js?v=20260901-qview"></script>
 <script src="assets/inbox.js?v=20260903-inbox"></script>
-<script src="assets/board.js?v=20260904-board-rework"></script>
+<script src="assets/board.js?v=20260905-gallery-lean"></script>
 <script src="assets/reports.js?v=20260716-ai-report-v2"></script>
 <script src="assets/app.js?v=20260901-source-export"></script>
 </body>

@@ -3,6 +3,9 @@
 // 本文件只负责「围绕列表的壳」。筛选控件沿用 q-filter-* id，getFilterState('q') 契约不变。
 let QB_SELECTED = new Set();
 let QB_DENSITY = 'comfortable';
+let QB_GALLERY_DETAIL = false;              // 画廊卡是否展开元数据行，默认精简
+let QB_GALLERY_COLS = 0;                    // 画廊列数：0 = 自动（按卡片最小宽度铺满），1–6 = 固定列数
+let QB_MD_MODE = 'lean';                    // 题面换行：lean = 忽略单个换行（当前默认）/ full = 原文每处换行都保留
 let QB_VISIBLE_COLUMNS = null;
 let QB_CURSOR_UID = '';
 let QB_QUICK = '';                                 // 计数条快捷筛选：overdue | attack | leech | suspended
@@ -18,14 +21,23 @@ const QB_SUSPENDED_LABELS = { suspended: '仅停用题目', all: '含停用题�
 function qbReadPrefs() {
   try {
     QB_DENSITY = localStorage.getItem('omrs-qb-density') === 'compact' ? 'compact' : 'comfortable';
+    QB_GALLERY_DETAIL = localStorage.getItem('omrs-qb-gallery-detail') === '1';
+    QB_GALLERY_COLS = qbClampCols(localStorage.getItem('omrs-qb-gallery-cols'));
+    QB_MD_MODE = localStorage.getItem('omrs-qb-md-mode') === 'full' ? 'full' : 'lean';
     const raw = localStorage.getItem('omrs-qb-columns');
     QB_VISIBLE_COLUMNS = raw ? JSON.parse(raw) : null;
     if (!Array.isArray(QB_VISIBLE_COLUMNS)) QB_VISIBLE_COLUMNS = null;
   } catch (error) {
     QB_DENSITY = 'comfortable';
+    QB_GALLERY_DETAIL = false;
+    QB_GALLERY_COLS = 0;
+    QB_MD_MODE = 'lean';
     QB_VISIBLE_COLUMNS = null;
   }
 }
+function qbClampCols(value) { const n = Math.round(Number(value)); return Number.isFinite(n) ? Math.max(0, Math.min(6, n)) : 0; }
+// 当前视图：菜单据此只显示与该视图有关的那一组开关（表格 = 列 + 行密度，画廊 = 列数 + 卡片密度）
+function qbCurrentView() { return (typeof Q_VIEW !== 'undefined' && Q_VIEW === 'gallery') ? 'gallery' : 'table'; }
 function qbVisibleColumns() {
   const values = new Set(Array.isArray(QB_VISIBLE_COLUMNS) ? QB_VISIBLE_COLUMNS : QB_DEFAULT_COLUMNS);
   values.add('main'); values.add('select'); values.add('actions');
@@ -85,13 +97,21 @@ function qbRenderChips(filters = getFilterState('q')) {
     const body = entry.chip ? lblChip(entry.chip) : escapeHtml(entry.label);
     return `<button type="button" class="qb-chip" ${data} title="移除该条件">${body}<span class="x">✕</span></button>`;
   };
-  if (!active.length) { box.innerHTML = `<span class="qb-chips-empty">未设置筛选条件 · 按 <kbd>F</kbd> 打开筛选抽屉</span>`; return; }
+  if (!active.length) { box.innerHTML = ''; return; }   // 空条件不再占一整行提示文字（`.qb-chips:empty` 收起）
   box.innerHTML = active.map(chip).join('') + `<button type="button" class="btn sm ghost" data-qb-clear="all">清空</button>`;
 }
 function qbRenderControls() {
   const columns = qbVisibleColumns();
+  const view = qbCurrentView();
   document.querySelectorAll('[data-qb-column]').forEach(node => { node.checked = columns.has(node.dataset.qbColumn); });
   document.querySelectorAll('[data-qb-density]').forEach(node => node.classList.toggle('on', node.dataset.qbDensity === QB_DENSITY));
+  document.querySelectorAll('[data-qb-cols]').forEach(node => node.classList.toggle('on', qbClampCols(node.dataset.qbCols) === QB_GALLERY_COLS));
+  document.querySelectorAll('[data-qb-md]').forEach(node => node.classList.toggle('on', node.dataset.qbMd === QB_MD_MODE));
+  document.querySelectorAll('[data-qb-gallery-detail]').forEach(node => { node.checked = QB_GALLERY_DETAIL; });
+  // 菜单按当前视图只露相关的一半，免得在画廊里点半天「列设置」却毫无反应
+  document.querySelectorAll('[data-qb-menu="columns"]').forEach(node => { node.dataset.view = view; });
+  const trigger = document.getElementById('qb-layout-label');
+  if (trigger) trigger.textContent = view === 'gallery' ? '列数 / 密度' : '列 / 密度';
   document.querySelectorAll('[data-qb-seg]').forEach(seg => {
     const value = qbFieldValue(seg.dataset.qbSeg);
     seg.querySelectorAll('button').forEach(button => button.classList.toggle('on', (button.dataset.value || '') === value));
@@ -99,8 +119,14 @@ function qbRenderControls() {
   qbSyncDual('diff'); qbSyncDual('mastery');
   qbRenderViews();
 }
+// 密度对表格和画廊都生效；画廊另外把列数写成 data-cols，由 CSS 决定 grid-template-columns
 function qbRenderDensity() {
-  document.getElementById('q-table-wrap')?.classList.toggle('qb-compact', QB_DENSITY === 'compact');
+  const compact = QB_DENSITY === 'compact';
+  document.getElementById('q-table-wrap')?.classList.toggle('qb-compact', compact);
+  const gallery = document.getElementById('q-gallery-wrap');
+  if (!gallery) return;
+  gallery.classList.toggle('qb-compact', compact);
+  gallery.dataset.cols = QB_GALLERY_COLS ? String(QB_GALLERY_COLS) : 'auto';
 }
 
 // ---------- 抽屉 ----------
@@ -262,6 +288,44 @@ function qbToggleDensity(value) {
   try { localStorage.setItem('omrs-qb-density', QB_DENSITY); } catch (error) {}
   renderQ();
 }
+function qbSetGalleryDetail(checked) {
+  QB_GALLERY_DETAIL = !!checked;
+  try { localStorage.setItem('omrs-qb-gallery-detail', QB_GALLERY_DETAIL ? '1' : '0'); } catch (error) {}
+  renderQ();
+}
+// 列数只改栅格，不动数据：写 data-cols 让 CSS 换 grid-template-columns，
+// 不走 renderQ()，免得每点一次都重新拉一遍画廊预览
+function qbSetGalleryCols(value) {
+  QB_GALLERY_COLS = qbClampCols(value);
+  try { localStorage.setItem('omrs-qb-gallery-cols', String(QB_GALLERY_COLS)); } catch (error) {}
+  qbRenderDensity();
+  qbRenderControls();
+}
+// 题面换行模式：只影响 renderMdContent 的换行处理，筛选 / 排序 / 数据都不动。
+// 画廊卡直接由 renderQ 重绘；题目 Modal、反馈台、即时练习挂在 QV_MOUNTS 上，走 qvRerenderAll。
+function qbSetMdMode(mode) {
+  QB_MD_MODE = mode === 'full' ? 'full' : 'lean';
+  try { localStorage.setItem('omrs-qb-md-mode', QB_MD_MODE); } catch (error) {}
+  renderQ();
+  if (typeof qvRerenderAll === 'function') qvRerenderAll();
+}
+function qbResetLayout() {
+  QB_DENSITY = 'comfortable';
+  QB_GALLERY_DETAIL = false;
+  QB_GALLERY_COLS = 0;
+  QB_MD_MODE = 'lean';
+  QB_VISIBLE_COLUMNS = null;
+  try {
+    localStorage.removeItem('omrs-qb-density');
+    localStorage.removeItem('omrs-qb-gallery-detail');
+    localStorage.removeItem('omrs-qb-gallery-cols');
+    localStorage.removeItem('omrs-qb-md-mode');
+    localStorage.removeItem('omrs-qb-columns');
+  } catch (error) {}
+  renderQ();
+  if (typeof qvRerenderAll === 'function') qvRerenderAll();
+  uiToast('显示设置已恢复默认');
+}
 function qbSetColumnVisibility(key, checked) {
   const visible = qbVisibleColumns();
   if (checked) visible.add(key); else visible.delete(key);
@@ -285,6 +349,9 @@ function qbViewSnapshot() {
     view: Q_VIEW,
     columns: [...qbVisibleColumns()],
     density: QB_DENSITY,
+    galleryCols: QB_GALLERY_COLS,
+    galleryDetail: QB_GALLERY_DETAIL,
+    mdMode: QB_MD_MODE,
   };
 }
 function qbApplyView(name) {
@@ -295,8 +362,17 @@ function qbApplyView(name) {
   if (view.view) Q_VIEW = view.view;
   if (Array.isArray(view.columns)) QB_VISIBLE_COLUMNS = view.columns;
   if (view.density) QB_DENSITY = view.density === 'compact' ? 'compact' : 'comfortable';
+  if (view.galleryCols != null) QB_GALLERY_COLS = qbClampCols(view.galleryCols);
+  if (view.galleryDetail != null) QB_GALLERY_DETAIL = !!view.galleryDetail;
+  if (view.mdMode) QB_MD_MODE = view.mdMode === 'full' ? 'full' : 'lean';
   QB_QUICK = '';
-  try { localStorage.setItem('omrs-qb-columns', JSON.stringify(QB_VISIBLE_COLUMNS)); localStorage.setItem('omrs-qb-density', QB_DENSITY); } catch (error) {}
+  try {
+    localStorage.setItem('omrs-qb-columns', JSON.stringify(QB_VISIBLE_COLUMNS));
+    localStorage.setItem('omrs-qb-density', QB_DENSITY);
+    localStorage.setItem('omrs-qb-gallery-cols', String(QB_GALLERY_COLS));
+    localStorage.setItem('omrs-qb-gallery-detail', QB_GALLERY_DETAIL ? '1' : '0');
+    localStorage.setItem('omrs-qb-md-mode', QB_MD_MODE);
+  } catch (error) {}
   renderQ();
   uiToast(`已切换到视图「${name}」`);
 }
@@ -390,6 +466,13 @@ function qbHandleKey(event) {
   } else if (key === '/') { event.preventDefault(); document.getElementById('q-search')?.focus(); }
   else if (key === 'f' || key === 'F') qbToggleDrawer();
   else if (key === 'v' || key === 'V') setQView(Q_VIEW === 'table' ? 'gallery' : 'table');
+  // 画廊里用 [ / ] 直接加减列数；0 是自动，所以从自动往下调先落到 6
+  else if ((key === '[' || key === ']') && qbCurrentView() === 'gallery') {
+    event.preventDefault();
+    const step = key === ']' ? 1 : -1;
+    const current = QB_GALLERY_COLS || 0;
+    qbSetGalleryCols(current === 0 ? (step > 0 ? 1 : 6) : current + step);
+  }
   else if (key === 'Escape') { if (QB_SELECTED.size) qbClearSelection(); else qbToggleDrawer(false); }
   else if ((key === 'b' || key === 'B') && QB_SELECTED.size) qbBatchBoard();
   else if ((key === 'l' || key === 'L') && QB_SELECTED.size) qbBatchLabels();
@@ -414,6 +497,11 @@ if (typeof document !== 'undefined') {
     if (view) { qbApplyView(view.dataset.qbView); return; }
     const density = event.target.closest?.('[data-qb-density]');
     if (density) { qbToggleDensity(density.dataset.qbDensity); return; }
+    const cols = event.target.closest?.('[data-qb-cols]');
+    if (cols) { qbSetGalleryCols(cols.dataset.qbCols); return; }
+    const mdMode = event.target.closest?.('[data-qb-md]');
+    if (mdMode) { qbSetMdMode(mdMode.dataset.qbMd); return; }
+    if (event.target.closest?.('[data-qb-layout-reset]')) { qbResetLayout(); return; }
     const menuToggle = event.target.closest?.('[data-qb-menu-toggle]');
     if (menuToggle) {
       event.stopPropagation();
@@ -429,6 +517,8 @@ if (typeof document !== 'undefined') {
   document.addEventListener('change', event => {
     const column = event.target.closest?.('[data-qb-column]');
     if (column) { qbSetColumnVisibility(column.dataset.qbColumn, column.checked); return; }
+    const galleryDetail = event.target.closest?.('[data-qb-gallery-detail]');
+    if (galleryDetail) { qbSetGalleryDetail(galleryDetail.checked); return; }
     const dual = event.target.closest?.('.qb-dual input[type=range]');
     if (dual) { qbSyncDual(dual.closest('.qb-dual').dataset.qbDual); QB_QUICK = ''; renderQ(); }
   });
@@ -445,5 +535,5 @@ if (typeof document !== 'undefined') {
 }
 
 if (typeof module !== 'undefined') module.exports = {
-  qbActiveFilters, qbFilterCount, qbViewSnapshot, qbVisibleColumns, QB_DEFAULT_COLUMNS,
+  qbActiveFilters, qbFilterCount, qbViewSnapshot, qbVisibleColumns, qbClampCols, QB_DEFAULT_COLUMNS,
 };

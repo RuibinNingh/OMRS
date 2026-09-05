@@ -28,6 +28,8 @@
 
 > **v1.14.0 展示板 + 用户标记 + 题库交互重设计**：题库新增筛选抽屉、激活条件 chips、列/密度设置、视图预设、批量操作和键盘导航；用户标记以 `<=>` 芯片显示，名称写入题目 YAML，支持单题/批量编辑、改名、删除、合并、按标记筛选与可选调度加成；展示板保存题目引用，支持排序、左题右空打印、「仅打印新增」+ 纸面记录与绝对页码。页面与导出统一采用 18% 淡底 + 彩色字标记样式。
 
+> **v1.14.1 题库画廊卡精简**：画廊卡从「8 条等权横带」改为「标识 / 题面 / 脚注」三层，题面成为唯一主角。① 去重：UID 按 `category` 前缀拆成「分类 + 序号」，`knowledge_tags` 过滤掉与 `category` 同名的一条，同一字符串不再一卡三现；② 去卡中卡：`.gallery-preview` 移除 `background` / `border` / `min-height:140px`，画廊内 `.qv-label`（「题目」二字）隐藏，`.qv .q-md` 强制透明无边框；③ 只报异常：`statusTagHtml` 不再逐卡渲染全库同值的「待攻克」，改为 `galleryFlagsHtml()` 仅在逾期 / 今日到期 / 顽固 / 停用时亮标；熟练度为 0 时显示「未练习」而不画空进度条；④ 悬停收纳：复选框、「⋯」菜单、「＋标记」入口 hover / 选中才显形（`@media (hover:none)` 下常显），底部「查看详情」按钮删除——整卡（含题面）点击即开 Modal，`questions.js` 行点击选择器移除 `.gallery-preview` 排除项；⑤ 网格 `minmax(320px)→minmax(260px)`、`gap 16→12`、卡片 `padding 16→12/14`，`.question-gallery-wrap` 限宽 1440px；⑥ 截断改渐隐：`hydrateQuestionGalleryPreviews()` 渲染后量 `scrollHeight` 差值，真被截的卡才加 `.is-clipped`（`mask-image` 底部渐隐），短题不糊。元数据（科目 / 上次复习 / 衰减后 / 知识点）收进「列 / 密度」菜单的**画廊 → 显示元数据**开关（`QB_GALLERY_DETAIL`，`localStorage('omrs-qb-gallery-detail')`，**默认关 = 精简**）。同时 `qbRenderChips()` 在无激活条件时输出空串，配合 `.qb-chips:empty{display:none}` 收起常驻的「未设置筛选条件」提示行。表格视图、`getFilterState('q')`、`renderQ` / `filterQ` / `setQView` 签名与全部接口不变。
+
 > **设置页源码协助**：服务设置新增「下载脱敏源码」按钮，调用 `GET /api/source/export` 下载仅含 Git 已跟踪源码、测试和项目文档的 ZIP；不读取未跟踪文件，并排除个人题库、附件、运行数据、日志和生成导出文件。包内 `SOURCE_EXPORT_MANIFEST.txt` 记录导出范围。
 
 ## 文件组织（assets/）
@@ -46,6 +48,7 @@ assets/
 ├── feedback.js       ← 反馈录入工作台：session 选择、题目列表/判定面板、AI 提示词、JSON 导入、提交（v1.5.0 从 schedule.js 拆出；v1.10.0 改三栏；v1.11.0 加答题卡扫描 JSON 解析）
 ├── history.js        ← 数据复盘/历史：Ledger 时间线、修正面板、撤销/恢复/还原（v1.5.0 从 schedule.js 拆出）
 ├── recommend.js      ← 推荐面板（双列表 + 勾选确认）
+├── recommend_v2.js   ← 优化推荐面板；使用私有 `recV2GetFilterState` / `recV2FilterItems`，不覆盖 core.js 公共筛选 API
 ├── actions.js        ← 行动推荐：由 DATA + SESSIONS 派生「现在该做什么」（v1.7.0 新增）
 ├── catalog.js        ← 目录页：错题/ 文件夹树，读 GET /api/tree（v1.7.0 新增）
 ├── instant.js        ← 即时练习：推荐取题、在线翻答案、即时反馈
@@ -369,6 +372,8 @@ Enter 打开、Delete 移除。完整设计见 `board.md` §4。
    - **选择当前筛选 / 全选推荐 / 移除当前筛选**：批量维护已选题目
     - **确认生成计划**：`POST /api/confirm-schedule`
 4. ≥2 题生成 EXP- Session（写入 sessions.csv，必须反馈），1 题生成 TMP- 批次
+
+推荐优化面板（`assets/recommend_v2.js`）的筛选状态和筛选函数使用 `recV2GetFilterState()`、`recV2FilterItems()` 私有命名。`core.js` 的 `getFilterState()` / `filterItems()` 是题库、展示板、导出和即时练习共用契约，不应由推荐面板覆盖。
 
 ### 四种预览视图
 
