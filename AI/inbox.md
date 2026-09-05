@@ -20,7 +20,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 
 `items`：`id (IB-YYYYMMDD-xxxxxx)、sha256、file、mime、width、height、bytes、source (phone|desktop|paste)、uploaded_at、status、layout、link_uid、link_question_id、blind、blind_boxes`（后两列 v1.13.0 由 `connect()` 用 ALTER 补齐；`blind_boxes` 只进事件与导出，不进 item 响应）。另有 `meta(key, value)` 表：`rejected_ai_boxes`（拒绝的 AI 框增量计数）、`detect_counter`（盲标间隔计数）。
 `status`：`pending → boxed → ready → done`，另有 `discarded`。`done` 后不可再改。
-`layout`：`zuoyebang | photo | plain | other`（训练标签，也进 detect 提示词）。
+`layout`：`zuoyebang | photo | plain | other`（训练标签，也进 detect 提示词）。新上传图片默认使用 `zuoyebang`（界面显示“作业帮截图”）；需要时可在处理页改为拍照/扫描、已裁好的题图或其他。
 
 `regions`（一张图 N 个，坐标归一化 0–1）：`card`（同图第几道题）、`ord`、`role (question|answer|ignore)`、`x y w h`、`origin (manual|ai|ai_edited)`、`conf`、`ai_box`（AI 原框，人工改过也保留，用于算 IoU）、`convert (text|image|auto)`、`text`、`text_status (none|running|done|stale|error)`、`judge {ok, reason}`、`judge_overridden`。
 
@@ -59,7 +59,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 - `_ai_config(vault, purpose)`：按 `ai_model_detect / ai_model_extract / ai_model_classify` 选模型，留空回退 `ai_model`（`common.CONFIG_DEFAULTS` 已加三键；设置页有三个输入框）。
 - `detect_regions_local(url, image, layout, width, height)`（v1.13.0）：`local_http` 提供方，`POST url` JSON `{image, layout, width, height}`，响应数组或 `{boxes:[…]}`，同样经 `parse_detect_output` 归一化（传了宽高所以像素坐标也能解析）。
 - `detect_regions(vault, image, layout)`：`DETECT_PROMPT` 要求输出 `[{label, card, bbox_2d:[x1,y1,x2,y2], confidence}]`，坐标 **0–1000 相对**（Qwen3-VL 约定）。`parse_detect_output()` 兼容三种坐标：≤1 视为小数；>1000 且给了尺寸视为绝对像素（Qwen2.5-VL 风格）；否则 /1000。`label` 以 answer/答案/解析 开头 → answer，其余 → question。
-- `extract_region(vault, image, role, judge)`：复用 `ANSWER_PROMPT` / `QUESTION_TEXT_PROMPT`，`judge=True` 时追加 `JUDGE_SUFFIX` 要求返回 `{convertible, reason, text}`；模型不按 JSON 返回时整段当 text、`convertible=True`。`max_tokens=4000`。
+- `extract_region(vault, image, role, judge)`：复用 `ANSWER_PROMPT` / `QUESTION_TEXT_PROMPT`，`judge=True` 时追加 `JUDGE_SUFFIX` 要求返回 `{convertible, reason, text}`；模型不按 JSON 返回时整段当 text、`convertible=True`。题目文本会去掉整段开头题号；答案仅在开头为“题号+答案/解析标题”时去掉题号，解析内部步骤编号保留。`max_tokens=4000`。
 - 旧的 `/api/ai-recognize` 三种 mode 行为不变（classify 现在也走 `purpose="classify"`）。
 
 ## 5. 前端（`assets/inbox.js`，全局 `IB`，类名前缀 `ib-`）
