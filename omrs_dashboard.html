@@ -7,7 +7,7 @@
 <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'')}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-<link rel="stylesheet" href="assets/styles.css?v=20260903-inbox">
+<link rel="stylesheet" href="assets/styles.css?v=20260904-board-rework">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -52,7 +52,7 @@
       <div class="nav-spacer"></div>
       <div class="tab" data-tab="settings" onclick="switchTab('settings')"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></div>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.12.0 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.14.0 · 本地服务</div>
   </aside>
   <div class="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
   <main class="content">
@@ -149,81 +149,109 @@
 
   <!-- ====== 题目库 ====== -->
     <div class="panel" id="panel-questions">
-    <div class="qb-bar">
-      <input type="text" id="q-search" placeholder="搜索 UID / 科目 / 分类 / 知识点 / 标记…" class="input qb-search" oninput="filterQ()">
-      <button class="btn" type="button" onclick="qbToggleDrawer()"><svg class="nav-ico" aria-hidden="true"><use href="#i-filter"/></svg> 筛选<span id="qb-filter-badge" class="qb-badge" style="display:none"></span></button>
-      <select id="q-sort" class="input" onchange="filterQ()">
-        <option value="mastery-asc">熟练度 ↑</option>
-        <option value="mastery-desc">熟练度 ↓</option>
-        <option value="diff-desc">难度 ↓</option>
-        <option value="diff-asc">难度 ↑</option>
-        <option value="date-desc">最近复习优先</option>
-        <option value="due-asc">到期日 ↑</option>
-        <option value="due-desc">到期日 ↓</option>
-      </select>
-      <div class="qb-menu-wrap"><button class="btn" type="button" data-qb-menu-toggle="columns"><svg class="nav-ico" aria-hidden="true"><use href="#i-columns"/></svg> 列 / 密度 ▾</button>
-        <div class="qb-pop-menu" data-qb-menu="columns">
-          <div class="qb-menu-title">列设置</div>
-          <label><input type="checkbox" data-qb-column="difficulty"> 难度</label>
-          <label><input type="checkbox" data-qb-column="decayed"> 衰减后</label>
-          <label><input type="checkbox" data-qb-column="attempts"> 次数</label>
-          <label><input type="checkbox" data-qb-column="last_review"> 上次复习</label>
-          <label><input type="checkbox" data-qb-column="ef"> EF</label>
-          <div class="qb-menu-sep"></div>
-          <div class="qb-menu-title">行密度</div>
-          <button type="button" data-qb-density="comfortable">舒适</button>
-          <button type="button" data-qb-density="compact">紧凑</button>
-          <div class="qb-menu-sep"></div>
-          <button type="button" data-qb-view-save>保存当前视图…</button>
-          <button type="button" data-qb-view-manage>管理视图…</button>
+    <div class="card qb-card">
+      <div class="qb-bar">
+        <input type="text" id="q-search" placeholder="搜索 UID / 科目 / 分类 / 知识点 / 标记…　（按 / 聚焦）" class="input qb-search" oninput="filterQ()" autocomplete="off">
+        <button class="btn" type="button" id="qb-filter-btn" onclick="qbToggleDrawer()" title="高级筛选（F）"><svg class="nav-ico" aria-hidden="true"><use href="#i-filter"/></svg> 筛选<span id="qb-filter-badge" class="qb-badge" style="display:none"></span></button>
+        <select id="q-sort" class="input" onchange="filterQ()" title="排序">
+          <option value="mastery-asc">熟练度 ↑</option>
+          <option value="mastery-desc">熟练度 ↓</option>
+          <option value="due-asc">到期日 ↑</option>
+          <option value="due-desc">到期日 ↓</option>
+          <option value="diff-desc">难度 ↓</option>
+          <option value="diff-asc">难度 ↑</option>
+          <option value="date-desc">最近复习优先</option>
+        </select>
+        <div class="seg qb-seg view-switch" role="group" aria-label="视图">
+          <button class="btn sm toggle" id="q-view-table" type="button" onclick="setQView('table')" title="表格式（V 切换）">表格</button>
+          <button class="btn sm toggle" id="q-view-gallery" type="button" onclick="setQView('gallery')" title="画廊式（V 切换）">画廊</button>
+        </div>
+        <div class="qb-menu-wrap"><button class="btn" type="button" data-qb-menu-toggle="columns" title="列设置 / 行密度 / 视图预设"><svg class="nav-ico" aria-hidden="true"><use href="#i-columns"/></svg> 列 / 密度 ▾</button>
+          <div class="qb-pop-menu" data-qb-menu="columns">
+            <div class="qb-menu-title">列设置</div>
+            <label><input type="checkbox" data-qb-column="labels"> 标记</label>
+            <label><input type="checkbox" data-qb-column="mastery"> 熟练度</label>
+            <label><input type="checkbox" data-qb-column="due"> 到期</label>
+            <label><input type="checkbox" data-qb-column="status"> 状态</label>
+            <label><input type="checkbox" data-qb-column="difficulty"> 难度</label>
+            <label><input type="checkbox" data-qb-column="decayed"> 衰减后</label>
+            <label><input type="checkbox" data-qb-column="attempts"> 次数</label>
+            <label><input type="checkbox" data-qb-column="last_review"> 上次复习</label>
+            <label><input type="checkbox" data-qb-column="ef"> EF</label>
+            <div class="qb-menu-sep"></div>
+            <div class="qb-menu-title">行密度</div>
+            <div class="seg block qb-density-seg"><button type="button" data-qb-density="comfortable">舒适</button><button type="button" data-qb-density="compact">紧凑</button></div>
+            <div class="qb-menu-sep"></div>
+            <button type="button" data-qb-view-save>存为视图…</button>
+            <button type="button" data-qb-view-manage>管理视图…</button>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="qb-counts" id="qb-counts"></div>
-    <div class="qb-chips" id="qb-chips"></div>
-    <div class="qb-wrap" id="qb-wrap">
-      <div class="temp-summary-row">
-        <div class="filter-note">高级筛选收在右侧抽屉；整行点击可查看题目，勾选后可批量打标记或加入展示板。</div>
-        <div class="view-switch">
-          <button class="btn sm toggle" id="q-view-table" onclick="setQView('table')">表格式</button>
-          <button class="btn sm toggle" id="q-view-gallery" onclick="setQView('gallery')">画廊式</button>
+      <div class="qb-counts" id="qb-counts"></div>
+      <div class="qb-chips" id="qb-chips"></div>
+      <div class="qb-wrap" id="qb-wrap">
+        <div class="qb-main">
+          <div class="tbl-wrap" id="q-table-wrap">
+            <table><thead><tr><th data-qb-col="select"><input type="checkbox" id="qb-select-all" onchange="qbSelectAll(this.checked)"></th><th data-qb-col="main">UID / 题目</th><th data-qb-col="labels">标记</th><th data-qb-col="mastery">熟练度</th><th data-qb-col="due">到期</th><th data-qb-col="status">状态</th><th data-qb-col="actions"></th></tr></thead>
+            <tbody id="q-tbody"></tbody></table>
+          </div>
+          <div class="question-gallery-wrap" id="q-gallery-wrap"></div>
         </div>
+        <aside class="qb-drawer" id="qb-drawer" aria-label="题库筛选">
+          <div class="qb-drawer-head"><div class="card-title">筛选</div><span class="qb-match">命中 <b id="qb-match-count">0</b> 题</span><button class="btn sm ghost" type="button" onclick="qbToggleDrawer(false)" aria-label="关闭筛选">✕</button></div>
+          <div class="qb-f"><label>科目 / 分类</label>
+            <div class="qb-f-grid">
+              <select id="q-filter-subj" class="input" onchange="filterQ()"><option value="">全部科目</option></select>
+              <select id="q-filter-category" class="input" onchange="filterQ()"><option value="">全部分类</option></select>
+            </div>
+          </div>
+          <div class="qb-f"><label>知识点</label><select id="q-filter-ktag" class="input" onchange="filterQ()"><option value="">全部知识点</option></select></div>
+          <div class="qb-f"><div class="qb-f-label"><span>标记 <span class="hint">点亮即选</span></span><button class="btn sm ghost" type="button" onclick="openLabelManager()">管理…</button></div>
+            <span id="q-label-filter-list" class="label-filter-list"></span>
+            <select id="q-label-mode" class="input" onchange="filterQ()" hidden><option value="any">任一</option><option value="all">全部</option></select>
+            <div class="seg" data-qb-seg="q-label-mode" style="margin-top:6px"><button type="button" data-value="any">任一命中</button><button type="button" data-value="all">全部命中</button></div>
+          </div>
+          <div class="qb-f"><label>难度 <b id="qb-diff-label">1 – 10</b></label>
+            <div class="qb-dual" data-qb-dual="diff"><div class="track"></div><div class="fill" id="qb-diff-fill"></div>
+              <input type="range" id="q-filter-diff-min" min="1" max="10" step="1" value="1" aria-label="难度下限">
+              <input type="range" id="q-filter-diff-max" min="1" max="10" step="1" value="10" aria-label="难度上限">
+            </div>
+            <div class="qb-dual-vals"><span>1</span><span>10</span></div>
+          </div>
+          <div class="qb-f"><label>熟练度 <b id="qb-mastery-label">0 – 100%</b></label>
+            <div class="qb-dual" data-qb-dual="mastery"><div class="track"></div><div class="fill" id="qb-mastery-fill"></div>
+              <input type="range" id="q-filter-mastery-min" min="0" max="100" step="5" value="0" aria-label="熟练度下限">
+              <input type="range" id="q-filter-mastery-max" min="0" max="100" step="5" value="100" aria-label="熟练度上限">
+            </div>
+            <div class="qb-dual-vals"><span>0%</span><span>100%</span></div>
+          </div>
+          <div class="qb-f"><label>到期</label>
+            <select id="q-filter-due" class="input" onchange="filterQ()" hidden><option value="">全部</option><option value="overdue">逾期</option><option value="today">今日</option><option value="3days">3天内</option><option value="7days">7天内</option><option value="future">未到期</option></select>
+            <div class="seg" data-qb-seg="q-filter-due"><button type="button" data-value="">全部</button><button type="button" data-value="overdue">逾期</button><button type="button" data-value="today">今日</button><button type="button" data-value="3days">3 天</button><button type="button" data-value="7days">7 天</button><button type="button" data-value="future">未到期</button></div>
+          </div>
+          <div class="qb-f"><label>状态</label>
+            <select id="q-filter-tag" class="input" onchange="filterQ()" hidden><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option><option value="易错">易错坑</option></select>
+            <div class="seg" data-qb-seg="q-filter-tag"><button type="button" data-value="">全部</button><button type="button" data-value="待攻克">待攻克</button><button type="button" data-value="已击杀">已击杀</button><button type="button" data-value="易错">易错坑</button></div>
+          </div>
+          <div class="qb-f"><label>题目</label>
+            <select id="q-filter-suspended" class="input" onchange="filterQ()" hidden><option value="">活动题目</option><option value="suspended">仅停用</option><option value="all">含停用全部</option></select>
+            <div class="seg" data-qb-seg="q-filter-suspended"><button type="button" data-value="">活动</button><button type="button" data-value="suspended">仅停用</button><button type="button" data-value="all">全部</button></div>
+          </div>
+          <div class="qb-f"><div class="qb-f-label"><span>视图预设</span><button class="btn sm ghost" type="button" data-qb-view-save>＋ 存为视图</button></div><div id="qb-view-menu" class="qb-view-menu"></div></div>
+          <div class="qb-drawer-actions"><button class="btn sm ghost" type="button" onclick="qbResetFilters()">重置全部</button><span class="grow"></span><button class="btn sm primary" type="button" onclick="qbToggleDrawer(false)">完成</button></div>
+        </aside>
       </div>
-      <aside class="qb-drawer" id="qb-drawer" aria-label="题库筛选">
-        <div class="card-title">筛选题库</div>
-        <div class="qb-drawer-grid">
-          <label>科目<select id="q-filter-subj" class="input" onchange="filterQ()"><option value="">全部科目</option></select></label>
-          <label>分类<select id="q-filter-category" class="input" onchange="filterQ()"><option value="">全部分类</option></select></label>
-          <label>状态<select id="q-filter-tag" class="input" onchange="filterQ()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select></label>
-          <label>知识点<select id="q-filter-ktag" class="input" onchange="filterQ()"><option value="">全部知识点</option></select></label>
-          <label>难度≥<input type="number" id="q-filter-diff-min" class="input" min="1" max="10" placeholder="1" oninput="filterQ()"></label>
-          <label>难度≤<input type="number" id="q-filter-diff-max" class="input" min="1" max="10" placeholder="10" oninput="filterQ()"></label>
-          <label>熟练度≥%<input type="number" id="q-filter-mastery-min" class="input" min="0" max="100" placeholder="0" oninput="filterQ()"></label>
-          <label>熟练度≤%<input type="number" id="q-filter-mastery-max" class="input" min="0" max="100" placeholder="100" oninput="filterQ()"></label>
-          <label class="qb-label-filter">标记<span id="q-label-filter-list" class="label-filter-list"></span></label>
-          <label>标记匹配<select id="q-label-mode" class="input" onchange="filterQ()"><option value="any">任一</option><option value="all">全部</option></select></label>
-          <label>到期<select id="q-filter-due" class="input" onchange="filterQ()"><option value="">全部到期状态</option><option value="overdue">已逾期</option><option value="today">今日到期</option><option value="3days">3天内到期</option><option value="7days">7天内到期</option><option value="future">未到期</option></select></label>
-          <label>题目<select id="q-filter-suspended" class="input" onchange="filterQ()"><option value="">活动题目（不含停用）</option><option value="suspended">仅停用题目</option><option value="all">含停用全部</option></select></label>
-          <div class="qb-drawer-extra"><label>快捷视图</label><div id="qb-view-menu" class="qb-view-menu"></div><button class="btn sm" type="button" data-qb-view-save>保存当前视图</button><button class="btn sm ghost" type="button" data-qb-view-manage>管理视图…</button></div>
-        </div>
-        <div class="qb-drawer-actions"><button class="btn sm" onclick="qbResetFilters()">重置</button><button class="btn sm primary" onclick="qbToggleDrawer()">应用</button></div>
-      </aside>
     </div>
-    <div class="tbl-wrap" id="q-table-wrap">
-      <table><thead><tr><th><input type="checkbox" id="qb-select-all" onchange="qbSelectAll(this.checked)"></th><th>UID / 题目</th><th>标记</th><th>熟练度</th><th>到期</th><th>状态</th><th></th></tr></thead>
-      <tbody id="q-tbody"></tbody></table>
-    </div>
-    <div class="question-gallery-wrap" id="q-gallery-wrap"></div>
-    <div class="qb-batchbar" id="qb-batchbar" style="display:none"><strong>✓ 已选 <span id="qb-selected-count">0</span> 题</strong><button class="btn sm" onclick="qbBatchBoard()">加入展示板</button><button class="btn sm" onclick="qbBatchLabels()">打标记</button><button class="btn sm" onclick="qbBatchSuspend()">停用/恢复</button><button class="btn sm" onclick="qbBatchExport()">导出</button><button class="btn sm ghost" onclick="qbClearSelection()">清空</button></div>
+    <div class="qb-batchbar" id="qb-batchbar"><strong>✓ 已选 <span id="qb-selected-count">0</span> 题</strong><button class="btn sm primary" type="button" onclick="qbBatchBoard()">加入展示板<span class="sc">B</span></button><button class="btn sm" type="button" onclick="qbBatchLabels()">打标记<span class="sc">L</span></button><button class="btn sm" type="button" onclick="qbBatchSuspend()">停用 / 恢复</button><button class="btn sm" type="button" onclick="qbBatchExport()">导出 A4</button><span class="sep"></span><button class="btn sm ghost" type="button" onclick="qbClearSelection()">清空<span class="sc">Esc</span></button></div>
   </div>
 
   <!-- ====== 展示板 ====== -->
   <div class="panel" id="panel-board">
-    <div class="bd-head"><div><div class="card-title" style="margin-bottom:3px">展示板</div><div class="hint">把题目组织成可反复重排、追加和打印的左题右空纸面；板名只在系统内使用。</div></div><div class="bd-head-actions"><button class="btn primary" onclick="boardCreate()">＋ 新建板</button><button class="btn" onclick="boardExportCurrent()">导出</button><button class="btn" onclick="boardPrintPreview()">🖨 打印预览</button></div></div>
+    <div class="bd-head"><div><div class="card-title" style="margin-bottom:3px">展示板</div><div class="hint">把要反复看的题目集中成一叠可随时加题、重排、打印的「错题集」：左边题目、右边留白手写。打印一次后还能只补印新增的题，接在原纸空白处。</div></div><div class="bd-head-actions"><button class="btn primary" type="button" onclick="boardCreate()">＋ 新建板</button><button class="btn" type="button" onclick="boardPrintPreview()">🖨 打印预览</button></div></div>
     <div class="bd-layout">
       <div class="card bd-list" id="bd-list"><div class="empty-inline">加载展示板…</div></div>
       <div class="card bd-content" id="bd-content"><div class="empty-inline">请选择或新建一个展示板。</div></div>
-      <aside class="card bd-settings" id="bd-settings"><div class="empty-inline">选择展示板后设置版面。</div></aside>
+      <aside class="card bd-settings" id="bd-settings"><div class="empty-inline">选择展示板后设置版面与打印。</div></aside>
     </div>
   </div>
 
@@ -247,12 +275,99 @@
   <div class="panel" id="panel-schedule">
     <!-- 双入口按钮 -->
     <div class="entry-btns">
-      <button class="btn primary" id="btn-regular-review" onclick="showRecommendPanel()">开始常规复习</button>
+      <button class="btn primary" id="btn-regular-review" onclick="showRecommendPanelV2()">开始常规复习</button>
       <button class="btn" id="btn-export" onclick="showExportPanel()">导出</button>
       <button class="btn sm" onclick="refreshSessions()" style="margin-left:auto">刷新</button>
     </div>
 
-    <!-- ====== 推荐面板 ====== -->
+    <!-- ====== 优化后的推荐面板（单列表，智能均衡） ====== -->
+    <div id="recommend-panel-v2" style="display:none">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">智能推荐设置</div>
+        <div class="filter-note">优化后的调度机制：不限制题目数量，智能均衡推荐，确保各科目都能被推送。</div>
+        <div class="filter-bar">
+          <select id="rec-subject-v2" class="input" onchange="loadRecommendationsV2()">
+            <option value="">全部科目</option>
+          </select>
+          <select id="rec-practice-mode" class="input" onchange="loadRecommendationsV2()">
+            <option value="balanced">均衡模式（科目间均衡）</option>
+            <option value="weak">薄弱模式（优先薄弱科目）</option>
+            <option value="due">到期模式（仅到期题目）</option>
+            <option value="all">全部模式（展示所有）</option>
+          </select>
+          <button class="btn sm" onclick="loadRecommendationsV2()">🔄 刷新推荐</button>
+          <span id="rec-status-v2" class="status-text"></span>
+        </div>
+      </div>
+
+      <!-- 筛选栏 -->
+      <div class="filter-bar">
+        <input type="text" id="rec-search-v2" placeholder="搜索 UID / 科目 / 分类 / 状态 / 知识点 / 标记…" class="input filter-input-wide" oninput="renderUnifiedListV2()">
+        <select id="rec-filter-category-v2" class="input" onchange="renderUnifiedListV2()"><option value="">全部分类</option></select>
+        <select id="rec-filter-tag-v2" class="input" onchange="renderUnifiedListV2()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select>
+        <select id="rec-filter-ktag-v2" class="input" onchange="renderUnifiedListV2()"><option value="">全部知识点</option></select>
+        <span id="rec-label-filter-list-v2" class="label-filter-list" aria-label="标记筛选"></span>
+        <select id="rec-label-mode-v2" class="input" onchange="renderUnifiedListV2()"><option value="any">标记任一</option><option value="all">标记全部</option></select>
+        <input type="number" id="rec-filter-diff-min-v2" class="input filter-mini" min="1" max="10" placeholder="难度≥" oninput="renderUnifiedListV2()">
+        <input type="number" id="rec-filter-diff-max-v2" class="input filter-mini" min="1" max="10" placeholder="难度≤" oninput="renderUnifiedListV2()">
+        <input type="number" id="rec-filter-mastery-min-v2" class="input filter-mini" min="0" max="100" placeholder="熟练度≥%" oninput="renderUnifiedListV2()">
+        <input type="number" id="rec-filter-mastery-max-v2" class="input filter-mini" min="0" max="100" placeholder="熟练度≤%" oninput="renderUnifiedListV2()">
+        <select id="rec-filter-sort-v2" class="input" onchange="renderUnifiedListV2()">
+          <option value="priority">智能优先级 ↓</option>
+          <option value="mastery-asc">熟练度 ↑</option>
+          <option value="mastery-desc">熟练度 ↓</option>
+          <option value="diff-desc">难度 ↓</option>
+          <option value="diff-asc">难度 ↑</option>
+          <option value="date-desc">最近复习优先</option>
+          <option value="due-asc">到期日 ↑</option>
+          <option value="due-desc">到期日 ↓</option>
+        </select>
+        <select id="rec-filter-due-v2" class="input" onchange="renderUnifiedListV2()">
+          <option value="">全部到期状态</option>
+          <option value="overdue">已逾期</option>
+          <option value="today">今日到期</option>
+          <option value="3days">3天内到期</option>
+          <option value="7days">7天内到期</option>
+          <option value="future">未到期</option>
+        </select>
+      </div>
+
+      <!-- 顶部操作栏 -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <span style="font-size:.82rem;color:var(--fg2)" id="rec-summary-v2">加载中...</span>
+        <div class="view-switch">
+          <button class="btn sm toggle active" id="rec-view-flat-v2" onclick="setRecViewV2('flat')">平铺式</button>
+          <button class="btn sm toggle" id="rec-view-gallery-v2" onclick="setRecViewV2('gallery')">画廊式</button>
+        </div>
+      </div>
+
+      <!-- 快捷操作 -->
+      <div class="temp-actions" style="margin-bottom:12px">
+        <button class="btn sm primary" onclick="smartSelectV2()">💡 智能选择（推荐）</button>
+        <button class="btn sm" onclick="selectAllVisibleV2()">全选当前筛选</button>
+        <button class="btn sm danger" onclick="clearSelectionV2()">清空选择</button>
+      </div>
+
+      <!-- 统一推荐列表（不再分两栏） -->
+      <div class="card">
+        <div class="card-title">推荐题目</div>
+        <div id="rec-unified-list-v2"><div class="empty-inline">请点击「刷新推荐」加载题目</div></div>
+      </div>
+
+      <!-- 已选栏 -->
+      <div id="rec-selection-bar-v2" style="margin-top:16px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);display:none;align-items:center;gap:16px">
+        <div style="flex:1">
+          <span class="summary-text" id="rec-selected-count-v2">已选: 0 道</span>
+          <span style="font-size:.74rem;color:var(--fg3);margin-left:12px" id="rec-est-time-v2"></span>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn primary" onclick="confirmScheduleV2()">✓ 确认生成计划</button>
+          <button class="btn sm danger" onclick="clearSelectionV2()">清空</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== 旧版推荐面板（保留，如需切换） ====== -->
     <div id="recommend-panel" style="display:none">
       <div class="filter-bar">
         <select id="rec-subject" class="input" onchange="loadRecommendations()"><option value="">全部科目</option></select>
@@ -1086,23 +1201,24 @@
 <datalist id="cr-cat-list"></datalist>
 <datalist id="cr-ktag-list"></datalist>
 
-<script src="assets/core.js?v=20260831-question-suspend"></script>
-<script src="assets/labels.js?v=20260903-labels"></script>
+<script src="assets/core.js?v=20260904-board-rework"></script>
+<script src="assets/labels.js?v=20260904-board-rework"></script>
 <script src="assets/dashboard.js?v=20260831-question-suspend"></script>
-<script src="assets/questions.js?v=20260901-qview"></script>
-<script src="assets/qtable.js?v=20260903-qtable"></script>
+<script src="assets/questions.js?v=20260904-board-rework"></script>
+<script src="assets/qtable.js?v=20260904-board-rework"></script>
 <script src="assets/qview.js?v=20260901-qview"></script>
 <script src="assets/schedule.js?v=20260828-feedback-ui"></script>
 <script src="assets/export.js?v=20260901-qview"></script>
 <script src="assets/feedback.js?v=20260902-omr-result-protocol"></script>
 <script src="assets/history.js?v=20260728-ledger-timezone"></script>
 <script src="assets/recommend.js"></script>
+<script src="assets/recommend_v2.js"></script>
 <script src="assets/actions.js?v=20260831-question-suspend"></script>
 <script src="assets/catalog.js?v=20260816-catalog"></script>
 <script src="assets/instant.js?v=20260901-qview"></script>
 <script src="assets/data.js?v=20260901-qview"></script>
 <script src="assets/inbox.js?v=20260903-inbox"></script>
-<script src="assets/board.js?v=20260903-board"></script>
+<script src="assets/board.js?v=20260904-board-rework"></script>
 <script src="assets/reports.js?v=20260716-ai-report-v2"></script>
 <script src="assets/app.js?v=20260901-source-export"></script>
 </body>

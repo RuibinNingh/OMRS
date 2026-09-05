@@ -579,18 +579,18 @@ def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4"
 
 
 # --------------------------------------------------------------------------
-# 展示板导出
+# 展示板导出（左题右空 · 支持「只打印新增」）
 # --------------------------------------------------------------------------
+# 版面与分页全部交给浏览器端模板 board.js（与 A4 引擎同一套测量 / 切片思路）；
+# 这里只负责取题、分块、内联图片与颜色，并把版面设置与纸面记录一起交给浏览器。
 
-# Board output is intentionally kept as a separate template pair so that the
-# browser preview and exported file share exactly the same layout rules.
+BOARD_TITLE = "错题集"
+
 
 def _board_label_ink(color):
-    # Match labels.js::lblInk(color, "light"): print uses a white paper
-    # background, so the same-hue text is lowered until the 18% chip surface
-    # reaches WCAG AA contrast.  The stored label color is never changed.
+    """打印用文字色：同色相压暗到与 18% 淡底达到 WCAG AA 对比度（与 labels.js::lblInk 同算法）。"""
     try:
-        value = color.lstrip("#")
+        value = str(color or "").lstrip("#")
         if len(value) == 3:
             value = "".join(ch * 2 for ch in value)
         if len(value) != 6:
@@ -601,8 +601,8 @@ def _board_label_ink(color):
         def luminance(rgb):
             values = []
             for component in rgb:
-                value = component / 255
-                values.append(value / 12.92 if value <= .03928 else ((value + .055) / 1.055) ** 2.4)
+                channel = component / 255
+                values.append(channel / 12.92 if channel <= .03928 else ((channel + .055) / 1.055) ** 2.4)
             return .2126 * values[0] + .7152 * values[1] + .0722 * values[2]
 
         def contrast(rgb):
@@ -615,7 +615,7 @@ def _board_label_ink(color):
         lightness = .02
         while lightness <= .58:
             red, green, blue = colorsys.hls_to_rgb(hue, lightness, saturation)
-            candidate = tuple(round(value * 255) for value in (red, green, blue))
+            candidate = tuple(round(v * 255) for v in (red, green, blue))
             candidates.append(candidate)
             if contrast(candidate) >= 4.5:
                 return "#{:02x}{:02x}{:02x}".format(*candidate)
@@ -624,121 +624,7 @@ def _board_label_ink(color):
         best = max(candidates, key=contrast)
         return "#{:02x}{:02x}{:02x}".format(*best)
     except Exception:
-        return "#64748b"
-
-
-def _board_question(vault, item):
-    file_path = str(item.get("file_path") or "")
-    if not file_path:
-        row = next((r for r in load_csv(mastery_path(vault), MASTERY_HEADERS) if r.get("UID") == item.get("uid")), {})
-        file_path = row.get("File_Path", "")
-    path = os.path.join(vault, file_path.replace("\\", os.sep).replace("/", os.sep))
-    if not os.path.isfile(path):
-        return None
-    with open(path, "r", encoding="utf-8") as file:
-        content = file.read()
-    sections = split_sections(content)
-    meta = parse_yaml_frontmatter(content)
-    return {
-        "uid": item.get("uid", ""),
-        "subject": meta.get("科目", item.get("subject", "")),
-        "category": extract_category(meta) or item.get("category", ""),
-        "difficulty": meta.get("难度", item.get("difficulty", "")),
-        "question": sections.get(QUESTION_SECTION, "").strip(),
-        "answer": sections.get(ANSWER_SECTION, "").strip(),
-        "labels": item.get("labels") or [],
-    }
-
-
-def _board_text_html(text, vault=None):
-    """Render board text without dropping tables or image blocks.
-
-    Board pagination treats tables as atomic DOM nodes, just like the A4
-    exporter.  Text remains escaped plain HTML; the board template deliberately
-    keeps the paper layout small and quiet rather than introducing a second
-    Markdown renderer.
-    """
-    blocks = _text_to_blocks(vault or _BOARD_VAULT, text)
-    html = []
-    for block in blocks:
-        if block.get("t") == "img":
-            image = block.get("img") or {}
-            html.append(
-                f'<img class="bd-img" src="{_escape_html(image.get("src", ""))}" '
-                f'alt="{_escape_html(image.get("name", ""))}">'
-            )
-        elif block.get("t") == "table":
-            headers = block.get("headers") or []
-            rows = block.get("rows") or []
-            head = "".join(f"<th>{_escape_html(cell)}</th>" for cell in headers)
-            body = "".join(
-                "<tr>" + "".join(f"<td>{_escape_html(cell)}</td>" for cell in row) + "</tr>"
-                for row in rows
-            )
-            html.append(
-                f'<div class="bd-table-wrap"><table class="bd-table"><thead><tr>{head}</tr>'
-                f"<tbody>{body}</tbody></table></div>"
-            )
-        else:
-            html.append(f"<p>{_escape_html(block.get('text', ''))}</p>")
-    return "".join(html) or "<p>（无题目内容）</p>"
-
-
-def _escape_html(value):
-    return (
-        str(value or "")
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
-        .replace("'", "&#39;")
-    )
-
-
-def _board_label_html(labels):
-    # labels is a list of {name,color} or names. The exporter does not need the
-    # label registry to be available: unknown names use the neutral slate color.
-    result = []
-    for raw in labels or []:
-        if isinstance(raw, dict):
-            name, color = raw.get("name", ""), raw.get("color", "#64748b")
-        else:
-            name, color = str(raw), "#64748b"
-        if not str(name).strip():
-            continue
-        rgb = "100,116,139"
-        try:
-            hex_color = str(color).lstrip("#")
-            if len(hex_color) == 3:
-                hex_color = "".join(ch * 2 for ch in hex_color)
-            if len(hex_color) != 6:
-                raise ValueError
-            rgb = ",".join(str(int(hex_color[i:i + 2], 16)) for i in (0, 2, 4))
-        except Exception:
-            pass
-        result.append(
-            f'<span class="lbl" style="--lrgb:{rgb};--link:{_board_label_ink(str(color))}">'
-            f"{_escape_html(name)}</span>"
-        )
-    return "".join(result)
-
-
-def _board_text_line_estimate(text, max_chars=31):
-    """Estimate rendered board-text height in line units.
-
-    The exporter deliberately does not clip正文.  This estimate is only used to
-    choose a page break before the browser renders the fixed A4 sheet; images
-    consume a conservative block allowance so they are not silently pushed
-    outside the left column.
-    """
-    lines = 0
-    for source in str(text or "").splitlines() or [""]:
-        embeds, remaining = _extract_embeds(source)
-        if remaining:
-            lines += max(1, (len(remaining) + max_chars - 1) // max_chars)
-        for _name, _width in embeds:
-            lines += 14  # max-height: 240px at roughly 18px text line height
-    return max(1, lines)
+        return "#475569"
 
 
 def _board_label_objects(labels, colors):
@@ -748,194 +634,170 @@ def _board_label_objects(labels, colors):
         if not name:
             continue
         color = colors.get(name, "#64748b")
-        result.append({
-            "name": name,
-            "color": color,
-            "ink": _board_label_ink(color),
-        })
+        result.append({"name": name, "color": color, "ink": _board_label_ink(color)})
     return result
 
 
-def export_board_html(vault, board_id, include_answers=None, page_start=1, page_end=None,
-                      overrides=None):
-    """Export a board as a self-contained A4 HTML document.
-
-    Pagination is calculated for the whole board first.  ``page_start`` and
-    ``page_end`` then select already-numbered pages, so printing page 3 alone
-    still displays the absolute footer number ``3``.  The board template owns
-    the final DOM/CSS and intentionally emits no right-column note element.
-    """
-    from .boards import board_items_for_export
-
-    board, items = board_items_for_export(vault, board_id)
-    settings = {**board.get("print", {}), **(overrides or {})}
-    if include_answers is None:
-        include_answers = settings.get("answers") == "append"
-
-    global _BOARD_VAULT
-    _BOARD_VAULT = vault
-    valid_pairs = []
-    for item in items:
-        question = _board_question(vault, item)
-        if question:
-            valid_pairs.append((question, item))
-    if not valid_pairs:
-        raise RuntimeError("展示板没有可导出的题目")
-
+def _label_color_map(vault):
     try:
         from .labels import load_labels
-        label_colors = {
+        return {
             item["name"]: item.get("color", "#64748b")
             for item in load_labels(vault).get("labels", [])
             if not item.get("archived")
         }
     except Exception:
-        label_colors = {}
+        return {}
 
-    try:
-        ratio = max(.30, min(.55, float(settings.get("note_ratio", .42))))
-    except (TypeError, ValueError):
-        ratio = .42
-    try:
-        gap_lines = max(0, min(24, int(settings.get("gap_lines", 6))))
-    except (TypeError, ValueError):
-        gap_lines = 6
-    try:
-        binding_mm = max(10, min(40, int(settings.get("binding_mm", 22))))
-    except (TypeError, ValueError):
-        binding_mm = 22
 
-    # The left content column is about 53 lines high after the fixed header.
-    # Keep a small safety margin for font metrics and never cap a long question:
-    # a capped estimate would make a long block overflow instead of moving it.
-    page_budget = 49
-    pages, current, used = [], [], 0
-    for index, (question, item) in enumerate(valid_pairs, 1):
-        extra = max(0, min(24, int(item.get("extra_gap_lines", 0) or 0)))
-        height = _board_text_line_estimate(question.get("question", "")) + 2 + gap_lines + extra
-        if current and used + height > page_budget:
-            pages.append(current)
-            current, used = [], 0
-        current.append((index, question, item))
-        used += height
-    if current:
-        pages.append(current)
-
-    answer_page = None
-    if include_answers:
-        answer_rows = []
-        for index, (question, _item) in enumerate(valid_pairs, 1):
-            answer_rows.append({
-                "index": index,
-                "uid": question["uid"],
-                "html": _board_text_html(question.get("answer", ""), vault),
-            })
-        answer_page = {
-            "number": len(pages) + 1,
-            "binding_px": binding_mm * 3.7795,
-            "note_ratio": ratio,
-            "answers": answer_rows,
-        }
-
-    total_pages = len(pages) + (1 if answer_page else 0)
-    try:
-        start = max(1, int(page_start or 1))
-    except (TypeError, ValueError):
-        start = 1
-    open_end = page_end in (None, "")
-    if open_end:
-        end = total_pages
-    else:
-        try:
-            end = int(page_end)
-        except (TypeError, ValueError):
-            end = total_pages
-        if end < start:
-            raise ValueError("打印范围起始页不能大于结束页")
-        end = min(total_pages, end)
-    if start > total_pages or end < start:
-        raise RuntimeError("打印范围没有可导出的页")
-
-    all_pages = []
-    selected_pages = []
-    for page_number, rows in enumerate(pages, 1):
-        rendered_questions = []
-        for index, question, item in rows:
-            labels = _board_label_objects(
-                question.get("labels", []) if settings.get("show_labels", True) else [],
-                label_colors,
-            )
-            meta = ""
-            if settings.get("show_meta", True):
-                meta = (
-                    f"{question.get('subject', '')} · {question.get('category', '')} · "
-                    f"难度 {question.get('difficulty', '')}"
-                )
-            rendered_questions.append({
-                "index": index,
-                "uid": question["uid"],
-                "labels": labels,
-                "meta": meta,
-                "html": _board_text_html(question.get("question", ""), vault),
-                "gap_px": gap_lines * 18,
-                "extra_gap_px": max(0, min(24, int(item.get("extra_gap_lines", 0) or 0))) * 18,
-            })
-        rendered_page = {
-            "number": page_number,
-            "binding_px": binding_mm * 3.7795,
-            "note_ratio": ratio,
-            "questions": rendered_questions,
-        }
-        all_pages.append(rendered_page)
-        if start <= page_number <= end:
-            selected_pages.append(rendered_page)
-    if answer_page and start <= answer_page["number"] <= end:
-        selected_pages.append(answer_page)
-
-    all_questions = [
-        question
-        for page in all_pages
-        for question in page["questions"]
-    ]
-    data = {
-        "pages": selected_pages,
-        # ``all_questions`` lets the browser reflow with real font/image
-        # geometry before applying the requested absolute page range.  The
-        # legacy ``pages`` field remains for consumers that only inspect the
-        # server estimate.
-        "all_questions": all_questions,
-        "answers": answer_page["answers"] if answer_page else [],
-        "binding_px": binding_mm * 3.7795,
-        "binding_marks": settings.get("binding_marks", "none")
-        if settings.get("binding_marks") in {"none", "3hole", "26hole"}
-        else "none",
-        "note_ratio": ratio,
-        "include_answers": bool(answer_page),
-        "board_id": str(board.get("id") or board_id),
-        "page_start": start,
-        "page_end": end,
-        "open_end": open_end,
-        "estimated_total_pages": total_pages,
-        "estimated_selected_page_count": len(selected_pages),
+def _board_read_question(vault, item):
+    """读取展示板条目对应的题目文件，返回题面 / 答案分节；文件缺失返回 None。"""
+    file_path = str(item.get("file_path") or "")
+    if not file_path:
+        return None
+    path = os.path.join(vault, file_path.replace("\\", os.sep).replace("/", os.sep))
+    if not os.path.isfile(path):
+        return None
+    with open(path, "r", encoding="utf-8") as file:
+        content = file.read()
+    sections = split_sections(content)
+    meta = parse_yaml_frontmatter(content)
+    return {
+        "uid": item.get("uid", ""),
+        "question_id": item.get("question_id", ""),
+        "subject": meta.get("科目", item.get("subject", "")),
+        "category": extract_category(meta) or item.get("category", ""),
+        "difficulty": meta.get("难度", item.get("difficulty", "")),
+        "question": sections.get(QUESTION_SECTION, "").strip(),
+        "answer": sections.get(ANSWER_SECTION, "").strip(),
+        "labels": item.get("labels") or [],
+        "extra_gap_lines": int(item.get("extra_gap_lines", 0) or 0),
     }
+
+
+def build_board_export_data(vault, board_id, mode="all", include_answers=None, overrides=None):
+    """组装展示板导出数据（不做分页，分页在浏览器完成）。
+
+    mode="all"  整板从头排版；
+    mode="new"  只排尚未进入纸面记录的题目，版面沿用纸面记录里的几何，
+                并把 cursor / pages 交给浏览器，让新题接在原纸空白处。
+    """
+    from .boards import board_items_for_export, normalize_print
+
+    mode = "new" if str(mode or "").lower() == "new" else "all"
+    board, items = board_items_for_export(vault, board_id, mode)
+    printed = board.get("printed") or {}
+    has_paper = int(printed.get("pages", 0) or 0) > 0
+    if mode == "new" and not has_paper:
+        raise RuntimeError("这个展示板还没有纸面记录，请先「打印全部」并标记为已打印")
+    settings = normalize_print({**board.get("print", {}), **(overrides or {})})
+    if mode == "new" and has_paper:
+        # 纸面几何以已打印的纸为准（栏宽、题间距、装订边），其余显示项跟随当前设置
+        paper = normalize_print(printed.get("print") or {})
+        for key in ("note_ratio", "gap_lines", "binding_mm"):
+            settings[key] = paper[key]
+    if include_answers is not None:
+        settings["answers"] = "append" if include_answers else "none"
+
+    questions = []
+    for item in items:
+        question = _board_read_question(vault, item)
+        if question:
+            questions.append(question)
+    if not questions:
+        if mode == "new":
+            raise RuntimeError("没有新增题目需要打印")
+        raise RuntimeError("展示板没有可导出的题目")
+
+    colors = _label_color_map(vault)
+    start_index = (len(printed.get("items") or []) + 1) if mode == "new" else 1
+    today = datetime.date.today().isoformat()
+    data = {
+        "meta": {
+            "kind": "board",
+            "board_id": str(board.get("id") or board_id),
+            "board_name": board.get("name", ""),
+            "title": BOARD_TITLE,
+            "generated": today,
+            "mode": mode,
+            "print": settings,
+            "question_count": len(questions),
+            "index_start": start_index,
+            "printed": {
+                "pages": int(printed.get("pages", 0) or 0),
+                "cursor": dict(printed.get("cursor") or {}),
+                "answer_pages": list(printed.get("answer_pages") or []),
+                "count": len(printed.get("items") or []),
+            } if mode == "new" else None,
+        },
+        "questions": [],
+        "answers": [],
+    }
+    for offset, question in enumerate(questions):
+        data["questions"].append({
+            "idx": start_index + offset,
+            "uid": question["uid"],
+            "question_id": question["question_id"],
+            "subject": question.get("subject", ""),
+            "category": question.get("category", ""),
+            "difficulty": question.get("difficulty", ""),
+            "labels": _board_label_objects(question.get("labels", []) if settings["show_labels"] else [], colors),
+            "blocks": _text_to_blocks(vault, question.get("question", "") or "(无题目内容)"),
+            "extra_gap_lines": max(0, min(24, int(question.get("extra_gap_lines", 0) or 0))),
+        })
+    if settings["answers"] == "append":
+        for offset, question in enumerate(questions):
+            data["answers"].append({
+                "idx": start_index + offset,
+                "uid": question["uid"],
+                "blocks": _text_to_blocks(vault, question.get("answer", "").strip()),
+            })
+    return data
+
+
+_BOARD_BODY = """<div id="bar">
+  <strong>OMRS · 错题集打印版</strong>
+  <button id="btnPrint" disabled>打印 / 导出 PDF</button>
+  <button id="btnDone" class="secondary" title="打印完成后回主程序记录纸面状态">✓ 已打印，记录纸面</button>
+  <label><input type="checkbox" id="btnDebug"> 显示切口</label>
+  <span class="stat" id="stat">排版中…</span>
+</div>
+<div id="notice"></div>
+<div id="stage"></div>"""
+
+
+def _build_board_html(data):
     css = _read_template("board.css")
     js = _read_template("board.js")
+    katex_css, katex_js = _read_katex_bundle()
     data_json = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    html = (
-        "<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">"
-        "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-        f"<meta name=\"omrs-page-count\" content=\"{len(selected_pages)}\">"
-        f"<meta name=\"omrs-estimated-page-count\" content=\"{len(selected_pages)}\">"
-        f"<meta name=\"omrs-total-page-count\" content=\"{total_pages}\">"
-        f"<meta name=\"omrs-page-start\" content=\"{start}\">"
-        f"<meta name=\"omrs-page-end\" content=\"{end}\">"
-        f"<meta name=\"omrs-open-end\" content=\"{'1' if open_end else '0'}\">"
-        "<title>错题集</title><style>" + css + "</style></head><body>"
-        '<div class="toolbar">展示板打印预览<button onclick="window.print()">打印 / 导出 PDF</button></div>'
-        '<div id="stage"></div>'
-        f"<script>window.OMRS_DATA = {data_json};</script>"
-        "<script>" + js + "</script></body></html>"
+    mode = data.get("meta", {}).get("mode", "all")
+    return (
+        "<!DOCTYPE html>\n"
+        '<html lang="zh-CN">\n<head>\n'
+        '<meta charset="UTF-8">\n'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+        f'<meta name="omrs-board-mode" content="{mode}">\n'
+        f"<title>{BOARD_TITLE}</title>\n"
+        f"<style>\n{katex_css}\n</style>\n"
+        f"<style>\n{css}\n</style>\n"
+        "</head>\n<body>\n"
+        f"{_BOARD_BODY}\n"
+        f"<script>\n{katex_js}\n</script>\n"
+        f"<script>window.OMRS_DATA = {data_json};</script>\n"
+        f"<script>\n{js}\n</script>\n"
+        "</body>\n</html>\n"
     )
-    return html.encode("utf-8")
 
-_BOARD_VAULT = ""
+
+def export_board_html(vault, board_id, mode="all", include_answers=None, overrides=None):
+    """导出展示板为自包含 HTML（bytes）。分页、切片、纸面续排均由浏览器完成。"""
+    data = build_board_export_data(vault, board_id, mode=mode, include_answers=include_answers, overrides=overrides)
+    return _build_board_html(data).encode("utf-8")
+
+
+def board_export_filename(board, mode="all"):
+    """下载文件名；Content-Disposition 里另有 ASCII 兜底，这里保留中文板名。"""
+    name = str((board or {}).get("name") or (board or {}).get("id") or "board")
+    suffix = "-新增" if mode == "new" else ""
+    return f"OMRS-BD-{name}{suffix}-错题集.html"

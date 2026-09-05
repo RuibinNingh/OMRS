@@ -11,7 +11,7 @@ from .catalog import build_tree
 from .reports import create_report, delete_report, get_report_html, list_reports
 from .ai_assist import recognize_question
 from .creation import create_question
-from .exporting import _find_image, _read_image_info, export_schedule_artifact, export_board_html
+from .exporting import _find_image, _read_image_info, export_schedule_artifact, export_board_html, board_export_filename
 from .labels import delete_label, list_label_defs, merge_labels, save_label
 from .boards import (
     add_items as board_add_items,
@@ -20,7 +20,9 @@ from .boards import (
     duplicate_board,
     get_board,
     list_boards,
+    record_printed as board_record_printed,
     remove_items as board_remove_items,
+    reset_printed as board_reset_printed,
     update_board,
 )
 from .feedback import process_feedback
@@ -338,12 +340,15 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/ai-recognize":
             try:
                 data = json.loads(body) if body else {}
-                image = data.get("image", "")
+                # 兼容旧字段名 image，新的使用 question_image
+                question_image = data.get("question_image") or data.get("image", "")
+                answer_image = data.get("answer_image", "")
                 mode = data.get("mode", "classify")
                 result = recognize_question(
-                    self.vault_path, image, mode=mode,
+                    self.vault_path, question_image, mode=mode,
                     hint_subject=data.get("subject", ""),
                     hint_category=data.get("category", ""),
+                    answer_image=answer_image,
                 )
                 self._json({"status": "ok", **result})
             except Exception as exc:
@@ -666,26 +671,16 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     if not board_id:
                         self._json({"status": "error", "msg": "board_id 不能为空"}, 400)
                         return
+                    mode = "new" if str(data.get("mode") or "").lower() == "new" else "all"
                     payload = export_board_html(
                         self.vault_path,
                         board_id,
+                        mode=mode,
                         include_answers=data.get("include_answers"),
-                        page_start=data.get("page_start", 1),
-                        page_end=data.get("page_end"),
                         overrides=data.get("overrides") if isinstance(data.get("overrides"), dict) else None,
                     )
                     board = get_board(self.vault_path, board_id) or {}
-                    filename = f"OMRS-board-{board.get('name') or board_id}.html"
-                    filename_encoded = urllib.parse.quote(filename)
-                    self.send_response(200)
-                    self.send_header("Content-Type", "text/html; charset=utf-8")
-                    self.send_header(
-                        "Content-Disposition",
-                        f"attachment; filename=\"{filename}\"; filename*=UTF-8''{filename_encoded}",
-                    )
-                    self.send_header("Content-Length", str(len(payload)))
-                    self.end_headers()
-                    self.wfile.write(payload)
+                    self._download(payload, board_export_filename(board, mode), "text/html; charset=utf-8")
                     return
                 if not uids and not session_id:
                     self._json({"status": "error", "msg": "需要 session_id 或 uids"}, 400)
@@ -736,7 +731,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 board_id = str(data.get("id") or "").strip()
                 if not board_id:
                     raise ValueError("展示板 id 不能为空")
-                changes = {key: data[key] for key in ("name", "note", "print", "items", "source_labels", "last_printed_page") if key in data}
+                changes = {key: data[key] for key in ("name", "note", "print", "items", "source_labels") if key in data}
                 self._json({"status": "ok", "board": update_board(self.vault_path, board_id, **changes)})
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
@@ -769,6 +764,24 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 data = json.loads(body) if body else {}
                 ok = delete_board(self.vault_path, str(data.get("id") or ""))
                 self._json({"status": "ok" if ok else "error", "deleted": ok})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/printed":
+            try:
+                data = json.loads(body) if body else {}
+                board = board_record_printed(
+                    self.vault_path,
+                    str(data.get("id") or ""),
+                    str(data.get("mode") or "all"),
+                    data.get("layout") if isinstance(data.get("layout"), dict) else {},
+                )
+                self._json({"status": "ok", "board": board})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/printed/reset":
+            try:
+                data = json.loads(body) if body else {}
+                self._json({"status": "ok", "board": board_reset_printed(self.vault_path, str(data.get("id") or ""))})
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
         else:
@@ -933,6 +946,17 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         host = (self.headers.get("Host") or "").strip()
         if not parsed.netloc or parsed.netloc != host:
             raise ValueError("拒绝跨站状态修改请求")
+
+    def _download(self, payload, filename, content_type):
+        """带中文文件名的附件响应：ASCII 兜底 + RFC 5987 filename*，避免 latin-1 编码报错。"""
+        ascii_name = "".join(ch for ch in str(filename) if ord(ch) < 128 and ch not in '"\\') or "download"
+        encoded = urllib.parse.quote(str(filename))
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Disposition", f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
     def _json(self, data, code=200):
         body = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")

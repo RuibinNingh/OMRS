@@ -36,7 +36,7 @@ OMRS 里有三种容易混淆的题目标签：
 
 - `id` 是定义的内部稳定标识；题目 Markdown 不保存 id，而保存可读的名字。
 - `name` 最长 80 个字符，不能含换行或 `|`；定义名称必须唯一。
-- `color` 规范化为 `#rrggbb`。前端用原色生成 18% 淡底，用按主题钳亮度后的同色显示文字。
+- `color` 规范化为 `#rrggbb`。前端 soft 变体用原色生成淡底 + 按主题钳亮度后的同色文字，solid 变体用原色实底。
 - `order` 控制管理页和选择器顺序；`priority_bonus` 为 `0–1` 的可选调度加成。
 - `archived` 的定义不会出现在常规列表和选择器中；当前管理 API 删除定义而不是保留归档记录。
 
@@ -86,18 +86,27 @@ metadata commit。批量操作会逐题写入，完成后统一扫描投影。
 
 ## 5. 前端组件
 
-`assets/labels.js` 提供：
+`assets/labels.js`（排在 `core.js` 之后、`questions.js` 之前）提供：
 
-- `lblChip()` / `lblChips()`：`<=>` 双尖形芯片，只有 18% 淡底 + 彩色字一种配色；
-- `lblInk()`：在浅色和深色主题下调整文字亮度，保证小字号可读；
-- `LabelPicker`：搜索、键盘上下移动、Space/Enter 切换、输入新名称创建、最近标记；
-- 题库/推荐/导出/即时练习的标记筛选和 `any/all` 匹配；
-- 录入表单的标记字段、单题覆盖保存、批量添加/移除和标记管理弹层。
+- `lblChip(labelOrName, {variant, lg, dim})` / `lblChips(names, {add, max, uid, lg, variant})`：
+  `<=>` 双尖形芯片。三种变体：默认 **soft**（原色 16%/24% 淡底 + 同色相钳亮度文字，列表 /
+  抽屉 / 反馈用）、**solid**（原色实底 + 按相对亮度选黑白文字，管理弹层用）、**print**（15px，
+  导出用）。尺寸 18px / `lg` 20px / `print` 15px。`add:true` 追加「＋ 标记」入口，`max` 折叠为
+  「+N」，`uid` 时外包 `<span class="lbl-row" data-lbl-target=uid>` 交给委托打开 picker。
+- `lblInk(hex, theme)`：按主题只钳同色相的亮度，保证淡底上的小字达到 WCAG AA；`labelFg()`
+  给 solid 变体选文字色。用户保存的 `color` 永远不变。
+- `openLabelPicker(uid, anchor, {get, onSave, title})`：搜索 / ↑↓ / Space·Enter 切换 / 输入新名回车
+  创建并选中 / 最近标记快速加 / Esc 关闭；点「完成」才保存（乐观更新 + 失败回滚 + toast）。
+  题库 / Modal / 反馈 / 录入 / 收件箱 / 展示板共用，点任意带 `data-lbl-target` 的芯片区都能打开。
+- `openLabelManager()`：管理弹层——行内编辑（名称 / 10 色预设 + 自定义色 / 调度加成）、合并到
+  另一标记、删除（从题目 YAML 摘除）、新建；改名 / 合并后 `reloadData()` 刷新全站。
+- 标记筛选 chips：`renderLabelFilterOptions(prefix)` 渲染到 `#<prefix>-label-filter-list`，选中
+  状态存在隐藏 `#<prefix>-filter-labels`（`|` 分隔），`q / rec / pick / inst` 四处共用，
+  `q-label-mode` 决定 any / all。
+- 录入表单的标记字段（`renderCreateLabels` / `selectedCreateLabels`）、单题覆盖保存
+  `saveQuestionLabels`、批量 `batchAddRemoveLabels`。
 
-尺寸只由使用位置决定：普通列表 18px、Modal/展示板 20px、打印 15px。
-标记永远带文字，不依赖纯色点或实色块；删除了 `solid` / `soft` 变体。
-
-题库的新筛选状态仍由 `getFilterState()` 统一读取；标记名称也参与全文搜索。
+题库的筛选状态仍由 `getFilterState()` 统一读取；标记名称也参与全文搜索。
 标记管理中的改名、删除和合并属于真实的批量 Markdown 编辑，前端会提示影响范围。
 
 ## 6. 统计与调度

@@ -99,7 +99,7 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 题目停用不删除 Markdown，只追加 `question.suspend`；恢复只追加 `question.resume`。两类 commit 都携带 `question_id`、当时 UID、文件路径和可选 `reason`，投影列 `suspended` 与兼容 CSV 列 `Suspended` 据此派生。停用题保留在题库管理列表和历史链中，但从调度、统计、分析、反馈和复习导出中排除；恢复后沿用原有 Mastery/SM-2 状态。
 
 展示板 `错题/.omrs/boards.json` 同样不进入 Ledger。它只是可重排的呈现层引用
-集合，保存 `question_id` / `uid`、打印设置和页码高水位；备份整个 `错题/`
+集合，保存 `question_id` / `uid`、打印设置和纸面记录；备份整个 `错题/`
 目录时随文件备份，Ledger 恢复不承诺还原展示板。
 
 历史修正只追加新 commit：

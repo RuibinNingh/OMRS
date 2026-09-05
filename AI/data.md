@@ -294,6 +294,11 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复�
 `extra_gap_lines` 追加 0–24 行。
 
 停用题继续保留在板内但导出跳过；题目删除或无法按稳定身份解析时显示
-`missing`，不会自动从板文件中删除。`last_printed_page` 是打印高水位，供前端
-默认选择下一页并在确认打印后推进。备份整个 `错题/` 目录时，`labels.json`、
-`boards.json` 都随 `.omrs/` 一起进入备份。
+`missing`，不会自动从板文件中删除。
+
+`printed` 是**纸面记录**——纸上现在有什么：`pages`（已打印总页数）、`cursor{page,y}`
+（下一道新题的续排位置）、打印时的 `print` 几何、`items[]`（每题 `question_id / uid /
+hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`pages == 0` 表示没有
+记录；由 `POST /api/board/printed` 在用户「标记为已打印」时写入，`mode:"new"` 追加、
+`mode:"all"` 替换；旧字段 `last_printed_page` 读取时忽略。设计见 `board.md` §4。
+备份整个 `错题/` 目录时，`labels.json`、`boards.json` 都随 `.omrs/` 一起进入备份。

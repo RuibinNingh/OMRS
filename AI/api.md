@@ -37,7 +37,8 @@
 
 ### `/api/boards`
 返回展示板列表。每项包含 `id`、`name`、`note`、`count`、`created_at`、
-`updated_at`、`print`、`last_printed_page`、`missing` 和 `suspended`。
+`updated_at`、`print`、`missing`、`suspended` 和纸面摘要 `printed_summary`
+（`{at, pages, count, new_count, changed_count, cursor, answer_pages, print}`）。
 
 ### `/api/board?id=<board_id>`
 返回指定展示板及解析后的题目引用。每个 `items[]` 附带
@@ -55,7 +56,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `status` | string | 当前服务状态，正常为 `ok` |
-| `version` | string | 从 `omrs.version.__version__` 读取的 OMRS 版本号，当前为 `v1.14.0` |
+| `version` | string | 从 `omrs.version.__version__` 读取的 OMRS 版本号，当前为 `v1.14.1` |
 | `started_at` | string | 服务启动时间（ISO 8601，UTC） |
 | `uptime_seconds` | int | 已运行秒数 |
 | `question_count` | int | 当前托管题目数 |
@@ -600,33 +601,25 @@
 {
   "format": "board",
   "board_id": "BD-20260904-a1b2c3",
+  "mode": "new",
   "include_answers": false,
-  "page_start": 3,
-  "page_end": 4,
-  "overrides": {
-    "note_ratio": 0.42,
-    "gap_lines": 6,
-    "binding_mm": 22,
-    "binding_marks": "none",
-    "answers": "none",
-    "show_labels": true,
-    "show_meta": true
-  }
+  "overrides": { "note_ratio": 0.42, "gap_lines": 6, "binding_mm": 22, "binding_marks": "none",
+                 "answers": "none", "show_labels": true, "show_meta": true }
 }
 ```
 
 - `board_id` 必填，也兼容使用 `id`；板内引用按 `question_id` 优先解析。
-- `include_answers` 省略时沿用板设置 `print.answers`，传 `true` 时在末页追加答案附页。
-- `page_start` 默认 `1`；省略 `page_end` 表示导出到整板最后一页。分页先按整板
-  计算，再裁剪范围，所以单独导出第 3 页时页脚仍是绝对页码 `3`。
-- `overrides` 只覆盖本次导出的版面设置，不回写 `boards.json`；字段与板的
-  `print` 相同。停用题和缺失题保留在板内显示，但导出时跳过。
+- `mode` 为 `all`（默认，整板从第 1 页排）或 `new`（只排尚未进入纸面记录的题目，接在
+  纸面记录的 `cursor` 之后续排；没有纸面记录或没有新题时返回 400）。`new` 模式下
+  `note_ratio / gap_lines / binding_mm` 沿用纸面记录，其余显示项跟随当前设置。
+- `include_answers` 省略时沿用板设置 `print.answers`，传 `true` 时在新页追加答案附页。
+- `overrides` 只覆盖本次导出的版面设置，不回写 `boards.json`。停用题和缺失题保留在板内
+  显示，但导出时跳过。
 
-响应仍是 `text/html; charset=utf-8` 的文件流，不是 JSON；文件名为
-`OMRS-board-<板名>.html`。HTML 自包含 `board.css` / `board.js` 与题图数据，
-每页页眉固定为「错题集」，页脚只显示当前页码，右侧留白不生成边框、底纹或笔记
-元素。确认打印后，展示板前端通过 `POST /api/board/update` 推进
-`last_printed_page`。
+响应仍是 `text/html; charset=utf-8` 的文件流；文件名 `OMRS-BD-<板名>[-新增]-错题集.html`，
+`Content-Disposition` 同时带 ASCII 兜底与 `filename*=UTF-8''…`。HTML 自包含 `board.css` /
+`board.js` 与题图数据，分页在浏览器完成，页眉固定「错题集」，页脚为板内绝对页码；排版完成后
+模板把版面（`window.OMRS_LAYOUT`）`postMessage` 给主程序，用于 `POST /api/board/printed`。
 
 ### `POST /api/board/create`
 创建展示板，可选地在创建时加入题目或按一个标记初始化。
@@ -641,7 +634,7 @@
 其中 `board.items[]` 是已解析的条目详情。
 
 ### `POST /api/board/update`
-部分更新展示板元数据、版面设置、打印高水位或条目顺序。
+部分更新展示板元数据、版面设置或条目顺序（纸面记录走 `/api/board/printed`）。
 
 **请求体：**
 ```json
@@ -658,8 +651,7 @@
       "extra_gap_lines": 2,
       "pin": false
     }
-  ],
-  "last_printed_page": 3
+  ]
 }
 ```
 
@@ -675,7 +667,8 @@
 { "id": "BD-20260904-a1b2c3", "uids": ["三角函数3"], "position": 0 }
 ```
 
-`position` 可省略，省略时追加到板尾；成功响应为完整的 `board` 对象。
+`position` 可省略，省略时追加到板尾；成功响应为完整的 `board` 对象，另附本次实际加入的
+数量 `board.added`。
 
 ### `POST /api/board/items/remove`
 按 UID 或 `question_id` 移除展示板条目，不影响题目本身。
@@ -688,8 +681,7 @@
 **响应：** `{"status":"ok","board":{...}}`。
 
 ### `POST /api/board/duplicate`
-复制展示板的版面设置、备注、标记来源和现存题目引用；新板的打印高水位从
-`0` 开始，缺失题不会复制。
+复制展示板的版面设置、备注、标记来源和现存题目引用；纸面记录不复制（新板对应新纸）。
 
 **请求体：**
 ```json
@@ -697,6 +689,32 @@
 ```
 
 **响应：** `{"status":"ok","board":{...}}`。
+
+### `POST /api/board/printed`
+记录纸面（「标记为已打印」）。`layout` 是浏览器导出模板实测的版面
+（`window.OMRS_LAYOUT`），服务端只取 `pages / cursor / items[].segments / answer_pages`，
+并为每题记下正文指纹，用于之后提示「已改动」。
+
+**请求体：**
+```json
+{
+  "id": "BD-20260904-a1b2c3",
+  "mode": "new",
+  "layout": {
+    "pages": 3,
+    "cursor": { "page": 3, "y": 493.56 },
+    "answer_pages": [],
+    "items": [{ "question_id": "OP-000123", "uid": "三角函数1",
+                "segments": [{ "page": 3, "top": 300.2, "height": 125.7 }] }]
+  }
+}
+```
+
+`mode:"all"` 用这份版面替换整个纸面记录；`mode:"new"` 把新题追加进原记录并推进
+`pages` / `cursor`。**响应：** `{"status":"ok","board":{...}}`。
+
+### `POST /api/board/printed/reset`
+清空纸面记录。**请求体：** `{ "id": "BD-20260904-a1b2c3" }`；响应同上。
 
 ### `POST /api/board/delete`
 删除展示板记录，不删除题目、标记或 Ledger 数据。

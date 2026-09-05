@@ -59,56 +59,52 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 
 ## 展示板打印版（`board.css` / `board.js`，v1.14.0）
 
-展示板导出是独立的 `format:"board"` 变体，输入为 `board_id` 而不是临时 UID
-列表。服务端读取 `boards.json` 中的当前题目引用，跳过缺失题和停用题，但不从
-展示板文件中自动清理它们。导出仍是单个自包含 HTML，模板在浏览器中按真实字体、
-图片尺寸和内容高度分页。
+展示板导出是独立的 `format:"board"` 变体，输入为 `board_id` 而不是临时 UID 列表。
+服务端（`build_board_export_data`）读取 `boards.json` 中的题目引用，跳过缺失题和停用题
+（不自动从板里清理），分块、内联图片与标记颜色后交给浏览器；**分页、切片、续排全部在
+浏览器完成**，与 A4 引擎同一套思路。完整设计见 `board.md`，这里只记导出契约。
 
 ### 固定几何与纸面规则
 
-- A4 纵向页面为 `793.7 × 1122.52px`，`@page` 使用 `size:A4 portrait` 和零
-  页面外边距。
-- 默认左装订边 `22mm`（约 `83.1px`），右边距 `10mm`，上/下边距 `12mm`；
-  `note_ratio` 在 `0.30–0.55` 之间，默认 `0.42`，决定左侧题栏宽度。
-- `gap_lines` 默认 6，每行按 18px 计算；每题可再通过 `extra_gap_lines`
-  增加 0–24 行。右栏是页面本身的原生空白，不生成笔记框、底纹、横线或笔记
-  占位 DOM。
-- 页眉每页固定为「错题集」，页脚只显示板内绝对页码，不显示板名、题数、日期
-  或总页数。题头保持单行，序号和 UID 不换行，标记溢出时在题头区域内隐藏。
-- `binding_marks` 为 `none`、`3hole` 或 `26hole`；孔位圆圈只画在装订边内，
-  不改变题目栏宽度。
+- A4 纵向 `793.7 × 1122.52px`，`@page{size:A4;margin:0}`；左装订边 `binding_mm`
+  （默认 22mm），右 10mm，上下 12mm，页脚安全带 8.5mm。
+- 页眉每页固定「错题集」+ 生成日期（`show_meta` 关掉则只有标题），页脚只印板内**绝对页码**；
+  板名不上纸。
+- 题栏宽 = `(内容宽 − 24px) × (1 − note_ratio)`，`note_ratio` 默认 0.42（0.30–0.55）。
+  右侧留白不生成任何 DOM（无横线 / 底纹 / 笔记框）。
+- `gap_lines`（默认 6，每行 18px）+ 每题 `extra_gap_lines`（0–24）决定题间留白；
+  留白放不下就贴到页底，不为它另起一页。
+- 题头「第 N 题 [UID] 标记芯片」单行，元信息「科目 · 分类 · 难度」一行；题目跨页时新页顶部
+  补「第 N 题（续）」。文字按公式边界拆段、表格整块、长图切白缝——与 `a4.js` 相同规则。
+- 标记芯片打印变体：18% 淡底 + 同色相压暗到 AA 对比度的文字（`_board_label_ink`，与
+  `labels.js::lblInk` 同算法），高 15px。
+- `answers:"append"` / `include_answers:true` 时答案排在新页附页，不占右侧留白。
 
-标记芯片沿用主程序的同色规则：原色 18% 淡底 + 按主题钳亮度后的彩色粗字；
-打印只缩小到 `.lbl` 的 15px 高，不提供 `solid` / `soft` 变体。答案默认不含；
-`answers:"append"` 或 `include_answers:true` 时，所有答案按题号排在末页附页，
-不占用右侧写字区。
+### 打印模式与纸面记录
 
-### 长内容与打印范围
+`mode:"all"`（默认）整板从第 1 页排；`mode:"new"` 只排尚未进入纸面记录的题目：模板在
+`printed.cursor.page` 页顶部放一个高度为 `cursor.y` 的占位块（屏幕上斜纹提示，打印时透明，
+该页页眉页脚也隐藏），新题从占位块下方续排，需要新页时跳到 `printed.pages + 1`；占位页
+没放进任何新题时不输出。`mode:"new"` 沿用纸面记录里的 `note_ratio / gap_lines / binding_mm`。
+没有纸面记录或没有新题时服务端返回 400（`RuntimeError`）。
 
-题目正文、表格和图片不做文字截断：放不下时题目内容继续到下一页，长图使用
-固定容器 + 负偏移的切片方式，避免超出左栏而被静默裁掉。题头和元信息是唯一
-允许单行省略的区域。
+排版完成后模板写 `window.OMRS_LAYOUT`（`{mode, pages, page_numbers, rendered_pages,
+partial_page, cursor, items[{question_id, uid, segments[{page,top,height}]}], answer_pages,
+warnings}`），设置 `<html data-omrs-layout-ready="1">`，并向 `opener`/`parent` 发送
+`{type:"omrs-board-layout"}`；顶栏「✓ 已打印，记录纸面」发送 `omrs-board-printed`。主程序
+用同一份 HTML 在隐藏 iframe 里测量，`POST /api/board/printed` 记录纸面。
 
-服务端先给出整板的页序和请求范围，模板打开后再对整板做一次真实浏览器分页，
-然后只保留 `page_start..page_end` 的页面。因此单独导出第 3 页时，纸面仍显示
-页码 `3`，不会重编号为 `1`。导出完成后预览窗口可以向主页面发送
-`omrs-board-printed` 消息，由展示板页面确认并推进 `last_printed_page` 高水位；
-如果中间插题或重排，前端会提示后续绝对页码可能变化。
+顶栏（不打印）有「打印 / 导出 PDF」「已打印，记录纸面」「显示切口」和状态（本次页数 / 页码范围 /
+排版耗时 / 告警数）；仅新增模式另有橙色提示条说明哪一页要放回原纸。
 
 ### API 形态
 
 ```json
-{
-  "format": "board",
-  "board_id": "BD-20260904-a1b2c3",
-  "page_start": 3,
-  "page_end": 4,
-  "include_answers": false
-}
+{"format": "board", "board_id": "BD-20260904-a1b2c3", "mode": "new", "include_answers": false}
 ```
 
-响应仍为 `text/html; charset=utf-8` 的自包含文件。展示板的纸面标题不会携带
-板名；板名只用于主程序区分和导出文件名。
+响应为 `text/html; charset=utf-8` 自包含文件，文件名 `OMRS-BD-<板名>[-新增]-错题集.html`
+（`Content-Disposition` 带 ASCII 兜底 + `filename*`）。
 
 ## 屏幕版（`screen.js` / `screen.css`）—— 全屏卡片复习 App
 

@@ -246,12 +246,78 @@ def _call_model(vault: str, user_text: str, image_data_url: str, max_tokens: int
     return content or ""
 
 
-CLASSIFY_TEMPLATE = """你是错题分类助手。请只根据图片中的题目，判断它的【科目】【分类】【难度】【相关知识点】，用于自动填充录入表单。不要转写题目原文，也不要解题。
+def _call_model_multi_image(vault: str, user_text: str, image_data_urls: list, max_tokens: int, timeout: int,
+                            purpose: str = "") -> str:
+    """支持多张图片的模型调用。图片按顺序排列，文本提示在最后。"""
+    base, key, model = _ai_config(vault, purpose)
+    missing = [name for name, val in (("API 地址", base), ("API Key", key), ("模型", model)) if not val]
+    if missing:
+        raise ValueError("尚未配置 AI：请在「设置 → AI 自动识别」中填写 " + "、".join(missing))
+    if not image_data_urls or not isinstance(image_data_urls, list) or len(image_data_urls) == 0:
+        raise ValueError("缺少图片数据")
+
+    # 构建content数组：先放所有图片，最后放文本
+    content_parts = []
+    for img_url in image_data_urls:
+        if img_url and isinstance(img_url, str):
+            content_parts.append({"type": "image_url", "image_url": {"url": img_url}})
+    content_parts.append({"type": "text", "text": user_text})
+
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": content_parts}],
+        "temperature": 0.1,
+        "max_tokens": max_tokens,
+    }
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        _endpoint(base),
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {key}",
+            "Accept": "application/json",
+        },
+    )
+
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw = response.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as exc:
+        detail = ""
+        try:
+            detail = exc.read().decode("utf-8", "replace")[:600]
+        except Exception:
+            detail = ""
+        raise ValueError(f"模型服务返回 HTTP {exc.code}：{detail or exc.reason}")
+    except urllib.error.URLError as exc:
+        raise ValueError(f"无法连接模型服务（请检查 API 地址 / 网络）：{getattr(exc, 'reason', exc)}")
+    except TimeoutError:
+        raise ValueError(f"模型服务超时（>{timeout}s），请稍后重试或更换模型")
+    except Exception as exc:
+        raise ValueError(f"调用模型出错：{exc}")
+
+    try:
+        data = json.loads(raw)
+        content = data["choices"][0]["message"]["content"]
+    except Exception:
+        raise ValueError(f"模型返回格式异常，无法解析：{raw[:600]}")
+
+    if isinstance(content, list):
+        content = "".join(
+            part.get("text", "") for part in content if isinstance(part, dict)
+        )
+    return content or ""
+
+
+CLASSIFY_TEMPLATE = """你是错题分类助手。请根据图片中的题目%s，判断它的【科目】【分类】【难度】【相关知识点】【标记】，用于自动填充录入表单。不要转写题目原文，也不要解题。
 
 已有科目：%s
 已有分类（按科目分组；每个分类只属于它所在的科目）：
 %s
 已有知识点：%s
+已有标记：%s
 
 要求：
 1. 先判断 subject，再判断 category。若 subject 属于「已有科目」，必须原样使用已有科目名。
@@ -259,17 +325,19 @@ CLASSIFY_TEMPLATE = """你是错题分类助手。请只根据图片中的题目
 3. 若所选 subject 下没有贴切的已有 category，才为该 subject 新建一个简洁分类名；不要从其他 subject 下面挑相近分类。
 4. difficulty 为 1-10 的整数（10 最难），按题目综合难度估计。
 5. knowledge_tags 为本题考查的知识点数组（0-4 个，按重要性排序）。**只能从上面的「所选科目下的已有分类」和「已有知识点」中原样挑选，禁止创造、改写或拆分出任何新词**；知识点可与分类重叠，若所选 category 属于所选科目的已有分类，通常也应作为其中一个 knowledge_tag。没有合适的已有项时，返回空数组 []。
-6. 只输出一个 JSON 对象，不要任何解释文字、也不要用 Markdown 代码块包裹。键固定如下：
-{"subject": "", "category": "", "difficulty": 5, "knowledge_tags": []}"""
+6. labels 为建议的标记数组（0-3 个）。**只能从上面的「已有标记」中原样挑选**，根据题目特点选择（如：易错、计算失误、考前必看、重点题型等）。没有合适的已有标记时，返回空数组 []。
+7. 只输出一个 JSON 对象，不要任何解释文字、也不要用 Markdown 代码块包裹。键固定如下：
+{"subject": "", "category": "", "difficulty": 5, "knowledge_tags": [], "labels": []}"""
 
 
 # 不限定知识点时使用：优先复用已有项，没有贴切的才允许新建。
-CLASSIFY_TEMPLATE_OPEN = """你是错题分类助手。请只根据图片中的题目，判断它的【科目】【分类】【难度】【相关知识点】，用于自动填充录入表单。不要转写题目原文，也不要解题。
+CLASSIFY_TEMPLATE_OPEN = """你是错题分类助手。请根据图片中的题目%s，判断它的【科目】【分类】【难度】【相关知识点】【标记】，用于自动填充录入表单。不要转写题目原文，也不要解题。
 
 已有科目：%s
 已有分类（按科目分组；每个分类只属于它所在的科目）：
 %s
 已有知识点：%s
+已有标记：%s
 
 要求：
 1. 先判断 subject，再判断 category。若 subject 属于「已有科目」，必须原样使用已有科目名。
@@ -277,8 +345,9 @@ CLASSIFY_TEMPLATE_OPEN = """你是错题分类助手。请只根据图片中的�
 3. 若所选 subject 下没有贴切的已有 category，才为该 subject 新建一个简洁分类名；不要从其他 subject 下面挑相近分类。
 4. difficulty 为 1-10 的整数（10 最难），按题目综合难度估计。
 5. knowledge_tags 为本题考查的知识点数组（0-4 个，按重要性排序）。**优先从上面的「所选科目下的已有分类」「已有知识点」里挑选**；只有当确实没有贴切的已有项时，才用简洁、规范的名称新建（避免生僻缩写、避免把一个知识点拆成多个）。知识点可与分类重叠，若所选 category 属于所选科目的已有分类，通常也应作为其中一个 knowledge_tag。
-6. 只输出一个 JSON 对象，不要任何解释文字、也不要用 Markdown 代码块包裹。键固定如下：
-{"subject": "", "category": "", "difficulty": 5, "knowledge_tags": []}"""
+6. labels 为建议的标记数组（0-3 个）。**只能从上面的「已有标记」中原样挑选**，根据题目特点选择（如：易错、计算失误、考前必看、重点题型等）。没有合适的已有标记时，返回空数组 []。
+7. 只输出一个 JSON 对象，不要任何解释文字、也不要用 Markdown 代码块包裹。键固定如下：
+{"subject": "", "category": "", "difficulty": 5, "knowledge_tags": [], "labels": []}"""
 
 
 ANSWER_PROMPT = """请忠实转录图片中这道题所有可见的【答案和解析】。这是内容提取任务，不是解题、总结或改写任务。
@@ -301,11 +370,13 @@ QUESTION_TEXT_PROMPT = (
 
 def classify_question(vault: str, image_data_url: str, timeout: int = 90,
                       hint_subject: str = "", hint_category: str = "",
-                      restrict_tags: bool = None) -> dict:
-    """读题目图片，返回 {subject, category, difficulty, knowledge_tags}。
+                      restrict_tags: bool = None, answer_image: str = "") -> dict:
+    """读题目图片（可选答案图片），返回 {subject, category, difficulty, knowledge_tags, labels}。
 
     hint_subject / hint_category：用户在表单里已填的科目/分类。若给出，会随提示词
     发给模型并要求**原样沿用、不要改动**，模型据此判断难度与知识点（更准更一致）。
+
+    answer_image：可选的答案图片，如果提供，AI会同时分析题目和答案来更准确判断分类和标记。
 
     restrict_tags：是否把 knowledge_tags 限定在「已有分类 ∪ 已有知识点」内。
     - True ：用严格提示词，并对结果硬过滤（模型造的新词一律剔除）。
@@ -315,11 +386,19 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
     if restrict_tags is None:
         restrict_tags = bool(load_config(vault).get("ai_restrict_tags", True))
     taxonomy = collect_taxonomy(vault)
+
+    # 获取已有标记
+    from .labels import list_labels
+    existing_labels = [label["name"] for label in list_labels(vault) if not label.get("archived")]
+
+    answer_hint = "和答案" if answer_image and answer_image.strip() else ""
     template = CLASSIFY_TEMPLATE if restrict_tags else CLASSIFY_TEMPLATE_OPEN
     user_text = template % (
+        answer_hint,
         "、".join(taxonomy["subjects"]) or "（暂无，可自行命名）",
         _format_category_tree(taxonomy),
         "、".join(taxonomy["knowledge_tags"]) or "（暂无）",
+        "、".join(existing_labels) or "（暂无）",
     )
     hints = []
     if hint_subject and hint_subject.strip():
@@ -330,9 +409,16 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
         user_text += (
             "\n\n用户在表单中已指定：" + "、".join(hints)
             + "。这些已指定的值请**原样沿用、不要改动**（即按它们填回对应字段），"
-            "并据此判断其余字段（难度、知识点）。"
+            "并据此判断其余字段（难度、知识点、标记）。"
         )
-    content = _call_model(vault, user_text, image_data_url, max_tokens=600, timeout=timeout, purpose="classify")
+
+    # 如果有答案图片，构建多图消息
+    if answer_image and answer_image.strip():
+        content = _call_model_multi_image(vault, user_text, [image_data_url, answer_image],
+                                         max_tokens=600, timeout=timeout, purpose="classify")
+    else:
+        content = _call_model(vault, user_text, image_data_url, max_tokens=600, timeout=timeout, purpose="classify")
+
     parsed = _extract_json(content)
     subject, category = _normalize_subject_category(
         parsed, taxonomy, hint_subject=hint_subject.strip(), hint_category=hint_category.strip()
@@ -348,12 +434,19 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
     else:
         # 允许新建：仅按提示词约定限制数量（已去重 / 去 [[]] 由 _as_str_list 处理）
         tags = tags[:4]
+
+    # 处理标记：只保留已有标记中的
+    labels = _as_str_list(parsed.get("labels", []))
+    existing_labels_set = set(existing_labels)
+    labels = [label for label in labels if label in existing_labels_set][:3]
+
     return {
         "mode": "classify",
         "subject": subject,
         "category": category,
         "difficulty": _clamp_difficulty(parsed.get("difficulty", 5)),
         "knowledge_tags": tags,
+        "labels": labels,
         "restrict_tags": restrict_tags,
         "raw": "" if parsed else content.strip(),
     }
@@ -373,16 +466,17 @@ def extract_question_text(vault: str, image_data_url: str, timeout: int = 90) ->
 
 def recognize_question(vault: str, image_data_url: str, mode: str = "classify", timeout: int = 90,
                        hint_subject: str = "", hint_category: str = "",
-                       restrict_tags: bool = None) -> dict:
-    """统一入口：mode='classify' 填科目/分类/难度/知识点（可带 hint，restrict_tags 控制是否
-    限定已有知识点，None=读 config）；mode='answer' 提取答案文本；mode='question_text' 提取题目文本。"""
+                       restrict_tags: bool = None, answer_image: str = "") -> dict:
+    """统一入口：mode='classify' 填科目/分类/难度/知识点/标记（可带 hint，restrict_tags 控制是否
+    限定已有知识点，None=读 config；可选 answer_image 提供答案图片以更准确分析）；
+    mode='answer' 提取答案文本；mode='question_text' 提取题目文本。"""
     if mode == "answer":
         return extract_answer(vault, image_data_url, timeout=timeout)
     if mode in {"question_text", "question"}:
         return extract_question_text(vault, image_data_url, timeout=timeout)
     return classify_question(vault, image_data_url, timeout=timeout,
                              hint_subject=hint_subject, hint_category=hint_category,
-                             restrict_tags=restrict_tags)
+                             restrict_tags=restrict_tags, answer_image=answer_image)
 
 
 # ────────────────────────── 收件箱：框选 / 带可转性判断的提取 ──────────────────────────
