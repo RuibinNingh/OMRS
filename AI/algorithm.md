@@ -155,6 +155,8 @@ v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `fe
 
 后端调用 `/api/recommend` 时会传入当前 active Session 的 UID 排除集；若前端 stale 或手工请求在 `/api/confirm-schedule` 中提交了已被 active Session 占用的 UID，确认阶段会拒绝创建重复 Session。
 
+`due_count` 与 `prof_count` 会先转换为整数并钳制到不小于 `0`；负数按 `0` 处理，避免 Python 负切片意外返回大批题目。推荐数量为零时对应列表为空。
+
 ### 互斥分配逻辑
 
 ```
@@ -166,6 +168,8 @@ v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `fe
 ```
 
 两道列表天然不重复。
+
+active Session 的排除集合只依据持久化记录的 `Status == "active"`；Session 不会因为创建时间超过固定天数而被隐式视为过期，必须通过正常反馈完成或显式撤销改变状态。
 
 ### 到期列表排序
 

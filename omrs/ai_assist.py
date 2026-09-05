@@ -388,8 +388,14 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
     taxonomy = collect_taxonomy(vault)
 
     # 获取已有标记
-    from .labels import list_labels
-    existing_labels = [label["name"] for label in list_labels(vault) if not label.get("archived")]
+    # ``list_label_defs`` is the public labels API; keep archived definitions
+    # out of the prompt (the helper already filters them, but retaining the
+    # guard keeps this call safe for compatible/custom implementations).
+    from .labels import list_label_defs
+    existing_labels = [
+        label["name"] for label in list_label_defs(vault)
+        if not label.get("archived")
+    ]
 
     answer_hint = "和答案" if answer_image and answer_image.strip() else ""
     template = CLASSIFY_TEMPLATE if restrict_tags else CLASSIFY_TEMPLATE_OPEN

@@ -210,6 +210,12 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
     """
     from .common import HISTORY_HEADERS, history_path
 
+    # Treat malformed and negative limits as zero.  In particular, a
+    # negative Python slice would otherwise return almost the entire list
+    # (e.g. ``items[:-1]``), violating the API's count contract.
+    due_count = max(0, _safe_int(due_count, 0))
+    prof_count = max(0, _safe_int(prof_count, 0))
+
     rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
     history = load_csv(history_path(vault), HISTORY_HEADERS)
     fail_counts = build_fail_counts(history)

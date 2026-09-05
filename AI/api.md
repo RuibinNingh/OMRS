@@ -100,6 +100,8 @@
 ### `/api/sessions?status=active`
 返回常规 Session 列表，可按 `status` 过滤。每个 Session 附带分批反馈进度：
 
+过滤和推荐排除均以持久化字段 `Status` 为准（缺失时兼容按 `active` 处理）；不会按创建时间隐式套用 7 天过期规则。只有反馈完成或显式撤销后，Session 才不再属于 active 集合。
+
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `feedback_uids` | array | 已提交过反馈的 UID，按 Session 原始顺序去重 |
@@ -183,6 +185,7 @@
 返回双列表推荐（到期列表 + 熟练度列表），互斥分配。
 
 后端会排除仍处于 `active` 状态的持久化 Session 中已有的 UID，避免同一题重复进入多个进行中 Session。
+`due_count` / `prof_count` 会转为整数并将负数按 `0` 处理；传 `0` 表示不返回对应列表，不会因 Python 负切片而扩大结果。
 
 可选筛选参数：
 
@@ -477,6 +480,8 @@
 
 是否把识别出的知识点限定在「已有分类 ∪ 已有知识点」内，由配置 `ai_restrict_tags`（默认 `true`，见设置页「AI 自动识别 → 仅从已有知识点中选择」开关）决定，**每次请求读盘、即时生效、无需重启**；该端点不接受 per-request 覆盖。
 
+分类提示中的已有用户标记定义通过 `list_label_defs()` 读取，并排除已归档定义；该查询失败不会把旧版不存在的 `list_labels()` 当作替代 API。
+
 | `mode` | 用途 | 提示词 | 返回 |
 |---|---|---|---|
 | `classify`（默认） | 读**题目**图，判断科目/分类/难度/相关知识点（不抄题、不解题） | 注入当前科目、按科目分组的分类树、知识点；要求先定科目，再只能从该科目下选分类，禁止跨科目借用分类；`ai_restrict_tags=true` 时要求 knowledge_tags **只能取自所选科目下的已有分类+已有知识点**，`false` 时**优先复用、无贴切项才可新建**；只输出 `{"subject","category","difficulty","knowledge_tags"}` JSON | `{subject, category, difficulty, knowledge_tags, restrict_tags, raw}` |
@@ -603,7 +608,7 @@
   "board_id": "BD-20260904-a1b2c3",
   "mode": "new",
   "include_answers": false,
-  "overrides": { "note_ratio": 0.42, "gap_lines": 6, "binding_mm": 22, "binding_marks": "none",
+  "overrides": { "note_ratio": 0.42, "gap_lines": 2, "binding_mm": 22,
                  "answers": "none", "show_labels": true, "show_meta": true }
 }
 ```
@@ -642,7 +647,7 @@
   "id": "BD-20260904-a1b2c3",
   "name": "月考前",
   "note": "只在系统内显示",
-  "print": { "gap_lines": 8, "binding_marks": "3hole" },
+  "print": { "gap_lines": 8, "binding_mm": 22 },
   "items": [
     {
       "question_id": "OP-000123",

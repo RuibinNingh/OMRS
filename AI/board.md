@@ -35,9 +35,8 @@
     "source_labels": ["考前必看"],
     "print": {
       "note_ratio": 0.42,
-      "gap_lines": 6,
+      "gap_lines": 2,
       "binding_mm": 22,
-      "binding_marks": "none",
       "answers": "none",
       "show_labels": true,
       "show_meta": true
@@ -46,7 +45,7 @@
       "at": "2026-09-04T12:40:00+00:00",
       "pages": 3,
       "cursor": {"page": 3, "y": 493.56},
-      "print": {"note_ratio": 0.42, "gap_lines": 6, "binding_mm": 22, "...": "打印时的版面"},
+      "print": {"note_ratio": 0.42, "gap_lines": 2, "binding_mm": 22, "...": "打印时的版面"},
       "items": [{"question_id": "OP-000123", "uid": "三角函数1", "hash": "9f2c…",
                  "segments": [{"page": 1, "top": 0, "height": 125.7}]}],
       "answer_pages": []
@@ -65,7 +64,7 @@
 字段规则（`normalize_print` / `_normalize_item` / `_normalize_printed`）：
 
 - `print.note_ratio` 钳到 `0.30–0.55`，`gap_lines` `0–24`，`binding_mm` `10–40`，
-  `binding_marks ∈ {none,3hole,26hole}`，`answers ∈ {none,append}`；未知键忽略，缺失键回默认。
+  `answers ∈ {none,append}`；未知键忽略，缺失键回默认。展示板不生成打孔标记。
 - `items[].extra_gap_lines` 0–24：该题之后额外多留几行（每行 18px），供「这题我要写很多」。
 - `printed.pages == 0` 表示没有纸面记录；旧文件里的 `last_printed_page` 字段直接忽略。
 - 整体覆盖 `items` 时（`update_board(items=…)`）会保留同一题原有的 `added_at`。
@@ -90,7 +89,7 @@ changed_count, cursor, answer_pages, print}`。
    排序 ▾ / 清空」；每行 = 拖拽手柄 + 序号 + UID + 徽章（已印 p.N / 新增 / 已改动 / 停用 / 缺失）
    + 标记芯片（点击开 LabelPicker）+ 元信息 + 「留白 +N 行」+ 预览 + ✕。缺失 / 停用题有黄红提示条
    与一键清理。排序即持久化（`POST /api/board/update {items}`）。
-3. **版面与打印**（sticky）：右侧留白占比（30–55%）、题间留白行数、装订边、孔位辅助线、答案、
+3. **版面与打印**（sticky）：右侧留白占比（30–55%）、题间留白行数、装订边、答案、
    题头显示项；即改即存（去抖 500ms）。下方「打印」区见 §4。「预计页数」由隐藏 iframe 跑一遍
    导出模板实测得到（不是估算）。
 
@@ -123,7 +122,7 @@ printed（纸面记录）= 已打印题目集合 + 每题所在页 / 位置 + �
   页眉页脚也隐藏），新题从占位块下方继续排；这一页放不下时**跳到 `pages + 1`** 新页（绝对页码，
   跳过中间的答案页）。占位页若没放进任何新题则不输出。确认后把新题**追加**进纸面记录并推进 cursor。
 - 纸面几何（`note_ratio / gap_lines / binding_mm`）在仅新增模式下**沿用纸面记录**，与原纸对齐；
-  `answers / show_labels / show_meta / binding_marks` 跟随当前设置。新题的答案附页排在新题之后的
+  `answers / show_labels / show_meta` 跟随当前设置。新题的答案附页排在新题之后的
   新页上（标题「答案（本次新增）」），不会去动已打印的答案页。
 - 题号接着纸面继续（`index_start = printed.count + 1`）。
 
@@ -190,7 +189,7 @@ printed（纸面记录）= 已打印题目集合 + 每题所在页 / 位置 + �
   像素找白缝切片，无缝时最少墨行处切并标红虚线告警；题头不留孤行；题目跨页时新页顶部补
   「第 N 题（续）」。题间留白放不下就贴页底，不为它另起一页。
 - 标记芯片打印变体：18% 淡底 + 同色相压暗文字（`_board_label_ink`，WCAG AA）。
-- `binding_marks`：3 孔（中心距 108mm，Ø6mm）/ 26 孔（9.5mm 等距，Ø5.5mm）浅灰圈，只画在装订边内。
+- 展示板只保留 `binding_mm` 装订边距，不绘制 3 孔、26 孔或其他打孔标记。
 
 ## 7. 维护边界
 

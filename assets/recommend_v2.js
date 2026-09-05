@@ -43,7 +43,7 @@ async function loadRecommendationsV2(){
     params.set('prof_count', '1000');
 
     // 获取标记筛选
-    const filters = getFilterState('rec-v2');
+    const filters = recV2GetFilterState();
     if (filters.labels && filters.labels.length > 0) {
       filters.labels.forEach(label => params.append('label', label));
     }
@@ -418,8 +418,8 @@ async function hydrateGalleryPreviewsV2() {
 }
 
 function applyRecFiltersV2(items) {
-  const filters = getFilterState('rec-v2');
-  return filterItems(items.map(normalizeRecItem), filters);
+  const filters = recV2GetFilterState();
+  return recV2FilterItems(items.map(normalizeRecItem), filters);
 }
 
 function normalizeRecItem(item) {
@@ -621,34 +621,31 @@ function populateRecFilterOptionsV2() {
 }
 
 // 获取筛选状态
-function getFilterState(prefix) {
+// V2 的筛选实现必须使用私有名称；core.js 的 getFilterState/filterItems 是
+// 题库、展示板、导出和即时练习共用的公共契约，不能被推荐面板覆盖。
+function recV2GetFilterState() {
   const state = {
-    search: '',
-    subject: '',
+    text: '',
+    subject: document.getElementById('rec-subject-v2')?.value || '',
     category: '',
     tag: '',
-    ktag: '',
+    knowledgeTag: '',
     labels: [],
     labelMode: 'any',
-    diffMin: null,
-    diffMax: null,
+    difficultyMin: 0,
+    difficultyMax: 10,
     masteryMin: null,
     masteryMax: null,
-    sort: 'priority',
-    due: ''
+    dueFilter: '',
+    suspended: '',
+    sort: 'priority'
   };
 
-  // 根据prefix构建正确的ID
-  // 对于rec-v2，HTML中的ID格式是 rec-search-v2 而不是 rec-v2-search
-  const getId = (suffix) => {
-    if (prefix === 'rec-v2') {
-      return `rec-${suffix}-v2`;
-    }
-    return `${prefix}-${suffix}`;
-  };
+  // V2 控件使用 rec-<field>-v2 命名，不接收公共筛选函数的 prefix 参数。
+  const getId = suffix => `rec-${suffix}-v2`;
 
   const searchEl = document.getElementById(getId('search'));
-  if (searchEl) state.search = searchEl.value.toLowerCase().trim();
+  if (searchEl) state.text = searchEl.value.toLowerCase().trim();
 
   const categoryEl = document.getElementById(getId('filter-category'));
   if (categoryEl) state.category = categoryEl.value;
@@ -657,16 +654,16 @@ function getFilterState(prefix) {
   if (tagEl) state.tag = tagEl.value;
 
   const ktagEl = document.getElementById(getId('filter-ktag'));
-  if (ktagEl) state.ktag = ktagEl.value;
+  if (ktagEl) state.knowledgeTag = ktagEl.value;
 
   const labelModeEl = document.getElementById(getId('label-mode'));
   if (labelModeEl) state.labelMode = labelModeEl.value;
 
   const diffMinEl = document.getElementById(getId('filter-diff-min'));
-  if (diffMinEl && diffMinEl.value) state.diffMin = parseInt(diffMinEl.value, 10);
+  if (diffMinEl && diffMinEl.value) state.difficultyMin = parseInt(diffMinEl.value, 10);
 
   const diffMaxEl = document.getElementById(getId('filter-diff-max'));
-  if (diffMaxEl && diffMaxEl.value) state.diffMax = parseInt(diffMaxEl.value, 10);
+  if (diffMaxEl && diffMaxEl.value) state.difficultyMax = parseInt(diffMaxEl.value, 10);
 
   const masteryMinEl = document.getElementById(getId('filter-mastery-min'));
   if (masteryMinEl && masteryMinEl.value) state.masteryMin = parseInt(masteryMinEl.value, 10);
@@ -678,12 +675,12 @@ function getFilterState(prefix) {
   if (sortEl) state.sort = sortEl.value;
 
   const dueEl = document.getElementById(getId('filter-due'));
-  if (dueEl) state.due = dueEl.value;
+  if (dueEl) state.dueFilter = dueEl.value;
 
   // 获取选中的标记
   if (typeof getActiveLabels === 'function') {
     try {
-      state.labels = getActiveLabels(prefix);
+      state.labels = getActiveLabels('rec-v2');
     } catch (e) {
       console.warn('Failed to get active labels:', e);
       state.labels = [];
@@ -694,12 +691,14 @@ function getFilterState(prefix) {
 }
 
 // 应用筛选
-function filterItems(items, filters) {
+function recV2FilterItems(items, filters) {
   if (!items) return [];
 
   return items.filter(item => {
+    if (filters.suspended !== 'all' && filters.suspended !== 'suspended' && item.suspended) return false;
+    if (filters.suspended === 'suspended' && !item.suspended) return false;
     // 搜索
-    if (filters.search) {
+    if (filters.text) {
       const searchable = [
         item.uid,
         item.subject,
@@ -709,9 +708,10 @@ function filterItems(items, filters) {
         ...(item.labels || [])
       ].join(' ').toLowerCase();
       
-      if (!searchable.includes(filters.search)) return false;
+      if (!searchable.includes(filters.text)) return false;
     }
 
+    if (filters.subject && item.subject !== filters.subject) return false;
     // 分类
     if (filters.category && item.category !== filters.category) return false;
 
@@ -719,9 +719,9 @@ function filterItems(items, filters) {
     if (filters.tag && !item.tag?.includes(filters.tag)) return false;
 
     // 知识点
-    if (filters.ktag) {
+    if (filters.knowledgeTag) {
       const ktags = item.knowledge_tags || [];
-      if (!ktags.includes(filters.ktag)) return false;
+      if (!ktags.includes(filters.knowledgeTag)) return false;
     }
 
     // 标记筛选
@@ -735,8 +735,8 @@ function filterItems(items, filters) {
     }
 
     // 难度范围
-    if (filters.diffMin != null && item.difficulty < filters.diffMin) return false;
-    if (filters.diffMax != null && item.difficulty > filters.diffMax) return false;
+    if (filters.difficultyMin != null && item.difficulty < filters.difficultyMin) return false;
+    if (filters.difficultyMax != null && item.difficulty > filters.difficultyMax) return false;
 
     // 熟练度范围
     if (filters.masteryMin != null) {
@@ -749,24 +749,24 @@ function filterItems(items, filters) {
     }
 
     // 到期状态
-    if (filters.due) {
+    if (filters.dueFilter) {
       const dueDate = item.due_date ? new Date(item.due_date) : null;
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      if (filters.due === 'overdue') {
+      if (filters.dueFilter === 'overdue') {
         if (!dueDate || dueDate >= today) return false;
-      } else if (filters.due === 'today') {
+      } else if (filters.dueFilter === 'today') {
         if (!dueDate || dueDate.getTime() !== today.getTime()) return false;
-      } else if (filters.due === '3days') {
+      } else if (filters.dueFilter === '3days') {
         const in3Days = new Date(today);
         in3Days.setDate(in3Days.getDate() + 3);
         if (!dueDate || dueDate < today || dueDate > in3Days) return false;
-      } else if (filters.due === '7days') {
+      } else if (filters.dueFilter === '7days') {
         const in7Days = new Date(today);
         in7Days.setDate(in7Days.getDate() + 7);
         if (!dueDate || dueDate < today || dueDate > in7Days) return false;
-      } else if (filters.due === 'future') {
+      } else if (filters.dueFilter === 'future') {
         if (!dueDate || dueDate <= today) return false;
       }
     }
@@ -799,20 +799,4 @@ function filterItems(items, filters) {
     }
     return 0;
   });
-}
-
-// 工具函数
-function asNumber(value, defaultValue) {
-  const num = parseFloat(value);
-  return isNaN(num) ? defaultValue : num;
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text || '';
-  return div.innerHTML;
-}
-
-function escapeAttr(text) {
-  return (text || '').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }

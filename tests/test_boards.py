@@ -63,7 +63,7 @@ class BoardTests(unittest.TestCase):
             self.assertNotIn("note_align", loaded["print"])
             self.assertNotIn("last_printed_page", loaded)
             self.assertEqual(loaded["print"]["note_ratio"], 0.55)   # 钳到上限
-            self.assertEqual(loaded["print"]["gap_lines"], 6)       # 非法值回默认
+            self.assertEqual(loaded["print"]["gap_lines"], 2)       # 非法值回默认
             self.assertEqual(loaded["printed"]["pages"], 0)
 
     def test_question_id_survives_move_and_deleted_question_is_missing(self):
@@ -199,13 +199,13 @@ class BoardTests(unittest.TestCase):
             update_board(
                 vault, board["id"],
                 items=[{"question_id": detail["items"][0]["question_id"], "uid": question["uid"], "extra_gap_lines": 2}],
-                print={"note_ratio": 0.5, "gap_lines": 8, "binding_mm": 25, "binding_marks": "26hole", "answers": "append"},
+                print={"note_ratio": 0.5, "gap_lines": 8, "binding_mm": 25, "answers": "append"},
             )
             payload = export_board_html(vault, board["id"])
             data = embedded_data(payload)
             self.assertEqual(data["meta"]["print"]["note_ratio"], 0.5)
             self.assertEqual(data["meta"]["print"]["binding_mm"], 25)
-            self.assertEqual(data["meta"]["print"]["binding_marks"], "26hole")
+            self.assertNotIn("binding_marks", data["meta"]["print"])
             self.assertEqual(data["meta"]["mode"], "all")
             self.assertIsNone(data["meta"]["printed"])
             self.assertEqual(data["questions"][0]["extra_gap_lines"], 2)

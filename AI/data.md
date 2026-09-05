@@ -288,9 +288,9 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复�
 
 板记录包含板元数据、打印设置和 `items[]`。每个条目同时保存
 `question_id` 与 `uid`；读取优先稳定的 `question_id`，UID 只做显示和降级兜底。
-`print` 当前字段为 `note_ratio`、`gap_lines`、`binding_mm`、`binding_marks`、
+`print` 当前字段为 `note_ratio`、`gap_lines`、`binding_mm`、
 `answers`、`show_labels`、`show_meta`；旧的 `note_align`、`note_min_lines`、
-`note_pattern` 会被忽略。`gap_lines` 默认 6，单题可以用
+`note_pattern` 会被忽略。`gap_lines` 默认 2，单题可以用
 `extra_gap_lines` 追加 0–24 行。
 
 停用题继续保留在板内但导出跳过；题目删除或无法按稳定身份解析时显示

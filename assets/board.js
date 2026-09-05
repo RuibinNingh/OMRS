@@ -171,10 +171,9 @@ function boardSettingsHtml() {
   return `<div class="bd-section-title">版面 ${geomLocked}</div>
     <div class="bd-field"><label>右侧留白占比 <b data-board-ratio-value>${ratio}%</b></label><input type="range" min="30" max="55" step="2" value="${ratio}" data-board-print="note_ratio" title="右侧空白区占内容区宽度的比例"><div class="hint">题栏约 ${Math.round((793.7 - binding * 3.7795 - 37.8 - 24) * (1 - ratio / 100))}px；题面长的科目调小，纯公式题调大</div></div>
     <div class="bd-field-row">
-      <div class="bd-field"><label>题间留白（行）</label><input class="input" type="number" min="0" max="24" value="${clampNumber(print.gap_lines, 0, 24, 6)}" data-board-print="gap_lines" title="每题之后空几行（每行 18px），单题可在行内再加"></div>
+      <div class="bd-field"><label>题间留白（行）</label><input class="input" type="number" min="0" max="24" value="${clampNumber(print.gap_lines, 0, 24, 2)}" data-board-print="gap_lines" title="每题之后空几行（每行 18px），单题可在行内再加"></div>
       <div class="bd-field"><label>装订边</label><select class="input" data-board-print="binding_mm">${[18, 20, 22, 25, 30].map(v => `<option value="${v}" ${binding === v ? 'selected' : ''}>${v} mm</option>`).join('')}${[18, 20, 22, 25, 30].includes(binding) ? '' : `<option value="${binding}" selected>${binding} mm</option>`}</select></div>
     </div>
-    <div class="bd-field"><label>题间留白行数</label><input type="number" class="input" min="0" max="24" step="1" value="${print.gap_lines || 0}" data-board-field="gap_lines" style="max-width:100px"></div>
     <div class="bd-field"><label>答案</label><div class="seg" data-board-seg="answers"><button type="button" class="${print.answers === 'append' ? '' : 'on'}" data-value="none">不含</button><button type="button" class="${print.answers === 'append' ? 'on' : ''}" data-value="append">末页附答案</button></div></div>
     <div class="bd-field"><label>题头显示</label><div class="bd-checks"><label><input type="checkbox" data-board-print="show_labels" ${print.show_labels !== false ? 'checked' : ''}> 标记</label><label><input type="checkbox" data-board-print="show_meta" ${print.show_meta !== false ? 'checked' : ''}> 科目 · 分类 · 难度</label></div></div>
     <div class="bd-est" data-board-est>预计页数计算中…</div>
@@ -472,9 +471,8 @@ function boardApplyPrintField(field, value) {
   if (!BOARD_DETAIL) return;
   const print = { ...(BOARD_DETAIL.print || {}) };
   if (field === 'note_ratio') { print[field] = clampNumber(value, 30, 55, 42) / 100; const node = document.querySelector('[data-board-ratio-value]'); if (node) node.textContent = `${Math.round(print[field] * 100)}%`; }
-  else if (field === 'gap_lines') print[field] = clampNumber(value, 0, 24, 6);
+  else if (field === 'gap_lines') print[field] = clampNumber(value, 0, 24, 2);
   else if (field === 'binding_mm') print[field] = clampNumber(value, 10, 40, 22);
-  else if (field === 'gap_lines') print[field] = Math.max(0, Math.min(24, parseInt(value, 10) || 0));
   else if (field === 'answers') print[field] = value === 'append' ? 'append' : 'none';
   else if (field === 'show_labels' || field === 'show_meta') print[field] = !!value;
   BOARD_DETAIL.print = print;
@@ -719,6 +717,10 @@ if (typeof document !== 'undefined') {
   document.addEventListener('change', event => {
     const mode = event.target.closest?.('input[name="bd-print-mode"]');
     if (mode) { BOARD_PRINT_MODE = mode.value === 'new' ? 'new' : 'all'; document.querySelectorAll('.bd-modes label').forEach(node => node.classList.toggle('on', node.contains(mode))); boardScheduleEstimate(); }
+    const print = event.target.closest?.('[data-board-print]');
+    if (print && BOARD_DETAIL && (print.tagName === 'SELECT' || print.type === 'checkbox')) {
+      boardApplyPrintField(print.dataset.boardPrint, print.type === 'checkbox' ? print.checked : print.value);
+    }
   });
   document.addEventListener('keydown', event => {
     if (!document.getElementById('panel-board')?.classList.contains('active')) return;

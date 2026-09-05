@@ -226,12 +226,14 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 label = requested_labels if requested_labels else (params.get("label") or None)
                 rec = generate_recommendations(
                     self.vault_path,
-                    due_count=max(1, min(50, due_count)),
-                    prof_count=max(1, min(50, prof_count)),
+                    due_count=due_count,
+                    prof_count=prof_count,
                     subject=subject,
                     category=category,
                     knowledge_tag=knowledge_tag,
                     label=label,
+                    # Bulk requests use larger limits but must preserve the
+                    # same active-session exclusion as normal recommendations.
                     exclude_uids=active_session_uids(self.vault_path),
                 )
                 self._json({"status": "ok", **rec})

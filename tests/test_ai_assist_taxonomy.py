@@ -6,6 +6,7 @@ from unittest import mock
 
 from omrs import ai_assist
 from omrs.common import MASTERY_HEADERS, mastery_path
+from omrs.labels import save_label
 
 
 def write_mastery(vault, rows):
@@ -106,6 +107,28 @@ class AiAssistTaxonomyTests(unittest.TestCase):
         self.assertEqual(result["subject"], "生物学")
         self.assertEqual(result["category"], "")
         self.assertEqual(result["knowledge_tags"], ["减数分裂"])
+
+    def test_classify_includes_existing_label_definitions(self):
+        with tempfile.TemporaryDirectory() as vault:
+            save_label(vault, name="计算失误")
+            fake_reply = json.dumps(
+                {
+                    "subject": "数学",
+                    "category": "代数",
+                    "difficulty": 5,
+                    "knowledge_tags": [],
+                    "labels": ["计算失误"],
+                },
+                ensure_ascii=False,
+            )
+
+            with mock.patch.object(ai_assist, "_call_model", return_value=fake_reply) as call:
+                result = ai_assist.classify_question(
+                    vault, "data:image/png;base64,xxx", restrict_tags=False
+                )
+
+        self.assertEqual(result["labels"], ["计算失误"])
+        self.assertIn("计算失误", call.call_args.args[1])
 
 
 if __name__ == "__main__":
