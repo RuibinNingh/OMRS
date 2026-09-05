@@ -18,6 +18,29 @@ def write_mastery(vault, rows):
 
 
 class AiAssistTaxonomyTests(unittest.TestCase):
+    def test_extraction_prompts_remove_only_leading_question_number(self):
+        self.assertIn("只去掉这个开头题号", ai_assist.QUESTION_TEXT_PROMPT)
+        self.assertIn("只去掉这个开头题号", ai_assist.ANSWER_PROMPT)
+        self.assertNotIn("保留题号", ai_assist.ANSWER_PROMPT)
+
+    def test_clean_extracted_question_text_removes_common_question_numbers(self):
+        for prefix in ("11.", "11、", "11．", "（11）", "(11)"):
+            self.assertEqual(
+                ai_assist._clean_extracted_text(prefix + "已知函数 f(x)", "question"),
+                "已知函数 f(x)",
+            )
+
+    def test_clean_extracted_answer_keeps_internal_step_number(self):
+        self.assertEqual(
+            ai_assist._clean_extracted_text("11.答案：B\n1. 第一步。\n2. 第二步。", "answer"),
+            "答案：B\n1. 第一步。\n2. 第二步。",
+        )
+        self.assertEqual(ai_assist._clean_extracted_text("11. B", "answer"), "B")
+        self.assertEqual(
+            ai_assist._clean_extracted_text("1. 第一步。\n2. 第二步。", "answer"),
+            "1. 第一步。\n2. 第二步。",
+        )
+
     def test_answer_prompt_requires_visible_explanation(self):
         prompt = ai_assist.ANSWER_PROMPT
 

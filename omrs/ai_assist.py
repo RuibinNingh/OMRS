@@ -355,17 +355,45 @@ ANSWER_PROMPT = """请忠实转录图片中这道题所有可见的【答案和�
 要求：
 1. 完整提取最终答案，以及图片中已有的解析、详解、推导、计算步骤、选项说明和结论。
 2. 如果图片中同时有答案和解析，两部分都必须保留；绝对不能只输出最终答案，也不能概括、压缩或省略解析。
-3. 按图片中的原有顺序和层次输出，保留题号、分点、段落与必要换行；数学公式可整理为 $...$ 或 $$...$$。
-4. 不要自行补充图片中没有的推理。若图片中确实只有答案而没有解析，才只输出答案。
-5. 不要单独复述题目正文，但解析中原本引用的题目条件应照常保留。
-6. 只输出提取到的答案与解析正文，不要添加评价、说明或 Markdown 代码块。"""
+3. 按图片中的原有顺序和层次输出，保留分点、段落与必要换行；数学公式可整理为 $...$ 或 $$...$$。
+4. 如果图片最开头带有对应题目的题号（如 `11.`、`11、`、`11．`、`（11）`），只去掉这个开头题号，不要输出它；答案或解析正文内部的步骤编号、分点编号和选项编号必须保留。
+5. 不要自行补充图片中没有的推理。若图片中确实只有答案而没有解析，才只输出答案。
+6. 不要单独复述题目正文，但解析中原本引用的题目条件应照常保留。
+7. 只输出提取到的答案与解析正文，不要添加评价、说明或 Markdown 代码块。"""
 
 
 QUESTION_TEXT_PROMPT = (
     "请提取图片中这道题的【题目正文】，整理为清晰的纯文本。"
     "保留必要的题干、条件、选项、图表说明与换行；数学公式可用 $...$ 或 $$...$$ 表示。"
+    "如果图片最开头有题号（如 11.、11、或（11）），只去掉这个开头题号，不要输出它；题目正文、选项编号和正文内部编号必须保留。"
     "只输出题目内容本身，不要解题，不要补充答案、解析、分类建议或多余说明，也不要使用 Markdown 代码块。"
 )
+
+
+_LEADING_QUESTION_NUMBER_RE = re.compile(
+    r"^\s*(?:(?:第\s*)?\d{1,4}\s*[.．、,，:：)）]|[（(]\s*\d{1,4}\s*[)）])\s*"
+)
+
+
+def _clean_extracted_text(text: str, role: str) -> str:
+    """去围栏，并去掉题目/答案最开头的对应题号。
+
+    只匹配整段开头，避免误删答案解析中「1. 第一步」等内部编号。
+    答案模式还要求题号后紧跟答案/解析标题，避免把解析本身的首个步骤编号当成题号。
+    """
+    cleaned = _strip_fences(text)
+    if not cleaned:
+        return ""
+    if role == "answer":
+        match = re.match(
+            r"^\s*(?:(?:第\s*)?\d{1,4}\s*[.．、,，:：)）]|[（(]\s*\d{1,4}\s*[)）])\s*"
+            r"(?=(?:答案|解析|解答|证明|作答|解|solution)\b|[A-DＡ-Ｄ](?:\s|$))",
+            cleaned,
+            re.IGNORECASE,
+        )
+    else:
+        match = _LEADING_QUESTION_NUMBER_RE.match(cleaned)
+    return cleaned[match.end():].lstrip() if match else cleaned
 
 
 def classify_question(vault: str, image_data_url: str, timeout: int = 90,
@@ -461,13 +489,13 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
 def extract_answer(vault: str, image_data_url: str, timeout: int = 90) -> dict:
     """读答案图片，把答案/解析提取为纯文本，返回 {answer}。"""
     content = _call_model(vault, ANSWER_PROMPT, image_data_url, max_tokens=2000, timeout=timeout)
-    return {"mode": "answer", "answer": _strip_fences(content)}
+    return {"mode": "answer", "answer": _clean_extracted_text(content, "answer")}
 
 
 def extract_question_text(vault: str, image_data_url: str, timeout: int = 90) -> dict:
     """读题目图片，只提取题目正文，返回 {question_text}。"""
     content = _call_model(vault, QUESTION_TEXT_PROMPT, image_data_url, max_tokens=2000, timeout=timeout)
-    return {"mode": "question_text", "question_text": _strip_fences(content)}
+    return {"mode": "question_text", "question_text": _clean_extracted_text(content, "question")}
 
 
 def recognize_question(vault: str, image_data_url: str, mode: str = "classify", timeout: int = 90,
@@ -583,14 +611,14 @@ def extract_region(vault: str, image_data_url: str, role: str = "question", judg
         prompt = base_prompt
     content = _call_model(vault, prompt, image_data_url, max_tokens=4000, timeout=timeout, purpose="extract")
     if not judge:
-        return {"convertible": True, "reason": "", "text": _strip_fences(content)}
+        return {"convertible": True, "reason": "", "text": _clean_extracted_text(content, role)}
     parsed = _extract_json(content)
     if not parsed or "text" not in parsed:
-        return {"convertible": True, "reason": "模型未按 JSON 返回，按可转处理", "text": _strip_fences(content)}
+        return {"convertible": True, "reason": "模型未按 JSON 返回，按可转处理", "text": _clean_extracted_text(content, role)}
     return {
         "convertible": bool(parsed.get("convertible", True)),
         "reason": str(parsed.get("reason") or ""),
-        "text": str(parsed.get("text") or ""),
+        "text": _clean_extracted_text(str(parsed.get("text") or ""), role),
     }
 
 
