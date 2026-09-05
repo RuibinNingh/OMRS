@@ -186,7 +186,7 @@ function ibRenderQueue() {
   $ib('ib-pq-all').checked = q.length > 0 && n === q.length;
   const pq = $ib('ib-pq-sel-n'); if (pq) pq.textContent = n ? `（${n}）` : '';
 }
-function ibOpen(id) { IB.cur = id; IB.selR = null; IB.drawCard = 1; const it = ibCur(); if (it) $ib('ib-layout').value = it.layout || 'other'; ibRenderProcess(); }
+function ibOpen(id) { IB.cur = id; IB.selR = null; IB.drawCard = 1; const it = ibCur(); if (it) $ib('ib-layout').value = it.layout || 'zuoyebang'; ibRenderProcess(); }
 function ibStep(d) { const q = ibQueue(); if (!q.length) return; let idx = q.findIndex(i => i.id === IB.cur); idx = (idx + d + q.length) % q.length; ibOpen(q[idx].id); }
 function ibRenderStage() {
   const it = ibCur(); const img = $ib('ib-stage-src'); const st = $ib('ib-stage-img');

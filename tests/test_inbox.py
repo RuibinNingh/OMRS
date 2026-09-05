@@ -98,6 +98,7 @@ class InboxFlowTests(unittest.TestCase):
             self.assertEqual(len(result["duplicates"]), 1)
             item = result["items"][0]
             self.assertEqual((item["width"], item["height"], item["status"], item["source"]), (20, 10, "pending", "phone"))
+            self.assertEqual(item["layout"], "zuoyebang")
             self.assertTrue(os.path.exists(os.path.join(vault, "错题", ".omrs", "inbox", "raw", item["sha256"] + ".png")))
 
             mime, data = inbox.raw_file(vault, item["id"])
@@ -141,7 +142,7 @@ class InboxFlowTests(unittest.TestCase):
             self.assertEqual(stats["done"], 1)
             self.assertEqual(stats["boxes"]["question"], 1)
             self.assertEqual(stats["ai"]["adopted"], 1)
-            self.assertEqual(stats["layouts"].get("zuoyebang"), 1)
+            self.assertEqual(stats["layouts"].get("zuoyebang"), 2)
 
             blob = inbox.export_dataset(vault, fmt="yolo")
             with zipfile.ZipFile(io.BytesIO(blob)) as zf:

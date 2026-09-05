@@ -317,7 +317,7 @@ def upload_images(vault, files, source="desktop"):
                     "INSERT INTO items (id, sha256, file, mime, width, height, bytes, source, uploaded_at, "
                     "status, layout, link_uid, link_question_id, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (item_id, sha, os.path.basename(filename or "image"), mime, width, height,
-                     len(data), source, now, "pending", "other", None, None, now),
+                     len(data), source, now, "pending", "zuoyebang", None, None, now),
                 )
                 created.append(item_id)
             db.commit()
