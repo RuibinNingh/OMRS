@@ -112,19 +112,29 @@ _omrs_id: OP-000001
 难度: 7
 页码:
 相关知识点:
-  - 二倍角公式
-  - 辅助角公式
+  - "[[二倍角公式]]"
+  - "[[辅助角公式]]"
 标记:
   - 考前必看
   - 计算失误
 tags:
   - 状态/待攻克
-  - 知识点/三角函数
+录入日期: 2026-06-12
 ---
 
 # 题目
 
 题目内容……
+
+# 备注
+
+## 错因
+
+## 关联
+
+# 答案
+
+答案/解析……
 
 # 历史
 
@@ -142,7 +152,7 @@ tags:
 YYYY-MM-DD 主观:N, 对/错[, 备注:文字]
 ```
 
-v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复结构化状态、算法状态、Session 和统计，不承诺恢复 Markdown 正文旧版本。
+v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流程追加。`/api/question` 仍返回该小节原文，`common.py::parse_history_lines()` 和 v1.16.0 题目详情/画廊代码仍会兼容解析旧手工行；这与 Ledger 导出的正式复习记录是两套数据。系统只承诺恢复结构化状态、算法状态、Session 和统计，不承诺恢复 Markdown 正文旧版本。
 
 `相关知识点: []` 是显式清空知识点标签的结构化更新。工作区扫描将该空列表写入 Ledger 的题目元数据投影，并在重建 `mastery_data.csv` 时保持 `Knowledge_Tags` 为空；它不会回退到该题此前的知识点标签。
 
@@ -162,9 +172,14 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复�
 
 ## 6. 重建索引行为（`build_index()`）
 
-- 扫描所有以数字结尾的 `.md` 文件。
-- 已有记录：同步 `Subject`、`Category`、`Difficulty`、`Current_Tag`、`Knowledge_Tags`，保留 `Mastery`、`EF`、`Attempts` 等学习数据。
-- 新增记录：初始化 `Mastery=0.0`、`EF=2.5`、`Attempts=0`、`High_Correct_Streak=0`。
+`build_index()` 当前不是直接把 CSV 当作事实源保留字段，而是按以下顺序执行：
+
+1. 确保 Ledger 已完成迁移引导（`ensure_ledger_bootstrap()`）。
+2. 扫描工作区并记录新增、移动、元数据变化或消失（`scan_workspace()`）；发现冲突时中止。
+3. 从完整 Ledger 重放并重建题目、熟练度、Session 和兼容 CSV 投影（`rebuild_projection()`）。
+4. 读取重建后的 `mastery_data.csv` 返回题目行，并写入 `INDEX` 运行日志。
+
+扫描对象仍是所有以数字结尾的 `.md` 文件；Markdown 元数据同步到 Ledger/题目投影，Mastery、EF、Attempts 等学习状态由 Ledger 重放，不由旧 CSV 覆盖。
 
 ---
 
@@ -198,11 +213,19 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复�
 | `tuning` | object | 算法可调参数覆盖，键与默认值见 algorithm.md §9；仅接受已知键且为数字 |
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`） |
 | `ai_api_key` | string | AI 接口密钥（Bearer），仅存本机 |
-| `ai_model` | string | AI 模型名（需支持图片输入，如 `gpt-4o`） |
+| `ai_model` | string | 默认 AI 模型名；需支持图片输入，如 `gpt-4o` |
+| `ai_model_detect` | string | 收件箱框选模型；为空回退 `ai_model` |
+| `ai_model_extract` | string | 收件箱转文本模型；为空回退 `ai_model` |
+| `ai_model_classify` | string | 收件箱分类模型；为空回退 `ai_model` |
 | `ai_restrict_tags` | bool | 「AI 自动识别」是否把相关知识点限定在「已有分类 ∪ 已有知识点」内。默认 `true`（缺失按 `true`）；`false` 时允许 AI 在无贴切已有项时新建知识点（上限 4 个） |
+| `inbox_detect_provider` | string | 框选提供方：`vlm` / `template` / `local_http`，默认 `vlm` |
+| `inbox_local_detect_url` | string | `local_http` 的 POST 地址，默认空 |
+| `inbox_blind_every` | int | 每 N 张盲标，`0` 关闭，默认 `0` |
+| `inbox_auto_ready_conf` | number | 自动转文本并置就绪的最低置信度，`0` 关闭，默认 `0` |
+| `inbox_auto_on_upload` | bool | 上传后自动排队处理，默认 `false` |
+| `inbox_discard_keep_days` | int | 丢弃原图保留天数，默认 `7` |
 
-`load_tuning()` 带进程内缓存，`save_config()` 写入后自动失效缓存；UI 改配置后会重启，亦保证生效。  
-`ai_*`/`ai_restrict_tags` 供「AI 自动识别」（见 api.md `/api/ai-recognize`）使用：由 `load_config()` 每次读盘，**保存即生效、无需重启**；`save_config()` 按键合并，可单独提交。`load_config()` 的缺省键集中在 `common.CONFIG_DEFAULTS`（`allow_external=false`、`ai_restrict_tags=true`）。
+`load_tuning()` 带进程内缓存，`save_config()` 写入后自动失效缓存；算法调参、AI 和收件箱策略保存即生效，无需重启。只有 `allow_external` 改变监听地址时需要重启。`save_config()` 按键合并，可单独提交；`load_config()` 的缺省键集中在 `common.CONFIG_DEFAULTS`。
 
 ---
 
@@ -238,7 +261,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入。系统只承诺恢复�
  "items":[{"uid":"三角函数1","is_correct":true,"sub_score":9}]}
 ```
 
-仅包含**已判定**的题。导入侧（`assets/feedback.js::importFeedbackJson`）：`is_correct` / `correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` / `score` 缺省按对→10 / 错→4、钳 0–10 取整；`session_id` 在 sessions.csv 中则自动选中关联，否则仍按该 ID 写入 history_log（TMP- 临时卷亦可），为空按手动录入。填充后不自动提交，须人工核对。若误贴旧题目 JSON，会提示当前只支持反馈 JSON。
+仅包含**已判定**的题。导入侧（`assets/feedback.js::importFeedbackJson`）：`is_correct` / `correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` / `score` 缺省按对→10 / 错→4、钳 0–10 取整；`session_id` 在 `sessions.csv` 中则自动选中关联，否则仍按该 ID 填入待提交反馈（TMP- 临时卷亦可），为空按手动录入。导入只填充前端表单，**不会直接写 `history_log.csv`**；须人工核对后提交，提交才追加 Ledger 并重建投影。若误贴旧题目 JSON，会提示当前只支持反馈 JSON。
 
 
 ---

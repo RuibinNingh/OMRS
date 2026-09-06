@@ -242,9 +242,9 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 > 对应源文件：`omrs/scheduling.py` → `build_fail_counts()` / `is_leech()`
 
-利用此前只用于展示的 `history_log.csv`：统计每个 UID 的累计答错次数（`Is_Correct == 0`）。
+利用由 Ledger 重建的兼容投影 `history_log.csv`：统计每个 UID 的累计答错次数（`Is_Correct == 0`）。当前调度和统计仍读取该投影；它不是题目 Markdown `# 历史`，也不是仅供展示的旧数据。
 
-- **判定**：未击杀，且累计答错次数 ≥ `leech_fail_threshold`（默认 4）→ 标记为 leech。
+- **判定**：未击杀，且**累计**答错次数 ≥ `leech_fail_threshold`（默认 4）→ 标记为 leech；不要求连续答错。
 - **优先级加成**：leech 在熟练度列表的 `compute_priority` 上 `+leech_priority_bonus`（默认 0.4），优先被召回。
 - **暴露位置**：`/api/recommend` 与 `/api/stats` 的每个题目条目带 `fail_count` / `is_leech`；`/api/stats` 的 `review_alert.leech` 给出未击杀 leech 总数。
 - **用途**：提示「反复错的题」值得重新拆解/整理，而非继续机械重刷。

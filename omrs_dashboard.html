@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OMRS — 错题重构系统</title>
-<script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'')}catch(e){}</script>
+<script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'');document.documentElement.setAttribute('data-density',localStorage.getItem('omrs-density')==='comfortable'?'comfortable':'compact')}catch(e){}</script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-<link rel="stylesheet" href="assets/styles.css?v=20260905-qb-layout">
+<link rel="stylesheet" href="assets/styles.css?v=20260906-practice-record">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -52,7 +52,7 @@
       <div class="nav-spacer"></div>
       <div class="tab" data-tab="settings" onclick="switchTab('settings')"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></div>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.14.0 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.16.0 · 本地服务</div>
   </aside>
   <div class="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
   <main class="content">
@@ -65,35 +65,32 @@
       </div>
     </div>
 
-  <!-- ====== 仪表盘 ====== -->
+  <!-- ====== 仪表盘 ======
+       v1.15.0 重构：首页只回答「今天做什么」，顺序是 今天 → 行动 → 概览 → 动态。
+       原来的分布类图表（科目 / 标记 / 熟练度 / 难度 / 队列预警 / 每日趋势）全部归到
+       「数据复盘」页——那边本来就有同口径的更全版本，首页留着只是重复一遍。
+       #chart-labels 与 #chart-trend 的容器搬到 panel-data，id 不变，
+       renderLabelChart / renderTrendChart 照旧被 renderDash() 调用，无需改动。 -->
   <div class="panel active" id="panel-dashboard">
-    <div class="stat-grid">
-      <div class="stat-card c1"><div class="stat-label">总题数</div><div class="stat-value" id="s-total">—</div></div>
-      <div class="stat-card c2"><div class="stat-label">已击杀</div><div class="stat-value" id="s-killed">—</div><div class="stat-sub" id="s-kill-pct"></div></div>
-      <div class="stat-card c3"><div class="stat-label">待攻克</div><div class="stat-value" id="s-attack">—</div></div>
-      <div class="stat-card c4"><div class="stat-label">平均熟练度</div><div class="stat-value" id="s-avgm">—</div></div>
-      <div class="stat-card c5"><div class="stat-label">停用题目</div><div class="stat-value" id="s-suspended">—</div><div class="stat-sub">不参与复习与统计</div></div>
+    <section class="today" id="dash-today"><div class="empty-inline">正在读取今天的任务…</div></section>
+    <div class="card act-card" id="action-plan"><div class="empty-inline">正在计算行动推荐…</div></div>
+    <div class="kpi-strip">
+      <div><label>总题数</label><b id="s-total">—</b></div>
+      <div><label>已击杀</label><b id="s-killed">—</b><em id="s-kill-pct"></em></div>
+      <div><label>待攻克</label><b id="s-attack">—</b></div>
+      <div><label>平均熟练度</label><b id="s-avgm">—</b></div>
+      <div><label>停用题目</label><b id="s-suspended">—</b><em>不参与复习</em></div>
     </div>
-    <div class="card act-card" id="action-plan" style="margin-bottom:20px"><div class="empty-inline">正在计算行动推荐…</div></div>
-    <div class="card" style="margin-bottom:20px">
+    <div class="cols">
+      <div class="card"><div class="card-title">近 30 天活动</div><div id="chart-activity"></div></div>
+      <div class="card"><div class="card-title">最薄弱的科目</div><div id="dash-weak"></div></div>
+    </div>
+    <div class="card">
       <div class="recent-head">
         <div class="card-title" style="margin-bottom:0">最近动态</div>
         <button class="btn sm" onclick="switchTab('history')">完整时间线 →</button>
       </div>
       <div id="recent-ledger"><div class="empty-inline">加载中…</div></div>
-    </div>
-    <div class="cols">
-      <div class="card"><div class="card-title">科目分布</div><div id="chart-subjects"></div></div>
-      <div class="card"><div class="card-title">近 30 天活动</div><div id="chart-activity"></div></div>
-    </div>
-    <div class="card" style="margin-bottom:20px"><div class="card-title">标记分布</div><div id="chart-labels"></div></div>
-    <div class="cols">
-      <div class="card"><div class="card-title">待复习队列预警</div><div id="chart-alerts"></div></div>
-      <div class="card"><div class="card-title">每日练习趋势</div><div id="chart-trend"></div></div>
-    </div>
-    <div class="cols">
-      <div class="card"><div class="card-title">熟练度分布</div><div id="chart-mastery"></div></div>
-      <div class="card"><div class="card-title">难度分布</div><div id="chart-diff"></div></div>
     </div>
   </div>
 
@@ -112,6 +109,11 @@
 
     <div class="stat-grid" id="data-kpi"></div>
     <div class="stat-grid" id="data-kpi2" style="margin-top:-10px"></div>
+
+    <div class="cols">
+      <div class="card"><div class="card-title">📈 每日练习趋势（近 30 天）</div><div id="chart-trend"></div></div>
+      <div class="card"><div class="card-title">🏷️ 标记分布</div><div id="chart-labels"></div></div>
+    </div>
 
     <div class="cols">
       <div class="card"><div class="card-title">📚 科目维度（最薄弱在前）</div><div id="data-subject-radar"></div><div class="tbl-wrap" id="data-subjects"></div></div>
@@ -185,6 +187,7 @@
               <div class="qb-menu-title">列数 <span class="qb-menu-kbd">[ ]</span></div>
               <div class="seg block qb-cols-seg"><button type="button" data-qb-cols="0" title="按卡片最小宽度自动铺满">自动</button><button type="button" data-qb-cols="1">1</button><button type="button" data-qb-cols="2">2</button><button type="button" data-qb-cols="3">3</button><button type="button" data-qb-cols="4">4</button><button type="button" data-qb-cols="5">5</button><button type="button" data-qb-cols="6">6</button></div>
               <div class="qb-menu-sep"></div>
+              <label><input type="checkbox" data-qb-streak> 战绩带（脚注显示最近 8 次对错与分数）</label>
               <label><input type="checkbox" data-qb-gallery-detail> 显示元数据（科目 / 上次复习 / 知识点）</label>
               <div class="qb-menu-sep"></div>
             </div>
@@ -199,8 +202,8 @@
             <button type="button" data-qb-layout-reset>恢复默认显示</button>
           </div>
         </div>
+        <div class="qb-counts" id="qb-counts"></div>
       </div>
-      <div class="qb-counts" id="qb-counts"></div>
       <div class="qb-chips" id="qb-chips"></div>
       <div class="qb-wrap" id="qb-wrap">
         <div class="qb-main">
@@ -912,6 +915,14 @@
           <div class="hint" style="margin-top:8px">题目截图多为浅色，默认浅色阅读最自然；夜里可切深色。设置保存在本浏览器。</div>
         </div>
         <div class="form-group">
+          <label class="hint" style="margin-bottom:6px;display:block">界面密度</label>
+          <div class="theme-switch" id="st-density-switch">
+            <button class="theme-opt" data-density="comfortable" onclick="setDensity('comfortable')">舒适</button>
+            <button class="theme-opt" data-density="compact" onclick="setDensity('compact')">紧凑</button>
+          </div>
+          <div class="hint" style="margin-top:8px">紧凑档统一收紧内边距、圆角、行高和控件高度（题库表格一屏多约 10 行）。功能复杂的页面——题库、反馈工作台、收件箱处理——默认就按紧凑排版，这里只影响全站基准。</div>
+        </div>
+        <div class="form-group">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
             <input type="checkbox" id="st-invert-img" style="width:18px;height:18px;accent-color:var(--accent)" onchange="setInvertImg(this.checked)">
             <span>深色模式下反转题目图片颜色</span>
@@ -1214,12 +1225,12 @@
 <datalist id="cr-cat-list"></datalist>
 <datalist id="cr-ktag-list"></datalist>
 
-<script src="assets/core.js?v=20260905-gallery-lean"></script>
+<script src="assets/core.js?v=20260906-practice-record"></script>
 <script src="assets/labels.js?v=20260905-gallery-lean"></script>
 <script src="assets/dashboard.js?v=20260831-question-suspend"></script>
-<script src="assets/questions.js?v=20260905-qb-layout"></script>
-<script src="assets/qtable.js?v=20260905-qb-layout"></script>
-<script src="assets/qview.js?v=20260905-qb-layout"></script>
+<script src="assets/questions.js?v=20260906-practice-record"></script>
+<script src="assets/qtable.js?v=20260906-practice-record"></script>
+<script src="assets/qview.js?v=20260906-practice-record"></script>
 <script src="assets/schedule.js?v=20260828-feedback-ui"></script>
 <script src="assets/export.js?v=20260901-qview"></script>
 <script src="assets/feedback.js?v=20260902-omr-result-protocol"></script>

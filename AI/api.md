@@ -56,7 +56,7 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `status` | string | 当前服务状态，正常为 `ok` |
-| `version` | string | 从 `omrs.version.__version__` 读取的 OMRS 版本号，当前为 `v1.14.1` |
+| `version` | string | 从 `omrs.version.__version__` 读取的 OMRS 版本号，当前为 `v1.16.0` |
 | `started_at` | string | 服务启动时间（ISO 8601，UTC） |
 | `uptime_seconds` | int | 已运行秒数 |
 | `question_count` | int | 当前托管题目数 |
@@ -66,7 +66,7 @@
 ---
 
 ### `/api/analytics`
-返回「数据」复盘页所需的全面派生统计（不新增持久化，实时从 `mastery_data.csv` + `history_log.csv` 计算）。对应源文件：`omrs/analytics.py` → `get_analytics()`。
+返回「数据」复盘页所需的全面派生统计（不新增持久化，实时从 Ledger 导出的兼容投影 `mastery_data.csv` + `history_log.csv` 计算）。对应源文件：`omrs/analytics.py` → `get_analytics()`。
 
 **主要分组：**
 
@@ -113,15 +113,15 @@
 返回单个 Session 及其 UIDs 对应的题目详情，并返回与 `/api/sessions` 相同的分批反馈进度字段。
 
 ### `/api/question?uid=<uid>`
-返回题目的完整内容（题面、历史、标签、知识点）。另含 `images` 字段：题面引用的图片文件名列表（解析 `![[名]]`/`![](路径)`），与 `/api/image?name=` 对接，供报告引图。
+返回题目的完整内容（题面、答案、备注、遗留 Markdown 历史文本、标签、知识点）。其中 `history` 是题目文件 `# 历史` 小节的原文，仅用于兼容旧手工记录和当前前端遗留解析，不是正式反馈记录来源；正式反馈请看 Ledger / `history_log.csv`。另含 `images` 字段：题面引用的图片文件名列表（解析 `![[名]]`/`![](路径)`），与 `/api/image?name=` 对接，供报告引图。
 
 ### `/api/history?before_seq=&limit=`
-返回 Ledger 时间线，旧 `history_log.csv` 兼容记录仍放在 `history` 字段中。
+返回 Ledger 时间线，并附最近 100 条 `history_log.csv` 兼容投影记录。两者不是同一数据源：Ledger 的 `commits` 是正式事实，CSV 记录放在 `history` 字段仅供旧表格或调试兼容。
 
 **响应字段：**
 - `commits`：按时间自上而下排列的提交节点，含 `seq`、`commit_id`、`created_at`、`source`、`commit_type`、`message`、`summary`、`payload`。
 - `retraction_state`：后端基于完整 Ledger 重放出的当前撤销集合，含 `retracted_sessions` 与 `retracted_reviews`，供前端在只加载最近节点时仍能正确隐藏/恢复。
-- `history`：最近 100 条兼容 CSV 记录，供旧表格或调试使用。
+- `history`：最近 100 条兼容 CSV 投影记录，供旧表格或调试使用；不包含题目 Markdown `# 历史` 原文。
 
 ### `/api/ledger/verify`
 校验不可变提交链，返回 `{status, valid, commits, head_commit_id, errors}`。
@@ -215,13 +215,22 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `allow_external` | bool | 是否允许外部访问（绑定 0.0.0.0） |
-| `tuning` | object | 算法可调参数（若已设置），键见 algorithm.md §9 |
+| `tuning` | object | 算法可调参数（若已设置），键见 algorithm.md §9；通过 `save_config()` 保存后立即失效缓存 |
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`），可空 |
 | `ai_api_key` | string | AI 接口密钥（Bearer），可空 |
 | `ai_model` | string | AI 模型名（需支持图片输入，如 `gpt-4o`），可空 |
+| `ai_model_detect` | string | 收件箱框选模型；为空时回退 `ai_model` |
+| `ai_model_extract` | string | 收件箱转文本模型；为空时回退 `ai_model` |
+| `ai_model_classify` | string | 收件箱分类模型；为空时回退 `ai_model` |
 | `ai_restrict_tags` | bool | 「AI 自动识别」是否把相关知识点限定在「已有分类 ∪ 已有知识点」内（默认 `true`，见设置页开关） |
+| `inbox_detect_provider` | string | 收件箱框选提供方：`vlm`、`template` 或 `local_http`，默认 `vlm` |
+| `inbox_local_detect_url` | string | `local_http` 提供方的 POST 地址，默认空 |
+| `inbox_blind_every` | int | 每 N 张图执行一次盲标，`0` 关闭，默认 `0` |
+| `inbox_auto_ready_conf` | number | 框选置信度达到该值时自动转文本并置就绪，`0` 关闭，默认 `0` |
+| `inbox_auto_on_upload` | bool | 上传后是否自动排队处理，默认 `false` |
+| `inbox_discard_keep_days` | int | 丢弃原图保留天数，默认 `7` |
 
-配置持久化在 `错题/.omrs/config.json`。`ai_*` 键供「AI 自动识别」使用，缺失时该功能报「尚未配置」；`ai_restrict_tags` 缺失按 `true` 处理。
+配置持久化在 `错题/.omrs/config.json`。`ai_*` 键供 AI 识别与收件箱任务使用，按用途模型为空时回退到 `ai_model`；`ai_restrict_tags` 缺失按 `true` 处理。`inbox_*` 键供收件箱框选、盲标、自动处理和清理策略使用。AI 与收件箱配置保存即生效；`allow_external` 仍需重启服务才改变监听地址。
 
 ### `/`、`/index.html`
 返回 `omrs_dashboard.html`。
@@ -236,7 +245,7 @@
 ## POST 端点
 
 ### `POST /api/schedule`
-创建常规 Session 并持久化到 `sessions.csv`。
+创建常规 Session：追加 `session.create` Ledger commit，再重建并导出兼容投影 `sessions.csv`。
 
 **请求体：**
 ```json
@@ -450,8 +459,6 @@
 
 成功响应包含 `uid`、原 `file_path` 与 `archived: true`。题目会从题库、统计、调度和兼容 CSV 投影中移除，历史反馈和账本记录保留。附件图片不会自动删除，因为它们可能被其他题目引用；已删除的 Markdown 正文不在 Ledger 中，不能通过结构化恢复取回。
 
-响应返回新 UID、旧 UID 和新路径。迁移不重命名旧附件。
-
 ### 历史修正端点
 
 以下端点都只追加 commit，不修改旧记录：
@@ -571,7 +578,7 @@
 - ≥2 题：常规 Session（EXP- 前缀），写入 sessions.csv，`session_type: "exp"`
 - 1 题：自定义调度（TMP- 前缀），不写入 sessions.csv，`session_type: "tmp"`
 
-如果请求包含已在 active Session 中的 UID，后端返回 400 并拒绝创建，避免重复调度。
+多题请求如果包含已在 active Session 中的 UID，后端返回 400 并拒绝创建，避免重复调度。当前单题路径直接生成 `TMP-` 临时 Session，不执行这项 active Session 排除检查。
 
 ---
 

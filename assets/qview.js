@@ -1,7 +1,8 @@
 // === assets/qview.js — 共享题目视图（qview）：题面 / 答案双栏 ===
 // 供题目 Modal、反馈工作台、即时练习、画廊卡片复用，收敛原来三处各自为政的题目渲染副本。
 // 依赖 questions.js 的 renderMdContent / ensureQuestionDetail / QUESTION_CACHE，
-// 以及 core.js 的 escapeHtml / escapeAttr / getItemByUid / getDueDays / asNumber，
+// 以及 core.js 的 escapeHtml / escapeAttr / getItemByUid / getDueDays / asNumber
+// 与记录模块用到的 parseQHistory / qHistoryStats（v1.16.0），
 // 因此 <script> 必须排在 questions.js 之后。
 // 约定：本文件不写业务逻辑，工具按钮只转调 questions.js 已有的全局函数；
 // DOM 里不拼函数名，所有交互走 data-qv-act 事件委托。
@@ -11,7 +12,7 @@ const QV_DEFAULTS = {
   reveal: true,         // false 时不渲染答案 DOM，只给「显示答案」按钮
   showAnswer: true,
   showNotes: true,
-  showHistory: true,
+  showHistory: true,    // 题目详情最下面的「记录」通栏模块（v1.16.0），画廊卡 / 即时练习关掉
   showMeta: true,       // 头部 UID / 科目 / 难度 / 熟练度 / 到期
   bare: false,          // true 时去掉正文的边框底色，供画廊缩略卡嵌套使用
   actions: [],          // 'edit' | 'suspend' | 'delete' | 'open'
@@ -135,14 +136,72 @@ function qvHtml(q, item, opts) {
     side.push('<div class="qv-label">备注 / 错因</div>');
     side.push(`<div class="q-md">${renderMdContent(detail.notes)}</div>`);
   }
-  if (o.showHistory && String(detail.history || '').trim()) {
-    side.push(`<details class="qv-hist"><summary>做题历史</summary><pre>${escapeHtml(detail.history)}</pre></details>`);
-  }
   const answer = side.length ? `<section class="qv-a">${side.join('')}</section>` : '';
+  const record = o.showHistory ? qvRecordHtml(detail, model) : '';
 
   return `<div class="${classes.join(' ')}" data-qv-uid="${escapeAttr(uid)}" data-reveal="${o.reveal ? '1' : '0'}">
-    ${head}${question}${answer}
+    ${head}${question}${answer}${record}
   </div>`;
+}
+
+// === 记录模块（v1.16.0）===
+// 原本是右栏里一个 <details> 包着 Markdown「## 历史」原文的 <pre>；现在改成题目详情最下面
+// 一整块通栏模块：四个派生数 + 主观分走势 + 明细。数据仍只来自 detail.history，不新增接口。
+// 只报异常：连错 ≥2 才出提示行；顺利的题一个字都不多说。
+function qvRecordSparkHtml(records) {
+  const width = 100, height = 34, count = records.length;
+  const x = index => count === 1 ? width / 2 : (index / (count - 1)) * width;
+  const y = score => height - (Math.max(0, Math.min(10, asNumber(score, 0))) / 10) * height;
+  const dots = records.map((record, index) =>
+    `<circle cx="${x(index).toFixed(1)}" cy="${y(record.score).toFixed(1)}" r="2.4" fill="${record.correct ? 'var(--green)' : 'var(--red)'}"><title>${escapeHtml(`${record.date} ${record.correct ? '对' : '错'} ${record.score} 分`)}</title></circle>`).join('');
+  const line = count > 1
+    ? `<polyline points="${records.map((record, index) => `${x(index).toFixed(1)},${y(record.score).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent-light)" stroke-width="1" vector-effect="non-scaling-stroke"/>`
+    : '';
+  return `<div class="qv-rec-spark"><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="主观分走势">${line}${dots}</svg></div>
+    <div class="qv-rec-axis"><span>${escapeHtml(records[0].date)}</span><span>主观分 0–10</span><span>${escapeHtml(records[count - 1].date)}</span></div>`;
+}
+
+function qvRecordRowHtml(record) {
+  return `<div class="qv-rec-row">
+    <span class="qv-rec-date">${escapeHtml(record.date)}</span>
+    <span class="${record.correct ? 'qv-rec-ok' : 'qv-rec-no'}">${record.correct ? '对' : '错'}</span>
+    <span class="qv-rec-score">${escapeHtml(record.score)} 分</span>
+    <span class="qv-rec-note">${escapeHtml(record.note || '')}</span>
+  </div>`;
+}
+
+function qvRecordHtml(detail, item) {
+  const raw = String(detail?.history || '').trim();
+  const records = typeof parseQHistory === 'function' ? parseQHistory(raw) : [];
+  const stats = typeof qHistoryStats === 'function' ? qHistoryStats(records) : { count: 0 };
+  const head = '<div class="qv-label">记录</div>';
+  if (!stats.count) {
+    // 解析不出记录但原文非空 = 历史小节被手改成了别的写法，原样保留，不假装没有
+    const body = raw
+      ? `<pre class="qv-rec-raw">${escapeHtml(raw)}</pre>`
+      : `<div class="qv-rec-empty">还没练过${asNumber(item?.attempts, 0) ? '（熟练度表记了 ' + asNumber(item.attempts, 0) + ' 次，但题目文件里没有可解析的历史行）' : ''}。加入下一次复习后，这里会出现次数、正确率和主观分走势。</div>`;
+    return `<section class="qv-rec">${head}${body}</section>`;
+  }
+  const alert = stats.tailWrong >= 2
+    ? `<div class="qv-rec-alert">最近连错 ${stats.tailWrong} 次${stats.last.note ? `，上次卡在「${escapeHtml(stats.last.note)}」` : '，建议重看错因'}</div>`
+    : '';
+  const nums = [
+    ['count', `${stats.count}`, '练习次数'],
+    ['rate', `${stats.rate}%`, `正确 ${stats.correct}/${stats.count}`],
+    ['avg', `${stats.avgScore}`, '平均主观分'],
+    ['gap', stats.avgGap == null ? '—' : `${stats.avgGap} 天`, '平均间隔'],
+  ].map(([key, value, label]) =>
+    `<div class="qv-rec-num${key === 'rate' && stats.rate < 60 ? ' bad' : ''}"><b>${escapeHtml(value)}</b><span>${escapeHtml(label)}</span></div>`).join('');
+  const newest = [...records].reverse();
+  const shown = newest.slice(0, 3), rest = newest.slice(3);
+  const more = rest.length
+    ? `<details class="qv-rec-more"><summary>其余 ${rest.length} 条</summary>${rest.map(qvRecordRowHtml).join('')}</details>`
+    : '';
+  return `<section class="qv-rec">${head}${alert}
+    <div class="qv-rec-nums">${nums}</div>
+    ${qvRecordSparkHtml(records)}
+    <div class="qv-rec-list">${shown.map(qvRecordRowHtml).join('')}</div>${more}
+  </section>`;
 }
 
 // 挂载：拉详情（走 ensureQuestionDetail 缓存）→ 渲染 → 登记到 QV_MOUNTS
@@ -261,4 +320,4 @@ if (typeof document !== 'undefined') {
   document.addEventListener('keydown', qvHandleKey);
 }
 
-if (typeof module !== 'undefined') module.exports = { qvHtml, qvChips, qvToolsHtml, qvSetContext, qvContext, qvRerenderAll, QV_DEFAULTS };
+if (typeof module !== 'undefined') module.exports = { qvHtml, qvChips, qvToolsHtml, qvRecordHtml, qvSetContext, qvContext, qvRerenderAll, QV_DEFAULTS };

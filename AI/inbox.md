@@ -1,13 +1,13 @@
 # 收件箱录入流程（inbox，v1.12.0；v1.13.0 加提供方 / 盲标 / 自动策略 / 清理）
 
 > 对应源文件：`omrs/inbox.py`（存储 / 任务 / 提交 / 数据集）、`omrs/ai_assist.py`（`detect_regions` / `extract_region` / `parse_detect_output` / 按用途选模型）、`omrs/server.py`（`_inbox_get` / `_inbox_post` / `_multipart_files`）、`assets/inbox.js`、`assets/inbox_mobile.html`、`omrs_dashboard.html`（`#panel-create` 的 `ib-*` 结构）、`assets/styles.css` 末段。
-> 设计背景与分期规划：`Task/录入流程重构规划.md`。
+> 设计历史已归入 `AI/logs/2026-09-03_inbox-intake*.md`；当前行为以本文件与源码为准。
 
 ## 1. 它解决什么
 
 原「录入题目」页一次一题、只读第 1 张图、要先手工裁题目/答案。收件箱把流程拆成 **上传 → 处理 → 录入** 三步：手机把整张作业帮长截图投进收件箱，电脑端在网页上框「题目 / 答案」，每块可选转文本（AI 转录 + 可转性判断）或保留裁图，最后复用 `create_question` 写题库。所有人工动作（框位、AI 原框、采纳方式、转换决策、结果）留作训练数据。
 
-**边界**：收件箱是暂存层，**不进 Ledger**。只有 `commit` 走 `creation.create_question`，写 Ledger 的路径与旧录入完全一致。原图即使题目已转文本也留在收件箱；是否清理由用户在数据集层面决定（当前未提供自动清理，见待办）。
+**边界**：收件箱是暂存层，**不进 Ledger**。只有 `commit` 走 `creation.create_question`，写 Ledger 的路径与旧录入完全一致。原图即使题目已转文本也留在收件箱；已丢弃原图会按 `inbox_discard_keep_days`（默认 7 天）在上传时自动清理，也可由数据集页调用 `/api/inbox/cleanup` 手动清理，记录和标注事件会保留。
 
 ## 2. 存储 `错题/.omrs/inbox/`
 
@@ -77,7 +77,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 
 ## 6. 测试
 
-`tests/test_inbox.py`（unittest，14 例）：图片头解析、长图切片计划、跨条带框合并、detect 三种坐标解析、上传去重 → 画框 → 就绪校验 → commit（文本 + 整图图片区）→ done → 统计 → YOLO 导出 → annotations 事件、丢弃；部分裁图无 Pillow 时要求前端附带裁图。另有 v1.13.0 的 6 例：模板框选（默认模板 / 沿用样本的像素锚定）、provider 分派（template / local_http / 未知报错）与事件里的 `provider`、盲标（隐藏框、就绪时成对写事件、统计、导出、显式 `blind:false` 覆盖）、自动策略（触发 / 置信度不足）、上传即 auto job 与拒绝计数、清理。测试用 `FakeAI` 替身，不联网。运行：`python3 -m unittest tests.test_inbox`。
+`tests/test_inbox.py`（unittest，当前共 14 例）：覆盖图片头解析、长图切片计划、跨条带框合并、detect 三种坐标解析、上传去重 → 画框 → 就绪校验 → commit（文本 + 整图图片区）→ done → 统计 → YOLO 导出 → annotations 事件、丢弃、模板框选、provider 分派、盲标、自动策略、上传即 auto job 与清理。测试用 `FakeAI` 替身，不联网。运行：`python3 -m unittest tests.test_inbox`。
 
 ## 7. 已知边界 / 待办
 

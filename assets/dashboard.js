@@ -179,6 +179,87 @@ function renderTrendChart(trend){
     </svg>
   </div>`;
 }
+// ── 今天：首页唯一的大元素。数据全部来自已加载的 DATA / SESSIONS，不新增接口 ──
+function dashSessions(){return(typeof SESSIONS!=='undefined'&&Array.isArray(SESSIONS))?SESSIONS:[]}
+function renderTodayHero(){
+  const box=document.getElementById('dash-today');if(!box)return;
+  const items=getItems();
+  const now=new Date();
+  const stamp=`${now.getMonth()+1} 月 ${now.getDate()} 日 · 星期${'日一二三四五六'[now.getDay()]}`;
+  if(!items.length){
+    box.className='today is-empty';
+    box.innerHTML=`<div class="today-main"><div class="today-date">${escapeHtml(stamp)}</div>
+      <div class="today-num"><b>0</b><span>题库还是空的</span></div>
+      <div class="today-note">先录入几道错题，调度、推荐和复盘才有东西可算。</div></div>
+      <div class="today-acts"><button class="btn primary" onclick="switchTab('create')">去录入题目</button></div>`;
+    return;
+  }
+  const active=items.filter(item=>!item.suspended&&!isKilledItem(item));
+  const overdue=active.filter(item=>{const d=getDueDays(item);return d!==null&&d<0}).length;
+  const dueToday=active.filter(item=>getDueDays(item)===0).length;
+  const waiting=overdue+dueToday;
+  const openSessions=dashSessions().filter(s=>(s.status||'active')==='active');
+  const pendingQ=openSessions.reduce((sum,s)=>sum+asNumber(s.pending_count,asNumber(s.count,0)),0);
+  const doneToday=dashValue((DATA?.daily_trend||{})[dashDateKey(now)]);
+  const target=(typeof actionTodayTarget==='function')?actionTodayTarget():waiting;
+  const pct=dashClamp(doneToday/Math.max(1,target)*100,0,100);
+  const worst=(()=>{const d=active.map(getDueDays).filter(v=>v!==null&&v<0);return d.length?Math.abs(Math.min(...d)):0})();
+
+  const splits=[];
+  if(overdue)splits.push(`<i class="od">逾期 ${overdue}</i>`);
+  if(dueToday)splits.push(`<i class="due">今日到期 ${dueToday}</i>`);
+  if(pendingQ)splits.push(`<i class="fb">未录反馈 ${pendingQ}</i>`);
+  if(!splits.length)splits.push('<i class="ok">没有到期的题</i>');
+
+  const acts=[];
+  if(waiting)acts.push('<button class="btn primary" onclick="actionGoReview()">开始复习</button>');
+  else acts.push('<button class="btn primary" onclick="switchTab(\'instant\')">随便练几题</button>');
+  if(overdue)acts.push(`<button class="btn" onclick="actionGoQuestions({'q-filter-due':'overdue','q-sort':'due-asc'})">只看逾期 ${overdue} 题</button>`);
+  else if(pendingQ)acts.push('<button class="btn" onclick="switchTab(\'feedback\')">去录反馈</button>');
+
+  const note=waiting
+    ?(overdue?`最久的一道已经逾期 ${worst} 天，逾期越久熟练度衰减越多。`:'今天做完，这批题的间隔就能顺延到下一档。')
+    :'到期队列是空的。想加练可以挑熟练度低的题，或者去录入新题。';
+
+  box.className='today'+(waiting?(overdue?' lv-overdue':' lv-due'):' lv-clear');
+  box.innerHTML=`<div class="today-main">
+      <div class="today-date">${escapeHtml(stamp)}</div>
+      <div class="today-num"><b>${waiting}</b><span>${waiting?'道题待复习':'道题待复习'}</span></div>
+      <div class="today-split">${splits.join('')}</div>
+    </div>
+    <div class="today-prog">
+      <div class="today-prog-top"><span>今天已练</span><span><b>${doneToday}</b> / 建议 ${target} 题</span></div>
+      <div class="today-bar"><i style="width:${pct.toFixed(0)}%"></i></div>
+      <div class="today-note">${escapeHtml(note)}</div>
+    </div>
+    <div class="today-acts">${acts.join('')}</div>`;
+}
+// ── 最薄弱的科目：题量够多才排，免得一两道题把均值拉到底 ──
+function renderWeakSubjects(){
+  const el=document.getElementById('dash-weak');if(!el)return;
+  const active=getItems().filter(item=>!item.suspended);
+  const groups={};
+  active.forEach(item=>{
+    const key=(item.subject||'').trim();if(!key)return;
+    if(!groups[key])groups[key]={key,count:0,sum:0};
+    groups[key].count+=1;
+    groups[key].sum+=asNumber(item.decayed_mastery,asNumber(item.mastery,0));
+  });
+  const MIN=5;
+  const rows=Object.values(groups).filter(r=>r.count>=MIN)
+    .map(r=>({...r,avg:r.sum/r.count})).sort((a,b)=>a.avg-b.avg).slice(0,6);
+  if(!rows.length){el.innerHTML=dashEmpty(`还没有题量 ≥ ${MIN} 的科目`);return}
+  el.innerHTML=`<div class="weak-list">`+rows.map(r=>{
+    const pct=dashClamp(r.avg*100,0,100);
+    const tone=pct<35?'red':pct<60?'yellow':'green';
+    return`<button type="button" class="weak-row" onclick="actionGoQuestions({'q-filter-subj':${JSON.stringify(escapeAttr(r.key))},'q-sort':'mastery-asc'})" title="在题库里筛出该科目">
+      <span class="weak-name">${escapeHtml(r.key)}</span>
+      <span class="weak-track"><i class="${tone}" style="width:${pct.toFixed(0)}%"></i></span>
+      <b>${pct.toFixed(0)}%</b>
+      <small>${r.count} 题</small>
+    </button>`}).join('')+`</div>
+    <div class="hint" style="margin-top:10px">按衰减后熟练度排序，题量 ≥ ${MIN} 才纳入。点一行直接跳到题库对应筛选。</div>`;
+}
 function renderDash(){
   const d=DATA;
   document.getElementById('s-total').textContent=d.total;
@@ -195,7 +276,10 @@ function renderDash(){
   renderTrendChart(d.daily_trend);
   renderMasteryChart(d.mastery_histogram);
   renderDifficultyChart(d.difficulty_dist);
+  renderWeakSubjects();
   renderRecentLedger();
-  // 行动推荐依赖 DATA + SESSIONS，两份数据都就绪后再画（actions.js 于 recommend.js 之后加载）
+  // 行动推荐与「今天」条都依赖 DATA + SESSIONS，两份数据就绪后再画
+  // （actions.js 于 recommend.js 之后加载，故运行时判存在）
+  renderTodayHero();
   if(typeof renderActionPlan==='function')renderActionPlan();
 }

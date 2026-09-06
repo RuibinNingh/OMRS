@@ -46,14 +46,31 @@ function galleryFlagsHtml(item,detail){
   if(item.is_leech)flags.push('<span class="gc-flag yellow">顽固</span>');
   return flags.join('');
 }
+// 脚注里的「N 次」升级成战绩带（v1.16.0）：位置和宽度不变，多编码对错 / 分数 / 时序三个维度。
+// 战绩带要 detail.history，而 item 里没有；不额外发请求——画廊本来就会为题面预览拉一次详情，
+// 所以这里先出「N 次」占位，由 hydrateQuestionGalleryPreviews() 拿到详情后就地替换。
+function qbStreakOn(){return typeof QB_STREAK==='undefined'?true:!!QB_STREAK}
+function galleryStreakSlotHtml(item){
+  const attempts=asNumber(item.attempts,0);
+  if(!attempts)return'';
+  return `<span class="gc-stat gc-streak-slot" data-streak-uid="${escapeAttr(item.uid)}"><span class="muted">${attempts} 次</span></span>`;
+}
+function galleryStreakBodyHtml(item,detail){
+  const records=typeof parseQHistory==='function'?parseQHistory(detail&&detail.history||''):[];
+  const stats=typeof qHistoryStats==='function'?qHistoryStats(records):{count:0};
+  if(!stats.count)return`<span class="muted">${asNumber(item.attempts,0)} 次</span>`;
+  const warn=stats.tailWrong>=2?`<span class="gc-warn">连错 ${stats.tailWrong}</span>`:'';
+  return `${qStreakHtml(records)}<span class="muted">${stats.count} 次</span>${warn}`;
+}
 function galleryFootHtml(item){
   const mastery=asNumber(item.mastery,0);
   const bits=[];
   bits.push(mastery>0?`<span class="gc-stat">${masteryBarHtml(item,36)}</span>`:'<span class="gc-stat muted">未练习</span>');
   if(item.difficulty!=null&&item.difficulty!=='')bits.push(`<span class="gc-stat muted">难度 ${escapeHtml(item.difficulty)}</span>`);
   const attempts=asNumber(item.attempts,0);
-  if(attempts)bits.push(`<span class="gc-stat muted">${attempts} 次</span>`);
-  return bits.join('');
+  if(qbStreakOn())bits.push(galleryStreakSlotHtml(item));
+  else if(attempts)bits.push(`<span class="gc-stat muted">${attempts} 次</span>`);
+  return bits.filter(Boolean).join('');
 }
 function renderQuestionGallery(items){
   qvSetContext('q',items.map(item=>item.uid));
@@ -110,6 +127,9 @@ async function hydrateQuestionGalleryPreviews(){
     if(node.dataset.questionPreviewUid!==uid)return;
     node.innerHTML=qvHtml(q,getItemByUid(uid)||{uid},cardOpts);
     node.classList.toggle('is-clipped',node.scrollHeight-node.clientHeight>4);
+    // 详情已在手，顺手把同一张卡脚注里的战绩带填上，不额外发请求
+    const slot=node.closest('.gallery-card')?.querySelector(`.gc-streak-slot[data-streak-uid="${CSS.escape(uid)}"]`);
+    if(slot)slot.innerHTML=galleryStreakBodyHtml(getItemByUid(uid)||{uid},q);
   }));
 }
 function setQView(view){Q_VIEW=view;try{localStorage.setItem('omrs-q-view',view)}catch(e){}renderQ()}
@@ -220,4 +240,5 @@ async function saveMarkdownEditor(){const modal=document.getElementById('md-edit
 
 if(typeof module!=='undefined')module.exports={
   renderMdContent,renderMdInline,renderMdTable,splitMdTableRow,isMdTableSeparator,mdLineBreakMode,
+  galleryFootHtml,galleryStreakBodyHtml,
 };

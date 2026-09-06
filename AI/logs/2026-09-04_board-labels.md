@@ -1,5 +1,7 @@
 # 2026-09-04 展示板、用户标记与题库交互重设计（v1.14.0）
 
+> **事实勘误（2026-09-06）**：本日志保留当日设计与验收记录，不作为当前展示板契约。当前实现使用 `printed.pages`、`printed.cursor`、`printed.items` 与 `mode:"all"|"new"` 的纸面记录；没有 `last_printed_page` 高水位，也没有 `binding_marks`、3 孔/26 孔圆圈。板级 `gap_lines` 默认 2 行。当前细节以 `AI/board.md`、`AI/export.md` 和源码为准。
+
 ## 变更摘要
 
 按 `Task/2026-09-04_展示板-标记-题库重设计.md` 落地 v1.14.0：

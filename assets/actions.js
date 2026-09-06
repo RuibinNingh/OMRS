@@ -288,12 +288,11 @@ function renderActionPlan() {
     : (ACTION_SHOW_ALL && ACTION_PLAN.length > 4
       ? '<button class="btn sm act-more" onclick="toggleActionPlanAll()">收起 ↑</button>' : '');
 
+  // 「建议今天练 N 题」已经在首页顶部的「今天」条里，这里不再重复一遍
+  void target;
   box.innerHTML = `<div class="act-head">
-      <div>
-        <div class="card-title" style="margin-bottom:2px">行动推荐</div>
-        <div class="act-sub">按当前题库状态排出的优先级，从上往下做就行。</div>
-      </div>
-      <div class="act-target"><span class="act-target-num">${target}</span><span class="act-target-label">建议今天练</span></div>
+      <div class="card-title" style="margin-bottom:0">行动推荐</div>
+      <div class="act-sub">按当前题库状态排的优先级，从上往下做。</div>
     </div>
     <div class="act-list">${rows}</div>${more}`;
 }

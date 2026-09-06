@@ -30,6 +30,10 @@
 
 > **v1.14.1 题库画廊卡精简**：画廊卡从「8 条等权横带」改为「标识 / 题面 / 脚注」三层，题面成为唯一主角。① 去重：UID 按 `category` 前缀拆成「分类 + 序号」，`knowledge_tags` 过滤掉与 `category` 同名的一条，同一字符串不再一卡三现；② 去卡中卡：`.gallery-preview` 移除 `background` / `border` / `min-height:140px`，画廊内 `.qv-label`（「题目」二字）隐藏，`.qv .q-md` 强制透明无边框；③ 只报异常：`statusTagHtml` 不再逐卡渲染全库同值的「待攻克」，改为 `galleryFlagsHtml()` 仅在逾期 / 今日到期 / 顽固 / 停用时亮标；熟练度为 0 时显示「未练习」而不画空进度条；④ 悬停收纳：复选框、「⋯」菜单、「＋标记」入口 hover / 选中才显形（`@media (hover:none)` 下常显），底部「查看详情」按钮删除——整卡（含题面）点击即开 Modal，`questions.js` 行点击选择器移除 `.gallery-preview` 排除项；⑤ 网格 `minmax(320px)→minmax(260px)`、`gap 16→12`、卡片 `padding 16→12/14`，`.question-gallery-wrap` 限宽 1440px；⑥ 截断改渐隐：`hydrateQuestionGalleryPreviews()` 渲染后量 `scrollHeight` 差值，真被截的卡才加 `.is-clipped`（`mask-image` 底部渐隐），短题不糊。元数据（科目 / 上次复习 / 衰减后 / 知识点）收进「列 / 密度」菜单的**画廊 → 显示元数据**开关（`QB_GALLERY_DETAIL`，`localStorage('omrs-qb-gallery-detail')`，**默认关 = 精简**）。同时 `qbRenderChips()` 在无激活条件时输出空串，配合 `.qb-chips:empty{display:none}` 收起常驻的「未设置筛选条件」提示行。表格视图、`getFilterState('q')`、`renderQ` / `filterQ` / `setQView` 签名与全部接口不变。
 
+> **v1.15.0 UI 改版：密度层 + 首页重构 + 整屏工作台**：分三块。① **密度层**：`styles.css` 的 `:root` 新增 `--pad / --pad-sm / --gap / --row / --ctl / --fs / --fs-sm / --fs-xs` 一组间距变量，舒适档取值即改版前原值；`html[data-density="compact"]` 额外覆盖 `--radius / -sm / -lg`，因此所有引用这三个圆角变量的既有规则自动跟随，无需逐条改。`.card` / `.stat-card` / `.cols` / `.card-title` / `.btn` / `.btn.sm` / `.input` / `thead th` / `tbody td` / `.content` / `.topbar` / `.sched-item` 等 15 处写死 px 换成变量。注意 `.input` 用 `padding:var(--ctl) 12px` 而非固定高度——录入页的 Markdown 编辑器是 `textarea.input`，设死高度会坏。开关在设置页「外观」（`setDensity()`，`localStorage('omrs-density')`，默认 `compact`），`<head>` 内联脚本与 theme / invert-img / sidebar 同批应用防闪。② **首页重构**：顺序改为「今天 → 行动推荐 → 概览条 → 近 30 天活动 + 最薄弱科目 → 最近动态」，见 §1。③ **整屏工作台**：`switchTab()` 给 `.content` 加 `.is-workbench`（题库 / 反馈录入 / 录入题目 / 展示板 / 即时练习五页），高度自 `.content` 一路 flex 分下去，取代原先 `calc(100vh - 魔数)` 的写法，见 §1.2。
+
+> **v1.16.0 题库练习记录：战绩带 + 记录模块**：把「练了几次、对错、分数」做进题库，但按**三层披露**分配，同一份数据只出现在一个层级。① **第一层（画廊卡脚注）**：原来的「N 次」升级成**战绩带**——一根竖条一次练习，绿对红错，高度是主观分（0–10 映射到 3–12px），左→右是时间，更早的几次 `opacity:.45` 淡出；连错 ≥2 时才在带子后补一句「连错 N」，顺利的题不加字。开关在「列 / 密度」菜单的画廊段（`QB_STREAK`，`localStorage('omrs-qb-streak')`，**默认开**，缺省值即开），关掉即回到 v1.15.0 的纯「N 次」，见「画廊式（Gallery View）」与 §3.2。② **第二层（题目详情最下面）**：`qvHtml()` 里原先塞在右栏 `.qv-a` 的 `<details class="qv-hist">` + `<pre>` 原文**整块下线**，改为通栏 `<section class="qv-rec">`，排在 `.qv-q` / `.qv-a` 之后（`.qv-split>.qv-rec{grid-column:1/-1}`）：四个派生数（练习次数 / 正确率 / 平均主观分 / 平均间隔）+ 主观分走势 sparkline（对错用点的颜色叠在同一张图上，不为对错单画第二张）+ 明细行，首屏 3 条、其余进 `<details>`，见 §2.2。③ **第三层不做**：全库聚合仍只在数据复盘页，题库页不重复。**当前实现存在数据源错配**：`DATA.items[].attempts` 来自 Ledger 重建的 `history_log.csv` 兼容投影，但 `GET /api/question` 的 `history` 仍是题目 Markdown 遗留 `# 历史` 原文；战绩带和记录模块只解析后者。因此正式反馈已记录、但题目文件没有旧历史行时，界面仍可能显示「还没练过」或空记录。Markdown 历史不再由反馈流程写入，也不是正式记录来源；修复记录模块前不应据此判断练习次数。前端正则与后端解析格式相近但并非字面完全一致：前端要求整行匹配并把分数钳到 0–10，后端使用 `re.match` 且未锚定行尾。**表格视图不加战绩带**：表格不拉题目详情，加了会让一屏几十行各发一次 `/api/question`，故 `attempts`（次数）列保持原样。版本号提到 **v1.16.0**（`omrs/version.py` + HTML 侧栏 + 根 `README.md`）。
+
 > **设置页源码协助**：服务设置新增「下载脱敏源码」按钮，调用 `GET /api/source/export` 下载仅含 Git 已跟踪源码、测试和项目文档的 ZIP；不读取未跟踪文件，并排除个人题库、附件、运行数据、日志和生成导出文件。包内 `SOURCE_EXPORT_MANIFEST.txt` 记录导出范围。
 
 ## 文件组织（assets/）
@@ -37,12 +41,12 @@
 omrs_dashboard.html   ← 仅 HTML 结构，<link> 引样式 + 多个 <script> 引脚本
 assets/
 ├── styles.css        ← 全部样式（原 <style> 内联块抽出）
-├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染
+├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染 + 做题记录解析（v1.16.0）
 ├── dashboard.js      ← 仪表盘图表 renderDash
 ├── labels.js         ← 用户标记芯片、LabelPicker、标记管理与筛选状态
 ├── questions.js      ← 题目库表格/画廊视图 + 题目 Modal + 安全 Markdown/LaTeX/表格渲染 + 原文编辑/迁移/删除/停用恢复入口
 ├── qtable.js         ← 题库筛选抽屉、激活 chips、批量条、列设置、密度、视图预设与快捷键
-├── qview.js          ← 共享题目视图：题面/答案双栏组件 + Modal 翻页（v1.10.0 新增，见 §2.2）
+├── qview.js          ← 共享题目视图：题面/答案双栏组件 + 底部记录模块 + Modal 翻页（v1.10.0 新增，v1.16.0 加记录模块，见 §2.2）
 ├── schedule.js       ← 复习 Session：预览/删除/列表 + 工作区扫描 + 录入提交（doCreate/resetCreateForm）；旧「新建 Session」（createSession/POST /api/schedule）UI 入口已随推荐面板移除，端点保留兼容
 ├── export.js         ← 错题导出：选题/画廊预览、A4/屏幕变体、A4 单双栏确认、题间留白、下载（v1.5.0 从 schedule.js 拆出）
 ├── feedback.js       ← 反馈录入工作台：session 选择、题目列表/判定面板、AI 提示词、JSON 导入、提交（v1.5.0 从 schedule.js 拆出；v1.10.0 改三栏；v1.11.0 加答题卡扫描 JSON 解析）
@@ -77,14 +81,15 @@ assets/
 
 ## 1. 仪表盘图表（`renderDash()`）
 
+> **v1.15.0 重构**：首页只回答「今天做什么」。原来的 5 张 `.stat-card` 压成一条 `.kpi-strip`（**id 全部保留**：`s-total` / `s-killed` / `s-kill-pct` / `s-attack` / `s-avgm` / `s-suspended`，`renderDash()` 的赋值一行未改）；分布类图表让位给「数据复盘」页。
+> - **容器搬到 `panel-data`、id 不变**：`chart-trend`（每日练习趋势）、`chart-labels`（标记分布）。`renderTrendChart` / `renderLabelChart` 仍由 `renderDash()` 调用，函数零改动。
+> - **容器直接删除**：`chart-subjects` / `chart-alerts` / `chart-mastery` / `chart-diff`——这四张在复盘页已有同口径的更全版本（`data-subject-radar` / `data-alerts` / `data-mastery` / `data-difficulty`）。对应 render 函数保留且都以 `if(!el)return` 开头，找不到容器即空转，不报错。
+
 | 图表 | HTML 容器 | 数据来源 | 实现方式 |
 |---|---|---|---|
-| 科目分布 | `chart-subjects` | `stats.subject_dist` | `.subject-bars` 按题量降序；底层总量条与前景“已击杀占比”条叠加，并显示题数与击杀率 |
-| 近 30 天活动 | `chart-activity` | `stats.recent_activity` | 30 个本地日期热力格，按当期最大次数分 0–4 级；同时显示总复习、活跃天数和单日峰值 |
-| 待复习队列预警 | `chart-alerts` | `stats.review_alert` | 二乘二卡片：今日到期、未来 3 天、未来 7 天、未到期低熟练度 |
-| 每日练习趋势 | `chart-trend` | `stats.daily_trend` | 内联 SVG 平滑三次曲线路径 + 面积填充 + 非零点标记，顶部显示 30 天总量、最近一天和峰值 |
-| 熟练度分布 | `chart-mastery` | `stats.mastery_histogram` | 10 个固定区间的横向条；按危险/拉升/稳定/掌握分色，宽度相对当前最大桶归一化 |
-| 难度分布 | `chart-diff` | `stats.difficulty_dist` | Lv.1–10 固定竖向轨道；1–3 easy、4–6 mid、7–8 hard、9–10 risk。零题等级保留轨道、标签和数字 `0`，但不创建 `.level-fill`，避免最小高度造成假柱 |
+| 今天 | `dash-today` | `DATA`（`items` / `daily_trend`）+ `SESSIONS` | `dashboard.js::renderTodayHero()`：整页唯一大字号。待复习总数 = 逾期 + 今日到期，下方拆「逾期 / 今日到期 / 未录反馈」，中列今日已练对比 `actionTodayTarget()`，右列主 CTA。左边框按状态着色（`.lv-overdue` 红 / `.lv-due` 黄 / `.lv-clear` 绿）；空题库走 `.is-empty` 引导态。不新增接口 |
+| 近 30 天活动 | `chart-activity` | `stats.recent_activity` | 30 个本地日期热力格，按当期最大次数分 0–4 级；同时显示总复习、活跃天数和单日峰值。紧凑档下 `.activity-heatmap` 改 15 列、隐藏 `.activity-cell small` |
+| 最薄弱的科目 | `dash-weak` | `DATA.items` | `dashboard.js::renderWeakSubjects()`：按 `decayed_mastery`（缺省回落 `mastery`）升序取前 6，**题量 ≥ 5 才纳入**，避免一两道题把均值拉到底；每行是 `<button>`，点击调 `actionGoQuestions()` 跳题库对应筛选 |
 | 最近动态（Ledger） | `recent-ledger` | `GET /api/history?limit=12`（或复用已加载的 `window.HISTORY_COMMITS`） | `dashboard.js::renderRecentLedger()`：取最近 4 条「非修正、未撤销」的主链节点，渲染精致行——族色圆点 + `historyNodeTitle()` 标题 + `commit_id/seq` + 复习节点显示「N 对 · N 错」chip；卡片右上「完整时间线 →」跳 `switchTab('history')`。复用时间线的 `historyCommitFamily/historyNodeTitle/historyReviewBatchStats/isNodeRetracted` 等函数（现于 `history.js`），故 `dashboard.js` 于运行时（所有脚本就绪后）调用。`renderDash()` 末尾 fire-and-forget 调用它 |
 
 仪表盘四张到期卡的定义（后端 `stats.py`）：
@@ -127,10 +132,47 @@ API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表�
 ### 渲染与交互
 
 - `renderActionPlan()` 默认只渲染前 4 条，其余折叠在「还有 N 条建议，展开 ↓」（`toggleActionPlanAll()` 切 `ACTION_SHOW_ALL`）。
-- 卡头右上的「建议今天练 N 道」由 `actionTodayTarget()` 算：逾期 + 今日到期，再加最多 3 道顽固题，封顶 20。
+- `actionTodayTarget()`（逾期 + 今日到期，再加最多 3 道顽固题，封顶 20）**v1.15.0 起改由首页「今天」条消费**（`renderTodayHero()` 的「建议 N 题」）；行动推荐卡头不再重复显示这个数字，`renderActionPlan()` 内保留 `void target;` 标明该值已算但不在此渲染。
 - 按钮的回调是**闭包**，存在 `ACTION_PLAN[i].actions[j].run` 上，行内 `onclick` 只写 `runActionPlanItem(i,j)` 下标——不要改成把函数名拼进 HTML 字符串。
 - 跳转辅助：`actionGoQuestions(preset)` 会**先清空**题库页全部筛选控件（含停用状态）再套 preset，然后 `switchTab('questions')` + `renderQ()`；`actionGoInstant(preset)` 同理清空 `inst-*` 后 `instLoadPractice()`。preset 的键就是元素 id。
-- 样式在 `styles.css` 的 `.act-*` 段，等级色由 `.lv-urgent/.lv-warn/.lv-info/.lv-good` 决定，全部走 `--red-rgb` 等 token，深浅色自动跟随。≤720px 时改为图标 + 正文两列、按钮整行。
+- 样式在 `styles.css` 的 `.act-*` 段，等级色由 `.lv-urgent/.lv-warn/.lv-info/.lv-good` 决定，全部走 `--red-rgb` 等 token，深浅色自动跟随。≤720px 时改为图标 + 正文两列、按钮整行。v1.15.0 起 `.act-item` 在宽屏是**单行**栅格（`"icon body metric buttons"`），按钮右对齐不换行；间距走密度变量。
+
+---
+
+## 1.2 整屏工作台布局（`.is-workbench`，v1.15.0）
+
+功能复杂的多栏页原先各自为战：收件箱处理页写死 `height:calc(100vh - 200px)`，反馈工作台和题库则靠
+`position:sticky` 让侧栏跟随、整页一起滚。前者的 `200` 是数出来的，页头一旦加减工具栏就算错；
+后者在长列表下会把工具条、表头和「提交反馈」按钮一起滚出视口。
+
+v1.15.0 统一成一条链路：
+
+1. `app.js::switchTab(name)` 给 `.content` 切 `.is-workbench` 类，命中五页：
+   `questions` / `feedback` / `create` / `board` / `instant`。
+2. `styles.css` 在 `@media(min-width:1161px)` 内让 `.content.is-workbench` 变成
+   `height:100vh; overflow:hidden` 的 flex 列，`.topbar` 不收缩，`.panel.active` 拿走剩余高度。
+3. 各页把自己的滚动容器标成 `flex:1; min-height:0; overflow-y:auto`。
+
+因此高度是从 `.content` 一路分下去的，**不再出现 `calc(100vh - 魔数)`**；页头加减工具栏无需重算。
+
+| 页面 | 撑高的容器 | 各自滚动的区域 |
+|---|---|---|
+| 题目库 | `.qb-card` → `.qb-wrap` → `.qb-main` | `#q-table-wrap` / `.question-gallery-wrap` / `.qb-drawer` |
+| 反馈录入 | `.fb-work`（`grid-template-rows:minmax(0,1fr)`） | `.fb-rail` / `.fb-stage` / `.fb-panel` 三栏独立 |
+| 录入题目 | `.ib-stage.on`；处理页额外 `#ib-stage-process.on` → `.ib-proc` | 处理页三栏；上传 / 录入 / AI 训练三个 stage 整体滚 |
+| 展示板 | `.bd-layout` | `.bd-layout > .card` 三张 |
+| 即时练习 | `.inst-work` | `.inst-main` / `.inst-queue-wrap` |
+
+配套：`#q-table-wrap thead th` 加 `position:sticky; top:0`，列表再长表头也在。
+`.qb-drawer` 在工作台模式下从 `position:sticky` 改回 `static`（父级已经限高，再 sticky 会双重定位）。
+
+**只在 ≥1161px 生效**。窄屏保持 v1.14.x 的既有响应式：反馈工作台仍走 1160 / 820 两档重排，
+题库抽屉仍在 1100px 落到列表上方，都不受影响。
+
+改这几页时的注意点：
+- 新增的滚动容器必须同时写 `min-height:0`，否则 flex 子项按内容撑开，`overflow` 不生效。
+- 往工作台页面加新的顶部工具栏，记得给它 `flex-shrink:0`，否则会被压扁。
+- 新增工作台型页面时，改 `switchTab()` 里的那个数组即可，不需要动 CSS 结构。
 
 ---
 
@@ -149,6 +191,11 @@ API 为兼容仍返回 `urgent` / `warning` / `cold` / `total_due`，但仪表�
 - 卡片形式，异步拉取 `/api/question?uid=...` 渲染题面；v1.10.0 起缩略预览走 `qvHtml(detail, item, QV_CARD_OPTS)`（`bare` + `clamp:6`），与 Modal、反馈台同一份渲染。导出选题器的画廊卡同理。
 - v1.11.0 修掉预览框顶部约 220px 的空白：容器上的 `white-space:pre-wrap` 会把 qview HTML 里标签之间的换行渲染成空行，见 §2.2 末尾。
 - 卡片中同样使用 `.m-bar` / `.m-bar-fill` 渲染熟练度进度条。
+- **脚注战绩带（v1.16.0，默认开）**：`galleryFootHtml()` 里原来的「N 次」换成 `galleryStreakSlotHtml()` 产出的
+  `.gc-streak-slot` 占位（先显示 `attempts` 数字），`hydrateQuestionGalleryPreviews()` 拿到同一次 `ensureQuestionDetail(uid)`
+  的结果后调 `galleryStreakBodyHtml(item, detail)` 就地替换成 `qStreakHtml()` + 记录数 +（仅连错 ≥2 时）「连错 N」。
+  **不额外发请求**：画廊本来就要为题面预览拉一次 `/api/question`，战绩带搭同一趟车；详情拉取失败时占位数字原样留着。
+  开关 `QB_STREAK`（`localStorage('omrs-qb-streak')`，缺省即开）在「列 / 密度」菜单画廊段，关掉走 `attempts` 纯数字分支。
 - 题面中的 `![[图片.png]]`、`![[图片.png|300]]`、`![alt](路径)` 均改写为 `/api/image?name=...`。
 - 使用 `renderMdContent()` 统一处理 HTML 转义、图片替换与 `$...$` / `$$...$$` LaTeX 渲染。
 - 题目详情缓存在 `QUESTION_CACHE` / `QUESTION_PENDING`，避免重复请求。
@@ -212,7 +259,7 @@ qvInvalidate(uid)              // 清 QUESTION_CACHE[uid]，重绘所有挂着�
 qvSetContext(name, uids)       // 登记一段 uid 序列，供 Modal 翻页使用
 ```
 
-`opts` 默认值：`layout:'split'`（`'stack'` 为单栏）、`reveal:true`、`showAnswer/showNotes/showHistory/showMeta:true`、`bare:false`、`actions:[]`、`clamp:0`。
+`opts` 默认值：`layout:'split'`（`'stack'` 为单栏）、`reveal:true`、`showAnswer/showNotes/showHistory/showMeta:true`、`bare:false`、`actions:[]`、`clamp:0`。v1.16.0 起 `showHistory` 控制的是题目详情**最下面的通栏记录模块**（原先是右栏里的 `<details>` 原文）。
 
 - **`reveal:false` 不渲染答案 DOM**，只渲染「显示答案」按钮（`opts.onReveal` 回调）——少渲染一遍 KaTeX，也不必担心答案躺在 DOM 里被翻出来。
 - `actions` 可含 `'edit'`（编辑 Markdown）、`'suspend'`（按当前状态自动显示停用/恢复）、`'delete'`、`'open'`（跳题目库并按 UID 过滤）。按钮只转调 questions.js 已有的全局函数，qview 自己不写业务逻辑。
@@ -221,7 +268,7 @@ qvSetContext(name, uids)       // 登记一段 uid 序列，供 Modal 翻页使�
 
 ### 交互与 DOM 约定
 
-- 结构：`.qv > .qv-head`（UID / chips / 工具栏）+ `.qv-q`（题目）+ `.qv-a`（答案 / 备注 / 做题历史 `<details>`）。
+- 结构：`.qv > .qv-head`（UID / chips / 工具栏）+ `.qv-q`（题目）+ `.qv-a`（答案 / 备注）+ `.qv-rec`（记录模块，v1.16.0 新增，双栏下通栏）。
 - **不把函数名拼进 HTML 字符串**：所有按钮带 `data-qv-act`，由文件底部一个文档级委托处理器分发；翻页按钮带 `data-qv-nav`。
 - **双栏塌陷用容器查询**（`container-type:inline-size` + `@container qv (max-width:680px)`），因为同一个组件既进 1180px 的 Modal、又进约 420px 的反馈中栏和 300px 的画廊卡，只有容器查询能让三处各自决定；`@supports not` 下降级为 900px 视口断点。
 - 答案块走 `rgba(var(--green-rgb),α)`，不再有写死浅色的 `rgba(39,134,74,.04)`；深色无需单独规则。深色「反转题图」的选择器覆盖 `.qv .q-md img`。
@@ -232,7 +279,7 @@ qvSetContext(name, uids)       // 登记一段 uid 序列，供 Modal 翻页使�
 |---|---|
 | `viewQ(uid, context)` | `qvRender('#modal-stage', uid, {layout:'split', actions:['edit','suspend','delete']})` |
 | `fbRenderStage()` | `qvRender('#fb-stage', uid, {layout:'split', actions:['edit','suspend','open']})` |
-| `instRender()` | `qvRender('#inst-qv', uid, {reveal:row.revealed, showHistory:false, actions:['edit'], onReveal:instReveal})` |
+| `instRender()` | `qvRender('#inst-qv', uid, {reveal:row.revealed, showHistory:false, actions:['edit'], onReveal:instReveal})`——练习中不显示记录，免得未答先看见历史分数 |
 | 画廊 / 导出选题卡片 | `qvHtml(detail, item, QV_CARD_OPTS)`，即 `{layout:'stack', showMeta:false, showAnswer:false, showNotes:false, showHistory:false, bare:true, clamp:6}` |
 
 ### 画廊缩略预览与 `white-space`（v1.11.0 修复）
@@ -307,15 +354,20 @@ qvSetContext(name, uids)       // 登记一段 uid 序列，供 Modal 翻页使�
 
 默认表格列：勾选、UID / 科目·分类、标记（芯片 + 「＋」直接开 picker）、熟练度、到期、状态、
 `⋯`；难度、衰减后、次数、上次复习、EF 可在列设置打开；行密度舒适 / 紧凑。状态列去掉
-`状态/` 前缀。整行点击进 Modal；`⋯` 菜单：查看 / 加入展示板 / 打标记 / 编辑 Markdown /
+`状态/` 前缀。**表格的「次数」列保持纯数字**——表格视图不拉题目详情，若也画战绩带会让一屏
+几十行各发一次 `/api/question`，故 v1.16.0 的战绩带只做进画廊卡。整行点击进 Modal；`⋯` 菜单：查看 / 加入展示板 / 打标记 / 编辑 Markdown /
 迁移分类 / 停用·恢复 / 删除（画廊卡同一菜单）。停用、删除、迁移都用 `uiConfirm / uiDialog`。
 
 批量条（fixed，底部）：加入展示板（`B`，选板对话框）、打标记（`L`，添加 / 移除勾选弹层，可
 现场新建）、停用 / 恢复、导出 A4、清空（`Esc`）。键盘：`F` 抽屉、`V` 视图、`↑↓` 行游标、
 Space 勾选、Enter 打开。
 
-列和密度存于 `localStorage`；命名视图把筛选字段、标记、排序、视图、列设置和密度存于
-`localStorage('omrs-question-views')`，不上传服务端。
+「列 / 密度 ▾」菜单按当前视图只露相关的一半：表格段是列设置 + 行密度，画廊段是列数、
+**战绩带**（`data-qb-streak` → `qbSetStreak()`，v1.16.0，默认开）和显示元数据
+（`data-qb-gallery-detail`，默认关），两段共用题面换行与「恢复默认显示」。
+
+列和密度存于 `localStorage`；命名视图把筛选字段、标记、排序、视图、列设置、密度、战绩带与
+元数据开关存于 `localStorage('omrs-question-views')`，不上传服务端。
 
 ### 3.3 标记组件与接入
 
@@ -422,11 +474,11 @@ Enter 打开、Delete 移除。完整设计见 `board.md` §4。
 │ [Session ▾] 已录 3/12·剩 9 [🔄 刷新] [📋 读剪贴板填写] [＋ 添加行]   │
 ├────────────┬──────────────────────────────────┬────────────────────┤
 │ ① .fb-rail │ ② .fb-stage（qview split）        │ ③ .fb-panel        │
-│  题目列表   │  题目 | 答案 / 备注 / 做题历史     │  判定 · 统计 · 提交 │
+│  题目列表   │  题目 | 答案 / 备注 / 做题记录     │  判定 · 统计 · 提交 │
 └────────────┴──────────────────────────────────┴────────────────────┘
 ```
 
-- 桌面：`236px / minmax(0,1fr) / 300px`，rail 与判定面板都 `position:sticky`。
+- 宽屏工作台：`236px / minmax(0,1fr) / 300px`；在 `.content.is-workbench` 下 rail、题目 stage 和判定面板均为独立滚动区域，`position:static`，不再依赖整页滚动时的 `position:sticky`。
 - ≤1160px：判定面板落到底部通栏并吸底。
 - ≤820px：三栏塌成竖排，rail 转横向滚动条并隐藏 `.fb-railmain`（只留序号 + 状态点），做法与 `.instant-queue` 一致。
 
@@ -540,7 +592,7 @@ OMR 剪贴板导入只接受 `GET /api/v1/recognitions/{id}/result` 返回的**�
 位于「设置」标签页，包含以下功能卡片：
 
 ### 外观（主题 / 题图反转 / Ledger 时区）
-- `浅色 / 深色` 分段开关 `#st-theme-switch`（`setThemeMode()`）写 `localStorage('omrs-theme')` 并切 `<html data-theme>`；当前首帧脚本在没有保存值时选择**深色**。页面里“默认浅色”的帮助文案尚未同步，已列入 `optimization.md`。
+- `浅色 / 深色` 分段开关 `#st-theme-switch`（`setThemeMode()`）写 `localStorage('omrs-theme')` 并切 `<html data-theme>`；当前首帧脚本在没有保存值时选择**深色**，但设置页帮助文案仍写“默认浅色”，两者尚未同步。
 - 「深色模式下反转题目图片颜色」`#st-invert-img`（`setInvertImg()`）写 `localStorage('omrs-invert-img')` 并切 `<html data-invert-img>`；仅在 `[data-theme="dark"][data-invert-img="1"]` 时对题图 `img` 应用 `filter:invert(1)`（简易白↔黑）。
 - `#st-ledger-time-zone` 可选「跟随浏览器」（默认）、中国标准时间、UTC 和若干常用 IANA 时区；`setLedgerTimeZone()` 将选择写到 `localStorage('omrs-ledger-time-zone')`，立即重绘 Ledger 时间线和仪表盘最近动态。`formatLedgerTime()` 只转换带 `Z` 或 `±HH:MM` 偏移的时间戳；没有偏移的旧记录保留原有墙上时间，避免无依据地猜测来源时区。
 - `syncThemeControls()` 与 `syncLedgerTimeZoneControl()` 由 `loadSettings()` 回填控件状态。外观和时区状态仅存浏览器 localStorage，**不入 config.json / Ledger**，故无需重启。
@@ -560,7 +612,7 @@ OMR 剪贴板导入只接受 `GET /api/v1/recognitions/{id}/result` 返回的**�
 
 ### AI 自动识别
 - 字段：`#st-ai-base`（API 地址，OpenAI 兼容，如 `https://api.openai.com/v1`）、`#st-ai-key`（API Key，密码框 + `#st-ai-key-toggle` 显隐切换）、`#st-ai-model`（模型名，带常见模型 datalist）、`#st-ai-restrict`（复选框「仅从已有知识点中选择」，对应 `config.ai_restrict_tags`，默认勾选）。
-- **保存 AI 配置**：`saveAiSettings()` → `POST /api/config {ai_base_url, ai_api_key, ai_model, ai_restrict_tags}`。**不重启**（`load_config` 每次读盘，保存即生效）；状态写入 `#st-ai-settings-status`。
+- **保存 AI 配置**：`saveAiSettings()` → `POST /api/config {ai_base_url, ai_api_key, ai_model, ai_restrict_tags, ai_model_detect, ai_model_extract, ai_model_classify}`。后三个字段分别覆盖收件箱框选、转文本和分类模型，留空时回退 `ai_model`。**不重启**（`load_config` 每次读盘，保存即生效）；状态写入 `#st-ai-settings-status`。
 - `loadSettings()` 进入设置页时一并回填四项（与 `allow_external` 同批 `GET /api/config`；`#st-ai-restrict` 按 `cfg.ai_restrict_tags!==false` 置勾，即默认开）。
 - `ai_restrict_tags` 开关含义：开启时 `classify` 的知识点被后端硬过滤为「已有分类 ∪ 已有知识点」；关闭时允许 AI 在无贴切已有项时新建知识点（仍优先复用，上限 4 个）。仅影响知识点，**科目/分类一直允许新建**。
 - 仅作配置入口；实际识别在「录入题目」页触发，调用 `POST /api/ai-recognize`（后端转发，见 api.md）。

@@ -56,6 +56,35 @@ function getFilterState(prefix){const text=(getFieldValue([`${prefix}-search`,`$
 function getDueDays(item){const dueDate=item.due_date;if(!dueDate)return null;const d=parseReviewDate(dueDate);if(!d)return null;const today=new Date();const todayUtc=Date.UTC(today.getFullYear(),today.getMonth(),today.getDate());const dueUtc=Date.UTC(d.getFullYear(),d.getMonth(),d.getDate());return Math.floor((dueUtc-todayUtc)/86400000)}
 function formatDueInfo(dueDays){if(dueDays===null||dueDays===undefined)return'<span style="color:var(--fg3)">—</span>';if(dueDays<0)return`<span style="color:var(--red);font-weight:600">逾期${Math.abs(dueDays)}天</span>`;if(dueDays===0)return`<span style="color:var(--yellow);font-weight:600">今日到期</span>`;if(dueDays<=3)return`<span style="color:var(--yellow)">${dueDays}天后</span>`;if(dueDays<=7)return`<span style="color:var(--blue)">${dueDays}天后</span>`;return`<span style="color:var(--fg3)">${dueDays}天后</span>`}function filterItems(items,filters){let result=[...items];if(filters.suspended!=='all'&&filters.suspended!=='suspended')result=result.filter(item=>!item.suspended);else if(filters.suspended==='suspended')result=result.filter(item=>item.suspended);if(filters.text){result=result.filter(item=>[item.uid,item.subject,item.category,item.tag,...(item.knowledge_tags||[]),...(item.labels||[])].join(' ').toLowerCase().includes(filters.text))}if(filters.subject)result=result.filter(item=>item.subject===filters.subject);if(filters.category)result=result.filter(item=>item.category===filters.category);if(filters.tag)result=result.filter(item=>(item.tag||'').includes(filters.tag));if(filters.knowledgeTag)result=result.filter(item=>(item.knowledge_tags||[]).includes(filters.knowledgeTag));if(filters.labels?.length){result=result.filter(item=>{const values=new Set(item.labels||[]);return filters.labelMode==='all'?filters.labels.every(label=>values.has(label)):filters.labels.some(label=>values.has(label))})}result=result.filter(item=>asNumber(item.difficulty,0)>=filters.difficultyMin&&asNumber(item.difficulty,0)<=(filters.difficultyMax||10));if(filters.masteryMin!=null)result=result.filter(item=>asNumber(item.mastery,0)>=filters.masteryMin);if(filters.masteryMax!=null)result=result.filter(item=>asNumber(item.mastery,0)<=filters.masteryMax);if(filters.dueFilter){result=result.filter(item=>{const dueDays=getDueDays(item);if(dueDays===null)return false;switch(filters.dueFilter){case'overdue':return dueDays<0;case'today':return dueDays===0;case'3days':return dueDays>=0&&dueDays<=3;case'7days':return dueDays>=0&&dueDays<=7;case'future':return dueDays>0;default:return true}})}switch(filters.sort){case'mastery-desc':result.sort((a,b)=>asNumber(b.mastery,0)-asNumber(a.mastery,0));break;case'diff-desc':result.sort((a,b)=>asNumber(b.difficulty,0)-asNumber(a.difficulty,0));break;case'diff-asc':result.sort((a,b)=>asNumber(a.difficulty,0)-asNumber(b.difficulty,0));break;case'date-desc':result.sort((a,b)=>(b.last_review||'').localeCompare(a.last_review||''));break;case'due-asc':result.sort((a,b)=>(getDueDays(a)??999)-(getDueDays(b)??999));break;case'due-desc':result.sort((a,b)=>(getDueDays(b)??-999)-(getDueDays(a)??-999));break;default:result.sort((a,b)=>asNumber(a.mastery,0)-asNumber(b.mastery,0))}return result}
 
+// === 做题记录：解析 + 派生统计 + 战绩带（v1.16.0）===
+// Markdown「## 历史」小节的行格式与后端 common.py::parse_history_lines() 完全一致，
+// 这里复用同一套正则在前端派生统计：不新增接口、不写 Ledger、不改任何持久化状态。
+const Q_HISTORY_LINE_RE=/^(\d{4}-\d{2}-\d{2})\s+主观:(\d+),\s*(对|错)(?:,\s*备注:(.*))?$/;
+function parseQHistory(text){return String(text??'').split('\n').map(line=>line.trim()).filter(Boolean).map(line=>{const m=line.match(Q_HISTORY_LINE_RE);return m?{date:m[1],score:Math.max(0,Math.min(10,asNumber(m[2],0))),correct:m[3]==='对',note:(m[4]||'').trim()}:null}).filter(Boolean)}
+// 无记录时只返回 {count:0}，调用方据此走「还没练过」空状态，而不是画一张全零的图。
+function qHistoryStats(records){
+  const list=Array.isArray(records)?records:[];const count=list.length;
+  if(!count)return{count:0};
+  const correct=list.filter(record=>record.correct).length;
+  const avgScore=list.reduce((sum,record)=>sum+asNumber(record.score,0),0)/count;
+  let tailWrong=0;for(let i=count-1;i>=0&&!list[i].correct;i--)tailWrong++;
+  const gaps=[];for(let i=1;i<count;i++){const prev=parseReviewDate(list[i-1].date),cur=parseReviewDate(list[i].date);if(prev&&cur)gaps.push(Math.round((cur-prev)/86400000))}
+  return{count,correct,wrong:count-correct,rate:Math.round(correct/count*100),avgScore:Math.round(avgScore*10)/10,
+    tailWrong,avgGap:gaps.length?Math.round(gaps.reduce((a,b)=>a+b,0)/gaps.length):null,first:list[0],last:list[count-1]};
+}
+// 战绩带：一个控件同时编码 频率（条数）/ 对错（颜色）/ 主观分（高度）/ 时序（左→右）。
+// 宽度与它替代的「N 次」相当，所以不占新行、不加新色块；更早的几次淡出，视线自然落在最近三次。
+function qStreakHtml(records,max=8){
+  const list=(Array.isArray(records)?records:[]).slice(-Math.max(1,asNumber(max,8)));
+  if(!list.length)return'';
+  const bars=list.map((record,index)=>{
+    const score=Math.max(0,Math.min(10,asNumber(record.score,0)));
+    return`<i class="${record.correct?'ok':'bad'}${index<list.length-3?' dim':''}" style="height:${3+Math.round(score/10*9)}px"></i>`;
+  }).join('');
+  const title=list.map(record=>`${record.date} ${record.correct?'对':'错'} ${record.score} 分`).join('；');
+  return`<span class="q-streak" title="${escapeAttr(title)}" aria-label="最近 ${list.length} 次：${title}">${bars}</span>`;
+}
+
 // === 轻量 UI 组件：toast / 输入对话框 / 确认框（替代 alert / prompt / confirm；v1.14.0）===
 // uiToast(text, {kind:'ok'|'warn'|'error', actions:[{label, onClick}], duration})
 let UI_TOAST_TIMER=null;
@@ -64,3 +93,5 @@ function uiToast(text,options={}){let node=document.getElementById('ui-toast');i
 function uiDialog(spec={}){return new Promise(resolve=>{const overlay=document.createElement('div');overlay.className='modal-overlay open';overlay.innerHTML=`<div class="modal ui-dialog ${spec.danger?'danger':''}" role="dialog" aria-modal="true"><h2>${escapeHtml(spec.title||'')}</h2>${spec.hint?`<div class="hint">${escapeHtml(spec.hint)}</div>`:''}${spec.body||''}<div class="ui-dialog-foot"><button type="button" class="btn" data-ui-cancel>${escapeHtml(spec.cancelText||'取消')}</button><button type="button" class="btn primary" data-ui-ok>${escapeHtml(spec.okText||'确定')}</button></div></div>`;const done=ok=>{const values={};overlay.querySelectorAll('input,select,textarea').forEach(n=>{if(n.id)values[n.id]=(n.type==='checkbox'||n.type==='radio')?n.checked:n.value});overlay.remove();document.removeEventListener('keydown',onKey,true);resolve({ok,values})};const onKey=event=>{if(event.key==='Escape'){event.stopPropagation();done(false)}else if(event.key==='Enter'&&!event.target.closest('textarea')){event.preventDefault();done(true)}};document.addEventListener('keydown',onKey,true);overlay.addEventListener('click',event=>{if(event.target===overlay||event.target.closest('[data-ui-cancel]'))done(false);else if(event.target.closest('[data-ui-ok]'))done(true)});document.body.appendChild(overlay);const focus=overlay.querySelector(spec.focus||'input,textarea,[data-ui-ok]');if(focus){focus.focus();if(focus.select)focus.select()}})}
 async function uiPrompt(title,value='',options={}){const id='ui-prompt-'+Date.now();const result=await uiDialog({title,hint:options.hint,okText:options.okText,body:`<input class="input" id="${id}" value="${escapeAttr(value)}" placeholder="${escapeAttr(options.placeholder||'')}" maxlength="${options.maxLength||120}">`,focus:'#'+id});return result.ok?String(result.values[id]||'').trim():null}
 async function uiConfirm(title,options={}){return (await uiDialog({title,hint:options.hint,okText:options.okText||'确定',cancelText:options.cancelText||'取消',danger:!!options.danger,body:options.body||''})).ok}
+
+if(typeof module!=='undefined')module.exports={parseQHistory,qHistoryStats,qStreakHtml,Q_HISTORY_LINE_RE};

@@ -4,6 +4,7 @@
 let QB_SELECTED = new Set();
 let QB_DENSITY = 'comfortable';
 let QB_GALLERY_DETAIL = false;              // 画廊卡是否展开元数据行，默认精简
+let QB_STREAK = true;                       // 画廊卡脚注是否用战绩带替代「N 次」，默认开（v1.16.0）
 let QB_GALLERY_COLS = 0;                    // 画廊列数：0 = 自动（按卡片最小宽度铺满），1–6 = 固定列数
 let QB_MD_MODE = 'lean';                    // 题面换行：lean = 忽略单个换行（当前默认）/ full = 原文每处换行都保留
 let QB_VISIBLE_COLUMNS = null;
@@ -22,6 +23,8 @@ function qbReadPrefs() {
   try {
     QB_DENSITY = localStorage.getItem('omrs-qb-density') === 'compact' ? 'compact' : 'comfortable';
     QB_GALLERY_DETAIL = localStorage.getItem('omrs-qb-gallery-detail') === '1';
+    QB_STREAK = localStorage.getItem('omrs-qb-streak') !== '0';   // 缺省即开
+
     QB_GALLERY_COLS = qbClampCols(localStorage.getItem('omrs-qb-gallery-cols'));
     QB_MD_MODE = localStorage.getItem('omrs-qb-md-mode') === 'full' ? 'full' : 'lean';
     const raw = localStorage.getItem('omrs-qb-columns');
@@ -30,6 +33,7 @@ function qbReadPrefs() {
   } catch (error) {
     QB_DENSITY = 'comfortable';
     QB_GALLERY_DETAIL = false;
+    QB_STREAK = true;
     QB_GALLERY_COLS = 0;
     QB_MD_MODE = 'lean';
     QB_VISIBLE_COLUMNS = null;
@@ -108,6 +112,7 @@ function qbRenderControls() {
   document.querySelectorAll('[data-qb-cols]').forEach(node => node.classList.toggle('on', qbClampCols(node.dataset.qbCols) === QB_GALLERY_COLS));
   document.querySelectorAll('[data-qb-md]').forEach(node => node.classList.toggle('on', node.dataset.qbMd === QB_MD_MODE));
   document.querySelectorAll('[data-qb-gallery-detail]').forEach(node => { node.checked = QB_GALLERY_DETAIL; });
+  document.querySelectorAll('[data-qb-streak]').forEach(node => { node.checked = QB_STREAK; });
   // 菜单按当前视图只露相关的一半，免得在画廊里点半天「列设置」却毫无反应
   document.querySelectorAll('[data-qb-menu="columns"]').forEach(node => { node.dataset.view = view; });
   const trigger = document.getElementById('qb-layout-label');
@@ -293,6 +298,12 @@ function qbSetGalleryDetail(checked) {
   try { localStorage.setItem('omrs-qb-gallery-detail', QB_GALLERY_DETAIL ? '1' : '0'); } catch (error) {}
   renderQ();
 }
+// 战绩带只影响画廊脚注的渲染，不动筛选 / 排序 / 数据；关掉即回到 v1.15.0 的纯「N 次」
+function qbSetStreak(checked) {
+  QB_STREAK = !!checked;
+  try { localStorage.setItem('omrs-qb-streak', QB_STREAK ? '1' : '0'); } catch (error) {}
+  renderQ();
+}
 // 列数只改栅格，不动数据：写 data-cols 让 CSS 换 grid-template-columns，
 // 不走 renderQ()，免得每点一次都重新拉一遍画廊预览
 function qbSetGalleryCols(value) {
@@ -312,12 +323,14 @@ function qbSetMdMode(mode) {
 function qbResetLayout() {
   QB_DENSITY = 'comfortable';
   QB_GALLERY_DETAIL = false;
+  QB_STREAK = true;
   QB_GALLERY_COLS = 0;
   QB_MD_MODE = 'lean';
   QB_VISIBLE_COLUMNS = null;
   try {
     localStorage.removeItem('omrs-qb-density');
     localStorage.removeItem('omrs-qb-gallery-detail');
+    localStorage.removeItem('omrs-qb-streak');
     localStorage.removeItem('omrs-qb-gallery-cols');
     localStorage.removeItem('omrs-qb-md-mode');
     localStorage.removeItem('omrs-qb-columns');
@@ -351,6 +364,7 @@ function qbViewSnapshot() {
     density: QB_DENSITY,
     galleryCols: QB_GALLERY_COLS,
     galleryDetail: QB_GALLERY_DETAIL,
+    streak: QB_STREAK,
     mdMode: QB_MD_MODE,
   };
 }
@@ -364,6 +378,7 @@ function qbApplyView(name) {
   if (view.density) QB_DENSITY = view.density === 'compact' ? 'compact' : 'comfortable';
   if (view.galleryCols != null) QB_GALLERY_COLS = qbClampCols(view.galleryCols);
   if (view.galleryDetail != null) QB_GALLERY_DETAIL = !!view.galleryDetail;
+  if (view.streak != null) QB_STREAK = !!view.streak;
   if (view.mdMode) QB_MD_MODE = view.mdMode === 'full' ? 'full' : 'lean';
   QB_QUICK = '';
   try {
@@ -371,6 +386,7 @@ function qbApplyView(name) {
     localStorage.setItem('omrs-qb-density', QB_DENSITY);
     localStorage.setItem('omrs-qb-gallery-cols', String(QB_GALLERY_COLS));
     localStorage.setItem('omrs-qb-gallery-detail', QB_GALLERY_DETAIL ? '1' : '0');
+    localStorage.setItem('omrs-qb-streak', QB_STREAK ? '1' : '0');
     localStorage.setItem('omrs-qb-md-mode', QB_MD_MODE);
   } catch (error) {}
   renderQ();
@@ -519,6 +535,8 @@ if (typeof document !== 'undefined') {
     if (column) { qbSetColumnVisibility(column.dataset.qbColumn, column.checked); return; }
     const galleryDetail = event.target.closest?.('[data-qb-gallery-detail]');
     if (galleryDetail) { qbSetGalleryDetail(galleryDetail.checked); return; }
+    const streak = event.target.closest?.('[data-qb-streak]');
+    if (streak) { qbSetStreak(streak.checked); return; }
     const dual = event.target.closest?.('.qb-dual input[type=range]');
     if (dual) { qbSyncDual(dual.closest('.qb-dual').dataset.qbDual); QB_QUICK = ''; renderQ(); }
   });

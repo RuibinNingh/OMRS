@@ -1,3 +1,3 @@
 """OMRS version metadata."""
 
-__version__ = "v1.14.2"
+__version__ = "v1.16.0"

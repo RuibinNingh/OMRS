@@ -44,11 +44,14 @@
 ## 健壮性
 
 - [ ] **测试覆盖仍偏低** — 影响:中高 / 工作量:中
-  当前已有 `test_history_projection.py`、`test_ai_assist_taxonomy.py`、`test_report_export.py`，覆盖历史撤销/恢复/替换、AI 分类约束与答案提示词、报告材料及部分 HTML 导出契约；当前工作区还增加 Markdown 表格与题间留白测试。v1.7.0 增加 `test_catalog_tree.py`(目录树:分层计数、`.omrs` 排除、非题目文件分类、孤立文件、缺目录降级)与 `tests/smoke_frontend_actions_catalog.js`(Node + 最小 DOM 桩,跑行动推荐规则集与目录树渲染/折叠/搜索)。v1.11.0 增加 `tests/test_omr_import.js`(node:test,16 例,覆盖答题卡 JSON 的各种复制形态、三种版式、人工纠错优先、多涂/过淡/空白不猜对错、多页 seq、超范围与已录入跳过)与 `tests/smoke_feedback_omr_import.js`(vm + 最小 DOM 桩,跑「粘贴 JSON → 填进 fbRows」整条接线)。v1.14.0 增加 `test_labels.py`、`test_boards.py`、`test_board_export.py`、`test_labels_ui.js`、`test_board_ui.js`，覆盖标记 YAML/投影/级联、展示板引用与高水位、board 导出数据和芯片/筛选/排序纯函数。核心缺口仍是 `compute_mastery_update` / `compute_priority` / SM-2 的边界、Ledger append→projection 集成、CSV/Markdown 异常输入和浏览器端 A4/屏幕/展示板真实打印回归。
-  **测试运行方式不统一**:`test_report_export.py` 是 pytest 风格(用 `monkeypatch` / `tmp_path` fixture),其余四个是 `unittest`。`python3 -m unittest discover -s tests` 会静默跳过前者。要么补一份 `conftest`/统一到 pytest,要么把那一个改写成 unittest。
+  当前已有 `test_history_projection.py`、`test_ai_assist_taxonomy.py`、`test_report_export.py`，覆盖历史撤销/恢复/替换、AI 分类约束与答案提示词、报告材料及部分 HTML 导出契约；当前工作区还增加 Markdown 表格与题间留白测试。v1.7.0 增加 `test_catalog_tree.py`(目录树:分层计数、`.omrs` 排除、非题目文件分类、孤立文件、缺目录降级)与 `tests/smoke_frontend_actions_catalog.js`(Node + 最小 DOM 桩,跑行动推荐规则集与目录树渲染/折叠/搜索)。v1.11.0 增加 `tests/test_omr_import.js`(node:test,16 例,覆盖答题卡 JSON 的各种复制形态、三种版式、人工纠错优先、多涂/过淡/空白不猜对错、多页 seq、超范围与已录入跳过)与 `tests/smoke_feedback_omr_import.js`(vm + 最小 DOM 桩,跑「粘贴 JSON → 填进 fbRows」整条接线)。v1.14.0 增加 `test_labels.py`、`test_boards.py`、`test_board_export.py`、`test_labels_ui.js`、`test_board_ui.js`，覆盖标记 YAML/投影/级联、展示板引用与纸面记录、board 导出数据和芯片/筛选/排序纯函数。v1.16.0 增加 `tests/test_question_record_ui.js`，覆盖旧 Markdown 历史行解析、记录派生统计、战绩带和详情边界，但也暴露了记录模块读取 Markdown `# 历史` 而不是 Ledger 投影的已知数据源错配。核心缺口仍是 `compute_mastery_update` / `compute_priority` / SM-2 的边界、Ledger append→projection 集成、CSV/Markdown 异常输入和浏览器端 A4/屏幕/展示板真实打印回归。
+  **当前测试数量与运行方式**：`tests/test_inbox.py` 有 14 个 `test_*` 方法；`test_report_export.py` 有 6 个 pytest 风格用例，其余 Python 测试文件使用 `unittest`。`python3 -m unittest discover -s tests` 会运行 unittest 用例但静默跳过 `test_report_export.py`；当前环境未安装 pytest，需在具备 pytest 的环境单独运行该文件。
 
 - [ ] **首次主题与页面提示不一致** — 影响:低 / 工作量:低
-  `omrs_dashboard.html` 首帧脚本在 `omrs-theme` 不存在时实际选择深色，但设置页帮助文案仍写“默认浅色”。应明确产品意图后统一启动逻辑、页面提示、根 README 和 `AI/frontend.md`；当前文档按真实启动行为记录为默认深色。
+  `omrs_dashboard.html` 首帧脚本在 `omrs-theme` 不存在时选择深色，但设置页帮助文案仍写“默认浅色”。因此当前首次进入实际为深色，页面帮助是过时文案，属于待修复的低风险 UI 文案不一致。
+
+- [ ] **题库练习记录的数据源错配** — 影响:高 / 工作量:中
+  v1.16.0 的画廊战绩带和题目详情记录模块解析 `GET /api/question` 返回的 Markdown `# 历史` 遗留文本；而 `DATA.items[].attempts` 来自 Ledger 重建的 `history_log.csv` 兼容投影。反馈流程不会再写 Markdown 历史，因此正式反馈存在时界面可能仍显示「还没练过」。应让记录模块直接读取 Ledger/兼容投影，并保留旧 Markdown 行仅作兼容输入；修复后再考虑移除前端对该遗留区的依赖。
 
 ## 锦上添花
 
