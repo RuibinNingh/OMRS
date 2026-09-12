@@ -92,6 +92,11 @@ body.dragging-cut{cursor:ns-resize;user-select:none;}
 #bar button.secondary{background:#4a4038;}
 #bar button:disabled{opacity:.55;cursor:wait;}
 #bar .stat{color:#cdc3b4;margin-left:auto;white-space:nowrap;}
+/* 宿主页面把这份导出当实时预览嵌进舞台时（omrs-board-view 带 embedded:true）收起动作条：
+   打印与「记录纸面」在宿主的状态条上，舞台里不再出现第二套入口。 */
+body.embedded #bar{display:none;}
+body.embedded #stage{padding-top:0;}
+body.embedded #notice{margin-top:12px;}
 #bar label{display:flex;align-items:center;gap:5px;cursor:pointer;color:#cdc3b4;}
 #notice{display:none;margin:56px auto 0;width:793.7px;max-width:100%;padding:10px 14px;border-radius:8px;
   background:#fdf2e7;color:#6b4a2b;border:1px solid #f0d9c2;font:12.5px/1.6 var(--sans);}

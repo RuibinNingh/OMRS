@@ -108,7 +108,9 @@ function boardPreviewStep(delta) {
 }
 function boardPreviewSetView(view) {
   BP_VIEW = { ...BP_VIEW, ...(view || {}) };
-  boardPreviewPost({ type: 'omrs-board-view', single: BP_VIEW.single, page: BP_VIEW.page, scale: BP_VIEW.scale });
+  // embedded:true 让导出模板收起自带的「打印 / 已打印，记录纸面」动作条：
+  // 那一条是给独立下载的 HTML 用的，嵌在舞台里就成了第二个打印入口和第二个记录入口。
+  boardPreviewPost({ type: 'omrs-board-view', single: BP_VIEW.single, page: BP_VIEW.page, scale: BP_VIEW.scale, embedded: true });
 }
 // 「适应宽度」按容器实际宽度算比例：A4 屏幕宽 793.7px 是模板里的硬几何，不跟版面设置走。
 function boardPreviewScale(mode) {

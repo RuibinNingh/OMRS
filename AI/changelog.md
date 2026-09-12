@@ -4,6 +4,10 @@
 > 这里每段都是当时写下的原文（未改写），所以段里的「现在 / 原先」以该版本为准；具体文件级变更看 `logs/`。
 > 新版本的摘要请追加在最上面；同一版本多次改动时合并进同一段。
 
+## v1.18.0
+
+> **v1.18.0 展示板重构：状态条 / 舞台 / 检查器三区**：起因是「展示板的 UI 操作有点太怪」，拆出来是四条职责放错位置——能做什么随视图变（纸面有检视条、列表是行内控件、画廊两样都没有）、打印范围藏在会遮住纸面的浮层里、题后留白有三个彼此不可见的入口、打印状态机没有落脚点（未打印 / 已印 N 页 / 新增 M 题 / K 题已改动散在副标题、警告条、行内徽章和浮层里，没有一处说下一步做什么，所以最容易漏掉「标记为已打印」）。改法：新增纯函数 `boardStatusModel(board, mode, awaiting)` 一处算出状态 chips、打印范围、唯一主行动与一句「为什么」；`#bd-statusbar` 承载它，打印范围分段 `[data-board-modes]` 从浮层提到这里，主按钮 `[data-board-primary]` 全页唯一；触发打印预览 / 下载 HTML 后主按钮翻成「✓ 记录纸面」（`BOARD_AWAITING_RECORD`），记录成功、重置纸面或改范围才复位。新增常驻检查器 `#bd-inspector`，三段 `[data-sec="item|layout|paper"]`；`boardSettingsPopHtml` / `boardPopOpen` / `boardPopClose` / `boardPopPlace` / `boardPopRefresh` / `BOARD_POP` 与 `.bd-pop*` 样式整套删除，旧检视条 `#bd-inspect` 一并移除。题后留白写入口收敛到检查器一个（`[data-board-inspect-gap]`），列表行与画廊卡改 `[data-board-gap-view]` 只读回显，点它 = 选中并把焦点送进检查器；新增 `boardRefreshLiveReadouts()` 让板级 `gap_lines` 一改，继承它的单题读数与两处回显一起刷新。舞台栏 `.bd-stagebar` 只留视图分段与内容操作，翻页条另占一行；缩放档状态化为 `BOARD_ZOOM`（此前初始态两个按钮都不高亮）。常驻预览在 `omrs-board-view` 里带 `embedded:true`，导出模板据此收起顶栏 `#bar`，舞台里不再出现第二套打印与记录入口。`.bd-layout` 改 `200px / 1fr / 268px` 三列，≤1180px 检查器折到底部通栏。顺手修掉一个既有缺陷：`boardEffectiveMode()` 原先不看新增数，「补印新增 → 记录纸面」之后模式仍是 `new` 而新增已归零，下一次导出会报「没有新增题目需要打印」；现在它直接返回 `boardStatusModel().scope`，与状态条同源。新增 `tests/test_board_regions.js`（17 项）守三条不变量与状态机五态。
+
 ## v1.17.0
 
 > **v1.17.0 展示板文件夹与统一选板浮层**：八处「加入展示板」入口统一走 `boardPickerOpen(uids, {anchor, exclude, moveFrom, direct, onDone})`——锚定触发元素下方弹浮层、单击板行即加入、无「确定」按钮；`boardQuickAdd` / `boardChooseAndAdd` 保留为薄封装。键盘两键直达（`Enter` 进上次的板，默认高亮跳过「全部已在板中」行）；`Shift`+点击跳过浮层直加；`⌘` 点已加行撤回本次加的题；搜不到时底部变「＋ 新建并加入」。`boards.json` 升 v2：新增单层 `folders`，板新增 `folder_id` / `order`，v1 文件读时自动迁移、悬空 `folder_id` 静默归未归档；左栏板列表改「文件夹 → 板」两级树（折叠、拖拽归类、文件夹排序）。`/api/boards` 响应从 `{boards}` 变 `{boards, folders}`，每板多返回 `uids`；新增 `/api/board/folder/{create,update,delete}` 与 `/api/board/move` 4 条路由。折叠状态存 localStorage 不进 `boards.json`；删除文件夹默认保板可改连删。toast 调整：「换个板…」只保留在 `Shift` 直加路径。

@@ -14,7 +14,8 @@ let BOARD_SELECTED_UID = '';
 let BOARD_PRINT_MODE = 'all';                 // 'all' | 'new'
 let BOARD_LOAD_SEQ = 0;                       // 数据加载序号：只采纳最后一次请求的结果
 let BOARD_FOLDERS = [];                       // 展示板文件夹（单层，未归档用空 folder_id 表示）
-let BOARD_POP = null;                         // 当前打开的版式与打印浮层 {kind:'settings', node, anchor}
+let BOARD_ZOOM = 'fit';                       // 纸面缩放档，只影响预览显示
+let BOARD_AWAITING_RECORD = null;             // 刚触发过打印 / 下载、还没记录纸面 {boardId, mode}
 let BOARD_LAYOUT_CONFIRM = null;              // 锁定版式的确认请求，合并同一轮输入事件
 let BOARD_LAYOUT_GRANTED = false;             // 本轮去抖保存前已确认过版式变更
 const CUT_LINES = ['none', 'dash', 'solid'];  // 与 omrs/boards.py::CUT_LINES 同步
@@ -60,6 +61,40 @@ function boardLastId() { try { return localStorage.getItem(BOARD_LAST_KEY) || ''
 function boardRemember(id) { BOARD_CURRENT = id || ''; try { if (id) localStorage.setItem(BOARD_LAST_KEY, id); } catch (error) {} }
 function boardCurrentItem(uid) { return (BOARD_DETAIL?.items || []).find(item => item.uid === uid || item.question_id === uid) || null; }
 function boardSelectedIndex() { return (BOARD_DETAIL?.items || []).findIndex(item => item.uid === BOARD_SELECTED_UID); }
+/* 打印状态机：整块展示板只有这一处决定「现在到哪步、下一步做什么」。
+   纸面状态原先散在副标题、警告条、行内徽章和浮层里，没有一处给出下一步，
+   所以最容易漏掉的就是打印完回来点「标记为已打印」。现在它是状态条上的主按钮。 */
+function boardStatusModel(board, mode, awaiting) {
+  const paper = (board && board.printed_summary) || { pages: 0, count: 0, new_count: 0, changed_count: 0 };
+  const total = ((board && board.items) || []).length;
+  const hasPaper = paper.pages > 0;
+  const scope = mode === 'new' && hasPaper && paper.new_count ? 'new' : 'all';
+  const chips = [];
+  if (!hasPaper) chips.push({ kind: 'muted', text: '还没打印过' }, { kind: 'count', text: `${total} 题` });
+  else {
+    chips.push({ kind: 'paper', text: `已印 ${paper.count} 题 / ${paper.pages} 页` });
+    if (paper.new_count) chips.push({ kind: 'new', text: `新增 ${paper.new_count} 题未印` });
+  }
+  if (paper.changed_count) chips.push({ kind: 'changed', text: `${paper.changed_count} 题已改动` });
+  if (awaiting) {
+    chips.push({ kind: 'wait', text: '等待记录纸面' });
+    return { chips, scope, action: { type: 'mark-printed', label: '✓ 记录纸面' },
+      why: '打完了就点这里，系统会记住每道题印在第几页；没打成的话换回打印就行。' };
+  }
+  if (scope === 'new') return { chips, scope,
+    action: { type: 'preview', label: `🖨 补印新增 ${paper.new_count} 题` },
+    why: `接在第 ${(paper.cursor && paper.cursor.page) || paper.pages} 页的空白处，原纸放回打印机即可。` };
+  return { chips, scope, action: { type: 'preview', label: '🖨 打印全部' },
+    why: !hasPaper ? '第一次打印会用掉新的一叠纸；打完回来点「记录纸面」，之后加题就只补印新增。'
+      : paper.new_count ? '打印全部会重排整叠纸，已经写过的那几张就作废了。只想加印新题请切到「仅新增」。'
+        : '纸面是最新的。改了版式或顺序才需要重印全部。' };
+}
+function boardAwaiting() {
+  return BOARD_AWAITING_RECORD && BOARD_DETAIL && BOARD_AWAITING_RECORD.boardId === BOARD_DETAIL.id
+    ? BOARD_AWAITING_RECORD : null;
+}
+function boardClearAwaiting() { BOARD_AWAITING_RECORD = null; }
+
 function boardMoveItems(items, from, to) {
   const result = [...(items || [])];
   if (from < 0 || from >= result.length || to < 0 || to >= result.length || from === to) return result;
@@ -233,49 +268,76 @@ function boardRowHtml(item, index, hasPaper) {
     if (item.changed) badges.push('<span class="bd-badge changed" title="打印后题目正文改过，纸面仍是旧版">已改动</span>');
   }
   const due = typeof getDueDays === 'function' && !item.missing ? formatDueInfo(getDueDays({ due_date: item.due_date })) : '';
-  // 数字框留空 = 继承板的全局留白（placeholder 显示继承成几行），填数字 = 覆盖成绝对行数
-  const inherited = clampNumber((BOARD_DETAIL?.print || {}).gap_lines, 0, 48, 2);
-  const gap = item.gap_lines == null ? '' : clampNumber(item.gap_lines, 0, 48, 0);
+  // 留白在行里只读回显；改它的唯一入口是右栏检查器（点这里 = 选中并把焦点送过去）
+  const gap = boardEffectiveGap(item, BOARD_DETAIL?.print);
   const meta = item.missing
     ? '<span class="warn">题目已删除或无法解析；导出时跳过</span>'
     : `<span>${escapeHtml(item.subject || '')} · ${escapeHtml(item.category || '')}</span><span>难度 ${escapeHtml(item.difficulty ?? '')}</span><span class="bd-mastery">${typeof masteryBarHtml === 'function' ? masteryBarHtml(item, 44) : `${(asNumber(item.mastery, 0) * 100).toFixed(0)}%`}</span>${due ? `<span>${due}</span>` : ''}`;
   return `<div class="bd-row ${item.missing ? 'missing' : ''} ${item.suspended ? 'suspended' : ''} ${BOARD_SELECTED_UID === item.uid ? 'is-selected' : ''}" draggable="true" tabindex="0" data-board-row="${escapeAttr(item.uid)}" data-board-index="${index}" title="双击或 Enter 打开题目">
     <span class="bd-grip" title="拖拽排序（Ctrl+↑/↓ 也可）">⠿</span><span class="bd-no">${index + 1}</span>
     <div class="bd-main"><span class="bd-row-head"><strong>${escapeHtml(item.uid || item.question_id || '未知题目')}</strong>${badges.join('')}<span class="bd-row-labels" data-lbl-target="${escapeAttr(item.uid)}">${labels}</span></span><span class="bd-row-meta">${meta}</span></div>
-    <div class="bd-acts"><label class="bd-gap ${gap === '' ? '' : 'has'}" title="这道题之后留几行空白（每行 18px）；留空表示继承板设置的 ${inherited} 行">留白<input type="number" class="input" min="0" max="48" value="${gap}" placeholder="${inherited}" data-board-gap="${escapeAttr(item.uid)}"></label>
+    <div class="bd-acts"><button type="button" class="bd-gap-view ${item.gap_lines == null ? '' : 'has'}" data-board-gap-view="${escapeAttr(item.uid)}" data-board-action="focus-gap" data-board-uid="${escapeAttr(item.uid)}" title="点一下到右栏改这道题的留白">留白 ${gap} 行${item.gap_lines == null ? '（继承）' : ''}</button>
       <button type="button" class="btn sm ghost bd-row-open" data-board-action="preview-item" data-board-uid="${escapeAttr(item.uid)}" ${item.missing ? 'disabled' : ''} title="打开题目详情">详情</button>
       <button type="button" class="btn sm ghost bd-row-x" data-board-action="remove-item" data-board-uid="${escapeAttr(item.uid)}" title="从板中移除（Delete）" aria-label="移除">✕</button></div>
   </div>`;
 }
-function boardContentHtml() {
+/* ---------- 状态条 ---------- */
+// 板名 · 状态 chips · 为什么 · 打印范围 · 唯一主行动。范围分段从原来的浮层提到这里：
+// 它决定纸上会多出什么，改完必须当场在纸面上看见结果，不能被浮层挡着。
+function boardStatusbarHtml() {
+  if (!BOARD_DETAIL) {
+    return `<div class="hint">左题右空的活页「错题集」：随时加题、重排、打印；打印过后只补印新增的题，接在原纸空白处。<span class="bd-keys">快捷键 <b>N</b> 新建 · <b>A</b> 添加 · <b>P</b> 打印预览 · <b>↑↓</b> 选行 · <b>Ctrl+↑↓</b> 移动 · <b>Delete</b> 移除</span></div>`;
+  }
+  const items = BOARD_DETAIL.items || [];
+  const paper = boardPrintedSummary();
+  const status = boardStatusModel(BOARD_DETAIL, BOARD_PRINT_MODE, boardAwaiting());
+  const subjects = {};
+  items.filter(item => !item.missing).forEach(item => { subjects[item.subject || '未分科'] = (subjects[item.subject || '未分科'] || 0) + 1; });
+  const subText = Object.entries(subjects).map(([key, value]) => `${key} ${value}`).join(' · ');
+  return `<div class="bd-sb-id">
+      <div class="bd-title" data-board-rename-target title="双击重命名">${escapeHtml(BOARD_DETAIL.name)}</div>
+      <div class="bd-sub">${items.length} 题${subText ? ` · ${subText}` : ''}${BOARD_DETAIL.note ? ` · ${escapeHtml(BOARD_DETAIL.note)}` : ''}${BOARD_DETAIL.print?.locked ? ' · <span class="bd-lock-state">版式已锁定</span>' : ''}</div>
+    </div>
+    <div class="bd-sb-state">${status.chips.map(chip => `<span class="bd-status-chip ${chip.kind}">${escapeHtml(chip.text)}</span>`).join('')}</div>
+    <div class="bd-sb-why">${escapeHtml(status.why)}</div>
+    <span class="seg bd-modes" data-board-modes>
+      <button type="button" class="${status.scope === 'all' ? 'on' : ''}" data-board-mode="all">打印全部</button>
+      <button type="button" class="${status.scope === 'new' ? 'on' : ''}" data-board-mode="new" ${paper.pages && paper.new_count ? '' : 'disabled'}>仅新增${paper.new_count ? `（${paper.new_count}）` : ''}</button>
+    </span>
+    <button class="btn primary bd-sb-action" type="button" data-board-action="${status.action.type}" data-board-primary title="打印预览（P）">${escapeHtml(status.action.label)}</button>
+    <span class="bd-sb-more">
+      <button class="btn sm ghost" type="button" data-board-action="export" title="下载自包含 HTML，离线打印">下载 HTML</button>
+      <button class="btn sm ghost" type="button" data-board-action="inspect-regen" title="题目正文在别处改过、纸面还是旧的时，强制重新生成">↻</button>
+    </span>`;
+}
+
+/* ---------- 舞台栏 ---------- */
+// 视图只决定「怎么看」：这里只放呈现（三视图、翻页、缩放）与内容操作（添加 / 同步 / 排序 / 清空），
+// 任何会改版式或打印范围的控件都不在舞台里，它们在右侧检查器和状态条上。
+function boardStageBarHtml() {
   if (!BOARD_DETAIL) return '<div class="empty-inline">请选择或新建一个展示板。</div>';
   const items = BOARD_DETAIL.items || [];
   const missing = items.filter(item => item.missing).length;
   const suspended = items.filter(item => item.suspended && !item.missing).length;
-  const paper = boardPrintedSummary();
-  const hasPaper = paper.pages > 0;
-  const subjects = {};
-  items.filter(item => !item.missing).forEach(item => { subjects[item.subject || '未分科'] = (subjects[item.subject || '未分科'] || 0) + 1; });
-  const subText = Object.entries(subjects).map(([k, v]) => `${k} ${v}`).join(' · ');
-  const paperText = hasPaper ? ` · <span class="pt">已印 ${paper.count} 题 / ${paper.pages} 页</span>${paper.new_count ? ` · <span class="nw">新增 ${paper.new_count} 题未打印</span>` : ''}` : '';
-  const warns = [];
-  if (missing) warns.push(`<div class="bd-warn danger">⚠ ${missing} 道题已缺失（文件被删或无法解析），导出时会跳过。<button class="btn sm" type="button" data-board-action="clean-missing">清理缺失条目</button></div>`);
-  if (suspended) warns.push(`<div class="bd-warn">⚠ ${suspended} 道题已停用，导出时会跳过。<button class="btn sm" type="button" data-board-action="clean-suspended">移出停用题</button></div>`);
-  if (hasPaper && paper.changed_count) warns.push(`<div class="bd-warn">✎ ${paper.changed_count} 道已打印题目的正文在打印后改过，纸面仍是旧版；需要更新请「打印全部」换新纸。</div>`);
   const view = boardView();
   const segs = [['paper', '纸面'], ['list', '列表'], ['gallery', '画廊']];
   const viewSeg = `<span class="seg bd-views" data-board-views>${segs.map(([key, label]) =>
     `<button type="button" class="${view === key ? 'on' : ''}" data-board-view="${key}">${label}</button>`).join('')}</span>`;
-  return `<div class="bd-toolbar"><div class="bd-title-wrap"><div class="bd-title" data-board-rename-target title="双击重命名">${escapeHtml(BOARD_DETAIL.name)}</div><div class="bd-sub">${items.length} 题${subText ? ` · ${subText}` : ''}${paperText}${BOARD_DETAIL.note ? ` · ${escapeHtml(BOARD_DETAIL.note)}` : ''}${BOARD_DETAIL.print?.locked ? ' · <span class="bd-lock-state">版式已锁定</span>' : ''}</div></div>
-    <button class="btn sm primary" type="button" data-board-action="add" title="添加题目（A）">＋ 添加题目</button><button class="btn sm" type="button" data-board-action="sync-label">按标记同步</button>
+  const warns = [];
+  if (missing) warns.push(`<div class="bd-warn danger">⚠ ${missing} 道题已缺失（文件被删或无法解析），导出时会跳过。<button class="btn sm" type="button" data-board-action="clean-missing">清理缺失条目</button></div>`);
+  if (suspended) warns.push(`<div class="bd-warn">⚠ ${suspended} 道题已停用，导出时会跳过。<button class="btn sm" type="button" data-board-action="clean-suspended">移出停用题</button></div>`);
+  return `<div class="bd-stagebar">${viewSeg}
+    <span class="hint bd-stage-note">${items.length} 题 · 顺序即纸面顺序</span>
+    <span class="bd-stagebar-grow"></span>
+    <button class="btn sm primary" type="button" data-board-action="add" title="添加题目（A）">＋ 添加题目</button>
+    <button class="btn sm" type="button" data-board-action="sync-label">按标记同步</button>
     <span class="bd-sort-wrap"><button class="btn sm" type="button" data-board-sort-toggle>排序 ▾</button><div class="bd-sort-menu" data-board-sort-menu><button type="button" data-board-sort="subject">按科目 / 分类</button><button type="button" data-board-sort="mastery">按熟练度 ↑</button><button type="button" data-board-sort="due">按到期</button><button type="button" data-board-sort="added">按加入时间</button><button type="button" data-board-sort="reverse">反转顺序</button></div></span>
-    <button class="btn sm" type="button" data-board-pop="settings" aria-expanded="false" aria-haspopup="dialog" title="版式、打印与锁定设置">版式与打印 ▾</button>
-    ${viewSeg}<button class="btn sm ghost" type="button" data-board-action="clear" ${items.length ? '' : 'disabled'}>清空</button></div>
+    <button class="btn sm ghost" type="button" data-board-action="clear" ${items.length ? '' : 'disabled'}>清空</button></div>
     ${view === 'paper' ? boardPagerHtml() : ''}
-    ${hasPaper ? '<div class="hint bd-order-note">已打印题目在纸上的位置已固定；这里重排只影响下次「打印全部」，「仅打印新增」按纸面顺序续排。</div>' : ''}
     ${warns.join('')}
 `;
 }
+function boardContentHtml() { return boardStageBarHtml(); }
 // 条目列表只在列表视图渲染；纸面视图下中栏交给常驻预览 iframe
 function boardContentBodyHtml() {
   if (!BOARD_DETAIL) return '';
@@ -311,7 +373,7 @@ function boardGalleryCardHtml(item, index, hasPaper) {
   const foot = [
     `<span class="gc-stat muted">${escapeHtml(item.subject || '')}${item.category ? ` · ${escapeHtml(item.category)}` : ''}</span>`,
     item.difficulty != null && item.difficulty !== '' ? `<span class="gc-stat muted">难度 ${escapeHtml(item.difficulty)}</span>` : '',
-    `<span class="gc-stat muted" title="这道题之后留白 ${gap} 行">留白 ${gap} 行</span>`,
+    `<span class="gc-stat muted" data-board-gap-view="${escapeAttr(uid)}" title="这道题之后留白 ${gap} 行；改它在右栏检查器">留白 ${gap} 行${item.gap_lines == null ? '（继承）' : ''}</span>`,
   ].filter(Boolean).join('');
   return qvGalleryCard({
     uid,
@@ -364,7 +426,7 @@ function boardPagerHtml() {
     <button class="btn sm ghost" type="button" data-board-page="next" ${numbers.length > 1 ? '' : 'disabled'} title="下一页（→）">→</button>
     ${paper.new_count ? '<button class="btn sm ghost" type="button" data-board-page="new" title="跳到第一道还没印在纸上的题">⚑ 跳到新增</button>' : ''}
     <span class="bd-pager-sum">${summary}</span>
-    <span class="seg bd-zoom"><button type="button" data-board-zoom="fit">适应宽度</button><button type="button" data-board-zoom="1">100%</button></span>
+    <span class="seg bd-zoom"><button type="button" class="${BOARD_ZOOM === 'fit' ? 'on' : ''}" data-board-zoom="fit">适应宽度</button><button type="button" class="${BOARD_ZOOM === 'fit' ? '' : 'on'}" data-board-zoom="1">100%</button></span>
   </div>`;
 }
 
@@ -375,7 +437,7 @@ async function boardSetItemGap(uid, value, options = {}) {
   const item = boardCurrentItem(uid);
   if (!item || !BOARD_DETAIL) return null;
   if (boardLayoutLocked() && !BOARD_LAYOUT_GRANTED && !(await boardAllowLayoutChange())) {
-    document.querySelectorAll(`[data-board-gap="${CSS.escape(uid)}"],[data-board-inspect-gap="${CSS.escape(uid)}"]`).forEach(node => {
+    document.querySelectorAll(`[data-board-inspect-gap="${CSS.escape(uid)}"]`).forEach(node => {
       node.value = item.gap_lines == null ? '' : item.gap_lines;
     });
     return null;
@@ -384,27 +446,23 @@ async function boardSetItemGap(uid, value, options = {}) {
   item.gap_lines = value == null ? null : clampNumber(value, 0, 48, 0);
   boardPushRelayout();
   boardMarkDirty('items');
-  // 列表行的数字框与检视条显示同一个值，改一处另一处要跟上（正在输入的那个不动）
-  document.querySelectorAll(`[data-board-gap="${CSS.escape(uid)}"],[data-board-inspect-gap="${CSS.escape(uid)}"]`).forEach(node => {
+  document.querySelectorAll(`[data-board-inspect-gap="${CSS.escape(uid)}"]`).forEach(node => {
     if (node !== document.activeElement) node.value = item.gap_lines == null ? '' : item.gap_lines;
-    node.closest('.bd-gap,.bd-inspect-gap')?.classList.toggle('has', item.gap_lines != null);
   });
-  if (options.keepFocus) {
-    // 输入过程中不重建检视条，否则每敲一个数字就丢一次焦点；只更新厘米换算
-    const cm = document.querySelector('.bd-inspect-cm');
-    if (cm) cm.textContent = `行 ≈ ${boardGapCm(boardEffectiveGap(item, BOARD_DETAIL.print))} cm${item.gap_lines == null ? '（继承）' : ''}`;
-  } else if (uid === BOARD_SELECTED_UID) {
-    boardRenderInspect();
-  }
+  // 输入过程中不重建检查器，否则每敲一个数字就丢一次焦点；只刷新跟着变的读数
+  if (options.keepFocus) boardRefreshLiveReadouts();
+  else if (uid === BOARD_SELECTED_UID) boardRenderInspector();
+  else boardRefreshLiveReadouts();
   return item;
 }
 
-// ---------- 选中题检视条 ----------
-// 纸面视图里没有行内控件可点，选中一道题之后的所有操作都收在这一条上。
-// 只重写 #bd-inspect 这一个节点：整块渲染会把常驻预览 iframe 卷进去重载。
-function boardInspectHtml() {
+// ---------- 检查器 ----------
+// 三段永远在右栏同一处：选中的题 / 版式 / 纸面记录，与当前是哪个视图无关。
+// 「一个设置只有一个入口」：题后留白只在这里改，列表行与纸面上的数字都是只读回显。
+// 只重写 #bd-inspector 这一个节点：整块渲染会把常驻预览 iframe 卷进去重载。
+function boardInspectorItemHtml() {
   const item = boardCurrentItem(BOARD_SELECTED_UID);
-  if (!item) return '';
+  if (!item) return '<div class="bd-ins-empty">在纸面、列表或画廊里点一道题，它的设置就出现在这里。三个视图点出来的是同一处。</div>';
   const index = (BOARD_DETAIL.items || []).indexOf(item);
   const print = BOARD_DETAIL.print || {};
   const inherited = clampNumber(print.gap_lines, 0, 48, 2);
@@ -419,65 +477,98 @@ function boardInspectHtml() {
       : '<span class="bd-badge new">新增</span>');
     if (item.changed) badges.push('<span class="bd-badge changed" title="打印后正文改过，纸面仍是旧版">已改动</span>');
   }
-  return `<div class="bd-inspect-main">
-      <span class="bd-inspect-no">第 ${index + 1} 题</span>
-      <strong class="bd-inspect-uid" title="${escapeAttr(item.uid || item.question_id || '')}">${escapeHtml(item.uid || item.question_id || '未知题目')}</strong>
+  return `<div class="bd-ins-q">
+      <span class="bd-ins-no">第 ${index + 1} 题</span>
+      <strong title="${escapeAttr(item.uid || item.question_id || '')}">${escapeHtml(item.uid || item.question_id || '未知题目')}</strong>
       ${badges.join('')}
-      <span class="bd-inspect-meta">${escapeHtml(item.subject || '')}${item.category ? ` · ${escapeHtml(item.category)}` : ''}</span>
     </div>
-    <label class="bd-inspect-gap ${own == null ? '' : 'has'}">题后留白
-      <input class="input" type="number" min="0" max="48" value="${own == null ? '' : clampNumber(own, 0, 48, 0)}" placeholder="${inherited}" data-board-inspect-gap="${escapeAttr(item.uid)}" title="留空 = 继承板设置的 ${inherited} 行">
-      <span class="bd-inspect-cm">行 ≈ ${boardGapCm(effective)} cm${own == null ? '（继承）' : ''}</span>
-    </label>
-    ${own == null ? '' : '<button class="btn sm ghost" type="button" data-board-action="inspect-inherit" title="改回继承板的全局留白">继承</button>'}
-    <span class="grow"></span>
-    <button class="btn sm ghost" type="button" data-board-action="inspect-locate" title="翻到这道题所在的页">⌖ 定位</button>
-    <button class="btn sm ghost" type="button" data-board-action="inspect-regen" title="题目正文在别处改过、预览还是旧的时，强制重新生成纸面">↻ 重新生成</button>
-    <button class="btn sm ghost" type="button" data-board-action="inspect-open" ${item.missing ? 'disabled' : ''} title="打开题目详情">打开题目</button>
-    <button class="btn sm ghost bd-inspect-x" type="button" data-board-action="inspect-clear" aria-label="取消选中">✕</button>
-    ${item.printed ? '<div class="bd-inspect-note">这道题纸上已经有了：改留白只影响下次「打印全部」和当前预览，<b>不会改动已印出来的纸</b>，也不会改纸面记录。</div>' : ''}`;
+    <div class="bd-ins-meta">${escapeHtml(item.subject || '')}${item.category ? ` · ${escapeHtml(item.category)}` : ''}${item.difficulty != null && item.difficulty !== '' ? ` · 难度 ${escapeHtml(item.difficulty)}` : ''}</div>
+    <div class="bd-field"><label>题后留白 <b data-board-live="item-gap">${effective} 行 ≈ ${boardGapCm(effective)} cm${own == null ? '（继承）' : ''}</b></label>
+      <div class="bd-gap-line">
+        <input class="input" type="number" min="0" max="48" value="${own == null ? '' : clampNumber(own, 0, 48, 0)}" placeholder="${inherited}" data-board-inspect-gap="${escapeAttr(item.uid)}" title="留空 = 继承板设置的 ${inherited} 行">
+        ${own == null ? '<span class="hint">留空 = 继承板设置</span>'
+          : '<button class="btn sm ghost" type="button" data-board-action="inspect-inherit" title="改回继承板的全局留白">改回继承</button>'}
+      </div></div>
+    <div class="bd-ins-acts">
+      <button class="btn sm" type="button" data-board-action="inspect-locate" title="翻到这道题所在的页">⌖ 跳到这道题</button>
+      <button class="btn sm ghost" type="button" data-board-action="inspect-open" ${item.missing ? 'disabled' : ''}>打开题目</button>
+      <button class="btn sm ghost" type="button" data-board-action="remove-item" data-board-uid="${escapeAttr(item.uid)}">从板中移除</button>
+    </div>
+    ${item.printed ? '<div class="bd-ins-note">这道题纸上已经有了：改留白只影响下次「打印全部」和当前预览，<b>不会改动已印出来的纸</b>，也不会改纸面记录。</div>' : ''}`;
 }
-function boardRenderInspect() {
-  const node = document.getElementById('bd-inspect');
+function boardInspectorLayoutHtml() {
+  const print = BOARD_DETAIL.print || {};
+  const ratio = Math.round(asNumber(print.note_ratio, .50) * 100);
+  const cut = CUT_LINES.includes(print.cut_line) ? print.cut_line : 'dash';
+  const gap = clampNumber(print.gap_lines, 0, 24, 2);
+  return `<div class="bd-field"><label>右侧留白 <b data-board-ratio-value>${ratio}%</b></label>
+      <input type="range" min="30" max="55" step="2" value="${ratio}" data-board-print="note_ratio" title="右侧空白区占内容区宽度的比例">
+      <div class="hint" data-board-live="col-width">题栏约 ${boardColumnWidth(ratio)}px，右边留给手写</div></div>
+    <div class="bd-field"><label>题间留白 <b data-board-live="gap-lines">${gap} 行 ≈ ${boardGapCm(gap)} cm</b></label>
+      <input class="input" type="number" min="0" max="24" value="${gap}" data-board-print="gap_lines" title="每题之后空几行；单题可在上面的「选中的题」里覆盖"></div>
+    <div class="bd-field"><label>答案</label><div class="seg" data-board-seg="answers"><button type="button" class="${print.answers === 'append' ? '' : 'on'}" data-value="none">不含</button><button type="button" class="${print.answers === 'append' ? 'on' : ''}" data-value="append">末页附答案</button></div></div>
+    <div class="bd-field"><label>题头显示</label><div class="bd-checks"><label><input type="checkbox" data-board-print="show_labels" ${print.show_labels !== false ? 'checked' : ''}> 标记</label><label><input type="checkbox" data-board-print="show_meta" ${print.show_meta !== false ? 'checked' : ''}> 科目 · 难度</label></div></div>
+    <div class="bd-field"><label>切割线<span class="hint">每题留白末尾的裁切提示</span></label><div class="seg" data-board-seg="cut_line">${[['none', '不画'], ['dash', '虚线'], ['solid', '实线']].map(([value, label]) => `<button type="button" class="${cut === value ? 'on' : ''}" data-value="${value}">${label}</button>`).join('')}</div><div class="bd-checks"><label><input type="checkbox" data-board-print="cut_label" ${print.cut_label ? 'checked' : ''} ${cut === 'none' ? 'disabled' : ''}> 线右端标「第 N 题止」</label></div></div>
+    <div class="bd-field bd-lock"><label><input type="checkbox" data-board-print="locked" ${print.locked ? 'checked' : ''}> 锁定版式</label><span class="hint">锁定后调整版式、题间留白、排序或增删题目会先确认，并把打印状态恢复为未打印。</span></div>`;
+}
+function boardInspectorPaperHtml() {
+  const paper = boardPrintedSummary();
+  const hasPaper = paper.pages > 0;
+  if (!hasPaper) {
+    return `<div class="bd-ins-empty">还没有纸面记录。打印之后点状态条上的「记录纸面」，之后加题就只补印新增的部分。</div>
+      <div class="bd-ins-note">打印时选 A4、缩放 100%，不要勾「适合页面」。</div>`;
+  }
+  return `<div class="bd-paper">
+      <div><span class="bd-paper-k">已印</span><b>${paper.count}</b> 题 · <b>${paper.pages}</b> 页 · ${boardFormatTime(paper.at)}</div>
+      <div><span class="bd-paper-k">续排位置</span>第 <b>${paper.cursor?.page || paper.pages}</b> 页${paper.cursor?.y != null ? ` ${Math.round(paper.cursor.y)}px 处` : ''}</div>
+      ${paper.changed_count ? `<div><span class="warn">${paper.changed_count} 题已改动</span>，纸上还是旧版；要更新得「打印全部」换新纸。</div>` : ''}
+      <button class="btn sm ghost" type="button" data-board-action="reset-printed">清空纸面记录</button>
+    </div>
+    <div class="bd-ins-note">已打印题目在纸上的位置已固定；这里改版式只影响下次「打印全部」，「仅新增」按纸面记录里的版面几何续排。打印时选 A4、缩放 100%。</div>`;
+}
+function boardInspectorHtml() {
+  if (!BOARD_DETAIL) return '';
+  return `<section class="bd-ins-sec" data-sec="item"><div class="bd-ins-h"><strong>选中的题</strong><span>${BOARD_SELECTED_UID ? '' : '未选中'}</span></div>${boardInspectorItemHtml()}</section>
+    <section class="bd-ins-sec" data-sec="layout"><div class="bd-ins-h"><strong>版式</strong><span>改完纸面立刻重排</span></div>${boardInspectorLayoutHtml()}</section>
+    <section class="bd-ins-sec" data-sec="paper"><div class="bd-ins-h"><strong>纸面记录</strong></div>${boardInspectorPaperHtml()}</section>`;
+}
+function boardRenderInspector() {
+  const node = document.getElementById('bd-inspector');
   if (!node) return;
-  const html = BOARD_DETAIL && boardView() === 'paper' ? boardInspectHtml() : '';
+  const html = boardInspectorHtml();
   node.innerHTML = html;
   node.hidden = !html;
+}
+function boardRenderStatus() {
+  const node = document.getElementById('bd-statusbar');
+  if (node) node.innerHTML = boardStatusbarHtml();
+}
+// 拖滑杆 / 改板级留白时不重建整块检查器（会丢焦点），只把跟着变的读数刷一遍。
+// 「继承」的单题留白、列表行里的只读留白也在这里跟上：同一个数字不能两处不同。
+function boardRefreshLiveReadouts() {
+  if (!BOARD_DETAIL) return;
+  const print = BOARD_DETAIL.print || {};
+  const ratio = Math.round(asNumber(print.note_ratio, .50) * 100);
+  const gap = clampNumber(print.gap_lines, 0, 24, 2);
+  const put = (key, text) => { const node = document.querySelector(`[data-board-live="${key}"]`); if (node) node.textContent = text; };
+  put('col-width', `题栏约 ${boardColumnWidth(ratio)}px，右边留给手写`);
+  put('gap-lines', `${gap} 行 ≈ ${boardGapCm(gap)} cm`);
+  const selected = boardCurrentItem(BOARD_SELECTED_UID);
+  if (selected) {
+    const effective = boardEffectiveGap(selected, print);
+    put('item-gap', `${effective} 行 ≈ ${boardGapCm(effective)} cm${selected.gap_lines == null ? '（继承）' : ''}`);
+  }
+  document.querySelectorAll('[data-board-gap-view]').forEach(node => {
+    const item = boardCurrentItem(node.dataset.boardGapView);
+    if (item) node.textContent = `留白 ${boardEffectiveGap(item, print)} 行${item.gap_lines == null ? '（继承）' : ''}`;
+  });
 }
 // 选中的唯一入口：纸面点击、列表点击、键盘上下都走它，三处选中态才不会各说各话
 function boardSelect(uid) {
   BOARD_SELECTED_UID = uid || '';
   document.querySelectorAll('[data-board-row]').forEach(node =>
     node.classList.toggle('is-selected', node.dataset.boardRow === BOARD_SELECTED_UID));
-  boardRenderInspect();
-}
-
-// 版式与打印属于同一组会影响纸面的设置，统一收进一个浮层，避免用户
-// 在工具条上来回寻找「版式」和「打印」两个入口。
-function boardSettingsPopHtml() {
-  const print = BOARD_DETAIL.print || {};
-  const paper = boardPrintedSummary();
-  const hasPaper = paper.pages > 0;
-  const mode = BOARD_PRINT_MODE === 'new' && hasPaper ? 'new' : 'all';
-  const ratio = Math.round(asNumber(print.note_ratio, .50) * 100);
-  const cut = CUT_LINES.includes(print.cut_line) ? print.cut_line : 'dash';
-  const modeHint = mode === 'new'
-    ? `只排纸上还没有的 ${paper.new_count} 题，接在第 ${paper.cursor?.page || paper.pages} 页的空白处。`
-    : `整板从第 1 页重新排版，用新纸打${hasPaper ? '；确认后会替换现有纸面记录' : ''}。`;
-  return `<div class="bd-pop-head"><span>版式与打印</span><small>${print.locked ? '版式已锁定' : '可直接调整'}</small><button type="button" class="bd-pop-x" data-board-pop-close aria-label="关闭">✕</button></div>
-    <div class="bd-field"><label>右侧留白 <b data-board-ratio-value>${ratio}%</b><span class="hint">题栏约 ${boardColumnWidth(ratio)}px</span></label><input type="range" min="30" max="55" step="2" value="${ratio}" data-board-print="note_ratio" title="右侧空白区占内容区宽度的比例"></div>
-    <div class="bd-field"><label>题间留白（行）</label><input class="input" type="number" min="0" max="24" value="${clampNumber(print.gap_lines, 0, 24, 2)}" data-board-print="gap_lines" title="每题之后空几行；单题可在列表或检视条里覆盖"></div>
-    <div class="bd-field-row">
-      <div class="bd-field"><label>打印范围</label><div class="seg block bd-modes" data-board-modes><button type="button" class="${mode === 'all' ? 'on' : ''}" data-board-mode="all">打印全部</button><button type="button" class="${mode === 'new' ? 'on' : ''}" data-board-mode="new" ${hasPaper ? '' : 'disabled'}>仅打印新增${hasPaper ? `（${paper.new_count}）` : ''}</button></div></div>
-      <div class="bd-field"><label>答案</label><div class="seg" data-board-seg="answers"><button type="button" class="${print.answers === 'append' ? '' : 'on'}" data-value="none">不含</button><button type="button" class="${print.answers === 'append' ? 'on' : ''}" data-value="append">末页附答案</button></div></div>
-    </div>
-    <div class="bd-field"><label>题头显示</label><div class="bd-checks"><label><input type="checkbox" data-board-print="show_labels" ${print.show_labels !== false ? 'checked' : ''}> 标记</label><label><input type="checkbox" data-board-print="show_meta" ${print.show_meta !== false ? 'checked' : ''}> 科目 · 难度</label></div></div>
-    <div class="bd-field"><label>切割线<span class="hint">每题留白末尾的裁切提示</span></label><div class="seg" data-board-seg="cut_line">${[['none', '不画'], ['dash', '虚线'], ['solid', '实线']].map(([value, label]) => `<button type="button" class="${cut === value ? 'on' : ''}" data-value="${value}">${label}</button>`).join('')}</div><div class="bd-checks"><label><input type="checkbox" data-board-print="cut_label" ${print.cut_label ? 'checked' : ''} ${cut === 'none' ? 'disabled' : ''}> 线右端标「第 N 题止」</label></div></div>
-    <div class="bd-field bd-lock"><label><input type="checkbox" data-board-print="locked" ${print.locked ? 'checked' : ''}> 锁定版式</label><span class="hint">锁定后调整版式、题间留白、排序或增删题目会先确认，并把打印状态恢复为未打印。</span></div>
-    <div class="hint bd-mode-hint">${modeHint}</div>
-    <div class="bd-settings-actions"><button class="btn primary" type="button" data-board-action="preview" title="打印预览（P）">🖨 打印预览</button><button class="btn" type="button" data-board-action="export" title="下载自包含 HTML，离线打印">下载 HTML</button><button class="btn" type="button" data-board-action="mark-printed" title="打印后记录每道题印在第几页、印到哪里">✓ 标记为已打印</button></div>
-    <div class="hint bd-print-tip">打印时选 A4、缩放 100%，不要勾「适合页面」。</div>
-    <div class="bd-paper">${hasPaper ? `<div><span class="bd-paper-k">纸面记录</span>已印 <b>${paper.count}</b> 题 · <b>${paper.pages}</b> 页 · ${boardFormatTime(paper.at)}${paper.changed_count ? ` · <span class="warn">${paper.changed_count} 题已改动</span>` : ''}</div><div><span class="bd-paper-k">续排位置</span>第 <b>${paper.cursor?.page || paper.pages}</b> 页</div><button class="btn sm ghost" type="button" data-board-action="reset-printed">重置纸面记录</button>` : '<div><span class="bd-paper-k">纸面记录</span>还没有。打印后点「标记为已打印」，之后加题只需补印新增。</div>'}</div>`;
+  boardRenderInspector();
 }
 
 function boardLayoutLocked() { return !!BOARD_DETAIL?.print?.locked; }
@@ -492,70 +583,6 @@ async function boardAllowLayoutChange() {
   return BOARD_LAYOUT_CONFIRM;
 }
 
-// 浮层：开 / 关 / 点外部关 / Esc 关 / 窄屏不出界；同一个入口再点一次是关闭
-function boardPopClose() {
-  if (!BOARD_POP) return;
-  document.removeEventListener('keydown', BOARD_POP.onKey, true);
-  document.removeEventListener('click', BOARD_POP.onOutside, true);
-  window.removeEventListener('resize', BOARD_POP.onReflow);
-  window.removeEventListener('scroll', BOARD_POP.onReflow, true);
-  BOARD_POP.node.remove();
-  const anchor = BOARD_POP.anchor;
-  BOARD_POP = null;
-  document.querySelectorAll('[data-board-pop]').forEach(node => {
-    node.classList.remove('on');
-    node.setAttribute('aria-expanded', 'false');
-  });
-  if (anchor?.isConnected) anchor.focus?.({ preventScroll: true });
-}
-// 锚定在入口按钮下方；下方放不下就往上翻，左右都夹在视口里（窄屏不出界）
-function boardPopPlace() {
-  if (!BOARD_POP) return;
-  const box = BOARD_POP.node;
-  const anchor = BOARD_POP.anchor;
-  if (!anchor?.getBoundingClientRect || !anchor.isConnected) { box.classList.add('centered'); return; }
-  box.classList.remove('centered');
-  const rect = anchor.getBoundingClientRect();
-  const width = box.offsetWidth || 300;
-  const height = box.offsetHeight || 320;
-  box.style.left = `${Math.max(10, Math.min(window.innerWidth - width - 10, rect.left))}px`;
-  let top = rect.bottom + 6;
-  if (top + height > window.innerHeight - 10) top = Math.max(10, rect.top - height - 6);
-  box.style.top = `${top}px`;
-}
-function boardPopRefresh() {
-  if (!BOARD_POP || !BOARD_DETAIL) return;
-  BOARD_POP.node.innerHTML = boardSettingsPopHtml();
-  boardPopPlace();
-}
-function boardPopOpen(kind, anchor) {
-  const reopening = BOARD_POP?.kind === kind;
-  boardPopClose();
-  if (reopening || !BOARD_DETAIL) return;
-  const node = document.createElement('div');
-  node.className = 'bd-pop';
-  node.setAttribute('role', 'dialog');
-  node.setAttribute('aria-label', '版式与打印设置');
-  document.body.appendChild(node);
-  BOARD_POP = {
-    kind, node, anchor,
-    onKey: event => { if (event.key === 'Escape') { event.stopPropagation(); boardPopClose(); } },
-    // 点浮层内部、或再点一次入口按钮（那条由 click 委托处理成 toggle）都不该在这里关
-    onOutside: event => {
-      if (node.contains(event.target) || event.target.closest?.('[data-board-pop]')) return;
-      boardPopClose();
-    },
-    onReflow: () => boardPopPlace(),
-  };
-  document.addEventListener('keydown', BOARD_POP.onKey, true);
-  document.addEventListener('click', BOARD_POP.onOutside, true);
-  window.addEventListener('resize', BOARD_POP.onReflow);
-  window.addEventListener('scroll', BOARD_POP.onReflow, true);
-  boardPopRefresh();
-  if (anchor) { anchor.classList.add('on'); anchor.setAttribute('aria-expanded', 'true'); }
-  node.querySelector('input,select,button:not(.bd-pop-x)')?.focus?.({ preventScroll: true });
-}
-
 // 题栏宽度（px）：与浏览器模板 board.js 的 COL_W 同一算式（A4 793.7px 宽，左右 10mm，栏间距 24px）
 function boardColumnWidth(ratioPercent) {
   const mm = 3.779528;
@@ -568,9 +595,8 @@ function boardRender() {
   if (list) list.innerHTML = boardListHtml();
   if (head) head.innerHTML = boardContentHtml();
   if (body) body.innerHTML = boardContentBodyHtml();
-  // 浮层挂在 body 上，不会被上面的 innerHTML 卷走；但内容要跟着新板刷新
-  if (BOARD_POP) { if (BOARD_DETAIL) boardPopRefresh(); else boardPopClose(); }
-  boardRenderInspect();
+  boardRenderStatus();
+  boardRenderInspector();
   const stage = document.getElementById('bd-stage');
   const paper = !!BOARD_DETAIL && boardView() === 'paper';
   if (stage) {
@@ -1034,7 +1060,7 @@ async function boardClear() {
 async function boardApplyPrintField(field, value) {
   if (!BOARD_DETAIL) return;
   if (field !== 'locked' && boardLayoutLocked() && !BOARD_LAYOUT_GRANTED && !(await boardAllowLayoutChange())) {
-    boardPopRefresh();
+    boardRenderInspector();
     return;
   }
   if (field !== 'locked' && boardLayoutLocked()) BOARD_LAYOUT_GRANTED = true;
@@ -1047,8 +1073,10 @@ async function boardApplyPrintField(field, value) {
   else return;                    // 未知字段不写进 print，避免脏一个后端会忽略的键
   BOARD_DETAIL.print = print;
   // 「不画切割线」时「标第 N 题止」没有意义：直接禁用，不留一个点了没反应的勾
-  if (field === 'cut_line') BOARD_POP?.node?.querySelectorAll('[data-board-print="cut_label"]')
+  if (field === 'cut_line') document.querySelectorAll('[data-board-print="cut_label"]')
     .forEach(node => { node.disabled = print.cut_line === 'none'; });
+  if (field === 'locked') { boardRenderStatus(); boardRenderInspector(); }
+  else boardRefreshLiveReadouts();   // 板级留白一改，继承它的单题读数与列表行都得跟上
   boardPushRelayout();        // 画面先动（去抖 120ms、不发请求），保存另走 500ms 脏队列
   boardMarkDirty('print');
 }
@@ -1059,7 +1087,10 @@ async function boardFetchExport(mode, options = {}) {
   if (!response.ok) { let message = '导出失败'; try { message = (await response.json()).msg || message; } catch (error) {} throw new Error(message); }
   return response.text();
 }
-function boardEffectiveMode() { return BOARD_PRINT_MODE === 'new' && boardHasPaper() ? 'new' : 'all'; }
+// 导出用的打印范围与状态条显示的必须是同一个判断，否则会出现「状态条写着打印全部、
+// 导出却按仅新增跑」。记录完纸面后 BOARD_PRINT_MODE 仍是 'new' 而新增数已归零，
+// 旧写法会拿 mode:'new' 去导出并报「没有新增题目需要打印」。
+function boardEffectiveMode() { return boardStatusModel(BOARD_DETAIL, BOARD_PRINT_MODE, null).scope; }
 async function boardExportCurrent(openPreview = false) {
   if (!BOARD_DETAIL) { uiToast('请先选择一个展示板', { kind: 'warn' }); return; }
   const mode = boardEffectiveMode();
@@ -1086,13 +1117,15 @@ async function boardExportCurrent(openPreview = false) {
       preview.location.replace(url);
       BOARD_WINDOWS.set(preview, { boardId: BOARD_DETAIL.id, mode, updatedAt: BOARD_DETAIL.updated_at || '' });
       setTimeout(() => URL.revokeObjectURL(url), 60000);
+      boardMarkAwaiting(mode);
     } else {
       const link = document.createElement('a');
       link.href = url;
       link.download = `OMRS-BD-${BOARD_DETAIL.name}${mode === 'new' ? '-新增' : ''}-错题集.html`;
       document.body.appendChild(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1200);
-      uiToast('已下载；打印后回到这里点「标记为已打印」记录纸面');
+      boardMarkAwaiting(mode);
+      uiToast('已下载；打印后回到状态条点「✓ 记录纸面」');
     }
   } catch (error) {
     if (preview) { try { preview.close(); } catch (closeError) {} }
@@ -1100,6 +1133,13 @@ async function boardExportCurrent(openPreview = false) {
   }
 }
 function boardPrintPreview() { return boardExportCurrent(true); }
+// 打印 / 下载之后状态条主按钮翻成「✓ 记录纸面」：诊断 #4 的落脚点，
+// 不再靠用户自己记得回到浮层里找「标记为已打印」。
+function boardMarkAwaiting(mode) {
+  if (!BOARD_DETAIL) return;
+  BOARD_AWAITING_RECORD = { boardId: BOARD_DETAIL.id, mode };
+  boardRenderStatus();
+}
 
 // 隐藏 iframe 里跑同一份导出模板，拿到浏览器实测的版面（页数 / 每题位置 / 续排 cursor）
 function boardMeasureLayout(html, options = {}) {
@@ -1167,6 +1207,7 @@ function boardRegenPreview() {
 
 async function boardRecordPrinted(boardId, mode, layout) {
   const result = await boardPost('/api/board/printed', { id: boardId, mode, layout });
+  boardClearAwaiting();
   if (BOARD_CURRENT === boardId) BOARD_DETAIL = result.board;
   BOARD_PRINT_MODE = 'new';
   await boardReloadData();
@@ -1199,7 +1240,7 @@ async function boardResetPrinted() {
   if (!BOARD_DETAIL) return;
   const ok = await uiConfirm('重置纸面记录？', { hint: '忘掉「哪些题已经在纸上」；之后只能「打印全部」重新开始。', okText: '重置', danger: true });
   if (!ok) return;
-  try { const result = await boardPost('/api/board/printed/reset', { id: BOARD_DETAIL.id }); BOARD_DETAIL = result.board; BOARD_PRINT_MODE = 'all'; await boardReloadData(); uiToast('纸面记录已重置'); }
+  try { const result = await boardPost('/api/board/printed/reset', { id: BOARD_DETAIL.id }); BOARD_DETAIL = result.board; BOARD_PRINT_MODE = 'all'; boardClearAwaiting(); await boardReloadData(); uiToast('纸面记录已重置'); }
   catch (error) { uiToast(`重置失败：${error.message}`, { kind: 'error' }); }
 }
 // 打印预览窗口的回传：排版完成 → 直接当作页数估算；点「已打印，记录纸面」→ 确认后记录
@@ -1355,10 +1396,6 @@ if (typeof document !== 'undefined') {
     if (sort) { event.stopPropagation(); document.querySelectorAll('[data-board-sort-menu].open').forEach(node => node.classList.remove('open')); boardSort(sort.dataset.boardSort); return; }
     if (!event.target.closest?.('[data-board-menu]')) document.querySelectorAll('[data-board-menu].open').forEach(node => node.classList.remove('open'));
     if (!event.target.closest?.('[data-board-sort-menu]')) document.querySelectorAll('[data-board-sort-menu].open').forEach(node => node.classList.remove('open'));
-    const popClose = event.target.closest?.('[data-board-pop-close]');
-    if (popClose) { event.stopPropagation(); boardPopClose(); return; }
-    const popToggle = event.target.closest?.('[data-board-pop]');
-    if (popToggle) { event.stopPropagation(); boardPopOpen(popToggle.dataset.boardPop, popToggle); return; }
     const action = event.target.closest?.('[data-board-action]');
     if (action) {
       event.stopPropagation();
@@ -1394,6 +1431,7 @@ if (typeof document !== 'undefined') {
       else if (type === 'inspect-locate') boardPreviewGoto(BOARD_SELECTED_UID);
       else if (type === 'inspect-open') { const item = boardCurrentItem(BOARD_SELECTED_UID); if (item && !item.missing) viewQ(item.uid, (BOARD_DETAIL?.items || []).filter(x => !x.missing).map(x => x.uid)); }
       else if (type === 'inspect-inherit') boardSetItemGap(BOARD_SELECTED_UID, null);
+      else if (type === 'focus-gap') { boardSelect(action.dataset.boardUid); document.querySelector('[data-board-inspect-gap]')?.focus?.({ preventScroll: true }); }
       else if (type === 'inspect-regen') boardRegenPreview();
       else if (type === 'gallery-locate') { const uid = action.dataset.boardUid; boardSelect(uid); boardSetView('paper'); setTimeout(() => boardPreviewGoto(uid), 60); }
       return;
@@ -1401,8 +1439,9 @@ if (typeof document !== 'undefined') {
     const modeButton = event.target.closest?.('[data-board-mode]');
     if (modeButton && BOARD_DETAIL && !modeButton.disabled) {
       BOARD_PRINT_MODE = modeButton.dataset.boardMode === 'new' ? 'new' : 'all';
-      boardPopRefresh();                                        // 模式说明与按钮文案随之变化
-      boardScheduleEstimate();
+      boardClearAwaiting();                                     // 换了打印范围，上一次「等待记录」作废
+      boardRenderStatus();                                      // 状态、为什么、主按钮文案随之变化
+      boardScheduleEstimate();                                  // 纸面当场按新范围重排
       return;
     }
     const viewButton = event.target.closest?.('[data-board-views] button');
@@ -1417,8 +1456,9 @@ if (typeof document !== 'undefined') {
     }
     const zoom = event.target.closest?.('[data-board-zoom]');
     if (zoom) {
-      zoom.closest('[data-board-zoom]')?.parentNode?.querySelectorAll('button').forEach(node => node.classList.toggle('on', node === zoom));
-      boardPreviewScale(zoom.dataset.boardZoom === 'fit' ? 'fit' : 1);
+      BOARD_ZOOM = zoom.dataset.boardZoom === 'fit' ? 'fit' : 1;
+      zoom.parentNode?.querySelectorAll('button').forEach(node => node.classList.toggle('on', node === zoom));
+      boardPreviewScale(BOARD_ZOOM);
       return;
     }
     const seg = event.target.closest?.('[data-board-seg] button');
@@ -1439,13 +1479,6 @@ if (typeof document !== 'undefined') {
     if (row && !event.target.closest('input,button,label,[data-lbl-target]')) { const item = boardCurrentItem(row.dataset.boardRow); if (item && !item.missing) viewQ(item.uid, (BOARD_DETAIL?.items || []).filter(i => !i.missing).map(i => i.uid)); }
   });
   document.addEventListener('input', event => {
-    const gap = event.target.closest?.('[data-board-gap]');
-    if (gap && BOARD_DETAIL) {
-      if (boardLayoutLocked()) return;
-      const raw = String(gap.value ?? '').trim();
-      void boardSetItemGap(gap.dataset.boardGap, raw === '' ? null : clampNumber(raw, 0, 48, 0), { keepFocus: true });
-      return;
-    }
     const inspectGap = event.target.closest?.('[data-board-inspect-gap]');
     if (inspectGap && BOARD_DETAIL) {
       if (boardLayoutLocked()) return;
@@ -1462,9 +1495,9 @@ if (typeof document !== 'undefined') {
     }
   });
   document.addEventListener('change', event => {
-    const gap = event.target.closest?.('[data-board-gap],[data-board-inspect-gap]');
+    const gap = event.target.closest?.('[data-board-inspect-gap]');
     if (gap && BOARD_DETAIL && boardLayoutLocked()) {
-      const uid = gap.dataset.boardGap || gap.dataset.boardInspectGap;
+      const uid = gap.dataset.boardInspectGap;
       const raw = String(gap.value ?? '').trim();
       void boardSetItemGap(uid, raw === '' ? null : clampNumber(raw, 0, 48, 0), { keepFocus: true });
       return;
@@ -1512,5 +1545,5 @@ if (typeof document !== 'undefined') {
 
 if (typeof module !== 'undefined') module.exports = {
   boardMoveItems, boardItemsPayload, boardUniqueUids, boardEstimateText, boardColumnWidth, boardEffectiveGap,
-  boardDirtyMerge, boardSavePayload, boardPagerHtml, boardGapCm,
+  boardDirtyMerge, boardSavePayload, boardPagerHtml, boardGapCm, boardStatusModel,
 };

@@ -75,7 +75,7 @@ assets/
 
 | 图表 | HTML 容器 | 数据来源 | 实现方式 |
 |---|---|---|---|
-| 今天 | `dash-today` | `DATA`（`items` / `daily_trend`）+ `SESSIONS` | `dashboard.js::renderTodayHero()`：整页唯一大字号。待复习总数 = 逾期 + 今日到期，下方拆「逾期 / 今日到期 / 未录反馈」，中列今日已练对比 `actionTodayTarget()`，右列主 CTA。左边框按状态着色（`.lv-overdue` 红 / `.lv-due` 黄 / `.lv-clear` 绿）；空题库走 `.is-empty` 引导态。不新增接口 |
+| 今天 | `dash-today` | `DATA`（`items` / `daily_trend`）+ `SESSIONS` | `dashboard.js::renderTodayHero()`：整页唯一大字号。待复习总数 = 逾期 + 今日到期，下方拆「逾期 / 今日到期 / 未录反馈」，中列今日已练对比 `actionTodayTarget()`，右列主 CTA。左边框按状态着色（`.lv-overdue` 红 / `.lv-due` 黄 / `.lv-clear` 绿）；空题库走 `.is-empty` 引导态。根类是 `.today-card`，不是 `.today`——`today` 在目录页和推荐页是 chip 的状态修饰类。不新增接口 |
 | 近 30 天活动 | `chart-activity` | `stats.recent_activity` | 30 个本地日期热力格，按当期最大次数分 0–4 级；同时显示总复习、活跃天数和单日峰值。紧凑档下 `.activity-heatmap` 改 15 列、隐藏 `.activity-cell small` |
 | 最薄弱的科目 | `dash-weak` | `DATA.items` | `dashboard.js::renderWeakSubjects()`：按 `decayed_mastery`（缺省回落 `mastery`）升序取前 6，**题量 ≥ 5 才纳入**，避免一两道题把均值拉到底；每行是 `<button>`，点击调 `actionGoQuestions()` 跳题库对应筛选 |
 | 最近动态（Ledger） | `recent-ledger` | `GET /api/history?limit=12`（或复用已加载的 `window.HISTORY_COMMITS`） | `dashboard.js::renderRecentLedger()`：取最近 4 条「非修正、未撤销」的主链节点，渲染精致行——族色圆点 + `historyNodeTitle()` 标题 + `commit_id/seq` + 复习节点显示「N 对 · N 错」chip；卡片右上「完整时间线 →」跳 `switchTab('history')`。复用时间线的 `historyCommitFamily/historyNodeTitle/historyReviewBatchStats/isNodeRetracted` 等函数（现于 `history.js`），故 `dashboard.js` 于运行时（所有脚本就绪后）调用。`renderDash()` 末尾 fire-and-forget 调用它 |
@@ -225,14 +225,17 @@ Tab `目录`（侧栏图标 `#i-tree`，位于「题目库」与「复习调度�
 `renderCatalog()` 递归输出扁平的 `.tree-row` 序列，靠 CSS 自定义属性 `--depth` 控制缩进（`padding-left: calc(12px + var(--depth) * 18px)`），不是嵌套 DOM——所以整棵树是一次 `innerHTML` 赋值，展开/折叠也是整树重绘。
 
 - 展开状态存在 `CATALOG_OPEN`（Set of path）。首次加载默认展开根 + 第一层；`catalogExpandAll()` / `catalogCollapseAll()` 批量切换。
-- 文件夹行右侧：题量 chip、待复习 chip（`.tree-badge.due`）、顽固题 chip（`.tree-badge.leech`）、该目录平均衰减熟练度条（复用 `.m-bar`）、复制相对路径按钮。
-- 题目文件行右侧：逾期/今日到期 chip、熟练度条与百分比；未进投影的显示「未入库」。点击调 `catalogOpenQuestion(uid)` → `viewQ(uid)` 开题目 Modal（该题在 `DATA.items` 里才可点）。
+- 每行都是「名称 → chip 区 `.tree-badges` → 右侧栅格 `.tree-right`」。右侧栅格固定三格（进度条 72px / 数值 52px / 操作 22px），文件夹行与题目行共用，两级行的进度条和百分比因此是对齐的；某一格没内容就留空（进度条位置用 `.tree-bar-slot` 占位）。
+- 文件夹行：chip 区放题量、待复习（`.tree-badge.due`）、顽固题（`.tree-badge.leech`）；栅格放该目录平均衰减熟练度条（复用 `.m-bar`）、百分比、复制相对路径按钮。
+- 题目文件行：chip 区放逾期 / 今日到期（`.tree-due.overdue` / `.tree-due.today`），未进投影的显示「未入库」；栅格放熟练度条与百分比，非题目文件放文件大小。点击调 `catalogOpenQuestion(uid)` → `viewQ(uid)` 开题目 Modal（该题在 `DATA.items` 里才可点）。
 - 搜索框 `catalogSearch()` 写 `CATALOG_QUERY`（小写）。`catalogMatches()` 递归判断「自己或任一后代命中」，命中期间**所有节点视为展开**（`open` 判定里 `|| !!CATALOG_QUERY`），不改动 `CATALOG_OPEN`，清空搜索后回到原来的展开状态。
 - 「显示图片等其他文件」复选框切 `CATALOG_SHOW_ALL_FILES`，关闭时只列 `kind === 'question'` 的文件。
 - 顶部 `#catalog-stat` 四张 stat 卡：文件夹数 / 题目文件 / 全部文件 / 占用；`#catalog-status` 汇报降级、孤立文件、层级截断和当前筛选词。
 - `reloadData()` 里若目录页正处于激活状态且 `CATALOG_TREE` 已有，会重画一次——录题或提交反馈后目录上的熟练度条随之更新，但**不会重新扫盘**（结构变化仍需点「重新读取」或顶栏「重新扫描」）。
 
-样式在 `styles.css` 的 `.catalog-bar` / `.tree-*` 段。≤720px 缩小缩进步长并隐藏 chip 列。
+样式在 `styles.css` 的 `.catalog-bar` / `.tree-*` 段。≤720px 缩小缩进步长、收窄右侧栅格，并只隐藏文件夹行的 chip（题目行的到期 chip 仍显示）。
+
+`today` / `overdue` / `new` 这类词在本页是 chip 的状态修饰类，任何组件都不能拿它们当根类；未加限定的 `.m-bar` 规则也不得声明伸缩属性（`flex` / `flex-*` / `gap`），窄容器里靠限定后的规则单独覆盖。
 
 ---
 
@@ -376,13 +379,25 @@ Space 勾选、Enter 打开。
 标记分布；`boardPickerOpen()` 统一处理各页面的「加入展示板」入口，接受单个 UID 或 UID 数组；
 `boardQuickAdd()` / `boardChooseAndAdd()` 是它的薄封装，调用点函数名不变。
 
-### 3.4 展示板页（`assets/board.js`，v1.14.0）
+### 3.4 展示板页（`assets/board.js`）
 
-侧栏「题目库」与「目录」之间的「展示板」Tab，两栏主体 + 版式与打印浮层：板列表（文件夹 → 板两级树；板 `⋯`：
-重命名 / 备注 / 复制 / 导出 / 移到 / 删除；文件夹 `⋯`：重命名 / 在此新建板 / 上移 / 下移 /
-删除文件夹）、板内容（添加题目对话框复用 `filterItems` + 标记 chips、按标记同步、排序菜单、
-拖拽 / `Ctrl+↑↓` 排序、单题额外留白、预览、移除、清空；行内徽章：已印 p.N / 新增 / 已改动 /
-停用 / 缺失）、版式与打印统一浮层（去抖 500ms 保存；「预计页数」直接读取常驻预览 iframe 的导出模板实测）。版式锁定后，版式、题后留白、排序和题目增删会先确认，确认后纸面状态重置为未打印。
+侧栏「题目库」与「目录」之间的「展示板」Tab。页面是**状态条 + 三栏**：状态条 `#bd-statusbar`、
+板列表 `#bd-list`、舞台 `#bd-content`、检查器 `#bd-inspector`。每个区一句话职责——状态条回答
+「这叠纸现在什么状态、下一步做什么」，舞台只回答「怎么看」，检查器放所有设置。三条不变量
+（舞台里没有设置控件 / 一个设置只有一个入口 / 主行动全页唯一）由 `tests/test_board_regions.js`
+守着，完整说明见 `board.md` §3。
+
+**状态条**：板名（双击重命名）、题数与科目分布、纸面状态 chips（`.bd-status-chip`，
+paper / new / changed / wait 四种修饰）、一句「为什么」、打印范围分段 `[data-board-modes]`、
+唯一主行动 `[data-board-primary]`，以及「下载 HTML」「↻ 重新生成」。文案全部来自纯函数
+`boardStatusModel()`，见 `board.md` §4.2。打印范围放在这里而不是浮层里：它决定纸上会多出什么，
+改完必须当场在舞台的纸面上看见结果。
+
+**板列表**：`.bd-folder` 是文件夹行，`.bd-folder-body` 用 8px 缩进加一条 `border-left` 发丝竖线
+兜住组内的板；空文件夹显示 `.bd-folder-empty` 虚线占位。文件夹名比板名弱一档（`--fs-sm` /
+`--fg2`），因为文件夹是结构、板才是内容，视线应该优先落在板上。`⋯` 平时 `opacity:0`，
+悬停 / `focus-within` 时出现，`@media(hover:none)` 下常显；它不用 `display:none`，
+所以出现时不挤动板数。
 
 **选板浮层 `.bd-picker-pop`**：与 `labels.js` 的 `.label-picker-pop` 同一套浮层语言——同样
 body 挂载 + `getBoundingClientRect` 锚定 + 空间不足向上翻、同样的 `keyboard-active` 高亮和
@@ -391,20 +406,23 @@ body 挂载 + `getBoundingClientRect` 锚定 + 空间不足向上翻、同样的
 居中态单独走 `bdPickerIn`）。分组标题 `position:sticky` 贴顶，滚动时始终看得见当前文件夹。
 提示符列固定 14px，`↵ / ✓ / ↗` 切换时行内容不位移。行为与键盘见 `board.md` §3.2。
 
-**左栏树**：`.bd-folder` 是文件夹行，`.bd-folder-body` 用 8px 缩进加一条 `border-left` 发丝竖线
-兜住组内的板；空文件夹显示 `.bd-folder-empty` 虚线占位。文件夹名比板名弱一档（`--fs-sm` /
-`--fg2`），因为文件夹是结构、板才是内容，视线应该优先落在板上。`⋯` 平时 `opacity:0`，
-悬停 / `focus-within` 时出现，`@media(hover:none)` 下常显；它不用 `display:none`，
-所以出现时不挤动板数。
+**舞台**：`.bd-stagebar` 一行放视图分段 `[data-board-views]` 与内容操作（添加题目 / 按标记同步 /
+排序 ▾ / 清空），纸面视图下 `.bd-pager` 另占一行。每个列表行是一行高的四列网格（手柄 / 序号 /
+主内容 / 操作）；「留白」与「详情」平时 `opacity:0`，`:hover`、`.is-selected`、`:focus-within`
+或已覆盖过留白（`.bd-gap-view.has`）时才显示，窄屏（≤760px）常显。行里的留白是只读回显
+（`[data-board-gap-view]`），点它 = 选中该题并把焦点送进检查器的输入框。
 
-版面走密度变量：`.bd-*` 的内边距、圆角、字号一律用 `--pad/--pad-sm/--row/--ctl/--fs*`，
-紧凑档单行约 28px、舒适档约 49px，不再写死 px。每行是一行高的四列网格（手柄 / 序号 /
-主内容 / 操作），「留白 +N 行」与「预览」平时 `opacity:0`，`:hover`、`.is-selected`、
-`:focus-within` 或已设过留白（`.bd-gap.has`）时才显示；窄屏（≤760px）常显。右栏用
-`.bd-field-row` 两列并排放次级设置，打印模式是分段按钮（`[data-board-mode]`），
-「标记为已打印」与打印预览、下载 HTML 同处一个按钮网格。
-「右侧留白」滑块范围为 30%–55%，新建板与缺失配置的默认值为 50%；扣除 24px 间距后，
+**检查器**：`.bd-ins-sec[data-sec="item|layout|paper"]` 三段，sticky 在右栏。次级设置沿用
+`.bd-field` / `.bd-field-row` / `.bd-checks` / `.bd-lock` / `.bd-paper` 这套字段样式。
+会随别处改动而变的读数一律挂 `[data-board-live]`（`item-gap` / `gap-lines` / `col-width`），
+由 `boardRefreshLiveReadouts()` 统一刷新：拖滑杆时不重建整段 DOM（否则丢焦点），
+但继承板级留白的单题读数、列表行与画廊卡的只读回显都要跟着走——同一个数字不能两处不同。
+「右侧留白」滑块范围 30%–55%，新建板与缺失配置的默认值为 50%；扣除 24px 间距后，
 题栏与手写留白区默认等宽。已有板明确保存的比例继续按原值显示和排版。
+
+**布局**：`.bd-layout` 是 `200px / minmax(0,1fr) / 268px` 三列网格；≤1180px 检查器
+`grid-column:1/-1` 折到底部通栏并取消 sticky，≤760px 整体纵向堆叠。整屏工作台模式
+（`.is-workbench`，见 §1.2）下状态条 `flex-shrink:0`，三栏各自滚动。
 
 #### 常驻预览 iframe（`assets/board_preview.js`）
 
@@ -454,27 +472,30 @@ HTML。常驻而不是每次新建：那份 HTML 内联了将近 1MB 的 KaTeX �
 
 #### 视图与每题留白
 
-中栏是「纸面 / 列表 / 画廊」三段（`[data-board-views]`），选择存
-`localStorage['omrs-board-view']`。画廊按题目缩略展示板内题面，列表行、画廊卡和纸面检视条的「详情」入口都调用统一 `viewQ()`。
-收件箱中状态为「已录入」的条目点击后也直接打开题目详情。
+舞台是「纸面 / 列表 / 画廊」三段（`[data-board-views]`），选择存
+`localStorage['omrs-board-view']`。画廊按题目缩略展示板内题面，列表行、画廊卡和检查器的
+「打开题目」都调用统一 `viewQ()`。收件箱中状态为「已录入」的条目点击后也直接打开题目详情。
+换视图只换呈现：三个视图下状态条与检查器都在原处，能做的事完全一样。
 
-行内「留白」数字框留空 = 继承板的全局设置（`placeholder` 显示继承成几行），填数字 = 覆盖成
+检查器里的留白输入框留空 = 继承板的全局设置（`placeholder` 显示继承成几行），填数字 = 覆盖成
 **绝对行数**（0–48）。`boardItemsPayload()` 原样把 `null` 传回后端，否则会被当成 0 行，
-行内留白一保存就退化成「不留白」。`boardEffectiveGap()` 与服务端
-`effective_gap_lines()` 必须同解。
+留白一保存就退化成「不留白」。`boardEffectiveGap()` 与服务端 `effective_gap_lines()` 必须同解。
+`boardSetItemGap()` 是唯一写入口，列表行与画廊卡上的数字只读。
 
-打印区两种模式：**打印全部**（整板从第 1 页排）与**仅打印新增**（只有纸面记录存在时可选：
-新题接在纸面 `cursor` 所在页的空白处续排，需要新页时用绝对页码 `pages+1`）。「标记为已打印」
-把同一份导出 HTML 放进隐藏 iframe（`boardMeasureLayout`）测量版面，`POST /api/board/printed`
-记录；打印预览窗口的「已打印，记录纸面」通过 `postMessage('omrs-board-printed')` 触发同一流程。
-页数估算共用这条链路且可取消：新估算会 `abort` 上一次的导出请求并立刻移除它的 iframe，
-打印预览打开时暂停后台估算、直接采用预览窗口 `postMessage('omrs-board-layout')` 回传的版面。
-打印预览（v1.14.1）必须**先同步 `window.open('', '_blank')` 拿到窗口、写入占位提示，再
+打印范围两种：**打印全部**（整板从第 1 页排）与**仅新增**（只有纸面记录存在时可选：
+新题接在纸面 `cursor` 所在页的空白处续排，需要新页时用绝对页码 `pages+1`）。范围分段在状态条上，
+改完纸面当场重排。「✓ 记录纸面」优先复用常驻预览测出的版面（板 id 与模式都对得上才采纳），
+预览不可用时才把同一份导出 HTML 放进隐藏 iframe 测量（`boardMeasureLayout`），
+再 `POST /api/board/printed`；打印预览窗口的「已打印，记录纸面」通过
+`postMessage('omrs-board-printed')` 触发同一流程。常驻预览里那份导出的顶栏动作条已由
+`embedded` 收起，不构成第三个入口。
+
+打印预览（v1.14.1 起）必须**先同步 `window.open('', '_blank')` 拿到窗口、写入占位提示，再
 `await` 导出**，最后 `preview.location.replace(blobURL)` 填入内容：浏览器只在用户手势的同步
 调用栈里允许开新窗口，先 `await` 会让手势过期而被拦截（板子越大越明显，Safari 尤其严）。
 `location.replace` 不换窗口对象，`BOARD_WINDOWS.get(event.source)` 的回传不受影响；导出失败
 时关闭占位窗口。纸面记录可重置。快捷键：`N` 新建、`A` 添加、`P` 预览、`↑↓` 选行、`Ctrl/⌘+↑↓` 排序、
-Enter 打开、Delete 移除。完整设计见 `board.md` §4。
+Enter 打开、Delete 移除。完整设计见 `board.md` §3 与 §4。
 
 ---
 

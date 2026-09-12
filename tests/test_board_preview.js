@@ -111,7 +111,8 @@ test('goto / step / view speak the documented message protocol', async () => {
 
   POSTED.length = 0;
   bp.boardPreviewSetView({ single: true, page: 1 });
-  assert.deepEqual(POSTED[0], { type: 'omrs-board-view', single: true, page: 1, scale: 1 });
+  // embedded:true 是常驻预览专用的：告诉导出模板收起它自带的打印 / 记录纸面动作条
+  assert.deepEqual(POSTED[0], { type: 'omrs-board-view', single: true, page: 1, scale: 1, embedded: true });
   assert.deepEqual(bp.boardPreviewPages(), [1, 2, 3]);
   assert.equal(bp.boardPreviewView().single, true);
 });

@@ -475,14 +475,48 @@ tr.qb-selected td{background:rgba(var(--accent-rgb),.05)}
 /* ── 展示板（紧凑版）──
    间距一律走密度变量（--pad / --row / --ctl / --fs*），紧凑档比舒适档再收一档；
    行内的「留白 +N」和「预览」平时收起，悬停 / 选中 / 已设留白时才出现，30 题一屏能看 20 多行。 */
-.bd-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:var(--gap)}
-.bd-head>.hint{flex:1 1 auto;min-width:0;font-size:var(--fs-sm);line-height:1.5}
+/* ── 状态条 ────────────────────────────────────────────────
+   纸面状态与「下一步做什么」只有这一处，主行动按钮全页唯一。
+   打印范围紧挨着它：改范围要当场在纸面上看见结果，所以不能再藏进浮层。 */
+.bd-statusbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:var(--gap);
+  padding:var(--pad-sm) var(--pad);background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-lg);box-shadow:var(--card-shadow)}
+.bd-statusbar>.hint{flex:1 1 auto;min-width:0;font-size:var(--fs-sm);line-height:1.5}
+.bd-sb-id{min-width:0;flex:0 1 auto}
+.bd-sb-state{display:flex;align-items:center;gap:5px;flex-wrap:wrap;flex-shrink:0}
+.bd-sb-why{flex:1 1 200px;min-width:0;color:var(--fg3);font-size:var(--fs-xs);line-height:1.5}
+.bd-sb-action{flex-shrink:0;white-space:nowrap}
+.bd-sb-more{display:flex;gap:4px;flex-shrink:0}
+.bd-status-chip{display:inline-flex;align-items:center;padding:1px 8px;border-radius:999px;
+  font-size:var(--fs-xs);font-weight:700;white-space:nowrap;background:var(--bg3);color:var(--fg2)}
+.bd-status-chip.paper{background:var(--kill-bg);color:var(--kill-fg)}
+.bd-status-chip.new{background:var(--trap-bg);color:var(--trap-fg)}
+.bd-status-chip.changed{background:var(--attack-bg);color:var(--attack-fg)}
+.bd-status-chip.wait{background:var(--accent);color:var(--accent-fg)}
 .bd-keys{display:inline-block;margin-left:8px;color:var(--fg3)}
 .bd-keys b{font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--fg2)}
 @media(max-width:1500px){.bd-keys{display:none}}
-.bd-head-actions{display:flex;gap:6px;flex-wrap:wrap;flex-shrink:0}
-/* 两栏：板列表 + 内容。版面 / 打印收进工具条上的浮层，整块宽度换给纸面预览。 */
-.bd-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:var(--gap);align-items:start}
+/* 三栏：板列表 + 舞台 + 检查器。舞台只管「怎么看」，设置一律在右栏。 */
+.bd-layout{display:grid;grid-template-columns:200px minmax(0,1fr) 268px;gap:var(--gap);align-items:start}
+.bd-inspector{min-width:0;position:sticky;top:var(--gap);max-height:calc(100vh - var(--gap) * 2);
+  overflow:auto;padding:var(--pad-sm) var(--pad)}
+.bd-inspector[hidden]{display:none}
+.bd-ins-sec{padding-bottom:var(--pad-sm);margin-bottom:var(--pad-sm);border-bottom:1px solid var(--border)}
+.bd-ins-sec:last-child{padding-bottom:0;margin-bottom:0;border-bottom:0}
+.bd-ins-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:var(--row)}
+.bd-ins-h strong{font-size:var(--fs);color:var(--accent2)}
+.bd-ins-h span{font-size:var(--fs-xs);color:var(--fg3)}
+.bd-ins-empty{color:var(--fg3);font-size:var(--fs-xs);line-height:1.6}
+.bd-ins-q{display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-width:0}
+.bd-ins-q strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
+.bd-ins-no{font-family:'JetBrains Mono',monospace;font-size:var(--fs-xs);color:var(--fg3)}
+.bd-ins-meta{margin:2px 0 var(--row);color:var(--fg3);font-size:var(--fs-xs);line-height:1.5}
+.bd-gap-line{display:flex;align-items:center;gap:6px}
+.bd-gap-line .input{width:64px;text-align:center;padding:var(--ctl) 4px}
+.bd-gap-line .hint{font-size:var(--fs-xs)}
+.bd-ins-acts{display:flex;gap:4px;flex-wrap:wrap;margin-top:var(--row)}
+.bd-ins-note{margin-top:var(--row);color:var(--fg2);font-size:var(--fs-xs);line-height:1.55}
+.bd-ins-note b{color:var(--attack-fg)}
 .bd-list,.bd-content{min-width:0}
 .bd-list{position:sticky;top:var(--gap);padding:var(--pad-sm)}
 .bd-content{padding:var(--pad-sm) var(--pad)}
@@ -505,8 +539,9 @@ tr.qb-selected td{background:rgba(var(--accent-rgb),.05)}
 .bd-board-menu button.danger{color:var(--red)}
 .bd-list-note{display:block;margin-top:var(--row);line-height:1.5;font-size:var(--fs-xs)}
 .bd-rename{width:100%;padding:3px 8px;font-size:var(--fs);font-weight:700}
-.bd-toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-bottom:var(--row);border-bottom:1px solid var(--border);margin-bottom:var(--row)}
-.bd-toolbar .bd-title-wrap{min-width:0;flex:1 1 200px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.bd-stagebar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-bottom:var(--row);border-bottom:1px solid var(--border);margin-bottom:var(--row)}
+.bd-stagebar-grow{flex:1 1 auto}
+.bd-stage-note{font-size:var(--fs-xs)}
 .bd-title{font-size:.94rem;font-weight:800;color:var(--accent2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .bd-sub{font-size:var(--fs-xs);color:var(--fg3)}
 .bd-sub .pt{color:var(--green)}.bd-sub .nw{color:var(--yellow)}
@@ -551,12 +586,15 @@ tr.qb-selected td{background:rgba(var(--accent-rgb),.05)}
 .bd-badge.changed{background:var(--attack-bg);color:var(--attack-fg)}
 .bd-badge.muted{background:var(--bg3);color:var(--fg3)}
 .bd-acts{display:flex;align-items:center;gap:2px;flex:0 0 auto}
-.bd-gap{display:inline-flex;align-items:center;gap:2px;color:var(--fg3);font-size:var(--fs-xs);white-space:nowrap}
-.bd-gap input{width:40px;padding:1px 3px;text-align:center;font-size:var(--fs-xs)}
+/* 行里的留白是只读回显（写入口只有右栏检查器）；点它 = 选中并把焦点送过去 */
+.bd-gap-view{padding:1px 6px;border:1px dashed var(--border2);border-radius:999px;background:transparent;
+  color:var(--fg3);font:inherit;font-size:var(--fs-xs);white-space:nowrap;cursor:pointer}
+.bd-gap-view:hover{border-color:var(--accent-light);color:var(--fg2);background:var(--bg3)}
+.bd-gap-view.has{border-style:solid;border-color:var(--accent-light);color:var(--fg2);font-weight:700}
 .bd-acts .btn.ghost{padding:1px 6px;font-size:var(--fs-xs)}
 .bd-row-x{color:var(--fg3)}
-.bd-gap,.bd-row-open{opacity:0;transition:opacity .12s}
-.bd-row:hover .bd-gap,.bd-row:hover .bd-row-open,.bd-row.is-selected .bd-gap,.bd-row.is-selected .bd-row-open,.bd-row:focus-within .bd-gap,.bd-row:focus-within .bd-row-open,.bd-gap.has{opacity:1}
+.bd-gap-view,.bd-row-open{opacity:0;transition:opacity .12s}
+.bd-row:hover .bd-gap-view,.bd-row:hover .bd-row-open,.bd-row.is-selected .bd-gap-view,.bd-row.is-selected .bd-row-open,.bd-row:focus-within .bd-gap-view,.bd-row:focus-within .bd-row-open,.bd-gap-view.has{opacity:1}
 .bd-warn{margin:0 0 var(--row);padding:6px 9px;background:var(--trap-bg);border-radius:var(--radius-sm);color:var(--trap-fg);font-size:var(--fs-xs);line-height:1.5;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .bd-warn.danger{background:var(--attack-bg);color:var(--attack-fg)}
 .bd-warn.info{background:var(--kill-bg);color:var(--kill-fg)}
@@ -629,46 +667,8 @@ tr.qb-selected td{background:rgba(var(--accent-rgb),.05)}
 .bd-gallery-card .gc-flag.yellow{color:var(--yellow)}
 .bd-gallery-card .gc-flag.red{color:var(--attack-fg)}
 
-/* ── 选中题检视条 ────────────────────────────────────────────
-   纸面视图里没有行内控件，选中一道题之后的操作全收在这一条上。
-   它是常驻节点（#bd-inspect），只被 boardRenderInspect 局部重写。 */
-.bd-inspect{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-  padding:6px 8px;margin-bottom:6px;border:1px solid var(--accent-light);
-  border-radius:var(--radius-sm);background:var(--accent-bg);font-size:var(--fs-sm)}
-.bd-inspect[hidden]{display:none}
-.bd-inspect .grow{flex:1}
-.bd-inspect-main{display:flex;align-items:center;gap:6px;min-width:0;flex-wrap:wrap}
-.bd-inspect-no{font-family:'JetBrains Mono',monospace;font-size:var(--fs-xs);color:var(--fg3)}
-.bd-inspect-uid{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg)}
-.bd-inspect-meta{color:var(--fg3);font-size:var(--fs-xs);
-  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bd-inspect-gap{display:flex;align-items:center;gap:4px;color:var(--fg2);font-size:var(--fs-xs);white-space:nowrap}
-.bd-inspect-gap .input{width:52px;text-align:center;padding:var(--ctl) 4px}
-.bd-inspect-gap.has .input{border-color:var(--accent);font-weight:700}
-.bd-inspect-cm{color:var(--fg3);font-family:'JetBrains Mono',monospace}
-.bd-inspect-x{padding:0 6px}
-/* 已打印题的提醒占满一行：它改变的是「这次操作会不会动到已经印出来的纸」，不能缩成一个 tooltip */
-.bd-inspect-note{flex-basis:100%;color:var(--fg2);font-size:var(--fs-xs);line-height:1.5}
-.bd-inspect-note b{color:var(--attack-fg)}
-@media(max-width:760px){.bd-inspect-meta{display:none}}
 
-/* ── 版面 / 打印浮层 ─────────────────────────────────────────
-   与 .bd-picker-pop 同一套浮层语言（body 挂载 + 视口锚定 + Esc / 点外部关）。
-   入口按钮 [data-board-pop] 打开时加 .on，与分段按钮的选中态一致。 */
-.bd-pop{position:fixed;z-index:1200;width:300px;max-width:calc(100vw - 20px);
-  max-height:min(78vh,620px);overflow:auto;padding:10px 12px 12px;
-  background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);
-  box-shadow:0 14px 40px rgba(0,0,0,.25);animation:fadeUp .16s ease}
-.bd-pop.centered{left:50%;top:50%;transform:translate(-50%,-50%);animation:bdPickerIn .16s ease}
-.bd-pop-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:baseline;gap:6px;
-  margin-bottom:8px;font-size:.76rem;font-weight:700;color:var(--accent2)}
-.bd-pop-head small{font-weight:400;color:var(--fg3);font-size:.68rem;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.bd-pop-x{align-self:center;padding:0 4px;border:0;background:transparent;color:var(--fg3);
-  font:inherit;font-size:.8rem;line-height:1;cursor:pointer;border-radius:5px}
-.bd-pop-x:hover{background:var(--bg3);color:var(--fg)}
-.bd-pop-tip{display:block;margin-top:var(--row);line-height:1.5;font-size:var(--fs-xs)}
-.bd-pop .bd-field:last-of-type{margin-bottom:0}
+.bd-ins-sec .bd-field:last-of-type{margin-bottom:0}
 
 .bd-picker-pop{position:fixed;z-index:1200;width:318px;max-width:calc(100vw - 20px);padding:10px;
   background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius);
@@ -786,7 +786,8 @@ tr.qb-selected td{background:rgba(var(--accent-rgb),.05)}
 .board-add-item .board-add-labels-cell{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}
 .board-add-foot{display:flex;align-items:center;gap:8px;margin-top:var(--row)}
 @media(max-width:1240px){.bd-layout{grid-template-columns:200px minmax(0,1fr)}}
-@media(max-width:760px){.bd-stage,.bd-preview-frame{max-height:none;height:70vh}.bd-layout{display:flex;flex-direction:column}.bd-list{position:static;width:100%}.bd-row{grid-template-columns:14px 22px minmax(0,1fr)}.bd-acts{grid-column:1/-1;justify-content:flex-end}.bd-gap,.bd-row-open{opacity:1}}
+@media(max-width:1180px){.bd-layout{grid-template-columns:200px minmax(0,1fr)}.bd-inspector{grid-column:1/-1;position:static;max-height:none}}
+@media(max-width:760px){.bd-stage,.bd-preview-frame{max-height:none;height:70vh}.bd-layout{display:flex;flex-direction:column}.bd-list{position:static;width:100%}.bd-row{grid-template-columns:14px 22px minmax(0,1fr)}.bd-acts{grid-column:1/-1;justify-content:flex-end}.bd-gap-view,.bd-row-open{opacity:1}.bd-sb-why{flex-basis:100%}}
 .q-action-row{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap}
 .q-edit-wrap{position:relative;display:inline-flex;flex-direction:column;align-items:stretch}
 .q-edit-wrap.open .q-edit-menu{display:flex}
@@ -1419,21 +1420,26 @@ html[data-sidebar="collapsed"] .sidebar-nav .tab{justify-content:center;padding-
 .tree-caret{width:12px;flex-shrink:0;color:var(--fg3);font-size:.7rem;text-align:center}
 .tree-ico{flex-shrink:0;font-size:.85rem;line-height:1}
 .tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tree-badges{display:flex;gap:5px;flex-shrink:0}
+.tree-badges{display:flex;gap:5px;flex-shrink:0;justify-content:flex-end}
 .tree-badge{font-size:.63rem;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--bg3);color:var(--fg2);white-space:nowrap}
 .tree-badge.due{background:rgba(var(--yellow-rgb),0.20);color:var(--yellow)}
 .tree-badge.leech{background:rgba(var(--red-rgb),0.20);color:var(--red)}
-.tree-right{display:flex;align-items:center;gap:7px;flex-shrink:0;font-size:.72rem}
-.tree-num{font-family:'JetBrains Mono',monospace;color:var(--fg3);min-width:34px;text-align:right}
-.tree-due{font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap}
+/* 右侧固定三格：进度条 / 数值 / 操作。文件夹行与文件行共用，两级行才对得齐；
+   缺哪一格就留空（.tree-bar-slot），不让后面的格子往前挤 */
+.tree-right{display:grid;grid-template-columns:72px 52px 22px;align-items:center;gap:7px;flex-shrink:0;font-size:.72rem}
+.tree-right .m-bar{width:100%;margin:0}
+.tree-bar-slot{display:block}
+.tree-num{font-family:'JetBrains Mono',monospace;color:var(--fg3);text-align:right;white-space:nowrap}
+.tree-due{display:inline-block;font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap}
 .tree-due.overdue{background:rgba(var(--red-rgb),0.20);color:var(--red)}
 .tree-due.today{background:rgba(var(--yellow-rgb),0.20);color:var(--yellow)}
 .tree-due.warn{background:var(--bg3);color:var(--fg3)}
-.tree-copy{border:none;background:transparent;color:var(--fg3);cursor:pointer;font-size:.8rem;padding:2px 4px;border-radius:4px;line-height:1}
+.tree-copy{border:none;background:transparent;color:var(--fg3);cursor:pointer;font-size:.8rem;padding:2px;border-radius:4px;line-height:1;justify-self:center}
 .tree-copy:hover{background:var(--bg4);color:var(--fg)}
 @media(max-width:720px){
   .tree-row{padding-left:calc(8px + var(--depth,0) * 12px);font-size:.76rem}
-  .tree-badges{display:none}
+  .tree-dir .tree-badges{display:none}
+  .tree-right{grid-template-columns:44px 46px 22px}
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1960,12 +1966,11 @@ html[data-theme="dark"][data-invert-img="1"] .ib-stage-img img,html[data-theme="
   font-size: 0.75rem;
 }
 
-.m-bar {
+/* 只有题目详情里的进度条随栏宽伸缩；无限定写法会把 .tree-right、.bd-row-meta
+   里定宽 72 / 44px 的同名进度条一起顶到 80px 起步 */
+.question-progress-main .m-bar {
   flex: 1;
   height: 6px;
-  background: var(--bg3);
-  border-radius: 3px;
-  overflow: hidden;
   min-width: 80px;
 }
 
@@ -2254,17 +2259,20 @@ html[data-theme="dark"][data-invert-img="1"] .ib-stage-img img,html[data-theme="
 
 /* ══════════════════════════════════════════════════════════
    首页 v1.15.0：今天 / 概览条 / 最薄弱科目
+   根类叫 .today-card 而不是 .today：today / due / new 这类通用词在别处
+   是状态修饰类（`.tree-due today`、`.due-badge today`），组件根类占用它
+   会把整张卡的 grid、内边距和边框套到那些小 chip 上。
    首页只回答「今天做什么」。整页唯一的大字号在 .today-num，
    其余一律按密度 token 走，不再和「数据复盘」页抢图表。
    ══════════════════════════════════════════════════════════ */
-.today{display:grid;grid-template-columns:minmax(0,auto) minmax(200px,1fr) auto;gap:var(--pad);align-items:center;
+.today-card{display:grid;grid-template-columns:minmax(0,auto) minmax(200px,1fr) auto;gap:var(--pad);align-items:center;
   padding:var(--pad) calc(var(--pad) * 1.2);margin-bottom:var(--gap);
   background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--fg3);
   border-radius:var(--radius-lg);box-shadow:var(--card-shadow)}
-.today.lv-overdue{border-left-color:var(--red)}
-.today.lv-due{border-left-color:var(--yellow)}
-.today.lv-clear{border-left-color:var(--green)}
-.today.is-empty{grid-template-columns:minmax(0,1fr) auto}
+.today-card.lv-overdue{border-left-color:var(--red)}
+.today-card.lv-due{border-left-color:var(--yellow)}
+.today-card.lv-clear{border-left-color:var(--green)}
+.today-card.is-empty{grid-template-columns:minmax(0,1fr) auto}
 .today-date{font-size:var(--fs-xs);color:var(--fg3);margin-bottom:5px}
 .today-num{display:flex;align-items:baseline;gap:9px}
 .today-num b{font-family:'JetBrains Mono',monospace;font-size:2.6rem;font-weight:700;line-height:.95;letter-spacing:-1.5px;color:var(--fg)}
@@ -2309,7 +2317,7 @@ html[data-theme="dark"][data-invert-img="1"] .ib-stage-img img,html[data-theme="
 .weak-row small{font-size:var(--fs-xs);color:var(--fg3);text-align:right}
 
 @media(max-width:1000px){
-  .today{grid-template-columns:minmax(0,1fr);gap:var(--pad-sm)}
+  .today-card{grid-template-columns:minmax(0,1fr);gap:var(--pad-sm)}
   .today-acts{flex-direction:row;flex-wrap:wrap}
   .today-acts .btn{flex:1}
   .kpi-strip{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -2380,7 +2388,7 @@ html[data-density="compact"] .activity-cell small{display:none}
   .content.is-workbench #ib-stage-process .ib-proc{flex:1;min-height:0;height:auto}
 
   /* 展示板：板列表 / 板内容 / 版面设置三栏各自滚 */
-  .content.is-workbench .bd-head{flex-shrink:0}
+  .content.is-workbench .bd-statusbar{flex-shrink:0}
   .content.is-workbench .bd-layout{flex:1;min-height:0;align-items:stretch}
   .content.is-workbench .bd-layout>.card{min-height:0;overflow-y:auto}
 

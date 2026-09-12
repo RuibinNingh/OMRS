@@ -124,7 +124,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 |---|---|---|
 | `omrs-board-layout` | 首轮排完、每次 relayout 之后 | `{boardId, mode, layout, view}` |
 | `omrs-board-view-state` | 单页 / 缩放变化后 | 同上，`layout` 复用上一次 |
-| `omrs-board-printed` | 顶栏点「✓ 已打印，记录纸面」 | `{boardId, mode, layout}` |
+| `omrs-board-printed` | 顶栏点「✓ 已打印，记录纸面」（嵌入式预览里顶栏是收起的，这条只来自独立窗口） | `{boardId, mode, layout}` |
 | `omrs-board-select` | 点纸面上某道题 | `{boardId, uid, idx, page}` |
 
 **宿主 → 模板**：
@@ -133,7 +133,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 |---|---|
 | `omrs-board-relayout {print, gaps}` | 就地重算几何并重排；`gaps` 是 `uid → 绝对行数 \| null`（null = 继承 `print.gap_lines`），整份覆盖 |
 | `omrs-board-goto {page}` / `{uid}` | 翻到某页 / 跳到某题所在页 |
-| `omrs-board-view {single, page, scale}` | 一次一面 / 页码 / 缩放；只写一条 `<style>`，不重排 |
+| `omrs-board-view {single, page, scale, embedded}` | 一次一面 / 页码 / 缩放；只写一条 `<style>`，不重排。`embedded:true` 给 `<body>` 加 `.embedded`，收起顶栏 `#bar` 并去掉它留下的上边距 |
 | `omrs-board-request-layout` | 补要一次已有的 layout |
 
 关键取舍：**几何类改动全程零网络请求**。拖版面滑块、改题间留白、换切割线样式都走

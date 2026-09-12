@@ -52,7 +52,7 @@
       <div class="nav-spacer"></div>
       <div class="tab" data-tab="settings" onclick="switchTab('settings')"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></div>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.17.0 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.18.0 · 本地服务</div>
   </aside>
   <div class="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
   <main class="content">
@@ -72,7 +72,7 @@
        #chart-labels 与 #chart-trend 的容器搬到 panel-data，id 不变，
        renderLabelChart / renderTrendChart 照旧被 renderDash() 调用，无需改动。 -->
   <div class="panel active" id="panel-dashboard">
-    <section class="today" id="dash-today"><div class="empty-inline">正在读取今天的任务…</div></section>
+    <section class="today-card" id="dash-today"><div class="empty-inline">正在读取今天的任务…</div></section>
     <div class="card act-card" id="action-plan"><div class="empty-inline">正在计算行动推荐…</div></div>
     <div class="kpi-strip">
       <div><label>总题数</label><b id="s-total">—</b></div>
@@ -263,17 +263,19 @@
 
   <!-- ====== 展示板 ====== -->
   <div class="panel" id="panel-board">
-    <div class="bd-head"><div class="hint">左题右空的活页「错题集」：随时加题、重排、打印；打印过后只补印新增的题，接在原纸空白处。<span class="bd-keys">快捷键 <b>N</b> 新建 · <b>A</b> 添加 · <b>P</b> 打印预览 · <b>↑↓</b> 选行 · <b>Ctrl+↑↓</b> 移动 · <b>Delete</b> 移除</span></div><div class="bd-head-actions"><button class="btn sm primary" type="button" onclick="boardCreate()">＋ 新建板</button><button class="btn sm" type="button" onclick="boardPrintPreview()">🖨 打印预览</button></div></div>
+    <!-- 状态条：这叠纸现在是什么状态、下一步做什么，只有这一处；主行动按钮全页唯一。 -->
+    <div class="bd-statusbar" id="bd-statusbar"><div class="hint">左题右空的活页「错题集」：随时加题、重排、打印；打印过后只补印新增的题，接在原纸空白处。<span class="bd-keys">快捷键 <b>N</b> 新建 · <b>A</b> 添加 · <b>P</b> 打印预览 · <b>↑↓</b> 选行 · <b>Ctrl+↑↓</b> 移动 · <b>Delete</b> 移除</span></div></div>
     <div class="bd-layout">
       <div class="card bd-list" id="bd-list"><div class="empty-inline">加载展示板…</div></div>
       <div class="card bd-content" id="bd-content">
         <div id="bd-content-head"><div class="empty-inline">请选择或新建一个展示板。</div></div>
         <!-- 预览 iframe 常驻在这里：boardRender 只重写 head / body 两块，
              innerHTML 一旦扫到 iframe，重新插入会让它整份重载（近 1MB 的字体要再解码一次）。 -->
-        <div id="bd-inspect" class="bd-inspect" hidden></div>
         <div id="bd-stage" class="bd-stage" hidden></div>
         <div id="bd-content-body"></div>
       </div>
+      <!-- 检查器：选中的题 / 版式 / 纸面记录三段永远在这里，与当前视图无关。 -->
+      <aside class="card bd-inspector" id="bd-inspector" hidden></aside>
     </div>
   </div>
 
@@ -1224,7 +1226,7 @@
 <script src="assets/instant.js?v=20260906-v1161"></script>
 <script src="assets/data.js?v=20260901-qview"></script>
 <script src="assets/inbox.js?v=20260906-v1161"></script>
-<script src="assets/board.js?v=20260909-board-p3"></script>
+<script src="assets/board.js?v=20260912-board-regions"></script>
 <script src="assets/board_picker.js?v=20260909-board-p3"></script>
 <script src="assets/board_preview.js?v=20260909-board-p3"></script>
 <script src="assets/reports.js?v=20260906-v1161"></script>

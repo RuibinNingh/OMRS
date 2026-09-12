@@ -636,6 +636,8 @@
       return;
     }
     if (message.type === "omrs-board-view") {
+      // 嵌在宿主页面里当实时预览时收起动作条：打印与「记录纸面」由宿主的状态条统一负责
+      if (message.embedded != null) document.body.classList.toggle("embedded", !!message.embedded);
       if (message.single != null) VIEW.single = !!message.single;
       if (message.page != null) VIEW.page = Number(message.page) || VIEW.page;
       if (message.scale != null) VIEW.scale = Number(message.scale) || 1;
