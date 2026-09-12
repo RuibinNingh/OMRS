@@ -52,7 +52,7 @@
       <div class="nav-spacer"></div>
       <div class="tab" data-tab="settings" onclick="switchTab('settings')"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></div>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.16.0 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.17.0 · 本地服务</div>
   </aside>
   <div class="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
   <main class="content">
@@ -258,16 +258,22 @@
         </aside>
       </div>
     </div>
-    <div class="qb-batchbar" id="qb-batchbar"><strong>✓ 已选 <span id="qb-selected-count">0</span> 题</strong><button class="btn sm primary" type="button" onclick="qbBatchBoard()">加入展示板<span class="sc">B</span></button><button class="btn sm" type="button" onclick="qbBatchLabels()">打标记<span class="sc">L</span></button><button class="btn sm" type="button" onclick="qbBatchSuspend()">停用 / 恢复</button><button class="btn sm" type="button" onclick="qbBatchExport()">导出 A4</button><span class="sep"></span><button class="btn sm ghost" type="button" onclick="qbClearSelection()">清空<span class="sc">Esc</span></button></div>
+    <div class="qb-batchbar" id="qb-batchbar"><strong>✓ 已选 <span id="qb-selected-count">0</span> 题</strong><button class="btn sm primary" type="button" data-board-hint onclick="qbBatchBoard(this)">加入展示板<span class="sc">B</span></button><button class="btn sm" type="button" onclick="qbBatchLabels()">打标记<span class="sc">L</span></button><button class="btn sm" type="button" onclick="qbBatchSuspend()">停用 / 恢复</button><button class="btn sm" type="button" onclick="qbBatchExport()">导出 A4</button><span class="sep"></span><button class="btn sm ghost" type="button" onclick="qbClearSelection()">清空<span class="sc">Esc</span></button></div>
   </div>
 
   <!-- ====== 展示板 ====== -->
   <div class="panel" id="panel-board">
-    <div class="bd-head"><div><div class="card-title" style="margin-bottom:3px">展示板</div><div class="hint">把要反复看的题目集中成一叠可随时加题、重排、打印的「错题集」：左边题目、右边留白手写。打印一次后还能只补印新增的题，接在原纸空白处。</div></div><div class="bd-head-actions"><button class="btn primary" type="button" onclick="boardCreate()">＋ 新建板</button><button class="btn" type="button" onclick="boardPrintPreview()">🖨 打印预览</button></div></div>
+    <div class="bd-head"><div class="hint">左题右空的活页「错题集」：随时加题、重排、打印；打印过后只补印新增的题，接在原纸空白处。<span class="bd-keys">快捷键 <b>N</b> 新建 · <b>A</b> 添加 · <b>P</b> 打印预览 · <b>↑↓</b> 选行 · <b>Ctrl+↑↓</b> 移动 · <b>Delete</b> 移除</span></div><div class="bd-head-actions"><button class="btn sm primary" type="button" onclick="boardCreate()">＋ 新建板</button><button class="btn sm" type="button" onclick="boardPrintPreview()">🖨 打印预览</button></div></div>
     <div class="bd-layout">
       <div class="card bd-list" id="bd-list"><div class="empty-inline">加载展示板…</div></div>
-      <div class="card bd-content" id="bd-content"><div class="empty-inline">请选择或新建一个展示板。</div></div>
-      <aside class="card bd-settings" id="bd-settings"><div class="empty-inline">选择展示板后设置版面与打印。</div></aside>
+      <div class="card bd-content" id="bd-content">
+        <div id="bd-content-head"><div class="empty-inline">请选择或新建一个展示板。</div></div>
+        <!-- 预览 iframe 常驻在这里：boardRender 只重写 head / body 两块，
+             innerHTML 一旦扫到 iframe，重新插入会让它整份重载（近 1MB 的字体要再解码一次）。 -->
+        <div id="bd-inspect" class="bd-inspect" hidden></div>
+        <div id="bd-stage" class="bd-stage" hidden></div>
+        <div id="bd-content-body"></div>
+      </div>
     </div>
   </div>
 
@@ -293,7 +299,6 @@
     <div class="entry-btns">
       <button class="btn primary" id="btn-regular-review" onclick="showRecommendPanelV2()">开始常规复习</button>
       <button class="btn" id="btn-export" onclick="showExportPanel()">导出</button>
-      <button class="btn sm" onclick="refreshSessions()" style="margin-left:auto">刷新</button>
     </div>
 
     <!-- ====== 优化后的推荐面板（单列表，智能均衡） ====== -->
@@ -527,29 +532,6 @@
       </div>
     </div>
 
-    <!-- ====== Session 历史列表 ====== -->
-    <div class="card" id="sessions-section">
-      <div class="card-title">历史 Session</div>
-      <div class="filter-note">常规 Session（EXP-）会持久化，可导出和反馈。自定义练习（TMP-）不在此列表。</div>
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--fg2);cursor:pointer">
-          <input type="checkbox" id="sch-include-answers" style="accent-color:var(--accent)">
-          导出时附带答案
-        </label>
-        <label style="display:flex;align-items:center;gap:5px;font-size:.78rem;color:var(--fg2);cursor:pointer" title="仅影响 A4 打印版；每行约为正文一行的高度">
-          题间留白
-          <input type="number" id="sch-question-gap" class="input filter-mini" min="0" max="20" step="1" value="0" aria-label="每道题之间空多少行">
-          行
-        </label>
-        <span class="view-switch">
-          <button class="btn sm toggle active" data-expvar="a4" onclick="setExportVariant('a4')">A4 打印版</button>
-          <button class="btn sm toggle" data-expvar="screen" onclick="setExportVariant('screen')">屏幕版</button>
-        </span>
-      </div>
-      <div id="sch-sessions-list"></div>
-      <div id="sch-preview" style="margin-top:14px"></div>
-      <span id="sch-status" class="status-text"></span>
-    </div>
   </div>
 
   <div class="panel" id="panel-instant">
@@ -912,7 +894,7 @@
             <button class="theme-opt" data-theme="light" onclick="setThemeMode('light')">浅色</button>
             <button class="theme-opt" data-theme="dark" onclick="setThemeMode('dark')">深色</button>
           </div>
-          <div class="hint" style="margin-top:8px">题目截图多为浅色，默认浅色阅读最自然；夜里可切深色。设置保存在本浏览器。</div>
+          <div class="hint" style="margin-top:8px">首次打开默认深色（暖石墨）；题目截图多为浅色，白天可切浅色阅读。设置保存在本浏览器。</div>
         </div>
         <div class="form-group">
           <label class="hint" style="margin-bottom:6px;display:block">界面密度</label>
@@ -1225,25 +1207,27 @@
 <datalist id="cr-cat-list"></datalist>
 <datalist id="cr-ktag-list"></datalist>
 
-<script src="assets/core.js?v=20260906-practice-record"></script>
+<script src="assets/core.js?v=20260906-v1161"></script>
 <script src="assets/labels.js?v=20260905-gallery-lean"></script>
 <script src="assets/dashboard.js?v=20260831-question-suspend"></script>
-<script src="assets/questions.js?v=20260906-practice-record"></script>
+<script src="assets/questions.js?v=20260906-v1161"></script>
 <script src="assets/qtable.js?v=20260906-practice-record"></script>
-<script src="assets/qview.js?v=20260906-practice-record"></script>
-<script src="assets/schedule.js?v=20260828-feedback-ui"></script>
-<script src="assets/export.js?v=20260901-qview"></script>
-<script src="assets/feedback.js?v=20260902-omr-result-protocol"></script>
-<script src="assets/history.js?v=20260728-ledger-timezone"></script>
-<script src="assets/recommend.js"></script>
-<script src="assets/recommend_v2.js"></script>
+<script src="assets/qview.js?v=20260906-v1161"></script>
+<script src="assets/schedule.js?v=20260906-v1161"></script>
+<script src="assets/export.js?v=20260906-v1161"></script>
+<script src="assets/feedback.js?v=20260906-v1161"></script>
+<script src="assets/history.js?v=20260906-v1161"></script>
+<script src="assets/recommend.js?v=20260906-v1161"></script>
+<script src="assets/recommend_v2.js?v=20260906-v1161"></script>
 <script src="assets/actions.js?v=20260831-question-suspend"></script>
 <script src="assets/catalog.js?v=20260816-catalog"></script>
-<script src="assets/instant.js?v=20260901-qview"></script>
+<script src="assets/instant.js?v=20260906-v1161"></script>
 <script src="assets/data.js?v=20260901-qview"></script>
-<script src="assets/inbox.js?v=20260903-inbox"></script>
-<script src="assets/board.js?v=20260905-gallery-lean"></script>
-<script src="assets/reports.js?v=20260716-ai-report-v2"></script>
-<script src="assets/app.js?v=20260901-source-export"></script>
+<script src="assets/inbox.js?v=20260906-v1161"></script>
+<script src="assets/board.js?v=20260909-board-p3"></script>
+<script src="assets/board_picker.js?v=20260909-board-p3"></script>
+<script src="assets/board_preview.js?v=20260909-board-p3"></script>
+<script src="assets/reports.js?v=20260906-v1161"></script>
+<script src="assets/app.js?v=20260906-v1161"></script>
 </body>
 </html>

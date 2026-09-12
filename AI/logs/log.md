@@ -4,6 +4,12 @@
 
 | 日期 | 类型 | 主题 | 详情 |
 |---|---|---|---|
+| 2026-09-12 | 展示板交互与调度页清理 | 统一版式与打印入口，增加版式锁定与纸面重置，题目详情入口直达，移除复习调度页 Session 反馈表 | [查看](2026-09-12_board-layout-lock-and-session-feedback-removal.md) |
+| 2026-09-10 | 默认版面调整 | 错题集题栏与右侧留白默认对半 | [查看](2026-09-10_board-default-equal-columns.md) |
+| 2026-09-10 | 导出调整 | 错题集移除装订预留 | [查看](2026-09-10_board-remove-binding-margin.md) |
+| 2026-09-06 | [展示板：录入交互修复、打印提速与界面紧凑化](2026-09-06_board-compact-print-speed.md) | 修 4 处录入→加板交互 bug；KaTeX 只内联 woff2 + 缓存、排版趟数按需、缩图找缝，导出 2.0MB→0.95MB、就绪 0.4s→0.28s；`.bd-*` 改密度变量，行高 52px→28px；修复并扩充 smoke_board_print |
+| 2026-09-06 | [ledger-records-docs-audit](2026-09-06_ledger-records-docs-audit.md) | v1.16.1：练习记录改读 Ledger、全站去原生弹窗、文档整理与写法规则 |
+| 2026-09-06 | 生产部署 | v1.16.1 练习记录改读 Ledger 等部署（跳过浏览器验收） | [查看](2026-09-06_deploy-v1.16.1-production.md) |
 | 2026-09-06 | 文档治理 | 全量文档事实审计与 v1.16.0 记录源勘误 | [查看](2026-09-06_document-fact-audit.md) |
 | 2026-09-06 | 生产部署 | v1.16.0 题库练习记录（战绩带 + 记录模块）部署 | [查看](2026-09-06_deploy-v1.16.0-production.md) |
 | 2026-09-06 | UI 改版 | 题库练习记录：战绩带 + 记录模块（v1.16.0） | [查看](2026-09-06_practice-record.md) |
@@ -53,3 +59,7 @@
 | 2026-09-03 | 收件箱录入流程（上传 → 处理 → 录入）、AI 框选 / 可转性判断、训练数据集 | `2026-09-03_inbox-intake.md` |
 | 2026-09-03 | 收件箱 P3：框选提供方（template / local_http）、盲标、自动策略、清理（v1.13.0） | `2026-09-03_inbox-intake-2.md` |
 | 2026-09-03 | 生产部署 v1.13.0（omrs2.zip 收件箱 P3 源码导出） | `2026-09-03_deploy-v1.13.0-production.md` |
+
+| 2026-09-09 | 生产部署 | 展示板实时预览 Phase 1–2 合入生产（v1.17.0） | [`2026-09-09_deploy-board-preview-phase1-2-production.md`](2026-09-09_deploy-board-preview-phase1-2-production.md) |
+| 2026-09-09 | 交接/未完成任务 | 展示板重设计第 1–2 期生产合入与第 3–4 期欠账清单 | [`2026-09-09_board-preview-remaining.md`](2026-09-09_board-preview-remaining.md) |
+| 2026-09-08 | 生产部署 | v1.17.0（展示板文件夹 + 统一选板浮层，跳过浏览器验收） | `2026-09-08_deploy-v1.17.0-production.md` |

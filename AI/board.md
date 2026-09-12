@@ -1,8 +1,10 @@
 # 展示板（错题集打印）
 
-> v1.14.0 新增，2026-09-04 重做。对应源文件：`omrs/boards.py`、`omrs/exporting.py`（展示板导出段）、
-> `omrs/export_templates/board.css|board.js`、`assets/board.js`、`assets/styles.css`（`.bd-*`）、
-> `tests/test_boards.py`、`tests/test_board_export.py`、`tests/smoke_board_print.py`。
+> 对应源文件：`omrs/boards.py`、`omrs/exporting.py`（展示板导出段）、
+> `omrs/export_templates/board.css`、`omrs/export_templates/board.js`、`assets/board.js`、
+> `assets/board_preview.js`、`assets/styles.css`（`.bd-*`）、`tests/test_boards.py`、
+> `tests/test_board_export.py`、`tests/test_board_ui.js`、`tests/test_board_preview.js`、
+> `tests/smoke_board_print.py`。
 
 ## 1. 定位与边界
 
@@ -18,36 +20,42 @@
 
 展示板与收件箱一样是呈现 / 暂存层数据，不是题目与复习事实链。
 
-> 现行实现说明：展示板不绘制 3 孔、26 孔等打孔圆圈，但会在左侧装订区域保留一条极浅的装订导引虚线（`.bind-line`）；`binding_mm` 是装订边距，不是孔位标记开关。
+错题集页面左右均使用 10mm 普通页边距，不额外预留装订区，也不绘制装订导引线或打孔圆圈。
 
 ## 2. 数据文件 `boards.json`
 
-路径：`错题/.omrs/boards.json`。写入先把已有文件滚动为 `.bak.1/2/3`，再通过临时文件、
-`fsync` 和 `os.replace` 原子替换（`save_boards`）。
+路径：`错题/.omrs/boards.json`，当前 `version: 3`。写入先把已有文件滚动为 `.bak.1/2/3`，再通过临时文件、
+`fsync` 和 `os.replace` 原子替换（`save_boards`）。字段全表见 `AI/data.md` §14，这里只记与纸面相关的要点。
 
 ```json
 {
-  "version": 1,
+  "version": 3,
+  "folders": [{"id": "BF-20260907-a1b2c3", "name": "高三上·期中", "order": 0,
+               "created_at": "2026-09-07T10:00:00+00:00", "updated_at": "2026-09-07T10:00:00+00:00"}],
   "boards": [{
     "id": "BD-20260904-a1b2c3",
     "name": "考前速览·三角函数",
     "note": "月考前使用",
+    "folder_id": "BF-20260907-a1b2c3",
+    "order": 0,
     "created_at": "2026-09-04T12:00:00+00:00",
     "updated_at": "2026-09-04T12:30:00+00:00",
     "source_labels": ["考前必看"],
     "print": {
-      "note_ratio": 0.42,
+      "note_ratio": 0.50,
       "gap_lines": 2,
-      "binding_mm": 22,
       "answers": "none",
       "show_labels": true,
-      "show_meta": true
+      "show_meta": true,
+      "cut_line": "dash",
+      "cut_label": false,
+      "locked": false
     },
     "printed": {
       "at": "2026-09-04T12:40:00+00:00",
       "pages": 3,
       "cursor": {"page": 3, "y": 493.56},
-      "print": {"note_ratio": 0.42, "gap_lines": 2, "binding_mm": 22, "...": "打印时的版面"},
+      "print": {"note_ratio": 0.50, "gap_lines": 2, "...": "打印时的版面"},
       "items": [{"question_id": "OP-000123", "uid": "三角函数1", "hash": "9f2c…",
                  "segments": [{"page": 1, "top": 0, "height": 125.7}]}],
       "answer_pages": []
@@ -56,7 +64,7 @@
       "question_id": "OP-000123",
       "uid": "三角函数1",
       "added_at": "2026-09-04T12:10:00+00:00",
-      "extra_gap_lines": 0,
+      "gap_lines": null,
       "pin": false
     }]
   }]
@@ -65,11 +73,20 @@
 
 字段规则（`normalize_print` / `_normalize_item` / `_normalize_printed`）：
 
-- `print.note_ratio` 钳到 `0.30–0.55`，`gap_lines` `0–24`，`binding_mm` `10–40`，
-  `answers ∈ {none,append}`；未知键忽略，缺失键回默认。展示板不生成打孔标记。
-- `items[].extra_gap_lines` 0–24：该题之后额外多留几行（每行 18px），供「这题我要写很多」。
+- `print.note_ratio` 钳到 `0.30–0.55`，全局 `gap_lines` `0–24`，
+  `answers ∈ {none,append}`，`cut_line ∈ {none,dash,solid}`（默认 `dash`）、`cut_label` 与 `locked` 均为布尔；
+  未知键忽略，缺失键回默认。展示板不生成打孔标记。
+- `items[].gap_lines` 是**这道题之后留白的绝对行数**（0–48，每行 18px）；`null` = 继承板的
+  全局 `print.gap_lines`。v2 的 `extra_gap_lines`（「在全局之上再加几行」）读取时按
+  `全局 + 额外` 折算成等值的绝对行数，**迁移前后纸面像素完全一致**，折算后该字段恒为 0，
+  因此重复归一化是空操作。详见 `AI/data.md` §14.2。
 - `printed.pages == 0` 表示没有纸面记录；旧文件里的 `last_printed_page` 字段直接忽略。
 - 整体覆盖 `items` 时（`update_board(items=…)`）会保留同一题原有的 `added_at`。
+- 同一请求同时给 `items` 与 `print` 时，`print` 先生效，v2 折算用的是**本次请求之后**的全局留白。
+
+覆盖旧纸面记录（`record_printed` / `reset_printed`）之前，会把被替换掉的那份追加进
+`错题/.omrs/boards_printed_history.jsonl`（只增不改，见 `AI/data.md` §14.4）。
+**这份历史目前没有 UI，也没有 HTTP 端点。**
 
 ### 题目引用解析
 
@@ -83,21 +100,66 @@ changed_count, cursor, answer_pages, print}`。
 
 ## 3. 展示板页面（`assets/board.js`）
 
-侧栏「题目库」与「目录」之间的「展示板」Tab，三栏：
+侧栏「题目库」与「目录」之间的「展示板」Tab，主体为板列表与板内容两栏；版式和打印设置通过工具条浮层打开：
 
-1. **板列表**（sticky）：板名、题数、已印页数 / 新增数、更新时间；`⋯` 菜单：重命名、备注、复制、
-   导出 HTML、删除。空态给「新建第一个展示板」。
+1. **板列表**（sticky）：文件夹 → 板的两级树，见 §3.1。板行显示板名、题数、已印页数 / 新增数、
+   更新时间；`⋯` 菜单：重命名、备注、复制、导出 HTML、移到某个文件夹、删除。空态给
+   「新建第一个展示板」。
 2. **板内容**：标题（双击重命名）+ 题数 / 科目分布 / 纸面摘要；工具条「添加题目 / 按标记同步 /
-   排序 ▾ / 清空」；每行 = 拖拽手柄 + 序号 + UID + 徽章（已印 p.N / 新增 / 已改动 / 停用 / 缺失）
-   + 标记芯片（点击开 LabelPicker）+ 元信息 + 「留白 +N 行」+ 预览 + ✕。缺失 / 停用题有黄红提示条
-   与一键清理。排序即持久化（`POST /api/board/update {items}`）。
-3. **版面与打印**（sticky）：右侧留白占比（30–55%）、题间留白行数、装订边、答案、
-   题头显示项；即改即存（去抖 500ms）。下方「打印」区见 §4；「预计页数」和纸面记录都来自隐藏 iframe 的浏览器实测。
+   排序 ▾ / 视图分段 / 清空」；缺失 / 停用题的黄红提示条排在工具条下方。
+   排序即持久化（`POST /api/board/update {items}`）。中栏有三个视图，见 §3.4。
+3. **版式与打印**统一浮层：右侧留白占比（30–55%，标签处实时显示题栏像素宽）、题间留白行数、
+   答案、题头显示项、切割线、打印范围、打印动作和纸面记录都集中在此处，即改即存（去抖 500ms）。
+   `locked` 打开后，版式、题后留白、题目顺序和板内题目增删都会先确认；确认后清空纸面记录并把状态恢复为未打印。
 
-「加入展示板」入口统一走 `boardQuickAdd(uid | uids)`：加入最近使用的板（`localStorage
-'omrs-board-last'`），toast 带「撤销」「换个板…」；没有板时先弹新建对话框。题库批量条 /
-题目 Modal / 反馈判定面板 / 即时练习 / 数据复盘顽固题表 / 收件箱都复用它。
-题库批量条走 `boardChooseAndAdd(uids)` 选板对话框。
+行内「留白 +N 行」与「预览」默认透明，行悬停 / 选中 / 键盘聚焦时才显示；已设过留白的行常显。
+`.bd-*` 样式的间距、圆角、字号全部走密度变量（`--pad/--row/--ctl/--fs*`），紧凑档单行约 28px，
+舒适档约 49px；1240px 以下版面与打印栏折到底部，760px 以下三栏纵向堆叠且行内控件常显。
+
+### 3.1 板列表：文件夹 → 板
+
+左栏是两级树，由 `boardListHtml()` 渲染，`boardFolderTree(boards, folders)` 负责分组：文件夹按
+`order` 排列，未归档恒在最后，空文件夹保留并显示虚线占位「把板拖进来」。文件夹行给折叠箭头、
+板数，以及组内「还没印上纸」的题数汇总 `+N`（各板 `printed_summary.new_count` 相加），
+`⋯` 菜单提供重命名 / 在此新建板 / 上移 / 下移 / 删除文件夹。删除文件夹默认把板移到未归档，
+对话框里可以改成连板一起删。
+
+折叠状态存 `localStorage['omrs-board-folders-collapsed']`，不进 `boards.json`——它是 UI 状态，
+不是数据。拖拽（`boardBindTreeDrag()`）：板拖到文件夹行 = 移动，板拖到板行 = 落在那个位置，
+文件夹行之间拖 = 文件夹排序；不便拖拽时用板 `⋯` 菜单的「移到」。
+
+### 3.2 加入展示板：统一选板浮层
+
+八处入口（题库行内 `⋯`、题库批量条、题目 Modal、反馈判定面板、即时练习、数据复盘顽固题表、
+收件箱、录入成功提示）统一走 `boardPickerOpen(uids, {anchor, exclude, moveFrom, direct, onDone})`。
+`boardQuickAdd` / `boardChooseAndAdd` 保留为薄封装，调用点函数名不变。
+
+浮层结构：标题（带本次题数）+ 搜索框 + 分组列表 + 「＋ 新建板并加入…」。传了 `anchor` 就锚定在
+触发元素下方弹出，没有则同一份 DOM 居中显示（toast 按钮、快捷键走这条）。**单击板行即完成**，
+没有「确定」按钮；`⌘/Ctrl` + 点击则加入但不关闭，可连加多个板，再点一次撤回本次加进去的题。
+
+行状态由 `boardPickerRowState(board, uids)` 算出，靠 `/api/boards` 返回的每板 `uids` 本地判断：
+
+| 状态 | 显示 | 点击行为 |
+|---|---|---|
+| 全新 | `12 题 · 已印 3 页` | 加入全部 |
+| 部分已在 | 追加 `已有 1/3` | 只加尚未在板里的那些 |
+| 全部已在 | 灰显 + `↗` + `已全部在板中` | 不重复加入，改为打开该板 |
+
+搜索匹配板名与文件夹名，过滤态展平分组、每行副标题显示所属文件夹（`boardPickerFilter`）；
+搜不到时底部按钮变成「＋ 新建《输入的名字》并加入」。板多于 6 个时列表顶部给「最近」
+（`boardPickerRecent`：上次用的板 + 最近更新，最多 2 条）；板少时不显示，避免同一个板出现两次。
+
+速度不倒退：键盘「打开浮层 → `Enter`」两键进上次的板；`Shift` + 点「加入展示板」跳过浮层直接加入，
+toast 写明「已直接加入《X》」并给「撤销」「换个板…」；按钮 `title` 在悬停 / 聚焦时现算，写出当前
+默认目标（`加入展示板（上次：X）`）。原则是**默认给选择，加速留给显式修饰键**。
+
+键盘：`↑/↓` 移动高亮（默认跳过「全部已在板中」的行，否则 `Enter` 是空动作）、`Enter` 加入、
+`←/→` 折叠 / 展开所在文件夹、`Esc` 关闭。焦点始终留在搜索框（combobox + `aria-activedescendant`），
+触屏（`pointer: coarse`）不自动聚焦，免得软键盘挡住列表。`Esc` 在 capture 阶段处理并
+`stopPropagation`，因此浮层开着时按 `Esc` 关的是浮层，底层 Modal 不会被顺手关掉。
+
+### 3.3 添加题目与页面键盘
 
 「添加题目」对话框复用 `filterItems()`（搜索 / 科目 / 分类 / 知识点 / 状态 / 到期 / 标记 chips），
 已在板中的题目灰显跳过，可「全选筛选结果」。「按标记同步」是显式追加并去重，不会因题目后来
@@ -105,6 +167,24 @@ changed_count, cursor, answer_pages, print}`。
 
 键盘：`N` 新建、`A` 添加题目、`P` 打印预览、`↑/↓` 选行、`Ctrl/⌘+↑/↓` 移动行、`Enter` 打开、
 `Delete` 移除；所有对话框用 `uiDialog/uiPrompt/uiConfirm`（core.js），不再用 `prompt()`。
+
+### 3.4 中栏三视图：纸面 / 列表 / 画廊
+
+分段按钮 `[data-board-views]`，选择存 `localStorage['omrs-board-view']`（UI 状态，不进
+`boards.json`）。
+
+**纸面（默认）** 是一个常驻的同源 `srcdoc` iframe，内容就是 `/api/export` 的导出 HTML——
+所见即所打印，没有第二套估算。上方是翻页条：`←/→` 翻页、页码直填、「⚑ 跳到新增」定位到第一道
+还没印上纸的题、「适应宽度 / 100%」缩放，以及从真实版面读出的页数与告警摘要。默认**一次一面**。
+点纸面上的题会回传 `omrs-board-select`，宿主据此同步选中态。
+iframe 的生命周期、三档刷新与指纹缓存见 `AI/frontend.md` §3.4。
+
+**列表** 就是原来的选题条目列表，完整保留：每行一行高，拖拽手柄 + 序号 + UID + 徽章
+（已印 p.N / 新增 / 已改动 / 停用 / 缺失）+ 标记芯片（点击开 LabelPicker）+ 元信息 +
+「留白」数字框 + 预览 + ✕。留白框留空 = 继承板的全局设置（`placeholder` 显示继承成几行），
+填数字 = 覆盖成绝对行数（0–48）。
+
+**画廊**显示板内题目缩略详情，点击「详情」或双击题目均打开统一题目详情视图；纸面视图和列表视图也提供同一详情入口。
 
 ## 4. 打印系统：全部 / 仅新增 / 纸面记录
 
@@ -122,12 +202,25 @@ printed（纸面记录）= 已打印题目集合 + 每题所在页 / 位置 + �
   这一页顶部放一个高度 = `cursor.y` 的占位块（屏幕上显示斜纹「已打印区域」，打印时完全透明，
   页眉页脚也隐藏），新题从占位块下方继续排；这一页放不下时**跳到 `pages + 1`** 新页（绝对页码，
   跳过中间的答案页）。占位页若没放进任何新题则不输出。确认后把新题**追加**进纸面记录并推进 cursor。
-- 纸面几何（`note_ratio / gap_lines / binding_mm`）在仅新增模式下**沿用纸面记录**，与原纸对齐；
+- 纸面几何（`note_ratio / gap_lines`）在仅新增模式下**沿用纸面记录**，与原纸对齐；
   `answers / show_labels / show_meta` 跟随当前设置。新题的答案附页排在新题之后的
   新页上（标题「答案（本次新增）」），不会去动已打印的答案页。
 - 题号接着纸面继续（`index_start = printed.count + 1`）。
 
-### 4.2 记录纸面（「标记为已打印」）
+### 4.2 打印区与页数估算
+
+「打印」区依次是：模式分段按钮（打印全部 / 仅打印新增(N)，没有纸面记录时后者禁用并说明原因）、
+一行模式说明、估算条、三个按钮（打印预览 / 下载 HTML / 标记为已打印）、打印设置提示、纸面记录块。
+
+页数不再单独跑一遍排版：**常驻预览 iframe 就是那一遍**。翻页条的页数、页码范围与告警数
+直接读它回传的 `layout`（`boardEstimateText()` 只负责拼文案），几何改动走 `relayout`
+在 iframe 内重排、全程零请求。展示板 Tab 不在前台或预览滚出视口时不排版，回来再补一次。
+
+隐藏 iframe 测量（`boardMeasureLayout()`）只剩一条回退路径：预览不可用（列表视图、导出报错）
+时「标记为已打印」仍要拿到版面。打印预览窗口的 `omrs-board-layout` 回传不再当估算用，
+只保留「已打印，记录纸面」这条链路。
+
+### 4.3 记录纸面（「标记为已打印」）
 
 版面由浏览器实测，所以记录也来自浏览器：
 
@@ -148,7 +241,43 @@ printed（纸面记录）= 已打印题目集合 + 每题所在页 / 位置 + �
             "segments": [{"page": 1, "top": 0, "height": 125.7}]}]}
 ```
 
-### 4.3 边界与取舍
+### 4.4 每题留白与切割线
+
+题间留白是「留给你写的地方」，因此逐题可调：`items[].gap_lines` 是这道题之后的**绝对行数**
+（0–48，每行 18px），`null` 表示继承板的全局 `print.gap_lines`（0–24）。
+服务端 `effective_gap_lines()` 与前端 `boardEffectiveGap()` 是同一算式；导出时继承关系
+已在服务端解开，浏览器模板只看到算好的绝对值。
+
+**切割线**（`.cut-line`）画在每题留白的末尾，回答「这道题写到这里为止」：
+
+| `cut_line` | 纸面 |
+|---|---|
+| `none` | 不画 |
+| `dash` | 淡虚线（默认） |
+| `solid` | 淡实线 |
+
+`cut_label` 开启时线右端加一枚「第 N 题止」小标。线宽等于内容全宽（题栏 + 24px 间距 +
+右侧留白区），打印色比屏幕深一档，否则喷墨印不出来。四种情况**不画**：贴页底、被顶到新页
+顶部、答案页、仅新增模式的已打印占位区内——详见 `AI/export.md`。
+
+### 4.5 切割线的默认值与已知缺口
+
+代码默认 `dash`，因此**历史板在下次打印时也会显示淡切割线**。第 3 期 UI 完成前，
+关闭入口只能走 API：
+
+```http
+POST /api/board/update
+{"id":"<BOARD_ID>","print":{"cut_line":"none"}}
+```
+
+「老板保持原样、新板默认开」如果是最终产品决定，应在 v2→v3 的迁移逻辑里把旧板写成
+`none` 并补测试；当前实现**没有**这样区分。
+
+**未实机验证：** 淡线在真实打印机 A4 上是否可见、会不会被判为过浅而完全吃掉，
+尚未用真实打印机确认（本环境无打印机）。切割线的位置、条数、线宽与不画条件由
+`tests/smoke_board_print.py::BoardCutLineSmokeTest` 在真实 Chromium 下验收。
+
+### 4.6 边界与取舍
 
 | 情况 | 处理 |
 |---|---|
@@ -165,10 +294,14 @@ printed（纸面记录）= 已打印题目集合 + 每题所在页 / 位置 + �
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/boards` | 板列表：`{id,name,note,count,updated_at,created_at,print,missing,suspended,printed_summary}` |
+| GET | `/api/boards` | `{boards:[…], folders:[…]}`；板含 `{id,name,note,folder_id,order,count,uids,updated_at,created_at,print,missing,suspended,printed_summary}`，`uids` 供选板浮层本地算行状态 |
 | GET | `/api/board?id=` | 单板：解析后的 `items`（含 `printed/printed_page/changed`）、`printed`、`printed_summary` |
-| POST | `/api/board/create` | `{name, uids?, label?}`；给 `label` 时按当前题目标记选题 |
-| POST | `/api/board/update` | `{id, name?, note?, print?, items?, source_labels?}`；`items` 整体覆盖 |
+| POST | `/api/board/create` | `{name, uids?, label?, folder_id?}`；给 `label` 时按当前题目标记选题 |
+| POST | `/api/board/update` | `{id, name?, note?, print?, items?, source_labels?, folder_id?}`；`items` 整体覆盖。`print` 含 `cut_line`/`cut_label`；`items[].gap_lines` 为绝对行数（`null`=继承），同帧提交 `items+print` 时折算用请求后的全局值 |
+| POST | `/api/board/folder/create` | `{name}` → `{folder}` |
+| POST | `/api/board/folder/update` | `{id, name?, order?}`；改 `order` 会重排整组文件夹 |
+| POST | `/api/board/folder/delete` | `{id, keep_boards=true}`；默认把板移到未归档，`false` 时连板一起删 |
+| POST | `/api/board/move` | `{id, folder_id, index?}`；板改文件夹 / 改组内顺序 |
 | POST | `/api/board/items/add` | `{id, uids:[], position?}`；按 `question_id`/`uid` 去重，返回 `board.added` |
 | POST | `/api/board/items/remove` | `{id, uids:[]}` |
 | POST | `/api/board/duplicate` | `{id, name}`；复制引用与版面，不复制纸面记录 |
@@ -182,15 +315,18 @@ printed（纸面记录）= 已打印题目集合 + 每题所在页 / 位置 + �
 
 ## 6. 纸面模型（浏览器模板 `board.js`）
 
-- A4 纵向 `793.7 × 1122.52px`；左装订边 `binding_mm`（默认 22mm ≈ 83.1px），右 10mm，上下 12mm，
+- A4 纵向 `793.7 × 1122.52px`；左右 10mm、上下 12mm，
   页脚安全带 8.5mm（同 `a4.js`）；页眉「错题集」，并在 `show_meta` 开启且有值时显示生成日期，页脚绝对页码。
-- 题栏宽 = `(内容宽 − 24) × (1 − note_ratio)`，默认约 376px，与 A4 双栏栏宽相近，字号 / 表格 /
-  切片阈值直接复用 `a4.css` 的规则；右侧留白不生成任何 DOM。
+- 题栏宽 = `(内容宽 − 24) × (1 − note_ratio)`；`note_ratio` 默认 `0.50`，扣除 24px
+  间距后题栏与右侧留白各约 347px。字号 / 表格 / 切片阈值直接复用 `a4.css` 的规则；
+  右侧留白不生成任何 DOM。
+- 切割线画在 `.page-inner` 上（不在 `.col` 里，那是 `overflow:hidden`），
+  `top = 页眉高 39px + 留白末尾相对题栏顶的偏移`，宽度 = 内容全宽。
 - 排版引擎与 `a4.js` 同源：按栏宽测真实高度 → 贪心装页；文字按公式边界拆段；表格整块；长图读
   像素找白缝切片，无缝时最少墨行处切并标红虚线告警；题头不留孤行；题目跨页时新页顶部补
   「第 N 题（续）」。题间留白放不下就贴页底，不为它另起一页。
 - 标记芯片打印变体：18% 淡底 + 同色相压暗文字（`_board_label_ink`，WCAG AA）。
-- 展示板只保留 `binding_mm` 装订边距，不绘制 3 孔、26 孔或其他打孔圆圈；模板仍绘制极浅的 `.bind-line` 装订导引虚线。
+- 左侧只保留 10mm 普通页边距，不额外预留装订区，也不绘制装订导引线或打孔圆圈。
 
 ## 7. 维护边界
 
@@ -198,3 +334,13 @@ printed（纸面记录）= 已打印题目集合 + 每题所在页 / 位置 + �
 - 题目 Markdown、标记和学习状态仍由各自链路维护；展示板只读取它们。
 - `board.css` / `board.js` 是独立导出模板；改几何、页码、切片或纸面记录格式时同步 `AI/export.md`、
   `tests/test_boards.py`、`tests/smoke_board_print.py`（需要 playwright + Chromium，缺失自动跳过）。
+- `assets/board.js` 的纯函数（`boardMoveItems / boardItemsPayload / boardUniqueUids /
+  boardEstimateText / boardColumnWidth / boardEffectiveGap / boardDirtyMerge / boardSavePayload /
+  boardFolderTree / boardPicker*`）通过 `module.exports` 暴露给 `tests/test_board_ui.js`；
+  `boardColumnWidth` 与模板 `board.js` 的 `COL_W` 是同一算式，改几何要两处一起改。
+- `assets/board_preview.js` 的消息协议由 `tests/test_board_preview.js` 锁住：几何 relayout
+  不重新导出、内容变化才失效指纹、`omrs-board-select` 回传、回调惰性注册。
+  改 `postMessage` 的消息名或载荷形状时，模板 `omrs/export_templates/board.js`、
+  `assets/board_preview.js` 与这份测试必须一起改。
+- 每题留白的算式有三处实现，必须同解：`omrs/boards.py::effective_gap_lines`、
+  `omrs/exporting.py::_board_gap_lines`、`assets/board.js::boardEffectiveGap`。

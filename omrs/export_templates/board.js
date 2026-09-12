@@ -24,41 +24,72 @@
   const PRINTED = MODE === "new" && META.printed ? META.printed : null;
 
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-  const bindingMm = clamp(Number(PRINT.binding_mm) || 22, 10, 40);
-  const noteRatio = clamp(Number(PRINT.note_ratio) || .42, .30, .55);
-  const gapLines = clamp(Number(PRINT.gap_lines) || 0, 0, 24);
-  const BINDING = bindingMm * MM;
-  const CONTENT_W = PAGE_W - BINDING - MARGIN_R;
+  // 版面派生量是可变的：宿主页面拖版面滑块时发 omrs-board-relayout，直接在本页重算重排，
+  // 不重新请求那份将近 1MB 的导出 HTML。CONTENT_H / COL_H 只依赖纸张，恒定。
   const CONTENT_H = PAGE_H - 2 * MARGIN_TB - FOOTER_SAFE;
-  const COL_W = Math.floor((CONTENT_W - COL_GAP) * (1 - noteRatio) * 100) / 100;
   const COL_H = CONTENT_H - HEAD_H;
+  let PRINT_STATE = Object.assign({}, PRINT);
+  let noteRatio, gapLines, CUT, CUT_LABEL, CONTENT_W, COL_W;
+  let GAPS = null;              // uid -> 绝对行数 | null(继承全局)；宿主重排时整份覆盖
+  function applyPrint(next) {
+    if (next && typeof next === "object") PRINT_STATE = Object.assign({}, PRINT_STATE, next);
+    const p = PRINT_STATE;
+    noteRatio = clamp(Number(p.note_ratio) || .50, .30, .55);
+    gapLines = clamp(Number(p.gap_lines) || 0, 0, 48);
+    CUT = ["none", "dash", "solid"].indexOf(p.cut_line) >= 0 ? p.cut_line : "dash";
+    CUT_LABEL = p.cut_label === true;
+    CONTENT_W = PAGE_W - 2 * MARGIN_R;
+    COL_W = Math.floor((CONTENT_W - COL_GAP) * (1 - noteRatio) * 100) / 100;
+  }
+  applyPrint(null);
+  // 初次渲染用服务端算好的绝对值；宿主发来 gaps 之后改用宿主的（null = 继承当前全局）
+  function questionGap(q) {
+    if (GAPS && Object.prototype.hasOwnProperty.call(GAPS, q.uid)) {
+      const own = GAPS[q.uid];
+      return clamp(Number(own == null ? gapLines : own) || 0, 0, 48);
+    }
+    return clamp(Number(q.gap_lines) || 0, 0, 48);
+  }
 
   function el(tag, cls, txt) { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
   // ---- 像素分析：每行墨量 + 干净缝带（与 a4.js 一致） ----
+  // 找白缝只需要「每一行有多少墨」，不需要原图分辨率：宽于 ANALYZE_W 的图先缩到 ANALYZE_W
+  // 再扫描，结果按比例映射回原图坐标。手机拍的千万像素长图从逐像素扫几百毫秒降到几毫秒，
+  // 切口位置误差不超过一两个原图像素，落在 SAFETY 余量之内。
+  const ANALYZE_W = 600;
   const _cache = new Map();
   function analyze(img) {
     if (_cache.has(img.src)) return _cache.get(img.src);
     const W = img.naturalWidth, H = img.naturalHeight;
-    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const scale = W > ANALYZE_W ? ANALYZE_W / W : 1;
+    const aw = Math.max(1, Math.round(W * scale)), ah = Math.max(1, Math.round(H * scale));
+    const cv = document.createElement("canvas"); cv.width = aw; cv.height = ah;
     const ctx = cv.getContext("2d", { willReadFrequently: true });
-    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H); ctx.drawImage(img, 0, 0);
-    const data = ctx.getImageData(0, 0, W, H).data;
-    const ink = new Int32Array(H);
-    for (let y = 0; y < H; y++) {
-      let c = 0, o = y * W * 4;
-      for (let x = 0; x < W; x++) { const i = o + x * 4; if (Math.min(data[i], data[i + 1], data[i + 2]) < WHITE_THR) c++; }
-      ink[y] = c;
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, aw, ah); ctx.drawImage(img, 0, 0, aw, ah);
+    const data = ctx.getImageData(0, 0, aw, ah).data;
+    const inkScaled = new Int32Array(ah);
+    for (let y = 0; y < ah; y++) {
+      let c = 0, o = y * aw * 4;
+      for (let x = 0; x < aw; x++) { const i = o + x * 4; if (Math.min(data[i], data[i + 1], data[i + 2]) < WHITE_THR) c++; }
+      inkScaled[y] = c;
     }
-    const sorted = Array.from(ink).sort((a, b) => a - b);
-    const floor = sorted[Math.floor(H * 0.05)] || 0;
-    const quietThr = floor + Math.max(2, Math.round(W * 0.004));
-    const G = Math.max(4, Math.round(H * 0.004));
+    const sorted = Array.from(inkScaled).sort((a, b) => a - b);
+    const floor = sorted[Math.floor(ah * 0.05)] || 0;
+    const quietThr = floor + Math.max(2, Math.round(aw * 0.004));
+    const G = Math.max(4, Math.round(ah * 0.004));
+    const toNatural = y => Math.min(H, Math.round(y / scale));
     const bands = []; let s = -1;
-    for (let y = 0; y <= H; y++) {
-      const q = (y < H) && ink[y] <= quietThr;
-      if (q) { if (s < 0) s = y; } else { if (s >= 0) { if (y - s >= G) bands.push([s, y]); s = -1; } }
+    for (let y = 0; y <= ah; y++) {
+      const q = (y < ah) && inkScaled[y] <= quietThr;
+      if (q) { if (s < 0) s = y; } else { if (s >= 0) { if (y - s >= G) bands.push([toNatural(s), toNatural(y)]); s = -1; } }
+    }
+    // ink 仍按原图行号索引（leastInk 在原图坐标里找最少墨的一行），数值换算回原图宽度
+    let ink = inkScaled;
+    if (scale !== 1) {
+      ink = new Int32Array(H);
+      for (let y = 0; y < H; y++) ink[y] = Math.round(inkScaled[Math.min(ah - 1, Math.floor(y * scale))] / scale);
     }
     const out = { W, H, ink, bands }; _cache.set(img.src, out); return out;
   }
@@ -99,18 +130,16 @@
     page.dataset.page = String(number);
     if (partial) page.classList.add("partial");
     const inner = el("div", "page-inner");
-    inner.style.left = BINDING + "px"; inner.style.top = MARGIN_TB + "px";
+    inner.style.left = MARGIN_R + "px"; inner.style.top = MARGIN_TB + "px";
     inner.style.width = CONTENT_W + "px"; inner.style.height = CONTENT_H + "px";
     const head = el("div", "head");
     head.appendChild(el("span", "ttl", META.title || "错题集"));
-    if (PRINT.show_meta !== false && META.generated) head.appendChild(el("span", "sub", META.generated));
+    if (PRINT_STATE.show_meta !== false && META.generated) head.appendChild(el("span", "sub", META.generated));
     inner.appendChild(head);
     const col = el("div", "col");
     col.style.width = COL_W + "px"; col.style.height = COL_H + "px";
     inner.appendChild(col);
     page.appendChild(inner);
-    // 装订辅助：左边距内一条极浅虚线（12mm 处）
-    const line = el("div", "bind-line"); line.style.left = (12 * MM) + "px"; page.appendChild(line);
     page.appendChild(el("div", "pagenum", String(number)));
     return col;
   }
@@ -128,6 +157,7 @@
     const afterPrinted = opt.printedPages || 0;
     let currentQ = null;           // 正在排版的题（用于续页题头）
     const segments = new Map();    // idx -> Map(pageNumber -> {top,bottom})
+    const cuts = [];               // 切割线待绘制位置 {page, y, idx}
 
     function newPage(partial) {
       const number = nextNumber;
@@ -146,6 +176,8 @@
     function track(node, block) {
       const q = block && block.q;
       if (!q) return;
+      node.dataset.qUid = q.uid || "";
+      node.dataset.qIdx = String(q.idx);
       const rect = node.getBoundingClientRect(), base = col.getBoundingClientRect();
       const map = segments.get(q.idx) || new Map();
       const seg = map.get(page.number) || { top: Infinity, bottom: 0 };
@@ -214,8 +246,18 @@
     // 题间留白：放不下就贴到页底，不为它另起一页
     function placeGap(b) {
       const node = b.build(); const h = measure(node);
-      if (y + h > COL_H + 0.5) { node.style.height = Math.max(0, COL_H - y) + "px"; forcePut(node, null); y = COL_H; return; }
+      if (y + h > COL_H + 0.5) { node.style.height = Math.max(0, COL_H - y) + "px"; forcePut(node, null); y = COL_H; recordCut(b); return; }
       put(node, null);
+      recordCut(b);
+    }
+    // 切割线：落在每题留白的末尾，是「这道题写到这里为止」的提示，四种情况不画：
+    // ① 贴页底（撕下来就是整页，没有意义）② 留白被顶到新页顶部 ③ 答案页 ④ 增量模式的已打印占位区内
+    function recordCut(b) {
+      if (CUT === "none" || !page || page.answer) return;
+      if (y >= COL_H - 2 || y <= 0.5) return;
+      if (page.partial && y <= (opt.cursorY || 0) + 0.5) return;
+      cuts.push({ page, y: Math.round(y * 100) / 100, idx: b && b.q ? b.q.idx : null,
+                  uid: b && b.q ? b.q.uid : "", lines: b ? (Number(b.lines) || 0) : 0 });
     }
     function placeImage(b) {
       const im = b.imgEl;
@@ -294,6 +336,21 @@
       const realNodes = [...first.col.children].filter(n => !n.classList.contains("ghost"));
       if (!realNodes.length) { first.page.remove(); pages.shift(); }
     }
+    // 切割线画在 page-inner 上（不在 .col 里，避免被 overflow:hidden 裁掉）：
+    // y 是相对题栏顶的偏移，题栏顶距 page-inner 顶正好是页眉高度 HEAD_H。
+    for (const cut of cuts) {
+      if (pages.indexOf(cut.page) < 0) continue;              // 被丢弃的占位页上的线一并丢掉
+      const inner = cut.page.page.querySelector(".page-inner");
+      if (!inner) continue;
+      const line = el("div", "cut-line" + (CUT === "solid" ? " solid" : ""));
+      line.style.top = (HEAD_H + cut.y) + "px";
+      line.style.left = "0";
+      line.style.width = CONTENT_W + "px";                    // 题栏 + COL_GAP + 留白区，全宽
+      // 切割线同时是「这道题留白多高」的拖拽手柄；答案页与占位区的线根本不会走到这里
+      if (cut.uid) { line.dataset.cutUid = cut.uid; line.dataset.cutLines = String(cut.lines); line.classList.add("draggable"); }
+      if (CUT_LABEL && cut.idx != null) line.appendChild(el("span", "tag", "第 " + cut.idx + " 题止"));
+      inner.appendChild(line);
+    }
     measurer.remove();
     const items = [];
     segments.forEach((map, idx) => {
@@ -340,8 +397,8 @@
   function plainBlock(cls, text, keepNext) {
     return { keepNext: !!keepNext, build: () => el("div", "blk " + cls, text) };
   }
-  function gapBlock(lines) {
-    return { kind: "gap", build: () => { const e = el("div", "blk question-gap"); e.style.setProperty("--gap-lines", String(lines)); return e; } };
+  function gapBlock(lines, q) {
+    return { kind: "gap", q, lines, build: () => { const e = el("div", "blk question-gap"); e.style.setProperty("--gap-lines", String(lines)); return e; } };
   }
   function tableBlock(table, q) {
     return { kind: "table", q, build: () => {
@@ -359,7 +416,7 @@
       const labels = el("span", "labels"); appendLabelChips(labels, q.labels);
       if (labels.childNodes.length) l1.appendChild(labels);
       e.appendChild(l1);
-      if (PRINT.show_meta !== false) {
+      if (PRINT_STATE.show_meta !== false) {
         const bits = [q.subject, q.category].filter(Boolean);
         if (String(q.difficulty ?? "").trim()) bits.push("难度 " + q.difficulty + "/10");
         if (bits.length) e.appendChild(el("div", "meta", bits.join("  ·  ")));
@@ -391,7 +448,8 @@
         else B.push(txtBlock("q-text", b.text, q, false));
       });
       B.push({ kind: "qend", q });
-      B.push(gapBlock(gapLines + clamp(Number(q.extra_gap_lines) || 0, 0, 24)));
+      // 服务端已把「继承全局 / 单题覆盖」算成绝对行数，模板不再做加法
+      B.push(gapBlock(questionGap(q), q));
     });
     if (D.answers && D.answers.length) {
       B.push({ kind: "answers" });
@@ -456,22 +514,97 @@
     return layoutReport;
   }
 
+  // ---------- 宿主协议：实时预览 ----------
+  // 宿主（展示板页）把这份导出放进常驻 iframe，用消息驱动重排 / 翻页 / 缩放，
+  // 几何类改动全程零网络请求；只有增删题、换模式这类内容变化才重新拉导出。
+  let VIEW = { single: false, page: 0, scale: 1 };
+  function viewStyleEl() {
+    let node = document.getElementById("omrs-view-style");
+    if (!node) { node = el("style"); node.id = "omrs-view-style"; document.head.appendChild(node); }
+    return node;
+  }
+  function pageNumbers() { return [...document.querySelectorAll("#stage .page")].map(p => Number(p.dataset.page)); }
+  function applyView() {
+    const numbers = pageNumbers();
+    if (!numbers.length) { viewStyleEl().textContent = ""; return; }
+    if (!numbers.includes(VIEW.page)) VIEW.page = numbers[0];
+    const rules = [];
+    if (VIEW.single) {
+      // 模板本身不需要知道「单页」这回事：每页早就有 data-page，靠一条 CSS 就能只留一面
+      rules.push('#stage .page{display:none;}');
+      rules.push('#stage .page[data-page="' + VIEW.page + '"]{display:block;}');
+    }
+    const scale = clamp(Number(VIEW.scale) || 1, .2, 2);
+    if (scale !== 1) {
+      rules.push("#stage{transform:scale(" + scale + ");transform-origin:top center;}");
+      rules.push("#stage .page{margin-bottom:" + Math.round(22 / scale) + "px;}");
+    }
+    viewStyleEl().textContent = rules.join("\n");
+    notify("omrs-board-view-state", window.OMRS_LAYOUT || null);
+  }
+  function gotoPage(value) {
+    const numbers = pageNumbers();
+    if (!numbers.length) return;
+    const target = Number(value);
+    VIEW.page = numbers.includes(target) ? target : numbers[0];
+    applyView();
+    if (!VIEW.single) document.querySelector('#stage .page[data-page="' + VIEW.page + '"]')?.scrollIntoView({ block: "start" });
+  }
+  function gotoUid(uid) {
+    const node = document.querySelector('#stage [data-q-uid="' + String(uid).replace(/["\\\\]/g, "\\\\$&") + '"]');
+    const page = node && node.closest(".page");
+    if (page) gotoPage(Number(page.dataset.page));
+  }
+  function relayout(message) {
+    if (message && message.gaps && typeof message.gaps === "object") GAPS = message.gaps;
+    applyPrint(message && message.print);
+    const report = run();
+    applyView();
+    notify("omrs-board-layout", report);
+    return report;
+  }
+
   function waitForTwoFrames() { return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); }
 
-  function notify(type, layoutReport) {
-    const payload = { type, boardId: META.board_id || "", mode: MODE, layout: layoutReport };
+  function notifyRaw(payload) {
     try { if (window.opener && !window.opener.closed) window.opener.postMessage(payload, "*"); } catch (e) {}
     try { if (window.parent && window.parent !== window) window.parent.postMessage(payload, "*"); } catch (e) {}
   }
+  function notify(type, layoutReport) {
+    notifyRaw({ type, boardId: META.board_id || "", mode: MODE, layout: layoutReport, view: { single: VIEW.single, page: VIEW.page, scale: VIEW.scale } });
+  }
 
+  function loadedFontKeys() {
+    const keys = new Set();
+    try { document.fonts.forEach(face => { if (face.status === "loaded") keys.add(face.family + "|" + face.weight + "|" + face.style); }); } catch (e) {}
+    return keys;
+  }
+  function hasMath() {
+    const probe = list => (list || []).some(item => (item.blocks || []).some(b =>
+      (b.t === "txt" && /\$/.test(b.text || "")) || (b.t === "table" && JSON.stringify([b.headers, b.rows]).indexOf("$") >= 0)));
+    return probe(D.questions) || probe(D.answers);
+  }
+  // 有公式时先把常用 KaTeX 字体解码好：否则首轮排版用后备字体测高，之后还得整体重排一遍
+  async function warmFonts() {
+    if (!hasMath() || !document.fonts || typeof document.fonts.load !== "function") return;
+    const specs = ['normal 400 16px "KaTeX_Main"', 'normal 700 16px "KaTeX_Main"', 'italic 400 16px "KaTeX_Main"',
+      'italic 400 16px "KaTeX_Math"', 'normal 400 16px "KaTeX_Size1"', 'normal 400 16px "KaTeX_Size2"',
+      'normal 400 16px "KaTeX_Size3"', 'normal 400 16px "KaTeX_Size4"', 'normal 400 16px "KaTeX_AMS"'];
+    await Promise.all(specs.map(spec => document.fonts.load(spec).catch(() => null)));
+  }
   async function initialRun() {
-    await preload();
+    const t0 = performance.now();
+    await Promise.all([preload(), warmFonts()]);
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     await waitForTwoFrames();
-    run();                       // 首轮触发 KaTeX 字体加载
+    const before = loadedFontKeys();
+    let report = run(), passes = 1;
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
-    await waitForTwoFrames();
-    const report = run();        // 用最终字体重排一次，打印复用这份 DOM
+    // 只有首轮排版真的触发了新字体加载（少见的字体族 / 未预热的字重）才用最终字体重排一次
+    if ([...loadedFontKeys()].some(key => !before.has(key))) { await waitForTwoFrames(); report = run(); passes = 2; }
+    window.OMRS_LAYOUT_TIMING = { total_ms: Math.round(performance.now() - t0), passes };
+    const stat = document.getElementById("stat");
+    if (stat) stat.textContent += " · 就绪 " + ((performance.now() - t0) / 1000).toFixed(1) + "s";
     document.documentElement.dataset.omrsLayoutReady = "1";
     const printButton = document.getElementById("btnPrint");
     if (printButton) printButton.disabled = false;
@@ -494,6 +627,78 @@
     initialRun();
   });
   window.addEventListener("message", event => {
-    if (event.data && event.data.type === "omrs-board-request-layout" && window.OMRS_LAYOUT) notify("omrs-board-layout", window.OMRS_LAYOUT);
+    const message = event.data;
+    if (!message || typeof message !== "object") return;
+    if (message.type === "omrs-board-request-layout" && window.OMRS_LAYOUT) { notify("omrs-board-layout", window.OMRS_LAYOUT); return; }
+    if (message.type === "omrs-board-relayout") { relayout(message); return; }
+    if (message.type === "omrs-board-goto") {
+      if (message.uid) gotoUid(message.uid); else gotoPage(message.page);
+      return;
+    }
+    if (message.type === "omrs-board-view") {
+      if (message.single != null) VIEW.single = !!message.single;
+      if (message.page != null) VIEW.page = Number(message.page) || VIEW.page;
+      if (message.scale != null) VIEW.scale = Number(message.scale) || 1;
+      applyView();
+      return;
+    }
+  });
+  // ---- 拖切割线 = 改这道题的题后留白 ----
+  // 拖动过程中**不重排**：只把线和一个读数移到指针处。重排要跑一遍完整 run()，
+  // 大板上每个 pointermove 都排一次会顿；松手才提交一次，由宿主统一 relayout + 保存。
+  // 全程零网络请求：宿主拿到 omrs-board-gap 后走 relayout，不重新请求导出。
+  const GAP_MIN = 0, GAP_MAX = 48, LINE_PX = 18;
+  let DRAG = null;
+  function dragLabel(line) {
+    let tag = line.querySelector(".drag-tag");
+    if (!tag) { tag = el("span", "drag-tag"); line.appendChild(tag); }
+    return tag;
+  }
+  function dragScale() { return clamp(Number(VIEW.scale) || 1, .2, 2); }
+  document.addEventListener("pointerdown", event => {
+    const line = event.target.closest && event.target.closest(".cut-line.draggable");
+    if (!line || event.button !== 0) return;
+    event.preventDefault();
+    DRAG = { line, uid: line.dataset.cutUid, startY: event.clientY,
+             startLines: clamp(Number(line.dataset.cutLines) || 0, GAP_MIN, GAP_MAX),
+             top: parseFloat(line.style.top) || 0, lines: null };
+    try { line.setPointerCapture(event.pointerId); } catch (e) {}
+    line.classList.add("dragging");
+    document.body.classList.add("dragging-cut");
+  });
+  document.addEventListener("pointermove", event => {
+    if (!DRAG) return;
+    // 缩放后 1 个屏幕像素不等于 1 个版面像素，换算回版面坐标再折成行
+    const delta = (event.clientY - DRAG.startY) / dragScale();
+    const lines = clamp(Math.round(DRAG.startLines + delta / LINE_PX), GAP_MIN, GAP_MAX);
+    DRAG.lines = lines;
+    DRAG.line.style.top = (DRAG.top + (lines - DRAG.startLines) * LINE_PX) + "px";
+    dragLabel(DRAG.line).textContent = lines + " 行 ≈ " + (Math.round(lines * LINE_PX / MM / 10 * 10) / 10) + " cm";
+  });
+  function endDrag() {
+    if (!DRAG) return;
+    const drag = DRAG;
+    DRAG = null;
+    drag.line.classList.remove("dragging");
+    document.body.classList.remove("dragging-cut");
+    drag.line.querySelector(".drag-tag")?.remove();
+    if (drag.lines == null || drag.lines === drag.startLines) {
+      drag.line.style.top = drag.top + "px";                 // 没动过：归位，不打扰宿主
+      return;
+    }
+    // 只报「哪道题、几行」；夹紧与保存都由宿主负责，模板不认识 boards.json
+    notifyRaw({ type: "omrs-board-gap", boardId: META.board_id || "", uid: drag.uid, lines: drag.lines });
+  }
+  document.addEventListener("pointerup", endDrag);
+  document.addEventListener("pointercancel", endDrag);
+
+  // 点纸面上的题 → 告诉宿主选中了谁，宿主据此高亮检视条 / 列表行
+  document.addEventListener("click", event => {
+    if (event.target.closest && event.target.closest(".cut-line")) return;   // 拖线不是选题
+    const node = event.target.closest && event.target.closest("#stage [data-q-uid]");
+    if (!node) return;
+    const page = node.closest(".page");
+    notifyRaw({ type: "omrs-board-select", boardId: META.board_id || "", uid: node.dataset.qUid,
+                idx: Number(node.dataset.qIdx) || null, page: page ? Number(page.dataset.page) : null });
   });
 })();

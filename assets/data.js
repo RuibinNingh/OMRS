@@ -131,7 +131,7 @@ function renderAnalytics(){
 
   // Leech / 屡练不熟
   qvSetContext('leech',[...a.weak_spots.leeches,...a.weak_spots.struggling].map(it=>it.uid));
-  const leechBtn=u=>`<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" onclick="viewQ(${jsArg(u)},'leech')">查看</button>${typeof boardQuickAdd==='function'?`<button class="btn sm" onclick="boardQuickAdd(${jsArg(u)})">加入展示板</button>`:''}</div>`;
+  const leechBtn=u=>`<div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" onclick="viewQ(${jsArg(u)},'leech')">查看</button>${typeof boardQuickAdd==='function'?`<button class="btn sm" data-board-hint onclick="boardQuickAdd(${jsArg(u)},{anchor:this,direct:event.shiftKey})">加入展示板</button>`:''}</div>`;
   _tbl('data-leeches',['UID','科目','分类','答错','熟练度','EF','复习',''],
     a.weak_spots.leeches.map(it=>[`<b style="color:var(--accent2)">${escapeHtml(it.uid)}</b>`,escapeHtml(it.subject||''),escapeHtml(it.category||''),
       `<span style="color:var(--red);font-weight:700">${it.fail_count}</span>`,

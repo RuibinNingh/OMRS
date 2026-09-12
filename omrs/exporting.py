@@ -426,29 +426,62 @@ def _font_mime(path):
     }.get(ext, "application/octet-stream")
 
 
+_FONT_SRC_RE = re.compile(r"src:([^;}]+)")
+_FONT_URL_RE = re.compile(r"url\((?:['\"]?)(fonts/[^)'\"]+)(?:['\"]?)\)(?:\s*format\((['\"]?)([^)'\"]+)\2\))?")
+_KATEX_BUNDLE_CACHE = {"key": None, "value": ("", "")}
+
+
+def _katex_font_path(font_rel):
+    font_path = os.path.normpath(os.path.join(_KATEX_DIR, font_rel.replace("/", os.sep)))
+    font_root = os.path.join(_KATEX_DIR, "fonts") + os.sep
+    if font_path.startswith(font_root) and os.path.isfile(font_path):
+        return font_path
+    return None
+
+
+def _inline_font_face_src(match):
+    """把一条 @font-face 的 src 列表改写成内联 data URI。
+
+    每个字体族只保留 woff2（现代浏览器全部支持，且体积最小）；只有找不到 woff2 文件时
+    才回退内联全部格式。原来三种格式都内联时，每份导出会多带约 1.1MB 的无用 base64。"""
+    entries = []
+    for url_match in _FONT_URL_RE.finditer(match.group(1)):
+        font_path = _katex_font_path(url_match.group(1))
+        if not font_path:
+            continue
+        fmt = (url_match.group(3) or "").lower() or {".woff2": "woff2", ".woff": "woff", ".ttf": "truetype"}.get(
+            os.path.splitext(font_path)[1].lower(), "")
+        entries.append((fmt, font_path))
+    if not entries:
+        return match.group(0)
+    chosen = [entry for entry in entries if entry[0] == "woff2"] or entries
+    parts = []
+    for fmt, font_path in chosen:
+        with open(font_path, "rb") as file:
+            encoded = base64.b64encode(file.read()).decode("ascii")
+        parts.append(f"url(data:{_font_mime(font_path)};base64,{encoded}) format(\"{fmt}\")")
+    return "src:" + ",".join(parts)
+
+
 def _read_katex_bundle():
+    """读取 KaTeX CSS/JS 并内联字体；结果按文件修改时间缓存在进程内，同一次运行只编码一遍。"""
     css_path = os.path.join(_KATEX_DIR, "katex.min.css")
     js_path = os.path.join(_KATEX_DIR, "katex.min.js")
     if not (os.path.isfile(css_path) and os.path.isfile(js_path)):
         return "", ""
+    key = (os.path.getmtime(css_path), os.path.getsize(css_path), os.path.getmtime(js_path), os.path.getsize(js_path))
+    if _KATEX_BUNDLE_CACHE["key"] == key:
+        return _KATEX_BUNDLE_CACHE["value"]
 
     with open(css_path, "r", encoding="utf-8") as file:
         css = file.read()
     with open(js_path, "r", encoding="utf-8") as file:
         js = file.read()
 
-    def inline_font(match):
-        font_rel = match.group(1)
-        font_path = os.path.normpath(os.path.join(_KATEX_DIR, font_rel.replace("/", os.sep)))
-        font_root = os.path.join(_KATEX_DIR, "fonts") + os.sep
-        if not (font_path.startswith(font_root) and os.path.isfile(font_path)):
-            return match.group(0)
-        with open(font_path, "rb") as file:
-            encoded = base64.b64encode(file.read()).decode("ascii")
-        return f"url(data:{_font_mime(font_path)};base64,{encoded})"
-
-    css = re.sub(r"url\((?:['\"]?)(fonts/[^)'\"]+)(?:['\"]?)\)", inline_font, css)
+    css = _FONT_SRC_RE.sub(_inline_font_face_src, css)
     js = js.replace("</", "<\\/")
+    _KATEX_BUNDLE_CACHE["key"] = key
+    _KATEX_BUNDLE_CACHE["value"] = (css, js)
     return css, js
 
 
@@ -650,6 +683,17 @@ def _label_color_map(vault):
         return {}
 
 
+def _board_gap_lines(value, default_lines):
+    """一道题之后的留白行数（绝对值）；``None`` 继承传入的全局值。"""
+    from .boards import MAX_GAP_LINES
+    if value is None:
+        value = default_lines
+    try:
+        return max(0, min(MAX_GAP_LINES, int(value)))
+    except (TypeError, ValueError):
+        return max(0, min(MAX_GAP_LINES, int(default_lines or 0)))
+
+
 def _board_read_question(vault, item):
     """读取展示板条目对应的题目文件，返回题面 / 答案分节；文件缺失返回 None。"""
     file_path = str(item.get("file_path") or "")
@@ -671,7 +715,9 @@ def _board_read_question(vault, item):
         "question": sections.get(QUESTION_SECTION, "").strip(),
         "answer": sections.get(ANSWER_SECTION, "").strip(),
         "labels": item.get("labels") or [],
-        "extra_gap_lines": int(item.get("extra_gap_lines", 0) or 0),
+        # None = 继承板的全局留白；具体继承成几行由 build_board_export_data 按 settings 决定
+        # （仅新增模式下 settings 沿用纸面几何，所以不能直接用 get_board 算好的 effective 值）
+        "gap_lines": item.get("gap_lines"),
     }
 
 
@@ -692,9 +738,9 @@ def build_board_export_data(vault, board_id, mode="all", include_answers=None, o
         raise RuntimeError("这个展示板还没有纸面记录，请先「打印全部」并标记为已打印")
     settings = normalize_print({**board.get("print", {}), **(overrides or {})})
     if mode == "new" and has_paper:
-        # 纸面几何以已打印的纸为准（栏宽、题间距、装订边），其余显示项跟随当前设置
+        # 纸面几何以已打印的纸为准（栏宽、题间距），其余显示项跟随当前设置
         paper = normalize_print(printed.get("print") or {})
-        for key in ("note_ratio", "gap_lines", "binding_mm"):
+        for key in ("note_ratio", "gap_lines"):
             settings[key] = paper[key]
     if include_answers is not None:
         settings["answers"] = "append" if include_answers else "none"
@@ -743,7 +789,7 @@ def build_board_export_data(vault, board_id, mode="all", include_answers=None, o
             "difficulty": question.get("difficulty", ""),
             "labels": _board_label_objects(question.get("labels", []) if settings["show_labels"] else [], colors),
             "blocks": _text_to_blocks(vault, question.get("question", "") or "(无题目内容)"),
-            "extra_gap_lines": max(0, min(24, int(question.get("extra_gap_lines", 0) or 0))),
+            "gap_lines": _board_gap_lines(question.get("gap_lines"), settings["gap_lines"]),
         })
     if settings["answers"] == "append":
         for offset, question in enumerate(questions):

@@ -18,21 +18,14 @@ const QB_TABLE_COLUMN_LABELS = {
 function statusTagHtml(item){if(item.suspended)return'<span class="tag suspended">停用</span>';const tag=String(item.tag||'').replace(/^#/,'').replace(/^状态\//,'');const cls=tag.includes('已击杀')?'kill':tag.includes('易错')?'trap':'attack';return`<span class="tag ${cls}">${escapeHtml(tag||'待攻克')}</span>`}
 function masteryBarHtml(item,width){const m=asNumber(item.mastery,0);const color=m>.8?'var(--green)':m>.4?'var(--yellow)':'var(--red)';return`<span class="m-bar"${width?` style="width:${width}px"`:''}><span class="m-bar-fill" style="width:${m*100}%;background:${color}"></span></span>${(m*100).toFixed(0)}%`}
 // 行内「⋯」菜单：查看 / 加入展示板 / 打标记 / 编辑 Markdown / 迁移分类 / 停用·恢复 / 删除（表格与画廊共用）
-function renderQuestionMoreMenu(uid){const item=getItemByUid(uid)||{};const u=escapeAttr(uid);return`<div class="q-edit-wrap" data-edit-uid="${u}"><button class="btn sm ghost q-more" type="button" data-q-more="${u}" title="更多操作" aria-label="更多操作">⋯</button><div class="q-edit-menu"><button type="button" data-q-action="view" data-q-uid="${u}">查看详情</button><button type="button" data-q-action="board" data-q-uid="${u}">加入展示板</button><button type="button" data-q-action="labels" data-q-uid="${u}">打标记</button><button type="button" data-q-action="edit" data-q-uid="${u}">编辑 Markdown</button><button type="button" data-q-action="move" data-q-uid="${u}">迁移分类</button>${item.suspended?`<button type="button" data-q-action="resume" data-q-uid="${u}">恢复题目</button>`:`<button type="button" data-q-action="suspend" data-q-uid="${u}">停用题目</button>`}<button type="button" class="danger" data-q-action="delete" data-q-uid="${u}">删除题目</button></div></div>`}
+function renderQuestionMoreMenu(uid){const item=getItemByUid(uid)||{};const u=escapeAttr(uid);return`<div class="q-edit-wrap" data-edit-uid="${u}"><button class="btn sm ghost q-more" type="button" data-q-more="${u}" title="更多操作" aria-label="更多操作">⋯</button><div class="q-edit-menu"><button type="button" data-q-action="view" data-q-uid="${u}">查看详情</button><button type="button" data-q-action="board" data-q-uid="${u}" data-board-hint>加入展示板</button><button type="button" data-q-action="labels" data-q-uid="${u}">打标记</button><button type="button" data-q-action="edit" data-q-uid="${u}">编辑 Markdown</button><button type="button" data-q-action="move" data-q-uid="${u}">迁移分类</button>${item.suspended?`<button type="button" data-q-action="resume" data-q-uid="${u}">恢复题目</button>`:`<button type="button" data-q-action="suspend" data-q-uid="${u}">停用题目</button>`}<button type="button" class="danger" data-q-action="delete" data-q-uid="${u}">删除题目</button></div></div>`}
 function renderQuestionEditMenu(uid){return renderQuestionMoreMenu(uid)}
 function renderQuestionTable(items){qvSetContext('q',items.map(item=>item.uid));const tbody=document.getElementById('q-tbody');if(!tbody)return;const columns=typeof qbVisibleColumns==='function'?qbVisibleColumns():new Set(['select','main','labels','mastery','due','status','actions']);const cell=(key,html,tag='td')=>columns.has(key)?`<${tag} data-qb-col="${key}">${html}</${tag}>`:'';const head=tbody.closest('table')?.querySelector('thead tr');if(head)head.innerHTML=QB_TABLE_COLUMN_ORDER.filter(key=>columns.has(key)).map(key=>cell(key,QB_TABLE_COLUMN_LABELS[key],'th')).join('');tbody.innerHTML=items.map(item=>{const uid=escapeAttr(item.uid);const cursor=typeof QB_CURSOR_UID!=='undefined'&&QB_CURSOR_UID===item.uid;const selected=typeof QB_SELECTED!=='undefined'&&QB_SELECTED.has(item.uid);const labels=lblChips(item.labels||[],{add:true,max:4});const extra={difficulty:escapeHtml(item.difficulty??''),decayed:`${(asNumber(item.decayed_mastery,0)*100).toFixed(0)}%`,attempts:escapeHtml(item.attempts??0),last_review:escapeHtml(item.last_review||'—'),ef:escapeHtml(item.ef??'')};return`<tr class="${item.suspended?'q-row-suspended':''}${cursor?' qb-cursor':''}${selected?' qb-selected':''}" aria-selected="${cursor?'true':'false'}" data-q-row="${uid}" title="点击查看题目">${cell('select',`<input type="checkbox" class="qb-row-check" data-qb-uid="${uid}" ${selected?'checked':''} aria-label="选择">`)}${cell('main',`<strong>${escapeHtml(item.uid)}</strong><div class="q-row-meta">${escapeHtml(item.subject||'')} · ${escapeHtml(item.category||'')}${item.is_leech?' · <span style="color:var(--yellow)">顽固</span>':''}</div>`)}${cell('labels',`<span class="q-label-cell" data-lbl-target="${uid}">${labels}</span>`)}${cell('mastery',masteryBarHtml(item))}${cell('due',formatDueInfo(getDueDays(item)))}${cell('status',statusTagHtml(item))}${['difficulty','decayed','attempts','last_review','ef'].map(key=>cell(key,extra[key])).join('')}${cell('actions',renderQuestionMoreMenu(item.uid))}</tr>`}).join('');if(!items.length){tbody.innerHTML=`<tr><td colspan="${columns.size}" style="text-align:center;color:var(--fg3);padding:28px">暂无匹配题目 · 试试放宽筛选条件</td></tr>`}}
 // 画廊卡：精简优先。默认只出「标识 / 题面 / 脚注」三层，元数据（科目 / 上次复习 / 衰减后 / 知识点）
 // 收进「列 / 密度」菜单里的「画廊显示元数据」开关（QB_GALLERY_DETAIL，默认关）。
 function qbGalleryDetail(){return typeof QB_GALLERY_DETAIL!=='undefined'&&!!QB_GALLERY_DETAIL}
 // UID 形如「物质分类与变化13」= 分类 + 序号；拆开显示，避免分类名在一张卡里重复三遍
-function galleryIdHtml(item){
-  const uid=String(item.uid||'');const category=String(item.category||'');
-  if(category&&uid.startsWith(category)){
-    const rest=uid.slice(category.length).replace(/^[-_·\s]+/,'');
-    return `<span class="gc-cat">${escapeHtml(category)}</span>${rest?`<span class="gc-num">${escapeHtml(rest)}</span>`:''}`;
-  }
-  return `<span class="gc-num">${escapeHtml(uid)}</span>`;
-}
+function galleryIdHtml(item){return qvGalleryIdHtml(item.uid,item.category)}
 // 只有「异常」才亮标：逾期 / 今日到期 / 顽固 / 停用。全库同值的「待攻克」不再逐卡重复
 function galleryFlagsHtml(item,detail){
   const flags=[];
@@ -47,7 +40,7 @@ function galleryFlagsHtml(item,detail){
   return flags.join('');
 }
 // 脚注里的「N 次」升级成战绩带（v1.16.0）：位置和宽度不变，多编码对错 / 分数 / 时序三个维度。
-// 战绩带要 detail.history，而 item 里没有；不额外发请求——画廊本来就会为题面预览拉一次详情，
+// 战绩带要 detail.records（Ledger 记录），而 item 里没有；不额外发请求——画廊本来就会为题面预览拉一次详情，
 // 所以这里先出「N 次」占位，由 hydrateQuestionGalleryPreviews() 拿到详情后就地替换。
 function qbStreakOn(){return typeof QB_STREAK==='undefined'?true:!!QB_STREAK}
 function galleryStreakSlotHtml(item){
@@ -56,7 +49,7 @@ function galleryStreakSlotHtml(item){
   return `<span class="gc-stat gc-streak-slot" data-streak-uid="${escapeAttr(item.uid)}"><span class="muted">${attempts} 次</span></span>`;
 }
 function galleryStreakBodyHtml(item,detail){
-  const records=typeof parseQHistory==='function'?parseQHistory(detail&&detail.history||''):[];
+  const records=typeof qRecordsFromDetail==='function'?qRecordsFromDetail(detail):[];
   const stats=typeof qHistoryStats==='function'?qHistoryStats(records):{count:0};
   if(!stats.count)return`<span class="muted">${asNumber(item.attempts,0)} 次</span>`;
   const warn=stats.tailWrong>=2?`<span class="gc-warn">连错 ${stats.tailWrong}</span>`:'';
@@ -88,21 +81,21 @@ function renderQuestionGallery(items){
     const previewHtml=cached?qvHtml(cached,item,cardOpts):'<div class="preview-placeholder">正在加载题目预览…</div>';
     // 知识点与分类同名的那条是重复信息，去掉；剩下为空就整行不渲染
     const knowledgeTags=(item.knowledge_tags||[]).filter(tag=>tag&&tag!==item.category);
-    const metaLine=detail?`<div class="gc-meta">${escapeHtml(item.subject||'')} · 上次复习 ${escapeHtml(item.last_review||'—')} · 衰减后 ${(asNumber(item.decayed_mastery,0)*100).toFixed(0)}%${knowledgeTags.length?` · ${knowledgeTags.map(tag=>escapeHtml(tag)).join(' / ')}`:''}</div>`:'';
-    return `<div class="gallery-card ${item.suspended?'q-card-suspended':''} ${selected?'selected':''}" data-q-row="${uid}">
-      <div class="gallery-head">
-        <label class="gc-pick"><input type="checkbox" class="qb-row-check" data-qb-uid="${uid}" ${selected?'checked':''} aria-label="选择"></label>
-        <span class="gc-id">${galleryIdHtml(item)}</span>
-        <span class="gc-flags">${galleryFlagsHtml(item,detail)}</span>
-        <span class="gc-more">${renderQuestionMoreMenu(item.uid)}</span>
-      </div>
-      ${metaLine}
-      <div class="gallery-preview question-gallery-preview" data-question-preview-uid="${uid}">${previewHtml}</div>
-      <div class="gc-foot">
-        ${galleryFootHtml(item)}
-        <span class="q-label-cell gc-labels" data-lbl-target="${uid}">${lblChips(item.labels||[],{add:true,max:3})}</span>
-      </div>
-    </div>`;
+    const metaLine=detail?`${escapeHtml(item.subject||'')} · 上次复习 ${escapeHtml(item.last_review||'—')} · 衰减后 ${(asNumber(item.decayed_mastery,0)*100).toFixed(0)}%${knowledgeTags.length?` · ${knowledgeTags.map(tag=>escapeHtml(tag)).join(' / ')}`:''}`:'';
+    return qvGalleryCard({
+      uid:item.uid,
+      className:`${item.suspended?'q-card-suspended':''} ${selected?'selected':''}`,
+      rowAttr:`data-q-row="${uid}"`,
+      leadHtml:`<label class="gc-pick"><input type="checkbox" class="qb-row-check" data-qb-uid="${uid}" ${selected?'checked':''} aria-label="选择"></label>`,
+      idHtml:galleryIdHtml(item),
+      flagsHtml:galleryFlagsHtml(item,detail),
+      menuHtml:renderQuestionMoreMenu(item.uid),
+      metaHtml:metaLine,
+      previewClass:'question-gallery-preview',
+      previewHtml,
+      footHtml:galleryFootHtml(item),
+      labelsHtml:lblChips(item.labels||[],{add:true,max:3}),
+    });
   }).join('')}</div>`;
 }
 // 画廊缩略卡也走 qview（bare + clamp），与 Modal / 反馈台共用同一套题面渲染
@@ -211,7 +204,10 @@ document.addEventListener('click', event => {
     const kind = action.dataset.qAction;
     const context = action.closest('#panel-questions') ? 'q' : undefined;
     if (kind === 'view') viewQ(uid, context);
-    else if (kind === 'board' && typeof boardQuickAdd === 'function') boardQuickAdd(uid);
+    else if (kind === 'board' && typeof boardQuickAdd === 'function') {
+      const anchor = action.closest('.q-edit-wrap')?.querySelector('.q-more') || action;
+      boardQuickAdd(uid, { anchor, direct: event.shiftKey });
+    }
     else if (kind === 'labels') openLabelPicker(uid, action);
     else if (kind === 'edit') openMarkdownEditor(uid);
     else if (kind === 'move') moveQuestionPrompt(uid);
@@ -234,7 +230,7 @@ async function moveQuestionPrompt(uid){const item=getItemByUid(uid)||{};const su
 async function suspendQuestion(uid){const ok=await uiConfirm(`停用题目「${uid}」？`,{hint:'停用后不会进入复习调度、统计或数据分析；题目正文和历史记录会保留，可随时恢复。',okText:'停用'});if(!ok)return;try{await api('/api/question/suspend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid})});await reloadData();if(typeof qvInvalidate==='function')await qvInvalidate(uid);if(typeof loadHist==='function')loadHist();uiToast(`${uid} 已停用`)}catch(error){uiToast(`停用失败: ${error.message}`,{kind:'error'})}}
 async function resumeQuestion(uid){try{await api('/api/question/resume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid})});await reloadData();if(typeof qvInvalidate==='function')await qvInvalidate(uid);if(typeof loadHist==='function')loadHist();uiToast(`${uid} 已恢复`)}catch(error){uiToast(`恢复失败: ${error.message}`,{kind:'error'})}}
 async function deleteQuestion(uid){const ok=await uiConfirm(`删除题目「${uid}」？`,{hint:'这会删除题目的 Markdown 正文，并在 Ledger 中追加归档记录。历史反馈仍会保留，但题目正文无法通过 Ledger 恢复；附件图片不会删除。',okText:'删除',danger:true});if(!ok)return;try{await api('/api/question/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid})});delete QUESTION_CACHE[uid];if(typeof closeModal==='function')closeModal();await reloadData();if(typeof loadHist==='function')loadHist();uiToast(`${uid} 已删除`)}catch(error){uiToast(`删除失败: ${error.message}`,{kind:'error'})}}
-async function openMarkdownEditor(uid){try{const result=await api(`/api/question/raw?uid=${encodeURIComponent(uid)}`);document.getElementById('md-edit-uid').textContent=result.uid;document.getElementById('md-edit-path').textContent=result.file_path||'';document.getElementById('md-edit-text').value=result.markdown||'';document.getElementById('md-edit-status').textContent='';document.getElementById('md-editor').dataset.uid=result.uid;document.getElementById('md-editor').classList.add('open')}catch(error){alert(`无法打开 Markdown: ${error.message}`)}}
+async function openMarkdownEditor(uid){try{const result=await api(`/api/question/raw?uid=${encodeURIComponent(uid)}`);document.getElementById('md-edit-uid').textContent=result.uid;document.getElementById('md-edit-path').textContent=result.file_path||'';document.getElementById('md-edit-text').value=result.markdown||'';document.getElementById('md-edit-status').textContent='';document.getElementById('md-editor').dataset.uid=result.uid;document.getElementById('md-editor').classList.add('open')}catch(error){uiToast(`无法打开 Markdown: ${error.message}`,{kind:'error'})}}
 function closeMarkdownEditor(){document.getElementById('md-editor').classList.remove('open')}
 async function saveMarkdownEditor(){const modal=document.getElementById('md-editor');const uid=modal.dataset.uid;const markdown=document.getElementById('md-edit-text').value;const status=document.getElementById('md-edit-status');status.textContent='保存中...';try{await api('/api/question/markdown',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid,markdown})});delete QUESTION_CACHE[uid];status.innerHTML='<span style="color:var(--green)">已保存</span>';await reloadData();if(typeof qvInvalidate==='function')await qvInvalidate(uid);setTimeout(closeMarkdownEditor,350)}catch(error){status.innerHTML=`<span style="color:var(--red)">${escapeHtml(error.message)}</span>`}}
 

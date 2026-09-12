@@ -524,7 +524,7 @@ function updateRecSelectionBarV2() {
 async function confirmScheduleV2() {
   const selectedUids = getRecSelectedUidsV2();
   if (selectedUids.length === 0) {
-    alert('请至少选择 1 道题');
+    uiToast('请至少选择 1 道题',{kind:'warn'});
     return;
   }
 
@@ -548,7 +548,6 @@ async function confirmScheduleV2() {
     updateRecSelectionBarV2();
 
     await refreshSessions();
-    if (result.items) previewSession(result.session_id, result.items);
   } catch (e) {
     status.innerHTML = `<span style="color:var(--red)">✕ ${escapeHtml(e.message)}</span>`;
   }

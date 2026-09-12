@@ -16,14 +16,19 @@ from .labels import delete_label, list_label_defs, merge_labels, save_label
 from .boards import (
     add_items as board_add_items,
     create_board,
+    create_folder as board_create_folder,
     delete_board,
+    delete_folder as board_delete_folder,
     duplicate_board,
     get_board,
     list_boards,
+    list_folders as board_list_folders,
+    move_board as board_move,
     record_printed as board_record_printed,
     remove_items as board_remove_items,
     reset_printed as board_reset_printed,
     update_board,
+    update_folder as board_update_folder,
 )
 from .feedback import process_feedback
 from .indexing import build_index
@@ -82,7 +87,8 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/labels":
             self._json({"status": "ok", "labels": list_label_defs(self.vault_path)})
         elif path == "/api/boards":
-            self._json({"status": "ok", "boards": list_boards(self.vault_path)})
+            self._json({"status": "ok", "boards": list_boards(self.vault_path),
+                        "folders": board_list_folders(self.vault_path)})
         elif path == "/api/board":
             board = get_board(self.vault_path, params.get("id", ""))
             if board is None:
@@ -723,6 +729,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     data.get("name", ""),
                     uids,
                     data.get("label", ""),
+                    str(data.get("folder_id") or ""),
                 )
                 self._json({"status": "ok", "board": board})
             except Exception as exc:
@@ -733,7 +740,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 board_id = str(data.get("id") or "").strip()
                 if not board_id:
                     raise ValueError("展示板 id 不能为空")
-                changes = {key: data[key] for key in ("name", "note", "print", "items", "source_labels") if key in data}
+                changes = {key: data[key] for key in ("name", "note", "print", "items", "source_labels", "folder_id") if key in data}
                 self._json({"status": "ok", "board": update_board(self.vault_path, board_id, **changes)})
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
@@ -758,6 +765,38 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 data = json.loads(body) if body else {}
                 self._json({"status": "ok", "board": duplicate_board(
                     self.vault_path, str(data.get("id") or ""), data.get("name", ""),
+                )})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/folder/create":
+            try:
+                data = json.loads(body) if body else {}
+                self._json({"status": "ok", "folder": board_create_folder(self.vault_path, data.get("name", ""))})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/folder/update":
+            try:
+                data = json.loads(body) if body else {}
+                changes = {key: data[key] for key in ("name", "order") if key in data}
+                self._json({"status": "ok", "folder": board_update_folder(
+                    self.vault_path, str(data.get("id") or ""), **changes,
+                )})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/folder/delete":
+            try:
+                data = json.loads(body) if body else {}
+                keep = data.get("keep_boards", True)
+                result = board_delete_folder(self.vault_path, str(data.get("id") or ""), keep is not False)
+                self._json({"status": "ok", **result})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/board/move":
+            try:
+                data = json.loads(body) if body else {}
+                self._json({"status": "ok", "board": board_move(
+                    self.vault_path, str(data.get("id") or ""),
+                    data.get("folder_id"), data.get("index"),
                 )})
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)

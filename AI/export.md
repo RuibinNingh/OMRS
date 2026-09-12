@@ -14,7 +14,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 1. **读题**：`_load_export_questions()` 从 mastery CSV + 题目 `.md` 取题（与旧实现一致，停用标记为 `1` 的题目在此处跳过）。
 2. **解析**：`_text_to_blocks()` 把正文转成三种块——非空文字行→`{t:'txt'}`，`![[名]]` / `![](路径)`→`{t:'img'}`，Markdown 表头 + 分隔行 + 数据行→`{t:'table', headers, rows}`。表格支持 `\|` 转义；对齐冒号会被识别但当前不保留对齐语义，行宽按表头补空或截断。跨行 `$$...$$` 会先合并为单个文字块，不能按行拆散。
 3. **取图**：`_img_payload()` 用 `_find_image()` 定位、`_read_image_info()`（纯 `struct` 解析 PNG/JPEG/GIF 尺寸，无 Pillow）读出宽高，base64 成 data-uri。
-4. **组装**：`_build_export_data()` 产出 `{meta, questions, feedback, answers}`，其中 `meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联。数据 JSON 会做 `</` 转义防提前闭合脚本，最终仍是单个自包含 HTML。
+4. **组装**：`_build_export_data()` 产出 `{meta, questions, feedback, answers}`，其中 `meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联（`_read_katex_bundle()`）。数据 JSON 会做 `</` 转义防提前闭合脚本，最终仍是单个自包含 HTML。
 
 对外入口 `export_schedule_artifact(vault, uids, session_id, export_format, include_answers, question_gap_lines=0, a4_two_columns=True)`：
 - `export_format`：`'a4'`（默认）/ `'screen'`；为兼容旧调用，`'docx'`/`'word'`/`'html'`/空 一律按 `a4`。
@@ -31,6 +31,11 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 | `screen.css` / `screen.js` | 屏幕版样式 + 复习 App 逻辑（卡片/判分/进度/持久化） |
 
 导出模板中的 `$...$` / `$$...$$` 由内联 KaTeX 在浏览器端渲染；跨行行间公式在后端块化时保持完整，再交给模板的 `mathText()`。若 KaTeX 资源缺失或单个公式解析失败，会安全降级为原始公式文本。KaTeX 字体在导出时改写为 data URI，因此离线打开 HTML 也不需要访问 `assets/` 目录。
+
+`_read_katex_bundle()` 改写 `@font-face` 时**每个字体族只内联 woff2**（现代浏览器全部支持，
+其余格式不会被请求），只有某族找不到 woff2 才回退内联它的全部格式；改写结果按 `katex.min.css`
+/ `.js` 的修改时间与大小缓存在进程内（`_KATEX_BUNDLE_CACHE`），同一次运行不重复读盘和 base64。
+含公式的导出因此从约 2.0MB 降到约 0.95MB，服务端单次导出稳定在十几毫秒，三种变体同时受益。
 
 ### 调用入口
 
@@ -66,34 +71,87 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 
 ### 固定几何与纸面规则
 
-- A4 纵向 `793.7 × 1122.52px`，`@page{size:A4;margin:0}`；左装订边 `binding_mm`
-  （默认 22mm），右 10mm，上下 12mm，页脚安全带 8.5mm。
+- A4 纵向 `793.7 × 1122.52px`，`@page{size:A4;margin:0}`；左右 10mm、上下 12mm，
+  页脚安全带 8.5mm，不额外预留装订区。
 - 页眉每页固定「错题集」；`show_meta` 开启且数据有生成日期时在标题右侧显示日期，否则只有标题。页脚只印板内**绝对页码**；
   板名不上纸。
-- 题栏宽 = `(内容宽 − 24px) × (1 − note_ratio)`，`note_ratio` 默认 0.42（0.30–0.55）。
-  右侧留白不生成任何 DOM（无横线 / 底纹 / 笔记框）。
-- `gap_lines`（默认 2，每行 18px）+ 每题 `extra_gap_lines`（0–24）决定题间留白；
-  留白放不下就贴到页底，不为它另起一页。
+- 题栏宽 = `(内容宽 − 24px) × (1 − note_ratio)`，`note_ratio` 默认 0.50（0.30–0.55）；
+  扣除 24px 间距后题栏与右侧留白默认等宽。右侧留白不生成任何 DOM（无横线 / 底纹 / 笔记框）。
+- 题间留白由**每题绝对行数**决定（每行 18px）：导出数据里每道题都带算好的 `gap_lines`
+  （0–48），继承关系已在服务端解开，模板不需要再知道板的全局值。留白放不下就贴到页底，
+  不为它另起一页。
 - 题头「第 N 题 [UID] 标记芯片」单行，元信息「科目 · 分类 · 难度」一行；题目跨页时新页顶部
   补「第 N 题（续）」。文字按公式边界拆段、表格整块、长图切白缝——与 `a4.js` 相同规则。
+- 长图找白缝时，宽于 600px 的图先等比缩到 600px 宽再逐行统计墨量，缝位按比例映射回原图坐标
+  （`analyze()` 的 `ANALYZE_W`）。手机拍的大图从逐像素扫描的几百毫秒降到几毫秒，缝位误差在
+  一两个原图像素内，落在切片安全余量里；600px 以内的图行为与原来完全一致。
 - 标记芯片打印变体：18% 淡底 + 同色相压暗到 AA 对比度的文字（`_board_label_ink`，与
   `labels.js::lblInk` 同算法），高 15px。
-- 不绘制 3 孔、26 孔或其他打孔圆圈；左侧装订区域保留一条极浅的 `.bind-line` 导引虚线。
+- 不绘制装订导引线、3 孔、26 孔或其他打孔圆圈。
+- **切割线**（`.cut-line`）画在每题留白的末尾，是「这道题写到这里为止」的提示。样式由
+  `cut_line` 决定：`none` 不画、`dash` 淡虚线、`solid` 淡实线；`cut_label` 开启时右端加一枚
+  「第 N 题止」小标。线画在 `.page-inner` 上而不是 `.col` 里（`.col` 是 `overflow:hidden`，
+  画在里面会被裁掉），`top = HEAD_H + 留白末尾相对题栏顶的偏移`，宽度等于**内容全宽**
+  （题栏 + 24px 间距 + 右侧留白区）。打印色比屏幕深一档（`#ddd6c9`），否则喷墨印不出来。
 - `answers:"append"` / `include_answers:true` 时答案排在新页附页，不占右侧留白。
+
+#### 四种情况不画切割线
+
+`recordCut()` 的守卫，改动时要连同 `tests/smoke_board_print.py::BoardCutLineSmokeTest` 一起看：
+
+1. `cut_line: "none"`；
+2. 留白贴到页底（`y >= COL_H - 2`）——撕下来就是整页，标了没有意义；
+3. 留白被顶到新页顶部（`y <= 0.5`）；
+4. 答案页，以及仅新增模式里已打印占位区之内的位置（`y <= cursor.y`）。
+
+所以「切割线条数 ≤ 题数」，不是恒等；断言条数时只能用上界。
 
 ### 打印模式与纸面记录
 
 `mode:"all"`（默认）整板从第 1 页排；`mode:"new"` 只排尚未进入纸面记录的题目：模板在
 `printed.cursor.page` 页顶部放一个高度为 `cursor.y` 的占位块（屏幕上斜纹提示，打印时透明，
 该页页眉页脚也隐藏），新题从占位块下方续排，需要新页时跳到 `printed.pages + 1`；占位页
-没放进任何新题时不输出。`mode:"new"` 沿用纸面记录里的 `note_ratio / gap_lines / binding_mm`。
+没放进任何新题时不输出。`mode:"new"` 沿用纸面记录里的 `note_ratio / gap_lines`。
 没有纸面记录或没有新题时服务端返回 400（`RuntimeError`）。
+
+### 宿主 ↔ 模板消息协议
+
+导出 HTML 既是打印产物，也是展示板页里那个常驻预览 iframe 的内容，两边靠 `postMessage`
+对话（同源 `srcdoc`，`sandbox="allow-same-origin allow-scripts allow-modals"`）。
+**模板 → 宿主**（`opener` 与 `parent` 都发）：
+
+| 消息 | 时机 | 载荷 |
+|---|---|---|
+| `omrs-board-layout` | 首轮排完、每次 relayout 之后 | `{boardId, mode, layout, view}` |
+| `omrs-board-view-state` | 单页 / 缩放变化后 | 同上，`layout` 复用上一次 |
+| `omrs-board-printed` | 顶栏点「✓ 已打印，记录纸面」 | `{boardId, mode, layout}` |
+| `omrs-board-select` | 点纸面上某道题 | `{boardId, uid, idx, page}` |
+
+**宿主 → 模板**：
+
+| 消息 | 作用 |
+|---|---|
+| `omrs-board-relayout {print, gaps}` | 就地重算几何并重排；`gaps` 是 `uid → 绝对行数 \| null`（null = 继承 `print.gap_lines`），整份覆盖 |
+| `omrs-board-goto {page}` / `{uid}` | 翻到某页 / 跳到某题所在页 |
+| `omrs-board-view {single, page, scale}` | 一次一面 / 页码 / 缩放；只写一条 `<style>`，不重排 |
+| `omrs-board-request-layout` | 补要一次已有的 layout |
+
+关键取舍：**几何类改动全程零网络请求**。拖版面滑块、改题间留白、换切割线样式都走
+`omrs-board-relayout` 在 iframe 里就地重排，不重新请求那份将近 1MB 的导出 HTML；
+只有增删题、排序、换模式这类**内容**变化才重新导出。
 
 排版完成后模板写 `window.OMRS_LAYOUT`（`{mode, pages, page_numbers, rendered_pages,
 partial_page, cursor, items[{question_id, uid, segments[{page,top,height}]}], answer_pages,
-warnings}`），设置 `<html data-omrs-layout-ready="1">`，并向 `opener`/`parent` 发送
+warnings}`）与 `window.OMRS_LAYOUT_TIMING`（`{total_ms, passes}`），设置
+`<html data-omrs-layout-ready="1">`，并向 `opener`/`parent` 发送
 `{type:"omrs-board-layout"}`；顶栏「✓ 已打印，记录纸面」发送 `omrs-board-printed`。主程序
-用同一份 HTML 在隐藏 iframe 里测量，`POST /api/board/printed` 记录纸面。
+用同一份 HTML 在隐藏 iframe 里测量，`POST /api/board/printed` 记录纸面；展示板页的「预计页数」
+也直接采用预览窗口回传的这份 layout（见 `board.md` §4.2）。
+
+`board.js` 的 `initialRun()` 在首轮排版前先并行做两件事：预载图片、按数据里是否出现 `$`
+决定要不要 `document.fonts.load()` 预热常用 KaTeX 字体族。首轮排完再比对
+`document.fonts` 里新加载的字体，只有确实多出字体时才用最终字体重排第二遍。含公式的板因此
+通常一趟排完（`passes: 1`），30 题板的就绪时间约 0.28s；纯文本板本来就不会触发第二遍。
 
 顶栏（不打印）有「打印 / 导出 PDF」「已打印，记录纸面」「显示切口」和状态（本次页数 / 页码范围 /
 排版耗时 / 告警数）；仅新增模式另有橙色提示条说明哪一页要放回原纸。

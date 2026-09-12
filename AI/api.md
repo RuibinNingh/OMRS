@@ -36,14 +36,24 @@
 `priority_bonus`、`archived`、`created_at` 和引用题目数 `count`。
 
 ### `/api/boards`
-返回展示板列表。每项包含 `id`、`name`、`note`、`count`、`created_at`、
-`updated_at`、`print`、`missing`、`suspended` 和纸面摘要 `printed_summary`
-（`{at, pages, count, new_count, changed_count, cursor, answer_pages, print}`）。
+返回 `{"status":"ok","boards":[…],"folders":[…]}`。
+
+每个板包含 `id`、`name`、`note`、`folder_id`（空串表示未归档）、`order`（组内位置）、
+`count`、`uids`、`created_at`、`updated_at`、`print`、`missing`、`suspended` 和纸面摘要
+`printed_summary`（`{at, pages, count, new_count, changed_count, cursor, answer_pages, print}`）。
+`uids` 是板内题目的当前 UID 列表，供前端选板浮层在点击之前本地算出「这个板已经有几道」，
+避免逐板再发一次请求。
+
+每个文件夹包含 `id`、`name`、`order`、`created_at`、`updated_at`。板按「文件夹顺序 + 组内
+`order`」返回，未归档的板恒排在最后。
 
 ### `/api/board?id=<board_id>`
 返回指定展示板及解析后的题目引用。每个 `items[]` 附带
 `question_id`、当前 `uid`、`subject`、`category`、`difficulty`、`mastery`、
-`due_date`、`labels`、`suspended`、`missing`、`added_at`、`extra_gap_lines` 和 `pin`。
+`due_date`、`labels`、`suspended`、`missing`、`added_at`、`gap_lines`、
+`effective_gap_lines` 和 `pin`，以及纸面相关的 `printed`、`printed_page`、`changed`。
+`gap_lines` 是这道题之后留白的**绝对行数**，`null` 表示继承板的全局 `print.gap_lines`；
+`effective_gap_lines` 是服务端算好的实际行数，前端不必自己再解一遍继承关系。
 读取时优先按 `question_id` 命中；题目删除或无法解析时保留引用并标记 `missing`。
 
 ---
@@ -113,7 +123,13 @@
 返回单个 Session 及其 UIDs 对应的题目详情，并返回与 `/api/sessions` 相同的分批反馈进度字段。
 
 ### `/api/question?uid=<uid>`
-返回题目的完整内容（题面、答案、备注、遗留 Markdown 历史文本、标签、知识点）。其中 `history` 是题目文件 `# 历史` 小节的原文，仅用于兼容旧手工记录和当前前端遗留解析，不是正式反馈记录来源；正式反馈请看 Ledger / `history_log.csv`。另含 `images` 字段：题面引用的图片文件名列表（解析 `![[名]]`/`![](路径)`），与 `/api/image?name=` 对接，供报告引图。
+返回题目的完整内容（题面、答案、备注、正式练习记录、标签、知识点）。
+
+**响应字段（记录相关）：**
+- `records`：**正式练习记录**（v1.16.1 起），数组，按 Ledger 提交顺序旧→新。由 `stats.get_question_records()` 从 `history_log.csv` 兼容投影派生：优先按隐藏稳定身份 `Question_ID` 匹配（改名不断链），老行没有 `Question_ID` 时退回按 `UID` 匹配。每条 `{log_id, date:"YYYY-MM-DD", time:"HH:MM"|"", score:0–10, correct:bool, note, session_id}`。没练过时是 `[]`（不是缺字段）。前端画廊战绩带和题目详情记录模块只认这个字段。
+- `history`：题目文件 `# 历史` 小节的**原文**。这是 v1.1.0 之前的手工记录格式，反馈流程早已不再写它，也不参与任何统计；保留只为兼容显示，前端仅在响应里没有 `records` 字段（老后端）时才解析它。
+
+另含 `images` 字段：题面引用的图片文件名列表（解析 `![[名]]`/`![](路径)`），与 `/api/image?name=` 对接，供报告引图。
 
 ### `/api/history?before_seq=&limit=`
 返回 Ledger 时间线，并附最近 100 条 `history_log.csv` 兼容投影记录。两者不是同一数据源：Ledger 的 `commits` 是正式事实，CSV 记录放在 `history` 字段仅供旧表格或调试兼容。
@@ -615,15 +631,15 @@
   "board_id": "BD-20260904-a1b2c3",
   "mode": "new",
   "include_answers": false,
-  "overrides": { "note_ratio": 0.42, "gap_lines": 2, "binding_mm": 22,
-                 "answers": "none", "show_labels": true, "show_meta": true }
+  "overrides": { "note_ratio": 0.50, "gap_lines": 2, "answers": "none",
+                 "show_labels": true, "show_meta": true, "cut_line": "dash", "cut_label": false }
 }
 ```
 
 - `board_id` 必填，也兼容使用 `id`；板内引用按 `question_id` 优先解析。
 - `mode` 为 `all`（默认，整板从第 1 页排）或 `new`（只排尚未进入纸面记录的题目，接在
   纸面记录的 `cursor` 之后续排；没有纸面记录或没有新题时返回 400）。`new` 模式下
-  `note_ratio / gap_lines / binding_mm` 沿用纸面记录，其余显示项跟随当前设置。
+  `note_ratio / gap_lines` 沿用纸面记录，其余显示项跟随当前设置。
 - `include_answers` 省略时沿用板设置 `print.answers`，传 `true` 时在新页追加答案附页。
 - `overrides` 只覆盖本次导出的版面设置，不回写 `boards.json`。停用题和缺失题保留在板内
   显示，但导出时跳过。
@@ -633,16 +649,20 @@
 `board.js` 与题图数据，分页在浏览器完成，页眉固定「错题集」，页脚为板内绝对页码；排版完成后
 模板把版面（`window.OMRS_LAYOUT`）`postMessage` 给主程序，用于 `POST /api/board/printed`。
 
+展示板页的常驻预览 iframe 用的就是这个端点。它按「板 + 模式 + 题目签名 + 纸面时间」做指纹缓存，
+**版面设置不在指纹里**：拖滑块、改题间留白、换切割线走 `omrs-board-relayout` 在 iframe 里就地
+重排，一次请求都不发。因此几何调整期间这个端点的 QPS 应当为 0；不为 0 就是回归。
+
 ### `POST /api/board/create`
 创建展示板，可选地在创建时加入题目或按一个标记初始化。
 
 **请求体：**
 ```json
-{ "name": "三角函数", "uids": ["三角函数1", "三角函数2"], "label": "考前必看" }
+{ "name": "三角函数", "uids": ["三角函数1", "三角函数2"], "label": "考前必看", "folder_id": "BF-20260907-a1b2c3" }
 ```
 
 `uids` 只加入当前可解析的题目并自动去重；当 `uids` 为空且提供 `label` 时，
-会把当前统计中的所有匹配题加入板内。**响应：** `{"status":"ok","board":{...}}`，
+会把当前统计中的所有匹配题加入板内。`folder_id` 可选，缺省或指向不存在的文件夹时落到未归档。**响应：** `{"status":"ok","board":{...}}`，
 其中 `board.items[]` 是已解析的条目详情。
 
 ### `POST /api/board/update`
@@ -654,22 +674,32 @@
   "id": "BD-20260904-a1b2c3",
   "name": "月考前",
   "note": "只在系统内显示",
-  "print": { "gap_lines": 8, "binding_mm": 22 },
+  "print": { "gap_lines": 8, "cut_line": "dash", "cut_label": false, "locked": true },
   "items": [
     {
       "question_id": "OP-000123",
       "uid": "三角函数1",
       "added_at": "2026-09-04T12:00:00+00:00",
-      "extra_gap_lines": 2,
+      "gap_lines": 12,
       "pin": false
     }
   ]
 }
 ```
 
-各字段均可省略；`print` 是覆盖式合并，`items` 是**整体覆盖**而不是追加。
-`items` 中每项同时保存 `question_id` 与 `uid`，`extra_gap_lines` 钳制到 `0–24`。
-成功响应为 `{"status":"ok","board":{...}}`。
+各字段均可省略；`print` 是覆盖式合并，`items` 是**整体覆盖**而不是追加。`print.locked=true` 时，版式字段或题目顺序变化会清空 `printed`；服务端也会在锁定板通过增删题目接口时执行同样的纸面重置，并把旧纸面追加到 `boards_printed_history.jsonl`。
+`items` 中每项同时保存 `question_id` 与 `uid`。成功响应为 `{"status":"ok","board":{...}}`。
+
+**留白字段：** `items[].gap_lines` 是绝对行数，钳到 `0–48`；`null` = 继承板的全局
+`print.gap_lines`（该值本身钳到 `0–24`）。传不上来的值（`"x"`、NaN）按 `null` 处理，
+不会折成 0。v2 客户端仍可传 `extra_gap_lines`（钳到 `0–24`），服务端按
+`全局 + 额外` 折算成等值的绝对行数后写入 `gap_lines`，响应里 `extra_gap_lines` 恒为 0。
+
+**同一请求提交 `items` + `print`：** `print` 先生效，`items` 的 v2 折算用的是本次请求
+**之后**的全局留白。前端的脏字段队列正是靠这条保证把「改了留白又拖了滑块」合并成一次 POST。
+
+**切割线：** `print.cut_line ∈ {none, dash, solid}`（默认 `dash`）、`print.cut_label`（默认
+`false`），控制每题留白末尾的裁切提示线，见 `AI/export.md`。`print.locked` 控制版式锁定，锁定板的纸面重置规则见上文。
 
 ### `POST /api/board/items/add`
 向展示板追加或插入题目引用。已存在的 UID 或稳定 `question_id` 会被跳过。
@@ -725,8 +755,38 @@
 `mode:"all"` 用这份版面替换整个纸面记录；`mode:"new"` 把新题追加进原记录并推进
 `pages` / `cursor`。**响应：** `{"status":"ok","board":{...}}`。
 
+记录与重置都会先把**即将被替换掉**的那份纸面追加进
+`错题/.omrs/boards_printed_history.jsonl`（只增不改，见 `AI/data.md` §14.4）。
+这份历史**目前没有对外端点**，只能直接读文件或在 Python 里调 `read_printed_history()`。
+
 ### `POST /api/board/printed/reset`
 清空纸面记录。**请求体：** `{ "id": "BD-20260904-a1b2c3" }`；响应同上。
+
+### `POST /api/board/folder/create`
+新建展示板文件夹。**请求体：** `{ "name": "高三上·期中" }`。名称折叠连续空白并截断到 60 字，
+为空时返回 400。**响应：** `{"status":"ok","folder":{...}}`，新文件夹排在最后。
+
+### `POST /api/board/folder/update`
+重命名文件夹或调整它在列表中的位置。
+
+**请求体：** `{ "id": "BF-20260907-a1b2c3", "name": "期中复习", "order": 0 }`
+
+两个字段都可选。给 `order` 时把该文件夹移到这个位置，其余文件夹顺序连带重排并重新编号；
+超出范围的 `order` 收敛到首尾。文件夹不存在时返回 400。
+
+### `POST /api/board/folder/delete`
+删除文件夹。**请求体：** `{ "id": "BF-…", "keep_boards": true }`。
+
+`keep_boards` 默认 `true`，组内的板移到未归档，板和纸面记录都保留；显式传 `false` 才连同板一起
+删除。**响应：** `{"status":"ok","deleted":true,"boards_kept":N,"boards_deleted":M}`。
+
+### `POST /api/board/move`
+把板移到某个文件夹，或调整它在组内的位置。
+
+**请求体：** `{ "id": "BD-…", "folder_id": "BF-…", "index": 0 }`
+
+`folder_id` 为空串表示未归档，指向不存在的文件夹时同样落到未归档（静默，不报错）。`index`
+可选，缺省时排到该组末尾，超出范围时收敛到组尾。**响应：** `{"status":"ok","board":{...}}`。
 
 ### `POST /api/board/delete`
 删除展示板记录，不删除题目、标记或 Ledger 数据。

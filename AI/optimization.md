@@ -35,6 +35,34 @@
   **v1.14.0 新增的 `qtable.js` / `board.js` 也保留了整块渲染**：题库筛选变化会重绘表格/画廊，展示板排序和版面设置会重绘板内容；两者的高频动作已使用
   data 属性事件委托，但尚未改成局部 DOM 更新。
 
+- [ ] **`assets/board.js` 已经到 98KB / 1500+ 行** — 影响:中 / 工作量:中 / 风险:中
+  一个文件里同时住着：板 CRUD、文件夹树、选板浮层、条目增删排序、版面设置、保存队列、
+  打印与纸面记录、拖拽、预览协调和整套事件委托。预览层已经拆到 `assets/board_preview.js`，
+  剩下的建议再拆两块：`board_picker.js`（文件夹树 / 选板浮层 / 搜索 / 最近使用）与
+  瘦身后的 `board.js`（页面状态、板切换、保存队列、视图协调）。
+  拆分约束：不改全局函数名和 HTML 行内 handler 的兼容层；先搬纯函数和事件委托、再搬状态；
+  每一步都要过 `node --check`、`tests/test_board_ui.js` 与浏览器主路径。
+
+- [x] **展示板预览的内容签名不覆盖题目正文** — 已按「自动 + 人工兜底」两条一起解决
+  `boardContentSignature()` 只算题目集合、顺序、停用 / 缺失状态，加上纸面记录时间。
+  自动一侧：题目 Modal 保存与反馈提交都会走 `reloadData()` → `boardReloadData()` →
+  `boardPreviewInvalidate()`，预览下一次同步就重新导出（已实测确认）。
+  人工一侧：检视条上的「↻ 重新生成」（`boardRegenPreview()`）用于应用外改文件这类
+  没有重载信号的情况。仍未覆盖的是「别的标签页改了同一份数据」，那需要服务端推送才谈得上。
+
+- [x] **展示板纸面历史选了「追加 jsonl」而不是进 Ledger** — 决策记录
+  展示板是呈现层数据，进 Ledger 会把打印这种「呈现动作」混进复习事实链，
+  也会让每次打印都产生不可回收的提交。因此 `record_printed` / `reset_printed` 只把
+  **被替换掉**的那份纸面追加进 `错题/.omrs/boards_printed_history.jsonl`（只增不改），
+  写失败仅记运行日志、绝不打断打印记录本身。代价：这份历史不参与校验、没有回滚能力，
+  且**目前没有 UI 也没有 HTTP 端点**读它。文件只增不删，长期需要一个轮转或归档策略。
+
+- [ ] **预览 HTML 缓存只留最近一份** — 影响:低 / 工作量:小
+  `BP_HTML_CACHE` 是一个只装一条的 `Map`：导出 HTML 内联 KaTeX 字体后接近 1MB，
+  攒几份很快就是几十 MB。代价是「A 板 → B 板 → A 板」这种来回切要重新拉两次导出。
+  几何改动走 relayout 已经消化掉绝大多数刷新，所以暂时不做 LRU；真要做的话
+  上限按条数而不是按字节，避免为了算字节把整份 HTML 再遍历一遍。
+
 - [ ] **标记批量级联写入可能阻塞单线程服务** — 影响:中 / 工作量:中
   标记名称存进题目 YAML，因此 `labels.py` 的改名、删除（解除引用）和合并会逐题
   原子写 Markdown，并为结构化元数据产生提交，最后统一扫描投影。几十题通常可接受，
@@ -44,14 +72,27 @@
 ## 健壮性
 
 - [ ] **测试覆盖仍偏低** — 影响:中高 / 工作量:中
-  当前已有 `test_history_projection.py`、`test_ai_assist_taxonomy.py`、`test_report_export.py`，覆盖历史撤销/恢复/替换、AI 分类约束与答案提示词、报告材料及部分 HTML 导出契约；当前工作区还增加 Markdown 表格与题间留白测试。v1.7.0 增加 `test_catalog_tree.py`(目录树:分层计数、`.omrs` 排除、非题目文件分类、孤立文件、缺目录降级)与 `tests/smoke_frontend_actions_catalog.js`(Node + 最小 DOM 桩,跑行动推荐规则集与目录树渲染/折叠/搜索)。v1.11.0 增加 `tests/test_omr_import.js`(node:test,16 例,覆盖答题卡 JSON 的各种复制形态、三种版式、人工纠错优先、多涂/过淡/空白不猜对错、多页 seq、超范围与已录入跳过)与 `tests/smoke_feedback_omr_import.js`(vm + 最小 DOM 桩,跑「粘贴 JSON → 填进 fbRows」整条接线)。v1.14.0 增加 `test_labels.py`、`test_boards.py`、`test_board_export.py`、`test_labels_ui.js`、`test_board_ui.js`，覆盖标记 YAML/投影/级联、展示板引用与纸面记录、board 导出数据和芯片/筛选/排序纯函数。v1.16.0 增加 `tests/test_question_record_ui.js`，覆盖旧 Markdown 历史行解析、记录派生统计、战绩带和详情边界，但也暴露了记录模块读取 Markdown `# 历史` 而不是 Ledger 投影的已知数据源错配。核心缺口仍是 `compute_mastery_update` / `compute_priority` / SM-2 的边界、Ledger append→projection 集成、CSV/Markdown 异常输入和浏览器端 A4/屏幕/展示板真实打印回归。
-  **当前测试数量与运行方式**：`tests/test_inbox.py` 有 14 个 `test_*` 方法；`test_report_export.py` 有 6 个 pytest 风格用例，其余 Python 测试文件使用 `unittest`。`python3 -m unittest discover -s tests` 会运行 unittest 用例但静默跳过 `test_report_export.py`；当前环境未安装 pytest，需在具备 pytest 的环境单独运行该文件。
+  现有测试按主题分（全部在 `tests/`）：
+  - Ledger / 历史：`test_history_projection.py`（撤销 / 恢复 / 替换）、`test_question_records.py`（`/api/question` 的 `records[]` 匹配与日期拆分，v1.16.1）
+  - AI 与报告：`test_ai_assist_taxonomy.py`（分类约束、答案提示词）、`test_report_export.py`（报告材料与部分 HTML 导出契约，pytest 风格）
+  - 目录树与行动推荐：`test_catalog_tree.py`、`smoke_frontend_actions_catalog.js`
+  - 答题卡导入：`test_omr_import.js`（16 例：JSON 各种形态、三种版式、人工纠错优先、多涂/过淡/空白不猜、多页 seq、越界与已录入跳过）、`smoke_feedback_omr_import.js`（粘贴 → 填进 `fbRows` 整条接线）
+  - 标记与展示板：`test_labels.py`、`test_boards.py`、`test_board_export.py`、`test_labels_ui.js`、`test_board_ui.js`、`smoke_board_print.py`
+  - 题库界面：`test_qtable_ui.js`、`test_question_record_ui.js`（记录统计、战绩带、Ledger 记录优先于 Markdown 旧行）、`test_question_suspend*.{py,js}`、`test_question_delete.py`、`test_md_linebreaks.js`、`test_recommend_v2_filters.js`
+  - 其它：`test_inbox.py`（14 例）、`test_sessions_feedback.py`、`test_recommendations.py`、`test_source_export.py`、`test_feedback_ui.js`
+  - 文档形式体检：`check_docs.py`（不是测试用例，交付前跑一次）
+  核心缺口仍是 `compute_mastery_update` / `compute_priority` / SM-2 的边界、Ledger append→projection 集成、CSV/Markdown 异常输入和浏览器端 A4/屏幕/展示板真实打印回归。
+  **当前测试数量与运行方式**：`tests/test_inbox.py` 有 14 个 `test_*` 方法；`test_report_export.py` 有 6 个 pytest 风格用例，其余 Python 测试文件使用 `unittest`。`python3 -m unittest discover -s tests -p "test_*.py"` 会运行 unittest 用例但静默跳过 `test_report_export.py`；无 pytest 的环境需单独安排。JS 用例逐文件跑：`for f in tests/test_*.js; do node --test "$f"; done`（`node --test tests/` 目录形式在 Node 22 下不可用）。
 
-- [ ] **首次主题与页面提示不一致** — 影响:低 / 工作量:低
-  `omrs_dashboard.html` 首帧脚本在 `omrs-theme` 不存在时选择深色，但设置页帮助文案仍写“默认浅色”。因此当前首次进入实际为深色，页面帮助是过时文案，属于待修复的低风险 UI 文案不一致。
+- [x] **展示板打印链路的三处浪费（2026-09-06 已修）** — 导出把 KaTeX 的 woff2/woff/ttf 三份字体全内联且每次重新读盘编码，浏览器模板固定排版两遍，长图在原始分辨率上逐像素找白缝。现在只内联 woff2 并按文件时间缓存（导出 2.0MB→0.95MB）、按是否真的多加载了字体决定第二遍（30 题板就绪 0.4s→0.28s）、白缝分析在 ≤600px 缩图上做。前端页数估算改成可取消，并复用打印预览窗口回传的版面。回归：`tests/test_board_export.py`、`tests/smoke_board_print.py`（3 例）、`tests/test_board_ui.js`。
+  **剩余小债**：估算仍是「每次改设置就重排一遍」，没有按 `board_id + mode + 版面 + 题目指纹` 缓存导出 HTML；快速连续调滑块时前一次的排版被丢弃而不是复用。
 
-- [ ] **题库练习记录的数据源错配** — 影响:高 / 工作量:中
-  v1.16.0 的画廊战绩带和题目详情记录模块解析 `GET /api/question` 返回的 Markdown `# 历史` 遗留文本；而 `DATA.items[].attempts` 来自 Ledger 重建的 `history_log.csv` 兼容投影。反馈流程不会再写 Markdown 历史，因此正式反馈存在时界面可能仍显示「还没练过」。应让记录模块直接读取 Ledger/兼容投影，并保留旧 Markdown 行仅作兼容输入；修复后再考虑移除前端对该遗留区的依赖。
+- [x] **`smoke_board_print.py` 失败（2026-09-06 已修）** — `test_full_then_incremental_print` 硬断言补印首页是占位页（`partial && ghost`），但夹具在某些字体下最后一页恰好排满，占位页按设计被丢弃，于是断言失败。现改为按 `cursor.y` 与栏高的关系分支断言，并新增两例：短板强制走占位页续排、宽长图走缩图切片。
+
+- [x] **首次主题与页面提示不一致（v1.16.1 已修）** — 设置页「外观」帮助文案改为「首次打开默认深色（暖石墨）」，与 `<head>` 首帧脚本一致。
+
+- [x] **题库练习记录的数据源错配（v1.16.1 已修）** — `GET /api/question` 新增 `records[]`（`stats.get_question_records()`，由 Ledger 投影 `history_log.csv` 派生，按 `Question_ID` 优先、`UID` 兜底匹配）；前端 `core.js::qRecordsFromDetail()` 统一取记录，画廊战绩带与详情记录模块都改读它，Markdown `# 历史` 降为老后端兜底。反馈提交 / 历史修正后 `qvInvalidateMany()` 清详情缓存。回归：`tests/test_question_records.py`、`tests/test_question_record_ui.js`。
+  **剩余小债**：`parseQHistory` / `parse_history_lines` 这套 Markdown 解析现在只为兼容老后端，等确认没有旧手工 `# 历史` 需要展示后可整体删除；`history_log.csv` 每次 `get_question_records()` 都全量读一遍（单题请求、文件小，暂可接受，量大时改查投影表）。
 
 ## 锦上添花
 

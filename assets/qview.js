@@ -2,7 +2,7 @@
 // 供题目 Modal、反馈工作台、即时练习、画廊卡片复用，收敛原来三处各自为政的题目渲染副本。
 // 依赖 questions.js 的 renderMdContent / ensureQuestionDetail / QUESTION_CACHE，
 // 以及 core.js 的 escapeHtml / escapeAttr / getItemByUid / getDueDays / asNumber
-// 与记录模块用到的 parseQHistory / qHistoryStats（v1.16.0），
+// 与记录模块用到的 qRecordsFromDetail / qHistoryStats（v1.16.0，v1.16.1 改读 Ledger），
 // 因此 <script> 必须排在 questions.js 之后。
 // 约定：本文件不写业务逻辑，工具按钮只转调 questions.js 已有的全局函数；
 // DOM 里不拼函数名，所有交互走 data-qv-act 事件委托。
@@ -75,7 +75,7 @@ function qvToolsHtml(uid, actions) {
       case 'open':
         return '<button type="button" class="btn sm" data-qv-act="open">在题目库打开</button>';
       case 'board':
-        return '<button type="button" class="btn sm" data-qv-act="board">加入展示板</button>';
+        return '<button type="button" class="btn sm" data-qv-act="board" data-board-hint>加入展示板</button>';
       case 'labels':
         return '<button type="button" class="btn sm" data-qv-act="labels">编辑标记</button>';
       default:
@@ -146,7 +146,8 @@ function qvHtml(q, item, opts) {
 
 // === 记录模块（v1.16.0）===
 // 原本是右栏里一个 <details> 包着 Markdown「## 历史」原文的 <pre>；现在改成题目详情最下面
-// 一整块通栏模块：四个派生数 + 主观分走势 + 明细。数据仍只来自 detail.history，不新增接口。
+// 一整块通栏模块：四个派生数 + 主观分走势 + 明细。数据来自 detail.records（Ledger 投影）；
+// 老后端没给 records 时才退回解析 detail.history 的遗留行（见 core.js::qRecordsFromDetail）。
 // 只报异常：连错 ≥2 才出提示行；顺利的题一个字都不多说。
 function qvRecordSparkHtml(records) {
   const width = 100, height = 34, count = records.length;
@@ -163,7 +164,7 @@ function qvRecordSparkHtml(records) {
 
 function qvRecordRowHtml(record) {
   return `<div class="qv-rec-row">
-    <span class="qv-rec-date">${escapeHtml(record.date)}</span>
+    <span class="qv-rec-date">${escapeHtml(record.date)}${record.time ? `<small> ${escapeHtml(record.time)}</small>` : ''}</span>
     <span class="${record.correct ? 'qv-rec-ok' : 'qv-rec-no'}">${record.correct ? '对' : '错'}</span>
     <span class="qv-rec-score">${escapeHtml(record.score)} 分</span>
     <span class="qv-rec-note">${escapeHtml(record.note || '')}</span>
@@ -171,15 +172,16 @@ function qvRecordRowHtml(record) {
 }
 
 function qvRecordHtml(detail, item) {
-  const raw = String(detail?.history || '').trim();
-  const records = typeof parseQHistory === 'function' ? parseQHistory(raw) : [];
+  const records = typeof qRecordsFromDetail === 'function' ? qRecordsFromDetail(detail) : [];
   const stats = typeof qHistoryStats === 'function' ? qHistoryStats(records) : { count: 0 };
   const head = '<div class="qv-label">记录</div>';
   if (!stats.count) {
-    // 解析不出记录但原文非空 = 历史小节被手改成了别的写法，原样保留，不假装没有
+    // 只在「老后端没给 records、且 Markdown 历史小节被手改成别的写法」时原样保留原文，不假装没有；
+    // 后端已给 records（哪怕是空数组）时，Markdown 里的旧文本一律不管——它不是记录来源。
+    const raw = records.source === 'markdown' ? String(detail?.history || '').trim() : '';
     const body = raw
       ? `<pre class="qv-rec-raw">${escapeHtml(raw)}</pre>`
-      : `<div class="qv-rec-empty">还没练过${asNumber(item?.attempts, 0) ? '（熟练度表记了 ' + asNumber(item.attempts, 0) + ' 次，但题目文件里没有可解析的历史行）' : ''}。加入下一次复习后，这里会出现次数、正确率和主观分走势。</div>`;
+      : '<div class="qv-rec-empty">还没练过。加入下一次复习后，这里会出现次数、正确率和主观分走势。</div>';
     return `<section class="qv-rec">${head}${body}</section>`;
   }
   const alert = stats.tailWrong >= 2
@@ -233,6 +235,19 @@ async function qvInvalidate(uid) {
     if (!mount.isConnected) QV_MOUNTS.delete(mount);
   });
   await Promise.all(targets.map(([mount, opts]) => qvRender(mount, key, opts)));
+}
+
+// 批量失效：反馈提交 / 历史修正后，题目的正式记录（detail.records）变了，
+// 缓存里的详情就过期了。uids 给谁清谁；不给则清空整个 QUESTION_CACHE（历史修正可能波及任意题）。
+async function qvInvalidateMany(uids) {
+  const list = Array.isArray(uids) ? [...new Set(uids.map(uid => String(uid || '').trim()).filter(Boolean))] : null;
+  if (list) { await Promise.all(list.map(uid => qvInvalidate(uid))); return; }
+  Object.keys(QUESTION_CACHE).forEach(key => { delete QUESTION_CACHE[key]; });
+  const targets = [];
+  QV_MOUNTS.forEach((state, mount) => {
+    if (mount.isConnected) targets.push([mount, state.uid, state.opts]); else QV_MOUNTS.delete(mount);
+  });
+  await Promise.all(targets.map(([mount, uid, opts]) => qvRender(mount, uid, opts)));
 }
 
 // 纯重绘：不动详情缓存，只把已挂载的容器按当前设置（如题面换行模式）重画一遍
@@ -298,7 +313,7 @@ function qvHandleClick(event) {
   if (action === 'retry') { qvInvalidate(state?.uid || uid); return; }
   if (!uid) return;
   if (action === 'edit' && typeof openMarkdownEditor === 'function') openMarkdownEditor(uid);
-  else if (action === 'board' && typeof boardQuickAdd === 'function') boardQuickAdd(uid);
+  else if (action === 'board' && typeof boardQuickAdd === 'function') boardQuickAdd(uid, { anchor: button, direct: event.shiftKey });
   else if (action === 'labels' && typeof openLabelPicker === 'function') openLabelPicker(uid, button);
   else if (action === 'suspend' && typeof suspendQuestion === 'function') suspendQuestion(uid);
   else if (action === 'resume' && typeof resumeQuestion === 'function') resumeQuestion(uid);
@@ -320,4 +335,41 @@ if (typeof document !== 'undefined') {
   document.addEventListener('keydown', qvHandleKey);
 }
 
-if (typeof module !== 'undefined') module.exports = { qvHtml, qvChips, qvToolsHtml, qvRecordHtml, qvSetContext, qvContext, qvRerenderAll, QV_DEFAULTS };
+// ---------- 共享画廊卡片 ----------
+// 题目库画廊与展示板画廊共用同一副骨架：卡头（勾选 / 编号 / 状态标 / 菜单）、
+// 可选元信息行、题面缩略预览、脚注（统计 + 标记）。
+// 刻意只收「已经算好的 HTML 片段」而不读任何题库全局：两个调用点的状态标、
+// 脚注、菜单本来就不一样，把差异留给调用方，骨架才只有一份。
+function qvGalleryCard(spec) {
+  const card = spec || {};
+  const uid = String(card.uid || '');
+  const preview = card.previewHtml || '<div class="preview-placeholder">正在加载题目预览…</div>';
+  const meta = card.metaHtml ? `<div class="gc-meta">${card.metaHtml}</div>` : '';
+  const more = card.menuHtml ? `<span class="gc-more">${card.menuHtml}</span>` : '';
+  return `<div class="gallery-card ${card.className || ''}" ${card.rowAttr || ''}>
+      <div class="gallery-head">
+        ${card.leadHtml || ''}
+        <span class="gc-id">${card.idHtml || ''}</span>
+        <span class="gc-flags">${card.flagsHtml || ''}</span>
+        ${more}
+      </div>
+      ${meta}
+      <div class="gallery-preview ${card.previewClass || ''}" data-question-preview-uid="${escapeAttr(uid)}">${preview}</div>
+      <div class="gc-foot">
+        ${card.footHtml || ''}
+        <span class="q-label-cell gc-labels" data-lbl-target="${escapeAttr(uid)}">${card.labelsHtml || ''}</span>
+      </div>
+    </div>`;
+}
+// UID 里重复了分类名时拆成「分类 + 序号」两截：一屏几十张卡时，重复的前缀纯属噪音
+function qvGalleryIdHtml(uid, category) {
+  const id = String(uid || '');
+  const cat = String(category || '');
+  if (cat && id.startsWith(cat)) {
+    const rest = id.slice(cat.length).replace(/^[-_·\s]+/, '');
+    return `<span class="gc-cat">${escapeHtml(cat)}</span>${rest ? `<span class="gc-num">${escapeHtml(rest)}</span>` : ''}`;
+  }
+  return `<span class="gc-num">${escapeHtml(id)}</span>`;
+}
+
+if (typeof module !== 'undefined') module.exports = { qvHtml, qvChips, qvToolsHtml, qvRecordHtml, qvInvalidateMany, qvSetContext, qvContext, qvRerenderAll, qvGalleryCard, qvGalleryIdHtml, QV_DEFAULTS };

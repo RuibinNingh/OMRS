@@ -21,6 +21,8 @@ AI/
 ├── inbox.md           ← 收件箱录入流程（上传 / 框选 / 转换 / 提交 / 数据集）
 ├── labels.md          ← 用户标记：定义、YAML、投影与调度可选加成
 ├── board.md           ← 展示板：引用集合、版面设置、打印（全部 / 仅新增）与纸面记录、API
+├── omr-import.md      ← 答题卡扫描 JSON 导入反馈页：协议、题号→UID、逐题判定（从 frontend.md 拆出）
+├── changelog.md       ← 版本级变更摘要（倒序）；模块文档不再堆版本叙述
 └── logs/
     ├── log.md         ← 已留痕任务的变更日志索引（完整历史以 Git 为准）
     └── YYYY-MM-DD_<主题>.md  ← 单次会话的详细变更记录
@@ -70,6 +72,8 @@ AI/
 
 若第 3 项与前两项冲突，应修正文档，不得为了迁就旧文档改写现有行为。文档只描述已存在且可验证的事实；规划项必须明确标为“待办”，不能写成已经实现。端点、字段、函数、文件和验证命令尽量使用可搜索的准确名称。
 
+三条硬规则（详见根 `AGENTS.md`「文档写法」）：**模块文档只写现在**，历史进 `changelog.md` / `logs/`；**一段一件事、不超过 800 字**；**已知缺陷只在 `optimization.md` 记一条**。交付前跑 `python3 tests/check_docs.py`，它会把违反前两条和「重复章节编号 / 引用不存在的文件」一并拦下。
+
 ---
 
 ## 命名规范
@@ -105,7 +109,7 @@ AI/
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v1.16.0 |
+| 当前版本 | v1.17.0 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（`styles.css` 与拆分的 JS）|
@@ -121,11 +125,13 @@ AI/
 | `algorithm.md` | 时间衰减、compute_mastery_update 状态机、统一优先级 `compute_priority`（EF 反推的有效难度）、SM-2、双列表推荐、Leech 检测、标记可选加成与 tuning |
 | `api.md` | GET/POST 端点、请求体、返回字段（含 analytics/export-review/reports/image、目录树 `tree`、AI 识别 `ai-recognize`、标记/展示板与导出参数） |
 | `data.md` | mastery/history/sessions CSV 字段、Markdown 题目格式与支持子集、UID、labels.json、boards.json、config.json、日志、report/ 报告存储、File_Path 分隔符 |
-| `frontend.md` | assets/ 多文件结构与加载约定；仪表盘与行动推荐、题目库/标记/展示板、目录页、调度/推荐、数据复盘、报告托管、设置与 AI 录入、深色对比度约定 |
-| `export.md` | A4/屏幕版与展示板自包含 HTML：浏览器分页/切片、Markdown 表格、题间留白、装订边距、仅打印新增（纸面记录）与导出入口 |
+| `frontend.md` | assets/ 多文件结构与加载约定；仪表盘与行动推荐、题目库/标记/展示板、目录页、qview 与练习记录模块、调度/推荐、数据复盘、报告托管、设置与 AI 录入、深色对比度约定。只写当前行为，顶部有目录 |
+| `export.md` | A4/屏幕版与展示板自包含 HTML：浏览器分页/切片、Markdown 表格、题间留白、仅打印新增（纸面记录）与导出入口 |
 | `ledger.md` | **v1.1.0 Ledger 架构**：不可变提交链、投影缓存、隐藏 question_id、工作区自检、历史修正、迁移和正文不做版本控制的边界 |
 | `optimization.md` | 当前技术债、风险边界、已有测试覆盖与已完成优化 |
 | `inbox.md` | **v1.12.0 收件箱录入流程**：上传 → 框选 → 转换 → 提交的暂存层、`/api/inbox/*`、后台 job、AI 框选与可转性判断、训练数据集与待办；v1.13.0 §8 框选提供方（vlm / template / local_http）、盲标、自动策略、清理 |
 | `labels.md` | **v1.14.0 用户标记**：`labels.json` 定义、题目 YAML `标记:`、`question_labels` 投影、单题/批量 CRUD、改名/删除/合并与可选调度加成 |
 | `board.md` | **v1.14.0 展示板**：`boards.json` 引用模型、CRUD/排序、停用与缺失题处理、左题右空 A4 版面、答案附页与绝对页码 |
+| `omr-import.md` | 答题卡扫描 JSON 导入反馈页：唯一接受的协议形态、题号→UID 对应、逐题判定、三个入口一套解析 |
+| `changelog.md` | 版本级变更摘要，倒序；每个版本一段，改了什么、为什么 |
 | `logs/log.md` | 变更日志总索引 |

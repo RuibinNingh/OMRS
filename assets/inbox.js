@@ -66,7 +66,8 @@ function ibToast(msg, kind, action) {
     t.appendChild(button);
   }
   t.className = 'ib-toast show' + (kind === 'warn' ? ' warn' : '') + (action?.label ? ' action' : '');
-  clearTimeout(IB_TOAST_T); IB_TOAST_T = setTimeout(() => { t.className = 'ib-toast'; }, 3200);
+  // 带操作按钮的提示多留一会儿（和 uiToast 一致），3 秒来不及点「加入展示板」
+  clearTimeout(IB_TOAST_T); IB_TOAST_T = setTimeout(() => { t.className = 'ib-toast'; }, action?.label ? 8000 : 3200);
 }
 function ibBytes(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB'; }
 function ibRawUrl(item) { return `/api/inbox/raw?id=${encodeURIComponent(item.id)}`; }
@@ -166,7 +167,7 @@ function ibOpenSelected() { const first = [...IB.sel][0]; if (first) IB.cur = fi
 async function ibDiscardSelected() {
   const ids = [...IB.sel].filter(id => ibItem(id) && ibItem(id).status !== 'done');
   if (!ids.length) return;
-  if (!confirm(`丢弃 ${ids.length} 张？原图会保留在收件箱数据目录，不进题库。`)) return;
+  if (!await uiConfirm(`丢弃 ${ids.length} 张？原图会保留在收件箱数据目录，不进题库。`)) return;
   try { await api('/api/inbox/discard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) }); IB.sel.clear(); await ibLoad(); }
   catch (e) { ibToast(e.message, 'warn'); }
 }
@@ -298,7 +299,7 @@ async function ibWholeSelected() {
 }
 async function ibDiscardCurrent() {
   const it = ibCur(); if (!it) return;
-  if (!confirm('丢弃这张图？')) return;
+  if (!await uiConfirm('丢弃这张图？')) return;
   try { await api('/api/inbox/discard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id }) }); IB.sel.delete(it.id); await ibLoad(); IB.cur = (ibQueue()[0] || {}).id || null; ibRenderProcess(); }
   catch (e) { ibToast(e.message, 'warn'); }
 }
@@ -488,22 +489,37 @@ async function ibClassify(keys) {
   catch (e) { ibToast('识别失败：' + e.message, 'warn'); }
 }
 function ibClassifySelected() { const ks = [...IB.csel]; if (!ks.length) { ibToast('先勾选要识别的题卡', 'warn'); return; } ibClassify(ks); }
-async function ibCommit(k) {
+// 提示条上的「加入展示板」：一张或一批都走 boardQuickAdd（加入最近用过的板，没有板就先新建）
+function ibBoardAction(uids) {
+  const clean = (uids || []).filter(Boolean);
+  if (!clean.length || typeof boardQuickAdd !== 'function') return null;
+  return { label: clean.length > 1 ? `加入展示板（${clean.length} 题）` : '加入展示板', onClick: () => boardQuickAdd(clean) };
+}
+async function ibCommit(k, options = {}) {
   const { it, c, form } = ibCardForm(k);
-  if (!form.subject || !form.category) { ibToast('科目和分类是必填项', 'warn'); return; }
+  if (!form.subject || !form.category) { ibToast(`${options.quiet ? `题卡 ${k.split('#')[1] || ''}：` : ''}科目和分类是必填项`, 'warn'); return null; }
   const crops = {};
   for (const r of it.regions.filter(r => r.card === c && r.role !== 'ignore' && r.convert === 'image')) crops[r.id] = await ibCrop(it, r);
   try {
     const res = await api('/api/inbox/commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id, card: c, form, crops }) });
-    IB.csel.delete(k); ibToast(`已创建 ${res.uid}（${res.file_path}）；原图与框位已存入数据集`, undefined, {
-      label: '加入展示板',
-      onClick: () => typeof boardQuickAdd === 'function' && boardQuickAdd(res.uid),
-    });
+    IB.csel.delete(k);
+    if (!options.quiet) ibToast(`已创建 ${res.uid}（${res.file_path}）；原图与框位已存入数据集`, undefined, ibBoardAction([res.uid]));
     await ibLoad(); ibRenderCards();
-    if (typeof reloadData === 'function') reloadData();
-  } catch (e) { ibToast('创建失败：' + e.message, 'warn'); }
+    if (!options.quiet && typeof reloadData === 'function') reloadData();
+    return res;
+  } catch (e) { ibToast('创建失败：' + e.message, 'warn'); return null; }
 }
-async function ibCommitSelected() { const ks = [...IB.csel]; if (!ks.length) { ibToast('先勾选要创建的题卡', 'warn'); return; } for (const k of ks) await ibCommit(k); }
+// 批量创建：逐张提交，最后只弹一条提示，「加入展示板」一次把这批新题全部加进去
+// （以前每张各弹一条互相覆盖，只有最后一题能加板）
+async function ibCommitSelected() {
+  const ks = [...IB.csel];
+  if (!ks.length) { ibToast('先勾选要创建的题卡', 'warn'); return; }
+  const created = [];
+  let failed = 0;
+  for (const k of ks) { const res = await ibCommit(k, { quiet: true }); if (res?.uid) created.push(res.uid); else failed += 1; }
+  if (created.length) ibToast(`已创建 ${created.length} 道题目${failed ? `，${failed} 张失败` : ''}；原图与框位已存入数据集`, failed ? 'warn' : undefined, ibBoardAction(created));
+  if (created.length && typeof reloadData === 'function') reloadData();
+}
 async function ibBackToProcess(id) { const it = ibItem(id); if (!it) return; it.status = 'boxed'; await ibSave(it, { status: 'boxed' }); IB.cur = id; ibGo('process'); }
 
 /* ── AI 训练：数据集统计 ── */
@@ -558,7 +574,7 @@ async function ibSavePolicy() {
   catch (e) { if (status) status.innerHTML = `<span style="color:var(--red)">✕ ${escapeHtml(e.message)}</span>`; }
 }
 async function ibCleanup(crops) {
-  if (crops && !confirm('清空裁剪缓存？（可重建，不影响原图与标注）')) return;
+  if (crops && !await uiConfirm('清空裁剪缓存？（可重建，不影响原图与标注）')) return;
   try {
     const r = await api('/api/inbox/cleanup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ crops: !!crops }) });
     ibToast(`已清理：超过 ${r.discarded_days} 天的已丢弃原图 ${r.raw} 张（${ibBytes(r.raw_bytes)}）${crops ? `，裁图缓存 ${r.crops} 个` : ''}`);
@@ -584,7 +600,21 @@ function ibBind() {
     if (t.dataset.ibCommit) { ibCommit(t.dataset.ibCommit); return; }
     if (t.dataset.ibRg) { if (!ev.target.closest('textarea,input,button')) ibSelectRegion(t.dataset.ibRg); return; }
     if (t.dataset.ibCur) { if (!ev.target.closest('input')) ibOpen(t.dataset.ibCur); return; }
-    if (t.dataset.ibOpen) { if (ev.target.closest('input')) return; const it = ibItem(t.dataset.ibOpen); if (it.status === 'done') { ibToast(`已录入为 ${it.link?.uid}，可到题目库查看`); return; } IB.cur = it.id; ibGo('process'); }
+    if (t.dataset.ibOpen) {
+      if (ev.target.closest('input')) return;
+      const it = ibItem(t.dataset.ibOpen);
+      if (it.status === 'done') {
+        const uid = String(it.link?.uid || '').trim();
+        if (uid && typeof viewQ === 'function') {
+          viewQ(uid, 'q');
+        } else {
+          ibToast('这条记录没有关联的题目详情', 'warn');
+        }
+        return;
+      }
+      IB.cur = it.id;
+      ibGo('process');
+    }
   });
   panel.addEventListener('change', ev => {
     const t = ev.target;

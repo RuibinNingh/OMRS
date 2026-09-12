@@ -152,7 +152,7 @@ tags:
 YYYY-MM-DD 主观:N, 对/错[, 备注:文字]
 ```
 
-v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流程追加。`/api/question` 仍返回该小节原文，`common.py::parse_history_lines()` 和 v1.16.0 题目详情/画廊代码仍会兼容解析旧手工行；这与 Ledger 导出的正式复习记录是两套数据。系统只承诺恢复结构化状态、算法状态、Session 和统计，不承诺恢复 Markdown 正文旧版本。
+v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流程追加。`/api/question` 仍把该小节原文放在 `history` 字段里（纯兼容显示），但正式练习记录是同一响应的 `records[]`（v1.16.1 起，由 Ledger 投影 `history_log.csv` 派生，见 `api.md`）；`common.py::parse_history_lines()` 与前端 `parseQHistory()` 只在老后端没给 `records` 时才用来解析旧手工行。系统只承诺恢复结构化状态、算法状态、Session 和统计，不承诺恢复 Markdown 正文旧版本。
 
 `相关知识点: []` 是显式清空知识点标签的结构化更新。工作区扫描将该空列表写入 Ledger 的题目元数据投影，并在重建 `mastery_data.csv` 时保持 `Knowledge_Tags` 为空；它不会回退到该题此前的知识点标签。
 
@@ -303,25 +303,94 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 
 ---
 
-## 14. 展示板 `boards.json`（v1.14.0）
+## 14. 展示板 `boards.json`
 
-路径：`错题/.omrs/boards.json`。展示板是呈现层引用集合，不进入 Ledger，也不
+路径：`错题/.omrs/boards.json`，当前 `version: 3`。展示板是呈现层引用集合，不进入 Ledger，也不
 复制题目正文。文件写入会滚动 `.bak.1/2/3`，再使用临时文件、`fsync` 和
 `os.replace` 原子替换。
 
+文件顶层是 `{version, folders, boards}`。`folders[]` 是单层（不嵌套）的展示板文件夹，每项为
+`{id, name, order, created_at, updated_at}`，id 形如 `BF-20260907-a1b2c3`。板用 `folder_id`
+指向所属文件夹，空串表示未归档；`order` 是它在组内的位置。读写时都会重新编号：文件夹按 `order`
+排 0..n-1，板在组内排 0..n-1，因此顺序字段始终连续且无重复。
+
+`folder_id` 指向不存在的文件夹时静默归入未归档，不报错也不丢板——文件夹是分类，坏掉的分类不该
+连累数据。折叠状态属于 UI 状态，存在 `localStorage['omrs-board-folders-collapsed']`，不写进本文件。
+
 板记录包含板元数据、打印设置和 `items[]`。每个条目同时保存
 `question_id` 与 `uid`；读取优先稳定的 `question_id`，UID 只做显示和降级兜底。
-`print` 当前字段为 `note_ratio`、`gap_lines`、`binding_mm`、
-`answers`、`show_labels`、`show_meta`；旧的 `note_align`、`note_min_lines`、
-`note_pattern` 会被忽略。`gap_lines` 默认 2，单题可以用
-`extra_gap_lines` 追加 0–24 行。
-
 停用题继续保留在板内但导出跳过；题目删除或无法按稳定身份解析时显示
 `missing`，不会自动从板文件中删除。
 
-`printed` 是**纸面记录**——纸上现在有什么：`pages`（已打印总页数）、`cursor{page,y}`
+### 14.1 版面设置 `print`
+
+`normalize_print()` 的当前字段与取值范围：
+
+| 字段 | 范围 | 说明 |
+|---|---|---|
+| `note_ratio` | 0.30–0.55 | 右侧留白占可分配宽度的比例，默认 0.50 |
+| `gap_lines` | 0–24 | 板的**全局**题间留白行数（每行 18px） |
+| `answers` | `none` \| `append` | 是否在末页附答案 |
+| `show_labels` / `show_meta` | bool | 题头是否显示标记 / 科目·难度 |
+| `cut_line` | `none` \| `dash` \| `solid` | 每题留白末尾的裁切提示线，默认 `dash` |
+| `cut_label` | bool | 切割线右端是否标「第 N 题止」，默认关 |
+| `locked` | bool | 是否锁定版式；锁定后的几何、顺序或题目集合变化会重置纸面记录 |
+
+未知键忽略，缺失键回默认；旧的 `note_align`、`note_min_lines`、`note_pattern`、
+`last_printed_page` 读取时直接丢弃。
+
+### 14.2 每题留白：v2 `extra_gap_lines` → v3 `gap_lines`
+
+v2 的语义是「全局 + 每题额外」，v3 改成**每题绝对行数**：
+
+- `items[].gap_lines = null` → 继承板的全局 `print.gap_lines`；
+- `items[].gap_lines = 数字` → 这道题之后固定留这么多行，上限 `MAX_GAP_LINES = 48`。
+
+迁移在 `_normalize_item()` 里就地完成，不需要单独的迁移脚本：读到 v2 的
+`extra_gap_lines`（先夹到 0–24）时折算成 `全局 + 额外`，因此**迁移前后每题的有效留白逐题等值，
+纸面像素不变**。折算后 `extra_gap_lines` 恒为 0，只读不写，所以重复归一化是空操作——
+`load → save → load` 的结果与一次 `load` 完全相同（`tests/test_boards.py`
+的 `BoardGapMigrationTests` 逐条锁住这两点）。
+
+`extra_gap_lines == 0` 的条目不折算，保持 `gap_lines = null`（继承），避免把「没设过」
+写死成一个具体数字。读不懂的 `gap_lines`（`"x"`、NaN）同样按「没设」处理而不是折成 0：
+0 是「这题后面不留白」的真实选择，把坏数据折成 0 会静默改掉纸面。
+
+`update_board(items=…, print=…)` 同一请求里同时提交两者时，`print` 先生效，
+`items` 的 v2 折算用的是**本次请求之后**的全局留白，不会用旧值折算出错值。
+
+`effective_gap_lines(item, print)` 是「这道题实际留几行」的唯一算式，服务端与前端
+（`boardEffectiveGap`）必须同解；导出时由 `_board_gap_lines()` 落成绝对值交给浏览器模板，
+导出数据里**不再出现** `extra_gap_lines`。
+
+### 14.3 纸面记录 `printed`
+
+`printed` 描述**纸上现在有什么**：`pages`（已打印总页数）、`cursor{page,y}`
 （下一道新题的续排位置）、打印时的 `print` 几何、`items[]`（每题 `question_id / uid /
 hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`pages == 0` 表示没有
 记录；由 `POST /api/board/printed` 在用户「标记为已打印」时写入，`mode:"new"` 追加、
-`mode:"all"` 替换；旧字段 `last_printed_page` 读取时忽略。设计见 `board.md` §4。
-备份整个 `错题/` 目录时，`labels.json`、`boards.json` 都随 `.omrs/` 一起进入备份。
+`mode:"all"` 替换。设计见 `board.md` §4。
+
+### 14.4 纸面历史 `boards_printed_history.jsonl`
+
+路径：`错题/.omrs/boards_printed_history.jsonl`，一行一条 JSON，**只增不改**。
+记录纸面（`record_printed`）与重置纸面（`reset_printed`）会在覆盖之前，把**即将被替换掉**的
+那份 `printed` 追加进来，用来回答「上一版纸印的是什么」：
+
+```json
+{"at":"2026-09-09T04:00:00+00:00","board_id":"BD-…","board_name":"考前速览",
+ "event":"record","mode":"all","pages":3,"count":12,
+ "cursor":{"page":3,"y":493.56},"print":{"note_ratio":0.50,"…":"当时的版面"}}
+```
+
+- `event ∈ {record, reset}`；`mode` 只在 `record` 时有值（`all` / `new`）。
+- 旧纸面为空（`pages <= 0`）时没有可留存的历史，跳过——所以**第一次**「标记为已打印」
+  不会产生任何一行。
+- 展示板不进 Ledger，这份 jsonl 是审计辅助而不是事实链；写失败只记运行日志
+  （`board_printed_history_failed`），绝不打断打印记录本身。
+- `read_printed_history(vault, board_id="", limit=20)` 按时间**倒序**读回，可按板过滤；
+  文件不存在返回空列表，坏行跳过不报错。**目前没有 UI 也没有 HTTP 端点**读它，
+  只能直接读文件或在 Python 里调用。
+
+备份整个 `错题/` 目录时，`labels.json`、`boards.json` 和 `boards_printed_history.jsonl`
+都随 `.omrs/` 一起进入备份。

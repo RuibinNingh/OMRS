@@ -214,10 +214,10 @@ function qbSelectAll(checked) {
   renderQ();
 }
 function qbClearSelection() { QB_SELECTED.clear(); renderQ(); }
-async function qbBatchBoard() {
+async function qbBatchBoard(anchor) {
   const uids = [...QB_SELECTED];
   if (!uids.length) return;
-  if (typeof boardChooseAndAdd === 'function') await boardChooseAndAdd(uids);
+  if (typeof boardChooseAndAdd === 'function') await boardChooseAndAdd(uids, { anchor });
 }
 async function qbBatchLabels() {
   const uids = [...QB_SELECTED];
@@ -490,7 +490,7 @@ function qbHandleKey(event) {
     qbSetGalleryCols(current === 0 ? (step > 0 ? 1 : 6) : current + step);
   }
   else if (key === 'Escape') { if (QB_SELECTED.size) qbClearSelection(); else qbToggleDrawer(false); }
-  else if ((key === 'b' || key === 'B') && QB_SELECTED.size) qbBatchBoard();
+  else if ((key === 'b' || key === 'B') && QB_SELECTED.size) qbBatchBoard(document.getElementById('qb-batchbar'));
   else if ((key === 'l' || key === 'L') && QB_SELECTED.size) qbBatchLabels();
 }
 

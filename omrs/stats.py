@@ -1,5 +1,6 @@
 import datetime
 import os
+import re
 
 from .common import (
     HISTORY_HEADERS,
@@ -251,9 +252,64 @@ def get_question_content(vault, uid):
         "notes": sections.get("备注", ""),
         "answer": sections.get("答案", ""),
         "history": sections.get("历史", ""),
+        # 正式练习记录：来自 Ledger 投影（history_log.csv），不是上面那段 Markdown 遗留文本。
+        "records": get_question_records(vault, uid),
         "tag": extract_tag(meta),
         "suspended": is_suspended_row(row),
         "knowledge_tags": extract_knowledge_tags(meta),
         "labels": extract_labels(meta),
         "images": extract_images(question_text),
     }
+
+
+def _split_history_date(value):
+    """把 history_log.csv 的 Date（"YYYY-MM-DD" 或 "YYYY-MM-DD HH:MM"）拆成日期 + 时间两段。"""
+    text = str(value or "").strip()
+    match = re.match(r"(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}))?", text)
+    if not match:
+        return text[:10], ""
+    return match.group(1), match.group(2) or ""
+
+
+def get_question_records(vault, uid):
+    """返回一道题的正式练习记录（按 Ledger 提交顺序，旧到新）。
+
+    数据源是 Ledger 重放出来的 ``history_log.csv`` 兼容投影；题目 Markdown 里的
+    ``# 历史`` 只是早期遗留文本，反馈流程早已不再写它，所以这里不看它。
+    优先按隐藏稳定身份 ``Question_ID`` 匹配（改名不断链），老行没有 Question_ID 时退回按 UID 匹配。
+    """
+    uid = str(uid or "").strip()
+    if not uid:
+        return []
+    question_id = ""
+    try:
+        with connect(vault) as db:
+            row = db.execute(
+                "SELECT question_id FROM question_projection WHERE uid = ? AND archived = 0",
+                (uid,),
+            ).fetchone()
+            if row:
+                question_id = row["question_id"] or ""
+    except Exception:
+        question_id = ""
+    records = []
+    for row in load_csv(history_path(vault), HISTORY_HEADERS):
+        row_qid = (row.get("Question_ID") or "").strip()
+        row_uid = (row.get("UID") or "").strip()
+        if question_id and row_qid:
+            keep = row_qid == question_id
+        else:
+            keep = row_uid == uid
+        if not keep:
+            continue
+        date_text, time_text = _split_history_date(row.get("Date"))
+        records.append({
+            "log_id": row.get("Log_ID", ""),
+            "date": date_text,
+            "time": time_text,
+            "score": _safe_int(row.get("Sub_Score"), 0),
+            "correct": str(row.get("Is_Correct", "")).strip() == "1",
+            "note": row.get("Note", "") or "",
+            "session_id": row.get("Session_ID", "") or "",
+        })
+    return records

@@ -149,7 +149,7 @@ async function instSubmitPractice(){
   const rows=Object.entries(INSTANT_RESULTS)
     .filter(([,row])=>row.correct===true||row.correct===false)
     .map(([uid,row])=>({uid,sub_score:row.score==null?(row.correct?8:4):row.score,is_correct:row.correct,source:itemMap[uid]?._source||'due',note:'即时练习'}));
-  if(!rows.length){alert('还没有已判定题目');return}
+  if(!rows.length){uiToast('还没有已判定题目',{kind:'warn'});return}
   INSTANT_SUBMITTING=true;
   const button=document.getElementById('inst-submit');
   const status=document.getElementById('inst-status');
@@ -166,6 +166,7 @@ async function instSubmitPractice(){
       return `<div class="result-row ${ok?'ok':'err'}"><span style="font-weight:700;color:var(--accent2)">${escapeHtml(row.uid)}</span><span class="tag ${labelClass}">${escapeHtml(row.label||'')}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.76rem">${summary}</span></div>`;
     }).join('');
     await reloadData();
+    if(typeof qvInvalidateMany==='function')await qvInvalidateMany(rows.map(row=>row.uid));
     instRenderSide();
   }catch(error){
     if(status)status.innerHTML=`<span style="color:var(--red)">✕ ${escapeHtml(error.message)}</span>`;

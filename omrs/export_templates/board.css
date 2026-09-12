@@ -1,5 +1,5 @@
-/* OMRS 展示板（错题集）打印版样式 —— 左题右空，为活页装订而生。
- * 几何：A4 纵向 793.7×1122.52px；左装订边 binding_mm（默认 22mm）、右 10mm、上下 12mm，
+/* OMRS 展示板（错题集）打印版样式 —— 左题右空。
+ * 几何：A4 纵向 793.7×1122.52px；左右 10mm、上下 12mm，
  * 页脚另留 8.5mm 安全带（与 a4.css 同策略）。右侧留白区不画任何东西，直接手写。
  * 字号 / 行高 / 表格 / 切片规则与 a4.css 保持一致，题栏宽度贴近 A4 双栏栏宽。 */
 :root{
@@ -20,7 +20,19 @@ html,body{margin:0;padding:0;background:#f1ede6;color:var(--ink);
 .col{overflow:hidden;}
 .pagenum{position:absolute;left:0;right:0;bottom:32px;text-align:center;
   font-family:var(--sans);font-size:9px;color:#b3a896;letter-spacing:1px;}
-.bind-line{position:absolute;top:0;bottom:0;width:0;border-left:1px dashed #ece7de;}
+/* 切割线：每题留白末尾的「写到这里为止」提示。 */
+.cut-line{position:absolute;height:0;border-top:1px dashed #e6e0d5;pointer-events:none;}
+.cut-line.solid{border-top-style:solid;}
+.cut-line .tag{position:absolute;right:0;top:-11px;font:9px var(--sans);color:#cfc6b6;}
+/* 拖切割线 = 改这道题的题后留白。线本身高 0，抓不住，所以给一条 11px 的透明命中带；
+   这条带子只在屏幕上存在，打印时整块规则被 @media print 关掉。 */
+.cut-line.draggable{pointer-events:auto;cursor:ns-resize;}
+.cut-line.draggable::before{content:"";position:absolute;left:0;right:0;top:-6px;height:11px;}
+.cut-line.draggable:hover{border-top-color:#b9ae99;}
+.cut-line.dragging{border-top-color:#8b5e3c;border-top-style:solid;}
+.cut-line .drag-tag{position:absolute;right:0;top:-15px;padding:1px 5px;border-radius:4px;
+  background:#8b5e3c;color:#fff;font:10px var(--sans);white-space:nowrap;}
+body.dragging-cut{cursor:ns-resize;user-select:none;}
 .hole{position:absolute;border:1px solid #e3ddd2;border-radius:50%;background:transparent;}
 .measurer{position:absolute;left:-99999px;top:0;visibility:hidden;}
 
@@ -67,7 +79,7 @@ html,body{margin:0;padding:0;background:#f1ede6;color:var(--ink);
   border:1px dashed #ddd5c8;border-radius:3px;}
 .ghost::after{content:attr(data-label);position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
   white-space:nowrap;font:11px var(--sans);color:#a59b8b;background:#faf7f2;padding:3px 10px;border-radius:999px;}
-.page.partial .head,.page.partial .pagenum,.page.partial .bind-line,.page.partial .hole{opacity:.28;}
+.page.partial .head,.page.partial .pagenum,.page.partial .hole{opacity:.28;}
 .page.partial::before{content:"此页已打印过：请把原纸放回打印机，只有下方新增内容会印出";position:absolute;
   left:50%;top:6px;transform:translateX(-50%);font:10.5px var(--sans);color:#8b5e3c;background:#fdf2e7;
   border:1px solid #f0d9c2;padding:2px 10px;border-radius:999px;white-space:nowrap;}
@@ -91,6 +103,9 @@ html,body{margin:0;padding:0;background:#f1ede6;color:var(--ink);
 @page{size:A4;margin:0;}
 @media print{
   html,body{background:#fff;}
+  .cut-line{border-top-color:#ddd6c9;}   /* 打印比屏幕深一档，喷墨才印得出 */
+  .cut-line.draggable{pointer-events:none;cursor:auto;}
+  .cut-line.draggable::before,.cut-line .drag-tag{display:none;}
   #bar,#notice{display:none !important;}
   #stage{padding:0 !important;}
   .page{margin:0;box-shadow:none;break-after:page;}
@@ -98,7 +113,7 @@ html,body{margin:0;padding:0;background:#f1ede6;color:var(--ink);
   .ghost{background:none;border-color:transparent;}
   .ghost::after{display:none;}
   .page.partial::before{display:none;}
-  .page.partial .head,.page.partial .pagenum,.page.partial .bind-line,.page.partial .hole{visibility:hidden;}
+  .page.partial .head,.page.partial .pagenum,.page.partial .hole{visibility:hidden;}
   body.debug .slice{outline:none;}
 }
 body.debug .slice{outline:1px solid rgba(192,57,43,.45);}

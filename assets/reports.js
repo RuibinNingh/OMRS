@@ -116,7 +116,7 @@ async function createReport(){
 }
 
 async function deleteReport(id){
-  if(!confirm('确定删除该报告？'))return;
+  if(!await uiConfirm('删除该报告？',{okText:'删除',danger:true}))return;
   try{
     await api('/api/report/delete',{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({id})});

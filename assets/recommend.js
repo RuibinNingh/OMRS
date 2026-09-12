@@ -196,7 +196,7 @@ function updateRecSelectionBar(){
 
 function smartConfirm(){
   const filtered=getFilteredRecData();
-  if(!filtered.due.length){alert('暂无到期题目');return}
+  if(!filtered.due.length){uiToast('暂无到期题目',{kind:'warn'});return}
   const count=asNumber(document.getElementById('rec-due-count').value,10);
   REC_SELECTED={};
   filtered.due.slice(0,count).forEach(item=>{REC_SELECTED[item.uid]='due'});
@@ -206,7 +206,7 @@ function smartConfirm(){
 
 function previewSelection(){
   const selected=getRecSelectedUids();
-  if(!selected.length){alert('请先勾选题目');return}
+  if(!selected.length){uiToast('请先勾选题目',{kind:'warn'});return}
   const panel=document.getElementById('rec-preview-panel');
   const allItems=[...(REC_DATA?.due||[]),...(REC_DATA?.proficiency||[])];
   const itemMap={};allItems.forEach(item=>{itemMap[item.uid]=item});
@@ -308,7 +308,7 @@ function renderPreviewTime(items){
 
 async function confirmSchedule(){
   const selected=getRecSelectedUids();
-  if(!selected.length){alert('请至少勾选 1 道题');return}
+  if(!selected.length){uiToast('请至少勾选 1 道题',{kind:'warn'});return}
   const status=document.getElementById('rec-status');
   status.textContent='生成中...';
   try{
@@ -327,7 +327,6 @@ async function confirmSchedule(){
     updateRecSelectionBar();
     document.getElementById('rec-preview-panel').style.display='none';
     await refreshSessions();
-    if(result.items)previewSession(result.session_id,result.items);
   }catch(e){
     status.innerHTML=`<span style="color:var(--red)">✕ ${escapeHtml(e.message)}</span>`;
   }

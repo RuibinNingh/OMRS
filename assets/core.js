@@ -56,11 +56,22 @@ function getFilterState(prefix){const text=(getFieldValue([`${prefix}-search`,`$
 function getDueDays(item){const dueDate=item.due_date;if(!dueDate)return null;const d=parseReviewDate(dueDate);if(!d)return null;const today=new Date();const todayUtc=Date.UTC(today.getFullYear(),today.getMonth(),today.getDate());const dueUtc=Date.UTC(d.getFullYear(),d.getMonth(),d.getDate());return Math.floor((dueUtc-todayUtc)/86400000)}
 function formatDueInfo(dueDays){if(dueDays===null||dueDays===undefined)return'<span style="color:var(--fg3)">—</span>';if(dueDays<0)return`<span style="color:var(--red);font-weight:600">逾期${Math.abs(dueDays)}天</span>`;if(dueDays===0)return`<span style="color:var(--yellow);font-weight:600">今日到期</span>`;if(dueDays<=3)return`<span style="color:var(--yellow)">${dueDays}天后</span>`;if(dueDays<=7)return`<span style="color:var(--blue)">${dueDays}天后</span>`;return`<span style="color:var(--fg3)">${dueDays}天后</span>`}function filterItems(items,filters){let result=[...items];if(filters.suspended!=='all'&&filters.suspended!=='suspended')result=result.filter(item=>!item.suspended);else if(filters.suspended==='suspended')result=result.filter(item=>item.suspended);if(filters.text){result=result.filter(item=>[item.uid,item.subject,item.category,item.tag,...(item.knowledge_tags||[]),...(item.labels||[])].join(' ').toLowerCase().includes(filters.text))}if(filters.subject)result=result.filter(item=>item.subject===filters.subject);if(filters.category)result=result.filter(item=>item.category===filters.category);if(filters.tag)result=result.filter(item=>(item.tag||'').includes(filters.tag));if(filters.knowledgeTag)result=result.filter(item=>(item.knowledge_tags||[]).includes(filters.knowledgeTag));if(filters.labels?.length){result=result.filter(item=>{const values=new Set(item.labels||[]);return filters.labelMode==='all'?filters.labels.every(label=>values.has(label)):filters.labels.some(label=>values.has(label))})}result=result.filter(item=>asNumber(item.difficulty,0)>=filters.difficultyMin&&asNumber(item.difficulty,0)<=(filters.difficultyMax||10));if(filters.masteryMin!=null)result=result.filter(item=>asNumber(item.mastery,0)>=filters.masteryMin);if(filters.masteryMax!=null)result=result.filter(item=>asNumber(item.mastery,0)<=filters.masteryMax);if(filters.dueFilter){result=result.filter(item=>{const dueDays=getDueDays(item);if(dueDays===null)return false;switch(filters.dueFilter){case'overdue':return dueDays<0;case'today':return dueDays===0;case'3days':return dueDays>=0&&dueDays<=3;case'7days':return dueDays>=0&&dueDays<=7;case'future':return dueDays>0;default:return true}})}switch(filters.sort){case'mastery-desc':result.sort((a,b)=>asNumber(b.mastery,0)-asNumber(a.mastery,0));break;case'diff-desc':result.sort((a,b)=>asNumber(b.difficulty,0)-asNumber(a.difficulty,0));break;case'diff-asc':result.sort((a,b)=>asNumber(a.difficulty,0)-asNumber(b.difficulty,0));break;case'date-desc':result.sort((a,b)=>(b.last_review||'').localeCompare(a.last_review||''));break;case'due-asc':result.sort((a,b)=>(getDueDays(a)??999)-(getDueDays(b)??999));break;case'due-desc':result.sort((a,b)=>(getDueDays(b)??-999)-(getDueDays(a)??-999));break;default:result.sort((a,b)=>asNumber(a.mastery,0)-asNumber(b.mastery,0))}return result}
 
-// === 做题记录：解析 + 派生统计 + 战绩带（v1.16.0）===
-// Markdown「## 历史」小节的行格式与后端 common.py::parse_history_lines() 完全一致，
-// 这里复用同一套正则在前端派生统计：不新增接口、不写 Ledger、不改任何持久化状态。
+// === 做题记录：数据源 + 派生统计 + 战绩带（v1.16.0，v1.16.1 改读 Ledger）===
+// 正式记录只有一个来源：GET /api/question 的 records[]（后端 stats.get_question_records，
+// 由 Ledger 投影 history_log.csv 派生）。题目 Markdown 里的「## 历史」是早期遗留文本，
+// 反馈流程早就不再写它；只有后端没给 records（老版本）时才退回解析它。
 const Q_HISTORY_LINE_RE=/^(\d{4}-\d{2}-\d{2})\s+主观:(\d+),\s*(对|错)(?:,\s*备注:(.*))?$/;
 function parseQHistory(text){return String(text??'').split('\n').map(line=>line.trim()).filter(Boolean).map(line=>{const m=line.match(Q_HISTORY_LINE_RE);return m?{date:m[1],score:Math.max(0,Math.min(10,asNumber(m[2],0))),correct:m[3]==='对',note:(m[4]||'').trim()}:null}).filter(Boolean)}
+// 统一入口：把详情对象变成记录数组（旧→新）。records 是数组就以它为准（空数组也算「已回答：没练过」），
+// 只有 records 缺席时才解析 detail.history 兜底；返回值附带 source 供界面区分来源。
+function qRecordsFromDetail(detail){
+  const raw=detail&&detail.records;
+  if(Array.isArray(raw)){
+    const list=raw.map(r=>({date:String(r?.date||'').slice(0,10),time:String(r?.time||''),score:Math.max(0,Math.min(10,asNumber(r?.score,0))),correct:!!r?.correct,note:String(r?.note||'').trim(),session_id:String(r?.session_id||'')})).filter(r=>r.date);
+    list.source='ledger';return list;
+  }
+  const list=parseQHistory(detail&&detail.history||'');list.source='markdown';return list;
+}
 // 无记录时只返回 {count:0}，调用方据此走「还没练过」空状态，而不是画一张全零的图。
 function qHistoryStats(records){
   const list=Array.isArray(records)?records:[];const count=list.length;
@@ -94,4 +105,4 @@ function uiDialog(spec={}){return new Promise(resolve=>{const overlay=document.c
 async function uiPrompt(title,value='',options={}){const id='ui-prompt-'+Date.now();const result=await uiDialog({title,hint:options.hint,okText:options.okText,body:`<input class="input" id="${id}" value="${escapeAttr(value)}" placeholder="${escapeAttr(options.placeholder||'')}" maxlength="${options.maxLength||120}">`,focus:'#'+id});return result.ok?String(result.values[id]||'').trim():null}
 async function uiConfirm(title,options={}){return (await uiDialog({title,hint:options.hint,okText:options.okText||'确定',cancelText:options.cancelText||'取消',danger:!!options.danger,body:options.body||''})).ok}
 
-if(typeof module!=='undefined')module.exports={parseQHistory,qHistoryStats,qStreakHtml,Q_HISTORY_LINE_RE};
+if(typeof module!=='undefined')module.exports={parseQHistory,qRecordsFromDetail,qHistoryStats,qStreakHtml,Q_HISTORY_LINE_RE};

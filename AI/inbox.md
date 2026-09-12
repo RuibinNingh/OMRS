@@ -71,6 +71,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 - 沿用上一张框位 `ibTransferBoxes`：横向照搬；`y<0.35` 的框（题目）按**像素**锚定顶部，其余按比例——因为不同截图高度差异极大，归一化 y 不能直接搬。
 - AI 框选 `ibDetect`：`slice-plan` → canvas 切条带（JPEG 0.85）→ `jobs detect` → 1.2s 轮询 → 完成后 `ibLoad()` 回填。提取 / 分类同理。
 - ③ 录入：`ready` 的每张题卡一行——左预览（文本 `renderMdContent` 或裁图 canvas）右表单；字段去抖保存到 `cards`；`AI 识别题目信息` 走 classify job；`创建题目` 把图片区域 canvas 裁成 PNG 随 `commit` 上传，成功后 `reloadData()`。
+- 创建后的提示：`ibCommit(k)` 单张创建后弹一条带「加入展示板」的 `ibToast`；`ibCommitSelected()` 批量创建时逐张走 `ibCommit(k, {quiet:true})` 不弹提示，全部提交完只弹一条汇总（「已创建 N 道题目」+ 失败张数），按钮变成「加入展示板（N 题）」，一次把这批新题全部加入。两者的按钮都由 `ibBoardAction(uids)` 生成，落到 `boardQuickAdd`。`ibToast` 带按钮时停留 8 秒、无按钮 3.2 秒。
 - AI 训练：`dataset/stats` 四张指标卡 + 版式 / 转换决策条 + 盲标评估集与存储概览 + 导出（JSONL / YOLO）+ 清理按钮（`ibCleanup`）+「框选提供方与自动策略」表单（`ibLoadPolicy / ibSavePolicy`，直接读写 `/api/config` 的 `inbox_*` 键）。
 - 模板框选：处理页 / 队列脚 / 批量条各有「▦ 模板框选」按钮 → `ibDetect(ids, 'template')`，不切片；「🤖 AI 框选」不传 provider，由服务端按配置选。detect 完成的 toast 会汇总盲标张数、自动就绪张数与失败数。区域面板 meta 行对盲标图显示「盲标（AI 框已隐藏，请直接手画）」。
 - `ibCrop`：PNG 裁图超过 150 万像素（整张长截图的答案区）自动改 JPEG 0.9（白底），避免 commit 请求带几 MB base64。
