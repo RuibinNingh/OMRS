@@ -63,3 +63,5 @@
 | 2026-09-09 | 生产部署 | 展示板实时预览 Phase 1–2 合入生产（v1.17.0） | [`2026-09-09_deploy-board-preview-phase1-2-production.md`](2026-09-09_deploy-board-preview-phase1-2-production.md) |
 | 2026-09-09 | 交接/未完成任务 | 展示板重设计第 1–2 期生产合入与第 3–4 期欠账清单 | [`2026-09-09_board-preview-remaining.md`](2026-09-09_board-preview-remaining.md) |
 | 2026-09-08 | 生产部署 | v1.17.0（展示板文件夹 + 统一选板浮层，跳过浏览器验收） | `2026-09-08_deploy-v1.17.0-production.md` |
+| 2026-09-12 | 任务 | 展示板重构：状态条 / 舞台 / 检查器三区（v1.18.0） | [`2026-09-12_board-refactor.md`](2026-09-12_board-refactor.md) |
+| 2026-09-12 | 生产部署 | v1.18.0（展示板三区重构 + 等待记录纸面状态，含 TIME-WAIT 重启坑记录） | [`2026-09-12_deploy-v1.18.0-production.md`](2026-09-12_deploy-v1.18.0-production.md) |
