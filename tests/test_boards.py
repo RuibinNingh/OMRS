@@ -72,7 +72,7 @@ class BoardTests(unittest.TestCase):
             self.assertEqual(board["printed_summary"]["pages"], 0)
             self.assertEqual(board["printed_summary"]["new_count"], 1)
 
-    def test_locked_item_reorder_clears_printed_state(self):
+    def test_locked_item_reorder_preserves_printed_state(self):
         with tempfile.TemporaryDirectory() as vault:
             first = create_question(vault, subject="数学", category="代数", difficulty=5, question_text="一")
             second = create_question(vault, subject="数学", category="代数", difficulty=5, question_text="二")
@@ -80,9 +80,10 @@ class BoardTests(unittest.TestCase):
             ids = [(item["question_id"], item["uid"]) for item in board["items"]]
             board = record_printed(vault, board["id"], "all", layout_for(ids))
             board = update_board(vault, board["id"], print={"locked": True})
+            paper = board["printed"]
             reordered = list(reversed(board["items"]))
             board = update_board(vault, board["id"], items=reordered)
-            self.assertEqual(board["printed_summary"]["pages"], 0)
+            self.assertEqual(board["printed"], paper)
 
     def test_locked_reset_keeps_printed_history_for_layout_and_item_changes(self):
         with tempfile.TemporaryDirectory() as vault:
@@ -101,9 +102,8 @@ class BoardTests(unittest.TestCase):
             board = record_printed(vault, board["id"], "all", layout_for([(item["question_id"], item["uid"])]))
             add_items(vault, board["id"], [second["uid"]])
             rows = read_printed_history(vault)
-            self.assertEqual(len(rows), 2)
-            self.assertEqual(rows[0]["event"], "reset")
-            self.assertEqual(rows[0]["count"], 1)
+            self.assertEqual(len(rows), 1)  # 追加不重置纸面，也不制造 reset 历史
+            self.assertEqual(get_board(vault, board["id"])["printed"], board["printed"])
 
     def test_unlock_and_change_still_resets_stale_paper_in_one_request(self):
         with tempfile.TemporaryDirectory() as vault:

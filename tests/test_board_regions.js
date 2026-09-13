@@ -47,7 +47,7 @@ test('状态机：纸面是最新的时候不催打印', () => {
   const model = boardStatusModel({ items: [1], printed_summary: summary({ pages: 2, count: 1 }) }, 'all', null);
   assert.equal(model.action.label, '🖨 打印全部');
   assert.deepEqual(model.chips.map(chip => chip.text), ['已印 1 题 / 2 页']);
-  assert.match(model.why, /纸面是最新的/);
+  assert.match(model.why, /没有新增题需要补印/);
 });
 
 test('状态机：有新增题时，「打印全部」要说清会作废写过的纸', () => {

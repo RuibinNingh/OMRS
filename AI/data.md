@@ -334,7 +334,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 | `show_labels` / `show_meta` | bool | 题头是否显示标记 / 科目·难度 |
 | `cut_line` | `none` \| `dash` \| `solid` | 每题留白末尾的裁切提示线，默认 `dash` |
 | `cut_label` | bool | 切割线右端是否标「第 N 题止」，默认关 |
-| `locked` | bool | 是否锁定版式；锁定后的几何、顺序或题目集合变化会重置纸面记录 |
+| `locked` | bool | 保护纸面版式；真实影响已印区域的版式/有效留白变更才重置，引用增删排序不重置，见 `board.md` §4.6 |
 
 未知键忽略，缺失键回默认；旧的 `note_align`、`note_min_lines`、`note_pattern`、
 `last_printed_page` 读取时直接丢弃。
@@ -371,11 +371,12 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 记录；由 `POST /api/board/printed` 在用户「标记为已打印」时写入，`mode:"new"` 追加、
 `mode:"all"` 替换。设计见 `board.md` §4。
 
+纸面记录独立于板的引用集合：追加、去重、移出、清空引用、排序和未打印题留白更新都保留完整记录。已印题从板移除仍保留旧占位；重新加入同一稳定 `question_id` 不重复打印，后续新增题号仍按纸面记录中的题数续接，不按当前板内题数计算。
+
 ### 14.4 纸面历史 `boards_printed_history.jsonl`
 
 路径：`错题/.omrs/boards_printed_history.jsonl`，一行一条 JSON，**只增不改**。
-记录纸面（`record_printed`）与重置纸面（`reset_printed`）会在覆盖之前，把**即将被替换掉**的
-那份 `printed` 追加进来，用来回答「上一版纸印的是什么」：
+记录纸面（`record_printed`）与重置纸面（`reset_printed`，包括锁定版式真实变更触发的重置）会在覆盖之前，追加旧纸面的**摘要**：页数、题数、cursor 和设置。没有逐题 `items/segments/hash`，不能据此直接恢复完整纸面；完整占位必须从 `boards.json` 或其备份核验，恢复时还需保留后续新增引用。
 
 ```json
 {"at":"2026-09-09T04:00:00+00:00","board_id":"BD-…","board_name":"考前速览",

@@ -87,7 +87,7 @@ function boardStatusModel(board, mode, awaiting) {
   return { chips, scope, action: { type: 'preview', label: '🖨 打印全部' },
     why: !hasPaper ? '第一次打印会用掉新的一叠纸；打完回来点「记录纸面」，之后加题就只补印新增。'
       : paper.new_count ? '打印全部会重排整叠纸，已经写过的那几张就作废了。只想加印新题请切到「仅新增」。'
-        : '纸面是最新的。改了版式或顺序才需要重印全部。' };
+        : '没有新增题需要补印。排序不改变旧纸面；需要按当前顺序重新排版时可主动打印全部。' };
 }
 function boardAwaiting() {
   return BOARD_AWAITING_RECORD && BOARD_DETAIL && BOARD_AWAITING_RECORD.boardId === BOARD_DETAIL.id
@@ -436,14 +436,15 @@ function boardPagerHtml() {
 async function boardSetItemGap(uid, value, options = {}) {
   const item = boardCurrentItem(uid);
   if (!item || !BOARD_DETAIL) return null;
-  if (boardLayoutLocked() && !BOARD_LAYOUT_GRANTED && !(await boardAllowLayoutChange())) {
+  const gap = value == null ? null : clampNumber(value, 0, 48, 0);
+  const items = BOARD_DETAIL.items.map(current => current === item ? { ...item, gap_lines: gap } : current);
+  if (!(await boardAllowLayoutChange({ items }))) {
     document.querySelectorAll(`[data-board-inspect-gap="${CSS.escape(uid)}"]`).forEach(node => {
       node.value = item.gap_lines == null ? '' : item.gap_lines;
     });
     return null;
   }
-  if (boardLayoutLocked()) BOARD_LAYOUT_GRANTED = true;
-  item.gap_lines = value == null ? null : clampNumber(value, 0, 48, 0);
+  item.gap_lines = gap;
   boardPushRelayout();
   boardMarkDirty('items');
   document.querySelectorAll(`[data-board-inspect-gap="${CSS.escape(uid)}"]`).forEach(node => {
@@ -494,7 +495,7 @@ function boardInspectorItemHtml() {
       <button class="btn sm ghost" type="button" data-board-action="inspect-open" ${item.missing ? 'disabled' : ''}>打开题目</button>
       <button class="btn sm ghost" type="button" data-board-action="remove-item" data-board-uid="${escapeAttr(item.uid)}">从板中移除</button>
     </div>
-    ${item.printed ? '<div class="bd-ins-note">这道题纸上已经有了：改留白只影响下次「打印全部」和当前预览，<b>不会改动已印出来的纸</b>，也不会改纸面记录。</div>' : ''}`;
+    ${item.printed ? `<div class="bd-ins-note">这道题纸上已经有了：${print.locked ? '锁定时修改实际留白需确认，确认后清空纸面记录并重新打印全部。' : '改留白只影响下次「打印全部」和当前预览，纸面记录保留旧占位。'}</div>` : ''}`;
 }
 function boardInspectorLayoutHtml() {
   const print = BOARD_DETAIL.print || {};
@@ -509,7 +510,7 @@ function boardInspectorLayoutHtml() {
     <div class="bd-field"><label>答案</label><div class="seg" data-board-seg="answers"><button type="button" class="${print.answers === 'append' ? '' : 'on'}" data-value="none">不含</button><button type="button" class="${print.answers === 'append' ? 'on' : ''}" data-value="append">末页附答案</button></div></div>
     <div class="bd-field"><label>题头显示</label><div class="bd-checks"><label><input type="checkbox" data-board-print="show_labels" ${print.show_labels !== false ? 'checked' : ''}> 标记</label><label><input type="checkbox" data-board-print="show_meta" ${print.show_meta !== false ? 'checked' : ''}> 科目 · 难度</label></div></div>
     <div class="bd-field"><label>切割线<span class="hint">每题留白末尾的裁切提示</span></label><div class="seg" data-board-seg="cut_line">${[['none', '不画'], ['dash', '虚线'], ['solid', '实线']].map(([value, label]) => `<button type="button" class="${cut === value ? 'on' : ''}" data-value="${value}">${label}</button>`).join('')}</div><div class="bd-checks"><label><input type="checkbox" data-board-print="cut_label" ${print.cut_label ? 'checked' : ''} ${cut === 'none' ? 'disabled' : ''}> 线右端标「第 N 题止」</label></div></div>
-    <div class="bd-field bd-lock"><label><input type="checkbox" data-board-print="locked" ${print.locked ? 'checked' : ''}> 锁定版式</label><span class="hint">锁定后调整版式、题间留白、排序或增删题目会先确认，并把打印状态恢复为未打印。</span></div>`;
+    <div class="bd-field bd-lock"><label><input type="checkbox" data-board-print="locked" ${print.locked ? 'checked' : ''}> 锁定版式</label><span class="hint">增删题目、排序和调整未打印题留白都保留纸面；锁定只在实际改变已印区域的版式或留白时确认重印。没有纸面记录时无需确认。</span></div>`;
 }
 function boardInspectorPaperHtml() {
   const paper = boardPrintedSummary();
@@ -524,7 +525,7 @@ function boardInspectorPaperHtml() {
       ${paper.changed_count ? `<div><span class="warn">${paper.changed_count} 题已改动</span>，纸上还是旧版；要更新得「打印全部」换新纸。</div>` : ''}
       <button class="btn sm ghost" type="button" data-board-action="reset-printed">清空纸面记录</button>
     </div>
-    <div class="bd-ins-note">已打印题目在纸上的位置已固定；这里改版式只影响下次「打印全部」，「仅新增」按纸面记录里的版面几何续排。打印时选 A4、缩放 100%。</div>`;
+    <div class="bd-ins-note">已打印位置固定，增删与排序不会改动旧占位；「仅新增」按纸面记录续排。锁定时确认真实版式变更会清空记录，需打印全部换新纸。打印时选 A4、缩放 100%。</div>`;
 }
 function boardInspectorHtml() {
   if (!BOARD_DETAIL) return '';
@@ -572,8 +573,22 @@ function boardSelect(uid) {
 }
 
 function boardLayoutLocked() { return !!BOARD_DETAIL?.print?.locked; }
-async function boardAllowLayoutChange() {
-  if (!boardLayoutLocked() || BOARD_LAYOUT_GRANTED) return true;
+// 与 update_board 同一边界：引用成员/顺序独立于纸面，只有实际版式变化才需重印。
+function boardPaperLayoutChanged(board, changes = {}) {
+  if (!boardHasPaper(board)) return false;
+  const before = board.print || {}, after = { ...before, ...(changes.print || {}) };
+  if (['note_ratio', 'show_labels', 'show_meta', 'cut_line'].some(key => before[key] !== after[key])) return true;
+  if (after.cut_line !== 'none' && before.cut_label !== after.cut_label) return true;
+  const old = new Map((board.items || []).map(item => [item.question_id || item.uid, item]));
+  const printed = new Set((board.printed?.items || []).map(item => item.question_id));
+  return (changes.items || board.items || []).some(item => {
+    const previous = old.get(item.question_id || item.uid);
+    return previous && (previous.printed || printed.has(item.question_id))
+      && boardEffectiveGap(previous, before) !== boardEffectiveGap(item, after);
+  });
+}
+async function boardAllowLayoutChange(changes = {}) {
+  if (!(boardLayoutLocked() || changes.print?.locked) || !boardPaperLayoutChanged(BOARD_DETAIL, changes) || BOARD_LAYOUT_GRANTED) return true;
   if (!BOARD_LAYOUT_CONFIRM) {
     BOARD_LAYOUT_CONFIRM = uiConfirm('版式已锁定，确认修改？', {
       hint: '确认后会清空当前纸面记录，打印状态恢复为未打印，需要重新打印全部。',
@@ -696,16 +711,6 @@ async function boardDelete(id) {
 async function boardAddToBoard(boardId, uids, options = {}) {
   const clean = boardUniqueUids(uids);
   if (!clean.length || !boardId) return null;
-  const target = BOARD_DATA.find(board => board.id === boardId);
-  const targetLocked = !!(target?.print?.locked || (BOARD_CURRENT === boardId && BOARD_DETAIL?.print?.locked));
-  if (targetLocked && !(BOARD_CURRENT === boardId && BOARD_LAYOUT_GRANTED)) {
-    const ok = await uiConfirm('目标展示板的版式已锁定，确认加入题目？', {
-      hint: '加入后会清空当前纸面记录，打印状态恢复为未打印，需要重新打印全部。',
-      okText: '确认加入', cancelText: '取消',
-    });
-    if (!ok) return null;
-    if (BOARD_CURRENT === boardId) BOARD_LAYOUT_GRANTED = true;
-  }
   try {
     const result = await boardPost('/api/board/items/add', { id: boardId, uids: clean });
     const board = result.board;
@@ -940,20 +945,17 @@ async function boardAddPrompt() {
 async function boardRemoveItem(uid) {
   if (!BOARD_DETAIL) return;
   const item = boardCurrentItem(uid);
-  if (boardLayoutLocked() && !BOARD_LAYOUT_GRANTED && !(await boardAllowLayoutChange())) return;
-  if (boardLayoutLocked()) BOARD_LAYOUT_GRANTED = true;
   try {
     const boardId = BOARD_DETAIL.id;
     const result = await boardPost('/api/board/items/remove', { id: boardId, uids: [uid] });
     BOARD_DETAIL = result.board;
     await boardReloadData();
-    uiToast(`已移除 ${uid}${item?.printed && !boardLayoutLocked() ? '（纸上仍有这道题，纸面记录保留其占位）' : ''}`, { actions: [{ label: '撤销', onClick: () => boardAddToBoard(boardId, [uid], { silent: true }) }] });
+    uiToast(`已移除 ${uid}${item?.printed ? '（纸上仍有这道题，纸面记录保留其占位）' : ''}`, { actions: [{ label: '撤销', onClick: () => boardAddToBoard(boardId, [uid], { silent: true }) }] });
   } catch (error) { uiToast(`移除失败：${error.message}`, { kind: 'error' }); }
 }
 async function boardPersistItems(items, message = '') {
   if (!BOARD_DETAIL) return;
-  if (boardLayoutLocked() && !BOARD_LAYOUT_GRANTED && !(await boardAllowLayoutChange())) return;
-  if (boardLayoutLocked()) BOARD_LAYOUT_GRANTED = true;
+  if (!(await boardAllowLayoutChange({ items }))) return;
   if (BOARD_DIRTY?.items) { const rest = { ...BOARD_DIRTY }; delete rest.items; BOARD_DIRTY = Object.keys(rest).length ? rest : null; }
   const result = await boardPost('/api/board/update', { id: BOARD_DETAIL.id, items: boardItemsPayload(items) });
   BOARD_DETAIL = result.board;
@@ -1059,19 +1061,20 @@ async function boardClear() {
 // ---------- 版面设置 ----------
 async function boardApplyPrintField(field, value) {
   if (!BOARD_DETAIL) return;
-  if (field !== 'locked' && boardLayoutLocked() && !BOARD_LAYOUT_GRANTED && !(await boardAllowLayoutChange())) {
-    boardRenderInspector();
-    return;
-  }
-  if (field !== 'locked' && boardLayoutLocked()) BOARD_LAYOUT_GRANTED = true;
   const print = { ...(BOARD_DETAIL.print || {}) };
-  if (field === 'note_ratio') { print[field] = clampNumber(value, 30, 55, 50) / 100; const node = document.querySelector('[data-board-ratio-value]'); if (node) node.textContent = `${Math.round(print[field] * 100)}%`; }
+  if (field === 'note_ratio') print[field] = clampNumber(value, 30, 55, 50) / 100;
   else if (field === 'gap_lines') print[field] = clampNumber(value, 0, 24, 2);
   else if (field === 'answers') print[field] = value === 'append' ? 'append' : 'none';
   else if (field === 'show_labels' || field === 'show_meta' || field === 'cut_label' || field === 'locked') print[field] = !!value;
   else if (field === 'cut_line') print[field] = CUT_LINES.includes(value) ? value : 'dash';
   else return;                    // 未知字段不写进 print，避免脏一个后端会忽略的键
+  if (print[field] === BOARD_DETAIL.print?.[field]) return;
+  if (!(await boardAllowLayoutChange({ print }))) {
+    boardRenderInspector();
+    return;
+  }
   BOARD_DETAIL.print = print;
+  if (field === 'note_ratio') { const node = document.querySelector('[data-board-ratio-value]'); if (node) node.textContent = `${Math.round(print[field] * 100)}%`; }
   // 「不画切割线」时「标第 N 题止」没有意义：直接禁用，不留一个点了没反应的勾
   if (field === 'cut_line') document.querySelectorAll('[data-board-print="cut_label"]')
     .forEach(node => { node.disabled = print.cut_line === 'none'; });

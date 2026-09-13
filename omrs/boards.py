@@ -35,7 +35,7 @@ DEFAULT_PRINT = {
     "show_meta": True,
     "cut_line": "dash",       # none | dash | solid：每题留白末尾的裁切提示线
     "cut_label": False,       # 切割线右端是否标「第 N 题止」
-    "locked": False,          # 锁定版式后，改变几何 / 顺序需确认并清空纸面记录
+    "locked": False,          # 保护纸面版式；增删引用 / 排序不重置纸面
 }
 CUT_LINES = ("none", "dash", "solid")
 MAX_GAP_LINES = 48            # 每题留白上限（v2 的 extra_gap_lines 上限是 24）
@@ -684,24 +684,38 @@ def update_board(vault: str, board_id: str, **changes) -> dict:
         # print 分支在上面已经生效，这里取到的是本次请求之后的全局留白：
         # 同一帧提交 items + print 时，v2 折算用的是新设置，不会用旧值折算出错值。
         previous = {item["question_id"] or f"uid:{item['uid']}": item for item in board["items"]}
+        previous_by_uid = {item["uid"]: item for item in board["items"]}
+        resolver = _Resolver(vault)
         items = []
         for raw in changes["items"] or []:
             item = _normalize_item(raw, board["print"]["gap_lines"])
+            record = resolver.record(item)
+            if record:
+                item["question_id"] = record.get("question_id") or item["question_id"]
+                item["uid"] = record.get("uid") or item["uid"]
             key = item["question_id"] or f"uid:{item['uid']}"
-            old = previous.get(key)
+            old = previous.get(key) or previous_by_uid.get(item["uid"])
             if old and not (raw or {}).get("added_at"):
                 item["added_at"] = old["added_at"]
             items.append(item)
         board["items"] = items
-    # 锁定版式意味着既有纸面不能继续被当作当前版面：任何几何或排序变化
-    # 都清空纸面记录，下一次必须重新打印全部。客户端负责先征得确认，
-    # 服务端再次兜底，避免其它调用方绕过页面直接更新后留下过期状态。
+    # 引用集合/顺序不是纸面：只比较仍在板内的已印题的有效留白。
+    # 已移出的题保留旧占位；新题（含重新加入的旧 ID）都不重排既有纸面。
+    printed_ids = {item["question_id"] for item in board["printed"]["items"]}
+    previous_items = {item["question_id"]: item for item in old_items if item["question_id"]}
+    printed_gap_changed = any(
+        item["question_id"] in printed_ids and item["question_id"] in previous_items
+        and effective_gap_lines(previous_items[item["question_id"]], old_print)
+        != effective_gap_lines(item, board["print"])
+        for item in board["items"]
+    )
     layout_changed = (
         (isinstance(changes.get("print"), dict) and any(
             old_print.get(key) != board["print"].get(key)
-            for key in ("note_ratio", "gap_lines", "answers", "show_labels", "show_meta", "cut_line", "cut_label")
+            for key in ("note_ratio", "show_labels", "show_meta", "cut_line")
         ))
-        or (changes.get("items") is not None and old_items != board.get("items"))
+        or (board["print"]["cut_line"] != "none" and old_print["cut_label"] != board["print"]["cut_label"])
+        or printed_gap_changed
     )
     if layout_changed and (old_print.get("locked") or board["print"].get("locked")):
         _append_printed_history(vault, board, "reset")
@@ -732,9 +746,7 @@ def add_items(vault: str, board_id: str, uids, position=None) -> dict:
         added.append({"question_id": question_id, "uid": uid, "added_at": _now()})
     at = len(board["items"]) if position in (None, "") else _int(position, len(board["items"]), 0, len(board["items"]))
     board["items"][at:at] = added
-    if added and board["print"].get("locked"):
-        _append_printed_history(vault, board, "reset")
-        board["printed"] = copy.deepcopy(EMPTY_PRINTED)
+    # 引用追加不改变已经印在纸上的位置；新增题按原 cursor 续排。
     board["updated_at"] = _now()
     save_boards(vault, data)
     result = get_board(vault, board_id)
@@ -746,14 +758,11 @@ def remove_items(vault: str, board_id: str, uids) -> dict:
     data = load_boards(vault)
     board = _find(data, board_id)
     remove = {str(uid or "").strip() for uid in uids or []}
-    previous = list(board["items"])
     board["items"] = [
         item for item in board["items"]
         if item.get("uid") not in remove and item.get("question_id") not in remove
     ]
-    if len(previous) != len(board["items"]) and board["print"].get("locked"):
-        _append_printed_history(vault, board, "reset")
-        board["printed"] = copy.deepcopy(EMPTY_PRINTED)
+    # 移出引用不能擦掉纸上的旧占位；同一稳定 ID 再加入仍算已打印。
     board["updated_at"] = _now()
     save_boards(vault, data)
     return get_board(vault, board_id)
@@ -800,10 +809,11 @@ def delete_board(vault: str, board_id: str) -> bool:
 # ────────────────────────── 纸面记录历史（追加式） ──────────────────────────
 
 def _append_printed_history(vault: str, board: dict, event: str, mode: str = "") -> bool:
-    """把**即将被替换掉**的那份纸面记录追加进 jsonl，一行一条，只增不改。
+    """把即将被替换的纸面记录的摘要追加进 jsonl，一行一条，只增不改。
 
     展示板是呈现层数据，不进 Ledger（见 ``AI/ledger.md``）；这份 jsonl 是审计辅助，
-    用来回答「上一版纸印的是什么」。空纸面（pages<=0）没有可留存的历史，跳过。
+    只含题数、页数、cursor 与设置，没有逐题 items/segments/hash，不能直接恢复纸面。
+    空纸面（pages<=0）没有可留存的历史，跳过。
     写失败只记运行日志，绝不打断打印记录本身。
     """
     snapshot = (board or {}).get("printed") or {}

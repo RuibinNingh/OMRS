@@ -4,7 +4,8 @@
 > `omrs/export_templates/board.css`、`omrs/export_templates/board.js`、`assets/board.js`、
 > `assets/board_preview.js`、`assets/styles.css`（`.bd-*`）、`tests/test_boards.py`、
 > `tests/test_board_export.py`、`tests/test_board_ui.js`、`tests/test_board_preview.js`、
-> `tests/smoke_board_print.py`。
+> `tests/smoke_board_print.py`、`tests/test_board_locked_incremental.py`、
+> `tests/test_board_locked_incremental.js`、`tests/smoke_board_lock.py`。
 
 ## 1. 定位与边界
 
@@ -84,8 +85,9 @@
 - 整体覆盖 `items` 时（`update_board(items=…)`）会保留同一题原有的 `added_at`。
 - 同一请求同时给 `items` 与 `print` 时，`print` 先生效，v2 折算用的是**本次请求之后**的全局留白。
 
-覆盖旧纸面记录（`record_printed` / `reset_printed`）之前，会把被替换掉的那份追加进
+覆盖旧纸面记录（`record_printed` / `reset_printed`）之前，会把被替换记录的摘要追加进
 `错题/.omrs/boards_printed_history.jsonl`（只增不改，见 `AI/data.md` §14.4）。
+摘要没有逐题 `items/segments/hash`，不能直接恢复完整纸面；完整记录需从 `boards.json` 或其备份核验。
 **这份历史目前没有 UI，也没有 HTTP 端点。**
 
 ### 题目引用解析
@@ -126,7 +128,7 @@ changed_count, cursor, answer_pages, print}`。
    「选中的题」（题号 / UID / 徽章 / 元信息 / **题后留白** / 跳到这道题 / 打开题目 / 从板中移除）、
    「版式」（右侧留白 30–55%、题间留白、答案、题头显示、切割线、锁定版式，即改即存，去抖 500ms）、
    「纸面记录」（已印题数 / 页数 / 时间、续排位置、已改动计数、清空纸面记录）。
-   `locked` 打开后，版式、题后留白、题目顺序和板内题目增删都会先确认；确认后清空纸面记录并把状态恢复为未打印。
+   `locked` 保护纸面，不冻结引用集合。增删、重复追加、清空引用、排序与未打印题留白不要求重印确认，均保留纸面记录；真正影响已印区域的版式/留白变更才确认，取消时不提交该变更。具体边界见 §4.6。
 
 三条不变量由 `tests/test_board_regions.js` 守着，破坏了「能做什么随视图变」的老毛病就会回来：
 
@@ -244,7 +246,7 @@ printed（纸面记录）= 已打印题目集合 + 每题所在页 / 位置 + �
 | 纸面记录 | 新增题 | 打印范围 | 状态 chips | 主行动 | 一句「为什么」 |
 |---|---|---|---|---|---|
 | 无 | — | 全部 | `还没打印过` `N 题` | 🖨 打印全部 | 第一次打印会用掉新的一叠纸 |
-| 有 | 0 | 全部 | `已印 N 题 / P 页` | 🖨 打印全部 | 纸面是最新的 |
+| 有 | 0 | 全部 | `已印 N 题 / P 页` | 🖨 打印全部 | 没有新增题需补印；想按当前顺序重排可主动打印全部 |
 | 有 | M>0 | 全部 | + `新增 M 题未印` | 🖨 打印全部 | 会重排整叠纸，写过的作废 |
 | 有 | M>0 | 仅新增 | 同上 | 🖨 补印新增 M 题 | 接在第 X 页的空白处 |
 | 任意 | 任意 | 任意 | + `等待记录纸面` | ✓ 记录纸面 | 打完了点这里 |
@@ -335,6 +337,12 @@ POST /api/board/update
 | 复制板 | 不复制纸面记录（新板对应新纸） |
 | 重置纸面记录 | `POST /api/board/printed/reset`，之后只能打印全部 |
 | 浏览器换了 / 字体变了 | 排版可能有像素级差异；纸面几何只依赖 cursor.y，误差落在题间留白里 |
+
+**锁定边界：** 不论是否锁定，`items/add`、重复追加、`items/remove` 与整体覆盖 `items` 的成员/顺序变化均完整保留 `printed`（包括题目指纹、占位、页数、cursor、打印设置与答案页）。移出已印题不擦掉其占位；同一稳定 `question_id` 重新加入不重复打印。标签同步、统一 picker、撤销、拖拽/键盘/菜单排序与清理引用沿用此规则；新题按当前引用顺序选出，但始终接在旧纸面的末尾，题号按纸面记录题数续接。
+
+有纸面且请求前或请求后的 `print.locked` 为真时，改变题栏比例、题头显示、切割线或生效的切割线标签，或改变仍在板内的已印题的**有效**留白，会走明确确认重印流程，服务端更新时重置纸面记录。单独开/关锁定、答案附页选择、未打印题留白、等值的继承/显式留白切换不重置；全局留白仅在确实改变保留的已印题有效留白时重置。切割线关闭时的标签设置不生效，无需确认。无纸面时不弹破坏性确认；未锁定时版式编辑保留旧纸面，`new` 仍按纸面几何续排。
+
+确认由前端在本地变更和提交之前完成，后端保留真实版式变化的重置兜底；这不是新增鉴权机制，也不新增确认令牌。回归测试包含真实临时题库读写/HTML 数据、JS 动作与取消后零提交；`tests/smoke_board_lock.py` 通过隔离 HTTP + Chromium 核验补印按钮、透明旧区域和 cursor 续排，不代表物理打印机验收。
 
 ## 5. HTTP API
 
