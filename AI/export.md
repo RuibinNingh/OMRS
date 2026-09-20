@@ -1,6 +1,6 @@
 # 导出（HTML）
 
-错题清单导出为**自包含 HTML**（图片、KaTeX 资源均内联，单文件可拷给任何带浏览器的设备）。三种入口为：**A4 打印版**、**展示板打印版**（左题右空）与**屏幕版**（手机/平板上的全屏卡片复习 App，可判对错、打分、记录进度）。后端只产结构化文字/图片/表格数据与内联模板，**版面、长图切片、公式和表格渲染、作答交互全部交给浏览器**。
+错题清单导出为**自包含 HTML**（图片、KaTeX 资源均内联，单文件可拷给任何带浏览器的设备）。三种入口为：**A4 打印版**、**展示板打印版**（左题右空）与**屏幕版**（手机/平板上的全屏卡片复习 App，可判对错、打分、记录进度）。复习调度工作台的已有计划详情可以直接按 Session 导出，并保留原有 A4/屏幕版选择；全题库导出从调度页独立进入。后端只产结构化文字/图片/表格数据与内联模板，**版面、长图切片、公式和表格渲染、作答交互全部交给浏览器**。
 
 ## 为什么是 HTML（而非 docx）
 
@@ -77,6 +77,10 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
   板名不上纸。
 - 题栏宽 = `(内容宽 − 24px) × (1 − note_ratio)`，`note_ratio` 默认 0.50（0.30–0.55）；
   扣除 24px 间距后题栏与右侧留白默认等宽。右侧留白不生成任何 DOM（无横线 / 底纹 / 笔记框）。
+- `mode:"new"` 使用 `printed.print` 中记录的原纸 `note_ratio / gap_lines` 排版占位区之后的新题，
+  不使用当前板设置覆盖原纸几何；锁定板因此能保持已打印的比例。每次浏览器排版完成都会把实际采用的
+  `PRINT_STATE` 写进 `layout.print`；记录纸面时，`mode:"all"` 保存这份快照，`mode:"new"` 保留原纸
+  快照；缺少该字段的旧导出件在整板记录时回退当前板设置。
 - 题间留白由**每题绝对行数**决定（每行 18px）：导出数据里每道题都带算好的 `gap_lines`
   （0–48），继承关系已在服务端解开，模板不需要再知道板的全局值。留白放不下就贴到页底，
   不为它另起一页。
@@ -111,7 +115,9 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 `mode:"all"`（默认）整板从第 1 页排；`mode:"new"` 只排尚未进入纸面记录的题目：模板在
 `printed.cursor.page` 页顶部放一个高度为 `cursor.y` 的占位块（屏幕上斜纹提示，打印时透明，
 该页页眉页脚也隐藏），新题从占位块下方续排，需要新页时跳到 `printed.pages + 1`；占位页
-没放进任何新题时不输出。`mode:"new"` 沿用纸面记录里的 `note_ratio / gap_lines`。
+没放进任何新题时不输出。`mode:"new"` 沿用纸面记录里的 `note_ratio / gap_lines`；预览内的
+增量 `relayout` 也固定使用本次导出初始化时的纸面快照，宿主后来改变的当前板比例不会改变旧纸的
+占位几何。
 没有纸面记录或没有新题时服务端返回 400（`RuntimeError`）。
 
 ### 宿主 ↔ 模板消息协议
@@ -140,7 +146,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 `omrs-board-relayout` 在 iframe 里就地重排，不重新请求那份将近 1MB 的导出 HTML；
 只有增删题、排序、换模式这类**内容**变化才重新导出。
 
-排版完成后模板写 `window.OMRS_LAYOUT`（`{mode, pages, page_numbers, rendered_pages,
+排版完成后模板写 `window.OMRS_LAYOUT`（`{mode, print, pages, page_numbers, rendered_pages,
 partial_page, cursor, items[{question_id, uid, segments[{page,top,height}]}], answer_pages,
 warnings}`）与 `window.OMRS_LAYOUT_TIMING`（`{total_ms, passes}`），设置
 `<html data-omrs-layout-ready="1">`，并向 `opener`/`parent` 发送

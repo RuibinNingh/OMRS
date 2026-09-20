@@ -70,7 +70,7 @@ function renderReports(){
     <div class="sched-item">
       <div style="flex:1">
         <div class="uid">${escapeHtml(r.name)}</div>
-        <div class="meta-line">${escapeHtml(r.created_at||'')} · ${fmtSize(r.size)} · <span style="font-family:'JetBrains Mono',monospace;font-size:.66rem">${escapeHtml(r.id)}</span></div>
+        <div class="meta-line">${escapeHtml(r.created_at||'')} · ${fmtSize(r.size)} · <span style="font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:.66rem">${escapeHtml(r.id)}</span></div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn sm primary" onclick="openReport('${escapeAttr(r.id)}')">浏览</button>

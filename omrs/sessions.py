@@ -204,7 +204,22 @@ def create_session_from_selection(vault, selected_items, subject=None):
     """
     omrs_data_dir(vault)
     sessions = _load_sessions(vault)
-    selected_uids = [item["uid"] for item in selected_items if item.get("uid")]
+    if not isinstance(selected_items, list) or not selected_items:
+        raise ValueError("至少选择 1 道题")
+    clean = []
+    seen = set()
+    for item in selected_items:
+        if not isinstance(item, dict) or not isinstance(item.get("uid"), str) or not item["uid"].strip():
+            raise ValueError("每道题必须提供有效 UID")
+        uid = item["uid"].strip()
+        source = item.get("source", "due")
+        if source not in ("due", "proficiency"):
+            raise ValueError("题目来源必须为 due 或 proficiency，请刷新推荐后重试")
+        if uid not in seen:
+            seen.add(uid)
+            clean.append({"uid": uid, "source": source})
+    selected_items = clean
+    selected_uids = [item["uid"] for item in selected_items]
     active_overlap = sorted(set(selected_uids) & _active_session_uids(sessions))
     if active_overlap:
         sample = "、".join(active_overlap[:10])
@@ -214,6 +229,9 @@ def create_session_from_selection(vault, selected_items, subject=None):
         )
     from .scheduling import get_items_by_uids
     items = get_items_by_uids(vault, selected_uids)
+    missing = set(selected_uids) - {item["uid"] for item in items}
+    if missing:
+        raise ValueError("题目不存在或不可用：" + "、".join(sorted(missing)))
     for item in items:
         match = next((s for s in selected_items if s["uid"] == item["uid"]), None)
         item["_source"] = match["source"] if match else "due"

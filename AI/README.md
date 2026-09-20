@@ -114,7 +114,7 @@ AI/
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（`styles.css` 与拆分的 JS）|
 | 数据目录 | 结构化数据在 `错题/.omrs/`；生成的 AI 报告在 `错题/report/` |
-| 依赖边界 | 核心 Python 运行路径无强制第三方库；图片优化可选 Pillow 或 `jpegtran`。前端无构建依赖，页面运行时可访问 Google Fonts，KaTeX 作为本地静态资源放在 `assets/vendor/katex/`（不可用时公式降级显示源码片段）；AI 识别与外部报告材料按配置使用网络。|
+| 依赖边界 | 核心 Python 运行路径无强制第三方库；图片优化可选 Pillow 或 `jpegtran`。前端无构建依赖，Noto Sans SC 与 JetBrains Mono 由 `assets/vendor/fonts/` 本地提供，KaTeX 作为本地静态资源放在 `assets/vendor/katex/`（不可用时公式降级显示源码片段）；AI 识别与外部报告材料按配置使用网络。|
 
 ---
 
@@ -125,7 +125,7 @@ AI/
 | `algorithm.md` | 时间衰减、compute_mastery_update 状态机、统一优先级 `compute_priority`（EF 反推的有效难度）、SM-2、双列表推荐、Leech 检测、标记可选加成与 tuning |
 | `api.md` | GET/POST 端点、请求体、返回字段（含 analytics/export-review/reports/image、目录树 `tree`、AI 识别 `ai-recognize`、标记/展示板与导出参数） |
 | `data.md` | mastery/history/sessions CSV 字段、Markdown 题目格式与支持子集、UID、labels.json、boards.json、config.json、日志、report/ 报告存储、File_Path 分隔符 |
-| `frontend.md` | assets/ 多文件结构与加载约定；仪表盘与行动推荐、题目库/标记/展示板、目录页、qview 与练习记录模块、调度/推荐、数据复盘、报告托管、设置与 AI 录入、深色对比度约定。只写当前行为，顶部有目录 |
+| `frontend.md` | assets/ 多文件结构与加载约定；仪表盘与行动推荐、题目库/标记/展示板、目录页、qview 与练习记录模块、复习调度工作台、数据复盘、报告托管、设置与 AI 录入、深色对比度约定。只写当前行为，顶部有目录 |
 | `export.md` | A4/屏幕版与展示板自包含 HTML：浏览器分页/切片、Markdown 表格、题间留白、仅打印新增（纸面记录）与导出入口 |
 | `ledger.md` | **v1.1.0 Ledger 架构**：不可变提交链、投影缓存、隐藏 question_id、工作区自检、历史修正、迁移和正文不做版本控制的边界 |
 | `optimization.md` | 当前技术债、风险边界、已有测试覆盖与已完成优化 |

@@ -163,7 +163,7 @@ async function instSubmitPractice(){
       const ok=row.status==='ok';
       const labelClass=row.label==='已击杀'?'kill':row.label==='真不会'?'attack':'trap';
       const summary=ok?`${(asNumber(row.old_mastery,0)*100).toFixed(0)}% → ${(asNumber(row.new_mastery,0)*100).toFixed(0)}%`:escapeHtml(row.msg||'失败');
-      return `<div class="result-row ${ok?'ok':'err'}"><span style="font-weight:700;color:var(--accent2)">${escapeHtml(row.uid)}</span><span class="tag ${labelClass}">${escapeHtml(row.label||'')}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.76rem">${summary}</span></div>`;
+      return `<div class="result-row ${ok?'ok':'err'}"><span style="font-weight:700;color:var(--accent2)">${escapeHtml(row.uid)}</span><span class="tag ${labelClass}">${escapeHtml(row.label||'')}</span><span style="font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:.76rem">${summary}</span></div>`;
     }).join('');
     await reloadData();
     if(typeof qvInvalidateMany==='function')await qvInvalidateMany(rows.map(row=>row.uid));

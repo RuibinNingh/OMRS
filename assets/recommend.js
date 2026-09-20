@@ -2,19 +2,10 @@
 /* ══════════════════════════════════════════════════════════
    推荐面板（Phase 3）
    ══════════════════════════════════════════════════════════ */
-function showRecommendPanel(){
-  document.getElementById('recommend-panel').style.display='block';
-  document.getElementById('export-panel').style.display='none';
-  document.getElementById('btn-regular-review').classList.add('primary');
-  document.getElementById('btn-export').classList.remove('primary');
-  loadRecommendations();
-}
+function showRecommendPanel(){ schShow('arrange'); }
 function showExportPanel(){
-  document.getElementById('recommend-panel').style.display='none';
-  document.getElementById('export-panel').style.display='block';
-  document.getElementById('btn-regular-review').classList.remove('primary');
-  document.getElementById('btn-export').classList.add('primary');
-  renderExportPicker();
+  SCH_EXPORT_RETURN = SCH_VIEW === 'export' ? SCH_EXPORT_RETURN : SCH_VIEW;
+  schShow('export');
 }
 function isRecSelected(uid){return !!REC_SELECTED[uid]}
 function getRecSelectedCount(){return Object.keys(REC_SELECTED).length}

@@ -122,6 +122,8 @@
 ### `/api/session?id=<session_id>`
 返回单个 Session 及其 UIDs 对应的题目详情，并返回与 `/api/sessions` 相同的分批反馈进度字段。
 
+复习调度工作台用该端点加载已有计划详情；题目条目保留 Session 中的 `_source`，反馈进度包含 `feedback_count`、`pending_count`、`feedback_uids`。计划不存在或请求失败时前端在详情区域提供重试，不会用过期请求结果覆盖当前计划。
+
 ### `/api/question?uid=<uid>`
 返回题目的完整内容（题面、答案、备注、正式练习记录、标签、知识点）。
 
@@ -220,6 +222,8 @@
 | `proficiency` | array | 熟练度题目列表（Due_Date > 今天），按薄弱程度降序排列 |
 
 每条题目含 `_source`（`due`/`proficiency`）、`_overdue_days`、`fail_count`、`is_leech` 等元数据。leech 题（algorithm.md §10）在熟练度列表会获得优先级加成。
+
+复习调度工作台以 `due_count=1000&prof_count=1000` 请求完整候选集，再在浏览器按后端顺序筛选与按科目轮选；请求期间的旧响应不会覆盖较新的推荐结果。
 
 ---
 
@@ -590,6 +594,8 @@
 }
 ```
 
+可选字段 `persist` 必须为布尔值。`persist:true` 让单题选择也创建正式 `EXP-` Session；省略或传 `false` 时保留兼容语义：单题创建 `TMP-` 临时调度，多题创建正式 Session。正式 Session 创建会去重 UID、校验 `source` 只能为 `due` 或 `proficiency`，并拒绝不存在、停用或已被 active Session 占用的题目。
+
 **响应：**
 - ≥2 题：常规 Session（EXP- 前缀），写入 sessions.csv，`session_type: "exp"`
 - 1 题：自定义调度（TMP- 前缀），不写入 sessions.csv，`session_type: "tmp"`
@@ -639,7 +645,8 @@
 - `board_id` 必填，也兼容使用 `id`；板内引用按 `question_id` 优先解析。
 - `mode` 为 `all`（默认，整板从第 1 页排）或 `new`（只排尚未进入纸面记录的题目，接在
   纸面记录的 `cursor` 之后续排；没有纸面记录或没有新题时返回 400）。`new` 模式下
-  `note_ratio / gap_lines` 沿用纸面记录，其余显示项跟随当前设置。
+  `note_ratio / gap_lines` 沿用纸面记录，其余显示项跟随当前设置。`mode:"new"` 的增量预览也固定
+  使用该纸面快照，当前板比例不会覆盖已经打印的纸面几何。
 - `include_answers` 省略时沿用板设置 `print.answers`，传 `true` 时在新页追加答案附页。
 - `overrides` 只覆盖本次导出的版面设置，不回写 `boards.json`。停用题和缺失题保留在板内
   显示，但导出时跳过。
@@ -647,7 +654,8 @@
 响应仍是 `text/html; charset=utf-8` 的文件流；文件名 `OMRS-BD-<板名>[-新增]-错题集.html`，
 `Content-Disposition` 同时带 ASCII 兜底与 `filename*=UTF-8''…`。HTML 自包含 `board.css` /
 `board.js` 与题图数据，分页在浏览器完成，页眉固定「错题集」，页脚为板内绝对页码；排版完成后
-模板把版面（`window.OMRS_LAYOUT`）`postMessage` 给主程序，用于 `POST /api/board/printed`。
+模板把版面（`window.OMRS_LAYOUT`，含本次排版实际采用的 `print` 快照）`postMessage` 给主程序，
+用于 `POST /api/board/printed`。
 
 展示板页的常驻预览 iframe 用的就是这个端点。它按「板 + 模式 + 题目签名 + 纸面时间」做指纹缓存，
 **版面设置不在指纹里**：拖滑块、改题间留白、换切割线走 `omrs-board-relayout` 在 iframe 里就地
@@ -736,8 +744,10 @@
 
 ### `POST /api/board/printed`
 记录纸面（「标记为已打印」）。`layout` 是浏览器导出模板实测的版面
-（`window.OMRS_LAYOUT`），服务端只取 `pages / cursor / items[].segments / answer_pages`，
-并为每题记下正文指纹，用于之后提示「已改动」。
+（`window.OMRS_LAYOUT`），包含 `pages / cursor / items[].segments / answer_pages` 及本次排版实际
+采用的 `print` 快照（至少含 `note_ratio / gap_lines`）。`mode:"all"` 记录时优先采用该快照，
+旧导出件缺少它时回退当前板 `print`；`mode:"new"` 追加题目时保留原 `printed.print`，不会用
+本次增量布局覆盖原纸比例。服务端并为每题记下正文指纹，用于之后提示「已改动」。
 
 **请求体：**
 ```json
@@ -747,6 +757,7 @@
   "layout": {
     "pages": 3,
     "cursor": { "page": 3, "y": 493.56 },
+    "print": { "note_ratio": 0.50, "gap_lines": 2 },
     "answer_pages": [],
     "items": [{ "question_id": "OP-000123", "uid": "三角函数1",
                 "segments": [{ "page": 3, "top": 300.2, "height": 125.7 }] }]
@@ -754,8 +765,9 @@
 }
 ```
 
-`mode:"all"` 用这份版面替换整个纸面记录；`mode:"new"` 把新题追加进原记录并推进
-`pages` / `cursor`。**响应：** `{"status":"ok","board":{...}}`。
+`mode:"all"` 用这份版面替换整个纸面记录，并保存 `layout.print`（缺失时兼容回退当前板设置）；
+`mode:"new"` 把新题追加进原记录并推进 `pages` / `cursor`，保留原 `printed.print` 几何快照。
+**响应：** `{"status":"ok","board":{...}}`。
 
 记录与重置都会先把**即将被替换掉**的纸面记录的摘要追加进
 `错题/.omrs/boards_printed_history.jsonl`（只增不改，见 `AI/data.md` §14.4）。

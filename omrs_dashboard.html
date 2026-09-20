@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OMRS — 错题重构系统</title>
 <script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'');document.documentElement.setAttribute('data-density',localStorage.getItem('omrs-density')==='comfortable'?'comfortable':'compact')}catch(e){}</script>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/vendor/fonts/fonts.css?v=20260920-local">
 <link rel="stylesheet" href="assets/vendor/katex/katex.min.css">
-<link rel="stylesheet" href="assets/styles.css?v=20260906-practice-record">
+<link rel="stylesheet" href="assets/styles.css?v=20260920-local-fonts">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -297,186 +297,55 @@
   </div>
 
   <div class="panel" id="panel-schedule">
-    <!-- 双入口按钮 -->
-    <div class="entry-btns">
-      <button class="btn primary" id="btn-regular-review" onclick="showRecommendPanelV2()">开始常规复习</button>
-      <button class="btn" id="btn-export" onclick="showExportPanel()">导出</button>
+    <div class="sch-top">
+      <div class="sch-tabs" role="tablist" aria-label="复习调度工作区">
+        <button class="sch-tab active" id="sch-tab-arrange" role="tab" aria-selected="true" aria-controls="recommend-panel-v2" onclick="schShow('arrange')">安排复习</button>
+        <button class="sch-tab" id="sch-tab-plans" role="tab" aria-selected="false" aria-controls="sch-plans" onclick="schShow('plans')">已有计划 <span id="sch-plan-count" class="sch-count">…</span></button>
+      </div>
+      <button class="btn sm" onclick="showExportPanel()">全题库导出 ↗</button>
     </div>
-
-    <!-- ====== 优化后的推荐面板（单列表，智能均衡） ====== -->
-    <div id="recommend-panel-v2" style="display:none">
-      <div class="card" style="margin-bottom:16px">
-        <div class="card-title">智能推荐设置</div>
-        <div class="filter-note">优化后的调度机制：不限制题目数量，智能均衡推荐，确保各科目都能被推送。</div>
-        <div class="filter-bar">
-          <select id="rec-subject-v2" class="input" onchange="loadRecommendationsV2()">
-            <option value="">全部科目</option>
-          </select>
-          <select id="rec-practice-mode" class="input" onchange="loadRecommendationsV2()">
-            <option value="balanced">均衡模式（科目间均衡）</option>
-            <option value="weak">薄弱模式（优先薄弱科目）</option>
-            <option value="due">到期模式（仅到期题目）</option>
-            <option value="all">全部模式（展示所有）</option>
-          </select>
-          <button class="btn sm" onclick="loadRecommendationsV2()">🔄 刷新推荐</button>
-          <span id="rec-status-v2" class="status-text"></span>
+    <div id="recommend-panel-v2" role="tabpanel" aria-labelledby="sch-tab-arrange">
+      <div class="sch-heading"><div><h2>给这次复习，安排刚好的题量</h2><p>先筛选，再选题。完成后可打印练习，随时回来录入结果。</p></div><button class="btn sm" onclick="loadRecommendationsV2()">刷新推荐</button></div>
+      <div class="card sch-setup">
+        <div class="sch-filters">
+          <label>科目<select id="rec-subject-v2" class="input" onchange="renderUnifiedListV2()"><option value="">全部科目</option></select></label>
+          <label class="sch-search">搜索<input id="rec-search-v2" type="search" class="input" placeholder="题号、分类、知识点或标记" oninput="renderUnifiedListV2()"></label>
+          <label>推荐方式<select id="rec-practice-mode" class="input" onchange="renderUnifiedListV2()"><option value="balanced">均衡复习</option><option value="due">到期优先</option><option value="weak">薄弱优先</option></select></label>
         </div>
+        <details id="rec-more-filters"><summary>更多筛选</summary><div class="sch-filters sch-more">
+          <label>分类<select id="rec-filter-category-v2" class="input" onchange="renderUnifiedListV2()"><option value="">全部分类</option></select></label>
+          <label>知识点<select id="rec-filter-ktag-v2" class="input" onchange="renderUnifiedListV2()"><option value="">全部知识点</option></select></label>
+          <label>状态<select id="rec-filter-tag-v2" class="input" onchange="renderUnifiedListV2()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select></label>
+          <label>到期范围<select id="rec-filter-due-v2" class="input" onchange="renderUnifiedListV2()"><option value="">全部到期状态</option><option value="overdue">已逾期</option><option value="today">今日到期</option><option value="3days">3 天内到期</option><option value="7days">7 天内到期</option><option value="future">未到期</option></select></label>
+          <label>难度下限<input id="rec-filter-diff-min-v2" class="input" type="number" min="1" max="10" placeholder="1" oninput="renderUnifiedListV2()"></label>
+          <label>难度上限<input id="rec-filter-diff-max-v2" class="input" type="number" min="1" max="10" placeholder="10" oninput="renderUnifiedListV2()"></label>
+          <label>熟练度下限 %<input id="rec-filter-mastery-min-v2" class="input" type="number" min="0" max="100" placeholder="0" oninput="renderUnifiedListV2()"></label>
+          <label>熟练度上限 %<input id="rec-filter-mastery-max-v2" class="input" type="number" min="0" max="100" placeholder="100" oninput="renderUnifiedListV2()"></label>
+          <label>排序<select id="rec-filter-sort-v2" class="input" onchange="renderUnifiedListV2()"><option value="priority">按推荐方式</option><option value="mastery-asc">熟练度从低到高</option><option value="mastery-desc">熟练度从高到低</option><option value="diff-asc">难度从低到高</option><option value="diff-desc">难度从高到低</option><option value="date-desc">最近复习优先</option><option value="due-asc">到期日从近到远</option><option value="due-desc">到期日从远到近</option></select></label>
+          <label>标记匹配<select id="rec-v2-label-mode" class="input" onchange="renderUnifiedListV2()"><option value="any">匹配任一标记</option><option value="all">匹配全部标记</option></select></label>
+          <div class="sch-labels"><span>标记</span><div id="rec-v2-label-filter-list" class="label-filter-list" aria-label="复习标记筛选"></div></div>
+        </div></details>
+        <div id="rec-filter-chips" class="sch-chips"></div>
+        <div class="sch-suggest"><label>建议题量 <input id="rec-target-count" class="input" type="number" min="1" step="1" value="10" aria-label="建议题量"></label><button class="btn" id="rec-suggest" onclick="smartSelectV2()">按建议选择</button><span class="hint">替换当前选择；也可以自行勾选</span></div>
       </div>
-
-      <!-- 筛选栏 -->
-      <div class="filter-bar">
-        <input type="text" id="rec-search-v2" placeholder="搜索 UID / 科目 / 分类 / 状态 / 知识点 / 标记…" class="input filter-input-wide" oninput="renderUnifiedListV2()">
-        <select id="rec-filter-category-v2" class="input" onchange="renderUnifiedListV2()"><option value="">全部分类</option></select>
-        <select id="rec-filter-tag-v2" class="input" onchange="renderUnifiedListV2()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select>
-        <select id="rec-filter-ktag-v2" class="input" onchange="renderUnifiedListV2()"><option value="">全部知识点</option></select>
-        <span id="rec-label-filter-list-v2" class="label-filter-list" aria-label="标记筛选"></span>
-        <select id="rec-label-mode-v2" class="input" onchange="renderUnifiedListV2()"><option value="any">标记任一</option><option value="all">标记全部</option></select>
-        <input type="number" id="rec-filter-diff-min-v2" class="input filter-mini" min="1" max="10" placeholder="难度≥" oninput="renderUnifiedListV2()">
-        <input type="number" id="rec-filter-diff-max-v2" class="input filter-mini" min="1" max="10" placeholder="难度≤" oninput="renderUnifiedListV2()">
-        <input type="number" id="rec-filter-mastery-min-v2" class="input filter-mini" min="0" max="100" placeholder="熟练度≥%" oninput="renderUnifiedListV2()">
-        <input type="number" id="rec-filter-mastery-max-v2" class="input filter-mini" min="0" max="100" placeholder="熟练度≤%" oninput="renderUnifiedListV2()">
-        <select id="rec-filter-sort-v2" class="input" onchange="renderUnifiedListV2()">
-          <option value="priority">智能优先级 ↓</option>
-          <option value="mastery-asc">熟练度 ↑</option>
-          <option value="mastery-desc">熟练度 ↓</option>
-          <option value="diff-desc">难度 ↓</option>
-          <option value="diff-asc">难度 ↑</option>
-          <option value="date-desc">最近复习优先</option>
-          <option value="due-asc">到期日 ↑</option>
-          <option value="due-desc">到期日 ↓</option>
-        </select>
-        <select id="rec-filter-due-v2" class="input" onchange="renderUnifiedListV2()">
-          <option value="">全部到期状态</option>
-          <option value="overdue">已逾期</option>
-          <option value="today">今日到期</option>
-          <option value="3days">3天内到期</option>
-          <option value="7days">7天内到期</option>
-          <option value="future">未到期</option>
-        </select>
-      </div>
-
-      <!-- 顶部操作栏 -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span style="font-size:.82rem;color:var(--fg2)" id="rec-summary-v2">加载中...</span>
-        <div class="view-switch">
-          <button class="btn sm toggle active" id="rec-view-flat-v2" onclick="setRecViewV2('flat')">平铺式</button>
-          <button class="btn sm toggle" id="rec-view-gallery-v2" onclick="setRecViewV2('gallery')">画廊式</button>
-        </div>
-      </div>
-
-      <!-- 快捷操作 -->
-      <div class="temp-actions" style="margin-bottom:12px">
-        <button class="btn sm primary" onclick="smartSelectV2()">💡 智能选择（推荐）</button>
-        <button class="btn sm" onclick="selectAllVisibleV2()">全选当前筛选</button>
-        <button class="btn sm danger" onclick="clearSelectionV2()">清空选择</button>
-      </div>
-
-      <!-- 统一推荐列表（不再分两栏） -->
-      <div class="card">
-        <div class="card-title">推荐题目</div>
-        <div id="rec-unified-list-v2"><div class="empty-inline">请点击「刷新推荐」加载题目</div></div>
-      </div>
-
-      <!-- 已选栏 -->
-      <div id="rec-selection-bar-v2" style="margin-top:16px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);display:none;align-items:center;gap:16px">
-        <div style="flex:1">
-          <span class="summary-text" id="rec-selected-count-v2">已选: 0 道</span>
-          <span style="font-size:.74rem;color:var(--fg3);margin-left:12px" id="rec-est-time-v2"></span>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="btn primary" onclick="confirmScheduleV2()">✓ 确认生成计划</button>
-          <button class="btn sm danger" onclick="clearSelectionV2()">清空</button>
-        </div>
+      <div id="rec-status-v2" class="sch-status" role="status" aria-live="polite"></div>
+      <div class="sch-listbar"><span id="rec-summary-v2">正在准备推荐…</span><div><span class="view-switch" role="group" aria-label="推荐题目视图"><button class="btn sm toggle active" id="rec-view-list" aria-pressed="true" onclick="setRecViewV2('list')">列表</button><button class="btn sm toggle" id="rec-view-gallery" aria-pressed="false" onclick="setRecViewV2('gallery')">画廊</button></span><button class="btn sm" onclick="selectAllVisibleV2()">全选当前结果</button><button class="btn sm" id="rec-only-selected" aria-pressed="false" onclick="recToggleSelected()">只看已选</button></div></div>
+      <div id="rec-unified-list-v2" class="sch-candidates"></div>
+      <div id="rec-selection-bar-v2" class="sch-selection">
+        <div><strong id="rec-selected-count-v2">已选 0 题</strong><span id="rec-est-time-v2" class="hint"></span><div id="rec-hidden-count" class="hint"></div></div>
+        <div class="sch-actions"><button class="btn sm" onclick="clearSelectionV2()">清空</button><button class="btn primary" id="rec-confirm" onclick="confirmScheduleV2()" disabled>生成计划</button></div>
       </div>
     </div>
-
-    <!-- ====== 旧版推荐面板（保留，如需切换） ====== -->
-    <div id="recommend-panel" style="display:none">
-      <div class="filter-bar">
-        <select id="rec-subject" class="input" onchange="loadRecommendations()"><option value="">全部科目</option></select>
-        <input type="number" id="rec-due-count" value="10" min="1" max="50" class="input" style="width:64px" title="到期列表最大题数" onchange="loadRecommendations()">
-        <input type="number" id="rec-prof-count" value="10" min="1" max="50" class="input" style="width:64px" title="熟练度列表最大题数" onchange="loadRecommendations()">
-        <button class="btn sm" onclick="loadRecommendations()">刷新推荐</button>
-        <span id="rec-status" class="status-text"></span>
-      </div>
-      <div class="filter-bar">
-        <input type="text" id="rec-search" placeholder="搜索 UID / 科目 / 分类 / 状态 / 知识点 / 标记…" class="input filter-input-wide" oninput="renderDualLists()">
-        <select id="rec-filter-category" class="input" onchange="renderDualLists()"><option value="">全部分类</option></select>
-        <select id="rec-filter-tag" class="input" onchange="renderDualLists()"><option value="">全部状态</option><option value="待攻克">待攻克</option><option value="已击杀">已击杀</option></select>
-        <select id="rec-filter-ktag" class="input" onchange="renderDualLists()"><option value="">全部知识点</option></select>
-        <span id="rec-label-filter-list" class="label-filter-list" aria-label="标记筛选"></span>
-        <select id="rec-label-mode" class="input" onchange="renderDualLists()"><option value="any">标记任一</option><option value="all">标记全部</option></select>
-        <input type="number" id="rec-filter-diff-min" class="input filter-mini" min="1" max="10" placeholder="难度≥" oninput="renderDualLists()">
-        <input type="number" id="rec-filter-diff-max" class="input filter-mini" min="1" max="10" placeholder="难度≤" oninput="renderDualLists()">
-        <input type="number" id="rec-filter-mastery-min" class="input filter-mini" min="0" max="100" placeholder="熟练度≥%" oninput="renderDualLists()">
-        <input type="number" id="rec-filter-mastery-max" class="input filter-mini" min="0" max="100" placeholder="熟练度≤%" oninput="renderDualLists()">
-        <select id="rec-filter-sort" class="input" onchange="renderDualLists()">
-          <option value="mastery-asc">熟练度 ↑</option>
-          <option value="mastery-desc">熟练度 ↓</option>
-          <option value="diff-desc">难度 ↓</option>
-          <option value="diff-asc">难度 ↑</option>
-          <option value="date-desc">最近复习优先</option>
-          <option value="due-asc">到期日 ↑</option>
-          <option value="due-desc">到期日 ↓</option>
-        </select>
-        <select id="rec-filter-due" class="input" onchange="renderDualLists()">
-          <option value="">全部到期状态</option>
-          <option value="overdue">已逾期</option>
-          <option value="today">今日到期</option>
-          <option value="3days">3天内到期</option>
-          <option value="7days">7天内到期</option>
-          <option value="future">未到期</option>
-        </select>
-      </div>
-
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <span style="font-size:.75rem;color:var(--fg3)">双列表：到期（SM-2 驱动）+ 熟练度（薄弱优先），勾选后确认生成</span>
-        <div class="view-switch">
-          <button class="btn sm toggle" id="rec-view-flat" onclick="setRecView('flat')">平铺式</button>
-          <button class="btn sm toggle" id="rec-view-gallery" onclick="setRecView('gallery')">画廊式</button>
-        </div>
-      </div>
-      <div class="temp-actions">
-        <button class="btn sm" onclick="selectFilteredRecommendations()">选择当前筛选</button>
-        <button class="btn sm primary" onclick="selectAllRecommendations()">全选推荐</button>
-        <button class="btn sm" onclick="clearFilteredRecommendations()">移除当前筛选</button>
-        <button class="btn sm danger" onclick="clearRecommendSelection()">清空已选</button>
-      </div>
-      <div class="cols" id="rec-dual-lists">
-        <div class="card">
-          <div class="card-title">📌 到期列表 <span style="font-weight:400;font-size:.7rem;color:var(--fg3)" id="rec-due-label"></span></div>
-          <div class="filter-note">SM-2 到期制：Due_Date ≤ 今天，按逾期优先 + EF 升序排列</div>
-          <div id="rec-due-list"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">📊 熟练度列表 <span style="font-weight:400;font-size:.7rem;color:var(--fg3)" id="rec-prof-label"></span></div>
-          <div class="filter-note">未到期题目按薄弱程度排列（难度高、熟练度低、久未复习优先）</div>
-          <div id="rec-prof-list"></div>
-        </div>
-      </div>
-
-      <!-- 已选栏 -->
-      <div id="rec-selection-bar" style="margin-top:16px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);display:none">
-        <div class="temp-summary-row">
-          <div>
-            <span class="summary-text" id="rec-selected-count">已选: 0 道</span>
-            <span style="font-size:.74rem;color:var(--fg3);margin-left:12px" id="rec-est-time"></span>
-          </div>
-          <div style="display:flex;gap:8px">
-            <button class="btn sm" onclick="previewSelection()">预览计划</button>
-            <button class="btn primary" onclick="confirmSchedule()">确认生成计划</button>
-            <button class="btn sm" onclick="smartConfirm()">一键智能确认</button>
-            <button class="btn sm danger" onclick="clearRecommendSelection()">清空已选</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- 预览面板 -->
-      <div id="rec-preview-panel" style="display:none;margin-top:16px"></div>
+    <div id="sch-plans" role="tabpanel" aria-labelledby="sch-tab-plans" hidden>
+      <div class="sch-heading"><div><h2>每一次复习，都有去处</h2><p>查看题目、导出练习、录入结果，接着上次的进度继续。</p></div><button class="btn sm" onclick="refreshSessions()">刷新计划</button></div>
+      <div class="sch-filters sch-plan-filters"><label>计划状态<select id="sch-plan-filter" class="input" onchange="schRenderPlans()"><option value="active">待完成</option><option value="completed">已完成</option><option value="all">全部</option></select></label><label class="sch-search">查找计划<input id="sch-plan-search" class="input" type="search" placeholder="搜索计划编号" oninput="schRenderPlans()"></label></div>
+      <div id="sch-session-status" class="sch-status" role="status"></div>
+      <div class="sch-plan-work" id="sch-plan-work"><div id="sch-plan-list" class="sch-plan-list"></div><div id="sch-plan-detail" class="card sch-detail"><div class="empty-inline">选择一个计划，查看题目和进度。</div></div></div>
     </div>
 
     <!-- ====== 导出面板 ====== -->
     <div id="export-panel" style="display:none">
+      <button class="btn sm sch-export-back" onclick="schShow(SCH_EXPORT_RETURN)">← 返回复习调度</button>
       <div class="card" style="margin-bottom:16px">
         <div class="card-title">导出 HTML — 全题库筛选</div>
         <div class="filter-note">勾选题目后导出为<strong>自包含 HTML</strong>（图片已内嵌）。A4 打印版用浏览器打印/另存 PDF，可选是否附带答案；屏幕版是手机/平板上的复习 App（一题一屏、看答案、判对错并打分、进度自动保存），<strong>始终附带答案</strong>。</div>
@@ -613,8 +482,10 @@
       <div class="fb-stage card" id="fb-stage"></div>
       <div class="fb-panel card" id="fb-panel"></div>
     </div>
-    <div id="fb-status" style="font-size:.8rem;margin-top:14px"></div>
-    <div id="fb-results" style="margin-top:14px"></div>
+    <div class="fb-statusbar">
+      <div id="fb-status"></div>
+      <button type="button" class="btn sm" id="fb-result-reopen" hidden onclick="fbOpenResults()">查看本次结果</button>
+    </div>
   </div>
 
   <!-- ====== 录入题目 ====== -->
@@ -814,7 +685,7 @@
             <label>难度（1–10）</label>
             <div style="display:flex;align-items:center;gap:12px">
               <input type="range" id="cr-diff" min="1" max="10" value="5" style="flex:1" oninput="document.getElementById('cr-diff-val').textContent=this.value">
-              <span id="cr-diff-val" style="font-family:'JetBrains Mono',monospace;font-size:1rem;color:var(--accent);width:24px;text-align:right">5</span>
+              <span id="cr-diff-val" style="font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:1rem;color:var(--accent);width:24px;text-align:right">5</span>
             </div>
           </div>
           <div class="form-group" style="margin:14px 0 0">
@@ -1191,12 +1062,25 @@
     <div id="modal-stage"></div>
   </div>
 </div>
+<!-- 反馈提交结果：弹窗而不是页内长条，看完关掉就走，不占工作台高度 -->
+<div class="modal-overlay" id="fb-result-modal" onclick="if(event.target===this)fbCloseResults()">
+  <div class="modal fb-result-modal" role="dialog" aria-modal="true" aria-labelledby="fb-result-title">
+    <div class="modal-close" onclick="fbCloseResults()">✕</div>
+    <h2 id="fb-result-title">本次处理结果</h2>
+    <div class="q-meta" id="fb-result-meta"></div>
+    <div id="fb-results" class="fb-result-list"></div>
+    <div class="fb-result-foot">
+      <span class="hint">关掉之后，还能从状态行的「查看本次结果」再打开。</span>
+      <button type="button" class="btn primary" id="fb-result-ok" onclick="fbCloseResults()">知道了</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="md-editor" onclick="if(event.target===this)closeMarkdownEditor()">
   <div class="modal" style="max-width:980px">
     <div class="modal-close" onclick="closeMarkdownEditor()">✕</div>
     <h2>编辑 Markdown</h2>
     <div class="q-meta"><span id="md-edit-uid"></span><span id="md-edit-path"></span></div>
-    <textarea id="md-edit-text" class="input" style="width:100%;height:58vh;font-family:'JetBrains Mono',monospace;font-size:.82rem;line-height:1.6"></textarea>
+    <textarea id="md-edit-text" class="input" style="width:100%;height:58vh;font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:.82rem;line-height:1.6"></textarea>
     <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-top:12px">
       <span id="md-edit-status" style="margin-right:auto;font-size:.8rem;color:var(--fg3)"></span>
       <button class="btn" onclick="closeMarkdownEditor()">取消</button>
@@ -1210,26 +1094,26 @@
 <datalist id="cr-ktag-list"></datalist>
 
 <script src="assets/core.js?v=20260906-v1161"></script>
-<script src="assets/labels.js?v=20260905-gallery-lean"></script>
+<script src="assets/labels.js?v=20260920-schedule"></script>
 <script src="assets/dashboard.js?v=20260831-question-suspend"></script>
 <script src="assets/questions.js?v=20260906-v1161"></script>
 <script src="assets/qtable.js?v=20260906-practice-record"></script>
 <script src="assets/qview.js?v=20260906-v1161"></script>
-<script src="assets/schedule.js?v=20260906-v1161"></script>
-<script src="assets/export.js?v=20260906-v1161"></script>
-<script src="assets/feedback.js?v=20260906-v1161"></script>
+<script src="assets/schedule.js?v=20260920-schedule"></script>
+<script src="assets/export.js?v=20260920-schedule"></script>
+<script src="assets/feedback.js?v=20260920-local-fonts"></script>
 <script src="assets/history.js?v=20260906-v1161"></script>
-<script src="assets/recommend.js?v=20260906-v1161"></script>
-<script src="assets/recommend_v2.js?v=20260906-v1161"></script>
+<script src="assets/recommend.js?v=20260920-schedule"></script>
+<script src="assets/recommend_v2.js?v=20260920-schedule-gallery"></script>
 <script src="assets/actions.js?v=20260831-question-suspend"></script>
 <script src="assets/catalog.js?v=20260816-catalog"></script>
-<script src="assets/instant.js?v=20260906-v1161"></script>
-<script src="assets/data.js?v=20260901-qview"></script>
+<script src="assets/instant.js?v=20260920-local-fonts"></script>
+<script src="assets/data.js?v=20260920-local-fonts"></script>
 <script src="assets/inbox.js?v=20260906-v1161"></script>
 <script src="assets/board.js?v=20260913-board-lock-v1182"></script>
 <script src="assets/board_picker.js?v=20260909-board-p3"></script>
 <script src="assets/board_preview.js?v=20260909-board-p3"></script>
-<script src="assets/reports.js?v=20260906-v1161"></script>
-<script src="assets/app.js?v=20260906-v1161"></script>
+<script src="assets/reports.js?v=20260920-local-fonts"></script>
+<script src="assets/app.js?v=20260920-schedule"></script>
 </body>
 </html>

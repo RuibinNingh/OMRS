@@ -161,7 +161,7 @@ function labelFilterIds(prefix) {
   return { box: `${prefix}-label-filter-list`, hidden: `${prefix}-filter-labels`, mode: `${prefix}-label-mode` };
 }
 function renderLabelFilterOptions(prefix) {
-  const prefixes = prefix ? [prefix] : ['q', 'rec', 'pick', 'inst'];
+  const prefixes = prefix ? [prefix] : ['q', 'rec', 'rec-v2', 'pick', 'inst'];
   prefixes.forEach(name => {
     const ids = labelFilterIds(name);
     const box = document.getElementById(ids.box);
@@ -193,6 +193,7 @@ function selectedLabelNames() { return selectedLabelNamesFor('q'); }
 function setSelectedLabelNames(values) { setSelectedLabelNamesFor('q', values); }
 function labelFilterChanged(prefix) {
   if (prefix === 'q' && typeof filterQ === 'function') filterQ();
+  else if (prefix === 'rec-v2' && typeof renderUnifiedListV2 === 'function') renderUnifiedListV2();
   else if (prefix === 'rec' && typeof renderDualLists === 'function') renderDualLists();
   else if (prefix === 'pick' && typeof renderExportPicker === 'function') renderExportPicker();
   else if (prefix === 'inst' && typeof instRenderSide === 'function') instRenderSide();

@@ -127,7 +127,7 @@ function renderAnalytics(){
     {label:'未到期低熟练度',val:al.low_mastery_not_due,color:'var(--accent)'},
     {label:'顽固题',val:al.leech,color:'var(--accent)'},
   ];
-  document.getElementById('data-alerts').innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">`+cells.map(c=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;border-top:3px solid ${c.color}"><div style="font-size:.68rem;color:var(--fg3);margin-bottom:4px">${escapeHtml(c.label)}</div><div style="font-size:1.5rem;font-weight:900;color:${c.color};font-family:'JetBrains Mono',monospace">${c.val}</div></div>`).join('')+`</div>`;
+  document.getElementById('data-alerts').innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">`+cells.map(c=>`<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;text-align:center;border-top:3px solid ${c.color}"><div style="font-size:.68rem;color:var(--fg3);margin-bottom:4px">${escapeHtml(c.label)}</div><div style="font-size:1.5rem;font-weight:900;color:${c.color};font-family:'JetBrains Mono','Noto Sans SC',monospace">${c.val}</div></div>`).join('')+`</div>`;
 
   // Leech / 屡练不熟
   qvSetContext('leech',[...a.weak_spots.leeches,...a.weak_spots.struggling].map(it=>it.uid));

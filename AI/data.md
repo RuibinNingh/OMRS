@@ -83,6 +83,10 @@
 临时调度（`TMP-` 前缀）**不写入**此文件。
 **注意：** `UIDs` 新格式中 `source` 字段标记题目来源（`due`=到期列表，`proficiency`=熟练度列表），用于反馈时区分 SM-2 排期策略。
 
+复习调度工作台提交 `POST /api/confirm-schedule` 时传 `persist:true`，所以单题选择也写入 `sessions.csv` 并生成正式 `EXP-` Session；旧客户端省略该字段时仍按单题 TMP 兼容路径处理。正式 Session 的选择在写入前去重，并拒绝无效 UID、非法来源、停用题和 active Session 重复占用。
+
+Session 中的 `source` 贯穿反馈处理：`due` 使用常规 SM-2 间隔，`proficiency` 的答对间隔按 0.7 系数折中；分批反馈只更新已提交题目，`pending_uids` 保留未反馈题，全部提交后状态变为 `completed`。
+
 ---
 
 ## 4.1 ledger.db
@@ -367,9 +371,13 @@ v2 的语义是「全局 + 每题额外」，v3 改成**每题绝对行数**：
 
 `printed` 描述**纸上现在有什么**：`pages`（已打印总页数）、`cursor{page,y}`
 （下一道新题的续排位置）、打印时的 `print` 几何、`items[]`（每题 `question_id / uid /
-hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`pages == 0` 表示没有
-记录；由 `POST /api/board/printed` 在用户「标记为已打印」时写入，`mode:"new"` 追加、
-`mode:"all"` 替换。设计见 `board.md` §4。
+hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`print` 是实际排版时的
+几何快照，其中 `note_ratio / gap_lines` 是仅新增续排的权威比例与留白；它不因板当前设置变化而
+被覆盖。`pages == 0` 表示没有记录；由 `POST /api/board/printed` 在用户「标记为已打印」时写入，
+`mode:"all"` 优先采用导出模板回传的 `layout.print`，缺失时兼容回退当前板 `print`；`mode:"new"`
+追加题目但保留原 `printed.print` 快照。设计见 `board.md` §4。
+
+纸面记录独立于板的引用集合：追加、去重、移出、清空引用、排序和未打印题留白更新都保留完整记录。已印题从板移除仍保留旧占位；重新加入同一稳定 `question_id` 不重复打印，后续新增题号仍按纸面记录中的题数续接，不按当前板内题数计算。
 
 纸面记录独立于板的引用集合：追加、去重、移出、清空引用、排序和未打印题留白更新都保留完整记录。已印题从板移除仍保留旧占位；重新加入同一稳定 `question_id` 不重复打印，后续新增题号仍按纸面记录中的题数续接，不按当前板内题数计算。
 

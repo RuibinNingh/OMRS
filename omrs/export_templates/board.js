@@ -33,6 +33,11 @@
   let GAPS = null;              // uid -> 绝对行数 | null(继承全局)；宿主重排时整份覆盖
   function applyPrint(next) {
     if (next && typeof next === "object") PRINT_STATE = Object.assign({}, PRINT_STATE, next);
+    // 续印的几何由服务端按纸面快照选定；宿主的当前设置不能在实时重排时覆盖它。
+    if (PRINTED) {
+      PRINT_STATE.note_ratio = PRINT.note_ratio;
+      PRINT_STATE.gap_lines = PRINT.gap_lines;
+    }
     const p = PRINT_STATE;
     noteRatio = clamp(Number(p.note_ratio) || .50, .30, .55);
     gapLines = clamp(Number(p.gap_lines) || 0, 0, 48);
@@ -483,6 +488,7 @@
     const partialPage = res.pages.length && res.pages[0].partial ? res.pages[0].number : null;
     const layoutReport = {
       kind: "board", mode: MODE, board_id: META.board_id || "",
+      print: Object.assign({}, PRINT_STATE, { note_ratio: noteRatio, gap_lines: gapLines }),
       pages: totalPages, page_numbers: numbers, rendered_pages: res.pages.length,
       partial_page: partialPage, cursor: res.cursor, items: res.items, answer_pages: answerPages,
       warnings: res.warnings, question_count: (D.questions || []).length,

@@ -641,7 +641,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 if not isinstance(selected, list) or len(selected) < 1:
                     self._json({"status": "error", "msg": "至少选择 1 道题"}, 400)
                     return
-                if len(selected) == 1:
+                if "persist" in data and not isinstance(data["persist"], bool):
+                    raise ValueError("persist 必须为布尔值")
+                if len(selected) == 1 and not data.get("persist", False):
                     # 单题：TMP- 自定义调度
                     from .scheduling import get_items_by_uids
                     import datetime as dt_mod

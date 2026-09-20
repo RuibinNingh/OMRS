@@ -1,801 +1,260 @@
-// === assets/recommend_v2.js — 优化后的推荐调度系统 ===
-/* ══════════════════════════════════════════════════════════
-   优化后的推荐面板 - 单列表显示，智能均衡推荐
-   ══════════════════════════════════════════════════════════ */
-
-// 全局状态
-let REC_DATA_V2 = null;  // 推荐数据
-let REC_SELECTED_V2 = {};  // 已选题目 {uid: true}
-let REC_VIEW_V2 = 'flat';  // 视图模式: flat | gallery
-
-function showRecommendPanelV2(){
-  document.getElementById('recommend-panel-v2').style.display='block';
-  document.getElementById('export-panel').style.display='none';
-  document.getElementById('btn-regular-review').classList.add('primary');
-  document.getElementById('btn-export').classList.remove('primary');
-  loadRecommendationsV2();
-}
-
-function isRecSelectedV2(uid){return !!REC_SELECTED_V2[uid]}
-function getRecSelectedCountV2(){return Object.keys(REC_SELECTED_V2).length}
-function getRecSelectedUidsV2(){return Object.keys(REC_SELECTED_V2)}
-
-/**
- * 智能均衡推荐算法
- * - 优先推荐到期题目
- * - 在科目间均衡分配
- * - 考虑熟练度、难度、EF等多个维度
- */
-async function loadRecommendationsV2(){
-  const subjectFilter = document.getElementById('rec-subject-v2').value || '';
-  const practiceMode = document.getElementById('rec-practice-mode').value || 'balanced';
-  const status = document.getElementById('rec-status-v2');
-
-  status.textContent = '加载推荐中...';
-
-  try {
-    // 获取所有符合条件的题目
-    const params = new URLSearchParams();
-    if (subjectFilter) params.set('subject', subjectFilter);
-
-    // 请求大量题目用于智能筛选（不限制数量）
-    params.set('due_count', '1000');
-    params.set('prof_count', '1000');
-
-    // 获取标记筛选
-    const filters = recV2GetFilterState();
-    if (filters.labels && filters.labels.length > 0) {
-      filters.labels.forEach(label => params.append('label', label));
-    }
-
-    const rawData = await api(`/api/recommend?${params.toString()}`);
-
-    // 调试：检查API返回的数据
-    console.log('API返回数据:', rawData);
-    console.log('到期题目数:', (rawData.due || []).length);
-    console.log('熟练度题目数:', (rawData.proficiency || []).length);
-
-    // 合并到期和熟练度列表
-    const allItems = [
-      ...(rawData.due || []).map(item => ({...item, _source: 'due', _priority_boost: 1.5})),
-      ...(rawData.proficiency || []).map(item => ({...item, _source: 'proficiency', _priority_boost: 1.0}))
-    ];
-
-    console.log('合并后题目数:', allItems.length);
-
-    // 根据练习模式进行智能推荐
-    let recommended = [];
-
-    if (practiceMode === 'balanced') {
-      // 均衡模式：科目间均衡分配
-      recommended = intelligentBalancedRecommend(allItems, subjectFilter);
-    } else if (practiceMode === 'weak') {
-      // 薄弱模式：优先推荐薄弱科目
-      recommended = weaknessBasedRecommend(allItems, subjectFilter);
-    } else if (practiceMode === 'due') {
-      // 到期模式：只推荐到期题目
-      recommended = allItems.filter(item => item._source === 'due');
-    } else {
-      // 全部模式：展示所有题目
-      recommended = allItems;
-    }
-
-    console.log('推荐后题目数:', recommended.length);
-
-    REC_DATA_V2 = recommended;
-    REC_SELECTED_V2 = {};
-    renderUnifiedListV2();
-
-    status.innerHTML = `<span style="color:var(--green)">✓ 推荐 ${recommended.length} 道题目</span>`;
-  } catch (e) {
-    status.innerHTML = `<span style="color:var(--red)">✕ ${escapeHtml(e.message)}</span>`;
-  }
-}
-
-/**
- * 智能均衡推荐算法
- * 在科目间均衡分配题目，避免某个科目完全不推
- */
-function intelligentBalancedRecommend(items, subjectFilter) {
-  if (!items || items.length === 0) return [];
-
-  // 按科目分组
-  const bySubject = {};
-  items.forEach(item => {
-    const subject = item.subject || '未知';
-    if (!bySubject[subject]) bySubject[subject] = [];
-    bySubject[subject].push(item);
-  });
-
-  // 为每个科目计算综合优先级并排序
-  Object.keys(bySubject).forEach(subject => {
-    bySubject[subject].sort((a, b) => {
-      const priorityA = calculateItemPriority(a);
-      const priorityB = calculateItemPriority(b);
-      return priorityB - priorityA;  // 降序
-    });
-  });
-
-  // 轮询方式从各科目抽取题目，确保均衡
-  const result = [];
-  const subjects = Object.keys(bySubject);
-  const maxPerSubject = Math.ceil(items.length / subjects.length);
-
-  let round = 0;
-  let hasMore = true;
-
-  while (hasMore && result.length < items.length) {
-    hasMore = false;
-
-    for (const subject of subjects) {
-      const subjectItems = bySubject[subject];
-      if (round < subjectItems.length) {
-        result.push(subjectItems[round]);
-        hasMore = true;
-      }
-    }
-
-    round++;
-  }
-
-  return result;
-}
-
-/**
- * 薄弱优先推荐算法
- * 优先推荐薄弱科目的题目
- */
-function weaknessBasedRecommend(items, subjectFilter) {
-  if (!items || items.length === 0) return [];
-
-  // 按科目分组并计算平均熟练度
-  const bySubject = {};
-  items.forEach(item => {
-    const subject = item.subject || '未知';
-    if (!bySubject[subject]) {
-      bySubject[subject] = {items: [], totalMastery: 0};
-    }
-    bySubject[subject].items.push(item);
-    bySubject[subject].totalMastery += asNumber(item.mastery, 0);
-  });
-
-  // 计算每个科目的平均熟练度（薄弱程度）
-  const subjectWeakness = [];
-  Object.keys(bySubject).forEach(subject => {
-    const data = bySubject[subject];
-    const avgMastery = data.totalMastery / data.items.length;
-    subjectWeakness.push({
-      subject,
-      avgMastery,
-      weakness: 1 - avgMastery,  // 熟练度越低，薄弱程度越高
-      items: data.items
-    });
-  });
-
-  // 按薄弱程度排序科目
-  subjectWeakness.sort((a, b) => b.weakness - a.weakness);
-
-  // 从最薄弱的科目开始，每个科目取一定比例
-  const result = [];
-  subjectWeakness.forEach((subjectData, idx) => {
-    // 薄弱科目取更多题目
-    const proportion = 1.5 / (idx + 1);  // 第一个科目取最多，逐渐减少
-    const count = Math.max(3, Math.floor(subjectData.items.length * proportion));
-
-    // 对科目内题目按优先级排序
-    const sorted = subjectData.items.sort((a, b) =>
-      calculateItemPriority(b) - calculateItemPriority(a)
-    );
-
-    result.push(...sorted.slice(0, count));
-  });
-
-  return result;
-}
-
-/**
- * 计算单个题目的综合优先级
- * 综合考虑：到期状态、熟练度、难度、EF、失败次数等
- */
-function calculateItemPriority(item) {
-  let priority = 0;
-
-  // 1. 到期加成（最重要）
-  if (item._source === 'due') {
-    priority += 100 * item._priority_boost;
-
-    // 逾期天数加成
-    if (item._overdue_days > 0) {
-      priority += item._overdue_days * 10;
-    }
-  }
-
-  // 2. 熟练度权重（熟练度越低优先级越高）
-  const mastery = asNumber(item.mastery, 0);
-  priority += (1 - mastery) * 50;
-
-  // 3. 难度权重（难度越高稍微提高优先级）
-  const difficulty = asNumber(item.difficulty, 5);
-  priority += difficulty * 3;
-
-  // 4. EF权重（EF越低越不稳定，优先级越高）
-  const ef = asNumber(item.ef, 2.5);
-  priority += (3.0 - ef) * 20;
-
-  // 5. 失败次数权重（顽固题）
-  if (item.fail_count) {
-    priority += item.fail_count * 15;
-  }
-
-  // 6. 久未复习加成
-  if (item.last_review) {
-    const daysSince = daysSinceDate(item.last_review);
-    if (daysSince > 30) {
-      priority += Math.min(50, daysSince - 30);
-    }
-  }
-
-  // 7. 标签加成
-  if (item.labels && item.labels.length > 0) {
-    priority += item.labels.length * 2;
-  }
-
-  return priority;
-}
-
-function daysSinceDate(dateStr) {
-  if (!dateStr) return 999;
-  try {
-    const date = new Date(dateStr);
-    const today = new Date();
-    return Math.floor((today - date) / (1000 * 60 * 60 * 24));
-  } catch {
-    return 999;
-  }
-}
+// 复习选题：后端提供候选与来源；筛选、分科轮选和选择状态只作用于当前工作区。
+let REC_DATA_V2 = null;
+let REC_SELECTED_V2 = new Map();
+let REC_ONLY_SELECTED = false;
+let REC_REQUEST = 0;
+let REC_LOADING = false;
+let REC_ERROR = '';
+let REC_SUBMITTING = false;
+let REC_VIEW_V2 = 'list';
+let REC_GALLERY_OBSERVER = null;
+try { if (localStorage.getItem('omrs-schedule-view') === 'gallery') REC_VIEW_V2 = 'gallery'; } catch (_) {}
 
 function setRecViewV2(view) {
-  REC_VIEW_V2 = view;
-  document.getElementById('rec-view-flat-v2').classList.toggle('active', view === 'flat');
-  document.getElementById('rec-view-gallery-v2').classList.toggle('active', view === 'gallery');
+  REC_VIEW_V2 = view === 'gallery' ? 'gallery' : 'list';
+  try { localStorage.setItem('omrs-schedule-view', REC_VIEW_V2); } catch (_) {}
   renderUnifiedListV2();
 }
-
-function renderUnifiedListV2() {
-  if (!REC_DATA_V2) return;
-
-  const filtered = applyRecFiltersV2(REC_DATA_V2);
-  const container = document.getElementById('rec-unified-list-v2');
-
-  if (filtered.length === 0) {
-    container.innerHTML = '<div class="empty-inline">暂无符合条件的题目</div>';
-    updateRecSummaryV2(0);
-    return;
-  }
-
-  if (REC_VIEW_V2 === 'gallery') {
-    container.innerHTML = renderGalleryViewV2(filtered);
-    hydrateGalleryPreviewsV2();
-  } else {
-    container.innerHTML = renderFlatViewV2(filtered);
-  }
-
-  updateRecSummaryV2(filtered.length);
+function recMountGallery(box) {
+  const mount = node => {
+    if (node.isConnected) qvRender(node, node.dataset.recPreviewUid, {...QV_CARD_OPTS, clamp:8});
+  };
+  const nodes = box.querySelectorAll('[data-rec-preview-uid]');
+  if (typeof IntersectionObserver === 'undefined') { nodes.forEach(mount); return; }
+  REC_GALLERY_OBSERVER = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      REC_GALLERY_OBSERVER?.unobserve(entry.target);
+      mount(entry.target);
+    });
+  }, {rootMargin:'240px'});
+  nodes.forEach(node => REC_GALLERY_OBSERVER.observe(node));
 }
 
-function renderFlatViewV2(items) {
-  // 类似题库的平铺表格式显示
-  return `<div class="qb-table-like">
-    ${items.map((item, idx) => {
-      const selected = isRecSelectedV2(item.uid);
-      const masteryPct = (asNumber(item.mastery, 0) * 100).toFixed(0);
-      const masteryColor = asNumber(item.mastery, 0) > 0.8 ? 'var(--green)' :
-                          asNumber(item.mastery, 0) > 0.4 ? 'var(--yellow)' : 'var(--red)';
-      const ef = asNumber(item.ef, 2.5).toFixed(2);
-      const priority = calculateItemPriority(item).toFixed(0);
-
-      // 到期标记
-      let dueBadge = '';
-      if (item._source === 'due') {
-        const overdueDays = item._overdue_days || 0;
-        if (overdueDays > 0) {
-          dueBadge = `<span class="due-badge overdue">逾期${overdueDays}天</span>`;
-        } else if (overdueDays === 0) {
-          dueBadge = `<span class="due-badge today">今日到期</span>`;
-        }
-      }
-
-      const tagLabel = (item.tag || '').replace(/#/g, '');
-
-      return `<div class="rec-row-v2 ${selected ? 'selected' : ''}" data-uid="${escapeAttr(item.uid)}">
-        <div class="rec-checkbox">
-          <input type="checkbox" ${selected ? 'checked' : ''}
-                 onchange="toggleRecSelectionV2('${escapeAttr(item.uid)}')"
-                 onclick="event.stopPropagation()">
-        </div>
-        <div class="rec-main" onclick="viewQ('${escapeAttr(item.uid)}')">
-          <div class="rec-row-header">
-            <span class="uid-badge">${idx + 1}. ${escapeHtml(item.uid)}</span>
-            ${dueBadge}
-            <span class="priority-badge" title="综合优先级">P: ${priority}</span>
-          </div>
-          <div class="rec-row-meta">
-            ${escapeHtml(item.subject || '')} · ${escapeHtml(item.category || '')} ·
-            难度 ${escapeHtml(item.difficulty)} · EF ${ef} ·
-            <span class="tag ${(item.tag || '').includes('已击杀') ? 'kill' : 'attack'}">${escapeHtml(tagLabel)}</span>
-            ${recLabelsHtml(item)}
-          </div>
-        </div>
-        <div class="rec-metrics">
-          <div class="metric-item">
-            <div class="metric-label">熟练度</div>
-            <div class="metric-bar">
-              <div class="metric-fill" style="width:${masteryPct}%;background:${masteryColor}"></div>
-            </div>
-            <div class="metric-value">${masteryPct}%</div>
-          </div>
-        </div>
-        <div class="rec-actions">
-          <button class="btn sm" onclick="event.stopPropagation();viewQ('${escapeAttr(item.uid)}')">详情</button>
-          <button class="btn sm ${selected ? 'danger' : 'primary'}"
-                  onclick="event.stopPropagation();toggleRecSelectionV2('${escapeAttr(item.uid)}')">
-            ${selected ? '移除' : '选择'}
-          </button>
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
+const REC_FILTER_FIELDS = [
+  ['rec-subject-v2', '科目'], ['rec-search-v2', '搜索'],
+  ['rec-filter-category-v2', '分类'], ['rec-filter-ktag-v2', '知识点'],
+  ['rec-filter-tag-v2', '状态'], ['rec-filter-due-v2', '到期'],
+  ['rec-filter-diff-min-v2', '难度 ≥'], ['rec-filter-diff-max-v2', '难度 ≤'],
+  ['rec-filter-mastery-min-v2', '熟练度 ≥'], ['rec-filter-mastery-max-v2', '熟练度 ≤']
+];
+function recEl(id) { return document.getElementById(id); }
+function showRecommendPanelV2() { schShow('arrange'); }
+function initRecommendV2() {
+  const items = getItems().filter(item => !item.suspended);
+  const unique = values => [...new Set(values.filter(Boolean))].sort((a,b) => a.localeCompare(b,'zh-CN'));
+  setSelectOptions('rec-subject-v2', unique(items.map(i => i.subject)), '全部科目');
+  setSelectOptions('rec-filter-category-v2', unique(items.map(i => i.category)), '全部分类');
+  setSelectOptions('rec-filter-ktag-v2', unique(items.flatMap(i => i.knowledge_tags || [])), '全部知识点');
+  if (typeof renderLabelFilterOptions === 'function') renderLabelFilterOptions('rec-v2');
 }
-
-function renderGalleryViewV2(items) {
-  return `<div class="gallery-grid">
-    ${items.map((item, idx) => {
-      const selected = isRecSelectedV2(item.uid);
-      const masteryPct = (asNumber(item.mastery, 0) * 100).toFixed(0);
-      const masteryColor = asNumber(item.mastery, 0) > 0.8 ? 'var(--green)' :
-                          asNumber(item.mastery, 0) > 0.4 ? 'var(--yellow)' : 'var(--red)';
-      const ef = asNumber(item.ef, 2.5).toFixed(2);
-      const priority = calculateItemPriority(item).toFixed(0);
-
-      let dueBadge = '';
-      if (item._source === 'due' && item._overdue_days != null) {
-        if (item._overdue_days > 0) {
-          dueBadge = `<span class="due-badge overdue">逾期${item._overdue_days}天</span>`;
-        } else if (item._overdue_days === 0) {
-          dueBadge = `<span class="due-badge today">今日到期</span>`;
-        }
-      }
-
-      const detail = QUESTION_CACHE[item.uid];
-      const previewHtml = detail ? renderMdContent(detail.question || '（无题目内容）') :
-                         '<div class="preview-placeholder">正在加载题目预览…</div>';
-      const tagLabel = (item.tag || '').replace(/#/g, '');
-
-      return `<div class="gallery-card ${selected ? 'selected' : ''}">
-        <div class="gallery-head">
-          <div>
-            <div class="uid">${idx + 1}. ${escapeHtml(item.uid)} ${dueBadge}</div>
-            <div class="gallery-meta">
-              ${escapeHtml(item.subject || '')} · ${escapeHtml(item.category || '')}<br>
-              难度 ${escapeHtml(item.difficulty)} · EF ${ef} · 优先级 ${priority}
-            </div>
-            <div class="tag-row">${recLabelsHtml(item)}</div>
-          </div>
-          <span class="tag ${(item.tag || '').includes('已击杀') ? 'kill' : 'attack'}">${escapeHtml(tagLabel)}</span>
-        </div>
-        <div class="question-progress-row">
-          <div class="question-progress-main">
-            <span>熟练度</span>
-            <span class="m-bar">
-              <span class="m-bar-fill" style="width:${masteryPct}%;background:${masteryColor}"></span>
-            </span>
-            <span>${masteryPct}%</span>
-          </div>
-        </div>
-        <div class="gallery-preview" data-rec-preview-uid-v2="${escapeAttr(item.uid)}">${previewHtml}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <button class="btn sm" onclick="viewQ('${escapeAttr(item.uid)}')">查看详情</button>
-          <button class="btn sm ${selected ? 'danger' : 'primary'}"
-                  onclick="toggleRecSelectionV2('${escapeAttr(item.uid)}')">
-            ${selected ? '移除' : '选择'}
-          </button>
-        </div>
-      </div>`;
-    }).join('')}
-  </div>`;
-}
-
-async function hydrateGalleryPreviewsV2() {
-  const nodes = [...document.querySelectorAll('.gallery-preview[data-rec-preview-uid-v2]')];
-  await Promise.all(nodes.map(async node => {
-    const uid = node.dataset.recPreviewUidV2;
-    if (!uid) return;
-    const detail = await ensureQuestionDetail(uid);
-    if (node.dataset.recPreviewUidV2 === uid) {
-      node.innerHTML = renderMdContent(detail.question || '（无题目内容）');
+async function loadRecommendationsV2() {
+  const request = ++REC_REQUEST;
+  REC_LOADING = true;
+  REC_ERROR = '';
+  renderUnifiedListV2();
+  try {
+    // Bulk mode returns every eligible item, excluding active plans on the server.
+    const raw = await api('/api/recommend?due_count=1000&prof_count=1000');
+    if (request !== REC_REQUEST) return;
+    REC_DATA_V2 = [...(raw.due || []).map(i => ({...i, _source:'due'})),
+      ...(raw.proficiency || []).map(i => ({...i, _source:'proficiency'}))];
+    const available = new Map(REC_DATA_V2.map(i => [i.uid,i]));
+    let removed = 0;
+    for (const uid of REC_SELECTED_V2.keys()) {
+      if (available.has(uid)) REC_SELECTED_V2.set(uid, available.get(uid));
+      else { REC_SELECTED_V2.delete(uid); removed++; }
     }
-  }));
+    if (removed) uiToast(`${removed} 道已选题已不可安排，已移出选择。其余选择已保留。`, {kind:'warn'});
+  } catch (error) {
+    if (request !== REC_REQUEST) return;
+    REC_ERROR = error.message;
+  } finally {
+    if (request === REC_REQUEST) {
+      REC_LOADING = false;
+      renderUnifiedListV2();
+    }
+  }
 }
-
+function recV2GetFilterState() {
+  const value = id => recEl(id)?.value || '';
+  const number = (id, fallback) => value(id) === '' ? fallback : Number(value(id));
+  return {
+    text:value('rec-search-v2').trim().toLowerCase(), subject:value('rec-subject-v2'),
+    category:value('rec-filter-category-v2'), tag:value('rec-filter-tag-v2'),
+    knowledgeTag:value('rec-filter-ktag-v2'),
+    labels:typeof selectedLabelNamesFor === 'function' ? selectedLabelNamesFor('rec-v2') : [],
+    labelMode:value('rec-v2-label-mode') || 'any',
+    difficultyMin:number('rec-filter-diff-min-v2',1), difficultyMax:number('rec-filter-diff-max-v2',10),
+    masteryMin:number('rec-filter-mastery-min-v2',null), masteryMax:number('rec-filter-mastery-max-v2',null),
+    dueFilter:value('rec-filter-due-v2'), suspended:'', sort:value('rec-filter-sort-v2') || 'priority'
+  };
+}
+function recFilterError(f) {
+  if (f.difficultyMin < 1 || f.difficultyMax > 10 || f.difficultyMin > f.difficultyMax) return '难度范围应为 1–10，且下限不能大于上限。';
+  if ((f.masteryMin != null && (f.masteryMin < 0 || f.masteryMin > 100)) ||
+      (f.masteryMax != null && (f.masteryMax < 0 || f.masteryMax > 100)) ||
+      (f.masteryMin != null && f.masteryMax != null && f.masteryMin > f.masteryMax)) return '熟练度范围应为 0–100%，且下限不能大于上限。';
+  return '';
+}
+function recV2FilterItems(items, filters) {
+  if (recFilterError(filters)) return [];
+  const result = filterItems(items || [], {...filters,
+    masteryMin:filters.masteryMin == null ? null : filters.masteryMin / 100,
+    masteryMax:filters.masteryMax == null ? null : filters.masteryMax / 100});
+  // The shared filter sorts by mastery by default; restore server rank for recommendation mode.
+  if (filters.sort === 'priority') {
+    const rank = new Map((items || []).map((item,index) => [item.uid,index]));
+    result.sort((a,b) => rank.get(a.uid) - rank.get(b.uid));
+  }
+  return result;
+}
+function recRoundRobin(items) {
+  const groups = new Map();
+  for (const item of items) {
+    const subject = item.subject || '未分类';
+    if (!groups.has(subject)) groups.set(subject, []);
+    groups.get(subject).push(item);
+  }
+  const result = [];
+  for (let index=0; result.length<items.length; index++) {
+    for (const group of groups.values()) if (group[index]) result.push(group[index]);
+  }
+  return result;
+}
+function recOrderItems(items, mode) {
+  const due = items.filter(i => i._source === 'due');
+  const prof = items.filter(i => i._source !== 'due');
+  if (mode === 'weak') return [...prof,...due];
+  if (mode === 'balanced') return [...recRoundRobin(due),...recRoundRobin(prof)];
+  return [...due,...prof];
+}
 function applyRecFiltersV2(items) {
   const filters = recV2GetFilterState();
-  return recV2FilterItems(items.map(normalizeRecItem), filters);
+  const filtered = recV2FilterItems(items, filters);
+  return filters.sort === 'priority' ? recOrderItems(filtered, recEl('rec-practice-mode').value) : filtered;
 }
-
-function normalizeRecItem(item) {
-  if (!item) return item;
-  if (item.due_date) return item;
-  const od = item._overdue_days;
-  if (od == null) return item;
-  const d = new Date();
-  d.setDate(d.getDate() - od);
-  return {...item, due_date: d.toISOString().slice(0, 10)};
+function recClearFilter(id) {
+  recEl(id).value = '';
+  renderUnifiedListV2();
 }
-
-function recLabelsHtml(item, options = {}) {
-  return typeof lblChips === 'function' ? lblChips(item?.labels || [], options) : '';
+function recRemoveLabel(name) {
+  setSelectedLabelNamesFor('rec-v2',selectedLabelNamesFor('rec-v2').filter(n => n !== name));
+  renderUnifiedListV2();
 }
-
+function recResetFilters() {
+  REC_FILTER_FIELDS.forEach(([id]) => { recEl(id).value = ''; });
+  recEl('rec-v2-label-mode').value = 'any';
+  recEl('rec-filter-sort-v2').value = 'priority';
+  setSelectedLabelNamesFor('rec-v2',[]);
+  REC_ONLY_SELECTED = false;
+  renderUnifiedListV2();
+}
+function recRenderChips() {
+  const chips = REC_FILTER_FIELDS.filter(([id]) => recEl(id).value !== '').map(([id,label]) => {
+    const el = recEl(id);
+    const value = el.tagName === 'SELECT' ? el.selectedOptions[0]?.textContent : el.value;
+    return `<button class="btn sm" onclick="recClearFilter(${jsArg(id)})" aria-label="移除${escapeAttr(label)}筛选">${escapeHtml(label)} ${escapeHtml(value)} ×</button>`;
+  });
+  for (const name of selectedLabelNamesFor('rec-v2')) chips.push(`<button class="btn sm" onclick="recRemoveLabel(${jsArg(name)})">标记 ${escapeHtml(name)} ×</button>`);
+  if (chips.length) chips.push('<button class="btn sm" onclick="recResetFilters()">清除筛选</button>');
+  recEl('rec-filter-chips').innerHTML = chips.join('');
+}
+function recReason(item) {
+  const days = getDueDays(item);
+  if (item._source === 'proficiency') return `提前巩固${days == null ? '' : ` · ${days} 天后到期`}`;
+  if (days == null) return '待安排复习';
+  return days < 0 ? `已逾期 ${-days} 天` : days === 0 ? '今日到期' : `${days} 天后到期`;
+}
+function renderUnifiedListV2() {
+  if (!recEl('rec-unified-list-v2')) return;
+  recRenderChips();
+  const filtered = applyRecFiltersV2(REC_DATA_V2 || []);
+  const shown = REC_ONLY_SELECTED ? filtered.filter(i => REC_SELECTED_V2.has(i.uid)) : filtered;
+  const problem = recFilterError(recV2GetFilterState());
+  recEl('rec-status-v2').innerHTML = REC_ERROR ? `推荐加载失败：${escapeHtml(REC_ERROR)} <button class="btn sm" onclick="loadRecommendationsV2()">重试</button>` : REC_LOADING ? '正在更新推荐…' : problem;
+  recEl('rec-summary-v2').textContent = REC_DATA_V2 ? `当前显示 ${shown.length} 题 · 可安排 ${REC_DATA_V2.length} 题` : '正在准备推荐…';
+  recEl('rec-only-selected').setAttribute('aria-pressed',String(REC_ONLY_SELECTED));
+  recEl('rec-suggest').disabled = REC_LOADING || !!REC_ERROR || !!problem || !filtered.length;
+  const box = recEl('rec-unified-list-v2');
+  REC_GALLERY_OBSERVER?.disconnect();
+  box.querySelectorAll('[data-rec-preview-uid]').forEach(node => qvRender(node, ''));
+  const gallery = REC_VIEW_V2 === 'gallery';
+  box.classList.toggle('sch-gallery', gallery && shown.length > 0);
+  ['list','gallery'].forEach(view => {
+    const button = recEl(`rec-view-${view}`);
+    button.classList.toggle('active', view === REC_VIEW_V2);
+    button.setAttribute('aria-pressed', String(view === REC_VIEW_V2));
+  });
+  if (!shown.length) {
+    const active = (SESSIONS || []).filter(s => s.status === 'active').length;
+    let message = REC_LOADING ? '正在读取可安排的题目…' : REC_ERROR ? '未能更新推荐，请重试。' : problem || (REC_ONLY_SELECTED ? '当前筛选内没有已选题。可关闭「只看已选」或清除筛选。' : REC_DATA_V2?.length ? '没有符合这些条件的题目，试试放宽筛选。' : '目前没有可安排的新题。');
+    if (!REC_LOADING && !REC_ERROR && !REC_DATA_V2?.length && active) message += ` 还有 ${active} 个计划待完成，可以接着复习。`;
+    box.innerHTML = `<div class="card sch-empty"><strong>${escapeHtml(message)}</strong>${!REC_LOADING && !REC_ERROR ? active && !REC_DATA_V2?.length ? '<button class="btn" onclick="schShow(\'plans\')">查看已有计划</button>' : '<button class="btn" onclick="recResetFilters()">清除筛选</button>' : ''}</div>`;
+  } else {
+    qvSetContext('schedule-pick',shown.map(i => i.uid));
+    box.innerHTML = shown.map((item,index) => `<div class="sch-question ${REC_SELECTED_V2.has(item.uid)?'is-selected':''}">
+      <input type="checkbox" aria-label="选择 ${escapeAttr(item.uid)}" ${REC_SELECTED_V2.has(item.uid)?'checked':''} onchange="toggleRecSelectionV2(${jsArg(item.uid)})">
+      <span class="sch-number">${index+1}</span><div class="sch-question-main"><button class="sch-title" onclick="viewQ(${jsArg(item.uid)},'schedule-pick')">${escapeHtml(item.uid)}</button><div class="sch-meta">${escapeHtml(item.subject)} · ${escapeHtml(item.category)} · 难度 ${escapeHtml(item.difficulty)}${lblChips(item.labels || [])}</div></div>
+      ${gallery ? `<div class="sch-gallery-preview" data-rec-preview-uid="${escapeAttr(item.uid)}"><div class="preview-placeholder">正在加载题面…</div></div>` : ''}
+      <div class="sch-question-info"><span class="sch-reason ${item._source==='due'?'is-due':''}">${escapeHtml(recReason(item))}</span><span class="sch-meta">熟练度 ${Math.round(asNumber(item.mastery,0)*100)}%</span></div>
+      <button class="btn sm" onclick="viewQ(${jsArg(item.uid)},'schedule-pick')">预览</button></div>`).join('');
+    if (gallery) recMountGallery(box);
+  }
+  updateRecSelectionBarV2(filtered);
+}
 function toggleRecSelectionV2(uid) {
-  if (REC_SELECTED_V2[uid]) {
-    delete REC_SELECTED_V2[uid];
-  } else {
-    REC_SELECTED_V2[uid] = true;
-  }
-
-  // 更新单个行的状态
-  const row = document.querySelector(`.rec-row-v2[data-uid="${uid}"]`);
-  if (row) {
-    row.classList.toggle('selected', REC_SELECTED_V2[uid]);
-    const checkbox = row.querySelector('input[type="checkbox"]');
-    if (checkbox) checkbox.checked = !!REC_SELECTED_V2[uid];
-  }
-
-  updateRecSelectionBarV2();
+  if (REC_SELECTED_V2.has(uid)) REC_SELECTED_V2.delete(uid);
+  else { const item = (REC_DATA_V2 || []).find(i => i.uid === uid); if (item) REC_SELECTED_V2.set(uid,item); }
+  renderUnifiedListV2();
 }
-
+function recToggleSelected() { REC_ONLY_SELECTED = !REC_ONLY_SELECTED; renderUnifiedListV2(); }
+function clearSelectionV2() { REC_SELECTED_V2.clear(); REC_ONLY_SELECTED = false; renderUnifiedListV2(); }
 function selectAllVisibleV2() {
-  const filtered = applyRecFiltersV2(REC_DATA_V2 || []);
-  filtered.forEach(item => {
-    if (item?.uid) REC_SELECTED_V2[item.uid] = true;
-  });
+  if (REC_LOADING || REC_ERROR) return;
+  applyRecFiltersV2(REC_DATA_V2 || []).forEach(i => REC_SELECTED_V2.set(i.uid,i));
   renderUnifiedListV2();
-  updateRecSelectionBarV2();
 }
-
-function clearSelectionV2() {
-  REC_SELECTED_V2 = {};
-  renderUnifiedListV2();
-  updateRecSelectionBarV2();
-}
-
 function smartSelectV2() {
-  // 智能选择：优先选择到期题目，然后按优先级选择
-  const filtered = applyRecFiltersV2(REC_DATA_V2 || []);
-
-  // 先选所有到期题目
-  const dueItems = filtered.filter(item => item._source === 'due');
-  dueItems.forEach(item => {
-    if (item?.uid) REC_SELECTED_V2[item.uid] = true;
-  });
-
-  // 如果到期题目少于20道，再从熟练度列表选择优先级最高的
-  if (dueItems.length < 20) {
-    const profItems = filtered
-      .filter(item => item._source !== 'due')
-      .sort((a, b) => calculateItemPriority(b) - calculateItemPriority(a))
-      .slice(0, 20 - dueItems.length);
-
-    profItems.forEach(item => {
-      if (item?.uid) REC_SELECTED_V2[item.uid] = true;
-    });
-  }
-
+  const input = recEl('rec-target-count');
+  if (!input.reportValidity() || !Number.isInteger(Number(input.value)) || Number(input.value) < 1) return;
+  const chosen = applyRecFiltersV2(REC_DATA_V2 || []).slice(0,Number(input.value));
+  REC_SELECTED_V2 = new Map(chosen.map(i => [i.uid,i]));
+  REC_ONLY_SELECTED = false;
   renderUnifiedListV2();
-  updateRecSelectionBarV2();
 }
-
-function updateRecSummaryV2(totalCount) {
-  document.getElementById('rec-summary-v2').textContent =
-    `共 ${totalCount} 道题目`;
+function updateRecSelectionBarV2(filtered = applyRecFiltersV2(REC_DATA_V2 || [])) {
+  const count = REC_SELECTED_V2.size;
+  const visible = new Set(filtered.map(i => i.uid));
+  const hidden = [...REC_SELECTED_V2.keys()].filter(uid => !visible.has(uid)).length;
+  recEl('rec-selected-count-v2').textContent = `已选 ${count} 题`;
+  const time = [...REC_SELECTED_V2.values()].reduce((sum,i) => sum + Math.max(3,Math.round(asNumber(i.difficulty,5)*1.5)),0);
+  recEl('rec-est-time-v2').textContent = count ? `约 ${time} 分钟 · 仅供参考` : '勾选题目，或按建议选择';
+  recEl('rec-hidden-count').innerHTML = hidden ? `${hidden} 道已选题被筛选隐藏，仍会加入计划。 <button class="btn sm" onclick="recResetFilters();REC_ONLY_SELECTED=true;renderUnifiedListV2()">查看全部已选</button>` : '';
+  recEl('rec-confirm').disabled = !count || REC_LOADING || !!REC_ERROR || REC_SUBMITTING;
+  recEl('rec-confirm').textContent = REC_SUBMITTING ? '正在生成…' : '生成计划';
 }
-
-function updateRecSelectionBarV2() {
-  const count = getRecSelectedCountV2();
-  const bar = document.getElementById('rec-selection-bar-v2');
-
-  if (count > 0) {
-    bar.style.display = 'flex';
-    document.getElementById('rec-selected-count-v2').textContent = `已选 ${count} 道`;
-
-    // 估算时间
-    const allItems = REC_DATA_V2 || [];
-    const selectedItems = allItems.filter(item => REC_SELECTED_V2[item.uid]);
-    const totalTime = selectedItems.reduce((sum, item) =>
-      sum + Math.max(3, Math.round(asNumber(item.difficulty, 5) * 1.5)), 0
-    );
-    document.getElementById('rec-est-time-v2').textContent =
-      `预计 ${totalTime} 分钟`;
-  } else {
-    bar.style.display = 'none';
-  }
-}
-
 async function confirmScheduleV2() {
-  const selectedUids = getRecSelectedUidsV2();
-  if (selectedUids.length === 0) {
-    uiToast('请至少选择 1 道题',{kind:'warn'});
-    return;
-  }
-
-  const status = document.getElementById('rec-status-v2');
-  status.textContent = '生成计划中...';
-
+  if (REC_SUBMITTING || REC_LOADING || REC_ERROR || !REC_SELECTED_V2.size) return;
+  REC_SUBMITTING = true;
+  updateRecSelectionBarV2();
   try {
-    const result = await api('/api/confirm-schedule', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        selected: selectedUids.map(uid => ({uid, source: 'smart'})),
-        subject: document.getElementById('rec-subject-v2').value || null
-      })
-    });
-
-    status.innerHTML = `<span style="color:var(--green)">✓ Session ${escapeHtml(result.session_id)} (${result.count} 题) 已创建</span>`;
-
-    REC_SELECTED_V2 = {};
-    renderUnifiedListV2();
-    updateRecSelectionBarV2();
-
+    const selected = [...REC_SELECTED_V2.values()].map(i => ({uid:i.uid,source:i._source}));
+    const subjects = new Set([...REC_SELECTED_V2.values()].map(i => i.subject));
+    const result = await api('/api/confirm-schedule',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({selected,persist:true,subject:subjects.size === 1 ? [...subjects][0] : null})});
+    REC_SELECTED_V2.clear();
+    REC_ONLY_SELECTED = false;
+    recEl('sch-plan-filter').value = 'active';
+    recEl('sch-plan-search').value = '';
+    schShow('plans');
     await refreshSessions();
-  } catch (e) {
-    status.innerHTML = `<span style="color:var(--red)">✕ ${escapeHtml(e.message)}</span>`;
+    await schOpenPlan(result.session_id);
+    await loadRecommendationsV2();
+    uiToast(`已生成 ${result.count} 题的复习计划`);
+  } catch (error) {
+    recEl('rec-status-v2').textContent = `生成失败：${error.message}。选择已保留；若题目已被其他计划占用，请刷新推荐。`;
+  } finally {
+    REC_SUBMITTING = false;
+    updateRecSelectionBarV2();
   }
-}
-
-/* ══════════════════════════════════════════════════════════
-   End 优化后的推荐面板
-   ══════════════════════════════════════════════════════════ */
-
-// === 初始化函数 ===
-function initRecommendV2() {
-  // 填充科目下拉框
-  if (DATA && DATA.stats && DATA.stats.by_subject) {
-    const subjectSelect = document.getElementById('rec-subject-v2');
-    if (subjectSelect) {
-      const subjects = Object.keys(DATA.stats.by_subject).sort();
-      const currentValue = subjectSelect.value;
-      
-      subjectSelect.innerHTML = '<option value="">全部科目</option>' +
-        subjects.map(s => `<option value="${escapeAttr(s)}">${escapeHtml(s)}</option>`).join('');
-      
-      if (currentValue && subjects.includes(currentValue)) {
-        subjectSelect.value = currentValue;
-      }
-    }
-  }
-
-  // 填充筛选选项
-  populateRecFilterOptionsV2();
-}
-
-function populateRecFilterOptionsV2() {
-  if (!DATA || !DATA.stats) return;
-
-  // 填充分类
-  const categorySelect = document.getElementById('rec-filter-category-v2');
-  if (categorySelect && DATA.stats.by_category) {
-    const categories = Object.keys(DATA.stats.by_category).sort();
-    const currentValue = categorySelect.value;
-    
-    categorySelect.innerHTML = '<option value="">全部分类</option>' +
-      categories.map(c => `<option value="${escapeAttr(c)}">${escapeHtml(c)}</option>`).join('');
-    
-    if (currentValue && categories.includes(currentValue)) {
-      categorySelect.value = currentValue;
-    }
-  }
-
-  // 填充知识点
-  const ktagSelect = document.getElementById('rec-filter-ktag-v2');
-  if (ktagSelect && DATA.stats.by_ktag) {
-    const ktags = Object.keys(DATA.stats.by_ktag).sort();
-    const currentValue = ktagSelect.value;
-    
-    ktagSelect.innerHTML = '<option value="">全部知识点</option>' +
-      ktags.map(k => `<option value="${escapeAttr(k)}">${escapeHtml(k)}</option>`).join('');
-    
-    if (currentValue && ktags.includes(currentValue)) {
-      ktagSelect.value = currentValue;
-    }
-  }
-
-  // 填充标记筛选
-  if (typeof renderLabelFilterChips === 'function') {
-    const container = document.getElementById('rec-label-filter-list-v2');
-    if (container) {
-      renderLabelFilterChips('rec-v2', container);
-    }
-  }
-}
-
-// 获取筛选状态
-// V2 的筛选实现必须使用私有名称；core.js 的 getFilterState/filterItems 是
-// 题库、展示板、导出和即时练习共用的公共契约，不能被推荐面板覆盖。
-function recV2GetFilterState() {
-  const state = {
-    text: '',
-    subject: document.getElementById('rec-subject-v2')?.value || '',
-    category: '',
-    tag: '',
-    knowledgeTag: '',
-    labels: [],
-    labelMode: 'any',
-    difficultyMin: 0,
-    difficultyMax: 10,
-    masteryMin: null,
-    masteryMax: null,
-    dueFilter: '',
-    suspended: '',
-    sort: 'priority'
-  };
-
-  // V2 控件使用 rec-<field>-v2 命名，不接收公共筛选函数的 prefix 参数。
-  const getId = suffix => `rec-${suffix}-v2`;
-
-  const searchEl = document.getElementById(getId('search'));
-  if (searchEl) state.text = searchEl.value.toLowerCase().trim();
-
-  const categoryEl = document.getElementById(getId('filter-category'));
-  if (categoryEl) state.category = categoryEl.value;
-
-  const tagEl = document.getElementById(getId('filter-tag'));
-  if (tagEl) state.tag = tagEl.value;
-
-  const ktagEl = document.getElementById(getId('filter-ktag'));
-  if (ktagEl) state.knowledgeTag = ktagEl.value;
-
-  const labelModeEl = document.getElementById(getId('label-mode'));
-  if (labelModeEl) state.labelMode = labelModeEl.value;
-
-  const diffMinEl = document.getElementById(getId('filter-diff-min'));
-  if (diffMinEl && diffMinEl.value) state.difficultyMin = parseInt(diffMinEl.value, 10);
-
-  const diffMaxEl = document.getElementById(getId('filter-diff-max'));
-  if (diffMaxEl && diffMaxEl.value) state.difficultyMax = parseInt(diffMaxEl.value, 10);
-
-  const masteryMinEl = document.getElementById(getId('filter-mastery-min'));
-  if (masteryMinEl && masteryMinEl.value) state.masteryMin = parseInt(masteryMinEl.value, 10);
-
-  const masteryMaxEl = document.getElementById(getId('filter-mastery-max'));
-  if (masteryMaxEl && masteryMaxEl.value) state.masteryMax = parseInt(masteryMaxEl.value, 10);
-
-  const sortEl = document.getElementById(getId('filter-sort'));
-  if (sortEl) state.sort = sortEl.value;
-
-  const dueEl = document.getElementById(getId('filter-due'));
-  if (dueEl) state.dueFilter = dueEl.value;
-
-  // 获取选中的标记
-  if (typeof getActiveLabels === 'function') {
-    try {
-      state.labels = getActiveLabels('rec-v2');
-    } catch (e) {
-      console.warn('Failed to get active labels:', e);
-      state.labels = [];
-    }
-  }
-
-  return state;
-}
-
-// 应用筛选
-function recV2FilterItems(items, filters) {
-  if (!items) return [];
-
-  return items.filter(item => {
-    if (filters.suspended !== 'all' && filters.suspended !== 'suspended' && item.suspended) return false;
-    if (filters.suspended === 'suspended' && !item.suspended) return false;
-    // 搜索
-    if (filters.text) {
-      const searchable = [
-        item.uid,
-        item.subject,
-        item.category,
-        item.tag,
-        ...(item.knowledge_tags || []),
-        ...(item.labels || [])
-      ].join(' ').toLowerCase();
-      
-      if (!searchable.includes(filters.text)) return false;
-    }
-
-    if (filters.subject && item.subject !== filters.subject) return false;
-    // 分类
-    if (filters.category && item.category !== filters.category) return false;
-
-    // 状态标签
-    if (filters.tag && !item.tag?.includes(filters.tag)) return false;
-
-    // 知识点
-    if (filters.knowledgeTag) {
-      const ktags = item.knowledge_tags || [];
-      if (!ktags.includes(filters.knowledgeTag)) return false;
-    }
-
-    // 标记筛选
-    if (filters.labels && filters.labels.length > 0) {
-      const itemLabels = item.labels || [];
-      if (filters.labelMode === 'all') {
-        if (!filters.labels.every(l => itemLabels.includes(l))) return false;
-      } else {
-        if (!filters.labels.some(l => itemLabels.includes(l))) return false;
-      }
-    }
-
-    // 难度范围
-    if (filters.difficultyMin != null && item.difficulty < filters.difficultyMin) return false;
-    if (filters.difficultyMax != null && item.difficulty > filters.difficultyMax) return false;
-
-    // 熟练度范围
-    if (filters.masteryMin != null) {
-      const masteryPct = asNumber(item.mastery, 0) * 100;
-      if (masteryPct < filters.masteryMin) return false;
-    }
-    if (filters.masteryMax != null) {
-      const masteryPct = asNumber(item.mastery, 0) * 100;
-      if (masteryPct > filters.masteryMax) return false;
-    }
-
-    // 到期状态
-    if (filters.dueFilter) {
-      const dueDate = item.due_date ? new Date(item.due_date) : null;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      if (filters.dueFilter === 'overdue') {
-        if (!dueDate || dueDate >= today) return false;
-      } else if (filters.dueFilter === 'today') {
-        if (!dueDate || dueDate.getTime() !== today.getTime()) return false;
-      } else if (filters.dueFilter === '3days') {
-        const in3Days = new Date(today);
-        in3Days.setDate(in3Days.getDate() + 3);
-        if (!dueDate || dueDate < today || dueDate > in3Days) return false;
-      } else if (filters.dueFilter === '7days') {
-        const in7Days = new Date(today);
-        in7Days.setDate(in7Days.getDate() + 7);
-        if (!dueDate || dueDate < today || dueDate > in7Days) return false;
-      } else if (filters.dueFilter === 'future') {
-        if (!dueDate || dueDate <= today) return false;
-      }
-    }
-
-    return true;
-  }).sort((a, b) => {
-    // 排序
-    if (filters.sort === 'priority') {
-      return calculateItemPriority(b) - calculateItemPriority(a);
-    } else if (filters.sort === 'mastery-asc') {
-      return asNumber(a.mastery, 0) - asNumber(b.mastery, 0);
-    } else if (filters.sort === 'mastery-desc') {
-      return asNumber(b.mastery, 0) - asNumber(a.mastery, 0);
-    } else if (filters.sort === 'diff-asc') {
-      return asNumber(a.difficulty, 5) - asNumber(b.difficulty, 5);
-    } else if (filters.sort === 'diff-desc') {
-      return asNumber(b.difficulty, 5) - asNumber(a.difficulty, 5);
-    } else if (filters.sort === 'date-desc') {
-      const dateA = a.last_review ? new Date(a.last_review).getTime() : 0;
-      const dateB = b.last_review ? new Date(b.last_review).getTime() : 0;
-      return dateB - dateA;
-    } else if (filters.sort === 'due-asc') {
-      const dateA = a.due_date ? new Date(a.due_date).getTime() : Infinity;
-      const dateB = b.due_date ? new Date(b.due_date).getTime() : Infinity;
-      return dateA - dateB;
-    } else if (filters.sort === 'due-desc') {
-      const dateA = a.due_date ? new Date(a.due_date).getTime() : 0;
-      const dateB = b.due_date ? new Date(b.due_date).getTime() : 0;
-      return dateB - dateA;
-    }
-    return 0;
-  });
 }

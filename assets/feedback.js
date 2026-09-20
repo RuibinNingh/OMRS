@@ -56,7 +56,7 @@ async function onFbSessionChange(clearResults=true){
   fbRenderSessionInfo();
   const open=fbFirstOpenIndex(fbEntries());
   fbGo(open>=0?open:0);
-  if(clearResults)document.getElementById('fb-results').innerHTML='';
+  if(clearResults)fbClearResults();
 }
 
 function fbRenderSessionInfo(){
@@ -275,6 +275,11 @@ function fbBindPanel(){
 function fbHandleKey(event){
   const panel=document.getElementById('panel-feedback');
   if(!panel||!panel.classList.contains('active'))return;
+  // 结果弹窗盖在上面时只认 Escape，别让 J/K/1/2 打到后面的判定面板
+  if(document.getElementById('fb-result-modal')?.classList.contains('open')){
+    if(event.key==='Escape'){event.preventDefault();fbCloseResults()}
+    return;
+  }
   if(document.getElementById('modal')?.classList.contains('open'))return;
   if(document.getElementById('md-editor')?.classList.contains('open'))return;
   if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){event.preventDefault();submitFb();return}
@@ -455,8 +460,7 @@ function fbImportOmrScan(data){
   fbRows=rows;FB_CURSOR=0;FB_STAGE_UID='';
   const open=fbFirstOpenIndex(fbEntries());
   fbGo(open>=0?open:0);
-  const results=document.getElementById('fb-results');
-  if(results)results.innerHTML='';
+  fbClearResults();
   fbRenderSessionInfo();
   return {ok:true,message:omrReportHtml(sheet,report,sessionUids.length)};
 }
@@ -508,6 +512,7 @@ function fbHandlePaste(event){
   if(event.target.closest?.('input,textarea,select'))return;          // 输入框里的粘贴照常
   if(document.getElementById('modal')?.classList.contains('open'))return;
   if(document.getElementById('md-editor')?.classList.contains('open'))return;
+  if(document.getElementById('fb-result-modal')?.classList.contains('open'))return;
   const text=event.clipboardData?.getData('text/plain')||'';
   if(!String(text).trim())return;
   event.preventDefault();
@@ -529,10 +534,75 @@ function fbImportFeedbackPayload(data){
   else{ACTIVE_FB_SESSION='';if(picker)picker.value='';if(info)info.textContent=`已导入 ${rows.length} 条作答（未关联 Session）`}
   if(!rows.length)return {ok:false,message:`<span style="color:var(--yellow)">${skippedRecorded?'导入内容中的题目已全部录入，无需重复提交。':'没有可导入的作答条目（需要 items: [{uid, is_correct, sub_score}]）'}</span>`};
   fbRows=rows;FB_CURSOR=0;FB_STAGE_UID='';fbGo(0);
-  const results=document.getElementById('fb-results');if(results)results.innerHTML='';
+  fbClearResults();
   return {ok:true,message:`<span style="color:var(--green)">✓ 已导入 ${rows.length} 条作答${skipped?`，跳过 ${skipped} 条无效`:''}${skippedRecorded?`，自动跳过 ${skippedRecorded} 条已录入`:''}。请核对后点「提交反馈」。</span>`};
 }
-async function submitFb(){if(!fbRows.length){uiToast(ACTIVE_FB_SESSION?'当前 Session 已没有待录入题目':'请先添加反馈条目',{kind:'warn'});return}const {ready:readyRows,pending:pendingRows}=fbRowsForSubmit(fbRows);if(!readyRows.length){uiToast(fbRows.length?'当前批次还没有完成判定，请至少点选一道题的「对」或「错」。':'请先添加反馈条目',{kind:'warn'});return}const seen=new Set();const duplicate=readyRows.find(row=>{const uid=(row.uid||'').trim();if(!uid||seen.has(uid))return true;seen.add(uid);return false});if(duplicate){uiToast(`UID「${duplicate.uid||'空白'}」重复或为空，请检查后再提交。`,{kind:'warn'});return}const currentSession=ACTIVE_FB_SESSION?SESSIONS.find(session=>session.session_id===ACTIVE_FB_SESSION):null;const alreadySubmitted=new Set(currentSession?.feedback_uids||[]);const repeat=readyRows.find(row=>alreadySubmitted.has((row.uid||'').trim()));if(repeat){uiToast(`题目「${repeat.uid}」已经录入过反馈，请不要重复提交。若要修正，请到「历史记录」中操作。`,{kind:'warn'});return}const feedbacks=readyRows.map(row=>({uid:row.uid,sub_score:row.score,is_correct:row.correct,note:row.note}));const button=document.getElementById('fb-submit');if(button){button.disabled=true;button.textContent='提交中...'}const sessionId=ACTIVE_FB_SESSION;let result;try{result=await api('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({feedbacks,session_id:sessionId||''})})}catch(error){const btn=document.getElementById('fb-submit');if(btn){btn.disabled=false;btn.textContent='提交反馈'}document.getElementById('fb-status').innerHTML=`<span style="color:var(--red)">✕ ${escapeHtml(error.message)}</span>`;return}const okCount=(result.results||[]).filter(row=>row.status==='ok').length;document.getElementById('fb-status').innerHTML='<span style="color:var(--yellow)">✓ 提交成功，正在刷新 Session 进度…</span>';document.getElementById('fb-results').innerHTML='<div class="card-title" style="margin-top:6px">本次处理结果</div>'+(result.results||[]).map(row=>{const ok=row.status==='ok';const labelClass=row.label==='已击杀'?'kill':row.label==='真不会'?'attack':'trap';const masterySummary=ok?`${(asNumber(row.old_mastery,0)*100).toFixed(0)}% → ${(asNumber(row.new_mastery,0)*100).toFixed(0)}%`:escapeHtml(row.msg||'失败');const sm2Info=ok&&row.new_interval!=null?` · Interval=${row.new_interval}d · Due=${row.new_due_date||'?'}`:'';const sourceInfo=ok&&row.source?` [${row.source==='due'?'到期':'熟练度'}]`:'';return `<div class="result-row ${ok?'ok':'err'}"><span style="font-weight:700;color:var(--accent2)">${escapeHtml(row.uid)}${sourceInfo}</span><span class="tag ${labelClass}">${escapeHtml(row.label||'')}</span><span style="font-family:'JetBrains Mono',monospace;font-size:.76rem">${masterySummary}${sm2Info}</span></div>`}).join('');await reloadData();if(typeof qvInvalidateMany==='function')await qvInvalidateMany(feedbacks.map(row=>row.uid));await refreshSessions();if(sessionId){const picker=document.getElementById('fb-session-picker');if(picker)picker.value=sessionId;const updated=SESSIONS.find(session=>session.session_id===sessionId);const remaining=updated?fbSessionProgress(updated).pending_count:0;const nextInfo=remaining?`下次选择同一 Session 可继续剩余 ${remaining} 题`:'本 Session 已全部录入';document.getElementById('fb-status').innerHTML=`<span style="color:var(--green)">✓ 本次已提交 ${okCount}/${feedbacks.length} 条，${nextInfo}</span>`;await onFbSessionChange(false)}else{fbRows=pendingRows;FB_CURSOR=0;FB_STAGE_UID='';fbGo(0);const pendingInfo=pendingRows.length?`，${pendingRows.length} 道未判定题已保留`:'';document.getElementById('fb-status').innerHTML=`<span style="color:var(--green)">✓ 本次已提交 ${okCount}/${feedbacks.length} 条${pendingInfo}</span>`}}
+// ════════════════════════════════════════════════════════════════════
+// 提交结果：弹窗展示
+//
+// 以前直接写进页内 #fb-results。宽屏下 .panel.active 是整屏 flex 列，明细一多
+// 就把三栏工作台挤矮，而且没有任何关闭入口，只能靠切 Session 才消失。现在明细
+// 进 #fb-result-modal，页内只留一行状态和一个「查看本次结果」按钮。
+// ════════════════════════════════════════════════════════════════════
+let FB_LAST_RESULT=null;      // {rows, okCount, total, sessionId, at}
+
+function fbResultRowsHtml(rows){
+  if(!rows||!rows.length)return '<div class="empty-inline">这次没有返回任何处理结果。</div>';
+  return rows.map(row=>{
+    const ok=row.status==='ok';
+    const labelClass=row.label==='已击杀'?'kill':row.label==='真不会'?'attack':'trap';
+    const masterySummary=ok?`${(asNumber(row.old_mastery,0)*100).toFixed(0)}% → ${(asNumber(row.new_mastery,0)*100).toFixed(0)}%`:escapeHtml(row.msg||'失败');
+    const sm2Info=ok&&row.new_interval!=null?` · Interval=${row.new_interval}d · Due=${row.new_due_date||'?'}`:'';
+    const sourceInfo=ok&&row.source?` [${row.source==='due'?'到期':'熟练度'}]`:'';
+    return `<div class="result-row ${ok?'ok':'err'}"><span style="font-weight:700;color:var(--accent2)">${escapeHtml(row.uid)}${sourceInfo}</span><span class="tag ${labelClass}">${escapeHtml(row.label||'')}</span><span style="font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:.76rem">${masterySummary}${sm2Info}</span></div>`;
+  }).join('');
+}
+
+function fbResultMetaText(payload){
+  if(!payload)return '';
+  const parts=[`${payload.okCount}/${payload.total} 条写入成功`];
+  const failed=asNumber(payload.total,0)-asNumber(payload.okCount,0);
+  if(failed>0)parts.push(`${failed} 条失败`);
+  if(payload.sessionId)parts.push(`Session ${payload.sessionId}`);
+  if(payload.at)parts.push(payload.at);
+  return parts.join(' · ');
+}
+
+// 传 payload = 记住这批新结果并弹出；不传 = 重新打开上一次的结果（状态行的按钮走这条）
+function fbOpenResults(payload){
+  if(payload)FB_LAST_RESULT=payload;
+  const overlay=document.getElementById('fb-result-modal');
+  const list=document.getElementById('fb-results');
+  if(!overlay||!list||!FB_LAST_RESULT){fbSyncResultReopen();return}
+  list.innerHTML=fbResultRowsHtml(FB_LAST_RESULT.rows);
+  list.scrollTop=0;
+  const meta=document.getElementById('fb-result-meta');
+  if(meta)meta.textContent=fbResultMetaText(FB_LAST_RESULT);
+  overlay.classList.add('open');
+  fbSyncResultReopen();
+  const okButton=document.getElementById('fb-result-ok');
+  if(okButton&&typeof okButton.focus==='function')okButton.focus();
+}
+
+function fbCloseResults(){
+  document.getElementById('fb-result-modal')?.classList.remove('open');
+  fbSyncResultReopen();
+}
+
+// 换 Session / 重新导入：上一批结果已经不对应当前这批题了，连重开按钮一起收掉
+function fbClearResults(){
+  FB_LAST_RESULT=null;
+  const list=document.getElementById('fb-results');
+  if(list)list.innerHTML='';
+  fbCloseResults();
+}
+
+function fbSyncResultReopen(){
+  const button=document.getElementById('fb-result-reopen');
+  if(button)button.hidden=!FB_LAST_RESULT;
+}
+
+async function submitFb(){if(!fbRows.length){uiToast(ACTIVE_FB_SESSION?'当前 Session 已没有待录入题目':'请先添加反馈条目',{kind:'warn'});return}const {ready:readyRows,pending:pendingRows}=fbRowsForSubmit(fbRows);if(!readyRows.length){uiToast(fbRows.length?'当前批次还没有完成判定，请至少点选一道题的「对」或「错」。':'请先添加反馈条目',{kind:'warn'});return}const seen=new Set();const duplicate=readyRows.find(row=>{const uid=(row.uid||'').trim();if(!uid||seen.has(uid))return true;seen.add(uid);return false});if(duplicate){uiToast(`UID「${duplicate.uid||'空白'}」重复或为空，请检查后再提交。`,{kind:'warn'});return}const currentSession=ACTIVE_FB_SESSION?SESSIONS.find(session=>session.session_id===ACTIVE_FB_SESSION):null;const alreadySubmitted=new Set(currentSession?.feedback_uids||[]);const repeat=readyRows.find(row=>alreadySubmitted.has((row.uid||'').trim()));if(repeat){uiToast(`题目「${repeat.uid}」已经录入过反馈，请不要重复提交。若要修正，请到「历史记录」中操作。`,{kind:'warn'});return}const feedbacks=readyRows.map(row=>({uid:row.uid,sub_score:row.score,is_correct:row.correct,note:row.note}));const button=document.getElementById('fb-submit');if(button){button.disabled=true;button.textContent='提交中...'}const sessionId=ACTIVE_FB_SESSION;let result;try{result=await api('/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({feedbacks,session_id:sessionId||''})})}catch(error){const btn=document.getElementById('fb-submit');if(btn){btn.disabled=false;btn.textContent='提交反馈'}document.getElementById('fb-status').innerHTML=`<span style="color:var(--red)">✕ ${escapeHtml(error.message)}</span>`;return}const okCount=(result.results||[]).filter(row=>row.status==='ok').length;document.getElementById('fb-status').innerHTML='<span style="color:var(--yellow)">✓ 提交成功，正在刷新 Session 进度…</span>';fbOpenResults({rows:result.results||[],okCount,total:feedbacks.length,sessionId,at:new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})});await reloadData();if(typeof qvInvalidateMany==='function')await qvInvalidateMany(feedbacks.map(row=>row.uid));await refreshSessions();if(sessionId){const picker=document.getElementById('fb-session-picker');if(picker)picker.value=sessionId;const updated=SESSIONS.find(session=>session.session_id===sessionId);const remaining=updated?fbSessionProgress(updated).pending_count:0;const nextInfo=remaining?`下次选择同一 Session 可继续剩余 ${remaining} 题`:'本 Session 已全部录入';document.getElementById('fb-status').innerHTML=`<span style="color:var(--green)">✓ 本次已提交 ${okCount}/${feedbacks.length} 条，${nextInfo}</span>`;await onFbSessionChange(false)}else{fbRows=pendingRows;FB_CURSOR=0;FB_STAGE_UID='';fbGo(0);const pendingInfo=pendingRows.length?`，${pendingRows.length} 道未判定题已保留`:'';document.getElementById('fb-status').innerHTML=`<span style="color:var(--green)">✓ 本次已提交 ${okCount}/${feedbacks.length} 条${pendingInfo}</span>`}}
 
 if(typeof document!=='undefined'){
   document.addEventListener('keydown',fbHandleKey);

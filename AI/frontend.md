@@ -2,7 +2,7 @@
 
 > 入口：`omrs_dashboard.html`（仅结构）。样式与脚本拆分到 `assets/` 资源文件夹。
 
-无构建步骤。后端与本地前端代码不需要打包依赖；页面运行时外链 Google Fonts，并从 `assets/vendor/katex/` 本地加载 KaTeX 渲染 LaTeX（不可用时降级为可辨识的公式源码片段）。所有图表使用纯 CSS + 内联 SVG 实现。
+无构建步骤。后端与本地前端代码不需要打包依赖；主仪表盘和移动收件箱从 `assets/vendor/fonts/fonts.css` 加载本地 Noto Sans SC 与 JetBrains Mono WOFF2 Unicode 分片，字体 CSS 不含远程 URL。KaTeX 从 `assets/vendor/katex/` 本地加载并渲染 LaTeX（不可用时降级为可辨识的公式源码片段）。所有图表使用纯 CSS + 内联 SVG 实现。
 
 > 本文只描述**当前**的前端结构与行为。各版本改了什么、为什么改，统一放在 [`changelog.md`](changelog.md)（按版本倒序），这里不再逐版堆叙述；需要考古时先看 changelog，再看 `logs/`。
 
@@ -26,6 +26,7 @@
 omrs_dashboard.html   ← 仅 HTML 结构，<link> 引样式 + 多个 <script> 引脚本
 assets/
 ├── styles.css        ← 全部样式（原 <style> 内联块抽出）
+├── vendor/fonts/     ← 本地 Noto Sans SC / JetBrains Mono 字体分片、许可与来源清单
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染 + 做题记录解析（v1.16.0）
 ├── dashboard.js      ← 仪表盘图表 renderDash
 ├── labels.js         ← 用户标记芯片、LabelPicker、标记管理与筛选状态
@@ -462,6 +463,10 @@ HTML。常驻而不是每次新建：那份 HTML 内联了将近 1MB 的 KaTeX �
 留下的缺口是「在应用外改了文件」「第三方链路没触发重载」，人工兜底是检视条上的
 「↻ 重新生成」（`boardRegenPreview()`，清缓存后强制重新导出）。
 
+续印预览的几何以本次导出初始化时的纸面快照为准：`mode:"new"` 从 `printed.print` 读取原纸的
+`note_ratio / gap_lines`，常驻 iframe 收到 `omrs-board-relayout` 时也继续使用这份快照。宿主当前
+设置的比例不会覆盖已打印锁定纸面；只有重新打印全部才会生成新的整板几何。
+
 #### 保存队列：按字段记脏、合并成一次 POST
 
 行内留白与版面滑块曾各自持有同一个 `BOARD_SAVE_TIMER` 并互相 `clearTimeout`，
@@ -503,45 +508,45 @@ Enter 打开、Delete 移除。完整设计见 `board.md` §3 与 §4。
 
 ---
 
-## 4. 推荐面板（双列表 + 勾选确认）
+## 4. 复习调度工作台（`assets/recommend_v2.js` / `assets/schedule.js`）
 
 > 新增于 2026-05，替代旧版”直接塞题”流程。
 
-### 入口
+### 入口与状态
 
-复习调度页面顶部双按钮：
-- **开始常规复习** → 推荐面板（双列表推荐 → 勾选 → 预览 → 确认生成 EXP- Session）
-- **导出** → 全题库筛选导出面板（`assets/export.js`）：勾选题目后直接导出 A4/屏幕版自包含 HTML，批次号 TMP-，不写 `sessions.csv`
+复习调度页直接进入「安排复习」工作区，并在顶部并列显示「已有计划」及待完成数量。推荐在页面加载时自动读取；没有候选题时提示已有计划入口。全题库导出仍可从调度页进入，导出面板提供返回调度入口。
 
-旧「自定义练习」（新建 Session 表单）入口已移除：TMP- 批次现由两条路径产生——推荐面板**单题确认**，或「导出」面板**导出选中**（`POST /api/export` 传 `uids`）。`POST /api/schedule` 端点保留兼容，前端不再调用。
+### 安排复习
 
-### 推荐面板流程
+`GET /api/recommend?due_count=1000&prof_count=1000` 默认加载全部可安排候选。列表保留后端返回顺序：到期题按到期优先，熟练度题按统一优先级；均衡模式在各科目间轮选，其他模式按到期/熟练度来源排列。每题显示来源、到期原因、科目、分类、难度和熟练度，并可打开题目预览。
 
-1. `GET /api/recommend` 获取双列表（到期 + 熟练度，互斥不重复）
-2. 用户勾选题目（两侧列表均可勾选），实时显示已选计数 + 预计耗时
-3. 可选操作：
-    - **预览计划**：展示 4 种视图（列表/卡片/分组/时间）
-    - **一键智能确认**：自动勾选到期列表前 N 道题
-   - **选择当前筛选 / 全选推荐 / 移除当前筛选**：批量维护已选题目
-    - **确认生成计划**：`POST /api/confirm-schedule`
-4. ≥2 题生成 EXP- Session（写入 sessions.csv，必须反馈），1 题生成 TMP- 批次
+顶部保留科目、搜索和推荐方式；更多筛选折叠包含分类、知识点、状态、到期范围、难度、熟练度、排序和标记匹配。筛选条件以 chips 显示并可单独移除，筛选刷新不会清空已选题；「只看已选」与选择栏会提示被筛选隐藏但仍会加入计划的题目。建议题量默认为 10，可编辑；按建议选择替换当前选择，也可以逐题勾选或全选当前结果。
+
+生成计划会把全部已选题以 `persist:true` 提交，成功后自动切换到已有计划、打开新计划详情并刷新推荐；请求失败保留选择并显示错误。加载请求用序号丢弃过期响应，错误状态提供重试。
+
+计划列表和详情请求也带请求序号：较早的网络响应不能覆盖后来选择的计划；列表加载失败提供重试，详情 404/网络错误在当前详情区域提供重试。安排/已有计划页签支持点击、左右方向键以及 `Home`/`End`，焦点跟随当前页签。调度工作台在窄屏把候选行折成两行网格，保留原因、熟练度和预览按钮，390px 宽度不产生横向溢出。
+
+### 已有计划
+
+已有计划页支持待完成、已完成、全部筛选和编号搜索。列表显示计划状态、题量和反馈进度；详情显示题目、进度、预览、导出和跳转反馈入口。刷新后计划列表与详情保持可见，完成状态来自 Session 数据而不是页面临时状态。
 
 推荐优化面板（`assets/recommend_v2.js`）的筛选状态和筛选函数使用 `recV2GetFilterState()`、`recV2FilterItems()` 私有命名。`core.js` 的 `getFilterState()` / `filterItems()` 是题库、展示板、导出和即时练习共用契约，不应由推荐面板覆盖。
 
-### 四种预览视图
+### 列表 / 画廊视图
 
-| 视图 | 说明 |
-|---|---|
-| 列表视图 | 一行一道题：UID、科目、分类、难度、来源标签、预计时间 |
-| 卡片视图 | 每道题一张卡片，显示题目元信息和来源标签 |
-| 分组视图 | 按科目分组（如”数学 3 道，约 24 分钟”），显示各组成员 |
-| 时间视图 | 按预计耗时升序排列，便于先从简单的开始 |
+候选区提供「列表 / 画廊」切换。列表视图一行一道题，显示 UID、科目、分类、难度、来源原因和熟练度；画廊视图将同一批候选呈为卡片，并保留勾选、来源原因、熟练度和题目预览。切换只改变候选区的呈现，不重新加载推荐、不清空筛选条件或已选题目。
+
+视图偏好保存在 `localStorage['omrs-schedule-view']`，页面再次进入时恢复 `list` 或 `gallery`，未知值回退列表。画廊卡的题面预览复用共享 qview：调用 `qvRender()`，以 `QV_CARD_OPTS` 为基础并使用 `clamp:8`，只显示题面，不渲染答案；图片、公式和 Markdown 沿用 qview 的安全渲染。预览节点通过 `IntersectionObserver` 懒加载，浏览器不支持观察器时直接加载全部卡片。预览失败沿用 qview 的降级与重试状态。
+
+画廊在桌面端使用自适应卡片网格，≤760px 收为单列；卡片内部的题面预览有独立滚动和高度上限，长题不会撑开整个页面。
 
 ### 来源标记
 
 每道题携带 `_source` 字段（`due` / `proficiency`），在反馈时决定 SM-2 排期策略：
 - `due`：到期来源 → 标准 SM-2 全量更新
 - `proficiency`：熟练度来源 → 答对时间隔 × 0.7 折中
+
+调度页的新页面始终传 `persist:true`，因此即使只选 1 题也创建正式 `EXP-` Session；旧调用不传该字段时仍保留单题 `TMP-` 兼容行为。
 
 ---
 
@@ -616,6 +621,17 @@ renderFb()          // 三者依次调用；名字保留，兼容既有调用点
 - 游标 `FB_CURSOR` 是 rail 条目下标，每次渲染前经 `fbSetCursor()` 夹取，切 Session / 导入后自动定位到第一道未判定题。
 - 分数默认值随判定走：用户没手动拖过时点「对」置 9、点「错」置 4（与 `importFeedbackJson()` 的 `correct?10:4` 同一心智）；拖过之后 `row.scoreTouched=true`，不再自动改。
 - 快捷键（`fbHandleKey`，仅在本面板激活、Modal / Markdown 编辑器未打开、焦点不在输入控件时生效）：`J`/`↓` 下一题、`K`/`↑` 上一题、`1` 判对、`2` 判错、`0`–`9` 设主观分（需已判定）、`Enter` 跳下一道未判定、`E` 打开当前题的 Markdown 编辑器、`⌘`/`Ctrl`+`V` 读答题卡 JSON（见 §5.1.1）、`⌘`/`Ctrl`+`Enter` 提交。面板底部一行极小字提示，不做弹窗帮助。
+
+### 提交结果走弹窗（v1.18.1 起）
+
+提交后的「本次处理结果」明细在 `#fb-result-modal`（`.modal-overlay` + `.modal.fb-result-modal`，与 `#modal` / `#md-editor` 同一套骨架），不在页内。页内只留 `.fb-statusbar` 一行：`#fb-status` 一句小结 + `#fb-result-reopen`「查看本次结果」按钮。
+
+- `fbOpenResults(payload)` 传 `{rows, okCount, total, sessionId, at}` 时记进 `FB_LAST_RESULT` 并弹出；不传参数就是重开上一次的结果，`#fb-result-reopen` 走这条。
+- `fbCloseResults()` 只关弹窗，`FB_LAST_RESULT` 留着，所以关掉之后还能再打开；`fbClearResults()` 连结果一起丢并收起重开按钮，用在换 Session（`onFbSessionChange(true)`）与两条导入路径上——上一批结果已经不对应当前这批题了。
+- 关闭入口四个：右上 `✕`、底部「知道了」、点遮罩、`Escape`。弹窗开着时 `fbHandleKey` 只认 `Escape` 就 return，`J`/`K`/`1`/`2`/`⌘`+`Enter` 都打不到后面的判定面板，`fbHandlePaste` 同样让路。
+- 明细行仍是 `.result-row.ok` / `.err`（与即时练习同一套样式），由 `fbResultRowsHtml(rows)` 生成；`.fb-result-list` 自己滚，头尾不跟着走，所以批次再大关闭按钮也在视野里。
+
+这一条的动因是布局：宽屏 `.content.is-workbench` 下 `.panel.active` 是整屏 flex 列且 `overflow:hidden`，页内结果块会把 `.fb-work` 三栏挤矮，明细多了还会被裁到屏幕外，而它此前只有换 Session 才消失。
 
 ### 5.1.1 答题卡扫描 JSON 导入（v1.11.0）
 

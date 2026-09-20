@@ -80,6 +80,31 @@ class BoardExportGeometryTests(unittest.TestCase):
                                 question_text=text, answer_text="答")["uid"] for text in texts]
         return create_board(vault, "几何板", uids)
 
+    def test_record_uses_rendered_settings_then_incremental_keeps_them(self):
+        from omrs.boards import add_items, record_printed
+        with tempfile.TemporaryDirectory() as vault:
+            board = self._board(vault, ("已印题",))
+            update_board(vault, board["id"], print={"note_ratio": .42})
+            layout = {
+                "pages": 1, "cursor": {"page": 1, "y": 160},
+                "print": {**board["print"], "note_ratio": .5},
+                "items": [{**board["items"][0], "segments": [{"page": 1, "top": 0, "height": 160}]}],
+            }
+            saved = record_printed(vault, board["id"], "all", layout)
+            self.assertEqual(saved["print"]["note_ratio"], .42)
+            self.assertEqual(saved["printed"]["print"]["note_ratio"], .5)
+            later = create_question(vault, subject="数学", category="代数", difficulty=5, question_text="新增题")
+            add_items(vault, board["id"], [later["uid"]])
+            data = _data(export_board_html(vault, board["id"], mode="new"))
+            self.assertEqual(data["meta"]["print"]["note_ratio"], .5)
+            self.assertEqual(data["meta"]["printed"]["cursor"], layout["cursor"])
+            # 增量追加不允许传来的版式覆盖旧纸；缺少快照的老客户端仍可记录整板。
+            saved = record_printed(vault, board["id"], "new", {**layout, "print": {"note_ratio": .3}})
+            self.assertEqual(saved["printed"]["print"]["note_ratio"], .5)
+            del layout["print"]
+            saved = record_printed(vault, board["id"], "all", layout)
+            self.assertEqual(saved["printed"]["print"]["note_ratio"], .42)
+
     def test_questions_carry_absolute_gap_lines_only(self):
         with tempfile.TemporaryDirectory() as vault:
             board = self._board(vault)

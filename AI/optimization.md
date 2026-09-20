@@ -8,6 +8,8 @@
 
 ## 最值得动的
 
+- [ ] **服务重启时 TCP 端口短暂占用** — 影响:中 / 工作量:小。`systemctl restart omrs.service` 在旧连接尚未完全释放时可能遇到 `Address already in use`，触发 systemd 自动重试；本次 2026-09-20 验收中约 19 秒后恢复，最终服务正常。根因与既有部署日志记录的 `TCPServer` bind 竞态相同，尚未改动 `omrs/cli.py`；后续可评估 `allow_reuse_address` 或明确的 stop→等待→start 流程，避免重复手工重启。
+
 - [ ] **服务器单线程,AI 识别时整界面卡死** — 影响:高 / 工作量:中
   `cli.py` 用 `socketserver.TCPServer`(非 Threading),一次只处理一个请求。而 `ai-recognize` 同步调外部大模型(`ai_assist.py`,带 timeout,可能十几秒),期间任何请求都被阻塞;局域网多设备也排队。
   改法:换 `ThreadingHTTPServer` / `ThreadingTCPServer` + `daemon_threads=True`。**v1.12.0 部分缓解**：收件箱的 detect / extract / classify 已改成后台线程 job + 轮询（`omrs/inbox.py`），批量识别不再卡界面；旧 `/api/ai-recognize` 仍同步。**代价**:并发后文件型数据层(CSV / Markdown / ledger)写入需加锁——给改动型端点 + `append_commit` / `rebuild_projection` 套一把全局 `threading.Lock`。

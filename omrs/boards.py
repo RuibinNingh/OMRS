@@ -900,7 +900,7 @@ def record_printed(vault: str, board_id: str, mode: str, layout: dict) -> dict:
     """把浏览器测得的版面写入纸面记录。
 
     ``layout`` = {pages, cursor:{page,y}, items:[{question_id, uid, segments:[{page,top,height}]}],
-                  answer_pages:[...]}
+                  answer_pages:[...], print:{...实际排版设置}}
     mode="all" 整体替换；mode="new" 在原记录上追加新题并推进 cursor / pages。
     """
     data = load_boards(vault)
@@ -943,7 +943,9 @@ def record_printed(vault: str, board_id: str, mode: str, layout: dict) -> dict:
             "at": _now(),
             "pages": pages,
             "cursor": cursor,
-            "print": board["print"],
+            # 预览可已重排、独立窗口也可能早于当前设置生成；记录与位置同源的版式。
+            # 旧导出件不带 print 时仍兼容原有记录协议。
+            "print": normalize_print(layout["print"]) if isinstance(layout.get("print"), dict) else board["print"],
             "items": new_items,
             "answer_pages": answer_pages,
         }
