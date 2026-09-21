@@ -56,3 +56,32 @@ test('selecting another plan keeps its detail when an older response arrives', a
   assert.match(nodes.get('sch-plan-detail').innerHTML,/NEW/);
   assert.doesNotMatch(nodes.get('sch-plan-detail').innerHTML,/OLD/);
 });
+
+test('delete confirmation blocks duplicate requests and cancellation preserves the plan', async()=>{
+  const {context:c,requests}=fixture();
+  let confirm;
+  c.uiConfirm=()=>new Promise(resolve=>{confirm=resolve;});
+  c.SESSIONS=[{session_id:'KEEP'}];
+  const first=c.schDeletePlan('KEEP');
+  await c.schDeletePlan('KEEP');
+  assert.equal(requests.length,0);
+  confirm(false);
+  await first;
+  assert.equal(c.SESSIONS.length,1);
+  assert.equal(vm.runInContext('SCH_DELETING.size',c),0);
+});
+
+test('delete business error preserves state and permits retry', async()=>{
+  const {context:c,requests}=fixture();
+  const messages=[];
+  c.uiConfirm=async()=>true;
+  c.uiToast=message=>messages.push(message);
+  c.SESSIONS=[{session_id:'KEEP'}];
+  const attempt=c.schDeletePlan('KEEP');
+  await new Promise(setImmediate);
+  requests[0].resolve({status:'error',deleted:false});
+  await attempt;
+  assert.equal(c.SESSIONS.length,1);
+  assert.match(messages[0],/删除失败/);
+  assert.equal(vm.runInContext('SCH_DELETING.size',c),0);
+});

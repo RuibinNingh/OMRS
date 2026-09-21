@@ -278,7 +278,7 @@
 ---
 
 ### `POST /api/session/delete`
-兼容旧入口。v1.1.0 内部不物理删除 Session，而是追加 `session.retract` commit。
+复习调度详情的「删除调度」入口调用此接口，追加 `session.retract` commit，不物理删除 Ledger 记录。待完成和已完成计划均可撤销；关联反馈整体退出有效投影，重新计算熟练度、复习日期与统计，题目正文保留。可通过历史记录恢复 Session。成功返回 `{"status":"ok","deleted":true}`；计划不存在时返回 HTTP 200 与 `{"status":"error","deleted":false}`，调用方必须检查业务字段。
 
 **请求体：**
 ```json

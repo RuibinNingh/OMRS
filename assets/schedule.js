@@ -7,6 +7,7 @@ let SCH_SESSIONS_LOADING = false;
 let SCH_SESSIONS_ERROR = '';
 let SCH_SELECTED_ID = '';
 let SCH_DETAIL = null;
+const SCH_DELETING = new Set();
 
 function schShow(view) {
   const changed = SCH_VIEW !== view;
@@ -98,7 +99,7 @@ async function schOpenPlan(sessionId, focus = true) {
     box.innerHTML = `<button class="btn sm sch-back" onclick="schBackToPlans()">← 返回计划列表</button>
       <div class="sch-detail-head"><div><h3>${escapeHtml(detail.subject_filter || '多科')}复习计划</h3><p class="sch-meta">${escapeHtml(detail.created_at.replace('T',' '))} · ${escapeHtml(sessionId)}</p></div><span class="sch-reason">${detail.status === 'completed'?'已完成':'待完成'}</span></div>
       <div class="sch-progress-summary"><strong>已录入 ${detail.feedback_count || 0} / 共 ${detail.count} 题</strong><span class="hint">${detail.pending_count ? `还有 ${detail.pending_count} 题待录入` : '本次复习已全部录入'}</span></div>
-      <div class="sch-actions"><button class="btn primary" onclick="feedbackSession(${jsArg(sessionId)})" ${!detail.pending_count || detail.status === 'completed'?'disabled':''}>录入结果</button><button class="btn" onclick="schExportPlan('a4')">导出打印版</button><button class="btn" onclick="schExportPlan('screen')">导出屏幕版</button></div>
+      <div class="sch-actions"><button class="btn primary" onclick="feedbackSession(${jsArg(sessionId)})" ${!detail.pending_count || detail.status === 'completed'?'disabled':''}>录入结果</button><button class="btn" onclick="schExportPlan('a4')">导出打印版</button><button class="btn" onclick="schExportPlan('screen')">导出屏幕版</button><button class="btn danger" onclick="schDeletePlan(${jsArg(sessionId)})" ${SCH_DELETING.has(sessionId)?'disabled':''}>删除调度</button></div>
       <details class="sch-export-options"><summary>打印选项</summary><div class="sch-actions"><label><input id="sch-include-answers" type="checkbox"> 附带答案</label><label>题间留白 <input id="sch-question-gap" class="input" type="number" min="0" max="20" value="0"> 行</label></div></details>
       <div id="sch-status" class="sch-status" role="status"></div>
       <div class="sch-detail-questions">${items.map((item,index) => {
@@ -109,6 +110,55 @@ async function schOpenPlan(sessionId, focus = true) {
   } catch (error) {
     if (request !== SCH_DETAIL_REQUEST) return;
     box.innerHTML = `<button class="btn sm" onclick="schBackToPlans()">← 返回计划列表</button><div class="sch-empty">无法读取计划：${escapeHtml(error.message)}<button class="btn" onclick="schOpenPlan(${jsArg(sessionId)})">重试</button></div>`;
+  }
+}
+async function schDeletePlan(sessionId) {
+  if (!sessionId || SCH_DELETING.has(sessionId)) return;
+  SCH_DELETING.add(sessionId);
+  try {
+    const ok = await uiConfirm(`删除调度「${sessionId}」？`, {
+      hint: '删除后该计划将从已有计划中移除，题目可重新安排复习。若已录入反馈，这些反馈也会一并撤销，并重新计算熟练度和复习日期。题目正文保留，可在历史记录中恢复该 Session。',
+      okText: '删除调度', danger: true,
+    });
+    if (!ok) return;
+    const result = await api('/api/session/delete', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({session_id:sessionId}),
+    });
+    if (result?.status !== 'ok' || result.deleted !== true) throw new Error(result?.msg || '计划不存在或已删除，请刷新计划列表');
+    // Invalidate pre-deletion responses before updating shared local state.
+    ++SCH_SESSION_REQUEST;
+    SESSIONS = SESSIONS.filter(s => s.session_id !== sessionId);
+    if (SCH_SELECTED_ID === sessionId) {
+      ++SCH_DETAIL_REQUEST;
+      SCH_SELECTED_ID = '';
+      SCH_DETAIL = null;
+      document.getElementById('sch-plan-detail').innerHTML = '<div class="sch-empty">调度已删除，请选择其他计划或安排新复习。</div>';
+      schBackToPlans();
+    }
+    refreshFbSessionPicker();
+    if (typeof ACTIVE_FB_SESSION !== 'undefined' && ACTIVE_FB_SESSION === sessionId) {
+      resetFeedbackForm();
+      fbClearResults();
+    }
+    schRenderPlans();
+    uiToast('调度已删除，可在历史记录中恢复。');
+    try {
+      await reloadData();
+      if (typeof qvInvalidateMany === 'function') await qvInvalidateMany();
+      await refreshSessions();
+      await loadRecommendationsV2();
+    } catch (error) {
+      uiToast(`调度已删除，但页面刷新失败，请刷新页面：${error.message}`, {kind:'error'});
+    }
+  } catch (error) {
+    uiToast(`删除失败：${error.message}`, {kind:'error'});
+  } finally {
+    SCH_DELETING.delete(sessionId);
+    // A detail refresh during the request may have rendered a disabled button.
+    if (SCH_SELECTED_ID === sessionId) {
+      document.querySelectorAll('#sch-plan-detail button[onclick^="schDeletePlan"]').forEach(button => { button.disabled = false; });
+    }
   }
 }
 function schBackToPlans() { document.getElementById('sch-plan-work').classList.remove('show-detail'); }
