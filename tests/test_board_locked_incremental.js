@@ -18,6 +18,7 @@ function harness({ paper = true, locked = true, confirm = false } = {}) {
   const ctx = vm.createContext({ console, initial: detail, posts, confirms, toasts,
     setTimeout: () => 1, clearTimeout: () => {}, CSS: { escape: x => x },
     localStorage: { getItem: () => null, setItem: () => {} },
+    window: { addEventListener: (name, fn) => (handlers[`window:${name}`] ||= []).push(fn) },
     document: { addEventListener: (name, fn) => (handlers[name] ||= []).push(fn),
       querySelector: () => null, querySelectorAll: () => [], getElementById: () => null },
     uiConfirm: async (...args) => { confirms.push(args); return confirm; },
@@ -47,6 +48,22 @@ test('统一加题入口：锁定板无需破坏性确认，新增打印范围�
   assert.deepEqual(h.detail().printed, before);
   assert.equal(h.run("boardStatusModel(BOARD_DETAIL, 'new', null).scope"), 'new');
   assert.equal(h.run('BOARD_LAYOUT_GRANTED'), false, '安全操作不应授予下一次破坏性修改权限');
+});
+
+test('重置或切换范围后，旧打印窗口消息不能恢复已清空纸面', async () => {
+  const h = harness({ confirm: true });
+  h.run(`const popup = {}; const stale = {boardId: 'BD-test', mode: 'all', layout: null};
+    BOARD_WINDOWS.set(popup, stale); BOARD_PRINT_JOBS.delete('BD-test');`);
+  const handler = h.handlers['window:message'][0];
+  await handler({ source: {}, data: { type: 'omrs-board-printed' } });
+  const popup = h.run('Array.from(BOARD_WINDOWS.keys())[0]');
+  await handler({ source: popup, data: {
+    type: 'omrs-board-printed', boardId: 'BD-test', mode: 'all',
+    layout: { board_id: 'BD-test', mode: 'all', pages: 1,
+      items: [{ question_id: 'OP-000001', uid: 'old', segments: [{page: 1}] }] },
+  }});
+  assert.equal(h.posts.length, 0);
+  assert.equal(h.confirms.length, 0);
 });
 
 test('锁定说明表达纸面保护边界，不把增删排序说成全部重印', () => {
@@ -91,6 +108,19 @@ test('关闭切割线时修改未生效的线标签无需确认', async () => {
   await h.run('boardFlushSave()');
   assert.equal(h.confirms.length, 0);
   assert.equal(h.posts[0]?.payload.print.cut_label, true);
+});
+
+test('按标记同步先等待本地 items 保存，避免覆盖刚追加的题目', async () => {
+  const h = harness();
+  h.run(`LABELS = [{name: '重点', archived: false, count: 1}];
+    lblChip = () => '';
+    getItems = () => [{uid: 'new', labels: ['重点'], suspended: false}];
+    uiDialog = async () => ({ok: true, values: {'bd-sync-0': true}});
+    BOARD_DIRTY = {items: true};`);
+  await h.run('boardSyncLabel()');
+  assert.deepEqual(h.posts.map(post => post.url), [
+    '/api/board/update', '/api/board/items/add', '/api/board/update',
+  ]);
 });
 
 test('全局留白只影响未打印题时无需确认', async () => {

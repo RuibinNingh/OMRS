@@ -657,8 +657,8 @@
 模板把版面（`window.OMRS_LAYOUT`，含本次排版实际采用的 `print` 快照）`postMessage` 给主程序，
 用于 `POST /api/board/printed`。
 
-展示板页的常驻预览 iframe 用的就是这个端点。它按「板 + 模式 + 题目签名 + 纸面时间」做指纹缓存，
-**版面设置不在指纹里**：拖滑块、改题间留白、换切割线走 `omrs-board-relayout` 在 iframe 里就地
+展示板页的常驻预览 iframe 用的就是这个端点。它按「板 + 模式 + 题目签名（含答案与标记开关）+ 纸面时间」做指纹缓存，
+**纯几何设置不在指纹里**：拖滑块、改题间留白、换切割线走 `omrs-board-relayout` 在 iframe 里就地
 重排，一次请求都不发。因此几何调整期间这个端点的 QPS 应当为 0；不为 0 就是回归。
 
 ### `POST /api/board/create`
@@ -720,7 +720,7 @@
 ```
 
 `position` 可省略，省略时追加到板尾；成功响应为完整的 `board` 对象，另附本次实际加入的
-数量 `board.added`。
+数量 `board.added` 与实际新增的 UID 列表 `board.added_uids`。撤销只使用这份新增清单，全部已存在时列表为空；这两个字段只出现在响应，不写入 boards.json。
 
 ### `POST /api/board/items/remove`
 按 UID 或 `question_id` 移除展示板条目，不影响题目本身。
@@ -747,7 +747,10 @@
 （`window.OMRS_LAYOUT`），包含 `pages / cursor / items[].segments / answer_pages` 及本次排版实际
 采用的 `print` 快照（至少含 `note_ratio / gap_lines`）。`mode:"all"` 记录时优先采用该快照，
 旧导出件缺少它时回退当前板 `print`；`mode:"new"` 追加题目时保留原 `printed.print`，不会用
-本次增量布局覆盖原纸比例。服务端并为每题记下正文指纹，用于之后提示「已改动」。
+本次增量布局覆盖原纸比例。每题正文指纹优先使用 `layout.items[].hash`（导出时的内容），缺失时兼容回退记录时正文，用于之后提示「已改动」。
+
+`layout.board_id` 或 `layout.mode` 存在时必须分别与请求的 `id / mode` 相符；不符返回 400，且不修改纸面或历史记录。缺少这些字段的旧导出件仍可记录。
+服务端同时校验每个题目引用能解析且 `question_id / uid` 一致，并要求题目属于当前展示板或既有纸面记录；未知题、别板题和越界页码返回 400。`mode:"new"` 必须已有纸面记录，`pages`、`cursor.page`、题目段页码和答案页码彼此一致。导出后移出展示板的旧整板快照仍可记录，用于保留实际纸面占位。
 
 **请求体：**
 ```json

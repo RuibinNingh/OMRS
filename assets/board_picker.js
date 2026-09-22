@@ -210,20 +210,22 @@ async function boardPickerCommit(board, additive) {
     return;
   }
   const uids = state.pending.length ? state.pending : picker.uids;
-  if (picker.moveFrom && picker.moveFrom !== board.id) {
-    try { await boardPost('/api/board/items/remove', { id: picker.moveFrom, uids: picker.uids }); } catch (error) {}
-  }
   picker.touched = true;
   if (additive) {
-    picker.added.set(board.id, uids);
     const result = await boardAddToBoard(board.id, uids, { silent: true });
-    if (!result) picker.added.delete(board.id);
+    if (result?.added_uids?.length) picker.added.set(board.id, result.added_uids);
     await boardPickerRefresh();
     return;
   }
   const from = picker.moveFrom ? (picker.boards.find(item => item.id === picker.moveFrom)?.name || '') : '';
   boardPickerClose();
-  await boardAddToBoard(board.id, uids, { moveFromName: from });
+  const result = await boardAddToBoard(board.id, uids, { moveFromName: from });
+  if (result && picker.moveFrom && picker.moveFrom !== board.id) {
+    try {
+      await boardPost('/api/board/items/remove', { id: picker.moveFrom, uids: picker.uids });
+      await boardReloadData();
+    } catch (error) { uiToast(`已加入目标板，原板移除失败：${error.message}`, { kind: 'error' }); }
+  }
 }
 
 async function boardPickerRefresh() {
@@ -288,11 +290,12 @@ async function boardPickerOpen(uids, options = {}) {
     if (target) {
       const board = await boardAddToBoard(target.id, clean, { silent: true });
       if (board) {
-        uiToast(`已直接加入《${board.name}》（现共 ${board.items.length} 题）`, {
-          actions: [
-            { label: '撤销', onClick: () => boardPost('/api/board/items/remove', { id: board.id, uids: clean }).then(boardReloadData).then(() => uiToast('已撤销加入')) },
-            { label: '换个板…', onClick: () => boardPickerOpen(clean, { exclude: board.id, moveFrom: board.id }) },
-          ],
+        const added = board.added_uids || [];
+        uiToast(added.length ? `已直接加入《${board.name}》（现共 ${board.items.length} 题）` : `这些题已经在《${board.name}》里了`, {
+          actions: added.length ? [
+            { label: '撤销', onClick: () => boardPost('/api/board/items/remove', { id: board.id, uids: added }).then(boardReloadData).then(() => uiToast('已撤销加入')) },
+            { label: '换个板…', onClick: () => boardPickerOpen(added, { exclude: board.id, moveFrom: board.id }) },
+          ] : [],
         });
       }
       return;

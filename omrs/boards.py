@@ -17,7 +17,7 @@ import json
 import os
 import uuid
 
-from .common import MASTERY_HEADERS, load_csv, mastery_path, omrs_data_dir, split_sections
+from .common import MASTERY_HEADERS, load_csv, mastery_path, omrs_data_dir, questions_root, split_sections
 from .ledger import connect
 
 
@@ -160,6 +160,18 @@ def _normalize_segments(raw) -> list:
             "height": round(_float(seg.get("height"), 0.0, 0.0, 100000.0), 2),
         })
     return segments
+
+
+def _safe_question_path(vault: str, file_path: str):
+    """把投影 / CSV 中的题目路径限制在错题目录内。"""
+    root = os.path.abspath(questions_root(vault))
+    candidate = os.path.abspath(os.path.join(vault, str(file_path or "").replace("\\", os.sep).replace("/", os.sep)))
+    try:
+        if os.path.commonpath([root, candidate]) != root:
+            return None
+    except ValueError:
+        return None
+    return candidate
 
 
 def _normalize_printed(raw) -> dict:
@@ -405,8 +417,10 @@ class _Resolver:
             return ""
         if file_path in self._hash_cache:
             return self._hash_cache[file_path]
-        path = os.path.join(self.vault, file_path.replace("\\", os.sep).replace("/", os.sep))
+        path = _safe_question_path(self.vault, file_path)
         try:
+            if not path:
+                raise OSError("题目文件路径不在错题目录内")
             with open(path, "r", encoding="utf-8") as file:
                 value = print_hash_for_content(file.read())
         except OSError:
@@ -751,6 +765,7 @@ def add_items(vault: str, board_id: str, uids, position=None) -> dict:
     save_boards(vault, data)
     result = get_board(vault, board_id)
     result["added"] = len(added)
+    result["added_uids"] = [item["uid"] for item in added]
     return result
 
 
@@ -907,27 +922,88 @@ def record_printed(vault: str, board_id: str, mode: str, layout: dict) -> dict:
     board = _find(data, board_id)
     mode = mode if mode in PRINT_MODES else "all"
     layout = layout if isinstance(layout, dict) else {}
+    if layout.get("board_id") and layout["board_id"] != board_id:
+        raise ValueError("版面所属展示板不匹配，未记录纸面")
+    if layout.get("mode") and layout["mode"] != mode:
+        raise ValueError("版面打印范围不匹配，未记录纸面")
     pages = _int(layout.get("pages"), 0, 0, 100000)
     if pages <= 0:
         raise ValueError("版面数据没有页数，无法记录")
+    previous = board.get("printed") or copy.deepcopy(EMPTY_PRINTED)
+    if mode == "new" and previous.get("pages", 0) <= 0:
+        raise ValueError("没有既有纸面记录，不能记录仅新增版面")
+    if mode == "new" and pages < int(previous.get("pages", 0) or 0):
+        raise ValueError("续印版面页数少于既有纸面，无法记录")
+    raw_items = [raw for raw in (layout.get("items") or []) if isinstance(raw, dict)]
+    if not raw_items:
+        raise ValueError("版面没有题目，无法记录")
+    cursor = layout.get("cursor") if isinstance(layout.get("cursor"), dict) else {}
+    if "page" in cursor and _int(cursor.get("page"), pages, 1, 100000) > pages:
+        raise ValueError("版面续排页码超出总页数，无法记录")
+    for raw_page in layout.get("answer_pages") or []:
+        page = _int(raw_page, 0, 0, 100000)
+        if page > pages:
+            raise ValueError("答案页码超出总页数，无法记录")
+
+    board_items_by_id = {
+        str(item.get("question_id") or "").strip(): item
+        for item in board.get("items") or [] if item.get("question_id")
+    }
+    current_ids = set(board_items_by_id)
+    previous_items = previous.get("items") or []
+    previous_by_id = {str(item.get("question_id") or "").strip(): item for item in previous_items if item.get("question_id")}
+    previous_ids = set(previous_by_id)
+    # 续印的旧窗口可能在记录前再次回传已有纸面题目；保留这些题目可幂等重放，
+    # 同时拒绝既不在当前板也不在既有纸面的外部题目。
+    allowed_ids = current_ids | previous_ids
     resolver = _Resolver(vault)
     new_items = []
-    for raw in layout.get("items") or []:
-        if not isinstance(raw, dict):
-            continue
+    for raw in raw_items:
         question_id = str(raw.get("question_id") or "").strip()
-        if not question_id:
-            continue
-        record = resolver.by_id.get(question_id) or resolver.by_uid.get(str(raw.get("uid") or ""))
+        uid = str(raw.get("uid") or "").strip()
+        if not question_id and not uid:
+            raise ValueError("版面题目缺少题目 ID，无法记录")
+        by_id = resolver.by_id.get(question_id) if question_id else None
+        by_uid = resolver.by_uid.get(uid) if uid else None
+        if question_id and by_id is None and by_uid is not None:
+            raise ValueError("版面题目 ID 与 UID 不匹配，未记录纸面")
+        if by_id and by_uid and by_id.get("question_id") != by_uid.get("question_id"):
+            raise ValueError("版面题目 ID 与 UID 不匹配，未记录纸面")
+        record = by_id or by_uid
+        canonical_id = str((record or {}).get("question_id") or question_id).strip()
+        canonical_uid = str((record or {}).get("uid") or uid).strip()
+        if record and question_id and canonical_id != question_id:
+            raise ValueError("版面题目 ID 与 UID 不匹配，未记录纸面")
+        if record and uid and canonical_uid != uid:
+            raise ValueError("版面题目 ID 与 UID 不匹配，未记录纸面")
+        if not canonical_id or canonical_id not in allowed_ids:
+            raise ValueError("版面包含不属于当前展示板的题目，未记录纸面")
+        segments_raw = raw.get("segments")
+        if not isinstance(segments_raw, list) or not segments_raw:
+            raise ValueError("版面题目缺少位置，无法记录")
+        for segment in segments_raw:
+            if (not isinstance(segment, dict)
+                    or _int(segment.get("page"), 0, 0, 100000) <= 0
+                    or _int(segment.get("page"), 0, 0, 100000) > pages):
+                raise ValueError("题目位置页码超出总页数，无法记录")
+        segments = _normalize_segments(segments_raw)
+        if not segments:
+            raise ValueError("版面题目缺少位置，无法记录")
+        expected = board_items_by_id.get(canonical_id) or previous_by_id.get(canonical_id) or {}
+        expected_uid = str(expected.get("uid") or "").strip()
+        if uid and expected_uid and uid != expected_uid:
+            raise ValueError("版面题目 ID 与 UID 不匹配，未记录纸面")
+        if not record and canonical_id in previous_by_id:
+            previous_uid = str(previous_by_id[canonical_id].get("uid") or "").strip()
+            if uid and previous_uid and uid != previous_uid:
+                raise ValueError("版面题目 ID 与 UID 不匹配，未记录纸面")
         new_items.append({
-            "question_id": question_id,
-            "uid": str(raw.get("uid") or (record or {}).get("uid") or ""),
-            "hash": resolver.print_hash(record) if record else "",
-            "segments": _normalize_segments(raw.get("segments")),
+            "question_id": canonical_id,
+            "uid": canonical_uid,
+            "hash": str(raw.get("hash") or (resolver.print_hash(record) if record else "")),
+            "segments": segments,
         })
-    cursor = layout.get("cursor") if isinstance(layout.get("cursor"), dict) else {}
     answer_pages = sorted({p for p in (_int(x, 0, 0, 100000) for x in layout.get("answer_pages") or []) if p > 0})
-    previous = board.get("printed") or copy.deepcopy(EMPTY_PRINTED)
     if mode == "new" and previous.get("pages", 0) > 0:
         known = {item["question_id"] for item in previous["items"]}
         printed = {

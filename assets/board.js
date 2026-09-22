@@ -3,19 +3,19 @@
 // questions.js（viewQ / QUESTION_CACHE）；必须排在 export.js 之后。
 // 打印链路：/api/export {format:'board', mode} → 自包含 HTML（board.js 模板在浏览器里分页）
 //   → 打印；「标记为已打印」时把同一份 HTML 放进隐藏 iframe 测量版面 → POST /api/board/printed 记录纸面。
-// 页数估算：同一份 HTML 在隐藏 iframe 里排一次；新估算会取消上一次未完成的；打印预览窗口
-//   排好后回传的版面直接当估算结果，预览开着时不再后台重算。
+// 页数来自常驻预览；纸面记录绑定导出快照，下载 HTML 在记录时用隐藏 iframe 测量。
 let BOARD_DATA = [];
 let BOARD_CURRENT = '';
 let BOARD_DETAIL = null;
 let BOARD_SAVE_TIMER = null;
+let BOARD_SAVE_IN_FLIGHT = null;             // 当前保存；切板和导出必须等待它及后续脏字段
 let BOARD_DIRTY = null;                       // 待保存的脏字段 {items?:true, print?:true}
 let BOARD_SELECTED_UID = '';
 let BOARD_PRINT_MODE = 'all';                 // 'all' | 'new'
 let BOARD_LOAD_SEQ = 0;                       // 数据加载序号：只采纳最后一次请求的结果
 let BOARD_FOLDERS = [];                       // 展示板文件夹（单层，未归档用空 folder_id 表示）
 let BOARD_ZOOM = 'fit';                       // 纸面缩放档，只影响预览显示
-let BOARD_AWAITING_RECORD = null;             // 刚触发过打印 / 下载、还没记录纸面 {boardId, mode}
+const BOARD_PRINT_JOBS = new Map();           // boardId -> 本次导出的 HTML / layout 快照
 let BOARD_LAYOUT_CONFIRM = null;              // 锁定版式的确认请求，合并同一轮输入事件
 let BOARD_LAYOUT_GRANTED = false;             // 本轮去抖保存前已确认过版式变更
 const CUT_LINES = ['none', 'dash', 'solid'];  // 与 omrs/boards.py::CUT_LINES 同步
@@ -89,11 +89,8 @@ function boardStatusModel(board, mode, awaiting) {
       : paper.new_count ? '打印全部会重排整叠纸，已经写过的那几张就作废了。只想加印新题请切到「仅新增」。'
         : '没有新增题需要补印。排序不改变旧纸面；需要按当前顺序重新排版时可主动打印全部。' };
 }
-function boardAwaiting() {
-  return BOARD_AWAITING_RECORD && BOARD_DETAIL && BOARD_AWAITING_RECORD.boardId === BOARD_DETAIL.id
-    ? BOARD_AWAITING_RECORD : null;
-}
-function boardClearAwaiting() { BOARD_AWAITING_RECORD = null; }
+function boardAwaiting() { return BOARD_DETAIL ? BOARD_PRINT_JOBS.get(BOARD_DETAIL.id) || null : null; }
+function boardClearAwaiting(boardId = BOARD_DETAIL?.id) { BOARD_PRINT_JOBS.delete(boardId); }
 
 function boardMoveItems(items, from, to) {
   const result = [...(items || [])];
@@ -130,6 +127,7 @@ async function boardInit() {
 // 用序号保证先发后到的旧响应不会把新数据盖掉。
 async function boardReloadData() {
   if (!document.getElementById('bd-list')) return;
+  if (!(await boardFlushSave())) return;
   if (typeof boardPreviewInvalidate === 'function') boardPreviewInvalidate();
   const seq = ++BOARD_LOAD_SEQ;
   try {
@@ -158,7 +156,7 @@ async function boardReloadData() {
 }
 async function boardLoad(id, render = true, seq = null) {
   if (!id) return;
-  await boardFlushSave();          // 切板前把上一块板的待存改动落盘，否则会写到新板上或整个丢掉
+  if (!(await boardFlushSave())) return; // 保存失败留在原板，保留待重试的编辑
   const token = seq ?? ++BOARD_LOAD_SEQ;
   boardRemember(id);   // 先记住用户选的板：期间若有 reloadData 并发进来，重载的也是这个板
   try {
@@ -635,6 +633,7 @@ function boardRenderPager() {
 
 // ---------- 板 CRUD ----------
 async function boardCreate(initialUids = null, folderId = '') {
+  if (!(await boardFlushSave())) return null;
   const folder = BOARD_FOLDERS.find(item => item.id === folderId);
   const name = await uiPrompt('新建展示板', '', {
     placeholder: '如：考前速览·三角函数',
@@ -687,6 +686,7 @@ async function boardEditNote(id) {
   try { await boardPost('/api/board/update', { id, note }); await boardReloadData(); } catch (error) { uiToast(`保存备注失败：${error.message}`, { kind: 'error' }); }
 }
 async function boardDuplicate(id) {
+  if (!(await boardFlushSave())) return;
   const board = BOARD_DATA.find(item => item.id === id) || BOARD_DETAIL;
   if (!board) return;
   const name = await uiPrompt('复制展示板为', `${board.name} 副本`, { hint: '复制题目引用与版面设置；纸面记录不复制（新板对应新纸）。' });
@@ -695,6 +695,7 @@ async function boardDuplicate(id) {
   catch (error) { uiToast(`复制失败：${error.message}`, { kind: 'error' }); }
 }
 async function boardDelete(id) {
+  if (!(await boardFlushSave())) return;
   const board = BOARD_DATA.find(item => item.id === id) || BOARD_DETAIL;
   if (!board) return;
   const ok = await uiConfirm(`删除展示板「${board.name}」？`, { hint: '只删除这个板（含它的纸面记录），题目本身不受影响。', okText: '删除', danger: true });
@@ -711,6 +712,7 @@ async function boardDelete(id) {
 async function boardAddToBoard(boardId, uids, options = {}) {
   const clean = boardUniqueUids(uids);
   if (!clean.length || !boardId) return null;
+  if (!(await boardFlushSave())) return null;
   try {
     const result = await boardPost('/api/board/items/add', { id: boardId, uids: clean });
     const board = result.board;
@@ -718,10 +720,11 @@ async function boardAddToBoard(boardId, uids, options = {}) {
     if (BOARD_CURRENT === board.id) BOARD_DETAIL = board;
     await boardReloadData();
     if (options.goto && typeof switchTab === 'function') switchTab('board');
-    const added = Number(result.board.added ?? clean.length);
+    const addedUids = result.board.added_uids || [];
+    const added = Number(result.board.added ?? addedUids.length);
     // 选择已经前置到浮层里了，所以这里不再需要「换个板」这条临时纠错通道
     const actions = [];
-    if (added) actions.push({ label: '撤销', onClick: () => boardPost('/api/board/items/remove', { id: board.id, uids: clean }).then(boardReloadData).then(() => uiToast('已撤销加入')) });
+    if (addedUids.length) actions.push({ label: '撤销', onClick: () => boardPost('/api/board/items/remove', { id: board.id, uids: addedUids }).then(boardReloadData).then(() => uiToast('已撤销加入')) });
     if (BOARD_CURRENT !== board.id || !document.getElementById('panel-board')?.classList.contains('active')) {
       actions.push({ label: '打开展示板', onClick: () => { if (typeof switchTab === 'function') switchTab('board'); boardLoad(board.id); } });
     }
@@ -944,6 +947,7 @@ async function boardAddPrompt() {
 // ---------- 条目操作 ----------
 async function boardRemoveItem(uid) {
   if (!BOARD_DETAIL) return;
+  if (!(await boardFlushSave())) return;
   const item = boardCurrentItem(uid);
   try {
     const boardId = BOARD_DETAIL.id;
@@ -955,6 +959,7 @@ async function boardRemoveItem(uid) {
 }
 async function boardPersistItems(items, message = '') {
   if (!BOARD_DETAIL) return;
+  if (!(await boardFlushSave())) return;
   if (!(await boardAllowLayoutChange({ items }))) return;
   if (BOARD_DIRTY?.items) { const rest = { ...BOARD_DIRTY }; delete rest.items; BOARD_DIRTY = Object.keys(rest).length ? rest : null; }
   const result = await boardPost('/api/board/update', { id: BOARD_DETAIL.id, items: boardItemsPayload(items) });
@@ -985,23 +990,41 @@ function boardMarkDirty(kind) {
 }
 async function boardFlushSave(options = {}) {
   clearTimeout(BOARD_SAVE_TIMER);
+  if (BOARD_SAVE_IN_FLIGHT) {
+    if (!(await BOARD_SAVE_IN_FLIGHT)) return false;
+    return boardFlushSave(options);
+  }
   const dirty = BOARD_DIRTY;
-  BOARD_DIRTY = null;
   const payload = boardSavePayload(BOARD_DETAIL, dirty);
   if (!payload) return true;
+  BOARD_DIRTY = null;
   const hadPaper = boardHasPaper(BOARD_DETAIL);
-  try {
-    const result = await boardPost('/api/board/update', payload);
-    if (BOARD_DETAIL && result.board?.id === BOARD_DETAIL.id) BOARD_DETAIL = result.board;
-    BOARD_LAYOUT_GRANTED = false;
-    if (hadPaper && !boardHasPaper(BOARD_DETAIL)) boardRender();
-    else boardScheduleEstimate();
-    return true;
-  } catch (error) {
-    BOARD_DIRTY = { ...(dirty), ...(BOARD_DIRTY || {}) };   // 失败不丢脏标记，下次改动会再试
-    if (!options.silent) uiToast(`保存展示板失败：${error.message}`, { kind: 'error' });
-    return false;
-  }
+  const saving = (async () => {
+    try {
+      const result = await boardPost('/api/board/update', payload);
+      if (BOARD_DETAIL?.id === payload.id) {
+        // 发送后产生的新编辑优先于旧响应；下一轮继续保存这些字段。
+        const live = BOARD_DETAIL;
+        BOARD_DETAIL = { ...result.board,
+          ...(BOARD_DIRTY?.print ? { print: live.print } : {}),
+          ...(BOARD_DIRTY?.items ? { items: live.items } : {}) };
+        BOARD_LAYOUT_GRANTED = false;
+        if (hadPaper && !boardHasPaper(BOARD_DETAIL)) boardRender();
+      }
+      return true;
+    } catch (error) {
+      BOARD_DIRTY = { ...dirty, ...(BOARD_DIRTY || {}) };
+      if (!options.silent) uiToast(`保存展示板失败：${error.message}`, { kind: 'error' });
+      return false;
+    }
+  })();
+  BOARD_SAVE_IN_FLIGHT = saving;
+  const ok = await saving;
+  if (BOARD_SAVE_IN_FLIGHT === saving) BOARD_SAVE_IN_FLIGHT = null;
+  if (!ok) return false;
+  if (BOARD_DIRTY) return boardFlushSave(options);
+  boardScheduleEstimate();
+  return true;
 }
 // 拖切割线松手：一次合并保存；失败就把这道题的留白恢复成拖动前的值，别让纸面和磁盘各说各话
 async function boardApplyGapDrag(uid, lines) {
@@ -1027,6 +1050,8 @@ async function boardSort(choice) {
 }
 async function boardSyncLabel() {
   if (!BOARD_DETAIL) return;
+  // 加题同步会在服务端追加引用；先落盘本地待保存的 items，避免随后 reload 用旧快照覆盖新题。
+  if (!(await boardFlushSave())) return;
   const defs = (LABELS || []).filter(label => !label.archived);
   if (!defs.length) { uiToast('还没有标记，先在题目上打一个「考前必看」之类的标记', { kind: 'warn' }); return; }
   const current = BOARD_DETAIL.source_labels?.[0] || '';
@@ -1038,6 +1063,8 @@ async function boardSyncLabel() {
   if (!res.ok) return;
   const label = defs.find((item, index) => res.values[`bd-sync-${index}`] === true)?.name;
   if (!label) return;
+  // 对话框关闭后再检查一次，确保同步追加前没有新的 items 脏字段或在途保存。
+  if (!(await boardFlushSave())) return;
   const uids = getItems().filter(item => !item.suspended && (item.labels || []).includes(label)).map(item => item.uid);
   try {
     const result = uids.length ? await boardPost('/api/board/items/add', { id: BOARD_DETAIL.id, uids }) : { board: { added: 0 } };
@@ -1080,13 +1107,16 @@ async function boardApplyPrintField(field, value) {
     .forEach(node => { node.disabled = print.cut_line === 'none'; });
   if (field === 'locked') { boardRenderStatus(); boardRenderInspector(); }
   else boardRefreshLiveReadouts();   // 板级留白一改，继承它的单题读数与列表行都得跟上
-  boardPushRelayout();        // 画面先动（去抖 120ms、不发请求），保存另走 500ms 脏队列
   boardMarkDirty('print');
+  if (field === 'answers' || field === 'show_labels') {
+    // 服务端会按这两个开关裁剪内容，必须等保存后重新导出。
+    await boardFlushSave();
+  } else boardPushRelayout();
 }
 
 // ---------- 打印 / 导出 / 纸面记录 ----------
 async function boardFetchExport(mode, options = {}) {
-  const response = await fetch('/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ board_id: BOARD_DETAIL.id, format: 'board', mode }), signal: options.signal });
+  const response = await fetch('/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ board_id: options.boardId || BOARD_DETAIL.id, format: 'board', mode }), signal: options.signal });
   if (!response.ok) { let message = '导出失败'; try { message = (await response.json()).msg || message; } catch (error) {} throw new Error(message); }
   return response.text();
 }
@@ -1096,6 +1126,7 @@ async function boardFetchExport(mode, options = {}) {
 function boardEffectiveMode() { return boardStatusModel(BOARD_DETAIL, BOARD_PRINT_MODE, null).scope; }
 async function boardExportCurrent(openPreview = false) {
   if (!BOARD_DETAIL) { uiToast('请先选择一个展示板', { kind: 'warn' }); return; }
+  const boardId = BOARD_DETAIL.id, boardName = BOARD_DETAIL.name;
   const mode = boardEffectiveMode();
   if (mode === 'new' && !boardPrintedSummary().new_count) { uiToast('没有新增题目需要打印', { kind: 'warn' }); return; }
   // 必须在 await 之前同步开窗：浏览器只允许在用户手势的同步调用栈里 window.open，
@@ -1108,26 +1139,34 @@ async function boardExportCurrent(openPreview = false) {
       preview.document.write('<!doctype html><meta charset="utf-8"><title>正在生成打印预览…</title><p style="font:14px system-ui;padding:24px;color:#444">正在生成打印预览…<br><small style="color:#888">题目多、图片大时需要几秒；排版好后「打印」按钮才会亮起。</small></p>');
       preview.document.close();
     } catch (error) {}
-    // 预览窗口会把它测好的版面回传（omrs-board-layout），页数以它为准；先停掉后台估算，别和预览抢主线程
+    // 该窗口回传的版面绑定到本次导出任务，用于记录其实际纸面。
   }
   try {
-    const html = await boardFetchExport(mode);
+    if (!(await boardFlushSave())) throw new Error('设置尚未保存，请重试');
+    const html = await boardFetchExport(mode, { boardId });
+    const job = { boardId, mode, html, layout: null };
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     if (openPreview) {
+      // 先登记任务，再导航窗口；极快加载时模板可能在 replace 返回前就回传版面。
+      BOARD_WINDOWS.set(preview, job);
+      boardMarkAwaiting(mode, job);
       // location.replace 之后窗口对象本身不变，BOARD_WINDOWS.get(event.source) 的
       // 「标记为已打印」postMessage 回传照常工作。
-      preview.location.replace(url);
-      BOARD_WINDOWS.set(preview, { boardId: BOARD_DETAIL.id, mode, updatedAt: BOARD_DETAIL.updated_at || '' });
+      try { preview.location.replace(url); }
+      catch (error) {
+        BOARD_WINDOWS.delete(preview);
+        if (BOARD_PRINT_JOBS.get(boardId) === job) boardClearAwaiting(boardId);
+        throw error;
+      }
       setTimeout(() => URL.revokeObjectURL(url), 60000);
-      boardMarkAwaiting(mode);
     } else {
       const link = document.createElement('a');
       link.href = url;
-      link.download = `OMRS-BD-${BOARD_DETAIL.name}${mode === 'new' ? '-新增' : ''}-错题集.html`;
+      link.download = `OMRS-BD-${boardName}${mode === 'new' ? '-新增' : ''}-错题集.html`;
       document.body.appendChild(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1200);
-      boardMarkAwaiting(mode);
+      boardMarkAwaiting(mode, job);
       uiToast('已下载；打印后回到状态条点「✓ 记录纸面」');
     }
   } catch (error) {
@@ -1138,9 +1177,14 @@ async function boardExportCurrent(openPreview = false) {
 function boardPrintPreview() { return boardExportCurrent(true); }
 // 打印 / 下载之后状态条主按钮翻成「✓ 记录纸面」：诊断 #4 的落脚点，
 // 不再靠用户自己记得回到浮层里找「标记为已打印」。
-function boardMarkAwaiting(mode) {
-  if (!BOARD_DETAIL) return;
-  BOARD_AWAITING_RECORD = { boardId: BOARD_DETAIL.id, mode };
+function boardMarkAwaiting(mode, job = null) {
+  if (!job && !BOARD_DETAIL) return;
+  if (!job) {
+    const layout = typeof boardPreviewLayout === 'function' ? boardPreviewLayout() : null;
+    job = { boardId: BOARD_DETAIL.id, mode, layout: layout?.board_id === BOARD_DETAIL.id && layout.mode === mode
+      ? JSON.parse(JSON.stringify(layout)) : null };
+  }
+  BOARD_PRINT_JOBS.set(job.boardId, job);
   boardRenderStatus();
 }
 
@@ -1172,9 +1216,10 @@ function boardEstimateText(layout, mode, print) {
 }
 // ---------- 预览驱动的排版（取代原来独立的页数估算链路） ----------
 // 原先页数估算、打印预览窗口、「标记为已打印」各自把同一份 0.95MB 导出 HTML 排一遍版。
-// 现在常驻预览 iframe 就是那一遍：页数从它的 layout 读，标记纸面优先复用它测出的版面。
+// 页数从常驻预览读取；纸面记录使用独立导出或下载的快照。
 function boardSyncPreview(options = {}) {
   if (typeof boardPreviewSetBoard !== 'function') return;
+  if (BOARD_DIRTY || BOARD_SAVE_IN_FLIGHT) return;
   if (!BOARD_DETAIL || boardView() !== 'paper') return;
   if (!document.getElementById('panel-board')?.classList.contains('active')) return;
   boardBindPreview();
@@ -1182,7 +1227,7 @@ function boardSyncPreview(options = {}) {
   if (stage) boardPreviewMount(stage);
   const mode = boardEffectiveMode();
   const fingerprint = {
-    signature: boardContentSignature(),
+    signature: [boardContentSignature(), BOARD_DETAIL.print?.answers, BOARD_DETAIL.print?.show_labels].join('|'),
     printedAt: boardPrintedSummary().at || '',
     force: !!options.force,
   };
@@ -1201,65 +1246,79 @@ function boardScheduleEstimate() { boardSyncPreview(); }
 // 人工兜底：内容签名不覆盖题目正文，正文在别处改过时预览可能还是旧的。
 // 正常路径（题目 Modal 保存、反馈提交）都会走 reloadData() → boardReloadData() 自动失效，
 // 这个按钮留给「在应用外改了文件」「第三方链路没触发重载」这类情况。
-function boardRegenPreview() {
+async function boardRegenPreview() {
   if (!BOARD_DETAIL) return;
+  if (!(await boardFlushSave())) return;
   if (typeof boardPreviewInvalidate === 'function') boardPreviewInvalidate();
   boardSyncPreview({ force: true });
   uiToast('正在按最新正文重新生成纸面…');
 }
 
-async function boardRecordPrinted(boardId, mode, layout) {
+async function boardRecordPrinted(boardId, mode, layout, job = null) {
+  if (layout?.board_id && layout.board_id !== boardId) throw new Error('版面所属展示板不匹配');
+  if (layout?.mode && layout.mode !== mode) throw new Error('版面打印范围不匹配');
+  if (job && BOARD_PRINT_JOBS.get(boardId) !== job) throw new Error('这份打印任务已失效，请重新导出');
+  if (!(await boardFlushSave())) throw new Error('设置尚未保存，请重试');
   const result = await boardPost('/api/board/printed', { id: boardId, mode, layout });
-  boardClearAwaiting();
-  if (BOARD_CURRENT === boardId) BOARD_DETAIL = result.board;
-  BOARD_PRINT_MODE = 'new';
+  if (!job || BOARD_PRINT_JOBS.get(boardId) === job) boardClearAwaiting(boardId);
+  if (job) job.recorded = true;
+  if (BOARD_CURRENT === boardId) { BOARD_DETAIL = result.board; BOARD_PRINT_MODE = 'new'; }
   await boardReloadData();
   const paper = boardPrintedSummary(result.board);
   uiToast(`已记录纸面：共 ${paper.count} 题 / ${paper.pages} 页，下次加题可只打印新增`);
 }
 async function boardMarkPrinted() {
   if (!BOARD_DETAIL) return;
-  const mode = boardEffectiveMode();
-  const paper = boardPrintedSummary();
-  if (mode === 'new' && !paper.new_count) { uiToast('没有新增题目需要记录', { kind: 'warn' }); return; }
-  const ok = await uiConfirm(mode === 'new' ? `已经把新增的 ${paper.new_count} 题打印出来了？` : '已经把整板打印出来了？', {
-    hint: mode === 'new' ? '系统会按当前版面重新测量，把新题追加到纸面记录，并推进续排位置。' : (paper.pages ? '会用这次整板的版面替换现有纸面记录（视为换了一叠新纸）。' : '系统会测量整板版面，记住每道题印在第几页、印到哪里。'),
-    okText: '标记为已打印',
-  });
-  if (!ok) return;
+  const boardId = BOARD_DETAIL.id;
+  const job = boardAwaiting();
+  if (job?.recording || job?.recorded) return;
+  if (job) job.recording = true;
+  const mode = job?.mode || boardEffectiveMode();
   try {
-    // 预览已经按同一份导出排好版了，直接用它的 layout；预览不可用（列表视图 / 报错）才回退隐藏 iframe
-    let layout = typeof boardPreviewLayout === 'function' ? boardPreviewLayout() : null;
-    const usable = layout && layout.board_id === BOARD_DETAIL.id && layout.mode === mode
-      && typeof boardPreviewIsReady === 'function' && boardPreviewIsReady();
-    if (!usable) {
-      uiToast('正在测量版面…');
-      layout = await boardMeasureLayout(await boardFetchExport(mode));
+    const ok = await uiConfirm(mode === 'new' ? '已经把这次新增题目打印出来了？' : '已经把这次整板打印出来了？', {
+      hint: job ? '按刚才导出或下载的那份纸面记录；之后的编辑不会替换这份快照。' : '按当前版面记录纸面。',
+      okText: '标记为已打印',
+    });
+    if (!ok || job?.recorded) return;
+    let layout = job?.layout;
+    if (!layout && job?.html) layout = await boardMeasureLayout(job.html);
+    if (!layout) {
+      if (!(await boardFlushSave())) return;
+      layout = await boardMeasureLayout(await boardFetchExport(mode, { boardId }));
     }
-    await boardRecordPrinted(BOARD_DETAIL.id, mode, layout);
+    if (job) { job.layout = layout; job.html = null; }
+    await boardRecordPrinted(boardId, mode, layout, job);
   } catch (error) { uiToast(`记录纸面失败：${error.message}`, { kind: 'error' }); }
+  finally { if (job) job.recording = false; }
 }
 async function boardResetPrinted() {
   if (!BOARD_DETAIL) return;
   const ok = await uiConfirm('重置纸面记录？', { hint: '忘掉「哪些题已经在纸上」；之后只能「打印全部」重新开始。', okText: '重置', danger: true });
   if (!ok) return;
-  try { const result = await boardPost('/api/board/printed/reset', { id: BOARD_DETAIL.id }); BOARD_DETAIL = result.board; BOARD_PRINT_MODE = 'all'; boardClearAwaiting(); await boardReloadData(); uiToast('纸面记录已重置'); }
+  const boardId = BOARD_DETAIL.id;
+  // 请求返回前也使旧窗口失效，避免它在重置进行中回传旧版面并重新写回纸面。
+  boardClearAwaiting(boardId);
+  try { const result = await boardPost('/api/board/printed/reset', { id: boardId }); BOARD_DETAIL = result.board; BOARD_PRINT_MODE = 'all'; await boardReloadData(); uiToast('纸面记录已重置'); }
   catch (error) { uiToast(`重置失败：${error.message}`, { kind: 'error' }); }
 }
-// 打印预览窗口的回传：排版完成 → 直接当作页数估算；点「已打印，记录纸面」→ 确认后记录
+// 独立打印窗口只更新它自己的导出快照，不能借用当前选中的展示板。
 if (typeof window !== 'undefined') window.addEventListener('message', async event => {
   const type = event.data?.type;
   if (type !== 'omrs-board-layout' && type !== 'omrs-board-printed') return;
-  const pending = BOARD_WINDOWS.get(event.source);
-  // 页数以常驻预览为准；打印预览窗口只保留「已打印，记录纸面」这条回传
-  if (type === 'omrs-board-layout') return;
-  const boardId = pending?.boardId || event.data.boardId;
-  const mode = pending?.mode || event.data.mode || 'all';
-  if (!boardId || !event.data.layout) return;
-  const ok = await uiConfirm('打印预览窗口说已经打印完成，记录纸面？', { hint: mode === 'new' ? '把这次补印的新题追加到纸面记录。' : '用这次整板版面替换纸面记录。', okText: '记录' });
-  if (!ok) return;
-  try { await boardRecordPrinted(boardId, mode, event.data.layout); if (pending) BOARD_WINDOWS.delete(event.source); }
-  catch (error) { uiToast(`记录纸面失败：${error.message}`, { kind: 'error' }); }
+  const job = BOARD_WINDOWS.get(event.source), layout = event.data.layout;
+  // 切换打印范围、重置纸面或重新导出后，旧窗口仍可能加载完并回传消息；
+  // 只有当前板仍持有的那份任务可以更新纸面。
+  if (!job || BOARD_PRINT_JOBS.get(job.boardId) !== job || job.recorded || !layout || layout.board_id !== job.boardId || layout.mode !== job.mode) return;
+  if (event.data.boardId !== job.boardId || event.data.mode !== job.mode) return;
+  job.layout = JSON.parse(JSON.stringify(layout));
+  job.html = null; // 已取得实际窗口的版面，不再保留近 1MB 的 HTML
+  if (type === 'omrs-board-layout' || job.recording) return;
+  job.recording = true;
+  try {
+    const ok = await uiConfirm('打印预览窗口说已经打印完成，记录纸面？', { hint: '记录这份打印窗口中的纸面，与当前选中的展示板无关。', okText: '记录' });
+    if (ok) await boardRecordPrinted(job.boardId, job.mode, job.layout, job);
+  } catch (error) { uiToast(`记录纸面失败：${error.message}`, { kind: 'error' }); }
+  finally { job.recording = false; }
 });
 
 // ---------- 拖拽排序 ----------

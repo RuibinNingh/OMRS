@@ -207,7 +207,9 @@ def _load_export_questions(vault, uids=None, session_id=""):
         row = row_map.get(uid)
         if not row or is_suspended_row(row):
             continue
-        file_path = os.path.join(vault, row.get("File_Path", ""))
+        file_path = _safe_question_path(vault, row.get("File_Path", ""))
+        if not file_path:
+            continue
         if not os.path.exists(file_path):
             continue
         with open(file_path, "r", encoding="utf-8") as file:
@@ -694,13 +696,26 @@ def _board_gap_lines(value, default_lines):
         return max(0, min(MAX_GAP_LINES, int(default_lines or 0)))
 
 
+def _safe_question_path(vault, file_path):
+    """把题目文件限制在错题目录内，拒绝绝对路径和 ``..`` 越界。"""
+    root = os.path.abspath(questions_root(vault))
+    candidate = os.path.abspath(os.path.join(vault, str(file_path or "").replace("\\", os.sep).replace("/", os.sep)))
+    try:
+        if os.path.commonpath([root, candidate]) != root:
+            return None
+    except ValueError:
+        return None
+    return candidate
+
+
 def _board_read_question(vault, item):
     """读取展示板条目对应的题目文件，返回题面 / 答案分节；文件缺失返回 None。"""
+    from .boards import print_hash_for_content
     file_path = str(item.get("file_path") or "")
     if not file_path:
         return None
-    path = os.path.join(vault, file_path.replace("\\", os.sep).replace("/", os.sep))
-    if not os.path.isfile(path):
+    path = _safe_question_path(vault, file_path)
+    if not path or not os.path.isfile(path):
         return None
     with open(path, "r", encoding="utf-8") as file:
         content = file.read()
@@ -709,6 +724,7 @@ def _board_read_question(vault, item):
     return {
         "uid": item.get("uid", ""),
         "question_id": item.get("question_id", ""),
+        "hash": print_hash_for_content(content),
         "subject": meta.get("科目", item.get("subject", "")),
         "category": extract_category(meta) or item.get("category", ""),
         "difficulty": meta.get("难度", item.get("difficulty", "")),
@@ -784,6 +800,7 @@ def build_board_export_data(vault, board_id, mode="all", include_answers=None, o
             "idx": start_index + offset,
             "uid": question["uid"],
             "question_id": question["question_id"],
+            "hash": question["hash"],
             "subject": question.get("subject", ""),
             "category": question.get("category", ""),
             "difficulty": question.get("difficulty", ""),

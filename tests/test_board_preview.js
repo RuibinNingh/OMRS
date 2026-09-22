@@ -29,14 +29,18 @@ global.document = {
 global.fetch = async (url, options) => {
   const body = JSON.parse(options.body);
   FETCHED.push(body);
-  return { ok: true, text: async () => `<html data-board="${body.board_id}" data-mode="${body.mode}"></html>` };
+  return { ok: true, text: async () => `<html data-board="${body.board_id}" data-mode="${body.mode}"><head></head><body></body></html>` };
 };
 
 const bp = require('../assets/board_preview.js');
 
 // iframe「排完版了」：board_preview.js 只认来自自己 contentWindow 的消息
+function token() { return JSON.parse(FRAME.srcdoc.match(/OMRS_PREVIEW_TOKEN=("[^"]+")/)[1]); }
+function emit(message) {
+  MESSAGE_HANDLER({ source: FRAME.contentWindow, data: { boardId: 'B1', mode: 'all', previewToken: token(), ...message } });
+}
 function emitLayout(layout) {
-  MESSAGE_HANDLER({ source: FRAME.contentWindow, data: { type: 'omrs-board-layout', layout } });
+  emit({ type: 'omrs-board-layout', boardId: layout.board_id, mode: layout.mode, layout });
 }
 const LAYOUT = { board_id: 'B1', mode: 'all', pages: 3, page_numbers: [1, 2, 3] };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -62,7 +66,7 @@ test('setBoard fetches once per fingerprint; geometry changes never reach the ne
   emitLayout(LAYOUT);
   assert.equal(FETCHED.length, 1);
   assert.deepEqual(FETCHED[0], { board_id: 'B1', format: 'board', mode: 'all' });
-  assert.equal(FRAME.srcdoc, '<html data-board="B1" data-mode="all"></html>');
+  assert.match(FRAME.srcdoc, /<body class="embedded">/);
   assert.equal(bp.boardPreviewIsReady(), true);
 
   // 同一指纹再来一次：命中缓存，不重新拉那份将近 1MB 的导出
@@ -78,7 +82,7 @@ test('setBoard fetches once per fingerprint; geometry changes never reach the ne
   assert.equal(FETCHED.length, 1);
   assert.equal(POSTED.length, 1);                     // 连续拖动合并成一次重排
   assert.deepEqual(POSTED[0], {
-    type: 'omrs-board-relayout',
+    type: 'omrs-board-relayout', previewToken: token(),
     print: { note_ratio: .55, cut_line: 'solid' },
     gaps: { Q1: 6, Q2: null },                        // null 原样传：继承当前全局，不是 0 行
   });
@@ -112,7 +116,7 @@ test('goto / step / view speak the documented message protocol', async () => {
   POSTED.length = 0;
   bp.boardPreviewSetView({ single: true, page: 1 });
   // embedded:true 是常驻预览专用的：告诉导出模板收起它自带的打印 / 记录纸面动作条
-  assert.deepEqual(POSTED[0], { type: 'omrs-board-view', single: true, page: 1, scale: 1, embedded: true });
+  assert.deepEqual(POSTED[0], { type: 'omrs-board-view', single: true, page: 1, scale: 1, embedded: true, previewToken: token() });
   assert.deepEqual(bp.boardPreviewPages(), [1, 2, 3]);
   assert.equal(bp.boardPreviewView().single, true);
 });
@@ -127,10 +131,10 @@ test('fit scale is derived from the container width, not from the layout', async
 
 test('select messages reach the host, and handlers can be registered after load', () => {
   // board.js 排在 board_preview.js 之前，注册必须能晚到；早到的消息不该炸
-  MESSAGE_HANDLER({ source: FRAME.contentWindow, data: { type: 'omrs-board-select', uid: '早到' } });
+  emit({ type: 'omrs-board-select', uid: '早到' });
   const seen = [];
   bp.boardPreviewOn({ onSelect: message => seen.push(message.uid) });
-  MESSAGE_HANDLER({ source: FRAME.contentWindow, data: { type: 'omrs-board-select', uid: 'Q9', idx: 3, page: 2 } });
+  emit({ type: 'omrs-board-select', uid: 'Q9', idx: 3, page: 2 });
   assert.deepEqual(seen, ['Q9']);
   // 打印预览窗口另有链路：不是本 iframe 发的消息一律忽略
   MESSAGE_HANDLER({ source: {}, data: { type: 'omrs-board-select', uid: '别的窗口' } });
@@ -146,4 +150,35 @@ test('layout callback fires on every layout report and keeps the page in range',
   emitLayout({ ...LAYOUT, pages: 1, page_numbers: [1] });   // 删了两页，当前页号已不存在
   assert.deepEqual(pages, [1]);
   assert.equal(bp.boardPreviewView().page, 1);
+});
+
+
+test('late messages from another board or an older document cannot mark the new preview ready', async () => {
+  await bp.boardPreviewSetBoard('B1', 'all', { signature: 'old-document' });
+  const oldToken = token();
+  emitLayout(LAYOUT);
+  await bp.boardPreviewSetBoard('B1', 'all', { signature: 'new-document' });
+  POSTED.length = 0;
+  emit({ type: 'omrs-board-layout', previewToken: oldToken, layout: LAYOUT });
+  emit({ type: 'omrs-board-layout', boardId: 'B2', layout: { ...LAYOUT, board_id: 'B2' } });
+  emit({ type: 'omrs-board-layout', mode: 'new', layout: { ...LAYOUT, mode: 'new' } });
+  assert.equal(bp.boardPreviewIsReady(), false);
+  assert.equal(bp.boardPreviewLayout(), null);
+  assert.equal(POSTED.length, 0);
+  emitLayout(LAYOUT);
+  assert.equal(bp.boardPreviewIsReady(), true);
+  assert.ok(POSTED.some(message => message.embedded === true));
+});
+
+test('a late response from a same-key refresh cannot replace a newer document', async () => {
+  const original = global.fetch;
+  let finish;
+  global.fetch = () => new Promise(resolve => { finish = resolve; });
+  const slow = bp.boardPreviewSetBoard('B1', 'all', { signature: 'race', force: true });
+  global.fetch = original;
+  await bp.boardPreviewSetBoard('B1', 'all', { signature: 'race', force: true });
+  const newest = FRAME.srcdoc;
+  finish({ ok: true, text: async () => '<head></head><body>old</body>' });
+  await slow;
+  assert.equal(FRAME.srcdoc, newest);
 });

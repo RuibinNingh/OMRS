@@ -431,33 +431,34 @@ body 挂载 + `getBoundingClientRect` 锚定 + 空间不足向上翻、同样的
 
 #### 常驻预览 iframe（`assets/board_preview.js`）
 
+展示板异步状态与打印一致性的保障范围见 `AI/optimization.md`「展示板完整性保障」。
+
 中栏「纸面」视图是一个**常驻**的同源 `srcdoc` iframe，内容就是 `/api/export` 的展示板导出
 HTML。常驻而不是每次新建：那份 HTML 内联了将近 1MB 的 KaTeX 字体，重建节点等于重新解码一次
 字体。全页只留一个 iframe（`BP_FRAME`），切板换 `srcdoc`。
 
-刷新分三档，**只有第三档走网络**：
+刷新分三档，内容变化和切板需要重新导出，几何调整不请求导出接口：
 
 | 档 | 触发 | 动作 | 去抖 |
 |---|---|---|---|
 | 几何 | 留白比例 / 题间留白 / 切割线 | `postMessage` `omrs-board-relayout` | 120ms |
-| 内容 | 增删题 / 排序 / 换模式 | 重新拉 `/api/export` | 500ms |
+| 内容 | 增删题 / 排序 / 换模式 / 答案与标记开关 | 保存完成后重新拉 `/api/export` | 等待保存 |
 | 切板 | 选了别的板 | 立即拉导出 | — |
 
-导出指纹是 `板 + 模式 + 题目签名 + 纸面时间`（`boardPreviewKey`），**刻意不含
+导出指纹是 `板 + 模式 + 题目签名（含答案与标记开关）+ 纸面时间`（`boardPreviewKey`），**刻意不含
 `board.updated_at`**：拖一次版面滑块就会 bump 它，而版面改动本该走 relayout，把它算进指纹
 等于每拖一下都重新请求近 1MB 的导出。HTML 缓存只留最近一份（`BP_HTML_CACHE`），
 不把几份 1MB 的字符串攒在内存里。
 
 不在前台就不排版：切到别的 Tab、或预览滚出视口（`IntersectionObserver`）时几何改动只记不发，
 回来再 `boardPreviewFlushPending()` 补一次。切板时进行中的导出请求会被 `AbortController`
-取消，晚到的结果按 `BP_STATE.key` 丢弃。
+取消，晚到的结果按文档代次 `previewToken` 丢弃。宿主为每份 srcdoc 注入独立 token，消息同时校验来源窗口、token、板 ID 和模式；模板也拒绝旧 token 的宿主消息。内嵌 HTML 从加载开始就带 `embedded`，就绪后重放单页和缩放状态。
 
 页数不再单独跑一遍排版估算：翻页条直接读预览已经排好的 `layout`（`page_numbers` / `pages`），
 `boardRenderPager()` 只替换 `[data-board-pager]` 这一个节点——整块 `innerHTML` 会把 iframe
-卷进去重载。「标记为已打印」同样优先复用预览测出的 layout（板 id 与模式都对得上才采纳），
-预览不可用时才回退到隐藏 iframe 测量。
+卷进去重载。打印与下载在请求前固定板 ID、名称和模式，并按板保留待记录的导出任务；「记录纸面」使用该任务的独立窗口 layout，下载任务则用同份 HTML 在隐藏 iframe 测量。切板与后续编辑不改变其归属和快照；此状态只保存在当前页面内存中。
 
-**正文变更如何失效：** 内容签名只覆盖题目集合、顺序、停用 / 缺失状态和纸面时间，
+**正文变更如何失效：** 预览的组合签名覆盖题目集合、顺序、停用 / 缺失状态、答案与标记显示开关和纸面时间，
 **不覆盖题目正文**。正常路径没有问题——题目 Modal 保存、反馈提交都会走
 `reloadData()` → `boardReloadData()` → `boardPreviewInvalidate()`，下一次同步就重新导出。
 留下的缺口是「在应用外改了文件」「第三方链路没触发重载」，人工兜底是检视条上的
@@ -469,15 +470,9 @@ HTML。常驻而不是每次新建：那份 HTML 内联了将近 1MB 的 KaTeX �
 
 #### 保存队列：按字段记脏、合并成一次 POST
 
-行内留白与版面滑块曾各自持有同一个 `BOARD_SAVE_TIMER` 并互相 `clearTimeout`，
-「先改留白再拖滑块」会把前一次改动整个丢掉。现在改成按字段记脏
-（`boardDirtyMerge` → `{items?:true, print?:true}`），到点由 `boardSavePayload()`
-合并成**一次** `POST /api/board/update`——后端本就支持同一请求里同时收 `items` 与 `print`，
-且会用请求后的全局留白去折算 v2 的 `extra_gap_lines`。
+行内留白与版面设置按字段记脏（`boardDirtyMerge` → `{items?:true, print?:true}`），由 `boardSavePayload()` 合并成一次 `POST /api/board/update`。`BOARD_SAVE_IN_FLIGHT` 将保存串行化；响应到达时保留发送后新改的脏字段，再继续保存，直到队列清空。请求同时含 items 与 print 时，后端使用请求后的全局值折算留白。
 
-三个落盘时机：去抖 500ms；离开展示板 Tab 前（`click` 捕获阶段跑在 `switchTab` 之前）；
-关页 / 刷新时用 `navigator.sendBeacon` 交给浏览器后台发送同一份 payload。
-保存失败不丢脏标记，下次改动会再试。
+几何编辑去抖 500ms 保存；答案与标记显示开关立即排空保存队列，再重载预览内容。切板、导出、全量重载和重新生成都会等待待保存与在途保存。失败时保留脏字段并中止依赖动作；下次编辑或重试可继续保存。离开展示板 Tab 前尝试保存，关页时对待保存字段使用 `navigator.sendBeacon`。
 
 #### 视图与每题留白
 
@@ -493,10 +488,7 @@ HTML。常驻而不是每次新建：那份 HTML 内联了将近 1MB 的 KaTeX �
 
 打印范围两种：**打印全部**（整板从第 1 页排）与**仅新增**（只有纸面记录存在时可选：
 新题接在纸面 `cursor` 所在页的空白处续排，需要新页时用绝对页码 `pages+1`）。范围分段在状态条上，
-改完纸面当场重排。「✓ 记录纸面」优先复用常驻预览测出的版面（板 id 与模式都对得上才采纳），
-预览不可用时才把同一份导出 HTML 放进隐藏 iframe 测量（`boardMeasureLayout`），
-再 `POST /api/board/printed`；打印预览窗口的「已打印，记录纸面」通过
-`postMessage('omrs-board-printed')` 触发同一流程。常驻预览里那份导出的顶栏动作条已由
+改完纸面当场重排。「✓ 记录纸面」使用待记录导出的快照；下载任务通过 `boardMeasureLayout` 测量保留的 HTML，再 `POST /api/board/printed`。独立窗口的「已打印，记录纸面」通过 `omrs-board-printed` 回传其自身版面。常驻预览里那份导出的顶栏动作条已由
 `embedded` 收起，不构成第三个入口。
 
 打印预览（v1.14.1 起）必须**先同步 `window.open('', '_blank')` 拿到窗口、写入占位提示，再

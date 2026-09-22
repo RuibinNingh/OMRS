@@ -361,7 +361,7 @@
     segments.forEach((map, idx) => {
       const q = (D.questions || []).find(item => item.idx === idx);
       if (!q) return;
-      items.push({ idx, uid: q.uid, question_id: q.question_id || "",
+      items.push({ idx, uid: q.uid, question_id: q.question_id || "", hash: q.hash || "",
         segments: [...map.entries()].map(([number, seg]) => ({ page: number, top: Math.round(seg.top * 100) / 100, height: Math.round((seg.bottom - seg.top) * 100) / 100 })).sort((a, b) => a.page - b.page) });
     });
     items.sort((a, b) => a.idx - b.idx);
@@ -573,6 +573,7 @@
   function waitForTwoFrames() { return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); }
 
   function notifyRaw(payload) {
+    payload.previewToken = window.OMRS_PREVIEW_TOKEN || "";
     try { if (window.opener && !window.opener.closed) window.opener.postMessage(payload, "*"); } catch (e) {}
     try { if (window.parent && window.parent !== window) window.parent.postMessage(payload, "*"); } catch (e) {}
   }
@@ -635,6 +636,7 @@
   window.addEventListener("message", event => {
     const message = event.data;
     if (!message || typeof message !== "object") return;
+    if (window.OMRS_PREVIEW_TOKEN && message.previewToken !== window.OMRS_PREVIEW_TOKEN) return;
     if (message.type === "omrs-board-request-layout" && window.OMRS_LAYOUT) { notify("omrs-board-layout", window.OMRS_LAYOUT); return; }
     if (message.type === "omrs-board-relayout") { relayout(message); return; }
     if (message.type === "omrs-board-goto") {

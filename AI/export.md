@@ -11,7 +11,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 ## 后端职责（`omrs/exporting.py`）
 
 只做四件事，全部纯标准库：
-1. **读题**：`_load_export_questions()` 从 mastery CSV + 题目 `.md` 取题（与旧实现一致，停用标记为 `1` 的题目在此处跳过）。
+1. **读题**：`_load_export_questions()` 从 mastery CSV + 题目 `.md` 取题（与旧实现一致，停用标记为 `1` 的题目在此处跳过）；展示板导出与纸面指纹读取都把文件路径限制在 `错题/` 目录内，越界或损坏路径按缺失处理。
 2. **解析**：`_text_to_blocks()` 把正文转成三种块——非空文字行→`{t:'txt'}`，`![[名]]` / `![](路径)`→`{t:'img'}`，Markdown 表头 + 分隔行 + 数据行→`{t:'table', headers, rows}`。表格支持 `\|` 转义；对齐冒号会被识别但当前不保留对齐语义，行宽按表头补空或截断。跨行 `$$...$$` 会先合并为单个文字块，不能按行拆散。
 3. **取图**：`_img_payload()` 用 `_find_image()` 定位、`_read_image_info()`（纯 `struct` 解析 PNG/JPEG/GIF 尺寸，无 Pillow）读出宽高，base64 成 data-uri。
 4. **组装**：`_build_export_data()` 产出 `{meta, questions, feedback, answers}`，其中 `meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联（`_read_katex_bundle()`）。数据 JSON 会做 `</` 转义防提前闭合脚本，最终仍是单个自包含 HTML。
@@ -124,6 +124,8 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 
 导出 HTML 既是打印产物，也是展示板页里那个常驻预览 iframe 的内容，两边靠 `postMessage`
 对话（同源 `srcdoc`，`sandbox="allow-same-origin allow-scripts allow-modals"`）。
+常驻预览的每份 srcdoc 注入独立 `window.OMRS_PREVIEW_TOKEN`，双向消息携带 `previewToken`；宿主核对来源窗口、token、板 ID 与模式，模板拒绝不同 token 的宿主消息。独立导出件不设 token，回传值为空。内嵌 HTML 自带 `embedded`，首轮排版前就收起顶栏。
+
 **模板 → 宿主**（`opener` 与 `parent` 都发）：
 
 | 消息 | 时机 | 载荷 |
@@ -144,15 +146,14 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 
 关键取舍：**几何类改动全程零网络请求**。拖版面滑块、改题间留白、换切割线样式都走
 `omrs-board-relayout` 在 iframe 里就地重排，不重新请求那份将近 1MB 的导出 HTML；
-只有增删题、排序、换模式这类**内容**变化才重新导出。
+增删题、排序、换模式以及答案 / 标记显示开关变化会在保存后重新导出。
 
 排版完成后模板写 `window.OMRS_LAYOUT`（`{mode, print, pages, page_numbers, rendered_pages,
-partial_page, cursor, items[{question_id, uid, segments[{page,top,height}]}], answer_pages,
+partial_page, cursor, items[{question_id, uid, hash, segments[{page,top,height}]}], answer_pages,
 warnings}`）与 `window.OMRS_LAYOUT_TIMING`（`{total_ms, passes}`），设置
 `<html data-omrs-layout-ready="1">`，并向 `opener`/`parent` 发送
 `{type:"omrs-board-layout"}`；顶栏「✓ 已打印，记录纸面」发送 `omrs-board-printed`。主程序
-用同一份 HTML 在隐藏 iframe 里测量，`POST /api/board/printed` 记录纸面；展示板页的「预计页数」
-也直接采用预览窗口回传的这份 layout（见 `board.md` §4.2）。
+将独立打印窗口的 layout 绑定到导出任务；下载的 HTML 在记录时用同份内容测量。`POST /api/board/printed` 保存这份快照与导出时正文指纹，展示板「预计页数」则取常驻预览的 layout（见 `board.md` §4.2）。
 
 `board.js` 的 `initialRun()` 在首轮排版前先并行做两件事：预载图片、按数据里是否出现 `$`
 决定要不要 `document.fonts.load()` 预热常用 KaTeX 字体族。首轮排完再比对

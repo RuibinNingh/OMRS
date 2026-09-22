@@ -6,6 +6,18 @@
 
 ---
 
+## 展示板完整性保障
+
+- [x] **导出归属固定。** 导出在请求前捕获板 ID、名称与模式；独立窗口只回写自己的导出任务。前后端均核验版面归属、模式、题目身份和页码范围；旧窗口、未知/别板题目、无纸面续印和越界布局不能写入纸面。
+- [x] **保存串行且保留新编辑。** `BOARD_SAVE_IN_FLIGHT` 协调在途请求；响应合并时保留发送后产生的脏字段并继续保存。切板、导出、重载等待队列，保存失败时保留编辑并中止依赖动作。
+- [x] **撤销只移除实际新增引用。** 加题接口返回 `added_uids`；普通 toast、Shift 快捷加入和连续选板的撤销使用该清单。「换个板」只处理本次新增引用，并在加入目标成功后移除来源引用。
+- [x] **内容设置重新导出。** 答案与标记开关进入内容指纹，保存后更新导出内容；纯几何调整仍用实时 relayout。
+- [x] **立即打印等待保存。** 打印窗口先同步打开，再等待去抖和在途保存完成；保存失败不生成旧版式的导出。
+- [x] **纸面记录绑定导出快照。** 每板保存待记录任务，使用独立窗口的实测 layout，或以已下载的同份 HTML 测量；当前预览的后续编辑不替换快照。正文指纹从导出数据传回，旧导出件缺字段时保留兼容回退。
+- [x] **预览消息隔离。** 每份 srcdoc 带独立 `previewToken`，与板 ID、模式、来源窗口一起核验；旧响应或旧消息不能使新文档提前就绪。内嵌 HTML 从加载开始收起独立打印工具栏。
+
+保障范围由 `tests/test_board_integrity.py`、`tests/test_board_preview.js`、`tests/test_board_locked_incremental.js`、`tests/smoke_board_integrity.py` 和既有展示板测试覆盖。排查证据见 `AI/logs/2026-09-22_board-functional-audit.md`，修复及验证记录见 `AI/logs/2026-09-22_board-integrity-fixes.md`。
+
 ## 最值得动的
 
 - [ ] **服务重启时 TCP 端口短暂占用** — 影响:中 / 工作量:小。`systemctl restart omrs.service` 在旧连接尚未完全释放时可能遇到 `Address already in use`，触发 systemd 自动重试；本次 2026-09-20 验收中约 19 秒后恢复，最终服务正常。根因与既有部署日志记录的 `TCPServer` bind 竞态相同，尚未改动 `omrs/cli.py`；后续可评估 `allow_reuse_address` 或明确的 stop→等待→start 流程，避免重复手工重启。
@@ -37,11 +49,10 @@
   **v1.14.0 新增的 `qtable.js` / `board.js` 也保留了整块渲染**：题库筛选变化会重绘表格/画廊，展示板排序和版面设置会重绘板内容；两者的高频动作已使用
   data 属性事件委托，但尚未改成局部 DOM 更新。
 
-- [ ] **`assets/board.js` 已经到 98KB / 1500+ 行** — 影响:中 / 工作量:中 / 风险:中
-  一个文件里同时住着：板 CRUD、文件夹树、选板浮层、条目增删排序、版面设置、保存队列、
-  打印与纸面记录、拖拽、预览协调和整套事件委托。预览层已经拆到 `assets/board_preview.js`，
-  剩下的建议再拆两块：`board_picker.js`（文件夹树 / 选板浮层 / 搜索 / 最近使用）与
-  瘦身后的 `board.js`（页面状态、板切换、保存队列、视图协调）。
+- [ ] **`assets/board.js` 仍承载多种职责** — 影响:中 / 工作量:中 / 风险:中
+  当前包含板 CRUD、文件夹操作、条目增删排序、版面设置、保存队列、打印与纸面记录、
+  拖拽、预览协调和事件委托。预览生命周期位于 `assets/board_preview.js`，选板浮层、
+  分组、搜索和最近使用位于 `assets/board_picker.js`。后续可进一步拆分打印与保存协调。
   拆分约束：不改全局函数名和 HTML 行内 handler 的兼容层；先搬纯函数和事件委托、再搬状态；
   每一步都要过 `node --check`、`tests/test_board_ui.js` 与浏览器主路径。
 
@@ -87,7 +98,7 @@
   **当前测试数量与运行方式**：`tests/test_inbox.py` 有 14 个 `test_*` 方法；`test_report_export.py` 有 6 个 pytest 风格用例，其余 Python 测试文件使用 `unittest`。`python3 -m unittest discover -s tests -p "test_*.py"` 会运行 unittest 用例但静默跳过 `test_report_export.py`；无 pytest 的环境需单独安排。JS 用例逐文件跑：`for f in tests/test_*.js; do node --test "$f"; done`（`node --test tests/` 目录形式在 Node 22 下不可用）。
 
 - [x] **展示板打印链路的三处浪费（2026-09-06 已修）** — 导出把 KaTeX 的 woff2/woff/ttf 三份字体全内联且每次重新读盘编码，浏览器模板固定排版两遍，长图在原始分辨率上逐像素找白缝。现在只内联 woff2 并按文件时间缓存（导出 2.0MB→0.95MB）、按是否真的多加载了字体决定第二遍（30 题板就绪 0.4s→0.28s）、白缝分析在 ≤600px 缩图上做。前端页数估算改成可取消，并复用打印预览窗口回传的版面。回归：`tests/test_board_export.py`、`tests/smoke_board_print.py`（3 例）、`tests/test_board_ui.js`。
-  **剩余小债**：估算仍是「每次改设置就重排一遍」，没有按 `board_id + mode + 版面 + 题目指纹` 缓存导出 HTML；快速连续调滑块时前一次的排版被丢弃而不是复用。
+  当前预览使用单例 iframe 与最近一份 HTML 缓存；几何改动通过 120ms 去抖发送 `relayout`，页数直接读取预览版面，不再另外排版估算。
 
 - [x] **`smoke_board_print.py` 失败（2026-09-06 已修）** — `test_full_then_incremental_print` 硬断言补印首页是占位页（`partial && ghost`），但夹具在某些字体下最后一页恰好排满，占位页按设计被丢弃，于是断言失败。现改为按 `cursor.y` 与栏高的关系分支断言，并新增两例：短板强制走占位页续排、宽长图走缩图切片。
 

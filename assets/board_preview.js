@@ -23,6 +23,7 @@ let BP_ON_LAYOUT = null;              // 宿主回调：拿到新版面
 let BP_ON_SELECT = null;              // 宿主回调：纸面上点了某道题
 let BP_ON_GAP = null;                 // 宿主回调：拖切割线改了某题的题后留白
 let BP_VISIBLE = true;
+let BP_GENERATION = 0;
 
 const BP_SCALES = { fit: 'fit', 1: 1 };
 
@@ -69,7 +70,7 @@ function boardPreviewMount(container) {
 }
 
 function boardPreviewPost(message) {
-  try { BP_FRAME?.contentWindow?.postMessage(message, '*'); } catch (error) {}
+  try { BP_FRAME?.contentWindow?.postMessage({ ...message, previewToken: BP_STATE.token }, '*'); } catch (error) {}
 }
 
 // ---------- 几何刷新（零网络） ----------
@@ -132,28 +133,32 @@ async function boardPreviewSetBoard(boardId, mode, options = {}) {
   // 初次进板时 boardInit 与随后的 render 会连着 sync 两次，没有这道闸就白拉一遍。
   if (key === BP_STATE.key && (BP_STATE.ready || BP_STATE.loading) && !options.force) return BP_STATE.ready ? BP_LAYOUT : null;
   clearTimeout(BP_REFRESH_TIMER);
-  if (BP_FETCH && BP_FETCH.key !== key) { try { BP_FETCH.controller.abort(); } catch (error) {} BP_FETCH = null; }
-  BP_STATE = { boardId, mode: mode === 'new' ? 'new' : 'all', key, ready: false, loading: true };
+  if (BP_FETCH) { try { BP_FETCH.controller.abort(); } catch (error) {} BP_FETCH = null; }
+  BP_PENDING = null; // 新导出已包含此前保存的设置；仅重放请求发出之后的编辑
+  const token = String(++BP_GENERATION);
+  BP_STATE = { boardId, mode: mode === 'new' ? 'new' : 'all', key, token, ready: false, loading: true };
+  BP_LAYOUT = null;
   let html = BP_HTML_CACHE.get(key);
   if (!html) {
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
-    BP_FETCH = { key, controller: controller || { abort() {} } };
+    BP_FETCH = { key, token, controller: controller || { abort() {} } };
     try {
       html = await boardPreviewFetch(boardId, BP_STATE.mode, controller?.signal);
     } catch (error) {
-      if (error?.name === 'AbortError') return null;
+      if (error?.name === 'AbortError' || BP_STATE.token !== token) return null;
       BP_STATE.error = error.message || String(error);
       BP_STATE.loading = false;
       BP_STATE.key = '';                                 // 失败不占坑，下次 sync 会重试
       throw error;
     } finally {
-      if (BP_FETCH?.key === key) BP_FETCH = null;
+      if (BP_FETCH?.token === token) BP_FETCH = null;
     }
-    if (BP_STATE.key !== key) return null;           // 期间又换板了，丢弃这次结果
+    if (BP_STATE.token !== token) return null;      // 同板重新生成也属于不同代次
     BP_HTML_CACHE = new Map([[key, html]]);          // 只留最近一份，别把几份 1MB 的 HTML 攒在内存里
   }
   if (!BP_FRAME) return null;
-  BP_FRAME.srcdoc = html;
+  const init = `<script>window.OMRS_PREVIEW_TOKEN=${JSON.stringify(token)};</script>`;
+  BP_FRAME.srcdoc = html.replace('<head>', '<head>' + init).replace('<body>', '<body class="embedded">');
   return null;                                        // 版面等 iframe 排完由 onLayout 回调送出
 }
 async function boardPreviewFetch(boardId, mode, signal) {
@@ -174,7 +179,12 @@ function boardPreviewScheduleRefresh(boardId, mode, options = {}) {
     boardPreviewSetBoard(boardId, mode, options).catch(() => {});
   }, 500);
 }
-function boardPreviewInvalidate() { BP_HTML_CACHE = new Map(); BP_STATE.key = ''; BP_STATE.loading = false; }
+function boardPreviewInvalidate() {
+  BP_HTML_CACHE = new Map();
+  if (BP_FETCH) { try { BP_FETCH.controller.abort(); } catch (error) {} BP_FETCH = null; }
+  BP_STATE = { ...BP_STATE, key: '', token: String(++BP_GENERATION), loading: false, ready: false };
+  BP_LAYOUT = null;
+}
 
 // ---------- iframe 回传 ----------
 if (typeof window !== 'undefined') {
@@ -182,6 +192,8 @@ if (typeof window !== 'undefined') {
     const message = event.data;
     if (!message || typeof message !== 'object' || !BP_FRAME) return;
     if (event.source !== BP_FRAME.contentWindow) return;         // 打印预览窗口另有链路，别抢
+    if (!BP_STATE.token || message.previewToken !== BP_STATE.token) return;
+    if (message.boardId !== BP_STATE.boardId || (message.mode && message.mode !== BP_STATE.mode)) return;
     if (message.type === 'omrs-board-layout') {
       BP_LAYOUT = message.layout || null;
       if (!BP_STATE.ready) {
