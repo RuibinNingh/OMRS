@@ -287,3 +287,11 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 | `check_docs --diff HEAD`（未修改开发 worktree 时） | 0 处问题，2 条篇幅提醒 |
 
 `check_docs` 比进度原记的多一条提醒：除 `AI/api.md` 外，新的执行说明为 48KB。开发 worktree 补记本节与进度时，曾在写日志及生成索引前运行 `check_docs --diff HEAD`，该次报告 2 处文档同步问题；运行 `--write-log-index` 后重跑为 0 处问题、2 条篇幅提醒。生成索引同时移除了一条指向不存在的 2026-08-16 日志的旧条目。
+
+### 阶段 2.1：截图审计修正
+
+`tests/visual/run.py` 的审计现在只统计非空 `style` 属性，字号与行内样式都排除 KaTeX 内部。`tests/test_visual_diff.py` 用真实浏览器验证空属性、空白属性、有效行内样式及 KaTeX 小字号的计数。`AI/environment.md` 与计划进度同步了审计口径。
+
+已实际执行：`python3 -m unittest tests.test_visual_diff -v`，2 项通过；`tests/visual/run.py --audit-only --pages questions,schedule --themes light,dark --viewports desktop,mobile`，8 种组合均为 0 处行内样式、页面脚本错误为 0。题库页全页面审计另显示最小字号 9.6px，复习调度为 12px；浏览器定位到题库的旧 `.lbl` 标记芯片字号 9.6px、`ui-kbd` 11px。该旧样式属于进度 §8 登记的 P8 遗留，迁 P6 页时仍需核查相同组件。浏览器使用本机 CDP，实例使用临时 Vault 和随机端口。
+
+全量门禁在本次改动后再次执行：Python 160 项、Node 220 项、浏览器单测 34 项；shell_router / ui_bridge 20 / 15，instant / feedback / questions 23 / 31 / 92，dashboard / data / schedule 26 / 21 / 45，`smoke_schedule_workbench` 1 项，均通过。`check_ui` 0 处问题，对比度 58 组均达标，`check_docs --diff HEAD` 0 处问题、2 条篇幅提醒。均在独立 worktree、临时 Vault、本机 CDP 模式下运行；未执行生产变更。

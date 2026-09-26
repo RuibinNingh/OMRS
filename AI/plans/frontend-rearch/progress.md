@@ -2,10 +2,10 @@
 
 > **状态**
 > - 目标：重建前端架构，让 CCW 能安全修改、可维护性提升、UI 精致化（总纲见同目录 `plan.md`）
-> - 阶段：**P6 第 5 轮完成，本机接手中**；v1.25.4 已作为开发基线，剩余历史、目录、报告、设置、录入题目与手机收件箱页面待迁
+> - 阶段：**P6 第 5 轮完成，截图审计修正完成**；v1.25.4 已作为开发基线，剩余历史、目录、报告、设置、录入题目与手机收件箱页面待迁
 > - 基线：`7ebfc6c`（`rearch/base-v1.25.4`）；生产目录停在该提交，开发 worktree 的分支为 `frontend-rearch`
-> - 下一步：Codex · 完整，在开发 worktree 按同目录 `exec-2026-09-26-codex.md` 阶段 2 完成 P6 剩余页面；部署另等用户授权
-> - 更新：2026-09-26，Codex 实测生产隔离并建立本机基线
+> - 下一步：Codex · 完整，在开发 worktree 按同目录 `exec-2026-09-26-codex.md` §2.2 迁历史记录，随后完成其余 P6 页面；部署另等用户授权
+> - 更新：2026-09-26，Codex 完成执行说明阶段 0、1、2.1
 
 ## 1. 用户诉求原话（每期都要能对应回这里）
 
@@ -68,7 +68,7 @@
 
 | 命令 | 预期 |
 |---|---|
-| `python3 -m unittest discover -s tests -p 'test_*.py' -q` | 159 OK（2026-09-26 起含本机新增的 `test_browser_runtime.py`、`test_visual_diff.py`）|
+| `python3 -m unittest discover -s tests -p 'test_*.py' -q` | 160 OK（截图审计修正新增 1 项浏览器单测）|
 | `node --test tests/*.js tests/app/*.test.mjs` | 220 / 220 |
 | `python3 tests/app/run_browser.py` | 34 / 34 |
 | `python3 tests/e2e/shell_router.py` | 20 / 20 |
@@ -169,7 +169,7 @@
 P6 剩余（Codex · 完整，细节以 `exec-2026-09-26-codex.md` 阶段 2 为准；以下为原第 6 轮开工条目，截图脚本一项已定位）：
 
 - 范围：历史记录（`history.js` → `features/history/`；`domain/history.js` 的转调换成真实现，仪表盘最近动态不动）、目录（`catalog.js` → `features/catalog/`）。量大时先做历史记录（有修正、撤销、还原等写操作，E2E 要覆盖）。
-- 截图脚本的「复习调度 44 处行内样式」：2026-09-26 已定位为脚本问题。`shoot()` 先整页截图、后跑审计，截图后页面里所有 `<input>` 都带上空的 `style=""`，审计用 `hasAttribute('style')` 把它们计了进去（复习调度 44 个、题库 41 个，全是 input）；截图前数是 0。修法：只计非空 `style`，并排除 `.katex` 内部。执行说明 2.1 负责修。
+- [x] 截图脚本的「复习调度 44 处行内样式」已修：`shoot()` 截图后 `<input>` 留下空 `style=""`，现只计非空属性值，并排除 `.katex` 内部。`--audit-only` 对复习调度和题库页各四种主题 / 尺寸组合的行内样式计数均为 0；详见 p6 日志「本机接手」。
 - 其后：报告、设置、录入题目与收件箱入口、`inbox_mobile.html` 接 tokens（§9）；P6 全部完成后进 P7 展示板。
 
 以下是原「第 5 轮开工」条目（留作记录）：

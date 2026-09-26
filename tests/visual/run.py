@@ -39,8 +39,9 @@ AUDIT_JS = r"""() => {
   let inline = 0, small = 0, overflowX = 0;
   for (const e of els) {
     const s = getComputedStyle(e);
-    if ([...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) sizes.add(s.fontSize);
-    if (e.hasAttribute('style')) inline++;
+    const math = e.closest('.katex');
+    if (!math && [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) sizes.add(s.fontSize);
+    if (!math && (e.getAttribute('style') || '').trim()) inline++;
     const r = e.getBoundingClientRect();
     const clickable = e.tagName === 'BUTTON' || e.tagName === 'SELECT' || e.getAttribute('role') === 'button'
       || (e.tagName === 'A' && e.hasAttribute('href')) || e.hasAttribute('onclick') || e.hasAttribute('data-action');
