@@ -2,22 +2,22 @@
 
 > **速查**
 > - 职责：Ledger 时间线、数据复盘页、AI 报告托管页
-> - 入口：`assets/history.js`、`assets/app/features/data/`（数据复盘）、`assets/reports.js`
+> - 入口：`assets/app/features/history/`、`assets/app/features/data/`（数据复盘）、`assets/reports.js`
 > - 不变量：历史修正只在「修正模式」下可用；报告在 sandbox 中渲染，不获得 OMRS 同源权限
-> - 必跑测试：`tests/test_history_projection.py`、`tests/test_report_export.py`、`tests/app/analytics.test.mjs`、`tests/e2e/data.py`
+> - 必跑测试：`tests/test_history_projection.py`、`tests/app/history.test.mjs`、`tests/e2e/history.py`、`tests/test_report_export.py`、`tests/app/analytics.test.mjs`、`tests/e2e/data.py`
 > - 相关：`AI/frontend.md`（索引）
 
 ## 历史记录页
 
-历史页现在读取 `/api/history` 的 Ledger commit，而不是只显示 `history_log.csv` 表格。
+历史页由 `features/history/` 按页面契约挂载到 `#hist-app`，读取 `/api/history` 的 Ledger commit。`index.js` 管理加载与修正请求，`state.js` 投影视图状态，`view.js` 渲染时间线，`history.css` 提供样式。`domain/history-model.js` 持有撤销状态、节点分类、标题、时间格式与排序的纯函数；`domain/history.js` 负责读取、修正请求和跨页通知，仪表盘最近动态直接复用同一投影。
 
 - 视觉结构为竖线时间线：旧节点在上方，最新节点在底部，进入页面后自动滚到底部；主时间线只展示非修正、且**当前未被撤销**的节点。
-- **节点按 commit 族着色**：`renderHistoryNode` 调 `historyCommitFamily(commit_type)` 给节点加 `fam-review/fam-session/fam-question/fam-system` 类——圆点和 commit 类型标签据此取 `--fam-*` 色。`review.batch_submit` 节点额外由 `historyReviewVisual()` 渲染「对错配比条 + 每题色块」（对=`--green`、错=`--red`、已撤销=`--bg4`），不展开即可看出本批练习结果。
+- **节点按 commit 族着色**：`historyCommitFamily(commit_type)` 决定 `data-family`，圆点和节点标题据此取语义色。`review.batch_submit` 节点额外由 `reviewVisual()` 渲染「对错配比条 + 每题色块」，不展开即可看出本批练习结果。
 - 顶部提供排序选择：`旧 → 新（最新在底部）` 或 `新 → 旧（最新在顶部）`，选择会保存在浏览器本地。
 - 顶部提供「修正模式」开关：默认关闭，主节点只读；开启后才显示 `修改 / 撤销 / 还原` 操作面板，避免日常浏览时误触危险操作。
 - 顶部提供「修正记录」按钮：`review.replace`、`review.retract`、`review.restore`、`session.retract`、`session.restore`、`state.restore` 等修正节点从主时间线移出，集中在该列表里查看。
-- **被撤销的节点从主时间线隐藏**：优先使用 `/api/history` 返回的完整链 `retraction_state`；旧响应则回退到前端按 seq 顺序重放 `session.retract/restore`、`review.retract/restore`（前端函数 `historyRetractionState`）。`session.create` 整个 Session 被撤销、或 `review.batch_submit` 批次内所有反馈都被撤销（或其 Session 被撤销）时，该主节点（`isNodeRetracted`）不再显示，状态栏提示「N 个已撤销已隐藏」。Ledger 底层仍保留全部 commit，不做删除。
-- 隐藏的节点可在「修正记录」面板恢复：被撤销且**当前仍处于撤销态**的 `session.retract` / `review.retract` 修正行带「恢复」按钮（`correctionRestoreButton`），点按调用对应 restore API 追加新 commit，节点随即回到主时间线。
+- **被撤销的节点从主时间线隐藏**：优先使用 `/api/history` 返回的完整链 `retraction_state`；旧响应则回退到 `historyRetractionState()` 按 seq 顺序重放 `session.retract/restore`、`review.retract/restore`。`session.create` 整个 Session 被撤销、或 `review.batch_submit` 批次内所有反馈都被撤销（或其 Session 被撤销）时，该主节点（`isNodeRetracted`）不再显示，状态栏提示「N 个已撤销已隐藏」。Ledger 底层仍保留全部 commit，不做删除。
+- 隐藏的节点可在「修正记录」面板恢复：被撤销且**当前仍处于撤销态**的 `session.retract` / `review.retract` 修正行带「恢复」按钮，点按调用对应 restore API 追加新 commit，节点随即回到主时间线。
 - 每个节点显示时间、题目优先摘要、副标题、commit_id、source、seq 和 commit_type；`formatLedgerTime()` 将带时区偏移的 Ledger `created_at` 按设置页时区显示，仪表盘最近动态复用同一格式化函数；`review.batch_submit` 标题优先展示 UID（单题直接显示题目，多题显示前几题），副标题再显示有效题数、对错和已撤销条数。
 - 节点默认只显示头部数据；下方挂只读 `查看详情` 折叠块。开启修正模式后，再额外显示默认关闭的 `修改 / 撤销 / 还原` 操作折叠块。
 - 无可操作内容的节点（如 `legacy.bootstrap`、外部扫描类）**不显示**操作折叠块，只保留 `查看详情`。
@@ -27,6 +27,7 @@
   - 含 `session_id` 的节点：撤销整次 Session 或恢复 Session。
   - 非 genesis 节点：追加 `state.restore`，还原结构化状态到该 seq。
 - 所有按钮都调用历史修正 API 追加新 commit，不会修改旧节点。
+- 修正请求统一返回 `{ok, data, error}`。请求期间操作按钮置忙；成功后依次清题目详情缓存、重载统计与 Session、发 `history:changed` 通知仪表盘，再重拉时间线。刷新失败时保留现有列表并显示原因；首次加载超过 300ms 才显示骨架。
 
 ## 数据页（复盘，`features/data/`，v1.25.1 起）
 

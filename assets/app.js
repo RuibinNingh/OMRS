@@ -208,7 +208,7 @@ function setDensity(mode){const d=mode==='comfortable'?'comfortable':'compact';t
 function setInvertImg(on){try{localStorage.setItem('omrs-invert-img',on?'1':'0')}catch(e){}document.documentElement.setAttribute('data-invert-img',on?'1':'0')}
 function syncThemeControls(){const t=document.documentElement.getAttribute('data-theme')||'light';document.querySelectorAll('#st-theme-switch .theme-opt').forEach(b=>b.classList.toggle('active',b.dataset.theme===t));const inv=document.getElementById('st-invert-img');if(inv)inv.checked=document.documentElement.getAttribute('data-invert-img')==='1';const dn=document.documentElement.getAttribute('data-density')||'compact';document.querySelectorAll('#st-density-switch .theme-opt').forEach(b=>b.classList.toggle('active',b.dataset.density===dn))}
 function syncLedgerTimeZoneControl(){const select=document.getElementById('st-ledger-time-zone');if(select)select.value=ledgerTimeZone()}
-function setLedgerTimeZone(value){const zone=value||'local';try{localStorage.setItem(LEDGER_TIME_ZONE_KEY,zone)}catch(e){}syncLedgerTimeZoneControl();renderLedgerTimeline(window.HISTORY_COMMITS||[]);window.__omrs?.emit('ledger:tz')}
+function setLedgerTimeZone(value){const zone=value||'local';try{localStorage.setItem(LEDGER_TIME_ZONE_KEY,zone)}catch(e){}syncLedgerTimeZoneControl();window.__omrs?.emit('ledger:tz')}
 async function saveSettings() {
   const allowExternal = !!document.getElementById('st-allow-external')?.checked;
   const lanCidrs = parseLanCidrs(document.getElementById('st-lan-pin-exempt-cidrs')?.value);
@@ -411,7 +411,7 @@ function closeDrawer(){document.body.classList.remove('drawer-open')}
 function toggleDrawer(){document.body.classList.toggle('drawer-open')}
 document.addEventListener('click',function(e){if(e.target.closest('.sidebar-nav .tab')&&window.matchMedia('(max-width:860px)').matches)closeDrawer()});
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDrawer()});
-async function init(){setSidebarVersion();await loadLabels();await reloadData();await loadHist();await refreshSessions();if(typeof boardInit==='function')boardInit();if(typeof crSetPasteTarget==='function')crSetPasteTarget(CR_PASTE_TARGET)}
+async function init(){setSidebarVersion();await loadLabels();await reloadData();await refreshSessions();if(typeof boardInit==='function')boardInit();if(typeof crSetPasteTarget==='function')crSetPasteTarget(CR_PASTE_TARGET)}
 // Esc 关题目弹窗：由过渡桥登记到 core/keys.js（assets/app/legacy-bridge.js 的 installEscapeBridge；P5 起），不再在 document 上另挂
 document.addEventListener('paste',crHandlePaste);
 // 不再自调用 init()：模块入口 assets/app/main.js 装好过渡桥与路由后调用它（v1.21.0 起）

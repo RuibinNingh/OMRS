@@ -97,6 +97,7 @@ export const page = {
       ctx.store.subscribe(() => { ctl?.paint(); ctl?.loadRecent(); }, st => st.data),
       ctx.bus.on('sessions', () => ctl?.paint()),
       ctx.bus.on('ledger:tz', () => ctl?.paint()),
+      ctx.bus.on('history:changed', () => ctl?.loadRecent()),
     ];
     ctl.paint();
     ctl.loadRecent();

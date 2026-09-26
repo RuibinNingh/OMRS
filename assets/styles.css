@@ -555,45 +555,6 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;hei
 @media(max-width:1100px){.schedule-layout{grid-template-columns:1fr}}@media(max-width:900px){.stat-grid{grid-template-columns:repeat(2,1fr)}.cols{grid-template-columns:1fr}}
 @media(max-width:600px){.stat-grid{grid-template-columns:1fr}}
 
-/* ── Ledger history timeline ── */
-.history-shell{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--card-shadow);padding:18px}
-.history-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}
-.history-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-.history-tools select{min-width:190px}
-#history-edit-toggle.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
-.history-corrections{margin-bottom:14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);padding:10px;display:flex;flex-direction:column;gap:8px}
-.history-corrections[hidden]{display:none}
-.history-correction-row{border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2);padding:10px}
-.history-correction-main{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
-.history-correction-title{font-size:.8rem;font-weight:800;color:var(--accent2);line-height:1.45}
-.history-correction-reason{margin-top:6px;font-size:.74rem;color:var(--fg2)}
-.history-timeline{position:relative;max-height:68vh;overflow:auto;padding:4px 6px 4px 28px}
-.history-timeline::before{content:'';position:absolute;left:14px;top:8px;bottom:8px;width:2px;background:var(--border2)}
-.timeline-node{position:relative;margin:0 0 14px}
-.timeline-dot{position:absolute;left:-22px;top:17px;width:12px;height:12px;border-radius:50%;background:var(--bg2);border:2px solid var(--accent);z-index:1}
-.timeline-card{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:13px 14px}
-.timeline-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
-.timeline-time{font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:.72rem;color:var(--fg3);margin-bottom:3px}
-.timeline-title{font-weight:800;color:var(--accent2);line-height:1.45}
-.timeline-subtitle{margin-top:3px;font-size:.76rem;color:var(--fg2);line-height:1.45}
-.timeline-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:7px;font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:.68rem;color:var(--fg3)}
-.timeline-folds{margin-top:10px;display:flex;flex-direction:column;gap:8px}
-.timeline-details summary{cursor:pointer;color:var(--fg3);font-size:.74rem}
-.timeline-details pre{margin-top:8px;white-space:pre-wrap;font-size:.72rem;color:var(--fg2);line-height:1.55;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px;max-height:260px;overflow:auto}
-.timeline-ops-details summary{cursor:pointer;color:var(--accent2);font-size:.74rem;font-weight:700}
-.timeline-ops-details[open] summary{margin-bottom:2px}
-.history-ops{margin-top:8px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2);padding:10px;display:flex;flex-direction:column;gap:10px}
-.hist-op-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.76rem;color:var(--fg2)}
-.hist-op-row strong{font-family:'JetBrains Mono','Noto Sans SC',monospace;color:var(--accent2)}
-.hist-review-panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:10px}
-.hist-op-title{font-size:.74rem;font-weight:800;color:var(--accent2);margin-bottom:8px}
-.hist-op-grid{display:grid;grid-template-columns:190px 74px 90px minmax(130px,1fr) minmax(130px,1fr) auto auto auto;gap:8px;align-items:center}
-.hist-input{min-width:180px}
-.hist-score{width:74px}
-.history-status{font-size:.76rem;color:var(--fg3);margin-top:10px}
-@media(max-width:1000px){.hist-op-grid{grid-template-columns:1fr 74px 90px}.hist-op-grid button{justify-content:center}.history-timeline{max-height:none}}
-@media(max-width:640px){.history-toolbar{display:block}.history-tools{justify-content:flex-start;margin-top:10px}.history-tools select{min-width:0;width:100%}.history-timeline{padding-left:24px}.hist-op-grid{grid-template-columns:1fr}.hist-score{width:100%}}
-
 /* ── Settings optimization ── */
 .opt-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:16px}
 .opt-head-title{font-size:.88rem;font-weight:700;color:var(--accent2);letter-spacing:.3px}
@@ -646,22 +607,6 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;hei
 .entry-btns{display:flex;gap:12px;margin-bottom:20px}
 
 /* ── Instant practice ── */
-
-/* ── v1.2.0 UI refresh：语义族配色 / 富化复习节点 / 仪表盘动态 / 密度散点 ── */
-.timeline-node .timeline-dot{width:13px;height:13px;background:var(--fam-system);border:2px solid var(--bg2);box-shadow:0 0 0 1px var(--border2)}
-.timeline-node.fam-review .timeline-dot{background:var(--fam-review)}
-.timeline-node.fam-session .timeline-dot{background:var(--fam-session)}
-.timeline-node.fam-question .timeline-dot{background:var(--fam-question)}
-.timeline-node.fam-system .timeline-dot{background:var(--fam-system)}
-.timeline-head .tag.fam-review{background:rgba(47,125,79,.1);color:var(--fam-review)}
-.timeline-head .tag.fam-session{background:rgba(53,106,156,.1);color:var(--fam-session)}
-.timeline-head .tag.fam-question{background:var(--accent-bg);color:var(--accent2)}
-.timeline-head .tag.fam-system{background:var(--bg3);color:var(--fg2)}
-.timeline-review{margin-top:10px}
-.timeline-ratio{height:6px;border-radius:999px;overflow:hidden;display:flex;background:var(--bg3)}
-.timeline-qs{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
-.timeline-q{width:13px;height:13px;border-radius:4px;background:var(--bg4)}
-.timeline-q.ok{background:var(--green)}.timeline-q.no{background:var(--red)}.timeline-q.off{background:var(--bg4)}
 
 /* Modern dashboard charts */
 .stat-card,.card{border-color:var(--border);background:linear-gradient(180deg,var(--bg2),color-mix(in srgb,var(--bg2) 88%,var(--bg) 12%));box-shadow:var(--card-shadow),inset 0 1px 0 color-mix(in srgb,var(--fg) 5%,transparent)}
@@ -789,10 +734,6 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
    ══════════════════════════════════════════════════════════ */
 
 /* Ledger 时间线的族标签：原本写死深绿 / 深蓝的 10% 底，深色下几乎全黑 */
-[data-theme="dark"] .timeline-head .tag.fam-review{background:rgba(var(--green-rgb),0.18);color:var(--fam-review)}
-[data-theme="dark"] .timeline-head .tag.fam-session{background:rgba(var(--blue-rgb),0.18);color:var(--fam-session)}
-[data-theme="dark"] .timeline-head .tag.fam-question{background:var(--accent-bg);color:var(--fg)}
-[data-theme="dark"] .timeline-head .tag.fam-system{background:var(--bg3);color:var(--fg2)}
 
 /* 柱状图：渐变低位停在 .42 会淡进背景，柱子看着像被截断 */
 

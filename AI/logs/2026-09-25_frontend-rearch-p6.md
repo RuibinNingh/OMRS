@@ -295,3 +295,25 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 已实际执行：`python3 -m unittest tests.test_visual_diff -v`，2 项通过；`tests/visual/run.py --audit-only --pages questions,schedule --themes light,dark --viewports desktop,mobile`，8 种组合均为 0 处行内样式、页面脚本错误为 0。题库页全页面审计另显示最小字号 9.6px，复习调度为 12px；浏览器定位到题库的旧 `.lbl` 标记芯片字号 9.6px、`ui-kbd` 11px。该旧样式属于进度 §8 登记的 P8 遗留，迁 P6 页时仍需核查相同组件。浏览器使用本机 CDP，实例使用临时 Vault 和随机端口。
 
 全量门禁在本次改动后再次执行：Python 160 项、Node 220 项、浏览器单测 34 项；shell_router / ui_bridge 20 / 15，instant / feedback / questions 23 / 31 / 92，dashboard / data / schedule 26 / 21 / 45，`smoke_schedule_workbench` 1 项，均通过。`check_ui` 0 处问题，对比度 58 组均达标，`check_docs --diff HEAD` 0 处问题、2 条篇幅提醒。均在独立 worktree、临时 Vault、本机 CDP 模式下运行；未执行生产变更。
+
+## 历史记录页迁移（2026-09-26，v1.25.5）
+
+### 盘点与实现
+
+- 原 `assets/history.js` 持有 Ledger 撤销状态、节点分类与标题、时间格式、主时间线和修正记录渲染，以及反馈、Session、状态修正操作。旧 `#panel-history` 含排序、修正模式、修正记录和时间线 DOM，专用样式在 `assets/styles.css`。仪表盘最近动态曾经通过 `domain/history.js` 转调旧全局；旧 `app.js` 初始化和题目写操作也引用历史刷新入口。
+- 新 `assets/app/features/history/` 有页面契约、状态投影、模板和样式；`assets/app/domain/history-model.js` 持有纯投影，`domain/history.js` 负责读写与跨页通知。`main.js` 注册页面，旧页面登记、脚本、DOM 与专用 CSS 已删。题目写成功后通知历史页，历史修正成功后刷新题目详情缓存、统计、Session、仪表盘最近动态和历史列表。
+- 历史修正只在修正模式下可用，请求期间按钮置忙；首次加载慢于 300ms 才显示骨架，失败时保留已有列表并给出原因。Ledger 时区变化后重新投影时间。
+- 原历史页没有独立 Node 测试；后端 `tests/test_history_projection.py` 保持原样。新增 `tests/app/history.test.mjs` 5 项纯函数测试、`tests/e2e/history.py` 22 项，覆盖列表、排序、反馈与 Session 撤销 / 恢复、状态还原、仪表盘同步、失败恢复和四种视觉审计。
+- 旧代码存量减少后用 `check_ui.py --update-baseline` 下调 `tests/ui_baseline.json`。同步 `AGENTS.md` 映射、相关前端分册、版本号、README、changelog 和本进度文件。
+
+### 验证
+
+已实际执行：Python unittest 160 项、Node 225 项、浏览器单测 34 项；E2E shell_router 20、ui_bridge 15、dashboard 26、data 21、schedule 45、instant 23、feedback 31、questions 92、history 22，全部通过。`check_ui.py` 0 处问题，旧存量为 handlers 115、html_assign 77、inline_style 122、color_literals 99、font_size_literals 216；`check_contrast.py` 58 组均达标；`git diff --check` 通过。浏览器测试使用本机 CDP；隔离实例使用临时 Vault、随机端口，环境中移除 `OMRS_SYSTEMD_SERVICE`。
+
+`tests/visual/run.py --ref HEAD` 的 48 组截图有 25 组像素差异：历史页桌面浅 / 深色约 7.339% / 8.796%，手机浅 / 深色约 22.171% / 23.199%，对应旧时间线换为 token 化卡片、工具栏和修正记录新布局；其余 21 组是侧栏版本号 v1.25.4 → v1.25.5 的小范围变化。页面脚本错误为 0。历史页四种组合的运行时审计均为 2 种字号、最小 12px、0 个小目标、0 处有效行内样式、0 处横向溢出。
+
+`python3 -m unittest tests.smoke_schedule_workbench -q` 的 1 项冒烟测试通过；`python3 tests/check_docs.py --write-log-index` 已生成索引；`python3 tests/check_docs.py --diff HEAD` 为 0 处问题、2 条篇幅提醒。
+
+### 现状勘查
+
+根目录 `SOURCE_EXPORT_MANIFEST.txt` 仍是 20260926T022359Z 的历史导出清单，列有已删除的 `AI/rearch-plan.md` 与 `assets/history.js`，与执行说明中的「已重新生成」不一致。该清单由源码导出命令在新导出包中生成；本页不改写旧导出的时间戳和文件清单。后续验证「导出脱敏源码包」时检查新包清单不含已删文件。

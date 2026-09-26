@@ -254,6 +254,7 @@
 | `assets/app/features/questions/` | `AI/frontend/library.md` |
 | `assets/app/features/dashboard/` | `AI/frontend/dashboard.md` |
 | `assets/app/features/data/` | `AI/frontend/records.md`（数据复盘）|
+| `assets/app/features/history/` | `AI/frontend/records.md`（历史记录）|
 | `assets/app/features/schedule/` | `AI/frontend/review.md`（复习调度）|
 | `assets/app/domain/question/` | `AI/frontend/qview.md` |
 | `assets/app/domain/labels/` | `AI/frontend/library.md`（标记芯片、颜色、选择器与管理的数据部分）|

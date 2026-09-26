@@ -17,7 +17,7 @@
 | `mount.js` | `ensureDetail`、`qvRender`、`qvInvalidate(Many)`、`qvRerenderAll`、`qvSetContext`、`bindQuestionDom()`（工具按钮委托、题图降级，并登记弹窗 ←/→） |
 | `modal.js` | 题目弹窗（`ui/dialog` 外壳）：`viewQ(uid, context?, {returnFocus}?)`、`closeModal`、`modalOpen`、`modalUid`；翻页条与 ←/→（P5 第 3 轮起） |
 | `editor.js` | Markdown 编辑器（`ui/dialog`）：`openEditor(uid)`、`closeEditor`、`editorOpen`（P5 第 3 轮起，原 questions.js 的 `.modal#md-editor`） |
-| `ops.js` | 题目操作：`editQuestion`（打开 `editor.js` 的编辑器）、`suspendQuestion` / `resumeQuestion` / `deleteQuestion` / `moveQuestion`、`batchSuspend`、`exportA4`；确认走 `ui/dialog`，写后清缓存 → `reloadData()` → 失效重绘（P5 第 2 轮从旧 questions.js 迁入） |
+| `ops.js` | 题目操作：`editQuestion`（打开 `editor.js` 的编辑器）、`suspendQuestion` / `resumeQuestion` / `deleteQuestion` / `moveQuestion`、`batchSuspend`、`exportA4`；确认走 `ui/dialog`，写后清缓存 → `reloadData()` → 失效重绘，并通过 `history:changed` 通知历史页与仪表盘刷新 |
 | `index.js` | 对外出口；另有页面用的 `mountQuestion`（即时练习）、`mountQuestionStage`（反馈录入）、`invalidateQuestions`，并转出 `ops.js` 全部与 `dropDetail`（删除 / 迁移后丢旧详情） |
 | `qview.css` | `layer(domain)`：qview 的全部外观（布局与挂载点容器、题头、题面块、Markdown 段落 / 表格 / 题图、记录模块、战绩带、占位、别处容器的覆盖）与题目弹窗、编辑器外观（P5 第 4 轮起旧 `styles.css` 不再有 qview 规则） |
 

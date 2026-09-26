@@ -1,7 +1,7 @@
 /**
  * 题目操作（从旧 questions.js / qtable.js 迁入）：迁移分类、停用 / 恢复、删除、批量停用 / 恢复、批量导出 A4。
  * 题库页、题目弹窗与各处 qview 的工具按钮共用；确认与输入走 ui/dialog，结果走 ui/toast。
- * 写操作成功后：清详情缓存 → 旧 reloadData()（经 domain/data.js）→ 失效重绘挂着该题的 qview → 刷新历史动态（旧 loadHist）。
+ * 写操作成功后：清详情缓存 → reloadData() → 失效重绘挂着该题的 qview → 通知历史动态刷新。
  * 「编辑」打开 editor.js 的 Markdown 编辑器（ui/dialog）。
  */
 import { html } from '../../core/html.js';
@@ -9,6 +9,7 @@ import { post } from '../../core/api.js';
 import { toast } from '../../ui/toast.js';
 import { dialog, confirm } from '../../ui/dialog.js';
 import { reloadData } from '../data.js';
+import { notifyHistoryChanged } from '../history.js';
 import { qvInvalidate, dropDetail } from './mount.js';
 import { closeModal } from './modal.js';
 import { openEditor } from './editor.js';
@@ -23,7 +24,7 @@ const uniq = values => [...new Set(values.filter(Boolean))].sort(zh);
 async function afterWrite(uids, { invalidate = true } = {}) {
   await reloadData();
   if (invalidate) await Promise.all(uids.map(uid => qvInvalidate(uid)));
-  call('loadHist');
+  notifyHistoryChanged('question');
 }
 
 export function editQuestion(uid) { return uid ? openEditor(uid) : Promise.resolve(false); }

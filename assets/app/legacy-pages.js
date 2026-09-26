@@ -9,7 +9,6 @@ export const LEGACY_PAGES = [
   { id: 'board', title: '展示板', workbench: true, enter: win => call(win, 'boardInit') },
   { id: 'catalog', title: '目录', enter: win => call(win, 'loadCatalog') },
   { id: 'create', title: '录入题目', workbench: true, enter: win => call(win, 'inboxInit') },
-  { id: 'history', title: '历史记录', enter: win => call(win, 'loadHist') },
   { id: 'reports', title: '报告', enter: win => call(win, 'loadReports') },
   { id: 'settings', title: '设置', enter: win => call(win, 'loadSettings') },
 ];

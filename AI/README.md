@@ -79,10 +79,10 @@
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v1.25.4 |
+| 当前版本 | v1.25.5 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
-| 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（旧 `styles.css` 与拆分的 JS）+ `assets/app/`（ES Module：token、ui 组件、过渡桥、domain 层、已迁页面 `features/` 下的 dashboard、data、questions、schedule、instant、feedback）|
+| 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（旧 `styles.css` 与拆分的 JS）+ `assets/app/`（ES Module：token、ui 组件、过渡桥、domain 层、已迁页面 `features/` 下的 dashboard、data、questions、schedule、instant、feedback、history）|
 | 数据目录 | 结构化数据在 `错题/.omrs/`；生成的 AI 报告在 `错题/report/` |
 | 依赖边界 | 核心 Python 运行路径无强制第三方库；图片优化可选 Pillow 或 `jpegtran`。前端无构建依赖，Noto Sans SC 与 JetBrains Mono 由 `assets/vendor/fonts/` 本地提供，KaTeX 作为本地静态资源放在 `assets/vendor/katex/`（不可用时公式降级显示源码片段）；AI 识别与外部报告材料按配置使用网络。|
 

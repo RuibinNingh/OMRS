@@ -19,7 +19,7 @@ assets/app/
 ├── ui/                无业务组件
 ├── styles/            tokens、index（@layer 总入口）、base、ui、shell、legacy-bridge、gallery
 ├── domain/            业务领域：question/（共享题目视图，已是真实现）+ 过渡期适配器（新页面只经这里碰旧全局，见 §5）
-└── features/          已迁移的页面：questions/（题目库）、instant/（即时练习）、feedback/（反馈录入）
+└── features/          已迁移的页面：questions/、instant/、feedback/、dashboard/、data/、schedule/、history/
 ```
 
 依赖方向由 `tests/check_ui.py` 的 R7 强制：`core` 只依赖 `core`；`ui` 依赖 `ui`、`core`；`domain` 依赖 `domain`、`ui`、`core`；`features/<页>` 只依赖本页、`domain`、`ui`、`core`，页面之间禁止互相 import，跨页联动走 bus。根目录的 `main.js`、`shell.js`、`legacy-pages.js`、`legacy-bridge.js` 是装配层，不受 R7 限制，也不放业务逻辑。
@@ -68,7 +68,7 @@ assets/app/
 - 题目详情缓存归 `domain/question/mount.js`；旧代码读的 `QUESTION_CACHE` / `QUESTION_PENDING` 是过渡桥挂的只读全局。Session 列表归 `domain/sessions.js`（v1.25.2 起）：`refreshSessions()` 后发先至只认最新、失败保留旧列表，成功失败都经 bus 发 `sessions`；旧 `SESSIONS` 是镜像，全局 `refreshSessions` 由过渡桥挂成它。`main.js` 在外壳就绪后 `connectSessions({ emit })`。
 - bus 事件：`data`（载荷统计快照，`domain/data.js` 发）、`questions:preset`（载荷题库预设，仪表盘切页后发）、`ledger:tz`（设置里改 Ledger 时区后 `app.js` 发，仪表盘重投影最近动态）、`schedule:view`（仪表盘「开始复习」发，打开安排复习）/ `schedule:open-plan`（过渡桥 `schOpenPlan` 发，打开计划）/ `schedule:render`（过渡桥 `renderUnifiedListV2` / `renderExportPicker` 发）、`page:change`（`{ id, prev }`）、`labels`（载荷 LABELS，旧 `renderLabelFilterOptions()` 之后发）、`instant:load`（载荷预设，过渡桥 `instLoadPractice` 发）、`sessions`（`domain/sessions.js` 每次加载开始、结束与删除后发）、`feedback:session`（载荷 session_id，复习调度「录入结果」发）、`feedback:reset` / `feedback:clear-results` / `feedback:render`（过渡桥 `resetFeedbackForm` / `fbClearResults` / `renderFb` 发）。新增事件在这里登记。
 - `domain/question/`（P5 起）与 `domain/labels/`（P5 第 4 轮起）是真正落在新代码里的领域模块。`domain/question/`：题面 Markdown / KaTeX 渲染与内容哈希缓存、练习记录、qview、详情缓存与题目弹窗，旧代码经过渡桥用它（见 `AI/frontend/qview.md`）。
-- domain 适配器（`assets/app/domain/`）：`items.js`（全站筛选语义 `filterAll`、全部题目 `allItems`、按 uid 取题 `itemOf`、到期天数、筛选选项）、`labels.js`（标记定义与芯片外观；P5 第 2 轮起另转调选择器 / 管理弹层 / 新建 / 批量增删，`pickerOpen()` 供页面快捷键让位）、`board.js`（加入展示板的选板浮层 `boardQuickAdd` / `boardChooseAndAdd`）、`data.js`（统计快照的所有者，见上）、`history.js`（最近动态取数与投影，转调旧 `history.js` 的节点标题与撤销判定）、`exporting.js`（导出请求与下载，复习调度两处导出共用）、`sessions.js`（Session 列表的所有者、详情、删除与进度纯函数；当前选中 `ACTIVE_FB_SESSION`、题目查找、标记保存与选择器、加入展示板、写剪贴板）。features 不直接写 `window.xxx`；旧实现被替换时只改适配器。注意旧 `core.js` 用 `let` 声明的全局（如 `ACTIVE_FB_SESSION`）在全局词法环境里、不是 `window` 属性：适配器要直接给该标识符赋值，写 `globalThis.xxx` 旧代码读不到。
+- domain 层（`assets/app/domain/`）：`items.js`（全站筛选语义 `filterAll`、全部题目 `allItems`、按 uid 取题 `itemOf`、到期天数、筛选选项）、`labels.js`（标记定义与芯片外观；选择器 / 管理弹层 / 新建 / 批量增删仍有旧入口，`pickerOpen()` 供页面快捷键让位）、`board.js`（加入展示板的选板浮层）、`data.js`（统计快照的所有者）、`history-model.js`（Ledger 撤销状态、分类、标题和时间的纯投影）、`history.js`（历史读取与修正请求、跨页通知、最近动态投影）、`exporting.js`（导出请求与下载）、`sessions.js`（Session 列表的所有者、详情、删除与进度纯函数）。features 不直接写 `window.xxx`。注意旧 `core.js` 用 `let` 声明的全局（如 `ACTIVE_FB_SESSION`）在全局词法环境里、不是 `window` 属性：适配器要直接给该标识符赋值，写 `globalThis.xxx` 旧代码读不到。
 
 ## 6. 过渡桥（P8 全部删除）
 
