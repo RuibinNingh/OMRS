@@ -27,7 +27,7 @@
 
 ## 最值得动的
 
-- [x] **服务重启时 TCP 端口短暂占用** — `omrs/cli.py::OMRSTCPServer` 启用 `SO_REUSEADDR`（不启用 `SO_REUSEPORT`、不改线程模型与 systemd 重试策略），旧连接处于 `TIME-WAIT` 时可立即重绑。设置页改为比较重启前后 `instance_id`，确认新实例就绪才刷新，90 秒无结果则停在页面提示。回归：`tests/test_restart_lifecycle.py`、`tests/test_restart_ui.js`。
+- [x] **服务重启时 TCP 端口短暂占用** — `omrs/cli.py::OMRSTCPServer` 启用 `SO_REUSEADDR`（不启用 `SO_REUSEPORT`、不改线程模型与 systemd 重试策略），旧连接处于 `TIME-WAIT` 时可立即重绑。设置页改为比较重启前后 `instance_id`，确认新实例就绪才刷新，90 秒无结果则停在页面提示。回归：`tests/test_restart_lifecycle.py`、`tests/app/settings.test.mjs`、`tests/e2e/settings.py`。
 
 - [ ] **`AI/api.md` 超过 40KB** — 影响:低 / 工作量:小。`check_docs.py` 对它给出拆分提醒。可按领域拆成 `AI/api/` 分册（题目与调度、反馈与历史、展示板与导出、系统与认证），路由到文档的定位由 `AI/routes.md` 自动更新。
 

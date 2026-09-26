@@ -2,10 +2,10 @@
 
 > **状态**
 > - 目标：重建前端架构，让 CCW 能安全修改、可维护性提升、UI 精致化（总纲见同目录 `plan.md`）
-> - 阶段：**P6 报告页迁移完成**；开发版本 v1.25.7，剩余设置、录入题目与手机收件箱页面待迁
+> - 阶段：**P6 设置页迁移完成，P6 尚未完成**；开发版本 v1.25.8，剩余录入题目与手机收件箱页面待迁
 > - 基线：`7ebfc6c`（`rearch/base-v1.25.4`）；生产目录停在该提交，开发 worktree 的分支为 `frontend-rearch`
-> - 下一步：Codex · 完整，在开发 worktree 按同目录 `exec-2026-09-26-codex.md` §2.5 迁设置，继续完成其余 P6 页面；部署另等用户授权
-> - 更新：2026-09-27，Codex 完成执行说明阶段 0、1、2.1—2.4 的实现及浏览器验证
+> - 下一步：Codex · 完整，在开发 worktree 按同目录 `exec-2026-09-26-codex.md` §2.6 分步迁移录入题目与收件箱工作台，随后完成手机收件箱 tokens 接入和 P6 收尾；部署另等用户授权
+> - 更新：2026-09-27，Codex 完成执行说明阶段 0、1、2.1—2.5 的实现及浏览器验证
 
 ## 1. 用户诉求原话（每期都要能对应回这里）
 
@@ -59,12 +59,12 @@
 | DP4 + P3 | v1.22.0 | 交付，未部署 | 顶栏瘦身；即时练习迁到 `features/instant/`；`domain/` 四个适配器 |
 | P4 | v1.23.0 | 交付，未部署 | 反馈录入迁到 `features/feedback/`；`domain/sessions.js`；全站 `ui/dialog` 标题栏修复 |
 | P5 | v1.24.0 → v1.24.2 | **完成（4 轮）** | 第 1 轮：`domain/question/`、容器查询根治、超宽公式、计划文件夹入库。第 2 轮：题目库迁到 `features/questions/`、`domain/question/ops.js`、全局 Esc 统一进 core/keys、删 `qtable.js` 与约 170 条旧题库 CSS。第 3 轮（v1.24.1）：题目弹窗 `modal.js` 与 Markdown 编辑器 `editor.js` 换 `ui/dialog`、`ui/overlay` 客人浮层、焦点回到行。第 4 轮（v1.24.2）：`domain/labels/`（芯片不写 `style=`、预设色进 tokens、选择器与管理的数据部分）、qview 外观全部搬进 `qview.css` 并 token 化（题面 16px 阅读正文）。日志 `AI/logs/2026-09-25_frontend-rearch-p5.md` |
-| P6 | v1.25.0 → v1.25.7 → | **进行中（报告页完成）** | v1.25.7：报告迁到 `features/reports/`，上传使用 FileDrop，页内 sandbox 预览。v1.25.6：目录迁到 `features/catalog/`，删旧 `catalog.js`；扫描成功后重读目录。v1.25.5：历史记录迁到 `features/history/`，Ledger 投影归 `domain/history-model.js`，删旧 `history.js`；其余页面待迁。v1.25.4：「全题库导出」原生，删 `export.js` 与 `domain/schedule.js`。v1.25.3：「安排复习」原生，删 `recommend_v2.js`。v1.25.2：复习调度迁到 `features/schedule/`，`SESSIONS` 归 `domain/sessions.js`。v1.25.1：数据复盘迁到 `features/data/`。v1.25.0：`domain/data.js` 与仪表盘迁移。日志 `AI/logs/2026-09-25_frontend-rearch-p6.md` |
+| P6 | v1.25.0 → v1.25.8 → | **进行中（设置页完成）** | v1.25.8：设置迁到 `features/settings/`，删旧设置逻辑，重启仅认新实例，备份与压缩任务保留。v1.25.7：报告迁到 `features/reports/`，上传使用 FileDrop，页内 sandbox 预览。v1.25.6：目录迁到 `features/catalog/`，删旧 `catalog.js`；扫描成功后重读目录。v1.25.5：历史记录迁到 `features/history/`，Ledger 投影归 `domain/history-model.js`，删旧 `history.js`；其余页面待迁。v1.25.4：「全题库导出」原生，删 `export.js` 与 `domain/schedule.js`。v1.25.3：「安排复习」原生，删 `recommend_v2.js`。v1.25.2：复习调度迁到 `features/schedule/`，`SESSIONS` 归 `domain/sessions.js`。v1.25.1：数据复盘迁到 `features/data/`。v1.25.0：`domain/data.js` 与仪表盘迁移。日志 `AI/logs/2026-09-25_frontend-rearch-p6.md` |
 | P7 | — | 未开始 | 见 §8 |
 | P8 | — | 未开始 | 见 §8 |
 | 终检 / 部署 | — | 未开始 | 见 §8 |
 
-## 4. 门禁计数（v1.25.7 报告页工作区实测）
+## 4. 门禁计数（v1.25.8 设置页工作区实测）
 
 | 命令 | 预期 |
 |---|---|
@@ -82,8 +82,9 @@
 | `python3 tests/e2e/history.py` | 22 / 22 |
 | `python3 tests/e2e/catalog.py` | 24 / 24 |
 | `python3 tests/e2e/reports.py` | 23 / 23 |
+| `python3 tests/e2e/settings.py` | 50 / 50 |
 | `python3 -m unittest tests.smoke_schedule_workbench` | OK（P6 第 4 轮起全过）|
-| `python3 tests/check_ui.py` | 0 处问题；存量 handlers 101、html_assign 61、inline_style 100、color_literals 95、font_size_literals 198 |
+| `python3 tests/check_ui.py` | 0 处问题；存量 handlers 69、html_assign 48、inline_style 67、color_literals 95、font_size_literals 173 |
 | `python3 tests/check_contrast.py` | 58 组，0 不达标 |
 | `python3 tests/check_docs.py --diff <基线>` | 0 处问题，2 条提醒（`AI/api.md` 53KB、执行说明 48KB）|
 

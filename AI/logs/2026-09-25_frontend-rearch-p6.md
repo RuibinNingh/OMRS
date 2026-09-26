@@ -366,3 +366,26 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 全量回归实际运行：Python unittest 160 项、Node 238 项、浏览器单测 34 项；E2E shell_router 20、ui_bridge 15、dashboard 26、data 21、schedule 45、instant 23、feedback 31、questions 92、history 22、catalog 24、reports 23，全部通过。`smoke_schedule_workbench` 1 项通过。`check_docs.py --write-routes`、`--write-log-index` 已运行；`--diff HEAD` 为 0 处问题、2 条篇幅提醒。`git diff --check` 通过。隔离实例均使用临时 Vault、随机端口，且移除了 `OMRS_SYSTEMD_SERVICE`。最后补强了 FileReader 错误在文件拖放区内的提示，报告页 E2E 重跑仍为 23/23。
 
 未执行：生产部署（需用户单独授权）；Firefox 与 WebKit 留给计划终检。
+
+---
+
+## 设置页迁移（2026-09-27，v1.25.8）
+
+### 盘点与行为变化
+
+- 旧 `assets/app.js` 的设置段包含五分区导航、外观、本机与远端访问、PIN、AI 配置、运行状态、备份和图片优化；对应 DOM 在 `omrs_dashboard.html`，设置专用规则在 `assets/styles.css` 的优化卡、外观控件和设置分区段。旧抽函数测试为 `test_settings_ui.js`（8 项）、`test_restart_ui.js`（6 项）、`test_auth_activity_ui.js`（4 项）；最后一份还覆盖 `core.js` 的活动续期和手机页 `/m` 的会话过期处理。
+- 新 `features/settings/` 按外观、访问、AI、数据、服务五区拆分，`state.js` 与 `storage-state.js` 保留纯投影。设置页成为路由页面契约，旧 `app.js` 设置段和专用 CSS 已删除。主题、密度、反色和 Ledger 时区沿用原 localStorage 键；访问范围以运行中的监听状态为准，免 PIN 网段单独保存不重启。PIN 与 AI Key 的校验和非回显保持；重启只在新 `instance_id` 出现后刷新。
+- 备份导入先确认上传、校验后再确认覆盖；图片扫描和压缩经任务接口轮询，离开页面再进入可继续读取任务或已完成的扫描候选。源码下载保留 `/api/source/export`。访问、AI、存储和服务的错误原地提示，重复写操作在请求期间受控。
+- 三份旧 Node 测试的 18 个用例迁到 `tests/app/settings.test.mjs`，用例总数为 18；其中活动续期与 `/m` 的 4 项保留原断言，P8 清理 `core.js` 时仍需改成新模块 import。新增 `tests/e2e/settings.py` 覆盖五区、非法网段、只改网段不重启、PIN、Key 不回显及清除、备份、扫描轮询、切页保留扫描、源码下载、重启新实例判定及四种显示组合的每区审计。重启请求由 Playwright route 拦截，没有真的重启实例；临时 Vault 不含源码目录，源码下载前端路径由固定 ZIP 响应验证，服务端打包由 `tests/test_source_export.py` 实测。
+
+### 影响文件
+
+新增 `assets/app/features/settings/`、`tests/app/settings.test.mjs`、`tests/e2e/settings.py`；删除三份旧 Node 设置测试；修改 `assets/app.js`、`assets/app/main.js`、`assets/app/legacy-pages.js`、`assets/app/styles/index.css`、`assets/styles.css`、`omrs_dashboard.html` 和 `tests/ui_baseline.json`。同步 `AGENTS.md`、`AI/frontend/settings.md`、`AI/frontend/design-system.md`、`AI/frontend/architecture.md`、`AI/frontend/shell.md`、`AI/security.md`、`AI/inbox.md`、`AI/optimization.md`、`AI/routes.md`、版本号四处、`AI/changelog.md`、本计划进度和日志索引。旧 CSS 按设置专用段精确删除，通用 `.status-grid` 仍留给其它页面；`git diff --check` 通过。
+
+### 验证
+
+- 实际运行：Python unittest 160 项；Node 238 项（设置新文件 18 项）；浏览器单测 34 项；E2E shell_router 20、ui_bridge 15、dashboard 26、data 21、schedule 45、instant 23、feedback 31、questions 92、history 22、catalog 24、reports 23、settings 50，全部通过；`tests.smoke_schedule_workbench` 通过；源码导出后端单测 3 项通过。隔离实例使用临时 Vault、随机高端口，移除 `OMRS_SYSTEMD_SERVICE`，浏览器经本机 CDP 运行。
+- `check_ui.py --update-baseline` 下调旧代码存量后为 0 处问题：handlers 69、html_assign 48、inline_style 67、color_literals 95、font_size_literals 173。`check_contrast.py` 58 组均达标。设置页 E2E 的五分区 × 桌面/手机 × 浅/深共 20 项审计均满足字号 ≤6 档、最小 ≥12px、小目标 0、有效行内样式 0、横向溢出 0。
+- `tests/visual/run.py --ref HEAD --pages settings` 四张截图差异：桌面浅 / 深 3.787% / 4.337%，手机浅 / 深 14.307% / 14.737%。导航由旧紧凑列改成统一间距与清晰选中边，卡片布局和开关尺寸扩大，手机控件纵向重排；侧栏版本号从 v1.25.7 改为 v1.25.8。首屏运行时审计从旧版 5–6 档字号、最小 10.2/10.8px 改为 3 档、最小 12px，四种组合均无脚本错误。已人工审阅桌面浅色与手机深色截图。
+
+未执行：生产部署（需要用户单独授权）；Firefox、WebKit 和 12 页空态终检属于后续计划阶段。

@@ -4,7 +4,7 @@
 > - 职责：本机免 PIN、远端 PIN 会话、来源校验、报告隔离与题目路径边界
 > - 入口：`omrs/security.py`、`omrs/server.py`、`omrs/path_safety.py`
 > - 不变量：免 PIN 只看 TCP 对端地址，代理请求一律须 PIN；会话只保存在进程内存中
-> - 必跑测试：`tests/test_security.py`、`tests/test_auth_activity_ui.js`
+> - 必跑测试：`tests/test_security.py`、`tests/app/settings.test.mjs`
 > - 相关：`AI/api.md`、`AI/frontend/settings.md`
 
 > 对应源文件：`omrs/security.py`、`omrs/server.py`、`omrs/path_safety.py`。

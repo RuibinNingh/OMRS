@@ -5,13 +5,13 @@
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/ai-recognize` | `AI/api.md`、`AI/frontend/create.md`、`AI/frontend/settings.md`等 |
+| POST | `/api/ai-recognize` | `AI/api.md`、`AI/frontend/create.md`、`AI/inbox.md`等 |
 | GET | `/api/analytics` | `AI/api.md`、`AI/algorithm.md`、`AI/changelog.md`等 |
 | POST | `/api/auth/activity` | `AI/api.md`、`AI/security.md` |
 | POST | `/api/auth/disable` | `AI/api.md` |
 | POST | `/api/auth/login` | `AI/api.md` |
 | POST | `/api/auth/logout` | `AI/api.md` |
-| POST | `/api/auth/pin` | `AI/api.md`、`AI/frontend/settings.md` |
+| POST | `/api/auth/pin` | `AI/api.md` |
 | GET | `/api/auth/session` | `AI/api.md`、`AI/frontend/settings.md`、`AI/security.md` |
 | POST | `/api/auth/warning-ack` | `AI/api.md` |
 | POST | `/api/backup/export` | `AI/api.md`、`AI/frontend/settings.md` |
@@ -64,9 +64,9 @@
 | POST | `/api/label/save` | `AI/api.md`、`AI/labels.md` |
 | GET | `/api/labels` | `AI/api.md`、`AI/labels.md` |
 | GET | `/api/ledger/verify` | `AI/api.md`、`AI/ledger.md` |
-| POST | `/api/optimize/compress` | `AI/api.md`、`AI/frontend/settings.md` |
+| POST | `/api/optimize/compress` | `AI/api.md` |
 | GET | `/api/optimize/job` | `AI/api.md`、`AI/frontend/settings.md` |
-| POST | `/api/optimize/scan` | `AI/api.md`、`AI/frontend/settings.md` |
+| POST | `/api/optimize/scan` | `AI/api.md` |
 | GET | `/api/optimize/summary` | `AI/api.md`、`AI/frontend/settings.md` |
 | GET | `/api/question` | `AI/api.md`、`AI/changelog.md`、`AI/data.md`等 |
 | POST | `/api/question/delete` | `AI/api.md`、`AI/frontend/library.md` |
@@ -83,17 +83,17 @@
 | GET | `/api/report/view` | `AI/api.md`、`AI/data.md`、`AI/frontend/records.md` |
 | GET | `/api/reports` | `AI/api.md`、`AI/frontend/records.md` |
 | POST | `/api/restart` | `AI/api.md`、`AI/environment.md`、`AI/frontend/settings.md` |
-| GET/POST | `/api/scan` | `AI/api.md`、`AI/frontend/settings.md`、`AI/security.md` |
+| GET/POST | `/api/scan` | `AI/api.md`、`AI/security.md` |
 | POST | `/api/schedule` | `AI/api.md` |
 | GET | `/api/session` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/review.md` |
 | POST | `/api/session/delete` | `AI/api.md`、`AI/ledger.md` |
 | GET | `/api/sessions` | `AI/api.md`、`AI/changelog.md` |
-| GET | `/api/source/export` | `AI/api.md`、`AI/changelog.md` |
+| GET | `/api/source/export` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/settings.md` |
 | GET | `/api/stats` | `AI/api.md`、`AI/algorithm.md`、`AI/changelog.md`等 |
 | GET | `/api/status` | `AI/api.md`、`AI/frontend/settings.md`、`AI/security.md` |
 | GET | `/api/tree` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/architecture.md`等 |
 | POST | `/api/workspace/scan` | `AI/api.md`、`AI/ledger.md` |
-| GET | `/login` | `AI/frontend/settings.md`、`AI/inbox.md`、`AI/security.md` |
+| GET | `/login` | `AI/inbox.md`、`AI/security.md` |
 | GET | `/m` | `AI/api.md`、`AI/inbox.md`、`AI/security.md` |
 
 按前缀分派（具体子路由见上表或对应文档）：

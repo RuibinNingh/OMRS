@@ -255,6 +255,7 @@
 | `assets/app/features/dashboard/` | `AI/frontend/dashboard.md` |
 | `assets/app/features/catalog/` | `AI/frontend/dashboard.md`（目录）|
 | `assets/app/features/reports/` | `AI/frontend/records.md`（报告）|
+| `assets/app/features/settings/` | `AI/frontend/settings.md` |
 | `assets/app/features/data/` | `AI/frontend/records.md`（数据复盘）|
 | `assets/app/features/history/` | `AI/frontend/records.md`（历史记录）|
 | `assets/app/features/schedule/` | `AI/frontend/review.md`（复习调度）|

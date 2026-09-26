@@ -4,7 +4,7 @@
 > - 职责：页面外壳：`assets/` 文件划分与加载顺序、侧栏与顶栏、hash 路由的外壳一侧、整屏工作台布局、主题 token 与深色对比度
 > - 入口：`omrs_dashboard.html`、`assets/core.js`、`assets/app.js`、`assets/app/main.js`、`assets/app/shell.js`、`assets/app/styles/shell.css`、`assets/app/styles/tokens.css`、`assets/app/styles/index.css`、`assets/styles.css`
 > - 不变量：`core.js` 最先加载、`app.js` 是最后一个经典脚本，模块入口 `assets/app/main.js` 排在它之后并负责调用 `init()`；`switchTab` 只是路由的一行包装；样式只有 `tokens.css` 与 `index.css` 两个 `<link>`；颜色一律走 token，不在规则里写死浅色值
-> - 必跑测试：`tests/e2e/shell_router.py`、`tests/e2e/catalog.py`、`tests/test_settings_ui.js`
+> - 必跑测试：`tests/e2e/shell_router.py`、`tests/e2e/catalog.py`、`tests/app/settings.test.mjs`、`tests/e2e/settings.py`
 > - 相关：`AI/frontend.md`（索引）
 
 ## 文件组织（assets/）

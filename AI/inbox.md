@@ -4,7 +4,7 @@
 > - 职责：收件箱「上传 → 框选 → 转换 → 提交」暂存流程、后台 job、框选提供方与训练数据集
 > - 入口：`omrs/inbox.py`、`omrs/ai_assist.py`、`assets/inbox.js`、`assets/inbox_mobile.html`
 > - 不变量：上传的原图只进暂存区，提交后才写入题库；手机页遵循与桌面相同的访问规则
-> - 必跑测试：`tests/test_inbox.py`、`tests/test_auth_activity_ui.js`
+> - 必跑测试：`tests/test_inbox.py`、`tests/app/settings.test.mjs`
 > - 相关：`AI/frontend/create.md`、`AI/api.md`
 
 > 对应源文件：`omrs/inbox.py`（存储 / 任务 / 提交 / 数据集）、`omrs/ai_assist.py`（`detect_regions` / `extract_region` / `parse_detect_output` / 按用途选模型）、`omrs/server.py`（`_inbox_get` / `_inbox_post` / `_multipart_files`）、`assets/inbox.js`、`assets/inbox_mobile.html`、`omrs_dashboard.html`（`#panel-create` 的 `ib-*` 结构）、`assets/styles.css` 末段。
