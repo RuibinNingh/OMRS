@@ -2,10 +2,10 @@
 
 > **状态**
 > - 目标：重建前端架构，让 CCW 能安全修改、可维护性提升、UI 精致化（总纲见同目录 `plan.md`）
-> - 阶段：**P6 第 5 轮完成**（v1.25.4：「全题库导出」迁进复习调度页，复习调度三块全部原生）；第 1–4 轮已交付（v1.25.0 仪表盘与统计数据所有权、v1.25.1 数据复盘、v1.25.2 复习调度外壳与已有计划、v1.25.3 安排复习）
-> - 基线：p6r5 及之前的补丁链已在本机工作区合并为 v1.25.4（2026-09-26 导出包 `20260926T140037Z` 核对）；基线提交由 Codex 按执行说明阶段 0 建立，建好后在此填入哈希
-> - 下一步：Codex · 完整，按同目录 `exec-2026-09-26-codex.md` 从阶段 0 起执行（本机基线 → P6 剩余页面 → P7 → P8 → 终检，部署另等用户授权）
-> - 更新：2026-09-26，CCW 规划：执行者改为 Codex，写入执行说明（§9）
+> - 阶段：**P6 第 5 轮完成，本机接手中**；v1.25.4 已作为开发基线，剩余历史、目录、报告、设置、录入题目与手机收件箱页面待迁
+> - 基线：`7ebfc6c`（`rearch/base-v1.25.4`）；生产目录停在该提交，开发 worktree 的分支为 `frontend-rearch`
+> - 下一步：Codex · 完整，在开发 worktree 按同目录 `exec-2026-09-26-codex.md` 阶段 2 完成 P6 剩余页面；部署另等用户授权
+> - 更新：2026-09-26，Codex 实测生产隔离并建立本机基线
 
 ## 1. 用户诉求原话（每期都要能对应回这里）
 
@@ -39,10 +39,10 @@
 - 与 p6r5 完整包相比，只多出本机浏览器测试的 CDP 适配（`tests/browser_runtime.py` 等）；
 - 此后不再出补丁。
 
-**生产现状（2026-09-25 实测，执行说明阶段 0 复核后在此改正）：**
-- `omrs.service` 为 active，`/api/status` 返回 v1.19.1、208 题；
-- 本机 HEAD 是 `4fd4827`（v1.18.2），工作树有大量未提交和未跟踪的改动；
-- 生产服务是否运行在这个工作区，待阶段 0 用 `systemctl cat omrs.service` 确认。后端每次请求都从磁盘读 `/assets/*`，所以如果服务就在工作区里运行，改文件等于直接上线。
+**生产现状（2026-09-26 实测）：**
+- `omrs.service` 为 active，PID 1936793；`/api/status` 返回 v1.25.4、215 题；12 个页面在真实浏览器里均能打开，页面脚本错误为 0。
+- 服务的 `WorkingDirectory` 是 `/root/workspace/apps/OMRS`，属于执行说明阶段 0 的情况 A；后端每次请求都从磁盘读 `/assets/*`，所以开发在独立 worktree `/root/.codex/worktrees/frontend-rearch/OMRS` 中进行。
+- 开工时本机 HEAD 为 `4fd4827`（v1.18.2），有 305 条未提交状态；按执行说明的项目路径纳入 300 个文件，建立快照提交 `7ebfc6c`。未纳入的 5 个 `.playwright-mcp/` 临时文件留在生产目录。
 
 **处理工作树的边界：**
 - 不得 `reset --hard`、`git clean`、整目录覆盖或做无范围的 `restore`；
@@ -53,7 +53,7 @@
 
 | 期 | 版本 | 状态 | 要点 |
 |---|---|---|---|
-| P0 | v1.19.1 | 生产在线 | token、对比度、门禁、fixture、截图对比 |
+| P0 | v1.19.1 | 已完成；生产现运行 v1.25.4 | token、对比度、门禁、fixture、截图对比 |
 | P2 | v1.20.0 | 交付；用户验收通过 | 23 个 ui 组件、gallery、统一 toast 与 `<dialog>`、`@layer` 分层 |
 | P1 | v1.21.0 | 交付；用户验收通过 | core 底座、hash 路由、外壳重排、`/assets/` 304 |
 | DP4 + P3 | v1.22.0 | 交付，未部署 | 顶栏瘦身；即时练习迁到 `features/instant/`；`domain/` 四个适配器 |
@@ -82,7 +82,7 @@
 | `python3 -m unittest tests.smoke_schedule_workbench` | OK（P6 第 4 轮起全过）|
 | `python3 tests/check_ui.py` | 0 处问题；存量 handlers 127、html_assign 84、inline_style 126、color_literals 103、font_size_literals 227 |
 | `python3 tests/check_contrast.py` | 58 组，0 不达标 |
-| `python3 tests/check_docs.py --diff <基线>` | 0 处问题，1 条提醒（`AI/api.md` 53KB）|
+| `python3 tests/check_docs.py --diff <基线>` | 0 处问题，2 条提醒（`AI/api.md` 53KB、执行说明 48KB）|
 
 ## 5. P5 任务书：题库与共享题目视图
 

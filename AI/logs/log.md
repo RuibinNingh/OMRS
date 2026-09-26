@@ -97,7 +97,6 @@
 - [2026-08-28_partial-feedback-ui-followup](2026-08-28_partial-feedback-ui-followup.md)：分批反馈交互二次优化
 - [2026-08-16_v1.8.0-release](2026-08-16_v1.8.0-release.md)：# v1.8.0 发布记录
 - [2026-08-16_omrs-settings-restart-fix](2026-08-16_omrs-settings-restart-fix.md)：# OMRS 设置页重启修复
-- [2026-08-16_mini-host-deploy](2026-08-16_mini-host-deploy.md)：：迷你主机部署 OMRS
 - [2026-08-16_answer-math-rendering](2026-08-16_answer-math-rendering.md)：：答案跨行 LaTeX 渲染修复
 - [2026-08-16_action-plan-dark-contrast-catalog](2026-08-16_action-plan-dark-contrast-catalog.md)：行动推荐、目录页与深色对比度修订
 - [2026-08-14_doc-code-sync-audit-fixes](2026-08-14_doc-code-sync-audit-fixes.md)：审计偏差修复（文档-代码同步）

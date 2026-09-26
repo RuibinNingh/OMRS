@@ -259,3 +259,31 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 **截图对比（`tests/visual/run.py --ref p6r4`）**：24 / 48 有差异，全部是桌面图约 0.003% 的侧栏版本号 v1.25.3 → v1.25.4。截图脚本只拍各页默认视图，复习调度默认是「安排复习」（本轮未改），「全题库导出」的前后对照见截图包里的手工截图。页面脚本错误：无。
 
 **「44 处行内样式」仍未解决**：旧导出面板删掉之后，截图脚本对复习调度的计数仍是 44（前后都是），可见它不来自导出面板；在实例上逐页切换复现两次都是 0，E2E 对 `#sch-app` 的审计也是 0。差异在截图脚本的运行环境里（冻结 Date、关动效样式、全页截图时临时改视口高度等），第 6 轮在 `run.py` 里打印这些元素定位。
+
+---
+
+## 本机接手（2026-09-26）
+
+### 阶段 0 实测与隔离
+
+- 开工目录 `/root/workspace/apps/OMRS`，分支 `main`，HEAD `4fd4827`；`git status --short --untracked-files=all` 有 305 条状态，`git stash list` 为空。版本文件为 v1.25.4，已删旧文件均不存在，`AI/logs/log.md` 存在。
+- `omrs.service` 为 active，主进程 PID 1936793；`WorkingDirectory=/root/workspace/apps/OMRS`，`ExecStart` 使用该目录的 `omrs_engine.py` 和 8471 端口。`/api/status` 返回 v1.25.4、215 题、启动时间 `2026-09-26T02:29:31.268397+00:00`。这与交接说明记录的 v1.19.1 不同，以本次实测为准。
+- 属于执行说明阶段 0 的情况 A。用连接本机 CDP 的真实 Chromium 只读打开生产的 12 个页面，均有一个活动面板、标题正确，页面脚本错误为 0。基线提交之后，生产目录不再编辑；开发区是 `/root/.codex/worktrees/frontend-rearch/OMRS`。
+- 在 `rearch/base-v1.25.4` 建立快照提交 `7ebfc6c`：纳入 300 个项目文件，包含此前未提交的本机改动、P6 第 5 轮及以前补丁合并结果、规划说明。未纳入的 5 个 `.playwright-mcp/` 临时文件留在原目录。快照内两份既有历史日志含 Markdown 行尾空格；未改写历史事实。
+
+### 阶段 0 门禁
+
+在生产目录只运行只读检查与隔离实例测试；在开发 worktree 又独立复跑一遍。两处结果一致。所有测试实例启动时去掉 `OMRS_SYSTEMD_SERVICE`，浏览器测试使用本机 `OMRS_TEST_CDP_URL=http://127.0.0.1:9222`，只关闭自己创建的 context。
+
+| 验证 | 两处实际结果 |
+|---|---|
+| Python unittest / Node | 159 通过 / 220 通过 |
+| 浏览器单测 | 34 通过 |
+| shell_router / ui_bridge | 20 / 15 通过 |
+| instant / feedback / questions | 23 / 31 / 92 通过 |
+| dashboard / data / schedule | 26 / 21 / 45 通过 |
+| `tests.smoke_schedule_workbench` | 1 通过 |
+| `check_ui` / `check_contrast` | 0 处问题；58 组对比度均达标 |
+| `check_docs --diff HEAD`（未修改开发 worktree 时） | 0 处问题，2 条篇幅提醒 |
+
+`check_docs` 比进度原记的多一条提醒：除 `AI/api.md` 外，新的执行说明为 48KB。开发 worktree 补记本节与进度时，曾在写日志及生成索引前运行 `check_docs --diff HEAD`，该次报告 2 处文档同步问题；运行 `--write-log-index` 后重跑为 0 处问题、2 条篇幅提醒。生成索引同时移除了一条指向不存在的 2026-08-16 日志的旧条目。
