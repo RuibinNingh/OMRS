@@ -1,0 +1,34 @@
+/* 选择框 .ui-select：原生 select 统一外观，箭头用两段渐变画（不引图片、不写颜色字面量）。
+   高度固定、上下内边距为 0，文字由行高居中，不会再被裁切（D3）。 */
+.ui-select {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  height: var(--ctl-md);
+  padding: 0 var(--sp-8) 0 var(--sp-3);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-sm);
+  background-color: var(--surface-1);
+  background-image: linear-gradient(45deg, transparent 50%, var(--fg-3) 50%), linear-gradient(135deg, var(--fg-3) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--fg-1);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+.ui-select--sm { height: var(--ctl-sm); padding: 0 var(--sp-6) 0 var(--sp-2); font-size: var(--text-xs); background-position: calc(100% - 14px) 50%, calc(100% - 9px) 50%; }
+.ui-select--lg { height: var(--ctl-lg); padding: 0 var(--sp-10) 0 var(--sp-4); font-size: var(--text-md); }
+.ui-select:is(:hover, .is-hover):not(:disabled) { border-color: var(--fg-3); }
+.ui-select:is(:focus, .is-focus) { outline: none; border-color: var(--focus-ring); box-shadow: 0 0 0 1px var(--focus-ring); }
+.ui-select[aria-invalid="true"] { border-color: var(--danger); }
+.ui-select:disabled { background-color: var(--surface-2); color: var(--fg-3); cursor: not-allowed; }
+.ui-select:is([multiple], [size]:not([size="1"])) { height: auto; padding: var(--sp-1); background-image: none; }
+.ui-select option { background-color: var(--surface-1); color: var(--fg-1); }

@@ -1,14 +1,18 @@
 import datetime
+import email.utils
 import http.server
 import json
 import os
+import secrets
 import time
 import urllib.parse
+from http.cookies import SimpleCookie
 
 from .common import HISTORY_HEADERS, history_path, load_config, load_csv, save_config
 from .analytics import build_review_export, get_analytics
 from .catalog import build_tree
-from .reports import create_report, delete_report, get_report_html, list_reports
+from .reports import create_report, delete_report, get_report_html, list_reports, signed_report_images
+from . import security
 from .ai_assist import recognize_question
 from .creation import create_question
 from .exporting import _find_image, _read_image_info, export_schedule_artifact, export_board_html, board_export_filename
@@ -66,9 +70,15 @@ from .source_export import create_source_export
 from .version import __version__
 from .workspace_sync import get_scan_status, scan_workspace
 
+# Random per-process generation id, exposed on GET /api/auth/session so the
+# settings page can tell a restarted service apart from the old process.
+# It is public readiness metadata, never a credential.
+OMRS_INSTANCE_ID = secrets.token_hex(16)
+
 
 class OMRSHandler(http.server.SimpleHTTPRequestHandler):
     vault_path = "."
+    listen_external = False  # set by cli.py: True when bound to all interfaces
     started_at = datetime.datetime.now(datetime.timezone.utc)
     started_monotonic = time.monotonic()
 
@@ -77,6 +87,15 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         path = parsed.path
         query_pairs = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
         params = dict(query_pairs)
+
+        if path == "/login":
+            self._serve_login()
+            return
+        if path == "/api/auth/session":
+            self._auth_status()
+            return
+        if not self._authorize(path, params):
+            return
 
         if path.startswith("/api/inbox/") or path == "/m":
             self._inbox_get(path, params)
@@ -105,6 +124,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                         "started_at": self.started_at.isoformat(),
                         "uptime_seconds": int(time.monotonic() - self.started_monotonic),
                         "question_count": int(stats.get("total", 0)),
+                        "listen_external": bool(self.listen_external),
                         "vault_path": os.path.abspath(self.vault_path),
                         "workspace_scan": get_scan_status(self.vault_path),
                     }
@@ -192,19 +212,19 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 self._json({"status": "ok", "job": job})
         elif path == "/api/scan":
-            try:
-                scan = scan_workspace(self.vault_path)
-                index = build_index(self.vault_path)
-                self._json({"status": "ok", "count": len(index), "scan": scan})
-            except RuntimeError as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+            self._json({"status": "error", "msg": "请使用 POST /api/scan"}, 405)
         elif path == "/api/tree":
             try:
                 self._json({"status": "ok", **build_tree(self.vault_path)})
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/config":
-            self._json(load_config(self.vault_path))
+            config = load_config(self.vault_path)
+            key_configured = bool(config.get("ai_api_key"))
+            config.pop("ai_api_key", None)
+            config["ai_api_key_configured"] = key_configured
+            config.update(security.auth_summary(self.vault_path))
+            self._json(config)
         elif path == "/api/reports":
             try:
                 self._json({"status": "ok", "reports": list_reports(self.vault_path)})
@@ -214,8 +234,13 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/report/view":
             try:
                 html = get_report_html(self.vault_path, params.get("id", ""))
+                if self._active_session:
+                    html = signed_report_images(html, self._sign_report_image)
                 self.send_response(200)
                 self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Security-Policy", "sandbox allow-scripts allow-downloads allow-popups")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header("Cache-Control", "no-store")
                 self.send_header("Content-Length", str(len(html)))
                 self.end_headers()
                 self.wfile.write(html)
@@ -259,7 +284,8 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_response(200)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(data)))
-                self.send_header("Cache-Control", "max-age=86400")
+                remote, _, _ = self._security_context()
+                self.send_header("Cache-Control", "no-store" if remote else "max-age=86400")
                 self.end_headers()
                 self.wfile.write(data)
             except Exception:
@@ -273,6 +299,16 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
+        if not self._check_write_origin():
+            return
+        if path == "/api/auth/login":
+            self._auth_login()
+            return
+        if not self._authorize(path, {}):
+            return
+        if path.startswith("/api/auth/"):
+            self._auth_post(path)
+            return
         if path == "/api/backup/import":
             self._handle_backup_import()
             return
@@ -281,7 +317,15 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             return
         body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("utf-8")
 
-        if path == "/api/schedule":
+        if path == "/api/scan":
+            try:
+                scan = scan_workspace(self.vault_path)
+                index = build_index(self.vault_path)
+                self._json({"status": "ok", "count": len(index), "scan": scan})
+            except RuntimeError as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/schedule":
             try:
                 data = json.loads(body) if body else {}
                 session = create_session(
@@ -365,6 +409,21 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/config":
             try:
                 data = json.loads(body) if body else {}
+                if not isinstance(data, dict):
+                    raise ValueError("配置必须是 JSON 对象")
+                if "lan_pin_exempt_cidrs" in data:
+                    data["lan_pin_exempt_cidrs"] = security.normalize_lan_cidrs(data["lan_pin_exempt_cidrs"])
+                effective = {**load_config(self.vault_path), **data}
+                if (effective.get("allow_external") and
+                        not security.auth_summary(self.vault_path)["pin_configured"] and
+                        not security.normalize_lan_cidrs(effective.get("lan_pin_exempt_cidrs", []))):
+                    raise ValueError("启用外部访问前请设置 PIN 或配置局域网免 PIN 网段")
+                if data.pop("clear_ai_api_key", False):
+                    data["ai_api_key"] = ""
+                elif data.get("ai_api_key") == "":
+                    data.pop("ai_api_key")
+                data.pop("pin_hash", None)
+                data.pop("salt", None)
                 save_config(self.vault_path, data)
                 self._json({"status": "ok"})
             except Exception as exc:
@@ -529,7 +588,6 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
         elif path == "/api/question/suspend":
             try:
-                self._validate_same_origin()
                 data = json.loads(body) if body else {}
                 result = suspend_question(
                     self.vault_path,
@@ -542,7 +600,6 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
         elif path == "/api/question/resume":
             try:
-                self._validate_same_origin()
                 data = json.loads(body) if body else {}
                 result = resume_question(
                     self.vault_path,
@@ -980,15 +1037,190 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             return os.path.basename(filename), payload
         raise ValueError("未找到上传的备份文件")
 
-    def _validate_same_origin(self):
-        """Reject cross-origin browser writes while keeping CLI POSTs compatible."""
+    def _security_context(self):
+        # Directly constructed handlers in unit tests have no socket metadata.
+        synthetic = not hasattr(self, "client_address")
+        peer = self.client_address[0] if not synthetic else "127.0.0.1"
+        headers = getattr(self, "headers", {})
+        host = (headers.get("Host") or ("127.0.0.1" if synthetic else "")).strip()
+        try:
+            hostname = urllib.parse.urlsplit("http://" + host).hostname or ""
+        except ValueError:
+            hostname = ""
+        trusted = {value.strip() for value in os.environ.get("OMRS_TRUSTED_PROXIES", "127.0.0.1,::1").split(",") if value.strip()}
+        proxy = peer in trusted
+        forwarded = (headers.get("X-Real-IP") or "").strip() if proxy else ""
+        client_ip = forwarded if forwarded and self._valid_ip(forwarded) else peer
+        scheme = "http"
+        if proxy and (headers.get("X-Forwarded-Proto") or "").strip().lower() in {"http", "https"}:
+            scheme = headers["X-Forwarded-Proto"].strip().lower()
+        proxy_headers_present = proxy and any(headers.get(name) for name in (
+            "X-Real-IP", "X-Forwarded-Proto", "X-Forwarded-Host"))
+        direct_local = (security.is_loopback(peer) and
+                        (security.is_loopback(hostname) or hostname == "localhost") and
+                        not proxy_headers_present)
+        remote = not direct_local
+        return remote, client_ip, scheme
+
+    @staticmethod
+    def _valid_ip(value):
+        import ipaddress
+        try:
+            ipaddress.ip_address(value)
+            return True
+        except ValueError:
+            return False
+
+    def _cookie_token(self):
+        try:
+            jar = SimpleCookie()
+            jar.load(self.headers.get("Cookie") or "")
+            return jar[security.COOKIE_NAME].value if security.COOKIE_NAME in jar else ""
+        except Exception:
+            return ""
+
+    def _sign_report_image(self, name):
+        if not security.report_image_allowed(self.vault_path, name):
+            raise ValueError("报告图片必须是附件目录中的文件名")
+        return security.sign_image(self._active_session, name)
+
+    def _authorize(self, path, params):
+        remote, _, _ = self._security_context()
+        self._active_session = None
+        if not remote or self._direct_lan_exempt():
+            return True
+        session = security.session_for(self.vault_path, self._cookie_token())
+        if session:
+            self._active_session = session
+            return True
+        if path == "/api/image" and security.valid_image_grant(
+                self.vault_path, params.get("name", ""), params.get("grant_session", ""),
+                params.get("grant_expires", ""), params.get("grant_signature", "")):
+            return True
+        if path.startswith("/api/") or path.startswith("/assets/"):
+            self._json({"status": "error", "msg": "请先输入 PIN 登录"}, 401)
+        else:
+            self.send_response(302)
+            self.send_header("Location", "/login?next=" + urllib.parse.quote(self.path, safe=""))
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+        return False
+
+    def _direct_lan_exempt(self):
+        peer = self.client_address[0] if hasattr(self, "client_address") else "127.0.0.1"
+        trusted = {value.strip() for value in os.environ.get(
+            "OMRS_TRUSTED_PROXIES", "127.0.0.1,::1").split(",") if value.strip()}
+        return security.direct_lan_exempt(self.vault_path, peer, peer in trusted)
+
+    def _check_write_origin(self):
+        site = (self.headers.get("Sec-Fetch-Site") or "").lower()
+        if site and site not in {"same-origin", "none"}:
+            self._json({"status": "error", "msg": "拒绝跨站状态修改请求"}, 403)
+            return False
         origin = (self.headers.get("Origin") or "").strip()
         if not origin:
-            return
-        parsed = urllib.parse.urlparse(origin)
-        host = (self.headers.get("Host") or "").strip()
-        if not parsed.netloc or parsed.netloc != host:
-            raise ValueError("拒绝跨站状态修改请求")
+            return True
+        _, _, scheme = self._security_context()
+        try:
+            submitted = urllib.parse.urlsplit(origin)
+            expected = urllib.parse.urlsplit(f"{scheme}://{self.headers.get('Host', '').strip()}")
+            default_port = 443 if scheme == "https" else 80
+            valid = (submitted.scheme == scheme and submitted.hostname == expected.hostname and
+                     (submitted.port or default_port) == (expected.port or default_port) and
+                     not submitted.path and not submitted.query and not submitted.fragment and
+                     not submitted.username and not submitted.password)
+        except ValueError:
+            valid = False
+        if not valid:
+            self._json({"status": "error", "msg": "拒绝跨站状态修改请求"}, 403)
+            return False
+        return True
+
+    def _auth_status(self):
+        remote, _, scheme = self._security_context()
+        session = security.session_for(self.vault_path, self._cookie_token()) if remote else None
+        lan_exempt = remote and self._direct_lan_exempt()
+        self._json({"status": "ok", "instance_id": OMRS_INSTANCE_ID,
+                    "remote": remote, "authenticated": bool(session) or not remote or lan_exempt,
+                    "lan_pin_exempt": lan_exempt,
+                    "pin_configured": security.auth_summary(self.vault_path)["pin_configured"],
+                    "warning_required": bool(remote and session and scheme == "http" and not session["warning_ack"])})
+
+    def _auth_login(self):
+        remote, client_ip, scheme = self._security_context()
+        try:
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            data = json.loads(body or b"{}")
+            if not isinstance(data, dict):
+                raise ValueError("登录请求必须是 JSON 对象")
+            token, _ = security.login(self.vault_path, str(data.get("pin", "")), client_ip)
+            self.send_response(200)
+            attrs = f"{security.COOKIE_NAME}={token}; HttpOnly; SameSite=Strict; Path=/; Max-Age={security.ABSOLUTE_SECONDS}"
+            if scheme == "https":
+                attrs += "; Secure"
+            self.send_header("Set-Cookie", attrs)
+            payload = b'{"status":"ok"}'
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+
+    def _auth_post(self, path):
+        try:
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            data = json.loads(body or b"{}")
+            if not isinstance(data, dict):
+                raise ValueError("请求体必须是 JSON 对象")
+            remote, client_ip, _ = self._security_context()
+            session = self._active_session
+            if path == "/api/auth/pin":
+                # Remote callers must prove the existing PIN. A LAN-exempt device may
+                # set the very first PIN: it already has full access, so nothing widens.
+                if (remote and security.auth_summary(self.vault_path)["pin_configured"] and
+                        not security.verify_pin_limited(
+                            self.vault_path, str(data.get("current_pin", "")), client_ip)):
+                    raise ValueError("当前 PIN 错误")
+                if data.get("pin"):
+                    result = security.set_pin(self.vault_path, str(data["pin"]), data.get("idle_minutes", 30))
+                else:
+                    result = security.set_idle_minutes(self.vault_path, data.get("idle_minutes", 30))
+                self._json({"status": "ok", **result})
+            elif path == "/api/auth/disable":
+                if remote or load_config(self.vault_path).get("allow_external"):
+                    raise ValueError("关闭局域网访问后才能停用 PIN")
+                security.disable_pin(self.vault_path)
+                self._json({"status": "ok"})
+            elif path == "/api/auth/activity":
+                if session:
+                    security.activity(session)
+                self._json({"status": "ok"})
+            elif path == "/api/auth/warning-ack":
+                if session:
+                    session["warning_ack"] = True
+                self._json({"status": "ok"})
+            elif path == "/api/auth/logout":
+                security.logout(self._cookie_token())
+                self.send_response(200)
+                self.send_header("Set-Cookie", f"{security.COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0")
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"{}")
+            else:
+                self._json({"status": "error", "msg": "not found"}, 404)
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+
+    def _serve_login(self):
+        page = '''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OMRS 登录</title><style>body{font:16px system-ui,sans-serif;background:#f6f2eb;color:#27231f;display:grid;place-items:center;min-height:100vh;margin:0}main{background:white;padding:32px;border:1px solid #ddd;border-radius:12px;max-width:360px;width:85%}input,button{font:inherit;padding:12px;width:100%;box-sizing:border-box;margin-top:12px}button{background:#765c45;color:white;border:0;border-radius:6px;cursor:pointer}p{line-height:1.5}</style><main><h1>OMRS 远端登录</h1><p id="hint">输入 PIN 后继续访问。</p><form id="login"><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="off" placeholder="4 到 12 位 PIN" required><button>登录</button></form></main><script>const hint=document.getElementById('hint');const next=()=>{try{const u=new URL(new URLSearchParams(location.search).get('next')||'/',location.origin);return u.origin===location.origin?u.pathname+u.search+u.hash:'/'}catch(_){return '/'}};fetch('/api/auth/session').then(r=>r.json()).then(s=>{if(!s.pin_configured)hint.textContent='尚未配置 PIN，请在本机设置页完成配置。';if(s.authenticated)location.replace(next())});document.getElementById('login').onsubmit=async e=>{e.preventDefault();try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:document.getElementById('pin').value})});const j=await r.json();if(!r.ok)throw Error(j.msg||'登录失败');const s=await(await fetch('/api/auth/session')).json();if(s.warning_required){alert('当前通过 HTTP 访问，PIN 和会话可能被同一网络中的设备看到。建议使用 HTTPS。');await fetch('/api/auth/warning-ack',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})}location.replace(next())}catch(err){hint.textContent=err.message}}</script></html>'''.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(page)))
+        self.end_headers()
+        self.wfile.write(page)
 
     def _download(self, payload, filename, content_type):
         """带中文文件名的附件响应：ASCII 兜底 + RFC 5987 filename*，避免 latin-1 编码报错。"""
@@ -1138,11 +1370,16 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg",
         ".jpeg": "image/jpeg", ".gif": "image/gif", ".ico": "image/x-icon",
         ".json": "application/json", ".woff": "font/woff", ".woff2": "font/woff2",
-        ".map": "application/json",
+        ".map": "application/json", ".html": "text/html",
+        ".mjs": "application/javascript",
     }
 
     def _serve_asset(self, path):
-        """提供 assets/ 静态资源（css/js/图片等），含路径穿越防护。"""
+        """提供 assets/ 静态资源（css/js/图片等），含路径穿越防护。
+
+        带弱 ETag（mtime_ns + 大小）与 Last-Modified；请求带 If-None-Match / If-Modified-Since 且文件未变时回 304、不发正文。
+        Cache-Control 仍是 no-cache：浏览器每次都来问，但文件没变时只收到一个空的 304。
+        """
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         assets_dir = os.path.join(base_dir, "assets")
         rel = urllib.parse.unquote(path.lstrip("/"))
@@ -1153,14 +1390,41 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             return
         ext = os.path.splitext(target)[1].lower()
         ctype = self._ASSET_TYPES.get(ext, "application/octet-stream")
+        stat = os.stat(target)
+        etag = f'W/"{stat.st_mtime_ns:x}-{stat.st_size:x}"'
+        last_modified = email.utils.formatdate(stat.st_mtime, usegmt=True)
+        if self._asset_not_modified(etag, int(stat.st_mtime)):
+            self.send_response(304)
+            self.send_header("ETag", etag)
+            self.send_header("Last-Modified", last_modified)
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            return
         with open(target, "rb") as file:
             data = file.read()
         self.send_response(200)
         self.send_header("Content-Type", f"{ctype}; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("ETag", etag)
+        self.send_header("Last-Modified", last_modified)
         self.send_header("Cache-Control", "no-cache")
         self.end_headers()
         self.wfile.write(data)
+
+    def _asset_not_modified(self, etag, mtime):
+        """If-None-Match 优先（弱比较，支持逗号列表与 *）；没有它时才看 If-Modified-Since（秒级）。"""
+        if_none_match = self.headers.get("If-None-Match")
+        if if_none_match is not None:
+            tags = [tag.strip() for tag in if_none_match.split(",")]
+            bare = etag[2:] if etag.startswith("W/") else etag
+            return "*" in tags or any((tag[2:] if tag.startswith("W/") else tag) == bare for tag in tags)
+        since = self.headers.get("If-Modified-Since")
+        if not since:
+            return False
+        try:
+            return mtime <= int(email.utils.parsedate_to_datetime(since).timestamp())
+        except (TypeError, ValueError, IndexError, OverflowError):
+            return False
 
     def do_OPTIONS(self):
         self.send_response(204)

@@ -1,0 +1,4 @@
+/* 基础层（index.css 的 base 层，压过旧 styles.css）：只放不与旧页面冲突的全站规则。
+   旧 styles.css 的 body 规则迁到这里；重置（* 的 margin / padding）仍留在旧层，放进 base 会压掉旧页面的全部间距。 */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body { min-height: 100vh; background: var(--surface-0); color: var(--fg-1); font-family: var(--font-sans); }

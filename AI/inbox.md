@@ -1,7 +1,13 @@
 # 收件箱录入流程（inbox，v1.12.0；v1.13.0 加提供方 / 盲标 / 自动策略 / 清理）
 
+> **速查**
+> - 职责：收件箱「上传 → 框选 → 转换 → 提交」暂存流程、后台 job、框选提供方与训练数据集
+> - 入口：`omrs/inbox.py`、`omrs/ai_assist.py`、`assets/inbox.js`、`assets/inbox_mobile.html`
+> - 不变量：上传的原图只进暂存区，提交后才写入题库；手机页遵循与桌面相同的访问规则
+> - 必跑测试：`tests/test_inbox.py`、`tests/test_auth_activity_ui.js`
+> - 相关：`AI/frontend/create.md`、`AI/api.md`
+
 > 对应源文件：`omrs/inbox.py`（存储 / 任务 / 提交 / 数据集）、`omrs/ai_assist.py`（`detect_regions` / `extract_region` / `parse_detect_output` / 按用途选模型）、`omrs/server.py`（`_inbox_get` / `_inbox_post` / `_multipart_files`）、`assets/inbox.js`、`assets/inbox_mobile.html`、`omrs_dashboard.html`（`#panel-create` 的 `ib-*` 结构）、`assets/styles.css` 末段。
-> 设计历史已归入 `AI/logs/2026-09-03_inbox-intake*.md`；当前行为以本文件与源码为准。
 
 ## 1. 它解决什么
 
@@ -46,7 +52,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 | GET | `/api/inbox/dataset/stats` | 张数、框数按角色、版式分布、AI 建议/采纳/微调/拒绝（拒绝数来自 `meta`，老库首次从 annotations 回填一次）、微调平均 IoU、转文本决策与判断一致率、`blind`（盲标评估集：张数 / 已评估 / 隐藏 AI 框数 / IoU≥0.5 命中 / 平均 IoU）、`storage`（raw / crops 字节数、待清理的已丢弃张数） |
 | GET | `/api/inbox/dataset/export?format=omrs_jsonl\|yolo&raw=1` | zip：`labels.jsonl`（每图一行，归一化 regions）、`images/`、`annotations.jsonl`；yolo 另含 `labels/*.txt` + `classes.txt` |
 | POST | `/api/inbox/cleanup` | `{discarded_days?, crops?}`：删除丢弃超过 N 天（缺省 `inbox_discard_keep_days`）的原图（行保留、`file` 置空），`crops=true` 清空裁剪缓存；上传时也自动跑一次 |
-| GET | `/m` | 手机极简上传页 `assets/inbox_mobile.html`（需 `allow_external`） |
+| GET | `/m` | 手机极简上传页 `assets/inbox_mobile.html`（需 `allow_external`；显式豁免网段直连免 PIN，其他远端需登录）；真实触摸、滚轮或滚动会刷新空闲会话；会话过期（401）时跳转 `/login?next=/m` 并停止剩余上传 |
 
 **job 单元格式**
 - `detect`：`items:[{item_id, strips?:[{y0,y1,data}], replace?, provider?, blind?}]`。`provider` 缺省取配置 `inbox_detect_provider`（见 §8）；`template` 不需要 strips。前端按 slice-plan 切条带并附 JPEG data URL；不附 strips 时有 Pillow 就在服务端按同一 slice_plan 切，否则整图送模型（长图会被模型端压缩，精度下降）。结果 `{item_id, provider, blind, boxes, hidden?, regions, auto?}`。结果经 `inbox.merge_strip_boxes()` 映射回整图并合并跨条带的同角色框（同一条带内的框永不合并）。已有框时默认**追加**（`replace=false`）。
@@ -69,7 +75,8 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 - ① 上传：拖拽 / 选文件 / 读剪贴板 → `POST /upload`；网格缩略图上叠框位；筛选、全选、勾选后底部 `.ib-batchbar`（AI 框选 / 沿用框位 / 整图即题目 / 去处理 / 丢弃）——**只处理勾选项**。
 - ② 处理三栏：队列（可勾选）| 画布（拖拽画框、移动、八向缩放，框外 SVG mask 遮暗，AI 框带置信度）| 区域面板（按题卡分组；角色 / 来源 / 归一化坐标与裁出尺寸 / 转文本·保留图·让 AI 判断 / 提取 / 文本编辑 + `renderMdContent` 预览 / 保留图的 canvas 预览）。改动去抖 500ms 调 `/item/update`。快捷键 `Q/A/X`、`Del`、`Enter`、`⌘/Ctrl+Enter`。
 - 沿用上一张框位 `ibTransferBoxes`：横向照搬；`y<0.35` 的框（题目）按**像素**锚定顶部，其余按比例——因为不同截图高度差异极大，归一化 y 不能直接搬。
-- AI 框选 `ibDetect`：`slice-plan` → canvas 切条带（JPEG 0.85）→ `jobs detect` → 1.2s 轮询 → 完成后 `ibLoad()` 回填。提取 / 分类同理。
+- AI 框选 `ibDetect`：`slice-plan` → canvas 切条带（JPEG 0.85）→ `jobs detect` → 1.2s 轮询 → 完成后 `ibLoad()` 回填。提取 / 分类也用后台 job 和轮询。
+- 文本提取完成时，前端只从 `/api/inbox/item` 同步本次提取的图片和区域结果，不重画当前画布。切到另一张图后可以继续框选；若正在编辑原图，提取字段合并到对应区域，拖动结束后再刷新右栏。
 - ③ 录入：`ready` 的每张题卡一行——左预览（文本 `renderMdContent` 或裁图 canvas）右表单；字段去抖保存到 `cards`；`AI 识别题目信息` 走 classify job；`创建题目` 把图片区域 canvas 裁成 PNG 随 `commit` 上传，成功后 `reloadData()`。
 - 创建后的提示：`ibCommit(k)` 单张创建后弹一条带「加入展示板」的 `ibToast`；`ibCommitSelected()` 批量创建时逐张走 `ibCommit(k, {quiet:true})` 不弹提示，全部提交完只弹一条汇总（「已创建 N 道题目」+ 失败张数），按钮变成「加入展示板（N 题）」，一次把这批新题全部加入。两者的按钮都由 `ibBoardAction(uids)` 生成，落到 `boardQuickAdd`。`ibToast` 带按钮时停留 8 秒、无按钮 3.2 秒。
 - AI 训练：`dataset/stats` 四张指标卡 + 版式 / 转换决策条 + 盲标评估集与存储概览 + 导出（JSONL / YOLO）+ 清理按钮（`ibCleanup`）+「框选提供方与自动策略」表单（`ibLoadPolicy / ibSavePolicy`，直接读写 `/api/config` 的 `inbox_*` 键）。

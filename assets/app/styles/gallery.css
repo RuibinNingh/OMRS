@@ -1,0 +1,48 @@
+/* gallery.html 的版式（只服务陈列页，不覆盖组件本身）。组件样式来自 ui.css，旧类名桥接来自 legacy-bridge.css。 */
+@layer ui, legacy-bridge, gallery;
+@import url("ui.css") layer(ui);
+@import url("legacy-bridge.css") layer(legacy-bridge);
+
+@layer gallery {
+  *, *::before, *::after { box-sizing: border-box; }
+  html { background: var(--surface-0); color: var(--fg-1); font-family: var(--font-sans); font-size: var(--text-md); line-height: var(--leading-ui); }
+  body { margin: 0; }
+  .gl-top { position: sticky; top: 0; z-index: var(--z-sticky); display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-6); border-bottom: 1px solid var(--border-1); background: var(--surface-0); }
+  .gl-title { margin: 0; font-size: var(--text-xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); }
+  .gl-sub { color: var(--fg-3); font-size: var(--text-xs); }
+  .gl-spacer { flex: 1; }
+  .gl-layout { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: var(--sp-6); max-width: 1500px; margin: 0 auto; padding: var(--sp-6); }
+  .gl-nav { position: sticky; top: 72px; align-self: start; display: grid; gap: var(--sp-0_5); max-height: calc(100vh - 96px); overflow: auto; }
+  .gl-nav a { padding: var(--sp-1) var(--sp-2); border-radius: var(--r-sm); color: var(--fg-2); font-size: var(--text-sm); text-decoration: none; }
+  .gl-nav a:hover { background: var(--surface-2); color: var(--fg-1); }
+  .gl-section { padding: var(--sp-6) 0; border-bottom: 1px solid var(--border-1); scroll-margin-top: var(--sp-12); }
+  .gl-section:first-child { padding-top: 0; }
+  .gl-section h2 { margin: 0 0 var(--sp-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-tight); }
+  .gl-desc { max-width: 76ch; margin: 0 0 var(--sp-4); color: var(--fg-3); font-size: var(--text-sm); }
+  .gl-demos { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 0 0 var(--sp-4); }
+  .gl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-4); }
+  .gl-cell { display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; margin: 0; }
+  .gl-cell.is-wide { grid-column: 1 / -1; }
+  .gl-stage { display: flex; align-items: center; min-width: 0; min-height: 72px; padding: var(--sp-4); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-1); overflow: hidden; }
+  .gl-stage > * { flex: 1 1 auto; min-width: 0; }
+  .gl-stage > :is(.gl-narrow, .ui-btn, .ui-switch, .ui-segmented, .ui-tag, .ui-badge, .ui-kbd, .ui-kbd-combo, .ui-tooltip, .ui-dialog__panel, .ui-drawer__panel) { flex: 0 1 auto; }
+  .gl-cell figcaption { color: var(--fg-3); font-size: var(--text-xs); }
+  .gl-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); min-width: 0; }
+  .gl-stack { display: grid; gap: var(--sp-3); width: 100%; min-width: 0; }
+  .gl-narrow { width: 160px; max-width: 100%; }
+  .gl-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: var(--sp-1); width: 100%; }
+  .gl-icon { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); padding: var(--sp-2); border-radius: var(--r-sm); color: var(--fg-1); }
+  .gl-icon code { color: var(--fg-3); font-family: var(--font-mono); font-size: var(--text-2xs); }
+  .gl-scrim { position: relative; justify-content: center; min-height: 220px; background: var(--scrim); }
+  .gl-scrim.is-drawer { justify-content: flex-end; height: 300px; padding: 0; }
+  .gl-scrim .ui-dialog__panel, .gl-scrim .ui-drawer__panel, .gl-static .ui-toast, .gl-static .ui-menu { animation: none; }
+  .gl-scrim .ui-drawer__panel { height: 100%; }
+  .gl-static { display: grid; gap: var(--sp-2); width: 100%; }
+  .gl-static .ui-tooltip { justify-self: start; }
+  .gl-note { color: var(--fg-3); font-size: var(--text-xs); }
+  @media (max-width: 760px) {
+    .gl-top { padding: var(--sp-3) var(--sp-4); }
+    .gl-layout { grid-template-columns: minmax(0, 1fr); padding: var(--sp-4); }
+    .gl-nav { display: none; }
+  }
+}

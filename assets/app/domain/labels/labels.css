@@ -1,0 +1,3 @@
+/* 标记（domain 层）：色板与颜色圆点按 data-lbl-c 取色——sheet.js 的运行时规则给出 --lbl-c，模板不写 style=。
+   芯片本身的外观（.lbl 的形状、淡底、深色主题）仍在旧 styles.css，P8 随 styles.css 一起搬。 */
+.lbl-swatches .sw[data-lbl-c], .label-swatch[data-lbl-c] { background: var(--lbl-c); }

@@ -1,0 +1,17 @@
+/* 抽屉 .ui-drawer：右侧（或左侧）滑出；窄屏变底部面板。遮罩与 dialog 同源（见 dialog.css 首条）。 */
+.ui-drawer[open] { display: flex; justify-content: flex-end; padding: 0; animation: ui-fade-in var(--dur-2) var(--ease-out); }
+.ui-drawer--left[open] { justify-content: flex-start; }
+.ui-drawer__panel { box-sizing: border-box; display: flex; flex-direction: column; width: min(420px, 100%); height: 100%; border-left: 1px solid var(--border-1); background: var(--surface-1); box-shadow: var(--elev-3); animation: ui-slide-in-right var(--dur-3) var(--ease-out); }
+.ui-drawer--left .ui-drawer__panel { border-left: 0; border-right: 1px solid var(--border-1); animation-name: ui-slide-in-left; }
+.ui-drawer__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); margin: 0; padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border-1); } /* margin 清零：旧全局 header 规则，见 dialog.css */
+.ui-drawer__title { margin: 0; color: var(--fg-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-ui); }
+.ui-drawer__body { flex: 1; min-height: 0; padding: var(--sp-4) var(--sp-5); overflow: auto; color: var(--fg-2); font-size: var(--text-md); line-height: var(--leading-ui); }
+.ui-drawer__foot { display: flex; justify-content: flex-end; gap: var(--sp-2); padding: var(--sp-3) var(--sp-5); border-top: 1px solid var(--border-1); }
+.ui-drawer.is-closing { animation: ui-fade-out var(--dur-2) var(--ease-in-out) forwards; }
+.ui-drawer.is-closing .ui-drawer__panel { animation: ui-slide-out-right var(--dur-2) var(--ease-in-out) forwards; }
+.ui-drawer--left.is-closing .ui-drawer__panel { animation-name: ui-slide-out-left; }
+@media (max-width: 760px) {
+  .ui-drawer[open] { align-items: flex-end; justify-content: stretch; }
+  .ui-drawer__panel, .ui-drawer--left .ui-drawer__panel { width: 100%; height: auto; max-height: 85vh; border: 0; border-top: 1px solid var(--border-1); border-radius: var(--r-lg); animation-name: ui-slide-in-up; }
+  .ui-drawer.is-closing .ui-drawer__panel { animation-name: ui-slide-out-down; }
+}

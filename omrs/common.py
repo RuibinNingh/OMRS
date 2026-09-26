@@ -35,6 +35,7 @@ MASTERY_HEADERS = [
     "Interval",
     "Due_Date",
     "Repetition",
+    "Kill_Count",
     "Current_Tag",
     "Entry_Date",
     "Knowledge_Tags",
@@ -93,7 +94,7 @@ def config_path(vault: str) -> str:
 
 # 配置默认值：缺失键按此回退。ai_restrict_tags 默认 True，与历史行为一致
 # （AI 识别的知识点硬过滤为「已有分类 ∪ 已有知识点」）。
-CONFIG_DEFAULTS = {"allow_external": False, "ai_restrict_tags": True,
+CONFIG_DEFAULTS = {"allow_external": False, "lan_pin_exempt_cidrs": [], "ai_restrict_tags": True,
                    # 收件箱按用途选模型：留空回退 ai_model（detect 需支持定位输出，extract 建议用 OCR 类模型）
                    "ai_model_detect": "", "ai_model_extract": "", "ai_model_classify": "",
                    # 收件箱框选提供方与自动策略（见 AI/inbox.md §4/§8）
@@ -381,9 +382,14 @@ DEFAULT_TUNING = {
     # SM-2 折中
     "proficiency_factor": SM2_PROFICIENCY_CORRECT_FACTOR,
     # Leech（顽固题）检测
-    "leech_fail_threshold": 4,   # 历史累计答错次数 ≥ 此值标记为 leech
+    "leech_fail_threshold": 3,   # 最近连续答错次数 ≥ 此值标记为 leech
     "leech_priority_bonus": 0.4,  # leech 在熟练度列表的优先级加成
     "label_bonus_cap": 1.0,       # 用户标记 priority_bonus 的总上限
+    # 已击杀题复燃（见 scheduling.revive_dormant_days）
+    "revive_decay_threshold": 0.2,   # 击杀后衰减到此值以下才复燃（越小休眠越久）
+    "revive_tier_multiplier": 1.8,   # 每多击杀一次，休眠时长乘该系数
+    "revive_priority_bonus": 0.3,    # 复燃题在熟练度列表的优先级加成
+    "kill_demote_factor": 0.3,       # 复燃后答错时的熟练度降级系数
 }
 
 _TUNING_CACHE = {}

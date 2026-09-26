@@ -1,5 +1,12 @@
 # 导出（HTML）
 
+> **速查**
+> - 职责：A4、屏幕版与展示板的自包含 HTML 导出
+> - 入口：`omrs/exporting.py`、`omrs/export_templates/`
+> - 不变量：导出为单文件自包含 HTML；后端只产结构化数据与模板，版面、切片与公式渲染交给浏览器
+> - 必跑测试：`tests/test_board_export.py`、`tests/test_report_export.py`、`tests/smoke_board_print.py`
+> - 相关：`AI/board.md`、`AI/api.md`
+
 错题清单导出为**自包含 HTML**（图片、KaTeX 资源均内联，单文件可拷给任何带浏览器的设备）。三种入口为：**A4 打印版**、**展示板打印版**（左题右空）与**屏幕版**（手机/平板上的全屏卡片复习 App，可判对错、打分、记录进度）。复习调度工作台的已有计划详情可以直接按 Session 导出，并保留原有 A4/屏幕版选择；全题库导出从调度页独立进入。后端只产结构化文字/图片/表格数据与内联模板，**版面、长图切片、公式和表格渲染、作答交互全部交给浏览器**。
 
 ## 为什么是 HTML（而非 docx）
@@ -14,7 +21,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 1. **读题**：`_load_export_questions()` 从 mastery CSV + 题目 `.md` 取题（与旧实现一致，停用标记为 `1` 的题目在此处跳过）；展示板导出与纸面指纹读取都把文件路径限制在 `错题/` 目录内，越界或损坏路径按缺失处理。
 2. **解析**：`_text_to_blocks()` 把正文转成三种块——非空文字行→`{t:'txt'}`，`![[名]]` / `![](路径)`→`{t:'img'}`，Markdown 表头 + 分隔行 + 数据行→`{t:'table', headers, rows}`。表格支持 `\|` 转义；对齐冒号会被识别但当前不保留对齐语义，行宽按表头补空或截断。跨行 `$$...$$` 会先合并为单个文字块，不能按行拆散。
 3. **取图**：`_img_payload()` 用 `_find_image()` 定位、`_read_image_info()`（纯 `struct` 解析 PNG/JPEG/GIF 尺寸，无 Pillow）读出宽高，base64 成 data-uri。
-4. **组装**：`_build_export_data()` 产出 `{meta, questions, feedback, answers}`，其中 `meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联（`_read_katex_bundle()`）。数据 JSON 会做 `</` 转义防提前闭合脚本，最终仍是单个自包含 HTML。
+4. **组装**：`_build_export_data()` 产出 `{meta, questions, answers}`。`questions[i].notes` 只带 `关联`，`answers[i].notes` 只带 `错因`——错因会提示解法，不能出现在题面区；`include_answers=false` 时 `answers[i].blocks` 为空数组但 `notes` 照旧，反馈区因此仍能只列错因。`meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联（`_read_katex_bundle()`）。数据 JSON 会做 `</` 转义防提前闭合脚本，最终仍是单个自包含 HTML。
 
 对外入口 `export_schedule_artifact(vault, uids, session_id, export_format, include_answers, question_gap_lines=0, a4_two_columns=True)`：
 - `export_format`：`'a4'`（默认）/ `'screen'`；为兼容旧调用，`'docx'`/`'word'`/`'html'`/空 一律按 `a4`。
@@ -40,7 +47,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 ### 调用入口
 
 - Web API：`POST /api/export` 接受 `question_gap_lines` 与 `a4_two_columns`；后端负责归一化，详见 `api.md`。
-- 前端：题库选题导出和 Session 导出分别使用 `#export-question-gap` / `#sch-question-gap`；`assets/export.js::getQuestionGapLines()` 在发送前做同样的 `0–20` 归一化。
+- 前端：复习调度「全题库导出」与「已有计划」导出分别用 `#export-question-gap` / `#sch-question-gap` 输入留白行数；`assets/app/features/schedule/exporter.js` 的 `clampGap()` 在发送前做同样的 `0–20` 归一化，请求由 `assets/app/domain/exporting.js` 的 `requestExport()` 发出并下载（v1.25.4 起；屏幕版始终附带答案，A4 先问单 / 双栏）。
 - CLI：`python omrs_engine.py export ... --question-gap-lines N`；默认 `0`。
 
 ## A4 排版引擎（`a4.js`，浏览器端）
@@ -48,7 +55,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 默认几何沿用旧 docx 的 A4、上下 0.5in、左右 0.25in、双栏、栏距 0.5in，栏宽约 `348.85px`（9.23cm）。2026-07-14 起页底另扣 `FOOTER_SAFE = 8.5mm`，有效栏高约 `994.39px`（26.31cm），页码底距为 `32px`，避免浏览器或打印机裁切。维护时必须同步 `a4.js::FOOTER_SAFE/COL_H` 与 `a4.css --col-h`。
 
 1. **选择栏模式**：`meta.a4_two_columns` 默认为 `true`（双栏），设为 `false` 时**整份** A4 导出切为单栏；前端每次导出 A4 都弹出确认，遇到表格或长公式时提示用户选单栏。引擎不会自行检测表格改变栏模式。表格单元格仍使用 `mathText()` 渲染公式。
-2. **测真实高度、块级防截断与公式续栏**：每个文字、表格和图片块按当前栏宽 `colW` 塞进离屏测量容器，读 `getBoundingClientRect().height`。排版器不把整道题包成不可拆的大块，也不额外预留整题空白；题头、小问、错因等仍按原有内容块顺序尽量填满当前栏。某个块放不下时只把该块完整移到下一栏/页，避免落入固定栏高的裁剪区。若一段含 `$...$` / `$$...$$` 的文字放不进当前栏，排版器会从靠后的公式边界拆开：前缀留在当前栏，公式及后文从下一栏/下一页顶部继续；无公式文字仍整段换栏。
+2. **测真实高度、块级防截断与公式续栏**：每个文字、表格和图片块按当前栏宽 `colW` 塞进离屏测量容器，读 `getBoundingClientRect().height`。排版器不把整道题包成不可拆的大块，也不额外预留整题空白；题头、小问、关联等仍按原有内容块顺序尽量填满当前栏。某个块放不下时只把该块完整移到下一栏/页，避免落入固定栏高的裁剪区。若一段含 `$...$` / `$$...$$` 的文字放不进当前栏，排版器会从靠后的公式边界拆开：前缀留在当前栏，公式及后文从下一栏/下一页顶部继续；无公式文字仍整段换栏。
 3. **稳定排版与二次校验**：初次排版等待图片和已有字体，生成含 KaTeX 的 DOM 后再等待 `document.fonts.ready` 与两帧浏览器布局稳定，并用最终数学字体重新排版一次；否则首轮可能用 fallback 字体测量，打印时 KaTeX 字体完成会把栏底内容挤出裁剪区。排版完成后不在 `beforeprint` 或打印媒体变化时重新分页，浏览器预览和打印直接复用同一批固定 A4 页面 DOM，避免两者出现不同版面。屏幕态与打印态只允许改变工具栏、页间距和阴影，不改变 `.page`、`.page-inner`、`.col` 及其内容的尺寸与分页。页面创建后立即挂到 `#stage`，因此测量到的是浏览器真实盒模型高度而非未挂载节点的零高度；每次实际插入后都以元素底边复核是否仍在 `COL_H` 内，放不下就撤回并把当前块移到下一栏/页。`keepNext`（题头/小标题）若落在栏底 `ORPHAN`（56px）内则整体推到下一栏/页。`question-gap` 是普通定高块，仅插在题目之间。
 4. **长图切片**（核心）：
    - 整张能进当前栏剩余 → 不切。
@@ -56,9 +63,18 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
    - **FORCE**（图高过一整栏，必须切防截断）：优先用当前栏剩余里的白缝切，否则按整栏切；极端情况（密排长图无任何白缝）在墨最少处切并**标红虚线 + 顶栏告警计数**。
    - 切口靠 `analyze()` 读像素：逐行墨量 → 自适应底噪（5 分位 floor + 宽度相关容差）→ 连续 ≥G 行安静即「缝带」，切在缝带中心。
    - 切片用 `.slice`（固定高 + `overflow:hidden`）裹同一张 `<img>`、负 `margin-top` 平移——即 `srcRect` 的 HTML 安全版：浏览器零渲染怪癖、图只存一份。
-5. **页码**：因分页由引擎掌控，每页底部居中渲染 `i / 总页数`（打印可见，对应反馈表的「页码」列）。
+5. **页码**：因分页由引擎掌控，每页底部居中渲染 `i / 总页数`（打印可见）。
 
 顶栏（不打印）有「打印/导出 PDF」「显示切口」开关与状态（页数/排版耗时/切穿告警数）。
+
+### 题目区与反馈区
+
+正文分两节，错因一律在**反馈区**，不再出现在题面下方（见 `a4.js::buildBlocks()`）：
+
+- **一、题目**：题头 + 题面块 + `关联`（关联是解题线索而非答案，留在题面区）+ 题间留白。
+- **二、反馈区**：每题一块，标题行「第 N 题 [UID]」下面直接跟答案正文，**紧接着**同题的 `错因` 块（`noteBlock`），同属一块、不另起标题——即「答案和错因不分开」。该题既没答案也没错因时不占位；整节没有任何内容时连标题都不输出。
+- 勾选「导出答案」：反馈区的每道题都有答案 + 错因。未勾选：反馈区仍然出现，但只有错因，导语改为「本次未导出答案，只列错因」。题面区在两种情况下都保持干净。
+- 导语提示「做完后再翻到末尾的反馈区核对答案与错因」；**早期版本那张「反馈勾选表」已连同 `.fb-row` 样式一并删除**（反馈改在主程序反馈页录入）。
 
 > 实测：同一份 16 题数据，旧 docx 11 页、栏底留白高达 65%/49%/30%；A4 HTML 压到 7 页、各栏留白个位数，长图跨栏切在不可见的白缝处，无截断。
 
@@ -86,11 +102,14 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
   不为它另起一页。
 - 题头「第 N 题 [UID] 标记芯片」单行，元信息「科目 · 分类 · 难度」一行；题目跨页时新页顶部
   补「第 N 题（续）」。文字按公式边界拆段、表格整块、长图切白缝——与 `a4.js` 相同规则。
+  题面栏里只有题面和 `关联`；`错因` 不出现在题面栏，改跟在答案附页**同题答案之后**（与 A4 /
+  屏幕版一致）。`answers:"none"` 时错因无处可去，整份不输出错因——展示板是打印作答纸，不导出
+  答案时也就不给错因。
 - 长图找白缝时，宽于 600px 的图先等比缩到 600px 宽再逐行统计墨量，缝位按比例映射回原图坐标
   （`analyze()` 的 `ANALYZE_W`）。手机拍的大图从逐像素扫描的几百毫秒降到几毫秒，缝位误差在
   一两个原图像素内，落在切片安全余量里；600px 以内的图行为与原来完全一致。
 - 标记芯片打印变体：18% 淡底 + 同色相压暗到 AA 对比度的文字（`_board_label_ink`，与
-  `labels.js::lblInk` 同算法），高 15px。
+  `assets/app/domain/labels/color.js::lblInk` 同算法），高 15px。
 - 不绘制装订导引线、3 孔、26 孔或其他打孔圆圈。
 - **切割线**（`.cut-line`）画在每题留白的末尾，是「这道题写到这里为止」的提示。样式由
   `cut_line` 决定：`none` 不画、`dash` 淡虚线、`solid` 淡实线；`cut_label` 开启时右端加一枚
@@ -203,6 +222,10 @@ warnings}`）与 `window.OMRS_LAYOUT_TIMING`（`{total_ms, passes}`），设置
 **图片灯箱**：点任意图全屏放大，点击 / Esc 关闭。
 
 > 注：导出件本身仍**不直接回写题库**（沿用「改源题后重导」的取舍）；0–10 分与 OMRS 主观分同量纲。复习完成后用「复制作答 JSON」→ 主程序「提交反馈」页**导入作答 JSON**，即可半自动回写（自动关联 Session、填充反馈行，人工核对后提交）。
+
+## 脱敏源码 ZIP
+
+设置页的「下载脱敏源码」由 `omrs/source_export.py` 生成 ZIP，与题目 HTML 导出独立。它按固定项目文件、源码目录和文件类型扫描当前工作区，包含未提交源码，不需要 Git；个人题库、运行目录、`AI/logs/`、缓存、构建产物和符号链接不进入包。`SOURCE_EXPORT_MANIFEST.txt` 列出实际包含文件；完整范围和 HTTP 响应见 `api.md`。
 
 ## 待办
 

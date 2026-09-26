@@ -31,6 +31,7 @@ from .scheduling import (
     _safe_float,
     _safe_int,
     build_fail_counts,
+    build_wrong_streaks,
     days_since_review,
     ef_to_difficulty,
     is_killed_state,
@@ -143,6 +144,7 @@ def get_analytics(vault):
     ]
     tuning = load_tuning(vault)
     fail_counts = build_fail_counts(history, uid_by_qid)
+    wrong_streaks = build_wrong_streaks(history, uid_by_qid)
     today = datetime.date.today()
 
     total = len(rows)
@@ -160,7 +162,8 @@ def get_analytics(vault):
         days = days_since_review(row.get("Last_Review", ""), today, 0)
         decayed = time_decay(mastery, days, tuning["decay_mastery_factor"], tuning["decay_base"])
         fc = fail_counts.get(uid, 0)
-        leech = is_leech(fc, mastery, tag, tuning)
+        wrong_streak = wrong_streaks.get(uid, 0)
+        leech = is_leech(wrong_streak, mastery, tag, tuning)
         killed_flag = is_killed_state(mastery, tag)
         if killed_flag:
             killed += 1
@@ -184,6 +187,7 @@ def get_analytics(vault):
             "ef": round(ef, 2),
             "attempts": attempts,
             "fail_count": fc,
+            "wrong_streak": wrong_streak,
             "is_leech": leech,
             "is_killed": killed_flag,
             "repetition": _safe_int(row.get("Repetition", 0), 0),
@@ -426,7 +430,7 @@ def get_analytics(vault):
 
     # ── 薄弱点 ──
     leeches = sorted([it for it in items if it["is_leech"]],
-                     key=lambda x: (-x["fail_count"], x["mastery"]))[:20]
+                     key=lambda x: (-x["wrong_streak"], x["mastery"]))[:20]
     struggling = sorted([it for it in items
                          if not it["is_killed"] and it["attempts"] >= 3 and it["mastery"] < 0.4],
                         key=lambda x: x["mastery"])[:20]
@@ -613,10 +617,10 @@ def build_review_markdown(vault):
 
     ws = a["weak_spots"]
     L.append("\n## 8. 薄弱点与顽固题\n")
-    L.append("**顽固题 Leech（累计答错最多 Top 20）**\n")
+    L.append("**顽固题 Leech（连续答错最多 Top 20）**\n")
     L.append(_md_table(
-        ["UID", "科目", "分类", "答错次数", "熟练度", "EF", "复习次数"],
-        [[it["uid"], it["subject"], it["category"], it["fail_count"],
+        ["UID", "科目", "分类", "连错次数", "熟练度", "EF", "复习次数"],
+        [[it["uid"], it["subject"], it["category"], it["wrong_streak"],
           _pct(it["mastery"]), it["ef"], it["attempts"]] for it in ws["leeches"]],
     ))
     L.append("\n**屡练不熟（复习≥3次且熟练度<40% Top 20）**\n")

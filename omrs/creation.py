@@ -9,6 +9,7 @@ from .ledger import append_commit, reserve_operation_id
 from .migration import ensure_ledger_bootstrap
 from .projections import rebuild_projection
 from .workspace_sync import content_hash, metadata_hash, update_fingerprints
+from .path_safety import safe_question_directory, safe_question_path
 
 
 def _next_uid(qroot, category):
@@ -150,17 +151,19 @@ tags:
 def create_question(vault, subject, category, difficulty, note="", related_tags=None,
                     question_text="", answer_text="", cause="",
                     question_images=None, answer_images=None, labels=None):
+    category_dir, subject, category = safe_question_directory(vault, subject, category)
     ensure_ledger_bootstrap(vault)
     qroot = questions_root(vault)
-    category_dir = os.path.join(qroot, subject, category)
     os.makedirs(category_dir, exist_ok=True)
 
     subject_anchor = os.path.join(qroot, subject, f"{subject}.md")
+    safe_question_path(vault, subject_anchor)
     if not os.path.exists(subject_anchor):
         with open(subject_anchor, "w", encoding="utf-8") as file:
             file.write(f"# {subject}\n")
 
     category_anchor = os.path.join(category_dir, f"{category}.md")
+    safe_question_path(vault, category_anchor)
     is_new_category = not os.path.exists(category_anchor)
     if is_new_category:
         with open(category_anchor, "w", encoding="utf-8") as file:
@@ -176,6 +179,7 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
     uid = _next_uid(qroot, category)
     question_id = reserve_operation_id(vault)
     filepath = os.path.join(category_dir, f"{uid}.md")
+    safe_question_path(vault, filepath)
 
     today = datetime.date.today().isoformat()
 

@@ -26,6 +26,7 @@ from .scheduling import (
     _safe_float,
     _safe_int,
     build_fail_counts,
+    build_wrong_streaks,
     compute_priority,
     days_since_review,
     is_killed_state,
@@ -66,8 +67,9 @@ def get_stats(vault):
     tuning = load_tuning(vault)
     from .labels import label_priority_map
     label_bonuses = label_priority_map(vault)
-    active_fail_counts = build_fail_counts(active_history, uid_by_qid)
     all_fail_counts = build_fail_counts(history, uid_by_qid)
+    active_wrong_streaks = build_wrong_streaks(active_history, uid_by_qid)
+    all_wrong_streaks = build_wrong_streaks(history, uid_by_qid)
     today = datetime.date.today()
 
     total = len(active_rows)
@@ -173,7 +175,7 @@ def get_stats(vault):
             warning += 1
         if days > 30:
             cold += 1
-        if is_leech(active_fail_counts.get(uid, 0), mastery, tag, tuning):
+        if is_leech(active_wrong_streaks.get(uid, 0), mastery, tag, tuning):
             leech += 1
         dd = parse_date(row.get("Due_Date", ""))
         due_delta = None
@@ -191,14 +193,18 @@ def get_stats(vault):
             low_mastery_not_due += 1
         priority = compute_priority(
             decayed_mastery, _safe_float(row.get("EF", 2.5), 2.5),
-            days, tag, mastery, active_fail_counts.get(uid, 0), tuning,
+            days, tag, mastery, active_wrong_streaks.get(uid, 0), tuning,
             labels=[label.strip() for label in str(row.get("Labels", "") or "").split("|") if label.strip()],
             label_bonuses=label_bonuses,
         )
         if priority > 0.3:
             total_due += 1
 
-    items = [_row_to_item(row, today, all_fail_counts.get(row.get("UID", ""), 0), tuning) for row in rows]
+    items = [
+        _row_to_item(row, today, all_fail_counts.get(row.get("UID", ""), 0), tuning,
+                     all_wrong_streaks.get(row.get("UID", ""), 0))
+        for row in rows
+    ]
 
     return {
         "total": total,

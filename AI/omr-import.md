@@ -1,6 +1,13 @@
 # 答题卡扫描 JSON 导入（OMR → 反馈页）
 
-> 从 `frontend.md` §5.1.1 拆出（v1.16.1）。对应源文件：`assets/feedback.js`（`omrReadSheet` / `omrApplyToRows` / `omrMergeNote` / `fbPayloadKind`）、`tests/test_omr_import.js`、`tests/smoke_feedback_omr_import.js`。后端 `/api/feedback` 零改动。
+> **速查**
+> - 职责：答题卡扫描 JSON 导入反馈页：协议、题号到 UID 的对应、逐题判定
+> - 入口：`assets/app/features/feedback/state.js`（`omrReadSheet` / `omrApplyToRows`）、`importer.js`（`planImportText`）
+> - 不变量：全部在前端完成，`/api/feedback` 契约不变
+> - 必跑测试：`tests/app/feedback.test.mjs`、`tests/e2e/feedback.py`
+> - 相关：`AI/frontend/feedback.md`
+
+> 对应源文件：`assets/app/features/feedback/state.js`（`omrReadSheet` / `omrApplyToRows` / `omrMergeNote` / `fbPayloadKind` / `fbImportFeedbackRows`）、`importer.js`（`planImportText` / `planOmr` / `planFeedback` / `omrReportHtml`）、`tests/app/feedback.test.mjs`。后端 `/api/feedback` 零改动。P4 前在旧的 feedback.js（已删），解析规则与报告措辞逐字迁移。
 
 纸面复习的闭环原本断在「批改结果怎么回到 OMRS」：要么手工逐题点，要么把结果口述给 AI 让它拼反馈 JSON。v1.11.0 接上答题卡扫描项目（OMR）的正式结果输出——扫完卡在识别详情页复制 `/api/v1/recognitions/{id}/result` JSON，回本页读剪贴板，逐题自动落到判定面板上。
 
@@ -40,12 +47,12 @@ OMR 剪贴板导入只接受 `GET /api/v1/recognitions/{id}/result` 返回的**�
 
 ## 三个入口，一套解析
 
-`fbImportText()` → `fbPayloadKind()` 分流 → `fbImportOmrScan()` 或 `fbImportFeedbackPayload()`。三个入口都同时接受答题卡 JSON 和反馈 JSON：
+`importer.js::planImportText()` → `fbPayloadKind()` 分流 → `planOmr()` 或 `planFeedback()`，返回导入计划 `{ok, tone, html, rows?, activeId?}`，由页面控制器落到状态上。三个入口都同时接受答题卡 JSON 和反馈 JSON：
 
-1. 顶栏「📋 读剪贴板填写」（`fbReadClipboardAndFill`，走 `navigator.clipboard.readText`）
-2. 本面板内直接 `⌘`/`Ctrl`+`V`（`fbHandlePaste`，document 级监听，焦点在输入控件时让位）
-3. 折叠面板里的粘贴框 +「导入 JSON」（`importFeedbackJson`）
+1. 顶栏「读剪贴板填写」（控制器 `readClipboard`，走 `navigator.clipboard.readText`）
+2. 本页空白处直接 `⌘`/`Ctrl`+`V`（控制器 `onPaste`，页面挂载期间的 document 级 paste 监听，焦点在输入控件或有弹层时让位）
+3. 导入折叠面板里的文本框 +「导入 JSON」（控制器 `importBox`）
 
 第 2 条不是锦上添花：`navigator.clipboard` 只在 HTTPS 或 localhost 可用，局域网 `http://` 打开时按钮会失效，粘贴事件是那种情况下唯一能用的路径，两者都失败时才退回粘贴框。
 
-解析器不依赖 core.js 的 `asNumber`（内部用 `omrInt`/`omrScore`），因此可在 node 侧单独 `require` 出来测：`tests/test_omr_import.js` 覆盖正式协议、旧协议拒绝、OMRS/Anki 映射、unresolved 与状态边界，`tests/smoke_feedback_omr_import.js` 用 vm + 最小 DOM 桩跑整条接线。
+解析器与导入计划都是 ES 模块里的纯函数，不依赖 core.js 与 DOM，node 侧直接 `import` 测：`tests/app/feedback.test.mjs` 覆盖正式协议、旧协议拒绝、OMRS/Anki 映射、unresolved 与状态边界，以及「粘贴 → 自动填写」整条链路的状态报告（原 `test_omr_import.js` 与 `smoke_feedback_omr_import.js` 的断言逐条迁来）；浏览器里的接线由 `tests/e2e/feedback.py` 覆盖。

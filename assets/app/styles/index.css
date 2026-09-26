@@ -1,0 +1,19 @@
+/* 样式总入口：omrs_dashboard.html 只引 tokens.css 和本文件。
+   层级从低到高：vendor（KaTeX）< legacy（旧 styles.css）< base < ui < shell（侧栏、顶栏、工作台）< domain < features
+   < utilities < legacy-bridge（给旧类名套新外观的过渡层）。未分层的规则永远压过分层规则，所以新旧样式都必须进层；
+   tokens.css 只定义自定义属性，单独 <link>。domain / features / utilities 各期迁移时陆续填入。 */
+@layer vendor, legacy, base, ui, shell, domain, features, utilities, legacy-bridge;
+@import url("../../vendor/katex/katex.min.css") layer(vendor);
+@import url("../../styles.css") layer(legacy);
+@import url("base.css") layer(base);
+@import url("ui.css") layer(ui);
+@import url("shell.css") layer(shell);
+@import url("../domain/question/qview.css") layer(domain);
+@import url("../domain/labels/labels.css") layer(domain);
+@import url("../features/questions/questions.css") layer(features);
+@import url("../features/instant/instant.css") layer(features);
+@import url("../features/feedback/feedback.css") layer(features);
+@import url("../features/dashboard/dashboard.css") layer(features);
+@import url("../features/data/data.css") layer(features);
+@import url("../features/schedule/schedule.css") layer(features);
+@import url("legacy-bridge.css") layer(legacy-bridge);

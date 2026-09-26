@@ -6,9 +6,11 @@
 import socketserver
 import tempfile
 import threading
+import os
 import unittest
 
 from playwright.sync_api import sync_playwright
+from tests.browser_runtime import launch_chromium
 
 from omrs.boards import create_board, get_board
 from omrs.creation import create_question
@@ -33,14 +35,15 @@ class BoardIntegritySmokeTest(unittest.TestCase):
         self.thread.start()
         self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
         self.pw = sync_playwright().start()
-        self.browser = self.pw.chromium.launch()
+        self.browser = launch_chromium(self.pw)
         self.context = self.browser.new_context(viewport={"width": 1440, "height": 1000})
         self.errors = []
         self.context.on("page", lambda page: page.on("pageerror", lambda error: self.errors.append(str(error))))
 
     def tearDown(self):
         self.context.close()
-        self.browser.close()
+        if not os.environ.get("OMRS_TEST_CDP_URL"):
+            self.browser.close()
         self.pw.stop()
         self.server.shutdown()
         self.server.server_close()

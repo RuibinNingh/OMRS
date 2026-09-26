@@ -14,6 +14,9 @@
 import datetime
 import json
 import os
+import html as html_lib
+import re
+import urllib.parse
 
 from .common import questions_root
 
@@ -109,6 +112,37 @@ def get_report_html(vault: str, report_id: str) -> bytes:
         raise ValueError("报告文件已丢失")
     with open(path, "rb") as file:
         return file.read()
+
+
+def signed_report_images(payload: bytes, signer) -> bytes:
+    """Sign static OMRS image URLs without changing stored report HTML."""
+    source = payload.decode("utf-8", errors="replace")
+    image_tag = re.compile(r"<img\b[^>]*>", re.IGNORECASE)
+    source_attr = re.compile(r"\bsrc\s*=\s*([\"'])(.*?)\1", re.IGNORECASE | re.DOTALL)
+
+    def rewrite_tag(match):
+        tag = match.group(0)
+        attribute = source_attr.search(tag)
+        if not attribute:
+            return tag
+        url = html_lib.unescape(attribute.group(2))
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.path != "/api/image" or parsed.netloc or parsed.scheme:
+            return tag
+        name = urllib.parse.parse_qs(parsed.query).get("name", [""])[0]
+        if not name:
+            return tag
+        try:
+            session_id, expires, signature = signer(name)
+        except ValueError:
+            return tag
+        query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+        query.extend((("grant_session", session_id), ("grant_expires", str(expires)),
+                      ("grant_signature", signature)))
+        signed = urllib.parse.urlunsplit(("", "", parsed.path, urllib.parse.urlencode(query), parsed.fragment))
+        return tag[:attribute.start(2)] + html_lib.escape(signed, quote=True) + tag[attribute.end(2):]
+
+    return image_tag.sub(rewrite_tag, source).encode("utf-8")
 
 
 def delete_report(vault: str, report_id: str) -> bool:

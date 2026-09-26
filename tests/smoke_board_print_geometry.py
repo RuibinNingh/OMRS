@@ -3,6 +3,7 @@
 运行 python3 -B -m unittest tests.smoke_board_print_geometry，需要 Playwright/Chromium。
 """
 import copy
+import os
 import socketserver
 import tempfile
 import threading
@@ -13,6 +14,7 @@ from playwright.sync_api import sync_playwright
 from omrs.boards import create_board, get_board, update_board
 from omrs.creation import create_question
 from omrs.server import OMRSHandler
+from tests.browser_runtime import launch_chromium
 
 
 class BoardPrintGeometrySmokeTest(unittest.TestCase):
@@ -33,7 +35,7 @@ class BoardPrintGeometrySmokeTest(unittest.TestCase):
             server = socketserver.TCPServer(("127.0.0.1", 0), Handler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
-            browser = pw.chromium.launch()
+            browser = launch_chromium(pw)
             context = browser.new_context(viewport={"width": 1440, "height": 1000})
             errors = []
             context.on("page", lambda page: page.on("pageerror", lambda error: errors.append(str(error))))
@@ -103,7 +105,8 @@ class BoardPrintGeometrySmokeTest(unittest.TestCase):
                 print(f"HTTP/Chromium: all/new/print/reload width={full_width}px, snapshot=50%, no page errors")
             finally:
                 context.close()
-                browser.close()
+                if not os.environ.get("OMRS_TEST_CDP_URL"):
+                    browser.close()
                 server.shutdown()
                 server.server_close()
                 thread.join()

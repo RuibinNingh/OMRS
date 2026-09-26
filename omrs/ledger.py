@@ -91,6 +91,7 @@ def init_db(db):
             interval_days         INTEGER NOT NULL,
             due_date              TEXT,
             last_review_at        TEXT,
+            kill_count            INTEGER NOT NULL DEFAULT 0,
             updated_seq           INTEGER NOT NULL
         );
 
@@ -136,6 +137,13 @@ def init_db(db):
     if "suspended" not in columns:
         db.execute(
             "ALTER TABLE question_projection ADD COLUMN suspended INTEGER NOT NULL DEFAULT 0"
+        )
+    mastery_columns = {
+        row["name"] for row in db.execute("PRAGMA table_info(mastery_projection)").fetchall()
+    }
+    if "kill_count" not in mastery_columns:
+        db.execute(
+            "ALTER TABLE mastery_projection ADD COLUMN kill_count INTEGER NOT NULL DEFAULT 0"
         )
     db.execute(
         "INSERT OR IGNORE INTO workspace_scan_status "

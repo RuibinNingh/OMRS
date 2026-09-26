@@ -31,6 +31,8 @@ DEFAULT_MASTERY = {
     "interval_days": 0,
     "due_date": "",
     "last_review_at": "",
+    # 击杀次数：复燃周期按次数分级（见 scheduling.revive_dormant_days）
+    "kill_count": 0,
 }
 
 
@@ -234,6 +236,8 @@ def _apply_legacy_bootstrap(state, payload, seq):
             "interval_days": _safe_int(row.get("Interval"), 0),
             "due_date": row.get("Due_Date", ""),
             "last_review_at": row.get("Last_Review", ""),
+            # 老 CSV 无 Kill_Count 列，缺失按 0 处理
+            "kill_count": _safe_int(row.get("Kill_Count"), 0),
             "updated_seq": seq,
         }
         state["mastery_baseline"][question_id] = dict(state["mastery"][question_id])
@@ -376,7 +380,26 @@ def _apply_single_review(vault, state, question_id, review, seq):
     )
     old_interval = _safe_int(mastery.get("interval_days"), 0)
     old_repetition = _safe_int(mastery.get("repetition"), 0)
+    # 击杀次数：每次 kill 累加，答错降级时不重置（复燃周期据此分级变长）
+    kill_count = _safe_int(mastery.get("kill_count"), 0) + _safe_int(
+        update.get("kill_count_delta"), 0
+    )
+    new_mastery = update["mastery"]
     source = review.get("source") or "legacy_unknown"
+    question = state["questions"].get(question_id)
+    is_demote = bool(
+        not is_correct and "已击杀" in (question or {}).get("current_tag", "")
+    )
+    if is_demote:
+        # 复燃后答错：熟练度按降级系数从「复燃前的熟练度」重算（1.0 × 0.3 = 0.3）。
+        # 不能直接在 update["mastery"] 上再乘一次——状态机对低分答错已经降过
+        # 0.3，连乘会掉到 0.09，降级幅度随系数平方漂移。取两者较小值，保证
+        # 降级只可能更深：系数调大也不会把熟练度抬回去。
+        demoted = max(
+            0.0, _safe_float(mastery.get("mastery"), 0.0)
+            * _safe_float(tuning.get("kill_demote_factor"), 0.3)
+        )
+        new_mastery = round(min(new_mastery, demoted), 4)
     if is_correct:
         repetition = old_repetition + 1
         interval = calc_sm2_interval(
@@ -393,7 +416,7 @@ def _apply_single_review(vault, state, question_id, review, seq):
     if not occurred:
         occurred = datetime.date.today().isoformat()
     state["mastery"][question_id] = {
-        "mastery": update["mastery"],
+        "mastery": new_mastery,
         "ef": update["ef"],
         "attempts": new_attempts,
         "high_correct_streak": _safe_int(update["high_correct_streak"], 0),
@@ -401,14 +424,16 @@ def _apply_single_review(vault, state, question_id, review, seq):
         "interval_days": interval,
         "due_date": compute_due_date(occurred, interval),
         "last_review_at": occurred,
+        "kill_count": kill_count,
         "updated_seq": seq,
     }
-    question = state["questions"].get(question_id)
-    if question:
-        if update["tag_action"] == "kill":
-            question["current_tag"] = "#状态/已击杀"
-        elif not is_correct and "已击杀" in question.get("current_tag", ""):
-            question["current_tag"] = "#状态/待攻克"
+    if not question:
+        return
+    if update["tag_action"] == "kill":
+        question["current_tag"] = "#状态/已击杀"
+    elif is_demote:
+        # 复燃后答错：标签降级回待攻克（熟练度降级见上），kill_count 不重置
+        question["current_tag"] = "#状态/待攻克"
 
 
 def _history_row(commit, idx, question_id, review, session_id):
@@ -496,8 +521,8 @@ def _write_projection_tables(db, state):
             """
             INSERT OR REPLACE INTO mastery_projection
             (question_id, mastery, ef, attempts, high_correct_streak, repetition,
-             interval_days, due_date, last_review_at, updated_seq)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             interval_days, due_date, last_review_at, kill_count, updated_seq)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 qid,
@@ -509,6 +534,7 @@ def _write_projection_tables(db, state):
                 _safe_int(mastery.get("interval_days"), 0),
                 mastery.get("due_date", ""),
                 mastery.get("last_review_at", ""),
+                _safe_int(mastery.get("kill_count"), 0),
                 _safe_int(mastery.get("updated_seq"), 0),
             ),
         )
@@ -556,6 +582,7 @@ def export_legacy_csv(vault: str, state=None):
             "Interval": str(mastery.get("interval_days", 0)),
             "Due_Date": mastery.get("due_date", ""),
             "Repetition": str(mastery.get("repetition", 0)),
+            "Kill_Count": str(mastery.get("kill_count", 0)),
             "Current_Tag": question.get("current_tag", "#状态/待攻克"),
             "Entry_Date": question.get("metadata", {}).get("录入日期", ""),
             "Knowledge_Tags": "|".join(question.get("knowledge_tags", [])),

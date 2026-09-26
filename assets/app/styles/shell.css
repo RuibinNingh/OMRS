@@ -1,0 +1,93 @@
+/* 外壳：侧栏、顶栏、内容区与工作台整屏布局（index.css 的 shell 层）。
+   断点：≤760px 侧栏变抽屉；>1160px 工作台页整屏布局（各页内部的工作台细节仍在旧 styles.css，随页面迁移）。
+   顶栏按钮用 .ui-btn（不是旧 .btn），否则会被最高的 legacy-bridge 层压住，这里改不动。 */
+.shell { display: flex; align-items: stretch; min-height: 100vh; min-height: 100dvh; }
+
+/* ── 侧栏 ── */
+.sidebar {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sidebar);
+  box-sizing: border-box;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--sp-1);
+  width: 232px;
+  height: 100vh;
+  height: 100dvh;
+  padding: var(--sp-4) var(--sp-2);
+  border-right: 1px solid var(--border-1);
+  background: var(--surface-1);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transition: width var(--dur-2) var(--ease-out);
+}
+[data-theme="dark"] .sidebar { background: var(--surface-0); }
+.sidebar-brand { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--ctl-lg); padding: 0 var(--sp-2) var(--sp-3); }
+.brand-mark { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: var(--r-md); background: var(--accent); color: var(--on-accent); font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.brand-text { display: grid; min-width: 0; line-height: var(--leading-tight); white-space: nowrap; }
+.brand-name { color: var(--fg-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.brand-sub { color: var(--fg-3); font-size: var(--text-2xs); }
+.sidebar-collapse, .topbar-hamburger { display: inline-grid; flex: none; place-items: center; width: var(--ctl-md); height: var(--ctl-md); padding: 0; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--fg-3); cursor: pointer; transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.sidebar-collapse { margin-left: auto; }
+.sidebar-collapse:hover, .topbar-hamburger:hover { background: var(--surface-2); color: var(--fg-1); }
+.sidebar-collapse:focus-visible, .topbar-hamburger:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus-ring); }
+.sidebar-collapse .nav-ico, .topbar-hamburger .nav-ico { width: 18px; height: 18px; }
+
+.sidebar-nav { display: flex; flex: 1; flex-direction: column; gap: var(--sp-0_5); }
+.sidebar-nav .tab { position: relative; display: flex; align-items: center; gap: var(--sp-3); min-height: var(--ctl-lg); padding: 0 var(--sp-3); border-radius: var(--r-sm); color: var(--fg-2); font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: var(--leading-tight); text-decoration: none; white-space: nowrap; cursor: pointer; transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.sidebar-nav .tab::before { content: ""; position: absolute; top: var(--sp-2); bottom: var(--sp-2); left: 0; width: 3px; border-radius: var(--r-pill); background: var(--accent); transform: scaleY(0); transition: transform var(--dur-2) var(--ease-out); }
+.sidebar-nav .tab .nav-ico { width: 18px; height: 18px; color: var(--fg-3); transition: color var(--dur-1) var(--ease-out); }
+.sidebar-nav .tab span { min-width: 0; overflow: hidden; text-overflow: ellipsis; transition: opacity var(--dur-2) var(--ease-out); }
+.sidebar-nav .tab:hover { background: var(--surface-2); color: var(--fg-1); }
+.sidebar-nav .tab:hover .nav-ico { color: var(--fg-2); }
+.sidebar-nav .tab:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--focus-ring); }
+.sidebar-nav .tab.active { background: var(--accent-soft); color: var(--fg-1); font-weight: var(--weight-semibold); }
+.sidebar-nav .tab.active .nav-ico { color: var(--fg-1); }
+.sidebar-nav .tab.active::before { transform: scaleY(1); }
+.nav-spacer { flex: 1; min-height: var(--sp-2); }
+.sidebar-foot { padding: var(--sp-3) var(--sp-3) 0; overflow: hidden; color: var(--fg-3); font-family: var(--font-mono); font-size: var(--text-2xs); text-overflow: ellipsis; white-space: nowrap; transition: opacity var(--dur-2) var(--ease-out); }
+
+/* 折叠成纯图标（宽 58 = 两侧内边距 + 图标居中），页面名改由 data-tooltip 提示 */
+html[data-sidebar="collapsed"] .sidebar { width: 58px; }
+html[data-sidebar="collapsed"] .sidebar-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+html[data-sidebar="collapsed"] :is(.brand-mark, .brand-text) { display: none; }
+html[data-sidebar="collapsed"] .sidebar-collapse { margin-left: 0; }
+html[data-sidebar="collapsed"] :is(.sidebar-nav .tab span, .sidebar-foot) { opacity: 0; pointer-events: none; }
+
+/* ── 内容区与顶栏 ── */
+.content { box-sizing: border-box; flex: 1; min-width: 0; padding: var(--sp-5) var(--sp-6) var(--sp-10); }
+html[data-density="compact"] .content { padding: var(--sp-4) var(--sp-5) var(--sp-8); }
+.topbar { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--ctl-lg); margin: 0 0 var(--sp-4); }
+.topbar-title { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: var(--fg-1); font-size: var(--text-xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); text-overflow: ellipsis; white-space: nowrap; }
+.topbar-actions { display: flex; flex: none; align-items: center; gap: var(--sp-2); }
+.topbar-hamburger { display: none; margin-left: calc(var(--sp-2) * -1); color: var(--fg-1); }
+.drawer-scrim { display: none; }
+
+/* ── 工作台整屏布局（>1160px）：内容区撑满视口，只有面板内部自己滚 ── */
+@media not all and (max-width: 1160px) {
+  .content.is-workbench { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding-bottom: var(--sp-4); overflow: hidden; }
+  .content.is-workbench > .topbar { flex: none; }
+  .content.is-workbench > .panel.active { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+}
+
+/* ── 手机（≤760px）：侧栏变左侧抽屉，顶栏按钮只留图标，标题不再被挤压 ── */
+@media (max-width: 760px) {
+  .sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: var(--z-drawer); width: min(280px, 84vw); height: auto; padding: var(--sp-4) var(--sp-3); box-shadow: var(--elev-3); transform: translateX(-100%); visibility: hidden; transition: transform var(--dur-3) var(--ease-out), visibility var(--dur-3); }
+  body.drawer-open .sidebar { transform: none; visibility: visible; }
+  html[data-sidebar="collapsed"] .sidebar { width: min(280px, 84vw); }
+  html[data-sidebar="collapsed"] .sidebar-brand { justify-content: flex-start; padding: 0 var(--sp-2) var(--sp-3); }
+  html[data-sidebar="collapsed"] :is(.brand-mark, .brand-text) { display: grid; }
+  html[data-sidebar="collapsed"] :is(.sidebar-nav .tab span, .sidebar-foot) { opacity: 1; pointer-events: auto; }
+  .sidebar-collapse { display: none; }
+  .drawer-scrim { display: block; position: fixed; inset: 0; z-index: var(--z-drawer); background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity var(--dur-3) var(--ease-out); }
+  body.drawer-open .drawer-scrim { opacity: 1; pointer-events: auto; }
+  .content, html[data-density="compact"] .content { padding: var(--sp-3) var(--sp-4) var(--sp-8); }
+  .topbar { gap: var(--sp-2); margin-bottom: var(--sp-3); }
+  .topbar-hamburger { display: inline-grid; width: var(--ctl-lg); height: var(--ctl-lg); }
+  .topbar-title { font-size: var(--text-lg); }
+  .topbar-action { width: var(--ctl-md); padding: 0; }
+  .topbar-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}

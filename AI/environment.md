@@ -1,0 +1,133 @@
+# 维护者运行环境与协作配方
+
+> **速查**
+> - 职责：三类维护者的运行环境、可用工具、做不到的事，以及隔离实例、远端模拟、交付补丁的做法
+> - 入口：`AGENTS.md`「维护者与运行模式」（规则）；本文件只记事实与配方
+> - 不变量：能力以实测为准，每条都注明探测日期；过期或不确定的写「待确认」，不臆测
+> - 必跑测试：—（环境文档；改动后运行 `python3 tests/check_docs.py`）
+> - 相关：`AGENTS.md`、`AI/README.md`
+
+## 1. 三类维护者
+
+| 维护者 | 模式 | 源码来源 | 能做 | 不能做 |
+|---|---|---|---|---|
+| Hermes Agent | 完整 | 本机 Git 工作区 `/root/workspace/apps/OMRS` | 任意命令、联网、Git 提交、systemd、生产验收（须用户授权） | — |
+| Codex | 完整 | 同上 | 同上 | — |
+| Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
+
+生产环境事实（来自 2026-09-24 重启根治计划）：服务 `omrs.service`，监听 TCP 8471，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；备份目录 `/root/workspace/backups/recycle/`；远端经 Nginx 反向代理。Hermes 与 Codex 的完整工具清单，待它们用第 3 节的探测命令补充。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
+
+## 2. Claude Code Web 实测能力（2026-09-24）
+
+- **系统**：Ubuntu 24.04.4，1 核 CPU、4GB 内存；Python 3.12.3，Node 22.22.2 / npm 10.9.7，git 2.43.0。
+- **Python 包**：Pillow、playwright（自带 Chromium 141，可无头运行）、numpy、pandas、openpyxl、python-docx、python-pptx、bs4、lxml、requests。没有 pytest，一律用 `unittest`。
+- **命令行**：有 zip/unzip、curl/wget、pandoc、pdftotext、ImageMagick `convert`、`file`；没有 rg、jq、sqlite3、xxd、systemd。
+- **网络**：出站被代理拒绝（访问 pypi 返回 403），不能 `pip install` 或 `npm install`。
+- **路径**：上传文件只读，在 `/mnt/user-data/uploads/`；工作目录 `/home/claude/`；交付文件放 `/mnt/user-data/outputs/` 供用户下载。
+- **网卡**：容器有一个非回环地址（实测 `192.0.2.2`，以 `hostname -I` 为准），可用来模拟「远端设备」。
+- **限制**：单次工具调用超过约 2–3 分钟会被中断；每轮工具调用次数有限；命令输出含不完整的 UTF-8 字节时整条输出会被拒收。
+
+## 3. 探测命令（开工第一步）
+
+```bash
+python3 --version; node --version; git --version
+for c in zip rg jq sqlite3 curl systemctl; do printf "%s:%s " $c $(command -v $c >/dev/null && echo y || echo n); done; echo
+python3 -c "from playwright.sync_api import sync_playwright as p; b=p().start().chromium.launch(); print('chromium', b.version)"
+timeout 5 curl -sS -o /dev/null -w "net:%{http_code}\n" https://pypi.org; hostname -I
+```
+
+## 4. 受限模式配方
+
+**建基线。** 先解压，再把导出包原样提交为基线：
+
+```bash
+unzip -q /mnt/user-data/uploads/OMRS-source-sanitized-*.zip -d /home/claude && cd /home/claude/OMRS
+git init -q && git add -A && git -c user.email=ccw@local -c user.name=ccw commit -qm "baseline <导出时间>"
+```
+
+**门禁。** 预期计数以最新任务日志为准：
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py' -q
+node --test tests/*.js tests/app/*.test.mjs
+python3 tests/check_docs.py --diff <基线提交>
+python3 tests/check_ui.py          # 前端纪律与旧代码棘轮，见 AI/frontend/design-system.md
+python3 tests/check_contrast.py    # 设计 token 对比度
+python3 tests/app/run_browser.py   # ui 组件浏览器单测（需 playwright）；--shots DIR 另存 gallery 截图
+python3 tests/e2e/ui_bridge.py     # 过渡桥主路径 E2E：自建 fixture Vault 与隔离实例
+python3 tests/e2e/shell_router.py  # 路由、刷新停留、前进后退、外壳与 304 的 E2E（同上）
+python3 tests/e2e/instant.py       # 即时练习主路径与审计（同上）
+python3 tests/e2e/feedback.py      # 反馈录入主路径、导入与审计（同上）
+python3 tests/e2e/questions.py     # 题目库主路径（筛选 / 视图 / 键盘 / 批量 / 视图预设 / 旧入口）、题目弹窗（焦点、叠加浮层、Markdown 编辑器）、D4 与审计（同上）
+```
+
+**隔离实例。** 用临时 Vault 和高端口启动，`</dev/null` 防止依赖检查等待输入：
+
+```bash
+mkdir -p /tmp/v/错题 && python3 omrs_engine.py --vault /tmp/v create --subject 数学 --category 函数 </dev/null
+(setsid python3 omrs_engine.py --vault /tmp/v serve -p 18471 </dev/null >/tmp/omrs.log 2>&1 &); sleep 3
+curl -s http://127.0.0.1:18471/api/auth/session
+```
+
+**演示数据。** `tests/fixtures/make_vault.py` 生成不含真实数据的 Vault：`full` 档约 40 题，含 LaTeX、长题面、3 张示意图、标记、3 轮反馈、1 道停用题和 1 块展示板；`empty` 档是空库，专看空状态。标记、反馈等经临时实例的 HTTP API 写入，全程约数秒：
+
+```bash
+python3 tests/fixtures/make_vault.py --out /tmp/fx/full
+python3 tests/fixtures/make_vault.py --out /tmp/fx/empty --profile empty
+```
+
+**前后截图对比。** `tests/visual/run.py` 用 `git worktree` 检出基线，与当前工作区各起一个实例、各喂同一份 fixture 副本，按 12 页 × 浅/深 × 桌面 1440 / 手机 390 截图并做像素差分。产物是 `report.html`、`audit.json`（每页字号种数、最小字号、小于 28px 的可点目标、行内样式数、横向溢出），仓库里不存金标图。页面内冻结 `Date`、注入样式关闭动效；服务端实时内容在脚本的 `MASKS` 里登记后截图时遮住。约 1–2 分钟，放后台轮询：
+
+```bash
+(timeout 600 python3 -u tests/visual/run.py --ref <基线提交> --out /tmp/vis > /tmp/vis.log 2>&1 &); sleep 100; cat /tmp/vis.log
+python3 tests/visual/run.py --audit-only --fixture empty --out /tmp/aud   # 只审计当前工作区
+```
+
+**模拟远端设备。** 本机 CLI 请求不带 `Origin`，可以直接改配置。依次设置 PIN、开启外部访问、重启，然后轮询 `instance_id`，变化后用 `http://<hostname -I 的地址>:18471` 访问，服务端会把它当作远端：
+
+```bash
+curl -s -H 'Content-Type: application/json' -d '{"pin":"2468","idle_minutes":30}' http://127.0.0.1:18471/api/auth/pin
+curl -s -H 'Content-Type: application/json' -d '{"allow_external":true}' http://127.0.0.1:18471/api/config
+curl -s -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:18471/api/restart
+```
+
+**长任务放后台。** 服务、端到端脚本都放后台，分次轮询日志，每次调用控制在 2 分钟内：
+
+```bash
+(timeout 600 python3 -u e2e.py > /tmp/e2e.log 2>&1 &); sleep 100; tail -20 /tmp/e2e.log
+```
+
+**交付补丁。** 生成补丁后，必须在干净的导出包上验证能应用：
+
+```bash
+git add -A && git diff --cached <基线> > /mnt/user-data/outputs/changes-<日期>.patch
+mkdir /tmp/chk && cd /tmp/chk && unzip -q /mnt/user-data/uploads/<原始导出包>.zip && cd OMRS && git apply --check /mnt/user-data/outputs/changes-<日期>.patch
+```
+
+## 5. 已知坑
+
+- **缺模块。** 旧版导出只含 Git 已跟踪文件，未提交的模块会缺失，导致包无法 import。现行导出按目录收集并包含未提交源码；若再遇到缺失，先报告，不要在交付物里补替身。
+- **Playwright 独立 Chromium 在本机可能崩溃。** `chromium.launch()` 打开 OMRS 页面可能返回 `TargetClosedError: Page crashed`，而 Hermes Browser Use 的 Chrome/CDP 可正常访问；不要仅凭此判为 OMRS 服务故障。若环境变量 `OMRS_TEST_CDP_URL=http://127.0.0.1:9222` 指向受信任的本机 CDP，测试可复用共享 Chrome，但每项测试必须只关闭自己创建的 BrowserContext，不能调用 `Browser.close()` 关闭共享实例。CDP 只绑定本机可信端点，不要暴露公网；独立 Chromium 崩溃原因未确认。
+- **测试实例会重启生产服务。** `/api/restart` 只要在进程环境里看到 `OMRS_SYSTEMD_SERVICE`，就执行 `systemctl restart <该服务>`（见 `omrs/server.py`）。完整模式下启动任何测试实例之前，都先 `unset OMRS_SYSTEMD_SERVICE`；设置页相关的 E2E 用 `page.route` 拦截 `/api/restart`。
+- **Playwright 的 `text=` 是子串匹配。** 它会点中含同样字样的说明文字。按钮一律用 `get_by_role("button", name=..., exact=True)`。
+- **刷新后立即操作会失败。** 页面刷新后要等 `typeof switchTab === 'function' && document.readyState === 'complete'` 成立才能操作，否则点击发生在脚本加载之前。
+- **截图时机。** 面板淡入 0.3s、开关过渡 0.15s，切换后至少等 0.9s 再截图，否则画面发灰或开关状态看起来不对。
+- **HTTP 风险提示。** 远端 HTTP 登录会弹一次 `alert`，需要注册 `page.on("dialog", ...)` 自动确认。
+- **中文输出。** `cut -c` 按字节截断会切坏中文，导致整条输出被拒收。要截断时用 Python 按字符处理。
+- **`pkill -f` 会杀掉自己。** 模式串出现在本条命令里时，`pkill -f` 会连同执行它的 shell 一起结束，工具调用返回 -1。按端口查进程时写成 `pgrep -f "[s]erve -p 18471"`，或在启动时记下 PID。
+- **不要运行 `--write-log-index`。** `AI/logs/` 在包内只有本次新建的日志，生成出来的索引不完整；交给完整模式运行。
+
+## 6. 完整模式接手配方
+
+**合入 CCW 交付。**
+
+1. `git status --short` 记录现状。
+2. 按任务日志「合入」一节运行 `git apply --3way <补丁>`（2026-09-26 之前的交付，按它自带的 UPGRADE 文档）。
+3. 跑门禁：`unittest`、`node --test tests/*.js tests/app/*.test.mjs`、`python3 tests/check_docs.py --diff HEAD`、`python3 tests/check_ui.py`、`python3 tests/check_contrast.py`。
+4. 运行 `python3 tests/check_docs.py --write-log-index`，审阅 `AI/logs/log.md` 的 diff 后提交。
+5. 「合入」一节列出的生产验收，须用户授权后再做，结果补进对应的任务日志。
+
+**按执行说明开发。** 执行说明在 `AI/plans/<计划>/exec-*.md`，规则见 `AGENTS.md`「按执行说明执行」。
+
+- 生产服务如果运行在本机工作区里，开发一律放到 `git worktree` 里做，生产目录只在授权部署时才改动。
+- 浏览器测试在本机崩溃时，按第 5 节设置 `OMRS_TEST_CDP_URL`。

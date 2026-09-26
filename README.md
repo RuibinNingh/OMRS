@@ -13,7 +13,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 - 一个 **HTML/CSS/JS 单页前端**（`omrs_dashboard.html` + `assets/`）负责录入、即时练习、复习 Session、反馈、数据复盘与导出。
 - 没有构建步骤，题库、算法、Ledger、复习和导出均可离线使用；界面字体随 `assets/vendor/fonts/` 本地提供，AI 图片识别以及报告中用户选择的 HTTPS 外部资源属于可选联网能力。
 
-当前版本：**v1.18.2**。
+当前版本：**v1.25.4**。
 
 展示板锁定后仍可添加新题并补印：增删引用、排序和调整未打印题留白不会清空旧纸面记录；仅新增会沿用纸面记录中的实际比例与留白，改动已打印区域的版式才需要明确确认重印。
 
@@ -30,12 +30,11 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 | 高 | HTTP 服务单线程 | AI 识别等慢请求会阻塞整个界面 | 改用线程化 HTTP Server，并为 CSV、Markdown、Ledger 写入增加统一锁 |
 | 中高 | Ledger 每次全量重放 | 历史提交增长后，反馈/录入后的重建耗时线性增加 | 引入按 seq 的持久化快照和增量重放 |
 | 中 | 前端大量 `innerHTML` + 行内 `onclick`（各约 200 处） | DOM 高频重建、事件逻辑与模板耦合，也阻碍 ES Module 化 | 反馈工作台已在 v1.10.0 改为局部更新 + 事件委托；其余列表页仍待处理 |
-| 低 | `styles.css` 同名规则叠加 | 实测顶层选择器定义 ≥3 次的只有 4 个（`:root`、`.card-title`、`.paste-zone`、`.instant-qbtn`），比早先估计的轻 | 顺手收拢即可，不单列任务 |
+| 低 | `styles.css` 同名规则叠加 | 实测顶层选择器定义 ≥3 次的只有 4 个（`:root`、`.card-title`、`.paste-zone`；`.instant-qbtn` 已随即时练习迁移删除），比早先估计的轻 | 顺手收拢即可，不单列任务 |
 | 中 | 后端 `server.py` 路由分支过长 | 请求解析和错误处理重复，维护成本高 | 改为路由表 + 统一请求体解析 |
 | 中 | 测试框架与覆盖不完整 | 当前 `unittest` 与 pytest 风格测试混用，核心算法边界覆盖仍不足 | 统一测试入口，补齐算法、Ledger 集成、异常输入和浏览器回归 |
-| 低 | 局域网模式无用户认证 | `allow_external` 开启后同网段客户端可读写 | 仅在可信 LAN 使用，后续再设计认证与权限模型 |
 
-这些项目是已知的维护与扩展成本，不影响当前核心功能运行；其中线程化服务、增量投影和鉴权涉及架构/安全边界，实施前应单独设计和验证。
+这些项目是已知的维护与扩展成本，不影响当前核心功能运行；线程化服务与增量投影涉及架构边界，实施前应单独设计和验证。远端 PIN、来源校验及报告隔离的当前行为见 [`AI/security.md`](AI/security.md)。
 
 ---
 
@@ -43,9 +42,9 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 
 | 模块 | 能力 |
 |---|---|
-| **收件箱录入** | v1.12.0 起「录入题目」页改为 **上传 → 处理 → 录入** 三步：手机在同一 Wi-Fi 打开 `http://<局域网IP>:8471/m` 直接投整张截图（sha256 去重）；电脑端在网页上框题目 / 答案（可多题卡），每块可「转文本」（AI 转录 + 判断能否转）或「保留图片」；AI 框选（长图自动切片）、沿用上一张框位、整图即题目、批量勾选处理；就绪的题卡填科目分类后一键写入题库。所有框位、AI 原框、采纳方式、转换决策留作训练数据，「AI 训练」页可看统计并导出 JSONL / YOLO 数据集。v1.13.0：框选可选提供方（多模态模型 / 零联网的版式模板 / 训好后的本地检测服务）、每 N 张盲标作干净评估集、置信度达标自动转文本并就绪、上传即自动处理（需 Pillow）、超期丢弃图自动清理，都在「AI 训练」页配置。原单题表单保留为「快速录入」。收件箱数据集版式标签的新上传默认是「作业帮截图」（`zuoyebang`），可在处理页改为拍照/扫描、已裁好的题图或其他。详见 `AI/inbox.md` |
+| **收件箱录入** | v1.12.0 起「录入题目」页改为 **上传 → 处理 → 录入** 三步：手机在同一 Wi-Fi 打开 `http://<局域网IP>:8471/m` 直接投整张截图（sha256 去重）；电脑端在网页上框题目 / 答案（可多题卡），每块可「转文本」（AI 转录 + 判断能否转）或「保留图片」；AI 框选（长图自动切片）、沿用上一张框位、整图即题目、批量勾选处理；就绪的题卡填科目分类后一键写入题库。所有框位、AI 原框、采纳方式、转换决策留作训练数据，「AI 训练」页可看统计并导出 JSONL / YOLO 数据集。v1.13.0：框选可选提供方（多模态模型 / 零联网的版式模板 / 训好后的本地检测服务）、每 N 张盲标作干净评估集、置信度达标自动转文本并就绪、上传即自动处理（需 Pillow）、超期丢弃图自动清理，都在「AI 训练」页配置。原单题表单保留为「快速录入」。收件箱数据集版式标签的新上传默认是「作业帮截图」（`zuoyebang`），可在处理页改为拍照/扫描、已裁好的题图或其他。后台提取文字完成时只刷新对应图片的结果，不中断当前框选。详见 `AI/inbox.md` |
 | **题目录入（快速）** | 两图片区（题面 / 答案）、Markdown 原文编辑、Obsidian 双链分类、`![[image]]` 嵌入图、AI 识别（外部大模型，按需调用）；题目库可单题停用/恢复（不参与复习与统计）或删除并保留可审计归档记录 |
-| **记忆算法** | 时间衰减 `time_decay`、熟练度状态机 `compute_mastery_update`、SM-2 间隔、易错因子 EF、统一优先级 `compute_priority`、Leech（顽固题）检测 |
+| **记忆算法** | 时间衰减 `time_decay`、熟练度状态机 `compute_mastery_update`、SM-2 间隔、易错因子 EF、统一优先级 `compute_priority`；未击杀且最近连错至少 3 次标记为 Leech（顽固题），答对后解除。已击杀题不再永久消失：休眠按记忆衰减反解的**分级周期**（第 1/2/3/4 次击杀后约 56 / 101 / 182 / 327 天）复燃重进调度，复燃后答错即降级待攻克 |
 | **即时练习** | 浏览器内直接做、在线翻答案、即时反馈（分数滑杆 + 对错） |
 | **复习 Session** | 复习调度工作台自动加载推荐，支持建议 10 题、折叠筛选、chips、保留已选、列表/画廊题面预览和按科目均衡；已有计划可查看详情、进度、预览、导出并跳转反馈；详情支持删除调度（关联反馈一并撤销，可在历史记录恢复）。正式计划支持单题，旧单题 TMP 调用仍兼容 |
 | **答题卡回填** | v1.11.0 起可把答题卡扫描（OMR）的正式结果 JSON 读进反馈页：选中该 Session → 在 OMR 识别详情页复制 `/api/v1/recognitions/<id>/result` JSON → 点「📋 读剪贴板填写」或直接 ⌘/Ctrl+V，按题号自动填对错与 0–10 主观分。只接受顶层 `recognition_id/template_id/mode/status/questions/unresolved` 协议，明确拒绝旧 raw/items、裸数组与包装层；`unresolved` 涉及的题不自动猜测，转人工处理。Anki 模式仍按 `questions[].answer` 映射为 OMRS 评分。 |
@@ -56,9 +55,9 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 | **题库交互重设计** | 筛选抽屉、激活条件 chips、列设置、舒适/紧凑密度、命名视图预设和批量加入展示板/打标记/停用/导出 |
 | **练习记录** | 画廊卡脚注的战绩带（一根竖条一次练习，绿对红错、高度是主观分，可关）与题目详情底部的记录模块（次数 / 正确率 / 平均分 / 平均间隔 + 主观分走势 + 明细）。v1.16.1 起数据来自 Ledger 投影（`GET /api/question` 的 `records[]`），题目 Markdown 里的 `# 历史` 只作老格式兼容 |
 | **数据复盘** | 仪表盘（统计/雷达/热力/散点/趋势）、Ledger 时间线、历史修正（显式开启修正模式）、撤销/恢复/还原 |
-| **错题导出** | **自包含 HTML**（图片 base64 内联），分 **A4 打印版**、**展示板左题右空版** 与 **屏幕版**（卡片 + 判分 + 进度持久化） |
+| **错题导出** | **自包含 HTML**（图片 base64 内联），分 **A4 打印版**、**展示板左题右空版** 与 **屏幕版**（卡片 + 判分 + 进度持久化）。题面区只留题干与「关联」；**错因**与答案同属「做完才能看」的信息，一律排到末尾**反馈区**（屏幕版折在「显示答案」后面），勾选导出答案时每题答案下面紧跟同题错因、不分开，不勾选则反馈区只列错因 |
 | **报告托管** | 上传/浏览/删除复盘报告，浏览器内直接查看 |
-| **源码协助** | 设置页下载仅含 Git 已跟踪源码、测试和项目文档的脱敏 ZIP；自动排除个人题库、附件、运行数据、日志和生成导出文件 |
+| **源码协助** | 设置页按源码目录和文件类型下载当前工作区的脱敏 ZIP，包含未提交源码且不依赖 Git；排除个人题库、附件、运行数据、日志、缓存和生成导出文件 |
 | **外观** | 深色（首次打开默认，**暖石墨 Warm Graphite**）/ 浅色（编辑式暖色）切换；v1.15.0 增加**界面密度**（紧凑 / 舒适，默认紧凑）——设置页「外观」切换，收紧全站内边距、圆角、行高与控件高度；v1.7.0 重配深色对比度（三级文字与语义色达标、卡片改实色分层）；Ledger 时间线可按浏览器或设置页所选时区显示 |
 | **数据可信** | v1.1.0 起改用不可变 **Ledger 提交链** 作为结构化状态的唯一事实源；CSV 仅作兼容投影；学习、调度和 Session 状态可重放还原 |
 
@@ -87,7 +86,26 @@ sudo systemctl enable --now omrs.service
 sudo systemctl status omrs.service
 ```
 
-可参考 [`deploy/omrs.service`](deploy/omrs.service)。服务默认监听 TCP 8471；如需局域网访问，请在 `错题/.omrs/config.json` 中启用 `allow_external: true`，并仅对受信任的 LAN 网段放行端口。核心运行路径只依赖 Python 标准库，无需额外安装第三方包。
+可参考 [`deploy/omrs.service`](deploy/omrs.service)。服务默认监听 TCP 8471。本机直连免 PIN；设置页「访问与安全」可显式填写私有局域网网段（如 `192.168.0.0/24`），使该网段的设备直连时免 PIN。页面顶部概览会说明当前谁能访问，以及配置是否要重启后才生效；只改网段立即生效，切换「允许局域网访问」才会重启。此项默认关闭，经 Nginx 的 HTTPS 访问仍需 PIN。启用 `allow_external` 前须配置免 PIN 网段或 4–12 位数字 PIN；未配置 PIN 的其他远端请求会被拒绝。远端登录使用 Cookie，会在 30 分钟无操作或登录 12 小时后过期，设置页可调整空闲时间。手机上传页 `/m` 遵循相同访问规则。核心运行路径只依赖 Python 标准库。
+
+若在同机 Nginx 后使用 HTTPS，OMRS 可保持仅绑定 `127.0.0.1`。Nginx 需覆写 Host、客户端 IP 和协议头；OMRS 只信任来自 `OMRS_TRUSTED_PROXIES` 的代理头（默认 `127.0.0.1,::1`，异机代理时设为其实际 IP）：
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name omrs.example.com;
+    ssl_certificate /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+    location / {
+        proxy_pass http://127.0.0.1:8471;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+不强制 HTTPS；远端经 HTTP 登录后每个会话提示一次传输风险。HTTP 上的 PIN 和 Cookie 可能被同网段窃听，建议使用上述 HTTPS 代理。源码下载、备份及完整 Vault 路径仅供本机、显式豁免的直连局域网设备或已登录远端使用。免 PIN 网段内的设备可使用全部功能，须只填写可信设备所在网段。AI 密钥不会从配置接口回显；设置页留空保留旧密钥，点击“清除”才删除。
 
 ### 打包给 AI 协助
 
@@ -122,14 +140,16 @@ pack_for_ai.bat
 │   ├── migration.py / workspace_sync.py / indexing.py
 │   └── export_templates/   ← A4 / 展示板 / 屏幕版 HTML 模板（CSS + JS）
 ├── assets/                 ← 前端静态资源（无构建）
+│   ├── app/styles/tokens.css ← 设计 token（颜色 / 字号 / 间距等），新前端代码都放 assets/app/
+│   ├── app/features/questions/ ← 题目库（表格 / 画廊、筛选抽屉、批量、视图预设）
+│   ├── app/features/instant/ ← 即时练习（第一个迁到新架构的页面）
 │   ├── styles.css
 │   ├── core.js / app.js / dashboard.js / questions.js
-│   ├── qview.js            ← 共享题目视图（题面/答案双栏），Modal / 反馈台 / 即时练习 / 画廊共用
-│   ├── schedule.js / export.js / feedback.js / history.js
-│   ├── recommend.js / actions.js / catalog.js
-│   ├── instant.js / data.js / reports.js
+│   ├── schedule.js / export.js / history.js
+│   ├── recommend_v2.js / actions.js / catalog.js
+│   ├── data.js / reports.js
 │   ├── inbox.js            ← 收件箱录入流程（v1.12.0）；inbox_mobile.html 为手机上传页
-│   ├── labels.js / qtable.js / board.js ← 标记、题库重设计与展示板交互（v1.14.0）
+│   ├── labels.js / board.js ← 标记与展示板交互（题库页 v1.24.0 起在 app/features/questions/）
 │   ├── vendor/fonts/       ← Noto Sans SC / JetBrains Mono（本地 WOFF2 分片）
 │   ├── vendor/katex/       ← KaTeX（本地，公式离线渲染）
 │   └── （core.js 提供 uiToast / uiPrompt / uiConfirm，全站不再用 alert / prompt / confirm）
@@ -142,7 +162,7 @@ pack_for_ai.bat
 │   │   ├── labels.json       ← 用户标记定义
 │   │   └── boards.json       ← 展示板引用与打印设置
 │   └── report/             ← 托管的 AI HTML 报告与 index.json
-├── tests/                  ← 后端 unittest + 前端 node:test；check_docs.py 是文档体检
+├── tests/                  ← 后端 unittest + 前端 node:test；check_docs.py 文档体检，check_ui.py / check_contrast.py 前端纪律与对比度，visual/ 截图对比，fixtures/ 演示数据
 │                              （tool/ 与 Task/ 为本地工作目录，已被 .gitignore，不在仓库里）
 ├── Skills/                 ← 第三方技能目录
 ├── AGENTS.md               ← 仓库协作与强制文档收尾规则
@@ -202,40 +222,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ## HTTP API
 
-默认端口 **8471**，详见 [`AI/api.md`](AI/api.md)。常用端点：
-
-| 方法 | 路径 | 用途 |
-|---|---|---|
-| GET | `/api/stats` | 题库条目 + 全部统计图表数据 |
-| GET | `/api/status` | 服务状态 + 版本 + 工作区自检 |
-| GET | `/api/analytics` | 分析聚合 |
-| GET | `/api/labels` | 用户标记定义与引用数 |
-| GET | `/api/boards` | 展示板列表 |
-| GET | `/api/board?id=...` | 展示板详情与解析后的题目引用 |
-| POST | `/api/create` | 录入新题 |
-| POST | `/api/feedback` | 提交一次反馈 |
-| POST | `/api/label/save` | 创建/更新用户标记 |
-| POST | `/api/label/delete` | 删除标记并可解绑题目引用 |
-| POST | `/api/label/merge` | 合并两个用户标记 |
-| POST | `/api/question/labels` | 覆盖单题标记 |
-| POST | `/api/questions/labels` | 批量添加/移除标记 |
-| POST | `/api/board/create` | 创建展示板 |
-| POST | `/api/board/update` | 更新展示板名称 / 备注 / 版面 / 条目顺序 |
-| POST | `/api/board/printed` | 记录纸面（标记为已打印：全部替换 / 新增追加）；`/api/board/printed/reset` 重置 |
-| POST | `/api/board/items/add` | 向展示板添加题目 |
-| POST | `/api/board/items/remove` | 从展示板移除题目 |
-| POST | `/api/board/duplicate` | 复制展示板 |
-| POST | `/api/board/delete` | 删除展示板 |
-| POST | `/api/export` | 导出 A4/屏幕版；`format:"board"` 导出展示板左题右空版 |
-| POST | `/api/question/suspend` | 停用题目（保留正文与历史） |
-| POST | `/api/question/resume` | 恢复题目 |
-| GET | `/api/recommend` | 获取到期/熟练度双列表推荐 |
-| GET | `/api/tree` | 错题目录树（只读扫盘，供「目录」页） |
-| POST | `/api/schedule` | 创建复习 Session |
-| POST | `/api/ai-recognize` | AI 识别图片 |
-| * | `/api/inbox/*` | 收件箱：上传 / 框选 / 后台识别 job / 提交 / 数据集（见 `AI/inbox.md`） |
-| GET | `/m` | 手机上传页 |
-| GET | `/api/ledger/verify` | 校验提交链完整性 |
+默认端口 **8471**。端点的请求体与响应字段见 [`AI/api.md`](AI/api.md)；全部路由及其说明文档见自动生成的 [`AI/routes.md`](AI/routes.md)。
 
 ---
 
@@ -250,7 +237,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 - **侧边栏应用式 shell** + 雪碧图图标，无外部图标库依赖。
 - **行动推荐 / 目录树纯前端派生**：行动推荐只读已加载的 `/api/stats` + `/api/sessions`，不新增接口；目录页结构取自 `/api/tree`，熟练度等状态由本地题库按路径前缀叠加。
 
-加载顺序（`core.js` → 模块 → `app.js`）详见 [`AI/frontend.md`](AI/frontend.md)。
+加载顺序（`core.js` → 模块 → `app.js`）详见 [`AI/frontend/shell.md`](AI/frontend/shell.md)；各页面说明见 [`AI/frontend.md`](AI/frontend.md) 索引。
 
 ---
 
@@ -268,29 +255,9 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ## AI 协作
 
-[`AI/`](AI/) 文件夹是给 AI 助手（Claude 等）用的**项目知识库**，每次对话先读它就能快速建立上下文。
+[`AI/`](AI/) 是给 AI 维护者用的项目知识库。本仓库有三个维护者：Hermes Agent 与 Codex 在本机完整环境工作，Claude Code Web 只拿到脱敏源码 zip、在受限沙箱里工作。两种模式的规则写在根 [`AGENTS.md`](AGENTS.md)，环境与工具清单写在 [`AI/environment.md`](AI/environment.md)。
 
-根目录 [`AGENTS.md`](AGENTS.md) 把文档同步设为任务完成条件：每个在仓库产生持久化改动的任务，都要更新受影响的 `AI/*.md`、新建当日任务日志并更新日志索引。
-
-```
-AI/
-├── README.md       ← 维护规则、命名规范、文件索引
-├── algorithm.md    ← 记忆算法、调度、状态机
-├── api.md          ← HTTP API 完整定义
-├── data.md         ← CSV 字段、UID、Markdown 格式
-├── frontend.md     ← 前端结构与加载约定
-├── ledger.md       ← Ledger 架构
-├── export.md       ← 错题导出 HTML 架构
-├── optimization.md ← 优化空间 / 技术债清单
-├── inbox.md        ← 收件箱录入流程
-├── labels.md       ← 用户标记定义、YAML 与投影
-├── board.md        ← 展示板引用、版面、打印（全部 / 仅新增）与纸面记录
-├── omr-import.md   ← 答题卡扫描 JSON 导入反馈页
-├── changelog.md    ← 版本级变更摘要（倒序）
-└── logs/           ← 逐次会话的详细变更记录
-```
-
-任务日志写入 `AI/logs/`，总索引是 `AI/logs/log.md`。只读调查或没有修改仓库的答疑不创建空日志。模块文档只写当前行为，版本叙述进 `changelog.md`；交付前跑 `python3 tests/check_docs.py` 做形式体检。
+入口是 [`AI/README.md`](AI/README.md) 的「按任务找文档」。模块文档开头都有速查头，前端按页面拆成 `AI/frontend/` 分册，路由总表 `AI/routes.md` 由脚本生成。每个产生持久化改动的任务都要更新受影响的文档并新建任务日志；交付前运行 `python3 tests/check_docs.py --diff <基线>`。
 
 ---
 
@@ -309,25 +276,7 @@ AI/
 
 ## 版本
 
-| 版本 | 说明 |
-|---|---|
-| v1.18.0 | 展示板重构成「状态条 + 三栏」：纸面状态与唯一主行动收进状态条（打印范围也从浮层提上来，改完纸面当场重排），打印完成后主按钮自动翻成「✓ 记录纸面」；版式、纸面记录和选中题的设置合并到右栏常驻检查器，「版式与打印」浮层整套移除；题后留白只剩检查器一个写入口，列表行与画廊卡改成只读回显；嵌入式纸面预览收起导出模板自带的打印 / 记录动作条 |
-| v1.17.0 | 展示板文件夹与统一选板浮层：左栏改为「文件夹 → 板」两级树（折叠、拖拽归类、空文件夹占位、组内「还没印上纸」汇总）；八处「加入展示板」入口统一走锚定浮层，动作前就能看见并改目标板，行内显示「已有 1/3」，`⌘` 点击连加、`Shift` 点击跳过浮层直接加入；`boards.json` 升到 v2（新增 `folders` 与板的 `folder_id`/`order`，v1 文件读取时自动迁移） |
-| v1.16.1 | 练习记录改读 Ledger（`/api/question` 新增 `records[]`，反馈后自动刷新）；全站 `alert/prompt/confirm` 换成页内 toast / 对话框；设置页「默认深色」文案修正；文档整理：版本叙述搬进 `AI/changelog.md`，答题卡导入拆出 `AI/omr-import.md`，新增 `tests/check_docs.py` 文档体检并写进 `AGENTS.md` |
-| v1.16.0 | 题库练习记录界面：画廊战绩带（默认开，可关）+ 题目详情底部记录模块（首发只读 Markdown `# 历史`，v1.16.1 修正为读 Ledger） |
-| v1.15.0 | UI 改版：仪表盘重构为「今天 → 行动推荐 → 概览条 → 活动/薄弱科目 → 最近动态」，分布类图表交还数据复盘页；新增界面密度开关；题库、反馈录入、收件箱处理、展示板、即时练习改为整屏工作台（页面不滚，各栏独立滚动，表头吸顶） |
-| v1.14.1 | 修复展示板「打印预览」弹窗被浏览器拦截：改为先同步开窗再填入导出结果 |
-| v1.14.0 | 用户标记、持久化展示板（左题右空 A4 / 仅打印新增 + 纸面记录 / 绝对页码）、题库筛选抽屉与批量交互重设计 |
-| v1.13.0 | 收件箱：框选提供方（多模态模型 / 版式模板零联网 / 本地检测服务 `local_http`）、盲标评估集、置信度自动就绪与上传即自动处理、超期丢弃图与裁图缓存清理、大裁图改 JPEG、拒绝计数增量化 |
-| v1.12.0 | 收件箱录入流程：上传 → 处理（框选 / 转文本 / 留图）→ 录入；手机上传页；AI 框选与可转性判断走后台 job；训练数据集统计与导出 |
-| v1.8.2 | 分批提交增强：允许只提交已判定题目，未判定题目自动保留；反馈卡片吸顶显示进度，题目行增加批次序号 |
-| v1.8.0 | 跨行块级 LaTeX 在题目页/A4/屏幕版完整渲染；设置页重启交给 systemd，避免服务停机 |
-| v1.7.0 | 仪表盘行动推荐、目录页（错题文件夹树 + `GET /api/tree`）、深色模式对比度重配 |
-| v1.6.0 | 单题删除（Ledger 归档）与可配置 Ledger 时间线时区；汇总 v1.5.0 后的导出、AI 录入、仪表盘和报告托管改进 |
-| v1.5.0 | 暖石墨深色主题 + 录入/即时/优化页重做、模块拆分与全宽布局 |
-| v1.1.1 | 历史修正体验修复（撤销/恢复真正生效）；历史页只读浏览需显式开启修正模式；时间线改为题目优先 |
-| v1.1.0 | 数据格式大变动：改用链式存储（Ledger），数据可回溯可复原，一切操作记录在链上 |
-| v1.0.x | 初版 |
+当前版本 **v1.24.2**。各版本改了什么见 [`AI/changelog.md`](AI/changelog.md)（倒序）。
 
 ---
 

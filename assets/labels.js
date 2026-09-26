@@ -1,141 +1,15 @@
 // === assets/labels.js — 用户标记：<=> 芯片、LabelPicker、管理标记、标记筛选 ===
 // 标记是用户自己打的横切备注（「考前必看」「计算失误」…），名称写进题目 YAML 的 `标记:`，
 // 不替代状态 Current_Tag，也不替代知识点 Knowledge_Tags。
-// 依赖 core.js（api/escapeHtml/escapeAttr/getItemByUid/uiToast/uiDialog），必须排在 core.js 之后、questions.js 之前。
+// 依赖 core.js（api/escapeHtml/escapeAttr/getItemByUid/uiToast/uiDialog）与过渡桥挂的标记函数（见下），必须排在 core.js 之后、questions.js 之前。
 // 约定：DOM 里不拼函数名，交互走 data-lbl-* 事件委托。
 
 let LABELS = [];                       // /api/labels 的定义列表 [{id,name,color,order,priority_bonus,count}]
 let LABEL_PICKER = null;               // 当前打开的 picker 节点
-const LABEL_RECENT_KEY = 'omrs-label-recent';
-const LABEL_PRESETS = [
-  '#dc2626', '#ea580c', '#ca8a04', '#16a34a', '#0d9488',
-  '#2563eb', '#7c3aed', '#db2777', '#64748b', '#78716c',
-];
-
-// ---------- 颜色工具 ----------
-function labelHex(value) {
-  const raw = String(value || '').trim().replace(/^#/, '');
-  if (/^[0-9a-f]{3}$/i.test(raw)) return '#' + raw.split('').map(ch => ch + ch).join('').toLowerCase();
-  if (/^[0-9a-f]{6}$/i.test(raw)) return '#' + raw.toLowerCase();
-  return '#64748b';
-}
-function labelRgb(hex) {
-  const value = labelHex(hex).slice(1);
-  return [parseInt(value.slice(0, 2), 16), parseInt(value.slice(2, 4), 16), parseInt(value.slice(4, 6), 16)];
-}
-function rgbToHsl(r, g, b) {
-  r /= 255; g /= 255; b /= 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  let h = 0, s = 0;
-  const l = (max + min) / 2;
-  if (max !== min) {
-    const d = max - min;
-    s = l > .5 ? d / (2 - max - min) : d / (max + min);
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      default: h = (r - g) / d + 4;
-    }
-    h /= 6;
-  }
-  return [h, s, l];
-}
-function hslToRgb(h, s, l) {
-  if (!s) { const n = Math.round(l * 255); return [n, n, n]; }
-  const hue = (p, q, t) => {
-    if (t < 0) t += 1;
-    if (t > 1) t -= 1;
-    if (t < 1 / 6) return p + (q - p) * 6 * t;
-    if (t < 1 / 2) return q;
-    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
-    return p;
-  };
-  const q = l < .5 ? l * (1 + s) : l + s - l * s;
-  const p = 2 * l - q;
-  return [hue(p, q, h + 1 / 3), hue(p, q, h), hue(p, q, h - 1 / 3)].map(v => Math.round(v * 255));
-}
-function rgbHex(rgb) {
-  return '#' + rgb.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
-}
-function relativeLuminance(rgb) {
-  const linear = rgb.map(value => { const v = value / 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); });
-  return .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2];
-}
-function contrastRatio(a, b) {
-  const l1 = relativeLuminance(a), l2 = relativeLuminance(b);
-  return (Math.max(l1, l2) + .05) / (Math.min(l1, l2) + .05);
-}
-// solid 变体的前景色：相对亮度 > .55 用近黑，否则用白（浅黄底不会配白字）
-function labelFg(hex) {
-  return relativeLuminance(labelRgb(hex)) > .55 ? '#1a1c1f' : '#ffffff';
-}
-function labelCompositeBackground(color, theme) {
-  const base = theme === 'dark' ? [33, 31, 29] : [255, 255, 255];
-  const alpha = theme === 'dark' ? .24 : .16;
-  return labelRgb(color).map((value, index) => Math.round(value * alpha + base[index] * (1 - alpha)));
-}
-// soft / print 变体的文字色：只钳同色相的亮度，保证淡底上的小字达到 WCAG AA；用户保存的 color 永远不变。
-function lblInk(hex, theme) {
-  const [h, s] = rgbToHsl(...labelRgb(hex));
-  const background = labelCompositeBackground(hex, theme);
-  const candidates = [];
-  if (theme === 'dark') { for (let l = .98; l >= .46; l -= .01) candidates.push(hslToRgb(h, Math.max(s, .35), l)); candidates.push([255, 255, 255]); }
-  else { for (let l = .02; l <= .58; l += .01) candidates.push(hslToRgb(h, Math.max(s, .35), l)); candidates.push([0, 0, 0]); }
-  const good = candidates.find(rgb => contrastRatio(rgb, background) >= 4.5);
-  return rgbHex(good || candidates.sort((a, b) => contrastRatio(b, background) - contrastRatio(a, background))[0]);
-}
-const _INK_CACHE = new Map();
-function lblInkCached(hex, theme) {
-  const key = hex + theme;
-  if (!_INK_CACHE.has(key)) _INK_CACHE.set(key, lblInk(hex, theme));
-  return _INK_CACHE.get(key);
-}
-
-// ---------- 定义查询 ----------
-function labelObject(label) {
-  if (typeof label === 'string') return LABELS.find(item => item.name === label) || { name: label, color: '#64748b' };
-  return label || { name: '', color: '#64748b' };
-}
-function labelNames() { return LABELS.map(item => item.name); }
-function nextLabelColor() {
-  const used = new Set(LABELS.map(item => labelHex(item.color)));
-  return LABEL_PRESETS.find(color => !used.has(color)) || LABEL_PRESETS[LABELS.length % LABEL_PRESETS.length];
-}
-
-// ---------- 芯片 ----------
-// lblChip(labelOrName, {variant:'soft'|'solid'|'print', lg, uid, add, dim})
-function lblChipStyle(color) {
-  const hex = labelHex(color);
-  const [r, g, b] = labelRgb(hex);
-  return `--lbl-c:${hex};--lbl-fg:${labelFg(hex)};--lbl-rgb:${r},${g},${b};--lbl-ink-l:${lblInkCached(hex, 'light')};--lbl-ink-d:${lblInkCached(hex, 'dark')}`;
-}
-function lblChip(label, options = {}) {
-  const item = labelObject(label);
-  const name = String(item.name || '').trim();
-  if (!name) return '';
-  const classes = ['lbl'];
-  if (options.variant === 'solid' || options.solid) classes.push('solid');
-  if (options.variant === 'print' || options.print) classes.push('print');
-  if (options.lg) classes.push('lg');
-  if (options.dim) classes.push('dim');
-  const attrs = [`class="${classes.join(' ')}"`, `style="${lblChipStyle(item.color)}"`, `data-lbl-name="${escapeAttr(name)}"`, `title="${escapeAttr(name)}"`];
-  return `<span ${attrs.join(' ')}>${escapeHtml(name)}</span>`;
-}
-// lblChips(names, {uid, add, lg, variant, max}) —— add:true 时追加一个「＋」入口；uid 给委托用
-function lblChips(labels, options = {}) {
-  const values = Array.isArray(labels) ? labels.filter(Boolean) : [];
-  const max = options.max || 0;
-  const shown = max && values.length > max ? values.slice(0, max) : values;
-  let html = shown.map(name => lblChip(name, options)).join('');
-  if (max && values.length > max) html += `<span class="lbl add" title="${escapeAttr(values.slice(max).join('、'))}">+${values.length - max}</span>`;
-  if (options.add) {
-    const cls = `lbl add${options.lg ? ' lg' : ''}`;
-    html += `<span class="${cls}" data-lbl-add="1" title="打标记">${values.length ? '＋' : '＋ 标记'}</span>`;
-  }
-  // 传 uid 时包一层可点击的委托容器：点任意芯片或「＋」都打开该题的 picker
-  if (options.uid) html = `<span class="lbl-row" data-lbl-target="${escapeAttr(options.uid)}">${html}</span>`;
-  return html;
-}
+// 颜色、芯片、选择器与管理的数据部分在 assets/app/domain/labels/（P5 第 4 轮起），经过渡桥 installLabelsBridge 挂成全局：
+// lblChip / lblChips / lblColorKey / labelHex / labelPresetColors / nextLabelColor / labelSort / labelUpsert /
+// labelPickerOptions / labelRecent / labelTouchRecent / labelQuickList / labelApplyBatch / labelFormValues。
+// 芯片与色板的颜色写 data-lbl-c（运行时样式表），不写 style=；预设色在 tokens.css 的 --lbl-preset-1…10。
 
 // ---------- 加载 ----------
 async function loadLabels() {
@@ -145,23 +19,22 @@ async function loadLabels() {
   } catch (error) {
     LABELS = [];
   }
-  LABELS.sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(String(b.name), 'zh-CN'));
+  LABELS = labelSort(LABELS);
   renderLabelFilterOptions();
   renderCreateLabels();
   return LABELS;
 }
 function labelUpsertLocal(label) {
   if (!label || !label.name) return;
-  LABELS = [...LABELS.filter(item => item.id !== label.id && item.name !== label.name), label];
-  LABELS.sort((a, b) => (a.order || 0) - (b.order || 0) || String(a.name).localeCompare(String(b.name), 'zh-CN'));
+  LABELS = labelUpsert(LABELS, label);
 }
 
-// ---------- 标记筛选（题库 q / 推荐 rec / 导出 pick / 即时练习 inst / 展示板选题 bdadd） ----------
+// ---------- 标记筛选（推荐 rec / 导出 pick / 展示板选题 bdadd；题库、即时练习自己渲染，听 bus 的 'labels'） ----------
 function labelFilterIds(prefix) {
   return { box: `${prefix}-label-filter-list`, hidden: `${prefix}-filter-labels`, mode: `${prefix}-label-mode` };
 }
 function renderLabelFilterOptions(prefix) {
-  const prefixes = prefix ? [prefix] : ['q', 'rec', 'rec-v2', 'pick', 'inst'];
+  const prefixes = prefix ? [prefix] : ['rec', 'rec-v2', 'pick'];
   prefixes.forEach(name => {
     const ids = labelFilterIds(name);
     const box = document.getElementById(ids.box);
@@ -172,8 +45,10 @@ function renderLabelFilterOptions(prefix) {
       ? defs.map(item => `<button type="button" class="label-filter-chip ${selected.has(item.name) ? 'on' : ''}" data-label-filter="${escapeAttr(name)}" data-label-name="${escapeAttr(item.name)}" title="${escapeAttr(item.name)}${item.count != null ? ` · ${item.count} 题` : ''}">${lblChip(item)}</button>`).join('')
       : '<span class="label-filter-empty">还没有标记 · 在题目上点「＋ 标记」即可创建</span>';
   });
+  window.__omrs?.emit('labels', LABELS);   // 新页面（features/）据此重绘标记
 }
-function selectedLabelNamesFor(prefix = 'q') {
+
+function selectedLabelNamesFor(prefix = 'pick') {
   const ids = labelFilterIds(prefix);
   return String(document.getElementById(ids.hidden)?.value || '').split('|').map(s => s.trim()).filter(Boolean);
 }
@@ -189,36 +64,29 @@ function setSelectedLabelNamesFor(prefix, values) {
   hidden.value = [...new Set(values || [])].join('|');
   renderLabelFilterOptions(prefix);
 }
-function selectedLabelNames() { return selectedLabelNamesFor('q'); }
-function setSelectedLabelNames(values) { setSelectedLabelNamesFor('q', values); }
 function labelFilterChanged(prefix) {
-  if (prefix === 'q' && typeof filterQ === 'function') filterQ();
-  else if (prefix === 'rec-v2' && typeof renderUnifiedListV2 === 'function') renderUnifiedListV2();
+  if (prefix === 'rec-v2' && typeof renderUnifiedListV2 === 'function') renderUnifiedListV2();
   else if (prefix === 'rec' && typeof renderDualLists === 'function') renderDualLists();
   else if (prefix === 'pick' && typeof renderExportPicker === 'function') renderExportPicker();
-  else if (prefix === 'inst' && typeof instRenderSide === 'function') instRenderSide();
 }
 
-// ---------- 最近使用 ----------
-function labelRecent() {
-  try { return JSON.parse(localStorage.getItem(LABEL_RECENT_KEY) || '[]').filter(name => LABELS.some(item => item.name === name)); } catch (error) { return []; }
+// ---------- LabelPicker（题库 / 题目弹窗 / 反馈 / 录入 / 展示板 共用） ----------
+// 叠在模态对话框（题目弹窗）上时必须放进对话框，否则被 inert：经过渡桥的 __omrsUi.host 登记为 ui/overlay 的客人
+// （Esc 由它代关，宿主关闭时一并关掉）；没有过渡桥时（node 单测）放进 body。
+function labelHostLayer(node, close) {
+  const host = typeof window !== 'undefined' ? window.__omrsUi?.host : null;
+  if (typeof host === 'function') host(node, { close, escape: true });
+  else document.body.appendChild(node);
 }
-function labelTouchRecent(names) {
-  try {
-    const next = [...new Set([...(names || []), ...labelRecent()])].slice(0, 6);
-    localStorage.setItem(LABEL_RECENT_KEY, JSON.stringify(next));
-  } catch (error) {}
+function labelReleaseLayer(node) {
+  if (node && typeof window !== 'undefined') window.__omrsUi?.release?.(node);
 }
-function labelQuickList(limit = 4) {
-  const recent = labelRecent();
-  const rest = LABELS.filter(item => !recent.includes(item.name)).map(item => item.name);
-  return [...recent, ...rest].slice(0, limit).map(name => labelObject(name));
-}
-
-// ---------- LabelPicker（题库 / Modal / 反馈 / 录入 / 展示板 共用） ----------
 function closeLabelPicker() {
-  LABEL_PICKER?.remove();
+  const node = LABEL_PICKER;
   LABEL_PICKER = null;
+  if (!node) return;
+  node.remove();
+  labelReleaseLayer(node);
 }
 // openLabelPicker(uid, anchorEl, {get: () => names, onSave: names => Promise, title})
 function openLabelPicker(uid, anchor, config = {}) {
@@ -236,7 +104,7 @@ function openLabelPicker(uid, anchor, config = {}) {
     <div class="label-picker-options"></div>
     <div class="label-picker-recent"></div>
     <div class="label-picker-foot"><button type="button" class="btn sm ghost" data-lbl-manage>管理标记…</button><span class="hint">↑↓ 移动 · 空格切换 · Esc 关闭</span><button type="button" class="btn sm primary" data-lbl-save>完成</button></div>`;
-  document.body.appendChild(box);
+  labelHostLayer(box, closeLabelPicker);
   LABEL_PICKER = box;
   const rect = anchor?.getBoundingClientRect?.() || { left: 24, bottom: 80, top: 60 };
   const width = 284, height = box.offsetHeight || 330;
@@ -251,12 +119,9 @@ function openLabelPicker(uid, anchor, config = {}) {
   let activeIndex = 0;
   const optionNodes = () => [...optionsBox.querySelectorAll('[data-lbl-name],[data-lbl-new]')];
   const render = () => {
-    const raw = search.value.trim();
-    const needle = raw.toLowerCase();
-    const matches = LABELS.filter(label => !label.archived && (!needle || label.name.toLowerCase().includes(needle)));
-    const exact = LABELS.some(label => label.name === raw);
+    const { raw, create, matches } = labelPickerOptions(LABELS, search.value);
     optionsBox.innerHTML =
-      (raw && !exact ? `<button type="button" class="label-picker-option new" data-lbl-new="${escapeAttr(raw)}"><span class="check">＋</span>新建「${escapeHtml(raw)}」并选中</button>` : '') +
+      (create ? `<button type="button" class="label-picker-option new" data-lbl-new="${escapeAttr(raw)}"><span class="check">＋</span>新建「${escapeHtml(raw)}」并选中</button>` : '') +
       (matches.map(label => `<button type="button" class="label-picker-option ${current.has(label.name) ? 'selected' : ''}" data-lbl-name="${escapeAttr(label.name)}"><span class="check">${current.has(label.name) ? '✓' : ''}</span>${lblChip(label)}<span class="cnt">${label.count ?? ''}</span></button>`).join('') ||
         (raw ? '' : '<div class="label-picker-empty">还没有标记：输入名称后回车即可创建。</div>'));
     const quick = labelQuickList(4).filter(label => !current.has(label.name));
@@ -360,11 +225,8 @@ async function batchAddRemoveLabels(uids, add = [], remove = []) {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ uids, add, remove }),
   });
-  const removeSet = new Set(remove);
-  getItems().forEach(item => {
-    if (!uids.includes(item.uid)) return;
-    item.labels = [...new Set([...(item.labels || []), ...add])].filter(label => !removeSet.has(label));
-  });
+  const next = labelApplyBatch(getItems(), uids, add, remove);
+  getItems().forEach(item => { if (next[item.uid]) item.labels = next[item.uid]; });
   labelTouchRecent(add);
   await loadLabels();
   labelRefreshViews(uids);
@@ -401,7 +263,7 @@ function openCreateLabelsPicker(anchor) {
 function labelManagerRowHtml(item) {
   const bonus = Number(item.priority_bonus || 0);
   return `<div class="label-manager-row" data-label-id="${escapeAttr(item.id)}">
-    <span class="label-swatch" style="background:${labelHex(item.color)}"></span>
+    <span class="label-swatch" data-lbl-c="${lblColorKey(item.color)}"></span>
     <span class="label-manager-name">${lblChip(item, { lg: true, variant: 'solid' })}</span>
     <span class="label-manager-count">${item.count || 0} 题</span>
     <span class="label-manager-bonus" title="推荐优先级加成">${bonus > 0 ? `+${bonus.toFixed(2)}` : '—'}</span>
@@ -410,8 +272,9 @@ function labelManagerRowHtml(item) {
 }
 function labelSwatchesHtml(current, name = 'color') {
   const hex = labelHex(current);
-  const custom = !LABEL_PRESETS.includes(hex);
-  return `<div class="lbl-swatches" data-lbl-swatches="${escapeAttr(name)}">${LABEL_PRESETS.map(color => `<button type="button" class="sw ${color === hex ? 'on' : ''}" style="background:${color}" data-sw="${color}" title="${color}"></button>`).join('')}<span class="sw custom ${custom ? 'on' : ''}" title="自定义颜色"><input type="color" value="${escapeAttr(hex)}" data-sw-custom></span><input type="hidden" data-sw-value value="${escapeAttr(hex)}"></div>`;
+  const presets = labelPresetColors();
+  const custom = !presets.includes(hex);
+  return `<div class="lbl-swatches" data-lbl-swatches="${escapeAttr(name)}">${presets.map(color => `<button type="button" class="sw ${color === hex ? 'on' : ''}" data-lbl-c="${lblColorKey(color)}" data-sw="${color}" title="${color}"></button>`).join('')}<span class="sw custom ${custom ? 'on' : ''}" title="自定义颜色"><input type="color" value="${escapeAttr(hex)}" data-sw-custom></span><input type="hidden" data-sw-value value="${escapeAttr(hex)}"></div>`;
 }
 function labelEditFormHtml(item) {
   return `<div class="label-edit">
@@ -421,8 +284,15 @@ function labelEditFormHtml(item) {
     <div class="label-edit-row"><span class="grow"></span><button class="btn sm ghost" type="button" data-label-cancel>取消</button><button class="btn sm primary" type="button" data-label-save="${escapeAttr(item.id || '')}">${item.id ? '保存' : '＋ 新建'}</button></div>
   </div>`;
 }
+function labelManagerOpen() { return !!document.getElementById('label-manager'); }
+function closeLabelManager() {
+  const node = document.getElementById('label-manager');
+  if (!node) return;
+  node.remove();
+  labelReleaseLayer(node);
+}
 function openLabelManager() {
-  document.getElementById('label-manager')?.remove();
+  closeLabelManager();
   const modal = document.createElement('div');
   modal.id = 'label-manager';
   modal.className = 'modal-overlay open';
@@ -439,14 +309,13 @@ function openLabelManager() {
     <div class="label-manager-form" data-label-new-form>${labelEditFormHtml({ name: '', color: nextLabelColor(), priority_bonus: 0 })}</div>
     <div class="label-manager-foot"><button class="btn" type="button" data-label-close>关闭</button></div>
   </div>`;
-  document.body.appendChild(modal);
+  labelHostLayer(modal, closeLabelManager);
   renderList();
-  const readForm = root => {
-    const name = root.querySelector('[data-label-field="name"]')?.value.trim() || '';
-    const color = root.querySelector('[data-sw-value]')?.value || nextLabelColor();
-    const bonus = asNumber(root.querySelector('[data-label-field="priority_bonus"]')?.value, 0);
-    return { name, color, priority_bonus: Math.max(0, Math.min(1, bonus)) };
-  };
+  const readForm = root => labelFormValues({
+    name: root.querySelector('[data-label-field="name"]')?.value,
+    color: root.querySelector('[data-sw-value]')?.value,
+    bonus: root.querySelector('[data-label-field="priority_bonus"]')?.value,
+  }, nextLabelColor());
   modal.addEventListener('input', event => {
     const custom = event.target.closest('[data-sw-custom]');
     if (custom) {
@@ -456,7 +325,7 @@ function openLabelManager() {
     }
   });
   modal.addEventListener('click', async event => {
-    if (event.target === modal || event.target.closest('[data-label-close]')) { modal.remove(); return; }
+    if (event.target === modal || event.target.closest('[data-label-close]')) { closeLabelManager(); return; }
     const sw = event.target.closest('[data-sw]');
     if (sw) {
       const wrap = sw.closest('[data-lbl-swatches]');
@@ -558,18 +427,12 @@ if (typeof document !== 'undefined') {
     if (LABEL_PICKER && !insidePicker) closeLabelPicker();
     const filter = event.target.closest?.('[data-label-filter]');
     if (filter) {
-      const prefix = filter.dataset.labelFilter || 'q';
+      const prefix = filter.dataset.labelFilter || 'pick';
       const values = selectedLabelNamesFor(prefix);
       const name = filter.dataset.labelName;
       setSelectedLabelNamesFor(prefix, values.includes(name) ? values.filter(item => item !== name) : [...values, name]);
       labelFilterChanged(prefix);
     }
   });
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && LABEL_PICKER) { closeLabelPicker(); }
-  });
+  // Esc 关闭选择器：由过渡桥登记到 core/keys.js（assets/app/legacy-bridge.js 的 installLabelsBridge）
 }
-
-if (typeof module !== 'undefined') module.exports = {
-  lblInk, lblChip, lblChips, labelHex, labelRgb, labelFg, rgbToHsl, hslToRgb, contrastRatio, LABEL_PRESETS,
-};

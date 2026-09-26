@@ -1,0 +1,4 @@
+/* 提示 .ui-tooltip：反色小气泡（字 --surface-0、底 --fg-1，对比度同正文组合）。is-static 仅供 gallery 预览。 */
+.ui-tooltip { position: fixed; inset: auto; left: var(--tip-x, 0); top: var(--tip-y, 0); z-index: var(--z-tooltip); box-sizing: border-box; max-width: min(280px, calc(100vw - 8px)); margin: 0; padding: var(--sp-1) var(--sp-2); border: 0; border-radius: var(--r-xs); background: var(--fg-1); color: var(--surface-0); font-size: var(--text-xs); line-height: var(--leading-ui); overflow: visible; pointer-events: none; opacity: 0; transition: opacity var(--dur-1) var(--ease-out); }
+.ui-tooltip.is-visible, .ui-tooltip.is-static { opacity: 1; }
+.ui-tooltip.is-static { position: relative; left: auto; top: auto; display: inline-block; }

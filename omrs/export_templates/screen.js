@@ -2,7 +2,8 @@
  * 功能：单卡全屏阅读 → 显示答案 → 判对错 + 打分 → 翻到下一题；
  *       滑动/方向键翻题；底部进度抽屉（总览统计 + 学科分解 + 跳转网格）；
  *       全部判定与当前位置存入 localStorage，刷新不丢；可一键重置。
- * 数据形状见 exporting.py：{meta, questions:[{idx,uid,subject,category,difficulty,tags,blocks,notes}], answers:[{idx,uid,blocks}]}。
+ * 数据形状见 exporting.py：{meta, questions:[{idx,uid,subject,category,difficulty,tags,blocks,notes}], answers:[{idx,uid,blocks,notes}]}；
+ * questions[i].notes 只有「关联」，answers[i].notes 只有「错因」——错因提示解法，必须留在「显示答案」之后。
  */
 (function () {
   "use strict";
@@ -139,8 +140,7 @@
     /* 题面 */
     const body = el("div", "qbody"); renderBlocks(body, q.blocks); card.appendChild(body);
 
-    /* 错因 / 关联（题面给出即显示——这是复习提示，不算"答案"） */
-    if (q.notes && q.notes["错因"]) { const n = el("div", "note"); n.innerHTML = "<b>错因 </b>"; mathText(n, q.notes["错因"]); card.appendChild(n); }
+    /* 关联（题面给出即显示——这是复习提示，不算"答案"） */
     if (q.notes && q.notes["关联"]) { const n = el("div", "note"); n.innerHTML = "<b>关联 </b>"; mathText(n, q.notes["关联"]); card.appendChild(n); }
 
     /* 答案区 */
@@ -152,6 +152,8 @@
     const a = ansMap[q.uid];
     if (!a || !a.blocks || !a.blocks.length) ans.appendChild(el("div", "empty", "（本题未附答案——按你的理解自评即可）"));
     else renderBlocks(ans, a.blocks);
+    /* 错因跟在答案后面（折叠在「显示答案」后）：会提示解法，不能提前给 */
+    if (a && a.notes && a.notes["错因"]) { const n = el("div", "note"); n.innerHTML = "<b>错因 </b>"; mathText(n, a.notes["错因"]); ans.appendChild(n); }
 
     /* 评分区 */
     const grade = el("div", "grade locked");

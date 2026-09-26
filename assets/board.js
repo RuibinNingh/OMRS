@@ -1571,7 +1571,7 @@ if (typeof document !== 'undefined') {
   });
   document.addEventListener('keydown', event => {
     if (!document.getElementById('panel-board')?.classList.contains('active')) return;
-    if (document.querySelector('.modal-overlay.open') || (typeof LABEL_PICKER !== 'undefined' && LABEL_PICKER)) return;
+    if (document.querySelector('.modal-overlay.open, dialog[open]') || (typeof LABEL_PICKER !== 'undefined' && LABEL_PICKER)) return;
     if (event.target.closest?.('input,textarea,select,[contenteditable]')) return;
     if (event.altKey) return;
     const key = String(event.key || '').toLowerCase();

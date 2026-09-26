@@ -1,5 +1,12 @@
 # 用户标记
 
+> **速查**
+> - 职责：用户标记定义、题目 YAML `标记:`、投影与可选调度加成
+> - 入口：`omrs/labels.py`、`omrs/question_ops.py`、`assets/labels.js`
+> - 不变量：标记定义存 `labels.json`，题目只通过 YAML 引用标记值
+> - 必跑测试：`tests/test_labels.py`、`tests/app/labels.test.mjs`
+> - 相关：`AI/frontend/library.md`、`AI/algorithm.md`
+
 > v1.14.0 新增。对应源文件：`omrs/labels.py`、`omrs/question_ops.py`、`omrs/projections.py`、`assets/labels.js`。
 
 ## 1. 概念边界
@@ -88,12 +95,12 @@ metadata commit。批量操作会逐题写入，完成后统一扫描投影。
 
 `assets/labels.js`（排在 `core.js` 之后、`questions.js` 之前）提供：
 
-- `lblChip(labelOrName, {variant, lg, dim})` / `lblChips(names, {add, max, uid, lg, variant})`：
+- `lblChip(labelOrName, {variant, lg, dim})` / `lblChips(names, {add, max, uid, lg, variant})`（`assets/app/domain/labels/chips.js`，旧代码经过渡桥的同名全局；颜色写 `data-lbl-c` 加运行时样式表，不写 `style=`）：
   `<=>` 双尖形芯片。三种变体：默认 **soft**（原色 16%/24% 淡底 + 同色相钳亮度文字，列表 /
   抽屉 / 反馈用）、**solid**（原色实底 + 按相对亮度选黑白文字，管理弹层用）、**print**（15px，
   导出用）。尺寸 18px / `lg` 20px / `print` 15px。`add:true` 追加「＋ 标记」入口，`max` 折叠为
   「+N」，`uid` 时外包 `<span class="lbl-row" data-lbl-target=uid>` 交给委托打开 picker。
-- `lblInk(hex, theme)`：按主题只钳同色相的亮度，保证淡底上的小字达到 WCAG AA；`labelFg()`
+- `lblInk(hex, theme)`（`assets/app/domain/labels/color.js`）：按主题只钳同色相的亮度，保证淡底上的小字达到 WCAG AA；`labelFg()`
   给 solid 变体选文字色。用户保存的 `color` 永远不变。
 - `openLabelPicker(uid, anchor, {get, onSave, title})`：搜索 / ↑↓ / Space·Enter 切换 / 输入新名回车
   创建并选中 / 最近标记快速加 / Esc 关闭；点「完成」才保存（乐观更新 + 失败回滚 + toast）。

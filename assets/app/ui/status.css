@@ -1,0 +1,18 @@
+/* 局部状态 .ui-status（行内文字 / --block 色块）与状态点 .ui-dot。 */
+.ui-status { --status-fg: var(--fg-2); display: inline-flex; align-items: flex-start; gap: var(--sp-1_5); margin: 0; color: var(--status-fg); font-size: var(--text-sm); line-height: var(--leading-ui); }
+.ui-status .ui-icon { flex: none; width: 16px; height: 16px; margin-top: var(--sp-0_5); }
+.ui-status__text { min-width: 0; overflow-wrap: anywhere; }
+.ui-status--info { --status-fg: var(--info); }
+.ui-status--success { --status-fg: var(--success); }
+.ui-status--warning { --status-fg: var(--warning); }
+.ui-status--danger { --status-fg: var(--danger); }
+.ui-status--block { box-sizing: border-box; display: flex; width: 100%; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); background: var(--surface-2); color: var(--fg-1); }
+.ui-status--block.ui-status--info { background: var(--info-soft); color: var(--info-fg); }
+.ui-status--block.ui-status--success { background: var(--success-soft); color: var(--success-fg); }
+.ui-status--block.ui-status--warning { background: var(--warning-soft); color: var(--warning-fg); }
+.ui-status--block.ui-status--danger { background: var(--danger-soft); color: var(--danger-fg); }
+.ui-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--fg-3); vertical-align: middle; }
+.ui-dot--info { background: var(--info); }
+.ui-dot--success { background: var(--success); }
+.ui-dot--warning { background: var(--warning); }
+.ui-dot--danger { background: var(--danger); }

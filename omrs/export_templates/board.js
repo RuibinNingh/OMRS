@@ -441,6 +441,9 @@
     } };
   }
   function imgBlock(b, q) { return { kind: "image", q, src: b.img.src, imgEl: imgMap.get(b.img.src) }; }
+  function noteBlock(k, v, q) {
+    return { kind: "text", q, build: () => { const e = el("div", "blk q-note"); e.innerHTML = "<b>" + k + "：</b>"; mathText(e, v); return e; } };
+  }
 
   function buildBlocks() {
     const B = [];
@@ -453,6 +456,8 @@
         else B.push(txtBlock("q-text", b.text, q, false));
       });
       B.push({ kind: "qend", q });
+      // 题面栏只放「关联」；「错因」会提示解法，留到答案页（与 A4 / 屏幕版一致）
+      if (q.notes && q.notes["关联"]) B.push(noteBlock("关联", q.notes["关联"], q));
       // 服务端已把「继承全局 / 单题覆盖」算成绝对行数，模板不再做加法
       B.push(gapBlock(questionGap(q), q));
     });
@@ -461,8 +466,10 @@
       B.push(plainBlock("section", MODE === "new" ? "答案（本次新增）" : "答案", true));
       D.answers.forEach(a => {
         B.push({ keepNext: true, build: () => { const e = el("div", "blk ans-head"); e.innerHTML = "第 " + a.idx + " 题 <span>[" + esc(a.uid) + "]</span>"; return e; } });
-        if (!(a.blocks || []).length) { B.push(plainBlock("ans-empty", "（暂无答案）")); return; }
-        a.blocks.forEach(b => { if (b.t === "img") B.push(imgBlock(b, null)); else if (b.t === "table") B.push(tableBlock(b, null)); else B.push(txtBlock("ans-text", b.text, null, false)); });
+        if (!(a.blocks || []).length) B.push(plainBlock("ans-empty", "（暂无答案）"));
+        else a.blocks.forEach(b => { if (b.t === "img") B.push(imgBlock(b, null)); else if (b.t === "table") B.push(tableBlock(b, null)); else B.push(txtBlock("ans-text", b.text, null, false)); });
+        // 错因紧跟该题答案之后
+        if (a.notes && a.notes["错因"]) B.push(noteBlock("错因", a.notes["错因"], null));
       });
     }
     return B;

@@ -1,5 +1,12 @@
 # 数据结构
 
+> **速查**
+> - 职责：CSV 字段、Markdown 题目格式、UID、配置、标记与报告存储
+> - 入口：`omrs/common.py`、`omrs/indexing.py`
+> - 不变量：结构化状态唯一可信来源是 `错题/.omrs/ledger.db`，CSV 只是兼容投影
+> - 必跑测试：`tests/test_history_projection.py`、`tests/test_question_records.py`
+> - 相关：`AI/ledger.md`、`AI/security.md`
+
 > 对应源文件：`omrs/common.py`、`omrs/indexing.py`
 
 > v1.1.0 起，结构化状态的唯一可信来源是 `错题/.omrs/ledger.db`。本文件中的 CSV 仍会由投影器导出，用于兼容既有前端、调试查看和旧数据迁移；不要再把 CSV 当成核心运行时事实源。详见 `ledger.md`。
@@ -34,6 +41,7 @@
 | `Interval` | int | SM-2 当前间隔（天数），旧数据默认为 0 |
 | `Due_Date` | date | SM-2 下次到期日，旧数据默认为 Last_Review（即立即到期） |
 | `Repetition` | int | SM-2 连续答对次数（n），答错重置为 0 |
+| `Kill_Count` | int | 累计击杀次数；答错降级时不重置，复燃休眠时长据此分级变长（algorithm.md §11） |
 | `Current_Tag` | string | 状态标签（如 #状态/待攻克） |
 | `Entry_Date` | date | 题目录入日期 |
 | `Knowledge_Tags` | string | 知识点标签，`|` 分隔 |
@@ -42,6 +50,7 @@
 
 **注意：** `Last_Review` 历史数据可能包含 `YYYY/M/D` 格式，`parse_date()` 已做兼容。
 **注意：** SM-2 字段（`Interval`、`Due_Date`、`Repetition`）为 2026-05 新增，旧数据通过 `resolve_sm2_fields()` 自动填充默认值。
+**注意：** `Kill_Count` 为 2026-09 新增，老 CSV 缺列按 `0` 处理（即「还没击杀过」），重放不会报错，首次击杀即第 1 次。
 **写盘安全：** 该文件经 `save_csv(..., backup=True)` 写入——先写 `.tmp` 并 `fsync`，再 `os.replace` 原子覆盖，避免写一半损坏；覆盖前滚动备份为 `mastery_data.csv.bak.1/2/3`（`.1` 最新，保留 3 份）。反馈与重建索引均走此路径。
 
 ---
@@ -97,7 +106,7 @@ Session 中的 `source` 贯穿反馈处理：`due` 使用常规 SM-2 间隔，`p
 
 - `commits`：不可变提交链。
 - `question_projection` / `question_knowledge_points`：题目结构化投影。
-- `mastery_projection`：熟练度、EF、SM-2 排期投影。
+- `mastery_projection`：熟练度、EF、SM-2 排期投影，含 `kill_count` 累计击杀次数（老库缺列时 `ledger.py` 用 `ALTER TABLE ... DEFAULT 0` 补列）。
 - `session_projection`：Session 投影。
 - `workspace_fingerprint`：Markdown 工作区自检指纹。
 - `snapshots`：预留的持久化快照表；当前投影器尚未读写此表。`_project_state()` 只在单次重放过程中维护内存快照，`rebuild_projection()` 仍从完整提交链重放。
@@ -213,7 +222,8 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 
 | 键 | 类型 | 说明 |
 |---|---|---|
-| `allow_external` | bool | 是否绑定 0.0.0.0（见 frontend.md 设置页） |
+| `allow_external` | bool | 是否绑定 0.0.0.0（见 `AI/frontend/settings.md`） |
+| `lan_pin_exempt_cidrs` | string[] | 直连免 PIN 的私有局域网 CIDR；默认空列表，代理请求不豁免 |
 | `tuning` | object | 算法可调参数覆盖，键与默认值见 algorithm.md §9；仅接受已知键且为数字 |
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`） |
 | `ai_api_key` | string | AI 接口密钥（Bearer），仅存本机 |
@@ -231,6 +241,8 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 
 `load_tuning()` 带进程内缓存，`save_config()` 写入后自动失效缓存；算法调参、AI 和收件箱策略保存即生效，无需重启。只有 `allow_external` 改变监听地址时需要重启。`save_config()` 按键合并，可单独提交；`load_config()` 的缺省键集中在 `common.CONFIG_DEFAULTS`。
 
+`错题/.omrs/auth.json` 保存远端 PIN 的随机盐、PBKDF2-SHA256 哈希和空闲分钟数；写入时使用临时文件替换并设为仅文件所有者可读写。会话令牌只保留在服务进程内，进程重启后失效。`GET /api/config` 不返回 `ai_api_key` 或 PIN 哈希，仅提供已配置状态；备份包含 `错题/.omrs/`，因此备份下载仅供本机、显式豁免的直连局域网设备及已登录远端使用。
+
 ---
 
 ## 9. report/（AI 分析报告托管）
@@ -243,7 +255,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 | `错题/report/index.json` | 报告索引数组：`[{id, name, filename, created_at, size}]` |
 
 - `id` 形如 `RPT-YYYYMMDDHHMMSS`（同秒冲突加 `-N`）。`created_at` 由后端在创建时记录。
-- 报告由 `GET /api/report/view?id=` 同源提供（`text/html`），因此报告内可直接用 `<img src="/api/image?name=<URL编码文件名>">` 引用题目图片——这是「报告引用题目图片」的对接方式。
+- 报告由 `GET /api/report/view?id=` 以 `text/html` 提供，响应使用独立来源的 CSP 沙箱。报告内仍用 `<img src="/api/image?name=<URL编码文件名>">` 引用题目图片；浏览时服务端只为附件目录中的静态图片 URL 加当前会话的单图签名。磁盘上的报告 HTML 保持原样。
 - 题目图片文件名可从 `/api/question?uid=` 的 `images`、`/api/analytics` 的 `items[].images`，或导出复盘报告 JSON 中获得（均由 `extract_images()` 从题面 `![[名]]`/`![](路径)` 解析，取 basename）；`/api/stats` 的 `items` 不含 `images`。
 - 报告页下载 AI 分析材料时，可选择不带图片的单个 Markdown，或包含 Markdown + `images/` 的 ZIP。ZIP 只收录 `items[].images` 引用且仍存在的题面图片，不包含未引用附件；其中图片只供 AI 阅读，生成的托管 HTML 仍按上一条 `/api/image?name=` 规则引用。
 
@@ -265,7 +277,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
  "items":[{"uid":"三角函数1","is_correct":true,"sub_score":9}]}
 ```
 
-仅包含**已判定**的题。导入侧（`assets/feedback.js::importFeedbackJson`）：`is_correct` / `correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` / `score` 缺省按对→10 / 错→4、钳 0–10 取整；`session_id` 在 `sessions.csv` 中则自动选中关联，否则仍按该 ID 填入待提交反馈（TMP- 临时卷亦可），为空按手动录入。导入只填充前端表单，**不会直接写 `history_log.csv`**；须人工核对后提交，提交才追加 Ledger 并重建投影。若误贴旧题目 JSON，会提示当前只支持反馈 JSON。
+仅包含**已判定**的题。导入侧（`assets/app/features/feedback/importer.js::planFeedback`，条目转换在 `state.js::fbImportFeedbackRows`）：`is_correct` / `correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` / `score` 缺省按对→10 / 错→4、钳 0–10 取整；`session_id` 在 `sessions.csv` 中则自动选中关联，否则仍按该 ID 填入待提交反馈（TMP- 临时卷亦可），为空按手动录入。导入只填充前端表单，**不会直接写 `history_log.csv`**；须人工核对后提交，提交才追加 Ledger 并重建投影。若误贴旧题目 JSON，会提示当前只支持反馈 JSON。
 
 
 ---

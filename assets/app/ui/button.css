@@ -1,0 +1,73 @@
+/* 按钮 .ui-btn：三档高度 28 / 32 / 40；变体 default / primary / ghost / danger。
+   .is-hover / .is-active / .is-focus 只供 gallery 固定展示交互态。 */
+.ui-btn {
+  --btn-h: var(--ctl-md);
+  --btn-px: var(--sp-3);
+  --btn-fs: var(--text-sm);
+  --btn-icon: 16px;
+  --btn-bg: var(--surface-1);
+  --btn-bg-hover: var(--surface-2);
+  --btn-bg-active: var(--surface-3);
+  --btn-fg: var(--fg-1);
+  --btn-bd: var(--border-2);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1_5);
+  height: var(--btn-h);
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 var(--btn-px);
+  border: 1px solid var(--btn-bd);
+  border-radius: var(--r-sm);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font-family: inherit;
+  font-size: var(--btn-fs);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+.ui-btn .ui-icon { width: var(--btn-icon); height: var(--btn-icon); }
+.ui-btn__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ui-btn:is(:hover, .is-hover):not(:disabled) { background: var(--btn-bg-hover); }
+.ui-btn:is(:active, .is-active):not(:disabled) { background: var(--btn-bg-active); }
+.ui-btn:is(:focus-visible, .is-focus) { outline: none; box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--focus-ring); }
+.ui-btn:disabled, .ui-btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+
+.ui-btn--primary { --btn-bg: var(--accent); --btn-bg-hover: var(--accent-hover); --btn-bg-active: var(--accent-hover); --btn-fg: var(--on-accent); --btn-bd: var(--accent); }
+.ui-btn--ghost { --btn-bg: transparent; --btn-bd: transparent; --btn-fg: var(--fg-2); }
+.ui-btn--ghost:is(:hover, .is-hover):not(:disabled) { color: var(--fg-1); }
+.ui-btn--danger { --btn-bg: var(--danger-soft); --btn-bg-hover: var(--danger); --btn-bg-active: var(--danger); --btn-fg: var(--danger-fg); --btn-bd: var(--danger); }
+.ui-btn--danger:is(:hover, :active, .is-hover, .is-active):not(:disabled) { color: var(--on-accent); }
+.ui-btn[aria-pressed="true"] { --btn-bg: var(--accent); --btn-bg-hover: var(--accent-hover); --btn-bg-active: var(--accent-hover); --btn-fg: var(--on-accent); --btn-bd: var(--accent); }
+
+.ui-btn--sm { --btn-h: var(--ctl-sm); --btn-px: var(--sp-2); --btn-fs: var(--text-xs); --btn-icon: 14px; gap: var(--sp-1); }
+.ui-btn--lg { --btn-h: var(--ctl-lg); --btn-px: var(--sp-4); --btn-fs: var(--text-md); --btn-icon: 18px; gap: var(--sp-2); }
+.ui-btn--icon { width: var(--btn-h); padding: 0; }
+.ui-btn--block { display: flex; width: 100%; }
+
+.ui-btn.is-loading { position: relative; color: transparent; pointer-events: none; }
+.ui-btn.is-loading .ui-icon { visibility: hidden; }
+.ui-btn.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 14px;
+  height: 14px;
+  margin: auto;
+  border: 2px solid var(--btn-fg);
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ui-spin calc(var(--dur-3) * 3) linear infinite;
+}
+.ui-btn.is-loading:disabled { opacity: 1; }
+
+/* 一组相邻按钮 */
+.ui-btn-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }

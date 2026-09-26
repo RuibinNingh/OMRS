@@ -4,6 +4,125 @@
 > 这里每段都是当时写下的原文（未改写），所以段里的「现在 / 原先」以该版本为准；具体文件级变更看 `logs/`。
 > 新版本的摘要请追加在最上面；同一版本多次改动时合并进同一段。
 
+## v1.25.4（2026-09-25）前端重构 P6 第 5 轮：「全题库导出」迁进复习调度页，复习调度三块全部原生
+
+- **「全题库导出」原生实现**（`features/schedule/exporter*.js`）：筛选、标记、平铺式 / 画廊式、选择当前筛选 / 移除当前筛选 / 清空、A4 打印版与屏幕版、附带答案、题间留白、导出；规则、文件名与请求体不变，旧 id（`#export-panel`、`#pick-*`、`#export-*`）保留。屏幕版时「附带答案」显示为已勾选且不可改、留白不可改（原来可以勾但不生效）；没选题、导出成功与失败都显示在导出栏。已选区超过约 22em 时内部滚动，选题区不再被挤到很远。
+- **导出统一走 `domain/exporting.js`**（`POST /api/export` + `core/download.js` 下载）。「已有计划」的导出打印版 / 屏幕版也改走它：结果显示在详情里，按钮进行中置忙。
+- **删除** assets/export.js、`domain/schedule.js`、`core.js` 的 `EXPORT_SELECTION` / `EXPORT_VIEW`、旧刷新链里的 `syncExportSelection` / `renderExportPicker`、过渡桥的 `schShow` / `showRecommendPanel`（仪表盘「开始复习」改为发页面事件），以及 `styles.css` 里只服务旧导出面板的规则（22 条）。旧的 `downloadExportResponse` 全局保留给备份导出、报告与题库批量 A4，实现换成 `core/download.js`。
+
+## v1.25.3（2026-09-25）前端重构 P6 第 4 轮：「安排复习」迁进复习调度页
+
+- **「安排复习」原生实现**（`features/schedule/arrange*.js`）：筛选、推荐方式、标记筛选、按建议选择、列表 / 画廊、选择栏、生成计划，规则与文案不变；旧 id（`#rec-*`、`#recommend-panel-v2`）保留。
+- **画廊题面恢复显示。** P5 之后旧推荐画廊引用的 `QV_CARD_OPTS` 没有被过渡桥挂出，题面一直停在「正在加载题面…」；新实现直接从 `domain/question` 取，挂载点 `data-morph="skip"`，重绘不重挂。
+- **手机列表每行两行**（勾选与题目一行，理由、熟练度与「预览」一行），UID 不再是第二个预览按钮；可点目标桌面 ≥28、手机 ≥40；分段切换改为 28 / 40 高。
+- **删除调度后**详情区显示「调度已删除」（原生「已有计划」上一版显示的是「选择一个计划」）。
+- **`tests/smoke_schedule_workbench.py` 全部通过**（P4 之后第一次）：选择器改到新标记；删除确认框之间等退场动画结束（ui/dialog 另有标题栏关闭按钮，旧写法点到两个）。
+- **删除** assets/recommend_v2.js、tests/test_recommend_v2_filters.js（用例迁到 `tests/app/arrange.test.mjs`）、questions.js 里只给推荐用的 `reviveChipHtml`、旧数据刷新链里的 `initRecommendV2`，以及 `styles.css` 里只服务旧推荐区的规则（约 170 行）。
+
+## v1.25.2（2026-09-25）前端重构 P6 第 3 轮：复习调度迁到 features/schedule，Session 列表归 domain/sessions
+
+- **复习调度成为 features 页面。** 顶部标签栏与「已有计划」由 `features/schedule/` 渲染；「安排复习」「全题库导出」两块仍是旧 DOM，作为页面挂载点里的兄弟节点，由页面切显隐（下一轮迁）。标签栏吸顶，手机上列表与详情分两屏。
+- **「已有计划」重做**：列表、筛选、详情、删除、导出、录入结果全部原生；打印选项的展开状态与勾选在重绘后保留；刷新 Session 列表时当前详情保留内容不闪骨架（原来整块换成「正在读取计划详情…」）；删掉的计划不会被随后的刷新重新打开。
+- **Session 列表归新代码所有。** `domain/sessions.js` 负责加载、快照与发布（后发先至只认最新、失败保留旧列表、删除后让进行中的旧加载作废）；旧 `SESSIONS` 是镜像，全局 `refreshSessions` 由过渡桥挂成新实现。进度计算 `sessionProgress` 从反馈页 state 搬进 domain，两页共用。
+- **从别的工作区切回「安排复习」会重拉推荐**（原来只重绘旧数据；P1 起点侧栏当前页不再重新进入，冒烟测试因此停在「空推荐提示」一步）。
+- **删除** schedule.js 里复习调度页的全部代码（文件只剩录入题目、全局扫描与两个旧入口）、旧 node 测试 tests/test_schedule_sessions.js（用例迁到 `tests/app/schedule.test.mjs` 与 `tests/e2e/schedule.py`）、`styles.css` 里只服务旧标签栏与计划列表的规则（34 条）。
+
+## v1.25.1（2026-09-25）前端重构 P6 第 2 轮：数据复盘迁到 features/data
+
+- **数据复盘页重做版式。** 八格概览放进一张卡；20 张图表卡自动成两栏（按标记正确率、复习预警、顽固题、屡练不熟整行），标题去掉 emoji（D7）。表格换成 `ui/table`（手机降级为卡片，原来横向截断）；横条换原生 `<progress>`；颜色一律经 `data-tone` 走状态 token（原来是 `style="color:var(--red)"` 这类行内样式，D11）。统计口径、分档配色、区块顺序与表格列不变。
+- **运行时审计**（`tests/visual/run.py`）：本页字号 14 → 3 种、最小字号 8.7 → 12px，行内样式 177 → 0，手机上的可见溢出 1 → 0。
+- **数据何时更新**：进入页面、点「刷新」、以及写操作后统计快照变化时都会重拉 `/api/analytics`（原来只在进入与刷新时拉）。首次加载失败给原因与「重试」；已有数据时刷新失败保留旧数据、只在页首报错。
+- **导出**改经新的 `core/download.js`：文件名取服务端 `Content-Disposition`；成功弹 toast，失败原因写在页首。
+- **删除** assets/data.js 与 `styles.css` 里只服务它的规则（74 行）；旧数据刷新链不再画数据复盘的两张图（页面自己订阅统计快照）。
+- 测试：新增 `tests/app/analytics.test.mjs`、`tests/e2e/data.py`。
+
+## v1.25.0（2026-09-25）前端重构 P6 第 1 轮：统计数据所有权反转到 domain/data.js，仪表盘迁到 features/dashboard
+
+- **统计数据归新代码所有。** `assets/app/domain/data.js` 负责拉 `/api/stats`、持有快照并经 bus 发 `data`；旧 `DATA` 是它写好的镜像（与 `store.data` 同一对象），旧页面的刷新链改名 `legacyDataRefresh()`（`app.js`），由过渡桥登记为钩子。全局 `reloadData()` 由过渡桥挂成新实现，调用方不变。
+- **并发合并与失败处理。** 一次加载进行中再调用只排一次补拉，之后的调用共享它（原来每次调用各发一次请求，先发后到时旧数据会覆盖新数据）。加载失败保留上一份快照；原来会换成 `core.js` 里的演示数据（6 道假题），服务重启的几秒里首页会闪出假数字。`demo()` 已删。
+- **题目详情缓存归 `domain/question/mount.js`。** 旧代码读的 `QUESTION_CACHE` / `QUESTION_PENDING` 改为过渡桥挂的只读全局；`core.js` 删掉这两个 `let`。
+- **仪表盘迁到 `features/dashboard/`（D8）。** 「今天」放进独立卡片（原来数字直接压在页面背景上），「开始复习」不再是紧贴行动推荐卡的通栏黑条，各块之间统一 16px；行动推荐的字符图标（◷ ○ ↓ ◆）换成 SVG；全页字号收到 6 档，可点目标桌面 ≥28、手机 ≥40，没有行内样式与 `onclick`。热力格不再在格子里写日期（两行各 15 格，首尾标日期，悬停看当天次数）；最薄弱科目的条改用原生 `<progress>`。规则与文案不变，行动推荐的跳转从闭包改成描述对象，题库预设经 bus `questions:preset` 交给题库页。
+- **删除**旧仪表盘的两个脚本 assets/dashboard.js 与 assets/actions.js，以及 `styles.css` 里只服务旧仪表盘的规则（223 行，含 P3 遗留的一个只剩注释的 `@media(max-width:900px)` 块）。数据复盘页的「每日练习趋势」「标记分布」两张图搬进 assets/data.js（v1.25.1 删除，见 features/data）（`renderDataCharts()`）；标记分布的条改用原生 `<progress>`，其余不变。
+- 测试：新增 `tests/app/dashboard.test.mjs`（行动推荐、今天、概览、热力、最薄弱科目）、`tests/app/data.test.mjs`（所有权、合并、失败）与 `tests/e2e/dashboard.py`；`smoke_frontend_actions_catalog.js` 与 `test_question_suspend_frontend.js` 里行动推荐的断言迁入新单测。
+
+## v1.24.2（2026-09-25）前端重构 P5 第 4 轮：标记迁到 domain/labels，qview 外观归位（P5 完成）
+
+- **标记芯片不再写行内样式。** 芯片、色板、颜色圆点只写 `data-lbl-c="rrggbb"`；每种颜色由运行时样式表（`<style id="omrs-label-colors">` 的 `@layer domain` 块）登记一条规则给出 `--lbl-c` 等变量。颜色算法（浅 / 深主题下的 AA 文字色钳制、solid 前景）原样迁移，芯片外观不变。预设色移到 `tokens.css` 的 `--lbl-preset-1…10`，`domain/labels/` 的 JS 里没有颜色字面量。
+- **`domain/labels.js` 扩成 `domain/labels/`：** `color.js`（颜色）、`sheet.js`（运行时样式表）、`chips.js`（芯片）、`model.js`（排序、增改、选择器候选、最近使用、快速区、下一个颜色、批量增删、管理表单规范化，全部纯函数）。旧 labels.js 里这些函数删除，经过渡桥 `installLabelsBridge` 挂成同名全局；选择器浮层与标记管理的 DOM 仍在旧 labels.js。
+- **qview 的全部外观搬进 `domain/question/qview.css` 并换成 token**（连同导出选题、展示板画廊、复习调度预览对它的覆盖），旧 `styles.css` 净删 100 行。可见变化：题面 / 答案按设计系统的阅读正文显示（16px、行高 1.75，原 12.9px / 1.8），缩略卡 13px；题头去掉旧全局 `header` 规则带来的 16px 顶部空白；题头与记录模块字重 600，小字统一到 11 / 12px；深色主题下答案块恢复浅绿底（原被深色覆盖规则盖掉）。题目弹窗的字号种数 6 → 5。
+- **测试：** 原 test_labels_ui.js（已删除）迁到 `tests/app/labels.test.mjs`（原 5 个用例保留，新增 5 个），node 192 → 197；E2E 的「不写行内样式」审计去掉对芯片的排除，另加一项检查芯片颜色走运行时样式表；`check_contrast.py` 加「正文 / 次文字压在题面块上」两组。
+
+## v1.24.1（2026-09-25）前端重构 P5 第 3 轮：题目弹窗与 Markdown 编辑器换成 ui/dialog
+
+- **题目弹窗是 `ui/dialog`（`domain/question/modal.js`）。** 进浏览器顶层、焦点陷阱（背景拿不到焦点）、Esc 与点遮罩关闭、背景滚动锁定；关闭后焦点回到触发它的元素——从题库打开时回到那一行，翻过页则游标与焦点落在最后看的那一题。翻页条与关闭按钮换成 `ui-btn`，手机上翻页按钮只留图标、可点区域 40×40，题面区单独滚动、头部不动。
+- **Markdown 编辑器是叠在题目弹窗上的第二个 `ui/dialog`（`domain/question/editor.js`）。** 有未保存修改时 Esc / 点遮罩不关并在状态行提示；Ctrl / ⌘ + Enter 保存；保存失败留在编辑器里写出原因；内容没改时「保存」直接关闭、不写文件；关闭后焦点回到「编辑」按钮。旧 `questions.js` 的编辑器与 `omrs_dashboard.html` 里两个旧弹窗外壳删除。
+- **叠在对话框上的旧浮层可以用了。** 标记选择器、选板浮层、标记管理打开时放进最上层对话框（`ui/overlay` 的「客人」，旧代码经 `__omrsUi.host`），不再被模态对话框 inert；Esc 与点外面先关浮层、对话框留着，对话框关闭时一并关掉浮层。标记管理可以按 Esc 关闭。
+- **`ui/dialog` 扩展：** `--xl`（1180）尺寸、`id`、异步 `onOk`（返回 false 留在对话框，确定按钮忙碌态）、`dismissible` 可为函数、`returnFocus()`、`onOpen(el)`、`closeDialog(el)`；多行文本里 Ctrl / ⌘ + Enter 也能确认。退场动画中的对话框不再挡快捷键。
+- **修正：** 在题目弹窗里打标记后，弹窗里的标记芯片不再停在保存前（qview 的标记改以题目列表为准）。Esc 关题目弹窗改由 `ui/overlay` 处理，过渡桥 `installEscapeBridge` 删去关弹窗那一条。
+- **测试：** 浏览器单测 31 → 34（客人浮层；onOk / dismissible / Ctrl+Enter；returnFocus）；`tests/e2e/questions.py` 70 → 91（焦点陷阱与回到行、浮层在弹窗里真实可操作、编辑器写回文件、弹窗打开状态审计）。
+
+## v1.24.0（2026-09-25）前端重构 P5：共享题目视图与题目库迁到新架构
+
+- **第 1 轮：共享题目视图 `domain/question/`。** Markdown / KaTeX 渲染按内容哈希缓存、练习记录、qview、详情缓存与题目弹窗收进一个领域模块，旧代码经过渡桥 `installQuestionBridge` 用同名全局；qview 以挂载点为容器（窄挂载点题面单栏），超宽公式只在自己的块里横滚；弹窗 ←/→ 接入 `core/keys.js`。
+- **第 2 轮：题目库是第三个迁到 `assets/app/features/` 的页面。** `features/questions/`（`index.js` / `state.js` / `view.js` / `list.js` / `dialogs.js` / `questions.css`）按页面契约挂载；旧 `qtable.js`（全部）、`questions.js` 的表格 / 画廊 / 操作部分、面板里的旧 HTML、`styles.css` 里约 170 条 `.qb-*` / `.question-gallery-*` / `.q-edit-*` 规则与 `legacy-bridge.css` 的「题库工具栏」段一并删除。题目操作（迁移、停用 / 恢复、删除、批量停用、导出 A4）迁到 `domain/question/ops.js`，题库页、弹窗与各处 qview 按钮共用。
+- **勾选、筛选、切视图不再重建列表。** morph 差量更新，画廊题面挂载点只在换题或换密度时重挂；双滑块拖动中只预览命中数，松手才重排。
+- **窄屏。** ≤760 表格降级为卡片列表（每格带小标题），全部可点目标 ≥40px，搜索框占满一行、提示文字不截断；≤1160 筛选抽屉折到列表上方；>1160 整屏工作台，表头吸顶，列表与抽屉各自滚动。
+- **对话框与菜单换成 ui 组件。** 行内「⋯」用 `ui/menu`；停用 / 删除 / 迁移 / 批量打标记 / 存为视图 / 管理视图用 `ui/dialog`（批量打标记可当场新建标记并添加，不再二次弹框）。
+- **快捷键接入 `core/keys.js`**（`/`、F、V、`[` `]`、↑↓、Space、Enter、B、L、Esc）。旧 `qtable.js`、`labels.js`、`app.js` 各自挂在 document 上的 Esc 监听收进过渡桥 `installEscapeBridge`：标记选择器开着先关它，再关题目弹窗——修正了「按 Esc 关弹窗时顺手清空了题库勾选」这类同一次按键被两处处理的问题。
+- **偏好、视图预设与旧入口兼容。** localStorage 键名与视图预设格式沿用旧版，旧版存下的视图照样能用；仪表盘行动建议、「在题目库打开」经过渡桥 `questionsLoadPreset()` 先清空全部条件再套用（停用筛选不会残留）。题面换行偏好归 `domain/question/markdown.js`。
+- **一处有意差异：** 画廊卡「未练习」只在从未作答时显示；作答过但熟练度为 0 的题显示 0% 进度条（改前两者都显示「未练习」，与旁边的「1 次」矛盾）。
+- **测试。** 原 qtable 单测文件（3 个用例，已删除）与旧画廊脚注用例并入新增的 `tests/app/questions.test.mjs`（20 个用例，state 纯函数全覆盖）；`tests/e2e/questions.py` 扩成题库主路径 + 弹窗 + D4 + 桌面 / 手机 × 浅 / 深审计（23 → 70 项）。
+
+## v1.23.0（2026-09-25）前端重构 P4：反馈录入迁到新架构
+
+- **反馈录入是第二个迁到 `assets/app/features/` 的页面。** `features/feedback/` 按页面契约挂载；旧的 feedback.js（616 行）、面板里的旧 HTML 与提交结果弹窗 `#fb-result-modal`、`styles.css` 里 105 条 `.fb-*` / `.result-row` 规则一并删除。新增适配器 `domain/sessions.js`（Session 列表与当前选中、题目查找、标记、展示板、剪贴板），页面只经 `domain/` 碰旧全局。
+- **判定、打分、写备注不再重建题面。** morph 差量更新，题面挂载点只在换题时更换：KaTeX 节点、图片与滚动原样保留，聚焦的按钮与滑杆不丢焦点。
+- **提交结果改用 `ui/dialog` 弹窗**，状态行留「查看本次结果」可重开；空状态统一用 `ui/empty`；Session 列表读取失败时顶栏给出原因。
+- **窄屏题面单栏。** ≤1160 单栏竖排、题目列表变横条；题面双栏在挂载点 ≤680px 时改单栏（以挂载点为容器补上 qview 自身容器查询不生效的问题）；整行超宽的公式只在所在段落内横滚，手机上不再撑出整页横向滚动。
+- **快捷键接入 `core/keys.js`**（J / K、↓ / ↑、1 / 2、0 与 3–9、Enter、E、⌘ / Ctrl + Enter，与即时练习一致）；在本页空白处 ⌘ / Ctrl + V 读答题卡改为挂载期间的 paste 监听，卸载即移除。三个导入入口共用纯函数 `importer.js::planImportText()`，答题卡与反馈 JSON 的解析规则、报告措辞逐字迁移。
+- **测试。** `test_feedback_ui.js`、`test_omr_import.js`、`smoke_feedback_omr_import.js` 的断言全部并入 `tests/app/feedback.test.mjs`（15 → 24 个用例）；新增浏览器 E2E `tests/e2e/feedback.py`（31 项）。`smoke_schedule_workbench.py` 的对话框选择器已随 P2 更正，反馈部分首次实际跑通。
+- **与旧页面的一处有意差异：** 导入反馈 JSON 失败（如题目已全部录入）时不再顺手切换当前 Session。
+
+## v1.22.0（2026-09-25）前端重构 P3：即时练习迁到新架构；DP4 顶栏瘦身
+
+- **即时练习是第一个迁到 `assets/app/features/` 的页面。** `features/instant/` 按页面契约挂载，旧的 instant.js（177 行）、面板里的旧 HTML、`styles.css` 里约 80 行即时练习规则与 `legacy-bridge.css` 的「题数」段一并删除。新代码只经 `assets/app/domain/` 的四个适配器碰旧全局（题目详情与 qview、全站筛选语义、标记、reloadData）。
+- **判定不再重建题卡。** 用 morph 差量更新，题面挂载点只在换题、翻答案时更换：判对错、打分、切队列时题面节点与 KaTeX 公式原样保留（改前每次判定 6 个公式全部重新渲染），聚焦的按钮与滑杆不丢焦点。
+- **界面按新规范重做。** 筛选条、对 / 错分段按钮、空 / 加载 / 出错状态、进度与提交、队列、提交结果全部换成 ui 组件与 token；页面自身字号由 12 种（最小 9.6px）收到 3–4 种，小于 28px 的可点目标由 3 个降到 0（标记筛选芯片由 20px 改为正常按钮）。>1160 为整屏工作台，≤1160 单栏、队列变横条，≤760 手机布局；题面双栏在窄容器里改单栏。
+- **快捷键。** 与反馈工作台一致：J / K、↓ / ↑ 切题，空格显示答案，1 / 2 判对错，0、3–9 打分，Enter 下一道未判定，E 编辑，⌘ / Ctrl + Enter 提交。
+- **行为修正。** 已提交的题锁定，不能改判、不会被重复提交（改前提交后清空全部判定，同一题可再判再交）；有未提交判定时重新取题先确认（改前直接丢弃）。
+- **页面契约补全。** 外壳在登记页面时注册契约里的 `actions` / `keys`（改前只调用 `mount`）。bus 新增 `labels`、`instant:load` 事件；过渡桥新增 `instLoadPractice(preset)` 与只读 `INSTANT_QUEUE`。
+- **DP4：顶栏只留「录入题目」。** 「重新扫描」移到仪表盘概览条、题库工具栏、目录工具栏，三处共用 `app.scan`：扫描期间按钮置忙，目录页扫完重读目录树；扫描成功提示改为成功色。
+- 测试：新增 `tests/app/instant.test.mjs`（7 项）、`tests/e2e/instant.py`（23 项）、core 浏览器单测 1 项；`tests/e2e/shell_router.py` 18 → 20。
+
+
+## v1.21.0
+
+- **前端重构 P1：hash 路由与启动接管。** 地址形如 `#/questions`：刷新停在原页，浏览器前进后退可用，页面能直接用链接打开；未知地址回到仪表盘，`href="#"` 这类非路由 hash 不再把页面带跑。`app.js` 不再自调用 `init()`，改由模块入口 `assets/app/main.js` 依次安装过渡桥、启动外壳、调用 `init()`、启动路由。`switchTab` 缩成 `router.go` 的一行包装（旧 `onclick` 不用改），原来的标题表、工作台列表与进入各页的 if 链搬进 `assets/app/legacy-pages.js`。
+- **core 底座补齐。** `assets/app/core/` 新增 `morph`（带 `data-key` 的差量更新，保留聚焦输入框的值与选区，支持 `data-morph="skip"` 与 `data-hash`）、`events.js`（`data-action` 委托）、`keys.js`（按页快捷键）、`store.js`、`bus.js`、`router.js`、`api.js`（统一 `{ok, data, error}`）、`format.js`，以及 `html.js` 的 `each()`。旧 `reloadData()` 之后经 `window.__omrs.emit('data', DATA)` 同步到新 store。
+- **外壳打磨。** 侧栏、顶栏与工作台整屏布局迁到 `assets/app/styles/shell.css`（新增 `shell` 层）与 `base.css`，按尺度 token 重排：导航项 40px（紧凑 36px）、当前页强调浅底 + 左侧指示条 + `aria-current`，导航改成可用键盘访问的 `<a href="#/页面">`；折叠为 58px 图标栏时有过渡并用提示显示页面名；顶栏标题 20px 半粗、全局按钮带图标。手机（≤760px）抽屉切页后自动关闭，顶栏按钮只留 40×40 图标，标题不再被挤压。原 860px 的抽屉断点改为设计系统的 760px。旧 `styles.css` 里对应的外壳规则删除。
+- **静态资源 304。** `/assets/` 响应带弱 ETag 与 `Last-Modified`，文件没变时回空的 304，远端经 Nginx 访问不再每次整包重下。
+- **门禁。** 新增 `tests/app/core.test.mjs`（node 9 项）、`tests/app/core_tests.js`（浏览器 6 项，并入 `run_browser.py`）、`tests/e2e/shell_router.py`（18 项）、`tests/test_asset_cache.py`（6 项）。DP4（顶栏只留「录入题目」）等用户确认，未执行。
+
+## v1.20.0
+
+- **前端重构 P2：ui 组件库 v1 与组件陈列页。** `assets/app/ui/` 新增 23 个无业务组件（按钮、图标、字段、选择框、开关、分段、标签页、标签、徽标、卡片、统计、表格、对话框、抽屉、菜单、通知、空状态、骨架屏、局部状态、进度、提示、快捷键、文件拖放）和 55 个自绘 SVG 图标；`assets/app/gallery.html` 按状态矩阵陈列全部组件（浅 / 深 × 舒适 / 紧凑）。P1 尚未执行，本期先带入 P2 必需的底座：`assets/app/package.json`、`core/html.js`（`html``` 默认转义）、`core/dom.js`（唯一写 innerHTML 处）、模块入口 `main.js` 与过渡桥 `legacy-bridge.js`；路由、ETag、`init()` 接管与外壳打磨仍归 P1。
+- **全站只剩一套 toast、一套对话框。** 旧 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 与收件箱 `ibToast` 改为转调新组件（签名不变，模块就绪前的调用排队补发）。对话框改用 `<dialog>.showModal()`：焦点陷阱、Esc / 遮罩关闭、关闭后焦点回到触发元素、锁定背景滚动，能叠在旧弹层之上；危险确认默认聚焦「取消」。旧 `.ui-toast`、`.ib-toast`、`.ui-dialog` 样式与死样式 `.bd-toast` 删除，`#ib-toast` 元素删除。
+- **样式分层。** `omrs_dashboard.html` 只引 `tokens.css` 与新的 `assets/app/styles/index.css`：KaTeX、旧 `styles.css`、组件、过渡层按 `@layer` 排序，新样式不再靠提高选择器权重压旧规则。浏览器下限随之为 Chrome 99 / Safari 15.4 / Firefox 97。
+- **旧按钮、输入框、下拉统一高度与外观（修 D2、D3）。** `styles/legacy-bridge.css` 给旧 `.btn` / `.input` / `select.input` / `textarea.input` 套新外观，旧 `styles.css` 里被接管的基础规则删除：题库工具栏同一行原有 21 / 28 / 38 / 41 / 43 五种高度，现在统一为一档；窄屏（≤760px）三档控件统一为 40px，满足移动端可点目标（D9）；即时练习页移动端筛选 select 文字不再被裁切。旧 `.modal` 弹层外壳同步换成新的圆角、阴影与关闭按钮。
+- **后端小改。** `/assets/` 增加 `.html`、`.mjs` 的 content-type（组件陈列页）；脱敏源码导出收录 `assets/app/package.json`。
+- **门禁。** 新增 `tests/app/run_browser.py`（组件浏览器单测 24 项，可另存 gallery 截图）、`tests/app/html.test.mjs`、`tests/e2e/ui_bridge.py`（过渡桥主路径 E2E）、`tests/test_app_browser.py`；`tests/check_contrast.py` 增加主按钮悬停、危险按钮悬停、选中行三组，浅 / 深共 54 组。
+
+## v1.19.1
+
+- **前端重构 P0：设计 token 与门禁。** 全部 token 移到 `assets/app/styles/tokens.css`，改为「语义 token + 旧名别名」两层，旧样式不改即跟随。新增 `tests/check_ui.py`（新代码零容忍规则 R1–R9 + 旧代码按文件计数的棘轮基线 `tests/ui_baseline.json`）、`tests/check_contrast.py`（浅/深 48 组 WCAG 对比度）、`tests/fixtures/make_vault.py`（演示 Vault）、`tests/visual/run.py`（前后截图对比与运行时审计）。
+- **浅色主题对比度修正。** 辅助文字 `#8b9198`→`#6b7178`（3.2→4.9:1）、绿色 `#16a34a`→`#15803d`（3.3→5.0:1）、黄色 `#ca8a04`→`#a16207`（2.9→4.9:1）、红色 `#dc2626`→`#d02020`（在页面底上 4.50→5.0:1）；击杀 / 顽固芯片字加深到 `#166534` / `#854d0e`（4.4→6.1:1 以上）。深色主题原本全部达标，未改。
+- **删除死代码 recommend.js。** 31 个函数中 28 个无外部引用、所操作的 DOM 已不存在；仍在用的 `showRecommendPanel()` / `showExportPanel()` 并入 `schedule.js`，`core.js` 里配套的 `REC_*` 全局一并删除。
+- **脱敏源码导出收录 `tests/` 下的 JSON。** 否则棘轮基线不随包导出，下一轮受限模式的 `check_ui.py` 会直接失败；其它目录的 JSON 仍不导出。
+
+## v1.19.0
+
+> **v1.19.0 错因迁出题面区 + 已击杀题复燃周期**：两件事，一件版式、一件算法。① **错因泄漏答案**：`## 错因` 一直被排进**题面区**，复习时题目下面直接写着「为什么错」，等于把解法提示给正在作答的人；错因和答案同属「做完才能看」的信息。同时 A4 导出的「二、反馈勾选表」（纸面手填的遗留物，反馈早已改在反馈页录入）也不再需要。改法：`_build_export_data()` 把 notes 拆开——`questions[i].notes` 只带 `关联`（关联是线索不是答案，留在题面区），`answers[i].notes` 只带 `错因`；`data["feedback"]` 键整套删除。A4 `buildBlocks()` 正文重排为「一、题目 / 二、反馈区」：反馈区里每题一块，「第 N 题 [UID]」标题行下面直接跟答案正文，**紧接着**同题错因块（`noteBlock`），同属一块不另起标题，即「答案和错因不分开」；该题既没答案也没错因时不占位，整节无内容连标题都不输出。**未勾选导出答案时反馈区仍然出现**，只是只剩错因，导语改为「本次未导出答案，只列错因」——反馈区是常设区域，不是答案的附属。屏幕版错因移进「显示答案」折叠区之后，展示板补上答案附页的错因块（`answers:"none"` 时整份不给错因，作答纸不给提示）。`.fb-row` 样式与那张表一并删除。② **击杀即永久消失**：`is_killed_state()` 原先在 `schedule_questions()` / `generate_recommendations()` 里直接 `continue`，而投影只在答错时把标签降回待攻克、熟练度留在 1.0——结果是「击杀 = 从系统里删掉」，与记忆规律相反。改法：新增 `revive_dormant_days()` / `is_revive_eligible()`（`common.py` 新增 `revive_decay_threshold` / `revive_tier_multiplier` / `revive_priority_bonus` / `kill_demote_factor` 四个 tuning 键），休眠时长按现有衰减式反解 `(mastery×30+5)×ln(1/threshold)×multiplier^(kill_count-1)`，第 1/2/3/4 次击杀后约 **56 / 101 / 182 / 327 天**，即「周期较长 + 越熟练越长」。`mastery_projection` 新增 `kill_count` 列（只在击杀时累加、降级不重置，老库 `PRAGMA table_info` 探到缺列后 `ALTER TABLE` 补齐），复燃题的旧 `Due_Date` 早已逾期，自然落入到期列表并因 `revive_priority_bonus` 靠前。复燃后答错：标签回 `#状态/待攻克`，熟练度 `× kill_demote_factor`（0.3）、`repetition = 0`、`interval = 1`，配合既有 `attack_bonus` 立刻回到推荐前面；`kill_count` 保留，下次周期自动更长。界面在题库状态列、画廊异常标记、推荐列表选题行与题目详情四处显示「复燃」chip（`title` 写明第 N 次击杀、休眠天数与原定日期）——「这题不是已经击杀了吗，怎么又回来了」必须在列表上直接读到。停用题不参与调度，故不出复燃 chip；画廊里「停用 / 复燃」二选一，且复燃优先于「逾期 N 天」（复燃题的 `Due_Date` 是击杀时的旧值，说「逾期 90 天」会读成没做完的旧账）。`omrs/version.py`、侧栏与根 `README.md` 提到 **v1.19.0**。
+
 ## v1.18.2
 
 - 修复展示板锁定后追加新题会清空纸面记录、被迫全部重印的问题：增删引用、排序与调整未打印题留白保留已印题目、页数及续排位置；仅新增导出继续沿用旧纸面。
@@ -51,7 +170,7 @@
 
 ## v1.10.0
 
-> **v1.10.0 共享题目视图（qview）+ 反馈工作台**：新增 `assets/qview.js`，把原来分散在 `viewQ()`、画廊卡 `.gallery-preview` 和 `instRender()` 的三份题目渲染副本收敛成一个组件，见 §2.2。基于它做了两件用户可见的事：① 题目 Modal 改双栏（题面 | 答案+备注+历史）、加宽到 1180px、支持 `←/→` 在当前列表上下文内翻页；② 反馈录入页从「一列表单」改成三栏工作台（题目列表 / 题目视图 / 判定面板），录反馈时能直接看题和就地编辑，见 §5.1。即时练习的题面/答案块也换成 qview。版本号提到 **v1.10.0**（`omrs/version.py` + HTML 侧栏）。
+> **v1.10.0 共享题目视图（qview）+ 反馈工作台**：新增 assets/qview.js（P5 起迁为 `assets/app/domain/question/`），把原来分散在 `viewQ()`、画廊卡 `.gallery-preview` 和 `instRender()` 的三份题目渲染副本收敛成一个组件，见 §2.2。基于它做了两件用户可见的事：① 题目 Modal 改双栏（题面 | 答案+备注+历史）、加宽到 1180px、支持 `←/→` 在当前列表上下文内翻页；② 反馈录入页从「一列表单」改成三栏工作台（题目列表 / 题目视图 / 判定面板），录反馈时能直接看题和就地编辑，见 §5.1。即时练习的题面/答案块也换成 qview。版本号提到 **v1.10.0**（`omrs/version.py` + HTML 侧栏）。
 
 ## v1.9.0
 
@@ -67,7 +186,7 @@
 
 ## v1.7.0
 
-> **v1.7.0 行动推荐 + 目录页 + 深色对比度修订**：① 仪表盘顶部新增「行动推荐」卡（`#action-plan`，在「最近动态」上方），脚本 `assets/actions.js`，见 §1.1；② 侧栏在「题目库」和「复习调度」之间新增「目录」页（`#panel-catalog`，图标 `#i-tree`），脚本 `assets/catalog.js`，数据来自新接口 `GET /api/tree`，见 §2.1；③ `styles.css` 的 `[data-theme="dark"]` token 与若干写死浅色的规则按对比度重配，见 §12。版本号提到 **v1.7.0**（`omrs/version.py` + HTML 侧栏 `v1.7.0 · 本地服务`）。
+> **v1.7.0 行动推荐 + 目录页 + 深色对比度修订**：① 仪表盘顶部新增「行动推荐」卡（`#action-plan`，在「最近动态」上方），脚本 assets/actions.js（v1.25.0 删除，规则迁到 features/dashboard/plan.js），见 §1.1；② 侧栏在「题目库」和「复习调度」之间新增「目录」页（`#panel-catalog`，图标 `#i-tree`），脚本 `assets/catalog.js`，数据来自新接口 `GET /api/tree`，见 §2.1；③ `styles.css` 的 `[data-theme="dark"]` token 与若干写死浅色的规则按对比度重配，见 §12。版本号提到 **v1.7.0**（`omrs/version.py` + HTML 侧栏 `v1.7.0 · 本地服务`）。
 
 ## v1.5.0
 
@@ -88,3 +207,13 @@
 ## v1.2.0
 
 > **v1.2.0 视觉刷新（精修暖色）**：`styles.css` 的 `:root` 收敛为「编辑式暖色」——卡片去阴影/去 stat-card 顶部彩条、发丝级分隔线。图表条 `.bar-fill.*`/`.chart-fill.*` 以 `rgba(var(--accent-rgb),…)` 淡入主色的渐变填充（见 L500–505 的 `linear-gradient` 段，后者覆盖早期纯色定义）。新增语义族变量 `--fam-review`（复习/绿）、`--fam-session`（Session/蓝）、`--fam-question`（题目/棕）、`--fam-system`（系统/灰），用于时间线圆点、commit 类型标签和仪表盘「最近动态」圆点。`:root` 下方保留一段注释版「夜间账本」深色 token，整段替换即切深色；但仪表盘雷达/热力/趋势图与散点仍有内联浅色需先改用 `var()` 才能正确切到深色。图表内联色尽量走 `var()`（散点已改）。
+
+## 早期版本摘要（自根 README 版本表迁入）
+
+- **v1.13.0**：收件箱：框选提供方（多模态模型 / 版式模板零联网 / 本地检测服务 `local_http`）、盲标评估集、置信度自动就绪与上传即自动处理、超期丢弃图与裁图缓存清理、大裁图改 JPEG、拒绝计数增量化
+- **v1.12.0**：收件箱录入流程：上传 → 处理（框选 / 转文本 / 留图）→ 录入；手机上传页；AI 框选与可转性判断走后台 job；训练数据集统计与导出
+- **v1.8.0**：跨行块级 LaTeX 在题目页/A4/屏幕版完整渲染；设置页重启交给 systemd，避免服务停机
+- **v1.6.0**：单题删除（Ledger 归档）与可配置 Ledger 时间线时区；汇总 v1.5.0 后的导出、AI 录入、仪表盘和报告托管改进
+- **v1.1.1**：历史修正体验修复（撤销/恢复真正生效）；历史页只读浏览需显式开启修正模式；时间线改为题目优先
+- **v1.1.0**：数据格式大变动：改用链式存储（Ledger），数据可回溯可复原，一切操作记录在链上
+- **v1.0.x**：初版

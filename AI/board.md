@@ -1,5 +1,12 @@
 # 展示板（错题集打印）
 
+> **速查**
+> - 职责：展示板引用集合、版面设置、打印（全部 / 仅新增）与纸面记录
+> - 入口：`omrs/boards.py`、`omrs/exporting.py`（展示板段）、`assets/board.js`
+> - 不变量：展示板只保存题目引用，不复制题目内容；纸面记录绑定导出快照
+> - 必跑测试：`tests/test_boards.py`、`tests/test_board_export.py`、`tests/test_board_integrity.py`、`tests/smoke_board_print.py`
+> - 相关：`AI/frontend/board-ui.md`、`AI/export.md`
+
 > 对应源文件：`omrs/boards.py`、`omrs/exporting.py`（展示板导出段）、
 > `omrs/export_templates/board.css`、`omrs/export_templates/board.js`、`assets/board.js`、
 > `assets/board_preview.js`、`assets/styles.css`（`.bd-*`）、`tests/test_boards.py`、
@@ -208,7 +215,7 @@ toast 写明「已直接加入《X》」；只有实际加入题目时才给「�
 宿主为每份 srcdoc 注入独立 `previewToken`，内嵌 HTML 自带 `embedded`，并在就绪后以 `omrs-board-view` 重放视图状态；模板收起自带的顶栏动作条
 （「打印 / 导出 PDF」「✓ 已打印，记录纸面」）——那一条是给独立下载的 HTML 用的，
 嵌在舞台里就成了第二套打印与记录入口。
-iframe 的生命周期、三档刷新与指纹缓存见 `AI/frontend.md` §3.4。
+iframe 的生命周期、三档刷新与指纹缓存见 `AI/frontend/board-ui.md`。
 
 **列表** 每行一行高：拖拽手柄 + 序号 + UID + 徽章（已印 p.N / 新增 / 已改动 / 停用 / 缺失）+
 标记芯片（点击开 LabelPicker）+ 元信息 + 留白只读回显 + 详情 + ✕。留白显示的是生效值

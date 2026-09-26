@@ -1,0 +1,17 @@
+/* 通知 .ui-toaster / .ui-toast：右下角堆叠，窄屏底部通栏；图标颜色区分类型。 */
+.ui-toaster { position: fixed; inset: auto var(--sp-5) var(--sp-5) auto; z-index: var(--z-toast); box-sizing: border-box; display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-2); width: min(420px, calc(100vw - 40px)); height: auto; margin: 0; padding: 0; border: 0; background: transparent; color: var(--fg-1); overflow: visible; pointer-events: none; }
+.ui-toast { box-sizing: border-box; display: flex; align-items: flex-start; gap: var(--sp-2); width: 100%; padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3); border: 1px solid var(--border-2); border-radius: var(--r-md); background: var(--surface-1); box-shadow: var(--elev-2); color: var(--fg-1); font-size: var(--text-sm); line-height: var(--leading-ui); pointer-events: auto; animation: ui-toast-in var(--dur-3) var(--ease-out); }
+.ui-toast__icon { display: flex; flex: none; padding-top: var(--sp-1_5); }
+.ui-toast__icon .ui-icon { width: 16px; height: 16px; }
+.ui-toast--info .ui-toast__icon { color: var(--info); }
+.ui-toast--ok .ui-toast__icon { color: var(--success); }
+.ui-toast--warn .ui-toast__icon { color: var(--warning); }
+.ui-toast--error .ui-toast__icon { color: var(--danger); }
+.ui-toast__text { flex: 1; min-width: 0; padding: var(--sp-1) 0; overflow-wrap: anywhere; }
+.ui-toast__actions { display: flex; flex: none; align-items: center; gap: var(--sp-1); }
+.ui-toast__action { --btn-fg: var(--fg-1); font-weight: var(--weight-semibold); }
+.ui-toast__close { flex: none; --btn-fg: var(--fg-3); }
+.ui-toast.is-leaving { animation: ui-toast-out var(--dur-2) var(--ease-in-out) forwards; }
+.ui-toast.is-bump { animation: ui-bump var(--dur-2) var(--ease-out); }
+.ui-toast.is-static { animation: none; }
+@media (max-width: 760px) { .ui-toaster { inset: auto var(--sp-3) var(--sp-3) var(--sp-3); width: auto; } }

@@ -295,7 +295,7 @@
     const B = [];
     B.push(txtBlock("doc-title", (D.meta && D.meta.title) || "OMRS 错题复习清单"));
     if (D.meta && D.meta.sub) B.push(txtBlock("doc-sub", D.meta.sub));
-    B.push(txtBlock("doc-note", "请在下方空白处作答，完成后在末尾的反馈表中打分和勾选对错。"));
+    B.push(txtBlock("doc-note", "请在下方空白处作答，做完后再翻到末尾的反馈区核对答案与错因。"));
     B.push(txtBlock("section", "一、题目", true));
     const questionGapLines = Math.max(0, Math.min(20, Number(D.meta && D.meta.question_gap_lines) || 0));
     (D.questions || []).forEach((q, index) => {
@@ -306,22 +306,25 @@
         else B.push(txtBlock("q-text", b.text, false, true));
         first = false;
       });
-      if (q.notes && q.notes["错因"]) B.push(noteBlock("错因", q.notes["错因"]));
+      // 题面区只有「关联」；「错因」会提示解法，一律留在末尾反馈区
       if (q.notes && q.notes["关联"]) B.push(noteBlock("关联", q.notes["关联"]));
       if (questionGapLines && index < D.questions.length - 1) B.push(questionGapBlock(questionGapLines));
     });
-    if (D.feedback && D.feedback.length) {
-      B.push(txtBlock("section", "二、反馈勾选表", true));
-      B.push(txtBlock("doc-note", "完成后按行填写。主观分 0-10，数字越大越熟练。"));
-      D.feedback.forEach(f => B.push({ build: () => { const e = el("div", "blk fb-row"); e.innerHTML = '<span class="u">' + esc(f.uid) + '</span><span class="c">分___　□对　□错　页___</span>'; return e; } }));
-    }
-    if (D.answers && D.answers.length) {
-      B.push(txtBlock("section", "三、答案", true));
-      (D.answers || []).forEach(a => {
+    // 反馈区：勾选答案时「第 N 题」下面紧跟答案和错因（不分开）；不勾选时只剩错因。
+    // 既没答案又没错因的题不占位，整体无内容时整段不输出。
+    const withAnswer = (D.answers || []).some(a => a.blocks && a.blocks.length);
+    const fed = (D.answers || []).filter(a => withAnswer || (a.notes && a.notes["错因"]));
+    if (fed.length) {
+      B.push(txtBlock("section", "二、反馈区", true));
+      B.push(txtBlock("doc-note", withAnswer
+        ? "每题下方是答案与错因。"
+        : "本次未导出答案，只列错因。"));
+      fed.forEach(a => {
         B.push(ansHeadBlock(a));
-        if (!a.blocks.length) { B.push(txtBlock("ans-empty", "（暂无答案）")); return; }
         let first = true;
-        a.blocks.forEach(b => { if (b.t === "img") B.push(imgBlock(b, a.uid, first)); else if (b.t === "table") B.push(tableBlock(b)); else B.push(txtBlock("ans-text", b.text, false, true)); first = false; });
+        (a.blocks || []).forEach(b => { if (b.t === "img") B.push(imgBlock(b, a.uid, first)); else if (b.t === "table") B.push(tableBlock(b)); else B.push(txtBlock("ans-text", b.text, false, true)); first = false; });
+        if (withAnswer && !(a.blocks || []).length) B.push(txtBlock("ans-empty", "（暂无答案）"));
+        if (a.notes && a.notes["错因"]) B.push(noteBlock("错因", a.notes["错因"]));
       });
     }
     return B;

@@ -31,6 +31,38 @@ def is_killed_state(mastery: float, tag: str) -> bool:
     return _safe_float(mastery, 0.0) >= 1.0 or "已击杀" in (tag or "")
 
 
+def revive_dormant_days(kill_count, mastery=1.0, tuning=None) -> int:
+    """已击杀题要休眠多少天才复燃。
+
+    复燃依据沿用时间衰减：解 `time_decay(mastery, d) <= revive_decay_threshold`
+    得 `d = (mastery×factor + base) × ln(1/threshold)`。每多击杀一次再乘
+    `revive_tier_multiplier`，因此越熟练的题回来得越晚。
+
+    `kill_count` 是累计击杀次数：第 1 次击杀用基准时长，第 2 次起依次乘系数。
+    mastery=1.0、threshold=0.2、multiplier=1.8 时约为 56 / 101 / 182 / 327 天。
+    """
+    t = tuning or DEFAULT_TUNING
+    threshold = _safe_float(t.get("revive_decay_threshold", 0.2), 0.2)
+    threshold = max(0.01, min(0.95, threshold))
+    multiplier = max(1.0, _safe_float(t.get("revive_tier_multiplier", 1.8), 1.8))
+    mastery = max(0.0, min(1.0, _safe_float(mastery, 1.0)))
+    tier = max(0, _safe_int(kill_count, 1) - 1)
+
+    base_days = (mastery * t["decay_mastery_factor"] + t["decay_base"]) * math.log(1.0 / threshold)
+    return max(1, int(round(base_days * (multiplier ** tier))))
+
+
+def is_revive_eligible(mastery, tag, last_review, kill_count=0, today=None, tuning=None) -> bool:
+    """已击杀题是否已经休眠够久、可以重新进入调度。
+
+    非击杀态一律返回 False——复燃只针对「已击杀」这一种状态。
+    """
+    if not is_killed_state(mastery, tag):
+        return False
+    dormant = revive_dormant_days(kill_count, mastery, tuning)
+    return days_since_review(last_review, today, default=0) >= dormant
+
+
 def ef_to_difficulty(ef) -> float:
     """由 EF 反推「有效难度」(1-10)。
 
@@ -59,20 +91,40 @@ def build_fail_counts(history, uid_by_question_id=None) -> dict:
     return counts
 
 
-def is_leech(fail_count, mastery, tag, tuning=None) -> bool:
-    """顽固题：未击杀且历史累计答错次数达到阈值。"""
+def build_wrong_streaks(history, uid_by_question_id=None) -> dict:
+    """按 Ledger 投影顺序统计每题末尾的连续答错次数；答对即清零。"""
+    streaks = {}
+    for log in history or []:
+        question_id = (log.get("Question_ID") or "").strip()
+        if question_id and uid_by_question_id is not None:
+            uid = (uid_by_question_id.get(question_id) or "").strip()
+        else:
+            uid = (log.get("UID") or "").strip()
+        if not uid:
+            continue
+        result = str(log.get("Is_Correct", "")).strip()
+        if result == "0":
+            streaks[uid] = streaks.get(uid, 0) + 1
+        elif result == "1":
+            streaks[uid] = 0
+    return streaks
+
+
+def is_leech(wrong_streak, mastery, tag, tuning=None) -> bool:
+    """顽固题：未击杀且最近连续答错次数达到阈值。"""
     t = tuning or DEFAULT_TUNING
     if is_killed_state(mastery, tag):
         return False
-    return _safe_int(fail_count, 0) >= t["leech_fail_threshold"]
+    return _safe_int(wrong_streak, 0) >= t["leech_fail_threshold"]
 
 
 def compute_priority(decayed_mastery, ef, days, tag, mastery,
-                     fail_count=0, tuning=None, labels=None, label_bonuses=None) -> float:
+                     wrong_streak=0, tuning=None, labels=None, label_bonuses=None,
+                     is_revived=False) -> float:
     """统一的调度优先级公式（此前在 3 处各写一份，现集中于此）。
 
     priority = (1-decayed)×(eff_diff/10) + (days/divisor)×weight
-               + 待攻克低熟练度加成 + leech 加成
+               + 待攻克低熟练度加成 + leech 加成 + 复燃加成
     """
     t = tuning or DEFAULT_TUNING
     eff_diff = ef_to_difficulty(ef)
@@ -84,8 +136,10 @@ def compute_priority(decayed_mastery, ef, days, tag, mastery,
         + (days / t["priority_days_divisor"]) * t["priority_days_weight"]
     if "待攻克" in (tag or "") and _safe_float(mastery, 0) < t["attack_mastery_threshold"]:
         priority += t["attack_bonus"]
-    if is_leech(fail_count, mastery, tag, t):
+    if is_leech(wrong_streak, mastery, tag, t):
         priority += t["leech_priority_bonus"]
+    if is_revived:
+        priority += t.get("revive_priority_bonus", 0.3)
     if labels and label_bonuses:
         try:
             priority += min(
@@ -101,6 +155,14 @@ def days_since_review(value: str, today=None, default=30):
     today = today or datetime.date.today()
     parsed = parse_date(value)
     return max(0, (today - parsed).days) if parsed else default
+
+
+def _next_revive_date(last_review: str, dormant_days: int) -> str:
+    """已击杀题预计复燃的日期（供界面显示「下次复燃」）。"""
+    parsed = parse_date(last_review or "")
+    if not parsed:
+        return ""
+    return (parsed + datetime.timedelta(days=max(0, _safe_int(dormant_days, 0)))).isoformat()
 
 
 def compute_mastery_update(old_m, ef, sub_score, is_correct, attempts,
@@ -146,6 +208,8 @@ def compute_mastery_update(old_m, ef, sub_score, is_correct, attempts,
         "high_correct_streak": str(high_correct_streak),
         "tag_action": tag_action,
         "label": label,
+        # 击杀次数累加信号；投影器据此递增 kill_count，复燃周期按次数分级
+        "kill_count_delta": 1 if tag_action == "kill" else 0,
     }
 
 
@@ -171,7 +235,12 @@ def schedule_questions(vault, count=10, subject=None, exclude_uids=None):
         mastery = _safe_float(row.get("Mastery", 0))
         tag = row.get("Current_Tag", "")
 
-        if is_killed_state(mastery, tag):
+        # 已击杀题默认跳过；休眠够久（复燃周期）的重新入列
+        revived = is_revive_eligible(
+            mastery, tag, row.get("Last_Review", ""),
+            _safe_int(row.get("Kill_Count", 0), 0), today, tuning,
+        )
+        if is_killed_state(mastery, tag) and not revived:
             continue
 
         days = days_since_review(row.get("Last_Review", ""), today, 30)
@@ -183,6 +252,7 @@ def schedule_questions(vault, count=10, subject=None, exclude_uids=None):
             decayed_mastery, _safe_float(row.get("EF", 2.5), 2.5),
             days, tag, mastery, tuning=tuning,
             labels=_row_labels(row), label_bonuses=label_bonuses,
+            is_revived=revived,
         )
 
         scored.append(
@@ -218,7 +288,16 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
 
     rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
     history = load_csv(history_path(vault), HISTORY_HEADERS)
-    fail_counts = build_fail_counts(history)
+    from .ledger import connect
+    with connect(vault) as db:
+        uid_by_qid = {
+            row["question_id"]: row["uid"]
+            for row in db.execute(
+                "SELECT question_id, uid FROM question_projection WHERE archived = 0"
+            ).fetchall()
+        }
+    fail_counts = build_fail_counts(history, uid_by_qid)
+    wrong_streaks = build_wrong_streaks(history, uid_by_qid)
     tuning = load_tuning(vault)
     from .labels import label_priority_map
     label_bonuses = label_priority_map(vault)
@@ -241,7 +320,12 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
         mastery = _safe_float(row.get("Mastery", 0))
         tag = row.get("Current_Tag", "")
 
-        if is_killed_state(mastery, tag):
+        # 已击杀题默认跳过；休眠够久的复燃题重新入列（其 Due_Date 早已逾期，
+        # 自然落进到期列表并排在最前）
+        if is_killed_state(mastery, tag) and not is_revive_eligible(
+            mastery, tag, row.get("Last_Review", ""),
+            _safe_int(row.get("Kill_Count", 0), 0), today, tuning,
+        ):
             continue
 
         if subject and row.get("Subject", "") != subject:
@@ -278,10 +362,15 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
         decayed = time_decay(
             mastery, days, tuning["decay_mastery_factor"], tuning["decay_base"]
         )
+        revived = is_revive_eligible(
+            mastery, tag, row.get("Last_Review", ""),
+            _safe_int(row.get("Kill_Count", 0), 0), today, tuning,
+        )
         priority = compute_priority(
             decayed, _safe_float(row.get("EF", 2.5), 2.5),
-            days, tag, mastery, fail_counts.get(uid, 0), tuning,
+            days, tag, mastery, wrong_streaks.get(uid, 0), tuning,
             labels=_row_labels(row), label_bonuses=label_bonuses,
+            is_revived=revived,
         )
         prof_scored.append((priority, row))
 
@@ -294,14 +383,16 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
 
     due_result = []
     for row in due_candidates[:effective_due_count]:
-        item = _row_to_item(row, today, fail_counts.get(row.get("UID", ""), 0), tuning)
+        uid = row.get("UID", "")
+        item = _row_to_item(row, today, fail_counts.get(uid, 0), tuning, wrong_streaks.get(uid, 0))
         item["_source"] = "due"
         item["_overdue_days"] = _overdue_days(row.get("Due_Date", ""), today)
         due_result.append(item)
 
     prof_result = []
     for _, row in prof_scored[:effective_prof_count]:
-        item = _row_to_item(row, today, fail_counts.get(row.get("UID", ""), 0), tuning)
+        uid = row.get("UID", "")
+        item = _row_to_item(row, today, fail_counts.get(uid, 0), tuning, wrong_streaks.get(uid, 0))
         item["_source"] = "proficiency"
         prof_result.append(item)
 
@@ -358,13 +449,17 @@ def _safe_float(value, default=0.0):
         return default
 
 
-def _row_to_item(row, today=None, fail_count=0, tuning=None):
+def _row_to_item(row, today=None, fail_count=0, tuning=None, wrong_streak=0):
     today = today or datetime.date.today()
     t = tuning or DEFAULT_TUNING
     row = resolve_sm2_fields(row)
     mastery = _safe_float(row.get("Mastery", 0))
     tag = row.get("Current_Tag", "")
     days = days_since_review(row.get("Last_Review", ""), today, 0)
+    last_review = row.get("Last_Review", "")
+    kill_count = _safe_int(row.get("Kill_Count", 0), 0)
+    dormant_days = revive_dormant_days(kill_count, mastery, t)
+    is_revived = is_revive_eligible(mastery, tag, last_review, kill_count, today, t)
     return {
         "uid": row.get("UID", ""),
         "path": row.get("File_Path", ""),
@@ -378,7 +473,7 @@ def _row_to_item(row, today=None, fail_count=0, tuning=None):
         "ef": round(_safe_float(row.get("EF", 2.5), 2.5), 2),
         "attempts": _safe_int(row.get("Attempts", 0), 0),
         "high_correct_streak": _safe_int(row.get("High_Correct_Streak", 0), 0),
-        "last_review": row.get("Last_Review", ""),
+        "last_review": last_review,
         "interval": _safe_int(row.get("Interval", 0), 0),
         "due_date": row.get("Due_Date", ""),
         "repetition": _safe_int(row.get("Repetition", 0), 0),
@@ -388,7 +483,14 @@ def _row_to_item(row, today=None, fail_count=0, tuning=None):
         "labels": _row_labels(row),
         "suspended": is_suspended_row(row),
         "fail_count": _safe_int(fail_count, 0),
-        "is_leech": is_leech(fail_count, mastery, tag, t),
+        "wrong_streak": _safe_int(wrong_streak, 0),
+        "is_leech": is_leech(wrong_streak, mastery, tag, t),
+        # 复燃：已击杀题休眠够久后重新入列（见 revive_dormant_days）
+        "kill_count": kill_count,
+        "is_revived": is_revived,
+        "dormant_days": dormant_days if is_killed_state(mastery, tag) else 0,
+        "next_revive_date": _next_revive_date(last_review, dormant_days)
+        if is_killed_state(mastery, tag) else "",
     }
 
 

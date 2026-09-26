@@ -1,0 +1,92 @@
+/* 过渡层 legacy-bridge（index.css 里的最高层）：给旧类名套上新组件的外观，让未迁移的页面先统一高度与观感。
+   每段注明「旧调用方 / 删除期」。某页迁到 assets/app/features/ 后删掉只服务该页的段落；P8 整个文件删除。
+   本层只写外观，不写 z-index 与布局尺寸（宽度、定位仍归旧 styles.css）。 */
+
+/* ── 按钮 .btn 系列 ── 调用方：omrs_dashboard.html 与 assets/*.js 的全部旧按钮；随各页迁移收缩，P8 删除。
+   旧 styles.css 里 .btn 的基础规则已删除，由本段完整接管；页面内的局部 .btn 规则（宽度、对齐）仍然生效。 */
+.btn {
+  --btn-h: var(--ctl-md);
+  --btn-px: var(--sp-3);
+  --btn-fs: var(--text-sm);
+  --btn-bg: var(--surface-1);
+  --btn-bg-hover: var(--surface-2);
+  --btn-bg-active: var(--surface-3);
+  --btn-fg: var(--fg-1);
+  --btn-bd: var(--border-2);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-1_5);
+  min-height: var(--btn-h);
+  padding: 0 var(--btn-px);
+  border: 1px solid var(--btn-bd);
+  border-radius: var(--r-sm);
+  background: var(--btn-bg);
+  color: var(--btn-fg);
+  font-family: inherit;
+  font-size: var(--btn-fs);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-tight);
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+.btn:hover:not(:disabled) { background: var(--btn-bg-hover); color: var(--btn-fg); }
+.btn:active:not(:disabled) { background: var(--btn-bg-active); }
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--focus-ring); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.primary, .btn.toggle.active { --btn-bg: var(--accent); --btn-bg-hover: var(--accent-hover); --btn-bg-active: var(--accent-hover); --btn-fg: var(--on-accent); --btn-bd: var(--accent); }
+.btn.ghost { --btn-bg: transparent; --btn-bd: transparent; --btn-fg: var(--fg-2); }
+.btn.ghost:hover:not(:disabled) { color: var(--fg-1); }
+.btn.danger { --btn-bg: var(--danger-soft); --btn-bg-hover: var(--danger); --btn-bg-active: var(--danger); --btn-fg: var(--danger-fg); --btn-bd: var(--danger); }
+.btn.danger:hover:not(:disabled) { color: var(--on-accent); }
+.btn.sm, .btn.ib-xs { --btn-h: var(--ctl-sm); --btn-px: var(--sp-2); --btn-fs: var(--text-xs); gap: var(--sp-1); }
+
+/* 展示板列表与分组里的小图标按钮（⋯、上移下移）——调用方：assets/board.js；P7 删除 */
+:is(.bd-board-item, .bd-acts, .gc-more) .btn { --btn-h: var(--ctl-sm); --btn-px: var(--sp-1_5); }
+
+/* ── 输入框 / 下拉 / 多行 .input ── 调用方：全部旧表单（omrs_dashboard.html 的 33 个 select 都是 select.input）；P8 删除。
+   高度固定、上下内边距为 0：修掉即时练习页 select 文字被裁切（D3），各页控件统一为 32 一档。 */
+.input {
+  box-sizing: border-box;
+  height: var(--ctl-md);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r-sm);
+  background-color: var(--surface-1);
+  color: var(--fg-1);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+  transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
+}
+.input::placeholder { color: var(--fg-3); opacity: 1; }
+.input:hover:not(:disabled):not(:focus) { border-color: var(--fg-3); }
+.input:focus { outline: none; border-color: var(--focus-ring); box-shadow: 0 0 0 1px var(--focus-ring); }
+.input:disabled { background-color: var(--surface-2); color: var(--fg-3); cursor: not-allowed; }
+select.input {
+  padding-right: var(--sp-8);
+  background-image: linear-gradient(45deg, transparent 50%, var(--fg-3) 50%), linear-gradient(135deg, var(--fg-3) 50%, transparent 50%);
+  background-position: calc(100% - 17px) 50%, calc(100% - 12px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+select.input:is([multiple], [size]:not([size="1"])) { height: auto; padding: var(--sp-1); background-image: none; }
+select.input option { background-color: var(--surface-1); color: var(--fg-1); }
+textarea.input { display: block; width: 100%; height: auto; min-height: var(--ctl-lg); padding: var(--sp-2) var(--sp-3); font-size: var(--text-md); resize: vertical; }
+input.input:is([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]) { height: auto; padding: 0; border: 0; background: none; }
+
+/* ── 旧弹层外壳 .modal ── 调用方：标记管理（labels.js）、加入展示板（board.js）等（题目弹窗与 Markdown 编辑器 P5 第 3 轮起是 ui/dialog）；
+   各自迁到新 Dialog / Drawer 时删除（P5–P7）。只统一面板观感与关闭按钮，不改层级与尺寸。 */
+.modal-overlay { background: var(--scrim); }
+.modal { border-color: var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--elev-3); animation: ui-pop-in var(--dur-3) var(--ease-out); }
+.modal h2 { color: var(--fg-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-ui); }
+.modal-close { display: inline-grid; place-items: center; width: var(--ctl-sm); height: var(--ctl-sm); border-radius: var(--r-sm); color: var(--fg-3); transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.modal-close:hover { background: var(--surface-2); color: var(--fg-1); }

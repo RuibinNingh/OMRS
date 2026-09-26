@@ -371,7 +371,6 @@ def _build_export_data(vault, session_id, questions, include_answers, question_g
             "a4_two_columns": _normalize_a4_two_columns(a4_two_columns),
         },
         "questions": [],
-        "feedback": [],
         "answers": [],
     }
     try:
@@ -384,6 +383,11 @@ def _build_export_data(vault, session_id, questions, include_answers, question_g
     except Exception:
         label_colors = {}
     for index, question in enumerate(questions, 1):
+        # 题面区只放「关联」：错因会提示解法，必须留到做完才能看的反馈区
+        # （答案段 / 屏幕版答案折叠区），否则等于把提示写在题目下面。
+        notes = _parse_notes_subsections(question.get("notes", "")) or {}
+        question_notes = {"关联": notes["关联"]} if notes.get("关联") else {}
+        answer_notes = {"错因": notes["错因"]} if notes.get("错因") else {}
         data["questions"].append(
             {
                 "idx": index,
@@ -394,20 +398,19 @@ def _build_export_data(vault, session_id, questions, include_answers, question_g
                 "tags": question.get("tags", ""),
                 "labels": _board_label_objects(question.get("labels", []), label_colors),
                 "blocks": _text_to_blocks(vault, question.get("question", "") or "(无题目内容)"),
-                "notes": _parse_notes_subsections(question.get("notes", "")) or {},
+                "notes": question_notes,
             }
         )
-        data["feedback"].append({"uid": question["uid"]})
-
-    if include_answers:
-        for index, question in enumerate(questions, 1):
-            data["answers"].append(
-                {
-                    "idx": index,
-                    "uid": question["uid"],
-                    "blocks": _text_to_blocks(vault, question.get("answer", "").strip()),
-                }
-            )
+        # 不勾选导出答案时，反馈区只留错因；勾选时错因跟在每道题的答案后面
+        data["answers"].append(
+            {
+                "idx": index,
+                "uid": question["uid"],
+                "blocks": _text_to_blocks(vault, question.get("answer", "").strip())
+                if include_answers else [],
+                "notes": answer_notes,
+            }
+        )
     return data
 
 
@@ -730,6 +733,8 @@ def _board_read_question(vault, item):
         "difficulty": meta.get("难度", item.get("difficulty", "")),
         "question": sections.get(QUESTION_SECTION, "").strip(),
         "answer": sections.get(ANSWER_SECTION, "").strip(),
+        # 展示板此前完全丢掉备注；现按「关联进题面、错因进答案页」分派（见 build_board_export_data）
+        "notes": sections.get(NOTES_SECTION, "").strip(),
         "labels": item.get("labels") or [],
         # None = 继承板的全局留白；具体继承成几行由 build_board_export_data 按 settings 决定
         # （仅新增模式下 settings 沿用纸面几何，所以不能直接用 get_board 算好的 effective 值）
@@ -796,6 +801,7 @@ def build_board_export_data(vault, board_id, mode="all", include_answers=None, o
         "answers": [],
     }
     for offset, question in enumerate(questions):
+        notes = _parse_notes_subsections(question.get("notes", "")) or {}
         data["questions"].append({
             "idx": start_index + offset,
             "uid": question["uid"],
@@ -807,13 +813,17 @@ def build_board_export_data(vault, board_id, mode="all", include_answers=None, o
             "labels": _board_label_objects(question.get("labels", []) if settings["show_labels"] else [], colors),
             "blocks": _text_to_blocks(vault, question.get("question", "") or "(无题目内容)"),
             "gap_lines": _board_gap_lines(question.get("gap_lines"), settings["gap_lines"]),
+            # 题面栏只放「关联」，错因留到答案页（与 A4 / 屏幕版一致）
+            "notes": {"关联": notes["关联"]} if notes.get("关联") else {},
         })
     if settings["answers"] == "append":
         for offset, question in enumerate(questions):
+            notes = _parse_notes_subsections(question.get("notes", "")) or {}
             data["answers"].append({
                 "idx": start_index + offset,
                 "uid": question["uid"],
                 "blocks": _text_to_blocks(vault, question.get("answer", "").strip()),
+                "notes": {"错因": notes["错因"]} if notes.get("错因") else {},
             })
     return data
 

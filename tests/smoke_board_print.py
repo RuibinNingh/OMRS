@@ -17,6 +17,7 @@ import zlib
 from omrs.boards import add_items, create_board, get_board, record_printed, update_board
 from omrs.creation import create_question
 from omrs.exporting import export_board_html
+from tests.browser_runtime import launch_chromium
 
 try:
     from playwright.sync_api import sync_playwright
@@ -82,7 +83,7 @@ class BoardPrintSmokeTest(unittest.TestCase):
     def test_full_then_incremental_print(self):
         with tempfile.TemporaryDirectory() as vault, sync_playwright() as p:
             try:
-                browser = p.chromium.launch()
+                browser = launch_chromium(p)
             except Exception as exc:  # pragma: no cover
                 self.skipTest(f"Chromium 不可用: {exc}")
             image = "data:image/png;base64," + base64.b64encode(_tall_figure()).decode("ascii")
@@ -133,13 +134,14 @@ class BoardPrintSmokeTest(unittest.TestCase):
             after = record_printed(vault, board["id"], "new", layout2)["printed_summary"]
             self.assertEqual(after["count"], 6)
             self.assertEqual(after["new_count"], 0)
-            browser.close()
+            if not os.environ.get("OMRS_TEST_CDP_URL"):
+                browser.close()
 
     def test_incremental_print_continues_on_partial_page(self):
         """短板：第一次只印一道短题，纸上大片空白 → 补印必须走占位页，新题顶在 cursor 处。"""
         with tempfile.TemporaryDirectory() as vault, sync_playwright() as p:
             try:
-                browser = p.chromium.launch()
+                browser = launch_chromium(p)
             except Exception as exc:  # pragma: no cover
                 self.skipTest(f"Chromium 不可用: {exc}")
             first_uid = create_question(vault, subject="数学", category="代数", difficulty=5, question_text="第一题 $a+b$")["uid"]
@@ -162,13 +164,14 @@ class BoardPrintSmokeTest(unittest.TestCase):
             self.assertTrue(all(d["overflow"] <= 0.5 for d in diag2), diag2)
             after = record_printed(vault, board["id"], "new", layout2)["printed_summary"]
             self.assertEqual((after["count"], after["pages"], after["new_count"]), (2, 1, 0))
-            browser.close()
+            if not os.environ.get("OMRS_TEST_CDP_URL"):
+                browser.close()
 
     def test_wide_photo_is_sliced_via_downscaled_analysis(self):
         """宽于 600px 的长图走缩图分析：仍能沿白缝切片、跨页续排、不溢出，且一趟排版就绪。"""
         with tempfile.TemporaryDirectory() as vault, sync_playwright() as p:
             try:
-                browser = p.chromium.launch()
+                browser = launch_chromium(p)
             except Exception as exc:  # pragma: no cover
                 self.skipTest(f"Chromium 不可用: {exc}")
             image = "data:image/png;base64," + base64.b64encode(_tall_figure(width=1400, height=4200, band=160, gap=50)).decode("ascii")
@@ -182,7 +185,8 @@ class BoardPrintSmokeTest(unittest.TestCase):
             self.assertEqual(layout["warnings"], [])            # 缩图后仍能找到白缝，没有被迫硬切
             self.assertEqual(len(layout["items"]), 1)
             self.assertEqual(len(layout["items"][0]["segments"]), layout["pages"])
-            browser.close()
+            if not os.environ.get("OMRS_TEST_CDP_URL"):
+                browser.close()
 
 
 CUT_JS = """() => [...document.querySelectorAll('.page')].map(p => {
@@ -231,7 +235,7 @@ class BoardCutLineSmokeTest(unittest.TestCase):
     def test_dash_draws_one_line_per_question_gap_at_full_content_width(self):
         with tempfile.TemporaryDirectory() as vault, sync_playwright() as p:
             try:
-                browser = p.chromium.launch()
+                browser = launch_chromium(p)
             except Exception as exc:  # pragma: no cover
                 self.skipTest(f"Chromium 不可用: {exc}")
             board = self._board(vault, count=4)
@@ -246,12 +250,13 @@ class BoardCutLineSmokeTest(unittest.TestCase):
                 self.assertEqual(cut["solid"], "dashed")
                 self.assertEqual(cut["tag"], "")                                # 默认不标「第 N 题止」
                 self.assertGreater(cut["top"], 0)
-            browser.close()
+            if not os.environ.get("OMRS_TEST_CDP_URL"):
+                browser.close()
 
     def test_none_removes_every_cut_line_from_the_dom(self):
         with tempfile.TemporaryDirectory() as vault, sync_playwright() as p:
             try:
-                browser = p.chromium.launch()
+                browser = launch_chromium(p)
             except Exception as exc:  # pragma: no cover
                 self.skipTest(f"Chromium 不可用: {exc}")
             board = self._board(vault, count=4)
@@ -262,7 +267,7 @@ class BoardCutLineSmokeTest(unittest.TestCase):
     def test_solid_with_label_shows_the_question_number_and_a_solid_rule(self):
         with tempfile.TemporaryDirectory() as vault, sync_playwright() as p:
             try:
-                browser = p.chromium.launch()
+                browser = launch_chromium(p)
             except Exception as exc:  # pragma: no cover
                 self.skipTest(f"Chromium 不可用: {exc}")
             board = self._board(vault, count=4)
@@ -277,7 +282,7 @@ class BoardCutLineSmokeTest(unittest.TestCase):
     def test_answer_pages_never_carry_question_cut_lines(self):
         with tempfile.TemporaryDirectory() as vault, sync_playwright() as p:
             try:
-                browser = p.chromium.launch()
+                browser = launch_chromium(p)
             except Exception as exc:  # pragma: no cover
                 self.skipTest(f"Chromium 不可用: {exc}")
             board = self._board(vault, count=4)
@@ -288,7 +293,8 @@ class BoardCutLineSmokeTest(unittest.TestCase):
             for page in pages:
                 if page["page"] in answer_pages:
                     self.assertEqual(page["cuts"], [], f"答案页 {page['page']} 不应有题目切割线")
-            browser.close()
+            if not os.environ.get("OMRS_TEST_CDP_URL"):
+                browser.close()
 
 
 if __name__ == "__main__":

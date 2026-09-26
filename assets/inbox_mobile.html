@@ -30,15 +30,20 @@ input[type=file]{display:none}
 <div class="foot">上传的原图保存在 <code>错题/.omrs/inbox/raw/</code>，不会直接进题库。</div>
 <script>
 const list=document.getElementById('list');const st=document.getElementById('st');
-fetch('/api/status').then(r=>r.json()).then(s=>{st.textContent='● 已连接 '+(s.version||'')}).catch(()=>{st.textContent='● 未连接';st.className='err'});
+// Session expired (remote PIN): go to the login page and come back to /m afterwards.
+let toLogin=false;const goLogin=()=>{if(toLogin)return;toLogin=true;location.assign('/login?next='+encodeURIComponent('/m'))};
+fetch('/api/auth/session').then(r=>r.json()).then(s=>{if(!s.remote||!s.authenticated)return;let last=0;const active=()=>{if(Date.now()-last<60000)return;last=Date.now();fetch('/api/auth/activity',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).catch(()=>{})};['pointerdown','keydown','touchstart','wheel','scroll'].forEach(name=>document.addEventListener(name,active,{passive:true,capture:true}))}).catch(()=>{});
+fetch('/api/status').then(async r=>{if(r.status===401){st.textContent='● 需要登录';st.className='err';goLogin();return}if(!r.ok)throw new Error('HTTP '+r.status);const s=await r.json();st.textContent='● 已连接 '+(s.version||'')}).catch(()=>{st.textContent='● 未连接';st.className='err'});
 document.getElementById('f').addEventListener('change',async e=>{
   const files=[...e.target.files];e.target.value='';
   for(const file of files){
     const row=document.createElement('div');row.className='row';
-    row.innerHTML=`<span class="n">${file.name}</span><span class="busy">上传中</span>`;list.prepend(row);
+    const filename=document.createElement('span');filename.className='n';filename.textContent=file.name;const progress=document.createElement('span');progress.className='busy';progress.textContent='上传中';row.append(filename,progress);list.prepend(row);
     const fd=new FormData();fd.append('file',file,file.name);
     try{
-      const r=await fetch('/api/inbox/upload',{method:'POST',body:fd});const j=await r.json();
+      const r=await fetch('/api/inbox/upload',{method:'POST',body:fd});
+      if(r.status===401){progress.textContent='✕ 登录已过期，正在跳转登录…';progress.className='err';goLogin();return}
+      const j=await r.json();
       if(!r.ok)throw new Error(j.msg||('HTTP '+r.status));
       const s=row.lastElementChild;
       if(j.items&&j.items.length){s.textContent='✓ 已收 '+j.items[0].width+'×'+j.items[0].height;s.className='ok'}

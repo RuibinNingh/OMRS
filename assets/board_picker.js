@@ -73,10 +73,12 @@ function boardPickerClose() {
   document.removeEventListener('click', BOARD_PICKER.onOutside, true);
   window.removeEventListener('resize', BOARD_PICKER.onReflow);
   window.removeEventListener('scroll', BOARD_PICKER.onReflow, true);
-  BOARD_PICKER.node.remove();
+  const node = BOARD_PICKER.node;
+  node.remove();
   const done = BOARD_PICKER.onDone;
   const touched = BOARD_PICKER.touched;
   BOARD_PICKER = null;
+  window.__omrsUi?.release?.(node);
   if (typeof done === 'function') done(touched);
 }
 
@@ -320,7 +322,9 @@ async function boardPickerOpen(uids, options = {}) {
     <div class="bd-picker-options" role="listbox" aria-label="展示板"></div>
     <div class="bd-picker-foot"><button type="button" class="btn sm ghost bd-picker-new" data-bd-pick-new>＋ 新建板并加入…</button>
       <span class="hint bd-picker-hint"></span></div>`;
-  document.body.appendChild(box);
+  // 叠在模态对话框（题目弹窗）上时放进对话框，否则被 inert（ui/overlay 的客人；键盘仍由下面的 onKey 自己处理）
+  if (typeof window.__omrsUi?.host === 'function') window.__omrsUi.host(box, { close: boardPickerClose });
+  else document.body.appendChild(box);
   BOARD_PICKER = {
     node: box, uids: clean, boards: candidates, folders: BOARD_FOLDERS,
     exclude: options.exclude || '', moveFrom: options.moveFrom || '',
@@ -363,8 +367,10 @@ async function boardPickerOpen(uids, options = {}) {
     // 焦点没在搜索框时（触屏不自动聚焦）也能直接打字过滤
     if (event.key.length === 1 && document.activeElement !== picker.search) picker.search.focus();
   };
+  // 挡住「点外面关闭」的只有叠在浮层上面的弹层（如「新建板」输入框）；包含浮层的宿主对话框（题目弹窗）不算
   picker.onOutside = event => {
-    if (BOARD_PICKER && !box.contains(event.target) && !document.querySelector('.modal-overlay.open')) boardPickerClose();
+    const above = [...document.querySelectorAll('.modal-overlay.open, dialog[open]')].some(layer => !layer.contains(box));
+    if (BOARD_PICKER && !box.contains(event.target) && !above) boardPickerClose();
   };
   document.addEventListener('keydown', picker.onKey, true);
   window.addEventListener('resize', picker.onReflow);

@@ -1,0 +1,173 @@
+/* OMRS 设计 token（唯一允许出现颜色字面量的样式文件）
+ *
+ * 分三段：
+ *   1. 语义 token：表面 / 文字 / 描边 / 强调 / 状态。浅色写在 :root，深色写在 [data-theme="dark"]。
+ *   2. 尺度 token：字号、行高、字重、间距、控件高度、圆角、阴影、动效、层级。
+ *      [data-density="compact"] 在这里统一下调一档。
+ *   3. 旧名别名：--bg、--fg2、--red 等旧 token 全部指向语义 token，旧样式不用改就跟着新值走。
+ *      页面迁完后删除（前端重构 P8）。
+ *
+ * 规范说明见 AI/frontend/design-system.md；对比度由 tests/check_contrast.py 校验。
+ */
+
+/* ── 1. 语义 token：浅色 ─────────────────────────────── */
+:root{
+  --surface-0:#f6f7f8;            /* 页面底 */
+  --surface-1:#ffffff;            /* 卡片、面板 */
+  --surface-2:#eceef0;            /* 卡中卡、输入底、悬停底 */
+  --surface-3:#d7dadd;            /* 轨道、滚动条、分隔块 */
+  --fg-1:#1a1c1f;                 /* 主文字 */
+  --fg-2:#5b6168;                 /* 次文字 */
+  --fg-3:#6b7178;                 /* 辅助文字（对 surface-0/1 ≥4.5:1） */
+  --border-1:#e6e8ea;
+  --border-2:#d6d9dc;
+  --accent:#1a1c1f;
+  --accent-hover:#111317;
+  --accent-muted:#c4c8cc;
+  --accent-soft:rgba(26,28,31,0.05);
+  --on-accent:#ffffff;
+  --accent-rgb:26,28,31;
+  --focus-ring:#2563eb;
+
+  /* 状态色：基色同时用于文字，须对 surface-0/1 ≥4.5:1 */
+  --danger:#d02020;  --danger-rgb:208,32,32;  --danger-soft:rgba(220,38,38,0.10);  --danger-fg:#b91c1c;
+  --success:#15803d; --success-rgb:21,128,61; --success-soft:rgba(22,163,74,0.10);  --success-fg:#166534;
+  --warning:#a16207; --warning-rgb:161,98,7;  --warning-soft:rgba(202,138,4,0.12);  --warning-fg:#854d0e;
+  --info:#2563eb;    --info-rgb:37,99,235;    --info-soft:rgba(37,99,235,0.10);     --info-fg:#1d4ed8;
+
+  /* 时间线事件族 */
+  --family-review:var(--success);
+  --family-session:var(--info);
+  --family-question:#64748b;
+  --family-system:#9ca3af;
+
+  /* 图表 */
+  --chart-surface:rgba(255,255,255,0.66);
+  --chart-line:rgba(26,28,31,0.10);
+
+  /* 阴影层级 */
+  --elev-0:none;
+  --elev-1:0 1px 2px rgba(16,24,40,0.04);
+  --elev-2:0 4px 16px rgba(16,24,40,0.10);
+  --elev-3:0 16px 48px rgba(16,24,40,0.18);
+  --scrim:rgba(16,18,20,0.40);
+
+  /* 题面块（qview 的 .q-md）等内嵌区：浅色即页面底，深色是叠在面板上的淡亮层 */
+  --surface-sunken:var(--surface-0);
+  --success-subtle:rgba(21,128,61,0.06);  --success-line:rgba(21,128,61,0.22);
+  --streak-ok:rgba(var(--success-rgb),0.75); --streak-bad:rgba(var(--danger-rgb),0.85);   /* 战绩带竖条，随主题的 rgb 走 */
+
+  /* 标记：预设色（新建标记依次取用，不随主题变）与 solid 芯片的前景色 */
+  --lbl-preset-1:#dc2626; --lbl-preset-2:#ea580c; --lbl-preset-3:#ca8a04; --lbl-preset-4:#16a34a; --lbl-preset-5:#0d9488;
+  --lbl-preset-6:#2563eb; --lbl-preset-7:#7c3aed; --lbl-preset-8:#db2777; --lbl-preset-9:#64748b; --lbl-preset-10:#78716c;
+  --lbl-fg-dark:#1a1c1f; --lbl-fg-light:#ffffff;
+}
+
+/* ── 1. 语义 token：深色「暖石墨」 ───────────────────── */
+[data-theme="dark"]{
+  --surface-0:#141311;
+  --surface-1:#211f1d;
+  --surface-2:#2e2b27;
+  --surface-3:#433f38;
+  --fg-1:#f0ebe3;
+  --fg-2:#b3aa9e;
+  --fg-3:#8f887c;
+  --border-1:rgba(236,231,223,0.13);
+  --border-2:rgba(236,231,223,0.23);
+  --accent:#ece7df;
+  --accent-hover:#fbf7f0;
+  --accent-muted:rgba(236,231,223,0.46);
+  --accent-soft:rgba(236,231,223,0.11);
+  --on-accent:#17150f;
+  --accent-rgb:236,231,223;
+  --focus-ring:#8fb0d8;
+
+  --danger:#e59a8c;  --danger-rgb:229,154,140; --danger-soft:rgba(229,154,140,0.20);  --danger-fg:#efb2a6;
+  --success:#8fbf9a; --success-rgb:143,191,154; --success-soft:rgba(143,191,154,0.20); --success-fg:#a8d3b2;
+  --warning:#dcb06a; --warning-rgb:220,176,106; --warning-soft:rgba(220,176,106,0.20); --warning-fg:#e8c793;
+  --info:#8fb0d8;    --info-rgb:143,176,216;    --info-soft:rgba(143,176,216,0.20);    --info-fg:#aac4e4;
+
+  --family-question:#c2b39c;
+  --family-system:#a09889;
+
+  --chart-surface:rgba(255,255,255,0.055);
+  --chart-line:rgba(236,231,223,0.17);
+
+  --elev-1:0 1px 3px rgba(0,0,0,0.40);
+  --elev-2:0 6px 20px rgba(0,0,0,0.45);
+  --elev-3:0 20px 56px rgba(0,0,0,0.55);
+  --scrim:rgba(10,9,7,0.62);
+  --surface-sunken:rgba(236,231,223,0.07);
+  --success-subtle:rgba(143,191,154,0.06); --success-line:rgba(143,191,154,0.22);
+}
+
+/* ── 2. 尺度 token ─────────────────────────────────────── */
+:root{
+  /* 字号：8 档，px 定义，不受旧样式的 html{font-size:15px} 影响 */
+  --text-2xs:11px; --text-xs:12px; --text-sm:13px; --text-md:14px;
+  --text-lg:16px;  --text-xl:20px; --text-2xl:28px; --text-display:40px;
+  --leading-tight:1.15; --leading-ui:1.45; --leading-read:1.75;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --font-sans:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+
+  /* 间距：4px 基准 */
+  --sp-0_5:2px; --sp-1:4px; --sp-1_5:6px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --sp-5:20px;  --sp-6:24px; --sp-8:32px; --sp-10:40px; --sp-12:48px;
+
+  /* 控件高度：同一行只用同一档 */
+  --ctl-sm:28px; --ctl-md:32px; --ctl-lg:40px;
+
+  /* 圆角 */
+  --r-xs:4px; --r-sm:6px; --r-md:10px; --r-lg:14px; --r-pill:999px;
+
+  /* 动效 */
+  --dur-1:120ms; --dur-2:180ms; --dur-3:260ms;
+  --ease-out:cubic-bezier(.2,.8,.2,1); --ease-in-out:cubic-bezier(.4,0,.2,1);
+
+  /* 层级 */
+  --z-sticky:10; --z-sidebar:20; --z-dropdown:100; --z-drawer:200;
+  --z-modal:300; --z-toast:400; --z-tooltip:500;
+}
+html[data-density="compact"]{
+  --text-sm:12px; --text-md:13px; --text-lg:15px;
+  --ctl-md:30px; --ctl-lg:36px;
+}
+/* 窄屏（≤760px，手机）：可点目标不小于 40px（D9），三档控件统一到 40，密度开关在窄屏不改变控件高度。 */
+@media (max-width:760px){
+  :root, :root[data-density="compact"]{ --ctl-sm:40px; --ctl-md:40px; --ctl-lg:40px; }
+}
+@media (prefers-reduced-motion:reduce){
+  :root{--dur-1:0ms;--dur-2:0ms;--dur-3:0ms}
+}
+
+/* ── 3. 旧名别名（P8 删除；新代码禁止使用这些名字） ──────── */
+:root{
+  --bg:var(--surface-0); --bg2:var(--surface-1); --bg3:var(--surface-2); --bg4:var(--surface-3);
+  --fg:var(--fg-1); --fg2:var(--fg-2); --fg3:var(--fg-3);
+  --accent2:var(--accent-hover); --accent-light:var(--accent-muted);
+  --accent-bg:var(--accent-soft); --accent-fg:var(--on-accent);
+  --red:var(--danger); --green:var(--success); --yellow:var(--warning); --blue:var(--info);
+  --red-rgb:var(--danger-rgb); --green-rgb:var(--success-rgb);
+  --yellow-rgb:var(--warning-rgb); --blue-rgb:var(--info-rgb);
+  --kill-bg:var(--success-soft); --kill-fg:var(--success-fg);
+  --attack-bg:var(--danger-soft); --attack-fg:var(--danger-fg);
+  --trap-bg:var(--warning-soft); --trap-fg:var(--warning-fg);
+  --fam-review:var(--family-review); --fam-session:var(--family-session);
+  --fam-question:var(--family-question); --fam-system:var(--family-system);
+  --border:var(--border-1); --border2:var(--border-2);
+  --shadow:0 1px 2px rgba(16,24,40,0.05); --card-shadow:var(--elev-1);
+  /* 旧密度层：舒适档数值即改版前原值 */
+  --radius:14px; --radius-sm:10px; --radius-lg:20px;
+  --pad:22px; --pad-sm:14px; --gap:16px; --row:8px; --ctl:7px;
+  --fs:.8rem; --fs-sm:.74rem; --fs-xs:.68rem;
+}
+[data-theme="dark"]{
+  /* 别名在同一元素（<html>）上求值，自动跟随深色语义 token；只有旧阴影需要单独覆盖 */
+  --shadow:0 1px 2px rgba(0,0,0,0.42);
+}
+html[data-density="compact"]{
+  --radius:11px; --radius-sm:8px; --radius-lg:13px;
+  --pad:13px; --pad-sm:10px; --gap:10px; --row:5px; --ctl:5px;
+  --fs:.77rem; --fs-sm:.71rem; --fs-xs:.65rem;
+}

@@ -1,0 +1,102 @@
+/* 数据复盘（features 层）：只用 token；断点只用 760（R5）。
+   卡片自动成两栏（宽内容 --wide 整行）；图表的颜色、线宽、字号全在这里，SVG 与模板里不写颜色、字号与 style=。
+   语气 data-tone：success / warning / danger / info 映射到状态 token，accent 是强调色，muted 是次文字。 */
+
+.dat { display: flex; flex-direction: column; gap: var(--sp-4); min-width: 0; }
+.dat p, .dat h2, .dat dl, .dat dd, .dat ol, .dat ul { margin: 0; padding: 0; }
+.dat ol, .dat ul { list-style: none; }
+.dat .lbl { font-size: var(--text-xs); } /* 旧芯片默认 .64rem（9.6px）；芯片外观 P8 随 styles.css 搬走前，本页按 xs 显示 */
+
+/* ── 说明与动作 ── */
+.dat-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "note acts" "meta acts"; gap: var(--sp-1) var(--sp-4); align-items: center; }
+.dat-head__note { grid-area: note; color: var(--fg-2); font-size: var(--text-sm); line-height: var(--leading-ui); }
+.dat-head__meta { grid-area: meta; min-height: 1.45em; color: var(--fg-3); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.dat-head__acts { grid-area: acts; display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.dat-state { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-3); }
+
+/* ── 概览 ── */
+.dat-kpis { box-sizing: border-box; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-4); padding: var(--sp-4) var(--sp-5); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--elev-1); }
+.dat-kpi { display: flex; flex-direction: column; gap: var(--sp-0_5); min-width: 0; }
+.dat-kpi dt, .dat-kpi__hint { color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-ui); }
+.dat-kpi dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1_5); }
+.dat-kpi__value { color: var(--fg-1); font-size: var(--text-xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); font-variant-numeric: tabular-nums; }
+
+/* ── 卡片 ── */
+.dat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 32em), 1fr)); gap: var(--sp-4); align-items: start; }
+.dat-card { box-sizing: border-box; display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; padding: var(--sp-5); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--elev-1); }
+.dat-card--wide { grid-column: 1 / -1; }
+.dat-card__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1) var(--sp-3); }
+.dat-card__title { color: var(--fg-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-tight); }
+.dat-card__sub { color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-ui); }
+.dat-tone { font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.dat-tone[data-tone="success"] { color: var(--success-fg); }
+.dat-tone[data-tone="warning"] { color: var(--warning-fg); }
+.dat-tone[data-tone="danger"] { color: var(--danger-fg); }
+.dat-tone[data-tone="muted"] { color: var(--fg-3); font-weight: var(--weight-regular); }
+.dat-uid { font-family: var(--font-mono); font-weight: var(--weight-semibold); }
+.dat-acts { display: inline-flex; flex-wrap: wrap; gap: var(--sp-1_5); }
+
+/* ── 横条 ── */
+.dat-bars { display: flex; flex-direction: column; gap: var(--sp-2); }
+.dat-bar { display: grid; grid-template-columns: 5.5em minmax(0, 1fr) 4.5em; align-items: center; gap: var(--sp-3); }
+.dat-bars--labels .dat-bar { grid-template-columns: minmax(6em, 9em) minmax(0, 1fr) 3em; }
+.dat-bar__label { overflow: hidden; color: var(--fg-2); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dat-bar__val { color: var(--fg-1); font-size: var(--text-sm); font-weight: var(--weight-semibold); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dat .ui-progress--info::-webkit-progress-value { background: var(--info); }
+.dat .ui-progress--info::-moz-progress-bar { background: var(--info); }
+
+/* ── SVG 图 ── */
+.dat-mini { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-6); }
+.dat-mini div { display: flex; flex-direction: column-reverse; gap: var(--sp-0_5); }
+.dat-mini dt { color: var(--fg-3); font-size: var(--text-xs); }
+.dat-mini dd { color: var(--fg-1); font-size: var(--text-xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); font-variant-numeric: tabular-nums; }
+.dat-svg { display: block; width: 100%; height: auto; }
+.dat-svg text { fill: var(--fg-3); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.dat-svg .dat-svg__label { fill: var(--fg-2); }
+.dat-svg__grid { fill: none; stroke: var(--border-1); }
+.dat-svg__axis { stroke: var(--border-2); }
+.dat-trend__area { fill: color-mix(in srgb, var(--info) 16%, transparent); }
+.dat-trend__line { fill: none; stroke: var(--info); stroke-width: 2.5; stroke-linecap: round; }
+.dat-trend__dot, .dat-trend__peak { fill: var(--info); stroke: var(--surface-1); stroke-width: 1.5; }
+.dat-trend__peak { fill: var(--warning); }
+.dat-radar__area { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; }
+.dat-svg__dot, .dat-scatter__bubble { stroke: var(--surface-1); stroke-width: 1.5; }
+.dat-scatter__plot { fill: var(--surface-2); }
+.dat-scatter__bubble { opacity: .85; }
+.dat-svg [data-tone="success"] { fill: var(--success); }
+.dat-svg [data-tone="warning"] { fill: var(--warning); }
+.dat-svg [data-tone="danger"] { fill: var(--danger); }
+.dat-svg [data-tone="muted"] { fill: var(--fg-3); }
+.dat-legend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-3); color: var(--fg-3); font-size: var(--text-xs); }
+.dat-legend [data-tone]::before { content: ""; display: inline-block; width: var(--sp-2); height: var(--sp-2); margin-right: var(--sp-1); border-radius: var(--r-pill); vertical-align: middle; }
+.dat-legend [data-tone="danger"]::before { background: var(--danger); }
+.dat-legend [data-tone="warning"]::before { background: var(--warning); }
+.dat-legend [data-tone="success"]::before { background: var(--success); }
+
+/* ── 按时段 ── */
+.dat-heat { display: flex; flex-direction: column; gap: var(--sp-1_5); }
+.dat-heat__grid { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: var(--sp-0_5); }
+.dat-heat__cell { box-sizing: border-box; aspect-ratio: 1 / 1.6; border: 1px solid var(--border-1); border-radius: var(--r-xs); background: var(--surface-2); }
+.dat-heat__cell[data-level="1"] { border-color: transparent; background: color-mix(in srgb, var(--success) 25%, var(--surface-1)); }
+.dat-heat__cell[data-level="2"] { border-color: transparent; background: color-mix(in srgb, var(--success) 50%, var(--surface-1)); }
+.dat-heat__cell[data-level="3"] { border-color: transparent; background: color-mix(in srgb, var(--success) 75%, var(--surface-1)); }
+.dat-heat__cell[data-level="4"] { border-color: transparent; background: var(--success); }
+.dat-heat__axis { display: flex; justify-content: space-between; color: var(--fg-3); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+
+/* ── 复习预警 ── */
+.dat-alerts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--sp-3); }
+.dat-alert { display: flex; flex-direction: column-reverse; gap: var(--sp-1); padding: var(--sp-3); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-0); }
+.dat-alert dt { color: var(--fg-3); font-size: var(--text-xs); }
+.dat-alert dd { color: var(--fg-1); font-size: var(--text-xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); font-variant-numeric: tabular-nums; }
+.dat-alert[data-tone="danger"] dd { color: var(--danger-fg); }
+.dat-alert[data-tone="warning"] dd { color: var(--warning-fg); }
+.dat-alert[data-tone="info"] dd { color: var(--info-fg); }
+
+@media (max-width: 760px) {
+  .dat-head { grid-template-columns: minmax(0, 1fr); grid-template-areas: "note" "acts" "meta"; }
+  .dat-head__acts .ui-btn { flex: 1 1 auto; }
+  .dat-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: var(--sp-4); }
+  .dat-card { padding: var(--sp-4); }
+  .dat-heat__grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .dat-alerts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

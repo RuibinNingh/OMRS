@@ -5,13 +5,14 @@ from .common import extract_category, extract_knowledge_tags, extract_tag, extra
 from .ledger import append_commit, connect
 from .projections import rebuild_projection
 from .workspace_sync import content_hash, metadata_hash, scan_workspace, update_fingerprints
+from .path_safety import safe_question_directory, safe_question_path
 
 
 def get_question_raw(vault: str, uid: str):
     row = _projection_by_uid(vault, uid)
     if not row:
         raise RuntimeError(f"UID 不存在: {uid}")
-    path = os.path.join(vault, row["file_path"])
+    path = _question_file_path(vault, row)
     with open(path, "r", encoding="utf-8") as file:
         return {
             "uid": uid,
@@ -30,7 +31,7 @@ def save_question_markdown(vault: str, uid: str, markdown: str):
     new_meta = parse_yaml_frontmatter(markdown)
     if new_meta.get("_omrs_id") != old_id:
         raise RuntimeError("_omrs_id 是系统内部身份，不能在编辑器中修改")
-    path = os.path.join(vault, row["file_path"])
+    path = _question_file_path(vault, row)
     _atomic_write_text(path, markdown)
     scan_workspace(vault)
     return {"uid": uid, "file_path": row["file_path"], "bytes": len(markdown.encode("utf-8"))}
@@ -68,14 +69,16 @@ def move_question(vault: str, uid: str, target_subject: str, target_category: st
     if not row:
         raise RuntimeError(f"UID 不存在: {uid}")
     qroot = questions_root(vault)
-    target_dir = os.path.join(qroot, target_subject or row["subject"], target_category)
+    target_dir, target_subject, target_category = safe_question_directory(
+        vault, target_subject or row["subject"], target_category)
+    source_path = _question_file_path(vault, row)
     os.makedirs(target_dir, exist_ok=True)
     target_uid = _next_uid(qroot, target_category)
     target_path = os.path.join(target_dir, f"{target_uid}.md")
+    safe_question_path(vault, target_path)
     if os.path.exists(target_path):
         raise RuntimeError(f"目标 UID 已存在: {target_uid}")
 
-    source_path = os.path.join(vault, row["file_path"])
     with open(source_path, "r", encoding="utf-8") as file:
         content = file.read()
     content = _replace_frontmatter_field(content, "科目", target_subject or row["subject"])
@@ -203,11 +206,8 @@ def _projection_by_uid(vault, uid):
 
 
 def _question_file_path(vault, row):
-    root = os.path.abspath(questions_root(vault))
     path = os.path.abspath(os.path.join(vault, row["file_path"]))
-    if os.path.commonpath([root, path]) != root:
-        raise RuntimeError("题目文件路径不在错题目录内")
-    return path
+    return safe_question_path(vault, path)
 
 
 def _next_uid(qroot, category):

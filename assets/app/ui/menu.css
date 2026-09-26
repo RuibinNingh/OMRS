@@ -1,0 +1,14 @@
+/* 菜单 .ui-menu：浮层（is-floating，popover 顶层或 --z-dropdown）或 gallery 静态预览（is-static）。 */
+.ui-menu { box-sizing: border-box; display: flex; flex-direction: column; min-width: 180px; max-width: min(320px, calc(100vw - 16px)); padding: var(--sp-1); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-1); box-shadow: var(--elev-2); color: var(--fg-1); }
+.ui-menu.is-floating { position: fixed; inset: auto; left: var(--menu-x, 0); top: var(--menu-y, 0); z-index: var(--z-dropdown); max-height: calc(100vh - 16px); margin: 0; overflow: auto; animation: ui-pop-in var(--dur-2) var(--ease-out); }
+.ui-menu.is-static { position: static; }
+.ui-menu__item { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--ctl-md); padding: 0 var(--sp-3); border: 0; border-radius: var(--r-sm); background: none; color: var(--fg-1); font-family: inherit; font-size: var(--text-sm); line-height: var(--leading-ui); text-align: left; cursor: pointer; }
+.ui-menu__item .ui-icon { width: 16px; height: 16px; color: var(--fg-3); }
+.ui-menu__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-menu__hint { flex: none; color: var(--fg-3); font-size: var(--text-xs); }
+.ui-menu__item:is(:hover, :focus, .is-hover) { outline: none; background: var(--surface-2); }
+.ui-menu__item.is-danger, .ui-menu__item.is-danger .ui-icon { color: var(--danger); }
+.ui-menu__item[aria-disabled="true"] { color: var(--fg-3); cursor: not-allowed; }
+.ui-menu__item[aria-disabled="true"]:hover { background: none; }
+.ui-menu__divider { height: 1px; margin: var(--sp-1) 0; background: var(--border-1); }
+@media (max-width: 760px) { .ui-menu__item { min-height: var(--ctl-lg); } }

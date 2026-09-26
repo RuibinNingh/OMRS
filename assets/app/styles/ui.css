@@ -1,0 +1,41 @@
+/* ui 组件样式汇总：index.css 把它整体放进 ui 层；gallery.html 与 tests/app/browser.html 直接引用。 */
+@import url("../ui/icon.css");
+@import url("../ui/button.css");
+@import url("../ui/field.css");
+@import url("../ui/select.css");
+@import url("../ui/switch.css");
+@import url("../ui/segmented.css");
+@import url("../ui/tabs.css");
+@import url("../ui/tag.css");
+@import url("../ui/badge.css");
+@import url("../ui/card.css");
+@import url("../ui/stat.css");
+@import url("../ui/table.css");
+@import url("../ui/dialog.css");
+@import url("../ui/drawer.css");
+@import url("../ui/menu.css");
+@import url("../ui/toast.css");
+@import url("../ui/empty.css");
+@import url("../ui/skeleton.css");
+@import url("../ui/status.css");
+@import url("../ui/progress.css");
+@import url("../ui/tooltip.css");
+@import url("../ui/kbd.css");
+@import url("../ui/filedrop.css");
+
+/* 共享动效关键帧：时长与缓动一律由调用处的 --dur-* / --ease-* 决定，减少动效时这些 token 归零。 */
+@keyframes ui-spin { to { transform: rotate(360deg); } }
+@keyframes ui-fade-in { from { opacity: 0; } }
+@keyframes ui-fade-out { to { opacity: 0; } }
+@keyframes ui-pop-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
+@keyframes ui-pop-out { to { opacity: 0; transform: translateY(4px) scale(.98); } }
+@keyframes ui-slide-in-right { from { transform: translateX(100%); } }
+@keyframes ui-slide-out-right { to { transform: translateX(100%); } }
+@keyframes ui-slide-in-left { from { transform: translateX(-100%); } }
+@keyframes ui-slide-out-left { to { transform: translateX(-100%); } }
+@keyframes ui-slide-in-up { from { transform: translateY(100%); } }
+@keyframes ui-slide-out-down { to { transform: translateY(100%); } }
+@keyframes ui-toast-in { from { opacity: 0; transform: translateY(12px); } }
+@keyframes ui-toast-out { to { opacity: 0; transform: translateX(16px); } }
+@keyframes ui-bump { 50% { transform: scale(1.02); } }
+@keyframes ui-shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }

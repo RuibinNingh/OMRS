@@ -1,0 +1,7 @@
+/* 徽标 .ui-badge：计数用胶囊、等宽数字；--dot 为无文字的小圆点。 */
+.ui-badge { --badge-bg: var(--surface-3); --badge-fg: var(--fg-1); box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 var(--sp-1_5); border-radius: var(--r-pill); background: var(--badge-bg); color: var(--badge-fg); font-size: var(--text-2xs); font-weight: var(--weight-semibold); line-height: var(--leading-tight); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ui-badge--accent { --badge-bg: var(--accent); --badge-fg: var(--on-accent); }
+.ui-badge--danger { --badge-bg: var(--danger-soft); --badge-fg: var(--danger-fg); }
+.ui-badge--success { --badge-bg: var(--success-soft); --badge-fg: var(--success-fg); }
+.ui-badge--warning { --badge-bg: var(--warning-soft); --badge-fg: var(--warning-fg); }
+.ui-badge--dot { min-width: 8px; width: 8px; height: 8px; padding: 0; background: var(--danger); }

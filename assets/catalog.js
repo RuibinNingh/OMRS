@@ -224,7 +224,7 @@ function renderCatalog() {
   if (status) {
     const parts = [];
     if (CATALOG_LOADED_FROM === 'fallback') parts.push('后端未响应，当前树由题库路径推算，只包含题目文件。');
-    if (summary.orphans) parts.push(`${summary.orphans} 个题目文件还没进题库，点顶栏「重新扫描」可以收进来。`);
+    if (summary.orphans) parts.push(`${summary.orphans} 个题目文件还没进题库，点工具栏的「重新扫描」可以收进来。`);
     if (summary.truncated) parts.push('目录层级过深，已截断显示。');
     if (CATALOG_QUERY) parts.push(`正在筛选「${CATALOG_QUERY}」。`);
     status.textContent = parts.join(' ');

@@ -1,0 +1,9 @@
+/* 空状态 .ui-empty：图标 + 为什么是空的 + 下一步 + 一个主操作。 */
+.ui-empty { box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-2); padding: var(--sp-10) var(--sp-6); color: var(--fg-2); text-align: center; }
+.ui-empty__icon { display: grid; place-items: center; width: 48px; height: 48px; margin-bottom: var(--sp-1); border-radius: 50%; background: var(--surface-2); color: var(--fg-3); font-size: var(--text-xl); }
+.ui-empty__title { margin: 0; color: var(--fg-1); font-size: var(--text-md); font-weight: var(--weight-semibold); line-height: var(--leading-ui); }
+.ui-empty__hint { max-width: 42ch; margin: 0; color: var(--fg-3); font-size: var(--text-sm); line-height: var(--leading-ui); overflow-wrap: anywhere; }
+.ui-empty__action { margin-top: var(--sp-2); }
+.ui-empty--compact { padding: var(--sp-6) var(--sp-4); }
+.ui-empty--compact .ui-empty__icon { width: 40px; height: 40px; font-size: var(--text-lg); }
+.ui-empty--bordered { border: 1px dashed var(--border-2); border-radius: var(--r-md); }

@@ -1,5 +1,5 @@
-/* 前端冒烟测试：用最小 DOM 桩跑 actions.js / catalog.js 的纯逻辑部分。
-   不是浏览器环境替代品，只验证「给定 DATA 能算出预期的建议条目 / 能渲染出树」。
+/* 前端冒烟测试：用最小 DOM 桩跑 catalog.js 的纯逻辑部分（行动推荐已迁到 features/dashboard，见 tests/app/dashboard.test.mjs）。
+   不是浏览器环境替代品，只验证「给定 DATA 能渲染出树」。
    运行：node tests/smoke_frontend_actions_catalog.js  （在仓库根目录） */
 'use strict';
 const fs = require('fs');
@@ -34,7 +34,6 @@ sandbox.window = sandbox;
 vm.createContext(sandbox);
 
 vm.runInContext(load('core.js'), sandbox, { filename: 'core.js' });
-vm.runInContext(load('actions.js'), sandbox, { filename: 'actions.js' });
 vm.runInContext(load('catalog.js'), sandbox, { filename: 'catalog.js' });
 // switchTab / renderQ / viewQ 由其他文件提供，这里只需要存在
 vm.runInContext('function switchTab(){};function renderQ(){};function viewQ(){}', sandbox);
@@ -70,55 +69,7 @@ function makeItem(over) {
   }, over);
 }
 
-// ── 场景 1：空题库 ──
-console.log('场景 1 空题库');
-setInContext('DATA', { total: 0, items: [], review_alert: {}, daily_trend: {} });
-setInContext('SESSIONS', []);
-let plan = sandbox.buildActionPlan();
-check('只给一条「去录入」建议', plan.length === 1 && plan[0].key === 'empty');
-
-// ── 场景 2：逾期 + 今日到期 + 顽固题 + 未反馈 Session ──
-console.log('场景 2 有积压');
-setInContext('DATA', {
-  total: 5,
-  daily_trend: { [daysAgo(1)]: 4 },
-  review_alert: {},
-  items: [
-    makeItem({ uid: 'A1', due_date: daysAgo(9), mastery: 0.2, decayed_mastery: 0.15 }),
-    makeItem({ uid: 'A2', due_date: daysAgo(2), mastery: 0.3, decayed_mastery: 0.25 }),
-    makeItem({ uid: 'B1', due_date: daysAgo(0), mastery: 0.4, decayed_mastery: 0.35 }),
-    makeItem({ uid: 'C1', is_leech: true, mastery: 0.1, decayed_mastery: 0.08 }),
-    makeItem({ uid: 'D1', mastery: 1, tag: '#状态/已击杀' }),
-  ],
-});
-setInContext('SESSIONS', [{ session_id: 'EXP-1', status: 'active', count: 6 }]);
-plan = sandbox.buildActionPlan();
-const keys = plan.map(r => r.key);
-check('识别出逾期', keys.includes('overdue'));
-check('识别出今日到期', keys.includes('due_today'));
-check('识别出顽固题', keys.includes('leech'));
-check('识别出未反馈 Session', keys.includes('pending_feedback'));
-check('没有误报「状态良好」', !keys.includes('all_good'));
-check('紧急项排在最前', plan[0].level === 'urgent', `实际 ${plan[0].level}/${plan[0].key}`);
-const overdueRow = plan.find(r => r.key === 'overdue');
-check('逾期计数不含已击杀题', overdueRow.metric === '2', `实际 ${overdueRow.metric}`);
-check('逾期天数取最久的一道', overdueRow.detail.includes('9 天'), overdueRow.detail);
-
-// ── 场景 3：一切清空 ──
-console.log('场景 3 无积压');
-setInContext('DATA', {
-  total: 2,
-  daily_trend: { [new Date().toISOString().slice(0, 10)]: 6 },
-  review_alert: {},
-  items: [
-    makeItem({ uid: 'E1', due_date: daysAhead(6), mastery: 0.9, decayed_mastery: 0.88, attempts: 5, last_review: daysAgo(1) }),
-    makeItem({ uid: 'E2', due_date: daysAhead(9), mastery: 0.85, decayed_mastery: 0.8, attempts: 4, last_review: daysAgo(1) }),
-  ],
-});
-setInContext('SESSIONS', []);
-plan = sandbox.buildActionPlan();
-check('给出「状态良好」', plan[0].key === 'all_good', plan.map(r => r.key).join(','));
-check('没有紧急项', !plan.some(r => r.level === 'urgent'));
+// 场景 1–3（行动推荐规则）随仪表盘迁到 assets/app/features/dashboard/plan.js（P6），用例在 tests/app/dashboard.test.mjs。
 
 // ── 场景 4：目录树渲染 ──
 console.log('场景 4 目录树');

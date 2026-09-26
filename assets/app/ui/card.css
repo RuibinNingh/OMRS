@@ -1,0 +1,14 @@
+/* 卡片 .ui-card：表面 1 + 描边 + elev-1；--interactive 可聚焦、悬停抬升；--flat 去阴影。 */
+.ui-card { box-sizing: border-box; display: flex; flex-direction: column; gap: var(--sp-3); min-width: 0; padding: var(--sp-4); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-1); box-shadow: var(--elev-1); color: var(--fg-1); }
+.ui-card--flat { box-shadow: none; }
+.ui-card--interactive { cursor: pointer; transition: border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-2) var(--ease-out), transform var(--dur-2) var(--ease-out); }
+.ui-card--interactive:is(:hover, .is-hover) { border-color: var(--border-2); box-shadow: var(--elev-2); }
+.ui-card--interactive:is(:active, .is-active) { transform: translateY(1px); box-shadow: var(--elev-1); }
+.ui-card--interactive:is(:focus-visible, .is-focus) { outline: none; box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--focus-ring); }
+.ui-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); min-width: 0; margin: 0; padding: 0; border: 0; } /* 清掉旧全局 header 规则，见 dialog.css */
+.ui-card__heading { min-width: 0; }
+.ui-card__title { margin: 0; overflow: hidden; color: var(--fg-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-tight); text-overflow: ellipsis; white-space: nowrap; }
+.ui-card__subtitle { margin: var(--sp-1) 0 0; color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-ui); }
+.ui-card__actions { display: flex; flex: none; align-items: center; gap: var(--sp-1_5); }
+.ui-card__body { min-width: 0; color: var(--fg-2); font-size: var(--text-md); line-height: var(--leading-ui); overflow-wrap: anywhere; }
+.ui-card__foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2); padding-top: var(--sp-3); border-top: 1px solid var(--border-1); }

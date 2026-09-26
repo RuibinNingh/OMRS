@@ -1,0 +1,12 @@
+/* 文件拖放区 .ui-filedrop：虚线框；拖入时实线 + 强调底；键盘聚焦时焦点环。取代原生「Choose File」（D6）。 */
+.ui-filedrop { position: relative; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-1); min-height: 132px; padding: var(--sp-6) var(--sp-4); border: 1px dashed var(--border-2); border-radius: var(--r-md); background: var(--surface-1); color: var(--fg-2); text-align: center; cursor: pointer; transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out); }
+.ui-filedrop__input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.ui-filedrop__icon { display: grid; place-items: center; width: 40px; height: 40px; margin-bottom: var(--sp-1); border-radius: 50%; background: var(--surface-2); color: var(--fg-2); font-size: var(--text-xl); }
+.ui-filedrop__title { color: var(--fg-1); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.ui-filedrop__hint { color: var(--fg-3); font-size: var(--text-xs); }
+.ui-filedrop__error { color: var(--danger); font-size: var(--text-xs); }
+.ui-filedrop:is(:hover, .is-hover) { border-color: var(--fg-3); }
+.ui-filedrop.is-dragover { border-style: solid; border-color: var(--accent); background: var(--accent-soft); }
+.ui-filedrop:has(.ui-filedrop__input:focus-visible), .ui-filedrop.is-focus { box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--focus-ring); }
+.ui-filedrop.is-error { border-color: var(--danger); }
+.ui-filedrop.is-disabled { opacity: .45; cursor: not-allowed; }

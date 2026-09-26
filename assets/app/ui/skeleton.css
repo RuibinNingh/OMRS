@@ -1,0 +1,9 @@
+/* 骨架屏 .ui-skeleton：流光动效，减少动效时静止。配合 showAfter()：超过 300ms 才显示。 */
+.ui-skeleton { display: grid; gap: var(--sp-2); }
+.ui-skeleton__line, .ui-skeleton__block, .ui-skeleton__circle { display: block; border-radius: var(--r-xs); background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: ui-shimmer calc(var(--dur-3) * 6) var(--ease-in-out) infinite; }
+.ui-skeleton__line { height: 12px; }
+.ui-skeleton__line:last-child:not(:first-child) { width: 60%; }
+.ui-skeleton__block { height: 72px; border-radius: var(--r-md); }
+.ui-skeleton__circle { flex: none; width: 32px; height: 32px; border-radius: 50%; }
+.ui-skeleton__row { display: flex; align-items: center; gap: var(--sp-3); }
+.ui-skeleton__row .ui-skeleton__line { flex: 1; }

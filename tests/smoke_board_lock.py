@@ -2,10 +2,11 @@
 Real isolated HTTP/UI/export regression; no production requests or writes.
 Paper records in this test represent simulated printing, not a physical printer.
 """
-import copy, functools, json, pathlib, socketserver, sys, tempfile, threading, urllib.request
+import copy, functools, json, os, pathlib, socketserver, sys, tempfile, threading, urllib.request
 from playwright.sync_api import sync_playwright
 root=pathlib.Path(__file__).resolve().parents[1]; label='standalone'
 sys.path.insert(0,str(root))
+from tests.browser_runtime import launch_chromium
 from omrs.boards import create_board, get_board, record_printed, update_board
 from omrs.creation import create_question
 from omrs.server import OMRSHandler
@@ -26,7 +27,7 @@ with tempfile.TemporaryDirectory(prefix='omrs-lock-http-vault-') as vault, sync_
     server=socketserver.TCPServer(('127.0.0.1',0),QuietHandler)
     thread=threading.Thread(target=server.serve_forever,daemon=True); thread.start()
     base=f'http://127.0.0.1:{server.server_address[1]}'
-    browser=pw.chromium.launch()
+    browser=launch_chromium(pw)
     context=browser.new_context(viewport={'width':1440,'height':1000})
     errors=[]
     def export_layout(mode):
@@ -76,4 +77,7 @@ with tempfile.TemporaryDirectory(prefix='omrs-lock-http-vault-') as vault, sync_
         out=pathlib.Path('/tmp')/f'omrs-lock-{label}-browser.json'; out.write_text(json.dumps(result,ensure_ascii=False,indent=2))
         print(json.dumps(result,ensure_ascii=False,indent=2))
     finally:
-        context.close(); browser.close(); server.shutdown(); server.server_close(); thread.join()
+        context.close()
+        if not os.environ.get('OMRS_TEST_CDP_URL'):
+            browser.close()
+        server.shutdown(); server.server_close(); thread.join()

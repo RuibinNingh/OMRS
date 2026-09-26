@@ -1,0 +1,12 @@
+/* 分段控件 .ui-segmented：原生 radio 组；选中段浮起，其余段透明。高度与按钮同档。 */
+.ui-segmented { --seg-h: var(--ctl-md); box-sizing: border-box; display: inline-flex; max-width: 100%; height: var(--seg-h); padding: var(--sp-0_5); gap: var(--sp-0_5); border: 1px solid var(--border-2); border-radius: var(--r-sm); background: var(--surface-2); overflow-x: auto; scrollbar-width: none; }
+.ui-segmented--sm { --seg-h: var(--ctl-sm); }
+.ui-segmented__item { position: relative; display: flex; flex: none; }
+.ui-segmented__input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.ui-segmented__label { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 0 var(--sp-3); border-radius: var(--r-xs); color: var(--fg-2); font-size: var(--text-sm); font-weight: var(--weight-medium); line-height: var(--leading-tight); white-space: nowrap; cursor: pointer; transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.ui-segmented--sm .ui-segmented__label { padding: 0 var(--sp-2); font-size: var(--text-xs); }
+.ui-segmented__label .ui-icon { width: 14px; height: 14px; }
+.ui-segmented__label:hover { color: var(--fg-1); }
+.ui-segmented__input:checked + .ui-segmented__label { background: var(--surface-1); color: var(--fg-1); box-shadow: var(--elev-1); }
+.ui-segmented__input:focus-visible + .ui-segmented__label, .ui-segmented.is-focus .ui-segmented__input:checked + .ui-segmented__label { box-shadow: 0 0 0 2px var(--focus-ring); }
+.ui-segmented__input:disabled + .ui-segmented__label { opacity: .45; cursor: not-allowed; }

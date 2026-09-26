@@ -1,0 +1,13 @@
+/* 标签 .ui-tag：只做展示；六种色调，文字过长时省略。 */
+.ui-tag { --tag-bg: var(--surface-2); --tag-fg: var(--fg-2); box-sizing: border-box; display: inline-flex; align-items: center; gap: var(--sp-1); max-width: 100%; min-height: 22px; padding: 0 var(--sp-2); border-radius: var(--r-xs); background: var(--tag-bg); color: var(--tag-fg); font-size: var(--text-xs); font-weight: var(--weight-medium); line-height: var(--leading-tight); white-space: nowrap; vertical-align: middle; }
+.ui-tag .ui-icon { width: 12px; height: 12px; }
+.ui-tag__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ui-tag--accent { --tag-bg: var(--accent-soft); --tag-fg: var(--fg-1); }
+.ui-tag--success { --tag-bg: var(--success-soft); --tag-fg: var(--success-fg); }
+.ui-tag--warning { --tag-bg: var(--warning-soft); --tag-fg: var(--warning-fg); }
+.ui-tag--danger { --tag-bg: var(--danger-soft); --tag-fg: var(--danger-fg); }
+.ui-tag--info { --tag-bg: var(--info-soft); --tag-fg: var(--info-fg); }
+.ui-tag__remove { position: relative; display: inline-grid; place-items: center; flex: none; width: 16px; height: 16px; margin-right: calc(var(--sp-1) * -1); padding: 0; border: 0; border-radius: var(--r-xs); background: none; color: inherit; cursor: pointer; opacity: .7; }
+.ui-tag__remove::before { content: ""; position: absolute; inset: -6px; }
+.ui-tag__remove:hover { opacity: 1; background: var(--accent-soft); }
+.ui-tag__remove:focus-visible { outline: none; opacity: 1; box-shadow: 0 0 0 2px var(--focus-ring); }

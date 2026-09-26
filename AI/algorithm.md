@@ -1,5 +1,12 @@
 # 记忆算法
 
+> **速查**
+> - 职责：记忆衰减、熟练度状态机、统一调度优先级、SM-2、双列表推荐与 Leech 检测
+> - 入口：`omrs/scheduling.py`、`omrs/common.py`（`DEFAULT_TUNING`）
+> - 不变量：反馈先写 Ledger，再由投影重放出熟练度；tuning 缺省值与历史硬编码一致，不改配置行为不变
+> - 必跑测试：`tests/test_recommendations.py`、`tests/test_leech_streak.py`、`tests/test_revive_cycle.py`、`tests/test_schedule_workbench.py`
+> - 相关：`AI/ledger.md`、`AI/data.md`
+
 > 对应源文件：`omrs/scheduling.py`
 
 > v1.1.0 起，反馈事件先写入 Ledger，再由 `omrs/projections.py` 重放为 `mastery_projection` 和兼容 `mastery_data.csv`。核心算法函数保持不变，事实来源从 CSV 快照升级为可重放事件流。
@@ -50,7 +57,7 @@ decayed = mastery × e^( -days / (mastery×factor + base) )
 
 ---
 
-## 3. 调度优先级 `compute_priority(decayed_mastery, ef, days, tag, mastery, fail_count=0, tuning=None, labels=None, label_bonuses=None)`
+## 3. 调度优先级 `compute_priority(decayed_mastery, ef, days, tag, mastery, wrong_streak=0, tuning=None, labels=None, label_bonuses=None)`
 
 > 统一公式，集中在 `scheduling.py`。此前在 `schedule_questions()`、`generate_recommendations()`、`stats.py` 各写一份，已合并，避免三处逻辑漂移。
 
@@ -62,7 +69,8 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 额外加成：
 - 标签含 `待攻克` 且 `mastery < attack_mastery_threshold`（默认 0.3）：`priority += attack_bonus`（默认 0.5）
-- **leech（顽固题）**：`fail_count >= leech_fail_threshold`（默认 4）且未击杀：`priority += leech_priority_bonus`（默认 0.4），见 §10
+- **leech（顽固题）**：`wrong_streak >= leech_fail_threshold`（默认 3）且未击杀：`priority += leech_priority_bonus`（默认 0.4），见 §10
+- **复燃题**：已击杀且休眠够久（§11）：`priority += revive_priority_bonus`（默认 0.3），保证从熟练度列表被召回时也排在前面
 
 `60`/`0.3` 即 `priority_days_divisor`/`priority_days_weight`，连同上述加成阈值均可经 `tuning` 覆盖，见 §9。
 
@@ -95,7 +103,7 @@ EF 越低 = 越不稳定 = 越难 = 权重越高。EF=3.0→难度 1，EF=1.3→
 
 ### 关键约束
 - 已击杀题目**不设**熟练度下限（早期版本有 `max(mastery, 0.85)` 的错误下限，已删除）。
-- 常规调度会跳过 `#状态/已击杀` 或 `Mastery = 1.0` 的题目；只有在答错后回退为 `#状态/待攻克`，才会重新进入调度。
+- 常规调度会跳过 `#状态/已击杀` 或 `Mastery = 1.0` 的题目，但**不是永久跳过**：休眠达到复燃周期（§11）后会重新进入调度。复燃题答错则降级回 `#状态/待攻克`（§4），立即回到推荐前面。
 - **停用题目**（兼容投影 `Suspended = 1`）不会进入常规调度、双列表推荐、行动计划或反馈录入；恢复后沿用原有熟练度与 Due_Date 重新参与。手动按 UID 确认调度遇到停用题也会被后端拒绝；已有活动 Session 的停用题会从待反馈接口中隐藏，原始 Session 仍保留供审计。
 - 新建 Session 和 `/api/recommend` 推荐时都会排除仍处于 `active` 状态的旧 Session 题目，避免连续创建或确认重复调度同一批题。
 - `count < 0` 会按 `0` 处理；CSV 中异常数值会回退到安全默认值，避免整次调度失败。
@@ -106,6 +114,8 @@ EF 越低 = 越不稳定 = 越难 = 权重越高。EF=3.0→难度 1，EF=1.3→
 ## 4. 已击杀状态回退规则
 
 已击杀题目答错后，投影器 `projections.py::_apply_single_review()` 会把该题的 `current_tag` 从 `#状态/已击杀` 降级为 `#状态/待攻克`（高分答对并达成击杀条件时置为 `#状态/已击杀`），并反映到 `mastery_data.csv` 的 `Current_Tag`。
+
+熟练度同步骤降：`mastery = min(状态机结果, 复燃前 mastery × kill_demote_factor)`（默认 0.3）。取 `min` 而非直接连乘，是因为状态机对低分答错本身已降过一档（`old_m × 0.3`），连乘会掉到 0.09，降级幅度随系数平方漂移；取小值保证降级只可能更深，系数调大也不会把熟练度抬回去。间隔一并重置（`repetition = 0`、`interval = 1`），让降级题立刻排进近期复习——否则熟练度停在 1.0，答对一次就会再次击杀，等于没降级。累计击杀次数 `kill_count` **不**重置，下次复燃周期因此更长（§11）。
 
 v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `feedback.py::_writeback_md()` 已随 Ledger 架构移除）：结构化标签的唯一事实源是 Ledger 投影，Markdown YAML 只作为输入——外部人工改动由工作区自检以 `question.metadata_update_external` 记录。因此 Obsidian 中看到的 YAML 标签可能与投影标签不一致，属设计边界（详见 `ledger.md` §3）。
 
@@ -122,6 +132,8 @@ v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `fe
 - `_source`：推荐来源标记（`due` / `proficiency`），仅在推荐/确认流程中赋值。
 - 日期解析失败时：`days = 0`（列表视图语义：今天刚看过）。
 - `high_correct_streak`：连续高分答对次数，供前端展示和调试确认。
+- `kill_count`：累计击杀次数（来源 `mastery_projection.kill_count`，老 CSV 缺 `Kill_Count` 列按 0 处理）。复燃周期据此分级。
+- `is_revived` / `dormant_days` / `next_revive_date`：已击杀题是否已休眠够久（§11）。`dormant_days` 只在击杀态下给值，非击杀态为 0；`next_revive_date` 由 `Last_Review + dormant_days` 得出，供界面显示「下次复燃」，非击杀态为空串。
 
 ---
 
@@ -224,7 +236,11 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 | `priority_days_divisor` / `priority_days_weight` | 60 / 0.3 | 优先级时间项（§3） |
 | `attack_bonus` / `attack_mastery_threshold` | 0.5 / 0.3 | 待攻克加成（§3） |
 | `proficiency_factor` | 0.7 | 熟练度来源答对的间隔折中系数（§6） |
-| `leech_fail_threshold` / `leech_priority_bonus` | 4 / 0.4 | leech 判定与加成（§10） |
+| `leech_fail_threshold` / `leech_priority_bonus` | 3 / 0.4 | 连续答错判定与加成（§10） |
+| `revive_decay_threshold` | 0.2 | 已击杀题衰减到该值以下才复燃（§11） |
+| `revive_tier_multiplier` | 1.8 | 每多一次击杀，复燃休眠时长乘该系数（§11） |
+| `revive_priority_bonus` | 0.3 | 复燃题的优先级加成（§11） |
+| `kill_demote_factor` | 0.3 | 复燃后答错的熟练度降级系数（§4） |
 | `label_bonus_cap` | 1.0 | 同一题所有用户标记 `priority_bonus` 的加成上限（§3.2）；默认标记加成仍为 0 |
 
 `config.json` 示例：
@@ -242,11 +258,37 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ## 10. Leech（顽固题）检测
 
-> 对应源文件：`omrs/scheduling.py` → `build_fail_counts()` / `is_leech()`
+> 对应源文件：`omrs/scheduling.py` → `build_fail_counts()` / `build_wrong_streaks()` / `is_leech()`
 
-利用由 Ledger 重建的兼容投影 `history_log.csv`：统计每个 UID 的累计答错次数（`Is_Correct == 0`）。当前调度和统计仍读取该投影；它不是题目 Markdown `# 历史`，也不是仅供展示的旧数据。
+利用由 Ledger 重建的兼容投影 `history_log.csv`：按记录顺序统计每道题末尾的连续答错次数（`Is_Correct == 0`）；一次答对（`Is_Correct == 1`）即清零。累计答错次数仍单独统计为 `fail_count`。有稳定 `Question_ID` 时按当前 UID 归属历史记录。当前调度和统计读取该投影，而非题目 Markdown `# 历史`。
 
-- **判定**：未击杀，且**累计**答错次数 ≥ `leech_fail_threshold`（默认 4）→ 标记为 leech；不要求连续答错。
+- **判定**：未击杀，且最近**连续**答错次数 ≥ `leech_fail_threshold`（默认 3）→ 标记为 leech；答对后立即解除。
 - **优先级加成**：leech 在熟练度列表的 `compute_priority` 上 `+leech_priority_bonus`（默认 0.4），优先被召回。
-- **暴露位置**：`/api/recommend` 与 `/api/stats` 的每个题目条目带 `fail_count` / `is_leech`；`/api/stats` 的 `review_alert.leech` 给出未击杀 leech 总数。
+- **暴露位置**：`/api/recommend`、`/api/stats` 与 `/api/analytics` 的题目条目带 `fail_count`（累计答错）、`wrong_streak`（最近连错）和 `is_leech`；`/api/stats` 的 `review_alert.leech` 给出未击杀 leech 总数。
 - **用途**：提示「反复错的题」值得重新拆解/整理，而非继续机械重刷。
+
+---
+
+## 11. 已击杀题复燃周期
+
+> 对应源文件：`omrs/scheduling.py` → `revive_dormant_days()` / `is_revive_eligible()`
+
+击杀不等于从系统里删掉。越熟练的题遗忘得越慢，但也不是永不遗忘——按记忆规律，它应该隔一段更长的间隔回来一次，被召回时若答错就说明「其实没真的记住」，必须降级重练。
+
+**休眠时长**直接由时间衰减式反解，而不是另设一个到期日字段：解 `time_decay(mastery, d) ≤ revive_decay_threshold` 得
+
+```
+dormant_days(n) = (mastery × decay_mastery_factor + decay_base)
+                  × ln(1 / revive_decay_threshold)
+                  × revive_tier_multiplier ^ (n - 1)
+```
+
+`n` 是累计击杀次数（`kill_count`，从 1 起）。`mastery = 1.0`、默认参数下基准约 56 天，即 **56 / 101 / 182 / 327 / 591 天**（第 1–5 次击杀后）——分级递增就是「越熟练越长」。`kill_count = 0`（老数据没有该列）与 `1` 同档，按第一次击杀处理，不影响既有题库。
+
+**判定**：`is_revive_eligible()` 对非击杀态一律返回 `False`；击杀态则比较 `days_since_review(Last_Review) >= dormant_days`。日期缺失或无法解析时按 0 天处理 → 不复燃，避免「算不出天数」被误当成「已经休眠够久」。
+
+**接入点**：`schedule_questions()` 与 `generate_recommendations()` 原先的 `if is_killed_state(...): continue` 改为 `if is_killed_state(...) and not is_revive_eligible(...): continue`。复燃题的 `Due_Date` 仍是击杀时的旧值（早已逾期），因此自然落进**到期列表**并排在最前；同时 `compute_priority()` 加 `revive_priority_bonus`，保证从熟练度列表被召回时也靠前。
+
+**答错降级**：复燃后答错走 §4 的回退规则——标签回 `#状态/待攻克`、熟练度乘 `kill_demote_factor`、间隔重置，`kill_count` 保留，所以下次复燃会等更久。配合 `attack_bonus`（待攻克且 `mastery < 0.3` 时 +0.5），降级题立刻回到推荐前面。
+
+**暴露位置**：`/api/recommend` 与 `/api/stats` 的题目条目带 `is_revived`、`kill_count`、`dormant_days`、`next_revive_date`；前端在题库列表的状态列、画廊卡的异常标记、推荐列表的选题行与题目详情里以「复燃」chip 显示，并写明「第 N 次击杀后休眠 X 天复燃」。

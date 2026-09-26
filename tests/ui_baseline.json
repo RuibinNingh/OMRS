@@ -1,0 +1,17 @@
+{"files": {
+  "assets/app.js": {"handlers": 2, "html_assign": 14, "inline_style": 25, "color_literals": 0, "font_size_literals": 0},
+  "assets/board.js": {"handlers": 0, "html_assign": 13, "inline_style": 2, "color_literals": 2, "font_size_literals": 0},
+  "assets/board_picker.js": {"handlers": 0, "html_assign": 3, "inline_style": 0, "color_literals": 0, "font_size_literals": 0},
+  "assets/board_preview.js": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 0, "font_size_literals": 0},
+  "assets/catalog.js": {"handlers": 3, "html_assign": 4, "inline_style": 4, "color_literals": 0, "font_size_literals": 0},
+  "assets/core.js": {"handlers": 0, "html_assign": 5, "inline_style": 6, "color_literals": 0, "font_size_literals": 0},
+  "assets/history.js": {"handlers": 8, "html_assign": 7, "inline_style": 4, "color_literals": 0, "font_size_literals": 0},
+  "assets/inbox.js": {"handlers": 0, "html_assign": 14, "inline_style": 13, "color_literals": 2, "font_size_literals": 0},
+  "assets/inbox_mobile.html": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 16, "font_size_literals": 7},
+  "assets/labels.js": {"handlers": 0, "html_assign": 10, "inline_style": 2, "color_literals": 0, "font_size_literals": 1},
+  "assets/questions.js": {"handlers": 0, "html_assign": 0, "inline_style": 2, "color_literals": 0, "font_size_literals": 0},
+  "assets/reports.js": {"handlers": 2, "html_assign": 12, "inline_style": 14, "color_literals": 0, "font_size_literals": 3},
+  "assets/schedule.js": {"handlers": 1, "html_assign": 2, "inline_style": 0, "color_literals": 0, "font_size_literals": 0},
+  "assets/styles.css": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 83, "font_size_literals": 205},
+  "omrs_dashboard.html": {"handlers": 111, "html_assign": 0, "inline_style": 54, "color_literals": 0, "font_size_literals": 11}
+}}

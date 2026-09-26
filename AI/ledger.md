@@ -1,5 +1,12 @@
 # Ledger 架构
 
+> **速查**
+> - 职责：不可变提交链、投影缓存、历史修正与迁移边界
+> - 入口：`omrs/ledger.py`、`omrs/projections.py`
+> - 不变量：提交只追加不改写，修正以新的 commit 表达；题目正文不做版本控制
+> - 必跑测试：`tests/test_history_projection.py`、`tests/test_sessions_feedback.py`
+> - 相关：`AI/data.md`、`AI/frontend/records.md`
+
 > v1.1.0 起，结构化状态以 `错题/.omrs/ledger.db` 为唯一可信来源。旧 CSV 仍存在，但只作为兼容投影、迁移输入和调试查看。
 
 ---
@@ -123,7 +130,9 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 - `retracted_reviews` / `restored_reviews`
 - `review_replacements`
 
-遇到 `review.retract`、`review.restore`、`review.replace`、`session.retract` 或 `session.restore` 后，投影器从 baseline 重新播放全部有效 review：被撤销的反馈跳过，恢复后重新采用原反馈，替换则把 replacement 合并到原记录；被撤销 Session 的反馈整体跳过。这样恢复操作会真正重新计算 Mastery、EF、SM-2、标签和兼容 history，而不是只改变 UI 状态。
+遇到 `review.retract`、`review.restore`、`review.replace`、`session.retract` 或 `session.restore` 后，投影器从 baseline 重新播放全部有效 review：被撤销的反馈跳过，恢复后重新采用原反馈，替换则把 replacement 合并到原记录；被撤销 Session 的反馈整体跳过。这样恢复操作会真正重新计算 Mastery、EF、SM-2、标签、累计击杀次数（`kill_count`）和兼容 history，而不是只改变 UI 状态。
+
+`mastery_projection` 的 `kill_count` 是 2026-09 新增列（`NOT NULL DEFAULT 0`），只在 `tag_action == "kill"` 时累加、答错降级时**不**重置，`scheduling.revive_dormant_days()` 据它决定这题下次休眠多久（`algorithm.md` §11）。老库缺列时 `ledger.py::_ensure_schema()` 用 `PRAGMA table_info` 探到缺失后执行 `ALTER TABLE mastery_projection ADD COLUMN kill_count INTEGER NOT NULL DEFAULT 0` 补齐（与 `question_projection.suspended` 同一套做法），所以从旧库直接启动不会报错；老数据一律按「还没击杀过」处理，首次击杀即第 1 次。老 CSV 缺 `Kill_Count` 列同理按 0 读，重放不失败。
 
 `state.restore` 会取目标 `target_seq` 的内存快照；若没有快照，则递归重放到该 seq，再继续处理还原 commit 之后的新提交。`ledger_retraction_state()` 把有效的 Session/反馈撤销集合提供给 `/api/history` 和前端。
 

@@ -1,0 +1,11 @@
+/* 开关 .ui-switch：role="switch" 的原生复选框，视觉轨道 34×20。 */
+.ui-switch { position: relative; display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--ctl-sm); color: var(--fg-1); font-size: var(--text-sm); line-height: var(--leading-ui); cursor: pointer; }
+.ui-switch__input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.ui-switch__track { position: relative; flex: none; box-sizing: border-box; width: 34px; height: 20px; border: 1px solid var(--border-2); border-radius: var(--r-pill); background: var(--surface-3); transition: background-color var(--dur-2) var(--ease-out), border-color var(--dur-2) var(--ease-out); }
+.ui-switch__track::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--fg-3); transition: transform var(--dur-2) var(--ease-out), background-color var(--dur-2) var(--ease-out); }
+.ui-switch__label { min-width: 0; overflow-wrap: anywhere; }
+.ui-switch:is(:hover, .is-hover) .ui-switch__track { border-color: var(--fg-3); }
+.ui-switch__input:checked + .ui-switch__track { border-color: var(--accent); background: var(--accent); }
+.ui-switch__input:checked + .ui-switch__track::after { background: var(--on-accent); transform: translateX(14px); }
+.ui-switch__input:focus-visible + .ui-switch__track, .ui-switch.is-focus .ui-switch__track { box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 4px var(--focus-ring); }
+.ui-switch.is-disabled, .ui-switch:has(.ui-switch__input:disabled) { opacity: .45; cursor: not-allowed; }

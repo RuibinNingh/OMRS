@@ -7,6 +7,7 @@ const IB = {
   items: [], cur: null, sel: new Set(), csel: new Set(), filter: 'all', stage: 'upload',
   drawRole: 'question', selR: null, last: null, disp: { w: 0, h: 0 }, bound: false,
   imgs: {}, saveTimer: null, polls: {}, drawCard: 1,
+  dragging: false,
 };
 const IB_STATUS = { pending: '待处理', boxed: '已框选', ready: '待创建', done: '已录入', discarded: '已丢弃' };
 const IB_ROLE = { question: '题目', answer: '答案', ignore: '忽略' };
@@ -47,27 +48,10 @@ function ibCounts() {
   const set = (id, v) => { const el = $ib(id); if (el) el.textContent = v; };
   set('ib-c-pending', c('pending')); set('ib-c-boxed', c('boxed')); set('ib-c-ready', c('ready'));
 }
-let IB_TOAST_T = null;
+// 收件箱提示：v1.20.0 起转调全站唯一的 uiToast（assets/app/ui/toast.js）；带操作按钮的多留一会儿。
 function ibToast(msg, kind, action) {
-  const t = $ib('ib-toast'); if (!t) return;
-  t.replaceChildren();
-  const text = document.createElement('span');
-  text.textContent = msg;
-  t.appendChild(text);
-  if (action && action.label && typeof action.onClick === 'function') {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'btn sm';
-    button.textContent = action.label;
-    button.addEventListener('click', async () => {
-      await action.onClick();
-      t.className = 'ib-toast';
-    });
-    t.appendChild(button);
-  }
-  t.className = 'ib-toast show' + (kind === 'warn' ? ' warn' : '') + (action?.label ? ' action' : '');
-  // 带操作按钮的提示多留一会儿（和 uiToast 一致），3 秒来不及点「加入展示板」
-  clearTimeout(IB_TOAST_T); IB_TOAST_T = setTimeout(() => { t.className = 'ib-toast'; }, action?.label ? 8000 : 3200);
+  const actions = action && action.label && typeof action.onClick === 'function' ? [{ label: action.label, onClick: action.onClick }] : [];
+  uiToast(msg, { kind: kind === 'warn' ? 'warn' : 'ok', actions, duration: actions.length ? 8000 : 3200 });
 }
 function ibBytes(n) { return n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.round(n / 1024) + ' KB'; }
 function ibRawUrl(item) { return `/api/inbox/raw?id=${encodeURIComponent(item.id)}`; }
@@ -350,9 +334,9 @@ async function ibJob(type, payload, onDone) {
       if (j.done || j.status === 'done' || j.status === 'error') {
         clearInterval(IB.polls[id]); delete IB.polls[id];
         if ((j.errors || []).length) ibToast(`${type} 有 ${j.errors.length} 个失败：${j.errors[0].msg}`, 'warn');
-        onDone && onDone(j);
+        if (onDone) await onDone(j);
       }
-    } catch (e) { clearInterval(IB.polls[id]); delete IB.polls[id]; ibToast('读取任务进度失败：' + e.message, 'warn'); }
+    } catch (e) { clearInterval(IB.polls[id]); delete IB.polls[id]; ibToast('读取任务进度或同步结果失败：' + e.message, 'warn'); }
   }, 1200);
   return id;
 }
@@ -400,7 +384,27 @@ async function ibExtractRegions(it, regionIds) {
   if (!regions.length) { ibToast('没有需要提取的区域（都已提取或选择保留图片）', 'warn'); return; }
   await ibSave(it); ibRenderSide();
   try {
-    await ibJob('extract', { regions }, async () => { await ibLoad(); if (IB.stage === 'process') ibRenderProcess(); ibToast('文本提取完成，请核对预览；确认后原图不再嵌入题目'); });
+    await ibJob('extract', { regions }, async () => {
+      // 只同步本次提取的区域；整页 ibLoad 会替换另一张图正在拖动的框对象。
+      const fresh = (await api(`/api/inbox/item?id=${encodeURIComponent(it.id)}`)).item;
+      const idx = IB.items.findIndex(item => item.id === it.id);
+      if (idx >= 0 && fresh) {
+        if (IB.cur === it.id) {
+          const local = IB.items[idx];
+          const extracted = new Set(regions.map(r => r.region_id));
+          for (const result of fresh.regions || []) {
+            const target = local.regions.find(r => r.id === result.id);
+            if (target && extracted.has(result.id) && target.text_status === 'running') {
+              for (const key of ['convert', 'text', 'text_status', 'judge', 'judge_overridden']) target[key] = result[key];
+            }
+          }
+          local.status = fresh.status;
+          if (IB.stage === 'process' && !IB.dragging) ibRenderSide();
+        } else IB.items[idx] = fresh;
+      }
+      ibCounts(); ibRenderQueue(); ibRenderInbox();
+      ibToast('文本提取完成，请核对预览；确认后原图不再嵌入题目');
+    });
   } catch (e) { it.regions.forEach(r => { if (r.text_status === 'running') r.text_status = 'none'; }); ibRenderSide(); ibToast('提取失败：' + e.message, 'warn'); }
 }
 function ibExtractAll() { const it = ibCur(); if (!it) return; ibExtractRegions(it, it.regions.filter(r => r.role !== 'ignore' && r.convert !== 'image' && r.text_status !== 'done').map(r => r.id)); }
@@ -647,7 +651,7 @@ function ibBind() {
     if (h && box) { rg = it.regions.find(x => x.id === box.dataset.rid); mode = 'resize'; dir = h.dataset.h; r0 = { ...rg }; }
     else if (box) { rg = it.regions.find(x => x.id === box.dataset.rid); mode = 'move'; r0 = { ...rg }; }
     else { rg = ibNewRegion(IB.drawCard, IB.drawRole, p.x, p.y, 0, 0); it.regions.push(rg); mode = 'draw'; }
-    IB.selR = rg.id; st.setPointerCapture(e.pointerId); ibRenderBoxes(); e.preventDefault();
+    IB.selR = rg.id; IB.dragging = true; st.setPointerCapture(e.pointerId); ibRenderBoxes(); e.preventDefault();
   });
   st.addEventListener('pointermove', e => {
     if (!mode || !rg) return; const p = pos(e); const dx = p.x - p0.x, dy = p.y - p0.y;
@@ -660,8 +664,9 @@ function ibBind() {
     if (!mode) return; const it = ibCur();
     if (mode === 'draw' && (rg.w * IB.disp.w < 8 || rg.h * IB.disp.h < 8)) { it.regions = it.regions.filter(x => x !== rg); IB.selR = null; }
     else if (mode !== 'draw') { if (rg.origin === 'ai') rg.origin = 'ai_edited'; if (rg.text_status === 'done') rg.text_status = 'stale'; }
-    mode = null; rg = null; ibAfterEdit();
+    mode = null; rg = null; IB.dragging = false; ibAfterEdit();
   });
+  st.addEventListener('pointercancel', () => { mode = null; rg = null; IB.dragging = false; ibAfterEdit(); });
   // 侧栏裁剪预览在每次渲染后补画
   const obs = new MutationObserver(() => { if (document.querySelector('[data-ib-cropcv]')) ibPaintCropCanvases(); });
   obs.observe($ib('ib-ps-body'), { childList: true });

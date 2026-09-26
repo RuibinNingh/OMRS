@@ -1,0 +1,10 @@
+/* 统计 .ui-stat：标签 12 / 数值 28（--lg 为全站唯一的 40 display）/ 变化量 12；数字等宽。 */
+.ui-stat { display: grid; gap: var(--sp-1); min-width: 0; }
+.ui-stat__label { overflow: hidden; color: var(--fg-3); font-size: var(--text-xs); font-weight: var(--weight-medium); line-height: var(--leading-ui); text-overflow: ellipsis; white-space: nowrap; }
+.ui-stat__value { display: flex; align-items: baseline; gap: var(--sp-1); color: var(--fg-1); font-size: var(--text-2xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); font-variant-numeric: tabular-nums; }
+.ui-stat--lg .ui-stat__value { font-size: var(--text-display); font-weight: var(--weight-bold); }
+.ui-stat__unit { color: var(--fg-3); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.ui-stat__delta { display: inline-flex; align-items: center; gap: var(--sp-0_5); color: var(--fg-3); font-size: var(--text-xs); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+.ui-stat__delta--up { color: var(--success); }
+.ui-stat__delta--down { color: var(--danger); }
+.ui-stat__hint { color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-ui); }

@@ -16,6 +16,12 @@ from .stats import get_stats
 from .workspace_sync import start_workspace_scanner
 
 
+class OMRSTCPServer(socketserver.TCPServer):
+    """Permit immediate rebinding after the previous listener enters TIME-WAIT."""
+
+    allow_reuse_address = True
+
+
 def _lan_ips():
     """尽力探测本机局域网 IPv4 地址（用于「外部访问」时提示真实可访问的网址）。"""
     ips = set()
@@ -104,6 +110,7 @@ def main():
         ensure_image_dependencies_interactive()
         config = load_config(vault)
         bind_host = "" if config.get("allow_external") else "127.0.0.1"
+        OMRSHandler.listen_external = bind_host == ""
         try:
             index = build_index(vault)
             print(f"已索引 {len(index)} 道题（扫描目录: {QUESTIONS_DIR}/）")
@@ -115,7 +122,7 @@ def main():
             sys.executable,
             os.path.abspath(sys.argv[0]),
         ] + list(sys.argv[1:])
-        with socketserver.TCPServer((bind_host, args.port), OMRSHandler) as httpd:
+        with OMRSTCPServer((bind_host, args.port), OMRSHandler) as httpd:
             print(f"\nOMRS 已启动（端口 {args.port}）")
             print(f"   本机访问： http://127.0.0.1:{args.port}")
             if bind_host == "":

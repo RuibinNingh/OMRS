@@ -1,5 +1,12 @@
 # HTTP API
 
+> **速查**
+> - 职责：全部 HTTP 端点的请求体、响应字段与错误语义
+> - 入口：`omrs/server.py`（`OMRSHandler`）
+> - 不变量：所有 POST 先过来源校验；失败统一返回 `{status:"error", msg}`；路由总表 `AI/routes.md` 由脚本生成，不手改
+> - 必跑测试：`tests/test_security.py`、`tests/test_restart_lifecycle.py`、`tests/test_source_export.py`
+> - 相关：`AI/routes.md`、`AI/security.md`
+
 > 对应源文件：`omrs/server.py`  
 > 默认端口：8471  
 > 启动命令：`python omrs_engine.py --vault <path> serve -p 8471`
@@ -27,7 +34,7 @@
 | `daily_trend` | object | 近30天每日练习趋势 |
 | `scatter_data` | array | 每题的散点数据 |
 | `review_alert` | object | 到期与风险统计：`overdue`、`due_today`、`due_next_3_days`（明天起 3 天）、`due_next_7_days`（明天起 7 天）、`due_within_3_days`、`due_within_7_days`、`low_mastery_not_due`；兼容保留 `urgent`/`warning`/`cold`/`total_due`/`leech` |
-| `items` | array | 所有未归档题目条目（含停用题），每条含 `suspended`、`fail_count`（累计答错次数）与 `is_leech`（顽固题标记）；停用题只用于题库管理，不参与统计/调度；该端点不返回 `images`，需要图片名时使用 `/api/question` 或 `/api/analytics` |
+| `items` | array | 所有未归档题目条目（含停用题），每条含 `suspended`、`fail_count`（累计答错次数）、`wrong_streak`（最近连续答错次数）、`is_leech`（未击杀且连错达到阈值，默认 3 次）与复燃字段 `is_revived` / `kill_count` / `dormant_days` / `next_revive_date`（algorithm.md §11）；停用题只用于题库管理，不参与统计/调度；该端点不返回 `images`，需要图片名时使用 `/api/question` 或 `/api/analytics` |
 
 ---
 
@@ -66,10 +73,11 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `status` | string | 当前服务状态，正常为 `ok` |
-| `version` | string | 从 `omrs.version.__version__` 读取的 OMRS 版本号，当前为 `v1.16.0` |
+| `version` | string | 从 `omrs.version.__version__` 读取的当前版本号 |
 | `started_at` | string | 服务启动时间（ISO 8601，UTC） |
 | `uptime_seconds` | int | 已运行秒数 |
 | `question_count` | int | 当前托管题目数 |
+| `listen_external` | bool | 当前进程实际监听所有网卡为 `true`，仅 `127.0.0.1` 为 `false`；只在重启时随 `allow_external` 变化，设置页据此判断配置是否待重启生效 |
 | `vault_path` | string | 当前服务使用的 vault 根路径 |
 | `workspace_scan` | object | 最近一次工作区自检状态：时间、变更数、冲突数、冲突列表和错误 |
 
@@ -92,10 +100,11 @@
 | `forecast` | 未来 7 天到期预测（键 `"0"`..`"7"`）+ `"7+"`（7 天以上）+ `overdue` |
 | `review_alert` | `overdue`、`due_today`、`due_next_3_days`、`due_next_7_days`、`due_within_3_days`、`due_within_7_days`、`low_mastery_not_due`、`leech`；兼容保留 `urgent`/`warning`/`cold`/`total_due` |
 | `weak_spots` | `leeches`/`struggling`/`traps`/`recently_killed` 列表 |
-| `items` | 全量题目快照（含 `eff_difficulty`/`fail_count`/`is_leech`/`is_killed`/`images` 等） |
+| `items` | 全量题目快照（含 `eff_difficulty`/`fail_count` 累计答错/`wrong_streak` 最近连错/`is_leech`/`is_killed`/复燃字段 `is_revived`、`kill_count`、`dormant_days`、`next_revive_date`/`images` 等） |
 
 ### `/api/source/export`
-生成并下载脱敏源码 ZIP。内容来自当前 Git 仓库中已跟踪的源码、测试和项目文档；明确排除 `错题/`、`临时/`、`AI/logs/`、`AI/omrs_work/`、`logs/`、`DEPLOYMENT_SOURCE.json` 和 `OMRS-EXP-*` 生成文件。ZIP 根目录为 `OMRS/`，并附带 `SOURCE_EXPORT_MANIFEST.txt` 列出导出范围。若当前目录不是 Git 仓库则返回 400，不读取未跟踪文件。
+本机直连或已登录远端可下载源码包；未登录远端返回 401。
+生成并下载脱敏源码 ZIP。按当前工作区的固定项目文件，以及 `AI/`、`Skills/`、`assets/`、`deploy/`、`omrs/`、`tests/`、`web/` 中允许的源码和资源类型收集文件；未提交文件也会收录，不要求 Git 仓库。个人题库、临时目录、根目录运行日志、`AI/logs/`、`AI/omrs_work/`、缓存、构建产物、`tests/` 以外的 JSON（配置与运行数据）、符号链接和生成导出文件不进入 ZIP；`tests/` 下的 JSON 是测试基线（如 `tests/ui_baseline.json`），`assets/app/package.json` 声明 ES 模块，二者随包导出。ZIP 根目录为 `OMRS/`，`SOURCE_EXPORT_MANIFEST.txt` 列出实际包含文件，并提示分享前检查源码内容。没有可导出的源码文件时返回 400。
 
 ### `/api/export-review`
 导出供 AI 使用的复盘材料，对应 `build_review_export()`：
@@ -159,7 +168,7 @@
 查询图片压缩后台任务。返回 `{status:"ok", job}`，`job` 含 `status/job_id/total/processed/saved_bytes/current_file/errors/done`。
 
 ### `/api/scan`
-兼容扫描入口：触发工作区自检与投影重建，返回更新后的题目数量。
+GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 ### `/api/tree`
 返回 `错题/` 工作区的目录树，供「目录」页展示。**只读扫盘**：不写 Ledger、不改投影、不触发自检，每次请求现走一遍磁盘。源文件 `omrs/catalog.py`。
@@ -197,7 +206,7 @@
 **响应：** `{ "status": "ok", "reports": [{id, name, filename, created_at, size}] }`
 
 ### `/api/report/view?id=<report_id>`
-以 `text/html` 返回指定报告内容（同源，报告内 `/api/image?name=...` 可正常加载题图）。前端「报告」页点「浏览」即新标签打开此 URL。
+以 `text/html` 返回指定报告内容。响应带无 `allow-same-origin` 的 CSP 沙箱，保留脚本和外部图表资源，阻止报告脚本读取 OMRS API。报告内静态 `/api/image?name=...` 附件引用在响应时获得限单图、随会话失效的签名，仍可显示题图；存储的原始 HTML 不变。前端「报告」页点「浏览」即新标签打开此 URL。
 
 ### `/api/recommend?due_count=10&prof_count=10&subject=数学&category=三角函数&knowledge_tag=二倍角公式`
 返回双列表推荐（到期列表 + 熟练度列表），互斥分配。
@@ -221,7 +230,7 @@
 | `due` | array | 到期题目列表（Due_Date ≤ 今天），按逾期优先+EF升序排列 |
 | `proficiency` | array | 熟练度题目列表（Due_Date > 今天），按薄弱程度降序排列 |
 
-每条题目含 `_source`（`due`/`proficiency`）、`_overdue_days`、`fail_count`、`is_leech` 等元数据。leech 题（algorithm.md §10）在熟练度列表会获得优先级加成。
+每条题目含 `_source`（`due`/`proficiency`）、`_overdue_days`、`fail_count`（累计答错）、`wrong_streak`（最近连错）、`is_leech` 等元数据。leech 题（algorithm.md §10）在熟练度列表会获得优先级加成。休眠够久的已击杀题会带 `is_revived`、`kill_count`、`dormant_days` 重新入列（algorithm.md §11），并获 `revive_priority_bonus`。
 
 复习调度工作台以 `due_count=1000&prof_count=1000` 请求完整候选集，再在浏览器按后端顺序筛选与按科目轮选；请求期间的旧响应不会覆盖较新的推荐结果。
 
@@ -235,9 +244,11 @@
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `allow_external` | bool | 是否允许外部访问（绑定 0.0.0.0） |
+| `lan_pin_exempt_cidrs` | string[] | 直连免 PIN 的私有局域网网段；默认 `[]`，代理访问不豁免 |
 | `tuning` | object | 算法可调参数（若已设置），键见 algorithm.md §9；通过 `save_config()` 保存后立即失效缓存 |
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`），可空 |
-| `ai_api_key` | string | AI 接口密钥（Bearer），可空 |
+| `ai_api_key_configured` | bool | AI 接口密钥是否已保存；不回显密钥本身 |
+| `pin_configured` / `idle_minutes` | bool / int | 远端 PIN 状态与空闲分钟数，不返回 PIN 哈希 |
 | `ai_model` | string | AI 模型名（需支持图片输入，如 `gpt-4o`），可空 |
 | `ai_model_detect` | string | 收件箱框选模型；为空时回退 `ai_model` |
 | `ai_model_extract` | string | 收件箱转文本模型；为空时回退 `ai_model` |
@@ -256,13 +267,26 @@
 返回 `omrs_dashboard.html`。
 
 ### `/assets/<file>`
-通用静态资源路由（`_serve_asset()`），提供 `assets/` 下的样式与脚本（css/js/图片等），含路径穿越防护。原 `/omrs_dashboard.js` 路由已移除（脚本已拆分到 `assets/`）。
+通用静态资源路由（`_serve_asset()`），提供 `assets/` 下的样式与脚本（css/js/图片等），含路径穿越防护。content-type 按扩展名取自 `_ASSET_TYPES`：css、js 与 mjs（ES 模块要求 JavaScript 类型）、html（组件陈列页 `assets/app/gallery.html`）、svg、png、jpg、gif、ico、json、map、woff、woff2；表外扩展名按 `application/octet-stream` 返回。响应带弱 `ETag`（文件 mtime 与大小）与 `Last-Modified`，`Cache-Control: no-cache`；请求带匹配的 `If-None-Match`（弱比较，支持逗号列表与 `*`）或不早于文件修改时间的 `If-Modified-Since` 时回 304、不发正文；两者都带时以 `If-None-Match` 为准。原 `/omrs_dashboard.js` 路由已移除（脚本已拆分到 `assets/`）。
 
 服务端是白名单静态路由：除 `/`、`/index.html`、`/assets/` 和明确 API 端点外，其余路径返回 404，不透传仓库文件；API 响应不主动设置跨域读取头。
 
 ---
 
 ## POST 端点
+
+所有 POST 在读取请求体前检查浏览器 `Origin` 与 `Sec-Fetch-Site`；跨站请求返回 403。非豁免远端请求还需 PIN 会话，本机无浏览器请求头的 CLI 调用保持可用。认证细节见 `AI/security.md`。
+
+### `POST /api/scan`
+执行工作区自检与投影重建，返回 `{status:"ok", count, scan}`；GET 不执行扫描。
+
+### `POST /api/auth/login`、`/api/auth/logout`、`/api/auth/activity`
+远端登录提交 `{pin}`，成功设置 `HttpOnly; SameSite=Strict` 会话 Cookie；退出清除会话。真实用户操作按分钟节流调用 `activity` 刷新空闲时间。`GET /api/auth/session` 可在登录前查询 `{instance_id, remote, authenticated, lan_pin_exempt, pin_configured, warning_required}`；免 PIN 网段直连时 `remote=true`、`authenticated=true`、`lan_pin_exempt=true`。
+
+`instance_id` 是每个服务进程启动时随机生成的 32 位十六进制串，同一进程内不变、重启后改变，只用于判断服务是否已换成新实例；它不是凭据，不能用于授权或会话校验。
+
+### `POST /api/auth/pin`、`/api/auth/disable`、`/api/auth/warning-ack`
+`pin` 接受 `{pin, current_pin?, idle_minutes}`，新 PIN 为 4–12 位数字；只调空闲时间可省略 `pin`（尚未设置 PIN 时返回「请先设置 PIN」）。已设置 PIN 时，远端（含免 PIN 网段直连）修改须给正确的 `current_pin`，校验与登录共用每 IP 15 分钟 5 次的失败上限；尚未设置 PIN 时，免 PIN 网段设备可直接设置首个 PIN。更换 PIN 使全部远端会话失效；只改空闲时间不注销会话，新的空闲上限立即生效。停用 PIN 仅限本机且 `allow_external=false`。HTTP 提醒确认只记在当前会话。
 
 ### `POST /api/schedule`
 创建常规 Session：追加 `session.create` Ledger commit，再重建并导出兼容投影 `sessions.csv`。
@@ -443,7 +467,7 @@
 { "uid": "三角函数4", "subject": "数学", "category": "二次函数" }
 ```
 
-> **访问边界：** OMRS 当前没有用户认证；开启 `allow_external` 时应仅在可信局域网使用。停用/恢复端点会校验浏览器 `Origin`（若存在）与 `Host` 同源，但无 `Origin` 的脚本调用仍按现有本地 API 兼容策略放行。
+> **访问边界：** 本机及显式豁免的局域网直连免 PIN；其他远端需登录。全部 POST 使用统一来源校验，见 `AI/security.md`。
 
 ### `POST /api/question/suspend`
 
@@ -454,7 +478,7 @@
 { "uid": "三角函数4", "reason": "暂不复习" }
 ```
 
-成功响应：`{"status":"ok","uid":"三角函数4","suspended":true}`。重复停用返回 400。浏览器请求若带 `Origin`，必须与当前 `Host` 完全一致；无 `Origin` 的本地脚本调用保持兼容。
+成功响应：`{"status":"ok","uid":"三角函数4","suspended":true}`。重复停用返回 400。
 
 ### `POST /api/question/resume`
 
@@ -525,6 +549,7 @@
 
 ### `POST /api/config`
 更新服务配置。`save_config` 按键合并，故可单独提交任意子集。
+启用 `allow_external` 需先设置 PIN 或配置 `lan_pin_exempt_cidrs`。网段必须是 RFC1918 IPv4 或 IPv6 ULA 中的规范 CIDR，最多 8 个；修改后立即生效。提交非空 `ai_api_key` 会替换密钥；省略或提交空串会保留旧值，明确清除须提交 `{ "clear_ai_api_key": true }`。
 
 **请求体：**
 ```json
@@ -541,7 +566,9 @@
 ### `POST /api/restart`
 触发程序重启。
 
-后端会先返回响应。由 systemd 管理的实例通过 `systemctl restart --no-block omrs.service` 交给服务管理器重新拉起，避免主进程正常退出后 `Restart=on-failure` 将服务留在 stopped 状态；手工命令启动的实例仍使用关闭服务器、延迟 1.5 秒后启动新进程的回退路径。
+后端会先返回响应。由 systemd 管理的实例通过 `systemctl restart --no-block omrs.service` 交给服务管理器重新拉起，避免主进程正常退出后 `Restart=on-failure` 将服务留在 stopped 状态；手工命令启动的实例仍使用关闭服务器、延迟 1.5 秒后启动新进程的回退路径。监听 socket 由 `omrs/cli.py::OMRSTCPServer` 创建并启用 `SO_REUSEADDR`（不启用 `SO_REUSEPORT`），旧连接处于 `TIME-WAIT` 时新进程可立即绑定；仍有进程在监听时照常报错。
+
+客户端判断重启完成的方式：重启前读取 `GET /api/auth/session` 的 `instance_id`，之后轮询同一端点，直到 `instance_id` 改变。仅凭 200 不能判断，因为重启命令刚排队时旧进程仍会应答。
 
 **响应：** `{ "status": "ok", "msg": "正在重启..." }`
 
@@ -617,7 +644,7 @@
 
 可选字段：
 - `"format"`：`"a4"`（打印版，默认）或 `"screen"`（屏幕阅读版）。为兼容旧调用，`"docx"`/`"word"`/`"html"`/空 一律按 `a4` 处理。
-- `"include_answers": true`：在「一、题目」「二、反馈勾选表」之后追加「三、答案」一节。
+- `"include_answers": true`：在「一、题目」之后追加「二、反馈区」一节，**每题**的答案下面紧跟该题错因（不分开）。不勾选时反馈区仍会出现，但只有错因，没有答案正文。
 - `"question_gap_lines": 0`：A4 题目之间预留的空行数，后端钳制到 `0–20`；默认 `0`，屏幕版忽略该留白。
 - `"a4_two_columns": true`：A4 是否使用双栏，默认 `true`；设为 `false` 时整份导出使用单栏。屏幕版忽略该字段。
 
@@ -647,7 +674,7 @@
   纸面记录的 `cursor` 之后续排；没有纸面记录或没有新题时返回 400）。`new` 模式下
   `note_ratio / gap_lines` 沿用纸面记录，其余显示项跟随当前设置。`mode:"new"` 的增量预览也固定
   使用该纸面快照，当前板比例不会覆盖已经打印的纸面几何。
-- `include_answers` 省略时沿用板设置 `print.answers`，传 `true` 时在新页追加答案附页。
+- `include_answers` 省略时沿用板设置 `print.answers`，传 `true` 时在新页追加答案附页，每题答案后面跟该题错因。不论是否勾选，题面栏只放「关联」，错因一律留在答案附页（错因会提示解法）。
 - `overrides` 只覆盖本次导出的版面设置，不回写 `boards.json`。停用题和缺失题保留在板内
   显示，但导出时跳过。
 
