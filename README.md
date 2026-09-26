@@ -13,7 +13,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 - 一个 **HTML/CSS/JS 单页前端**（`omrs_dashboard.html` + `assets/`）负责录入、即时练习、复习 Session、反馈、数据复盘与导出。
 - 没有构建步骤，题库、算法、Ledger、复习和导出均可离线使用；界面字体随 `assets/vendor/fonts/` 本地提供，AI 图片识别以及报告中用户选择的 HTTPS 外部资源属于可选联网能力。
 
-当前版本：**v1.25.6**。
+当前版本：**v1.25.7**。
 
 展示板锁定后仍可添加新题并补印：增删引用、排序和调整未打印题留白不会清空旧纸面记录；仅新增会沿用纸面记录中的实际比例与留白，改动已打印区域的版式才需要明确确认重印。
 
@@ -147,7 +147,7 @@ pack_for_ai.bat
 │   ├── core.js / app.js / dashboard.js / questions.js
 │   ├── schedule.js / export.js / history.js
 │   ├── recommend_v2.js / actions.js / catalog.js
-│   ├── data.js / reports.js
+│   ├── app/features/reports/ ← 报告托管、上传与隔离预览
 │   ├── inbox.js            ← 收件箱录入流程（v1.12.0）；inbox_mobile.html 为手机上传页
 │   ├── labels.js / board.js ← 标记与展示板交互（题库页 v1.24.0 起在 app/features/questions/）
 │   ├── vendor/fonts/       ← Noto Sans SC / JetBrains Mono（本地 WOFF2 分片）

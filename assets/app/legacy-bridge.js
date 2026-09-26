@@ -32,7 +32,7 @@ export function installLegacyBridge(win) {
   const ui = Object.freeze({
     // uiToast(text, {kind, actions, duration}) —— 调用方：assets/*.js 全部 toast、inbox.js 的 ibToast；P8 删除
     toast: (text, options = {}) => toast(text, { ...options, kind: LEGACY_KIND[options.kind] || 'ok' }),
-    // uiDialog(spec) → {ok, values} —— 调用方：board.js、labels.js、questions.js、reports.js 等；P8 删除
+    // uiDialog(spec) → {ok, values} —— 调用方：board.js、labels.js、questions.js 等；P8 删除
     dialog: spec => dialog(spec || {}),
     // uiConfirm(title, {hint, danger, okText}) → boolean —— 调用方同上；P8 删除
     confirm: (title, options) => confirm(title, options || {}),
@@ -82,7 +82,7 @@ function installDataBridge(win) {
  * - REC_DATA_V2 / REC_LOADING / REC_ERROR（只读）—— 调用方：tests/e2e/schedule.py、tests/smoke_schedule_workbench.py 等待条件。
  * - SCH_VIEW / SCH_EXPORT_RETURN / SCH_SESSIONS_LOADING（只读）—— 调用方：tests/e2e/dashboard.py、tests/smoke_schedule_workbench.py 等待条件。
  * - renderExportPicker() —— 调用方：labels.js（标记定义变化后）；转成页面重绘。全题库导出已原生（v1.25.4），旧 export.js 已删。
- * - downloadExportResponse(response, name, statusId) —— 调用方：app.js（备份导出）、reports.js、domain/question/ops.js（批量 A4）；
+ * - downloadExportResponse(response, name, statusId) —— 调用方：app.js（备份导出）、domain/question/ops.js（批量 A4）；
  *   实现是 core/download.js，传了 statusId 时在该元素里写「✓ 文件名」。
  * 不在复习调度页时，schOpenPlan 先切页再发事件（页面挂载后才在听）。
  */

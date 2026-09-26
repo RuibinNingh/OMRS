@@ -341,3 +341,28 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 - 仪表盘 E2E 首轮 25/26，失败项只因旧断言假设当天一定有练习记录；按快照与浏览器当地日期核对后重跑为 26/26。目录扫描 E2E 首轮等待条件过早满足，改成等 `/api/tree` 请求后为 24/24。
 
 未执行：生产部署（需要用户单独授权）；Firefox 与 WebKit 留给计划的终检阶段。
+
+---
+
+## 报告页迁移（2026-09-27，v1.25.7）
+
+### 盘点与行为变化
+
+- 旧 `assets/reports.js` 持有 `REPORTS` 全局和 `fmtSize`、`buildReportAiPrompt`、`copyReportAiPrompt`、`downloadReportData`、`loadReports`、`renderReports`、`openReport`、`readFileText`、`createReport`、`deleteReport`。`#panel-reports` 的旧 DOM 包含图片开关、材料按钮、名称与文件输入、列表；专用 `.rp-*` 样式在 `assets/styles.css`。跨页旧引用仅有 `legacy-pages.js` 的进入钩子和 `legacy-bridge.js` 的旧调用方说明；后端接口和沙箱协议未改。
+- 新 `features/reports/` 用纯 `state.js` 保存文件验证、大小格式、材料说明和 AI 提示词；`index.js` 管理列表、文件读取、上传、删除和下载的生命周期；`view.js` 提供 token 化卡片、`ui/filedrop`、空态与嵌入预览。`ui/filedrop` 的 `bindFileDrop` 新增可选拒绝回调，让非 HTML 文件在上传区直接显示原因；空文件、读取失败、上传失败也明确提示，上传期间防重。
+- 「浏览」在页内用 `iframe sandbox="allow-scripts allow-downloads allow-popups"` 预览；没有 `allow-same-origin`，报告脚本仍处于后端 CSP 沙箱。原新标签入口保留为单独按钮。删除经 `ui/dialog` 确认；材料提示词随题图选项切换，下载继续走 `/api/export-review` 和 `core/download.js`。
+- 删除旧脚本、旧 HTML 表单及 13 条专用 CSS，`main.js` 登记页面并移除旧页面项。原报告页无独立前端 Node 测试；新增 `tests/app/reports.test.mjs` 4 项纯规则与模板断言、`tests/e2e/reports.py` 23 项真实浏览器路径，后端 `tests/test_report_export.py` 保持不变。
+
+### 影响文件
+
+新增 `assets/app/features/reports/`、`tests/app/reports.test.mjs`、`tests/e2e/reports.py`；删除 `assets/reports.js`；修改 `assets/app/ui/filedrop.js`、`assets/app/main.js`、`assets/app/legacy-pages.js`、`assets/app/legacy-bridge.js`、`assets/app/styles/index.css`、`assets/styles.css`、`omrs_dashboard.html`、`tests/ui_baseline.json`。同步 `AGENTS.md`、`AI/frontend/records.md`、`AI/frontend/components.md`、`AI/frontend/architecture.md`、`AI/frontend/shell.md`、`AI/frontend/create.md`、版本号四处、`AI/changelog.md`、`README.md` 与本进度文件。旧 CSS 精确删除已逐段对照差异。
+
+### 验证
+
+- 实际运行：`tests/app/reports.test.mjs` 4/4，`tests/e2e/reports.py` 23/23；上传路径含拖入非法文件、空文件、读取错误、真实创建、沙箱预览、带图 ZIP 下载、删除取消和确认、列表错误重试。`check_ui.py` 为 0 处问题，旧存量 handlers 101、html_assign 61、inline_style 100、color_literals 95、font_size_literals 198；`check_contrast.py` 58 组达标。
+- `tests/visual/run.py --ref HEAD --pages reports` 四张截图差异：桌面浅 / 深 3.439% / 5.945%，手机浅 / 深 13.868% / 21.487%。左侧材料区与上传区换成更清楚的同尺度卡片，右侧列表空态调整，手机由旧表单单列改为分段卡片，因此手机差异较高。运行时四种组合均为 3 档字号、最小 12px、小目标 0、有效行内样式 0、横向溢出 0；旧版 7 档字号、最小 10.2px、有效行内样式 3。页面脚本错误为 0。
+- E2E 首轮失败于确认框有两个关闭按钮，以及审计把复选框和文件输入本身的尺寸当成点击目标；测试改为定位对话框脚部取消按钮、量包裹输入的 label 后通过。读取失败模拟后 Playwright 序列化原生 FileReader 构造器报错，改为只恢复不返回构造器后通过。
+
+全量回归实际运行：Python unittest 160 项、Node 238 项、浏览器单测 34 项；E2E shell_router 20、ui_bridge 15、dashboard 26、data 21、schedule 45、instant 23、feedback 31、questions 92、history 22、catalog 24、reports 23，全部通过。`smoke_schedule_workbench` 1 项通过。`check_docs.py --write-routes`、`--write-log-index` 已运行；`--diff HEAD` 为 0 处问题、2 条篇幅提醒。`git diff --check` 通过。隔离实例均使用临时 Vault、随机端口，且移除了 `OMRS_SYSTEMD_SERVICE`。最后补强了 FileReader 错误在文件拖放区内的提示，报告页 E2E 重跑仍为 23/23。
+
+未执行：生产部署（需用户单独授权）；Firefox 与 WebKit 留给计划终检。

@@ -1,0 +1,38 @@
+/* AI 报告：材料、托管列表与隔离预览。 */
+.rpw { display: grid; gap: var(--sp-4); min-width: 0; }
+.rpw-grid { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(0, 1.35fr); gap: var(--sp-4); align-items: start; }
+.rpw-card { display: grid; gap: var(--sp-4); min-width: 0; padding: var(--sp-5); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--elev-1); }
+.rpw-card :is(h2, p) { margin: 0; }
+.rpw-card h2 { color: var(--fg-1); font-size: var(--text-lg); }
+.rpw-intro { color: var(--fg-2); font-size: var(--text-sm); line-height: var(--leading-read); }
+.rpw-kit { display: grid; gap: var(--sp-3); padding: var(--sp-4); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-2); }
+.rpw-kit__head, .rpw-list-head { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-3); }
+.rpw-kit__head strong { display: block; font-size: var(--text-md); }
+.rpw-kit__head p, .rpw-list-head p, .rpw-hint { color: var(--fg-2); font-size: var(--text-xs); line-height: var(--leading-ui); }
+.rpw-check { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--ctl-md); color: var(--fg-2); font-size: var(--text-sm); cursor: pointer; }
+.rpw-check input { width: var(--sp-4); height: var(--sp-4); margin: 0; }
+.rpw-actions, .rpw-row__actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
+.rpw-field { display: grid; gap: var(--sp-1); color: var(--fg-2); font-size: var(--text-sm); }
+.rpw-field input { box-sizing: border-box; width: 100%; min-height: var(--ctl-md); padding: 0 var(--sp-3); border: 1px solid var(--border-2); border-radius: var(--r-sm); background: var(--surface-1); color: var(--fg-1); font: inherit; }
+.rpw-field input:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
+.rpw-upload .ui-filedrop { min-height: 96px; }
+.rpw-status { min-height: var(--text-md); color: var(--fg-2); font-size: var(--text-sm); }
+.rpw-status[data-tone="danger"], .rpw-error { color: var(--danger-fg); }
+.rpw-status[data-tone="success"] { color: var(--success-fg); }
+.rpw-error { font-size: var(--text-sm); }
+.rpw-list { display: grid; gap: var(--sp-2); min-width: 0; }
+.rpw-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-2); }
+.rpw-row[data-selected] { border-color: var(--accent); }
+.rpw-row__text { min-width: 0; }
+.rpw-row__text strong { display: block; color: var(--fg-1); font-size: var(--text-md); overflow-wrap: anywhere; }
+.rpw-row__text p, .rpw-row__text code { color: var(--fg-2); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.rpw-frame { display: block; box-sizing: border-box; width: 100%; min-height: 70vh; border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-1); }
+
+@media (max-width: 760px) {
+  .rpw-grid { grid-template-columns: minmax(0, 1fr); }
+  .rpw-card { padding: var(--sp-3); }
+  .rpw-actions .ui-btn, .rpw-row__actions .ui-btn { min-height: var(--ctl-lg); }
+  .rpw-check, .rpw-field input { min-height: var(--ctl-lg); }
+  .rpw-row__actions { width: 100%; }
+  .rpw-frame { min-height: 75vh; }
+}

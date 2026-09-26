@@ -20,7 +20,6 @@ assets/
 ├── schedule.js       ← 录入提交（doCreate/resetCreateForm）、全局扫描 doScan 与两个旧入口；复习调度页在 assets/app/features/schedule/
 ├── board.js          ← 展示板 CRUD、排序、添加题目、打印（全部 / 仅新增）与纸面记录
 ├── board_preview.js  ← 展示板常驻预览 iframe 的生命周期与消息协议（必须排在 board.js 之后）
-├── reports.js        ← 报告托管页：列表/上传创建/浏览/删除
 └── app.js            ← switchTab（路由包装）/旧页面刷新链 legacyDataRefresh/设置 + 录入页图片粘贴/AI 识别/AI 设置 + init()（由 app/main.js 调用）
 ```
 

@@ -8,8 +8,7 @@
   "assets/inbox_mobile.html": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 16, "font_size_literals": 7},
   "assets/labels.js": {"handlers": 0, "html_assign": 10, "inline_style": 2, "color_literals": 0, "font_size_literals": 1},
   "assets/questions.js": {"handlers": 0, "html_assign": 0, "inline_style": 2, "color_literals": 0, "font_size_literals": 0},
-  "assets/reports.js": {"handlers": 2, "html_assign": 12, "inline_style": 14, "color_literals": 0, "font_size_literals": 3},
   "assets/schedule.js": {"handlers": 1, "html_assign": 2, "inline_style": 0, "color_literals": 0, "font_size_literals": 0},
-  "assets/styles.css": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 75, "font_size_literals": 185},
-  "omrs_dashboard.html": {"handlers": 102, "html_assign": 0, "inline_style": 53, "color_literals": 0, "font_size_literals": 11}
+  "assets/styles.css": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 75, "font_size_literals": 181},
+  "omrs_dashboard.html": {"handlers": 98, "html_assign": 0, "inline_style": 50, "color_literals": 0, "font_size_literals": 9}
 }}

@@ -58,7 +58,7 @@ assets/app/
 | 进度 | `progress({value, max, label, tone, size, meta})`、`spinner()` | 原生 progress；不传 value 为不定进度 |
 | 提示 | 元素写 `data-tooltip`，页面调一次 `bindTooltips(document)` | 悬停 500ms 或键盘聚焦时出现，Esc 隐藏 |
 | 快捷键 | `kbd('Ctrl', 'K')` | 键帽与组合键 |
-| 文件拖放 | `filedrop({id, title, hint, accept, multiple})` + `bindFileDrop(zone, onFiles)` | 取代原生「Choose File」（D6）；不符合 accept 的文件滤掉并标 is-error |
+| 文件拖放 | `filedrop({id, title, hint, accept, multiple})` + `bindFileDrop(zone, onFiles, onReject)` | 取代原生「Choose File」（D6）；不符合 accept 的文件滤掉并标 is-error，可由 onReject 给出就地原因 |
 
 状态类 `is-hover` / `is-active` / `is-focus` 只供 gallery 固定展示交互态；业务代码用真实伪类与 `aria-pressed`、`aria-selected`、`aria-invalid`、`aria-busy`。
 

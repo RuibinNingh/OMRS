@@ -54,7 +54,7 @@
       <div class="nav-spacer"></div>
       <a class="tab" data-tab="settings" href="#/settings"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></a>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.25.6 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.25.7 · 本地服务</div>
   </aside>
   <main class="content">
     <div class="topbar">
@@ -682,46 +682,7 @@
 
   <!-- ====== 报告 ====== -->
   <div class="panel" id="panel-reports">
-    <div class="cols rp-layout">
-      <div class="card">
-        <div class="card-title">📤 创建报告</div>
-        <p style="font-size:.78rem;color:var(--fg3);margin-bottom:16px;line-height:1.7">
-          先准备分析材料并交给 AI，再上传 AI 生成的纯 HTML 报告。报告由本程序托管，可在浏览器直接打开。
-        </p>
-        <div class="rp-ai-kit">
-          <div class="rp-ai-kit-head">
-            <div>
-              <strong>AI 分析材料</strong>
-              <span>提示词会按图片选项自动调整</span>
-            </div>
-            <label class="rp-image-option" for="rp-include-images">
-              <input type="checkbox" id="rp-include-images" onchange="updateReportMaterialHint()">
-              <span>包含题目图片</span>
-            </label>
-          </div>
-          <div class="rp-material-actions">
-            <button class="btn" id="rp-prompt-btn" onclick="copyReportAiPrompt()">复制 AI 报告提示词</button>
-            <button class="btn" id="rp-data-btn" onclick="downloadReportData()">下载分析数据</button>
-          </div>
-          <div class="rp-material-hint" id="rp-material-hint">下载 Markdown 数据文件，不包含图片文件。</div>
-        </div>
-        <div class="form-group">
-          <label>报告名称 *</label>
-          <input id="rp-name" class="input" placeholder="如：6 月薄弱点分析">
-        </div>
-        <div class="form-group">
-          <label>HTML 文件 *</label>
-          <input type="file" id="rp-file" class="input" accept=".html,.htm,text/html">
-          <div class="hint">选择 AI 给你的 .html 报告文件</div>
-        </div>
-        <button class="btn primary" id="rp-btn" onclick="createReport()">上传并创建</button>
-        <div id="rp-status" style="margin-top:12px;font-size:.82rem"></div>
-      </div>
-      <div class="card">
-        <div class="card-title">📑 已托管报告</div>
-        <div id="rp-list" style="margin-top:6px"></div>
-      </div>
-    </div>
+    <div id="rp-app"></div>
   </div>
   </main>
 </div>
@@ -739,7 +700,6 @@
 <script src="assets/board.js?v=20260922-board-integrity"></script>
 <script src="assets/board_picker.js?v=20260925-p5r3"></script>
 <script src="assets/board_preview.js?v=20260922-board-integrity"></script>
-<script src="assets/reports.js?v=20260920-local-fonts"></script>
 <script src="assets/app.js?v=20260926-p6-catalog"></script>
 <script type="module" src="assets/app/main.js?v=20260926-p6-catalog"></script>
 </body>

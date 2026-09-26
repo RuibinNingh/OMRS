@@ -19,7 +19,7 @@ assets/app/
 ├── ui/                无业务组件
 ├── styles/            tokens、index（@layer 总入口）、base、ui、shell、legacy-bridge、gallery
 ├── domain/            业务领域：question/（共享题目视图，已是真实现）+ 过渡期适配器（新页面只经这里碰旧全局，见 §5）
-└── features/          已迁移的页面：questions/、instant/、feedback/、dashboard/、data/、schedule/、history/、catalog/
+└── features/          已迁移的页面：questions/、instant/、feedback/、dashboard/、data/、schedule/、history/、catalog/、reports/
 ```
 
 依赖方向由 `tests/check_ui.py` 的 R7 强制：`core` 只依赖 `core`；`ui` 依赖 `ui`、`core`；`domain` 依赖 `domain`、`ui`、`core`；`features/<页>` 只依赖本页、`domain`、`ui`、`core`，页面之间禁止互相 import，跨页联动走 bus。根目录的 `main.js`、`shell.js`、`legacy-pages.js`、`legacy-bridge.js` 是装配层，不受 R7 限制，也不放业务逻辑。
@@ -64,7 +64,7 @@ assets/app/
 
 - `window.__omrs = { bus, store, router, emit }` 给旧代码用。
 - **统计数据的所有者是 `domain/data.js`（v1.25.0 起）**：`reloadData()` 拉 `/api/stats` → 设快照 → 写旧 `DATA` 镜像（直接给 `let` 标识符赋值）→ 跑过渡桥登记的旧刷新链 `legacyDataRefresh()` → 经 bus 发 `data`，外壳同步进 `store.data`。旧 `DATA`、`store.data`、`currentData()` 是同一个对象。
-- **目录的跨页刷新**：`features/catalog/` 订阅 `store.data`，题目统计变化时只重算目录学习状态；外壳的 `app.scan` 完成后发 `catalog:refresh`，目录页收到后强制重读 `/api/tree`。页面卸载时退订，不保留旧全局入口。
+- **目录的跨页刷新**：`features/catalog/` 订阅 `store.data`，题目统计变化时只重算目录学习状态；外壳的 `app.scan` 成功后发 `catalog:refresh`，目录页收到后强制重读 `/api/tree`。页面卸载时退订，不保留旧全局入口。
 - 并发合并：一次加载进行中再调用，只排一次「补拉」，之后的调用共享它；调用方 await 之后拿到的数据不早于调用时刻。加载失败保留上一份快照（首次失败给空快照），`lastError()` 给原因；不再用演示数据顶替。全局 `reloadData` 由过渡桥挂成这个实现，旧调用方不变。`main.js` 在外壳就绪后 `connectData({ emit })` 接上发布通道。
 - 题目详情缓存归 `domain/question/mount.js`；旧代码读的 `QUESTION_CACHE` / `QUESTION_PENDING` 是过渡桥挂的只读全局。Session 列表归 `domain/sessions.js`（v1.25.2 起）：`refreshSessions()` 后发先至只认最新、失败保留旧列表，成功失败都经 bus 发 `sessions`；旧 `SESSIONS` 是镜像，全局 `refreshSessions` 由过渡桥挂成它。`main.js` 在外壳就绪后 `connectSessions({ emit })`。
 - bus 事件：`data`（载荷统计快照，`domain/data.js` 发）、`questions:preset`（载荷题库预设，仪表盘切页后发）、`ledger:tz`（设置里改 Ledger 时区后 `app.js` 发，仪表盘重投影最近动态）、`schedule:view`（仪表盘「开始复习」发，打开安排复习）/ `schedule:open-plan`（过渡桥 `schOpenPlan` 发，打开计划）/ `schedule:render`（过渡桥 `renderUnifiedListV2` / `renderExportPicker` 发）、`page:change`（`{ id, prev }`）、`labels`（载荷 LABELS，旧 `renderLabelFilterOptions()` 之后发）、`instant:load`（载荷预设，过渡桥 `instLoadPractice` 发）、`sessions`（`domain/sessions.js` 每次加载开始、结束与删除后发）、`feedback:session`（载荷 session_id，复习调度「录入结果」发）、`feedback:reset` / `feedback:clear-results` / `feedback:render`（过渡桥 `resetFeedbackForm` / `fbClearResults` / `renderFb` 发）。新增事件在这里登记。
@@ -77,7 +77,7 @@ assets/app/
 |---|---|---|
 | `assets/app/legacy-bridge.js` | 旧 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 转调新组件 | P8 |
 | `assets/app/legacy-pages.js` | 旧页面登记表（dashboard、data、schedule、instant、feedback 已删） | 每页迁移时删一项，P8 删文件 |
-| `assets/app/legacy-bridge.js` 的 `installScheduleBridge`（v1.25.2 起；v1.25.3 补推荐选题，v1.25.4 补导出）：`refreshSessions` → `domain/sessions.js`；`schOpenPlan(id)` → 复习调度页事件（不在本页时先切页）；`confirmScheduleV2()` / `loadRecommendationsV2()` → 「安排复习」控制器；`renderUnifiedListV2()` / `renderExportPicker()` → 页面重绘；`downloadExportResponse(response, name, statusId)` → `core/download.js`；只读 `SCH_VIEW`、`SCH_EXPORT_RETURN`、`SCH_SESSIONS_LOADING`、`REC_DATA_V2`、`REC_LOADING`、`REC_ERROR` | app.js `init()` 与备份导出、history.js、schedule.js 的 `doScan`、labels.js（标记变化后）、reports.js、domain/question/ops.js（批量 A4）；tests/e2e 与冒烟测试 | 调用方迁完逐条删，P8 清空 |
+| `assets/app/legacy-bridge.js` 的 `installScheduleBridge`（v1.25.2 起；v1.25.3 补推荐选题，v1.25.4 补导出）：`refreshSessions` → `domain/sessions.js`；`schOpenPlan(id)` → 复习调度页事件（不在本页时先切页）；`confirmScheduleV2()` / `loadRecommendationsV2()` → 「安排复习」控制器；`renderUnifiedListV2()` / `renderExportPicker()` → 页面重绘；`downloadExportResponse(response, name, statusId)` → `core/download.js`；只读 `SCH_VIEW`、`SCH_EXPORT_RETURN`、`SCH_SESSIONS_LOADING`、`REC_DATA_V2`、`REC_LOADING`、`REC_ERROR` | app.js `init()` 与备份导出、history.js、schedule.js 的 `doScan`、labels.js（标记变化后）、domain/question/ops.js（批量 A4）；tests/e2e 与冒烟测试 | 调用方迁完逐条删，P8 清空 |
 | `assets/app/legacy-bridge.js` 的 `installDataBridge`（v1.25.0）：全局 `reloadData` → `domain/data.js`；旧刷新链 `legacyDataRefresh()` 登记为钩子；`QUESTION_CACHE` / `QUESTION_PENDING` 只读全局 | `reloadData`：app.js `init()`、inbox.js、labels.js、schedule.js 的写操作之后；目录与历史页通过 store / bus 自行订阅；缓存：board.js | 刷新链随各页迁移逐项删，P8 清空 |
 | `assets/app/legacy-bridge.js` 的 `instLoadPractice(preset)`、`INSTANT_QUEUE` | 旧入口带预设进入即时练习（仪表盘已改为直接发 `instant:load`，现仅 `tests/e2e/instant.py` 回归用）；旧冒烟测试读队列 | P8 |
 | `assets/app/legacy-bridge.js` 的 `fbSessionProgress`、`renderFb`、`resetFeedbackForm`、`fbClearResults`；`schedule.js` 的 `feedbackSession` / `refreshFbSessionPicker`（改为发 bus） | 复习调度算进度、跳到反馈页、删计划清表单；标记变化重绘 | P8 |

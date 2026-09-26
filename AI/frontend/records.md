@@ -2,9 +2,9 @@
 
 > **速查**
 > - 职责：Ledger 时间线、数据复盘页、AI 报告托管页
-> - 入口：`assets/app/features/history/`、`assets/app/features/data/`（数据复盘）、`assets/reports.js`
+> - 入口：`assets/app/features/history/`、`assets/app/features/data/`（数据复盘）、`assets/app/features/reports/`
 > - 不变量：历史修正只在「修正模式」下可用；报告在 sandbox 中渲染，不获得 OMRS 同源权限
-> - 必跑测试：`tests/test_history_projection.py`、`tests/app/history.test.mjs`、`tests/e2e/history.py`、`tests/test_report_export.py`、`tests/app/analytics.test.mjs`、`tests/e2e/data.py`
+> - 必跑测试：`tests/test_history_projection.py`、`tests/app/history.test.mjs`、`tests/e2e/history.py`、`tests/test_report_export.py`、`tests/app/reports.test.mjs`、`tests/e2e/reports.py`、`tests/app/analytics.test.mjs`、`tests/e2e/data.py`
 > - 相关：`AI/frontend.md`（索引）
 
 ## 历史记录页
@@ -67,14 +67,13 @@
 
 ## 报告页（AI 报告托管）
 
-> 对应 Tab：`报告`（历史记录与设置之间）；面板 `#panel-reports`；脚本 `assets/reports.js`（在 data.js 后、app.js 前加载）。后端见 `omrs/reports.py` 与 api.md 报告端点。
+> 对应 Tab：`报告`（历史记录与设置之间）；面板 `#panel-reports` 的 `#rp-app` 由 `features/reports/` 挂载。后端见 `omrs/reports.py` 与 api.md 报告端点。
 
-- **创建**：填名称 + 选 `.html` 文件 → `createReport()` 用 `FileReader.readAsText` 读出 HTML 文本，`POST /api/report/create {name, html}`。
+- **创建**：填名称 + 用 `ui/filedrop` 拖入或选择 `.html` / `.htm` 文件 → `FileReader.readAsText` 读出文本，`POST /api/report/create {name, html}`。非 HTML、空文件、读取失败都在上传区或状态栏显示原因；上传期间按钮置忙并阻止重复提交。
 - **准备 AI 材料**：创建卡片提供「复制 AI 报告提示词」和「下载分析数据」。`#rp-include-images` 控制是否带题图：关闭时下载 Markdown；开启时请求 `/api/export-review?include_images=1` 下载 Markdown + `images/` 的 ZIP。提示词同步切换图片约束，并要求 AI 只返回可直接上传的完整单文件 HTML、不得虚构数据。报告允许通过 HTTPS 使用外部字体、图表和图标资源，但禁止广告/追踪脚本，并要求依赖加载失败时核心内容仍可阅读。
-- **列表**：`loadReports()` 拉 `/api/reports`，`renderReports()` 用 `sched-item` 样式列出（名称 / 创建时间 / 大小 / id）。
-- **浏览**：`openReport(id)` → `window.open('/api/report/view?id=...')` 新标签打开。报告脚本运行于独立来源的 CSP 沙箱；后端为静态题图 URL 加单图签名，图片仍可加载，脚本不能读取 OMRS API。
-- **删除**：`deleteReport(id)` → `POST /api/report/delete`。
-- `switchTab('reports')` 触发 `loadReports()`。
+- **列表**：挂载和刷新时读取 `/api/reports`，失败保留现有列表并显示原因；每行列出名称、创建时间、大小和 id。
+- **浏览**：点「浏览」后在页面下方用 `iframe sandbox="allow-scripts allow-downloads allow-popups"` 预览，不带 `allow-same-origin`；「新标签打开」沿用 `/api/report/view?id=...`。报告脚本运行于独立来源的 CSP 沙箱；后端为静态题图 URL 加单图签名，图片仍可加载，脚本不能读取 OMRS API。
+- **删除**：先用 `ui/dialog` 确认，再 `POST /api/report/delete`；成功后重拉列表。进入报告页时读取列表，离开后迟到的结果不再渲染。
 
 ### 报告如何引用题目图片（与后端对接）
 

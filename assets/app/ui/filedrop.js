@@ -1,6 +1,6 @@
 /**
  * 文件拖放区：filedrop({id, title, hint, accept, multiple, disabled, error}) 产出 <label> 包着的 file input（键盘可达）；
- * bindFileDrop(zone, onFiles) 处理拖入高亮、放下与选择，回调收到 File[]；不符合 accept 的文件被滤掉并给区域加 is-error。
+ * bindFileDrop(zone, onFiles, onReject) 处理拖入高亮、放下与选择，回调收到 File[]；不符合 accept 的文件被滤掉并给区域加 is-error。
  */
 import { html } from '../core/html.js';
 import { icon } from './icon.js';
@@ -24,13 +24,14 @@ export function acceptsFile(file, accept) {
   });
 }
 
-export function bindFileDrop(zone, onFiles) {
+export function bindFileDrop(zone, onFiles, onReject) {
   const input = zone.querySelector('input[type="file"]');
   let depth = 0;
   const deliver = list => {
     const files = [...(list || [])];
     const ok = files.filter(file => acceptsFile(file, input?.getAttribute('accept') || ''));
     zone.classList.toggle('is-error', ok.length < files.length);
+    if (ok.length < files.length) onReject?.(files.filter(file => !ok.includes(file)));
     if (ok.length) onFiles(input?.multiple ? ok : ok.slice(0, 1));
   };
   zone.addEventListener('dragenter', event => { event.preventDefault(); if (input?.disabled) return; depth += 1; zone.classList.add('is-dragover'); });
