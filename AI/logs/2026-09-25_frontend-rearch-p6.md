@@ -317,3 +317,27 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 ### 现状勘查
 
 根目录 `SOURCE_EXPORT_MANIFEST.txt` 仍是 20260926T022359Z 的历史导出清单，列有已删除的 `AI/rearch-plan.md` 与 `assets/history.js`，与执行说明中的「已重新生成」不一致。该清单由源码导出命令在新导出包中生成；本页不改写旧导出的时间戳和文件清单。后续验证「导出脱敏源码包」时检查新包清单不含已删文件。
+
+---
+
+## 目录页迁移（2026-09-27，v1.25.6）
+
+### 盘点与行为变化
+
+- 原 `assets/catalog.js` 持有 `CATALOG_TREE`、`CATALOG_SUMMARY`、展开路径、搜索词、全部文件开关和文件夹统计等全局状态；`loadCatalog`、`renderCatalog` 以及 `catalog*` 函数负责请求、后备树、渲染、复制与开题。旧面板依赖 `#catalog-*`、`.tree-*`，目录专用 CSS 集中在 `assets/styles.css`。跨页入口是旧 `app.js` 的初始化、`legacy-pages.js` 的进入钩子；旧测试 `smoke_frontend_actions_catalog.js` 含目录场景。
+- 新 `features/catalog/` 的 `state.js` 提供纯后备树、文件夹统计、搜索与路径投影；`index.js` 持有页面状态和请求生命周期；`view.js` 用带 key 的 `each()` 渲染目录树。默认只展开根层，搜索会展开匹配分支；题目文件通过 `domain/question` 打开，剪贴板拒绝时显示可手动复制的路径。`/api/tree` 首次失败用题目路径建后备树，刷新失败保留现有树并显示原因。
+- 目录工具栏保留重新扫描；旧 `doScan()` 返回扫描是否成功，外壳仅在成功时发 `catalog:refresh` 让目录重读。扫描失败保留目录树。桌面和手机的目录行、到期标记、统计卡及工具栏改用语义 token 与统一控件尺度。
+- 删除旧目录脚本、只服务旧目录的 39 行 CSS、旧目录冒烟文件；`main.js` 注册新页面，HTML 只留挂载根。旧目录测试场景迁到 `tests/app/catalog.test.mjs` 的纯函数与模板断言，以及 `tests/e2e/catalog.py` 的真实浏览器主路径。仪表盘旧 E2E 的热力格断言改为按浏览器当地日期与统计快照核对，避免跨时区当天记录为 0 时误报。
+
+### 影响文件
+
+`assets/app/features/catalog/`、`assets/app/main.js`、`assets/app/legacy-pages.js`、`assets/app/shell.js`、`assets/app/styles/index.css`、`assets/app.js`、`assets/schedule.js`、`omrs_dashboard.html`、`assets/styles.css`、`assets/catalog.js`、`tests/app/catalog.test.mjs`、`tests/e2e/catalog.py`、`tests/e2e/dashboard.py`、`tests/smoke_frontend_actions_catalog.js`、`tests/ui_baseline.json`；同步 `AGENTS.md`、`README.md`、`AI/README.md`、前端对应分册、`AI/optimization.md`、`AI/changelog.md`、`AI/routes.md`、`omrs/version.py`、本进度文件与日志索引。旧 CSS 删除逐段对照 `git diff`，`git diff --check` 通过。
+
+### 验证
+
+- 实际运行：Python unittest 160 项、Node 234 项、浏览器单测 34 项；E2E shell_router 20、ui_bridge 15、dashboard 26、data 21、schedule 45、instant 23、feedback 31、questions 92、history 22、catalog 24，全部通过。`smoke_schedule_workbench` 1 项通过。
+- `check_ui.py --update-baseline` 后为 0 处问题，旧存量 handlers 107、html_assign 73、inline_style 117、color_literals 95、font_size_literals 207；`check_contrast.py` 58 组达标。
+- `tests/visual/run.py --ref HEAD --pages catalog` 的四张截图都有预期变化：桌面浅 / 深约 28.990% / 29.626%，手机浅 / 深约 51.000% / 51.721%。旧树的紧凑文字行、emoji 和行内进度条换成留白更清楚的统计卡、原生目录按钮和 SVG 图标；手机工具栏换行、到期标记与数字分行，差异占比因纵向重排较高。运行时目录审计四种组合均为 3 档字号、最小 12px、小目标 0、有效行内样式 0、横向溢出 0；旧版桌面小目标 25、行内样式 50。页面脚本错误为 0。
+- 仪表盘 E2E 首轮 25/26，失败项只因旧断言假设当天一定有练习记录；按快照与浏览器当地日期核对后重跑为 26/26。目录扫描 E2E 首轮等待条件过早满足，改成等 `/api/tree` 请求后为 24/24。
+
+未执行：生产部署（需要用户单独授权）；Firefox 与 WebKit 留给计划的终检阶段。

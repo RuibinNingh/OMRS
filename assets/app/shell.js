@@ -36,7 +36,7 @@ function syncCollapsedTooltips(doc) {
 }
 
 /** 跨页共用的动作。scan：调旧 doScan()，期间按钮置忙防重复点；在目录页时顺带重读目录树，「未进题库」提示随之更新。 */
-function defineAppActions(win, router) {
+function defineAppActions(win, router, bus) {
   let scanning = false;
   defineActions('app', {
     async scan({ el }) {
@@ -45,8 +45,8 @@ function defineAppActions(win, router) {
       const buttons = [...win.document.querySelectorAll('[data-action="app.scan"]')];
       buttons.forEach(b => { b.disabled = true; b.setAttribute('aria-busy', 'true'); });
       try {
-        await win.doScan();
-        if (router.current() === 'catalog' && typeof win.loadCatalog === 'function') await win.loadCatalog(true);
+        const scanned = await win.doScan();
+        if (scanned && router.current() === 'catalog') bus.emit('catalog:refresh');
       } finally {
         buttons.forEach(b => { b.disabled = false; b.removeAttribute('aria-busy'); });
         scanning = false;
@@ -89,7 +89,7 @@ export function startShell(win, pages) {
   bus.on('data', data => store.set({ data }));
   bindEvents(doc);
   bindKeys(doc);
-  defineAppActions(win, router);
+  defineAppActions(win, router, bus);
   // 侧栏导航是 <a href="#/页面">：普通点击同步切页（旧代码与冒烟测试都假定点击后立即切换）；带修饰键时交给浏览器
   doc.addEventListener('click', event => {
     const link = event.target.closest?.('a.tab[data-tab]');

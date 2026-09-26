@@ -4,6 +4,12 @@
 > 这里每段都是当时写下的原文（未改写），所以段里的「现在 / 原先」以该版本为准；具体文件级变更看 `logs/`。
 > 新版本的摘要请追加在最上面；同一版本多次改动时合并进同一段。
 
+## v1.25.6（2026-09-27）前端重构 P6：目录页迁入 features/catalog
+
+- 目录树改由 `features/catalog/` 渲染；结构仍取 `/api/tree`，接口不可用时按题目路径构建后备树。题目状态按文件夹前缀叠加，搜索、展开折叠、显示全部文件、开题目详情和复制路径保留。
+- 默认只展开根目录；大量文件夹时可自行展开，桌面与手机均使用原生按钮、图标和语义 token。重新扫描成功后经页面事件重读目录，扫描失败保留原树；复制被拒绝时提示手动复制路径。
+- 旧目录脚本和专用旧 CSS 已删除；目录场景迁到 `tests/app/catalog.test.mjs`，隔离实例的 `tests/e2e/catalog.py` 覆盖主路径与四种视觉审计。
+
 ## v1.25.5（2026-09-26）前端重构 P6：历史记录页迁入 features/history
 
 - Ledger 时间线、排序、修正模式、修正记录与载荷预览由 `features/history/` 渲染；反馈、Session 和结构化状态的修正仍调用原有 API，成功后刷新题目缓存、统计和 Session，并通知仪表盘最近动态。
@@ -192,7 +198,7 @@
 
 ## v1.7.0
 
-> **v1.7.0 行动推荐 + 目录页 + 深色对比度修订**：① 仪表盘顶部新增「行动推荐」卡（`#action-plan`，在「最近动态」上方），脚本 assets/actions.js（v1.25.0 删除，规则迁到 features/dashboard/plan.js），见 §1.1；② 侧栏在「题目库」和「复习调度」之间新增「目录」页（`#panel-catalog`，图标 `#i-tree`），脚本 `assets/catalog.js`，数据来自新接口 `GET /api/tree`，见 §2.1；③ `styles.css` 的 `[data-theme="dark"]` token 与若干写死浅色的规则按对比度重配，见 §12。版本号提到 **v1.7.0**（`omrs/version.py` + HTML 侧栏 `v1.7.0 · 本地服务`）。
+> **v1.7.0 行动推荐 + 目录页 + 深色对比度修订**：① 仪表盘顶部新增「行动推荐」卡（`#action-plan`，在「最近动态」上方），脚本 assets/actions.js（v1.25.0 删除，规则迁到 features/dashboard/plan.js），见 §1.1；② 侧栏在「题目库」和「复习调度」之间新增「目录」页（`#panel-catalog`，图标 `#i-tree`），脚本 assets/catalog.js（v1.25.6 删除），数据来自新接口 `GET /api/tree`，见 §2.1；③ `styles.css` 的 `[data-theme="dark"]` token 与若干写死浅色的规则按对比度重配，见 §12。版本号提到 **v1.7.0**（`omrs/version.py` + HTML 侧栏 `v1.7.0 · 本地服务`）。
 
 ## v1.5.0
 

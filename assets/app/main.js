@@ -17,12 +17,13 @@ import { page as dashboardPage } from './features/dashboard/index.js';
 import { page as dataPage } from './features/data/index.js';
 import { page as schedulePage } from './features/schedule/index.js';
 import { page as historyPage } from './features/history/index.js';
+import { page as catalogPage } from './features/catalog/index.js';
 import { connectSessions } from './domain/sessions.js';
 import { connectData } from './domain/data.js';
 import { connectHistory } from './domain/history.js';
 
 installLegacyBridge(window);
-const { router, bus } = startShell(window, [dashboardPage, dataPage, schedulePage, historyPage, ...LEGACY_PAGES, questionsPage, instantPage, feedbackPage]);
+const { router, bus } = startShell(window, [dashboardPage, dataPage, schedulePage, historyPage, catalogPage, ...LEGACY_PAGES, questionsPage, instantPage, feedbackPage]);
 connectData({ emit: (type, payload) => bus.emit(type, payload) });
 connectSessions({ emit: (type, payload) => bus.emit(type, payload) });
 connectHistory({ emit: (type, payload) => bus.emit(type, payload) });

@@ -4,7 +4,7 @@ let OPT_SUMMARY=null,OPT_SCAN=null,OPT_BACKUP_TOKEN='',OPT_JOB_TIMER=null;
 function switchTab(name){window.__omrs?.router.go(name)}
 // 数据加载与快照归 assets/app/domain/data.js（P6 起）；它写好旧 DATA 镜像后调本函数刷新旧页面，再经 bus 发 'data'。
 // 全局 reloadData() 由过渡桥 installDataBridge 挂上。
-async function legacyDataRefresh(){updateUidList();populateFilterOptions();populateCreateLists();renderQ();if(typeof loadLabels==='function')await loadLabels();if(typeof boardReloadData==='function')await boardReloadData();if(document.getElementById('panel-catalog')?.classList.contains('active')&&typeof renderCatalog==='function'&&CATALOG_TREE)renderCatalog()}
+async function legacyDataRefresh(){updateUidList();populateFilterOptions();populateCreateLists();renderQ();if(typeof loadLabels==='function')await loadLabels();if(typeof boardReloadData==='function')await boardReloadData()}
 // === 设置：分区导航与访问状态 ===
 const SETTINGS_SECTIONS = ['appearance', 'access', 'ai', 'data', 'service'];
 const SETTINGS_SECTION_KEY = 'omrs-settings-section';

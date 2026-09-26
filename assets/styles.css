@@ -750,45 +750,6 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 
 [data-theme="dark"] .img-thumb .img-del,[data-theme="dark"] .img-thumb .img-idx{background:rgba(0,0,0,.70)}
 
-/* ══════════════════════════════════════════════════════════
-   目录页：工作区文件夹树（assets/catalog.js）
-   ══════════════════════════════════════════════════════════ */
-.catalog-bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-.catalog-check{display:inline-flex;align-items:center;gap:6px;font-size:.76rem;color:var(--fg2);cursor:pointer}
-.tree-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--bg)}
-.tree-row{display:flex;align-items:center;gap:8px;padding:7px 12px 7px calc(12px + var(--depth,0) * 18px);
-  font-size:.8rem;border-bottom:1px solid var(--border);min-height:36px}
-.tree-row:last-child{border-bottom:none}
-.tree-dir{cursor:pointer;background:var(--bg2);font-weight:600;color:var(--fg)}
-.tree-dir:hover{background:var(--bg3)}
-.tree-file{color:var(--fg2)}
-.tree-file.clickable{cursor:pointer}
-.tree-file:hover{background:var(--bg3);color:var(--fg)}
-.tree-caret{width:12px;flex-shrink:0;color:var(--fg3);font-size:.7rem;text-align:center}
-.tree-ico{flex-shrink:0;font-size:.85rem;line-height:1}
-.tree-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tree-badges{display:flex;gap:5px;flex-shrink:0;justify-content:flex-end}
-.tree-badge{font-size:.63rem;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--bg3);color:var(--fg2);white-space:nowrap}
-.tree-badge.due{background:rgba(var(--yellow-rgb),0.20);color:var(--yellow)}
-.tree-badge.leech{background:rgba(var(--red-rgb),0.20);color:var(--red)}
-/* 右侧固定三格：进度条 / 数值 / 操作。文件夹行与文件行共用，两级行才对得齐；
-   缺哪一格就留空（.tree-bar-slot），不让后面的格子往前挤 */
-.tree-right{display:grid;grid-template-columns:72px 52px 22px;align-items:center;gap:7px;flex-shrink:0;font-size:.72rem}
-.tree-right .m-bar{width:100%;margin:0}
-.tree-bar-slot{display:block}
-.tree-num{font-family:'JetBrains Mono','Noto Sans SC',monospace;color:var(--fg3);text-align:right;white-space:nowrap}
-.tree-due{display:inline-block;font-size:.65rem;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap}
-.tree-due.overdue{background:rgba(var(--red-rgb),0.20);color:var(--red)}
-.tree-due.today{background:rgba(var(--yellow-rgb),0.20);color:var(--yellow)}
-.tree-due.warn{background:var(--bg3);color:var(--fg3)}
-.tree-copy{border:none;background:transparent;color:var(--fg3);cursor:pointer;font-size:.8rem;padding:2px;border-radius:4px;line-height:1;justify-self:center}
-.tree-copy:hover{background:var(--bg4);color:var(--fg)}
-@media(max-width:720px){
-  .tree-row{padding-left:calc(8px + var(--depth,0) * 12px);font-size:.76rem}
-  .tree-dir .tree-badges{display:none}
-  .tree-right{grid-template-columns:44px 46px 22px}
-}
-
 @media(prefers-reduced-motion:reduce){.modal{animation:none}}
 
 /* ══════════════════════════════════════════════════════════════════

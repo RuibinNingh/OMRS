@@ -17,4 +17,5 @@
 @import url("../features/data/data.css") layer(features);
 @import url("../features/schedule/schedule.css") layer(features);
 @import url("../features/history/history.css") layer(features);
+@import url("../features/catalog/catalog.css") layer(features);
 @import url("legacy-bridge.css") layer(legacy-bridge);

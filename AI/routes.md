@@ -91,7 +91,7 @@
 | GET | `/api/source/export` | `AI/api.md`、`AI/changelog.md` |
 | GET | `/api/stats` | `AI/api.md`、`AI/algorithm.md`、`AI/changelog.md`等 |
 | GET | `/api/status` | `AI/api.md`、`AI/frontend/settings.md`、`AI/security.md` |
-| GET | `/api/tree` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/dashboard.md`等 |
+| GET | `/api/tree` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/architecture.md`等 |
 | POST | `/api/workspace/scan` | `AI/api.md`、`AI/ledger.md` |
 | GET | `/login` | `AI/frontend/settings.md`、`AI/inbox.md`、`AI/security.md` |
 | GET | `/m` | `AI/api.md`、`AI/inbox.md`、`AI/security.md` |

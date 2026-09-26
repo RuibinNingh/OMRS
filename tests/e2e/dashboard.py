@@ -118,8 +118,12 @@ def run_numbers(page, base, results):
     page.click(".dsh-plan__more button")
     closed = wait(page, "n => document.querySelectorAll('.dsh-act').length === n", arg=rows)
     check("行动推荐默认 4 条，「还有 N 条建议」展开、「收起」收回", rows == 4 and "还有" in total and opened and closed, [rows, total])
-    heat = ev("[document.querySelectorAll('.dsh-heat__grid .dsh-heat__cell').length, document.querySelector('.dsh-heat__grid li:last-child').dataset.level]")
-    check("近 30 天热力 30 格，末格（今天）有记录时着色", heat[0] == 30 and heat[1] != "0", heat)
+    heat = ev("""() => { const cells = [...document.querySelectorAll('.dsh-heat__grid .dsh-heat__cell')];
+      const today = new Date(), key = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+      return [cells.length, cells.at(-1)?.dataset.level, Number(DATA.recent_activity?.[key] || 0),
+              cells.some(cell => cell.dataset.level !== '0')]; }""")
+    check("近 30 天热力 30 格，末格按浏览器当地日期与统计快照着色", heat[0] == 30
+          and (heat[1] != "0") == (heat[2] > 0) and heat[3], heat)
     rec = wait(page, "() => document.querySelectorAll('.dsh-recent__row').length > 0")
     check("最近动态加载出行（最多 4 条，按 seq 倒序）", rec and 0 < ev("document.querySelectorAll('.dsh-recent__row').length") <= 4)
 

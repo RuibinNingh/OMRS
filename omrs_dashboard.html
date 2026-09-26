@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="assets/vendor/fonts/fonts.css?v=20260920-local">
 <link rel="stylesheet" href="assets/app/styles/tokens.css?v=20260925-p6r1">
 <!-- 旧 styles.css 与 KaTeX 由 index.css 按 @layer 引入（见 AI/frontend/shell.md）-->
-<link rel="stylesheet" href="assets/app/styles/index.css?v=20260926-p6-history">
+<link rel="stylesheet" href="assets/app/styles/index.css?v=20260926-p6-catalog">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -54,7 +54,7 @@
       <div class="nav-spacer"></div>
       <a class="tab" data-tab="settings" href="#/settings"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></a>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.25.5 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.25.6 · 本地服务</div>
   </aside>
   <main class="content">
     <div class="topbar">
@@ -95,20 +95,7 @@
 
   <!-- ====== 目录（工作区文件夹树） ====== -->
   <div class="panel" id="panel-catalog">
-    <div class="stat-grid" id="catalog-stat"></div>
-    <div class="card">
-      <div class="catalog-bar">
-        <input type="text" id="catalog-search" class="input filter-input-wide" placeholder="搜索文件夹 / 文件名…" oninput="catalogSearch(this.value)">
-        <label class="catalog-check"><input type="checkbox" id="catalog-all-files" onchange="catalogToggleAllFiles(this.checked)"> 显示图片等其他文件</label>
-        <button class="btn sm" onclick="catalogExpandAll()">全部展开</button>
-        <button class="btn sm" onclick="catalogCollapseAll()">全部折叠</button>
-        <button class="btn sm" onclick="loadCatalog(true)">🔄 重新读取</button>
-        <button type="button" class="ui-btn ui-btn--sm" data-action="app.scan" title="把在 Obsidian 里新增或改动的题目文件收进题库"><svg class="ui-icon" aria-hidden="true"><use href="#ic-refresh"/></svg><span class="ui-btn__label">重新扫描</span></button>
-      </div>
-      <div class="filter-note">目录直接读取 <code>错题/</code> 磁盘结构，<code>.omrs/</code> 数据目录不在其中。点题目文件可直接打开详情。</div>
-      <div id="catalog-status" class="status-text" style="margin:6px 0 10px"></div>
-      <div class="tree-wrap" id="catalog-tree"><div class="empty-inline">加载目录中…</div></div>
-    </div>
+    <div id="cat-app"></div>
   </div>
 
   <div class="panel" id="panel-schedule">
@@ -748,13 +735,12 @@
 <script src="assets/labels.js?v=20260925-p6r5"></script>
 <script src="assets/questions.js?v=20260925-p6r4"></script>
 <script src="assets/schedule.js?v=20260925-p6r3"></script>
-<script src="assets/catalog.js?v=20260816-catalog"></script>
 <script src="assets/inbox.js?v=20260906-v1161"></script>
 <script src="assets/board.js?v=20260922-board-integrity"></script>
 <script src="assets/board_picker.js?v=20260925-p5r3"></script>
 <script src="assets/board_preview.js?v=20260922-board-integrity"></script>
 <script src="assets/reports.js?v=20260920-local-fonts"></script>
-<script src="assets/app.js?v=20260926-p6-history"></script>
-<script type="module" src="assets/app/main.js?v=20260926-p6-history"></script>
+<script src="assets/app.js?v=20260926-p6-catalog"></script>
+<script type="module" src="assets/app/main.js?v=20260926-p6-catalog"></script>
 </body>
 </html>

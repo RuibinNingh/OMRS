@@ -104,7 +104,7 @@
   现有测试按主题分（全部在 `tests/`）：
   - Ledger / 历史：`test_history_projection.py`（撤销 / 恢复 / 替换）、`test_question_records.py`（`/api/question` 的 `records[]` 匹配与日期拆分，v1.16.1）
   - AI 与报告：`test_ai_assist_taxonomy.py`（分类约束、答案提示词）、`test_report_export.py`（报告材料与部分 HTML 导出契约，pytest 风格）
-  - 目录树与行动推荐：`test_catalog_tree.py`、`smoke_frontend_actions_catalog.js`
+  - 目录树与行动推荐：`test_catalog_tree.py`、`tests/app/catalog.test.mjs`、`tests/e2e/catalog.py`、`tests/app/dashboard.test.mjs`
   - 反馈录入与答题卡导入：`tests/app/feedback.test.mjs`（P4 起；合并了原 `test_feedback_ui.js`、`test_omr_import.js`、`smoke_feedback_omr_import.js` 的全部断言）、`tests/e2e/feedback.py`（浏览器接线）
   - 标记与展示板：`test_labels.py`、`test_boards.py`、`test_board_export.py`、`tests/app/labels.test.mjs`、`test_board_ui.js`、`smoke_board_print.py`
   - 题库界面：`test_qtable_ui.js`、`tests/app/question.test.mjs`（渲染缓存、记录统计、战绩带、Ledger 记录优先于 Markdown 旧行、画廊卡骨架）、`test_question_suspend*.{py,js}`、`test_question_delete.py`、`test_recommend_v2_filters.js`

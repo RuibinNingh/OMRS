@@ -4,22 +4,20 @@
 > - 职责：页面外壳：`assets/` 文件划分与加载顺序、侧栏与顶栏、hash 路由的外壳一侧、整屏工作台布局、主题 token 与深色对比度
 > - 入口：`omrs_dashboard.html`、`assets/core.js`、`assets/app.js`、`assets/app/main.js`、`assets/app/shell.js`、`assets/app/styles/shell.css`、`assets/app/styles/tokens.css`、`assets/app/styles/index.css`、`assets/styles.css`
 > - 不变量：`core.js` 最先加载、`app.js` 是最后一个经典脚本，模块入口 `assets/app/main.js` 排在它之后并负责调用 `init()`；`switchTab` 只是路由的一行包装；样式只有 `tokens.css` 与 `index.css` 两个 `<link>`；颜色一律走 token，不在规则里写死浅色值
-> - 必跑测试：`tests/e2e/shell_router.py`、`tests/smoke_frontend_actions_catalog.js`、`tests/test_settings_ui.js`
+> - 必跑测试：`tests/e2e/shell_router.py`、`tests/e2e/catalog.py`、`tests/test_settings_ui.js`
 > - 相关：`AI/frontend.md`（索引）
 
 ## 文件组织（assets/）
 ```
 omrs_dashboard.html   ← 仅 HTML 结构，<link> 引样式 + 多个 <script> 引脚本
 assets/
-├── app/              ← 新前端（ES Module）：main.js、shell.js、legacy-pages.js、legacy-bridge.js、core/、ui/、domain/、features/（仪表盘、数据复盘、复习调度、题目库、即时练习、反馈录入）、styles/（见 AI/frontend/architecture.md）
+├── app/              ← 新前端（ES Module）：main.js、shell.js、legacy-pages.js、legacy-bridge.js、core/、ui/、domain/、features/（仪表盘、数据复盘、复习调度、题目库、即时练习、反馈录入、历史记录、目录）、styles/（见 AI/frontend/architecture.md）
 ├── styles.css        ← 旧页面样式，经 app/styles/index.css 以 @layer legacy 引入（颜色一律引用 token）
 ├── vendor/fonts/     ← 本地 Noto Sans SC / JetBrains Mono 字体分片、许可与来源清单
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染 + 做题记录解析
 ├── labels.js         ← 用户标记芯片、LabelPicker、标记管理与筛选状态
 ├── questions.js      ← 题库页迁走后的残留：masteryBarHtml（board.js）；题库页在 assets/app/features/questions/，Markdown 编辑器在 assets/app/domain/question/editor.js
 ├── schedule.js       ← 录入提交（doCreate/resetCreateForm）、全局扫描 doScan 与两个旧入口；复习调度页在 assets/app/features/schedule/
-├── history.js        ← 历史记录：Ledger 时间线、修正面板、撤销/恢复/还原
-├── catalog.js        ← 目录页：错题/ 文件夹树，读 GET /api/tree
 ├── board.js          ← 展示板 CRUD、排序、添加题目、打印（全部 / 仅新增）与纸面记录
 ├── board_preview.js  ← 展示板常驻预览 iframe 的生命周期与消息协议（必须排在 board.js 之后）
 ├── reports.js        ← 报告托管页：列表/上传创建/浏览/删除
@@ -29,10 +27,8 @@ assets/
 **加载约定（重要）：**
 - 除 `assets/app/main.js`（`<script type="module">`，排在 `app.js` 之后，浏览器在全部经典脚本之后才执行）外，脚本均为普通 `<script>`，共享同一全局作用域；顶层 `let`/`const` 跨文件可见，行内 `onclick` 仍可直接调用各函数。旧代码调用 `uiToast` 等过渡桥函数不必关心模块是否就绪：桥装好之前的调用会排队补发。
 - 样式只有两个 `<link>`：`assets/app/styles/tokens.css` 与 `assets/app/styles/index.css`。KaTeX 与 `styles.css` 由 `index.css` 分层引入，不要再单独 `<link>`（未分层的样式会压过全部分层样式）。
-- **加载顺序**：`labels.js` 在 `questions.js` 之前；`board.js`
-  在 `history.js` 之后、`app.js` 之前。当前 HTML 的完整顺序为
-  `core → labels → questions → schedule → history →
-  catalog → inbox → board → board_picker → board_preview → reports → app`。`board_preview.js` 必须排在 `board.js`
+- **加载顺序**：`labels.js` 在 `questions.js` 之前；`board.js` 在 `app.js` 之前。当前 HTML 的完整顺序为
+  `core → labels → questions → schedule → inbox → board → board_picker → board_preview → reports → app`。`board_preview.js` 必须排在 `board.js`
   **之后**：`board.js` 只在第一次真正用到预览时才 `boardPreviewOn(...)` 注册回调
   （`boardBindPreview()` 的惰性注册），否则模块顶层注册时 `boardPreviewOn` 还不存在。
 - 共享题目视图（`renderMdContent`、`ensureQuestionDetail`、`qvHtml`、`qvRender`、`viewQ` 等）已是模块 `assets/app/domain/question/`，由过渡桥在 `init()` 之前挂成同名全局；经典脚本只能在函数体里调用它们，不能在文件顶层直接调用（顶层执行时模块还没运行）。
@@ -47,7 +43,7 @@ assets/
 - 地址形如 `#/questions`：刷新停在原页，浏览器前进后退可用，页面可以直接用链接打开。路由与页面契约见 `AI/frontend/architecture.md` §3。
 - 侧栏宽 232px，导航项是 `<a class="tab" href="#/页面">`（键盘可达）。当前页：强调浅底、半粗、左侧 3px 指示条，并带 `aria-current="page"`。
 - 折叠：`toggleSidebar()` 在 `<html>` 上切 `data-sidebar="collapsed"`（存 localStorage），侧栏收成 58px 图标栏，宽度与文字淡出有过渡；折叠时外壳给导航项挂 `data-tooltip`，悬停显示页面名。
-- 顶栏：标题是 `<h1 id="topbar-title">`，由外壳按页面登记写入，同时写 `document.title`。顶栏只有一个全局按钮「录入题目」（`.ui-btn` 带图标，不是旧 `.btn`：旧 `.btn` 被最高的 legacy-bridge 层接管，外壳改不动它）。「重新扫描」不在顶栏，放在仪表盘概览条、题库工具栏、目录工具栏三处，统一写 `data-action="app.scan"`，由外壳登记的全局动作处理：调旧 `doScan()`，期间三处按钮都置忙（`disabled` + `aria-busy`）防重复扫描，在目录页时顺带 `loadCatalog(true)` 重读目录树。
+- 顶栏：标题是 `<h1 id="topbar-title">`，由外壳按页面登记写入，同时写 `document.title`。顶栏只有一个全局按钮「录入题目」（`.ui-btn` 带图标，不是旧 `.btn`：旧 `.btn` 被最高的 legacy-bridge 层接管，外壳改不动它）。「重新扫描」不在顶栏，放在仪表盘概览条、题库工具栏、目录工具栏三处，统一写 `data-action="app.scan"`，由外壳登记的全局动作处理：调旧 `doScan()`，期间三处按钮都置忙（`disabled` + `aria-busy`）防重复扫描；在目录页扫描成功时发 `catalog:refresh`，目录控制器重读磁盘树。
 - 手机（≤760px）：侧栏变左侧抽屉（汉堡按钮打开，遮罩或 Esc 关闭，切页后自动关闭）；顶栏的「录入题目」只留 40×40 图标（文字对读屏保留），标题占满剩余宽度、过长时省略，不再被按钮挤压。
 
 ## 整屏工作台布局（`.is-workbench`）

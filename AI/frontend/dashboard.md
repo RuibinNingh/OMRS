@@ -2,9 +2,9 @@
 
 > **速查**
 > - 职责：仪表盘（今天、行动推荐、概览、近 30 天、最薄弱科目、最近动态）与目录树页
-> - 入口：`assets/app/features/dashboard/`（`index.js` 页面契约、`plan.js` 行动推荐规则、`state.js` 派生、`view.js`、`dashboard.css`）；`assets/catalog.js`
+> - 入口：`assets/app/features/dashboard/`（`index.js` 页面契约、`plan.js` 行动推荐规则、`state.js` 派生、`view.js`、`dashboard.css`）；`assets/app/features/catalog/`
 > - 不变量：仪表盘只读统计快照（`domain/data.js`）与 Session 列表，唯一自己发的请求是最近动态的 `/api/history?limit=40`；停用题不进入行动计划；页面之间不互相 import
-> - 必跑测试：`tests/app/dashboard.test.mjs`、`tests/e2e/dashboard.py`、`tests/smoke_frontend_actions_catalog.js`、`tests/test_catalog_tree.py`、`tests/test_question_suspend_frontend.js`
+> - 必跑测试：`tests/app/dashboard.test.mjs`、`tests/e2e/dashboard.py`、`tests/app/catalog.test.mjs`、`tests/e2e/catalog.py`、`tests/test_catalog_tree.py`、`tests/test_question_suspend_frontend.js`
 > - 相关：`AI/frontend.md`（索引）、`AI/frontend/architecture.md`（数据所有权、过渡桥）
 
 ## 仪表盘（`features/dashboard/`，v1.25.0 起）
@@ -54,31 +54,20 @@
 | `weak_subject` / `weak_category` | 可选 | 题量 ≥3 的组里最低、且均值 <55% / <45%（只有一组时不算） | 专练该科目（或分类）、看该科目题目 |
 | `all_good` | 状态良好 | 没有紧急与建议项时插到最前 | 加练几道 |
 
-## 目录页（`assets/catalog.js`）
+## 目录页（`features/catalog/`，v1.25.6 起）
 
-Tab `目录`（侧栏图标 `#i-tree`，位于「题目库」与「复习调度」之间）；面板 `#panel-catalog`；`switchTab('catalog')` 触发 `loadCatalog()`。后端见 `omrs/catalog.py` 与 `api.md` 的 `GET /api/tree`。
+Tab「目录」挂载到 `#cat-app`。`index.js` 管理请求和页面生命周期，`state.js` 纯函数构建后备树、统计和搜索匹配，`view.js` 渲染，`catalog.css` 提供响应式样式。后端仍由 `omrs/catalog.py` 提供只读 `GET /api/tree`。
 
-### 数据来源与叠加
+### 数据和失败处理
 
-两份数据在前端合并，职责分开：
+- **磁盘结构**来自 `/api/tree`，页面内强制「重新读取」；非强制进入可复用上次快照。首次请求超过 300ms 才显示骨架。刷新失败时保留旧树并显示原因；首次失败则由 `fallbackTree(items)` 按题目路径构建后备树，只含题目文件，状态栏说明来源。
+- **学习状态**来自 `store.data.items`，`folderStats()` 按路径前缀叠加题数、已击杀数、到期数、顽固题数和衰减熟练度。统计快照变化时重算这些值，不重新扫盘；后备树同时按新题目列表重建。
+- **扫描联动**：工具栏的「重新扫描」仍是外壳统一的 `app.scan`；扫描成功后外壳发 `catalog:refresh`，本页重新读取磁盘树。失败时保留原树。页面卸载后取消订阅，迟到的请求结果不再渲染。
 
-- **结构**来自 `GET /api/tree`——磁盘上真实的文件夹与文件，包括非题目文件。首次加载后缓存在 `CATALOG_TREE`，「🔄 重新读取」走 `loadCatalog(true)` 强制重取。
-- **学习状态**来自本地 `DATA.items`，由 `catalogBuildStats()` 按 `item.path` 的路径前缀逐层累加到每个文件夹上（题量、已击杀、待复习、顽固题、衰减熟练度之和）。`/api/tree` 里没有这些字段，不要去后端加——它是只读扫盘接口，加上就得跟着投影一起维护。
-- **降级**：`/api/tree` 请求失败时 `catalogFallbackTree()` 按 `DATA.items` 的 `File_Path` 拼一棵树，此时只有题目文件、没有尺寸，状态栏会说明「后端未响应」。
+### 浏览与操作
 
-### 渲染
-
-`renderCatalog()` 递归输出扁平的 `.tree-row` 序列，靠 CSS 自定义属性 `--depth` 控制缩进（`padding-left: calc(12px + var(--depth) * 18px)`），不是嵌套 DOM——所以整棵树是一次 `innerHTML` 赋值，展开/折叠也是整树重绘。
-
-- 展开状态存在 `CATALOG_OPEN`（Set of path）。首次加载默认展开根 + 第一层；`catalogExpandAll()` / `catalogCollapseAll()` 批量切换。
-- 每行都是「名称 → chip 区 `.tree-badges` → 右侧栅格 `.tree-right`」。右侧栅格固定三格（进度条 72px / 数值 52px / 操作 22px），文件夹行与题目行共用，两级行的进度条和百分比因此是对齐的；某一格没内容就留空（进度条位置用 `.tree-bar-slot` 占位）。
-- 文件夹行：chip 区放题量、待复习（`.tree-badge.due`）、顽固题（`.tree-badge.leech`）；栅格放该目录平均衰减熟练度条（复用 `.m-bar`）、百分比、复制相对路径按钮。
-- 题目文件行：chip 区放逾期 / 今日到期（`.tree-due.overdue` / `.tree-due.today`），未进投影的显示「未入库」；栅格放熟练度条与百分比，非题目文件放文件大小。点击调 `catalogOpenQuestion(uid)` → `viewQ(uid)` 开题目 Modal（该题在 `DATA.items` 里才可点）。
-- 搜索框 `catalogSearch()` 写 `CATALOG_QUERY`（小写）。`catalogMatches()` 递归判断「自己或任一后代命中」，命中期间**所有节点视为展开**（`open` 判定里 `|| !!CATALOG_QUERY`），不改动 `CATALOG_OPEN`，清空搜索后回到原来的展开状态。
-- 「显示图片等其他文件」复选框切 `CATALOG_SHOW_ALL_FILES`，关闭时只列 `kind === 'question'` 的文件。
-- 顶部 `#catalog-stat` 四张 stat 卡：文件夹数 / 题目文件 / 全部文件 / 占用；`#catalog-status` 汇报降级、孤立文件、层级截断和当前筛选词。
-- `reloadData()` 里若目录页正处于激活状态且 `CATALOG_TREE` 已有，会重画一次——录题或提交反馈后目录上的熟练度条随之更新，但**不会重新扫盘**（结构变化仍需点「重新读取」；有题目文件没进题库时点目录工具栏的「重新扫描」）。
-
-样式在 `styles.css` 的 `.catalog-bar` / `.tree-*` 段。≤720px 缩小缩进步长、收窄右侧栅格，并只隐藏文件夹行的 chip（题目行的到期 chip 仍显示）。
-
-`today` / `overdue` / `new` 这类词在本页是 chip 的状态修饰类，任何组件都不能拿它们当根类；未加限定的 `.m-bar` 规则也不得声明伸缩属性（`flex` / `flex-*` / `gap`），窄容器里靠限定后的规则单独覆盖。
+- `each()` 以路径为 key 渲染嵌套目录。默认只展开根目录；「全部展开 / 全部折叠」批量更新路径集合。搜索命中目录、文件或后代时临时展开匹配分支，不改动原集合，清空后恢复原状态。
+- 「显示图片等其他文件」勾选后显示 `/api/tree` 的非题目文件；默认只显示题目文件。题目行有到期标记、熟练度条与百分比，非题目文件显示大小。目录行有题数、待复习、顽固题和平均熟练度。
+- 已入库题目行经 `domain/question` 打开题目弹窗；每个目录的复制按钮复制相对路径，浏览器拒绝剪贴板时在页首显示可手动复制的路径。
+- `#catalog-stat` 用四张统一统计卡显示文件夹、题目文件、全部文件和占用；`#catalog-status` 说明降级、孤立文件、层级截断、搜索或复制结果。空目录与无搜索结果都有说明和下一步操作。
+- 窄屏下统计卡两列、控件高度至少 40px，文件名截断，题目到期标记和数值分行；无行内事件或样式。对应 Node 测试在 `tests/app/catalog.test.mjs`，主路径和四种视觉审计在 `tests/e2e/catalog.py`。
