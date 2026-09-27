@@ -2,12 +2,12 @@
 
 > **速查**
 > - 职责：收件箱「上传 → 框选 → 转换 → 提交」暂存流程、后台 job、框选提供方与训练数据集
-> - 入口：`omrs/inbox.py`、`omrs/ai_assist.py`、`assets/inbox.js`、`assets/inbox_mobile.html`
+> - 入口：`omrs/inbox.py`、`omrs/ai_assist.py`、`assets/app/features/create/`、`assets/inbox.js`、`assets/inbox_mobile.html`
 > - 不变量：上传的原图只进暂存区，提交后才写入题库；手机页遵循与桌面相同的访问规则
 > - 必跑测试：`tests/test_inbox.py`、`tests/app/settings.test.mjs`
 > - 相关：`AI/frontend/create.md`、`AI/api.md`
 
-> 对应源文件：`omrs/inbox.py`（存储 / 任务 / 提交 / 数据集）、`omrs/ai_assist.py`（`detect_regions` / `extract_region` / `parse_detect_output` / 按用途选模型）、`omrs/server.py`（`_inbox_get` / `_inbox_post` / `_multipart_files`）、`assets/app/features/create/`（页面外壳、导航与上传）、`assets/inbox.js`（旧列表和其它工作区）、`assets/inbox_mobile.html`、`omrs_dashboard.html`（`#panel-create` 的 `ib-*` 结构）、`assets/styles.css` 末段。
+> 对应源文件：`omrs/inbox.py`（存储 / 任务 / 提交 / 数据集）、`omrs/ai_assist.py`（`detect_regions` / `extract_region` / `parse_detect_output` / 按用途选模型）、`omrs/server.py`（`_inbox_get` / `_inbox_post` / `_multipart_files`）、`assets/app/features/create/`（页面外壳、导航、上传与网格）、`assets/inbox.js`（处理、题卡和训练旧控制器）、`assets/inbox_mobile.html`、`omrs_dashboard.html`（`#panel-create` 中未迁的 `ib-*` 结构）、`assets/styles.css` 末段。
 
 ## 1. 它解决什么
 
@@ -52,7 +52,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 | GET | `/api/inbox/dataset/stats` | 张数、框数按角色、版式分布、AI 建议/采纳/微调/拒绝（拒绝数来自 `meta`，老库首次从 annotations 回填一次）、微调平均 IoU、转文本决策与判断一致率、`blind`（盲标评估集：张数 / 已评估 / 隐藏 AI 框数 / IoU≥0.5 命中 / 平均 IoU）、`storage`（raw / crops 字节数、待清理的已丢弃张数） |
 | GET | `/api/inbox/dataset/export?format=omrs_jsonl\|yolo&raw=1` | zip：`labels.jsonl`（每图一行，归一化 regions）、`images/`、`annotations.jsonl`；yolo 另含 `labels/*.txt` + `classes.txt` |
 | POST | `/api/inbox/cleanup` | `{discarded_days?, crops?}`：删除丢弃超过 N 天（缺省 `inbox_discard_keep_days`）的原图（行保留、`file` 置空），`crops=true` 清空裁剪缓存；上传时也自动跑一次 |
-| GET | `/m` | 手机极简上传页 `assets/inbox_mobile.html`（需 `allow_external`；显式豁免网段直连免 PIN，其他远端需登录）；真实触摸、滚轮或滚动会刷新空闲会话；会话过期（401）时跳转 `/login?next=/m` 并停止剩余上传 |
+| GET | `/m` | 手机极简上传页 `assets/inbox_mobile.html`（需 `allow_external`；显式豁免网段直连免 PIN，其他远端需登录）；加载设计 token 和 base 样式，读取主站的 `omrs-theme` 浅色 / 深色设置；真实触摸、滚轮或滚动会刷新空闲会话；会话过期（401）时跳转 `/login?next=/m` 并停止剩余上传 |
 
 **job 单元格式**
 - `detect`：`items:[{item_id, strips?:[{y0,y1,data}], replace?, provider?, blind?}]`。`provider` 缺省取配置 `inbox_detect_provider`（见 §8）；`template` 不需要 strips。前端按 slice-plan 切条带并附 JPEG data URL；不附 strips 时有 Pillow 就在服务端按同一 slice_plan 切，否则整图送模型（长图会被模型端压缩，精度下降）。结果 `{item_id, provider, blind, boxes, hidden?, regions, auto?}`。结果经 `inbox.merge_strip_boxes()` 映射回整图并合并跨条带的同角色框（同一条带内的框永不合并）。已有框时默认**追加**（`replace=false`）。
@@ -68,11 +68,11 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 - `extract_region(vault, image, role, judge)`：复用 `ANSWER_PROMPT` / `QUESTION_TEXT_PROMPT`，`judge=True` 时追加 `JUDGE_SUFFIX` 要求返回 `{convertible, reason, text}`；模型不按 JSON 返回时整段当 text、`convertible=True`。题目文本会去掉整段开头题号；答案仅在开头为“题号+答案/解析标题”时去掉题号，解析内部步骤编号保留。`max_tokens=4000`。
 - 旧的 `/api/ai-recognize` 三种 mode 行为不变（classify 现在也走 `purpose="classify"`）。
 
-## 5. 前端（`assets/inbox.js`，全局 `IB`，类名前缀 `ib-`）
+## 5. 前端（`features/create/` 与旧 `assets/inbox.js`）
 
-- 入口：`switchTab('create')` → `features/create` 页面挂载，渲染 `.ib-flow` 五个按钮和原生上传区，并调用旧 `inboxInit()` 加载列表。**上传 / 处理 / 录入**按真序列编号，AI 训练和快速录入在旁边；切页返回后导航仍显示原工作区。`ui/filedrop` 支持多图拖放和点击选择；图片粘贴、显式读剪贴板共用上传函数，成功发 `inbox:reload` 让旧列表重读。快速录入挂载在 `#ib-stage-quick`，由 `features/create/quick.js` 管理题目和答案图片、AI 识别与创建；成功后保留科目、分类等上下文，只清空题面、答案、错因和图片。
-- 粘贴：`ibPaste` 以捕获阶段注册，仅在收件箱「上传」阶段拦截图片并上传；`crHandlePaste` 只在 `IB.stage==='quick'` 时接管。
-- ① 上传：拖拽 / 选文件 / 读剪贴板 → `POST /upload`；网格缩略图上叠框位；筛选、全选、勾选后底部 `.ib-batchbar`（AI 框选 / 沿用框位 / 整图即题目 / 去处理 / 丢弃）——**只处理勾选项**。
+- 入口：`switchTab('create')` → `features/create` 页面挂载，渲染 `.ib-flow` 五个按钮、上传区和收件箱网格，并调用旧 `inboxInit()` 加载数据。**上传 / 处理 / 录入**按真序列编号，AI 训练和快速录入在旁边；切页返回后导航仍显示原工作区。`ui/filedrop` 支持多图拖放和点击选择；图片粘贴、显式读剪贴板共用上传函数，成功发 `inbox:reload` 重读数据。快速录入挂载在 `#ib-stage-quick`，由 `features/create/quick.js` 管理题目和答案图片、AI 识别与创建；成功后保留科目、分类等上下文，只清空题面、答案、错因和图片。
+- 粘贴：`features/create/upload.js` 仅在上传工作区捕获图片粘贴，`features/create/quick.js` 仅在快速录入工作区按当前目标接收图片；文本粘贴仍走浏览器原行为。
+- ① 上传：拖拽 / 选文件 / 读剪贴板 → `POST /api/inbox/upload`；`grid.js` / `grid-view.js` 在原图卡片上叠框位预览，按状态筛选，支持全选当前筛选中的未录入图片。底部 `.crw-inbox__batch` 提供 AI / 模板框选、沿用框位、整图即题目、去处理、丢弃和清空选择，只处理勾选项；丢弃失败保留选择并就地提示。已录入卡片打开关联题目。网格经 `legacy-inbox.js` 与旧处理区共享选择和当前图片。
 - ② 处理三栏：队列（可勾选）| 画布（拖拽画框、移动、八向缩放，框外 SVG mask 遮暗，AI 框带置信度）| 区域面板（按题卡分组；角色 / 来源 / 归一化坐标与裁出尺寸 / 转文本·保留图·让 AI 判断 / 提取 / 文本编辑 + `renderMdContent` 预览 / 保留图的 canvas 预览）。改动去抖 500ms 调 `/item/update`。快捷键 `Q/A/X`、`Del`、`Enter`、`⌘/Ctrl+Enter`。
 - 沿用上一张框位 `ibTransferBoxes`：横向照搬；`y<0.35` 的框（题目）按**像素**锚定顶部，其余按比例——因为不同截图高度差异极大，归一化 y 不能直接搬。
 - AI 框选 `ibDetect`：`slice-plan` → canvas 切条带（JPEG 0.85）→ `jobs detect` → 1.2s 轮询 → 完成后 `ibLoad()` 回填。提取 / 分类也用后台 job 和轮询。

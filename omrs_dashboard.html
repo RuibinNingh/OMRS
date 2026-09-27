@@ -54,7 +54,7 @@
       <div class="nav-spacer"></div>
       <a class="tab" data-tab="settings" href="#/settings"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></a>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.25.12 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.25.13 · 本地服务</div>
   </aside>
   <main class="content">
     <div class="topbar">
@@ -115,31 +115,10 @@
     <!-- 工作区导航由 features/create 渲染；旧工作区在迁移期间保留。 -->
     <nav class="ib-flow" id="create-flow" aria-label="录入题目工作区"></nav>
 
-    <!-- ① 上传 / 收件箱 -->
+    <!-- ① 上传与收件箱网格由 features/create 渲染。 -->
     <section class="ib-stage on" id="ib-stage-upload">
-      <div class="ib-up-layout">
-        <div>
-          <div id="create-upload"></div>
-          <div class="ib-inbox-head">
-            <label style="display:flex;align-items:center;gap:6px;font-size:.76rem;cursor:pointer"><input type="checkbox" class="ib-chk" id="ib-sel-all" onchange="ibSelectAllVisible(this.checked)"> 全选（当前筛选）</label>
-            <span class="hint" id="ib-count"></span>
-            <div class="filters" id="ib-filters">
-              <span class="ib-chip on" data-f="all" data-ib-filter="all">全部</span><span class="ib-chip" data-f="pending" data-ib-filter="pending">待处理</span><span class="ib-chip" data-f="boxed" data-ib-filter="boxed">已框选</span><span class="ib-chip" data-f="ready" data-ib-filter="ready">待创建</span><span class="ib-chip" data-f="done" data-ib-filter="done">已录入</span>
-            </div>
-          </div>
-          <div class="ib-grid" id="ib-grid"></div>
-        </div>
-        <aside class="ib-up-side">
-          <div class="card">
-            <div class="card-title">📱 手机直接上传</div>
-            <div class="hint" style="font-size:.76rem;line-height:1.7">同一 Wi-Fi 下用手机浏览器打开 <code id="ib-lan-url">http://&lt;本机局域网 IP&gt;:8471/m</code>（需在「设置 → 访问与安全」打开允许外部访问，启动时控制台会打印地址）。手机端只上传不裁剪，进的就是左边这个收件箱。</div>
-          </div>
-          <div class="card" style="margin-top:14px">
-            <div class="card-title">这一步做什么</div>
-            <div class="hint" style="font-size:.74rem;line-height:1.7">收件箱是<b>暂存区</b>，不写题库、不进 Ledger。原图存在 <code>错题/.omrs/inbox/raw/</code>；即使题目之后转成文本、不再需要图，原图和你框的位置也留作训练数据（「AI 训练」页可导出）。<br><br>勾选几张后底部会出现批量操作：<b>AI 框选</b>只对勾选的图跑；<b>沿用上一张框位</b>适合连续同版式截图；<b>整图即题目</b>适合已裁好的题图。</div>
-          </div>
-        </aside>
-      </div>
+      <div id="create-upload"></div>
+      <div id="create-grid"></div>
     </section>
 
     <!-- ② 处理 -->
@@ -218,7 +197,7 @@
 
     <!-- 快速录入由 features/create/quick.js 挂载。 -->
     <section class="ib-stage" id="ib-stage-quick"></section>
-    <div class="ib-batchbar" id="ib-batchbar"><span class="n"><span id="ib-bb-n">0</span> 张已选</span><button class="btn sm" type="button" onclick="ibDetectSelected()">🤖 AI 框选</button><button class="btn sm" type="button" onclick="ibDetectSelected('template')">▦ 模板框选</button><button class="btn sm" type="button" onclick="ibApplyLastSelected()">沿用上一张框位</button><button class="btn sm" type="button" onclick="ibWholeSelected()">整图即题目</button><span class="sep"></span><button class="btn sm primary" type="button" onclick="ibOpenSelected()">去处理 →</button><button class="btn sm danger" type="button" onclick="ibDiscardSelected()">丢弃</button><button class="btn sm" type="button" onclick="ibClearSel()">✕</button></div>
+
     </div>
   </div>
 

@@ -456,3 +456,26 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 - 即时练习 E2E 首轮 22/23，重跑时有一项请求竞态造成另一项失败。该脚本原先只等待旧题卡仍存在，不能证明新一轮推荐请求已结束；现对清空筛选、带标记取题及错误响应显式等待 `/api/recommend` 响应，再检验对应状态，重跑 23/23。页面业务代码未改。
 
 未执行：生产部署与远端设备验证（需用户单独授权）；Firefox、WebKit 和全站空态属于终检阶段。
+
+---
+
+## 收件箱网格与手机上传页（2026-09-27，v1.25.13）
+
+### 迁移前盘点
+
+- 网格旧入口在 `assets/inbox.js` 的 `ibVisible`、`ibRenderInbox`、`ibSetFilter`、`ibSelectAllVisible`、`ibClearSel`、`ibBatchbar`、`ibOpenSelected` 和 `ibDiscardSelected`；`ibDetectSelected`、`ibApplyLastSelected`、`ibWholeSelected` 仍属于旧处理算法。旧全局入口由 `omrs_dashboard.html` 的行内事件及 `inbox.js` 委托使用，网格迁移后这些行内入口已删。
+- 旧 DOM 是 `#ib-grid`、`#ib-filters`、`#ib-count`、`#ib-sel-all`、`#ib-batchbar`，卡片使用 `data-ib-open`、`data-ib-sel`；专属样式为 `.ib-up-layout`、`.ib-inbox-head`、`.ib-chip`、`.ib-grid`、`.ib-item`、`.ib-thumb`、`.ib-rbox`、`.ib-meta`、`.ib-batchbar` 等。处理队列和题卡仍用 `.ib-chk`、`.ib-st`，所以保留这些共用规则。旧网格没有专属 Node 测试；本轮在 `tests/app/create.test.mjs` 增加纯规则断言，在 `tests/e2e/create.py` 验证旧处理区互通。
+
+### 行为变化与影响文件
+
+- `features/create/grid.js`、`grid-view.js` 渲染收件箱原图卡片与框位预览，支持状态筛选、全选当前筛选中未录入的图片、批量 AI / 模板框选、沿用框位、整图即题目、去处理、丢弃和清空选择。已录入卡片打开关联题目；批量丢弃失败保留选择并就地提示。`legacy-inbox.js` 在迁移期间与旧处理工作区共用列表和选择状态；`assets/inbox.js`、`omrs_dashboard.html` 与 `assets/styles.css` 去掉原网格入口和专属结构，处理、题卡、训练仍由旧控制器负责。
+- `assets/inbox_mobile.html` 加载 `tokens.css` 和 `base.css`，页内颜色改用语义 token，读取主站的 `omrs-theme` 浅色 / 深色设置；上传与重复图片合并逻辑保持原接口。`tests/app/create.test.mjs` 增加网格纯规则测试，`tests/e2e/create.py` 扩充筛选、选择、批量操作和视觉审计；`tests/ui_baseline.json` 随旧代码存量下降更新。
+- 版本升至 v1.25.13：`omrs/version.py`、`omrs_dashboard.html` 侧栏、`README.md`、`AI/README.md` 同步；更新 `AI/changelog.md`、`AI/frontend/create.md`、`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/shell.md` 与计划 `progress.md`。
+
+### 验证
+
+- 已实际执行：`python3 tests/e2e/create.py` 34 / 34，含整图批量框选、批量去处理与其它网格主路径；`node --test tests/app/create.test.mjs` 5 / 5。全量回归：Python unittest 160 项通过，Node 243 / 243，组件浏览器 34 / 34，13 个页面 E2E 全绿，`tests.smoke_schedule_workbench` 通过；`check_ui.py` 0 处问题，`check_contrast.py` 58 / 58 达标。
+- 手机页使用临时 Vault、随机高端口、移除 `OMRS_SYSTEMD_SERVICE` 的隔离实例，在真实 Chromium 的 390px 视口检查浅色和深色：两主题配色正确、无横向溢出或页面脚本错误；上传 64×64 PNG 成功，重复上传合并。截图在 `/tmp/omrs-mobile-p6-cdbuyg96/` 的 `mobile-light-390.png`、`mobile-dark-390.png` 和 `mobile-upload-390.png`。
+- `tests/visual/run.py --ref HEAD --pages create` 四组截图均有预期差异：浅色桌面 3.667%、深色桌面 4.186%、浅色手机 16.601%、深色手机 17.04%。桌面由右侧说明栏变为上传区下方的并排说明卡，空网格改成带边框的整行空态；手机筛选按钮换成较大的可点按钮，说明卡在网格下方竖排。两主题颜色沿用语义 token，页面脚本错误为 0。
+- `python3 tests/check_docs.py --diff HEAD` 检查 35 个文档，0 处问题、2 条既有篇幅提醒；`git diff --check` 通过。该切片沿用现有 P6 任务日志，没有新建日志，索引无需生成。
+- 未执行：生产部署和远端设备验证（需用户单独授权）；Firefox、WebKit 和全站空态终检属于后续阶段。

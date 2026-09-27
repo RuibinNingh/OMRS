@@ -41,3 +41,30 @@ test('快速录入视图只有委托动作、图片区域各自可选文件', ()
   assert.match(markup, /id="cr-a-file"[^>]*multiple/);
   assert.match(markup, /data-action="create.submit"/);
 });
+
+import { liveItems, visibleItems, selectableItems, selectedCount, gridView } from '../../assets/app/features/create/grid-view.js';
+
+test('收件箱网格只显示未丢弃图片，筛选与全选排除已录入', () => {
+  const rows = [
+    { id: 'a', status: 'pending', width: 64, height: 64, bytes: 10, file: '待处理.png', regions: [] },
+    { id: 'b', status: 'done', width: 64, height: 64, bytes: 10, file: '已录入.png', regions: [] },
+    { id: 'c', status: 'discarded', width: 64, height: 64, bytes: 10, file: '已丢弃.png', regions: [] },
+  ];
+  assert.deepEqual(liveItems(rows).map(row => row.id), ['a', 'b']);
+  assert.deepEqual(visibleItems(rows, 'pending').map(row => row.id), ['a']);
+  assert.deepEqual(selectableItems(liveItems(rows)).map(row => row.id), ['a']);
+  assert.equal(selectedCount(rows, new Set(['a', 'b', 'c'])), 1);
+  const markup = gridView({ items: rows, selected: new Set(['a']) }).text;
+  assert.match(markup, /待处理.png/);
+  assert.match(markup, /已录入.png/);
+  assert.doesNotMatch(markup, /已丢弃.png/);
+  assert.doesNotMatch(markup, /onclick=|style=/);
+});
+
+test('框位预览使用 SVG 坐标，文件名转义且无行内样式', () => {
+  const markup = gridView({ items: [{ id: 'IB-1', status: 'boxed', width: 100, height: 100, bytes: 1024,
+    file: '<题目>.png', regions: [{ x: .1, y: .2, w: .4, h: .3, role: 'question' }] }], selected: new Set() }).text;
+  assert.match(markup, /<rect x="10"/);
+  assert.match(markup, /&lt;题目&gt;\.png/);
+  assert.doesNotMatch(markup, /style=|onclick=/);
+});

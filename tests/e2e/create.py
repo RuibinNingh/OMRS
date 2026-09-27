@@ -17,23 +17,26 @@ from browser_runtime import launch_chromium
 AUDIT = """target => {
   const root = document.querySelector('#ib-stage-quick');
   const shown = [...root.querySelectorAll('*')].filter(e => e.offsetParent && !e.closest('.katex'));
-  const sizes = [...new Set(shown.filter(e => [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()))
+  const text = e => [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
+  const sizes = [...new Set(shown.filter(text)
     .map(e => parseFloat(getComputedStyle(e).fontSize)))].sort((a,b) => a-b);
   const hit = e => ['BUTTON','INPUT','SELECT','SUMMARY'].includes(e.tagName) || e.getAttribute('role') === 'button';
-  const small = shown.filter(hit).filter(e => { const r=(e.matches('input[type="file"]') ? e.closest('.ui-filedrop') : e).getBoundingClientRect(); return r.width && r.height < target; })
-    .map(e => `${e.tagName}#${e.id}.${e.className}:${Math.round((e.matches('input[type="file"]') ? e.closest('.ui-filedrop') : e).getBoundingClientRect().height)}`);
+  const tappable = e => e.matches('input[type="file"], input[type="checkbox"]') && e.closest('label') ? e.closest('label') : e;
+  const small = shown.filter(hit).filter(e => { const r=tappable(e).getBoundingClientRect(); return r.width && r.height < target; })
+    .map(e => `${e.tagName}#${e.id}.${e.className}:${Math.round(tappable(e).getBoundingClientRect().height)}`);
   const inline = shown.filter(e => (e.getAttribute('style') || '').trim()).length;
   const handlers = shown.filter(e => [...e.attributes].some(a => /^on/i.test(a.name))).length;
   const over = shown.filter(e => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX === 'visible')
     .map(e => `${e.tagName}#${e.id}.${e.className}: ${e.scrollWidth}/${e.clientWidth}`);
-  return { sizes, small, inline, handlers, over, overflow: document.documentElement.scrollWidth > innerWidth + 1 };
+  return { sizes, small, inline, handlers, over, overflow: document.documentElement.scrollWidth > innerWidth + 1, shown: shown.length };
 }"""
+AUDIT_UPLOAD = AUDIT.replace("'#ib-stage-quick'", "'#ib-stage-upload'")
 
 
-def png():
+def png(shade=255):
     def chunk(kind, data):
         return struct.pack('>I', len(data)) + kind + data + struct.pack('>I', zlib.crc32(kind + data))
-    pixels = b''.join(b'\0' + b'\xff\xff\xff' * 64 for _ in range(64))
+    pixels = b''.join(b'\0' + bytes([shade]) * 3 * 64 for _ in range(64))
     return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 64, 64, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(pixels)) + chunk(b'IEND', b'')
 
 
@@ -69,7 +72,7 @@ def run(page, base, results):
     page.locator('#ib-file').set_input_files({'name': '题图.png', 'mimeType': 'image/png', 'buffer': png()})
     check('上传进入暂存收件箱并更新待处理数',
           wait(page, "() => document.querySelector('#ib-c-pending')?.textContent === '1'")
-          and page.locator('#ib-grid [data-ib-open]').count() == 1)
+          and page.locator('.crw-inbox__grid [data-action="create.gridOpen"]').count() == 1)
     page.evaluate("""bytes => {
       const transfer = new DataTransfer();
       transfer.items.add(new File([new Uint8Array(bytes)], '题图.png', { type: 'image/png' }));
@@ -77,13 +80,34 @@ def run(page, base, results):
     }""", list(png()))
     check('上传区粘贴图片走同一暂存入口，重复图自动合并',
           wait(page, "() => document.querySelector('#ib-up-status')?.textContent.includes('已合并')")
-          and page.locator('#ib-grid [data-ib-open]').count() == 1)
+          and page.locator('.crw-inbox__grid [data-action="create.gridOpen"]').count() == 1)
     page.route('**/api/inbox/upload', lambda route: route.fulfill(status=503, content_type='application/json', body='{"msg":"上传服务暂不可用"}'))
     page.locator('#ib-file').set_input_files({'name': '另一张.png', 'mimeType': 'image/png', 'buffer': png()})
     check('上传失败保留已有收件箱并在控件旁显示原因',
           wait(page, "() => document.querySelector('#ib-up-status')?.textContent.includes('上传服务暂不可用')")
-          and page.locator('#ib-grid [data-ib-open]').count() == 1)
+          and page.locator('.crw-inbox__grid [data-action="create.gridOpen"]').count() == 1)
     page.unroute('**/api/inbox/upload')
+    page.locator('[data-action="create.gridFilter"][data-arg="boxed"]').click()
+    check('收件箱状态筛选显示空态', page.locator('.crw-inbox__empty').count() == 1)
+    page.locator('[data-action="create.gridFilter"][data-arg="all"]').click()
+    page.locator('[data-change="create.gridAll"]').check()
+    check('全选当前筛选后显示批量操作', page.locator('.crw-inbox__batch.is-open').count() == 1
+          and page.locator('.crw-inbox__batch strong').inner_text() == '1 张已选')
+    page.locator('[data-action="create.gridClear"]').click()
+    check('清空选择后批量操作收起', page.locator('.crw-inbox__batch.is-open').count() == 0
+          and not page.locator('[data-change="create.gridAll"]').is_checked())
+    page.locator('[data-change="create.gridAll"]').check()
+    page.locator('[data-action="create.gridWhole"]').click()
+    check('整图批量框选写回旧处理队列并显示框位预览',
+          wait(page, "() => !!document.querySelector('.crw-grid-item__status [data-status=\"boxed\"]') && !!document.querySelector('.crw-grid-item__thumb svg rect[data-role=\"question\"]')"))
+    page.locator('[data-action="create.gridOpenSelected"]').click()
+    check('批量去处理打开所选图片', page.locator('#ib-stage-process').evaluate('(e) => getComputedStyle(e).display !== "none"')
+          and page.locator('#ib-pc-fname').inner_text().startswith('题图.png'))
+    page.locator('#create-flow [data-ib-stage="upload"]').click()
+    page.locator('[data-action="create.gridOpen"]').click()
+    check('点击图片进入对应处理队列', page.locator('#ib-stage-process').evaluate('(e) => getComputedStyle(e).display !== "none"')
+          and page.locator('#ib-pc-fname').inner_text().startswith('题图.png'))
+    page.locator('#create-flow [data-ib-stage="upload"]').click()
     page.locator('#create-flow [data-ib-stage="process"]').focus()
     page.keyboard.press('Enter')
     check('键盘可进入处理工作区', page.locator('#ib-stage-process').evaluate('(e) => getComputedStyle(e).display !== "none"')
@@ -154,6 +178,21 @@ def run(page, base, results):
           and page.locator('#cr-related').input_value() == '定义域'
           and page.locator('[data-action="create.boardAdd"]').count() == 1)
     page.unroute('**/api/ai-recognize')
+    page.locator('#create-flow [data-ib-stage="upload"]').click()
+    page.locator('[data-change="create.gridSelect"]').check()
+    page.route('**/api/inbox/discard', lambda route: route.fulfill(status=503, content_type='application/json', body='{"msg":"模拟丢弃故障"}'))
+    page.locator('[data-action="create.gridDiscard"]').click()
+    page.locator('dialog[open] [data-dialog-ok]').click()
+    check('批量丢弃失败保留选择并就地提示', wait(page, "() => document.querySelector('.crw-inbox__error')?.textContent.includes('模拟丢弃故障')")
+          and page.locator('[data-change="create.gridSelect"]').is_checked())
+    page.unroute('**/api/inbox/discard')
+    page.locator('[data-action="create.gridDiscard"]').click()
+    page.locator('dialog[open] [data-dialog-cancel]').last.click()
+    check('取消批量丢弃保留图片', page.locator('[data-action="create.gridOpen"]').count() == 1)
+    page.locator('[data-action="create.gridDiscard"]').click()
+    page.locator('dialog[open] [data-dialog-ok]').click()
+    check('确认批量丢弃后网格与选择同步清空', wait(page, "() => document.querySelectorAll('.crw-inbox__grid [data-action=\"create.gridOpen\"]').length === 0")
+          and page.locator('.crw-inbox__batch.is-open').count() == 0)
 
 
 def main():
@@ -187,6 +226,13 @@ def main():
                         audit_context.add_init_script(f"localStorage.setItem('omrs-theme', '{theme}')")
                         audit_page = audit_context.new_page()
                         audit_page.goto(f'http://127.0.0.1:{port}/#/create', wait_until='networkidle')
+                        wait(audit_page, "() => !!document.querySelector('#create-grid .crw-inbox__filters') && !!document.querySelector('#create-upload .ui-filedrop') && document.querySelector('#panel-create')?.classList.contains('active') && document.querySelector('#ib-stage-upload')?.classList.contains('on')")
+                        audit_page.locator('#ib-file').set_input_files({'name': f'审计-{theme}-{label}.png', 'mimeType': 'image/png', 'buffer': png(180 + len(results) % 60)})
+                        wait(audit_page, "() => document.querySelectorAll('.crw-inbox__grid .crw-grid-item').length > 0")
+                        upload_audit = audit_page.evaluate(AUDIT_UPLOAD, target)
+                        upload_ok = upload_audit['shown'] >= 50 and len(upload_audit['sizes']) <= 6 and min(upload_audit['sizes']) >= 12 and not any(
+                            upload_audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))
+                        results.append((f'收件箱网格审计 {label}·{theme}', upload_ok, str(upload_audit)))
                         audit_page.locator('#create-flow [data-ib-stage="quick"]').click()
                         audit = audit_page.evaluate(AUDIT, target)
                         ok = len(audit['sizes']) <= 6 and min(audit['sizes']) >= 12 and not any(

@@ -4,7 +4,7 @@
    区域坐标一律归一化 0–1；像素工作（裁图 / 切片）在浏览器 canvas 里做，后端零依赖。 */
 
 const IB = {
-  items: [], cur: null, sel: new Set(), csel: new Set(), filter: 'all', stage: 'upload',
+  items: [], cur: null, sel: new Set(), csel: new Set(), stage: 'upload',
   drawRole: 'question', selR: null, last: null, disp: { w: 0, h: 0 }, bound: false,
   imgs: {}, saveTimer: null, polls: {}, drawCard: 1,
   dragging: false,
@@ -83,49 +83,9 @@ async function ibCrop(item, r, type = 'image/png', quality = 0.92) {
 
 /* 上传由 features/create/upload.js 负责，旧列表收到 inbox:reload 后同步。 */
 
-/* ── 阶段 ①：收件箱网格 ── */
-function ibVisible() { return ibLive().filter(i => IB.filter === 'all' || i.status === IB.filter); }
-function ibRenderInbox() {
-  const grid = $ib('ib-grid'); if (!grid) return;
-  const items = ibVisible();
-  grid.innerHTML = items.map(i => {
-    const ratio = i.height / i.width, shown = Math.min(1, (150 / 178) / ratio);
-    const boxes = (i.regions || []).map(r => { const top = r.y / shown * 100; if (top > 100) return ''; return `<div class="ib-rbox ${r.role}" style="left:${r.x * 100}%;top:${top}%;width:${r.w * 100}%;height:${Math.min(100 - top, r.h / shown * 100)}%"></div>`; }).join('');
-    const src = i.source === 'phone' ? '手机' : i.source === 'paste' ? '剪贴板' : '电脑';
-    const extra = i.status === 'done' ? `<span class="tag kill">→ ${escapeHtml(i.link?.uid || '')}</span>` : (i.regions || []).length ? `<span class="tag ib-muted">${i.regions.length} 框${i.regions.some(r => r.origin === 'ai') ? ' · AI 待确认' : ''}</span>` : '';
-    return `<div class="ib-item ${IB.sel.has(i.id) ? 'sel' : ''} ${i.status === 'done' ? 'done' : ''}" data-ib-open="${i.id}">
-      <input type="checkbox" class="ib-chk" data-ib-sel="${i.id}" ${IB.sel.has(i.id) ? 'checked' : ''} ${i.status === 'done' ? 'disabled' : ''}>
-      <span class="ib-src">${src}</span>
-      <div class="ib-thumb"><img src="${ibRawUrl(i)}" alt="" loading="lazy">${boxes}${ratio > 2 ? `<span class="ib-tall">长图 ${i.width}×${i.height}</span>` : ''}</div>
-      <div class="ib-meta"><div class="ib-name" title="${escapeHtml(i.file)}">${escapeHtml(i.file)}</div>
-      <div class="ib-sub"><span>${i.width}×${i.height} · ${ibBytes(i.bytes)}</span><span>${escapeHtml((i.uploaded_at || '').slice(5, 16).replace('T', ' '))}</span></div>
-      <div class="ib-status"><span class="ib-st ${i.status}">${IB_STATUS[i.status]}</span>${extra}</div></div></div>`;
-  }).join('') || '<div class="ib-empty">这个筛选下没有图片。<br>从手机或电脑上传截图后会出现在这里。</div>';
-  const all = ibLive();
-  $ib('ib-count').textContent = `${items.length} / ${all.length} 张`;
-  document.querySelectorAll('#ib-filters .ib-chip').forEach(c => c.classList.toggle('on', c.dataset.f === IB.filter));
-  const selectable = items.filter(i => i.status !== 'done');
-  $ib('ib-sel-all').checked = selectable.length > 0 && selectable.every(i => IB.sel.has(i.id));
-  ibBatchbar();
-}
-function ibSetFilter(f) { IB.filter = f; ibRenderInbox(); }
-function ibSelectAllVisible(on) { ibVisible().filter(i => i.status !== 'done').forEach(i => on ? IB.sel.add(i.id) : IB.sel.delete(i.id)); ibRenderInbox(); ibRenderQueue(); }
-function ibClearSel() { IB.sel.clear(); ibRenderInbox(); ibRenderQueue(); }
-function ibBatchbar() {
-  const bar = $ib('ib-batchbar'); if (!bar) return;
-  const n = [...IB.sel].filter(id => { const it = ibItem(id); return it && it.status !== 'done' && it.status !== 'discarded'; }).length;
-  $ib('ib-bb-n').textContent = n;
-  bar.classList.toggle('show', n > 0 && IB.stage === 'upload' && $ib('panel-create').classList.contains('active'));
-  const pq = $ib('ib-pq-sel-n'); if (pq) pq.textContent = n ? `（${n}）` : '';
-}
-function ibOpenSelected() { const first = [...IB.sel][0]; if (first) IB.cur = first; ibGo('process'); }
-async function ibDiscardSelected() {
-  const ids = [...IB.sel].filter(id => ibItem(id) && ibItem(id).status !== 'done');
-  if (!ids.length) return;
-  if (!await uiConfirm(`丢弃 ${ids.length} 张？原图会保留在收件箱数据目录，不进题库。`)) return;
-  try { await api('/api/inbox/discard', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) }); IB.sel.clear(); await ibLoad(); }
-  catch (e) { ibToast(e.message, 'warn'); }
-}
+/* ── 阶段 ①：收件箱网格已迁到 features/create/grid.js。旧控制器只发布更新。 ── */
+function ibRenderInbox() { window.__omrs?.emit('inbox:grid'); }
+function ibBatchbar() { window.__omrs?.emit('inbox:grid'); }
 
 /* ── 阶段 ②：队列 / 画布 / 区域面板 ── */
 function ibRenderProcess() { ibRenderQueue(); ibRenderStage(); ibRenderSide(); }
@@ -561,10 +521,9 @@ async function ibCleanup(crops) {
 function ibBind() {
   const panel = $ib('panel-create');
   panel.addEventListener('click', ev => {
-    const t = ev.target.closest('[data-ib-open],[data-ib-cur],[data-ib-rg],[data-ib-del],[data-ib-conv],[data-ib-extract],[data-ib-drawcard],[data-ib-classify],[data-ib-back],[data-ib-commit],[data-ib-stage],[data-ib-filter],[data-ib-label-open]');
+    const t = ev.target.closest('[data-ib-cur],[data-ib-rg],[data-ib-del],[data-ib-conv],[data-ib-extract],[data-ib-drawcard],[data-ib-classify],[data-ib-back],[data-ib-commit],[data-ib-stage],[data-ib-label-open]');
     if (!t) return;
     if (t.dataset.ibStage) { ibGo(t.dataset.ibStage); return; }
-    if (t.dataset.ibFilter) { ibSetFilter(t.dataset.ibFilter); return; }
     if (t.dataset.ibDel) { ev.stopPropagation(); ibDeleteRegion(t.dataset.ibDel); return; }
     if (t.dataset.ibConv) { ev.stopPropagation(); const [id, v] = t.dataset.ibConv.split(':'); ibSetConvert(id, v); return; }
     if (t.dataset.ibExtract) { ev.stopPropagation(); ibExtractRegions(ibCur(), [t.dataset.ibExtract]); return; }
@@ -575,21 +534,7 @@ function ibBind() {
     if (t.dataset.ibCommit) { ibCommit(t.dataset.ibCommit); return; }
     if (t.dataset.ibRg) { if (!ev.target.closest('textarea,input,button')) ibSelectRegion(t.dataset.ibRg); return; }
     if (t.dataset.ibCur) { if (!ev.target.closest('input')) ibOpen(t.dataset.ibCur); return; }
-    if (t.dataset.ibOpen) {
-      if (ev.target.closest('input')) return;
-      const it = ibItem(t.dataset.ibOpen);
-      if (it.status === 'done') {
-        const uid = String(it.link?.uid || '').trim();
-        if (uid && typeof viewQ === 'function') {
-          viewQ(uid, 'q');
-        } else {
-          ibToast('这条记录没有关联的题目详情', 'warn');
-        }
-        return;
-      }
-      IB.cur = it.id;
-      ibGo('process');
-    }
+
   });
   panel.addEventListener('change', ev => {
     const t = ev.target;
@@ -642,3 +587,14 @@ function ibBind() {
   const obs = new MutationObserver(() => { if (document.querySelector('[data-ib-cropcv]')) ibPaintCropCanvases(); });
   obs.observe($ib('ib-ps-body'), { childList: true });
 }
+
+// 分步迁移适配：新网格借用旧处理区的数据与批量算法，P6 收尾时删除。
+if (typeof window !== 'undefined') window.__omrsInbox = {
+  snapshot: () => ({ items: IB.items, selected: IB.sel, stage: IB.stage }),
+  refresh: () => { ibRenderInbox(); ibRenderQueue(); },
+  open: id => { IB.cur = id; ibGo('process'); },
+  reload: ibLoad,
+  detect: ibDetectSelected,
+  applyLast: ibApplyLastSelected,
+  whole: ibWholeSelected,
+};

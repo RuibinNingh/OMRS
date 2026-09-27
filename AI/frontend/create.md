@@ -1,17 +1,19 @@
 # 前端：录入题目与收件箱入口
 
 > **速查**
-> - 职责：五个工作区的导航、原图上传和快速录入；收件箱框选、题卡与训练流程见 `AI/inbox.md`
-> - 入口：`assets/app/features/create/`（页面、上传、快速录入）、`assets/inbox.js`（收件箱列表和其余工作区）
+> - 职责：五个工作区的导航、原图上传、收件箱网格和快速录入；框选、题卡与训练流程见 `AI/inbox.md`
+> - 入口：`assets/app/features/create/`（页面、上传、网格、快速录入）、`assets/inbox.js`（处理、题卡和训练工作区）
 > - 不变量：切页保留工作区与快速录入草稿；原图先入收件箱暂存层；快速录入提交后保留上下文字段，只清空题目内容与图片
 > - 必跑测试：`tests/app/create.test.mjs`、`tests/e2e/create.py`、`tests/test_inbox.py`、`tests/test_ai_assist_taxonomy.py`
 > - 相关：`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/design-system.md`
 
 ## 页面与工作区
 
-`#panel-create` 由 `features/create/index.js` 登记页面契约。`state.js` 与 `view.js` 渲染五个键盘可操作的工作区按钮：上传、处理、录入、AI 训练、快速录入。前三项按流程编号。切到其它页面后返回，导航仍显示离开前的工作区。收件箱列表、处理、题卡和训练仍由 `assets/inbox.js` 控制，其余工作区的结构暂留在 `omrs_dashboard.html`。
+`#panel-create` 由 `features/create/index.js` 登记页面契约。`state.js` 与 `view.js` 渲染五个键盘可操作的工作区按钮：上传、处理、录入、AI 训练、快速录入。前三项按流程编号。切到其它页面后返回，导航仍显示离开前的工作区。上传与收件箱网格挂在 `#ib-stage-upload`；处理、题卡和训练仍由 `assets/inbox.js` 控制，其结构暂留在 `omrs_dashboard.html`。
 
-`upload.js` / `upload-view.js` 用 `ui/filedrop` 接受多张图片的选择与拖放。上传阶段也能粘贴图片或显式读取剪贴板；四种入口共用 `/api/inbox/upload`。非图片、剪贴板不可用和请求失败在控件旁提示；请求期间禁用入口。上传成功发 `inbox:reload`，旧列表据此刷新，重复图片由接口合并。上传原图不直接写入题库。
+`upload.js` / `upload-view.js` 用 `ui/filedrop` 接受多张图片的选择与拖放。上传阶段也能粘贴图片或显式读取剪贴板；四种入口共用 `/api/inbox/upload`。非图片、剪贴板不可用和请求失败在控件旁提示；请求期间禁用入口。上传成功发 `inbox:reload`，收件箱数据重读后网格更新，重复图片由接口合并。上传原图不直接写入题库。
+
+`grid.js` / `grid-view.js` 渲染原图卡片和框位预览，提供全部、待处理、已框选、待创建、已录入五种状态筛选。全选只选当前筛选里未录入的图片；批量条只处理已选图片，包含 AI / 模板框选、沿用框位、整图即题目、去处理、丢弃和清空选择。已录入卡片打开关联题目；批量丢弃失败时保留选择并在网格旁提示。迁移期间 `legacy-inbox.js` 把网格与旧处理工作区接到同一份图片列表和选择状态。
 
 ## 快速录入
 
@@ -23,4 +25,4 @@
 
 ## 收件箱其余工作区
 
-`assets/inbox.js` 继续处理收件箱网格筛选与批量操作、框选画布、检测和提取任务、题卡提交及训练策略，详细数据流与边界见 `AI/inbox.md` §5。后台文本提取只同步发起提取的图片与区域结果，不中断当前框选。全局 `cr-*` 图片数组与旧快速录入函数已删除；`core.js` 的 `populateCreateLists` 暂为旧收件箱题卡提供三个 datalist，待题卡迁移后删除。
+`assets/inbox.js` 继续处理框选画布、检测和提取任务、题卡提交及训练策略，详细数据流与边界见 `AI/inbox.md` §5。后台文本提取只同步发起提取的图片与区域结果，不中断当前框选。全局 `cr-*` 图片数组与旧快速录入函数已删除；`core.js` 的 `populateCreateLists` 暂为旧收件箱题卡提供三个 datalist，待题卡迁移后删除。

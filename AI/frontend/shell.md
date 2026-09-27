@@ -65,7 +65,7 @@ assets/
 |---|---|---|
 | 题目库 | `.qlb` → `.qlb-card` → `.qlb-body`（`features/questions/questions.css`） | `.qlb-main` 里的表格 / 画廊、`.qlb-drawer` |
 | 反馈录入 | `.fb-work`（`grid-template-rows:minmax(0,1fr)`） | `.fb-rail` / `.fb-stage` / `.fb-panel` 三栏独立 |
-| 录入题目 | `#create-app` → `.ib-stage.on`；处理页额外 `#ib-stage-process.on` → `.ib-proc` | 新页面契约渲染导航；旧工作区仍承载处理页三栏，上传 / 录入 / AI 训练三个 stage 整体滚 |
+| 录入题目 | `#create-app` → `.ib-stage.on`；处理页额外 `#ib-stage-process.on` → `.ib-proc` | 新页面契约渲染导航和上传网格；旧处理工作区仍承载三栏，上传 / 录入 / AI 训练三个 stage 整体滚 |
 | 展示板 | `.bd-layout` | `.bd-layout > .card` 三张 |
 | 即时练习 | `.inst-work`（`features/instant/instant.css`） | `.inst-main` / `.inst-queue__list` |
 

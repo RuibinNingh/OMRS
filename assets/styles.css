@@ -633,29 +633,6 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 .ib-flow-arrow{align-self:center;color:var(--fg3)}
 .ib-stage{display:none}.ib-stage.on{display:block}
 /* ① 上传 */
-.ib-up-layout{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
-.ib-inbox-head{display:flex;align-items:center;gap:12px;margin:18px 0 10px;flex-wrap:wrap}
-.ib-inbox-head .filters{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
-.ib-chip{padding:3px 10px;border-radius:99px;border:1px solid var(--border2);font-size:.7rem;color:var(--fg3);cursor:pointer;background:var(--bg2)}
-.ib-chip.on{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
-.ib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px}
-.ib-item{position:relative;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:border-color .15s,box-shadow .15s}
-.ib-item:hover{border-color:var(--accent-light)}
-.ib-item.sel{border-color:var(--blue);box-shadow:0 0 0 2px rgba(var(--blue-rgb),.28)}
-.ib-item.done{opacity:.62}
-.ib-thumb{height:150px;background:var(--bg3);position:relative;overflow:hidden}
-.ib-thumb img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
-.ib-tall{position:absolute;right:6px;bottom:6px;font-size:.6rem;font-family:'JetBrains Mono','Noto Sans SC',monospace;background:rgba(0,0,0,.55);color:#fff;padding:1px 6px;border-radius:5px}
-.ib-rbox{position:absolute;border:1.5px solid;border-radius:2px;pointer-events:none}
-.ib-rbox.question{border-color:var(--ib-role-q);background:rgba(var(--ib-role-q-rgb),.12)}
-.ib-rbox.answer{border-color:var(--ib-role-a);background:rgba(var(--ib-role-a-rgb),.12)}
-.ib-rbox.ignore{border-color:var(--ib-role-x);border-style:dashed}
-.ib-item .ib-chk{position:absolute;top:8px;left:8px;z-index:2;width:18px;height:18px}
-.ib-src{position:absolute;top:8px;right:8px;z-index:2;font-size:.6rem;padding:2px 7px;border-radius:6px;background:rgba(0,0,0,.55);color:#fff}
-.ib-meta{padding:9px 10px 10px}
-.ib-name{font-size:.72rem;color:var(--fg);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.ib-sub{font-size:.64rem;color:var(--fg3);font-family:'JetBrains Mono','Noto Sans SC',monospace;margin-top:2px;display:flex;justify-content:space-between;gap:6px}
-.ib-status{margin-top:7px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .ib-st{display:inline-flex;align-items:center;gap:5px;font-size:.64rem;font-weight:600;padding:2px 7px;border-radius:6px}
 .ib-st::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
 .ib-st.pending{background:var(--bg3);color:var(--fg2)}
@@ -663,10 +640,6 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 .ib-st.ready{background:var(--trap-bg);color:var(--trap-fg)}
 .ib-st.done{background:var(--kill-bg);color:var(--kill-fg)}
 .ib-st.discarded{background:var(--attack-bg);color:var(--attack-fg)}
-.ib-batchbar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(220%);visibility:hidden;transition:transform .2s ease;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-lg);box-shadow:0 12px 40px rgba(0,0,0,.28);padding:10px 12px 10px 16px;display:flex;align-items:center;gap:8px;z-index:1100;white-space:nowrap}
-.ib-batchbar.show{transform:translateX(-50%) translateY(0);visibility:visible}
-.ib-batchbar .n{font-family:'JetBrains Mono','Noto Sans SC',monospace;font-weight:600;color:var(--accent2);margin-right:6px}
-.ib-batchbar .sep{width:1px;height:20px;background:var(--border2);margin:0 4px}
 /* ② 处理：三栏 */
 .ib-proc{display:grid;grid-template-columns:224px minmax(0,1fr) 372px;gap:var(--gap);align-items:start;height:calc(100vh - 200px);min-height:640px}
 .ib-pq,.ib-pc,.ib-ps{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);display:flex;flex-direction:column;height:100%;overflow:hidden;min-width:0}
@@ -691,7 +664,7 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 .ib-pc-scroll{flex:1;overflow:auto;background:var(--bg3);position:relative;padding:16px}
 .ib-stage-img{position:relative;margin:0 auto;user-select:none;touch-action:none;box-shadow:0 2px 12px rgba(0,0,0,.25);cursor:crosshair}
 .ib-stage-img img{display:block;width:100%;height:auto;pointer-events:none}
-html[data-theme="dark"][data-invert-img="1"] .ib-stage-img img,html[data-theme="dark"][data-invert-img="1"] .ib-thumb img{filter:none}
+html[data-theme="dark"][data-invert-img="1"] .ib-stage-img img{filter:none}
 .ib-cutmask{position:absolute;left:0;top:0;pointer-events:none}
 .ib-box{position:absolute;border:2px solid;border-radius:2px;cursor:move}
 .ib-box.question{border-color:var(--ib-role-q)}.ib-box.answer{border-color:var(--ib-role-a)}.ib-box.ignore{border-color:var(--ib-role-x);border-style:dashed}
@@ -777,7 +750,7 @@ html[data-theme="dark"][data-invert-img="1"] .ib-stage-img img,html[data-theme="
 .ib-bar .bf.blue{background:var(--blue)}.ib-bar .bf.green{background:var(--green)}
 .ib-bar .bv{width:52px;font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:.66rem;color:var(--fg3);text-align:right}
 @media(max-width:1500px){.ib-flow-step.aux .fs-sub{display:none}}
-@media(max-width:1180px){.ib-proc{grid-template-columns:200px minmax(0,1fr);height:auto}.ib-ps{grid-column:1/-1;height:auto;max-height:560px}.ib-up-layout{grid-template-columns:1fr}.ib-tr-grid{grid-template-columns:repeat(2,1fr)}.ib-tr-cols{grid-template-columns:1fr}}
+@media(max-width:1180px){.ib-proc{grid-template-columns:200px minmax(0,1fr);height:auto}.ib-ps{grid-column:1/-1;height:auto;max-height:560px}.ib-tr-grid{grid-template-columns:repeat(2,1fr)}.ib-tr-cols{grid-template-columns:1fr}}
 @media(max-width:860px){.ib-qcard-body{grid-template-columns:1fr}.ib-qcard-prev{border-right:none;border-bottom:1px solid var(--border)}.ib-proc{grid-template-columns:1fr}.ib-pq{max-height:220px}.ib-flow-step{min-width:0}}
 
 /* 收件箱：AI 训练页策略表单 */
