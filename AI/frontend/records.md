@@ -57,7 +57,7 @@
 | 未来 7 天到期预测 | `forecast` | 横条：今日、+1…+7 天、7 天以后 |
 | 按标记正确率与平均分 | `label-acc` | 表格 |
 | 复习预警 | `alerts` | 六格：逾期、今日到期、未来 3 天、未来 7 天、未到期低熟练度、顽固题 |
-| 顽固题 / 屡练不熟 | `leeches` / `struggling` | 表格；「查看」开题目弹窗（上下文 `leech`，可翻页），「加入展示板」开选板浮层 |
+| 顽固题 / 屡练不熟 | `leeches` / `struggling` | 表格；「查看」开题目弹窗（上下文 `leech`，可翻页），「加入展示板」经 `domain/board/index.js` 开选板浮层 |
 
 - 百分比与语气：`pct(v)`（空值显示「—」）、`accTone(v)`（≥80% success、≥50% warning、其余 danger、空值 muted）。`by_hour` 的键是字符串，按 `h` 与 `String(h)` 都取。
 

@@ -10,7 +10,7 @@ import { get } from '../../core/api.js';
 import { downloadResponse } from '../../core/download.js';
 import { toast } from '../../ui/toast.js';
 import { viewQ, qvSetContext } from '../../domain/question/index.js';
-import { boardQuickAdd } from '../../domain/board.js';
+import { boardQuickAdd } from '../../domain/board/index.js';
 import * as S from './state.js';
 import { view } from './view.js';
 

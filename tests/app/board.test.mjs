@@ -1,15 +1,20 @@
-const assert = require('node:assert/strict');
-const test = require('node:test');
+// 展示板纯函数（P7 第 1 步由 tests/test_board_ui.js 迁来，用例原样保留，另加本步新增的纯函数）。
+// 页面纯函数在 assets/app/features/board/model.js，选板纯函数在 assets/app/domain/board/model.js；
+// 旧 board.js 经过渡桥 installBoardBridge 读同名全局；选板浮层（P7 第 4 轮原生）的测试在 board-picker.test.mjs。
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import * as model from '../../assets/app/features/board/model.js';
+import * as domain from '../../assets/app/domain/board/model.js';
+import * as domainIndex from '../../assets/app/domain/board/index.js';
+import * as saveModule from '../../assets/app/features/board/save.js';
+import * as printModule from '../../assets/app/features/board/print.js';
+import * as previewModule from '../../assets/app/features/board/preview.js';
+import * as settingsModule from '../../assets/app/features/board/settings.js';
+import * as dragModule from '../../assets/app/features/board/drag.js';
+import * as pickerModule from '../../assets/app/domain/board/picker.js';
 
-global.document = {
-  addEventListener() {},
-  querySelectorAll() { return []; },
-};
-// board.js 的纯函数依赖 core.js 里的这两个小工具
-global.asNumber = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
-global.clampNumber = (value, min, max, fallback = 0) => Math.max(min, Math.min(max, global.asNumber(value, fallback)));
-
-const { boardMoveItems, boardUniqueUids, boardEstimateText, boardColumnWidth } = require('../assets/board.js');
+const { boardMoveItems, boardEstimateText, boardColumnWidth } = model;
+const { boardUniqueUids } = domain;
 
 test('board item movement handles up/down and invalid positions', () => {
   const items = [{ uid: 'A' }, { uid: 'B' }, { uid: 'C' }];
@@ -43,10 +48,7 @@ test('column width matches the browser template formula (A4, 10mm side margins, 
 });
 
 // ---------- 文件夹与选板浮层（P1）----------
-// board_picker.js 是从 board.js 拆出来的：浏览器里两者共享全局作用域，
-// Node 的模块作用域没有这层共享，所以这里显式把它依赖的工具补成全局。
-global.boardUniqueUids = boardUniqueUids;
-const { boardFolderTree, boardPickerRowState, boardPickerFilter, boardPickerRecent } = require('../assets/board_picker.js');
+const { boardFolderTree, boardPickerRowState, boardPickerFilter, boardPickerRecent } = domain;
 
 const FOLDERS = [{ id: 'F1', name: '高三上·期中', order: 0 }, { id: 'F2', name: '空组', order: 1 }];
 const BOARDS = [
@@ -99,7 +101,7 @@ test('recent list puts the last-used board first and dedupes it from the rest', 
 });
 
 // ---------- 每题留白与脏字段保存队列（P2）----------
-const { boardDirtyMerge, boardSavePayload, boardEffectiveGap, boardItemsPayload, boardGapCm } = require('../assets/board.js');
+const { boardDirtyMerge, boardSavePayload, boardEffectiveGap, boardItemsPayload, boardGapCm } = model;
 
 test('effective gap: null inherits the board setting, a number overrides it, both clamp to 0–48', () => {
   assert.equal(boardEffectiveGap({ gap_lines: null }, { gap_lines: 6 }), 6);
@@ -161,4 +163,74 @@ test('gap lines convert to centimetres with the export template geometry', () =>
   assert.equal(boardGapCm(999), boardGapCm(48));   // 夹到后端上限，不会算出一个纸上放不下的数
   assert.equal(boardGapCm(-5), 0);
   assert.equal(boardGapCm('bad'), 0);
+});
+
+// ---------- P7 第 1 步新增：搬迁时补齐的纯函数与过渡桥契约 ----------
+test('content signature tracks membership, order and missing / suspended, but not geometry', () => {
+  const items = [{ uid: 'A', gap_lines: 3 }, { uid: 'B', missing: true }, { question_id: 'OP-9', suspended: true }];
+  assert.equal(model.boardItemsSignature(items), 'A,B!,OP-9-');
+  assert.equal(model.boardItemsSignature([{ uid: 'A', gap_lines: 9 }, items[1], items[2]]), 'A,B!,OP-9-');
+  assert.notEqual(model.boardItemsSignature([items[1], items[0], items[2]]), model.boardItemsSignature(items));
+  assert.equal(model.boardItemsSignature(null), '');
+});
+
+test('gap map keeps null (inherit) and clamps numbers; items without uid are skipped', () => {
+  assert.deepEqual(model.boardGapMap([{ uid: 'A', gap_lines: null }, { uid: 'B', gap_lines: 99 }, { uid: 'C', gap_lines: -1 }, { gap_lines: 3 }]),
+    { A: null, B: 48, C: 0 });
+  assert.deepEqual(model.boardGapMap(undefined), {});
+});
+
+test('paper layout boundary: without paper nothing counts; with paper only real layout changes do', () => {
+  const printedItem = { question_id: 'OP-1', uid: 'A', printed: true, gap_lines: null };
+  const freshItem = { question_id: 'OP-2', uid: 'B', printed: false, gap_lines: null };
+  const board = { print: { note_ratio: 0.5, gap_lines: 2, show_labels: true, show_meta: true, cut_line: 'dash', cut_label: false },
+    printed_summary: { pages: 1 }, printed: { items: [{ question_id: 'OP-1' }] }, items: [printedItem, freshItem] };
+  assert.equal(model.boardPaperLayoutChanged({ ...board, printed_summary: { pages: 0 } }, { print: { note_ratio: 0.3 } }), false);
+  assert.equal(model.boardPaperLayoutChanged(null, { print: { note_ratio: 0.3 } }), false);
+  assert.equal(model.boardPaperLayoutChanged(board, { print: { note_ratio: 0.3 } }), true);
+  assert.equal(model.boardPaperLayoutChanged(board, { print: { locked: true, answers: 'append' } }), false);
+  assert.equal(model.boardPaperLayoutChanged(board, { print: { cut_label: true } }), true);
+  assert.equal(model.boardPaperLayoutChanged({ ...board, print: { ...board.print, cut_line: 'none' } }, { print: { cut_label: true } }), false);
+  // 排序、增删不改纸面；未印题的留白也不算
+  assert.equal(model.boardPaperLayoutChanged(board, { items: [freshItem, printedItem] }), false);
+  assert.equal(model.boardPaperLayoutChanged(board, { items: [printedItem, { ...freshItem, gap_lines: 9 }] }), false);
+  // 已印题的有效留白变了才算；全局留白变化只在影响已印题时算
+  assert.equal(model.boardPaperLayoutChanged(board, { items: [{ ...printedItem, gap_lines: 5 }, freshItem] }), true);
+  assert.equal(model.boardPaperLayoutChanged(board, { print: { gap_lines: 4 } }), true);
+  assert.equal(model.boardPaperLayoutChanged({ ...board, items: [{ ...printedItem, gap_lines: 2 }, freshItem] }, { print: { gap_lines: 4 } }), false);
+});
+
+test('short time format falls back to the raw prefix when unparsable', () => {
+  assert.equal(model.boardFormatTime(''), '');
+  assert.equal(model.boardFormatTime('not-a-date-but-long'), 'not-a-date-but-l');
+  assert.match(model.boardFormatTime('2026-09-04T12:05:00'), /^9\/4 12:05$/);
+});
+
+test('geometry constants stay in sync with the export template and backend', () => {
+  assert.deepEqual(model.CUT_LINES, ['none', 'dash', 'solid']);
+  assert.equal(model.BOARD_LINE_PX, 18);
+  assert.equal(model.BOARD_MM_PX, 3.779528);
+});
+
+test('bridge contract: the two modules export disjoint names, and domain/board keeps its adapters', () => {
+  // installBoardBridge 用 Object.assign 把两个模块的导出一起挂到 window，同名导出会互相覆盖
+  const overlap = Object.keys(model).filter(name => Object.hasOwn(domain, name));
+  assert.deepEqual(overlap, []);
+  assert.equal(typeof domainIndex.boardQuickAdd, 'function');
+  assert.equal(typeof domainIndex.boardChooseAndAdd, 'function');
+  assert.equal(domainIndex.boardFolderTree, domain.boardFolderTree);
+  // 没有题目时适配器安静地返回 undefined，不打开浮层（有题目时的行为见 board-picker.test.mjs）
+  assert.equal(domainIndex.boardQuickAdd(''), undefined);
+  assert.equal(domainIndex.boardQuickAdd([]), undefined);
+  assert.equal(domainIndex.boardChooseAndAdd([]), undefined);
+  assert.equal(domainIndex.boardChooseAndAdd('Q1'), undefined);
+  assert.equal(domainIndex.boardPickerOpen, pickerModule.boardPickerOpen);
+});
+
+test('bridge contract: all board modules export disjoint names (P7 第 2 轮起含保存、打印、预览，第 3 轮起含设置、拖拽，第 4 轮起含选板浮层)', () => {
+  const names = [domain, model, saveModule, printModule, previewModule, settingsModule, dragModule, pickerModule].flatMap(ns => Object.keys(ns));
+  assert.deepEqual(names.filter((name, index) => names.indexOf(name) !== index), []);
+  for (const name of ['createBoardSaveQueue', 'createBoardPrint', 'fetchBoardExport', 'measureBoardLayout', 'boardPreviewSetBoard', 'boardPreviewLayout',
+    'createBoardSettings', 'bindBoardRowDrag', 'bindBoardTreeDrag', 'boardTreeDropPlan', 'boardPickerOpen', 'boardPickerClose', 'boardPickerIsOpen'])
+    assert.ok(names.includes(name), name);
 });

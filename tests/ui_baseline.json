@@ -1,14 +1,11 @@
 {"files": {
   "assets/app.js": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 0, "font_size_literals": 0},
-  "assets/board.js": {"handlers": 0, "html_assign": 13, "inline_style": 2, "color_literals": 2, "font_size_literals": 0},
-  "assets/board_picker.js": {"handlers": 0, "html_assign": 3, "inline_style": 0, "color_literals": 0, "font_size_literals": 0},
-  "assets/board_preview.js": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 0, "font_size_literals": 0},
   "assets/core.js": {"handlers": 0, "html_assign": 5, "inline_style": 6, "color_literals": 0, "font_size_literals": 0},
-  "assets/inbox.js": {"handlers": 0, "html_assign": 13, "inline_style": 12, "color_literals": 2, "font_size_literals": 0},
+  "assets/inbox.js": {"handlers": 0, "html_assign": 7, "inline_style": 8, "color_literals": 1, "font_size_literals": 0},
   "assets/inbox_mobile.html": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 0, "font_size_literals": 7},
   "assets/labels.js": {"handlers": 0, "html_assign": 9, "inline_style": 2, "color_literals": 0, "font_size_literals": 1},
   "assets/questions.js": {"handlers": 0, "html_assign": 0, "inline_style": 2, "color_literals": 0, "font_size_literals": 0},
   "assets/schedule.js": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 0, "font_size_literals": 0},
-  "assets/styles.css": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 59, "font_size_literals": 128},
-  "omrs_dashboard.html": {"handlers": 32, "html_assign": 0, "inline_style": 23, "color_literals": 0, "font_size_literals": 3}
+  "assets/styles.css": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 43, "font_size_literals": 86},
+  "omrs_dashboard.html": {"handlers": 13, "html_assign": 0, "inline_style": 21, "color_literals": 0, "font_size_literals": 2}
 }}

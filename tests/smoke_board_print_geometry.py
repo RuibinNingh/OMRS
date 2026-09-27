@@ -60,7 +60,7 @@ class BoardPrintGeometrySmokeTest(unittest.TestCase):
                 self.assertAlmostEqual(full_width, 347.05, delta=.02)
                 self.assertEqual(get_board(vault, bid)["print"]["note_ratio"], .42)
                 # 使用页面真实的记录按钮，仅替代人对已打印的确认；无物理打印机。
-                page.evaluate("() => { window.uiConfirm = async () => true; boardMarkAwaiting('all'); }")
+                page.evaluate("() => { configureBoardDetail({ confirm: async () => true }); boardMarkAwaiting('all'); }")
                 page.locator("[data-board-primary]").click()
                 page.wait_for_function("() => BOARD_DETAIL.printed_summary.count === 1")
                 paper = copy.deepcopy(get_board(vault, bid)["printed"])

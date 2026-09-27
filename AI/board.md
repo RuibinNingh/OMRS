@@ -2,17 +2,18 @@
 
 > **速查**
 > - 职责：展示板引用集合、版面设置、打印（全部 / 仅新增）与纸面记录
-> - 入口：`omrs/boards.py`、`omrs/exporting.py`（展示板段）、`assets/board.js`
+> - 入口：`omrs/boards.py`、`omrs/exporting.py`（展示板段）、`assets/app/features/board/index.js`（页面）、`assets/app/features/board/detail.js`（板详情）
 > - 不变量：展示板只保存题目引用，不复制题目内容；纸面记录绑定导出快照
 > - 必跑测试：`tests/test_boards.py`、`tests/test_board_export.py`、`tests/test_board_integrity.py`、`tests/smoke_board_print.py`
 > - 相关：`AI/frontend/board-ui.md`、`AI/export.md`
 
 > 对应源文件：`omrs/boards.py`、`omrs/exporting.py`（展示板导出段）、
-> `omrs/export_templates/board.css`、`omrs/export_templates/board.js`、`assets/board.js`、
-> `assets/board_preview.js`、`assets/styles.css`（`.bd-*`）、`tests/test_boards.py`、
-> `tests/test_board_export.py`、`tests/test_board_ui.js`、`tests/test_board_preview.js`、
-> `tests/smoke_board_print.py`、`tests/test_board_locked_incremental.py`、
-> `tests/test_board_locked_incremental.js`、`tests/smoke_board_lock.py`。
+> `omrs/export_templates/board.css`、`omrs/export_templates/board.js`、
+> `assets/app/features/board/`（页面 `index.js` / `view.js` / `state.js` / `board.css`、板详情 `detail.js` / `runtime.js`、`add.js`、`model.js`、`save.js`、`print.js`、`preview.js`、`settings.js`、`drag.js`）、
+> `assets/app/domain/board/`（`model.js`、`boards.js`、`detail-port.js`、选板浮层 `picker.js`）、`tests/test_boards.py`、
+> `tests/test_board_export.py`、`tests/app/board.test.mjs`、`tests/app/board-preview.test.mjs`、
+> `tests/app/board-regions.test.mjs`、`tests/smoke_board_print.py`、`tests/test_board_locked_incremental.py`、
+> `tests/app/board-locked.test.mjs`、`tests/app/board-page.test.mjs`、`tests/e2e/board.py`、`tests/smoke_board_lock.py`。
 
 ## 1. 定位与边界
 
@@ -107,7 +108,7 @@ file_path`，以及纸面相关的 `printed`（已在纸上）、`printed_page`�
 `get_board` / `list_boards` 另附 `printed_summary`：`{at, pages, count, new_count,
 changed_count, cursor, answer_pages, print}`。
 
-## 3. 展示板页面（`assets/board.js`）
+## 3. 展示板页面（`assets/app/features/board/`）
 
 侧栏「题目库」与「目录」之间的「展示板」Tab。页面分成**状态条 + 三栏**，每个区一句话职责，互不重叠：
 
@@ -122,56 +123,57 @@ changed_count, cursor, answer_pages, print}`。
 └────────┴────────────────────────────┴─────────────────────┘
 ```
 
-1. **状态条**（`boardStatusbarHtml()`）：板名（双击重命名）、题数 / 科目分布 / 备注、纸面状态
+1. **状态条**（`features/board/view.js` 的 `statusBar`，模型 `state.js` 的 `statusView`）：板名（双击或「重命名」按钮就地改名）、题数 / 科目分布 / 备注、纸面状态
    chips、一句「为什么」、打印范围分段（`[data-board-modes]`）、**全页唯一的主行动按钮**
    （`[data-board-primary]`，文案由 §4.2 的状态机决定），以及「下载 HTML」「↻ 重新生成」两个次要动作。
 2. **板列表**（sticky）：文件夹 → 板的两级树，见 §3.1。板行显示板名、题数、已印页数 / 新增数、
-   更新时间；`⋯` 菜单：重命名、备注、复制、导出 HTML、移到某个文件夹、删除。空态给
+   更新时间；`⋯` 菜单（`ui/menu`）：重命名、备注、复制、导出 HTML、移到某个文件夹 / 未归档 / 新文件夹、删除。空态给
    「新建第一个展示板」。
 3. **舞台**：舞台栏是视图分段 + 内容操作（添加题目 / 按标记同步 / 排序 ▾ / 清空），纸面视图下
    翻页条另占一行；缺失 / 停用题的黄红提示条排在下方。排序即持久化
    （`POST /api/board/update {items}`）。三个视图见 §3.4。
-4. **检查器**（`boardInspectorHtml()`，sticky）：三段固定在这里，与当前是哪个视图无关——
+4. **检查器**（`view.js` 的 `inspector`，模型 `state.js` 的 `inspectorView`，sticky）：三段固定在这里，与当前是哪个视图无关——
    「选中的题」（题号 / UID / 徽章 / 元信息 / **题后留白** / 跳到这道题 / 打开题目 / 从板中移除）、
    「版式」（右侧留白 30–55%、题间留白、答案、题头显示、切割线、锁定版式，即改即存，去抖 500ms）、
    「纸面记录」（已印题数 / 页数 / 时间、续排位置、已改动计数、清空纸面记录）。
    `locked` 保护纸面，不冻结引用集合。增删、重复追加、清空引用、排序与未打印题留白不要求重印确认，均保留纸面记录；真正影响已印区域的版式/留白变更才确认，取消时不提交该变更。具体边界见 §4.6。
 
-三条不变量由 `tests/test_board_regions.js` 守着，破坏了「能做什么随视图变」的老毛病就会回来：
+三条不变量由 `tests/app/board-regions.test.mjs` 守着，破坏了「能做什么随视图变」的老毛病就会回来：
 
 - **舞台只呈现**：舞台渲染出的 HTML 里不出现任何设置控件（滑杆、设置类数字框、`[data-board-print]`、
   打印范围分段）。翻页条里的页码框是导航，靠 `data-board-page-input` 与设置区分。
 - **一个设置只有一个入口**：题后留白只有检查器能写（`[data-board-inspect-gap]` 全页仅一个），
   列表行与画廊卡上的留白是只读回显（`[data-board-gap-view]`，点一下 = 选中并把焦点送进检查器）；
-  板级 `gap_lines` 同样只渲染一次。板级留白一改，继承它的单题读数与两处只读回显由
-  `boardRefreshLiveReadouts()` 一起刷新。
+  板级 `gap_lines` 同样只渲染一次。三处留白读数都出自 `state.js` 的 `gapReadout`，板级留白一改整页重绘一起变。
 - **状态与行动同处**：`[data-board-primary]` 全页唯一，文案直接来自 `boardStatusModel()`。
 
 行内「留白」与「详情」默认透明，行悬停 / 选中 / 键盘聚焦时才显示；已覆盖过留白的行常显。
-`.bd-*` 样式的间距、圆角、字号全部走密度变量（`--pad/--row/--ctl/--fs*`），紧凑档单行约 28px，
-舒适档约 49px；1180px 以下检查器折到底部通栏，760px 以下三栏纵向堆叠且行内控件常显。
+全页样式是 `features/board/board.css` 的 `.brd-*`，只用 token（列表行最小高 44px，可点目标桌面 ≥28、手机 40）。1160px 以下检查器折到底部通栏，
+760px 以下三栏纵向堆叠、行内控件常显。外观细节见 `AI/frontend/board-ui.md`。
 
 ### 3.1 板列表：文件夹 → 板
 
-左栏是两级树，由 `boardListHtml()` 渲染，`boardFolderTree(boards, folders)` 负责分组：文件夹按
+左栏是两级树，由 `features/board/view.js` 渲染（模型 `state.js` 的 `treeView`），`boardFolderTree(boards, folders)` 负责分组：
+板列表、文件夹、当前板与这些写操作的数据所有者是 `assets/app/domain/board/boards.js`，选板浮层读同一份。文件夹按
 `order` 排列，未归档恒在最后，空文件夹保留并显示虚线占位「把板拖进来」。文件夹行给折叠箭头、
 板数，以及组内「还没印上纸」的题数汇总 `+N`（各板 `printed_summary.new_count` 相加），
 `⋯` 菜单提供重命名 / 在此新建板 / 上移 / 下移 / 删除文件夹。删除文件夹默认把板移到未归档，
 对话框里可以改成连板一起删。
 
 折叠状态存 `localStorage['omrs-board-folders-collapsed']`，不进 `boards.json`——它是 UI 状态，
-不是数据。拖拽（`boardBindTreeDrag()`）：板拖到文件夹行 = 移动，板拖到板行 = 落在那个位置，
+不是数据。拖拽（页面挂载时绑 `bindBoardTreeDrag`，落点由 `features/board/drag.js` 的 `boardTreeDropPlan` 算，写入 `boards.js` 的 `applyTreeDrop`）：板拖到文件夹行 = 移动，板拖到板行 = 落在那个位置，
 文件夹行之间拖 = 文件夹排序；不便拖拽时用板 `⋯` 菜单的「移到」。
 
 ### 3.2 加入展示板：统一选板浮层
 
 八处入口（题库行内 `⋯`、题库批量条、题目 Modal、反馈判定面板、即时练习、数据复盘顽固题表、
-收件箱、录入成功提示）统一走 `boardPickerOpen(uids, {anchor, exclude, moveFrom, direct, onDone})`。
-`boardQuickAdd` / `boardChooseAndAdd` 保留为薄封装，调用点函数名不变。
+收件箱、录入成功提示）统一走 `domain/board/picker.js` 的 `boardPickerOpen(uids, {anchor, exclude, moveFrom, direct, onDone})`。
+`boardQuickAdd` / `boardChooseAndAdd`（`domain/board/index.js`）是薄封装；旧脚本经过渡桥挂回的同名全局调用，函数名不变。
 
 浮层结构：标题（带本次题数）+ 搜索框 + 分组列表 + 「＋ 新建板并加入…」。传了 `anchor` 就锚定在
 触发元素下方弹出，没有则同一份 DOM 居中显示（toast 按钮、快捷键走这条）。**单击板行即完成**，
 没有「确定」按钮；`⌘/Ctrl` + 点击则加入但不关闭，可连加多个板，再点一次撤回本次加进去的题。
+点击决策是纯函数 `boardPickerPlan`（打开 / 撤回 / 加入）。「换个板…」加入新板后从原板移除，toast 写「已从《原板》移到《新板》」。
 
 行状态由 `boardPickerRowState(board, uids)` 算出，靠 `/api/boards` 返回的每板 `uids` 本地判断：
 
@@ -189,19 +191,25 @@ changed_count, cursor, answer_pages, print}`。
 toast 写明「已直接加入《X》」；只有实际加入题目时才给「撤销」「换个板…」，两者只处理服务端 `added_uids` 返回的本次新增引用；按钮 `title` 在悬停 / 聚焦时现算，写出当前
 默认目标（`加入展示板（上次：X）`）。原则是**默认给选择，加速留给显式修饰键**。
 
-键盘：`↑/↓` 移动高亮（默认跳过「全部已在板中」的行，否则 `Enter` 是空动作）、`Enter` 加入、
-`←/→` 折叠 / 展开所在文件夹、`Esc` 关闭。焦点始终留在搜索框（combobox + `aria-activedescendant`），
-触屏（`pointer: coarse`）不自动聚焦，免得软键盘挡住列表。`Esc` 在 capture 阶段处理并
-`stopPropagation`，因此浮层开着时按 `Esc` 关的是浮层，底层 Modal 不会被顺手关掉。
+键盘（`core/keys.js` 的浮层键盘层 `pushKeyLayer`，先于页面与全局快捷键）：`↑/↓` 循环移动高亮
+（默认高亮第一个不是「全部已在板中」的行，否则 `Enter` 是空动作）、`Enter` 加入、`Ctrl/⌘ + Enter`
+连加（浮层不关）、`Esc` 关闭；`←` 折叠高亮行所在的文件夹并把高亮移到组后第一行，紧接着 `→` 展开同一个组、
+高亮回到组里第一行（高亮行不在文件夹组里时 `←/→` 照常移动光标）。焦点始终留在搜索框（combobox +
+`aria-activedescendant`），焦点不在搜索框时打字直接进搜索框；键盘层独占，浮层开着时背后页面的
+快捷键（如题库的 `V`）不触发。触屏（`pointer: coarse`）不自动聚焦，免得软键盘挡住列表。
+叠在题目弹窗上时浮层是 `ui/overlay` 的客人（`escape:true`），`Esc` 由 overlay 在捕获阶段关浮层，
+底层弹窗不会被顺手关掉，焦点回到弹窗里的「加入展示板」；不在对话框里时关闭后焦点回到触发元素。
+点浮层外关闭（document 捕获阶段的 click，打开后下一轮才挂上），叠在浮层上面的弹层不算外面。
 
 ### 3.3 添加题目与页面键盘
 
-「添加题目」对话框复用 `filterItems()`（搜索 / 科目 / 分类 / 知识点 / 状态 / 到期 / 标记 chips），
-已在板中的题目灰显跳过，可「全选筛选结果」。「按标记同步」是显式追加并去重，不会因题目后来
+「添加题目」对话框（`features/board/add.js`，`ui/dialog`）复用 `filterItems()`（搜索 / 科目 / 分类 / 知识点 / 状态 / 到期 / 标记 chips），
+已在板中的题目灰显跳过，可「全选筛选结果」；列表 / 画廊两种画法共用一个勾选集合。「按标记同步」是显式追加并去重，不会因题目后来
 打标而自动改变板。
 
-键盘：`N` 新建、`A` 添加题目、`P` 打印预览、`↑/↓` 选行、`Ctrl/⌘+↑/↓` 移动行、`Enter` 打开、
-`Delete` 移除；所有对话框用 `uiDialog/uiPrompt/uiConfirm`（core.js），不再用 `prompt()`。
+键盘（`core/keys.js` 页面作用域，登记在页面契约的 `keys`）：`N` 新建、`A` 添加题目、`P` 打印预览、纸面视图 `←/→` 翻页、
+`↑/↓` 选行、`Ctrl/⌘+↑/↓` 移动行、`Enter` 打开、`Delete` 移除；对话框、输入框、选板浮层打开时不触发，标记选择器打开时让位。
+对话框一律是 `ui/dialog`（含「添加题目」「按标记同步」），Esc / 点遮罩关闭，不再用 `prompt()`。
 
 ### 3.4 中栏三视图：纸面 / 列表 / 画廊
 
@@ -248,8 +256,8 @@ printed（纸面记录）= 已打印题目集合 + 每题所在页 / 位置 + �
 ### 4.2 打印状态机与页数估算
 
 纸面状态与「下一步做什么」只在状态条上出现一次，由纯函数
-`boardStatusModel(board, mode, awaiting)` 算出（`assets/board.js`，已导出，见
-`tests/test_board_regions.js`）。它返回 `{chips, scope, action, why}`：
+`boardStatusModel(board, mode, awaiting)` 算出（`assets/app/features/board/model.js`，见
+`tests/app/board-regions.test.mjs`）。它返回 `{chips, scope, action, why}`：
 
 | 纸面记录 | 新增题 | 打印范围 | 状态 chips | 主行动 | 一句「为什么」 |
 |---|---|---|---|---|---|
@@ -397,13 +405,16 @@ POST /api/board/update
 - 题目 Markdown、标记和学习状态仍由各自链路维护；展示板只读取它们。
 - `board.css` / `board.js` 是独立导出模板；改几何、页码、切片或纸面记录格式时同步 `AI/export.md`、
   `tests/test_boards.py`、`tests/smoke_board_print.py`（需要 playwright + Chromium，缺失自动跳过）。
-- `assets/board.js` 的纯函数（`boardMoveItems / boardItemsPayload / boardUniqueUids /
-  boardEstimateText / boardColumnWidth / boardEffectiveGap / boardDirtyMerge / boardSavePayload /
-  boardFolderTree / boardPicker*`）通过 `module.exports` 暴露给 `tests/test_board_ui.js`；
-  `boardColumnWidth` 与模板 `board.js` 的 `COL_W` 是同一算式，改几何要两处一起改。
-- `assets/board_preview.js` 的消息协议由 `tests/test_board_preview.js` 锁住：几何 relayout
+- 展示板纯函数在 `assets/app/features/board/model.js`（留白、排序、保存载荷、状态机、锁定边界、
+  估算文案、几何常量）与 `assets/app/domain/board/model.js`（选板分组、行状态、过滤、最近使用、
+  `boardUniqueUids`，以及选板浮层的行模型与点击决策），由 `tests/app/board.test.mjs`、`board-picker.test.mjs` 覆盖；
+  板详情控制器 `features/board/detail.js` 由 `tests/app/board-locked.test.mjs` 注入替身覆盖。选板浮层的真实交互由 `tests/e2e/board_picker.py` 覆盖，
+  整页（状态条、左栏、舞台头、列表 / 画廊、检查器、加题对话框、快捷键，以及「加题 → 排序 → 版面设置 → 打印预览 → 仅补印新增」）由
+  `tests/e2e/board.py` 覆盖，视图模型与板列表由 `tests/app/board-page.test.mjs` 覆盖。`boardColumnWidth` 与模板 `board.js` 的 `COL_W`
+  是同一算式，改几何要两处一起改。
+- 常驻预览 `assets/app/features/board/preview.js` 的消息协议由 `tests/app/board-preview.test.mjs` 锁住：几何 relayout
   不重新导出、内容变化才失效指纹、`omrs-board-select` 回传、回调惰性注册。
   改 `postMessage` 的消息名或载荷形状时，模板 `omrs/export_templates/board.js`、
-  `assets/board_preview.js` 与这份测试必须一起改。
+  `assets/app/features/board/preview.js` 与这份测试必须一起改。
 - 每题留白的算式有三处实现，必须同解：`omrs/boards.py::effective_gap_lines`、
-  `omrs/exporting.py::_board_gap_lines`、`assets/board.js::boardEffectiveGap`。
+  `omrs/exporting.py::_board_gap_lines`、`assets/app/features/board/model.js::boardEffectiveGap`。

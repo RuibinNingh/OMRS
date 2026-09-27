@@ -15,6 +15,11 @@ import * as question from './domain/question/index.js';
 import { loadPreset as questionsPreset } from './features/questions/index.js';
 import { registerKeys } from './core/keys.js';
 import * as labels from './domain/labels/index.js';
+import { boardPickerOpen, boardPickerClose, boardQuickAdd, boardChooseAndAdd } from './domain/board/index.js';
+import { boardCurrentId } from './domain/board/boards.js';
+import { boardDetail, installBoardWindow } from './features/board/runtime.js';
+import { repaintBoardPage } from './features/board/index.js';
+import * as boardPreview from './features/board/preview.js';
 import { reloadData, setLegacyRefresh } from './domain/data.js';
 import { refreshSessions, sessionsState } from './domain/sessions.js';
 import { state as scheduleState } from './features/schedule/state.js';
@@ -32,14 +37,14 @@ export function installLegacyBridge(win) {
   const ui = Object.freeze({
     // uiToast(text, {kind, actions, duration}) —— 调用方：assets/*.js 全部 toast、inbox.js 的 ibToast；P8 删除
     toast: (text, options = {}) => toast(text, { ...options, kind: LEGACY_KIND[options.kind] || 'ok' }),
-    // uiDialog(spec) → {ok, values} —— 调用方：board.js、labels.js、questions.js 等；P8 删除
+    // uiDialog(spec) → {ok, values} —— 调用方：labels.js、questions.js 等；P8 删除
     dialog: spec => dialog(spec || {}),
     // uiConfirm(title, {hint, danger, okText}) → boolean —— 调用方同上；P8 删除
     confirm: (title, options) => confirm(title, options || {}),
     // uiPrompt(title, value, {hint, placeholder, maxLength}) → string|null —— 调用方同上；P8 删除
     prompt: (title, value, options) => prompt(title, value, options || {}),
     // host(node, {close, escape}) / release(node) —— 旧浮层叠在模态对话框（题目弹窗）上时放进对话框，否则被 inert（ui/overlay 的 hostGuest）。
-    // 调用方：labels.js（标记选择器、标记管理）、board_picker.js（选板浮层）；各自迁走时删除（labels P6 起、board_picker P7）
+    // 调用方：labels.js（标记选择器、标记管理）；迁走时删除（P6 或 P8）。选板浮层 P7 第 4 轮起原生（domain/board/picker.js 直接用 hostGuest）
     host: (node, options) => hostGuest(node, options || {}),
     release: node => releaseGuest(node),
   });
@@ -48,6 +53,7 @@ export function installLegacyBridge(win) {
   win.__omrsUiPending = null;
   pending.forEach(run => run(ui));
   installDataBridge(win);
+  installBoardBridge(win);
   installScheduleBridge(win);
   installLabelsBridge(win);
   installInstantBridge(win);
@@ -64,7 +70,7 @@ export function installLegacyBridge(win) {
  *   旧 app.js 里的同名函数已删；这里挂的是 domain 的实现（并发合并、失败保留旧快照）。
  * - 旧页面的刷新链 legacyDataRefresh()（app.js：下拉选项、导出选题、题库重绘、标记、展示板、推荐、目录）
  *   登记为 domain 的旧代码钩子，在快照写好之后、发 'data' 之前执行。各页迁完逐项删，P8 时钩子为空。
- * - QUESTION_CACHE / QUESTION_PENDING（只读）—— 调用方：board.js、export.js 读题目详情缓存；缓存对象归 domain/question/mount.js。
+ * - QUESTION_CACHE / QUESTION_PENDING（只读）—— 调用方：export.js 读题目详情缓存；缓存对象归 domain/question/mount.js。
  */
 function installDataBridge(win) {
   win.reloadData = reloadData;
@@ -116,7 +122,7 @@ function installLabelsBridge(win) {
   const storage = () => { try { return win.localStorage; } catch (error) { return null; } };
   const recent = () => labels.readRecent(storage(), labels.allLabels());
   const names = {
-    // 芯片 —— 调用方：labels.js、board.js、data.js、export.js、inbox.js、recommend_v2.js
+    // 芯片 —— 调用方：labels.js、data.js、export.js、inbox.js、recommend_v2.js
     lblChip: labels.chipHtml,
     lblChips: labels.chipsHtml,
     // 颜色 —— 调用方：labels.js（色板、管理行的颜色圆点、新建与改名表单）
@@ -170,9 +176,9 @@ function installQuestionBridge(win) {
     // 题面渲染 —— 调用方：questions.js（画廊、表格悬停预览）、qtable.js、inbox.js（收件箱题卡预览）
     renderMdContent: question.renderMd,
     renderMdInline: question.renderMdInline,
-    // 详情缓存 —— 调用方：board.js、export.js、recommend_v2.js、questions.js 画廊
+    // 详情缓存 —— 调用方：export.js、recommend_v2.js、questions.js 画廊
     ensureQuestionDetail: question.ensureDetail,
-    // qview —— 调用方：board.js、export.js（选题卡）、questions.js 画廊、recommend_v2.js（推荐预览）
+    // qview —— 调用方：export.js（选题卡）、questions.js 画廊、recommend_v2.js（推荐预览）
     qvHtml: question.qvHtml,
     qvRecordHtml: question.qvRecordHtml,
     qvGalleryCard: question.qvGalleryCard,
@@ -184,18 +190,61 @@ function installQuestionBridge(win) {
     qvInvalidate: question.qvInvalidate,
     qvInvalidateMany: question.qvInvalidateMany,
     qvRerenderAll: question.qvRerenderAll,
-    // 题目弹窗（domain/question/modal.js，ui/dialog 外壳）—— 调用方：board.js、catalog.js、data.js、export.js、inbox.js、recommend_v2.js、schedule.js
+    // 题目弹窗（domain/question/modal.js，ui/dialog 外壳）—— 调用方：catalog.js、data.js、export.js、inbox.js、recommend_v2.js、schedule.js
     viewQ: question.viewQ,
     closeModal: question.closeModal,
     // Markdown 编辑器（domain/question/editor.js）—— 调用方：tests/e2e 的 instant.py、feedback.py 用 closeMarkdownEditor() 收尾；打开一律经 editQuestion()
     closeMarkdownEditor: question.closeEditor,
-    // 练习记录 —— 调用方：questions.js 画廊战绩带、board.js
+    // 练习记录 —— 调用方：questions.js 画廊战绩带
     parseQHistory: question.parseQHistory,
     qRecordsFromDetail: question.qRecordsFromDetail,
     qHistoryStats: question.qHistoryStats,
     qStreakHtml: question.qStreakHtml,
   };
   Object.entries(names).forEach(([name, value]) => { win[name] = value; });
+}
+
+/**
+ * 展示板（P7 第 6 轮起整页原生，旧 assets/board.js 已删）：只剩旧调用方与冒烟测试要用的入口，逐条注明调用方。
+ * - 板详情（features/board/detail.js 的单例）：
+ *   boardInit / boardReloadData —— app.js（init、legacyDataRefresh）、labels.js（标记保存后）；boardReloadData 另有冒烟测试；
+ *   boardLoad、boardAddToBoard、boardFlushSave、boardApplyPrintField、boardSetItemGap、boardSetView、boardSetPrintMode、
+ *   boardPrintPreview、boardExportCurrent、boardSaveQueue、boardPrint、boardMarkAwaiting、boardClearAwaiting、configureBoardDetail
+ *   —— tests/smoke_board_integrity.py、smoke_board_lock.py、smoke_board_print_geometry.py；
+ *   BOARD_DETAIL（只读访问器）—— 同上三份冒烟测试的等待条件；boardRender —— tests/e2e/board.py（重绘后 iframe 不重载）。
+ * - features/board/preview.js：常驻预览 boardPreview* —— 冒烟测试（boardPreviewLayout / Frame / IsReady / Relayout）。
+ * - domain/board/picker.js：boardQuickAdd / boardChooseAndAdd —— inbox.js（提示条「加入展示板」）、domain/question/mount.js
+ *   （qview「加入展示板」）、domain/sessions.js（反馈录入）；boardPickerOpen / boardPickerClose —— tests/smoke_board_integrity.py、
+ *   tests/e2e/board_picker.py。
+ * - domain/board/boards.js：boardCurrentId —— tests/e2e/board_picker.py、tests/e2e/board.py。
+ * 窗口级监听（关页落盘、打印窗口回传、「加入展示板」悬停说明）由 installBoardWindow 装一次。
+ * 旧脚本只在函数体里调用它们（文件顶层执行时模块还没运行）。删除期：P8（旧调用方迁完、冒烟测试改用新入口）。
+ */
+function installBoardBridge(win) {
+  const d = boardDetail();
+  installBoardWindow(win);
+  Object.assign(win, boardPreview);
+  Object.assign(win, { boardPickerOpen, boardPickerClose, boardQuickAdd, boardChooseAndAdd, boardCurrentId });
+  Object.assign(win, {
+    boardInit: () => d.enter(),
+    boardReloadData: () => d.reloadData(),
+    boardLoad: (id, render = true) => d.load(id, render),
+    boardAddToBoard: (id, uids, options) => d.addToBoard(id, uids, options || {}),
+    boardFlushSave: options => d.flush(options || {}),
+    boardApplyPrintField: (field, value) => d.applyPrintField(field, value),
+    boardSetItemGap: (uid, value, options) => d.setItemGap(uid, value, options || {}),
+    boardSetView: next => d.setView(next),
+    boardSetPrintMode: mode => d.setMode(mode),
+    boardPrintPreview: () => d.printPreview(),
+    boardExportCurrent: openPreview => (openPreview ? d.printPreview() : d.exportCurrent()),
+    boardSaveQueue: () => d.saveQueue(),
+    boardPrint: () => d.print(),
+    boardMarkAwaiting: (mode, job) => d.markAwaiting(mode, job),
+    boardClearAwaiting: boardId => d.clearAwaiting(boardId),
+    boardRender: () => { d.render(); repaintBoardPage(); },
+    configureBoardDetail: patch => d.configure(patch || {}),
+  });
+  Object.defineProperty(win, 'BOARD_DETAIL', { configurable: true, get: () => d.detail() });
 }
 
 /** 题库页迁到 features/questions 之后留给旧代码的入口（P8 删除）。 */

@@ -14,7 +14,7 @@ import { viewQ, qvSetContext, qvRender, qvRerenderAll, cachedDetail, mdLineBreak
 import { editQuestion, suspendQuestion, resumeQuestion, deleteQuestion, moveQuestion, batchSuspend, exportA4 } from '../../domain/question/ops.js';
 import { allItems, filterAll, dueDays, facets, itemOf } from '../../domain/items.js';
 import { listLabels, openLabelPicker, openLabelManager, pickerOpen } from '../../domain/labels/index.js';
-import { boardQuickAdd, boardChooseAndAdd } from '../../domain/board.js';
+import { boardQuickAdd, boardChooseAndAdd } from '../../domain/board/index.js';
 import * as S from './state.js';
 import { view } from './view.js';
 import { openBatchLabels, askViewName, manageViews } from './dialogs.js';
@@ -171,7 +171,7 @@ function createController(root, ctx) {
     },
     async more(uid, anchor) {
       const value = await openMenu(anchor, S.rowMenuItems(itemOf(uid)), { label: `${uid} 的操作` });
-      // 等这次点击冒泡完再执行：旧 labels.js / board_picker.js 在 document 上监听点击关闭各自的浮层，同一次点击里打开会被立刻关掉
+      // 等这次点击冒泡完再执行：标记选择器（旧 labels.js）与选板浮层（domain/board/picker.js）在 document 上监听点击关闭，同一次点击里打开会被立刻关掉
       if (value) setTimeout(() => { if (ctl) api.rowAction(value, uid, anchor); }, 0);
     },
     rowAction(kind, uid, anchor) {

@@ -68,18 +68,19 @@ assets/app/
 - Esc 在 document 捕获阶段拦下并 `stopPropagation`，旧代码挂在 document 上的 Esc 监听不会顺带关掉下层弹层。危险确认默认聚焦「取消」。
 - `dialog(spec)` 返回 `{ok, values}`，values 按 id 收集对话框内的 input / select / textarea（复选与单选取 checked）。`body` 可以是 `html``` 结果，也可以是旧代码传入、已由调用方转义的 HTML 字符串；`content` 可以是 DOM 节点。
 - `dialog(spec)` 另收（P5 第 3 轮起）：`size:'xl'`（1180，题目弹窗与 Markdown 编辑器）、`id`、`onOpen(el)`、`onOk(values, el)`（异步；等待时确定按钮 `aria-busy` 并禁用，返回 false 或抛错则留在对话框，用于保存失败）、`dismissible` 为函数（每次 Esc / 点遮罩时再问，如「有未保存修改」）、`returnFocus()`（关闭后优先把焦点交给它返回的元素）；`closeDialog(el)` 按元素关闭。多行文本里的 Enter 不确认，Ctrl / ⌘ + Enter 在任何位置都确认。
-- **客人浮层**（`overlay.js` 的 `hostGuest(node, {close, escape})` / `releaseGuest(node)`，旧代码经过渡桥 `__omrsUi.host` / `release`）：旧浮层叠在模态对话框上时放进最上层对话框，否则被 inert；没有对话框时放进 body。登记后 Esc 与 Enter 先让给客人（`escape:true` 的由 overlay 代为关闭），点遮罩只关客人（客人自己处理点外面），宿主关闭时先关客人；客人自行关闭时 `releaseGuest`，焦点随节点丢失时还给打开它的元素。`topModal()`、`guestOpen()` 供快捷键让位判断。
+- **客人浮层**（`overlay.js` 的 `hostGuest(node, {close, escape})` / `releaseGuest(node)`，旧代码经过渡桥 `__omrsUi.host` / `release`）：旧浮层（以及原生的选板浮层 `domain/board/picker.js`）叠在模态对话框上时放进最上层对话框，否则被 inert；没有对话框时放进 body。登记后 Esc 与 Enter 先让给客人（`escape:true` 的由 overlay 代为关闭），点遮罩只关客人（客人自己处理点外面），宿主关闭时先关客人；客人自行关闭时 `releaseGuest`，焦点随节点丢失时还给打开它的元素。`topModal()`、`guestOpen()` 供快捷键让位判断。
 - 关闭中的对话框带 `.is-closing`，退场动画期间仍是 `[open]`：「有对话框打开」的守卫写成 `dialog[open]:not(.is-closing)`（`core/keys.js`、反馈页 paste 守卫）。
 - toast 容器是 aria-live 区域。支持 popover 的浏览器把 toast 容器、菜单、提示放进顶层，每来一条 toast 重新置顶；模态对话框开着时，它外面的 toast 只能看、不能点。
 
 ## 5. 过渡桥
 
 - JS：`assets/core.js` 的 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 只剩转调（经 `window.__omrsUi`），签名与返回值不变；收件箱 `ibToast` 转调 `uiToast`。旧 `uiToast` 不传 kind 时按旧语义映射为 ok（成功样式）；新组件自身的默认是 info。
-- 「有弹层打开时不响应」的守卫写成 `document.querySelector('.modal-overlay.open, dialog[open]')`（`assets/board.js`）；新增守卫写 `dialog[open]:not(.is-closing)`。选板浮层的「点外面关闭」只让「不包含浮层」的弹层挡住（宿主对话框不算）；已迁到新页面的快捷键走 `core/keys.js`，它自带「有弹层时不响应」（`inDialog`）。
+- 「有弹层打开时不响应」的守卫新写一律 `dialog[open]:not(.is-closing)`（`core/keys.js` 的 `inDialog` 已含 `.modal-overlay.open`）。选板浮层的「点外面关闭」只让「不包含浮层」的弹层挡住（宿主对话框不算），它的键盘走 `core/keys.js` 的浮层键盘层 `pushKeyLayer`（展示板页的快捷键 v1.26.4 起也在 core/keys，浮层层天然先拿到键）；已迁到新页面的快捷键走 `core/keys.js`，它自带「有弹层时不响应」（`inDialog`）。
 - CSS：`styles/legacy-bridge.css` 给旧 `.btn` 系列、`.input` / `select.input` / `textarea.input`、旧 `.modal` 外壳套新外观；旧 `styles.css` 里被接管的基础规则已删除。桥只写外观，不写 z-index 与布局尺寸。
 - 旧代码调用的题目视图全局（`renderMdContent`、`ensureQuestionDetail`、`qvHtml`、`qvRender`、`viewQ`、`closeModal`、练习记录函数等）由 `legacy-bridge.js` 的 `installQuestionBridge` 从 `assets/app/domain/question/` 挂上，逐条注明调用方；它同时调 `bindQuestionDom()` 绑定 qview 的按钮委托、题图降级与弹窗 ←/→。
 - 统计数据的全局入口（`reloadData`、只读 `QUESTION_CACHE` / `QUESTION_PENDING`）与旧刷新链钩子（`legacyDataRefresh()`，v1.25.1 起不再包含数据复盘的图）由 `installDataBridge` 挂上（v1.25.0 起，实现在 `assets/app/domain/data.js` 与 `domain/question/mount.js`），调用方见 `AI/frontend/architecture.md` §6。
 - 复习调度与 Session 的旧入口（`refreshSessions`、`schOpenPlan`、`confirmScheduleV2`、`loadRecommendationsV2`、`renderUnifiedListV2`、`renderExportPicker`、`downloadExportResponse` 与只读 `SCH_VIEW`、`REC_DATA_V2` 等）由 `installScheduleBridge` 挂上（v1.25.2 起），调用方见 `AI/frontend/architecture.md` §6。
+- 展示板（v1.26.5 起页面整页原生、旧 `board.js` 已删）：`installBoardBridge` 只挂旧调用方（`app.js`、`labels.js`）与冒烟测试要用的板详情入口（`boardReloadData`、`boardLoad`、`boardApplyPrintField`、`configureBoardDetail` 等，只读访问器 `BOARD_DETAIL`）、常驻预览 `boardPreview*`、选板与 `boardCurrentId`，并装窗口级监听；逐条调用方见 `AI/frontend/architecture.md` §6。
 - 旧代码调用的标记全局（`lblChip` / `lblChips`、`labelHex`、`nextLabelColor`、选择器与管理的数据函数）由 `installLabelsBridge` 从 `assets/app/domain/labels/` 挂出（P5 第 4 轮起），逐条的调用方见 `AI/frontend/architecture.md` §6。
 - 删除期：题库工具栏一段已随题库页迁走删除（P5 第 2 轮）；展示板小按钮一段 P7；旧弹层外壳随各弹层迁到 Dialog / Drawer（P5–P7）；其余 P8 整个文件删除，届时 `legacy-bridge.js` 也必须为空。
 

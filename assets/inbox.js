@@ -6,7 +6,7 @@
 const IB = {
   items: [], cur: null, sel: new Set(), csel: new Set(), stage: 'upload',
   drawRole: 'question', selR: null, last: null, disp: { w: 0, h: 0 }, bound: false,
-  imgs: {}, saveTimer: null, polls: {}, drawCard: 1,
+  imgs: {}, saveTimers: new Map(), savePatches: new Map(), saveItems: new Map(), saveChains: new Map(), revisions: new Map(), polls: {}, drawCard: 1,
   dragging: false,
 };
 const IB_STATUS = { pending: '待处理', boxed: '已框选', ready: '待创建', done: '已录入', discarded: '已丢弃' };
@@ -32,6 +32,7 @@ function ibRenderAll() {
   if (IB.stage === 'create') ibRenderCards();
 }
 function ibGo(stage) {
+  if (IB.stage === 'process' && stage !== 'process') ibFlushSaves();
   IB.stage = stage;
   document.querySelectorAll('#panel-create .ib-flow-step').forEach(f => {
     const active = f.dataset.stage === stage;
@@ -88,57 +89,13 @@ function ibRenderInbox() { window.__omrs?.emit('inbox:grid'); }
 function ibBatchbar() { window.__omrs?.emit('inbox:grid'); }
 
 /* ── 阶段 ②：队列 / 画布 / 区域面板 ── */
-function ibRenderProcess() { ibRenderQueue(); ibRenderStage(); ibRenderSide(); }
-function ibRenderQueue() {
-  const list = $ib('ib-pq-list'); if (!list) return;
-  const q = ibQueue();
-  $ib('ib-pq-n').textContent = `${q.length} 张`;
-  list.innerHTML = q.map(i => `<div class="ib-pq-row ${i.id === IB.cur ? 'cur' : ''}" data-ib-cur="${i.id}">
-    <input type="checkbox" class="ib-chk" data-ib-sel="${i.id}" ${IB.sel.has(i.id) ? 'checked' : ''}>
-    <img src="${ibRawUrl(i)}" alt="" loading="lazy"><div style="min-width:0"><div class="ib-pq-name">${escapeHtml(i.file)}</div>
-    <div class="ib-pq-sub"><span class="ib-st ${i.status}">${IB_STATUS[i.status]}</span><span class="ib-rc">${(i.regions || []).map(r => `<i class="${r.role}"></i>`).join('')}</span></div></div></div>`).join('')
-    || '<div class="ib-empty">队列空了。<br>去「上传」再投几张。</div>';
-  const n = [...IB.sel].filter(id => q.find(i => i.id === id)).length;
-  $ib('ib-pq-all').checked = q.length > 0 && n === q.length;
-  const pq = $ib('ib-pq-sel-n'); if (pq) pq.textContent = n ? `（${n}）` : '';
-}
+function ibRenderProcess() { window.__omrs?.emit('inbox:process'); }
+function ibRenderQueue() { window.__omrs?.emit('inbox:process'); }
 function ibOpen(id) { IB.cur = id; IB.selR = null; IB.drawCard = 1; const it = ibCur(); if (it) $ib('ib-layout').value = it.layout || 'zuoyebang'; ibRenderProcess(); }
 function ibStep(d) { const q = ibQueue(); if (!q.length) return; let idx = q.findIndex(i => i.id === IB.cur); idx = (idx + d + q.length) % q.length; ibOpen(q[idx].id); }
-function ibRenderStage() {
-  const it = ibCur(); const img = $ib('ib-stage-src'); const st = $ib('ib-stage-img');
-  if (!it) { img.removeAttribute('src'); st.style.width = '0px'; st.style.height = '0px'; $ib('ib-pc-fname').textContent = ''; st.querySelectorAll('.ib-box,.ib-cutmask').forEach(b => b.remove()); return; }
-  if (img.getAttribute('src') !== ibRawUrl(it)) img.src = ibRawUrl(it);
-  $ib('ib-pc-fname').textContent = `${it.file} · ${it.width}×${it.height}`;
-  img.onload = ibLayoutStage; ibLayoutStage();
-}
-function ibLayoutStage() {
-  const it = ibCur(); if (!it) return;
-  const sc = $ib('ib-pc-scroll'); const avail = sc.clientWidth - 32; if (avail <= 0) return;
-  const ratio = it.height / it.width;
-  const w = ratio > 1.6 ? Math.min(avail, 560) : avail; const h = w * ratio;
-  IB.disp = { w, h };
-  const st = $ib('ib-stage-img'); st.style.width = w + 'px'; st.style.height = h + 'px';
-  $ib('ib-pc-zoom').textContent = `${Math.round(w / it.width * 100)}%`;
-  ibRenderBoxes();
-}
-function ibRenderBoxes() {
-  const st = $ib('ib-stage-img'); st.querySelectorAll('.ib-box,.ib-cutmask').forEach(b => b.remove());
-  const it = ibCur(); if (!it) return;
-  const { w: W, h: H } = IB.disp; const rs = it.regions || [];
-  if (rs.length) {
-    const holes = rs.map(r => `<rect x="${r.x * W}" y="${r.y * H}" width="${r.w * W}" height="${r.h * H}" fill="black"/>`).join('');
-    st.insertAdjacentHTML('beforeend', `<svg class="ib-cutmask" width="${W}" height="${H}"><defs><mask id="ib-cm"><rect width="100%" height="100%" fill="white"/>${holes}</mask></defs><rect width="100%" height="100%" fill="rgba(0,0,0,.38)" mask="url(#ib-cm)"/></svg>`);
-  }
-  const multi = new Set(rs.map(r => r.card)).size > 1;
-  rs.forEach(r => {
-    const b = document.createElement('div');
-    b.className = `ib-box ${r.role} ${r.id === IB.selR ? 'sel' : ''}`; b.dataset.rid = r.id;
-    b.style.left = r.x * W + 'px'; b.style.top = r.y * H + 'px'; b.style.width = r.w * W + 'px'; b.style.height = r.h * H + 'px';
-    const badge = r.origin === 'ai' ? `<span class="ai">AI ${(r.conf ?? 0).toFixed(2)}</span>` : r.origin === 'ai_edited' ? '<span class="ai">AI·已调</span>' : '';
-    b.innerHTML = `<span class="lab">${IB_ROLE[r.role]}${multi ? ` · 题卡${r.card}` : ''}${badge}</span>` + ['nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e'].map(h => `<i class="h ${h}" data-h="${h}"></i>`).join('');
-    st.appendChild(b);
-  });
-}
+function ibRenderStage() { window.__omrs?.emit('inbox:process'); }
+function ibLayoutStage() { window.__omrs?.emit('inbox:process'); }
+function ibRenderBoxes() { window.__omrs?.emit('inbox:process'); }
 function ibGroupCards(it) { const g = {}; (it.regions || []).forEach(r => { (g[r.card] = g[r.card] || []).push(r); }); return g; }
 function ibSetDrawRole(role) {
   IB.drawRole = role;
@@ -159,17 +116,40 @@ function ibAfterEdit(save = true) {
   ibRenderBoxes(); ibRenderSide(); ibRenderQueue(); ibRenderInbox();
   if (save) ibSaveSoon(it);
 }
-function ibSaveSoon(it) {
-  clearTimeout(IB.saveTimer);
-  IB.saveTimer = setTimeout(() => ibSave(it), 500);
+function ibMergePatch(a, b) { return { ...a, ...b, cards: { ...(a.cards || {}), ...(b.cards || {}) } }; }
+function ibSaveSoon(it, patch = {}, delay = 500) {
+  if (!it) return;
+  const id = it.id;
+  IB.revisions.set(id, (IB.revisions.get(id) || 0) + 1);
+  IB.savePatches.set(id, ibMergePatch(IB.savePatches.get(id) || {}, patch));
+  IB.saveItems.set(id, it);
+  clearTimeout(IB.saveTimers.get(id));
+  IB.saveTimers.set(id, setTimeout(() => ibSave(it), delay));
 }
-async function ibSave(it, patch = {}) {
-  if (!it) return null;
-  try {
-    const res = await api('/api/inbox/item/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: it.id, regions: it.regions, layout: it.layout, ...patch }) });
-    const idx = IB.items.findIndex(i => i.id === it.id); if (idx >= 0) IB.items[idx] = res.item;
-    ibCounts(); return res.item;
-  } catch (e) { ibToast('保存失败：' + e.message, 'warn'); return null; }
+function ibFlushSaves() {
+  return Promise.all([...IB.savePatches.keys()].map(id => ibSave(IB.saveItems.get(id))));
+}
+function ibSave(it, patch = {}) {
+  if (!it) return Promise.resolve(null);
+  const id = it.id;
+  clearTimeout(IB.saveTimers.get(id)); IB.saveTimers.delete(id);
+  const merged = ibMergePatch(IB.savePatches.get(id) || {}, patch);
+  const local = IB.saveItems.get(id) || it;
+  IB.savePatches.delete(id); IB.saveItems.delete(id);
+  const revision = (IB.revisions.get(id) || 0) + 1;
+  IB.revisions.set(id, revision);
+  const previous = IB.saveChains.get(id) || Promise.resolve();
+  const pending = previous.catch(() => null).then(async () => {
+    try {
+      const res = await api('/api/inbox/item/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, regions: local.regions, layout: local.layout, ...merged }) });
+      const idx = IB.items.findIndex(item => item.id === id);
+      if (idx >= 0 && IB.revisions.get(id) === revision) IB.items[idx] = res.item;
+      ibCounts(); return res.item;
+    } catch (e) { ibToast('保存失败：' + e.message, 'warn'); return null; }
+  });
+  IB.saveChains.set(id, pending);
+  pending.finally(() => { if (IB.saveChains.get(id) === pending) IB.saveChains.delete(id); });
+  return pending;
 }
 function ibSetLayout(v) { const it = ibCur(); if (it) { it.layout = v; ibSaveSoon(it); } }
 function ibSelectRegion(id) { IB.selR = id; const r = (ibCur()?.regions || []).find(x => x.id === id); if (r && r.role !== 'ignore') { IB.drawRole = r.role; document.querySelectorAll('#ib-role-seg button').forEach(b => b.classList.toggle('on', b.dataset.v === r.role)); } ibRenderBoxes(); ibRenderSide(); }
@@ -219,34 +199,8 @@ async function ibDiscardCurrent() {
   catch (e) { ibToast(e.message, 'warn'); }
 }
 
-/* 右栏 */
-function ibRenderSide() {
-  const it = ibCur(); const body = $ib('ib-ps-body'); if (!body) return;
-  if (!it) { $ib('ib-ps-meta').textContent = ''; body.innerHTML = '<div class="ib-empty">左边选一张图开始。</div>'; return; }
-  $ib('ib-ps-meta').textContent = `${it.id} · ${it.width}×${it.height} · ${it.source === 'phone' ? '手机上传' : '电脑上传'}${it.blind ? ' · 盲标（AI 框已隐藏，请直接手画）' : ''}`;
-  const g = ibGroupCards(it); const cards = Object.keys(g).map(Number).sort((a, b) => a - b);
-  $ib('ib-ps-card-n').textContent = cards.length > 1 ? `· ${cards.length} 张题卡` : '';
-  if (!it.regions.length) { body.innerHTML = '<div class="ib-empty">还没有框。<br>在图上拖出<b style="color:var(--ib-role-q)">题目</b>和<b style="color:var(--ib-role-a)">答案</b>区域，或点「AI 框选此图」。<br><br><span class="hint">已裁好的题图直接点「整图即题目」。</span></div>'; return; }
-  body.innerHTML = cards.map(c => {
-    const rs = g[c]; const qn = rs.filter(r => r.role === 'question').length, an = rs.filter(r => r.role === 'answer').length;
-    return `<div class="ib-cardgrp"><div class="ib-cardgrp-head">题卡 ${c}<span class="n">题目 ${qn} · 答案 ${an}${cards.length > 1 ? ` · <a href="#" data-ib-drawcard="${c}">在此题卡画框</a>` : ''}</span></div>${rs.map(r => ibRegionRow(it, r)).join('')}</div>`;
-  }).join('');
-  const s = body.querySelector('.ib-rg.sel'); if (s) s.scrollIntoView({ block: 'nearest' });
-}
-function ibRegionRow(it, r) {
-  const origin = r.origin === 'ai' ? `<span class="ib-origin ai">AI 建议 ${(r.conf ?? 0).toFixed(2)} · 待确认</span>` : r.origin === 'ai_edited' ? '<span class="ib-origin edited">AI 建议 · 已人工调整</span>' : '<span class="ib-origin">手动</span>';
-  let body = '';
-  if (r.role !== 'ignore') {
-    body += `<div class="ib-rg-conv"><span class="lbl">这块怎么存</span><div class="ib-seg"><button class="${r.convert === 'text' ? 'on' : ''}" data-ib-conv="${r.id}:text">转文本</button><button class="${r.convert === 'image' ? 'on' : ''}" data-ib-conv="${r.id}:image">保留图片</button><button class="${r.convert === 'auto' ? 'on' : ''}" data-ib-conv="${r.id}:auto">让 AI 判断</button></div>${r.convert !== 'image' ? `<button class="btn ib-xs" data-ib-extract="${r.id}" ${r.text_status === 'running' ? 'disabled' : ''}>${r.text_status === 'done' ? '重新提取' : '提取文本'}</button>` : ''}</div>`;
-    if (r.judge) body += `<div class="ib-judge ${r.judge.ok ? 'ok' : 'no'}"><span>${r.judge.ok ? '✓' : '⚑'}</span><span>AI 判断：${escapeHtml(r.judge.reason || (r.judge.ok ? '可转文本' : '建议保留图片'))}${r.judge_overridden ? '（已被人工否决）' : ''}</span></div>`;
-    if (r.text_status === 'running') body += '<div class="ib-judge busy"><span class="ib-spin"></span>提取中…后台任务，可以切到其他图继续</div>';
-    if (r.text_status === 'error') body += '<div class="ib-judge no"><span>✕</span>模型没有返回文本，可重试或改为保留图片</div>';
-    if (r.text_status === 'stale') body += '<div class="ib-judge no"><span>⚑</span>框位改过了，文本可能不对应，建议重新提取</div>';
-    if (r.text && r.convert !== 'image') body += `<div class="ib-rg-text"><textarea class="input" rows="4" data-ib-text="${r.id}">${escapeHtml(r.text)}</textarea><div class="ib-rg-prev q-md" id="ib-prev-${r.id}">${ibMd(r.text)}</div></div>`;
-    if (r.convert === 'image') body += `<div class="ib-rg-crop"><canvas data-ib-cropcv="${r.id}"></canvas></div><div class="hint" style="margin-top:4px">保存为裁剪图嵌入 <code># ${IB_ROLE[r.role]}</code></div>`;
-  }
-  return `<div class="ib-rg ${r.id === IB.selR ? 'sel' : ''}" data-ib-rg="${r.id}"><div class="ib-rg-top"><span class="ib-role ${r.role}">${IB_ROLE[r.role]}</span>${origin}<button class="btn ib-xs del" title="删除这个框" data-ib-del="${r.id}">✕</button></div><div class="ib-rg-coord">归一化框 ${ibFmtBox(r)} · 裁出约 ${Math.round(r.w * it.width)}×${Math.round(r.h * it.height)}</div>${body}</div>`;
-}
+/* 右栏由 features/create/process-content.js 渲染；旧提取流程只发布更新。 */
+function ibRenderSide() { window.__omrs?.emit('inbox:process'); }
 async function ibPaintCropCanvases() {
   const it = ibCur(); if (!it) return;
   for (const cv of document.querySelectorAll('[data-ib-cropcv]')) {
@@ -400,7 +354,7 @@ function ibSetCardLabels(k, values) {
   form.labels = [...new Set((values || []).map(value => String(value || '').trim()).filter(Boolean))];
   const box = [...document.querySelectorAll('[data-ib-labels]')].find(node => node.dataset.ibLabels === k);
   if (box) box.innerHTML = `${lblChips(form.labels, { lg: true })}<button type="button" class="lbl-form-add" data-ib-label-open="${escapeAttr(k)}">＋ 添加标记</button>`;
-  clearTimeout(IB.saveTimer); IB.saveTimer = setTimeout(() => ibSave(it, { cards: { [c]: form } }), 600);
+  ibSaveSoon(it, { cards: { [c]: form } }, 600);
 }
 function ibOpenCardLabels(k, anchor) {
   openLabelPicker(`__ib_card__${k}`, anchor, {
@@ -412,7 +366,7 @@ function ibCardField(k, f, v) {
   const { it, c, form } = ibCardForm(k);
   form[f] = f === 'difficulty' ? Number(v) : f === 'tags' ? v.split(/[,，]/).map(s => s.trim()).filter(Boolean) : f === 'labels' ? v.split(/[,，]/).map(s => s.trim()).filter(Boolean) : v;
   if (f === 'subject' || f === 'category') { const foot = document.querySelector(`#ib-card-${it.id}-${c} .file`); if (foot) foot.textContent = `→ 错题/${form.subject || '科目'}/${form.category || '分类'}/${form.category || '分类'}N.md`; }
-  clearTimeout(IB.saveTimer); IB.saveTimer = setTimeout(() => ibSave(it, { cards: { [c]: form } }), 600);
+  ibSaveSoon(it, { cards: { [c]: form } }, 600);
 }
 function ibSelectAllCards(on) { ibReadyCards().forEach(x => on ? IB.csel.add(ibCardKey(x.it, x.c)) : IB.csel.delete(ibCardKey(x.it, x.c))); ibRenderCards(); }
 async function ibClassify(keys) {
@@ -533,7 +487,7 @@ function ibBind() {
     if (t.dataset.ibBack) { ibBackToProcess(t.dataset.ibBack); return; }
     if (t.dataset.ibCommit) { ibCommit(t.dataset.ibCommit); return; }
     if (t.dataset.ibRg) { if (!ev.target.closest('textarea,input,button')) ibSelectRegion(t.dataset.ibRg); return; }
-    if (t.dataset.ibCur) { if (!ev.target.closest('input')) ibOpen(t.dataset.ibCur); return; }
+    if (t.dataset.ibCur) { if (!ev.target.closest('input,label')) ibOpen(t.dataset.ibCur); return; }
 
   });
   panel.addEventListener('change', ev => {
@@ -547,42 +501,7 @@ function ibBind() {
     if (t.dataset.ibF) { const [k, f] = t.dataset.ibF.split('|'); ibCardField(k, f, t.value); if (f === 'difficulty' && t.nextElementSibling) t.nextElementSibling.textContent = t.value; }
   });
   window.__omrs?.bus.on('inbox:reload', () => ibLoad());
-  document.addEventListener('keydown', ev => {
-    if (!panel.classList.contains('active') || IB.stage !== 'process') return;
-    const tag = (ev.target.tagName || '').toLowerCase(); if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-    const k = ev.key.toLowerCase();
-    if (k === 'q') ibSetDrawRole('question'); else if (k === 'a') ibSetDrawRole('answer'); else if (k === 'x') ibSetDrawRole('ignore');
-    else if (ev.key === 'Delete' || ev.key === 'Backspace') { if (IB.selR) { ibDeleteRegion(IB.selR); ev.preventDefault(); } }
-    else if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) { ibExtractAll(); ev.preventDefault(); }
-    else if (ev.key === 'Enter') { ibStep(1); ev.preventDefault(); }
-    else if (ev.key === 'Escape') { IB.selR = null; ibRenderBoxes(); ibRenderSide(); }
-  });
   window.addEventListener('resize', () => { if (panel.classList.contains('active') && IB.stage === 'process') ibLayoutStage(); });
-  // 画布指针交互：空白处拖拽=画框；框内拖拽=移动；把手=缩放
-  const st = $ib('ib-stage-img'); let mode = null, r0 = null, p0 = null, rg = null, dir = '';
-  const pos = e => { const b = st.getBoundingClientRect(); return { x: Math.max(0, Math.min(1, (e.clientX - b.left) / IB.disp.w)), y: Math.max(0, Math.min(1, (e.clientY - b.top) / IB.disp.h)) }; };
-  st.addEventListener('pointerdown', e => {
-    const it = ibCur(); if (!it || e.button !== 0) return; const p = pos(e); p0 = p;
-    const h = e.target.closest('.h'); const box = e.target.closest('.ib-box');
-    if (h && box) { rg = it.regions.find(x => x.id === box.dataset.rid); mode = 'resize'; dir = h.dataset.h; r0 = { ...rg }; }
-    else if (box) { rg = it.regions.find(x => x.id === box.dataset.rid); mode = 'move'; r0 = { ...rg }; }
-    else { rg = ibNewRegion(IB.drawCard, IB.drawRole, p.x, p.y, 0, 0); it.regions.push(rg); mode = 'draw'; }
-    IB.selR = rg.id; IB.dragging = true; st.setPointerCapture(e.pointerId); ibRenderBoxes(); e.preventDefault();
-  });
-  st.addEventListener('pointermove', e => {
-    if (!mode || !rg) return; const p = pos(e); const dx = p.x - p0.x, dy = p.y - p0.y;
-    if (mode === 'draw') { rg.x = Math.min(p0.x, p.x); rg.y = Math.min(p0.y, p.y); rg.w = Math.abs(dx); rg.h = Math.abs(dy); }
-    else if (mode === 'move') { rg.x = Math.max(0, Math.min(1 - r0.w, r0.x + dx)); rg.y = Math.max(0, Math.min(1 - r0.h, r0.y + dy)); }
-    else { let x = r0.x, y = r0.y, w = r0.w, h = r0.h; if (dir.includes('w')) { x = Math.min(r0.x + r0.w - .01, r0.x + dx); w = r0.x + r0.w - x; } if (dir.includes('e')) w = Math.max(.01, r0.w + dx); if (dir.includes('n')) { y = Math.min(r0.y + r0.h - .01, r0.y + dy); h = r0.y + r0.h - y; } if (dir.includes('s')) h = Math.max(.01, r0.h + dy); rg.x = Math.max(0, x); rg.y = Math.max(0, y); rg.w = Math.min(1 - rg.x, w); rg.h = Math.min(1 - rg.y, h); }
-    ibRenderBoxes();
-  });
-  st.addEventListener('pointerup', () => {
-    if (!mode) return; const it = ibCur();
-    if (mode === 'draw' && (rg.w * IB.disp.w < 8 || rg.h * IB.disp.h < 8)) { it.regions = it.regions.filter(x => x !== rg); IB.selR = null; }
-    else if (mode !== 'draw') { if (rg.origin === 'ai') rg.origin = 'ai_edited'; if (rg.text_status === 'done') rg.text_status = 'stale'; }
-    mode = null; rg = null; IB.dragging = false; ibAfterEdit();
-  });
-  st.addEventListener('pointercancel', () => { mode = null; rg = null; IB.dragging = false; ibAfterEdit(); });
   // 侧栏裁剪预览在每次渲染后补画
   const obs = new MutationObserver(() => { if (document.querySelector('[data-ib-cropcv]')) ibPaintCropCanvases(); });
   obs.observe($ib('ib-ps-body'), { childList: true });
@@ -597,4 +516,24 @@ if (typeof window !== 'undefined') window.__omrsInbox = {
   detect: ibDetectSelected,
   applyLast: ibApplyLastSelected,
   whole: ibWholeSelected,
+  flush: ibFlushSaves,
+  process: {
+    state: () => IB,
+    afterEdit: ibAfterEdit,
+    deleteRegion: ibDeleteRegion,
+    queueAll: on => { ibQueue().forEach(item => on ? IB.sel.add(item.id) : IB.sel.delete(item.id)); ibRenderQueue(); ibRenderInbox(); },
+    layout: ibSetLayout,
+    detectSelected: ibDetectSelected,
+    applyLastSelected: ibApplyLastSelected,
+    step: ibStep,
+    role: ibSetDrawRole,
+    detectCurrent: ibDetectCurrent,
+    wholeImage: ibWholeImage,
+    applyLast: ibApplyLast,
+    clearBoxes: ibClearBoxes,
+    addCard: ibAddCard,
+    discardCurrent: ibDiscardCurrent,
+    extractAll: ibExtractAll,
+    markReady: ibMarkReady,
+  },
 };

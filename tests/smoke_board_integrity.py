@@ -59,14 +59,14 @@ class BoardIntegritySmokeTest(unittest.TestCase):
         page.goto(self.base)
         page.evaluate("""async id => {
             switchTab('board'); await boardReloadData(); await boardLoad(id); boardSetView('paper');
-            window.uiConfirm = async () => true;
+            configureBoardDetail({ confirm: async () => true });   // P7 第 6 轮起确认框经板详情的 deps，不再读全局 uiConfirm
         }""", bid)
         self.wait_preview(page, bid)
         return page
 
     def wait_preview(self, page, bid):
         page.wait_for_function("""id => boardPreviewIsReady() && boardPreviewLayout()?.board_id === id
-            && BP_FRAME?.contentDocument?.body?.classList.contains('embedded')""", arg=bid)
+            && boardPreviewFrame()?.contentDocument?.body?.classList.contains('embedded')""", arg=bid)
 
     def popup(self, page):
         with page.expect_popup() as opened:
@@ -89,8 +89,8 @@ class BoardIntegritySmokeTest(unittest.TestCase):
         for shown in (False, True):
             page.locator('[data-board-print="show_labels"]').set_checked(shown)
             page.wait_for_function("""shown => boardPreviewIsReady()
-                && BP_FRAME.contentWindow.OMRS_DATA.meta.print.show_labels === shown
-                && !!BP_FRAME.contentDocument.querySelector('.lbl') === shown""", arg=shown)
+                && boardPreviewFrame().contentWindow.OMRS_DATA.meta.print.show_labels === shown
+                && !!boardPreviewFrame().contentDocument.querySelector('.lbl') === shown""", arg=shown)
         popup = self.popup(page)
         exported = popup.evaluate("OMRS_LAYOUT")
         page.locator('[data-board-primary]').click()
@@ -142,7 +142,7 @@ class BoardIntegritySmokeTest(unittest.TestCase):
         page.evaluate("async id => { await boardApplyPrintField('note_ratio', 54); await boardExportCurrent(false); await boardLoad(id); }", other)
         self.assertEqual(requests, [])
         self.assertEqual(page.evaluate("BOARD_DETAIL.id"), bid)
-        self.assertTrue(page.evaluate("!!BOARD_DIRTY?.print"))
+        self.assertTrue(page.evaluate("!!boardSaveQueue().dirty()?.print"))
         page.unroute("**/api/board/update")
         page.evaluate("async () => boardFlushSave()")
         self.assertEqual(get_board(self.vault, bid)["print"]["note_ratio"], .54)
@@ -168,7 +168,7 @@ class BoardIntegritySmokeTest(unittest.TestCase):
         page.evaluate("async id => boardLoad(id)", second)
         popup.wait_for_function("document.documentElement.dataset.omrsLayoutReady === '1'")
         self.assertEqual(popup.evaluate("OMRS_LAYOUT.board_id"), first)
-        self.assertEqual(page.evaluate("Array.from(BOARD_WINDOWS.values())[0].boardId"), first)
+        self.assertEqual(page.evaluate("Array.from(boardPrint().windows.values())[0].boardId"), first)
         popup.locator('#btnDone').click()
         page.wait_for_function("""async id => (await (await fetch('/api/board?id=' + id)).json()).board.printed.pages > 0""", arg=first)
         self.assertEqual(get_board(self.vault, second)["printed"]["pages"], 0)
@@ -222,7 +222,7 @@ class BoardIntegritySmokeTest(unittest.TestCase):
             };
             window.__switched = false;
             const timer = setInterval(() => {
-                const doc = BP_FRAME?.contentDocument;
+                const doc = boardPreviewFrame()?.contentDocument;
                 if (doc?.defaultView?.OMRS_DATA?.meta?.board_id === first && doc.documentElement.dataset.omrsLayoutReady !== '1') {
                     clearInterval(timer); window.__switched = true; boardLoad(second);
                 }
@@ -231,7 +231,7 @@ class BoardIntegritySmokeTest(unittest.TestCase):
         }""", {"first": first, "second": second})
         page.wait_for_function("window.__switched")
         self.wait_preview(page, second)
-        page.wait_for_function("BP_FRAME.contentDocument.getElementById('omrs-view-style')?.textContent.includes('display:none')")
+        page.wait_for_function("boardPreviewFrame().contentDocument.getElementById('omrs-view-style')?.textContent.includes('display:none')")
         frame = page.locator('.bd-preview-frame').element_handle().content_frame()
         self.assertEqual(frame.locator('#bar').evaluate('e => getComputedStyle(e).display'), 'none')
         self.assertEqual(frame.evaluate('OMRS_LAYOUT.board_id'), second)

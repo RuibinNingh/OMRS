@@ -1,7 +1,10 @@
 // 展示板实时预览的消息协议：几何改动零请求、内容改动才重新导出、iframe 回传能到宿主。
 // 这一层几乎全是副作用，所以用最小的 DOM / fetch 替身把 assets/board_preview.js 真跑起来。
-const assert = require('node:assert/strict');
-const test = require('node:test');
+// P7 第 1 步由 tests/test_board_preview.js 迁来，用例原样保留；P7 第 3 步起被测的是模块
+// assets/app/features/board/preview.js（原 assets/board_preview.js）。它在载入时注册 window 的 message 监听，
+// 所以先装好下面的替身再动态 import。
+import assert from 'node:assert/strict';
+import test from 'node:test';
 
 const POSTED = [];          // iframe 收到的 postMessage
 const FETCHED = [];         // 真正发出去的 /api/export 请求
@@ -32,7 +35,7 @@ global.fetch = async (url, options) => {
   return { ok: true, text: async () => `<html data-board="${body.board_id}" data-mode="${body.mode}"><head></head><body></body></html>` };
 };
 
-const bp = require('../assets/board_preview.js');
+const bp = await import('../../assets/app/features/board/preview.js');
 
 // iframe「排完版了」：board_preview.js 只认来自自己 contentWindow 的消息
 function token() { return JSON.parse(FRAME.srcdoc.match(/OMRS_PREVIEW_TOKEN=("[^"]+")/)[1]); }

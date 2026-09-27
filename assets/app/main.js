@@ -4,7 +4,7 @@
  * 2. 启动外壳：登记页面，按地址先显示对应页面的外壳（刷新时不先闪一下仪表盘）；
  * 3. 接上数据发布通道（domain/data.js 的快照经 bus 发 'data'，外壳同步进 store）；await 旧 init()（app.js 不再自调用）；
  * 4. router.start()：进入当前页（执行该页的进入钩子），开始响应前进 / 后退。
- * 页面登记 = 旧页面登记表 + 已迁到 features/ 的页面契约。
+ * 页面登记 = 旧页面登记表 + 已迁到 features/ 的页面契约（P6、P7 合入后所有页面都是页面契约，旧登记表为空，P8 删除）。
  * 页面契约、依赖方向与过渡桥规则见 AI/frontend/architecture.md。
  */
 import { installLegacyBridge } from './legacy-bridge.js';
@@ -21,12 +21,13 @@ import { page as catalogPage } from './features/catalog/index.js';
 import { page as reportsPage } from './features/reports/index.js';
 import { page as settingsPage } from './features/settings/index.js';
 import { page as createPage } from './features/create/index.js';
+import { page as boardPage } from './features/board/index.js';
 import { connectSessions } from './domain/sessions.js';
 import { connectData } from './domain/data.js';
 import { connectHistory } from './domain/history.js';
 
 installLegacyBridge(window);
-const { router, bus } = startShell(window, [dashboardPage, dataPage, schedulePage, historyPage, catalogPage, reportsPage, settingsPage, createPage, ...LEGACY_PAGES, questionsPage, instantPage, feedbackPage]);
+const { router, bus } = startShell(window, [dashboardPage, dataPage, schedulePage, historyPage, catalogPage, reportsPage, settingsPage, createPage, boardPage, ...LEGACY_PAGES, questionsPage, instantPage, feedbackPage]);
 connectData({ emit: (type, payload) => bus.emit(type, payload) });
 connectSessions({ emit: (type, payload) => bus.emit(type, payload) });
 connectHistory({ emit: (type, payload) => bus.emit(type, payload) });

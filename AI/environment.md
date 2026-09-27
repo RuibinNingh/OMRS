@@ -59,6 +59,7 @@ python3 tests/e2e/shell_router.py  # 路由、刷新停留、前进后退、外�
 python3 tests/e2e/instant.py       # 即时练习主路径与审计（同上）
 python3 tests/e2e/feedback.py      # 反馈录入主路径、导入与审计（同上）
 python3 tests/e2e/questions.py     # 题目库主路径（筛选 / 视图 / 键盘 / 批量 / 视图预设 / 旧入口）、题目弹窗（焦点、叠加浮层、Markdown 编辑器）、D4 与审计（同上）
+python3 tests/e2e/board_picker.py  # 选板浮层：键盘、过滤、折叠、连加 / 撤回、新建、叠在弹窗上、居中与审计（同上）
 ```
 
 **隔离实例。** 用临时 Vault 和高端口启动，`</dev/null` 防止依赖检查等待输入：

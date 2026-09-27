@@ -42,7 +42,7 @@
 记录来源 `detail.records[]`（Ledger 投影），`# 历史` 旧文本只在后端没给 `records` 时兜底。
 
 **行内 `⋯` 菜单**（`ui/menu`）：查看详情 / 加入展示板 / 打标记 / 编辑 Markdown / 迁移分类 / 停用·恢复 / 删除。菜单项在 `setTimeout(0)`
-之后执行——旧 `labels.js`、`board_picker.js` 在 document 上监听点击关闭各自的浮层，同一次点击里打开会被立刻关掉。
+之后执行——旧 `labels.js` 的标记选择器与 `domain/board/picker.js` 的选板浮层都在 document 上监听点击关闭，同一次点击里打开会被立刻关掉。
 
 **批量条**（fixed 底部）：加入展示板（`B`，锚定选板浮层）、打标记（`L`，`ui/dialog`：勾选添加 / 移除，另可当场新建一个标记并添加）、
 停用 / 恢复（逐题，失败计数）、导出 A4（不含答案）、清空（`Esc`）。
@@ -108,4 +108,4 @@
 标记接入录入表单、收件箱题卡、题库、题目 Modal、反馈、即时练习、推荐、导出、
 展示板、数据复盘和仪表盘。数据页显示按标记正确率/平均分，仪表盘显示活动题目的
 标记分布；`boardPickerOpen()` 统一处理各页面的「加入展示板」入口，接受单个 UID 或 UID 数组；
-`boardQuickAdd()` / `boardChooseAndAdd()` 是它的薄封装，调用点函数名不变。
+`boardQuickAdd()` / `boardChooseAndAdd()` 是它的薄封装，调用点函数名不变；题目库经 `assets/app/domain/board/index.js` 调用它们。

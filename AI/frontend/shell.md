@@ -11,25 +11,22 @@
 ```
 omrs_dashboard.html   ← 仅 HTML 结构，<link> 引样式 + 多个 <script> 引脚本
 assets/
-├── app/              ← 新前端（ES Module）：main.js、shell.js、legacy-pages.js、legacy-bridge.js、core/、ui/、domain/、features/（含录入页外壳、上传与快速录入）、styles/（见 AI/frontend/architecture.md）
+├── app/              ← 新前端（ES Module）：main.js、shell.js、legacy-pages.js、legacy-bridge.js、core/、ui/、domain/、features/（仪表盘、数据复盘、复习调度、展示板、题目库、即时练习、反馈录入、历史记录、目录、报告、设置，以及录入题目的外壳、上传、快速录入与收件箱网格）、styles/（见 AI/frontend/architecture.md）
 ├── styles.css        ← 旧页面样式，经 app/styles/index.css 以 @layer legacy 引入（颜色一律引用 token）
 ├── vendor/fonts/     ← 本地 Noto Sans SC / JetBrains Mono 字体分片、许可与来源清单
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染 + 做题记录解析
 ├── labels.js         ← 用户标记芯片、LabelPicker、标记管理与筛选状态
-├── questions.js      ← 题库页迁走后的残留：masteryBarHtml（board.js）；题库页在 assets/app/features/questions/，Markdown 编辑器在 assets/app/domain/question/editor.js
+├── questions.js      ← 题库页迁走后的残留：masteryBarHtml（P7 第 6 轮起已无调用方，P8 随本文件删）；题库页在 assets/app/features/questions/，Markdown 编辑器在 assets/app/domain/question/editor.js
 ├── schedule.js       ← 全局扫描 doScan 与两个旧入口；复习调度页在 assets/app/features/schedule/
-├── board.js          ← 展示板 CRUD、排序、添加题目、打印（全部 / 仅新增）与纸面记录
-├── board_preview.js  ← 展示板常驻预览 iframe 的生命周期与消息协议（必须排在 board.js 之后）
 └── app.js            ← switchTab（路由包装）/旧页面刷新链 legacyDataRefresh/init()（由 app/main.js 调用）
 ```
 
 **加载约定（重要）：**
 - 除 `assets/app/main.js`（`<script type="module">`，排在 `app.js` 之后，浏览器在全部经典脚本之后才执行）外，脚本均为普通 `<script>`，共享同一全局作用域；顶层 `let`/`const` 跨文件可见，行内 `onclick` 仍可直接调用各函数。旧代码调用 `uiToast` 等过渡桥函数不必关心模块是否就绪：桥装好之前的调用会排队补发。
 - 样式只有两个 `<link>`：`assets/app/styles/tokens.css` 与 `assets/app/styles/index.css`。KaTeX 与 `styles.css` 由 `index.css` 分层引入，不要再单独 `<link>`（未分层的样式会压过全部分层样式）。
-- **加载顺序**：`labels.js` 在 `questions.js` 之前；`board.js` 在 `app.js` 之前。当前 HTML 的完整顺序为
-  `core → labels → questions → schedule → inbox → board → board_picker → board_preview → app`。`board_preview.js` 必须排在 `board.js`
-  **之后**：`board.js` 只在第一次真正用到预览时才 `boardPreviewOn(...)` 注册回调
-  （`boardBindPreview()` 的惰性注册），否则模块顶层注册时 `boardPreviewOn` 还不存在。
+- **加载顺序**：`labels.js` 在 `questions.js` 之前。当前 HTML 的完整顺序为
+  `core → labels → questions → schedule → inbox → app`。展示板整页是模块（`assets/app/features/board/`，v1.26.5 起旧 `board.js` 已删），
+  板详情在第一次真正同步预览时才 `boardPreviewOn(...)` 注册回调（`detail.js` 的惰性注册）。
 - 共享题目视图（`renderMdContent`、`ensureQuestionDetail`、`qvHtml`、`qvRender`、`viewQ` 等）已是模块 `assets/app/domain/question/`，由过渡桥在 `init()` 之前挂成同名全局；经典脚本只能在函数体里调用它们，不能在文件顶层直接调用（顶层执行时模块还没运行）。
 - **不再新增经典脚本**：新代码一律进 `assets/app/`（见 `AI/frontend/architecture.md`）；仪表盘、数据复盘、复习调度（含推荐选题）的旧脚本已删，其余旧页面迁走时逐个删。
 - **加载顺序固定**：`core.js` 最先（定义全部全局变量，只能声明一次，不可在其他文件重复 `let`）；`app.js` 是最后一个经典脚本，但不再自调用 `init()`：模块入口 `assets/app/main.js` 装好过渡桥与路由后调用它（启动顺序见 `AI/frontend/architecture.md` §2）。

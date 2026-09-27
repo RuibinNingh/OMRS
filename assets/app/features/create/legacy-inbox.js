@@ -8,3 +8,4 @@ export const reloadLegacy = () => source()?.reload();
 export const detectLegacy = provider => source()?.detect(provider);
 export const applyLastLegacy = () => source()?.applyLast();
 export const wholeLegacy = () => source()?.whole();
+export const processLegacy = (action, ...args) => source()?.process?.[action]?.(...args);

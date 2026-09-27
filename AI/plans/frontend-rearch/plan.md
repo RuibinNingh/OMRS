@@ -6,7 +6,7 @@
 > - 门禁：原有 Python 137 / Node 140 / check_docs 0 继续全绿，另加 `check_ui.py` 棘轮和前后截图对比
 > - 分期：P0 基建 → P1 底座 → P2 组件库 → P3–P7 逐页迁移 → P8 收尾，约 10–12 轮 CCW 会话
 > - 编写：Claude Code Web（受限模式），2026-09-24，基线为导出包 `20260924T154156Z`
-> - 执行：P0 到 P6 第 5 轮由 CCW 在受限模式下执行；2026-09-26 起，剩余部分由 Codex 在完整模式下按 `exec-2026-09-26-codex.md` 执行（progress §9）
+> - 执行：P0 到 P6 第 5 轮由 CCW 在受限模式下执行；2026-09-26 起，P6 剩余、P8、终检由 Codex 在完整模式下按 `exec-2026-09-26-codex.md` 执行；2026-09-27 起 P7 由 CCW 按轮推进、与 P6 剩余并行（progress §9）
 > - 进度：见同目录 `progress.md`。本文件是总纲，只在计划本身变更时修改，并在 progress.md「计划变更」登记
 
 ---
@@ -388,7 +388,9 @@ python3 tests/visual/run.py --ref <基线>      # 报告人工审阅；差异必
 - `DATA` 的所有权反转到 `domain/`（§3.6）。`inbox_mobile.html` 接入 tokens 和 base。
 - 验收：每页一个 E2E；每页都达到 §2 的指标。
 
-### P7 展示板（执行者：Codex · 完整模式，按子步骤提交）
+### P7 展示板（执行者：2026-09-27 起 CCW · 受限模式按轮推进，Codex 合入；与 P6 剩余并行）
+
+- 轮次与每轮范围见 progress §5c。P7 只动展示板自己的文件（`assets/board*.js`、`features/board/`、`domain/board/`、`.bd-*` 样式与对应测试），不依赖 P6 剩余页面。
 
 - 最大的一块（106KB）。先搬纯函数和测试，再拆成保存队列、打印协调、拖拽排序、版面设置、选板浮层五个子模块，最后迁 UI。预览 iframe 的协议不变，iframe 节点标 `data-morph="skip"`。
 - 验收：`test_board_*.js`、`smoke_board_*.py` 全绿；E2E（建板 → 加题 → 排序 → 版面设置 → 打印预览 → 仅补印新增）。

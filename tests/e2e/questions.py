@@ -331,9 +331,9 @@ def run_layers(page, base, results):
     page.keyboard.press("Escape")
     check("Esc 只关选择器，弹窗仍在，焦点回到「标记」按钮", wait(page, "() => !LABEL_PICKER && !!document.querySelector('dialog#modal[open]') && document.activeElement?.matches('[data-qv-act=\"labels\"]')"))
     page.click("#modal-stage [data-qv-act='board']")
-    check("弹窗里点「加入展示板」：选板浮层放进对话框", wait(page, "() => typeof BOARD_PICKER !== 'undefined' && !!BOARD_PICKER && document.getElementById('modal').contains(BOARD_PICKER.node)"))
+    check("弹窗里点「加入展示板」：选板浮层放进对话框", wait(page, "() => !!document.querySelector('.bpicker') && document.getElementById('modal').contains(document.querySelector('.bpicker'))"))
     page.click("#modal-stage .qv-q", position={"x": 4, "y": 4})
-    check("点浮层外（对话框内）只关浮层，弹窗仍在", wait(page, "() => !BOARD_PICKER && !!document.querySelector('dialog#modal[open]')"))
+    check("点浮层外（对话框内）只关浮层，弹窗仍在", wait(page, "() => !document.querySelector('.bpicker') && !!document.querySelector('dialog#modal[open]')"))
     page.click("#modal-stage [data-qv-act='edit']")
     check("「编辑」打开 Markdown 编辑器：第二个模态对话框，焦点在文本框", wait(page, "() => { const d = document.getElementById('md-editor'); return !!d?.open && d.matches(':modal') && document.activeElement?.id === 'md-edit-text'; }"))
     page.evaluate("""() => { const t = document.getElementById('md-edit-text'); const lines = t.value.split('\\n');

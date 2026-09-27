@@ -31,6 +31,9 @@ AUDIT = """target => {
   return { sizes, small, inline, handlers, over, overflow: document.documentElement.scrollWidth > innerWidth + 1, shown: shown.length };
 }"""
 AUDIT_UPLOAD = AUDIT.replace("'#ib-stage-quick'", "'#ib-stage-upload'")
+AUDIT_PROCESS = AUDIT.replace("'#ib-stage-quick'", "'#ib-stage-process'").replace(
+  "return { sizes, small, inline, handlers, over, overflow:",
+  "const tiny = shown.filter(text).filter(e => parseFloat(getComputedStyle(e).fontSize) < 12).map(e => `${e.tagName}.${e.className}:${e.textContent.trim().slice(0, 24)}`); return { tiny, sizes, small, inline, handlers, over, overflow:")
 
 
 def png(shade=255):
@@ -103,6 +106,31 @@ def run(page, base, results):
     page.locator('[data-action="create.gridOpenSelected"]').click()
     check('批量去处理打开所选图片', page.locator('#ib-stage-process').evaluate('(e) => getComputedStyle(e).display !== "none"')
           and page.locator('#ib-pc-fname').inner_text().startswith('题图.png'))
+    page.locator('[data-action="create.processClearBoxes"]').click()
+    stage = page.locator('#ib-stage-img').bounding_box()
+    def draw(x0, y0, x1, y1):
+        page.mouse.move(stage['x'] + stage['width'] * x0, stage['y'] + stage['height'] * y0)
+        page.mouse.down()
+        page.mouse.move(stage['x'] + stage['width'] * x1, stage['y'] + stage['height'] * y1, steps=4)
+        page.mouse.up()
+    draw(.08, .12, .40, .42)
+    check('指针框选生成题目区域与区域卡片',
+          wait(page, "() => !!document.querySelector('.crp-box[data-role=\"question\"]') && document.querySelectorAll('#ib-ps-body [data-ib-rg]').length === 1"))
+    page.keyboard.press('Escape')
+    page.locator('[data-action="create.processRole"][data-arg="answer"]').click()
+    draw(.52, .55, .88, .84)
+    check('切换角色后框选答案区域',
+          wait(page, "() => !!document.querySelector('.crp-box[data-role=\"answer\"]') && document.querySelectorAll('#ib-ps-body [data-ib-rg]').length === 2"))
+    page.keyboard.press('Delete')
+    check('处理工作区 Delete 只删除当前选中框',
+          wait(page, "() => document.querySelectorAll('#ib-ps-body [data-ib-rg]').length === 1 && !document.querySelector('.crp-box[data-role=\"answer\"]')"))
+    page.locator('#ib-layout').select_option('photo')
+    page.evaluate("switchTab('settings')")
+    check('离开框选工作区前写出未到防抖时间的版式', wait(page, """async () => {
+      const data = await (await fetch('/api/inbox/items')).json();
+      return data.items.some(item => item.file === '题图.png' && item.layout === 'photo');
+    }"""))
+    page.evaluate("switchTab('create')")
     page.locator('#create-flow [data-ib-stage="upload"]').click()
     page.locator('[data-action="create.gridOpen"]').click()
     check('点击图片进入对应处理队列', page.locator('#ib-stage-process').evaluate('(e) => getComputedStyle(e).display !== "none"')
@@ -233,6 +261,12 @@ def main():
                         upload_ok = upload_audit['shown'] >= 50 and len(upload_audit['sizes']) <= 6 and min(upload_audit['sizes']) >= 12 and not any(
                             upload_audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))
                         results.append((f'收件箱网格审计 {label}·{theme}', upload_ok, str(upload_audit)))
+                        audit_page.locator('#create-flow [data-ib-stage="process"]').click()
+                        wait(audit_page, "() => !!document.querySelector('#ib-stage-process .ib-pq-row') && !!document.querySelector('#ib-stage-process .crp-overlay')")
+                        process_audit = audit_page.evaluate(AUDIT_PROCESS, target)
+                        process_ok = len(process_audit['sizes']) <= 6 and min(process_audit['sizes']) >= 12 and not any(
+                            process_audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))
+                        results.append((f'框选工作区审计 {label}·{theme}', process_ok, str(process_audit)))
                         audit_page.locator('#create-flow [data-ib-stage="quick"]').click()
                         audit = audit_page.evaluate(AUDIT, target)
                         ok = len(audit['sizes']) <= 6 and min(audit['sizes']) >= 12 and not any(

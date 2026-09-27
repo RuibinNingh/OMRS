@@ -8,24 +8,28 @@
  * 这三条一旦被下一次改动破坏，页面看起来还能用，但「能做什么随视图变」的老毛病会悄悄回来，
  * 所以这里既测纯函数，也对渲染函数的源码做静态检查（与 test_css_collisions.js 同一路数）。
  */
-const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const test = require('node:test');
+// P7 第 1 步由 tests/test_board_regions.js 迁来，用例原样保留：状态机测 features/board/model.js。P7 第 5 轮起状态条、
+// 舞台头与面板骨架改查 features/board/view.js / state.js；第 6 轮旧 assets/board.js 删除，列表 / 画廊与检查器也改查 view.js，
+// 「继承读数统一刷新」改为「三处读数同出 state.js 的 gapReadout」（整页 morph 重绘，不再有单独的读数刷新函数）。
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import test from 'node:test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { boardStatusModel } from '../../assets/app/features/board/model.js';
 
-global.document = { addEventListener() {}, querySelectorAll() { return []; } };
-global.asNumber = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
-global.clampNumber = (value, min, max, fallback = 0) => Math.max(min, Math.min(max, global.asNumber(value, fallback)));
-
-const BOARD_PATH = path.join(__dirname, '..', 'assets', 'board.js');
-const SOURCE = fs.readFileSync(BOARD_PATH, 'utf8');
-const { boardStatusModel } = require('../assets/board.js');
+const FEATURE = name => fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'app', 'features', 'board', name), 'utf8');
+const VIEW = FEATURE('view.js');
+const STATE = FEATURE('state.js');
+const DETAIL = FEATURE('detail.js');
+const SOURCE = VIEW;
 
 /** 取出某个函数的源码（到下一个顶格 function / const 为止），用于静态检查渲染产物。 */
-function bodyOf(name) {
-  const start = SOURCE.indexOf(`function ${name}(`);
+function bodyOf(name, source = SOURCE) {
+  const start = source.indexOf(`function ${name}(`);
   assert.notEqual(start, -1, `找不到函数 ${name}，重构时改名了就同步这里`);
-  const rest = SOURCE.slice(start + 1);
+  const rest = source.slice(start + 1);
   const next = rest.search(/\n(?:function |const |async function )/);
   return next === -1 ? rest : rest.slice(0, next);
 }
@@ -82,11 +86,11 @@ test('状态机：打印过还没记录时，主按钮翻成「记录纸面」',
   assert.ok(model.chips.some(chip => chip.kind === 'wait'));
 });
 
-test('状态机：boardEffectiveMode 与状态条同源，记录完纸面后不会再按「仅新增」导出', () => {
-  // 记录纸面后 BOARD_PRINT_MODE 仍是 'new'，但新增数已归零；两处判断若不同源，
+test('状态机：effectiveMode 与状态条同源，记录完纸面后不会再按「仅新增」导出', () => {
+  // 记录纸面后打印范围仍是 'new'，但新增数已归零；两处判断若不同源，
   // 状态条写着「打印全部」、导出却拿 mode:'new' 去跑，预览直接报「没有新增题目需要打印」。
-  const body = bodyOf('boardEffectiveMode');
-  assert.ok(body.includes('boardStatusModel('), 'boardEffectiveMode 必须复用状态机的 scope');
+  // P7 第 6 轮起导出的范围是 detail.js 的 effectiveMode（原 board.js 的 boardEffectiveMode）。
+  assert.match(DETAIL, /const effectiveMode = \(\) => boardStatusModel\(/, 'effectiveMode 必须复用状态机的 scope');
   const done = { items: new Array(9), printed_summary: summary({ pages: 3, count: 9, new_count: 0 }) };
   assert.equal(boardStatusModel(done, 'new', null).scope, 'all');
 });
@@ -113,8 +117,8 @@ test('INV-1：舞台渲染函数里不出现任何设置控件', () => {
     ['data-board-modes', '打印范围分段'],
     ['data-board-inspect-gap', '题后留白输入框'],
   ];
-  for (const fn of ['boardStageBarHtml', 'boardRowHtml', 'boardGalleryCardHtml', 'boardContentBodyHtml', 'boardGalleryHtml']) {
-    const body = bodyOf(fn);
+  for (const [fn, source] of [['stageHead', VIEW], ['rowHtml'], ['galleryCard'], ['contentBody'], ['rowMeta']]) {
+    const body = bodyOf(fn, source);
     for (const [needle, label] of forbidden) {
       assert.ok(!body.includes(needle), `${fn} 里出现了${label}（${needle}）：设置属于检查器，不属于舞台`);
     }
@@ -122,7 +126,7 @@ test('INV-1：舞台渲染函数里不出现任何设置控件', () => {
 });
 
 test('INV-1：翻页条里的数字框是页码跳转，不是设置', () => {
-  const body = bodyOf('boardPagerHtml');
+  const body = bodyOf('pager', VIEW);
   const numbers = body.match(/type="number"/g) || [];
   assert.equal(numbers.length, 1, '翻页条只该有页码跳转这一个数字框');
   assert.ok(body.includes('data-board-page-input'), '页码框要带 data-board-page-input，静态检查靠它把它和设置类输入框区分开');
@@ -133,56 +137,61 @@ test('INV-1：翻页条里的数字框是页码跳转，不是设置', () => {
 test('INV-2：题后留白的写入口只有检查器一个', () => {
   // 原来列表行数字框、检视条、拖切割线三处都能改，彼此不可见，改了不同步。
   // 只数「渲染成属性」的那种，不数 [data-board-inspect-gap="..."] 这类查询选择器
-  const writers = SOURCE.match(/[^[]data-board-inspect-gap="\$\{escapeAttr/g) || [];
+  const writers = VIEW.match(/[^[]data-board-inspect-gap="\$\{/g) || [];
   assert.equal(writers.length, 1, '渲染出的题后留白输入框应当只有一个');
-  assert.ok(bodyOf('boardInspectorItemHtml').includes('data-board-inspect-gap="'), '它应当在检查器的「选中的题」一段里');
-  assert.ok(!SOURCE.includes('data-board-gap="'), '列表行的旧留白数字框应当已经删掉（现在是 data-board-gap-view 只读回显）');
+  assert.ok(bodyOf('inspectorItem').includes('data-board-inspect-gap="'), '它应当在检查器的「选中的题」一段里');
+  assert.ok(!VIEW.includes('data-board-gap="'), '列表行的旧留白数字框应当已经删掉（现在是 data-board-gap-view 只读回显）');
 });
 
 test('INV-2：板级题间留白也只渲染一次，并且和只读回显区分得开', () => {
-  assert.equal((SOURCE.match(/data-board-print="gap_lines"/g) || []).length, 1);
-  assert.ok(bodyOf('boardInspectorLayoutHtml').includes('data-board-print="gap_lines"'));
-  // 只读回显要挂钩子，板级留白一改它们才能跟着刷新
-  assert.ok(bodyOf('boardRowHtml').includes('data-board-gap-view='));
-  assert.ok(bodyOf('boardGalleryCardHtml').includes('data-board-gap-view='));
-  assert.ok(bodyOf('boardRefreshLiveReadouts').includes('data-board-gap-view'));
+  assert.equal((VIEW.match(/data-board-print="gap_lines"/g) || []).length, 1);
+  assert.ok(bodyOf('inspectorLayout').includes('data-board-print="gap_lines"'));
+  // 只读回显要挂钩子（E2E 与冒烟测试按它找），板级留白一改它们随整页重绘一起变
+  assert.ok(bodyOf('rowHtml').includes('data-board-gap-view='));
+  assert.ok(bodyOf('galleryCard').includes('data-board-gap-view='));
 });
 
-test('INV-2：继承来的留白读数由 boardRefreshLiveReadouts 统一刷新', () => {
-  // 板级留白改了，「继承」的单题读数必须跟着变；原型阶段这里错过一次。
-  const body = bodyOf('boardRefreshLiveReadouts');
-  for (const key of ['item-gap', 'gap-lines', 'col-width']) {
-    assert.ok(body.includes(`'${key}'`), `缺少 ${key} 的读数刷新`);
+test('INV-2：继承来的留白读数三处同出 gapReadout，改板级字段后整页重绘', () => {
+  // 板级留白改了，「继承」的单题读数必须跟着变；原型阶段这里错过一次。现在列表行、画廊卡与检查器的数字都由
+  // state.js 的 gapReadout 算，模板只画 r.gap / it.gap，不自己算留白。
+  assert.ok(bodyOf('contentView', STATE).includes('gapReadout('), '列表 / 画廊的留白要来自 gapReadout');
+  assert.ok(bodyOf('inspectorView', STATE).includes('gapReadout('), '检查器的留白要来自 gapReadout');
+  for (const fn of ['rowHtml', 'galleryCard', 'inspectorItem']) {
+    assert.ok(!/boardEffectiveGap|gap_lines/.test(bodyOf(fn)), `${fn} 不许自己算留白`);
   }
-  assert.ok(bodyOf('boardApplyPrintField').includes('boardRefreshLiveReadouts'), '改板级字段后要刷新读数');
+  for (const key of ['item-gap', 'gap-lines', 'col-width']) assert.ok(VIEW.includes(`data-board-live="${key}"`), `缺少 ${key} 读数`);
+  // 写入流程在 features/board/settings.js；改板级字段后的界面刷新是 detail.js 注入的 printApplied 钩子 → changed()（整页重绘）
+  assert.match(DETAIL, /printApplied: \(\) => changed\(\)/, '改板级字段后要重绘');
 });
 
 // ---------- INV-3 状态与行动同处 ----------
 
 test('INV-3：全页只有一个主行动按钮，文案来自状态机', () => {
-  assert.equal((SOURCE.match(/data-board-primary/g) || []).length, 1);
-  const body = bodyOf('boardStatusbarHtml');
-  assert.ok(body.includes('boardStatusModel('), '状态条要直接读状态机，不许另算一套');
-  assert.ok(body.includes('data-board-modes'), '打印范围分段在状态条上，不在浮层里');
+  assert.equal((VIEW.match(/data-board-primary/g) || []).length, 1);
+  assert.ok(bodyOf('statusBar', VIEW).includes('data-board-primary'), '主行动按钮在状态条上');
+  assert.ok(bodyOf('statusView', STATE).includes('boardStatusModel('), '状态条要直接读状态机，不许另算一套');
+  assert.ok(bodyOf('statusBar', VIEW).includes('data-board-modes'), '打印范围分段在状态条上，不在浮层里');
 });
 
 test('版式与打印浮层已经整套移除', () => {
   for (const gone of ['boardSettingsPopHtml', 'boardPopOpen', 'boardPopClose', 'BOARD_POP', 'data-board-pop']) {
     assert.ok(!SOURCE.includes(gone), `${gone} 还在：浮层删干净才算重构完，否则会退回两套入口`);
   }
-  const css = fs.readFileSync(path.join(__dirname, '..', 'assets', 'styles.css'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'styles.css'), 'utf8');
   assert.ok(!/\.bd-pop[\s.,{:]/.test(css), 'styles.css 里还留着浮层样式');
-  const html = fs.readFileSync(path.join(__dirname, '..', 'omrs_dashboard.html'), 'utf8');
-  assert.ok(html.includes('id="bd-statusbar"') && html.includes('id="bd-inspector"'), '面板骨架要有状态条与检查器两个常驻节点');
+  const html = fs.readFileSync(path.join(__dirname, '..', '..', 'omrs_dashboard.html'), 'utf8');
+  const skeleton = bodyOf('view', VIEW);
+  assert.ok(skeleton.includes('id="bd-statusbar"') && skeleton.includes('id="bd-inspector"'), '面板骨架要有状态条与检查器两个常驻节点');
+  assert.ok(!VIEW.includes('data-board-pop'), '新模板里也不许有浮层');
   assert.ok(!html.includes('id="bd-inspect"'), '旧的检视条节点应当已经移除');
 });
 
 test('嵌入式预览收起导出模板自带的动作条', () => {
   // 那一条带着「打印 / 导出 PDF」和「已打印，记录纸面」，嵌在舞台里就是第二套入口。
-  const preview = fs.readFileSync(path.join(__dirname, '..', 'assets', 'board_preview.js'), 'utf8');
+  const preview = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'app', 'features', 'board', 'preview.js'), 'utf8');
   assert.match(preview, /omrs-board-view[\s\S]{0,200}embedded: true/);
-  const template = fs.readFileSync(path.join(__dirname, '..', 'omrs', 'export_templates', 'board.js'), 'utf8');
+  const template = fs.readFileSync(path.join(__dirname, '..', '..', 'omrs', 'export_templates', 'board.js'), 'utf8');
   assert.ok(template.includes('classList.toggle("embedded"'), '模板要认 embedded 标志');
-  const css = fs.readFileSync(path.join(__dirname, '..', 'omrs', 'export_templates', 'board.css'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', '..', 'omrs', 'export_templates', 'board.css'), 'utf8');
   assert.match(css, /body\.embedded #bar\{display:none;\}/);
 });

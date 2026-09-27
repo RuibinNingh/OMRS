@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="assets/vendor/fonts/fonts.css?v=20260920-local">
 <link rel="stylesheet" href="assets/app/styles/tokens.css?v=20260925-p6r1">
 <!-- 旧 styles.css 与 KaTeX 由 index.css 按 @layer 引入（见 AI/frontend/shell.md）-->
-<link rel="stylesheet" href="assets/app/styles/index.css?v=20260926-p6-catalog">
+<link rel="stylesheet" href="assets/app/styles/index.css?v=20260927-p6p7-merge">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -54,7 +54,7 @@
       <div class="nav-spacer"></div>
       <a class="tab" data-tab="settings" href="#/settings"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></a>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.25.13 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.26.5 · 本地服务</div>
   </aside>
   <main class="content">
     <div class="topbar">
@@ -76,22 +76,8 @@
   <div class="panel" id="panel-questions"><!-- 题目库：assets/app/features/questions 渲染 --></div>
 
   <!-- ====== 展示板 ====== -->
-  <div class="panel" id="panel-board">
-    <!-- 状态条：这叠纸现在是什么状态、下一步做什么，只有这一处；主行动按钮全页唯一。 -->
-    <div class="bd-statusbar" id="bd-statusbar"><div class="hint">左题右空的活页「错题集」：随时加题、重排、打印；打印过后只补印新增的题，接在原纸空白处。<span class="bd-keys">快捷键 <b>N</b> 新建 · <b>A</b> 添加 · <b>P</b> 打印预览 · <b>↑↓</b> 选行 · <b>Ctrl+↑↓</b> 移动 · <b>Delete</b> 移除</span></div></div>
-    <div class="bd-layout">
-      <div class="card bd-list" id="bd-list"><div class="empty-inline">加载展示板…</div></div>
-      <div class="card bd-content" id="bd-content">
-        <div id="bd-content-head"><div class="empty-inline">请选择或新建一个展示板。</div></div>
-        <!-- 预览 iframe 常驻在这里：boardRender 只重写 head / body 两块，
-             innerHTML 一旦扫到 iframe，重新插入会让它整份重载（近 1MB 的字体要再解码一次）。 -->
-        <div id="bd-stage" class="bd-stage" hidden></div>
-        <div id="bd-content-body"></div>
-      </div>
-      <!-- 检查器：选中的题 / 版式 / 纸面记录三段永远在这里，与当前视图无关。 -->
-      <aside class="card bd-inspector" id="bd-inspector" hidden></aside>
-    </div>
-  </div>
+  <!-- 展示板：features/board/index.js 挂载时渲染（P7 第 6 轮起整页原生；板详情归 features/board/detail.js）。 -->
+  <div class="panel" id="panel-board"></div>
 
   <!-- ====== 目录（工作区文件夹树） ====== -->
   <div class="panel" id="panel-catalog">
@@ -121,37 +107,8 @@
       <div id="create-grid"></div>
     </section>
 
-    <!-- ② 处理 -->
-    <section class="ib-stage" id="ib-stage-process">
-      <div class="ib-proc">
-        <div class="ib-pq">
-          <div class="ib-pq-head"><input type="checkbox" class="ib-chk" id="ib-pq-all" onchange="ibQueue().forEach(i=>this.checked?IB.sel.add(i.id):IB.sel.delete(i.id));ibRenderQueue();ibRenderInbox()" title="全选队列"><span class="t">处理队列</span><span class="n" id="ib-pq-n"></span></div>
-          <div class="ib-pq-list" id="ib-pq-list"></div>
-          <div class="ib-pq-foot"><button class="btn sm" type="button" onclick="ibDetectSelected()">🤖 AI 框选<span id="ib-pq-sel-n"></span></button><button class="btn sm" type="button" onclick="ibDetectSelected('template')" title="零联网模板框选">▦ 模板</button><button class="btn sm" type="button" onclick="ibApplyLastSelected()">沿用框位</button></div>
-        </div>
-        <div class="ib-pc">
-          <div class="ib-pc-tools">
-            <button class="btn sm" type="button" onclick="ibStep(-1)" title="上一张">←</button><button class="btn sm" type="button" onclick="ibStep(1)" title="下一张（Enter）">→</button>
-            <span class="fname" id="ib-pc-fname"></span>
-            <div class="ib-seg roles" id="ib-role-seg" title="画框角色（Q / A / X）"><button type="button" data-v="question" class="on" onclick="ibSetDrawRole('question')">题目 <span class="ib-kbd">Q</span></button><button type="button" data-v="answer" onclick="ibSetDrawRole('answer')">答案 <span class="ib-kbd">A</span></button><button type="button" data-v="ignore" onclick="ibSetDrawRole('ignore')">忽略 <span class="ib-kbd">X</span></button></div>
-          </div>
-          <div class="ib-pc-tools">
-            <button class="btn sm" type="button" onclick="ibDetectCurrent()">🤖 AI 框选此图</button><button class="btn sm" type="button" onclick="ibDetectCurrent('template')" title="零联网：按作业帮版式 / 最近一张同版式样本给初始框">▦ 模板框选</button><button class="btn sm" type="button" onclick="ibWholeImage()" title="不需要裁：整张图就是题目">整图即题目</button><button class="btn sm" type="button" onclick="ibApplyLast()" title="套用上一张处理过的图的框">沿用上一张框位</button><span class="grow"></span><button class="btn sm" type="button" onclick="ibClearBoxes()">清空框</button>
-          </div>
-          <div class="ib-pc-scroll" id="ib-pc-scroll"><div class="ib-stage-img" id="ib-stage-img"><img id="ib-stage-src" alt=""></div></div>
-          <div class="ib-pc-foot"><span>拖拽空白处画框</span><span><span class="ib-kbd">Q</span>/<span class="ib-kbd">A</span>/<span class="ib-kbd">X</span> 切角色</span><span><span class="ib-kbd">Del</span> 删框</span><span><span class="ib-kbd">Enter</span> 下一张</span><span><span class="ib-kbd">⌘/Ctrl</span>+<span class="ib-kbd">Enter</span> 转文本</span><span class="grow"></span><span id="ib-pc-zoom" class="mono"></span></div>
-        </div>
-        <div class="ib-ps">
-          <div class="ib-ps-head">
-            <div class="t">区域与转换 <span class="hint" id="ib-ps-card-n"></span></div>
-            <div class="meta" id="ib-ps-meta"></div>
-            <div class="layout"><span>版式</span><select class="input" style="width:auto;padding:3px 8px;font-size:.7rem" id="ib-layout" onchange="ibSetLayout(this.value)"><option value="zuoyebang">作业帮截图</option><option value="photo">拍照 / 扫描</option><option value="plain">已裁好的题图</option><option value="other">其他</option></select><span class="hint" style="margin-left:auto">作为训练标签记录</span></div>
-          </div>
-          <div class="ib-ps-body" id="ib-ps-body"></div>
-          <div class="ib-ps-foot"><button class="btn sm" type="button" onclick="ibAddCard()" title="同一张图里的第 2 道题">+ 新题卡</button><button class="btn sm danger" type="button" onclick="ibDiscardCurrent()">丢弃</button><span class="grow"></span><button class="btn sm" type="button" onclick="ibExtractAll()">转换文本</button><button class="btn sm primary" type="button" onclick="ibMarkReady()">标记就绪 →</button></div>
-        </div>
-      </div>
-    </section>
+    <!-- ② 处理工作区的静态三栏由 features/create/process-view.js 挂载。 -->
+    <section class="ib-stage" id="ib-stage-process"></section>
 
     <!-- ③ 录入 -->
     <section class="ib-stage" id="ib-stage-create">
@@ -226,10 +183,7 @@
 <script src="assets/questions.js?v=20260925-p6r4"></script>
 <script src="assets/schedule.js?v=20260925-p6r3"></script>
 <script src="assets/inbox.js?v=20260927-p6-create-upload"></script>
-<script src="assets/board.js?v=20260922-board-integrity"></script>
-<script src="assets/board_picker.js?v=20260925-p5r3"></script>
-<script src="assets/board_preview.js?v=20260922-board-integrity"></script>
 <script src="assets/app.js?v=20260926-p6-catalog"></script>
-<script type="module" src="assets/app/main.js?v=20260927-p6-create-upload"></script>
+<script type="module" src="assets/app/main.js?v=20260927-p6p7-merge"></script>
 </body>
 </html>

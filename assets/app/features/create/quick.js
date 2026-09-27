@@ -7,7 +7,7 @@ import { button } from '../../ui/button.js';
 import { toast } from '../../ui/toast.js';
 import { itemsOf } from '../../domain/items.js';
 import { labelChips, openCreateLabelPicker } from '../../domain/labels/index.js';
-import { boardQuickAdd } from '../../domain/board.js';
+import { boardQuickAdd } from '../../domain/board/index.js';
 import { reloadData } from '../../domain/data.js';
 import { notifyHistoryChanged } from '../../domain/history.js';
 import { newQuickState, createPayload, mergeClassification, afterCreate } from './state.js';

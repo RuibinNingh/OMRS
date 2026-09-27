@@ -7,7 +7,7 @@ import { createRouter, parseHash } from '../../assets/app/core/router.js';
 import { request, post } from '../../assets/app/core/api.js';
 import { formatDate, relativeDays, formatPercent, formatNumber, formatDuration } from '../../assets/app/core/format.js';
 import { html, each } from '../../assets/app/core/html.js';
-import { normalizeCombo } from '../../assets/app/core/keys.js';
+import { normalizeCombo, bindKeys, registerKeys, setScope, pushKeyLayer, keyLayerCount } from '../../assets/app/core/keys.js';
 
 test('store：浅合并、选择器订阅只在选中值变化时回调、batch 只通知一次、退订', () => {
   const store = createStore({ a: 1, b: 1 });
@@ -158,4 +158,59 @@ test('keys：组合键规范化', () => {
   assert.equal(normalizeCombo('Shift+Tab'), 'shift+tab');
   assert.equal(normalizeCombo('Escape'), 'escape');
   assert.equal(normalizeCombo('?'), '?');
+});
+
+// 浮层键盘层（P7 第 4 轮，选板浮层用）：用最小的 document / 事件替身驱动 core/keys 的唯一 keydown 监听
+const keyDoc = { listener: null, querySelector: () => null, addEventListener(type, fn) { if (type === 'keydown') this.listener = fn; } };
+bindKeys(keyDoc);
+const press = (key, extra = {}) => {
+  const target = { closest: sel => (extra.inInput && sel.includes('input') ? {} : null), ownerDocument: keyDoc };
+  const event = { key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, isComposing: false, defaultPrevented: false, target, ...extra,
+    preventDefault() { this.defaultPrevented = true; } };
+  keyDoc.listener(event);
+  return event;
+};
+
+test('keys 浮层层：先于页面与 global，在输入框里也生效；弹出后恢复', () => {
+  const log = [];
+  setScope('kpage');
+  const offPage = registerKeys('kpage', { j: () => log.push('page:j'), arrowdown: () => log.push('page:down') });
+  const pop = pushKeyLayer({ arrowdown: () => log.push('layer:down'), 'mod+enter': () => log.push('layer:mod-enter') });
+  assert.equal(keyLayerCount(), 1);
+  assert.equal(press('ArrowDown', { inInput: true }).defaultPrevented, true);
+  press('Enter', { ctrlKey: true });
+  assert.deepEqual(log, ['layer:down', 'layer:mod-enter']);
+  pop();
+  pop();   // 重复弹出无副作用
+  assert.equal(keyLayerCount(), 0);
+  press('ArrowDown');
+  assert.deepEqual(log.slice(2), ['page:down']);
+  offPage();
+});
+
+test('keys 浮层层：默认独占——没处理的键不传给页面、不 preventDefault；any 兜底；modal:false 时往下传', () => {
+  const log = [];
+  setScope('kpage2');
+  const offPage = registerKeys('kpage2', { v: () => log.push('page:v') });
+  const pop = pushKeyLayer({ any: event => { log.push(`any:${event.key}`); return false; } });
+  const e = press('v');
+  assert.equal(e.defaultPrevented, false);
+  assert.deepEqual(log, ['any:v']);
+  pop();
+  const popOpen = pushKeyLayer({ escape: () => false }, { modal: false });
+  press('v');
+  assert.deepEqual(log, ['any:v', 'page:v']);
+  popOpen();
+  offPage();
+});
+
+test('keys 浮层层：只有最上面一层生效', () => {
+  const log = [];
+  const popA = pushKeyLayer({ escape: () => log.push('A') });
+  const popB = pushKeyLayer({ escape: () => log.push('B') });
+  press('Escape');
+  popB();
+  press('Escape');
+  popA();
+  assert.deepEqual(log, ['B', 'A']);
 });

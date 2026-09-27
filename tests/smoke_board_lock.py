@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix='omrs-lock-http-vault-') as vault, sync_
         initial=read_board(vault,bid)['printed']
         page=context.new_page(); page.on('pageerror',lambda e:errors.append(str(e)))
         page.goto(base,wait_until='load'); page.wait_for_function("typeof boardAddToBoard === 'function'")
-        page.evaluate("async id => { switchTab('board'); await boardReloadData(); await boardLoad(id); window.__confirmCalls=[]; window.uiConfirm=async (...args)=>{window.__confirmCalls.push(args);return false;}; }",bid)
+        page.evaluate("async id => { switchTab('board'); await boardReloadData(); await boardLoad(id); window.__confirmCalls=[]; configureBoardDetail({confirm: async (...args)=>{window.__confirmCalls.push(args);return false;}}); }",bid)
         page.evaluate("async args => { await boardAddToBoard(args.id,[args.uid],{silent:true}); }",{'id':bid,'uid':new['uid']})
         after=read_board(vault,bid)
         calls=page.evaluate('window.__confirmCalls')
@@ -60,7 +60,7 @@ with tempfile.TemporaryDirectory(prefix='omrs-lock-http-vault-') as vault, sync_
         assert page.evaluate('window.__confirmCalls.length')==1,'Real paper layout edit must still require confirmation'
         assert read_board(vault,bid)['printed']==initial,'Cancel must preserve record'
         assert read_board(vault,bid)['print']['note_ratio']==0.5,'Cancel must not change setting'
-        page.evaluate("()=>{BOARD_PRINT_MODE='new';boardRender();}")
+        page.evaluate("()=>boardSetPrintMode('new')")
         page.wait_for_function("document.querySelector('[data-board-primary]')?.textContent.includes('补印新增 1 题')")
         action=page.locator('[data-board-primary]').inner_text()
         increment_page,increment=export_layout('new')

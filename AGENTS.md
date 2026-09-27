@@ -260,6 +260,7 @@
 | `assets/app/features/data/` | `AI/frontend/records.md`（数据复盘）|
 | `assets/app/features/history/` | `AI/frontend/records.md`（历史记录）|
 | `assets/app/features/schedule/` | `AI/frontend/review.md`（复习调度）|
+| `assets/app/features/board/`、`assets/app/domain/board/` | `AI/frontend/board-ui.md`（展示板页）；纸面、打印与数据模型同时看 `AI/board.md` |
 | `assets/app/domain/question/` | `AI/frontend/qview.md` |
 | `assets/app/domain/labels/` | `AI/frontend/library.md`（标记芯片、颜色、选择器与管理的数据部分）|
 | `assets/app/domain/` | `AI/frontend/architecture.md`（过渡期适配器）|

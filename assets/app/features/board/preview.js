@@ -1,14 +1,16 @@
-// === assets/board_preview.js — 展示板实时预览：单例 iframe 的生命周期与消息协议 ===
-// 依赖 core.js（api）；必须排在 board.js 之后。
-//
-// 为什么是常驻 iframe 而不是每次新建：那份导出 HTML 内联了 KaTeX 字体，将近 1MB，
-// 重建节点等于重新解码一次字体。全页只留一个 iframe，切板换 srcdoc。
-//
-// 三档刷新，只有第三档走网络：
-//   几何类（留白比例 / 题间留白 / 切割线）→ postMessage relayout，去抖 120ms，零请求；
-//   内容类（增删题 / 排序 / 换模式 / 正文变动）    → 重新拉导出，去抖 500ms；
-//   切板                                          → 立即拉导出。
-// 导出指纹命中缓存时连第三档也省掉。
+/**
+ * 展示板常驻预览：单例 iframe 的生命周期与消息协议（P7 第 3 步由 assets/board_preview.js 原样搬来，协议不变）。
+ *
+ * 为什么是常驻 iframe 而不是每次新建：那份导出 HTML 内联了 KaTeX 字体，将近 1MB，
+ * 重建节点等于重新解码一次字体。全页只留一个 iframe，切板换 srcdoc。
+ *
+ * 三档刷新，只有第三档走网络：
+ *   几何类（留白比例 / 题间留白 / 切割线）→ postMessage relayout，去抖 120ms，零请求；
+ *   内容类（增删题 / 排序 / 换模式 / 正文变动）    → 重新拉导出，去抖 500ms；
+ *   切板                                          → 立即拉导出。
+ * 导出指纹命中缓存时连第三档也省掉。旧 board.js 经过渡桥 installBoardBridge 读这些函数的同名全局。
+ */
+import { fetchBoardExport } from './print.js';
 
 let BP_FRAME = null;                  // 单例 iframe
 let BP_STATE = { boardId: '', mode: 'all', key: '', ready: false };
@@ -30,27 +32,27 @@ const BP_SCALES = { fit: 'fit', 1: 1 };
 // 指纹只描述「导出内容」：板 + 模式 + 题目签名 + 纸面记录时间。
 // 刻意不含 board.updated_at —— 拖一次版面滑块就会 bump 它，而版面改动本该走 relayout，
 // 把它算进指纹等于每拖一下都重新请求近 1MB 的导出。
-function boardPreviewKey(boardId, mode, signature, printedAt) {
+export function boardPreviewKey(boardId, mode, signature, printedAt) {
   return [boardId || '', mode || 'all', signature || '', printedAt || ''].join('|');
 }
-function boardPreviewLayout() { return BP_LAYOUT; }
-function boardPreviewFrame() { return BP_FRAME; }
-function boardPreviewIsReady() { return !!(BP_FRAME && BP_STATE.ready); }
+export function boardPreviewLayout() { return BP_LAYOUT; }
+export function boardPreviewFrame() { return BP_FRAME; }
+export function boardPreviewIsReady() { return !!(BP_FRAME && BP_STATE.ready); }
 
-function boardPreviewOn(handlers) {
+export function boardPreviewOn(handlers) {
   if (handlers?.onLayout) BP_ON_LAYOUT = handlers.onLayout;
   if (handlers?.onSelect) BP_ON_SELECT = handlers.onSelect;
   if (handlers?.onGap) BP_ON_GAP = handlers.onGap;
 }
 
 // 不在前台就不排版：切到别的 Tab、或预览滚出视口时，几何改动只记不发，回来再补一次。
-function boardPreviewActive() {
+export function boardPreviewActive() {
   if (!BP_VISIBLE) return false;
   const panel = document.getElementById('panel-board');
   return !!panel?.classList.contains('active');
 }
 
-function boardPreviewMount(container) {
+export function boardPreviewMount(container) {
   if (!container) return null;
   if (!BP_FRAME) {
     BP_FRAME = document.createElement('iframe');
@@ -69,17 +71,17 @@ function boardPreviewMount(container) {
   return BP_FRAME;
 }
 
-function boardPreviewPost(message) {
+export function boardPreviewPost(message) {
   try { BP_FRAME?.contentWindow?.postMessage({ ...message, previewToken: BP_STATE.token }, '*'); } catch (error) {}
 }
 
 // ---------- 几何刷新（零网络） ----------
-function boardPreviewRelayout(print, gaps) {
+export function boardPreviewRelayout(print, gaps) {
   BP_PENDING = { print: { ...(print || {}) }, gaps: { ...(gaps || {}) } };
   clearTimeout(BP_RELAYOUT_TIMER);
   BP_RELAYOUT_TIMER = setTimeout(boardPreviewFlushPending, 120);
 }
-function boardPreviewFlushPending() {
+export function boardPreviewFlushPending() {
   clearTimeout(BP_RELAYOUT_TIMER);
   if (!BP_PENDING || !boardPreviewIsReady() || !boardPreviewActive()) return;
   const pending = BP_PENDING;
@@ -88,7 +90,7 @@ function boardPreviewFlushPending() {
 }
 
 // ---------- 翻页与缩放 ----------
-function boardPreviewGoto(target) {
+export function boardPreviewGoto(target) {
   if (!boardPreviewIsReady()) return;
   if (typeof target === 'number' || /^\d+$/.test(String(target || ''))) {
     BP_VIEW.page = Number(target);
@@ -97,24 +99,24 @@ function boardPreviewGoto(target) {
     boardPreviewPost({ type: 'omrs-board-goto', uid: String(target) });
   }
 }
-function boardPreviewPages() {
+export function boardPreviewPages() {
   const numbers = BP_LAYOUT?.page_numbers || [];
   return numbers.length ? numbers : (BP_LAYOUT?.pages ? [BP_LAYOUT.pages] : []);
 }
-function boardPreviewStep(delta) {
+export function boardPreviewStep(delta) {
   const numbers = boardPreviewPages();
   if (!numbers.length) return;
   const at = Math.max(0, numbers.indexOf(BP_VIEW.page));
   boardPreviewGoto(numbers[Math.max(0, Math.min(numbers.length - 1, at + delta))]);
 }
-function boardPreviewSetView(view) {
+export function boardPreviewSetView(view) {
   BP_VIEW = { ...BP_VIEW, ...(view || {}) };
   // embedded:true 让导出模板收起自带的「打印 / 已打印，记录纸面」动作条：
   // 那一条是给独立下载的 HTML 用的，嵌在舞台里就成了第二个打印入口和第二个记录入口。
   boardPreviewPost({ type: 'omrs-board-view', single: BP_VIEW.single, page: BP_VIEW.page, scale: BP_VIEW.scale, embedded: true });
 }
 // 「适应宽度」按容器实际宽度算比例：A4 屏幕宽 793.7px 是模板里的硬几何，不跟版面设置走。
-function boardPreviewScale(mode) {
+export function boardPreviewScale(mode) {
   let scale = Number(mode);
   if (!Number.isFinite(scale) || scale <= 0) {
     const width = BP_FRAME?.parentNode?.clientWidth || 0;
@@ -123,10 +125,10 @@ function boardPreviewScale(mode) {
   boardPreviewSetView({ scale: Math.round(scale * 100) / 100 });
   return scale;
 }
-function boardPreviewView() { return { ...BP_VIEW }; }
+export function boardPreviewView() { return { ...BP_VIEW }; }
 
 // ---------- 换板 / 换内容（走网络，带指纹缓存） ----------
-async function boardPreviewSetBoard(boardId, mode, options = {}) {
+export async function boardPreviewSetBoard(boardId, mode, options = {}) {
   const key = boardPreviewKey(boardId, mode, options.signature, options.printedAt);
   if (!boardId) { BP_STATE = { boardId: '', mode: 'all', key: '', ready: false, loading: false }; BP_LAYOUT = null; return null; }
   // 同一份内容已经排好、或正在路上，就别再拉一次：导出 HTML 将近 1MB，
@@ -161,25 +163,16 @@ async function boardPreviewSetBoard(boardId, mode, options = {}) {
   BP_FRAME.srcdoc = html.replace('<head>', '<head>' + init).replace('<body>', '<body class="embedded">');
   return null;                                        // 版面等 iframe 排完由 onLayout 回调送出
 }
-async function boardPreviewFetch(boardId, mode, signal) {
-  const response = await fetch('/api/export', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ board_id: boardId, format: 'board', mode }), signal,
-  });
-  if (!response.ok) {
-    let message = '生成预览失败';
-    try { message = (await response.json()).msg || message; } catch (error) {}
-    throw new Error(message);
-  }
-  return response.text();
+export function boardPreviewFetch(boardId, mode, signal) {
+  return fetchBoardExport(boardId, mode, { signal, fallback: '生成预览失败' });
 }
-function boardPreviewScheduleRefresh(boardId, mode, options = {}) {
+export function boardPreviewScheduleRefresh(boardId, mode, options = {}) {
   clearTimeout(BP_REFRESH_TIMER);
   BP_REFRESH_TIMER = setTimeout(() => {
     boardPreviewSetBoard(boardId, mode, options).catch(() => {});
   }, 500);
 }
-function boardPreviewInvalidate() {
+export function boardPreviewInvalidate() {
   BP_HTML_CACHE = new Map();
   if (BP_FETCH) { try { BP_FETCH.controller.abort(); } catch (error) {} BP_FETCH = null; }
   BP_STATE = { ...BP_STATE, key: '', token: String(++BP_GENERATION), loading: false, ready: false };
@@ -217,10 +210,3 @@ if (typeof window !== 'undefined') {
     if (message.type === 'omrs-board-gap' && BP_ON_GAP && message.uid) BP_ON_GAP(message);
   });
 }
-
-if (typeof module !== 'undefined') module.exports = {
-  boardPreviewKey, boardPreviewPages, boardPreviewLayout, boardPreviewView,
-  boardPreviewMount, boardPreviewOn, boardPreviewRelayout, boardPreviewFlushPending,
-  boardPreviewGoto, boardPreviewStep, boardPreviewSetView, boardPreviewScale,
-  boardPreviewSetBoard, boardPreviewScheduleRefresh, boardPreviewInvalidate, boardPreviewIsReady,
-};

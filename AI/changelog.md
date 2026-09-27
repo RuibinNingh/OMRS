@@ -4,6 +4,55 @@
 > 这里每段都是当时写下的原文（未改写），所以段里的「现在 / 原先」以该版本为准；具体文件级变更看 `logs/`。
 > 新版本的摘要请追加在最上面；同一版本多次改动时合并进同一段。
 
+## v1.26.5（2026-09-27）前端重构 P7 第 6 轮：展示板整页原生，删除 board.js
+
+- **与 P6 剩余合并（2026-09-27）**：P7 六轮基于 v1.25.4 开发，与 Codex 的 P6 剩余（下文 v1.25.5–v1.25.13，另有录入页框选工作区的在制代码）并行；两条线在此版合并，按 progress §9 取较大的版本号 v1.26.5，此后各页在 v1.26.5 上加 0.0.1。合并时另改：`features/create/quick.js` 的 `import` 从已删除的 `domain/board.js` 改到 `domain/board/index.js`（不改会让整个模块图加载失败）；`legacy-pages.js` 的登记表清空（P6 删完其余五页、P7 删掉 board）；`omrs_dashboard.html` 同时去掉 `board*.js` 与 `history` / `catalog` / `reports` 的 `<script>`；`tests/ui_baseline.json` 按合并后的实测重算（只降不升）。
+- **板详情的所有者是 `assets/app/features/board/detail.js`**（原经典脚本 assets/board.js 的 `BOARD_DETAIL` / `BOARD_PRINT_MODE` / `BOARD_SELECTED_UID`、数据加载与详情上的全部操作；旧文件与它的 `<script>` 删除）：控制器只经注入的 I/O 碰外界，缺省 I/O、单例与窗口级监听在 `runtime.js`；保存队列、打印协调、版面设置照旧由它懒创建。板列表（`domain/board/boards.js`）与选板浮层经新端口 `domain/board/detail-port.js` 冲刷、重读、加题（依赖倒置，取代第 5 轮的过渡适配器 `legacy.js`）。
+- **列表 / 画廊与检查器原生**：模板在 `view.js`、视图模型在 `state.js`（`contentView`、`inspectorView`、`itemFlags`、`gapReadout`、`dueView`），样式进 `board.css`（类名 `brd-`，只用 token）；整页一次 `morph`，只有舞台 iframe 与画廊题面挂载点是 skip。聚焦中的输入框与滑杆 morph 不改值，所以原来为了不丢焦点而写的「只刷新读数」一套函数全部删去；锁定确认被拒时先放掉焦点再重绘。`styles.css` 删 139 行（`.bd-*`、`.board-add-*`、`.bdadd-*`、`.board-sync-options`、`.qb-search`）。
+- **「添加题目」换 `ui/dialog`（`features/board/add.js`）**：Esc、点遮罩关闭，焦点陷阱与归还（原 `.modal-overlay` 弹层 Esc 关不掉，`AI/optimization.md` 那一条随之删去）；勾选跨列表 / 画廊保持；一题都没勾时「加入展示板」留在对话框里。「按标记同步」的单选改用 token 样式。
+- **用户可见的变化**：列表行与画廊卡用 `aria-current` 标选中；行上的次要动作（留白、详情）悬停 / 选中 / 键盘聚焦时出现，手机常显；检查器「跳到这道题」在列表 / 画廊视图下先切回纸面再翻页（原来不在纸面时点了没反应）；停用但已打印的题在列表行上只标「停用」（与画廊、检查器一致；原来还标「已印」）；列表行的熟练度从小进度条改为「熟练 N%」文字；纸面记录改成定义列表。
+- **过渡桥**：`installBoardBridge` 只挂旧调用方（`app.js`、`labels.js`）与冒烟测试要用的入口，逐条登记；只供旧 `board.js` 用的模型 / 保存 / 打印 / 设置 / 拖拽全局与 `boardPageRepaint`、`adoptBoards` 等不再挂。冒烟测试里的 `window.uiConfirm = …` 改为 `configureBoardDetail({ confirm })`，`BOARD_PRINT_MODE='new'; boardRender()` 改为 `boardSetPrintMode('new')`；`BOARD_DETAIL` 是只读访问器。
+- **测试**：`board-locked.test.mjs` 从 vm 跑旧脚本改为注入 `createBoardDetail`（20 → 25）；`board-regions.test.mjs` 的静态检查改查 `view.js` / `state.js` / `detail.js`（条数不变）；`board-page.test.mjs` 12 → 20；`tests/e2e/board.py` 22 → 35（加题 → 排序 → 版面设置 → 打印预览 → 仅补印新增，另有列表视图的审计）。
+
+## v1.26.4（2026-09-27）前端重构 P7 第 5 轮：展示板页外壳原生、板列表数据所有权
+
+- **展示板页成为页面契约 `assets/app/features/board/index.js`**（从 `legacy-pages.js` 删去）：状态条、左栏板列表（文件夹 → 板两级树）、舞台头（视图、内容操作、翻页条、缺失 / 停用警告）用 `html` + `morph` 渲染（`view.js`、视图模型 `state.js`、样式 `board.css`，只用 token）；`#panel-board` 在 HTML 里是空壳，挂载时渲染。常驻预览的舞台、列表 / 画廊、检查器是 `data-morph="skip"`，每层子节点固定，morph 不会挪动 iframe（切视图、折叠、重绘都不重载预览）。
+- **板列表的数据所有权归 `assets/app/domain/board/boards.js`**：板列表、文件夹、当前板、上次用的板、折叠状态，以及板 / 文件夹的全部写操作（原 `board.js` 的 `BOARD_DATA` / `BOARD_FOLDERS` / `BOARD_CURRENT`、`boardCreate` 等 13 个函数删除）；选板浮层的 `source.js` 改读它，展示板页与浮层共用一份并随之重绘。板详情、打印范围、列表 / 画廊、检查器与加题对话框仍在 `board.js`（经 `boardPageSnapshot()` 交给新页面，经 `domain/board/legacy.js` 被调用），第 6 轮迁。
+- **快捷键进 `core/keys.js` 页面作用域**：`board.js` 的 document keydown 删除（N / A / P、←→ 翻页、↑↓ 选行、Ctrl+↑↓ 换位、Enter 打开、Delete 移除）；对话框、输入框、选板浮层由 core/keys 挡住，标记选择器打开时让位。离开页面前的落盘从侧栏点击捕获阶段改到页面卸载（浏览器后退离开也会落盘）。
+- **用户可见的变化**：板 / 文件夹 / 新建 / 排序四个下拉换成 `ui/menu`（键盘可用、进顶层）；板行的主体是按钮（Tab 可达、`aria-current` 标当前板），折叠按钮带 `aria-expanded`；状态条标题旁加「重命名」按钮（双击仍可就地改名）；Enter 在按钮上时不再同时打开题目；板 ⋯ 菜单总有「移到新文件夹…」（原来没有文件夹时整段不出现）；预览生成失败的原因经状态保留，重绘后不丢。
+- **测试**：新增 `tests/app/board-page.test.mjs`（12）、`tests/e2e/board.py`（22）；`board-regions.test.mjs` 的状态条 / 舞台 / 骨架三条不变量改查新模板；`board-locked.test.mjs` 注入 `boards.js`；`board_picker.py` 改读 `boardCurrentId()`。
+
+## v1.26.3（2026-09-27）前端重构 P7 第 4 轮：选板浮层原生
+
+- **选板浮层搬进 `assets/app/domain/board/picker.js`**（原 assets/board_picker.js，已删）：内容用 `html` + `morph` 渲染（模板 `picker-view.js`），样式进 `picker.css`（`@layer domain`，只用 token；原 `styles.css` 的 `.bd-picker-*` 55 行删除）；挂载走 `ui/overlay` 的 `hostGuest`（`escape:true`），再进浏览器顶层（popover）。行模型、默认高亮、折叠目标、点击决策、锚定位置都成了 `domain/board/model.js` 的纯函数；过渡期经 `source.js` 读旧 `board.js` 的板列表、文件夹与加题函数。`boardQuickAdd` / `boardChooseAndAdd` 直接打开新浮层，旧代码经过渡桥 `installBoardBridge` 挂回的同名全局调用。
+- **键盘进 `core/keys.js`**：新增浮层键盘层 `pushKeyLayer`（最上层优先于页面与全局、在输入框里生效、默认独占）；选板浮层原来挂在 document 捕获阶段的 keydown 删除，旧 `board.js` 的页面快捷键在浮层开着时让位（`boardPickerIsOpen()`）。
+- **用户可见的变化**：`Ctrl/⌘ + Enter` 连加（与底栏提示「⌘ 连加」对上，原来 Enter 带不带修饰键都一样）；浮层开着时背后页面的快捷键不再触发（原来焦点不在搜索框时按 V 会切题库视图）；`←` 折叠后紧接 `→` 能展开同一个组（原来折叠后高亮跳到最前面，`→` 找不到组）；`aria-activedescendant` 指向真实的行 id（原来写的是板 id）；「换个板…」的提示写「已从《原板》移到《新板》」（原来原板名总是空）；不在对话框里时关闭后焦点回到触发元素；「已全部在板中」的行用前景色退一档，不再用透明度；可点目标桌面 ≥28、手机 40，手机隐藏底栏键盘提示。其余行为与文案不变；侧栏版本号变为 v1.26.3。
+- **测试**：新增 `tests/app/board-picker.test.mjs`（11）、`tests/e2e/board_picker.py`（31）；`core.test.mjs` 加浮层键盘层 3 条；`board.test.mjs` 的模块契约含选板浮层；`questions.py` 两处改查 `.bpicker`。
+
+
+## v1.26.2（2026-09-27）前端重构 P7 第 3 轮：拖拽排序与版面设置搬进新代码
+
+- **用户可见的只有一处：**「按标记同步」对话框打开时，焦点落在「同步到展示板」按钮上（原来写的是 P2 之前的选择器 `[data-ui-ok]`，找不到按钮，焦点落在默认位置）。其余行为、文案、确认时机都不变；侧栏版本号变为 v1.26.2。
+- **拖拽排序进 `assets/app/features/board/drag.js`**：列表行与左栏树的拖拽绑定（`bindBoardRowDrag` / `bindBoardTreeDrag`），落点改成纯函数 `boardRowDropPlan` / `boardTreeDropPlan`，键盘 Ctrl/⌘+↑↓ 与 ↑↓ 的目标位置 `boardKeyReorderTarget` / `boardKeySelectTarget`。拖拽中按 Esc 由浏览器取消，不会误移（新增用例覆盖）。
+- **版面设置进 `features/board/settings.js`**：`createBoardSettings` 负责版式字段规范化（`boardNormalizePrint`）、写入与记脏、答案与标记开关立即保存、单题留白、锁定保护（同一轮输入共用一个确认框，确认后本轮去抖保存前不再问）。旧 `BOARD_LAYOUT_CONFIRM` / `BOARD_LAYOUT_GRANTED` 删除，换成 `boardSettings().granted()` / `.revoke()`；`boardApplyPrintField`、`boardSetItemGap`、`boardAllowLayoutChange` 名字不变。
+- **测试**：新增 `tests/app/board-settings.test.mjs`（6）、`board-drag.test.mjs`（5）；`board-locked.test.mjs` 注入新模块、改读 `boardSettings().granted()`，`board-regions.test.mjs` 的「改板级字段后刷新读数」改查 `boardSettings()` 注入的钩子，用例不减。
+
+## v1.26.1（2026-09-27）前端重构 P7 第 2 轮：保存队列、打印协调与常驻预览搬进新代码
+
+- **无用户可见变化。** 保存时机（去抖 500ms、答案与标记开关立即保存、切 Tab 前与关页 sendBeacon）、打印预览窗口与下载、「记录纸面」、仅补印新增、重置纸面、常驻预览的消息协议与文案都不变；侧栏版本号变为 v1.26.1。打印预览窗口的占位页不再写行内样式与颜色字面量，改用系统字体与系统色（外观几乎一样）。
+- **保存队列进 `assets/app/features/board/save.js`**（`createBoardSaveQueue`、`boardAdoptSaved`）：旧 `BOARD_DIRTY` / `BOARD_SAVE_TIMER` / `BOARD_SAVE_IN_FLIGHT` 删除，`board.js` 的 `boardSaveQueue()` 懒创建唯一实例，当前板、请求、定时器与「采纳服务端返回的板」都由它注入；`boardMarkDirty` / `boardFlushSave` 名字不变。
+- **打印协调进 `features/board/print.js`**（`createBoardPrint`、`fetchBoardExport`、`measureBoardLayout`）：旧 `BOARD_PRINT_JOBS` / `BOARD_WINDOWS` 换成 `boardPrint().jobs` / `.windows`；`boardExportCurrent`、`boardMarkPrinted`、`boardResetPrinted`、`boardRecordPrinted`、`boardMarkAwaiting` 等旧名是一行包装。window 的 message 监听仍由 `board.js` 注册，转给 `handleMessage`。
+- **常驻预览进 `features/board/preview.js`**：assets/board_preview.js 删除（HTML 少一个 `<script>`），导出请求与打印共用 `fetchBoardExport`；外部读 iframe 改用 `boardPreviewFrame()`。
+- **测试**：新增 `tests/app/board-save.test.mjs`（8）、`board-print.test.mjs`（7），`board.test.mjs` 加一条五个模块导出不重名；`board-preview.test.mjs` 改测模块、`board-locked.test.mjs` 注入保存与打印模块，用例不减；`tests/smoke_board_integrity.py` 的 `BOARD_DIRTY` / `BOARD_WINDOWS` / `BP_FRAME` 改用新访问器。
+
+## v1.26.0（2026-09-27）前端重构 P7 第 1 轮：展示板纯函数与测试搬进新代码
+
+- **无用户可见变化。** 展示板页、选板浮层、常驻预览、打印与纸面记录的行为、文案、请求体不变；侧栏版本号变为 v1.26.0。
+- **页面纯函数进 `assets/app/features/board/model.js`**：打印状态机 `boardStatusModel`、题后留白 `boardEffectiveGap` / `boardItemsPayload`、排序 `boardMoveItems`、保存载荷 `boardDirtyMerge` / `boardSavePayload`、锁定边界 `boardPaperLayoutChanged`、估算文案 `boardEstimateText`、`boardFormatTime`、纸面几何 `boardGapCm` / `boardColumnWidth` 与常量 `CUT_LINES` / `BOARD_LINE_PX` / `BOARD_MM_PX`；另把旧 `boardContentSignature()` / `boardPreviewGaps()` 的计算拆成纯函数 `boardItemsSignature` / `boardGapMap`（旧函数变成一行包装）。
+- **选板纯函数进 `assets/app/domain/board/model.js`**：`boardFolderTree`、`boardPickerRowState`、`boardPickerFilter`、`boardPickerRecent`、`boardUniqueUids`。原 `domain/board.js` 改为 `domain/board/index.js`（再导出纯函数，保留 `boardQuickAdd` / `boardChooseAndAdd` 适配器），题目库与数据复盘的 import 随之改路径。
+- **过渡桥 `installBoardBridge`** 把两个模块的导出按原名挂回全局，旧 assets/board.js、assets/board_picker.js 删掉对应定义后照常调用。
+- **测试**：tests/test_board_ui.js、test_board_regions.js、test_board_preview.js、test_board_locked_incremental.js 迁为 `tests/app/board.test.mjs`、`board-regions.test.mjs`、`board-preview.test.mjs`、`board-locked.test.mjs`，61 个用例原样保留，另加 6 个（签名、留白表、锁定边界、时间格式、几何常量、两模块导出不重名）。
+
 ## v1.25.13（2026-09-27）前端重构 P6：收件箱网格与手机上传页
 
 - 收件箱网格迁入 `features/create/`：原图卡片、框位缩略预览、状态筛选、全选与批量操作由页面模块渲染。网格与尚未迁移的处理工作区暂时共用图片列表和选择状态；已录入卡片打开关联题目，批量丢弃失败时保留选择并就地显示原因。
@@ -179,7 +228,7 @@
 
 ## v1.18.0
 
-> **v1.18.0 展示板重构：状态条 / 舞台 / 检查器三区**：起因是「展示板的 UI 操作有点太怪」，拆出来是四条职责放错位置——能做什么随视图变（纸面有检视条、列表是行内控件、画廊两样都没有）、打印范围藏在会遮住纸面的浮层里、题后留白有三个彼此不可见的入口、打印状态机没有落脚点（未打印 / 已印 N 页 / 新增 M 题 / K 题已改动散在副标题、警告条、行内徽章和浮层里，没有一处说下一步做什么，所以最容易漏掉「标记为已打印」）。改法：新增纯函数 `boardStatusModel(board, mode, awaiting)` 一处算出状态 chips、打印范围、唯一主行动与一句「为什么」；`#bd-statusbar` 承载它，打印范围分段 `[data-board-modes]` 从浮层提到这里，主按钮 `[data-board-primary]` 全页唯一；触发打印预览 / 下载 HTML 后主按钮翻成「✓ 记录纸面」（`BOARD_AWAITING_RECORD`），记录成功、重置纸面或改范围才复位。新增常驻检查器 `#bd-inspector`，三段 `[data-sec="item|layout|paper"]`；`boardSettingsPopHtml` / `boardPopOpen` / `boardPopClose` / `boardPopPlace` / `boardPopRefresh` / `BOARD_POP` 与 `.bd-pop*` 样式整套删除，旧检视条 `#bd-inspect` 一并移除。题后留白写入口收敛到检查器一个（`[data-board-inspect-gap]`），列表行与画廊卡改 `[data-board-gap-view]` 只读回显，点它 = 选中并把焦点送进检查器；新增 `boardRefreshLiveReadouts()` 让板级 `gap_lines` 一改，继承它的单题读数与两处回显一起刷新。舞台栏 `.bd-stagebar` 只留视图分段与内容操作，翻页条另占一行；缩放档状态化为 `BOARD_ZOOM`（此前初始态两个按钮都不高亮）。常驻预览在 `omrs-board-view` 里带 `embedded:true`，导出模板据此收起顶栏 `#bar`，舞台里不再出现第二套打印与记录入口。`.bd-layout` 改 `200px / 1fr / 268px` 三列，≤1180px 检查器折到底部通栏。顺手修掉一个既有缺陷：`boardEffectiveMode()` 原先不看新增数，「补印新增 → 记录纸面」之后模式仍是 `new` 而新增已归零，下一次导出会报「没有新增题目需要打印」；现在它直接返回 `boardStatusModel().scope`，与状态条同源。新增 `tests/test_board_regions.js`（17 项）守三条不变量与状态机五态。
+> **v1.18.0 展示板重构：状态条 / 舞台 / 检查器三区**：起因是「展示板的 UI 操作有点太怪」，拆出来是四条职责放错位置——能做什么随视图变（纸面有检视条、列表是行内控件、画廊两样都没有）、打印范围藏在会遮住纸面的浮层里、题后留白有三个彼此不可见的入口、打印状态机没有落脚点（未打印 / 已印 N 页 / 新增 M 题 / K 题已改动散在副标题、警告条、行内徽章和浮层里，没有一处说下一步做什么，所以最容易漏掉「标记为已打印」）。改法：新增纯函数 `boardStatusModel(board, mode, awaiting)` 一处算出状态 chips、打印范围、唯一主行动与一句「为什么」；`#bd-statusbar` 承载它，打印范围分段 `[data-board-modes]` 从浮层提到这里，主按钮 `[data-board-primary]` 全页唯一；触发打印预览 / 下载 HTML 后主按钮翻成「✓ 记录纸面」（`BOARD_AWAITING_RECORD`），记录成功、重置纸面或改范围才复位。新增常驻检查器 `#bd-inspector`，三段 `[data-sec="item|layout|paper"]`；`boardSettingsPopHtml` / `boardPopOpen` / `boardPopClose` / `boardPopPlace` / `boardPopRefresh` / `BOARD_POP` 与 `.bd-pop*` 样式整套删除，旧检视条 `#bd-inspect` 一并移除。题后留白写入口收敛到检查器一个（`[data-board-inspect-gap]`），列表行与画廊卡改 `[data-board-gap-view]` 只读回显，点它 = 选中并把焦点送进检查器；新增 `boardRefreshLiveReadouts()` 让板级 `gap_lines` 一改，继承它的单题读数与两处回显一起刷新。舞台栏 `.bd-stagebar` 只留视图分段与内容操作，翻页条另占一行；缩放档状态化为 `BOARD_ZOOM`（此前初始态两个按钮都不高亮）。常驻预览在 `omrs-board-view` 里带 `embedded:true`，导出模板据此收起顶栏 `#bar`，舞台里不再出现第二套打印与记录入口。`.bd-layout` 改 `200px / 1fr / 268px` 三列，≤1180px 检查器折到底部通栏。顺手修掉一个既有缺陷：`boardEffectiveMode()` 原先不看新增数，「补印新增 → 记录纸面」之后模式仍是 `new` 而新增已归零，下一次导出会报「没有新增题目需要打印」；现在它直接返回 `boardStatusModel().scope`，与状态条同源。新增 tests/test_board_regions.js（17 项，v1.26.0 起迁为 `tests/app/board-regions.test.mjs`）守三条不变量与状态机五态。
 
 ## v1.17.0
 
