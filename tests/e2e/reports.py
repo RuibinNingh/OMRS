@@ -103,15 +103,27 @@ def run_main(page, base, results):
     check("删除前出现确认对话框", wait(page, "() => !!document.querySelector('dialog[open]')"))
     page.locator('dialog[open] .ui-dialog__foot [data-dialog-cancel]').click()
     check("取消删除保留报告", page.locator('.rpw-row').count() == 1)
+    page.evaluate("""() => { const original = window.fetch.bind(window); window.__deleteCount = 0;
+      window.fetch = (url, options) => {
+        if (String(url).includes('/api/report/delete')) {
+          window.__deleteCount++;
+          return new Promise(resolve => { window.__releaseDelete = () => resolve(original(url, options)); });
+        }
+        return original(url, options);
+      };
+    }""")
     page.click('[data-action="reports.delete"]')
     page.locator('dialog[open] [data-dialog-ok]').click()
+    check("删除期间禁用按钮并防止重复请求", wait(page, "() => !!document.querySelector('[data-action=\"reports.delete\"][disabled]')")
+          and page.evaluate("() => { document.querySelector('[data-action=\"reports.delete\"]').click(); return window.__deleteCount; }") == 1)
+    page.evaluate("window.__releaseDelete()")
     check("确认删除后列表恢复空态", wait(page, "() => !!document.querySelector('#rp-list .ui-empty')"))
 
     page.route("**/api/reports", lambda route: route.fulfill(status=503, content_type="application/json", body='{"msg":"模拟报告失败"}'))
     page.click('[data-action="reports.refresh"]')
     check("列表请求失败显示原因", wait(page, "() => document.querySelector('.rpw-error')?.textContent.includes('模拟报告失败')"))
     page.unroute("**/api/reports")
-    page.click('[data-action="reports.refresh"]')
+    page.click('.rpw-error [data-action="reports.refresh"]')
     check("重试清除错误", wait(page, "() => !document.querySelector('.rpw-error')"))
 
 

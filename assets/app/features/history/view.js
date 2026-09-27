@@ -22,7 +22,7 @@ function reviewStrip(row, rs) {
   </div>`;
 }
 
-function reviewOps(row, busy) {
+function reviewOps(row, busy, writing) {
   const feedbacks = row.payload?.feedbacks;
   if (!Array.isArray(feedbacks) || !feedbacks.length) return '';
   const first = feedbacks[0];
@@ -36,24 +36,24 @@ function reviewOps(row, busy) {
       <label>原因<input class="hvw-input" id="hist-review-reason-${seq}" placeholder="原因"></label>
     </div>
     <div class="hvw-actions">
-      ${button({ label: '修改反馈', size: 'sm', action: 'history.review', arg: `${seq}:replace`, loading: busy })}
-      ${button({ label: '撤销反馈', size: 'sm', variant: 'danger', action: 'history.review', arg: `${seq}:retract`, loading: busy })}
-      ${button({ label: '恢复反馈', size: 'sm', action: 'history.review', arg: `${seq}:restore`, loading: busy })}
+      ${button({ label: '修改反馈', size: 'sm', action: 'history.review', arg: `${seq}:replace`, loading: busy, disabled: writing })}
+      ${button({ label: '撤销反馈', size: 'sm', variant: 'danger', action: 'history.review', arg: `${seq}:retract`, loading: busy, disabled: writing })}
+      ${button({ label: '恢复反馈', size: 'sm', action: 'history.review', arg: `${seq}:restore`, loading: busy, disabled: writing })}
     </div>
   </div>`;
 }
 
-function operations(row, busy) {
+function operations(row, busy, writing) {
   const sid = historyNodeSessionId(row);
   if (row.seq <= 1 && !sid && !row.payload?.feedbacks?.length) return '';
   return html`<details class="hvw-ops"><summary>修改 / 撤销 / 还原</summary>
-    <div class="hvw-ops__body">${reviewOps(row, busy)}
+    <div class="hvw-ops__body">${reviewOps(row, busy, writing)}
       ${sid ? html`<div class="hvw-operation"><span>Session <strong>${sid}</strong></span>
-        ${button({ label: '撤销整次 Session', size: 'sm', variant: 'danger', action: 'history.session', arg: `${row.seq}:retract`, loading: busy })}
-        ${button({ label: '恢复 Session', size: 'sm', action: 'history.session', arg: `${row.seq}:restore`, loading: busy })}
+        ${button({ label: '撤销整次 Session', size: 'sm', variant: 'danger', action: 'history.session', arg: `${row.seq}:retract`, loading: busy, disabled: writing })}
+        ${button({ label: '恢复 Session', size: 'sm', action: 'history.session', arg: `${row.seq}:restore`, loading: busy, disabled: writing })}
       </div>` : ''}
       ${row.seq > 1 ? html`<div class="hvw-operation"><label>状态还原原因<input class="hvw-input" id="hist-restore-reason-${row.seq}" placeholder="还原原因"></label>
-        ${button({ label: '还原到此节点', size: 'sm', action: 'history.restoreState', arg: String(row.seq), loading: busy })}</div>` : ''}
+        ${button({ label: '还原到此节点', size: 'sm', action: 'history.restoreState', arg: String(row.seq), loading: busy, disabled: writing })}</div>` : ''}
     </div>
   </details>`;
 }
@@ -70,7 +70,7 @@ function node(row, env) {
       </div>${tag({ label: row.commit_type, tone: 'neutral' })}</div>
       ${reviewStrip(row, env.rows.rs)}
       <p class="hvw-meta"><span>${row.commit_id}</span><span>${row.source || ''}</span><span>seq ${row.seq}</span></p>
-      <div class="hvw-folds"><details class="hvw-details"><summary>查看详情</summary><pre>${historyPayloadPreview(row)}</pre></details>${env.s.edit ? operations(row, busy) : ''}</div>
+      <div class="hvw-folds"><details class="hvw-details"><summary>查看详情</summary><pre>${historyPayloadPreview(row)}</pre></details>${env.s.edit ? operations(row, busy, env.s.busy.size > 0) : ''}</div>
     </div>
   </article>`;
 }
@@ -83,7 +83,7 @@ function correction(row, env) {
   return html`<article class="hvw-correction" data-key="correction-${row.commit_id || row.seq}">
     <div class="hvw-correction__head"><div><h3>${row.summary || row.message || row.commit_type}</h3>
       <p class="hvw-meta"><span>${formatLedgerTime(row.created_at, env.zone)}</span><span>seq ${row.seq}</span><span>${target}</span></p></div>
-      ${restore && env.s.edit ? button({ label: '恢复', size: 'sm', action: 'history.directRestore', arg: String(row.seq), loading: env.s.busy.has(String(row.seq)) }) : ''}
+      ${restore && env.s.edit ? button({ label: '恢复', size: 'sm', action: 'history.directRestore', arg: String(row.seq), loading: env.s.busy.has(String(row.seq)), disabled: env.s.busy.size > 0 }) : ''}
     </div>
     <details class="hvw-details"><summary>查看记录</summary><pre>${historyPayloadPreview(row)}</pre></details>
     ${p.reason ? html`<p class="hvw-reason">${p.reason}</p>` : ''}

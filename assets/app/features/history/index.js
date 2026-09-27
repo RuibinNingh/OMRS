@@ -15,7 +15,18 @@ function createController(root, ctx) {
   let alive = true;
   let loadSeq = 0;
   let slow = 0;
-  const paint = () => { if (alive) morph(host, view(s, ledgerTimeZone())); };
+  const paint = () => {
+    if (!alive) return;
+    const expanded = new Set([...host.querySelectorAll('details[open]')].map(detail => {
+      const row = detail.closest('.hvw-node, .hvw-correction');
+      return row ? `${row.getAttribute('data-key')}:${detail.className}` : '';
+    }));
+    morph(host, view(s, ledgerTimeZone()));
+    for (const detail of host.querySelectorAll('.hvw-node details, .hvw-correction details')) {
+      const row = detail.closest('.hvw-node, .hvw-correction');
+      if (expanded.has(`${row.getAttribute('data-key')}:${detail.className}`)) detail.open = true;
+    }
+  };
   const rowOf = seq => s.commits.find(row => String(row.seq) === String(seq));
 
   function scrollToLatest() {
@@ -52,7 +63,7 @@ function createController(root, ctx) {
 
   async function perform(seq, prepare) {
     const key = String(seq);
-    if (!s.edit || s.busy.has(key)) return;
+    if (!s.edit || s.busy.size) return;
     s.busy.add(key);
     s.writeError = '';
     s.note = '';

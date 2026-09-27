@@ -8,11 +8,12 @@ import { view } from './view.js';
 
 let controller = null;
 let savedTree = null;
+let savedOpen = null;
 
 function createController(root, ctx) {
   const host = root.querySelector('#cat-app') || root;
   const s = { tree: savedTree?.tree || null, summary: savedTree?.summary || null,
-    source: savedTree?.source || '', open: new Set(savedTree?.tree ? [savedTree.tree.path] : []),
+    source: savedTree?.source || '', open: new Set(savedOpen || []),
     stats: new Map(), query: '', showAll: false, loading: false, error: '', copyMessage: '' };
   let alive = true;
   let requestId = 0;
@@ -49,7 +50,10 @@ function createController(root, ctx) {
       }
     }
     savedTree = { tree: s.tree, summary: s.summary, source: s.source };
-    if (!s.open.size && s.tree) s.open.add(s.tree.path);
+    if (!s.open.size && s.tree) {
+      s.open.add(s.tree.path);
+      (s.tree.children || []).forEach(child => s.open.add(child.path));
+    }
     paint();
     return result;
   }
@@ -89,7 +93,7 @@ function createController(root, ctx) {
       }
       paint();
     },
-    dispose() { alive = false; requestId += 1; clearTimeout(slow); },
+    dispose() { savedOpen = new Set(s.open); alive = false; requestId += 1; clearTimeout(slow); },
   };
 }
 

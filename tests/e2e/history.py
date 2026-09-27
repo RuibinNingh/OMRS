@@ -85,9 +85,9 @@ def run_main(page, base, port, results):
     check("写入失败：列表保留，错误原因显示在操作位置且按钮恢复", wait(page, "() => document.querySelector('#hist-app .ui-status--danger')?.textContent.includes('模拟写入失败')")
           and page.locator(f'.hvw-node[data-seq="{seq}"]').count() == 1
           and not page.locator(f'.hvw-node[data-seq="{seq}"] [data-action="history.review"][aria-busy]').count())
+    check("请求失败后操作面板仍展开", page.locator(f'.hvw-node[data-seq="{seq}"] .hvw-ops').evaluate("el => el.open"))
     page.unroute("**/api/history/review/retract")
 
-    page.click(f'.hvw-node[data-seq="{seq}"] .hvw-ops summary')
     page.click(f'.hvw-node[data-seq="{seq}"] [data-action="history.review"][data-arg="{seq}:retract"]')
     page.click('dialog[open] [data-dialog-ok]')
     key = f"{commit_id}:0"

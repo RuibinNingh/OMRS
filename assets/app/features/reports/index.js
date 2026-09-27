@@ -32,10 +32,13 @@ async function copyText(text) {
 function createController(root) {
   const host = root.querySelector('#rp-app') || root;
   const s = { reports: [], loaded: false, loading: false, listError: '', selectedId: '', includeImages: false,
-    name: '', file: null, fileError: '', uploading: false, downloading: false, status: '', statusTone: '' };
+    name: '', file: null, fileError: '', uploading: false, downloading: false,
+    deleting: false, copying: false, confirming: false, status: '', statusTone: '' };
   const bound = new WeakSet();
   let alive = true;
   let loadId = 0;
+  let slow = 0;
+  const busy = () => s.uploading || s.downloading || s.deleting || s.copying || s.confirming;
   const paint = () => {
     if (!alive) return;
     morph(host, view(s));
@@ -43,7 +46,7 @@ function createController(root) {
     if (zone && !bound.has(zone)) {
       bound.add(zone);
       bindFileDrop(zone, files => {
-        if (!alive || s.uploading) return;
+        if (!alive || busy()) return;
         s.file = files[0] || null;
         s.fileError = fileError(s.file);
         paint();
@@ -60,10 +63,13 @@ function createController(root) {
   async function load() {
     if (s.loading) return;
     const mine = ++loadId;
-    s.loading = true;
+    clearTimeout(slow);
+    if (s.loaded) s.loading = true;
+    else slow = setTimeout(() => { if (alive && mine === loadId) { s.loading = true; paint(); } }, 300);
     s.listError = '';
     paint();
     const result = await get('/api/reports');
+    clearTimeout(slow);
     if (!alive || mine !== loadId) return result;
     s.loading = false;
     s.loaded = true;
@@ -76,7 +82,7 @@ function createController(root) {
   }
 
   async function create() {
-    if (s.uploading) return;
+    if (busy()) return;
     const name = s.name.trim();
     if (!name) { message('请填写报告名称', 'danger'); return; }
     s.fileError = fileError(s.file);
@@ -101,17 +107,26 @@ function createController(root) {
   }
 
   async function remove(id) {
-    if (!s.reports.some(row => row.id === id)) return;
-    if (!await confirm('删除该报告？', { okText: '删除', danger: true })) return;
-    const result = await post('/api/report/delete', { id });
-    if (!alive) return;
-    if (!result.ok) { message(`删除失败：${result.error?.message || '未知错误'}`, 'danger'); return; }
-    message('报告已删除', 'success');
-    await load();
+    if (busy() || !s.reports.some(row => row.id === id)) return;
+    s.confirming = true;
+    const accepted = await confirm('删除该报告？', {
+      hint: '托管的 HTML 文件会被删除，AI 分析材料不受影响。', okText: '删除', danger: true,
+    });
+    s.confirming = false;
+    if (!alive || !accepted) return;
+    s.deleting = true;
+    paint();
+    try {
+      const result = await post('/api/report/delete', { id });
+      if (!alive) return;
+      if (!result.ok) { message(`删除失败：${result.error?.message || '未知错误'}`, 'danger'); return; }
+      message('报告已删除', 'success');
+      await load();
+    } finally { s.deleting = false; if (alive) paint(); }
   }
 
   async function download() {
-    if (s.downloading) return;
+    if (busy()) return;
     s.downloading = true;
     message('正在准备 AI 分析材料…');
     try {
@@ -129,8 +144,13 @@ function createController(root) {
   }
 
   async function copyPrompt() {
-    const ok = await copyText(buildReportAiPrompt(s.includeImages));
-    if (alive) message(ok ? 'AI 报告提示词已复制' : '复制失败，请检查剪贴板权限', ok ? 'success' : 'danger');
+    if (busy()) return;
+    s.copying = true;
+    paint();
+    try {
+      const ok = await copyText(buildReportAiPrompt(s.includeImages));
+      if (alive) message(ok ? 'AI 报告提示词已复制' : '复制失败，请检查剪贴板权限', ok ? 'success' : 'danger');
+    } finally { s.copying = false; if (alive) paint(); }
   }
 
   return {
@@ -140,7 +160,7 @@ function createController(root) {
     open(id) { if (s.reports.some(row => row.id === id)) { s.selectedId = id; paint(); host.querySelector('.rpw-preview')?.scrollIntoView?.({ block: 'nearest' }); } },
     close() { s.selectedId = ''; paint(); },
     newTab(id) { if (s.reports.some(row => row.id === id)) window.open(`/api/report/view?id=${encodeURIComponent(id)}`, '_blank', 'noopener'); },
-    dispose() { alive = false; loadId += 1; },
+    dispose() { alive = false; loadId += 1; clearTimeout(slow); },
   };
 }
 

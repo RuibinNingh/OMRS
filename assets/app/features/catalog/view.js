@@ -39,7 +39,7 @@ function folder(node, env) {
     .filter(file => !env.query || node.name.toLocaleLowerCase().includes(env.query)
       || file.name.toLocaleLowerCase().includes(env.query));
   return html`<div class="catw-folder" data-key="dir:${node.path}">
-    <div class="catw-folder__line"><button class="catw-row catw-row--dir" data-action="catalog.toggle" data-arg="${node.path}" aria-expanded="${!!open}">
+    <div class="catw-folder__line"><button class="catw-row catw-row--dir" data-action="catalog.toggle" data-arg="${node.path}" aria-expanded="${open ? 'true' : 'false'}">
       ${icon(open ? 'chevron-down' : 'chevron-right')}${icon('folder')}<span class="catw-name">${node.name}</span>
       <span class="catw-badges">${node.question_count ? html`<span class="catw-badge">${node.question_count} 题</span>` : ''}
         ${statRow?.due ? html`<span class="catw-badge" data-tone="warning">${statRow.due} 待复习</span>` : ''}

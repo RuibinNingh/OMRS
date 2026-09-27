@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-27_ccw-p6-merge](2026-09-27_ccw-p6-merge.md)：合入 CCW 的 P6 第 6–8 轮交付差异
 - [2026-09-26_omrs-p6-deploy-preflight](2026-09-26_omrs-p6-deploy-preflight.md)：OMRS P6r5 部署可行性预检
 - [2026-09-26_deploy-v1.25.4-production](2026-09-26_deploy-v1.25.4-production.md)：# OMRS v1.25.4（P6r5）生产部署记录
 - [2026-09-26_agents-planning-mode](2026-09-26_agents-planning-mode.md)：AGENTS 规划模式与前端重构执行者切换

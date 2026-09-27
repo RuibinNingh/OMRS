@@ -27,7 +27,7 @@
   - 含 `session_id` 的节点：撤销整次 Session 或恢复 Session。
   - 非 genesis 节点：追加 `state.restore`，还原结构化状态到该 seq。
 - 所有按钮都调用历史修正 API 追加新 commit，不会修改旧节点。
-- 修正请求统一返回 `{ok, data, error}`。请求期间操作按钮置忙；成功后依次清题目详情缓存、重载统计与 Session、发 `history:changed` 通知仪表盘，再重拉时间线。刷新失败时保留现有列表并显示原因；首次加载超过 300ms 才显示骨架。
+- 修正请求统一返回 `{ok, data, error}`。请求期间禁用全部写操作，避免不同节点并发提交；重绘时保留已展开的详情与操作面板。成功后依次清题目详情缓存、重载统计与 Session、发 `history:changed` 通知仪表盘，再重拉时间线。刷新失败时保留现有列表并显示原因；首次加载超过 300ms 才显示骨架。
 
 ## 数据页（复盘，`features/data/`，v1.25.1 起）
 
@@ -73,7 +73,7 @@
 - **准备 AI 材料**：创建卡片提供「复制 AI 报告提示词」和「下载分析数据」。`#rp-include-images` 控制是否带题图：关闭时下载 Markdown；开启时请求 `/api/export-review?include_images=1` 下载 Markdown + `images/` 的 ZIP。提示词同步切换图片约束，并要求 AI 只返回可直接上传的完整单文件 HTML、不得虚构数据。报告允许通过 HTTPS 使用外部字体、图表和图标资源，但禁止广告/追踪脚本，并要求依赖加载失败时核心内容仍可阅读。
 - **列表**：挂载和刷新时读取 `/api/reports`，失败保留现有列表并显示原因；每行列出名称、创建时间、大小和 id。
 - **浏览**：点「浏览」后在页面下方用 `iframe sandbox="allow-scripts allow-downloads allow-popups"` 预览，不带 `allow-same-origin`；「新标签打开」沿用 `/api/report/view?id=...`。报告脚本运行于独立来源的 CSP 沙箱；后端为静态题图 URL 加单图签名，图片仍可加载，脚本不能读取 OMRS API。
-- **删除**：先用 `ui/dialog` 确认，再 `POST /api/report/delete`；成功后重拉列表。进入报告页时读取列表，离开后迟到的结果不再渲染。
+- **删除**：先用 `ui/dialog` 确认，再 `POST /api/report/delete`；提交期间禁用报告操作，避免重复删除，成功后重拉列表。首次列表请求超过 300ms 才显示骨架；失败时列表旁显示原因和「重试」。进入报告页时读取列表，离开后迟到的结果不再渲染。
 
 ### 报告如何引用题目图片（与后端对接）
 

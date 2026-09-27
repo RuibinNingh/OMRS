@@ -58,7 +58,7 @@ assets/app/
 | `core/format.js` | `formatDate`、`relativeDays`、`formatPercent`、`formatNumber`、`formatDuration` | 空值与非法值显示「—」；`YYYY-MM-DD` 按本地日期解析 |
 | `core/download.js` | `downloadResponse(response, fallbackName)`、`fileNameOf` | 把 fetch 响应存成文件；文件名优先取 `Content-Disposition`（含 `filename*=UTF-8''`）；不写页面状态（v1.25.1 起，数据复盘导出用）|
 
-纯逻辑的单测在 `tests/app/core.test.mjs`（node），依赖 DOM 的 morph、事件委托、快捷键在 `tests/app/core_tests.js`（由 `tests/app/run_browser.py` 在浏览器里跑）。浏览器测试（`tests/app/run_browser.py`、`tests/e2e/`）在设了 `OMRS_TEST_CDP_URL` 时连接已开着的 Chromium（本机直接启动会崩溃的环境用），否则自行启动；等待一律等条件成立（`wait_for_function`），不写固定延时。
+纯逻辑的单测在 `tests/app/core.test.mjs`（node），依赖 DOM 的 morph、事件委托、快捷键在 `tests/app/core_tests.js`（由 `tests/app/run_browser.py` 在浏览器里跑）。浏览器测试（`tests/app/run_browser.py`、`tests/e2e/`）在设了 `OMRS_TEST_CDP_URL` 时连接已开着的 Chromium（本机直接启动会崩溃的环境用），否则自行启动；等待一律等条件成立（`wait_for_function`），不写固定延时。历史、目录、报告的回归脚本覆盖操作区重绘、目录展开状态和删除防重。
 
 ## 5. 状态与总线
 

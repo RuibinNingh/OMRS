@@ -68,11 +68,14 @@ def run_main(page, base, port, results):
           and page.locator('#catalog-stat .ui-stat').count() == 4)
     check("文件夹与题目计数采用服务端 summary", page.locator('#catalog-stat').inner_text().find(str(actual['summary']['questions'])) >= 0)
     root = page.locator('.catw-folder[data-key="dir:错题"]')
-    check("大树默认只展开根节点", root.count() == 1 and root.locator('.catw-folder__line').count() > 1
-          and page.locator('.catw-file').count() == 0)
+    check("默认展开根与一级目录", root.count() == 1 and root.locator('.catw-folder__line').count() > 1
+          and page.locator('.catw-row--dir[aria-expanded="true"]').count() > 1,
+          page.locator('.catw-row--dir').evaluate_all("nodes => nodes.map(n => [n.textContent.trim(), n.getAttribute('aria-expanded')])"))
     first = page.locator('.catw-folder__line [data-action="catalog.toggle"]').nth(1)
     first.click()
-    check("点目录行展开一级", page.locator('.catw-folder__line').count() > 2)
+    check("点目录行可折叠一级", first.get_attribute('aria-expanded') == 'false', first.get_attribute('aria-expanded'))
+    first.click()
+    check("再次点击恢复展开", first.get_attribute('aria-expanded') == 'true', first.get_attribute('aria-expanded'))
 
     page.fill('#catalog-search', '向量')
     check("搜索展开命中分支并过滤无关文件", wait(page, "() => document.querySelector('#catalog-tree')?.textContent.includes('向量')")
@@ -92,6 +95,10 @@ def run_main(page, base, port, results):
     check("关掉全部文件后恢复题目文件列表", page.locator('.catw-file').count() == question_files)
     page.click('[data-action="catalog.collapse"]')
     check("全部折叠只留根层", page.locator('.catw-file').count() == 0)
+    page.evaluate("location.hash = '#/dashboard'")
+    page.evaluate("location.hash = '#/catalog'")
+    check("切页后保留折叠状态", wait(page, "() => !!document.querySelector('#cat-app .catw-folder')")
+          and page.locator('.catw-file').count() == 0)
 
     page.click('[data-action="catalog.expand"]')
     question = page.locator('[data-action="catalog.open"]').first
@@ -119,14 +126,14 @@ def run_main(page, base, port, results):
     page.on("request", lambda request: reads.append(request.url) if request.url.endswith('/api/tree') else None)
     page.route("**/api/scan", lambda route: route.fulfill(status=200, content_type="application/json",
                                                      body='{"status":"error","msg":"模拟失败"}'))
-    page.click('[data-action="app.scan"]')
+    page.locator('#cat-app [data-action="app.scan"]').click()
     check("扫描失败不会重读目录树", wait(page, "() => document.body.textContent.includes('模拟失败') && !document.querySelector('[data-action=\"app.scan\"][aria-busy]')")
           and not reads, reads)
     page.unroute("**/api/scan")
     page.route("**/api/scan", lambda route: route.fulfill(status=200, content_type="application/json",
                                                      body='{"status":"ok","count":8}'))
     with page.expect_request("**/api/tree"):
-        page.click('[data-action="app.scan"]')
+        page.locator('#cat-app [data-action="app.scan"]').click()
     check("本页重新扫描成功后重读磁盘树", len(reads) == 1, reads)
     page.unroute("**/api/scan")
 

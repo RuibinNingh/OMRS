@@ -45,7 +45,7 @@ test('搜索命中后代并过滤不相关分支', () => {
   assert.equal(matches(tree, '找不到'), false);
 });
 
-test('展开全部的路径唯一，默认只需根节点', () => {
+test('展开全部的路径唯一', () => {
   assert.deepEqual(treePaths(tree), ['错题', '错题/数学', '错题/数学/隐圆模型', '错题/物理', '错题/物理/动能定理']);
 });
 
@@ -58,6 +58,7 @@ test('目录文件大小格式与旧页面一致', () => {
 test('题目文件可打开，文件夹标出题量、待复习、顽固题', () => {
   const markup = String(view(state(), items, due));
   assert.match(markup, /data-action="catalog.open"/);
+  assert.match(markup, /aria-expanded="true"/);
   assert.match(markup, /2 题/);
   assert.match(markup, /待复习/);
   assert.match(markup, /顽固/);
