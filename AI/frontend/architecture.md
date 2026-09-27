@@ -76,7 +76,7 @@ assets/app/
 | 位置 | 内容 | 删除期 |
 |---|---|---|
 | `assets/app/legacy-bridge.js` | 旧 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 转调新组件 | P8 |
-| `assets/app/legacy-pages.js` | 旧页面登记表（当前只登记 board、create） | 每页迁移时删一项，P8 删文件 |
+| `assets/app/legacy-pages.js` | 旧页面登记表（当前只登记 board） | 每页迁移时删一项，P8 删文件 |
 | `assets/app/legacy-bridge.js` 的 `installScheduleBridge`（v1.25.2 起；v1.25.3 补推荐选题，v1.25.4 补导出）：`refreshSessions` → `domain/sessions.js`；`schOpenPlan(id)` → 复习调度页事件（不在本页时先切页）；`confirmScheduleV2()` / `loadRecommendationsV2()` → 「安排复习」控制器；`renderUnifiedListV2()` / `renderExportPicker()` → 页面重绘；`downloadExportResponse(response, name, statusId)` → `core/download.js`；只读 `SCH_VIEW`、`SCH_EXPORT_RETURN`、`SCH_SESSIONS_LOADING`、`REC_DATA_V2`、`REC_LOADING`、`REC_ERROR` | app.js `init()`、history.js、schedule.js 的 `doScan`、labels.js（标记变化后）、domain/question/ops.js（批量 A4）；tests/e2e 与冒烟测试 | 调用方迁完逐条删，P8 清空 |
 | `assets/app/legacy-bridge.js` 的 `installDataBridge`（v1.25.0）：全局 `reloadData` → `domain/data.js`；旧刷新链 `legacyDataRefresh()` 登记为钩子；`QUESTION_CACHE` / `QUESTION_PENDING` 只读全局 | `reloadData`：app.js `init()`、inbox.js、labels.js、schedule.js 的写操作之后；目录与历史页通过 store / bus 自行订阅；缓存：board.js | 刷新链随各页迁移逐项删，P8 清空 |
 | `assets/app/legacy-bridge.js` 的 `instLoadPractice(preset)`、`INSTANT_QUEUE` | 旧入口带预设进入即时练习（仪表盘已改为直接发 `instant:load`，现仅 `tests/e2e/instant.py` 回归用）；旧冒烟测试读队列 | P8 |

@@ -389,3 +389,31 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 - `tests/visual/run.py --ref HEAD --pages settings` 四张截图差异：桌面浅 / 深 3.787% / 4.337%，手机浅 / 深 14.307% / 14.737%。导航由旧紧凑列改成统一间距与清晰选中边，卡片布局和开关尺寸扩大，手机控件纵向重排；侧栏版本号从 v1.25.7 改为 v1.25.8。首屏运行时审计从旧版 5–6 档字号、最小 10.2/10.8px 改为 3 档、最小 12px，四种组合均无脚本错误。已人工审阅桌面浅色与手机深色截图。
 
 未执行：生产部署（需要用户单独授权）；Firefox、WebKit 和 12 页空态终检属于后续计划阶段。
+
+---
+
+## 录入题目外壳与工作区导航（2026-09-27，v1.25.10）
+
+### 盘点与行为变化
+
+- `assets/inbox.js` 的 673 行分为上传与收件箱筛选、框选画布与保存、检测 / 提取任务、题卡与提交、训练数据和策略五组；`ibBind()` 在 `#panel-create` 上委托点击 / 输入 / 变更，并在 `document` 捕获粘贴、监听处理区快捷键 Q / A / X / Delete / Enter / Ctrl+Enter / Esc，还在画布上绑定指针事件。`assets/app.js` 保留 `cr*` 快速录入图片与 AI 识别，`assets/schedule.js` 保留 `doCreate` / `resetCreateForm`，`assets/labels.js` 保留录入标记选择器。`omrs_dashboard.html` 的 `#panel-create` 包含 `ib-stage-upload / process / create / train / quick` 五区；`styles.css` 的 `.ib-*`、`.cr-*` 规则仍覆盖旧工作区。`tests/e2e/ui_bridge.py` 直接调全局 `ibToast`，其余调用方和旧内联事件仍保留。
+- `features/create/` 新增页面契约、导航状态与模板、导航样式；`main.js` 注册它，`legacy-pages.js` 移除 create 项。旧工作区放在 `#create-app`，挂载时仍调用旧 `inboxInit()`，保证上传、处理、录入、训练和快速录入都能继续使用。`ibGo()` 同步按钮的 `aria-current`，切页返回后旧控制器的阶段状态和导航保持一致。
+- 工作区入口改成原生按钮，前三步显示编号，AI 训练和快速录入使用统一 SVG 图标。手机导航采用三项加两项的两行排列，修掉首次截图发现的文字重叠。当前旧工作区的字体和行内样式仍待后续分步迁移，不能算 P6 页面指标已达标。
+
+### 影响文件
+
+- 页面与样式：`assets/app/features/create/`、`assets/app/main.js`、`assets/app/legacy-pages.js`、`assets/app/styles/index.css`、`assets/inbox.js`、`omrs_dashboard.html`。
+- 测试：`tests/e2e/create.py` 新增隔离实例的导航、上传与快速录入主路径。
+- 文档与版本：`AGENTS.md` 映射表、`AI/frontend/create.md`、`AI/frontend/architecture.md`、`AI/frontend/design-system.md`、`AI/frontend/shell.md`、`AI/inbox.md`、`AI/changelog.md`、`AI/README.md`、`README.md`、`omrs/version.py`、本计划 `progress.md`。
+
+### 验证
+
+已实际执行：`python3 tests/e2e/create.py` 8 / 8，使用临时空 Vault、随机端口与独立 Chromium，启动时移除了 `OMRS_SYSTEMD_SERVICE`；覆盖五个入口、图片暂存上传、键盘进入处理区、快速录入写入题库、切页返回保留工作区和页面脚本错误。`python3 tests/check_ui.py` 为 0 处问题，旧存量计数未增加；`python3 tests/check_contrast.py` 58 组达标；`git diff --check` 通过。
+
+`tests/visual/run.py --ref HEAD --pages create` 的四组截图均有差异：桌面浅 / 深色 3.893% / 4.005%，手机浅 / 深色 20.252% / 20.944%。桌面变化集中在按钮边框、编号与 SVG；手机导航由拥挤的一行改成两行，所以下方内容整体下移。浏览器页面脚本错误为 0；当前页桌面 12 档字号、最小 9.9px，手机 11 档、最小 10.5px，四组均有 6 处有效行内样式，属于尚未迁移的旧工作区。手机整页横向溢出由有变无；后续各工作区迁完再按 P6 验收指标审计。
+
+本提交的全量门禁实际运行：Python unittest 160 项通过；Node 238 / 238；组件浏览器测试 34 / 34；E2E 的 shell_router、ui_bridge、dashboard、data、schedule、instant、feedback、questions、history、catalog、reports、settings、create 依次为 20、15、26、21、45、23、31、92、23、26、24、50、8，均全部通过；`tests.smoke_schedule_workbench` 1 项通过。浏览器测试均使用临时 Vault、随机端口与独立 Chromium，隔离实例环境中移除 `OMRS_SYSTEMD_SERVICE`。
+
+`python3 tests/check_docs.py --write-log-index` 已运行；`python3 tests/check_docs.py --diff HEAD` 为 0 处问题、2 条既有的篇幅提醒。最后重跑 `check_ui.py` 为 0 处问题（旧存量 handlers 69、html_assign 48、inline_style 67、color_literals 95、font_size_literals 173），`check_contrast.py` 58 组均达标，`git diff --check` 通过。
+
+未执行：生产部署与远端设备验证（需用户单独授权）；Firefox、WebKit 和全站空态终检属于后续计划阶段。

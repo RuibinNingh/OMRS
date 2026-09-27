@@ -11,7 +11,7 @@
 ```
 omrs_dashboard.html   ← 仅 HTML 结构，<link> 引样式 + 多个 <script> 引脚本
 assets/
-├── app/              ← 新前端（ES Module）：main.js、shell.js、legacy-pages.js、legacy-bridge.js、core/、ui/、domain/、features/（仪表盘、数据复盘、复习调度、题目库、即时练习、反馈录入、历史记录、目录）、styles/（见 AI/frontend/architecture.md）
+├── app/              ← 新前端（ES Module）：main.js、shell.js、legacy-pages.js、legacy-bridge.js、core/、ui/、domain/、features/（含录入页外壳与导航）、styles/（见 AI/frontend/architecture.md）
 ├── styles.css        ← 旧页面样式，经 app/styles/index.css 以 @layer legacy 引入（颜色一律引用 token）
 ├── vendor/fonts/     ← 本地 Noto Sans SC / JetBrains Mono 字体分片、许可与来源清单
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染 + 做题记录解析
@@ -20,14 +20,14 @@ assets/
 ├── schedule.js       ← 录入提交（doCreate/resetCreateForm）、全局扫描 doScan 与两个旧入口；复习调度页在 assets/app/features/schedule/
 ├── board.js          ← 展示板 CRUD、排序、添加题目、打印（全部 / 仅新增）与纸面记录
 ├── board_preview.js  ← 展示板常驻预览 iframe 的生命周期与消息协议（必须排在 board.js 之后）
-└── app.js            ← switchTab（路由包装）/旧页面刷新链 legacyDataRefresh/设置 + 录入页图片粘贴/AI 识别/AI 设置 + init()（由 app/main.js 调用）
+└── app.js            ← switchTab（路由包装）/旧页面刷新链 legacyDataRefresh/录入页图片粘贴与 AI 识别/init()（由 app/main.js 调用）
 ```
 
 **加载约定（重要）：**
 - 除 `assets/app/main.js`（`<script type="module">`，排在 `app.js` 之后，浏览器在全部经典脚本之后才执行）外，脚本均为普通 `<script>`，共享同一全局作用域；顶层 `let`/`const` 跨文件可见，行内 `onclick` 仍可直接调用各函数。旧代码调用 `uiToast` 等过渡桥函数不必关心模块是否就绪：桥装好之前的调用会排队补发。
 - 样式只有两个 `<link>`：`assets/app/styles/tokens.css` 与 `assets/app/styles/index.css`。KaTeX 与 `styles.css` 由 `index.css` 分层引入，不要再单独 `<link>`（未分层的样式会压过全部分层样式）。
 - **加载顺序**：`labels.js` 在 `questions.js` 之前；`board.js` 在 `app.js` 之前。当前 HTML 的完整顺序为
-  `core → labels → questions → schedule → inbox → board → board_picker → board_preview → reports → app`。`board_preview.js` 必须排在 `board.js`
+  `core → labels → questions → schedule → inbox → board → board_picker → board_preview → app`。`board_preview.js` 必须排在 `board.js`
   **之后**：`board.js` 只在第一次真正用到预览时才 `boardPreviewOn(...)` 注册回调
   （`boardBindPreview()` 的惰性注册），否则模块顶层注册时 `boardPreviewOn` 还不存在。
 - 共享题目视图（`renderMdContent`、`ensureQuestionDetail`、`qvHtml`、`qvRender`、`viewQ` 等）已是模块 `assets/app/domain/question/`，由过渡桥在 `init()` 之前挂成同名全局；经典脚本只能在函数体里调用它们，不能在文件顶层直接调用（顶层执行时模块还没运行）。
@@ -65,7 +65,7 @@ assets/
 |---|---|---|
 | 题目库 | `.qlb` → `.qlb-card` → `.qlb-body`（`features/questions/questions.css`） | `.qlb-main` 里的表格 / 画廊、`.qlb-drawer` |
 | 反馈录入 | `.fb-work`（`grid-template-rows:minmax(0,1fr)`） | `.fb-rail` / `.fb-stage` / `.fb-panel` 三栏独立 |
-| 录入题目 | `.ib-stage.on`；处理页额外 `#ib-stage-process.on` → `.ib-proc` | 处理页三栏；上传 / 录入 / AI 训练三个 stage 整体滚 |
+| 录入题目 | `#create-app` → `.ib-stage.on`；处理页额外 `#ib-stage-process.on` → `.ib-proc` | 新页面契约渲染导航；旧工作区仍承载处理页三栏，上传 / 录入 / AI 训练三个 stage 整体滚 |
 | 展示板 | `.bd-layout` | `.bd-layout > .card` 三张 |
 | 即时练习 | `.inst-work`（`features/instant/instant.css`） | `.inst-main` / `.inst-queue__list` |
 

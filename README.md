@@ -13,7 +13,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 - 一个 **HTML/CSS/JS 单页前端**（`omrs_dashboard.html` + `assets/`）负责录入、即时练习、复习 Session、反馈、数据复盘与导出。
 - 没有构建步骤，题库、算法、Ledger、复习和导出均可离线使用；界面字体随 `assets/vendor/fonts/` 本地提供，AI 图片识别以及报告中用户选择的 HTTPS 外部资源属于可选联网能力。
 
-当前版本：**v1.25.9**。
+当前版本：**v1.25.10**。
 
 展示板锁定后仍可添加新题并补印：增删引用、排序和调整未打印题留白不会清空旧纸面记录；仅新增会沿用纸面记录中的实际比例与留白，改动已打印区域的版式才需要明确确认重印。
 
@@ -142,17 +142,17 @@ pack_for_ai.bat
 ├── assets/                 ← 前端静态资源（无构建）
 │   ├── app/styles/tokens.css ← 设计 token（颜色 / 字号 / 间距等），新前端代码都放 assets/app/
 │   ├── app/features/questions/ ← 题目库（表格 / 画廊、筛选抽屉、批量、视图预设）
-│   ├── app/features/instant/ ← 即时练习（第一个迁到新架构的页面）
+│   ├── app/features/instant/ ← 即时练习
+│   ├── app/features/create/ ← 录入题目页外壳与工作区导航（内容分步迁移中）
+│   ├── app/features/settings/ ← 设置页
 │   ├── styles.css
-│   ├── core.js / app.js / dashboard.js / questions.js
-│   ├── schedule.js / export.js / history.js
-│   ├── recommend_v2.js / actions.js / catalog.js
+│   ├── core.js / app.js / questions.js / schedule.js
 │   ├── app/features/reports/ ← 报告托管、上传与隔离预览
-│   ├── inbox.js            ← 收件箱录入流程（v1.12.0）；inbox_mobile.html 为手机上传页
+│   ├── inbox.js            ← 收件箱旧工作区控制器；inbox_mobile.html 为手机上传页
 │   ├── labels.js / board.js ← 标记与展示板交互（题库页 v1.24.0 起在 app/features/questions/）
 │   ├── vendor/fonts/       ← Noto Sans SC / JetBrains Mono（本地 WOFF2 分片）
 │   ├── vendor/katex/       ← KaTeX（本地，公式离线渲染）
-│   └── （core.js 提供 uiToast / uiPrompt / uiConfirm，全站不再用 alert / prompt / confirm）
+│   └── app/ui/             ← 统一提示、对话框与基础控件
 ├── 错题/                   ← 题库（Markdown + Obsidian 双链）
 │   ├── .omrs/              ← 结构化数据目录（Ledger / 投影 / 备份）
 │   │   ├── ledger.db       ← v1.1.0+ 唯一可信事实源
@@ -276,7 +276,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ## 版本
 
-当前版本 **v1.25.9**。各版本改了什么见 [`AI/changelog.md`](AI/changelog.md)（倒序）。
+当前版本 **v1.25.10**。各版本改了什么见 [`AI/changelog.md`](AI/changelog.md)（倒序）。
 
 ---
 

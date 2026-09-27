@@ -7,5 +7,4 @@ const call = (win, name) => (typeof win[name] === 'function' ? win[name]() : und
 
 export const LEGACY_PAGES = [
   { id: 'board', title: '展示板', workbench: true, enter: win => call(win, 'boardInit') },
-  { id: 'create', title: '录入题目', workbench: true, enter: win => call(win, 'inboxInit') },
 ];

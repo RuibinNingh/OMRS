@@ -2,9 +2,9 @@
 
 > **速查**
 > - 职责：录入题目页表单、AI 识别入口、提交后表单状态，以及收件箱在前端的入口（流程细节见 `AI/inbox.md`）
-> - 入口：`assets/app.js`（录入段）、`assets/inbox.js`
-> - 不变量：提交成功后保留科目 / 分类等上下文字段，只清空题目内容
-> - 必跑测试：`tests/test_inbox.py`、`tests/test_ai_assist_taxonomy.py`
+> - 入口：`assets/app/features/create/`（页面契约与工作区导航）、`assets/app.js`（快速录入图片区）、`assets/inbox.js`（旧工作区控制器）
+> - 不变量：页面切换后保留当前工作区；上传原图先进入暂存区，提交后才写入题库
+> - 必跑测试：`tests/e2e/create.py`、`tests/test_inbox.py`、`tests/test_ai_assist_taxonomy.py`
 > - 相关：`AI/frontend.md`（索引）
 
 ## 录入题目页（`panel-create`）与提交后表单状态
@@ -32,13 +32,13 @@
 - `session_id` 在 `SESSIONS` 中 → 自动选中 picker 并关联；不在列表（如 TMP- 临时卷）→ 仍以该 ID 提交写入历史，下拉里标「不在列表中」；无 ID → 按手动录入。导入的行替换当前批次后重绘，**不自动提交**——用户核对后点「提交反馈」。误贴旧题目 JSON 时提示当前只支持反馈 JSON。
 
 提交后表单状态：
-- 新题目创建成功后，清空全部输入框、两区图片与两处 AI 状态，难度滑块恢复为 5；保留创建成功提示。
+- 新题目创建成功后，当前旧控制器清空全部输入框、两区图片与两处 AI 状态，难度滑块恢复为 5；保留创建成功提示。
   `#cr-result` 的成功提示里带「📋 加入展示板」按钮（调 `boardQuickAdd(uid)`），与收件箱提交后的
   入口一致；`boardQuickAdd` 未定义时不渲染该按钮。
 - 反馈提交成功后，清空反馈行和 Session 选择状态；保留处理结果列表，便于核对本次提交。
 
 ## 收件箱录入流程（`assets/inbox.js`）
 
-`#panel-create` 顶部是 `.ib-flow`：**上传 → 处理 → 录入**（编号真序列）+ AI 训练 + 快速录入；单题表单位于 `#ib-stage-quick`，所有 `#cr-*` id 与 `doCreate` / `crClassify` 等逻辑不变。脚本 `assets/inbox.js`（依赖 `core.js` 的 `api`/`escapeHtml` 与 `questions.js` 的 `renderMdContent`）；`switchTab('create')` 调 `inboxInit()`。样式集中在 `styles.css` 末段，类名全部 `ib-` 前缀；画布标注色 `--ib-role-*` 固定不随主题。粘贴分流：`ibPaste`（捕获阶段）只在上传阶段拦截图片；`crHandlePaste` 只在快速录入阶段生效。设置页「AI 识别」分区有三个按用途的模型输入框（`#st-ai-model-detect/-extract/-classify`），随 `saveAiSettings` 一起保存。交互细节、job 轮询、沿用框位的像素锚定规则见 `AI/inbox.md` §5。处理页 / 队列脚 / 批量条有「▦ 模板框选」（`ibDetect(ids, 'template')`，零联网）；「AI 训练」页有盲标评估集与存储概览、清理按钮、以及「框选提供方与自动策略」表单（`.ib-pl-grid`，`ibLoadPolicy / ibSavePolicy` 读写 `/api/config` 的 `inbox_*` 键，与设置页共用同一 config）；大裁图自动改 JPEG。
+`#panel-create` 的 `#create-app` 由 `features/create/index.js` 登记为页面契约；`state.js` 与 `view.js` 渲染 `.ib-flow` 五个可键盘操作的按钮：**上传 → 处理 → 录入**（编号真序列）+ AI 训练 + 快速录入。切页后返回保留当前工作区。工作区内容暂由 `assets/inbox.js` 承载，页面挂载时调用旧 `inboxInit()`；单题表单位于 `#ib-stage-quick`，所有 `#cr-*` id 与 `doCreate` / `crClassify` 等逻辑仍在旧文件。旧收件箱脚本依赖 `core.js` 的 `api` / `escapeHtml` 与题面渲染过渡入口；旧工作区样式仍在 `styles.css`，新导航样式在 `features/create/create.css`。画布标注色 `--ib-role-*` 固定不随主题。粘贴分流：`ibPaste`（捕获阶段）只在上传阶段拦截图片；`crHandlePaste` 只在快速录入阶段生效。交互细节、job 轮询、沿用框位的像素锚定规则见 `AI/inbox.md` §5。
 
 后台文本提取完成后，处理页只更新发起提取的图片与区域结果；当前画布上的框选可以继续完成，不受完成通知影响。

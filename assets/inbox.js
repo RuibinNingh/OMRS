@@ -16,6 +16,7 @@ const $ib = id => document.getElementById(id);
 /* ── 入口 / 阶段 ── */
 function inboxInit() {
   if (!IB.bound) { ibBind(); IB.bound = true; }
+  ibGo(IB.stage);
   ibLoad();
 }
 async function ibLoad() {
@@ -32,7 +33,11 @@ function ibRenderAll() {
 }
 function ibGo(stage) {
   IB.stage = stage;
-  document.querySelectorAll('#panel-create .ib-flow-step').forEach(f => f.classList.toggle('on', f.dataset.stage === stage));
+  document.querySelectorAll('#panel-create .ib-flow-step').forEach(f => {
+    const active = f.dataset.stage === stage;
+    f.classList.toggle('on', active);
+    f.setAttribute('aria-current', active ? 'step' : 'false');
+  });
   document.querySelectorAll('#panel-create .ib-stage').forEach(s => s.classList.toggle('on', s.id === 'ib-stage-' + stage));
   if (stage === 'process') { if (!IB.cur || !ibCur()) IB.cur = (ibQueue()[0] || {}).id || null; ibRenderProcess(); }
   if (stage === 'create') ibRenderCards();

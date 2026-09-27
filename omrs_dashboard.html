@@ -54,7 +54,7 @@
       <div class="nav-spacer"></div>
       <a class="tab" data-tab="settings" href="#/settings"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></a>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.25.9 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.25.10 · 本地服务</div>
   </aside>
   <main class="content">
     <div class="topbar">
@@ -111,16 +111,9 @@
 
   <!-- ====== 录入题目 ====== -->
   <div class="panel" id="panel-create">
-    <!-- v1.12.0 收件箱录入流程：上传 → 处理 → 录入 是真序列，故编号；AI 训练 / 快速录入不在序列里 -->
-    <div class="ib-flow">
-      <div class="ib-flow-step on" data-stage="upload" data-ib-stage="upload"><i>1</i><div><div class="fs-name">上传</div><div class="fs-sub">手机 / 电脑投进收件箱</div></div><div class="fs-count"><span id="ib-c-pending">0</span><small>待处理</small></div></div>
-      <div class="ib-flow-arrow">→</div>
-      <div class="ib-flow-step" data-stage="process" data-ib-stage="process"><i>2</i><div><div class="fs-name">处理</div><div class="fs-sub">框题目 / 答案，转文本或留图</div></div><div class="fs-count"><span id="ib-c-boxed">0</span><small>已框选</small></div></div>
-      <div class="ib-flow-arrow">→</div>
-      <div class="ib-flow-step" data-stage="create" data-ib-stage="create"><i>3</i><div><div class="fs-name">录入</div><div class="fs-sub">核对题卡，写入题库</div></div><div class="fs-count"><span id="ib-c-ready">0</span><small>待创建</small></div></div>
-      <div class="ib-flow-step aux" data-stage="train" data-ib-stage="train"><i>✦</i><div><div class="fs-name">AI 训练</div><div class="fs-sub">框选与转文本的人工数据</div></div></div>
-      <div class="ib-flow-step aux" data-stage="quick" data-ib-stage="quick"><i>⚡</i><div><div class="fs-name">快速录入</div><div class="fs-sub">单题表单，剪贴板一贴即录</div></div></div>
-    </div>
+    <div id="create-app">
+    <!-- 工作区导航由 features/create 渲染；旧工作区在迁移期间保留。 -->
+    <nav class="ib-flow" id="create-flow" aria-label="录入题目工作区"></nav>
 
     <!-- ① 上传 / 收件箱 -->
     <section class="ib-stage on" id="ib-stage-upload">
@@ -374,6 +367,7 @@
     </details>
     </section>
     <div class="ib-batchbar" id="ib-batchbar"><span class="n"><span id="ib-bb-n">0</span> 张已选</span><button class="btn sm" type="button" onclick="ibDetectSelected()">🤖 AI 框选</button><button class="btn sm" type="button" onclick="ibDetectSelected('template')">▦ 模板框选</button><button class="btn sm" type="button" onclick="ibApplyLastSelected()">沿用上一张框位</button><button class="btn sm" type="button" onclick="ibWholeSelected()">整图即题目</button><span class="sep"></span><button class="btn sm primary" type="button" onclick="ibOpenSelected()">去处理 →</button><button class="btn sm danger" type="button" onclick="ibDiscardSelected()">丢弃</button><button class="btn sm" type="button" onclick="ibClearSel()">✕</button></div>
+    </div>
   </div>
 
   <!-- ====== 设置 ====== -->
@@ -400,11 +394,11 @@
 <script src="assets/labels.js?v=20260925-p6r5"></script>
 <script src="assets/questions.js?v=20260925-p6r4"></script>
 <script src="assets/schedule.js?v=20260925-p6r3"></script>
-<script src="assets/inbox.js?v=20260906-v1161"></script>
+<script src="assets/inbox.js?v=20260927-p6-create-shell"></script>
 <script src="assets/board.js?v=20260922-board-integrity"></script>
 <script src="assets/board_picker.js?v=20260925-p5r3"></script>
 <script src="assets/board_preview.js?v=20260922-board-integrity"></script>
 <script src="assets/app.js?v=20260926-p6-catalog"></script>
-<script type="module" src="assets/app/main.js?v=20260927-ccw-merge"></script>
+<script type="module" src="assets/app/main.js?v=20260927-p6-create-shell"></script>
 </body>
 </html>
