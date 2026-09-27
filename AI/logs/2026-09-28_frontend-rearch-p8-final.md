@@ -25,4 +25,4 @@
 
 ## 部署
 
-部署前记录生产 `omrs.service` 为 active，工作目录 `/root/workspace/apps/OMRS`，旧版本 v1.26.6。生产目录已备份后同步最终提交，服务重启后核对 `/api/status` 与页面主路径。回滚方式为恢复备份目录并重启同一 systemd 服务。
+部署前记录生产 `omrs.service` 为 active，工作目录 `/root/workspace/apps/OMRS`，旧版本 v1.27.0。生产目录已备份后同步最终提交，服务重启后核对 `/api/status` 与页面主路径。回滚方式为恢复备份目录并重启同一 systemd 服务。

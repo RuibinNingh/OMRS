@@ -2,9 +2,9 @@
 
 > **状态**
 > - 目标：重建前端架构，让 CCW 能安全修改、可维护性提升、UI 精致化（总纲见同目录 `plan.md`）
-> - 阶段：**P6 完成（v1.26.6）**，P7 完成（v1.26.5 已与 P6 合并）。P6 最后一段（录入页框选、题卡、AI 训练工作区，删除 `inbox.js`）由 Claude 在对话里按受限模式做完（U19），待 Codex 落地；之后 P8、终检
+> - 阶段：**P6 完成（v1.27.0）**，P7 完成（v1.26.5 已与 P6 合并）。P6 最后一段（录入页框选、题卡、AI 训练工作区，删除 `inbox.js`）由 Claude 在对话里按受限模式做完（U19），待 Codex 落地；之后 P8、终检
 > - 基线：P6 本机基线提交 `7ebfc6c`（`rearch/base-v1.25.4`），开发 worktree 分支 `frontend-rearch`；P7 补丁基线是导出包 `20260927T013727Z`（v1.25.4）。本次三方合并的祖先由 P7 累计补丁反向应用还原（与该导出包清单逐项一致），P6 一侧是导出包 `20260927T125544Z`（含框选在制代码）
-> - 下一步：Codex · 完整：① 先按任务日志 `AI/logs/2026-09-27_frontend-rearch-p6-p7-merge.md`「落地」应用合并补丁并提交（未做的话）；② 再按 `AI/logs/2026-09-27_frontend-rearch-p6-create.md`「合入」应用 `changes-2026-09-27-p6-create.patch`（相对合并完整包 v1.26.5），作为一个提交 `frontend-rearch P6: 录入页框选 / 题卡 / 训练 → features/create（v1.26.6）`；③ 补做本机步骤（`--write-log-index`、本机全量 E2E、真实浏览器走一遍录入页三个工作区）；④ 进 P8（执行说明阶段 4），之后终检；部署另等用户授权
+> - 下一步：Codex · 完整：① 先按任务日志 `AI/logs/2026-09-27_frontend-rearch-p6-p7-merge.md`「落地」应用合并补丁并提交（未做的话）；② 再按 `AI/logs/2026-09-27_frontend-rearch-p6-create.md`「合入」应用 `changes-2026-09-27-p6-create.patch`（相对合并完整包 v1.26.5），作为一个提交 `frontend-rearch P6: 录入页框选 / 题卡 / 训练 → features/create（v1.27.0）`；③ 补做本机步骤（`--write-log-index`、本机全量 E2E、真实浏览器走一遍录入页三个工作区）；④ 进 P8（执行说明阶段 4），之后终检；部署另等用户授权
 > - 更新：2026-09-27，Claude（对话内，U19）完成 P6 剩余：收件箱前端数据归 `features/create/inbox-store.js`，框选收尾、题卡与 AI 训练工作区原生，删除 `assets/inbox.js`；门禁见 §4
 
 ## 1. 用户诉求原话（每期都要能对应回这里）
@@ -66,12 +66,12 @@
 | DP4 + P3 | v1.22.0 | 交付，未部署 | 顶栏瘦身；即时练习迁到 `features/instant/`；`domain/` 四个适配器 |
 | P4 | v1.23.0 | 交付，未部署 | 反馈录入迁到 `features/feedback/`；`domain/sessions.js`；全站 `ui/dialog` 标题栏修复 |
 | P5 | v1.24.0 → v1.24.2 | **完成（4 轮）** | 第 1 轮：`domain/question/`、容器查询根治、超宽公式、计划文件夹入库。第 2 轮：题目库迁到 `features/questions/`、`domain/question/ops.js`、全局 Esc 统一进 core/keys、删 `qtable.js` 与约 170 条旧题库 CSS。第 3 轮（v1.24.1）：题目弹窗 `modal.js` 与 Markdown 编辑器 `editor.js` 换 `ui/dialog`、`ui/overlay` 客人浮层、焦点回到行。第 4 轮（v1.24.2）：`domain/labels/`（芯片不写 `style=`、预设色进 tokens、选择器与管理的数据部分）、qview 外观全部搬进 `qview.css` 并 token 化（题面 16px 阅读正文）。日志 `AI/logs/2026-09-25_frontend-rearch-p5.md` |
-| P6 | v1.25.0 → v1.25.13、v1.26.6 | **完成** | v1.26.6：收件箱前端数据归 `features/create/inbox-store.js`，框选收尾、题卡、AI 训练工作区原生，删 `inbox.js`、`legacy-inbox.js`、`populateCreateLists` 与 `styles.css` 收件箱整段（U19）。v1.25.13：收件箱网格、手机上传页接入 tokens。v1.25.12：快速录入。v1.25.11：上传入口。v1.25.10：录入页外壳。v1.25.9：补 CCW 差异。v1.25.8：设置。v1.25.7：报告。v1.25.6：目录。v1.25.5：历史记录。v1.25.4：全题库导出。v1.25.3：安排复习。v1.25.2：复习调度。v1.25.1：数据复盘。v1.25.0：`domain/data.js` 与仪表盘。日志 `AI/logs/2026-09-25_frontend-rearch-p6.md`、`AI/logs/2026-09-27_frontend-rearch-p6-create.md` |
+| P6 | v1.25.0 → v1.25.13、v1.27.0 | **完成** | v1.27.0：收件箱前端数据归 `features/create/inbox-store.js`，框选收尾、题卡、AI 训练工作区原生，删 `inbox.js`、`legacy-inbox.js`、`populateCreateLists` 与 `styles.css` 收件箱整段（U19）。v1.25.13：收件箱网格、手机上传页接入 tokens。v1.25.12：快速录入。v1.25.11：上传入口。v1.25.10：录入页外壳。v1.25.9：补 CCW 差异。v1.25.8：设置。v1.25.7：报告。v1.25.6：目录。v1.25.5：历史记录。v1.25.4：全题库导出。v1.25.3：安排复习。v1.25.2：复习调度。v1.25.1：数据复盘。v1.25.0：`domain/data.js` 与仪表盘。日志 `AI/logs/2026-09-25_frontend-rearch-p6.md`、`AI/logs/2026-09-27_frontend-rearch-p6-create.md` |
 | P7 | v1.26.0 → v1.26.5 | **完成（6 轮），已与 P6 合并（v1.26.5）** | 第 6 轮（v1.26.5）：列表 / 画廊、检查器原生（`view.js` / `state.js`，整页 morph，只有舞台 iframe 与画廊题面挂载点 skip）；板详情所有者 `features/board/detail.js`（I/O 注入，真实 I/O 与单例在 `runtime.js`）；domain 经端口 `domain/board/detail-port.js`（删 `legacy.js`）；「添加题目」换 `ui/dialog`（`add.js`，修 Esc）；删 `board.js` 与 `styles.css` 139 行；node +13、`board.py` 22 → 35。第 1–5 轮见 §5c。日志 `AI/logs/2026-09-27_frontend-rearch-p7.md` |
-| P8 | v1.26.6 | 已完成 | 旧脚本、过渡桥、旧样式和 UI 基线删除；模块化入口与零容忍门禁 |
-| 终检 / 部署 | v1.26.6 | 已完成，生产已重启 | 全量门禁与浏览器主路径通过；部署记录见 `AI/logs/2026-09-28_frontend-rearch-p8-final.md` |
+| P8 | v1.27.0 | 已完成 | 旧脚本、过渡桥、旧样式和 UI 基线删除；模块化入口与零容忍门禁 |
+| 终检 / 部署 | v1.27.0 | 已完成，生产已重启 | 全量门禁与浏览器主路径通过；部署记录见 `AI/logs/2026-09-28_frontend-rearch-p8-final.md` |
 
-## 4. 门禁计数（v1.26.6，沙箱实测）
+## 4. 门禁计数（v1.27.0，沙箱实测）
 
 2026-09-27 P6 收尾后在对话沙箱里实跑下表（Python 3.12、Node 22、Playwright Chromium 141 独立启动，无 CDP），本机 worktree 待 Codex 复核。与 v1.26.5 合并后的计数相比：node +12（`create-inbox`）、`create.py` 42 → 80、`ui_bridge.py` 15 → 14（删去已不存在的 `ibToast` 一项）、`check_ui` 存量下降；其余不变。
 
@@ -113,7 +113,7 @@ P5 已在 v1.24.0–v1.24.2 四轮完成（第 1 轮 `domain/question/`；第 2 
 
 第 1–5 轮（v1.25.0–v1.25.4，CCW，补丁 `p6r1`…`p6r5`）已完成：`domain/data.js` 与仪表盘、数据复盘、复习调度（含 `SESSIONS` 所有权）、安排复习、全题库导出。开工条目在 U19 收尾时压成这一段；做法与结论在 `AI/changelog.md` v1.25.0–v1.25.4 与本机任务日志 `AI/logs/2026-09-25_frontend-rearch-p6.md`。
 
-P6 剩余（v1.25.5–v1.25.13 由 Codex · 完整执行；最后一段 v1.26.6 由 Claude 在对话里完成，U19）：
+P6 剩余（v1.25.5–v1.25.13 由 Codex · 完整执行；最后一段 v1.27.0 由 Claude 在对话里完成，U19）：
 
 - [x] 历史记录（`history.js` → `features/history/`；`domain/history.js` 的转调换成真实现，仪表盘最近动态仍同步更新）。反馈与 Session 撤销 / 恢复、状态还原、时区和四种视觉审计由 `tests/e2e/history.py` 覆盖；v1.25.5。
 - [x] 目录（`catalog.js` → `features/catalog/`）：目录树、搜索、全部文件、开题、复制、后备树与扫描后重读均迁移；v1.25.6。
@@ -125,7 +125,7 @@ P6 剩余（v1.25.5–v1.25.13 由 Codex · 完整执行；最后一段 v1.26.6 
 - [x] 收件箱网格（`features/create/grid.js`）：筛选、全选、批量操作、框位预览与关联题目入口；v1.25.13。
 - [x] 手机上传页加载 tokens / base 样式，390px 浅 / 深截图与上传主路径在隔离实例验证；v1.25.13。
 - [x] 截图脚本的「复习调度 44 处行内样式」已修：`shoot()` 截图后 `<input>` 留下空 `style=""`，现只计非空属性值，并排除 `.katex` 内部。`--audit-only` 对复习调度和题库页各四种主题 / 尺寸组合的行内样式计数均为 0；详见 p6 日志「本机接手」。
-- [x] 框选工作区收尾（Codex 在制的 `process*.js` 接上新数据所有者，删 `legacy-inbox.js`）、题卡工作区（`cards*.js`）、AI 训练与策略工作区（`train*.js`）；收件箱前端数据 `inbox-store.js`，删 `assets/inbox.js`；v1.26.6。`create.py` 80、`create-inbox` 12，日志 `AI/logs/2026-09-27_frontend-rearch-p6-create.md`。
+- [x] 框选工作区收尾（Codex 在制的 `process*.js` 接上新数据所有者，删 `legacy-inbox.js`）、题卡工作区（`cards*.js`）、AI 训练与策略工作区（`train*.js`）；收件箱前端数据 `inbox-store.js`，删 `assets/inbox.js`；v1.27.0。`create.py` 80、`create-inbox` 12，日志 `AI/logs/2026-09-27_frontend-rearch-p6-create.md`。
 - P6 收尾核对（执行说明 §2.8）：每页一个 E2E（dashboard、data、schedule、history、catalog、reports、settings、create 均在）；各页四种审计在各自 E2E 里；`legacy-pages.js` 登记表为空。§2 指标的全站核对留给终检。
 
 ## 5c. P7 任务书：展示板（CCW · 受限，按轮推进，U16）
@@ -220,8 +220,8 @@ P6 剩余（v1.25.5–v1.25.13 由 Codex · 完整执行；最后一段 v1.26.6 
 | 2026-09-25 | P6 排轮次（按用户可见度）：第 1 轮 `DATA` 加载与快照所有权反转到 `domain/data.js`、详情缓存 `QUESTION_CACHE` 进 `domain/question`、仪表盘迁到 `features/dashboard/`（D8）；第 2 轮复习调度（含 `SESSIONS` 所有权与 `smoke_schedule_workbench.py` 余下失败）、数据复盘、历史记录；第 3 轮目录、报告（FileDrop，D6）、设置、录入题目与收件箱入口、`inbox_mobile.html` 接 tokens。`SESSIONS` 的加载与复习调度页的计划列表绑在一起（`refreshSessions` 同时驱动计划列表的加载态），随该页一起反转 | 用户：「执行P6」；progress §5「P6 开工」建议第 1 轮先做数据所有权反转与仪表盘 |
 | 2026-09-25 | P6 第 2 轮再拆：本轮只做数据复盘（只读页、旧行内样式最多、不涉及写操作，能在一次会话内收口，并顺带删掉旧数据刷新链里的 `renderDataCharts`）；复习调度（含 `SESSIONS` 所有权与 `smoke_schedule_workbench.py`）、历史记录顺延到第 3 轮，目录、报告、设置、录入题目与收件箱入口顺延到第 4 轮 | 第 1 轮一页加所有权用了三次会话；用户：「执行」 |
 | 2026-09-25 | P6 第 3 轮只做复习调度（含 `SESSIONS` 所有权与 `smoke_schedule_workbench.py`）；历史记录顺延到第 4 轮（与目录同轮），报告、设置、录入题目与收件箱入口、`inbox_mobile.html` 顺延到第 5 轮 | 复习调度连同推荐、导出选题共三个旧脚本约 40KB，是 P6 最大的一页；一轮一页才能在一次会话内收口。用户：「继续」 |
-| 2026-09-27 | P6 最后一段（录入页框选收尾、题卡、AI 训练）改在对话里由 Claude 按受限模式做完，取代执行说明阶段 2.6 第 2–4 步由 Codex 本机执行；Codex 只把补丁作为一个提交落地并补做本机验收。版本 v1.26.6（在 v1.26.5 上加 0.0.1）| U19 |
-| 2026-09-27 | P6 在制与 P7 的合并改在对话里做，取代 P7 日志「合入」一节由 Codex 自行 `git apply --3way` 并按轮拆提交的做法：交付合并后的完整包与相对 P6 导出包的合并补丁，Codex 作为一个合并提交应用、补做本机验收；版本按下面 U16 一行的规则取两者较大的 v1.26.5（工作区 v1.25.13 低于补丁版本，不另加 0.0.1），此后各页从 v1.26.6 起 | U18 |
+| 2026-09-27 | P6 最后一段（录入页框选收尾、题卡、AI 训练）改在对话里由 Claude 按受限模式做完，取代执行说明阶段 2.6 第 2–4 步由 Codex 本机执行；Codex 只把补丁作为一个提交落地并补做本机验收。版本 v1.27.0（在 v1.26.5 上加 0.0.1）| U19 |
+| 2026-09-27 | P6 在制与 P7 的合并改在对话里做，取代 P7 日志「合入」一节由 Codex 自行 `git apply --3way` 并按轮拆提交的做法：交付合并后的完整包与相对 P6 导出包的合并补丁，Codex 作为一个合并提交应用、补做本机验收；版本按下面 U16 一行的规则取两者较大的 v1.26.5（工作区 v1.25.13 低于补丁版本，不另加 0.0.1），此后各页从 v1.27.0 起 | U18 |
 | 2026-09-27 | P7 各轮不逐轮合入，在上一轮完整包上继续；每轮交相对导出包的累计补丁，P7 完成后 Codex 一次合入、按轮拆提交（版本号规则不变） | U17 |
 | 2026-09-27 | P7 不等 P6 剩余，改由 CCW · 受限按轮推进（预计 6 轮，§5c），每轮交补丁、完整包与日志，由 Codex 合入；Codex 继续 P6 剩余、P8、终检，跳过执行说明阶段 3。版本号：P7 各轮用 v1.26.x；合入时若工作区版本已不低于补丁版本，就在当前最大版本上加 0.0.1 并同步 changelog 标题，此后各页一律在当前最大版本上加 0.0.1 | U16 |
 | 2026-09-26 | P6 剩余到终检的执行者改为 Codex · 完整：每页一个本机提交，取消补丁、完整包、UPGRADE、交接清单与合并版 UPGRADE；终检由 Codex 做；部署执行者由用户指定（默认 Hermes）；执行说明 `exec-2026-09-26-codex.md`；删除重复的 `AI/rearch-plan.md`，其中仍有效的事实并入 §2 | U15；2026-09-26 导出包核对（本机已合并到 v1.25.4）|
