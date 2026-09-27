@@ -2,7 +2,7 @@
 
 > **速查**
 > - 职责：题目库页（表格 / 画廊、筛选抽屉、批量、视图预设）、`filterItems()` 筛选语义、标记组件接入
-> - 入口：`assets/app/features/questions/`（`index.js` 控制器与页面契约、`state.js` 状态与纯函数、`view.js` 外壳模板、`list.js` 表格 / 画廊、`dialogs.js`、`questions.css`）；题目操作 `assets/app/domain/question/ops.js`；筛选语义仍是 `assets/core.js::filterItems()`；标记芯片、颜色与选择器数据 `assets/app/domain/labels/`，选择器浮层与标记管理的 DOM 仍在 `assets/labels.js`
+> - 入口：`assets/app/features/questions/`（`index.js` 控制器与页面契约、`state.js` 状态与纯函数、`view.js` 外壳模板、`list.js` 表格 / 画廊、`dialogs.js`、`questions.css`）；题目操作 `assets/app/domain/question/ops.js`；筛选语义仍是 `assets/core.js::filterItems()`；标记芯片、颜色与选择器数据 `assets/app/domain/labels/`，选择器浮层与标记管理的 DOM 仍在 `assets/labels.js`；快速录入从 `domain/labels/index.js::openCreateLabelPicker` 打开共用浮层
 > - 不变量：所有列表共用 `filterItems()`（经 `domain/items.js::filterAll`）；默认隐藏停用题；偏好与视图预设的 localStorage 键名沿用旧版；表格视图不拉题目详情
 > - 必跑测试：`node --test tests/app/questions.test.mjs`、`python3 tests/e2e/questions.py`、`node --test tests/app/labels.test.mjs`、`tests/test_question_suspend_frontend.js`
 > - 相关：`AI/frontend.md`（索引）、`AI/frontend/qview.md`（题面渲染与弹窗）、`AI/frontend/architecture.md`（页面契约与过渡桥）

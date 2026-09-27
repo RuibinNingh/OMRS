@@ -2,10 +2,10 @@
 
 > **状态**
 > - 目标：重建前端架构，让 CCW 能安全修改、可维护性提升、UI 精致化（总纲见同目录 `plan.md`）
-> - 阶段：**P6 录入题目上传入口完成，P6 尚未完成**；开发版本 v1.25.11，快速录入、框选、题卡、训练与手机收件箱页面待迁
+> - 阶段：**P6 录入题目快速录入完成，P6 尚未完成**；开发版本 v1.25.12，收件箱网格、框选、题卡、训练与手机收件箱页面待迁
 > - 基线：`7ebfc6c`（`rearch/base-v1.25.4`）；生产目录停在该提交，开发 worktree 的分支为 `frontend-rearch`
-> - 下一步：Codex · 完整，在开发 worktree 按同目录 `exec-2026-09-26-codex.md` §2.6 迁快速录入，再迁收件箱网格、框选、题卡、训练和策略工作区；随后完成手机收件箱 tokens 接入和 P6 收尾，部署另等用户授权
-> - 更新：2026-09-27，Codex 完成录入题目页外壳、工作区导航及原生上传入口，旧列表和其它工作区保留供分步迁移
+> - 下一步：Codex · 完整，在开发 worktree 按同目录 `exec-2026-09-26-codex.md` §2.6 迁收件箱网格、框选、题卡、训练和策略工作区；随后完成手机收件箱 tokens 接入和 P6 收尾，部署另等用户授权
+> - 更新：2026-09-27，Codex 完成录入题目页外壳、工作区导航、原生上传与快速录入；收件箱其余工作区继续分步迁移
 
 ## 1. 用户诉求原话（每期都要能对应回这里）
 
@@ -59,7 +59,7 @@
 | DP4 + P3 | v1.22.0 | 交付，未部署 | 顶栏瘦身；即时练习迁到 `features/instant/`；`domain/` 四个适配器 |
 | P4 | v1.23.0 | 交付，未部署 | 反馈录入迁到 `features/feedback/`；`domain/sessions.js`；全站 `ui/dialog` 标题栏修复 |
 | P5 | v1.24.0 → v1.24.2 | **完成（4 轮）** | 第 1 轮：`domain/question/`、容器查询根治、超宽公式、计划文件夹入库。第 2 轮：题目库迁到 `features/questions/`、`domain/question/ops.js`、全局 Esc 统一进 core/keys、删 `qtable.js` 与约 170 条旧题库 CSS。第 3 轮（v1.24.1）：题目弹窗 `modal.js` 与 Markdown 编辑器 `editor.js` 换 `ui/dialog`、`ui/overlay` 客人浮层、焦点回到行。第 4 轮（v1.24.2）：`domain/labels/`（芯片不写 `style=`、预设色进 tokens、选择器与管理的数据部分）、qview 外观全部搬进 `qview.css` 并 token 化（题面 16px 阅读正文）。日志 `AI/logs/2026-09-25_frontend-rearch-p5.md` |
-| P6 | v1.25.0 → v1.25.11 → | **进行中（录入页上传完成）** | v1.25.11：上传入口迁到 `features/create/`，统一文件拖放、粘贴、错误提示和旧列表刷新。v1.25.10：录入页外壳与工作区导航。v1.25.9：补目录、历史、报告三页的 CCW 差异。v1.25.8：设置迁到 `features/settings/`。v1.25.7：报告迁到 `features/reports/`。v1.25.6：目录迁到 `features/catalog/`。v1.25.5：历史记录迁到 `features/history/`。v1.25.4：「全题库导出」原生。v1.25.3：「安排复习」原生。v1.25.2：复习调度迁到 `features/schedule/`。v1.25.1：数据复盘迁到 `features/data/`。v1.25.0：`domain/data.js` 与仪表盘迁移。日志 `AI/logs/2026-09-25_frontend-rearch-p6.md` 与 `AI/logs/2026-09-27_ccw-p6-merge.md` |
+| P6 | v1.25.0 → v1.25.12 → | **进行中（快速录入完成）** | v1.25.12：快速录入表单、题目与答案图片、AI 识别及连续录入上下文迁到 `features/create/`。v1.25.11：上传入口迁到 `features/create/`，统一文件拖放、粘贴、错误提示和旧列表刷新。v1.25.10：录入页外壳与工作区导航。v1.25.9：补目录、历史、报告三页的 CCW 差异。v1.25.8：设置迁到 `features/settings/`。v1.25.7：报告迁到 `features/reports/`。v1.25.6：目录迁到 `features/catalog/`。v1.25.5：历史记录迁到 `features/history/`。v1.25.4：「全题库导出」原生。v1.25.3：「安排复习」原生。v1.25.2：复习调度迁到 `features/schedule/`。v1.25.1：数据复盘迁到 `features/data/`。v1.25.0：`domain/data.js` 与仪表盘迁移。日志 `AI/logs/2026-09-25_frontend-rearch-p6.md` 与 `AI/logs/2026-09-27_ccw-p6-merge.md` |
 | P7 | — | 未开始 | 见 §8 |
 | P8 | — | 未开始 | 见 §8 |
 | 终检 / 部署 | — | 未开始 | 见 §8 |
@@ -69,7 +69,7 @@
 | 命令 | 预期 |
 |---|---|
 | `python3 -m unittest discover -s tests -p 'test_*.py' -q` | 160 OK（截图审计修正新增 1 项浏览器单测）|
-| `node --test tests/*.js tests/app/*.test.mjs` | 238 / 238 |
+| `node --test tests/*.js tests/app/*.test.mjs` | 241 / 241 |
 | `python3 tests/app/run_browser.py` | 34 / 34 |
 | `python3 tests/e2e/shell_router.py` | 20 / 20 |
 | `python3 tests/e2e/ui_bridge.py` | 15 / 15 |
@@ -83,9 +83,9 @@
 | `python3 tests/e2e/catalog.py` | 26 / 26 |
 | `python3 tests/e2e/reports.py` | 24 / 24 |
 | `python3 tests/e2e/settings.py` | 50 / 50 |
-| `python3 tests/e2e/create.py` | 11 / 11（当前覆盖页面外壳、上传和快速录入；其余工作区迁移时扩充）|
+| `python3 tests/e2e/create.py` | 21 / 21（当前覆盖外壳、上传、快速录入与四种审计；其余工作区迁移时扩充）|
 | `python3 -m unittest tests.smoke_schedule_workbench` | OK（P6 第 4 轮起全过）|
-| `python3 tests/check_ui.py` | 0 处问题；存量 handlers 69、html_assign 48、inline_style 67、color_literals 95、font_size_literals 173 |
+| `python3 tests/check_ui.py` | 0 处问题；存量 handlers 40、html_assign 44、inline_style 52、color_literals 87、font_size_literals 147 |
 | `python3 tests/check_contrast.py` | 58 组，0 不达标 |
 | `python3 tests/check_docs.py --diff <基线>` | 0 处问题，2 条提醒（`AI/api.md` 53KB、执行说明 48KB）|
 
@@ -179,8 +179,9 @@ P6 剩余（Codex · 完整，细节以 `exec-2026-09-26-codex.md` 阶段 2 为�
 - [x] 设置（`assets/app.js` 设置段 → `features/settings/`）；v1.25.8。
 - [x] 录入题目外壳与导航（`features/create/`）；本轮先保留旧工作区供分步迁移；v1.25.10。
 - [x] 原生上传入口（`features/create/upload.js`）：多图拖放 / 选择 / 粘贴、错误提示与旧列表刷新；v1.25.11。
+- [x] 快速录入（`features/create/quick.js`）：分区图片、AI 识别与提取、创建后保留上下文；v1.25.12。
 - [x] 截图脚本的「复习调度 44 处行内样式」已修：`shoot()` 截图后 `<input>` 留下空 `style=""`，现只计非空属性值，并排除 `.katex` 内部。`--audit-only` 对复习调度和题库页各四种主题 / 尺寸组合的行内样式计数均为 0；详见 p6 日志「本机接手」。
-- 其后：快速录入、收件箱列表与其余工作区迁移、`inbox_mobile.html` 接 tokens（§9）；P6 全部完成后进 P7 展示板。
+- 其后：收件箱网格与其余工作区迁移、`inbox_mobile.html` 接 tokens（§9）；P6 全部完成后进 P7 展示板。
 
 以下是原「第 5 轮开工」条目（留作记录）：
 

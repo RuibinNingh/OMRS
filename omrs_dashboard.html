@@ -54,7 +54,7 @@
       <div class="nav-spacer"></div>
       <a class="tab" data-tab="settings" href="#/settings"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></a>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.25.11 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.25.12 · 本地服务</div>
   </aside>
   <main class="content">
     <div class="topbar">
@@ -216,150 +216,8 @@
       </div>
     </div></section>
 
-    <!-- 快速录入：原单题表单原样保留（#cr-* id 与 app.js / schedule.js 逻辑不变） -->
-    <section class="ib-stage" id="ib-stage-quick">
-
-    <!-- 步骤导航：截图 → 识别 → 核对 → 保存（真序列，故用编号） -->
-    <div class="cr-steps">
-      <span class="cr-step done"><i>1</i>截图</span><span class="cr-step-arrow">→</span>
-      <span class="cr-step done"><i>2</i>识别</span><span class="cr-step-arrow">→</span>
-      <span class="cr-step now"><i>3</i>核对</span><span class="cr-step-arrow">→</span>
-      <span class="cr-step"><i>4</i>保存</span>
-    </div>
-
-    <!-- 双栏工作台：左=截图工作区，右=结构化题卡 -->
-    <div class="cr-workbench">
-
-      <!-- 左：截图工作区 -->
-      <div class="card cr-pane">
-        <div class="cr-seclabel">截图工作区</div>
-
-        <!-- 题目截图（默认粘贴目标；.paste-active 由 crSetPasteTarget 切换，目标标记走 CSS ::after） -->
-        <div class="cr-shot">
-          <div class="cr-shot-head"><span>题目截图</span></div>
-          <div id="cr-q-paste" class="paste-zone" tabindex="0" onclick="crPickFiles('q')" onfocus="crSetPasteTarget('q')" ondragover="crDragOver(event,'q')" ondragleave="crDragLeave(event,'q')" ondrop="crHandleDrop(event,'q')">
-            <div class="paste-zone-hint">拖拽 · 点击 · Ctrl / ⌘ + V 粘到此</div>
-          </div>
-          <input type="file" id="cr-q-file" accept="image/*" multiple style="display:none" onchange="crFileInput(event,'q')">
-          <div id="cr-q-images" class="img-previews"></div>
-          <div class="paste-actions"><button type="button" class="btn sm" onclick="crReadClipboard('q')">📋 从剪贴板读取到「题目」</button></div>
-          <div class="ai-row">
-            <button class="btn" id="cr-classify-btn" onclick="crClassify()" disabled>🤖 识别题目信息</button>
-            <button class="btn" id="cr-question-text-btn" onclick="crExtractQuestionText()" disabled>🤖 提取题目文本</button>
-            <span id="cr-classify-status" class="ai-status"></span>
-          </div>
-          <div class="hint">AI 读取<strong>第 1 张</strong>题目图：可自动填右侧<strong>科目 / 分类 / 难度 / 知识点</strong>，也可把题目正文提取到文本框。需先在「设置 → AI 自动识别」配置。</div>
-        </div>
-
-        <hr class="cr-div">
-
-        <!-- 答案截图 -->
-        <div class="cr-shot">
-          <div class="cr-shot-head"><span>答案截图</span><span class="cr-shot-opt">可选</span></div>
-          <div id="cr-a-paste" class="paste-zone" tabindex="0" onclick="crPickFiles('a')" onfocus="crSetPasteTarget('a')" ondragover="crDragOver(event,'a')" ondragleave="crDragLeave(event,'a')" ondrop="crHandleDrop(event,'a')">
-            <div class="paste-zone-hint">拖拽 · 点击 · Ctrl / ⌘ + V 粘到此</div>
-          </div>
-          <input type="file" id="cr-a-file" accept="image/*" multiple style="display:none" onchange="crFileInput(event,'a')">
-          <div id="cr-a-images" class="img-previews"></div>
-          <div class="paste-actions"><button type="button" class="btn sm" onclick="crReadClipboard('a')">📋 从剪贴板读取到「答案」</button></div>
-          <div class="ai-row">
-            <button class="btn" id="cr-extract-btn" onclick="crExtractAnswer()" disabled>🤖 提取答案文本</button>
-            <span id="cr-extract-status" class="ai-status"></span>
-          </div>
-          <div class="hint">AI 读取<strong>第 1 张</strong>答案图，把答案 / 解析<strong>提取为文本</strong>填到右侧；也可不提取（答案图直接随题嵌入）。</div>
-        </div>
-
-        <div class="cr-tip"><span class="cr-tip-ico">i</span>Ctrl / ⌘ + V 会粘到高亮的区域，点另一个区即可切换粘贴目标。</div>
-      </div>
-
-      <!-- 右：题卡内容 -->
-      <div class="card cr-pane">
-        <div class="cr-seclabel">题卡内容</div>
-
-        <!-- AI 自动填充组：科目 / 分类 / 难度 / 知识点 -->
-        <div class="cr-aigroup">
-          <div class="cr-aigroup-head"><span class="cr-aigroup-title">🤖 AI 自动填充</span><span class="cr-aigroup-tag">可改</span></div>
-          <div class="cr-row2">
-            <div class="form-group" style="margin-bottom:0">
-              <label>科目 *</label>
-              <input id="cr-subject" class="input" placeholder="数学、物理、化学…" list="cr-subj-list">
-            </div>
-            <div class="form-group" style="margin-bottom:0">
-              <label>分类（知识点）*</label>
-              <input id="cr-category" class="input" placeholder="隐圆模型、动能定理…" list="cr-cat-list">
-            </div>
-          </div>
-          <div class="form-group" style="margin:14px 0 0">
-            <label>难度（1–10）</label>
-            <div style="display:flex;align-items:center;gap:12px">
-              <input type="range" id="cr-diff" min="1" max="10" value="5" style="flex:1" oninput="document.getElementById('cr-diff-val').textContent=this.value">
-              <span id="cr-diff-val" style="font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:1rem;color:var(--accent);width:24px;text-align:right">5</span>
-            </div>
-          </div>
-          <div class="form-group" style="margin:14px 0 0">
-            <label>相关知识点（可选）</label>
-            <input id="cr-related" class="input" placeholder="导数应用, 手拉手模型" list="cr-ktag-list">
-            <div class="hint">逗号分隔，写入 YAML 为 [[双链]]。「识别题目信息」默认只从<strong>已有分类 / 知识点</strong>里挑（设置可放开）。</div>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>题目正文 <span class="cr-opt">· 可留空 / 可提取</span></label>
-          <textarea id="cr-question" class="input" rows="3" placeholder="可手动输入，或点击左侧「提取题目文本」从题目截图自动填充。支持 LaTeX，如 $x^2+1$。"></textarea>
-        </div>
-
-        <div class="form-group">
-          <label>答案 / 解析 <span class="cr-opt">· 可选</span></label>
-          <textarea id="cr-answer" class="input" rows="3" placeholder="写入 # 答案 区域；可由「提取答案文本」自动填充，或手动输入。"></textarea>
-        </div>
-
-        <!-- 错因：错题本的核心字段，给它独立的暖色块 -->
-        <div class="cr-cause">
-          <label class="cr-cause-head" for="cr-cause"><span class="cr-flag">⚑</span> 错因 · 这道题为什么错？</label>
-          <textarea id="cr-cause" class="input" rows="2" placeholder="如：审题时把开区间当成闭区间。写入 # 备注 的「## 错因」，导出时会带上。"></textarea>
-          <div class="cr-cause-foot"><span class="cr-flag">★</span> 错题本的核心——复习时先看这里。</div>
-        </div>
-
-        <div class="form-group" style="margin-bottom:0">
-            <label>标记 <span class="cr-opt">· 可选</span></label>
-            <div id="cr-labels" class="lbl-form-row" data-lbl-create-target="1"></div>
-          </div>
-          <div class="form-group" style="margin-bottom:0">
-            <label>笔记本页码 <span class="cr-opt">· 可选</span></label>
-            <input id="cr-note" class="input" placeholder="p.23" style="max-width:160px">
-          </div>
-      </div>
-    </div>
-
-    <!-- 提交栏（横跨双栏底部） -->
-    <div class="cr-actionbar">
-      <div class="cr-actionbar-info"><span class="cr-tip-ico ok">✓</span>核对无误后保存：写入对应科目 / 分类文件夹，题目与答案图自动嵌入，随后可在「题目库」查看。</div>
-      <div class="cr-actionbar-btns">
-        <button class="btn" type="button" onclick="resetCreateForm()">重置</button>
-        <button class="btn primary" id="cr-btn" onclick="doCreate()">创建题目</button>
-      </div>
-    </div>
-    <div id="cr-result"></div>
-
-    <!-- 文件结构与说明（折叠，默认收起） -->
-    <details class="cr-help">
-      <summary>文件结构与说明</summary>
-      <div class="cr-help-body">
-        <p>系统自动编号，题目文件为 <code>错题/科目/分类/分类N.md</code>，图片存入 <code>错题/附件/</code>。AI 识别需先在「设置 → AI 自动识别」中配置 API。</p>
-        <pre>错题/
-├── 数学/
-│   ├── 数学.md          ← 锚点(自动)
-│   └── 隐圆模型/
-│       ├── 隐圆模型.md   ← 锚点(自动)
-│       ├── 隐圆模型1.md  ← 题目
-│       └── 隐圆模型2.md  ← 题目
-└── 物理/
-    └── 动能定理/
-        ├── 动能定理1.md
-        └── 动能定理2.md</pre>
-      </div>
-    </details>
-    </section>
+    <!-- 快速录入由 features/create/quick.js 挂载。 -->
+    <section class="ib-stage" id="ib-stage-quick"></section>
     <div class="ib-batchbar" id="ib-batchbar"><span class="n"><span id="ib-bb-n">0</span> 张已选</span><button class="btn sm" type="button" onclick="ibDetectSelected()">🤖 AI 框选</button><button class="btn sm" type="button" onclick="ibDetectSelected('template')">▦ 模板框选</button><button class="btn sm" type="button" onclick="ibApplyLastSelected()">沿用上一张框位</button><button class="btn sm" type="button" onclick="ibWholeSelected()">整图即题目</button><span class="sep"></span><button class="btn sm primary" type="button" onclick="ibOpenSelected()">去处理 →</button><button class="btn sm danger" type="button" onclick="ibDiscardSelected()">丢弃</button><button class="btn sm" type="button" onclick="ibClearSel()">✕</button></div>
     </div>
   </div>

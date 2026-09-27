@@ -155,21 +155,27 @@ def run_legacy_entries(page, base, results):
     check("仪表盘「专练 某科目」：切到 #/instant、带预设取题、队列全是该科目", got == ["#/instant", subject, True], got)
     ev("(switchTab('instant'), instLoadPractice({'inst-subject': '不存在的科目'}))")
     empty = wait(page, "() => document.querySelector('#panel-instant .ui-empty') && document.body.textContent.includes('当前筛选下没有可练的题')")
-    page.click('#panel-instant [data-action="instant.clear"]')
+    with page.expect_response(lambda response: '/api/recommend?' in response.url):
+        page.click('#panel-instant [data-action="instant.clear"]')
     check("筛选无结果显示空状态，「清空筛选并重新取题」可恢复", empty and wait(page, CARD))
     name = ev("document.querySelector('.inst-lblf')?.dataset.arg")
     page.click(f'.inst-lblf[data-arg="{name}"]')
-    load(page)
+    with page.expect_response(lambda response: '/api/recommend?' in response.url):
+        page.click('#panel-instant .inst-bar [data-action="instant.load"]')
+    wait(page, CARD)
     check("标记筛选：按钮按下、取到的题都带该标记",
           ev(f"document.querySelector('.inst-lblf[data-arg=\"{name}\"]').getAttribute('aria-pressed')") == "true"
           and ev(f"INSTANT_QUEUE.length > 0 && INSTANT_QUEUE.every(i => (i.labels || []).includes({name!r}))"), name)
     ev("LABELS.push({ id: 'e2e', name: 'E2E新标记', color: '#2f6fde' }); renderLabelFilterOptions(); 0")
     check("旧代码改了标记定义：经 bus 的 labels 事件重绘筛选芯片", wait(page, "() => !!document.querySelector('.inst-lblf[data-arg=\"E2E新标记\"]')"))
     page.route("**/api/recommend*", lambda route: route.fulfill(status=500, content_type="application/json", body='{"status":"error","msg":"模拟故障"}'))
-    load_err = ev("document.querySelector('#panel-instant .inst-bar [data-action=\"instant.load\"]').click(); 0")
-    err = wait(page, "() => document.body.textContent.includes('取题失败') && document.body.textContent.includes('模拟故障')")
+    with page.expect_response(lambda response: '/api/recommend?' in response.url):
+        page.click('#panel-instant .inst-bar [data-action="instant.load"]')
+    load_err = 0
+    err = wait(page, "() => document.querySelector('#panel-instant .inst-state[data-key=\"error\"]') && document.querySelector('#panel-instant .inst-state')?.textContent.includes('模拟故障')")
     page.unroute("**/api/recommend*")
-    page.click('#panel-instant .inst-state [data-action="instant.load"]')
+    if err:
+        page.click('#panel-instant .inst-state [data-action="instant.load"]')
     check("接口出错显示错误状态与原因，「重试」恢复", load_err == 0 and err and wait(page, CARD))
 
 

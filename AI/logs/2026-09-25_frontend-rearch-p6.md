@@ -437,3 +437,22 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 本提交的全量门禁实际运行：Python unittest 160 项通过；Node 238 / 238；组件浏览器测试 34 / 34；E2E 的 shell_router、ui_bridge、dashboard、data、schedule、instant、feedback、questions、history、catalog、reports、settings、create 依次为 20、15、26、21、45、23、31、92、23、26、24、50、11，均全部通过；`tests.smoke_schedule_workbench` 1 项通过。`check_contrast.py` 58 组均达标；`check_docs.py --diff HEAD` 为 0 处问题、2 条既有篇幅提醒。浏览器测试均使用临时 Vault、随机端口与独立 Chromium，隔离实例环境中移除 `OMRS_SYSTEMD_SERVICE`。
 
 未执行：生产部署与远端设备验证（需用户单独授权）；Firefox、WebKit 和全站空态终检属于后续计划阶段。
+
+---
+
+## 快速录入迁移（2026-09-27，v1.25.12）
+
+### 行为变化与影响文件
+
+- `features/create/quick.js`、`quick-view.js` 接管单题表单、分区图片、剪贴板粘贴、AI 分类与文本提取、创建和展示板入口；`state.js` 保存草稿并生成与原接口相同的 `/api/create` 请求。创建成功保留科目、分类、难度、知识点、标记和页码，只清空题面、答案、错因和两区图片，便于连续录入。
+- `omrs_dashboard.html` 的旧快速录入 DOM 换成挂载区；`assets/app.js`、`assets/schedule.js`、`assets/core.js` 和 `assets/labels.js` 删除旧录入专用函数、全局图片数组及表单标记 DOM。`assets/styles.css` 删除专属旧样式，新样式由 `features/create/create.css` 承担。旧收件箱题卡仍依赖 `core.js::populateCreateLists` 和页面末尾三个 datalist，因此保留至题卡迁移。
+- `tests/app/create.test.mjs` 覆盖请求契约、分类合并、提交后草稿状态和无行内事件；`tests/e2e/create.py` 扩充真实图片、粘贴目标、AI 固定响应、含图创建、四种主题/视口审计。`tests/ui_baseline.json` 随旧存量下降更新。同步 `AI/frontend/create.md`、`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/library.md`、`AI/frontend/shell.md`、版本号四处、changelog、README 和本计划进度。
+
+### 验证
+
+- 已实际执行：`node --test tests/app/create.test.mjs` 3 / 3；`python3 tests/e2e/create.py` 21 / 21，包含临时 Vault、随机端口、移除 `OMRS_SYSTEMD_SERVICE` 的浏览器主路径。快速录入四种主题/视口审计均为 3 档字号、最小 12px、小目标 0、有效行内样式 0、内联事件 0、横向溢出 0。首次审计将 `ui/filedrop` 的 1px 隐藏 input 误算为点击目标，并发现折叠说明的 summary 高 17px；前者按实际可点的外层 label 计，后者改为 40px，重跑全绿。
+- `tests/visual/run.py --ref HEAD --pages create` 四张默认上传工作区截图中仅桌面浅/深各 0.001% 差异，来自侧栏版本号。快速录入工作区的用户路径和四种视觉指标由 `tests/e2e/create.py` 审计。
+- 全量回归实际运行：Python unittest 160 项；Node 241 / 241；浏览器组件 34 / 34；E2E 的 shell_router、ui_bridge、dashboard、data、schedule、instant、feedback、questions、history、catalog、reports、settings、create 分别为 20、15、26、21、45、23、31、92、23、26、24、50、21，全部通过；`tests.smoke_schedule_workbench` 1 项通过。`check_ui.py` 0 处问题，旧存量降到 handlers 40、html_assign 44、inline_style 52、color_literals 87、font_size_literals 147；`check_contrast.py` 58 组达标；`check_docs.py --diff HEAD` 0 处问题、2 条既有篇幅提醒。
+- 即时练习 E2E 首轮 22/23，重跑时有一项请求竞态造成另一项失败。该脚本原先只等待旧题卡仍存在，不能证明新一轮推荐请求已结束；现对清空筛选、带标记取题及错误响应显式等待 `/api/recommend` 响应，再检验对应状态，重跑 23/23。页面业务代码未改。
+
+未执行：生产部署与远端设备验证（需用户单独授权）；Firefox、WebKit 和全站空态属于终检阶段。

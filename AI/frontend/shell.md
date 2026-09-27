@@ -11,16 +11,16 @@
 ```
 omrs_dashboard.html   ← 仅 HTML 结构，<link> 引样式 + 多个 <script> 引脚本
 assets/
-├── app/              ← 新前端（ES Module）：main.js、shell.js、legacy-pages.js、legacy-bridge.js、core/、ui/、domain/、features/（含录入页外壳与导航）、styles/（见 AI/frontend/architecture.md）
+├── app/              ← 新前端（ES Module）：main.js、shell.js、legacy-pages.js、legacy-bridge.js、core/、ui/、domain/、features/（含录入页外壳、上传与快速录入）、styles/（见 AI/frontend/architecture.md）
 ├── styles.css        ← 旧页面样式，经 app/styles/index.css 以 @layer legacy 引入（颜色一律引用 token）
 ├── vendor/fonts/     ← 本地 Noto Sans SC / JetBrains Mono 字体分片、许可与来源清单
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染 + 做题记录解析
 ├── labels.js         ← 用户标记芯片、LabelPicker、标记管理与筛选状态
 ├── questions.js      ← 题库页迁走后的残留：masteryBarHtml（board.js）；题库页在 assets/app/features/questions/，Markdown 编辑器在 assets/app/domain/question/editor.js
-├── schedule.js       ← 录入提交（doCreate/resetCreateForm）、全局扫描 doScan 与两个旧入口；复习调度页在 assets/app/features/schedule/
+├── schedule.js       ← 全局扫描 doScan 与两个旧入口；复习调度页在 assets/app/features/schedule/
 ├── board.js          ← 展示板 CRUD、排序、添加题目、打印（全部 / 仅新增）与纸面记录
 ├── board_preview.js  ← 展示板常驻预览 iframe 的生命周期与消息协议（必须排在 board.js 之后）
-└── app.js            ← switchTab（路由包装）/旧页面刷新链 legacyDataRefresh/录入页图片粘贴与 AI 识别/init()（由 app/main.js 调用）
+└── app.js            ← switchTab（路由包装）/旧页面刷新链 legacyDataRefresh/init()（由 app/main.js 调用）
 ```
 
 **加载约定（重要）：**
@@ -35,7 +35,7 @@ assets/
 - **加载顺序固定**：`core.js` 最先（定义全部全局变量，只能声明一次，不可在其他文件重复 `let`）；`app.js` 是最后一个经典脚本，但不再自调用 `init()`：模块入口 `assets/app/main.js` 装好过渡桥与路由后调用它（启动顺序见 `AI/frontend/architecture.md` §2）。
 - 后端由 `/assets/<file>` 通用静态路由提供（`server.py` → `_serve_asset()`，含路径穿越防护与按扩展名的 content-type）。原 `/omrs_dashboard.js` 路由已移除。
 - 修改旧页面样式 → 改 `assets/styles.css`（它在 `legacy` 层，同名外观会被 `ui` 与 `legacy-bridge` 层压过，旧 `.btn` / `.input` 的外观改在 `assets/app/styles/legacy-bridge.css`）；改某模块行为 → 改对应 `assets/*.js`；新增全局工具 → 放 `core.js`。
-- **拆分**：原 `schedule.js` 的导出、反馈页、复习调度部分都已迁到 `assets/app/`（`features/schedule/`、`features/feedback/`、`domain/exporting.js`），旧 `schedule.js` 只剩录入提交、扫描与两个旧入口。
+- **拆分**：原 `schedule.js` 的导出、反馈页、复习调度部分都已迁到 `assets/app/`（`features/schedule/`、`features/feedback/`、`domain/exporting.js`），旧 `schedule.js` 只剩扫描与两个旧入口。
 
 ## 侧栏、顶栏与路由（`assets/app/styles/shell.css`、`assets/app/shell.js`）
 

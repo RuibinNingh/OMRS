@@ -10,3 +10,44 @@ export const STAGES = Object.freeze([
 export function stageOf(value) {
   return STAGES.some(stage => stage.id === value) ? value : 'upload';
 }
+
+export function newQuickState() {
+  return {
+    form: { subject: '', category: '', difficulty: '5', related: '', question: '', answer: '', cause: '', note: '' },
+    images: { q: [], a: [] }, labels: [], target: 'q', nextImageId: 0, result: null,
+  };
+}
+
+export function createPayload(state) {
+  const form = state.form;
+  const subject = String(form.subject || '').trim();
+  const category = String(form.category || '').trim();
+  if (!subject || !category) return { ok: false, error: '请填写科目和分类' };
+  return { ok: true, data: {
+    subject, category, difficulty: Number(form.difficulty) || 5,
+    note: String(form.note || '').trim(),
+    related_tags: String(form.related || '').split(/[,，]/).map(tag => tag.trim()).filter(Boolean),
+    labels: [...new Set(state.labels)],
+    question_text: String(form.question || '').trim(), answer_text: String(form.answer || '').trim(),
+    cause: String(form.cause || '').trim(),
+    question_images: state.images.q.map(image => ({ data: image.dataUrl })),
+    answer_images: state.images.a.map(image => ({ data: image.dataUrl })),
+  } };
+}
+
+export function mergeClassification(form, result) {
+  const next = { ...form };
+  if (!String(next.subject || '').trim() && result.subject) next.subject = String(result.subject);
+  if (!String(next.category || '').trim() && result.category) next.category = String(result.category);
+  if (result.difficulty != null && Number(result.difficulty) >= 1 && Number(result.difficulty) <= 10) {
+    next.difficulty = String(result.difficulty);
+  }
+  const tags = String(next.related || '').split(/[,，]/).map(tag => tag.trim()).filter(Boolean);
+  for (const tag of result.knowledge_tags || []) if (tag && !tags.includes(tag)) tags.push(tag);
+  next.related = tags.join(', ');
+  return next;
+}
+
+export function afterCreate(state) {
+  return { ...state, form: { ...state.form, question: '', answer: '', cause: '' }, images: { q: [], a: [] } };
+}

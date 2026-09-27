@@ -70,7 +70,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 
 ## 5. 前端（`assets/inbox.js`，全局 `IB`，类名前缀 `ib-`）
 
-- 入口：`switchTab('create')` → `features/create` 页面挂载，渲染 `.ib-flow` 五个按钮和原生上传区，并调用旧 `inboxInit()` 加载列表。**上传 / 处理 / 录入**按真序列编号，AI 训练和快速录入在旁边；切页返回后导航仍显示原工作区。`ui/filedrop` 支持多图拖放和点击选择；图片粘贴、显式读剪贴板共用上传函数，成功发 `inbox:reload` 让旧列表重读。原单题表单位于 `#ib-stage-quick`，`#cr-*` id 与 `app.js` / `schedule.js` 逻辑暂保持。
+- 入口：`switchTab('create')` → `features/create` 页面挂载，渲染 `.ib-flow` 五个按钮和原生上传区，并调用旧 `inboxInit()` 加载列表。**上传 / 处理 / 录入**按真序列编号，AI 训练和快速录入在旁边；切页返回后导航仍显示原工作区。`ui/filedrop` 支持多图拖放和点击选择；图片粘贴、显式读剪贴板共用上传函数，成功发 `inbox:reload` 让旧列表重读。快速录入挂载在 `#ib-stage-quick`，由 `features/create/quick.js` 管理题目和答案图片、AI 识别与创建；成功后保留科目、分类等上下文，只清空题面、答案、错因和图片。
 - 粘贴：`ibPaste` 以捕获阶段注册，仅在收件箱「上传」阶段拦截图片并上传；`crHandlePaste` 只在 `IB.stage==='quick'` 时接管。
 - ① 上传：拖拽 / 选文件 / 读剪贴板 → `POST /upload`；网格缩略图上叠框位；筛选、全选、勾选后底部 `.ib-batchbar`（AI 框选 / 沿用框位 / 整图即题目 / 去处理 / 丢弃）——**只处理勾选项**。
 - ② 处理三栏：队列（可勾选）| 画布（拖拽画框、移动、八向缩放，框外 SVG mask 遮暗，AI 框带置信度）| 区域面板（按题卡分组；角色 / 来源 / 归一化坐标与裁出尺寸 / 转文本·保留图·让 AI 判断 / 提取 / 文本编辑 + `renderMdContent` 预览 / 保留图的 canvas 预览）。改动去抖 500ms 调 `/item/update`。快捷键 `Q/A/X`、`Del`、`Enter`、`⌘/Ctrl+Enter`。

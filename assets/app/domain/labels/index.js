@@ -26,6 +26,10 @@ export const labelChips = (names, options = {}) => raw(chipsHtml(Array.isArray(n
 export const pickerOpen = () => typeof LABEL_PICKER !== 'undefined' && !!LABEL_PICKER && LABEL_PICKER.isConnected !== false;
 export function closePicker() { if (pickerOpen()) fn('closeLabelPicker')?.(); }
 export function openLabelPicker(uid, anchor) { if (uid) fn('openLabelPicker')?.(uid, anchor); }
+/** 录入表单选择器：沿用旧浮层，取值和保存回调由新表单持有。 */
+export function openCreateLabelPicker(anchor, { get, onSave } = {}) {
+  fn('openLabelPicker')?.('__create__', anchor, { get, onSave, title: '新题目' });
+}
 export function openLabelManager() { return fn('openLabelManager')?.(); }
 /** 标记管理（旧 labels.js 的 .modal-overlay#label-manager）是否打开 / 关闭它：全局 Esc 用（legacy-bridge 的 installEscapeBridge）。 */
 export const managerOpen = () => !!fn('labelManagerOpen')?.();

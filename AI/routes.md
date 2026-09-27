@@ -33,7 +33,7 @@
 | GET | `/api/boards` | `AI/api.md`、`AI/board.md`、`AI/changelog.md` |
 | GET/POST | `/api/config` | `AI/api.md`、`AI/algorithm.md`、`AI/data.md`等 |
 | POST | `/api/confirm-schedule` | `AI/api.md`、`AI/algorithm.md`、`AI/data.md`等 |
-| POST | `/api/create` | `AI/api.md`、`AI/data.md` |
+| POST | `/api/create` | `AI/api.md`、`AI/data.md`、`AI/frontend/create.md` |
 | POST | `/api/export` | `AI/api.md`、`AI/board.md`、`AI/changelog.md`等 |
 | GET | `/api/export-review` | `AI/api.md`、`AI/frontend/records.md` |
 | POST | `/api/feedback` | `AI/api.md`、`AI/algorithm.md`、`AI/changelog.md`等 |
@@ -58,7 +58,7 @@
 | POST | `/api/inbox/jobs` | `AI/inbox.md` |
 | GET | `/api/inbox/raw` | `AI/inbox.md` |
 | GET | `/api/inbox/slice-plan` | `AI/inbox.md` |
-| POST | `/api/inbox/upload` | `AI/inbox.md` |
+| POST | `/api/inbox/upload` | `AI/frontend/create.md`、`AI/inbox.md` |
 | POST | `/api/label/delete` | `AI/api.md`、`AI/labels.md` |
 | POST | `/api/label/merge` | `AI/api.md`、`AI/labels.md` |
 | POST | `/api/label/save` | `AI/api.md`、`AI/labels.md` |

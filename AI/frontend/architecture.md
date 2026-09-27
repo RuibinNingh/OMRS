@@ -58,12 +58,13 @@ assets/app/
 | `core/format.js` | `formatDate`、`relativeDays`、`formatPercent`、`formatNumber`、`formatDuration` | 空值与非法值显示「—」；`YYYY-MM-DD` 按本地日期解析 |
 | `core/download.js` | `downloadResponse(response, fallbackName)`、`fileNameOf` | 把 fetch 响应存成文件；文件名优先取 `Content-Disposition`（含 `filename*=UTF-8''`）；不写页面状态（v1.25.1 起，数据复盘导出用）|
 
-纯逻辑的单测在 `tests/app/core.test.mjs`（node），依赖 DOM 的 morph、事件委托、快捷键在 `tests/app/core_tests.js`（由 `tests/app/run_browser.py` 在浏览器里跑）。浏览器测试（`tests/app/run_browser.py`、`tests/e2e/`）在设了 `OMRS_TEST_CDP_URL` 时连接已开着的 Chromium（本机直接启动会崩溃的环境用），否则自行启动；等待一律等条件成立（`wait_for_function`），不写固定延时。历史、目录、报告的回归脚本覆盖操作区重绘、目录展开状态和删除防重。
+纯逻辑的单测在 `tests/app/core.test.mjs`（node），依赖 DOM 的 morph、事件委托、快捷键在 `tests/app/core_tests.js`（由 `tests/app/run_browser.py` 在浏览器里跑）。浏览器测试（`tests/app/run_browser.py`、`tests/e2e/`）在设了 `OMRS_TEST_CDP_URL` 时连接已开着的 Chromium（本机直接启动会崩溃的环境用），否则自行启动；等待一律等条件成立（`wait_for_function`），不写固定延时。历史、目录、报告的回归脚本覆盖操作区重绘、目录展开状态和删除防重；`tests/e2e/create.py` 覆盖快速录入的图片分区、AI 固定响应和创建后上下文。
 
 ## 5. 状态与总线
 
 - `window.__omrs = { bus, store, router, emit }` 给旧代码用。
 - **统计数据的所有者是 `domain/data.js`（v1.25.0 起）**：`reloadData()` 拉 `/api/stats` → 设快照 → 写旧 `DATA` 镜像（直接给 `let` 标识符赋值）→ 跑过渡桥登记的旧刷新链 `legacyDataRefresh()` → 经 bus 发 `data`，外壳同步进 `store.data`。旧 `DATA`、`store.data`、`currentData()` 是同一个对象。
+- **快速录入的状态**：`features/create/quick.js` 持有表单、两区图片与粘贴目标，调用 `domain/labels` 的录入选择器适配；创建成功后刷新统计、历史与目录。旧 `CR_*` 全局图片数组和 `app.js` 的 `cr*` 函数已删除；旧收件箱题卡仍使用 `core.js::populateCreateLists`。
 - **目录的跨页刷新**：`features/catalog/` 订阅 `store.data`，题目统计变化时只重算目录学习状态；外壳的 `app.scan` 成功后发 `catalog:refresh`，目录页收到后强制重读 `/api/tree`。页面卸载时退订，不保留旧全局入口。
 - 并发合并：一次加载进行中再调用，只排一次「补拉」，之后的调用共享它；调用方 await 之后拿到的数据不早于调用时刻。加载失败保留上一份快照（首次失败给空快照），`lastError()` 给原因；不再用演示数据顶替。全局 `reloadData` 由过渡桥挂成这个实现，旧调用方不变。`main.js` 在外壳就绪后 `connectData({ emit })` 接上发布通道。
 - 题目详情缓存归 `domain/question/mount.js`；旧代码读的 `QUESTION_CACHE` / `QUESTION_PENDING` 是过渡桥挂的只读全局。Session 列表归 `domain/sessions.js`（v1.25.2 起）：`refreshSessions()` 后发先至只认最新、失败保留旧列表，成功失败都经 bus 发 `sessions`；旧 `SESSIONS` 是镜像，全局 `refreshSessions` 由过渡桥挂成它。`main.js` 在外壳就绪后 `connectSessions({ emit })`。

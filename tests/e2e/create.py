@@ -1,5 +1,6 @@
 """录入题目 P6 分步迁移：工作区导航、上传与快速录入主路径。"""
 import os
+import json
 import socket
 import struct
 import subprocess
@@ -12,6 +13,21 @@ import zlib
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
 from browser_runtime import launch_chromium
+
+AUDIT = """target => {
+  const root = document.querySelector('#ib-stage-quick');
+  const shown = [...root.querySelectorAll('*')].filter(e => e.offsetParent && !e.closest('.katex'));
+  const sizes = [...new Set(shown.filter(e => [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim()))
+    .map(e => parseFloat(getComputedStyle(e).fontSize)))].sort((a,b) => a-b);
+  const hit = e => ['BUTTON','INPUT','SELECT','SUMMARY'].includes(e.tagName) || e.getAttribute('role') === 'button';
+  const small = shown.filter(hit).filter(e => { const r=(e.matches('input[type="file"]') ? e.closest('.ui-filedrop') : e).getBoundingClientRect(); return r.width && r.height < target; })
+    .map(e => `${e.tagName}#${e.id}.${e.className}:${Math.round((e.matches('input[type="file"]') ? e.closest('.ui-filedrop') : e).getBoundingClientRect().height)}`);
+  const inline = shown.filter(e => (e.getAttribute('style') || '').trim()).length;
+  const handlers = shown.filter(e => [...e.attributes].some(a => /^on/i.test(a.name))).length;
+  const over = shown.filter(e => e.scrollWidth > e.clientWidth + 1 && getComputedStyle(e).overflowX === 'visible')
+    .map(e => `${e.tagName}#${e.id}.${e.className}: ${e.scrollWidth}/${e.clientWidth}`);
+  return { sizes, small, inline, handlers, over, overflow: document.documentElement.scrollWidth > innerWidth + 1 };
+}"""
 
 
 def png():
@@ -81,8 +97,63 @@ def run(page, base, results):
     page.fill('#cr-category', '函数')
     page.fill('#cr-question', '求函数的定义域')
     page.fill('#cr-answer', '全体实数')
-    page.click('#cr-btn')
-    check('快速录入成功写入题库', wait(page, "() => !!document.querySelector('#cr-result .create-result.ok')"))
+    page.click('[data-action="create.submit"]')
+    check('快速录入成功写入题库', wait(page, "() => !!document.querySelector('#cr-result .crw-result.is-success')"))
+    check('提交后保留科目分类并清空题目内容',
+          page.locator('#cr-subject').input_value() == '数学'
+          and page.locator('#cr-category').input_value() == '函数'
+          and page.locator('#cr-question').input_value() == ''
+          and page.locator('#cr-answer').input_value() == '')
+    page.locator('#cr-q-file').set_input_files({'name': '题目.png', 'mimeType': 'image/png', 'buffer': png()})
+    page.locator('#cr-a-file').set_input_files({'name': '答案.png', 'mimeType': 'image/png', 'buffer': png()})
+    check('题目与答案图片区各自暂存图片',
+          wait(page, "() => document.querySelectorAll('#cr-q-images img').length === 1 && document.querySelectorAll('#cr-a-images img').length === 1"))
+    page.evaluate("""bytes => {
+      document.querySelector('#cr-a-paste').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([new Uint8Array(bytes)], '粘贴答案.png', { type: 'image/png' }));
+      document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }));
+    }""", list(png()))
+    check('切换粘贴目标后图片进入答案区',
+          wait(page, "() => document.querySelectorAll('#cr-a-images img').length === 2")
+          and page.locator('#cr-q-images img').count() == 1)
+    calls = []
+
+    def ai_result(route):
+        body = route.request.post_data_json
+        calls.append(body)
+        mode = body.get('mode')
+        if mode == 'classify':
+            data = {'subject': '物理', 'category': '动力学', 'difficulty': 7, 'knowledge_tags': ['定义域'], 'labels': []}
+        elif mode == 'question_text':
+            data = {'mode': mode, 'question_text': '求 $f(x)$ 的定义域'}
+        else:
+            data = {'mode': mode, 'answer': '答案：全体实数'}
+        route.fulfill(status=200, content_type='application/json', body=json.dumps(data, ensure_ascii=False))
+
+    page.route('**/api/ai-recognize', ai_result)
+    page.click('#cr-classify-btn')
+    check('分类识别保留已填科目分类并合并知识点',
+          wait(page, "() => document.querySelector('#cr-related')?.value.includes('定义域')")
+          and page.locator('#cr-subject').input_value() == '数学'
+          and page.locator('#cr-category').input_value() == '函数'
+          and page.locator('#cr-diff').input_value() == '7')
+    page.click('#cr-question-text-btn')
+    page.click('#cr-extract-btn')
+    check('题面和答案提取使用各自第一张图片',
+          wait(page, "() => document.querySelector('#cr-question')?.value === '求 $f(x)$ 的定义域' && document.querySelector('#cr-answer')?.value === '答案：全体实数'")
+          and page.locator('#cr-question').input_value() == '求 $f(x)$ 的定义域'
+          and page.locator('#cr-answer').input_value() == '答案：全体实数'
+          and [call['mode'] for call in calls] == ['classify', 'question_text', 'answer']
+          and all(call.get('image', call.get('question_image', '')).startswith('data:image/png;base64,') for call in calls))
+    page.click('[data-action="create.submit"]')
+    check('含图提交后上下文仍保留、图片已清空且可加入展示板',
+          wait(page, "() => !!document.querySelector('#cr-result .crw-result.is-success') && document.querySelectorAll('#cr-q-images img, #cr-a-images img').length === 0")
+          and page.locator('#cr-subject').input_value() == '数学'
+          and page.locator('#cr-category').input_value() == '函数'
+          and page.locator('#cr-related').input_value() == '定义域'
+          and page.locator('[data-action="create.boardAdd"]').count() == 1)
+    page.unroute('**/api/ai-recognize')
 
 
 def main():
@@ -110,6 +181,18 @@ def main():
                 guarded(results, '录入题目主路径', lambda: run(page, f'http://127.0.0.1:{port}', results))
                 results.append(('页面脚本错误为零', not errors, str(errors[:3])))
                 context.close()
+                for theme in ('light', 'dark'):
+                    for label, viewport, target in (('桌面', (1440, 900), 28), ('手机', (390, 844), 40)):
+                        audit_context = browser.new_context(viewport={'width': viewport[0], 'height': viewport[1]})
+                        audit_context.add_init_script(f"localStorage.setItem('omrs-theme', '{theme}')")
+                        audit_page = audit_context.new_page()
+                        audit_page.goto(f'http://127.0.0.1:{port}/#/create', wait_until='networkidle')
+                        audit_page.locator('#create-flow [data-ib-stage="quick"]').click()
+                        audit = audit_page.evaluate(AUDIT, target)
+                        ok = len(audit['sizes']) <= 6 and min(audit['sizes']) >= 12 and not any(
+                            audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))
+                        results.append((f'快速录入审计 {label}·{theme}', ok, str(audit)))
+                        audit_context.close()
                 if not os.environ.get('OMRS_TEST_CDP_URL'):
                     browser.close()
         finally:

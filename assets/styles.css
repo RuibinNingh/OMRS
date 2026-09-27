@@ -67,28 +67,6 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;hei
 .form-group label{display:block;font-size:.78rem;color:var(--fg2);margin-bottom:5px;font-weight:600}
 .form-group .input{width:100%;display:block}
 .form-group .hint{font-size:.68rem;color:var(--fg3);margin-top:3px}
-.create-result{margin-top:16px;padding:14px 18px;border-radius:var(--radius);font-size:.82rem;line-height:1.6}
-.create-result-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px}
-.create-result.ok{background:var(--kill-bg);border:1px solid rgba(39,134,74,0.15);color:var(--kill-fg)}
-.create-result.err{background:var(--attack-bg);border:1px solid rgba(192,57,43,0.15);color:var(--attack-fg)}
-.paste-zone{border:1.5px dashed var(--border2);border-radius:var(--radius);background:var(--bg);padding:18px 14px;text-align:center;cursor:pointer;transition:all .15s}
-.paste-zone:hover,.paste-zone:focus{border-color:var(--accent-light);background:var(--accent-bg);outline:none}
-.paste-zone.dragover{border-color:var(--accent);background:var(--accent-bg)}
-.paste-zone.paste-active{border-color:var(--accent);border-style:solid;background:var(--accent-bg)}
-.paste-actions{margin:6px 0 2px}
-.paste-zone-hint{font-size:.76rem;color:var(--fg3);pointer-events:none;line-height:1.5}
-.img-previews{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
-.img-previews:empty{margin-top:0}
-.img-thumb{position:relative;width:84px;height:84px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--bg3)}
-.img-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.img-thumb .img-del{position:absolute;top:2px;right:2px;width:18px;height:18px;border:none;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:.7rem;line-height:18px;text-align:center;cursor:pointer;padding:0}
-.img-thumb .img-del:hover{background:var(--red)}
-.img-thumb .img-idx{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.5);color:#fff;font-size:.6rem;text-align:center;padding:1px 0;font-family:'JetBrains Mono','Noto Sans SC',monospace}
-.ai-row{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
-.ai-status{font-size:.76rem;color:var(--fg3)}
-.ai-status.ok{color:var(--green)}
-.ai-status.err{color:var(--red)}
-.ai-status.busy{color:var(--accent)}
 .status-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .status-grid>div{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;min-width:0}
 .status-grid span{display:block;font-size:.66rem;color:var(--fg3);margin-bottom:4px}
@@ -592,63 +570,6 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 [data-theme="dark"] ::-webkit-scrollbar-thumb{background:rgba(236,231,223,0.16)}
 [data-theme="dark"] ::-webkit-scrollbar-thumb:hover{background:rgba(236,231,223,0.26)}
 
-/* ── 录入题目页（panel-create）重设计：截图→识别→核对→保存 的双栏工作台。仅样式与结构，所有 #cr-* 元素 / 处理函数不变 ── */
-.cr-steps{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:20px}
-.cr-step{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;color:var(--fg3)}
-.cr-step i{display:inline-flex;align-items:center;justify-content:center;width:19px;height:19px;border-radius:50%;font-size:.68rem;font-weight:700;font-style:normal;border:1px solid var(--border2);color:var(--fg3)}
-.cr-step.done{color:var(--fg2)}
-.cr-step.done i{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
-.cr-step.now{color:var(--fg);font-weight:600}
-.cr-step.now i{border:1.5px solid var(--accent);color:var(--fg)}
-.cr-step-arrow{color:var(--fg3);font-size:.8rem}
-
-.cr-workbench{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:18px;align-items:start}
-.cr-pane{min-width:0}
-.cr-seclabel{font-size:.68rem;font-weight:700;letter-spacing:1.5px;color:var(--fg3);text-transform:uppercase;margin-bottom:14px}
-
-.cr-shot-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
-.cr-shot-head>span:first-child{font-size:.86rem;font-weight:600;color:var(--fg)}
-.cr-shot-opt{font-size:.68rem;color:var(--fg3)}
-.cr-div{border:none;border-top:1px solid var(--border);margin:18px 0}
-.cr-tip{display:flex;align-items:flex-start;gap:7px;font-size:.7rem;color:var(--fg3);line-height:1.5;margin-top:14px}
-.cr-tip-ico{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;border:1px solid var(--border2);font-size:.62rem;font-style:normal;font-weight:700;flex-shrink:0;margin-top:1px}
-.cr-tip-ico.ok{border-color:var(--green);color:var(--green)}
-
-/* 粘贴目标标记：由 JS 切换的 .paste-active 驱动，始终跟着当前目标区 */
-.paste-zone{position:relative}
-.paste-zone.paste-active::after{content:"粘贴目标";position:absolute;top:8px;right:8px;font-size:.6rem;font-weight:700;letter-spacing:.3px;color:var(--accent-fg);background:var(--accent);padding:2px 9px;border-radius:999px}
-
-.cr-aigroup{border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);padding:14px;margin-bottom:16px}
-.cr-aigroup-head{display:flex;align-items:center;gap:8px;margin-bottom:12px}
-.cr-aigroup-title{font-size:.76rem;font-weight:700;color:var(--fg2)}
-.cr-aigroup-tag{font-size:.64rem;color:var(--fg3);border:1px solid var(--border2);border-radius:999px;padding:1px 8px}
-.cr-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.cr-opt{font-weight:400;color:var(--fg3);font-size:.72rem}
-
-/* 错因：错题本核心字段，暖色微染 + 赭色旗标，不做成报错框 */
-.cr-cause{border:1px solid var(--border2);background:var(--trap-bg);border-radius:var(--radius);padding:13px 14px;margin-bottom:18px}
-.cr-cause-head{display:block;font-size:.82rem;font-weight:700;color:var(--fg);margin-bottom:8px}
-.cr-cause textarea.input{background:var(--bg2)}
-.cr-cause-foot{font-size:.68rem;color:var(--fg3);margin-top:8px}
-.cr-flag{color:var(--trap-fg)}
-
-.cr-actionbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
-.cr-actionbar-info{display:flex;align-items:center;gap:8px;font-size:.74rem;color:var(--fg2);line-height:1.5;max-width:560px}
-.cr-actionbar-btns{display:flex;gap:10px}
-
-.cr-help{margin-top:18px;border-top:1px solid var(--border);padding-top:14px}
-.cr-help>summary{cursor:pointer;font-size:.78rem;color:var(--fg2);font-weight:600;list-style:none}
-.cr-help>summary::-webkit-details-marker{display:none}
-.cr-help>summary::before{content:"▸ ";color:var(--fg3)}
-.cr-help[open]>summary::before{content:"▾ "}
-.cr-help-body{font-size:.78rem;color:var(--fg2);line-height:1.7;margin-top:10px}
-.cr-help-body code{background:var(--bg3);padding:1px 5px;border-radius:4px;font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:.92em}
-.cr-help-body pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:.72rem;font-family:'JetBrains Mono','Noto Sans SC',monospace;line-height:1.6;overflow-x:auto;margin-top:8px;color:var(--fg2)}
-
-#cr-diff{accent-color:var(--accent)}
-
-@media(max-width:900px){.cr-workbench{grid-template-columns:1fr}}
-@media(max-width:600px){.cr-row2{grid-template-columns:1fr}}
 
 /* ── 即时练习重设计（v1.5.0）：响应式工作台。仅 HTML 骨架 + CSS；instant.js、所有 #inst-* 与 instGo/instReveal/instSetVerdict/instSetScore/instSubmitPractice 等逻辑、/api/recommend·/api/feedback 流程均未改 ── */
 
@@ -674,7 +595,6 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 [data-theme="dark"] .input{background:var(--bg3)}
 [data-theme="dark"] table th{color:var(--fg2)}
 
-[data-theme="dark"] .img-thumb .img-del,[data-theme="dark"] .img-thumb .img-idx{background:rgba(0,0,0,.70)}
 
 @media(prefers-reduced-motion:reduce){.modal{animation:none}}
 

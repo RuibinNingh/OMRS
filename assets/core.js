@@ -1,7 +1,6 @@
 // === assets/core.js — 全局状态、api()、通用工具/筛选/Markdown 渲染 ===
 let DATA=null,ALL_UIDS=[],SESSIONS=[],ACTIVE_FB_SESSION='';
 // 题目详情缓存 QUESTION_CACHE / QUESTION_PENDING 归 assets/app/domain/question/mount.js（P6 起），旧代码经过渡桥读同名只读全局。
-let CR_Q_IMAGES=[],CR_A_IMAGES=[],CR_IMG_SEQ=0;
 
 const LEDGER_TIME_ZONE_KEY='omrs-ledger-time-zone';
 

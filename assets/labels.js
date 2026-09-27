@@ -21,7 +21,6 @@ async function loadLabels() {
   }
   LABELS = labelSort(LABELS);
   renderLabelFilterOptions();
-  renderCreateLabels();
   return LABELS;
 }
 function labelUpsertLocal(label) {
@@ -233,32 +232,6 @@ async function batchAddRemoveLabels(uids, add = [], remove = []) {
   return result;
 }
 
-// ---------- 录入表单里的「标记」字段 ----------
-function selectedCreateLabels() {
-  return String(document.getElementById('cr-labels-value')?.value || '').split('|').map(value => value.trim()).filter(Boolean);
-}
-function setCreateLabels(values) {
-  const hidden = document.getElementById('cr-labels-value');
-  if (hidden) hidden.value = [...new Set(values || [])].map(value => String(value).trim()).filter(Boolean).join('|');
-  renderCreateLabels();
-}
-function renderCreateLabels() {
-  const box = document.getElementById('cr-labels');
-  if (!box) return;
-  let hidden = document.getElementById('cr-labels-value');
-  if (!hidden) {
-    hidden = document.createElement('input');
-    hidden.type = 'hidden';
-    hidden.id = 'cr-labels-value';
-  }
-  const values = selectedCreateLabels();
-  box.innerHTML = `${values.map(value => lblChip(value, { lg: true })).join('')}<button type="button" class="lbl-form-add" data-lbl-create-open>＋ 添加标记</button>`;
-  box.appendChild(hidden);
-}
-function openCreateLabelsPicker(anchor) {
-  openLabelPicker('__create__', anchor, { get: selectedCreateLabels, onSave: values => setCreateLabels(values), title: '新题目' });
-}
-
 // ---------- 管理标记（改名 / 换色 / 调度加成 / 合并 / 删除） ----------
 function labelManagerRowHtml(item) {
   const bonus = Number(item.priority_bonus || 0);
@@ -414,8 +387,6 @@ function boardManageLabels() { return openLabelManager(); }
 // ---------- 事件委托 ----------
 if (typeof document !== 'undefined') {
   document.addEventListener('click', event => {
-    const create = event.target.closest?.('[data-lbl-create-open]');
-    if (create) { event.stopPropagation(); openCreateLabelsPicker(create); return; }
     // 选项点击后 picker 会重绘，event.target 可能已脱离 DOM：用 composedPath 判断是否点在 picker 内
     const insidePicker = !!(LABEL_PICKER && (event.composedPath ? event.composedPath().includes(LABEL_PICKER) : LABEL_PICKER.contains(event.target)));
     const target = event.target.closest?.('[data-lbl-target]');

@@ -1,44 +1,26 @@
 # 前端：录入题目与收件箱入口
 
 > **速查**
-> - 职责：录入题目页表单、AI 识别入口、提交后表单状态，以及收件箱在前端的入口（流程细节见 `AI/inbox.md`）
-> - 入口：`assets/app/features/create/`（页面契约、导航与上传）、`assets/app.js`（快速录入图片区）、`assets/inbox.js`（旧收件箱列表和工作区控制器）
-> - 不变量：页面切换后保留当前工作区；上传原图先进入暂存区，提交后才写入题库
-> - 必跑测试：`tests/e2e/create.py`、`tests/test_inbox.py`、`tests/test_ai_assist_taxonomy.py`
-> - 相关：`AI/frontend.md`（索引）
+> - 职责：五个工作区的导航、原图上传和快速录入；收件箱框选、题卡与训练流程见 `AI/inbox.md`
+> - 入口：`assets/app/features/create/`（页面、上传、快速录入）、`assets/inbox.js`（收件箱列表和其余工作区）
+> - 不变量：切页保留工作区与快速录入草稿；原图先入收件箱暂存层；快速录入提交后保留上下文字段，只清空题目内容与图片
+> - 必跑测试：`tests/app/create.test.mjs`、`tests/e2e/create.py`、`tests/test_inbox.py`、`tests/test_ai_assist_taxonomy.py`
+> - 相关：`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/design-system.md`
 
-## 录入题目页（`panel-create`）与提交后表单状态
+## 页面与工作区
 
-> 脚本分布：表单提交 `doCreate` / 重置 `resetCreateForm` 在 `assets/schedule.js`；科目/分类 datalist `populateCreateLists` 在 `core.js`；**图片处理、AI 识别、AI 设置、运行状态加载**在 `assets/app.js`；题目图与答案图分别暂存在全局 `CR_Q_IMAGES` / `CR_A_IMAGES`（`CR_IMG_SEQ` 为自增 id）；通用工具 `parseLooseJson` / `copyTextToClipboard` / `looseBool` 均在 `core.js` 声明；反馈页 JSON 导入与 AI 反馈提示词已迁到 `assets/app/features/feedback/`（见 `AI/frontend/feedback.md`）。
+`#panel-create` 由 `features/create/index.js` 登记页面契约。`state.js` 与 `view.js` 渲染五个键盘可操作的工作区按钮：上传、处理、录入、AI 训练、快速录入。前三项按流程编号。切到其它页面后返回，导航仍显示离开前的工作区。收件箱列表、处理、题卡和训练仍由 `assets/inbox.js` 控制，其余工作区的结构暂留在 `omrs_dashboard.html`。
 
-> **布局重设计**：原「左卡＝整张表单 / 右卡＝使用说明」改为**双栏工作台** `.cr-workbench`（≤900px 转单列）：**左栏「截图工作区」**`.card` 放两个截图区（题目 / 答案，中间 `.cr-div` 发丝分隔 + `.cr-tip` 提示），**右栏「题卡内容」**`.card` 放结构化字段。顶部 `.cr-steps` 编号步骤条（截图→识别→核对→保存——真序列才编号）；底部 `.cr-actionbar` 横跨双栏，含「重置」（直接调既有 `resetCreateForm()`）+「创建题目」（`#cr-btn`）与一行静态保存说明，`#cr-result` 紧随其后；原使用说明 / 文件结构树收进底部折叠块 `<details class="cr-help">`。右栏的科目 / 分类 / 难度 / 相关知识点包进 `.cr-aigroup` 卡片（标题「🤖 AI 自动填充 · 可改」，提示这组可被识别自动填、且可改）；**错因** `#cr-cause` 独立成暖色块 `.cr-cause`（`--trap-bg` 微染 + `.cr-flag` 赭色旗标 + 「复习时先看这里」脚注，作为错题本的核心字段）。**纯样式 + 结构改动：所有 `#cr-*` 元素 id、内联处理函数、`doCreate`/`crClassify`/`crExtractAnswer`/`crSetPasteTarget` 等逻辑与后端接口全部不变。**
+`upload.js` / `upload-view.js` 用 `ui/filedrop` 接受多张图片的选择与拖放。上传阶段也能粘贴图片或显式读取剪贴板；四种入口共用 `/api/inbox/upload`。非图片、剪贴板不可用和请求失败在控件旁提示；请求期间禁用入口。上传成功发 `inbox:reload`，旧列表据此刷新，重复图片由接口合并。上传原图不直接写入题库。
 
-录入页有两个图片区（现分列于左栏上下），题目区配两个 AI 按钮、答案区配一个 AI 按钮，可混用手动录入：
-- **题目图片区**（`#cr-q-paste` / `#cr-q-file` / `#cr-q-images`）：粘贴/拖拽/点击选择题目截图，随题保存并嵌入 `# 题目`。按钮 **「🤖 识别题目信息」**（`#cr-classify-btn`）→ `crClassify()` 取第 1 张题目图 `POST /api/ai-recognize {mode:'classify', subject, category}`，只回填**科目/分类/难度/相关知识点**（不抄题、不解题）。按钮 **「🤖 提取题目文本」**（`#cr-question-text-btn`）→ `crExtractQuestionText()` 取第 1 张题目图 `POST /api/ai-recognize {mode:'question_text'}`，把题干/条件/选项/图表说明**提取为文本**填入 `#cr-question`；若图片开头带题号（如 `11.`），只去掉该开头题号，选项和正文内部编号保留。其中 `knowledge_tags` 是否限定在「已有分类 ∪ 已有知识点」由设置页 `ai_restrict_tags` 开关决定（默认开=硬约束；关=允许新建，上限 4 个）。**用户已填的科目/分类会作为 hint 传给模型（要求其沿用），且前端只填空缺项、不覆盖已填值；知识点与已填的合并去重；难度给估计值。** 两个题目区按钮共用状态 `#cr-classify-status`。
-- **答案图片区**（`#cr-a-paste` / `#cr-a-file` / `#cr-a-images`）：粘贴/拖拽/点击选择答案截图，嵌入 `# 答案`。按钮 **「🤖 提取答案文本」**（`#cr-extract-btn`）→ `crExtractAnswer()` 取第 1 张答案图 `POST /api/ai-recognize {mode:'answer'}`，要求模型忠实保留图片内全部答案、解析、推导和步骤；若开头是对应题号加“答案/解析”等标题，只去掉题号，解析内部步骤编号保留；不得摘要或补写，再填入 `#cr-answer`。也可不提取（答案图直接嵌入）或手动输入。状态写 `#cr-extract-status`。
-- 字段分两栏：**左栏（截图工作区）** 题目截图区 + 答案截图区；**右栏（题卡内容）** 自上而下为 `.cr-aigroup`{`#cr-subject` / `#cr-category`（并排）/ `#cr-diff` 难度滑杆 / `#cr-related` 相关知识点（**classify 自动填**，挂 `cr-ktag-list` datalist，由 `populateCreateLists` 填入「已有分类 ∪ 已有知识点」供手动挑选）} → `#cr-question`（题目正文，可留空、手动输入或由 `question_text` 提取）→ `#cr-answer`（答案文本）→ `#cr-cause`（**错因**，`.cr-cause` 暖色块，写入 `# 备注` 的 `## 错因`）→ `#cr-note`（页码）。
+## 快速录入
 
-图片交互（题目区 / 答案区各一套）：
-- **显式读取剪贴板**：每个区下方有「📋 从剪贴板读取到「题目/答案」」按钮 → `crReadClipboard(kind)`（用 `navigator.clipboard.read()`，需 https 或 localhost 且浏览器授权；无图 / 不支持 / 被拒时弹提示）。这是把图读到**指定区**的最可靠方式，解决「想粘到答案却进了题目」。
-- **Ctrl/⌘+V 粘贴**：`document` 级 `paste` 监听仅本页激活时拦截图片；落到「当前目标区」——由 `crSetPasteTarget`（点击/聚焦某区、点其「读取剪贴板」时）记录，默认题目区；目标区会高亮（`.paste-active`，并由 CSS `::after` 角标「粘贴目标」始终跟随当前目标区）提示 Ctrl+V 将粘到此；文本粘贴不受影响。
-- 拖拽 / 点击选择按区独立（`crHandleDrop` / `crPickFiles` 带 `kind` 参数 `'q'|'a'`）。缩略图带删除 ✕ 与序号（`crRenderImages(kind)`），并据此启用/禁用对应按钮。
-- 提交时 `doCreate` 把两区图片分别映射为 `question_images` / `answer_images` 一并发送；成功提示含已保存图片数。
+`quick.js` 持有快速录入草稿、图片和当前粘贴目标；`quick-view.js` 渲染截图工作区与题卡内容双栏，窄屏改为单栏。题目和答案各有独立的 `ui/filedrop`、缩略图、移除按钮和显式读取剪贴板按钮。点击或聚焦图片区切换图片粘贴目标，默认题目区；只有当前页的快速录入工作区会捕获图片粘贴，文本粘贴保持浏览器原行为。
 
-录入页不再提供外部 AI 题目 JSON 导入，也不再维护本地录入队列；外部 JSON 导入只保留在反馈页。
+题目图片区读取第一张题目图：`/api/ai-recognize` 的 `classify` 模式填科目、分类、难度、知识点和标记；`question_text` 模式把题面填入文本框。答案图片区的 `answer` 模式读取第一张答案图，把解析填入答案框。分类识别把已填科目和分类作为 hint 发送，只填空缺项；知识点合并去重。识别请求失败、响应模式错误和空文本都在对应图片区显示原因。标记通过 `domain/labels` 打开共用选择器。
 
-**反馈页「从屏幕版或 AI 导入反馈」**（反馈录入页的导入折叠面板，`features/feedback/importer.js::planImportText` 与控制器 `copyPrompt`）：
-- **屏幕版导入**：粘贴屏幕版导出件「复制作答 JSON」的产物（格式见 `data.md` §11；容忍围栏、接受 `items`/`feedbacks`/裸数组），逐条校验 `uid` 非空、`is_correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` 缺省按对→10 / 错→4、钳 0–10。
-- **AI 导入**：「复制 AI 反馈提示词」会按当前已选 Session / 反馈行生成 UID 清单与输出骨架，让外部 AI 根据纸面批改结果或口述反馈整理为同一份 `omrs-feedback` JSON。导入端兼容 AI 常见别名：`correct` 等价 `is_correct`，`score` 等价 `sub_score`。
-- `session_id` 在 `SESSIONS` 中 → 自动选中 picker 并关联；不在列表（如 TMP- 临时卷）→ 仍以该 ID 提交写入历史，下拉里标「不在列表中」；无 ID → 按手动录入。导入的行替换当前批次后重绘，**不自动提交**——用户核对后点「提交反馈」。误贴旧题目 JSON 时提示当前只支持反馈 JSON。
+保存调用 `/api/create`，发送科目、分类、难度、页码、知识点、标记、题面、答案、错因，以及分开的 `question_images` 和 `answer_images`。必填科目和分类由前端预检。成功后只清空题面、答案、错因和两区图片；科目、分类、难度、知识点、标记和页码保留，方便连续录入。成功提示包含 UID、文件路径、图片数和「加入展示板」入口；同时刷新统计、历史和目录。按「重置」才清空整份草稿。
 
-提交后表单状态：
-- 新题目创建成功后，当前旧控制器清空全部输入框、两区图片与两处 AI 状态，难度滑块恢复为 5；保留创建成功提示。
-  `#cr-result` 的成功提示里带「📋 加入展示板」按钮（调 `boardQuickAdd(uid)`），与收件箱提交后的
-  入口一致；`boardQuickAdd` 未定义时不渲染该按钮。
-- 反馈提交成功后，清空反馈行和 Session 选择状态；保留处理结果列表，便于核对本次提交。
+## 收件箱其余工作区
 
-## 收件箱录入流程（`assets/inbox.js`）
-
-`#panel-create` 的 `#create-app` 由 `features/create/index.js` 登记为页面契约；`state.js` 与 `view.js` 渲染 `.ib-flow` 五个可键盘操作的按钮：**上传 → 处理 → 录入**（编号真序列）+ AI 训练 + 快速录入。切页后返回保留当前工作区。`upload.js` / `upload-view.js` 用 `ui/filedrop` 提供多图拖放与点击选择，还在页面挂载期间捕获图片粘贴；显式读取剪贴板按钮也走同一个上传函数。非图片或请求失败在控件旁提示，上传期间禁用入口，成功后发 `inbox:reload` 让旧列表重读。`assets/inbox.js` 仍承载列表和其余工作区；单题表单位于 `#ib-stage-quick`，`doCreate` / `crClassify` 等旧逻辑暂保留。处理区画布和其它旧样式仍在 `styles.css`，新导航与上传区样式在 `features/create/create.css`。快速录入的 `crHandlePaste` 只在快速录入阶段生效；交互细节见 `AI/inbox.md` §5。
-
-后台文本提取完成后，处理页只更新发起提取的图片与区域结果；当前画布上的框选可以继续完成，不受完成通知影响。
+`assets/inbox.js` 继续处理收件箱网格筛选与批量操作、框选画布、检测和提取任务、题卡提交及训练策略，详细数据流与边界见 `AI/inbox.md` §5。后台文本提取只同步发起提取的图片与区域结果，不中断当前框选。全局 `cr-*` 图片数组与旧快速录入函数已删除；`core.js` 的 `populateCreateLists` 暂为旧收件箱题卡提供三个 datalist，待题卡迁移后删除。
