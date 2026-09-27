@@ -1,5 +1,26 @@
-/* 录入工作区导航：可键盘操作的按钮，旧工作区样式继续由 styles.css 承担。 */
+/* 录入工作区导航与工作区显隐：可键盘操作的按钮，前三项带计数。 */
 #create-app { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+.ib-flow { display: flex; align-items: stretch; flex-wrap: wrap; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.ib-flow-step { flex: 1; min-width: 180px; display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-1); cursor: pointer; transition: border-color var(--dur-1) var(--ease-out); }
+.ib-flow-step:hover { border-color: var(--accent); }
+.ib-flow-step.on { border-color: var(--accent); outline: 1px solid var(--accent); outline-offset: -2px; }
+.ib-flow-step .fs-name { color: var(--fg-1); font-size: var(--text-md); font-weight: var(--weight-bold); }
+.ib-flow-step .fs-sub { color: var(--fg-3); font-size: var(--text-xs); white-space: nowrap; }
+.ib-flow-step .fs-count { margin-left: auto; color: var(--accent); font: var(--weight-semibold) var(--text-xl) var(--font-mono); white-space: nowrap; }
+.ib-flow-step .fs-count small { margin-left: var(--sp-1); color: var(--fg-3); font: var(--weight-regular) var(--text-xs) var(--font-sans); }
+.ib-flow-step.aux { flex: 0 0 auto; min-width: 0; border-style: dashed; }
+.ib-flow-step.aux .ib-flow-icon { border-style: dashed; }
+.ib-flow-arrow { align-self: center; color: var(--fg-3); }
+.ib-stage { display: none; }
+.ib-stage.on { display: block; }
+@media (max-width: 1500px) { .ib-flow-step.aux .fs-sub { display: none; } }
+/* 整屏工作台：只有「处理」是三栏工作台，其余工作区在自己的区块里滚动。 */
+@media (min-width: 1161px) {
+  .content.is-workbench .ib-flow { flex-shrink: 0; }
+  .content.is-workbench .ib-stage.on { flex: 1; min-height: 0; overflow-y: auto; }
+  .content.is-workbench #ib-stage-process.on { display: flex; flex-direction: column; overflow: hidden; }
+  .content.is-workbench #ib-stage-process .ib-proc { flex: 1; min-height: 0; height: auto; }
+}
 #create-flow .ib-flow-step {
   color: inherit;
   font: inherit;
@@ -80,7 +101,7 @@
 @media (max-width: 1160px) { .crw-columns { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) { .crw-fields-pair { grid-template-columns: minmax(0, 1fr); } .crw-pane { padding: var(--sp-4); } }
 
-/* 收件箱网格：旧处理区仍读取同一组选中图片。 */
+/* 收件箱网格：与处理区共用 inbox.js 的图片列表与勾选。 */
 #create-grid { margin-top: var(--sp-4); }
 .crw-inbox { display: grid; gap: var(--sp-4); }
 .crw-inbox__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }

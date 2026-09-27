@@ -24,4 +24,6 @@
 @import url("../features/settings/settings.css") layer(features);
 @import url("../features/create/create.css") layer(features);
 @import url("../features/create/process.css") layer(features);
+@import url("../features/create/cards.css") layer(features);
+@import url("../features/create/train.css") layer(features);
 @import url("legacy-bridge.css") layer(legacy-bridge);

@@ -3,7 +3,7 @@
 function switchTab(name){window.__omrs?.router.go(name)}
 // 数据加载与快照归 assets/app/domain/data.js（P6 起）；它写好旧 DATA 镜像后调本函数刷新旧页面，再经 bus 发 'data'。
 // 全局 reloadData() 由过渡桥 installDataBridge 挂上。
-async function legacyDataRefresh(){updateUidList();populateFilterOptions();populateCreateLists();renderQ();if(typeof loadLabels==='function')await loadLabels();if(typeof boardReloadData==='function')await boardReloadData()}
+async function legacyDataRefresh(){updateUidList();populateFilterOptions();renderQ();if(typeof loadLabels==='function')await loadLabels();if(typeof boardReloadData==='function')await boardReloadData()}
 async function setSidebarVersion(){try{const s=await api('/api/status');const el=document.getElementById('sidebar-foot');if(el&&s&&s.version)el.textContent=`${s.version} · 本地服务`}catch(e){}}
 function toggleSidebar(){const c=localStorage.getItem('omrs-sidebar-collapsed')==='1';localStorage.setItem('omrs-sidebar-collapsed',c?'0':'1');document.documentElement.setAttribute('data-sidebar',c?'':'collapsed')}
 function openDrawer(){document.body.classList.add('drawer-open')}

@@ -1,4 +1,4 @@
-"""录入题目 P6 分步迁移：工作区导航、上传与快速录入主路径。"""
+"""录入题目 E2E：工作区导航、上传与收件箱网格、框选、题卡创建、AI 训练与策略、快速录入主路径，以及五个工作区的四种审计。"""
 import os
 import json
 import socket
@@ -31,6 +31,8 @@ AUDIT = """target => {
   return { sizes, small, inline, handlers, over, overflow: document.documentElement.scrollWidth > innerWidth + 1, shown: shown.length };
 }"""
 AUDIT_UPLOAD = AUDIT.replace("'#ib-stage-quick'", "'#ib-stage-upload'")
+AUDIT_CARDS = AUDIT.replace("'#ib-stage-quick'", "'#ib-stage-create'")
+AUDIT_TRAIN = AUDIT.replace("'#ib-stage-quick'", "'#ib-stage-train'")
 AUDIT_PROCESS = AUDIT.replace("'#ib-stage-quick'", "'#ib-stage-process'").replace(
   "return { sizes, small, inline, handlers, over, overflow:",
   "const tiny = shown.filter(text).filter(e => parseFloat(getComputedStyle(e).fontSize) < 12).map(e => `${e.tagName}.${e.className}:${e.textContent.trim().slice(0, 24)}`); return { tiny, sizes, small, inline, handlers, over, overflow:")
@@ -223,6 +225,154 @@ def run(page, base, results):
           and page.locator('.crw-inbox__batch.is-open').count() == 0)
 
 
+READY_JS = """async ([file, text]) => {
+  const items = (await (await fetch('/api/inbox/items')).json()).items;
+  const item = items.find(row => row.file === file);
+  const regions = [
+    { id: 'rq_' + item.id, card: 1, role: 'question', x: 0, y: 0, w: 1, h: .5, origin: 'manual', convert: 'text', text, text_status: 'done' },
+    { id: 'ra_' + item.id, card: 1, role: 'answer', x: 0, y: .5, w: 1, h: .5, origin: 'manual', convert: 'image', text_status: 'none' },
+  ];
+  const res = await fetch('/api/inbox/item/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, regions, status: 'ready' }) });
+  return res.ok;
+}"""
+
+INBOX_JS = """async file => (await (await fetch('/api/inbox/items')).json()).items.find(row => row.file === file) || null"""
+
+
+def quiet(page):
+    """等提示条消失再点题卡底部的按钮：右下角的提示条可能正好盖住它们。
+    鼠标停在提示条上会暂停计时，所以先把鼠标移开。"""
+    page.mouse.move(5, 5)
+    wait(page, "() => !document.querySelector('.ui-toast')", 12000)
+
+
+def upload(page, name, shade):
+    page.locator('#ib-file').set_input_files({'name': name, 'mimeType': 'image/png', 'buffer': png(shade)})
+    wait(page, f"() => [...document.querySelectorAll('.crw-grid-item strong')].some(e => e.textContent.includes('{name}'))")
+
+
+def run_cards(page, base, results):
+    def check(name, ok):
+        results.append((name, bool(ok), ''))
+
+    page.goto(base + '/#/create', wait_until='networkidle')
+    page.locator('#create-flow [data-ib-stage="upload"]').click()
+    upload(page, '题卡.png', 90)
+    page.locator('.crw-grid-item', has_text='题卡.png').locator('[data-action="create.gridOpen"]').click()
+    page.locator('[data-action="create.processWholeImage"]').click()
+    check('整图即题目在区域面板显示题目区域', wait(page, "() => document.querySelectorAll('#ib-ps-body [data-ib-rg]').length === 1"))
+    page.locator('#ib-ps-body [data-action="create.processConvert"][data-arg$=":image"]').click()
+    check('保留图片的区域画出裁图预览', wait(page, "() => !!document.querySelector('#ib-ps-body canvas[data-crop][data-painted]') && document.querySelector('#ib-ps-body canvas[data-crop]').width > 1"))
+    page.locator('[data-action="create.processMarkReady"]').click()
+    check('标记就绪后「录入」计数加一', wait(page, "() => document.querySelector('#ib-c-ready')?.textContent === '1'"))
+    page.locator('#create-flow [data-ib-stage="create"]').click()
+    check('题卡工作区列出就绪题卡并画出裁图', wait(page, "() => document.querySelectorAll('#ib-stage-create .crc-card').length === 1 && !!document.querySelector('#ib-stage-create canvas[data-crop][data-painted]')")
+          and '1 张题卡待创建' in page.locator('#ib-cr-count').inner_text())
+    check('题卡工作区没有行内样式与行内事件', page.locator('#ib-stage-create [style], #ib-stage-create [onclick], #ib-stage-create [onchange]').count() == 0)
+    card = page.locator('#ib-stage-create .crc-card').first
+    quiet(page)
+    card.locator('[data-action="create.cardCommit"]').click()
+    check('缺科目分类时不提交并提示', wait(page, "() => [...document.querySelectorAll('.ui-toast')].some(e => e.textContent.includes('科目和分类是必填项'))")
+          and page.locator('#ib-stage-create .crc-card').count() == 1)
+    card.locator('input[data-arg$="|subject"]').fill('数学')
+    card.locator('input[data-arg$="|category"]').fill('函数')
+    card.locator('input[data-arg$="|tags"]').fill('定义域，值域')
+    card.locator('input[type="range"]').fill('8')
+    check('题卡字段即时更新写入路径与难度', card.locator('.crc-path').inner_text() == '→ 错题/数学/函数/函数N.md'
+          and card.locator('.crc-range output').inner_text() == '8')
+    check('题卡字段去抖写回收件箱', wait(page, """async () => {
+      const item = (await (await fetch('/api/inbox/items')).json()).items.find(row => row.file === '题卡.png');
+      const form = item?.cards?.['1'];
+      return form?.subject === '数学' && form?.category === '函数' && form?.difficulty === 8 && form?.tags?.join() === '定义域,值域';
+    }""", 5000))
+    jobs = []
+
+    def job_create(route):
+        jobs.append(route.request.post_data_json)
+        route.fulfill(status=200, content_type='application/json', body='{"job":{"id":"e2e-job"}}')
+
+    quiet(page)
+    page.route('**/api/inbox/jobs', job_create)
+    page.route('**/api/inbox/job?*', lambda route: route.fulfill(status=200, content_type='application/json', body='{"job":{"id":"e2e-job","status":"done","errors":[]}}'))
+    card.locator('[data-action="create.cardClassify"]').click()
+    check('AI 识别题目信息提交 classify 任务并带题目裁图',
+          wait(page, "() => [...document.querySelectorAll('.ui-toast')].some(e => e.textContent.includes('只填空缺项'))")
+          and jobs and jobs[0].get('type') == 'classify' and jobs[0]['cards'][0]['crop'].startswith('data:image/png;base64,'))
+    page.unroute('**/api/inbox/jobs')
+    page.unroute('**/api/inbox/job?*')
+    quiet(page)
+    page.locator('#ib-stage-create .crc-card [data-action="create.cardBack"]').click()
+    check('退回处理回到处理区并恢复为已框选', wait(page, "() => document.querySelector('#ib-stage-process')?.classList.contains('on') && document.querySelector('#ib-c-boxed')?.textContent === '1'")
+          and page.locator('#ib-pc-fname').inner_text().startswith('题卡.png'))
+    page.locator('[data-action="create.processMarkReady"]').click()
+    wait(page, "() => document.querySelector('#ib-c-ready')?.textContent === '1'")
+    page.locator('#create-flow [data-ib-stage="create"]').click()
+    wait(page, "() => document.querySelectorAll('#ib-stage-create .crc-card').length === 1")
+    check('退回再就绪后题卡字段仍保留', page.locator('#ib-stage-create input[data-arg$="|subject"]').input_value() == '数学')
+    quiet(page)
+    page.locator('#ib-stage-create [data-action="create.cardCommit"]').click()
+    check('创建题目写入题库并出现「加入展示板」', wait(page, "() => [...document.querySelectorAll('.ui-toast')].some(e => e.textContent.includes('已创建') && e.textContent.includes('加入展示板'))")
+          and wait(page, "() => !!document.querySelector('#ib-stage-create .ui-empty') && document.querySelector('#ib-c-ready')?.textContent === '0'"))
+    created = page.evaluate(INBOX_JS, '题卡.png')
+    check('收件箱图片转为已录入并关联题目', created and created['status'] == 'done' and (created.get('cards') or {}).get('1', {}).get('created_uid'))
+    page.locator('#create-flow [data-ib-stage="upload"]').click()
+    upload(page, '批量一.png', 120)
+    upload(page, '批量二.png', 150)
+    check('测试数据：两张图经接口置为就绪', page.evaluate(READY_JS, ['批量一.png', '题面 $x^2$']) and page.evaluate(READY_JS, ['批量二.png', '另一题']))
+    page.evaluate("switchTab('settings'); switchTab('create')")
+    page.locator('#create-flow [data-ib-stage="create"]').click()
+    check('就绪图片重读后出现在题卡工作区', wait(page, "() => document.querySelectorAll('#ib-stage-create .crc-card').length === 2 && !!document.querySelector('#ib-stage-create .crc-text .katex')"))
+    for index in range(2):
+        row = page.locator('#ib-stage-create .crc-card').nth(index)
+        row.locator('input[data-arg$="|subject"]').fill('物理')
+        row.locator('input[data-arg$="|category"]').fill('力学')
+    page.locator('#ib-cr-all').check()
+    check('全选后批量按钮可用', not page.locator('[data-action="create.cardCommitSelected"]').is_disabled())
+    page.locator('[data-action="create.cardCommitSelected"]').click()
+    check('批量创建只弹一条汇总并可一次加入展示板', wait(page, "() => [...document.querySelectorAll('.ui-toast')].some(e => e.textContent.includes('已创建 2 道题目') && e.textContent.includes('加入展示板（2 题）'))")
+          and wait(page, "() => document.querySelectorAll('#ib-stage-create .crc-card').length === 0"))
+    stats = page.evaluate("async () => (await (await fetch('/api/stats')).json()).items.filter(item => item.subject === '物理' || item.subject === '数学').length")
+    check('三道题都进了题库', stats >= 3)
+
+
+def run_train(page, base, results):
+    def check(name, ok):
+        results.append((name, bool(ok), ''))
+
+    page.goto(base + '/#/create', wait_until='networkidle')
+    page.locator('#create-flow [data-ib-stage="train"]').click()
+    check('AI 训练读取数据集统计', wait(page, "() => /^\\d+$/.test(document.querySelector('[data-stat=\"imgs\"] .ui-stat__value')?.textContent.trim() || '') && document.querySelectorAll('#ib-stage-train .crt-bar progress').length >= 2"))
+    check('训练工作区没有行内样式与行内事件', page.locator('#ib-stage-train [style], #ib-stage-train [onclick], #ib-stage-train [onchange]').count() == 0)
+    check('导出链接默认 OMRS JSONL', page.locator('#ib-tr-export').get_attribute('href').endswith('format=omrs_jsonl'))
+    page.locator('#ib-tr-fmt').select_option('yolo')
+    check('切换导出格式更新链接', page.locator('#ib-tr-export').get_attribute('href').endswith('format=yolo'))
+    check('默认提供方隐藏本地检测地址', wait(page, "() => !!document.querySelector('#ib-pl-provider')") and page.locator('#ib-pl-local-row').is_hidden())
+    page.locator('#ib-pl-provider').select_option('local_http')
+    check('选本地检测服务后显示地址输入', page.locator('#ib-pl-local-row').is_visible())
+    page.locator('#ib-pl-local').fill('http://127.0.0.1:8600/detect')
+    page.locator('#ib-pl-blind').fill('3')
+    page.locator('#ib-pl-conf').fill('1.5')
+    page.locator('label.ui-switch:has(#ib-pl-upload)').click()
+    page.locator('[data-action="create.trainSave"]').click()
+    check('保存策略就地提示成功', wait(page, "() => document.querySelector('#ib-pl-status')?.textContent.includes('已保存')"))
+    config = page.evaluate("async () => (await fetch('/api/config')).json()")
+    check('策略写入配置并夹取阈值', config.get('inbox_detect_provider') == 'local_http' and config.get('inbox_local_detect_url') == 'http://127.0.0.1:8600/detect'
+          and config.get('inbox_blind_every') == 3 and config.get('inbox_auto_ready_conf') == 1 and config.get('inbox_auto_on_upload') is True)
+    page.evaluate("switchTab('settings'); switchTab('create')")
+    check('返回训练工作区重读策略', wait(page, "() => document.querySelector('#ib-pl-provider')?.value === 'local_http' && document.querySelector('#ib-pl-blind')?.value === '3'"))
+    page.locator('[data-action="create.trainCleanup"][data-arg="crops"]').click()
+    page.locator('dialog[open] [data-dialog-cancel]').last.click()
+    page.locator('[data-action="create.trainCleanup"][data-arg="crops"]').click()
+    page.locator('dialog[open] [data-dialog-ok]').click()
+    check('清空裁图缓存经确认后提示结果', wait(page, "() => [...document.querySelectorAll('.ui-toast')].some(e => e.textContent.includes('裁图缓存'))"))
+    page.route('**/api/inbox/dataset/stats', lambda route: route.fulfill(status=503, content_type='application/json', body='{"msg":"统计服务故障"}'))
+    page.locator('#ib-stage-train .crt-row [data-action="create.trainRefresh"]').click()
+    check('统计读取失败就地显示原因并可重试', wait(page, "() => document.querySelector('#ib-stage-train .crt-error')?.textContent.includes('统计服务故障')"))
+    page.unroute('**/api/inbox/dataset/stats')
+    page.locator('#ib-stage-train .crt-error [data-action="create.trainRefresh"]').click()
+    check('重试成功后错误消失', wait(page, "() => !document.querySelector('#ib-stage-train .crt-error')"))
+
+
 def main():
     from playwright.sync_api import sync_playwright
     results = []
@@ -246,6 +396,8 @@ def main():
                 errors = []
                 page.on('pageerror', lambda error: errors.append(str(error)))
                 guarded(results, '录入题目主路径', lambda: run(page, f'http://127.0.0.1:{port}', results))
+                guarded(results, '题卡工作区', lambda: run_cards(page, f'http://127.0.0.1:{port}', results))
+                guarded(results, 'AI 训练工作区', lambda: run_train(page, f'http://127.0.0.1:{port}', results))
                 results.append(('页面脚本错误为零', not errors, str(errors[:3])))
                 context.close()
                 for theme in ('light', 'dark'):
@@ -267,6 +419,20 @@ def main():
                         process_ok = len(process_audit['sizes']) <= 6 and min(process_audit['sizes']) >= 12 and not any(
                             process_audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))
                         results.append((f'框选工作区审计 {label}·{theme}', process_ok, str(process_audit)))
+                        audit_page.evaluate(READY_JS, [f'审计-{theme}-{label}.png', '已知 $f(x)=x^2$，求 $f(2)$。'])
+                        audit_page.evaluate("switchTab('settings'); switchTab('create')")
+                        audit_page.locator('#create-flow [data-ib-stage="create"]').click()
+                        wait(audit_page, "() => !!document.querySelector('#ib-stage-create .crc-card canvas[data-painted]') && !!document.querySelector('#ib-stage-create .katex')")
+                        cards_audit = audit_page.evaluate(AUDIT_CARDS, target)
+                        cards_ok = cards_audit['shown'] >= 30 and len(cards_audit['sizes']) <= 6 and min(cards_audit['sizes']) >= 12 and not any(
+                            cards_audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))
+                        results.append((f'题卡工作区审计 {label}·{theme}', cards_ok, str(cards_audit)))
+                        audit_page.locator('#create-flow [data-ib-stage="train"]').click()
+                        wait(audit_page, "() => !!document.querySelector('#ib-pl-provider') && !document.querySelector('#ib-stage-train [aria-busy=\"true\"]')")
+                        train_audit = audit_page.evaluate(AUDIT_TRAIN, target)
+                        train_ok = train_audit['shown'] >= 50 and len(train_audit['sizes']) <= 6 and min(train_audit['sizes']) >= 12 and not any(
+                            train_audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))
+                        results.append((f'AI 训练审计 {label}·{theme}', train_ok, str(train_audit)))
                         audit_page.locator('#create-flow [data-ib-stage="quick"]').click()
                         audit = audit_page.evaluate(AUDIT, target)
                         ok = len(audit['sizes']) <= 6 and min(audit['sizes']) >= 12 and not any(

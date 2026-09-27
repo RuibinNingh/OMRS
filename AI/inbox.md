@@ -2,12 +2,12 @@
 
 > **速查**
 > - 职责：收件箱「上传 → 框选 → 转换 → 提交」暂存流程、后台 job、框选提供方与训练数据集
-> - 入口：`omrs/inbox.py`、`omrs/ai_assist.py`、`assets/app/features/create/`、`assets/inbox.js`、`assets/inbox_mobile.html`
+> - 入口：`omrs/inbox.py`、`omrs/ai_assist.py`、`assets/app/features/create/`、`assets/inbox_mobile.html`
 > - 不变量：上传的原图只进暂存区，提交后才写入题库；手机页遵循与桌面相同的访问规则
-> - 必跑测试：`tests/test_inbox.py`、`tests/app/settings.test.mjs`
+> - 必跑测试：`tests/test_inbox.py`、`tests/app/settings.test.mjs`、`tests/app/create-inbox.test.mjs`、`tests/e2e/create.py`
 > - 相关：`AI/frontend/create.md`、`AI/api.md`
 
-> 对应源文件：`omrs/inbox.py`（存储 / 任务 / 提交 / 数据集）、`omrs/ai_assist.py`（`detect_regions` / `extract_region` / `parse_detect_output` / 按用途选模型）、`omrs/server.py`（`_inbox_get` / `_inbox_post` / `_multipart_files`）、`assets/app/features/create/`（页面外壳、导航、上传与网格）、`assets/inbox.js`（处理、题卡和训练旧控制器）、`assets/inbox_mobile.html`、`omrs_dashboard.html`（`#panel-create` 中未迁的 `ib-*` 结构）、`assets/styles.css` 末段。
+> 对应源文件：`omrs/inbox.py`（存储 / 任务 / 提交 / 数据集）、`omrs/ai_assist.py`（`detect_regions` / `extract_region` / `parse_detect_output` / 按用途选模型）、`omrs/server.py`（`_inbox_get` / `_inbox_post` / `_multipart_files`）、`assets/app/features/create/`（录入页五个工作区与收件箱前端数据，见 `AI/frontend/create.md`）、`assets/inbox_mobile.html`。
 
 ## 1. 它解决什么
 
@@ -68,20 +68,20 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 - `extract_region(vault, image, role, judge)`：复用 `ANSWER_PROMPT` / `QUESTION_TEXT_PROMPT`，`judge=True` 时追加 `JUDGE_SUFFIX` 要求返回 `{convertible, reason, text}`；模型不按 JSON 返回时整段当 text、`convertible=True`。题目文本会去掉整段开头题号；答案仅在开头为“题号+答案/解析标题”时去掉题号，解析内部步骤编号保留。`max_tokens=4000`。
 - 旧的 `/api/ai-recognize` 三种 mode 行为不变（classify 现在也走 `purpose="classify"`）。
 
-## 5. 前端（`features/create/` 与旧 `assets/inbox.js`）
+## 5. 前端（`assets/app/features/create/`）
 
-- 入口：`switchTab('create')` → `features/create` 页面挂载，渲染 `.ib-flow` 五个按钮、上传区和收件箱网格，并调用旧 `inboxInit()` 加载数据。**上传 / 处理 / 录入**按真序列编号，AI 训练和快速录入在旁边；切页返回后导航仍显示原工作区。`ui/filedrop` 支持多图拖放和点击选择；图片粘贴、显式读剪贴板共用上传函数，成功发 `inbox:reload` 重读数据。快速录入挂载在 `#ib-stage-quick`，由 `features/create/quick.js` 管理题目和答案图片、AI 识别与创建；成功后保留科目、分类等上下文，只清空题面、答案、错因和图片。
-- 粘贴：`features/create/upload.js` 仅在上传工作区捕获图片粘贴，`features/create/quick.js` 仅在快速录入工作区按当前目标接收图片；文本粘贴仍走浏览器原行为。
-- ① 上传：拖拽 / 选文件 / 读剪贴板 → `POST /api/inbox/upload`；`grid.js` / `grid-view.js` 在原图卡片上叠框位预览，按状态筛选，支持全选当前筛选中的未录入图片。底部 `.crw-inbox__batch` 提供 AI / 模板框选、沿用框位、整图即题目、去处理、丢弃和清空选择，只处理勾选项；丢弃失败保留选择并就地提示。已录入卡片打开关联题目。网格经 `legacy-inbox.js` 与旧处理区共享选择和当前图片。
-- ② 处理三栏：队列（可勾选）| 画布（拖拽画框、移动、八向缩放，框外 SVG mask 遮暗，AI 框带置信度）| 区域面板（按题卡分组；角色 / 来源 / 归一化坐标与裁出尺寸 / 转文本·保留图·让 AI 判断 / 提取 / 文本编辑 + `renderMdContent` 预览 / 保留图的 canvas 预览）。改动去抖 500ms 调 `/item/update`。快捷键 `Q/A/X`、`Del`、`Enter`、`⌘/Ctrl+Enter`。
-- 沿用上一张框位 `ibTransferBoxes`：横向照搬；`y<0.35` 的框（题目）按**像素**锚定顶部，其余按比例——因为不同截图高度差异极大，归一化 y 不能直接搬。
-- AI 框选 `ibDetect`：`slice-plan` → canvas 切条带（JPEG 0.85）→ `jobs detect` → 1.2s 轮询 → 完成后 `ibLoad()` 回填。提取 / 分类也用后台 job 和轮询。
-- 文本提取完成时，前端只从 `/api/inbox/item` 同步本次提取的图片和区域结果，不重画当前画布。切到另一张图后可以继续框选；若正在编辑原图，提取字段合并到对应区域，拖动结束后再刷新右栏。
-- ③ 录入：`ready` 的每张题卡一行——左预览（文本 `renderMdContent` 或裁图 canvas）右表单；字段去抖保存到 `cards`；`AI 识别题目信息` 走 classify job；`创建题目` 把图片区域 canvas 裁成 PNG 随 `commit` 上传，成功后 `reloadData()`。
-- 创建后的提示：`ibCommit(k)` 单张创建后弹一条带「加入展示板」的 `ibToast`；`ibCommitSelected()` 批量创建时逐张走 `ibCommit(k, {quiet:true})` 不弹提示，全部提交完只弹一条汇总（「已创建 N 道题目」+ 失败张数），按钮变成「加入展示板（N 题）」，一次把这批新题全部加入。两者的按钮都由 `ibBoardAction(uids)` 生成，落到 `boardQuickAdd`。`ibToast` 带按钮时停留 8 秒、无按钮 3.2 秒。
-- AI 训练：`dataset/stats` 四张指标卡 + 版式 / 转换决策条 + 盲标评估集与存储概览 + 导出（JSONL / YOLO）+ 清理按钮（`ibCleanup`）+「框选提供方与自动策略」表单（`ibLoadPolicy / ibSavePolicy`，直接读写 `/api/config` 的 `inbox_*` 键）。
-- 模板框选：处理页 / 队列脚 / 批量条各有「▦ 模板框选」按钮 → `ibDetect(ids, 'template')`，不切片；「🤖 AI 框选」不传 provider，由服务端按配置选。detect 完成的 toast 会汇总盲标张数、自动就绪张数与失败数。区域面板 meta 行对盲标图显示「盲标（AI 框已隐藏，请直接手画）」。
-- `ibCrop`：PNG 裁图超过 150 万像素（整张长截图的答案区）自动改 JPEG 0.9（白底），避免 commit 请求带几 MB base64。
+界面分工与文件见 `AI/frontend/create.md`；这里只记与后端流程相关的前端约定。
+
+- 入口：`#/create` 挂载页面契约，读 `/api/inbox/items`。收件箱前端数据只有一个所有者 `inbox-store.js`（单例在 `inbox.js`），网格、处理区、题卡共用同一份图片列表与勾选。**上传 / 处理 / 录入**按真序列编号，AI 训练和快速录入在旁边；切页返回后仍停在原工作区。
+- 粘贴：上传工作区捕获图片粘贴并上传；快速录入工作区按当前目标接收图片；文本粘贴仍走浏览器原行为。
+- ① 上传：拖拽 / 选文件 / 粘贴 / 读剪贴板 → `POST /api/inbox/upload`，成功后发 `inbox:reload` 重读。网格在原图卡片上叠框位预览，按状态筛选；批量条提供 AI / 模板框选、沿用框位、整图即题目、去处理、丢弃，只处理勾选项。
+- ② 处理三栏：队列（可勾选）| 画布（拖拽画框、移动、八向缩放，框外 SVG mask 遮暗，AI 框带置信度）| 区域面板（按题卡分组；角色 / 来源 / 归一化坐标与裁出尺寸 / 转文本·保留图·让 AI 判断 / 提取 / 文本编辑与 Markdown 预览 / 保留图的裁图预览）。改动去抖 500ms 调 `/item/update`，离开处理区或本页时立即写出。
+- 沿用上一张框位（`process-state.js` 的 `transferBoxes`）：横向照搬；`y<0.35` 的框（题目）按**像素**锚定顶部，其余按比例——不同截图高度差异极大，归一化 y 不能直接搬。
+- AI 框选（`inbox-ops.js` 的 `detect`）：`slice-plan` → canvas 切条带（JPEG 0.85）→ `jobs detect` → 1.2s 轮询 → 完成后重读收件箱回填；模板框选不切片。提取、分类也用后台 job 和轮询。detect 完成的提示汇总盲标张数、自动就绪张数与失败数；区域面板 meta 行对盲标图显示「盲标（AI 框已隐藏，请直接手画）」。
+- 文本提取完成时，前端只从 `/api/inbox/item` 同步本次提取的图片和区域字段，不重画当前画布；若正在拖动原图，字段先合并，松手后再刷新右栏。
+- ③ 录入：`ready` 的每张题卡一行——左预览（文本 Markdown 或裁图 canvas）右表单；字段去抖 600ms 存到 `cards`；「AI 识别题目信息」走 classify job；「创建题目」先写出待存改动，把保留图片的区域裁成 PNG 随 `commit` 上传。单张创建弹一条带「加入展示板」的提示（停留 8 秒）；批量逐张提交、最后只弹一条汇总，「加入展示板（N 题）」一次加入这批新题。
+- AI 训练：`dataset/stats` 四张指标卡 + 版式 / 转换决策条 + 盲标评估集与存储概览 + 导出（JSONL / YOLO）+ 清理按钮 +「框选提供方与自动策略」表单（直接读写 `/api/config` 的 `inbox_*` 键）。
+- 裁图（`crop.js`）：PNG 裁图超过 150 万像素（整张长截图的答案区）自动改 JPEG 0.9（白底），避免 commit 请求带几 MB base64。
 
 ## 6. 测试
 

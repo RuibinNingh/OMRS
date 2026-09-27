@@ -3,7 +3,7 @@
     python3 tests/e2e/ui_bridge.py            # 全部通过退出码 0；没有 playwright 退出码 2
 
 自己生成 fixture Vault（tests/fixtures/make_vault.py），在临时端口起一个隔离实例，不碰真实数据。检查：
-过渡桥安装与排队补发、旧 uiToast / ibToast / uiConfirm / uiPrompt / uiDialog、新对话框叠在旧弹层之上且 Esc 只关上层、
+过渡桥安装与排队补发、旧 uiToast / uiConfirm / uiPrompt / uiDialog、新对话框叠在旧弹层之上且 Esc 只关上层、
 「有弹层时不响应」的守卫能看到新对话框、题库工具栏同一行同一高度（D2）、即时练习筛选 select 不裁字（D3）、12 页无报错。
 """
 import importlib.util
@@ -46,9 +46,6 @@ def check_all(page):
     ev("window.__acted = 0; uiToast('已移出展示板', {kind: 'warn', actions: [{label: '撤销', onClick: () => { window.__acted = 1; }}]})")
     page.click(".ui-toast--warn .ui-toast__action")
     check("toast 操作按钮回调", ev("window.__acted") == 1)
-    ev("ibToast('收件箱提示', 'warn', {label: '加入展示板', onClick: () => {}})")
-    check("收件箱 ibToast 转调统一 toast", ev("[...document.querySelectorAll('.ui-toast--warn')].some(t => t.dataset.text === '收件箱提示' && t.querySelector('.ui-toast__action'))")
-          and ev("!document.getElementById('ib-toast')"))
     ev("window.__leak = 0; document.addEventListener('keydown', e => { if (e.key === 'Escape') window.__leak++; }); window.__c = uiConfirm('删除？', {danger: true}); 0")
     page.wait_for_selector("dialog.ui-dialog[open]")
     check("危险确认默认聚焦「取消」", ev("document.activeElement?.matches('.ui-dialog__foot [data-dialog-cancel]')"))

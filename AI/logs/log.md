@@ -2,6 +2,9 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-27_frontend-rearch-p7](2026-09-27_frontend-rearch-p7.md)：前端重构 P7：展示板迁移（第 1 轮 v1.26.0 纯函数与测试；第 2 轮 v1.26.1 保存队列、打印协调、常驻预览；第 3 轮 v1.26.2 拖拽排序、版面设置；第 4 轮 v1.26.3 选板浮层原生；第 5 轮 v1.26.4 页面外壳原生、板列表数据所有权；第 6 轮 v1.26.5 整页原生、删除 board.js）
+- [2026-09-27_frontend-rearch-p6-p7-merge](2026-09-27_frontend-rearch-p6-p7-merge.md)：前端重构：P6 在制（Codex）与 P7（CCW）合并，v1.26.5
+- [2026-09-27_frontend-rearch-p6-create](2026-09-27_frontend-rearch-p6-create.md)：前端重构 P6 收尾：录入页框选、题卡、AI 训练工作区原生（v1.26.6）
 - [2026-09-27_ccw-p6-merge](2026-09-27_ccw-p6-merge.md)：合入 CCW 的 P6 第 6–8 轮交付差异
 - [2026-09-26_omrs-p6-deploy-preflight](2026-09-26_omrs-p6-deploy-preflight.md)：OMRS P6r5 部署可行性预检
 - [2026-09-26_deploy-v1.25.4-production](2026-09-26_deploy-v1.25.4-production.md)：# OMRS v1.25.4（P6r5）生产部署记录

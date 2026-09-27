@@ -4,6 +4,15 @@
 > 这里每段都是当时写下的原文（未改写），所以段里的「现在 / 原先」以该版本为准；具体文件级变更看 `logs/`。
 > 新版本的摘要请追加在最上面；同一版本多次改动时合并进同一段。
 
+## v1.26.6（2026-09-27）前端重构 P6 收尾：录入页框选、题卡、AI 训练工作区原生，删除 inbox.js
+
+- **收件箱前端数据归 `assets/app/features/create/inbox-store.js`**（原经典脚本 inbox.js 的 `IB` 全局、保存队列与任务轮询；旧文件、它的 `<script>`、分步迁移用的 `legacy-inbox.js` 全部删除）：I/O 注入的工厂，单例在 `inbox.js`；网格、处理区、题卡、训练共用一份图片列表与勾选，变化时发 `inbox:changed`。保存沿用 `ibSaveSoon` 语义（防抖合并、`cards` 按题卡合并、同图串行、修订号防覆盖），离开处理区、离开本页、创建题目前 flush；拖框期间收到保存响应只同步状态，不再替换正在拖的对象。
+- **框选工作区（Codex 在制的部分）完成**：本张图的编辑全部在 `process.js`，AI / 模板框选、沿用框位、整图、提取与分类在 `inbox-ops.js`，裁图在 `crop.js`；队列与区域面板的旧 `data-ib-*` 点击换成 `data-action` / `data-change` / `data-input`。多题卡时「在此题卡画框」由链接改为按钮。保留图片的裁图预览只在框位变化时重画。
+- **题卡工作区原生**（`cards-state.js` / `cards-view.js` / `cards.js`、`cards.css`）：模板不写 `style=` 与 `on*=`，emoji 按钮换成图标；标记走 `domain/labels`，科目、分类、知识点的 datalist 由页面渲染（`core.js` 的 `populateCreateLists` 与三个全局 datalist 删除）；没有就绪题卡时给空态和「去处理」；批量按钮在没勾选时禁用。创建前先写出待存改动，成功后同时刷新统计、历史与目录；批量创建仍只弹一条汇总。
+- **AI 训练工作区原生**（`train-state.js` / `train-view.js` / `train.js`、`train.css`）：指标卡用 `ui/stat`，版式与转换决策条用原生 `<progress>`（原为行内 `style="width:…"`），导出改为随格式变化的下载链接，策略表单用 `ui/field` / `ui/select` / `ui/switch`，本地检测地址按提供方显隐（原为行内 `display`），保存结果与读取失败就地显示并可重试；清空裁图缓存的确认改为危险样式。
+- **样式**：`.ib-flow*`、工作区显隐与整屏工作台规则从 `styles.css` 搬进 `create.css`（token 化；导航副标题 11.2px → 12px）；`styles.css` 删去收件箱整段、`.lbl-form-add` 与工作台媒体块（含一条空注释）。
+- **测试**：新增 `tests/app/create-inbox.test.mjs`（12：保存队列、修订号、轮询、切工作区、题卡、训练模型、裁图参数、框选汇总）；`tests/e2e/create.py` 42 → 80（题卡：必填预检、字段去抖、分类任务、退回处理、单张与批量创建；训练：统计、导出格式、策略显隐与保存、清理确认、读取失败重试；题卡与训练工作区各四种审计）；`tests/e2e/ui_bridge.py` 删去已不存在的 `ibToast` 一项（15 → 14），组件画廊的 toast 说明同步。
+
 ## v1.26.5（2026-09-27）前端重构 P7 第 6 轮：展示板整页原生，删除 board.js
 
 - **与 P6 剩余合并（2026-09-27）**：P7 六轮基于 v1.25.4 开发，与 Codex 的 P6 剩余（下文 v1.25.5–v1.25.13，另有录入页框选工作区的在制代码）并行；两条线在此版合并，按 progress §9 取较大的版本号 v1.26.5，此后各页在 v1.26.5 上加 0.0.1。合并时另改：`features/create/quick.js` 的 `import` 从已删除的 `domain/board.js` 改到 `domain/board/index.js`（不改会让整个模块图加载失败）；`legacy-pages.js` 的登记表清空（P6 删完其余五页、P7 删掉 board）；`omrs_dashboard.html` 同时去掉 `board*.js` 与 `history` / `catalog` / `reports` 的 `<script>`；`tests/ui_baseline.json` 按合并后的实测重算（只降不升）。

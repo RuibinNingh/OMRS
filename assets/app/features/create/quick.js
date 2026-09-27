@@ -12,17 +12,9 @@ import { reloadData } from '../../domain/data.js';
 import { notifyHistoryChanged } from '../../domain/history.js';
 import { newQuickState, createPayload, mergeClassification, afterCreate } from './state.js';
 import { quickView, imageThumbs, resultView } from './quick-view.js';
+import { suggestions } from './cards-state.js';
 
 let state = newQuickState();
-
-function options(items) {
-  const unique = values => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
-  return {
-    subjects: unique(items.map(item => item.subject)),
-    categories: unique(items.map(item => item.category)),
-    tags: unique(items.flatMap(item => [item.category, ...(item.knowledge_tags || [])])),
-  };
-}
 
 function readDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -38,7 +30,7 @@ export function createQuick(root, ctx) {
   let alive = true;
   let busy = false;
   const aiBusy = { q: false, a: false };
-  const dataOptions = () => options(itemsOf(ctx.store.get().data));
+  const dataOptions = () => suggestions(itemsOf(ctx.store.get().data));
   const field = name => host.querySelector(`[data-cr-field="${name}"]`);
   const imageList = kind => state.images[kind];
 

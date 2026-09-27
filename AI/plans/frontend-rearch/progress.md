@@ -2,10 +2,10 @@
 
 > **状态**
 > - 目标：重建前端架构，让 CCW 能安全修改、可维护性提升、UI 精致化（总纲见同目录 `plan.md`）
-> - 阶段：**P6、P7 两条线已合并（v1.26.5）**。P7 完成（CCW · 受限，6 轮 v1.26.0–v1.26.5，展示板整页原生）；P6 进行中（Codex · 完整，已提交到 v1.25.13；录入页框选工作区在制、未提交，随合并原样保留），框选收尾与题卡、训练、策略工作区待迁
+> - 阶段：**P6 完成（v1.26.6）**，P7 完成（v1.26.5 已与 P6 合并）。P6 最后一段（录入页框选、题卡、AI 训练工作区，删除 `inbox.js`）由 Claude 在对话里按受限模式做完（U19），待 Codex 落地；之后 P8、终检
 > - 基线：P6 本机基线提交 `7ebfc6c`（`rearch/base-v1.25.4`），开发 worktree 分支 `frontend-rearch`；P7 补丁基线是导出包 `20260927T013727Z`（v1.25.4）。本次三方合并的祖先由 P7 累计补丁反向应用还原（与该导出包清单逐项一致），P6 一侧是导出包 `20260927T125544Z`（含框选在制代码）
-> - 下一步：Codex · 完整：① 在 worktree 上应用合并补丁 `changes-2026-09-27-p6wip-p7-merge.patch`（相对 P6 导出包；核对与做法见任务日志 `AI/logs/2026-09-27_frontend-rearch-p6-p7-merge.md`「落地」），作为一个合并提交；② 补做需要本机环境的步骤：`--write-log-index`、本机复核 `smoke_board_print`、Firefox / WebKit 各开一次展示板页；③ 继续 P6 剩余（版本从 v1.26.6 起），之后 P8、终检；部署另等用户授权
-> - 更新：2026-09-27，Claude（对话内，U18）合并 P6 在制与 P7：14 处文本冲突，另修 1 处 git 查不出的语义冲突（`features/create/quick.js` 仍 import 已删的 `domain/board.js`）；合并后门禁、全部 E2E 与冒烟测试见 §4
+> - 下一步：Codex · 完整：① 先按任务日志 `AI/logs/2026-09-27_frontend-rearch-p6-p7-merge.md`「落地」应用合并补丁并提交（未做的话）；② 再按 `AI/logs/2026-09-27_frontend-rearch-p6-create.md`「合入」应用 `changes-2026-09-27-p6-create.patch`（相对合并完整包 v1.26.5），作为一个提交 `frontend-rearch P6: 录入页框选 / 题卡 / 训练 → features/create（v1.26.6）`；③ 补做本机步骤（`--write-log-index`、本机全量 E2E、真实浏览器走一遍录入页三个工作区）；④ 进 P8（执行说明阶段 4），之后终检；部署另等用户授权
+> - 更新：2026-09-27，Claude（对话内，U19）完成 P6 剩余：收件箱前端数据归 `features/create/inbox-store.js`，框选收尾、题卡与 AI 训练工作区原生，删除 `assets/inbox.js`；门禁见 §4
 
 ## 1. 用户诉求原话（每期都要能对应回这里）
 
@@ -26,6 +26,7 @@
 | U16 | "直接推进P7,不需要等到P6,隔离完成" | P7 不等 P6 剩余页面，由 CCW · 受限按轮推进；只动展示板自己的文件，与 P6 剩余并行、互不依赖；每轮交补丁由 Codex 合入 |
 | U17 | "继续第二轮,最后在合入" | P7 各轮在上一轮完整包上接着做，不逐轮合入；每轮交相对导出包的累计补丁，P7 全部完成后由 Codex 一次合入 |
 | U18 | "合并两个分支 我让Codex做的P6,没做完,但是CCW P7做完了 所以请你帮我合并这两个代码"；「执行」「继续」 | P6 在制（Codex）与 P7（CCW）的合并改在对话里由 Claude 完成，交付合并后的完整包、相对 P6 导出包的合并补丁与任务日志；Codex 不再按 P7 日志「合入」自行应用累计补丁，只把合并补丁作为一个提交落地并补做本机验收 |
+| U19 | "执行没有完成的P6"；「继续」 | P6 剩余（录入页框选收尾、题卡、AI 训练工作区，删 `inbox.js`）改在对话里由 Claude 按受限模式做完，交付相对合并完整包 v1.26.5 的补丁、完整包与任务日志，由 Codex 作为一个提交落地 |
 
 ## 2. 流程与生产现状
 
@@ -34,7 +35,8 @@
 | P0 → P6 第 5 轮（已完成） | CCW · 受限，每期一到数轮 | 上一轮 CCW 交付的完整包 | 补丁、完整包、UPGRADE、截图包（历史做法） |
 | P7（2026-09-27 起，U16、U17） | CCW · 受限，每轮一个补丁 | 上一轮交付的完整包（不等合入） | 每轮：相对导出包 `20260927T013727Z` 的累计补丁、本轮增量补丁、完整包、任务日志；P7 全部完成后 Codex 按日志「合入」一次应用，按轮拆提交 |
 | P6 在制 + P7 合并（2026-09-27，U18） | Claude（对话内） | P6 导出包 `20260927T125544Z`；P7 完整包与累计补丁（祖先 = 导出包 `20260927T013727Z`） | 合并后的完整包、相对 P6 导出包的合并补丁、任务日志；Codex 作为一个合并提交应用，P7 不再按轮拆提交（手里只有累计补丁与第 6 轮增量）|
-| P6 剩余 → P8 → 终检 | Codex · 完整，按 `exec-2026-09-26-codex.md`（阶段 3 由上一行代替） | 本机基线提交（执行说明阶段 0 建立） | 本机分支 `frontend-rearch` 上每页一个提交，含代码、测试、文档、任务日志与本文件的更新；不再出任何包外交接物 |
+| P6 最后一段（2026-09-27，U19） | Claude（对话内 · 受限） | 合并完整包 v1.26.5 | 相对该包的补丁 `changes-2026-09-27-p6-create.patch`、完整包、任务日志；Codex 作为一个提交落地 |
+| P8 → 终检 | Codex · 完整，按 `exec-2026-09-26-codex.md`（阶段 3 由上一行代替） | 本机基线提交（执行说明阶段 0 建立） | 本机分支 `frontend-rearch` 上每页一个提交，含代码、测试、文档、任务日志与本文件的更新；不再出任何包外交接物 |
 | 部署 | 用户授权后执行；执行者由用户指定，未指定时按 U13 由 Hermes 执行 | 终检通过的提交 | 按 §8 的部署清单执行 |
 
 **补丁链（历史）。** ① `changes-2026-09-25-p2.patch` → ② `p1` → ③ `p1-fix` → ④ `dp4` → ⑤ `p3` → ⑥ `p4` → ⑦ `p5r1`…`p5r4` → ⑧ `p6r1`…`p6r5`，已在本机工作区合并。
@@ -64,27 +66,27 @@
 | DP4 + P3 | v1.22.0 | 交付，未部署 | 顶栏瘦身；即时练习迁到 `features/instant/`；`domain/` 四个适配器 |
 | P4 | v1.23.0 | 交付，未部署 | 反馈录入迁到 `features/feedback/`；`domain/sessions.js`；全站 `ui/dialog` 标题栏修复 |
 | P5 | v1.24.0 → v1.24.2 | **完成（4 轮）** | 第 1 轮：`domain/question/`、容器查询根治、超宽公式、计划文件夹入库。第 2 轮：题目库迁到 `features/questions/`、`domain/question/ops.js`、全局 Esc 统一进 core/keys、删 `qtable.js` 与约 170 条旧题库 CSS。第 3 轮（v1.24.1）：题目弹窗 `modal.js` 与 Markdown 编辑器 `editor.js` 换 `ui/dialog`、`ui/overlay` 客人浮层、焦点回到行。第 4 轮（v1.24.2）：`domain/labels/`（芯片不写 `style=`、预设色进 tokens、选择器与管理的数据部分）、qview 外观全部搬进 `qview.css` 并 token 化（题面 16px 阅读正文）。日志 `AI/logs/2026-09-25_frontend-rearch-p5.md` |
-| P6 | v1.25.0 → v1.25.13 →（v1.26.5 起与 P7 合并） | **进行中（网格与手机页完成；框选在制）** | 在制：框选工作区（`features/create/process*.js`），未提交，随 v1.26.5 合并原样保留。v1.25.13：收件箱网格迁到 `features/create/`，手机上传页接入 tokens。v1.25.12：快速录入表单、题目与答案图片、AI 识别及连续录入上下文迁到 `features/create/`。v1.25.11：上传入口迁到 `features/create/`，统一文件拖放、粘贴、错误提示和旧列表刷新。v1.25.10：录入页外壳与工作区导航。v1.25.9：补目录、历史、报告三页的 CCW 差异。v1.25.8：设置迁到 `features/settings/`。v1.25.7：报告迁到 `features/reports/`。v1.25.6：目录迁到 `features/catalog/`。v1.25.5：历史记录迁到 `features/history/`。v1.25.4：「全题库导出」原生。v1.25.3：「安排复习」原生。v1.25.2：复习调度迁到 `features/schedule/`。v1.25.1：数据复盘迁到 `features/data/`。v1.25.0：`domain/data.js` 与仪表盘迁移。日志 `AI/logs/2026-09-25_frontend-rearch-p6.md` 与 `AI/logs/2026-09-27_ccw-p6-merge.md` |
+| P6 | v1.25.0 → v1.25.13、v1.26.6 | **完成** | v1.26.6：收件箱前端数据归 `features/create/inbox-store.js`，框选收尾、题卡、AI 训练工作区原生，删 `inbox.js`、`legacy-inbox.js`、`populateCreateLists` 与 `styles.css` 收件箱整段（U19）。v1.25.13：收件箱网格、手机上传页接入 tokens。v1.25.12：快速录入。v1.25.11：上传入口。v1.25.10：录入页外壳。v1.25.9：补 CCW 差异。v1.25.8：设置。v1.25.7：报告。v1.25.6：目录。v1.25.5：历史记录。v1.25.4：全题库导出。v1.25.3：安排复习。v1.25.2：复习调度。v1.25.1：数据复盘。v1.25.0：`domain/data.js` 与仪表盘。日志 `AI/logs/2026-09-25_frontend-rearch-p6.md`、`AI/logs/2026-09-27_frontend-rearch-p6-create.md` |
 | P7 | v1.26.0 → v1.26.5 | **完成（6 轮），已与 P6 合并（v1.26.5）** | 第 6 轮（v1.26.5）：列表 / 画廊、检查器原生（`view.js` / `state.js`，整页 morph，只有舞台 iframe 与画廊题面挂载点 skip）；板详情所有者 `features/board/detail.js`（I/O 注入，真实 I/O 与单例在 `runtime.js`）；domain 经端口 `domain/board/detail-port.js`（删 `legacy.js`）；「添加题目」换 `ui/dialog`（`add.js`，修 Esc）；删 `board.js` 与 `styles.css` 139 行；node +13、`board.py` 22 → 35。第 1–5 轮见 §5c。日志 `AI/logs/2026-09-27_frontend-rearch-p7.md` |
 | P8 | — | 未开始 | 见 §8 |
 | 终检 / 部署 | — | 未开始 | 见 §8 |
 
-## 4. 门禁计数（v1.26.5 合并后，沙箱实测）
+## 4. 门禁计数（v1.26.6，沙箱实测）
 
-2026-09-27 合并后在对话沙箱里实跑下表（Python 3.12、Node 22、Playwright Chromium 141 独立启动，无 CDP），本机 worktree 待 Codex 复核。合并前两侧：P6 在制 node 246、unittest 160；P7 node 292、unittest 159。E2E 各项与合并前两侧的计数相同，只有 `create.py` 是在制代码的 42。
+2026-09-27 P6 收尾后在对话沙箱里实跑下表（Python 3.12、Node 22、Playwright Chromium 141 独立启动，无 CDP），本机 worktree 待 Codex 复核。与 v1.26.5 合并后的计数相比：node +12（`create-inbox`）、`create.py` 42 → 80、`ui_bridge.py` 15 → 14（删去已不存在的 `ibToast` 一项）、`check_ui` 存量下降；其余不变。
 
 | 命令 | 预期 |
 |---|---|
 | `python3 -m unittest discover -s tests -p 'test_*.py' -q` | 160 OK |
-| `node --test tests/*.js tests/app/*.test.mjs` | 318 / 318（P6 在制 246；P7 删 4 份旧展示板测试 61 例、新增 133 例：246 − 61 + 133）|
+| `node --test tests/*.js tests/app/*.test.mjs` | 330 / 330 |
 | `python3 tests/app/run_browser.py` | 34 / 34 |
 | `python3 tests/e2e/shell_router.py` | 20 / 20 |
-| `python3 tests/e2e/ui_bridge.py` | 15 / 15 |
+| `python3 tests/e2e/ui_bridge.py` | 14 / 14 |
 | `python3 tests/e2e/instant.py` | 23 / 23（「标记筛选」偶发 22，重跑即过）|
 | `python3 tests/e2e/feedback.py` | 31 / 31 |
-| `python3 tests/e2e/questions.py` | 92 / 92（P7 第 4 轮两处改查 `.bpicker`）|
-| `python3 tests/e2e/board_picker.py` | 31 / 31（P7 第 4 轮新增）|
-| `python3 tests/e2e/board.py` | 35 / 35（P7 第 5 轮新增 22；第 6 轮补「加题 → 排序 → 版面设置 → 打印预览 → 仅补印新增」与列表视图审计。合并后沙箱里 4 次有 1 次「离开展示板页：待保存的版面改动立即落盘」读到 0.5，重跑即过；纯 P7 同一沙箱 4 次全过，见 §8）|
+| `python3 tests/e2e/questions.py` | 92 / 92 |
+| `python3 tests/e2e/board_picker.py` | 31 / 31 |
+| `python3 tests/e2e/board.py` | 35 / 35（v1.26.5 合并后沙箱里 4 次有 1 次「离开展示板页：待保存的版面改动立即落盘」读到 0.5，重跑即过，见 §8；本轮一次全过）|
 | `python3 tests/e2e/dashboard.py` | 26 / 26 |
 | `python3 tests/e2e/data.py` | 21 / 21 |
 | `python3 tests/e2e/schedule.py` | 45 / 45 |
@@ -92,14 +94,14 @@
 | `python3 tests/e2e/catalog.py` | 26 / 26 |
 | `python3 tests/e2e/reports.py` | 24 / 24 |
 | `python3 tests/e2e/settings.py` | 50 / 50 |
-| `python3 tests/e2e/create.py` | 42 / 42（网格主路径与在制的框选工作区；其余工作区迁移时扩充）|
-| `node --test tests/app/create.test.mjs tests/app/create-process.test.mjs` | 5 / 5、在制 3 / 3 |
-| `python3 -m unittest tests.smoke_schedule_workbench` | OK（P6 第 4 轮起全过）|
-| `python3 -m unittest tests.smoke_board_integrity tests.smoke_board_print tests.smoke_board_print_geometry` | 15 项，1 项失败：`smoke_board_print` 的 `test_full_then_incremental_print`（仅补印新增的第一页不是占位页）；沙箱里合并前的导出包基线同样失败、报错相同（§8）|
-| `python3 -B tests/smoke_board_lock.py` | 退出码 0 |
-| `python3 tests/check_ui.py` | 0 处问题；存量 handlers 13、html_assign 21、inline_style 39、color_literals 44、font_size_literals 96（合并后用 `--update-baseline` 重算 `tests/ui_baseline.json`，只降不升）|
+| `python3 tests/e2e/create.py` | 80 / 80（上传与网格、框选、题卡、AI 训练、快速录入主路径，五个工作区各四种审计）|
+| `node --test tests/app/create.test.mjs tests/app/create-process.test.mjs tests/app/create-inbox.test.mjs` | 5 / 5、3 / 3、12 / 12 |
+| `python3 -m unittest tests.smoke_schedule_workbench` | OK |
+| `python3 -m unittest tests.smoke_board_integrity tests.smoke_board_print tests.smoke_board_print_geometry` | 15 项，1 项失败：`smoke_board_print` 的 `test_full_then_incremental_print`（v1.26.5 合并时实测，本轮未改展示板与导出，未重跑；§8）|
+| `python3 -B tests/smoke_board_lock.py` | 退出码 0（v1.26.5 合并时实测，本轮未重跑）|
+| `python3 tests/check_ui.py` | 0 处问题；存量 handlers 4、html_assign 11、inline_style 11、color_literals 37、font_size_literals 74（`--update-baseline` 重算，只降不升）|
 | `python3 tests/check_contrast.py` | 58 组，0 不达标 |
-| `python3 tests/check_docs.py --diff <P6 导出包>` | 35 个文档，0 处问题、2 条既有篇幅提醒（`AI/api.md`、`exec-2026-09-26-codex.md`）|
+| `python3 tests/check_docs.py --diff <合并完整包基线>` | 35 个文档，0 处问题、2 条既有篇幅提醒（`AI/api.md`、`exec-2026-09-26-codex.md`）|
 
 ## 5. P5 任务书：题库与共享题目视图
 
@@ -109,46 +111,9 @@ P5 已在 v1.24.0–v1.24.2 四轮完成（第 1 轮 `domain/question/`；第 2 
 
 ## 5b. P6 任务书：其余中小页面 + 数据所有权
 
-第 1 轮（已完成，v1.25.0，补丁 `p6r1`）：
+第 1–5 轮（v1.25.0–v1.25.4，CCW，补丁 `p6r1`…`p6r5`）已完成：`domain/data.js` 与仪表盘、数据复盘、复习调度（含 `SESSIONS` 所有权）、安排复习、全题库导出。开工条目在 U19 收尾时压成这一段；做法与结论在 `AI/changelog.md` v1.25.0–v1.25.4 与本机任务日志 `AI/logs/2026-09-25_frontend-rearch-p6.md`。
 
-- [x] `domain/data.js` 成为 `/api/stats` 的所有者：快照、旧 `DATA` 镜像、旧刷新链 `legacyDataRefresh()` 钩子、并发合并、失败保留快照（删 `demo()`）；`tests/app/data.test.mjs`
-- [x] 详情缓存 `QUESTION_CACHE` / `QUESTION_PENDING` 归 `domain/question/mount.js`，旧代码读只读全局
-- [x] 仪表盘迁到 `features/dashboard/`（`plan.js` 纯规则、`state.js` 派生、`view.js`、`index.js`、`dashboard.css`）；D8；字号 16→5 种、小目标 4→0、行内样式 8→0；`domain/history.js`、`domain/schedule.js` 两个过渡适配器
-- [x] 删 `dashboard.js`、`actions.js`、`styles.css` 223 行；数据复盘的两张图搬进 `data.js`
-- [x] `tests/app/dashboard.test.mjs`（旧 node 测试里的行动推荐断言迁入）、`tests/e2e/dashboard.py`（26）
-- [x] 截图、版本 v1.25.0、补丁 `p6r1`、完整包、UPGRADE、本文件
-
-第 2 轮（已完成，v1.25.1，补丁 `p6r2`；按 §9 只做数据复盘）：
-
-- [x] 数据复盘迁到 `features/data/`（`state.js` 纯函数、`charts.js` 三张 SVG、`view.js`、`index.js`、`data.css`）；`core/download.js`
-- [x] 字号 14→3 种、最小 8.7→12px、行内样式 177→0；表格用 `ui/table`（手机卡片）、横条用原生 `<progress>`、颜色走 `data-tone`
-- [x] 统计快照变化时重拉 analytics；首次失败给重试；导出失败原因写页首
-- [x] 删 `data.js`、`styles.css` 74 行；旧刷新链去掉 `renderDataCharts`
-- [x] `tests/app/analytics.test.mjs`（5）、`tests/e2e/data.py`（21）；截图、版本、补丁、完整包、UPGRADE、本文件
-
-第 3 轮（已完成，v1.25.2，补丁 `p6r3`；按 §9 只做复习调度的外壳、已有计划与 `SESSIONS`）：
-
-- [x] `domain/sessions.js` 成为 Session 列表所有者（只认最新、失败保留、删除作废旧加载），`sessionProgress` 两页共用；`installScheduleBridge`
-- [x] `features/schedule/`：标签栏（←/→/Home/End）、已有计划（筛选、详情、删除、导出、录入结果、预览）原生；安排复习 / 全题库导出是挂载点里的旧 DOM，经 `domain/schedule.js` 切换
-- [x] 切回「安排复习」重拉推荐（冒烟测试原先停在「空推荐提示」的原因）
-- [x] `schedule.js` 184→10 行；删 `test_schedule_sessions.js`（用例迁到 node 与 E2E）；`styles.css` 34 条
-- [x] `tests/app/schedule.test.mjs`（5）、`tests/e2e/schedule.py`（25）；截图、版本、补丁、完整包、UPGRADE、本文件
-
-第 4 轮（已完成，v1.25.3，补丁 `p6r4`）：
-
-- [x] 「安排复习」原生：`arrange.js`（纯函数）、`arrange-ctl.js`、`arrange-view.js`；画廊题面懒加载恢复（`QV_CARD_OPTS` 缺全局导致的旧失败）
-- [x] 删 `recommend_v2.js`、`test_recommend_v2_filters.js`（迁到 `tests/app/arrange.test.mjs`）、`reviveChipHtml`、`initRecommendV2`、`styles.css` 约 170 行
-- [x] `smoke_schedule_workbench.py` 全过；`tests/e2e/schedule.py` 33（含「安排复习」审计）
-- [x] 截图、版本、补丁、完整包、UPGRADE、本文件
-
-第 5 轮（已完成，v1.25.4，补丁 `p6r5`）：
-
-- [x] 「全题库导出」原生：`exporter.js`（纯函数）、`exporter-ctl.js`、`exporter-view.js`；导出统一走 `domain/exporting.js`（「已有计划」的导出也改走它）
-- [x] 删 `export.js`、`domain/schedule.js`、`EXPORT_SELECTION` / `EXPORT_VIEW`、过渡桥 `schShow` / `showRecommendPanel`、`styles.css` 22 条；`downloadExportResponse` 全局改由 `core/download.js` 实现
-- [x] `tests/app/exporter.test.mjs`（4）、`tests/e2e/schedule.py` 45（含导出段与审计）；冒烟测试仍全过
-- [x] 截图、版本、补丁、完整包、UPGRADE、本文件
-
-P6 剩余（Codex · 完整，细节以 `exec-2026-09-26-codex.md` 阶段 2 为准；以下为原第 6 轮开工条目，截图脚本一项已定位）：
+P6 剩余（v1.25.5–v1.25.13 由 Codex · 完整执行；最后一段 v1.26.6 由 Claude 在对话里完成，U19）：
 
 - [x] 历史记录（`history.js` → `features/history/`；`domain/history.js` 的转调换成真实现，仪表盘最近动态仍同步更新）。反馈与 Session 撤销 / 恢复、状态还原、时区和四种视觉审计由 `tests/e2e/history.py` 覆盖；v1.25.5。
 - [x] 目录（`catalog.js` → `features/catalog/`）：目录树、搜索、全部文件、开题、复制、后备树与扫描后重读均迁移；v1.25.6。
@@ -160,10 +125,8 @@ P6 剩余（Codex · 完整，细节以 `exec-2026-09-26-codex.md` 阶段 2 为�
 - [x] 收件箱网格（`features/create/grid.js`）：筛选、全选、批量操作、框位预览与关联题目入口；v1.25.13。
 - [x] 手机上传页加载 tokens / base 样式，390px 浅 / 深截图与上传主路径在隔离实例验证；v1.25.13。
 - [x] 截图脚本的「复习调度 44 处行内样式」已修：`shoot()` 截图后 `<input>` 留下空 `style=""`，现只计非空属性值，并排除 `.katex` 内部。`--audit-only` 对复习调度和题库页各四种主题 / 尺寸组合的行内样式计数均为 0；详见 p6 日志「本机接手」。
-- [ ] 框选工作区（`features/create/process*.js`、`legacy-inbox.js`、`tests/app/create-process.test.mjs`）：在制、未提交；导出包 `20260927T125544Z` 里的状态随 v1.26.5 合并原样保留，沙箱里 `create.py` 42 / 42、`create-process` 3 / 3。
-- 其后：题卡、训练、策略工作区（§2.6）。P7 展示板已由 CCW 完成并在 v1.26.5 合入，P6 收尾后直接进 P8。
-
-P6 第 1–5 轮的开工条目已随各轮完成删去（P7 第 3 轮整理，本文件到 40KB）；当时的做法与结论在 `AI/changelog.md` v1.25.0–v1.25.4 与本机任务日志 `AI/logs/2026-09-25_frontend-rearch-p6.md`。
+- [x] 框选工作区收尾（Codex 在制的 `process*.js` 接上新数据所有者，删 `legacy-inbox.js`）、题卡工作区（`cards*.js`）、AI 训练与策略工作区（`train*.js`）；收件箱前端数据 `inbox-store.js`，删 `assets/inbox.js`；v1.26.6。`create.py` 80、`create-inbox` 12，日志 `AI/logs/2026-09-27_frontend-rearch-p6-create.md`。
+- P6 收尾核对（执行说明 §2.8）：每页一个 E2E（dashboard、data、schedule、history、catalog、reports、settings、create 均在）；各页四种审计在各自 E2E 里；`legacy-pages.js` 登记表为空。§2 指标的全站核对留给终检。
 
 ## 5c. P7 任务书：展示板（CCW · 受限，按轮推进，U16）
 
@@ -257,6 +220,7 @@ P6 第 1–5 轮的开工条目已随各轮完成删去（P7 第 3 轮整理，�
 | 2026-09-25 | P6 排轮次（按用户可见度）：第 1 轮 `DATA` 加载与快照所有权反转到 `domain/data.js`、详情缓存 `QUESTION_CACHE` 进 `domain/question`、仪表盘迁到 `features/dashboard/`（D8）；第 2 轮复习调度（含 `SESSIONS` 所有权与 `smoke_schedule_workbench.py` 余下失败）、数据复盘、历史记录；第 3 轮目录、报告（FileDrop，D6）、设置、录入题目与收件箱入口、`inbox_mobile.html` 接 tokens。`SESSIONS` 的加载与复习调度页的计划列表绑在一起（`refreshSessions` 同时驱动计划列表的加载态），随该页一起反转 | 用户：「执行P6」；progress §5「P6 开工」建议第 1 轮先做数据所有权反转与仪表盘 |
 | 2026-09-25 | P6 第 2 轮再拆：本轮只做数据复盘（只读页、旧行内样式最多、不涉及写操作，能在一次会话内收口，并顺带删掉旧数据刷新链里的 `renderDataCharts`）；复习调度（含 `SESSIONS` 所有权与 `smoke_schedule_workbench.py`）、历史记录顺延到第 3 轮，目录、报告、设置、录入题目与收件箱入口顺延到第 4 轮 | 第 1 轮一页加所有权用了三次会话；用户：「执行」 |
 | 2026-09-25 | P6 第 3 轮只做复习调度（含 `SESSIONS` 所有权与 `smoke_schedule_workbench.py`）；历史记录顺延到第 4 轮（与目录同轮），报告、设置、录入题目与收件箱入口、`inbox_mobile.html` 顺延到第 5 轮 | 复习调度连同推荐、导出选题共三个旧脚本约 40KB，是 P6 最大的一页；一轮一页才能在一次会话内收口。用户：「继续」 |
+| 2026-09-27 | P6 最后一段（录入页框选收尾、题卡、AI 训练）改在对话里由 Claude 按受限模式做完，取代执行说明阶段 2.6 第 2–4 步由 Codex 本机执行；Codex 只把补丁作为一个提交落地并补做本机验收。版本 v1.26.6（在 v1.26.5 上加 0.0.1）| U19 |
 | 2026-09-27 | P6 在制与 P7 的合并改在对话里做，取代 P7 日志「合入」一节由 Codex 自行 `git apply --3way` 并按轮拆提交的做法：交付合并后的完整包与相对 P6 导出包的合并补丁，Codex 作为一个合并提交应用、补做本机验收；版本按下面 U16 一行的规则取两者较大的 v1.26.5（工作区 v1.25.13 低于补丁版本，不另加 0.0.1），此后各页从 v1.26.6 起 | U18 |
 | 2026-09-27 | P7 各轮不逐轮合入，在上一轮完整包上继续；每轮交相对导出包的累计补丁，P7 完成后 Codex 一次合入、按轮拆提交（版本号规则不变） | U17 |
 | 2026-09-27 | P7 不等 P6 剩余，改由 CCW · 受限按轮推进（预计 6 轮，§5c），每轮交补丁、完整包与日志，由 Codex 合入；Codex 继续 P6 剩余、P8、终检，跳过执行说明阶段 3。版本号：P7 各轮用 v1.26.x；合入时若工作区版本已不低于补丁版本，就在当前最大版本上加 0.0.1 并同步 changelog 标题，此后各页一律在当前最大版本上加 0.0.1 | U16 |

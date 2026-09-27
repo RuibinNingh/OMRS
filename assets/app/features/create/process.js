@@ -1,63 +1,199 @@
-/** 收件箱处理工作区的队列、区域面板和框选画布；旧 AI 任务暂经适配器共用数据。 */
+/**
+ * 收件箱处理工作区：队列、框选画布、区域面板与本张图的全部编辑。数据在 inbox.js 单例里；
+ * 每次编辑先改本地再重绘，去抖 500ms 写回（inbox.saveSoon），离开处理区或离开本页时 flush。
+ */
 import { morph } from '../../core/dom.js';
-import { groupCards } from './process-state.js';
+import { post } from '../../core/api.js';
+import { confirm } from '../../ui/dialog.js';
+import { inbox, notify } from './inbox.js';
+import { paintCrops } from './crop.js';
+import { detect, detectSelected, applyLastSelected, extractRegions } from './inbox-ops.js';
+import { groupCards, newRegion, statusAfterEdit, transferBoxes } from './process-state.js';
 import { queueView, sideView } from './process-content.js';
 import { createCanvasController } from './process-canvas.js';
-import { processLegacy } from './legacy-inbox.js';
+
+const S = inbox.state;
+const ROLE_KEYS = { q: 'question', a: 'answer', x: 'ignore' };
+const skip = event => !!event?.target?.closest?.('textarea, input, select, label');
 
 export function createProcess(root, bus) {
   const host = root.querySelector('#ib-stage-process');
   const queue = host.querySelector('#ib-pq-list');
   const side = host.querySelector('#ib-ps-body');
-  const state = () => processLegacy('state');
   let alive = true;
   let scheduled = false;
-  const canvas = createCanvasController(host, state, () => processLegacy('afterEdit'));
+  const canvas = createCanvasController(host, () => S, () => afterEdit());
 
   function paint() {
     if (!alive) return;
-    const data = state();
-    const items = data.items || [];
-    const current = items.find(item => item.id === data.cur) || null;
-    const queued = items.filter(item => item.status !== 'discarded' && item.status !== 'done');
-    const selected = queued.filter(item => data.sel.has(item.id)).length;
-    morph(queue, queueView({ items, selected: data.sel, currentId: data.cur }));
-    morph(side, sideView({ item: current, selectedRegion: data.selR }));
+    const items = S.items;
+    const current = inbox.current();
+    const queued = inbox.queue();
+    const selected = queued.filter(item => S.sel.has(item.id)).length;
+    morph(queue, queueView({ items, selected: S.sel, currentId: S.cur }));
+    morph(side, sideView({ item: current, selectedRegion: S.selR }));
     host.querySelector('#ib-pq-n').textContent = `${queued.length} 张`;
     host.querySelector('#ib-pq-all').checked = !!queued.length && selected === queued.length;
     host.querySelector('#ib-pq-sel-n').textContent = selected ? `（${selected}）` : '';
     host.querySelector('#ib-ps-meta').textContent = current
       ? `${current.id} · ${current.width}×${current.height} · ${current.source === 'phone' ? '手机上传' : '电脑上传'}${current.blind ? ' · 盲标（AI 框已隐藏，请直接手画）' : ''}` : '';
-    host.querySelector('#ib-ps-card-n').textContent = groupCards(current).length > 1 ? `· ${groupCards(current).length} 张题卡` : '';
+    const cards = groupCards(current).length;
+    host.querySelector('#ib-ps-card-n').textContent = cards > 1 ? `· ${cards} 张题卡` : '';
     host.querySelector('#ib-layout').value = current?.layout || 'zuoyebang';
-    host.querySelectorAll('#ib-role-seg button').forEach(button => button.classList.toggle('on', button.dataset.v === data.drawRole));
+    host.querySelectorAll('#ib-role-seg button').forEach(button => {
+      const on = button.dataset.v === S.drawRole;
+      button.classList.toggle('on', on);
+      button.setAttribute('aria-pressed', String(on));
+    });
     canvas.paint();
+    paintCrops(side, id => inbox.item(id));
     side.querySelector('.ib-rg.sel')?.scrollIntoView({ block: 'nearest' });
   }
   function schedule() {
     if (!alive || scheduled) return;
     scheduled = true;
-    queueMicrotask(() => { scheduled = false; paint(); });
+    queueMicrotask(() => { scheduled = false; if (S.stage === 'process' && !S.dragging) paint(); });
   }
-  const off = bus.on('inbox:process', schedule);
-  paint();
 
-  function active() { return alive && root.classList.contains('active') && state()?.stage === 'process'; }
+  /** 本地改动 → 状态随框数变化 → 重绘 → 去抖保存。 */
+  function afterEdit(save = true) {
+    const item = inbox.current();
+    if (!item) return;
+    item.status = statusAfterEdit(item);
+    inbox.changed();
+    if (save) inbox.saveSoon(item);
+  }
+  const region = id => inbox.current()?.regions.find(row => row.id === id) || null;
+
+  function setRole(role) {
+    S.drawRole = role;
+    const selected = region(S.selR);
+    if (selected && selected.role !== role) { selected.role = role; selected.judge = null; afterEdit(); } else schedule();
+  }
+  function step(delta) {
+    const list = inbox.queue();
+    if (!list.length) return;
+    const index = list.findIndex(item => item.id === S.cur);
+    inbox.open(list[(index + delta + list.length) % list.length].id);
+  }
+  function selectRegion(id) {
+    S.selR = id;
+    const selected = region(id);
+    if (selected && selected.role !== 'ignore') S.drawRole = selected.role;
+    schedule();
+  }
+  function deleteRegion(id) {
+    const item = inbox.current();
+    if (!item) return;
+    item.regions = item.regions.filter(row => row.id !== id);
+    if (S.selR === id) S.selR = null;
+    afterEdit();
+  }
+  function whole() {
+    const item = inbox.current();
+    if (!item) return;
+    item.regions = [newRegion(1, 'question', 0, 0, 1, 1)];
+    item.layout = 'plain';
+    S.selR = item.regions[0].id;
+    afterEdit();
+    notify('整张图作为题目区域；「转换文本」会判断是否需要留图');
+  }
+  function applyLast() {
+    const item = inbox.current();
+    if (!item) return;
+    const last = S.last;
+    if (!last || last.id === item.id) { notify('还没有处理过的上一张', 'warn'); return; }
+    item.regions = transferBoxes(last, item);
+    S.selR = null;
+    afterEdit();
+    notify(`已沿用 ${last.file} 的 ${item.regions.length} 个框，调一下位置即可`);
+  }
+  function setConvert(arg) {
+    const [id, value] = String(arg).split(':');
+    const target = region(id);
+    if (!target) return;
+    const previous = target.convert;
+    target.convert = value;
+    if (target.judge && ((value === 'text' && !target.judge.ok) || (value === 'image' && target.judge.ok))) target.judge_overridden = true;
+    if (value !== previous) afterEdit();
+  }
+  function editText(id, value) {
+    const target = region(id);
+    if (!target) return;
+    target.text = value;
+    target.text_status = String(value).trim() ? 'done' : 'none';
+    inbox.saveSoon(inbox.current());
+    schedule();
+  }
+  async function discardCurrent() {
+    const item = inbox.current();
+    if (!item || !await confirm('丢弃这张图？', { danger: true })) return;
+    const result = await post('/api/inbox/discard', { id: item.id });
+    if (!result.ok) { notify(result.error?.message || '丢弃失败', 'warn'); return; }
+    S.sel.delete(item.id);
+    await inbox.load();
+    S.cur = inbox.queue()[0]?.id || null;
+    inbox.changed();
+  }
+  async function markReady() {
+    const item = inbox.current();
+    if (!item) return;
+    if (item.regions.some(row => row.text_status === 'running')) { notify('还有区域在提取中', 'warn'); return; }
+    const saved = await inbox.save(item, { status: 'ready' });
+    if (!saved) return;
+    S.last = saved;
+    const next = inbox.queue().find(row => row.status !== 'ready' && row.id !== item.id);
+    notify(`${item.file} 已就绪，进入「录入」；${next ? '已切到下一张' : '队列里没有待处理的图了'}`);
+    if (next) inbox.open(next.id); else inbox.changed();
+  }
+
+  const stop = bus.on('inbox:changed', schedule);
+  const onResize = () => { if (root.classList.contains('active') && S.stage === 'process') schedule(); };
+  window.addEventListener('resize', onResize);
+  if (S.stage === 'process') paint();
+
+  function active() { return alive && root.classList.contains('active') && S.stage === 'process'; }
   function key(name) {
     if (!active()) return false;
-    const data = state();
-    if (name === 'q' || name === 'a' || name === 'x') processLegacy('role', { q: 'question', a: 'answer', x: 'ignore' }[name]);
+    if (ROLE_KEYS[name]) setRole(ROLE_KEYS[name]);
     else if (name === 'delete' || name === 'backspace') {
-      if (!data.selR) return false;
-      processLegacy('deleteRegion', data.selR);
-    } else if (name === 'mod+enter') processLegacy('extractAll');
-    else if (name === 'enter') processLegacy('step', 1);
+      if (!S.selR) return false;
+      deleteRegion(S.selR);
+    } else if (name === 'mod+enter') extractAll();
+    else if (name === 'enter') step(1);
     else if (name === 'escape') {
-      if (!data.selR) return false;
-      data.selR = null; schedule();
+      if (!S.selR) return false;
+      S.selR = null; schedule();
     } else return false;
     return true;
   }
+  function extractAll() {
+    const item = inbox.current();
+    if (!item) return;
+    extractRegions(item, item.regions.filter(row => row.role !== 'ignore' && row.convert !== 'image' && row.text_status !== 'done').map(row => row.id));
+  }
 
-  return { paint, key, dispose() { alive = false; off(); canvas.dispose(); } };
+  return {
+    paint, key,
+    open(id, event) { if (!skip(event)) inbox.open(id); },
+    select(id, checked) { if (checked) S.sel.add(id); else S.sel.delete(id); inbox.changed(); },
+    queueAll(checked) { inbox.queue().forEach(item => checked ? S.sel.add(item.id) : S.sel.delete(item.id)); inbox.changed(); },
+    layout(value) { const item = inbox.current(); if (item) { item.layout = value; inbox.saveSoon(item); } },
+    role: setRole, step, whole, applyLast, discardCurrent, markReady, extractAll,
+    region(id, event) { if (!skip(event)) selectRegion(id); },
+    deleteRegion,
+    clear() { const item = inbox.current(); if (!item) return; item.regions = []; S.selR = null; afterEdit(); },
+    addCard() {
+      const item = inbox.current();
+      if (!item) return;
+      S.drawCard = groupCards(item).length + 1;
+      notify(`题卡 ${S.drawCard}：接下来画的框归入它`);
+    },
+    drawCard(card) { S.drawCard = Number(card) || 1; notify(`接下来画的框归入题卡 ${S.drawCard}`); },
+    convert: setConvert, text: editText,
+    extract(id) { extractRegions(inbox.current(), [id]); },
+    detectCurrent(provider) { if (S.cur) detect([S.cur], provider); },
+    detectSelected, applyLastSelected,
+    dispose() { alive = false; stop(); window.removeEventListener('resize', onResize); canvas.dispose(); },
+  };
 }

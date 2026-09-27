@@ -35,7 +35,7 @@ export function installLegacyBridge(win) {
   installIcons(doc);
   bindTooltips(doc);
   const ui = Object.freeze({
-    // uiToast(text, {kind, actions, duration}) —— 调用方：assets/*.js 全部 toast、inbox.js 的 ibToast；P8 删除
+    // uiToast(text, {kind, actions, duration}) —— 调用方：assets/*.js 全部 toast；P8 删除
     toast: (text, options = {}) => toast(text, { ...options, kind: LEGACY_KIND[options.kind] || 'ok' }),
     // uiDialog(spec) → {ok, values} —— 调用方：labels.js、questions.js 等；P8 删除
     dialog: spec => dialog(spec || {}),
@@ -66,7 +66,7 @@ export function installLegacyBridge(win) {
 
 /**
  * 全局数据所有权反转到 domain/data.js 之后留给旧代码的入口（P6 起；P8 清空）。
- * - reloadData() —— 调用方：app.js init()、history.js、inbox.js、labels.js、schedule.js（建题、扫描、删计划）等写操作之后。
+ * - reloadData() —— 调用方：app.js init()、history.js、labels.js、schedule.js（建题、扫描、删计划）等写操作之后。
  *   旧 app.js 里的同名函数已删；这里挂的是 domain 的实现（并发合并、失败保留旧快照）。
  * - 旧页面的刷新链 legacyDataRefresh()（app.js：下拉选项、导出选题、题库重绘、标记、展示板、推荐、目录）
  *   登记为 domain 的旧代码钩子，在快照写好之后、发 'data' 之前执行。各页迁完逐项删，P8 时钩子为空。
@@ -122,7 +122,7 @@ function installLabelsBridge(win) {
   const storage = () => { try { return win.localStorage; } catch (error) { return null; } };
   const recent = () => labels.readRecent(storage(), labels.allLabels());
   const names = {
-    // 芯片 —— 调用方：labels.js、data.js、export.js、inbox.js、recommend_v2.js
+    // 芯片 —— 调用方：labels.js、data.js、export.js、recommend_v2.js
     lblChip: labels.chipHtml,
     lblChips: labels.chipsHtml,
     // 颜色 —— 调用方：labels.js（色板、管理行的颜色圆点、新建与改名表单）
@@ -173,7 +173,7 @@ function installFeedbackBridge(win) {
 function installQuestionBridge(win) {
   question.bindQuestionDom(win.document);
   const names = {
-    // 题面渲染 —— 调用方：questions.js（画廊、表格悬停预览）、qtable.js、inbox.js（收件箱题卡预览）
+    // 题面渲染 —— 调用方：questions.js（画廊、表格悬停预览）、qtable.js
     renderMdContent: question.renderMd,
     renderMdInline: question.renderMdInline,
     // 详情缓存 —— 调用方：export.js、recommend_v2.js、questions.js 画廊
@@ -190,7 +190,7 @@ function installQuestionBridge(win) {
     qvInvalidate: question.qvInvalidate,
     qvInvalidateMany: question.qvInvalidateMany,
     qvRerenderAll: question.qvRerenderAll,
-    // 题目弹窗（domain/question/modal.js，ui/dialog 外壳）—— 调用方：catalog.js、data.js、export.js、inbox.js、recommend_v2.js、schedule.js
+    // 题目弹窗（domain/question/modal.js，ui/dialog 外壳）—— 调用方：catalog.js、data.js、export.js、recommend_v2.js、schedule.js
     viewQ: question.viewQ,
     closeModal: question.closeModal,
     // Markdown 编辑器（domain/question/editor.js）—— 调用方：tests/e2e 的 instant.py、feedback.py 用 closeMarkdownEditor() 收尾；打开一律经 editQuestion()
@@ -213,7 +213,7 @@ function installQuestionBridge(win) {
  *   —— tests/smoke_board_integrity.py、smoke_board_lock.py、smoke_board_print_geometry.py；
  *   BOARD_DETAIL（只读访问器）—— 同上三份冒烟测试的等待条件；boardRender —— tests/e2e/board.py（重绘后 iframe 不重载）。
  * - features/board/preview.js：常驻预览 boardPreview* —— 冒烟测试（boardPreviewLayout / Frame / IsReady / Relayout）。
- * - domain/board/picker.js：boardQuickAdd / boardChooseAndAdd —— inbox.js（提示条「加入展示板」）、domain/question/mount.js
+ * - domain/board/picker.js：boardQuickAdd / boardChooseAndAdd —— domain/question/mount.js
  *   （qview「加入展示板」）、domain/sessions.js（反馈录入）；boardPickerOpen / boardPickerClose —— tests/smoke_board_integrity.py、
  *   tests/e2e/board_picker.py。
  * - domain/board/boards.js：boardCurrentId —— tests/e2e/board_picker.py、tests/e2e/board.py。

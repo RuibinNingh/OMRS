@@ -46,10 +46,10 @@
 | POST | `/api/history/state/restore` | `AI/api.md`、`AI/ledger.md` |
 | GET | `/api/image` | `AI/api.md`、`AI/data.md`、`AI/frontend/library.md`等 |
 | POST | `/api/inbox/cleanup` | `AI/inbox.md` |
-| POST | `/api/inbox/commit` | `AI/inbox.md` |
+| POST | `/api/inbox/commit` | `AI/frontend/create.md`、`AI/inbox.md` |
 | POST | `/api/inbox/crops` | `AI/inbox.md` |
 | GET | `/api/inbox/dataset/export` | `AI/inbox.md` |
-| GET | `/api/inbox/dataset/stats` | `AI/inbox.md` |
+| GET | `/api/inbox/dataset/stats` | `AI/frontend/create.md`、`AI/inbox.md` |
 | POST | `/api/inbox/discard` | `AI/inbox.md` |
 | GET | `/api/inbox/item` | `AI/inbox.md` |
 | POST | `/api/inbox/item/update` | `AI/inbox.md` |

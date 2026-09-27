@@ -1,0 +1,34 @@
+/* AI 训练工作区（#ib-stage-train）：数据集指标、构成条、导出与清理、框选策略表单。类名前缀 crt-。 */
+.crt { display: grid; gap: var(--sp-4); color: var(--fg-1); }
+.crt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-3); }
+.crt-stat { min-width: 0; padding: var(--sp-4); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); }
+.crt-stat .ui-stat__label { white-space: normal; }
+.crt-error { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
+.crt-cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: var(--sp-4); }
+.crt-panel { display: grid; align-content: start; gap: var(--sp-3); min-width: 0; padding: var(--sp-4) var(--sp-5); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); }
+.crt-panel h3 { margin: 0; font-size: var(--text-md); font-weight: var(--weight-bold); }
+.crt-panel h4 { margin: var(--sp-2) 0 0; color: var(--fg-3); font-size: var(--text-sm); font-weight: var(--weight-regular); }
+.crt-muted { margin: 0; color: var(--fg-3); font-size: var(--text-sm); line-height: var(--leading-read); overflow-wrap: anywhere; }
+.crt-bars { display: grid; gap: var(--sp-2); }
+.crt-bar { display: grid; grid-template-columns: 110px minmax(0, 1fr) 56px; align-items: center; gap: var(--sp-2); font-size: var(--text-sm); }
+.crt-bar__label { color: var(--fg-2); text-align: right; }
+.crt-bar .ui-progress { height: var(--sp-3); }
+.crt-bar__value { color: var(--fg-3); font-family: var(--font-mono); text-align: right; }
+.crt-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
+.crt-format .ui-select { width: auto; }
+.crt-facts { display: grid; gap: var(--sp-1); margin: 0; font-size: var(--text-sm); line-height: var(--leading-read); }
+.crt-facts dt { color: var(--fg-1); font-weight: var(--weight-bold); }
+.crt-facts dd { margin: 0 0 var(--sp-2); color: var(--fg-3); }
+.crt-policy { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--sp-3) var(--sp-4); }
+.crt-policy .ui-input, .crt-policy .ui-select { width: 100%; }
+.crt-local[hidden] { display: none; }
+.crt-switch { display: grid; align-content: start; gap: var(--sp-2); }
+@media (max-width: 1160px) {
+  .crt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .crt-cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .crt-panel { padding: var(--sp-4); }
+  .crt-bar { grid-template-columns: 84px minmax(0, 1fr) 48px; }
+  .crt .ui-btn, .crt .ui-input, .crt .ui-select { min-height: var(--ctl-lg); }
+}

@@ -79,7 +79,7 @@
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v1.26.5 |
+| 当前版本 | v1.26.6 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（旧 `styles.css` 与拆分的 JS）+ `assets/app/`（ES Module：token、ui 组件、过渡桥、domain 层、已迁页面 `features/` 下的 dashboard、data、questions、schedule、instant、feedback、history、catalog、reports、settings、board）|

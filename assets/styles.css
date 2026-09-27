@@ -140,8 +140,6 @@ input[type="range"]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;hei
 .lbl-row.stack{display:flex}
 [data-lbl-target]{cursor:pointer}
 .lbl-form-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;min-height:26px;padding:5px 8px;border:1px dashed var(--border2);border-radius:var(--radius-sm)}
-.lbl-form-add{display:inline-flex;align-items:center;height:19px;padding:0 8px;border:1px dashed var(--border2);border-radius:999px;background:transparent;color:var(--fg3);font:inherit;font-size:.66rem;cursor:pointer}
-.lbl-form-add:hover{color:var(--fg);border-color:var(--accent-light)}
 
 /* 标记筛选芯片（题库抽屉 / 推荐 / 导出 / 即时练习 / 展示板选题共用） */
 
@@ -278,79 +276,6 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 
 
 @media(prefers-reduced-motion:reduce){.modal{animation:none}}
-
-/* ══════════════════════════════════════════════════════════════════
-   v1.12.0 收件箱录入流程（assets/inbox.js）。全部类名以 ib- 为前缀。
-   画布上的标注色 --ib-role-* 固定不随主题（画在白底截图上）。
-   ══════════════════════════════════════════════════════════════════ */
-:root{--ib-role-q:#2563eb;--ib-role-a:#16a34a;--ib-role-x:#6b7280;--ib-role-q-rgb:37,99,235;--ib-role-a-rgb:22,163,74}
-#panel-create .grow{flex:1}
-.ib-chk{width:16px;height:16px;accent-color:var(--blue);cursor:pointer;flex-shrink:0}
-.tag.ib-muted{background:var(--bg3);color:var(--fg3)}
-.ib-empty{padding:40px 20px;text-align:center;color:var(--fg3);font-size:.8rem;line-height:1.7}
-/* 流程条 */
-.ib-flow{display:flex;align-items:stretch;gap:10px;margin-bottom:18px;flex-wrap:wrap}
-.ib-flow-step{flex:1;min-width:180px;display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);cursor:pointer;transition:border-color .15s}
-.ib-flow-step:hover{border-color:var(--accent-light)}
-.ib-flow-step.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
-.ib-flow-step i{width:28px;height:28px;border-radius:50%;border:1.5px solid var(--border2);display:flex;align-items:center;justify-content:center;font-style:normal;font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:.78rem;color:var(--fg3);flex-shrink:0}
-.ib-flow-step.on i{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
-.ib-flow-step .fs-name{font-weight:700;font-size:.9rem;color:var(--fg)}
-.ib-flow-step .fs-sub{font-size:.7rem;color:var(--fg3);margin-top:1px;white-space:nowrap}
-.ib-flow-step .fs-count{margin-left:auto;white-space:nowrap;font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:1.25rem;font-weight:600;color:var(--accent2)}
-.ib-flow-step .fs-count small{font-size:.66rem;color:var(--fg3);font-weight:400;margin-left:3px;font-family:inherit}
-.ib-flow-step.aux{flex:0 0 auto;min-width:0;border-style:dashed}
-.ib-flow-step.aux i{border-style:dashed}
-.ib-flow-arrow{align-self:center;color:var(--fg3)}
-.ib-stage{display:none}.ib-stage.on{display:block}
-/* ① 上传由 features/create/ 管理。 */
-.ib-role{display:inline-flex;align-items:center;gap:5px;font-size:.66rem;font-weight:700;padding:2px 8px;border-radius:6px;color:#fff}
-.ib-role.question{background:var(--ib-role-q)}.ib-role.answer{background:var(--ib-role-a)}.ib-role.ignore{background:var(--ib-role-x)}
-/* ③ 录入 */
-.ib-cr-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
-.ib-qcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:14px;overflow:hidden}
-.ib-qcard-head{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--bg3)}
-.ib-qcard-head .t{font-weight:700;font-size:.82rem;color:var(--accent2)}
-.ib-qcard-head .src{font-size:.66rem;color:var(--fg3);font-family:'JetBrains Mono','Noto Sans SC',monospace}
-.ib-qcard-body{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr)}
-.ib-qcard-prev{padding:14px 16px;border-right:1px solid var(--border);min-width:0}
-.ib-qcard-form{padding:14px 16px}
-.ib-pv{margin-bottom:12px}
-.ib-pv-l{font-size:.68rem;color:var(--fg3);display:flex;align-items:center;gap:6px;margin-bottom:5px}
-.ib-pv-l .ib-role{padding:1px 6px}
-.ib-pv-b{font-size:.8rem;line-height:1.65;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;max-height:260px;overflow:auto}
-.ib-pv-b.answer{border-left:3px solid var(--ib-role-a)}
-.ib-pv-b.question{border-left:3px solid var(--ib-role-q)}
-.ib-pv-b canvas{display:block;max-width:100%;height:auto;border-radius:6px;background:#fff}
-.ib-fg{margin-bottom:10px}
-.ib-fg label{display:block;font-size:.7rem;color:var(--fg3);margin-bottom:4px}
-.ib-fg label .ai{font-size:.6rem;color:var(--blue);margin-left:6px}
-.ib-fg .input{width:100%}
-.ib-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.ib-cause{background:var(--trap-bg);border:1px solid rgba(var(--yellow-rgb),.3);border-radius:var(--radius-sm);padding:9px 10px}
-.ib-cause label{color:var(--trap-fg);font-weight:600}
-.ib-range{display:flex;align-items:center;gap:10px}.ib-range input{flex:1;accent-color:var(--accent)}.ib-range b{font-family:'JetBrains Mono','Noto Sans SC',monospace;width:22px;text-align:right;color:var(--accent)}
-.ib-qcard-foot{display:flex;align-items:center;gap:8px;padding:10px 16px;border-top:1px solid var(--border);flex-wrap:wrap}
-.ib-qcard-foot .file{font-size:.68rem;color:var(--fg3);font-family:'JetBrains Mono','Noto Sans SC',monospace}
-/* AI 训练 */
-.ib-tr-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
-.ib-stat{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px}
-.ib-stat .l{font-size:.68rem;color:var(--fg3)}
-.ib-stat .v{font-size:1.7rem;font-weight:900;font-family:'JetBrains Mono','Noto Sans SC',monospace;color:var(--fg);margin-top:4px}
-.ib-stat .s{font-size:.66rem;color:var(--fg3);margin-top:3px;line-height:1.5}
-.ib-tr-cols{display:grid;grid-template-columns:1.2fr 1fr;gap:14px;margin-bottom:14px}
-.ib-bar{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:.72rem}
-.ib-bar .bl{width:110px;color:var(--fg2);text-align:right;flex-shrink:0}
-.ib-bar .bt{flex:1;height:14px;background:var(--bg3);border-radius:4px;overflow:hidden}
-.ib-bar .bf{height:100%;border-radius:4px;background:var(--accent);opacity:.85}
-.ib-bar .bf.blue{background:var(--blue)}.ib-bar .bf.green{background:var(--green)}
-.ib-bar .bv{width:52px;font-family:'JetBrains Mono','Noto Sans SC',monospace;font-size:.66rem;color:var(--fg3);text-align:right}
-@media(max-width:1500px){.ib-flow-step.aux .fs-sub{display:none}}
-@media(max-width:1180px){.ib-tr-grid{grid-template-columns:repeat(2,1fr)}.ib-tr-cols{grid-template-columns:1fr}}
-@media(max-width:860px){.ib-qcard-body{grid-template-columns:1fr}.ib-qcard-prev{border-right:none;border-bottom:1px solid var(--border)}.ib-flow-step{min-width:0}}
-
-/* 收件箱：AI 训练页策略表单 */
-.ib-pl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 16px;margin-top:12px}
 
 /* ══════════════════════════════════════════════════════════
    优化后的推荐面板 V2 样式
@@ -611,20 +536,6 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 
 /* 题库表头吸顶与整屏工作台布局已迁到 assets/app/features/questions/questions.css（P5）；
    整屏外壳（.content.is-workbench）在 assets/app/styles/shell.css。 */
-
-/* ── 其余多栏页并入同一套整屏工作台（v1.15.0）──
-   收件箱处理页本来就是 height:calc(100vh - 200px)，那个 200 是数出来的；
-   这里统一交给 flex，上面加减工具栏都不用重新数。仍只在 ≥1161px 生效。 */
-@media(min-width:1161px){
-  /* 收件箱：只有「处理」那一屏是三栏工作台，上传 / 录入 / AI 训练 正常滚 */
-  .content.is-workbench .ib-flow{flex-shrink:0}
-  .content.is-workbench .ib-stage.on{flex:1;min-height:0;overflow-y:auto}
-  .content.is-workbench #ib-stage-process.on{display:flex;flex-direction:column;overflow:hidden}
-  .content.is-workbench #ib-stage-process .ib-proc{flex:1;min-height:0;height:auto}
-
-  /* 即时练习：题目区与右侧队列各自滚，做题时工具条不跟着走 */
-
-}
 
 /* 复习调度：常驻页签、候选列表与可继续的计划。 */
 #panel-schedule [hidden]{display:none!important}

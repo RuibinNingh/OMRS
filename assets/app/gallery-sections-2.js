@@ -44,7 +44,7 @@ export const SECTIONS_B = [
     cell('悬停项 · 快捷键提示 · 分隔 · 禁用 · 危险', html`<div class="gl-static">${menuMarkup(MENU_ITEMS.map((it, i) => (i === 1 ? { ...it, hover: true } : it)), { staticPreview: true })}</div>`),
     cell('长文本溢出（省略）', html`<div class="gl-static">${menuMarkup([{ label: LONG, icon: 'file' }, { label: '短项' }], { staticPreview: true })}</div>`),
   ] },
-  { id: 'toast', title: '通知 Toast', desc: '全站唯一一套：右下角堆叠（窄屏底部通栏），最多 3 条，同文同类合并，悬停或聚焦暂停计时；error 用 role=alert。旧 uiToast、收件箱 ibToast 均已转调。', demos: [['toast-info', '信息'], ['toast-ok', '成功'], ['toast-warn', '警告'], ['toast-error', '错误'], ['toast-action', '带撤销'], ['toast-long', '长文本'], ['toast-many', '连发 5 条']], cells: [
+  { id: 'toast', title: '通知 Toast', desc: '全站唯一一套：右下角堆叠（窄屏底部通栏），最多 3 条，同文同类合并，悬停或聚焦暂停计时；error 用 role=alert。旧 uiToast 已转调。', demos: [['toast-info', '信息'], ['toast-ok', '成功'], ['toast-warn', '警告'], ['toast-error', '错误'], ['toast-action', '带撤销'], ['toast-long', '长文本'], ['toast-many', '连发 5 条']], cells: [
     cell('四种类型', html`<div class="gl-static">${toastMarkup('已同步 3 个展示板', { kind: 'info' })}${toastMarkup('已复制题目 UID', { kind: 'ok' })}${toastMarkup('这些题已经在「考前冲刺」里了', { kind: 'warn' })}${toastMarkup('保存失败：服务暂时不可用', { kind: 'error' })}</div>`),
     cell('带操作 · 长文本', html`<div class="gl-static">${toastMarkup('已移出展示板', { kind: 'ok', actions: [{ label: '撤销' }] })}${toastMarkup(LONG, { kind: 'warn' })}</div>`),
   ] },

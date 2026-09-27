@@ -1,11 +1,10 @@
 {"files": {
   "assets/app.js": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 0, "font_size_literals": 0},
-  "assets/core.js": {"handlers": 0, "html_assign": 5, "inline_style": 6, "color_literals": 0, "font_size_literals": 0},
-  "assets/inbox.js": {"handlers": 0, "html_assign": 7, "inline_style": 8, "color_literals": 1, "font_size_literals": 0},
+  "assets/core.js": {"handlers": 0, "html_assign": 2, "inline_style": 6, "color_literals": 0, "font_size_literals": 0},
   "assets/inbox_mobile.html": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 0, "font_size_literals": 7},
   "assets/labels.js": {"handlers": 0, "html_assign": 9, "inline_style": 2, "color_literals": 0, "font_size_literals": 1},
   "assets/questions.js": {"handlers": 0, "html_assign": 0, "inline_style": 2, "color_literals": 0, "font_size_literals": 0},
   "assets/schedule.js": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 0, "font_size_literals": 0},
-  "assets/styles.css": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 43, "font_size_literals": 86},
-  "omrs_dashboard.html": {"handlers": 13, "html_assign": 0, "inline_style": 21, "color_literals": 0, "font_size_literals": 2}
+  "assets/styles.css": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 37, "font_size_literals": 66},
+  "omrs_dashboard.html": {"handlers": 4, "html_assign": 0, "inline_style": 1, "color_literals": 0, "font_size_literals": 0}
 }}

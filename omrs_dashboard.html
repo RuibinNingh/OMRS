@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="assets/vendor/fonts/fonts.css?v=20260920-local">
 <link rel="stylesheet" href="assets/app/styles/tokens.css?v=20260925-p6r1">
 <!-- 旧 styles.css 与 KaTeX 由 index.css 按 @layer 引入（见 AI/frontend/shell.md）-->
-<link rel="stylesheet" href="assets/app/styles/index.css?v=20260927-p6p7-merge">
+<link rel="stylesheet" href="assets/app/styles/index.css?v=20260927-p6-create-cards">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
@@ -54,7 +54,7 @@
       <div class="nav-spacer"></div>
       <a class="tab" data-tab="settings" href="#/settings"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></a>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.26.5 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.26.6 · 本地服务</div>
   </aside>
   <main class="content">
     <div class="topbar">
@@ -98,59 +98,23 @@
   <!-- ====== 录入题目 ====== -->
   <div class="panel" id="panel-create">
     <div id="create-app">
-    <!-- 工作区导航由 features/create 渲染；旧工作区在迁移期间保留。 -->
+    <!-- 录入题目的五个工作区全部由 features/create 渲染（页面契约 index.js）。 -->
     <nav class="ib-flow" id="create-flow" aria-label="录入题目工作区"></nav>
 
-    <!-- ① 上传与收件箱网格由 features/create 渲染。 -->
+    <!-- ① 上传与收件箱网格 -->
     <section class="ib-stage on" id="ib-stage-upload">
       <div id="create-upload"></div>
       <div id="create-grid"></div>
     </section>
 
-    <!-- ② 处理工作区的静态三栏由 features/create/process-view.js 挂载。 -->
+    <!-- ② 处理：静态三栏由 process-view.js 挂载，队列、画布与区域面板由 process.js 维护 -->
     <section class="ib-stage" id="ib-stage-process"></section>
 
-    <!-- ③ 录入 -->
-    <section class="ib-stage" id="ib-stage-create">
-      <div class="ib-cr-head">
-        <label style="display:flex;align-items:center;gap:6px;font-size:.76rem;cursor:pointer"><input type="checkbox" class="ib-chk" id="ib-cr-all" onchange="ibSelectAllCards(this.checked)"> 全选</label>
-        <span class="hint" id="ib-cr-count"></span><span class="grow"></span>
-        <button class="btn sm" type="button" onclick="ibClassifySelected()">🤖 AI 识别题目信息（勾选）</button><button class="btn sm primary" type="button" onclick="ibCommitSelected()">创建勾选的题目</button>
-      </div>
-      <div id="ib-cards"></div>
-    </section>
+    <!-- ③ 录入：题卡由 cards.js 挂载 -->
+    <section class="ib-stage" id="ib-stage-create"></section>
 
-    <!-- AI 训练 -->
-    <section class="ib-stage" id="ib-stage-train"><div id="ib-train">
-      <div class="ib-tr-grid">
-        <div class="ib-stat"><div class="l">已留存原图</div><div class="v" id="ib-tr-imgs">—</div><div class="s" id="ib-tr-imgs-sub"></div></div>
-        <div class="ib-stat"><div class="l">人工确认的框</div><div class="v" id="ib-tr-boxes">—</div><div class="s" id="ib-tr-boxes-sub"></div></div>
-        <div class="ib-stat"><div class="l">AI 框选采纳率</div><div class="v" id="ib-tr-adopt">—</div><div class="s" id="ib-tr-adopt-sub"></div></div>
-        <div class="ib-stat"><div class="l">转文本判断一致率</div><div class="v" id="ib-tr-agree">—</div><div class="s" id="ib-tr-agree-sub"></div></div>
-      </div>
-      <div class="ib-tr-cols">
-        <div class="card"><div class="card-title">数据集构成</div><div id="ib-tr-layouts"></div><div class="hint" style="margin:14px 0 8px">转换决策（按区域）</div><div id="ib-tr-convert"></div></div>
-        <div class="card"><div class="card-title">导出与模型</div>
-          <div class="hint" style="line-height:1.7">每次 AI 框选都记录「AI 原框 / 人工最终框 / 采纳方式」，人工否决 AI 转文本判断也会留痕；全部事件在 <code>错题/.omrs/inbox/annotations.jsonl</code>。框选模型按用途在「设置 → AI 自动识别」里分别配置（detect 需支持定位输出；extract 建议用 OCR 类模型）。</div>
-          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center"><select class="input" id="ib-tr-fmt" style="width:auto"><option value="omrs_jsonl">OMRS JSONL（归一化框）</option><option value="yolo">YOLO txt + JSONL</option></select><button class="btn sm primary" type="button" onclick="ibExportDataset()">导出数据集（含原图）</button><button class="btn sm" type="button" onclick="ibLoadStats()">刷新</button></div>
-          <div class="hint" style="margin-top:14px;line-height:1.7"><b>盲标评估集</b><br><span id="ib-tr-blind">—</span></div>
-          <div class="hint" style="margin-top:12px;line-height:1.7"><b>存储</b><br><span id="ib-tr-storage">—</span></div>
-          <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" type="button" onclick="ibCleanup(false)" title="按下方「丢弃保留天数」删除超期的已丢弃原图；上传时也会自动执行">清理超期丢弃图</button><button class="btn sm" type="button" onclick="ibCleanup(true)" title="crops/ 可随时清空，需要时由前端或 Pillow 重建">清空裁图缓存</button></div>
-        </div>
-      </div>
-      <div class="card" style="margin-top:14px"><div class="card-title">框选提供方与自动策略</div>
-        <div class="hint" style="line-height:1.7">「AI 框选」按钮默认走这里选的提供方；处理页的「模板框选」按钮总是走模板。本地检测服务协议：<code>POST {image, layout, width, height}</code> → <code>[{label, card, bbox_2d:[x1,y1,x2,y2], confidence}]</code>（坐标 0–1000 / 0–1 / 像素均可）。</div>
-        <div class="ib-pl-grid">
-          <div><label class="hint" style="display:block;margin-bottom:3px">框选提供方</label><select class="input" id="ib-pl-provider" onchange="ibPolicyToggle()"><option value="vlm">vlm — 设置里的多模态模型（联网）</option><option value="template">template — 版式模板（零联网）</option><option value="local_http">local_http — 本地检测服务（训好的 YOLO/ONNX）</option></select></div>
-          <div id="ib-pl-local-row"><label class="hint" style="display:block;margin-bottom:3px">本地检测服务地址</label><input class="input" id="ib-pl-local" placeholder="http://127.0.0.1:8600/detect"></div>
-          <div><label class="hint" style="display:block;margin-bottom:3px">每 N 张盲标（0 = 关闭）</label><input class="input" id="ib-pl-blind" type="number" min="0" step="1" placeholder="0"><div class="hint" style="margin-top:3px">盲标的图不展示 AI 框，人工画完后成对留痕，作干净评估集，避免标注被模型带偏</div></div>
-          <div><label class="hint" style="display:block;margin-bottom:3px">自动就绪的置信度阈值（0 = 关闭）</label><input class="input" id="ib-pl-conf" type="number" min="0" max="1" step="0.05" placeholder="0"><div class="hint" style="margin-top:3px">AI 框全部 ≥ 阈值时自动转文本（含可转性判断）并置就绪；服务端裁图需 Pillow</div></div>
-          <div><label class="hint" style="display:block;margin-bottom:3px">上传后自动处理</label><label style="display:flex;align-items:center;gap:6px;font-size:.8rem;cursor:pointer"><input type="checkbox" class="ib-chk" id="ib-pl-upload"> 手机 / 电脑上传即自动框选（无人值守，配合上面的阈值）</label></div>
-          <div><label class="hint" style="display:block;margin-bottom:3px">丢弃的原图保留天数</label><input class="input" id="ib-pl-days" type="number" min="0" step="1" placeholder="7"></div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:12px;align-items:center"><button class="btn sm primary" type="button" onclick="ibSavePolicy()">保存策略</button><span id="ib-pl-status" class="hint"></span></div>
-      </div>
-    </div></section>
+    <!-- AI 训练：数据集统计与框选策略由 train.js 挂载 -->
+    <section class="ib-stage" id="ib-stage-train"></section>
 
     <!-- 快速录入由 features/create/quick.js 挂载。 -->
     <section class="ib-stage" id="ib-stage-quick"></section>
@@ -174,16 +138,12 @@
 </div>
 
 <datalist id="uid-list"></datalist>
-<datalist id="cr-subj-list"></datalist>
-<datalist id="cr-cat-list"></datalist>
-<datalist id="cr-ktag-list"></datalist>
 
-<script src="assets/core.js?v=20260925-p6r5"></script>
+<script src="assets/core.js?v=20260927-p6-create-cards"></script>
 <script src="assets/labels.js?v=20260925-p6r5"></script>
 <script src="assets/questions.js?v=20260925-p6r4"></script>
 <script src="assets/schedule.js?v=20260925-p6r3"></script>
-<script src="assets/inbox.js?v=20260927-p6-create-upload"></script>
-<script src="assets/app.js?v=20260926-p6-catalog"></script>
-<script type="module" src="assets/app/main.js?v=20260927-p6p7-merge"></script>
+<script src="assets/app.js?v=20260927-p6-create-cards"></script>
+<script type="module" src="assets/app/main.js?v=20260927-p6-create-cards"></script>
 </body>
 </html>

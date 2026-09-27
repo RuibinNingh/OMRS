@@ -74,7 +74,7 @@ assets/app/
 
 ## 5. 过渡桥
 
-- JS：`assets/core.js` 的 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 只剩转调（经 `window.__omrsUi`），签名与返回值不变；收件箱 `ibToast` 转调 `uiToast`。旧 `uiToast` 不传 kind 时按旧语义映射为 ok（成功样式）；新组件自身的默认是 info。
+- JS：`assets/core.js` 的 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 只剩转调（经 `window.__omrsUi`），签名与返回值不变。旧 `uiToast` 不传 kind 时按旧语义映射为 ok（成功样式）；新组件自身的默认是 info。
 - 「有弹层打开时不响应」的守卫新写一律 `dialog[open]:not(.is-closing)`（`core/keys.js` 的 `inDialog` 已含 `.modal-overlay.open`）。选板浮层的「点外面关闭」只让「不包含浮层」的弹层挡住（宿主对话框不算），它的键盘走 `core/keys.js` 的浮层键盘层 `pushKeyLayer`（展示板页的快捷键 v1.26.4 起也在 core/keys，浮层层天然先拿到键）；已迁到新页面的快捷键走 `core/keys.js`，它自带「有弹层时不响应」（`inDialog`）。
 - CSS：`styles/legacy-bridge.css` 给旧 `.btn` 系列、`.input` / `select.input` / `textarea.input`、旧 `.modal` 外壳套新外观；旧 `styles.css` 里被接管的基础规则已删除。桥只写外观，不写 z-index 与布局尺寸。
 - 旧代码调用的题目视图全局（`renderMdContent`、`ensureQuestionDetail`、`qvHtml`、`qvRender`、`viewQ`、`closeModal`、练习记录函数等）由 `legacy-bridge.js` 的 `installQuestionBridge` 从 `assets/app/domain/question/` 挂上，逐条注明调用方；它同时调 `bindQuestionDom()` 绑定 qview 的按钮委托、题图降级与弹窗 ←/→。
