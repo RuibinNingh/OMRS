@@ -44,13 +44,30 @@ def run(page, base, results):
     check('录入页由 features/create 注册并显示五个工作区',
           wait(page, "() => document.querySelectorAll('#create-flow button[data-ib-stage]').length === 5")
           and page.locator('#create-flow [aria-current="step"]').count() == 1)
-    check('工作区导航使用按钮和 SVG 图标，没有行内事件',
+    check('工作区导航与上传区没有行内事件和样式',
           page.locator('#create-flow [onclick]').count() == 0
-          and page.locator('#create-flow button svg').count() == 2)
+          and page.locator('#create-flow button svg').count() == 2
+          and page.locator('#create-upload [onclick], #create-upload [style]').count() == 0)
+    page.locator('#ib-file').set_input_files({'name': '说明.txt', 'mimeType': 'text/plain', 'buffer': b'not an image'})
+    check('非图片文件在上传区就地提示', wait(page, "() => document.querySelector('#ib-up-status')?.textContent.includes('请选择图片文件')"))
     page.locator('#ib-file').set_input_files({'name': '题图.png', 'mimeType': 'image/png', 'buffer': png()})
     check('上传进入暂存收件箱并更新待处理数',
           wait(page, "() => document.querySelector('#ib-c-pending')?.textContent === '1'")
           and page.locator('#ib-grid [data-ib-open]').count() == 1)
+    page.evaluate("""bytes => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([new Uint8Array(bytes)], '题图.png', { type: 'image/png' }));
+      document.dispatchEvent(new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }));
+    }""", list(png()))
+    check('上传区粘贴图片走同一暂存入口，重复图自动合并',
+          wait(page, "() => document.querySelector('#ib-up-status')?.textContent.includes('已合并')")
+          and page.locator('#ib-grid [data-ib-open]').count() == 1)
+    page.route('**/api/inbox/upload', lambda route: route.fulfill(status=503, content_type='application/json', body='{"msg":"上传服务暂不可用"}'))
+    page.locator('#ib-file').set_input_files({'name': '另一张.png', 'mimeType': 'image/png', 'buffer': png()})
+    check('上传失败保留已有收件箱并在控件旁显示原因',
+          wait(page, "() => document.querySelector('#ib-up-status')?.textContent.includes('上传服务暂不可用')")
+          and page.locator('#ib-grid [data-ib-open]').count() == 1)
+    page.unroute('**/api/inbox/upload')
     page.locator('#create-flow [data-ib-stage="process"]').focus()
     page.keyboard.press('Enter')
     check('键盘可进入处理工作区', page.locator('#ib-stage-process').evaluate('(e) => getComputedStyle(e).display !== "none"')

@@ -417,3 +417,23 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 `python3 tests/check_docs.py --write-log-index` 已运行；`python3 tests/check_docs.py --diff HEAD` 为 0 处问题、2 条既有的篇幅提醒。最后重跑 `check_ui.py` 为 0 处问题（旧存量 handlers 69、html_assign 48、inline_style 67、color_literals 95、font_size_literals 173），`check_contrast.py` 58 组均达标，`git diff --check` 通过。
 
 未执行：生产部署与远端设备验证（需用户单独授权）；Firefox、WebKit 和全站空态终检属于后续计划阶段。
+
+---
+
+## 收件箱上传入口迁移（2026-09-27，v1.25.11）
+
+### 行为变化与影响文件
+
+- `features/create/upload-view.js` 用现成 `ui/filedrop` 渲染多图选择与拖放区，旁边提供显式读取剪贴板按钮和就地状态；`upload.js` 在页面挂载期间捕获图片粘贴，三种入口共用 `/api/inbox/upload` 的 FormData 请求。非图片、剪贴板不可用、读取失败和上传失败在控件旁显示原因；请求期间禁用两个入口，避免重复提交。成功后通过 `inbox:reload` 通知旧列表重读，重复图片仍由现有接口合并。
+- `omrs_dashboard.html` 的旧上传 DOM 与内联事件改成挂载根；`assets/inbox.js` 删除 `ibUploadFiles`、`ibPickFiles`、`ibFileInput`、`ibDrop`、`ibReadClipboard` 和 `ibPaste`，旧控制器只监听总线刷新列表。`assets/styles.css` 精确删除只服务旧 dropzone 的四条规则，`features/create/create.css` 增加上传区样式；`tests/ui_baseline.json` 随旧存量下降而更新。`tests/e2e/create.py` 扩到 11 项，覆盖非图片拒绝、图片粘贴合并和上传服务失败。
+- 同步 `AI/frontend/create.md`、`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/design-system.md`、`README.md`、`AI/README.md`、`AI/changelog.md`、计划 `progress.md` 和版本号四处。收件箱网格、框选、题卡、训练与快速录入仍在旧控制器，后续逐块迁移。
+
+### 验证
+
+已实际执行：`python3 tests/e2e/create.py` 11 / 11，使用临时空 Vault、随机端口与独立 Chromium，实例环境中移除了 `OMRS_SYSTEMD_SERVICE`；`python3 tests/check_ui.py` 为 0 处问题，`--update-baseline` 已把旧存量下调到 handlers 62、html_assign 48、inline_style 64、color_literals 94、font_size_literals 172；`git diff --check` 通过。
+
+`tests/visual/run.py --ref HEAD --pages create` 四组截图差异：桌面浅 / 深色 1.321% / 1.357%，手机浅 / 深色 13.268% / 13.568%。旧虚线框内的字符图标和两枚旧按钮换成统一上传图标与文件拖放控件，手机上传区缩短，收件箱及侧栏内容上移；页面脚本错误为 0。当前整页桌面仍有 11 档字号、最小 9.9px，手机 10 档、最小 10.5px，四组各有 4 处有效行内样式，来自尚未迁的旧工作区；小目标和整页横向溢出均为 0。
+
+本提交的全量门禁实际运行：Python unittest 160 项通过；Node 238 / 238；组件浏览器测试 34 / 34；E2E 的 shell_router、ui_bridge、dashboard、data、schedule、instant、feedback、questions、history、catalog、reports、settings、create 依次为 20、15、26、21、45、23、31、92、23、26、24、50、11，均全部通过；`tests.smoke_schedule_workbench` 1 项通过。`check_contrast.py` 58 组均达标；`check_docs.py --diff HEAD` 为 0 处问题、2 条既有篇幅提醒。浏览器测试均使用临时 Vault、随机端口与独立 Chromium，隔离实例环境中移除 `OMRS_SYSTEMD_SERVICE`。
+
+未执行：生产部署与远端设备验证（需用户单独授权）；Firefox、WebKit 和全站空态终检属于后续计划阶段。

@@ -714,10 +714,6 @@ input[type=range]::-moz-range-track{height:6px;border-radius:999px;background:va
 .ib-stage{display:none}.ib-stage.on{display:block}
 /* ① 上传 */
 .ib-up-layout{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
-.ib-dropzone{border:2px dashed var(--border2);border-radius:var(--radius-lg);padding:26px;text-align:center;color:var(--fg3);background:var(--bg2);cursor:pointer;transition:border-color .15s,background .15s}
-.ib-dropzone:hover,.ib-dropzone.drag{border-color:var(--blue);background:rgba(var(--blue-rgb),.05);color:var(--fg2)}
-.ib-dropzone b{color:var(--fg);font-weight:600}
-.ib-dropzone .row{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}
 .ib-inbox-head{display:flex;align-items:center;gap:12px;margin:18px 0 10px;flex-wrap:wrap}
 .ib-inbox-head .filters{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
 .ib-chip{padding:3px 10px;border-radius:99px;border:1px solid var(--border2);font-size:.7rem;color:var(--fg3);cursor:pointer;background:var(--bg2)}

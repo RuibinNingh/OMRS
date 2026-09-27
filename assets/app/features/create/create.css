@@ -22,6 +22,11 @@
 #create-flow .ib-flow-step.on .ib-flow-icon { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
 #create-flow .ib-flow-icon svg { width: 16px; height: 16px; }
 #create-flow .ib-flow-copy { min-width: 0; display: grid; }
+.crw-upload { display: grid; gap: var(--row); }
+.crw-upload .ui-filedrop { min-height: 148px; }
+.crw-upload__actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--row); }
+.crw-upload__status { color: var(--fg-3); font-size: var(--fs-sm); }
+.crw-upload__status.is-error { color: var(--danger); }
 @media(max-width: 760px) {
   #create-flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--row); }
   #create-flow .ib-flow-arrow, #create-flow .fs-sub, #create-flow .fs-count small { display: none; }

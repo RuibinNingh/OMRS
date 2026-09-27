@@ -54,7 +54,7 @@
       <div class="nav-spacer"></div>
       <a class="tab" data-tab="settings" href="#/settings"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></a>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.25.10 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.25.11 · 本地服务</div>
   </aside>
   <main class="content">
     <div class="topbar">
@@ -119,13 +119,7 @@
     <section class="ib-stage on" id="ib-stage-upload">
       <div class="ib-up-layout">
         <div>
-          <div class="ib-dropzone" id="ib-dropzone" onclick="ibPickFiles()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="ibDrop(event)">
-            <div style="font-size:1.6rem;margin-bottom:6px">⇣</div>
-            <div><b>拖入或粘贴多张截图</b>，也可以点击选择文件</div>
-            <div class="hint" style="margin-top:4px">整张作业帮截图直接丢进来，不用先裁。相同图片（sha256 一致）自动合并。</div>
-            <div class="row"><button class="btn sm" type="button" onclick="event.stopPropagation();ibPickFiles()">选择文件…</button><button class="btn sm" type="button" onclick="event.stopPropagation();ibReadClipboard()">📋 从剪贴板读取</button><span class="hint" id="ib-up-status"></span></div>
-            <input type="file" id="ib-file" accept="image/*" multiple style="display:none" onchange="ibFileInput(event)">
-          </div>
+          <div id="create-upload"></div>
           <div class="ib-inbox-head">
             <label style="display:flex;align-items:center;gap:6px;font-size:.76rem;cursor:pointer"><input type="checkbox" class="ib-chk" id="ib-sel-all" onchange="ibSelectAllVisible(this.checked)"> 全选（当前筛选）</label>
             <span class="hint" id="ib-count"></span>
@@ -394,11 +388,11 @@
 <script src="assets/labels.js?v=20260925-p6r5"></script>
 <script src="assets/questions.js?v=20260925-p6r4"></script>
 <script src="assets/schedule.js?v=20260925-p6r3"></script>
-<script src="assets/inbox.js?v=20260927-p6-create-shell"></script>
+<script src="assets/inbox.js?v=20260927-p6-create-upload"></script>
 <script src="assets/board.js?v=20260922-board-integrity"></script>
 <script src="assets/board_picker.js?v=20260925-p5r3"></script>
 <script src="assets/board_preview.js?v=20260922-board-integrity"></script>
 <script src="assets/app.js?v=20260926-p6-catalog"></script>
-<script type="module" src="assets/app/main.js?v=20260927-p6-create-shell"></script>
+<script type="module" src="assets/app/main.js?v=20260927-p6-create-upload"></script>
 </body>
 </html>

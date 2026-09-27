@@ -9,6 +9,6 @@
   "assets/labels.js": {"handlers": 0, "html_assign": 10, "inline_style": 2, "color_literals": 0, "font_size_literals": 1},
   "assets/questions.js": {"handlers": 0, "html_assign": 0, "inline_style": 2, "color_literals": 0, "font_size_literals": 0},
   "assets/schedule.js": {"handlers": 1, "html_assign": 2, "inline_style": 0, "color_literals": 0, "font_size_literals": 0},
-  "assets/styles.css": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 75, "font_size_literals": 157},
-  "omrs_dashboard.html": {"handlers": 67, "html_assign": 0, "inline_style": 42, "color_literals": 0, "font_size_literals": 8}
+  "assets/styles.css": {"handlers": 0, "html_assign": 0, "inline_style": 0, "color_literals": 74, "font_size_literals": 157},
+  "omrs_dashboard.html": {"handlers": 60, "html_assign": 0, "inline_style": 39, "color_literals": 0, "font_size_literals": 7}
 }}

@@ -81,41 +81,7 @@ async function ibCrop(item, r, type = 'image/png', quality = 0.92) {
   return c.toDataURL(type, quality);
 }
 
-/* ── 上传 ── */
-async function ibUploadFiles(files, source) {
-  const list = [...files].filter(f => f && f.type && f.type.startsWith('image/'));
-  if (!list.length) return;
-  const fd = new FormData(); list.forEach(f => fd.append('file', f, f.name || 'image.png'));
-  const status = $ib('ib-up-status'); if (status) status.textContent = `上传 ${list.length} 张…`;
-  try {
-    const res = await api('/api/inbox/upload', { method: 'POST', body: fd });
-    const n = (res.items || []).length, d = (res.duplicates || []).length;
-    ibToast(`已接收 ${n} 张${d ? `，${d} 张与收件箱已有图片相同，已合并` : ''}`);
-    if (status) status.textContent = '';
-    await ibLoad();
-  } catch (e) { ibToast('上传失败：' + e.message, 'warn'); if (status) status.textContent = ''; }
-}
-function ibPickFiles() { const el = $ib('ib-file'); if (el) el.click(); }
-function ibFileInput(ev) { ibUploadFiles(ev.target.files, 'desktop'); ev.target.value = ''; }
-function ibDrop(ev) { ev.preventDefault(); $ib('ib-dropzone').classList.remove('drag'); ibUploadFiles(ev.dataTransfer.files, 'desktop'); }
-async function ibReadClipboard() {
-  if (!navigator.clipboard || !navigator.clipboard.read) { ibToast('浏览器不支持读取剪贴板，请用 Ctrl / ⌘ + V', 'warn'); return; }
-  try {
-    const items = await navigator.clipboard.read(); const files = [];
-    for (const it of items) { const type = (it.types || []).find(t => t.startsWith('image/')); if (type) { const blob = await it.getType(type); files.push(new File([blob], `clipboard-${Date.now()}.png`, { type })); } }
-    if (!files.length) { ibToast('剪贴板里没有图片', 'warn'); return; }
-    ibUploadFiles(files, 'paste');
-  } catch (e) { ibToast('读取剪贴板失败：' + e.message, 'warn'); }
-}
-function ibPaste(ev) {
-  const panel = $ib('panel-create'); if (!panel || !panel.classList.contains('active')) return;
-  if (IB.stage !== 'upload') return; // 处理页 / 快速录入页各自处理粘贴
-  const items = ev.clipboardData && ev.clipboardData.items; if (!items) return;
-  const files = [...items].filter(i => i.kind === 'file' && i.type.startsWith('image/')).map(i => i.getAsFile()).filter(Boolean);
-  if (!files.length) return;
-  ev.preventDefault(); ev.stopImmediatePropagation();
-  ibUploadFiles(files, 'paste');
-}
+/* 上传由 features/create/upload.js 负责，旧列表收到 inbox:reload 后同步。 */
 
 /* ── 阶段 ①：收件箱网格 ── */
 function ibVisible() { return ibLive().filter(i => IB.filter === 'all' || i.status === IB.filter); }
@@ -635,7 +601,7 @@ function ibBind() {
     if (t.dataset.ibText) ibEditText(t.dataset.ibText, t.value);
     if (t.dataset.ibF) { const [k, f] = t.dataset.ibF.split('|'); ibCardField(k, f, t.value); if (f === 'difficulty' && t.nextElementSibling) t.nextElementSibling.textContent = t.value; }
   });
-  document.addEventListener('paste', ibPaste, true);
+  window.__omrs?.bus.on('inbox:reload', () => ibLoad());
   document.addEventListener('keydown', ev => {
     if (!panel.classList.contains('active') || IB.stage !== 'process') return;
     const tag = (ev.target.tagName || '').toLowerCase(); if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
