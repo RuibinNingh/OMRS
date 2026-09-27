@@ -12,6 +12,7 @@
 首页只回答「今天做什么」，自上而下是：今天 → 行动推荐 → 概览 → 近 30 天活动 / 最薄弱的科目（两栏，窄了自动单栏）→ 最近动态。分布类图表不在首页，在「数据复盘」页（`features/data/`，见 `AI/frontend/records.md`）。
 
 - **数据**：统计快照读 `store.data`（`domain/data.js` 发布）；Session 列表经 `domain/sessions.js`。`store.data` 变化、bus 的 `sessions` 都重绘；每次数据刷新或收到 `history:changed` 后重拉最近动态；bus 的 `ledger:tz`（设置里改 Ledger 时区，`app.js` 发）只重新投影时间。
+- **到期统计**：`state.todaySummary()` 用本地当天日期计算待复习、逾期和今日到期；调用 `dueDays` 时只传题目，避免数组回调的下标被当作日期。
 - **渲染**：`morph(root, view(env))`，每块带 `data-key`；根节点 `.dsh[data-dash-ready]` 是 E2E 的就绪标记。模板不写 `style=`：热力格用 `data-level`，进度与科目条用原生 `<progress>`（`ui/progress`）。
 - **字号**只用六档：display 40（今天的数字，全站唯一）、xl 20（概览与指标数字）、lg 16（卡片标题）、md 14（正文）、sm 13（按钮、说明）、xs 12（元信息、标签）。可点目标桌面 ≥28、手机 ≥40。
 

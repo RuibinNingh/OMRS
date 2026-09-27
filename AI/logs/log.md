@@ -2,6 +2,9 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-28_ui-blank-icons](2026-09-28_ui-blank-icons.md)：UI 空白图标修复
+- [2026-09-28_omrs-icon](2026-09-28_omrs-icon.md)：OMRS 图标更新
+- [2026-09-28_main-sync](2026-09-28_main-sync.md)：main 与已部署版本同步
 - [2026-09-28_frontend-rearch-p8-final](2026-09-28_frontend-rearch-p8-final.md)：前端重构 P8 与终检
 - [2026-09-27_frontend-rearch-p7](2026-09-27_frontend-rearch-p7.md)：前端重构 P7：展示板迁移（第 1 轮 v1.26.0 纯函数与测试；第 2 轮 v1.26.1 保存队列、打印协调、常驻预览；第 3 轮 v1.26.2 拖拽排序、版面设置；第 4 轮 v1.26.3 选板浮层原生；第 5 轮 v1.26.4 页面外壳原生、板列表数据所有权；第 6 轮 v1.26.5 整页原生、删除 board.js）
 - [2026-09-27_frontend-rearch-p6-p7-merge](2026-09-27_frontend-rearch-p6-p7-merge.md)：前端重构：P6 在制（Codex）与 P7（CCW）合并，v1.26.5

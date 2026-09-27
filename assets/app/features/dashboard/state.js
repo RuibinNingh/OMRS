@@ -24,7 +24,7 @@ export function todaySummary({ items = [], data = {}, sessions = [], dueDays, to
       actions: [{ label: '去录入题目', primary: true, go: 'page', page: 'create' }] };
   }
   const active = activeItems(items);
-  const overdueDays = active.map(dueDays).filter(d => d !== null && d < 0);
+  const overdueDays = active.map(item => dueDays(item)).filter(d => d !== null && d < 0);
   const overdue = overdueDays.length;
   const dueToday = active.filter(item => dueDays(item) === 0).length;
   const waiting = overdue + dueToday;

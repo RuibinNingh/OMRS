@@ -18,9 +18,11 @@ export const allItems = getItems;
 export const itemOf = uid => getItemByUid(String(uid || '')) || {};
 export const filterAll = filterItems;
 export { parseReviewDate, daysSinceReview, decayMastery, isKilledItem, scoreScheduleCandidate };
-export function dueDays(item, today = new Date()) {
+/** 距到期天数（负数=逾期）。today 只认 Date：被当作 map / filter 回调时第二个参数是下标，一律退回今天。 */
+export function dueDays(item, today) {
   const due = parseReviewDate(item?.due_date);
   if (!due) return null;
+  if (!(today instanceof Date) || Number.isNaN(today.getTime())) today = new Date();
   const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
   const dueUtc = Date.UTC(due.getFullYear(), due.getMonth(), due.getDate());
   return Math.floor((dueUtc - todayUtc) / 86400000);

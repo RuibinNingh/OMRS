@@ -84,6 +84,8 @@
 
 全局筛选，题库页（`state.js::toItemFilters()` 翻译条件）、调度页和即时练习页共用：
 
+到期天数由 `domain/items.js::dueDays(item, today)` 计算，`today` 只接受有效的 `Date`；未传或被 `map` / `filter` 传入数组下标时按当前本地日期计算，非法日期返回 `null`。
+
 | 控件 | 对应字段 |
 |---|---|
 | 搜索词 | UID / 科目 / 分类 / 标签模糊匹配 |

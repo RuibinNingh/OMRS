@@ -4,10 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OMRS — 错题重构系统</title>
+<link rel="icon" type="image/svg+xml" sizes="32x32" href="assets/app/omrs-favicon.svg?v=20260928-icon">
+<link rel="icon" type="image/svg+xml" sizes="512x512" href="assets/app/omrs-icon.svg?v=20260928-icon">
+<link rel="apple-touch-icon" sizes="512x512" href="assets/app/omrs-icon.svg?v=20260928-icon">
 <script src="assets/app/theme-boot.js"></script>
 <link rel="stylesheet" href="assets/vendor/fonts/fonts.css?v=20260920-local">
 <link rel="stylesheet" href="assets/app/styles/tokens.css?v=20260925-p6r1">
-<!-- 旧 styles.css 与 KaTeX 由 index.css 按 @layer 引入（见 AI/frontend/shell.md）-->
+<!-- KaTeX 与全部新样式由 index.css 按 @layer 引入；旧 styles.css 已在 P8 移除（见 AI/frontend/shell.md）-->
 <link rel="stylesheet" href="assets/app/styles/index.css?v=20260927-p6-create-cards">
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
@@ -35,7 +38,7 @@
   <div class="drawer-scrim" data-action="app.closeDrawer" aria-hidden="true"></div>
   <aside class="sidebar">
     <div class="sidebar-brand">
-      <div class="brand-mark">鬼</div>
+      <img class="brand-mark" src="assets/app/omrs-favicon.svg?v=20260928-icon" alt="" aria-hidden="true" width="32" height="32">
       <div class="brand-text"><span class="brand-name">OMRS</span><span class="brand-sub">错题重构系统</span></div>
       <button class="sidebar-collapse" data-action="app.collapse" title="折叠 / 展开侧栏" aria-label="折叠或展开侧栏"><svg class="nav-ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
     </div>

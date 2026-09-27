@@ -9,6 +9,8 @@
 
 ## 1. 目录与分层
 
+侧栏和顶栏的 `.nav-ico` 使用 `currentColor` 描边，尺寸为 18px；品牌位是 32px 的 SVG 图片，尺寸与圆角由 `styles/shell.css` 控制。
+
 前端正在从「全局脚本 + 单文件 CSS」渐进迁到 `assets/app/`（原生 ES Module，无构建）。现有 `styles/`（token、分层总入口、base、组件汇总、外壳、过渡层）、`core/`（渲染、事件、快捷键、状态、总线、路由、请求、格式化）、`ui/`（23 个组件）、`main.js`、`shell.js`、`legacy-pages.js`、`legacy-bridge.js` 与组件陈列页，架构见 `AI/frontend/architecture.md`、组件见 `AI/frontend/components.md`；页面仍由 `assets/*.js` 与 `assets/app/styles/index.css` 提供，逐页迁移。
 
 - `assets/app/` 下的一切适用 §5 的零容忍规则。

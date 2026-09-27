@@ -37,7 +37,9 @@ assets/
 ## 侧栏、顶栏与路由（`assets/app/styles/shell.css`、`assets/app/shell.js`）
 
 - 地址形如 `#/questions`：刷新停在原页，浏览器前进后退可用，页面可以直接用链接打开。路由与页面契约见 `AI/frontend/architecture.md` §3。
+- 页面 `<head>` 注册 `assets/app/omrs-favicon.svg` 作为 16–32px 标签页图标，注册 `assets/app/omrs-icon.svg` 作为 48px 以上与触控主屏图标；侧栏左上角 32px 品牌位使用小尺寸图标，旁边保留 OMRS 名称与中文副标题。
 - 侧栏宽 232px，导航项是 `<a class="tab" href="#/页面">`（键盘可达）。当前页：强调浅底、半粗、左侧 3px 指示条，并带 `aria-current="page"`。
+- 侧栏、折叠按钮和手机汉堡按钮的图标都引用页面内的 `#i-*` SVG sprite；`.nav-ico` 统一设置 `currentColor` 描边、无填充、圆角线帽和 18px 盒子，避免 symbol 缺少外观规则时退回浏览器默认填充。
 - 折叠：`toggleSidebar()` 在 `<html>` 上切 `data-sidebar="collapsed"`（存 localStorage），侧栏收成 58px 图标栏，宽度与文字淡出有过渡；折叠时外壳给导航项挂 `data-tooltip`，悬停显示页面名。
 - 顶栏：标题是 `<h1 id="topbar-title">`，由外壳按页面登记写入，同时写 `document.title`。顶栏只有一个全局按钮「录入题目」（`.ui-btn` 带图标，不是旧 `.btn`：旧 `.btn` 被最高的 legacy-bridge 层接管，外壳改不动它）。「重新扫描」不在顶栏，放在仪表盘概览条、题库工具栏、目录工具栏三处，统一写 `data-action="app.scan"`，由外壳登记的全局动作处理：调旧 `doScan()`，期间三处按钮都置忙（`disabled` + `aria-busy`）防重复扫描；在目录页扫描成功时发 `catalog:refresh`，目录控制器重读磁盘树。
 - 手机（≤760px）：侧栏变左侧抽屉（汉堡按钮打开，遮罩或 Esc 关闭，切页后自动关闭）；顶栏的「录入题目」只留 40×40 图标（文字对读屏保留），标题占满剩余宽度、过长时省略，不再被按钮挤压。

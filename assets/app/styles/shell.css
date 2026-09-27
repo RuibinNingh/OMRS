@@ -3,6 +3,10 @@
    顶栏按钮用 .ui-btn（不是旧 .btn），否则会被最高的 legacy-bridge 层压住，这里改不动。 */
 .shell { display: flex; align-items: stretch; min-height: 100vh; min-height: 100dvh; }
 
+/* 外壳图标（侧栏导航、折叠键、汉堡键）：引用页面内 #i-* sprite，symbol 本身不带填充/描边，
+   外观全靠这条规则；P8 删 styles.css 时原规则随之丢失，图标退回默认黑色填充。 */
+.nav-ico { display: block; flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
 /* ── 侧栏 ── */
 .sidebar {
   position: sticky;
@@ -26,7 +30,7 @@
 }
 [data-theme="dark"] .sidebar { background: var(--surface-0); }
 .sidebar-brand { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--ctl-lg); padding: 0 var(--sp-2) var(--sp-3); }
-.brand-mark { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: var(--r-md); background: var(--accent); color: var(--on-accent); font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.brand-mark { display: block; flex: none; width: 32px; height: 32px; border-radius: var(--r-md); object-fit: cover; }
 .brand-text { display: grid; min-width: 0; line-height: var(--leading-tight); white-space: nowrap; }
 .brand-name { color: var(--fg-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); }
 .brand-sub { color: var(--fg-3); font-size: var(--text-2xs); }

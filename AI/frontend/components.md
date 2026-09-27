@@ -86,6 +86,8 @@ assets/app/
 
 ## 6. gallery 与测试
 
+组件陈列页独立注册 32px 标签页图标和 512px 主屏图标，资源分别是 `assets/app/omrs-favicon.svg` 与 `assets/app/omrs-icon.svg`。
+
 - 陈列页：服务运行时打开 `/assets/app/gallery.html`，地址参数 `theme=light|dark`、`density=comfortable|compact`，页头也能切换。每个组件一节，覆盖默认、悬停、按下、焦点、禁用、加载中、空、错误、骨架、长文本溢出；浮层有静态预览加可点的真实演示；最后一节是旧类名桥接。
 - `python3 tests/app/run_browser.py`：自带静态服务器，用 playwright 跑 `tests/app/browser_tests.js` 的组件单测（对话框焦点与 Esc、toast 队列、菜单键盘、拖放、D2 / D3 高度等）；`--shots DIR` 另存 gallery 五张整页截图（浅 / 深 × 舒适 / 紧凑，外加 390 宽手机）。没有 playwright 时退出码 2，`tests/test_app_browser.py` 据此跳过。
 - `node --test tests/*.js tests/app/*.test.mjs`：覆盖 `html``` 的转义规则。
