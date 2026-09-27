@@ -15,7 +15,7 @@
 
 ## v1.26.5（2026-09-27）前端重构 P7 第 6 轮：展示板整页原生，删除 board.js
 
-- **与 P6 剩余合并（2026-09-27）**：P7 六轮基于 v1.25.4 开发，与 Codex 的 P6 剩余（下文 v1.25.5–v1.25.13，另有录入页框选工作区的在制代码）并行；两条线在此版合并，按 progress §9 取较大的版本号 v1.26.5，此后各页在 v1.26.5 上加 0.0.1。合并时另改：`features/create/quick.js` 的 `import` 从已删除的 `domain/board.js` 改到 `domain/board/index.js`（不改会让整个模块图加载失败）；`legacy-pages.js` 的登记表清空（P6 删完其余五页、P7 删掉 board）；`omrs_dashboard.html` 同时去掉 `board*.js` 与 `history` / `catalog` / `reports` 的 `<script>`；`tests/ui_baseline.json` 按合并后的实测重算（只降不升）。
+- **与 P6 剩余合并（2026-09-27）**：P7 六轮基于 v1.25.4 开发，与 Codex 的 P6 剩余（下文 v1.25.5–v1.25.13，另有录入页框选工作区的在制代码）并行；两条线在此版合并，按 progress §9 取较大的版本号 v1.26.5，此后各页在 v1.26.5 上加 0.0.1。合并时另改：`features/create/quick.js` 的 `import` 从已删除的 `domain/board.js` 改到 `domain/board/index.js`（不改会让整个模块图加载失败）；`legacy-pages.js` 的登记表清空（P6 删完其余五页、P7 删掉 board）；`omrs_dashboard.html` 同时去掉 `board*.js` 与 `history` / `catalog` / `reports` 的 `<script>`；UI 基线文件 按合并后的实测重算（只降不升）。
 - **板详情的所有者是 `assets/app/features/board/detail.js`**（原经典脚本 assets/board.js 的 `BOARD_DETAIL` / `BOARD_PRINT_MODE` / `BOARD_SELECTED_UID`、数据加载与详情上的全部操作；旧文件与它的 `<script>` 删除）：控制器只经注入的 I/O 碰外界，缺省 I/O、单例与窗口级监听在 `runtime.js`；保存队列、打印协调、版面设置照旧由它懒创建。板列表（`domain/board/boards.js`）与选板浮层经新端口 `domain/board/detail-port.js` 冲刷、重读、加题（依赖倒置，取代第 5 轮的过渡适配器 `legacy.js`）。
 - **列表 / 画廊与检查器原生**：模板在 `view.js`、视图模型在 `state.js`（`contentView`、`inspectorView`、`itemFlags`、`gapReadout`、`dueView`），样式进 `board.css`（类名 `brd-`，只用 token）；整页一次 `morph`，只有舞台 iframe 与画廊题面挂载点是 skip。聚焦中的输入框与滑杆 morph 不改值，所以原来为了不丢焦点而写的「只刷新读数」一套函数全部删去；锁定确认被拒时先放掉焦点再重绘。`styles.css` 删 139 行（`.bd-*`、`.board-add-*`、`.bdadd-*`、`.board-sync-options`、`.qb-search`）。
 - **「添加题目」换 `ui/dialog`（`features/board/add.js`）**：Esc、点遮罩关闭，焦点陷阱与归还（原 `.modal-overlay` 弹层 Esc 关不掉，`AI/optimization.md` 那一条随之删去）；勾选跨列表 / 画廊保持；一题都没勾时「加入展示板」留在对话框里。「按标记同步」的单选改用 token 样式。
@@ -200,7 +200,7 @@
 
 ## v1.21.0
 
-- **前端重构 P1：hash 路由与启动接管。** 地址形如 `#/questions`：刷新停在原页，浏览器前进后退可用，页面能直接用链接打开；未知地址回到仪表盘，`href="#"` 这类非路由 hash 不再把页面带跑。`app.js` 不再自调用 `init()`，改由模块入口 `assets/app/main.js` 依次安装过渡桥、启动外壳、调用 `init()`、启动路由。`switchTab` 缩成 `router.go` 的一行包装（旧 `onclick` 不用改），原来的标题表、工作台列表与进入各页的 if 链搬进 `assets/app/legacy-pages.js`。
+- **前端重构 P1：hash 路由与启动接管。** 地址形如 `#/questions`：刷新停在原页，浏览器前进后退可用，页面能直接用链接打开；未知地址回到仪表盘，`href="#"` 这类非路由 hash 不再把页面带跑。`app.js` 不再自调用 `init()`，改由模块入口 `assets/app/main.js` 依次安装过渡桥、启动外壳、调用 `init()`、启动路由。`switchTab` 缩成 `router.go` 的一行包装（旧 `onclick` 不用改），原来的标题表、工作台列表与进入各页的 if 链搬进 页面登记模块。
 - **core 底座补齐。** `assets/app/core/` 新增 `morph`（带 `data-key` 的差量更新，保留聚焦输入框的值与选区，支持 `data-morph="skip"` 与 `data-hash`）、`events.js`（`data-action` 委托）、`keys.js`（按页快捷键）、`store.js`、`bus.js`、`router.js`、`api.js`（统一 `{ok, data, error}`）、`format.js`，以及 `html.js` 的 `each()`。旧 `reloadData()` 之后经 `window.__omrs.emit('data', DATA)` 同步到新 store。
 - **外壳打磨。** 侧栏、顶栏与工作台整屏布局迁到 `assets/app/styles/shell.css`（新增 `shell` 层）与 `base.css`，按尺度 token 重排：导航项 40px（紧凑 36px）、当前页强调浅底 + 左侧指示条 + `aria-current`，导航改成可用键盘访问的 `<a href="#/页面">`；折叠为 58px 图标栏时有过渡并用提示显示页面名；顶栏标题 20px 半粗、全局按钮带图标。手机（≤760px）抽屉切页后自动关闭，顶栏按钮只留 40×40 图标，标题不再被挤压。原 860px 的抽屉断点改为设计系统的 760px。旧 `styles.css` 里对应的外壳规则删除。
 - **静态资源 304。** `/assets/` 响应带弱 ETag 与 `Last-Modified`，文件没变时回空的 304，远端经 Nginx 访问不再每次整包重下。
@@ -217,7 +217,7 @@
 
 ## v1.19.1
 
-- **前端重构 P0：设计 token 与门禁。** 全部 token 移到 `assets/app/styles/tokens.css`，改为「语义 token + 旧名别名」两层，旧样式不改即跟随。新增 `tests/check_ui.py`（新代码零容忍规则 R1–R9 + 旧代码按文件计数的棘轮基线 `tests/ui_baseline.json`）、`tests/check_contrast.py`（浅/深 48 组 WCAG 对比度）、`tests/fixtures/make_vault.py`（演示 Vault）、`tests/visual/run.py`（前后截图对比与运行时审计）。
+- **前端重构 P0：设计 token 与门禁。** 全部 token 移到 `assets/app/styles/tokens.css`，改为「语义 token + 旧名别名」两层，旧样式不改即跟随。新增 `tests/check_ui.py`（新代码零容忍规则 R1–R9 + 旧代码按文件计数的棘轮基线 UI 基线文件）、`tests/check_contrast.py`（浅/深 48 组 WCAG 对比度）、`tests/fixtures/make_vault.py`（演示 Vault）、`tests/visual/run.py`（前后截图对比与运行时审计）。
 - **浅色主题对比度修正。** 辅助文字 `#8b9198`→`#6b7178`（3.2→4.9:1）、绿色 `#16a34a`→`#15803d`（3.3→5.0:1）、黄色 `#ca8a04`→`#a16207`（2.9→4.9:1）、红色 `#dc2626`→`#d02020`（在页面底上 4.50→5.0:1）；击杀 / 顽固芯片字加深到 `#166534` / `#854d0e`（4.4→6.1:1 以上）。深色主题原本全部达标，未改。
 - **删除死代码 recommend.js。** 31 个函数中 28 个无外部引用、所操作的 DOM 已不存在；仍在用的 `showRecommendPanel()` / `showExportPanel()` 并入 `schedule.js`，`core.js` 里配套的 `REC_*` 全局一并删除。
 - **脱敏源码导出收录 `tests/` 下的 JSON。** 否则棘轮基线不随包导出，下一轮受限模式的 `check_ui.py` 会直接失败；其它目录的 JSON 仍不导出。

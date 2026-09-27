@@ -9,7 +9,7 @@
 
 ## 1. 目录与分层
 
-前端正在从「全局脚本 + 单文件 CSS」渐进迁到 `assets/app/`（原生 ES Module，无构建）。现有 `styles/`（token、分层总入口、base、组件汇总、外壳、过渡层）、`core/`（渲染、事件、快捷键、状态、总线、路由、请求、格式化）、`ui/`（23 个组件）、`main.js`、`shell.js`、`legacy-pages.js`、`legacy-bridge.js` 与组件陈列页，架构见 `AI/frontend/architecture.md`、组件见 `AI/frontend/components.md`；页面仍由 `assets/*.js` 与 `assets/styles.css` 提供，逐页迁移。
+前端正在从「全局脚本 + 单文件 CSS」渐进迁到 `assets/app/`（原生 ES Module，无构建）。现有 `styles/`（token、分层总入口、base、组件汇总、外壳、过渡层）、`core/`（渲染、事件、快捷键、状态、总线、路由、请求、格式化）、`ui/`（23 个组件）、`main.js`、`shell.js`、`legacy-pages.js`、`legacy-bridge.js` 与组件陈列页，架构见 `AI/frontend/architecture.md`、组件见 `AI/frontend/components.md`；页面仍由 `assets/*.js` 与 `assets/app/styles/index.css` 提供，逐页迁移。
 
 - `assets/app/` 下的一切适用 §5 的零容忍规则。
 - `assets/` 根目录不再新增前端文件，新代码一律进 `assets/app/`（`check_ui.py` 会拦）。
@@ -73,7 +73,7 @@
 - **R8** JS ≤ 400 行、CSS ≤ 300 行。
 - **R9** 每个 `assets/app/features/<x>/` 须登记在 `AGENTS.md` 映射表。
 
-旧代码（`assets/*.js`、`assets/styles.css`、`assets/inbox_mobile.html`、`omrs_dashboard.html`）按文件统计五项存量：行内事件、`innerHTML` 类赋值、行内样式、颜色字面量、硬编码字号，记在 `tests/ui_baseline.json`。
+旧代码（`assets/*.js`、`assets/app/styles/index.css`、`assets/inbox_mobile.html`、`omrs_dashboard.html`）按文件统计五项存量：行内事件、`innerHTML` 类赋值、行内样式、颜色字面量、硬编码字号，记在 UI 基线文件。
 
 - **只减不增**：任何一项上升即失败。
 - **下调基线**：减少后运行 `--update-baseline`；若有任何一项上升，拒绝写入。

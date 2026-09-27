@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OMRS — 错题重构系统</title>
-<script>try{document.documentElement.setAttribute('data-theme',localStorage.getItem('omrs-theme')==='light'?'light':'dark');document.documentElement.setAttribute('data-invert-img',localStorage.getItem('omrs-invert-img')==='1'?'1':'0');document.documentElement.setAttribute('data-sidebar',localStorage.getItem('omrs-sidebar-collapsed')==='1'?'collapsed':'');document.documentElement.setAttribute('data-density',localStorage.getItem('omrs-density')==='comfortable'?'comfortable':'compact')}catch(e){}</script>
+<script src="assets/app/theme-boot.js"></script>
 <link rel="stylesheet" href="assets/vendor/fonts/fonts.css?v=20260920-local">
 <link rel="stylesheet" href="assets/app/styles/tokens.css?v=20260925-p6r1">
 <!-- 旧 styles.css 与 KaTeX 由 index.css 按 @layer 引入（见 AI/frontend/shell.md）-->
@@ -12,7 +12,7 @@
 <script src="assets/vendor/katex/katex.min.js"></script>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<svg width="0" height="0" class="icon-sprite" aria-hidden="true"><defs>
 <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></symbol>
 <symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 20V10M12 20V5M19 20v-7"/></symbol>
 <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></symbol>
@@ -32,12 +32,12 @@
 <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
 </defs></svg>
 <div class="shell">
-  <div class="drawer-scrim" onclick="closeDrawer()" aria-hidden="true"></div>
+  <div class="drawer-scrim" data-action="app.closeDrawer" aria-hidden="true"></div>
   <aside class="sidebar">
     <div class="sidebar-brand">
       <div class="brand-mark">鬼</div>
       <div class="brand-text"><span class="brand-name">OMRS</span><span class="brand-sub">错题重构系统</span></div>
-      <button class="sidebar-collapse" onclick="toggleSidebar()" title="折叠 / 展开侧栏" aria-label="折叠或展开侧栏"><svg class="nav-ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
+      <button class="sidebar-collapse" data-action="app.collapse" title="折叠 / 展开侧栏" aria-label="折叠或展开侧栏"><svg class="nav-ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
     </div>
     <nav class="sidebar-nav" aria-label="主导航">
       <a class="tab active" data-tab="dashboard" href="#/dashboard"><svg class="nav-ico" aria-hidden="true"><use href="#i-home"/></svg><span>仪表盘</span></a>
@@ -58,92 +58,28 @@
   </aside>
   <main class="content">
     <div class="topbar">
-      <button class="topbar-hamburger" onclick="toggleDrawer()" aria-label="打开菜单"><svg class="nav-ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
+      <button class="topbar-hamburger" data-action="app.drawer" aria-label="打开菜单"><svg class="nav-ico" aria-hidden="true"><use href="#i-menu"/></svg></button>
       <h1 class="topbar-title" id="topbar-title">仪表盘</h1>
       <div class="topbar-actions">
-        <button type="button" class="ui-btn ui-btn--primary topbar-action" onclick="switchTab('create')"><svg class="ui-icon" aria-hidden="true"><use href="#ic-plus"/></svg><span class="topbar-label">录入题目</span></button>
+        <button type="button" class="ui-btn ui-btn--primary topbar-action" data-action="app.create"><svg class="ui-icon" aria-hidden="true"><use href="#ic-plus"/></svg><span class="topbar-label">录入题目</span></button>
       </div>
     </div>
 
-  <!-- 仪表盘（features/dashboard，P6 起）只回答「今天做什么」：今天 → 行动推荐 → 概览 → 动态。
-       分布类图表都在「数据复盘」页（features/data）。 -->
-  <div class="panel active" id="panel-dashboard"></div><!-- 仪表盘：assets/app/features/dashboard/（P6 起） -->
-
-  <!-- ====== 数据（复盘） ====== -->
-  <div class="panel" id="panel-data"></div><!-- 数据复盘：assets/app/features/data/（P6 起） -->
-
-  <!-- ====== 题目库 ====== -->
-  <div class="panel" id="panel-questions"><!-- 题目库：assets/app/features/questions 渲染 --></div>
-
-  <!-- ====== 展示板 ====== -->
-  <!-- 展示板：features/board/index.js 挂载时渲染（P7 第 6 轮起整页原生；板详情归 features/board/detail.js）。 -->
-  <div class="panel" id="panel-board"></div>
-
-  <!-- ====== 目录（工作区文件夹树） ====== -->
-  <div class="panel" id="panel-catalog">
-    <div id="cat-app"></div>
-  </div>
-
-  <div class="panel" id="panel-schedule">
-    <!-- 复习调度：assets/app/features/schedule/（P6 起）渲染 #sch-app：标签栏与安排复习、已有计划、全题库导出三个工作区 -->
-    <div id="sch-app"></div>
-
-
-  </div>
-
-  <div class="panel" id="panel-instant"><!-- 即时练习：assets/app/features/instant 渲染 --></div>
-
-  <div class="panel" id="panel-feedback"><!-- 反馈录入：assets/app/features/feedback 渲染 --></div>
-
-  <!-- ====== 录入题目 ====== -->
-  <div class="panel" id="panel-create">
-    <div id="create-app">
-    <!-- 录入题目的五个工作区全部由 features/create 渲染（页面契约 index.js）。 -->
-    <nav class="ib-flow" id="create-flow" aria-label="录入题目工作区"></nav>
-
-    <!-- ① 上传与收件箱网格 -->
-    <section class="ib-stage on" id="ib-stage-upload">
-      <div id="create-upload"></div>
-      <div id="create-grid"></div>
-    </section>
-
-    <!-- ② 处理：静态三栏由 process-view.js 挂载，队列、画布与区域面板由 process.js 维护 -->
-    <section class="ib-stage" id="ib-stage-process"></section>
-
-    <!-- ③ 录入：题卡由 cards.js 挂载 -->
-    <section class="ib-stage" id="ib-stage-create"></section>
-
-    <!-- AI 训练：数据集统计与框选策略由 train.js 挂载 -->
-    <section class="ib-stage" id="ib-stage-train"></section>
-
-    <!-- 快速录入由 features/create/quick.js 挂载。 -->
-    <section class="ib-stage" id="ib-stage-quick"></section>
-
-    </div>
-  </div>
-
-  <!-- ====== 设置 ====== -->
-  <div class="panel" id="panel-settings"><div id="st-app"></div></div>
-
-  <!-- ====== 历史记录 ====== -->
-  <div class="panel" id="panel-history">
-    <div id="hist-app"></div>
-  </div>
-
-  <!-- ====== 报告 ====== -->
-  <div class="panel" id="panel-reports">
-    <div id="rp-app"></div>
-  </div>
+    <div class="panel active" id="panel-dashboard"></div>
+    <div class="panel" id="panel-data"></div>
+    <div class="panel" id="panel-questions"></div>
+    <div class="panel" id="panel-board"></div>
+    <div class="panel" id="panel-catalog"><div id="cat-app"></div></div>
+    <div class="panel" id="panel-schedule"><div id="sch-app"></div></div>
+    <div class="panel" id="panel-instant"></div>
+    <div class="panel" id="panel-feedback"></div>
+    <div class="panel" id="panel-create"></div>
+    <div class="panel" id="panel-settings"><div id="st-app"></div></div>
+    <div class="panel" id="panel-history"><div id="hist-app"></div></div>
+    <div class="panel" id="panel-reports"><div id="rp-app"></div></div>
   </main>
 </div>
 
-<datalist id="uid-list"></datalist>
-
-<script src="assets/core.js?v=20260927-p6-create-cards"></script>
-<script src="assets/labels.js?v=20260925-p6r5"></script>
-<script src="assets/questions.js?v=20260925-p6r4"></script>
-<script src="assets/schedule.js?v=20260925-p6r3"></script>
-<script src="assets/app.js?v=20260927-p6-create-cards"></script>
 <script type="module" src="assets/app/main.js?v=20260927-p6-create-cards"></script>
 </body>
 </html>

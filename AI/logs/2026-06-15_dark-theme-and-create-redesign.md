@@ -8,7 +8,7 @@
 
 **动机**：原 v1.5.0 深色为「AI 味」很重的玻璃拟态——紫色主色（`#b794f6` / `#a855f7`）、紫青渐变 `--grad` 铺在按钮 / 品牌块 / 进度条 / 数值文字上、紫色辉光 `--glow`、带蓝调近黑底加四道极光径向渐变、磨砂玻璃卡片。与本就克制的浅色（近黑墨 + 暖中性灰 + 发丝描边）人格割裂。
 
-**改动**（仅 `assets/styles.css`）：
+**改动**（仅 `assets/app/styles/index.css`）：
 - 重建 `[data-theme="dark"]` token：实色暖中性梯度（`--bg:#1a1916` / `--bg2:#211f1c` / `--bg3:#2b2925` / `--bg4:#3a3732`）、骨白墨（`--fg:#ece7df`）、发丝暖描边。
 - 主色由紫改单色骨白：`--accent:#ece7df`、`--accent-fg:#1a1916` → `.btn.primary` 成「浅底深字」，与浅色「深底白字」互为镜像；`--accent-rgb` 同步。
 - 语义色由霓虹 400 收成大地色：`--red:#d98a7e`（黏土红）/ `--green:#82ab8b`（鼠尾草绿）/ `--yellow:#cda35f`（赭黄）/ `--blue:#7e9bbf`（灰蓝），`--fam-*`、`--kill/attack/trap-*` 同步。
@@ -22,7 +22,7 @@
 
 **动机**：原页是「左卡＝整张表单 / 右卡＝使用说明」的通用表单形态，把「截图 → AI 提取 → 核对 → 保存」这条流水线摊平，易出现「想粘到答案却粘进题目」等问题。
 
-**改动**（`omrs_dashboard.html` 的 `panel-create` 内部结构 + `assets/styles.css` 追加一段 `.cr-*` 样式）：
+**改动**（`omrs_dashboard.html` 的 `panel-create` 内部结构 + `assets/app/styles/index.css` 追加一段 `.cr-*` 样式）：
 - 顶部 `.cr-steps` 编号步骤条（截图→识别→核对→保存，真序列才用编号）。
 - `.cr-workbench` 双栏（≤900px 单列）：
   - **左「截图工作区」`.card`**：题目截图区 + `.cr-div` + 答案截图区 + `.cr-tip`。
@@ -38,6 +38,6 @@
 
 ## 涉及文件
 
-- `assets/styles.css` — 重建深色 token + 深色覆盖块；末尾追加录入页 `.cr-*` 样式。
+- `assets/app/styles/index.css` — 重建深色 token + 深色覆盖块；末尾追加录入页 `.cr-*` 样式。
 - `omrs_dashboard.html` — 替换 `panel-create` 内部结构为双栏工作台（panel 标签与 id 不变）。
 - `AI/frontend.md` — 新增「v1.5.0 暖石墨」说明；§7 增补「双栏工作台」布局说明并更新按钮文案 / 字段顺序 / 粘贴目标角标。

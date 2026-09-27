@@ -33,7 +33,7 @@
 
 ### 影响文件
 
-- `omrs_dashboard.html`（删顶栏按钮、三处新按钮）、`assets/app/shell.js`（`app.scan`）、`assets/styles.css`（概览条加一列自适应宽度的动作格）、`assets/catalog.js`（提示文案）、`assets/schedule.js`（成功提示类型）。
+- `omrs_dashboard.html`（删顶栏按钮、三处新按钮）、`assets/app/shell.js`（`app.scan`）、`assets/app/styles/index.css`（概览条加一列自适应宽度的动作格）、`assets/catalog.js`（提示文案）、`assets/schedule.js`（成功提示类型）。
 - 测试：`tests/e2e/shell_router.py` 18 → 20（顶栏与三页按钮、扫描主路径；手机顶栏断言改为一个按钮）。
 - 文档：`AI/frontend/shell.md`、`AI/frontend/dashboard.md`、`AI/frontend/library.md`、`AI/frontend/architecture.md`。
 

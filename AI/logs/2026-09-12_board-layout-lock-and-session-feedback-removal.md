@@ -11,7 +11,7 @@
 
 - `omrs/boards.py`
 - `assets/board.js`
-- `assets/styles.css`
+- `assets/app/styles/index.css`
 - `assets/inbox.js`
 - `assets/schedule.js`
 - `assets/recommend.js`

@@ -104,7 +104,7 @@
 
 ### `/api/source/export`
 本机直连或已登录远端可下载源码包；未登录远端返回 401。
-生成并下载脱敏源码 ZIP。按当前工作区的固定项目文件，以及 `AI/`、`Skills/`、`assets/`、`deploy/`、`omrs/`、`tests/`、`web/` 中允许的源码和资源类型收集文件；未提交文件也会收录，不要求 Git 仓库。个人题库、临时目录、根目录运行日志、`AI/logs/`、`AI/omrs_work/`、缓存、构建产物、`tests/` 以外的 JSON（配置与运行数据）、符号链接和生成导出文件不进入 ZIP；`tests/` 下的 JSON 是测试基线（如 `tests/ui_baseline.json`），`assets/app/package.json` 声明 ES 模块，二者随包导出。ZIP 根目录为 `OMRS/`，`SOURCE_EXPORT_MANIFEST.txt` 列出实际包含文件，并提示分享前检查源码内容。没有可导出的源码文件时返回 400。
+生成并下载脱敏源码 ZIP。按当前工作区的固定项目文件，以及 `AI/`、`Skills/`、`assets/`、`deploy/`、`omrs/`、`tests/`、`web/` 中允许的源码和资源类型收集文件；未提交文件也会收录，不要求 Git 仓库。个人题库、临时目录、根目录运行日志、`AI/logs/`、`AI/omrs_work/`、缓存、构建产物、`tests/` 以外的 JSON（配置与运行数据）、符号链接和生成导出文件不进入 ZIP；`tests/` 下的 JSON 是测试基线（如 UI 基线文件），`assets/app/package.json` 声明 ES 模块，二者随包导出。ZIP 根目录为 `OMRS/`，`SOURCE_EXPORT_MANIFEST.txt` 列出实际包含文件，并提示分享前检查源码内容。没有可导出的源码文件时返回 400。
 
 ### `/api/export-review`
 导出供 AI 使用的复盘材料，对应 `build_review_export()`：

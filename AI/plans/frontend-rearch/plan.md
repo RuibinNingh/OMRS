@@ -285,7 +285,7 @@ export const page = {
 | R8 | 单个 JS 文件不超过 400 行，CSS 不超过 300 行 |
 | R9 | 每个 `features/<x>/` 在 `AI/frontend/` 下都有对应分册，并在 `AGENTS.md` 映射表里 |
 
-对旧文件采用棘轮机制：`tests/ui_baseline.json` 按文件记录 `on*=`、`innerHTML=`、`style=`、颜色字面量、硬编码字号的计数。计数只许减少，不许增加；减少后用 `--update-baseline` 下调。按文件分行存储，其他维护者并行修改时冲突最小。
+对旧文件采用棘轮机制：UI 基线文件 按文件记录 `on*=`、`innerHTML=`、`style=`、颜色字面量、硬编码字号的计数。计数只许减少，不许增加；减少后用 `--update-baseline` 下调。按文件分行存储，其他维护者并行修改时冲突最小。
 
 ### 5.2 Fixture Vault（P0 新增 `tests/fixtures/make_vault.py`）
 

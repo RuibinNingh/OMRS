@@ -6,9 +6,11 @@
  * - 当前选中 ACTIVE_FB_SESSION、题目查找、标记、加入展示板、写剪贴板等仍转调旧全局（反馈录入页只经这里碰旧代码）。
  */
 import { get, post } from '../core/api.js';
+import { itemsNow } from './data.js';
+import { openLabelPicker as labelPicker, saveQuestionLabels } from './labels/index.js';
+import { boardQuickAdd as addToBoard } from './board/index.js';
 
-const g = globalThis;
-const fn = name => (typeof g[name] === 'function' ? g[name] : null);
+let selectedSessionId = '';
 
 let list = [];
 let loading = false;
@@ -25,8 +27,6 @@ const opts = () => (fetchImpl ? { fetchImpl } : {});
 
 function mirror(next) {
   list = next;
-  // SESSIONS 是旧 core.js 的 let：直接给标识符赋值（同 domain/data.js 的 DATA）。
-  if (typeof SESSIONS !== 'undefined') SESSIONS = next; // eslint-disable-line no-global-assign
 }
 
 export const listSessions = () => list;
@@ -84,29 +84,20 @@ export function sessionProgress(session) {
 }
 
 // ── 反馈录入页用的旧全局转调（原有）──
-export const activeSessionId = () => (typeof ACTIVE_FB_SESSION !== 'undefined' ? (ACTIVE_FB_SESSION || '') : '');
-// ACTIVE_FB_SESSION 是 core.js 里的 let：写 globalThis.ACTIVE_FB_SESSION 会另建一个 window 属性，旧代码读不到，必须直接赋值。
-export function setActiveSessionId(id) {
-  if (typeof ACTIVE_FB_SESSION !== 'undefined') ACTIVE_FB_SESSION = id || ''; // eslint-disable-line no-global-assign
-  else g.ACTIVE_FB_SESSION = id || '';
-}
+export const activeSessionId = () => selectedSessionId;
+export function setActiveSessionId(id) { selectedSessionId = id || ''; }
 export const findSession = id => list.find(session => session.session_id === id) || null;
-
-export const items = () => (fn('getItems') ? g.getItems() : []);
-export const itemByUid = uid => (fn('getItemByUid') ? g.getItemByUid(String(uid || '').trim()) : null);
-export async function saveLabels(uid, labels) {
-  const save = fn('saveQuestionLabels');
-  if (save && uid) return save(uid, labels);
+export const items = () => [...itemsNow()];
+export const itemByUid = uid => itemsNow().find(item => item.uid === String(uid || '').trim()) || null;
+export const saveLabels = saveQuestionLabels;
+export function openLabelPicker(uid, anchor) { if (uid) labelPicker(uid, anchor); }
+export function boardQuickAdd(uid, options) { if (uid) addToBoard(uid, options); }
+export async function copyText(text) {
+  try { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; } } catch (_) {}
+  const box = document.createElement('textarea');
+  box.value = text; box.className = 'clipboard-temp'; document.body.append(box); box.select();
+  try { return document.execCommand('copy'); } catch (_) { return false; } finally { box.remove(); }
 }
-export function openLabelPicker(uid, anchor) {
-  const open = fn('openLabelPicker');
-  if (open && uid) open(uid, anchor);
-}
-export function boardQuickAdd(uid, options) {
-  const add = fn('boardQuickAdd');
-  if (add && uid) add(uid, options);
-}
-export const copyText = text => (fn('copyTextToClipboard') ? g.copyTextToClipboard(text) : Promise.resolve(false));
 
 /** 测试用：清空模块状态。 */
-export function resetSessions() { list = []; loading = false; error = ''; seq = 0; publish = () => {}; fetchImpl = undefined; }
+export function resetSessions() { list = []; loading = false; error = ''; seq = 0; publish = () => {}; fetchImpl = undefined; selectedSessionId = ''; }

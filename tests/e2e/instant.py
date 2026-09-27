@@ -153,7 +153,7 @@ def run_legacy_entries(page, base, results):
     wait(page, CARD)
     got = ev("[location.hash, document.getElementById('instant-subject').value, INSTANT_QUEUE.every(i => i.subject === document.getElementById('instant-subject').value)]")
     check("仪表盘「专练 某科目」：切到 #/instant、带预设取题、队列全是该科目", got == ["#/instant", subject, True], got)
-    ev("(switchTab('instant'), instLoadPractice({'inst-subject': '不存在的科目'}))")
+    ev("(window.__omrs.router.go('instant'), instLoadPractice({'inst-subject': '不存在的科目'}))")
     empty = wait(page, "() => document.querySelector('#panel-instant .ui-empty') && document.body.textContent.includes('当前筛选下没有可练的题')")
     with page.expect_response(lambda response: '/api/recommend?' in response.url):
         page.click('#panel-instant [data-action="instant.clear"]')
@@ -181,6 +181,7 @@ def run_legacy_entries(page, base, results):
 
 def run_mobile(browser, base, results):
     ctx = browser.new_context(viewport={"width": 390, "height": 844})
+    ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
     page = ctx.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
@@ -216,6 +217,7 @@ def main():
         with sync_playwright() as p:
             browser = launch_browser(p)
             ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+            ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
             page = ctx.new_page()
             page.set_default_timeout(8000)
             errors = []
@@ -228,6 +230,7 @@ def main():
             for theme in ("light", "dark"):
                 for label, size in (("桌面", (1440, 900)), ("手机", (390, 844))):
                     c = browser.new_context(viewport={"width": size[0], "height": size[1]})
+                    c.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
                     c.add_init_script(f"try{{localStorage.setItem('omrs-theme','{theme}')}}catch(e){{}}")
                     pg = c.new_page()
                     pg.goto(f"{base}/", wait_until="networkidle")

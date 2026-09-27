@@ -36,7 +36,7 @@
 |---|---|
 | `omrs_dashboard.html` | `#panel-feedback` 尾部 `#fb-results` 长条改为 `.fb-statusbar`；新增 `#fb-result-modal` 弹窗结构（放在 `#md-editor` 之前）；`feedback.js` / `styles.css` 的 `?v=` 刷成 `20260912-fb-result-modal`；侧栏版本号改 v1.18.1 |
 | `assets/feedback.js` | 新增 `FB_LAST_RESULT` 与 `fbResultRowsHtml` / `fbResultMetaText` / `fbOpenResults` / `fbCloseResults` / `fbClearResults` / `fbSyncResultReopen`；`submitFb()` 末尾结果渲染改调 `fbOpenResults()`；`onFbSessionChange` / `fbImportOmrScan` / `fbImportFeedbackPayload` 三处清空逻辑改调 `fbClearResults()`；`fbHandleKey` 顶部加弹窗开启时的短路分支；`fbHandlePaste` 加同样的判断 |
-| `assets/styles.css` | 新增 `.fb-statusbar` / `.fb-result-modal` / `.fb-result-list` / `.fb-result-foot` 及其 ≤640px 响应式规则 |
+| `assets/app/styles/index.css` | 新增 `.fb-statusbar` / `.fb-result-modal` / `.fb-result-list` / `.fb-result-foot` 及其 ≤640px 响应式规则 |
 | `AI/frontend.md` | §5.1 插入「提交结果走弹窗（v1.18.1 起）」小节 |
 | `AI/changelog.md` | 顶部新增 `## v1.18.1` 段 |
 | `README.md` / `AI/README.md` | 版本号同步到 v1.18.1 |

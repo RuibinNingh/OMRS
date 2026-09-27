@@ -57,7 +57,7 @@
 .fbw-mk.is-up::before { box-sizing: border-box; width: 8px; height: 8px; border: 1.5px solid var(--border-2); border-radius: 50%; content: ""; }
 .fbw-mk.is-ok { background: var(--success-soft); color: var(--success-fg); }
 .fbw-mk.is-no { background: var(--danger-soft); color: var(--danger-fg); }
-.fbw-mk.is-done { background: var(--accent-soft); color: var(--accent-fg); }
+.fbw-mk.is-done { background: var(--accent-soft); color: var(--fg-1); }
 
 /* 题面（stage）：qview 挂载点，morph 不碰 */
 .fbw-stage { box-sizing: border-box; min-width: 0; padding: var(--sp-5); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--elev-1); }

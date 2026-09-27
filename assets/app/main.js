@@ -1,15 +1,5 @@
-/**
- * 前端唯一启动入口（type=module，浏览器在全部经典脚本之后才执行）。顺序：
- * 1. 安装过渡桥：旧 uiToast / uiDialog 等转调新组件，排队的旧调用补发；
- * 2. 启动外壳：登记页面，按地址先显示对应页面的外壳（刷新时不先闪一下仪表盘）；
- * 3. 接上数据发布通道（domain/data.js 的快照经 bus 发 'data'，外壳同步进 store）；await 旧 init()（app.js 不再自调用）；
- * 4. router.start()：进入当前页（执行该页的进入钩子），开始响应前进 / 后退。
- * 页面登记 = 旧页面登记表 + 已迁到 features/ 的页面契约（P6、P7 合入后所有页面都是页面契约，旧登记表为空，P8 删除）。
- * 页面契约、依赖方向与过渡桥规则见 AI/frontend/architecture.md。
- */
-import { installLegacyBridge } from './legacy-bridge.js';
+/** Browser entry: install shared services, load snapshots, then enter the hash route. */
 import { startShell, applyChrome } from './shell.js';
-import { LEGACY_PAGES } from './legacy-pages.js';
 import { page as instantPage } from './features/instant/index.js';
 import { page as feedbackPage } from './features/feedback/index.js';
 import { page as questionsPage } from './features/questions/index.js';
@@ -22,19 +12,36 @@ import { page as reportsPage } from './features/reports/index.js';
 import { page as settingsPage } from './features/settings/index.js';
 import { page as createPage } from './features/create/index.js';
 import { page as boardPage } from './features/board/index.js';
-import { connectSessions } from './domain/sessions.js';
-import { connectData } from './domain/data.js';
+import { connectSessions, refreshSessions } from './domain/sessions.js';
+import { connectData, reloadData } from './domain/data.js';
 import { connectHistory } from './domain/history.js';
+import { connectLabels, bindLabelEvents, loadLabels, pickerOpen, closePicker, managerOpen, closeManager } from './domain/labels/index.js';
+import { bindQuestionDom } from './domain/question/index.js';
+import { installBoardWindow } from './features/board/runtime.js';
+import { installIcons } from './ui/icon.js';
+import { bindTooltips } from './ui/tooltip.js';
+import { registerKeys } from './core/keys.js';
+import { startActivityTracking } from './core/activity.js';
 
-installLegacyBridge(window);
-const { router, bus } = startShell(window, [dashboardPage, dataPage, schedulePage, historyPage, catalogPage, reportsPage, settingsPage, createPage, boardPage, ...LEGACY_PAGES, questionsPage, instantPage, feedbackPage]);
+installIcons(document);
+bindTooltips(document);
+bindQuestionDom(document);
+installBoardWindow(window);
+void startActivityTracking(document);
+const pages = [dashboardPage, dataPage, schedulePage, historyPage, catalogPage, reportsPage,
+  settingsPage, createPage, boardPage, questionsPage, instantPage, feedbackPage];
+const { router, bus } = startShell(window, pages);
 connectData({ emit: (type, payload) => bus.emit(type, payload) });
 connectSessions({ emit: (type, payload) => bus.emit(type, payload) });
 connectHistory({ emit: (type, payload) => bus.emit(type, payload) });
+connectLabels(bus);
+bindLabelEvents(document);
+registerKeys('global', { escape: { inInput: true, inDialog: true, handler: () => {
+  if (pickerOpen()) { closePicker(); return true; }
+  if (managerOpen()) { closeManager(); return true; }
+  return false;
+} } });
 applyChrome(router.page(router.resolve(window.location.hash)), document);
-try {
-  if (typeof window.init === 'function') await window.init();
-} catch (error) {
-  console.error('[omrs] init() 出错', error);
-}
+try { await Promise.all([loadLabels(), reloadData(), refreshSessions()]); }
+catch (error) { console.error('[omrs] 初始数据加载出错', error); }
 router.start();

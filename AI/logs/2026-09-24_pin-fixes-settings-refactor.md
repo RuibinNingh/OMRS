@@ -15,7 +15,7 @@
   - 所有旧元素 ID 保留。
 
 ## 修改文件
-`omrs/security.py`、`omrs/server.py`、`omrs/cli.py`、`assets/app.js`、`assets/core.js`、`assets/inbox_mobile.html`、`assets/styles.css`、`omrs_dashboard.html`、`tests/test_security.py`（在原文件末尾追加 4 项测试）；新增 `tests/test_auth_activity_ui.js`、`tests/test_settings_ui.js`。
+`omrs/security.py`、`omrs/server.py`、`omrs/cli.py`、`assets/app/main.js`、`assets/app/domain/items.js`、`assets/inbox_mobile.html`、`assets/app/styles/index.css`、`omrs_dashboard.html`、`tests/test_security.py`（在原文件末尾追加 4 项测试）；新增 `tests/test_auth_activity_ui.js`、`tests/test_settings_ui.js`。
 
 ## 验证
 - Python 单测 137 项 OK；Node 140 项全部通过；`check_docs` 0 处问题；`git diff --check` 干净。

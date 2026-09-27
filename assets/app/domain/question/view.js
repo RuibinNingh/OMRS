@@ -7,9 +7,8 @@ import { chipsHtml } from '../labels/chips.js';
 import { escape } from '../../core/html.js';
 import { renderMd } from './markdown.js';
 import { qRecordsFromDetail, qHistoryStats } from './records.js';
+import { dueDays, itemOf } from '../items.js';
 
-const g = globalThis;
-const call = (name, ...args) => (typeof g[name] === 'function' ? g[name](...args) : undefined);
 const num = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
 
 export const QV_DEFAULTS = Object.freeze({
@@ -41,11 +40,11 @@ export function qvChips(detail, item) {
   const difficulty = detail.difficulty ?? item.difficulty;
   if (String(difficulty ?? '').trim()) push(`难度 ${difficulty}`);
   if (item.mastery != null) push(`熟练度 ${(num(item.mastery, 0) * 100).toFixed(0)}%`);
-  const dueDays = call('getDueDays', item);
-  if (dueDays != null) {
-    if (dueDays < 0) push(`逾期 ${Math.abs(dueDays)} 天`, 'warn');
-    else if (dueDays === 0) push('今日到期', 'warn');
-    else push(`${dueDays} 天后到期`);
+  const days = dueDays(item);
+  if (days != null) {
+    if (days < 0) push(`逾期 ${Math.abs(days)} 天`, 'warn');
+    else if (days === 0) push('今日到期', 'warn');
+    else push(`${days} 天后到期`);
   }
   if (item.suspended) push('已停用', 'muted');
   // 复燃题的 Due_Date 是击杀时的旧值，只有「逾期 N 天」会读成没做完的旧账
@@ -58,7 +57,7 @@ export function qvChips(detail, item) {
 
 const TOOL = {
   edit: () => '<button type="button" class="btn sm" data-qv-act="edit">编辑 Markdown</button>',
-  suspend: uid => (call('getItemByUid', uid)?.suspended
+  suspend: uid => (itemOf(uid)?.suspended
     ? '<button type="button" class="btn sm" data-qv-act="resume">恢复题目</button>'
     : '<button type="button" class="btn sm" data-qv-act="suspend">停用题目</button>'),
   delete: () => '<button type="button" class="btn sm danger" data-qv-act="delete">删除题目</button>',
@@ -140,9 +139,9 @@ function recordSparkHtml(records) {
   const x = i => (count === 1 ? width / 2 : (i / (count - 1)) * width);
   const y = score => height - (Math.max(0, Math.min(10, num(score, 0))) / 10) * height;
   const dots = records.map((r, i) =>
-    `<circle cx="${x(i).toFixed(1)}" cy="${y(r.score).toFixed(1)}" r="2.4" fill="${r.correct ? 'var(--green)' : 'var(--red)'}"><title>${escape(`${r.date} ${r.correct ? '对' : '错'} ${r.score} 分`)}</title></circle>`).join('');
+    `<circle cx="${x(i).toFixed(1)}" cy="${y(r.score).toFixed(1)}" r="2.4" fill="${r.correct ? 'var(--success)' : 'var(--danger)'}"><title>${escape(`${r.date} ${r.correct ? '对' : '错'} ${r.score} 分`)}</title></circle>`).join('');
   const line = count > 1
-    ? `<polyline points="${records.map((r, i) => `${x(i).toFixed(1)},${y(r.score).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent-light)" stroke-width="1" vector-effect="non-scaling-stroke"/>`
+    ? `<polyline points="${records.map((r, i) => `${x(i).toFixed(1)},${y(r.score).toFixed(1)}`).join(' ')}" fill="none" stroke="var(--accent-muted)" stroke-width="1" vector-effect="non-scaling-stroke"/>`
     : '';
   return `<div class="qv-rec-spark"><svg viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="主观分走势">${line}${dots}</svg></div>
     <div class="qv-rec-axis"><span>${escape(records[0].date)}</span><span>主观分 0–10</span><span>${escape(records[count - 1].date)}</span></div>`;

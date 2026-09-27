@@ -35,11 +35,11 @@
    - 仍在用的 `showRecommendPanel()`（行动推荐"开始常规复习"）与 `showExportPanel()`（"全题库导出 ↗"）并入 `schedule.js`。
    - `core.js` 删除只被它使用的 `REC_DATA`、`REC_SELECTED`、`REC_VIEW`、`REC_PREVIEW_MODE`。
    - `labels.js` 中 `typeof renderDualLists === 'function'` 分支自然失效，不影响任何页面。
-4. **脱敏源码导出收录 `tests/` 下的 JSON。** 否则 `tests/ui_baseline.json` 不随包导出，受限模式下 `check_ui.py` 会失败。其它目录的 JSON 仍排除。
+4. **脱敏源码导出收录 `tests/` 下的 JSON。** 否则 UI 基线文件 不随包导出，受限模式下 `check_ui.py` 会失败。其它目录的 JSON 仍排除。
 5. **新增门禁与工具：**
    - `tests/check_ui.py`：新代码零容忍规则 R1–R9，旧代码按文件的棘轮基线。
    - `tests/check_contrast.py`：48 组对比度检查。
-   - `tests/ui_baseline.json`：棘轮基线。
+   - UI 基线文件：棘轮基线。
    - `tests/test_ui_gates.py`：12 个用例，其中包括"仓库本身通过两道门禁"，所以完整模式跑 `unittest` 就会覆盖这两道门禁。
    - `tests/fixtures/make_vault.py`：演示 Vault 生成器。
    - `tests/visual/run.py`：前后截图对比与运行时审计。
@@ -48,9 +48,9 @@
 
 | 类别 | 文件 |
 |---|---|
-| 新增 | `assets/app/styles/tokens.css`、`tests/check_ui.py`、`tests/check_contrast.py`、`tests/ui_baseline.json`、`tests/test_ui_gates.py`、`tests/fixtures/make_vault.py`、`tests/visual/run.py`、`AI/frontend/design-system.md`、本日志 |
+| 新增 | `assets/app/styles/tokens.css`、`tests/check_ui.py`、`tests/check_contrast.py`、UI 基线文件、`tests/test_ui_gates.py`、`tests/fixtures/make_vault.py`、`tests/visual/run.py`、`AI/frontend/design-system.md`、本日志 |
 | 删除 | `assets/recommend.js` |
-| 修改（代码） | `assets/styles.css`、`assets/schedule.js`、`assets/core.js`、`assets/dashboard.js`（注释）、`omrs_dashboard.html`、`omrs/source_export.py`、`omrs/version.py`、`tests/test_source_export.py` |
+| 修改（代码） | `assets/app/styles/index.css`、`assets/schedule.js`、`assets/app/domain/items.js`、`assets/dashboard.js`（注释）、`omrs_dashboard.html`、`omrs/source_export.py`、`omrs/version.py`、`tests/test_source_export.py` |
 | 修改（文档） | `AGENTS.md`（映射表加两行、收尾第 8 条）、`README.md`、`AI/README.md`、`AI/api.md`、`AI/changelog.md`、`AI/environment.md`、`AI/optimization.md`、`AI/frontend.md`、`AI/frontend/shell.md`、`AI/frontend/qview.md`、`AI/frontend/review.md` |
 
 ## 验证（已实际执行）
@@ -106,7 +106,7 @@
 - **生产生效**：补丁已合入 `/root/workspace/apps/OMRS` 并重启 `omrs.service`；服务 `active/running`、`NRestarts=0`。`GET /api/status` 返回 `v1.19.1`、208 题、0 冲突；`/api/auth/session` 显示新实例、本机已认证，远端 PIN 尚未配置。未创建 Git commit，保留生产工作树未提交状态。
 - **生产门禁**：Python `unittest` 149 项通过；UI 门禁 0 问题；48 组浅/深色对比度均通过；`check_docs.py --diff HEAD` 通过。Node 为 139/140：唯一失败仍是 `tests/smoke_frontend_actions_catalog.js` 的 3 条行动计划断言；在部署前回滚源码快照、包候选与生产树结果完全相同，且测试涉及的 `assets/actions.js` / `assets/catalog.js` 不在 P0 补丁内，归类为既有基线失败（不是本次引入）。
 - **浏览器实测**：Browser Use Chromium 打开生产首页，标题与版本 `v1.19.1` 正确，先加载 `tokens.css` 再加载 `styles.css`，页面错误 0。设置页实际切换浅/深主题并恢复深色；390px 视口下首页及复习调度无横向溢出；“开始常规复习”进入 `arrange`，全题库导出入口进入 `export`，返回后仍为 `arrange`。这些交互及设置页源码导出只有 GET 请求。
-- **源码导出**：设置页按钮显示“已下载”；同一 `/api/source/export` 返回 ZIP（HTTP 200、6,407,906 字节、324 项、CRC 完整），包含 `assets/app/styles/tokens.css`、`tests/ui_baseline.json`、`SOURCE_EXPORT_MANIFEST.txt`，未包含题库、Ledger、boards 等运行数据。
+- **源码导出**：设置页按钮显示“已下载”；同一 `/api/source/export` 返回 ZIP（HTTP 200、6,407,906 字节、324 项、CRC 完整），包含 `assets/app/styles/tokens.css`、UI 基线文件、`SOURCE_EXPORT_MANIFEST.txt`，未包含题库、Ledger、boards 等运行数据。
 - **数据保护**：部署前后 224 个题目 Markdown 的清单及 SHA-256 完全一致。与 2026-09-24 数据备份比较，`.omrs` 的 214 项中 212 项逐字节一致；剩余 `config.json` 差异是 9 月 24 日 21:25 已存在的 `lan_pin_exempt_cidrs` 设置，`ledger.db` 的 SQLite integrity check 前后均为 `ok`，所有业务表行数相同，仅 `workspace_fingerprint.last_seen_at` 与 `workspace_scan_status.last_scan_at` 因启动扫描更新。重启后服务日志无 POST/PUT/PATCH/DELETE；题目数、冲突数不变。
 - **远端限制**：真实 Chromium 访问 `https://home.ruibin-ningh.top:8472/` 到达 OMRS 登录页，并明确提示尚未配置 PIN。未代用户设置 PIN，因此没有已认证远端页面或实体手机验收；配置 PIN 后再做远端登录验收。
 - **验证差异**：包内原始记录称 Node 140/140；本机完整复跑为 139/140，已通过未部署基线复测确认相同失败。隔离 Playwright 视觉审计在基线与升级副本均遇到 Chromium 页面崩溃；生产首页的真实浏览器 DOM、主题、移动视口与交互验收已完成，但不把它表述成 48 组生产截图对比。

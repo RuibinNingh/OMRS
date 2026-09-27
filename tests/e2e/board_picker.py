@@ -259,6 +259,7 @@ def main():
         with sync_playwright() as p:
             browser = launch_browser(p)
             ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+            ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
             page = ctx.new_page()
             page.set_default_timeout(8000)
             errors = []
@@ -272,6 +273,7 @@ def main():
             for theme in ("light", "dark"):
                 for label, size in (("桌面", (1440, 900)), ("手机", (390, 844))):
                     c = browser.new_context(viewport={"width": size[0], "height": size[1]})
+                    c.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
                     c.add_init_script(f"try{{localStorage.setItem('omrs-theme','{theme}')}}catch(e){{}}")
                     tag = f"审计 {label} · {'浅色' if theme == 'light' else '深色'}"
                     colors[(theme, label)] = guarded(results, tag, audit, c.new_page(), base, tag, results)

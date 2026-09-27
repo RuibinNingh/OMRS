@@ -14,10 +14,10 @@
 
 ## 修改文件
 
-- `assets/core.js`
+- `assets/app/domain/items.js`
 - `assets/history.js`
 - `assets/dashboard.js`
-- `assets/app.js`
+- `assets/app/main.js`
 - `omrs_dashboard.html`
 - `README.md`
 - `AI/frontend.md`
@@ -26,7 +26,7 @@
 ## 验证
 
 - `python -m unittest discover -s tests -p "test_*.py" -v`：9 项通过。
-- `node --check assets/core.js`、`assets/history.js`、`assets/dashboard.js`、`assets/app.js`：通过。
+- `node --check assets/core.js`、`assets/history.js`、`assets/dashboard.js`、`assets/app/main.js`：通过。
 - Node 运行时检查：`2026-01-01T00:00:00+00:00` 在 `Asia/Shanghai` 下显示为 `2026-01-01 08:00:00`；无时区旧时间戳保持原样。
 - `git diff --check`：通过。
 

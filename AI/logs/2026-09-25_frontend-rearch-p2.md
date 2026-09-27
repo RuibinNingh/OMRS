@@ -38,9 +38,9 @@
 ## 影响文件
 
 - 新增 `assets/app/`：`package.json`、`main.js`、`legacy-bridge.js`、`core/html.js`、`core/dom.js`、`ui/` 下 24 个 JS（23 个组件 + `overlay.js`）与 23 个 CSS、`styles/index.css`、`styles/ui.css`、`styles/legacy-bridge.css`、`styles/gallery.css`、`gallery.html`、`gallery.js`、`gallery-sections.js`、`gallery-sections-2.js`、`gallery-demos.js`；`styles/tokens.css` 增加窄屏控件高度规则。
-- 旧前端：`omrs_dashboard.html`（样式入口、模块脚本、删 `#ib-toast`、侧栏版本）、`assets/core.js`（四个 ui 函数改为转调）、`assets/inbox.js`（`ibToast` 转调）、`assets/board.js` / `assets/board_picker.js` / `assets/qtable.js`（「有弹层时不响应」守卫加 `dialog[open]`）、`assets/styles.css`（删除被接管的 37 行：`.btn` / `.input` 基础规则、`.ui-toast*`、`.ui-dialog*`、`.ib-toast*`、死样式 `.bd-toast`）。
+- 旧前端：`omrs_dashboard.html`（样式入口、模块脚本、删 `#ib-toast`、侧栏版本）、`assets/app/domain/items.js`（四个 ui 函数改为转调）、`assets/inbox.js`（`ibToast` 转调）、`assets/board.js` / `assets/board_picker.js` / `assets/qtable.js`（「有弹层时不响应」守卫加 `dialog[open]`）、`assets/app/styles/index.css`（删除被接管的 37 行：`.btn` / `.input` 基础规则、`.ui-toast*`、`.ui-dialog*`、`.ib-toast*`、死样式 `.bd-toast`）。
 - 后端：`omrs/server.py`（`_ASSET_TYPES` 增 `.html` / `.mjs`）、`omrs/source_export.py`（收录 `assets/app/package.json`）。
-- 测试：新增 `tests/app/html.test.mjs`、`tests/app/browser.html`、`tests/app/browser_tests.js`、`tests/app/run_browser.py`、`tests/test_app_browser.py`、`tests/e2e/ui_bridge.py`；改 `tests/check_contrast.py`（+3 组）、`tests/test_ui_gates.py`（fixture 补 token）、`tests/test_source_export.py`、`tests/ui_baseline.json`（棘轮下调）。
+- 测试：新增 `tests/app/html.test.mjs`、`tests/app/browser.html`、`tests/app/browser_tests.js`、`tests/app/run_browser.py`、`tests/test_app_browser.py`、`tests/e2e/ui_bridge.py`；改 `tests/check_contrast.py`（+3 组）、`tests/test_ui_gates.py`（fixture 补 token）、`tests/test_source_export.py`、UI 基线文件（棘轮下调）。
 - 文档：新增 `AI/frontend/components.md`；改 `AI/frontend.md`、`AI/frontend/design-system.md`、`AI/frontend/shell.md`、`AI/frontend/library.md`、`AI/environment.md`、`AI/api.md`、`AI/README.md`、`AI/changelog.md`、`AGENTS.md`、`README.md`、`omrs/version.py`。
 
 ## 验证结果（本轮实际执行）

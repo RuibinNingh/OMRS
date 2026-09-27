@@ -68,11 +68,11 @@
 
 | 文件 | 改动 |
 |---|---|
-| `assets/core.js` | 新增 `Q_HISTORY_LINE_RE` / `parseQHistory()` / `qHistoryStats()` / `qStreakHtml()`；文件末尾加 `module.exports` 供 node 单测。正则与后端 `common.py::parse_history_lines()` 格式相近但并非字面完全一致 |
+| `assets/app/domain/items.js` | 新增 `Q_HISTORY_LINE_RE` / `parseQHistory()` / `qHistoryStats()` / `qStreakHtml()`；文件末尾加 `module.exports` 供 node 单测。正则与后端 `common.py::parse_history_lines()` 格式相近但并非字面完全一致 |
 | `assets/qview.js` | 删除 `.qv-a` 里的 `qv-hist` 分支；新增 `qvRecordHtml()` / `qvRecordSparkHtml()` / `qvRecordRowHtml()`，由 `qvHtml()` 在题面 / 答案之后拼入；`QV_DEFAULTS.showHistory` 语义注释更新；导出 `qvRecordHtml` |
 | `assets/questions.js` | `galleryFootHtml()` 改用 `qbStreakOn()` + `galleryStreakSlotHtml()`；新增 `galleryStreakBodyHtml()`；`hydrateQuestionGalleryPreviews()` 末尾填充战绩带；导出 `galleryFootHtml` / `galleryStreakBodyHtml` |
 | `assets/qtable.js` | 新增 `QB_STREAK`（默认 true）与 `qbSetStreak()`；接进 `qbReadPrefs` / `qbRenderControls` / `qbResetLayout` / `qbViewSnapshot` / `qbApplyView` / change 事件委托 |
-| `assets/styles.css` | `.qv-hist` 三条规则替换为 `.qv-rec*` 一组 + `.q-streak` / `.gc-streak-slot` / `.gc-warn`；全部走密度变量与 token，浅色深色自动跟随 |
+| `assets/app/styles/index.css` | `.qv-hist` 三条规则替换为 `.qv-rec*` 一组 + `.q-streak` / `.gc-streak-slot` / `.gc-warn`；全部走密度变量与 token，浅色深色自动跟随 |
 | `omrs_dashboard.html` | 「列 / 密度」菜单画廊段新增战绩带勾选（`data-qb-streak`）；`styles.css` / `core.js` / `questions.js` / `qtable.js` / `qview.js` 的 `?v=` 统一改 `20260906-practice-record`；侧栏版本号 → v1.16.0 |
 | `omrs/version.py` | `v1.15.0` → `v1.16.0` |
 | `tests/test_question_record_ui.js` | 新增，10 个用例 |
@@ -93,7 +93,7 @@
   `test_qtable_ui` / `test_question_suspend_frontend` / `test_recommend_v2_filters`）。
 - `python3 -m py_compile omrs/*.py` 通过；`python3 -c "import omrs.version"` 输出 `v1.16.0`。
 - `node -e "require('vm').compileFunction(...)"` 对四个改动过的 JS 逐个做语法检查，均通过。
-- 用改动后的真实函数 + 真实 `assets/styles.css` 渲染了一份静态预览页，肉眼核对三张画廊卡
+- 用改动后的真实函数 + 真实 `assets/app/styles/index.css` 渲染了一份静态预览页，肉眼核对三张画廊卡
   （连错 / 稳定上升 / 未练习）与三个记录模块的实际输出。
 
 ### 已知问题（非本次引入）

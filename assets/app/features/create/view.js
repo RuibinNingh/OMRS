@@ -15,3 +15,15 @@ export function flowView(selected = 'upload', counts = {}) {
       ${stage.count ? html`<span class="fs-count"><span id="${stage.count}">${counts[stage.countKey] ?? 0}</span><small>${stage.countLabel}</small></span>` : ''}
     </button>`);
 }
+
+/** Static roots live with the create page, so the document only owns panel mount points. */
+export function createRoots() {
+  return html`<div id="create-app">
+    <nav class="ib-flow" id="create-flow" aria-label="录入题目工作区"></nav>
+    <section class="ib-stage on" id="ib-stage-upload"><div id="create-upload"></div><div id="create-grid"></div></section>
+    <section class="ib-stage" id="ib-stage-process"></section>
+    <section class="ib-stage" id="ib-stage-create"></section>
+    <section class="ib-stage" id="ib-stage-train"></section>
+    <section class="ib-stage" id="ib-stage-quick"></section>
+  </div>`;
+}

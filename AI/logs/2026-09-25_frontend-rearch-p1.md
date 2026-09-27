@@ -34,8 +34,8 @@
 
 ## 影响文件
 
-- 新增：`assets/app/core/{events,keys,store,bus,router,api,format}.js`、`assets/app/shell.js`、`assets/app/legacy-pages.js`、`assets/app/styles/{base,shell}.css`、`tests/app/core.test.mjs`、`tests/app/core_tests.js`、`tests/e2e/shell_router.py`、`tests/test_asset_cache.py`、`AI/frontend/architecture.md`。
-- 修改：`assets/app/core/html.js`（`each`）、`assets/app/core/dom.js`（`morph`）、`assets/app/main.js`（启动顺序）、`assets/app/styles/index.css`（加 base、shell 层）、`assets/app.js`（`switchTab` 包装、不再自调用 `init()`、`reloadData` 发 `data`）、`omrs_dashboard.html`（导航改链接、遮罩挪到侧栏前、品牌与顶栏标记、顶栏按钮、版本）、`assets/styles.css`（删除迁走的外壳规则与死规则 `.tabs` / `.tab`）、`omrs/server.py`（ETag / 304）、`tests/app/browser_tests.js`（并入 core 用例）、`tests/e2e/ui_bridge.py`（层级列表与导航选择器随本期更新）、`tests/ui_baseline.json`。
+- 新增：`assets/app/core/{events,keys,store,bus,router,api,format}.js`、`assets/app/shell.js`、页面登记模块、`assets/app/styles/{base,shell}.css`、`tests/app/core.test.mjs`、`tests/app/core_tests.js`、`tests/e2e/shell_router.py`、`tests/test_asset_cache.py`、`AI/frontend/architecture.md`。
+- 修改：`assets/app/core/html.js`（`each`）、`assets/app/core/dom.js`（`morph`）、`assets/app/main.js`（启动顺序）、`assets/app/styles/index.css`（加 base、shell 层）、`assets/app/main.js`（`switchTab` 包装、不再自调用 `init()`、`reloadData` 发 `data`）、`omrs_dashboard.html`（导航改链接、遮罩挪到侧栏前、品牌与顶栏标记、顶栏按钮、版本）、`assets/app/styles/index.css`（删除迁走的外壳规则与死规则 `.tabs` / `.tab`）、`omrs/server.py`（ETag / 304）、`tests/app/browser_tests.js`（并入 core 用例）、`tests/e2e/ui_bridge.py`（层级列表与导航选择器随本期更新）、UI 基线文件。
 - 文档：`AI/frontend/architecture.md`（新）、`AI/frontend/shell.md`、`AI/frontend/components.md`、`AI/frontend/design-system.md`、`AI/frontend.md`、`AI/api.md`、`AI/environment.md`、`AI/README.md`、`AI/changelog.md`、`AGENTS.md`、`README.md`、`omrs/version.py`。
 
 ## 验证结果（本轮实际执行）

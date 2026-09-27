@@ -36,7 +36,7 @@ v1.14.0 的 Codex 初版（展示板 / 用户标记 / 题库重设计）不可�
 
 `omrs/boards.py`（重写）、`omrs/exporting.py`（展示板段重写）、`omrs/server.py`（`_download`、
 `/api/board/printed`、`/printed/reset`、export `mode`）、`omrs/export_templates/board.css|board.js`
-（重写）、`assets/styles.css`、`assets/core.js`、`assets/labels.js`、`assets/qtable.js`、
+（重写）、`assets/app/styles/index.css`、`assets/app/domain/items.js`、`assets/app/domain/labels/index.js`、`assets/qtable.js`、
 `assets/board.js`、`assets/questions.js`、`omrs_dashboard.html`（题库 / 展示板面板）、
 `tests/test_boards.py`、`tests/test_board_export.py`、`tests/smoke_board_print.py`（新，Playwright）、
 `tests/test_labels_ui.js`、`tests/test_qtable_ui.js`（新）、`AI/board.md`（重写）、`AI/export.md`、

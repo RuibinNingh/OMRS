@@ -32,7 +32,7 @@
 - 新增：`assets/app/features/dashboard/`（`index.js` 110、`plan.js` 154、`state.js` 99、`view.js` 121、`dashboard.css` 116 行）、`assets/app/domain/history.js`、`assets/app/domain/schedule.js`、`tests/app/dashboard.test.mjs`、`tests/app/data.test.mjs`、`tests/e2e/dashboard.py`、本日志。
 - 重写：`assets/app/domain/data.js`。
 - 删除：`assets/dashboard.js`、`assets/actions.js`；`styles.css` 净删 223 行。
-- 修改：`assets/app.js`（`reloadData` → `legacyDataRefresh`，`init()` 不再调 `renderActionPlan`，改时区发 `ledger:tz`）、`assets/core.js`（删 `demo()` 与两个缓存 `let`）、`assets/schedule.js`（删一行 `renderActionPlan`）、`assets/data.js`、`assets/app/legacy-bridge.js`（`installDataBridge`）、`assets/app/main.js`、`legacy-pages.js`、`shell.js`、`core/bus.js`（注释）、`domain/question/mount.js`、`domain/question/index.js`、`features/questions/index.js`（`questions:preset`）、`styles/index.css`、`omrs_dashboard.html`（仪表盘面板只留空容器，删两个 `<script>`，版本串）。
+- 修改：`assets/app/main.js`（`reloadData` → `legacyDataRefresh`，`init()` 不再调 `renderActionPlan`，改时区发 `ledger:tz`）、`assets/app/domain/items.js`（删 `demo()` 与两个缓存 `let`）、`assets/schedule.js`（删一行 `renderActionPlan`）、`assets/data.js`、`assets/app/main.js`（`installDataBridge`）、`assets/app/main.js`、`legacy-pages.js`、`shell.js`、`core/bus.js`（注释）、`domain/question/mount.js`、`domain/question/index.js`、`features/questions/index.js`（`questions:preset`）、`styles/index.css`、`omrs_dashboard.html`（仪表盘面板只留空容器，删两个 `<script>`，版本串）。
 - 测试调整：`tests/smoke_frontend_actions_catalog.js` 场景 1–3 与 `tests/test_question_suspend_frontend.js` 的行动计划断言迁入 `tests/app/dashboard.test.mjs`（用例只增不减）；`tests/e2e/shell_router.py` 就绪标记改 `[data-dash-ready]`、「完整时间线」改点 `data-action`；`questions.py` / `instant.py` 的旧入口改调过渡桥的 `questionsLoadPreset` / `instLoadPractice`。
 - 文档：`AI/frontend/dashboard.md`（仪表盘部分重写）、`AI/frontend/architecture.md`、`AI/frontend/components.md`、`AGENTS.md`（映射表加 `features/dashboard/`）、`AI/changelog.md`、`README.md` / `AI/README.md`（版本）、`AI/plans/frontend-rearch/progress.md`。
 
@@ -89,7 +89,7 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 
 - 新增：`assets/app/features/data/`（`index.js` 99、`state.js` 116、`charts.js` 71、`view.js` 116、`data.css` 101 行）、`assets/app/core/download.js`、`tests/app/analytics.test.mjs`、`tests/e2e/data.py`。
 - 删除：`assets/data.js`；`styles.css` 净删 74 行（趋势、标记分布、横条、热力格、气泡图例、`stat-sub`、`tbl-wrap`、`sched-controls` 等只服务旧数据页的规则，以及它们留下的 4 条孤立注释；删后孤立注释集合与基线一致）。
-- 修改：`omrs_dashboard.html`（数据复盘面板只留空容器，删 `<script src="assets/data.js">`，版本串）、`assets/app.js`（刷新链去掉 `renderDataCharts`）、`assets/app/main.js`、`legacy-pages.js`、`legacy-bridge.js`（注释）、`styles/index.css`、`tests/ui_baseline.json`。
+- 修改：`omrs_dashboard.html`（数据复盘面板只留空容器，删 `<script src="assets/data.js">`，版本串）、`assets/app/main.js`（刷新链去掉 `renderDataCharts`）、`assets/app/main.js`、`legacy-pages.js`、`legacy-bridge.js`（注释）、`styles/index.css`、UI 基线文件。
 - 文档：`AI/frontend/records.md`（数据页一节重写）、`AI/frontend/architecture.md`（`core/download.js`、旧页面登记表）、`AI/frontend/design-system.md`、`AI/frontend/dashboard.md`、`AGENTS.md`（映射表加 `features/data/`）、`AI/changelog.md`、版本号四处、`progress.md`。
 
 ### 验证（本轮实际运行）
@@ -137,7 +137,7 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 - 新增：`assets/app/features/schedule/`（`index.js` 160、`state.js` 66、`view.js` 79、`schedule.css` 70 行）、`tests/app/schedule.test.mjs`、`tests/e2e/schedule.py`。
 - 重写：`assets/app/domain/sessions.js`、`assets/app/domain/schedule.js`；`assets/schedule.js` 从 184 行缩到 10 行（只剩录入题目、全局扫描与 `feedbackSession` / `refreshFbSessionPicker` 两个旧入口）。
 - 删除：`tests/test_schedule_sessions.js`（4 个用例：列表后发先至、详情后发先至、删除确认去重与取消、删除业务错误——前后两个进 node 单测，中间两个进 E2E）；`styles.css` 34 条只服务旧标签栏与计划列表的规则（孤立注释集合与基线一致）。
-- 修改：`omrs_dashboard.html`、`assets/recommend_v2.js`、`assets/app/legacy-bridge.js`（`installScheduleBridge`）、`legacy-pages.js`、`main.js`、`styles/index.css`、`features/feedback/state.js` 与 `index.js`、`tests/smoke_schedule_workbench.py`（`.sch-plan` → `.schd-plan`）、`tests/ui_baseline.json`。
+- 修改：`omrs_dashboard.html`、`assets/recommend_v2.js`、`assets/app/main.js`（`installScheduleBridge`）、`legacy-pages.js`、`main.js`、`styles/index.css`、`features/feedback/state.js` 与 `index.js`、`tests/smoke_schedule_workbench.py`（`.sch-plan` → `.schd-plan`）、UI 基线文件。
 - 文档：`AI/frontend/review.md`（复习调度一节重写）、`architecture.md`、`components.md`、`feedback.md`、`design-system.md`、`AGENTS.md`（映射表加 `features/schedule/`）、`AI/changelog.md`、版本号四处、`progress.md`。
 
 ### 验证与过程
@@ -186,7 +186,7 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 
 - 新增：`assets/app/features/schedule/arrange.js`、`arrange-ctl.js`、`arrange-view.js`、`tests/app/arrange.test.mjs`（原 `test_recommend_v2_filters.js` 的用例全部迁入，另加提示文案、复燃标识、chip、视图偏好）。
 - 删除：`assets/recommend_v2.js`、`tests/test_recommend_v2_filters.js`；`questions.js` 的 `reviveChipHtml`；`app.js` 刷新链里的 `initRecommendV2`；`styles.css` 97 条只服务旧推荐区的类规则、4 条 `#rec-*` 规则、2 个随之变空的 `@media` 块与 1 条孤立注释（孤立注释集合与基线一致）。
-- 修改：`features/schedule/index.js`、`view.js`、`state.js`、`schedule.css`；`domain/schedule.js`（只剩导出面板）；`legacy-bridge.js`；`omrs_dashboard.html`（删旧推荐区与 `<script>`）；`tests/e2e/schedule.py`（加「安排复习」一段与该工作区的审计）；`tests/smoke_schedule_workbench.py`；`tests/ui_baseline.json`。
+- 修改：`features/schedule/index.js`、`view.js`、`state.js`、`schedule.css`；`domain/schedule.js`（只剩导出面板）；`legacy-bridge.js`；`omrs_dashboard.html`（删旧推荐区与 `<script>`）；`tests/e2e/schedule.py`（加「安排复习」一段与该工作区的审计）；`tests/smoke_schedule_workbench.py`；UI 基线文件。
 - 文档：`AI/frontend/review.md`（安排复习、列表 / 画廊两节重写）、`shell.md`（文件树与加载顺序，顺带删掉前几轮已删脚本的残留条目）、`qview.md`、`architecture.md`、`components.md`、`design-system.md`、`AI/changelog.md`、版本号四处、`progress.md`。
 
 ### 过程
@@ -234,7 +234,7 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 
 - 新增：`assets/app/features/schedule/exporter.js`、`exporter-ctl.js`、`exporter-view.js`、`assets/app/domain/exporting.js`、`tests/app/exporter.test.mjs`。
 - 删除：`assets/export.js`、`assets/app/domain/schedule.js`；`core.js` 两个 `let`；`app.js` 刷新链两项；过渡桥 `schShow`、`showRecommendPanel`；`styles.css` 22 条规则与 3 条孤立注释。
-- 修改：`features/schedule/index.js`、`view.js`、`state.js`、`schedule.css`；`features/dashboard/index.js`；`legacy-bridge.js`（`renderExportPicker`、`downloadExportResponse` 转新实现）；`omrs_dashboard.html`（删旧导出面板与 `<script>`）；`tests/e2e/schedule.py`（加「全题库导出」段与审计）；`tests/smoke_schedule_workbench.py`（返回按钮名）；`tests/ui_baseline.json`。
+- 修改：`features/schedule/index.js`、`view.js`、`state.js`、`schedule.css`；`features/dashboard/index.js`；`legacy-bridge.js`（`renderExportPicker`、`downloadExportResponse` 转新实现）；`omrs_dashboard.html`（删旧导出面板与 `<script>`）；`tests/e2e/schedule.py`（加「全题库导出」段与审计）；`tests/smoke_schedule_workbench.py`（返回按钮名）；UI 基线文件。
 - 文档：`AI/frontend/review.md`（新增「全题库导出」一节，改入口与已有计划的导出说明）、`AI/export.md`、`architecture.md`、`components.md`、`dashboard.md`、`settings.md`、`shell.md`、`AI/optimization.md`、`AI/changelog.md`、版本号四处、`progress.md`。
 
 ### 过程
@@ -300,11 +300,11 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 
 ### 盘点与实现
 
-- 原 `assets/history.js` 持有 Ledger 撤销状态、节点分类与标题、时间格式、主时间线和修正记录渲染，以及反馈、Session、状态修正操作。旧 `#panel-history` 含排序、修正模式、修正记录和时间线 DOM，专用样式在 `assets/styles.css`。仪表盘最近动态曾经通过 `domain/history.js` 转调旧全局；旧 `app.js` 初始化和题目写操作也引用历史刷新入口。
+- 原 `assets/history.js` 持有 Ledger 撤销状态、节点分类与标题、时间格式、主时间线和修正记录渲染，以及反馈、Session、状态修正操作。旧 `#panel-history` 含排序、修正模式、修正记录和时间线 DOM，专用样式在 `assets/app/styles/index.css`。仪表盘最近动态曾经通过 `domain/history.js` 转调旧全局；旧 `app.js` 初始化和题目写操作也引用历史刷新入口。
 - 新 `assets/app/features/history/` 有页面契约、状态投影、模板和样式；`assets/app/domain/history-model.js` 持有纯投影，`domain/history.js` 负责读写与跨页通知。`main.js` 注册页面，旧页面登记、脚本、DOM 与专用 CSS 已删。题目写成功后通知历史页，历史修正成功后刷新题目详情缓存、统计、Session、仪表盘最近动态和历史列表。
 - 历史修正只在修正模式下可用，请求期间按钮置忙；首次加载慢于 300ms 才显示骨架，失败时保留已有列表并给出原因。Ledger 时区变化后重新投影时间。
 - 原历史页没有独立 Node 测试；后端 `tests/test_history_projection.py` 保持原样。新增 `tests/app/history.test.mjs` 5 项纯函数测试、`tests/e2e/history.py` 22 项，覆盖列表、排序、反馈与 Session 撤销 / 恢复、状态还原、仪表盘同步、失败恢复和四种视觉审计。
-- 旧代码存量减少后用 `check_ui.py --update-baseline` 下调 `tests/ui_baseline.json`。同步 `AGENTS.md` 映射、相关前端分册、版本号、README、changelog 和本进度文件。
+- 旧代码存量减少后用 `check_ui.py --update-baseline` 下调 UI 基线文件。同步 `AGENTS.md` 映射、相关前端分册、版本号、README、changelog 和本进度文件。
 
 ### 验证
 
@@ -324,14 +324,14 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 
 ### 盘点与行为变化
 
-- 原 `assets/catalog.js` 持有 `CATALOG_TREE`、`CATALOG_SUMMARY`、展开路径、搜索词、全部文件开关和文件夹统计等全局状态；`loadCatalog`、`renderCatalog` 以及 `catalog*` 函数负责请求、后备树、渲染、复制与开题。旧面板依赖 `#catalog-*`、`.tree-*`，目录专用 CSS 集中在 `assets/styles.css`。跨页入口是旧 `app.js` 的初始化、`legacy-pages.js` 的进入钩子；旧测试 `smoke_frontend_actions_catalog.js` 含目录场景。
+- 原 `assets/catalog.js` 持有 `CATALOG_TREE`、`CATALOG_SUMMARY`、展开路径、搜索词、全部文件开关和文件夹统计等全局状态；`loadCatalog`、`renderCatalog` 以及 `catalog*` 函数负责请求、后备树、渲染、复制与开题。旧面板依赖 `#catalog-*`、`.tree-*`，目录专用 CSS 集中在 `assets/app/styles/index.css`。跨页入口是旧 `app.js` 的初始化、`legacy-pages.js` 的进入钩子；旧测试 `smoke_frontend_actions_catalog.js` 含目录场景。
 - 新 `features/catalog/` 的 `state.js` 提供纯后备树、文件夹统计、搜索与路径投影；`index.js` 持有页面状态和请求生命周期；`view.js` 用带 key 的 `each()` 渲染目录树。默认只展开根层，搜索会展开匹配分支；题目文件通过 `domain/question` 打开，剪贴板拒绝时显示可手动复制的路径。`/api/tree` 首次失败用题目路径建后备树，刷新失败保留现有树并显示原因。
 - 目录工具栏保留重新扫描；旧 `doScan()` 返回扫描是否成功，外壳仅在成功时发 `catalog:refresh` 让目录重读。扫描失败保留目录树。桌面和手机的目录行、到期标记、统计卡及工具栏改用语义 token 与统一控件尺度。
 - 删除旧目录脚本、只服务旧目录的 39 行 CSS、旧目录冒烟文件；`main.js` 注册新页面，HTML 只留挂载根。旧目录测试场景迁到 `tests/app/catalog.test.mjs` 的纯函数与模板断言，以及 `tests/e2e/catalog.py` 的真实浏览器主路径。仪表盘旧 E2E 的热力格断言改为按浏览器当地日期与统计快照核对，避免跨时区当天记录为 0 时误报。
 
 ### 影响文件
 
-`assets/app/features/catalog/`、`assets/app/main.js`、`assets/app/legacy-pages.js`、`assets/app/shell.js`、`assets/app/styles/index.css`、`assets/app.js`、`assets/schedule.js`、`omrs_dashboard.html`、`assets/styles.css`、`assets/catalog.js`、`tests/app/catalog.test.mjs`、`tests/e2e/catalog.py`、`tests/e2e/dashboard.py`、`tests/smoke_frontend_actions_catalog.js`、`tests/ui_baseline.json`；同步 `AGENTS.md`、`README.md`、`AI/README.md`、前端对应分册、`AI/optimization.md`、`AI/changelog.md`、`AI/routes.md`、`omrs/version.py`、本进度文件与日志索引。旧 CSS 删除逐段对照 `git diff`，`git diff --check` 通过。
+`assets/app/features/catalog/`、`assets/app/main.js`、页面登记模块、`assets/app/shell.js`、`assets/app/styles/index.css`、`assets/app/main.js`、`assets/schedule.js`、`omrs_dashboard.html`、`assets/app/styles/index.css`、`assets/catalog.js`、`tests/app/catalog.test.mjs`、`tests/e2e/catalog.py`、`tests/e2e/dashboard.py`、`tests/smoke_frontend_actions_catalog.js`、UI 基线文件；同步 `AGENTS.md`、`README.md`、`AI/README.md`、前端对应分册、`AI/optimization.md`、`AI/changelog.md`、`AI/routes.md`、`omrs/version.py`、本进度文件与日志索引。旧 CSS 删除逐段对照 `git diff`，`git diff --check` 通过。
 
 ### 验证
 
@@ -348,14 +348,14 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 
 ### 盘点与行为变化
 
-- 旧 `assets/reports.js` 持有 `REPORTS` 全局和 `fmtSize`、`buildReportAiPrompt`、`copyReportAiPrompt`、`downloadReportData`、`loadReports`、`renderReports`、`openReport`、`readFileText`、`createReport`、`deleteReport`。`#panel-reports` 的旧 DOM 包含图片开关、材料按钮、名称与文件输入、列表；专用 `.rp-*` 样式在 `assets/styles.css`。跨页旧引用仅有 `legacy-pages.js` 的进入钩子和 `legacy-bridge.js` 的旧调用方说明；后端接口和沙箱协议未改。
+- 旧 `assets/reports.js` 持有 `REPORTS` 全局和 `fmtSize`、`buildReportAiPrompt`、`copyReportAiPrompt`、`downloadReportData`、`loadReports`、`renderReports`、`openReport`、`readFileText`、`createReport`、`deleteReport`。`#panel-reports` 的旧 DOM 包含图片开关、材料按钮、名称与文件输入、列表；专用 `.rp-*` 样式在 `assets/app/styles/index.css`。跨页旧引用仅有 `legacy-pages.js` 的进入钩子和 `legacy-bridge.js` 的旧调用方说明；后端接口和沙箱协议未改。
 - 新 `features/reports/` 用纯 `state.js` 保存文件验证、大小格式、材料说明和 AI 提示词；`index.js` 管理列表、文件读取、上传、删除和下载的生命周期；`view.js` 提供 token 化卡片、`ui/filedrop`、空态与嵌入预览。`ui/filedrop` 的 `bindFileDrop` 新增可选拒绝回调，让非 HTML 文件在上传区直接显示原因；空文件、读取失败、上传失败也明确提示，上传期间防重。
 - 「浏览」在页内用 `iframe sandbox="allow-scripts allow-downloads allow-popups"` 预览；没有 `allow-same-origin`，报告脚本仍处于后端 CSP 沙箱。原新标签入口保留为单独按钮。删除经 `ui/dialog` 确认；材料提示词随题图选项切换，下载继续走 `/api/export-review` 和 `core/download.js`。
 - 删除旧脚本、旧 HTML 表单及 13 条专用 CSS，`main.js` 登记页面并移除旧页面项。原报告页无独立前端 Node 测试；新增 `tests/app/reports.test.mjs` 4 项纯规则与模板断言、`tests/e2e/reports.py` 23 项真实浏览器路径，后端 `tests/test_report_export.py` 保持不变。
 
 ### 影响文件
 
-新增 `assets/app/features/reports/`、`tests/app/reports.test.mjs`、`tests/e2e/reports.py`；删除 `assets/reports.js`；修改 `assets/app/ui/filedrop.js`、`assets/app/main.js`、`assets/app/legacy-pages.js`、`assets/app/legacy-bridge.js`、`assets/app/styles/index.css`、`assets/styles.css`、`omrs_dashboard.html`、`tests/ui_baseline.json`。同步 `AGENTS.md`、`AI/frontend/records.md`、`AI/frontend/components.md`、`AI/frontend/architecture.md`、`AI/frontend/shell.md`、`AI/frontend/create.md`、版本号四处、`AI/changelog.md`、`README.md` 与本进度文件。旧 CSS 精确删除已逐段对照差异。
+新增 `assets/app/features/reports/`、`tests/app/reports.test.mjs`、`tests/e2e/reports.py`；删除 `assets/reports.js`；修改 `assets/app/ui/filedrop.js`、`assets/app/main.js`、页面登记模块、`assets/app/main.js`、`assets/app/styles/index.css`、`assets/app/styles/index.css`、`omrs_dashboard.html`、UI 基线文件。同步 `AGENTS.md`、`AI/frontend/records.md`、`AI/frontend/components.md`、`AI/frontend/architecture.md`、`AI/frontend/shell.md`、`AI/frontend/create.md`、版本号四处、`AI/changelog.md`、`README.md` 与本进度文件。旧 CSS 精确删除已逐段对照差异。
 
 ### 验证
 
@@ -373,14 +373,14 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 
 ### 盘点与行为变化
 
-- 旧 `assets/app.js` 的设置段包含五分区导航、外观、本机与远端访问、PIN、AI 配置、运行状态、备份和图片优化；对应 DOM 在 `omrs_dashboard.html`，设置专用规则在 `assets/styles.css` 的优化卡、外观控件和设置分区段。旧抽函数测试为 `test_settings_ui.js`（8 项）、`test_restart_ui.js`（6 项）、`test_auth_activity_ui.js`（4 项）；最后一份还覆盖 `core.js` 的活动续期和手机页 `/m` 的会话过期处理。
+- 旧 `assets/app/main.js` 的设置段包含五分区导航、外观、本机与远端访问、PIN、AI 配置、运行状态、备份和图片优化；对应 DOM 在 `omrs_dashboard.html`，设置专用规则在 `assets/app/styles/index.css` 的优化卡、外观控件和设置分区段。旧抽函数测试为 `test_settings_ui.js`（8 项）、`test_restart_ui.js`（6 项）、`test_auth_activity_ui.js`（4 项）；最后一份还覆盖 `core.js` 的活动续期和手机页 `/m` 的会话过期处理。
 - 新 `features/settings/` 按外观、访问、AI、数据、服务五区拆分，`state.js` 与 `storage-state.js` 保留纯投影。设置页成为路由页面契约，旧 `app.js` 设置段和专用 CSS 已删除。主题、密度、反色和 Ledger 时区沿用原 localStorage 键；访问范围以运行中的监听状态为准，免 PIN 网段单独保存不重启。PIN 与 AI Key 的校验和非回显保持；重启只在新 `instance_id` 出现后刷新。
 - 备份导入先确认上传、校验后再确认覆盖；图片扫描和压缩经任务接口轮询，离开页面再进入可继续读取任务或已完成的扫描候选。源码下载保留 `/api/source/export`。访问、AI、存储和服务的错误原地提示，重复写操作在请求期间受控。
 - 三份旧 Node 测试的 18 个用例迁到 `tests/app/settings.test.mjs`，用例总数为 18；其中活动续期与 `/m` 的 4 项保留原断言，P8 清理 `core.js` 时仍需改成新模块 import。新增 `tests/e2e/settings.py` 覆盖五区、非法网段、只改网段不重启、PIN、Key 不回显及清除、备份、扫描轮询、切页保留扫描、源码下载、重启新实例判定及四种显示组合的每区审计。重启请求由 Playwright route 拦截，没有真的重启实例；临时 Vault 不含源码目录，源码下载前端路径由固定 ZIP 响应验证，服务端打包由 `tests/test_source_export.py` 实测。
 
 ### 影响文件
 
-新增 `assets/app/features/settings/`、`tests/app/settings.test.mjs`、`tests/e2e/settings.py`；删除三份旧 Node 设置测试；修改 `assets/app.js`、`assets/app/main.js`、`assets/app/legacy-pages.js`、`assets/app/styles/index.css`、`assets/styles.css`、`omrs_dashboard.html` 和 `tests/ui_baseline.json`。同步 `AGENTS.md`、`AI/frontend/settings.md`、`AI/frontend/design-system.md`、`AI/frontend/architecture.md`、`AI/frontend/shell.md`、`AI/security.md`、`AI/inbox.md`、`AI/optimization.md`、`AI/routes.md`、版本号四处、`AI/changelog.md`、本计划进度和日志索引。旧 CSS 按设置专用段精确删除，通用 `.status-grid` 仍留给其它页面；`git diff --check` 通过。
+新增 `assets/app/features/settings/`、`tests/app/settings.test.mjs`、`tests/e2e/settings.py`；删除三份旧 Node 设置测试；修改 `assets/app/main.js`、`assets/app/main.js`、页面登记模块、`assets/app/styles/index.css`、`assets/app/styles/index.css`、`omrs_dashboard.html` 和 UI 基线文件。同步 `AGENTS.md`、`AI/frontend/settings.md`、`AI/frontend/design-system.md`、`AI/frontend/architecture.md`、`AI/frontend/shell.md`、`AI/security.md`、`AI/inbox.md`、`AI/optimization.md`、`AI/routes.md`、版本号四处、`AI/changelog.md`、本计划进度和日志索引。旧 CSS 按设置专用段精确删除，通用 `.status-grid` 仍留给其它页面；`git diff --check` 通过。
 
 ### 验证
 
@@ -396,13 +396,13 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 
 ### 盘点与行为变化
 
-- `assets/inbox.js` 的 673 行分为上传与收件箱筛选、框选画布与保存、检测 / 提取任务、题卡与提交、训练数据和策略五组；`ibBind()` 在 `#panel-create` 上委托点击 / 输入 / 变更，并在 `document` 捕获粘贴、监听处理区快捷键 Q / A / X / Delete / Enter / Ctrl+Enter / Esc，还在画布上绑定指针事件。`assets/app.js` 保留 `cr*` 快速录入图片与 AI 识别，`assets/schedule.js` 保留 `doCreate` / `resetCreateForm`，`assets/labels.js` 保留录入标记选择器。`omrs_dashboard.html` 的 `#panel-create` 包含 `ib-stage-upload / process / create / train / quick` 五区；`styles.css` 的 `.ib-*`、`.cr-*` 规则仍覆盖旧工作区。`tests/e2e/ui_bridge.py` 直接调全局 `ibToast`，其余调用方和旧内联事件仍保留。
+- `assets/inbox.js` 的 673 行分为上传与收件箱筛选、框选画布与保存、检测 / 提取任务、题卡与提交、训练数据和策略五组；`ibBind()` 在 `#panel-create` 上委托点击 / 输入 / 变更，并在 `document` 捕获粘贴、监听处理区快捷键 Q / A / X / Delete / Enter / Ctrl+Enter / Esc，还在画布上绑定指针事件。`assets/app/main.js` 保留 `cr*` 快速录入图片与 AI 识别，`assets/schedule.js` 保留 `doCreate` / `resetCreateForm`，`assets/app/domain/labels/index.js` 保留录入标记选择器。`omrs_dashboard.html` 的 `#panel-create` 包含 `ib-stage-upload / process / create / train / quick` 五区；`styles.css` 的 `.ib-*`、`.cr-*` 规则仍覆盖旧工作区。`tests/e2e/ui_bridge.py` 直接调全局 `ibToast`，其余调用方和旧内联事件仍保留。
 - `features/create/` 新增页面契约、导航状态与模板、导航样式；`main.js` 注册它，`legacy-pages.js` 移除 create 项。旧工作区放在 `#create-app`，挂载时仍调用旧 `inboxInit()`，保证上传、处理、录入、训练和快速录入都能继续使用。`ibGo()` 同步按钮的 `aria-current`，切页返回后旧控制器的阶段状态和导航保持一致。
 - 工作区入口改成原生按钮，前三步显示编号，AI 训练和快速录入使用统一 SVG 图标。手机导航采用三项加两项的两行排列，修掉首次截图发现的文字重叠。当前旧工作区的字体和行内样式仍待后续分步迁移，不能算 P6 页面指标已达标。
 
 ### 影响文件
 
-- 页面与样式：`assets/app/features/create/`、`assets/app/main.js`、`assets/app/legacy-pages.js`、`assets/app/styles/index.css`、`assets/inbox.js`、`omrs_dashboard.html`。
+- 页面与样式：`assets/app/features/create/`、`assets/app/main.js`、页面登记模块、`assets/app/styles/index.css`、`assets/inbox.js`、`omrs_dashboard.html`。
 - 测试：`tests/e2e/create.py` 新增隔离实例的导航、上传与快速录入主路径。
 - 文档与版本：`AGENTS.md` 映射表、`AI/frontend/create.md`、`AI/frontend/architecture.md`、`AI/frontend/design-system.md`、`AI/frontend/shell.md`、`AI/inbox.md`、`AI/changelog.md`、`AI/README.md`、`README.md`、`omrs/version.py`、本计划 `progress.md`。
 
@@ -425,7 +425,7 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 ### 行为变化与影响文件
 
 - `features/create/upload-view.js` 用现成 `ui/filedrop` 渲染多图选择与拖放区，旁边提供显式读取剪贴板按钮和就地状态；`upload.js` 在页面挂载期间捕获图片粘贴，三种入口共用 `/api/inbox/upload` 的 FormData 请求。非图片、剪贴板不可用、读取失败和上传失败在控件旁显示原因；请求期间禁用两个入口，避免重复提交。成功后通过 `inbox:reload` 通知旧列表重读，重复图片仍由现有接口合并。
-- `omrs_dashboard.html` 的旧上传 DOM 与内联事件改成挂载根；`assets/inbox.js` 删除 `ibUploadFiles`、`ibPickFiles`、`ibFileInput`、`ibDrop`、`ibReadClipboard` 和 `ibPaste`，旧控制器只监听总线刷新列表。`assets/styles.css` 精确删除只服务旧 dropzone 的四条规则，`features/create/create.css` 增加上传区样式；`tests/ui_baseline.json` 随旧存量下降而更新。`tests/e2e/create.py` 扩到 11 项，覆盖非图片拒绝、图片粘贴合并和上传服务失败。
+- `omrs_dashboard.html` 的旧上传 DOM 与内联事件改成挂载根；`assets/inbox.js` 删除 `ibUploadFiles`、`ibPickFiles`、`ibFileInput`、`ibDrop`、`ibReadClipboard` 和 `ibPaste`，旧控制器只监听总线刷新列表。`assets/app/styles/index.css` 精确删除只服务旧 dropzone 的四条规则，`features/create/create.css` 增加上传区样式；UI 基线文件 随旧存量下降而更新。`tests/e2e/create.py` 扩到 11 项，覆盖非图片拒绝、图片粘贴合并和上传服务失败。
 - 同步 `AI/frontend/create.md`、`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/design-system.md`、`README.md`、`AI/README.md`、`AI/changelog.md`、计划 `progress.md` 和版本号四处。收件箱网格、框选、题卡、训练与快速录入仍在旧控制器，后续逐块迁移。
 
 ### 验证
@@ -445,8 +445,8 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 ### 行为变化与影响文件
 
 - `features/create/quick.js`、`quick-view.js` 接管单题表单、分区图片、剪贴板粘贴、AI 分类与文本提取、创建和展示板入口；`state.js` 保存草稿并生成与原接口相同的 `/api/create` 请求。创建成功保留科目、分类、难度、知识点、标记和页码，只清空题面、答案、错因和两区图片，便于连续录入。
-- `omrs_dashboard.html` 的旧快速录入 DOM 换成挂载区；`assets/app.js`、`assets/schedule.js`、`assets/core.js` 和 `assets/labels.js` 删除旧录入专用函数、全局图片数组及表单标记 DOM。`assets/styles.css` 删除专属旧样式，新样式由 `features/create/create.css` 承担。旧收件箱题卡仍依赖 `core.js::populateCreateLists` 和页面末尾三个 datalist，因此保留至题卡迁移。
-- `tests/app/create.test.mjs` 覆盖请求契约、分类合并、提交后草稿状态和无行内事件；`tests/e2e/create.py` 扩充真实图片、粘贴目标、AI 固定响应、含图创建、四种主题/视口审计。`tests/ui_baseline.json` 随旧存量下降更新。同步 `AI/frontend/create.md`、`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/library.md`、`AI/frontend/shell.md`、版本号四处、changelog、README 和本计划进度。
+- `omrs_dashboard.html` 的旧快速录入 DOM 换成挂载区；`assets/app/main.js`、`assets/schedule.js`、`assets/app/domain/items.js` 和 `assets/app/domain/labels/index.js` 删除旧录入专用函数、全局图片数组及表单标记 DOM。`assets/app/styles/index.css` 删除专属旧样式，新样式由 `features/create/create.css` 承担。旧收件箱题卡仍依赖 `core.js::populateCreateLists` 和页面末尾三个 datalist，因此保留至题卡迁移。
+- `tests/app/create.test.mjs` 覆盖请求契约、分类合并、提交后草稿状态和无行内事件；`tests/e2e/create.py` 扩充真实图片、粘贴目标、AI 固定响应、含图创建、四种主题/视口审计。UI 基线文件 随旧存量下降更新。同步 `AI/frontend/create.md`、`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/library.md`、`AI/frontend/shell.md`、版本号四处、changelog、README 和本计划进度。
 
 ### 验证
 
@@ -468,8 +468,8 @@ P6 第 2 轮：复习调度（`SESSIONS` 所有权、`smoke_schedule_workbench.p
 
 ### 行为变化与影响文件
 
-- `features/create/grid.js`、`grid-view.js` 渲染收件箱原图卡片与框位预览，支持状态筛选、全选当前筛选中未录入的图片、批量 AI / 模板框选、沿用框位、整图即题目、去处理、丢弃和清空选择。已录入卡片打开关联题目；批量丢弃失败保留选择并就地提示。`legacy-inbox.js` 在迁移期间与旧处理工作区共用列表和选择状态；`assets/inbox.js`、`omrs_dashboard.html` 与 `assets/styles.css` 去掉原网格入口和专属结构，处理、题卡、训练仍由旧控制器负责。
-- `assets/inbox_mobile.html` 加载 `tokens.css` 和 `base.css`，页内颜色改用语义 token，读取主站的 `omrs-theme` 浅色 / 深色设置；上传与重复图片合并逻辑保持原接口。`tests/app/create.test.mjs` 增加网格纯规则测试，`tests/e2e/create.py` 扩充筛选、选择、批量操作和视觉审计；`tests/ui_baseline.json` 随旧代码存量下降更新。
+- `features/create/grid.js`、`grid-view.js` 渲染收件箱原图卡片与框位预览，支持状态筛选、全选当前筛选中未录入的图片、批量 AI / 模板框选、沿用框位、整图即题目、去处理、丢弃和清空选择。已录入卡片打开关联题目；批量丢弃失败保留选择并就地提示。`legacy-inbox.js` 在迁移期间与旧处理工作区共用列表和选择状态；`assets/inbox.js`、`omrs_dashboard.html` 与 `assets/app/styles/index.css` 去掉原网格入口和专属结构，处理、题卡、训练仍由旧控制器负责。
+- `assets/inbox_mobile.html` 加载 `tokens.css` 和 `base.css`，页内颜色改用语义 token，读取主站的 `omrs-theme` 浅色 / 深色设置；上传与重复图片合并逻辑保持原接口。`tests/app/create.test.mjs` 增加网格纯规则测试，`tests/e2e/create.py` 扩充筛选、选择、批量操作和视觉审计；UI 基线文件 随旧代码存量下降更新。
 - 版本升至 v1.25.13：`omrs/version.py`、`omrs_dashboard.html` 侧栏、`README.md`、`AI/README.md` 同步；更新 `AI/changelog.md`、`AI/frontend/create.md`、`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/shell.md` 与计划 `progress.md`。
 
 ### 验证

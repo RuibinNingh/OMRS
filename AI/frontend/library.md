@@ -2,7 +2,7 @@
 
 > **速查**
 > - 职责：题目库页（表格 / 画廊、筛选抽屉、批量、视图预设）、`filterItems()` 筛选语义、标记组件接入
-> - 入口：`assets/app/features/questions/`（`index.js` 控制器与页面契约、`state.js` 状态与纯函数、`view.js` 外壳模板、`list.js` 表格 / 画廊、`dialogs.js`、`questions.css`）；题目操作 `assets/app/domain/question/ops.js`；筛选语义仍是 `assets/core.js::filterItems()`；标记芯片、颜色与选择器数据 `assets/app/domain/labels/`，选择器浮层与标记管理的 DOM 仍在 `assets/labels.js`；快速录入从 `domain/labels/index.js::openCreateLabelPicker` 打开共用浮层
+> - 入口：`assets/app/features/questions/`（`index.js` 控制器与页面契约、`state.js` 状态与纯函数、`view.js` 外壳模板、`list.js` 表格 / 画廊、`dialogs.js`、`questions.css`）；题目操作 `assets/app/domain/question/ops.js`；筛选语义仍是 `assets/core.js::filterItems()`；标记芯片、颜色与选择器数据 `assets/app/domain/labels/`，选择器浮层与标记管理的 DOM 仍在 `assets/app/domain/labels/index.js`；快速录入从 `domain/labels/index.js::openCreateLabelPicker` 打开共用浮层
 > - 不变量：所有列表共用 `filterItems()`（经 `domain/items.js::filterAll`）；默认隐藏停用题；偏好与视图预设的 localStorage 键名沿用旧版；表格视图不拉题目详情
 > - 必跑测试：`node --test tests/app/questions.test.mjs`、`python3 tests/e2e/questions.py`、`node --test tests/app/labels.test.mjs`、`tests/test_question_suspend_frontend.js`
 > - 相关：`AI/frontend.md`（索引）、`AI/frontend/qview.md`（题面渲染与弹窗）、`AI/frontend/architecture.md`（页面契约与过渡桥）
@@ -103,7 +103,7 @@
 
 ### 标记组件与接入
 
-芯片由 `assets/app/domain/labels/chips.js` 生成（新代码 `labelChip(s)` 经 `raw()` 嵌入，旧代码用过渡桥挂的同名全局 `lblChip()` / `lblChips()`），`<=>` 双尖形，变体 soft（默认）/ solid / print，高 17 / 20（`lg`）/ 15px。颜色只写 `data-lbl-c="rrggbb"`：`sheet.js` 为每种用到的颜色往 `<style id="omrs-label-colors">` 的 `@layer domain` 块登记一条规则（`--lbl-c` / `--lbl-fg` / `--lbl-rgb` / `--lbl-ink-l` / `--lbl-ink-d`），模板不写 `style=`。`color.js::lblInk()` 按主题钳亮度保证 AA 对比度，`labelFg()` 为 solid 选 `--lbl-fg-dark` / `--lbl-fg-light`；预设色是 `tokens.css` 的 `--lbl-preset-1…10`（第 9 个灰色也是缺色时的默认）。选择器与管理的数据部分（排序、增改、候选、最近使用、快速区、下一个颜色、批量增删、表单规范化）在 `model.js`，都是纯函数（`tests/app/labels.test.mjs`）；芯片本身的形状与淡底仍在旧 `styles.css` 的 `.lbl`（P8 随 styles.css 搬）。
+芯片由 `assets/app/domain/labels/chips.js` 生成（新代码 `labelChip(s)` 经 `raw()` 嵌入，旧代码用过渡桥挂的同名全局 `lblChip()` / `lblChips()`），`<=>` 双尖形，变体 soft（默认）/ solid / print，高 17 / 20（`lg`）/ 15px。颜色只写 `data-lbl-c="rrggbb"`：`sheet.js` 为每种用到的颜色往 `<style id="omrs-label-colors">` 的 `@layer domain` 块登记一条规则（`--lbl-c` / `--lbl-fg` / `--lbl-rgb` / `--lbl-ink-l` / `--lbl-ink-d`），模板不写 `style=`。`color.js::lblInk()` 按主题钳亮度保证 AA 对比度，`labelFg()` 为 solid 选 `--lbl-fg-dark` / `--lbl-fg-light`；预设色是 `tokens.css` 的 `--lbl-preset-1…10`（第 9 个灰色也是缺色时的默认）。选择器与管理的数据部分（排序、增改、候选、最近使用、快速区、下一个颜色、批量增删、表单规范化）在 `model.js`，都是纯函数（`tests/app/labels.test.mjs`）；芯片本身的形状与淡底已迁入对应 `assets/app/` 样式模块 的 `.lbl`（P8 随 styles.css 搬）。
 
 标记接入录入表单、收件箱题卡、题库、题目 Modal、反馈、即时练习、推荐、导出、
 展示板、数据复盘和仪表盘。数据页显示按标记正确率/平均分，仪表盘显示活动题目的

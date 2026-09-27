@@ -41,7 +41,7 @@
 - 正向：`python3 tests/check_docs.py --diff <导出基线>` 结果为 0 处问题、1 条提醒（`api.md` 52KB）。
 - 反向（在临时副本上）：
   - 同时注入 5 类问题（缺速查头、链接日志、引用不存在的文件、新增未写文档的路由、路由表不同步），5 条全部报出，退出码 1；
-  - 只改 `assets/labels.js` 时，`--diff` 报出「前端分册未更新」和「缺任务日志」两条；
+  - 只改 `assets/app/domain/labels/index.js` 时，`--diff` 报出「前端分册未更新」和「缺任务日志」两条；
   - `--write-log-index` 生成的索引与日志文件一致。
 - 回归：Python 单测、Node 测试全部通过，计数见交付说明。
 

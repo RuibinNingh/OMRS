@@ -41,7 +41,7 @@
 | `assets/board.js` | 加载序号 `BOARD_LOAD_SEQ`；三个渲染函数重写为紧凑版式；打印区改分段按钮；估算可取消并复用预览版面；新增 `boardEstimateText` / `boardColumnWidth` / `boardEstimateCancel` / `boardEstimateDefer` / `boardApplyEstimate` |
 | `assets/inbox.js` | `ibToast` 带按钮时 8 秒；`ibCommit(k, options)` 支持静默；`ibCommitSelected` 汇总提示；新增 `ibBoardAction` |
 | `assets/schedule.js` | `doCreate` 成功提示加「加入展示板」按钮 |
-| `assets/styles.css` | `.bd-*` 整段重写为密度变量版；新增 `.bd-keys`、`.create-result-acts` |
+| `assets/app/styles/index.css` | `.bd-*` 整段重写为密度变量版；新增 `.bd-keys`、`.create-result-acts` |
 | `omrs_dashboard.html` | 展示板面板标题头收成一行 + 快捷键提示 |
 | `tests/smoke_board_print.py` | 修复失败断言；新增短板占位页续排、宽长图缩图切片两例 |
 | `tests/test_board_export.py` | 新增 KaTeX 打包断言（只有 woff2、缓存命中、导出体积） |

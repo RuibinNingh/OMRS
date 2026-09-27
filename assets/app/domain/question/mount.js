@@ -13,9 +13,10 @@ import { get } from '../../core/api.js';
 import { qvHtml, qvOptions } from './view.js';
 import { editQuestion, suspendQuestion, resumeQuestion, deleteQuestion } from './ops.js';
 import { closeModal, bindModalKeys } from './modal.js';
+import { itemOf } from '../items.js';
+import { boardQuickAdd } from '../board/index.js';
+import { openLabelPicker } from '../labels/index.js';
 
-const g = globalThis;
-const call = (name, ...args) => (typeof g[name] === 'function' ? g[name](...args) : undefined);
 const cache = {};
 const pending = {};
 const detailCache = () => cache;
@@ -23,7 +24,6 @@ const pendingCache = () => pending;
 /** 过渡桥用：旧代码读的 QUESTION_CACHE / QUESTION_PENDING（只读全局）。 */
 export const detailCacheObject = () => cache;
 export const pendingDetailsObject = () => pending;
-const itemOf = uid => call('getItemByUid', uid) || {};
 
 const mounts = new Map();     // 挂载点元素 → { uid, opts }
 const contexts = {};          // 上下文名 → uid 序列，供弹窗翻页
@@ -120,13 +120,14 @@ export function qvRerenderAll() {
 /** 「在题目库打开」：关弹窗、切到题库并按 UID 搜索（停用题同时放开停用筛选）；经过渡桥的 questionsLoadPreset 交给题库页。 */
 function openInLibrary(uid) {
   closeModal();
-  call('questionsLoadPreset', { 'q-search': uid, 'q-filter-suspended': itemOf(uid).suspended ? 'all' : '' });
+  globalThis.__omrs?.router.go('questions');
+  globalThis.__omrs?.emit('questions:preset', { 'q-search': uid, 'q-filter-suspended': itemOf(uid).suspended ? 'all' : '' });
 }
 
 const ACTIONS = {
   edit: uid => editQuestion(uid),
-  board: (uid, button, event) => call('boardQuickAdd', uid, { anchor: button, direct: event.shiftKey }),
-  labels: (uid, button) => call('openLabelPicker', uid, button),
+  board: (uid, button, event) => boardQuickAdd(uid, { anchor: button, direct: event.shiftKey }),
+  labels: (uid, button) => openLabelPicker(uid, button),
   suspend: uid => suspendQuestion(uid),
   resume: uid => resumeQuestion(uid),
   delete: uid => deleteQuestion(uid),

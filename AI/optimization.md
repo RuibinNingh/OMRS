@@ -59,7 +59,7 @@
   `server.py` 的 `do_GET`(~150 行)/ `do_POST`(~280 行)是手写分支链,`json.loads(body)` 重复十几次。可收成 `{(method, path): handler}` 派发表 + 统一 body 解析。纯整理,降认知负担。
 
 - [ ] **前端整块 innerHTML 重渲染 + 行内 onclick** — 影响:中 / 工作量:高
-  存量由 `tests/check_ui.py` 的棘轮基线 `tests/ui_baseline.json` 跟踪(只减不增);新代码在 `assets/app/` 下零容忍。
+  存量由 `tests/check_ui.py` 的棘轮基线 UI 基线文件 跟踪(只减不增);新代码在 `assets/app/` 下零容忍。
   项目仍广泛使用 `innerHTML=` 和模板内 `onclick=`；具体数量会随功能变化，不在此硬编码。它们会导致高频交互重建整块 DOM、标记与逻辑混在字符串中，并阻碍 ES Module 化。务实改法：先把队列、反馈行等高频区域改为局部更新和事件委托。
   **v1.10.0 已完成反馈页部分**：`renderFb()` 拆成 `fbRenderRail` / `fbRenderPanel` / `fbRenderStage`，点「对 / 错」只就地改一行 class（`fbPatchRailRow`）并重绘判定面板，题目 DOM 与 KaTeX 不再整块重建，滑杆焦点与滚动位置不丢；rail 与判定面板的控件改走 `data-fb-go` / `data-fb-act` 事件委托，qview 的工具按钮走 `data-qv-act` 委托。**仍未处理**：题目库表格与画廊、导出选题器、推荐面板、历史时间线、数据复盘表格等仍是整块 `innerHTML` + 行内 `onclick`；（即时练习、反馈录入已随前端重构 P3 / P4 迁到 `assets/app/features/instant/`、`assets/app/features/feedback/`，改用 morph 差量更新，上述 `fbRender*` / `data-fb-*` 随旧 `feedback.js` 一并删除。）
   **v1.14.0 新增的 `qtable.js` / `board.js` 也保留了整块渲染**：两者都已迁走（题库 P5、展示板 P7），新页面用 `morph` 差量更新。

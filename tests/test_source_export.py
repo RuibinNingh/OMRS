@@ -25,7 +25,6 @@ class SourceExportTests(unittest.TestCase):
             (root / "AI" / "logs" / "private.md").write_text("private\n", encoding="utf-8")
             (root / "omrs" / "config.json").write_text('{"api_key":"secret"}', encoding="utf-8")
             (root / "omrs" / "state.json").write_text('{"private":1}', encoding="utf-8")
-            (root / "tests" / "ui_baseline.json").write_text('{"files":{}}', encoding="utf-8")
             (root / "assets" / "app").mkdir(parents=True)
             (root / "assets" / "app" / "package.json").write_text('{"type":"module"}', encoding="utf-8")
             (root / "assets" / "app" / "data.json").write_text('{"private":1}', encoding="utf-8")
@@ -39,12 +38,12 @@ class SourceExportTests(unittest.TestCase):
 
             self.assertTrue(filename.startswith("OMRS-source-sanitized-"))
             self.assertTrue(filename.endswith(".zip"))
-            self.assertEqual(meta["files"], 6)
+            self.assertEqual(meta["files"], 5)
             with zipfile.ZipFile(io.BytesIO(payload)) as archive:
                 names = set(archive.namelist())
                 self.assertEqual(names, {
                     "OMRS/README.md", "OMRS/AI/README.md", "OMRS/omrs/server.py",
-                    "OMRS/tests/test_new.py", "OMRS/tests/ui_baseline.json", "OMRS/assets/app/package.json",
+                    "OMRS/tests/test_new.py", "OMRS/assets/app/package.json",
                     "OMRS/SOURCE_EXPORT_MANIFEST.txt",
                 })
                 manifest = archive.read("OMRS/SOURCE_EXPORT_MANIFEST.txt").decode("utf-8")

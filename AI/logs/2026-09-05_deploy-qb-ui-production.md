@@ -4,7 +4,7 @@
 
 部署上传包 `files (17).zip`（内层 `OMRS-题库UI优化.zip`）。**纯前端 + 测试增量**，无后端/接口改动，无 version.py（生产保持 v1.14.2，避免重号）。改动 6 文件：
 
-- `assets/qtable.js` / `assets/questions.js` / `assets/qview.js` / `assets/styles.css` / `omrs_dashboard.html`
+- `assets/qtable.js` / `assets/questions.js` / `assets/qview.js` / `assets/app/styles/index.css` / `omrs_dashboard.html`
 - `tests/test_md_linebreaks.js`（新增，8 个用例）
 
 行为要点（自补丁代码归纳）：

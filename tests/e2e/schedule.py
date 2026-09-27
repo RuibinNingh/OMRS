@@ -198,7 +198,7 @@ def run_legacy(page, base, port, results):
     made = wait(page, "() => SCH_VIEW === 'plans' && document.getElementById('sch-plan-filter').value === 'active' && document.getElementById('sch-plan-detail').textContent.includes('共 1 题')", timeout=10000)
     check("旧入口：安排复习里「生成计划」后切到「已有计划」并打开新计划", made)
     sid = [s for s in http(port, "/api/sessions")["sessions"]][0]["session_id"]
-    ev("switchTab('dashboard')")
+    ev("window.__omrs.router.go('dashboard')")
     ev(f"schOpenPlan({json.dumps(sid)})")
     check("旧入口 schOpenPlan(id)：从别的页切过来并打开该计划",
           wait(page, "id => location.hash === '#/schedule' && document.getElementById('sch-plan-detail').textContent.includes(id)", arg=sid))
@@ -289,6 +289,7 @@ def run_export(page, base, port, results):
 
 def run_mobile(browser, base, results):
     ctx = browser.new_context(viewport={"width": 390, "height": 844})
+    ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
     page = ctx.new_page()
     open_schedule(page, base)
     plans(page)
@@ -319,6 +320,7 @@ def main():
         with sync_playwright() as p:
             browser = launch_browser(p)
             ctx = browser.new_context(viewport={"width": 1440, "height": 900}, accept_downloads=True)
+            ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
             page = ctx.new_page()
             page.set_default_timeout(8000)
             errors = []
@@ -334,6 +336,7 @@ def main():
             for theme in ("light", "dark"):
                 for label, size, target in (("桌面", (1440, 900), 28), ("手机", (390, 844), 40)):
                     c = browser.new_context(viewport={"width": size[0], "height": size[1]})
+                    c.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
                     c.add_init_script(f"try{{localStorage.setItem('omrs-theme','{theme}')}}catch(e){{}}")
                     pg = c.new_page()
                     open_schedule(pg, base)

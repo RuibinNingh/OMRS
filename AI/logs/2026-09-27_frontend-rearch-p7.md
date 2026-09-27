@@ -41,7 +41,7 @@
 **改名：** `assets/app/domain/board.js` → `assets/app/domain/board/index.js`。它再导出上面的纯函数，并保留 `boardQuickAdd` / `boardChooseAndAdd` 两个适配器。`features/data/index.js`、`features/questions/index.js` 的 import 各改一行。
 
 **修改：**
-- `assets/app/legacy-bridge.js`：新增 `installBoardBridge`，用 `Object.assign` 把两个模块的导出按原名挂回全局。两个模块的导出不重名，由单测检查。
+- `assets/app/main.js`：新增 `installBoardBridge`，用 `Object.assign` 把两个模块的导出按原名挂回全局。两个模块的导出不重名，由单测检查。
 - `assets/board.js`：删掉搬走的定义和 `module.exports`，文件头注明新位置，1612 → 1499 行。
 - `assets/board_picker.js`：删掉 4 个纯函数和 `module.exports`。
 
@@ -121,9 +121,9 @@
 - 新增 `assets/app/features/board/save.js`（`createBoardSaveQueue`、`boardAdoptSaved`）、`print.js`（`createBoardPrint`、`fetchBoardExport`、`measureBoardLayout`）、`preview.js`（由 `assets/board_preview.js` 改为 ES 模块，导出请求改走 `fetchBoardExport`，其余逐行不变）。
 - 删除 `assets/board_preview.js`；`omrs_dashboard.html` 去掉它的 `<script>`，`board.js` / `board_picker.js` 的 `?v=` 改为 `20260927-p7r2`。
 - `assets/board.js`：删掉上述状态与实现，改为 `boardSaveQueue()` / `boardPrint()` 懒创建实例并注入回调（当前板、请求、采纳返回的板、提示、确认、重绘），旧函数名保留为一行包装；1499 → 1346 行。
-- `assets/app/legacy-bridge.js`：`installBoardBridge` 另挂 save / print / preview 三个模块。
+- `assets/app/main.js`：`installBoardBridge` 另挂 save / print / preview 三个模块。
 - 测试：新增 `tests/app/board-save.test.mjs`（8）、`board-print.test.mjs`（7）；`board.test.mjs` 加一条五模块导出不重名（20 → 21）；`board-preview.test.mjs` 改为动态 import 模块（10，原样）；`board-locked.test.mjs` 注入保存与打印模块，`BOARD_DIRTY` / `BOARD_WINDOWS` / `BOARD_PRINT_JOBS` 改为 `boardSaveQueue()` / `boardPrint()` 的访问器（20，原样）；`board-regions.test.mjs` 读预览模块源码（17，原样）；`tests/smoke_board_integrity.py` 的 `BOARD_DIRTY`、`BOARD_WINDOWS`、`BP_FRAME` 改用 `boardSaveQueue().dirty()`、`boardPrint().windows`、`boardPreviewFrame()`，断言不变。
-- `tests/ui_baseline.json`：删 `assets/board_preview.js` 一行，`assets/board.js` 的 inline_style 与 color_literals 各 −2（`--update-baseline`）。
+- UI 基线文件：删 `assets/board_preview.js` 一行，`assets/board.js` 的 inline_style 与 color_literals 各 −2（`--update-baseline`）。
 - 版本 v1.26.1（四处）与 `AI/changelog.md`；文档 `AI/frontend/board-ui.md`（速查、代码位置表、预览与保存队列两节）、`AI/board.md`、`AI/frontend/shell.md`（加载顺序去掉 board_preview）、`AI/frontend/architecture.md`、`AI/frontend/components.md`、`AI/optimization.md`；计划 `progress.md`（状态块、U17、§2、§3、§4、§5c、§8、§9）。
 
 ### 验证
@@ -170,7 +170,7 @@
 
 - 新增 `assets/app/features/board/drag.js`、`settings.js`。
 - `assets/board.js`：拖拽两处改为调用绑定函数并注入写入回调；版面设置改为 `boardSettings()` 懒创建、注入界面钩子（比例读数、切割线标签禁用、检查器 / 状态条 / 读数刷新、留白输入框回填），`boardApplyPrintField` / `boardSetItemGap` / `boardAllowLayoutChange` 是一行包装；键盘排序用新纯函数；`[data-ui-ok]` → `[data-dialog-ok]`；1346 → 1260 行。`omrs_dashboard.html` 的 `?v=` 改为 `20260927-p7r3`。
-- `assets/app/legacy-bridge.js`：`installBoardBridge` 另挂 settings / drag。
+- `assets/app/main.js`：`installBoardBridge` 另挂 settings / drag。
 - 测试：新增 `tests/app/board-settings.test.mjs`（6）、`board-drag.test.mjs`（5，含用 DOM 替身跑拖拽绑定与 Esc 取消）；`board.test.mjs` 的模块契约扩到七个模块（条数不变）；`board-locked.test.mjs` 注入 settings / drag，`BOARD_LAYOUT_GRANTED` 改读 `boardSettings().granted()`（20，原样）；`board-regions.test.mjs` 的「改板级字段后刷新读数」改查 `boardSettings` 源码里注入的钩子（17，原样）。
 - 版本 v1.26.2（四处）与 `AI/changelog.md`；文档 `AI/frontend/board-ui.md`（速查与代码位置表）、`AI/board.md`、`AI/frontend/architecture.md`、`AI/frontend/components.md`、`AI/optimization.md`；计划 `progress.md`（状态块、§3、§4、§5c；删去 §5b 里 P6 第 1–5 轮已完成的开工条目，文件回到 40KB 以下）。
 
@@ -223,9 +223,9 @@
 - 新增 `assets/app/domain/board/picker.js`（控制器，332 行）、`picker-view.js`（模板）、`picker.css`（`@layer domain`，在 `styles/index.css` 登记）、`source.js`（过渡期数据来源）。
 - `assets/app/domain/board/model.js`：行模型 `boardPickerItems`、`boardPickerDefaultActive`、`boardPickerStep`、`boardPickerFoldTarget`、`boardPickerRowAfterGroup`、`boardPickerPlan`、`boardPickerPosition`。`index.js`：`boardQuickAdd` / `boardChooseAndAdd` 直接打开新浮层，另再导出浮层入口。
 - `assets/app/core/keys.js`：`pushKeyLayer` / `keyLayerCount`。
-- `assets/app/legacy-bridge.js`：`installBoardBridge` 另挂 `boardPickerOpen` / `boardPickerClose` / `boardPickerIsOpen` / `boardQuickAdd` / `boardChooseAndAdd`，逐条注明调用方；`__omrsUi.host` 的注释去掉选板一项。
+- `assets/app/main.js`：`installBoardBridge` 另挂 `boardPickerOpen` / `boardPickerClose` / `boardPickerIsOpen` / `boardQuickAdd` / `boardChooseAndAdd`，逐条注明调用方；`__omrsUi.host` 的注释去掉选板一项。
 - 删除 `assets/board_picker.js` 与它的 `<script>`；`board.js` 去掉 `BOARD_PICKER.collapsed` 那行、页面快捷键让位、文件头注明新位置；`omrs_dashboard.html` 的 `board.js?v=` 改为 `20260927-p7r4`。
-- `assets/styles.css`：删 `.bd-picker-*`、`.bd-new-folder`、`@keyframes bdPickerIn` 与它们的注释、手机段两条（55 行）；`tests/ui_baseline.json` 删 `board_picker.js`、`styles.css` 下调（颜色 83→82、字号 205→193）。
+- `assets/app/styles/index.css`：删 `.bd-picker-*`、`.bd-new-folder`、`@keyframes bdPickerIn` 与它们的注释、手机段两条（55 行）；UI 基线文件 删 `board_picker.js`、`styles.css` 下调（颜色 83→82、字号 205→193）。
 - `assets/app/features/questions/index.js`：只改一行注释（「点外面关闭」的说明）。
 - 测试：新增 `tests/app/board-picker.test.mjs`（11）、`tests/e2e/board_picker.py`（31）；`core.test.mjs` +3（浮层层）；`board.test.mjs` 的两条契约改为含选板浮层（条数不变）；`questions.py` 两处改查 `.bpicker`（条数不变）。
 - 版本 v1.26.3（四处）与 `AI/changelog.md`；文档 `AI/frontend/board-ui.md`、`AI/board.md`（§3.2 键盘与挂载）、`AI/frontend/architecture.md`（`core/keys` 表、过渡桥两行）、`AI/frontend/components.md`、`AI/frontend/design-system.md`、`AI/frontend/library.md`、`AI/frontend/shell.md`、`AI/optimization.md`、`AI/environment.md`；计划 `progress.md`（状态块、§3、§4、§5c、§8；§5 P5 的已完成清单压成一段，文件回到 40KB 以下）。
@@ -277,9 +277,9 @@
 
 - 新增 `assets/app/features/board/index.js`（页面契约与控制器）、`state.js`（视图模型）、`view.js`（模板）、`board.css`（`@layer features`，在 `styles/index.css` 登记）；`assets/app/domain/board/boards.js`（板列表数据所有者）、`legacy.js`（过渡适配器）。
 - `assets/app/domain/board/source.js`：板列表、文件夹、上次用的板、折叠改读 `boards.js`。
-- `assets/app/legacy-bridge.js`：`installBoardBridge` 另挂 `adoptBoards` / `boardCurrentId` / `boardRemember` / `boardPreferredId` / `boardHintText` / `boardPageRepaint`，去掉 `boardPickerIsOpen`（唯一调用方 `board.js` 的 keydown 已删）。`legacy-pages.js` 删 board，`main.js` 登记 `boardPage`。
+- `assets/app/main.js`：`installBoardBridge` 另挂 `adoptBoards` / `boardCurrentId` / `boardRemember` / `boardPreferredId` / `boardHintText` / `boardPageRepaint`，去掉 `boardPickerIsOpen`（唯一调用方 `board.js` 的 keydown 已删）。`legacy-pages.js` 删 board，`main.js` 登记 `boardPage`。
 - `assets/board.js`：1261 → 831 行（见盘点）；新增 `boardPageSnapshot` / `boardSetPrintMode` / `boardMoveItemTo` / `boardRepaintPage`；`boardRender` 只写列表 / 画廊与检查器，其余交给新页面；文件头注明新位置。
-- `omrs_dashboard.html`：`#panel-board` 变成空壳，`board.js?v=20260927-p7r5`，版本号。`assets/styles.css` 删 118 条已无人使用的 `.bd-*` 规则与孤立注释（按「类名在 JS / HTML 里已无引用」判定，`.bd-views` 仍被加题对话框用，只留它的一条）；`tests/ui_baseline.json` html_assign 81 → 76。
+- `omrs_dashboard.html`：`#panel-board` 变成空壳，`board.js?v=20260927-p7r5`，版本号。`assets/app/styles/index.css` 删 118 条已无人使用的 `.bd-*` 规则与孤立注释（按「类名在 JS / HTML 里已无引用」判定，`.bd-views` 仍被加题对话框用，只留它的一条）；UI 基线文件 html_assign 81 → 76。
 - 测试：新增 `tests/app/board-page.test.mjs`（12）、`tests/e2e/board.py`（22）；`board-regions.test.mjs` 的 INV-1 / INV-3 / 骨架三条改查 `view.js` / `state.js`（条数不变）；`board-locked.test.mjs` 注入 `boards.js`；`board_picker.py` 改读 `boardCurrentId()`。
 - 版本 v1.26.4（四处）与 `AI/changelog.md`；文档 `AI/frontend/board-ui.md`（代码位置、页面各区、快捷键、布局）、`AI/board.md`（§3、§3.1、§3.3、§7）、`AI/frontend/architecture.md`（目录、过渡表）、`AI/frontend/components.md`、`AI/frontend/shell.md`、`AI/frontend/design-system.md`、`AI/optimization.md`（新增一条 `[ ]`：「添加题目」弹层 Esc 关不掉，迁移前就如此，第 6 轮换 `ui/dialog` 时修）；计划 `progress.md`（状态块、§3、§4、§5c、§8；第 1–3 轮清单压成一段）。
 
@@ -329,7 +329,7 @@
 
 - 新增 `assets/app/features/board/detail.js`、`runtime.js`、`add.js`，`assets/app/domain/board/detail-port.js`；删除 `assets/board.js`、`assets/app/domain/board/legacy.js`。
 - 修改 `features/board/index.js`（接 `detail.js`，动作 +12：`openItem` / `remove` / `focusGap` / `locate` / `inspectLocate` / `inherit` / `gapLive` / `gapSet` / `printLive` / `printSet` / `seg` / `resetPrinted`；点条目选中、双击打开；拖拽只绑一次）、`state.js`、`view.js`、`model.js`、`board.css`（列表 / 画廊 / 检查器 / 加题 / 同步，281 行）；`domain/board/boards.js`、`source.js`、`picker.js`（改走端口）；`legacy-bridge.js`（`installBoardBridge` 重写；其余几处注释去掉已删的 `board.js`）。
-- `omrs_dashboard.html` 删 `board.js` 的 `<script>`、面板注释、版本号；`assets/styles.css` 删 139 行（`.bd-*`、`.board-add-*`、`.bdadd-*`、`.board-sync-options`、`.qb-search`；`.q-label-cell` 保留），`tests/ui_baseline.json` 去掉 `assets/board.js` 一行、`styles.css` 颜色 82 → 80、字号 193 → 184。
+- `omrs_dashboard.html` 删 `board.js` 的 `<script>`、面板注释、版本号；`assets/app/styles/index.css` 删 139 行（`.bd-*`、`.board-add-*`、`.bdadd-*`、`.board-sync-options`、`.qb-search`；`.q-label-cell` 保留），UI 基线文件 去掉 `assets/board.js` 一行、`styles.css` 颜色 82 → 80、字号 193 → 184。
 - 测试：`board-locked.test.mjs` 从 vm 跑旧脚本改为 `createBoardDetail` 注入替身（20 条原样迁、另加 5 条：确认被拒放焦点、打印范围与等待记录、并发重读只认最后一次、关页 sendBeacon、视图与选中）；`board-regions.test.mjs` 静态检查改查 `view.js` / `state.js` / `detail.js`（17 条不变，「继承读数统一刷新」改为「三处读数同出 `gapReadout`」）；`board-page.test.mjs` +8；`tests/e2e/board.py` 22 → 35；三份冒烟测试见上。
 - 版本 v1.26.5（四处）与 `AI/changelog.md`；文档 `AI/frontend/board-ui.md`（代码位置整表、骨架与 morph、舞台、检查器、加题）、`AI/board.md`（速查、§3、§3.3、§7）、`AI/frontend/architecture.md`（目录、过渡表：删 `legacy.js` 一行、重写过渡桥一行）、`components.md`、`shell.md`（文件树与加载顺序）、`design-system.md`、`AI/optimization.md`（删「添加题目 Esc」一条；「board.js 承载多种职责」记为完成）；计划 `progress.md`。
 
@@ -369,9 +369,9 @@
 
 **可能冲突的地方**（本机已经做过 P6 某些页面时）：
 - 版本号四处和 `AI/changelog.md` 顶部：按 progress §9，工作区版本不低于补丁版本时，在当前最大版本上加 0.0.1，并同步 changelog 标题。
-- `AGENTS.md` 映射表、`legacy-bridge.js` 的 import 与 `install*Bridge` 调用列表、`omrs_dashboard.html` 的 `<script>` 列表、`tests/ui_baseline.json`：两边都保留（`ui_baseline.json` 冲突时用 `check_ui.py --update-baseline` 重算，只许下降）。
+- `AGENTS.md` 映射表、`legacy-bridge.js` 的 import 与 `install*Bridge` 调用列表、`omrs_dashboard.html` 的 `<script>` 列表、UI 基线文件：两边都保留（`ui_baseline.json` 冲突时用 `check_ui.py --update-baseline` 重算，只许下降）。
 - `progress.md`：两边都保留，状态块写两条线的实际位置。
-- 第 5 轮起另有：`main.js` 的页面列表、`legacy-pages.js`、`styles/index.css` 的 `@import` 列表（两边都保留）；`assets/styles.css`（P6 页面也在删旧规则：逐 hunk 合并，只删本日志列出的展示板规则，合并后跑 `check_ui` 与 `tests/e2e/board.py`）。
+- 第 5 轮起另有：`main.js` 的页面列表、`legacy-pages.js`、`styles/index.css` 的 `@import` 列表（两边都保留）；`assets/app/styles/index.css`（P6 页面也在删旧规则：逐 hunk 合并，只删本日志列出的展示板规则，合并后跑 `check_ui` 与 `tests/e2e/board.py`）。
 - 第 6 轮另有：`legacy-bridge.js` 里其它 `install*Bridge` 的注释（去掉了已删的 `board.js` 调用方）；`assets/questions.js` 本轮未改（`masteryBarHtml` 已无调用方，按执行说明 P8 随文件删除）。
 
 **门禁与预期计数**（在 v1.25.4 上合入时）：

@@ -33,7 +33,7 @@
 | `omrs/export_templates/board.css` | `.cut-line` / `.cut-line.solid` / `.cut-line .tag`，打印时颜色深一档 |
 | `assets/board.js` | 脏字段合并队列（`boardMarkDirty` / `boardFlushSave`）；`boardEffectiveGap`；`boardItemsPayload` 改传 `gap_lines`；行内输入空值=继承；三视图与 `boardContentBodyHtml` / `boardPagerHtml`；`boardSyncPreview` / `boardPushRelayout` / `boardContentSignature`；删除独立估算链路；`boardMarkPrinted` 优先复用预览版面；离开页面前 flush |
 | `assets/board_preview.js` | **新建**：单例 iframe 生命周期、三档刷新、导出指纹缓存、单页/缩放/翻页、消息回传 |
-| `assets/styles.css` | `.bd-pager` / `.bd-stage` / `.bd-preview-frame` / `.bd-views` / `.bd-zoom` |
+| `assets/app/styles/index.css` | `.bd-pager` / `.bd-stage` / `.bd-preview-frame` / `.bd-views` / `.bd-zoom` |
 | `omrs_dashboard.html` | `#bd-content` 拆成 `#bd-content-head` + 常驻 `#bd-stage` + `#bd-content-body`；加载 `board_preview.js` |
 | `tests/test_boards.py` | 既有断言迁到 v3 语义（折算、`gap_lines`、版本号常量化） |
 | `AGENTS.md` | 新增「计划与用户意图（防目标漂移）」一节 |

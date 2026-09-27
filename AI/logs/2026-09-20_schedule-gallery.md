@@ -9,7 +9,7 @@
 ## 修改文件
 
 - `assets/recommend_v2.js`：视图状态、localStorage 恢复、qview 懒加载挂载和列表/画廊渲染。
-- `assets/styles.css`、`omrs_dashboard.html`：切换控件、画廊卡片网格与窄屏布局。
+- `assets/app/styles/index.css`、`omrs_dashboard.html`：切换控件、画廊卡片网格与窄屏布局。
 - `tests/test_recommend_v2_filters.js`：补充推荐状态、日期、标记、均衡排序和异步响应测试。
 - `AI/frontend.md`、`README.md`：同步当前用户可见行为。
 

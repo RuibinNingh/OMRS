@@ -29,6 +29,7 @@ with tempfile.TemporaryDirectory(prefix='omrs-lock-http-vault-') as vault, sync_
     base=f'http://127.0.0.1:{server.server_address[1]}'
     browser=launch_chromium(pw)
     context=browser.new_context(viewport={'width':1440,'height':1000})
+    context.add_init_script(path=str(root / 'tests/e2e/p8_test_modules.js'))
     errors=[]
     def export_layout(mode):
         response=context.request.post(base+'/api/export',data={'format':'board','board_id':bid,'mode':mode})
@@ -46,7 +47,7 @@ with tempfile.TemporaryDirectory(prefix='omrs-lock-http-vault-') as vault, sync_
         initial=read_board(vault,bid)['printed']
         page=context.new_page(); page.on('pageerror',lambda e:errors.append(str(e)))
         page.goto(base,wait_until='load'); page.wait_for_function("typeof boardAddToBoard === 'function'")
-        page.evaluate("async id => { switchTab('board'); await boardReloadData(); await boardLoad(id); window.__confirmCalls=[]; configureBoardDetail({confirm: async (...args)=>{window.__confirmCalls.push(args);return false;}}); }",bid)
+        page.evaluate("async id => { window.__omrs.router.go('board'); await boardReloadData(); await boardLoad(id); window.__confirmCalls=[]; configureBoardDetail({confirm: async (...args)=>{window.__confirmCalls.push(args);return false;}}); }",bid)
         page.evaluate("async args => { await boardAddToBoard(args.id,[args.uid],{silent:true}); }",{'id':bid,'uid':new['uid']})
         after=read_board(vault,bid)
         calls=page.evaluate('window.__confirmCalls')

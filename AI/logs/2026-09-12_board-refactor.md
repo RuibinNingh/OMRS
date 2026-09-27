@@ -55,7 +55,7 @@
   `boardGalleryCardHtml` 的留白改只读；`boardSetItemGap`、`boardApplyPrintField`、
   `boardRender`、`boardEffectiveMode` 与事件委托同步改写；`boardStatusModel` 进 `module.exports`。
 - `assets/board_preview.js`：`boardPreviewSetView()` 的 `omrs-board-view` 带 `embedded: true`。
-- `assets/styles.css`：新增 `.bd-statusbar` / `.bd-status-chip` / `.bd-inspector` / `.bd-ins-*` /
+- `assets/app/styles/index.css`：新增 `.bd-statusbar` / `.bd-status-chip` / `.bd-inspector` / `.bd-ins-*` /
   `.bd-gap-view` / `.bd-stagebar`；`.bd-layout` 改三列并加 1180px 断点；删除 `.bd-pop*`、
   `.bd-inspect*`、`.bd-head*`、`.bd-toolbar`、旧 `.bd-gap`。
 - `omrs_dashboard.html`：面板骨架改为状态条 + 三栏，移除 `#bd-inspect` 与 `bd-head` 里重复的

@@ -10,10 +10,10 @@
 - 「优化」卡：环状图 + 引线 + 图例 + 4 按钮 → 头部（存储概览 + 状态副标题 + 总占用大数）+ 三张指标卡（数据链/题目文件/题目图片，含卡底比例条）+ 堆叠比例条 + 固定占位进度区 + **两张操作卡**（扫描图片 / 确认压缩）+ 依赖 pill + `#opt-status`。
 - 「服务设置」卡：新增「数据备份」分隔区，放**导出备份 / 导入备份**两张操作卡（沿用 `.opt-action` 设计）+ 隐藏 `#opt-import-file` + `#svc-backup-status`。
 
-**CSS（`assets/styles.css`）**
+**CSS（`assets/app/styles/index.css`）**
 - 删除 `.opt-layout/.opt-donut*/.opt-callout*/.opt-legend*` 整段及 v1.3.0 覆盖段中对应规则；新增 `.opt-head*/.opt-metrics/.opt-metric*/.opt-bar*/.opt-action*/.aicon-*/.svc-sub-title`；保留 `.opt-dot/.opt-pill*/#opt-deps`、进度区 `.opt-progress*` 与 `optScanPulse`。操作卡图标用内联 SVG（放大镜/压缩/下载/上传），颜色走语义 token（trap/attack/kill/accent）。
 
-**JS（`assets/app.js`）**
+**JS（`assets/app/main.js`）**
 - 重写 `renderOptimizeChart`（环图→指标卡+堆叠条；调 `optValues()` 不变）、`updateOptimizeControls`（操作卡 disabled/busy + 据状态写头部副标题；**去掉备份前置**，压缩只看 Pillow+候选）；删 `renderOptimizeCalloutLines`；`confirmOptimizeCompression` 去掉 `OPT_BACKUP_TOKEN` 前置、保留二次确认、`backup_token` 传 `||''`；`exportOptimizeBackup`/`importOptimizeBackup` 状态从 `#opt-status` 改写到 `#svc-backup-status`；新增 `svcBackupStatus()`；`pollOptimizeScanJob` 去掉「请先导出备份」措辞；`startOptimizeJobPolling`/`startOptimizeScanPolling` 改用 `updateOptimizeControls()` 管理忙碌态（不再点名按钮）；`scanOptimizeImages` 去掉对已删除 `#opt-scan-btn` 的引用。
 
 **后端（`omrs/optimization.py`）— 最小放宽**

@@ -1,26 +1,11 @@
-"""前端纪律门禁：新代码（assets/app/**）零容忍，旧代码按文件计数只减不增（棘轮）。
+"""Front-end UI gate. All production markup and styles are checked without a legacy baseline.
 
-    python3 tests/check_ui.py                    # 检查；有问题退出码 1
-    python3 tests/check_ui.py --report           # 打印旧代码各项存量合计
-    python3 tests/check_ui.py --update-baseline  # 存量下降后下调基线；任何一项上升都拒绝写入
+    python3 tests/check_ui.py          # violations cause exit status 1
+    python3 tests/check_ui.py --report # counts in the standalone pages and shell
 
-新代码规则（assets/app/**，tokens.css 只豁免 R1–R4）：
-R1 颜色字面量（#hex、rgb/rgba/hsl/hsla）只允许出现在 styles/tokens.css
-R2 font-size / line-height / font-weight / font-family 只能用 var(--…) 或 inherit
-R3 margin / padding / gap 不写长度字面量（用 var(--sp-*)、0、auto 或含 var 的 calc）
-R4 border-radius 用 var(--r-*)、0 或 50%；box-shadow 用 var(--elev-*)、none 或含 var(--focus-ring)；
-   z-index 用 var(--z-*) 或 -1/0/1/2；transition / animation 不写时长和缓动字面量
-R5 @media 宽度只允许 760 / 1160 / 1500（及其 +1 的互补值）
-R6 JS / HTML 模板里没有 style= 与 on*= 属性；innerHTML / outerHTML / insertAdjacentHTML 只在 core/dom.js
-R7 依赖方向：core → core；ui → ui、core；domain → domain、ui、core；
-   features/<x> → 本页、domain、ui、core（页面之间不互相 import）；assets/app 根目录文件不限
-R8 单个 JS 文件 ≤ 400 行，CSS ≤ 300 行
-R9 每个 assets/app/features/<x>/ 必须出现在 AGENTS.md「代码到文档的对应关系」表里
-
-旧代码（assets/*.js、assets/styles.css、assets/inbox_mobile.html、omrs_dashboard.html）：
-统计 handlers（on*= 属性）、html_assign（innerHTML 等）、inline_style（style= 属性）、
-color_literals（颜色字面量）、font_size_literals（非 var 的 font-size），记入 tests/ui_baseline.json。
-assets/ 根目录不允许新增前端文件：新代码一律放 assets/app/。
+Rules R1–R9 cover token use, safe DOM writes, import direction and file size.
+The standalone mobile page and dashboard shell must have zero inline handlers, HTML
+assignments, inline styles, literal colors and untokenized font sizes.
 """
 import json
 import os
@@ -28,7 +13,6 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BASELINE = os.path.join("tests", "ui_baseline.json")
 APP = "assets/app"
 METRICS = ("handlers", "html_assign", "inline_style", "color_literals", "font_size_literals")
 MAX_LINES = {".js": 400, ".mjs": 400, ".css": 300}
@@ -95,36 +79,18 @@ def measure_legacy(root):
     return {rel(root, p): legacy_counts(p) for p in legacy_files(root)}
 
 
-def load_baseline(root):
-    path = os.path.join(root, BASELINE)
-    if not os.path.isfile(path):
-        return None
-    return json.load(open(path, encoding="utf-8"))["files"]
-
-
-def dump_baseline(root, files):
-    lines = ['{"files": {']
-    items = sorted(files.items())
-    for i, (name, counts) in enumerate(items):
-        body = json.dumps({k: counts[k] for k in METRICS}, ensure_ascii=False)
-        lines.append(f'  "{name}": {body}{"," if i < len(items) - 1 else ""}')
-    lines.append("}}")
-    path = os.path.join(root, BASELINE)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    open(path, "w", encoding="utf-8").write("\n".join(lines) + "\n")
-
-
-def check_legacy(root, current, baseline):
+def check_legacy(root, current):
     problems = []
-    if baseline is None:
-        return [f"缺少 {BASELINE}：先运行 python3 tests/check_ui.py --update-baseline"]
+    allowed = {"inbox_mobile.html"}
+    assets = os.path.join(root, "assets")
+    for name in os.listdir(assets):
+        path = os.path.join(assets, name)
+        if os.path.isfile(path) and name not in allowed:
+            problems.append(f"assets/{name}：前端根目录只允许 inbox_mobile.html；代码放 assets/app/")
     for name, counts in current.items():
-        if name not in baseline:
-            problems.append(f"{name}：assets/ 根目录不允许新增前端文件，新代码放 {APP}/")
-            continue
         for key in METRICS:
-            if counts[key] > baseline[name][key]:
-                problems.append(f"{name}：{key} {baseline[name][key]} → {counts[key]}（旧代码只许减少）")
+            if counts[key]:
+                problems.append(f"{name}：{key} {counts[key]}（全仓零容忍）")
     return problems
 
 
@@ -230,26 +196,18 @@ def check_app(root):
 
 def main(argv, root=ROOT):
     current = measure_legacy(root)
-    baseline = load_baseline(root)
     if "--update-baseline" in argv:
-        if baseline is not None:
-            worse = [p for p in check_legacy(root, current, baseline) if "→" in p]
-            if worse:
-                print("\n".join(worse))
-                print("存量上升，拒绝写入基线")
-                return 1
-        dump_baseline(root, current)
-        print(f"已写入 {BASELINE}（{len(current)} 个文件）")
-        return 0
+        print("P8 起没有存量基线；直接修复 check_ui.py 报出的违规")
+        return 1
     if "--report" in argv:
         for key in METRICS:
             print(f"{key:20} {sum(c[key] for c in current.values())}")
         return 0
-    problems = check_app(root) + check_legacy(root, current, baseline)
-    for p in problems:
-        print(p)
-    totals = {k: sum(c[k] for c in current.values()) for k in METRICS}
-    print(f"旧代码存量：{json.dumps(totals, ensure_ascii=False)}；{len(problems)} 处问题")
+    problems = check_app(root) + check_legacy(root, current)
+    for problem in problems:
+        print(problem)
+    totals = {key: sum(counts[key] for counts in current.values()) for key in METRICS}
+    print(f"全仓 UI 计数：{json.dumps(totals, ensure_ascii=False)}；{len(problems)} 处问题")
     return 1 if problems else 0
 
 

@@ -56,7 +56,7 @@
 | `omrs/boards.py` | `BOARDS_VERSION=2`；`_normalize_folder` / `_arrange`（load 与 save 共用、幂等）；`create_folder` / `update_folder` / `delete_folder` / `move_board` / `list_folders`；`create_board` 接受 `folder_id`；`duplicate_board` 继承文件夹并显式排在源板之后；`list_boards` 返回 `folder_id` / `order` / `uids` |
 | `omrs/server.py` | 4 条新路由（`/api/board/folder/{create,update,delete}`、`/api/board/move`）；`/api/boards` 返回 `folders`；`create` / `update` 接受 `folder_id` |
 | `assets/board.js` | `boardPickerOpen` 及纯函数 `boardFolderTree` / `boardPickerRowState` / `boardPickerFilter` / `boardPickerRecent`；`boardListHtml()` 重写为两级树；`boardBindTreeDrag()`；文件夹 CRUD；toast 调整；`boardHintText()` 惰性标注默认板 |
-| `assets/styles.css` | `.bd-picker-*`、`.bd-folder-*`、`.bd-tree`；颜色全部走既有变量，无裸十六进制 |
+| `assets/app/styles/index.css` | `.bd-picker-*`、`.bd-folder-*`、`.bd-tree`；颜色全部走既有变量，无裸十六进制 |
 | `assets/questions.js` `qview.js` `feedback.js` `qtable.js` `data.js` `schedule.js` `omrs_dashboard.html` | 各入口传 `anchor` 与 `direct`（`Shift`）；题库行内菜单的锚点取仍在 DOM 里的 `⋯` 按钮，不取会被一起关掉的菜单项 |
 | `tests/test_boards.py` | 新增 `BoardFolderTests`：v1 迁移、悬空 `folder_id`、文件夹 CRUD 与排序、删除文件夹两种语义、跨组 / 组内移动、复制归属、`list_boards` 的 `uids` |
 | `tests/test_board_ui.js` | 新增 5 组纯函数用例 |

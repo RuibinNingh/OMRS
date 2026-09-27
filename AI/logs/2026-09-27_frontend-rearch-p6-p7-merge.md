@@ -16,7 +16,7 @@
 
 ## 盘点
 
-- 相对祖先，P6 新增 56、删除 7、修改 45 个文件；P7 新增 30、删除 4、修改 33、改名 4 个（即累计补丁的 71 个）。两边都改的 21 个文件里，git 自动合并 7 个（`AGENTS.md`、`AI/environment.md`、`AI/frontend/components.md`、`AI/frontend/library.md`、`AI/frontend/records.md`、`AI/optimization.md`、`assets/styles.css`），14 个文本冲突。
+- 相对祖先，P6 新增 56、删除 7、修改 45 个文件；P7 新增 30、删除 4、修改 33、改名 4 个（即累计补丁的 71 个）。两边都改的 21 个文件里，git 自动合并 7 个（`AGENTS.md`、`AI/environment.md`、`AI/frontend/components.md`、`AI/frontend/library.md`、`AI/frontend/records.md`、`AI/optimization.md`、`assets/app/styles/index.css`），14 个文本冲突。
 - 语义冲突（git 查不出）1 处：P6 新写的 `assets/app/features/create/quick.js` 仍 `import { boardQuickAdd } from '../../domain/board.js'`，这个文件 P7 第 1 轮已改为 `domain/board/index.js`。ES 模块只要一个 import 失败，整个 `main.js` 模块图都不执行，整站只剩旧脚本。
 - 交叉引用核对：P6 从 `history.js`、`catalog.js`、`reports.js`、`app.js`（设置段）、`inbox.js`、`labels.js`、`schedule.js`、`core.js` 删掉的 159 个顶层名字，P7 改过的文件一个都没有引用（登记表 `legacy-pages.js` 除外，见下）。反过来，P6 仍在用的旧展示板全局只有 `boardInit` / `boardReloadData`（`app.js`、`labels.js`）与 `boardQuickAdd`（`inbox.js`），都由 P7 的 `installBoardBridge` 挂回。
 
@@ -24,13 +24,13 @@
 
 - 版本号四处与 `AI/changelog.md`：按 progress §9（U16 一行）的规则，工作区 v1.25.13 低于补丁版本，取 v1.26.5，不另加 0.0.1；此后各页从 v1.26.6 起。`README.md` 末尾「版本」一节 P7 一侧还停在 v1.24.2，一并改为 v1.26.5。changelog 按版本倒序排两条线（v1.26.5–v1.26.0 在前，v1.25.13–v1.25.5 在后），v1.26.5 段首加一条合并说明。
 - `assets/app/main.js`：两边的页面契约都登记（P6 的 history、catalog、reports、settings、create，P7 的 board）。
-- `assets/app/legacy-pages.js`：P6 删完五页后只剩 board，P7 删掉 board，登记表为空；文件留到 P8 连同 `main.js` 的 `...LEGACY_PAGES` 一起删。
+- 页面登记模块：P6 删完五页后只剩 board，P7 删掉 board，登记表为空；文件留到 P8 连同 `main.js` 的 `...LEGACY_PAGES` 一起删。
 - `assets/app/styles/index.css`：两边的 `@import` 都保留（domain 层加 `domain/board/picker.css`；features 层在 `schedule.css` 之后依次是 `board.css` 与 P6 的六个样式表）。
 - `omrs_dashboard.html`：`<script>` 同时去掉 `board.js`、`board_picker.js`、`board_preview.js`（P7 已删）与 `history.js`、`catalog.js`、`reports.js`（P6 已删）；`inbox.js`、`app.js` 用 P6 一侧的缓存参数；`main.js` 与 `index.css` 内容与两侧都不同，缓存参数改为 `20260927-p6p7-merge`。
-- `assets/app/legacy-bridge.js`：唯一冲突是 `uiDialog` 调用方注释，写成现存的 `labels.js`、`questions.js`。
+- `assets/app/main.js`：唯一冲突是 `uiDialog` 调用方注释，写成现存的 `labels.js`、`questions.js`。
 - `assets/app/features/create/quick.js`：import 改为 `../../domain/board/index.js`，与 P7 改 `features/data/index.js`、`features/questions/index.js` 的写法相同，函数签名一致。
-- `assets/styles.css`（自动合并）：逐行核对，合并结果相对 P6 的增删与 P7 相对祖先的增删完全相同，反之亦然；P7 删的展示板规则与 P6 删的旧规则没有重叠或遗漏。
-- `tests/ui_baseline.json`：先按两侧逐项取小写入，`check_ui.py` 0 处问题后用 `--update-baseline` 重算为实测值（只降不升）。与 P6 一侧的基线相比，`inbox.js`、`styles.css`、`omrs_dashboard.html` 的下降来自框选在制代码与 P7 删的展示板规则。
+- `assets/app/styles/index.css`（自动合并）：逐行核对，合并结果相对 P6 的增删与 P7 相对祖先的增删完全相同，反之亦然；P7 删的展示板规则与 P6 删的旧规则没有重叠或遗漏。
+- UI 基线文件：先按两侧逐项取小写入，`check_ui.py` 0 处问题后用 `--update-baseline` 重算为实测值（只降不升）。与 P6 一侧的基线相比，`inbox.js`、`styles.css`、`omrs_dashboard.html` 的下降来自框选在制代码与 P7 删的展示板规则。
 - 文档：`AI/README.md`、`AI/frontend/architecture.md`、`design-system.md`、`shell.md` 的冲突处写成合并后的实际状态（页面清单、`<script>` 顺序、domain 层、过渡桥表）；`architecture.md` §8 待办同步两条线的完成情况。`progress.md` 状态块写两条线的位置，§3、§4 换成合并后的实测，§1 加 U18，§2 加本次合并一行，§5b 登记框选在制，§8 更新剩余 document 级 keydown（只剩 `app.js`），§9 记本次变更。
 
 ## 影响文件

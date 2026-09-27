@@ -16,7 +16,7 @@
 - `omrs/sessions.py`
 - `assets/feedback.js`
 - `assets/schedule.js`
-- `assets/styles.css`
+- `assets/app/styles/index.css`
 - `omrs_dashboard.html`
 - `omrs/version.py`
 - `README.md`

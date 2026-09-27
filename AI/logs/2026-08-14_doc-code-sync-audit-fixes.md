@@ -14,11 +14,11 @@
 2. **录入图片格式限制**（`omrs/creation.py`）：`_MIME_EXT` 移除 WebP/BMP；`_save_pasted_images()` 对不支持格式直接抛 `ValueError("不支持的图片格式 …（仅支持 PNG/JPEG/GIF）")`，与 `/api/image` 与导出的 `_read_image_info()` 支持范围一致（此前 WebP/BMP 可落盘但无法被图片服务读取）。
 3. **移除死代码**：
    - `omrs/feedback.py`：删除无调用的 `_writeback_md()` / `_update_frontmatter_tags()` / `_normalize_tags()` 及 `os`/`re` 导入、`STATUS_ATTACKING`/`STATUS_KILLED`/`TRAP_TAG` 常量（v1.1.0 Ledger 架构后标签转移由投影器 `_apply_single_review()` 实现）。
-   - `assets/core.js`：删除无 UI 入口的 `getScheduleRecommendation()` / `renderScheduleRecommendation()` / `applyRecommendedScheduleCount()`（依赖的 `#sch-subject`/`#sch-count`/`#sch-recommend-note` 元素不存在），并从 `populateFilterOptions()` 移除 `'sch-subject'`。
+   - `assets/app/domain/items.js`：删除无 UI 入口的 `getScheduleRecommendation()` / `renderScheduleRecommendation()` / `applyRecommendedScheduleCount()`（依赖的 `#sch-subject`/`#sch-count`/`#sch-recommend-note` 元素不存在），并从 `populateFilterOptions()` 移除 `'sch-subject'`。
    - `assets/schedule.js`：删除 `createSession()`（旧「新建 Session」流程，`POST /api/schedule` 端点保留兼容），`refreshSessions()` 不再调用 `renderScheduleRecommendation()`；Session 列表空态文案改为「点击上方「开始常规复习」创建」。
-   - `assets/app.js`：`reloadData()` 不再调用 `renderScheduleRecommendation()`。
+   - `assets/app/main.js`：`reloadData()` 不再调用 `renderScheduleRecommendation()`。
    - `omrs/reports.py`：删除无调用的 `_ID_RE` 与 `_valid_id()`（及 `re` 导入）。
-4. **CSS 重复定义收拢**（`assets/styles.css`）：删除 v1.4.2 遗留的 `.instant-queue`（55vh）定义，保留 v1.5.0 的 62vh 段。
+4. **CSS 重复定义收拢**（`assets/app/styles/index.css`）：删除 v1.4.2 遗留的 `.instant-queue`（55vh）定义，保留 v1.5.0 的 62vh 段。
 
 ### 文档同步
 
@@ -46,10 +46,10 @@
 - `omrs/feedback.py`
 - `omrs/creation.py`
 - `omrs/reports.py`
-- `assets/core.js`
-- `assets/app.js`
+- `assets/app/domain/items.js`
+- `assets/app/main.js`
 - `assets/schedule.js`
-- `assets/styles.css`
+- `assets/app/styles/index.css`
 - `omrs/export_templates/screen.js`（数据形状注释 `answers:[{idx,uid,blocks}]`）
 - `AI/algorithm.md`、`AI/frontend.md`、`AI/api.md`、`AI/data.md`、`AI/optimization.md`
 - `AI/logs/log.md`（本日志索引）

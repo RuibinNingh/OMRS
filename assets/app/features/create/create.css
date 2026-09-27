@@ -32,28 +32,28 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1.5px solid var(--border2);
+  border: 1.5px solid var(--border-2);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: var(--fg3);
-  font: 600 var(--fs-sm)/1 'JetBrains Mono', 'Noto Sans SC', monospace;
+  color: var(--fg-3);
+  font: 600 var(--text-xs)/1 'JetBrains Mono', 'Noto Sans SC', monospace;
 }
-#create-flow .ib-flow-step.on .ib-flow-icon { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+#create-flow .ib-flow-step.on .ib-flow-icon { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 #create-flow .ib-flow-icon svg { width: 16px; height: 16px; }
 #create-flow .ib-flow-copy { min-width: 0; display: grid; }
-.crw-upload { display: grid; gap: var(--row); }
+.crw-upload { display: grid; gap: var(--sp-2); }
 .crw-upload .ui-filedrop { min-height: 148px; }
-.crw-upload__actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--row); }
+.crw-upload__actions { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: var(--sp-2); }
 .crw-upload__status { color: var(--fg-3); font-size: var(--text-sm); }
 .crw-upload__status.is-error { color: var(--danger); }
 @media(max-width: 760px) {
-  #create-flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--row); }
+  #create-flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--sp-2); }
   #create-flow .ib-flow-arrow, #create-flow .fs-sub, #create-flow .fs-count small { display: none; }
-  #create-flow .ib-flow-step { grid-column: span 2; min-width: 0; min-height: 44px; padding: var(--ctl); gap: var(--ctl); }
+  #create-flow .ib-flow-step { grid-column: span 2; min-width: 0; min-height: 44px; padding: var(--sp-1_5); gap: var(--sp-1_5); }
   #create-flow .ib-flow-step.aux { grid-column: span 3; }
-  #create-flow .fs-count { font-size: var(--fs); margin-left: auto; }
+  #create-flow .fs-count { font-size: var(--text-sm); margin-left: auto; }
 }
 
 /* 快速录入：截图、识别、核对和保存。 */

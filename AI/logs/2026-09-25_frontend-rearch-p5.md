@@ -46,7 +46,7 @@
 | `assets/app/domain/question/mount.js` | 详情缓存 `ensureDetail`（读写旧 `QUESTION_CACHE`，请求走 `core/api.js`）、`qvRender` / 失效 / 重绘、题目弹窗 `viewQ` / `closeModal` 与翻页、按钮委托、题图降级、弹窗 ←/→（`core/keys.js`，`inDialog:true`）|
 | `assets/app/domain/question/index.js` | 出口；原 `domain/questions.js` 的 `mountQuestion` / `mountQuestionStage` / `invalidateQuestions` / `editQuestion` 并入（旧文件删除）|
 | `assets/app/domain/question/qview.css` | `layer(domain)`：双栏时挂载点是 `qv` 容器；超宽公式；截断与战绩带档位；题图 |
-| `assets/app/legacy-bridge.js` | 新增 `installQuestionBridge`：20 个同名全局逐条注明调用方 |
+| `assets/app/main.js` | 新增 `installQuestionBridge`：20 个同名全局逐条注明调用方 |
 | 删除 | `assets/qview.js`、`assets/app/domain/questions.js`；`questions.js` 的渲染 / 详情 / 弹窗 63 行；`core.js` 的记录函数；`styles.css` 里 `.qv` 自身的容器声明与从不生效的 `@container` / `@supports` 块；`instant.css`、`feedback.css` 的挂载点补丁 |
 
 计划文件夹：`AI/plans/README.md`（约定）、`AI/plans/frontend-rearch/plan.md`（原计划，只加一行指向进度）、`AI/plans/frontend-rearch/progress.md`（进度，取代包外交接文档里的大部分内容）。`tests/check_docs.py` 新增规则 9（计划文件夹两件齐全、`progress.md` 状态块），计划文档不查路径存在、不计入路由说明；`AGENTS.md` 加开工读 `progress.md` 与收尾第 9 条，映射表加 `assets/app/domain/question/` → `AI/frontend/qview.md`。
@@ -194,8 +194,8 @@
 | `assets/app/domain/question/modal.js`（新，118 行） | 题目弹窗：`viewQ(uid, context?, {returnFocus})`、`closeModal`、`modalOpen`、`modalUid`、←/→（从 `mount.js` 迁出） |
 | `assets/app/domain/question/editor.js`（新，74 行） | Markdown 编辑器（原 `questions.js`） |
 | `mount.js`、`ops.js`、`index.js`、`view.js`、`qview.css` | 去掉弹窗代码；`editQuestion` 直接打开编辑器；出口加两个新文件；qview 的标记以题目列表为准；弹窗与编辑器外观 |
-| `assets/app/legacy-bridge.js`、`domain/labels.js` | `__omrsUi.host` / `release`；`closeMarkdownEditor`；`installEscapeBridge` 去掉关弹窗、加关标记管理；`managerOpen` / `closeManager` |
-| `assets/labels.js`、`assets/board_picker.js` | 浮层经 `__omrsUi.host` 放进宿主对话框、关闭时 `release`；`closeLabelManager` / `labelManagerOpen`；选板浮层「点外面关闭」只让不包含它的弹层挡住 |
+| `assets/app/main.js`、`domain/labels.js` | `__omrsUi.host` / `release`；`closeMarkdownEditor`；`installEscapeBridge` 去掉关弹窗、加关标记管理；`managerOpen` / `closeManager` |
+| `assets/app/domain/labels/index.js`、`assets/board_picker.js` | 浮层经 `__omrsUi.host` 放进宿主对话框、关闭时 `release`；`closeLabelManager` / `labelManagerOpen`；选板浮层「点外面关闭」只让不包含它的弹层挡住 |
 | `assets/app/features/questions/` | 行 / 卡 `tabindex=-1`；`open()` 传 `returnFocus`（`focusRow` 移游标并交出行）；行焦点不另画框（游标描边即可见焦点） |
 | `assets/app/core/keys.js`、`features/feedback/index.js` | 「有对话框打开」的守卫排除退场中的 `.is-closing` |
 | 删除 | `omrs_dashboard.html` 的 `#modal` 与 `#md-editor` 外壳（6 个 `on*=`、4 个 `style=`）；`questions.js` 的编辑器三个函数；`styles.css` 的 `.modal-wide`、`#md-editor`、`.qv-nav` 四条、`.modal .q-meta` 与焦点圈规则里的 `.qv-nav .btn` |
@@ -269,11 +269,11 @@
 | 文件 | 变化 |
 |---|---|
 | `assets/app/domain/labels/`（新目录，替代 `domain/labels.js`） | `color.js`（颜色算法，预设色经 `presetColors()` 读 tokens）、`sheet.js`（运行时样式表，`@layer domain`）、`chips.js`（芯片，同旧签名）、`model.js`（选择器与管理的数据部分，纯函数）、`index.js`（出口 + 旧适配器）、`labels.css`（色板按 `data-lbl-c` 取色） |
-| `assets/labels.js` | 删颜色工具、`LABEL_PRESETS`、`lblChip` / `lblChips`、最近使用三函数与 `module.exports`；排序、增改、选择器候选、批量、管理表单改调过渡桥挂的纯函数；色板与颜色圆点改写 `data-lbl-c` |
-| `assets/app/legacy-bridge.js` | 新增 `installLabelsBridge`（14 个同名全局，逐条注明调用方） |
+| `assets/app/domain/labels/index.js` | 删颜色工具、`LABEL_PRESETS`、`lblChip` / `lblChips`、最近使用三函数与 `module.exports`；排序、增改、选择器候选、批量、管理表单改调过渡桥挂的纯函数；色板与颜色圆点改写 `data-lbl-c` |
+| `assets/app/main.js` | 新增 `installLabelsBridge`（14 个同名全局，逐条注明调用方） |
 | `assets/app/domain/question/view.js` | qview 的标记芯片直接用 `domain/labels/chips.js`（不再读旧全局） |
 | `assets/app/domain/question/qview.css` | 重写：qview 全部外观（160 行），全部 token 化；别处容器对 qview 的覆盖搬到文件末尾 |
-| `assets/styles.css` | 删 qview、`.md-p` / `.md-table*`、战绩带、占位与覆盖规则共约 100 行；两条深色组合选择器里去掉 `.qv .q-md` 与 `.qv-locked` |
+| `assets/app/styles/index.css` | 删 qview、`.md-p` / `.md-table*`、战绩带、占位与覆盖规则共约 100 行；两条深色组合选择器里去掉 `.qv .q-md` 与 `.qv-locked` |
 | `assets/app/styles/tokens.css` | 新增 `--surface-sunken`、`--success-subtle` / `--success-line`、`--streak-ok` / `--streak-bad`、`--lbl-preset-1…10`、`--lbl-fg-dark` / `--lbl-fg-light` |
 | `tests/check_contrast.py` | 加 `fg-1` / `fg-2` 压在 `surface-sunken` 上两组（54 → 58） |
 | `AGENTS.md` | 映射表加 `assets/app/domain/labels/` → `AI/frontend/library.md` |

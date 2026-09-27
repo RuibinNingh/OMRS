@@ -10,7 +10,7 @@
 
 ## 修改文件
 
-- `omrs_dashboard.html`、`assets/recommend_v2.js`、`assets/schedule.js`、`assets/styles.css`
+- `omrs_dashboard.html`、`assets/recommend_v2.js`、`assets/schedule.js`、`assets/app/styles/index.css`
 - `omrs/server.py`、`omrs/sessions.py`、`omrs/scheduling.py`
 - `tests/` 中的调度、推荐与接口回归测试
 - `AI/frontend.md`、`AI/api.md`、`AI/algorithm.md`、`AI/data.md`、`AI/export.md`、`AI/README.md`、`README.md`

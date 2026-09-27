@@ -18,7 +18,7 @@
 
 - 外层 `OMRS.zip` 含 `OMRS-v1.25.4-p6r5-2026-09-25.zip`、`changes-2026-09-25-p6r5.patch`、`UPGRADE-2026-09-25-p6r5.md` 和截图包。
 - UPGRADE 把 p6r5 补丁标为相对 p6r4；其补丁链从 P6r1 到 P6r5，不能视作面向当前 v1.19.1 树的独立增量。
-- 在当前 OMRS 工作区执行 `git apply --check`（只读）失败：既有文件上下文不符，且若干目标路径不存在，例如 `AI/plans/frontend-rearch/progress.md`、`assets/app/legacy-bridge.js`。因此不得直接应用此补丁，也不得将完整包整树覆盖到现有工作区。
+- 在当前 OMRS 工作区执行 `git apply --check`（只读）失败：既有文件上下文不符，且若干目标路径不存在，例如 `AI/plans/frontend-rearch/progress.md`、`assets/app/main.js`。因此不得直接应用此补丁，也不得将完整包整树覆盖到现有工作区。
 - 计划路线中 P6r5 不是 P6 完成态；仍有 P6 后续页面、P7、P8 和终检。按既有规划，应最终统一部署整体验收包。
 
 ## Codex 接手清单

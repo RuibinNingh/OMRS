@@ -26,7 +26,6 @@ import { kbd } from '/assets/app/ui/kbd.js';
 import { stat } from '/assets/app/ui/stat.js';
 import { card } from '/assets/app/ui/card.js';
 import { tag } from '/assets/app/ui/tag.js';
-import { installLegacyBridge } from '/assets/app/legacy-bridge.js';
 import { registerCoreTests } from '/tests/app/core_tests.js';
 
 const tests = [];
@@ -394,19 +393,6 @@ test('skeleton：showAfter 超时前隐藏；取消后保持隐藏', async () =>
   showAfter(hidden, 30)();
   await sleep(80);
   eq(hidden.hidden, true);
-});
-
-test('legacy-bridge.js：补发排队的旧调用；旧 toast 不传 kind 映射为 ok；confirm 可用', async () => {
-  let queued = null;
-  window.__omrsUiPending = [ui => { queued = ui; }];
-  const ui = installLegacyBridge(window);
-  eq(queued, ui);
-  eq(window.__omrsUiPending, null);
-  eq(window.__omrsUi, ui);
-  eq(ui.toast('旧提示').el.dataset.kind, 'ok');
-  const pending = ui.confirm('旧确认');
-  topDialog().querySelector('[data-dialog-ok]').click();
-  eq(await pending, true);
 });
 
 async function run() {

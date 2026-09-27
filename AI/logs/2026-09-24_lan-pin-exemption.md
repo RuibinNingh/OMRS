@@ -13,7 +13,7 @@
 
 ## 影响文件
 
-`omrs/common.py`、`omrs/security.py`、`omrs/server.py`、`assets/app.js`、`omrs_dashboard.html`、`tests/test_security.py`、`README.md`、`AI/api.md`、`AI/data.md`、`AI/frontend.md`、`AI/inbox.md`、`AI/optimization.md`、`AI/security.md`、本日志和 `AI/logs/log.md`。生产运行配置 `错题/.omrs/config.json` 增加 `lan_pin_exempt_cidrs`。
+`omrs/common.py`、`omrs/security.py`、`omrs/server.py`、`assets/app/main.js`、`omrs_dashboard.html`、`tests/test_security.py`、`README.md`、`AI/api.md`、`AI/data.md`、`AI/frontend.md`、`AI/inbox.md`、`AI/optimization.md`、`AI/security.md`、本日志和 `AI/logs/log.md`。生产运行配置 `错题/.omrs/config.json` 增加 `lan_pin_exempt_cidrs`。
 
 ## 验证
 

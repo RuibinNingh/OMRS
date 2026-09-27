@@ -36,7 +36,7 @@ export function defaultBoardDetailDeps() {
     preview,
     /** 展示板页当前是否显示（常驻预览只在显示时同步；加题 toast 决定要不要给「打开展示板」）。 */
     pageActive: () => !!g.document?.getElementById('panel-board')?.classList.contains('active'),
-    gotoBoard: () => { if (typeof g.switchTab === 'function') g.switchTab('board'); },
+    gotoBoard: () => { g.__omrs?.router.go('board'); },
     openQuestion: (uid, list) => viewQ(uid, list),
     setTimer: (fn, ms) => setTimeout(fn, ms),
     clearTimer: id => clearTimeout(id),

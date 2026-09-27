@@ -4,7 +4,7 @@
 
 部署上传包 `OMRS-gallery-lean-20260905.zip`（README 标题标 v1.14.1，但该版本号今天 12:55 已被展示板打印预览修复占用、version.py 现为 v1.14.2；**此包不含 version.py，属 v1.14.2 之上的纯前端增量**，未改动版本号避免重号）。改动 5 个文件，无新增文件、无接口改动、无构建步骤：
 
-- `assets/questions.js` / `assets/qtable.js` / `assets/styles.css` / `omrs_dashboard.html` / `AI/frontend.md`
+- `assets/questions.js` / `assets/qtable.js` / `assets/app/styles/index.css` / `omrs_dashboard.html` / `AI/frontend.md`
 
 核心行为：画廊卡从「8 条等权横带」改为「标识 / 题面 / 脚注」三层精简（默认）；元数据收进「列 / 密度」菜单新开关「显示元数据」（`QB_GALLERY_DETAIL`，localStorage `omrs-qb-gallery-detail`，默认关）。详见包内 `交接文档_gallery-lean.md`（README 七点：去重、去卡中卡、只报异常、悬停收纳、密度、截断改渐隐、chips 空行）。
 

@@ -127,12 +127,12 @@ def run(page, base, results):
     check('处理工作区 Delete 只删除当前选中框',
           wait(page, "() => document.querySelectorAll('#ib-ps-body [data-ib-rg]').length === 1 && !document.querySelector('.crp-box[data-role=\"answer\"]')"))
     page.locator('#ib-layout').select_option('photo')
-    page.evaluate("switchTab('settings')")
+    page.evaluate("window.__omrs.router.go('settings')")
     check('离开框选工作区前写出未到防抖时间的版式', wait(page, """async () => {
       const data = await (await fetch('/api/inbox/items')).json();
       return data.items.some(item => item.file === '题图.png' && item.layout === 'photo');
     }"""))
-    page.evaluate("switchTab('create')")
+    page.evaluate("window.__omrs.router.go('create')")
     page.locator('#create-flow [data-ib-stage="upload"]').click()
     page.locator('[data-action="create.gridOpen"]').click()
     check('点击图片进入对应处理队列', page.locator('#ib-stage-process').evaluate('(e) => getComputedStyle(e).display !== "none"')
@@ -144,7 +144,7 @@ def run(page, base, results):
           and page.locator('#create-flow [data-ib-stage="process"]').get_attribute('aria-current') == 'step')
     page.locator('#create-flow [data-ib-stage="quick"]').click()
     check('快速录入工作区可打开', page.locator('#ib-stage-quick').evaluate('(e) => getComputedStyle(e).display !== "none"'))
-    page.evaluate("switchTab('settings'); switchTab('create')")
+    page.evaluate("window.__omrs.router.go('settings'); window.__omrs.router.go('create')")
     check('离开再返回仍停在原工作区', page.locator('#create-flow [data-ib-stage="quick"]').get_attribute('aria-current') == 'step'
           and page.locator('#ib-stage-quick').evaluate('(e) => getComputedStyle(e).display !== "none"'))
     page.fill('#cr-subject', '数学')
@@ -319,7 +319,7 @@ def run_cards(page, base, results):
     upload(page, '批量一.png', 120)
     upload(page, '批量二.png', 150)
     check('测试数据：两张图经接口置为就绪', page.evaluate(READY_JS, ['批量一.png', '题面 $x^2$']) and page.evaluate(READY_JS, ['批量二.png', '另一题']))
-    page.evaluate("switchTab('settings'); switchTab('create')")
+    page.evaluate("window.__omrs.router.go('settings'); window.__omrs.router.go('create')")
     page.locator('#create-flow [data-ib-stage="create"]').click()
     check('就绪图片重读后出现在题卡工作区', wait(page, "() => document.querySelectorAll('#ib-stage-create .crc-card').length === 2 && !!document.querySelector('#ib-stage-create .crc-text .katex')"))
     for index in range(2):
@@ -358,7 +358,7 @@ def run_train(page, base, results):
     config = page.evaluate("async () => (await fetch('/api/config')).json()")
     check('策略写入配置并夹取阈值', config.get('inbox_detect_provider') == 'local_http' and config.get('inbox_local_detect_url') == 'http://127.0.0.1:8600/detect'
           and config.get('inbox_blind_every') == 3 and config.get('inbox_auto_ready_conf') == 1 and config.get('inbox_auto_on_upload') is True)
-    page.evaluate("switchTab('settings'); switchTab('create')")
+    page.evaluate("window.__omrs.router.go('settings'); window.__omrs.router.go('create')")
     check('返回训练工作区重读策略', wait(page, "() => document.querySelector('#ib-pl-provider')?.value === 'local_http' && document.querySelector('#ib-pl-blind')?.value === '3'"))
     page.locator('[data-action="create.trainCleanup"][data-arg="crops"]').click()
     page.locator('dialog[open] [data-dialog-cancel]').last.click()
@@ -420,7 +420,7 @@ def main():
                             process_audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))
                         results.append((f'框选工作区审计 {label}·{theme}', process_ok, str(process_audit)))
                         audit_page.evaluate(READY_JS, [f'审计-{theme}-{label}.png', '已知 $f(x)=x^2$，求 $f(2)$。'])
-                        audit_page.evaluate("switchTab('settings'); switchTab('create')")
+                        audit_page.evaluate("window.__omrs.router.go('settings'); window.__omrs.router.go('create')")
                         audit_page.locator('#create-flow [data-ib-stage="create"]').click()
                         wait(audit_page, "() => !!document.querySelector('#ib-stage-create .crc-card canvas[data-painted]') && !!document.querySelector('#ib-stage-create .katex')")
                         cards_audit = audit_page.evaluate(AUDIT_CARDS, target)

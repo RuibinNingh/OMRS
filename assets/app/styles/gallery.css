@@ -1,7 +1,7 @@
-/* gallery.html 的版式（只服务陈列页，不覆盖组件本身）。组件样式来自 ui.css，旧类名桥接来自 legacy-bridge.css。 */
-@layer ui, legacy-bridge, gallery;
+/* gallery.html 的版式（只服务陈列页，不覆盖组件本身）。 */
+@layer ui, gallery;
 @import url("ui.css") layer(ui);
-@import url("legacy-bridge.css") layer(legacy-bridge);
+@import url("controls.css") layer(ui);
 
 @layer gallery {
   *, *::before, *::after { box-sizing: border-box; }

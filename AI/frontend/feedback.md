@@ -59,6 +59,6 @@ Session 列表 `SESSIONS` 与当前选中 `ACTIVE_FB_SESSION` 仍归旧代码（
 
 - 复习调度「录入结果」调 `schedule.js::feedbackSession(sid)`：`router.go('feedback')` 后经 bus 发 `feedback:session`，新页面刷新进度再选中该计划。
 - `schedule.js::refreshSessions()` 末尾的 `refreshFbSessionPicker()` 改为经 bus 发 `sessions`，新页面重绘下拉与进度。
-- 删除计划时 `schedule.js` 调的 `resetFeedbackForm()` / `fbClearResults()`、标记变化后 `labels.js` 调的 `renderFb()`：由 `legacy-bridge.js` 挂成全局函数，分别发 `feedback:reset` / `feedback:clear-results` / `feedback:render`。
+- 删除计划时 `schedule.js` 调的 `resetFeedbackForm()` / `fbClearResults()`、标记变化后 `labels.js` 调的 `renderFb()`：由模块事件总线 挂成全局函数，分别发 `feedback:reset` / `feedback:clear-results` / `feedback:render`。
 - 标记芯片与快捷标记来自 `domain/labels/index.js`（P5 第 4 轮起目录化；芯片颜色写 `data-lbl-c`，不写 `style=`）。
 - Session 进度 `fbSessionProgress()` / `sessionUniqueUids()` 的实现在 `domain/sessions.js`（v1.25.2 起与复习调度共用），`state.js` 原名再导出；反馈页刷新计划列表调 `domain/sessions.js` 的 `refreshSessions()`（不抛出，失败返回原因）。

@@ -13,7 +13,7 @@
 - 无 Pillow 时部分区域裁图由前端 canvas 提供；后台 job 缺裁图会单元报错而不中断。
 
 ## 修改文件
-`omrs/inbox.py`（新）、`omrs/ai_assist.py`、`omrs/server.py`、`omrs/common.py`、`omrs/version.py`、`assets/inbox.js`（新）、`assets/inbox_mobile.html`（新）、`assets/styles.css`、`assets/app.js`、`omrs_dashboard.html`、`tests/test_inbox.py`（新）、`AI/inbox.md`（新）、`AI/api.md`、`AI/data.md`、`AI/frontend.md`、`AI/optimization.md`、`AI/README.md`、`README.md`、`Task/录入流程重构规划.md`（新）、`Task/HANDOVER_2026-09-03.md`（新）。
+`omrs/inbox.py`（新）、`omrs/ai_assist.py`、`omrs/server.py`、`omrs/common.py`、`omrs/version.py`、`assets/inbox.js`（新）、`assets/inbox_mobile.html`（新）、`assets/app/styles/index.css`、`assets/app/main.js`、`omrs_dashboard.html`、`tests/test_inbox.py`（新）、`AI/inbox.md`（新）、`AI/api.md`、`AI/data.md`、`AI/frontend.md`、`AI/optimization.md`、`AI/README.md`、`README.md`、`Task/录入流程重构规划.md`（新）、`Task/HANDOVER_2026-09-03.md`（新）。
 
 ## 验证
 - `python3 -m unittest discover -s tests`：33 例通过（含新增 8 例）。

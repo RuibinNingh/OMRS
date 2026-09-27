@@ -14,7 +14,7 @@
 ## 影响文件
 
 - 后端：`omrs/common.py`、`ledger.py`、`projections.py`、`question_ops.py`、`server.py`、`scheduling.py`、`stats.py`、`analytics.py`、`feedback.py`、`exporting.py`
-- 前端：`omrs_dashboard.html`、`assets/core.js`、`questions.js`、`actions.js`、`dashboard.js`、`styles.css`
+- 前端：`omrs_dashboard.html`、`assets/app/domain/items.js`、`questions.js`、`actions.js`、`dashboard.js`、`styles.css`
 - 测试：`tests/test_question_suspend.py`、`tests/test_question_suspend_frontend.js`
 - 文档：`README.md`、`AI/api.md`、`AI/algorithm.md`、`AI/data.md`、`AI/export.md`、`AI/frontend.md`、`AI/ledger.md`
 - 版本：`v1.9.0`

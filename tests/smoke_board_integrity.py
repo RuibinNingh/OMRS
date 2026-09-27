@@ -7,6 +7,7 @@ import socketserver
 import tempfile
 import threading
 import os
+from pathlib import Path
 import unittest
 
 from playwright.sync_api import sync_playwright
@@ -37,6 +38,7 @@ class BoardIntegritySmokeTest(unittest.TestCase):
         self.pw = sync_playwright().start()
         self.browser = launch_chromium(self.pw)
         self.context = self.browser.new_context(viewport={"width": 1440, "height": 1000})
+        self.context.add_init_script(path=str(Path(__file__).resolve().parents[1] / 'tests/e2e/p8_test_modules.js'))
         self.errors = []
         self.context.on("page", lambda page: page.on("pageerror", lambda error: self.errors.append(str(error))))
 
@@ -58,7 +60,7 @@ class BoardIntegritySmokeTest(unittest.TestCase):
         page = self.context.new_page()
         page.goto(self.base)
         page.evaluate("""async id => {
-            switchTab('board'); await boardReloadData(); await boardLoad(id); boardSetView('paper');
+            window.__omrs.router.go('board'); await boardReloadData(); await boardLoad(id); boardSetView('paper');
             configureBoardDetail({ confirm: async () => true });   // P7 第 6 轮起确认框经板详情的 deps，不再读全局 uiConfirm
         }""", bid)
         self.wait_preview(page, bid)

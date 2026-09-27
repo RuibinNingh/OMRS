@@ -8,7 +8,7 @@
 
 - `assets/vendor/fonts/`：字体 CSS、107 个 WOFF2 分片、来源清单、许可与目录说明。
 - `omrs_dashboard.html`、`assets/inbox_mobile.html`：改用本地字体 CSS。
-- `assets/styles.css`：基础表单控件继承页面字体。
+- `assets/app/styles/index.css`：基础表单控件继承页面字体。
 - `AI/frontend.md`、`AI/README.md`、`README.md`：同步本地字体和离线依赖边界。
 
 ## 验证

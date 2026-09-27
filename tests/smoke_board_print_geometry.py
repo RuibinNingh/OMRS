@@ -4,6 +4,7 @@
 """
 import copy
 import os
+from pathlib import Path
 import socketserver
 import tempfile
 import threading
@@ -37,6 +38,7 @@ class BoardPrintGeometrySmokeTest(unittest.TestCase):
             thread.start()
             browser = launch_chromium(pw)
             context = browser.new_context(viewport={"width": 1440, "height": 1000})
+            context.add_init_script(path=str(Path(__file__).resolve().parents[1] / 'tests/e2e/p8_test_modules.js'))
             errors = []
             context.on("page", lambda page: page.on("pageerror", lambda error: errors.append(str(error))))
             base = f"http://127.0.0.1:{server.server_address[1]}"
@@ -51,7 +53,7 @@ class BoardPrintGeometrySmokeTest(unittest.TestCase):
             try:
                 page = context.new_page()
                 page.goto(base)
-                page.evaluate("async id => { switchTab('board'); await boardReloadData(); await boardLoad(id); }", bid)
+                page.evaluate("async id => { window.__omrs.router.go('board'); await boardReloadData(); await boardLoad(id); }", bid)
                 full = preview(page, "all")
                 # 实时预览先变为 50%，磁盘仍是 42%；记录必须跟随实测布局。
                 page.evaluate("() => boardPreviewRelayout({...BOARD_DETAIL.print, note_ratio: .5}, {})")
@@ -93,7 +95,7 @@ class BoardPrintGeometrySmokeTest(unittest.TestCase):
                 self.assertEqual(page.evaluate("boardPreviewLayout().print.note_ratio"), .5)
                 self.assertEqual(get_board(vault, bid)["print"]["note_ratio"], .42)
                 page.reload()
-                page.evaluate("async id => { switchTab('board'); await boardReloadData(); await boardLoad(id); }", bid)
+                page.evaluate("async id => { window.__omrs.router.go('board'); await boardReloadData(); await boardLoad(id); }", bid)
                 page.locator('[data-board-mode="new"]').click()
                 inc = preview(page, "new")
                 self.assertEqual(width(inc), full_width)

@@ -57,7 +57,7 @@
 | 文件 | 改动 |
 |---|---|
 | `assets/feedback.js` | 新增答题卡 JSON 解析段（`omrTemplateMode` / `omrFieldInfo` / `omrLineKind` / `omrItemRead` / `omrExtractRecord` / `omrReadSheet` / `omrApplyToRows` / `omrReportHtml`）与导入入口（`fbPayloadKind` / `fbImportOmrScan` / `fbImportAnyJson` / `fbImportText` / `fbReadClipboardAndFill` / `fbHandlePaste`）；`importFeedbackJson` 拆出 `fbImportFeedbackPayload`；补 document 级 `paste` 监听；快捷键提示加一项；`module.exports` 增加解析函数供单测 |
-| `assets/styles.css` | 新增 v1.11.0 段：`.gallery-preview .qv{white-space:normal}`、`[data-theme="dark"] .qv-bare .q-md{background:transparent}`、`.fb-import-warn` 与 `code`/`kbd` 样式 |
+| `assets/app/styles/index.css` | 新增 v1.11.0 段：`.gallery-preview .qv{white-space:normal}`、`[data-theme="dark"] .qv-bare .q-md{background:transparent}`、`.fb-import-warn` 与 `code`/`kbd` 样式 |
 | `omrs_dashboard.html` | Session 栏加「📋 读剪贴板填写」按钮；导入折叠面板改写（答题卡 / 屏幕版 / AI 三条路径 + 注意事项 + 新 placeholder）；版本号与 `styles.css`/`feedback.js` 的缓存查询串 |
 | `omrs/version.py` | `v1.10.0` → `v1.11.0` |
 | `README.md` | 当前版本；功能表新增「答题卡回填」一行 |

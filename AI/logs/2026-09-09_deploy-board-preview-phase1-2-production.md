@@ -29,7 +29,7 @@ patch 应用了 11 个文件：
 - `omrs/export_templates/board.css`
 - `assets/board.js`
 - `assets/board_preview.js`（新增）
-- `assets/styles.css`
+- `assets/app/styles/index.css`
 - `omrs_dashboard.html`
 - `tests/test_boards.py`
 - `AGENTS.md`

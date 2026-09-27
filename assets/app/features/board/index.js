@@ -213,7 +213,7 @@ export const page = {
   id: 'board',
   title: '展示板',
   workbench: true,
-  mount(root) {
+  mount(root, ctx) {
     ctl = createController(root);
     const current = ctl;
     const onDbl = event => {
@@ -233,6 +233,7 @@ export const page = {
     D.configure({ rejected: () => current.releaseFocus() });
     const offBoards = B.onBoards(() => ctl?.paint());
     const offDetail = D.onDetail(() => ctl?.paint());
+    const offLabels = ctx.bus.on('board:reload', () => D.reloadData());
     ctl.paint();
     // 左栏树与条目行的拖放（每个节点只绑一次；重新进页时节点还是那一个）
     const list = root.querySelector('#bd-list');
@@ -253,6 +254,7 @@ export const page = {
     return () => {
       offBoards();
       offDetail();
+      offLabels();
       root.removeEventListener('dblclick', onDbl);
       root.removeEventListener('click', onClick);
       root.removeEventListener('focusout', onBlur);

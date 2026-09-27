@@ -1,3 +1,62 @@
-/* 标记（domain 层）：色板与颜色圆点按 data-lbl-c 取色——sheet.js 的运行时规则给出 --lbl-c，模板不写 style=。
-   芯片本身的外观（.lbl 的形状、淡底、深色主题）仍在旧 styles.css，P8 随 styles.css 一起搬。 */
+/* Shared label chips, picker and management dialog. User colors come from sheet.js. */
+.lbl {
+  --lbl-c: var(--lbl-default); --lbl-fg: var(--on-accent); --lbl-rgb: var(--lbl-default-rgb);
+  --lbl-ink-l: var(--fg-2); --lbl-ink-d: var(--fg-1); --lbl-h: 20px; --lbl-slant: 7px;
+  display: inline-flex; align-items: center; height: var(--lbl-h); max-width: 100%;
+  padding: 0 calc(var(--lbl-slant) + var(--sp-1));
+  font-size: var(--text-xs); font-weight: var(--weight-semibold); line-height: var(--leading-tight);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;
+  background: color-mix(in srgb, var(--lbl-c) 16%, transparent); color: var(--lbl-ink-l);
+  clip-path: polygon(var(--lbl-slant) 0, calc(100% - var(--lbl-slant)) 0, 100% 50%, calc(100% - var(--lbl-slant)) 100%, var(--lbl-slant) 100%, 0 50%);
+}
+[data-theme="dark"] .lbl { background: color-mix(in srgb, var(--lbl-c) 24%, transparent); color: var(--lbl-ink-d); }
+.lbl.solid, [data-theme="dark"] .lbl.solid { background: var(--lbl-c); color: var(--lbl-fg); }
+.lbl.lg { --lbl-h: 24px; --lbl-slant: 9px; }
+.lbl.print, [data-theme="dark"] .lbl.print { --lbl-h: 18px; --lbl-slant: 7px; background: color-mix(in srgb, var(--lbl-c) 18%, transparent); color: var(--lbl-ink-l); }
+.lbl.dim { opacity: .42; }
+.lbl.add, [data-theme="dark"] .lbl.add { clip-path: none; padding: 0 var(--sp-2); border-radius: var(--r-pill); background: transparent; color: var(--fg-3); outline: 1px solid var(--border-2); cursor: pointer; }
+.lbl.add:hover { color: var(--fg-1); outline-color: var(--accent-muted); background: var(--accent-soft); }
+.lbl-row { display: inline-flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; vertical-align: middle; }
+.lbl-row.stack { display: flex; }
+[data-lbl-target] { cursor: pointer; }
+.lbl-form-row { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; min-height: var(--ctl-sm); padding: var(--sp-1) var(--sp-2); border: 1px dashed var(--border-2); border-radius: var(--r-sm); }
 .lbl-swatches .sw[data-lbl-c], .label-swatch[data-lbl-c] { background: var(--lbl-c); }
+
+.label-picker-pop { position: fixed; z-index: var(--z-dropdown); width: min(284px, calc(100vw - 20px)); padding: var(--sp-3); background: var(--surface-1); border: 1px solid var(--border-2); border-radius: var(--r-md); box-shadow: var(--elev-3); animation: ui-pop-in var(--dur-2) var(--ease-out); }
+.label-picker-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-bottom: var(--sp-2); color: var(--accent); font-size: var(--text-sm); font-weight: var(--weight-bold); }
+.label-picker-head small { min-width: 0; overflow: hidden; color: var(--fg-3); font-size: var(--text-xs); font-weight: var(--weight-regular); text-overflow: ellipsis; white-space: nowrap; }
+.label-picker-search { width: 100%; margin-bottom: var(--sp-2); }
+.label-picker-options { max-height: 214px; overflow: auto; }
+.label-picker-option { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--ctl-sm); padding: var(--sp-1) var(--sp-2); border: 0; border-radius: var(--r-sm); background: transparent; color: var(--fg-2); font: inherit; text-align: left; cursor: pointer; }
+.label-picker-option:hover, .label-picker-option.keyboard-active { background: var(--accent-soft); color: var(--fg-1); }
+.label-picker-option .check { width: 14px; flex: 0 0 14px; color: var(--success); font-weight: var(--weight-bold); }
+.label-picker-option.new { color: var(--accent); font-weight: var(--weight-semibold); }
+.label-picker-option .cnt { margin-left: auto; color: var(--fg-3); font-size: var(--text-xs); font-family: var(--font-mono); }
+.label-picker-empty { padding: var(--sp-2); color: var(--fg-3); font-size: var(--text-xs); }
+.label-picker-recent { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; margin-top: var(--sp-2); padding-top: var(--sp-2); border-top: 1px solid var(--border-1); color: var(--fg-3); font-size: var(--text-xs); }
+.label-picker-recent .lbl { cursor: pointer; }
+.label-picker-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-1); margin-top: var(--sp-2); }
+.label-picker-foot .hint { font-size: var(--text-xs); }
+
+.label-manager-modal { width: min(640px, 100%); }
+.label-manager-list { display: flex; flex-direction: column; gap: var(--sp-2); max-height: 340px; overflow: auto; margin: var(--sp-3) 0; }
+.label-manager-row { display: grid; grid-template-columns: auto minmax(0,1fr) auto auto auto; align-items: center; gap: var(--sp-2); padding: var(--sp-2); background: var(--surface-0); border: 1px solid var(--border-1); border-radius: var(--r-sm); }
+.label-manager-row.editing { grid-template-columns: 1fr; background: var(--surface-2); border-color: var(--accent-muted); }
+.label-manager-name { min-width: 0; overflow: hidden; }
+.label-manager-count, .label-manager-bonus { color: var(--fg-3); font-size: var(--text-xs); white-space: nowrap; }
+.label-manager-count { font-family: var(--font-mono); }
+.label-manager-acts { display: flex; gap: var(--sp-1); }
+.label-swatch { width: 16px; height: 16px; flex: 0 0 auto; border-radius: var(--r-pill); outline: 1px solid var(--border-2); }
+.label-edit { display: grid; gap: var(--sp-2); }
+.label-edit-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.label-edit-row > label { min-width: 64px; color: var(--fg-3); font-size: var(--text-xs); }
+.label-edit-row .input { flex: 1; min-width: 140px; }
+.label-bonus-input { max-width: 100px; }
+.lbl-swatches { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; }
+.lbl-swatches .sw { width: 28px; height: 28px; padding: 0; border: 2px solid transparent; border-radius: var(--r-sm); cursor: pointer; outline: 1px solid var(--border-2); }
+.lbl-swatches .sw.on { border-color: var(--fg-1); }
+.lbl-swatches .sw.custom { position: relative; overflow: hidden; background: conic-gradient(var(--lbl-preset-1), var(--lbl-preset-3), var(--lbl-preset-5), var(--lbl-preset-6), var(--lbl-preset-8), var(--lbl-preset-1)); }
+.lbl-swatches .sw.custom input { position: absolute; inset: -6px; width: 200%; height: 200%; opacity: 0; cursor: pointer; }
+.label-manager-form { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; padding-top: var(--sp-3); border-top: 1px solid var(--border-1); }
+.label-manager-form .input { flex: 1; min-width: 160px; }
+@media (max-width: 760px) { .label-manager-row { grid-template-columns: auto minmax(0,1fr); } .label-manager-acts { grid-column: 1 / -1; } .label-picker-option, .lbl-swatches .sw { min-height: var(--ctl-sm); } }

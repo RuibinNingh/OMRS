@@ -11,6 +11,8 @@ import { createBus } from './core/bus.js';
 import { createStore } from './core/store.js';
 import { bindEvents, defineActions } from './core/events.js';
 import { bindKeys, registerKeys, setScope } from './core/keys.js';
+import { scanVault } from './domain/scan.js';
+import { get } from './core/api.js';
 
 export function applyChrome(page, doc = document) {
   const title = doc.getElementById('topbar-title');
@@ -39,13 +41,21 @@ function syncCollapsedTooltips(doc) {
 function defineAppActions(win, router, bus) {
   let scanning = false;
   defineActions('app', {
+    create: () => router.go('create'),
+    collapse: () => {
+      const collapsed = win.localStorage.getItem('omrs-sidebar-collapsed') === '1';
+      win.localStorage.setItem('omrs-sidebar-collapsed', collapsed ? '0' : '1');
+      win.document.documentElement.setAttribute('data-sidebar', collapsed ? '' : 'collapsed');
+    },
+    drawer: () => win.document.body.classList.toggle('drawer-open'),
+    closeDrawer: () => win.document.body.classList.remove('drawer-open'),
     async scan({ el }) {
-      if (scanning || typeof win.doScan !== 'function') return;
+      if (scanning) return;
       scanning = true;
       const buttons = [...win.document.querySelectorAll('[data-action="app.scan"]')];
       buttons.forEach(b => { b.disabled = true; b.setAttribute('aria-busy', 'true'); });
       try {
-        const scanned = await win.doScan();
+        const scanned = await scanVault();
         if (scanned && router.current() === 'catalog') bus.emit('catalog:refresh');
       } finally {
         buttons.forEach(b => { b.disabled = false; b.removeAttribute('aria-busy'); });
@@ -90,6 +100,9 @@ export function startShell(win, pages) {
   bindEvents(doc);
   bindKeys(doc);
   defineAppActions(win, router, bus);
+  doc.addEventListener('keydown', event => { if (event.key === 'Escape') doc.body.classList.remove('drawer-open'); });
+  doc.addEventListener('click', event => { if (event.target.closest('.sidebar-nav .tab') && win.matchMedia('(max-width:860px)').matches) doc.body.classList.remove('drawer-open'); });
+  get('/api/status').then(res => { const foot = doc.getElementById('sidebar-foot'); if (foot && res.ok && res.data?.version) foot.textContent = `${res.data.version} · 本地服务`; });
   // 侧栏导航是 <a href="#/页面">：普通点击同步切页（旧代码与冒烟测试都假定点击后立即切换）；带修饰键时交给浏览器
   doc.addEventListener('click', event => {
     const link = event.target.closest?.('a.tab[data-tab]');

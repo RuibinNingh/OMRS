@@ -77,8 +77,8 @@ def run_checks(page, base, results):
     check("浏览器后退 / 前进", back1 == "panel-questions" and back2 == "panel-dashboard" and ev(STATE)["panel"] == "panel-questions")
     page.reload(wait_until="networkidle")
     check("刷新后停在原页", ev(STATE)["panel"] == "panel-questions")
-    ev("switchTab('history')")
-    check("旧 switchTab() 仍可用并写地址", ev(STATE)["panel"] == "panel-history" and ev("location.hash") == "#/history")
+    ev("window.__omrs.router.go('history')")
+    check("旧 window.__omrs.router.go() 仍可用并写地址", ev(STATE)["panel"] == "panel-history" and ev("location.hash") == "#/history")
     page.click('a.tab[data-tab="dashboard"]')
     page.click("#panel-dashboard [data-action=\"dashboard.go\"][data-arg=\"history\"]")
     check("仪表盘「完整时间线」按钮（data-action）切到历史记录", ev(STATE)["panel"] == "panel-history")
@@ -97,11 +97,11 @@ def run_checks(page, base, results):
     expanded = ev("[Math.round(document.querySelector('.sidebar').getBoundingClientRect().width), document.querySelector('.tab[data-tab=\"board\"]').hasAttribute('data-tooltip')]")
     check("侧栏折叠为 58px 图标栏并挂提示，展开恢复", collapsed == ["collapsed", 58, "展示板"] and expanded == [232, False], f"{collapsed} / {expanded}")
     # DP4：顶栏只剩「录入题目」；三页工具栏各有一个「重新扫描」，点击走 /api/scan，期间按钮置忙
-    ev("switchTab('dashboard')")
+    ev("window.__omrs.router.go('dashboard')")
     top = ev("[...document.querySelectorAll('.topbar-actions .topbar-action')].map(b => b.textContent.trim())")
     where = {}
     for pid in ("dashboard", "questions", "catalog"):
-        ev(f"switchTab('{pid}')")
+        ev(f"window.__omrs.router.go('{pid}')")
         where[pid] = ev(f"[...document.querySelectorAll('#panel-{pid} [data-action=\"app.scan\"]')].filter(b => b.offsetParent).map(b => Math.round(b.getBoundingClientRect().height))")
     check("DP4：顶栏只剩「录入题目」，三页各有一个可见的「重新扫描」", top == ["录入题目"] and all(len(v) == 1 for v in where.values()), f"{top} {where}")
     with page.expect_response(lambda r: r.url.endswith("/api/scan") and r.request.method == "POST") as scan:

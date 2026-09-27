@@ -2,7 +2,7 @@
 
 > **速查**
 > - 职责：页面外壳：`assets/` 文件划分与加载顺序、侧栏与顶栏、hash 路由的外壳一侧、整屏工作台布局、主题 token 与深色对比度
-> - 入口：`omrs_dashboard.html`、`assets/core.js`、`assets/app.js`、`assets/app/main.js`、`assets/app/shell.js`、`assets/app/styles/shell.css`、`assets/app/styles/tokens.css`、`assets/app/styles/index.css`、`assets/styles.css`
+> - 入口：`omrs_dashboard.html`、`assets/app/domain/items.js`、`assets/app/main.js`、`assets/app/main.js`、`assets/app/shell.js`、`assets/app/styles/shell.css`、`assets/app/styles/tokens.css`、`assets/app/styles/index.css`、`assets/app/styles/index.css`
 > - 不变量：`core.js` 最先加载、`app.js` 是最后一个经典脚本，模块入口 `assets/app/main.js` 排在它之后并负责调用 `init()`；`switchTab` 只是路由的一行包装；样式只有 `tokens.css` 与 `index.css` 两个 `<link>`；颜色一律走 token，不在规则里写死浅色值
 > - 必跑测试：`tests/e2e/shell_router.py`、`tests/e2e/catalog.py`、`tests/app/settings.test.mjs`、`tests/e2e/settings.py`
 > - 相关：`AI/frontend.md`（索引）
@@ -31,7 +31,7 @@ assets/
 - **不再新增经典脚本**：新代码一律进 `assets/app/`（见 `AI/frontend/architecture.md`）；仪表盘、数据复盘、复习调度（含推荐选题）的旧脚本已删，其余旧页面迁走时逐个删。
 - **加载顺序固定**：`core.js` 最先（定义全部全局变量，只能声明一次，不可在其他文件重复 `let`）；`app.js` 是最后一个经典脚本，但不再自调用 `init()`：模块入口 `assets/app/main.js` 装好过渡桥与路由后调用它（启动顺序见 `AI/frontend/architecture.md` §2）。
 - 后端由 `/assets/<file>` 通用静态路由提供（`server.py` → `_serve_asset()`，含路径穿越防护与按扩展名的 content-type）。原 `/omrs_dashboard.js` 路由已移除。
-- 修改旧页面样式 → 改 `assets/styles.css`（它在 `legacy` 层，同名外观会被 `ui` 与 `legacy-bridge` 层压过，旧 `.btn` / `.input` 的外观改在 `assets/app/styles/legacy-bridge.css`）；改某模块行为 → 改对应 `assets/*.js`；新增全局工具 → 放 `core.js`。
+- 修改旧页面样式 → 改 `assets/app/styles/index.css`（它在 `legacy` 层，同名外观会被 `ui` 与 `legacy-bridge` 层压过，旧 `.btn` / `.input` 的外观改在 `assets/app/styles/controls.css`）；改某模块行为 → 改对应 `assets/*.js`；新增全局工具 → 放 `core.js`。
 - **拆分**：原 `schedule.js` 的导出、反馈页、复习调度部分都已迁到 `assets/app/`（`features/schedule/`、`features/feedback/`、`domain/exporting.js`），旧 `schedule.js` 只剩扫描与两个旧入口。
 
 ## 侧栏、顶栏与路由（`assets/app/styles/shell.css`、`assets/app/shell.js`）
@@ -74,7 +74,7 @@ assets/
 改这几页时的注意点：
 - 新增的滚动容器必须同时写 `min-height:0`，否则 flex 子项按内容撑开，`overflow` 不生效。
 - 往工作台页面加新的顶部工具栏，记得给它 `flex-shrink:0`，否则会被压扁。
-- 新增工作台型页面时，在它的页面登记（`assets/app/legacy-pages.js` 或页面契约）里写 `workbench: true`，不需要动 CSS 结构。
+- 新增工作台型页面时，在它的页面登记（页面登记模块 或页面契约）里写 `workbench: true`，不需要动 CSS 结构。
 
 ## 主题与对比度（`tokens.css` + `styles.css`）
 

@@ -65,7 +65,7 @@
 | `assets/instant.js` | 题面/答案块改 qview |
 | `assets/export.js` | 画廊/平铺预览走 qvHtml；补翻页上下文 |
 | `assets/data.js` | 顽固题 / 屡练不熟表补翻页上下文 |
-| `assets/styles.css` | 新增 qview + 工作台样式；删除作废规则 |
+| `assets/app/styles/index.css` | 新增 qview + 工作台样式；删除作废规则 |
 | `omrs_dashboard.html` | 反馈页三栏骨架；Modal 换挂载点；新增 qview.js `<script>`；改动过的资源 `?v=20260901-qview`；侧栏版本号 |
 | `omrs/version.py` | v1.9.0 → v1.10.0 |
 | `README.md` / `AI/frontend.md` / `AI/optimization.md` | 文档同步（新增 frontend.md §2.2、§5.1） |

@@ -155,6 +155,7 @@ def run_mobile(browser, base, uid, results):
     def check(name, ok, detail=""):
         results.append((name, bool(ok), detail))
     ctx = browser.new_context(viewport={"width": 390, "height": 844})
+    ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
     page = ctx.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
@@ -260,9 +261,9 @@ def run_keyboard(page, results):
     page.locator("#panel-questions tr[data-q-row] .qlb-more").first.click()
     check("行内「⋯」打开 ui/menu", wait(page, "() => document.querySelector('.ui-menu.is-floating')"))
     page.locator(".ui-menu.is-floating [role=menuitem]", has_text="打标记").click()
-    check("菜单「打标记」打开标记选择器", wait(page, "() => typeof LABEL_PICKER !== 'undefined' && !!LABEL_PICKER"))
+    check("菜单「打标记」打开标记选择器", wait(page, "() => !!document.querySelector('.label-picker-pop')"))
     page.keyboard.press("Escape")
-    check("Esc 先关标记选择器（core/keys 全局键），勾选保留", wait(page, "() => !LABEL_PICKER") and page.evaluate("() => !!document.querySelector('.qlb-batch')"))
+    check("Esc 先关标记选择器（core/keys 全局键），勾选保留", wait(page, "() => !document.querySelector('.label-picker-pop')") and page.evaluate("() => !!document.querySelector('.qlb-batch')"))
     page.click(".qlb-total")
     page.keyboard.press("Escape")
     check("再按 Esc 清空勾选", wait(page, "() => !document.querySelector('.qlb-batch')"))
@@ -299,7 +300,7 @@ def run_batch(page, base, results):
     page.click(".qlb-views__btn")
     check("应用视图恢复筛选", wait(page, "() => document.querySelector('[data-arg=\"due|today\"]').getAttribute('aria-pressed') === 'true'"))
     page.click("[data-action='questions.drawer'][data-arg='0'] >> nth=0")
-    page.evaluate("() => { switchTab('dashboard'); questionsLoadPreset({'q-filter-suspended': 'suspended'}); }")
+    page.evaluate("() => { window.__omrs.router.go('dashboard'); questionsLoadPreset({'q-filter-suspended': 'suspended'}); }")
     check("仪表盘旧入口预设：切到题库并整体替换条件", wait(page, "u => location.hash === '#/questions' && document.querySelectorAll('#panel-questions tr[data-q-row]').length === 2 && !!document.querySelector(`tr[data-q-row=\"${u}\"]`)", arg=rows[0]))
     page.evaluate("u => questionsLoadPreset({'q-search': u})", rows[1])
     check("「在题目库打开」预设按 UID 搜索", wait(page, "u => { const r = [...document.querySelectorAll('#panel-questions tr[data-q-row]')]; return r.length >= 1 && r[0].dataset.qRow === u; }", arg=rows[1]))
@@ -316,10 +317,10 @@ def run_layers(page, base, results):
     page.evaluate("uid => viewQ(uid, 'q')", uid)
     wait(page, OPEN, arg=uid)
     page.click("#modal-stage [data-qv-act='labels']")
-    check("弹窗里点「标记」：选择器放进对话框、搜索框拿到焦点", wait(page, "() => !!LABEL_PICKER && document.getElementById('modal').contains(LABEL_PICKER) && document.activeElement === LABEL_PICKER.querySelector('.label-picker-search')"))
+    check("弹窗里点「标记」：选择器放进对话框、搜索框拿到焦点", wait(page, "() => !!document.querySelector('.label-picker-pop') && document.getElementById('modal').contains(document.querySelector('.label-picker-pop')) && document.activeElement === document.querySelector('.label-picker-pop .label-picker-search')"))
     page.keyboard.type("弹窗里新建")
     page.keyboard.press("Enter")
-    wait(page, "() => [...LABEL_PICKER.querySelectorAll('.label-picker-option.selected')].some(o => o.textContent.includes('弹窗里新建'))")
+    wait(page, "() => [...document.querySelectorAll('.label-picker-pop .label-picker-option.selected')].some(o => o.textContent.includes('弹窗里新建'))")
     page.click(".label-picker-pop [data-lbl-save]")
     check("选择器里新建并保存标记（真实点击，不被 inert）", wait(page, "uid => (getItemByUid(uid)?.labels || []).includes('弹窗里新建')", arg=uid, timeout=8000))
     check("保存后弹窗仍开着，芯片重绘", wait(page, "() => !!document.querySelector('dialog#modal[open] #modal-stage .lbl[data-lbl-name=\"弹窗里新建\"]')"))
@@ -327,9 +328,9 @@ def run_layers(page, base, results):
       return c ? { key: c.dataset.lblC || '', css: getComputedStyle(c).getPropertyValue('--lbl-c').trim(), styled: document.querySelectorAll('.lbl[style], .sw[style], .label-swatch[style]').length } : null; }""")
     check("芯片颜色走 data-lbl-c + 运行时样式表，全页芯片不写 style=", bool(chip) and bool(chip["key"]) and chip["css"] == "#" + chip["key"] and chip["styled"] == 0, json.dumps(chip))
     page.click("#modal-stage [data-qv-act='labels']")
-    wait(page, "() => !!LABEL_PICKER")
+    wait(page, "() => !!document.querySelector('.label-picker-pop')")
     page.keyboard.press("Escape")
-    check("Esc 只关选择器，弹窗仍在，焦点回到「标记」按钮", wait(page, "() => !LABEL_PICKER && !!document.querySelector('dialog#modal[open]') && document.activeElement?.matches('[data-qv-act=\"labels\"]')"))
+    check("Esc 只关选择器，弹窗仍在，焦点回到「标记」按钮", wait(page, "() => !document.querySelector('.label-picker-pop') && !!document.querySelector('dialog#modal[open]') && document.activeElement?.matches('[data-qv-act=\"labels\"]')"))
     page.click("#modal-stage [data-qv-act='board']")
     check("弹窗里点「加入展示板」：选板浮层放进对话框", wait(page, "() => !!document.querySelector('.bpicker') && document.getElementById('modal').contains(document.querySelector('.bpicker'))"))
     page.click("#modal-stage .qv-q", position={"x": 4, "y": 4})
@@ -399,6 +400,7 @@ def main():
         with sync_playwright() as p:
             browser = launch_browser(p)
             ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+            ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
             page = ctx.new_page()
             page.set_default_timeout(8000)
             errors = []
@@ -417,6 +419,7 @@ def main():
             for theme in ("light", "dark"):
                 for label, size in (("桌面", (1440, 900)), ("手机", (390, 844))):
                     c = browser.new_context(viewport={"width": size[0], "height": size[1]})
+                    c.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
                     c.add_init_script(f"try{{localStorage.setItem('omrs-theme','{theme}')}}catch(e){{}}")
                     tag = f"审计 {label} · {'浅色' if theme == 'light' else '深色'}"
                     guarded(results, tag, audit_states, c.new_page(), base, tag, results)

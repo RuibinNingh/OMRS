@@ -15,7 +15,7 @@
 - 旧接口与默认行为不变：不配置任何 `inbox_*` 键时，`detect` 仍走 VLM、不盲标、不自动就绪、丢弃图 7 天后才清理。
 
 ## 影响文件
-`omrs/inbox.py`、`omrs/ai_assist.py`（`detect_regions_local`）、`omrs/server.py`（`/api/inbox/cleanup`）、`omrs/common.py`、`omrs/version.py`（v1.13.0）、`assets/inbox.js`、`assets/styles.css`（`.ib-pl-grid`）、`omrs_dashboard.html`、`tests/test_inbox.py`（+6 例）、`AI/inbox.md`（§2/§3/§4/§5/§6/§7 更新，新增 §8）、`AI/api.md`、`AI/data.md`、`AI/frontend.md`、`AI/README.md`、根 `README.md`、`Task/录入流程重构规划.md`（状态）、`Task/HANDOVER_2026-09-03-2.md`（新）。
+`omrs/inbox.py`、`omrs/ai_assist.py`（`detect_regions_local`）、`omrs/server.py`（`/api/inbox/cleanup`）、`omrs/common.py`、`omrs/version.py`（v1.13.0）、`assets/inbox.js`、`assets/app/styles/index.css`（`.ib-pl-grid`）、`omrs_dashboard.html`、`tests/test_inbox.py`（+6 例）、`AI/inbox.md`（§2/§3/§4/§5/§6/§7 更新，新增 §8）、`AI/api.md`、`AI/data.md`、`AI/frontend.md`、`AI/README.md`、根 `README.md`、`Task/录入流程重构规划.md`（状态）、`Task/HANDOVER_2026-09-03-2.md`（新）。
 
 ## 验证
 - `python3 -m unittest discover -s tests`：39 例通过（inbox 14 例，新增 6 例用 `FakeAI` 替身覆盖模板 / provider 分派 / 盲标 / 自动策略 / 上传即 auto / 清理）。

@@ -13,11 +13,9 @@ import { notifyHistoryChanged } from '../history.js';
 import { qvInvalidate, dropDetail } from './mount.js';
 import { closeModal } from './modal.js';
 import { openEditor } from './editor.js';
+import { allItems, itemOf } from '../items.js';
+import { downloadResponse } from '../../core/download.js';
 
-const g = globalThis;
-const call = (name, ...args) => (typeof g[name] === 'function' ? g[name](...args) : undefined);
-const items = () => (typeof g.getItems === 'function' ? g.getItems() : []);
-const itemOf = uid => call('getItemByUid', uid) || {};
 const zh = (a, b) => a.localeCompare(b, 'zh-CN');
 const uniq = values => [...new Set(values.filter(Boolean))].sort(zh);
 
@@ -64,7 +62,7 @@ export async function deleteQuestion(uid) {
 
 export async function moveQuestion(uid) {
   const item = itemOf(uid);
-  const all = items();
+  const all = allItems();
   const subjects = uniq(all.map(i => i.subject));
   const categories = uniq(all.map(i => i.category));
   const res = await dialog({
@@ -119,7 +117,7 @@ export async function exportA4(uids) {
       try { message = (await response.json()).msg || message; } catch (error) { /* 非 JSON 错误页 */ }
       throw new Error(message);
     }
-    await call('downloadExportResponse', response, 'OMRS-题库筛选-a4.html');
+    await downloadResponse(response, 'OMRS-题库筛选-a4.html');
     toast(`已导出 ${uids.length} 道题的 A4 打印版`, { kind: 'ok' });
     return true;
   } catch (error) {

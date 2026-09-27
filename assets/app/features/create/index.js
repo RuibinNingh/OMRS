@@ -3,8 +3,8 @@
  * 收件箱数据归 inbox.js 单例（切页返回后工作区、当前图与勾选保持）；各工作区控制器订阅 'inbox:changed' 重绘。
  * 离开本页或离开处理区时 flush 未到防抖时间的框位与题卡字段。
  */
-import { morph } from '../../core/dom.js';
-import { flowView } from './view.js';
+import { morph, render } from '../../core/dom.js';
+import { flowView, createRoots } from './view.js';
 import { stageOf } from './state.js';
 import { inbox, connectInbox } from './inbox.js';
 import { createUpload } from './upload.js';
@@ -53,6 +53,7 @@ function mountParts(root, ctx) {
 export const page = {
   id: 'create', title: '录入题目', workbench: true,
   mount(root, ctx) {
+    render(root, createRoots());
     const disconnect = connectInbox(ctx.bus);
     const unbind = mountParts(root, ctx);
     inbox.load();

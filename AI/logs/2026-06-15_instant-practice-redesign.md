@@ -10,7 +10,7 @@
 
 ## 改动
 
-`omrs_dashboard.html` 的 `panel-instant` 骨架 + `assets/styles.css`：
+`omrs_dashboard.html` 的 `panel-instant` 骨架 + `assets/app/styles/index.css`：
 
 - 骨架重排为 `.inst-work` 网格工作台，用 `grid-template-areas` 摆放四块（`#inst-summary` 进度+提交 / `.inst-queue-wrap`〔含「队列」label + `#inst-queue`〕/ `.inst-main`〔`#inst-empty` + `#inst-review`〕/ `#inst-submit-results`）。DOM 顺序固定，靠 grid-area 在桌面 / 移动两套布局间切换。
 - **桌面**：左题卡（`minmax(0,1fr)`）+ 右栏 300px（进度+提交置顶 → 队列竖列 → 提交结果）。
@@ -29,7 +29,7 @@
 ## 涉及文件
 
 - `omrs_dashboard.html` — 替换 `panel-instant` 内部骨架（panel 标签 / id 不变）。
-- `assets/styles.css` — 删除 9 条孤立 / 失效即时规则；末尾追加一段 `.inst-*` 响应式样式。
+- `assets/app/styles/index.css` — 删除 9 条孤立 / 失效即时规则；末尾追加一段 `.inst-*` 响应式样式。
 - `AI/frontend.md` — §5 增补「响应式工作台」布局说明。
 
 ---

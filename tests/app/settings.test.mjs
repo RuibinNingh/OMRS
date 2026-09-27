@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { SECTIONS, sectionOf, parseLanCidrs, networkNeedsRestart, describeAccess, pinControlState } from '../../assets/app/features/settings/state.js';
 import { formatBytes, optValues } from '../../assets/app/features/settings/storage-state.js';
 import { formatUptime, waitForRestartReady } from '../../assets/app/features/settings/service.js';
+import { startActivityTracking } from '../../assets/app/core/activity.js';
 
 const LOCAL = { status: 'ok', remote: false, authenticated: true, lan_pin_exempt: false };
 const REMOTE = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: false };
@@ -158,13 +159,12 @@ function assertCaptureListeners(listeners) {
   }
 }
 
-test('core.js：远端会话的活动监听覆盖内部滚动容器', async () => {
+test('core/activity.js：远端会话的活动监听覆盖内部滚动容器', async () => {
   const sb = makeSandbox(async url => {
     assert.equal(url, '/api/auth/session');
     return response(200, { status: 'ok', remote: true, authenticated: true });
   });
-  vm.runInContext(fs.readFileSync(path.join(root, 'assets', 'core.js'), 'utf8'), sb, { filename: 'core.js' });
-  await flush();
+  await startActivityTracking({ addEventListener: (...args) => sb.listeners.push({ name: args[0], options: args[2] }) }, sb.fetch);
   assertCaptureListeners(sb.listeners);
 });
 

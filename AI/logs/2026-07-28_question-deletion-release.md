@@ -31,7 +31,7 @@
 - `omrs/version.py`
 - `assets/questions.js`
 - `assets/history.js`
-- `assets/styles.css`
+- `assets/app/styles/index.css`
 - `omrs_dashboard.html`
 - `README.md`
 - `AI/README.md`
@@ -43,7 +43,7 @@
 ## 验证
 
 - `python -m unittest discover -s tests -p "test_*.py" -v`：10 项通过；删除测试覆盖投影归档、Markdown 删除、附件保留与后续扫描不重复归档。
-- `node --check assets/questions.js`、`assets/history.js`、`assets/core.js`、`assets/dashboard.js`、`assets/app.js`：通过。
+- `node --check assets/questions.js`、`assets/history.js`、`assets/app/domain/items.js`、`assets/dashboard.js`、`assets/app/main.js`：通过。
 - `git diff --check`：通过。
 
 ## 同步过的文档

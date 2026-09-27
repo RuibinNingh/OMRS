@@ -2,9 +2,8 @@
    层级从低到高：vendor（KaTeX）< legacy（旧 styles.css）< base < ui < shell（侧栏、顶栏、工作台）< domain < features
    < utilities < legacy-bridge（给旧类名套新外观的过渡层）。未分层的规则永远压过分层规则，所以新旧样式都必须进层；
    tokens.css 只定义自定义属性，单独 <link>。domain / features / utilities 各期迁移时陆续填入。 */
-@layer vendor, legacy, base, ui, shell, domain, features, utilities, legacy-bridge;
+@layer vendor, base, ui, shell, domain, features, utilities;
 @import url("../../vendor/katex/katex.min.css") layer(vendor);
-@import url("../../styles.css") layer(legacy);
 @import url("base.css") layer(base);
 @import url("ui.css") layer(ui);
 @import url("shell.css") layer(shell);
@@ -26,4 +25,3 @@
 @import url("../features/create/process.css") layer(features);
 @import url("../features/create/cards.css") layer(features);
 @import url("../features/create/train.css") layer(features);
-@import url("legacy-bridge.css") layer(legacy-bridge);

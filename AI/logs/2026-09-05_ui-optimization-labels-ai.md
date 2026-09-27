@@ -13,7 +13,7 @@
 
 ### 1. 修复反馈录入页面标记按钮问题
 
-**文件**: `assets/styles.css`
+**文件**: `assets/app/styles/index.css`
 
 问题原因：按钮可能被遮挡或z-index不足
 
@@ -34,7 +34,7 @@
 
 ### 3. 优化标记系统UI - 更紧凑简洁
 
-**文件**: `assets/styles.css`
+**文件**: `assets/app/styles/index.css`
 
 **标记芯片优化**：
 - 高度从 18px 减至 17px
@@ -68,7 +68,7 @@
 - 从标记系统获取所有已有标记
 - 对AI返回的标记进行过滤，只保留已有标记中的（最多3个）
 
-**前端改动** (`assets/app.js`):
+**前端改动** (`assets/app/main.js`):
 - `crClassify` 函数处理AI返回的 `labels` 字段
 - 调用 `setCreateLabels` 自动填充标记到录入表单
 
@@ -93,7 +93,7 @@
 - `/api/ai-recognize` 路由支持 `question_image` 和 `answer_image` 字段
 - 兼容旧的 `image` 字段名
 
-**前端改动** (`assets/app.js`):
+**前端改动** (`assets/app/main.js`):
 
 **更新 `crClassify` 函数**：
 - 同时读取题目图片（第1张）和答案图片（第1张）

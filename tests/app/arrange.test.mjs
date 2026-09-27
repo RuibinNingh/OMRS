@@ -3,12 +3,9 @@
 // 共享筛选就是旧 core.js 的 filterItems（题库、导出、即时练习共用）：这里把 core.js 载入本进程当作 filterAll。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import vm from 'node:vm';
 import * as A from '../../assets/app/features/schedule/arrange.js';
+import { filterAll } from '../../assets/app/domain/items.js';
 
-vm.runInThisContext(fs.readFileSync(new URL('../../assets/core.js', import.meta.url), 'utf8'));
-const filterAll = (items, filters) => globalThis.filterItems(items, filters);
 const pick = (items, patch) => A.filterCandidates(items, { ...A.emptyFilters(), sort: 'mastery-asc', ...patch }, filterAll).map(i => i.uid);
 
 test('shared filter contract: suspended hidden, text and knowledge tag', () => {

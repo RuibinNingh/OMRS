@@ -113,6 +113,7 @@ def run_main(page, base, port, results):
 
 def run_error(browser, base, results):
     ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
     page = ctx.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
@@ -128,6 +129,7 @@ def run_error(browser, base, results):
 
 def run_mobile(browser, base, results):
     ctx = browser.new_context(viewport={"width": 390, "height": 844})
+    ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
     page = ctx.new_page()
     open_data(page, base)
     m = page.evaluate("""() => ({ kpi: getComputedStyle(document.querySelector('.dat-kpis')).gridTemplateColumns.split(' ').length,
@@ -152,6 +154,7 @@ def main():
         with sync_playwright() as p:
             browser = launch_browser(p)
             ctx = browser.new_context(viewport={"width": 1440, "height": 900}, accept_downloads=True)
+            ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
             page = ctx.new_page()
             page.set_default_timeout(8000)
             errors = []
@@ -164,6 +167,7 @@ def main():
             for theme in ("light", "dark"):
                 for label, size, target in (("桌面", (1440, 900), 28), ("手机", (390, 844), 40)):
                     c = browser.new_context(viewport={"width": size[0], "height": size[1]})
+                    c.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
                     c.add_init_script(f"try{{localStorage.setItem('omrs-theme','{theme}')}}catch(e){{}}")
                     pg = c.new_page()
                     open_data(pg, base)

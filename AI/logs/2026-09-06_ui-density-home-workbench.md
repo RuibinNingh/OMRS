@@ -70,11 +70,11 @@
 
 | 文件 | 改动 |
 |---|---|
-| `assets/styles.css` | 密度 token 层；15 处 px → 变量；新增首页组件段、工作台段、紧凑档热力图覆盖；`.act-*` 单行化 |
+| `assets/app/styles/index.css` | 密度 token 层；15 处 px → 变量；新增首页组件段、工作台段、紧凑档热力图覆盖；`.act-*` 单行化 |
 | `omrs_dashboard.html` | `<head>` 读 `omrs-density`；仪表盘面板整块重写；`chart-trend` / `chart-labels` 移入 `panel-data`；`#qb-counts` 移入 `.qb-bar`；设置页加密度开关；侧栏版本号 |
 | `assets/dashboard.js` | 新增 `renderTodayHero()` / `renderWeakSubjects()` / `dashSessions()`；`renderDash()` 增两处调用 |
 | `assets/actions.js` | 行动条按钮内联；卡头去掉重复的目标数 |
-| `assets/app.js` | 新增 `setDensity()`；`syncThemeControls()` 同步密度按钮；`switchTab()` 切 `.is-workbench` |
+| `assets/app/main.js` | 新增 `setDensity()`；`syncThemeControls()` 同步密度按钮；`switchTab()` 切 `.is-workbench` |
 | `omrs/version.py` | v1.14.2 → v1.15.0 |
 | `README.md` / `AI/README.md` / `AI/api.md` / `AI/frontend.md` | 版本号、特性表、版本历史、§1 图表表格订正、新增 §1.2 |
 

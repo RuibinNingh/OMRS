@@ -68,8 +68,8 @@
 | P5 | v1.24.0 → v1.24.2 | **完成（4 轮）** | 第 1 轮：`domain/question/`、容器查询根治、超宽公式、计划文件夹入库。第 2 轮：题目库迁到 `features/questions/`、`domain/question/ops.js`、全局 Esc 统一进 core/keys、删 `qtable.js` 与约 170 条旧题库 CSS。第 3 轮（v1.24.1）：题目弹窗 `modal.js` 与 Markdown 编辑器 `editor.js` 换 `ui/dialog`、`ui/overlay` 客人浮层、焦点回到行。第 4 轮（v1.24.2）：`domain/labels/`（芯片不写 `style=`、预设色进 tokens、选择器与管理的数据部分）、qview 外观全部搬进 `qview.css` 并 token 化（题面 16px 阅读正文）。日志 `AI/logs/2026-09-25_frontend-rearch-p5.md` |
 | P6 | v1.25.0 → v1.25.13、v1.26.6 | **完成** | v1.26.6：收件箱前端数据归 `features/create/inbox-store.js`，框选收尾、题卡、AI 训练工作区原生，删 `inbox.js`、`legacy-inbox.js`、`populateCreateLists` 与 `styles.css` 收件箱整段（U19）。v1.25.13：收件箱网格、手机上传页接入 tokens。v1.25.12：快速录入。v1.25.11：上传入口。v1.25.10：录入页外壳。v1.25.9：补 CCW 差异。v1.25.8：设置。v1.25.7：报告。v1.25.6：目录。v1.25.5：历史记录。v1.25.4：全题库导出。v1.25.3：安排复习。v1.25.2：复习调度。v1.25.1：数据复盘。v1.25.0：`domain/data.js` 与仪表盘。日志 `AI/logs/2026-09-25_frontend-rearch-p6.md`、`AI/logs/2026-09-27_frontend-rearch-p6-create.md` |
 | P7 | v1.26.0 → v1.26.5 | **完成（6 轮），已与 P6 合并（v1.26.5）** | 第 6 轮（v1.26.5）：列表 / 画廊、检查器原生（`view.js` / `state.js`，整页 morph，只有舞台 iframe 与画廊题面挂载点 skip）；板详情所有者 `features/board/detail.js`（I/O 注入，真实 I/O 与单例在 `runtime.js`）；domain 经端口 `domain/board/detail-port.js`（删 `legacy.js`）；「添加题目」换 `ui/dialog`（`add.js`，修 Esc）；删 `board.js` 与 `styles.css` 139 行；node +13、`board.py` 22 → 35。第 1–5 轮见 §5c。日志 `AI/logs/2026-09-27_frontend-rearch-p7.md` |
-| P8 | — | 未开始 | 见 §8 |
-| 终检 / 部署 | — | 未开始 | 见 §8 |
+| P8 | v1.26.6 | 已完成 | 旧脚本、过渡桥、旧样式和 UI 基线删除；模块化入口与零容忍门禁 |
+| 终检 / 部署 | v1.26.6 | 已完成，生产已重启 | 全量门禁与浏览器主路径通过；部署记录见 `AI/logs/2026-09-28_frontend-rearch-p8-final.md` |
 
 ## 4. 门禁计数（v1.26.6，沙箱实测）
 
@@ -118,7 +118,7 @@ P6 剩余（v1.25.5–v1.25.13 由 Codex · 完整执行；最后一段 v1.26.6 
 - [x] 历史记录（`history.js` → `features/history/`；`domain/history.js` 的转调换成真实现，仪表盘最近动态仍同步更新）。反馈与 Session 撤销 / 恢复、状态还原、时区和四种视觉审计由 `tests/e2e/history.py` 覆盖；v1.25.5。
 - [x] 目录（`catalog.js` → `features/catalog/`）：目录树、搜索、全部文件、开题、复制、后备树与扫描后重读均迁移；v1.25.6。
 - [x] 报告（`reports.js` → `features/reports/`）：文件拖入 / 选择、带图材料下载、沙箱预览与删除确认；v1.25.7。
-- [x] 设置（`assets/app.js` 设置段 → `features/settings/`）；v1.25.8。
+- [x] 设置（`assets/app/main.js` 设置段 → `features/settings/`）；v1.25.8。
 - [x] 录入题目外壳与导航（`features/create/`）；本轮先保留旧工作区供分步迁移；v1.25.10。
 - [x] 原生上传入口（`features/create/upload.js`）：多图拖放 / 选择 / 粘贴、错误提示与旧列表刷新；v1.25.11。
 - [x] 快速录入（`features/create/quick.js`）：分区图片、AI 识别与提取、创建后保留上下文；v1.25.12。

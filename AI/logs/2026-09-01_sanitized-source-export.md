@@ -14,7 +14,7 @@
 - `omrs/source_export.py`
 - `omrs/server.py`
 - `omrs_dashboard.html`
-- `assets/app.js`
+- `assets/app/main.js`
 - `tests/test_source_export.py`
 - `AI/api.md`
 - `AI/frontend.md`

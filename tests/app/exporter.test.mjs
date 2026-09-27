@@ -2,13 +2,10 @@
 // 共享筛选就是旧 core.js 的 filterItems（与 arrange.test.mjs 同法载入）。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import vm from 'node:vm';
 import * as X from '../../assets/app/features/schedule/exporter.js';
 import { requestExport } from '../../assets/app/domain/exporting.js';
+import { filterAll } from '../../assets/app/domain/items.js';
 
-if (typeof globalThis.filterItems !== 'function') vm.runInThisContext(fs.readFileSync(new URL('../../assets/core.js', import.meta.url), 'utf8'));
-const filterAll = (items, f) => globalThis.filterItems(items, f);
 const items = [
   { uid: 'a', subject: '数学', category: '函数', tag: '#状态/待攻克', knowledge_tags: ['单调'], labels: ['易错'], mastery: 0.5, difficulty: 3 },
   { uid: 'b', subject: '物理', category: '力学', tag: '#状态/已击杀', knowledge_tags: [], labels: ['易错', '考前'], mastery: 0.1, difficulty: 8 },

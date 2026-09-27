@@ -14,7 +14,7 @@
 ## 修改文件
 
 - 后端：`omrs/security.py`、`omrs/path_safety.py`、`omrs/server.py`、`omrs/creation.py`、`omrs/question_ops.py`、`omrs/reports.py`。
-- 前端：`assets/core.js`、`assets/questions.js`、`assets/schedule.js`、`assets/app.js`、`assets/inbox_mobile.html`、`omrs_dashboard.html`。
+- 前端：`assets/app/domain/items.js`、`assets/questions.js`、`assets/schedule.js`、`assets/app/main.js`、`assets/inbox_mobile.html`、`omrs_dashboard.html`。
 - 验证：`tests/test_security.py`。
 - 文档：`README.md`、`AI/README.md`、`AI/api.md`、`AI/data.md`、`AI/frontend.md`、`AI/inbox.md`、`AI/optimization.md`、`AI/security.md`、本日志与 `AI/logs/log.md`。
 

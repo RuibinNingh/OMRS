@@ -6,8 +6,9 @@
  */
 import { escape } from '../../core/html.js';
 import { ensureColor } from './sheet.js';
+import { allLabels } from './state.js';
 
-const defs = () => (typeof LABELS !== 'undefined' && Array.isArray(LABELS) ? LABELS : []);
+const defs = allLabels;
 
 /** 名称或定义 → 定义；找不到时只有名字（颜色空 → 默认灰）。list 默认读旧 labels.js 的 LABELS。 */
 export function labelObject(label, list = defs()) {

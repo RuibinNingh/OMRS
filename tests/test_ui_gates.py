@@ -1,4 +1,4 @@
-"""tests/check_ui.py 与 tests/check_contrast.py 的回归：规则能抓到违规，棘轮只许下降，仓库本身通过。"""
+"""tests/check_ui.py 与 tests/check_contrast.py 的回归：规则能抓到违规，仓库本身通过。"""
 import contextlib
 import io
 import os
@@ -46,17 +46,17 @@ class CheckUiRulesTest(unittest.TestCase):
         css = check_ui.legacy_counts(os.path.join(self.root, "assets", "styles.css"))
         self.assertEqual((css["color_literals"], css["font_size_literals"]), (1, 1), "选择器里的 #abc 不算颜色")
 
-    def test_ratchet_only_decreases(self):
-        self.assertEqual(quiet(check_ui.main, ["--update-baseline"], root=self.root), 0)
-        self.assertEqual(quiet(check_ui.main, [], root=self.root), 0)
-        write(self.root, "assets/core.js", "el.innerHTML=a; el.innerHTML=b;\n")
+    def test_legacy_baseline_is_removed(self):
         self.assertEqual(quiet(check_ui.main, [], root=self.root), 1)
-        self.assertEqual(quiet(check_ui.main, ["--update-baseline"], root=self.root), 1, "存量上升不能写基线")
+        self.assertEqual(quiet(check_ui.main, ["--update-baseline"], root=self.root), 1)
         write(self.root, "assets/core.js", "\n")
-        self.assertEqual(quiet(check_ui.main, ["--update-baseline"], root=self.root), 0)
+        write(self.root, "assets/styles.css", "\n")
+        self.assertEqual(quiet(check_ui.main, [], root=self.root), 1, "旧文件即使无违规也禁止保留")
+        os.remove(os.path.join(self.root, "assets", "core.js"))
+        os.remove(os.path.join(self.root, "assets", "styles.css"))
+        self.assertEqual(quiet(check_ui.main, [], root=self.root), 0)
 
     def test_new_legacy_file_rejected(self):
-        quiet(check_ui.main, ["--update-baseline"], root=self.root)
         write(self.root, "assets/newpage.js", "\n")
         self.assertEqual(quiet(check_ui.main, [], root=self.root), 1)
 

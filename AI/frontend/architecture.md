@@ -2,7 +2,7 @@
 
 > **速查**
 > - 职责：`assets/app/` 的分层与依赖方向、`core/` 底座（渲染、事件、快捷键、状态、总线、路由、请求、格式化）、页面契约、启动顺序、过渡桥与静态资源缓存
-> - 入口：`assets/app/main.js`、`assets/app/shell.js`、`assets/app/legacy-pages.js`、`assets/app/core/router.js`
+> - 入口：`assets/app/main.js`、`assets/app/shell.js`、页面登记模块、`assets/app/core/router.js`
 > - 不变量：模块入口晚于全部经典脚本执行，`init()` 只由 `main.js` 调用；`switchTab` 只是 `router.go` 的一行包装；页面之间不互相 import，联动走 bus；`innerHTML` 只在 `core/dom.js`；过渡桥与旧页面登记表到 P8 必须清空
 > - 必跑测试：`tests/app/core.test.mjs`、`tests/app/run_browser.py`、`tests/e2e/shell_router.py`、`tests/test_asset_cache.py`
 > - 相关：`AI/frontend/components.md`（ui 组件与 gallery）、`AI/frontend/shell.md`（外壳、加载顺序）、`AI/frontend/design-system.md`（token 与门禁）
@@ -77,20 +77,20 @@ assets/app/
 
 | 位置 | 内容 | 删除期 |
 |---|---|---|
-| `assets/app/legacy-bridge.js` | 旧 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 转调新组件 | P8 |
-| `assets/app/legacy-pages.js` | 旧页面登记表（P6 剩余页面与 P7 展示板合入后为空，所有页面都是页面契约） | P8 删文件（连同 `main.js` 里的 `...LEGACY_PAGES`） |
-| `assets/app/legacy-bridge.js` 的 `installScheduleBridge`（v1.25.2 起；v1.25.3 补推荐选题，v1.25.4 补导出）：`refreshSessions` → `domain/sessions.js`；`schOpenPlan(id)` → 复习调度页事件（不在本页时先切页）；`confirmScheduleV2()` / `loadRecommendationsV2()` → 「安排复习」控制器；`renderUnifiedListV2()` / `renderExportPicker()` → 页面重绘；`downloadExportResponse(response, name, statusId)` → `core/download.js`；只读 `SCH_VIEW`、`SCH_EXPORT_RETURN`、`SCH_SESSIONS_LOADING`、`REC_DATA_V2`、`REC_LOADING`、`REC_ERROR` | app.js `init()`、history.js、schedule.js 的 `doScan`、labels.js（标记变化后）、domain/question/ops.js（批量 A4）；tests/e2e 与冒烟测试 | 调用方迁完逐条删，P8 清空 |
-| `assets/app/legacy-bridge.js` 的 `installBoardBridge`（P7 第 6 轮起只剩旧调用方与冒烟测试要用的入口）：板详情单例（`features/board/runtime.js`）的 `boardInit` / `boardReloadData` / `boardLoad` / `boardAddToBoard` / `boardFlushSave` / `boardApplyPrintField` / `boardSetItemGap` / `boardSetView` / `boardSetPrintMode` / `boardPrintPreview` / `boardExportCurrent` / `boardSaveQueue` / `boardPrint` / `boardMarkAwaiting` / `boardClearAwaiting` / `boardRender` / `configureBoardDetail` 与只读访问器 `BOARD_DETAIL`；`features/board/preview.js` 的 `boardPreview*`；`domain/board/` 的 `boardQuickAdd` / `boardChooseAndAdd` / `boardPickerOpen` / `boardPickerClose` / `boardCurrentId`；并调 `installBoardWindow` 装窗口级监听 | `boardInit` / `boardReloadData`：app.js（`init`、`legacyDataRefresh`）、labels.js；选板：inbox.js、`domain/question/mount.js`、`domain/sessions.js`；其余：`tests/smoke_board_integrity.py`、`smoke_board_lock.py`、`smoke_board_print_geometry.py`、`tests/e2e/board.py`、`board_picker.py` | P8：旧调用方迁完、冒烟测试改用新入口后清空 |
-| `assets/app/legacy-bridge.js` 的 `installDataBridge`（v1.25.0）：全局 `reloadData` → `domain/data.js`；旧刷新链 `legacyDataRefresh()` 登记为钩子；`QUESTION_CACHE` / `QUESTION_PENDING` 只读全局 | `reloadData`：app.js `init()`、labels.js、schedule.js 的写操作之后；目录与历史页通过 store / bus 自行订阅；缓存：旧读者 board.js（P7 删）、export.js（v1.25.4 删）都已不在，只剩 tests/e2e 读取 | 刷新链随各页迁移逐项删，P8 清空 |
-| `assets/app/legacy-bridge.js` 的 `instLoadPractice(preset)`、`INSTANT_QUEUE` | 旧入口带预设进入即时练习（仪表盘已改为直接发 `instant:load`，现仅 `tests/e2e/instant.py` 回归用）；旧冒烟测试读队列 | P8 |
-| `assets/app/legacy-bridge.js` 的 `fbSessionProgress`、`renderFb`、`resetFeedbackForm`、`fbClearResults`；`schedule.js` 的 `feedbackSession` / `refreshFbSessionPicker`（改为发 bus） | 复习调度算进度、跳到反馈页、删计划清表单；标记变化重绘 | P8 |
-| `assets/app/legacy-bridge.js` 的 `installQuestionBridge`：`renderMdContent`、`ensureQuestionDetail`、`qvHtml` / `qvRender` / `qvInvalidate(Many)` / `qvRerenderAll` / `qvSetContext`、`viewQ` / `closeModal`、`closeMarkdownEditor`（E2E 收尾）、练习记录函数 | 展示板、导出、推荐、数据复盘、历史仍调旧名 | 各调用方迁完逐条删，P8 清空 |
-| `installLabelsBridge`（P5 第 4 轮）：`lblChip` / `lblChips`、`lblColorKey`、`labelHex`、`labelPresetColors`、`nextLabelColor`、`labelSort` / `labelUpsert`、`labelPickerOptions`、`labelRecent` / `labelTouchRecent` / `labelQuickList`、`labelApplyBatch`、`labelFormValues`（实现在 `domain/labels/`） | 芯片：labels.js、board.js、data.js、export.js、inbox.js、recommend_v2.js；其余：labels.js | 各调用方迁完逐条删，P8 清空 |
+| `assets/app/` 模块 | 旧 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 转调新组件 | P8 |
+| 页面登记模块 | 旧页面登记表（P6 剩余页面与 P7 展示板合入后为空，所有页面都是页面契约） | P8 删文件（连同 `main.js` 里的 `...LEGACY_PAGES`） |
+| `assets/app/` 模块 的 `installScheduleBridge`（v1.25.2 起；v1.25.3 补推荐选题，v1.25.4 补导出）：`refreshSessions` → `domain/sessions.js`；`schOpenPlan(id)` → 复习调度页事件（不在本页时先切页）；`confirmScheduleV2()` / `loadRecommendationsV2()` → 「安排复习」控制器；`renderUnifiedListV2()` / `renderExportPicker()` → 页面重绘；`downloadExportResponse(response, name, statusId)` → `core/download.js`；只读 `SCH_VIEW`、`SCH_EXPORT_RETURN`、`SCH_SESSIONS_LOADING`、`REC_DATA_V2`、`REC_LOADING`、`REC_ERROR` | app.js `init()`、history.js、schedule.js 的 `doScan`、labels.js（标记变化后）、domain/question/ops.js（批量 A4）；tests/e2e 与冒烟测试 | 调用方迁完逐条删，P8 已完成 |
+| `assets/app/` 模块 的 `installBoardBridge`（P7 第 6 轮起只剩旧调用方与冒烟测试要用的入口）：板详情单例（`features/board/runtime.js`）的 `boardInit` / `boardReloadData` / `boardLoad` / `boardAddToBoard` / `boardFlushSave` / `boardApplyPrintField` / `boardSetItemGap` / `boardSetView` / `boardSetPrintMode` / `boardPrintPreview` / `boardExportCurrent` / `boardSaveQueue` / `boardPrint` / `boardMarkAwaiting` / `boardClearAwaiting` / `boardRender` / `configureBoardDetail` 与只读访问器 `BOARD_DETAIL`；`features/board/preview.js` 的 `boardPreview*`；`domain/board/` 的 `boardQuickAdd` / `boardChooseAndAdd` / `boardPickerOpen` / `boardPickerClose` / `boardCurrentId`；并调 `installBoardWindow` 装窗口级监听 | `boardInit` / `boardReloadData`：app.js（`init`、`legacyDataRefresh`）、labels.js；选板：inbox.js、`domain/question/mount.js`、`domain/sessions.js`；其余：`tests/smoke_board_integrity.py`、`smoke_board_lock.py`、`smoke_board_print_geometry.py`、`tests/e2e/board.py`、`board_picker.py` | P8：旧调用方迁完、冒烟测试改用新入口后清空 |
+| `assets/app/` 模块 的 `installDataBridge`（v1.25.0）：全局 `reloadData` → `domain/data.js`；旧刷新链 `legacyDataRefresh()` 登记为钩子；`QUESTION_CACHE` / `QUESTION_PENDING` 只读全局 | `reloadData`：app.js `init()`、labels.js、schedule.js 的写操作之后；目录与历史页通过 store / bus 自行订阅；缓存：旧读者 board.js（P7 删）、export.js（v1.25.4 删）都已不在，只剩 tests/e2e 读取 | 刷新链随各页迁移逐项删，P8 已完成 |
+| `assets/app/` 模块 的 `instLoadPractice(preset)`、`INSTANT_QUEUE` | 旧入口带预设进入即时练习（仪表盘已改为直接发 `instant:load`，现仅 `tests/e2e/instant.py` 回归用）；旧冒烟测试读队列 | P8 |
+| `assets/app/` 模块 的 `fbSessionProgress`、`renderFb`、`resetFeedbackForm`、`fbClearResults`；`schedule.js` 的 `feedbackSession` / `refreshFbSessionPicker`（改为发 bus） | 复习调度算进度、跳到反馈页、删计划清表单；标记变化重绘 | P8 |
+| `assets/app/` 模块 的 `installQuestionBridge`：`renderMdContent`、`ensureQuestionDetail`、`qvHtml` / `qvRender` / `qvInvalidate(Many)` / `qvRerenderAll` / `qvSetContext`、`viewQ` / `closeModal`、`closeMarkdownEditor`（E2E 收尾）、练习记录函数 | 展示板、导出、推荐、数据复盘、历史仍调旧名 | 各调用方迁完逐条删，P8 已完成 |
+| `installLabelsBridge`（P5 第 4 轮）：`lblChip` / `lblChips`、`lblColorKey`、`labelHex`、`labelPresetColors`、`nextLabelColor`、`labelSort` / `labelUpsert`、`labelPickerOptions`、`labelRecent` / `labelTouchRecent` / `labelQuickList`、`labelApplyBatch`、`labelFormValues`（实现在 `domain/labels/`） | 芯片：labels.js、board.js、data.js、export.js、inbox.js、recommend_v2.js；其余：labels.js | 各调用方迁完逐条删，P8 已完成 |
 | `installQuestionsPageBridge`：`renderQ()` / `filterQ()` → 发 `'questions:render'`；`questionsLoadPreset(preset)` → 题库页先清空条件再套用预设并切页 | app.js（`legacyDataRefresh`）、labels.js（保存标记后）；qview 的「在题目库打开」、`tests/e2e/questions.py`（旧入口回归） | P8 |
 | `installEscapeBridge`：`core/keys.js` 全局 `escape`（先关标记选择器，再关标记管理）——取代 labels.js 原来挂在 document 上的 keydown；题目弹窗与 Markdown 编辑器是 `ui/dialog`，Esc 由 `ui/overlay` 处理 | 所有页面 | 选择器与标记管理迁到新组件时删（P5 第 4 轮起，最迟 P8） |
-| `__omrsUi.host(node, {close, escape})` / `release(node)`：旧浮层放进最上层模态对话框（`ui/overlay` 的客人） | labels.js（标记选择器、标记管理）；原生的选板浮层直接用 `hostGuest` | 标记选择器与标记管理迁到新组件时删，P8 清空 |
-| `assets/app.js` 的 `switchTab` | 一行包装 `router.go` | P8（旧 `onclick` 全部换成链接或 `data-action` 之后） |
-| `assets/app/styles/legacy-bridge.css` | 旧类名套新外观 | 分段删除，见 `AI/frontend/components.md` §5 |
+| `__omrsUi.host(node, {close, escape})` / `release(node)`：旧浮层放进最上层模态对话框（`ui/overlay` 的客人） | labels.js（标记选择器、标记管理）；原生的选板浮层直接用 `hostGuest` | 标记选择器与标记管理迁到新组件时删，P8 已完成 |
+| `assets/app/main.js` 的 `switchTab` | 一行包装 `router.go` | P8（旧 `onclick` 全部换成链接或 `data-action` 之后） |
+| `assets/app/styles/controls.css` | 旧类名套新外观 | 分段删除，见 `AI/frontend/components.md` §5 |
 
 ## 7. 静态资源缓存
 

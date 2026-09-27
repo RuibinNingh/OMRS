@@ -193,7 +193,7 @@ warnings}`）与 `window.OMRS_LAYOUT_TIMING`（`{total_ms, passes}`），设置
 
 ## 屏幕版（`screen.js` / `screen.css`）—— 全屏卡片复习 App
 
-定位：**用手机/平板复习的轻应用**，与桌面端仪表盘（`assets/styles.css`）共用同一套设计令牌（暖棕 `--accent:#8b5e3c`、米色底、Noto Sans SC、8px 圆角、柔和阴影），导出件与主程序观感一致。移动优先、所有交互在拇指区可达，桌面端自动适配（卡片定宽居中、抽屉变居中弹窗、支持方向键）。
+定位：**用手机/平板复习的轻应用**，与桌面端仪表盘（`assets/app/styles/index.css`）共用同一套设计令牌（暖棕 `--accent:#8b5e3c`、米色底、Noto Sans SC、8px 圆角、柔和阴影），导出件与主程序观感一致。移动优先、所有交互在拇指区可达，桌面端自动适配（卡片定宽居中、抽屉变居中弹窗、支持方向键）。
 
 题面和答案的 `{t:'table'}` 块由 `renderBlocks()` 输出为可横向滚动的 `.md-table-wrap`，每个单元格继续用 `mathText()` 渲染 LaTeX。屏幕版保持一题一卡，不因表格切换整份布局。
 

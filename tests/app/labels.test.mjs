@@ -8,6 +8,7 @@ import { hexKey, rgbOf, lblInk, labelFg, chipBackground, contrastRatio, presetCo
 import { chipHtml, chipsHtml } from '../../assets/app/domain/labels/chips.js';
 import { colorRule, ensureColor, registeredColors } from '../../assets/app/domain/labels/sheet.js';
 import * as model from '../../assets/app/domain/labels/model.js';
+import { filterItems } from '../../assets/app/domain/items.js';
 
 const read = rel => fs.readFileSync(new URL(rel, import.meta.url), 'utf8');
 const tokens = read('../../assets/app/styles/tokens.css');
@@ -55,18 +56,15 @@ test('chipsHtml adds a + entry, caps visible chips and wraps with a delegated ta
 });
 
 test('filterItems supports label any/all and keeps search compatibility', () => {
-  const sandbox = { console, Date, Math, Set, Object, String, Number, Array, document: { addEventListener() {} }, localStorage: { getItem: () => null, setItem() {} } };
-  vm.createContext(sandbox);
-  vm.runInContext(`${read('../../assets/core.js')}\nthis.__filterItems = filterItems;`, sandbox);
   const items = [
     { uid: 'U1', labels: ['A', 'B'], difficulty: 5, mastery: 0.2, tag: '#状态/待攻克', due_date: '' },
     { uid: 'U2', labels: ['A'], difficulty: 5, mastery: 0.2, tag: '#状态/待攻克', due_date: '' },
     { uid: 'U3', labels: ['C'], difficulty: 5, mastery: 0.2, tag: '#状态/待攻克', due_date: '' },
   ];
   const base = { text: '', subject: '', category: '', tag: '', knowledgeTag: '', difficultyMin: 0, difficultyMax: 10, masteryMin: null, masteryMax: null, dueFilter: '', suspended: '', sort: 'mastery-asc' };
-  assert.deepEqual(Array.from(sandbox.__filterItems(items, { ...base, labels: ['A', 'B'], labelMode: 'any' }), item => item.uid), ['U1', 'U2']);
-  assert.deepEqual(Array.from(sandbox.__filterItems(items, { ...base, labels: ['A', 'B'], labelMode: 'all' }), item => item.uid), ['U1']);
-  assert.deepEqual(Array.from(sandbox.__filterItems(items, { ...base, labels: [], labelMode: 'any', text: 'c' }), item => item.uid), ['U3']);
+  assert.deepEqual(filterItems(items, { ...base, labels: ['A', 'B'], labelMode: 'any' }).map(item => item.uid), ['U1', 'U2']);
+  assert.deepEqual(filterItems(items, { ...base, labels: ['A', 'B'], labelMode: 'all' }).map(item => item.uid), ['U1']);
+  assert.deepEqual(filterItems(items, { ...base, labels: [], labelMode: 'any', text: 'c' }).map(item => item.uid), ['U3']);
 });
 
 test('presets come from tokens.css (10 colors, #9 is the default grey); domain/labels JS has no color literals', () => {

@@ -46,8 +46,8 @@
 - `omrs/server.py` — 引入 `build_tree`，新增 `GET /api/tree`
 - `omrs/version.py` — `v1.6.0` → `v1.7.0`
 - `omrs_dashboard.html` — 新增 `#i-tree` / `#i-target` 雪碧图符号、「目录」导航项、`#panel-catalog` 面板、`#action-plan` 卡；追加 `actions.js` / `catalog.js` 两个 `<script>`（置于 `recommend.js` 之后、`instant.js` 之前）；侧栏版本号与 `styles.css` 缓存串更新
-- `assets/styles.css` — `[data-theme="dark"]` token 重配、深色卡片改实色；文件末尾追加深色修订段、`.act-*` 与 `.catalog-bar` / `.tree-*` 样式
-- `assets/app.js` — `switchTab` 的 `TT` 加 `catalog`、切到目录页时 `loadCatalog()`；`reloadData()` 在目录页激活时重画；`init()` 补调 `renderActionPlan()`
+- `assets/app/styles/index.css` — `[data-theme="dark"]` token 重配、深色卡片改实色；文件末尾追加深色修订段、`.act-*` 与 `.catalog-bar` / `.tree-*` 样式
+- `assets/app/main.js` — `switchTab` 的 `TT` 加 `catalog`、切到目录页时 `loadCatalog()`；`reloadData()` 在目录页激活时重画；`init()` 补调 `renderActionPlan()`
 - `assets/dashboard.js` — `renderDash()` 末尾调 `renderActionPlan()`
 - `assets/schedule.js` — `refreshSessions()` 末尾在 `DATA` 就绪时重画行动推荐
 

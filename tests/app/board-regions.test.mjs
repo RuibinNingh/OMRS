@@ -177,8 +177,8 @@ test('版式与打印浮层已经整套移除', () => {
   for (const gone of ['boardSettingsPopHtml', 'boardPopOpen', 'boardPopClose', 'BOARD_POP', 'data-board-pop']) {
     assert.ok(!SOURCE.includes(gone), `${gone} 还在：浮层删干净才算重构完，否则会退回两套入口`);
   }
-  const css = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'styles.css'), 'utf8');
-  assert.ok(!/\.bd-pop[\s.,{:]/.test(css), 'styles.css 里还留着浮层样式');
+  const css = fs.readFileSync(path.join(__dirname, '..', '..', 'assets', 'app', 'features', 'board', 'board.css'), 'utf8');
+  assert.ok(!/\.bd-pop[\s.,{:]/.test(css), 'board.css 里还留着浮层样式');
   const html = fs.readFileSync(path.join(__dirname, '..', '..', 'omrs_dashboard.html'), 'utf8');
   const skeleton = bodyOf('view', VIEW);
   assert.ok(skeleton.includes('id="bd-statusbar"') && skeleton.includes('id="bd-inspector"'), '面板骨架要有状态条与检查器两个常驻节点');

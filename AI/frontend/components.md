@@ -1,7 +1,7 @@
 # 前端：ui 组件库、过渡桥与 gallery
 
 > **速查**
-> - 职责：`assets/app/ui/` 的无业务组件（23 个 + 自绘 SVG 图标）、`assets/app/core/` 的渲染底座（`html```、`render`）、旧入口过渡桥（`assets/app/legacy-bridge.js`、`assets/app/styles/legacy-bridge.css`）、组件陈列页 gallery
+> - 职责：`assets/app/ui/` 的无业务组件（23 个 + 自绘 SVG 图标）、`assets/app/core/` 的渲染底座（`html```、`render`）、旧入口过渡桥（`assets/app/main.js`、`assets/app/styles/controls.css`）、组件陈列页 gallery
 > - 入口：`assets/app/main.js`（`type="module"`）、`assets/app/styles/index.css`、`assets/app/gallery.html`
 > - 不变量：全站只有一套 toast、一套对话框；旧 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 签名不变、只转调；`innerHTML` 只出现在 `assets/app/core/dom.js`；过渡桥每条注明旧调用方与删除期，P8 清空
 > - 必跑测试：`tests/app/run_browser.py`、`tests/app/html.test.mjs`、`tests/e2e/ui_bridge.py`、`tests/test_app_browser.py`、`tests/check_ui.py`
@@ -24,7 +24,7 @@ assets/app/
 └── gallery.html、gallery*.js  组件陈列页
 ```
 
-- `omrs_dashboard.html` 只引 `tokens.css` 与 `index.css`。层级从低到高：`vendor`（KaTeX）< `legacy`（旧 `assets/styles.css`）< `base` < `ui` < `shell`（侧栏、顶栏、工作台）< `domain` < `features` < `utilities` < `legacy-bridge`。未分层的规则总压过分层规则，所以新旧样式都必须进层。
+- `omrs_dashboard.html` 只引 `tokens.css` 与 `index.css`。层级从低到高：`vendor`（KaTeX）< `legacy`（旧 `assets/app/styles/index.css`）< `base` < `ui` < `shell`（侧栏、顶栏、工作台）< `domain` < `features` < `utilities` < `legacy-bridge`。未分层的规则总压过分层规则，所以新旧样式都必须进层。
 - `main.js` 以 `<script type="module">` 挂在 `app.js` 之后，浏览器在全部经典脚本之后才执行它。桥装好前，旧代码的调用先进 `window.__omrsUiPending` 队列，装好后按顺序补发。
 - 浏览器下限：Chrome 99、Safari 15.4、Firefox 97（`@layer` 与 `<dialog>`）。popover 顶层需要 Safari 17；更旧的浏览器里菜单、提示、toast 退回 `--z-*` 层级。
 
@@ -74,7 +74,7 @@ assets/app/
 
 ## 5. 过渡桥
 
-- JS：`assets/core.js` 的 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 只剩转调（经 `window.__omrsUi`），签名与返回值不变。旧 `uiToast` 不传 kind 时按旧语义映射为 ok（成功样式）；新组件自身的默认是 info。
+- JS：`assets/app/domain/items.js` 的 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 只剩转调（经 `window.__omrsUi`），签名与返回值不变。旧 `uiToast` 不传 kind 时按旧语义映射为 ok（成功样式）；新组件自身的默认是 info。
 - 「有弹层打开时不响应」的守卫新写一律 `dialog[open]:not(.is-closing)`（`core/keys.js` 的 `inDialog` 已含 `.modal-overlay.open`）。选板浮层的「点外面关闭」只让「不包含浮层」的弹层挡住（宿主对话框不算），它的键盘走 `core/keys.js` 的浮层键盘层 `pushKeyLayer`（展示板页的快捷键 v1.26.4 起也在 core/keys，浮层层天然先拿到键）；已迁到新页面的快捷键走 `core/keys.js`，它自带「有弹层时不响应」（`inDialog`）。
 - CSS：`styles/legacy-bridge.css` 给旧 `.btn` 系列、`.input` / `select.input` / `textarea.input`、旧 `.modal` 外壳套新外观；旧 `styles.css` 里被接管的基础规则已删除。桥只写外观，不写 z-index 与布局尺寸。
 - 旧代码调用的题目视图全局（`renderMdContent`、`ensureQuestionDetail`、`qvHtml`、`qvRender`、`viewQ`、`closeModal`、练习记录函数等）由 `legacy-bridge.js` 的 `installQuestionBridge` 从 `assets/app/domain/question/` 挂上，逐条注明调用方；它同时调 `bindQuestionDom()` 绑定 qview 的按钮委托、题图降级与弹窗 ←/→。

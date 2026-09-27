@@ -38,7 +38,7 @@
   `omrs/scheduling.py`、`omrs/analytics.py`、`omrs/stats.py`、
   `omrs/exporting.py`、`omrs/creation.py`、`omrs/common.py`、`omrs/version.py`
 - 前端与模板：`omrs_dashboard.html`、`assets/*.js` 相关模块、
-  `assets/styles.css`、`omrs/export_templates/board.css`、
+  `assets/app/styles/index.css`、`omrs/export_templates/board.css`、
   `omrs/export_templates/board.js`
 - 测试：`tests/test_labels.py`、`tests/test_boards.py`、
   `tests/test_board_export.py`、`tests/test_labels_ui.js`、

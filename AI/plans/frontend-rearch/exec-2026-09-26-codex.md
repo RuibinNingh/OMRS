@@ -20,7 +20,7 @@
 完成时必须同时满足四点：
 
 1. **页面全部迁完。** 12 个页面都运行在 `assets/app/` 新架构上，功能与现在一致。
-   - 旧脚本、`assets/styles.css` 和过渡桥全部删除。
+   - 旧脚本、`assets/app/styles/index.css` 和过渡桥全部删除。
    - `plan.md` §2 的每一条指标，都有门禁结果或实测数字证明。
 2. **按页提交。** 每个页面（展示板按子步骤）是本机 git 上一个独立的提交。每个提交门禁全绿，可以单独回退。
 3. **不再产出包外交接物。** 补丁、完整 zip、UPGRADE、交接清单、截图包、WIP 补丁全部取消。
@@ -81,7 +81,7 @@
 
 | 部分 | 内容 | 现状证据 |
 |---|---|---|
-| P6 剩余 | 历史记录、目录、报告、设置、录入题目（含收件箱工作台）、`inbox_mobile.html` 接入 tokens | `assets/app/legacy-pages.js` 仍登记着 catalog、create、history、reports、settings（board 属于 P7） |
+| P6 剩余 | 历史记录、目录、报告、设置、录入题目（含收件箱工作台）、`inbox_mobile.html` 接入 tokens | 页面登记模块 仍登记着 catalog、create、history、reports、settings（board 属于 P7） |
 | P7 | 展示板：`board.js`（1611 行）、`board_picker.js`（414 行）、`board_preview.js`（226 行） | `plan.md` §6 P7 |
 | P8 | 删除 `styles.css`（约 100KB）、旧 token 别名、`legacy-bridge.js`、`legacy-pages.js`、`styles/legacy-bridge.css`；删除剩余旧脚本 `core.js`、`labels.js`、`app.js`、`questions.js`、`schedule.js`；`ui_baseline.json` 归零后删除 | `plan.md` §6 P8、progress §8 |
 | 终检 | 全量门禁和 E2E；12 页 × 浅色 / 深色 × 桌面 / 手机审阅；跨浏览器测试；部署前清单 | progress §8 |
@@ -171,7 +171,7 @@ progress §5b 要求第 6 轮先查这个问题。我已经复现并定位了：
 - **旧文件都删除了：**
   - `assets/` 顶层只剩 `app/`、`vendor/`、`inbox_mobile.html`。
   - `omrs_dashboard.html` 只剩外壳骨架和各页的挂载根。
-  - 以下都不再存在：`legacy-bridge.js`、`legacy-pages.js`、`styles/legacy-bridge.css`、`styles.css`、旧 token 别名、`switchTab`、页面代码写的 `window.*` 旧全局、`tests/ui_baseline.json`。
+  - 以下都不再存在：`legacy-bridge.js`、`legacy-pages.js`、`styles/legacy-bridge.css`、`styles.css`、旧 token 别名、`switchTab`、页面代码写的 `window.*` 旧全局、UI 基线文件。
   - `check_ui.py` 对全仓零容忍。
 - **旧测试有去处。** 原来载入旧文件的 node 测试，要么迁到 `tests/app/*.test.mjs`（用例只增不减），要么随被测代码一起删除，并在日志里写明每个用例的去向。
 
@@ -632,7 +632,7 @@ progress §5b 要求第 6 轮先查这个问题。我已经复现并定位了：
 ### 预计涉及
 
 - `assets/app/`：`features/` 下新增 history、catalog、reports、settings、create、board；`domain/` 下 `history.js`、`items.js`、`labels/`、`board.js` 等；`main.js`、`shell.js`、`legacy-bridge.js`、`legacy-pages.js`（最终删除）；`styles/`（`tokens.css`、`base.css`，最终删除 `legacy-bridge.css`）；`ui/`（只在确有需要时补组件状态，并同步 gallery）。
-- `assets/*.js`：迁完一个删一个，最终全部删除；`assets/styles.css` 逐步删减，最终删除；`assets/inbox_mobile.html` 只接入 tokens。
+- `assets/*.js`：迁完一个删一个，最终全部删除；`assets/app/styles/index.css` 逐步删减，最终删除；`assets/inbox_mobile.html` 只接入 tokens。
 - `omrs_dashboard.html`：各页面板换成挂载根，最终只剩外壳。
 - `omrs/version.py`：只改版本号。
 - `tests/`：新增 `tests/app/*.test.mjs` 和 `tests/e2e/*.py`；迁移旧的 node 测试；修改 `visual/run.py`、`check_ui.py`、`test_ui_gates.py`、`ui_baseline.json`（最终删除）。

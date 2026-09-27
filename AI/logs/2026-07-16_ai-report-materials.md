@@ -16,7 +16,7 @@
 
 - `omrs_dashboard.html`
 - `assets/reports.js`
-- `assets/styles.css`
+- `assets/app/styles/index.css`
 - `omrs/analytics.py`
 - `omrs/server.py`
 - `tests/test_report_export.py`

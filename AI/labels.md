@@ -2,12 +2,12 @@
 
 > **速查**
 > - 职责：用户标记定义、题目 YAML `标记:`、投影与可选调度加成
-> - 入口：`omrs/labels.py`、`omrs/question_ops.py`、`assets/labels.js`
+> - 入口：`omrs/labels.py`、`omrs/question_ops.py`、`assets/app/domain/labels/index.js`
 > - 不变量：标记定义存 `labels.json`，题目只通过 YAML 引用标记值
 > - 必跑测试：`tests/test_labels.py`、`tests/app/labels.test.mjs`
 > - 相关：`AI/frontend/library.md`、`AI/algorithm.md`
 
-> v1.14.0 新增。对应源文件：`omrs/labels.py`、`omrs/question_ops.py`、`omrs/projections.py`、`assets/labels.js`。
+> v1.14.0 新增。对应源文件：`omrs/labels.py`、`omrs/question_ops.py`、`omrs/projections.py`、`assets/app/domain/labels/index.js`。
 
 ## 1. 概念边界
 
@@ -93,7 +93,7 @@ metadata commit。批量操作会逐题写入，完成后统一扫描投影。
 
 ## 5. 前端组件
 
-`assets/labels.js`（排在 `core.js` 之后、`questions.js` 之前）提供：
+`assets/app/domain/labels/index.js`（排在 `core.js` 之后、`questions.js` 之前）提供：
 
 - `lblChip(labelOrName, {variant, lg, dim})` / `lblChips(names, {add, max, uid, lg, variant})`（`assets/app/domain/labels/chips.js`，旧代码经过渡桥的同名全局；颜色写 `data-lbl-c` 加运行时样式表，不写 `style=`）：
   `<=>` 双尖形芯片。三种变体：默认 **soft**（原色 16%/24% 淡底 + 同色相钳亮度文字，列表 /
