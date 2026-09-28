@@ -10,6 +10,11 @@ const RING = C(12, 12, 9);
 const PATHS = {
   check: 'M5 12.5l4.5 4.5L19 7.5',
   x: 'M6 6l12 12M18 6L6 18',
+  stop: 'M7 7h10v10H7z',
+  'arrow-up': 'M12 19V5M6 11l6-6 6 6',
+  'arrow-down': 'M12 5v14M6 13l6 6 6-6',
+  undo: 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11',
+  message: 'M4 5h16v11H9l-5 4z',
   plus: 'M12 5v14M5 12h14',
   minus: 'M5 12h14',
   'chevron-down': 'M6 9l6 6 6-6',

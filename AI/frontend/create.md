@@ -56,3 +56,5 @@
 ## 样式
 
 样式都在 features 层：`create.css`（导航、工作区显隐与整屏工作台、上传、快速录入、网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（`crc-`）、`train.css`（`crt-`）。只用 token；标注色取 `--info` / `--success` / `--danger`。旧 `styles.css` 里已没有录入页的规则。
+
+处理区的文字框与输入框用 `ui-textarea` / `ui-input`（与全站同一套控件）。

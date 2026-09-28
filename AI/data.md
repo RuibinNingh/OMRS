@@ -109,6 +109,8 @@ Session 中的 `source` 贯穿反馈处理：`due` 使用常规 SM-2 间隔，`p
 - `mastery_projection`：熟练度、EF、SM-2 排期投影，含 `kill_count` 累计击杀次数（老库缺列时 `ledger.py` 用 `ALTER TABLE ... DEFAULT 0` 补列）。
 - `session_projection`：Session 投影。
 - `workspace_fingerprint`：Markdown 工作区自检指纹。
+- `blobs`：题目正文的历史版本（`hash` = 正文 sha256，`content`，`created_at`），见 `AI/ledger.md` §10。
+- `op_results`：预留的操作结果表（按 `op_id` 存结果 JSON，供幂等重放）；当前没有写入方。
 - `snapshots`：预留的持久化快照表；当前投影器尚未读写此表。`_project_state()` 只在单次重放过程中维护内存快照，`rebuild_projection()` 仍从完整提交链重放。
 
 旧 CSV 可删除并从 Ledger 重建；Ledger 不应删除。
@@ -224,6 +226,11 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 |---|---|---|
 | `allow_external` | bool | 是否绑定 0.0.0.0（见 `AI/frontend/settings.md`） |
 | `lan_pin_exempt_cidrs` | string[] | 直连免 PIN 的私有局域网 CIDR；默认空列表，代理请求不豁免 |
+| `agent_enabled` | bool | AI 助手总开关，默认关 |
+| `agent_base_url` / `agent_api_key` / `agent_model` | string | 助手的模型接口；地址与密钥留空沿用 `ai_*`，模型必填；密钥不回显 |
+| `agent_compat` / `agent_compat_overrides` | string / object | 厂商兼容配置名与单项覆写，见 `AI/agent.md` §2 |
+| `agent_limits` | object | `rounds` / `calls` / `writes` / `concurrent`，只能比默认值小 |
+| `agent_debug_log` / `agent_vision` | bool | 模型请求日志开关；视觉能力（预留） |
 | `tuning` | object | 算法可调参数覆盖，键与默认值见 algorithm.md §9；仅接受已知键且为数字 |
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`） |
 | `ai_api_key` | string | AI 接口密钥（Bearer），仅存本机 |
@@ -415,3 +422,7 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 
 备份整个 `错题/` 目录时，`labels.json`、`boards.json` 和 `boards_printed_history.jsonl`
 都随 `.omrs/` 一起进入备份。
+
+## 15. 对话库 `agent.db`
+
+路径：`错题/.omrs/agent.db`（SQLite，随备份导出，不进 Ledger）。表：`conversations`（对话，软删除）、`messages`（按 OpenAI 格式存的会话消息，用于重放模型上下文）、`runs`（每次运行的状态、结束原因、统计、合并后的事件、撤销信息）、`tool_calls`（参数、用户决定、结果、产生的 commit）。字段与读写规则见 `AI/agent.md` §8。模型请求日志（开关打开时）在 `错题/.omrs/logs/agent-llm.jsonl`，含题目内容，不含密钥。

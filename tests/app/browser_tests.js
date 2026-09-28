@@ -100,19 +100,6 @@ test('input / select / button 同一行同一档；select 上下内边距为 0�
   eq(`${cs.paddingTop}/${cs.paddingBottom}`, '0px/0px');
 });
 
-test('legacy-bridge.css：旧 .btn / .input / select.input 统一到 32 / 28 两档，压过旧页面局部规则（D2 / D3）', () => {
-  // P5 第 2 轮起题库工具栏在 features/questions（同一行同一高度由 tests/e2e/ui_bridge.py 的 D2 在真页面上测），
-  // 桥里的「题库工具栏」段已删；这里测剩下的通用规则：同一行的旧 .btn / .input / select.input 同为 32，.btn.sm 为 28
-  const box = mount(html`<div><div class="t-row"><input class="input" aria-label="搜索"><button class="btn">筛选</button><select class="input" aria-label="排序"><option>熟练度</option></select></div><div class="inst-filters"><select class="input" aria-label="科目"><option>全部科目</option></select></div><button class="btn sm">小</button></div>`);
-  const row = [...box.querySelectorAll('.t-row > *')].map(height);
-  eq(new Set(row).size, 1, `旧控件同一行高度应一致：${row}`);
-  eq(row[0], px('--ctl-md'));
-  const inst = box.querySelector('.inst-filters select');
-  eq(height(inst), px('--ctl-md'), '即时练习筛选 select 高度');
-  eq(getComputedStyle(inst).paddingTop, '0px', '即时练习筛选 select 不再有上下内边距');
-  eq(height(box.lastElementChild), px('--ctl-sm'));
-});
-
 test('dialog：模态打开、聚焦首个输入、Enter 确认并按 id 收集值', async () => {
   const pending = dialog({ title: '改名', body: html`<input class="ui-input" id="t-name" value="旧"><input type="checkbox" id="t-chk" checked>` });
   const el = topDialog();

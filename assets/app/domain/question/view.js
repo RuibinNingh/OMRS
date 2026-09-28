@@ -56,14 +56,14 @@ export function qvChips(detail, item) {
 }
 
 const TOOL = {
-  edit: () => '<button type="button" class="btn sm" data-qv-act="edit">编辑 Markdown</button>',
+  edit: () => '<button type="button" class="ui-btn ui-btn--sm" data-qv-act="edit">编辑 Markdown</button>',
   suspend: uid => (itemOf(uid)?.suspended
-    ? '<button type="button" class="btn sm" data-qv-act="resume">恢复题目</button>'
-    : '<button type="button" class="btn sm" data-qv-act="suspend">停用题目</button>'),
-  delete: () => '<button type="button" class="btn sm danger" data-qv-act="delete">删除题目</button>',
-  open: () => '<button type="button" class="btn sm" data-qv-act="open">在题目库打开</button>',
-  board: () => '<button type="button" class="btn sm" data-qv-act="board" data-board-hint>加入展示板</button>',
-  labels: () => '<button type="button" class="btn sm" data-qv-act="labels">编辑标记</button>',
+    ? '<button type="button" class="ui-btn ui-btn--sm" data-qv-act="resume">恢复题目</button>'
+    : '<button type="button" class="ui-btn ui-btn--sm" data-qv-act="suspend">停用题目</button>'),
+  delete: () => '<button type="button" class="ui-btn ui-btn--sm ui-btn--danger" data-qv-act="delete">删除题目</button>',
+  open: () => '<button type="button" class="ui-btn ui-btn--sm" data-qv-act="open">在题目库打开</button>',
+  board: () => '<button type="button" class="ui-btn ui-btn--sm" data-qv-act="board" data-board-hint>加入展示板</button>',
+  labels: () => '<button type="button" class="ui-btn ui-btn--sm" data-qv-act="labels">编辑标记</button>',
 };
 
 export function qvToolsHtml(uid, actions) {
@@ -84,7 +84,7 @@ export function qvHtml(q, item, opts) {
     return `<div class="qv qv-stack" data-qv-uid="${escape(uid)}">
       <div class="qv-fallback">
         <div>无法加载题目预览（后端未响应或题目已被移除）。</div>
-        <button type="button" class="btn sm" data-qv-act="retry">重试</button>
+        <button type="button" class="ui-btn ui-btn--sm" data-qv-act="retry">重试</button>
       </div>
     </div>`;
   }
@@ -113,7 +113,7 @@ export function qvHtml(q, item, opts) {
   const side = [];
   if (o.showAnswer) {
     if (!o.reveal) {
-      side.push(`<div class="qv-locked"><button type="button" class="btn primary" data-qv-act="reveal">${escape(o.revealLabel)}</button></div>`);
+      side.push(`<div class="qv-locked"><button type="button" class="ui-btn ui-btn--primary" data-qv-act="reveal">${escape(o.revealLabel)}</button></div>`);
     } else {
       side.push('<div class="qv-label">答案</div>');
       side.push(`<div class="q-md q-answer-md">${renderMd(detail.answer || '（无答案内容）')}</div>`);

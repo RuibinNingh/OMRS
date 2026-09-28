@@ -220,7 +220,7 @@
 5. 历史日志只允许在纠正该日志自身的事实错误时追加明确标注的勘误；不得删除、重写历史事实，或把后续任务伪装成旧日期的原始内容。
 6. 运行与改动风险相称的检查，并确保日志中的验证描述与实际执行结果一致。
 7. 交付前跑 `python3 tests/check_docs.py --diff <基线>`，退出码必须为 0。完整模式的基线一般是 `HEAD`，受限模式用导出包基线提交。它检查文档形式与同步：速查头、版本号残留、单段长度、编号、引用路径、`AI/routes.md` 与路由一致；`--diff` 另查「改了源码却没改映射表里的文档」和「没写任务日志」。改了 `omrs/server.py` 的路由后先运行 `--write-routes`。
-8. 改了 `assets/`、`omrs_dashboard.html` 或 `tests/ui_baseline.json` 时，另跑 `python3 tests/check_ui.py` 与 `python3 tests/check_contrast.py`，退出码必须为 0（改了 `assets/app/` 再加 `python3 tests/app/run_browser.py` 与 `node --test tests/app/*.test.mjs`）；旧代码存量下降后用 `--update-baseline` 下调基线。页面改动附 `python3 tests/visual/run.py --ref <基线>` 的前后对比，差异在任务日志里逐项解释。
+8. 改了 `assets/`、`omrs_dashboard.html` 或 `tests/ui_baseline.json` 时，另跑 `python3 tests/check_ui.py` 与 `python3 tests/check_contrast.py`，退出码必须为 0（改了 `assets/app/` 再加 `python3 tests/app/run_browser.py` 与 `node --test tests/app/*.test.mjs`）；P8 起全仓零容忍，没有存量基线。页面改动附 `python3 tests/visual/run.py --ref <基线>` 的前后对比，差异在任务日志里逐项解释。
 9. 任务属于某个计划时，收尾更新 `AI/plans/<计划>/progress.md`：状态块、分期表、门禁计数、遗留与下一步；本轮没做完也写清停在哪里。计划本身（范围、顺序、流程）要改时，先改 `plan.md` 对应章节，再在 `progress.md`「计划变更」表登记日期、改动与依据。不另写包外交接文档；给其他维护者的执行说明放在计划文件夹里（见「规划模式」）。
 
 ## 文档写法（模块文档 `AI/*.md`、`AI/frontend/*.md`）
@@ -243,18 +243,22 @@
 | `omrs/server.py`、HTTP 请求/响应；`omrs/ai_assist.py` | `AI/api.md`，AI 配置或存储变化同时更新 `AI/data.md` |
 | `omrs/analytics.py`、`omrs/stats.py`、报告指标 | `AI/api.md`、`AI/frontend/records.md`；持久化或导出格式变化同时更新 `AI/data.md` |
 | `omrs/reports.py`、报告托管 | `AI/api.md`、`AI/data.md`、`AI/frontend/records.md` |
+| `omrs/agent/`、`omrs/llm/`、AI 助手的权限与工具 | `AI/agent.md`，接口变化同时更新 `AI/api.md`，权限边界同时更新 `AI/security.md` |
+| `omrs/locking.py`、`omrs/cli.py` 的服务器线程模型 | `AI/api.md`（并发与写锁） |
+| `omrs/ledger.py`、`omrs/actor.py`、`omrs/content_history.py`、`omrs/projections.py` | `AI/ledger.md`，表结构变化同时更新 `AI/data.md` |
 | `omrs/security.py`、`omrs/path_safety.py`、访问控制 | `AI/security.md`，接口变化同时更新 `AI/api.md` |
 | CSV、Ledger、Markdown、配置或持久化格式 | `AI/data.md`、必要时 `AI/ledger.md` |
 | `omrs/exporting.py`、`omrs/export_templates/`、导出入口 | `AI/export.md`，接口变化同时更新 `AI/api.md` |
 | `assets/`、`omrs_dashboard.html`、前端交互 | `AI/frontend/` 下对应页面的分册（新增分册时同步 `AI/frontend.md` 索引） |
 | `assets/app/styles/`、设计 token、`tests/check_ui.py`、`tests/check_contrast.py` | `AI/frontend/design-system.md` |
-| `assets/app/ui/`、`assets/app/legacy-bridge.js`、`assets/app/gallery.html`、`tests/app/browser_tests.js` | `AI/frontend/components.md` |
+| `assets/app/ui/`、`assets/app/gallery.html`、`tests/app/browser_tests.js` | `AI/frontend/components.md` |
 | `assets/app/features/instant/` | `AI/frontend/instant.md` |
 | `assets/app/features/feedback/` | `AI/frontend/feedback.md`，导入协议同时更新 `AI/omr-import.md` |
 | `assets/app/features/questions/` | `AI/frontend/library.md` |
 | `assets/app/features/dashboard/` | `AI/frontend/dashboard.md` |
 | `assets/app/features/catalog/` | `AI/frontend/dashboard.md`（目录）|
 | `assets/app/features/reports/` | `AI/frontend/records.md`（报告）|
+| `assets/app/features/assistant/` | `AI/frontend/assistant.md`（AI 助手页）|
 | `assets/app/features/settings/` | `AI/frontend/settings.md` |
 | `assets/app/features/create/` | `AI/frontend/create.md`，流程细节同时更新 `AI/inbox.md` |
 | `assets/app/features/data/` | `AI/frontend/records.md`（数据复盘）|
@@ -264,7 +268,7 @@
 | `assets/app/domain/question/` | `AI/frontend/qview.md` |
 | `assets/app/domain/labels/` | `AI/frontend/library.md`（标记芯片、颜色、选择器与管理的数据部分）|
 | `assets/app/domain/` | `AI/frontend/architecture.md`（过渡期适配器）|
-| `assets/app/core/`、`assets/app/main.js`、`assets/app/shell.js`、`assets/app/legacy-pages.js`、`assets/app/styles/shell.css`、`tests/app/`、`tests/e2e/` | `AI/frontend/architecture.md`（外壳样式同时更新 `AI/frontend/shell.md`） |
+| `assets/app/core/`、`assets/app/main.js`、`assets/app/shell.js`、`assets/app/styles/shell.css`、`tests/app/`、`tests/e2e/` | `AI/frontend/architecture.md`（外壳样式同时更新 `AI/frontend/shell.md`） |
 | `tests/visual/`、`tests/fixtures/`、`tests/browser_runtime.py` | `AI/environment.md` |
 | 报告、优化、跨模块架构 | 对应 `AI/*.md`，并复核 `AI/README.md` 的索引与项目摘要 |
 | 用户可见行为、启动/安装命令、目录、依赖或版本 | 同步根 `README.md` |

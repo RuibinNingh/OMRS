@@ -49,7 +49,7 @@ git init -q && git add -A && git -c user.email=ccw@local -c user.name=ccw commit
 
 ```bash
 python3 -m unittest discover -s tests -p 'test_*.py' -q
-node --test tests/*.js tests/app/*.test.mjs
+node --test tests/app/*.test.mjs tests/app/*.test.mjs
 python3 tests/check_docs.py --diff <基线提交>
 python3 tests/check_ui.py          # 前端纪律与旧代码棘轮，见 AI/frontend/design-system.md
 python3 tests/check_contrast.py    # 设计 token 对比度
@@ -105,6 +105,8 @@ git add -A && git diff --cached <基线> > /mnt/user-data/outputs/changes-<日�
 mkdir /tmp/chk && cd /tmp/chk && unzip -q /mnt/user-data/uploads/<原始导出包>.zip && cd OMRS && git apply --check /mnt/user-data/outputs/changes-<日期>.patch
 ```
 
+AI 助手没有网络也能完整测试：启动服务前设环境变量 `OMRS_AGENT_FAUX_SCRIPT=tests/fixtures/agent_faux.json`，运行时改用脚本化假模型（按最近一条用户消息选场景，模板可引用之前的工具结果），再在 `config.json` 里设 `agent_enabled: true`。`tests/e2e/assistant.py` 就是这样起隔离实例的。
+
 ## 5. 已知坑
 
 - **缺模块。** 旧版导出只含 Git 已跟踪文件，未提交的模块会缺失，导致包无法 import。现行导出按目录收集并包含未提交源码；若再遇到缺失，先报告，不要在交付物里补替身。
@@ -124,7 +126,7 @@ mkdir /tmp/chk && cd /tmp/chk && unzip -q /mnt/user-data/uploads/<原始导出�
 
 1. `git status --short` 记录现状。
 2. 按任务日志「合入」一节运行 `git apply --3way <补丁>`（2026-09-26 之前的交付，按它自带的 UPGRADE 文档）。
-3. 跑门禁：`unittest`、`node --test tests/*.js tests/app/*.test.mjs`、`python3 tests/check_docs.py --diff HEAD`、`python3 tests/check_ui.py`、`python3 tests/check_contrast.py`。
+3. 跑门禁：`unittest`、`node --test tests/app/*.test.mjs tests/app/*.test.mjs`、`python3 tests/check_docs.py --diff HEAD`、`python3 tests/check_ui.py`、`python3 tests/check_contrast.py`。
 4. 运行 `python3 tests/check_docs.py --write-log-index`，审阅 `AI/logs/log.md` 的 diff 后提交。
 5. 「合入」一节列出的生产验收，须用户授权后再做，结果补进对应的任务日志。
 

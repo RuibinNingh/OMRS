@@ -5,6 +5,17 @@
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
+| POST | `/api/agent/abort` | `AI/api.md`、`AI/agent.md`、`AI/frontend/assistant.md` |
+| POST | `/api/agent/confirm` | `AI/api.md`、`AI/agent.md`、`AI/optimization.md`等 |
+| GET | `/api/agent/conversation` | `AI/agent.md` |
+| POST | `/api/agent/conversation/create` | `AI/api.md`、`AI/agent.md` |
+| POST | `/api/agent/conversation/delete` | `AI/api.md`、`AI/agent.md` |
+| GET | `/api/agent/conversations` | `AI/agent.md` |
+| GET | `/api/agent/events` | `AI/agent.md` |
+| POST | `/api/agent/message` | `AI/api.md`、`AI/agent.md` |
+| POST | `/api/agent/run/revert` | `AI/api.md`、`AI/agent.md` |
+| GET | `/api/agent/status` | `AI/agent.md`、`AI/frontend/settings.md` |
+| POST | `/api/agent/test` | `AI/api.md`、`AI/agent.md`、`AI/frontend/settings.md` |
 | POST | `/api/ai-recognize` | `AI/api.md`、`AI/frontend/create.md`、`AI/inbox.md`等 |
 | GET | `/api/analytics` | `AI/api.md`、`AI/algorithm.md`、`AI/changelog.md`等 |
 | POST | `/api/auth/activity` | `AI/api.md`、`AI/security.md` |
@@ -31,7 +42,7 @@
 | POST | `/api/board/printed/reset` | `AI/api.md`、`AI/board.md` |
 | POST | `/api/board/update` | `AI/api.md`、`AI/board.md`、`AI/frontend/board-ui.md` |
 | GET | `/api/boards` | `AI/api.md`、`AI/board.md`、`AI/changelog.md` |
-| GET/POST | `/api/config` | `AI/api.md`、`AI/algorithm.md`、`AI/data.md`等 |
+| GET/POST | `/api/config` | `AI/api.md`、`AI/agent.md`、`AI/algorithm.md`等 |
 | POST | `/api/confirm-schedule` | `AI/api.md`、`AI/algorithm.md`、`AI/data.md`等 |
 | POST | `/api/create` | `AI/api.md`、`AI/data.md`、`AI/frontend/create.md` |
 | POST | `/api/export` | `AI/api.md`、`AI/board.md`、`AI/changelog.md`等 |
@@ -69,6 +80,9 @@
 | POST | `/api/optimize/scan` | `AI/api.md` |
 | GET | `/api/optimize/summary` | `AI/api.md`、`AI/frontend/settings.md` |
 | GET | `/api/question` | `AI/api.md`、`AI/changelog.md`、`AI/data.md`等 |
+| GET | `/api/question/content/history` | `AI/api.md` |
+| POST | `/api/question/content/restore` | `AI/api.md` |
+| GET | `/api/question/content/version` | `AI/api.md` |
 | POST | `/api/question/delete` | `AI/api.md`、`AI/frontend/library.md` |
 | POST | `/api/question/labels` | `AI/api.md`、`AI/labels.md` |
 | POST | `/api/question/markdown` | `AI/api.md`、`AI/frontend/library.md`、`AI/frontend/qview.md` |
@@ -98,6 +112,7 @@
 
 按前缀分派（具体子路由见上表或对应文档）：
 
+- GET/POST `/api/agent/…`
 - POST `/api/auth/…`
 - GET/POST `/api/inbox/…`
 - GET `/assets/…`

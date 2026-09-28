@@ -11,9 +11,10 @@ import { empty } from '../../ui/empty.js';
 import { status } from '../../ui/status.js';
 import { labelChip, labelChips } from '../../domain/labels/index.js';
 import { EXPORT_SORTS, statusTag } from './exporter.js';
+import { formatPercent } from '../../core/format.js';
 
 const opts = (values, all) => [{ value: '', label: all }, ...values.map(v => ({ value: v, label: v }))];
-const pct = v => `${Math.round((Number(v) || 0) * 100)}%`;
+const pct = v => formatPercent(Number(v) || 0);
 const sel = (label, key, control) => html`<label class="schd-field" data-change="schedule.xfield" data-arg="${key}"><span>${label}</span>${control}</label>`;
 const num = (label, key, id, value, min, max) => html`<label class="schd-field"><span>${label}</span><input id="${id}" class="schd-input" type="number" min="${min}" max="${max}" value="${value}" data-input="schedule.xfield" data-arg="${key}"></label>`;
 const seg = (id, on, action, arg, label) => html`<button type="button" id="${id}" class="${cls('schd-seg', on && 'is-on')}" aria-pressed="${on ? 'true' : 'false'}" data-action="${action}" data-arg="${arg}">${label}</button>`;

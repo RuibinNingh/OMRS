@@ -4,7 +4,7 @@
 
 自建 fixture Vault 与隔离实例，用 /api/confirm-schedule 建 Session。覆盖：标签栏（点击、←/→/Home/End、待完成计数）；
 「已有计划」筛选、搜索、详情、预览、录入结果、导出屏幕版、后开的详情不被旧响应覆盖；删除（确认期间不重复请求、取消保留、
-业务错误保留、成功移除并刷新）；刷新失败与重试；全题库导出的来处与返回；旧入口（生成计划后打开它、schOpenPlan、空推荐「查看已有计划」）；
+业务错误保留、成功移除并刷新）；刷新失败与重试；全题库导出的来处与返回；入口（生成计划后打开它、schedule:open-plan 事件、空推荐「查看已有计划」）；
 旧 SESSIONS 是 domain 快照的镜像；手机列表 / 详情切换；桌面 / 手机 × 浅 / 深审计（只审本页原生部分 #sch-app）。
 """
 import importlib.util
@@ -34,7 +34,7 @@ AUDIT = """(minTarget) => {
   return { sizes, small, inline: root.querySelectorAll('[style]').length, handlers: root.querySelectorAll('[onclick]').length, over,
            overflow: document.documentElement.scrollWidth > innerWidth + 1 };
 }"""
-READY = "() => document.querySelector('#sch-tab-plans') && typeof REC_LOADING !== 'undefined' && !REC_LOADING && !SCH_SESSIONS_LOADING"
+READY = "() => document.querySelector('#sch-tab-plans') && typeof REC_LOADING !== 'undefined' && !REC_LOADING"
 
 
 def http(port, path, body=None):
@@ -95,7 +95,7 @@ def run_main(page, base, port, sids, results):
           ev("document.querySelector('.schd-count').textContent") == f"待完成 {len(sids)}" and ev("Array.isArray(SESSIONS) && SESSIONS.length") == len(sids))
     page.focus("#sch-tab-arrange")
     page.keyboard.press("ArrowRight")
-    k1 = wait(page, "() => SCH_VIEW === 'plans' && document.activeElement.id === 'sch-tab-plans'")
+    k1 = wait(page, "() => document.getElementById('sch-tab-plans')?.getAttribute('aria-selected') === 'true' && document.activeElement.id === 'sch-tab-plans'")
     page.keyboard.press("Home")
     k2 = wait(page, "() => SCH_VIEW === 'arrange' && document.activeElement.id === 'sch-tab-arrange'")
     check("标签页键盘：→ 到「已有计划」，Home 回「安排复习」，焦点跟随", k1 and k2)
@@ -170,7 +170,7 @@ def run_delete(page, base, port, sids, results):
     check("删除成功：列表与旧 SESSIONS 都去掉该计划，详情回到空状态，服务端也没有了",
           gone and ev("!!document.querySelector('#sch-plan-detail .ui-empty')") and sids[1] not in [s["session_id"] for s in http(port, "/api/sessions")["sessions"]],
           ev("[document.querySelectorAll('.schd-plan').length, SESSIONS.map(s => s.session_id), document.getElementById('sch-plan-detail').textContent.slice(0, 60)]"))
-    wait(page, "() => !document.querySelector('[data-action=\"schedule.remove\"]') && !SCH_SESSIONS_LOADING && !REC_LOADING")
+    wait(page, "() => !document.querySelector('[data-action=\"schedule.remove\"]')")
     page.route("**/api/sessions", lambda r: r.fulfill(status=503, content_type="application/json", body='{"msg":"测试离线"}'))
     page.click('[data-action="schedule.refresh"] >> nth=0')
     failed = wait(page, "() => document.getElementById('sch-session-status').textContent.includes('计划加载失败：测试离线')")
@@ -189,25 +189,25 @@ def run_legacy(page, base, port, results):
     page.click('.schd-top [data-action="schedule.view"][data-arg="export"]')
     e1 = wait(page, "() => document.getElementById('export-panel') && SCH_EXPORT_RETURN === 'plans' && !document.getElementById('sch-plans')")
     page.click('#export-panel [data-action="schedule.view"][data-arg="back"]')
-    check("全题库导出：记住来处，「返回」回到「已有计划」", e1 and wait(page, "() => SCH_VIEW === 'plans' && document.getElementById('sch-plans') && !document.getElementById('export-panel')"))
+    check("全题库导出：记住来处，「返回」回到「已有计划」", e1 and wait(page, "() => document.getElementById('sch-tab-plans')?.getAttribute('aria-selected') === 'true' && document.getElementById('sch-plans') && !document.getElementById('export-panel')"))
     page.click("#sch-tab-arrange")
     wait(page, "() => !REC_LOADING && REC_DATA_V2 && REC_DATA_V2.length")
     page.fill("#rec-target-count", "1")
     page.click("#rec-suggest")
     page.click("#rec-confirm")
-    made = wait(page, "() => SCH_VIEW === 'plans' && document.getElementById('sch-plan-filter').value === 'active' && document.getElementById('sch-plan-detail').textContent.includes('共 1 题')", timeout=10000)
+    made = wait(page, "() => document.getElementById('sch-tab-plans')?.getAttribute('aria-selected') === 'true' && document.getElementById('sch-plan-filter').value === 'active' && document.getElementById('sch-plan-detail').textContent.includes('共 1 题')", timeout=10000)
     check("旧入口：安排复习里「生成计划」后切到「已有计划」并打开新计划", made)
     sid = [s for s in http(port, "/api/sessions")["sessions"]][0]["session_id"]
     ev("window.__omrs.router.go('dashboard')")
-    ev(f"schOpenPlan({json.dumps(sid)})")
-    check("旧入口 schOpenPlan(id)：从别的页切过来并打开该计划",
+    ev(f"window.__omrs.router.go('schedule'); window.__omrs.emit('schedule:open-plan', {json.dumps(sid)})")
+    check("schedule:open-plan：从别的页切过来并打开该计划",
           wait(page, "id => location.hash === '#/schedule' && document.getElementById('sch-plan-detail').textContent.includes(id)", arg=sid))
     page.route("**/api/recommend?*", lambda r: r.fulfill(content_type="application/json", body='{"due":[],"proficiency":[]}'))
     page.click("#sch-tab-arrange")
     shown = wait(page, "() => !REC_LOADING && document.getElementById('rec-unified-list-v2').textContent.includes('查看已有计划')")
     page.unroute("**/api/recommend?*")
     page.get_by_role("button", name="查看已有计划", exact=True).click()
-    check("从别的工作区切回「安排复习」会重拉推荐；空推荐「查看已有计划」切到计划", shown and wait(page, "() => SCH_VIEW === 'plans'"))
+    check("从别的工作区切回「安排复习」会重拉推荐；空推荐「查看已有计划」切到计划", shown and wait(page, "() => document.getElementById('sch-tab-plans')?.getAttribute('aria-selected') === 'true'"))
 
 
 
@@ -238,8 +238,8 @@ def run_arrange(page, base, port, results):
     posts = []
     page.on("request", lambda r: posts.append(r.url) if "/api/confirm-schedule" in r.url else None)
     before = len(http(port, "/api/sessions")["sessions"])
-    ev("confirmScheduleV2(); confirmScheduleV2();")
-    made = wait(page, "() => SCH_VIEW === 'plans' && document.getElementById('sch-plan-detail').textContent.includes('共 10 题')", timeout=10000)
+    ev("(() => { const b = document.getElementById('rec-confirm'); b.click(); b.click(); })()")
+    made = wait(page, "() => document.getElementById('sch-tab-plans')?.getAttribute('aria-selected') === 'true' && document.getElementById('sch-plan-detail').textContent.includes('共 10 题')", timeout=10000)
     check("生成计划：重复调用只提交一次，切到「已有计划」打开新计划，已选清空", made and len(posts) == 1 and len(http(port, "/api/sessions")["sessions"]) == before + 1, posts)
 
 

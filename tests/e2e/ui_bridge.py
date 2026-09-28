@@ -45,7 +45,7 @@ def main():
             for name in tabs:
                 page.evaluate("name => window.__omrs.router.go(name)", name)
                 page.wait_for_function("name => document.querySelector('.content > .panel.active')?.id === 'panel-' + name", arg=name)
-            results.append(("12 页切换无脚本错误", len(tabs) == 12 and not errors))
+            results.append(("13 页切换无脚本错误（含未启用时隐藏的 AI 助手）", len(tabs) == 13 and not errors))
             if not os.environ.get('OMRS_TEST_CDP_URL'):
                 browser.close()
     finally:

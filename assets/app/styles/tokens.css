@@ -60,6 +60,15 @@
   --lbl-preset-6:#2563eb; --lbl-preset-7:#7c3aed; --lbl-preset-8:#db2777; --lbl-preset-9:#64748b; --lbl-preset-10:#78716c;
   --lbl-fg-dark:#1a1c1f; --lbl-fg-light:#ffffff;
   --lbl-default:#64748b; --lbl-default-rgb:100,116,139;
+
+  /* 助手页（features/assistant）：派生色与字号，随主题的 *-rgb 自动切换 */
+  --ast-user-bg: var(--accent-soft);
+  --ast-gate-line: rgba(var(--warning-rgb), .45);
+  --ast-err-line: rgba(var(--danger-rgb), .4);
+  --ast-think-line: var(--border-2);
+  --ast-wf-wait: rgba(var(--accent-rgb), .3);
+  --ast-fs-code: .86em;
+  --ast-fs-ref: .92em;
 }
 
 /* ── 1. 语义 token：深色「暖石墨」 ───────────────────── */

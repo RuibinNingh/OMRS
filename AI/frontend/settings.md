@@ -1,7 +1,7 @@
 # 前端：设置页
 
 > **速查**
-> - 职责：外观、访问与安全、AI 识别、数据与存储、服务与运行五分区
+> - 职责：外观、访问与安全、AI 识别、AI 助手、数据与存储、服务与运行六分区
 > - 入口：`assets/app/features/settings/index.js`，挂载根 `omrs_dashboard.html` 的 `#st-app`
 > - 不变量：重启只认新的 `instance_id`；只改免 PIN 网段不重启；AI Key 不回显；外观键名保持兼容
 > - 必跑测试：`tests/app/settings.test.mjs`、`tests/e2e/settings.py`、`tests/test_source_export.py`
@@ -9,7 +9,7 @@
 
 ## 页面结构与生命周期
 
-`main.js` 注册 `settings` 页面契约；`index.js` 在 `#st-app` 渲染五个静态分区，使用页面动作代理分发按钮、输入和变更事件。`appearance.js`、`access.js`、`ai.js`、`storage.js`、`service.js` 各管理一个分区；`state.js` 和 `storage-state.js` 保存纯投影。进入时各区读取当前服务状态；离开时撤销事件监听和图片任务轮询，未保存的输入按原行为丢弃，不拦截切页。
+`main.js` 注册 `settings` 页面契约；`index.js` 在 `#st-app` 渲染六个静态分区，使用页面动作代理分发按钮、输入和变更事件。`appearance.js`、`access.js`、`ai.js`、`agent.js`、`storage.js`、`service.js` 各管理一个分区；`state.js` 和 `storage-state.js` 保存纯投影。进入时各区读取当前服务状态；离开时撤销事件监听和图片任务轮询，未保存的输入按原行为丢弃，不拦截切页。
 
 左侧导航是 `tablist`，支持方向键、Home、End、焦点移动及 `aria-selected`；上次分区保存在 `localStorage('omrs-settings-section')`，非法值回退到外观。手机端导航横向滚动，分区正文单列。样式在 `settings.css`，使用设计 token。除仍被测试或外部调用的标识外，旧设置 DOM 的 ID 不作为兼容契约。
 
@@ -26,6 +26,10 @@ PIN 支持首次设置、更换、空闲分钟修改、本机停用和远端登�
 ## AI 识别
 
 AI 地址、模型、三种用途模型和知识点限制开关经 `/api/config` 保存后立即生效。API Key 仅在输入非空时提交；服务端只返回 `ai_api_key_configured`，页面不回显密钥，留空表示保留。清除密钥需确认，单独提交 `clear_ai_api_key:true`。设置页只配置识别，图片识别的实际请求由录入题目页发起。
+
+## AI 助手
+
+`agent.js` 并行读取 `/api/config` 与 `/api/agent/status`：开关、地址、模型、厂商兼容、三项预算（留空用默认，输入会被夹到默认上限以内）、请求日志开关。助手密钥同样只提交不回显，状态行说明是单独配置还是沿用「AI 识别」的密钥；清除提交 `clear_agent_api_key:true`。启用时模型名必填（进程用假模型时除外，此时分区顶部有提示）。保存后发总线事件 `agent:config`，侧栏入口随之显示或隐藏。「测试连接」先保存，再请求 `/api/agent/test`，显示耗时以及模型是否按要求调用了工具。
 
 ## 数据与存储
 

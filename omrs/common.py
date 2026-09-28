@@ -121,8 +121,12 @@ def save_config(vault: str, config: dict) -> None:
     path = config_path(vault)
     existing = load_config(vault)
     existing.update(config)
-    with open(path, "w", encoding="utf-8") as file:
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w", encoding="utf-8") as file:
         json.dump(existing, file, ensure_ascii=False, indent=2)
+        file.flush()
+        os.fsync(file.fileno())
+    os.replace(tmp, path)
     reset_tuning_cache(vault)
 
 

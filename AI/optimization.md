@@ -23,7 +23,7 @@
 - [x] **纸面记录绑定导出快照。** 每板保存待记录任务，使用独立窗口的实测 layout，或以已下载的同份 HTML 测量；当前预览的后续编辑不替换快照。正文指纹从导出数据传回，旧导出件缺字段时保留兼容回退。
 - [x] **预览消息隔离。** 每份 srcdoc 带独立 `previewToken`，与板 ID、模式、来源窗口一起核验；旧响应或旧消息不能使新文档提前就绪。内嵌 HTML 从加载开始收起独立打印工具栏。
 
-保障范围由 `tests/test_board_integrity.py`、`tests/app/board-preview.test.mjs`、`tests/app/board-locked.test.mjs`、`tests/smoke_board_integrity.py` 和既有展示板测试覆盖。排查与修复记录见本机任务日志（2026-09-22 的 board-functional-audit 与 board-integrity-fixes）。
+保障范围由 `tests/test_board_integrity.py`、`tests/app/board-preview.test.mjs`、`tests/app/board-locked.test.mjs`、smoke_board_integrity.py（已删除：调用的旧全局 P7 起已不存在；覆盖由新版展示板 E2E 承接） 和既有展示板测试覆盖。排查与修复记录见本机任务日志（2026-09-22 的 board-functional-audit 与 board-integrity-fixes）。
 
 ## 最值得动的
 
@@ -98,6 +98,13 @@
   在统一写锁下合并提交，同时保留失败题清单和幂等重试。
 
 ## 健壮性
+
+- [ ] **AI 写入的 op_id 幂等未做** — 影响:低 / 工作量:小
+  `ledger.db` 已有 `op_results` 表，但工具调用还没有按 `op_id` 记录结果；目前靠「一次运行一个线程、工具串行、写锁内执行」避免重复写入，浏览器重发 `/api/agent/confirm` 只会得到 409。需要跨进程重放时再补。
+- [ ] **助手不能看题图** — 影响:中 / 工作量:中
+  配置里预留了 `agent_vision`，但还没有把图片交给模型的工具；纯图片题只能靠分类筛选和用户描述。
+- [ ] **`AI/api.md` 超过 40KB** — 影响:低 / 工作量:小
+  按 GET / POST 或按模块拆成分册，参照 `AI/frontend/`。
 
 - [ ] **测试覆盖仍偏低** — 影响:中高 / 工作量:中
   现有测试按主题分（全部在 `tests/`）：

@@ -16,10 +16,14 @@ from .stats import get_stats
 from .workspace_sync import start_workspace_scanner
 
 
-class OMRSTCPServer(socketserver.TCPServer):
-    """Permit immediate rebinding after the previous listener enters TIME-WAIT."""
+class OMRSTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    """One daemon thread per connection; permit immediate rebinding after TIME-WAIT.
+
+    Persistent writes are serialized by omrs.locking.write_lock (see AI/api.md「并发与写锁」).
+    """
 
     allow_reuse_address = True
+    daemon_threads = True
 
 
 def _lan_ips():
@@ -118,6 +122,13 @@ def main():
             print(str(exc))
             raise SystemExit(1)
         start_workspace_scanner(vault)
+        try:
+            from .content_history import ensure_content_snapshot
+            ensure_content_snapshot(vault)
+        except Exception as exc:  # 回填失败不阻止启动；下次启动再试
+            print(f"正文回填未完成：{exc}")
+        from .agent.runtime import get_runtime
+        get_runtime(vault)  # 把上次遗留的 running 运行标为 interrupted
         OMRSHandler._restart_cmd = [
             sys.executable,
             os.path.abspath(sys.argv[0]),

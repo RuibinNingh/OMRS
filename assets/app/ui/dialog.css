@@ -16,7 +16,7 @@
 .ui-dialog__head + .ui-dialog__hint { margin-top: calc(var(--sp-2) * -1); }
 .ui-dialog__body { min-height: 0; overflow: auto; color: var(--fg-2); font-size: var(--text-md); line-height: var(--leading-ui); overflow-wrap: anywhere; }
 .ui-dialog__body:empty { display: none; }
-.ui-dialog__body :is(.ui-input, .input) { width: 100%; }
+.ui-dialog__body .ui-input { width: 100%; }
 .ui-dialog__foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); padding-top: var(--sp-1); }
 .ui-dialog__foot [aria-busy="true"] { cursor: progress; }
 .ui-dialog.is-closing { animation: ui-fade-out var(--dur-2) var(--ease-in-out) forwards; }

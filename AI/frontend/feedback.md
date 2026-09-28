@@ -62,3 +62,5 @@ Session 列表 `SESSIONS` 与当前选中 `ACTIVE_FB_SESSION` 仍归旧代码（
 - 删除计划时 `schedule.js` 调的 `resetFeedbackForm()` / `fbClearResults()`、标记变化后 `labels.js` 调的 `renderFb()`：由模块事件总线 挂成全局函数，分别发 `feedback:reset` / `feedback:clear-results` / `feedback:render`。
 - 标记芯片与快捷标记来自 `domain/labels/index.js`（P5 第 4 轮起目录化；芯片颜色写 `data-lbl-c`，不写 `style=`）。
 - Session 进度 `fbSessionProgress()` / `sessionUniqueUids()` 的实现在 `domain/sessions.js`（v1.25.2 起与复习调度共用），`state.js` 原名再导出；反馈页刷新计划列表调 `domain/sessions.js` 的 `refreshSessions()`（不抛出，失败返回原因）。
+
+提交结果里的熟练度变化用 `core/format.js` 的 `formatPercent`。关闭题目 Markdown 编辑器走 Esc（对话框不把 Esc 外泄给页面）。

@@ -5,6 +5,7 @@
  *   go:'questions' 带题库预设（键沿用旧元素 id）；go:'instant' 带练习预设；go:'review' 打开复习调度的安排；
  *   go:'feedback' 带 Session；go:'page' 切到某页。
  */
+import { formatPercent } from '../../core/format.js';
 export const LEVELS = {
   urgent: { label: '紧急', rank: 0, tone: 'danger' },
   warn: { label: '建议', rank: 1, tone: 'warning' },
@@ -13,7 +14,7 @@ export const LEVELS = {
 };
 
 const num = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
-const pct = value => `${(value * 100).toFixed(0)}%`;
+const pct = formatPercent;
 
 export function dayKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;

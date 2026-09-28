@@ -1,5 +1,5 @@
 /** 设置页纯规则：访问范围、PIN 状态、分区导航。 */
-export const SECTIONS = ['appearance', 'access', 'ai', 'data', 'service'];
+export const SECTIONS = ['appearance', 'access', 'ai', 'assistant', 'data', 'service'];
 export const SECTION_KEY = 'omrs-settings-section';
 const asNumber = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 

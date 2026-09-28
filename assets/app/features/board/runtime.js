@@ -1,7 +1,7 @@
 /**
  * 展示板板详情的浏览器接线（P7 第 6 轮起）：缺省 I/O、模块单例 boardDetail()、接到 domain 端口、窗口级监听。
  * 控制器本身（状态与操作）在 detail.js，只经 deps 碰外界，node 单测直接用 createBoardDetail 注入替身；这里是唯一给它
- * 接上真实 I/O 的地方。展示板页（index.js）、过渡桥（legacy-bridge.js 的 installBoardBridge）都拿这个单例。
+ * 接上真实 I/O 的地方。展示板页（index.js）、domain 端口（选板浮层、各页「加入展示板」）都拿这个单例。
  */
 import { post as apiPost, get as apiGet } from '../../core/api.js';
 import { toast as uiToast } from '../../ui/toast.js';
@@ -14,8 +14,8 @@ import { connectBoardDetail } from '../../domain/board/detail-port.js';
 import { createBoardDetail } from './detail.js';
 import * as preview from './preview.js';
 
-/** 旧 api() 语义：成功返回 data，失败抛 Error（打印协调、保存队列都按它写）。 */
-async function legacyCall(promise) {
+/** 成功返回 data，失败抛 Error（打印协调、保存队列都按这个约定写）。 */
+async function unwrap(promise) {
   const res = await promise;
   if (!res?.ok) throw new Error(res?.error?.message || '请求失败');
   return res.data || {};
@@ -25,8 +25,8 @@ async function legacyCall(promise) {
 export function defaultBoardDetailDeps() {
   const g = globalThis;
   return {
-    get: path => legacyCall(apiGet(path)),
-    post: (path, body) => legacyCall(apiPost(path, body || {})),
+    get: path => unwrap(apiGet(path)),
+    post: (path, body) => unwrap(apiPost(path, body || {})),
     toast: (text, options) => uiToast(text, options),
     confirm: (title, options) => uiConfirm(title, options),
     dialog: spec => uiDialog(spec),
@@ -46,7 +46,7 @@ export function defaultBoardDetailDeps() {
 }
 
 let single = null;
-/** 页面、过渡桥与 domain 端口共用的单例；第一次取时把实现接进 detail-port（板列表写操作、选板浮层经它冲刷 / 重读 / 加题）。 */
+/** 页面与 domain 端口共用的单例；第一次取时把实现接进 detail-port（板列表写操作、选板浮层经它冲刷 / 重读 / 加题）。 */
 export function boardDetail() {
   if (!single) {
     single = createBoardDetail(defaultBoardDetailDeps());
@@ -64,7 +64,7 @@ export function boardDetail() {
 }
 
 /**
- * 窗口级监听，只装一次（经过渡桥 installBoardBridge 调用）：关页落盘、独立打印窗口回传，以及各页「加入展示板」按钮
+ * 窗口级监听，只装一次（main.js 启动时调用）：关页落盘、独立打印窗口回传，以及各页「加入展示板」按钮
  * （[data-board-hint]）悬停 / 聚焦时现算说明文字——默认目标是上次用的板，随时会变。
  */
 let windowBound = false;

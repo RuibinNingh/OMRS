@@ -571,7 +571,9 @@ def _run_compression_job(vault, job_id, files):
             new_size = os.path.getsize(temp_path)
             checked_bytes += old_size
             if new_size < old_size:
-                os.replace(temp_path, path)
+                from .locking import write_lock
+                with write_lock():  # 逐文件写回在写锁内，不与请求写入交错
+                    os.replace(temp_path, path)
                 candidate_count += 1
                 saved_total += old_size - new_size
             else:

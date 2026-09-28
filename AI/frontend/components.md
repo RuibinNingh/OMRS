@@ -1,7 +1,7 @@
 # 前端：ui 组件库、过渡桥与 gallery
 
 > **速查**
-> - 职责：`assets/app/ui/` 的无业务组件（23 个 + 自绘 SVG 图标）、`assets/app/core/` 的渲染底座（`html```、`render`）、旧入口过渡桥（`assets/app/main.js`、`assets/app/styles/controls.css`）、组件陈列页 gallery
+> - 职责：`assets/app/ui/` 的无业务组件（23 个 + 自绘 SVG 图标）、`assets/app/core/` 的渲染底座（`html```、`render`）、入口 `assets/app/main.js`、组件陈列页 gallery
 > - 入口：`assets/app/main.js`（`type="module"`）、`assets/app/styles/index.css`、`assets/app/gallery.html`
 > - 不变量：全站只有一套 toast、一套对话框；旧 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 签名不变、只转调；`innerHTML` 只出现在 `assets/app/core/dom.js`；过渡桥每条注明旧调用方与删除期，P8 清空
 > - 必跑测试：`tests/app/run_browser.py`、`tests/app/html.test.mjs`、`tests/e2e/ui_bridge.py`、`tests/test_app_browser.py`、`tests/check_ui.py`
@@ -13,7 +13,6 @@
 assets/app/
 ├── package.json          {"type":"module"}：只作用于本目录，旧脚本与 node 测试的 require 不受影响
 ├── main.js               模块入口：装过渡桥、启动外壳与路由、调用 init()（见 AI/frontend/architecture.md）
-├── legacy-bridge.js      过渡桥（JS）：把新组件挂到旧入口
 ├── core/html.js          html`` 标签模板（默认转义）、raw()、escape()、cls()
 ├── core/dom.js           render / morph / toFragment / toElement：唯一写 innerHTML 的文件
 ├── ui/<组件>.js + .css   每个组件一对文件；overlay.js 是 dialog / drawer 共用的模态底座
@@ -62,6 +61,8 @@ assets/app/
 
 状态类 `is-hover` / `is-active` / `is-focus` 只供 gallery 固定展示交互态；业务代码用真实伪类与 `aria-pressed`、`aria-selected`、`aria-invalid`、`aria-busy`。
 
+图标表（`ui/icon.js`）另有 `stop`、`arrow-up`、`arrow-down`、`undo`、`message`，供助手页使用；侧栏入口的 `#i-sparkle` 在 `omrs_dashboard.html` 的内联雪碧图里。
+
 ## 4. 弹层与通知
 
 - `dialog` / `drawer` 用 `<dialog>.showModal()` 进浏览器顶层，天然盖过旧代码 z-index 999 的 `.modal-overlay`；背景自动 inert，即焦点陷阱。`overlay.js` 另补：Esc 与遮罩关闭（按下和松开都落在遮罩上才算）、Enter 确认（textarea、按钮、链接里的 Enter 除外）、关闭动画、焦点还给触发元素、`html.ui-scroll-lock` 锁定背景滚动、嵌套时 Esc 只关最上层。
@@ -72,29 +73,18 @@ assets/app/
 - 关闭中的对话框带 `.is-closing`，退场动画期间仍是 `[open]`：「有对话框打开」的守卫写成 `dialog[open]:not(.is-closing)`（`core/keys.js`、反馈页 paste 守卫）。
 - toast 容器是 aria-live 区域。支持 popover 的浏览器把 toast 容器、菜单、提示放进顶层，每来一条 toast 重新置顶；模态对话框开着时，它外面的 toast 只能看、不能点。
 
-## 5. 过渡桥
+## 5. 过渡桥（已删除）
 
-- JS：`assets/app/domain/items.js` 的 `uiToast` / `uiDialog` / `uiPrompt` / `uiConfirm` 只剩转调（经 `window.__omrsUi`），签名与返回值不变。旧 `uiToast` 不传 kind 时按旧语义映射为 ok（成功样式）；新组件自身的默认是 info。
-- 「有弹层打开时不响应」的守卫新写一律 `dialog[open]:not(.is-closing)`（`core/keys.js` 的 `inDialog` 已含 `.modal-overlay.open`）。选板浮层的「点外面关闭」只让「不包含浮层」的弹层挡住（宿主对话框不算），它的键盘走 `core/keys.js` 的浮层键盘层 `pushKeyLayer`（展示板页的快捷键 v1.26.4 起也在 core/keys，浮层层天然先拿到键）；已迁到新页面的快捷键走 `core/keys.js`，它自带「有弹层时不响应」（`inDialog`）。
-- CSS：`styles/legacy-bridge.css` 给旧 `.btn` 系列、`.input` / `select.input` / `textarea.input`、旧 `.modal` 外壳套新外观；旧 `styles.css` 里被接管的基础规则已删除。桥只写外观，不写 z-index 与布局尺寸。
-- 旧代码调用的题目视图全局（`renderMdContent`、`ensureQuestionDetail`、`qvHtml`、`qvRender`、`viewQ`、`closeModal`、练习记录函数等）由 `legacy-bridge.js` 的 `installQuestionBridge` 从 `assets/app/domain/question/` 挂上，逐条注明调用方；它同时调 `bindQuestionDom()` 绑定 qview 的按钮委托、题图降级与弹窗 ←/→。
-- 统计数据的全局入口（`reloadData`、只读 `QUESTION_CACHE` / `QUESTION_PENDING`）与旧刷新链钩子（`legacyDataRefresh()`，v1.25.1 起不再包含数据复盘的图）由 `installDataBridge` 挂上（v1.25.0 起，实现在 `assets/app/domain/data.js` 与 `domain/question/mount.js`），调用方见 `AI/frontend/architecture.md` §6。
-- 复习调度与 Session 的旧入口（`refreshSessions`、`schOpenPlan`、`confirmScheduleV2`、`loadRecommendationsV2`、`renderUnifiedListV2`、`renderExportPicker`、`downloadExportResponse` 与只读 `SCH_VIEW`、`REC_DATA_V2` 等）由 `installScheduleBridge` 挂上（v1.25.2 起），调用方见 `AI/frontend/architecture.md` §6。
-- 展示板（v1.26.5 起页面整页原生、旧 `board.js` 已删）：`installBoardBridge` 只挂旧调用方（`app.js`、`labels.js`）与冒烟测试要用的板详情入口（`boardReloadData`、`boardLoad`、`boardApplyPrintField`、`configureBoardDetail` 等，只读访问器 `BOARD_DETAIL`）、常驻预览 `boardPreview*`、选板与 `boardCurrentId`，并装窗口级监听；逐条调用方见 `AI/frontend/architecture.md` §6。
-- 旧代码调用的标记全局（`lblChip` / `lblChips`、`labelHex`、`nextLabelColor`、选择器与管理的数据函数）由 `installLabelsBridge` 从 `assets/app/domain/labels/` 挂出（P5 第 4 轮起），逐条的调用方见 `AI/frontend/architecture.md` §6。
-- 删除期：题库工具栏一段已随题库页迁走删除（P5 第 2 轮）；展示板小按钮一段 P7；旧弹层外壳随各弹层迁到 Dialog / Drawer（P5–P7）；其余 P8 整个文件删除，届时 `legacy-bridge.js` 也必须为空。
+P8 删除了 `legacy-bridge.js`、`legacy-pages.js`、旧 `styles.css` 与 `styles/controls.css`，页面里不再有旧全局与旧类名（`.btn`、`.input`）；按钮与输入框只用 `ui-btn`、`ui-input`、`ui-select`、`ui-textarea`。历史 E2E 断言读的旧名字由测试专用的 `tests/e2e/p8_test_modules.js` 提供，见 `AI/frontend/architecture.md` §6。
 
 ## 6. gallery 与测试
 
-组件陈列页独立注册 32px 标签页图标和 512px 主屏图标，资源分别是 `assets/app/omrs-favicon.svg` 与 `assets/app/omrs-icon.svg`。
-
 - 陈列页：服务运行时打开 `/assets/app/gallery.html`，地址参数 `theme=light|dark`、`density=comfortable|compact`，页头也能切换。每个组件一节，覆盖默认、悬停、按下、焦点、禁用、加载中、空、错误、骨架、长文本溢出；浮层有静态预览加可点的真实演示；最后一节是旧类名桥接。
 - `python3 tests/app/run_browser.py`：自带静态服务器，用 playwright 跑 `tests/app/browser_tests.js` 的组件单测（对话框焦点与 Esc、toast 队列、菜单键盘、拖放、D2 / D3 高度等）；`--shots DIR` 另存 gallery 五张整页截图（浅 / 深 × 舒适 / 紧凑，外加 390 宽手机）。没有 playwright 时退出码 2，`tests/test_app_browser.py` 据此跳过。
-- `node --test tests/*.js tests/app/*.test.mjs`：覆盖 `html``` 的转义规则。
+- `node --test tests/app/*.test.mjs tests/app/*.test.mjs`：覆盖 `html``` 的转义规则。
 - `python3 tests/e2e/ui_bridge.py`：生成 fixture Vault、起隔离实例，在真实页面里验过渡桥、旧弹层之上叠新对话框、D2 / D3 与 12 页无报错。
 
 ## 7. 待办
 
 - 随页面迁移：emoji 图标换 `icon()`（D7）、原生文件选择换 FileDrop（D6）、零散 empty 类换 `empty()`（D5）、旧 `.modal-overlay` 弹层迁到 Dialog / Drawer，并删掉 legacy-bridge 对应段落。
 - 旧 `styles.css` 的全局元素规则仍在 legacy 层生效。其中 `header{padding;border-bottom;margin-bottom}` 会漏进用 `<header>` 的组件：P4 起 `.ui-dialog__head`、`.ui-card__head` 显式清零 margin / padding / border，`.ui-drawer__head` 清零 margin（P2 起所有对话框标题下那条粗线与空白即此）。gallery 不加载旧样式，这类问题只在真实页面里看得到；新组件用 `<header>` / `<footer>` 等元素时同样要清。
-- 已知遗留：展示板列表里的小按钮只统一了外观（P7）。即时练习迁到新架构后留给旧代码的入口（`instLoadPractice`、只读 `INSTANT_QUEUE`）、反馈录入留给旧代码的入口（`fbSessionProgress` 再导出，`renderFb` / `resetFeedbackForm` / `fbClearResults` 改发 bus 事件）也在 `legacy-bridge.js`，见 `AI/frontend/architecture.md` §6。

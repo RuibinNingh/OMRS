@@ -50,7 +50,7 @@
 .label-edit { display: grid; gap: var(--sp-2); }
 .label-edit-row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .label-edit-row > label { min-width: 64px; color: var(--fg-3); font-size: var(--text-xs); }
-.label-edit-row .input { flex: 1; min-width: 140px; }
+.label-edit-row .ui-input { flex: 1; min-width: 140px; }
 .label-bonus-input { max-width: 100px; }
 .lbl-swatches { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; }
 .lbl-swatches .sw { width: 28px; height: 28px; padding: 0; border: 2px solid transparent; border-radius: var(--r-sm); cursor: pointer; outline: 1px solid var(--border-2); }
@@ -58,5 +58,5 @@
 .lbl-swatches .sw.custom { position: relative; overflow: hidden; background: conic-gradient(var(--lbl-preset-1), var(--lbl-preset-3), var(--lbl-preset-5), var(--lbl-preset-6), var(--lbl-preset-8), var(--lbl-preset-1)); }
 .lbl-swatches .sw.custom input { position: absolute; inset: -6px; width: 200%; height: 200%; opacity: 0; cursor: pointer; }
 .label-manager-form { display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap; padding-top: var(--sp-3); border-top: 1px solid var(--border-1); }
-.label-manager-form .input { flex: 1; min-width: 160px; }
+.label-manager-form .ui-input { flex: 1; min-width: 160px; }
 @media (max-width: 760px) { .label-manager-row { grid-template-columns: auto minmax(0,1fr); } .label-manager-acts { grid-column: 1 / -1; } .label-picker-option, .lbl-swatches .sw { min-height: var(--ctl-sm); } }

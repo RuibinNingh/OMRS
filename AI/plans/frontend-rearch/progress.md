@@ -6,6 +6,7 @@
 > - 基线：P6 本机基线提交 `7ebfc6c`（`rearch/base-v1.25.4`），开发 worktree 分支 `frontend-rearch`；P7 补丁基线是导出包 `20260927T013727Z`（v1.25.4）。本次三方合并的祖先由 P7 累计补丁反向应用还原（与该导出包清单逐项一致），P6 一侧是导出包 `20260927T125544Z`（含框选在制代码）
 > - 下一步：Codex · 完整：① 先按任务日志 `AI/logs/2026-09-27_frontend-rearch-p6-p7-merge.md`「落地」应用合并补丁并提交（未做的话）；② 再按 `AI/logs/2026-09-27_frontend-rearch-p6-create.md`「合入」应用 `changes-2026-09-27-p6-create.patch`（相对合并完整包 v1.26.5），作为一个提交 `frontend-rearch P6: 录入页框选 / 题卡 / 训练 → features/create（v1.27.0）`；③ 补做本机步骤（`--write-log-index`、本机全量 E2E、真实浏览器走一遍录入页三个工作区）；④ 进 P8（执行说明阶段 4），之后终检；部署另等用户授权
 > - 更新：2026-09-27，Claude（对话内，U19）完成 P6 剩余：收件箱前端数据归 `features/create/inbox-store.js`，框选收尾、题卡与 AI 训练工作区原生，删除 `assets/inbox.js`；门禁见 §4
+> - 审查（2026-09-28，v1.28.1）：P8 并未完全落地——工作区仍留着 23 个旧脚本与旧 `styles.css`、16 个测旧脚本的 node 测试、`.btn` / `.input` 与 `controls.css`、外壳的 `enter(win)` 分支、3 个调用已不存在全局的展示板冒烟脚本，题库 / 复习调度 / 即时练习 / 反馈 / 外壳的 E2E 仍在调用已删的全局；均已在 v1.28.1 清掉或改写，见任务日志 `AI/logs/2026-09-28_merge-and-cleanup.md`
 
 ## 1. 用户诉求原话（每期都要能对应回这里）
 

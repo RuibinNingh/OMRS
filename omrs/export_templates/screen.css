@@ -1,4 +1,4 @@
-/* OMRS 屏幕版 —— 全屏卡片复习 App。调色板与桌面端 (assets/styles.css) 同步：
+/* OMRS 屏幕版 —— 全屏卡片复习 App。调色板与桌面端 (assets/app/styles/tokens.css) 同步：
    暖棕 accent / 米色底 / Noto Sans SC，让导出件与主程序观感一致。
    专为手机优化：单卡全屏、拇指区操作条、滑动翻题、底部进度抽屉。 */
 :root{

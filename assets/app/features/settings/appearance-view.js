@@ -24,7 +24,7 @@ export const appearanceView = () => html`<section class="st-section" id="st-sec-
             </div>
             <div class="st-row">
               <div class="st-row-text"><label class="st-row-label" for="st-ledger-time-zone">Ledger 时间线时区</label><div class="hint">账本始终以 UTC 保存；这里只改变「历史记录」与仪表盘「最近动态」的显示。</div></div>
-              <select id="st-ledger-time-zone" class="input st-select" data-change="settings.timeZone">
+              <select id="st-ledger-time-zone" class="ui-select ui-select" data-change="settings.timeZone">
                 <option value="local">跟随浏览器</option>
                 <option value="Asia/Shanghai">中国标准时间（UTC+8）</option>
                 <option value="UTC">UTC（账本原始时区）</option>

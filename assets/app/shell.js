@@ -1,9 +1,9 @@
 /**
- * 外壳：连接路由与页面。页面登记表（旧页面见 legacy-pages.js；新页面为 features/<页>/index.js 的页面契约）决定
+ * 外壳：连接路由与页面。页面登记表（各页 features/<页>/index.js 导出的页面契约）决定
  * 顶栏标题、文档标题、侧栏高亮（aria-current）、面板显隐与工作台布局（.content.is-workbench）。
- * 进入页面：旧页面调 enter(win)；新页面调 mount(root, ctx)，离开时执行它返回的卸载函数。
+ * 进入页面调 mount(root, ctx)，离开时执行它返回的卸载函数。
  * 新页面契约里的 actions / keys 在登记时一次性注册：动作命名空间与快捷键作用域都是页面 id（切页时外壳切作用域）。
- * 在 window.__omrs 暴露 { bus, store, router, emit } 给旧代码；统计快照由 domain/data.js 经 bus 发 'data'，这里同步进 store.data。
+ * 在 window.__omrs 暴露 { bus, store, router, emit }，供 domain 层跳页与测试脚本使用（页面里用 mount 收到的 ctx）；统计快照由 domain/data.js 经 bus 发 'data'，这里同步进 store.data。
  * 全局动作 app.*：跨页共用的按钮（仪表盘 / 题库 / 目录的「重新扫描」）走 data-action="app.scan"。
  */
 import { createRouter } from './core/router.js';
@@ -37,7 +37,7 @@ function syncCollapsedTooltips(doc) {
   });
 }
 
-/** 跨页共用的动作。scan：调旧 doScan()，期间按钮置忙防重复点；在目录页时顺带重读目录树，「未进题库」提示随之更新。 */
+/** 跨页共用的动作。scan：调 scanVault()，期间按钮置忙防重复点；在目录页时顺带重读目录树，「未进题库」提示随之更新。 */
 function defineAppActions(win, router, bus) {
   let scanning = false;
   defineActions('app', {
@@ -83,8 +83,7 @@ export function startShell(win, pages) {
       setScope(page.id);
       doc.body.classList.remove('drawer-open');
       try {
-        if (typeof page.mount === 'function') unmount = page.mount(doc.getElementById(`panel-${page.id}`), { bus, store, router });
-        else Promise.resolve(page.enter?.(win)).catch(error => console.error(`[shell] 进入「${page.title}」出错`, error));
+        unmount = page.mount(doc.getElementById(`panel-${page.id}`), { bus, store, router });
       } catch (error) {
         console.error(`[shell] 进入「${page.title}」出错`, error);
       }

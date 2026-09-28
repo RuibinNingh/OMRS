@@ -1,9 +1,10 @@
-/** 设置页契约：五分区装配、局部导航与页面生命周期。 */
+/** 设置页契约：六分区装配、局部导航与页面生命周期。 */
 import { morph } from '../../core/dom.js';
 import { view } from './view.js';
 import { createAppearance } from './appearance.js';
 import { createAccess } from './access.js';
 import { createAi } from './ai.js';
+import { createAgent } from './agent.js';
 import { createStorage } from './storage.js';
 import { createService } from './service.js';
 import { SECTIONS, SECTION_KEY, sectionOf } from './state.js';
@@ -13,6 +14,7 @@ let onKeys = null;
 let appearance = null;
 let access = null;
 let ai = null;
+let agent = null;
 let storage = null;
 let service = null;
 let current = 'appearance';
@@ -49,6 +51,7 @@ export const page = {
     service = createService(root);
     access = createAccess(root, id => service?.restart(id));
     ai = createAi(root);
+    agent = createAgent(root, ctx.bus);
     storage = createStorage(root);
     let saved = '';
     try { saved = localStorage.getItem(SECTION_KEY) || ''; } catch { /* 使用默认分区。 */ }
@@ -64,12 +67,13 @@ export const page = {
     root.addEventListener('keydown', onKeys);
     access.load();
     ai.load();
+    agent.load();
     storage.load();
     service.load();
     return () => {
       root?.removeEventListener('keydown', onKeys);
-      access?.dispose(); ai?.dispose(); storage?.dispose(); service?.dispose();
-      root = null; onKeys = null; appearance = null; access = null; ai = null; storage = null; service = null;
+      access?.dispose(); ai?.dispose(); agent?.dispose(); storage?.dispose(); service?.dispose();
+      root = null; onKeys = null; appearance = null; access = null; ai = null; agent = null; storage = null; service = null;
     };
   },
   actions: {
@@ -86,6 +90,10 @@ export const page = {
     toggleKey: () => ai?.toggleKey(),
     clearKey: () => ai?.clearKey(),
     saveAi: () => ai?.save(),
+    saveAgent: () => agent?.save(),
+    agentTest: () => agent?.test(),
+    agentToggleKey: () => agent?.toggleKey(),
+    agentClearKey: () => agent?.clearKey(),
     backupExport: () => storage?.backupExport(),
     backupPick: () => root?.querySelector('#opt-import-file')?.click(),
     backupImport: ({ event }) => storage?.backupImport(event),

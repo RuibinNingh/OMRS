@@ -13,6 +13,16 @@
 
 ---
 
+## 并发与写锁
+
+服务器每个连接一个守护线程（`ThreadingMixIn`），慢请求、长轮询不阻塞别的请求。所有持久化写入经 `omrs/locking.py` 的进程级可重入写锁串行：POST 默认整段在锁内处理；等锁超过 60 秒返回 **503**「写入繁忙，请稍后重试」并在服务日志记一行。锁顺序写死：写锁在外，各模块自己的锁（安全、收件箱、优化任务、工作区扫描、`agent.db`）在内。
+
+不进写锁的 POST 列在 `POST_LOCK_EXEMPT`（每条附理由）：`/api/auth/*`、`/api/ai-recognize`（只调外部模型）、`/api/restart`（重启线程在停止监听前自取写锁，最多等 30 秒）、`/api/agent/message`、`/api/agent/confirm`、`/api/agent/abort`、`/api/agent/test`、`/api/agent/conversation/create`、`/api/agent/conversation/delete`。AI 工具的写入在运行线程里逐次取锁；`/api/agent/run/revert` 在应用撤销时自取写锁。后台工作区扫描与图片压缩的逐文件写回也在写锁内。Ledger 追加与计数各自用 `BEGIN IMMEDIATE`，连接带 `busy_timeout=5000`，见 `AI/ledger.md` §9。
+
+`/api/agent/*`（AI 助手）的请求与响应见 `AI/agent.md` §7。
+
+---
+
 ## GET 端点
 
 ### `/api/stats`
@@ -263,6 +273,14 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 配置持久化在 `错题/.omrs/config.json`。`ai_*` 键供 AI 识别与收件箱任务使用，按用途模型为空时回退到 `ai_model`；`ai_restrict_tags` 缺失按 `true` 处理。`inbox_*` 键供收件箱框选、盲标、自动处理和清理策略使用。AI 与收件箱配置保存即生效；`allow_external` 仍需重启服务才改变监听地址。
 
+`agent_*` 键（AI 助手）的含义见 `AI/agent.md` §2：GET 不回显 `agent_api_key`，只返回 `agent_api_key_configured`；POST 可带 `clear_agent_api_key:true`；`agent_compat` 取值、开关类型不合法或模型名填 `faux` 时返回 400。
+
+### `/api/question/content/history?uid=<uid>`（或 `question_id=`）
+列出一道题（含已删除的题）在 Ledger 里入账过的正文版本：`{question_id, uid, archived, current_hash, versions:[{seq, commit_id, created_at, source, commit_type, hash, available}]}`，按提交顺序，同一哈希只列一次。找不到返回 404。见 `AI/ledger.md` §10。
+
+### `/api/question/content/version?hash=<sha256>`
+取回某个版本的正文：`{hash, markdown}`；不在 blobs 里返回 404。
+
 ### `/`、`/index.html`
 返回 `omrs_dashboard.html`。
 
@@ -449,6 +467,9 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 ### `GET /api/question/raw?uid=<uid>`
 返回题目的完整 Markdown 原文与文件路径，用于纯文本编辑器。
 
+### `POST /api/question/content/restore`
+请求体 `{uid, hash, expected_content_hash?}`：把题目正文还原为 blobs 里的某个版本，写前对齐未入账的修改，写后记一条 `question.metadata_update` 或 `question.content_update`（payload 带 `restored_from`）。`expected_content_hash` 与文件当前正文不符返回 **409**；题目或版本不存在返回 400。
+
 ### `POST /api/question/markdown`
 保存完整 Markdown 原文。
 
@@ -458,6 +479,9 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 ```
 
 若用户试图修改 `_omrs_id`，后端拒绝保存。保存后立即执行该文件的结构化字段自检：仅正文变化不写 commit；结构化字段变化写 `question.metadata_update_external`。
+
+
+可选 `expected_content_hash`：写入方看到的正文哈希（`GET /api/question/raw` 与本接口的响应都带 `content_hash`），与文件当前正文不符时返回 **409**「题目正文已被修改，请刷新后重试」。保存经 `omrs/content_history.py` 写前对齐、原子写文件并入账（来源 `api`）。
 
 ### `POST /api/question/move`
 迁移题目到目标分类，使用最小缺口 UID 分配算法。

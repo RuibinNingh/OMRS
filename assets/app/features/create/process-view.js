@@ -50,7 +50,7 @@ export function processView() {
         <div class="t">区域与转换 <span class="hint" id="ib-ps-card-n"></span></div>
         <div class="meta" id="ib-ps-meta"></div>
         <div class="layout"><label for="ib-layout">版式</label>
-          <select class="input" id="ib-layout" data-change="create.processLayout">
+          <select class="ui-select" id="ib-layout" data-change="create.processLayout">
             <option value="zuoyebang">作业帮截图</option><option value="photo">拍照 / 扫描</option>
             <option value="plain">已裁好的题图</option><option value="other">其他</option>
           </select><span class="hint">作为训练标签记录</span>

@@ -46,7 +46,7 @@ function conversionView(region, itemId) {
   ${region.text_status === 'running' ? html`<div class="ib-judge busy"><span class="ib-spin"></span>提取中…后台任务，可以切到其他图继续</div>` : ''}
   ${region.text_status === 'error' ? html`<div class="ib-judge no">模型没有返回文本，可重试或改为保留图片</div>` : ''}
   ${region.text_status === 'stale' ? html`<div class="ib-judge no">框位改过了，文本可能不对应，建议重新提取</div>` : ''}
-  ${region.text && convert !== 'image' ? html`<div class="ib-rg-text"><textarea class="input" rows="4" aria-label="区域文本" data-input="create.processText" data-arg="${id}">${region.text}</textarea><div class="ib-rg-prev q-md" id="ib-prev-${id}">${raw(renderMd(region.text))}</div></div>` : ''}
+  ${region.text && convert !== 'image' ? html`<div class="ib-rg-text"><textarea class="ui-textarea" rows="4" aria-label="区域文本" data-input="create.processText" data-arg="${id}">${region.text}</textarea><div class="ib-rg-prev q-md" id="ib-prev-${id}">${raw(renderMd(region.text))}</div></div>` : ''}
   ${convert === 'image' ? html`<div class="ib-rg-crop" data-key="crop-${boxKey(region)}" data-morph="skip"><canvas data-crop="${itemId}|${id}" data-crop-max="340" aria-label="裁图预览"></canvas></div><div class="hint ib-rg-crop-note">保存为裁剪图嵌入 <code># ${ROLES[roleOf(region.role)]}</code></div>` : ''}`;
 }
 

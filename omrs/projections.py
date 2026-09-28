@@ -140,6 +140,13 @@ def apply_commit(vault: str, state: dict, commit: dict):
             question["updated_seq"] = seq
             state["uid_to_question_id"][question["uid"]] = question_id
             _remember_question_tag_baseline(state, question_id)
+    elif ctype == "question.content_update":
+        question = state["questions"].get(payload.get("question_id"))
+        if question and payload.get("after_hash"):
+            question["content_hash"] = payload["after_hash"]
+            question["updated_seq"] = seq
+    elif ctype == "question.content_snapshot":
+        pass  # 只为把正文存进 blobs；投影里的 content_hash 已由之前的 commit 决定
     elif ctype in {"question.archive", "question.archive_external"}:
         question = state["questions"].get(payload.get("question_id"))
         if question:
@@ -645,6 +652,10 @@ def _commit_summary(commit):
         return f"迁移题目：{payload.get('from_uid', '')} -> {payload.get('to_uid', '')}"
     if ctype in {"question.archive", "question.archive_external"}:
         return f"归档题目：{payload.get('uid_at_that_time', '')}"
+    if ctype == "question.content_update":
+        return f"修改正文：{payload.get('uid_at_that_time', '')}"
+    if ctype == "question.content_snapshot":
+        return f"回填正文：{len(payload.get('items', []))} 道题"
     if ctype in {"question.suspend", "question.resume"}:
         action = "停用" if ctype == "question.suspend" else "恢复"
         return f"{action}题目：{payload.get('uid_at_that_time', payload.get('uid', ''))}"

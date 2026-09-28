@@ -3,9 +3,9 @@
 > **速查**
 > - 职责：不可变提交链、投影缓存、历史修正与迁移边界
 > - 入口：`omrs/ledger.py`、`omrs/projections.py`
-> - 不变量：提交只追加不改写，修正以新的 commit 表达；题目正文不做版本控制
-> - 必跑测试：`tests/test_history_projection.py`、`tests/test_sessions_feedback.py`
-> - 相关：`AI/data.md`、`AI/frontend/records.md`
+> - 不变量：提交只追加不改写，修正以新的 commit 表达；追加在 `BEGIN IMMEDIATE` 事务里；题目正文的每个版本存进 blobs，commit 只引用哈希
+> - 必跑测试：`tests/test_history_projection.py`、`tests/test_sessions_feedback.py`、`tests/test_ledger_concurrency.py`、`tests/test_agent_tools.py`
+> - 相关：`AI/data.md`、`AI/frontend/records.md`、`AI/agent.md`
 
 > v1.1.0 起，结构化状态以 `错题/.omrs/ledger.db` 为唯一可信来源。旧 CSV 仍存在，但只作为兼容投影、迁移输入和调试查看。
 
@@ -196,3 +196,15 @@ AI 审计提示词要求外部 AI 按 P0/P1/P2 输出问题清单，并重点检
 - 题干正文、答案正文、错因笔记、备注正文、排版、LaTeX 和图片引用顺序不进入版本链。
 - 如果用户在文件管理器中彻底删除 Markdown，自检可记录题目被外部归档，但无法无损恢复已丢失正文。
 - 网页迁移/编辑会尽量通过原子写与 fingerprint 同步避免重复外部变更提交。
+
+## 9. 追加原子性与写入来源
+
+`append_commit_in_db` 在读链头之前执行 `BEGIN IMMEDIATE` 拿到 SQLite 写锁，读链头、插入、回填 `commit_id`、存 blobs 在同一事务里提交；`reserve_operation_id` 的计数同样如此。连接一律带 `busy_timeout=5000`，别的线程或进程在超时内等待，不会读到同一个链头而分叉。连接已处于调用方开启的事务时沿用该事务。`verify_ledger` 另外校验每个 blob 的内容与哈希一致。
+
+写入来源：`api`（用户经界面或接口）、`self_check`（工作区扫描发现的外部修改）、`migration`、`system`，以及 `agent`——`omrs/actor.py` 的 `agent_actor(...)` 上下文里，原本记为 `api` 的 commit 改记 `agent`，payload 加 `_agent: {conversation_id, run_id, tool_call_id}`（参与哈希，投影忽略）。按运行撤销产生的逆操作在 `revert_marker(...)` 上下文里，payload 加 `_revert: {run_id, commit_id}`。见 `AI/agent.md` §9。
+
+## 10. 正文入账
+
+`blobs(hash, content, created_at)` 存题目 Markdown 的全文，哈希是 UTF-8 正文的 sha256；commit 只引用哈希。入账的时机：`question.create` 之后（录入的正文）、`question.content_update`（只改正文，payload 有 `before_hash` / `after_hash`）、经 `omrs/content_history.py` 写文件时的 `question.metadata_update`（同样带前后哈希）、工作区扫描发现的只改正文（`self_check`）、删除前的最后一版（`question.archive` 带 `content_hash`）、首次启动时一次性的 `question.content_snapshot`（`source=migration`，`items` 列出每题当前哈希；投影不处理它）。
+
+写文件前对齐：`ensure_content_recorded` 发现文件正文与投影记录的哈希不同（例如刚在 Obsidian 里改过），先以 `self_check` 补记这一版，再做本次写入；调用方给了 `expected_content_hash` 而对不上时抛 `ContentConflict`（HTTP 409）。投影处理 `question.content_update` 时只更新 `content_hash`。历史、取回与还原的接口见 `AI/api.md`。

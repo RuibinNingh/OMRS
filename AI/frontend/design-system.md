@@ -9,9 +9,7 @@
 
 ## 1. 目录与分层
 
-侧栏和顶栏的 `.nav-ico` 使用 `currentColor` 描边，尺寸为 18px；品牌位是 32px 的 SVG 图片，尺寸与圆角由 `styles/shell.css` 控制。
-
-前端正在从「全局脚本 + 单文件 CSS」渐进迁到 `assets/app/`（原生 ES Module，无构建）。现有 `styles/`（token、分层总入口、base、组件汇总、外壳、过渡层）、`core/`（渲染、事件、快捷键、状态、总线、路由、请求、格式化）、`ui/`（23 个组件）、`main.js`、`shell.js`、`legacy-pages.js`、`legacy-bridge.js` 与组件陈列页，架构见 `AI/frontend/architecture.md`、组件见 `AI/frontend/components.md`；页面仍由 `assets/*.js` 与 `assets/app/styles/index.css` 提供，逐页迁移。
+前端全部在 `assets/app/`（原生 ES Module，无构建）：`styles/`（token、分层总入口、base、组件汇总、外壳）、`core/`、`ui/`（23 个组件）、`domain/`、`features/`，入口 `main.js`、`shell.js`；`assets/` 根目录只剩手机上传页 `inbox_mobile.html`。按钮与输入框只有 `ui-btn` / `ui-input` / `ui-select` / `ui-textarea` 一套。架构见 `AI/frontend/architecture.md`、组件见 `AI/frontend/components.md`。
 
 - `assets/app/` 下的一切适用 §5 的零容忍规则。
 - `assets/` 根目录不再新增前端文件，新代码一律进 `assets/app/`（`check_ui.py` 会拦）。
@@ -36,6 +34,8 @@
 | 其它 | `--focus-ring`、`--family-*`、`--chart-surface`、`--chart-line`、`--elev-0` ~ `--elev-3`、`--scrim` | 焦点环、时间线事件族、图表、阴影层级、遮罩 |
 
 字号 token 叫 `--text-*`，文字颜色叫 `--fg-*`，两者不要混。
+
+页面专用的派生值也放 `tokens.css`，按页面分段：助手页的 `--ast-*`（用户消息底色、确认卡与错误描边、思考引线、等首 token 的时间线色，以及代码与引用芯片的相对字号）由主题的 `*-rgb` 派生，深浅主题自动跟随。
 
 ## 3. 尺度 token
 
@@ -75,7 +75,7 @@
 - **R8** JS ≤ 400 行、CSS ≤ 300 行。
 - **R9** 每个 `assets/app/features/<x>/` 须登记在 `AGENTS.md` 映射表。
 
-旧代码（`assets/*.js`、`assets/app/styles/index.css`、`assets/inbox_mobile.html`、`omrs_dashboard.html`）按文件统计五项存量：行内事件、`innerHTML` 类赋值、行内样式、颜色字面量、硬编码字号，记在 UI 基线文件。
+`assets/` 根目录只允许 `inbox_mobile.html`；它与 `omrs_dashboard.html` 同样按五项计数（行内事件、`innerHTML` 类赋值、行内样式、颜色字面量、硬编码字号），全部必须为 0，没有存量基线。
 
 - **只减不增**：任何一项上升即失败。
 - **下调基线**：减少后运行 `--update-baseline`；若有任何一项上升，拒绝写入。

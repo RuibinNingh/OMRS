@@ -18,9 +18,9 @@ export const serviceView = () => html`<section class="st-section" id="st-sec-ser
               <div><dt>数据目录</dt><dd><code>错题/.omrs/</code></dd></div>
             </dl>
             <div class="st-actions">
-              <button class="btn" type="button" data-action="settings.refreshStatus">刷新状态</button>
+              <button class="ui-btn" type="button" data-action="settings.refreshStatus">刷新状态</button>
               <span class="st-actions-gap"></span>
-              <button class="btn danger" type="button" data-action="settings.restart">重启服务</button>
+              <button class="ui-btn ui-btn--danger" type="button" data-action="settings.restart">重启服务</button>
             </div>
             <div class="hint">重启期间页面会短暂无响应；确认新服务就绪后自动刷新，最长等待 90 秒。远端登录会在重启后失效。</div>
             <div id="st-status" class="st-status" role="status"></div>
@@ -28,7 +28,7 @@ export const serviceView = () => html`<section class="st-section" id="st-sec-ser
           <div class="card st-card">
             <div class="card-title">源码协助</div>
             <p class="hint st-lead">按项目源码目录下载脱敏 .zip，包含未提交的源码，不依赖 Git；不含「错题」题库、附件、运行数据、日志或生成的导出文件。分享前请核对包内清单和源码内容。</p>
-            <button class="btn" type="button" data-action="settings.sourceExport">下载脱敏源码</button>
+            <button class="ui-btn" type="button" data-action="settings.sourceExport">下载脱敏源码</button>
             <div id="svc-source-status" class="st-status"></div>
           </div>
         </section>`;

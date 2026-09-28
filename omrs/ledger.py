@@ -23,12 +23,27 @@ class ClosingConnection(sqlite3.Connection):
         return result
 
 
+BUSY_TIMEOUT_MS = 5000
+
+
 def connect(vault: str):
-    db = sqlite3.connect(ledger_path(vault), factory=ClosingConnection)
+    db = sqlite3.connect(ledger_path(vault), factory=ClosingConnection, timeout=BUSY_TIMEOUT_MS / 1000)
     db.row_factory = sqlite3.Row
+    db.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
     db.execute("PRAGMA foreign_keys = ON")
     init_db(db)
     return db
+
+
+def _begin_write(db):
+    """在读链头 / 计数之前拿到 SQLite 写锁（BEGIN IMMEDIATE），其他连接在 busy_timeout 内等待。
+
+    连接已处于调用方开启的写事务里时沿用它（调用方负责提交）。返回本函数是否开启了事务。
+    """
+    if db.in_transaction:
+        return False
+    db.execute("BEGIN IMMEDIATE")
+    return True
 
 
 def init_db(db):
@@ -123,6 +138,18 @@ def init_db(db):
             last_seen_at  TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS blobs (
+            hash       TEXT PRIMARY KEY,
+            content    TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS op_results (
+            op_id       TEXT PRIMARY KEY,
+            result_json TEXT NOT NULL,
+            created_at  TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS workspace_scan_status (
             id               INTEGER PRIMARY KEY CHECK (id = 1),
             last_scan_at     TEXT,
@@ -178,7 +205,16 @@ def reserve_operation_id(vault: str) -> str:
 
 
 def reserve_operation_id_in_db(db) -> str:
-    return f"OP-{_next_counter(db, 'operation'):06d}"
+    owned = _begin_write(db)
+    try:
+        value = _next_counter(db, "operation")
+        if owned:
+            db.commit()
+    except BaseException:
+        if owned:
+            db.rollback()
+        raise
+    return f"OP-{value:06d}"
 
 
 def has_commits(vault: str) -> bool:
@@ -189,50 +225,108 @@ def has_commits(vault: str) -> bool:
         return bool(row and row["n"])
 
 
-def append_commit(vault: str, source: str, commit_type: str, message: str, payload: dict):
+def blob_hash(content: str) -> str:
+    return hashlib.sha256((content or "").encode("utf-8")).hexdigest()
+
+
+def append_commit(vault: str, source: str, commit_type: str, message: str, payload: dict, blobs=None):
+    """追加一条 commit。blobs 是要随同一事务存下的正文（列表或 {hash: 正文}），见 AI/ledger.md「正文入账」。"""
     with connect(vault) as db:
-        return append_commit_in_db(db, source, commit_type, message, payload)
+        return append_commit_in_db(db, source, commit_type, message, payload, blobs=blobs)
 
 
-def append_commit_in_db(db, source: str, commit_type: str, message: str, payload: dict):
-    payload = payload or {}
-    row = db.execute(
-        "SELECT seq, commit_hash FROM commits ORDER BY seq DESC LIMIT 1"
-    ).fetchone()
-    prev_hash = row["commit_hash"] if row else None
-    created_at = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
-    commit_hash = compute_commit_hash(prev_hash, created_at, source, commit_type, payload)
-    cur = db.execute(
-        """
-        INSERT INTO commits
-        (commit_id, prev_hash, commit_hash, created_at, source, commit_type,
-         message, payload_json, schema_version, projector_version)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            "PENDING",
-            prev_hash,
-            commit_hash,
-            created_at,
-            source,
-            commit_type,
-            message,
-            canonical_json(payload),
-            SCHEMA_VERSION,
-            PROJECTOR_VERSION,
-        ),
-    )
-    seq = cur.lastrowid
-    commit_id = "GENESIS" if commit_type == "system.genesis" and seq == 1 else f"CMT-{seq:06d}"
-    db.execute("UPDATE commits SET commit_id = ? WHERE seq = ?", (commit_id, seq))
-    db.commit()
-    return {
+def _store_blobs(db, blobs, created_at):
+    if not blobs:
+        return
+    items = blobs.values() if isinstance(blobs, dict) else blobs
+    for content in items:
+        if content is None:
+            continue
+        db.execute(
+            "INSERT OR IGNORE INTO blobs(hash, content, created_at) VALUES (?, ?, ?)",
+            (blob_hash(content), content, created_at),
+        )
+
+
+def append_commit_in_db(db, source: str, commit_type: str, message: str, payload: dict, blobs=None):
+    from .actor import current_agent, current_revert, note_commit
+
+    payload = dict(payload or {})
+    marker = current_revert()
+    if marker is not None:
+        payload["_revert"] = dict(marker)
+    agent = current_agent()
+    if agent is not None and source in ("api", "agent"):
+        # AI 运行里的写入：来源单独一类，payload 带运行身份（参与哈希，投影忽略）
+        source = "agent"
+        payload["_agent"] = agent.stamp()
+    owned = _begin_write(db)
+    try:
+        row = db.execute(
+            "SELECT seq, commit_hash FROM commits ORDER BY seq DESC LIMIT 1"
+        ).fetchone()
+        prev_hash = row["commit_hash"] if row else None
+        created_at = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+        commit_hash = compute_commit_hash(prev_hash, created_at, source, commit_type, payload)
+        cur = db.execute(
+            """
+            INSERT INTO commits
+            (commit_id, prev_hash, commit_hash, created_at, source, commit_type,
+             message, payload_json, schema_version, projector_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "PENDING",
+                prev_hash,
+                commit_hash,
+                created_at,
+                source,
+                commit_type,
+                message,
+                canonical_json(payload),
+                SCHEMA_VERSION,
+                PROJECTOR_VERSION,
+            ),
+        )
+        seq = cur.lastrowid
+        commit_id = "GENESIS" if commit_type == "system.genesis" and seq == 1 else f"CMT-{seq:06d}"
+        db.execute("UPDATE commits SET commit_id = ? WHERE seq = ?", (commit_id, seq))
+        _store_blobs(db, blobs, created_at)
+        if owned:
+            db.commit()
+    except BaseException:
+        if owned:
+            db.rollback()
+        raise
+    result = {
         "seq": seq,
         "commit_id": commit_id,
         "commit_hash": commit_hash,
         "created_at": created_at,
         "version": __version__,
     }
+    if agent is not None:
+        note_commit({"seq": seq, "commit_id": commit_id, "commit_type": commit_type, "message": message})
+    return result
+
+
+def get_blob(vault: str, content_hash: str):
+    with connect(vault) as db:
+        row = db.execute("SELECT content FROM blobs WHERE hash = ?", (content_hash,)).fetchone()
+    return row["content"] if row else None
+
+
+def has_blob(vault: str, content_hash: str) -> bool:
+    with connect(vault) as db:
+        return db.execute("SELECT 1 FROM blobs WHERE hash = ?", (content_hash,)).fetchone() is not None
+
+
+def store_blob(vault: str, content: str) -> str:
+    created_at = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    with connect(vault) as db:
+        _store_blobs(db, [content], created_at)
+        db.commit()
+    return blob_hash(content)
 
 
 def read_commits(vault: str, before_seq=None, limit=None, ascending=True):
@@ -311,6 +405,10 @@ def verify_ledger(vault: str) -> dict:
             errors.append(f"{row['commit_id']} commit_hash 不匹配")
         prev_hash = row["commit_hash"]
         head = row
+    with connect(vault) as db:
+        bad = [r["hash"] for r in db.execute("SELECT hash, content FROM blobs").fetchall()
+               if blob_hash(r["content"]) != r["hash"]]
+    errors += [f"blob {h[:12]} 内容与哈希不符" for h in bad]
     return {
         "status": "ok",
         "valid": not errors,

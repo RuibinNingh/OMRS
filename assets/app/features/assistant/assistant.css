@@ -1,0 +1,96 @@
+/* AI 助手页：整体布局、对话列表、头部、用户消息、空状态与权限表、侧栏入口状态。颜色与派生值见 tokens.css「助手页」。 */
+.ast {
+  --ast-rail-w: 264px; --ast-insp-w: 328px; --ast-chrome: 7.5rem; --ast-ref-pad: .42em; --ast-ref-gap: .3em; --ast-dot: 6px;
+  --ast-stream-w: 780px; --ast-trace-pad: calc(var(--sp-6) + var(--sp-0_5)); --ast-rail-line: calc(var(--sp-2) + var(--sp-0_5));
+  display: grid; flex: 1; grid-template-columns: var(--ast-rail-w) minmax(0, 1fr); gap: var(--sp-3); height: 100%; min-height: 0;
+}
+.ast[data-insp="open"] { grid-template-columns: var(--ast-rail-w) minmax(0, 1fr) var(--ast-insp-w); }
+.ast-card { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--surface-1); border: 1px solid var(--border-1); border-radius: var(--r-lg); }
+.ast-insp { display: none; }
+.ast[data-insp="open"] .ast-insp { display: flex; }
+.ast-scrim { display: none; }
+.ast .ui-icon { flex: none; }
+
+/* ── 对话列表 ── */
+.ast-rail__head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-3) var(--sp-3) var(--sp-2); }
+.ast-rail__title { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.ast-rail__list { flex: 1; min-height: 0; overflow-y: auto; padding: 0 var(--sp-2) var(--sp-2); }
+.ast-rail__empty { margin: var(--sp-4) var(--sp-2); color: var(--fg-3); font-size: var(--text-sm); }
+.ast-rail__foot { padding: var(--sp-2) var(--sp-3); border-top: 1px solid var(--border-1); color: var(--fg-3); font-size: var(--text-2xs); line-height: var(--leading-ui); }
+.ast-group h3 { margin: var(--sp-3) var(--sp-2) var(--sp-1); color: var(--fg-3); font-size: var(--text-2xs); font-weight: var(--weight-medium); }
+.ast-group ul { display: grid; gap: var(--sp-0_5); margin: 0; padding: 0; list-style: none; }
+.ast-conv { display: grid; gap: var(--sp-0_5); width: 100%; padding: var(--sp-2); color: var(--fg-1); text-align: left; background: transparent; border: 0; border-radius: var(--r-md); cursor: pointer; font: inherit; transition: background var(--dur-1) var(--ease-out); }
+.ast-conv:hover { background: var(--surface-2); }
+.ast-conv.is-active { background: var(--accent-soft); }
+.ast-conv:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.ast-conv__t { display: flex; align-items: center; gap: var(--sp-1_5); overflow: hidden; font-size: var(--text-sm); font-weight: var(--weight-medium); white-space: nowrap; text-overflow: ellipsis; }
+.ast-conv__s { overflow: hidden; color: var(--fg-3); font-size: var(--text-xs); white-space: nowrap; text-overflow: ellipsis; }
+.ast-conv__f { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1); color: var(--fg-3); font-size: var(--text-2xs); }
+.ast-live-dot { flex: none; width: var(--ast-dot); height: var(--ast-dot); background: var(--accent); border-radius: 50%; animation: ast-pulse calc(var(--dur-3) * 6) var(--ease-in-out) infinite; }
+.ast-live-dot.is-waiting { background: var(--warning); }
+
+/* ── 头部 ── */
+.ast-main { position: relative; }
+.ast-head { display: flex; flex: none; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border-1); }
+.ast-head__text { flex: 1; min-width: 0; }
+.ast-head__title { margin: 0; overflow: hidden; font-size: var(--text-md); font-weight: var(--weight-semibold); white-space: nowrap; text-overflow: ellipsis; }
+.ast-head__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin: 0; color: var(--fg-3); font-size: var(--text-xs); }
+.ast-model { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--fg-2); font-family: var(--font-mono); font-size: var(--text-xs); }
+.ast-rail-toggle { display: none; }
+
+/* ── 对话流 ── */
+.ast-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scroll-behavior: auto; scroll-padding-bottom: var(--sp-6); }
+.ast-stream { display: flex; flex-direction: column; gap: var(--sp-5); max-width: var(--ast-stream-w); margin: 0 auto; padding: var(--sp-5) var(--sp-4) var(--sp-6); }
+.ast-user { display: grid; gap: var(--sp-1); align-self: flex-end; max-width: min(84%, 36rem); }
+.ast-user__m { display: inline-flex; align-items: center; gap: var(--sp-1); justify-self: end; color: var(--fg-3); font-size: var(--text-2xs); }
+.ast-user__b { padding: var(--sp-2) var(--sp-3); color: var(--fg-1); background: var(--ast-user-bg); border-radius: var(--r-lg) var(--r-lg) var(--r-xs) var(--r-lg); font-size: var(--text-sm); line-height: var(--leading-read); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ast-user--steer { align-self: stretch; max-width: none; }
+.ast-user--steer .ast-user__m { justify-self: start; }
+.ast-user--steer .ast-user__b { background: var(--surface-2); border-radius: var(--r-md); }
+.ast-dockwrap { position: relative; flex: none; }
+.ast-jump { position: absolute; bottom: calc(100% + var(--sp-2)); left: 50%; z-index: var(--z-sticky); box-shadow: var(--elev-2); transform: translateX(-50%); }
+.ast-jump[hidden], .tab[data-tab="assistant"][hidden] { display: none; }
+
+/* ── 空状态 ── */
+.ast-empty { display: grid; justify-items: center; gap: var(--sp-3); max-width: 36rem; margin: var(--sp-8) auto; color: var(--fg-2); text-align: center; }
+.ast-empty h3 { margin: 0; color: var(--fg-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.ast-empty p { margin: 0; font-size: var(--text-sm); line-height: var(--leading-read); }
+.ast-empty__mark { display: grid; place-items: center; width: var(--ctl-lg); height: var(--ctl-lg); color: var(--accent); background: var(--accent-soft); border-radius: 50%; }
+.ast-perm { display: grid; gap: var(--sp-1); width: 100%; margin-top: var(--sp-2); text-align: left; }
+.ast-perm__row { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: var(--surface-0); border: 1px solid var(--border-1); border-radius: var(--r-md); font-size: var(--text-xs); }
+.ast-perm__what { color: var(--fg-1); }
+.ast-perm__how { color: var(--fg-3); white-space: nowrap; }
+
+/* ── 权限级别标签 ── */
+.ast-lvl { display: inline-flex; flex: none; align-items: center; gap: var(--sp-0_5); padding: 0 var(--sp-1_5); border-radius: var(--r-pill); font-size: var(--text-2xs); font-weight: var(--weight-medium); line-height: var(--leading-ui); white-space: nowrap; }
+.ast-lvl--read { color: var(--info-fg); background: var(--info-soft); }
+.ast-lvl--rev { color: var(--success-fg); background: var(--success-soft); }
+.ast-lvl--confirm { color: var(--warning-fg); background: var(--warning-soft); }
+.ast-lvl--none { color: var(--fg-3); background: var(--surface-2); }
+
+/* ── 侧栏入口：运行中高亮图标，等确认时加角标 ── */
+.tab[data-tab="assistant"].is-live .nav-ico { color: var(--accent); animation: ast-pulse calc(var(--dur-3) * 6) var(--ease-in-out) infinite; }
+.tab[data-tab="assistant"].is-waiting .nav-ico { color: var(--warning); }
+
+@keyframes ast-pulse { 50% { opacity: .35; } }
+@keyframes ast-blink { 50% { opacity: 0; } }
+@keyframes ast-spin { to { transform: rotate(360deg); } }
+
+/* ── 窄屏：对话列表与检查器变抽屉 ── */
+@media (max-width: 1160px) {
+  .ast, .ast[data-insp="open"] { grid-template-columns: minmax(0, 1fr); height: calc(100dvh - var(--ast-chrome)); }
+  .ast-rail, .ast-insp, .ast[data-insp="open"] .ast-insp { position: fixed; top: var(--sp-2); bottom: var(--sp-2); z-index: var(--z-drawer); display: flex; width: min(var(--ast-insp-w), 88vw); box-shadow: var(--elev-3); visibility: hidden; transition: transform var(--dur-3) var(--ease-out), visibility var(--dur-3); }
+  .ast-rail { left: var(--sp-2); transform: translateX(calc(-100% - var(--sp-4))); }
+  .ast-insp, .ast[data-insp="open"] .ast-insp { right: var(--sp-2); transform: translateX(calc(100% + var(--sp-4))); }
+  .ast[data-rail="open"] .ast-rail, .ast[data-insp="open"] .ast-insp { transform: none; visibility: visible; }
+  .ast[data-rail="open"] .ast-scrim, .ast[data-insp="open"] .ast-scrim { position: fixed; inset: 0; z-index: var(--z-drawer); display: block; background: var(--scrim); }
+  .ast-rail-toggle { display: inline-flex; }
+}
+@media (max-width: 760px) {
+  .ast { --ast-chrome: 6.5rem; }
+  .ast-stream { padding: var(--sp-3) var(--sp-3) var(--sp-5); }
+  .ast-head { padding: var(--sp-1_5) var(--sp-2); }
+  .ast-hide-sm { display: none; }
+  .ast-perm__row { grid-template-columns: minmax(0, 1fr) auto; }
+  .ast-perm__how { grid-column: 1 / -1; white-space: normal; }
+}

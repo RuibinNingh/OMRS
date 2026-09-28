@@ -1,3 +1,15 @@
+# v1.28.1（2026-09-28）
+
+- 合并用户工作区的两处修复（侧栏图标描边、`dueDays` 作 `map` 回调），v1.28.0 AI 助手无冲突合入。
+- 补完前端重构 P8：删除 `assets/` 下 23 个旧脚本与旧 `styles.css`（约 780KB，页面早已不加载）和测它们的 16 个旧 node 测试（均已迁到 `tests/app/`）；按钮与输入框统一为 `ui-btn` / `ui-input` / `ui-select` / `ui-textarea`，删除 `styles/controls.css`；外壳去掉旧页面 `enter(win)` 分支；百分比格式统一用 `core/format.js`；删除 3 个调用已不存在全局的展示板冒烟脚本。
+- 修复：题库、复习调度、即时练习、反馈录入、外壳的 E2E 改为读真实模块、DOM 与 `window.__omrs`，不再调用已删除的旧全局；外壳 E2E 计入 AI 助手页。`check_docs.py` 的路由提取同时读 `omrs/agent/http.py`。
+
+# v1.28.0（2026-09-28）
+
+- 内置 AI 助手：侧栏「AI 助手」页（对话列表、运行轨迹、内联确认卡与确认对话框、检查器、上下文用量、按运行撤销），设置页新增「AI 助手」分区。后端是自写 Harness（`omrs/agent/`）与 OpenAI 兼容客户端（`omrs/llm/`），16 个工具分只读 / 可撤销 / 需确认三级，权限在服务端；对话存 `agent.db`。
+- 并发地基：服务器改为每连接一线程；进程级写锁串行全部持久化写入，等锁超时返回 503；Ledger 追加与计数用 `BEGIN IMMEDIATE` + `busy_timeout`；设置文件原子写入；删除 `Skills/mistake-card-creator`。
+- 写入来源新增 `agent`（payload 带运行身份）；题目正文入账：`blobs` 表、`question.content_update`、首次启动回填 `question.content_snapshot`、删除前保存最后一版，新增正文历史 / 取回 / 还原接口，编辑接口支持 `expected_content_hash`（不符 409）。
+
 # v1.27.0（2026-09-28）
 
 - P8：删除旧前端脚本、过渡桥与旧样式，筛选与标记管理迁入 ES Module；全仓 UI 门禁改为零容忍。
@@ -56,7 +68,7 @@
 - **保存队列进 `assets/app/features/board/save.js`**（`createBoardSaveQueue`、`boardAdoptSaved`）：旧 `BOARD_DIRTY` / `BOARD_SAVE_TIMER` / `BOARD_SAVE_IN_FLIGHT` 删除，`board.js` 的 `boardSaveQueue()` 懒创建唯一实例，当前板、请求、定时器与「采纳服务端返回的板」都由它注入；`boardMarkDirty` / `boardFlushSave` 名字不变。
 - **打印协调进 `features/board/print.js`**（`createBoardPrint`、`fetchBoardExport`、`measureBoardLayout`）：旧 `BOARD_PRINT_JOBS` / `BOARD_WINDOWS` 换成 `boardPrint().jobs` / `.windows`；`boardExportCurrent`、`boardMarkPrinted`、`boardResetPrinted`、`boardRecordPrinted`、`boardMarkAwaiting` 等旧名是一行包装。window 的 message 监听仍由 `board.js` 注册，转给 `handleMessage`。
 - **常驻预览进 `features/board/preview.js`**：assets/board_preview.js 删除（HTML 少一个 `<script>`），导出请求与打印共用 `fetchBoardExport`；外部读 iframe 改用 `boardPreviewFrame()`。
-- **测试**：新增 `tests/app/board-save.test.mjs`（8）、`board-print.test.mjs`（7），`board.test.mjs` 加一条五个模块导出不重名；`board-preview.test.mjs` 改测模块、`board-locked.test.mjs` 注入保存与打印模块，用例不减；`tests/smoke_board_integrity.py` 的 `BOARD_DIRTY` / `BOARD_WINDOWS` / `BP_FRAME` 改用新访问器。
+- **测试**：新增 `tests/app/board-save.test.mjs`（8）、`board-print.test.mjs`（7），`board.test.mjs` 加一条五个模块导出不重名；`board-preview.test.mjs` 改测模块、`board-locked.test.mjs` 注入保存与打印模块，用例不减；smoke_board_integrity.py（v1.28.0 删除：调用的旧全局 P7 起已不存在；覆盖由新版展示板 E2E 承接） 的 `BOARD_DIRTY` / `BOARD_WINDOWS` / `BP_FRAME` 改用新访问器。
 
 ## v1.26.0（2026-09-27）前端重构 P7 第 1 轮：展示板纯函数与测试搬进新代码
 

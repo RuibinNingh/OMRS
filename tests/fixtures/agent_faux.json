@@ -1,0 +1,250 @@
+{
+ "scenarios": [
+  {
+   "match": "周期",
+   "rounds": [
+    {
+     "think": "关键词「周期」只有两个字。搜索是规范化之后做子串匹配，两字词也能命中，不用拆字。不限科目，先搜全库。",
+     "tool_calls": [
+      {
+       "name": "search_questions",
+       "arguments": {
+        "keywords": [
+         "周期"
+        ]
+       }
+      }
+     ],
+     "ttft_ms": 600,
+     "tps": 70
+    },
+    {
+     "text": "找到 {{r:search_questions.total}} 道和「周期」有关的题：{{refs:search_questions.items.uid}}。\n\n`三角函数2` 的关键是先用辅助角公式化成 $y=2\\sin\\left(2x+\\frac{\\pi}{3}\\right)$，周期 $T=\\frac{2\\pi}{2}=\\pi$。",
+     "ttft_ms": 500,
+     "tps": 70
+    }
+   ]
+  },
+  {
+   "match": "最弱|薄弱|短板|哪块",
+   "rounds": [
+    {
+     "think": "问的是整体的薄弱点，这是统计，不是搜题。用 get_overview 拿各分类的平均熟练度、到期和顽固题。",
+     "tool_calls": [
+      {
+       "name": "get_overview",
+       "arguments": {}
+      }
+     ],
+     "ttft_ms": 700,
+     "tps": 65
+    },
+    {
+     "text": "按目前的熟练度看，最弱的是 **{{r:get_overview.weakest.0.path}}**，其次是 **{{r:get_overview.weakest.1.path}}**。\n\n| 指标 | 数量 |\n|---|---|\n| 逾期 | {{r:get_overview.overdue}} |\n| 今天到期 | {{r:get_overview.due_today}} |\n| 顽固题 | {{r:get_overview.leech}} |\n\n要不要我把这两块的题排进今天的复习？",
+     "ttft_ms": 550,
+     "tps": 65
+    }
+   ]
+  },
+  {
+   "match": "对了|错了|做对|做错|自评",
+   "rounds": [
+    {
+     "think": "用户明说了对错和分数。反馈只按用户原话记，原话要一起带上。先看 Session 的待反馈列表。",
+     "tool_calls": [
+      {
+       "name": "list_sessions",
+       "arguments": {
+        "status": "active"
+       }
+      }
+     ],
+     "ttft_ms": 600,
+     "tps": 65
+    },
+    {
+     "tool_calls": [
+      {
+       "name": "get_session",
+       "arguments": {
+        "session_id": "{{r:list_sessions.sessions.0.session_id}}"
+       }
+      }
+     ],
+     "ttft_ms": 400,
+     "tps": 65
+    },
+    {
+     "think": "按用户的原话记录前两道待反馈的题。",
+     "tool_calls": [
+      {
+       "name": "record_feedback",
+       "arguments": {
+        "session_id": "{{r:get_session.session_id}}",
+        "user_statement": "{{last_user}}",
+        "items": [
+         {
+          "uid": "{{r:get_session.pending.0}}",
+          "is_correct": false,
+          "sub_score": 3
+         },
+         {
+          "uid": "{{r:get_session.pending.1}}",
+          "is_correct": true,
+          "sub_score": 8
+         }
+        ]
+       }
+      }
+     ],
+     "ttft_ms": 500,
+     "tps": 65
+    },
+    {
+     "text": "按你的原话处理完了：记录了 {{r:record_feedback.recorded}} 条，Session 里还剩 {{r:record_feedback.session_pending}} 道没反馈。",
+     "ttft_ms": 450,
+     "tps": 65
+    }
+   ]
+  },
+  {
+   "match": "排|复习|安排|计划",
+   "rounds": [
+    {
+     "think": "两件事：排今天的复习，不超过 8 道；给三角函数1 补错因。先取推荐列表；补错因是改正文，写之前先读现状。",
+     "tool_calls": [
+      {
+       "name": "get_recommendations",
+       "arguments": {
+        "count": 8
+       }
+      },
+      {
+       "name": "get_question",
+       "arguments": {
+        "uid": "三角函数1"
+       }
+      }
+     ],
+     "ttft_ms": 700,
+     "tps": 65
+    },
+    {
+     "think": "按推荐建 Session；三角函数1 的错因用替换写入。",
+     "tool_calls": [
+      {
+       "name": "create_review_session",
+       "arguments": {
+        "items": "{{raw:get_recommendations.selection}}"
+       }
+      },
+      {
+       "name": "update_question_section",
+       "arguments": {
+        "uid": "三角函数1",
+        "section": "错因",
+        "mode": "replace",
+        "content": "平方后只得到 $\\sin\\alpha\\cos\\alpha=-\\frac{12}{25}<0$，只能说明 $\\sin\\alpha$ 与 $\\cos\\alpha$ 异号；没有结合 $0<\\alpha<\\pi$ 判断 $\\alpha$ 在第二象限，误取了第四象限的解。"
+       }
+      }
+     ],
+     "ttft_ms": 550,
+     "tps": 65
+    },
+    {
+     "text": "排好了，Session `{{r:create_review_session.session_id}}`，共 {{r:create_review_session.count}} 道：{{refs:get_recommendations.due.uid}}。\n\n做完告诉我每道题的对错和自评分，我来记反馈。",
+     "ttft_ms": 500,
+     "tps": 65
+    }
+   ]
+  },
+  {
+   "match": "标记|考前必看",
+   "rounds": [
+    {
+     "think": "按熟练度筛，低于 30%，不含没练过的新题。",
+     "tool_calls": [
+      {
+       "name": "search_questions",
+       "arguments": {
+        "mastery_max": 0.3
+       }
+      }
+     ],
+     "ttft_ms": 600,
+     "tps": 65
+    },
+    {
+     "tool_calls": [
+      {
+       "name": "set_question_labels",
+       "arguments": {
+        "uids": "{{pluck:search_questions.items.uid}}",
+        "add": [
+         "考前必看"
+        ]
+       }
+      }
+     ],
+     "ttft_ms": 400,
+     "tps": 65
+    },
+    {
+     "text": "已给 {{refs:search_questions.items.uid}} 检查并加上「考前必看」。",
+     "ttft_ms": 400,
+     "tps": 65
+    }
+   ]
+  },
+  {
+   "match": "录|新题",
+   "rounds": [
+    {
+     "think": "先看库里物理有哪些分类，按现有叫法放。",
+     "tool_calls": [
+      {
+       "name": "list_taxonomy",
+       "arguments": {
+        "subject": "物理"
+       }
+      }
+     ],
+     "ttft_ms": 600,
+     "tps": 65
+    },
+    {
+     "think": "按约定难度不传（默认 5），错因不写。",
+     "tool_calls": [
+      {
+       "name": "create_text_question",
+       "arguments": {
+        "subject": "物理",
+        "category": "力学",
+        "question": "单摆摆长变为原来的 4 倍，周期如何变化？",
+        "knowledge_points": [
+         "单摆"
+        ]
+       }
+      }
+     ],
+     "ttft_ms": 500,
+     "tps": 65
+    },
+    {
+     "text": "已录入 `{{r:create_text_question.uid}}`。难度用默认的 5，错因留空。",
+     "ttft_ms": 400,
+     "tps": 65
+    }
+   ]
+  }
+ ],
+ "default": {
+  "rounds": [
+   {
+    "text": "你好。我能直接读写你的题库：找题、看哪块最弱、排复习、打标记这些会直接做；改正文、记反馈、录新题会先请你点「允许」。\n\n想从哪儿开始？",
+    "ttft_ms": 500,
+    "tps": 65
+   }
+  ]
+ }
+}

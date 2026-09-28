@@ -104,7 +104,7 @@ def shoot(side, port, args, out, frozen_ms):
                 page.goto(f"http://127.0.0.1:{port}/", wait_until="networkidle")
                 page.add_style_tag(content=STILL_CSS)
                 for name in args.pages:
-                    page.evaluate("n => (window.switchTab ? window.__omrs.router.go(n) : (location.hash = '#/' + n))", name)
+                    page.evaluate("n => window.__omrs.router.go(n)", name)
                     page.wait_for_load_state("networkidle")
                     page.evaluate("document.fonts.ready")
                     page.wait_for_timeout(args.settle)

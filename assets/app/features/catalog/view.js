@@ -7,10 +7,10 @@ import { progress } from '../../ui/progress.js';
 import { skeleton } from '../../ui/skeleton.js';
 import { stat } from '../../ui/stat.js';
 import { formatSize, matches, treeSummary } from './state.js';
+import { formatPercent } from '../../core/format.js';
 
 const tone = value => value > .8 ? 'success' : value > .4 ? 'warning' : 'danger';
 const masteryOf = item => Math.max(0, Math.min(1, Number(item?.mastery) || 0));
-const percent = value => `${Math.round(value * 100)}%`;
 
 function fileRow(file, env) {
   const item = file.kind === 'question' ? env.byUid.get(String(file.uid)) : null;
@@ -23,7 +23,7 @@ function fileRow(file, env) {
       ? html`<span class="catw-badge" data-tone="muted">未入库</span>` : '';
   const content = html`${icon(file.kind === 'image' ? 'image' : 'file')}<span class="catw-name">${file.name}</span>
     ${badge}<span class="catw-meter">${mastery != null ? progress({ value: mastery, max: 1, label: `${file.name} 熟练度`, tone: tone(mastery), size: 'sm' }) : ''}</span>
-    <span class="catw-number">${mastery != null ? percent(mastery) : file.size ? formatSize(file.size) : ''}</span>`;
+    <span class="catw-number">${mastery != null ? formatPercent(mastery) : file.size ? formatSize(file.size) : ''}</span>`;
   return html`<div class="catw-file" data-key="file:${file.path}">
     ${openable ? html`<button class="catw-row catw-row--file" data-action="catalog.open" data-arg="${file.uid}" title="打开题目 ${file.name}">${content}</button>`
       : html`<div class="catw-row catw-row--file">${content}</div>`}
@@ -45,7 +45,7 @@ function folder(node, env) {
         ${statRow?.due ? html`<span class="catw-badge" data-tone="warning">${statRow.due} 待复习</span>` : ''}
         ${statRow?.leech ? html`<span class="catw-badge" data-tone="danger">${statRow.leech} 顽固</span>` : ''}</span>
       <span class="catw-meter">${average != null ? progress({ value: average, max: 1, label: `${node.name} 平均熟练度`, tone: tone(average), size: 'sm' }) : ''}</span>
-      <span class="catw-number">${average != null ? percent(average) : ''}</span>
+      <span class="catw-number">${average != null ? formatPercent(average) : ''}</span>
     </button>${button({ label: `复制${node.name}的相对路径`, icon: 'copy', iconOnly: true, size: 'sm', action: 'catalog.copy', arg: node.path, title: '复制相对路径' })}</div>
     ${open ? html`<div class="catw-children">${each(children, child => child.path, child => folder(child, env))}
       ${each(files, file => file.path, file => fileRow(file, env))}</div>` : ''}

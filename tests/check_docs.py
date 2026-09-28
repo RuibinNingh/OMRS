@@ -38,8 +38,10 @@ PATH_RE = re.compile(
     r"`((?:assets|omrs|tests|Skills|deploy)/[\w./-]+\.(?:js|py|css|html|md|json|service)"
     r"|AI/(?!logs/)[\w./-]+\.md)`")
 LOG_LINK_RE = re.compile(r"AI/logs/\d|`logs/\d{4}-")
-ROUTE_METHODS = {"do_GET": "GET", "_inbox_get": "GET", "do_POST": "POST",
-                 "_inbox_post": "POST", "_auth_post": "POST"}
+ROUTE_METHODS = {"do_GET": "GET", "_inbox_get": "GET", "do_POST": "POST", "_do_post_routes": "POST",
+                 "_inbox_post": "POST", "_auth_post": "POST",
+                 "handle_agent_get": "GET", "agent_post_routes": "POST"}
+ROUTE_SOURCES = (("omrs", "server.py"), ("omrs", "agent", "http.py"))
 
 
 def rel(path):
@@ -132,14 +134,20 @@ def check_file(path):
 
 def extract_routes():
     """Return {path: set(methods)} for exact routes and {prefix: set(methods)} for prefix dispatch."""
-    exact, prefix, method = {}, {}, None
-    for line in open(os.path.join(ROOT, "omrs", "server.py"), encoding="utf-8"):
-        m = re.match(r"    def (\w+)\(", line)
+    exact, prefix = {}, {}
+    lines = []
+    for parts in ROUTE_SOURCES:
+        source = os.path.join(ROOT, *parts)
+        if os.path.exists(source):
+            lines += open(source, encoding="utf-8").read().split("\n") + [""]
+    method = None
+    for line in lines:
+        m = re.match(r"(?:    )?def (\w+)\(", line)
         if m:
             method = ROUTE_METHODS.get(m.group(1))
         if not method:
             continue
-        for path in re.findall(r'path == "(/[^"]*)"', line):
+        for path in re.findall(r'path == "(/[^"]*)"', line) + re.findall(r'^\s+"(/api/[^"]+)": lambda', line):
             exact.setdefault(path, set()).add(method)
         for path in re.findall(r'path\.startswith\("(/[^"]*)"\)', line):
             prefix.setdefault(path, set()).add(method)

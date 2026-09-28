@@ -18,7 +18,9 @@ _spec = importlib.util.spec_from_file_location("visual_run", os.path.join(ROOT, 
 visual = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(visual)
 
-AUDIT = """() => {
+AUDIT = """async () => {
+  // 先等有限次的入场动画结束（缩放中的按钮会被量小）；无限循环的加载动画不等
+  await Promise.all(document.getAnimations().filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished.catch(() => {})));
   const root = document.getElementById('panel-instant');
   const shown = [...root.querySelectorAll('*')].filter(e => e.offsetParent && !e.closest('[data-qv-host]'));
   const txt = e => [...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim());
@@ -115,7 +117,7 @@ def run_desktop(page, base, results):
           and after_enter != before and verdict2 == "true", f"{before}->{after_j}->{after_enter}")
     page.keyboard.press("e")
     opened = wait(page, "() => document.getElementById('md-editor')?.open === true")
-    ev("closeMarkdownEditor()")
+    page.keyboard.press("Escape")
     wait(page, "() => !document.getElementById('md-editor')")
     check("E 打开当前题的 Markdown 编辑器", opened)
     with page.expect_response(lambda r: r.url.endswith("/api/feedback") and r.request.method == "POST") as fb:
@@ -160,14 +162,15 @@ def run_legacy_entries(page, base, results):
     check("筛选无结果显示空状态，「清空筛选并重新取题」可恢复", empty and wait(page, CARD))
     name = ev("document.querySelector('.inst-lblf')?.dataset.arg")
     page.click(f'.inst-lblf[data-arg="{name}"]')
-    with page.expect_response(lambda response: '/api/recommend?' in response.url):
+    with page.expect_response(lambda response: '/api/recommend?' in response.url) as rec_resp:
         page.click('#panel-instant .inst-bar [data-action="instant.load"]')
     wait(page, CARD)
     check("标记筛选：按钮按下、取到的题都带该标记",
           ev(f"document.querySelector('.inst-lblf[data-arg=\"{name}\"]').getAttribute('aria-pressed')") == "true"
-          and ev(f"INSTANT_QUEUE.length > 0 && INSTANT_QUEUE.every(i => (i.labels || []).includes({name!r}))"), name)
-    ev("LABELS.push({ id: 'e2e', name: 'E2E新标记', color: '#2f6fde' }); renderLabelFilterOptions(); 0")
-    check("旧代码改了标记定义：经 bus 的 labels 事件重绘筛选芯片", wait(page, "() => !!document.querySelector('.inst-lblf[data-arg=\"E2E新标记\"]')"))
+          and (lambda got: len(got) > 0 and all(name in (it.get("labels") or []) for it in got))((rec_resp.value.json().get("due") or []) + (rec_resp.value.json().get("proficiency") or [])), name)
+    page.evaluate("""async () => { await fetch('/api/label/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'E2E新标记', color: '#2f6fde' }) }); await (await import('/assets/app/domain/labels/index.js')).loadLabels(); return 0; }""")
+    check("标记定义变了：经 bus 的 labels 事件重绘筛选芯片", wait(page, "() => !!document.querySelector('.inst-lblf[data-arg=\"E2E新标记\"]')"))
     page.route("**/api/recommend*", lambda route: route.fulfill(status=500, content_type="application/json", body='{"status":"error","msg":"模拟故障"}'))
     with page.expect_response(lambda response: '/api/recommend?' in response.url):
         page.click('#panel-instant .inst-bar [data-action="instant.load"]')

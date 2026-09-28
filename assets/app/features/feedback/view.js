@@ -15,6 +15,7 @@ import {
   sessionUniqueUids, fbSessionProgress, fbRailEntries, fbSessionPositions,
   clampCursor, nextOpenIndex, currentContext,
 } from './state.js';
+import { formatPercent } from '../../core/format.js';
 
 const TONE = { ok: 'success', warn: 'warning', danger: 'danger' };
 
@@ -195,7 +196,7 @@ function statusBar(s) {
 /** 提交结果明细（弹进 ui/dialog 的 body）。 */
 export function resultBody(result) {
   if (!result || !result.rows?.length) return html`<div class="fbw-result__empty">这次没有返回任何处理结果。</div>`;
-  const pct = v => `${Math.round((Number(v) || 0) * 100)}%`;
+  const pct = v => formatPercent(Number(v) || 0);
   return html`<div class="fbw-result">
     <p class="fbw-result__meta">${result.okCount}/${result.total} 条写入成功${result.total - result.okCount > 0 ? html` · ${result.total - result.okCount} 条失败` : ''}${result.sessionId ? html` · Session ${result.sessionId}` : ''}${result.at ? html` · ${result.at}` : ''}</p>
     <ul class="fbw-result__list">${each(result.rows, (r, i) => `${r.uid}:${i}`, r => {

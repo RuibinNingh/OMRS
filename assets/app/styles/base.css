@@ -16,7 +16,7 @@ button, input, select, textarea { font-family: inherit; }
 .grow { flex: 1; }
 .form-group { margin-bottom: var(--sp-4); }
 .form-group label { display: block; margin-bottom: var(--sp-1); color: var(--fg-2); font-size: var(--text-sm); font-weight: var(--weight-medium); }
-.form-group .input { width: 100%; }
+.form-group :is(.ui-input, .ui-select) { width: 100%; }
 .status-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: var(--sp-2); }
 .status-grid > div { min-width: 0; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border-1); border-radius: var(--r-sm); background: var(--surface-0); }
 .status-grid span { display: block; margin-bottom: var(--sp-1); color: var(--fg-3); font-size: var(--text-xs); }

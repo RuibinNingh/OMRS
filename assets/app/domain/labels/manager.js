@@ -16,7 +16,7 @@ function labelManagerRowHtml(item) {
     <span class="label-manager-name">${chipHtml(item, { lg: true, variant: 'solid' })}</span>
     <span class="label-manager-count">${item.count || 0} 题</span>
     <span class="label-manager-bonus" title="推荐优先级加成">${bonus > 0 ? `+${bonus.toFixed(2)}` : '—'}</span>
-    <span class="label-manager-acts"><button class="btn sm" type="button" data-label-edit="${escapeAttr(item.id)}">编辑</button><button class="btn sm" type="button" data-label-merge="${escapeAttr(item.id)}" ${allLabels().length < 2 ? 'disabled' : ''}>合并</button><button class="btn sm danger" type="button" data-label-delete="${escapeAttr(item.id)}">删除</button></span>
+    <span class="label-manager-acts"><button class="ui-btn ui-btn--sm" type="button" data-label-edit="${escapeAttr(item.id)}">编辑</button><button class="ui-btn ui-btn--sm" type="button" data-label-merge="${escapeAttr(item.id)}" ${allLabels().length < 2 ? 'disabled' : ''}>合并</button><button class="ui-btn ui-btn--sm ui-btn--danger" type="button" data-label-delete="${escapeAttr(item.id)}">删除</button></span>
   </div>`;
 }
 function labelSwatchesHtml(current, name = 'color') {
@@ -27,10 +27,10 @@ function labelSwatchesHtml(current, name = 'color') {
 }
 function labelEditFormHtml(item) {
   return `<div class="label-edit">
-    <div class="label-edit-row"><label>名称</label><input class="input" data-label-field="name" value="${escapeAttr(item.name || '')}" maxlength="80" placeholder="标记名称"></div>
+    <div class="label-edit-row"><label>名称</label><input class="ui-input" data-label-field="name" value="${escapeAttr(item.name || '')}" maxlength="80" placeholder="标记名称"></div>
     <div class="label-edit-row"><label>颜色</label>${labelSwatchesHtml(item.color)}</div>
-    <div class="label-edit-row"><label>调度加成</label><input class="input label-bonus-input" type="number" data-label-field="priority_bonus" min="0" max="1" step="0.05" value="${escapeAttr(Number(item.priority_bonus || 0))}"><span class="hint">0 = 不影响推荐；例如给「考前必看」设 0.3 让它在推荐里上浮（上限受 label_bonus_cap 约束）</span></div>
-    <div class="label-edit-row"><span class="grow"></span><button class="btn sm ghost" type="button" data-label-cancel>取消</button><button class="btn sm primary" type="button" data-label-save="${escapeAttr(item.id || '')}">${item.id ? '保存' : '＋ 新建'}</button></div>
+    <div class="label-edit-row"><label>调度加成</label><input class="ui-input label-bonus-input" type="number" data-label-field="priority_bonus" min="0" max="1" step="0.05" value="${escapeAttr(Number(item.priority_bonus || 0))}"><span class="hint">0 = 不影响推荐；例如给「考前必看」设 0.3 让它在推荐里上浮（上限受 label_bonus_cap 约束）</span></div>
+    <div class="label-edit-row"><span class="grow"></span><button class="ui-btn ui-btn--sm ui-btn--ghost" type="button" data-label-cancel>取消</button><button class="ui-btn ui-btn--sm ui-btn--primary" type="button" data-label-save="${escapeAttr(item.id || '')}">${item.id ? '保存' : '＋ 新建'}</button></div>
   </div>`;
 }
 let managerNode = null;

@@ -35,10 +35,10 @@ export function openLabelPicker(uid, anchor, config = {}) {
   box.className = 'label-picker-pop';
   box.dataset.uid = uid;
   renderHtml(box, asHtml( `<div class="label-picker-head"><span>标记</span><small>${escapeHtml(config.title || uid || '')}</small></div>
-    <input class="input label-picker-search" placeholder="搜索或输入新标记，回车创建…" autocomplete="off">
+    <input class="ui-input label-picker-search" placeholder="搜索或输入新标记，回车创建…" autocomplete="off">
     <div class="label-picker-options"></div>
     <div class="label-picker-recent"></div>
-    <div class="label-picker-foot"><button type="button" class="btn sm ghost" data-lbl-manage>管理标记…</button><span class="hint">↑↓ 移动 · 空格切换 · Esc 关闭</span><button type="button" class="btn sm primary" data-lbl-save>完成</button></div>`));
+    <div class="label-picker-foot"><button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-lbl-manage>管理标记…</button><span class="hint">↑↓ 移动 · 空格切换 · Esc 关闭</span><button type="button" class="ui-btn ui-btn--sm ui-btn--primary" data-lbl-save>完成</button></div>`));
   labelHostLayer(box, closeLabelPicker);
   LABEL_PICKER = box;
   const rect = anchor?.getBoundingClientRect?.() || { left: 24, bottom: 80, top: 60 };

@@ -13,6 +13,7 @@
 | 某个页面的交互或样式 | `frontend.md`（索引）→ `frontend/` 下对应分册 |
 | 颜色、字号、间距等设计 token，前端纪律门禁 | `frontend/design-system.md` |
 | HTTP 接口 | `routes.md`（路由 → 文档）→ `api.md` 对应小节 |
+| AI 助手（Harness、工具、权限、对话存储、撤销） | `agent.md`，页面见 `frontend/assistant.md` |
 | 登录、PIN、访问控制、路径安全 | `security.md` |
 | 记忆算法、调度、推荐 | `algorithm.md` |
 | 数据格式、Ledger、投影 | `data.md`、`ledger.md` |
@@ -79,10 +80,10 @@
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v1.27.0 |
+| 当前版本 | v1.28.1 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
-| 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（旧 `styles.css` 与拆分的 JS）+ `assets/app/`（ES Module：token、ui 组件、过渡桥、domain 层、已迁页面 `features/` 下的 dashboard、data、questions、schedule、instant、feedback、history、catalog、reports、settings、board）|
+| 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（旧 `styles.css` 与拆分的 JS）+ `assets/app/`（ES Module：token、ui 组件、过渡桥、domain 层、已迁页面 `features/` 下的 dashboard、data、questions、schedule、instant、feedback、history、catalog、reports、settings、assistant、board）|
 | 数据目录 | 结构化数据在 `错题/.omrs/`；生成的 AI 报告在 `错题/report/` |
 | 依赖边界 | 核心 Python 运行路径无强制第三方库；图片优化可选 Pillow 或 `jpegtran`。前端无构建依赖，Noto Sans SC 与 JetBrains Mono 由 `assets/vendor/fonts/` 本地提供，KaTeX 作为本地静态资源放在 `assets/vendor/katex/`（不可用时公式降级显示源码片段）；AI 识别与外部报告材料按配置使用网络。|
 
@@ -93,8 +94,9 @@
 | 文件 | 说明 |
 |---|---|
 | `algorithm.md` | 时间衰减、熟练度状态机、统一优先级、SM-2、双列表推荐、Leech 检测、标记加成与 tuning |
+| `agent.md` | AI 助手后端：运行时、循环、权限、工具、事件、接口、`agent.db`、按运行撤销 |
 | `api.md` | 端点的请求体、响应字段与错误语义 |
-| `routes.md` | 路由总表（自动生成）：方法、路径、说明文档 |
+| `routes.md` | 路由总表（自动生成，来源 `omrs/server.py` 与 `omrs/agent/http.py`）：方法、路径、说明文档 |
 | `data.md` | CSV 字段、Markdown 题目格式、UID、labels.json、boards.json、config.json、auth.json、报告存储 |
 | `frontend.md` | 前端索引，分册在 `frontend/`：设计系统（token 与门禁）、架构（core、路由、启动顺序）、ui 组件库与过渡桥、外壳与主题、仪表盘与目录、题库与标记、qview、展示板页、复习调度、反馈录入、设置、录入题目、历史 / 复盘 / 报告 |
 | `export.md` | A4、屏幕版与展示板自包含 HTML 导出 |

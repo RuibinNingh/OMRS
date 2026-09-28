@@ -19,25 +19,25 @@ export const accessView = () => html`<section class="st-section" id="st-sec-acce
             <div class="st-fields">
               <div class="form-group" id="st-pin-current-row" hidden>
                 <label for="st-pin-current">当前 PIN</label>
-                <input id="st-pin-current" class="input" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12">
+                <input id="st-pin-current" class="ui-input" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12">
                 <div class="hint">从其他设备修改时须先验证当前 PIN；连续输错 5 次会锁定 15 分钟。</div>
               </div>
               <div class="form-group">
                 <label for="st-pin-new" id="st-pin-new-label">新 PIN</label>
-                <input id="st-pin-new" class="input" type="password" inputmode="numeric" autocomplete="new-password" maxlength="12" placeholder="4 到 12 位数字">
+                <input id="st-pin-new" class="ui-input" type="password" inputmode="numeric" autocomplete="new-password" maxlength="12" placeholder="4 到 12 位数字">
                 <div class="hint" id="st-pin-new-hint">留空则只更新空闲时间。</div>
               </div>
               <div class="form-group">
                 <label for="st-pin-idle">空闲多久后需重新登录</label>
-                <div class="st-inline"><input id="st-pin-idle" class="input st-num" type="number" min="5" max="240" step="5" value="30"><span class="hint">分钟（5–240）</span></div>
+                <div class="st-inline"><input id="st-pin-idle" class="ui-input st-num" type="number" min="5" max="240" step="5" value="30"><span class="hint">分钟（5–240）</span></div>
                 <div class="hint">登录最长有效 12 小时。只有点击、键盘、触摸、滚轮和滚动会延长空闲时间，后台刷新不算。</div>
               </div>
             </div>
             <div class="st-actions">
-              <button class="btn primary" type="button" data-action="settings.savePin">保存 PIN 设置</button>
-              <button class="btn" type="button" id="st-pin-logout" data-action="settings.logout" hidden>退出远端登录</button>
+              <button class="ui-btn ui-btn--primary" type="button" data-action="settings.savePin">保存 PIN 设置</button>
+              <button class="ui-btn" type="button" id="st-pin-logout" data-action="settings.logout" hidden>退出远端登录</button>
               <span class="st-actions-gap"></span>
-              <button class="btn danger" type="button" id="st-pin-disable" data-action="settings.disablePin" hidden>停用 PIN</button>
+              <button class="ui-btn ui-btn--danger" type="button" id="st-pin-disable" data-action="settings.disablePin" hidden>停用 PIN</button>
             </div>
             <div id="st-pin-action-status" class="st-status" role="status"></div>
           </div>
@@ -53,11 +53,11 @@ export const accessView = () => html`<section class="st-section" id="st-sec-acce
             </div>
             <div class="form-group st-fields">
               <label for="st-lan-pin-exempt-cidrs">免 PIN 网段（可选）</label>
-              <input id="st-lan-pin-exempt-cidrs" class="input" type="text" placeholder="例如 192.168.0.0/24，多个用逗号分隔" data-input="settings.networkChanged">
+              <input id="st-lan-pin-exempt-cidrs" class="ui-input" type="text" placeholder="例如 192.168.0.0/24，多个用逗号分隔" data-input="settings.networkChanged">
               <div class="hint">只认直连设备的实际 IP，经 Nginx 等代理的访问仍须 PIN。网段内所有设备都能使用全部功能，只填写可信设备所在的网段。留空则所有非本机访问都须 PIN。</div>
             </div>
             <div class="st-actions">
-              <button class="btn primary" type="button" id="st-net-save" data-action="settings.saveAccess">保存访问设置</button>
+              <button class="ui-btn ui-btn--primary" type="button" id="st-net-save" data-action="settings.saveAccess">保存访问设置</button>
               <span class="hint" id="st-net-hint">改动开关会自动重启服务；只改网段立即生效。</span>
             </div>
             <div id="st-net-status" class="st-status" role="status"></div>

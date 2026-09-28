@@ -31,7 +31,7 @@ label.st-row-label { cursor: pointer; }
 .st-switch:checked::after { left: 22px; background: var(--on-accent); }
 .st-fields { max-width: 620px; }
 .st-inline, .st-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
-.st-inline .input { flex: 1; min-width: 0; }
+.st-inline .ui-input { flex: 1; min-width: 0; }
 .st-inline .st-num { flex: 0 0 96px; }
 .st-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
 .st-actions-gap { flex: 1; }

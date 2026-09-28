@@ -1,0 +1,2005 @@
+<!DOCTYPE html>
+<!-- saved from url=(0126)file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html -->
+<html lang="zh-CN" data-theme="dark"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>展示板 · OMRS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin="">
+<link rel="stylesheet" href="./展示板 · OMRS_files/css2">
+<style>
+/* ───────── tokens ───────── */
+:root{
+  --sans:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --serif:"Noto Serif SC","Songti SC","STSong","SimSun","Noto Serif CJK SC",serif;
+  --math:"Times New Roman","STIX Two Text","Noto Serif SC",serif;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  color-scheme:light;
+  --s0:#f5f6f7; --s1:#ffffff; --s2:#eef0f2; --s3:#e2e5e8; --raise:#ffffff;
+  --desk:#e4e6e9; --desk-line:#d8dbdf;
+  --fg1:#1a1c1f; --fg2:#50565d; --fg3:#6b7178;
+  --line:#e6e8eb; --line2:#d3d7db;
+  --pri:#1a1c1f; --pri-h:#000000; --on-pri:#ffffff;
+  --sel:#2563eb; --sel-fg:#1d4ed8; --sel-soft:rgba(37,99,235,.08); --sel-line:rgba(37,99,235,.30);
+  --ok:#15803d; --ok-soft:rgba(22,163,74,.11); --ok-fg:#166534;
+  --new:#a16207; --new-soft:rgba(202,138,4,.15); --new-fg:#854d0e;
+  --bad:#c42b2b; --bad-soft:rgba(220,38,38,.10); --bad-fg:#b91c1c; --on-bad:#ffffff;
+  --paper:#ffffff; --paper-shadow:0 0 0 1px rgba(20,24,30,.05),0 2px 4px rgba(20,24,30,.05),0 14px 34px rgba(20,24,30,.10);
+  --pop-shadow:0 14px 36px rgba(16,24,40,.16),0 2px 6px rgba(16,24,40,.06);
+  --scrim:rgba(18,20,24,.38);
+  --toast-bg:#1a1c1f; --toast-fg:#f5f6f7;
+  --lbl-bg:15%; --lbl-ink:76%;
+  /* 纸面永远是纸：不随主题变 */
+  --ink:#1c1a17; --ink-2:#6b6358; --ink-acc:#8b5e3c; --ink-rule:#d9d2c7; --ink-faint:#b3a896; --cut:#d4ccbf;
+  --p-sel:#2563eb; --p-tint:rgba(37,99,235,.065);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --s0:#141311; --s1:#1c1a18; --s2:#282522; --s3:#35312d; --raise:#3a3632;
+    --desk:#0e0d0c; --desk-line:#26231f;
+    --fg1:#f0ebe3; --fg2:#bdb4a8; --fg3:#958d81;
+    --line:rgba(236,231,223,.10); --line2:rgba(236,231,223,.19);
+    --pri:#ece7df; --pri-h:#ffffff; --on-pri:#17150f;
+    --sel:#8fb0d8; --sel-fg:#aac4e4; --sel-soft:rgba(143,176,216,.13); --sel-line:rgba(143,176,216,.42);
+    --ok:#8fbf9a; --ok-soft:rgba(143,191,154,.16); --ok-fg:#a8d3b2;
+    --new:#dcb06a; --new-soft:rgba(220,176,106,.17); --new-fg:#e8c793;
+    --bad:#e59a8c; --bad-soft:rgba(229,154,140,.16); --bad-fg:#efb2a6; --on-bad:#1c1a18;
+    --paper:#f4f1eb; --paper-shadow:0 0 0 1px rgba(0,0,0,.45),0 14px 40px rgba(0,0,0,.55);
+    --pop-shadow:0 18px 44px rgba(0,0,0,.55),0 0 0 1px rgba(236,231,223,.07);
+    --scrim:rgba(8,7,6,.62);
+    --toast-bg:#ece7df; --toast-fg:#17150f;
+    --lbl-bg:24%; --lbl-ink:52%;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --s0:#141311; --s1:#1c1a18; --s2:#282522; --s3:#35312d; --raise:#3a3632;
+  --desk:#0e0d0c; --desk-line:#26231f;
+  --fg1:#f0ebe3; --fg2:#bdb4a8; --fg3:#958d81;
+  --line:rgba(236,231,223,.10); --line2:rgba(236,231,223,.19);
+  --pri:#ece7df; --pri-h:#ffffff; --on-pri:#17150f;
+  --sel:#8fb0d8; --sel-fg:#aac4e4; --sel-soft:rgba(143,176,216,.13); --sel-line:rgba(143,176,216,.42);
+  --ok:#8fbf9a; --ok-soft:rgba(143,191,154,.16); --ok-fg:#a8d3b2;
+  --new:#dcb06a; --new-soft:rgba(220,176,106,.17); --new-fg:#e8c793;
+  --bad:#e59a8c; --bad-soft:rgba(229,154,140,.16); --bad-fg:#efb2a6; --on-bad:#1c1a18;
+  --paper:#f4f1eb; --paper-shadow:0 0 0 1px rgba(0,0,0,.45),0 14px 40px rgba(0,0,0,.55);
+  --pop-shadow:0 18px 44px rgba(0,0,0,.55),0 0 0 1px rgba(236,231,223,.07);
+  --scrim:rgba(8,7,6,.62);
+  --toast-bg:#ece7df; --toast-fg:#17150f;
+  --lbl-bg:24%; --lbl-ink:52%;
+}
+
+/* ───────── base ───────── */
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);height:100%}
+html{scroll-padding-top:env(safe-area-inset-top,0px);background:var(--s0)}
+body{margin:0;height:100%;overflow:hidden;background:var(--s0);color:var(--fg1);font:13px/1.5 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,select,textarea{font:inherit;color:inherit}
+button{-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid var(--sel);outline-offset:2px}
+.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.num{font-variant-numeric:tabular-nums}
+.grow{flex:1}
+kbd{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;font:500 11px/1 var(--sans);color:var(--fg2);background:var(--s1)}
+body.gdrag,body.gdrag *{cursor:ns-resize!important;user-select:none}
+body.rdrag,body.rdrag *{cursor:grabbing!important;user-select:none}
+
+/* ───────── buttons & small controls ───────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--line2);background:var(--s1);color:var(--fg1);font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .12s,border-color .12s,color .12s}
+.btn:hover{background:var(--s2)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn:disabled:hover{background:var(--s1)}
+.btn.primary{background:var(--pri);border-color:var(--pri);color:var(--on-pri)}
+.btn.primary:hover{background:var(--pri-h);border-color:var(--pri-h)}
+.btn.primary:disabled:hover{background:var(--pri)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--fg2)}
+.btn.ghost:hover{background:var(--s2);color:var(--fg1)}
+.btn.tonal{border-color:var(--sel-line);color:var(--sel-fg);background:var(--s1)}
+.btn.tonal:hover{background:var(--sel-soft)}
+.btn.danger{background:var(--bad);border-color:var(--bad);color:var(--on-bad)}
+.btn.warn-text{color:var(--bad-fg)}
+.btn.sm{height:28px;padding:0 10px;font-size:12.5px;border-radius:7px}
+.btn.lg{height:36px;padding:0 14px;font-size:13.5px}
+.btn.icon{width:32px;padding:0}
+.btn.icon.sm{width:28px}
+.btn.block{width:100%}
+.btn kbd{margin-left:auto}
+.linkish{border:0;background:none;padding:0;color:var(--fg3);cursor:pointer;font-size:inherit;text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.linkish:hover{color:var(--fg1)}
+.seg{display:inline-flex;padding:2px;border-radius:8px;background:var(--s2);gap:2px}
+.seg button{height:26px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:var(--fg2);font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap}
+.seg button:hover{color:var(--fg1)}
+.seg button.on{background:var(--raise);color:var(--fg1);box-shadow:0 1px 2px rgba(0,0,0,.10),0 0 0 1px var(--line)}
+.seg button:disabled{opacity:.45;cursor:default}
+.tag{display:inline-flex;align-items:center;height:19px;padding:0 6px;border-radius:5px;font-size:11.5px;font-weight:500;white-space:nowrap;line-height:1;flex:none}
+.tag.ok{background:var(--ok-soft);color:var(--ok-fg)}
+.tag.new{background:var(--new-soft);color:var(--new-fg)}
+.tag.bad{background:var(--bad-soft);color:var(--bad-fg)}
+.tag.mute{background:var(--s2);color:var(--fg3)}
+.lbl{--c:#64748b;display:inline-flex;align-items:center;gap:2px;height:20px;padding:0 9px;font-size:11.5px;font-weight:600;white-space:nowrap;background:color-mix(in srgb,var(--c) var(--lbl-bg),transparent);color:color-mix(in srgb,var(--c) var(--lbl-ink),var(--fg1));clip-path:polygon(6px 0,calc(100% - 6px) 0,100% 50%,calc(100% - 6px) 100%,6px 100%,0 50%)}
+.lbl button{border:0;background:none;padding:0 0 0 3px;margin-right:-3px;color:inherit;cursor:pointer;font-size:13px;line-height:1;opacity:.6}
+.lbl button:hover{opacity:1}
+.ldots{display:inline-flex;gap:3px;align-items:center}
+.ldot{--c:#64748b;width:9px;height:9px;background:var(--c);clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%)}
+.mbar{display:inline-block;width:34px;height:4px;border-radius:2px;background:var(--s3);overflow:hidden;vertical-align:middle}
+.mbar i{display:block;height:100%;background:var(--fg2);border-radius:2px}
+.switch{position:relative;display:inline-block;width:34px;height:20px;flex:none}
+.switch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}
+.switch i{position:absolute;inset:0;border-radius:10px;background:var(--s3);transition:background .15s;pointer-events:none}
+.switch i::after{content:"";position:absolute;left:2px;top:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .15s var(--ease)}
+.switch input:checked+i{background:var(--pri)}
+.switch input:checked+i::after{transform:translateX(14px);background:var(--on-pri)}
+.switch input:focus-visible+i{outline:2px solid var(--sel);outline-offset:2px}
+
+/* ───────── app frame ───────── */
+.app{display:grid;grid-template-columns:56px var(--bw,256px) minmax(0,1fr);height:100%;transition:grid-template-columns .22s var(--ease)}
+.app.bclosed{--bw:0px}
+.rail{grid-column:1;grid-row:1;background:var(--s1);border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:2px;overflow:hidden;z-index:30}
+.brand{width:32px;height:32px;border-radius:9px;background:var(--pri);color:var(--on-pri);display:grid;place-items:center;font-weight:700;font-size:15px;margin-bottom:12px;font-family:var(--serif)}
+.rail a,.rail button{width:40px;height:38px;display:grid;place-items:center;border-radius:9px;color:var(--fg3);border:0;background:none;cursor:pointer;flex:none}
+.rail a:hover,.rail button:hover{background:var(--s2);color:var(--fg1)}
+.rail a.on{background:var(--s2);color:var(--fg1)}
+.rail .i{width:19px;height:19px}
+.rail .sp{flex:1}
+
+/* ───────── boards column ───────── */
+.boards{min-width:0;overflow:hidden;background:var(--s1);border-right:1px solid var(--line);z-index:20}
+.bw{width:256px;height:100%;display:flex;flex-direction:column}
+.bhd{display:flex;align-items:center;gap:2px;padding:16px 10px 10px 16px}
+.bhd h2{margin:0;font-size:14px;font-weight:600}
+.bhd .bcount{margin-left:6px;color:var(--fg3);font-size:12.5px}
+.bnew{padding:0 12px 8px}
+.bnew .btn{justify-content:flex-start;gap:8px;padding:0 10px 0 12px}
+.bsearch{margin:0 12px 6px;display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:8px;background:var(--s0);border:1px solid var(--line);color:var(--fg3)}
+.bsearch:focus-within{border-color:var(--sel);box-shadow:0 0 0 3px var(--sel-soft)}
+.bsearch input{flex:1;min-width:0;border:0;outline:0;background:none;font-size:12.5px;color:var(--fg1)}
+.bsearch .i{width:14px;height:14px}
+.btree{flex:1;overflow:auto;padding:4px 8px 28px}
+.fold{display:flex;align-items:center;gap:4px;height:30px;margin-top:8px;padding:0 4px 0 2px;border-radius:7px;color:var(--fg2);font-size:12.5px;font-weight:500;cursor:pointer;user-select:none}
+.fold:hover{background:var(--s0)}
+.fold .chev{display:grid;place-items:center;width:18px;color:var(--fg3);transition:transform .15s}
+.fold .chev .i{width:13px;height:13px}
+.fold.closed .chev{transform:rotate(-90deg)}
+.fold .fnm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fold .fct{color:var(--fg3);font-weight:400;font-size:12px;padding:0 4px}
+.fold.plain{cursor:default}
+.fold.plain:hover{background:none}
+.fold.drop,.fbody.drop{background:var(--sel-soft);box-shadow:inset 0 0 0 1px var(--sel-line)}
+.fbody{border-radius:8px}
+.brow{position:relative;display:flex;align-items:center;gap:6px;margin:1px 0;padding:7px 4px 7px 20px;border-radius:8px;cursor:pointer;outline-offset:-2px}
+.brow:hover{background:var(--s0)}
+.brow.on{background:var(--s2)}
+.brow.on::before{content:"";position:absolute;left:8px;top:10px;bottom:10px;width:2px;border-radius:2px;background:var(--fg1)}
+.brow.dragging{opacity:.4}
+.brow.dropb{box-shadow:inset 0 2px 0 var(--sel)}
+.bmain{flex:1;min-width:0}
+.bnm{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brow.on .bnm{font-weight:600}
+.bst{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg3);margin-top:1px;white-space:nowrap}
+.bst .bn{color:var(--new-fg);font-weight:500}
+.bst .bw8{color:var(--sel-fg);font-weight:500}
+.bmore{width:26px;height:26px;border:0;border-radius:6px;background:none;color:var(--fg3);display:grid;place-items:center;cursor:pointer;opacity:0;flex:none}
+.bmore:hover{background:var(--s3);color:var(--fg1)}
+.brow:hover .bmore,.brow.on .bmore,.brow:focus-within .bmore,.fold:hover .bmore,.bmore[aria-expanded="true"]{opacity:1}
+@media (hover:none){.bmore{opacity:1}}
+.brow.new{padding-left:12px;cursor:default;background:var(--s0);box-shadow:inset 0 0 0 1px var(--sel-line)}
+.brow.new .i{color:var(--fg3)}
+.brow input,.fold input{flex:1;min-width:0;height:26px;border:0;outline:0;background:transparent;font-size:13.5px;font-weight:500}
+.fempty{margin:2px 0 4px 20px;padding:10px;border:1px dashed var(--line2);border-radius:8px;color:var(--fg3);font-size:12px;text-align:center}
+.bempty{padding:24px 12px;color:var(--fg3);font-size:12.5px;text-align:center}
+
+/* ───────── main ───────── */
+.main{grid-column:3;grid-row:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+.bhead{display:flex;align-items:center;gap:16px;padding:10px 16px 10px 20px;min-height:66px;background:var(--s1);border-bottom:1px solid var(--line);flex:none}
+.bt{min-width:0;flex:1}
+.bt-row{display:flex;align-items:center;gap:2px;min-width:0}
+.bt-open{margin:0 8px 0 -8px}
+.bt-name{margin:0 6px 0 0;font-size:18px;font-weight:600;line-height:1.35;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:text;border-radius:5px}
+.bt-name:hover{background:var(--s0);box-shadow:0 0 0 4px var(--s0)}
+.bt-input{font-size:18px;font-weight:600;height:30px;padding:0 6px;margin-left:-7px;border:1px solid var(--sel);border-radius:6px;outline:0;box-shadow:0 0 0 3px var(--sel-soft);background:var(--s1);min-width:260px}
+.bt-sub{display:flex;align-items:center;gap:14px;margin-top:1px;font-size:12.5px;color:var(--fg3);white-space:nowrap;min-width:0;overflow:hidden}
+.bt-sub>*{display:inline-flex;align-items:center;gap:4px;flex:none}
+.bt-sub .i{width:14px;height:14px}
+.bt-sub .note{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;display:block;cursor:pointer;color:var(--fg2)}
+.bt-sub .note:hover{text-decoration:underline;text-decoration-color:var(--line2);text-underline-offset:3px}
+.savest{color:var(--fg3)}
+.savest.busy{color:var(--fg2)}
+.bt-acts{display:flex;align-items:center;gap:8px;flex:none}
+.bt-acts .sep{width:1px;height:22px;background:var(--line);margin:0 2px}
+.printbtn{min-width:132px}
+
+.cbar{display:flex;align-items:center;gap:12px;padding:10px 16px 10px 20px;background:var(--sel-soft);border-bottom:1px solid var(--sel-line);flex:none;animation:slidein .24s var(--ease)}
+.cbar[hidden]{display:none}
+.cb-ic{width:34px;height:34px;border-radius:9px;background:var(--s1);display:grid;place-items:center;color:var(--sel-fg);box-shadow:0 0 0 1px var(--sel-line);flex:none}
+.cb-ic .i{width:18px;height:18px}
+.cb-tx{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.45}
+.cb-tx b{font-size:13.5px;font-weight:600}
+.cb-tx span{font-size:12.5px;color:var(--fg2)}
+@keyframes slidein{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+.work{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 372px}
+
+/* ───────── paper column ───────── */
+.pcol{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--desk);container-type:inline-size;container-name:pcol}
+@container pcol (max-width:700px){.ptool .zoomseg,.ptool .tsep{display:none}}
+@container pcol (max-width:520px){.ptool .pstat .lbl-long{display:none}.pager span{min-width:56px}}
+.ptool{display:flex;align-items:center;gap:6px;height:46px;overflow-x:auto;scrollbar-width:none;padding:0 12px 0 14px;border-bottom:1px solid var(--desk-line);flex:none;white-space:nowrap}
+.ptool>*{flex:none}
+.ptool>.grow{flex:1 1 0;min-width:0}
+.pstat{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 9px;border-radius:7px;border:0;background:transparent;font-size:12.5px;color:var(--fg2);cursor:pointer}
+.pstat:hover{background:color-mix(in srgb,var(--fg1) 7%,transparent);color:var(--fg1)}
+.pstat.none{cursor:default}
+.pstat.none:hover{background:none;color:var(--fg2)}
+.pstat .i{width:15px;height:15px}
+.chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:0;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer}
+.chip.new{background:var(--new-soft);color:var(--new-fg)}
+.chip.bad{background:var(--bad-soft);color:var(--bad-fg)}
+.chip.info{background:color-mix(in srgb,var(--fg1) 7%,transparent);color:var(--fg2);cursor:default}
+.chip .i{width:13px;height:13px}
+.pager{display:inline-flex;align-items:center;gap:0;font-size:12.5px;color:var(--fg2)}
+.pager span{min-width:74px;text-align:center}
+.pager b{color:var(--fg1);font-weight:600}
+.tsep{width:1px;height:20px;background:var(--desk-line);margin:0 4px}
+.ptool .btn.ghost:hover{background:color-mix(in srgb,var(--fg1) 7%,transparent)}
+.ptool .seg{background:color-mix(in srgb,var(--fg1) 6%,transparent)}
+.desk{flex:1;overflow:auto;position:relative;overscroll-behavior:contain}
+#sheets{display:flex;flex-direction:column;align-items:center;gap:22px;padding:26px 28px 72px;min-width:min-content}
+.sheet{position:relative;flex:none}
+.sheet-cap{position:absolute;right:calc(100% + 10px);top:0;font-size:11.5px;color:var(--fg3);white-space:nowrap;text-align:right;line-height:1.5}
+
+/* ───────── the paper ───────── */
+.page{position:absolute;left:0;top:0;width:793.7px;height:1122.52px;background:var(--paper);box-shadow:var(--paper-shadow);transform-origin:0 0;color:var(--ink);font-family:var(--serif);overflow:hidden;border-radius:1px}
+.pt{font-family:var(--serif);color:var(--ink)}
+.pg-h{position:absolute;height:27px;border-bottom:1px solid var(--ink-rule);display:flex;align-items:baseline;gap:10px;font:700 13px/21px var(--serif);letter-spacing:.5px}
+.pg-h span{margin-left:auto;font:400 10px/21px var(--sans);color:var(--ink-faint);letter-spacing:.3px}
+.pg-n{position:absolute;left:0;right:0;bottom:32px;text-align:center;font:9px var(--sans);color:var(--ink-faint);letter-spacing:1px}
+.qb{position:absolute;z-index:2;pointer-events:none}
+.qh{padding:8px 0 4px 7px;border-left:2.5px solid var(--ink-acc);margin-left:-9px}
+.qh-l{display:flex;align-items:center;gap:6px;height:20px;white-space:nowrap;overflow:hidden}
+.qh .no{font-size:13.5px;font-weight:700}
+.qh .uid{font-size:11px;font-weight:700;color:var(--ink-acc);margin-left:2px;font-family:var(--sans)}
+.qh .qm{font:10.5px/1.4 var(--sans);color:var(--ink-2);margin-top:2px}
+.plbl{--c:#64748b;display:inline-flex;align-items:center;height:15px;padding:0 9px;font:600 9.5px/15px var(--sans);white-space:nowrap;background:color-mix(in srgb,var(--c) 18%,#fff);color:color-mix(in srgb,var(--c) 68%,#1c1a17);clip-path:polygon(7px 0,calc(100% - 7px) 0,100% 50%,calc(100% - 7px) 100%,7px 100%,0 50%)}
+.qt{font-size:12px;line-height:1.5;padding-bottom:4px;text-align:justify}
+.qfig{padding:6px 0 2px;color:var(--ink)}
+.qfig svg{display:block;max-width:100%;height:auto}
+.cut{position:absolute;height:0;border-top:1px dashed var(--cut);z-index:1;pointer-events:none}
+.cut.solid{border-top-style:solid}
+.cut span{position:absolute;right:0;top:-12px;font:9px var(--sans);color:#c2b8a7}
+.zone{position:absolute;cursor:pointer}
+.zone::before{content:"";position:absolute;inset:0;border-radius:4px;transition:background .12s}
+.zone:hover::before{background:rgba(26,28,31,.03)}
+.zone.sel::before{background:var(--p-tint)}
+.zone.sel::after{content:"";position:absolute;left:1px;top:6px;bottom:6px;width:3px;border-radius:2px;background:var(--p-sel)}
+.zone-gap{position:absolute;pointer-events:none;opacity:0;background:repeating-linear-gradient(135deg,rgba(37,99,235,.09) 0 1px,transparent 1px 8px)}
+.zone.sel .zone-gap{opacity:1}
+.gh{position:absolute;height:22px;z-index:4;cursor:ns-resize;opacity:0;transition:opacity .12s;touch-action:none}
+.gh::before{content:"";position:absolute;left:0;right:0;top:10.5px;border-top:1.5px dashed rgba(37,99,235,.55)}
+.zone:hover .gh,.zone.sel .gh,.gh.drag{opacity:1}
+.zone.sel .gh::before,.gh.drag::before{border-top-style:solid;border-top-color:var(--p-sel)}
+.gh-pill{position:absolute;top:0;transform:translateX(-50%);height:22px;display:inline-flex;align-items:center;gap:4px;padding:0 10px 0 7px;border-radius:11px;background:#fff;color:var(--p-sel);border:1px solid rgba(37,99,235,.55);font:600 11.5px/20px var(--sans);white-space:nowrap}
+.gh-pill .i{width:13px;height:13px;stroke-width:2}
+.zone.sel .gh-pill,.gh.drag .gh-pill{background:var(--p-sel);color:#fff;border-color:var(--p-sel);box-shadow:0 2px 6px rgba(37,99,235,.35)}
+.gh-pill small{font-weight:400;opacity:.8;font-size:10.5px}
+.mk{position:absolute;z-index:3;font:600 9.5px/16px var(--sans);padding:0 4px;border-radius:3px;pointer-events:none;white-space:nowrap}
+.mk.new{background:#fbeccc;color:#80540a}
+.mk.bad{background:#fbe0dc;color:#a8261b}
+.pghost{position:absolute;background:repeating-linear-gradient(135deg,#f3efe8 0 6px,#faf7f2 6px 12px);border:1px dashed #d9d0c2;border-radius:3px;display:grid;place-items:center}
+.pghost span{font:11px var(--sans);color:#9c917f;background:#faf7f2;padding:3px 12px;border-radius:999px;border:1px solid #ebe4d8}
+.page.partial .pg-h,.page.partial .pg-n{opacity:.28}
+.pg-banner{position:absolute;left:50%;top:8px;transform:translateX(-50%);font:10.5px/18px var(--sans);color:#8b5e3c;background:#fdf2e7;border:1px solid #f0d9c2;padding:0 12px;border-radius:999px;white-space:nowrap;z-index:5}
+.sec-t{position:absolute;font-size:15px;font-weight:700;color:var(--ink-acc);padding:6px 0 12px;border-bottom:1px solid var(--ink-rule);letter-spacing:1px}
+.ab{position:absolute}
+.ab .ah{padding:8px 0 3px;font:700 11px/1.4 var(--sans);color:var(--ink-acc)}
+.ab .at{font-size:11.5px;line-height:1.5;padding-bottom:4px;text-align:justify}
+.ab .an{font:11px/1.5 var(--sans);padding:5px 7px;background:#faf7f2;border-radius:3px;margin-bottom:2px}
+.ab .an b{color:var(--ink-acc);margin-right:4px}
+.pempty{position:absolute;left:0;right:0;top:300px;text-align:center;font-family:var(--sans);color:#8c8373}
+.pempty b{display:block;font-size:22px;color:var(--ink);font-weight:600;margin-bottom:10px}
+.pempty p{margin:0 auto 26px;font-size:15px;line-height:1.7;max-width:420px}
+.pempty .row{display:flex;gap:10px;justify-content:center}
+.pempty .btn{height:42px;font-size:15px;padding:0 18px;border-radius:10px;background:#fff;color:#1a1c1f;border-color:#d3d7db}
+.pempty .btn.primary{background:#1a1c1f;color:#fff;border-color:#1a1c1f}
+#measure{position:absolute;left:-20000px;top:0;visibility:hidden;pointer-events:none}
+
+/* math (shared by paper and panels) */
+.m{white-space:normal}
+.m i{font-family:var(--math);font-style:italic;padding-right:.03em}
+.m .op{margin:0 .2em}
+.m .fn{font-style:normal;margin-right:.1em;font-family:var(--math)}
+.m .rm{font-style:normal;font-family:var(--math)}
+.fr{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;font-size:.8em;line-height:1.12;margin:0 .1em}
+.fr>span:first-child{border-bottom:1px solid currentColor;padding:0 .18em .04em}
+.fr>span:last-child{padding:.04em .18em 0}
+.sq{white-space:nowrap}
+.sq-b{border-top:1px solid currentColor;padding:0 .1em 0 .06em;margin-left:-.04em}
+.vec{position:relative;display:inline-block;padding-top:.15em}
+.vec::before{content:"→";position:absolute;top:-.55em;left:0;right:0;text-align:center;font-size:.72em;font-style:normal}
+.m sup,.m sub{font-size:.68em;line-height:0}
+.xra{display:inline-flex;flex-direction:column;align-items:center;line-height:1;margin:0 .2em;vertical-align:.1em}
+.xra>span{font-size:.62em;padding:0 .4em}
+
+/* ───────── question panel ───────── */
+.qpanel{position:relative;overflow:hidden;background:var(--s1);border-left:1px solid var(--line)}
+.layer{position:absolute;inset:0;display:flex;flex-direction:column;transition:transform .24s var(--ease),opacity .2s}
+#qdetail{transform:translateX(100%);background:var(--s1);box-shadow:-1px 0 0 var(--line)}
+.qpanel.detail #qdetail{transform:none}
+.qpanel.detail #qlist{transform:translateX(-28px);opacity:0}
+.lh{display:flex;align-items:center;gap:6px;padding:14px 14px 10px 18px}
+.lh h2{margin:0;font-size:14px;font-weight:600}
+.lh .cnt{color:var(--fg3);font-size:12.5px;margin-left:2px}
+.sync{margin:0 12px 8px;display:flex;align-items:center;gap:8px;padding:6px 6px 6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--s0);min-height:44px}
+.sync.has{border-color:var(--sel-line);background:var(--sel-soft)}
+.sync.none{align-items:center}
+.sync .sic{display:grid;place-items:center;width:26px;height:26px;color:var(--fg3);flex:none}
+.sync-lbl{display:inline-flex;align-items:center;gap:1px;border:0;background:none;padding:2px 2px 2px 0;border-radius:7px;cursor:pointer;color:var(--fg3);flex:none}
+.sync-lbl:hover{background:color-mix(in srgb,var(--fg1) 6%,transparent)}
+.sync-lbl .i{width:13px;height:13px}
+.sync-tx{flex:1;min-width:0;font-size:12.5px;color:var(--fg2);line-height:1.4}
+.sync-tx b{color:var(--fg1);font-weight:600}
+.warn{margin:0 12px 8px;display:flex;align-items:center;gap:8px;padding:5px 6px 5px 10px;border-radius:8px;background:var(--s2);font-size:12.5px;color:var(--fg2)}
+.warn .i{color:var(--fg3);width:15px;height:15px}
+.lcols{display:grid;grid-template-columns:14px 20px minmax(0,1fr) auto;column-gap:8px;margin:2px 8px 0;padding:0 8px 4px 4px;font-size:11.5px;color:var(--fg3);border-bottom:1px solid var(--line)}
+.lcols span:first-child{grid-column:2;text-align:right}
+.lcols span:last-child{padding-right:8px}
+.qrows{flex:1;overflow:auto;padding:4px 0 12px;position:relative}
+.qrow{display:grid;grid-template-columns:14px 20px minmax(0,1fr) auto;align-items:center;column-gap:8px;margin:0 8px;padding:7px 6px 7px 4px;border-radius:8px;cursor:pointer;position:relative;user-select:none;outline-offset:-2px}
+.qrow:hover{background:var(--s0)}
+.qrow.on{background:var(--sel-soft)}
+.qrow.on::before{content:"";position:absolute;left:-5px;top:9px;bottom:9px;width:3px;border-radius:2px;background:var(--sel)}
+.qrow.off{opacity:.55}
+.qrow.flash{animation:flash 1.8s ease-out}
+@keyframes flash{0%,30%{background:var(--new-soft)}100%{background:transparent}}
+.grip{display:grid;place-items:center;height:30px;color:var(--fg3);cursor:grab;opacity:0;touch-action:none}
+.grip .i{width:14px;height:14px}
+.qrow:hover .grip,.qrow.on .grip{opacity:1}
+.qrow .no{font-size:12px;color:var(--fg3);text-align:right;font-variant-numeric:tabular-nums}
+.qr-main{min-width:0}
+.qr-t{display:flex;align-items:center;gap:6px;min-width:0}
+.qr-uid{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qr-s{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg3);margin-top:1px;white-space:nowrap}
+.qr-gap{display:flex;align-items:center;height:28px;border-radius:8px;border:1px solid transparent;transition:border-color .12s,background .12s}
+.qr-gap button{width:24px;height:26px;border:0;background:none;color:var(--fg2);cursor:pointer;opacity:0;border-radius:6px;font-size:15px;line-height:1;display:grid;place-items:center}
+.qr-gap button:hover{background:var(--s2);color:var(--fg1)}
+.qr-gap button:disabled{opacity:0!important}
+.qr-gap span{min-width:36px;text-align:center;font-size:12.5px;color:var(--fg2);font-variant-numeric:tabular-nums}
+.qr-gap span small{font-size:11px;margin-left:1px;color:var(--fg3)}
+.qr-gap.own span{color:var(--fg1);font-weight:600}
+.qrow:hover .qr-gap,.qrow.on .qr-gap,.qr-gap:focus-within{border-color:var(--line2);background:var(--s1)}
+.qrow:hover .qr-gap button,.qrow.on .qr-gap button,.qr-gap:focus-within button{opacity:1}
+.qrow.drag-src{opacity:.3}
+.drag-ghost{position:fixed;z-index:85;pointer-events:none;background:var(--s1);box-shadow:var(--pop-shadow);border-radius:9px;margin:0!important}
+.drag-ghost .grip{opacity:1}
+.drop-line{position:absolute;left:14px;right:14px;height:2px;margin-top:-1px;background:var(--sel);border-radius:2px;pointer-events:none}
+.drop-line::before{content:"";position:absolute;left:-3px;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--sel)}
+.lfoot{padding:8px 16px 12px;font-size:12px;color:var(--fg3);border-top:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.lempty{margin:24px 16px;padding:22px 18px;border:1px dashed var(--line2);border-radius:12px;text-align:center;color:var(--fg3);font-size:12.5px;line-height:1.7}
+.lempty b{display:block;color:var(--fg1);font-size:13.5px;margin-bottom:4px}
+
+/* detail */
+.dnav{display:flex;align-items:center;gap:2px;padding:8px 8px 8px 6px;border-bottom:1px solid var(--line);min-height:50px;flex:none}
+.dnav .pos{margin-left:auto;margin-right:6px;font-size:12px;color:var(--fg3);font-variant-numeric:tabular-nums}
+.dbody{flex:1;overflow:auto;padding:16px 18px 28px}
+.dno{font-size:12px;color:var(--fg3)}
+.duid{margin:2px 0 8px;font-size:19px;font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap;line-height:1.35}
+.dmeta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;font-size:12.5px;color:var(--fg2)}
+.dmeta .due-bad{color:var(--bad-fg)}
+.dmeta .mst{display:inline-flex;align-items:center;gap:6px}
+.dlabels{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 16px;align-items:center}
+.lbl-add{height:22px;padding:0 8px;border:1px dashed var(--line2);border-radius:6px;background:none;font-size:12px;color:var(--fg3);cursor:pointer}
+.lbl-add:hover{color:var(--fg1);border-color:var(--fg3)}
+.gapcard{border:1px solid var(--line2);border-radius:12px;padding:13px 13px 12px;background:var(--s0)}
+.gc-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+.gc-t{font-size:13.5px;font-weight:600}
+.gc-cm{font-size:12px;color:var(--fg3)}
+.gc-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.step{display:inline-flex;align-items:stretch;height:40px;border:1px solid var(--line2);border-radius:10px;background:var(--s1);overflow:hidden;flex:none}
+.step button{width:40px;border:0;background:none;font-size:18px;cursor:pointer;color:var(--fg1);display:grid;place-items:center}
+.step button:hover:not(:disabled){background:var(--s2)}
+.step button:disabled{color:var(--fg3);opacity:.45;cursor:default}
+.step output{min-width:70px;display:flex;align-items:center;justify-content:center;gap:3px;border-inline:1px solid var(--line)}
+.step output b{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1}
+.step output span{font-size:12px;color:var(--fg3);padding-top:3px}
+.step.sm{height:30px;border-radius:8px}
+.step.sm button{width:30px;font-size:15px}
+.step.sm output{min-width:52px}
+.step.sm output b{font-size:14px}
+.gc-inh{font-size:12px;color:var(--fg3);line-height:1.4}
+.gc-inh .linkish{font-size:12px}
+.presets{display:flex;align-items:center;gap:4px;margin-top:10px}
+.presets button{min-width:32px;height:26px;border:1px solid var(--line2);background:var(--s1);border-radius:7px;font-size:12px;cursor:pointer;font-variant-numeric:tabular-nums;color:var(--fg2)}
+.presets button:hover{color:var(--fg1);border-color:var(--fg3)}
+.presets button.on{background:var(--pri);color:var(--on-pri);border-color:var(--pri)}
+.presets span{font-size:12px;color:var(--fg3);margin-left:4px}
+.gc-hint{margin:10px 0 0;font-size:12px;color:var(--fg3);line-height:1.65}
+.gc-note{margin:10px 0 0;padding:8px 10px;border-radius:8px;background:var(--s2);font-size:12px;color:var(--fg2);display:flex;gap:8px;line-height:1.6}
+.gc-note .i{width:15px;height:15px;margin-top:2px;color:var(--fg3)}
+.gapcard.locked .step,.gapcard.locked .presets{opacity:.45;pointer-events:none}
+.dsec{margin-top:22px}
+.dsec h4{margin:0 0 8px;font-size:12.5px;font-weight:600;color:var(--fg2);display:flex;align-items:center;gap:8px}
+.dsec h4 .btn{margin-left:auto}
+.qtext{font-size:14px;line-height:1.85;color:var(--fg1)}
+.qtext .qfig{color:var(--fg1);padding-top:10px}
+.ans{padding:10px 12px;border-radius:10px;background:var(--ok-soft);font-size:13.5px;line-height:1.85}
+.why{margin-top:8px;padding:9px 12px;border-radius:10px;background:var(--s2);font-size:12.5px;line-height:1.7;color:var(--fg2)}
+.why b{color:var(--fg1);font-weight:600;margin-right:6px}
+.reveal{width:100%;height:40px;border:1px dashed var(--line2);border-radius:10px;background:none;color:var(--fg2);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-size:13px}
+.reveal:hover{color:var(--fg1);border-color:var(--fg3);background:var(--s0)}
+.streak{display:flex;align-items:flex-end;gap:4px;height:30px}
+.streak i{width:6px;border-radius:2px}
+.streak i.ok{background:var(--ok)}
+.streak i.bad{background:var(--bad)}
+.rec-tx{margin:8px 0 0;font-size:12.5px;color:var(--fg2);line-height:1.7}
+.dfoot{display:flex;gap:6px;align-items:center;padding:10px 12px;border-top:1px solid var(--line);flex:none}
+
+/* ───────── popovers, menus, dialogs, toasts ───────── */
+.pop{position:fixed;z-index:70;min-width:200px;max-width:min(440px,calc(100vw - 16px));background:var(--s1);border:1px solid var(--line2);border-radius:12px;box-shadow:var(--pop-shadow);animation:popin .14s var(--ease)}
+@keyframes popin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.menu{padding:5px;min-width:208px}
+.menu button{display:flex;align-items:center;gap:9px;width:100%;height:32px;padding:0 10px;border:0;border-radius:7px;background:none;font-size:13px;text-align:left;cursor:pointer;color:var(--fg1);white-space:nowrap}
+.menu button:hover{background:var(--s2)}
+.menu button .i{color:var(--fg3)}
+.menu button.danger{color:var(--bad-fg)}
+.menu button.danger .i{color:currentColor}
+.menu button .aux{margin-left:auto;color:var(--fg3);font-size:12px}
+.menu button .ck{margin-left:auto;color:var(--fg1)}
+.menu .sep{height:1px;background:var(--line);margin:5px 4px}
+.menu .sec{padding:6px 10px 3px;font-size:11.5px;color:var(--fg3)}
+.pop-h{display:flex;align-items:baseline;gap:10px;padding:14px 16px 6px;font-weight:600;font-size:14px}
+.pop-h small{font-weight:400;font-size:12px;color:var(--fg3)}
+.pop-b{padding:4px 16px 16px}
+.pop-b p{margin:0 0 8px;line-height:1.7;color:var(--fg2)}
+.pop-b p b{color:var(--fg1)}
+.pop-f{display:flex;align-items:center;gap:8px;padding:10px 12px 12px 16px;border-top:1px solid var(--line)}
+.lay{width:360px}
+.lf{padding:10px 0;border-bottom:1px solid var(--line)}
+.lf:last-child{border-bottom:0}
+.lf-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.lf-row>span:first-child{font-size:13px}
+.lf-t{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:6px}
+.lf-t b{font-variant-numeric:tabular-nums}
+.lf-h{font-size:12px;color:var(--fg3);margin-top:4px}
+.lf input[type=range]{width:100%;accent-color:var(--fg1)}
+.chks{display:flex;gap:14px;font-size:12.5px}
+.chks label,.chk1{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.chk1{font-size:12.5px;color:var(--fg2);margin-top:8px}
+.chks input,.chk1 input{accent-color:var(--fg1);width:15px;height:15px;margin:0}
+.lk{display:flex;align-items:flex-start;gap:12px}
+.lk-t{flex:1;font-size:13px;display:flex;flex-direction:column;gap:2px}
+.lk-t small{font-size:12px;color:var(--fg3);line-height:1.55}
+.locknote{margin-top:8px;padding:7px 10px;border-radius:8px;background:var(--s2);font-size:12px;color:var(--fg2);line-height:1.6}
+.lay .dis{opacity:.45;pointer-events:none}
+.sp-list{max-height:280px;overflow:auto;padding:4px 8px}
+.sp-row{display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:8px;cursor:pointer}
+.sp-row:hover{background:var(--s0)}
+.sp-row input{margin-top:3px;accent-color:var(--fg1);width:15px;height:15px}
+.sp-row b{font-weight:500;font-size:13px}
+.sp-row small{display:block;color:var(--fg3);font-size:12px;line-height:1.5;margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:290px}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;align-items:center;font-size:12.5px;color:var(--fg2);padding:4px 16px 16px}
+.keys span:nth-child(odd){display:flex;gap:3px;justify-content:flex-end}
+.scrim{position:fixed;inset:0;z-index:60;background:var(--scrim);display:grid;place-items:center;padding:24px;animation:fade .16s}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.dlg{background:var(--s1);border-radius:14px;box-shadow:var(--pop-shadow);border:1px solid var(--line);animation:dlgin .2s var(--ease);max-height:calc(100vh - 48px);display:flex;flex-direction:column;min-height:0}
+@keyframes dlgin{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+.dlg.sm{width:min(430px,100%);padding:20px 20px 16px}
+.dlg h3{margin:0 0 8px;font-size:16px;font-weight:600}
+.dlg p{margin:0;color:var(--fg2);line-height:1.75}
+.dlg textarea,.dlg .tin{width:100%;margin-top:4px;padding:8px 10px;border:1px solid var(--line2);border-radius:8px;background:var(--s0);outline:0;resize:vertical;min-height:40px;line-height:1.6}
+.dlg textarea:focus,.dlg .tin:focus{border-color:var(--sel);box-shadow:0 0 0 3px var(--sel-soft)}
+.dlg-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+/* add dialog */
+.dlg.add{width:min(1080px,100%);height:min(720px,100%)}
+.add-h{display:flex;align-items:center;gap:8px;padding:16px 14px 10px 22px}
+.add-h h3{flex:1;margin:0;font-size:16px}
+.add-h h3 span{color:var(--fg3);font-weight:400;margin:0 2px}
+.add-f{padding:0 22px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.srch{display:flex;align-items:center;gap:8px;height:42px;padding:0 12px;border:1px solid var(--line2);border-radius:10px;background:var(--s0);color:var(--fg3)}
+.srch:focus-within{border-color:var(--sel);box-shadow:0 0 0 3px var(--sel-soft);background:var(--s1)}
+.srch input{flex:1;min-width:0;border:0;background:none;outline:0;font-size:14px;color:var(--fg1)}
+.add-f2{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.add-f2 .vsep{width:1px;height:18px;background:var(--line2);margin:0 2px}
+.fchip{height:28px;padding:0 10px;border:1px solid var(--line2);border-radius:999px;background:var(--s1);font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:5px;color:var(--fg2)}
+.fchip:hover{color:var(--fg1);border-color:var(--fg3)}
+.fchip.on{border-color:var(--fg1);color:var(--fg1);background:var(--s2);font-weight:500}
+.fchip .ldot{width:8px;height:8px}
+.add-f2 select{height:28px;border:1px solid var(--line2);border-radius:8px;background:var(--s1);padding:0 8px;font-size:12.5px;color:var(--fg2)}
+.add-rh{display:flex;align-items:center;gap:12px;padding:10px 12px 6px 18px;font-size:12.5px;color:var(--fg3)}
+.add-rh b{color:var(--fg1);font-weight:600}
+.add-rh select{height:28px;border:1px solid var(--line2);border-radius:8px;background:var(--s1);padding:0 8px;font-size:12.5px;color:var(--fg2)}
+.hide-in{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--fg2);cursor:pointer}
+.hide-in input{accent-color:var(--fg1);margin:0}
+.add-lcol{display:flex;flex-direction:column;min-height:0}
+.add-b{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
+.add-list{flex:1;min-height:0;overflow:auto;padding:0 8px 12px}
+.add-pv{overflow:auto;border-left:1px solid var(--line);padding:20px 22px;background:var(--s0)}
+.add-pv .pv-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.add-pv .pv-h b{font-size:17px}
+.add-pv .dmeta{margin:6px 0 14px}
+.add-pv .qtext{background:var(--s1);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.add-pv .pv-kp{margin-top:12px;font-size:12.5px;color:var(--fg3)}
+.add-pv .pv-empty{height:100%;display:grid;place-items:center;color:var(--fg3);text-align:center;font-size:12.5px}
+.ar{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 10px;border-radius:9px;cursor:pointer;scroll-margin:8px}
+.ar.act{background:var(--s2)}
+.ar .cbx{width:18px;height:18px;border:1.5px solid var(--line2);border-radius:5px;display:grid;place-items:center;color:transparent;background:var(--s1);transition:background .1s}
+.ar .cbx .i{width:12px;height:12px;stroke-width:2.6}
+.ar.sel .cbx{background:var(--pri);border-color:var(--pri);color:var(--on-pri)}
+.ar.in{cursor:default}
+.ar.in .cbx{background:var(--s2);border-color:var(--line);color:var(--fg3)}
+.ar.in .ar-m{opacity:.55}
+.ar-t{display:flex;align-items:center;gap:8px;min-width:0}
+.ar-t b{font-weight:500;font-size:13.5px;white-space:nowrap}
+.ar-s{display:flex;gap:10px;font-size:12px;color:var(--fg3);margin-top:2px;white-space:nowrap;overflow:hidden}
+.ar-s .bad{color:var(--bad-fg)}
+.add-empty{padding:40px 20px;text-align:center;color:var(--fg3)}
+.add-foot{display:flex;align-items:center;gap:12px;padding:12px 16px 12px 22px;border-top:1px solid var(--line)}
+.add-foot .cnt{font-size:13px}
+.add-foot .cnt b{font-variant-numeric:tabular-nums}
+.add-foot .kh{font-size:12px;color:var(--fg3);display:flex;gap:4px;align-items:center}
+/* big detail */
+.dlg.big{width:min(1100px,100%);height:min(760px,100%)}
+.big-h{display:flex;align-items:center;gap:8px;padding:14px 14px 12px 22px;border-bottom:1px solid var(--line)}
+.big-h b{font-size:17px}
+.big-b{flex:1;min-height:0;display:grid;grid-template-columns:1.2fr 1fr}
+.big-b>div{overflow:auto;padding:22px 26px}
+.big-b>div+div{border-left:1px solid var(--line);background:var(--s0)}
+.big-b .qtext{font-size:15.5px}
+#toasts{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:90;display:flex;flex-direction:column-reverse;align-items:center;gap:8px;pointer-events:none}
+.toast{pointer-events:auto;display:flex;align-items:center;gap:14px;min-height:40px;padding:7px 7px 7px 14px;border-radius:10px;background:var(--toast-bg);color:var(--toast-fg);box-shadow:0 12px 30px rgba(0,0,0,.24);font-size:13px;animation:toastin .24s var(--ease);max-width:min(560px,calc(100vw - 32px))}
+.toast.plain{padding-right:14px}
+.toast button{border:0;background:color-mix(in srgb,currentColor 14%,transparent);color:inherit;height:26px;padding:0 10px;border-radius:6px;font-weight:600;cursor:pointer;font-size:12.5px;flex:none}
+.toast button:hover{background:color-mix(in srgb,currentColor 22%,transparent)}
+.toast.out{opacity:0;transform:translateY(6px);transition:opacity .18s,transform .18s}
+@keyframes toastin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ───────── responsive ───────── */
+@media (max-width:1320px){.work{grid-template-columns:minmax(0,1fr) 340px}}
+@media (max-width:1160px){
+  .app,.app.bclosed{grid-template-columns:56px 0 minmax(0,1fr)}
+  .boards{position:fixed;left:56px;top:0;bottom:0;width:256px;box-shadow:var(--pop-shadow);transform:translateX(calc(-100% - 64px));visibility:hidden;transition:transform .22s var(--ease),visibility 0s .22s;z-index:50}
+  .app.bopen-sm .boards{transform:none;visibility:visible;transition:transform .22s var(--ease)}
+  .bt-acts .dl{display:none}
+}
+@media (max-width:900px){.work{grid-template-columns:minmax(0,1fr) 300px}.bt-sub .note{display:none}}
+@media (max-width:760px){
+  body{overflow:auto}
+  .app,.app.bclosed{grid-template-columns:minmax(0,1fr);height:auto;min-height:100%}
+  .rail{display:none}
+  .main{grid-column:1}
+  .boards{left:0}
+  .bhead{flex-wrap:wrap;gap:10px;padding:10px 12px}
+  .bt-acts{width:100%}
+  .bt-acts .printbtn{flex:1}
+  .work{display:flex;flex-direction:column}
+  .pcol{height:72vh}
+  .qpanel{height:80vh;border-left:0;border-top:1px solid var(--line)}
+  .ptool .zoomseg,.ptool .tsep{display:none}
+  .add-b{grid-template-columns:1fr}.add-pv{display:none}
+  .big-b{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:0s!important;transition-duration:0s!important}}
+</style>
+</head>
+<body class="">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"></path></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 20V10M12 20V5M19 20v-7"></path></symbol>
+<symbol id="i-lib" viewBox="0 0 24 24"><path d="M3.5 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"></path></symbol>
+<symbol id="i-board" viewBox="0 0 24 24"><path d="M4 5h16M4 11h16M4 17h9"></path><path d="M17 15v5M14.5 17.5h5"></path></symbol>
+<symbol id="i-tree" viewBox="0 0 24 24"><path d="M5 4v13a1 1 0 0 0 1 1h4M5 9h5M10 18h4"></path><rect x="12" y="2.5" width="8" height="4" rx="1"></rect><rect x="12" y="10" width="8" height="4" rx="1"></rect><rect x="12" y="17" width="8" height="4" rx="1"></rect></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M4 9.5h16M9 3v4M15 3v4"></path></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5 18 12 8 18.5z"></path></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 13l4 4L19 6"></path></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4.5l3 1.8"></path></symbol>
+<symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6z"></path><path d="M14 3v4h4"></path></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 8h16M4 16h16"></path><circle cx="9" cy="8" r="2.3"></circle><circle cx="15" cy="16" r="2.3"></circle></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"></path></symbol>
+<symbol id="i-folder-plus" viewBox="0 0 24 24"><path d="M3.5 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"></path><path d="M12 11v5M9.5 13.5h5"></path></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"></path></symbol>
+<symbol id="i-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"></path></symbol>
+<symbol id="i-left" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"></path></symbol>
+<symbol id="i-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"></path></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="6" cy="12" r="1.2"></circle><circle cx="12" cy="12" r="1.2"></circle><circle cx="18" cy="12" r="1.2"></circle></symbol>
+<symbol id="i-grip" viewBox="0 0 24 24"><circle cx="9" cy="6.5" r=".9"></circle><circle cx="15" cy="6.5" r=".9"></circle><circle cx="9" cy="12" r=".9"></circle><circle cx="15" cy="12" r=".9"></circle><circle cx="9" cy="17.5" r=".9"></circle><circle cx="15" cy="17.5" r=".9"></circle></symbol>
+<symbol id="i-printer" viewBox="0 0 24 24"><path d="M7 9V4h10v5"></path><path d="M7 17H5a1 1 0 0 1-1-1v-5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5a1 1 0 0 1-1 1h-2"></path><path d="M7 14h10v6H7z"></path></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19.5h14"></path></symbol>
+<symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"></path><circle cx="15" cy="7" r="2"></circle><circle cx="9" cy="17" r="2"></circle></symbol>
+<symbol id="i-sync" viewBox="0 0 24 24"><path d="M19.5 10A7.5 7.5 0 0 0 6 6.6L4.5 8"></path><path d="M4.5 4v4h4"></path><path d="M4.5 14A7.5 7.5 0 0 0 18 17.4l1.5-1.4"></path><path d="M19.5 20v-4h-4"></path></symbol>
+<symbol id="i-hex" viewBox="0 0 24 24"><path d="M4 12 8 5h8l4 7-4 7H8z"></path></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"></path></symbol>
+<symbol id="i-expand" viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"></path></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"></path></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10z"></path></symbol>
+<symbol id="i-keys" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"></rect><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"></path></symbol>
+<symbol id="i-sort" viewBox="0 0 24 24"><path d="M7 5v14m-3-3 3 3 3-3M17 19V5m-3 3 3-3 3 3"></path></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.5h4V7M7 7l1 13h8l1-13"></path></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M4.5 19.5h4l10-10-4-4-10 10z"></path><path d="m13 7 4 4"></path></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"></path><circle cx="12" cy="12" r="2.8"></circle></symbol>
+<symbol id="i-panel" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2"></rect><path d="M9.5 4.5v15"></path></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 11v5M12 8h.01"></path></symbol>
+<symbol id="i-updown" viewBox="0 0 24 24"><path d="M12 4v16M8 8l4-4 4 4M8 16l4 4 4-4"></path></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"></path></symbol>
+<symbol id="i-note" viewBox="0 0 24 24"><path d="M5 5h14v10l-4 4H5z"></path><path d="M15 19v-4h4M8 9h8M8 12.5h5"></path></symbol>
+<symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 20.5V4h11l-2 4 2 4H6"></path></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"></path><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path></symbol>
+<symbol id="i-cloud" viewBox="0 0 24 24"><path d="m8.5 12.5 2.3 2.3 4.7-4.8"></path><path d="M7 18.5h10a4 4 0 0 0 .6-8 5.5 5.5 0 0 0-10.7-1A4.5 4.5 0 0 0 7 18.5z"></path></symbol>
+</defs></svg>
+
+<div class="app" id="app">
+  <nav class="rail" aria-label="主导航">
+    <div class="brand" title="OMRS 错题重构系统">鬼</div>
+    <a href="file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html#" data-act="nav" title="仪表盘"><svg class="i" aria-hidden="true"><use href="#i-home"></use></svg></a>
+    <a href="file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html#" data-act="nav" title="数据复盘"><svg class="i" aria-hidden="true"><use href="#i-chart"></use></svg></a>
+    <a href="file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html#" data-act="nav" title="题目库"><svg class="i" aria-hidden="true"><use href="#i-lib"></use></svg></a>
+    <a href="file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html#" class="on" aria-current="page" title="展示板"><svg class="i" aria-hidden="true"><use href="#i-board"></use></svg></a>
+    <a href="file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html#" data-act="nav" title="目录"><svg class="i" aria-hidden="true"><use href="#i-tree"></use></svg></a>
+    <a href="file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html#" data-act="nav" title="复习调度"><svg class="i" aria-hidden="true"><use href="#i-calendar"></use></svg></a>
+    <a href="file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html#" data-act="nav" title="即时练习"><svg class="i" aria-hidden="true"><use href="#i-play"></use></svg></a>
+    <a href="file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html#" data-act="nav" title="反馈录入"><svg class="i" aria-hidden="true"><use href="#i-check"></use></svg></a>
+    <a href="file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html#" data-act="nav" title="录入题目"><svg class="i" aria-hidden="true"><use href="#i-plus"></use></svg></a>
+    <a href="file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html#" data-act="nav" title="历史记录"><svg class="i" aria-hidden="true"><use href="#i-clock"></use></svg></a>
+    <div class="sp"></div>
+    <button type="button" data-act="help" title="快捷键（?）" aria-label="快捷键" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="#i-keys"></use></svg></button>
+    <button type="button" data-act="theme" title="切换深浅色" aria-label="切换深浅色" id="themebtn"><svg class="i" aria-hidden="true"><use href="#i-sun"></use></svg></button>
+    <a href="file:///C:/Users/ruibi/AppData/Local/Temp/MicrosoftEdgeDownloads/f6ceb5c3-142a-4dcc-bddd-92b1527764e5/omrs-board-redesign.html#" data-act="nav" title="设置"><svg class="i" aria-hidden="true"><use href="#i-settings"></use></svg></a>
+  </nav>
+
+  <aside class="boards" id="boards" aria-label="展示板列表">
+    <div class="bw">
+      <div class="bhd">
+        <h2>展示板</h2><span class="bcount num" id="bcount">6</span>
+        <span class="grow"></span>
+        <button type="button" class="btn ghost icon sm" data-act="new-folder" title="新建文件夹" aria-label="新建文件夹"><svg class="i" aria-hidden="true"><use href="#i-folder-plus"></use></svg></button>
+        <button type="button" class="btn ghost icon sm" data-act="toggle-boards" title="收起列表" aria-label="收起展示板列表"><svg class="i" aria-hidden="true"><use href="#i-panel"></use></svg></button>
+      </div>
+      <div class="bnew"><button type="button" class="btn lg block" data-act="new-board"><svg class="i" aria-hidden="true"><use href="#i-plus"></use></svg>新建展示板<kbd>N</kbd></button></div>
+      <label class="bsearch"><svg class="i" aria-hidden="true"><use href="#i-search"></use></svg><input id="bq" type="search" placeholder="查找展示板" autocomplete="off" aria-label="查找展示板"></label>
+      <div class="btree" id="btree" role="tree"><div class="fold closed" data-fold="f1" data-fdrop="f1" role="treeitem" aria-expanded="false"><span class="chev"><svg class="i" aria-hidden="true"><use href="#i-down"></use></svg></span><svg class="i" aria-hidden="true"><use href="#i-folder"></use></svg><span class="fnm">高三上 · 期中</span><span class="fct num">2</span><button type="button" class="bmore" data-fmenu="f1" aria-label="文件夹操作" aria-haspopup="menu"><svg class="i" aria-hidden="true"><use href="#i-more"></use></svg></button></div><div class="fold closed" data-fold="f2" data-fdrop="f2" role="treeitem" aria-expanded="false"><span class="chev"><svg class="i" aria-hidden="true"><use href="#i-down"></use></svg></span><svg class="i" aria-hidden="true"><use href="#i-folder"></use></svg><span class="fnm">物理专项</span><span class="fct num">2</span><button type="button" class="bmore" data-fmenu="f2" aria-label="文件夹操作" aria-haspopup="menu"><svg class="i" aria-hidden="true"><use href="#i-more"></use></svg></button></div><div class="fold plain" data-fdrop=""><span class="chev"></span><span class="fnm">未归档</span><span class="fct num">2</span></div><div class="fbody" data-fdrop="" role="group"><div class="brow" data-board="b5" draggable="true" tabindex="0" role="treeitem" aria-selected="false">
+    <div class="bmain"><div class="bnm">英语语法 · 易混点</div><div class="bst"><span class="num">4 题</span><span>未打印</span></div></div>
+    <button type="button" class="bmore" data-bmenu="b5" aria-label="英语语法 · 易混点 的更多操作" aria-haspopup="menu"><svg class="i" aria-hidden="true"><use href="#i-more"></use></svg></button></div><div class="brow" data-board="b6" draggable="true" tabindex="0" role="treeitem" aria-selected="false">
+    <div class="bmain"><div class="bnm">化学反应原理</div><div class="bst"><span class="num">3 题</span><span>已印 1 页</span></div></div>
+    <button type="button" class="bmore" data-bmenu="b6" aria-label="化学反应原理 的更多操作" aria-haspopup="menu"><svg class="i" aria-hidden="true"><use href="#i-more"></use></svg></button></div></div></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="bhead" id="bhead"><div class="bt"><div class="bt-row"><button type="button" class="btn ghost icon bt-open" data-act="toggle-boards" title="展示板列表" aria-label="打开展示板列表" hidden=""><svg class="i" aria-hidden="true"><use href="#i-panel"></use></svg></button><h1 class="bt-name" data-act="rename-title" title="点击重命名">期中冲刺 · 数学</h1><button type="button" class="btn ghost icon sm" data-act="rename-title" title="重命名" aria-label="重命名"><svg class="i" aria-hidden="true"><use href="#i-pencil"></use></svg></button><button type="button" class="btn ghost icon sm" data-bmenu="b1" title="更多操作" aria-label="更多操作" aria-haspopup="menu"><svg class="i" aria-hidden="true"><use href="#i-more"></use></svg></button></div>
+    <div class="bt-sub"><span><svg class="i" aria-hidden="true"><use href="#i-folder"></use></svg>高三上 · 期中</span><span class="num">14 题</span><span class="note" data-act="note" title="编辑备注">10 月 12 日月考前过一遍</span><span class="savest" id="savest"><svg class="i" aria-hidden="true"><use href="#i-cloud"></use></svg>已保存</span></div></div>
+    <div class="bt-acts">
+      <button type="button" class="btn ghost icon dl" data-act="download" title="下载可离线打印的 HTML" aria-label="下载 HTML"><svg class="i" aria-hidden="true"><use href="#i-download"></use></svg></button>
+      <div class="seg" role="group" aria-label="打印范围"><button type="button" class="on" data-act="scope-new" title="只印还没上纸的题，接在原纸空白处">只印新增</button><button type="button" class="" data-act="scope-all" title="整叠重新排版">全部重印</button></div>
+      <button type="button" class="btn primary lg printbtn" data-act="print" title="接在第 3 页的空白处，把原纸放回打印机即可（P）"><svg class="i" aria-hidden="true"><use href="#i-printer"></use></svg>补印新增 3 题</button>
+    </div></header>
+    <div class="cbar" id="cbar" hidden="" role="status"></div>
+    <div class="work">
+      <section class="pcol" aria-label="纸面预览">
+        <div class="ptool" id="ptool"><button type="button" class="pstat" data-act="paper-rec" title="查看纸面记录"><svg class="i" aria-hidden="true"><use href="#i-file"></use></svg>纸上 10 题 · 3 页</button><button type="button" class="chip new" data-act="jump-new" title="定位到第一道未印的题">3 题未印</button><button type="button" class="chip bad" data-act="jump-changed" title="打印后改过内容，纸上还是旧版">1 题已改动</button><span class="grow"></span>
+    <div class="pager"><button type="button" class="btn ghost icon sm" data-act="pg-prev" title="上一页" aria-label="上一页" disabled=""><svg class="i" aria-hidden="true"><use href="#i-up"></use></svg></button><span id="pgcur">第 <b class="num">3</b> / 3 页</span><button type="button" class="btn ghost icon sm" data-act="pg-next" title="下一页" aria-label="下一页" disabled=""><svg class="i" aria-hidden="true"><use href="#i-down"></use></svg></button></div>
+    <span class="tsep"></span>
+    <div class="seg zoomseg" role="group" aria-label="缩放"><button type="button" class="on" data-act="zoom-fit">适应宽度</button><button type="button" class="" data-act="zoom-1">100%</button></div>
+    <button type="button" class="btn ghost sm" data-act="layout" aria-haspopup="dialog"><svg class="i" aria-hidden="true"><use href="#i-sliders"></use></svg>版式</button></div>
+        <div class="desk" id="desk"><div id="sheets"><div class="sheet" data-pn="3" style="width:793.7px;height:1122.52px"><div class="page partial" style="transform:scale(1)"><div class="pg-h" style="left:37.79528px;top:45.354336px;width:718.1094400000001px">错题集<span>2026-09-26</span></div><div class="pg-banner">这页印过一部分：把原来的第 3 页放回打印机，只会印出下方的新题</div><div class="pghost" style="left:37.79528px;top:84.354336px;width:718.1094400000001px;height:315.15000915527344px"><span>已打印区域 · 第 1–10 题</span></div><div class="zone sel" data-q="向量1" style="left:25.795279999999998px;top:399.5043451552734px;width:742.1094400000001px;height:145.3000030517578px"><div class="zone-gap" style="left:12px;top:73.30000305175781px;width:718.1094400000001px;height:72px"></div><div class="gh" data-gap="向量1" title="上下拖动，调整这道题的留白" style="left:12px;top:134.3000030517578px;width:718.1094400000001px"><span class="gh-pill" style="left:544.58208px"><svg class="i" aria-hidden="true"><use href="#i-updown"></use></svg>4 行<small>≈1.9 cm</small></span></div></div><div class="qb" style="left:37.79528px;top:399.5043451552734px;width:347.05472000000003px"><div class="qh"><div class="qh-l"><span class="no">11</span><span class="uid">向量1</span><span class="plbl" style="--c:#ca8a04">计算失误</span></div><div class="qm">数学 · 向量 · 难度 4</div></div><div class="qt">已知 <span class="m">|<span class="vec"><i>a</i></span>|<span class="op">=</span>2</span>，<span class="m">|<span class="vec"><i>b</i></span>|<span class="op">=</span>1</span>，<span class="m"><span class="vec"><i>a</i></span>·<span class="vec"><i>b</i></span><span class="op">=</span>1</span>，求 <span class="m"><span class="vec"><i>a</i></span></span> 与 <span class="m"><span class="vec"><i>b</i></span></span> 的夹角及 <span class="m">|<span class="vec"><i>a</i></span><span class="op">−</span>2<span class="vec"><i>b</i></span>|</span>。</div></div><div class="cut" style="left:37.79528px;top:544.8043482070312px;width:718.1094400000001px"></div><div class="zone" data-q="概率统计1" style="left:25.795279999999998px;top:544.8043482070312px;width:742.1094400000001px;height:142.70000457763672px"><div class="zone-gap" style="left:12px;top:70.70000457763672px;width:718.1094400000001px;height:72px"></div><div class="gh" data-gap="概率统计1" title="上下拖动，调整这道题的留白" style="left:12px;top:131.70000457763672px;width:718.1094400000001px"><span class="gh-pill" style="left:544.58208px"><svg class="i" aria-hidden="true"><use href="#i-updown"></use></svg>4 行<small>≈1.9 cm</small></span></div></div><div class="qb" style="left:37.79528px;top:544.8043482070312px;width:347.05472000000003px"><div class="qh"><div class="qh-l"><span class="no">12</span><span class="uid">概率统计1</span></div><div class="qm">数学 · 概率统计 · 难度 2</div></div><div class="qt">同时掷两枚质地均匀的骰子，求向上的点数之和为 <span class="m">7</span> 的概率。</div></div><div class="cut" style="left:37.79528px;top:687.504352784668px;width:718.1094400000001px"></div><div class="zone" data-q="解析几何2" style="left:25.795279999999998px;top:687.504352784668px;width:742.1094400000001px;height:198.3000030517578px"><div class="zone-gap" style="left:12px;top:90.30000305175781px;width:718.1094400000001px;height:108px"></div><div class="gh" data-gap="解析几何2" title="上下拖动，调整这道题的留白" style="left:12px;top:187.3000030517578px;width:718.1094400000001px"><span class="gh-pill" style="left:544.58208px"><svg class="i" aria-hidden="true"><use href="#i-updown"></use></svg>6 行<small>≈2.9 cm</small></span></div></div><div class="qb" style="left:37.79528px;top:687.504352784668px;width:347.05472000000003px"><div class="qh"><div class="qh-l"><span class="no">13</span><span class="uid">解析几何2</span><span class="plbl" style="--c:#dc2626">考前必看</span></div><div class="qm">数学 · 解析几何 · 难度 5</div></div><div class="qt">过抛物线 <span class="m"><i>y</i><sup>2</sup><span class="op">=</span>4<i>x</i></span> 的焦点 <span class="m"><i>F</i></span> 作直线交抛物线于 <span class="m"><i>A</i>(<i>x</i><sub>1</sub>, <i>y</i><sub>1</sub>)</span>、<span class="m"><i>B</i>(<i>x</i><sub>2</sub>, <i>y</i><sub>2</sub>)</span> 两点，若 <span class="m"><i>x</i><sub>1</sub><span class="op">+</span><i>x</i><sub>2</sub><span class="op">=</span>6</span>，求 <span class="m">|<i>A</i><i>B</i>|</span>。</div></div><div class="cut" style="left:37.79528px;top:885.8043558364258px;width:718.1094400000001px"></div><div class="pg-n">3</div></div></div></div></div>
+      </section>
+      <section class="qpanel detail" id="qpanel" aria-label="题目">
+        <div class="layer" id="qlist" inert=""><div class="lh"><h2>题目</h2><span class="cnt num">13 / 14</span><span class="grow"></span>
+      <button type="button" class="btn ghost icon sm" data-act="sort" title="排序" aria-label="排序" aria-haspopup="menu"><svg class="i" aria-hidden="true"><use href="#i-sort"></use></svg></button>
+      <button type="button" class="btn primary sm" data-act="add" title="添加题目（A）"><svg class="i" aria-hidden="true"><use href="#i-plus"></use></svg>添加题目</button></div>
+    <div class="sync has"><button type="button" class="sync-lbl" data-act="sync-pick" title="更换关联的标记" aria-haspopup="menu"><span class="lbl" style="--c:#dc2626">考前必看</span><svg class="i" aria-hidden="true"><use href="#i-down"></use></svg></button><span class="sync-tx">有 <b class="num">2</b> 道新题没进板</span><button type="button" class="btn sm tonal" data-act="sync" aria-haspopup="dialog"><svg class="i" aria-hidden="true"><use href="#i-sync"></use></svg>同步</button></div>
+    <div class="warn"><svg class="i" aria-hidden="true"><use href="#i-info"></use></svg><span class="grow">1 道题已停用，打印时会跳过</span><button type="button" class="btn ghost sm" data-act="clean-suspended">移出</button></div>
+    <div class="lcols" aria-hidden="true"><span>#</span><span>题目 · 顺序即纸面顺序</span><span>题后留白</span></div><div class="qrows" role="listbox" aria-label="板内题目"><div class="qrow" data-q="三角函数1" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">1</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">三角函数1</span><span class="tag ok" title="已经印在纸上">已印 p.1</span></div><div class="qr-s"><span>三角函数</span><span>难度 6</span><span class="ldots"><i class="ldot" style="--c:#dc2626" title="考前必看"></i><i class="ldot" style="--c:#2563eb" title="概念不清"></i></span></div></div>
+      <div class="qr-gap" title="跟随默认留白 4 行"><button type="button" data-gap-dec="三角函数1" aria-label="减少一行留白">−</button><span>4<small>行</small></span><button type="button" data-gap-inc="三角函数1" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow" data-q="三角函数2" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">2</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">三角函数2</span><span class="tag ok" title="已经印在纸上">已印 p.1</span></div><div class="qr-s"><span>三角函数</span><span>难度 5</span><span class="ldots"><i class="ldot" style="--c:#dc2626" title="考前必看"></i></span></div></div>
+      <div class="qr-gap" title="跟随默认留白 4 行"><button type="button" data-gap-dec="三角函数2" aria-label="减少一行留白">−</button><span>4<small>行</small></span><button type="button" data-gap-inc="三角函数2" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow" data-q="三角函数3" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">3</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">三角函数3</span><span class="tag ok" title="已经印在纸上">已印 p.1</span></div><div class="qr-s"><span>三角函数</span><span>难度 4</span><span class="ldots"><i class="ldot" style="--c:#ca8a04" title="计算失误"></i></span></div></div>
+      <div class="qr-gap own" title="这道题单独设置的留白"><button type="button" data-gap-dec="三角函数3" aria-label="减少一行留白">−</button><span>10<small>行</small></span><button type="button" data-gap-inc="三角函数3" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow" data-q="数列1" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">4</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">数列1</span><span class="tag ok" title="已经印在纸上">已印 p.1</span></div><div class="qr-s"><span>数列</span><span>难度 3</span></div></div>
+      <div class="qr-gap own" title="这道题单独设置的留白"><button type="button" data-gap-dec="数列1" aria-label="减少一行留白">−</button><span>3<small>行</small></span><button type="button" data-gap-inc="数列1" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow" data-q="数列2" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">5</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">数列2</span><span class="tag ok" title="已经印在纸上">已印 p.2</span></div><div class="qr-s"><span>数列</span><span>难度 5</span><span class="ldots"><i class="ldot" style="--c:#dc2626" title="考前必看"></i></span></div></div>
+      <div class="qr-gap" title="跟随默认留白 4 行"><button type="button" data-gap-dec="数列2" aria-label="减少一行留白">−</button><span>4<small>行</small></span><button type="button" data-gap-inc="数列2" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow" data-q="数列3" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">6</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">数列3</span><span class="tag ok" title="已经印在纸上">已印 p.2</span><span class="tag bad" title="打印后正文改过，纸上仍是旧版">已改动</span></div><div class="qr-s"><span>数列</span><span>难度 4</span><span class="ldots"><i class="ldot" style="--c:#ca8a04" title="计算失误"></i></span></div></div>
+      <div class="qr-gap" title="跟随默认留白 4 行"><button type="button" data-gap-dec="数列3" aria-label="减少一行留白">−</button><span>4<small>行</small></span><button type="button" data-gap-inc="数列3" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow" data-q="函数1" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">7</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">函数1</span><span class="tag ok" title="已经印在纸上">已印 p.2</span></div><div class="qr-s"><span>函数</span><span>难度 6</span><span class="ldots"><i class="ldot" style="--c:#dc2626" title="考前必看"></i><i class="ldot" style="--c:#2563eb" title="概念不清"></i></span></div></div>
+      <div class="qr-gap own" title="这道题单独设置的留白"><button type="button" data-gap-dec="函数1" aria-label="减少一行留白">−</button><span>8<small>行</small></span><button type="button" data-gap-inc="函数1" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow" data-q="函数2" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">8</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">函数2</span><span class="tag ok" title="已经印在纸上">已印 p.2</span></div><div class="qr-s"><span>函数</span><span>难度 4</span></div></div>
+      <div class="qr-gap" title="跟随默认留白 4 行"><button type="button" data-gap-dec="函数2" aria-label="减少一行留白">−</button><span>4<small>行</small></span><button type="button" data-gap-inc="函数2" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow" data-q="函数3" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">9</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">函数3</span><span class="tag ok" title="已经印在纸上">已印 p.2</span></div><div class="qr-s"><span>函数</span><span>难度 5</span><span class="ldots"><i class="ldot" style="--c:#7c3aed" title="审题不清"></i></span></div></div>
+      <div class="qr-gap" title="跟随默认留白 4 行"><button type="button" data-gap-dec="函数3" aria-label="减少一行留白">−</button><span>4<small>行</small></span><button type="button" data-gap-inc="函数3" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow" data-q="解析几何1" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">10</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">解析几何1</span><span class="tag ok" title="已经印在纸上">已印 p.3</span></div><div class="qr-s"><span>解析几何</span><span>难度 4</span></div></div>
+      <div class="qr-gap own" title="这道题单独设置的留白"><button type="button" data-gap-dec="解析几何1" aria-label="减少一行留白">−</button><span>6<small>行</small></span><button type="button" data-gap-inc="解析几何1" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow on" data-q="向量1" tabindex="-1" role="option" aria-selected="true">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">11</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">向量1</span><span class="tag new" title="纸上还没有这道题">未印</span></div><div class="qr-s"><span>向量</span><span>难度 4</span><span class="ldots"><i class="ldot" style="--c:#ca8a04" title="计算失误"></i></span></div></div>
+      <div class="qr-gap" title="跟随默认留白 4 行"><button type="button" data-gap-dec="向量1" aria-label="减少一行留白">−</button><span>4<small>行</small></span><button type="button" data-gap-inc="向量1" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow" data-q="概率统计1" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">12</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">概率统计1</span><span class="tag new" title="纸上还没有这道题">未印</span></div><div class="qr-s"><span>概率统计</span><span>难度 2</span></div></div>
+      <div class="qr-gap" title="跟随默认留白 4 行"><button type="button" data-gap-dec="概率统计1" aria-label="减少一行留白">−</button><span>4<small>行</small></span><button type="button" data-gap-inc="概率统计1" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow" data-q="解析几何2" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">13</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">解析几何2</span><span class="tag new" title="纸上还没有这道题">未印</span></div><div class="qr-s"><span>解析几何</span><span>难度 5</span><span class="ldots"><i class="ldot" style="--c:#dc2626" title="考前必看"></i></span></div></div>
+      <div class="qr-gap own" title="这道题单独设置的留白"><button type="button" data-gap-dec="解析几何2" aria-label="减少一行留白">−</button><span>6<small>行</small></span><button type="button" data-gap-inc="解析几何2" aria-label="增加一行留白">+</button></div>
+    </div><div class="qrow off" data-q="立体几何1" tabindex="-1" role="option" aria-selected="false">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true"><svg class="i" aria-hidden="true"><use href="#i-grip"></use></svg></span><span class="no">—</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">立体几何1</span><span class="tag mute" title="停用的题不会印上纸">停用</span></div><div class="qr-s"><span>立体几何</span><span>难度 5</span></div></div>
+      <div class="qr-gap" title="跟随默认留白 4 行"><span>—</span></div>
+    </div></div>
+      <div class="lfoot"><svg class="i" aria-hidden="true"><use href="#i-info"></use></svg><span>点题目看详情；拖 <span aria-hidden="true">⠿</span> 调顺序，或按 <kbd>Alt</kbd>+<kbd>↑</kbd><kbd>↓</kbd></span></div></div>
+        <div class="layer" id="qdetail" data-uid="向量1"><div class="dnav">
+      <button type="button" class="btn ghost sm" data-act="back" title="返回题目列表（Esc）"><svg class="i" aria-hidden="true"><use href="#i-left"></use></svg>全部题目</button>
+      <span class="pos num">11 / 14</span>
+      <button type="button" class="btn ghost icon sm" data-act="prev" title="上一题（↑）" aria-label="上一题"><svg class="i" aria-hidden="true"><use href="#i-up"></use></svg></button>
+      <button type="button" class="btn ghost icon sm" data-act="next" title="下一题（↓）" aria-label="下一题"><svg class="i" aria-hidden="true"><use href="#i-down"></use></svg></button>
+      <button type="button" class="btn ghost icon sm" data-act="big" title="在大窗口里看" aria-label="在大窗口里看"><svg class="i" aria-hidden="true"><use href="#i-expand"></use></svg></button>
+    </div>
+    <div class="dbody">
+      <div class="dno">纸面第 11 题</div>
+      <h3 class="duid">向量1<span class="tag new" title="纸上还没有这道题">未印</span></h3>
+      <div class="dmeta"><span>数学 / 向量</span><span>难度 4</span><span class="mst"><span class="mbar"><i style="width:50%"></i></span>熟练度 50%</span><span>待攻克</span><span class="">今天到期</span></div>
+      <div class="dlabels"><span class="lbl" style="--c:#ca8a04">计算失误<button type="button" data-act="label-rm" data-l="计算失误" aria-label="去掉标记 计算失误">×</button></span><button type="button" class="lbl-add" data-act="label-add" aria-haspopup="menu">+ 标记</button></div>
+      <div class="gapcard" id="gapcard">
+    <div class="gc-top"><span class="gc-t">题后留白</span><span class="gc-cm">约 1.9 cm 的书写空间</span></div>
+    <div class="gc-row">
+      <div class="step" role="group" aria-label="题后留白"><button type="button" data-act="gap-dec" aria-label="减少一行">−</button><output aria-live="polite"><b>4</b><span>行</span></output><button type="button" data-act="gap-inc" aria-label="增加一行">+</button></div>
+      <div class="gc-inh">跟随板的默认值<br>改动后只影响这道题</div>
+    </div>
+    <div class="presets" role="group" aria-label="常用行数"><button type="button" data-act="gap-set" data-v="0" class="">0</button><button type="button" data-act="gap-set" data-v="2" class="">2</button><button type="button" data-act="gap-set" data-v="4" class="on">4</button><button type="button" data-act="gap-set" data-v="6" class="">6</button><button type="button" data-act="gap-set" data-v="8" class="">8</button><button type="button" data-act="gap-set" data-v="12" class="">12</button><button type="button" data-act="gap-set" data-v="16" class="">16</button><span>行</span></div>
+    <p class="gc-hint">也可以直接在纸面上拖这道题下方的蓝线；选中题目后按 <kbd>[</kbd> <kbd>]</kbd> 增减一行。</p>
+    
+  </div>
+      <section class="dsec"><h4>题面</h4><div class="qtext">已知 <span class="m">|<span class="vec"><i>a</i></span>|<span class="op">=</span>2</span>，<span class="m">|<span class="vec"><i>b</i></span>|<span class="op">=</span>1</span>，<span class="m"><span class="vec"><i>a</i></span>·<span class="vec"><i>b</i></span><span class="op">=</span>1</span>，求 <span class="m"><span class="vec"><i>a</i></span></span> 与 <span class="m"><span class="vec"><i>b</i></span></span> 的夹角及 <span class="m">|<span class="vec"><i>a</i></span><span class="op">−</span>2<span class="vec"><i>b</i></span>|</span>。</div></section>
+      <section class="dsec"><h4>答案与错因</h4><button type="button" class="reveal" data-act="reveal"><svg class="i" aria-hidden="true"><use href="#i-eye"></use></svg>显示答案与错因</button></section>
+      <section class="dsec"><h4>练习记录</h4><div class="streak" aria-hidden="true"><i class="ok" style="height:24.6px" title="8 月 2 日 答对 · 8 分"></i><i class="bad" style="height:15.8px" title="8 月 9 日 答错 · 4 分"></i><i class="bad" style="height:11.4px" title="8 月 18 日 答错 · 2 分"></i></div>
+    <p class="rec-tx">练习 3 次，答对 1 次。最近一次在 8 月 18 日，答错，自评 2 分。</p></section>
+    </div>
+    <div class="dfoot"><button type="button" class="btn sm" data-act="edit"><svg class="i" aria-hidden="true"><use href="#i-pencil"></use></svg>编辑题目</button><button type="button" class="btn ghost sm" data-act="open-lib">在题库中查看</button><span class="grow"></span><button type="button" class="btn ghost sm warn-text" data-act="remove" title="从这个板移出（Delete）"><svg class="i" aria-hidden="true"><use href="#i-trash"></use></svg>移出</button></div></div>
+      </section>
+    </div>
+  </main>
+</div>
+<div id="measure" class="pt" aria-hidden="true" style="width: 347.055px;"><div><div class="qh"><div class="qh-l"><span class="no">88</span><span class="uid">有机1</span><span class="plbl" style="--c:#ca8a04">计算失误</span></div><div class="qm">化学 · 有机 · 难度 3</div></div><div class="qt">写出乙醇在铜催化下被氧气氧化的化学方程式。</div></div></div>
+<div id="toasts" aria-live="polite"></div>
+<script>
+'use strict';
+/* ═════════ 工具 ═════════ */
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ic = (n, c = '') => `<svg class="i${c ? ' ' + c : ''}" aria-hidden="true"><use href="#i-${n}"/></svg>`;
+function hashStr(s) { let h = 2166136261; for (const ch of s) { h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+const T = s => new Date(s).getTime();
+const pad2 = n => String(n).padStart(2, '0');
+function fmtTime(ts) { const d = new Date(ts); return `${d.getMonth() + 1} 月 ${d.getDate()} 日 ${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
+function fmtDay(ts) { const d = new Date(ts); return `${d.getMonth() + 1} 月 ${d.getDate()} 日`; }
+function ago(ts) { const s = (Date.now() - ts) / 1000; if (s < 50) return '刚刚'; if (s < 3600) return `${Math.max(1, Math.round(s / 60))} 分钟前`; if (s < 86400) return `${Math.round(s / 3600)} 小时前`; return fmtDay(ts); }
+const dueTx = d => d < 0 ? `逾期 ${-d} 天` : d === 0 ? '今天到期' : `${d} 天后到期`;
+let SEQ = 100; const newId = p => `${p}${++SEQ}`;
+
+/* 纸面几何：与导出模板 board.css / board.js 同解 */
+const MM = 3.779528, PW = 793.7, PH = 1122.52, LINE = 18;
+const MX = 10 * MM, MT = 12 * MM, MB = 12 * MM + 8.5 * MM, HEADH = 39;
+const CW = PW - 2 * MX;
+const AVAIL = PH - MT - MB - HEADH;
+const colW = r => (CW - 24) * (1 - r);
+const cm = l => (l * LINE / MM / 10).toFixed(1);
+
+/* ═════════ 公式：TeX 子集 → HTML（只为示例数据） ═════════ */
+const GREEK = { alpha: 'α', beta: 'β', gamma: 'γ', theta: 'θ', pi: 'π', omega: 'ω', lambda: 'λ', mu: 'μ', varphi: 'φ', phi: 'φ', Delta: 'Δ', sigma: 'σ', rho: 'ρ', epsilon: 'ε' };
+const SYMS = { cdot: '·', times: '×', le: '≤', leq: '≤', ge: '≥', geq: '≥', ne: '≠', to: '→', infty: '∞', triangle: '△', angle: '∠', circ: '°', in: '∈', pm: '±', rightleftharpoons: '⇌', cdots: '⋯', ldots: '…', sim: '∼', perp: '⊥', parallel: '∥', cap: '∩', cup: '∪', quad: '\u2003', ',': '\u2009', ';': '\u2005', ' ': '\u2004', '{': '{', '}': '}', '%': '%', '|': '‖' };
+const REL = new Set(['=', '<', '>', '≤', '≥', '≠', '→', '⇌', '∈', '∼', '+', '−', '±', '×', '∥', '⊥']);
+const FNS = new Set(['sin', 'cos', 'tan', 'ln', 'log', 'lim', 'max', 'min', 'exp']);
+function tex(src) {
+  let i = 0, rm = false, lastOp = true;
+  const op = ch => { const unary = lastOp && (ch === '−' || ch === '+'); lastOp = true; return unary ? ch : `<span class="op">${ch}</span>`; };
+  const val = s => { lastOp = false; return s; };
+  function grp() { while (src[i] === ' ') i++; if (src[i] === '{') { i++; const s = seq('}'); i++; return s; } return tok(); }
+  function seq(end) { let s = ''; while (i < src.length && src[i] !== end) s += tok(); return s; }
+  function tok() {
+    const c = src[i];
+    if (c === ' ') { i++; return ''; }
+    if (c === '\\') {
+      let j = i + 1;
+      if (/[A-Za-z]/.test(src[j])) { while (j < src.length && /[A-Za-z]/.test(src[j])) j++; } else j++;
+      const name = src.slice(i + 1, j); i = j;
+      if (name === 'frac' || name === 'dfrac') { const a = grp(), b = grp(); return val(`<span class="fr"><span>${a}</span><span>${b}</span></span>`); }
+      if (name === 'sqrt') { const a = grp(); return val(`<span class="sq">√<span class="sq-b">${a}</span></span>`); }
+      if (name === 'vec') { const a = grp(); return val(`<span class="vec">${a}</span>`); }
+      if (name === 'mathrm' || name === 'text' || name === 'mathbb') { const p = rm; rm = true; const a = grp(); rm = p; return val(`<span class="rm">${a}</span>`); }
+      if (name === 'left' || name === 'right') { while (src[i] === ' ') i++; if (src[i] === '.') { i++; return ''; } return tok(); }
+      if (name === 'xrightarrow') { const a = grp(); lastOp = true; return `<span class="xra"><span>${a}</span>→</span>`; }
+      if (FNS.has(name)) { lastOp = true; return `<span class="fn">${name}</span>`; }
+      if (GREEK[name]) return val(rm ? GREEK[name] : `<i>${GREEK[name]}</i>`);
+      if (SYMS[name] != null) { const s = SYMS[name]; return REL.has(s) ? op(s) : val(s); }
+      return val(esc(name));
+    }
+    if (c === '^' || c === '_') { i++; const a = grp(); return val(c === '^' ? `<sup>${a}</sup>` : `<sub>${a}</sub>`); }
+    if (c === '{') { i++; const s = seq('}'); i++; return s; }
+    i++;
+    if (/[A-Za-z]/.test(c)) return val(rm ? c : `<i>${c}</i>`);
+    if (c === '-') return rm ? val('-') : op('−');
+    if ('=<>+'.includes(c)) return op(esc(c));
+    if (c === '(' || c === '[') { lastOp = true; return c; }
+    if (c === ',') { lastOp = true; return ',\u2009'; }
+    return val(esc(c));
+  }
+  return seq(undefined);
+}
+function rich(s) {
+  let out = '', last = 0, m;
+  const re = /\$\$([\s\S]+?)\$\$|\$([^$]+?)\$/g;
+  while ((m = re.exec(s))) {
+    out += esc(s.slice(last, m.index)).replace(/\n/g, '<br>');
+    out += m[1] != null ? `<span class="m" style="display:block;text-align:center">${tex(m[1])}</span>` : `<span class="m">${tex(m[2])}</span>`;
+    last = re.lastIndex;
+  }
+  return out + esc(s.slice(last)).replace(/\n/g, '<br>');
+}
+const plain = s => s.replace(/\\(frac|sqrt|vec|mathrm|text|left|right)/g, '').replace(/\\([a-zA-Z]+)/g, (_, n) => GREEK[n] || SYMS[n] || n).replace(/[${}^_\\]/g, '');
+
+/* ═════════ 示意图 ═════════ */
+function sineSvg() {
+  let d = '';
+  for (let x = 0; x <= 200; x += 2) { const y = 55 - 34 * Math.sin((x / 100) * 2 * Math.PI + Math.PI / 3); d += (x ? 'L' : 'M') + (24 + x).toFixed(1) + ' ' + y.toFixed(1); }
+  return `<svg viewBox="0 0 240 110" width="208" height="95" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M14 55H232M24 106V6" stroke-width=".9"/><path d="M228 52l4 3-4 3M21 10l3-4 3 4" stroke-width=".9"/><path d="M24 21H232" stroke-dasharray="3 3" stroke-width=".7"/><path d="${d}" stroke-width="1.5"/><g fill="currentColor" stroke="none" font-family="Times New Roman,serif" font-size="11"><text x="227" y="68" font-style="italic">x</text><text x="30" y="12" font-style="italic">y</text><text x="12" y="67">O</text><text x="13" y="25">2</text></g></svg>`;
+}
+const FIG = {
+  sine: sineSvg(),
+  tri: `<svg viewBox="0 0 220 126" width="186" height="106" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M20 108 L200 108 L70 21 Z" stroke-linejoin="round"/><path d="M38 108 A18 18 0 0 0 29 92.4" stroke-width="1"/><g fill="currentColor" stroke="none" font-family="Times New Roman,serif" font-size="12"><text x="7" y="120">C</text><text x="203" y="120">B</text><text x="64" y="15">A</text><text x="106" y="123" font-style="italic">a</text><text x="33" y="64" font-style="italic">b</text><text x="140" y="60" font-style="italic">c</text><text x="41" y="102" font-size="10">60°</text></g></svg>`,
+  ellipse: `<svg viewBox="0 0 240 126" width="196" height="103" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M10 64H232M120 120V6" stroke-width=".8"/><ellipse cx="120" cy="64" rx="90" ry="48" stroke-width="1.4"/><path d="M75 64 L165 22.4 L165 64" stroke-width="1"/><g fill="currentColor" stroke="none"><circle cx="75" cy="64" r="2.2"/><circle cx="165" cy="64" r="2.2"/><circle cx="165" cy="22.4" r="2.2"/></g><g fill="currentColor" stroke="none" font-family="Times New Roman,serif" font-size="11.5" font-style="italic"><text x="66" y="78">F<tspan font-size="8" dy="3">1</tspan></text><text x="168" y="78">F<tspan font-size="8" dy="3">2</tspan></text><text x="170" y="18">P</text><text x="226" y="77">x</text><text x="125" y="12">y</text></g></svg>`,
+  incline: `<svg viewBox="0 0 240 112" width="200" height="93" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M20 100H224V30Z" stroke-linejoin="round"/><g transform="translate(140 58.8) rotate(-18.93)"><rect x="-17" y="-21" width="34" height="21" rx="1"/></g><path d="M54 100 A34 34 0 0 0 52.2 89" stroke-width="1"/><g fill="currentColor" stroke="none" font-family="Times New Roman,serif" font-size="12" font-style="italic"><text x="60" y="97">θ</text><text x="128" y="36">m</text></g></svg>`,
+};
+
+/* ═════════ 示例数据 ═════════ */
+const LABELS = [{ name: '考前必看', c: '#dc2626' }, { name: '计算失误', c: '#ca8a04' }, { name: '概念不清', c: '#2563eb' }, { name: '审题不清', c: '#7c3aed' }];
+const LBL = Object.fromEntries(LABELS.map(l => [l.name, l]));
+const R = String.raw;
+const LIB = [
+  { uid: '三角函数1', subject: '数学', category: '三角函数', diff: 6, mastery: .28, status: '待攻克', due: -2, labels: ['考前必看', '概念不清'], kp: ['同角关系'],
+    q: R`已知 $\sin\alpha+\cos\alpha=\frac{1}{5}$，且 $0<\alpha<\pi$，求 $\tan\alpha$ 的值。`,
+    a: R`两边平方得 $2\sin\alpha\cos\alpha=-\frac{24}{25}<0$，又 $0<\alpha<\pi$，所以 $\alpha$ 在第二象限，$\sin\alpha-\cos\alpha>0$。由 $(\sin\alpha-\cos\alpha)^2=\frac{49}{25}$ 得 $\sin\alpha-\cos\alpha=\frac{7}{5}$，解得 $\sin\alpha=\frac{4}{5}$，$\cos\alpha=-\frac{3}{5}$，故 $\tan\alpha=-\frac{4}{3}$。`,
+    why: '平方后没有判断 sinα − cosα 的符号，漏了象限讨论，最后写了两个答案。' },
+  { uid: '三角函数2', subject: '数学', category: '三角函数', diff: 5, mastery: .46, status: '易错', due: 0, labels: ['考前必看'], kp: ['辅助角公式'], fig: 'sine',
+    q: R`求函数 $y=\sin 2x+\sqrt{3}\cos 2x$ 的最小正周期与最大值，并写出取得最大值时 $x$ 的取值集合。`,
+    a: R`$y=2\sin\left(2x+\frac{\pi}{3}\right)$，最小正周期 $T=\pi$，最大值为 $2$，此时 $x=\frac{\pi}{12}+k\pi$，$k\in\mathbb{Z}$。`,
+    why: '辅助角合并时把 √3 当成 3，振幅算成了 √10。' },
+  { uid: '三角函数3', subject: '数学', category: '三角函数', diff: 4, mastery: .61, status: '待攻克', due: 3, labels: ['计算失误'], kp: ['余弦定理'], fig: 'tri',
+    q: R`在 $\triangle ABC$ 中，$a=3$，$b=4$，$C=60^\circ$，求 $c$ 及 $\triangle ABC$ 的面积。`,
+    a: R`$c^2=a^2+b^2-2ab\cos C=9+16-12=13$，所以 $c=\sqrt{13}$；面积 $S=\frac{1}{2}ab\sin C=3\sqrt{3}$。`,
+    why: '把 2ab·cosC 算成 24，c² 得到 1，没检查是否满足三角形三边关系。' },
+  { uid: '三角函数4', subject: '数学', category: '三角函数', diff: 4, mastery: .42, status: '易错', due: -1, labels: ['考前必看'], kp: ['诱导公式'],
+    q: R`化简：$\frac{\sin(\pi-\alpha)\cos(2\pi-\alpha)}{\cos(-\alpha)\tan(\pi+\alpha)}$。`,
+    a: R`原式 $=\frac{\sin\alpha\cos\alpha}{\cos\alpha\tan\alpha}=\cos\alpha$。`,
+    why: '诱导公式符号记混，把 tan(π + α) 写成了 −tanα。' },
+  { uid: '数列1', subject: '数学', category: '数列', diff: 3, mastery: .72, status: '待攻克', due: 6, labels: [], kp: ['等比数列'],
+    q: R`等比数列 $\{a_n\}$ 中，$a_2=2$，$a_5=16$，求公比 $q$ 与前 $n$ 项和 $S_n$。`,
+    a: R`$q^3=\frac{a_5}{a_2}=8$，$q=2$，$a_1=1$，$S_n=\frac{1-2^n}{1-2}=2^n-1$。`,
+    why: '求和公式分子分母写反，结果多了一个负号。' },
+  { uid: '数列2', subject: '数学', category: '数列', diff: 5, mastery: .35, status: '易错', due: -1, labels: ['考前必看'], kp: ['构造法'],
+    q: R`已知数列 $\{a_n\}$ 满足 $a_1=1$，$a_{n+1}=2a_n+1$，求 $\{a_n\}$ 的通项公式。`,
+    a: R`由 $a_{n+1}+1=2(a_n+1)$ 知 $\{a_n+1\}$ 是首项为 $2$、公比为 $2$ 的等比数列，故 $a_n+1=2^n$，$a_n=2^n-1$。`,
+    why: '没想到两边同时加 1 构造等比数列，硬算前几项猜答案。' },
+  { uid: '数列3', subject: '数学', category: '数列', diff: 4, mastery: .55, status: '待攻克', due: 2, labels: ['计算失误'], kp: ['裂项相消'],
+    q: R`求和：$S_n=\frac{1}{1\times 2}+\frac{1}{2\times 3}+\cdots+\frac{1}{n(n+1)}$。`,
+    a: R`$\frac{1}{k(k+1)}=\frac{1}{k}-\frac{1}{k+1}$，相加后中间项相消，$S_n=1-\frac{1}{n+1}=\frac{n}{n+1}$。`,
+    why: '裂项后首尾剩余的项数没数清。' },
+  { uid: '数列4', subject: '数学', category: '数列', diff: 3, mastery: .81, status: '已击杀', due: 12, labels: [], kp: ['aₙ 与 Sₙ'],
+    q: R`已知数列 $\{a_n\}$ 的前 $n$ 项和 $S_n=n^2+n$，求 $a_n$。`,
+    a: R`$n=1$ 时 $a_1=2$；$n\ge 2$ 时 $a_n=S_n-S_{n-1}=2n$，$n=1$ 也符合，故 $a_n=2n$。`,
+    why: '忘了单独验证 n = 1。' },
+  { uid: '函数1', subject: '数学', category: '函数', diff: 6, mastery: .22, status: '待攻克', due: -3, labels: ['考前必看', '概念不清'], kp: ['导数与单调性'],
+    q: R`设函数 $f(x)=\ln x-ax$。若 $f(x)$ 在 $[1,+\infty)$ 上单调递减，求实数 $a$ 的取值范围。`,
+    a: R`$f'(x)=\frac{1}{x}-a\le 0$ 在 $[1,+\infty)$ 上恒成立，即 $a\ge\frac{1}{x}$ 恒成立，而 $\frac{1}{x}$ 在 $[1,+\infty)$ 上的最大值为 $1$，所以 $a\ge 1$。`,
+    why: '恒成立问题取了最小值，方向弄反。' },
+  { uid: '函数2', subject: '数学', category: '函数', diff: 4, mastery: .58, status: '待攻克', due: 4, labels: [], kp: ['极值'],
+    q: R`求函数 $f(x)=x^3-3x$ 的单调区间与极值。`,
+    a: R`$f'(x)=3x^2-3$。增区间为 $(-\infty,-1)$ 和 $(1,+\infty)$，减区间为 $(-1,1)$；极大值 $f(-1)=2$，极小值 $f(1)=-2$。`,
+    why: '把两个增区间用「∪」连接了。' },
+  { uid: '函数3', subject: '数学', category: '函数', diff: 5, mastery: .4, status: '易错', due: 1, labels: ['审题不清'], kp: ['对数比较'],
+    q: R`比较 $\log_2 3$ 与 $\log_3 4$ 的大小，并说明理由。`,
+    a: R`取中间量 $\frac{3}{2}$：$\log_2 3>\log_2 2\sqrt{2}=\frac{3}{2}$，$\log_3 4<\log_3 3\sqrt{3}=\frac{3}{2}$，所以 $\log_2 3>\log_3 4$。`,
+    why: '直接用换底公式估算近似值，考场上耗时太久。' },
+  { uid: '函数4', subject: '数学', category: '函数', diff: 6, mastery: .3, status: '待攻克', due: -5, labels: ['概念不清'], kp: ['含参讨论'],
+    q: R`已知函数 $f(x)=e^x-ax-1$，讨论 $f(x)$ 的单调性。`,
+    a: R`$f'(x)=e^x-a$。当 $a\le 0$ 时，$f(x)$ 在 $\mathbb{R}$ 上单调递增；当 $a>0$ 时，在 $(-\infty,\ln a)$ 上递减，在 $(\ln a,+\infty)$ 上递增。`,
+    why: '漏掉 a ≤ 0 的情况。' },
+  { uid: '解析几何1', subject: '数学', category: '解析几何', diff: 4, mastery: .66, status: '待攻克', due: 5, labels: [], kp: ['椭圆的定义'], fig: 'ellipse',
+    q: R`椭圆 $\frac{x^2}{4}+\frac{y^2}{3}=1$ 的左、右焦点分别为 $F_1$、$F_2$，点 $P$ 在椭圆上，求 $\triangle PF_1F_2$ 的周长与椭圆的离心率。`,
+    a: R`$a=2$，$b=\sqrt{3}$，$c=1$。周长为 $2a+2c=6$，离心率 $e=\frac{c}{a}=\frac{1}{2}$。`,
+    why: '把 c² = a² − b² 记成了 a² + b²。' },
+  { uid: '解析几何2', subject: '数学', category: '解析几何', diff: 5, mastery: .38, status: '易错', due: -1, labels: ['考前必看'], kp: ['抛物线焦点弦'],
+    q: R`过抛物线 $y^2=4x$ 的焦点 $F$ 作直线交抛物线于 $A(x_1,y_1)$、$B(x_2,y_2)$ 两点，若 $x_1+x_2=6$，求 $|AB|$。`,
+    a: R`由抛物线的定义，$|AB|=x_1+x_2+p=6+2=8$。`,
+    why: '把 p 取成了 4。' },
+  { uid: '解析几何3', subject: '数学', category: '解析几何', diff: 3, mastery: .76, status: '已击杀', due: 10, labels: [], kp: ['直线与圆'],
+    q: R`判断直线 $y=kx+1$ 与圆 $x^2+y^2=4$ 的位置关系。`,
+    a: R`直线过定点 $(0,1)$，而该点在圆内，所以直线与圆相交。`,
+    why: '按 k 分类讨论距离，没注意到定点。' },
+  { uid: '向量1', subject: '数学', category: '向量', diff: 4, mastery: .5, status: '待攻克', due: 0, labels: ['计算失误'], kp: ['数量积'],
+    q: R`已知 $|\vec{a}|=2$，$|\vec{b}|=1$，$\vec{a}\cdot\vec{b}=1$，求 $\vec{a}$ 与 $\vec{b}$ 的夹角及 $|\vec{a}-2\vec{b}|$。`,
+    a: R`$\cos\theta=\frac{\vec{a}\cdot\vec{b}}{|\vec{a}||\vec{b}|}=\frac{1}{2}$，夹角为 $\frac{\pi}{3}$；$|\vec{a}-2\vec{b}|^2=4-4+4=4$，所以 $|\vec{a}-2\vec{b}|=2$。`,
+    why: '展开平方时漏掉交叉项系数 4。' },
+  { uid: '概率统计1', subject: '数学', category: '概率统计', diff: 2, mastery: .7, status: '待攻克', due: 8, labels: [], kp: ['古典概型'],
+    q: R`同时掷两枚质地均匀的骰子，求向上的点数之和为 $7$ 的概率。`,
+    a: R`基本事件共 $36$ 个，和为 $7$ 的有 $6$ 个，概率为 $\frac{1}{6}$。`,
+    why: '把 (1, 6) 和 (6, 1) 当成同一种情况。' },
+  { uid: '概率统计2', subject: '数学', category: '概率统计', diff: 3, mastery: .44, status: '易错', due: -2, labels: ['考前必看'], kp: ['二项分布'],
+    q: R`设随机变量 $X\sim B(10,0.3)$，求 $E(X)$ 与 $D(X)$。`,
+    a: R`$E(X)=np=3$，$D(X)=np(1-p)=2.1$。`,
+    why: '方差公式漏乘 (1 − p)。' },
+  { uid: '立体几何1', subject: '数学', category: '立体几何', diff: 5, mastery: .5, status: '待攻克', due: 9, labels: [], kp: ['异面直线所成角'], suspended: true,
+    q: R`在正方体 $ABCD\text{-}A_1B_1C_1D_1$ 中，求异面直线 $A_1B$ 与 $B_1C$ 所成角的大小。`,
+    a: R`连接 $A_1D$，则 $A_1D\parallel B_1C$，$\triangle A_1BD$ 为等边三角形，所成角为 $60^\circ$。`,
+    why: '平移后找错了角。' },
+  { uid: '力学1', subject: '物理', category: '力学', diff: 3, mastery: .62, status: '待攻克', due: 2, labels: ['概念不清'], kp: ['牛顿第二定律'], fig: 'incline',
+    q: R`质量为 $m$ 的物块从倾角为 $\theta$ 的光滑斜面顶端由静止下滑，求物块的加速度大小和斜面对它的支持力。`,
+    a: R`沿斜面方向 $mg\sin\theta=ma$，得 $a=g\sin\theta$；垂直斜面方向 $N=mg\cos\theta$。`,
+    why: '把重力沿斜面的分力写成 mg·cosθ。' },
+  { uid: '力学2', subject: '物理', category: '力学', diff: 3, mastery: .54, status: '待攻克', due: 1, labels: [], kp: ['平抛运动'],
+    q: R`物体以初速度 $v_0$ 从高 $h$ 处水平抛出，不计空气阻力，求水平位移和落地时的速度大小。`,
+    a: R`$t=\sqrt{\frac{2h}{g}}$，$x=v_0\sqrt{\frac{2h}{g}}$，$v=\sqrt{v_0^2+2gh}$。`,
+    why: '落地速度只算了竖直分量。' },
+  { uid: '力学3', subject: '物理', category: '力学', diff: 5, mastery: .33, status: '易错', due: -4, labels: ['审题不清'], kp: ['连接体'],
+    q: R`轻绳跨过光滑定滑轮连接质量为 $m_1$、$m_2$ 的两物块（$m_1>m_2$），由静止释放，求加速度大小与绳中拉力。`,
+    a: R`整体法 $a=\frac{(m_1-m_2)g}{m_1+m_2}$；隔离 $m_2$ 得 $T=m_2(g+a)=\frac{2m_1m_2g}{m_1+m_2}$。`,
+    why: '隔离法时拉力方向画反。' },
+  { uid: '力学4', subject: '物理', category: '力学', diff: 4, mastery: .47, status: '待攻克', due: 3, labels: [], kp: ['竖直面圆周运动'],
+    q: R`用长为 $r$ 的细绳拴一小球在竖直平面内做圆周运动，求小球恰好通过最高点时的速度。`,
+    a: R`恰好通过时只有重力提供向心力，$mg=\frac{mv^2}{r}$，$v=\sqrt{gr}$。`,
+    why: '和轻杆模型混淆，以为最高点速度可以为 0。' },
+  { uid: '电磁学1', subject: '物理', category: '电磁学', diff: 3, mastery: .69, status: '待攻克', due: 7, labels: [], kp: ['电磁感应'],
+    q: R`长为 $L$ 的导体棒以速度 $v$ 垂直切割磁感应强度为 $B$ 的匀强磁场，求棒中的感应电动势。`,
+    a: R`$E=BLv$。`, why: '速度与棒不垂直时忘了取有效长度。' },
+  { uid: '电磁学2', subject: '物理', category: '电磁学', diff: 4, mastery: .45, status: '易错', due: -2, labels: ['概念不清'], kp: ['洛伦兹力'],
+    q: R`电荷量为 $q$、质量为 $m$ 的粒子以速度 $v$ 垂直进入磁感应强度为 $B$ 的匀强磁场，求轨道半径和周期。`,
+    a: R`$qvB=\frac{mv^2}{r}$，$r=\frac{mv}{qB}$，$T=\frac{2\pi m}{qB}$。`, why: '以为周期和速度有关。' },
+  { uid: '电磁学3', subject: '物理', category: '电磁学', diff: 4, mastery: .52, status: '待攻克', due: 5, labels: [], kp: ['动态电路'],
+    q: '闭合电路中，滑动变阻器的滑片向右移动使接入电阻变大，判断电流表与电压表的示数如何变化。',
+    a: '外电阻增大，干路电流减小，内电压减小，路端电压增大：电流表示数变小，电压表示数变大。', why: '忽略了电源内阻。' },
+  { uid: '反应原理1', subject: '化学', category: '反应原理', diff: 3, mastery: .6, status: '待攻克', due: 4, labels: [], kp: ['化学平衡'],
+    q: R`对于反应 $\mathrm{N_2+3H_2\rightleftharpoons 2NH_3}$，其他条件不变时增大压强，平衡如何移动？`,
+    a: '向气体分子数减少的方向，即正反应方向移动。', why: '只看了化学计量数之和，没看物质状态。' },
+  { uid: '反应原理2', subject: '化学', category: '反应原理', diff: 2, mastery: .74, status: '已击杀', due: 11, labels: [], kp: ['原电池'],
+    q: '原电池工作时，电子和溶液中的阳离子分别向哪一极移动？',
+    a: '电子由负极经导线流向正极；溶液中的阳离子移向正极。', why: '把电子流向和电流方向搞混。' },
+  { uid: '有机1', subject: '化学', category: '有机', diff: 3, mastery: .48, status: '待攻克', due: 0, labels: ['计算失误'], kp: ['醇的性质'],
+    q: '写出乙醇在铜催化下被氧气氧化的化学方程式。',
+    a: R`$\mathrm{2CH_3CH_2OH+O_2\xrightarrow{Cu,\triangle}2CH_3CHO+2H_2O}$`, why: '产物写成了乙酸。' },
+  { uid: '语法1', subject: '英语', category: '语法', diff: 2, mastery: .64, status: '待攻克', due: 3, labels: [], kp: ['虚拟语气'],
+    q: 'If I ___ you, I would take the offer.', a: 'were。与现在事实相反的虚拟语气，be 动词一律用 were。', why: '按主语 I 选了 was。' },
+  { uid: '语法2', subject: '英语', category: '语法', diff: 3, mastery: .41, status: '易错', due: -1, labels: ['审题不清'], kp: ['强调句'],
+    q: 'It was not until midnight ___ he finished the report.', a: 'that。not until 的强调句结构：It was not until … that …', why: '看成时间状语从句，填了 when。' },
+  { uid: '语法3', subject: '英语', category: '语法', diff: 3, mastery: .37, status: '易错', due: 1, labels: ['审题不清'], kp: ['非谓语动词'],
+    q: '___ from the top of the hill, the town looks beautiful.', a: 'Seen。过去分词作状语，the town 与 see 是被动关系。', why: '没看逻辑主语，选了 Seeing。' },
+  { uid: '词汇1', subject: '英语', category: '词汇', diff: 2, mastery: .7, status: '待攻克', due: 6, labels: [], kp: ['易混词'],
+    q: '辨析 affect 与 effect，并各造一个句子。', a: 'affect 是动词「影响」；effect 多作名词「效果」。例：The weather affects my mood. / The medicine had no effect.', why: '两个词词性混用。' },
+];
+const QMAP = Object.fromEntries(LIB.map(q => [q.uid, q]));
+LIB.forEach(q => {
+  let h = hashStr(q.uid) || 7;
+  const rnd = () => { h ^= h << 13; h >>>= 0; h ^= h >>> 17; h ^= h << 5; h >>>= 0; return (h % 10000) / 10000; };
+  const n = 3 + Math.floor(rnd() * 4); let day = T('2026-07-28T20:00');
+  q.records = Array.from({ length: n }, () => {
+    day += (4 + Math.floor(rnd() * 6)) * 86400000;
+    const ok = rnd() < .2 + q.mastery * .72;
+    return { t: day, ok, s: ok ? 6 + Math.floor(rnd() * 5) : Math.floor(rnd() * 5) };
+  });
+});
+
+const DEFAULT_PRINT = { ratio: .5, gap: 2, answers: 'none', labels: true, meta: true, cut: 'dash', cutLabel: false, locked: false };
+function mkBoard(id, name, folder, note, uids, o = {}) {
+  const print = { ...DEFAULT_PRINT, ...(o.print || {}) };
+  const items = uids.map((u, i) => ({ uid: u, gap: o.gaps?.[u] ?? null, added: (o.printed && i >= o.printed.n ? T('2026-09-24T21:00') : T('2026-09-10T20:00')) + i * 60000 }));
+  let printed = null;
+  if (o.printed) {
+    const pu = uids.slice(0, o.printed.n);
+    printed = { at: T(o.printed.at), uids: pu, gaps: Object.fromEntries(pu.map(u => [u, o.gaps?.[u] ?? print.gap])), print: { ratio: print.ratio, gap: print.gap, labels: print.labels, meta: print.meta } };
+  }
+  return { id, name, folder, note, items, print, printed, syncLabel: o.sync || null, syncedAt: o.synced || null, changed: new Set(o.changed || []), mode: o.mode || 'all', awaiting: null };
+}
+const S = {
+  folders: [{ id: 'f1', name: '高三上 · 期中', open: true }, { id: 'f2', name: '物理专项', open: true }],
+  boards: [
+    mkBoard('b1', '期中冲刺 · 数学', 'f1', '10 月 12 日月考前过一遍',
+      ['三角函数1', '三角函数2', '三角函数3', '数列1', '数列2', '数列3', '函数1', '函数2', '函数3', '解析几何1', '向量1', '概率统计1', '解析几何2', '立体几何1'],
+      { gaps: { '三角函数3': 10, '函数1': 8, '解析几何1': 6, '数列1': 3 }, print: { gap: 4 }, printed: { n: 10, at: '2026-09-20T14:32' }, sync: '考前必看', synced: T('2026-09-20T14:10'), changed: ['数列3'], mode: 'new' }),
+    mkBoard('b2', '函数与导数专项', 'f1', '', ['函数1', '函数2', '函数3', '函数4', '数列4', '解析几何3'], { sync: '概念不清', print: { gap: 5 } }),
+    mkBoard('b3', '力学易错', 'f2', '', ['力学1', '力学2', '力学3', '力学4'], { printed: { n: 4, at: '2026-09-12T20:05' }, print: { gap: 6 } }),
+    mkBoard('b4', '电磁学综合', 'f2', '晚自习用', ['电磁学1', '电磁学2', '电磁学3'], { printed: { n: 2, at: '2026-09-18T21:40' }, mode: 'new', print: { gap: 5 } }),
+    mkBoard('b5', '英语语法 · 易混点', null, '', ['语法1', '语法2', '语法3', '词汇1'], { print: { gap: 3 } }),
+    mkBoard('b6', '化学反应原理', null, '', ['反应原理1', '反应原理2', '有机1'], { printed: { n: 3, at: '2026-09-08T19:20' }, print: { gap: 5 } }),
+  ],
+  cur: 'b1', sel: null, panel: 'list', zoom: 'fit', boardsOpen: true, bq: '',
+  creating: null, creatingFolder: false, renaming: null, renamingFolder: null, titleEdit: false,
+  reveal: false, flash: new Set(), scale: 1, model: null, pop: null, drag: null, saving: false,
+};
+</script>
+<script>
+/* ═════════ 派生状态 ═════════ */
+const cur = () => S.boards.find(b => b.id === S.cur) || null;
+const folderOf = b => S.folders.find(f => f.id === b.folder) || null;
+const itemOf = (b, uid) => b?.items.find(i => i.uid === uid) || null;
+const activeItems = b => b.items.filter(i => QMAP[i.uid] && !QMAP[i.uid].suspended);
+const effGap = (it, p) => it.gap == null ? p.gap : it.gap;
+const isPrinted = (b, uid) => !!b.printed && b.printed.uids.includes(uid);
+const lockedFor = (b, uid) => b.print.locked && isPrinted(b, uid);
+function pendingSync(b) { if (!b.syncLabel) return []; const inB = new Set(b.items.map(i => i.uid)); return LIB.filter(q => !q.suspended && q.labels.includes(b.syncLabel) && !inB.has(q.uid)); }
+
+/* ═════════ 排版：测真实高度 → 贪心装页（同导出模板） ═════════ */
+const MC = new Map(); let MV = 0;
+function qBlockHtml(q, no, st) {
+  return `<div class="qh"><div class="qh-l"><span class="no">${no}</span><span class="uid">${esc(q.uid)}</span>${st.labels ? q.labels.map(n => `<span class="plbl" style="--c:${LBL[n]?.c || '#64748b'}">${esc(n)}</span>`).join('') : ''}</div>${st.meta ? `<div class="qm">${esc(q.subject)} · ${esc(q.category)} · 难度 ${q.diff}</div>` : ''}</div><div class="qt">${rich(q.q)}${q.fig ? `<div class="qfig">${FIG[q.fig]}</div>` : ''}</div>`;
+}
+function aBlockHtml(q, no) { return `<div class="ah">${no}. ${esc(q.uid)}</div><div class="at">${rich(q.a)}</div><div class="an"><b>错因</b>${esc(q.why)}</div>`; }
+function measure(kind, q, st, w) {
+  const k = `${kind}|${q.uid}|${st.labels ? 1 : 0}${st.meta ? 1 : 0}|${w.toFixed(1)}|${q.labels.join(',')}`;
+  let h = MC.get(k);
+  if (h == null) {
+    const m = $('#measure'); m.style.width = w + 'px';
+    m.innerHTML = `<div>${kind === 'q' ? qBlockHtml(q, 88, st) : aBlockHtml(q, 88)}</div>`;
+    h = m.firstElementChild.getBoundingClientRect().height; MC.set(k, h);
+  }
+  return h;
+}
+function layoutSeq(entries, st, start) {
+  const w = colW(st.ratio); let page = start.page, y = start.y, idx = start.index; const blocks = [];
+  for (const e of entries) {
+    const q = QMAP[e.uid]; if (!q) continue;
+    const h = measure('q', q, st, w);
+    if (y > 0 && y + h > AVAIL) { page++; y = 0; }
+    const b = { uid: e.uid, page, y, h, index: idx++, gap: e.gap };
+    y += h;
+    const g = e.gap * LINE;
+    if (y + g >= AVAIL - .5) { b.gapH = Math.max(0, AVAIL - y); b.stuck = true; b.cutY = null; y = AVAIL; }
+    else { b.gapH = g; y += g; b.cutY = y; b.stuck = false; }
+    blocks.push(b);
+  }
+  return { blocks, cursor: { page, y }, last: page };
+}
+function layoutAnswers(uids, startPage, indexOf, st) {
+  const w = colW(st.ratio); let page = startPage, y = 44; const blocks = [];
+  for (const u of uids) { const q = QMAP[u]; const h = measure('a', q, st, w); if (y + h > AVAIL) { page++; y = 0; } blocks.push({ uid: u, page, y, h, index: indexOf[u] }); y += h; }
+  return { blocks, first: startPage, last: page };
+}
+const GEO = new WeakMap();
+function printedGeo(b) {
+  const P = b.printed; if (!P) return null;
+  const c = GEO.get(P); if (c && c.v === MV) return c.g;
+  const L = layoutSeq(P.uids.map(u => ({ uid: u, gap: P.gaps[u] ?? P.print.gap })), P.print, { page: 1, y: 0, index: 1 });
+  const pageOf = {}; L.blocks.forEach(x => { pageOf[x.uid] = x.page; });
+  const g = { pages: L.last, cursor: L.cursor, pageOf };
+  GEO.set(P, { v: MV, g }); return g;
+}
+function paperSum(b) {
+  if (!b.printed) return { pages: 0, count: 0, newCount: 0, changed: 0 };
+  const g = printedGeo(b); const ps = new Set(b.printed.uids); const act = activeItems(b);
+  return { pages: g.pages, count: b.printed.uids.length, newCount: act.filter(i => !ps.has(i.uid)).length, changed: act.filter(i => ps.has(i.uid) && b.changed.has(i.uid)).length, cursor: g.cursor, at: b.printed.at, pageOf: g.pageOf };
+}
+const scopeOf = b => { const s = paperSum(b); return b.mode === 'new' && s.pages && s.newCount ? 'new' : 'all'; };
+function paperModel(b) {
+  const act = activeItems(b); const sc = scopeOf(b);
+  if (sc === 'all') {
+    const st = b.print;
+    const L = layoutSeq(act.map(i => ({ uid: i.uid, gap: effGap(i, b.print) })), st, { page: 1, y: 0, index: 1 });
+    const M = { scope: 'all', st, ratio: st.ratio, first: 1, last: Math.max(1, L.last), blocks: L.blocks, ghost: null, ans: null };
+    if (b.print.answers === 'append' && L.blocks.length) {
+      const idx = {}; L.blocks.forEach(x => { idx[x.uid] = x.index; });
+      M.ans = layoutAnswers(L.blocks.map(x => x.uid), M.last + 1, idx, st); M.ans.title = '答案'; M.last = M.ans.last;
+    }
+    return M;
+  }
+  const P = b.printed, g = printedGeo(b), ps = new Set(P.uids);
+  const st = { ...b.print, ratio: P.print.ratio };
+  const nw = act.filter(i => !ps.has(i.uid));
+  const L = layoutSeq(nw.map(i => ({ uid: i.uid, gap: effGap(i, b.print) })), st, { page: g.cursor.page, y: g.cursor.y, index: P.uids.length + 1 });
+  const onFirst = L.blocks.some(x => x.page === g.cursor.page);
+  const M = { scope: 'new', st, ratio: st.ratio, first: onFirst ? g.cursor.page : g.cursor.page + 1, last: L.last, blocks: L.blocks,
+    ghost: onFirst && g.cursor.y > 0 ? { page: g.cursor.page, h: g.cursor.y, count: P.uids.length } : null, ans: null };
+  if (b.print.answers === 'append' && L.blocks.length) {
+    const idx = {}; L.blocks.forEach(x => { idx[x.uid] = x.index; });
+    M.ans = layoutAnswers(L.blocks.map(x => x.uid), M.last + 1, idx, st); M.ans.title = '答案（本次新增）'; M.last = M.ans.last;
+  }
+  return M;
+}
+
+/* ═════════ 渲染：纸面 ═════════ */
+function paperScale() {
+  if (S.zoom === '1') return 1;
+  const w = $('#desk').clientWidth - 64;
+  return clamp(w / PW, .38, 1);
+}
+function renderPaper() {
+  const b = cur(); const desk = $('#desk'); const sheets = $('#sheets'); const st = desk.scrollTop;
+  if (!b) { sheets.innerHTML = ''; return; }
+  const s = S.scale = paperScale();
+  if (!activeItems(b).length) { sheets.innerHTML = emptySheetHtml(b, s); S.model = null; updatePager(); return; }
+  const M = S.model = paperModel(b);
+  const sum = paperSum(b); const ps = new Set(b.printed?.uids || []);
+  let h = '';
+  for (let pn = M.first; pn <= M.last; pn++) h += pageHtml(pn, M, b, s, sum, ps);
+  sheets.innerHTML = h; desk.scrollTop = st; updatePager();
+}
+function emptySheetHtml(b, s) {
+  const hasItems = b.items.length > 0;
+  return `<div class="sheet" data-pn="1" style="width:${PW * s}px;height:${PH * s}px"><div class="page" style="transform:scale(${s})">
+    <div class="pg-h" style="left:${MX}px;top:${MT}px;width:${CW}px">错题集</div>
+    <div class="pempty"><b>${hasItems ? '板里的题目都已停用' : '这张纸还是空的'}</b><p>${hasItems ? '停用的题不会印上纸。可以在右侧把它们移出，再添加新的题目。' : '从题库挑几道题放进来，或者关联一个标记，<br>把打了这个标记的题一次同步进来。'}</p>
+    <div class="row"><button class="btn primary" data-act="add">${ic('plus')}添加题目</button><button class="btn" data-act="sync-pick">${ic('hex')}按标记同步</button></div></div>
+    <div class="pg-n">1</div></div></div>`;
+}
+function pageHtml(pn, M, b, s, sum, ps) {
+  const T0 = MT + HEADH, w = colW(M.ratio), st = M.st;
+  const partial = M.ghost && M.ghost.page === pn;
+  let h = `<div class="sheet" data-pn="${pn}" style="width:${PW * s}px;height:${PH * s}px"><div class="page${partial ? ' partial' : ''}" style="transform:scale(${s})">`;
+  h += `<div class="pg-h" style="left:${MX}px;top:${MT}px;width:${CW}px">错题集${st.meta ? '<span>2026-09-26</span>' : ''}</div>`;
+  if (partial) h += `<div class="pg-banner">这页印过一部分：把原来的第 ${pn} 页放回打印机，只会印出下方的新题</div><div class="pghost" style="left:${MX}px;top:${T0}px;width:${CW}px;height:${M.ghost.h}px"><span>已打印区域 · 第 1–${M.ghost.count} 题</span></div>`;
+  for (const x of M.blocks) {
+    if (x.page !== pn) continue;
+    const q = QMAP[x.uid], sel = S.sel === x.uid, top = T0 + x.y, zh = x.h + x.gapH;
+    const drag = S.drag === x.uid ? ' drag' : '';
+    const pillX = w + 24 + (CW - w - 24) / 2;
+    h += `<div class="zone${sel ? ' sel' : ''}" data-q="${esc(x.uid)}" style="left:${MX - 12}px;top:${top}px;width:${CW + 24}px;height:${zh}px">`
+      + (x.gapH > 0 ? `<div class="zone-gap" style="left:12px;top:${x.h}px;width:${CW}px;height:${x.gapH}px"></div>` : '')
+      + `<div class="gh${drag}" data-gap="${esc(x.uid)}" title="上下拖动，调整这道题的留白" style="left:12px;top:${zh - 11}px;width:${CW}px"><span class="gh-pill" style="left:${pillX}px">${ic('updown')}${x.gap} 行<small>${x.stuck ? '到页底' : `≈${cm(x.gap)} cm`}</small></span></div></div>`;
+    h += `<div class="qb" style="left:${MX}px;top:${top}px;width:${w}px">${qBlockHtml(q, x.index, st)}</div>`;
+    if (b.print.cut !== 'none' && !x.stuck) h += `<div class="cut${b.print.cut === 'solid' ? ' solid' : ''}" style="left:${MX}px;top:${T0 + x.cutY}px;width:${CW}px">${b.print.cutLabel ? `<span>第 ${x.index} 题止</span>` : ''}</div>`;
+    if (M.scope === 'all' && sum.pages) {
+      if (!ps.has(x.uid)) h += `<div class="mk new" style="left:${MX + CW + 4}px;top:${top + 9}px">未印</div>`;
+      else if (b.changed.has(x.uid)) h += `<div class="mk bad" style="left:${MX + CW + 4}px;top:${top + 9}px">改过</div>`;
+    }
+  }
+  if (M.ans) {
+    if (pn === M.ans.first) h += `<div class="sec-t" style="left:${MX}px;top:${T0}px;width:${w}px">${M.ans.title}</div>`;
+    for (const a of M.ans.blocks) if (a.page === pn) h += `<div class="ab" style="left:${MX}px;top:${T0 + a.y}px;width:${w}px">${aBlockHtml(QMAP[a.uid], a.index)}</div>`;
+  }
+  h += `<div class="pg-n">${pn}</div></div></div>`;
+  return h;
+}
+function updatePager() {
+  const desk = $('#desk'), el = $('#pgcur'); if (!el) return;
+  const sheets = $$('.sheet', desk); if (!sheets.length) { el.innerHTML = '—'; return; }
+  const mid = desk.scrollTop + desk.clientHeight * .35; let c = sheets[0];
+  for (const sh of sheets) if (sh.offsetTop <= mid) c = sh;
+  S.page = +c.dataset.pn;
+  const M = S.model; const last = M ? M.last : 1;
+  el.innerHTML = `第 <b class="num">${S.page}</b> / ${last} 页`;
+  $('[data-act="pg-prev"]')?.toggleAttribute('disabled', c === sheets[0]);
+  $('[data-act="pg-next"]')?.toggleAttribute('disabled', c === sheets[sheets.length - 1]);
+}
+function scrollToQ(uid, smooth = true) {
+  const z = $(`.zone[data-q="${CSS.escape(uid)}"]`); if (!z) return;
+  const desk = $('#desk'), zr = z.getBoundingClientRect(), dr = desk.getBoundingClientRect();
+  if (zr.top < dr.top + 30 || zr.top > dr.bottom - 120) desk.scrollTo({ top: desk.scrollTop + zr.top - dr.top - Math.min(120, dr.height * .2), behavior: smooth ? 'smooth' : 'auto' });
+}
+
+/* ═════════ 渲染：展示板列表 ═════════ */
+const lblChip = (name, x = false) => `<span class="lbl" style="--c:${LBL[name]?.c || '#64748b'}">${esc(name)}${x ? `<button type="button" data-act="label-rm" data-l="${esc(name)}" aria-label="去掉标记 ${esc(name)}">×</button>` : ''}</span>`;
+const ldots = labels => labels.length ? `<span class="ldots">${labels.map(n => `<i class="ldot" style="--c:${LBL[n]?.c || '#64748b'}" title="${esc(n)}"></i>`).join('')}</span>` : '';
+function boardRowHtml(b) {
+  if (S.renaming === b.id) return `<div class="brow new">${ic('pencil')}<input data-rename="${b.id}" value="${esc(b.name)}" maxlength="40" aria-label="展示板名称"></div>`;
+  const sum = paperSum(b), on = b.id === S.cur;
+  const st = sum.pages ? `<span>已印 ${sum.pages} 页</span>${sum.newCount ? `<span class="bn">${sum.newCount} 题未印</span>` : ''}` : '<span>未打印</span>';
+  return `<div class="brow${on ? ' on' : ''}" data-board="${b.id}" draggable="true" tabindex="0" role="treeitem" aria-selected="${on}" ${b.note ? `title="${esc(b.note)}"` : ''}>
+    <div class="bmain"><div class="bnm">${esc(b.name)}</div><div class="bst"><span class="num">${b.items.length} 题</span>${st}${b.awaiting ? '<span class="bw8">待记录</span>' : ''}</div></div>
+    <button type="button" class="bmore" data-bmenu="${b.id}" aria-label="${esc(b.name)} 的更多操作" aria-haspopup="menu">${ic('more')}</button></div>`;
+}
+function renderBoards() {
+  const q = S.bq.trim().toLowerCase();
+  $('#bcount').textContent = S.boards.length;
+  const groups = [...S.folders.map(f => ({ f, bs: S.boards.filter(b => b.folder === f.id) })), { f: null, bs: S.boards.filter(b => !b.folder) }];
+  let h = S.creatingFolder ? `<div class="brow new">${ic('folder')}<input data-newfolder placeholder="文件夹名称，回车创建" maxlength="30" aria-label="新文件夹名称"></div>` : '';
+  for (const g of groups) {
+    let bs = g.bs;
+    const fmatch = q && g.f && g.f.name.toLowerCase().includes(q);
+    if (q && !fmatch) bs = bs.filter(b => b.name.toLowerCase().includes(q));
+    const fid = g.f ? g.f.id : '';
+    const creatingHere = S.creating === fid;
+    if (q && !bs.length && !fmatch) continue;
+    if (!g.f && !bs.length && !creatingHere) continue;
+    const open = q || creatingHere ? true : g.f ? g.f.open : true;
+    if (g.f) {
+      h += S.renamingFolder === g.f.id
+        ? `<div class="fold"><span class="chev">${ic('down')}</span><input data-renamefolder="${g.f.id}" value="${esc(g.f.name)}" maxlength="30" aria-label="文件夹名称"></div>`
+        : `<div class="fold${open ? '' : ' closed'}" data-fold="${g.f.id}" data-fdrop="${g.f.id}" role="treeitem" aria-expanded="${open}"><span class="chev">${ic('down')}</span>${ic('folder')}<span class="fnm">${esc(g.f.name)}</span><span class="fct num">${g.bs.length}</span><button type="button" class="bmore" data-fmenu="${g.f.id}" aria-label="文件夹操作" aria-haspopup="menu">${ic('more')}</button></div>`;
+    } else {
+      h += `<div class="fold plain" data-fdrop=""><span class="chev"></span><span class="fnm">未归档</span><span class="fct num">${g.bs.length}</span></div>`;
+    }
+    if (!open) continue;
+    h += `<div class="fbody" data-fdrop="${fid}" role="group">`;
+    if (creatingHere) h += `<div class="brow new">${ic('plus')}<input data-create="${fid}" placeholder="展示板名称，回车创建" maxlength="40" aria-label="新展示板名称"></div>`;
+    h += bs.map(boardRowHtml).join('');
+    if (!bs.length && !creatingHere && g.f) h += '<div class="fempty">把展示板拖到这里</div>';
+    h += '</div>';
+  }
+  if (q && !h) h = `<div class="bempty">没有名为「${esc(S.bq)}」的展示板<br><button class="linkish" data-act="new-board-named">新建一个叫这个名字的</button></div>`;
+  $('#btree').innerHTML = h;
+  const inp = $('#btree input'); if (inp && document.activeElement !== inp) { inp.focus(); if (inp.dataset.rename || inp.dataset.renamefolder) inp.select(); }
+}
+
+/* ═════════ 渲染：页头、确认条、纸面工具条 ═════════ */
+function renderHeader() {
+  const b = cur(), el = $('#bhead');
+  const toggle = `<button type="button" class="btn ghost icon bt-open" data-act="toggle-boards" title="展示板列表" aria-label="打开展示板列表" ${S.boardsOpen && !isSmall() ? 'hidden' : ''}>${ic('panel')}</button>`;
+  if (!b) { el.innerHTML = `<div class="bt"><div class="bt-row">${toggle}<h1 class="bt-name">没有选中展示板</h1></div></div>`; return; }
+  const sum = paperSum(b), sc = scopeOf(b), f = folderOf(b), act = activeItems(b);
+  const title = S.titleEdit
+    ? `<input class="bt-input" id="titlein" value="${esc(b.name)}" maxlength="40" aria-label="展示板名称">`
+    : `<h1 class="bt-name" data-act="rename-title" title="点击重命名">${esc(b.name)}</h1><button type="button" class="btn ghost icon sm" data-act="rename-title" title="重命名" aria-label="重命名">${ic('pencil')}</button><button type="button" class="btn ghost icon sm" data-bmenu="${b.id}" title="更多操作" aria-label="更多操作" aria-haspopup="menu">${ic('more')}</button>`;
+  let label, tip;
+  if (!act.length) { label = '打印'; tip = '板里还没有能打印的题目'; }
+  else if (sc === 'new') { label = `补印新增 ${sum.newCount} 题`; tip = `接在第 ${sum.cursor.page} 页的空白处，把原纸放回打印机即可（P）`; }
+  else if (sum.pages) { label = `重印全部 ${act.length} 题`; tip = '整叠重新排版，旧纸上的位置不再对应（P）'; }
+  else { label = `打印 ${act.length} 题`; tip = '第一次打印；打完回来确认一下，之后加题就能只补印新增（P）'; }
+  const seg = sum.pages && sum.newCount ? `<div class="seg" role="group" aria-label="打印范围"><button type="button" class="${sc === 'new' ? 'on' : ''}" data-act="scope-new" title="只印还没上纸的题，接在原纸空白处">只印新增</button><button type="button" class="${sc === 'all' ? 'on' : ''}" data-act="scope-all" title="整叠重新排版">全部重印</button></div>` : '';
+  el.innerHTML = `<div class="bt"><div class="bt-row">${toggle}${title}</div>
+    <div class="bt-sub"><span>${ic('folder')}${f ? esc(f.name) : '未归档'}</span><span class="num">${b.items.length} 题</span>${b.note ? `<span class="note" data-act="note" title="编辑备注">${esc(b.note)}</span>` : '<button type="button" class="linkish" data-act="note">添加备注</button>'}<span class="savest" id="savest">${S.saving ? '正在保存…' : `${ic('cloud')}已保存`}</span></div></div>
+    <div class="bt-acts">
+      <button type="button" class="btn ghost icon dl" data-act="download" title="下载可离线打印的 HTML" aria-label="下载 HTML">${ic('download')}</button>
+      ${seg}
+      <button type="button" class="btn ${b.awaiting || !act.length || (sum.pages && !sum.newCount) ? '' : 'primary'} lg printbtn" data-act="print" title="${tip}" ${act.length ? '' : 'disabled'}>${ic('printer')}${b.awaiting ? '重新打开打印' : label}</button>
+    </div>`;
+  if (S.titleEdit) { const i = $('#titlein'); i.focus(); i.select(); }
+}
+function renderSave() { const el = $('#savest'); if (!el) return; el.classList.toggle('busy', S.saving); el.innerHTML = S.saving ? '正在保存…' : `${ic('cloud')}已保存`; }
+let saveT = 0;
+function touch() { S.saving = true; renderSave(); clearTimeout(saveT); saveT = setTimeout(() => { S.saving = false; renderSave(); }, 650); }
+function renderConfirm() {
+  const b = cur(), el = $('#cbar');
+  if (!b || !b.awaiting) { el.hidden = true; el.innerHTML = ''; return; }
+  const aw = b.awaiting;
+  const what = aw.mode === 'new' ? `补印新增的 ${aw.count} 题（第 ${aw.first}${aw.last > aw.first ? `–${aw.last}` : ''} 页）` : `全部 ${aw.count} 题，共 ${aw.last - aw.first + 1} 页`;
+  el.hidden = false;
+  el.innerHTML = `<span class="cb-ic">${ic('printer')}</span><div class="cb-tx"><b>打印好了吗？确认后才会记下纸面</b><span>刚才打开的是${what}。确认后系统记住每道题印在第几页，之后加题就能只补印新增。</span></div>
+    <button type="button" class="btn ghost sm" data-act="cancel-print">没打成</button><button type="button" class="btn primary" data-act="record">${ic('check')}已打印，记录纸面</button>`;
+}
+function renderTool() {
+  const b = cur(), el = $('#ptool'); if (!b) { el.innerHTML = ''; return; }
+  const sum = paperSum(b), sc = scopeOf(b);
+  let left = '';
+  if (sum.pages) {
+    left += `<button type="button" class="pstat" data-act="paper-rec" title="查看纸面记录">${ic('file')}纸上 ${sum.count} 题 · ${sum.pages} 页</button>`;
+    if (sum.newCount) left += `<button type="button" class="chip new" data-act="jump-new" title="定位到第一道未印的题">${sum.newCount} 题未印</button>`;
+    if (sum.changed) left += `<button type="button" class="chip bad" data-act="jump-changed" title="打印后改过内容，纸上还是旧版">${sum.changed} 题已改动</button>`;
+  } else if (activeItems(b).length) left = `<span class="pstat none">${ic('file')}还没打印过</span>`;
+  el.innerHTML = `${left}<span class="grow"></span>
+    <div class="pager"><button type="button" class="btn ghost icon sm" data-act="pg-prev" title="上一页" aria-label="上一页">${ic('up')}</button><span id="pgcur"></span><button type="button" class="btn ghost icon sm" data-act="pg-next" title="下一页" aria-label="下一页">${ic('down')}</button></div>
+    <span class="tsep"></span>
+    <div class="seg zoomseg" role="group" aria-label="缩放"><button type="button" class="${S.zoom === 'fit' ? 'on' : ''}" data-act="zoom-fit">适应宽度</button><button type="button" class="${S.zoom === '1' ? 'on' : ''}" data-act="zoom-1">100%</button></div>
+    <button type="button" class="btn ghost sm" data-act="layout" aria-haspopup="dialog">${ic('sliders')}版式</button>`;
+  updatePager();
+}
+
+/* ═════════ 渲染：题目清单 ═════════ */
+function tagsHtml(b, it, sum) {
+  const q = QMAP[it.uid]; const t = [];
+  if (q.suspended) t.push('<span class="tag mute" title="停用的题不会印上纸">停用</span>');
+  else if (sum.pages) {
+    if (isPrinted(b, it.uid)) t.push(`<span class="tag ok" title="已经印在纸上">已印 p.${sum.pageOf[it.uid]}</span>`);
+    else t.push('<span class="tag new" title="纸上还没有这道题">未印</span>');
+    if (isPrinted(b, it.uid) && b.changed.has(it.uid)) t.push('<span class="tag bad" title="打印后正文改过，纸上仍是旧版">已改动</span>');
+  }
+  return t.join('');
+}
+function renderList() {
+  const b = cur(), el = $('#qlist'); if (!b) { el.innerHTML = ''; return; }
+  const oldRows = $('.qrows', el); const st = oldRows ? oldRows.scrollTop : 0;
+  const sum = paperSum(b), act = activeItems(b);
+  const susp = b.items.filter(i => QMAP[i.uid]?.suspended).length;
+  const pend = pendingSync(b);
+  const sync = !b.syncLabel
+    ? `<div class="sync none"><span class="sic">${ic('link')}</span><span class="sync-tx">关联一个标记，打了这个标记的新题就能一键同步进来</span><button type="button" class="btn sm" data-act="sync-pick" aria-haspopup="menu">选择标记</button></div>`
+    : `<div class="sync${pend.length ? ' has' : ''}"><button type="button" class="sync-lbl" data-act="sync-pick" title="更换关联的标记" aria-haspopup="menu">${lblChip(b.syncLabel)}${ic('down')}</button><span class="sync-tx">${pend.length ? `有 <b class="num">${pend.length}</b> 道新题没进板` : `已同步${b.syncedAt ? ` · ${ago(b.syncedAt)}` : ''}`}</span><button type="button" class="btn sm ${pend.length ? 'tonal' : ''}" data-act="sync" ${pend.length ? '' : 'disabled'} aria-haspopup="dialog">${ic('sync')}同步</button></div>`;
+  let n = 0;
+  const rows = b.items.map(it => {
+    const q = QMAP[it.uid]; const off = q.suspended; const no = off ? '—' : ++n;
+    const g = effGap(it, b.print), on = S.sel === it.uid;
+    const locked = lockedFor(b, it.uid);
+    return `<div class="qrow${on ? ' on' : ''}${off ? ' off' : ''}${S.flash.has(it.uid) ? ' flash' : ''}" data-q="${esc(it.uid)}" tabindex="-1" role="option" aria-selected="${on}">
+      <span class="grip" title="拖动调整顺序" aria-hidden="true">${ic('grip')}</span><span class="no">${no}</span>
+      <div class="qr-main"><div class="qr-t"><span class="qr-uid">${esc(it.uid)}</span>${tagsHtml(b, it, sum)}</div><div class="qr-s"><span>${esc(q.category)}</span><span>难度 ${q.diff}</span>${ldots(q.labels)}</div></div>
+      <div class="qr-gap${it.gap != null ? ' own' : ''}" title="${it.gap != null ? '这道题单独设置的留白' : `跟随默认留白 ${b.print.gap} 行`}">${off ? `<span>—</span>` : `<button type="button" data-gap-dec="${esc(it.uid)}" aria-label="减少一行留白" ${g <= 0 || locked ? 'disabled' : ''}>−</button><span>${g}<small>行</small></span><button type="button" data-gap-inc="${esc(it.uid)}" aria-label="增加一行留白" ${g >= 48 || locked ? 'disabled' : ''}>+</button>`}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="lh"><h2>题目</h2><span class="cnt num">${act.length}${susp ? ` / ${b.items.length}` : ''}</span><span class="grow"></span>
+      <button type="button" class="btn ghost icon sm" data-act="sort" title="排序" aria-label="排序" aria-haspopup="menu" ${b.items.length > 1 ? '' : 'disabled'}>${ic('sort')}</button>
+      <button type="button" class="btn primary sm" data-act="add" title="添加题目（A）">${ic('plus')}添加题目</button></div>
+    ${sync}
+    ${susp ? `<div class="warn">${ic('info')}<span class="grow">${susp} 道题已停用，打印时会跳过</span><button type="button" class="btn ghost sm" data-act="clean-suspended">移出</button></div>` : ''}
+    ${b.items.length ? `<div class="lcols" aria-hidden="true"><span>#</span><span>题目 · 顺序即纸面顺序</span><span>题后留白</span></div><div class="qrows" role="listbox" aria-label="板内题目">${rows}</div>
+      <div class="lfoot">${ic('info')}<span>点题目看详情；拖 <span aria-hidden="true">⠿</span> 调顺序，或按 <kbd>Alt</kbd>+<kbd>↑</kbd><kbd>↓</kbd></span></div>`
+      : `<div class="lempty"><b>还没有题目</b>点「添加题目」从题库挑，<br>或者关联一个标记同步进来。</div>`}`;
+  const nr = $('.qrows', el); if (nr) nr.scrollTop = st;
+  if (S.flash.size) { const f = S.flash; setTimeout(() => { if (S.flash === f) S.flash = new Set(); }, 1900); }
+  $('#qlist').toggleAttribute('inert', S.panel === 'detail');
+}
+
+/* ═════════ 渲染：题目详情 ═════════ */
+function gapCardHtml(b, it) {
+  const q = QMAP[it.uid];
+  if (q.suspended) return `<div class="gapcard"><div class="gc-top"><span class="gc-t">题后留白</span></div><p class="gc-hint" style="margin:0">这道题已停用，打印时会跳过，不占纸面。</p></div>`;
+  const g = effGap(it, b.print), own = it.gap != null, locked = lockedFor(b, it.uid), sum = paperSum(b);
+  return `<div class="gapcard${locked ? ' locked' : ''}" id="gapcard">
+    <div class="gc-top"><span class="gc-t">题后留白</span><span class="gc-cm">约 ${cm(g)} cm 的书写空间</span></div>
+    <div class="gc-row">
+      <div class="step" role="group" aria-label="题后留白"><button type="button" data-act="gap-dec" aria-label="减少一行" ${g <= 0 ? 'disabled' : ''}>−</button><output aria-live="polite"><b>${g}</b><span>行</span></output><button type="button" data-act="gap-inc" aria-label="增加一行" ${g >= 48 ? 'disabled' : ''}>+</button></div>
+      <div class="gc-inh">${own ? `单独设置<br><button type="button" class="linkish" data-act="gap-inherit">改回默认 ${b.print.gap} 行</button>` : `跟随板的默认值<br>改动后只影响这道题`}</div>
+    </div>
+    <div class="presets" role="group" aria-label="常用行数">${[0, 2, 4, 6, 8, 12, 16].map(v => `<button type="button" data-act="gap-set" data-v="${v}" class="${g === v ? 'on' : ''}">${v}</button>`).join('')}<span>行</span></div>
+    <p class="gc-hint">也可以直接在纸面上拖这道题下方的蓝线；选中题目后按 <kbd>[</kbd> <kbd>]</kbd> 增减一行。</p>
+    ${isPrinted(b, it.uid) ? `<div class="gc-note">${ic(locked ? 'lock' : 'info')}<span>${locked
+      ? `版式已锁定，这道题已印在第 ${sum.pageOf[it.uid]} 页。改留白需要清空纸面记录、重印全部。<br><button type="button" class="linkish" data-act="gap-unlock">仍要修改…</button>`
+      : `这道题已印在第 ${sum.pageOf[it.uid]} 页。改留白只影响下次「全部重印」，补印新增时纸上的位置不变。`}</span></div>` : ''}
+  </div>`;
+}
+function recordsHtml(q) {
+  const r = q.records, ok = r.filter(x => x.ok).length, last = r[r.length - 1];
+  return `<div class="streak" aria-hidden="true">${r.map(x => `<i class="${x.ok ? 'ok' : 'bad'}" style="height:${7 + x.s * 2.2}px" title="${fmtDay(x.t)} ${x.ok ? '答对' : '答错'} · ${x.s} 分"></i>`).join('')}</div>
+    <p class="rec-tx">练习 ${r.length} 次，答对 ${ok} 次。最近一次在 ${fmtDay(last.t)}，${last.ok ? '答对' : '答错'}，自评 ${last.s} 分。</p>`;
+}
+function metaHtml(q) {
+  const pct = Math.round(q.mastery * 100);
+  return `<div class="dmeta"><span>${esc(q.subject)} / ${esc(q.category)}</span><span>难度 ${q.diff}</span><span class="mst"><span class="mbar"><i style="width:${pct}%"></i></span>熟练度 ${pct}%</span><span>${esc(q.status)}</span><span class="${q.due < 0 ? 'due-bad' : ''}">${dueTx(q.due)}</span></div>`;
+}
+function renderDetail() {
+  const b = cur(), el = $('#qdetail'), it = itemOf(b, S.sel);
+  const open = S.panel === 'detail' && !!it;
+  $('#qpanel').classList.toggle('detail', open);
+  el.toggleAttribute('inert', !open); $('#qlist').toggleAttribute('inert', open);
+  if (!it) { el.innerHTML = ''; return; }
+  const q = QMAP[it.uid], idx = b.items.indexOf(it), sum = paperSum(b);
+  const no = q.suspended ? null : activeItems(b).indexOf(it) + 1;
+  const bst = $('.dbody', el)?.scrollTop || 0; const same = el.dataset.uid === it.uid;
+  el.dataset.uid = it.uid;
+  el.innerHTML = `<div class="dnav">
+      <button type="button" class="btn ghost sm" data-act="back" title="返回题目列表（Esc）">${ic('left')}全部题目</button>
+      <span class="pos num">${idx + 1} / ${b.items.length}</span>
+      <button type="button" class="btn ghost icon sm" data-act="prev" title="上一题（↑）" aria-label="上一题" ${idx ? '' : 'disabled'}>${ic('up')}</button>
+      <button type="button" class="btn ghost icon sm" data-act="next" title="下一题（↓）" aria-label="下一题" ${idx < b.items.length - 1 ? '' : 'disabled'}>${ic('down')}</button>
+      <button type="button" class="btn ghost icon sm" data-act="big" title="在大窗口里看" aria-label="在大窗口里看">${ic('expand')}</button>
+    </div>
+    <div class="dbody">
+      <div class="dno">${no ? `纸面第 ${no} 题` : '已停用 · 不上纸'}</div>
+      <h3 class="duid">${esc(q.uid)}${tagsHtml(b, it, sum)}</h3>
+      ${metaHtml(q)}
+      <div class="dlabels">${q.labels.map(n => lblChip(n, true)).join('')}<button type="button" class="lbl-add" data-act="label-add" aria-haspopup="menu">+ 标记</button></div>
+      ${gapCardHtml(b, it)}
+      <section class="dsec"><h4>题面</h4><div class="qtext">${rich(q.q)}${q.fig ? `<div class="qfig">${FIG[q.fig]}</div>` : ''}</div></section>
+      <section class="dsec"><h4>答案与错因${S.reveal ? `<button type="button" class="btn ghost sm" data-act="reveal">收起</button>` : ''}</h4>${S.reveal
+        ? `<div class="ans">${rich(q.a)}</div><div class="why"><b>错因</b>${esc(q.why)}</div>`
+        : `<button type="button" class="reveal" data-act="reveal">${ic('eye')}显示答案与错因</button>`}</section>
+      <section class="dsec"><h4>练习记录</h4>${recordsHtml(q)}</section>
+    </div>
+    <div class="dfoot"><button type="button" class="btn sm" data-act="edit">${ic('pencil')}编辑题目</button><button type="button" class="btn ghost sm" data-act="open-lib">在题库中查看</button><span class="grow"></span><button type="button" class="btn ghost sm warn-text" data-act="remove" title="从这个板移出（Delete）">${ic('trash')}移出</button></div>`;
+  if (same) $('.dbody', el).scrollTop = bst;
+}
+function updateGapCard() {
+  const b = cur(), it = itemOf(b, S.sel), gc = $('#gapcard');
+  if (!it || !gc || S.panel !== 'detail') return;
+  const wrap = document.createElement('div'); wrap.innerHTML = gapCardHtml(b, it);
+  const had = gc.contains(document.activeElement) ? document.activeElement.dataset.act : null;
+  gc.replaceWith(wrap.firstElementChild);
+  if (had) $(`#gapcard [data-act="${had}"]`)?.focus();
+}
+function renderAll() { renderBoards(); renderHeader(); renderConfirm(); renderTool(); renderPaper(); renderList(); renderDetail(); }
+</script>
+<script>
+/* ═════════ 浮层、对话框、提示 ═════════ */
+function closePop() { if (!S.pop) return; S.pop.anchor?.setAttribute('aria-expanded', 'false'); S.pop.el.remove(); S.pop.onClose?.(); S.pop = null; }
+function openPop(anchor, html, { align = 'start', at = null, cls = '', onClose = null } = {}) {
+  const same = S.pop && S.pop.anchor === anchor && anchor; closePop(); if (same) return null;
+  const p = document.createElement('div'); p.className = 'pop ' + cls; p.innerHTML = html; document.body.appendChild(p);
+  const pw = p.offsetWidth, ph = p.offsetHeight;
+  let left, top;
+  if (at) { left = at.x; top = at.y; }
+  else { const r = anchor.getBoundingClientRect(); left = align === 'end' ? r.right - pw : r.left; top = r.bottom + 6; if (top + ph > innerHeight - 8) top = Math.max(8, r.top - ph - 6); }
+  p.style.left = clamp(left, 8, innerWidth - pw - 8) + 'px'; p.style.top = clamp(top, 8, innerHeight - ph - 8) + 'px';
+  anchor?.setAttribute('aria-expanded', 'true');
+  S.pop = { el: p, anchor, onClose };
+  const f = p.querySelector('[autofocus]') || p.querySelector('.menu button, input, button'); if (f && !at) setTimeout(() => f.focus({ preventScroll: true }), 0);
+  return p;
+}
+document.addEventListener('mousedown', e => { if (S.pop && !S.pop.el.contains(e.target) && !(S.pop.anchor && S.pop.anchor.contains(e.target))) closePop(); }, true);
+document.addEventListener('mousedown', e => { if (S.boardsOpen && isSmall() && !e.target.closest('#boards,.pop,.scrim,[data-act="toggle-boards"]')) setBoardsOpen(false); });
+function toast(msg, { action = null, ms = 4600 } = {}) {
+  const t = document.createElement('div'); t.className = 'toast' + (action ? '' : ' plain'); t.setAttribute('role', 'status');
+  t.innerHTML = `<span>${msg}</span>${action ? `<button type="button">${esc(action.label)}</button>` : ''}`;
+  const box = $('#toasts'); box.appendChild(t); while (box.children.length > 2) box.firstElementChild.remove();
+  let tm = setTimeout(done, ms);
+  function done() { clearTimeout(tm); t.classList.add('out'); setTimeout(() => t.remove(), 200); }
+  t.addEventListener('mouseenter', () => clearTimeout(tm)); t.addEventListener('mouseleave', () => { tm = setTimeout(done, 2400); });
+  if (action) t.querySelector('button').onclick = () => { action.fn(); done(); };
+}
+function modal(html, cls, setup) {
+  const sc = document.createElement('div'); sc.className = 'scrim';
+  sc.innerHTML = `<div class="dlg ${cls}" role="dialog" aria-modal="true">${html}</div>`;
+  const prev = document.activeElement; document.body.appendChild(sc);
+  const onKey = e => { if (e.key === 'Escape' && $$('.scrim').pop() === sc && !sc.contains(e.target)) { e.stopPropagation(); e.preventDefault(); close(); } };
+  document.addEventListener('keydown', onKey, true);
+  const close = () => { document.removeEventListener('keydown', onKey, true); sc.remove(); prev?.focus?.({ preventScroll: true }); };
+  sc.addEventListener('mousedown', e => { if (e.target === sc) sc.dataset.down = '1'; });
+  sc.addEventListener('click', e => { if (e.target === sc && sc.dataset.down) close(); sc.dataset.down = ''; });
+  sc.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.stopPropagation(); close(); }
+    if (e.key === 'Tab') { const f = $$('button:not([disabled]),input,textarea,select,[tabindex="0"]', sc).filter(x => x.offsetParent); if (!f.length) return; const a = f[0], z = f[f.length - 1]; if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); } }
+  });
+  setup?.(sc, close);
+  return { sc, close };
+}
+function confirmDlg({ title, body, ok = '确定', danger = false }) {
+  return new Promise(res => {
+    let done = false; const fin = v => { if (!done) { done = true; res(v); } };
+    const { sc, close } = modal(`<h3>${title}</h3><p>${body}</p><div class="dlg-foot"><button type="button" class="btn" data-x="0">取消</button><button type="button" class="btn ${danger ? 'danger' : 'primary'}" data-x="1">${ok}</button></div>`, 'sm');
+    sc.querySelector('[data-x="1"]').focus();
+    sc.addEventListener('click', e => { const x = e.target.closest('[data-x]'); if (x) { fin(x.dataset.x === '1'); close(); } });
+    new MutationObserver((_, o) => { if (!sc.isConnected) { fin(false); o.disconnect(); } }).observe(document.body, { childList: true });
+  });
+}
+function promptDlg({ title, hint = '', value = '', ok = '保存', multiline = false, placeholder = '' }) {
+  return new Promise(res => {
+    let done = false; const fin = v => { if (!done) { done = true; res(v); } };
+    const field = multiline ? `<textarea rows="3" placeholder="${esc(placeholder)}">${esc(value)}</textarea>` : `<input class="tin" value="${esc(value)}" placeholder="${esc(placeholder)}">`;
+    const { sc, close } = modal(`<h3>${title}</h3>${hint ? `<p style="margin-bottom:10px">${hint}</p>` : ''}${field}<div class="dlg-foot"><button type="button" class="btn" data-x="0">取消</button><button type="button" class="btn primary" data-x="1">${ok}</button></div>`, 'sm');
+    const inp = sc.querySelector('textarea,input'); inp.focus(); inp.select?.();
+    const submit = () => { fin(inp.value.trim()); close(); };
+    sc.addEventListener('click', e => { const x = e.target.closest('[data-x]'); if (!x) return; if (x.dataset.x === '1') submit(); else { fin(null); close(); } });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter' && (!multiline || e.metaKey || e.ctrlKey)) { e.preventDefault(); submit(); } });
+    new MutationObserver((_, o) => { if (!sc.isConnected) { fin(null); o.disconnect(); } }).observe(document.body, { childList: true });
+  });
+}
+
+/* ═════════ 选题与导航 ═════════ */
+function select(uid, { open = true, scroll = true } = {}) {
+  if (S.sel !== uid) S.reveal = false;
+  S.sel = uid; if (open) S.panel = 'detail';
+  renderPaper(); renderList(); renderDetail();
+  if (scroll) scrollToQ(uid);
+  const row = $(`.qrow[data-q="${CSS.escape(uid)}"]`); row?.scrollIntoView({ block: 'nearest' });
+}
+function back() { S.panel = 'list'; renderDetail(); renderList(); const row = S.sel && $(`.qrow[data-q="${CSS.escape(S.sel)}"]`); if (row) { row.scrollIntoView({ block: 'nearest' }); row.focus({ preventScroll: true }); } }
+function navSel(d) {
+  const b = cur(); if (!b || !b.items.length) return;
+  const i = b.items.findIndex(x => x.uid === S.sel);
+  const n = i < 0 ? (d > 0 ? 0 : b.items.length - 1) : clamp(i + d, 0, b.items.length - 1);
+  select(b.items[n].uid, { open: S.panel === 'detail' });
+}
+function moveSel(d) {
+  const b = cur(); const i = b.items.findIndex(x => x.uid === S.sel); const j = i + d;
+  if (i < 0 || j < 0 || j >= b.items.length) return;
+  const [m] = b.items.splice(i, 1); b.items.splice(j, 0, m); touch();
+  renderPaper(); renderList(); renderDetail(); renderBoards(); scrollToQ(S.sel);
+}
+
+/* ═════════ 留白 ═════════ */
+async function unlockConfirm(b, uid) {
+  const ok = await confirmDlg({ title: '这道题已经印在纸上', body: `版式已锁定。修改 <b>${esc(uid)}</b> 的留白会让旧纸和新版式对不上，需要清空纸面记录，下次重印全部。`, ok: '清空记录并修改', danger: true });
+  if (ok) { b.printed = null; b.mode = 'all'; b.awaiting = null; toast('已清空纸面记录，下次打印会重排全部'); renderAll(); }
+  return ok;
+}
+function applyGap(uid, v) {
+  const b = cur(), it = itemOf(b, uid); if (!it) return;
+  it.gap = v == null ? null : clamp(v, 0, 48); touch();
+  renderPaper(); renderList(); updateGapCard();
+}
+async function setGap(uid, v) { const b = cur(); if (lockedFor(b, uid) && !(await unlockConfirm(b, uid))) return; applyGap(uid, v); }
+const gapNow = uid => { const b = cur(); return effGap(itemOf(b, uid), b.print); };
+async function startGapDrag(e, uid) {
+  const b = cur(); if (!itemOf(b, uid)) return;
+  if (lockedFor(b, uid) && !(await unlockConfirm(b, uid))) return;
+  if (S.sel !== uid || S.panel !== 'detail') select(uid, { open: true, scroll: false });
+  const D = { y0: e.clientY, start: gapNow(uid), cur: gapNow(uid), s: S.scale };
+  S.drag = uid; document.body.classList.add('gdrag'); renderPaper();
+  const move = ev => { const v = clamp(D.start + Math.round((ev.clientY - D.y0) / (LINE * D.s)), 0, 48); if (v !== D.cur) { D.cur = v; applyGap(uid, v); } };
+  const up = () => { removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', up); document.body.classList.remove('gdrag'); S.drag = null; renderPaper(); };
+  addEventListener('pointermove', move); addEventListener('pointerup', up); addEventListener('pointercancel', up);
+}
+$('#sheets').addEventListener('pointerdown', e => { const h = e.target.closest('.gh'); if (!h || e.button !== 0) return; e.preventDefault(); e.stopPropagation(); startGapDrag(e, h.dataset.gap); });
+
+/* ═════════ 拖动排序 ═════════ */
+$('#qlist').addEventListener('pointerdown', e => {
+  const g = e.target.closest('.grip'); if (!g || e.button !== 0) return; e.preventDefault();
+  const row = g.closest('.qrow'), list = row.parentElement, rows = $$('.qrow', list), from = rows.indexOf(row);
+  const rect = row.getBoundingClientRect(), off = e.clientY - rect.top;
+  const ghost = row.cloneNode(true); ghost.classList.add('drag-ghost'); ghost.classList.remove('flash');
+  Object.assign(ghost.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px' }); document.body.appendChild(ghost);
+  row.classList.add('drag-src'); document.body.classList.add('rdrag');
+  const line = document.createElement('div'); line.className = 'drop-line'; list.appendChild(line);
+  let to = from, lastY = e.clientY, raf = 0;
+  const place = y => {
+    ghost.style.top = (y - off) + 'px'; let idx = rows.length;
+    for (let k = 0; k < rows.length; k++) { const r = rows[k].getBoundingClientRect(); if (y < r.top + r.height / 2) { idx = k; break; } }
+    to = idx; const ref = rows[idx];
+    line.style.top = (ref ? ref.offsetTop : rows[rows.length - 1].offsetTop + rows[rows.length - 1].offsetHeight) + 'px';
+    line.style.display = (idx === from || idx === from + 1) ? 'none' : 'block';
+  };
+  const tick = () => { const lr = list.getBoundingClientRect(); if (lastY < lr.top + 36) list.scrollTop -= 8; else if (lastY > lr.bottom - 36) list.scrollTop += 8; place(lastY); raf = requestAnimationFrame(tick); };
+  const move = ev => { lastY = ev.clientY; };
+  const up = () => {
+    cancelAnimationFrame(raf); removeEventListener('pointermove', move); removeEventListener('pointerup', up);
+    ghost.remove(); line.remove(); row.classList.remove('drag-src'); document.body.classList.remove('rdrag');
+    let dest = to > from ? to - 1 : to;
+    if (dest !== from) { const b = cur(); const [m] = b.items.splice(from, 1); b.items.splice(dest, 0, m); touch(); S.flash = new Set([m.uid]); renderPaper(); renderList(); renderDetail(); renderBoards(); }
+  };
+  place(e.clientY); raf = requestAnimationFrame(tick);
+  addEventListener('pointermove', move); addEventListener('pointerup', up);
+});
+
+/* ═════════ 题目增删 ═════════ */
+function addItems(b, uids, how) {
+  const had = new Set(b.items.map(i => i.uid)); const add = uids.filter(u => !had.has(u)); const now = Date.now();
+  add.forEach(u => b.items.push({ uid: u, gap: null, added: now }));
+  if (!add.length) return [];
+  const wasAll = scopeOf(b) === 'all';
+  if (b.printed && !b.awaiting && wasAll && b.mode !== 'all-forced') b.mode = 'new';
+  S.flash = new Set(add); touch(); renderAll();
+  const rows = $('.qrows'); if (rows) rows.scrollTop = rows.scrollHeight;
+  toast(`${how}${add.length} 题${b.printed ? '，打印时可只补印这几题' : ''}`, { action: { label: '撤销', fn: () => { b.items = b.items.filter(i => !add.includes(i.uid)); if (add.includes(S.sel)) { S.sel = null; S.panel = 'list'; } touch(); renderAll(); } } });
+  return add;
+}
+function removeItem(uid) {
+  const b = cur(); const i = b.items.findIndex(x => x.uid === uid); if (i < 0) return;
+  const [it] = b.items.splice(i, 1); const wasP = isPrinted(b, uid);
+  if (S.sel === uid) { S.sel = null; S.panel = 'list'; }
+  touch(); renderAll();
+  toast(`已移出 ${esc(uid)}${wasP ? '，纸上它原来的位置会保留' : ''}`, { action: { label: '撤销', fn: () => { b.items.splice(i, 0, it); touch(); renderAll(); } } });
+}
+
+/* ═════════ 添加题目对话框 ═════════ */
+function openAdd() {
+  const b = cur(); if (!b) return; closePop();
+  const subjects = ['全部', ...new Set(LIB.map(q => q.subject))];
+  const cnt = {}; b.items.forEach(i => { const s = QMAP[i.uid]?.subject; if (s) cnt[s] = (cnt[s] || 0) + 1; });
+  const top = Object.entries(cnt).sort((x, y) => y[1] - x[1])[0];
+  const subj0 = top && top[1] >= b.items.length * .8 ? top[0] : '全部';
+  const st = { text: '', subj: subj0, flags: new Set(), labels: new Set(), hideIn: true, sort: 'mastery', sel: new Set(), act: null, vis: [] };
+  const html = `<div class="add-h"><h3>添加题目 <span>到</span> ${esc(b.name)}</h3><button type="button" class="btn ghost icon" data-x aria-label="关闭">${ic('x')}</button></div>
+    <div class="add-f">
+      <label class="srch">${ic('search')}<input data-f="text" placeholder="搜题号、分类、知识点，或题面里的字" autocomplete="off" aria-label="搜索题目"></label>
+      <div class="add-f2">
+        <div class="seg" role="group" aria-label="科目">${subjects.map(s => `<button type="button" data-subj="${s}" class="${s === subj0 ? 'on' : ''}">${s}</button>`).join('')}</div>
+        <span class="vsep"></span>
+        <button type="button" class="fchip" data-flag="due">到期或逾期</button><button type="button" class="fchip" data-flag="attack">待攻克</button><button type="button" class="fchip" data-flag="trap">易错</button>
+        <span class="vsep"></span>
+        ${LABELS.map(l => `<button type="button" class="fchip" data-lbl="${l.name}"><i class="ldot" style="--c:${l.c}"></i>${l.name}</button>`).join('')}
+      </div>
+    </div>
+    <div class="add-b"><div class="add-lcol"><div class="add-rh"><span data-rcount></span><span class="grow"></span><label class="hide-in"><input type="checkbox" data-f="hide" checked>隐藏已在板中的<span data-hidden class="num"></span></label>
+        <select data-f="sort" aria-label="排序"><option value="mastery">熟练度低的在前</option><option value="due">到期早的在前</option><option value="diff">难度高的在前</option><option value="name">按题号</option></select></div>
+      <div class="add-list" data-list role="listbox" aria-multiselectable="true" aria-label="题目"></div></div><div class="add-pv" data-pv aria-live="polite"></div></div>
+    <div class="add-foot"><span class="cnt" data-count></span><button type="button" class="linkish" data-all>全选当前结果</button><button type="button" class="linkish" data-none hidden>清空</button><span class="grow"></span>
+      <span class="kh"><kbd>↑</kbd><kbd>↓</kbd> 移动 <kbd>Enter</kbd> 勾选 <kbd>Ctrl</kbd><kbd>Enter</kbd> 加入</span>
+      <button type="button" class="btn" data-x>取消</button><button type="button" class="btn primary" data-ok disabled>加入展示板</button></div>`;
+  const { sc, close } = modal(html, 'add');
+  const inB = () => new Set(b.items.map(i => i.uid));
+  const list = sc.querySelector('[data-list]'), pv = sc.querySelector('[data-pv]');
+  function results() {
+    const inb = inB(); let r = LIB.filter(q => !q.suspended);
+    if (st.subj !== '全部') r = r.filter(q => q.subject === st.subj);
+    if (st.text) r = r.filter(q => (q.uid + q.subject + q.category + (q.kp || []).join(' ') + q.labels.join(' ') + plain(q.q)).toLowerCase().includes(st.text));
+    if (st.flags.has('due')) r = r.filter(q => q.due <= 0);
+    if (st.flags.has('attack')) r = r.filter(q => q.status === '待攻克');
+    if (st.flags.has('trap')) r = r.filter(q => q.status === '易错');
+    if (st.labels.size) r = r.filter(q => q.labels.some(l => st.labels.has(l)));
+    const hidden = st.hideIn ? r.filter(q => inb.has(q.uid)).length : 0;
+    if (st.hideIn) r = r.filter(q => !inb.has(q.uid));
+    const by = { mastery: (a, c) => a.mastery - c.mastery, due: (a, c) => a.due - c.due, diff: (a, c) => c.diff - a.diff, name: (a, c) => a.uid.localeCompare(c.uid, 'zh-CN') }[st.sort];
+    return { r: r.sort(by), hidden, inb };
+  }
+  function renderRows() {
+    const { r, hidden, inb } = results(); st.vis = r;
+    if (!r.find(q => q.uid === st.act)) st.act = r.find(q => !inb.has(q.uid))?.uid || r[0]?.uid || null;
+    sc.querySelector('[data-hidden]').textContent = hidden ? `（${hidden}）` : '';
+    sc.querySelector('[data-rcount]').innerHTML = `<b class="num">${r.length}</b> 道题${st.subj !== '全部' ? `，只看${esc(st.subj)}` : ''}`;
+    list.innerHTML = r.length ? r.map(q => {
+      const inb1 = inb.has(q.uid), on = st.sel.has(q.uid);
+      return `<div class="ar${on ? ' sel' : ''}${inb1 ? ' in' : ''}${st.act === q.uid ? ' act' : ''}" data-uid="${esc(q.uid)}" role="option" aria-selected="${on}" aria-disabled="${inb1}">
+        <span class="cbx">${ic('check')}</span>
+        <div class="ar-m"><div class="ar-t"><b>${esc(q.uid)}</b>${ldots(q.labels)}</div><div class="ar-s"><span>${esc(q.subject)} / ${esc(q.category)}</span><span>难度 ${q.diff}</span><span>熟练度 ${Math.round(q.mastery * 100)}%</span><span class="${q.due < 0 ? 'bad' : ''}">${dueTx(q.due)}</span></div></div>
+        ${inb1 ? '<span class="tag mute">已在板中</span>' : ''}</div>`;
+    }).join('') : `<div class="add-empty">没有符合条件的题目。<br><button type="button" class="linkish" data-reset>清除筛选条件</button></div>`;
+    renderPv(); renderCount();
+  }
+  function renderPv() {
+    const q = QMAP[st.act];
+    pv.innerHTML = q ? `<div class="pv-h"><b>${esc(q.uid)}</b>${q.labels.map(n => lblChip(n)).join('')}</div>${metaHtml(q)}<div class="qtext">${rich(q.q)}${q.fig ? `<div class="qfig">${FIG[q.fig]}</div>` : ''}</div>${q.kp?.length ? `<div class="pv-kp">知识点：${q.kp.map(esc).join('、')}</div>` : ''}`
+      : '<div class="pv-empty">把鼠标移到左侧题目上，<br>这里显示题面</div>';
+  }
+  function renderCount() {
+    const n = st.sel.size;
+    sc.querySelector('[data-count]').innerHTML = n ? `已选 <b>${n}</b> 题，加在板的末尾` : '勾选要加入的题目';
+    const ok = sc.querySelector('[data-ok]'); ok.disabled = !n; ok.textContent = n ? `加入 ${n} 题` : '加入展示板';
+    sc.querySelector('[data-none]').hidden = !n;
+  }
+  function toggle(uid) { if (inB().has(uid)) return; st.sel.has(uid) ? st.sel.delete(uid) : st.sel.add(uid); const row = list.querySelector(`[data-uid="${CSS.escape(uid)}"]`); row?.classList.toggle('sel', st.sel.has(uid)); row?.setAttribute('aria-selected', st.sel.has(uid)); renderCount(); }
+  function setAct(uid, scroll) { st.act = uid; list.querySelectorAll('.ar').forEach(r => r.classList.toggle('act', r.dataset.uid === uid)); if (scroll) list.querySelector(`[data-uid="${CSS.escape(uid)}"]`)?.scrollIntoView({ block: 'nearest' }); renderPv(); }
+  function commit() { if (!st.sel.size) return; const u = [...st.sel]; close(); addItems(b, u, '已加入 '); }
+  const txt = sc.querySelector('[data-f="text"]');
+  txt.addEventListener('input', () => { st.text = txt.value.trim().toLowerCase(); renderRows(); });
+  sc.querySelector('[data-f="hide"]').addEventListener('change', e => { st.hideIn = e.target.checked; renderRows(); });
+  sc.querySelector('[data-f="sort"]').addEventListener('change', e => { st.sort = e.target.value; renderRows(); });
+  sc.addEventListener('click', e => {
+    const t = e.target;
+    if (t.closest('[data-x]')) { close(); return; }
+    if (t.closest('[data-ok]')) { commit(); return; }
+    const s = t.closest('[data-subj]'); if (s) { st.subj = s.dataset.subj; sc.querySelectorAll('[data-subj]').forEach(x => x.classList.toggle('on', x === s)); renderRows(); return; }
+    const f = t.closest('[data-flag]'); if (f) { const k = f.dataset.flag; st.flags.has(k) ? st.flags.delete(k) : st.flags.add(k); f.classList.toggle('on'); renderRows(); return; }
+    const l = t.closest('[data-lbl]'); if (l) { const k = l.dataset.lbl; st.labels.has(k) ? st.labels.delete(k) : st.labels.add(k); l.classList.toggle('on'); renderRows(); return; }
+    if (t.closest('[data-all]')) { const inb = inB(); st.vis.forEach(q => { if (!inb.has(q.uid)) st.sel.add(q.uid); }); renderRows(); return; }
+    if (t.closest('[data-none]')) { st.sel.clear(); renderRows(); return; }
+    if (t.closest('[data-reset]')) { st.text = ''; txt.value = ''; st.subj = '全部'; st.flags.clear(); st.labels.clear(); sc.querySelectorAll('.fchip.on').forEach(x => x.classList.remove('on')); sc.querySelectorAll('[data-subj]').forEach(x => x.classList.toggle('on', x.dataset.subj === '全部')); renderRows(); return; }
+    const r = t.closest('.ar'); if (r) { setAct(r.dataset.uid); toggle(r.dataset.uid); }
+  });
+  list.addEventListener('mouseover', e => { const r = e.target.closest('.ar'); if (r && r.dataset.uid !== st.act) setAct(r.dataset.uid); });
+  sc.addEventListener('keydown', e => {
+    if (e.target.tagName === 'SELECT') return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const i = st.vis.findIndex(q => q.uid === st.act); const n = clamp(i + (e.key === 'ArrowDown' ? 1 : -1), 0, st.vis.length - 1); if (st.vis[n]) setAct(st.vis[n].uid, true); }
+    else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); commit(); }
+    else if (e.key === 'Enter' && (e.target === txt || e.target.closest('.dlg')) && !e.target.closest('button')) { e.preventDefault(); if (st.act) toggle(st.act); }
+  });
+  renderRows(); txt.focus();
+}
+
+/* ═════════ 标记同步 ═════════ */
+function labelPickHtml(b) {
+  return `<div class="menu" role="menu"><div class="sec">关联哪个标记？打了它的新题可一键同步进来</div>${LABELS.map(l => {
+    const n = LIB.filter(q => !q.suspended && q.labels.includes(l.name)).length;
+    return `<button type="button" role="menuitemradio" aria-checked="${b.syncLabel === l.name}" data-act="sync-set" data-l="${l.name}"><i class="ldot" style="--c:${l.c}"></i>${l.name}<span class="aux num">${n} 题</span>${b.syncLabel === l.name ? `<span class="ck">${ic('check')}</span>` : ''}</button>`;
+  }).join('')}${b.syncLabel ? `<div class="sep"></div><button type="button" data-act="sync-unset">${ic('x')}不再关联</button>` : ''}</div>`;
+}
+function openSync(anchor) {
+  const b = cur(), pend = pendingSync(b); if (!pend.length) return;
+  const p = openPop(anchor, `<div class="pop-h">同步「${esc(b.syncLabel)}」的新题</div>
+    <div class="pop-b" style="padding-bottom:6px"><p style="margin:0;font-size:12.5px">打了这个标记、还不在板里的题，会加到末尾。</p></div>
+    <div class="sp-list">${pend.map(q => `<label class="sp-row"><input type="checkbox" checked value="${esc(q.uid)}"><span><b>${esc(q.uid)}</b><small>${esc(q.category)} · ${esc(plain(q.q))}</small></span></label>`).join('')}</div>
+    <div class="pop-f"><span class="grow" style="font-size:12px;color:var(--fg3)">上次同步：${b.syncedAt ? ago(b.syncedAt) : '还没有'}</span><button type="button" class="btn primary sm" data-sp-ok>加入 ${pend.length} 题</button></div>`, { align: 'end' });
+  if (!p) return;
+  const ok = p.querySelector('[data-sp-ok]');
+  p.addEventListener('change', () => { const n = $$('input:checked', p).length; ok.textContent = n ? `加入 ${n} 题` : '加入'; ok.disabled = !n; });
+  ok.addEventListener('click', () => { const u = $$('input:checked', p).map(x => x.value); closePop(); b.syncedAt = Date.now(); addItems(b, u, `已从「${esc(b.syncLabel)}」同步 `); });
+}
+
+/* ═════════ 打印流程 ═════════ */
+function doPrint() {
+  const b = cur(); if (!b) return; const act = activeItems(b);
+  if (!act.length) { toast('板里还没有能打印的题目'); return; }
+  const sc = scopeOf(b), M = paperModel(b), sum = paperSum(b);
+  b.awaiting = { mode: sc, count: sc === 'new' ? sum.newCount : act.length, first: M.first, last: M.last };
+  renderHeader(); renderConfirm(); renderBoards();
+  toast(sc === 'new' ? `已在新窗口打开打印预览：第 ${M.first}${M.last > M.first ? `–${M.last}` : ''} 页，只含新增的题` : `已在新窗口打开打印预览，共 ${M.last} 页。选 A4、缩放 100%`);
+}
+function recordPrinted() {
+  const b = cur(), aw = b?.awaiting; if (!aw) return; const act = activeItems(b);
+  if (aw.mode === 'all' || !b.printed) {
+    b.printed = { at: Date.now(), uids: act.map(i => i.uid), gaps: Object.fromEntries(act.map(i => [i.uid, effGap(i, b.print)])), print: { ratio: b.print.ratio, gap: b.print.gap, labels: b.print.labels, meta: b.print.meta } };
+    b.changed.clear();
+  } else {
+    const P = b.printed, ps = new Set(P.uids), nw = act.filter(i => !ps.has(i.uid));
+    b.printed = { ...P, at: Date.now(), uids: [...P.uids, ...nw.map(i => i.uid)], gaps: { ...P.gaps, ...Object.fromEntries(nw.map(i => [i.uid, effGap(i, b.print)])) } };
+  }
+  b.awaiting = null; b.mode = 'new'; touch(); renderAll();
+  const s = paperSum(b); toast(`已记录纸面：纸上共 ${s.count} 题，${s.pages} 页。之后加题可以只补印新增`);
+}
+
+/* ═════════ 版式与纸面记录 ═════════ */
+function layoutHtml(b) {
+  const p = b.print, r = Math.round(p.ratio * 100), frozen = p.locked && !!b.printed;
+  return `<div class="pop-h">版式<small>很少需要改；改完纸面立刻重排</small></div>
+  <div class="pop-b lay">${scopeOf(b) === 'new' ? `<div class="locknote" style="margin:4px 0 6px">现在预览的是补印部分：补印会沿用纸上原来的右侧留白，才能和旧纸对齐。这里的改动在「全部重印」时生效。</div>` : ''}
+    <div class="lf${frozen ? ' dis' : ''}"><div class="lf-t"><span>右侧留白</span><b data-live="ratio">${r}%</b></div>
+      <input type="range" min="30" max="55" step="1" value="${r}" data-lay="ratio" aria-label="右侧留白比例">
+      <div class="lf-h" data-live="colw">题栏宽约 ${Math.round(colW(p.ratio) / MM)} mm，右边留给手写</div></div>
+    <div class="lf${frozen ? ' dis' : ''}"><div class="lf-row"><span>默认题后留白</span><div class="step sm" role="group" aria-label="默认题后留白"><button type="button" data-lay-gap="-1" aria-label="减少">−</button><output><b data-live="gap">${p.gap}</b><span>行</span></output><button type="button" data-lay-gap="1" aria-label="增加">+</button></div></div>
+      <div class="lf-h">单独设置过留白的题不受影响</div></div>
+    <div class="lf"><div class="lf-row"><span>答案</span><div class="seg" data-seg="answers"><button type="button" data-v="none" class="${p.answers === 'none' ? 'on' : ''}">不附</button><button type="button" data-v="append" class="${p.answers === 'append' ? 'on' : ''}">末页附答案</button></div></div></div>
+    <div class="lf${frozen ? ' dis' : ''}"><div class="lf-row"><span>题头显示</span><div class="chks"><label><input type="checkbox" data-lay="labels" ${p.labels ? 'checked' : ''}>标记</label><label><input type="checkbox" data-lay="meta" ${p.meta ? 'checked' : ''}>科目和难度</label></div></div></div>
+    <div class="lf${frozen ? ' dis' : ''}"><div class="lf-row"><span>切割线</span><div class="seg" data-seg="cut"><button type="button" data-v="none" class="${p.cut === 'none' ? 'on' : ''}">不画</button><button type="button" data-v="dash" class="${p.cut === 'dash' ? 'on' : ''}">虚线</button><button type="button" data-v="solid" class="${p.cut === 'solid' ? 'on' : ''}">实线</button></div></div>
+      <label class="chk1"><input type="checkbox" data-lay="cutLabel" ${p.cutLabel ? 'checked' : ''} ${p.cut === 'none' ? 'disabled' : ''}>线尾标注「第 N 题止」</label></div>
+    <div class="lf"><label class="lk"><span class="lk-t">锁定版式<small>纸上已有的部分要变动时，先提醒再重印</small></span><span class="switch"><input type="checkbox" data-lay="locked" ${p.locked ? 'checked' : ''} aria-label="锁定版式"><i></i></span></label>
+      ${frozen ? '<div class="locknote">已锁定：上面灰掉的设置会改变纸上已印的部分，先关掉锁定才能改。</div>' : ''}</div>
+  </div>`;
+}
+function openLayout(anchor) {
+  const b = cur(); const p = openPop(anchor, layoutHtml(b), { align: 'end' }); if (!p) return;
+  let raf = 0; const repaint = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { renderPaper(); renderList(); updateGapCard(); }); };
+  const refresh = () => { const a = document.activeElement?.dataset?.lay; p.innerHTML = layoutHtml(b); if (a) p.querySelector(`[data-lay="${a}"]`)?.focus(); };
+  p.addEventListener('input', e => {
+    const t = e.target; if (t.dataset.lay !== 'ratio') return;
+    b.print.ratio = +t.value / 100; touch();
+    p.querySelector('[data-live="ratio"]').textContent = t.value + '%';
+    p.querySelector('[data-live="colw"]').textContent = `题栏宽约 ${Math.round(colW(b.print.ratio) / MM)} mm，右边留给手写`;
+    repaint();
+  });
+  p.addEventListener('change', e => {
+    const k = e.target.dataset.lay; if (!k || k === 'ratio') return;
+    b.print[k] = e.target.checked; touch();
+    if (k === 'locked') { refresh(); toast(e.target.checked ? '已锁定版式' : '已解除锁定'); }
+    else repaint();
+    if (k !== 'locked') renderTool();
+  });
+  p.addEventListener('click', e => {
+    const g = e.target.closest('[data-lay-gap]');
+    if (g) { b.print.gap = clamp(b.print.gap + +g.dataset.layGap, 0, 24); touch(); p.querySelector('[data-live="gap"]').textContent = b.print.gap; repaint(); return; }
+    const v = e.target.closest('[data-seg] [data-v]'); if (!v) return;
+    const k = v.closest('[data-seg]').dataset.seg; b.print[k] = v.dataset.v; touch(); refresh(); repaint();
+  });
+}
+function openPaperRec(anchor) {
+  const b = cur(), s = paperSum(b); if (!s.pages) return;
+  const pos = s.cursor.y / AVAIL < .34 ? '上部' : s.cursor.y / AVAIL < .67 ? '中部' : '下部';
+  const P = b.printed.print;
+  openPop(anchor, `<div class="pop-h">纸面记录</div><div class="pop-b" style="width:340px">
+    <p>纸上已有 <b>${s.count}</b> 题，共 <b>${s.pages}</b> 页，${fmtTime(s.at)} 记录。</p>
+    <p>${s.cursor.y >= AVAIL - 1 ? `第 ${s.cursor.page} 页已经排满，下次补印从新的一页开始。` : `下次补印从第 ${s.cursor.page} 页${pos}接着排。`}补印时沿用当时的版式（右侧留白 ${Math.round(P.ratio * 100)}%），保证和原纸对齐。</p>
+    ${s.changed ? `<p style="color:var(--bad-fg)">${s.changed} 道题打印后改过内容，纸上还是旧版；想换成新版只能全部重印。</p>` : ''}
+    <button type="button" class="btn sm warn-text" data-act="reset-paper">${ic('trash')}清空纸面记录</button></div>`, {});
+}
+
+/* ═════════ 展示板管理 ═════════ */
+function isSmall() { return matchMedia('(max-width:1160px)').matches; }
+function setBoardsOpen(v) { S.boardsOpen = v; const app = $('#app'); app.classList.toggle('bclosed', !v); app.classList.toggle('bopen-sm', v && isSmall()); renderHeader(); }
+function switchBoard(id) {
+  if (S.cur === id) { if (isSmall()) setBoardsOpen(false); return; }
+  S.cur = id; S.sel = null; S.panel = 'list'; S.reveal = false; S.titleEdit = false; closePop();
+  $('#desk').scrollTop = 0; renderAll(); $('#desk').scrollTop = 0;
+  if (isSmall()) setBoardsOpen(false);
+}
+function newBoard(folder, name) {
+  const b = { id: newId('b'), name, folder: folder || null, note: '', items: [], print: { ...DEFAULT_PRINT }, printed: null, syncLabel: null, syncedAt: null, changed: new Set(), mode: 'all', awaiting: null };
+  const last = S.boards.map(x => x.folder || '').lastIndexOf(folder || '');
+  S.boards.splice(last < 0 ? S.boards.length : last + 1, 0, b);
+  S.creating = null; touch(); switchBoard(b.id); renderAll();
+  toast(`已新建「${esc(name)}」，现在可以添加题目了`, { action: { label: '添加题目', fn: openAdd } });
+}
+function startCreate() {
+  if (!S.boardsOpen) setBoardsOpen(true);
+  const b = cur(); S.creating = b?.folder || ''; S.bq = ''; $('#bq').value = '';
+  const f = S.folders.find(x => x.id === S.creating); if (f) f.open = true;
+  renderBoards(); $('#btree input[data-create]')?.scrollIntoView({ block: 'nearest' });
+}
+function boardMenuHtml(b) {
+  const others = S.folders.filter(f => f.id !== b.folder);
+  return `<div class="menu" role="menu">
+    <button type="button" data-act="b-rename" data-id="${b.id}">${ic('pencil')}重命名</button>
+    <button type="button" data-act="b-note" data-id="${b.id}">${ic('note')}${b.note ? '编辑备注' : '添加备注'}</button>
+    <button type="button" data-act="b-dup" data-id="${b.id}">${ic('copy')}复制一份</button>
+    <button type="button" data-act="b-export" data-id="${b.id}">${ic('download')}下载 HTML</button>
+    <div class="sep"></div><div class="sec">移到</div>
+    ${others.map(f => `<button type="button" data-act="b-move" data-id="${b.id}" data-f="${f.id}">${ic('folder')}${esc(f.name)}</button>`).join('')}
+    ${b.folder ? `<button type="button" data-act="b-move" data-id="${b.id}" data-f="">${ic('folder')}未归档</button>` : ''}
+    <button type="button" data-act="b-move-new" data-id="${b.id}">${ic('folder-plus')}新文件夹…</button>
+    <div class="sep"></div>
+    <button type="button" class="danger" data-act="b-del" data-id="${b.id}">${ic('trash')}删除展示板</button></div>`;
+}
+function folderMenuHtml(f) {
+  return `<div class="menu" role="menu"><button type="button" data-act="f-rename" data-id="${f.id}">${ic('pencil')}重命名</button><button type="button" data-act="f-new" data-id="${f.id}">${ic('plus')}在这里新建展示板</button><div class="sep"></div><button type="button" class="danger" data-act="f-del" data-id="${f.id}">${ic('trash')}删除文件夹</button></div>`;
+}
+function moveBoard(id, folder, beforeId = null) {
+  const i = S.boards.findIndex(b => b.id === id); if (i < 0) return; const [b] = S.boards.splice(i, 1); b.folder = folder || null;
+  let at = beforeId ? S.boards.findIndex(x => x.id === beforeId) : -1;
+  if (at < 0) { const last = S.boards.map(x => x.folder || '').lastIndexOf(folder || ''); at = last < 0 ? S.boards.length : last + 1; }
+  S.boards.splice(at, 0, b); touch(); renderBoards(); renderHeader();
+}
+async function deleteBoard(id) {
+  const i = S.boards.findIndex(b => b.id === id), b = S.boards[i]; if (!b) return;
+  const ok = await confirmDlg({ title: `删除「${esc(b.name)}」？`, body: `板里的 ${b.items.length} 道题只是引用，题目本身不会被删除。${b.printed ? '这个板的纸面记录会一起清除。' : ''}`, ok: '删除', danger: true });
+  if (!ok) return;
+  S.boards.splice(i, 1); const wasCur = S.cur === id;
+  if (wasCur) { S.cur = (S.boards[i] || S.boards[i - 1] || {}).id || ''; S.sel = null; S.panel = 'list'; }
+  renderAll();
+  toast(`已删除「${esc(b.name)}」`, { action: { label: '撤销', fn: () => { S.boards.splice(i, 0, b); if (wasCur) { S.cur = b.id; } renderAll(); } } });
+}
+
+/* ═════════ 点击分发 ═════════ */
+async function act(name, el, e) {
+  const b = cur(); const id = el?.dataset.id; const tb = id ? S.boards.find(x => x.id === id) : b;
+  switch (name) {
+    case 'nav': e.preventDefault(); toast('这个示例页只包含展示板'); break;
+    case 'theme': { const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme:dark)').matches; setTheme(dark ? 'light' : 'dark'); break; }
+    case 'help': openPop(el, `<div class="pop-h">快捷键</div><div class="keys">
+      <span><kbd>N</kbd></span><span>新建展示板</span><span><kbd>A</kbd></span><span>添加题目</span><span><kbd>P</kbd></span><span>打印</span>
+      <span><kbd>↑</kbd><kbd>↓</kbd></span><span>切换题目</span><span><kbd>Enter</kbd></span><span>打开选中的题</span><span><kbd>[</kbd><kbd>]</kbd></span><span>选中题的留白 −1 / +1</span>
+      <span><kbd>Alt</kbd><kbd>↑</kbd><kbd>↓</kbd></span><span>上下移动选中的题</span><span><kbd>Delete</kbd></span><span>移出选中的题</span><span><kbd>Esc</kbd></span><span>返回列表 / 取消选中</span></div>`, { at: el.getBoundingClientRect().right > 100 ? null : { x: 64, y: el.getBoundingClientRect().top - 300 } }); break;
+    case 'toggle-boards': setBoardsOpen(!S.boardsOpen); break;
+    case 'new-board': startCreate(); break;
+    case 'new-board-named': { const n = S.bq.trim(); S.bq = ''; $('#bq').value = ''; newBoard(b?.folder || '', n); break; }
+    case 'new-folder': if (!S.boardsOpen) setBoardsOpen(true); S.creatingFolder = true; S.bq = ''; $('#bq').value = ''; renderBoards(); break;
+    case 'add': openAdd(); break;
+    case 'sync': openSync(el); break;
+    case 'sync-pick': openPop(el, labelPickHtml(b), { align: el.closest('.pempty') ? 'start' : 'start' }); break;
+    case 'sync-set': closePop(); b.syncLabel = el.dataset.l; b.syncedAt = null; touch(); renderList(); { const n = pendingSync(b).length; toast(n ? `已关联「${esc(b.syncLabel)}」，有 ${n} 道题可以同步` : `已关联「${esc(b.syncLabel)}」，目前没有需要同步的题`, n ? { action: { label: '现在同步', fn: () => openSync($('[data-act="sync"]')) } } : {}); } break;
+    case 'sync-unset': closePop(); b.syncLabel = null; touch(); renderList(); break;
+    case 'sort': openPop(el, `<div class="menu" role="menu"><div class="sec">重新排列纸面顺序</div>
+      <button type="button" data-act="sort-by" data-k="subject">按科目和分类</button><button type="button" data-act="sort-by" data-k="mastery">熟练度低的在前</button><button type="button" data-act="sort-by" data-k="due">到期早的在前</button><button type="button" data-act="sort-by" data-k="added">按加入时间</button><div class="sep"></div><button type="button" data-act="sort-by" data-k="reverse">倒过来</button></div>`, { align: 'end' }); break;
+    case 'sort-by': {
+      closePop(); const before = [...b.items]; const k = el.dataset.k; const Q = u => QMAP[u.uid];
+      if (k === 'reverse') b.items.reverse();
+      else b.items.sort({ subject: (x, y) => (Q(x).subject + Q(x).category).localeCompare(Q(y).subject + Q(y).category, 'zh-CN'), mastery: (x, y) => Q(x).mastery - Q(y).mastery, due: (x, y) => Q(x).due - Q(y).due, added: (x, y) => x.added - y.added }[k]);
+      touch(); renderPaper(); renderList(); renderDetail();
+      toast(`已${el.textContent.trim()}排列${b.printed ? '；纸上已印的位置不变，只影响重印' : ''}`, { action: { label: '撤销', fn: () => { b.items = before; touch(); renderPaper(); renderList(); renderDetail(); } } }); break;
+    }
+    case 'clean-suspended': { const before = [...b.items]; b.items = b.items.filter(i => !QMAP[i.uid].suspended); if (S.sel && !itemOf(b, S.sel)) { S.sel = null; S.panel = 'list'; } touch(); renderAll(); toast(`已移出 ${before.length - b.items.length} 道停用题`, { action: { label: '撤销', fn: () => { b.items = before; renderAll(); } } }); break; }
+    case 'print': doPrint(); break;
+    case 'download': { const sc = scopeOf(b); const M = paperModel(b); b.awaiting = { mode: sc, count: sc === 'new' ? paperSum(b).newCount : activeItems(b).length, first: M.first, last: M.last }; renderHeader(); renderConfirm(); renderBoards(); toast(`已下载 OMRS-BD-${esc(b.name)}${sc === 'new' ? '-新增' : ''}-错题集.html`); break; }
+    case 'record': recordPrinted(); break;
+    case 'cancel-print': b.awaiting = null; renderHeader(); renderConfirm(); renderBoards(); break;
+    case 'scope-new': case 'scope-all': b.mode = name === 'scope-new' ? 'new' : 'all'; if (b.awaiting) b.awaiting = null; $('#desk').scrollTop = 0; renderHeader(); renderConfirm(); renderTool(); renderPaper(); break;
+    case 'paper-rec': openPaperRec(el); break;
+    case 'reset-paper': { closePop(); const ok = await confirmDlg({ title: '清空纸面记录？', body: '系统将不再知道哪些题已经印在纸上，下次只能全部重印。纸本身不受影响。', ok: '清空', danger: true }); if (ok) { const P = b.printed; b.printed = null; b.mode = 'all'; b.awaiting = null; touch(); renderAll(); toast('已清空纸面记录', { action: { label: '撤销', fn: () => { b.printed = P; b.mode = 'new'; renderAll(); } } }); } break; }
+    case 'jump-new': case 'jump-changed': {
+      if (name === 'jump-new' && scopeOf(b) !== 'new') { /* 在全部视图里定位 */ }
+      const ps = new Set(b.printed?.uids || []);
+      const t = activeItems(b).find(i => name === 'jump-new' ? !ps.has(i.uid) : (ps.has(i.uid) && b.changed.has(i.uid)));
+      if (t) { if (name === 'jump-changed' && scopeOf(b) === 'new') { b.mode = 'all'; renderHeader(); renderTool(); } select(t.uid, { open: true }); } break;
+    }
+    case 'pg-prev': case 'pg-next': { const sh = $$('.sheet'); const i = sh.findIndex(x => +x.dataset.pn === S.page); const t = sh[clamp(i + (name === 'pg-next' ? 1 : -1), 0, sh.length - 1)]; if (t) $('#desk').scrollTo({ top: t.offsetTop - 20, behavior: 'smooth' }); break; }
+    case 'zoom-fit': case 'zoom-1': S.zoom = name === 'zoom-fit' ? 'fit' : '1'; renderTool(); renderPaper(); if (S.sel) scrollToQ(S.sel, false); break;
+    case 'layout': openLayout(el); break;
+    case 'back': back(); break;
+    case 'prev': navSel(-1); break;
+    case 'next': navSel(1); break;
+    case 'big': openBig(S.sel); break;
+    case 'gap-dec': case 'gap-inc': setGap(S.sel, gapNow(S.sel) + (name === 'gap-inc' ? 1 : -1)); break;
+    case 'gap-set': setGap(S.sel, +el.dataset.v); break;
+    case 'gap-inherit': setGap(S.sel, null); break;
+    case 'gap-unlock': if (await unlockConfirm(b, S.sel)) renderDetail(); break;
+    case 'reveal': S.reveal = !S.reveal; renderDetail(); break;
+    case 'label-add': { const q = QMAP[S.sel]; openPop(el, `<div class="menu" role="menu"><div class="sec">给 ${esc(q.uid)} 打标记</div>${LABELS.map(l => `<button type="button" role="menuitemcheckbox" aria-checked="${q.labels.includes(l.name)}" data-act="label-toggle" data-l="${l.name}"><i class="ldot" style="--c:${l.c}"></i>${l.name}${q.labels.includes(l.name) ? `<span class="ck">${ic('check')}</span>` : ''}</button>`).join('')}</div>`); break; }
+    case 'label-toggle': case 'label-rm': {
+      const q = QMAP[S.sel], l = el.dataset.l; closePop();
+      q.labels = q.labels.includes(l) ? q.labels.filter(x => x !== l) : [...q.labels, l];
+      MC.clear(); MV++; touch(); renderPaper(); renderList(); renderDetail(); break;
+    }
+    case 'edit': toast(`会打开 ${esc(S.sel)} 的 Markdown 编辑器`); break;
+    case 'open-lib': toast(`会切到题目库并定位到 ${esc(S.sel)}`); break;
+    case 'remove': removeItem(S.sel); break;
+    case 'rename-title': S.titleEdit = true; renderHeader(); break;
+    case 'note': case 'b-note': { closePop(); const v = await promptDlg({ title: '备注', hint: '只在系统里显示，不会印在纸上。', value: tb.note, multiline: true, placeholder: '比如：10 月 12 日月考前过一遍' }); if (v != null) { tb.note = v; touch(); renderHeader(); renderBoards(); } break; }
+    case 'b-rename': { const fromHead = S.pop?.anchor?.closest('.bhead'); closePop(); if (fromHead || (!S.boardsOpen && id === S.cur)) { S.titleEdit = true; renderHeader(); } else { if (!S.boardsOpen) setBoardsOpen(true); S.renaming = id; renderBoards(); } break; }
+    case 'b-dup': { closePop(); const c = { ...tb, id: newId('b'), name: `${tb.name} 副本`, items: tb.items.map(i => ({ ...i })), print: { ...tb.print, locked: false }, printed: null, changed: new Set(), mode: 'all', awaiting: null }; S.boards.splice(S.boards.indexOf(tb) + 1, 0, c); touch(); switchBoard(c.id); toast(`已复制为「${esc(c.name)}」，纸面记录不会复制`); break; }
+    case 'b-export': closePop(); toast(`已下载 OMRS-BD-${esc(tb.name)}-错题集.html`); break;
+    case 'b-move': closePop(); moveBoard(id, el.dataset.f); toast(`已移到「${esc(S.folders.find(f => f.id === el.dataset.f)?.name || '未归档')}」`); break;
+    case 'b-move-new': { closePop(); const n = await promptDlg({ title: '新文件夹', value: '', ok: '创建并移入', placeholder: '比如：高三上 · 期末' }); if (n) { const f = { id: newId('f'), name: n, open: true }; S.folders.push(f); moveBoard(id, f.id); } break; }
+    case 'b-del': closePop(); deleteBoard(id); break;
+    case 'f-rename': closePop(); S.renamingFolder = id; renderBoards(); break;
+    case 'f-new': { closePop(); S.creating = id; const f = S.folders.find(x => x.id === id); f.open = true; renderBoards(); break; }
+    case 'f-del': {
+      closePop(); const f = S.folders.find(x => x.id === id); const n = S.boards.filter(x => x.folder === id).length;
+      const ok = await confirmDlg({ title: `删除文件夹「${esc(f.name)}」？`, body: n ? `里面的 ${n} 个展示板会移到「未归档」，不会被删除。` : '这是个空文件夹。', ok: '删除文件夹', danger: true });
+      if (ok) { S.boards.forEach(x => { if (x.folder === id) x.folder = null; }); S.folders = S.folders.filter(x => x.id !== id); touch(); renderBoards(); renderHeader(); }
+      break;
+    }
+  }
+}
+document.addEventListener('click', e => {
+  const t = e.target;
+  const a = t.closest('[data-act]'); if (a && !a.disabled) { act(a.dataset.act, a, e); return; }
+  const bm = t.closest('[data-bmenu]'); if (bm) { const b = S.boards.find(x => x.id === bm.dataset.bmenu); openPop(bm, boardMenuHtml(b), { align: bm.closest('.bhead') ? 'start' : 'start' }); return; }
+  const fm = t.closest('[data-fmenu]'); if (fm) { openPop(fm, folderMenuHtml(S.folders.find(f => f.id === fm.dataset.fmenu))); return; }
+  const fold = t.closest('[data-fold]'); if (fold && !t.closest('input')) { const f = S.folders.find(x => x.id === fold.dataset.fold); f.open = !f.open; renderBoards(); return; }
+  const br = t.closest('[data-board]'); if (br) { switchBoard(br.dataset.board); return; }
+  const gi = t.closest('[data-gap-inc],[data-gap-dec]'); if (gi) { const u = gi.dataset.gapInc || gi.dataset.gapDec; if (S.sel !== u) { S.sel = u; } setGap(u, gapNow(u) + (gi.dataset.gapInc ? 1 : -1)); return; }
+  const z = t.closest('.zone[data-q]'); if (z && !t.closest('.gh')) { select(z.dataset.q, { open: true, scroll: false }); return; }
+  const r = t.closest('.qrow[data-q]'); if (r && !t.closest('.grip')) { select(r.dataset.q, { open: true }); return; }
+});
+$('#btree').addEventListener('contextmenu', e => {
+  const br = e.target.closest('[data-board]'), fo = e.target.closest('[data-fold]'); if (!br && !fo) return; e.preventDefault();
+  openPop(br || fo, br ? boardMenuHtml(S.boards.find(x => x.id === br.dataset.board)) : folderMenuHtml(S.folders.find(f => f.id === fo.dataset.fold)), { at: { x: e.clientX, y: e.clientY } });
+});
+
+/* 行内输入：新建 / 重命名 */
+function commitInline(inp, cancel) {
+  if (inp.dataset.done) return; inp.dataset.done = '1'; const v = inp.value.trim();
+  if ('create' in inp.dataset) { S.creating = null; if (!cancel && v) newBoard(inp.dataset.create, v); else renderBoards(); }
+  else if ('newfolder' in inp.dataset) { S.creatingFolder = false; if (!cancel && v) { S.folders.push({ id: newId('f'), name: v, open: true }); touch(); toast(`已新建文件夹「${esc(v)}」，可以把展示板拖进去`); } renderBoards(); }
+  else if (inp.dataset.rename) { const b = S.boards.find(x => x.id === inp.dataset.rename); S.renaming = null; if (!cancel && v) { b.name = v; touch(); } renderBoards(); renderHeader(); }
+  else if (inp.dataset.renamefolder) { const f = S.folders.find(x => x.id === inp.dataset.renamefolder); S.renamingFolder = null; if (!cancel && v) { f.name = v; touch(); } renderBoards(); renderHeader(); }
+  else if (inp.id === 'titlein') { S.titleEdit = false; if (!cancel && v) { cur().name = v; touch(); } renderHeader(); renderBoards(); }
+}
+document.addEventListener('keydown', e => { const i = e.target; if (i.tagName !== 'INPUT' || !(i.closest('#btree') || i.id === 'titlein')) return; if (e.key === 'Enter') { e.preventDefault(); commitInline(i, false); } if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); commitInline(i, true); } }, true);
+document.addEventListener('focusout', e => { const i = e.target; if (i.tagName === 'INPUT' && (i.closest('#btree') || i.id === 'titlein') && i.isConnected) commitInline(i, false); });
+$('#bq').addEventListener('input', e => { S.bq = e.target.value; renderBoards(); });
+
+/* 展示板拖放：拖到文件夹 = 移入；拖到某个板上 = 排在它前面 */
+let DRAGB = null;
+$('#btree').addEventListener('dragstart', e => { const r = e.target.closest('[data-board]'); if (!r) return; DRAGB = r.dataset.board; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', DRAGB); setTimeout(() => r.classList.add('dragging'), 0); });
+$('#btree').addEventListener('dragend', () => { DRAGB = null; $$('.dragging,.drop,.dropb', $('#btree')).forEach(x => x.classList.remove('dragging', 'drop', 'dropb')); });
+$('#btree').addEventListener('dragover', e => {
+  if (!DRAGB) return; const row = e.target.closest('[data-board]'), zone = e.target.closest('[data-fdrop]');
+  if (!row && !zone) return; e.preventDefault();
+  $$('.drop,.dropb', $('#btree')).forEach(x => x.classList.remove('drop', 'dropb'));
+  if (row && row.dataset.board !== DRAGB) row.classList.add('dropb'); else if (zone) zone.classList.add('drop');
+});
+$('#btree').addEventListener('drop', e => {
+  if (!DRAGB) return; e.preventDefault(); const row = e.target.closest('[data-board]'), zone = e.target.closest('[data-fdrop]');
+  if (row && row.dataset.board !== DRAGB) { const tb = S.boards.find(x => x.id === row.dataset.board); moveBoard(DRAGB, tb.folder || '', tb.id); }
+  else if (zone) moveBoard(DRAGB, zone.dataset.fdrop);
+});
+
+/* ═════════ 大窗口详情 ═════════ */
+function openBig(uid) {
+  const b = cur(); let i = b.items.findIndex(x => x.uid === uid); if (i < 0) return;
+  const body = () => { const it = b.items[i], q = QMAP[it.uid]; return `<div class="big-h"><b>${esc(q.uid)}</b>${tagsHtml(b, it, paperSum(b))}<span class="grow"></span><span style="color:var(--fg3);font-size:12px" class="num">${i + 1} / ${b.items.length}</span><button type="button" class="btn ghost icon sm" data-bn="-1" aria-label="上一题" ${i ? '' : 'disabled'}>${ic('left')}</button><button type="button" class="btn ghost icon sm" data-bn="1" aria-label="下一题" ${i < b.items.length - 1 ? '' : 'disabled'}>${ic('right')}</button><button type="button" class="btn ghost icon" data-bx aria-label="关闭">${ic('x')}</button></div>
+    <div class="big-b"><div>${metaHtml(q)}<div class="dlabels">${q.labels.map(n => lblChip(n)).join('') || '<span style="color:var(--fg3);font-size:12px">没有标记</span>'}</div><div class="qtext">${rich(q.q)}${q.fig ? `<div class="qfig">${FIG[q.fig]}</div>` : ''}</div></div>
+    <div><section class="dsec" style="margin-top:0"><h4>答案</h4><div class="ans">${rich(q.a)}</div><div class="why"><b>错因</b>${esc(q.why)}</div></section><section class="dsec"><h4>练习记录</h4>${recordsHtml(q)}</section>${q.kp?.length ? `<section class="dsec"><h4>知识点</h4><div style="font-size:13px;color:var(--fg2)">${q.kp.map(esc).join('、')}</div></section>` : ''}</div></div>`; };
+  const { sc, close } = modal(body(), 'big');
+  const dlg = sc.querySelector('.dlg'); const go = d => { const n = clamp(i + d, 0, b.items.length - 1); if (n === i) return; i = n; const f = document.activeElement?.dataset?.bn; dlg.innerHTML = body(); select(b.items[i].uid, { open: true }); (dlg.querySelector(`[data-bn="${f}"]:not([disabled])`) || dlg.querySelector('[data-bx]')).focus(); };
+  sc.addEventListener('click', e => { if (e.target.closest('[data-bx]')) close(); const n = e.target.closest('[data-bn]'); if (n) go(+n.dataset.bn); });
+  sc.addEventListener('keydown', e => { if (e.key === 'ArrowLeft') go(-1); if (e.key === 'ArrowRight') go(1); });
+  sc.querySelector('[data-bx]').focus();
+}
+
+/* ═════════ 全局键盘 ═════════ */
+document.addEventListener('keydown', e => {
+  if (e.defaultPrevented || e.isComposing) return;
+  const tg = e.target, typing = /^(INPUT|TEXTAREA|SELECT)$/.test(tg.tagName) || tg.isContentEditable;
+  if (e.key === 'Escape') {
+    if (S.pop) { const a = S.pop.anchor; closePop(); a?.focus?.(); return; }
+    if ($('.scrim')) return;
+    if (typing) { tg.blur(); return; }
+    if (S.panel === 'detail') { back(); return; }
+    if (S.sel) { S.sel = null; renderPaper(); renderList(); }
+    return;
+  }
+  if (typing || $('.scrim') || e.metaKey || e.ctrlKey) return;
+  if (S.pop && S.pop.el.contains(tg)) return;
+  const b = cur(); if (!b) return;
+  const k = e.key;
+  if (k === 'a' || k === 'A') { e.preventDefault(); openAdd(); }
+  else if (k === 'n' || k === 'N') { e.preventDefault(); startCreate(); }
+  else if (k === 'p' || k === 'P') { e.preventDefault(); doPrint(); }
+  else if (k === '?') { act('help', $('[data-act="help"]')); }
+  else if (k === 'ArrowDown' || k === 'ArrowUp') { if (tg.closest?.('.btree')) return; e.preventDefault(); if (e.altKey) moveSel(k === 'ArrowUp' ? -1 : 1); else navSel(k === 'ArrowUp' ? -1 : 1); }
+  else if ((k === '[' || k === ']' || k === '【' || k === '】') && S.sel && !QMAP[S.sel].suspended) { e.preventDefault(); setGap(S.sel, gapNow(S.sel) + (k === ']' || k === '】' ? 1 : -1)); }
+  else if ((k === 'Delete' || k === 'Backspace') && S.sel) { e.preventDefault(); removeItem(S.sel); }
+  else if (k === 'Enter' && S.sel && S.panel !== 'detail' && !tg.closest('button,[data-board]')) { e.preventDefault(); select(S.sel, { open: true }); }
+  else if (k === 'Enter' && tg.matches('[data-board]')) { switchBoard(tg.dataset.board); }
+});
+
+/* ═════════ 主题、尺寸、启动 ═════════ */
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('omrs-board-demo-theme', t); } catch (err) { /* 存不了就只在本次生效 */ }
+  $('#themebtn use').setAttribute('href', t === 'dark' ? '#i-sun' : '#i-moon');
+}
+(function initTheme() {
+  let t = null; try { t = localStorage.getItem('omrs-board-demo-theme'); } catch (err) { t = null; }
+  if (t === 'dark' || t === 'light') setTheme(t);
+  else $('#themebtn use').setAttribute('href', matchMedia('(prefers-color-scheme:dark)').matches ? '#i-sun' : '#i-moon');
+})();
+let scrollRaf = 0;
+$('#desk').addEventListener('scroll', () => { cancelAnimationFrame(scrollRaf); scrollRaf = requestAnimationFrame(updatePager); }, { passive: true });
+let lastW = 0, roRaf = 0;
+new ResizeObserver(() => { const w = $('#desk').clientWidth; if (Math.abs(w - lastW) < 2) return; lastW = w; cancelAnimationFrame(roRaf); roRaf = requestAnimationFrame(() => { if (S.zoom === 'fit') renderPaper(); }); }).observe($('#desk'));
+addEventListener('resize', () => { closePop(); const app = $('#app'); app.classList.toggle('bopen-sm', S.boardsOpen && isSmall()); });
+if (isSmall()) S.boardsOpen = false;
+$('#app').classList.toggle('bclosed', !S.boardsOpen);
+renderAll();
+const remeasure = () => { MC.clear(); MV++; renderPaper(); renderList(); renderBoards(); renderHeader(); renderTool(); };
+document.fonts?.ready.then(remeasure);
+let fontT = 0; document.fonts?.addEventListener?.('loadingdone', () => { clearTimeout(fontT); fontT = setTimeout(remeasure, 120); });
+</script>
+
+
+</body></html>

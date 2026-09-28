@@ -12,6 +12,7 @@ import { page as reportsPage } from './features/reports/index.js';
 import { page as settingsPage } from './features/settings/index.js';
 import { page as createPage } from './features/create/index.js';
 import { page as boardPage } from './features/board/index.js';
+import { page as assistantPage, syncAssistantNav } from './features/assistant/index.js';
 import { connectSessions, refreshSessions } from './domain/sessions.js';
 import { connectData, reloadData } from './domain/data.js';
 import { connectHistory } from './domain/history.js';
@@ -29,7 +30,7 @@ bindQuestionDom(document);
 installBoardWindow(window);
 void startActivityTracking(document);
 const pages = [dashboardPage, dataPage, schedulePage, historyPage, catalogPage, reportsPage,
-  settingsPage, createPage, boardPage, questionsPage, instantPage, feedbackPage];
+  settingsPage, createPage, boardPage, questionsPage, instantPage, feedbackPage, assistantPage];
 const { router, bus } = startShell(window, pages);
 connectData({ emit: (type, payload) => bus.emit(type, payload) });
 connectSessions({ emit: (type, payload) => bus.emit(type, payload) });
@@ -45,3 +46,5 @@ applyChrome(router.page(router.resolve(window.location.hash)), document);
 try { await Promise.all([loadLabels(), reloadData(), refreshSessions()]); }
 catch (error) { console.error('[omrs] 初始数据加载出错', error); }
 router.start();
+syncAssistantNav(document).catch(() => {});
+bus.on('agent:config', () => syncAssistantNav(document).catch(() => {}));

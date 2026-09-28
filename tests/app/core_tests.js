@@ -111,7 +111,7 @@ export function registerCoreTests({ test, assert, eq, stage }) {
     setScope(null);
   });
 
-  test('shell：新页面契约登记 actions / keys；进入调 mount(root, ctx)，离开执行卸载函数；旧页面仍走 enter', async () => {
+  test('shell：新页面契约登记 actions / keys；进入调 mount(root, ctx)，离开执行卸载函数；切到另一页只挂载那一页', async () => {
     // 外壳要改地址与 history，iframe 必须是同源文档（about:blank 不行）：随便载一个同源静态文件当空白页
     const frame = document.createElement('iframe');
     const loaded = new Promise(resolve => frame.addEventListener('load', resolve, { once: true }));
@@ -127,7 +127,7 @@ export function registerCoreTests({ test, assert, eq, stage }) {
       actions: { hit({ arg }) { log.push(`act:${arg}`); } },
       keys: { x: () => { log.push('key:x'); } },
     };
-    const old = { id: 'old', title: '旧页', enter: () => log.push('enter:old') };
+    const old = { id: 'old', title: '第二页', mount(root) { log.push(`mount:${root.id}`); } };
     const { router } = startShell(w, [fresh, old]);
     router.start();
     const btn = w.document.createElement('button');
@@ -139,9 +139,9 @@ export function registerCoreTests({ test, assert, eq, stage }) {
     const workbench = w.document.querySelector('.content').classList.contains('is-workbench');
     router.go('old');
     document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }));
-    eq(log.join('|'), 'mount:panel-dashboard:function:function|act:7|key:x|unmount|enter:old');
+    eq(log.join('|'), 'mount:panel-dashboard:function:function|act:7|key:x|unmount|mount:panel-old');
     assert(workbench, '新页面的 workbench 标志生效');
-    eq(w.document.title, '旧页 · OMRS');
+    eq(w.document.title, '第二页 · OMRS');
     frame.remove();
     setScope(null);
   });

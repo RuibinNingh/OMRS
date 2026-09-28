@@ -53,3 +53,5 @@
 - 旧代码改了标记定义（`labels.js::renderLabelFilterOptions()`）后经 bus 发 `labels`，新页面重画标记筛选。
 - 标记芯片与标记筛选来自 `domain/labels/index.js`（`labelChip(s)`、`listLabels()`；P5 第 4 轮起 `domain/labels.js` 扩成目录，芯片颜色写 `data-lbl-c`，不写 `style=`）。
 - `INSTANT_QUEUE` 是只读兼容属性，给旧冒烟测试用。
+
+熟练度百分比用 `core/format.js` 的 `formatPercent`（空值按 0% 显示）。E2E 只经 DOM、`window.__omrs` 与真实模块断言；审计前先等入场动画结束，缩放中的按钮会被量小。

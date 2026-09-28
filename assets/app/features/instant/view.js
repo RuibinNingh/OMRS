@@ -15,8 +15,9 @@ import { status } from '../../ui/status.js';
 import { kbd } from '../../ui/kbd.js';
 import { labelChip, labelChips } from '../../domain/labels/index.js';
 import { counts, currentItem, isJudged, nextOpenIndex } from './state.js';
+import { formatPercent } from '../../core/format.js';
 
-const pct = value => `${Math.round((Number(value) || 0) * 100)}%`;
+const pct = value => formatPercent(Number(value) || 0);
 const SOURCE = { due: ['到期', 'warning'], proficiency: ['熟练度', 'info'] };
 
 export function dueText(days) {

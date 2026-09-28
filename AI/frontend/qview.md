@@ -21,7 +21,7 @@
 | `index.js` | 对外出口；另有页面用的 `mountQuestion`（即时练习）、`mountQuestionStage`（反馈录入）、`invalidateQuestions`，并转出 `ops.js` 全部与 `dropDetail`（删除 / 迁移后丢旧详情） |
 | `qview.css` | `layer(domain)`：qview 的全部外观（布局与挂载点容器、题头、题面块、Markdown 段落 / 表格 / 题图、记录模块、战绩带、占位、别处容器的覆盖）与题目弹窗、编辑器外观（P5 第 4 轮起旧 `styles.css` 不再有 qview 规则） |
 
-新页面从 `index.js` 取；旧脚本经 `legacy-bridge.js` 的 `installQuestionBridge` 拿到同名全局（`renderMdContent` 即 `renderMd`，另有 `ensureQuestionDetail`、`qvHtml`、`qvRender`、`viewQ`、`closeModal` 等，逐条注明调用方，见 `AI/frontend/architecture.md` §6）。输出都是字符串：旧代码直接拼 HTML，新代码经 `raw()` 嵌入模板。
+各页从 `index.js` 取。输出都是字符串，页面经 `raw()` 嵌入模板。
 
 ## 2. Markdown 渲染与缓存
 

@@ -68,15 +68,19 @@ def scan_question_files(vault: str) -> list:
 
 
 def scan_workspace(vault: str):
-    if not _SCAN_LOCK.acquire(blocking=False):
-        return {"status": "busy", "changes": 0, "conflicts": []}
-    try:
-        return _scan_workspace_locked(vault)
-    except Exception as exc:
-        _write_scan_status(vault, 0, [str(exc)], str(exc))
-        raise
-    finally:
-        _SCAN_LOCK.release()
+    from .locking import write_lock
+
+    # 锁顺序：写锁在外，_SCAN_LOCK 在内（_SCAN_LOCK 只防扫描重入，不排队重复扫描）
+    with write_lock():
+        if not _SCAN_LOCK.acquire(blocking=False):
+            return {"status": "busy", "changes": 0, "conflicts": []}
+        try:
+            return _scan_workspace_locked(vault)
+        except Exception as exc:
+            _write_scan_status(vault, 0, [str(exc)], str(exc))
+            raise
+        finally:
+            _SCAN_LOCK.release()
 
 
 def _scan_workspace_locked(vault: str):
@@ -139,6 +143,13 @@ def _scan_workspace_locked(vault: str):
             })
             changes.append({"type": "question.metadata_update_external", "uid": item["uid"]})
         elif old["content_hash"] != ch:
+            # 只改了正文（例如在 Obsidian 里编辑）：记一笔 question.content_update，正文进 blobs
+            append_commit(vault, "self_check", "question.content_update", "检测到人工修改正文", {
+                "question_id": question_id,
+                "uid_at_that_time": item["uid"],
+                "before_hash": old["content_hash"],
+                "after_hash": ch,
+            }, blobs=[item["content"]])
             changes.append({"type": "content_only", "uid": item["uid"]})
 
     for question_id, old in fingerprints.items():

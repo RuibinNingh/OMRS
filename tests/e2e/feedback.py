@@ -149,7 +149,7 @@ def run_desktop(page, base, port, sid, results):
           and "is-no" in ev(f"document.querySelector('.fbw-q[data-arg=\"{after_enter}\"]').className"), f"{k1} enter->{after_enter}")
     page.keyboard.press("e")
     opened = wait(page, "() => document.getElementById('md-editor')?.open === true")
-    ev("closeMarkdownEditor()")
+    page.keyboard.press("Escape")
     wait(page, "() => !document.getElementById('md-editor')")
     check("E 打开当前题的 Markdown 编辑器", opened)
     ready = ev("document.querySelectorAll('.fbw-q.is-ok, .fbw-q.is-no').length")

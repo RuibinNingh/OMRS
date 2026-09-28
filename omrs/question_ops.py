@@ -22,19 +22,20 @@ def get_question_raw(vault: str, uid: str):
         }
 
 
-def save_question_markdown(vault: str, uid: str, markdown: str):
+def save_question_markdown(vault: str, uid: str, markdown: str, expected_content_hash: str = ""):
+    from .content_history import refresh_projection, write_question
     row = _projection_by_uid(vault, uid)
     if not row:
         raise RuntimeError(f"UID 不存在: {uid}")
-    old = get_question_raw(vault, uid)
     old_id = row["question_id"]
     new_meta = parse_yaml_frontmatter(markdown)
     if new_meta.get("_omrs_id") != old_id:
         raise RuntimeError("_omrs_id 是系统内部身份，不能在编辑器中修改")
-    path = _question_file_path(vault, row)
-    _atomic_write_text(path, markdown)
-    scan_workspace(vault)
-    return {"uid": uid, "file_path": row["file_path"], "bytes": len(markdown.encode("utf-8"))}
+    # 写前对齐 + 可选的 expected_content_hash（对不上抛 ContentConflict → 409）；改动入账
+    write_question(vault, row, markdown, f"编辑题目 {uid}", expected_hash=expected_content_hash or None)
+    refresh_projection(vault)
+    return {"uid": uid, "file_path": row["file_path"], "bytes": len(markdown.encode("utf-8")),
+            "content_hash": content_hash(markdown)}
 
 
 def set_question_labels(vault: str, uid: str, labels, scan=True):
@@ -174,12 +175,17 @@ def delete_question(vault: str, uid: str):
     if not os.path.isfile(path):
         raise RuntimeError(f"题目 Markdown 文件不存在: {row['file_path']}")
 
+    from .content_history import ensure_content_recorded
+    with open(path, "r", encoding="utf-8") as file:
+        last_content = file.read()
+    last_hash = ensure_content_recorded(vault, row, last_content)  # 删除前保证最后一版正文可取回
     os.remove(path)
     append_commit(vault, "api", "question.archive", f"删除题目 {uid}", {
         "question_id": row["question_id"],
         "uid_at_that_time": uid,
         "file_path": row["file_path"],
         "reason": "通过题目库删除",
+        "content_hash": last_hash,
     })
     state = rebuild_projection(vault)
     update_fingerprints(vault, [

@@ -13,8 +13,8 @@ const LOCAL = { status: 'ok', remote: false, authenticated: true, lan_pin_exempt
 const REMOTE = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: false };
 const EXEMPT = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: true };
 
-test('分区名称非法时回到外观，五个分区次序稳定', () => {
-  assert.deepEqual(SECTIONS, ['appearance', 'access', 'ai', 'data', 'service']);
+test('分区名称非法时回到外观，六个分区次序稳定', () => {
+  assert.deepEqual(SECTIONS, ['appearance', 'access', 'ai', 'assistant', 'data', 'service']);
   assert.equal(sectionOf('data'), 'data');
   assert.equal(sectionOf('unknown'), 'appearance');
 });

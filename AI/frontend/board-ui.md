@@ -4,7 +4,7 @@
 > - 职责：展示板页的交互：页面外壳、列表 / 画廊、检查器、加题对话框、常驻预览 iframe、保存队列、视图与每题留白（数据模型与打印见 `AI/board.md`）
 > - 入口：页面契约 `assets/app/features/board/index.js`；板详情 `assets/app/features/board/detail.js`（单例与真实 I/O 在 `runtime.js`）；板列表数据 `assets/app/domain/board/boards.js`
 > - 不变量：保存按字段记脏并合并为一次 POST；预览消息必须带当前 `previewToken`；morph 永不挪动舞台（预览 iframe 不重载）；题后留白只有检查器能写
-> - 必跑测试：`tests/app/board*.test.mjs`（含 `board-save.test.mjs`、`board-print.test.mjs`、`board-preview.test.mjs`、`board-locked.test.mjs`、`board-picker.test.mjs`、`board-page.test.mjs`）、`tests/e2e/board.py`、`tests/e2e/board_picker.py`、`tests/smoke_board_lock.py`、`tests/smoke_board_integrity.py`
+> - 必跑测试：`tests/app/board*.test.mjs`（含 `board-save.test.mjs`、`board-print.test.mjs`、`board-preview.test.mjs`、`board-locked.test.mjs`、`board-picker.test.mjs`、`board-page.test.mjs`）、`tests/e2e/board.py`、`tests/e2e/board_picker.py`、smoke_board_lock.py（已删除：调用的旧全局 P7 起已不存在；覆盖由新版展示板 E2E 承接）、smoke_board_integrity.py（已删除：调用的旧全局 P7 起已不存在；覆盖由新版展示板 E2E 承接）
 > - 相关：`AI/frontend.md`（索引）
 
 ## 代码位置
@@ -31,7 +31,7 @@
 | `assets/app/domain/board/picker.js` | 选板浮层（下文）：`boardPickerOpen` / `boardPickerClose` / `boardPickerIsOpen`；模板 `picker-view.js`、样式 `picker.css`（`@layer domain`）、数据来源 `source.js`（板列表、文件夹、折叠读 `boards.js`；加题、重读、打开板、新板设为当前详情经 `detail-port.js`） |
 | `assets/app/domain/board/index.js` | 上面全部，加上「加入展示板」的 `boardQuickAdd` / `boardChooseAndAdd`（直接打开 `picker.js`；旧代码经过渡桥挂回的同名全局调用） |
 
-旧调用方（`app.js` 的 `init` 与数据刷新链、`labels.js` 标记保存后）与冒烟测试经过渡桥 `installBoardBridge` 挂回的同名全局碰板详情（`boardReloadData`、`boardLoad`、`boardApplyPrintField` 等，逐条登记在 `legacy-bridge.js`；`BOARD_DETAIL` 是只读访问器）。进度与后续见 `AI/plans/frontend-rearch/progress.md`。
+别处碰板详情一律经 `domain/board/detail-port.js`（选板浮层、各页「加入展示板」）；页面与端口共用 `features/board/runtime.js` 的单例 `boardDetail()`。
 
 ## 展示板页
 
@@ -100,7 +100,7 @@
 
 **锁定保护纸面，不冻结题目集合：** `boardPaperLayoutChanged()` 与服务端 `update_board` 使用同一边界，增删引用、排序、未印题留白、等值留白不弹重印确认。只有真实版式变化或保留的已印题有效留白变化才调用确认；无纸面不需破坏性确认，取消不改本地设置、不入脏队列、不提交该变更。单独切锁、答案附页以及关闭切割线时的线标签不作废纸面；全局留白仅在影响已印题时触发保护。
 
-统一 picker 的各加题入口由 `detail.js` 的 `addToBoard()` 直接追加，标签同步也直接追加去重；移除、清空、清理缺失/停用、拖拽/键盘/菜单排序保留纸上旧占位。安全操作不授予下一次真实版式修改的确认权限。细节见 `board.md` §4.6；行为覆盖为 `tests/app/board-locked.test.mjs`，隔离 HTTP/Chromium 覆盖为 `tests/smoke_board_lock.py`。
+统一 picker 的各加题入口由 `detail.js` 的 `addToBoard()` 直接追加，标签同步也直接追加去重；移除、清空、清理缺失/停用、拖拽/键盘/菜单排序保留纸上旧占位。安全操作不授予下一次真实版式修改的确认权限。细节见 `board.md` §4.6；行为覆盖为 `tests/app/board-locked.test.mjs`，隔离 HTTP/Chromium 覆盖为 smoke_board_lock.py（已删除：调用的旧全局 P7 起已不存在；覆盖由新版展示板 E2E 承接）。
 
 **布局**：`.brd-layout` 是 `200px / minmax(0,1fr) / 268px` 三列网格（≤1500px 收成 188 / 248）；≤1160px 检查器
 折到底部通栏并取消 sticky，≤760px 整体纵向堆叠、可点目标 40px。整屏工作台模式（`.is-workbench`，≥1161px，见

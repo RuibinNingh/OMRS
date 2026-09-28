@@ -11,7 +11,7 @@
 ```
 omrs_dashboard.html   ← 仅 HTML 结构，<link> 引样式 + 多个 <script> 引脚本
 assets/
-├── app/              ← 新前端（ES Module）：main.js、shell.js、legacy-pages.js、legacy-bridge.js、core/、ui/、domain/、features/（仪表盘、数据复盘、复习调度、展示板、题目库、即时练习、反馈录入、历史记录、目录、报告、设置，以及录入题目的外壳、上传、快速录入与收件箱网格）、styles/（见 AI/frontend/architecture.md）
+├── app/              ← 新前端（ES Module）：main.js、shell.js、core/、ui/、domain/、features/（仪表盘、数据复盘、复习调度、展示板、题目库、即时练习、反馈录入、历史记录、目录、报告、设置，以及录入题目的外壳、上传、快速录入与收件箱网格）、styles/（见 AI/frontend/architecture.md）
 ├── styles.css        ← 旧页面样式，经 app/styles/index.css 以 @layer legacy 引入（颜色一律引用 token）
 ├── vendor/fonts/     ← 本地 Noto Sans SC / JetBrains Mono 字体分片、许可与来源清单
 ├── core.js           ← 全局状态、api()、通用工具/筛选/Markdown 渲染 + 做题记录解析
@@ -31,7 +31,7 @@ assets/
 - **不再新增经典脚本**：新代码一律进 `assets/app/`（见 `AI/frontend/architecture.md`）；仪表盘、数据复盘、复习调度（含推荐选题）的旧脚本已删，其余旧页面迁走时逐个删。
 - **加载顺序固定**：`core.js` 最先（定义全部全局变量，只能声明一次，不可在其他文件重复 `let`）；`app.js` 是最后一个经典脚本，但不再自调用 `init()`：模块入口 `assets/app/main.js` 装好过渡桥与路由后调用它（启动顺序见 `AI/frontend/architecture.md` §2）。
 - 后端由 `/assets/<file>` 通用静态路由提供（`server.py` → `_serve_asset()`，含路径穿越防护与按扩展名的 content-type）。原 `/omrs_dashboard.js` 路由已移除。
-- 修改旧页面样式 → 改 `assets/app/styles/index.css`（它在 `legacy` 层，同名外观会被 `ui` 与 `legacy-bridge` 层压过，旧 `.btn` / `.input` 的外观改在 `assets/app/styles/controls.css`）；改某模块行为 → 改对应 `assets/*.js`；新增全局工具 → 放 `core.js`。
+- 改页面样式 → 改该页 `assets/app/features/<页>/*.css`；全站外壳 → `assets/app/styles/shell.css`；组件 → `assets/app/ui/*.css`；颜色与尺度 → `assets/app/styles/tokens.css`。
 - **拆分**：原 `schedule.js` 的导出、反馈页、复习调度部分都已迁到 `assets/app/`（`features/schedule/`、`features/feedback/`、`domain/exporting.js`），旧 `schedule.js` 只剩扫描与两个旧入口。
 
 ## 侧栏、顶栏与路由（`assets/app/styles/shell.css`、`assets/app/shell.js`）

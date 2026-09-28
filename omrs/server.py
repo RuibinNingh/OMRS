@@ -13,6 +13,7 @@ from .analytics import build_review_export, get_analytics
 from .catalog import build_tree
 from .reports import create_report, delete_report, get_report_html, list_reports, signed_report_images
 from . import security
+from . import locking
 from .ai_assist import recognize_question
 from .creation import create_question
 from .exporting import _find_image, _read_image_info, export_schedule_artifact, export_board_html, board_export_filename
@@ -47,6 +48,8 @@ from .optimization import (
     start_compression,
     storage_summary,
 )
+from .content_history import ContentConflict, content_versions, restore_content
+from .ledger import get_blob
 from .projections import ledger_history, ledger_retraction_state, rebuild_projection
 from .question_ops import (
     delete_question,
@@ -99,6 +102,10 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
         if path.startswith("/api/inbox/") or path == "/m":
             self._inbox_get(path, params)
+            return
+        if path.startswith("/api/agent/"):
+            from .agent.http import handle_agent_get
+            handle_agent_get(self, path, params)
             return
 
         if path == "/api/stats":
@@ -198,6 +205,18 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 })
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/question/content/history":
+            try:
+                self._json({"status": "ok", **content_versions(
+                    self.vault_path, uid=params.get("uid") or None, question_id=params.get("question_id") or None)})
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 404)
+        elif path == "/api/question/content/version":
+            content = get_blob(self.vault_path, params.get("hash", ""))
+            if content is None:
+                self._json({"status": "error", "msg": "这个版本的正文不在 Ledger 里"}, 404)
+            else:
+                self._json({"status": "ok", "hash": params.get("hash", ""), "markdown": content})
         elif path == "/api/ledger/verify":
             self._json(verify_ledger(self.vault_path))
         elif path == "/api/optimize/summary":
@@ -223,6 +242,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             key_configured = bool(config.get("ai_api_key"))
             config.pop("ai_api_key", None)
             config["ai_api_key_configured"] = key_configured
+            agent_key_configured = bool(config.get("agent_api_key"))
+            config.pop("agent_api_key", None)
+            config["agent_api_key_configured"] = agent_key_configured
             config.update(security.auth_summary(self.vault_path))
             self._json(config)
         elif path == "/api/reports":
@@ -309,6 +331,23 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         if path.startswith("/api/auth/"):
             self._auth_post(path)
             return
+        if path.startswith("/api/agent/"):
+            from .agent.http import handle_agent_post
+            handle_agent_post(self, path)
+            return
+        if locking.post_exempt(path):
+            self._do_post_routes(path)
+            return
+        # 其余 POST 一律在进程级写锁内处理（见 AI/api.md「并发与写锁」）
+        started = time.monotonic()
+        try:
+            with locking.write_lock():
+                self._do_post_routes(path)
+        except locking.WriteLockTimeout:
+            print(f"[omrs] 写锁等待超时：POST {path}，{time.monotonic() - started:.1f} 秒", flush=True)
+            self._json({"status": "error", "msg": "写入繁忙，请稍后重试"}, 503)
+
+    def _do_post_routes(self, path):
         if path == "/api/backup/import":
             self._handle_backup_import()
             return
@@ -422,6 +461,12 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     data["ai_api_key"] = ""
                 elif data.get("ai_api_key") == "":
                     data.pop("ai_api_key")
+                if data.pop("clear_agent_api_key", False):
+                    data["agent_api_key"] = ""
+                elif data.get("agent_api_key") == "":
+                    data.pop("agent_api_key")
+                from .agent.config import validate_agent_config
+                validate_agent_config(data)
                 data.pop("pin_hash", None)
                 data.pop("salt", None)
                 save_config(self.vault_path, data)
@@ -568,8 +613,22 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     self.vault_path,
                     data.get("uid", ""),
                     data.get("markdown", ""),
+                    expected_content_hash=str(data.get("expected_content_hash") or ""),
                 )
                 self._json({"status": "ok", **result})
+            except ContentConflict as exc:
+                self._json({"status": "error", "msg": str(exc)}, 409)
+            except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+
+        elif path == "/api/question/content/restore":
+            try:
+                data = json.loads(body) if body else {}
+                result = restore_content(self.vault_path, data.get("uid", ""), data.get("hash", ""),
+                                         expected_hash=str(data.get("expected_content_hash") or "") or None)
+                self._json({"status": "ok", **result})
+            except ContentConflict as exc:
+                self._json({"status": "error", "msg": str(exc)}, 409)
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
 
@@ -682,7 +741,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     except OSError:
                         pass
 
-                # Fallback for a manually launched OMRS process.
+                # Fallback for a manually launched OMRS process.  Wait (≤30 s) for the
+                # in-flight write to finish before the listener stops.
+                locking.acquire_for_shutdown(30.0)
                 self.server.shutdown()
                 time.sleep(1.5)
                 cmd = getattr(OMRSHandler, "_restart_cmd", None)

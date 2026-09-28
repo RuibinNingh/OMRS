@@ -13,7 +13,7 @@
 > `assets/app/domain/board/`（`model.js`、`boards.js`、`detail-port.js`、选板浮层 `picker.js`）、`tests/test_boards.py`、
 > `tests/test_board_export.py`、`tests/app/board.test.mjs`、`tests/app/board-preview.test.mjs`、
 > `tests/app/board-regions.test.mjs`、`tests/smoke_board_print.py`、`tests/test_board_locked_incremental.py`、
-> `tests/app/board-locked.test.mjs`、`tests/app/board-page.test.mjs`、`tests/e2e/board.py`、`tests/smoke_board_lock.py`。
+> `tests/app/board-locked.test.mjs`、`tests/app/board-page.test.mjs`、`tests/e2e/board.py`、smoke_board_lock.py（已删除：调用的旧全局 P7 起已不存在；覆盖由新版展示板 E2E 承接）。
 
 ## 1. 定位与边界
 
@@ -357,7 +357,7 @@ POST /api/board/update
 
 有纸面且请求前或请求后的 `print.locked` 为真时，改变题栏比例、题头显示、切割线或生效的切割线标签，或改变仍在板内的已印题的**有效**留白，会走明确确认重印流程，服务端更新时重置纸面记录。单独开/关锁定、答案附页选择、未打印题留白、等值的继承/显式留白切换不重置；全局留白仅在确实改变保留的已印题有效留白时重置。切割线关闭时的标签设置不生效，无需确认。无纸面时不弹破坏性确认；未锁定时版式编辑保留旧纸面，`new` 仍按纸面几何续排。
 
-确认由前端在本地变更和提交之前完成，后端保留真实版式变化的重置兜底；这不是新增鉴权机制，也不新增确认令牌。回归测试包含真实临时题库读写/HTML 数据、JS 动作与取消后零提交；`tests/smoke_board_lock.py` 通过隔离 HTTP + Chromium 核验补印按钮、透明旧区域和 cursor 续排，不代表物理打印机验收。
+确认由前端在本地变更和提交之前完成，后端保留真实版式变化的重置兜底；这不是新增鉴权机制，也不新增确认令牌。回归测试包含真实临时题库读写/HTML 数据、JS 动作与取消后零提交；smoke_board_lock.py（已删除：调用的旧全局 P7 起已不存在；覆盖由新版展示板 E2E 承接） 通过隔离 HTTP + Chromium 核验补印按钮、透明旧区域和 cursor 续排，不代表物理打印机验收。
 
 ## 5. HTTP API
 

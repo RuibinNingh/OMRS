@@ -13,7 +13,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 - 一个 **HTML/CSS/JS 单页前端**（`omrs_dashboard.html` + `assets/`）负责录入、即时练习、复习 Session、反馈、数据复盘与导出。
 - 没有构建步骤，题库、算法、Ledger、复习和导出均可离线使用；界面字体随 `assets/vendor/fonts/` 本地提供，AI 图片识别以及报告中用户选择的 HTTPS 外部资源属于可选联网能力。
 
-当前版本：**v1.27.0**。
+当前版本：**v1.28.1**。
 
 展示板锁定后仍可添加新题并补印：增删引用、排序和调整未打印题留白不会清空旧纸面记录；仅新增会沿用纸面记录中的实际比例与留白，改动已打印区域的版式才需要明确确认重印。
 
@@ -39,6 +39,8 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 ---
 
 ## 特性一览
+
+- **AI 助手**（在「设置 → AI 助手」里开启，需要支持工具调用的 OpenAI 兼容模型）：用对话找题、看哪块最弱、排复习、打标记；改正文、记反馈、录新题会先请你点「允许」，每次回答里的写入可以整体撤销。
 
 | 模块 | 能力 |
 |---|---|
@@ -164,7 +166,6 @@ pack_for_ai.bat
 │   └── report/             ← 托管的 AI HTML 报告与 index.json
 ├── tests/                  ← 后端 unittest + 前端 node:test；check_docs.py 文档体检，check_ui.py / check_contrast.py 前端纪律与对比度，visual/ 截图对比，fixtures/ 演示数据
 │                              （tool/ 与 Task/ 为本地工作目录，已被 .gitignore，不在仓库里）
-├── Skills/                 ← 第三方技能目录
 ├── AGENTS.md               ← 仓库协作与强制文档收尾规则
 ├── AI/                     ← AI 协作知识库（见下）
 ├── run.bat                 ← 一键启动
@@ -276,7 +277,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ## 版本
 
-当前版本 **v1.27.0**。各版本改了什么见 [`AI/changelog.md`](AI/changelog.md)（倒序）。
+当前版本 **v1.28.1**。各版本改了什么见 [`AI/changelog.md`](AI/changelog.md)（倒序）。
 
 ---
 

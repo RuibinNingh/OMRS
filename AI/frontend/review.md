@@ -22,7 +22,7 @@
 | 全题库导出 | 本页原生（v1.25.4 起；`exporter.js` 纯函数、`exporter-ctl.js`、`exporter-view.js`，保留 `#export-panel`、`#pick-*` 等旧 id） | 见下「全题库导出」；记住来处，「返回复习调度」回到它（`nextView(…, 'back')`） |
 
 - 进入页面：同时刷新 Session 列表与拉推荐（原 `schEnter` 的做法）。标签页支持点击与 ←/→/Home/End（页面快捷键作用域，焦点跟随）。待完成计数在「已有计划」标签上。
-- 页面事件 `schedule:view`（仪表盘「开始复习」发）、`schedule:open-plan`（旧入口 `schOpenPlan(id)`，页面先把计划筛选设回「待完成」）。过渡桥 `installScheduleBridge` 另挂 `confirmScheduleV2` / `loadRecommendationsV2`、`renderUnifiedListV2` / `renderExportPicker`（转成重绘）与只读 `SCH_VIEW`、`SCH_EXPORT_RETURN`、`SCH_SESSIONS_LOADING`、`REC_*`。
+- 页面事件 `schedule:view`（仪表盘「开始复习」发）、`schedule:open-plan`（带 Session id，页面先把计划筛选设回「待完成」再打开该计划）。没有全局入口；E2E 读的 `SCH_VIEW`、`REC_*` 等名字只在测试适配器 `tests/e2e/p8_test_modules.js` 里。
 - **Session 列表归 `domain/sessions.js`**：`refreshSessions()` 后发先至时只认最新一次，失败保留旧列表并记原因；成功与失败都经 bus 发 `sessions`。旧 `SESSIONS` 是它写好的镜像；全局 `refreshSessions` 由过渡桥挂成这个实现。删除走 `deleteSession(id)`（服务端 `status: ok` 且 `deleted: true` 才算成功），成功后先在本地去掉，并让进行中的旧加载作废。
 
 ### 安排复习（本页原生）
@@ -73,3 +73,5 @@
 - **已选**：有序 uid 列表，离开页面再回来还在；题目从题库消失时自动剔除。「选择当前筛选」「移除当前筛选」「清空已选」；每题「加入 / 移除」「预览」（上下文 `export` / `export-selection`）。已选区超过约 22em 内部滚动，不把选题区挤远。
 - **呈现**：平铺式（UID、科目 · 分类 · 难度 · 熟练度 · 上次复习、状态与标记、至多 4 个知识点）或画廊式（卡片带 qview 题面，进入视口才挂，`data-morph="skip"`）。
 - **导出**：A4 打印版（可选附带答案、题间留白 0–20 行）或屏幕版（始终附带答案，这两项禁用）。A4 先问单 / 双栏（关掉对话框按单栏）。`POST /api/export`（`uids`、`format`、`include_answers`、`question_gap_lines`、`a4_two_columns`），下载 `OMRS-Export-<版本>.html`；没选题、成功与失败都写在 `#export-status`。
+
+打开某个计划的入口只有总线事件 `schedule:open-plan`（控制器方法 `openPlan`），旧的 `schOpenPlan` 全局已不存在。导出页的熟练度百分比用 `core/format.js` 的 `formatPercent`。

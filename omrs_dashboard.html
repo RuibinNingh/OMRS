@@ -16,6 +16,7 @@
 </head>
 <body>
 <svg width="0" height="0" class="icon-sprite" aria-hidden="true"><defs>
+<symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"/></symbol>
 <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></symbol>
 <symbol id="i-chart" viewBox="0 0 24 24"><path d="M5 20V10M12 20V5M19 20v-7"/></symbol>
 <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/></symbol>
@@ -44,6 +45,7 @@
     </div>
     <nav class="sidebar-nav" aria-label="主导航">
       <a class="tab active" data-tab="dashboard" href="#/dashboard"><svg class="nav-ico" aria-hidden="true"><use href="#i-home"/></svg><span>仪表盘</span></a>
+      <a class="tab" data-tab="assistant" href="#/assistant" hidden><svg class="nav-ico" aria-hidden="true"><use href="#i-sparkle"/></svg><span>AI 助手</span></a>
       <a class="tab" data-tab="data" href="#/data"><svg class="nav-ico" aria-hidden="true"><use href="#i-chart"/></svg><span>数据复盘</span></a>
       <a class="tab" data-tab="questions" href="#/questions"><svg class="nav-ico" aria-hidden="true"><use href="#i-folder"/></svg><span>题目库</span></a>
       <a class="tab" data-tab="board" href="#/board"><svg class="nav-ico" aria-hidden="true"><use href="#i-board"/></svg><span>展示板</span></a>
@@ -57,7 +59,7 @@
       <div class="nav-spacer"></div>
       <a class="tab" data-tab="settings" href="#/settings"><svg class="nav-ico" aria-hidden="true"><use href="#i-settings"/></svg><span>设置</span></a>
     </nav>
-    <div class="sidebar-foot" id="sidebar-foot">v1.27.0 · 本地服务</div>
+    <div class="sidebar-foot" id="sidebar-foot">v1.28.1 · 本地服务</div>
   </aside>
   <main class="content">
     <div class="topbar">
@@ -69,6 +71,7 @@
     </div>
 
     <div class="panel active" id="panel-dashboard"></div>
+    <div class="panel" id="panel-assistant"></div>
     <div class="panel" id="panel-data"></div>
     <div class="panel" id="panel-questions"></div>
     <div class="panel" id="panel-board"></div>

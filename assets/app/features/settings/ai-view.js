@@ -8,15 +8,15 @@ export const aiView = () => html`<section class="st-section" id="st-sec-ai" role
             <div class="st-fields">
               <div class="form-group">
                 <label for="st-ai-base">API 地址</label>
-                <input id="st-ai-base" class="input" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1">
+                <input id="st-ai-base" class="ui-input" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1">
                 <div class="hint">填到 <code>/v1</code> 即可，会自动补 <code>/chat/completions</code>。例如 OpenAI 用 <code>https://api.openai.com/v1</code>。</div>
               </div>
               <div class="form-group">
                 <label for="st-ai-key">API Key</label>
                 <div class="st-inline">
-                  <input id="st-ai-key" class="input" type="password" placeholder="sk-..." autocomplete="off">
-                  <button class="btn sm" type="button" data-action="settings.toggleKey" id="st-ai-key-toggle">显示</button>
-                  <button class="btn sm" type="button" data-action="settings.clearKey">清除</button>
+                  <input id="st-ai-key" class="ui-input" type="password" placeholder="sk-..." autocomplete="off">
+                  <button class="ui-btn ui-btn--sm" type="button" data-action="settings.toggleKey" id="st-ai-key-toggle">显示</button>
+                  <button class="ui-btn ui-btn--sm" type="button" data-action="settings.clearKey">清除</button>
                 </div>
                 <div class="hint" id="st-ai-key-state"></div>
                 <div class="hint">只保存在本机 <code>错题/.omrs/config.json</code>，由本地后端转发请求，不会回显到页面。</div>
@@ -28,16 +28,16 @@ export const aiView = () => html`<section class="st-section" id="st-sec-ai" role
             <div class="st-fields">
               <div class="form-group">
                 <label for="st-ai-model">默认模型</label>
-                <input id="st-ai-model" class="input" placeholder="qwen-vl-max" list="st-ai-model-list">
+                <input id="st-ai-model" class="ui-input" placeholder="qwen-vl-max" list="st-ai-model-list">
                 <datalist id="st-ai-model-list">
                   <option value="qwen-vl-max"><option value="qwen-vl-plus"><option value="qwen3-vl-plus"><option value="qwen3-vl-flash"><option value="qwen3.7-plus"><option value="qwen3.5-ocr"><option value="qwen-vl-ocr"><option value="gpt-4o"><option value="gpt-4o-mini">
                 </datalist>
               </div>
               <div class="hint">收件箱按用途选模型，留空时使用默认模型：</div>
               <div class="st-grid3">
-                <div class="form-group"><label for="st-ai-model-detect">框选</label><input id="st-ai-model-detect" class="input" placeholder="qwen3-vl-plus" list="st-ai-model-list"><div class="hint">需支持定位输出</div></div>
-                <div class="form-group"><label for="st-ai-model-extract">转文本</label><input id="st-ai-model-extract" class="input" placeholder="qwen3.5-ocr" list="st-ai-model-list"><div class="hint">建议 OCR 类模型</div></div>
-                <div class="form-group"><label for="st-ai-model-classify">分类</label><input id="st-ai-model-classify" class="input" placeholder="qwen3-vl-flash" list="st-ai-model-list"><div class="hint">判断科目、分类、知识点</div></div>
+                <div class="form-group"><label for="st-ai-model-detect">框选</label><input id="st-ai-model-detect" class="ui-input" placeholder="qwen3-vl-plus" list="st-ai-model-list"><div class="hint">需支持定位输出</div></div>
+                <div class="form-group"><label for="st-ai-model-extract">转文本</label><input id="st-ai-model-extract" class="ui-input" placeholder="qwen3.5-ocr" list="st-ai-model-list"><div class="hint">建议 OCR 类模型</div></div>
+                <div class="form-group"><label for="st-ai-model-classify">分类</label><input id="st-ai-model-classify" class="ui-input" placeholder="qwen3-vl-flash" list="st-ai-model-list"><div class="hint">判断科目、分类、知识点</div></div>
               </div>
             </div>
             <div class="st-row st-row-top">
@@ -49,7 +49,7 @@ export const aiView = () => html`<section class="st-section" id="st-sec-ai" role
             </div>
           </div>
           <div class="st-actions st-actions-end">
-            <button class="btn primary" type="button" data-action="settings.saveAi">保存 AI 配置</button>
+            <button class="ui-btn ui-btn--primary" type="button" data-action="settings.saveAi">保存 AI 配置</button>
           </div>
           <div id="st-ai-settings-status" class="st-status" role="status"></div>
         </section>`;

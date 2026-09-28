@@ -3,7 +3,7 @@
  * - 契约：page = { id: 'schedule', title, mount(root, ctx) → unmount, actions, keys }；动作命名空间 'schedule'。
  *   挂载点是 #panel-schedule，本页 morph 其中的 #sch-app：标签栏与三个工作区（安排复习、已有计划、全题库导出）都是原生的。
  * - 数据：Session 列表归 domain/sessions（bus 'sessions' 重绘）；计划详情 /api/session 后发先至时只认最新一次。
- * - 页面事件：'schedule:view'（仪表盘「开始复习」打开安排复习）；旧入口 schOpenPlan(id) → 'schedule:open-plan'（生成计划后打开它）。
+ * - 页面事件：'schedule:view'（仪表盘「开始复习」打开安排复习）；'schedule:open-plan'（带 Session id：切过来后打开该计划）。
  */
 import { morph } from '../../core/dom.js';
 import { confirm } from '../../ui/dialog.js';
@@ -134,7 +134,7 @@ function createController(root, ctx) {
       const { loading, error } = sessionsState();
       if (!loading && !error && s.selected && s.view === 'plans' && s.detailPhase !== 'loading') open(s.selected, { focus: false });
     },
-    async openFromLegacy(id) {
+    async openPlan(id) {
       s.filter = 'active';
       s.search = '';
       show('plans', { reload: false });
@@ -152,7 +152,7 @@ export const page = {
     const offs = [
       ctx.bus.on('sessions', () => ctl?.onSessions()),
       ctx.bus.on('schedule:view', v => ctl?.show(v)),
-      ctx.bus.on('schedule:open-plan', id => ctl?.openFromLegacy(id)),
+      ctx.bus.on('schedule:open-plan', id => ctl?.openPlan(id)),
       ctx.bus.on('labels', () => ctl?.paint()),
       ctx.bus.on('schedule:render', () => ctl?.paint()),
       ctx.store.subscribe(() => ctl?.paint(), st => st.data),

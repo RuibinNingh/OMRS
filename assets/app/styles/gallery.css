@@ -1,7 +1,6 @@
 /* gallery.html 的版式（只服务陈列页，不覆盖组件本身）。 */
 @layer ui, gallery;
 @import url("ui.css") layer(ui);
-@import url("controls.css") layer(ui);
 
 @layer gallery {
   *, *::before, *::after { box-sizing: border-box; }
