@@ -5,6 +5,7 @@
 """
 import json
 import os
+import base64
 import shutil
 import subprocess
 import sys
@@ -16,6 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 sys.path.insert(0, ROOT)
 from browser_runtime import launch_chromium  # noqa: E402
+from tests.test_drafts import make_png  # noqa: E402
 
 FAUX = os.path.join(ROOT, "tests", "fixtures", "agent_faux.json")
 AUDIT = """() => {
@@ -31,7 +33,7 @@ def make_vault():
     subprocess.run([sys.executable, os.path.join(ROOT, "tests", "fixtures", "make_vault.py"), "--out", vault], check=True,
                    stdout=subprocess.DEVNULL)
     from omrs.common import save_config
-    save_config(vault, {"agent_enabled": True})
+    save_config(vault, {"agent_enabled": True, "agent_vision": True})
     return vault
 
 
@@ -134,12 +136,52 @@ def main():
             done(4)
             check("停止后运行标为已中止", "已中止" in page.locator(f"{last} .ast-foot").text_content())
 
+            page.set_input_files("#ast-image-picker", {"name": "question.png", "mimeType": "image/png", "buffer": make_png(12, 12)})
+            page.wait_for_function("() => document.querySelectorAll('.ast-attachment').length === 1")
+            check("选择图片出现可删除缩略图", page.locator('.ast-attachment__remove').count() == 1)
+            page.set_input_files("#ast-image-picker", {"name": "too-large.png", "mimeType": "image/png", "buffer": b"x" * (8 * 1024 * 1024 + 1)})
+            check("超过 8MB 的图片被忽略", page.locator('.ast-attachment').count() == 1)
+            page.set_input_files("#ast-image-picker", [
+                {"name": f"extra-{n}.png", "mimeType": "image/png", "buffer": make_png(12, 12, (n * 20, 0, 0))}
+                for n in range(1, 7)])
+            page.wait_for_function("() => document.querySelectorAll('.ast-attachment').length === 6")
+            check("一次最多接收 6 张", page.locator('.ast-attachment').count() == 6)
+            for _ in range(6):
+                page.locator('.ast-attachment__remove').first.click()
+            page.wait_for_function("() => document.querySelectorAll('.ast-attachment').length === 0")
+            page.set_input_files("#ast-image-picker", {"name": "wide.png", "mimeType": "image/png", "buffer": make_png(4097, 1)})
+            page.wait_for_function("() => document.querySelector('.ast-attachment img')?.naturalWidth === 4096")
+            check("长边超过 4096 会缩放并转 JPEG", page.locator('.ast-attachment img').first.get_attribute('src').startswith('data:image/jpeg;base64,'))
+            page.locator('.ast-attachment__remove').click()
+            for kind, color in (("paste", (200, 0, 0)), ("drop", (0, 0, 200))):
+                encoded = base64.b64encode(make_png(12, 12, color)).decode("ascii")
+                page.evaluate("""({kind, encoded}) => {
+                  const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+                  const data = new DataTransfer();
+                  data.items.add(new File([bytes], `${kind}.png`, {type: 'image/png'}));
+                  const target = kind === 'paste' ? document.getElementById('ast-input') : document.querySelector('.ast-composer');
+                  target.dispatchEvent(kind === 'paste'
+                    ? new ClipboardEvent('paste', {clipboardData: data, bubbles: true, cancelable: true})
+                    : new DragEvent('drop', {dataTransfer: data, bubbles: true, cancelable: true}));
+                }""", {"kind": kind, "encoded": encoded})
+            page.wait_for_function("() => document.querySelectorAll('.ast-attachment').length === 2")
+            check("粘贴和拖入都接收图片", page.locator('.ast-attachment').count() == 2)
+            say("录一下这张截图")
+            done(5)
+            check("带图消息显示两张缩略图与 IMG 编号", page.locator('.ast-user__images .ast-image').count() == 2 and
+                  "IMG-1" in page.locator('.ast-user__images').last.text_content())
+            card = page.locator('.ast-tool').filter(has_text='建 AI 草稿').last
+            check("草稿工具卡片显示编号和待框选", card.locator('.ast-draft-card').count() == 1 and
+                  "DR-" in card.text_content() and "待框选" in card.text_content())
+            check("图片原件可通过草稿接口打开", page.locator('.ast-user__images .ast-image').last.get_attribute('href').startswith('/api/drafts/image?sha='))
+
             audit = page.evaluate(AUDIT)
             check("桌面：没有行内样式、没有横向溢出", not audit["inline"] and not audit["overflow"], audit)
 
             page.goto(f"{base}/#/settings", wait_until="networkidle")
             page.click("#st-tab-assistant")
             page.wait_for_function("() => document.getElementById('st-agent-enabled')?.checked === true", timeout=5000)
+            check("设置页显示主 AI 支持图片", page.locator('#st-agent-vision').is_checked())
             page.uncheck("#st-agent-enabled")
             page.click("[data-action='settings.saveAgent']")
             page.wait_for_function("() => document.querySelector('.tab[data-tab=\"assistant\"]').hidden", timeout=5000)

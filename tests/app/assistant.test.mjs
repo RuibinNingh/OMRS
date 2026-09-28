@@ -3,6 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applyEvent, newRun, runFrom, ctxUsed, dayGroup, tokOf, fmtS, REASON } from '../../assets/app/features/assistant/state.js';
 import { renderMd, renderInline, plainOf } from '../../assets/app/features/assistant/md.js';
+import { dockView, userView } from '../../assets/app/features/assistant/view.js';
+import { toolPreview } from '../../assets/app/features/assistant/tools-view.js';
 
 const ev = (i, t, type, data = {}) => ({ i, t, type, data });
 const script = [
@@ -88,4 +90,32 @@ test('聊天 Markdown：引用芯片、表格、列表、转义与光标', () =>
   assert.match(out, /<li>&lt;x&gt;<span class="ast-caret"/);
   assert.doesNotMatch(renderInline('<script>'), /<script>/);
   assert.equal(plainOf('| a |\n周期是 $\\pi$，**好**'), '周期是 pi，好');
+});
+
+test('转述事件先于模型轮次，完成和失败状态可重放', () => {
+  const events = [ev(0, 0, 'run.start'), ev(1, 10, 'image.transcribe', { ref: 'IMG-1', sha: 'a' }),
+    ev(2, 110, 'image.transcribed', { ref: 'IMG-1', ok: true, ms: 100 }),
+    ev(3, 120, 'image.transcribe', { ref: 'IMG-2', sha: 'b' }),
+    ev(4, 130, 'image.transcribed', { ref: 'IMG-2', ok: false, ms: 10, error: '模型失败' }),
+    ev(5, 140, 'round.start', { n: 1 }), ev(6, 150, 'run.end', { reason: 'completed' })];
+  const run = runFrom({ id: 'r-image', status: 'done' }, events);
+  assert.deepEqual(run.steps.map(s => s.kind), ['image', 'image']);
+  assert.deepEqual(run.steps.map(s => s.status), ['done', 'error']);
+  assert.equal(run.steps[1].error, '模型失败');
+});
+
+test('附图输入与草稿结果显示图片编号、删除入口和草稿状态', () => {
+  const state = { status: { enabled: true, configured: true, limits: {} }, convId: 'c', msgs: 0,
+    sugs: {}, attachments: [{ dataUrl: 'data:image/png;base64,AAAA' }], liveRun: null, lastRun: null, popOpen: false };
+  const dock = String(dockView(state, 0));
+  assert.match(dock, /data-action="assistant\.pickImages"/);
+  assert.match(dock, /data-action="assistant\.removeImage"/);
+  const user = String(userView({ text: '录一下', at: '2026-09-28T10:00:00Z', images: [{ ref: 'IMG-3', sha: 'a'.repeat(64) }] }, 0));
+  assert.match(user, /IMG-3/);
+  assert.match(user, /\/api\/drafts\/image\?sha=/);
+  const card = String(toolPreview({ name: 'create_draft', result: { draft_id: 'DR-1', status: 'cropping', subject: '数学', category: '函数',
+    question_preview: '求最小值', blocks: [{ section: '题目', kind: 'text' }, { section: '答案', kind: 'image' }] } }));
+  assert.match(card, /DR-1/);
+  assert.match(card, /待框选/);
+  assert.match(card, /答案 · 图片/);
 });

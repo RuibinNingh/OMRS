@@ -17,6 +17,7 @@ import { applyEvent, mmss, newRun, runFrom, runNow } from './state.js';
 import { confirmOf, setRefRenderer, toolTitle } from './tools-view.js';
 import { SUGS, dockView, headView, railView, streamView } from './view.js';
 import { inspView } from './insp-view.js';
+import { MAX_ATTACHMENTS, prepareImageFile } from './attachments.js';
 
 let C = null;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -44,7 +45,7 @@ export async function syncAssistantNav(doc = document, status) {
 }
 
 function createController(root, { router }) {
-  const S = { status: null, convs: [], convId: null, items: [], msgs: 0, open: new Set(), closed: new Set(), runSel: null,
+  const S = { status: null, convs: [], convId: null, items: [], msgs: 0, attachments: [], imageNo: 1, open: new Set(), closed: new Set(), runSel: null,
     liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false, uiVer: 0, sugs: SUGS, alive: true };
   morph(root, html`<div class="ast" data-rail="closed" data-insp="closed">
     <div class="ast-scrim" data-action="assistant.closeDrawers"></div>
@@ -114,6 +115,8 @@ function createController(root, { router }) {
     S.convId = id; S.railOpen = false; S.runSel = null; S.popOpen = false; S.stick = true;
     S.msgs = res.data.msgs;
     S.items = res.data.items.map(it => (it.type === 'user' ? it : { type: 'run', run: runFrom(it.run, it.events), live: it.live }));
+    S.attachments = [];
+    S.imageNo = 1 + S.items.flatMap(it => it.type === 'user' ? (it.images || []) : []).reduce((n, image) => Math.max(n, Number(String(image.ref || '').replace('IMG-', '')) || 0), 0);
     const runs = S.items.filter(i => i.run).map(i => i.run);
     S.lastRun = runs[runs.length - 1] || null;
     const live = S.items.find(i => i.live);
@@ -152,27 +155,71 @@ function createController(root, { router }) {
     bump();
   }
 
+  function notifyAttachment(message) { toast(message, { kind: 'error' }); }
+
+  async function addFiles(files) {
+    const list = [...(files || [])];
+    if (!list.length) return;
+    if (S.attachments.length + list.length > MAX_ATTACHMENTS) {
+      notifyAttachment('一次最多 6 张');
+    }
+    for (const file of list) {
+      if (!S.alive || S.attachments.length >= MAX_ATTACHMENTS) break;
+      try {
+        const image = await prepareImageFile(file);
+        S.attachments.push(image);
+      } catch (error) {
+        notifyAttachment(error.message || '图片读取失败');
+      }
+    }
+    schedule();
+  }
+
   async function send(text) {
     text = String(text || '').trim();
-    if (!text) return;
+    if (!text && !S.attachments.length) return;
+    const attachments = S.attachments.slice();
+    if (attachments.length && !S.status?.faux) {
+      const config = await get('/api/config');
+      if (!config.ok) { toast('无法检查图片模型配置', { kind: 'error' }); return false; }
+      const cfg = config.data || {};
+      if (!cfg.agent_vision && (!cfg.ai_base_url || !cfg.ai_api_key_configured || !(cfg.ai_model_extract || cfg.ai_model))) {
+        toast('转述模型未配置', { kind: 'error' });
+        return false;
+      }
+    }
     if (!S.convId) {
       const res = await post('/api/agent/conversation/create', {});
       if (!res.ok) { toast(res.error?.message || '新建对话失败', { kind: 'error' }); return; }
       S.convId = res.data.conversation.id; S.items = []; S.msgs = 0;
     }
-    const res = await post('/api/agent/message', { conversation_id: S.convId, text });
+    const body = { conversation_id: S.convId, text };
+    if (attachments.length) body.images = attachments.map(image => image.dataUrl);
+    const res = await post('/api/agent/message', body);
     if (!res.ok) { toast(res.error?.message || '发送失败', { kind: 'error' }); return false; }
     const input = $('ast-input');
     if (input) input.value = '';
+    S.attachments = [];
     if (res.data.steered) return true;
     const run = newRun({ id: res.data.run_id, conversation_id: S.convId, model: S.status?.model });
-    S.items.push({ type: 'user', text, at: new Date().toISOString() }, { type: 'run', run });
+    const sent = { type: 'user', text, images: attachments.map((image, i) => ({ ...image, ref: `IMG-${S.imageNo + i}` })), at: new Date().toISOString() };
+    S.items.push(sent, { type: 'run', run });
+    S.imageNo += attachments.length;
     S.msgs += 1;
     setLive(run);
     schedule();
     S.stick = true;
     follow(run);
     loadList().then(schedule);
+    get(`/api/agent/conversation?id=${encodeURIComponent(S.convId)}`).then(detail => {
+      if (!S.alive || !detail.ok) return;
+      const at = (detail.data.items || []).findIndex((it, i, all) => it.type === 'run' && it.run?.id === run.id && all[i - 1]?.type === 'user');
+      if (at > 0) {
+        sent.images = detail.data.items[at - 1].images || sent.images;
+        S.imageNo = Math.max(S.imageNo, 1 + sent.images.reduce((n, image) => Math.max(n, Number(String(image.ref || '').replace('IMG-', '')) || 0), 0));
+        schedule();
+      }
+    });
     return true;
   }
 
@@ -244,14 +291,30 @@ function createController(root, { router }) {
     event.preventDefault();
     send(event.target.value);
   };
+  const onPaste = event => {
+    if (event.target?.id !== 'ast-input') return;
+    const files = [...(event.clipboardData?.items || [])].filter(item => item.kind === 'file' && item.type.startsWith('image/')).map(item => item.getAsFile()).filter(Boolean);
+    if (!files.length) return;
+    event.preventDefault();
+    addFiles(files);
+  };
+  const onDragOver = event => { if (event.target.closest?.('.ast-composer') && [...(event.dataTransfer?.types || [])].includes('Files')) event.preventDefault(); };
+  const onDrop = event => {
+    if (!event.target.closest?.('.ast-composer') || !event.dataTransfer?.files?.length) return;
+    event.preventDefault();
+    addFiles(event.dataTransfer.files);
+  };
   root.addEventListener('keydown', onKey);
+  root.addEventListener('paste', onPaste);
+  root.addEventListener('dragover', onDragOver);
+  root.addEventListener('drop', onDrop);
   const onDoc = event => { if (S.popOpen && !event.target.closest('.ast-pop, .ast-meter')) { S.popOpen = false; schedule(); } };
   document.addEventListener('click', onDoc);
 
   return {
     S, load, schedule, bump, openConv, send, gate, undo,
     async newConv() { const res = await post('/api/agent/conversation/create', {}); if (res.ok) { S.convs.unshift({ ...res.data.conversation, msgs: 0, writes: 0, snippet: '' }); await openConv(res.data.conversation.id); $('ast-input')?.focus(); } },
-    toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || (st?.phase === 'live' && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
+    toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.phase === 'live' || st?.name === 'create_draft' && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
     deny(arg) { const { run, st } = findStep(arg); if (run && st?.status === 'waiting') decide(run, st, 'deny'); },
     async stop() { if (S.liveRun) { const res = await post('/api/agent/abort', { run_id: S.liveRun.id }); if (!res.ok) toast(res.error?.message || '停止失败', { kind: 'error' }); } },
     async copy(runId) { const run = S.items.map(i => i.run).find(r => r && r.id === runId); const text = run ? run.steps.filter(s => s.kind === 'text').map(s => s.src).join('\n\n') : ''; if (await copyText(text)) toast('已复制回答', { kind: 'success' }); },
@@ -260,7 +323,10 @@ function createController(root, { router }) {
     closeDrawers() { S.railOpen = false; S.inspOpen = false; schedule(); },
     jump() { S.stick = true; scroller.scrollTop = scroller.scrollHeight; schedule(); },
     openSession() { router?.go?.('schedule'); },
-    dispose() { S.alive = false; clearInterval(ticker); cancelAnimationFrame(frame); root.removeEventListener('keydown', onKey); document.removeEventListener('click', onDoc); },
+    removeImage(index) { S.attachments.splice(Number(index), 1); schedule(); },
+    pickImages({ event }) { if (event?.type === 'click') { $('ast-image-picker')?.click(); return; } addFiles(event?.target?.files); if (event?.target) event.target.value = ''; },
+    openImage({ el }) { const href = el?.dataset?.imageUrl; if (href) window.open(href, '_blank', 'noopener'); },
+    dispose() { S.alive = false; clearInterval(ticker); cancelAnimationFrame(frame); root.removeEventListener('keydown', onKey); root.removeEventListener('paste', onPaste); root.removeEventListener('dragover', onDragOver); root.removeEventListener('drop', onDrop); document.removeEventListener('click', onDoc); },
     title: toolTitle,
   };
 }
@@ -293,5 +359,8 @@ export const page = {
     closeDrawers: () => C?.closeDrawers(),
     pop: () => C?.toggle('popOpen'),
     jump: () => C?.jump(),
+    removeImage: ({ arg }) => C?.removeImage(arg),
+    pickImages: ctx => C?.pickImages(ctx),
+    openImage: ctx => C?.openImage(ctx),
   },
 };

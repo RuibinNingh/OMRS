@@ -44,6 +44,10 @@
 .ast-user { display: grid; gap: var(--sp-1); align-self: flex-end; max-width: min(84%, 36rem); }
 .ast-user__m { display: inline-flex; align-items: center; gap: var(--sp-1); justify-self: end; color: var(--fg-3); font-size: var(--text-2xs); }
 .ast-user__b { padding: var(--sp-2) var(--sp-3); color: var(--fg-1); background: var(--ast-user-bg); border-radius: var(--r-lg) var(--r-lg) var(--r-xs) var(--r-lg); font-size: var(--text-sm); line-height: var(--leading-read); white-space: pre-wrap; overflow-wrap: anywhere; }
+.ast-user__images { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-1); }
+.ast-image { position: relative; display: grid; gap: var(--sp-0_5); color: var(--fg-2); font-size: var(--text-2xs); text-decoration: none; }
+.ast-image img { display: block; width: 7rem; height: 7rem; object-fit: cover; border: 1px solid var(--border-1); border-radius: var(--r-md); }
+.ast-image:hover img { border-color: var(--accent); }
 .ast-user--steer { align-self: stretch; max-width: none; }
 .ast-user--steer .ast-user__m { justify-self: start; }
 .ast-user--steer .ast-user__b { background: var(--surface-2); border-radius: var(--r-md); }

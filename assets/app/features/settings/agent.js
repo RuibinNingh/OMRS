@@ -21,6 +21,7 @@ export function createAgent(root, bus) {
     if (!cfgRes.ok) { status(`无法读取助手配置：${cfgRes.error?.message || '未知错误'}`, 'danger'); return; }
     const cfg = cfgRes.data || {};
     if (el('st-agent-enabled')) el('st-agent-enabled').checked = !!cfg.agent_enabled;
+    if (el('st-agent-vision')) el('st-agent-vision').checked = !!cfg.agent_vision;
     if (el('st-agent-base')) el('st-agent-base').value = cfg.agent_base_url || '';
     if (el('st-agent-model')) el('st-agent-model').value = cfg.agent_model || '';
     if (el('st-agent-compat')) el('st-agent-compat').value = cfg.agent_compat || 'custom';
@@ -41,7 +42,7 @@ export function createAgent(root, bus) {
       const n = Number.parseInt(value(`st-agent-${key}`), 10);
       if (Number.isFinite(n)) limits[key] = Math.max(1, Math.min(max, n));
     }
-    const out = { agent_enabled: !!el('st-agent-enabled')?.checked, agent_base_url: value('st-agent-base'), agent_model: value('st-agent-model'),
+    const out = { agent_enabled: !!el('st-agent-enabled')?.checked, agent_vision: !!el('st-agent-vision')?.checked, agent_base_url: value('st-agent-base'), agent_model: value('st-agent-model'),
       agent_compat: value('st-agent-compat') || 'custom', agent_debug_log: !!el('st-agent-debug')?.checked, agent_limits: limits };
     const key = value('st-agent-key');
     if (key) out.agent_api_key = key;
@@ -73,7 +74,8 @@ export function createAgent(root, bus) {
     if (!alive) return;
     if (!result.ok) { status(`连接失败：${result.error?.message || '未知错误'}`, 'danger'); return; }
     const r = result.data;
-    status(`连接正常：${r.model}，${r.ms} ms，${r.tools ? '支持工具调用' : '模型没有按要求调用工具，助手可能无法工作'}`, r.tools ? 'success' : 'danger');
+    const vision = r.vision_ok === true ? '图片直传正常' : r.vision_ok === false ? `图片直传失败${r.vision_error ? `：${r.vision_error}` : ''}` : '未测试图片直传';
+    status(`连接正常：${r.model}，${r.ms} ms，${r.tools ? '支持工具调用' : '模型没有按要求调用工具，助手可能无法工作'}，${vision}`, r.tools && r.vision_ok !== false ? 'success' : 'danger');
   }
 
   function toggleKey() {

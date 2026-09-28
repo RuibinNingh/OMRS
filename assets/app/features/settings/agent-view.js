@@ -15,6 +15,13 @@ export const agentView = () => html`<section class="st-section" id="st-sec-assis
     <div class="hint" id="st-agent-faux" hidden>当前进程由环境变量 <code>OMRS_AGENT_FAUX_SCRIPT</code> 指定了假模型（用于测试），下面的接口设置暂不生效。</div>
   </div>
   <div class="card st-card">
+    <div class="st-row st-row-top">
+      <div class="st-row-text"><label class="st-row-label" for="st-agent-vision">主 AI 支持图片</label>
+        <div class="hint">开：图片直接发给主模型。关：先用「AI 识别」里的转录模型把图片转成文字。</div></div>
+      <input type="checkbox" class="st-switch" id="st-agent-vision">
+    </div>
+  </div>
+  <div class="card st-card">
     <div class="card-title">接口</div>
     <div class="st-fields">
       <div class="form-group"><label for="st-agent-base">API 地址</label>

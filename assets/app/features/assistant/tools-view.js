@@ -123,12 +123,14 @@ const T = {
     confirm: a => ({ title: `允许助手恢复「${a.uid}」？`, ok: '允许并恢复', hint: '恢复后重新参与推荐；可以撤销。', body: html`<dl class="ast-kv"><dt>题目</dt><dd>${ref(a.uid)}</dd></dl>` }),
     preview: () => note('已恢复。'),
   },
-  create_text_question: {
-    title: '录入文字题', icon: 'plus', level: 'confirm', args: a => `${a.subject} / ${a.category}`,
-    gate: a => ({ what: '想录入这道题：', preview: a.question }),
-    confirm: a => ({ title: `允许助手录入一道${a.category}题？`, ok: '允许并录入', hint: '难度按约定用默认的 5，错因留空。允许后写入 1 条记录，可以撤销（新题会被归档）。',
-      body: html`<div class="ast-dlg-row">${lvl('confirm')}<code>create_text_question</code><span>${a.subject} / ${a.category}</span></div>${box(a.question, true)}${a.answer ? box(a.answer) : ''}` }),
-    preview: (r, a) => html`<div class="ast-dlg-row">${ref(r.uid)}<code>${r.path}</code></div><div class="ast-snip">${md(a.question)}</div>${note('难度 5（默认），错因留空。')}`,
+  create_draft: {
+    title: '建 AI 草稿', icon: 'file', level: 'rev', args: a => `${a.subject || ''} / ${a.category || ''}`,
+    preview: r => {
+      const status = r.status === 'cropping' ? '待框选' : r.status === 'review' ? '待审核' : r.status || '草稿';
+      return html`<div class="ast-draft-card"><div class="ast-draft-card__head"><code>${r.draft_id}</code><span class="ui-tag ui-tag--info">${status}</span></div>
+        <dl class="ast-kv"><dt>科目 / 分类</dt><dd>${r.subject} / ${r.category}</dd><dt>题目</dt><dd>${r.question_preview || '（题目是图片）'}</dd></dl>
+        <div class="ast-draft-card__blocks">${(r.blocks || []).map((block, i) => html`<span class="ui-tag">${block.section} · ${block.kind === 'image' ? '图片' : '文字'}</span>`)}</div></div>`;
+    },
   },
   record_feedback: {
     title: '记录反馈', icon: 'check-circle', level: 'confirm', args: a => (a.items || []).map(i => i.uid).join('、'),

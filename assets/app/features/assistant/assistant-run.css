@@ -49,6 +49,12 @@
 .ast-tool__chev { display: inline-flex; color: var(--fg-3); }
 .ast-tool__body { display: grid; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3) var(--sp-3); border-top: 1px solid var(--border-1); font-size: var(--text-sm); }
 .ast-tool > .ast-note { margin: 0; padding: 0 var(--sp-3) var(--sp-2); }
+.ast-image-step { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--fg-3); font-size: var(--text-xs); }
+.ast-image-step.is-running { color: var(--accent); }
+.ast-image-step.is-done { color: var(--success-fg); }
+.ast-image-step.is-error { color: var(--danger-fg); }
+.ast-draft-card { display: grid; gap: var(--sp-2); }
+.ast-draft-card__head, .ast-draft-card__blocks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1); }
 
 /* 内联确认卡 */
 .ast-gate { display: grid; gap: var(--sp-2); margin: 0 var(--sp-2) var(--sp-2); padding: var(--sp-2) var(--sp-3); background: var(--warning-soft); border: 1px solid var(--ast-gate-line); border-radius: var(--r-md); }

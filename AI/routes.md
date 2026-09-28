@@ -54,7 +54,7 @@
 | POST | `/api/confirm-schedule` | `AI/api.md`、`AI/algorithm.md`、`AI/data.md`等 |
 | POST | `/api/create` | `AI/api.md`、`AI/data.md`、`AI/frontend/create.md` |
 | GET | `/api/drafts/counts` | `AI/api.md`、`AI/drafts.md` |
-| GET | `/api/drafts/image` | `AI/api.md`、`AI/agent.md`、`AI/drafts.md` |
+| GET | `/api/drafts/image` | `AI/api.md`、`AI/agent.md`、`AI/drafts.md`等 |
 | GET | `/api/drafts/item` | `AI/api.md`、`AI/drafts.md` |
 | GET | `/api/drafts/list` | `AI/api.md`、`AI/drafts.md` |
 | POST | `/api/export` | `AI/api.md`、`AI/board.md`、`AI/changelog.md`等 |

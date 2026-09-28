@@ -168,6 +168,22 @@ export function applyEvent(run, ev) {
       if (st) st.delivered = ev.type === 'steer.late' ? -1 : d.round;
       break;
     }
+    case 'image.transcribe': {
+      const ref = d.ref || 'IMG';
+      const id = `image-${ref}`;
+      let st = run.steps.find(s => s.kind === 'image' && s.id === id);
+      if (!st) { st = { kind: 'image', id, ref, status: 'running', cached: !!d.cached, ms: 0, error: '' }; run.steps.push(st); }
+      st.status = 'running'; st.cached = !!d.cached;
+      break;
+    }
+    case 'image.transcribed': {
+      const ref = d.ref || 'IMG';
+      const id = `image-${ref}`;
+      let st = run.steps.find(s => s.kind === 'image' && s.id === id);
+      if (!st) { st = { kind: 'image', id, ref, status: d.ok === false ? 'error' : 'done', cached: false, ms: 0, error: '' }; run.steps.push(st); }
+      st.status = d.ok === false ? 'error' : 'done'; st.ms = d.ms || 0; st.error = d.error || '';
+      break;
+    }
     case 'run.aborting': run.aborting = true; break;
     case 'run.end':
       run.status = 'done'; run.reason = d.reason; run.error = d.error || ''; run.dur = t;
@@ -175,6 +191,7 @@ export function applyEvent(run, ev) {
         if (s.kind === 'think' && (s.phase === 'wait' || s.phase === 'live')) { s.phase = s.src ? 'cut' : 'gone'; s.t1 = t; }
         if (s.kind === 'text' && s.live) { s.live = false; s.cut = d.reason === 'aborted'; }
         if (s.kind === 'tool' && ['args', 'queued', 'waiting', 'running'].includes(s.status)) s.status = 'aborted';
+        if (s.kind === 'image' && s.status === 'running') s.status = 'aborted';
       }
       run.steps = run.steps.filter(s => s.phase !== 'gone');
       for (const seg of run.timeline) { if (seg.t1 == null && seg.kind === 'model') seg.t1 = t; if (seg.w0 != null && seg.w1 == null) seg.w1 = t; }

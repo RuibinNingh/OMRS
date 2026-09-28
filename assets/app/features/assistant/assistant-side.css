@@ -7,6 +7,13 @@
 .ast-composer { position: relative; display: grid; gap: var(--sp-1); width: 100%; max-width: var(--ast-stream-w); margin: 0 auto; padding: var(--sp-2) var(--sp-2) var(--sp-1_5) var(--sp-3); background: var(--surface-0); border: 1px solid var(--border-2); border-radius: var(--r-lg); }
 .ast-composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-ring); }
 .ast-composer.is-busy { border-style: dashed; }
+.ast-attachments { display: flex; flex-wrap: wrap; gap: var(--sp-2); padding-bottom: var(--sp-1); }
+.ast-attachment { position: relative; display: grid; justify-items: center; gap: var(--sp-0_5); color: var(--fg-3); font-size: var(--text-2xs); }
+.ast-attachment__preview { display: block; padding: 0; background: transparent; border: 0; cursor: pointer; }
+.ast-attachment__preview img { display: block; width: 4.5rem; height: 4.5rem; object-fit: cover; border: 1px solid var(--border-1); border-radius: var(--r-sm); }
+.ast-attachment__preview:hover img { border-color: var(--accent); }
+.ast-attachment__remove { position: absolute; top: calc(var(--sp-1) * -1); right: calc(var(--sp-1) * -1); min-width: var(--ctl-sm); min-height: var(--ctl-sm); background: var(--surface-1); }
+.ast-cbar > .ui-btn--icon { flex: none; }
 .ast-input { field-sizing: content; box-sizing: border-box; width: 100%; min-height: var(--ctl-sm); max-height: 12rem; padding: var(--sp-1) 0; color: var(--fg-1); background: transparent; border: 0; outline: none; resize: none; font: inherit; font-size: var(--text-sm); line-height: var(--leading-read); }
 .ast-input::placeholder { color: var(--fg-3); }
 .ast-cbar { display: flex; align-items: center; gap: var(--sp-2); }

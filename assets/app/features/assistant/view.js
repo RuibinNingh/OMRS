@@ -7,6 +7,7 @@ import { icon } from '../../ui/icon.js';
 import { renderMd, plainOf } from './md.js';
 import { REASON, avgTps, ctxUsed, dayGroup, fmtK, fmtN, fmtS, hhmm, mmss, runNow } from './state.js';
 import { LVL, gateOf, lvl, refOf, toolArgs, toolIcon, toolPreview, toolTitle } from './tools-view.js';
+import { imageSrc } from './attachments.js';
 
 export const SUGS = {
   plan: { label: '排今天的复习，8 道以内', icon: 'calendar', text: '帮我把今天要复习的题排出来，8 道以内。' },
@@ -76,7 +77,7 @@ function gateView(run, st, now) {
 
 function toolView(S, run, st, now) {
   const key = `${run.id}|${st.id}`;
-  const open = S.open.has(key);
+  const open = S.open.has(key) || (st.name === 'create_draft' && st.status === 'done' && !S.closed.has(key));
   const [label, tone] = STATUS[st.status] || STATUS.queued;
   const dur = st.status === 'running' ? fmtS(now - st.t0) : st.dur ? fmtS(st.dur) : '';
   const decided = st.decision && st.decision.how !== 'allow' ? '' : st.decision ? html`<span class="ast-tool__sum">你已允许</span>` : '';
@@ -91,9 +92,15 @@ function toolView(S, run, st, now) {
   </div></div>`;
 }
 
+function imageView(st) {
+  const label = st.status === 'running' ? `转述 ${st.ref}…` : st.status === 'error' ? `转述 ${st.ref} 失败` : `转述 ${st.ref} 完成`;
+  return html`<div class="ast-node ast-node--dot"><div class="${cls('ast-image-step', `is-${st.status}`)}">${icon(st.status === 'error' ? 'alert-circle' : st.status === 'done' ? 'check-circle' : 'image')}${label}${st.ms ? html`<span>${st.ms} ms</span>` : ''}${st.error ? html`<span>${st.error}</span>` : ''}</div></div>`;
+}
+
 function stepView(S, run, st, now) {
   if (st.kind === 'think') return thinkView(S, run, st, now);
   if (st.kind === 'tool') return toolView(S, run, st, now);
+  if (st.kind === 'image') return imageView(st);
   if (st.kind === 'steer') {
     const when = st.delivered > 0 ? `第 ${st.delivered} 轮前送达` : st.delivered < 0 ? '运行结束前没来得及送达，已留在对话里' : '排队中，下一轮前送达';
     return html`<div class="ast-node ast-node--dot" data-key="${st.id}"><div class="ast-user ast-user--steer"><span class="ast-user__m">${icon('message')}插话 · ${when}</span><div class="ast-user__b">${st.text}</div></div></div>`;
@@ -122,7 +129,10 @@ export function turnView(S, run, perfNow) {
 }
 
 export function userView(item, i) {
-  return html`<div class="ast-user" data-key="u-${i}" data-hash="u${i}:${item.text.length}"><span class="ast-user__m">你 · ${hhmm(item.at)}</span><div class="ast-user__b">${item.text}</div></div>`;
+  const images = item.images || [];
+  return html`<div class="ast-user" data-key="u-${i}" data-hash="u${i}:${item.text.length}:${images.map(image => image.sha || image.ref).join(',')}"><span class="ast-user__m">你 · ${hhmm(item.at)}</span>
+    ${images.length ? html`<div class="ast-user__images">${images.map((image, n) => html`<a class="ast-image" href="${imageSrc(image)}" target="_blank" rel="noreferrer" title="查看 ${image.ref || `IMG-${n + 1}`} 大图"><img src="${imageSrc(image)}" alt="${image.ref || `IMG-${n + 1}`}" loading="lazy"><span>${image.ref || `IMG-${n + 1}`}</span></a>`)}</div>` : ''}
+    ${item.text ? html`<div class="ast-user__b">${item.text}</div>` : ''}</div>`;
 }
 
 export function streamView(S, perfNow) {
@@ -141,8 +151,8 @@ function offView(S) {
 
 const PERMS = [
   ['read', '找题、看统计、读题目、查推荐与 Session', '直接执行'],
-  ['rev', '建复习 Session、打标记', '直接执行，整次可撤销'],
-  ['confirm', '改题目 / 答案 / 错因、改知识点、移动 / 停用、录新题、记反馈', '你点「允许」才执行'],
+  ['rev', '建复习 Session、打标记、录 AI 草稿', '直接执行；题库写入可按运行撤销'],
+  ['confirm', '改题目 / 答案 / 错因、改知识点、移动 / 停用、记反馈', '你点「允许」才执行'],
   ['none', '删除题目、改设置和 PIN、备份恢复、重启', '没有工具，助手做不到'],
 ];
 export function emptyView(S) {
@@ -165,8 +175,11 @@ export function dockView(S, perfNow) {
   const disabled = !st.enabled || !st.configured;
   return html`${sugs.length ? html`<div class="ast-sugs" data-key="sugs">${sugs.map(([k, s]) => html`<button type="button" class="ast-sug" data-action="assistant.sug" data-arg="${k}">${icon(s.icon)}${s.label}</button>`)}</div>` : ''}
     <div class="${cls('ast-composer', busy && 'is-busy')}" data-key="composer">
+      ${S.attachments.length ? html`<div class="ast-attachments" aria-label="待发送图片">${S.attachments.map((image, i) => html`<div class="ast-attachment" data-key="attachment-${i}"><button type="button" class="ast-attachment__preview" data-action="assistant.openImage" data-image-url="${image.dataUrl}" aria-label="查看待发送图片 ${i + 1} 大图"><img src="${image.dataUrl}" alt="待发送图片 ${i + 1}"></button><span>图片 ${i + 1}</span><button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm ast-attachment__remove" data-action="assistant.removeImage" data-arg="${i}" aria-label="删除图片 ${i + 1}">${icon('x')}</button></div>`)}</div>` : ''}
       <textarea id="ast-input" class="ast-input" rows="1" maxlength="4000" placeholder="${busy ? '插话：下一轮模型请求前送达' : '问点什么，Enter 发送，Shift+Enter 换行'}" aria-label="给助手的消息" ${disabled ? 'disabled' : ''}></textarea>
       <div class="ast-cbar">
+        <input id="ast-image-picker" type="file" accept="image/png,image/jpeg,image/gif" multiple hidden data-change="assistant.pickImages">
+        <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" data-action="assistant.pickImages" aria-label="添加图片" title="添加图片" ${disabled ? 'disabled' : ''}>${icon('image')}</button>
         <button type="button" class="ast-meter" data-action="assistant.pop" aria-expanded="${S.popOpen ? 'true' : 'false'}" aria-label="上下文用量 ${Math.round(ratio * 100)}%">
           <svg class="${cls('ast-ring', ratio > 0.8 && 'is-warn')}" viewBox="0 0 24 24" aria-hidden="true"><circle class="t" cx="12" cy="12" r="9"/><circle class="v" cx="12" cy="12" r="9" stroke-dasharray="${(circ * ratio).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 12 12)"/></svg>
           <span>${fmtK(used)} / ${fmtK(win)}</span></button>
