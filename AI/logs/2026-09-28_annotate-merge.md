@@ -28,14 +28,22 @@
 - `python3 tests/check_docs.py --write-routes` 与 `--write-log-index` 已生成路由表和日志索引；`python3 tests/check_docs.py --diff HEAD`：47 个文档、0 处问题，2 条既有文件体积提醒。
 - 从提交 `63adaded4b83065c59f14145eaa1fcb3e5c9ca0c` 归档到 `/root/workspace/releases/omrs-63adade`，与工作区的 `omrs/server.py` 和标注页入口文件哈希一致；在发布目录执行 `env -u OMRS_SYSTEMD_SERVICE python3 tests/e2e/annotate.py`：34/34 通过，使用临时 Vault 与随机高端口。
 
-未执行：发布目录切换、生产重启、生产浏览器验收。开工前实测生产服务仍从 `/root/workspace/releases/omrs-f863761` 运行，`/api/status` 为 `ok`、v1.28.1、217 题，真实 Vault 路径不变。
+首轮未执行（后续已完成，见下节）：发布目录切换、生产重启、生产浏览器验收。开工前实测生产服务仍从 `/root/workspace/releases/omrs-f863761` 运行，`/api/status` 为 `ok`、v1.28.1、217 题，真实 Vault 路径不变。
 
-## 发布待办
+## 发布准备与暂缓
 
-将 `/etc/systemd/system/omrs.service.d/10-release.conf` 中的发布路径从 `omrs-f863761` 换成 `omrs-63adade`，保留 `--vault /root/workspace/apps/OMRS` 和端口 8471；`daemon-reload`、重启服务后核对 `/api/status`、`/annotate`、训练页入口、数据文件哈希与日志。旧发布目录保留用于代码回退，不以旧数据覆盖真实 Vault。生产 systemd 与重启按根 `AGENTS.md` 要求另待用户明确授权。
+当时准备将 `/etc/systemd/system/omrs.service.d/10-release.conf` 中的发布路径从 `omrs-f863761` 换成 `omrs-63adade`，保留 `--vault /root/workspace/apps/OMRS` 和端口 8471；`daemon-reload`、重启服务后核对 `/api/status`、`/annotate`、训练页入口、数据文件哈希与日志。旧发布目录保留用于代码回退，不以旧数据覆盖真实 Vault。生产 systemd 与重启按根 `AGENTS.md` 要求另待用户明确授权。
 
 用户确认：「暂不切换，保留已验证的发布目录」。因此本轮不修改 systemd、不重启生产、不做生产页验收；`omrs-63adade` 作为已验证但未启用的发布目录保留，生产仍运行 `omrs-f863761`。
 
 ## 合入 main
 
-用户补充：「我的意思是这个要合并main的」。复核 `main=31b59f4` 是 `ai-draft=554a8ec` 的祖先，差集只有本任务的 `63adade`、`a33ac13`、`554a8ec` 三个提交；执行 `git switch main`、`git merge --ff-only ai-draft` 后，本地 `main` 到 `554a8ec`。没有推送 `origin/main`，没有切换或重启生产服务。
+用户补充：「我的意思是这个要合并main的」。复核 `main=31b59f4` 是 `ai-draft=554a8ec` 的祖先，差集只有本任务的 `63adade`、`a33ac13`、`554a8ec` 三个提交；执行 `git switch main`、`git merge --ff-only ai-draft` 后，本地 `main` 到 `554a8ec`。当时没有推送 `origin/main`，也没有切换或重启生产服务。
+
+## 生产切换
+
+用户随后明确要求：「切换」。完整模式按此授权，将 systemd drop-in 的发布路径从 `omrs-f863761` 改为 `omrs-63adade`，保留真实 Vault `/root/workspace/apps/OMRS` 和 TCP 8471；执行 `systemctl daemon-reload` 与 `systemctl restart omrs.service`。旧发布目录保留作代码回退。配置与 `config.json`、`boards.json`、`mastery_data.csv`、`labels.json`、`auth.json` 备份在 `/root/workspace/backups/recycle/annotate-deploy-20260928T215735`，备份目录权限为 0700；生产验收时这五个数据文件与备份哈希一致。
+
+已实际执行的生产验收：`systemctl show omrs.service` 为 active，主进程从 `/root/workspace/releases/omrs-63adade/omrs_engine.py` 运行；`GET /api/status` 返回 200、`ok`、v1.28.1、217 题，Vault 路径不变；`GET /annotate`、`GET /api/annotate/stats` 与标注页 JS 均返回 200，空标注集统计为 0，JS 内容哈希与发布目录一致。真实浏览器从「录入题目 → AI 训练 → 打开标注页」进入新标签页，空态、文件和文件夹上传入口可见，页面脚本错误为 0。用可信本机代理头模拟未登录远端：`/annotate` 返回 302 到 `/login?next=%2Fannotate`，统计接口返回 401。重启后的错误级 journal 无记录。
+
+未执行：真实远端设备登录与真实训练流程；浏览器生产验收只走只读入口，没有向真实 Vault 上传测试图片。`origin/main` 未推送。若需回退代码，将 drop-in 发布路径改回 `omrs-f863761`，重新加载 systemd 并重启；不以旧备份覆盖可能已新增的标注数据。
