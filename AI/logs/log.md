@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-29_ai-draft-v130-deploy](2026-09-29_ai-draft-v130-deploy.md)：# AI 草稿 v1.30.0 合入 main 与生产发布
 - [2026-09-29_ai-draft-p4](2026-09-29_ai-draft-p4.md)：# AI 草稿 P4：自动框选与独立训练任务
 - [2026-09-29_ai-draft-p3](2026-09-29_ai-draft-p3.md)：# AI 草稿 P3：手动框选与训练数据登记
 - [2026-09-28_ui-blank-icons](2026-09-28_ui-blank-icons.md)：UI 空白图标修复

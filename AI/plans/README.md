@@ -36,4 +36,4 @@ AI/plans/<计划名>/
 | 计划 | 状态 | 说明 |
 |---|---|---|
 | `frontend-rearch/` | 进行中 | 前端重构：架构 + 设计系统 + UI 精致化，P0–P8 + 终检 + 部署；2026-09-26 起由 Codex 按 `exec-2026-09-26-codex.md` 执行；2026-09-27 起 P7 由 CCW 按轮并行推进 |
-| `ai-draft/` | P1 完成，P2–P4 待执行 | 主 AI 聊天录题与草稿区；后续按 `exec-2026-09-28-parallel.md` 由主控 + 3 个 GPT‑6 Sol / xhigh 智能体协作 |
+| `ai-draft/` | P1–P4 已完成并部署 v1.30.0 | 主 AI 聊天录题、草稿审核入库、框选与独立训练任务；执行结果与发布状态见 `ai-draft/progress.md` |

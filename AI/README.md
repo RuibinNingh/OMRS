@@ -21,7 +21,7 @@
 | 收件箱、标记、答题卡导入 | `inbox.md`、`labels.md`、`omr-import.md` |
 | AI 草稿区（助手录题、草稿存储、审核接口） | `drafts.md` |
 | 技术债与已知缺陷 | `optimization.md` |
-| 维护者环境、可用工具、协作配方 | `environment.md` |
+| 维护者环境、生产发布目录、可用工具、协作配方 | `environment.md` |
 | 某版本改了什么 | `changelog.md` |
 | 跨多轮、多人接力的大任务（总纲、执行说明、进度、下一步） | `plans/README.md` → `plans/<计划>/progress.md` |
 | 把需求写成执行计划（CCW 规划模式） | 根目录 `AGENTS.md`「规划模式」→ `plans/README.md` |
