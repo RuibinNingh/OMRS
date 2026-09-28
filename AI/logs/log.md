@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-29_box-detect](2026-09-29_box-detect.md)：本地框选训练与训练面板
 - [2026-09-28_ui-blank-icons](2026-09-28_ui-blank-icons.md)：UI 空白图标修复
 - [2026-09-28_omrs-icon](2026-09-28_omrs-icon.md)：OMRS 图标更新
 - [2026-09-28_merge-and-cleanup](2026-09-28_merge-and-cleanup.md)：合并工作区与 v1.28.0，补完前端重构 P8 的清理（v1.28.1）
@@ -114,7 +115,6 @@
 - [2026-08-28_partial-feedback-ui-followup](2026-08-28_partial-feedback-ui-followup.md)：分批反馈交互二次优化
 - [2026-08-16_v1.8.0-release](2026-08-16_v1.8.0-release.md)：# v1.8.0 发布记录
 - [2026-08-16_omrs-settings-restart-fix](2026-08-16_omrs-settings-restart-fix.md)：# OMRS 设置页重启修复
-- [2026-08-16_mini-host-deploy](2026-08-16_mini-host-deploy.md)：：迷你主机部署 OMRS
 - [2026-08-16_answer-math-rendering](2026-08-16_answer-math-rendering.md)：：答案跨行 LaTeX 渲染修复
 - [2026-08-16_action-plan-dark-contrast-catalog](2026-08-16_action-plan-dark-contrast-catalog.md)：行动推荐、目录页与深色对比度修订
 - [2026-08-14_doc-code-sync-audit-fixes](2026-08-14_doc-code-sync-audit-fixes.md)：审计偏差修复（文档-代码同步）

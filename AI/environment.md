@@ -135,3 +135,7 @@ AI 助手没有网络也能完整测试：启动服务前设环境变量 `OMRS_A
 
 - 生产服务如果运行在本机工作区里，开发一律放到 `git worktree` 里做，生产目录只在授权部署时才改动。
 - 浏览器测试在本机崩溃时，按第 5 节设置 `OMRS_TEST_CDP_URL`。
+
+## 7. 本地框选训练环境
+
+CPU 训练使用仓库外 `~/omrs-train/.venv/`，精确依赖在 `tools/boxdetect/requirements-train.txt`，服务依赖另列 `requirements-serve.txt`。数据只读原 Vault，产物写外部目录。训练以 nice 19 限制优先级，线程数最多 6，并监控可用内存；可用内存不足 2 GiB 时停止训练。数据构建与系统 Python 单测不加载 torch／onnxruntime。

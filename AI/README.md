@@ -20,6 +20,7 @@
 | 导出与展示板打印 | `export.md`、`board.md` |
 | 收件箱、标记、答题卡导入 | `inbox.md`、`labels.md`、`omr-import.md` |
 | AI 草稿区（助手录题、草稿存储、只读接口） | `drafts.md` |
+| 框选模型训练、数据构建与实验 | `training/README.md` |
 | 技术债与已知缺陷 | `optimization.md` |
 | 维护者环境、可用工具、协作配方 | `environment.md` |
 | 某版本改了什么 | `changelog.md` |
@@ -113,3 +114,5 @@
 | `changelog.md` | 版本级变更摘要，倒序 |
 | `plans/` | 计划文件夹：每个计划一个子目录，`plan.md` 总纲 + `exec-*.md` 执行说明 + `progress.md` 进度（约定见 `plans/README.md`） |
 | `logs/log.md` | 任务日志索引（自动生成；不随脱敏源码包导出） |
+
+训练工具位于 `tools/boxdetect/`；数据基线、实验与经验索引见 `training/README.md`。
