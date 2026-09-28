@@ -22,6 +22,7 @@ export function createAgent(root, bus) {
     const cfg = cfgRes.data || {};
     if (el('st-agent-enabled')) el('st-agent-enabled').checked = !!cfg.agent_enabled;
     if (el('st-agent-vision')) el('st-agent-vision').checked = !!cfg.agent_vision;
+    if (el('st-draft-mode')) el('st-draft-mode').value = cfg.draft_mode || 'silent';
     if (el('st-agent-base')) el('st-agent-base').value = cfg.agent_base_url || '';
     if (el('st-agent-model')) el('st-agent-model').value = cfg.agent_model || '';
     if (el('st-agent-compat')) el('st-agent-compat').value = cfg.agent_compat || 'custom';
@@ -43,7 +44,8 @@ export function createAgent(root, bus) {
       if (Number.isFinite(n)) limits[key] = Math.max(1, Math.min(max, n));
     }
     const out = { agent_enabled: !!el('st-agent-enabled')?.checked, agent_vision: !!el('st-agent-vision')?.checked, agent_base_url: value('st-agent-base'), agent_model: value('st-agent-model'),
-      agent_compat: value('st-agent-compat') || 'custom', agent_debug_log: !!el('st-agent-debug')?.checked, agent_limits: limits };
+      agent_compat: value('st-agent-compat') || 'custom', agent_debug_log: !!el('st-agent-debug')?.checked,
+      draft_mode: value('st-draft-mode') || 'silent', agent_limits: limits };
     const key = value('st-agent-key');
     if (key) out.agent_api_key = key;
     return out;

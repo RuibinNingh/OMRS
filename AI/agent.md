@@ -37,7 +37,7 @@
 |---|---|---|
 | read | 词表、搜题、读题、概况、推荐、Session、看图追问、查草稿 | 自动执行 |
 | rev | 建复习 Session、打标记、建草稿 | 自动执行，计入写入预算；前两个可按运行撤销，草稿不进 Ledger、不在撤销范围 |
-| confirm | 改题目 / 答案 / 错因、改知识点、移动、停用、恢复、记录反馈 | 发 `tool.waiting` 事件后阻塞，等界面 `POST /api/agent/confirm` |
+| confirm | 改题目 / 答案 / 错因、改知识点、移动、停用、恢复、记录反馈，以及确认模式下的草稿入库 | 发 `tool.waiting` 事件后阻塞，等界面 `POST /api/agent/confirm` |
 | 不提供 | 删除、改设置和 PIN、备份恢复、重启、源码导出、标记定义 | 没有工具 |
 
 确认码 = sha256(run_id + 工具名 + 规范化参数)，参数一变就是新请求；10 分钟过期（`CONFIRM_TTL_SECONDS`），过期、拒绝、中止都作为工具结果交还模型，工具不执行。确认前先调工具的 `preview`（例如改正文前后对照、反馈的预计熟练度）；`preview` 抛错时不打扰用户，直接把错误交还模型。
@@ -79,3 +79,7 @@ POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软
 ## 9. 按运行撤销（`omrs/agent/revert.py`）
 
 先 dry-run：列出这次运行的全部 agent commit（`payload._agent.run_id`）及每条的逆操作；之后若有别的 commit 碰过同一道题或同一个 Session，或题目文件被直接改过还没入账，列为冲突并整体拒绝。执行时逆序撤回：标记 / 知识点 / 正文还原到 blobs 里的旧版本、Session 记 `session.retract`、Session 完成记 `session.restore`、反馈逐条 `review.retract`、新题删文件并记 `question.archive`（正文仍在 blobs）、移动移回、停用与恢复互逆。每条逆操作是新 commit，payload 带 `_revert: {run_id, commit_id}`；同一运行只能撤销一次。
+
+## 草稿确认入库
+
+`draft_mode` 是通用配置，agent settings 投影给注册表；silent 只注册建草稿，confirm 另注册 commit_draft。参数为 draft_id/revision，预览和执行各自读取当前配置、草稿状态与对话归属，旧版本或其他对话的草稿不能提交。入库复用 drafts.commit_draft，runtime 的 agent_actor 记录来源和本次写入；人工在草稿区通过的题目来源 api，不在运行撤销列表内。create_draft 完整保存工具 images 的来源顺序，get_draft 给出 revision，AI 仍没有改 / 丢弃草稿工具。

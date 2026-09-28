@@ -230,7 +230,8 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 | `agent_base_url` / `agent_api_key` / `agent_model` | string | 助手的模型接口；地址与密钥留空沿用 `ai_*`，模型必填；密钥不回显 |
 | `agent_compat` / `agent_compat_overrides` | string / object | 厂商兼容配置名与单项覆写，见 `AI/agent.md` §2 |
 | `agent_limits` | object | `rounds` / `calls` / `writes` / `concurrent`，只能比默认值小 |
-| `agent_debug_log` / `agent_vision` | bool | 模型请求日志开关；视觉能力（预留） |
+| `agent_debug_log` / `agent_vision` | bool | 模型请求日志开关；是否把聊天附图直接交给主模型 |
+| `draft_mode` | string | AI 录题方式：silent（默认，只建草稿）/ confirm（可申请确认入库） |
 | `tuning` | object | 算法可调参数覆盖，键与默认值见 algorithm.md §9；仅接受已知键且为数字 |
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`） |
 | `ai_api_key` | string | AI 接口密钥（Bearer），仅存本机 |
@@ -430,3 +431,7 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 ## 16. 框选标注集 `错题/.omrs/annotate/`
 
 独立于收件箱的训练数据，由 `omrs/annotate.py` 读写，不进 Ledger、不参与任何投影。`annotate.db` 只有一张 `images` 表：`id (AN-YYYYMMDD-xxxxxx)、sha256（唯一）、file（上传时的文件名）、mime、width、height、bytes、status (todo|done)、boxes（JSON 数组 [{role, x, y, w, h}]，role 为 question / answer，坐标归一化 0–1）、uploaded_at、updated_at`。原图在 `images/<sha256>.<ext>`，删除记录时一并删除。整个目录随设置页「备份导出」打包（备份遍历整个 `错题/`），图片压缩优化只处理附件目录，不碰这里。
+
+## 17. AI 草稿存储
+
+`错题/.omrs/drafts/` 的 drafts.db 独立于 Ledger，包含 images、conv_images、drafts、blocks、draft_images 与 commit_operations；图片按 hash 保存，事件追加到 events.jsonl。revision 与来源完整性通过增量迁移添加。字段、来源恢复和入库恢复以 `AI/drafts.md` 为准；只有通过产生带 `_draft` 追溯信息的题目创建提交。

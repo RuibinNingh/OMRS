@@ -39,6 +39,16 @@ _IMG_REF_RE = re.compile(r"^IMG-(\d+)$")
 _MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 
+class DraftError(ValueError):
+    """草稿写接口的稳定错误码。"""
+
+    def __init__(self, message, status=400, code="invalid", current_revision=None):
+        super().__init__(message)
+        self.status = status
+        self.code = code
+        self.current_revision = current_revision
+
+
 # ────────────────────────── 路径 / 时间 / 工具 ──────────────────────────
 
 def drafts_dir(vault):
@@ -105,6 +115,16 @@ CREATE TABLE IF NOT EXISTS blocks (
   image_sha TEXT, x REAL, y REAL, w REAL, h REAL, box_origin TEXT, ai_box TEXT, note TEXT
 );
 CREATE INDEX IF NOT EXISTS blocks_draft ON blocks(draft_id);
+CREATE TABLE IF NOT EXISTS draft_images (
+  draft_id TEXT NOT NULL, image_sha TEXT NOT NULL, ord INTEGER NOT NULL,
+  PRIMARY KEY (draft_id, image_sha)
+);
+CREATE INDEX IF NOT EXISTS draft_images_sha ON draft_images(image_sha);
+CREATE TABLE IF NOT EXISTS commit_operations (
+  draft_id TEXT PRIMARY KEY, revision INTEGER NOT NULL, uid TEXT NOT NULL,
+  question_id TEXT NOT NULL, file_path TEXT NOT NULL, phase TEXT NOT NULL,
+  actor TEXT NOT NULL DEFAULT 'api', result_json TEXT, artifacts_json TEXT, created_at TEXT NOT NULL
+);
 """
 
 
@@ -113,6 +133,14 @@ def connect(vault):
     db = sqlite3.connect(path, timeout=10, check_same_thread=False)
     db.row_factory = sqlite3.Row
     db.executescript(_SCHEMA)
+    cols = {r["name"] for r in db.execute("PRAGMA table_info(drafts)")}
+    if "revision" not in cols:
+        db.execute("ALTER TABLE drafts ADD COLUMN revision INTEGER NOT NULL DEFAULT 1")
+    if "sources_complete" not in cols:
+        db.execute("ALTER TABLE drafts ADD COLUMN sources_complete INTEGER NOT NULL DEFAULT 0")
+    op_cols = {r["name"] for r in db.execute("PRAGMA table_info(commit_operations)")}
+    if "artifacts_json" not in op_cols:
+        db.execute("ALTER TABLE commit_operations ADD COLUMN artifacts_json TEXT")
     db.commit()
     return db
 
@@ -289,6 +317,7 @@ def _row_block(row):
 def _row_draft(row, blocks):
     return {
         "id": row["id"], "status": row["status"], "conversation_id": row["conversation_id"],
+        "revision": row["revision"], "sources_complete": bool(row["sources_complete"]),
         "run_id": row["run_id"], "tool_call_id": row["tool_call_id"], "subject": row["subject"],
         "category": row["category"], "knowledge_points": _loads(row["knowledge_points"], []),
         "difficulty": row["difficulty"] if row["difficulty"] is not None else 5,
@@ -299,9 +328,76 @@ def _row_draft(row, blocks):
     }
 
 
+def _question_available(vault, row):
+    if row["status"] != "done" or not row["question_id"]:
+        return None
+    from .ledger import connect as ledger_connect
+    ledger = ledger_connect(vault)
+    try:
+        question = ledger.execute("SELECT file_path,archived FROM question_projection WHERE question_id=?",
+                                  (row["question_id"],)).fetchone()
+    finally:
+        ledger.close()
+    return bool(question and not question["archived"] and
+                os.path.isfile(os.path.join(vault, question["file_path"])))
+
+
 def _draft_blocks(db, draft_id):
     return [_row_block(r) for r in db.execute(
         "SELECT * FROM blocks WHERE draft_id=? ORDER BY ord", (draft_id,))]
+
+
+def _source_view(vault, db, row, blocks):
+    """旧草稿只从精确工具调用或图片块恢复来源，绝不猜整个对话。"""
+    conv = row["conversation_id"]
+    candidates = db.execute(
+        "SELECT ci.n,ci.sha256,i.width,i.height,i.mime,i.train,i.inbox_item_id "
+        "FROM conv_images ci JOIN images i ON i.sha256=ci.sha256 "
+        "WHERE ci.conversation_id=? ORDER BY ci.n", (conv,)).fetchall()
+    by_sha = {r["sha256"]: r for r in candidates}
+    by_ref = {f"IMG-{r['n']}": r["sha256"] for r in candidates}
+    associated = [r["image_sha"] for r in db.execute(
+        "SELECT image_sha FROM draft_images WHERE draft_id=? ORDER BY ord", (row["id"],))]
+    complete = bool(row["sources_complete"])
+    if not complete and row["run_id"] and row["tool_call_id"]:
+        agent_db = os.path.join(omrs_data_dir(vault), "agent.db")
+        if os.path.isfile(agent_db):
+            try:
+                agent = sqlite3.connect(f"file:{agent_db}?mode=ro", uri=True)
+                try:
+                    call = agent.execute(
+                        "SELECT args_json FROM tool_calls WHERE run_id=? AND call_id=? AND name='create_draft'",
+                        (row["run_id"], row["tool_call_id"])).fetchone()
+                finally:
+                    agent.close()
+                if call:
+                    refs = _loads(call[0], {}).get("images")
+                    if isinstance(refs, list) and all(isinstance(ref, str) and ref in by_ref for ref in refs):
+                        exact = list(dict.fromkeys(by_ref[ref] for ref in refs))
+                        if all(b["image_sha"] in exact for b in blocks if b["image_sha"]):
+                            db.execute("DELETE FROM draft_images WHERE draft_id=?", (row["id"],))
+                            db.executemany("INSERT INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
+                                           [(row["id"], sha, i) for i, sha in enumerate(exact)])
+                            db.execute("UPDATE drafts SET sources_complete=1 WHERE id=?", (row["id"],))
+                            db.commit()
+                            associated, complete = exact, True
+            except (sqlite3.Error, OSError):
+                pass
+    for sha in (b["image_sha"] for b in blocks if b["image_sha"]):
+        if sha not in associated:
+            associated.append(sha)
+            db.execute("INSERT OR IGNORE INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
+                       (row["id"], sha, len(associated) - 1))
+            db.commit()
+
+    def view(r):
+        return {"sha256": r["sha256"], "ref": f"IMG-{r['n']}", "width": r["width"],
+                "height": r["height"], "mime": r["mime"], "train": bool(r["train"]),
+                "inbox_item_id": r["inbox_item_id"]}
+
+    sources = [view(by_sha[sha]) for sha in associated if sha in by_sha]
+    conversation = [view(r) for r in candidates]
+    return sources, complete, conversation
 
 
 def create_draft(vault, data, origin=None):
@@ -326,6 +422,10 @@ def create_draft(vault, data, origin=None):
     if cause and not cause_statement:
         raise ValueError("错因只能用用户说过的话：cause_statement 不能为空")
     labels = [str(v).strip() for v in (data.get("labels") or []) if str(v).strip()]
+    source_images = data.get("source_images")
+    if source_images is not None and (not isinstance(source_images, list) or
+                                      any(not isinstance(v, str) for v in source_images)):
+        raise ValueError("source_images 必须是图片 SHA 数组")
 
     with _LOCK:
         db = connect(vault)
@@ -354,10 +454,30 @@ def create_draft(vault, data, origin=None):
                     exists = db.execute("SELECT 1 FROM images WHERE sha256=?", (image_sha,)).fetchone()
                     if not exists:
                         raise ValueError(f"第 {index + 1} 块引用的图片不存在：{image_sha}")
+                    if origin.get("conversation_id") and not db.execute(
+                            "SELECT 1 FROM conv_images WHERE conversation_id=? AND sha256=?",
+                            (origin["conversation_id"], image_sha)).fetchone():
+                        raise ValueError(f"第 {index + 1} 块引用的图片不属于本对话")
                     blocks.append({"section": section, "ord": index, "kind": kind, "text": None,
                                    "image_sha": image_sha, "note": note})
             if not any(b["section"] == "题目" for b in blocks):
                 raise ValueError("草稿至少要有一个题目块")
+
+            if source_images is None:
+                source_images = list(dict.fromkeys(b["image_sha"] for b in blocks if b["image_sha"]))
+                sources_complete = False
+            else:
+                source_images = list(dict.fromkeys(source_images))
+                sources_complete = True
+            for sha in source_images:
+                if not db.execute("SELECT 1 FROM conv_images WHERE conversation_id=? AND sha256=?",
+                                  (origin.get("conversation_id"), sha)).fetchone():
+                    raise ValueError(f"来源图片不属于本对话：{sha}")
+            if any(b["image_sha"] and b["image_sha"] not in source_images for b in blocks):
+                if sources_complete:
+                    raise ValueError("图片区块引用了来源列表外的图片")
+                source_images.extend(b["image_sha"] for b in blocks
+                                     if b["image_sha"] and b["image_sha"] not in source_images)
 
             status = "cropping" if any(b["kind"] == "image" for b in blocks) else "review"
             draft_id = _new_draft_id()
@@ -365,10 +485,14 @@ def create_draft(vault, data, origin=None):
             db.execute(
                 "INSERT INTO drafts (id, status, conversation_id, run_id, tool_call_id, subject, category, "
                 "knowledge_points, difficulty, labels, cause, cause_statement, note, uid, question_id, "
-                "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "created_at, updated_at, revision, sources_complete) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (draft_id, status, origin.get("conversation_id"), origin.get("run_id"),
                  origin.get("tool_call_id"), subject, category, json.dumps(knowledge_points, ensure_ascii=False),
-                 5, json.dumps(labels, ensure_ascii=False), cause, cause_statement, "", None, None, now, now))
+                 5, json.dumps(labels, ensure_ascii=False), cause, cause_statement, "", None, None, now, now,
+                 1, int(sources_complete)))
+            for index, sha in enumerate(source_images):
+                db.execute("INSERT INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
+                           (draft_id, sha, index))
             for block in blocks:
                 db.execute(
                     "INSERT INTO blocks (id, draft_id, section, ord, kind, text, image_sha, x, y, w, h, "
@@ -392,9 +516,12 @@ def get_draft(vault, draft_id):
         if not row:
             raise ValueError(f"没有这份草稿：{draft_id}")
         blocks = _draft_blocks(db, draft_id)
+        source_images, complete, conversation_images = _source_view(vault, db, row, blocks)
     finally:
         db.close()
-    return _row_draft(row, blocks)
+    return {**_row_draft(row, blocks), "question_available": _question_available(vault, row),
+            "source_images": source_images,
+            "sources_complete": complete, "conversation_images": conversation_images}
 
 
 def list_drafts(vault, status=None, conversation_id=None, limit=50):
@@ -404,7 +531,9 @@ def list_drafts(vault, status=None, conversation_id=None, limit=50):
     except (TypeError, ValueError):
         limit = 50
     clauses, params = [], []
-    if status:
+    if status == "pending":
+        clauses.append("status IN ('cropping','review')")
+    elif status:
         clauses.append("status=?")
         params.append(status)
     else:
@@ -418,7 +547,9 @@ def list_drafts(vault, status=None, conversation_id=None, limit=50):
         rows = db.execute(
             f"SELECT * FROM drafts WHERE {where} ORDER BY created_at DESC LIMIT ?",
             (*params, limit)).fetchall()
-        return [_row_draft(row, _draft_blocks(db, row["id"])) for row in rows]
+        return [{**_row_draft(row, _draft_blocks(db, row["id"])),
+                 "source_images": _source_view(vault, db, row, _draft_blocks(db, row["id"]))[0]}
+                for row in rows]
     finally:
         db.close()
 
@@ -434,3 +565,18 @@ def counts(vault):
         if row["status"] in result:
             result[row["status"]] = row["n"]
     return result
+
+
+def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
+    from .draft_write import update_draft as run
+    return run(vault, draft_id, revision, fields, blocks, source_images)
+
+
+def discard_draft(vault, draft_id, revision):
+    from .draft_write import discard_draft as run
+    return run(vault, draft_id, revision)
+
+
+def commit_draft(vault, draft_id, revision, crops=None, actor="api"):
+    from .draft_write import commit_draft as run
+    return run(vault, draft_id, revision, crops, actor)

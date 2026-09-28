@@ -1,9 +1,10 @@
 # 主 AI 录题与 AI 草稿区计划
 
-> 本文件是总纲：目标、流程、架构、分期、关键决策。进度只记在同目录 `progress.md`；每一期一份 `exec-*.md` 执行说明。
+> 本文件是总纲：目标、流程、架构、分期、关键决策。进度只记在同目录 `progress.md`；P1 保留原执行说明，P2–P4 共用多智能体执行说明。
 >
-> - 默认执行者：Codex · 完整模式（用户也可指定 Claude Code · 完整模式）；每期一份执行说明，每步一个提交
+> - 执行者：Codex · 完整模式，1 个主控 + 3 个执行智能体，GPT‑6 Sol / xhigh；P2–P4 每期集成、验收后一个完整垂直切片提交
 > - 规划者：Claude Code · 完整模式，2026-09-28，基于本机 HEAD `ae471fc`（v1.28.1）
+> - 协作规划补充：Codex · 完整模式，2026-09-28，基于 `2bb401c`；执行入口 `exec-2026-09-28-parallel.md`
 > - 部署：P1-1 至 P1-3 已按用户授权提前部署；P2 完成后才有完整的用户价值，后续部署仍须用户授权
 
 ## 0. 用户诉求清单（原话，各节都要能指回这里）
@@ -25,8 +26,11 @@
 | U13 | "2.可以"（回应：侧栏录入入口显示待审核数量） | 明确要求 | P2 |
 | U14 | "先不做让ai改功能,默认先自己改" | 明确要求：不做 AI 修改草稿 | §6 范围外；AI 没有改草稿的工具 |
 | U15 | "制定计划,不干活" | 本轮只出计划 | — |
+| U16 | "AI 录题与草稿区  我要推进,你做一个计划,这个计划的目的是为了等会执行委派几个智能体一起干活,模型是GPT 6 Sol Xhigh" | 明确要求：本轮规划，后续按指定模型多智能体协作 | P2–P4 多智能体执行说明 |
 
 ## 1. 现状基线（2026-09-28，本机 HEAD `ae471fc`，v1.28.1，读代码）
+
+下表是立项时的基线快照，不是 P1 完成后的现状。P1 完成后的代码核对与实测见 `exec-2026-09-28-parallel.md` §2；完成状态以 `progress.md` 为准。
 
 | # | 事实 | 来源 |
 |---|---|---|
@@ -97,7 +101,8 @@
 
 - 一份草稿 = 一道题，可引用多张图（U4、U10）。一次贴的图含多道题时，拆成多份草稿共用同一批图（U12）；**被两份及以上草稿引用的图不跑 AI 框选**，一律手动框。
 - 图片属于对话，不属于草稿：同一张图（同 sha256）在库里只存一份，`conv_images` 记它在哪个对话里叫 IMG-几。
-- 草稿的块（block）：`section`（题目 / 答案）、`ord`、`kind`（text / image）、`text`、`image_sha`、`box`（归一化 `x y w h`，未框为空）、`box_origin`（manual / ai / ai_edited）、`ai_box`。一个节可以文字块和图片块混排，入库时按 `ord` 拼：文字进正文，图片块裁成 PNG 进 `question_images` / `answer_images`，与收件箱 commit 的拼法一致。
+- P2 增加独立的草稿—来源图关联，完整保存工具的 `images`，包括全文字草稿；共用图判断基于该关联而非只看 image 块。旧来源只按明确证据恢复，无法恢复时由用户选择，不推断整段对话的图都属于同一题。
+- 草稿的块（block）：`section`（题目 / 答案）、`ord`、`kind`（text / image）、`text`、`image_sha`、`box`（归一化 `x y w h`，未框为空）、`box_origin`（manual / ai / ai_edited）、`ai_box`。一个节可以文字块和图片块混排，入库时按 `ord` 保留交错顺序。复用 creation 的附件保存与题目创建，增加内部有序块入口；现有收件箱 / 快速录入的文本加图片调用保持原输出。
 
 ### 3.3 草稿状态
 
@@ -109,7 +114,7 @@
 待框选 / 待审核 ── 丢弃 ──→ 已丢弃(discarded，保留 draft_discard_keep_days 天后删图片引用)
 ```
 
-没有「修改中」状态：AI 不能改草稿（U14），只有用户在草稿区改，不存在并发编辑。
+没有「修改中」公开状态：AI 不能改草稿（U14），但同一用户的多标签页、等待确认与后台检测仍可能并发。P2 增加整数 revision 做乐观并发校验；已入库内容只读，后续训练框作为独立任务维护。
 
 ### 3.4 框选与训练数据（P3、P4）
 
@@ -124,11 +129,13 @@
   ▼
 ◇ 这张图的训练开关（默认取 draft_train_default，默认关）
   ├─ 开 → 通过时把图和框登记为收件箱条目：source=chat、layout=other、status=ready，
-  │       regions 带 origin 与 ai_box；不进收件箱待处理队列，计入统计与导出
+  │       training_only=true，regions 带 origin 与 ai_box；不进收件箱工作队列，计入统计与导出
   └─ 关 → 框只用来裁图
 ```
 
 `draft_force_crop` 打开时（P4），全文字的草稿也会给每张来源图生成待框任务，框只进训练集，不生成裁图，不阻塞入库。
+
+训练登记走独立入口，不复用上传自动检测；与普通收件箱已有同图相撞时保留其状态 / 版式 / 框，通过训练关联去重。入库成功而训练登记失败时草稿仍为 done，可只重试训练。全文字题先入库后完成训练框时再登记，不修改题目正文。已登记训练图本期不提供撤回。
 
 ### 3.5 存储 `错题/.omrs/drafts/`
 
@@ -144,6 +151,8 @@ events.jsonl       只追加：image.add / image.transcribe / draft.create / dra
 | `conv_images` | `conversation_id`、`n`（IMG-n 的 n）、`sha256`、`run_id`、`created_at`；主键 `(conversation_id, n)` |
 | `drafts` | `id`（`DR-YYYYMMDD-xxxxxx`）、`status`、`conversation_id`、`run_id`、`tool_call_id`、`subject`、`category`、`knowledge_points`（JSON）、`difficulty`（默认 5）、`labels`（JSON）、`cause`、`cause_statement`、`note`、`uid`、`question_id`、`created_at`、`updated_at` |
 | `blocks` | `id`、`draft_id`、`section`、`ord`、`kind`、`text`、`image_sha`、`x y w h`、`box_origin`、`ai_box`（JSON） |
+
+P2–P4 增量迁移补充：drafts.revision、草稿来源图关联、持久入库操作记录、独立训练任务 / 标注与后台作业。具体契约见多智能体执行说明 §5，不重建旧库；训练数据只在用户选择后登记收件箱。
 
 ### 3.6 设置项（`config.json`，`common.CONFIG_DEFAULTS`）
 
@@ -176,6 +185,8 @@ AI **没有** `update_draft`、`discard_draft`（U14）。
 | POST | `/api/drafts/update`（字段与块整体覆盖）、`/api/drafts/commit`（带裁图 data URL）、`/api/drafts/discard` | P2 |
 | POST | `/api/drafts/boxes`、`/api/drafts/extract`（框后转文字）、`/api/drafts/image/train` | P3 |
 | POST | `/api/drafts/detect` | P4 |
+| GET | `/api/drafts/job?id=`（提取 / 检测的后台状态） | P3–P4 |
+| POST | `/api/drafts/cleanup`（按保留天数清理无引用的过期临时产物） | P3 |
 
 ## 4. 分期
 
@@ -186,7 +197,7 @@ AI **没有** `update_draft`、`discard_draft`（U14）。
 | **P3 框选与训练** | 能框、能攒训练数据 | 在草稿区手动框选；框后转文字；逐图训练开关 | 复用 `process-canvas.js`；`draft_crop_mode` 的 ask / manual；聊天卡片「我来框」；`/api/drafts/boxes·extract·image/train`；通过时登记收件箱条目（`source=chat`）；丢弃清理 |
 | **P4 自动化** | 按设置全流程自动 | AI 自动框；全文字也框 | `draft_crop_mode=auto` 与卡片「AI 框」；共用图跳过规则；`draft_force_crop`；训练统计里区分 chat 来源 |
 
-每期单独写执行说明；P1 的见 `exec-2026-09-28-p1.md`。P2–P4 的执行说明在上一期落地后，按当时代码写。
+P1 的执行说明为 `exec-2026-09-28-p1.md`；P2–P4 统一按 `exec-2026-09-28-parallel.md` 连续执行。三名执行智能体分别负责后端、草稿工作区、助手与设置；主控负责共享接线、文档与提交。每期先复核当前代码，再并行实现、串行集成验收；不以等待下一期规划为由提前结束。
 
 ## 5. 关键决策
 
@@ -202,6 +213,9 @@ AI **没有** `update_draft`、`discard_draft`（U14）。
 | D8 | 训练开关按图记，不按草稿记 | 训练的是框题模型，样本单位是图 |
 | D9 | 聊天截图登记到收件箱时 `layout=other` | ChatGPT 等截图与作业帮版式不同，混进 `zuoyebang` 会污染模板与统计 |
 | D10 | 手动框选的画布复用收件箱 `process-canvas.js`，不另写 | 框选交互、遮罩、缩放已成熟 |
+| D11 | 草稿 revision 同时约束编辑、后台回写和确认工具参数 | 用户多窗口与等待确认存在并发；不能用旧允许提交新内容 |
+| D12 | 草稿入库用持久操作记录与 `_draft` 提交恢复，Ledger 后失败不得删有效文件或重复建题 | 多库与文件写入不具备天然原子性，需覆盖中断 / 重试 |
+| D13 | 完整来源图关联与独立训练框补足全文字草稿；训练专用项明确隔离队列 | U3、U6、U8、U12；不能靠 image 块或 ready 状态隐式表达 |
 
 ## 6. 范围外
 

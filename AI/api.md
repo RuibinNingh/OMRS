@@ -916,4 +916,16 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 ## AI 草稿区端点 `/api/drafts/*`
 
-主 AI 聊天里建的题目草稿的只读层，草稿存 `错题/.omrs/drafts/`，**不进 Ledger**。完整定义、表结构、Python 接口见 `AI/drafts.md`。这一期只有四个 GET，写接口（保存 / 入库 / 丢弃）后续阶段加。速览：`GET /api/drafts/list?status=&conversation=`（草稿列表，缺省排除 discarded）、`GET /api/drafts/item?id=`（单份，含全部块）、`GET /api/drafts/image?sha=`（图片二进制，`Cache-Control: private, max-age=86400`，`sha` 须为 64 位十六进制）、`GET /api/drafts/counts`（四种状态计数）。访问规则与同源校验和收件箱 GET 一致。
+草稿存 `错题/.omrs/drafts/`；创建、编辑和丢弃不写 Ledger，通过才写题目。存储、来源、revision、一次性入库及完整请求体见 `AI/drafts.md`。GET 保留原包装，新增写接口沿用登录、同源与全局写锁。
+
+| 方法 | 路径 | 请求与响应 |
+|---|---|---|
+| GET | `/api/drafts/list?status=&conversation=&limit=` | `{status:"ok",drafts}`；pending 联合两种活动态，缺省排除 discarded |
+| GET | `/api/drafts/item?id=` | `{status:"ok",draft}`，含 revision、blocks 与 source_images |
+| GET | `/api/drafts/image?sha=` | 图片二进制，private/max-age=86400 |
+| GET | `/api/drafts/counts` | `{status:"ok",counts}`，四态计数 |
+| POST | `/api/drafts/update` | `{id,revision,fields,blocks,source_images?}` → `{status:"ok",draft}` |
+| POST | `/api/drafts/discard` | `{id,revision}` → `{status:"ok",draft}` |
+| POST | `/api/drafts/commit` | `{id,revision,crops?}` → `{status:"ok",draft,result,reused,training}` |
+
+写接口非法输入 400、不存在 404、状态/版本冲突 409、锁忙 503，错误含 msg/code，版本冲突含 current_revision。重复入库按持久操作与 `_draft` 提交恢复原题；不能用一次旧确认提交已编辑的新版本。

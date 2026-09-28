@@ -13,11 +13,14 @@ sys.path.insert(0, ROOT)
 
 from omrs import drafts  # noqa: E402
 from omrs.agent.loop import AgentLoop  # noqa: E402
+from omrs.agent.config import settings, validate_agent_config  # noqa: E402
+from omrs.agent.runtime import Hooks, Run  # noqa: E402
 from omrs.agent.revert import plan_revert  # noqa: E402
 from omrs.agent.store import AgentStore  # noqa: E402
 from omrs.agent.tools import Registry, ToolDef, build_registry  # noqa: E402
 from omrs.agent.tools import drafts as tools  # noqa: E402
 from omrs.creation import create_question  # noqa: E402
+from omrs.common import save_config  # noqa: E402
 from omrs.ledger import read_commits  # noqa: E402
 from tests.test_agent_loop import LIMITS, Stub, reply  # noqa: E402
 from tests.test_drafts import data_url, make_png  # noqa: E402
@@ -111,7 +114,63 @@ class DraftToolsTest(unittest.TestCase):
     def test_registry(self):
         levels = build_registry().levels()
         self.assertNotIn("create_text_question", levels)
+        self.assertNotIn("commit_draft", levels)
+        self.assertEqual(build_registry({"draft_mode": "confirm"}).levels()["commit_draft"], "confirm")
         self.assertEqual((levels["create_draft"], levels["describe_image"], levels["list_drafts"]), ("rev", "read", "read"))
+
+    def test_draft_mode_defaults_silent_and_saved_change_is_visible(self):
+        self.assertEqual(settings(self.vault)["draft_mode"], "silent")
+        self.assertNotIn("commit_draft", build_registry(settings(self.vault)).levels())
+        save_config(self.vault, {"draft_mode": "confirm"})
+        self.assertEqual(settings(self.vault)["draft_mode"], "confirm")
+        self.assertIn("commit_draft", build_registry(settings(self.vault)).levels())
+        with self.assertRaises(ValueError):
+            validate_agent_config({"draft_mode": "unexpected"})
+
+    def test_confirm_preview_and_execute_recheck_current_draft(self):
+        draft = {"id": "DR-test", "conversation_id": self.conv, "revision": 3, "status": "review",
+                 "subject": "数学", "category": "函数", "difficulty": 5, "blocks": [
+                     {"section": "题目", "kind": "text", "text": "求最小值", "note": ""}],
+                 "cause": "粗心", "source_images": [{"sha256": "a" * 64}]}
+        args = {"draft_id": "DR-test", "revision": 3}
+        with mock.patch.object(tools, "settings", return_value={"draft_mode": "confirm"}), \
+                mock.patch.object(drafts, "get_draft", return_value=draft), \
+                mock.patch.object(drafts, "commit_draft", create=True, return_value={
+                    "draft": draft, "result": {"uid": "函数2"}, "reused": False, "training": []}) as commit:
+            preview = tools.commit_draft_preview(self.ctx, args)
+            self.assertEqual((preview["revision"], preview["blocks"][0]["text"], preview["cause"]),
+                             (3, "求最小值", "粗心"))
+            self.assertEqual(tools.commit_draft_tool(self.ctx, args)["result"]["uid"], "函数2")
+            commit.assert_called_once_with(self.vault, "DR-test", 3)
+            for changed in ({"revision": 4}, {"status": "discarded"}, {"conversation_id": "conv_b"}):
+                with mock.patch.object(drafts, "get_draft", return_value={**draft, **changed}):
+                    with self.assertRaises(ValueError):
+                        tools.commit_draft_tool(self.ctx, args)
+            self.assertEqual(commit.call_count, 1)
+        with mock.patch.object(tools, "settings", return_value={"draft_mode": "silent"}), \
+                mock.patch.object(drafts, "get_draft", return_value=draft):
+            with self.assertRaisesRegex(ValueError, "方式已改变"):
+                tools.commit_draft_tool(self.ctx, args)
+
+    def test_mode_switched_away_and_back_invalidates_old_confirmation(self):
+        save_config(self.vault, {"draft_mode": "confirm"})
+        run = Run("run_x", self.conv, "faux")
+        hooks = Hooks(mock.Mock(vault=self.vault), run, None)
+        execute = mock.Mock(return_value={"result": {}})
+        tool = ToolDef("commit_draft", "confirm", "", {}, execute, lambda ctx, args: {})
+        call = {"id": "call_x", "name": "commit_draft", "args": {"draft_id": "DR-test", "revision": 1}}
+        with mock.patch("omrs.agent.runtime.PendingConfirm") as pending:
+            pending.return_value.token = "test-token"
+            pending.return_value.expires_at = 9999999999
+            def toggle(_abort):
+                save_config(self.vault, {"draft_mode": "silent"})
+                save_config(self.vault, {"draft_mode": "confirm"})
+                return "allow"
+            pending.return_value.wait.side_effect = toggle
+            self.assertIsNone(hooks.before_tool_call(call, tool))
+        with self.assertRaisesRegex(ValueError, "配置已变化"):
+            hooks.execute(call, tool)
+        execute.assert_not_called()
 
 
 class NoCommitHooks:

@@ -1,6 +1,22 @@
 {
  "scenarios": [
   {
+   "match": "确认草稿",
+   "rounds": [
+    {"tool_calls": [{"name": "create_draft", "arguments": {"subject": "数学", "category": "函数", "blocks": [{"section": "题目", "kind": "text", "text": "求 y=x² 的最小值。"}, {"section": "答案", "kind": "text", "text": "最小值为 0。"}]}}]},
+    {"tool_calls": [{"name": "get_draft", "arguments": {"draft_id": "{{r:create_draft.draft_id}}"}}]},
+    {"tool_calls": [{"name": "commit_draft", "arguments": {"draft_id": "{{r:create_draft.draft_id}}", "revision": "{{raw:get_draft.revision}}"}}]},
+    {"text": "草稿处理完成。"}
+   ]
+  },
+  {
+   "match": "文字截图草稿",
+   "rounds": [
+    {"tool_calls": [{"name": "create_draft", "arguments": {"subject": "数学", "category": "函数", "images": ["IMG-1"], "blocks": [{"section": "题目", "kind": "text", "text": "截图中题目的文字。"}, {"section": "答案", "kind": "text", "text": "答案也是文字。"}]}}]},
+    {"text": "已建文字草稿。"}
+   ]
+  },
+  {
    "match": "周期",
    "rounds": [
     {

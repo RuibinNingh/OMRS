@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { applyEvent, newRun, runFrom, ctxUsed, dayGroup, tokOf, fmtS, REASON } from '../../assets/app/features/assistant/state.js';
 import { renderMd, renderInline, plainOf } from '../../assets/app/features/assistant/md.js';
 import { dockView, userView } from '../../assets/app/features/assistant/view.js';
-import { toolPreview } from '../../assets/app/features/assistant/tools-view.js';
+import { confirmOf, toolPreview } from '../../assets/app/features/assistant/tools-view.js';
 
 const ev = (i, t, type, data = {}) => ({ i, t, type, data });
 const script = [
@@ -116,6 +116,25 @@ test('附图输入与草稿结果显示图片编号、删除入口和草稿状�
   const card = String(toolPreview({ name: 'create_draft', result: { draft_id: 'DR-1', status: 'cropping', subject: '数学', category: '函数',
     question_preview: '求最小值', blocks: [{ section: '题目', kind: 'text' }, { section: '答案', kind: 'image' }] } }));
   assert.match(card, /DR-1/);
-  assert.match(card, /待框选/);
+  assert.match(card, /正在获取当前状态/);
   assert.match(card, /答案 · 图片/);
+  assert.match(card, /assistant.openDraft/);
+  const changed = String(toolPreview({ name: 'create_draft', result: { draft_id: 'DR-1', status: 'cropping', subject: '数学', category: '函数', blocks: [] } },
+    { draft: { id: 'DR-1', status: 'done', subject: '数学', category: '函数', blocks: [{ section: '题目', kind: 'text', text: '已入库' }] } }));
+  assert.match(changed, /已入库/);
+  assert.match(changed, /已入库.*查看草稿/s);
+});
+
+test('入库确认展示当前版本的正文、来源图与错因', () => {
+  const review = confirmOf({ name: 'commit_draft', args: { draft_id: 'DR-1', revision: 4 },
+    preview: { draft_id: 'DR-1', revision: 4, subject: '数学', category: '函数', difficulty: 5,
+      cause: '计算失误', source_images: [{ sha256: 'a'.repeat(64) }],
+      blocks: [{ section: '题目', kind: 'text', text: '求最小值' },
+        { section: '答案', kind: 'image', image_sha: 'a'.repeat(64) }] } });
+  const body = String(review.body);
+  assert.match(body, /求最小值/);
+  assert.match(body, /计算失误/);
+  assert.match(body, /来源截图/);
+  assert.match(body, /\/api\/drafts\/image\?sha=/);
+  assert.match(review.hint, /第 4 版/);
 });

@@ -12,6 +12,8 @@
 - [2026-09-28_board-redesign](2026-09-28_board-redesign.md)：展示板 UI 改版
 - [2026-09-28_annotate-page](2026-09-28_annotate-page.md)：独立框选标注页（训练数据采集）
 - [2026-09-28_annotate-merge](2026-09-28_annotate-merge.md)：框选标注页合入当前版本
+- [2026-09-28_ai-draft-parallel-plan](2026-09-28_ai-draft-parallel-plan.md)：# AI 录题与草稿区多智能体执行规划
+- [2026-09-28_ai-draft-p2](2026-09-28_ai-draft-p2.md)：# AI 草稿 P2：审核入库与确认模式
 - [2026-09-28_ai-draft-p1](2026-09-28_ai-draft-p1.md)：ai-draft P1-1：草稿存储 `omrs/drafts.py` 与只读接口
 - [2026-09-28_ai-draft-p1-partial-deploy](2026-09-28_ai-draft-p1-partial-deploy.md)：AI 草稿 P1 前三步提前合入生产
 - [2026-09-28_ai-agent](2026-09-28_ai-agent.md)：内置 AI 助手（v1.28.0）
@@ -114,7 +116,6 @@
 - [2026-08-28_partial-feedback-ui-followup](2026-08-28_partial-feedback-ui-followup.md)：分批反馈交互二次优化
 - [2026-08-16_v1.8.0-release](2026-08-16_v1.8.0-release.md)：# v1.8.0 发布记录
 - [2026-08-16_omrs-settings-restart-fix](2026-08-16_omrs-settings-restart-fix.md)：# OMRS 设置页重启修复
-- [2026-08-16_mini-host-deploy](2026-08-16_mini-host-deploy.md)：：迷你主机部署 OMRS
 - [2026-08-16_answer-math-rendering](2026-08-16_answer-math-rendering.md)：：答案跨行 LaTeX 渲染修复
 - [2026-08-16_action-plan-dark-contrast-catalog](2026-08-16_action-plan-dark-contrast-catalog.md)：行动推荐、目录页与深色对比度修订
 - [2026-08-14_doc-code-sync-audit-fixes](2026-08-14_doc-code-sync-audit-fixes.md)：审计偏差修复（文档-代码同步）

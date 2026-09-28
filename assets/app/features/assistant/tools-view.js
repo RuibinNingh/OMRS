@@ -125,12 +125,33 @@ const T = {
   },
   create_draft: {
     title: '建 AI 草稿', icon: 'file', level: 'rev', args: a => `${a.subject || ''} / ${a.category || ''}`,
-    preview: r => {
-      const status = r.status === 'cropping' ? '待框选' : r.status === 'review' ? '待审核' : r.status || '草稿';
+    preview: (r, _args, current) => {
+      const d = current?.draft;
+      const status = current?.error ? '状态读取失败' : current?.loading || !d ? '正在获取当前状态'
+        : ({ cropping: '待框选', review: '待审核', done: '已入库', discarded: '已丢弃' }[d.status] || d.status);
+      const blocks = d?.blocks || r.blocks || [];
+      const question = d ? (blocks.filter(b => b.section === '题目' && b.kind === 'text').map(b => b.text || '').join('').slice(0, 60) || '（题目是图片）')
+        : r.question_preview || '（题目是图片）';
       return html`<div class="ast-draft-card"><div class="ast-draft-card__head"><code>${r.draft_id}</code><span class="ui-tag ui-tag--info">${status}</span></div>
-        <dl class="ast-kv"><dt>科目 / 分类</dt><dd>${r.subject} / ${r.category}</dd><dt>题目</dt><dd>${r.question_preview || '（题目是图片）'}</dd></dl>
-        <div class="ast-draft-card__blocks">${(r.blocks || []).map((block, i) => html`<span class="ui-tag">${block.section} · ${block.kind === 'image' ? '图片' : '文字'}</span>`)}</div></div>`;
+        <dl class="ast-kv"><dt>科目 / 分类</dt><dd>${d?.subject || r.subject} / ${d?.category || r.category}</dd><dt>题目</dt><dd>${question}</dd></dl>
+        <div class="ast-draft-card__blocks">${blocks.map(block => html`<span class="ui-tag">${block.section} · ${block.kind === 'image' ? '图片' : '文字'}</span>`)}</div>
+        ${current?.error ? html`<p class="ast-note is-error">${current.error}</p><button type="button" class="ui-btn ui-btn--sm" data-action="assistant.retryDraft" data-arg="${r.draft_id}">重试读取</button>` : ''}
+        <button type="button" class="ui-btn ui-btn--sm" data-action="assistant.openDraft" data-arg="${r.draft_id}">查看草稿</button></div>`;
     },
+  },
+  commit_draft: {
+    title: '通过 AI 草稿', icon: 'check-circle', level: 'confirm', args: a => `${a.draft_id} · 第 ${a.revision} 版`,
+    gate: a => ({ what: `想将草稿 ${a.draft_id} 的第 ${a.revision} 版入库：`, preview: '请核对预览中的正文、图片、错因与元数据。' }),
+    confirm: (a, p) => ({ title: `允许助手通过草稿「${a.draft_id}」？`, ok: '允许并入库',
+      hint: `仅允许第 ${p.revision} 版；等待期间修改草稿或切换录题方式后，本次确认会失效。`,
+      body: html`<dl class="ast-kv"><dt>科目 / 分类</dt><dd>${p.subject} / ${p.category}</dd>
+        <dt>难度</dt><dd>${p.difficulty}</dd><dt>知识点</dt><dd>${(p.knowledge_points || []).join('、') || '（无）'}</dd>
+        <dt>标记</dt><dd>${(p.labels || []).join('、') || '（无）'}</dd><dt>错因</dt><dd>${p.cause || '（未填）'}</dd>
+        <dt>备注</dt><dd>${p.note || '（未填）'}</dd><dt>来源截图</dt><dd>${(p.source_images || []).length} 张</dd></dl>
+        <div class="ast-draft-review">${(p.blocks || []).map(b => html`<div class="ast-draft-review__block"><strong>${b.section} · ${b.kind === 'image' ? '图片' : '文字'}</strong>
+          ${b.kind === 'image' ? html`<img src="/api/drafts/image?sha=${encodeURIComponent(b.image_sha || '')}" alt="${b.section}图片预览">` : html`<p>${b.text}</p>`}
+          ${b.note ? html`<small>${b.note}</small>` : ''}</div>`)}</div>` }),
+    preview: r => html`<p class="ast-note">草稿 ${r.draft_id || ''} 已入库${r.uid ? `：${r.uid}` : '。'}</p>`,
   },
   record_feedback: {
     title: '记录反馈', icon: 'check-circle', level: 'confirm', args: a => (a.items || []).map(i => i.uid).join('、'),
@@ -156,11 +177,11 @@ export function toolArgs(st) {
   if (!st.args) return st.argsSrc ? st.argsSrc.slice(0, 60) : '';
   try { return toolDef(st.name).args(st.args); } catch (_) { return ''; }
 }
-export function toolPreview(st) {
+export function toolPreview(st, currentDraft) {
   const r = st.result;
   if (!r) return '';
   if (r.ok === false) return html`<p class="ast-note is-error">${r.error}</p>`;
-  try { return toolDef(st.name).preview(r, st.args || {}); } catch (_) { return FALLBACK.preview(r); }
+  try { return toolDef(st.name).preview(r, st.args || {}, currentDraft); } catch (_) { return FALLBACK.preview(r); }
 }
 export const gateOf = st => (toolDef(st.name).gate ? toolDef(st.name).gate(st.args || {}) : { what: '想执行这一步：', preview: toolArgs(st) });
 export const confirmOf = st => (toolDef(st.name).confirm

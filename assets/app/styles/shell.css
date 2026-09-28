@@ -36,6 +36,7 @@
 .brand-sub { color: var(--fg-3); font-size: var(--text-2xs); }
 .sidebar-collapse, .topbar-hamburger { display: inline-grid; flex: none; place-items: center; width: var(--ctl-md); height: var(--ctl-md); padding: 0; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--fg-3); cursor: pointer; transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
 .sidebar-collapse { margin-left: auto; }
+#nav-draft-count[hidden] { display: none; }
 .sidebar-collapse:hover, .topbar-hamburger:hover { background: var(--surface-2); color: var(--fg-1); }
 .sidebar-collapse:focus-visible, .topbar-hamburger:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus-ring); }
 .sidebar-collapse .nav-ico, .topbar-hamburger .nav-ico { width: 18px; height: 18px; }

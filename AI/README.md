@@ -19,7 +19,7 @@
 | 数据格式、Ledger、投影 | `data.md`、`ledger.md` |
 | 导出与展示板打印 | `export.md`、`board.md` |
 | 收件箱、标记、答题卡导入 | `inbox.md`、`labels.md`、`omr-import.md` |
-| AI 草稿区（助手录题、草稿存储、只读接口） | `drafts.md` |
+| AI 草稿区（助手录题、草稿存储、审核接口） | `drafts.md` |
 | 技术债与已知缺陷 | `optimization.md` |
 | 维护者环境、可用工具、协作配方 | `environment.md` |
 | 某版本改了什么 | `changelog.md` |
@@ -32,7 +32,7 @@
 
 - 行为、接口、数据格式或架构一旦改变，按 `AGENTS.md`「代码到文档的对应关系」同步模块文档，不等到以后补写。
 - 每次产生持久化改动都在 `logs/` 新建任务日志；索引 `logs/log.md` 由脚本生成，不手改。
-- 交付前运行 `python3 tests/check_docs.py --diff <基线>`，退出码必须为 0。改前端时另跑 `python3 tests/check_ui.py` 与 `python3 tests/check_contrast.py`（规则见 `frontend/design-system.md`）；改了 `assets/app/` 再跑 `python3 tests/app/run_browser.py`（组件见 `frontend/components.md`）。它的规则写在脚本文件头；改了路由后先运行 `--write-routes`，完整模式新增日志后运行 `--write-log-index`。
+- 交付前运行 `python3 tests/check_docs.py --diff <基线>`，退出码必须为 0。改前端时另跑 `python3 tests/check_ui.py` 与 `python3 tests/check_contrast.py`（规则见 `frontend/design-system.md`）；改了 `assets/app/` 再跑 `python3 tests/app/run_browser.py`（组件见 `frontend/components.md`）。它的规则写在脚本文件头；改了路由后先运行 `--write-routes`（草稿 GET / POST 的分派方法已登记到发现清单），完整模式新增日志后运行 `--write-log-index`。
 - 属于某个计划的任务，收尾更新 `plans/<计划>/progress.md`；`tests/check_docs.py` 检查每个计划文件夹有 `plan.md` 与 `progress.md`、`progress.md` 有状态块。
 - 只读调查、答疑或没有产生仓库改动的任务不创建空日志，交付时说明未修改仓库。
 - 事实优先级：当前工作区代码、测试和配置 > Git 历史 > AI 文档。文档与代码冲突时修文档，规划项必须标为「待办」。

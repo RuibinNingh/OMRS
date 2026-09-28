@@ -13,7 +13,7 @@
 .ib-flow-arrow { align-self: center; color: var(--fg-3); }
 .ib-stage { display: none; }
 .ib-stage.on { display: block; }
-@media (max-width: 1500px) { .ib-flow-step.aux .fs-sub { display: none; } }
+@media (max-width: 1500px) { .ib-flow-step .fs-sub { display: none; } }
 /* 整屏工作台：只有「处理」是三栏工作台，其余工作区在自己的区块里滚动。 */
 @media (min-width: 1161px) {
   .content.is-workbench .ib-flow { flex-shrink: 0; }

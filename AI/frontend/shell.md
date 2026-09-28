@@ -113,3 +113,7 @@ assets/
 - 卡中卡（`.rec-item` / `.sched-item` / `.picker-row` 等）由 `.04` 抬到 `.07` 并补描边；`.btn` 底 `.05→.07`、hover `.10→.14` 并明确前景色；`.input` 深色底改 `--bg3`；`.img-thumb` 角标底改 `.70`。
 
 **维护约定**：新写深色规则一律走 `var(--*)` 或 `rgba(var(--*-rgb), α)`，不要再写死十六进制或裸 `rgba(r,g,b,a)`；确需固定的深墨字用 `#17150f`（与 `--accent-fg` 同值）。
+
+## AI 草稿角标
+
+录入题目侧栏入口的 `#nav-draft-count` 使用现有 ui-badge，显示 cropping + review，超过 99 显示 99+，零时隐藏。计数读取、刷新与跨页导航由 `domain/drafts.js` 统一拥有，助手关闭时仍能审核已有草稿。

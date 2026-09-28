@@ -88,7 +88,7 @@ function toolView(S, run, st, now) {
       <span class="${cls('ast-tool__st', tone)}">${label}</span>${dur ? html`<span class="ast-tool__meta">${dur}</span>` : ''}${st.result || st.error ? html`<span class="ast-tool__chev">${icon(open ? 'chevron-up' : 'chevron-down')}</span>` : ''}</span></button>
     ${st.status === 'waiting' ? gateView(run, st, now) : ''}
     ${st.error && !open ? html`<p class="ast-note is-error">${st.error}</p>` : ''}
-    ${open ? html`<div class="ast-tool__body">${toolPreview(st)}${st.commits?.length ? html`<p class="ast-note">写入 ${st.commits.map(c => c.commit_id).join('、')}</p>` : ''}</div>` : ''}
+    ${open ? html`<div class="ast-tool__body">${toolPreview(st, S.drafts?.[st.result?.draft_id])}${st.commits?.length ? html`<p class="ast-note">写入 ${st.commits.map(c => c.commit_id).join('、')}</p>` : ''}</div>` : ''}
   </div></div>`;
 }
 
@@ -125,7 +125,7 @@ export function turnView(S, run, perfNow) {
   const body = html`<header class="ast-turn__head"><span class="ast-turn__who">${icon('sparkle')}助手</span><span class="ast-turn__model">${run.model}</span>
       <span class="ast-turn__time">${hhmm(run.startedAt)}</span>${live ? html`<span class="ast-turn__live" role="status">${run.status === 'waiting' ? '等你确认' : run.aborting ? '正在中止…' : `运行中 ${fmtS(now)}`}</span>` : ''}</header>
     <div class="ast-trace">${each(run.steps, st => st.id, st => stepView(S, run, st, now))}${live ? '' : html`<div class="ast-node ast-node--end" data-key="end">${footView(run)}</div>`}</div>`;
-  return html`<article class="${cls('ast-turn', live && 'is-live', run.reverted && 'is-undone', S.runSel === run.id && 'is-selected')}" data-key="run-${run.id}" ${live ? '' : raw(`data-hash="${run.id}:${run.ver}:${S.uiVer}:${S.runSel === run.id ? 1 : 0}"`)}>${body}</article>`;
+  return html`<article class="${cls('ast-turn', live && 'is-live', run.reverted && 'is-undone', S.runSel === run.id && 'is-selected')}" data-key="run-${run.id}" ${live ? '' : raw(`data-hash="${run.id}:${run.ver}:${S.uiVer}:${S.draftVer || 0}:${S.runSel === run.id ? 1 : 0}"`)}>${body}</article>`;
 }
 
 export function userView(item, i) {
@@ -151,8 +151,8 @@ function offView(S) {
 
 const PERMS = [
   ['read', '找题、看统计、读题目、查推荐与 Session', '直接执行'],
-  ['rev', '建复习 Session、打标记、录 AI 草稿', '直接执行；题库写入可按运行撤销'],
-  ['confirm', '改题目 / 答案 / 错因、改知识点、移动 / 停用、记反馈', '你点「允许」才执行'],
+  ['rev', '建复习 Session、打标记、录 AI 草稿', '直接执行；草稿不进题库'],
+  ['confirm', '改题目 / 答案 / 错因、改知识点、移动 / 停用、记反馈；按设置通过草稿', '你点「允许」才执行'],
   ['none', '删除题目、改设置和 PIN、备份恢复、重启', '没有工具，助手做不到'],
 ];
 export function emptyView(S) {

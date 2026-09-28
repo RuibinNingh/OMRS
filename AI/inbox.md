@@ -89,7 +89,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 
 ## 7. 已知边界 / 待办
 
-- **单线程服务器**：job 在后台线程跑，界面不卡；但 `commit` 与旧端点仍在请求线程串行。job 线程只写 `inbox.db`（自有 `_LOCK`），不碰 Ledger。
+- **请求线程与写锁**：HTTP 服务器使用 `ThreadingMixIn`；题目写入由全局写锁串行化。job 在后台线程运行，只写 `inbox.db`（自有 `_LOCK`），不碰 Ledger。
 - detect 效果取决于模型：Qwen3-VL 系列支持 0–1000 定位；不支持定位的模型返回 `[]`，前端提示「0 框」。长截图必须切片（前端已做；无前端在环时需 Pillow 才能服务端切）。
 - 服务端裁图需要 Pillow（可选）；自动策略 / 无人值守流水线在没有 Pillow 时只对覆盖全图的框（整图即题目）有效，其余会以「自动转文本失败」中止并停在 boxed。
 - 模板框选没有 OCR：答案框「从答案标题起」用的是同版式样本的比例位置（或默认模板），需要人工微调；有几张人工样本后会自动改用最近一张的框位。

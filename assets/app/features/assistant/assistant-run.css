@@ -102,3 +102,8 @@
   .ast-tool__args, .ast-tool__sum { display: none; }
   .ast-trace { --ast-trace-pad: var(--sp-5); --ast-rail-line: var(--sp-2); }
 }
+.ast-draft-review { display: grid; gap: var(--sp-2); }
+.ast-draft-review__block { min-width: 0; padding: var(--sp-2); border: 1px solid var(--border-1); border-radius: var(--r-sm); overflow-wrap: anywhere; }
+.ast-draft-review__block strong, .ast-draft-review__block small { display: block; }
+.ast-draft-review__block p { white-space: pre-wrap; }
+.ast-draft-review__block img { display: block; max-width: 100%; max-height: 160px; object-fit: contain; }

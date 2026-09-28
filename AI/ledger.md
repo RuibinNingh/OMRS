@@ -208,3 +208,7 @@ AI 审计提示词要求外部 AI 按 P0/P1/P2 输出问题清单，并重点检
 `blobs(hash, content, created_at)` 存题目 Markdown 的全文，哈希是 UTF-8 正文的 sha256；commit 只引用哈希。入账的时机：`question.create` 之后（录入的正文）、`question.content_update`（只改正文，payload 有 `before_hash` / `after_hash`）、经 `omrs/content_history.py` 写文件时的 `question.metadata_update`（同样带前后哈希）、工作区扫描发现的只改正文（`self_check`）、删除前的最后一版（`question.archive` 带 `content_hash`）、首次启动时一次性的 `question.content_snapshot`（`source=migration`，`items` 列出每题当前哈希；投影不处理它）。
 
 写文件前对齐：`ensure_content_recorded` 发现文件正文与投影记录的哈希不同（例如刚在 Obsidian 里改过），先以 `self_check` 补记这一版，再做本次写入；调用方给了 `expected_content_hash` 而对不上时抛 `ContentConflict`（HTTP 409）。投影处理 `question.content_update` 时只更新 `content_hash`。历史、取回与还原的接口见 `AI/api.md`。
+
+## 草稿创建的追溯与恢复
+
+草稿通过调用创建题目入口时，question.create 的 payload 顶层加入 `_draft:{draft_id,conversation_id}` 后再追加与计算哈希；人工入口为 api，agent_actor 内转换为 agent 并保留 `_agent`。建草稿、编辑和丢弃不追加 Ledger。创建提交是入库恢复的事实依据：草稿状态写回或投影重建失败后，重试先找到原提交，不重复建题，且不删除已被 Ledger 引用的文件。

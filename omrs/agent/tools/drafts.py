@@ -12,6 +12,7 @@ import unicodedata
 
 from ... import drafts
 from ...ai_assist import describe_image as ask_image
+from ..config import settings
 from ..store import AgentStore
 
 DESCRIBE_CAP = 2000
@@ -43,7 +44,7 @@ def _preview(draft, n=60):
 
 def _summary(draft):
     return {"draft_id": draft["id"], "status": draft["status"], "subject": draft["subject"], "category": draft["category"],
-            "question_preview": _preview(draft), "created_at": draft["created_at"]}
+            "question_preview": _preview(draft), "created_at": draft["created_at"], "revision": draft.get("revision", 1)}
 
 
 def _blocks_out(draft, conv_id, vault):
@@ -74,8 +75,11 @@ def list_drafts_tool(ctx, args):
 def get_draft_tool(ctx, args):
     draft = drafts.get_draft(ctx["vault"], args["draft_id"].strip())
     conv = draft.get("conversation_id") or ctx["conversation_id"]
+    sources = [{"ref": image.get("ref"), "width": image.get("width"), "height": image.get("height")}
+               for image in draft.get("source_images") or []]
     return {"result": {**_summary(draft), "knowledge_points": draft.get("knowledge_points") or [],
                        "cause": draft.get("cause") or "", "uid": draft.get("uid"),
+                       "source_images": sources,
                        "blocks": _blocks_out(draft, conv, ctx["vault"])}, "summary": draft["id"]}
 
 
@@ -107,10 +111,53 @@ def create_draft_tool(ctx, args):
     draft = drafts.create_draft(vault, {
         "subject": args["subject"], "category": args["category"],
         "knowledge_points": args.get("knowledge_points") or [], "blocks": blocks,
+        "source_images": list(shas.values()),
         "cause": cause, "cause_statement": statement,
     }, {"conversation_id": conv, "run_id": ctx.get("run_id"), "tool_call_id": ctx.get("tool_call_id")})
     return {"result": {**_summary(draft), "blocks": _blocks_out(draft, conv, vault), "cause": cause},
             "summary": draft["id"], "wrote": True}
+
+
+def _commit_target(ctx, args):
+    """确认前和执行时均从持久配置及草稿重读，旧许可不能提交新版本。"""
+    if settings(ctx["vault"])["draft_mode"] != "confirm":
+        raise ValueError("AI 录题方式已改变，请在草稿区审核")
+    draft_id = args["draft_id"].strip()
+    revision = args["revision"]
+    if type(revision) is not int or revision < 1:
+        raise ValueError("草稿版本无效，请重新读取草稿")
+    draft = drafts.get_draft(ctx["vault"], draft_id)
+    if draft.get("conversation_id") != ctx["conversation_id"]:
+        raise ValueError("只能提交本对话创建的草稿")
+    if draft["status"] != "review":
+        raise ValueError("草稿当前不是待审核状态，请在草稿区处理")
+    if draft.get("revision") != revision:
+        raise ValueError("草稿已经变化，请重新读取并重新请求确认")
+    return draft
+
+
+def commit_draft_preview(ctx, args):
+    draft = _commit_target(ctx, args)
+    blocks = [{"section": b["section"], "kind": b["kind"],
+               "text": b.get("text") or "", "image_sha": b.get("image_sha") or "",
+               "box": b.get("box"), "note": b.get("note") or ""} for b in draft["blocks"]]
+    return {"draft_id": draft["id"], "revision": draft["revision"], "subject": draft["subject"],
+            "category": draft["category"], "difficulty": draft["difficulty"],
+            "knowledge_points": draft.get("knowledge_points") or [], "labels": draft.get("labels") or [],
+            "cause": draft.get("cause") or "", "note": draft.get("note") or "", "blocks": blocks,
+            "source_images": draft.get("source_images") or []}
+
+
+def commit_draft_tool(ctx, args):
+    _commit_target(ctx, args)
+    out = drafts.commit_draft(ctx["vault"], args["draft_id"].strip(), args["revision"])
+    committed = out["draft"]
+    result = out["result"]
+    return {"result": {"draft_id": committed["id"], "revision": committed["revision"],
+                       "status": committed["status"], "uid": result.get("uid"),
+                       "question_id": result.get("question_id"), "reused": bool(out.get("reused")),
+                       "training": out.get("training")},
+            "summary": committed["id"], "wrote": not out.get("reused", False)}
 
 
 _S = {"type": "string", "minLength": 1}
@@ -143,4 +190,9 @@ SPECS = [
          "blocks": {"type": "array", "minItems": 1, "maxItems": 20, "items": _BLOCK},
          "cause": {"type": "string"}, "cause_statement": {"type": "string"}}},
      create_draft_tool),
+    ("commit_draft", "confirm",
+     "在用户明确允许后，把本对话的一份待审核草稿入库。先用 get_draft 读取当前 revision；等待确认期间草稿变化时必须重新读取并重新申请。",
+     {"type": "object", "required": ["draft_id", "revision"], "properties": {
+         "draft_id": _S, "revision": {"type": "integer", "minimum": 1}}},
+     commit_draft_tool, commit_draft_preview),
 ]

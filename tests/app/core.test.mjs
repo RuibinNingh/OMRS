@@ -51,8 +51,11 @@ function fakeWindow(hash = '') {
     location: { hash },
     history: {
       entries: [hash], index: 0,
-      pushState(_s, _t, h) { this.entries = this.entries.slice(0, this.index + 1); this.entries.push(h); this.index += 1; win.location.hash = h; },
-      replaceState(_s, _t, h) { this.entries[this.index] = h; win.location.hash = h; },
+      states: [null],
+      get state() { return this.states[this.index]; },
+      pushState(s, _t, h) { this.entries = this.entries.slice(0, this.index + 1); this.states = this.states.slice(0, this.index + 1); this.entries.push(h); this.states.push(s); this.index += 1; win.location.hash = h; },
+      replaceState(s, _t, h) { this.entries[this.index] = h; this.states[this.index] = s; win.location.hash = h; },
+      go(delta) { this.index += delta; win.location.hash = this.entries[this.index]; (listeners.popstate || []).forEach(fn => fn()); },
     },
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
     back() { this.history.index -= 1; this.location.hash = this.history.entries[this.history.index]; (listeners.popstate || []).forEach(fn => fn()); },
@@ -105,6 +108,56 @@ const fakeFetch = (status, payload, type = 'application/json') => async () => ({
   ok: status >= 200 && status < 300, status,
   headers: { get: () => type },
   json: async () => payload, text: async () => String(payload),
+});
+
+test('router：未保存守卫取消不切页，异步允许才切页，连续点击只确认一次', async () => {
+  const win = fakeWindow('#/create');
+  const router = createRouter({ win });
+  ['dashboard', 'create', 'questions'].forEach(id => router.register({ id }));
+  router.start();
+  let answer;
+  let called = 0;
+  const stop = router.setLeaveGuard(() => { called += 1; return new Promise(resolve => { answer = resolve; }); });
+  const first = router.go('questions');
+  assert.equal(router.go('dashboard'), first);
+  assert.equal(called, 1);
+  assert.equal(router.current(), 'create');
+  assert.equal(win.location.hash, '#/create');
+  answer(false);
+  assert.equal(await first, 'create');
+  const second = router.go('questions');
+  answer(true);
+  assert.equal(await second, 'questions');
+  stop();
+  assert.equal(router.go('dashboard'), 'dashboard');
+});
+
+test('router：后退、地址跳转与非法页面也尊重未保存守卫', () => {
+  const win = fakeWindow('#/dashboard');
+  const router = createRouter({ win });
+  ['dashboard', 'create'].forEach(id => router.register({ id }));
+  router.start(); router.go('create');
+  router.setLeaveGuard(() => false);
+  win.back();
+  assert.equal(router.current(), 'create');
+  assert.equal(win.location.hash, '#/create');
+  win.navigateHash('#/unknown');
+  assert.equal(router.current(), 'create');
+  assert.equal(win.location.hash, '#/create');
+});
+
+test('router：取消后退不删除原历史项，随后允许可以再次后退', () => {
+  const win = fakeWindow('#/dashboard');
+  const router = createRouter({ win });
+  ['dashboard', 'create'].forEach(id => router.register({ id }));
+  router.start(); router.go('create');
+  const stop = router.setLeaveGuard(() => false);
+  win.back();
+  assert.equal(win.history.index, 1);
+  assert.deepEqual(win.history.entries, ['#/dashboard', '#/create']);
+  stop();
+  win.back();
+  assert.equal(router.current(), 'dashboard');
 });
 
 test('api：成功返回 data；HTTP 错误取服务端 msg；网络失败与超时给统一结构，不抛出', async () => {
