@@ -7,8 +7,9 @@
 import { boardStatusModel, boardFormatTime, boardEffectiveGap, boardGapCm, boardColumnWidth, CUT_LINES } from './model.js';
 import { boardFolderTree } from '../../domain/board/model.js';
 
-/** 页面自己的 UI 状态：纸面缩放、就地改名、抽屉、题目详情与浮层。板详情、打印范围、选中题归 detail.js。 */
-export const state = { zoom: 'fit', renaming: false, boardsOpen: false, query: '', panel: 'list', pop: '' };
+/** 页面自己的 UI 状态：纸面缩放、就地改名、左栏（窄屏抽屉 boardsOpen / 宽屏收起 listHidden）、题目详情、
+ *  详情里已显示答案的题（revealUid）与浮层。板详情、打印范围、选中题归 detail.js。 */
+export const state = { zoom: 'fit', renaming: false, boardsOpen: false, listHidden: false, query: '', panel: 'list', pop: '', revealUid: '' };
 const LINK_KEY = 'omrs-board-linked-labels';
 
 /** 关联标记只存本机浏览器；板的服务端格式不因此改变。 */
@@ -55,7 +56,7 @@ export function statusView(snap, folders = [], saving = false) {
   };
 }
 
-/** 板行第二行：题数 · 已印页数（+未印）· 缺失 · 停用 · 更新时间。tone 决定颜色，不写进文字。 */
+/** 板行第二行：题数、已印页数、未印、缺失、停用。tone 决定颜色，不写进文字；更新时间放进悬停提示（treeView 的 time）。 */
 export function boardMetaBits(board) {
   const paper = board?.printed_summary || {};
   const bits = [{ text: `${num(board?.count)} 题` }];
@@ -63,8 +64,6 @@ export function boardMetaBits(board) {
   if (paper.new_count) bits.push({ text: `${paper.new_count} 题未印`, tone: 'new' });
   if (board?.missing) bits.push({ text: `缺失 ${board.missing}`, tone: 'warn' });
   if (board?.suspended) bits.push({ text: `停用 ${board.suspended}` });
-  const time = boardFormatTime(board?.updated_at);
-  if (time) bits.push({ text: time });
   return bits;
 }
 
@@ -81,7 +80,7 @@ export function treeView({ boards = [], folders = [], current = '', collapsed = 
       id: group.id || '', name: plain ? '未归档' : group.name, plain, folded, count: group.boards.length, newCount,
       title: plain ? '' : `${group.name}：${group.boards.length} 板 · ${total} 题${newCount ? ` · ${newCount} 题还没印上纸` : ''}`,
       boards: folded ? [] : group.boards.filter(board => !needle || `${board.name} ${board.note || ''} ${group.name || ''}`.toLocaleLowerCase().includes(needle)).map(board => ({
-        id: board.id, name: board.name, title: board.note || board.name, on: board.id === current, bits: boardMetaBits(board),
+        id: board.id, name: board.name, title: board.note || board.name, on: board.id === current, bits: boardMetaBits(board), time: boardFormatTime(board.updated_at),
       })),
     };
   }).filter(group => !needle || group.boards.length);
@@ -171,7 +170,7 @@ export function itemFlags(item, hasPaper) {
 export function gapReadout(item, print) {
   const lines = boardEffectiveGap(item || {}, print || {});
   const inherited = item?.gap_lines == null;
-  return { lines, inherited, text: `留白 ${lines} 行${inherited ? '（继承）' : ''}`, long: `${lines} 行 ≈ ${boardGapCm(lines)} cm${inherited ? '（继承）' : ''}` };
+  return { lines, inherited, cm: boardGapCm(lines), text: `留白 ${lines} 行${inherited ? '（继承）' : ''}`, long: `${lines} 行 ≈ ${boardGapCm(lines)} cm${inherited ? '（继承）' : ''}` };
 }
 
 /** 到期读数（与题库同一分档）：days = getDueDays() 的结果，null 表示没有到期日。 */
@@ -219,9 +218,11 @@ export function inspectorView(snap) {
     uid: it.uid, no: index + 1, index, total: list.length, name: it.uid || it.question_id || '未知题目', missing: !!it.missing, printed: !!it.printed,
     flags: itemFlags(it, hasPaper),
     meta: [it.subject, it.category].filter(Boolean).join(' · ') + (it.difficulty != null && it.difficulty !== '' ? `${it.subject || it.category ? ' · ' : ''}难度 ${it.difficulty}` : ''),
+    metaBits: [[it.subject, it.category].filter(Boolean).join(' / '), it.difficulty != null && it.difficulty !== '' ? `难度 ${it.difficulty}` : '',
+      it.missing ? '' : `熟练度 ${pct(it.mastery)}%`].filter(Boolean),
     labels: it.labels || [], difficulty: it.difficulty, mastery: pct(it.mastery),
     own: it.gap_lines == null ? '' : String(Math.max(0, Math.min(48, num(it.gap_lines)))), inherited, gap: gapReadout(it, print),
-    note: it.printed ? `这道题纸上已经有了：${locked ? '锁定时修改实际留白需确认，确认后清空纸面记录并重新打印全部。' : '改留白只影响下次「打印全部」和当前预览，纸面记录保留旧占位。'}` : '',
+    note: it.printed ? `已印在${it.printed_page ? `第 ${it.printed_page} 页` : '纸上'}：${locked ? '锁定时修改实际留白需确认，确认后清空纸面记录并重新打印全部。' : '改留白只影响下次「全部重印」和当前预览，补印新增时纸上的位置不变。'}` : '',
   };
   const ratio = Math.round(num(print.note_ratio, 0.5) * 100);
   const cut = CUT_LINES.includes(print.cut_line) ? print.cut_line : 'dash';
@@ -239,6 +240,18 @@ export function inspectorView(snap) {
       ? { has: true, count: num(paper.count), pages: num(paper.pages), at: boardFormatTime(paper.at), cursorPage: num(paper.cursor?.page, 0) || num(paper.pages),
         cursorY: paper.cursor?.y != null ? Math.round(num(paper.cursor.y)) : null, changed: num(paper.changed_count) }
       : { has: false },
+  };
+}
+
+/** 详情层的练习记录摘要。stats = domain/question 的 qHistoryStats(records)；无记录时只给一句空状态。 */
+export function recordSummaryView(stats) {
+  if (!stats?.count) return { count: 0, text: '还没练过。加入复习后，这里会出现战绩和最近一次的自评。' };
+  const last = stats.last || {};
+  const when = String(last.date || '').replace(/^\d{4}-0?(\d+)-0?(\d+)$/, '$1 月 $2 日');
+  return {
+    count: stats.count, rate: stats.rate,
+    text: `练习 ${stats.count} 次，答对 ${stats.correct} 次。最近一次在 ${when || '—'}，${last.correct ? '答对' : '答错'}，自评 ${last.score ?? '—'} 分。`,
+    alert: stats.tailWrong >= 2 ? `最近连错 ${stats.tailWrong} 次${last.note ? `，上次卡在「${last.note}」` : '，建议重看错因'}。` : '',
   };
 }
 

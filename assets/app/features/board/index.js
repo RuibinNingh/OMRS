@@ -8,9 +8,10 @@
  * - 快捷键走 core/keys.js（页面作用域）：对话框、输入框、选板浮层（浮层键盘层）打开时由 core/keys 挡住；
  *   标记选择器（旧 labels.js 浮层）打开时本页快捷键全部让位。离开本页时有待保存的改动立即落盘。
  */
-import { morph } from '../../core/dom.js';
+import { morph, render } from '../../core/dom.js';
+import { raw } from '../../core/html.js';
 import { openMenu } from '../../ui/menu.js';
-import { qvRender } from '../../domain/question/index.js';
+import { qvRender, ensureDetail, qRecordsFromDetail, qHistoryStats, qStreakHtml } from '../../domain/question/index.js';
 import { dueDays, allItems } from '../../domain/items.js';
 import { pickerOpen, listLabels } from '../../domain/labels/index.js';
 import * as B from '../../domain/board/boards.js';
@@ -20,13 +21,14 @@ import { boardKeySelectTarget, boardKeyReorderTarget, boardTreeDropPlan, bindBoa
 import { boardPreviewMount, boardPreviewGoto, boardPreviewStep, boardPreviewScale, boardPreviewLayout, boardPreviewView } from './preview.js';
 import * as S from './state.js';
 import { view } from './view.js';
+import { recordSummary } from './view-panel.js';
 
 const s = S.state;
 let ctl = null;
 
 const D = boardDetail();
-/** 右侧详情沿用共享题面渲染，答案与练习记录由同一组件读取。 */
-const DETAIL_OPTS = Object.freeze({ layout: 'stack', showMeta: false, actions: [] });
+/** 右侧详情用共享题面渲染的窄栏档：只要题面，答案先折叠（点了再显示），完整记录留给「打开题目」的弹窗。 */
+const detailOpts = (reveal, onReveal) => ({ layout: 'stack', showMeta: false, showHistory: false, actions: [], reveal, onReveal, revealLabel: '显示答案与错因' });
 /** 拖拽只绑一次：drag.js 用 data-bound 标记，但 morph 会把模板里没有的属性抹掉，所以这里另记。 */
 const dragBound = new WeakSet();
 
@@ -57,7 +59,8 @@ function createController(root) {
       tree: S.treeView({ boards: B.boardList(), folders: B.boardFolders(), current: B.boardCurrentId(), collapsed: B.boardFolderCollapsed(), query: s.query }),
       stage: S.stageView(sn, { layout: boardPreviewLayout(), view: boardPreviewView(), zoom: s.zoom }),
       content: S.contentView(sn, { dueDays }), inspector: S.inspectorView(sn),
-      linked: { name: label, pending }, panel: s.panel, pop: s.pop, boardsOpen: s.boardsOpen,
+      linked: { name: label, pending }, panel: s.panel, pop: s.pop, boardsOpen: s.boardsOpen, listHidden: s.listHidden,
+      reveal: !!sn.selected && s.revealUid === sn.selected,
     }));
     // 舞台是 skip 节点：只更改容器显隐，不移动 iframe。
     const stage = root.querySelector('#bd-stage');
@@ -65,13 +68,32 @@ function createController(root) {
     hydrate();
   }
 
-  // 详情题面：同一题的挂载点不重建，切题才重新取内容。
+  // 详情题面与记录摘要：挂载点的 data-key 含题号（题面还含是否显示答案），key 不变就不重取。
   function hydrate() {
     const el = root.querySelector('#bd-inspector [data-qv-host]');
-    if (!el || el.dataset.qvFor === el.dataset.key) return;
-    el.dataset.qvFor = el.dataset.key;
-    qvRender(el, el.dataset.uid, DETAIL_OPTS);
+    if (el && el.dataset.qvFor !== el.dataset.key) {
+      el.dataset.qvFor = el.dataset.key;
+      qvRender(el, el.dataset.uid, detailOpts(el.dataset.reveal === '1', uid => { s.revealUid = uid; paint(); }));
+    }
+    const rec = root.querySelector('#bd-inspector [data-board-rec]');
+    if (!rec || rec.dataset.recFor === rec.dataset.key) return;
+    rec.dataset.recFor = rec.dataset.key;
+    const uid = rec.dataset.uid;
+    ensureDetail(uid).then(detail => {
+      if (!rec.isConnected || rec.dataset.uid !== uid) return;
+      const records = qRecordsFromDetail(detail || {});
+      render(rec, recordSummary(S.recordSummaryView(qHistoryStats(records)), raw(qStreakHtml(records, 12))));
+    });
   }
+
+  /** 「适应宽度」跟着桌面宽度走：首次挂载、拖窗口、收起左栏都会改变宽度，一帧只算一次。 */
+  let fitFrame = 0;
+  const refit = () => {
+    if (fitFrame || s.zoom !== 'fit') return;
+    fitFrame = requestAnimationFrame(() => { fitFrame = 0; if (s.zoom === 'fit') boardPreviewScale('fit'); });
+  };
+  const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(refit) : null;
+  const narrow = () => !!root.ownerDocument.defaultView?.matchMedia?.('(max-width: 1160px)').matches;
 
   /** 锁定确认被拒：聚焦中的控件放掉焦点，随后的重绘把它改回旧值。 */
   function releaseFocus() {
@@ -92,6 +114,8 @@ function createController(root) {
 
   return {
     paint,
+    observe(stage) { if (stage) { resize?.observe(stage); refit(); } },
+    disconnect() { resize?.disconnect(); cancelAnimationFrame(fitFrame); fitFrame = 0; },
     startRename() {
       if (!snap().detail) return;
       s.renaming = true;
@@ -145,7 +169,11 @@ function createController(root) {
       boardPreviewScale(s.zoom);
       paint();
     },
-    toggleBoards() { s.boardsOpen = !s.boardsOpen; paint(); },
+    toggleBoards() {
+      if (narrow()) s.boardsOpen = !s.boardsOpen; else { s.listHidden = !s.listHidden; s.boardsOpen = false; }
+      paint();
+    },
+    reveal() { const uid = D.selected(); s.revealUid = s.revealUid === uid ? '' : uid; paint(); },
     search(value) { s.query = value; paint(); },
     showPop(kind) { s.pop = s.pop === kind ? '' : kind; paint(); },
     closePop() { s.pop = ''; paint(); },
@@ -217,12 +245,7 @@ function createController(root) {
       if (s.boardsOpen) { this.toggleBoards(); return true; }
       return false;
     },
-    /** 行内留白操作后保持当前题选中。 */
-    focusGap(uid) {
-      D.select(uid);
-      root.querySelector('#bd-ins-gap')?.focus({ preventScroll: true });
-    },
-    /** 回到纸面上这道题：不在纸面视图时先切过去，等舞台挂好再翻页。 */
+    /** 把纸面翻到这道题（详情层脚上的「在纸上找到」）。 */
     locate(uid) {
       if (!uid) return;
       D.select(uid);
@@ -238,8 +261,6 @@ function createController(root) {
 }
 
 const ready = fn => event => (ctl && !pickerOpen() ? fn(event) : false);
-const clampGap = raw => (raw === '' ? null : Math.max(0, Math.min(48, Number.isFinite(Number(raw)) ? Number(raw) : 0)));
-const gapValue = el => clampGap(String(el?.value ?? '').trim());
 const isGeometry = el => el?.type === 'range' || el?.type === 'number';
 /** 「添加题目」：ui/dialog 对话框（add.js），确认后经 detail.js 加进当前板。 */
 const openAdd = () => { const detail = D.detail(); return detail ? openBoardAdd(detail, uids => D.addToBoard(detail.id, uids)) : null; };
@@ -271,6 +292,7 @@ export const page = {
     const offLabels = ctx.bus.on('board:reload', () => D.reloadData());
     D.setView('paper');
     ctl.paint();
+    ctl.observe(root.querySelector('#bd-stage'));
     // 左栏树与条目行的拖放（每个节点只绑一次；重新进页时节点还是那一个）
     const list = root.querySelector('#bd-list');
     if (list && !dragBound.has(list)) {
@@ -295,10 +317,12 @@ export const page = {
       root.removeEventListener('click', onClick);
       root.removeEventListener('focusout', onBlur);
       D.configure({ rejected: null, onPaperSelect: null });
+      current.disconnect();
       s.renaming = false;
       s.panel = 'list';
       s.pop = '';
       s.boardsOpen = false;
+      s.revealUid = '';
       D.flushIfDirty();
       ctl = null;
     };
@@ -341,13 +365,10 @@ export const page = {
     // ---------- 题目面板 ----------
     openItem: ({ arg }) => D.openItem(arg),
     remove: ({ arg }) => D.removeItem(arg),
-    focusGap: ({ arg }) => ctl?.focusGap(arg),
     locate: ({ arg }) => ctl?.locate(arg),
+    reveal: () => ctl?.reveal(),
     // ---------- 详情留白与版式浮层：锁定时滑杆 / 数字框只在松手（change）时写，一轮输入一个确认框 ----------
-    inspectLocate: () => ctl?.locate(D.selected()),
     inherit: () => D.setItemGap(D.selected(), null),
-    gapLive: ({ el }) => { if (!D.locked()) void D.setItemGap(el.dataset.boardInspectGap, gapValue(el), { keepFocus: true }); },
-    gapSet: ({ el }) => { if (D.locked()) void D.setItemGap(el.dataset.boardInspectGap, gapValue(el), { keepFocus: true }); },
     printLive: ({ el, arg }) => { if (!(D.locked() && isGeometry(el))) void D.applyPrintField(arg, el.value); },
     printSet: ({ el, arg }) => { void D.applyPrintField(arg, el.type === 'checkbox' ? el.checked : el.value); },
     seg: ({ el, arg }) => { void D.applyPrintField(arg, el.dataset.value); },

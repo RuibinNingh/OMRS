@@ -9,7 +9,7 @@
 
 > 对应源文件：`omrs/boards.py`、`omrs/exporting.py`（展示板导出段）、
 > `omrs/export_templates/board.css`、`omrs/export_templates/board.js`、
-> `assets/app/features/board/`（页面 `index.js` / `view.js` / `state.js` / `board.css` / `board-layout.css` / `board-list.css` / `board-popovers.css`、板详情 `detail.js` / `runtime.js`、`add.js`、`model.js`、`save.js`、`print.js`、`preview.js`、`settings.js`、`drag.js`）、
+> `assets/app/features/board/`（页面 `index.js` / `view.js` / `view-panel.js` / `state.js` / `board.css` / `board-tree.css` / `board-panel.css` / `board-popovers.css` / `board-dialogs.css`、板详情 `detail.js` / `runtime.js`、`add.js`、`model.js`、`save.js`、`print.js`、`preview.js`、`settings.js`、`drag.js`）、
 > `assets/app/domain/board/`（`model.js`、`boards.js`、`detail-port.js`、选板浮层 `picker.js`）、`tests/test_boards.py`、
 > `tests/test_board_export.py`、`tests/app/board.test.mjs`、`tests/app/board-preview.test.mjs`、
 > `tests/app/board-regions.test.mjs`、`tests/smoke_board_print.py`、`tests/test_board_locked_incremental.py`、
@@ -167,7 +167,7 @@ toast 写明「已直接加入《X》」；只有实际加入题目时才给「�
 
 ### 3.4 常驻纸面、题目面板与详情
 
-纸面是一个同源 `srcdoc` iframe，内容直接来自 `/api/export` 的展示板 HTML；翻页、缩放和纸面统计使用它回传的版面。打印与预览使用同一排版。iframe 保持在 `#bd-stage` 中，点纸面上的题通过 `omrs-board-select` 打开右侧详情。内嵌 HTML 的顶栏打印按钮被 `embedded` 收起，以免产生另一套入口。生命周期、指纹和消息校验见 `AI/frontend/board-ui.md`。
+纸面是一个同源 `srcdoc` iframe，内容直接来自 `/api/export` 的展示板 HTML；翻页、缩放和纸面统计使用它回传的版面。打印与预览使用同一排版。iframe 保持在 `#bd-stage` 中，点纸面上的题通过 `omrs-board-select` 打开右侧详情；详情层的「打开题目」打开共享题目弹窗。内嵌 HTML 的顶栏打印按钮被 `embedded` 收起，以免产生另一套入口。生命周期、指纹和消息校验见 `AI/frontend/board-ui.md`。
 
 题目面板的列表按纸面顺序显示 UID、已印页码 / 未印 / 已改动等状态、分类、难度、标记圆点和行内留白步进；排序菜单、拖放与键盘排序仍可用。点击行打开滑入式详情层，可前后切题、查看题面和练习记录、设置题后留白、打开题目或移出板。行内步进和详情预设均通过 `detail.js` 的 `setItemGap()` 写入。留白范围是 0–48 行，空输入代表继承板级值，保存时保持 `null`；锁定保护边界见 §4.6。
 

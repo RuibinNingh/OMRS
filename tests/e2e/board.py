@@ -146,6 +146,32 @@ def run_path(page, base, port, ids, results):
     page.locator('[data-action="board.back"]').click()
     record(results, "详情层：题面与记录加载、前后导航、预设留白、返回列表", opened and hydrated and navigated and preset)
 
+    # 详情层是「固定头 + 独立滚动的正文 + 固定脚」；答案先折叠；导航条上的「打开题目」打开共享题目弹窗。
+    row.locator(".brd-row__uid").click()
+    wait(page, "() => !!document.querySelector('#bd-inspector [data-qv-host] .qv .qv-locked')", 15000)
+    page.locator("#bd-inspector .qv-locked .ui-btn").click()
+    revealed = wait(page, "() => !!document.querySelector('#bd-inspector [data-qv-host] .q-answer-md')")
+    box = page.evaluate("""() => { const b=document.querySelector('.brd-detail-body'), q=document.querySelector('.brd-questions');
+      const f=document.querySelector('.brd-detail-foot').getBoundingClientRect();
+      return { scroll: getComputedStyle(b).overflowY, footIn: f.height > 0 && f.bottom <= q.getBoundingClientRect().bottom + 1,
+        rec: !!document.querySelector('#bd-inspector [data-board-rec] p') }; }""")
+    page.locator("#bd-inspector .brd-open-q").click()
+    modal = wait(page, f"() => document.querySelector('dialog#modal[open] .qv')?.dataset.qvUid === {json.dumps(uid)}", 15000)
+    page.keyboard.press("Escape")
+    closed = wait(page, "() => !document.querySelector('dialog#modal[open]')")
+    page.locator('[data-action="board.back"]').click()
+    record(results, "详情层：正文独立滚动、脚常驻、答案先折叠、「打开题目」打开题目弹窗", revealed and modal and closed
+           and box == {"scroll": "auto", "footIn": True, "rec": True}, box)
+
+    # 宽屏收起左栏：纸面宽度变大，「适应宽度」自动重算；板头按钮再展开。
+    before = page.evaluate("() => boardPreviewView().scale")
+    page.locator('#bd-list [data-action="board.toggleBoards"]').click()
+    hidden = wait(page, "() => !!document.querySelector('.brd[data-list-hidden]') && !document.querySelector('#bd-list').offsetParent")
+    grown = wait(page, f"() => boardPreviewView().scale > {before}")
+    page.locator(".brd-bar .brd-open-list").click()
+    shown = wait(page, "() => !document.querySelector('.brd[data-list-hidden]') && !!document.querySelector('#bd-list').offsetParent")
+    record(results, "宽屏收起 / 展开左栏：纸面按新宽度自动适配", hidden and grown and shown, before)
+
     page.locator('[data-action="board.sortMenu"]').first.click()
     page.locator(".ui-menu__item", has_text="反转顺序").click()
     reversed_order = poll(lambda: order(port, second) == list(reversed(picked)))

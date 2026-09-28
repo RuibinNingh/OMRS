@@ -126,9 +126,9 @@ test('goto / step / view speak the documented message protocol', async () => {
 
 test('fit scale is derived from the container width, not from the layout', async () => {
   POSTED.length = 0;
-  const scale = bp.boardPreviewScale('fit');          // (1000 - 24) / 793.7 ≈ 1.23
-  assert.equal(scale.toFixed(2), '1.23');
-  assert.equal(POSTED[0].scale, 1.23);
+  const scale = bp.boardPreviewScale('fit');          // (1000 - 64) / 793.7 ≈ 1.18（两侧各留 32px 桌面）
+  assert.equal(scale.toFixed(2), '1.18');
+  assert.equal(POSTED[0].scale, 1.18);
   assert.equal(bp.boardPreviewScale(1), 1);
 });
 

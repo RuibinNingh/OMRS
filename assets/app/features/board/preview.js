@@ -115,12 +115,13 @@ export function boardPreviewSetView(view) {
   // 那一条是给独立下载的 HTML 用的，嵌在舞台里就成了第二个打印入口和第二个记录入口。
   boardPreviewPost({ type: 'omrs-board-view', single: BP_VIEW.single, page: BP_VIEW.page, scale: BP_VIEW.scale, embedded: true });
 }
-// 「适应宽度」按容器实际宽度算比例：A4 屏幕宽 793.7px 是模板里的硬几何，不跟版面设置走。
+// 「适应宽度」按容器实际宽度算比例，两侧各留约 32px 桌面：A4 屏幕宽 793.7px 是模板里的硬几何，不跟版面设置走。
+// 页面在容器宽度变化时（首次挂载、拖窗口、收起左栏）经 ResizeObserver 重新调用。
 export function boardPreviewScale(mode) {
   let scale = Number(mode);
   if (!Number.isFinite(scale) || scale <= 0) {
     const width = BP_FRAME?.parentNode?.clientWidth || 0;
-    scale = width ? Math.max(.3, Math.min(1.4, (width - 24) / 793.7)) : 1;
+    scale = width ? Math.max(.3, Math.min(1.25, (width - 64) / 793.7)) : 1;
   }
   boardPreviewSetView({ scale: Math.round(scale * 100) / 100 });
   return scale;

@@ -9,7 +9,7 @@ import * as S from '../../assets/app/features/board/state.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const source = name => fs.readFileSync(path.join(root, 'assets/app/features/board', name), 'utf8');
-const VIEW = source('view.js');
+const VIEW = source('view.js') + source('view-panel.js');   // 工作台 + 题目面板（列表 / 详情）
 const PAGE = source('index.js');
 const DETAIL = source('detail.js');
 const PREVIEW = source('preview.js');

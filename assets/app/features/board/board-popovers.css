@@ -1,24 +1,42 @@
-/* 版式与纸面记录浮层。 */
-.brd-pop-host[hidden] { display:none; }
-.brd-pop-scrim { position:fixed; z-index:var(--z-dropdown); inset:0; background:transparent; }
-.brd-pop { position:absolute; z-index:var(--z-drawer); top:114px; right:var(--sp-3); width:min(360px,calc(100vw - 24px)); max-height:calc(100% - 126px); overflow:auto; border:1px solid var(--border-2); border-radius:var(--r-md); background:var(--surface-1); box-shadow:var(--elev-3); }
-.brd-pop > header { display:flex; align-items:center; gap:var(--sp-2); justify-content:space-between; min-height:48px; margin:0; padding:var(--sp-2) var(--sp-3); border:0; border-bottom:1px solid var(--border-1); }
-.brd-pop > header h3 { margin:0; font-size:var(--text-md); }
-.brd-pop__body { display:flex; flex-direction:column; gap:var(--sp-3); padding:var(--sp-3); }
-.brd-pop .brd-field { display:flex; flex-direction:column; gap:var(--sp-1); padding-bottom:var(--sp-3); border-bottom:1px solid var(--border-1); }
-.brd-pop .brd-field__label { display:flex; align-items:center; justify-content:space-between; color:var(--fg-2); font-size:var(--text-sm); }
-.brd-pop .brd-field__label b { color:var(--fg-1); font-size:var(--text-sm); }
-.brd-pop .brd-hint { color:var(--fg-3); font-size:var(--text-xs); line-height:var(--leading-read); }
-.brd-pop .brd-range { width:100%; accent-color:var(--accent); }
-.brd-pop .brd-num { width:100%; }
-.brd-pop .brd-seg--fill { width:100%; }
-.brd-pop .brd-seg--fill .brd-seg__btn { flex:1; }
-.brd-pop .brd-checks { display:flex; flex-wrap:wrap; gap:var(--sp-2); }
-.brd-pop .brd-check { display:inline-flex; align-items:center; gap:var(--sp-1); color:var(--fg-2); font-size:var(--text-xs); }
-.brd-pop .brd-lock { display:flex; flex-direction:column; gap:var(--sp-2); padding:var(--sp-2); border-radius:var(--r-sm); background:var(--surface-0); }
-.brd-pop .brd-paper { display:flex; flex-direction:column; gap:var(--sp-2); margin:0; }
-.brd-pop .brd-paper > div { display:flex; gap:var(--sp-2); }
-.brd-pop .brd-paper dt { min-width:5em; color:var(--fg-3); }
-.brd-pop .brd-paper dd { margin:0; color:var(--fg-1); }
-.brd-pop .brd-insnote,.brd-pop .brd-ins-empty { color:var(--fg-3); font-size:var(--text-xs); line-height:var(--leading-read); }
-@media (max-width:760px) { .brd-pop { position:fixed; top:auto; right:var(--sp-2); bottom:var(--sp-2); max-height:80vh; } }
+/* 版式与纸面记录浮层（features 层）：挂在纸面列里，从工具条下方弹出——纸面记录贴左（对着「纸上 N 题」），
+   版式贴右（对着「版式」按钮），不遮题目面板；手机上改成底部抽屉。 */
+.brd-pop-host[hidden] { display: none; }
+.brd-pop-scrim { position: fixed; z-index: var(--z-dropdown); inset: 0; background: transparent; }
+.brd-pop { position: absolute; z-index: var(--z-drawer); top: calc(var(--brd-tool-h) + var(--sp-1)); right: var(--sp-3); width: min(360px, calc(100% - 24px)); max-height: calc(100% - var(--brd-tool-h) - var(--sp-4)); overflow: auto; border: 1px solid var(--border-2); border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--elev-3); }
+.brd-pop[data-kind="paper"] { right: auto; left: var(--sp-3); }
+.brd-pop > header { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: 48px; margin: 0; padding: var(--sp-2) var(--sp-2) var(--sp-1) var(--sp-4); border: 0; }
+.brd-pop > header h3 { margin: 0; color: var(--fg-1); font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.brd-pop__body { display: flex; flex-direction: column; padding: 0 var(--sp-4) var(--sp-4); }
+
+/* 版式字段：一项一段，段间发丝线 */
+.brd-field { display: flex; flex-direction: column; gap: var(--sp-1_5); min-width: 0; padding: var(--sp-3) 0; border-bottom: 1px solid var(--border-1); }
+.brd-field__label { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); color: var(--fg-1); font-size: var(--text-sm); }
+.brd-field__label b { font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.brd-field__label .brd-hint { margin-left: auto; }
+.brd-hint { margin: 0; color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-ui); }
+.brd-num { width: 100%; height: var(--ctl-sm); text-align: center; font-variant-numeric: tabular-nums; }
+.brd-range { width: 100%; height: var(--ctl-sm); margin: 0; background: transparent; accent-color: var(--accent); cursor: pointer; }
+.brd-range:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--focus-ring); border-radius: var(--r-xs); }
+.brd-seg--fill { display: flex; width: 100%; }
+.brd-seg--fill .brd-seg__btn { flex: 1; }
+.brd-checks { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-4); }
+.brd-check { display: inline-flex; align-items: center; gap: var(--sp-1_5); min-height: var(--ctl-sm); color: var(--fg-2); font-size: var(--text-xs); white-space: nowrap; cursor: pointer; }
+.brd-check input { width: 15px; height: 15px; margin: 0; accent-color: var(--accent); }
+.brd-check .ui-icon { width: 14px; height: 14px; }
+.brd-lock { display: flex; flex-direction: column; gap: var(--sp-1); margin-top: var(--sp-3); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); }
+.brd-lock .brd-check { color: var(--fg-1); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+
+/* 纸面记录 */
+.brd-paper { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0 0 var(--sp-3); padding: var(--sp-3); border-radius: var(--r-md); background: var(--surface-0); color: var(--fg-2); font-size: var(--text-xs); line-height: var(--leading-ui); }
+.brd-paper > div { display: flex; gap: var(--sp-3); }
+.brd-paper dt { flex: none; min-width: 4.5em; color: var(--fg-3); }
+.brd-paper dd { margin: 0; color: var(--fg-1); }
+.brd-paper dd[data-tone="danger"] { color: var(--danger-fg); }
+.brd-paper b { font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums; }
+.brd-insnote, .brd-ins-empty { margin: var(--sp-3) 0 0; color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-read); }
+.brd-pop__body > .ui-btn { align-self: flex-start; }
+
+@media (max-width: 760px) {
+  .brd-pop, .brd-pop[data-kind="paper"] { position: fixed; top: auto; right: var(--sp-2); bottom: var(--sp-2); left: var(--sp-2); width: auto; max-height: 80vh; }
+  .brd-check, .brd-num, .brd-range { min-height: var(--ctl-lg); }
+}

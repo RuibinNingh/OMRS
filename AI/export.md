@@ -160,7 +160,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 |---|---|
 | `omrs-board-relayout {print, gaps}` | 就地重算几何并重排；`gaps` 是 `uid → 绝对行数 \| null`（null = 继承 `print.gap_lines`），整份覆盖 |
 | `omrs-board-goto {page}` / `{uid}` | 翻到某页 / 跳到某题所在页 |
-| `omrs-board-view {single, page, scale, embedded}` | 一次一面 / 页码 / 缩放；只写一条 `<style>`，不重排。`embedded:true` 给 `<body>` 加 `.embedded`，收起顶栏 `#bar` 并去掉它留下的上边距 |
+| `omrs-board-view {single, page, scale, embedded}` | 一次一面 / 页码 / 缩放；只写一条 `<style>`，不重排。缩放以 `#stage` 左上角为原点、舞台宽度放到 `100% / scale`，缩放后正好占满视口且纸页仍居中。`embedded:true` 给 `<body>` 加 `.embedded`，收起顶栏 `#bar`，上边距改为 24px 的桌面留白 |
 | `omrs-board-request-layout` | 补要一次已有的 layout |
 
 关键取舍：**几何类改动全程零网络请求**。拖版面滑块、改题间留白、换切割线样式都走

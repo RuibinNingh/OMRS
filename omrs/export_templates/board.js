@@ -549,7 +549,9 @@
     }
     const scale = clamp(Number(VIEW.scale) || 1, .2, 2);
     if (scale !== 1) {
-      rules.push("#stage{transform:scale(" + scale + ");transform-origin:top center;}");
+      // 以左上角缩放、并把舞台放宽到 1/scale：缩放后正好占满视口宽度，纸页的 margin:auto 仍居中。
+      // 以中心缩放时，视口比纸窄就会整体偏右（纸页溢出后 auto 边距归零，中心不在视口中间）。
+      rules.push("#stage{transform:scale(" + scale + ");transform-origin:top left;width:calc(100% / " + scale + ");}");
       rules.push("#stage .page{margin-bottom:" + Math.round(22 / scale) + "px;}");
     }
     viewStyleEl().textContent = rules.join("\n");
