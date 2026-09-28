@@ -152,6 +152,45 @@ class DraftToolsTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "方式已改变"):
                 tools.commit_draft_tool(self.ctx, args)
 
+    def test_commit_tool_hides_training_sha_and_storage_errors_from_model(self):
+        sha = "a" * 64
+        path = "/private/vault/错题/.omrs/drafts/images/missing.png"
+        draft = {"id": "DR-test", "conversation_id": self.conv, "revision": 3, "status": "review",
+                 "subject": "数学", "category": "函数", "difficulty": 5, "blocks": [],
+                 "source_images": [{"sha256": sha, "url": "/api/drafts/image?sha=" + sha}]}
+        args = {"draft_id": "DR-test", "revision": 3}
+        committed = {**draft, "revision": 4, "status": "done"}
+        training = {"status": "partial", "registered": [sha],
+                    "failed": [{"sha": "b" * 64, "error": path}], "pending": ["c" * 64]}
+        with mock.patch.object(tools, "settings", return_value={"draft_mode": "confirm"}), \
+                mock.patch.object(drafts, "get_draft", return_value=draft), \
+                mock.patch.object(drafts, "commit_draft", return_value={
+                    "draft": committed, "result": {"uid": "函数2"}, "reused": False, "training": training}):
+            preview = tools.commit_draft_preview(self.ctx, args)
+            self.assertEqual(preview["source_images"], draft["source_images"])  # 人看的确认预览保留图 URL
+            result = tools.commit_draft_tool(self.ctx, args)["result"]
+        self.assertEqual(result["training"], {"status": "partial", "registered": 1, "failed": 1,
+                                              "pending": 1, "message": "训练数据登记失败，请在草稿区查看并重试"})
+        self.assertNotIn(sha, json.dumps(result, ensure_ascii=False))
+        self.assertNotIn(path, json.dumps(result, ensure_ascii=False))
+
+        with mock.patch.object(tools, "settings", return_value={"draft_mode": "confirm"}), \
+                mock.patch.object(drafts, "get_draft", side_effect=ValueError("图片文件缺失：" + sha)):
+            for action in (tools.commit_draft_preview, tools.commit_draft_tool):
+                with self.assertRaisesRegex(ValueError, "无法读取草稿，请在草稿区检查后重试") as caught:
+                    action(self.ctx, args)
+                self.assertNotIn(sha, str(caught.exception))
+
+        with mock.patch.object(tools, "settings", return_value={"draft_mode": "confirm"}), \
+                mock.patch.object(drafts, "get_draft", return_value=draft):
+            for error, expected in ((OSError(path), "草稿入库失败"),
+                                    (drafts.DraftError(path, 409, "revision_conflict"), "草稿已变化"),
+                                    (drafts.DraftError(path, 409, "state_conflict"), "草稿状态已变化")):
+                with mock.patch.object(drafts, "commit_draft", side_effect=error):
+                    with self.assertRaisesRegex(ValueError, expected) as caught:
+                        tools.commit_draft_tool(self.ctx, args)
+                    self.assertNotIn(path, str(caught.exception))
+
     def test_mode_switched_away_and_back_invalidates_old_confirmation(self):
         save_config(self.vault, {"draft_mode": "confirm"})
         run = Run("run_x", self.conv, "faux")

@@ -14,7 +14,7 @@ function handles(region, width, height, radius) {
       <circle class="crp-handle" data-rid="${region.id}" data-h="${direction}" cx="${x}" cy="${y}" r="${radius}"></circle>`);
 }
 
-export function canvasView(item, selectedId = '', displayWidth = 600) {
+export function canvasView(item, selectedId = '', displayWidth = 600, options = {}) {
   if (!item) return html``;
   const width = Math.max(1, Number(item.width) || 1);
   const height = Math.max(1, Number(item.height) || 1);
@@ -22,10 +22,11 @@ export function canvasView(item, selectedId = '', displayWidth = 600) {
   const radius = Math.max(2, 5 * width / Math.max(1, displayWidth));
   const labelOffset = 14 * width / Math.max(1, displayWidth);
   const multi = new Set(regions.map(region => region.card)).size > 1;
-  return html`<img id="ib-stage-src" src="${rawUrl(item.id)}" alt="${item.file || ''}" width="${width}" height="${height}" draggable="false">
+  const maskId = options.maskId || 'crp-cut-mask';
+  return html`<img id="${options.imageId || 'ib-stage-src'}" src="${options.imageUrl ? options.imageUrl(item) : rawUrl(item.id)}" alt="${item.file || ''}" width="${width}" height="${height}" draggable="false">
     <svg class="crp-cut" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
-      <defs><mask id="crp-cut-mask"><rect width="100%" height="100%" fill="white"></rect>${regions.map(region => html`<rect x="${region.x * width}" y="${region.y * height}" width="${region.w * width}" height="${region.h * height}" fill="black"></rect>`)}</mask></defs>
-      ${regions.length ? html`<rect class="crp-cut__shade" width="100%" height="100%" mask="url(#crp-cut-mask)"></rect>` : ''}
+      <defs><mask id="${maskId}"><rect width="100%" height="100%" fill="white"></rect>${regions.map(region => html`<rect x="${region.x * width}" y="${region.y * height}" width="${region.w * width}" height="${region.h * height}" fill="black"></rect>`)}</mask></defs>
+      ${regions.length ? html`<rect class="crp-cut__shade" width="100%" height="100%" mask="url(#${maskId})"></rect>` : ''}
     </svg>
     <svg class="crp-overlay" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-label="图片框位">
       ${regions.map(region => html`<g data-rid="${region.id}">
@@ -36,19 +37,20 @@ export function canvasView(item, selectedId = '', displayWidth = 600) {
     </svg>`;
 }
 
-export function createCanvasController(root, state, afterEdit) {
-  const stage = root.querySelector('#ib-stage-img');
-  const zoom = root.querySelector('#ib-pc-zoom');
+export function createCanvasController(root, state, afterEdit, options = {}) {
+  const stage = root.querySelector(options.stageSelector || '#ib-stage-img');
+  const zoom = root.querySelector(options.zoomSelector || '#ib-pc-zoom');
   let gesture = null;
 
-  function current() { const data = state(); return data.items.find(item => item.id === data.cur) || null; }
+  function current() { const data = state(); return options.current ? options.current(data) : data.items.find(item => item.id === data.cur) || null; }
   function paint() {
     const data = state();
     const item = current();
     stage.classList.toggle('is-tall', !!item && item.height / item.width > 1.6);
-    render(stage, canvasView(item, data.selR, stage.clientWidth || 600));
-    zoom.textContent = item ? `${Math.round(stage.clientWidth / item.width * 100)}%` : '';
-    root.querySelector('#ib-pc-fname').textContent = item ? `${item.file} · ${item.width}×${item.height}` : '';
+    render(stage, canvasView(item, data.selR, stage.clientWidth || 600, options));
+    if (zoom) zoom.textContent = item ? `${Math.round(stage.clientWidth / item.width * 100)}%` : '';
+    const filename = root.querySelector(options.filenameSelector || '#ib-pc-fname');
+    if (filename) filename.textContent = item ? `${item.file} · ${item.width}×${item.height}` : '';
   }
   function pointer(event) { const bounds = stage.getBoundingClientRect(); return pointInImage(event.clientX, event.clientY, bounds); }
   function finish() {
@@ -56,25 +58,32 @@ export function createCanvasController(root, state, afterEdit) {
     const data = state(); const item = current(); const { mode, region } = gesture;
     if (item && mode === 'draw' && (region.w * stage.clientWidth < 8 || region.h * stage.clientHeight < 8)) {
       item.regions = item.regions.filter(row => row !== region); data.selR = null;
+      options.onDiscardDraw?.({ data, item, region });
     } else if (item && mode !== 'draw') {
       if (region.origin === 'ai') region.origin = 'ai_edited';
       if (region.text_status === 'done') region.text_status = 'stale';
     }
     gesture = null; data.dragging = false;
+    options.onFinish?.({ data, item, mode, region });
     afterEdit();
   }
   function onDown(event) {
     const data = state(); const item = current();
-    if (!item || event.button !== 0) return;
+    if (!item || event.button !== 0 || options.canEdit?.() === false) return;
     const start = pointer(event);
     const hit = event.target.closest('[data-rid]');
     const handle = event.target.closest('[data-h]');
     let region = hit && item.regions.find(row => row.id === hit.dataset.rid);
     const mode = region ? (handle ? 'resize' : 'move') : 'draw';
-    if (!region) { region = newRegion(data.drawCard, data.drawRole, start.x, start.y, 0, 0); item.regions.push(region); }
+    if (!region) {
+      region = options.createRegion ? options.createRegion({ data, item, start }) : newRegion(data.drawCard, data.drawRole, start.x, start.y, 0, 0);
+      if (!region) return;
+      item.regions.push(region);
+    }
     data.selR = region.id; data.dragging = true;
     gesture = { mode, region, start, original: { ...region }, handle: handle?.dataset.h || '' };
     stage.setPointerCapture(event.pointerId);
+    options.onSelect?.({ data, item, region });
     paint(); event.preventDefault();
   }
   function onMove(event) {

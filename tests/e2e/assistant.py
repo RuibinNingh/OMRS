@@ -173,6 +173,9 @@ def main():
             card = page.locator('.ast-tool').filter(has_text='建 AI 草稿').last
             check("草稿工具卡片显示编号和待框选", card.locator('.ast-draft-card').count() == 1 and
                   "DR-" in card.text_content() and "待框选" in card.text_content())
+            crop_conv = page.evaluate("() => document.querySelector('.ast-conv.is-active')?.closest('[data-key]')?.dataset.key")
+            page.wait_for_function("() => document.querySelector('.ast-draft-card')?.textContent.includes('我来框')", timeout=8000)
+            check("询问模式卡片提供我来框", card.locator('[data-action="assistant.openDraft"]').filter(has_text='我来框').count() == 1)
             check("图片原件可通过草稿接口打开", page.locator('.ast-user__images .ast-image').last.get_attribute('href').startswith('/api/drafts/image?sha='))
 
             page.wait_for_function("async () => (await (await fetch('/api/agent/status')).json()).active.length === 0", timeout=10000)
@@ -248,15 +251,25 @@ def main():
             page.wait_for_function("() => document.getElementById('st-agent-enabled')?.checked === true", timeout=5000)
             check("设置页显示主 AI 支持图片", page.locator('#st-agent-vision').is_checked())
             check("设置页读取 AI 录题方式", page.locator('#st-draft-mode').input_value() == 'confirm')
+            check("框选与训练默认值正确", page.locator('#st-draft-crop-mode').input_value() == 'ask' and
+                  not page.locator('#st-draft-train-default').is_checked())
             page.uncheck("#st-agent-enabled")
             page.click("[data-action='settings.saveAgent']")
             page.wait_for_function("() => document.querySelector('.tab[data-tab=\"assistant\"]').hidden", timeout=5000)
             check("设置里关闭后侧栏入口隐藏", api(base, "/api/agent/status")["enabled"] is False)
             page.check("#st-agent-enabled")
+            page.select_option('#st-draft-crop-mode', 'manual')
+            page.check('#st-draft-train-default')
             page.click("[data-action='settings.agentTest']")
             page.wait_for_function("() => document.getElementById('st-agent-status')?.textContent.includes('连接正常')", timeout=10000)
             check("测试连接成功且入口恢复", page.is_visible('.tab[data-tab="assistant"]'))
             check("测试连接显示图片直传结果", "图片直传正常" in page.locator('#st-agent-status').text_content())
+            cfg = api(base, '/api/config')
+            check("手动框选与训练默认开关已持久化", cfg['draft_crop_mode'] == 'manual' and cfg['draft_train_default'] is True)
+            page.goto(f"{base}/#/assistant", wait_until='networkidle')
+            page.click(f'[data-action="assistant.openConv"][data-arg="{crop_conv}"]')
+            page.wait_for_function("() => document.querySelector('.ast-draft-card')?.textContent.includes('待框选')", timeout=8000)
+            check("手动模式不在聊天卡片显示我来框", '我来框' not in page.locator('.ast-draft-card').first.text_content())
 
             mobile = browser.new_page(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
             mobile.goto(f"{base}/#/assistant", wait_until="networkidle")

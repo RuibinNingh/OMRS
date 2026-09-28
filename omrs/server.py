@@ -1093,8 +1093,15 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(data)
             elif path == "/api/drafts/counts":
                 self._json({"status": "ok", "counts": drafts_mod.counts(self.vault_path)})
+            elif path == "/api/drafts/job":
+                self._json({"status": "ok", "job": drafts_mod.get_job(self.vault_path, params.get("id", ""))})
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
+        except drafts_mod.DraftError as exc:
+            payload = {"status": "error", "msg": str(exc), "code": exc.code}
+            if exc.current_revision is not None:
+                payload["current_revision"] = exc.current_revision
+            self._json(payload, exc.status)
         except Exception as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
 
@@ -1113,6 +1120,19 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 result = {"draft": drafts_mod.discard_draft(self.vault_path, draft_id, revision)}
             elif path == "/api/drafts/commit":
                 result = drafts_mod.commit_draft(self.vault_path, draft_id, revision, data.get("crops"))
+            elif path == "/api/drafts/boxes":
+                result = {"draft": drafts_mod.set_boxes(self.vault_path, draft_id, revision,
+                                                          data.get("blocks"), data.get("training_boxes"))}
+            elif path == "/api/drafts/extract":
+                result = {"job": drafts_mod.start_extract(self.vault_path, draft_id, revision,
+                                                            data.get("block_ids"), data.get("crops"))}
+            elif path == "/api/drafts/image/train":
+                result = drafts_mod.set_image_training(self.vault_path, draft_id, revision,
+                                                       data.get("sha"), data.get("enabled"))
+            elif path == "/api/drafts/cleanup":
+                if data:
+                    raise drafts_mod.DraftError("cleanup 不接受自定义参数")
+                result = drafts_mod.cleanup(self.vault_path)
             else:
                 self._json({"status": "error", "msg": "not found", "code": "not_found"}, 404)
                 return

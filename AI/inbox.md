@@ -7,7 +7,7 @@
 > - 必跑测试：`tests/test_inbox.py`、`tests/app/settings.test.mjs`、`tests/app/create-inbox.test.mjs`、`tests/e2e/create.py`
 > - 相关：`AI/frontend/create.md`、`AI/api.md`
 
-> 对应源文件：`omrs/inbox.py`（存储 / 任务 / 提交 / 数据集）、`omrs/ai_assist.py`（`detect_regions` / `extract_region` / `parse_detect_output` / 按用途选模型）、`omrs/server.py`（`_inbox_get` / `_inbox_post` / `_multipart_files`）、`assets/app/features/create/`（录入页五个工作区与收件箱前端数据，见 `AI/frontend/create.md`）、`assets/inbox_mobile.html`。
+> 对应源文件：`omrs/inbox.py`（存储 / 任务 / 提交 / 数据集）、`omrs/ai_assist.py`（`detect_regions` / `extract_region` / `parse_detect_output` / 按用途选模型）、`omrs/server.py`（`_inbox_get` / `_inbox_post` / `_multipart_files`）、`assets/app/features/create/`（录入页六个工作区与收件箱前端数据，见 `AI/frontend/create.md`）、`assets/inbox_mobile.html`。
 
 ## 1. 它解决什么
 
@@ -72,7 +72,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 
 界面分工与文件见 `AI/frontend/create.md`；这里只记与后端流程相关的前端约定。
 
-- 入口：`#/create` 挂载页面契约，读 `/api/inbox/items`。收件箱前端数据只有一个所有者 `inbox-store.js`（单例在 `inbox.js`），网格、处理区、题卡共用同一份图片列表与勾选。**上传 / 处理 / 录入**按真序列编号，AI 训练和快速录入在旁边；切页返回后仍停在原工作区。
+- 入口：`#/create` 挂载页面契约，读 `/api/inbox/items`。收件箱前端数据只有一个所有者 `inbox-store.js`（单例在 `inbox.js`），网格、处理区、题卡共用同一份图片列表与勾选。**上传 / 处理 / 录入**按真序列编号，AI 草稿、AI 训练和快速录入在旁边；切页返回后仍停在原工作区。
 - 粘贴：上传工作区捕获图片粘贴并上传；快速录入工作区按当前目标接收图片；文本粘贴仍走浏览器原行为。
 - ① 上传：拖拽 / 选文件 / 粘贴 / 读剪贴板 → `POST /api/inbox/upload`，成功后发 `inbox:reload` 重读。网格在原图卡片上叠框位预览，按状态筛选；批量条提供 AI / 模板框选、沿用框位、整图即题目、去处理、丢弃，只处理勾选项。
 - ② 处理三栏：队列（可勾选）| 画布（拖拽画框、移动、八向缩放，框外 SVG mask 遮暗，AI 框带置信度）| 区域面板（按题卡分组；角色 / 来源 / 归一化坐标与裁出尺寸 / 转文本·保留图·让 AI 判断 / 提取 / 文本编辑与 Markdown 预览 / 保留图的裁图预览）。改动去抖 500ms 调 `/item/update`，离开处理区或本页时立即写出。
@@ -116,3 +116,9 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 **自动策略 `_auto_policy`**：非盲标 detect 之后，若阈值 > 0、有题目框、所有框 conf ≥ 阈值、且该图没有人工框：对每个非忽略区域按 `convert=auto` 跑 `_run_extract`（可转性判断决定 text/image），全部成功后 `update_item(status=ready)`；任一步失败记 `item.auto` 事件的 `reason` 并停在 boxed。结果放在 detect 单元结果的 `auto` 字段。
 
 **清理 `cleanup(vault, discarded_days, crops)`**：删除 `status=discarded` 且 `updated_at` 早于 N 天的原图，`file` 置 NULL（行与事件保留；`raw_file` 对这类项报「已被清理」）；`crops=True` 清空 `crops/`。写 `inbox.cleanup` 事件。`upload_images` 末尾会 `cleanup_expired`（吞异常）。
+
+## 9. 聊天草稿训练登记
+
+草稿入库后的训练图经 register_chat_training 登记，不经过 upload_images 和上传自动检测。新条目使用 source=chat、layout=other、status=ready、training_only=true；普通 items 列表和 commit 入口排除训练专用项。chat_training_boxes 用草稿与标注身份生成稳定 id，重复登记不增加重复框，只有答案框也可统计和导出。
+
+同 SHA 已存在普通条目时，保持它的状态、版式、来源与原框，聊天框另存 chat_training_boxes；数据集按图合并，labels.jsonl 保留聊天标注来源，YOLO 同样包含这些框。用户主动上传已有训练专用图时将其提升为普通待处理项，保留独立聊天标注。普通清理跳过仍有聊天训练关联的原图。

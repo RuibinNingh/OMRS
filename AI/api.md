@@ -927,5 +927,10 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 | POST | `/api/drafts/update` | `{id,revision,fields,blocks,source_images?}` → `{status:"ok",draft}` |
 | POST | `/api/drafts/discard` | `{id,revision}` → `{status:"ok",draft}` |
 | POST | `/api/drafts/commit` | `{id,revision,crops?}` → `{status:"ok",draft,result,reused,training}` |
+| POST | `/api/drafts/boxes` | `{id,revision,blocks?,training_boxes?}` → `{status:"ok",draft}` |
+| POST | `/api/drafts/extract` | `{id,revision,block_ids,crops?}` → `{status:"ok",job}` |
+| POST | `/api/drafts/image/train` | `{id,revision,sha,enabled}` → `{status:"ok",draft,image}` |
+| GET | `/api/drafts/job?id=` | `{status:"ok",job}`，持久后台任务及错误摘要 |
+| POST | `/api/drafts/cleanup` | `{}` → `{status:"ok",cleaned,retained}`，不接受路径或自定义参数 |
 
 写接口非法输入 400、不存在 404、状态/版本冲突 409、锁忙 503，错误含 msg/code，版本冲突含 current_revision。重复入库按持久操作与 `_draft` 提交恢复原题；不能用一次旧确认提交已编辑的新版本。

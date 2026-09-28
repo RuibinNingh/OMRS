@@ -88,7 +88,7 @@ function toolView(S, run, st, now) {
       <span class="${cls('ast-tool__st', tone)}">${label}</span>${dur ? html`<span class="ast-tool__meta">${dur}</span>` : ''}${st.result || st.error ? html`<span class="ast-tool__chev">${icon(open ? 'chevron-up' : 'chevron-down')}</span>` : ''}</span></button>
     ${st.status === 'waiting' ? gateView(run, st, now) : ''}
     ${st.error && !open ? html`<p class="ast-note is-error">${st.error}</p>` : ''}
-    ${open ? html`<div class="ast-tool__body">${toolPreview(st, S.drafts?.[st.result?.draft_id])}${st.commits?.length ? html`<p class="ast-note">写入 ${st.commits.map(c => c.commit_id).join('、')}</p>` : ''}</div>` : ''}
+    ${open ? html`<div class="ast-tool__body">${toolPreview(st, S.drafts?.[st.result?.draft_id], S.draftCropMode)}${st.commits?.length ? html`<p class="ast-note">写入 ${st.commits.map(c => c.commit_id).join('、')}</p>` : ''}</div>` : ''}
   </div></div>`;
 }
 

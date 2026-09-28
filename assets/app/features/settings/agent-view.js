@@ -25,6 +25,16 @@ export const agentView = () => html`<section class="st-section" id="st-sec-assis
         <div class="hint">默认只建草稿，供你在录入页审核。允许请求确认后入库时，助手只能提交本对话当前版本的待审核草稿。</div></div>
       <select id="st-draft-mode" class="ui-select st-select"><option value="silent">只建草稿</option><option value="confirm">请求确认后入库</option></select>
     </div>
+    <div class="st-row st-row-top">
+      <div class="st-row-text"><label class="st-row-label" for="st-draft-crop-mode">图片框选方式</label>
+        <div class="hint">「询问我」在聊天草稿卡片显示「我来框」；「手动」从草稿区打开。</div></div>
+      <select id="st-draft-crop-mode" class="ui-select st-select"><option value="ask">询问我</option><option value="manual">手动</option><option value="auto" hidden disabled>自动框选（已有设置）</option></select>
+    </div>
+    <div class="st-row st-row-top">
+      <div class="st-row-text"><label class="st-row-label" for="st-draft-train-default">默认用于训练数据</label>
+        <div class="hint">新聊天截图按此值预选训练，入库且框选有效后才登记。每张图可在草稿区单独调整；关闭不会删除已登记的数据。</div></div>
+      <input type="checkbox" class="st-switch" id="st-draft-train-default">
+    </div>
   </div>
   <div class="card st-card">
     <div class="card-title">接口</div>

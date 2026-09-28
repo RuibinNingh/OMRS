@@ -29,6 +29,7 @@ test('草稿保存携带 revision、有序块和 sha 数组，保留已有块身
 
 test('无效文字、未关联图与未框图分别阻止错误操作', () => {
   const value = editValue(sample());
+  assert.match(commitProblem(value), /手动画框/);
   assert.match(commitProblem(value), /使用整图/);
   value.blocks[1].box = { x: 0, y: 0, w: 1, h: 1 };
   assert.equal(commitProblem(value), '');
@@ -40,6 +41,16 @@ test('无效文字、未关联图与未框图分别阻止错误操作', () => {
   value.fields.difficulty = '11';
   assert.match(draftProblems(value), /难度/);
   assert.equal(draftPendingCount({ cropping: 2, review: 3 }), 5);
+});
+
+test('完整保存已有 AI 框时保留候选坐标和人工调整来源', () => {
+  const draft = sample();
+  draft.blocks[1].box = { x: .1, y: .2, w: .4, h: .3 };
+  draft.blocks[1].box_origin = 'ai_edited';
+  draft.blocks[1].ai_box = { x: .12, y: .21, w: .39, h: .31 };
+  const payload = updatePayload(draft, editValue(draft));
+  assert.deepEqual(payload.blocks[1].ai_box, draft.blocks[1].ai_box);
+  assert.equal(payload.blocks[1].box_origin, 'ai_edited');
 });
 
 test('草稿视图显示原图、只读完成态及来源不完整提示，文本被转义', () => {

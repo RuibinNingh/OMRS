@@ -201,10 +201,17 @@ CREATE TABLE IF NOT EXISTS jobs (
   processed INTEGER, total INTEGER, result TEXT, errors TEXT
 );
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS chat_training_boxes (
+  id TEXT PRIMARY KEY,item_id TEXT NOT NULL,draft_id TEXT NOT NULL,image_sha TEXT NOT NULL,
+  section TEXT NOT NULL,ord INTEGER NOT NULL,x REAL NOT NULL,y REAL NOT NULL,w REAL NOT NULL,h REAL NOT NULL,
+  origin TEXT NOT NULL,ai_box TEXT
+);
+CREATE INDEX IF NOT EXISTS chat_training_item ON chat_training_boxes(item_id);
 """
 
 # v1.13：items 追加的列（盲标）。旧库通过 ALTER 补齐，缺省值保持旧行为。
-_ITEM_EXTRA_COLUMNS = (("blind", "INTEGER DEFAULT 0"), ("blind_boxes", "TEXT"))
+_ITEM_EXTRA_COLUMNS = (("blind", "INTEGER DEFAULT 0"), ("blind_boxes", "TEXT"),
+                       ("training_only", "INTEGER NOT NULL DEFAULT 0"))
 
 
 def connect(vault):
@@ -269,6 +276,7 @@ def _row_item(db, row, with_children=True):
         "id": row["id"], "sha256": row["sha256"], "file": row["file"], "mime": row["mime"],
         "width": row["width"], "height": row["height"], "bytes": row["bytes"],
         "source": row["source"], "uploaded_at": row["uploaded_at"], "status": row["status"],
+        "training_only": bool(row["training_only"]),
         "layout": row["layout"], "updated_at": row["updated_at"],
         "link": {"uid": row["link_uid"], "question_id": row["link_question_id"]} if row["link_uid"] else None,
         # 盲标：AI 框已跑但不展示给标注者；blind_boxes 只在事件与数据集导出里出现，不进 item 响应
@@ -305,7 +313,13 @@ def upload_images(vault, files, source="desktop"):
                 sha = hashlib.sha256(data).hexdigest()
                 existing = db.execute("SELECT * FROM items WHERE sha256=?", (sha,)).fetchone()
                 if existing:
-                    duplicates.append({"file": filename, "item_id": existing["id"]})
+                    if existing["training_only"]:
+                        db.execute("UPDATE items SET training_only=0,status='pending',layout='zuoyebang',"
+                                   "source=?,file=?,updated_at=? WHERE id=?",
+                                   (source, os.path.basename(filename or "image"), _now(), existing["id"]))
+                        created.append(existing["id"])
+                    else:
+                        duplicates.append({"file": filename, "item_id": existing["id"]})
                     continue
                 path = _raw_path(vault, sha, mime)
                 if not os.path.exists(path):
@@ -343,9 +357,9 @@ def list_items(vault, status=None, with_children=True):
     db = connect(vault)
     try:
         if status:
-            rows = db.execute("SELECT * FROM items WHERE status=? ORDER BY uploaded_at DESC", (status,))
+            rows = db.execute("SELECT * FROM items WHERE status=? AND training_only=0 ORDER BY uploaded_at DESC", (status,))
         else:
-            rows = db.execute("SELECT * FROM items WHERE status!='discarded' ORDER BY uploaded_at DESC")
+            rows = db.execute("SELECT * FROM items WHERE status!='discarded' AND training_only=0 ORDER BY uploaded_at DESC")
         return [_row_item(db, row, with_children) for row in rows.fetchall()]
     finally:
         db.close()
@@ -412,6 +426,8 @@ def update_item(vault, item_id, data):
             row = db.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
             if not row:
                 raise ValueError(f"收件箱里没有 {item_id}")
+            if row["training_only"]:
+                raise ValueError("训练专用图片不能进入普通处理流程")
             if row["status"] == "done":
                 raise ValueError("已录入的图片不能再修改")
             before = _row_item(db, row)
@@ -986,6 +1002,8 @@ def _run_classify(vault, ai, unit):
 def commit_item(vault, item_id, card=1, form=None, crops=None):
     """把一张题卡写成题目：文本区拼进正文，图片区裁图嵌入。成功后 item → done。"""
     item = get_item(vault, item_id)
+    if item["training_only"]:
+        raise ValueError("训练专用图片不能创建题目")
     if item["status"] == "done":
         raise ValueError("这张图已经录入过了")
     card = int(card or 1)
@@ -1049,12 +1067,75 @@ def commit_item(vault, item_id, card=1, form=None, crops=None):
 
 # ────────────────────────── 数据集 ──────────────────────────
 
+def register_chat_training(vault, sha, data, draft_id, boxes):
+    """按图哈希登记聊天训练标注，不经过上传队列与自动 detect。"""
+    if hashlib.sha256(data).hexdigest() != sha:
+        raise ValueError("训练原图 SHA 与内容不符")
+    mime, width, height = image_size(data)
+    if not boxes:
+        raise ValueError("训练图没有有效框")
+    with _LOCK:
+        db = connect(vault)
+        try:
+            item = db.execute("SELECT * FROM items WHERE sha256=?", (sha,)).fetchone()
+            if item:
+                item_id = item["id"]
+            else:
+                item_id = _new_item_id()
+                now = _now()
+                db.execute("INSERT INTO items(id,sha256,file,mime,width,height,bytes,source,uploaded_at,"
+                           "status,layout,link_uid,link_question_id,updated_at,training_only) "
+                           "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                           (item_id, sha, f"{sha}.{_MIME_EXT.get(mime, 'png')}", mime, width, height,
+                            len(data), "chat", now, "ready", "other", None, None, now, 1))
+            raw_path = _raw_path(vault, sha, mime)
+            if not os.path.exists(raw_path):
+                with open(raw_path, "wb") as file:
+                    file.write(data)
+            # 草稿库登记状态可能在收件箱事务提交后才失败；重试以本次完整框集覆盖旧关联。
+            db.execute("DELETE FROM chat_training_boxes WHERE draft_id=? AND image_sha=?", (draft_id, sha))
+            for order, box in enumerate(boxes):
+                rect = box["box"]
+                ident = "ct_" + hashlib.sha256((draft_id + ":" + box["id"]).encode()).hexdigest()[:24]
+                db.execute("INSERT INTO chat_training_boxes(id,item_id,draft_id,image_sha,section,ord,x,y,w,h,origin,ai_box) "
+                           "VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET "
+                           "section=excluded.section,ord=excluded.ord,x=excluded.x,y=excluded.y,w=excluded.w,h=excluded.h,"
+                           "origin=excluded.origin,ai_box=excluded.ai_box",
+                           (ident, item_id, draft_id, sha, box["section"], order,
+                            rect["x"], rect["y"], rect["w"], rect["h"], box["box_origin"],
+                            json.dumps(box.get("ai_box"), ensure_ascii=False)))
+            db.commit()
+        finally:
+            db.close()
+    _log(vault, "image.train", {"item_id": item_id, "sha256": sha, "draft_id": draft_id,
+                               "boxes": len(boxes)})
+    return item_id
+
+
+def _dataset_items(db):
+    rows = db.execute("SELECT * FROM items WHERE status!='discarded' OR id IN "
+                      "(SELECT DISTINCT item_id FROM chat_training_boxes) ORDER BY uploaded_at").fetchall()
+    items = []
+    for row in rows:
+        item = _row_item(db, row)
+        chat_rows = db.execute("SELECT * FROM chat_training_boxes WHERE item_id=? ORDER BY draft_id,ord,id",
+                               (row["id"],)).fetchall()
+        item["chat_annotations"] = [{"draft_id": r["draft_id"], "id": r["id"]} for r in chat_rows]
+        for r in chat_rows:
+            item["regions"].append({"id": r["id"], "card": 1, "ord": r["ord"],
+                                    "role": "question" if r["section"] == "题目" else "answer",
+                                    "x": r["x"], "y": r["y"], "w": r["w"], "h": r["h"],
+                                    "origin": r["origin"], "conf": None,
+                                    "ai_box": _loads(r["ai_box"], None), "convert": "image",
+                                    "text": None, "text_status": "none", "judge": None,
+                                    "judge_overridden": False, "source": "chat", "draft_id": r["draft_id"]})
+        items.append(item)
+    return items, {r["id"]: r for r in rows}
+
 def dataset_stats(vault):
-    items = list_items(vault)
     db = connect(vault)
     try:
-        done_rows = db.execute("SELECT * FROM items WHERE status='done'").fetchall()
-        items += [_row_item(db, r) for r in done_rows if r["id"] not in {i["id"] for i in items}]
+        items, _rows_by_id = _dataset_items(db)
     finally:
         db.close()
     regions = [r for i in items for r in i["regions"]]
@@ -1168,7 +1249,8 @@ def cleanup(vault, discarded_days=None, crops=False):
         db = connect(vault)
         try:
             rows = db.execute("SELECT id, sha256, mime FROM items WHERE status='discarded' AND file IS NOT NULL "
-                              "AND updated_at<=?", (cutoff,)).fetchall()
+                              "AND updated_at<=? AND id NOT IN (SELECT DISTINCT item_id FROM chat_training_boxes)",
+                              (cutoff,)).fetchall()
             for row in rows:
                 path = _raw_path(vault, row["sha256"], row["mime"])
                 if os.path.exists(path):
@@ -1205,9 +1287,7 @@ def export_dataset(vault, fmt="omrs_jsonl", include_raw=True):
     """打包 labels + 原图。fmt: omrs_jsonl | yolo。返回 zip bytes。"""
     db = connect(vault)
     try:
-        rows = db.execute("SELECT * FROM items WHERE status!='discarded' ORDER BY uploaded_at").fetchall()
-        items = [_row_item(db, r) for r in rows]
-        rows_by_id = {r["id"]: r for r in rows}
+        items, rows_by_id = _dataset_items(db)
     finally:
         db.close()
     buf = io.BytesIO()
@@ -1222,7 +1302,9 @@ def export_dataset(vault, fmt="omrs_jsonl", include_raw=True):
                     zf.write(path, f"images/{raw_name}")
             record = {"item_id": item["id"], "image": f"images/{raw_name}", "width": item["width"],
                       "height": item["height"], "layout": item["layout"], "status": item["status"],
-                      "source": item["source"], "regions": _region_summary(item["regions"])}
+                      "source": item["source"], "training_only": item["training_only"],
+                      "chat_annotations": item["chat_annotations"],
+                      "regions": _region_summary(item["regions"])}
             if item.get("blind"):
                 record["blind"] = True
                 record["blind_ai_boxes"] = _loads(rows_by_id[item["id"]]["blind_boxes"], [])

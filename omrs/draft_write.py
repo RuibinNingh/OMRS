@@ -9,7 +9,7 @@ import uuid
 from . import locking
 from . import drafts
 from . import creation
-from .common import questions_root
+from .common import questions_root, load_config
 from .ledger import read_commits, reserve_operation_id
 from .projections import rebuild_projection
 from .path_safety import safe_question_directory
@@ -179,6 +179,8 @@ def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
             prepared = _blocks(db, row, blocks, set(sources))
             status = "cropping" if any(b[4] == "image" and b[7] is None for b in prepared) else "review"
             _prepared_before_change(vault, db, row)
+            from .draft_training import sync_block_boxes, sync_tasks
+            sync_block_boxes(db, draft_id)
             db.execute("UPDATE drafts SET subject=?,category=?,difficulty=?,knowledge_points=?,labels=?,cause=?,note=?,status=?,revision=revision+1,updated_at=?,sources_complete=? WHERE id=?",
                        (values["subject"], values["category"], values["difficulty"], json.dumps(values["knowledge_points"], ensure_ascii=False),
                         json.dumps(values["labels"], ensure_ascii=False), values["cause"], values["note"], status,
@@ -190,6 +192,11 @@ def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
                 db.execute("DELETE FROM draft_images WHERE draft_id=?", (draft_id,))
                 db.executemany("INSERT INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
                                [(draft_id, sha, i) for i, sha in enumerate(sources)])
+                for sha in sources:
+                    db.execute("UPDATE images SET train=? WHERE sha256=? AND train IS NULL",
+                               (int(bool(load_config(vault).get("draft_train_default", False))), sha))
+            sync_tasks(db, draft_id)
+            sync_block_boxes(db, draft_id)
             db.commit()
         finally:
             db.close()
@@ -213,6 +220,62 @@ def discard_draft(vault, draft_id, revision):
         finally:
             db.close()
     drafts._log(vault, "draft.discard", {"draft_id": draft_id, "revision": revision + 1})
+    return drafts.get_draft(vault, draft_id)
+
+
+def set_boxes(vault, draft_id, revision, blocks=None, training_boxes=None):
+    if blocks is None and training_boxes is None:
+        raise drafts.DraftError("至少提交一种框选改动")
+    if blocks is not None and not isinstance(blocks, list):
+        raise drafts.DraftError("blocks 必须是数组")
+    with locking.write_lock(), drafts._LOCK:
+        db = drafts.connect(vault)
+        try:
+            row = _row(db, draft_id)
+            _revision(row, revision)
+            if row["status"] == "discarded" or (row["status"] == "done" and blocks is not None):
+                raise drafts.DraftError("草稿状态不允许修改正文框", 409, "state_conflict", row["revision"])
+            seen, prepared = set(), []
+            for index, raw in enumerate(blocks or []):
+                if not isinstance(raw, dict) or set(raw) - {"id", "box", "box_origin", "ai_box"}:
+                    raise drafts.DraftError(f"第 {index + 1} 个正文框格式不对")
+                block_id = raw.get("id")
+                block = db.execute("SELECT * FROM blocks WHERE id=? AND draft_id=?", (block_id, draft_id)).fetchone()
+                if not block or block["kind"] != "image" or block_id in seen:
+                    raise drafts.DraftError(f"图片块不存在或重复：{block_id}")
+                seen.add(block_id)
+                box = _box(raw.get("box"))
+                origin = raw.get("box_origin")
+                if box and origin not in ("manual", "ai", "ai_edited"):
+                    raise drafts.DraftError("box_origin 不合法")
+                ai_box = _box(raw.get("ai_box"))
+                prepared.append((block_id, box, origin if box else None, ai_box))
+            from .draft_training import prepare_training_boxes, replace_training_boxes, sync_block_boxes
+            training_prepared = prepare_training_boxes(db, draft_id, training_boxes) if training_boxes is not None else {}
+            if row["status"] in ("cropping", "review") and (prepared or training_prepared):
+                _prepared_before_change(vault, db, row)
+            for block_id, box, origin, ai_box in prepared:
+                coords = tuple(box[k] for k in ("x", "y", "w", "h")) if box else (None,) * 4
+                db.execute("UPDATE blocks SET x=?,y=?,w=?,h=?,box_origin=?,ai_box=? WHERE id=?",
+                           (*coords, origin, json.dumps(ai_box) if ai_box else None, block_id))
+            sync_block_boxes(db, draft_id)
+            selected_tasks = replace_training_boxes(db, training_prepared)
+            changed = bool(prepared or selected_tasks)
+            if changed:
+                missing = db.execute("SELECT 1 FROM blocks WHERE draft_id=? AND kind='image' AND x IS NULL LIMIT 1",
+                                     (draft_id,)).fetchone()
+                status = "cropping" if missing else "review"
+                db.execute("UPDATE drafts SET status=CASE WHEN status='done' THEN 'done' ELSE ? END,"
+                           "revision=revision+1,updated_at=? WHERE id=?", (status, drafts._now(), draft_id))
+            db.commit()
+        finally:
+            db.close()
+    if changed:
+        drafts._log(vault, "draft.crop", {"draft_id": draft_id, "revision": revision + 1,
+                                           "blocks": len(prepared), "training_tasks": len(selected_tasks)})
+    if changed and row["status"] == "done":
+        from .draft_training import register_ready
+        register_ready(vault, draft_id)
     return drafts.get_draft(vault, draft_id)
 
 
@@ -247,8 +310,15 @@ def _render_blocks(vault, blocks, crops):
         elif full:
             image_url = drafts.image_data_url(vault, block["image_sha"])
         else:
-            raise drafts.DraftError(f"图片块 {block['id']} 需要裁图数据", 400, "crop_required")
-        mime, _width, _height, _data = drafts._decode_image_data_url(image_url)
+            try:
+                from .draft_jobs import _image_for
+                image_url = _image_for(vault, block, None)
+            except ValueError as exc:
+                raise drafts.DraftError(f"图片块 {block['id']} 需要裁图数据：{exc}", 400, "crop_required") from exc
+        try:
+            mime, _width, _height, _data = drafts._decode_image_data_url(image_url)
+        except ValueError as exc:
+            raise drafts.DraftError(f"图片块 {block['id']} 的裁图不合法：{exc}") from exc
         if not image_url.startswith(f"data:{mime};base64,"):
             raise drafts.DraftError(f"图片区块 {block['id']} 的声明格式与实际内容不一致")
         rendered.append({"section": block["section"], "kind": "image", "data": image_url, "mime": mime})

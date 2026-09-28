@@ -108,3 +108,5 @@ E2E 专用适配器 `tests/e2e/p8_test_modules.js`：8 个 E2E 以 init script �
 `domain/drafts.js` 负责草稿导航目标、sessionStorage 中的已选编号和四态计数，不持有编辑表单。`openDraft(id)` 先保存目标再切 create，挂载方用 consumeDraftTarget 消费；切页成功后发 `drafts:open {id}`。`drafts:changed {ids}` 触发重新取计数，成功发 `drafts:counts`；读取失败保留上次成功数值。首次加载、切页、聚焦重取计数；有活动运行 / 任务时每两秒轮询，隐藏时暂停，销毁后晚到结果不再更新。
 
 `tests/app/draft-navigation.test.mjs` 覆盖目标先于挂载、离页拒绝、计数请求合并、失败保留与晚到响应；`tests/app/core.test.mjs` 覆盖同步路由和异步离页守卫。
+
+草稿后台作业由页面 drafts-job.js 管理轮询和卸载，活动标记交给 domain/drafts 统一维护角标轮询；页面内容以服务端 revision 为边界，后台结果不能覆盖未保存表单。真实 HTTP 进程重启回归见 tests/test_draft_p3_http.py；画布复用与旧收件箱行为由草稿/录入 E2E 联合验证。

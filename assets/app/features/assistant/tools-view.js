@@ -125,7 +125,7 @@ const T = {
   },
   create_draft: {
     title: '建 AI 草稿', icon: 'file', level: 'rev', args: a => `${a.subject || ''} / ${a.category || ''}`,
-    preview: (r, _args, current) => {
+    preview: (r, _args, current, cropMode) => {
       const d = current?.draft;
       const status = current?.error ? '状态读取失败' : current?.loading || !d ? '正在获取当前状态'
         : ({ cropping: '待框选', review: '待审核', done: '已入库', discarded: '已丢弃' }[d.status] || d.status);
@@ -136,6 +136,7 @@ const T = {
         <dl class="ast-kv"><dt>科目 / 分类</dt><dd>${d?.subject || r.subject} / ${d?.category || r.category}</dd><dt>题目</dt><dd>${question}</dd></dl>
         <div class="ast-draft-card__blocks">${blocks.map(block => html`<span class="ui-tag">${block.section} · ${block.kind === 'image' ? '图片' : '文字'}</span>`)}</div>
         ${current?.error ? html`<p class="ast-note is-error">${current.error}</p><button type="button" class="ui-btn ui-btn--sm" data-action="assistant.retryDraft" data-arg="${r.draft_id}">重试读取</button>` : ''}
+        ${d?.status === 'cropping' && cropMode === 'ask' ? html`<button type="button" class="ui-btn ui-btn--sm ui-btn--primary" data-action="assistant.openDraft" data-arg="${r.draft_id}">我来框</button>` : ''}
         <button type="button" class="ui-btn ui-btn--sm" data-action="assistant.openDraft" data-arg="${r.draft_id}">查看草稿</button></div>`;
     },
   },
@@ -177,11 +178,11 @@ export function toolArgs(st) {
   if (!st.args) return st.argsSrc ? st.argsSrc.slice(0, 60) : '';
   try { return toolDef(st.name).args(st.args); } catch (_) { return ''; }
 }
-export function toolPreview(st, currentDraft) {
+export function toolPreview(st, currentDraft, cropMode) {
   const r = st.result;
   if (!r) return '';
   if (r.ok === false) return html`<p class="ast-note is-error">${r.error}</p>`;
-  try { return toolDef(st.name).preview(r, st.args || {}, currentDraft); } catch (_) { return FALLBACK.preview(r); }
+  try { return toolDef(st.name).preview(r, st.args || {}, currentDraft, cropMode); } catch (_) { return FALLBACK.preview(r); }
 }
 export const gateOf = st => (toolDef(st.name).gate ? toolDef(st.name).gate(st.args || {}) : { what: '想执行这一步：', preview: toolArgs(st) });
 export const confirmOf = st => (toolDef(st.name).confirm

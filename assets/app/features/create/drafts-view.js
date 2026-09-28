@@ -14,7 +14,7 @@ const titleOf = draft => draft.blocks?.find(block => block.section === '题目' 
 
 function listView({ list, listLoaded, listError, filter, selectedId, counts, busy }) {
   return html`<aside class="drf-list" aria-label="AI 草稿列表">
-    <div class="drf-list-head"><h2>AI 草稿</h2>${button({ label: '刷新', size: 'sm', action: 'create.draftReload', disabled: busy })}</div>
+    <div class="drf-list-head"><h2>AI 草稿</h2><div class="drf-list-actions">${button({ label: '清理', size: 'sm', action: 'create.draftCleanup', disabled: busy })}${button({ label: '刷新', size: 'sm', action: 'create.draftReload', disabled: busy })}</div></div>
     <p class="drf-count">${draftPendingCount(counts)} 份待审核</p>
     <div class="drf-filters" role="group" aria-label="筛选草稿">
       ${statuses.map(([value, label]) => button({ label, size: 'sm', action: 'create.draftFilter', arg: value, pressed: filter === value }))}
@@ -49,6 +49,59 @@ function sourceView(draft, value, readonly) {
   </section>`;
 }
 
+function canvasPanel({ draft, value, training, canvasSha, canvasMode, selectedBlock, drawSection, busy, job }) {
+  const images = (draft.source_images || []).filter(image => value.source_images.includes(imageSha(image)));
+  if (!images.length || draft.status === 'discarded') return '';
+  const current = images.find(image => imageSha(image) === canvasSha) || images[0];
+  const sha = imageSha(current);
+  const task = (draft.training_tasks || []).find(row => row.image_sha === sha);
+  const boxes = task ? (training?.[task.id] || []) : [];
+  const bodyBlocks = value.blocks.filter(row => row.kind === 'image' && row.image_sha === sha);
+  const bodyReadonly = draft.status === 'done' || busy;
+  const trainReadonly = task?.status === 'registered' || busy;
+  const trainingOn = current.train === true;
+  const selected = bodyBlocks.find(row => (row.id || row._key) === selectedBlock);
+  return html`<section class="drf-canvas"><div class="drf-section-head"><h3>手动框选</h3><span>按来源图逐张核对</span></div>
+    <div class="drf-canvas-tabs" role="group" aria-label="来源图">
+      ${images.map(image => button({ label: image.ref || imageSha(image).slice(0, 10), size: 'sm',
+        action: 'create.draftCanvasImage', arg: imageSha(image), pressed: sha === imageSha(image) }))}
+    </div>
+    <div class="drf-canvas-meta"><span>${current.ref || sha.slice(0, 10)} · ${current.width}×${current.height}</span>
+      ${current.inbox_item_id ? html`<span>训练图已登记</span>` : button({ label: trainingOn ? '参与训练：开' : '参与训练：关', size: 'sm',
+        action: 'create.draftTrainToggle', arg: sha, disabled: busy })}
+      ${!current.inbox_item_id && trainingOn ? html`<small>该图片的训练开关由同图草稿共享。</small>` : ''}
+    </div>
+    <div class="drf-canvas-tabs" role="group" aria-label="框选用途">
+      ${button({ label: '题目正文', size: 'sm', action: 'create.draftCanvasMode', arg: 'body', pressed: canvasMode !== 'training' })}
+      ${trainingOn ? button({ label: '训练框', size: 'sm', action: 'create.draftCanvasMode', arg: 'training', pressed: canvasMode === 'training' }) : ''}
+    </div>
+    ${canvasMode === 'training' && trainingOn ? html`<div class="drf-canvas-tools">
+      <span>训练任务：${task?.status || '待创建'}${task?.error ? ` · ${task.error}` : ''}</span>
+      ${button({ label: '画题目框', size: 'sm', action: 'create.draftDrawSection', arg: '题目', pressed: drawSection !== '答案', disabled: trainReadonly })}
+      ${button({ label: '画答案框', size: 'sm', action: 'create.draftDrawSection', arg: '答案', pressed: drawSection === '答案', disabled: trainReadonly })}
+      <small>训练框独立于正文；题目入库后仍可补标。</small></div>`
+    : html`<div class="drf-canvas-tools"><label for="drf-canvas-block">当前图片区块</label>
+      <select id="drf-canvas-block" class="ui-select" data-change="create.draftCanvasBlock"${bodyReadonly ? html` disabled` : ''}>
+        <option value="">选择要框选的图片块</option>${bodyBlocks.map((row, index) => html`<option value="${row.id || row._key}"${(row.id || row._key) === selectedBlock ? html` selected` : ''}>${row.section}图片 ${index + 1}${row.box ? ' · 已框' : ' · 待框'}</option>`)}</select>
+      ${selected && !bodyReadonly ? button({ label: '整图', size: 'sm', action: 'create.draftWhole', arg: selected.id || selected._key }) : ''}
+      <small>${bodyBlocks.length ? '选择图片块后，在图上画框、拖动或拉动边角。' : '先在下方添加图片区块，再回这里画框。'}</small></div>`}
+    <div class="drf-canvas-wrap"><div class="ib-stage-img" id="drf-stage-img" data-morph="skip"></div></div>
+    <p class="drf-hint"><span id="drf-canvas-file"></span><span id="drf-canvas-zoom"></span> · 可用鼠标或触摸手势画框、移动和缩放。</p>
+    ${canvasMode === 'training' && trainingOn ? html`<div class="drf-training-boxes">
+      ${boxes.map(box => html`<div class="drf-training-box" data-key="${box.id || box._key}"><span>${box.section}框 · ${box.box_origin || 'manual'}</span>
+        ${trainReadonly ? '' : html`<select class="ui-select" data-change="create.draftTrainingSection" data-arg="${task.id}|${box.id || box._key}">
+          <option value="题目"${box.section === '题目' ? html` selected` : ''}>题目</option><option value="答案"${box.section === '答案' ? html` selected` : ''}>答案</option></select>
+          ${button({ label: '删除框', size: 'sm', variant: 'danger', action: 'create.draftTrainingRemove', arg: `${task.id}|${box.id || box._key}` })}`}</div>`)}
+      ${!boxes.length ? html`<p class="drf-hint">尚无训练框。画框后点「保存」登记标注。</p>` : ''}</div>` : ''}
+    ${canvasMode !== 'training' && selected?.box && !bodyReadonly ? html`<div class="drf-canvas-tools">
+      ${button({ label: '删除当前框', size: 'sm', variant: 'danger', action: 'create.draftClearBox', arg: selected.id || selected._key })}
+      ${button({ label: job ? '正在转文字…' : '转为文字', size: 'sm', action: 'create.draftExtract', arg: selected.id || selected._key,
+        disabled: busy || Boolean(job) || !selected.id })}
+      ${!selected.id ? html`<small>先保存新图片区块，再转文字。</small>` : ''}</div>` : ''}
+    ${job ? html`<p class="drf-message" role="status">转文字任务：${job.status} · ${job.processed || 0}/${job.total || 1}</p>` : ''}
+  </section>`;
+}
+
 const fieldInput = (name, label, value, readonly, type = 'text') => html`<label class="drf-field">${label}
   <input class="ui-input" type="${type}" data-input="create.draftField" data-arg="${name}" value="${value ?? ''}"${readonly ? html` readonly` : ''}></label>`;
 
@@ -79,8 +132,11 @@ function blockView(block, index, value, readonly) {
       <option value="题目"${block.section === '题目' ? html` selected` : ''}>题目</option><option value="答案"${block.section === '答案' ? html` selected` : ''}>答案</option></select></label>`}
     ${block.kind === 'text' ? html`<label class="drf-field">内容<textarea class="ui-textarea" rows="4" data-input="create.draftBlockText" data-arg="${key}"${readonly ? html` readonly` : ''}>${block.text || ''}</textarea></label>
       <div class="drf-md q-md" data-hash="${hashText(block.text || '')}">${raw(renderMd(block.text || ''))}</div>`
-    : html`<div class="drf-block-image">${image ? html`<img loading="lazy" src="${imageUrl(block.image_sha)}" alt="${block.section}图片区">` : html`<p class="drf-error">来源图片已取消关联</p>`}</div>
-      <p class="drf-hint">${block.box ? '已框选整图' : '尚未框选，入库前请使用整图'}</p>
+    : html`<div class="drf-block-image">${image ? block.box && (block.box.x !== 0 || block.box.y !== 0 || block.box.w !== 1 || block.box.h !== 1)
+      ? html`<canvas data-draft-crop="${key}" data-morph="skip" aria-label="${block.section}裁图预览"></canvas>`
+      : html`<img loading="lazy" src="${imageUrl(block.image_sha)}" alt="${block.section}图片区">`
+      : html`<p class="drf-error">来源图片已取消关联</p>`}</div>
+      <p class="drf-hint">${block.box ? (block.box.x === 0 && block.box.y === 0 && block.box.w === 1 && block.box.h === 1 ? '已选择整图' : '已选取局部区域') : '尚未框选，入库前请画框或使用整图'}</p>
       ${readonly ? '' : button({ label: '使用整图', size: 'sm', action: 'create.draftWhole', arg: key, disabled: !image })}
       <label class="drf-field">图片说明<input class="ui-input" data-input="create.draftBlockNote" data-arg="${key}" value="${block.note || ''}"${readonly ? html` readonly` : ''}></label>`}
   </article>`;
@@ -100,7 +156,8 @@ function blocksView(value, readonly) {
     })}</section>`;
 }
 
-function detailView({ draft, value, detailLoaded, detailError, dirty, busy, message, conflict }) {
+function detailView(state) {
+  const { draft, value, detailLoaded, detailError, dirty, busy, message, conflict } = state;
   if (detailError) return html`<main class="drf-detail"><div class="drf-error" role="alert">读取草稿失败：${detailError}${button({ label: '重试', action: 'create.draftRetry' })}</div></main>`;
   if (!detailLoaded) return html`<main class="drf-detail"><p role="status">正在读取草稿…</p></main>`;
   if (!draft || !value) return html`<main class="drf-detail">${empty({ icon: 'inbox', title: '选择一份草稿', hint: '在左侧列表选择，核对后保存或通过。', bordered: true })}</main>`;
@@ -113,8 +170,9 @@ function detailView({ draft, value, detailLoaded, detailError, dirty, busy, mess
       ${conflict ? button({ label: '重新读取并放弃本地修改', size: 'sm', action: 'create.draftReloadDetail' }) : ''}</p>` : ''}
     ${draft.status === 'done' ? html`<p class="drf-success">${draft.question_available === false ? '已入库，题目当前不可用' : `已入库：${draft.uid || draft.question_id || '题目'}`}
       ${draft.uid && draft.question_available !== false ? button({ label: '查看题目', size: 'sm', action: 'create.draftQuestion' }) : ''}</p>` : ''}
-    ${sourceView(draft, value, editingDisabled)}${fieldsView(value, editingDisabled)}${blocksView(value, editingDisabled)}
-    ${readonly ? html`<p class="drf-hint">此草稿的正文已锁定。</p>` : html`<footer class="drf-footer">
+    ${sourceView(draft, value, editingDisabled)}${canvasPanel(state)}${fieldsView(value, editingDisabled)}${blocksView(value, editingDisabled)}
+    ${readonly ? html`<p class="drf-hint">此草稿的正文已锁定。${draft.status === 'done' && (draft.training_tasks || []).some(task => task.status === 'error') ? '训练登记失败，可重试。' : ''}
+      ${draft.status === 'done' && (draft.training_tasks || []).some(task => task.status === 'error') ? button({ label: '重试训练登记', action: 'create.draftRetryTraining', disabled: busy }) : ''}</p>` : html`<footer class="drf-footer">
       ${problem ? html`<p class="drf-hint" role="status">${problem}</p>` : ''}
       ${button({ label: '保存', variant: 'primary', action: 'create.draftSave', loading: busy, disabled: !dirty })}
       ${button({ label: '通过并入库', action: 'create.draftCommit', loading: busy, disabled: Boolean(problem) })}

@@ -18,6 +18,23 @@ export function editValue(draft) {
   };
 }
 
+export function editTraining(draft) {
+  return Object.fromEntries((draft?.training_tasks || []).map(task => [task.id,
+    (task.boxes || []).map(box => ({ ...box, box: box.box ? { ...box.box } : null }))]));
+}
+
+export function trainingBoxPayload(draft, training, savedTraining) {
+  const original = JSON.parse(savedTraining || '{}');
+  return (draft.training_tasks || []).flatMap(task => {
+    const boxes = training[task.id] || [];
+    if (JSON.stringify(boxes) === JSON.stringify(original[task.id] || [])) return [];
+    if (!boxes.length) return [{ task_id: task.id, box: null }];
+    return boxes.map(row => ({ ...(row.id ? { id: row.id } : {}), task_id: task.id,
+      section: row.section, box: row.box, box_origin: row.box_origin || 'manual',
+      ...(row.ai_box ? { ai_box: row.ai_box } : {}) }));
+  });
+}
+
 export function updatePayload(draft, value) {
   const fields = { ...value.fields, difficulty: Number(value.fields.difficulty) || 5,
     knowledge_points: [...value.fields.knowledge_points], labels: [...value.fields.labels] };
@@ -25,7 +42,8 @@ export function updatePayload(draft, value) {
     const result = { section: block.section, kind: block.kind, note: block.note || '' };
     if (block.id) result.id = block.id;
     if (block.kind === 'text') result.text = block.text || '';
-    else { result.image_sha = block.image_sha; result.box = block.box || null; result.box_origin = block.box_origin || null; }
+    else { result.image_sha = block.image_sha; result.box = block.box || null;
+      result.box_origin = block.box_origin || null; result.ai_box = block.ai_box || null; }
     return result;
   });
   return { id: draft.id, revision: draft.revision, fields, blocks, source_images: [...value.source_images] };
@@ -45,7 +63,7 @@ export function draftProblems(value) {
 export function commitProblem(value) {
   const invalid = draftProblems(value);
   if (invalid) return invalid;
-  return value.blocks.some(block => block.kind === 'image' && !block.box) ? '图片块尚未框选，请先点「使用整图」并保存' : '';
+  return value.blocks.some(block => block.kind === 'image' && !block.box) ? '图片块尚未框选，请手动画框或点「使用整图」并保存' : '';
 }
 
 export function moveBlock(blocks, key, step) {

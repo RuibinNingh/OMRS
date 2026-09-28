@@ -138,3 +138,12 @@ test('入库确认展示当前版本的正文、来源图与错因', () => {
   assert.match(body, /\/api\/drafts\/image\?sha=/);
   assert.match(review.hint, /第 4 版/);
 });
+
+test('待框选卡片仅在询问模式提供我来框', () => {
+  const step = { name: 'create_draft', result: { draft_id: 'DR-ask', subject: '数学', category: '函数', blocks: [] } };
+  const current = { draft: { id: 'DR-ask', status: 'cropping', subject: '数学', category: '函数', blocks: [] } };
+  assert.match(String(toolPreview(step, current, 'ask')), /我来框/);
+  assert.doesNotMatch(String(toolPreview(step, current, 'manual')), /我来框/);
+  assert.doesNotMatch(String(toolPreview(step, current, 'auto')), /我来框/);
+  assert.doesNotMatch(String(toolPreview(step, { draft: { ...current.draft, status: 'done' } }, 'ask')), /我来框/);
+});

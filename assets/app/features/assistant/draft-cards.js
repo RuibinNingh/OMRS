@@ -3,6 +3,12 @@ import { get } from '../../core/api.js';
 
 export function createDraftCards(S, schedule) {
   const requests = {};
+  async function loadMode() {
+    const res = await get('/api/config');
+    if (!S.alive || !res.ok) return;
+    const mode = res.data?.draft_crop_mode === 'ask' ? 'ask' : 'manual';
+    if (S.draftCropMode !== mode) { S.draftCropMode = mode; S.draftVer += 1; schedule(); }
+  }
   async function refresh(ids) {
     const visible = new Set(S.items.flatMap(item => item.run?.steps || [])
       .filter(step => step.name === 'create_draft' && step.result?.draft_id)
@@ -19,5 +25,5 @@ export function createDraftCards(S, schedule) {
       schedule();
     }));
   }
-  return { refresh };
+  return { refresh, loadMode };
 }

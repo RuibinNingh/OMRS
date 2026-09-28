@@ -1,10 +1,10 @@
 # AI 草稿区（drafts）
 
 > **速查**
-> - 职责：聊天建草稿、独立图片与来源管理、人工更新 / 丢弃 / 一次性入库
-> - 入口：`omrs/drafts.py`（存储与公共函数）、`omrs/draft_write.py`（编辑与入库）、`omrs/server.py`（草稿路由）
+> - 职责：聊天建草稿、独立图片与来源管理、人工更新 / 框选提取 / 一次性入库与训练登记
+> - 入口：`omrs/drafts.py`（存储与公共函数）、`omrs/draft_write.py`（编辑与入库）、`omrs/draft_jobs.py`（异步提取）、`omrs/draft_training.py`（训练与清理）、`omrs/server.py`（草稿路由）
 > - 不变量：建草稿、编辑、丢弃不写 Ledger；通过才创建题目；图片按对话编号，AI 工具只用 IMG-n 引用
-> - 必跑测试：`tests/test_drafts.py`、`tests/test_agent_draft_tools.py`、`tests/e2e/drafts.py`
+> - 必跑测试：`tests/test_drafts.py`、`tests/test_agent_draft_tools.py`、`tests/test_draft_p3_http.py`、`tests/e2e/drafts.py`
 > - 相关：`AI/agent.md`、`AI/data.md`、`AI/api.md`、`AI/frontend/create.md`
 
 ## 1. 存储与来源
@@ -25,7 +25,7 @@ images 以 sha256 去重，保存 mime / width / height / bytes、转述缓存�
 
 cropping 表示仍有缺框的图片块；全部图片块有合法框后为 review。done 与 discarded 正文只读。人工保存字段与完整块数组时验证 revision，再一次性更新并递增版本；非法字段、坐标或图片来源不部分写入。
 
-框为有限数值的 x/y/w/h，位于 0–1 内且宽高为正，origin 只接受 manual/ai/ai_edited。P2 页面通过「使用整图」显式写 0/0/1/1；全是文字的草稿直接待审核。块 id 保持稳定，新块由服务端生成，数组顺序确定 ord。难度 1–10，知识点最多 8 个；科目、分类与有效题目内容必填，答案可空。
+框为有限数值的 x/y/w/h，位于 0–1 内且宽高为正，origin 只接受 manual/ai/ai_edited。页面通过手动画布调整框，或「使用整图」显式写 0/0/1/1；全是文字的草稿直接待审核。块 id 保持稳定，新块由服务端生成，数组顺序确定 ord。难度 1–10，知识点最多 8 个；科目、分类与有效题目内容必填，答案可空。
 
 AI 创建时非空错因必须有 cause_statement，并由工具层核对用户消息原话。人工编辑错因不需要伪造对话原话；原始证据保留。AI 不提供修改或丢弃草稿工具。
 
@@ -46,21 +46,40 @@ GET 保留 `{status:"ok",drafts:[...]}` / `{status:"ok",draft:{...}}` / `{status
 | 路由 | 行为 |
 |---|---|
 | GET `/api/drafts/list?status=&conversation=&limit=` | 缺省排除 discarded；pending 联合 cropping/review；limit 限制在 1–500 |
-| GET `/api/drafts/item?id=` | 详情含 blocks、revision、source_images、sources_complete、conversation_images |
+| GET `/api/drafts/item?id=` | 详情含 blocks、revision、source_images、sources_complete、conversation_images、training_tasks、jobs |
 | GET `/api/drafts/image?sha=` | 原图二进制，sha 为 64 位十六进制，private/max-age=86400 |
 | GET `/api/drafts/counts` | cropping/review/done/discarded 四态计数 |
 | POST `/api/drafts/update` | `{id,revision,fields,blocks,source_images?}`；fields 白名单；source_images 为 sha 数组，返回 draft |
 | POST `/api/drafts/discard` | `{id,revision}`；仅活动草稿可丢弃；重复 discarded 返回当前值，不立即删图 |
 | POST `/api/drafts/commit` | `{id,revision,crops?}`；返回 draft/result/reused/training；result 含 uid/question_id/file_path |
+| POST `/api/drafts/boxes` | `{id,revision,blocks?,training_boxes?}`；部分正文框或指定训练任务框替换，返回 draft |
+| POST `/api/drafts/extract` | `{id,revision,block_ids,crops?}`；异步提取，返回 job |
+| POST `/api/drafts/image/train` | `{id,revision,sha,enabled}`；图级共享开关，返回 draft/image |
+| GET `/api/drafts/job?id=` | 返回 job，状态 queued/running/done/error/conflict/interrupted |
+| POST `/api/drafts/cleanup` | 只接受 `{}`；返回 cleaned:{drafts,images,crops}、retained:{images} |
 
 POST 沿用登录、同源与全局写锁。DraftError 含 status/code/current_revision：非法输入 400，不存在 404，状态或版本冲突 409；锁忙 503。GET 保持原错误兼容。页面不能提交 origin/uid/status 覆盖服务端身份。
 
-公共 Python 函数仍由 drafts.py 提供：add_image、resolve_image、conversation_refs、image_path/image_data_url、get_transcript/set_transcript、create_draft、get_draft、list_drafts、counts；新增 update_draft(vault,id,revision,fields,blocks,source_images=None)、discard_draft(vault,id,revision)、commit_draft(vault,id,revision,crops=None)。写入实现委托 draft_write.py。
+公共 Python 函数仍由 drafts.py 提供：add_image、resolve_image、conversation_refs、image_path/image_data_url、get_transcript/set_transcript、create_draft、get_draft、list_drafts、counts；新增 update_draft(vault,id,revision,fields,blocks,source_images=None)、discard_draft(vault,id,revision)、commit_draft(vault,id,revision,crops=None)。写入实现委托 draft_write.py；框选/训练/作业公共入口为 set_boxes、start_extract、set_image_training、get_job、cleanup。
 
 ## 5. 查询与界面联动
 
 存储列表缺省含 done；助手 list_drafts 缺省只给活动草稿，录入页显式用 pending 筛选。侧栏与工作区计数为 cropping + review。草稿详情保存显式提交 revision，后台读取不会覆盖未保存表单。助手卡片的当前状态单独从 API 读取，不重写历史运行事件。
 
-## 6. 测试边界
+## 6. 框选提取与训练任务
+
+来源图对应独立 training_tasks，training_boxes 保存归一化框、section、box_origin 和 ai_box。正文图片框同步为训练标注，提取成文字后仍保留标注；正文与训练任务分别管理，done 正文不可再改。用户独立编辑或清空训练任务后，manual_override 持久标记使后续正文保存不再自动覆盖该任务的人工标注。训练任务状态为 pending/ready/registered/error。
+
+extract 创建持久 draft_jobs 后异步调用现有识图提取；模型请求不持全局写锁，回写复核 revision、来源与框快照。失败保留对应原块，冲突不覆盖人工内容。详情 jobs 返回最近任务，页面重进可继续轮询；服务新进程把失去执行线程的 queued/running 标为 interrupted，用户可重试。
+
+`POST /api/drafts/boxes` 支持正文 blocks 和独立 training_boxes；后者按指定 task_id 整体替换。`{task_id,box:null}` 表示清空单个任务，空数组不修改，空标记与有效框混用返回 400；不接受客户端任意任务或块 id。
+
+图级 train 初值取 draft_train_default（默认 false），关联同一 SHA 的草稿共用开关；变更使相关草稿 revision 失效。只有已入库且有有效训练框的图会登记，失败记为 error，重复 commit 只补登记、不重复建题。training 摘要包含 registered 的 SHA 数组、failed 的 {sha,error} 数组、pending 的 SHA 数组。已登记开关和框只读，关闭不会删除既有数据。
+
+登记走 inbox 专用入口：新图 ready/other/chat/training_only，普通队列与创建入口排除它，统计和导出包含它；同哈希普通收件箱条目保持原状态、版式和原框，聊天标注写独立关联后按图合并导出。来源移除与误框删除不留下待登记标注，转换成功后的训练框继续保留。
+
+过期清理只从超过 draft_discard_keep_days 的 discarded 草稿释放关联并建立清理候选，受其他草稿、存活聊天或训练引用保护的原图保留。已清理草稿带 cleaned_at，读取不会从旧工具参数复活关联；不清理刚上传的无草稿图片，不删除已入库题目附件。跨库训练关联查询失败时保守保留；引用释放先提交，再删除候选文件，中断后可继续清理。建草稿时尝试轻量清理，失败记录事件且不阻止建草稿。
+
+## 7. 测试边界
 
 后端覆盖草稿校验、图片引用、老库来源恢复、HTTP、并发 / 重复入库、来源归属与创建失败恢复；助手工具测试覆盖原话校验、动态注册与确认版本。真实浏览器 `tests/e2e/drafts.py` 走审核、整图、保存失败保留、冲突、丢弃与窄屏路径。所有实例使用临时 Vault；真实模型与生产数据不作为自动测试输入。

@@ -49,7 +49,7 @@ export async function syncAssistantNav(doc = document, status) {
 function createController(root, { router }) {
   const S = { status: null, convs: [], convId: null, items: [], msgs: 0, attachments: [], imageNo: 1, open: new Set(), closed: new Set(), runSel: null,
     liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false,
-    uiVer: 0, draftVer: 0, drafts: {}, sugs: SUGS, alive: true };
+    uiVer: 0, draftVer: 0, draftCropMode: 'manual', drafts: {}, sugs: SUGS, alive: true };
   morph(root, html`<div class="ast" data-rail="closed" data-insp="closed">
     <div class="ast-scrim" data-action="assistant.closeDrawers"></div>
     <aside class="ast-card ast-rail" id="ast-rail" aria-label="对话列表"></aside>
@@ -110,7 +110,7 @@ function createController(root, { router }) {
   }
 
   async function load() {
-    const st = await loadList();
+    const [st] = await Promise.all([loadList(), draftCards.loadMode()]);
     const active = st?.active?.[0];
     const target = active?.conversation_id || S.convId || S.convs[0]?.id || null;
     if (target) await openConv(target); else schedule();
@@ -344,6 +344,7 @@ function createController(root, { router }) {
     pickImages({ event }) { if (event?.type === 'click') { $('ast-image-picker')?.click(); return; } addFiles(event?.target?.files); if (event?.target) event.target.value = ''; },
     openImage({ el }) { const href = el?.dataset?.imageUrl; if (href) window.open(href, '_blank', 'noopener'); },
     refreshDrafts,
+    loadDraftMode: () => draftCards.loadMode(),
     openDraft(id) { navigateToDraft(id); },
     dispose() { S.alive = false; setDraftActivity('assistant', false); clearInterval(ticker); cancelAnimationFrame(frame); root.removeEventListener('keydown', onKey); root.removeEventListener('paste', onPaste); root.removeEventListener('dragover', onDragOver); root.removeEventListener('drop', onDrop); document.removeEventListener('click', onDoc); },
     title: toolTitle,
@@ -358,9 +359,10 @@ export const page = {
     C.load();
     const off = ctx.bus?.on?.('data', () => C?.bump());
     const offDrafts = ctx.bus?.on?.('drafts:changed', payload => C?.refreshDrafts(payload?.ids));
+    const offConfig = ctx.bus?.on?.('agent:config', () => C?.loadDraftMode());
     const focus = () => { if (!document.hidden) C?.refreshDrafts(); };
     window.addEventListener('focus', focus);
-    return () => { off?.(); offDrafts?.(); window.removeEventListener('focus', focus); C?.dispose(); C = null; };
+    return () => { off?.(); offDrafts?.(); offConfig?.(); window.removeEventListener('focus', focus); C?.dispose(); C = null; };
   },
   actions: {
     newConv: () => C?.newConv(),

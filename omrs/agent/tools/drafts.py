@@ -126,7 +126,10 @@ def _commit_target(ctx, args):
     revision = args["revision"]
     if type(revision) is not int or revision < 1:
         raise ValueError("草稿版本无效，请重新读取草稿")
-    draft = drafts.get_draft(ctx["vault"], draft_id)
+    try:
+        draft = drafts.get_draft(ctx["vault"], draft_id)
+    except Exception as exc:
+        raise ValueError("无法读取草稿，请在草稿区检查后重试") from exc
     if draft.get("conversation_id") != ctx["conversation_id"]:
         raise ValueError("只能提交本对话创建的草稿")
     if draft["status"] != "review":
@@ -134,6 +137,22 @@ def _commit_target(ctx, args):
     if draft.get("revision") != revision:
         raise ValueError("草稿已经变化，请重新读取并重新请求确认")
     return draft
+
+
+def _training_summary(training):
+    """工具结果只给模型看登记数量，图片 SHA 和本地错误留在草稿 API。"""
+    if not isinstance(training, dict):
+        training = {}
+    status = training.get("status")
+    if status not in ("off", "not_requested", "complete", "partial", "pending"):
+        status = "off"
+    result = {"status": status}
+    for key in ("registered", "failed", "pending"):
+        entries = training.get(key)
+        result[key] = len(entries) if isinstance(entries, list) else 0
+    if result["failed"]:
+        result["message"] = "训练数据登记失败，请在草稿区查看并重试"
+    return result
 
 
 def commit_draft_preview(ctx, args):
@@ -150,13 +169,22 @@ def commit_draft_preview(ctx, args):
 
 def commit_draft_tool(ctx, args):
     _commit_target(ctx, args)
-    out = drafts.commit_draft(ctx["vault"], args["draft_id"].strip(), args["revision"])
+    try:
+        out = drafts.commit_draft(ctx["vault"], args["draft_id"].strip(), args["revision"])
+    except drafts.DraftError as exc:
+        if exc.code == "revision_conflict":
+            raise ValueError("草稿已变化，请重新读取并重新请求确认") from exc
+        if exc.code == "state_conflict":
+            raise ValueError("草稿状态已变化，请在草稿区检查后重新请求确认") from exc
+        raise ValueError("草稿入库失败，请在草稿区查看并重试") from exc
+    except Exception as exc:
+        raise ValueError("草稿入库失败，请在草稿区查看并重试") from exc
     committed = out["draft"]
     result = out["result"]
     return {"result": {"draft_id": committed["id"], "revision": committed["revision"],
                        "status": committed["status"], "uid": result.get("uid"),
                        "question_id": result.get("question_id"), "reused": bool(out.get("reused")),
-                       "training": out.get("training")},
+                       "training": _training_summary(out.get("training"))},
             "summary": committed["id"], "wrote": not out.get("reused", False)}
 
 

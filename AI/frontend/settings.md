@@ -44,3 +44,5 @@ AI 地址、模型、三种用途模型和知识点限制开关经 `/api/config`
 运行状态取自 `/api/status`。重启前读取 `/api/auth/session` 的 `instance_id`；读不到则不请求重启。发出 `/api/restart` 后每 500ms 探测新实例，最长 90 秒；旧实例仍响应、连接暂断或探测超时都不会刷新。只有读到不同的 `instance_id` 才刷新页面。E2E 用 `page.route` 拦截重启请求，隔离实例移除 `OMRS_SYSTEMD_SERVICE`。
 
 脱敏源码下载直接调用 `/api/source/export`，完成后由 `core/download.js` 下载 ZIP。测试实例的 Vault 是临时空目录，E2E 用固定 ZIP 响应核对前端下载路径；服务端真实打包契约由 `tests/test_source_export.py` 验证。
+
+助手设置提供「图片框选方式」与「默认用于训练数据」：询问模式在聊天草稿卡片给出手动框选入口；手动模式从草稿区处理。训练默认开关只影响新图的初值，已有图仍按图设置，关闭不撤销已经登记的数据。

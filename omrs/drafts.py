@@ -24,7 +24,8 @@ import sqlite3
 import threading
 import uuid
 
-from .common import omrs_data_dir
+from .common import omrs_data_dir, load_config
+from . import locking
 from .inbox import image_size
 
 DRAFTS_DIR = "drafts"
@@ -85,7 +86,7 @@ def _log(vault, event, payload):
     """append-only 事件流。"""
     record = {"ts": _now(), "event": event, **payload}
     path = os.path.join(drafts_dir(vault), "events.jsonl")
-    with _LOCK:
+    with locking.write_lock(), _LOCK:
         with open(path, "a", encoding="utf-8") as file:
             file.write(json.dumps(record, ensure_ascii=False) + "\n")
 
@@ -125,6 +126,25 @@ CREATE TABLE IF NOT EXISTS commit_operations (
   question_id TEXT NOT NULL, file_path TEXT NOT NULL, phase TEXT NOT NULL,
   actor TEXT NOT NULL DEFAULT 'api', result_json TEXT, artifacts_json TEXT, created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS training_tasks (
+  id TEXT PRIMARY KEY, draft_id TEXT NOT NULL, image_sha TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', error TEXT, created_at TEXT, updated_at TEXT,
+  manual_override INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(draft_id,image_sha)
+);
+CREATE TABLE IF NOT EXISTS training_boxes (
+  id TEXT PRIMARY KEY, task_id TEXT NOT NULL, section TEXT NOT NULL, ord INTEGER NOT NULL,
+  x REAL NOT NULL,y REAL NOT NULL,w REAL NOT NULL,h REAL NOT NULL,
+  box_origin TEXT NOT NULL,ai_box TEXT,source_block_id TEXT
+);
+CREATE INDEX IF NOT EXISTS training_boxes_task ON training_boxes(task_id);
+CREATE TABLE IF NOT EXISTS draft_jobs (
+  id TEXT PRIMARY KEY,draft_id TEXT NOT NULL,type TEXT NOT NULL,status TEXT NOT NULL,
+  revision INTEGER NOT NULL,snapshot_json TEXT,processed INTEGER NOT NULL,total INTEGER NOT NULL,
+  result_json TEXT,errors_json TEXT,created_at TEXT,updated_at TEXT
+);
+CREATE INDEX IF NOT EXISTS draft_jobs_draft ON draft_jobs(draft_id,created_at);
+CREATE TABLE IF NOT EXISTS cleanup_candidates (image_sha TEXT PRIMARY KEY,marked_at TEXT NOT NULL);
 """
 
 
@@ -138,9 +158,14 @@ def connect(vault):
         db.execute("ALTER TABLE drafts ADD COLUMN revision INTEGER NOT NULL DEFAULT 1")
     if "sources_complete" not in cols:
         db.execute("ALTER TABLE drafts ADD COLUMN sources_complete INTEGER NOT NULL DEFAULT 0")
+    if "cleaned_at" not in cols:
+        db.execute("ALTER TABLE drafts ADD COLUMN cleaned_at TEXT")
     op_cols = {r["name"] for r in db.execute("PRAGMA table_info(commit_operations)")}
     if "artifacts_json" not in op_cols:
         db.execute("ALTER TABLE commit_operations ADD COLUMN artifacts_json TEXT")
+    task_cols = {r["name"] for r in db.execute("PRAGMA table_info(training_tasks)")}
+    if "manual_override" not in task_cols:
+        db.execute("ALTER TABLE training_tasks ADD COLUMN manual_override INTEGER NOT NULL DEFAULT 0")
     db.commit()
     return db
 
@@ -176,7 +201,7 @@ def add_image(vault, data_url, conversation_id, run_id):
     mime, width, height, data = _decode_image_data_url(data_url)
     sha = hashlib.sha256(data).hexdigest()
     now = _now()
-    with _LOCK:
+    with locking.write_lock(), _LOCK:
         db = connect(vault)
         try:
             existing_conv = db.execute(
@@ -286,7 +311,7 @@ def get_transcript(vault, sha, model):
 
 def set_transcript(vault, sha, model, transcript):
     """写入转述缓存（单槽：新模型覆盖旧的）。"""
-    with _LOCK:
+    with locking.write_lock(), _LOCK:
         db = connect(vault)
         try:
             row = db.execute("SELECT sha256 FROM images WHERE sha256=?", (sha,)).fetchone()
@@ -356,6 +381,11 @@ def _source_view(vault, db, row, blocks):
         "WHERE ci.conversation_id=? ORDER BY ci.n", (conv,)).fetchall()
     by_sha = {r["sha256"]: r for r in candidates}
     by_ref = {f"IMG-{r['n']}": r["sha256"] for r in candidates}
+    if row["cleaned_at"]:
+        return [], bool(row["sources_complete"]), [
+            {"sha256": r["sha256"], "ref": f"IMG-{r['n']}", "width": r["width"],
+             "height": r["height"], "mime": r["mime"], "train": bool(r["train"]),
+             "inbox_item_id": r["inbox_item_id"]} for r in candidates]
     associated = [r["image_sha"] for r in db.execute(
         "SELECT image_sha FROM draft_images WHERE draft_id=? ORDER BY ord", (row["id"],))]
     complete = bool(row["sources_complete"])
@@ -389,6 +419,9 @@ def _source_view(vault, db, row, blocks):
             db.execute("INSERT OR IGNORE INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
                        (row["id"], sha, len(associated) - 1))
             db.commit()
+    from .draft_training import sync_tasks
+    sync_tasks(db, row["id"])
+    db.commit()
 
     def view(r):
         return {"sha256": r["sha256"], "ref": f"IMG-{r['n']}", "width": r["width"],
@@ -427,7 +460,7 @@ def create_draft(vault, data, origin=None):
                                       any(not isinstance(v, str) for v in source_images)):
         raise ValueError("source_images 必须是图片 SHA 数组")
 
-    with _LOCK:
+    with locking.write_lock(), _LOCK:
         db = connect(vault)
         try:
             blocks = []
@@ -493,6 +526,10 @@ def create_draft(vault, data, origin=None):
             for index, sha in enumerate(source_images):
                 db.execute("INSERT INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
                            (draft_id, sha, index))
+                db.execute("UPDATE images SET train=? WHERE sha256=? AND train IS NULL",
+                           (int(bool(load_config(vault).get("draft_train_default", False))), sha))
+            from .draft_training import sync_tasks
+            sync_tasks(db, draft_id)
             for block in blocks:
                 db.execute(
                     "INSERT INTO blocks (id, draft_id, section, ord, kind, text, image_sha, x, y, w, h, "
@@ -506,22 +543,35 @@ def create_draft(vault, data, origin=None):
                                  "run_id": origin.get("run_id"), "tool_call_id": origin.get("tool_call_id"),
                                  "subject": subject, "category": category, "status": status,
                                  "blocks": len(blocks)})
+    try:
+        from .draft_training import cleanup
+        cleanup(vault)
+    except Exception as exc:
+        _log(vault, "draft.cleanup.error", {"draft_id": draft_id, "error": str(exc)})
     return get_draft(vault, draft_id)
 
 
 def get_draft(vault, draft_id):
-    db = connect(vault)
-    try:
-        row = db.execute("SELECT * FROM drafts WHERE id=?", (draft_id,)).fetchone()
-        if not row:
-            raise ValueError(f"没有这份草稿：{draft_id}")
-        blocks = _draft_blocks(db, draft_id)
-        source_images, complete, conversation_images = _source_view(vault, db, row, blocks)
-    finally:
-        db.close()
+    from .draft_jobs import recover_orphan_jobs
+    with locking.write_lock(), _LOCK:
+        recover_orphan_jobs(vault, draft_id)
+        db = connect(vault)
+        try:
+            row = db.execute("SELECT * FROM drafts WHERE id=?", (draft_id,)).fetchone()
+            if not row:
+                raise ValueError(f"没有这份草稿：{draft_id}")
+            blocks = _draft_blocks(db, draft_id)
+            source_images, complete, conversation_images = _source_view(vault, db, row, blocks)
+            from .draft_training import task_view
+            training_tasks = task_view(db, draft_id)
+            from .draft_jobs import jobs_for_draft
+            jobs = jobs_for_draft(db, draft_id)
+        finally:
+            db.close()
     return {**_row_draft(row, blocks), "question_available": _question_available(vault, row),
             "source_images": source_images,
-            "sources_complete": complete, "conversation_images": conversation_images}
+            "sources_complete": complete, "conversation_images": conversation_images,
+            "training_tasks": training_tasks, "jobs": jobs}
 
 
 def list_drafts(vault, status=None, conversation_id=None, limit=50):
@@ -542,16 +592,17 @@ def list_drafts(vault, status=None, conversation_id=None, limit=50):
         clauses.append("conversation_id=?")
         params.append(conversation_id)
     where = " AND ".join(clauses)
-    db = connect(vault)
-    try:
-        rows = db.execute(
-            f"SELECT * FROM drafts WHERE {where} ORDER BY created_at DESC LIMIT ?",
-            (*params, limit)).fetchall()
-        return [{**_row_draft(row, _draft_blocks(db, row["id"])),
-                 "source_images": _source_view(vault, db, row, _draft_blocks(db, row["id"]))[0]}
-                for row in rows]
-    finally:
-        db.close()
+    with locking.write_lock(), _LOCK:
+        db = connect(vault)
+        try:
+            rows = db.execute(
+                f"SELECT * FROM drafts WHERE {where} ORDER BY created_at DESC LIMIT ?",
+                (*params, limit)).fetchall()
+            return [{**_row_draft(row, _draft_blocks(db, row["id"])),
+                     "source_images": _source_view(vault, db, row, _draft_blocks(db, row["id"]))[0]}
+                    for row in rows]
+        finally:
+            db.close()
 
 
 def counts(vault):
@@ -579,4 +630,37 @@ def discard_draft(vault, draft_id, revision):
 
 def commit_draft(vault, draft_id, revision, crops=None, actor="api"):
     from .draft_write import commit_draft as run
-    return run(vault, draft_id, revision, crops, actor)
+    result = run(vault, draft_id, revision, crops, actor)
+    from .draft_training import register_ready
+    try:
+        result["training"] = register_ready(vault, draft_id)
+    except Exception as exc:
+        result["training"] = {"status": "partial", "registered": [],
+                              "failed": [{"sha": None, "error": str(exc)}], "pending": []}
+    result["draft"] = get_draft(vault, draft_id)
+    return result
+
+
+def set_boxes(vault, draft_id, revision, blocks=None, training_boxes=None):
+    from .draft_write import set_boxes as run
+    return run(vault, draft_id, revision, blocks, training_boxes)
+
+
+def start_extract(vault, draft_id, revision, block_ids, crops=None):
+    from .draft_jobs import start_extract as run
+    return run(vault, draft_id, revision, block_ids, crops)
+
+
+def set_image_training(vault, draft_id, revision, sha, enabled):
+    from .draft_training import set_image_training as run
+    return run(vault, draft_id, revision, sha, enabled)
+
+
+def get_job(vault, job_id):
+    from .draft_jobs import get_job as run
+    return run(vault, job_id)
+
+
+def cleanup(vault):
+    from .draft_training import cleanup as run
+    return run(vault)

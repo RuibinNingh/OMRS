@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-29_ai-draft-p3](2026-09-29_ai-draft-p3.md)：# AI 草稿 P3：手动框选与训练数据登记
 - [2026-09-28_ui-blank-icons](2026-09-28_ui-blank-icons.md)：UI 空白图标修复
 - [2026-09-28_omrs-icon](2026-09-28_omrs-icon.md)：OMRS 图标更新
 - [2026-09-28_merge-and-cleanup](2026-09-28_merge-and-cleanup.md)：合并工作区与 v1.28.0，补完前端重构 P8 的清理（v1.28.1）
