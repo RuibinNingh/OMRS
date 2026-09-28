@@ -19,6 +19,7 @@
 | 数据格式、Ledger、投影 | `data.md`、`ledger.md` |
 | 导出与展示板打印 | `export.md`、`board.md` |
 | 收件箱、标记、答题卡导入 | `inbox.md`、`labels.md`、`omr-import.md` |
+| AI 草稿区（助手录题、草稿存储、只读接口） | `drafts.md` |
 | 技术债与已知缺陷 | `optimization.md` |
 | 维护者环境、可用工具、协作配方 | `environment.md` |
 | 某版本改了什么 | `changelog.md` |

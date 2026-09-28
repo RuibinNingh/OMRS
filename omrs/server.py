@@ -1,8 +1,10 @@
+import base64
 import datetime
 import email.utils
 import http.server
 import json
 import os
+import re
 import secrets
 import time
 import urllib.parse
@@ -37,6 +39,7 @@ from .boards import (
 )
 from .feedback import process_feedback
 from .indexing import build_index
+from . import drafts as drafts_mod
 from . import inbox as inbox_mod
 from .ledger import append_commit, get_commit, get_commit_by_id, read_commits, verify_ledger
 from .optimization import (
@@ -106,6 +109,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         if path.startswith("/api/agent/"):
             from .agent.http import handle_agent_get
             handle_agent_get(self, path, params)
+            return
+        if path.startswith("/api/drafts/"):
+            self._drafts_get(path, params)
             return
 
         if path == "/api/stats":
@@ -983,6 +989,36 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
+            else:
+                self._json({"status": "error", "msg": "not found"}, 404)
+        except Exception as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+
+    # ────────────────────────── AI 草稿区 /api/drafts/* 只读接口（P1-1；写接口见 P2） ──────────────────────────
+    def _drafts_get(self, path, params):
+        try:
+            if path == "/api/drafts/list":
+                self._json({"status": "ok", "drafts": drafts_mod.list_drafts(
+                    self.vault_path, status=params.get("status") or None,
+                    conversation_id=params.get("conversation") or None)})
+            elif path == "/api/drafts/item":
+                self._json({"status": "ok", "draft": drafts_mod.get_draft(self.vault_path, params.get("id", ""))})
+            elif path == "/api/drafts/image":
+                sha = params.get("sha", "")
+                if not re.fullmatch(r"[0-9a-f]{64}", sha or ""):
+                    raise ValueError("sha 参数不合法")
+                data_url = drafts_mod.image_data_url(self.vault_path, sha)
+                mime, encoded = data_url.split(";base64,", 1)
+                mime = mime[len("data:"):]
+                data = base64.b64decode(encoded)
+                self.send_response(200)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "private, max-age=86400")
+                self.end_headers()
+                self.wfile.write(data)
+            elif path == "/api/drafts/counts":
+                self._json({"status": "ok", "counts": drafts_mod.counts(self.vault_path)})
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
         except Exception as exc:

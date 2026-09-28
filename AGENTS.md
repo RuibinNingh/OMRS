@@ -244,6 +244,7 @@
 | `omrs/analytics.py`、`omrs/stats.py`、报告指标 | `AI/api.md`、`AI/frontend/records.md`；持久化或导出格式变化同时更新 `AI/data.md` |
 | `omrs/reports.py`、报告托管 | `AI/api.md`、`AI/data.md`、`AI/frontend/records.md` |
 | `omrs/agent/`、`omrs/llm/`、AI 助手的权限与工具 | `AI/agent.md`，接口变化同时更新 `AI/api.md`，权限边界同时更新 `AI/security.md` |
+| `omrs/drafts.py`、AI 草稿区存储与只读接口 | `AI/drafts.md`，接口变化同时更新 `AI/api.md` |
 | `omrs/locking.py`、`omrs/cli.py` 的服务器线程模型 | `AI/api.md`（并发与写锁） |
 | `omrs/ledger.py`、`omrs/actor.py`、`omrs/content_history.py`、`omrs/projections.py` | `AI/ledger.md`，表结构变化同时更新 `AI/data.md` |
 | `omrs/security.py`、`omrs/path_safety.py`、访问控制 | `AI/security.md`，接口变化同时更新 `AI/api.md` |

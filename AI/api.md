@@ -896,3 +896,9 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 上传 → 框选 → 转换 → 提交 的暂存层，**不进 Ledger**；`commit` 复用 `create_question`。完整定义、job 单元格式、数据模型见 `AI/inbox.md` §3。速览：`POST /upload`（multipart 多文件，sha256 去重）、`GET /items`、`GET /raw?id=`、`POST /item/update`（整体覆盖 regions/cards/layout/status，`ready` 服务端校验）、`POST /discard`、`GET /slice-plan`、`POST /jobs`（detect / extract / classify / auto 后台线程；detect 单元可指定 `provider: vlm|template|local_http` 与 `blind`）、`GET /job?id=`、`POST /crops`、`POST /commit`、`GET /dataset/stats`（v1.13.0 多 `blind`、`storage`）、`GET /dataset/export`、`POST /cleanup`（v1.13.0：超期丢弃原图 / 裁图缓存）、`GET /m`（手机上传页）。`POST /api/config` 可写 `inbox_*` 策略键（见 `AI/inbox.md` §8）。
 
 `/api/ai-recognize` 行为不变；`ai_assist.py` 新增 `detect_regions`、`extract_region`、`parse_detect_output`，并按用途读 `ai_model_detect / ai_model_extract / ai_model_classify`（缺省回退 `ai_model`）。
+
+---
+
+## AI 草稿区端点 `/api/drafts/*`
+
+主 AI 聊天里建的题目草稿的只读层，草稿存 `错题/.omrs/drafts/`，**不进 Ledger**。完整定义、表结构、Python 接口见 `AI/drafts.md`。这一期只有四个 GET，写接口（保存 / 入库 / 丢弃）后续阶段加。速览：`GET /api/drafts/list?status=&conversation=`（草稿列表，缺省排除 discarded）、`GET /api/drafts/item?id=`（单份，含全部块）、`GET /api/drafts/image?sha=`（图片二进制，`Cache-Control: private, max-age=86400`，`sha` 须为 64 位十六进制）、`GET /api/drafts/counts`（四种状态计数）。访问规则与同源校验和收件箱 GET 一致。
