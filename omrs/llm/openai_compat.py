@@ -15,7 +15,14 @@ FINISH_MAP = {"stop": "stop", "tool_calls": "tool_calls", "function_call": "tool
               "content_filter": "error", "end_turn": "stop"}
 
 
-def estimate_tokens(text: str) -> float:
+IMAGE_TOKEN_ESTIMATE = 1000
+
+
+def estimate_tokens(text) -> float:
+    """粗估 token 数，只用于界面用量计。内容块数组（附图的用户消息）按文字块计，每张图固定 IMAGE_TOKEN_ESTIMATE。"""
+    if isinstance(text, list):
+        return sum(IMAGE_TOKEN_ESTIMATE if p.get("type") == "image_url" else estimate_tokens(p.get("text"))
+                   for p in text if isinstance(p, dict))
     text = text or ""
     cjk = sum(1 for ch in text if "\u3000" <= ch <= "\u9fff" or "\uf900" <= ch <= "\uffef")
     return cjk / 1.35 + (len(text) - cjk) / 3.6

@@ -51,7 +51,7 @@ def agent_post_routes(rt, path, data):
     if path == "/api/agent/conversation/delete":
         return rt.delete_conversation(data.get("id", ""))
     if path == "/api/agent/message":
-        return rt.post_message(data.get("conversation_id", ""), data.get("text", ""))
+        return rt.post_message(data.get("conversation_id", ""), data.get("text", ""), data.get("images"))
     if path == "/api/agent/confirm":
         return rt.confirm(data.get("run_id", ""), data.get("call_id", ""), data.get("token", ""), data.get("decision", ""))
     if path == "/api/agent/abort":

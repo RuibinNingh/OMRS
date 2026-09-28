@@ -23,7 +23,7 @@ POST_LOCK_EXEMPT = {
     "/api/auth/login": "只写内存会话（security._LOCK）",
     "/api/ai-recognize": "只调用外部模型，不写 Vault",
     "/api/restart": "本身不写；重启线程在 shutdown 前取写锁，等进行中的写入完成",
-    "/api/agent/message": "只写 agent.db（自带连接锁）；工具写入在运行线程里逐次取写锁",
+    "/api/agent/message": "只写 agent.db 与 drafts.db / drafts/images（各自带连接锁，不碰 Ledger）；工具写入在运行线程里逐次取写锁",
     "/api/agent/confirm": "只改内存中的确认状态",
     "/api/agent/abort": "只改内存中的运行状态",
     "/api/agent/test": "只向模型发一次测试请求，不写任何状态",

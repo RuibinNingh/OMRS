@@ -10,17 +10,20 @@ import secrets
 import threading
 import time
 
+from .. import drafts
 from ..actor import agent_actor
 from ..ai_assist import collect_taxonomy
 from ..labels import list_label_defs
 from ..locking import write_lock
 from ..llm.openai_compat import estimate_tokens
+from .images import expand_images
 from .config import CONFIRM_TTL_SECONDS, MSG_CAP, RESULT_CHAR_CAP, make_client, settings
 from .loop import AgentLoop
 from .policy import PendingConfirm
 from .store import AgentStore, now_iso
 from .tools import build_registry
 
+MAX_MESSAGE_IMAGES = 6
 PROMPT_PATH = os.path.join(os.path.dirname(__file__), "prompts", "system.md")
 _RUNTIMES = {}
 _RT_LOCK = threading.Lock()
@@ -38,6 +41,22 @@ def get_runtime(vault):
         if key not in _RUNTIMES:
             _RUNTIMES[key] = AgentRuntime(key)
         return _RUNTIMES[key]
+
+
+def _probe_png():
+    import base64
+    import struct
+    import zlib
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+    raw = b"".join(b"\x00" + b"\xff\xff\xff" * 8 for _ in range(8))
+    png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 8, 8, 8, 2, 0, 0, 0))
+           + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+    return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+
+
+PROBE_PNG = _probe_png()
 
 
 def build_system_prompt(vault, limits):
@@ -220,7 +239,8 @@ class AgentRuntime:
         for run in self.store.runs(conv_id):
             starter = next((m for m in msgs if m["_run"] == run["id"] and m["role"] == "user"), None)
             if starter:
-                items.append({"type": "user", "text": starter.get("content", ""), "at": starter["_at"]})
+                items.append({"type": "user", "text": starter.get("content", ""), "at": starter["_at"],
+                              "images": self._image_refs(conv_id, starter.get("_images"))})
             live = self.runs.get(run["id"])
             if live and not live.done:
                 with live.cond:
@@ -232,10 +252,26 @@ class AgentRuntime:
                           "live": bool(live and not live.done)})
         return {"conversation": conv, "items": items, "msgs": len(msgs)}
 
+    def _image_refs(self, conv_id, refs):
+        out = []
+        for ref in refs or []:
+            try:
+                row = drafts.resolve_image(self.vault, conv_id, ref)
+            except ValueError:
+                out.append({"ref": ref, "missing": True})
+                continue
+            out.append({"ref": row["ref"], "sha": row["sha256"], "width": row["width"], "height": row["height"]})
+        return out
+
     # ── 发消息、插话、事件 ──
-    def post_message(self, conv_id, text):
+    def post_message(self, conv_id, text, images=None):
         text = (text or "").strip()
-        if not text:
+        images = images or []
+        if not isinstance(images, list):
+            raise AgentError(400, "images 必须是图片 data URL 数组")
+        if len(images) > MAX_MESSAGE_IMAGES:
+            raise AgentError(400, f"一条消息最多 {MAX_MESSAGE_IMAGES} 张图片")
+        if not text and not images:
             raise AgentError(400, "消息不能为空")
         s = settings(self.vault)
         if not s["enabled"]:
@@ -248,6 +284,8 @@ class AgentRuntime:
         with self.lock:
             here = next((r for r in self.active_runs() if r.conv_id == conv_id), None)
             if here:
+                if images:
+                    raise AgentError(409, "运行中不能插入图片，等这次回答结束再发")
                 sid = "st_" + secrets.token_hex(3)
                 with here.cond:
                     here.steer.append({"id": sid, "text": text})
@@ -257,11 +295,22 @@ class AgentRuntime:
                 raise AgentError(409, "另一个对话正在运行，等它结束再发")
             if self.store.message_count(conv_id) >= MSG_CAP:
                 raise AgentError(409, f"这个对话已有 {MSG_CAP} 条消息，到上限了，请新开对话")
-            run = Run("run_" + secrets.token_hex(4), conv_id, s["model"])
+            run_id = "run_" + secrets.token_hex(4)
+            refs = []
+            for index, data_url in enumerate(images):  # 任何一张不合格：整条消息拒收，不建运行
+                try:
+                    refs.append(drafts.add_image(self.vault, data_url, conv_id, run_id)["ref"])
+                except ValueError as exc:
+                    raise AgentError(400, f"第 {index + 1} 张图片：{exc}")
+            run = Run(run_id, conv_id, s["model"])
             self.runs[run.id] = run
             self.store.create_run(run.id, conv_id, s["model"])
-            self.store.add_message(conv_id, run.id, {"role": "user", "content": text})
-            title = text.replace("\n", " ")[:15] + ("…" if len(text) > 15 else "") if conv["title"] == "新对话" else None
+            message = {"role": "user", "content": text}
+            if refs:
+                message["_images"] = list(dict.fromkeys(refs))
+            self.store.add_message(conv_id, run.id, message)
+            label = text or "[图片] " + "、".join(message.get("_images", []))
+            title = label.replace("\n", " ")[:15] + ("…" if len(label) > 15 else "") if conv["title"] == "新对话" else None
             self.store.touch(conv_id, title)
         threading.Thread(target=self._execute, args=(run, s), name=f"omrs-agent-{run.id}", daemon=True).start()
         return {"run_id": run.id, "steered": False}
@@ -272,9 +321,10 @@ class AgentRuntime:
             registry = build_registry(s)
             client = run.client = make_client(self.vault, s)
             system = build_system_prompt(self.vault, s["limits"])
-            messages = model_messages(self.store.messages(run.conv_id))
             run.emit("run.start", {"run_id": run.id, "model": s["model"], "limits": s["limits"], "started_at": now_iso(),
-                                   "context_window": s["compat"]["context_window"]})
+                                   "context_window": s["compat"]["context_window"], "vision": s["vision"]})
+            messages = model_messages(expand_images(self.vault, run.conv_id, self.store.messages(run.conv_id),
+                                                    s["vision"], run.emit, run.abort))
 
             def take_steering(n):
                 with run.cond:
@@ -353,8 +403,16 @@ class AgentRuntime:
                                {"role": "user", "content": "测试"}], probe, stream=False, max_tokens=64)
         if res["finish_reason"] == "error":
             raise AgentError(502, res.get("error") or "模型返回错误")
-        return {"model": s["model"], "ms": res["duration_ms"], "finish": res["finish_reason"],
-                "tools": any(c["name"] == "ping" for c in res["tool_calls"]) or s["faux"]}
+        out = {"model": s["model"], "ms": res["duration_ms"], "finish": res["finish_reason"],
+               "tools": any(c["name"] == "ping" for c in res["tool_calls"]) or s["faux"]}
+        if s["vision"]:  # 主 AI 支持图片：再发一张 8×8 白图，确认上游接受 image_url
+            img = client.complete([{"role": "user", "content": [
+                {"type": "text", "text": "这是连通性测试，图里是什么颜色？只回答颜色。"},
+                {"type": "image_url", "image_url": {"url": PROBE_PNG}}]}], None, stream=False, max_tokens=32)
+            out["vision_ok"] = img["finish_reason"] != "error"
+            if not out["vision_ok"]:
+                out["vision_error"] = img.get("error") or "模型返回错误"
+        return out
 
     def revert(self, run_id, dry_run=True):
         from .revert import apply_revert, plan_revert

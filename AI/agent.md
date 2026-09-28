@@ -13,9 +13,19 @@
 
 分层：`omrs/llm/` 只管协议（与 OMRS 无关）；`omrs/agent/loop.py` 是通用循环，只依赖「客户端、工具注册表、钩子、事件发射器」四个接口；`omrs/agent/runtime.py` 的 `Hooks` 把 OMRS 的权限、写锁、写入来源接进钩子；`omrs/agent/tools/` 把领域函数包成工具。同一 Vault 一个运行时单例（`get_runtime`），服务启动时把上次遗留的运行标为中断（`reason=interrupted`）。
 
+### 附图（`omrs/agent/images.py`）
+
+`POST /api/agent/message` 可带 `images`（图片 data URL 数组，≤6 张，PNG / JPEG / GIF，单张解码后 ≤8MB）。图片经 `drafts.add_image` 存进 `错题/.omrs/drafts/images/`，本对话内编号 IMG-n（同一张图沿用旧编号）；用户消息存为 `{"role":"user","content":text,"_images":["IMG-1",…]}`，`agent.db` 里不存图片本体。任何一张不合格，整条消息 400，不建运行；运行中带图插话 409。
+
+运行开始（`run.start` 之后、进入循环之前）由 `expand_images` 按 `agent_vision` 把附图展开到送给模型的副本里：
+- **开**：从最新往前数，最近 4 张（`MAX_VISION_IMAGES`）以 `image_url` 内容块发给主模型，用户消息 `content` 变成内容块数组；更早的换成「[IMG-n 已省略，需要时调 describe_image]」。
+- **关**：逐张调 `ai_assist.transcribe_image`（`ai_model_extract` 模型），转述按 sha256 + 模型缓存在 `drafts.db`；渲染成「[IMG-n 转述]」文本拼进用户消息，每张截断 3000 字。调用前后发 `image.transcribe` / `image.transcribed` 事件；失败不终止运行，写入「[IMG-n 转述失败：原因。可调 describe_image 再试]」。
+
+`estimate_tokens` 对内容块数组只计文字，每张图按 1000 估（只影响界面用量计）。
+
 ## 2. 配置
 
-`config.json` 的 `agent_*` 键（`GET /api/config` 不回显密钥，只给 `agent_api_key_configured`）：`agent_enabled`（总开关，默认关）、`agent_base_url` 与 `agent_api_key`（留空回退 `ai_base_url` / `ai_api_key`）、`agent_model`（必填，不回退）、`agent_compat`（`custom` / `openai` / `dashscope` / `deepseek`）、`agent_compat_overrides`（可选，覆写单项兼容开关）、`agent_limits`（`rounds` / `calls` / `writes` / `concurrent`，只能调小）、`agent_debug_log`（请求与响应原文写 `错题/.omrs/logs/agent-llm.jsonl`，不含密钥）、`agent_vision`（预留，暂无工具使用）。校验在 `omrs/agent/config.py` 的 `validate_agent_config`。
+`config.json` 的 `agent_*` 键（`GET /api/config` 不回显密钥，只给 `agent_api_key_configured`）：`agent_enabled`（总开关，默认关）、`agent_base_url` 与 `agent_api_key`（留空回退 `ai_base_url` / `ai_api_key`）、`agent_model`（必填，不回退）、`agent_compat`（`custom` / `openai` / `dashscope` / `deepseek`）、`agent_compat_overrides`（可选，覆写单项兼容开关）、`agent_limits`（`rounds` / `calls` / `writes` / `concurrent`，只能调小）、`agent_debug_log`（请求与响应原文写 `错题/.omrs/logs/agent-llm.jsonl`，不含密钥）、`agent_vision`（主 AI 支持图片，见 §1「附图」）。校验在 `omrs/agent/config.py` 的 `validate_agent_config`。
 
 兼容差异写成数据（`omrs/llm/compat.py`）：思考内容从哪些增量字段读、带工具调用的 assistant 消息是否回传思考、工具结果是否带 `name`、`max_tokens` 的字段名、system 还是 developer 角色、是否发 `stream_options.include_usage`、工具 schema 是否带 `strict`、上下文窗口（只用于界面用量计）。
 
@@ -52,13 +62,13 @@
 
 ## 6. 事件
 
-每条事件 `{i, t, type, data}`，`t` 是距运行开始的毫秒数。类型：`run.start`（模型、预算、上下文窗口）、`round.start`（轮次、上下文构成估算 sys/tools/chat/res）、`delta`（`kind` 为 think / text / args；args 带 `index`、`name`）、`round.end`（结束原因、用量 prompt/completion/cached/reasoning、首 token 与生成耗时）、`tool.call`（调用 id、名称、参数、级别）、`tool.running`、`tool.waiting`（确认码、`ttl_ms`、`preview`）、`tool.decision`（allow / deny / expire / abort）、`tool.end`（状态、摘要、结果、commit 列表、耗时、预算快照）、`steer.queued` / `steer.delivered` / `steer.late`、`run.aborting`、`run.end`（原因、错误、统计）。持久化时连续的同类 `delta` 合并为一条，前端归约结果相同。
+每条事件 `{i, t, type, data}`，`t` 是距运行开始的毫秒数。类型：`run.start`（模型、预算、上下文窗口、`vision`）、`image.transcribe`（`ref`、`sha`）/ `image.transcribed`（`ref`、`ok`、`ms`、`error`）、`round.start`（轮次、上下文构成估算 sys/tools/chat/res）、`delta`（`kind` 为 think / text / args；args 带 `index`、`name`）、`round.end`（结束原因、用量 prompt/completion/cached/reasoning、首 token 与生成耗时）、`tool.call`（调用 id、名称、参数、级别）、`tool.running`、`tool.waiting`（确认码、`ttl_ms`、`preview`）、`tool.decision`（allow / deny / expire / abort）、`tool.end`（状态、摘要、结果、commit 列表、耗时、预算快照）、`steer.queued` / `steer.delivered` / `steer.late`、`run.aborting`、`run.end`（原因、错误、统计）。持久化时连续的同类 `delta` 合并为一条，前端归约结果相同。
 
 ## 7. 接口（`omrs/agent/http.py`）
 
-GET：`/api/agent/status`（开关、是否配置好与缺什么、是否假模型、模型、兼容、上下文窗口、预算、消息上限、确认时限、工具级别表、进行中的运行）；`/api/agent/conversations`；`/api/agent/conversation?id=`（按运行排的条目：发起消息 + 运行元数据与事件，进行中的运行带 `live`）；`/api/agent/events?run=&after=&wait=`（最多等 25 秒；已结束的运行从库里取，带 `compacted`）。
+GET：`/api/agent/status`（开关、是否配置好与缺什么、是否假模型、模型、兼容、上下文窗口、预算、消息上限、确认时限、工具级别表、进行中的运行）；`/api/agent/conversations`；`/api/agent/conversation?id=`（按运行排的条目：发起消息（附图时带 `images:[{ref, sha, width, height}]`，缩略图走 `/api/drafts/image?sha=`）+ 运行元数据与事件，进行中的运行带 `live`）；`/api/agent/events?run=&after=&wait=`（最多等 25 秒；已结束的运行从库里取，带 `compacted`）。
 
-POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软删除，运行中 409）、`/api/agent/message`（`{conversation_id, text}` → `{run_id, steered}`；未启用 403、未配置 400、并发或消息上限 409）、`/api/agent/confirm`（`{run_id, call_id, token, decision}`；码不符 400、没有等待中的调用 409）、`/api/agent/abort`、`/api/agent/test`（用已保存配置发一次带 `ping` 工具的非流式请求，返回耗时与是否调用了工具）、`/api/agent/run/revert`（`{run_id, dry_run}`，见 §9）。除 `run/revert` 在应用撤销时自取写锁外，这些 POST 都不进进程写锁（理由见 `omrs/locking.py` 的豁免清单）。
+POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软删除，运行中 409）、`/api/agent/message`（`{conversation_id, text, images?}` → `{run_id, steered}`；未启用 403、未配置或图片不合格 400、并发、消息上限或运行中带图插话 409）、`/api/agent/confirm`（`{run_id, call_id, token, decision}`；码不符 400、没有等待中的调用 409）、`/api/agent/abort`、`/api/agent/test`（用已保存配置发一次带 `ping` 工具的非流式请求，返回耗时与是否调用了工具；`agent_vision` 开时再发一张 8×8 白图，多返回 `vision_ok` 与 `vision_error`）、`/api/agent/run/revert`（`{run_id, dry_run}`，见 §9）。除 `run/revert` 在应用撤销时自取写锁外，这些 POST 都不进进程写锁（理由见 `omrs/locking.py` 的豁免清单）。
 
 ## 8. 存储
 

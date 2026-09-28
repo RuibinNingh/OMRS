@@ -37,6 +37,13 @@ def _tool_results(messages):
     return results
 
 
+def _text_of(content):
+    """用户消息的文字：内容块数组（附图）时拼接其中的文字块。"""
+    if isinstance(content, list):
+        return "\n".join(p.get("text") or "" for p in content if isinstance(p, dict) and p.get("type") == "text")
+    return content or ""
+
+
 def _dig(value, path):
     for part in [p for p in path.split(".") if p]:
         if isinstance(value, list) and part.isdigit():
@@ -60,7 +67,7 @@ class FauxClient:
         pass
 
     def _pick(self, messages):
-        last = next((m.get("content") or "" for m in reversed(messages) if m.get("role") == "user"), "")
+        last = next((_text_of(m.get("content")) for m in reversed(messages) if m.get("role") == "user"), "")
         for sc in self.script.get("scenarios", []):
             if re.search(sc.get("match", "$^"), last):
                 return sc["rounds"]
@@ -101,7 +108,7 @@ class FauxClient:
         spec = self.rounds[min(self.index, len(self.rounds) - 1)] if self.index < len(self.rounds) else {"text": "（脚本已结束）"}
         self.index += 1
         ctx = {"results": _tool_results(messages),
-               "last_user": next((m.get("content") or "" for m in reversed(messages) if m.get("role") == "user"), "")}
+               "last_user": next((_text_of(m.get("content")) for m in reversed(messages) if m.get("role") == "user"), "")}
         tps = float(spec.get("tps", 60))
 
         def pause(ms):

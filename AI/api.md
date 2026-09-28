@@ -17,7 +17,7 @@
 
 服务器每个连接一个守护线程（`ThreadingMixIn`），慢请求、长轮询不阻塞别的请求。所有持久化写入经 `omrs/locking.py` 的进程级可重入写锁串行：POST 默认整段在锁内处理；等锁超过 60 秒返回 **503**「写入繁忙，请稍后重试」并在服务日志记一行。锁顺序写死：写锁在外，各模块自己的锁（安全、收件箱、优化任务、工作区扫描、`agent.db`）在内。
 
-不进写锁的 POST 列在 `POST_LOCK_EXEMPT`（每条附理由）：`/api/auth/*`、`/api/ai-recognize`（只调外部模型）、`/api/restart`（重启线程在停止监听前自取写锁，最多等 30 秒）、`/api/agent/message`、`/api/agent/confirm`、`/api/agent/abort`、`/api/agent/test`、`/api/agent/conversation/create`、`/api/agent/conversation/delete`。AI 工具的写入在运行线程里逐次取锁；`/api/agent/run/revert` 在应用撤销时自取写锁。后台工作区扫描与图片压缩的逐文件写回也在写锁内。Ledger 追加与计数各自用 `BEGIN IMMEDIATE`，连接带 `busy_timeout=5000`，见 `AI/ledger.md` §9。
+不进写锁的 POST 列在 `POST_LOCK_EXEMPT`（每条附理由）：`/api/auth/*`、`/api/ai-recognize`（只调外部模型）、`/api/restart`（重启线程在停止监听前自取写锁，最多等 30 秒）、`/api/agent/message`（只写 `agent.db` 与草稿区的 `drafts.db` / 附图文件，不碰 Ledger）、`/api/agent/confirm`、`/api/agent/abort`、`/api/agent/test`、`/api/agent/conversation/create`、`/api/agent/conversation/delete`。AI 工具的写入在运行线程里逐次取锁；`/api/agent/run/revert` 在应用撤销时自取写锁。后台工作区扫描与图片压缩的逐文件写回也在写锁内。Ledger 追加与计数各自用 `BEGIN IMMEDIATE`，连接带 `busy_timeout=5000`，见 `AI/ledger.md` §9。
 
 `/api/agent/*`（AI 助手）的请求与响应见 `AI/agent.md` §7。
 
@@ -895,7 +895,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 上传 → 框选 → 转换 → 提交 的暂存层，**不进 Ledger**；`commit` 复用 `create_question`。完整定义、job 单元格式、数据模型见 `AI/inbox.md` §3。速览：`POST /upload`（multipart 多文件，sha256 去重）、`GET /items`、`GET /raw?id=`、`POST /item/update`（整体覆盖 regions/cards/layout/status，`ready` 服务端校验）、`POST /discard`、`GET /slice-plan`、`POST /jobs`（detect / extract / classify / auto 后台线程；detect 单元可指定 `provider: vlm|template|local_http` 与 `blind`）、`GET /job?id=`、`POST /crops`、`POST /commit`、`GET /dataset/stats`（v1.13.0 多 `blind`、`storage`）、`GET /dataset/export`、`POST /cleanup`（v1.13.0：超期丢弃原图 / 裁图缓存）、`GET /m`（手机上传页）。`POST /api/config` 可写 `inbox_*` 策略键（见 `AI/inbox.md` §8）。
 
-`/api/ai-recognize` 行为不变；`ai_assist.py` 新增 `detect_regions`、`extract_region`、`parse_detect_output`，并按用途读 `ai_model_detect / ai_model_extract / ai_model_classify`（缺省回退 `ai_model`）。
+`/api/ai-recognize` 行为不变；`ai_assist.py` 新增 `detect_regions`、`extract_region`、`parse_detect_output`，并按用途读 `ai_model_detect / ai_model_extract / ai_model_classify`（缺省回退 `ai_model`）。AI 助手附图另用 `transcribe_image`（截图转述成 `{summary, layout, blocks}`）与 `describe_image`（针对一张图回答具体问题），两者都走 `ai_model_extract`，见 `AI/agent.md` §1「附图」。
 
 ---
 

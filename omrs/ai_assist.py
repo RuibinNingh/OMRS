@@ -622,6 +622,49 @@ def extract_region(vault: str, image_data_url: str, role: str = "question", judg
     }
 
 
+TRANSCRIBE_PROMPT = """你是题目截图转述助手。这张图可能是作业帮等搜题软件的截图、试卷照片，或 ChatGPT 等 AI 的解答截图。
+请按从上到下的顺序，把图中与题目有关的内容分块转写，并判断每一块能否完整转成文字。
+
+只输出一个 JSON 对象，不要输出其他内容：
+{"summary": "一句话说明这张图是什么（例如：作业帮截图，含 1 道数学题及解析）",
+ "layout": "zuoyebang | photo | chat | other",
+ "blocks": [{"role": "question | answer | other", "text": "转写内容", "convertible": true, "reason": ""}]}
+
+规则：
+1. role：题干和选项记 question；答案、解析、解答步骤记 answer；广告、按钮、无关文字不转写。
+2. text：公式用 $LaTeX$（行内）或 $$LaTeX$$（独立行）；保留选项字母与换行；不要改写或补充原文没有的内容。
+3. convertible：该块若含几何图形、函数图像、表格截图、示意图等文字无法完整表达的内容，填 false，并在 reason 写明是什么图、在截图的哪个位置；此时 text 仍写出其中能转的文字部分。
+4. 一张图里有多道题时，按题目顺序分别给出各自的 question 与 answer 块。"""
+
+DESCRIBE_PROMPT = """请仔细看这张图，回答下面的问题。只根据图中内容作答，看不清或图中没有的就直接说明。公式用 $LaTeX$。
+
+问题：%s"""
+
+
+def transcribe_image(vault: str, image_data_url: str, timeout: int = 120) -> dict:
+    """把一张截图转述成 {summary, layout, blocks:[{role, text, convertible, reason}]}，给不支持看图的主 AI 用。
+
+    模型没按 JSON 返回时，整段当 summary、blocks 为空。用 purpose="extract" 的模型。"""
+    content = _call_model(vault, TRANSCRIBE_PROMPT, image_data_url, max_tokens=4000, timeout=timeout, purpose="extract")
+    parsed = _extract_json(content)
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("blocks"), list):
+        return {"summary": (content or "").strip(), "layout": "", "blocks": []}
+    blocks = []
+    for block in parsed["blocks"]:
+        if not isinstance(block, dict):
+            continue
+        role = block.get("role") if block.get("role") in ("question", "answer", "other") else "other"
+        blocks.append({"role": role, "text": str(block.get("text") or ""),
+                       "convertible": block.get("convertible") is not False, "reason": str(block.get("reason") or "")})
+    return {"summary": str(parsed.get("summary") or ""), "layout": str(parsed.get("layout") or ""), "blocks": blocks}
+
+
+def describe_image(vault: str, image_data_url: str, question: str, timeout: int = 120) -> str:
+    """针对一张图回答具体问题（主 AI 的 describe_image 工具）。"""
+    return _call_model(vault, DESCRIBE_PROMPT % question, image_data_url, max_tokens=2000, timeout=timeout,
+                       purpose="extract").strip()
+
+
 def detect_regions_local(url: str, image_data_url: str, layout: str = "other",
                          image_width: int = 0, image_height: int = 0, timeout: int = 60) -> list:
     """本地检测服务 provider（`local_http`）：训好的 YOLO / ONNX 服务按与 detect 单元一致的协议返回框。
