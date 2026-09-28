@@ -26,5 +26,10 @@
 - `env -u OMRS_SYSTEMD_SERVICE python3 tests/e2e/annotate.py`：34/34 通过；`env -u OMRS_SYSTEMD_SERVICE python3 tests/e2e/create.py`：80/80 通过。
 - `env -u OMRS_SYSTEMD_SERVICE python3 tests/visual/run.py --ref HEAD --out /tmp/omrs-annotate-visual-20260928`：48 档截图中 0 档有差异，脚本错误无；默认页组不含 AI 训练工作区与独立标注页，这两处由上述 E2E 的主路径与四档审计覆盖。
 - `python3 tests/check_docs.py --write-routes` 与 `--write-log-index` 已生成路由表和日志索引；`python3 tests/check_docs.py --diff HEAD`：47 个文档、0 处问题，2 条既有文件体积提醒。
+- 从提交 `63adaded4b83065c59f14145eaa1fcb3e5c9ca0c` 归档到 `/root/workspace/releases/omrs-63adade`，与工作区的 `omrs/server.py` 和标注页入口文件哈希一致；在发布目录执行 `env -u OMRS_SYSTEMD_SERVICE python3 tests/e2e/annotate.py`：34/34 通过，使用临时 Vault 与随机高端口。
 
-待复核：发布目录隔离实例。发布目录切换、生产重启、生产浏览器验收另记实际结果。
+未执行：发布目录切换、生产重启、生产浏览器验收。开工前实测生产服务仍从 `/root/workspace/releases/omrs-f863761` 运行，`/api/status` 为 `ok`、v1.28.1、217 题，真实 Vault 路径不变。
+
+## 发布待办
+
+将 `/etc/systemd/system/omrs.service.d/10-release.conf` 中的发布路径从 `omrs-f863761` 换成 `omrs-63adade`，保留 `--vault /root/workspace/apps/OMRS` 和端口 8471；`daemon-reload`、重启服务后核对 `/api/status`、`/annotate`、训练页入口、数据文件哈希与日志。旧发布目录保留用于代码回退，不以旧数据覆盖真实 Vault。生产 systemd 与重启按根 `AGENTS.md` 要求另待用户明确授权。
