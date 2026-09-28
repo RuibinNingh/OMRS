@@ -8,6 +8,7 @@
 - [2026-09-28_main-sync](2026-09-28_main-sync.md)：main 与已部署版本同步
 - [2026-09-28_frontend-rearch-p8-final](2026-09-28_frontend-rearch-p8-final.md)：前端重构 P8 与终检
 - [2026-09-28_board-ui-polish](2026-09-28_board-ui-polish.md)：展示板 UI 打磨：详情可滚动、打开题目入口、左栏对齐、纸面自动适配
+- [2026-09-28_board-ui-deploy](2026-09-28_board-ui-deploy.md)：展示板 UI 打磨生产部署
 - [2026-09-28_board-redesign](2026-09-28_board-redesign.md)：展示板 UI 改版
 - [2026-09-28_ai-draft-p1](2026-09-28_ai-draft-p1.md)：ai-draft P1-1：草稿存储 `omrs/drafts.py` 与只读接口
 - [2026-09-28_ai-agent](2026-09-28_ai-agent.md)：内置 AI 助手（v1.28.0）
