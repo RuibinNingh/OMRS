@@ -65,8 +65,8 @@ test('treeView：文件夹组 + 恒在最后的未归档；折叠的组不列板
   assert.equal(folded.groups[0].boards.length, 0);
 });
 
-test('boardMetaBits：题数、已印页数带未印、缺失、停用、时间，颜色只放 tone', () => {
-  assert.deepEqual(S.boardMetaBits(BOARDS[0]).slice(0, 2), [{ text: '6 题' }, { text: '已印 2 页', tone: 'ok', plus: '+3' }]);
+test('boardMetaBits：题数、已印页数与未印题数分别呈现，缺失和停用可见', () => {
+  assert.deepEqual(S.boardMetaBits(BOARDS[0]).slice(0, 3), [{ text: '6 题' }, { text: '已印 2 页', tone: 'ok' }, { text: '3 题未印', tone: 'new' }]);
   assert.deepEqual(S.boardMetaBits(BOARDS[1]).map(b => b.text), ['2 题', '缺失 1', '停用 1']);
   assert.equal(S.boardMetaBits(BOARDS[1])[1].tone, 'warn');
 });
@@ -207,7 +207,7 @@ test('itemFlags：缺失 / 停用优先且不再标纸面状态；有纸面时�
   assert.deepEqual(text({ missing: true, printed: true }), ['muted:缺失']);
   assert.deepEqual(text({ suspended: true, printed: true }), ['muted:停用']);
   assert.deepEqual(text({ printed: true, printed_page: 3, changed: true }), ['paper:已印 p.3', 'changed:已改动']);
-  assert.deepEqual(text({}), ['new:新增']);
+  assert.deepEqual(text({}), ['new:未印']);
   assert.deepEqual(text({}, false), [], '没有纸面记录时不标新增');
 });
 
@@ -227,9 +227,9 @@ test('dueView：与题库同一分档', () => {
   assert.equal(S.dueView(30).tone, '');
 });
 
-test('contentView：纸面视图不出条目；列表行带序号、选中、熟练度、到期，缺失题不算到期', () => {
+test('contentView：纸面与题目列表同时存在；列表行带序号、选中、到期，缺失题不算到期', () => {
   const snap = view => ({ detail: detail({ printed_summary: { pages: 1 } }), view, selected: 'b' });
-  assert.equal(S.contentView(snap('paper')).kind, 'none');
+  assert.equal(S.contentView(snap('paper')).kind, 'list');
   assert.equal(S.contentView({ detail: null, view: 'list' }).kind, 'none');
   const list = S.contentView(snap('list'), { dueDays: () => 1 });
   assert.equal(list.kind, 'list');

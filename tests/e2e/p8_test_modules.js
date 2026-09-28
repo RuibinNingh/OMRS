@@ -8,6 +8,7 @@ window.__p8TestReady = Promise.all([
   m('/assets/app/domain/sessions.js'),
   m('/assets/app/domain/question/index.js'),
   m('/assets/app/domain/board/index.js'),
+  m('/assets/app/domain/board/boards.js'),
   m('/assets/app/features/questions/index.js'),
   m('/assets/app/features/schedule/state.js'),
   m('/assets/app/features/schedule/arrange.js'),
@@ -16,7 +17,7 @@ window.__p8TestReady = Promise.all([
   m('/assets/app/features/board/preview.js'),
   m('/assets/app/features/board/index.js'),
   m('/assets/app/domain/labels/index.js'),
-]).then(([data, items, sessions, question, board, questions, schedule, arrange, instant, boardRuntime, preview, boardPage, labels]) => {
+]).then(([data, items, sessions, question, board, boards, questions, schedule, arrange, instant, boardRuntime, preview, boardPage, labels]) => {
   const getter = (name, read) => Object.defineProperty(window, name, { configurable: true, get: read });
   getter('DATA', data.currentData);
   getter('SESSIONS', sessions.listSessions);
@@ -56,7 +57,7 @@ window.__p8TestReady = Promise.all([
     configureBoardDetail: patch => d.configure(patch || {}),
     boardQuickAdd: board.boardQuickAdd, boardChooseAndAdd: board.boardChooseAndAdd,
     boardPickerOpen: board.boardPickerOpen, boardPickerClose: board.boardPickerClose,
-    boardCurrentId: board.boardCurrentId,
+    boardCurrentId: boards.boardCurrentId,
   });
   getter('BOARD_DETAIL', () => d.detail());
 });

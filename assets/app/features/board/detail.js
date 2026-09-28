@@ -60,7 +60,7 @@ export function createBoardDetail(initialDeps = {}) {
         boardSettings().revoke();
         if (hadPaper && !hasPaper(st.detail)) render();
       },
-      drained: () => syncPreview(),
+      drained: () => { changed(); syncPreview(); },
       failed: (error, options) => { if (!options.silent) toast(`保存展示板失败：${error.message}`, { kind: 'error' }); },
       setTimer: (fn, ms) => deps.setTimer(fn, ms),
       clearTimer: id => deps.clearTimer(id),
@@ -68,7 +68,7 @@ export function createBoardDetail(initialDeps = {}) {
     return save;
   }
   const flush = (options = {}) => saveQueue().flush(options);
-  const markDirty = kind => saveQueue().mark(kind);
+  const markDirty = kind => { saveQueue().mark(kind); changed(); };
 
   function boardSettings() {
     if (!settings) settings = createBoardSettings({
@@ -113,7 +113,7 @@ export function createBoardDetail(initialDeps = {}) {
     previewBound = true;
     deps.preview.boardPreviewOn({
       onLayout: () => changed(),                                   // 翻页条页码 / 页数
-      onSelect: message => { if (message?.uid) select(message.uid); },   // 点纸面上的题 = 选中它
+      onSelect: message => { if (message?.uid) { select(message.uid); deps.onPaperSelect?.(message.uid); } },
       onGap: message => applyGapDrag(message.uid, message.lines),
     });
   }
@@ -265,26 +265,29 @@ export function createBoardDetail(initialDeps = {}) {
     if (!ok) return;
     await persistItems([], '展示板已清空');
   }
-  async function syncLabel() {
+  async function syncLabel(preferred = '') {
     if (!st.detail) return;
     // 加题同步会在服务端追加引用；先落盘本地待保存的 items，避免随后重读用旧快照覆盖新题。
     if (!(await flush())) return;
     const defs = deps.labels();
     if (!defs.length) { toast('还没有标记，先在题目上打一个「考前必看」之类的标记', { kind: 'warn' }); return; }
-    const current = st.detail.source_labels?.[0] || '';
-    const res = await deps.dialog({
-      title: '按标记同步', okText: '同步到展示板', focus: '[data-dialog-ok]',
-      hint: '把带有该标记、且还不在板里的题目追加到末尾；之后新打的标记不会自动进板，需要时再同步一次。',
-      body: syncBody(defs, current),
-    });
-    if (!res.ok) return;
-    const label = defs.find((item, index) => res.values[`bd-sync-${index}`] === true)?.name;
+    let label = preferred && defs.some(item => item.name === preferred) ? preferred : '';
+    if (!label) {
+      const current = st.detail.source_labels?.[0] || '';
+      const res = await deps.dialog({
+        title: '按标记同步', okText: '同步到展示板', focus: '[data-dialog-ok]',
+        hint: '把带有该标记、且还不在板里的题目追加到末尾；之后新打的标记不会自动进板，需要时再同步一次。',
+        body: syncBody(defs, current),
+      });
+      if (!res.ok) return;
+      label = defs.find((item, index) => res.values[`bd-sync-${index}`] === true)?.name;
+    }
     if (!label) return;
     if (!(await flush())) return;   // 对话框关闭后再查一次：同步追加前没有新的脏字段或在途保存
     const uids = deps.items().filter(item => !item.suspended && (item.labels || []).includes(label)).map(item => item.uid);
     try {
       const result = uids.length ? await deps.post('/api/board/items/add', { id: st.detail.id, uids }) : { board: { added: 0 } };
-      await deps.post('/api/board/update', { id: st.detail.id, source_labels: [label] });
+      if (!preferred) await deps.post('/api/board/update', { id: st.detail.id, source_labels: [label] });
       await reloadData();
       toast(result.board.added ? `已同步 ${result.board.added} 道「${label}」题目` : `没有带「${label}」的新题目`);
     } catch (error) { toast(`同步标记失败：${error.message}`, { kind: 'error' }); }

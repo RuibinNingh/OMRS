@@ -7,6 +7,7 @@
 - [2026-09-28_merge-and-cleanup](2026-09-28_merge-and-cleanup.md)：合并工作区与 v1.28.0，补完前端重构 P8 的清理（v1.28.1）
 - [2026-09-28_main-sync](2026-09-28_main-sync.md)：main 与已部署版本同步
 - [2026-09-28_frontend-rearch-p8-final](2026-09-28_frontend-rearch-p8-final.md)：前端重构 P8 与终检
+- [2026-09-28_board-redesign](2026-09-28_board-redesign.md)：展示板 UI 改版
 - [2026-09-28_ai-agent](2026-09-28_ai-agent.md)：内置 AI 助手（v1.28.0）
 - [2026-09-27_frontend-rearch-p7](2026-09-27_frontend-rearch-p7.md)：前端重构 P7：展示板迁移（第 1 轮 v1.26.0 纯函数与测试；第 2 轮 v1.26.1 保存队列、打印协调、常驻预览；第 3 轮 v1.26.2 拖拽排序、版面设置；第 4 轮 v1.26.3 选板浮层原生；第 5 轮 v1.26.4 页面外壳原生、板列表数据所有权；第 6 轮 v1.26.5 整页原生、删除 board.js）
 - [2026-09-27_frontend-rearch-p6-p7-merge](2026-09-27_frontend-rearch-p6-p7-merge.md)：前端重构：P6 在制（Codex）与 P7（CCW）合并，v1.26.5

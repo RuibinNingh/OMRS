@@ -22,7 +22,7 @@
 | [`frontend/dashboard.md`](frontend/dashboard.md) | **仪表盘与目录页**：仪表盘图表、行动推荐规则、目录树页 |
 | [`frontend/library.md`](frontend/library.md) | **题库、筛选与标记**：题目库页（`assets/app/features/questions/`：表格 / 画廊、筛选抽屉、批量、视图预设、窄屏卡片列表）、题目操作 `domain/question/ops.js`、`filterItems()` 筛选语义、标记组件接入 |
 | [`frontend/qview.md`](frontend/qview.md) | **共享题目视图 qview**（`assets/app/domain/question/`）：Markdown / KaTeX 渲染与缓存、练习记录、qview、题目详情缓存、题目弹窗与 Markdown 编辑器 |
-| [`frontend/board-ui.md`](frontend/board-ui.md) | **展示板页面**：展示板页的交互：常驻预览 iframe、保存队列、视图与每题留白（数据模型与打印见 `AI/board.md`） |
+| [`frontend/board-ui.md`](frontend/board-ui.md) | **展示板页面**：板列表、常驻纸面、题目面板、详情与浮层、保存队列和每题留白（数据模型与打印见 `AI/board.md`） |
 | [`frontend/review.md`](frontend/review.md) | **复习调度**：复习调度工作台、临时调度与常规 Session 的区别 |
 | [`frontend/instant.md`](frontend/instant.md) | **即时练习**（`assets/app/features/instant/`，第一个新架构页面）：取题、判定、提交、渲染不变量、快捷键、旧入口 |
 | [`frontend/feedback.md`](frontend/feedback.md) | **反馈录入工作台**：反馈录入工作台布局、渲染分层、快捷键与提交结果弹窗（答题卡导入见 `AI/omr-import.md`） |

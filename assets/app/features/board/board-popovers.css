@@ -1,0 +1,24 @@
+/* 版式与纸面记录浮层。 */
+.brd-pop-host[hidden] { display:none; }
+.brd-pop-scrim { position:fixed; z-index:var(--z-dropdown); inset:0; background:transparent; }
+.brd-pop { position:absolute; z-index:var(--z-drawer); top:114px; right:var(--sp-3); width:min(360px,calc(100vw - 24px)); max-height:calc(100% - 126px); overflow:auto; border:1px solid var(--border-2); border-radius:var(--r-md); background:var(--surface-1); box-shadow:var(--elev-3); }
+.brd-pop > header { display:flex; align-items:center; gap:var(--sp-2); justify-content:space-between; min-height:48px; margin:0; padding:var(--sp-2) var(--sp-3); border:0; border-bottom:1px solid var(--border-1); }
+.brd-pop > header h3 { margin:0; font-size:var(--text-md); }
+.brd-pop__body { display:flex; flex-direction:column; gap:var(--sp-3); padding:var(--sp-3); }
+.brd-pop .brd-field { display:flex; flex-direction:column; gap:var(--sp-1); padding-bottom:var(--sp-3); border-bottom:1px solid var(--border-1); }
+.brd-pop .brd-field__label { display:flex; align-items:center; justify-content:space-between; color:var(--fg-2); font-size:var(--text-sm); }
+.brd-pop .brd-field__label b { color:var(--fg-1); font-size:var(--text-sm); }
+.brd-pop .brd-hint { color:var(--fg-3); font-size:var(--text-xs); line-height:var(--leading-read); }
+.brd-pop .brd-range { width:100%; accent-color:var(--accent); }
+.brd-pop .brd-num { width:100%; }
+.brd-pop .brd-seg--fill { width:100%; }
+.brd-pop .brd-seg--fill .brd-seg__btn { flex:1; }
+.brd-pop .brd-checks { display:flex; flex-wrap:wrap; gap:var(--sp-2); }
+.brd-pop .brd-check { display:inline-flex; align-items:center; gap:var(--sp-1); color:var(--fg-2); font-size:var(--text-xs); }
+.brd-pop .brd-lock { display:flex; flex-direction:column; gap:var(--sp-2); padding:var(--sp-2); border-radius:var(--r-sm); background:var(--surface-0); }
+.brd-pop .brd-paper { display:flex; flex-direction:column; gap:var(--sp-2); margin:0; }
+.brd-pop .brd-paper > div { display:flex; gap:var(--sp-2); }
+.brd-pop .brd-paper dt { min-width:5em; color:var(--fg-3); }
+.brd-pop .brd-paper dd { margin:0; color:var(--fg-1); }
+.brd-pop .brd-insnote,.brd-pop .brd-ins-empty { color:var(--fg-3); font-size:var(--text-xs); line-height:var(--leading-read); }
+@media (max-width:760px) { .brd-pop { position:fixed; top:auto; right:var(--sp-2); bottom:var(--sp-2); max-height:80vh; } }

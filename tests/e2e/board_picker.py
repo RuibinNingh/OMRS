@@ -162,9 +162,15 @@ def run_main(page, base, port, folder, results):
     page.locator(".bpicker-opt.is-added").first.click(modifiers=["ControlOrMeta"])
     undone = wait(page, "() => !document.querySelector('.bpicker-opt.is-added') && document.querySelector('.bpicker-hint').textContent.startsWith('Enter')")
     check("⌘ / Ctrl 点击撤回本次加入", undone and uid not in board_uids(port, target)[1])
+    target = page.evaluate("() => document.querySelector('.bpicker-opt.is-active .bpicker-name')?.firstChild?.textContent || ''")
+    bid, _ = board_uids(port, target)
     page.keyboard.press("Enter")
-    check("Enter 加入并关闭，toast 报告结果", wait(page, CLOSED) and uid in board_uids(port, target)[1]
-          and wait(page, "n => [...document.querySelectorAll('.ui-toast')].some(t => t.textContent.includes('已加入《' + n + '》'))", arg=target))
+    closed = wait(page, CLOSED)
+    present = uid in board_uids(port, target)[1]
+    toasted = wait(page, "n => [...document.querySelectorAll('.ui-toast')].some(t => t.textContent.includes('已加入《' + n + '》'))", arg=target)
+    check("Enter 加入并关闭，toast 报告结果", closed and present and toasted,
+          json.dumps({"closed": closed, "present": present, "toasted": toasted,
+                      "toasts": page.locator('.ui-toast').all_inner_texts()}, ensure_ascii=False))
     open_from_row(page)
     page.keyboard.press("Escape")
     check("Esc 关闭，焦点回到「⋯」", wait(page, CLOSED) and wait(page, "() => document.activeElement?.classList.contains('qlb-more')"))
@@ -176,7 +182,7 @@ def run_main(page, base, port, folder, results):
     cue = full.locator(".bpicker-cue").text_content()
     full.click()
     check("「已全部在板中」的行显示 ↗，点了打开该板", cue == "↗" and wait(page, CLOSED)
-          and wait(page, "id => location.hash === '#/board' && typeof boardCurrentId === 'function' && boardCurrentId() === id", arg=bid), cue)
+          and wait(page, "id => location.hash === '#/board' && typeof boardCurrentId === 'function' && boardCurrentId() === id", arg=bid), json.dumps({"cue": cue, "hash": page.evaluate("location.hash"), "current": page.evaluate("typeof boardCurrentId === 'function' ? boardCurrentId() : null"), "type": page.evaluate("typeof boardCurrentId"), "title": page.evaluate("document.querySelector('.brd-title')?.textContent"), "want": bid}))
     page.goto(f"{base}/#/questions")
     wait(page, READY, 15000)
     open_from_row(page)

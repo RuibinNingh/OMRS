@@ -16,8 +16,8 @@
 - 样式分层：`styles/index.css` 声明 `vendor < legacy < base < ui < shell < domain < features < utilities < legacy-bridge`，KaTeX 进 `vendor`、旧 `styles.css` 进 `legacy`。新样式不靠提高选择器权重去压旧规则；也不许出现未分层的样式（未分层规则会压过全部分层规则）。
 - `domain` 层：共享题目视图 `domain/question/qview.css`（P5 第 4 轮起是 qview 的全部外观，含题目弹窗与 Markdown 编辑器）与标记 `domain/labels/labels.css`（色板、颜色圆点按 `data-lbl-c` 取色）、选板浮层 `domain/board/picker.css`（popover 进顶层，锚定位置由脚本写 `--bpicker-x` / `--bpicker-y`，是它唯一的行内样式）；标记颜色的运行时规则（`domain/labels/sheet.js`）也插在 `@layer domain` 块里。
 - P5 第 4 轮新增 token：`--surface-sunken`（题面块等内嵌区）、`--success-subtle` / `--success-line`（答案块）、`--streak-ok` / `--streak-bad`（战绩带）、`--lbl-preset-1…10`（标记预设色）、`--lbl-fg-dark` / `--lbl-fg-light`（solid 芯片前景）；`check_contrast.py` 加「`fg-1` / `fg-2` 压在 `surface-sunken` 上」两组。
-- 层次（core → ui → domain → features）与依赖方向由 `check_ui.py` 的 R7 约束；`core/`、`ui/`、`domain/`、`features/` 均已建立。每个页面的样式放 `features/<页>/<页>.css`，由 `styles/index.css` 以 `layer(features)` 引入（当前各已迁页面均在该层登记；展示板 v1.26.5 起整页在 `board.css`，`styles.css` 的 `.bd-*` 已删；标记芯片 `.lbl` 的外观仍在 `styles.css`，P8 搬）；过渡层 `legacy-bridge.css` 随页面迁移分段删除（即时练习的「题数」段、题库工具栏段已删；反馈录入在其中没有段落）。旧 `styles.css` 里的全局元素规则（如 `header{padding;border-bottom;margin-bottom}`）仍在 legacy 层生效，页面用到这些元素时要在自己的层里显式清掉（反馈录入的 `.fbw-panel__head`）。
-- `styles/index.css` 按层引入各页样式：features 层目前有 `questions.css`、`instant.css`、`feedback.css`、`dashboard.css`、`data.css`、`schedule.css`（类名 `schd-`）、`board.css`（v1.26.5 起展示板整页；类名 `brd-`）、`history.css`、`catalog.css`、`reports.css`、`settings.css`，以及录入页的 `create.css`（工作区导航与显隐、整屏工作台、上传、快速录入、收件箱网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（题卡，类名 `crc-`）与 `train.css`（AI 训练，类名 `crt-`）。数据复盘图表颜色用 `data-tone` 映射状态 token；历史记录页的 `.hvw-`、目录页的 `.catw-`、报告页的 `.rpw-`、设置页的 `.st-`、展示板页的 `.brd-`、录入页的 `.crw-` / `.crp-` / `.crc-` / `.crt-` 类使用语义色和控件尺度。仪表盘的「今天」数字是全站唯一的 `--text-display`；热力格四档颜色用 `color-mix(in srgb, var(--success) N%, var(--surface-1))`，不新增 token。
+- 层次（core → ui → domain → features）与依赖方向由 `check_ui.py` 的 R7 约束；`core/`、`ui/`、`domain/`、`features/` 均已建立。各页面样式由 `styles/index.css` 以 `layer(features)` 引入；展示板工作区拆为四份 `board*.css`，旧 `styles.css` 的 `.bd-*` 已删。旧 `styles.css` 的全局元素规则仍在 legacy 层生效，页面用到这些元素时要在自己的层里显式清掉。
+- `styles/index.css` 按层引入各页样式：features 层目前有 `questions.css`、`instant.css`、`feedback.css`、`dashboard.css`、`data.css`、`schedule.css`（类名 `schd-`）、展示板的 `board.css` / `board-layout.css` / `board-list.css` / `board-popovers.css`（类名 `brd-`）、`history.css`、`catalog.css`、`reports.css`、`settings.css`，以及录入页的 `create.css`（工作区导航与显隐、整屏工作台、上传、快速录入、收件箱网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（题卡，类名 `crc-`）与 `train.css`（AI 训练，类名 `crt-`）。数据复盘图表颜色用 `data-tone` 映射状态 token；历史记录页的 `.hvw-`、目录页的 `.catw-`、报告页的 `.rpw-`、设置页的 `.st-`、展示板页的 `.brd-`、录入页的 `.crw-` / `.crp-` / `.crc-` / `.crt-` 类使用语义色和控件尺度。仪表盘的「今天」数字是全站唯一的 `--text-display`；热力格四档颜色用 `color-mix(in srgb, var(--success) N%, var(--surface-1))`，不新增 token。
 - 同一行的控件用同一档高度（§3 的 `--ctl-*`）。未迁移页面的旧 `.btn` / `.input` 由 `styles/legacy-bridge.css` 统一到 28 / 32 两档。
 
 ## 2. 语义 token
@@ -36,6 +36,8 @@
 字号 token 叫 `--text-*`，文字颜色叫 `--fg-*`，两者不要混。
 
 页面专用的派生值也放 `tokens.css`，按页面分段：助手页的 `--ast-*`（用户消息底色、确认卡与错误描边、思考引线、等首 token 的时间线色，以及代码与引用芯片的相对字号）由主题的 `*-rgb` 派生，深浅主题自动跟随。
+
+展示板工作区使用 `--brd-desk` 和 `--brd-desk-line` 绘制纸面周围的桌面；浅色、深色各有一套值，纸张本身的阴影由导出模板 `omrs/export_templates/board.css` 绘制。
 
 ## 3. 尺度 token
 

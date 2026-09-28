@@ -49,6 +49,8 @@
   --elev-2:0 4px 16px rgba(16,24,40,0.10);
   --elev-3:0 16px 48px rgba(16,24,40,0.18);
   --scrim:rgba(16,18,20,0.40);
+  --brd-desk:#e4e6e9;
+  --brd-desk-line:#d8dbdf;
 
   /* 题面块（qview 的 .q-md）等内嵌区：浅色即页面底，深色是叠在面板上的淡亮层 */
   --surface-sunken:var(--surface-0);
@@ -105,6 +107,8 @@
   --elev-2:0 6px 20px rgba(0,0,0,0.45);
   --elev-3:0 20px 56px rgba(0,0,0,0.55);
   --scrim:rgba(10,9,7,0.62);
+  --brd-desk:#0e0d0c;
+  --brd-desk-line:#26231f;
   --surface-sunken:rgba(236,231,223,0.07);
   --success-subtle:rgba(143,191,154,0.06); --success-line:rgba(143,191,154,0.22);
 }

@@ -90,7 +90,7 @@
 | 反馈录入（`features/feedback`） | `mountQuestionStage` = `{layout:'split', actions:['edit','board','labels','suspend','open']}` |
 | 即时练习（`features/instant`） | `mountQuestion` = `{layout:'split', reveal, showMeta:false, showHistory:false, actions:['edit','board','labels'], onReveal}`：练习中不显示记录，免得未答先看见历史分数 |
 | 题库画廊（`features/questions`） | 挂载点 + `qvRender(el, uid, galleryCardOpts(prefs))`（`bare`、`clamp` 随密度 / 元数据 3–8 行）；卡片外壳由页面自己画，见 `AI/frontend/library.md` |
-| 导出选题、展示板画廊 | `qvHtml(detail, item, 卡片预设)` + `qvGalleryCard(spec)` |
+| 展示板滑入详情（`features/board/index.js`） | `qvRender(el, uid, {layout:'stack', showMeta:false, actions:[]})` |
 | 复习调度「安排复习」画廊（`features/schedule/arrange-ctl.js`） | `qvRender(节点, uid, {...QV_CARD_OPTS, clamp:8})` |
 
 画廊缩略预览容器 `.gallery-preview` 带 `white-space:pre-wrap`，而 qview 输出是多行模板，标签之间的空白文本节点在 pre-wrap 下不会折叠；旧 `styles.css` 用 `.gallery-preview .qv{white-space:normal}` 关掉，正文 `.qv .q-md` 自己声明 `pre-wrap` 保留题目里的换行。P5 第 4 轮起 qview 的全部外观都在 `qview.css` 并换成 token：题面 / 答案 `--text-lg` + `--leading-read`（设计系统的阅读正文），缩略卡（`bare`）`--text-sm`；题面块底色 `--surface-sunken`，答案块 `--success-subtle` / `--success-line`，战绩带 `--streak-ok` / `--streak-bad`。题头是 `<header>`，旧全局 `header{}` 在 legacy 层仍生效，所以内外边距、边框、对齐都显式写。旧页面容器（`.gallery-preview`、`.gallery-card`、`.sch-gallery-preview`）对 qview 的覆盖也在该文件末尾，随各页迁移删除。

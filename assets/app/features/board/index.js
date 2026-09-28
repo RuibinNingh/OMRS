@@ -3,16 +3,16 @@
  * - 契约：page = { id, title, workbench, mount(root, ctx) → unmount, actions, keys }；动作命名空间与快捷键作用域都是 'board'。
  * - 数据：板列表、文件夹、当前板、折叠归 domain/board/boards.js（onBoards 变化即重绘）；板详情、打印范围、视图、选中题归
  *   detail.js（onDetail 变化即重绘）。常驻预览是本目录的 preview.js，翻页 / 缩放 / 挂载直接调它。
- * - 整页一次 morph：状态条、左栏树、舞台头、列表 / 画廊、检查器；只有舞台（常驻 iframe）与画廊卡题面挂载点是 data-morph="skip"。
- *   聚焦中的输入框与滑杆 morph 不改值，所以拖滑杆、敲留白数字时整页重绘也不丢焦点；被锁定确认拒掉时先放掉焦点再重绘。
+ * - 整页一次 morph：板头、左栏树、常驻纸面、题目面板和滑入详情；舞台（常驻 iframe）是 data-morph="skip"。
+ *   聚焦中的输入框与滑杆 morph 不改值；被锁定确认拒掉时先放掉焦点再重绘。
  * - 快捷键走 core/keys.js（页面作用域）：对话框、输入框、选板浮层（浮层键盘层）打开时由 core/keys 挡住；
  *   标记选择器（旧 labels.js 浮层）打开时本页快捷键全部让位。离开本页时有待保存的改动立即落盘。
  */
 import { morph } from '../../core/dom.js';
 import { openMenu } from '../../ui/menu.js';
 import { qvRender } from '../../domain/question/index.js';
-import { dueDays } from '../../domain/items.js';
-import { pickerOpen } from '../../domain/labels/index.js';
+import { dueDays, allItems } from '../../domain/items.js';
+import { pickerOpen, listLabels } from '../../domain/labels/index.js';
 import * as B from '../../domain/board/boards.js';
 import { boardDetail } from './runtime.js';
 import { openBoardAdd } from './add.js';
@@ -25,11 +25,10 @@ const s = S.state;
 let ctl = null;
 
 const D = boardDetail();
-/** 画廊卡题面：与题库画廊同一套 qview（缩略、不带答案与记录）。 */
-const CARD_OPTS = Object.freeze({ layout: 'stack', showMeta: false, showAnswer: false, showNotes: false, showHistory: false, actions: [], bare: true, clamp: 5 });
+/** 右侧详情沿用共享题面渲染，答案与练习记录由同一组件读取。 */
+const DETAIL_OPTS = Object.freeze({ layout: 'stack', showMeta: false, actions: [] });
 /** 拖拽只绑一次：drag.js 用 data-bound 标记，但 morph 会把模板里没有的属性抹掉，所以这里另记。 */
 const dragBound = new WeakSet();
-const later = (fn, ms = 0) => setTimeout(fn, ms);
 
 /** 过渡桥 boardRender() / 旧冒烟测试：本页挂着就重绘，不在本页时什么都不做。 */
 export function repaintBoardPage() { ctl?.paint(); }
@@ -49,32 +48,35 @@ function createController(root) {
 
   function paint() {
     const sn = snap();
+    const label = sn.detail ? S.linkedLabel(sn.detail.id) : '';
+    const inBoard = new Set((sn.detail?.items || []).map(item => item.uid));
+    const pending = label ? allItems().filter(item => !item.suspended && (item.labels || []).includes(label) && !inBoard.has(item.uid)).length : 0;
+    if (s.panel === 'detail' && !sn.selected) s.panel = 'list';
     morph(root, view({
-      status: S.statusView(sn), renaming: s.renaming && !!sn.detail,
-      tree: S.treeView({ boards: B.boardList(), folders: B.boardFolders(), current: B.boardCurrentId(), collapsed: B.boardFolderCollapsed() }),
+      status: S.statusView(sn, B.boardFolders(), D.saveQueue().busy()), renaming: s.renaming && !!sn.detail,
+      tree: S.treeView({ boards: B.boardList(), folders: B.boardFolders(), current: B.boardCurrentId(), collapsed: B.boardFolderCollapsed(), query: s.query }),
       stage: S.stageView(sn, { layout: boardPreviewLayout(), view: boardPreviewView(), zoom: s.zoom }),
       content: S.contentView(sn, { dueDays }), inspector: S.inspectorView(sn),
+      linked: { name: label, pending }, panel: s.panel, pop: s.pop, boardsOpen: s.boardsOpen,
     }));
-    // 舞台是 skip 节点：显隐与 iframe 挂载在这里做（纸面视图才挂，boardPreviewMount 同一容器重复调用无副作用）
+    // 舞台是 skip 节点：只更改容器显隐，不移动 iframe。
     const stage = root.querySelector('#bd-stage');
-    const paper = !!sn.detail && sn.view === 'paper';
-    if (stage) { stage.hidden = !paper; if (paper) boardPreviewMount(stage); }
-    if (sn.view === 'gallery') hydrate();
+    if (stage) { stage.hidden = !sn.detail; if (sn.detail) boardPreviewMount(stage); }
+    hydrate();
   }
 
-  // 画廊题面：挂载点 key 变了（换题）才重新挂；其余重绘时 skip 节点原样保留
+  // 详情题面：同一题的挂载点不重建，切题才重新取内容。
   function hydrate() {
-    root.querySelectorAll('#bd-content-body [data-qv-host]').forEach(el => {
-      if (el.dataset.qvFor === el.dataset.key) return;
-      el.dataset.qvFor = el.dataset.key;
-      qvRender(el, el.dataset.uid, CARD_OPTS).then(() => el.classList.toggle('is-clipped', el.scrollHeight - el.clientHeight > 4));
-    });
+    const el = root.querySelector('#bd-inspector [data-qv-host]');
+    if (!el || el.dataset.qvFor === el.dataset.key) return;
+    el.dataset.qvFor = el.dataset.key;
+    qvRender(el, el.dataset.uid, DETAIL_OPTS);
   }
 
   /** 锁定确认被拒：聚焦中的控件放掉焦点，随后的重绘把它改回旧值。 */
   function releaseFocus() {
     const active = root.ownerDocument.activeElement;
-    if (active && active !== root.ownerDocument.body && root.querySelector('#bd-inspector')?.contains(active)) active.blur();
+    if (active && active !== root.ownerDocument.body && root.contains(active)) active.blur();
   }
 
   async function finishRename(save) {
@@ -101,7 +103,7 @@ function createController(root) {
     finishRename,
     renameInput: target => !!target?.matches?.('[data-board-rename]'),
     releaseFocus,
-    open: id => { if (id) D.load(id); },
+    open: id => { if (id) { s.panel = 'list'; s.pop = ''; s.boardsOpen = false; D.load(id); } },
     async newMenu(el) {
       const value = await pick(el, S.NEW_MENU, '新建');
       if (value === 'board') B.createBoard();
@@ -143,11 +145,42 @@ function createController(root) {
       boardPreviewScale(s.zoom);
       paint();
     },
+    toggleBoards() { s.boardsOpen = !s.boardsOpen; paint(); },
+    search(value) { s.query = value; paint(); },
+    showPop(kind) { s.pop = s.pop === kind ? '' : kind; paint(); },
+    closePop() { s.pop = ''; paint(); },
+    openDetail(uid) { if (!uid) return; D.select(uid); s.panel = 'detail'; paint(); },
+    back() { s.panel = 'list'; paint(); root.querySelector(`[data-board-row="${CSS.escape(D.selected())}"]`)?.focus({ preventScroll: true }); },
+    detailStep(delta) {
+      const index = selectedIndex();
+      const next = items()[index + delta];
+      if (next) { D.select(next.uid); boardPreviewGoto(next.uid); }
+    },
+    gapStep(raw) {
+      const split = raw.lastIndexOf(':');
+      const uid = raw.slice(0, split), delta = Number(raw.slice(split + 1));
+      const item = D.itemOf(uid);
+      if (item && Number.isFinite(delta)) D.setItemGap(uid, Math.max(0, Math.min(48, S.gapReadout(item, D.detail()?.print).lines + delta)));
+    },
+    gapPreset(raw) {
+      const split = raw.lastIndexOf(':');
+      const uid = raw.slice(0, split), value = Number(raw.slice(split + 1));
+      if (D.itemOf(uid) && Number.isFinite(value)) D.setItemGap(uid, value);
+    },
+    async linkLabel(el) {
+      const defs = listLabels();
+      if (!D.detail()) return;
+      const entries = [{ value: '', label: '不关联标记' }, ...defs.map(label => ({ value: label.name, label: label.name }))];
+      const value = await pick(el, entries, '关联标记');
+      if (value == null) return;
+      S.setLinkedLabel(D.detail().id, value);
+      paint();
+    },
     // ---------- 快捷键（返回 false = 没处理，交给下一层且不 preventDefault） ----------
     withDetail(fn) { if (!snap().detail) return false; fn(); return true; },
     step(delta) {
       const sn = snap();
-      if (!sn.detail || sn.view !== 'paper') return false;
+      if (!sn.detail) return false;
       boardPreviewStep(delta);
       return true;
     },
@@ -157,7 +190,7 @@ function createController(root) {
       if (!list.length) return false;
       const uid = list[boardKeySelectTarget(selectedIndex(), key, list.length)].uid;
       D.select(uid);
-      if (sn.view === 'paper') boardPreviewGoto(uid);
+      boardPreviewGoto(uid);
       root.querySelector(`[data-board-row="${CSS.escape(uid)}"]`)?.scrollIntoView?.({ block: 'nearest' });
       return true;
     },
@@ -178,11 +211,13 @@ function createController(root) {
       return true;
     },
     escape(event) {
-      if (!this.renameInput(event.target)) return false;
-      finishRename(false);
-      return true;
+      if (this.renameInput(event.target)) { finishRename(false); return true; }
+      if (s.pop) { this.closePop(); return true; }
+      if (s.panel === 'detail') { this.back(); return true; }
+      if (s.boardsOpen) { this.toggleBoards(); return true; }
+      return false;
     },
-    /** 列表行 / 画廊卡「留白」只读回显：选中它，再把焦点送到检查器的题后留白框。 */
+    /** 行内留白操作后保持当前题选中。 */
     focusGap(uid) {
       D.select(uid);
       root.querySelector('#bd-ins-gap')?.focus({ preventScroll: true });
@@ -191,7 +226,7 @@ function createController(root) {
     locate(uid) {
       if (!uid) return;
       D.select(uid);
-      if (D.view() !== 'paper') { D.setView('paper'); later(() => boardPreviewGoto(uid), 60); } else boardPreviewGoto(uid);
+      boardPreviewGoto(uid);
     },
     removeSelected() {
       const current = items()[selectedIndex()];
@@ -224,16 +259,17 @@ export const page = {
     // 点条目 = 选中（按钮、复选框、标记芯片各有自己的动作）
     const onClick = event => {
       const row = event.target.closest?.('[data-board-row]');
-      if (row && !event.target.closest('input, button, label, a, [data-lbl-target]')) D.select(row.dataset.boardRow);
+      if (row && !event.target.closest('input, button, label, a, [data-lbl-target]')) current.openDetail(row.dataset.boardRow);
     };
     const onBlur = event => { if (current.renameInput(event.target)) current.finishRename(true); };
     root.addEventListener('dblclick', onDbl);
     root.addEventListener('click', onClick);
     root.addEventListener('focusout', onBlur);
-    D.configure({ rejected: () => current.releaseFocus() });
+    D.configure({ rejected: () => current.releaseFocus(), onPaperSelect: uid => current.openDetail(uid) });
     const offBoards = B.onBoards(() => ctl?.paint());
     const offDetail = D.onDetail(() => ctl?.paint());
     const offLabels = ctx.bus.on('board:reload', () => D.reloadData());
+    D.setView('paper');
     ctl.paint();
     // 左栏树与条目行的拖放（每个节点只绑一次；重新进页时节点还是那一个）
     const list = root.querySelector('#bd-list');
@@ -249,7 +285,7 @@ export const page = {
       dragBound.add(content);
       bindBoardRowDrag(content, { ready: () => !!D.detail(), length: () => (D.detail()?.items || []).length, move: (from, to) => D.moveItemTo(from, to) });
     }
-    D.render();   // 先用缓存把列表 / 画廊、检查器与预览画出来
+    D.render();   // 先用缓存把题目面板、详情与预览画出来
     D.enter();    // 再重读列表与当前板
     return () => {
       offBoards();
@@ -258,39 +294,56 @@ export const page = {
       root.removeEventListener('dblclick', onDbl);
       root.removeEventListener('click', onClick);
       root.removeEventListener('focusout', onBlur);
-      D.configure({ rejected: null });
+      D.configure({ rejected: null, onPaperSelect: null });
       s.renaming = false;
+      s.panel = 'list';
+      s.pop = '';
+      s.boardsOpen = false;
       D.flushIfDirty();
       ctl = null;
     };
   },
   actions: {
     create: () => B.createBoard(),
+    newFolder: () => B.createFolder(),
     newMenu: ({ el }) => ctl?.newMenu(el),
+    toggleBoards: () => ctl?.toggleBoards(),
+    search: ({ value }) => ctl?.search(value),
     open: ({ arg }) => ctl?.open(arg),
+    note: () => D.detail() && B.editBoardNote(D.detail().id),
     menu: ({ el, arg }) => ctl?.boardMenu(el, arg),
     fold: ({ arg }) => B.boardFolderToggle(arg),
     folderMenu: ({ el, arg }) => ctl?.folderMenu(el, arg),
     rename: () => ctl?.startRename(),
     mode: ({ arg }) => D.setMode(arg),
-    primary: ({ arg }) => (arg === 'mark-printed' ? D.markPrinted() : D.printPreview()),
+    primary: () => D.printPreview(),
+    markPrinted: () => D.markPrinted(),
+    cancelPrint: () => { D.clearAwaiting(); D.changed(); },
     export: () => D.exportCurrent(),
     regen: () => D.regen(),
-    view: ({ arg }) => D.setView(arg),
     add: () => openAdd(),
-    sync: () => D.syncLabel(),
+    linkLabel: ({ el }) => ctl?.linkLabel(el),
+    sync: () => D.syncLabel(S.linkedLabel(D.detail()?.id)),
     sortMenu: ({ el }) => ctl?.sortMenu(el),
     clear: () => D.clear(),
     clean: ({ arg }) => D.cleanMissing(arg),
     page: ({ arg }) => ctl?.page(arg),
+    changed: ({ arg }) => ctl?.openDetail(arg),
     jump: ({ value }) => boardPreviewGoto(Number(value) || 1),
     zoom: ({ arg }) => ctl?.zoom(arg),
-    // ---------- 列表 / 画廊 ----------
+    layoutPop: () => ctl?.showPop('layout'),
+    paperPop: () => ctl?.showPop('paper'),
+    closePop: () => ctl?.closePop(),
+    back: () => ctl?.back(),
+    detailStep: ({ arg }) => ctl?.detailStep(Number(arg)),
+    gapStep: ({ arg }) => ctl?.gapStep(arg),
+    gapPreset: ({ arg }) => ctl?.gapPreset(arg),
+    // ---------- 题目面板 ----------
     openItem: ({ arg }) => D.openItem(arg),
     remove: ({ arg }) => D.removeItem(arg),
     focusGap: ({ arg }) => ctl?.focusGap(arg),
     locate: ({ arg }) => ctl?.locate(arg),
-    // ---------- 检查器：题后留白只在这里改；锁定时滑杆 / 数字框只在松手（change）时写，一轮输入一个确认框 ----------
+    // ---------- 详情留白与版式浮层：锁定时滑杆 / 数字框只在松手（change）时写，一轮输入一个确认框 ----------
     inspectLocate: () => ctl?.locate(D.selected()),
     inherit: () => D.setItemGap(D.selected(), null),
     gapLive: ({ el }) => { if (!D.locked()) void D.setItemGap(el.dataset.boardInspectGap, gapValue(el), { keepFocus: true }); },
@@ -310,6 +363,8 @@ export const page = {
     arrowdown: ready(() => ctl.cursor('arrowdown')),
     'mod+arrowup': ready(() => ctl.reorder('arrowup')),
     'mod+arrowdown': ready(() => ctl.reorder('arrowdown')),
+    'alt+arrowup': ready(() => ctl.reorder('arrowup')),
+    'alt+arrowdown': ready(() => ctl.reorder('arrowdown')),
     delete: ready(() => ctl.removeSelected()),
     backspace: ready(() => ctl.removeSelected()),
     enter: { inInput: true, handler: ready(event => ctl.enter(event)) },

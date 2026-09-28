@@ -9,11 +9,11 @@
 
 > 对应源文件：`omrs/boards.py`、`omrs/exporting.py`（展示板导出段）、
 > `omrs/export_templates/board.css`、`omrs/export_templates/board.js`、
-> `assets/app/features/board/`（页面 `index.js` / `view.js` / `state.js` / `board.css`、板详情 `detail.js` / `runtime.js`、`add.js`、`model.js`、`save.js`、`print.js`、`preview.js`、`settings.js`、`drag.js`）、
+> `assets/app/features/board/`（页面 `index.js` / `view.js` / `state.js` / `board.css` / `board-layout.css` / `board-list.css` / `board-popovers.css`、板详情 `detail.js` / `runtime.js`、`add.js`、`model.js`、`save.js`、`print.js`、`preview.js`、`settings.js`、`drag.js`）、
 > `assets/app/domain/board/`（`model.js`、`boards.js`、`detail-port.js`、选板浮层 `picker.js`）、`tests/test_boards.py`、
 > `tests/test_board_export.py`、`tests/app/board.test.mjs`、`tests/app/board-preview.test.mjs`、
 > `tests/app/board-regions.test.mjs`、`tests/smoke_board_print.py`、`tests/test_board_locked_incremental.py`、
-> `tests/app/board-locked.test.mjs`、`tests/app/board-page.test.mjs`、`tests/e2e/board.py`、smoke_board_lock.py（已删除：调用的旧全局 P7 起已不存在；覆盖由新版展示板 E2E 承接）。
+> `tests/app/board-locked.test.mjs`、`tests/app/board-page.test.mjs`、`tests/e2e/board.py`。
 
 ## 1. 定位与边界
 
@@ -110,59 +110,17 @@ changed_count, cursor, answer_pages, print}`。
 
 ## 3. 展示板页面（`assets/app/features/board/`）
 
-侧栏「题目库」与「目录」之间的「展示板」Tab。页面分成**状态条 + 三栏**，每个区一句话职责，互不重叠：
+侧栏的「展示板」Tab 打开纸面工作区。桌面从左到右为板列表、常驻纸面和题目面板；板头横跨纸面与题目区域。纸面工具条负责页数、未印 / 已改动提示、翻页、缩放与版式入口。版式和纸面记录在各自浮层里；题目详情从题目面板右侧滑入。移动端（≤760px）板列表改为抽屉，题目面板排在纸面下方。
 
-```text
-┌─ 状态条 #bd-statusbar ─────────────────────────────────────┐
-│ 板名 · 题数   [状态 chips]      为什么  [打印范围] [主行动]  │
-├────────┬────────────────────────────┬─────────────────────┤
-│ 板列表 │ 舞台 #bd-content            │ 检查器 #bd-inspector │
-│        │ [纸面|列表|画廊] 内容操作    │ 选中的题             │
-│        │ 翻页条（纸面视图）           │ 版式                 │
-│        │      只换呈现，不换能力       │ 纸面记录             │
-└────────┴────────────────────────────┴─────────────────────┘
-```
+`view.js` 绘制板头、左栏、纸面与题目面板；`state.js` 派生板头、板树、纸面工具条、题目行、详情与浮层数据；`index.js` 接线动作和快捷键。整页 `morph` 不移动 `#bd-stage[data-morph="skip"]`，因此预览 iframe 保持常驻。`tests/app/board-regions.test.mjs` 与 `tests/e2e/board.py` 覆盖结构和主交互。
 
-1. **状态条**（`features/board/view.js` 的 `statusBar`，模型 `state.js` 的 `statusView`）：板名（双击或「重命名」按钮就地改名）、题数 / 科目分布 / 备注、纸面状态
-   chips、一句「为什么」、打印范围分段（`[data-board-modes]`）、**全页唯一的主行动按钮**
-   （`[data-board-primary]`，文案由 §4.2 的状态机决定），以及「下载 HTML」「↻ 重新生成」两个次要动作。
-2. **板列表**（sticky）：文件夹 → 板的两级树，见 §3.1。板行显示板名、题数、已印页数 / 新增数、
-   更新时间；`⋯` 菜单（`ui/menu`）：重命名、备注、复制、导出 HTML、移到某个文件夹 / 未归档 / 新文件夹、删除。空态给
-   「新建第一个展示板」。
-3. **舞台**：舞台栏是视图分段 + 内容操作（添加题目 / 按标记同步 / 排序 ▾ / 清空），纸面视图下
-   翻页条另占一行；缺失 / 停用题的黄红提示条排在下方。排序即持久化
-   （`POST /api/board/update {items}`）。三个视图见 §3.4。
-4. **检查器**（`view.js` 的 `inspector`，模型 `state.js` 的 `inspectorView`，sticky）：三段固定在这里，与当前是哪个视图无关——
-   「选中的题」（题号 / UID / 徽章 / 元信息 / **题后留白** / 跳到这道题 / 打开题目 / 从板中移除）、
-   「版式」（右侧留白 30–55%、题间留白、答案、题头显示、切割线、锁定版式，即改即存，去抖 500ms）、
-   「纸面记录」（已印题数 / 页数 / 时间、续排位置、已改动计数、清空纸面记录）。
-   `locked` 保护纸面，不冻结引用集合。增删、重复追加、清空引用、排序与未打印题留白不要求重印确认，均保留纸面记录；真正影响已印区域的版式/留白变更才确认，取消时不提交该变更。具体边界见 §4.6。
-
-三条不变量由 `tests/app/board-regions.test.mjs` 守着，破坏了「能做什么随视图变」的老毛病就会回来：
-
-- **舞台只呈现**：舞台渲染出的 HTML 里不出现任何设置控件（滑杆、设置类数字框、`[data-board-print]`、
-  打印范围分段）。翻页条里的页码框是导航，靠 `data-board-page-input` 与设置区分。
-- **一个设置只有一个入口**：题后留白只有检查器能写（`[data-board-inspect-gap]` 全页仅一个），
-  列表行与画廊卡上的留白是只读回显（`[data-board-gap-view]`，点一下 = 选中并把焦点送进检查器）；
-  板级 `gap_lines` 同样只渲染一次。三处留白读数都出自 `state.js` 的 `gapReadout`，板级留白一改整页重绘一起变。
-- **状态与行动同处**：`[data-board-primary]` 全页唯一，文案直接来自 `boardStatusModel()`。
-
-行内「留白」与「详情」默认透明，行悬停 / 选中 / 键盘聚焦时才显示；已覆盖过留白的行常显。
-全页样式是 `features/board/board.css` 的 `.brd-*`，只用 token（列表行最小高 44px，可点目标桌面 ≥28、手机 40）。1160px 以下检查器折到底部通栏，
-760px 以下三栏纵向堆叠、行内控件常显。外观细节见 `AI/frontend/board-ui.md`。
+板头有可改名的板名、文件夹、题数、备注、保存状态、下载和主打印按钮。有纸面记录且有新增题时显示「只印新增 / 全部重印」。打开打印预览后板头下出现确认条；只有选择「已打印，记录纸面」才写入记录。「没打成」清掉待确认状态。主按钮文案随当前范围和题数变化。
 
 ### 3.1 板列表：文件夹 → 板
 
-左栏是两级树，由 `features/board/view.js` 渲染（模型 `state.js` 的 `treeView`），`boardFolderTree(boards, folders)` 负责分组：
-板列表、文件夹、当前板与这些写操作的数据所有者是 `assets/app/domain/board/boards.js`，选板浮层读同一份。文件夹按
-`order` 排列，未归档恒在最后，空文件夹保留并显示虚线占位「把板拖进来」。文件夹行给折叠箭头、
-板数，以及组内「还没印上纸」的题数汇总 `+N`（各板 `printed_summary.new_count` 相加），
-`⋯` 菜单提供重命名 / 在此新建板 / 上移 / 下移 / 删除文件夹。删除文件夹默认把板移到未归档，
-对话框里可以改成连板一起删。
+板列表由 `domain/board/boards.js` 持有数据，`boardFolderTree()` 分组，文件夹按 `order` 排列，未归档恒在最后。左栏可以新建板或文件夹、查找板、折叠文件夹；板行显示题数、已印页数和未印题数。板 / 文件夹的菜单保留重命名、备注、复制、移动、导出和删除等已有操作。折叠状态存在 `localStorage['omrs-board-folders-collapsed']`，不进 `boards.json`。
 
-折叠状态存 `localStorage['omrs-board-folders-collapsed']`，不进 `boards.json`——它是 UI 状态，
-不是数据。拖拽（页面挂载时绑 `bindBoardTreeDrag`，落点由 `features/board/drag.js` 的 `boardTreeDropPlan` 算，写入 `boards.js` 的 `applyTreeDrop`）：板拖到文件夹行 = 移动，板拖到板行 = 落在那个位置，
-文件夹行之间拖 = 文件夹排序；不便拖拽时用板 `⋯` 菜单的「移到」。
+板与文件夹拖放由 `features/board/drag.js` 计算落点，写操作交给 `domain/board/boards.js`；板拖到文件夹行会移动，拖到板行会排序。手机上左栏由板头按钮打开为抽屉，选择板后收起。其它页面的「加入展示板」入口仍走下述统一选板浮层。
 
 ### 3.2 加入展示板：统一选板浮层
 
@@ -203,33 +161,17 @@ toast 写明「已直接加入《X》」；只有实际加入题目时才给「�
 
 ### 3.3 添加题目与页面键盘
 
-「添加题目」对话框（`features/board/add.js`，`ui/dialog`）复用 `filterItems()`（搜索 / 科目 / 分类 / 知识点 / 状态 / 到期 / 标记 chips），
-已在板中的题目灰显跳过，可「全选筛选结果」；列表 / 画廊两种画法共用一个勾选集合。「按标记同步」是显式追加并去重，不会因题目后来
-打标而自动改变板。
+「添加题目」对话框在 `features/board/add.js`，复用统一筛选与勾选集合：已在板里的题不能重复加入，可全选筛选结果。关联标记按板 ID 存在浏览器本地 `localStorage['omrs-board-linked-labels']`，不改服务端 `source_labels`；点击「同步」才按关联标记追加新题并去重。停用或缺失题在列表里提示，打印时跳过，用户可选择移出。
 
-键盘（`core/keys.js` 页面作用域，登记在页面契约的 `keys`）：`N` 新建、`A` 添加题目、`P` 打印预览、纸面视图 `←/→` 翻页、
-`↑/↓` 选行、`Ctrl/⌘+↑/↓` 移动行、`Enter` 打开、`Delete` 移除；对话框、输入框、选板浮层打开时不触发，标记选择器打开时让位。
-对话框一律是 `ui/dialog`（含「添加题目」「按标记同步」），Esc / 点遮罩关闭，不再用 `prompt()`。
+页面快捷键经 `core/keys.js`：`N` 新建、`A` 加题、`P` 打印预览、`←/→` 翻页、`↑/↓` 选题、`Ctrl/⌘+↑/↓` 排序、`Enter` 打开、`Delete` 移除。输入框、对话框和选板浮层取得键盘优先权。
 
-### 3.4 中栏三视图：纸面 / 列表 / 画廊
+### 3.4 常驻纸面、题目面板与详情
 
-分段按钮 `[data-board-views]`，选择存 `localStorage['omrs-board-view']`（UI 状态，不进
-`boards.json`）。
+纸面是一个同源 `srcdoc` iframe，内容直接来自 `/api/export` 的展示板 HTML；翻页、缩放和纸面统计使用它回传的版面。打印与预览使用同一排版。iframe 保持在 `#bd-stage` 中，点纸面上的题通过 `omrs-board-select` 打开右侧详情。内嵌 HTML 的顶栏打印按钮被 `embedded` 收起，以免产生另一套入口。生命周期、指纹和消息校验见 `AI/frontend/board-ui.md`。
 
-**纸面（默认）** 是一个常驻的同源 `srcdoc` iframe，内容就是 `/api/export` 的导出 HTML——
-所见即所打印，没有第二套估算。上方是翻页条：`←/→` 翻页、页码直填、「⚑ 跳到新增」定位到第一道
-还没印上纸的题、「适应宽度 / 100%」缩放，以及从真实版面读出的页数与告警摘要。默认**一次一面**。
-点纸面上的题会回传 `omrs-board-select`，宿主据此同步选中态并在检查器里显示它的设置。
-宿主为每份 srcdoc 注入独立 `previewToken`，内嵌 HTML 自带 `embedded`，并在就绪后以 `omrs-board-view` 重放视图状态；模板收起自带的顶栏动作条
-（「打印 / 导出 PDF」「✓ 已打印，记录纸面」）——那一条是给独立下载的 HTML 用的，
-嵌在舞台里就成了第二套打印与记录入口。
-iframe 的生命周期、三档刷新与指纹缓存见 `AI/frontend/board-ui.md`。
+题目面板的列表按纸面顺序显示 UID、已印页码 / 未印 / 已改动等状态、分类、难度、标记圆点和行内留白步进；排序菜单、拖放与键盘排序仍可用。点击行打开滑入式详情层，可前后切题、查看题面和练习记录、设置题后留白、打开题目或移出板。行内步进和详情预设均通过 `detail.js` 的 `setItemGap()` 写入。留白范围是 0–48 行，空输入代表继承板级值，保存时保持 `null`；锁定保护边界见 §4.6。
 
-**列表** 每行一行高：拖拽手柄 + 序号 + UID + 徽章（已印 p.N / 新增 / 已改动 / 停用 / 缺失）+
-标记芯片（点击开 LabelPicker）+ 元信息 + 留白只读回显 + 详情 + ✕。留白显示的是生效值
-（继承时标「（继承）」），改它点一下跳到检查器。
-
-**画廊**显示板内题目缩略详情，点击「详情」或双击题目均打开统一题目详情视图；纸面视图和列表视图也提供同一详情入口。
+「版式」浮层提供右侧留白、题间留白、答案、题头、切割线与锁定；「纸面记录」浮层显示已印题数、页数、续排位置和已改动计数，并可清空记录。
 
 ## 4. 打印系统：全部 / 仅新增 / 纸面记录
 
@@ -255,32 +197,13 @@ printed（纸面记录）= 已打印题目集合 + 每题所在页 / 位置 + �
 
 ### 4.2 打印状态机与页数估算
 
-纸面状态与「下一步做什么」只在状态条上出现一次，由纯函数
-`boardStatusModel(board, mode, awaiting)` 算出（`assets/app/features/board/model.js`，见
-`tests/app/board-regions.test.mjs`）。它返回 `{chips, scope, action, why}`：
+`boardStatusModel(board, mode, awaiting)`（`features/board/model.js`）判定打印范围与当前纸面状态；`state.js::statusView()` 将它与题目数结合，生成板头主按钮的文案。没有纸面时显示「打印 N 题」，有纸面时可「重印全部 N 题」；有新增题并选择仅新增时显示「补印新增 M 题」。只有存在纸面记录且有新增题，板头才显示打印范围分段。`changed_count` 和未印数在纸面工具条显示，纸面统计按钮打开记录浮层。
 
-| 纸面记录 | 新增题 | 打印范围 | 状态 chips | 主行动 | 一句「为什么」 |
-|---|---|---|---|---|---|
-| 无 | — | 全部 | `还没打印过` `N 题` | 🖨 打印全部 | 第一次打印会用掉新的一叠纸 |
-| 有 | 0 | 全部 | `已印 N 题 / P 页` | 🖨 打印全部 | 没有新增题需补印；想按当前顺序重排可主动打印全部 |
-| 有 | M>0 | 全部 | + `新增 M 题未印` | 🖨 打印全部 | 会重排整叠纸，写过的作废 |
-| 有 | M>0 | 仅新增 | 同上 | 🖨 补印新增 M 题 | 接在第 X 页的空白处 |
-| 任意 | 任意 | 任意 | + `等待记录纸面` | ✓ 记录纸面 | 打完了点这里 |
+打开打印预览或下载 HTML 后，主页面出现「打印好了吗？确认后才会记下纸面」确认条。选择「已打印，记录纸面」才记录；选择「没打成」、重置纸面记录或改变打印范围会清掉待确认状态。待记录导出任务与当前预览分开保存，切板和后续编辑不改变它的板 ID、模式和 HTML 快照。
 
-`changed_count > 0` 时在任何状态下追加一枚 `K 题已改动` chip。打印范围为 `new` 但没有纸面记录
-或没有新增题时自动落回 `all`，分段按钮同时禁用。
+页数直接读常驻预览 iframe 回传的 `layout`（`page_numbers` / `pages`），几何改动通过 iframe 内的 `relayout` 重排。页面不在前台或预览滚出视口时暂停排版，回来再补。下载任务通过隐藏 iframe 测量其保留的同份 HTML；独立打印窗口的 layout 只归属该窗口的导出任务。
 
-**等待记录纸面**是打印链路的落脚点：触发过打印预览或下载 HTML 之后
-（`boardMarkAwaiting(mode)`）主按钮翻成「✓ 记录纸面」，直到记录成功、重置纸面记录或改了打印范围
-才复位。它取代了原先埋在浮层里的「标记为已打印」——那时没有任何地方提示「你刚打完，该记录了」。
-
-页数不再单独跑一遍排版：**常驻预览 iframe 就是那一遍**。翻页条的页数、页码范围与告警数
-直接读它回传的 `layout`（`boardEstimateText()` 只负责拼文案），几何改动走 `relayout`
-在 iframe 内重排、全程零请求。展示板 Tab 不在前台或预览滚出视口时不排版，回来再补一次。
-
-隐藏 iframe 测量（`boardMeasureLayout()`）用于下载任务：记录纸面时排版当时下载的同份 HTML。独立打印窗口回传的 layout 保存到该窗口对应的导出任务，只用于记录其自身纸面，不作为当前预览的页数估算。
-
-### 4.3 记录纸面（「标记为已打印」）
+### 4.3 记录纸面
 
 版面由浏览器实测，所以记录也来自浏览器：
 
@@ -325,7 +248,7 @@ printed（纸面记录）= 已打印题目集合 + 每题所在页 / 位置 + �
 
 ### 4.5 切割线的默认值与入口
 
-代码默认 `dash`，因此**历史板在下次打印时也会显示淡切割线**。展示板检查器的「版式」区
+代码默认 `dash`，因此**历史板在下次打印时也会显示淡切割线**。展示板「版式」浮层
 提供「不画 / 虚线 / 实线」切换和「线右端标『第 N 题止』」选项；也可以通过 API 修改：
 
 ```http
@@ -357,7 +280,7 @@ POST /api/board/update
 
 有纸面且请求前或请求后的 `print.locked` 为真时，改变题栏比例、题头显示、切割线或生效的切割线标签，或改变仍在板内的已印题的**有效**留白，会走明确确认重印流程，服务端更新时重置纸面记录。单独开/关锁定、答案附页选择、未打印题留白、等值的继承/显式留白切换不重置；全局留白仅在确实改变保留的已印题有效留白时重置。切割线关闭时的标签设置不生效，无需确认。无纸面时不弹破坏性确认；未锁定时版式编辑保留旧纸面，`new` 仍按纸面几何续排。
 
-确认由前端在本地变更和提交之前完成，后端保留真实版式变化的重置兜底；这不是新增鉴权机制，也不新增确认令牌。回归测试包含真实临时题库读写/HTML 数据、JS 动作与取消后零提交；smoke_board_lock.py（已删除：调用的旧全局 P7 起已不存在；覆盖由新版展示板 E2E 承接） 通过隔离 HTTP + Chromium 核验补印按钮、透明旧区域和 cursor 续排，不代表物理打印机验收。
+确认由前端在本地变更和提交之前完成，后端保留真实版式变化的重置兜底；这不是新增鉴权机制，也不新增确认令牌。回归测试包含真实临时题库读写/HTML 数据、JS 动作与取消后零提交；`tests/e2e/board.py` 通过隔离 HTTP + Chromium 核验补印按钮、透明旧区域和 cursor 续排，不代表物理打印机验收。
 
 ## 5. HTTP API
 
@@ -409,7 +332,7 @@ POST /api/board/update
   估算文案、几何常量）与 `assets/app/domain/board/model.js`（选板分组、行状态、过滤、最近使用、
   `boardUniqueUids`，以及选板浮层的行模型与点击决策），由 `tests/app/board.test.mjs`、`board-picker.test.mjs` 覆盖；
   板详情控制器 `features/board/detail.js` 由 `tests/app/board-locked.test.mjs` 注入替身覆盖。选板浮层的真实交互由 `tests/e2e/board_picker.py` 覆盖，
-  整页（状态条、左栏、舞台头、列表 / 画廊、检查器、加题对话框、快捷键，以及「加题 → 排序 → 版面设置 → 打印预览 → 仅补印新增」）由
+  整页（板头、左栏、常驻纸面、题目面板、滑入详情、版式与纸面记录浮层、快捷键，以及「加题 → 排序 → 版式设置 → 打印预览 → 仅补印新增」）由
   `tests/e2e/board.py` 覆盖，视图模型与板列表由 `tests/app/board-page.test.mjs` 覆盖。`boardColumnWidth` 与模板 `board.js` 的 `COL_W`
   是同一算式，改几何要两处一起改。
 - 常驻预览 `assets/app/features/board/preview.js` 的消息协议由 `tests/app/board-preview.test.mjs` 锁住：几何 relayout

@@ -65,7 +65,7 @@ assets/
 | 题目库 | `.qlb` → `.qlb-card` → `.qlb-body`（`features/questions/questions.css`） | `.qlb-main` 里的表格 / 画廊、`.qlb-drawer` |
 | 反馈录入 | `.fb-work`（`grid-template-rows:minmax(0,1fr)`） | `.fb-rail` / `.fb-stage` / `.fb-panel` 三栏独立 |
 | 录入题目 | `#create-app` → `.ib-stage.on`；处理页额外 `#ib-stage-process.on` → `.ib-proc` | 新页面契约渲染导航和上传网格；旧处理工作区仍承载三栏，上传 / 录入 / AI 训练三个 stage 整体滚 |
-| 展示板 | `.bd-layout` | `.bd-layout > .card` 三张 |
+| 展示板 | `.brd` → `.brd-main` → `.brd-work` | 板列表、纸面桌面、题目面板各自滚动；桌面展示板页把应用侧栏收成图标栏 |
 | 即时练习 | `.inst-work`（`features/instant/instant.css`） | `.inst-main` / `.inst-queue__list` |
 
 配套：题库表头 `position:sticky; top:0`，列表再长表头也在；抽屉不 sticky（父级已经限高，自己滚）。

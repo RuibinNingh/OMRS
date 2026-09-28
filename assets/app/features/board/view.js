@@ -1,224 +1,166 @@
 /**
- * 展示板页模板（P7 第 5 轮起，只产出 html``）：页面骨架、状态条、左栏树、舞台头（舞台栏 / 翻页 / 警告）；第 6 轮起
- * 列表 / 画廊（#bd-content-body）与检查器（#bd-inspector）也在这里。
- * 骨架里只有常驻预览 iframe 的舞台 #bd-stage 是 data-morph="skip"；画廊卡的题面挂载点也是 skip（key 编码 uid，qvRender 填）。
- * 每层的子节点个数与顺序固定（可有可无的块都包在 .brd-head 里），morph 永远不必挪动舞台——iframe 被 insertBefore
- * 移动一次就整份重载，近 1MB 的内联字体要重新解码。
- * 测试钩子沿用旧的 data-board-* 属性（主行动按钮、打印范围、视图、翻页条与页码框、板行、条目行、检查器字段与分段）；
- * 拖拽契约（features/board/drag.js）：data-board-drag、data-board-folder-drag、data-board-folder-drop、data-board-row / data-board-index。
+ * 展示板工作台：板列表、板头、常驻纸面和题目面板。
+ * 纸面 #bd-stage 是唯一常驻的 skip 节点；详情题面也使用固定挂载点。
  */
 import { html, raw, each, cls } from '../../core/html.js';
 import { icon } from '../../ui/icon.js';
 import { empty } from '../../ui/empty.js';
 import { kbd } from '../../ui/kbd.js';
-import { labelChip, labelChips } from '../../domain/labels/index.js';
-import { qvGalleryIdHtml } from '../../domain/question/index.js';
-import { VIEWS, ANSWER_OPTIONS, CUT_OPTIONS } from './state.js';
+import { labelChip, labelChips, labelObject, ensureColor } from '../../domain/labels/index.js';
+import { ANSWER_OPTIONS, CUT_OPTIONS } from './state.js';
 
-const pressed = on => (on ? 'true' : 'false');
-const off = flag => (flag ? html` disabled` : '');
+const pressed = on => on ? 'true' : 'false';
+const off = flag => flag ? html` disabled` : '';
+const flags = values => values.map(f => html`<span class="brd-flag" data-tone="${f.tone}"${f.title ? html` title="${f.title}"` : ''}>${f.text}</span>`);
+const labelDots = names => (names || []).map(name => {
+  const color = ensureColor(labelObject(name).color);
+  return html`<i class="brd-label-dot"${color ? html` data-lbl-c="${color}"` : ''} title="${name}" aria-label="${name}"></i>`;
+});
 
 export function view(m) {
   return html`<div class="brd" data-key="brd">
-  <section class="brd-bar" id="bd-statusbar" aria-label="打印状态" data-key="bar">${statusBar(m.status, m.renaming)}</section>
-  <div class="brd-layout" data-key="layout">
-    <nav class="ui-card brd-col brd-list" id="bd-list" aria-label="展示板列表" data-key="list">${listPane(m.tree)}</nav>
-    <section class="ui-card brd-col brd-main" id="bd-content" aria-label="板内容" data-key="main">
-      <div class="brd-head" data-key="head">${stageHead(m.stage)}</div>
-      <div class="brd-stage" id="bd-stage" data-morph="skip" data-key="stage" hidden></div>
-      <div class="brd-body" id="bd-content-body" data-key="body">${contentBody(m.content)}</div>
+    <nav class="brd-list" id="bd-list" aria-label="展示板列表" data-key="list"${m.boardsOpen ? html` data-open` : ''}>${listPane(m.tree)}</nav>
+    <section class="brd-main" id="bd-content" aria-label="板内容" data-key="main">
+      <header class="brd-bar" id="bd-statusbar" data-key="bar">${statusBar(m.status, m.renaming)}</header>
+      <div class="brd-confirm" data-key="confirm"${!m.status.awaiting ? html` hidden` : ''}>${confirmBar(m.status)}</div>
+      <div class="brd-work" data-key="work">
+        <section class="brd-paper-col" aria-label="纸面预览" data-key="paper">
+          <div class="brd-head" data-key="head">${stageHead(m.stage)}</div>
+          <div class="brd-desk" data-key="desk"><div class="brd-stage" id="bd-stage" data-morph="skip" data-key="stage"></div></div>
+        </section>
+        <section class="brd-questions" aria-label="题目" data-key="questions"${m.panel === 'detail' ? html` data-detail` : ''}>
+          <div class="brd-question-list" data-key="list-layer"${m.panel === 'detail' ? html` inert` : ''}>
+            ${contentHead(m.content, m.linked)}
+            <div class="brd-body" id="bd-content-body" data-key="body">${contentBody(m.content)}</div>
+            <div class="brd-list-foot" data-key="foot">点题目看详情；拖动 ⠿ 调顺序，或按 ${kbd('Ctrl', '↑↓')}</div>
+          </div>
+          <aside class="brd-ins" id="bd-inspector" aria-label="题目详情" data-key="detail-layer"${m.panel !== 'detail' ? html` inert` : ''}>${inspectorItem(m.inspector.item)}</aside>
+        </section>
+      </div>
+      <div class="brd-pop-host" data-key="pop"${!m.pop ? html` hidden` : ''}>${popover(m.pop, m.inspector)}</div>
     </section>
-    <aside class="ui-card brd-col brd-ins" id="bd-inspector" aria-label="检查器" data-key="ins"${m.inspector.empty ? html` hidden` : ''}>${inspector(m.inspector)}</aside>
-  </div>
-</div>`;
+  </div>`;
 }
 
-// ---------- 状态条 ----------
 function statusBar(s, renaming) {
-  if (s.empty) {
-    return html`<p class="brd-intro" data-key="intro">左题右空的活页「错题集」：随时加题、重排、打印；打印过后只补印新增的题，接在原纸空白处。
-      <span class="brd-keys">快捷键 ${kbd('N')} 新建 · ${kbd('A')} 添加 · ${kbd('P')} 打印预览 · ${kbd('↑↓')} 选行 · ${kbd('Ctrl', '↑↓')} 移动 · ${kbd('Delete')} 移除</span></p>`;
-  }
-  return html`<div class="brd-id" data-key="id">
-      <div class="brd-id__line">${renaming
-    ? html`<input class="ui-input brd-rename" data-board-rename value="${s.name}" maxlength="120" autocomplete="off" aria-label="展示板名称（Enter 保存，Esc 取消）">`
-    : html`<h2 class="brd-title" data-board-rename-target title="双击重命名">${s.name}</h2><button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon brd-rename-btn" data-action="board.rename" aria-label="重命名展示板" title="重命名">${icon('edit')}</button>`}</div>
-      <p class="brd-sub">${s.count} 题${s.subjects ? ` · ${s.subjects}` : ''}${s.note ? ` · ${s.note}` : ''}${s.locked ? html` · <span class="brd-locked">版式已锁定</span>` : ''}</p>
+  if (s.empty) return html`<div class="brd-title-block"><button type="button" class="ui-btn ui-btn--ghost brd-open-list" data-action="board.toggleBoards" aria-label="打开展示板列表">${icon('menu')}</button><h2 class="brd-title">没有选中展示板</h2></div>`;
+  return html`<div class="brd-title-block">
+      <div class="brd-title-line"><button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon brd-open-list" data-action="board.toggleBoards" aria-label="打开展示板列表">${icon('menu')}</button>
+      ${renaming ? html`<input class="ui-input brd-rename" data-board-rename value="${s.name}" maxlength="120" aria-label="展示板名称（Enter 保存，Esc 取消）">`
+        : html`<h2 class="brd-title" data-board-rename-target title="点击重命名">${s.name}</h2>
+          <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon brd-rename-btn" data-action="board.rename" aria-label="重命名展示板">${icon('edit')}</button>`}
+      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.menu" data-arg="${s.id}" aria-label="展示板更多操作" aria-haspopup="menu">${icon('more-h')}</button></div>
+      <p class="brd-sub"><span>${icon('folder')}${s.folder}</span><span>${s.count} 题</span>
+        <button type="button" class="brd-note-link" data-action="board.note" title="编辑备注">${s.note || '添加备注'}</button>
+        <span class="brd-save-state">${s.saving ? '正在保存…' : '已保存'}</span>${s.locked ? html`<span class="brd-locked">版式已锁定</span>` : ''}</p>
     </div>
-    <div class="brd-chips" data-key="chips">${s.chips.map(chip => html`<span class="brd-chip" data-tone="${chip.kind}">${chip.text}</span>`)}</div>
-    <p class="brd-why" data-key="why">${s.why}</p>
-    <div class="brd-seg" role="group" aria-label="打印范围" data-board-modes data-key="modes">
-      <button type="button" class="brd-seg__btn" data-board-mode="all" data-action="board.mode" data-arg="all" aria-pressed="${pressed(s.scope === 'all')}">打印全部</button>
-      <button type="button" class="brd-seg__btn" data-board-mode="new" data-action="board.mode" data-arg="new" aria-pressed="${pressed(s.scope === 'new')}"${off(!s.canNew)}>仅新增${s.newCount ? `（${s.newCount}）` : ''}</button>
-    </div>
-    <button type="button" class="ui-btn ui-btn--primary brd-primary" data-board-primary data-action="board.primary" data-arg="${s.action.type}" title="打印预览（P）" data-key="primary">${s.action.label}</button>
-    <div class="brd-more" data-key="more">
-      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="board.export" title="下载自包含 HTML，离线打印">${icon('download')}<span class="ui-btn__label">下载 HTML</span></button>
-      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.regen" aria-label="按最新正文重新生成纸面" title="题目正文在别处改过、纸面还是旧的时，强制重新生成">${icon('refresh')}</button>
+    <div class="brd-header-acts">
+      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.export" aria-label="下载 HTML" title="下载自包含 HTML">${icon('download')}</button>
+      ${s.canNew ? html`<div class="brd-seg" role="group" aria-label="打印范围" data-board-modes>
+        <button type="button" class="brd-seg__btn" data-board-mode="new" data-action="board.mode" data-arg="new" aria-pressed="${pressed(s.scope === 'new')}">只印新增</button>
+        <button type="button" class="brd-seg__btn" data-board-mode="all" data-action="board.mode" data-arg="all" aria-pressed="${pressed(s.scope === 'all')}">全部重印</button></div>` : ''}
+      <button type="button" class="ui-btn ui-btn--primary brd-primary" data-board-primary data-action="board.primary" title="打印预览（P）"${off(!s.printable)}>${icon('print')}${s.actionLabel}</button>
     </div>`;
 }
 
-// ---------- 左栏：文件夹 → 板 两级树 ----------
+function confirmBar(s) {
+  if (!s.awaiting) return '';
+  return html`<span class="brd-confirm__icon">${icon('print')}</span><div class="brd-confirm__text"><strong>打印好了吗？确认后才会记下纸面</strong>
+    <span>确认后系统会记住每道题印在第几页，之后加题就能只补印新增。</span></div>
+    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="board.cancelPrint">没打成</button>
+    <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" data-action="board.markPrinted">已打印，记录纸面</button>`;
+}
+
 function listPane(t) {
-  if (t.empty) {
-    return html`<div data-key="empty">${empty({
-      icon: 'bookmark', title: '还没有展示板', compact: true,
-      hint: '把考前必看的题集中到一个板里，随时加题、重排，打印成左题右空的活页纸；之后新增的题还能只补印一页。',
-      action: { label: '新建第一个展示板', action: 'board.create', size: 'sm' },
-    })}</div>`;
-  }
-  return html`<div class="brd-list__head" data-key="head">
-      <h2 class="brd-list__title">展示板<span class="brd-count">${t.count}</span></h2>
-      <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" data-action="board.newMenu" aria-haspopup="menu" title="新建（N）">${icon('plus')}<span class="ui-btn__label">新建</span>${icon('chevron-down')}</button>
-    </div>
-    <div class="brd-tree" data-board-tree data-key="tree">${each(t.groups, group => `g:${group.id}`, groupHtml)}</div>
-    <p class="brd-list__note" data-key="note">板里存的是题目引用，题目改了重印即最新；纸面标题固定为「错题集」。</p>`;
+  return html`<div class="brd-list__head"><h2 class="brd-list__title">展示板 <span class="brd-count">${t.count}</span></h2>
+    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.newFolder" aria-label="新建文件夹">${icon('folder')}</button>
+    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.toggleBoards" aria-label="收起展示板列表">${icon('menu')}</button></div>
+    <button type="button" class="ui-btn brd-new" data-action="board.create" title="新建展示板（N）">${icon('plus')}新建展示板<span>${kbd('N')}</span></button>
+    <label class="brd-search">${icon('search')}<input type="search" data-board-search data-input="board.search" value="${t.query || ''}" placeholder="查找展示板" aria-label="查找展示板"></label>
+    <div class="brd-tree" data-board-tree data-key="tree">${t.empty ? html`<p class="brd-list__note">还没有展示板，点上方按钮新建。</p>` : each(t.groups, group => `g:${group.id}`, groupHtml)}</div>`;
 }
-
 function groupHtml(g) {
-  const body = g.boards.length ? html`<div class="brd-folder__body">${each(g.boards, board => board.id, itemHtml)}</div>`
-    : (g.plain || g.folded ? '' : html`<div class="brd-folder__body"><p class="brd-folder__empty">把板拖进来</p></div>`);
-  if (g.plain) {
-    return html`<div class="brd-group" data-key="g:">
-      <div class="brd-folder is-plain" data-board-folder-drop=""><span class="brd-folder__name">未归档</span><span class="brd-count">${g.count}</span></div>${body}</div>`;
-  }
   return html`<div class="brd-group" data-key="g:${g.id}">
-    <div class="${cls('brd-folder', g.folded && 'is-folded')}" draggable="true" data-board-folder-drop="${g.id}" data-board-folder-drag="${g.id}" title="${g.title}">
-      <button type="button" class="brd-fold" data-action="board.fold" data-arg="${g.id}" aria-expanded="${pressed(!g.folded)}" aria-label="${g.folded ? '展开' : '折叠'}「${g.name}」">${icon('chevron-down')}</button>
-      <span class="brd-folder__name">${g.name}</span>
-      ${g.newCount ? html`<span class="brd-plus" title="这组里有 ${g.newCount} 题还没印上纸">+${g.newCount}</span>` : ''}
-      <span class="brd-count">${g.count}</span>
-      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon brd-menu-btn" data-action="board.folderMenu" data-arg="${g.id}" aria-haspopup="menu" aria-label="文件夹「${g.name}」操作">${icon('more-h')}</button>
-    </div>${body}</div>`;
+    <div class="${cls('brd-folder', g.folded && 'is-folded', g.plain && 'is-plain')}" ${g.plain ? '' : html`draggable="true" data-board-folder-drag="${g.id}"`} data-board-folder-drop="${g.id}">
+      ${g.plain ? html`<span class="brd-folder__spacer"></span>` : html`<button type="button" class="brd-fold" data-action="board.fold" data-arg="${g.id}" aria-expanded="${pressed(!g.folded)}" aria-label="${g.folded ? '展开' : '折叠'}「${g.name}」">${icon('chevron-down')}</button>`}
+      <span class="brd-folder__name">${g.name}</span><span class="brd-count">${g.count}</span>
+      ${g.plain ? '' : html`<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon brd-menu-btn" data-action="board.folderMenu" data-arg="${g.id}" aria-label="文件夹「${g.name}」操作" aria-haspopup="menu">${icon('more-h')}</button>`}</div>
+    ${!g.folded ? html`<div class="brd-folder__body">${each(g.boards, board => board.id, itemHtml)}</div>` : ''}</div>`;
 }
-
 function itemHtml(b) {
-  return html`<div class="${cls('brd-item', b.on && 'is-current')}" data-key="${b.id}" draggable="true" data-board-drag="${b.id}" title="${b.title}">
+  return html`<div class="${cls('brd-item', b.on && 'is-current')}" data-key="${b.id}" draggable="true" data-board-drag="${b.id}">
     <button type="button" class="brd-item__main" data-board-select="${b.id}" data-action="board.open" data-arg="${b.id}"${b.on ? html` aria-current="true"` : ''}>
-      <span class="brd-item__name">${b.name}</span>
-      <span class="brd-item__meta">${b.bits.map((bit, i) => html`${i ? ' · ' : ''}<span${bit.tone ? html` data-tone="${bit.tone}"` : ''}>${bit.text}</span>${bit.plus ? html` <span data-tone="new">${bit.plus}</span>` : ''}`)}</span>
-    </button>
-    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon brd-menu-btn" data-action="board.menu" data-arg="${b.id}" aria-haspopup="menu" aria-label="展示板「${b.name}」操作">${icon('more-h')}</button>
-  </div>`;
+      <strong class="brd-item__name">${b.name}</strong><span class="brd-item__meta">${b.bits.map((bit, i) => html`${i ? ' · ' : ''}<span${bit.tone ? html` data-tone="${bit.tone}"` : ''}>${bit.text}</span>`)}</span></button>
+    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon brd-menu-btn" data-action="board.menu" data-arg="${b.id}" aria-label="展示板「${b.name}」操作" aria-haspopup="menu">${icon('more-h')}</button></div>`;
 }
 
-// ---------- 舞台头：视图只决定「怎么看」，改版式或打印范围的控件不在这里 ----------
 function stageHead(s) {
-  if (s.empty) return html`<p class="brd-placeholder" data-key="none">请选择或新建一个展示板。</p>`;
-  return html`<div class="brd-stagebar" data-key="stagebar">
-      <div class="brd-seg" role="group" aria-label="视图">${VIEWS.map(([key, label]) => html`<button type="button" class="brd-seg__btn" data-board-view="${key}" data-action="board.view" data-arg="${key}" aria-pressed="${pressed(s.view === key)}">${label}</button>`)}</div>
-      <span class="brd-note">${s.count} 题 · 顺序即纸面顺序</span>
-      <span class="brd-grow"></span>
-      <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" data-action="board.add" title="添加题目（A）">${icon('plus')}<span class="ui-btn__label">添加题目</span></button>
-      <button type="button" class="ui-btn ui-btn--sm" data-action="board.sync">${icon('tag')}<span class="ui-btn__label">按标记同步</span></button>
-      <button type="button" class="ui-btn ui-btn--sm" data-action="board.sortMenu" aria-haspopup="menu">${icon('sort')}<span class="ui-btn__label">排序</span></button>
-      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="board.clear"${off(!s.count)}>清空</button>
-    </div>
-    ${s.view === 'paper' ? pager(s.pager) : ''}
-    ${s.missing ? html`<div class="brd-warn" data-tone="danger" data-key="warn-missing">${icon('alert-triangle')}<span>${s.missing} 道题已缺失（文件被删或无法解析），导出时会跳过。</span><button type="button" class="ui-btn ui-btn--sm" data-action="board.clean" data-arg="missing">清理缺失条目</button></div>` : ''}
-    ${s.suspended ? html`<div class="brd-warn" data-key="warn-suspended">${icon('alert-triangle')}<span>${s.suspended} 道题已停用，导出时会跳过。</span><button type="button" class="ui-btn ui-btn--sm" data-action="board.clean" data-arg="suspended">移出停用题</button></div>` : ''}`;
+  if (s.empty) return '';
+  const p = s.pager;
+  return html`<button type="button" class="brd-paper-stat" data-action="board.paperPop" aria-haspopup="dialog"${off(!s.paperPages)}>
+      ${icon('file')}${s.paperPages ? `纸上 ${s.paperCount} 题 · ${s.paperPages} 页` : '还没打印过'}</button>
+    ${s.newCount ? html`<button type="button" class="brd-chip" data-tone="new" data-action="board.page" data-arg="new">${s.newCount} 题未印</button>` : ''}
+    ${s.changedCount ? html`<button type="button" class="brd-chip" data-tone="changed" data-action="board.changed" data-arg="${s.changedUid}">${s.changedCount} 题已改动</button>` : ''}
+    <span class="brd-grow"></span><div class="brd-pager" data-board-pager>
+      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.page" data-arg="prev" aria-label="上一页"${off(!p.multi)}>${icon('chevron-up')}</button>
+      <label>第 <input class="ui-input brd-jump__input" type="number" min="1" value="${p.page}" data-board-page-input data-input="board.jump" aria-label="页码"> / ${p.pages || '—'} 页</label>
+      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.page" data-arg="next" aria-label="下一页"${off(!p.multi)}>${icon('chevron-down')}</button></div>
+    <div class="brd-seg brd-zoom" role="group" aria-label="缩放"><button type="button" class="brd-seg__btn" data-action="board.zoom" data-arg="fit" aria-pressed="${pressed(p.zoom === 'fit')}">适应宽度</button><button type="button" class="brd-seg__btn" data-action="board.zoom" data-arg="1" aria-pressed="${pressed(p.zoom !== 'fit')}">100%</button></div>
+    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="board.layoutPop" aria-haspopup="dialog">${icon('sliders')}版式</button>`;
 }
-
-function pager(p) {
-  return html`<div class="brd-pager" data-board-pager data-key="pager">
-    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.page" data-arg="prev" aria-label="上一页" title="上一页（←）"${off(!p.multi)}>${icon('chevron-left')}</button>
-    <label class="brd-jump">第 <input class="ui-input brd-jump__input" type="number" min="1" value="${p.page}" data-board-page-input data-input="board.jump" aria-label="页码"> / ${p.pages || '—'} 页</label>
-    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.page" data-arg="next" aria-label="下一页" title="下一页（→）"${off(!p.multi)}>${icon('chevron-right')}</button>
-    ${p.jumpNew ? html`<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="board.page" data-arg="new" title="跳到第一道还没印在纸上的题">⚑ 跳到新增</button>` : ''}
-    <span class="brd-est">${estimate(p)}</span>
-    <div class="brd-seg" role="group" aria-label="缩放">
-      <button type="button" class="brd-seg__btn" data-action="board.zoom" data-arg="fit" aria-pressed="${pressed(p.zoom === 'fit')}">适应宽度</button>
-      <button type="button" class="brd-seg__btn" data-action="board.zoom" data-arg="1" aria-pressed="${pressed(p.zoom !== 'fit')}">100%</button>
-    </div>
-  </div>`;
+function contentHead(c, linked) {
+  return html`<div class="brd-question-head"><h2>题目</h2><span>${c.count || 0}${c.suspended ? ` / ${c.total}` : ''}</span><span class="brd-grow"></span>
+    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.sortMenu" aria-label="排序" aria-haspopup="menu"${off(c.total < 2)}>${icon('sort')}</button>
+    <button type="button" class="ui-btn ui-btn--primary ui-btn--sm" data-action="board.add" title="添加题目（A）">${icon('plus')}添加题目</button></div>
+    <div class="${cls('brd-syncbar', linked.pending && 'has-pending')}">
+      <button type="button" class="brd-syncbar__label" data-action="board.linkLabel" aria-haspopup="menu">${linked.name ? labelChip(linked.name) : '关联标记'}${icon('chevron-down')}</button>
+      <span>${linked.name ? linked.pending ? `有 ${linked.pending} 道新题没进板` : '已同步' : '选择标记后可一键同步新题'}</span>
+      <button type="button" class="ui-btn ui-btn--sm" data-action="board.sync"${off(!linked.name || !linked.pending)}>同步</button></div>
+    ${c.suspended ? html`<div class="brd-warn">${c.suspended} 道题已停用，打印时会跳过<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="board.clean" data-arg="suspended">移出</button></div>` : ''}
+    ${c.missing ? html`<div class="brd-warn" data-tone="danger">${c.missing} 道题已缺失，打印时会跳过<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="board.clean" data-arg="missing">移出</button></div>` : ''}
+    <div class="brd-cols" aria-hidden="true"><span>#</span><span>题目 · 顺序即纸面顺序</span><span>题后留白</span></div>`;
 }
-
-function estimate(p) {
-  if (p.error) return html`<span data-tone="warn">无法生成预览：${p.error}</span>`;
-  const e = p.estimate;
-  if (!e) return html`<span class="brd-busy">正在排版…</span>`;
-  const warn = e.warnings ? html` · <span data-tone="warn">⚠ ${e.warnings} 处切图告警</span>` : '';
-  if (e.scope === 'new') {
-    return html`本次补印 <b>${e.rendered}</b> 页（${e.range}）${e.partial ? `，第 ${e.partial} 页印在原纸上` : ''} · 打印后整板共 <b>${e.pages}</b> 页${warn}`;
-  }
-  return html`预计 <b>${e.pages}</b> 页 · A4 纵向 · 左右 10 / 上下 12mm${warn}`;
-}
-
-// ---------- 列表 / 画廊：顺序即纸面顺序；只读回显留白，改它在检查器 ----------
-const flagList = flags => flags.map(f => html`<span class="brd-flag" data-tone="${f.tone}"${f.title ? html` title="${f.title}"` : ''}>${f.text}</span>`);
-
 function contentBody(c) {
-  if (c.kind === 'none') return '';
-  if (c.empty) {
-    return html`<div data-key="empty-${c.kind}">${empty({
-      icon: 'plus', title: '板里还没有题目', compact: true,
-      hint: '点「添加题目」筛选加入，或在题库勾选后批量加入；题目弹窗、反馈判错、录入题目后也有「加入展示板」。',
-      action: { label: '添加题目', action: 'board.add', size: 'sm' },
-    })}</div>`;
-  }
-  if (c.kind === 'gallery') return html`<div class="brd-gallery" data-key="gallery">${each(c.rows, row => row.uid, galleryCard)}</div>`;
-  return html`<div class="brd-rows" data-board-rows data-key="rows">${each(c.rows, row => row.uid, rowHtml)}</div>`;
+  if (c.empty || c.kind === 'none') return html`<p class="brd-placeholder">还没有题目。点「添加题目」从题库挑选。</p>`;
+  return html`<div class="brd-rows" data-board-rows>${each(c.rows, row => row.uid, rowHtml)}</div>`;
 }
-
-function rowMeta(r) {
-  if (r.missing) return html`<span data-tone="danger">题目已删除或无法解析；导出时跳过</span>`;
-  return html`<span>${r.subject}${r.category ? ` · ${r.category}` : ''}</span>${r.difficulty ? html`<span>难度 ${r.difficulty}</span>` : ''}<span>熟练 ${r.mastery}%</span>${r.due ? html`<span${r.due.tone ? html` data-tone="${r.due.tone}"` : ''}>${r.due.text}</span>` : ''}`;
-}
-
 function rowHtml(r) {
-  return html`<div class="${cls('brd-row', r.missing && 'is-missing', r.suspended && 'is-suspended')}" data-key="${r.uid}" data-board-row="${r.uid}" data-board-index="${r.index}" draggable="true" tabindex="-1"${r.selected ? html` aria-current="true"` : ''} title="双击或 Enter 打开题目">
-    <span class="brd-row__grip" aria-hidden="true" title="拖拽排序（Ctrl+↑/↓ 也可）">⠿</span><span class="brd-row__no">${r.no}</span>
-    <div class="brd-row__main"><span class="brd-row__head"><strong class="brd-row__uid">${r.name}</strong>${flagList(r.flags)}<span class="q-label-cell brd-labels" data-lbl-target="${r.uid}">${labelChips(r.labels, { add: true })}</span></span>
-      <span class="brd-row__meta">${rowMeta(r)}</span></div>
-    <div class="brd-row__acts">
-      <button type="button" class="${cls('brd-gapchip', !r.gap.inherited && 'is-own')}" data-action="board.focusGap" data-arg="${r.uid}" data-board-gap-view="${r.uid}" title="点一下到右栏改这道题的留白">${r.gap.text}</button>
-      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm brd-row__open" data-action="board.openItem" data-arg="${r.uid}"${off(r.missing)} title="打开题目详情">详情</button>
-      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon brd-row__x" data-action="board.remove" data-arg="${r.uid}" aria-label="从板中移除 ${r.name}" title="从板中移除（Delete）">${icon('x')}</button>
-    </div>
+  return html`<div class="${cls('brd-row', r.missing && 'is-missing', r.suspended && 'is-suspended')}" data-key="${r.uid}" data-board-row="${r.uid}" data-board-index="${r.index}" draggable="true" tabindex="-1"${r.selected ? html` aria-current="true"` : ''}>
+    <span class="brd-row__grip" aria-hidden="true" title="拖动调整顺序">⠿</span><span class="brd-row__no">${r.no}</span>
+    <div class="brd-row__main"><div class="brd-row__head"><strong class="brd-row__uid">${r.name}</strong>${flags(r.flags)}</div>
+      <div class="brd-row__meta"><span>${r.category || r.subject || '未分科'}</span>${r.difficulty ? html`<span>难度 ${r.difficulty}</span>` : ''}<span class="brd-labels" data-lbl-target="${r.uid}">${labelDots(r.labels)}</span></div></div>
+    <div class="${cls('brd-row-gap', !r.gap.inherited && 'is-own')}" title="${r.gap.inherited ? '跟随默认留白' : '这道题单独设置的留白'}">
+      <button type="button" data-action="board.gapStep" data-arg="${r.uid}:-1" aria-label="减少一行留白"${off(r.missing || r.suspended || r.gap.lines <= 0)}>−</button>
+      <span data-board-gap-view="${r.uid}">${r.gap.lines}<small>行</small></span>
+      <button type="button" data-action="board.gapStep" data-arg="${r.uid}:1" aria-label="增加一行留白"${off(r.missing || r.suspended || r.gap.lines >= 48)}>+</button></div>
   </div>`;
 }
-
-// 画廊卡：题面与题库画廊同一套 qview 渲染（挂载点 skip，key 只编码 uid：换题才换新挂载点）
-function galleryCard(r) {
-  return html`<article class="${cls('brd-gcard', r.missing && 'is-missing', r.suspended && 'is-suspended')}" data-key="${r.uid}" data-board-row="${r.uid}" data-board-index="${r.index}" tabindex="-1"${r.selected ? html` aria-current="true"` : ''} title="点击选中，双击打开题目">
-  <header class="brd-gcard__head"><span class="brd-gcard__no">${r.no}</span><span class="brd-gcard__id">${raw(qvGalleryIdHtml(r.uid, r.category))}</span>
-    <span class="brd-gcard__flags">${flagList(r.flags)}</span>
-    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.locate" data-arg="${r.uid}" aria-label="回到纸面上 ${r.name}" title="回到纸面上这道题"${off(r.missing || r.suspended)}>${icon('target')}</button></header>
-  ${r.missing
-    ? html`<p class="brd-gcard__preview brd-gcard__gone" data-key="gone">题目已删除或无法解析，导出时会跳过</p>`
-    : html`<div class="brd-gcard__preview" data-key="pv:${r.uid}" data-morph="skip" data-qv-host data-uid="${r.uid}"></div>`}
-  <footer class="brd-gcard__foot"><span>${r.subject}${r.category ? ` · ${r.category}` : ''}</span>${r.difficulty ? html`<span>难度 ${r.difficulty}</span>` : ''}
-    <span data-board-gap-view="${r.uid}" title="这道题之后留白 ${r.gap.lines} 行；改它在右栏检查器">${r.gap.text}</span>
-    <span class="q-label-cell brd-labels" data-lbl-target="${r.uid}">${labelChips(r.labels, { add: true, max: 3 })}</span></footer>
-</article>`;
-}
-
-// ---------- 检查器：选中的题 / 版式 / 纸面记录；「一个设置只有一个入口」 ----------
-function inspector(v) {
-  if (v.empty) return '';
-  return html`<section class="brd-sec" data-sec="item" data-key="item" aria-labelledby="bd-ins-item-t">
-    <header class="brd-sec__head"><h3 class="brd-sec__title" id="bd-ins-item-t">选中的题</h3>${v.selected ? '' : html`<span>未选中</span>`}</header>${inspectorItem(v.item)}</section>
-  <section class="brd-sec" data-sec="layout" data-key="layout" aria-labelledby="bd-ins-layout-t">
-    <header class="brd-sec__head"><h3 class="brd-sec__title" id="bd-ins-layout-t">版式</h3><span>改完纸面立刻重排</span></header>${inspectorLayout(v.layout)}</section>
-  <section class="brd-sec" data-sec="paper" data-key="paper" aria-labelledby="bd-ins-paper-t">
-    <header class="brd-sec__head"><h3 class="brd-sec__title" id="bd-ins-paper-t">纸面记录</h3></header>${inspectorPaper(v.paper)}</section>`;
-}
-
 function inspectorItem(it) {
-  if (!it) return html`<p class="brd-ins-empty" data-key="none">在纸面、列表或画廊里点一道题，它的设置就出现在这里。三个视图点出来的是同一处。</p>`;
-  return html`<div class="brd-insq" data-key="q:${it.uid}"><span class="brd-insq__no">第 ${it.no} 题</span><strong class="brd-insq__uid" title="${it.name}">${it.name}</strong>${flagList(it.flags)}</div>
-    <p class="brd-insq__meta" data-key="meta">${it.meta}</p>
-    <div class="brd-field" data-key="gap"><label class="brd-field__label" for="bd-ins-gap">题后留白 <b data-board-live="item-gap">${it.gap.long}</b></label>
-      <div class="brd-gapline"><input class="ui-input brd-num" id="bd-ins-gap" type="number" min="0" max="48" inputmode="numeric" value="${it.own}" placeholder="${it.inherited}" data-board-inspect-gap="${it.uid}" data-input="board.gapLive" data-change="board.gapSet" title="留空 = 继承板设置的 ${it.inherited} 行">
-        ${it.own === '' ? html`<span class="brd-hint">留空 = 继承板设置</span>` : html`<button class="ui-btn ui-btn--ghost ui-btn--sm" type="button" data-action="board.inherit" title="改回继承板的全局留白">改回继承</button>`}</div></div>
-    <div class="brd-insacts" data-key="acts">
-      <button class="ui-btn ui-btn--sm" type="button" data-action="board.inspectLocate" title="翻到这道题所在的页">${icon('target')}<span class="ui-btn__label">跳到这道题</span></button>
-      <button class="ui-btn ui-btn--ghost ui-btn--sm" type="button" data-action="board.openItem" data-arg="${it.uid}"${off(it.missing)}>打开题目</button>
-      <button class="ui-btn ui-btn--ghost ui-btn--sm" type="button" data-action="board.remove" data-arg="${it.uid}">从板中移除</button>
-    </div>
-    ${it.note ? html`<p class="brd-insnote" data-key="note">${it.note}</p>` : ''}`;
+  if (!it) return html`<p class="brd-placeholder">点一道题查看详情。</p>`;
+  return html`<div class="brd-detail-nav"><button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="board.back">${icon('chevron-left')}全部题目</button>
+      <span class="brd-grow"></span><span>${it.no} / ${it.total}</span>
+      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.detailStep" data-arg="-1" aria-label="上一题"${off(it.index <= 0)}>${icon('chevron-up')}</button>
+      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.detailStep" data-arg="1" aria-label="下一题"${off(it.index >= it.total - 1)}>${icon('chevron-down')}</button></div>
+    <div class="brd-detail-body"><span class="brd-detail-no">纸面第 ${it.no} 题</span><h3>${it.name} ${flags(it.flags)}</h3>
+      <p class="brd-detail-meta">${it.meta} · 熟练度 ${it.mastery}%</p>
+      <div class="brd-detail-labels" data-lbl-target="${it.uid}">${labelChips(it.labels, { add: true })}</div>
+      <section class="brd-gap-card"><div class="brd-gap-card__head"><strong>题后留白</strong><span>约 ${it.gap.long}</span></div>
+        <div class="brd-gap-card__step"><button type="button" data-action="board.gapStep" data-arg="${it.uid}:-1" aria-label="减少一行留白"${off(it.gap.lines <= 0 || it.missing)}>−</button>
+          <output>${it.gap.lines} 行</output><button type="button" data-action="board.gapStep" data-arg="${it.uid}:1" aria-label="增加一行留白"${off(it.gap.lines >= 48 || it.missing)}>+</button></div>
+        <div class="brd-gap-card__presets" role="group" aria-label="常用留白行数">${[0, 2, 4, 6, 8].map(n => html`<button type="button" data-action="board.gapPreset" data-arg="${it.uid}:${n}" aria-pressed="${pressed(it.gap.lines === n)}">${n}</button>`)}<span>行</span></div>
+        ${it.own === '' ? html`<p>跟随板的默认留白 ${it.inherited} 行；改动后只影响这道题。</p>`
+          : html`<p>单独设置 · <button type="button" class="brd-text-btn" data-action="board.inherit">改回默认 ${it.inherited} 行</button></p>`}
+        ${it.note ? html`<p class="brd-gap-card__note">${it.note}</p>` : ''}</section>
+      <section class="brd-question-preview"><h4>题面、答案与练习记录</h4><div data-morph="skip" data-key="qv:${it.uid}" data-qv-host data-uid="${it.uid}"></div></section>
+    </div><div class="brd-detail-foot"><button type="button" class="ui-btn ui-btn--sm" data-action="board.openItem" data-arg="${it.uid}">打开题目</button>
+      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="board.remove" data-arg="${it.uid}">从板中移除</button></div>`;
 }
-
+function popover(kind, v) {
+  if (!kind || v.empty) return '';
+  return html`<div class="brd-pop-scrim" data-action="board.closePop"></div><section class="brd-pop" role="dialog" aria-label="${kind === 'layout' ? '版式' : '纸面记录'}">
+    <header><h3>${kind === 'layout' ? '版式' : '纸面记录'}</h3><button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.closePop" aria-label="关闭">${icon('x')}</button></header>
+    <div class="brd-pop__body">${kind === 'layout' ? inspectorLayout(v.layout) : inspectorPaper(v.paper)}</div></section>`;
+}
 const segBtns = (field, options, current) => options.map(([value, label]) => html`<button type="button" class="brd-seg__btn" data-value="${value}" data-action="board.seg" data-arg="${field}" aria-pressed="${pressed(current === value)}">${label}</button>`);
 const check = (field, on, label, disabled = false) => html`<label class="brd-check"><input type="checkbox" data-board-print="${field}" data-change="board.printSet" data-arg="${field}"${on ? html` checked` : ''}${off(disabled)}> ${label}</label>`;
 
