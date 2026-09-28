@@ -33,3 +33,5 @@
 ## 发布待办
 
 将 `/etc/systemd/system/omrs.service.d/10-release.conf` 中的发布路径从 `omrs-f863761` 换成 `omrs-63adade`，保留 `--vault /root/workspace/apps/OMRS` 和端口 8471；`daemon-reload`、重启服务后核对 `/api/status`、`/annotate`、训练页入口、数据文件哈希与日志。旧发布目录保留用于代码回退，不以旧数据覆盖真实 Vault。生产 systemd 与重启按根 `AGENTS.md` 要求另待用户明确授权。
+
+用户确认：「暂不切换，保留已验证的发布目录」。因此本轮不修改 systemd、不重启生产、不做生产页验收；`omrs-63adade` 作为已验证但未启用的发布目录保留，生产仍运行 `omrs-f863761`。
