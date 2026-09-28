@@ -205,6 +205,16 @@ def resolve_image(vault, conversation_id, ref):
             "width": row["width"], "height": row["height"], "bytes": row["bytes"], "run_id": row["run_id"]}
 
 
+def conversation_refs(vault, conversation_id):
+    """本对话里全部图片的 {sha256: "IMG-n"}（同一张图只有一个编号）。"""
+    db = connect(vault)
+    try:
+        rows = db.execute("SELECT n, sha256 FROM conv_images WHERE conversation_id=? ORDER BY n",
+                          (conversation_id,)).fetchall()
+    finally:
+        db.close()
+    return {row["sha256"]: f"IMG-{row['n']}" for row in rows}
+
 def image_path(vault, sha):
     """图片原件的磁盘路径；sha 未知或文件缺失时抛 ValueError。"""
     db = connect(vault)

@@ -197,6 +197,46 @@
    ]
   },
   {
+   "match": "IMG-|截图|这张图",
+   "rounds": [
+    {
+     "think": "用户发了截图，要录题；题目是文字，答案里有函数图像，留图。",
+     "tool_calls": [
+      {
+       "name": "create_draft",
+       "arguments": {
+        "subject": "数学",
+        "category": "函数",
+        "images": [
+         "IMG-1"
+        ],
+        "blocks": [
+         {
+          "section": "题目",
+          "kind": "text",
+          "text": "求函数 $y=x^2-2x$ 的最小值。"
+         },
+         {
+          "section": "答案",
+          "kind": "image",
+          "image": "IMG-1",
+          "note": "截图下半部分的解析与函数图像"
+         }
+        ]
+       }
+      }
+     ],
+     "ttft_ms": 500,
+     "tps": 65
+    },
+    {
+     "text": "已建草稿 `{{r:create_draft.draft_id}}`（待框选）：答案里有函数图像，需要你在草稿区框一下。",
+     "ttft_ms": 400,
+     "tps": 65
+    }
+   ]
+  },
+  {
    "match": "录|新题",
    "rounds": [
     {
@@ -213,16 +253,27 @@
      "tps": 65
     },
     {
-     "think": "按约定难度不传（默认 5），错因不写。",
+     "think": "题目能转成文字，建草稿；用户没说错因，留空。",
      "tool_calls": [
       {
-       "name": "create_text_question",
+       "name": "create_draft",
        "arguments": {
         "subject": "物理",
         "category": "力学",
-        "question": "单摆摆长变为原来的 4 倍，周期如何变化？",
         "knowledge_points": [
          "单摆"
+        ],
+        "blocks": [
+         {
+          "section": "题目",
+          "kind": "text",
+          "text": "单摆摆长变为原来的 4 倍，周期如何变化？"
+         },
+         {
+          "section": "答案",
+          "kind": "text",
+          "text": "由 $T=2\\pi\\sqrt{l/g}$，周期变为原来的 2 倍。"
+         }
         ]
        }
       }
@@ -231,7 +282,7 @@
      "tps": 65
     },
     {
-     "text": "已录入 `{{r:create_text_question.uid}}`。难度用默认的 5，错因留空。",
+     "text": "已建草稿 `{{r:create_draft.draft_id}}`（待审核），在录入页「AI 草稿」里审核后入库。错因你还没说，需要的话告诉我。",
      "ttft_ms": 400,
      "tps": 65
     }

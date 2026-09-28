@@ -181,5 +181,40 @@ class PostMessageTest(unittest.TestCase):
             self.wait(out["run_id"])
 
 
+class FauxDraftTest(unittest.TestCase):
+    """假模型端到端：贴图 → 看到 IMG-1 → create_draft 建出待框选草稿，commit 数不变。"""
+
+    def setUp(self):
+        self.vault = tempfile.mkdtemp(prefix="omrs-img-")
+        os.makedirs(os.path.join(self.vault, "错题"))
+        cfg = load_config(self.vault)
+        cfg.update({"agent_enabled": True, "agent_vision": True})
+        save_config(self.vault, cfg)
+        env = mock.patch.dict(os.environ, {"OMRS_AGENT_FAUX_SCRIPT": os.path.join(ROOT, "tests", "fixtures", "agent_faux.json")})
+        env.start()
+        self.addCleanup(env.stop)
+        self.rt = AgentRuntime(self.vault)
+
+    def tearDown(self):
+        shutil.rmtree(self.vault, ignore_errors=True)
+
+    def test_image_to_draft(self):
+        from omrs.ledger import read_commits
+        conv = self.rt.create_conversation("")["id"]
+        before = len(read_commits(self.vault))
+        run_id = self.rt.post_message(conv, "录一下这张截图", [png(1)])["run_id"]
+        run = self.rt.runs[run_id]
+        with run.cond:
+            run.cond.wait_for(lambda: run.done, timeout=30)
+        end = next(e for e in run.events if e["type"] == "tool.end")
+        self.assertEqual(end["data"]["status"], "done", end)
+        self.assertTrue(end["data"]["wrote"])
+        draft = drafts.get_draft(self.vault, end["data"]["result"]["draft_id"])
+        self.assertEqual(draft["status"], "cropping")
+        self.assertEqual(draft["conversation_id"], conv)
+        self.assertEqual(len(read_commits(self.vault)), before)
+        self.assertEqual(run.events[-1]["data"]["stats"]["writes"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

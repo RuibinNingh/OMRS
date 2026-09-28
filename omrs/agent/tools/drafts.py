@@ -1,0 +1,146 @@
+"""草稿工具（ai-draft）：看图追问、查草稿、建草稿。草稿存在 omrs/drafts.py，不进 Ledger。
+
+- describe_image / list_drafts / get_draft：read，自动执行；
+- create_draft：rev，自动执行，不写 Ledger，所以不需要确认；工具结果带 ``wrote: True``，循环照样计入写入预算；
+  草稿不产生 commit，天然不在按运行撤销的范围里。
+- AI 没有改草稿、丢弃草稿的工具（用户在草稿区自己改）。
+
+错因规则写在服务端：带 cause 就必须带 cause_statement，且它必须是本对话某条用户消息里的原话。
+"""
+import re
+import unicodedata
+
+from ... import drafts
+from ...ai_assist import describe_image as ask_image
+from ..store import AgentStore
+
+DESCRIBE_CAP = 2000
+_SPACE_RE = re.compile(r"\s+")
+
+
+def _norm(text):
+    return _SPACE_RE.sub("", unicodedata.normalize("NFKC", str(text or ""))).lower()
+
+
+def _user_texts(vault, conv_id):
+    out = []
+    for msg in AgentStore(vault).messages(conv_id):
+        if msg.get("role") != "user":
+            continue
+        content = msg.get("content")
+        if isinstance(content, list):
+            content = "".join(p.get("text") or "" for p in content if isinstance(p, dict))
+        out.append(content or "")
+    return out
+
+
+def _preview(draft, n=60):
+    text = "".join(b.get("text") or "" for b in draft["blocks"] if b["section"] == "题目" and b["kind"] == "text")
+    if not text:
+        text = "（题目是图片）"
+    return text[:n] + ("…" if len(text) > n else "")
+
+
+def _summary(draft):
+    return {"draft_id": draft["id"], "status": draft["status"], "subject": draft["subject"], "category": draft["category"],
+            "question_preview": _preview(draft), "created_at": draft["created_at"]}
+
+
+def _blocks_out(draft, conv_id, vault):
+    refs = drafts.conversation_refs(vault, conv_id) if conv_id else {}
+    return [{"section": b["section"], "kind": b["kind"], **({"text": b["text"]} if b["kind"] == "text" else
+                                                               {"image": refs.get(b["image_sha"]), "note": b.get("note") or ""})}
+            for b in draft["blocks"]]
+
+
+# ── read ──
+def describe_image_tool(ctx, args):
+    row = drafts.resolve_image(ctx["vault"], ctx["conversation_id"], args["image"])
+    answer = ask_image(ctx["vault"], drafts.image_data_url(ctx["vault"], row["sha256"]), args["question"].strip())
+    if len(answer) > DESCRIBE_CAP:
+        answer = answer[:DESCRIBE_CAP] + "…（已截断）"
+    return {"result": {"image": row["ref"], "answer": answer}, "summary": row["ref"]}
+
+
+def list_drafts_tool(ctx, args):
+    conv = None if args.get("all_conversations") else ctx["conversation_id"]
+    status = args.get("status") or None
+    items = drafts.list_drafts(ctx["vault"], status=status, conversation_id=conv, limit=30)
+    if not status:
+        items = [d for d in items if d["status"] in ("cropping", "review")]
+    return {"result": {"total": len(items), "items": [_summary(d) for d in items]}, "summary": f"{len(items)} 份"}
+
+
+def get_draft_tool(ctx, args):
+    draft = drafts.get_draft(ctx["vault"], args["draft_id"].strip())
+    conv = draft.get("conversation_id") or ctx["conversation_id"]
+    return {"result": {**_summary(draft), "knowledge_points": draft.get("knowledge_points") or [],
+                       "cause": draft.get("cause") or "", "uid": draft.get("uid"),
+                       "blocks": _blocks_out(draft, conv, ctx["vault"])}, "summary": draft["id"]}
+
+
+# ── rev ──
+def create_draft_tool(ctx, args):
+    vault, conv = ctx["vault"], ctx["conversation_id"]
+    shas = {}
+    for ref in args.get("images") or []:
+        shas[ref.strip()] = drafts.resolve_image(vault, conv, ref)["sha256"]
+    blocks = []
+    for i, b in enumerate(args["blocks"]):
+        if b["kind"] == "image":
+            ref = str(b.get("image") or "").strip()
+            if not ref:
+                raise ValueError(f"第 {i + 1} 块是图片块，要写 image（例如 IMG-1）")
+            if ref not in shas:
+                raise ValueError(f"第 {i + 1} 块引用的 {ref} 不在 images 列表里")
+            blocks.append({"section": b["section"], "kind": "image", "image_sha": shas[ref], "note": b.get("note") or ""})
+        else:
+            blocks.append({"section": b["section"], "kind": "text", "text": b.get("text") or "", "note": b.get("note") or ""})
+    cause = str(args.get("cause") or "").strip()
+    statement = str(args.get("cause_statement") or "").strip()
+    if cause:
+        key = _norm(statement)
+        if len(key) < 2 or not any(key in _norm(t) for t in _user_texts(vault, conv)):
+            raise ValueError("错因只能用用户说过的话：没在对话里找到 cause_statement。用户没说错因就先问，说「不填」就留空")
+    elif statement:
+        statement = ""
+    draft = drafts.create_draft(vault, {
+        "subject": args["subject"], "category": args["category"],
+        "knowledge_points": args.get("knowledge_points") or [], "blocks": blocks,
+        "cause": cause, "cause_statement": statement,
+    }, {"conversation_id": conv, "run_id": ctx.get("run_id"), "tool_call_id": ctx.get("tool_call_id")})
+    return {"result": {**_summary(draft), "blocks": _blocks_out(draft, conv, vault), "cause": cause},
+            "summary": draft["id"], "wrote": True}
+
+
+_S = {"type": "string", "minLength": 1}
+_IMG = {"type": "string", "pattern": "^IMG-[0-9]+$"}
+_BLOCK = {"type": "object", "required": ["section", "kind"], "properties": {
+    "section": {"type": "string", "enum": ["题目", "答案"]}, "kind": {"type": "string", "enum": ["text", "image"]},
+    "text": {"type": "string"}, "image": _IMG, "note": {"type": "string"}}}
+
+SPECS = [
+    ("describe_image", "read",
+     "针对本对话里的一张图（IMG-n）提一个具体问题，让识图模型再仔细看一次，例如「第 3 步的分母是什么」「图里的几何图形标了哪些点」。"
+     "转述看不清或需要局部细节时用。",
+     {"type": "object", "required": ["image", "question"], "properties": {
+         "image": _IMG, "question": {"type": "string", "minLength": 2, "maxLength": 300}}}, describe_image_tool),
+    ("list_drafts", "read", "列出 AI 草稿区里的草稿。默认只列本对话、还没入库也没丢弃的；status 可筛 cropping（待框选）/ review（待审核）/ done / discarded。",
+     {"type": "object", "properties": {
+         "status": {"type": "string", "enum": list(drafts.STATUSES)}, "all_conversations": {"type": "boolean"}}},
+     list_drafts_tool),
+    ("get_draft", "read", "读一份草稿的全部内容：科目、分类、知识点、错因、各块（文字 / 图片）与状态。",
+     {"type": "object", "required": ["draft_id"], "properties": {"draft_id": _S}}, get_draft_tool),
+    ("create_draft", "rev",
+     "把一道题录成草稿，放进录入页的 AI 草稿区，由用户审核后入库（不直接写题库，所以不需要用户允许）。"
+     "blocks 按顺序写题目和答案：能完整转成文字的写 kind=text（公式用 $LaTeX$）；含几何图形、函数图像等文字表达不了的部分写 kind=image，"
+     "image 填 IMG-n，note 写明在截图的哪个位置。images 列出这道题用到的全部截图。难度固定 5。"
+     "错因只能用用户原话：带 cause 时 cause_statement 必须原样摘自用户消息；用户没说就先问，不要自己编。",
+     {"type": "object", "required": ["subject", "category", "blocks"], "properties": {
+         "subject": _S, "category": _S,
+         "knowledge_points": {"type": "array", "maxItems": 8, "items": _S},
+         "images": {"type": "array", "maxItems": 12, "items": _IMG},
+         "blocks": {"type": "array", "minItems": 1, "maxItems": 20, "items": _BLOCK},
+         "cause": {"type": "string"}, "cause_statement": {"type": "string"}}},
+     create_draft_tool),
+]

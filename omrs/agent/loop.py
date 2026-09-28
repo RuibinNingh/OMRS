@@ -197,12 +197,13 @@ class AgentLoop:
             self.emit("tool.end", {"call_id": call["id"], "status": "error", "error": text, "summary": "",
                                    "dur_ms": int((time.monotonic() - started) * 1000)})
             return ToolOutcome("error", json.dumps({"ok": False, "error": text}, ensure_ascii=False), error=text)
-        if out["commits"]:
+        wrote = bool(out["commits"] or out.get("wrote"))  # 不写 Ledger 的写入工具（建草稿）自己声明算一次写入
+        if wrote:
             self.budget.writes += 1
         content, chars = result_content(out["result"], self.result_cap)
         self.hooks.after_tool_call(call, tool, out)
         self.emit("tool.end", {"call_id": call["id"], "status": "done", "summary": out.get("summary", ""),
                                "result": out["result"] if chars <= 20000 else None, "result_chars": chars,
-                               "commits": out["commits"], "extra": out.get("extra"),
+                               "commits": out["commits"], "wrote": wrote, "extra": out.get("extra"),
                                "dur_ms": int((time.monotonic() - started) * 1000), "budget": self.budget.snapshot()})
         return ToolOutcome("done", content, out["result"], out.get("summary", ""), out["commits"])

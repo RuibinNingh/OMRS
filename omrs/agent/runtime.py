@@ -152,12 +152,13 @@ class Hooks:
         return {"status": "aborted" if how == "abort" else "denied", "error": errors[how], "decision": how}
 
     def execute(self, call, tool):
+        ctx = {**self.ctx, "tool_call_id": call["id"]}
         if tool.level == "read":
-            out = tool.run(self.ctx, call["args"])
+            out = tool.run(ctx, call["args"])
             return {**out, "commits": []}
         with write_lock():
             with agent_actor(self.run.conv_id, self.run.id, call["id"]) as actor:
-                out = tool.run(self.ctx, call["args"])
+                out = tool.run(ctx, call["args"])
         return {**out, "commits": list(actor.commits)}
 
     def after_tool_call(self, call, tool, out):
@@ -178,9 +179,9 @@ def run_stats(events):
             s["gen_ms"] += d.get("gen_ms", 0)
         elif ev["type"] == "tool.call":
             s["calls"] += 1
-        elif ev["type"] == "tool.end" and d.get("commits"):
+        elif ev["type"] == "tool.end" and (d.get("commits") or d.get("wrote")):
             s["writes"] += 1
-            s["commits"] += d["commits"]
+            s["commits"] += d.get("commits") or []
     return s
 
 

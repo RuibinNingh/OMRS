@@ -1,5 +1,5 @@
 """OMRS 工具注册表。权限级别见 omrs/agent/policy.py；不注册的能力模型无从调用。"""
-from . import read, write
+from . import drafts, read, write
 
 
 class ToolDef:
@@ -30,5 +30,5 @@ class Registry:
 
 
 def build_registry(settings=None):
-    tools = [ToolDef(*spec) for spec in read.SPECS + write.SPECS]
+    tools = [ToolDef(*spec) for spec in read.SPECS + drafts.SPECS + write.SPECS]
     return Registry(tools)

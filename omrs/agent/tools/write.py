@@ -1,17 +1,15 @@
 """写入工具。rev 级（可撤销，自动执行，计入写入预算）：建复习 Session、打标记。
-confirm 级（界面点「允许」才执行）：改正文一节、改知识点、移动 / 停用 / 恢复、录入文字题、记录反馈。
+confirm 级（界面点「允许」才执行）：改正文一节、改知识点、移动 / 停用 / 恢复、记录反馈。
 全部在 runtime 的写锁与 agent_actor 上下文里执行：commit 来源为 agent，payload 带运行身份；可被按运行撤销。
-录题约定（plan Q2）：不暴露难度（默认 5）与错因参数；错因只能经 update_question_section（需确认）写入。
+录题改走草稿（tools/drafts.py 的 create_draft），这里不再有录题工具。
 """
 import re
 
 from ...common import (MASTERY_HEADERS, extract_knowledge_tags, extract_labels, load_csv, load_tuning, mastery_path,
                        parse_yaml_frontmatter, resolve_sm2_fields)
 from ...content_history import projection_row, read_question_file, refresh_projection, write_question
-from ...creation import create_question
 from ...feedback import process_feedback
 from ...labels import list_label_defs
-from ...ledger import store_blob
 from ...question_ops import (_replace_frontmatter_list_field, move_question, resume_question, suspend_question)
 from ...scheduling import _safe_float, _safe_int, compute_mastery_update
 from ...sessions import create_session_from_selection, get_session
@@ -176,21 +174,6 @@ def resume_tool(ctx, args):
     return {"result": out, "summary": "已恢复"}
 
 
-def create_preview(ctx, args):
-    return {"subject": args["subject"].strip(), "category": args["category"].strip(), "question": args["question"],
-            "answer": args.get("answer") or "", "knowledge_points": args.get("knowledge_points") or [], "difficulty": 5}
-
-
-def create_tool(ctx, args):
-    out = create_question(ctx["vault"], args["subject"].strip(), args["category"].strip(), 5,
-                          related_tags=[p.strip() for p in args.get("knowledge_points") or [] if p.strip()],
-                          question_text=args["question"], answer_text=args.get("answer") or "", cause="")
-    row = projection_row(ctx["vault"], uid=out["uid"])
-    if row:
-        store_blob(ctx["vault"], read_question_file(ctx["vault"], row))
-    return {"result": {"uid": out["uid"], "path": out["file_path"], "difficulty": 5}, "summary": out["uid"]}
-
-
 # ── confirm：反馈 ──
 def predict_feedback(vault, items):
     rows = {r["UID"]: resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)}
@@ -271,10 +254,6 @@ SPECS = [
      {"type": "object", "required": ["uid"], "properties": {"uid": _UID, "reason": {"type": "string"}}}, suspend_tool, suspend_preview),
     ("resume_question", "confirm", "恢复一道停用的题。需要用户允许。",
      {"type": "object", "required": ["uid"], "properties": {"uid": _UID, "reason": {"type": "string"}}}, resume_tool, resume_preview),
-    ("create_text_question", "confirm", "录入一道文字题。难度固定用默认的 5，错因留空（按约定不代写）。题面里的公式用 $LaTeX$。需要用户允许。",
-     {"type": "object", "required": ["subject", "category", "question"], "properties": {
-         "subject": _S, "category": _S, "question": _S, "answer": {"type": "string"},
-         "knowledge_points": {"type": "array", "maxItems": 8, "items": _S}}}, create_tool, create_preview),
     ("record_feedback", "confirm", "按用户明说的对错和自评分（0–10）记录练习反馈。user_statement 必须是用户的原话。需要用户允许。",
      {"type": "object", "required": ["items", "user_statement"], "properties": {
          "session_id": {"type": "string"}, "user_statement": {"type": "string", "minLength": 2},

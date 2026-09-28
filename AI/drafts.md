@@ -39,6 +39,7 @@ events.jsonl          append-only 事件：image.add / image.transcribe / draft.
 |---|---|
 | `add_image(vault, data_url, conversation_id, run_id) -> {sha256, n, ref, width, height, mime, bytes}` | 存一张聊天贴图。只收 `data:image/(png\|jpeg\|gif);base64,`，解码后 ≤8MB，尺寸由 `image_size()` 取；越界抛 `ValueError`（中文） |
 | `resolve_image(vault, conversation_id, ref) -> {sha256, n, ref, width, height, mime, bytes, run_id}` | `"IMG-3"` → 本对话里那张图；找不到抛 `ValueError("本对话里没有 IMG-3")` |
+| `conversation_refs(vault, conversation_id) -> {sha256: "IMG-n"}` | 本对话全部图片的编号，草稿工具把块里的 sha 还原成 IMG-n 时用 |
 | `image_path(vault, sha)` / `image_data_url(vault, sha)` | 图片原件路径 / data URL；sha 未知或文件缺失抛 `ValueError` |
 | `get_transcript(vault, sha, model)` / `set_transcript(vault, sha, model, transcript)` | 转述缓存的读 / 写；`get` 在无缓存或模型名不符时返回 `None` |
 | `create_draft(vault, data, origin) -> draft` | 建草稿，校验失败抛 `ValueError` 且不建行；成功发 `draft.create` 事件 |

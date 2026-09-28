@@ -93,8 +93,10 @@ class ToolsTest(unittest.TestCase):
         preview = write.feedback_preview(self.ctx, {"session_id": sid, "user_statement": "函数1 错了 3 分", "items": [{"uid": "函数1", "is_correct": False, "sub_score": 3}]})
         self.assertEqual(preview["items"][0]["state"], "真不会")
         self.agent("run_c", write.record_feedback, {"session_id": sid, "user_statement": "函数1 错了 3 分", "items": [{"uid": "函数1", "is_correct": False, "sub_score": 3}]}, call="c2")
-        out, _ = self.agent("run_c", write.create_tool, {"subject": "物理", "category": "力学", "question": "单摆周期"}, call="c3")
-        self.assertEqual(out["result"]["difficulty"], 5)
+        # 录题工具已改为草稿（不写 Ledger）；AI 建新题的撤销路径仍要覆盖（P2 的确认模式会用到）
+        out, _ = self.agent("run_c", lambda ctx, args: {"result": create_question(ctx["vault"], "物理", "力学", 5, question_text="单摆周期")},
+                            {}, call="c3")
+        out["result"]["path"] = out["result"]["file_path"]
         plan = plan_revert(self.vault, "run_c")
         self.assertTrue(plan["ok"], plan)
         with write_lock():
