@@ -232,6 +232,10 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 | `agent_limits` | object | `rounds` / `calls` / `writes` / `concurrent`，只能比默认值小 |
 | `agent_debug_log` / `agent_vision` | bool | 模型请求日志开关；是否把聊天附图直接交给主模型 |
 | `draft_mode` | string | AI 录题方式：silent（默认，只建草稿）/ confirm（可申请确认入库） |
+| `draft_crop_mode` | string | ask（默认，卡片选择 AI 框/我来框）、auto（建草稿后排检测任务）、manual（去草稿区处理） |
+| `draft_train_default` | bool | 新聊天图片的训练开关初值，默认 false；不覆盖已有图 |
+| `draft_force_crop` | bool | 新建有来源图的全文字草稿也生成强制训练任务，默认 false；不影响入库 |
+| `draft_discard_keep_days` | int | 丢弃草稿保留天数，默认 7；清理仍检查共享引用 |
 | `tuning` | object | 算法可调参数覆盖，键与默认值见 algorithm.md §9；仅接受已知键且为数字 |
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`） |
 | `ai_api_key` | string | AI 接口密钥（Bearer），仅存本机 |
@@ -434,4 +438,4 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 
 ## 17. AI 草稿存储
 
-`错题/.omrs/drafts/` 的 drafts.db 独立于 Ledger，包含 images、conv_images、drafts、blocks、draft_images、commit_operations、training_tasks、training_boxes、draft_jobs 与 cleanup_candidates；图片按 hash 保存，事件追加到 events.jsonl。revision、来源完整性、清理状态与训练任务 manual_override 通过增量迁移添加。字段、来源恢复和入库恢复以 `AI/drafts.md` 为准；只有通过产生带 `_draft` 追溯信息的题目创建提交。
+`错题/.omrs/drafts/` 的 drafts.db 独立于 Ledger，包含 images、conv_images、drafts、blocks、draft_images、commit_operations、training_tasks、training_boxes、draft_jobs 与 cleanup_candidates；图片按 hash 保存，事件追加到 events.jsonl。revision、来源完整性、清理状态与训练任务 manual_override / force_crop 通过增量迁移添加。字段、来源恢复和入库恢复以 `AI/drafts.md` 为准；只有通过产生带 `_draft` 追溯信息的题目创建提交。

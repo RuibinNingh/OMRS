@@ -15,13 +15,14 @@ const LOCAL = { status: 'ok', remote: false, authenticated: true, lan_pin_exempt
 const REMOTE = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: false };
 const EXEMPT = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: true };
 
-test('旧自动框选配置在保存其他设置时保留，明确选手动才替换', async () => {
+test('框选三态及全文字训练设置保存，明确选手动才替换自动', async () => {
   const view = String(agentView());
-  assert.match(view, /value="auto" hidden disabled/);
-  assert.doesNotMatch(view, /本期按手动/);
-  let cfg = { agent_enabled: true, agent_model: 'test', draft_mode: 'silent', draft_crop_mode: 'auto', draft_train_default: false };
+  assert.match(view, /value="auto">自动/);
+  assert.match(view, /id="st-draft-force-crop"/);
+  let cfg = { agent_enabled: true, agent_model: 'test', draft_mode: 'silent', draft_crop_mode: 'auto',
+    draft_train_default: false, draft_force_crop: false };
   const fields = Object.fromEntries(['st-agent-enabled', 'st-agent-model', 'st-draft-mode', 'st-draft-crop-mode',
-    'st-draft-train-default', 'st-agent-status'].map(id => [id, { value: '', checked: false, textContent: '', dataset: {} }]));
+    'st-draft-train-default', 'st-draft-force-crop', 'st-agent-status'].map(id => [id, { value: '', checked: false, textContent: '', dataset: {} }]));
   const root = { querySelector: selector => fields[selector.slice(1)] || null };
   const originalFetch = globalThis.fetch;
   const saves = [];
@@ -37,8 +38,10 @@ test('旧自动框选配置在保存其他设置时保留，明确选手动才�
     await agent.load();
     assert.equal(fields['st-draft-crop-mode'].value, 'auto');
     fields['st-draft-train-default'].checked = true;
+    fields['st-draft-force-crop'].checked = true;
     assert.equal(await agent.save(), true);
     assert.equal(saves.at(-1).draft_crop_mode, 'auto');
+    assert.equal(saves.at(-1).draft_force_crop, true);
     fields['st-draft-crop-mode'].value = 'manual';
     assert.equal(await agent.save(), true);
     assert.equal(saves.at(-1).draft_crop_mode, 'manual');

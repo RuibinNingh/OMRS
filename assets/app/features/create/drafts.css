@@ -49,12 +49,17 @@
 #ib-stage-drafts .crp-box[data-role="question"] { stroke: var(--info); }
 #ib-stage-drafts .crp-box[data-role="answer"] { stroke: var(--success); }
 #ib-stage-drafts .crp-box.is-selected { stroke-width: 3px; }
+#ib-stage-drafts .drf-suggestion { fill: var(--warning-soft); fill-opacity: .25; stroke: var(--warning-fg); stroke-width: 2px; stroke-dasharray: 7 5; vector-effect: non-scaling-stroke; pointer-events: none; }
 #ib-stage-drafts .crp-handle { fill: var(--surface-1); stroke: var(--focus-ring); stroke-width: 2px; vector-effect: non-scaling-stroke; cursor: nwse-resize; }
 #ib-stage-drafts .crp-label { fill: var(--fg-1); stroke: var(--surface-1); stroke-width: 3px; paint-order: stroke; font-size: var(--text-sm); font-weight: var(--weight-bold); pointer-events: none; }
 html[data-theme="dark"][data-invert-img="1"] #ib-stage-drafts .ib-stage-img img { filter: none; }
 .drf-canvas > .drf-hint { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 0; }
 .drf-training-boxes { display: grid; gap: var(--sp-2); }
 .drf-training-box { justify-content: space-between; padding: var(--sp-2); border: 1px solid var(--border-1); border-radius: var(--r-sm); font-size: var(--text-sm); }
+.drf-detect { display: grid; gap: var(--sp-2); padding: var(--sp-3); border: 1px dashed var(--warning-fg); border-radius: var(--r-sm); background: var(--warning-soft); font-size: var(--text-sm); }
+.drf-detect p { margin: 0; }
+.drf-detect-list { display: grid; gap: var(--sp-2); }
+.drf-detect-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .drf-fields-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
 .drf-field { display: grid; align-content: start; gap: var(--sp-2); min-width: 0; color: var(--fg-2); font-size: var(--text-sm); }
 .drf-field > .ui-input, .drf-field > .ui-textarea, .drf-field > .ui-select { width: 100%; min-width: 0; box-sizing: border-box; }

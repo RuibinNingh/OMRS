@@ -6,7 +6,7 @@ import { loadImage, previewSize, boxKey } from './crop.js';
 const roleOf = section => section === '答案' ? 'answer' : 'question';
 const sectionOf = role => role === 'answer' ? '答案' : '题目';
 
-export function draftCanvasItem(draft, value, training, sha, mode = 'body') {
+export function draftCanvasItem(draft, value, training, sha, mode = 'body', suggestions = []) {
   const source = (draft?.source_images || []).find(image => imageSha(image) === sha);
   if (!source) return null;
   const task = (draft.training_tasks || []).find(row => row.image_sha === sha);
@@ -16,7 +16,8 @@ export function draftCanvasItem(draft, value, training, sha, mode = 'body') {
     : (value?.blocks || []).filter(block => block.kind === 'image' && block.image_sha === sha && block.box)
       .map(block => ({ id: block.id || block._key, role: roleOf(block.section), origin: block.box_origin || 'manual',
         ai_box: block.ai_box, ...block.box, target: 'body' }));
-  return { id: sha, file: source.ref || '来源截图', width: source.width, height: source.height, regions: rows };
+  return { id: sha, file: source.ref || '来源截图', width: source.width, height: source.height,
+    regions: rows, suggestions };
 }
 
 export function regionSection(region) { return sectionOf(region.role); }
@@ -41,7 +42,7 @@ export async function paintDraftCrops(root, value) {
 }
 
 export function createDraftCanvas(root, canvasState, { afterEdit, createRegion, canEdit, onSelect }) {
-  return createCanvasController(root, () => canvasState, afterEdit, {
+  const controller = createCanvasController(root, () => canvasState, afterEdit, {
     stageSelector: '#drf-stage-img', zoomSelector: '#drf-canvas-zoom', filenameSelector: '#drf-canvas-file',
     imageId: 'drf-stage-src', maskId: 'drf-cut-mask', imageUrl: item => imageUrl(item.id),
     current: data => data.item, createRegion, canEdit, onSelect,
@@ -54,4 +55,22 @@ export function createDraftCanvas(root, canvasState, { afterEdit, createRegion, 
       }).reverse();
     },
   });
+  const namespace = 'http://www.w3.org/2000/svg';
+  function paint() {
+    controller.paint();
+    const overlay = root.querySelector('#drf-stage-img .crp-overlay');
+    const item = canvasState.item;
+    if (!overlay || !item?.suggestions?.length) return;
+    for (const [index, suggestion] of item.suggestions.entries()) {
+      const box = root.ownerDocument.createElementNS(namespace, 'rect');
+      box.setAttribute('class', 'drf-suggestion');
+      box.setAttribute('x', String(suggestion.x * item.width));
+      box.setAttribute('y', String(suggestion.y * item.height));
+      box.setAttribute('width', String(suggestion.w * item.width));
+      box.setAttribute('height', String(suggestion.h * item.height));
+      box.setAttribute('aria-label', `AI 候选框 ${index + 1}`);
+      overlay.append(box);
+    }
+  }
+  return { paint, dispose: controller.dispose };
 }

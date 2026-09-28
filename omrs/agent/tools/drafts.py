@@ -114,7 +114,19 @@ def create_draft_tool(ctx, args):
         "source_images": list(shas.values()),
         "cause": cause, "cause_statement": statement,
     }, {"conversation_id": conv, "run_id": ctx.get("run_id"), "tool_call_id": ctx.get("tool_call_id")})
-    return {"result": {**_summary(draft), "blocks": _blocks_out(draft, conv, vault), "cause": cause},
+    auto_detect = None
+    if settings(vault)["draft_crop_mode"] == "auto" and draft.get("source_images"):
+        try:
+            # Hooks.execute 此时仍持全局写锁；只登记后台作业，模型调用由作业线程执行。
+            drafts.start_detect(vault, draft["id"], draft["revision"], sha=None)
+            auto_detect = {"status": "queued", "images": len(draft["source_images"])}
+        except Exception:
+            # 草稿已成功创建；自动检测启动失败不能诱使模型重复建草稿。
+            auto_detect = {"status": "error", "message": "自动框选未能启动，请在草稿区手动处理"}
+    result = {**_summary(draft), "blocks": _blocks_out(draft, conv, vault), "cause": cause}
+    if auto_detect:
+        result["auto_detect"] = auto_detect
+    return {"result": result,
             "summary": draft["id"], "wrote": True}
 
 

@@ -2,9 +2,9 @@
 
 > **速查**
 > - 职责：聊天建草稿、独立图片与来源管理、人工更新 / 框选提取 / 一次性入库与训练登记
-> - 入口：`omrs/drafts.py`（存储与公共函数）、`omrs/draft_write.py`（编辑与入库）、`omrs/draft_jobs.py`（异步提取）、`omrs/draft_training.py`（训练与清理）、`omrs/server.py`（草稿路由）
+> - 入口：`omrs/drafts.py`（存储与公共函数）、`omrs/draft_write.py`（编辑与入库）、`omrs/draft_jobs.py`（异步提取）、`omrs/draft_detect.py`（自动框选）、`omrs/draft_training.py`（训练与清理）、`omrs/server.py`（草稿路由）
 > - 不变量：建草稿、编辑、丢弃不写 Ledger；通过才创建题目；图片按对话编号，AI 工具只用 IMG-n 引用
-> - 必跑测试：`tests/test_drafts.py`、`tests/test_agent_draft_tools.py`、`tests/test_draft_p3_http.py`、`tests/e2e/drafts.py`
+> - 必跑测试：`tests/test_drafts.py`、`tests/test_agent_draft_tools.py`、`tests/test_draft_p3_http.py`、`tests/test_draft_p4_http.py`、`tests/e2e/drafts.py`、`tests/e2e/drafts_p4.py`
 > - 相关：`AI/agent.md`、`AI/data.md`、`AI/api.md`、`AI/frontend/create.md`
 
 ## 1. 存储与来源
@@ -54,13 +54,14 @@ GET 保留 `{status:"ok",drafts:[...]}` / `{status:"ok",draft:{...}}` / `{status
 | POST `/api/drafts/commit` | `{id,revision,crops?}`；返回 draft/result/reused/training；result 含 uid/question_id/file_path |
 | POST `/api/drafts/boxes` | `{id,revision,blocks?,training_boxes?}`；部分正文框或指定训练任务框替换，返回 draft |
 | POST `/api/drafts/extract` | `{id,revision,block_ids,crops?}`；异步提取，返回 job |
+| POST `/api/drafts/detect` | `{id,revision,sha?}`；来源图异步检测，返回 job；指定 sha 可为旧全文字草稿显式发起训练框选 |
 | POST `/api/drafts/image/train` | `{id,revision,sha,enabled}`；图级共享开关，返回 draft/image |
 | GET `/api/drafts/job?id=` | 返回 job，状态 queued/running/done/error/conflict/interrupted |
 | POST `/api/drafts/cleanup` | 只接受 `{}`；返回 cleaned:{drafts,images,crops}、retained:{images} |
 
 POST 沿用登录、同源与全局写锁。DraftError 含 status/code/current_revision：非法输入 400，不存在 404，状态或版本冲突 409；锁忙 503。GET 保持原错误兼容。页面不能提交 origin/uid/status 覆盖服务端身份。
 
-公共 Python 函数仍由 drafts.py 提供：add_image、resolve_image、conversation_refs、image_path/image_data_url、get_transcript/set_transcript、create_draft、get_draft、list_drafts、counts；新增 update_draft(vault,id,revision,fields,blocks,source_images=None)、discard_draft(vault,id,revision)、commit_draft(vault,id,revision,crops=None)。写入实现委托 draft_write.py；框选/训练/作业公共入口为 set_boxes、start_extract、set_image_training、get_job、cleanup。
+公共 Python 函数仍由 drafts.py 提供：add_image、resolve_image、conversation_refs、image_path/image_data_url、get_transcript/set_transcript、create_draft、get_draft、list_drafts、counts；新增 update_draft(vault,id,revision,fields,blocks,source_images=None)、discard_draft(vault,id,revision)、commit_draft(vault,id,revision,crops=None)。写入实现委托 draft_write.py；框选/训练/作业公共入口为 set_boxes、start_extract、start_detect、set_image_training、get_job、cleanup。
 
 ## 5. 查询与界面联动
 
@@ -80,6 +81,14 @@ extract 创建持久 draft_jobs 后异步调用现有识图提取；模型请求
 
 过期清理只从超过 draft_discard_keep_days 的 discarded 草稿释放关联并建立清理候选，受其他草稿、存活聊天或训练引用保护的原图保留。已清理草稿带 cleaned_at，读取不会从旧工具参数复活关联；不清理刚上传的无草稿图片，不删除已入库题目附件。跨库训练关联查询失败时保守保留；引用释放先提交，再删除候选文件，中断后可继续清理。建草稿时尝试轻量清理，失败记录事件且不阻止建草稿。
 
-## 7. 测试边界
+## 7. 自动框选与全文字任务
 
-后端覆盖草稿校验、图片引用、老库来源恢复、HTTP、并发 / 重复入库、来源归属与创建失败恢复；助手工具测试覆盖原话校验、动态注册与确认版本。真实浏览器 `tests/e2e/drafts.py` 走审核、整图、保存失败保留、冲突、丢弃与窄屏路径。所有实例使用临时 Vault；真实模型与生产数据不作为自动测试输入。
+start_detect(vault,id,revision,sha=None) 持久登记后台任务，复用当前 inbox_detect_provider（vlm/template/local_http）、长图切片和合框逻辑，不先上传收件箱。模型调用前及回写前均检查来源完整性、非 discarded 草稿共享关系（包括 done）和人工框；共享图、manual/ai_edited 或人工清空训练任务均不能自动覆盖。无 Pillow 时长图退回整图检测。
+
+仅待框 image 块与题目/答案候选一一对应时自动写框。多题、多候选或数量不匹配只保留建议，正文不变。逐图 result 包含 sha、status（applied/suggested/skipped/conflict）、reason_code、reason、candidates、applied_blocks、training_task_id；空结果和歧义给出人工处理提示。revision 或快照变化后 job 为 conflict；重启后孤立作业为 interrupted。同图同草稿版本的 detect/extract 活动任务互斥；相同 detect 请求复用作业，部分重叠返回 409。详情按持久插入顺序打破同秒时间戳并列，重试不会取到旧任务。ai_box 保存原建议，人工移动标为 ai_edited。
+
+training_tasks.force_crop 区分强制训练任务与普通来源图标注容器。仅创建有来源图的全文字草稿时按 draft_force_crop 配置设置；修改配置不会追溯旧草稿，无图不造任务。旧全文字草稿可逐图显式发起检测或手工训练框选。训练任务不添加正文图片，不阻止入库；done 仍可完成任务，正文不可改。是否登记仍取决于图级训练开关；入库后有效训练框保存或检测完成会尝试登记，失败可重试。
+
+## 8. 测试边界
+
+后端覆盖草稿校验、图片引用、老库来源恢复、HTTP、并发 / 重复入库、来源归属与创建失败恢复；助手工具测试覆盖原话校验、动态注册与确认版本。真实浏览器 `tests/e2e/drafts.py` 走审核、整图、保存失败保留、冲突、丢弃与窄屏路径；`tests/e2e/drafts_p4.py` 使用本地检测替身走自动框、歧义采纳、共享回退和入库后训练。所有实例使用临时 Vault；真实模型与生产数据不作为自动测试输入。

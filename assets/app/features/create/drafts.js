@@ -15,6 +15,7 @@ import { cropDataUrl } from './crop.js';
 import { paintDraftCrops } from './drafts-canvas.js';
 import { createDraftCanvasControl } from './drafts-canvas-ctl.js';
 import { createDraftJobPolling } from './drafts-job.js';
+import { createDraftImageActions } from './drafts-image-actions.js';
 
 let nextLocalBlock = 0;
 const responseError = result => result.error?.message || result.data?.msg || '请求失败';
@@ -30,9 +31,11 @@ export function createDrafts(root, ctx) {
   let detailRequest = 0;
   const jobs = createDraftJobPolling(root, state, { isAlive: () => alive, loadDetail, paint, responseError });
   const canvas = createDraftCanvasControl(host, state, { markChanged, paint, block });
+  const images = createDraftImageActions(state, { isAlive: () => alive, save, setDraft, showError, paint, canvas, jobs, markChanged, block });
 
   function paint() {
     if (!alive || !host || inbox.state.stage !== 'drafts' || canvas.isDragging()) return;
+    state.counts = currentDraftCounts() || state.counts;
     morph(host, draftsView(state));
     canvas.bind();
     void paintDraftCrops(host, state.value);
@@ -54,6 +57,11 @@ export function createDrafts(root, ctx) {
     state.detailLoaded = true; state.detailError = '';
     const shas = (draft?.source_images || []).map(imageSha);
     if (!shas.includes(state.canvasSha)) state.canvasSha = shas[0] || null;
+    const source = (draft?.source_images || []).find(image => imageSha(image) === state.canvasSha);
+    const task = (draft?.training_tasks || []).find(row => row.image_sha === state.canvasSha);
+    const hasBodyImage = state.value?.blocks.some(row => row.kind === 'image' && row.image_sha === state.canvasSha);
+    if (state.canvasMode === 'training' && (!task || (!source?.train && !task.force_crop && hasBodyImage))) state.canvasMode = 'body';
+    if (draft?.status === 'done' && task?.force_crop && !hasBodyImage) state.canvasMode = 'training';
     if (draft?.status === 'cropping' && state.canvasSha) {
       state.selectedBlock = state.value.blocks.find(row => row.kind === 'image' && row.image_sha === state.canvasSha && !row.box)?.id || state.selectedBlock;
     }
@@ -218,46 +226,6 @@ export function createDrafts(root, ctx) {
     canvas.refresh();
     markChanged();
   }
-  async function trainToggle(sha) {
-    if (!state.draft || state.busy) return false;
-    if (state.dirty && !await save()) return false;
-    const source = (state.draft.source_images || []).find(image => imageSha(image) === sha);
-    if (!source || source.inbox_item_id) return false;
-    state.busy = true; paint();
-    try {
-      const result = await post('/api/drafts/image/train', { id: state.draft.id, revision: state.draft.revision,
-        sha, enabled: !source.train });
-      if (!alive) return false;
-      if (!result.ok || !result.data?.draft) return showError(result, '训练开关');
-      setDraft(result.data.draft);
-      if (!result.data.image?.train && state.canvasMode === 'training') state.canvasMode = 'body';
-      canvas.refresh(); publishDraftChange();
-      state.message = source.train ? '已关闭这张图的训练登记' : '已开启这张图的训练登记'; paint();
-      return true;
-    } finally { state.busy = false; paint(); }
-  }
-  async function extract(key) {
-    if (!state.draft || state.busy || state.job || !['cropping', 'review'].includes(state.draft.status)) return false;
-    if (state.dirty && !await save()) return false;
-    const row = state.draft.blocks.find(block => block.id === key && block.kind === 'image');
-    if (!row?.box) { state.message = '请先为图片区块画框并保存。'; paint(); return false; }
-    state.busy = true; paint();
-    try {
-      const crops = {};
-      const { x, y, w, h } = row.box;
-      if (!(x === 0 && y === 0 && w === 1 && h === 1)) {
-        crops[key] = await cropDataUrl({ id: row.image_sha }, row.box, 'image/png', .92, imageUrl(row.image_sha));
-      }
-      const result = await post('/api/drafts/extract', { id: state.draft.id, revision: state.draft.revision,
-        block_ids: [key], crops });
-      if (!alive) return false;
-      if (!result.ok || !result.data?.job) return showError(result, '转文字');
-      jobs.start(result.data.job);
-      state.message = '转文字任务已提交；结果会自动同步。'; paint();
-      return true;
-    } catch (error) { state.message = `准备裁图失败：${error.message || error}`; paint(); return false; }
-    finally { state.busy = false; paint(); }
-  }
   async function retryTraining() {
     if (!state.draft || state.draft.status !== 'done' || state.busy) return false;
     if (state.dirty && !await save()) return false;
@@ -378,7 +346,8 @@ export function createDrafts(root, ctx) {
   return { state, paint, enter, open, guard, filter, reload, reloadDetail, field,
     openLabels,
     sourceAdd, sourceRemove, addBlock, removeBlock, move, whole, canvasImage: canvas.image, canvasMode: canvas.mode, canvasBlock: canvas.selectBlock,
-    drawSection: canvas.section, clearBox: canvas.clearBox, trainingSection: canvas.trainingSection, trainingRemove: canvas.trainingRemove, trainToggle, extract, retryTraining, cleanup,
+    drawSection: canvas.section, clearBox: canvas.clearBox, trainingSection: canvas.trainingSection, trainingRemove: canvas.trainingRemove,
+    trainToggle: images.trainToggle, extract: images.extract, detect: images.detect, acceptCandidate: images.acceptCandidate, retryTraining, cleanup,
     save, commit, discard, openQuestion,
     blockField, dispose() { alive = false; jobs.stop(); canvas.dispose();
       root.ownerDocument.defaultView.removeEventListener('beforeunload', beforeUnload); } };

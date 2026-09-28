@@ -27,13 +27,18 @@ export const agentView = () => html`<section class="st-section" id="st-sec-assis
     </div>
     <div class="st-row st-row-top">
       <div class="st-row-text"><label class="st-row-label" for="st-draft-crop-mode">图片框选方式</label>
-        <div class="hint">「询问我」在聊天草稿卡片显示「我来框」；「手动」从草稿区打开。</div></div>
-      <select id="st-draft-crop-mode" class="ui-select st-select"><option value="ask">询问我</option><option value="manual">手动</option><option value="auto" hidden disabled>自动框选（已有设置）</option></select>
+        <div class="hint">「询问我」可在聊天卡片选「我来框」或「AI 框」；「自动」在新建草稿后尝试 AI 框选；「手动」从草稿区打开。</div></div>
+      <select id="st-draft-crop-mode" class="ui-select st-select"><option value="ask">询问我</option><option value="auto">自动</option><option value="manual">手动</option></select>
     </div>
     <div class="st-row st-row-top">
       <div class="st-row-text"><label class="st-row-label" for="st-draft-train-default">默认用于训练数据</label>
         <div class="hint">新聊天截图按此值预选训练，入库且框选有效后才登记。每张图可在草稿区单独调整；关闭不会删除已登记的数据。</div></div>
       <input type="checkbox" class="st-switch" id="st-draft-train-default">
+    </div>
+    <div class="st-row st-row-top">
+      <div class="st-row-text"><label class="st-row-label" for="st-draft-force-crop">全文字草稿也收集框选</label>
+        <div class="hint">开启后，新建的全文字草稿若有来源截图，会另建训练框选任务；正文仍可先审核入库，之后再补框。</div></div>
+      <input type="checkbox" class="st-switch" id="st-draft-force-crop">
     </div>
   </div>
   <div class="card st-card">

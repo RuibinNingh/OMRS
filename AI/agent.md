@@ -85,3 +85,5 @@ POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软
 `draft_mode` 是通用配置，agent settings 投影给注册表；silent 只注册建草稿，confirm 另注册 commit_draft。参数为 draft_id/revision，预览和执行各自读取当前配置、草稿状态与对话归属，旧版本或其他对话的草稿不能提交。入库复用 drafts.commit_draft，runtime 的 agent_actor 记录来源和本次写入；人工在草稿区通过的题目来源 api，不在运行撤销列表内。create_draft 完整保存工具 images 的来源顺序，get_draft 给出 revision，AI 仍没有改 / 丢弃草稿工具。
 
 确认入库后的训练登记摘要向模型只返回对话内图片引用或汇总信息；原图 SHA、后台存储路径与内部登记异常细节不进入工具结果。人工审核界面仍可读取完整详情和具体错误供处理。
+
+create_draft 在 draft_crop_mode=auto 时为新草稿登记一次全来源 detect 作业。Hooks.execute 持锁期间只入队，模型由后台线程调用；启动失败仍返回已建草稿，避免重复建题。模型只收到无 SHA/路径的状态与数量摘要。ask/manual 不自动调用检测，草稿确认权限不受框选模式影响。

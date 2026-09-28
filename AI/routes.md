@@ -57,6 +57,7 @@
 | POST | `/api/drafts/cleanup` | `AI/api.md`、`AI/drafts.md` |
 | POST | `/api/drafts/commit` | `AI/api.md`、`AI/drafts.md` |
 | GET | `/api/drafts/counts` | `AI/api.md`、`AI/drafts.md` |
+| POST | `/api/drafts/detect` | `AI/api.md`、`AI/drafts.md` |
 | POST | `/api/drafts/discard` | `AI/api.md`、`AI/drafts.md` |
 | POST | `/api/drafts/extract` | `AI/api.md`、`AI/drafts.md` |
 | GET | `/api/drafts/image` | `AI/api.md`、`AI/agent.md`、`AI/drafts.md`等 |

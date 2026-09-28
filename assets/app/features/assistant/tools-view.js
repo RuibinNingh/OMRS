@@ -8,6 +8,7 @@ import { icon } from '../../ui/icon.js';
 import { labelChips } from '../../domain/labels/index.js';
 import { renderInline } from './md.js';
 import { clamp, hhmm, pct } from './state.js';
+import { detectCardState } from './draft-cards.js';
 
 let refHtml = uid => `<code>${uid}</code>`;
 /** index.js 注入：知道哪些 UID 在题库里、到期状态如何。 */
@@ -127,6 +128,9 @@ const T = {
     title: '建 AI 草稿', icon: 'file', level: 'rev', args: a => `${a.subject || ''} / ${a.category || ''}`,
     preview: (r, _args, current, cropMode) => {
       const d = current?.draft;
+      const detect = detectCardState(d);
+      const forcePending = (d?.training_tasks || []).some(task => task.force_crop && !(task.boxes || []).length);
+      const needsCrop = d?.status === 'cropping' || forcePending;
       const status = current?.error ? '状态读取失败' : current?.loading || !d ? '正在获取当前状态'
         : ({ cropping: '待框选', review: '待审核', done: '已入库', discarded: '已丢弃' }[d.status] || d.status);
       const blocks = d?.blocks || r.blocks || [];
@@ -136,7 +140,10 @@ const T = {
         <dl class="ast-kv"><dt>科目 / 分类</dt><dd>${d?.subject || r.subject} / ${d?.category || r.category}</dd><dt>题目</dt><dd>${question}</dd></dl>
         <div class="ast-draft-card__blocks">${blocks.map(block => html`<span class="ui-tag">${block.section} · ${block.kind === 'image' ? '图片' : '文字'}</span>`)}</div>
         ${current?.error ? html`<p class="ast-note is-error">${current.error}</p><button type="button" class="ui-btn ui-btn--sm" data-action="assistant.retryDraft" data-arg="${r.draft_id}">重试读取</button>` : ''}
-        ${d?.status === 'cropping' && cropMode === 'ask' ? html`<button type="button" class="ui-btn ui-btn--sm ui-btn--primary" data-action="assistant.openDraft" data-arg="${r.draft_id}">我来框</button>` : ''}
+        ${detect.phase !== 'idle' ? html`<p class="ast-note${detect.phase === 'retry' ? ' is-error' : ''}">${detect.message}</p>` : ''}
+        ${needsCrop && cropMode === 'ask' ? html`<button type="button" class="ui-btn ui-btn--sm ui-btn--primary" data-action="assistant.openDraft" data-arg="${r.draft_id}">我来框</button>` : ''}
+        ${needsCrop && cropMode === 'ask' && !['busy', 'retry'].includes(detect.phase) ? html`<button type="button" class="ui-btn ui-btn--sm" data-action="assistant.detectDraft" data-arg="${r.draft_id}" ${current?.detecting ? 'disabled' : ''}>AI 框</button>` : ''}
+        ${needsCrop && detect.phase === 'retry' && cropMode !== 'manual' ? html`<button type="button" class="ui-btn ui-btn--sm" data-action="assistant.detectDraft" data-arg="${r.draft_id}" ${current?.detecting ? 'disabled' : ''}>重试 AI 框</button>` : ''}
         <button type="button" class="ui-btn ui-btn--sm" data-action="assistant.openDraft" data-arg="${r.draft_id}">查看草稿</button></div>`;
     },
   },

@@ -15,7 +15,7 @@ import { createProcess } from './process.js';
 import { createCards } from './cards.js';
 import { createTrain } from './train.js';
 import { createDrafts } from './drafts.js';
-import { consumeDraftTarget } from '../../domain/drafts.js';
+import { consumeDraftTarget, currentDraftCounts } from '../../domain/drafts.js';
 
 const S = inbox.state;
 let parts = null;
@@ -23,7 +23,7 @@ let parts = null;
 function mountParts(root, ctx) {
   const flow = root.querySelector('#create-flow');
   let shown = null;
-  let draftCounts = null;
+  let draftCounts = currentDraftCounts();
   function paintStage() {
     const stage = stageOf(S.stage);
     morph(flow, flowView(stage, { ...inbox.counts(), draftPending: draftCounts ? draftCounts.cropping + draftCounts.review : 0 }));
@@ -50,7 +50,8 @@ function mountParts(root, ctx) {
   const stops = [
     ctx.bus.on('inbox:changed', paintStage),
     ctx.bus.on('inbox:reload', () => inbox.load()),
-    ctx.bus.on('drafts:counts', counts => { draftCounts = counts; paintStage(); if (S.stage === 'drafts') parts.drafts.paint(); }),
+    ctx.bus.on('drafts:counts', counts => { draftCounts = counts; parts.drafts.state.counts = counts;
+      paintStage(); if (S.stage === 'drafts') parts.drafts.paint(); }),
     ctx.bus.on('drafts:open', ({ id } = {}) => { if (id) void parts.drafts.open(id); }),
     ctx.bus.on('drafts:changed', ({ ids } = {}) => { if (S.stage === 'drafts') void parts.drafts.reload({ changedIds: ids || [] }); }),
   ];
@@ -110,6 +111,8 @@ export const page = {
     draftTrainingRemove: ({ arg }) => parts?.drafts.trainingRemove(arg),
     draftTrainToggle: ({ arg }) => parts?.drafts.trainToggle(arg),
     draftExtract: ({ arg }) => parts?.drafts.extract(arg),
+    draftDetect: ({ arg }) => parts?.drafts.detect(arg),
+    draftAcceptCandidate: ({ arg }) => parts?.drafts.acceptCandidate(arg),
     draftRetryTraining: () => parts?.drafts.retryTraining(),
     draftCleanup: () => parts?.drafts.cleanup(),
     draftSave: () => parts?.drafts.save(),

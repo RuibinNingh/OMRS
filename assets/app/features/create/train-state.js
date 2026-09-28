@@ -40,6 +40,7 @@ export function statsModel(stats) {
       ? `盲标 ${blind.images} 张（已评估 ${blind.evaluated}，待画 ${blind.pending}）· 隐藏 AI 框 ${blind.ai_boxes} 个，IoU≥0.5 命中 ${blind.matched}，平均 IoU ${shown(blind.mean_iou)}`
       : '还没有盲标样本：在下方把「每 N 张盲标」设为大于 0 后，AI 框选会按间隔隐藏建议',
     storage: `原图 ${bytes(storage.raw_bytes || 0)} · 裁图缓存 ${bytes(storage.crops_bytes || 0)} · 已丢弃待清理 ${storage.discarded || 0} 张`,
+    chat: `聊天来源图 ${shown(s.chat?.images ?? 0)} 张 · 标注框 ${shown(s.chat?.boxes ?? 0)} 个（同图去重）`,
   };
 }
 

@@ -50,6 +50,8 @@ def settings(vault):
         "compat": compat,
         "vision": bool(cfg.get("agent_vision")),
         "draft_mode": cfg.get("draft_mode") if cfg.get("draft_mode") in ("silent", "confirm") else "silent",
+        "draft_crop_mode": cfg.get("draft_crop_mode") if cfg.get("draft_crop_mode") in ("ask", "auto", "manual") else "ask",
+        "draft_force_crop": bool(cfg.get("draft_force_crop")),
         "limits": limits(cfg),
         "debug_log": bool(cfg.get("agent_debug_log")),
         "_base": base,

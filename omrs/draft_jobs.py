@@ -37,7 +37,7 @@ def _interrupt_orphan(db, row):
 
 
 def jobs_for_draft(db, draft_id):
-    rows = db.execute("SELECT * FROM draft_jobs WHERE draft_id=? ORDER BY created_at DESC,id DESC LIMIT 10",
+    rows = db.execute("SELECT * FROM draft_jobs WHERE draft_id=? ORDER BY created_at DESC,rowid DESC LIMIT 10",
                       (draft_id,)).fetchall()
     return [_job_row(row) for row in rows]
 
@@ -111,6 +111,18 @@ def start_extract(vault, draft_id, revision, block_ids, crops=None):
                     raise drafts.DraftError(f"块 {block_id} 不是已框选图片")
                 snapshot.append({"id": block_id, "section": block["section"],
                                  "image_sha": block["image_sha"], "box": _box(block["box"])})
+            target_shas = {item["image_sha"] for item in snapshot}
+            for active in db.execute("SELECT * FROM draft_jobs WHERE draft_id=? AND revision=? "
+                                     "AND type IN ('detect','extract') AND status IN ('queued','running')",
+                                     (draft_id, revision)):
+                active = _interrupt_orphan(db, active)
+                if active["status"] not in ("queued", "running"):
+                    continue
+                prior = drafts._loads(active["snapshot_json"], [])
+                prior_shas = {item.get("sha") or item.get("image_sha") for item in prior}
+                if target_shas.intersection(prior_shas):
+                    raise drafts.DraftError("这张图已有进行中的草稿任务，请等待后重试", 409,
+                                            "operation_pending", revision)
             _prepared_before_change(vault, db, row)
             from .draft_training import sync_block_boxes
             sync_block_boxes(db, draft_id)

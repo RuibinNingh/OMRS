@@ -1126,6 +1126,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             elif path == "/api/drafts/extract":
                 result = {"job": drafts_mod.start_extract(self.vault_path, draft_id, revision,
                                                             data.get("block_ids"), data.get("crops"))}
+            elif path == "/api/drafts/detect":
+                result = {"job": drafts_mod.start_detect(self.vault_path, draft_id, revision,
+                                                           data.get("sha"))}
             elif path == "/api/drafts/image/train":
                 result = drafts_mod.set_image_training(self.vault_path, draft_id, revision,
                                                        data.get("sha"), data.get("enabled"))

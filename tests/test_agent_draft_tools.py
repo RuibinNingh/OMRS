@@ -120,12 +120,42 @@ class DraftToolsTest(unittest.TestCase):
 
     def test_draft_mode_defaults_silent_and_saved_change_is_visible(self):
         self.assertEqual(settings(self.vault)["draft_mode"], "silent")
+        self.assertEqual(settings(self.vault)["draft_crop_mode"], "ask")
         self.assertNotIn("commit_draft", build_registry(settings(self.vault)).levels())
-        save_config(self.vault, {"draft_mode": "confirm"})
+        save_config(self.vault, {"draft_mode": "confirm", "draft_crop_mode": "auto", "draft_force_crop": True})
         self.assertEqual(settings(self.vault)["draft_mode"], "confirm")
+        self.assertEqual(settings(self.vault)["draft_crop_mode"], "auto")
+        self.assertTrue(settings(self.vault)["draft_force_crop"])
         self.assertIn("commit_draft", build_registry(settings(self.vault)).levels())
         with self.assertRaises(ValueError):
             validate_agent_config({"draft_mode": "unexpected"})
+
+    def test_auto_crop_only_registers_one_background_job(self):
+        ref = self.img()
+        args = {**TEXT_ARGS, "images": [ref]}
+        save_config(self.vault, {"draft_crop_mode": "auto"})
+        with mock.patch.object(drafts, "start_detect", create=True, return_value={"status": "queued"}) as detect:
+            result = tools.create_draft_tool(self.ctx, args)["result"]
+        detect.assert_called_once_with(self.vault, result["draft_id"], result["revision"], sha=None)
+        self.assertEqual(result["auto_detect"], {"status": "queued", "images": 1})
+        self.assertNotIn(drafts.resolve_image(self.vault, self.conv, ref)["sha256"], json.dumps(result))
+
+        for mode in ("ask", "manual"):
+            save_config(self.vault, {"draft_crop_mode": mode})
+            with mock.patch.object(drafts, "start_detect", create=True) as detect:
+                result = tools.create_draft_tool(self.ctx, args)["result"]
+            detect.assert_not_called()
+            self.assertNotIn("auto_detect", result)
+
+    def test_auto_crop_start_failure_keeps_created_draft_and_hides_details(self):
+        ref = self.img()
+        sha = drafts.resolve_image(self.vault, self.conv, ref)["sha256"]
+        save_config(self.vault, {"draft_crop_mode": "auto"})
+        with mock.patch.object(drafts, "start_detect", create=True, side_effect=OSError("/private/images/" + sha)):
+            result = tools.create_draft_tool(self.ctx, {**TEXT_ARGS, "images": [ref]})["result"]
+        self.assertEqual(result["auto_detect"]["status"], "error")
+        self.assertNotIn(sha, json.dumps(result, ensure_ascii=False))
+        self.assertIsNotNone(drafts.get_draft(self.vault, result["draft_id"]))
 
     def test_confirm_preview_and_execute_recheck_current_draft(self):
         draft = {"id": "DR-test", "conversation_id": self.conv, "revision": 3, "status": "review",

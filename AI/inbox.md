@@ -122,3 +122,5 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 草稿入库后的训练图经 register_chat_training 登记，不经过 upload_images 和上传自动检测。新条目使用 source=chat、layout=other、status=ready、training_only=true；普通 items 列表和 commit 入口排除训练专用项。chat_training_boxes 用草稿与标注身份生成稳定 id，重复登记不增加重复框，只有答案框也可统计和导出。
 
 同 SHA 已存在普通条目时，保持它的状态、版式、来源与原框，聊天框另存 chat_training_boxes；数据集按图合并，labels.jsonl 保留聊天标注来源，YOLO 同样包含这些框。用户主动上传已有训练专用图时将其提升为普通待处理项，保留独立聊天标注。普通清理跳过仍有聊天训练关联的原图。
+
+数据集统计另有 chat:{images,boxes}：按图片 SHA 去重计算含聊天标注的图片数与聊天框数；普通收件箱同图也计入聊天来源统计，不改它原有 source。总图数不因一图多个草稿或两种来源重复累计。

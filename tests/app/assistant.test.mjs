@@ -5,6 +5,7 @@ import { applyEvent, newRun, runFrom, ctxUsed, dayGroup, tokOf, fmtS, REASON } f
 import { renderMd, renderInline, plainOf } from '../../assets/app/features/assistant/md.js';
 import { dockView, userView } from '../../assets/app/features/assistant/view.js';
 import { confirmOf, toolPreview } from '../../assets/app/features/assistant/tools-view.js';
+import { detectCardState } from '../../assets/app/features/assistant/draft-cards.js';
 
 const ev = (i, t, type, data = {}) => ({ i, t, type, data });
 const script = [
@@ -143,7 +144,41 @@ test('待框选卡片仅在询问模式提供我来框', () => {
   const step = { name: 'create_draft', result: { draft_id: 'DR-ask', subject: '数学', category: '函数', blocks: [] } };
   const current = { draft: { id: 'DR-ask', status: 'cropping', subject: '数学', category: '函数', blocks: [] } };
   assert.match(String(toolPreview(step, current, 'ask')), /我来框/);
+  assert.match(String(toolPreview(step, current, 'ask')), /data-action="assistant\.detectDraft"[^>]*>AI 框/);
   assert.doesNotMatch(String(toolPreview(step, current, 'manual')), /我来框/);
+  assert.doesNotMatch(String(toolPreview(step, current, 'manual')), /assistant\.detectDraft/);
   assert.doesNotMatch(String(toolPreview(step, current, 'auto')), /我来框/);
+  assert.doesNotMatch(String(toolPreview(step, current, 'auto')), /assistant\.detectDraft/);
   assert.doesNotMatch(String(toolPreview(step, { draft: { ...current.draft, status: 'done' } }, 'ask')), /我来框/);
+});
+
+test('草稿卡片展示自动框选作业与可重试状态，不显示图片 SHA', () => {
+  const sha = 'a'.repeat(64);
+  const step = { name: 'create_draft', result: { draft_id: 'DR-auto', subject: '数学', category: '函数', blocks: [] } };
+  const draft = { id: 'DR-auto', status: 'cropping', subject: '数学', category: '函数', blocks: [] };
+  const running = { ...draft, jobs: [{ type: 'detect', status: 'running', processed: 1, total: 2 }] };
+  assert.equal(detectCardState(running).phase, 'busy');
+  const busy = String(toolPreview(step, { draft: running }, 'auto'));
+  assert.match(busy, /AI 正在框选（1\/2 张）/);
+  assert.doesNotMatch(busy, /assistant\.detectDraft/);
+
+  const failed = { ...draft, jobs: [{ type: 'detect', status: 'error', result: [],
+    errors: [{ sha, error: '检测模型暂时不可用' }] }] };
+  const retry = String(toolPreview(step, { draft: failed }, 'auto'));
+  assert.match(retry, /检测模型暂时不可用/);
+  assert.match(retry, /重试 AI 框/);
+  assert.doesNotMatch(retry, new RegExp(sha));
+  assert.doesNotMatch(String(toolPreview(step, { draft: failed }, 'manual')), /重试 AI 框/);
+
+  const shared = { ...draft, jobs: [{ type: 'detect', status: 'done',
+    result: [{ sha, status: 'skipped', reason_code: 'shared_image', reason: '共用图需人工框选' }], errors: [] }] };
+  const skipped = String(toolPreview(step, { draft: shared }, 'ask'));
+  assert.match(skipped, /共用图需人工框选/);
+  assert.match(skipped, /我来框/);
+  assert.doesNotMatch(skipped, new RegExp(sha));
+
+  const force = { ...draft, status: 'done', training_tasks: [{ force_crop: true, boxes: [] }] };
+  const afterCommit = String(toolPreview(step, { draft: force }, 'ask'));
+  assert.match(afterCommit, /我来框/);
+  assert.match(afterCommit, /AI 框/);
 });

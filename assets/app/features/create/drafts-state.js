@@ -9,6 +9,18 @@ export const csvValues = text => [...new Set(String(text || '').split(/[,，\n]/
 export const imageSha = image => typeof image === 'string' ? image : image?.sha256;
 export const imageUrl = sha => `/api/drafts/image?sha=${encodeURIComponent(sha || '')}`;
 
+export function latestDetectResult(draft, activeJob, sha) {
+  const jobs = [...(activeJob?.type === 'detect' ? [activeJob] : []), ...(draft?.jobs || [])];
+  for (const job of jobs) {
+    if (job.type !== 'detect') continue;
+    const result = (job.result || []).find(row => row.sha === sha);
+    if (result) return { job, result };
+    if ((job.errors || []).some(row => row.sha === sha)) return { job, result: null };
+    if (job === activeJob && ['queued', 'running'].includes(job.status)) return { job, result: null };
+  }
+  return null;
+}
+
 export function editValue(draft) {
   if (!draft) return null;
   return {

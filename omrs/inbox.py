@@ -1154,8 +1154,11 @@ def dataset_stats(vault):
     agree = sum(1 for r in judged if (r["judge"].get("ok") and r["convert"] == "text")
                 or (not r["judge"].get("ok") and r["convert"] == "image"))
     finished = sum(1 for i in items if i["status"] == "done")
+    chat_images = sum(1 for i in items if i["chat_annotations"])
+    chat_boxes = sum(len(i["chat_annotations"]) for i in items)
     return {
         "images": len(items), "done": finished,
+        "chat": {"images": chat_images, "boxes": chat_boxes},
         "boxes": {"total": len(regions), **by_role},
         "layouts": by_layout,
         "ai": {"suggested": len(ai_regions) + rejected, "adopted": adopted, "edited": len(edited), "rejected": rejected,

@@ -85,6 +85,7 @@ function createController(root, { router }) {
   const schedule = () => { if (!frame) frame = requestAnimationFrame(paint); };
   const draftCards = createDraftCards(S, schedule);
   const refreshDrafts = ids => draftCards.refresh(ids);
+  const detectDraft = id => draftCards.detect(id, message => toast(message, { kind: 'error' }));
   // 贴底跟随：只有用户自己往上滚才停止跟随；滚回底部恢复
   const atBottom = () => scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 48;
   const onUserScroll = () => requestAnimationFrame(() => { S.stick = atBottom(); root.querySelector('.ast-jump').hidden = S.stick || !S.liveRun; });
@@ -344,9 +345,10 @@ function createController(root, { router }) {
     pickImages({ event }) { if (event?.type === 'click') { $('ast-image-picker')?.click(); return; } addFiles(event?.target?.files); if (event?.target) event.target.value = ''; },
     openImage({ el }) { const href = el?.dataset?.imageUrl; if (href) window.open(href, '_blank', 'noopener'); },
     refreshDrafts,
+    detectDraft,
     loadDraftMode: () => draftCards.loadMode(),
     openDraft(id) { navigateToDraft(id); },
-    dispose() { S.alive = false; setDraftActivity('assistant', false); clearInterval(ticker); cancelAnimationFrame(frame); root.removeEventListener('keydown', onKey); root.removeEventListener('paste', onPaste); root.removeEventListener('dragover', onDragOver); root.removeEventListener('drop', onDrop); document.removeEventListener('click', onDoc); },
+    dispose() { S.alive = false; setDraftActivity('assistant', false); draftCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); root.removeEventListener('keydown', onKey); root.removeEventListener('paste', onPaste); root.removeEventListener('dragover', onDragOver); root.removeEventListener('drop', onDrop); document.removeEventListener('click', onDoc); },
     title: toolTitle,
   };
 }
@@ -362,7 +364,8 @@ export const page = {
     const offConfig = ctx.bus?.on?.('agent:config', () => C?.loadDraftMode());
     const focus = () => { if (!document.hidden) C?.refreshDrafts(); };
     window.addEventListener('focus', focus);
-    return () => { off?.(); offDrafts?.(); offConfig?.(); window.removeEventListener('focus', focus); C?.dispose(); C = null; };
+    document.addEventListener('visibilitychange', focus);
+    return () => { off?.(); offDrafts?.(); offConfig?.(); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', focus); C?.dispose(); C = null; };
   },
   actions: {
     newConv: () => C?.newConv(),
@@ -378,6 +381,7 @@ export const page = {
     selectRun: ({ arg }) => C?.select(arg),
     openQ: ({ arg }) => viewQ(arg),
     openDraft: ({ arg }) => C?.openDraft(arg),
+    detectDraft: ({ arg }) => C?.detectDraft(arg),
     retryDraft: ({ arg }) => C?.refreshDrafts([arg]),
     openSession: () => C?.openSession(),
     toggleRail: () => C?.toggle('railOpen'),

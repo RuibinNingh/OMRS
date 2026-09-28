@@ -929,6 +929,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 | POST | `/api/drafts/commit` | `{id,revision,crops?}` → `{status:"ok",draft,result,reused,training}` |
 | POST | `/api/drafts/boxes` | `{id,revision,blocks?,training_boxes?}` → `{status:"ok",draft}` |
 | POST | `/api/drafts/extract` | `{id,revision,block_ids,crops?}` → `{status:"ok",job}` |
+| POST | `/api/drafts/detect` | `{id,revision,sha?}` → `{status:"ok",job}`；后台复核共享、人工框与 revision |
 | POST | `/api/drafts/image/train` | `{id,revision,sha,enabled}` → `{status:"ok",draft,image}` |
 | GET | `/api/drafts/job?id=` | `{status:"ok",job}`，持久后台任务及错误摘要 |
 | POST | `/api/drafts/cleanup` | `{}` → `{status:"ok",cleaned,retained}`，不接受路径或自定义参数 |

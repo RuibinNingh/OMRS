@@ -12,13 +12,14 @@ from . import drafts
 from .draft_write import _box
 
 
-def sync_tasks(db, draft_id):
+def sync_tasks(db, draft_id, force_crop=False):
     """每份草稿的每张来源图有且仅有一个独立训练任务。"""
     now = drafts._now()
     for row in db.execute("SELECT image_sha FROM draft_images WHERE draft_id=? ORDER BY ord", (draft_id,)):
-        db.execute("INSERT OR IGNORE INTO training_tasks(id,draft_id,image_sha,status,error,created_at,updated_at) "
-                   "VALUES(?,?,?,?,?,?,?)",
-                   (f"dt_{uuid.uuid4().hex[:16]}", draft_id, row["image_sha"], "pending", None, now, now))
+        db.execute("INSERT OR IGNORE INTO training_tasks(id,draft_id,image_sha,status,error,created_at,updated_at,force_crop) "
+                   "VALUES(?,?,?,?,?,?,?,?)",
+                   (f"dt_{uuid.uuid4().hex[:16]}", draft_id, row["image_sha"], "pending", None, now, now,
+                    int(force_crop)))
     obsolete = db.execute("SELECT t.id FROM training_tasks t LEFT JOIN draft_images di ON "
                           "di.draft_id=t.draft_id AND di.image_sha=t.image_sha "
                           "WHERE t.draft_id=? AND di.image_sha IS NULL AND t.status!='registered'", (draft_id,)).fetchall()
@@ -55,7 +56,7 @@ def task_view(db, draft_id):
                           "box": {k: b[k] for k in ("x", "y", "w", "h")},
                           "box_origin": b["box_origin"], "ai_box": drafts._loads(b["ai_box"], None)})
         out.append({"id": row["id"], "image_sha": row["image_sha"], "status": row["status"],
-                    "boxes": boxes, "error": row["error"]})
+                    "boxes": boxes, "error": row["error"], "force_crop": bool(row["force_crop"])})
     return out
 
 

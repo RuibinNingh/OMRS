@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS commit_operations (
 CREATE TABLE IF NOT EXISTS training_tasks (
   id TEXT PRIMARY KEY, draft_id TEXT NOT NULL, image_sha TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending', error TEXT, created_at TEXT, updated_at TEXT,
-  manual_override INTEGER NOT NULL DEFAULT 0,
+  manual_override INTEGER NOT NULL DEFAULT 0, force_crop INTEGER NOT NULL DEFAULT 0,
   UNIQUE(draft_id,image_sha)
 );
 CREATE TABLE IF NOT EXISTS training_boxes (
@@ -166,6 +166,8 @@ def connect(vault):
     task_cols = {r["name"] for r in db.execute("PRAGMA table_info(training_tasks)")}
     if "manual_override" not in task_cols:
         db.execute("ALTER TABLE training_tasks ADD COLUMN manual_override INTEGER NOT NULL DEFAULT 0")
+    if "force_crop" not in task_cols:
+        db.execute("ALTER TABLE training_tasks ADD COLUMN force_crop INTEGER NOT NULL DEFAULT 0")
     db.commit()
     return db
 
@@ -529,7 +531,9 @@ def create_draft(vault, data, origin=None):
                 db.execute("UPDATE images SET train=? WHERE sha256=? AND train IS NULL",
                            (int(bool(load_config(vault).get("draft_train_default", False))), sha))
             from .draft_training import sync_tasks
-            sync_tasks(db, draft_id)
+            force_crop = bool(source_images and all(b["kind"] == "text" for b in blocks) and
+                              load_config(vault).get("draft_force_crop", False))
+            sync_tasks(db, draft_id, force_crop=force_crop)
             for block in blocks:
                 db.execute(
                     "INSERT INTO blocks (id, draft_id, section, ord, kind, text, image_sha, x, y, w, h, "
@@ -649,6 +653,11 @@ def set_boxes(vault, draft_id, revision, blocks=None, training_boxes=None):
 def start_extract(vault, draft_id, revision, block_ids, crops=None):
     from .draft_jobs import start_extract as run
     return run(vault, draft_id, revision, block_ids, crops)
+
+
+def start_detect(vault, draft_id, revision, sha=None):
+    from .draft_detect import start_detect as run
+    return run(vault, draft_id, revision, sha)
 
 
 def set_image_training(vault, draft_id, revision, sha, enabled):

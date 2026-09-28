@@ -1,7 +1,7 @@
 /** 草稿画布控制：正文框与训练框只更新本地编辑值，保存由草稿控制器显式执行。 */
 import { createDraftCanvas, draftCanvasItem, regionSection } from './drafts-canvas.js';
 import { newRegion } from './process-state.js';
-import { imageSha } from './drafts-state.js';
+import { imageSha, latestDetectResult } from './drafts-state.js';
 
 export function createDraftCanvasControl(host, state, { markChanged, paint, block }) {
   const data = { item: null, selR: null, drawRole: 'question', drawCard: 1, dragging: false };
@@ -10,7 +10,10 @@ export function createDraftCanvasControl(host, state, { markChanged, paint, bloc
   let nextTrainingBox = 0;
 
   function refresh() {
-    data.item = draftCanvasItem(state.draft, state.value, state.training, state.canvasSha, state.canvasMode);
+    const detected = latestDetectResult(state.draft, state.job, state.canvasSha);
+    data.item = draftCanvasItem(state.draft, state.value, state.training, state.canvasSha, state.canvasMode,
+      detected?.job.revision === state.draft?.revision && detected.result?.status === 'suggested'
+        ? detected.result.candidates || [] : []);
     data.selR = state.canvasMode === 'body' ? state.selectedBlock : null;
     data.drawRole = state.drawSection === '答案' ? 'answer' : 'question';
     controller?.paint();
@@ -36,7 +39,7 @@ export function createDraftCanvasControl(host, state, { markChanged, paint, bloc
   function createRegion({ start }) {
     if (state.canvasMode === 'training') {
       const task = (state.draft.training_tasks || []).find(row => row.image_sha === state.canvasSha);
-      if (!task) { state.message = '请先开启该图的训练开关。'; queueMicrotask(paint); return null; }
+      if (!task) { state.message = '训练任务尚未建立，请重新读取草稿。'; queueMicrotask(paint); return null; }
       return newRegion(1, data.drawRole, start.x, start.y, 0, 0,
         { id: `local-train-${++nextTrainingBox}`, target: 'training' });
     }
@@ -74,7 +77,10 @@ export function createDraftCanvasControl(host, state, { markChanged, paint, bloc
   }
   function mode(value) {
     if (!['body', 'training'].includes(value)) return;
-    if (value === 'training' && !(state.draft?.source_images || []).find(image => imageSha(image) === state.canvasSha)?.train) return;
+    const source = (state.draft?.source_images || []).find(image => imageSha(image) === state.canvasSha);
+    const task = (state.draft?.training_tasks || []).find(row => row.image_sha === state.canvasSha);
+    const bodyBlocks = (state.value?.blocks || []).some(row => row.kind === 'image' && row.image_sha === state.canvasSha);
+    if (value === 'training' && (!task || (!source?.train && !task.force_crop && bodyBlocks))) return;
     state.canvasMode = value; refresh(); paint();
   }
   function selectBlock(key) {
