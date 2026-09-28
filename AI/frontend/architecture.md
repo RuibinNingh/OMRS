@@ -55,7 +55,7 @@ assets/app/
 | `core/format.js` | `formatDate`、`relativeDays`、`formatPercent`、`formatNumber`、`formatDuration` | 空值与非法值显示「—」；`YYYY-MM-DD` 按本地日期解析 |
 | `core/download.js` | `downloadResponse(response, fallbackName)`、`fileNameOf` | 把 fetch 响应存成文件；文件名优先取 `Content-Disposition`（含 `filename*=UTF-8''`）；不写页面状态（v1.25.1 起，数据复盘导出用）|
 
-纯逻辑的单测在 `tests/app/core.test.mjs`（node），依赖 DOM 的 morph、事件委托、快捷键在 `tests/app/core_tests.js`（由 `tests/app/run_browser.py` 在浏览器里跑）。浏览器测试（`tests/app/run_browser.py`、`tests/e2e/`）在设了 `OMRS_TEST_CDP_URL` 时连接已开着的 Chromium（本机直接启动会崩溃的环境用），否则自行启动；等待一律等条件成立（`wait_for_function`），不写固定延时。历史、目录、报告的回归脚本覆盖操作区重绘、目录展开状态和删除防重；`tests/e2e/create.py` 覆盖快速录入的图片分区、AI 固定响应和创建后上下文。
+纯逻辑的单测在 `tests/app/core.test.mjs`（node），依赖 DOM 的 morph、事件委托、快捷键在 `tests/app/core_tests.js`（由 `tests/app/run_browser.py` 在浏览器里跑）。浏览器测试（`tests/app/run_browser.py`、`tests/e2e/`）在设了 `OMRS_TEST_CDP_URL` 时连接已开着的 Chromium（本机直接启动会崩溃的环境用），否则自行启动；等待一律等条件成立（`wait_for_function`），不写固定延时。历史、目录、报告的回归脚本覆盖操作区重绘、目录展开状态和删除防重；`tests/e2e/create.py` 覆盖快速录入的图片分区、AI 固定响应和创建后上下文。独立框选标注页不挂在外壳上：纯逻辑与数据所有者在 `tests/app/annotate.test.mjs`，`tests/e2e/annotate.py` 直接打开 `/annotate` 走主路径（沿用 `create.py` 的审计脚本）。
 
 展示板的页面测试分三层：`tests/app/board*.test.mjs` 测视图模型与源码约束（`board-regions.test.mjs` 同时读 `view.js` 与 `view-panel.js`），`tests/app/board-preview.test.mjs` 测预览消息与「适应宽度」公式，`tests/e2e/board.py` 走主路径，含详情层独立滚动、答案折叠、「打开题目」弹窗，以及宽屏收起左栏后纸面自动重算缩放。
 

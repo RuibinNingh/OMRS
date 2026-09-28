@@ -39,7 +39,8 @@ PATH_RE = re.compile(
     r"|AI/(?!logs/)[\w./-]+\.md)`")
 LOG_LINK_RE = re.compile(r"AI/logs/\d|`logs/\d{4}-")
 ROUTE_METHODS = {"do_GET": "GET", "_inbox_get": "GET", "_drafts_get": "GET", "do_POST": "POST",
-                 "_do_post_routes": "POST", "_inbox_post": "POST", "_auth_post": "POST",
+                 "_do_post_routes": "POST", "_inbox_post": "POST", "_annotate_get": "GET", "_annotate_post": "POST",
+                 "_auth_post": "POST",
                  "handle_agent_get": "GET", "agent_post_routes": "POST"}
 ROUTE_SOURCES = (("omrs", "server.py"), ("omrs", "agent", "http.py"))
 

@@ -10,6 +10,8 @@
 - [2026-09-28_board-ui-polish](2026-09-28_board-ui-polish.md)：展示板 UI 打磨：详情可滚动、打开题目入口、左栏对齐、纸面自动适配
 - [2026-09-28_board-ui-deploy](2026-09-28_board-ui-deploy.md)：展示板 UI 打磨生产部署
 - [2026-09-28_board-redesign](2026-09-28_board-redesign.md)：展示板 UI 改版
+- [2026-09-28_annotate-page](2026-09-28_annotate-page.md)：独立框选标注页（训练数据采集）
+- [2026-09-28_annotate-merge](2026-09-28_annotate-merge.md)：框选标注页合入当前版本
 - [2026-09-28_ai-draft-p1](2026-09-28_ai-draft-p1.md)：ai-draft P1-1：草稿存储 `omrs/drafts.py` 与只读接口
 - [2026-09-28_ai-draft-p1-partial-deploy](2026-09-28_ai-draft-p1-partial-deploy.md)：AI 草稿 P1 前三步提前合入生产
 - [2026-09-28_ai-agent](2026-09-28_ai-agent.md)：内置 AI 助手（v1.28.0）

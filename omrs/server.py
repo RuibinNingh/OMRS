@@ -6,6 +6,8 @@ import json
 import os
 import re
 import secrets
+import shutil
+import tempfile
 import time
 import urllib.parse
 from http.cookies import SimpleCookie
@@ -39,6 +41,7 @@ from .boards import (
 )
 from .feedback import process_feedback
 from .indexing import build_index
+from . import annotate as annotate_mod
 from . import drafts as drafts_mod
 from . import inbox as inbox_mod
 from .ledger import append_commit, get_commit, get_commit_by_id, read_commits, verify_ledger
@@ -105,6 +108,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
         if path.startswith("/api/inbox/") or path == "/m":
             self._inbox_get(path, params)
+            return
+        if path.startswith("/api/annotate/") or path == "/annotate":
+            self._annotate_get(path, params)
             return
         if path.startswith("/api/agent/"):
             from .agent.http import handle_agent_get
@@ -359,6 +365,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             return
         if path.startswith("/api/inbox/"):
             self._inbox_post(path)
+            return
+        if path.startswith("/api/annotate/"):
+            self._annotate_post(path)
             return
         body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode("utf-8")
 
@@ -989,6 +998,66 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(data)))
                 self.end_headers()
                 self.wfile.write(data)
+            else:
+                self._json({"status": "error", "msg": "not found"}, 404)
+        except Exception as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+
+    # ────────────── 框选标注集 /api/annotate/* 与独立标注页 /annotate ──────────────
+    def _annotate_get(self, path, params):
+        try:
+            if path == "/annotate":
+                self._serve("assets/app/annotate.html", "text/html")
+            elif path == "/api/annotate/images":
+                self._json({"status": "ok", "images": annotate_mod.list_images(self.vault_path),
+                            "stats": annotate_mod.stats(self.vault_path)})
+            elif path == "/api/annotate/stats":
+                self._json({"status": "ok", **annotate_mod.stats(self.vault_path)})
+            elif path == "/api/annotate/raw":
+                mime, data = annotate_mod.raw_file(self.vault_path, params.get("id", ""))
+                self.send_response(200)
+                self.send_header("Content-Type", mime)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "private, max-age=86400")
+                self.end_headers()
+                self.wfile.write(data)
+            elif path == "/api/annotate/export":
+                # 大批量标注集可能有几 GB：先写临时文件，再分块发送
+                with tempfile.TemporaryFile() as tmp:
+                    size = annotate_mod.export(self.vault_path, fmt=params.get("format", "omrs_jsonl"),
+                                               include_todo=params.get("all", "") in {"1", "true", "yes"}, fileobj=tmp)
+                    tmp.seek(0)
+                    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/zip")
+                    self.send_header("Content-Disposition", f'attachment; filename="omrs-annotate-{stamp}.zip"')
+                    self.send_header("Content-Length", str(size))
+                    self.end_headers()
+                    shutil.copyfileobj(tmp, self.wfile, 1024 * 1024)
+            else:
+                self._json({"status": "error", "msg": "not found"}, 404)
+        except Exception as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+
+    def _annotate_post(self, path):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            content_type = self.headers.get("Content-Type", "")
+            body = self.rfile.read(length)
+            if path == "/api/annotate/upload":
+                if "multipart/form-data" not in content_type:
+                    raise ValueError("请用 multipart/form-data 上传图片")
+                self._json({"status": "ok", **annotate_mod.upload(
+                    self.vault_path, self._multipart_files(body, content_type))})
+                return
+            data = json.loads(body.decode("utf-8") or "{}")
+            if not isinstance(data, dict):
+                raise ValueError("请求体必须是 JSON 对象")
+            if path == "/api/annotate/save":
+                self._json({"status": "ok", "image": annotate_mod.save(
+                    self.vault_path, data.get("id", ""), data.get("boxes"), data.get("status"))})
+            elif path == "/api/annotate/delete":
+                self._json({"status": "ok", **annotate_mod.delete(self.vault_path, data.get("id", ""))})
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
         except Exception as exc:

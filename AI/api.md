@@ -899,6 +899,21 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 ---
 
+## 框选标注集端点 `/api/annotate/*` 与 `/annotate`
+
+独立于收件箱的训练数据标注集，存储见 `AI/data.md` §16，页面见 `AI/frontend/annotate.md`。访问控制与其他端点相同（`_authorize`；POST 走同源校验并在进程级写锁内处理，模块自带 `annotate._LOCK`）。错误统一返回 400 `{status:"error", msg}`。
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/annotate` | 标注页 `assets/app/annotate.html` |
+| GET | `/api/annotate/images` | `{images:[{id, file, width, height, bytes, status, boxes, uploaded_at, updated_at}], stats}`，按上传顺序 |
+| GET | `/api/annotate/stats` | `{images, done, todo, boxes:{question, answer}}`；AI 训练页入口栏用它显示进度 |
+| GET | `/api/annotate/raw?id=` | 原图二进制（`Cache-Control: private, max-age=86400`） |
+| GET | `/api/annotate/export?format=yolo\|omrs_jsonl&all=1` | zip：`images/<sha256>.<ext>`、`labels.jsonl`（每行一张图，`boxes` 归一化）、`README.txt`；yolo 另含 `labels/<sha256>.txt` 与 `classes.txt`（0=question，1=answer）。默认只含 `status=done`，`all=1` 连未完成一起导出。服务端先写临时文件再分块发送，原图按 ZIP_STORED 存 |
+| POST | `/api/annotate/upload` | multipart 多文件（按 `filename=` 识别）；只收 PNG / JPEG / GIF，任一文件不是图片则整批报错不写；sha256 去重 → `{images:[新建], duplicates:[{file, id}]}` |
+| POST | `/api/annotate/save` | `{id, boxes:[{role, x, y, w, h}], status?}`：框整体覆盖；`role` 只能是 question / answer，坐标先按原值算右下角再夹到 0–1，宽或高小于 0.002 的框丢弃，一张最多 200 个；`status` 为 `todo` / `done`，缺省保留原状态 → `{image}` |
+| POST | `/api/annotate/delete` | `{id}`：删除记录与原图文件 → `{id}` |
+
 ## AI 草稿区端点 `/api/drafts/*`
 
 主 AI 聊天里建的题目草稿的只读层，草稿存 `错题/.omrs/drafts/`，**不进 Ledger**。完整定义、表结构、Python 接口见 `AI/drafts.md`。这一期只有四个 GET，写接口（保存 / 入库 / 丢弃）后续阶段加。速览：`GET /api/drafts/list?status=&conversation=`（草稿列表，缺省排除 discarded）、`GET /api/drafts/item?id=`（单份，含全部块）、`GET /api/drafts/image?sha=`（图片二进制，`Cache-Control: private, max-age=86400`，`sha` 须为 64 位十六进制）、`GET /api/drafts/counts`（四种状态计数）。访问规则与同源校验和收件箱 GET 一致。

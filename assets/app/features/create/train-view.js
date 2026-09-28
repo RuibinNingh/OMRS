@@ -1,6 +1,7 @@
 /** AI 训练工作区模板：数据集指标、构成条形、导出与清理、框选提供方与自动策略表单。 */
 import { html, each } from '../../core/html.js';
 import { button } from '../../ui/button.js';
+import { icon } from '../../ui/icon.js';
 import { stat } from '../../ui/stat.js';
 import { progress } from '../../ui/progress.js';
 import { status } from '../../ui/status.js';
@@ -75,9 +76,24 @@ function policyView(form, { saving, message }) {
   </div>`;
 }
 
-export function trainView({ model, loading = false, error = '', format = 'omrs_jsonl', policy = null, policyError = '', saving = false, message = null } = {}) {
+/** 独立框选标注页入口：新标签页打开 /annotate；annotate 为 /api/annotate/stats 的结果，读取失败时只显示说明。 */
+function annotateView(annotate) {
+  const counts = annotate
+    ? `已上传 ${annotate.images} 张，完成 ${annotate.done} 张 · 题目框 ${annotate.boxes?.question ?? 0}、答案框 ${annotate.boxes?.answer ?? 0}`
+    : '上传截图后只框「题目」和「答案」，不进收件箱、不建题目';
+  return html`<section class="crt-panel crt-annotate" aria-labelledby="crt-annotate-title">
+    <div class="crt-annotate__text">
+      <h3 id="crt-annotate-title">框选标注页</h3>
+      <p class="crt-muted" id="ib-tr-annotate">${counts}</p>
+    </div>
+    <a class="ui-btn ui-btn--sm ui-btn--primary" id="ib-tr-annotate-open" href="/annotate" target="_blank" rel="noopener">${icon('external')}<span class="ui-btn__label">打开标注页</span></a>
+  </section>`;
+}
+
+export function trainView({ model, loading = false, error = '', format = 'omrs_jsonl', policy = null, policyError = '', saving = false, message = null, annotate = null } = {}) {
   return html`<div class="crt" id="ib-train">
     ${statsView(model, { loading, error })}
+    ${annotateView(annotate)}
     ${datasetView(model, format)}
     <section class="crt-panel" aria-labelledby="crt-policy-title">
       <h3 id="crt-policy-title">框选提供方与自动策略</h3>

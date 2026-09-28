@@ -41,7 +41,7 @@
 
 ## AI 训练
 
-`train.js` 在进入工作区时读 `/api/inbox/dataset/stats` 与 `/api/config`。`train-state.js` 把统计换成展示模型：四张指标卡（`ui/stat`）、版式与转换决策条（原生 `<progress>`）、盲标评估集与存储文案。导出是一个随格式变化的下载链接（OMRS JSONL / YOLO）。清理超期丢弃图直接执行；清空裁图缓存先确认。统计或策略读取失败时在原位显示原因和「重试」。
+`train.js` 在进入工作区时读 `/api/inbox/dataset/stats`、`/api/config` 与 `/api/annotate/stats`。指标卡下面是「框选标注页」一栏：显示独立标注集的张数、完成数与两类框数，「打开标注页」在新标签页打开 `/annotate`（见 `AI/frontend/annotate.md`）。`train-state.js` 把统计换成展示模型：四张指标卡（`ui/stat`）、版式与转换决策条（原生 `<progress>`）、盲标评估集与存储文案。导出是一个随格式变化的下载链接（OMRS JSONL / YOLO）。清理超期丢弃图直接执行；清空裁图缓存先确认。统计或策略读取失败时在原位显示原因和「重试」。
 
 「框选提供方与自动策略」表单用 `ui/field`、`ui/select`、`ui/switch`：选 `local_http` 时才显示本地检测地址。保存时把阈值夹到合法范围，写 `/api/config` 的 `inbox_*` 键，结果就地显示。
 

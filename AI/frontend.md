@@ -28,5 +28,6 @@
 | [`frontend/feedback.md`](frontend/feedback.md) | **反馈录入工作台**：反馈录入工作台布局、渲染分层、快捷键与提交结果弹窗（答题卡导入见 `AI/omr-import.md`） |
 | [`frontend/settings.md`](frontend/settings.md) | **设置页**：设置页六个分区：外观、访问与安全、AI 识别、AI 助手、数据与存储、服务与运行 |
 | [`frontend/assistant.md`](frontend/assistant.md) | **AI 助手页**：对话列表、运行轨迹、确认与撤销、检查器（后端见 `AI/agent.md`） |
+| [`frontend/annotate.md`](frontend/annotate.md) | **框选标注页**（`/annotate`，`assets/app/features/annotate/`）：独立于题库的训练数据采集页，批量上传、只标题目 / 答案框、快捷键、导出 |
 | [`frontend/create.md`](frontend/create.md) | **录入题目与收件箱入口**：录入题目页表单、AI 识别入口、提交后表单状态，以及收件箱在前端的入口（流程细节见 `AI/inbox.md`） |
 | [`frontend/records.md`](frontend/records.md) | **历史记录、数据复盘与报告**：Ledger 时间线、数据复盘页、AI 报告托管页 |

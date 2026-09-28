@@ -5,6 +5,7 @@
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
+| GET | `/annotate` | `AI/api.md`、`AI/README.md`、`AI/frontend.md`等 |
 | POST | `/api/agent/abort` | `AI/api.md`、`AI/agent.md`、`AI/frontend/assistant.md` |
 | POST | `/api/agent/confirm` | `AI/api.md`、`AI/agent.md`、`AI/optimization.md`等 |
 | GET | `/api/agent/conversation` | `AI/agent.md` |
@@ -18,6 +19,13 @@
 | POST | `/api/agent/test` | `AI/api.md`、`AI/agent.md`、`AI/frontend/settings.md` |
 | POST | `/api/ai-recognize` | `AI/api.md`、`AI/frontend/create.md`、`AI/inbox.md`等 |
 | GET | `/api/analytics` | `AI/api.md`、`AI/algorithm.md`、`AI/changelog.md`等 |
+| POST | `/api/annotate/delete` | `AI/api.md` |
+| GET | `/api/annotate/export` | `AI/api.md`、`AI/optimization.md` |
+| GET | `/api/annotate/images` | `AI/api.md` |
+| GET | `/api/annotate/raw` | `AI/api.md` |
+| POST | `/api/annotate/save` | `AI/api.md`、`AI/frontend/annotate.md` |
+| GET | `/api/annotate/stats` | `AI/api.md`、`AI/frontend/annotate.md`、`AI/frontend/create.md` |
+| POST | `/api/annotate/upload` | `AI/api.md`、`AI/frontend/annotate.md` |
 | POST | `/api/auth/activity` | `AI/api.md`、`AI/security.md` |
 | POST | `/api/auth/disable` | `AI/api.md` |
 | POST | `/api/auth/login` | `AI/api.md` |
@@ -117,6 +125,7 @@
 按前缀分派（具体子路由见上表或对应文档）：
 
 - GET/POST `/api/agent/…`
+- GET/POST `/api/annotate/…`
 - POST `/api/auth/…`
 - GET `/api/drafts/…`
 - GET/POST `/api/inbox/…`

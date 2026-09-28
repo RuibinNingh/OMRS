@@ -104,6 +104,7 @@
 | `ledger.md` | 不可变提交链、投影缓存、历史修正与迁移边界 |
 | `board.md` | 展示板引用模型、版面设置、打印与纸面记录 |
 | `inbox.md` | 收件箱「上传 → 框选 → 转换 → 提交」流程、后台 job、框选提供方 |
+| `frontend/annotate.md` | 独立框选标注页 `/annotate`：训练数据批量采集、快捷键、导出（存储见 `data.md` §16） |
 | `labels.md` | 用户标记定义、YAML、投影与可选调度加成 |
 | `omr-import.md` | 答题卡扫描 JSON 导入反馈页 |
 | `security.md` | 本机免 PIN、远端会话、来源校验、报告沙箱与安全路径 |

@@ -426,3 +426,7 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 ## 15. 对话库 `agent.db`
 
 路径：`错题/.omrs/agent.db`（SQLite，随备份导出，不进 Ledger）。表：`conversations`（对话，软删除）、`messages`（按 OpenAI 格式存的会话消息，用于重放模型上下文）、`runs`（每次运行的状态、结束原因、统计、合并后的事件、撤销信息）、`tool_calls`（参数、用户决定、结果、产生的 commit）。字段与读写规则见 `AI/agent.md` §8。模型请求日志（开关打开时）在 `错题/.omrs/logs/agent-llm.jsonl`，含题目内容，不含密钥。
+
+## 16. 框选标注集 `错题/.omrs/annotate/`
+
+独立于收件箱的训练数据，由 `omrs/annotate.py` 读写，不进 Ledger、不参与任何投影。`annotate.db` 只有一张 `images` 表：`id (AN-YYYYMMDD-xxxxxx)、sha256（唯一）、file（上传时的文件名）、mime、width、height、bytes、status (todo|done)、boxes（JSON 数组 [{role, x, y, w, h}]，role 为 question / answer，坐标归一化 0–1）、uploaded_at、updated_at`。原图在 `images/<sha256>.<ext>`，删除记录时一并删除。整个目录随设置页「备份导出」打包（备份遍历整个 `错题/`），图片压缩优化只处理附件目录，不碰这里。

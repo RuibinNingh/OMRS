@@ -3,6 +3,8 @@
 .crt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-3); }
 .crt-stat { min-width: 0; padding: var(--sp-4); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); }
 .crt-stat .ui-stat__label { white-space: normal; }
+.crt-panel.crt-annotate { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-3) var(--sp-4); }
+.crt-annotate__text { display: grid; gap: var(--sp-1); min-width: 0; }
 .crt-error { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
 .crt-cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: var(--sp-4); }
 .crt-panel { display: grid; align-content: start; gap: var(--sp-3); min-width: 0; padding: var(--sp-4) var(--sp-5); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); }

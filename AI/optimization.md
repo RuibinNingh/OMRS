@@ -99,6 +99,8 @@
 
 ## 健壮性
 
+- [ ] **备份导出在内存里拼整个 zip** — 影响:中(随框选标注集增长恶化) / 工作量:小。`optimization.create_backup_export` 遍历整个 `错题/` 写 `BytesIO`，框选标注集（`错题/.omrs/annotate/images/`）大批量采集后可达数 GB。可仿照 `/api/annotate/export` 先写临时文件再分块发送。
+
 - [ ] **AI 写入的 op_id 幂等未做** — 影响:低 / 工作量:小
   `ledger.db` 已有 `op_results` 表，但工具调用还没有按 `op_id` 记录结果；目前靠「一次运行一个线程、工具串行、写锁内执行」避免重复写入，浏览器重发 `/api/agent/confirm` 只会得到 409。需要跨进程重放时再补。
 - [ ] **助手不能看题图** — 影响:中 / 工作量:中
