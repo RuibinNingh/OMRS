@@ -190,6 +190,7 @@ def main():
             page.click("[data-action='settings.agentTest']")
             page.wait_for_function("() => document.getElementById('st-agent-status')?.textContent.includes('连接正常')", timeout=10000)
             check("测试连接成功且入口恢复", page.is_visible('.tab[data-tab="assistant"]'))
+            check("测试连接显示图片直传结果", "图片直传正常" in page.locator('#st-agent-status').text_content())
 
             mobile = browser.new_page(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
             mobile.goto(f"{base}/#/assistant", wait_until="networkidle")

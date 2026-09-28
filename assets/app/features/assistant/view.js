@@ -179,7 +179,7 @@ export function dockView(S, perfNow) {
       <textarea id="ast-input" class="ast-input" rows="1" maxlength="4000" placeholder="${busy ? '插话：下一轮模型请求前送达' : '问点什么，Enter 发送，Shift+Enter 换行'}" aria-label="给助手的消息" ${disabled ? 'disabled' : ''}></textarea>
       <div class="ast-cbar">
         <input id="ast-image-picker" type="file" accept="image/png,image/jpeg,image/gif" multiple hidden data-change="assistant.pickImages">
-        <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" data-action="assistant.pickImages" aria-label="添加图片" title="添加图片" ${disabled ? 'disabled' : ''}>${icon('image')}</button>
+        <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" data-action="assistant.pickImages" aria-label="添加图片" title="添加图片" ${disabled ? 'disabled' : ''}>${icon('paperclip')}</button>
         <button type="button" class="ast-meter" data-action="assistant.pop" aria-expanded="${S.popOpen ? 'true' : 'false'}" aria-label="上下文用量 ${Math.round(ratio * 100)}%">
           <svg class="${cls('ast-ring', ratio > 0.8 && 'is-warn')}" viewBox="0 0 24 24" aria-hidden="true"><circle class="t" cx="12" cy="12" r="9"/><circle class="v" cx="12" cy="12" r="9" stroke-dasharray="${(circ * ratio).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 12 12)"/></svg>
           <span>${fmtK(used)} / ${fmtK(win)}</span></button>

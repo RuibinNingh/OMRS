@@ -38,7 +38,7 @@ assets/app/
 | 组件 | 调用 | 要点 |
 |---|---|---|
 | 按钮 | `button({label, variant, size, icon, iconOnly, loading, pressed})` | `.ui-btn`；variant：default / primary / ghost / danger；size：sm 28 / md 32 / lg 40；仅图标时 label 作 aria-label |
-| 图标 | `icon(name, {label, size})`、`installIcons()` | 自绘 55 个，24 网格、1.5 描边；sprite `#ui-icon-sprite`，symbol 名 `ic-<name>`；未知名字抛错 |
+| 图标 | `icon(name, {label, size})`、`installIcons()` | 自绘 61 个，24 网格、1.5 描边；sprite `#ui-icon-sprite`，symbol 名 `ic-<name>`；未知名字抛错 |
 | 字段 / 输入 | `field({label, id, hint, error, required, control})`、`input()`、`textarea()` | 统一 label、提示、错误的位置；错误 role=alert |
 | 选择框 | `select({id, options, value, size})` | 原生 select 统一外观；上下内边距为 0，文字不裁切（D3） |
 | 开关 | `switchControl({id, label, checked})` | 原生 checkbox + role=switch |
@@ -61,7 +61,7 @@ assets/app/
 
 状态类 `is-hover` / `is-active` / `is-focus` 只供 gallery 固定展示交互态；业务代码用真实伪类与 `aria-pressed`、`aria-selected`、`aria-invalid`、`aria-busy`。
 
-图标表（`ui/icon.js`）另有 `stop`、`arrow-up`、`arrow-down`、`undo`、`message`，供助手页使用；侧栏入口的 `#i-sparkle` 在 `omrs_dashboard.html` 的内联雪碧图里。
+图标表（`ui/icon.js`）另有 `stop`、`arrow-up`、`arrow-down`、`undo`、`message`、`paperclip`，供助手页使用；侧栏入口的 `#i-sparkle` 在 `omrs_dashboard.html` 的内联雪碧图里。
 
 ## 4. 弹层与通知
 
