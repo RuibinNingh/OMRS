@@ -370,6 +370,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         if path.startswith("/api/inbox/"):
             self._inbox_post(path)
             return
+        if path.startswith("/api/trainpanel/"):
+            self._trainpanel_post(path)
+            return
         if path.startswith("/api/annotate/"):
             self._annotate_post(path)
             return
@@ -1005,6 +1008,24 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
         except Exception as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+
+    def _trainpanel_post(self, path):
+        if path != "/api/trainpanel/try":
+            self._json({"status": "error", "msg": "not found"}, 404)
+            return
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            content_type = self.headers.get("Content-Type", "")
+            if length <= 0 or length > trainpanel_mod.MAX_UPLOAD_BYTES + 65536:
+                self.close_connection = True
+                raise ValueError("请求超过 15 MB 或为空")
+            if "multipart/form-data" not in content_type:
+                raise ValueError("请用 multipart/form-data 上传图片")
+            body = self.rfile.read(length)
+            result = trainpanel_mod.try_image(self.vault_path, self._multipart_files(body, content_type))
+            self._json({"status": "ok", **result})
+        except (ValueError, OSError) as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
 
     def _trainpanel_get(self, path, params):

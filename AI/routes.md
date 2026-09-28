@@ -134,5 +134,5 @@
 - POST `/api/auth/…`
 - GET `/api/drafts/…`
 - GET/POST `/api/inbox/…`
-- GET `/api/trainpanel/…`
+- GET/POST `/api/trainpanel/…`
 - GET `/assets/…`

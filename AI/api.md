@@ -17,7 +17,7 @@
 
 服务器每个连接一个守护线程（`ThreadingMixIn`），慢请求、长轮询不阻塞别的请求。所有持久化写入经 `omrs/locking.py` 的进程级可重入写锁串行：POST 默认整段在锁内处理；等锁超过 60 秒返回 **503**「写入繁忙，请稍后重试」并在服务日志记一行。锁顺序写死：写锁在外，各模块自己的锁（安全、收件箱、优化任务、工作区扫描、`agent.db`）在内。
 
-不进写锁的 POST 列在 `POST_LOCK_EXEMPT`（每条附理由）：`/api/auth/*`、`/api/ai-recognize`（只调外部模型）、`/api/restart`（重启线程在停止监听前自取写锁，最多等 30 秒）、`/api/agent/message`（只写 `agent.db` 与草稿区的 `drafts.db` / 附图文件，不碰 Ledger）、`/api/agent/confirm`、`/api/agent/abort`、`/api/agent/test`、`/api/agent/conversation/create`、`/api/agent/conversation/delete`。AI 工具的写入在运行线程里逐次取锁；`/api/agent/run/revert` 在应用撤销时自取写锁。后台工作区扫描与图片压缩的逐文件写回也在写锁内。Ledger 追加与计数各自用 `BEGIN IMMEDIATE`，连接带 `busy_timeout=5000`，见 `AI/ledger.md` §9。
+不进写锁的 POST 列在 `POST_LOCK_EXEMPT`（每条附理由）：`/api/trainpanel/try`（内存检测，积累时单独取锁）、`/api/auth/*`、`/api/ai-recognize`（只调外部模型）、`/api/restart`（重启线程在停止监听前自取写锁，最多等 30 秒）、`/api/agent/message`（只写 `agent.db` 与草稿区的 `drafts.db` / 附图文件，不碰 Ledger）、`/api/agent/confirm`、`/api/agent/abort`、`/api/agent/test`、`/api/agent/conversation/create`、`/api/agent/conversation/delete`。AI 工具的写入在运行线程里逐次取锁；`/api/agent/run/revert` 在应用撤销时自取写锁。后台工作区扫描与图片压缩的逐文件写回也在写锁内。Ledger 追加与计数各自用 `BEGIN IMMEDIATE`，连接带 `busy_timeout=5000`，见 `AI/ledger.md` §9。
 
 `/api/agent/*`（AI 助手）的请求与响应见 `AI/agent.md` §7。
 
@@ -931,3 +931,10 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 | GET | `/api/trainpanel/service` | 对配置检测地址的同源 `/health` 做 2 秒探测，state 为 online/offline/unconfigured；离线附启动命令 |
 
 `status.json` 的 running 状态在 pid 不存在或更新时间超过 max(3×每轮秒数, 600 秒) 时只在响应中改为 interrupted，不写回文件。文件缺失是空状态；损坏文件仅在对应字段返回读取失败，不影响其他实验／指标。路径参数拒绝穿越及符号链接越界；不提供任意文件读取。新增完成图数按来源 ID 对照 manifest 中已纳入与已排除记录，不把旧排除图误算成新增训练数据。配置格式见 `AI/data.md` §17。
+
+
+### 实时测试 `/api/trainpanel/try`
+
+POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 万像素（长图可超过 10000 高）；原图与条带都在内存，不开积累时不创建文件或库。复用 slice_plan → JPEG 85 → detect_regions_local → merge_strip_boxes，返回 `{status:"ok", boxes, width, height, strips, elapsed_ms, collected?}`，框置信度为 conf。每进程最多同时测试一图，繁忙、非法文件、超限、服务未配置／离线／非法响应均返回 400 与中文 msg，离线附启动命令；继续沿用来源与登录校验。
+
+配置 train_try_collect 为 true 时，仅积累阶段取得进程写锁，调用 annotate.upload 并以模型框 annotate.save(status=None)，保持 todo；返回 collected `{id, duplicate:false, status:"todo"}`。重复 SHA 返回 `{id, duplicate:true}`，不覆盖旧框或完成状态。积累失败仍返回检测结果，并带 collect_error。`POST /api/config` 保存开关，默认 false；推理不持有写锁，等待锁后重查开关，已关闭时不写。

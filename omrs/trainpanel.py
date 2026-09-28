@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 import shlex
 import sqlite3
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -234,3 +235,79 @@ def service(vault):
         return {'state': 'online', 'model': model}
     except (OSError, ValueError):
         return {'state': 'offline', 'message': '检测服务未启动', 'command': commands(train_dir(vault))['serve']}
+
+
+# 同时只解码一张测试原图，避免多个标签页叠加长图内存。
+_TRY_SLOT = threading.BoundedSemaphore(1)
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+MAX_IMAGE_PIXELS = 40_000_000
+
+
+def try_image(vault, files):
+    """实时测试只在内存中切片；积累成功后仍是 todo，不直接成为训练标签。"""
+    import base64
+    import io
+    import time
+    from PIL import Image
+    from . import ai_assist, annotate, inbox, locking
+
+    if len(files) != 1:
+        raise ValueError('每次请选择一张 PNG、JPEG 或 GIF')
+    name, data = files[0]
+    if not data or len(data) > MAX_UPLOAD_BYTES:
+        raise ValueError('图片不能为空且不能超过 15 MB')
+    url = config(vault).get('inbox_local_detect_url', '')
+    if not url:
+        raise ValueError('尚未配置本地检测服务地址，请到录入题目 → AI 训练填写')
+    if not _TRY_SLOT.acquire(blocking=False):
+        raise ValueError('已有图片正在测试，请稍后重试')
+    started = time.monotonic()
+    try:
+        outputs = []
+        try:
+            image = Image.open(io.BytesIO(data))
+        except (OSError, ValueError, Image.DecompressionBombError) as exc:
+            raise ValueError('图片无法解码') from exc
+        with image:
+            if image.format not in ('PNG', 'JPEG', 'GIF'):
+                raise ValueError('只支持 PNG、JPEG 或 GIF')
+            width, height = image.size
+            if width * height > MAX_IMAGE_PIXELS:
+                raise ValueError('图片像素超过 4000 万，请拆分后测试')
+            try:
+                image.load()
+            except OSError as exc:
+                raise ValueError('图片损坏或截断') from exc
+            for y0, y1 in inbox.slice_plan(width, height):
+                buf = io.BytesIO()
+                strip = image.crop((0, int(y0*height), width, int(y1*height))).convert('RGB')
+                strip.save(buf, 'JPEG', quality=85)
+                encoded = 'data:image/jpeg;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+                try:
+                    boxes = ai_assist.detect_regions_local(url, encoded, 'zuoyebang', width, strip.height)
+                except (OSError, ValueError) as exc:
+                    if '连不上' in str(exc) or isinstance(exc, OSError):
+                        raise ValueError('检测服务未启动；' + commands(train_dir(vault))['serve']) from exc
+                    raise
+                finally:
+                    strip.close()
+                outputs.append({'y0': y0, 'y1': y1, 'boxes': boxes})
+        result = {'boxes': inbox.merge_strip_boxes(outputs), 'width': width, 'height': height,
+                  'strips': len(outputs), 'elapsed_ms': round((time.monotonic()-started)*1000)}
+        if config(vault).get('train_try_collect') is True:
+            try:
+                with locking.write_lock():
+                    # 等待写锁期间用户可能已关闭积累，再确认一次服务端开关。
+                    if config(vault).get('train_try_collect') is True:
+                        uploaded = annotate.upload(vault, [(name, data)])
+                        if uploaded['duplicates']:
+                            result['collected'] = {'id': uploaded['duplicates'][0]['id'], 'duplicate': True}
+                        else:
+                            image_id = uploaded['images'][0]['id']
+                            annotate.save(vault, image_id, result['boxes'], status=None)
+                            result['collected'] = {'id': image_id, 'duplicate': False, 'status': 'todo'}
+            except Exception as exc:
+                result['collect_error'] = '积累失败：' + str(exc)
+        return result
+    finally:
+        _TRY_SLOT.release()

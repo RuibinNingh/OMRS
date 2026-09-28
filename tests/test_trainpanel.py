@@ -120,3 +120,109 @@ class PanelTests(unittest.TestCase):
             response = conn.getresponse(); response.read()
             self.assertEqual(response.status, code, path)
             conn.close()
+
+
+class TryTests(unittest.TestCase):
+    setUp = PanelTests.setUp
+    start_http = PanelTests.start_http
+
+    def fake(self, invalid=False):
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+        class Fake(BaseHTTPRequestHandler):
+            def do_POST(self):
+                self.rfile.read(int(self.headers['Content-Length']))
+                body = b'bad-json' if invalid else json.dumps({'boxes': [
+                    {'label':'question', 'bbox_2d':[.1,.1,.9,.4], 'confidence':.9},
+                    {'label':'answer', 'bbox_2d':[.1,.5,.9,.95], 'confidence':.85}]}).encode()
+                self.send_response(200); self.end_headers(); self.wfile.write(body)
+            def do_GET(self):
+                self.send_response(200); self.end_headers(); self.wfile.write(b'{"sha256":"fake"}')
+            def log_message(self, *args):
+                pass
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Fake)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close); self.addCleanup(server.shutdown)
+        save_config(str(self.vault), {'inbox_local_detect_url':f'http://127.0.0.1:{server.server_port}/detect'})
+        return server
+
+    def png(self):
+        from tests.test_annotate import make_png
+        return make_png(100, 650)
+
+    def test_try_off_multistrip_no_persistence(self):
+        self.fake()
+        before = {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in self.vault.rglob('*') if p.is_file()}
+        result = trainpanel.try_image(str(self.vault), [('x.png', self.png())])
+        self.assertGreater(result['strips'], 1)
+        self.assertEqual({b['role'] for b in result['boxes']}, {'question','answer'})
+        self.assertNotIn('collected', result)
+        self.assertEqual(before, {p: (p.stat().st_mtime_ns, p.read_bytes()) for p in self.vault.rglob('*') if p.is_file()})
+        self.assertEqual(trainpanel.service(str(self.vault))['state'], 'online')
+
+    def test_collect_todo_and_duplicate_keeps_human_boxes(self):
+        from omrs import annotate
+        self.fake(); save_config(str(self.vault), {'train_try_collect':True})
+        result = trainpanel.try_image(str(self.vault), [('x.png', self.png())])
+        image_id = result['collected']['id']
+        image = annotate.list_images(str(self.vault))[0]
+        self.assertEqual(image['status'], 'todo')
+        self.assertGreater(len(image['boxes']), 0)
+        human = [{'role':'answer','x':0,'y':0,'w':1,'h':1}]
+        annotate.save(str(self.vault), image_id, human, status='done')
+        again = trainpanel.try_image(str(self.vault), [('same.png', self.png())])
+        self.assertTrue(again['collected']['duplicate'])
+        images = annotate.list_images(str(self.vault))
+        self.assertEqual(len(images), 1)
+        self.assertEqual(images[0]['boxes'], human)
+        self.assertEqual(images[0]['status'], 'done')
+
+    def test_collect_failure_keeps_result(self):
+        from unittest.mock import patch
+        self.fake(); save_config(str(self.vault), {'train_try_collect':True})
+        with patch('omrs.annotate.upload', side_effect=OSError('disk full')):
+            result = trainpanel.try_image(str(self.vault), [('x.png', self.png())])
+        self.assertIn('积累失败', result['collect_error'])
+        self.assertGreater(len(result['boxes']), 0)
+
+    def test_service_missing_offline_invalid_json(self):
+        with self.assertRaisesRegex(ValueError, '尚未配置'):
+            trainpanel.try_image(str(self.vault), [('x.png', self.png())])
+        server = self.fake(invalid=True)
+        with self.assertRaisesRegex(ValueError, '未返回 JSON'):
+            trainpanel.try_image(str(self.vault), [('x.png', self.png())])
+        server.shutdown(); server.server_close()
+        with self.assertRaisesRegex(ValueError, '检测服务未启动'):
+            trainpanel.try_image(str(self.vault), [('x.png', self.png())])
+        self.assertEqual(trainpanel.service(str(self.vault))['state'], 'offline')
+
+    def test_reject_bad_image_count_and_size(self):
+        self.fake()
+        for files in [[], [('a',b'broken')], [('a',self.png()),('b',self.png())], [('a',b'x'*(15*1024*1024+1))]]:
+            with self.assertRaises(ValueError):
+                trainpanel.try_image(str(self.vault), files)
+
+    def test_http_try_origin_and_payload_limit(self):
+        self.fake(); port = self.start_http()
+        body = b'--test\r\nContent-Disposition: form-data; name="file"; filename="a.png"\r\nContent-Type: image/png\r\n\r\n'+self.png()+b'\r\n--test--\r\n'
+        for origin, expected in [(f'http://127.0.0.1:{port}',200), ('https://elsewhere.invalid',403)]:
+            conn = http.client.HTTPConnection('127.0.0.1',port)
+            conn.request('POST','/api/trainpanel/try',body,{'Content-Type':'multipart/form-data; boundary=test','Origin':origin})
+            response = conn.getresponse(); response.read(); self.assertEqual(response.status,expected); conn.close()
+        conn = http.client.HTTPConnection('127.0.0.1',port)
+        conn.request('POST','/api/trainpanel/try',b'',{'Content-Length':str(20*1024*1024),'Content-Type':'multipart/form-data; boundary=test'})
+        response = conn.getresponse(); response.read(); self.assertEqual(response.status,400); conn.close()
+
+    def test_detection_outside_write_lock_collection_inside(self):
+        from unittest.mock import patch
+        from omrs import annotate, locking
+        save_config(str(self.vault), {'inbox_local_detect_url':'http://127.0.0.1:1', 'train_try_collect':True})
+        original = annotate.upload
+        def detect(*args, **kwargs):
+            self.assertFalse(locking.held_by_current_thread())
+            return []
+        def collect(*args, **kwargs):
+            self.assertTrue(locking.held_by_current_thread())
+            return original(*args, **kwargs)
+        self.assertTrue(locking.post_exempt('/api/trainpanel/try'))
+        with patch('omrs.ai_assist.detect_regions_local', side_effect=detect), patch('omrs.annotate.upload', side_effect=collect):
+            trainpanel.try_image(str(self.vault), [('x.png',self.png())])

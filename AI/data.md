@@ -434,7 +434,7 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 
 ## 17. 外部训练目录与面板配置
 
-`config.json` 的 `train_dir` 默认空串（读取 `~/omrs-train`）；`train_try_collect` 默认 false（实时测试是否积累，写入流程按 C6 提供）。训练数据、权重和运行日志放在 Vault 外，不随题库备份，不进 Git。主程序仅以标准库读文件，不导入训练框架。
+`config.json` 的 `train_dir` 默认空串（读取 `~/omrs-train`）；`train_try_collect` 默认 false（实时测试成功后是否积累到标注集）。训练数据、权重和运行日志放在 Vault 外，不随题库备份，不进 Git。主程序仅以标准库读文件，不导入训练框架。
 
 - datasets/版本/manifest.json：classes、counts（train/val/test/quarantine）、strip_counts、samples、excluded、groups、splits；图片 ID 带 annotate/inbox 前缀，samples 保存 SHA-256、原始框与条带信息。测试图清单冻结到 test_ids.txt，重建沿用。
 - runs/实验/status.json：state（running/done/failed）、epoch、epochs、started_at、updated_at、epoch_seconds、pid、dataset、可选 error；训练每轮临时文件加 os.replace 原子写入。进程消失或更新超时由面板派生 interrupted。
@@ -443,3 +443,5 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 - models/current/model.onnx 与 model.json：固定模型与 name、run、created_at、sha256、bytes、classes、imgsz、conf、dataset 元数据；训练不会隐式修改已发布模型。
 
 面板只读目录为空时返回空状态，各文件解析错误各自报告。配置保存继续使用 `/api/config`；不提供网页训练控制。续训命令从原实验 identity.json 取参数，恢复前训练脚本检查数据清单和参数指纹。
+
+实时测试默认只在内存中运行。积累开启后调用现有 annotate 模块写原图与模型框，status 保持 todo；重复 SHA 只提示已有，不更新框。完成标注前不进入默认导出和训练数据集，不增加任何数据表或来源字段。单图 15 MB／4000 万像素与每进程单并发限制用于约束内存。
