@@ -117,10 +117,15 @@
 | GET | `/api/source/export` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/settings.md` |
 | GET | `/api/stats` | `AI/api.md`、`AI/algorithm.md`、`AI/changelog.md`等 |
 | GET | `/api/status` | `AI/api.md`、`AI/frontend/settings.md`、`AI/security.md` |
+| GET | `/api/trainpanel/overlay` | `AI/api.md` |
+| GET | `/api/trainpanel/overview` | `AI/api.md` |
+| GET | `/api/trainpanel/run` | `AI/api.md` |
+| GET | `/api/trainpanel/service` | `AI/api.md` |
 | GET | `/api/tree` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/architecture.md`等 |
 | POST | `/api/workspace/scan` | `AI/api.md`、`AI/ledger.md` |
 | GET | `/login` | `AI/inbox.md`、`AI/security.md` |
 | GET | `/m` | `AI/api.md`、`AI/inbox.md`、`AI/security.md` |
+| GET | `/train` | `AI/api.md` |
 
 按前缀分派（具体子路由见上表或对应文档）：
 
@@ -129,4 +134,5 @@
 - POST `/api/auth/…`
 - GET `/api/drafts/…`
 - GET/POST `/api/inbox/…`
+- GET `/api/trainpanel/…`
 - GET `/assets/…`

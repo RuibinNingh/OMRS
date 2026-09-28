@@ -430,3 +430,16 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 ## 16. 框选标注集 `错题/.omrs/annotate/`
 
 独立于收件箱的训练数据，由 `omrs/annotate.py` 读写，不进 Ledger、不参与任何投影。`annotate.db` 只有一张 `images` 表：`id (AN-YYYYMMDD-xxxxxx)、sha256（唯一）、file（上传时的文件名）、mime、width、height、bytes、status (todo|done)、boxes（JSON 数组 [{role, x, y, w, h}]，role 为 question / answer，坐标归一化 0–1）、uploaded_at、updated_at`。原图在 `images/<sha256>.<ext>`，删除记录时一并删除。整个目录随设置页「备份导出」打包（备份遍历整个 `错题/`），图片压缩优化只处理附件目录，不碰这里。
+
+
+## 17. 外部训练目录与面板配置
+
+`config.json` 的 `train_dir` 默认空串（读取 `~/omrs-train`）；`train_try_collect` 默认 false（实时测试是否积累，写入流程按 C6 提供）。训练数据、权重和运行日志放在 Vault 外，不随题库备份，不进 Git。主程序仅以标准库读文件，不导入训练框架。
+
+- datasets/版本/manifest.json：classes、counts（train/val/test/quarantine）、strip_counts、samples、excluded、groups、splits；图片 ID 带 annotate/inbox 前缀，samples 保存 SHA-256、原始框与条带信息。测试图清单冻结到 test_ids.txt，重建沿用。
+- runs/实验/status.json：state（running/done/failed）、epoch、epochs、started_at、updated_at、epoch_seconds、pid、dataset、可选 error；训练每轮临时文件加 os.replace 原子写入。进程消失或更新超时由面板派生 interrupted。
+- runs/实验/metrics.jsonl：每轮一行，epoch、epoch_seconds、train/box_loss、train/cls_loss、val/box_loss、val/cls_loss、metrics/mAP50(B)、metrics/mAP50-95(B)；忽略最后未写完的一行，按轮次去重排序。
+- runs/实验/eval.json：dataset、split、manifest_sha256、template/model 汇总、逐图 rows/template_rows、overlays（name/id）；overlays/ 下 JPEG 叠加图必须在清单中登记才可经接口读取。
+- models/current/model.onnx 与 model.json：固定模型与 name、run、created_at、sha256、bytes、classes、imgsz、conf、dataset 元数据；训练不会隐式修改已发布模型。
+
+面板只读目录为空时返回空状态，各文件解析错误各自报告。配置保存继续使用 `/api/config`；不提供网页训练控制。续训命令从原实验 identity.json 取参数，恢复前训练脚本检查数据清单和参数指纹。

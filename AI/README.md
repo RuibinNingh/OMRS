@@ -116,3 +116,5 @@
 | `logs/log.md` | 任务日志索引（自动生成；不随脱敏源码包导出） |
 
 训练工具位于 `tools/boxdetect/`；数据基线、实验与经验索引见 `training/README.md`。
+
+训练面板后端 `omrs/trainpanel.py` 只读实验文件，契约见 `api.md` 与 `data.md` §17，训练环境及门禁见 `environment.md`。

@@ -41,6 +41,7 @@ from .boards import (
 )
 from .feedback import process_feedback
 from .indexing import build_index
+from . import trainpanel as trainpanel_mod
 from . import annotate as annotate_mod
 from . import drafts as drafts_mod
 from . import inbox as inbox_mod
@@ -108,6 +109,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
         if path.startswith("/api/inbox/") or path == "/m":
             self._inbox_get(path, params)
+            return
+        if path.startswith("/api/trainpanel/") or path == "/train":
+            self._trainpanel_get(path, params)
             return
         if path.startswith("/api/annotate/") or path == "/annotate":
             self._annotate_get(path, params)
@@ -1001,6 +1005,30 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
         except Exception as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+
+    def _trainpanel_get(self, path, params):
+        try:
+            if path == "/train":
+                self._serve("assets/app/trainpanel.html", "text/html")
+            elif path == "/api/trainpanel/overview":
+                self._json({"status": "ok", **trainpanel_mod.overview(self.vault_path)})
+            elif path == "/api/trainpanel/run":
+                self._json({"status": "ok", **trainpanel_mod.run_detail(self.vault_path, params.get("name", ""))})
+            elif path == "/api/trainpanel/service":
+                self._json({"status": "ok", **trainpanel_mod.service(self.vault_path)})
+            elif path == "/api/trainpanel/overlay":
+                image = trainpanel_mod.overlay_path(self.vault_path, params.get("run", ""), params.get("name", ""))
+                data = image.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png" if image.suffix.lower() == ".png" else "image/jpeg")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "private, no-store")
+                self.end_headers()
+                self.wfile.write(data)
+            else:
+                self._json({"status": "error", "msg": "not found"}, 404)
+        except (ValueError, OSError) as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
 
     # ────────────── 框选标注集 /api/annotate/* 与独立标注页 /annotate ──────────────

@@ -99,6 +99,8 @@ CONFIG_DEFAULTS = {"allow_external": False, "lan_pin_exempt_cidrs": [], "ai_rest
                    "ai_model_detect": "", "ai_model_extract": "", "ai_model_classify": "",
                    # 收件箱框选提供方与自动策略（见 AI/inbox.md §4/§8）
                    "inbox_detect_provider": "vlm",      # vlm | template | local_http
+                   "train_dir": "",                     # 训练面板只读外部目录，空值为 ~/omrs-train
+                   "train_try_collect": False,           # 实时测试成功后是否积累到未完成标注
                    "inbox_local_detect_url": "",        # local_http：本地检测服务 POST 地址
                    "inbox_blind_every": 0,              # 每 N 张盲标（不展示 AI 框，只留痕作评估集）；0 关闭
                    "inbox_auto_ready_conf": 0.0,        # 置信度 ≥ 阈值时自动转文本并置就绪；0 关闭

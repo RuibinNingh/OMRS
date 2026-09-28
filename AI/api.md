@@ -917,3 +917,17 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 ## AI 草稿区端点 `/api/drafts/*`
 
 主 AI 聊天里建的题目草稿的只读层，草稿存 `错题/.omrs/drafts/`，**不进 Ledger**。完整定义、表结构、Python 接口见 `AI/drafts.md`。这一期只有四个 GET，写接口（保存 / 入库 / 丢弃）后续阶段加。速览：`GET /api/drafts/list?status=&conversation=`（草稿列表，缺省排除 discarded）、`GET /api/drafts/item?id=`（单份，含全部块）、`GET /api/drafts/image?sha=`（图片二进制，`Cache-Control: private, max-age=86400`，`sha` 须为 64 位十六进制）、`GET /api/drafts/counts`（四种状态计数）。访问规则与同源校验和收件箱 GET 一致。
+
+
+## 训练面板（只读接口）
+
+`omrs/trainpanel.py` 只读配置 `train_dir` 指向的外部训练目录（空值为 `~/omrs-train`），不加载 torch／onnxruntime、不启动或停止训练。`/train` 为独立训练面板入口，前端按 box-detect 计划 C7 提供。以下 GET 沿用登录授权：
+
+| 方法 | 路径 | 响应 |
+|---|---|---|
+| GET | `/api/trainpanel/overview` | 当前 model、最新 dataset 摘要、latest、runs、live 完成图计数／新增图数、commands、collect、独立 errors |
+| GET | `/api/trainpanel/run?name=` | 指定实验 status、metrics、evaluation 与各字段 errors；JSONL 最后未写完的一行留待下次 |
+| GET | `/api/trainpanel/overlay?run=&name=` | 仅返回该实验 eval.json 登记的 JPG／PNG 叠加图，private/no-store |
+| GET | `/api/trainpanel/service` | 对配置检测地址的同源 `/health` 做 2 秒探测，state 为 online/offline/unconfigured；离线附启动命令 |
+
+`status.json` 的 running 状态在 pid 不存在或更新时间超过 max(3×每轮秒数, 600 秒) 时只在响应中改为 interrupted，不写回文件。文件缺失是空状态；损坏文件仅在对应字段返回读取失败，不影响其他实验／指标。路径参数拒绝穿越及符号链接越界；不提供任意文件读取。新增完成图数按来源 ID 对照 manifest 中已纳入与已排除记录，不把旧排除图误算成新增训练数据。配置格式见 `AI/data.md` §17。
