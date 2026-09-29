@@ -42,3 +42,9 @@ PIN 的随机盐和 PBKDF2-SHA256 哈希存于 `错题/.omrs/auth.json`，不通
 ## 训练评测复核
 
 评测读取与图片端点沿用登录授权，图片按登记ID读取且校验根目录边界。复核POST沿用同源和全局写锁，SQLite事务检查revision后追加，不能覆盖历史或修改训练标签。付费评测仅在独立CLI中启动，读取助手渠道配置，密钥不写入产物或响应。正文里的指令视为待检查图片内容，不改变裁判规则。
+
+## 受管检测服务边界
+
+控制能力必须由进程环境OMRS_BOXDETECT_CONTROL指向部署者登记文件，精确绑定Vault、训练根、回环URL/端口及固定omrs-boxdetect.service；页面配置不能授予systemd能力，临时Vault即使继承环境也不能操作生产。后端只接受固定action列表，以argv调用固定systemctl，不接受网页传入命令、unit、任意模型路径或端口。候选以实验ID、权重与ONNX哈希校验，active限制在managed/snapshots内。
+
+沿用登录与Origin校验，revision及文件锁防止并发覆盖，request_id防止不确定网络响应引发重复执行。模型预检使用独立systemd临时单元，30秒/768MiB/2CPU上限，可用宿主机及cgroup内存不足2GiB拒绝；不在主程序加载ONNX。历史只记操作及模型身份，不保存密钥。部署账号须具备固定服务控制与受限临时单元启动权限；普通未登记部署显示不支持。

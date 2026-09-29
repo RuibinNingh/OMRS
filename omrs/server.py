@@ -17,6 +17,7 @@ from .common import HISTORY_HEADERS, history_path, load_config, load_csv, save_c
 from .analytics import build_review_export, get_analytics
 from .catalog import build_tree
 from .reports import create_report, delete_report, get_report_html, list_reports, signed_report_images
+from . import traincontrol
 from . import security
 from . import locking
 from .ai_assist import recognize_question
@@ -1017,6 +1018,19 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             self._json({"status": "error", "msg": str(exc)}, 400)
 
     def _trainpanel_post(self, path):
+        if path == "/api/trainpanel/control":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                if not 0 < length <= 4096:
+                    self.close_connection = True
+                    raise ValueError("控制请求过大或为空")
+                value = traincontrol.submit(self.vault_path, json.loads(self.rfile.read(length)))
+                self._json({"status":"ok", "operation":value}, 202)
+            except traincontrol.Conflict as exc:
+                self._json({"status":"error", "msg":str(exc)}, 409)
+            except (ValueError, OSError, KeyError) as exc:
+                self._json({"status":"error", "msg":str(exc)}, 400)
+            return
         if path == "/api/trainpanel/review":
             try:
                 length = int(self.headers.get("Content-Length", 0))
@@ -1055,6 +1069,8 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         try:
             if path == "/train":
                 self._serve("assets/app/trainpanel.html", "text/html")
+            elif path == "/api/trainpanel/manager":
+                self._json({"status":"ok", **traincontrol.overview(self.vault_path)})
             elif path == "/api/trainpanel/audits":
                 self._json({"status":"ok", **trainaudit_mod.list_audits(self.vault_path)})
             elif path == "/api/trainpanel/audit":

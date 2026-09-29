@@ -967,3 +967,11 @@ POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 
 评测摘要附prompt_versions；详情支持prompt_version筛选，用于同一次历史导入内对比v1和v2。汇总指标始终标示整份实验，筛选仅改变案例列表。
 
 评测整图通过统计要求调用状态为done/cached；调用错误即使被人工标记内容可用也仍计失败。复核内容与调用状态分别保留。
+
+### 受管检测服务
+
+`GET /api/trainpanel/manager` 返回 supported、revision、operation、实际 online 健康身份、selected 配置身份、matches、previous、models（至多100个完整导出实验及匹配阈值的内容评测摘要）、errors、最近20次 history。未登记实例返回 supported=false 与说明。读取时发现中断操作会在跨进程锁内恢复，正常读取不会启动服务。
+
+`POST /api/trainpanel/control` 请求最多4096字节，接收 `{action,revision,request_id,model_id?,sha256?,conf?,imgsz?}`。action 为 start/stop/restart/activate/rollback；request_id 为32位小写十六进制，activate 必须匹配当前登记候选身份与参数。返回202及 operation，异步结果从 manager 查询；相同请求ID与内容复用记录，变更内容/旧revision/其他操作繁忙返回409，非法参数或未登记返回400。后台工作持有文件锁，长操作不占全局HTTP写锁。登录和写请求来源保护与现有接口一致。
+
+应用模型先限额预检，再原子修改受管指针、重启与核验健康SHA/输入/阈值；失败恢复原模型及原在线/离线状态，回退失败单独显示。正常启停不改变模型。离线启动提示优先显示已登记unit；手动模式使用本机配置端口，远程地址提示在服务所在机器启动。

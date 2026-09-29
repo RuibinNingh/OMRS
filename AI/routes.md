@@ -129,6 +129,8 @@
 | GET | `/api/trainpanel/audit` | `AI/api.md` |
 | GET | `/api/trainpanel/audit-image` | `AI/api.md` |
 | GET | `/api/trainpanel/audits` | `AI/api.md` |
+| POST | `/api/trainpanel/control` | `AI/api.md` |
+| GET | `/api/trainpanel/manager` | `AI/api.md` |
 | GET | `/api/trainpanel/overlay` | `AI/api.md` |
 | GET | `/api/trainpanel/overview` | `AI/api.md` |
 | POST | `/api/trainpanel/review` | `AI/api.md` |

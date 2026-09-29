@@ -18,9 +18,9 @@ const stateTone = value => ({ done: 'success', failed: 'danger', interrupted: 'w
 export const overlayURL = (run, name) => `/api/trainpanel/overlay?run=${encodeURIComponent(run)}&name=${encodeURIComponent(name)}`;
 
 export function headerView(data, service) {
-  const model = data?.model;
+  const model = service?.state === 'online' ? service.model : null;
   const label = { online: '检测服务在线', offline: '检测服务未启动', unconfigured: '检测服务未配置' }[service?.state] || '正在检查服务';
-  return html`<div><h1>训练面板</h1><p>${model ? `${model.name} · ${formatDate(model.created_at)} · SHA-256 ${model.sha256?.slice(0, 8)}` : '还没有模型 · 训练与测试题目、答案的范围'}</p></div>
+  return html`<div><h1>训练面板</h1><p>${model ? `${model.name} · ${formatDate(model.created_at)} · SHA-256 ${model.sha256?.slice(0, 8)}` : '未加载在线模型 · 训练与测试题目、答案的范围'}</p></div>
     <div class="tp-row">${status({ tone: service?.state === 'online' ? 'success' : 'warning', text: label })}<a class="ui-btn ui-btn--sm" href="/#/create">返回录入题目</a>${button({ label: '刷新', size: 'sm', action: 'refresh' })}</div>`;
 }
 

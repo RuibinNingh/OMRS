@@ -81,3 +81,17 @@ python3 tests/e2e/boxdetect.py --dataset ~/omrs-train/datasets/20260929-1
 阈值选择使用 `decision.py select --audits 四个验证评测目录 --out 新选择文件.json`；候选比较使用 `decision.py compare --baseline 旧模型回归目录 --candidate 新模型回归目录 --out 新结论文件.json`。存在独立集时必须同时传 `--independent-baseline` 和 `--independent-candidate`。select与compare要求全部参与案例已有用户或执行者复核，并校验原图集合一致；不会发布current。
 
 prepare核对冻结原图SHA，run恢复前验证裁图及资源清单SHA；哈希不符停止。错误记录不可因人工改判绕过调用失败门禁。
+
+## 受管服务登记（部署者，完整模式）
+
+已有systemd检测服务时，先备份unit和主程序drop-in，再初始化受管映射。以下本机示例不适用于任意外部检测服务器，运行前需获得生产变更授权：
+
+```bash
+python3 tools/boxdetect/bootstrap_control.py --root /root/omrs-train --model-dir /root/omrs-train/models/production-20260929-yolov8n-640
+```
+
+在部署文件/etc/omrs-boxdetect-control.json登记root、vault、unit、port、python。本机值分别为/root/omrs-train、/root/workspace/apps/OMRS、omrs-boxdetect.service、18766、/root/omrs-train/.venv/bin/python。主服务环境设置OMRS_BOXDETECT_CONTROL为该文件路径；检测unit的--model-dir改为/root/omrs-train/managed/active，保留内存/CPU限制。daemon-reload后重启两服务，确认health的SHA/阈值/尺寸仍与原模型一致。登记文件不能由网页配置，unit必须为固定名称、URL必须匹配回环端口；无systemd或未登记只显示说明。
+
+模型候选来自runs中完整导出且权重/ONNX/评估身份一致的实验。应用先以限30秒/768MiB的独立进程运行probe.py，再原子切换并重启，健康检查失败恢复上一配置。训练占用training.lock时拒绝切换。正常启动/停止不换模型；恢复上一模型是显式操作。models/current用于训练工具，与受管指针独立。
+
+检查：`python3 -m unittest tests.test_traincontrol -q`、`python3 tests/e2e/traincontrol.py`。后者使用测试后端及临时Vault/随机端口，覆盖启停、切换、回滚和四种尺寸/主题。

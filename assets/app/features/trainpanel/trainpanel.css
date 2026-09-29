@@ -85,3 +85,10 @@
 }
 
 @layer features { #ta-detail summary { min-height: var(--ctl-lg); cursor: pointer; padding: var(--sp-3) 0; } }
+
+@layer features {
+ #tp-control p, #tp-control .tp-facts { overflow-wrap: anywhere; }
+ .tc-model-label { display: grid; gap: var(--sp-2); margin: var(--sp-3) 0; }
+ .tc-model-label select { width: 100%; min-width: 0; min-height: var(--ctl-lg); }
+ #tp-control summary { min-height: var(--ctl-lg); padding: var(--sp-3) 0; cursor: pointer; }
+}

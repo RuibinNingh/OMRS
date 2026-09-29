@@ -455,7 +455,7 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 
 实时测试默认只在内存中运行。积累开启后调用现有 annotate 模块写原图与模型框，status 保持 todo；重复 SHA 只提示已有，不更新框。完成标注前不进入默认导出和训练数据集，不增加任何数据表或来源字段。单图 15 MB／4000 万像素与每进程单并发限制用于约束内存。
 
-面板生成的构建与开始训练命令采用未占用的新版本／实验目录；续训沿用旧目录和 identity 参数。评估命令支持一次完成导出、验证集阈值选择、固定测试评估与本地模型文件发布，网页本身只展示命令。
+面板生成的构建与开始训练命令采用未占用的新版本／实验目录；续训沿用旧目录和 identity 参数。评估命令只评估，导出与发布各自显式执行，网页只展示训练命令；受管服务切换使用下述独立映射。
 
 ### 内容评测产物与复核存储
 
@@ -464,3 +464,9 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加action/verdict/note/source/created_at；source为user或executor。用户结论优先于执行者，未复核项仍沿用原判。该库与训练产物不进入题库备份、不修改标注框。audit-cache/按图/提示/模型/请求参数及渠道指纹保存成功调用；content-round-1.json记录整个实验轮次的实际请求次数、参考费用和未知usage次数，请求前持久计数。
 
 内容数据快照保留全部旧train/val/test归属；test用途标为historical_regression，全新分组才可进入independent。相近验证/测试新图隔离，桥接不同冻结集合拒绝构建。草稿框只读chat_training_boxes，接受人工或人工编辑来源；同SHA相同标签去重，冲突标签排除。困难加权快照只从同manifest的train评测读取已复核错误，记录复核证据；不修改旧数据版本。
+
+### 受管服务目录
+
+`<训练根>/managed/snapshots/<元数据哈希>/` 保存经过SHA验证的model.onnx/model.json副本；active 为原子替换的相对符号链接。state.json 保存 revision、current、previous、operation；operations/请求ID.json 保存幂等请求、前后模型SHA、操作人、时刻、运行状态、错误和回退错误；events.jsonl 追加完成或恢复事件。状态与请求快照用临时文件加原子替换写入，operation.lock 用flock串行化，预检/重启还与training.lock互斥。运行中的请求记录允许更新到终态，追加事件不会改写。
+
+受管映射不跟随models/current；初始化只由部署者执行bootstrap_control.py且拒绝覆盖已有state。只发现有export.json、identity.json、eval.json及匹配权重/ONNX哈希的实验。删除或修改实验不会改变已复制的在线模型。独立训练目录仍需单独备份，不随题库备份。

@@ -119,12 +119,26 @@ def commands(root, latest=None, dataset=None, vault=None):
     new_run = shlex.quote(unused('runs'))
     run_path = shlex.quote(str(root / 'runs' / latest)) if latest else new_run
     vault_path = shlex.quote(str(vault or '<Vault目录>'))
+    serve = f'{py} tools/boxdetect/serve.py --model-dir {shlex.quote(str(root / "models/current"))} --port 18765'
+    if vault:
+        from . import traincontrol
+        try:
+            if traincontrol.registration(vault):
+                serve = 'systemctl start omrs-boxdetect.service'
+            elif config(vault).get('inbox_local_detect_url'):
+                parts = urllib.parse.urlsplit(config(vault)['inbox_local_detect_url'])
+                if parts.scheme == 'http' and parts.hostname in ('127.0.0.1','localhost') and parts.port:
+                    serve = serve.rsplit(' ',1)[0] + ' ' + str(parts.port)
+                else:
+                    serve = '请在检测服务所在主机启动服务，并检查已配置的地址'
+        except (ValueError,OSError,KeyError):
+            serve = '受管服务登记无效，请检查部署配置'
     train = f'nice -n 19 {py} tools/boxdetect/train.py --dataset {dataset_path}'
     return {'build': f'{py} tools/boxdetect/build_dataset.py --vault {vault_path} --out {next_dataset}',
             'train': train + ' --run ' + new_run,
             'resume': train + ' --run ' + run_path + ' --resume',
             'evaluate': f'{py} tools/boxdetect/evaluate.py --dataset {dataset_path} --run {run_path}',
-            'serve': f'{py} tools/boxdetect/serve.py --model-dir {shlex.quote(str(root / "models/current"))} --port 18765'}
+            'serve': serve}
 
 
 def done_counts(vault, known_ids):
@@ -264,7 +278,7 @@ def service(vault):
             raise ValueError('健康检查格式不合法')
         return {'state': 'online', 'model': model}
     except (OSError, ValueError):
-        return {'state': 'offline', 'message': '检测服务未启动', 'command': commands(train_dir(vault))['serve']}
+        return {'state': 'offline', 'message': '检测服务未启动', 'command': commands(train_dir(vault), vault=vault)['serve']}
 
 
 # 同时只解码一张测试原图，避免多个标签页叠加长图内存。
@@ -319,7 +333,7 @@ def try_image(vault, files):
                     boxes = ai_assist.detect_regions_local(url, encoded, 'zuoyebang', width, strip.height)
                 except (OSError, ValueError) as exc:
                     if '连不上' in str(exc) or isinstance(exc, OSError):
-                        raise ValueError('检测服务未启动；' + commands(train_dir(vault))['serve']) from exc
+                        raise ValueError('检测服务未启动；' + commands(train_dir(vault), vault=vault)['serve']) from exc
                     raise
                 finally:
                     strip.close()

@@ -82,7 +82,7 @@
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v1.31.0 |
+| 当前版本 | v1.32.0 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（旧 `styles.css` 与拆分的 JS）+ `assets/app/`（ES Module：token、ui 组件、过渡桥、domain 层、已迁页面 `features/` 下的 dashboard、data、questions、schedule、instant、feedback、history、catalog、reports、settings、assistant、board）|
@@ -117,6 +117,6 @@
 
 训练工具位于 `tools/boxdetect/`；数据基线、实验与经验索引见 `training/README.md`。
 
-训练面板后端 `omrs/trainpanel.py` 只读实验文件，契约见 `api.md` 与 `data.md` §17，训练环境及门禁见 `environment.md`。
+训练面板后端 `omrs/trainpanel.py` 读取实验文件，`omrs/traincontrol.py` 管理显式登记的固定检测服务，契约见 `api.md` 与 `data.md` §17，训练环境及门禁见 `environment.md`。
 
 独立训练面板前端 `/train` 见 `frontend/trainpanel.md`，从录入题目的 AI 训练工作区打开；支持实时测试与可选积累。

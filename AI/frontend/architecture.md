@@ -116,3 +116,5 @@ E2E 专用适配器 `tests/e2e/p8_test_modules.js`：8 个 E2E 以 init script �
 独立训练面板 `/train` 由 `features/trainpanel/store.js` 持有实验快照、选择状态与指标；按块 morph 保留实时测试原图和滚动。纯模型与增量读取测试见 `tests/app/trainpanel.test.mjs`；`tests/e2e/trainpanel.py` 用假实验目录审计四档状态，`tests/e2e/boxdetect.py` 使用外部真实模型和临时 Vault 复核收件箱及面板。
 
 训练评测的audits.js独立持有筛选、分页、选中案例与复核表单；列表轮询不重绘详情。异步详情和历史都校验请求序号；卸载后拒绝更新。Node验证提交绑定案例/revision，trainpanel E2E验证真实HTTP保存与刷新历史，不调用外部模型。
+
+训练服务控制由features/trainpanel/control.js独立持有请求身份、服务revision、选择模型与轮询状态；模型选择不改变实验store或在线服务。完成操作后通知父入口刷新health顶栏。tests/app/traincontrol.test.mjs验证请求绑定与评测分母文案，tests/e2e/traincontrol.py验证真实HTTP异步操作与刷新持久性。
