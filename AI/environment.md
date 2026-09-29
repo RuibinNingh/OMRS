@@ -15,7 +15,7 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-09-29 实测）：服务 `omrs.service`，监听 TCP 8471，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；systemd drop-in 从 `/root/workspace/releases/omrs-211a599` 运行 v1.31.0，真实 Vault 仍是 `/root/workspace/apps/OMRS`。备份目录 `/root/workspace/backups/recycle/`；当前发布的一致性备份为 `box-v131-20260929T101352`，旧发布目录 `omrs-8b6009a` 保留用于代码回退。远端经 Nginx 反向代理。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
+生产环境事实（2026-09-29 实测）：服务 `omrs.service`，监听 TCP 8471，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；systemd drop-in 从 `/root/workspace/releases/omrs-6437525` 运行 v1.32.0，真实 Vault 仍是 `/root/workspace/apps/OMRS`。备份目录 `/root/workspace/backups/recycle/`；当前发布的一致性备份为 `box-v132-20260929T105042`，旧发布目录 `omrs-211a599` 保留用于代码回退。远端经 Nginx 反向代理。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
 
 ## 2. Claude Code Web 实测能力（2026-09-24）
 
@@ -157,14 +157,16 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 
 ## 本机检测生产服务
 
-`omrs-boxdetect.service`与主服务分开，开机自启、失败3秒后重启，使用训练venv的onnxruntime执行固定发布目录的serve.py；只监听127.0.0.1:18766。固定模型目录为/root/omrs-train/models/production-20260929-yolov8n-640，SHA前缀894cb458，640输入、置信度.55。服务启动加载一次，不热加载训练current。完整SHA见模型元数据及训练记录。
+`omrs-boxdetect.service`与主服务分开，开机自启、失败3秒后重启，使用训练venv的onnxruntime执行固定发布目录的serve.py；只监听127.0.0.1:18766。受管模型入口为/root/omrs-train/managed/active；当前指向旧640副本，SHA前缀894cb458，640输入、置信度.55。服务启动加载一次，不热加载训练current。完整SHA见模型元数据及训练记录。
 
 资源限制：ORT内部3线程、systemd CPUQuota=200%、MemoryHigh=512M、MemoryMax=1G、Nice=10，启动内存约60MiB。`systemctl status omrs-boxdetect.service`查状态，`journalctl -u omrs-boxdetect.service`查错误；`systemctl start/stop/restart omrs-boxdetect.service`会影响线上框选，仅在获得授权后操作。主应用配置local_http及http://127.0.0.1:18766/detect，浏览器不直接访问检测端口，不需Nginx增加路由。
 
-代码回退使用旧release drop-in；框选回退恢复备份中的提供方/URL两个配置键，不整份覆盖之后新增的配置。备份只供专项恢复，不用旧Vault覆盖上线后新增题目。该检测模型由用户明确选用，内容回归9/15的未达标事实保留，人工校正仍可用。
+代码回退使用备份的主服务drop-in与检测unit，daemon-reload后重启，恢复原固定模型入口；当前提供方/URL未改变，无需回写配置。备份只供专项恢复，不用旧Vault覆盖上线后新增题目。该检测模型由用户明确选用，内容回归9/15的未达标事实保留，人工校正仍可用。
 
 ## 受管检测服务安装与验证
 
 安装登记、初始化映射及unit调整步骤见tools/boxdetect/README.md；未登记实例不提供控制能力。候选预检使用systemd-run独立临时单元，MemoryMax=768M、RuntimeMaxSec=30、CPUQuota=200%；结束后清理临时单元，主程序不导入训练框架。要求有效可用内存至少2GiB，并与training.lock互斥。
 
 隔离门禁：`env -u OMRS_SYSTEMD_SERVICE python3 -m unittest tests.test_traincontrol -q`；`env -u OMRS_SYSTEMD_SERVICE python3 tests/e2e/traincontrol.py`。浏览器脚本只注入测试后端，不操作生产unit。正式服务仍限1GiB，登记精确绑定真实Vault，避免隔离实例继承环境误操作。
+
+主服务已通过OMRS_BOXDETECT_CONTROL=/etc/omrs-boxdetect-control.json登记固定unit、Vault与端口；/train可以管理服务、显式应用完整导出候选并回退。2026-09-29初始化revision为0，旧640在线；主服务与检测服务均开机自启。
