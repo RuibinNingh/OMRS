@@ -963,3 +963,7 @@ POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 
 `GET /api/trainpanel/reviews?id=&case=` 返回最近100次追加历史。`POST /api/trainpanel/review` 接收 `{audit,case,revision,action,verdict?,note?}`；action 为 agree/correct/uncertain，verdict 为 usable/needs_adjustment/unusable/uncertain。说明最多2000字、请求最多16KB；成功返回 revision/verdict，版本冲突409、参数非法400。HTTP来源固定user，不能伪装执行者。沿用登录、同源校验与全局写锁，SQLite再用BEGIN IMMEDIATE保证跨进程revision检查与插入原子性。GET不建库，不调用付费模型。
 
 评测案例损坏以独立error显示，SQLite读取/保存错误返回400；单条详情附最近调用尝试摘要。待复核筛选指尚无用户结论，执行者已看过仍可由用户复核；同一案例用户结论优先。
+
+评测摘要附prompt_versions；详情支持prompt_version筛选，用于同一次历史导入内对比v1和v2。汇总指标始终标示整份实验，筛选仅改变案例列表。
+
+评测整图通过统计要求调用状态为done/cached；调用错误即使被人工标记内容可用也仍计失败。复核内容与调用状态分别保留。

@@ -32,9 +32,9 @@ export function mountAudits(root, api) {
   function options() {
     const model = value('model'), prompt = value('prompt');
     morph(el('model'), html`<option value="">全部</option>${[...new Set(audits.map(a => a.model))].map(v => html`<option value="${v}">${v}</option>`)}`);
-    morph(el('prompt'), html`<option value="">全部</option>${[...new Set(audits.map(a => a.prompt_version))].map(v => html`<option value="${v}">${v}</option>`)}`);
+    morph(el('prompt'), html`<option value="">全部</option>${[...new Set(audits.flatMap(a => a.prompt_versions || [a.prompt_version]))].map(v => html`<option value="${v}">${v}</option>`)}`);
     el('model').value = model; el('prompt').value = prompt;
-    const filtered = audits.filter(a => (!model || a.model === model) && (!prompt || a.prompt_version === prompt));
+    const filtered = audits.filter(a => (!model || a.model === model) && (!prompt || (a.prompt_versions || [a.prompt_version]).includes(prompt)));
     if (!filtered.some(a => a.id === current)) current = filtered[0]?.id || '';
     morph(el('audit'), html`${filtered.map(a => html`<option value="${a.id}">${a.id} · ${purposes[a.purpose || a.split] || a.purpose || a.split}</option>`)}`);
     el('audit').value = current;
@@ -45,7 +45,7 @@ export function mountAudits(root, api) {
       rows = []; morph(el('summary'), html`<p class="tp-muted">暂无评测记录。用命令创建评测后，在这里查看与复核。</p>`);
       morph(el('list'), html``); morph(el('detail'), html``); return;
     }
-    const params = new URLSearchParams({ id: current, role: value('role'), verdict: value('verdict'), review: value('review'), offset, limit: 30 });
+    const params = new URLSearchParams({ id: current, role: value('role'), prompt_version: value('prompt'), verdict: value('verdict'), review: value('review'), offset, limit: 30 });
     const res = await api.get(`/api/trainpanel/audit?${params}`);
     if (disposed || seq !== sequence) return;
     if (!res.ok) { error(res.error.message); return; }
@@ -59,14 +59,14 @@ export function mountAudits(root, api) {
       ${a.progress?.state === 'running' ? html`<span>评测运行中</span>` : ''}${a.progress?.error ? html`<span>${a.progress.error}</span>` : ''}</div>
       <p class="tp-muted">复核后指标中，未复核项仍沿用原判；不代表人工确认准确率。费用按官方价格估算，中转实际扣费未知。</p>`);
     morph(el('list'), html`${rows.length ? rows.map(c => button({label: `${c.id} · ${c.role === 'answer' ? '答案' : '题目'} · ${labels[c.judgment?.verdict] || states[c.state] || c.state} · ${c.review?.source==='user' ? '用户已复核' : (c.review ? '执行者已复核' : '待复核')}`, action:'ta-case', arg:c.id, variant:chosen===c.id?'primary':'secondary'})) : html`<p>没有符合筛选条件的记录。</p>`}`);
-    morph(el('pages'), html`${button({label:'上一页',action:'ta-page-prev',disabled:offset===0})}<span>${offset + 1}–${Math.min(offset+30,total)} / ${total}</span>${button({label:'下一页',action:'ta-page-next',disabled:offset+30>=total})}`);
+    morph(el('pages'), html`${button({label:'上一页',action:'ta-page-prev',disabled:offset===0})}<span>${total ? offset + 1 : 0}–${Math.min(offset+30,total)} / ${total}</span>${button({label:'下一页',action:'ta-page-next',disabled:offset+30>=total})}`);
   }
   async function refresh() {
     clearTimeout(timer);
     const res = await api.get('/api/trainpanel/audits');
     if (disposed) return;
     if (!res.ok) error(res.error.message);
-    else { audits = res.data.audits; options(); await loadList(); }
+    else { audits = res.data.audits; error((res.data.errors || []).map(e=>`${e.id}：${e.error}`).join('；')); options(); await loadList(); }
     if (!disposed && !document.hidden && audits.some(a => a.progress?.state === 'running' || a.states.pending)) timer = setTimeout(refresh, 5000);
   }
   async function open(id) {
@@ -76,9 +76,10 @@ export function mountAudits(root, api) {
     if (!res.ok || !res.data.cases.length) { error(res.error?.message || '记录不存在'); return; }
     selected = res.data.cases[0]; chosen = id;
     const c = selected;
+    const box = c.box || (c.crop_xyxy ? {x:c.crop_xyxy[0],y:c.crop_xyxy[1],w:c.crop_xyxy[2]-c.crop_xyxy[0],h:c.crop_xyxy[3]-c.crop_xyxy[1]} : null);
     const src = resource => `/api/trainpanel/audit-image?${new URLSearchParams({id:auditId,resource})}`;
     const picture = (kind, title) => html`<figure><figcaption>${title}</figcaption><div class="ta-viewport" data-zoom="1" tabindex="0" aria-label="${title}，放大后可拖动或滚动">
-      <div class="ta-image">${c[kind] ? html`<img src="${src(c[kind])}" alt="${title}" draggable="false">${kind==='original' && c.box ? html`<svg class="ta-box-layer" viewBox="0 0 1 1" preserveAspectRatio="none" aria-label="模型框"><rect class="tp-box tp-box-${c.role}" x="${c.box.x}" y="${c.box.y}" width="${c.box.w}" height="${c.box.h}"></rect></svg>`:''}` : html`<p>未检测到必要区域，没有裁图。</p>`}</div></div></figure>`;
+      <div class="ta-image">${c[kind] ? html`<img src="${src(c[kind])}" alt="${title}" draggable="false">${kind==='original' && box ? html`<svg class="ta-box-layer" viewBox="0 0 1 1" preserveAspectRatio="none" aria-label="模型框"><rect class="tp-box tp-box-${c.role}" x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}"></rect></svg>`:''}` : html`<p>未检测到必要区域，没有裁图。</p>`}</div></div></figure>`;
     morph(el('detail'), html`<h3>${c.id} · ${c.sample}</h3><div class="tp-row">
       ${button({label:'上一条',action:'ta-prev',disabled:rows.findIndex(x=>x.id===id)<=0})}${button({label:'下一条',action:'ta-next',disabled:rows.findIndex(x=>x.id===id)>=rows.length-1})}
       <label>缩放<select class="ui-select" id="ta-zoom"><option value="1">100%</option><option value="2">200%</option><option value="3">300%</option></select></label>
@@ -98,6 +99,7 @@ export function mountAudits(root, api) {
       <details><summary>调用记录（${c.attempts?.length || 0} 次）</summary><p>请求模型 ${c.requested_model || '—'}；返回模型 ${c.response_model || '—'}</p>
       ${(c.attempts || []).map(a=>html`<p>${states[a.state] || a.state} · ${a.error || '已返回'} · ${a.seconds || 0} 秒 · ${a.usage?.total_tokens || 0} tokens · 参考 US$${Number(a.cost_usd || 0).toFixed(6)}</p>`)}</details>
       <h3>复核历史</h3><div id="ta-history"></div>`);
+    root.querySelectorAll('.ta-pictures img').forEach(fitLegacyBox);
     await history(auditId,id,seq);
   }
   async function history(auditId,id,seq) {
@@ -138,6 +140,11 @@ export function mountAudits(root, api) {
       await open(c.id);if(el('saved')) el('saved').textContent='复核已保存，原判保持不变。';await loadList();
     }
   });
+  function fitLegacyBox(img) {
+    const svg=img.nextElementSibling;
+    if (svg?.classList.contains('ta-box-layer') && selected && !selected.box && img.naturalWidth) svg.setAttribute('viewBox',`0 0 ${img.naturalWidth} ${img.naturalHeight}`);
+  }
+  root.addEventListener('load',event=>{if(event.target.matches?.('.ta-pictures img'))fitLegacyBox(event.target);},true);
   let drag=null;
   root.addEventListener('pointerdown',e=>{const v=e.target.closest('.ta-viewport');if(v){drag={v,x:e.clientX,y:e.clientY,l:v.scrollLeft,t:v.scrollTop};v.setPointerCapture(e.pointerId);}});
   root.addEventListener('pointermove',e=>{if(drag){drag.v.scrollLeft=drag.l+drag.x-e.clientX;drag.v.scrollTop=drag.t+drag.y-e.clientY;}});

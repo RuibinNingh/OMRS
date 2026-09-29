@@ -21,6 +21,15 @@ class AuditTests(unittest.TestCase):
         a.save_review(self.root,'a','a',0,'correct','usable')
         self.assertEqual(a.summary(self.root,'a')['reviewed_passed'],0)
 
+    def test_review_cannot_turn_call_error_into_a_pass(self):
+        folder=self.root/'audits/error'
+        immutable(folder/'audit.json',{'id':'error','cases':[{'id':r,'sample':'s','role':r} for r in ('question','answer')]})
+        immutable(folder/'question.json',{'state':'done','judgment':{'verdict':'usable'}})
+        immutable(folder/'answer.json',{'state':'error','error':'输出截断'})
+        a.save_review(self.root,'error','answer',0,'correct','usable',source='executor')
+        report=a.summary(self.root,'error')
+        self.assertEqual((report['images'],report['raw_passed'],report['reviewed_passed']),(1,0,0))
+
     def test_review_history_conflict_and_user_precedence(self):
         a.save_review(self.root,'a','q',0,'correct','unusable',source='user')
         with self.assertRaises(a.Conflict):a.save_review(self.root,'a','q',0,'agree')
@@ -70,7 +79,7 @@ class RunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);out=root/'audits/a';(out/'images').mkdir(parents=True)
             (out/'images/i.png').write_bytes(b'fake');(out/'prompt.txt').write_text('测试提示')
-            immutable(out/'audit.json',{'id':'a','prompt_sha256':sha256(out/'prompt.txt'),'cases':[{'id':'c','sample':'s','role':'answer','original':'i','crop':'i','source_sha256':'a','crop_sha256':'b'}],'resources':{'i':'i.png'}})
+            immutable(out/'audit.json',{'id':'a','prompt_sha256':sha256(out/'prompt.txt'),'cases':[{'id':'c','sample':'s','role':'answer','original':'i','crop':'i','source_sha256':'a','crop_sha256':sha256(out/'images/i.png')}],'resources':{'i':'i.png'}})
             cfg=root/'cfg.json';cfg.write_text(json.dumps({'agent_model':'deepseek-flash','agent_base_url':'https://invalid.example/v1','agent_api_key':'test-secret'}))
             value={'verdict':'usable','missing_content':[],'extra_content':[],'cut_characters':False,'evidence':'完整'}
             response={'choices':[{'finish_reason':'stop','message':{'content':json.dumps(value)}}],'usage':{'prompt_tokens':100,'completion_tokens':100}}
@@ -86,6 +95,10 @@ class RunnerTests(unittest.TestCase):
             with patch('urllib.request.urlopen') as call:
                 run(other,cfg);call.assert_not_called()
             self.assertEqual(json.loads((other/'c.json').read_text())['state'],'cached')
+            (other/'images/i.png').write_bytes(b'changed')
+            with patch('urllib.request.urlopen') as call, self.assertRaises(ValueError):run(other,cfg)
+            call.assert_not_called()
+            (other/'images/i.png').write_bytes(b'fake')
             (other/'c.json').unlink();meta=json.loads((other/'audit.json').read_text());meta['cases'][0]['source_sha256']='changed';atomic_json(other/'audit.json',meta)
             atomic_json(root/'content-round-1.json',{'requests':300,'cost_usd':0,'unknown_usage':0})
             with patch('urllib.request.urlopen') as call, self.assertRaises(RuntimeError):

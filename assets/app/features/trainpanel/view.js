@@ -57,10 +57,10 @@ export function evaluationView(state) {
   const result = detail?.evaluation;
   if (!result?.model) return html`${detail?.errors?.evaluation ? failure(detail.errors.evaluation) : empty({ title: '评估尚未运行', hint: '训练完成后运行整图评估，查看模型与模板在同一测试集上的对照。', compact: true })}`;
   return html`${detail.errors?.evaluation ? failure(detail.errors.evaluation) : ''}<p class="tp-muted">${detail.name} · ${result.split === 'val' ? '验证集' : '冻结测试集'} ${result.model.images} 张整图</p>
-    <div class="tp-stats">${stat({ label: '模型：整图无需修改', value: pct(result.model.unchanged_rate), hint: `${result.model.unchanged} / ${result.model.images} 张，两框均达标且无多余框` })}${stat({ label: '模板：整图无需修改', value: pct(result.template?.unchanged_rate) })}${stat({ label: '推理阈值', value: result.conf })}</div>
+    <p class="tp-muted">以下 IoU 衡量框位置差异，不代表内容是否可用。内容验收请看上方评测记录。</p><div class="tp-stats">${stat({ label: '模型：两框几何匹配', value: pct(result.model.unchanged_rate), hint: `${result.model.unchanged} / ${result.model.images} 张，两框 IoU ≥ 0.75 且无多余框` })}${stat({ label: '模板：两框几何匹配', value: pct(result.template?.unchanged_rate) })}${stat({ label: '推理阈值', value: result.conf })}</div>
     <div class="tp-cols">${roles.flatMap(role => [comparison(result.model, result.template, role, 'pass_rate', 'IoU ≥ 0.75 占比'), comparison(result.model, result.template, role, 'mean_iou', '平均 IoU')])}</div>
     <div class="tp-cols">${roles.map(role => histogram(result.model, result.template, role))}</div>
-    <h3>失败样本与最低 IoU 样本</h3><p class="tp-muted">人工框为绿，模型框为红。点击查看大图。</p><div class="tp-wall">${(result.overlays || []).slice(0, 12).map((item, index) => html`<button class="tp-thumb" data-action="overlay" data-arg="${overlayURL(detail.name, item.name)}" aria-label="查看叠加样本 ${index + 1}"><img loading="lazy" src="${overlayURL(detail.name, item.name)}" alt="人工框与模型框叠加样本 ${index + 1}"><span>样本 ${index + 1}</span></button>`)}</div>`;
+    <h3>几何差异样本</h3><p class="tp-muted">人工框为绿，模型框为红。点击查看大图。</p><div class="tp-wall">${(result.overlays || []).slice(0, 12).map((item, index) => html`<button class="tp-thumb" data-action="overlay" data-arg="${overlayURL(detail.name, item.name)}" aria-label="查看叠加样本 ${index + 1}"><img loading="lazy" src="${overlayURL(detail.name, item.name)}" alt="人工框与模型框叠加样本 ${index + 1}"><span>样本 ${index + 1}</span></button>`)}</div>`;
 }
 
 export function datasetView(state) {
@@ -72,7 +72,7 @@ export function datasetView(state) {
   const strips = dataset.strip_counts || {};
   const excluded = new Map();
   (dataset.excluded || []).forEach(item => { const reason = item.reason.split('：')[0]; excluded.set(reason, (excluded.get(reason) || 0) + 1); });
-  return html`<p>数据版本：<strong>${dataset.version}</strong></p><div class="tp-stats">${[['train', '训练集'], ['val', '验证集'], ['test', '冻结测试集']].map(([key, label]) => stat({ label, value: `${counts[key] || 0} 张`, hint: `${strips[key] || 0} 条带` }))}</div>
+  return html`<p>数据版本：<strong>${dataset.version}</strong></p><div class="tp-stats">${[['train', '训练集'], ['val', '验证集'], ['test', '历史回归集'], ['independent', '独立验收集']].map(([key, label]) => stat({ label, value: `${counts[key] || 0} 张`, hint: `${strips[key] || 0} 条带` }))}</div>
     <div class="tp-facts">${[...excluded].map(([reason, count]) => html`<span>${reason}：${count} 张</span>`)}</div>
     <p class="tp-muted">新增已完成图片 ${data.live?.additional || 0} 张；当前标注集 ${data.live?.done?.annotate || 0} 张，收件箱 ${data.live?.done?.inbox || 0} 张已完成。</p>
     ${errors(data.live?.errors)}${data.live?.additional >= 10 ? html`<p>可重新构建数据集并重训，测试集保持冻结。</p>${command('重建数据集', data.commands.build)}${command('重训', data.commands.train)}` : ''}`;
@@ -86,7 +86,7 @@ export function historyView(state) {
     { key: 'name', label: '实验', render: row => button({ label: row.name, size: 'sm', action: 'select', arg: row.name }) },
     { label: '日期／数据', render: row => `${formatDate(row.status?.started_at)} / ${row.status?.dataset || '—'}` },
     { label: '轮次／用时', render: row => `${row.status?.epoch ?? '—'} 轮 / ${duration(row.status?.wall_seconds ?? row.status?.total_seconds)}` },
-    { label: '题目／答案达标率', render: row => `${pct(row.evaluation?.model?.question?.pass_rate)} / ${pct(row.evaluation?.model?.answer?.pass_rate)}` },
+    { label: '题目／答案 IoU 达标率', render: row => `${pct(row.evaluation?.model?.question?.pass_rate)} / ${pct(row.evaluation?.model?.answer?.pass_rate)}` },
     { label: '状态', render: row => row.error ? '读取失败' : `${stateLabels[row.status?.state] || '未知'}${row.current ? ' · 当前模型' : ''}` },
   ] });
 }

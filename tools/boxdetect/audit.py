@@ -73,6 +73,8 @@ def _prepare(dataset, out, model=None, conf=.55, split='test'):
     shutil.copyfile(PROMPT,out/'prompt.txt')
     training = [s for s in manifest['samples'] if s['split']=='train']
     for sample in [s for s in manifest['samples'] if s['split']==split]:
+        if sha256(dataset/sample['file']) != sample['sha256']:
+            raise ValueError('冻结样本图片哈希不一致，停止准备评测')
         with Image.open(dataset/sample['file']) as im:
             original = im.convert('RGB')
             boxes = model_predictions(original,detector) if detector else template_predictions(sample,training)
@@ -98,6 +100,7 @@ def _prepare(dataset, out, model=None, conf=.55, split='test'):
                     else:
                         immutable(out/(ident+'.json'),{'state':'missing','judgment':{'verdict':'unusable','missing_content':['未检测到必要区域'],'extra_content':[],'cut_characters':False,'evidence':'检测未返回足够的目标框'}})
                     data['cases'].append(c)
+    data['resource_sha256']={key:sha256(out/'images'/name) for key,name in data['resources'].items()}
     immutable(out/'audit.json',data)
     return data
 
@@ -129,6 +132,13 @@ def run(out, config_path, budget_name='content-round-1'):
         endpoint=base if base.endswith('/chat/completions') else base+'/chat/completions'
         data=json.loads((out/'audit.json').read_text()); prompt=(out/'prompt.txt').read_text()
         if sha256(out/'prompt.txt')!=data['prompt_sha256']: raise ValueError('提示词已改变')
+        # 恢复时先检查所有登记图片，防止替换图片后仍命中旧缓存。
+        for resource,digest in data.get('resource_sha256',{}).items():
+            if sha256(out/'images'/data['resources'][resource]) != digest:
+                raise ValueError('登记图片哈希不一致，停止评测')
+        for c in data['cases']:
+            if c.get('crop_sha256') and sha256(out/'images'/data['resources'][c['crop']]) != c['crop_sha256']:
+                raise ValueError('裁图哈希不一致，停止评测')
         budget=json.loads(ledger.read_text()) if ledger.exists() else {'requests':0,'cost_usd':0,'unknown_usage':0}
         cache=root/'audit-cache'; cache.mkdir(exist_ok=True)
         status={'pid':os.getpid(),'state':'running','updated_at':now(),'completed':0,'total':len(data['cases'])}

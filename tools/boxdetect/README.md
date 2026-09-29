@@ -77,3 +77,7 @@ python3 tests/e2e/boxdetect.py --dataset ~/omrs-train/datasets/20260929-1
 验证集比较.1/.25/.4/.55，按内容通过数、较少缺漏、较少多余、较高阈值选定，再冻结参数评test（历史回归）和independent。省略--model生成模板基线。不传人工框或预期给DeepSeek；漏检不调用也计失败。原判和复核记录在/train查看。历史25次实验用audit.py import导入，保留失败、思考参数、提示版本及校准标记。
 
 重训需要先在train分区评测、逐个目视确认困难案例。reweight.py --dataset 原快照 --audit-path 训练评测目录 --out 新快照，只对经复核失败的训练原图全部条带重复采样一次。评测来自验证/测试或manifest不符则拒绝。先3轮冒烟再正式120轮，640/batch4/线程6；无新数据与困难样本就不重复训练。冻结图或标签变动、跨集合近似桥接均停止构建。
+
+阈值选择使用 `decision.py select --audits 四个验证评测目录 --out 新选择文件.json`；候选比较使用 `decision.py compare --baseline 旧模型回归目录 --candidate 新模型回归目录 --out 新结论文件.json`。存在独立集时必须同时传 `--independent-baseline` 和 `--independent-candidate`。select与compare要求全部参与案例已有用户或执行者复核，并校验原图集合一致；不会发布current。
+
+prepare核对冻结原图SHA，run恢复前验证裁图及资源清单SHA；哈希不符停止。错误记录不可因人工改判绕过调用失败门禁。

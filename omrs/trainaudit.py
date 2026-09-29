@@ -87,7 +87,7 @@ def summary(root, ident):
         def passed(c, r, h, corrected):
             verdict = effective(r, h) if corrected else r.get('judgment', {}).get('verdict')
             # 缺框和额外框是检测结构事实；纠正文字判定不能补出图片。
-            return not c.get('structural_error') and verdict == 'usable' and (bool(h) or r['state'] in ('done', 'cached'))
+            return not c.get('structural_error') and verdict == 'usable' and r['state'] in ('done', 'cached')
         raw += complete and all(passed(c,r,[],False) for c,r,h in entries)
         final += complete and all(passed(c,r,h,True) for c,r,h in entries)
         missing += any(c.get('structural_error') == 'missing' or effective(r,h) == 'unusable' for c,r,h in entries)
@@ -102,7 +102,8 @@ def summary(root, ident):
     progress, error = read_json(safe_path(root, 'audits', ident, 'progress.json'))
     if progress and progress.get('state')=='running' and progress.get('pid'):
         progress=status_view(progress)
-    return {'progress': progress, 'progress_error': error, **{k: data.get(k) for k in ('id','dataset','split','purpose','model','prompt_version','created_at','conf')}} | {
+    versions=sorted({c.get('prompt_version',data.get('prompt_version','未知')) for c in data['cases']})
+    return {'prompt_versions':versions, 'progress': progress, 'progress_error': error, **{k: data.get(k) for k in ('id','dataset','split','purpose','model','prompt_version','created_at','conf')}} | {
         'images': len(grouped), 'cases': len(data['cases']), 'raw_passed': raw, 'reviewed_passed': final,
         'reviewed': reviewed, 'user_reviewed': user_reviewed, 'cost_usd':total_cost, 'seconds':seconds, 'confusion':confusion, 'missing_images': missing, 'extra_images': extra, 'states': states}
 
@@ -129,6 +130,7 @@ def detail(vault, ident, params):
                    seconds=r.get('seconds',0), usage=r.get('usage',{}), cost_usd=r.get('cost_usd',0), error=r.get('error'))
         if params.get('case') and c['id'] != params['case']: continue
         if params.get('role') and params['role'] != c['role']: continue
+        if params.get('prompt_version') and params['prompt_version'] != c.get('prompt_version',data.get('prompt_version')): continue
         if params.get('verdict') and params['verdict'] != judgment.get('verdict', 'uncertain'): continue
         state = params.get('review', '')
         if state == 'pending' and any(x['source']=='user' for x in h): continue
