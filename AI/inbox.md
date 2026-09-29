@@ -66,6 +66,9 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 - `detect_regions_local(url, image, layout, width, height)`（v1.13.0）：`local_http` 提供方，`POST url` JSON `{image, layout, width, height}`，响应数组或 `{boxes:[…]}`，同样经 `parse_detect_output` 归一化（传了宽高所以像素坐标也能解析）。
 - `detect_regions(vault, image, layout)`：`DETECT_PROMPT` 要求输出 `[{label, card, bbox_2d:[x1,y1,x2,y2], confidence}]`，坐标 **0–1000 相对**（Qwen3-VL 约定）。`parse_detect_output()` 兼容三种坐标：≤1 视为小数；>1000 且给了尺寸视为绝对像素（Qwen2.5-VL 风格）；否则 /1000。`label` 以 answer/答案/解析 开头 → answer，其余 → question。
 - `extract_region(vault, image, role, judge)`：复用 `ANSWER_PROMPT` / `QUESTION_TEXT_PROMPT`，`judge=True` 时追加 `JUDGE_SUFFIX` 要求返回 `{convertible, reason, text}`；判断模式要求 JSON 中 convertible 为布尔值，可提取时 text 为非空字符串，否则报错供重试；不可提取不要求正文。题目文本会去掉整段开头题号；答案仅在开头为“题号+答案/解析标题”时去掉题号，解析内部步骤编号保留。`max_tokens=4000`；思考行为读取 `ai_thinking`，见 `AI/frontend/settings.md`。
+
+`JUDGE_SUFFIX` 以删去裁图后能否仅靠文本和 LaTeX 保留解题或理解原解析所需信息为判断标准。题干依赖图形、曲线、位置关系或表格内容时，不能因文字识别完整、能概述图意或认为图形只是辅助就判为可转；拿不准时要求留图。纯装饰图及软件控件不影响判断，能完整转录行列关系的简单表格可转。服务端只验证返回类型和非空正文，实际内容仍由用户审核。
+
 - 旧的 `/api/ai-recognize` 三种 mode 行为不变（classify 现在也走 `purpose="classify"`）。
 
 ## 5. 前端（`assets/app/features/create/`）

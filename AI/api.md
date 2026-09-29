@@ -900,6 +900,8 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 `/api/ai-recognize` 行为不变；`ai_assist.py` 新增 `detect_regions`、`extract_region`、`parse_detect_output`，并按用途读 `ai_model_detect / ai_model_extract / ai_model_classify`（缺省回退 `ai_model`）。AI 助手附图另用 `transcribe_image`（截图转述成 `{summary, layout, blocks}`）与 `describe_image`（针对一张图回答具体问题），两者都走 `ai_model_extract`，见 `AI/agent.md` §1「附图」。
 
+`extract` job 的响应契约不变：模型先判断删去区域裁图后是否仍能保留解题或理解原解析所需的全部信息，再返回 `{convertible, reason, text}`。依赖图形或图表且无法无损转写时应返回 `convertible=false`，服务端据此保存区域图片；实际判断仍需人工审核，细则见 `AI/inbox.md` §4。
+
 ---
 
 ## 框选标注集端点 `/api/annotate/*` 与 `/annotate`
