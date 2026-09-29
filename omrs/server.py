@@ -60,7 +60,7 @@ from .optimization import (
 )
 from .content_history import ContentConflict, content_versions, restore_content
 from .ledger import get_blob
-from .projections import ledger_history, ledger_retraction_state, rebuild_projection
+from .projections import ledger_history, ledger_history_detail, ledger_retraction_state, rebuild_projection
 from .question_ops import (
     delete_question,
     get_question_raw,
@@ -218,13 +218,31 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 before = params.get("before_seq") or None
                 limit = int(params.get("limit", 100))
+                limit = max(1, min(500, limit))
+                summary_only = params.get("view") == "summary"
+                commits = ledger_history(self.vault_path, before, limit + 1 if summary_only else limit,
+                                         summary_only=summary_only)
+                has_more = summary_only and len(commits) > limit
+                if has_more:
+                    commits = commits[1:]
                 self._json({
                     "status": "ok",
-                    "commits": ledger_history(self.vault_path, before, max(1, min(500, limit))),
+                    "commits": commits,
+                    "has_more": has_more,
+                    "next_before_seq": min((row["seq"] for row in commits), default=None) if has_more else None,
                     "retraction_state": ledger_retraction_state(self.vault_path),
-                    "history": load_csv(history_path(self.vault_path), HISTORY_HEADERS)[-100:],
+                    **({} if summary_only else {"history": load_csv(history_path(self.vault_path), HISTORY_HEADERS)[-100:]}),
                 })
             except Exception as exc:
+                self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/history/detail":
+            try:
+                detail = ledger_history_detail(self.vault_path, int(params.get("seq", "0")))
+                if detail is None:
+                    self._json({"status": "error", "msg": "历史节点不存在"}, 404)
+                else:
+                    self._json({"status": "ok", "detail": detail})
+            except (ValueError, TypeError) as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/question/content/history":
             try:

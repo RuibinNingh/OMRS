@@ -4,6 +4,7 @@ import { historyRows } from '../../domain/history.js';
 export const state = {
   commits: [], retraction: null, phase: 'idle', error: '', sort: 'asc', edit: false,
   correctionsOpen: false, busy: new Set(), note: '', writeError: '',
+  hasMore: false, nextBeforeSeq: null, loadingMore: false, details: new Map(), detailErrors: new Map(),
 };
 
 export function readPreferences(storage) {

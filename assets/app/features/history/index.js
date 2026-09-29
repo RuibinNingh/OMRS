@@ -1,7 +1,7 @@
 /** Ledger 历史页：列表生命周期与修正操作。 */
 import { morph } from '../../core/dom.js';
 import { confirm, prompt } from '../../ui/dialog.js';
-import { fetchHistory, postHistoryCorrection, notifyHistoryChanged, ledgerTimeZone } from '../../domain/history.js';
+import { fetchHistoryPage, fetchHistoryDetail, postHistoryCorrection, notifyHistoryChanged, ledgerTimeZone } from '../../domain/history.js';
 import { reloadData } from '../../domain/data.js';
 import { refreshSessions } from '../../domain/sessions.js';
 import { invalidateQuestions } from '../../domain/question/index.js';
@@ -34,18 +34,31 @@ function createController(root, ctx) {
     if (box) box.scrollTop = s.sort === 'desc' ? 0 : box.scrollHeight;
   }
 
-  async function load({ scroll = false } = {}) {
+  async function load({ scroll = false, more = false } = {}) {
+    if (more && (!s.hasMore || s.loadingMore)) return;
     const mine = ++loadSeq;
+    const box = host.querySelector('#history-timeline');
+    const anchor = box?.scrollTop || 0;
+    const oldHeight = box?.scrollHeight || 0;
+    const top = box?.getBoundingClientRect().top || 0;
+    const visibleRow = [...(box?.querySelectorAll('.hvw-node') || [])]
+      .find(row => row.getBoundingClientRect().bottom > top + 1);
+    const visibleKey = visibleRow?.getAttribute('data-key');
+    const visibleY = visibleRow?.getBoundingClientRect().top;
+    s.loadingMore = more;
     clearTimeout(slow);
-    if (!s.commits.length) {
+    if (!more && !s.commits.length) {
       slow = setTimeout(() => { if (alive && mine === loadSeq) { s.phase = 'loading'; paint(); } }, 300);
     }
-    const result = await fetchHistory();
+    const result = await fetchHistoryPage(more ? s.nextBeforeSeq : null);
     clearTimeout(slow);
     if (!alive || mine !== loadSeq) return result;
+    s.loadingMore = false;
     if (result.ok) {
-      s.commits = result.commits;
+      s.commits = more ? [...result.commits, ...s.commits] : result.commits;
       s.retraction = result.retraction;
+      s.hasMore = result.hasMore;
+      s.nextBeforeSeq = result.nextBeforeSeq;
       s.phase = 'ready';
       s.error = '';
     } else {
@@ -53,8 +66,28 @@ function createController(root, ctx) {
       s.error = result.error;
     }
     paint();
+    const nextBox = host.querySelector('#history-timeline');
+    if (!scroll && nextBox && box) {
+      nextBox.scrollTop = anchor + (more && s.sort === 'asc' ? nextBox.scrollHeight - oldHeight : 0);
+      if (visibleKey) {
+        const nextRow = [...nextBox.querySelectorAll('.hvw-node')]
+          .find(row => row.getAttribute('data-key') === visibleKey);
+        if (nextRow) nextBox.scrollTop += nextRow.getBoundingClientRect().top - visibleY;
+      }
+    }
     if (scroll && result.ok) scrollToLatest();
     return result;
+  }
+
+  async function detail(seq) {
+    const key = String(seq);
+    if (s.details.has(key)) return;
+    s.detailErrors.delete(key);
+    const result = await fetchHistoryDetail(seq);
+    if (!alive) return;
+    if (result.ok) s.details.set(key, result.detail);
+    else s.detailErrors.set(key, result.error);
+    paint();
   }
 
   function savePreference(key, value) {
@@ -162,7 +195,7 @@ function createController(root, ctx) {
   }
 
   return {
-    paint, load,
+    paint, load, detail,
     sort(value) {
       s.sort = value === 'desc' ? 'desc' : 'asc';
       savePreference('omrs-history-sort', s.sort);
@@ -196,6 +229,8 @@ export const page = {
     mode: () => ctl?.mode(),
     corrections: () => ctl?.corrections(),
     refresh: () => ctl?.load(),
+    more: () => ctl?.load({ more: true }),
+    detail: ({ arg }) => ctl?.detail(arg),
     review: ({ arg }) => ctl?.review(arg),
     session: ({ arg }) => ctl?.session(arg),
     directRestore: ({ arg }) => ctl?.directRestore(arg),

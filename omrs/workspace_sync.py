@@ -152,6 +152,7 @@ def _scan_workspace_locked(vault: str):
             append_commit(vault, "self_check", "question.move_external", "检测到人工改名或移动", {
                 "question_id": question_id,
                 "from_uid": old["uid"],
+                "from_category": (current or {}).get("category", ""),
                 "to_uid": item["uid"],
                 "from_path": old["file_path"],
                 "to_path": item["file_path"],

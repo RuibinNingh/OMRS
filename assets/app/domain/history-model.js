@@ -14,6 +14,9 @@ export const historyCommitFamily = type => {
   return 'system';
 };
 
+export const historySourceLabel = source => ({ api: '应用操作', agent: 'AI 助手',
+  self_check: '工作区扫描', migration: '旧数据迁移', system: '系统' })[source] || source || '来源未知';
+
 export function orderedHistoryRows(commits, sort = 'asc') {
   return [...(commits || [])].sort((a, b) => sort === 'desc'
     ? number(b.seq) - number(a.seq) : number(a.seq) - number(b.seq));
@@ -111,9 +114,9 @@ export function historyNodeTitle(row, rs) {
   if (type === 'system.genesis') return '初始化 Ledger';
   if (type === 'session.create') {
     const sid = historyNodeSessionId(row);
-    return `新建 ${historySessionLabel(sid)} · ${sid || '未命名'}`;
+    return `新建 ${historySessionLabel(sid)}`;
   }
-  if (type === 'session.complete') return `完成 Session · ${p.session_id || ''}`;
+  if (type === 'session.complete') return '完成复习 Session';
   if (type === 'question.create' || type === 'question.create_external') {
     const q = p.question || p;
     return `新增题目 · ${q.uid || q.UID || ''}`;
@@ -128,7 +131,7 @@ export function historyNodeSubtitle(row, rs) {
   if (row.commit_type === 'review.batch_submit') {
     const stats = historyReviewBatchStats(row, rs);
     const line = `${stats.active}/${stats.total} 题有效 · ${stats.correct} 对 ${stats.wrong} 错${stats.hidden ? ` · ${stats.hidden} 条已撤销` : ''}`;
-    return stats.sid ? `${line} · ${stats.sid}` : line;
+    return line;
   }
   if (row.commit_type === 'legacy.bootstrap') return '旧 CSV、Session 和 Markdown 结构导入 Ledger';
   if (row.commit_type === 'system.genesis') return '创建不可变提交链起点';

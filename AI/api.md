@@ -156,13 +156,17 @@
 
 另含 `images` 字段：题面引用的图片文件名列表（解析 `![[名]]`/`![](路径)`），与 `/api/image?name=` 对接，供报告引图。
 
-### `/api/history?before_seq=&limit=`
-返回 Ledger 时间线，并附最近 100 条 `history_log.csv` 兼容投影记录。两者不是同一数据源：Ledger 的 `commits` 是正式事实，CSV 记录放在 `history` 字段仅供旧表格或调试兼容。
+### `/api/history?before_seq=&limit=&view=summary`
+返回 Ledger 时间线。默认响应保留完整 payload 与最近 100 条 `history_log.csv` 兼容投影记录；Ledger 的 `commits` 是正式事实，CSV 的 `history` 仅供旧表格或调试兼容。历史页使用 `view=summary`，默认每批 60 条、最多 500 条；此模式只返回卡片和修正操作所需的载荷字段，不返回 CSV，也不逐卡读取正文 blob。
 
 **响应字段：**
 - `commits`：按时间自上而下排列的提交节点，含 `seq`、`commit_id`、`created_at`、`source`、`commit_type`、`message`、`summary`、`payload`。
 - `retraction_state`：后端基于完整 Ledger 重放出的当前撤销集合，含 `retracted_sessions` 与 `retracted_reviews`，供前端在只加载最近节点时仍能正确隐藏/恢复。
 - `history`：最近 100 条兼容 CSV 投影记录，供旧表格或调试使用；不包含题目 Markdown `# 历史` 原文。
+- `view=summary` 时另有 `has_more` 和 `next_before_seq`；下一批把该游标传给 `before_seq`。每个 commit 的 `learning` 含当时可验证的科目分布、题面短句、分类或字段变化；缺旧快照的字段保持缺失，页面显示「无可用历史摘要」。
+
+### `/api/history/detail?seq=<seq>`
+按需读取一条完整 Ledger payload，返回 `{status:"ok",detail:{seq,commit_id,commit_type,source,payload,content_change?}}`。正文更新详情仅读取该条引用的前后两个 blob；旧 blob 缺失时 `content_change` 为 `{available:false,message:"无可用历史摘要"}`，不会用当前题目补历史。不存在的 seq 返回 404，非法 seq 返回 400。
 
 ### `/api/ledger/verify`
 校验不可变提交链，返回 `{status, valid, commits, head_commit_id, errors}`。

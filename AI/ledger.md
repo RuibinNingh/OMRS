@@ -99,6 +99,7 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 - `note`
 - `occurred_at`
 - `recorded_at`
+- `subject` 与 `question_summary`：新反馈提交时从当时的题目 CSV 与安全的 Markdown 路径固定科目、题面短句；读取旧反馈不从当前题目反推这两个字段。
 
 聊天练习卡的反馈另带 `attempt_id` 和稳定 `entry_id`（当前为 `question_id`）。服务端在进程写锁内先从 Ledger 重建投影，再在同一 `BEGIN IMMEDIATE` 事务中检查该 attempt 已提交条目并追加新 `review.batch_submit`；同一题重试直接返回已成功，不再次增加 Attempts。Ledger 提交后即使投影或卡片进度写回失败，下次从 Ledger 恢复；`agent.db` 的进度不能代替提交事实。此边界保护同进程多请求与投影重建的串行性。
 
@@ -136,6 +137,8 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 `mastery_projection` 的 `kill_count` 是 2026-09 新增列（`NOT NULL DEFAULT 0`），只在 `tag_action == "kill"` 时累加、答错降级时**不**重置，`scheduling.revive_dormant_days()` 据它决定这题下次休眠多久（`algorithm.md` §11）。老库缺列时 `ledger.py::_ensure_schema()` 用 `PRAGMA table_info` 探到缺失后执行 `ALTER TABLE mastery_projection ADD COLUMN kill_count INTEGER NOT NULL DEFAULT 0` 补齐（与 `question_projection.suspended` 同一套做法），所以从旧库直接启动不会报错；老数据一律按「还没击杀过」处理，首次击杀即第 1 次。老 CSV 缺 `Kill_Count` 列同理按 0 读，重放不失败。
 
 `state.restore` 会取目标 `target_seq` 的内存快照；若没有快照，则递归重放到该 seq，再继续处理还原 commit 之后的新提交。`ledger_retraction_state()` 把有效的 Session/反馈撤销集合提供给 `/api/history` 和前端。
+
+历史列表的摘要模式只读取本批提交载荷并裁剪字段，完整链的撤销集合仍由投影器计算；前端按 `before_seq` 分批请求。单条详情再读取完整提交；正文更新只取该提交引用的前后 blob。新网页正文编辑把节级短差异固定在 `change_summary`，旧版本或缺失 blob 不补写、不取当前正文冒充旧值。题目移动新提交固定 `from_category` 与 `to_category`，旧提交缺值时保持缺失。
 
 `server.py::_history_commit()` 在追加前校验目标：反馈修正必须指向存在的 `review.batch_submit` 和合法 `target_review_index`，Session 修正必须指向链上出现过的 Session，`state.restore` 的 seq 必须存在。无效请求返回 400，不写脏 commit。对应回归测试在 `tests/test_history_projection.py`。
 

@@ -120,12 +120,14 @@ def ensure_content_deletable(vault, row, content, record_change=True):
 
 def record_file_change(vault, row, before, after, message, source="api", extra=None):
     from .workspace_sync import metadata_hash
+    from .projections import _content_change_summary
     before_hash, after_hash = blob_hash(before), blob_hash(after)
     if before_hash == after_hash:
         return None
     meta_before, meta_after = parse_yaml_frontmatter(before), parse_yaml_frontmatter(after)
     payload = {"question_id": row["question_id"], "uid_at_that_time": row["uid"],
-               "before_hash": before_hash, "after_hash": after_hash, **(extra or {})}
+               "before_hash": before_hash, "after_hash": after_hash,
+               "change_summary": _content_change_summary(before, after), **(extra or {})}
     if metadata_hash(meta_before) != metadata_hash(meta_after):
         payload["before"] = question_payload(row, before)
         payload["after"] = question_payload(row, after)

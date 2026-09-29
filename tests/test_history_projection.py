@@ -1,7 +1,11 @@
 import tempfile
+import os
 import unittest
 
-from omrs.projections import _project_state
+from omrs.projections import (_project_state, _content_change_summary, ledger_history,
+                              ledger_history_detail, ledger_retraction_state)
+from omrs.ledger import append_commit
+from omrs.feedback import _question_summary_at_feedback
 
 
 def commit(seq, commit_id, commit_type, payload):
@@ -78,6 +82,65 @@ class HistoryProjectionTests(unittest.TestCase):
     def project(self, commits):
         with tempfile.TemporaryDirectory() as vault:
             return _project_state(vault, commits)
+
+    def test_summary_pagination_keeps_full_chain_retraction_and_lazy_detail(self):
+        with tempfile.TemporaryDirectory() as vault:
+            append_commit(vault, "system", "system.genesis", "开始", {})
+            review = append_commit(vault, "api", "review.batch_submit", "练习", {"feedbacks": [
+                {"uid_at_that_time": "U1", "is_correct": False, "sub_score": 3,
+                 "subject": "数学", "question_summary": "一次函数求值", "note": "完整详情"}]})
+            for index in range(255):
+                append_commit(vault, "system", "system.test", f"填充 {index}", {"large": "x" * 300})
+            append_commit(vault, "api", "review.retract", "撤销", {
+                "target_commit_id": review["commit_id"], "target_review_index": 0})
+            first = ledger_history(vault, limit=60, summary_only=True)
+            self.assertEqual(len(first), 60)
+            self.assertEqual(first[-1]["commit_type"], "review.retract")
+            self.assertEqual(ledger_retraction_state(vault)["retracted_reviews"], [f"{review['commit_id']}:0"])
+            before = min(row["seq"] for row in first)
+            pages = first[:]
+            while before > 1:
+                page = ledger_history(vault, before_seq=before, limit=60, summary_only=True)
+                if not page:
+                    break
+                self.assertTrue(all(row["seq"] < before for row in page))
+                pages = page + pages
+                before = min(row["seq"] for row in page)
+            self.assertEqual(len(pages), 258)
+            slim = next(row for row in pages if row["seq"] == review["seq"])
+            self.assertEqual(slim["learning"]["subjects"], {"数学": 1})
+            self.assertEqual(slim["learning"]["questions"], ["一次函数求值"])
+            self.assertNotIn("note", slim["payload"]["feedbacks"][0])
+            self.assertEqual(ledger_history_detail(vault, review["seq"])["payload"]["feedbacks"][0]["note"], "完整详情")
+
+    def test_missing_old_blob_does_not_invent_content_change(self):
+        with tempfile.TemporaryDirectory() as vault:
+            append_commit(vault, "system", "system.genesis", "开始", {})
+            row = append_commit(vault, "self_check", "question.content_update", "正文更新", {
+                "uid_at_that_time": "U1", "before_hash": "missing", "after_hash": "missing2"})
+            detail = ledger_history_detail(vault, row["seq"])
+            self.assertEqual(detail["content_change"], {"available": False, "message": "无可用历史摘要"})
+
+    def test_content_change_ignores_frontmatter_and_names_real_sections(self):
+        before = "---\n_omrs_id: Q1\n科目: 数学\n---\n# 题目\n旧题面\n# 答案\n旧答案\n"
+        metadata_only = before.replace("科目: 数学", "科目: 物理")
+        self.assertEqual(_content_change_summary(before, metadata_only),
+                         {"available": False, "sections": [], "message": "无可用历史摘要"})
+        mixed = metadata_only.replace("旧题面", "新题面").replace("旧答案", "新答案")
+        change = _content_change_summary(before, mixed)
+        self.assertEqual([item["section"] for item in change["sections"]], ["题目", "答案"])
+        self.assertNotIn("_omrs_id", str(change))
+
+    def test_feedback_summary_keeps_math_and_is_fixed_from_safe_file(self):
+        with tempfile.TemporaryDirectory() as vault:
+            relative = os.path.join("错题", "数学", "代数", "Q1.md")
+            path = os.path.join(vault, relative)
+            os.makedirs(os.path.dirname(path))
+            with open(path, "w", encoding="utf-8") as file:
+                file.write("# 题目\n计算 2 * 3 与 $x_1$。 ![[图1.png]]\n# 答案\n6\n")
+            self.assertEqual(_question_summary_at_feedback(vault, {"File_Path": relative}),
+                             "计算 2 * 3 与 $x_1$。")
+            self.assertEqual(_question_summary_at_feedback(vault, {"File_Path": "../outside.md"}), "")
 
     def test_review_restore_replays_original_feedback(self):
         state = self.project(

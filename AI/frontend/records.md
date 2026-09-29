@@ -9,7 +9,7 @@
 
 ## 历史记录页
 
-历史页由 `features/history/` 按页面契约挂载到 `#hist-app`，读取 `/api/history` 的 Ledger commit。`index.js` 管理加载与修正请求，`state.js` 投影视图状态，`view.js` 渲染时间线，`history.css` 提供样式。`domain/history-model.js` 持有撤销状态、节点分类、标题、时间格式与排序的纯函数；`domain/history.js` 负责读取、修正请求和跨页通知，仪表盘最近动态直接复用同一投影。
+历史页由 `features/history/` 按页面契约挂载到 `#hist-app`，用 `/api/history?view=summary` 分批读取 Ledger 摘要，用 `/api/history/detail` 按需读取完整载荷和正文变化。`index.js` 管理加载与修正请求，`state.js` 投影视图状态，`view.js` 渲染时间线，`history.css` 提供样式。`domain/history-model.js` 持有撤销状态、节点分类、标题、时间格式与排序的纯函数；`domain/history.js` 负责读取、修正请求和跨页通知，仪表盘最近动态仍复用完整响应的同一投影。
 
 - 视觉结构为竖线时间线：旧节点在上方，最新节点在底部，进入页面后自动滚到底部；主时间线只展示非修正、且**当前未被撤销**的节点。
 - **节点按 commit 族着色**：`historyCommitFamily(commit_type)` 决定 `data-family`，圆点和节点标题据此取语义色。`review.batch_submit` 节点额外由 `reviewVisual()` 渲染「对错配比条 + 每题色块」，不展开即可看出本批练习结果。
@@ -18,8 +18,9 @@
 - 顶部提供「修正记录」按钮：`review.replace`、`review.retract`、`review.restore`、`session.retract`、`session.restore`、`state.restore` 等修正节点从主时间线移出，集中在该列表里查看。
 - **被撤销的节点从主时间线隐藏**：优先使用 `/api/history` 返回的完整链 `retraction_state`；旧响应则回退到 `historyRetractionState()` 按 seq 顺序重放 `session.retract/restore`、`review.retract/restore`。`session.create` 整个 Session 被撤销、或 `review.batch_submit` 批次内所有反馈都被撤销（或其 Session 被撤销）时，该主节点（`isNodeRetracted`）不再显示，状态栏提示「N 个已撤销已隐藏」。Ledger 底层仍保留全部 commit，不做删除。
 - 隐藏的节点可在「修正记录」面板恢复：被撤销且**当前仍处于撤销态**的 `session.retract` / `review.retract` 修正行带「恢复」按钮，点按调用对应 restore API 追加新 commit，节点随即回到主时间线。
-- 每个节点显示时间、题目优先摘要、副标题、commit_id、source、seq 和 commit_type；`formatLedgerTime()` 将带时区偏移的 Ledger `created_at` 按设置页时区显示，仪表盘最近动态复用同一格式化函数；`review.batch_submit` 标题优先展示 UID（单题直接显示题目，多题显示前几题），副标题再显示有效题数、对错和已撤销条数。
-- 节点默认只显示头部数据；下方挂只读 `查看详情` 折叠块。开启修正模式后，再额外显示默认关闭的 `修改 / 撤销 / 还原` 操作折叠块。
+- 每个节点默认依次显示中文动作与题目/题组、真实对错/分数或字段变化、时间和中文来源；`commit_id`、`seq`、技术 `commit_type` 放入详情。反馈展示科目分布和提交时固定的题面短句，旧反馈缺题面快照时显示「无可用历史摘要」，不读取当前题目冒充当时内容。正文更新有提交时的节级短差异才显示，旧 blob 缺失时同样显示缺失；移动显示事件保存的前后分类。`formatLedgerTime()` 按设置页时区显示时间。
+- 首屏加载最近 60 条；「加载更早记录」按 `next_before_seq` 追加摘要，修正状态始终以服务端完整链 `retraction_state` 为准。详情展开时才请求该节点完整 payload；练习详情列出逐题结果。请求失败保留列表、已展开面板与滚动位置。
+- 节点默认只显示摘要；下方挂只读 `查看详情` 折叠块。开启修正模式后，再额外显示默认关闭的 `修改 / 撤销 / 还原` 操作折叠块。
 - 无可操作内容的节点（如 `legacy.bootstrap`、外部扫描类）**不显示**操作折叠块，只保留 `查看详情`。
 - `legacy.bootstrap` 等大 payload 会在「查看详情」里做摘要/截断，避免页面被完整迁移数据撑爆。
 - 操作折叠块内的面板：

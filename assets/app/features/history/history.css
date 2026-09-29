@@ -28,6 +28,11 @@
 .hvw-time { color: var(--fg-3); font-family: var(--font-mono); font-size: var(--text-xs); }
 .hvw-title { margin-top: var(--sp-1); color: var(--fg-1); font-size: var(--text-lg); line-height: var(--leading-ui); overflow-wrap: anywhere; }
 .hvw-subtitle { margin-top: var(--sp-1); color: var(--fg-2); font-size: var(--text-sm); line-height: var(--leading-ui); overflow-wrap: anywhere; }
+.hvw-learning { display: grid; gap: var(--sp-1); color: var(--fg-1); font-size: var(--text-sm); line-height: var(--leading-ui); overflow-wrap: anywhere; }
+.hvw-learning p + p { color: var(--fg-2); }
+.hvw-review-items { display: grid; gap: var(--sp-1); margin: var(--sp-2) 0; padding-left: var(--sp-5); color: var(--fg-2); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.hvw-detail-error { color: var(--danger); font-size: var(--text-sm); }
+.hvw-more { display: flex; justify-content: center; }
 .hvw-head .ui-tag { flex: none; font-size: var(--text-xs); }
 .hvw-head[data-family="review"] .ui-tag { color: var(--family-review); background: var(--success-soft); }
 .hvw-head[data-family="session"] .ui-tag { color: var(--family-session); background: var(--info-soft); }

@@ -24,6 +24,19 @@ export async function fetchHistory(limit = 240) {
 }
 export const fetchRecent = (limit = 40) => fetchHistory(limit);
 
+export async function fetchHistoryPage(beforeSeq = null, limit = 60) {
+  const cursor = beforeSeq == null ? '' : `&before_seq=${encodeURIComponent(beforeSeq)}`;
+  const res = await get(`/api/history?view=summary&limit=${limit}${cursor}`);
+  if (!res.ok) return { ok: false, error: res.error?.message || '未知错误' };
+  return { ok: true, commits: res.data?.commits || [], retraction: res.data?.retraction_state || null,
+    hasMore: !!res.data?.has_more, nextBeforeSeq: res.data?.next_before_seq || null };
+}
+
+export async function fetchHistoryDetail(seq) {
+  const res = await get(`/api/history/detail?seq=${encodeURIComponent(seq)}`);
+  return res.ok ? { ok: true, detail: res.data?.detail } : { ok: false, error: res.error?.message || '未知错误' };
+}
+
 export async function postHistoryCorrection(path, payload) {
   const res = await post(path, payload);
   return { ok: res.ok, data: res.data, error: res.ok ? '' : res.error?.message || '未知错误' };

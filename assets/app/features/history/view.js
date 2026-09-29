@@ -4,9 +4,8 @@ import { button } from '../../ui/button.js';
 import { empty } from '../../ui/empty.js';
 import { skeleton } from '../../ui/skeleton.js';
 import { status } from '../../ui/status.js';
-import { tag } from '../../ui/tag.js';
 import { historyCommitFamily, historyNodeTitle, historyNodeSubtitle, formatLedgerTime,
-  historyNodeSessionId } from '../../domain/history.js';
+  historyNodeSessionId, historySourceLabel } from '../../domain/history.js';
 import { historyPayloadPreview, restoreTarget, reviewVisual, timeline } from './state.js';
 
 function reviewStrip(row, rs) {
@@ -58,19 +57,59 @@ function operations(row, busy, writing) {
   </details>`;
 }
 
+function learningSummary(row) {
+  const learning = row.learning || {};
+  if (row.commit_type === 'review.batch_submit') {
+    const subjects = Object.entries(learning.subjects || {}).map(([name, count]) => `${name} ${count} 题`).join('、');
+    const examples = (learning.questions || []).slice(0, 3).join('；');
+    return html`<div class="hvw-learning"><p>${subjects || '科目无可用历史摘要'}</p>
+      <p>${examples || '题面无可用历史摘要'}</p></div>`;
+  }
+  if (row.commit_type === 'question.move' || row.commit_type === 'question.move_external') {
+    return html`<p class="hvw-learning">分类：${learning.from_category || '无可用历史摘要'} → ${learning.to_category || '无可用历史摘要'}</p>`;
+  }
+  const fields = Object.entries(learning.fields || {});
+  if (fields.length) return html`<div class="hvw-learning">${fields.map(([key, values]) => html`<p>${key}：${String(values[0])} → ${String(values[1])}</p>`)}</div>`;
+  if (row.commit_type === 'question.content_update' || row.commit_type.startsWith('question.metadata_update')) {
+    return html`<p class="hvw-learning">正文变化：${contentChangeText(row)}</p>`;
+  }
+  return '';
+}
+
+function contentChangeText(row) {
+  const change = row.learning?.change || row.detail?.content_change;
+  if (!change?.available) return '无可用历史摘要';
+  return change.sections.map(item => `${item.section}：${item.before || '空'} → ${item.after || '空'}`).join('；');
+}
+
+function detailBody(row, s) {
+  const detail = s.details.get(String(row.seq));
+  const error = s.detailErrors.get(String(row.seq));
+  if (error) return html`<p class="hvw-detail-error">详情读取失败：${error}</p>`;
+  if (!detail) return html`<p>正在读取详情…</p>`;
+  const full = { ...row, payload: detail.payload, detail };
+  const reviews = row.commit_type === 'review.batch_submit' ? detail.payload?.feedbacks || [] : [];
+  return html`${reviews.length ? html`<ol class="hvw-review-items">${reviews.map(item => html`<li>
+    ${item.uid_at_that_time || item.uid || ''} · ${item.question_summary || '无可用历史摘要'} · ${item.is_correct ? '答对' : '答错'} · ${item.sub_score == null ? '无分数' : `${item.sub_score} 分`}
+  </li>`)}</ol>` : ''}
+    ${detail.content_change ? html`<p class="hvw-learning">${contentChangeText(full)}</p>` : ''}
+    <p class="hvw-meta">${detail.commit_type} · ${detail.commit_id} · seq ${detail.seq}</p>
+    <pre>${historyPayloadPreview(full)}</pre>`;
+}
+
 function node(row, env) {
   const family = historyCommitFamily(row.commit_type);
   const busy = env.s.busy.has(String(row.seq));
   return html`<article class="hvw-node" data-key="${row.commit_id || row.seq}" data-family="${family}" data-seq="${row.seq}">
     <span class="hvw-dot" aria-hidden="true"></span><div class="hvw-card">
       <div class="hvw-head" data-family="${family}"><div>
-        <time class="hvw-time">${formatLedgerTime(row.created_at, env.zone) || 'GENESIS'}</time>
         <h3 class="hvw-title">${historyNodeTitle(row, env.rows.rs)}</h3>
         <p class="hvw-subtitle">${historyNodeSubtitle(row, env.rows.rs)}</p>
-      </div>${tag({ label: row.commit_type, tone: 'neutral' })}</div>
+      </div></div>
+      ${learningSummary({ ...row, detail: env.s.details.get(String(row.seq)) })}
       ${reviewStrip(row, env.rows.rs)}
-      <p class="hvw-meta"><span>${row.commit_id}</span><span>${row.source || ''}</span><span>seq ${row.seq}</span></p>
-      <div class="hvw-folds"><details class="hvw-details"><summary>查看详情</summary><pre>${historyPayloadPreview(row)}</pre></details>${env.s.edit ? operations(row, busy, env.s.busy.size > 0) : ''}</div>
+      <p class="hvw-meta"><time class="hvw-time">${formatLedgerTime(row.created_at, env.zone) || 'GENESIS'}</time><span>${historySourceLabel(row.source)}</span></p>
+      <div class="hvw-folds"><details class="hvw-details"><summary data-action="history.detail" data-arg="${row.seq}">查看详情</summary>${detailBody(row, env.s)}</details>${env.s.edit ? operations(row, busy, env.s.busy.size > 0) : ''}</div>
     </div>
   </article>`;
 }
@@ -82,10 +121,10 @@ function correction(row, env) {
   const restore = restoreTarget(row, env.rows.rs);
   return html`<article class="hvw-correction" data-key="correction-${row.commit_id || row.seq}">
     <div class="hvw-correction__head"><div><h3>${row.summary || row.message || row.commit_type}</h3>
-      <p class="hvw-meta"><span>${formatLedgerTime(row.created_at, env.zone)}</span><span>seq ${row.seq}</span><span>${target}</span></p></div>
+      <p class="hvw-meta"><span>${formatLedgerTime(row.created_at, env.zone)}</span><span>${historySourceLabel(row.source)}</span><span>${target}</span></p></div>
       ${restore && env.s.edit ? button({ label: '恢复', size: 'sm', action: 'history.directRestore', arg: String(row.seq), loading: env.s.busy.has(String(row.seq)), disabled: env.s.busy.size > 0 }) : ''}
     </div>
-    <details class="hvw-details"><summary>查看记录</summary><pre>${historyPayloadPreview(row)}</pre></details>
+    <details class="hvw-details"><summary data-action="history.detail" data-arg="${row.seq}">查看记录</summary>${detailBody(row, env.s)}</details>
     ${p.reason ? html`<p class="hvw-reason">${p.reason}</p>` : ''}
   </article>`;
 }
@@ -117,6 +156,7 @@ export function view(s, zone) {
         : rows.main.length ? each(rows.main, row => row.commit_id || row.seq, row => node(row, env))
           : empty({ icon: 'clock', title: '暂无主时间线节点', hint: '当前没有可显示的历史；可刷新或查看修正记录。', action: { label: '刷新', action: 'history.refresh' } })}
     </div>
+    ${s.hasMore ? html`<div class="hvw-more">${button({ label: s.loadingMore ? '加载中…' : '加载更早记录', size: 'sm', action: 'history.more', disabled: s.loadingMore })}</div>` : ''}
     <p class="hvw-summary" id="history-status" role="status">主时间线 ${rows.main.length} 个节点${rows.hidden ? `（${rows.hidden} 个已撤销已隐藏）` : ''}；修正记录 ${rows.corrections.length} 条</p>
   </section>`;
 }

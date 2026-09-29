@@ -73,6 +73,7 @@
 | GET | `/api/export-review` | `AI/api.md`、`AI/frontend/records.md` |
 | POST | `/api/feedback` | `AI/api.md`、`AI/algorithm.md`、`AI/changelog.md`等 |
 | GET | `/api/history` | `AI/api.md`、`AI/frontend/dashboard.md`、`AI/frontend/records.md`等 |
+| GET | `/api/history/detail` | `AI/api.md`、`AI/frontend/records.md` |
 | POST | `/api/history/review/replace` | `AI/api.md`、`AI/ledger.md` |
 | POST | `/api/history/review/restore` | `AI/api.md`、`AI/ledger.md` |
 | POST | `/api/history/review/retract` | `AI/api.md`、`AI/ledger.md` |

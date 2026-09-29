@@ -612,7 +612,7 @@ def export_legacy_csv(vault: str, state=None):
     save_csv(sessions_path(vault), SESSIONS_HEADERS, session_rows, backup=True)
 
 
-def ledger_history(vault: str, before_seq=None, limit=100):
+def ledger_history(vault: str, before_seq=None, limit=100, summary_only=False):
     commits = read_commits(vault, before_seq=before_seq, limit=limit, ascending=False)
     items = []
     for commit in reversed(commits):
@@ -625,9 +625,110 @@ def ledger_history(vault: str, before_seq=None, limit=100):
             "commit_type": commit["commit_type"],
             "message": commit["message"],
             "summary": _commit_summary(commit),
-            "payload": payload,
+            "payload": _history_payload_summary(payload, commit["commit_type"]) if summary_only else payload,
+            **({"learning": _history_learning_summary(commit)} if summary_only else {}),
         })
     return items
+
+
+def _history_payload_summary(payload, ctype):
+    """列表只带修正状态及操作所需的少量字段；正文和完整载荷由详情接口读取。"""
+    if ctype == "review.batch_submit":
+        return {"session_id": payload.get("session_id", ""), "feedbacks": [
+            {key: fb[key] for key in ("uid_at_that_time", "uid", "question_id", "session_id",
+                                       "is_correct", "sub_score", "subject", "question_summary") if key in fb}
+            for fb in (payload.get("feedbacks") or payload.get("reviews") or [])]}
+    if ctype == "legacy.bootstrap":
+        return {"question_count": len(payload.get("questions", []))}
+    keys = ("session_id", "target_commit_id", "target_review_index", "target_seq", "reason",
+            "uid_at_that_time", "from_uid", "to_uid", "from_category", "to_category",
+            "change_summary")
+    result = {key: payload[key] for key in keys if key in payload}
+    if ctype in {"question.create", "question.create_external"}:
+        question = payload.get("question") or payload
+        result["question"] = {key: question[key] for key in ("uid", "subject", "category") if key in question}
+    if ctype == "session.create":
+        session = payload.get("session") or payload
+        result["session"] = {key: session[key] for key in ("session_id", "count") if key in session}
+    return result
+
+
+def _history_learning_summary(commit):
+    payload = commit["payload"] or {}
+    ctype = commit["commit_type"]
+    if ctype == "review.batch_submit":
+        feedbacks = payload.get("feedbacks") or payload.get("reviews") or []
+        subjects = {}
+        for fb in feedbacks:
+            subject = fb.get("subject")
+            if subject:
+                subjects[subject] = subjects.get(subject, 0) + 1
+        snippets = [fb.get("question_summary", "") for fb in feedbacks if fb.get("question_summary")]
+        return {"subjects": subjects, "questions": snippets[:3], "count": len(feedbacks)}
+    if ctype in {"question.move", "question.move_external"}:
+        before = payload.get("before") or {}
+        after = payload.get("after") or {}
+        return {"from_category": payload.get("from_category") or before.get("category"),
+                "to_category": payload.get("to_category") or after.get("category")}
+    if ctype in {"question.metadata_update", "question.metadata_update_external"}:
+        before, after = payload.get("before") or {}, payload.get("after") or {}
+        fields = {key: [before.get(key), after.get(key)] for key in
+                  ("subject", "category", "difficulty", "knowledge_tags", "labels")
+                  if key in before and key in after and before[key] != after[key]}
+        return {"fields": fields}
+    if ctype == "question.content_update":
+        return {"change": payload.get("change_summary") or
+                {"available": False, "message": "无可用历史摘要"}}
+    return {}
+
+
+def ledger_history_detail(vault: str, seq: int):
+    """按需读取单个提交；只有正文变更才额外读取前后两个 blob。"""
+    from .ledger import get_commit, get_blob
+    commit = get_commit(vault, seq)
+    if commit is None:
+        return None
+    detail = {"seq": commit["seq"], "commit_id": commit["commit_id"],
+              "commit_type": commit["commit_type"], "source": commit["source"],
+              "payload": commit["payload"]}
+    payload = commit["payload"] or {}
+    if commit["commit_type"] in {"question.content_update", "question.metadata_update",
+                                  "question.metadata_update_external"}:
+        before = get_blob(vault, payload["before_hash"]) if payload.get("before_hash") else None
+        after = get_blob(vault, payload["after_hash"]) if payload.get("after_hash") else None
+        detail["content_change"] = payload.get("change_summary") or _content_change_summary(before, after)
+    return detail
+
+
+def _content_change_summary(before, after):
+    if before is None or after is None:
+        return {"available": False, "message": "无可用历史摘要"}
+    import difflib
+    import re
+    def sections(content):
+        content = re.sub(r"\A---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|\Z)", "", content, count=1)
+        result, current = {}, "正文"
+        for line in content.splitlines():
+            heading = re.match(r"^#{1,4}\s*(题目|答案|错因)(?:\s|$)", line)
+            if heading:
+                current = heading.group(1)
+                result.setdefault(current, [])
+            elif not line.startswith("---") and not line.startswith("# "):
+                result.setdefault(current, []).append(line.strip())
+        return {key: " ".join(value).strip() for key, value in result.items()}
+    old, new = sections(before), sections(after)
+    changed = []
+    for name in ("题目", "答案", "错因", "正文"):
+        if old.get(name, "") != new.get(name, ""):
+            left, right = old.get(name, ""), new.get(name, "")
+            matcher = difflib.SequenceMatcher(None, left, right, autojunk=False)
+            edits = [part for part in matcher.get_opcodes() if part[0] != "equal"]
+            if edits:
+                _, a, b, c, d = edits[0]
+                changed.append({"section": name, "before": left[max(0, a-18):min(len(left), b+18)][:100],
+                                "after": right[max(0, c-18):min(len(right), d+18)][:100]})
+    return {"available": bool(changed), "sections": changed[:3],
+            **({} if changed else {"message": "无可用历史摘要"})}
 
 
 def ledger_retraction_state(vault: str):

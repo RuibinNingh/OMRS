@@ -1,4 +1,6 @@
 import datetime
+import os
+import re
 
 from .common import (
     HISTORY_HEADERS,
@@ -11,12 +13,27 @@ from .common import (
     mastery_path,
     omrs_data_dir,
     resolve_sm2_fields,
+    split_sections,
 )
 from .ledger import append_commit, append_commit_in_db, connect
 from .locking import write_lock
 from .projections import rebuild_projection
 from .scheduling import _safe_float, _safe_int, compute_mastery_update
 from .sessions import get_session, get_session_uid_sources, mark_session_completed
+from .path_safety import safe_question_path
+
+
+def _question_summary_at_feedback(vault, row):
+    """提交时固定题面短句，之后的正文编辑不会改写历史卡。"""
+    try:
+        path = safe_question_path(vault, os.path.abspath(os.path.join(vault, row["File_Path"])))
+        with open(path, "r", encoding="utf-8") as file:
+            question = split_sections(file.read()).get("题目", "")
+    except (OSError, ValueError, KeyError):
+        return ""
+    plain = re.sub(r"!\[[^]]*\]\([^)]*\)|!\[\[[^]]*\]\]", " ", question)
+    plain = re.sub(r"(?m)^\s*#{1,6}\s+", "", plain)
+    return " ".join(plain.split())[:80]
 
 
 def process_feedback(vault, feedbacks, session_id="", attempt_id=""):
@@ -149,6 +166,8 @@ def _process_feedback(vault, feedbacks, session_id="", *, attempt_id="", card=No
             "question_id": question_id,
             **({"attempt_id": attempt_id, "entry_id": entry_id} if attempt_id else {}),
             "uid_at_that_time": uid,
+            "subject": row.get("Subject", ""),
+            "question_summary": _question_summary_at_feedback(vault, row),
             "session_id": session_id,
             "source": source,
             "is_correct": is_correct,

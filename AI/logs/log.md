@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-30_v2-p6-history](2026-09-30_v2-p6-history.md)：v2.0.0 P6 历史摘要与分页
 - [2026-09-30_v2-p5-practice](2026-09-30_v2-p5-practice.md)：v2.0.0 P5 聊天练习卡
 - [2026-09-30_v2-p4-tools](2026-09-30_v2-p4-tools.md)：v2.0.0 P4 分类与 AI 草稿编辑工具
 - [2026-09-30_v2-p3-assistant](2026-09-30_v2-p3-assistant.md)：v2.0.0 P3 助手附件与移动交互

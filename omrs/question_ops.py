@@ -124,6 +124,7 @@ def move_question(vault: str, uid: str, target_subject: str, target_category: st
         append_commit(vault, "api", "question.move", f"迁移题目 {uid} -> {target_uid}", {
             "question_id": row["question_id"],
             "from_uid": uid,
+            "from_category": row.get("category", ""),
             "to_uid": target_uid,
             "from_path": row["file_path"],
             "to_path": rel,
