@@ -8,6 +8,51 @@ import { inspView } from '../../assets/app/features/assistant/insp-view.js';
 import { confirmOf, toolPreview } from '../../assets/app/features/assistant/tools-view.js';
 import { detectCardState } from '../../assets/app/features/assistant/draft-cards.js';
 import { normalizeJpegBytes } from '../../assets/app/features/assistant/attachments.js';
+import { usageRecord, usageTotals } from '../../assets/app/features/assistant/usage.js';
+
+test('两轮缓存按输入加权，显式零和缺失分开，总量不重复加子集', () => {
+  const events = [
+    { i: 0, t: 0, type: 'round.start', data: { n: 1 } },
+    { i: 1, t: 1, type: 'round.end', data: { n: 1, usage: { input_total: 1000, output_total: 200, cache_read: 0 } } },
+    { i: 2, t: 2, type: 'round.start', data: { n: 2 } },
+    { i: 3, t: 3, type: 'round.end', data: { n: 2, usage: { input_total: 9000, output_total: 300, cache_read: 9000, reasoning_output: 100 } } },
+  ];
+  const run = runFrom({ id: 'usage' }, events);
+  assert.equal(run.usageTotals.main.total, 10500);
+  assert.equal(run.usageTotals.cache.ratio, 0.9);
+  assert.equal(run.usageTotals.cache.complete, true);
+  assert.equal(run.usageTotals.all.total, 10500);
+  applyEvent(run, events[3]);
+  applyEvent(run, { ...events[3], i: 4 });
+  assert.equal(run.usageTotals.main.total, 10500);
+  assert.equal(runFrom({ id: 'replay' }, events).usageTotals.cache.ratio, 0.9);
+});
+
+test('缺缓存、中断、completion=0 和辅助请求保留统计边界', () => {
+  const run = newRun({ id: 'partial' });
+  applyEvent(run, { i: 1, type: 'round.start', data: { n: 1 } });
+  applyEvent(run, { i: 2, type: 'delta', data: { n: 1, kind: 'text', text: '暂存' } });
+  assert.equal(run.usageTotals.main.complete, false);
+  applyEvent(run, { i: 3, type: 'round.end', data: { n: 1, usage: { prompt: 10, completion: 0 } } });
+  assert.equal(run.usage.out, 0);
+  assert.equal(run.usageTotals.cache.ratio, null);
+  assert.equal(run.usageTotals.main.complete, true);
+  applyEvent(run, { i: 4, type: 'usage.aux', data: { request_id: 'r:describe:c', usage: { input_total: 5, output_total: 2,
+    cache_read: null, reasoning_output: null, scope: 'aux' } } });
+  assert.equal(run.usageTotals.aux.total, 7);
+  assert.equal(run.usageTotals.all.total, 17);
+  assert.equal(usageRecord({ prompt: 10, completion: 2 }).cache, null);
+  assert.equal(usageRecord({ prompt: 10, completion: 2, cached: 0 }).cache, null);
+  assert.equal(usageRecord({ input_total: 10, output_total: 2, cache_read: 0 }).cache, 0);
+  assert.equal(usageRecord({}).source, 'missing');
+  const interrupted = newRun({ id: 'old' });
+  applyEvent(interrupted, { i: 1, type: 'round.start', data: { n: 1, context: { sys: 100, tools: 20, chat: 30, res: 0 } } });
+  applyEvent(interrupted, { i: 2, type: 'round.end', data: { n: 1, usage: {} } });
+  assert.equal(interrupted.usageTotals.main.input, 150);
+  assert.equal(interrupted.usageTotals.main.complete, false);
+  assert.equal(interrupted.usageRequests.get('round:1').source, 'estimated');
+  assert.equal(usageTotals(new Map([['x', usageRecord({ input_total: null, output_total: 2, estimated: true })]])).all.complete, false);
+});
 
 test('手机 JPEG：保留编码像素，跳过缩略图标记，清除相册尾数据或补主图结束标记', () => {
   const body = Uint8Array.from([0xff, 0xd8, 0xff, 0xe1, 0, 6, 0xff, 0xd9, 1, 2,

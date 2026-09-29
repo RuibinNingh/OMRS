@@ -91,6 +91,20 @@ class ExpandTest(unittest.TestCase):
         self.assertEqual(out[0]["content"], again[0]["content"])
         self.assertEqual([k for k, _ in self.events], ["image.transcribe", "image.transcribed"])
 
+    def test_transcribe_usage_has_run_identity_and_cache_is_not_model_cache(self):
+        stored = [self.msg("看这题", png(1))]
+        def fake_transcribe(_vault, _url, usage_callback=None):
+            usage_callback({"input_total": 12, "output_total": 3, "cache_read": 0, "scope": "aux"})
+            return TRANSCRIPT
+        with mock.patch.object(agent_images, "transcribe_image", side_effect=fake_transcribe) as fake:
+            agent_images.expand_images(self.vault, "conv", stored, False, self.emit, run_id="run_test")
+            agent_images.expand_images(self.vault, "conv", stored, False, self.emit, run_id="run_test")
+        self.assertEqual(fake.call_count, 1)
+        usages = [data for kind, data in self.events if kind == "usage.aux"]
+        self.assertEqual(len(usages), 1)
+        self.assertTrue(usages[0]["request_id"].startswith("run_test:transcribe:IMG-1:"))
+        self.assertEqual(usages[0]["usage"]["cache_read"], 0)
+
     def test_transcribe_failure_is_text_not_crash(self):
         stored = [self.msg("", png(1))]
         with mock.patch.object(agent_images, "transcribe_image", side_effect=ValueError("尚未配置 AI")):

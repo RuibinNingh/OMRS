@@ -23,7 +23,7 @@
 
 图片转述与 `describe_image` 调用 `ai_assist.py`，遵循「设置 → AI 识别」的 `ai_thinking`；这不改变主 AI 对话模型的思考行为。
 
-`estimate_tokens` 对内容块数组只计文字，每张图按 1000 估（只影响界面用量计）。
+`estimate_tokens` 对内容块数组只计文字，每张图按 1000 估（只影响界面用量计）。真实转述调用另发 `usage.aux`，按运行、图片引用和 SHA 归属；本地转述缓存命中没有新模型请求，不计作供应商 prompt cache。`describe_image` 的用量按运行和工具调用 ID 归属。
 
 ## 2. 配置
 
@@ -72,7 +72,9 @@
 
 ## 6. 事件
 
-每条事件 `{i, t, type, data}`，`t` 是距运行开始的毫秒数。类型：`run.start`（模型、预算、上下文窗口、`vision`）、`image.transcribe`（`ref`、`sha`）/ `image.transcribed`（`ref`、`ok`、`ms`、`error`）、`round.start`（轮次、上下文构成估算 sys/tools/chat/res）、`delta`（`kind` 为 think / text / args；args 带 `index`、`name`）、`round.end`（结束原因、用量 prompt/completion/cached/reasoning、首 token 与生成耗时）、`tool.call`（调用 id、名称、参数、级别）、`tool.running`、`tool.waiting`（确认码、`ttl_ms`、`preview`）、`tool.decision`（allow / deny / expire / abort）、`tool.end`（状态、摘要、结果、commit 列表、耗时、预算快照）、`steer.queued` / `steer.delivered` / `steer.late`、`run.aborting`、`run.end`（原因、错误、统计）。持久化时连续的同类 `delta` 合并为一条，前端归约结果相同。
+每条事件 `{i, t, type, data}`，`t` 是距运行开始的毫秒数。类型：`run.start`（模型、预算、上下文窗口、`vision`）、`image.transcribe`（`ref`、`sha`）/ `image.transcribed`（`ref`、`ok`、`ms`、`error`）、`round.start`（轮次、上下文构成估算 sys/tools/chat/res）、`delta`（`kind` 为 think / text / args；args 带 `index`、`name`）、`round.end`（结束原因、稳定 `request_id`、用量、首 token 与生成耗时）、`usage.aux`（图片转述或看图工具的独立请求、`request_id` 与用量）、`tool.call`、`tool.running`、`tool.waiting`、`tool.decision`、`tool.end`、`steer.queued` / `steer.delivered` / `steer.late`、`run.aborting`、`run.end`。持久化时连续的同类 `delta` 合并为一条，前端归约结果相同。
+
+`omrs/llm/usage.py` 将供应商用量归一成 `input_total`、`output_total`、`cache_read`、`reasoning_output`、`known`、`source`、`scope` 和可选请求标识；旧 `prompt/completion/cached/reasoning` 仍随事件发送。供应商未返回字段为 `null`，明确零保留为零；缓存属于输入、思考属于输出，不重复加到总量。兼容 OpenAI `prompt_tokens_details.cached_tokens` 与 DeepSeek `prompt_cache_hit_tokens`，后者只有 hit/miss 时可推得输入。无最终用量时输出为估算，输入未知；负值、非整数、缓存超过输入等异常被标记，不当作有效缓存比例。独立草稿后台作业不属于对话运行统计。
 
 ## 7. 接口（`omrs/agent/http.py`）
 

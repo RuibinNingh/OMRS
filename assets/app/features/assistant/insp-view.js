@@ -46,6 +46,11 @@ export function inspView(S, perfNow) {
   const now = runNow(run, perfNow);
   const live = run.status !== 'done';
   const u = run.usage;
+  const totals = run.usageTotals || {};
+  const main = totals.main || { input: u.prompt, output: u.out, total: u.prompt + u.out, complete: false, count: 0 };
+  const aux = totals.aux || { input: 0, output: 0, total: 0, count: 0 };
+  const all = totals.all || { total: main.total, complete: false };
+  const cache = totals.cache || { ratio: null, covered: 0, total: 0 };
   const ttft = run.ttfts.length ? run.ttfts.reduce((a, b) => a + b, 0) / run.ttfts.length : 0;
   const lim = run.limits || S.status?.limits || { rounds: 25, calls: 40, writes: 20 };
   const separateWrites = run.steps.filter(step => step.kind === 'tool' && step.wrote && !step.commits?.length);
@@ -53,7 +58,10 @@ export function inspView(S, perfNow) {
   return html`${head}<div class="ast-insp__body">
     <p class="ast-runmeta">${hms(run.startedAt)} · ${run.model} · ${live ? (run.status === 'waiting' ? '等你确认' : '运行中') : REASON[run.reason] || run.reason}${run.reverted ? ' · 已撤销' : ''}</p>
     <section class="ast-sec"><h3 class="ast-sec__h">用量</h3><div class="ast-usage">
-      ${usage('输入', fmtN(u.prompt), u.cached ? `缓存命中 ${fmtK(u.cached)}` : '')}${usage('输出', fmtN(u.out), u.think ? `思考 ${fmtK(u.think)}` : '')}
+      ${usage('主对话输入', fmtN(main.input), `${main.count} 次请求`)}${usage('主对话输出', fmtN(main.output), u.think ? `含思考 ${fmtK(u.think)}` : '')}
+      ${usage('图片辅助', aux.count ? fmtN(aux.total) : '无调用', aux.count ? `${aux.count} 次 · ${fmtN(aux.input)} 入 / ${fmtN(aux.output)} 出` : '')}
+      ${usage(all.complete ? '本次总量' : '已知总量', fmtN(all.total), all.complete ? '输入 + 输出' : '部分或估算；未知未计入')}
+      ${usage('主对话缓存', cache.ratio == null ? '未知/未返回' : `${Math.round(cache.ratio * 100)}%`, `${cache.covered} / ${cache.total} 次可统计${cache.complete ? '' : ' · 部分调用可统计'}`)}
       ${usage('首 token', fmtS(ttft), `${run.ttfts.length} 轮平均`)}${usage('速度', `${Math.round(live ? liveTps(run, now) : avgTps(run))} tok/s`, run.peak ? `峰值 ${Math.round(run.peak)}` : '')}</div>
       ${live ? spark(run, now) : ''}</section>
     <section class="ast-sec"><h3 class="ast-sec__h">时间线 <small>${fmtS(now)}</small></h3>${waterfall(run, now)}

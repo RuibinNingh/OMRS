@@ -2,6 +2,7 @@
  * 助手页的纯函数：把服务端事件流归约成「一次运行」的视图模型（步骤、时间线、用量、写入），以及格式化与对话分组。
  * 事件协议见 AI/agent.md「事件」；node 单测覆盖（tests/app/assistant.test.mjs）。
  */
+import { usageRecord, usageTotals } from './usage.js';
 export const pad = n => String(n).padStart(2, '0');
 export const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 export const fmtK = n => { n = Math.round(n || 0); return n >= 1000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1) + 'k' : String(n); };
@@ -23,7 +24,8 @@ export function newRun(meta = {}) {
     id: meta.id, conv: meta.conversation_id, model: meta.model || '', status: meta.status === 'done' ? 'done' : 'running',
     reason: meta.reason || null, error: meta.error || '', startedAt: meta.started_at || new Date().toISOString(),
     reverted: meta.reverted || null, steps: [], timeline: [], byCall: new Map(), rounds: 0, calls: 0, writes: 0, commits: [],
-    usage: { prompt: 0, cached: 0, out: 0, think: 0 }, ttfts: [], genMs: 0, genTok: 0, peak: 0, win: [], spark: [],
+    usage: { prompt: 0, cached: 0, out: 0, think: 0 }, usageRequests: new Map(), usageTotals: usageTotals(new Map()),
+    seenEvents: new Set(), ttfts: [], genMs: 0, genTok: 0, peak: 0, win: [], spark: [],
     ctx: { sys: 0, tools: 0, chat: 0, res: 0, msgs: 0 }, roundOut: 0, limits: null, dur: 0, next: 0, clock: { t: 0, at: 0 },
     aborting: false, ver: 0, seg: null, round: null,
   };
@@ -49,9 +51,23 @@ function argsStep(run, index, name, t) {
   return st;
 }
 function countTok(run, t, tok, isThink) {
-  run.usage.out += tok; run.genTok += tok; run.roundOut += tok;
-  if (isThink) run.usage.think += tok;
+  run.genTok += tok; run.roundOut += tok;
+  const key = `round:${run.rounds}`;
+  const prior = run.usageRequests.get(key) || { input: null, output: 0, cache: null, reasoning: null,
+    scope: 'main', source: 'estimated', estimated: true, invalid: false };
+  if (prior.estimated) run.usageRequests.set(key, { ...prior, output: (prior.output || 0) + tok,
+    reasoning: isThink ? (prior.reasoning || 0) + tok : prior.reasoning });
+  refreshUsage(run);
   run.win.push([t, tok]);
+}
+
+function refreshUsage(run) {
+  run.usageTotals = usageTotals(run.usageRequests);
+  const main = [...run.usageRequests.values()].filter(row => row.scope === 'main');
+  run.usage.prompt = run.usageTotals.main.input;
+  run.usage.cached = run.usageTotals.cache.read;
+  run.usage.out = run.usageTotals.main.output;
+  run.usage.think = main.reduce((n, row) => n + (row.reasoning || 0), 0);
 }
 
 export function liveTps(run, now) {
@@ -66,6 +82,8 @@ export const avgTps = run => (run && run.genMs ? run.genTok / (run.genMs / 1000)
 export function applyEvent(run, ev) {
   const d = ev.data || {};
   const t = ev.t || 0;
+  if (ev.i != null && run.seenEvents.has(ev.i)) return run;
+  if (ev.i != null) run.seenEvents.add(ev.i);
   run.next = Math.max(run.next, (ev.i ?? run.next) + 1);
   run.ver += 1;
   switch (ev.type) {
@@ -81,6 +99,12 @@ export function applyEvent(run, ev) {
       run.round = { think: th, text: null, args: new Map(), order: [], calls: 0 };
       run.ctx = { ...run.ctx, ...(d.context || {}) };
       run.roundOut = 0;
+      const contextInput = d.context ? Math.round(['sys', 'tools', 'chat', 'res']
+        .reduce((sum, key) => sum + (Number(d.context[key]) || 0), 0)) : null;
+      if (!run.usageRequests.has(`round:${d.n}`)) run.usageRequests.set(`round:${d.n}`, {
+        input: contextInput, output: null, cache: null, reasoning: null, scope: 'main', source: 'estimated',
+        estimated: true, invalid: false });
+      refreshUsage(run);
       break;
     }
     case 'delta': {
@@ -108,11 +132,25 @@ export function applyEvent(run, ev) {
       if (run.seg) { run.seg.t1 = t; if (run.seg.tf == null) { run.seg.tf = t; run.ttfts.push(t - run.seg.t0); } }
       if (run.round) { closeThink(run, t); if (run.round.text) run.round.text.live = false; }
       const u = d.usage || {};
-      run.usage.prompt += u.prompt || 0; run.usage.cached += u.cached || 0;
-      if (!u.estimated && u.completion) run.usage.out += u.completion - run.roundOut;
+      const key = d.request_id || `round:${d.n}`;
+      const row = usageRecord(u);
+      const prior = run.usageRequests.get(key);
+      if (row.input === null && prior?.input != null) row.input = prior.input;
+      if (row.output === null && prior) row.output = prior.output;
+      if (row.output === null || row.input === null) row.estimated = true;
+      if (row.source === 'missing' && prior && (row.input !== null || row.output !== null)) row.source = 'estimated';
+      if (prior?.estimated && (u.input_total == null && u.prompt == null || u.output_total == null && u.completion == null)) row.estimated = true;
+      run.usageRequests.set(key, row);
+      refreshUsage(run);
       run.genMs += d.gen_ms || 0;
       if (d.gen_ms > 400) run.peak = Math.max(run.peak, run.roundOut / (d.gen_ms / 1000));
-      if (u.prompt) run.ctx = { ...run.ctx, prompt: u.prompt };
+      if (row.input !== null) run.ctx = { ...run.ctx, prompt: row.input };
+      break;
+    }
+    case 'usage.aux': {
+      const key = d.request_id || `aux:${ev.i}`;
+      run.usageRequests.set(key, usageRecord(d.usage, 'aux'));
+      refreshUsage(run);
       break;
     }
     case 'tool.call': {

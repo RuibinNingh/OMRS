@@ -10,6 +10,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from .usage import normalize_usage
 
 FINISH_MAP = {"stop": "stop", "tool_calls": "tool_calls", "function_call": "tool_calls", "length": "length",
               "content_filter": "error", "end_turn": "stop"}
@@ -50,12 +51,7 @@ def parse_tool_calls(calls):
 
 
 def _usage(raw):
-    raw = raw or {}
-    details = raw.get("prompt_tokens_details") or {}
-    comp = raw.get("completion_tokens_details") or {}
-    return {"prompt": int(raw.get("prompt_tokens") or 0), "completion": int(raw.get("completion_tokens") or 0),
-            "cached": int(details.get("cached_tokens") or raw.get("prompt_cache_hit_tokens") or 0),
-            "reasoning": int(comp.get("reasoning_tokens") or 0)}
+    return normalize_usage(raw)
 
 
 class OpenAICompatClient:
@@ -175,9 +171,8 @@ class OpenAICompatClient:
         if finish is None:
             finish = "tool_calls" if calls else "stop"
         content, reasoning = "".join(state["content"]), "".join(state["reasoning"])
-        usage = _usage(state["usage"]) if state["usage"] else {
-            "prompt": 0, "completion": int(estimate_tokens(content + reasoning + "".join(c["arguments"] for c in calls))),
-            "cached": 0, "reasoning": int(estimate_tokens(reasoning)), "estimated": True}
+        usage = _usage(state["usage"]) if state["usage"] is not None else normalize_usage(
+            None, estimated_output=int(estimate_tokens(content + reasoning + "".join(c["arguments"] for c in calls))))
         now = time.monotonic()
         first = state["first"]
         result = ChatResult(content=content, reasoning=reasoning, tool_calls=calls, finish_reason=finish, error=error,

@@ -112,7 +112,7 @@ function footView(run) {
   const tag = run.reason === 'completed' ? '' : html`<span class="${cls('ui-tag', run.reason === 'aborted' ? '' : 'ui-tag--danger')}">${REASON[run.reason] || run.reason}</span>`;
   const writes = run.commits.length;
   return html`<div class="ast-foot">${tag}${run.error ? html`<span class="ast-foot__st is-error">${run.error}</span>` : ''}
-    <span class="ast-foot__st">${fmtS(run.dur)} · ${run.rounds} 轮 · ${run.calls} 次调用${run.writes ? ` · 写入 ${run.writes}` : ''} · ${fmtK(run.usage.prompt)} 入 / ${fmtK(run.usage.out)} 出</span>
+    <span class="ast-foot__st">${fmtS(run.dur)} · ${run.rounds} 轮 · ${run.calls} 次调用${run.writes ? ` · 写入 ${run.writes}` : ''} · ${run.usageTotals?.main?.complete ? '主对话' : '主对话已知/估算'} ${fmtK(run.usage.prompt)} 入 / ${fmtK(run.usage.out)} 出</span>
     <span class="ast-foot__acts">${run.reverted ? html`<span class="ui-tag">${icon('undo')}已撤销</span>`
       : writes ? html`<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.undo" data-arg="${run.id}">${icon('undo')}撤销这次写入</button>` : ''}
       <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="assistant.copy" data-arg="${run.id}" aria-label="复制回答">${icon('copy')}</button>
@@ -175,6 +175,11 @@ export function dockView(S, perfNow) {
   const win = st.context_window || 65536;
   const used = ctxUsed(run || S.lastRun) || 0;
   const ratio = Math.min(1, used / win);
+  const cache = (run || S.lastRun)?.usageTotals?.cache;
+  const cacheMode = S.meterMode === 'cache';
+  const meterRatio = cacheMode ? cache?.ratio : ratio;
+  const meterLabel = cacheMode ? `缓存命中率 ${meterRatio == null ? '未知' : `${Math.round(meterRatio * 100)}%`}`
+    : `上下文占用 ${Math.round(ratio * 100)}%`;
   const circ = 2 * Math.PI * 9;
   const sugs = !busy && !S.composing && !S.inputActive && !S.inputValue && !(S.items || []).length && st.enabled ? Object.entries(S.sugs) : [];
   const disabled = !st.enabled || !st.configured;
@@ -186,9 +191,9 @@ export function dockView(S, perfNow) {
         <input id="ast-image-picker" type="file" accept="image/png,image/jpeg,image/gif" multiple hidden data-change="assistant.pickImages">
         <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" data-action="assistant.pickImages" aria-label="添加图片" title="添加图片" ${disabled ? 'disabled' : ''}>${icon('paperclip')}</button>
         <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ast-editor-toggle" data-action="assistant.toggleEditor" aria-label="${S.editorOpen ? '收起编辑区' : '展开编辑区'}" aria-pressed="${S.editorOpen ? 'true' : 'false'}">${S.editorOpen ? '收起' : '展开'}</button>
-        <button type="button" class="ast-meter" data-action="assistant.pop" aria-expanded="${S.popOpen ? 'true' : 'false'}" aria-label="上下文用量 ${Math.round(ratio * 100)}%">
-          <svg class="${cls('ast-ring', ratio > 0.8 && 'is-warn')}" viewBox="0 0 24 24" aria-hidden="true"><circle class="t" cx="12" cy="12" r="9"/><circle class="v" cx="12" cy="12" r="9" stroke-dasharray="${(circ * ratio).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 12 12)"/></svg>
-          <span>${fmtK(used)} / ${fmtK(win)}</span></button>
+        <button type="button" class="ast-meter" data-action="assistant.pop" aria-expanded="${S.popOpen ? 'true' : 'false'}" aria-label="${meterLabel}">
+          <svg class="${cls('ast-ring', !cacheMode && ratio > 0.8 && 'is-warn')}" viewBox="0 0 24 24" aria-hidden="true"><circle class="t" cx="12" cy="12" r="9"/><circle class="v" cx="12" cy="12" r="9" stroke-dasharray="${(circ * (meterRatio ?? 0)).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 12 12)"/></svg>
+          <span>${cacheMode ? (meterRatio == null ? '缓存未知' : `缓存 ${Math.round(meterRatio * 100)}%`) : `${fmtK(used)} / ${fmtK(win)}`}</span></button>
         <span class="ast-cbar__sp">${busy ? html`<span class="ast-model">${fmtS(runNow(run, perfNow))} · ${Math.round(avgTps(run))} tok/s</span>` : `${S.msgs} / ${st.msg_cap || 60} 条消息`}</span>
         ${busy ? html`<button type="button" class="ui-btn ui-btn--sm ast-stop" data-action="assistant.stop">${icon('stop')}停止</button>` : ''}
         <button type="button" class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon ast-send" data-action="assistant.send" aria-label="${busy ? '插话' : '发送'}" ${disabled || S.pendingFiles ? 'disabled' : ''}>${icon('arrow-up')}</button>
@@ -199,15 +204,21 @@ export function dockView(S, perfNow) {
 
 function popView(S, run, used, win) {
   const c = run?.ctx || { sys: 0, tools: 0, chat: 0, res: 0 };
+  const cache = run?.usageTotals?.cache;
   const parts = [['sys', '系统提示', c.sys], ['tools', '工具定义', c.tools], ['chat', '对话', c.chat], ['res', '工具结果', c.res]];
   const total = parts.reduce((a, p) => a + p[2], 0) || 1;
   let x = 0;
   const rects = parts.map(([k, , v]) => { const w = (v / total) * 100; const r = `<rect class="c-${k}" x="${x.toFixed(2)}" width="${w.toFixed(2)}" height="6"/>`; x += w; return r; }).join('');
   const lim = S.status?.limits || {};
-  return html`<div class="ast-pop" role="dialog" aria-label="上下文用量"><h4 class="ast-pop__h">上下文 ${fmtN(used)} / ${fmtN(win)} tokens</h4>
+  return html`<div class="ast-pop" role="dialog" aria-label="用量指标"><div class="ast-pop__modes" role="group" aria-label="圆环指标">
+    <button type="button" data-action="assistant.meterMode" data-arg="context" aria-pressed="${S.meterMode !== 'cache'}">上下文</button>
+    <button type="button" data-action="assistant.meterMode" data-arg="cache" aria-pressed="${S.meterMode === 'cache'}">缓存</button></div>
+    ${S.meterMode === 'cache' ? html`<h4 class="ast-pop__h">缓存命中 ${cache?.ratio == null ? '未知/未返回' : `${Math.round(cache.ratio * 100)}%`}</h4>
+      <p class="ast-pop__note">本次主对话：${fmtN(cache?.read || 0)} / ${fmtN(cache?.input || 0)} 输入 token；${cache?.covered || 0} / ${cache?.total || 0} 次调用可统计${cache?.complete ? '' : '（部分调用可统计）'}。缓存占比不代表费用节省比例。</p>`
+      : html`<h4 class="ast-pop__h">上下文 ${fmtN(used)} / ${fmtN(win)} tokens（最近请求）</h4>
     ${raw(`<svg class="ast-stack" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true">${rects}</svg>`)}
     <ul class="ast-legend">${parts.map(([k, label, v]) => html`<li><i class="c-${k}"></i>${label}<b>${fmtK(v)}</b></li>`)}</ul>
-    <p class="ast-pop__note">每次运行最多 ${lim.rounds} 轮、${lim.calls} 次调用、${lim.writes} 次写入；对话到 ${S.status?.msg_cap || 60} 条消息需新开。</p></div>`;
+    <p class="ast-pop__note">每次运行最多 ${lim.rounds} 轮、${lim.calls} 次调用、${lim.writes} 次写入；对话到 ${S.status?.msg_cap || 60} 条消息需新开。</p>`}</div>`;
 }
 
 export { LVL };

@@ -21,6 +21,8 @@
 
 `/api/agent/*`（AI 助手）的请求与响应见 `AI/agent.md` §7。
 
+`GET /api/agent/events` 与对话详情的运行事件中，`round.end` 带稳定请求标识和新旧兼容的用量字段；图片转述及 `describe_image` 的实际模型请求另有 `usage.aux`，字段和未知值语义见 `AI/agent.md` §6。接口路径和请求体不变。
+
 ---
 
 ## GET 端点

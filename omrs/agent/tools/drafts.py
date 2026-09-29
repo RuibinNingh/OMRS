@@ -58,7 +58,11 @@ def _blocks_out(draft, conv_id, vault, editable=False):
 # ── read ──
 def describe_image_tool(ctx, args):
     row = drafts.resolve_image(ctx["vault"], ctx["conversation_id"], args["image"])
-    answer = ask_image(ctx["vault"], drafts.image_data_url(ctx["vault"], row["sha256"]), args["question"].strip())
+    def record(usage):
+        ctx["emit_usage"]({"kind": "describe", "ref": row["ref"], "request_id":
+                           f"{ctx['run_id']}:describe:{ctx['tool_call_id']}", "usage": usage})
+    options = {"usage_callback": record} if ctx.get("emit_usage") else {}
+    answer = ask_image(ctx["vault"], drafts.image_data_url(ctx["vault"], row["sha256"]), args["question"].strip(), **options)
     if len(answer) > DESCRIBE_CAP:
         answer = answer[:DESCRIBE_CAP] + "…（已截断）"
     return {"result": {"image": row["ref"], "answer": answer}, "summary": row["ref"]}

@@ -17,6 +17,7 @@ import { invalidateQuestions, viewQ } from '../../domain/question/index.js';
 import { openDraft as navigateToDraft, publishDraftChange, setDraftActivity } from '../../domain/drafts.js';
 import { loadTaxonomy } from '../../domain/taxonomy.js';
 import { applyEvent, mmss, newRun, runFrom, runNow } from './state.js';
+import { readMeterMode, saveMeterMode } from './usage.js';
 import { confirmOf, setRefRenderer, toolTitle } from './tools-view.js';
 import { SUGS, dockView, headView, railView, streamView } from './view.js';
 import { inspView } from './insp-view.js';
@@ -48,7 +49,7 @@ export async function syncAssistantNav(doc = document, status) {
 }
 function createController(root, { router }) {
   const S = { status: null, convs: [], convId: null, items: [], msgs: 0, attachments: [], imageNo: 1, open: new Set(), closed: new Set(), runSel: null,
-    liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false,
+    liveRun: null, lastRun: null, popOpen: false, meterMode: readMeterMode(), stick: true, inspOpen: false, railOpen: false,
     uiVer: 0, draftVer: 0, draftCropMode: 'manual', drafts: {}, sugs: SUGS, alive: true, convRequest: 0,
     attachmentGeneration: 0, pendingFiles: 0, longOpen: new Set(), traceOpen: new Set(), inputValue: '', inputActive: false, composing: false, editorOpen: false };
   morph(root, html`<div class="ast" data-rail="closed" data-insp="closed">
@@ -319,7 +320,6 @@ function createController(root, { router }) {
   const unbindInteractions = bindAssistantInteractions(root, main, S, { send, addFiles, sizeInput, syncViewport, schedule });
   const onDoc = event => { if (S.popOpen && !event.target.closest('.ast-pop, .ast-meter')) { S.popOpen = false; schedule(); } };
   document.addEventListener('click', onDoc);
-
   return {
     S, load, schedule, bump, openConv, send, gate, undo,
     async newConv() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); const res = await post('/api/agent/conversation/create', {}); if (res.ok && S.alive) { S.convs.unshift({ ...res.data.conversation, msgs: 0, writes: 0, snippet: '' }); await openConv(res.data.conversation.id); $('ast-input')?.focus(); } },
@@ -329,6 +329,7 @@ function createController(root, { router }) {
     async copy(runId) { const run = S.items.map(i => i.run).find(r => r && r.id === runId); const text = run ? run.steps.filter(s => s.kind === 'text').map(s => s.src).join('\n\n') : ''; if (await copyText(text)) toast('已复制回答', { kind: 'success' }); },
     select(runId) { S.runSel = runId; S.inspOpen = true; bump(); },
     toggle(key) { S[key] = !S[key]; if (key === 'railOpen' && S.railOpen) S.inspOpen = false; if (key === 'inspOpen' && S.inspOpen) S.railOpen = false; schedule(); },
+    meterMode(mode) { if (saveMeterMode(localStorage, mode)) { S.meterMode = mode; schedule(); } },
     closeDrawers() { S.railOpen = false; S.inspOpen = false; schedule(); },
     jump() { S.stick = true; scroller.scrollTop = scroller.scrollHeight; schedule(); },
     openSession() { router?.go?.('schedule'); },
@@ -349,7 +350,6 @@ function createController(root, { router }) {
     title: toolTitle,
   };
 }
-
 export const page = {
   id: 'assistant', title: 'AI 助手', workbench: true,
   mount(root, ctx = {}) {
@@ -386,6 +386,7 @@ export const page = {
     toggleInsp: () => C?.toggle('inspOpen'),
     closeDrawers: () => C?.closeDrawers(),
     pop: () => C?.toggle('popOpen'),
+    meterMode: ({ arg }) => C?.meterMode(arg),
     jump: () => C?.jump(),
     removeImage: ({ arg }) => C?.removeImage(arg),
     pickImages: ctx => C?.pickImages(ctx),

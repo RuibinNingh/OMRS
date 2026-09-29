@@ -30,6 +30,10 @@
 .ast-stop { color: var(--danger-fg); }
 .ast-pop { position: absolute; bottom: calc(100% + var(--sp-2)); left: 0; z-index: var(--z-dropdown); display: grid; gap: var(--sp-2); width: min(22rem, 100%); padding: var(--sp-3); background: var(--surface-1); border: 1px solid var(--border-1); border-radius: var(--r-md); box-shadow: var(--elev-2); }
 .ast-pop__h { margin: 0; font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.ast-pop__modes { display: flex; gap: var(--sp-1); }
+.ast-pop__modes button { min-height: var(--ctl-sm); padding: 0 var(--sp-2); color: var(--fg-2); background: var(--surface-2); border: 1px solid var(--border-1); border-radius: var(--r-sm); cursor: pointer; }
+.ast-pop__modes button[aria-pressed="true"] { color: var(--fg-1); border-color: var(--accent); }
+.ast-pop__modes button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .ast-pop__note { margin: 0; color: var(--fg-3); font-size: var(--text-2xs); line-height: var(--leading-ui); }
 .ast-stack { width: 100%; height: 6px; border-radius: var(--r-pill); }
 .ast-stack .c-sys, .ast-legend .c-sys { fill: var(--fg-3); background: var(--fg-3); }
@@ -132,7 +136,7 @@
   .ast-cbar__sp, .ast-meter span { display: none; }
   .ast-meter { margin-left: auto; }
   .ast-cbar .ui-btn { min-width: 44px; min-height: 44px; }
-  .ast-cbar .ast-meter, .ast-attachment__remove { min-width: 44px; min-height: 44px; }
+  .ast-cbar .ast-meter, .ast-attachment__remove, .ast-pop__modes button { min-width: 44px; min-height: 44px; }
   .ast-attachment__preview img { width: var(--ctl-lg); height: var(--ctl-lg); }
   .ast-sugs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .ast-sug { flex: none; }

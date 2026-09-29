@@ -170,7 +170,7 @@ class Hooks:
         return {"status": "aborted" if how == "abort" else "denied", "error": errors[how], "decision": how}
 
     def execute(self, call, tool):
-        ctx = {**self.ctx, "tool_call_id": call["id"]}
+        ctx = {**self.ctx, "tool_call_id": call["id"], "emit_usage": lambda data: self.run.emit("usage.aux", data)}
         if tool.name == "commit_draft" and self._draft_config_marks.get(call["id"]) != self._draft_config_mark():
             raise ValueError("助手配置已变化，请重新读取草稿并重新申请确认")
         if tool.level == "read":
@@ -189,19 +189,29 @@ class Hooks:
 def run_stats(events):
     s = {"rounds": 0, "calls": 0, "writes": 0, "commits": [], "usage": {"prompt": 0, "completion": 0, "cached": 0, "reasoning": 0},
          "ttft_ms": [], "gen_ms": 0}
+    requests = {}
+    rounds = {}
     for ev in events:
         d = ev["data"]
         if ev["type"] == "round.end":
-            s["rounds"] += 1
-            for k in s["usage"]:
-                s["usage"][k] += int((d.get("usage") or {}).get(k) or 0)
-            s["ttft_ms"].append(d.get("ttft_ms", 0))
-            s["gen_ms"] += d.get("gen_ms", 0)
+            key = d.get("request_id") or f"round:{d.get('n')}"
+            requests[key] = d.get("usage") or {}
+            rounds[key] = d
+        elif ev["type"] == "usage.aux":
+            requests[d.get("request_id") or f"aux:{ev.get('i')}"] = d.get("usage") or {}
         elif ev["type"] == "tool.call":
             s["calls"] += 1
         elif ev["type"] == "tool.end" and (d.get("commits") or d.get("wrote")):
             s["writes"] += 1
             s["commits"] += d.get("commits") or []
+    s["rounds"] = len(rounds)
+    s["ttft_ms"] = [d.get("ttft_ms", 0) for d in rounds.values()]
+    s["gen_ms"] = sum(d.get("gen_ms", 0) for d in rounds.values())
+    for usage in requests.values():
+        for k in s["usage"]:
+            value = usage.get(k)
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                s["usage"][k] += value
     return s
 
 
@@ -345,7 +355,7 @@ class AgentRuntime:
             run.emit("run.start", {"run_id": run.id, "model": s["model"], "limits": s["limits"], "started_at": now_iso(),
                                    "context_window": s["compat"]["context_window"], "vision": s["vision"]})
             messages = model_messages(expand_images(self.vault, run.conv_id, self.store.messages(run.conv_id),
-                                                    s["vision"], run.emit, run.abort))
+                                                    s["vision"], run.emit, run.abort, run.id))
 
             def take_steering(n):
                 with run.cond:

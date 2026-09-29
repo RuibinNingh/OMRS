@@ -12,7 +12,7 @@
 | POST | `/api/agent/conversation/create` | `AI/api.md`、`AI/agent.md` |
 | POST | `/api/agent/conversation/delete` | `AI/api.md`、`AI/agent.md` |
 | GET | `/api/agent/conversations` | `AI/agent.md` |
-| GET | `/api/agent/events` | `AI/agent.md` |
+| GET | `/api/agent/events` | `AI/api.md`、`AI/agent.md` |
 | POST | `/api/agent/message` | `AI/api.md`、`AI/agent.md` |
 | GET | `/api/agent/practice` | `AI/agent.md` |
 | POST | `/api/agent/practice/progress` | `AI/agent.md` |

@@ -35,6 +35,7 @@ assets/app/
 - 侧栏导航是 `<a class="tab" data-tab="页面" href="#/页面">`：普通点击同步切页；带修饰键时交给浏览器（新标签页打开）。
 - 新页面契约（`features/<页>/index.js` 导出 `page`）：`{ id, title, workbench, mount(root, ctx) → unmount, actions, keys }`。`root` 是 `#panel-<id>`，`ctx = { bus, store, router }`；离开页面时执行 `mount` 返回的卸载函数。`actions` 与 `keys` 由外壳在登记页面时一次性注册，动作命名空间与快捷键作用域都是页面 id；处理函数只在挂载期间生效。新增一页时在 `main.js` 把页面契约并进登记表（外壳只认 `mount`）。范例：`features/instant/`（见 `AI/frontend/instant.md`）；`features/feedback/`（见 `AI/frontend/feedback.md`）另示范了挂载期的 document 级监听（paste）要在卸载函数里移除。
 - 助手页 `features/assistant/` 的图片粘贴、聊天主面板文件拖入和文件选择都由页面挂载期监听或页面动作处理，卸载时移除监听；会话切换使附件读取 generation 失效。事件归约与视图由 `tests/app/assistant.test.mjs`、`tests/e2e/assistant.py` 和 `tests/e2e/assistant_p3.py` 验证，含 JPEG 字节保持、拖放、预览、输入法与可见视口路径。共享图片预览在 `tests/app/browser_tests.js` 验证焦点和模态行为；草稿来源图在 `tests/e2e/drafts.py` 验证。
+- 助手用量归约仍是页面自身的纯逻辑，`tests/app/assistant.test.mjs` 验证请求去重、重放与缺失字段；`tests/e2e/assistant_usage.py` 用隔离 Vault 和假模型验证圆环切换、持久偏好与检查器。
 - 录入页的可搜索建议由 `ui/combobox` 绑定到原生输入框，卸载时释放 body 浮层和窗口监听；`tests/e2e/create.py` 验证建议框键盘退出、AI 结果与人工编辑及图片版本之间的隔离。
 - 历史页通过 `domain/history.js` 分批读取摘要、按需读取单条详情；`tests/e2e/history.py` 在隔离 Vault 中覆盖 240 条以上跨页加载、撤销状态与读取失败保留列表。
 - 跨页共用的按钮走外壳登记的全局动作 `app.*`（创建、侧栏折叠、手机抽屉、重新扫描，见 `AI/frontend/shell.md`）；页面自己的动作用页面 id 作命名空间。

@@ -30,7 +30,7 @@ def render_transcript(ref, transcript):
     return text if len(text) <= TRANSCRIPT_CAP else text[:TRANSCRIPT_CAP] + "…（转述过长，已截断；需要细节时调 describe_image）"
 
 
-def _transcript_for(vault, row, model, emit, abort):
+def _transcript_for(vault, row, model, emit, abort, run_id=None):
     cached = drafts.get_transcript(vault, row["sha256"], model)
     if cached is not None:
         return cached, None
@@ -39,7 +39,11 @@ def _transcript_for(vault, row, model, emit, abort):
     emit("image.transcribe", {"ref": row["ref"], "sha": row["sha256"]})
     started = time.monotonic()
     try:
-        transcript = transcribe_image(vault, drafts.image_data_url(vault, row["sha256"]))
+        def record(usage):
+            emit("usage.aux", {"kind": "transcribe", "ref": row["ref"], "request_id":
+                 f"{run_id or 'run'}:transcribe:{row['ref']}:{row['sha256']}", "usage": usage})
+        options = {"usage_callback": record} if run_id is not None else {}
+        transcript = transcribe_image(vault, drafts.image_data_url(vault, row["sha256"]), **options)
     except Exception as exc:  # noqa: BLE001 - 转述失败不终止运行，交给主模型自行决定
         emit("image.transcribed", {"ref": row["ref"], "ok": False, "ms": int((time.monotonic() - started) * 1000),
                                    "error": str(exc)})
@@ -49,7 +53,7 @@ def _transcript_for(vault, row, model, emit, abort):
     return transcript, None
 
 
-def expand_images(vault, conv_id, stored, vision, emit, abort=None):
+def expand_images(vault, conv_id, stored, vision, emit, abort=None, run_id=None):
     """返回 stored 的副本：带 ``_images`` 的用户消息按模式展开。无图消息原样返回（同一对象）。"""
     if not any(m.get("role") == "user" and m.get("_images") for m in stored):
         return stored
@@ -94,7 +98,7 @@ def expand_images(vault, conv_id, stored, vision, emit, abort=None):
             if row is None:
                 chunks.append(f"[{ref} 图片已不存在]")
                 continue
-            transcript, error = _transcript_for(vault, row, model, emit, abort)
+            transcript, error = _transcript_for(vault, row, model, emit, abort, run_id)
             if transcript is None:
                 chunks.append(f"[{ref} 转述失败：{error}。可调 describe_image 再试]")
             else:

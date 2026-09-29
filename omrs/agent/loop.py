@@ -102,7 +102,7 @@ class AgentLoop:
 
             res = self.client.complete([{"role": "system", "content": system}] + messages, tools,
                                        max_tokens=self.max_output_tokens, on_delta=on_delta, cancel=abort)
-            self.emit("round.end", {"n": n, "finish": res["finish_reason"], "usage": res["usage"],
+            self.emit("round.end", {"n": n, "request_id": f"round:{n}", "finish": res["finish_reason"], "usage": res["usage"],
                                     "ttft_ms": res["ttft_ms"], "duration_ms": res["duration_ms"], "gen_ms": res["gen_ms"],
                                     "error": res.get("error", "")})
             if res["finish_reason"] == "error":

@@ -192,7 +192,7 @@ def _extract_json(text: str) -> dict:
 
 
 def _call_model(vault: str, user_text: str, image_data_url: str, max_tokens: int, timeout: int,
-                purpose: str = "") -> str:
+                purpose: str = "", usage_callback=None) -> str:
     """组 OpenAI 兼容请求并返回文本；purpose 选择按用途配置的模型。"""
     base, key, model = _ai_config(vault, purpose)
     missing = [name for name, val in (("API 地址", base), ("API Key", key), ("模型", model)) if not val]
@@ -248,6 +248,9 @@ def _call_model(vault: str, user_text: str, image_data_url: str, max_tokens: int
 
     try:
         data = json.loads(raw)
+        if usage_callback is not None:
+            from .llm.usage import normalize_usage
+            usage_callback(normalize_usage(data.get("usage"), scope="aux"))
         content = data["choices"][0]["message"]["content"]
     except Exception:
         raise ValueError(f"模型返回格式异常，无法解析：{raw[:600]}")
@@ -691,11 +694,13 @@ DESCRIBE_PROMPT = """请仔细看这张图，回答下面的问题。只根据�
 问题：%s"""
 
 
-def transcribe_image(vault: str, image_data_url: str, timeout: int = 120) -> dict:
+def transcribe_image(vault: str, image_data_url: str, timeout: int = 120, usage_callback=None) -> dict:
     """把一张截图转述成 {summary, layout, blocks:[{role, text, convertible, reason}]}，给不支持看图的主 AI 用。
 
     模型没按 JSON 返回时，整段当 summary、blocks 为空。用 purpose="extract" 的模型。"""
-    content = _call_model(vault, TRANSCRIBE_PROMPT, image_data_url, max_tokens=4000, timeout=timeout, purpose="extract")
+    options = {"usage_callback": usage_callback} if usage_callback is not None else {}
+    content = _call_model(vault, TRANSCRIBE_PROMPT, image_data_url, max_tokens=4000, timeout=timeout,
+                          purpose="extract", **options)
     parsed = _extract_json(content)
     if not isinstance(parsed, dict) or not isinstance(parsed.get("blocks"), list):
         return {"summary": (content or "").strip(), "layout": "", "blocks": []}
@@ -709,10 +714,11 @@ def transcribe_image(vault: str, image_data_url: str, timeout: int = 120) -> dic
     return {"summary": str(parsed.get("summary") or ""), "layout": str(parsed.get("layout") or ""), "blocks": blocks}
 
 
-def describe_image(vault: str, image_data_url: str, question: str, timeout: int = 120) -> str:
+def describe_image(vault: str, image_data_url: str, question: str, timeout: int = 120, usage_callback=None) -> str:
     """针对一张图回答具体问题（主 AI 的 describe_image 工具）。"""
+    options = {"usage_callback": usage_callback} if usage_callback is not None else {}
     return _call_model(vault, DESCRIBE_PROMPT % question, image_data_url, max_tokens=2000, timeout=timeout,
-                       purpose="extract").strip()
+                       purpose="extract", **options).strip()
 
 
 def detect_regions_local(url: str, image_data_url: str, layout: str = "other",
