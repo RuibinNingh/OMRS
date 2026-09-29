@@ -28,4 +28,16 @@
 - 已执行：`env -u OMRS_SYSTEMD_SERVICE python3 tests/visual/run.py --ref HEAD --pages settings --settings-section ai --out /tmp/omrs-thinking-ai-visual`，四档均有预期差异，无脚本错误；桌面浅/深 1.511%/1.565%，手机浅/深 15.239%/15.262%。差异仅为新增开关、说明和下方控件纵向移动，手机全页截图因高度变化而有较大像素差。目视桌面浅色和手机深色；四档审计均无横向溢出、过小点击目标或行内样式。
 - 已执行：当前配置的 `deepseek-flash` 用合成白图实测开关两档；开启返回 63 个思考 token，关闭后无思考内容，均答「白色」。未发送真实题目图片；极小样本不代表实际提取速度或质量。
 - 已执行：`python3 tests/check_docs.py --write-log-index`；`python3 tests/check_docs.py --diff HEAD`，检查 54 个文档、0 处问题，另有 2 条既有体积提醒。
-- 未执行：真实用户题图的质量与耗时评估；本次不读取真实错题数据。未做生产发布或服务重启，需另行授权。
+- 未执行：真实用户题图的质量与耗时评估；本次不读取真实错题数据。功能提交阶段未做生产发布或服务重启，后续单独授权后的结果见下。
+
+## 部署
+
+用户随后明确授权上线。生产原发布为 `omrs-ceba925`，服务 active、`NRestarts=0`，助手 25 次运行全为 done，收件箱 113 个 job 全为 done，草稿无 job；工作区扫描 0 变更、0 冲突。已提交源码 `ffccf6b` 归档到固定目录 `/root/workspace/releases/omrs-ffccf6b`，在该目录用系统 Python 跑关键单测 39/39、Node 设置测试 20/20，临时 Vault 的 HTTP 冒烟确认服务正常、`ai_thinking` 默认关闭、控件文件可提供。
+
+停主服务后归档真实 `错题/` 到 `/root/workspace/backups/recycle/ai-thinking-20260929T041052Z/vault-before.tar`（186531840 字节），保存原 `10-release.conf`、文件哈希及数据库表行数基线。切换 systemd drop-in 并重启主服务，若健康检查失败的脚本会恢复旧指向；本次无需回退。框选检测服务未重启，PID 保持 512746。
+
+上线后 `omrs.service` active/running、PID 730077、`ExecMainStatus=0`、`NRestarts=0`，TCP 8471 `/api/status` 正常，当前版本号仍为 v1.33.0；两份设置 JS 的 HTTP 内容与发布目录逐字节一致。730 个非数据库文件哈希一致，5 个数据库 `quick_check` 为 ok、全部表行数一致；近期错误级 journal 为空。未登录远端模拟访问配置、收件箱、助手三个接口均为 401。
+
+生产只读 Chromium 四档（桌面/手机 × 浅/深）均看到「启用思考」默认关闭，无脚本错误、横向溢出或写请求；截图及记录在 `/tmp/omrs-thinking-production-browser/`。另用合成英文题图通过生产 `/api/ai-recognize` 发一次 `question_text` 请求，正确返回 `Find x if x + 2 = 5.`；未使用真实题图或修改配置。机器验收记录在备份目录 `verification.json`。未推送 Git 远端。
+
+回退只需恢复备份的 `10-release.conf.before`、执行 `systemctl daemon-reload` 并重启主服务；旧 `omrs-ceba925` 发布目录保留。不要用旧 Vault 覆盖上线后的数据。下一步由用户刷新页面，在「设置 → AI 识别」切换思考并保存；无需再次重启。
