@@ -12,8 +12,6 @@ export function processView() {
       <div class="ib-pq-list" id="ib-pq-list" data-morph="skip"></div>
       <div class="ib-pq-foot">
         <button class="ui-btn ui-btn--sm" type="button" data-action="create.processDetectSelected">${icon('sparkle')}AI 框选<span id="ib-pq-sel-n"></span></button>
-        <button class="ui-btn ui-btn--sm" type="button" data-action="create.processDetectSelected" data-arg="template" title="零联网模板框选">${icon('grid')}模板</button>
-        <button class="ui-btn ui-btn--sm" type="button" data-action="create.processApplyLastSelected">沿用框位</button>
       </div>
     </div>
     <div class="ib-pc" aria-label="图片框选画布">
@@ -29,9 +27,7 @@ export function processView() {
       </div>
       <div class="ib-pc-tools">
         <button class="ui-btn ui-btn--sm" type="button" data-action="create.processDetectCurrent">${icon('sparkle')}AI 框选此图</button>
-        <button class="ui-btn ui-btn--sm" type="button" data-action="create.processDetectCurrent" data-arg="template" title="零联网：按版式或最近一张同版式样本给初始框">${icon('grid')}模板框选</button>
         <button class="ui-btn ui-btn--sm" type="button" data-action="create.processWholeImage" title="不需要裁：整张图就是题目">整图即题目</button>
-        <button class="ui-btn ui-btn--sm" type="button" data-action="create.processApplyLast" title="套用上一张处理过的图的框">沿用上一张框位</button>
         <span class="grow"></span>
         <button class="ui-btn ui-btn--sm" type="button" data-action="create.processClearBoxes">清空框</button>
       </div>
@@ -47,7 +43,7 @@ export function processView() {
     </div>
     <div class="ib-ps" aria-label="区域与转换">
       <div class="ib-ps-head">
-        <div class="t">区域与转换 <span class="hint" id="ib-ps-card-n"></span></div>
+        <div class="t">区域与转换 <span class="hint" id="ib-ps-card-n"></span><span class="grow"></span><button class="ui-btn ui-btn--sm" type="button" data-action="create.processReset" title="清空此图全部处理进度并保留原图">重置此图</button></div>
         <div class="meta" id="ib-ps-meta"></div>
         <div class="layout"><label for="ib-layout">版式</label>
           <select class="ui-select" id="ib-layout" data-change="create.processLayout">

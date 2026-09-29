@@ -21,10 +21,10 @@
 inbox.db             SQLite：items / regions / cards / jobs
 raw/<sha256>.<ext>   上传原件（PNG/JPEG/GIF），按内容哈希命名 → 重复上传合并
 crops/<region>.png   裁剪缓存（前端 canvas 生成后随 job / commit 上传；可删可重建）
-annotations.jsonl    append-only 事件：item.upload / regions.update / item.ready / ai.detect / ai.extract / item.commit / item.discard
+annotations.jsonl    append-only 事件：item.upload / regions.update / item.ready / ai.detect / ai.extract / item.commit / item.discard / item.reset
 ```
 
-`items`：`id (IB-YYYYMMDD-xxxxxx)、sha256、file、mime、width、height、bytes、source (phone|desktop|paste)、uploaded_at、status、layout、link_uid、link_question_id、blind、blind_boxes`（后两列 v1.13.0 由 `connect()` 用 ALTER 补齐；`blind_boxes` 只进事件与导出，不进 item 响应）。另有 `meta(key, value)` 表：`rejected_ai_boxes`（拒绝的 AI 框增量计数）、`detect_counter`（盲标间隔计数）。
+`items`：`id (IB-YYYYMMDD-xxxxxx)、sha256、file、mime、width、height、bytes、source (phone|desktop|paste)、uploaded_at、status、layout、link_uid、link_question_id、blind、blind_boxes、reset_epoch`（扩展列由 `connect()` 为旧库补齐；`blind_boxes` 只进事件与导出，不进 item 响应）。`reset_epoch` 随当前图重置递增，识别任务与前端保存用它拒绝旧进度写回。另有 `meta(key, value)` 表：`rejected_ai_boxes`（拒绝的 AI 框增量计数）、`detect_counter`（盲标间隔计数）。
 `status`：`pending → boxed → ready → done`，另有 `discarded`。`done` 后不可再改。
 `layout`：`zuoyebang | photo | plain | other`（训练标签，也进 detect 提示词）。新上传图片默认使用 `zuoyebang`（界面显示“作业帮截图”）；需要时可在处理页改为拍照/扫描、已裁好的题图或其他。
 
@@ -42,7 +42,8 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 | GET | `/api/inbox/items?status=` | 列表（默认排除 discarded），每项含 `regions`、`cards`、`link` |
 | GET | `/api/inbox/item?id=` | 单项 |
 | GET | `/api/inbox/raw?id=` | 原图二进制（`Cache-Control: private, max-age=86400`） |
-| POST | `/api/inbox/item/update` | `{id, regions?, cards?, layout?, status?}`；regions **整体覆盖**；`status=ready` 时服务端校验：≥1 题目框、无 `auto` 或 running/stale/error、`text` 区域必须有文本。不传 status 时按框数自动在 pending/boxed 间切换 |
+| POST | `/api/inbox/item/update` | `{id, regions?, cards?, layout?, status?, reset_epoch?}`；regions **整体覆盖**；带旧 `reset_epoch` 的请求会被拒绝，图片重置后无代次的旧客户端请求也会被拒绝；`status=ready` 时服务端校验：≥1 题目框、无 `auto` 或 running/stale/error、`text` 区域必须有文本。不传 status 时按框数自动在 pending/boxed 间切换 |
+| POST | `/api/inbox/item/reset` | `{id}`；仅没有任何题卡写入题库、未丢弃的普通截图可重置。原子清空区域、题卡、盲标信息及处理状态，版式回默认值，保留上传原图；旧任务结果失效 |
 | POST | `/api/inbox/discard` | `{id}` 或 `{ids:[…]}` |
 | GET | `/api/inbox/slice-plan?width=&height=` | 长图切片计划 `{strips:[{y0,y1}]}`（高宽比 >3 才切，条带高≈2×宽，重叠 8%，末尾碎条并入上一条） |
 | POST | `/api/inbox/jobs` | `{type: detect\|extract\|classify\|auto, …}` → `{job}`；后台线程逐单元执行，单元失败进 `errors` 不中断 |
@@ -55,7 +56,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 | GET | `/m` | 手机极简上传页 `assets/inbox_mobile.html`（需 `allow_external`；显式豁免网段直连免 PIN，其他远端需登录）；加载设计 token 和 base 样式，读取主站的 `omrs-theme` 浅色 / 深色设置；真实触摸、滚轮或滚动会刷新空闲会话；会话过期（401）时跳转 `/login?next=/m` 并停止剩余上传 |
 
 **job 单元格式**
-- `detect`：`items:[{item_id, strips?:[{y0,y1,data}], replace?, provider?, blind?}]`。`provider` 缺省取配置 `inbox_detect_provider`（见 §8）；`template` 不需要 strips。前端按 slice-plan 切条带并附 JPEG data URL；不附 strips 时有 Pillow 就在服务端按同一 slice_plan 切，否则整图送模型（长图会被模型端压缩，精度下降）。结果 `{item_id, provider, blind, boxes, hidden?, regions, auto?}`。结果经 `inbox.merge_strip_boxes()` 映射回整图并合并跨条带的同角色框（同一条带内的框永不合并）。已有框时默认**追加**（`replace=false`）。
+- `detect`：`items:[{item_id, strips?:[{y0,y1,data}], replace?, provider?, blind?}]`。`provider` 缺省取配置 `inbox_detect_provider`（见 §8）；仅支持 `vlm` 与 `local_http`；旧配置 `template` 自动回退到 `vlm`，显式请求 `template` 会被拒绝。前端按 slice-plan 切条带并附 JPEG data URL；不附 strips 时有 Pillow 就在服务端按同一 slice_plan 切，否则整图送模型（长图会被模型端压缩，精度下降）。结果 `{item_id, provider, blind, boxes, hidden?, regions, auto?}`。结果经 `inbox.merge_strip_boxes()` 映射回整图并合并跨条带的同角色框（同一条带内的框永不合并）。已有框时默认**追加**（`replace=false`）。
 - `extract`：`regions:[{region_id, crop?}]`。裁图优先级：请求附带 → `crops/` 缓存 → Pillow 服务端裁 → 框覆盖全图时用原图；都没有则该单元报错。所有保存方式都以 judge=True 在同一次模型调用中返回判断和文本；可提取写 text，不可提取写 image，始终退回 boxed 等人工审核。无效响应或空正文报错，不当作留图成功；重提取的失败保留旧正文。模型调用不占写锁，写回只合并目标区域并核对框位、角色及内容未改变；过期结果拒绝写入。
 - `classify`：`cards:[{item_id, card, crop?}]`，取该题卡第一个题目框，调 `classify_question`（带已填科目/分类 hint），只填空缺项。
 - `auto`：`items:[{item_id, provider?}]`，无人值守：服务端切片 → detect → §8 自动策略。`inbox_auto_on_upload` 打开时 `upload_images` 会自动排一个（响应多一个 `job` 字段）。
@@ -77,10 +78,9 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 
 - 入口：`#/create` 挂载页面契约，读 `/api/inbox/items`。收件箱前端数据只有一个所有者 `inbox-store.js`（单例在 `inbox.js`），网格、处理区、题卡共用同一份图片列表与勾选。**上传 / 处理 / 录入**按真序列编号，AI 草稿、AI 训练和快速录入在旁边；切页返回后仍停在原工作区。
 - 粘贴：上传工作区捕获图片粘贴并上传；快速录入工作区按当前目标接收图片；文本粘贴仍走浏览器原行为。
-- ① 上传：拖拽 / 选文件 / 粘贴 / 读剪贴板 → `POST /api/inbox/upload`，成功后发 `inbox:reload` 重读。网格在原图卡片上叠框位预览，按状态筛选；批量条提供 AI / 模板框选、沿用框位、整图即题目、去处理、丢弃，只处理勾选项。
+- ① 上传：拖拽 / 选文件 / 粘贴 / 读剪贴板 → `POST /api/inbox/upload`，成功后发 `inbox:reload` 重读。网格在原图卡片上叠框位预览，按状态筛选；批量条提供 AI 框选、整图即题目、去处理、丢弃，只处理勾选项。
 - ② 处理三栏：队列（可勾选）| 画布（拖拽画框、移动、八向缩放，框外 SVG mask 遮暗，AI 框带置信度）| 区域面板（按题卡分组；角色 / 来源 / 归一化坐标与裁出尺寸 / 一键提取后的文本编辑与 Markdown 预览 / 无法提取时的裁图预览 / 结果后的次要保存方式切换）。改动去抖 500ms 调 `/item/update`，离开处理区或本页时立即写出。
-- 沿用上一张框位（`process-state.js` 的 `transferBoxes`）：横向照搬；`y<0.35` 的框（题目）按**像素**锚定顶部，其余按比例——不同截图高度差异极大，归一化 y 不能直接搬。
-- AI 框选（`inbox-ops.js` 的 `detect`）：`slice-plan` → canvas 切条带（JPEG 0.85）→ `jobs detect` → 1.2s 轮询 → 完成后重读收件箱回填；模板框选不切片。提取、分类也用后台 job 和轮询。detect 完成的提示汇总盲标张数、自动提取待审核张数与失败数；区域面板 meta 行对盲标图显示「盲标（AI 框已隐藏，请直接手画）」。
+- AI 框选（`inbox-ops.js` 的 `detect`）：`slice-plan` → canvas 切条带（JPEG 0.85）→ `jobs detect` → 1.2s 轮询 → 完成后重读收件箱回填。提取、分类也用后台 job 和轮询。detect 完成的提示汇总盲标张数、自动提取待审核张数与失败数；区域面板 meta 行对盲标图显示「盲标（AI 框已隐藏，请直接手画）」。
 - 文本提取完成时，前端只从 `/api/inbox/item` 同步本次提取的图片和区域字段，不重画当前画布；若正在拖动原图，字段先合并，松手后再刷新右栏。
 - ③ 录入：`ready` 的每张题卡一行——左预览（文本 Markdown 或裁图 canvas）右表单；字段去抖 600ms 存到 `cards`；「AI 识别题目信息」走 classify job；「创建题目」先写出待存改动，把保留图片的区域裁成 PNG 随 `commit` 上传。单张创建弹一条带「加入展示板」的提示（停留 8 秒）；批量逐张提交、最后只弹一条汇总，「加入展示板（N 题）」一次加入这批新题。
 - AI 训练：`dataset/stats` 四张指标卡 + 版式 / 转换决策条 + 盲标评估集与存储概览 + 导出（JSONL / YOLO）+ 清理按钮 +「框选提供方与自动策略」表单（直接读写 `/api/config` 的 `inbox_*` 键）。
@@ -88,16 +88,15 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 
 ## 6. 测试
 
-`tests/test_inbox.py`（unittest，当前共 14 例）：覆盖图片头解析、长图切片计划、跨条带框合并、detect 三种坐标解析、上传去重 → 画框 → 就绪校验 → commit（文本 + 整图图片区）→ done → 统计 → YOLO 导出 → annotations 事件、丢弃、模板框选、provider 分派、盲标、自动策略、上传即 auto job 与清理。测试用 `FakeAI` 替身，不联网。运行：`python3 -m unittest tests.test_inbox`。
+`tests/test_inbox.py`：覆盖图片头解析、长图切片计划、跨条带框合并、detect 三种坐标解析、上传去重 → 画框 → 就绪校验 → commit（文本 + 整图图片区）→ done → 统计 → YOLO 导出 → annotations 事件、丢弃、provider 分派、重置代次、盲标、自动策略、上传即 auto job 与清理。测试用 `FakeAI` 替身，不联网。运行：`python3 -m unittest tests.test_inbox`。
 
 ## 7. 已知边界 / 待办
 
 - **请求线程与写锁**：HTTP 服务器使用 `ThreadingMixIn`；题目写入由全局写锁串行化。job 在后台线程运行，只写 `inbox.db`（自有 `_LOCK`），不碰 Ledger。
 - detect 效果取决于模型：Qwen3-VL 系列支持 0–1000 定位；不支持定位的模型返回 `[]`，前端提示「0 框」。长截图必须切片（前端已做；无前端在环时需 Pillow 才能服务端切）。
 - 服务端裁图需要 Pillow（可选）；自动策略 / 无人值守流水线在没有 Pillow 时只对覆盖全图的框（整图即题目）有效，其余会以「自动转文本失败」中止并停在 boxed。
-- 模板框选没有 OCR：答案框「从答案标题起」用的是同版式样本的比例位置（或默认模板），需要人工微调；有几张人工样本后会自动改用最近一张的框位。
 - `local_http`与真实YOLOv8n ONNX服务已通过隔离浏览器链路验证；本机生产服务配置见AI/environment.md。检测能返回框不代表内容质量达标，使用时可人工校正。
-- 待办：手机页作为 PWA share target（需 HTTPS）；`_blind_stats` 每次全量读盲标行（盲标样本通常很少，暂不优化）；`_TEMPLATE_DEFAULTS` 的作业帮数值是估计值，拿到真实截图后校准。
+- 待办：手机页作为 PWA share target（需 HTTPS）；`_blind_stats` 每次全量读盲标行（盲标样本通常很少，暂不优化）。
 
 ## 8. 提供方与自动策略（v1.13.0）
 
@@ -105,14 +104,14 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 
 | 键 | 默认 | 说明 |
 |---|---|---|
-| `inbox_detect_provider` | `vlm` | `vlm`：设置页的多模态模型（联网）；`template`：版式模板（零联网）；`local_http`：本地检测服务 |
+| `inbox_detect_provider` | `vlm` | `vlm`：设置页的多模态模型（联网）；`local_http`：本地检测服务 |
 | `inbox_local_detect_url` | `""` | `local_http` 的 POST 地址，协议见 §4 `detect_regions_local` |
 | `inbox_blind_every` | `0` | 每 N 张盲标；0 关闭 |
 | `inbox_auto_ready_conf` | `0` | AI 框全部 ≥ 阈值时自动提取并判断，仍待人工审核；0 关闭，配置键名保留兼容 |
 | `inbox_auto_on_upload` | `false` | 上传即排 `auto` job |
 | `inbox_discard_keep_days` | `7` | 丢弃的原图保留天数 |
 
-**模板框选 `template_boxes(item, reference)`**：`_template_reference` 取最近一张同版式、已就绪/已录入、含人工确认框的图；有则沿用其框位（横向照搬；`y<0.35` 的框按**像素**锚定顶部，其余按比例，答案框延伸到底），没有则按 `_TEMPLATE_DEFAULTS`（单位为图片宽度倍数：作业帮题目框 `y=0.20W, h=0.75W`，答案框 `y=1.30W` 到底；`plain` 整图即题目）。conf 分别为 0.6 / 0.4，`origin=ai`，因此采纳率 / IoU 统计与 VLM 一样适用。
+旧 `template` 配置仅在读取时兼容为 `vlm`；新配置和 detect 请求不接受模板提供方。离线评估工具保留历史模板对照的计算，不参与收件箱和草稿处理。
 
 **盲标**：`_should_blind` 先看单元里的 `blind`（显式覆盖），否则 `meta.detect_counter` 每 N 次命中一次。命中时 detect 照常跑，但结果只写 `items.blind_boxes`、`items.blind=1`，不写 regions；事件 `ai.detect` 带 `blind:true`。人工画完标记就绪时 `item.ready` 事件多出 `blind:true, ai_boxes, blind_eval{pairs[{role,iou}], total, matched, mean_iou}`（`blind_eval` 对每个隐藏 AI 框找同角色 IoU 最高的人工框，≥0.5 计命中）。`dataset/stats.blind` 汇总；导出的 `labels.jsonl` 对盲标图多 `blind, blind_ai_boxes`。
 

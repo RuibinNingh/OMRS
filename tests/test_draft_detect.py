@@ -73,18 +73,14 @@ class DraftDetectTests(unittest.TestCase):
         self.assertTrue(job["result"][0]["candidates"])
         self.assertTrue(all(call.kwargs["layout"] == "other" for call in local.call_args_list))
 
-    def test_template_provider_reuses_other_layout_reference_without_uploading_draft(self):
+    def test_legacy_template_config_uses_vlm_without_uploading_draft(self):
         self.configure(inbox_detect_provider="template")
-        ordinary = inbox.upload_images(self.vault, [("normal.png", make_png(8, 8))])["items"][0]
-        inbox.update_item(self.vault, ordinary["id"], {"layout": "other", "regions": [
-            {"role": "question", "x": 0.1, "y": 0.1, "w": 0.7, "h": 0.4,
-             "origin": "manual", "convert": "image"}], "status": "ready"})
         d = self.create()
-        with mock.patch("omrs.draft_detect.ai_assist.detect_regions") as model:
+        with mock.patch("omrs.draft_detect.ai_assist.detect_regions", return_value=[QUESTION]) as model:
             job = self.wait_job(drafts.start_detect(self.vault, d["id"], d["revision"]))
         self.assertEqual(job["result"][0]["status"], "applied")
-        model.assert_not_called()
-        self.assertEqual(len(inbox.list_items(self.vault)), 1)
+        model.assert_called_once()
+        self.assertEqual(len(inbox.list_items(self.vault)), 0)
 
     def test_ambiguous_candidates_are_suggestions_only(self):
         d = self.create()

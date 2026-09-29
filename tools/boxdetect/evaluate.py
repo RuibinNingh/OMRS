@@ -7,8 +7,43 @@ import sys
 import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from PIL import Image, ImageDraw
-from omrs.inbox import iou, merge_strip_boxes, slice_plan, template_boxes
+from omrs.inbox import iou, merge_strip_boxes, slice_plan
 from tools.boxdetect.common import ROLES, atomic_json, sha256
+
+
+# 仅保留离线历史基线；线上收件箱和草稿不再提供模板框选。
+_TEMPLATE_DEFAULTS = {
+    'zuoyebang': [
+        {'role': 'question', 'x': 0.03, 'y_w': 0.20, 'h_w': 0.75, 'w': 0.94},
+        {'role': 'answer', 'x': 0.03, 'y_w': 1.30, 'h_w': None, 'w': 0.94},
+    ],
+    'plain': [{'role': 'question', 'x': 0.0, 'y_w': 0.0, 'h_w': None, 'w': 1.0}],
+}
+
+
+def template_boxes(item, reference=None):
+    """复算已完成实验的模板对照指标，不供在线框选调用。"""
+    width, height = float(item['width'] or 1), float(item['height'] or 1)
+    boxes = []
+    if reference:
+        rh = float(reference['height'] or 1)
+        for region in reference['regions']:
+            if region['role'] == 'ignore':
+                continue
+            anchored = region['y'] < 0.35
+            y = min(0.95, region['y'] * rh / height) if anchored else region['y']
+            h = (min(1.0 - y, region['h'] * rh / height) if anchored else
+                 (1.0 - y if region['role'] == 'answer' else min(1.0 - y, region['h'])))
+            boxes.append({'role': region['role'], 'card': region['card'], 'x': region['x'],
+                          'y': y, 'w': region['w'], 'h': h, 'conf': 0.6})
+        return [box for box in boxes if box['w'] > 0 and box['h'] > 0]
+    for spec in _TEMPLATE_DEFAULTS.get(item['layout'] or '', []):
+        y = min(0.95, spec['y_w'] * width / height)
+        h = (1.0 - y) if spec['h_w'] is None else min(1.0 - y, spec['h_w'] * width / height)
+        if h > 0:
+            boxes.append({'role': spec['role'], 'card': 1, 'x': spec['x'], 'y': y,
+                          'w': spec['w'], 'h': h, 'conf': 0.4})
+    return boxes
 
 
 def score_image(truth, predictions):

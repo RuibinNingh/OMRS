@@ -122,6 +122,8 @@ def run(page, base, results):
     page.locator('[data-change="create.gridAll"]').check()
     check('全选当前筛选后显示批量操作', page.locator('.crw-inbox__batch.is-open').count() == 1
           and page.locator('.crw-inbox__batch strong').inner_text() == '1 张已选')
+    check('批量栏不再显示模板和沿用框位',
+          page.locator('.crw-inbox__batch [data-arg="template"], .crw-inbox__batch [data-action="create.gridApplyLast"]').count() == 0)
     page.locator('[data-action="create.gridClear"]').click()
     check('清空选择后批量操作收起', page.locator('.crw-inbox__batch.is-open').count() == 0
           and not page.locator('[data-change="create.gridAll"]').is_checked())
@@ -132,6 +134,8 @@ def run(page, base, results):
     page.locator('[data-action="create.gridOpenSelected"]').click()
     check('批量去处理打开所选图片', page.locator('#ib-stage-process').evaluate('(e) => getComputedStyle(e).display !== "none"')
           and page.locator('#ib-pc-fname').inner_text().startswith('题图.png'))
+    check('框选工作区不再显示模板和沿用框位',
+          page.locator('#ib-stage-process [data-arg="template"], #ib-stage-process [data-action^="create.processApplyLast"]').count() == 0)
     page.locator('[data-action="create.processClearBoxes"]').click()
     stage = page.locator('#ib-stage-img').bounding_box()
     def draw(x0, y0, x1, y1):
@@ -142,6 +146,19 @@ def run(page, base, results):
     draw(.08, .12, .40, .42)
     check('指针框选生成题目区域与区域卡片',
           wait(page, "() => !!document.querySelector('.crp-box[data-role=\"question\"]') && document.querySelectorAll('#ib-ps-body [data-ib-rg]').length === 1"))
+    page.get_by_role('button', name='一键提取', exact=True).click()
+    check('提取中仍能打开当前截图重置',
+          wait(page, "() => !!document.querySelector('#ib-ps-body .ib-rg')?.textContent.includes('提取中')")
+          and page.locator('[data-action="create.processReset"]').is_enabled())
+    page.locator('[data-action="create.processReset"]').click()
+    check('重置前确认会保留原图', wait(page, "() => document.querySelector('dialog[open]')?.textContent.includes('原图保留')"))
+    page.locator('dialog[open] [data-dialog-ok]').click()
+    check('重置后原图保留且框位和进度清空',
+          wait(page, "async () => { const item = (await (await fetch('/api/inbox/items')).json()).items.find(i => i.file === '题图.png'); return item?.status === 'pending' && item.regions.length === 0 && item.cards && Object.keys(item.cards).length === 0; }")
+          and page.locator('#ib-stage-src').get_attribute('src') is not None)
+    page.wait_for_timeout(650)
+    check('旧提取任务结束后不恢复已清空区域', page.evaluate(INBOX_JS, '题图.png')['regions'] == [])
+    draw(.08, .12, .40, .42)
     page.keyboard.press('Escape')
     page.locator('[data-action="create.processRole"][data-arg="answer"]').click()
     draw(.52, .55, .88, .84)
@@ -408,6 +425,11 @@ def run_train(page, base, results):
     page.locator('#ib-tr-fmt').select_option('yolo')
     check('切换导出格式更新链接', page.locator('#ib-tr-export').get_attribute('href').endswith('format=yolo'))
     check('默认提供方隐藏本地检测地址', wait(page, "() => !!document.querySelector('#ib-pl-provider')") and page.locator('#ib-pl-local-row').is_hidden())
+    check('训练策略只提供模型和本地服务',
+          page.locator('#ib-pl-provider option').evaluate_all("options => options.map(option => option.value)") == ['vlm', 'local_http'])
+    rejected = page.evaluate("""async () => (await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({inbox_detect_provider:'template'})})).status""")
+    check('服务端拒绝重新启用模板提供方', rejected == 400)
     page.locator('#ib-pl-provider').select_option('local_http')
     check('选本地检测服务后显示地址输入', page.locator('#ib-pl-local-row').is_visible())
     page.locator('#ib-pl-local').fill('http://127.0.0.1:8600/detect')

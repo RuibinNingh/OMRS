@@ -37,7 +37,7 @@
 
 ## 工具入口
 
-`tools/boxdetect/build_dataset.py` 构建外部数据快照；命令、精确依赖与冻结规则见 `tools/boxdetect/README.md`。数据筛选会严格解码原图，排除未编辑 AI 框、缺类、损坏、尺寸或哈希不符。dHash 分组阈值 4；同组不跨集合，测试集至少 15 张。重新构建时沿用最早 manifest；测试图或标签变化会拒绝构建，与测试图近似的新增图隔离。
+`tools/boxdetect/build_dataset.py` 构建外部数据快照；离线 `evaluate.py` 保留已完成实验的模板基线复算，与线上框选提供方无关；命令、精确依赖与冻结规则见 `tools/boxdetect/README.md`。数据筛选会严格解码原图，排除未编辑 AI 框、缺类、损坏、尺寸或哈希不符。dHash 分组阈值 4；同组不跨集合，测试集至少 15 张。重新构建时沿用最早 manifest；测试图或标签变化会拒绝构建，与测试图近似的新增图隔离。
 
 ## 训练与评估
 

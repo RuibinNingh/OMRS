@@ -94,6 +94,31 @@ test('响应晚于新改动时不覆盖本地；拖框期间只同步状态', as
   assert.equal(local.status, 'boxed');
 });
 
+test('重置当前图取消待保存补丁，旧请求晚返回也不能恢复进度', async () => {
+  let release;
+  const timers = fakeTimers();
+  const api = fakeApi({
+    'GET /api/inbox/items': () => ({ ok: true, data: { items: [item('a', { reset_epoch: 0, regions: [{ id: 'q', text_status: 'running' }] })] } }),
+    'POST /api/inbox/item/update': () => new Promise(resolve => { release = () => resolve({ ok: true, data: { item: item('a', { status: 'boxed', reset_epoch: 0 }) } }); }),
+    'POST /api/inbox/item/reset': () => ({ ok: true, data: { item: item('a', { reset_epoch: 1 }) } }),
+  });
+  const store = createInboxStore({ api, timers });
+  await store.load();
+  const saving = store.save(store.item('a'));
+  await Promise.resolve(); await Promise.resolve();
+  store.saveSoon(store.item('a'), { status: 'boxed' });
+  assert.equal(store.unsaved(), 1);
+  assert.equal((await store.reset('a')).status, 'pending');
+  assert.equal(store.unsaved(), 0);
+  await timers.run();
+  release();
+  await saving;
+  assert.equal(store.item('a').reset_epoch, 1);
+  assert.deepEqual(store.item('a').regions, []);
+  assert.equal(api.calls.filter(call => call.path === '/api/inbox/item/update').length, 1);
+  assert.equal(api.calls.find(call => call.path === '/api/inbox/item/update').body.reset_epoch, 0);
+});
+
 test('读取失败清空列表并提示；重载后清掉已不存在的勾选与当前图', async () => {
   let fail = false;
   const notes = [];
@@ -212,6 +237,8 @@ test('训练统计模型：百分比、条形比例、盲标与存储文案', ()
 test('框选策略表单与提交体：默认值、数值夹取、导出与清理文案', () => {
   const form = policyForm({ inbox_detect_provider: 'local_http', inbox_local_detect_url: 'http://x', inbox_blind_every: 3 });
   assert.deepEqual(form, { provider: 'local_http', local: 'http://x', blind: '3', conf: '0', upload: false, days: '7' });
+  assert.equal(policyForm({ inbox_detect_provider: 'template' }).provider, 'vlm');
+  assert.equal(policyPayload({ provider: 'template' }).inbox_detect_provider, 'vlm');
   assert.deepEqual(policyPayload({ provider: 'vlm', local: ' http://y ', blind: '-2', conf: '1.7', upload: true, days: 'abc' }), {
     inbox_detect_provider: 'vlm', inbox_local_detect_url: 'http://y', inbox_blind_every: 0,
     inbox_auto_ready_conf: 1, inbox_auto_on_upload: true, inbox_discard_keep_days: 0,

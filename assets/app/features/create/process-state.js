@@ -29,15 +29,6 @@ export function statusAfterEdit(item) {
   return item.status;
 }
 
-export function transferBoxes(from, to, makeId) {
-  return (from.regions || []).map(region => {
-    const anchoredTop = region.y < 0.35;
-    const y = anchoredTop ? Math.min(0.95, region.y * from.height / to.height) : region.y;
-    const h = anchoredTop ? Math.min(1 - y, region.h * from.height / to.height) : Math.min(1 - y, region.h);
-    return newRegion(region.card, region.role, region.x, y, region.w, h, {}, makeId);
-  });
-}
-
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
 export function pointInImage(clientX, clientY, bounds) {

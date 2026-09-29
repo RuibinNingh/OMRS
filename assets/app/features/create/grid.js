@@ -6,7 +6,7 @@ import { toast } from '../../ui/toast.js';
 import { viewQ } from '../../domain/question/index.js';
 import { FILTERS, visibleItems, selectableItems, gridView } from './grid-view.js';
 import { inbox } from './inbox.js';
-import { detectSelected, applyLastSelected, wholeSelected } from './inbox-ops.js';
+import { detectSelected, wholeSelected } from './inbox-ops.js';
 
 const S = inbox.state;
 let filter = 'all';
@@ -44,8 +44,7 @@ export function createGrid(root, bus) {
       inbox.go('process');
     },
     openSelected() { const first = [...S.sel][0]; if (first) this.open(first); },
-    detect(provider) { detectSelected(provider); },
-    applyLast() { applyLastSelected(); },
+    detect() { detectSelected(); },
     whole() { wholeSelected(); },
     async discard() {
       if (busy) return;

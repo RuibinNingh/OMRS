@@ -60,12 +60,10 @@ export function gridView({ items = [], selected = new Set(), filter = 'all', sta
     ${error ? html`<p class="crw-inbox__error" role="alert">${error}</p>` : ''}
     <div class="crw-inbox__grid">${each(shown, item => item.id, item => gridItem(item, selected))}${shown.length ? '' : html`<p class="crw-inbox__empty">这个筛选下没有图片。<br>从手机或电脑上传截图后会出现在这里。</p>`}</div>
     <div class="crw-inbox__help"><section><h3>${icon('upload')}手机直接上传</h3><p>同一 Wi-Fi 下用手机浏览器打开 <code id="ib-lan-url">http://&lt;本机局域网 IP&gt;:8471/m</code>（需在「设置 → 访问与安全」打开允许外部访问，启动时控制台会打印地址）。手机端只上传不裁剪，进的就是这个收件箱。</p></section>
-      <section><h3>这一步做什么</h3><p>收件箱是<strong>暂存区</strong>，不写题库、不进 Ledger。原图存在 <code>错题/.omrs/inbox/raw/</code>；即使题目之后转成文本、不再需要图，原图和你框的位置也留作训练数据（「AI 训练」页可导出）。</p><p>勾选几张后底部会出现批量操作：<strong>AI 框选</strong>只对勾选的图跑；<strong>沿用上一张框位</strong>适合连续同版式截图；<strong>整图即题目</strong>适合已裁好的题图。</p></section></div>
+      <section><h3>这一步做什么</h3><p>收件箱是<strong>暂存区</strong>，不写题库、不进 Ledger。原图存在 <code>错题/.omrs/inbox/raw/</code>；即使题目之后转成文本、不再需要图，原图和你框的位置也留作训练数据（「AI 训练」页可导出）。</p><p>勾选几张后底部会出现批量操作：<strong>AI 框选</strong>只对勾选的图跑；<strong>整图即题目</strong>适合已裁好的题图。</p></section></div>
     <div class="crw-inbox__batch${count && stage === 'upload' ? ' is-open' : ''}" role="group" aria-label="已选图片批量操作">
       <strong>${count} 张已选</strong>
       ${button({ label: 'AI 框选', action: 'create.gridDetect', disabled: busy || !count })}
-      ${button({ label: '模板框选', action: 'create.gridDetect', arg: 'template', disabled: busy || !count })}
-      ${button({ label: '沿用上一张框位', action: 'create.gridApplyLast', disabled: busy || !count })}
       ${button({ label: '整图即题目', action: 'create.gridWhole', disabled: busy || !count })}
       ${button({ label: '去处理', variant: 'primary', action: 'create.gridOpenSelected', disabled: busy || !count })}
       ${button({ label: '丢弃', variant: 'danger', action: 'create.gridDiscard', disabled: busy || !count })}

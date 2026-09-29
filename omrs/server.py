@@ -480,6 +480,8 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     raise ValueError("配置必须是 JSON 对象")
                 if "ai_thinking" in data and not isinstance(data["ai_thinking"], bool):
                     raise ValueError("ai_thinking 必须是布尔值")
+                if "inbox_detect_provider" in data and data["inbox_detect_provider"] not in inbox_mod.PROVIDERS:
+                    raise ValueError("未知框选提供方")
                 if "lan_pin_exempt_cidrs" in data:
                     data["lan_pin_exempt_cidrs"] = security.normalize_lan_cidrs(data["lan_pin_exempt_cidrs"])
                 effective = {**load_config(self.vault_path), **data}
@@ -1301,7 +1303,10 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 return
             data = json.loads(body.decode("utf-8") or "{}")
             if path == "/api/inbox/item/update":
-                self._json({"status": "ok", "item": inbox_mod.update_item(self.vault_path, data.get("id", ""), data)})
+                self._json({"status": "ok", "item": inbox_mod.update_item(self.vault_path, data.get("id", ""), data,
+                                                                            require_epoch=True)})
+            elif path == "/api/inbox/item/reset":
+                self._json({"status": "ok", "item": inbox_mod.reset_item(self.vault_path, data.get("id", ""))})
             elif path == "/api/inbox/discard":
                 ids = data.get("ids") or ([data["id"]] if data.get("id") else [])
                 self._json({"status": "ok", "results": [inbox_mod.discard_item(self.vault_path, i) for i in ids]})

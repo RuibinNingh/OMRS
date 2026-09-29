@@ -7,8 +7,8 @@ import { post } from '../../core/api.js';
 import { confirm } from '../../ui/dialog.js';
 import { inbox, notify } from './inbox.js';
 import { paintCrops } from './crop.js';
-import { detect, detectSelected, applyLastSelected, extractRegions } from './inbox-ops.js';
-import { groupCards, hasExtraction, newRegion, statusAfterEdit, transferBoxes } from './process-state.js';
+import { detect, detectSelected, extractRegions } from './inbox-ops.js';
+import { groupCards, hasExtraction, newRegion, statusAfterEdit } from './process-state.js';
 import { queueView, sideView } from './process-content.js';
 import { createCanvasController } from './process-canvas.js';
 
@@ -103,17 +103,6 @@ export function createProcess(root, bus) {
     afterEdit();
     notify('整张图作为题目区域；「一键提取」会判断是否需要留图');
   }
-  function applyLast() {
-    if (busy()) { notify('请等本图提取完成后再修改框位', 'warn'); return; }
-    const item = inbox.current();
-    if (!item) return;
-    const last = S.last;
-    if (!last || last.id === item.id) { notify('还没有处理过的上一张', 'warn'); return; }
-    item.regions = transferBoxes(last, item);
-    S.selR = null;
-    afterEdit();
-    notify(`已沿用 ${last.file} 的 ${item.regions.length} 个框，调一下位置即可`);
-  }
   function setConvert(arg) {
     const [id, value] = String(arg).split(':');
     const target = region(id);
@@ -140,6 +129,19 @@ export function createProcess(root, bus) {
     S.cur = inbox.queue()[0]?.id || null;
     inbox.changed();
   }
+  async function resetCurrent() {
+    const item = inbox.current();
+    if (!item || !await confirm('重置这张截图？框选、提取结果和录入信息将清空，原图保留。', { danger: true })) return;
+    const fresh = await inbox.reset(item.id);
+    if (!fresh) return;
+    if (S.cur === item.id) {
+      S.selR = null;
+      S.drawCard = 1;
+      S.drawRole = 'question';
+    }
+    inbox.changed();
+    notify('已重置这张截图，可以重新框选和提取');
+  }
   async function markReady() {
     const item = inbox.current();
     if (!item) return;
@@ -149,7 +151,6 @@ export function createProcess(root, bus) {
     }
     const saved = await inbox.save(item, { status: 'ready' });
     if (!saved) return;
-    S.last = saved;
     const next = inbox.queue().find(row => row.status !== 'ready' && row.id !== item.id);
     notify(`${item.file} 已就绪，进入「录入」；${next ? '已切到下一张' : '队列里没有待处理的图了'}`);
     if (next) inbox.open(next.id); else inbox.changed();
@@ -187,7 +188,7 @@ export function createProcess(root, bus) {
     select(id, checked) { if (checked) S.sel.add(id); else S.sel.delete(id); inbox.changed(); },
     queueAll(checked) { inbox.queue().forEach(item => checked ? S.sel.add(item.id) : S.sel.delete(item.id)); inbox.changed(); },
     layout(value) { const item = inbox.current(); if (item) { item.layout = value; inbox.saveSoon(item); } },
-    role: setRole, step, whole, applyLast, discardCurrent, markReady, extractAll,
+    role: setRole, step, whole, discardCurrent, resetCurrent, markReady, extractAll,
     region(id, event) { if (!skip(event)) selectRegion(id); },
     deleteRegion,
     clear() { const item = inbox.current(); if (!item || busy()) return; item.regions = []; S.selR = null; afterEdit(); },
@@ -200,8 +201,8 @@ export function createProcess(root, bus) {
     drawCard(card) { S.drawCard = Number(card) || 1; notify(`接下来画的框归入题卡 ${S.drawCard}`); },
     convert: setConvert, text: editText,
     extract(id) { extractRegions(inbox.current(), [id]); },
-    detectCurrent(provider) { if (S.cur && !busy()) detect([S.cur], provider); },
-    detectSelected, applyLastSelected,
+    detectCurrent() { if (S.cur && !busy()) detect([S.cur]); },
+    detectSelected,
     dispose() { alive = false; stop(); window.removeEventListener('resize', onResize); canvas.dispose(); },
   };
 }

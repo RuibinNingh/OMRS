@@ -261,6 +261,65 @@ class ExtractionReviewTests(unittest.TestCase):
             self.assertEqual(fresh["regions"][0]["w"], .5)
             self.assertFalse(fresh["regions"][0]["text"])
 
+    def test_reset_clears_progress_and_rejects_late_extract(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as vault:
+            item = self.setup_item(vault)
+            before = inbox.get_item(vault, item["id"])
+            inbox.update_item(vault, item["id"], {"cards": {"1": {"subject": "数学"}}, "layout": "photo"})
+            inbox.save_crop(vault, "q", data_url(make_png(2, 2)))
+            def extract(*_args, **_kwargs):
+                fresh = inbox.reset_item(vault, item["id"])
+                self.assertEqual((fresh["status"], fresh["regions"], fresh["cards"]), ("pending", [], {}))
+                return {"convertible": True, "text": "过期题面"}
+            with self.assertRaisesRegex(ValueError, "已重置"):
+                inbox._run_extract(vault, mock.Mock(extract_region=extract), {"region_id": "q"})
+            fresh = inbox.get_item(vault, item["id"])
+            self.assertEqual(fresh["sha256"], before["sha256"])
+            self.assertEqual(fresh["layout"], "zuoyebang")
+            self.assertEqual(fresh["reset_epoch"], before["reset_epoch"] + 1)
+            self.assertIsNone(inbox._crop_data_url(vault, "q"))
+            with self.assertRaisesRegex(ValueError, "已重置"):
+                inbox.update_item(vault, item["id"], {"reset_epoch": before["reset_epoch"], "regions": before["regions"]})
+            with self.assertRaisesRegex(ValueError, "已重置"):
+                inbox.update_item(vault, item["id"], {"regions": before["regions"]}, require_epoch=True)
+            self.assertEqual(inbox.get_item(vault, item["id"])["regions"], [])
+
+    def test_reset_rejects_late_detect_and_classify(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as vault:
+            item = self.setup_item(vault)
+            def detect(*_args):
+                inbox.reset_item(vault, item["id"])
+                return ([{"role": "question", "card": 1, "x": 0, "y": 0, "w": 1, "h": 1, "conf": .9}], 1)
+            with mock.patch.object(inbox, "_detect_with_provider", side_effect=detect):
+                with self.assertRaisesRegex(ValueError, "已重置"):
+                    inbox._run_detect(vault, mock.Mock(), {"item_id": item["id"]})
+            self.assertEqual(inbox.get_item(vault, item["id"])["regions"], [])
+            fresh = inbox.update_item(vault, item["id"], {"regions": [{"id": "q2", "role": "question",
+                "x": 0, "y": 0, "w": 1, "h": 1, "convert": "image"}]})
+            def classify(*_args, **_kwargs):
+                inbox.reset_item(vault, item["id"])
+                return {"subject": "过期科目"}
+            with self.assertRaisesRegex(ValueError, "已重置"):
+                inbox._run_classify(vault, mock.Mock(classify_question=classify),
+                                    {"item_id": item["id"], "reset_epoch": fresh["reset_epoch"], "card": 1})
+            self.assertEqual(inbox.get_item(vault, item["id"])["cards"], {})
+
+    def test_reset_refuses_partially_committed_image(self):
+        with tempfile.TemporaryDirectory() as vault:
+            item = self.setup_item(vault)
+            inbox.update_item(vault, item["id"], {"cards": {"1": {"subject": "数学"}}})
+            db = inbox.connect(vault)
+            try:
+                db.execute("UPDATE cards SET created_uid='已录入-1' WHERE item_id=?", (item["id"],))
+                db.commit()
+            finally:
+                db.close()
+            with self.assertRaisesRegex(ValueError, "已有题卡录入"):
+                inbox.reset_item(vault, item["id"])
+            self.assertEqual(len(inbox.get_item(vault, item["id"])["regions"]), 1)
+
     def test_judged_model_protocol_requires_explicit_boolean(self):
         from unittest import mock
         from omrs import ai_assist
@@ -275,35 +334,15 @@ class ExtractionReviewTests(unittest.TestCase):
 
 
 class ProviderPolicyTests(unittest.TestCase):
-    def test_template_boxes_default_and_reference_transfer(self):
-        item = {"id": "b", "width": 1080, "height": 6000, "layout": "zuoyebang"}
-        boxes = inbox.template_boxes(item)
-        self.assertEqual([b["role"] for b in boxes], ["question", "answer"])
-        self.assertAlmostEqual(boxes[0]["y"], 0.20 * 1080 / 6000, places=4)   # 题目框按像素锚定顶部
-        self.assertAlmostEqual(boxes[1]["y"] + boxes[1]["h"], 1.0)             # 答案框一直到底
-        ref = {"id": "a", "width": 1080, "height": 3000, "layout": "zuoyebang", "regions": [
-            {"role": "question", "card": 1, "x": 0.1, "y": 0.1, "w": 0.8, "h": 0.2, "origin": "manual"},
-            {"role": "answer", "card": 1, "x": 0.1, "y": 0.5, "w": 0.8, "h": 0.3, "origin": "manual"},
-            {"role": "ignore", "card": 1, "x": 0, "y": 0, "w": 1, "h": 0.05, "origin": "manual"}]}
-        boxes = inbox.template_boxes(item, ref)
-        self.assertEqual(len(boxes), 2)
-        self.assertAlmostEqual(boxes[0]["y"], 0.1 * 3000 / 6000)   # 300px → 归一化到新图高度
-        self.assertAlmostEqual(boxes[0]["h"], 0.2 * 3000 / 6000)
-        self.assertAlmostEqual(boxes[1]["y"], 0.5)
-        self.assertAlmostEqual(boxes[1]["y"] + boxes[1]["h"], 1.0)
-        self.assertEqual(inbox.template_boxes({"id": "c", "width": 10, "height": 10, "layout": "photo"}), [])
-
-    def test_detect_provider_template_and_local_http(self):
+    def test_removed_template_provider_and_local_http(self):
         with tempfile.TemporaryDirectory() as vault:
             item = inbox.upload_images(vault, [("a.png", make_png(20, 100))])["items"][0]
             inbox.update_item(vault, item["id"], {"layout": "zuoyebang"})
             fake = FakeAI()
-            res = inbox._run_detect(vault, fake, {"item_id": item["id"], "provider": "template"})
-            self.assertEqual((res["provider"], res["boxes"]), ("template", 2))
-            self.assertTrue(all(r["origin"] == "ai" for r in res["regions"]))
-            # 未知提供方报错
             with self.assertRaisesRegex(ValueError, "提供方"):
-                inbox._run_detect(vault, fake, {"item_id": item["id"], "provider": "nope"})
+                inbox._run_detect(vault, fake, {"item_id": item["id"], "provider": "template"})
+            write_config(vault, inbox_detect_provider="template")
+            self.assertEqual(inbox.detect_provider(vault), "vlm")
             # local_http：走配置里的地址，宽高随条带传给服务
             write_config(vault, inbox_detect_provider="local_http", inbox_local_detect_url="http://127.0.0.1:1/detect")
             res = inbox._run_detect(vault, fake, {"item_id": item["id"], "replace": True})
@@ -312,7 +351,7 @@ class ProviderPolicyTests(unittest.TestCase):
             self.assertEqual(fake.local_calls[0][2], 20)
             events = [json.loads(l) for l in open(os.path.join(vault, "错题", ".omrs", "inbox", "annotations.jsonl"), encoding="utf-8")]
             detects = [e for e in events if e["event"] == "ai.detect"]
-            self.assertEqual([e["provider"] for e in detects], ["template", "local_http"])
+            self.assertEqual([e["provider"] for e in detects], ["local_http"])
 
     def test_blind_every_hides_boxes_and_pairs_on_ready(self):
         with tempfile.TemporaryDirectory() as vault:

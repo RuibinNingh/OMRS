@@ -265,14 +265,14 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 | `ai_model_extract` | string | 收件箱转文本模型；为空时回退 `ai_model` |
 | `ai_model_classify` | string | 收件箱分类模型；为空时回退 `ai_model` |
 | `ai_restrict_tags` | bool | 「AI 自动识别」是否把相关知识点限定在「已有分类 ∪ 已有知识点」内（默认 `true`，见设置页开关） |
-| `inbox_detect_provider` | string | 收件箱框选提供方：`vlm`、`template` 或 `local_http`，默认 `vlm` |
+| `inbox_detect_provider` | string | 收件箱框选提供方：`vlm` 或 `local_http`；旧配置 `template` 运行时按 `vlm` 处理，默认 `vlm` |
 | `inbox_local_detect_url` | string | `local_http` 提供方的 POST 地址，默认空 |
 | `inbox_blind_every` | int | 每 N 张图执行一次盲标，`0` 关闭，默认 `0` |
 | `inbox_auto_ready_conf` | number | 框选置信度达到该值时自动提取，仍需人工审核后标记就绪（键名保留兼容），`0` 关闭，默认 `0` |
 | `inbox_auto_on_upload` | bool | 上传后是否自动排队处理，默认 `false` |
 | `inbox_discard_keep_days` | int | 丢弃原图保留天数，默认 `7` |
 
-配置持久化在 `错题/.omrs/config.json`。`ai_*` 键供 AI 识别与收件箱任务使用，按用途模型为空时回退到 `ai_model`；`ai_restrict_tags` 缺失按 `true` 处理，`ai_thinking` 缺失按 `false` 处理，提交非布尔值返回 400。`inbox_*` 键供收件箱框选、盲标、自动处理和清理策略使用。AI 与收件箱配置保存即生效；`allow_external` 仍需重启服务才改变监听地址。
+配置持久化在 `错题/.omrs/config.json`。`ai_*` 键供 AI 识别与收件箱任务使用，按用途模型为空时回退到 `ai_model`；`ai_restrict_tags` 缺失按 `true` 处理，`ai_thinking` 缺失按 `false` 处理，提交非布尔值返回 400。`inbox_*` 键供收件箱框选、盲标、自动处理和清理策略使用；新提交的 `inbox_detect_provider` 只接受 `vlm` / `local_http`，旧 `template` 值运行时按 `vlm` 处理。AI 与收件箱配置保存即生效；`allow_external` 仍需重启服务才改变监听地址。
 
 `agent_*` 键（AI 助手）的含义见 `AI/agent.md` §2：GET 不回显 `agent_api_key`，只返回 `agent_api_key_configured`；POST 可带 `clear_agent_api_key:true`；`agent_compat` 取值、开关类型不合法或模型名填 `faux` 时返回 400。
 
@@ -896,7 +896,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 ## 收件箱端点 `/api/inbox/*` 与 `/m`（v1.12.0）
 
-上传 → 框选 → 转换 → 提交 的暂存层，**不进 Ledger**；`commit` 复用 `create_question`。完整定义、job 单元格式、数据模型见 `AI/inbox.md` §3。速览：`POST /upload`（multipart 多文件，sha256 去重）、`GET /items`、`GET /raw?id=`、`POST /item/update`（整体覆盖 regions/cards/layout/status，`ready` 服务端校验）、`POST /discard`、`GET /slice-plan`、`POST /jobs`（detect / extract / classify / auto 后台线程；detect 单元可指定 `provider: vlm|template|local_http` 与 `blind`）、`GET /job?id=`、`POST /crops`、`POST /commit`、`GET /dataset/stats`（v1.13.0 多 `blind`、`storage`）、`GET /dataset/export`、`POST /cleanup`（v1.13.0：超期丢弃原图 / 裁图缓存）、`GET /m`（手机上传页）。`POST /api/config` 可写 `inbox_*` 策略键（见 `AI/inbox.md` §8）。
+上传 → 框选 → 转换 → 提交 的暂存层，**不进 Ledger**；`commit` 复用 `create_question`。完整定义、job 单元格式、数据模型见 `AI/inbox.md` §3。速览：`POST /upload`（multipart 多文件，sha256 去重）、`GET /items`、`GET /raw?id=`、`POST /item/update`（整体覆盖 regions/cards/layout/status，可带 `reset_epoch` 防旧保存写回，`ready` 服务端校验）、`POST /item/reset`（清空当前图处理进度、保留原图）、`POST /discard`、`GET /slice-plan`、`POST /jobs`（detect / extract / classify / auto 后台线程；detect 单元可指定 `provider: vlm|local_http` 与 `blind`）、`GET /job?id=`、`POST /crops`、`POST /commit`、`GET /dataset/stats`（v1.13.0 多 `blind`、`storage`）、`GET /dataset/export`、`POST /cleanup`（v1.13.0：超期丢弃原图 / 裁图缓存）、`GET /m`（手机上传页）。`POST /api/config` 可写 `inbox_*` 策略键（见 `AI/inbox.md` §8）。
 
 `/api/ai-recognize` 行为不变；`ai_assist.py` 新增 `detect_regions`、`extract_region`、`parse_detect_output`，并按用途读 `ai_model_detect / ai_model_extract / ai_model_classify`（缺省回退 `ai_model`）。AI 助手附图另用 `transcribe_image`（截图转述成 `{summary, layout, blocks}`）与 `describe_image`（针对一张图回答具体问题），两者都走 `ai_model_extract`，见 `AI/agent.md` §1「附图」。
 

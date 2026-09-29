@@ -2,7 +2,7 @@
 import { get } from '../../core/api.js';
 import { inbox, notify } from './inbox.js';
 import { cropDataUrl } from './crop.js';
-import { newRegion, transferBoxes } from './process-state.js';
+import { newRegion } from './process-state.js';
 
 const S = inbox.state;
 
@@ -29,21 +29,20 @@ export function detectSummary(count, job) {
   return { text, warn: errors.length > 0 };
 }
 
-/** provider 不传时服务端按设置里的 inbox_detect_provider 选；'template' 零联网，不切片。 */
-export async function detect(ids, provider) {
+/** 服务端按设置里的 inbox_detect_provider 选框选提供方。 */
+export async function detect(ids) {
   const units = [];
   for (const id of ids) {
     const item = inbox.item(id);
     if (!item || item.status === 'done' || item.regions?.some(row => row.text_status === 'running')) continue;
     try {
-      const unit = { item_id: id, replace: !(item.regions || []).length };
-      if (provider) unit.provider = provider;
-      if (provider !== 'template') unit.strips = await strips(item);
+      const unit = { item_id: id, reset_epoch: item.reset_epoch, replace: !(item.regions || []).length };
+      unit.strips = await strips(item);
       units.push(unit);
     } catch (error) { notify(error.message || String(error), 'warn'); }
   }
   if (!units.length) return;
-  notify(provider === 'template' ? `按版式模板给 ${units.length} 张打初始框…` : `已提交 ${units.length} 张给 AI 框选（长图已切成条带），完成后自动回填`);
+  notify(`已提交 ${units.length} 张给 AI 框选（长图已切成条带），完成后自动回填`);
   try {
     await inbox.job('detect', { items: units }, async job => {
       await inbox.load();
@@ -53,25 +52,10 @@ export async function detect(ids, provider) {
   } catch (error) { notify(`AI 框选失败：${error.message || error}`, 'warn'); }
 }
 
-export function detectSelected(provider) {
+export function detectSelected() {
   const ids = [...S.sel];
   if (!ids.length) { notify('先勾选要框选的图', 'warn'); return; }
-  detect(ids, provider);
-}
-
-export async function applyLastSelected() {
-  const last = S.last;
-  if (!last) { notify('还没有处理过的上一张', 'warn'); return; }
-  let count = 0;
-  for (const id of S.sel) {
-    const item = inbox.item(id);
-    if (!item || item.status === 'done' || item.id === last.id || item.regions?.some(row => row.text_status === 'running')) continue;
-    item.regions = transferBoxes(last, item);
-    await inbox.save(item);
-    count += 1;
-  }
-  notify(`已给 ${count} 张沿用 ${last.file} 的框位`);
-  inbox.changed();
+  detect(ids);
 }
 
 export async function wholeSelected() {
@@ -91,12 +75,13 @@ export async function wholeSelected() {
 /** 一次提交当前图的待提取区域；已完成的人工决定不会被批量操作覆盖。 */
 export async function extractRegions(item, regionIds) {
   if (!item || item.regions.some(row => row.text_status === 'running')) return;
+  const epoch = item.reset_epoch;
   const regions = item.regions.filter(row => regionIds.includes(row.id) && row.role !== 'ignore');
   if (!regions.length) { notify('各区域已提取，请审核结果后标记就绪'); return; }
   const extracted = new Set(regions.map(row => row.id));
   const fail = async error => {
     const local = inbox.item(item.id);
-    if (local) {
+    if (local && local.reset_epoch === epoch) {
       for (const row of local.regions) {
         if (extracted.has(row.id) && row.text_status === 'running') row.text_status = 'error';
       }
@@ -111,14 +96,16 @@ export async function extractRegions(item, regionIds) {
   try {
     const crops = [];
     for (const region of regions) crops.push({ region_id: region.id, crop: await cropDataUrl(item, region) });
+    if (inbox.item(item.id)?.reset_epoch !== epoch) return;
     if (!await inbox.save(item, { status: 'boxed' })) throw new Error('区域未保存');
-    await inbox.job('extract', { regions: crops }, async job => {
+    if (inbox.item(item.id)?.reset_epoch !== epoch) return;
+    await inbox.job('extract', { regions: crops.map(row => ({ ...row, reset_epoch: epoch })) }, async job => {
       const result = await get(`/api/inbox/item?id=${encodeURIComponent(item.id)}`);
       if (!result.ok) throw new Error(result.error?.message || '未知错误');
       const fresh = result.data?.item;
       const local = inbox.item(item.id);
       const failed = new Set((job.errors || []).map(row => row.unit?.region_id));
-      if (local && fresh) {
+      if (local && fresh && local.reset_epoch === epoch && fresh.reset_epoch === epoch) {
         for (const row of fresh.regions || []) {
           const target = local.regions.find(region => region.id === row.id);
           if (target && extracted.has(row.id) && target.text_status === 'running') {
@@ -140,7 +127,7 @@ export async function classifyCards(entries) {
   const cards = [];
   for (const { item, card } of entries) {
     const question = item.regions.find(region => Number(region.card) === card && region.role === 'question');
-    if (question) cards.push({ item_id: item.id, card, crop: await cropDataUrl(item, question) });
+    if (question) cards.push({ item_id: item.id, reset_epoch: item.reset_epoch, card, crop: await cropDataUrl(item, question) });
   }
   if (!cards.length) { notify('没有可识别的题卡', 'warn'); return; }
   notify(`AI 识别 ${cards.length} 张题卡的科目 / 分类 / 难度 / 知识点…`);

@@ -245,7 +245,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 | `ai_model_extract` | string | 收件箱转文本模型；为空回退 `ai_model` |
 | `ai_model_classify` | string | 收件箱分类模型；为空回退 `ai_model` |
 | `ai_restrict_tags` | bool | 「AI 自动识别」是否把相关知识点限定在「已有分类 ∪ 已有知识点」内。默认 `true`（缺失按 `true`）；`false` 时允许 AI 在无贴切已有项时新建知识点（上限 4 个） |
-| `inbox_detect_provider` | string | 框选提供方：`vlm` / `template` / `local_http`，默认 `vlm` |
+| `inbox_detect_provider` | string | 框选提供方：`vlm` / `local_http`（旧 `template` 值运行时按 `vlm` 处理），默认 `vlm` |
 | `inbox_local_detect_url` | string | `local_http` 的 POST 地址，默认空 |
 | `inbox_blind_every` | int | 每 N 张盲标，`0` 关闭，默认 `0` |
 | `inbox_auto_ready_conf` | number | 自动提取的最低置信度（键名保留兼容，仍需人工审核），`0` 关闭，默认 `0` |
@@ -297,7 +297,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 
 ## 12. 收件箱 `错题/.omrs/inbox/`（v1.12.0）
 
-`inbox.db`（SQLite：items / regions / cards / jobs / meta / chat_training_boxes；v1.13.0 items 多 `blind`、`blind_boxes` 两列，`connect()` 对旧库 ALTER 补齐）、`raw/<sha256>.<ext>`（上传原件）、`crops/`（裁剪缓存，可重建）、`annotations.jsonl`（append-only 标注事件）。区域坐标归一化 0–1。items.training_only 隔离聊天训练图，chat_training_boxes 独立保存训练标注并按图合并导出。字段与状态机见 `AI/inbox.md` §2、§9；`items.layout` 的新上传默认值为 `zuoyebang`（作业帮截图），已有记录可在处理页改选。不参与备份导出以外的任何投影；`item.commit` 事件里记录了创建出的 `uid` / `question_id` 便于回溯。
+`inbox.db`（SQLite：items / regions / cards / jobs / meta / chat_training_boxes；items 扩展列含 `blind`、`blind_boxes`、`reset_epoch`，`connect()` 对旧库 ALTER 补齐）、`raw/<sha256>.<ext>`（上传原件）、`crops/`（裁剪缓存，可重建）、`annotations.jsonl`（append-only 标注事件）。区域坐标归一化 0–1。items.training_only 隔离聊天训练图，chat_training_boxes 独立保存训练标注并按图合并导出。`reset_epoch` 是当前图处理代次，重置递增以阻止旧保存和后台任务写回；重置删除当前区域、题卡和对应裁图缓存，保留原图及历史事件。字段与状态机见 `AI/inbox.md` §2、§9；`items.layout` 的新上传默认值为 `zuoyebang`（作业帮截图），已有记录可在处理页改选。不参与备份导出以外的任何投影；`item.commit` 事件里记录了创建出的 `uid` / `question_id` 便于回溯。
 
 `config.json` 新增键：`ai_model_detect`、`ai_model_extract`、`ai_model_classify`（string，留空回退 `ai_model`；`CONFIG_DEFAULTS` 均为空串）。v1.13.0 再加 `inbox_detect_provider`（`vlm`）、`inbox_local_detect_url`（`""`）、`inbox_blind_every`（0）、`inbox_auto_ready_conf`（0.0）、`inbox_auto_on_upload`（false）、`inbox_discard_keep_days`（7），含义见 `AI/inbox.md` §8。丢弃项超期清理后 `items.file` 为 NULL、原图文件删除，行与 `annotations.jsonl` 事件保留。
 

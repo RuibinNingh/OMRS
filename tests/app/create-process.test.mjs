@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { draggedBox, groupCards, newRegion, pointInImage, statusAfterEdit, transferBoxes } from '../../assets/app/features/create/process-state.js';
+import { draggedBox, groupCards, pointInImage, statusAfterEdit } from '../../assets/app/features/create/process-state.js';
+import { processView } from '../../assets/app/features/create/process-view.js';
+import { gridView } from '../../assets/app/features/create/grid-view.js';
 
 test('框位坐标约束：画框、移动与八向缩放不越界', () => {
   assert.deepEqual(pointInImage(140, -10, { left: 100, top: 0, width: 100, height: 200 }), { x: .4, y: 0 });
@@ -11,21 +13,14 @@ test('框位坐标约束：画框、移动与八向缩放不越界', () => {
   assert.equal(resized.y + resized.h, 1);
 });
 
-test('沿用框位按顶部像素锚定，其他框按比例；新框不继承识别结果', () => {
-  const from = { height: 1000, regions: [
-    newRegion(1, 'question', .1, .2, .8, .1, { origin: 'ai', text: '旧题面', convert: 'text' }, () => 'old-q'),
-    newRegion(1, 'answer', .1, .5, .8, .2, {}, () => 'old-a'),
-  ] };
-  let serial = 0;
-  const [question, answer] = transferBoxes(from, { height: 2000 }, () => `new-${++serial}`);
-  assert.equal(question.y, .1);
-  assert.equal(question.h, .05);
-  assert.equal(question.convert, 'auto');
-  assert.equal(question.origin, 'manual');
-  assert.equal(question.text, null);
-  assert.equal(answer.y, .5);
-  assert.equal(answer.h, .2);
-  assert.notEqual(question.id, answer.id);
+test('框选工作区和批量栏不再提供模板或沿用框位入口', () => {
+  const process = processView().text;
+  const grid = gridView({ items: [{ id: 'a', file: '题图.png', status: 'pending', width: 10, height: 10, regions: [] }], selected: new Set(['a']), stage: 'upload' }).text;
+  for (const markup of [process, grid]) {
+    assert.doesNotMatch(markup, /模板框选|沿用上一张框位|create\.processApplyLast|create\.gridApplyLast|data-arg="template"/);
+    assert.match(markup, /AI 框选/);
+  }
+  assert.match(process, /重置此图/);
 });
 
 test('题卡分组、待处理状态与已录入状态保持旧契约', () => {

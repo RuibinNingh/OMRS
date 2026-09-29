@@ -31,6 +31,8 @@ nice -n 19 ~/omrs-train/.venv/bin/python tools/boxdetect/train.py --dataset ~/om
 
 ## 单独评估、导出与恢复
 
+`evaluate.py` 内的模板算法只用于复算历史实验基线；收件箱和草稿的在线框选提供方只保留多模态模型与本地检测服务。
+
 ```bash
 # 必须先于模型测试结果产出，模板只从训练集选参考图
 ~/omrs-train/.venv/bin/python tools/boxdetect/evaluate.py --dataset ~/omrs-train/datasets/20260929-1 --baseline template

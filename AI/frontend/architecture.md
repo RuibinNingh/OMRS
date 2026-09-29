@@ -57,6 +57,8 @@ assets/app/
 
 纯逻辑的单测在 `tests/app/core.test.mjs`（node），依赖 DOM 的 morph、事件委托、快捷键在 `tests/app/core_tests.js`（由 `tests/app/run_browser.py` 在浏览器里跑）。浏览器测试（`tests/app/run_browser.py`、`tests/e2e/`）在设了 `OMRS_TEST_CDP_URL` 时连接已开着的 Chromium（本机直接启动会崩溃的环境用），否则自行启动；等待一律等条件成立（`wait_for_function`），不写固定延时。历史、目录、报告的回归脚本覆盖操作区重绘、目录展开状态和删除防重；`tests/e2e/create.py` 覆盖快速录入的图片分区、AI 固定响应和创建后上下文。独立框选标注页不挂在外壳上：纯逻辑与数据所有者在 `tests/app/annotate.test.mjs`，`tests/e2e/annotate.py` 直接打开 `/annotate` 走主路径（沿用 `create.py` 的审计脚本）。
 
+录入页的数据所有者在 `tests/app/create-inbox.test.mjs` 用替身接口验证保存队列、旧模板配置兼容与截图重置时旧请求的处理；`tests/app/create-process.test.mjs` 检查框选和批量栏不出现模板与沿用框位入口；`tests/e2e/create.py` 用隔离服务和真实浏览器验证这些入口及提供方选项已移除、提取中重置、旧任务结束后进度保持清空，以及继续画框。
+
 设置页的配置读写在 `tests/app/settings.test.mjs` 用替身接口验证；`tests/e2e/settings.py` 用隔离服务和真实浏览器验证「AI 识别」思考开关的默认状态、保存与回读，并复核四档页面布局。
 
 展示板的页面测试分三层：`tests/app/board*.test.mjs` 测视图模型与源码约束（`board-regions.test.mjs` 同时读 `view.js` 与 `view-panel.js`），`tests/app/board-preview.test.mjs` 测预览消息与「适应宽度」公式，`tests/e2e/board.py` 走主路径，含详情层独立滚动、答案折叠、「打开题目」弹窗，以及宽屏收起左栏后纸面自动重算缩放。

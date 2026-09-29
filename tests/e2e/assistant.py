@@ -177,7 +177,7 @@ def main():
             page.wait_for_function("() => document.querySelector('.ast-draft-card')?.textContent.includes('我来框')", timeout=8000)
             check("询问模式卡片提供我来框", card.locator('[data-action="assistant.openDraft"]').filter(has_text='我来框').count() == 1)
             check("询问模式卡片提供 AI 框", card.locator('[data-action="assistant.detectDraft"]').count() == 1)
-            page.evaluate("async () => fetch('/api/config', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({inbox_detect_provider:'template'})})")
+            page.evaluate("async () => fetch('/api/config', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({inbox_detect_provider:'local_http',inbox_local_detect_url:'http://127.0.0.1:1/detect'})})")
             with page.expect_response(lambda r: r.url.endswith('/api/drafts/detect') and r.request.method == 'POST', timeout=10000) as detect_response:
                 card.locator('[data-action="assistant.detectDraft"]').click()
             check("聊天卡片提交后台 AI 框选任务", detect_response.value.status == 200)

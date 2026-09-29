@@ -73,22 +73,7 @@ def _data_url(mime, data):
 
 
 def _detect_candidates(vault, snap):
-    provider = load_config(vault).get("inbox_detect_provider") or "vlm"
-    if provider not in inbox.PROVIDERS:
-        raise ValueError(f"未知框选提供方：{provider}")
-    if provider == "template":
-        item = {"id": f"draft:{snap['sha']}", "layout": "other", "width": snap["width"],
-                "height": snap["height"]}
-        with locking.write_lock(), inbox._LOCK:
-            db = inbox.connect(vault)
-            try:
-                reference = inbox._template_reference(db, item)
-            finally:
-                db.close()
-        boxes = inbox.template_boxes(item, reference)
-        if not boxes:
-            raise ValueError("其他版式没有可用模板，请手动框选或切换检测提供方")
-        return _clean_candidates(boxes)
+    provider = inbox.detect_provider(vault)
     plan = inbox.slice_plan(snap["width"], snap["height"])
     path = drafts.image_path(vault, snap["sha"])
     strips = []

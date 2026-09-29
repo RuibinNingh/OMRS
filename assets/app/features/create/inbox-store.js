@@ -21,10 +21,11 @@ export function inboxCounts(items = []) {
 export function createInboxStore({ api, emit = () => {}, notify = () => {}, timers = globalThis, pollMs = 1200 } = {}) {
   const state = {
     items: [], cur: null, sel: new Set(), csel: new Set(), stage: 'upload',
-    drawRole: 'question', selR: null, last: null, drawCard: 1, dragging: false, loaded: false,
+    drawRole: 'question', selR: null, drawCard: 1, dragging: false, loaded: false,
   };
   const pending = { timers: new Map(), patches: new Map(), items: new Map(), chains: new Map(), revisions: new Map() };
   const polls = new Map();
+  const resetting = new Set();
 
   const item = id => state.items.find(row => row.id === id) || null;
   const current = () => item(state.cur);
@@ -52,13 +53,14 @@ export function createInboxStore({ api, emit = () => {}, notify = () => {}, time
     pending.timers.delete(id);
     const merged = mergePatch(pending.patches.get(id) || {}, patch);
     const local = pending.items.get(id) || target;
+    const resetEpoch = local.reset_epoch;
     pending.patches.delete(id);
     pending.items.delete(id);
     const revision = bump(id);
     const previous = pending.chains.get(id) || Promise.resolve();
     const run = previous.catch(() => null).then(async () => {
-      const result = await api.post('/api/inbox/item/update', { id, regions: local.regions, layout: local.layout, ...merged });
-      if (!result.ok) { notify(`保存失败：${result.error?.message || '未知错误'}`, 'warn'); return null; }
+      const result = await api.post('/api/inbox/item/update', { id, regions: local.regions, layout: local.layout, ...merged, reset_epoch: resetEpoch });
+      if (!result.ok) { if (pending.revisions.get(id) === revision) notify(`保存失败：${result.error?.message || '未知错误'}`, 'warn'); return null; }
       const saved = result.data?.item || null;
       const index = state.items.findIndex(row => row.id === id);
       if (saved && index >= 0 && pending.revisions.get(id) === revision) {
@@ -86,6 +88,26 @@ export function createInboxStore({ api, emit = () => {}, notify = () => {}, time
 
   const flush = () => Promise.all([...pending.patches.keys()].map(id => save(pending.items.get(id))));
   const unsaved = () => pending.patches.size;
+
+  async function reset(id) {
+    if (!id || resetting.has(id)) return null;
+    resetting.add(id);
+    timers.clearTimeout(pending.timers.get(id));
+    pending.timers.delete(id);
+    pending.patches.delete(id);
+    pending.items.delete(id);
+    pending.chains.delete(id);
+    bump(id);
+    try {
+      const result = await api.post('/api/inbox/item/reset', { id });
+      if (!result.ok) { notify(`重置失败：${result.error?.message || '未知错误'}`, 'warn'); await load(); return null; }
+      const fresh = result.data?.item;
+      const index = state.items.findIndex(row => row.id === id);
+      if (fresh && index >= 0) state.items[index] = fresh;
+      changed();
+      return fresh || null;
+    } finally { resetting.delete(id); }
+  }
 
   /** 提交后台任务并每 pollMs 轮询一次；完成时调 onDone(job)。提交失败抛出，由调用方提示。 */
   async function job(type, payload, onDone, onError) {
@@ -131,7 +153,7 @@ export function createInboxStore({ api, emit = () => {}, notify = () => {}, time
   }
 
   return {
-    state, item, current, live, queue, changed, load, save, saveSoon, flush, unsaved, job, go, open,
+    state, item, current, live, queue, changed, load, save, saveSoon, flush, unsaved, reset, job, go, open,
     counts: () => inboxCounts(state.items),
     polling: () => polls.size,
   };

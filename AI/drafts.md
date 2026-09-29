@@ -83,7 +83,7 @@ extract 创建持久 draft_jobs 后异步调用现有识图提取；模型请求
 
 ## 7. 自动框选与全文字任务
 
-start_detect(vault,id,revision,sha=None) 持久登记后台任务，复用当前 inbox_detect_provider（vlm/template/local_http）、长图切片和合框逻辑，不先上传收件箱。模型调用前及回写前均检查来源完整性、非 discarded 草稿共享关系（包括 done）和人工框；共享图、manual/ai_edited 或人工清空训练任务均不能自动覆盖。无 Pillow 时长图退回整图检测。
+start_detect(vault,id,revision,sha=None) 持久登记后台任务，复用当前 inbox_detect_provider（vlm/local_http；旧 template 配置按 vlm 处理）、长图切片和合框逻辑，不先上传收件箱。模型调用前及回写前均检查来源完整性、非 discarded 草稿共享关系（包括 done）和人工框；共享图、manual/ai_edited 或人工清空训练任务均不能自动覆盖。无 Pillow 时长图退回整图检测。
 
 仅待框 image 块与题目/答案候选一一对应时自动写框。多题、多候选或数量不匹配只保留建议，正文不变。逐图 result 包含 sha、status（applied/suggested/skipped/conflict）、reason_code、reason、candidates、applied_blocks、training_task_id；空结果和歧义给出人工处理提示。revision 或快照变化后 job 为 conflict；重启后孤立作业为 interrupted。同图同草稿版本的 detect/extract 活动任务互斥；相同 detect 请求复用作业，部分重叠返回 409。详情按持久插入顺序打破同秒时间戳并列，重试不会取到旧任务。ai_box 保存原建议，人工移动标为 ai_edited。
 

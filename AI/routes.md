@@ -84,6 +84,7 @@
 | GET | `/api/inbox/dataset/stats` | `AI/frontend/create.md`、`AI/inbox.md` |
 | POST | `/api/inbox/discard` | `AI/inbox.md` |
 | GET | `/api/inbox/item` | `AI/inbox.md` |
+| POST | `/api/inbox/item/reset` | `AI/inbox.md` |
 | POST | `/api/inbox/item/update` | `AI/inbox.md` |
 | GET | `/api/inbox/items` | `AI/inbox.md` |
 | GET | `/api/inbox/job` | `AI/inbox.md` |

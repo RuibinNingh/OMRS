@@ -110,7 +110,7 @@ export function trainView({ model, loading = false, error = '', format = 'omrs_j
     ${datasetView(model, format)}
     <section class="crt-panel" aria-labelledby="crt-policy-title">
       <h3 id="crt-policy-title">框选提供方与自动策略</h3>
-      <p class="crt-muted">「AI 框选」按钮默认走这里选的提供方；处理页的「模板框选」按钮总是走模板。本地检测服务协议：<code>POST {image, layout, width, height}</code> → <code>[{label, card, bbox_2d:[x1,y1,x2,y2], confidence}]</code>（坐标 0–1000 / 0–1 / 像素均可）。</p>
+      <p class="crt-muted">「AI 框选」按钮使用这里选的提供方。本地检测服务协议：<code>POST {image, layout, width, height}</code> → <code>[{label, card, bbox_2d:[x1,y1,x2,y2], confidence}]</code>（坐标 0–1000 / 0–1 / 像素均可）。</p>
       ${policyError ? html`<div class="crt-error">${status({ tone: 'danger', text: policyError })}${button({ label: '重试', size: 'sm', action: 'create.trainRefresh' })}</div>` : policyView(policy, { saving, message })}
     </section>
   </div>`;

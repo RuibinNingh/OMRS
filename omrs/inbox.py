@@ -209,9 +209,10 @@ CREATE TABLE IF NOT EXISTS chat_training_boxes (
 CREATE INDEX IF NOT EXISTS chat_training_item ON chat_training_boxes(item_id);
 """
 
-# v1.13：items 追加的列（盲标）。旧库通过 ALTER 补齐，缺省值保持旧行为。
+# items 扩展列：盲标、训练专用图与重置代次。旧库通过 ALTER 补齐。
 _ITEM_EXTRA_COLUMNS = (("blind", "INTEGER DEFAULT 0"), ("blind_boxes", "TEXT"),
-                       ("training_only", "INTEGER NOT NULL DEFAULT 0"))
+                       ("training_only", "INTEGER NOT NULL DEFAULT 0"),
+                       ("reset_epoch", "INTEGER NOT NULL DEFAULT 0"))
 
 
 def connect(vault):
@@ -277,6 +278,7 @@ def _row_item(db, row, with_children=True):
         "width": row["width"], "height": row["height"], "bytes": row["bytes"],
         "source": row["source"], "uploaded_at": row["uploaded_at"], "status": row["status"],
         "training_only": bool(row["training_only"]),
+        "reset_epoch": row["reset_epoch"],
         "layout": row["layout"], "updated_at": row["updated_at"],
         "link": {"uid": row["link_uid"], "question_id": row["link_question_id"]} if row["link_uid"] else None,
         # 盲标：AI 框已跑但不展示给标注者；blind_boxes 只在事件与数据集导出里出现，不进 item 响应
@@ -418,7 +420,7 @@ def _write_cards(db, item_id, cards):
         )
 
 
-def update_item(vault, item_id, data):
+def update_item(vault, item_id, data, require_epoch=False):
     """整体覆盖式更新：regions（列表）、cards（dict）、layout、status。返回更新后的 item。"""
     with _LOCK:
         db = connect(vault)
@@ -430,6 +432,10 @@ def update_item(vault, item_id, data):
                 raise ValueError("训练专用图片不能进入普通处理流程")
             if row["status"] == "done":
                 raise ValueError("已录入的图片不能再修改")
+            if require_epoch and row["reset_epoch"] and "reset_epoch" not in data:
+                raise ValueError("图片已重置，请重新读取后再保存")
+            if "reset_epoch" in data and data["reset_epoch"] != row["reset_epoch"]:
+                raise ValueError("图片已重置，请重新读取后再保存")
             before = _row_item(db, row)
             now = _now()
             if "regions" in data and isinstance(data["regions"], list):
@@ -476,6 +482,42 @@ def update_item(vault, item_id, data):
             payload.update({"blind": True, "ai_boxes": blind_boxes or [],
                             "blind_eval": blind_eval(after["regions"], blind_boxes or [])})
         _log(vault, "item.ready", payload)
+    return after
+
+
+def reset_item(vault, item_id):
+    """原子清空当前截图的处理进度；原图和上传信息保留。"""
+    with _LOCK:
+        db = connect(vault)
+        try:
+            row = db.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+            if not row:
+                raise ValueError(f"收件箱里没有 {item_id}")
+            if row["training_only"] or row["status"] in ("done", "discarded"):
+                raise ValueError("这张图片不能重置")
+            committed = db.execute("SELECT 1 FROM cards WHERE item_id=? AND created_uid IS NOT NULL "
+                                   "AND created_uid!='' LIMIT 1", (item_id,)).fetchone()
+            if committed:
+                raise ValueError("这张图片已有题卡录入题库，不能重置")
+            before = _row_item(db, row)
+            region_ids = [region["id"] for region in before["regions"]]
+            db.execute("DELETE FROM regions WHERE item_id=?", (item_id,))
+            db.execute("DELETE FROM cards WHERE item_id=?", (item_id,))
+            db.execute("UPDATE items SET status='pending', layout='zuoyebang', blind=0, blind_boxes=NULL, "
+                       "reset_epoch=reset_epoch+1, updated_at=? WHERE id=?", (_now(), item_id))
+            after = _row_item(db, db.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone())
+            db.commit()
+        finally:
+            db.close()
+    for region_id in region_ids:
+        safe = re.sub(r"[^A-Za-z0-9_-]", "", region_id)
+        for ext in _MIME_EXT.values():
+            try:
+                os.remove(os.path.join(crops_dir(vault), f"{safe}.{ext}"))
+            except OSError:
+                pass
+    _log(vault, "item.reset", {"item_id": item_id, "before": _region_summary(before["regions"]),
+                                "reset_epoch": after["reset_epoch"]})
     return after
 
 
@@ -687,6 +729,9 @@ def start_job(vault, job_type, payload):
     units = _job_units(job_type, payload)
     if not units:
         raise ValueError("任务没有可处理的内容")
+    if job_type in ("detect", "auto", "classify"):
+        for unit in units:
+            unit.setdefault("reset_epoch", get_item(vault, unit["item_id"])["reset_epoch"])
     _job_update(vault, job_id, type=job_type, status="running", created_at=_now(), finished_at=None,
                 processed=0, total=len(units), result=[], errors=[], done=False)
     thread = threading.Thread(target=_run_job, args=(vault, job_id, job_type, units), daemon=True)
@@ -723,53 +768,17 @@ def _run_job(vault, job_id, job_type, units):
 
 # ────────────────────────── 框选提供方 ──────────────────────────
 
-PROVIDERS = ("vlm", "template", "local_http")
-
-# 没有可参考的同版式样本时，作业帮截图的默认模板（单位：图片宽度的倍数；题目框按像素锚定顶部，
-# 答案框从「答案」标题附近起一直到底）。有人工样本后模板会自动改为沿用最近一张的框位。
-_TEMPLATE_DEFAULTS = {
-    "zuoyebang": [
-        {"role": "question", "x": 0.03, "y_w": 0.20, "h_w": 0.75, "w": 0.94},
-        {"role": "answer", "x": 0.03, "y_w": 1.30, "h_w": None, "w": 0.94},
-    ],
-    "plain": [{"role": "question", "x": 0.0, "y_w": 0.0, "h_w": None, "w": 1.0}],
-}
+PROVIDERS = ("vlm", "local_http")
 
 
-def _template_reference(db, item):
-    """最近一张同版式、已就绪/已录入、带人工确认框的图，作为模板来源。"""
-    rows = db.execute(
-        "SELECT * FROM items WHERE layout=? AND id!=? AND status IN ('ready','done') ORDER BY updated_at DESC LIMIT 20",
-        (item["layout"] or "other", item["id"])).fetchall()
-    for row in rows:
-        ref = _row_item(db, row)
-        if any(r["origin"] in ("manual", "ai_edited") for r in ref["regions"]) and \
-                any(r["role"] == "question" for r in ref["regions"]):
-            return ref
-    return None
-
-
-def template_boxes(item, reference=None):
-    """版式模板框选（零联网）。有 reference 时沿用其框位：横向照搬；y<0.35 的框（题目）按像素锚定顶部，
-    其余（答案）按比例并延伸到底。没有 reference 时按 _TEMPLATE_DEFAULTS 用宽度倍数给初值。"""
-    width, height = float(item["width"] or 1), float(item["height"] or 1)
-    boxes = []
-    if reference:
-        rw, rh = float(reference["width"] or 1), float(reference["height"] or 1)
-        for r in reference["regions"]:
-            if r["role"] == "ignore":
-                continue
-            anchored = r["y"] < 0.35
-            y = min(0.95, r["y"] * rh / height) if anchored else r["y"]
-            h = min(1.0 - y, r["h"] * rh / height) if anchored else (1.0 - y if r["role"] == "answer" else min(1.0 - y, r["h"]))
-            boxes.append({"role": r["role"], "card": r["card"], "x": r["x"], "y": y, "w": r["w"], "h": h, "conf": 0.6})
-        return [b for b in boxes if b["w"] > 0 and b["h"] > 0]
-    for t in _TEMPLATE_DEFAULTS.get(item["layout"] or "", []):
-        y = min(0.95, t["y_w"] * width / height)
-        h = (1.0 - y) if t["h_w"] is None else min(1.0 - y, t["h_w"] * width / height)
-        if h > 0:
-            boxes.append({"role": t["role"], "card": 1, "x": t["x"], "y": y, "w": t["w"], "h": h, "conf": 0.4})
-    return boxes
+def detect_provider(vault, requested=None):
+    """读取框选提供方；旧配置 template 在升级后按默认多模态模型处理。"""
+    provider = requested or load_config(vault).get("inbox_detect_provider") or "vlm"
+    if not requested and provider == "template":
+        provider = "vlm"
+    if provider not in PROVIDERS:
+        raise ValueError(f"未知框选提供方：{provider}")
+    return provider
 
 
 def _pillow_strips(vault, item):
@@ -792,16 +801,6 @@ def _pillow_strips(vault, item):
 
 def _detect_with_provider(vault, ai, item, unit, provider):
     """按提供方取框。返回 (boxes, strips_count)。boxes 为整图归一化坐标。"""
-    if provider == "template":
-        db = connect(vault)
-        try:
-            ref = _template_reference(db, item)
-        finally:
-            db.close()
-        boxes = template_boxes(item, ref)
-        if not boxes:
-            raise ValueError(f"版式「{item['layout'] or 'other'}」没有模板，也没有可沿用的同版式样本")
-        return boxes, 0
     strips = unit.get("strips")
     if not strips:
         strips = _pillow_strips(vault, item)
@@ -858,11 +857,12 @@ def blind_eval(regions, ai_boxes):
 
 def _run_detect(vault, ai, unit):
     item = get_item(vault, unit["item_id"])
+    epoch = unit.get("reset_epoch", item["reset_epoch"])
+    if item["reset_epoch"] != epoch:
+        raise ValueError("图片已重置，旧框选任务已失效")
     if item["status"] == "done":
         raise ValueError("已录入的图片不再框选")
-    provider = unit.get("provider") or load_config(vault).get("inbox_detect_provider") or "vlm"
-    if provider not in PROVIDERS:
-        raise ValueError(f"未知框选提供方：{provider}")
+    provider = detect_provider(vault, unit.get("provider"))
     boxes, strips_n = _detect_with_provider(vault, ai, item, unit, provider)
     summary = [{k: b[k] for k in ("role", "card", "x", "y", "w", "h", "conf")} for b in boxes]
     blind = _should_blind(vault, unit)
@@ -871,6 +871,9 @@ def _run_detect(vault, ai, unit):
         with _LOCK:
             db = connect(vault)
             try:
+                fresh = db.execute("SELECT reset_epoch, status FROM items WHERE id=?", (item["id"],)).fetchone()
+                if not fresh or fresh["reset_epoch"] != epoch or fresh["status"] in ("done", "discarded"):
+                    raise ValueError("图片已重置或结束，旧框选任务已失效")
                 db.execute("UPDATE items SET blind=1, blind_boxes=?, updated_at=? WHERE id=?",
                            (json.dumps(summary, ensure_ascii=False), _now(), item["id"]))
                 db.commit()
@@ -889,7 +892,7 @@ def _run_detect(vault, ai, unit):
     if not unit.get("replace") and item["regions"]:
         # 已有人工框时不覆盖，只把 AI 框补在后面
         regions = item["regions"] + regions
-    updated = update_item(vault, item["id"], {"regions": regions})
+    updated = update_item(vault, item["id"], {"regions": regions, "reset_epoch": epoch})
     _log(vault, "ai.detect", {"item_id": item["id"], "provider": provider, "strips": strips_n, "boxes": summary})
     result = {"item_id": item["id"], "provider": provider, "blind": False, "boxes": len(boxes),
               "regions": updated["regions"]}
@@ -947,6 +950,9 @@ def _run_extract(vault, ai, unit):
         raise ValueError(f"区域不存在：{region_id}")
     region = _row_region(row)
     item = get_item(vault, row["item_id"])
+    epoch = unit.get("reset_epoch", item["reset_epoch"])
+    if item["reset_epoch"] != epoch:
+        raise ValueError("图片已重置，旧提取任务已失效")
     image = region_image(vault, item, region, unit.get("crop"))
     mode = region["convert"]
     # 模型调用不占写锁；写回时核对该区域，避免覆盖其它框或已经修改的内容。
@@ -955,6 +961,8 @@ def _run_extract(vault, ai, unit):
     def apply_result(result=None):
         with _LOCK:
             fresh = get_item(vault, item["id"])
+            if fresh["reset_epoch"] != epoch:
+                raise ValueError("图片已重置，旧提取任务已失效")
             if fresh["status"] in ("done", "discarded"):
                 raise ValueError("图片已录入或丢弃，不能写入提取结果")
             target = next((r for r in fresh["regions"] if r["id"] == region_id), None)
@@ -993,6 +1001,9 @@ def _run_extract(vault, ai, unit):
 
 def _run_classify(vault, ai, unit):
     item = get_item(vault, unit["item_id"])
+    epoch = unit.get("reset_epoch", item["reset_epoch"])
+    if item["reset_epoch"] != epoch:
+        raise ValueError("图片已重置，旧分类任务已失效")
     card = int(unit.get("card", 1) or 1)
     question = next((r for r in item["regions"] if r["card"] == card and r["role"] == "question"), None)
     if not question:
@@ -1012,7 +1023,7 @@ def _run_classify(vault, ai, unit):
             tags.append(tag)
     merged["tags"] = tags
     merged["classified"] = True
-    update_item(vault, item["id"], {"cards": {str(card): merged}})
+    update_item(vault, item["id"], {"cards": {str(card): merged}, "reset_epoch": epoch})
     return {"item_id": item["id"], "card": card, "form": merged}
 
 

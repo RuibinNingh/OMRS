@@ -3,6 +3,23 @@ import unittest
 from tools.boxdetect.common import clip_box, group_samples, split_groups
 
 
+class HistoricalBaselineTests(unittest.TestCase):
+    def test_offline_template_baseline_keeps_previous_geometry(self):
+        from tools.boxdetect.evaluate import template_boxes
+        item = {"width": 1080, "height": 6000, "layout": "zuoyebang"}
+        boxes = template_boxes(item)
+        self.assertEqual([box["role"] for box in boxes], ["question", "answer"])
+        self.assertAlmostEqual(boxes[0]["y"], 0.20 * 1080 / 6000)
+        self.assertAlmostEqual(boxes[1]["y"] + boxes[1]["h"], 1)
+        reference = {"height": 3000, "regions": [
+            {"role": "question", "card": 1, "x": .1, "y": .1, "w": .8, "h": .2},
+            {"role": "answer", "card": 1, "x": .1, "y": .5, "w": .8, "h": .3},
+        ]}
+        transferred = template_boxes(item, reference)
+        self.assertAlmostEqual(transferred[0]["y"], .05)
+        self.assertAlmostEqual(transferred[1]["y"] + transferred[1]["h"], 1)
+
+
 class DatasetTests(unittest.TestCase):
     def test_clip_spanning_boundary(self):
         box = dict(role='answer', x=.1, y=.4, w=.8, h=.5)
