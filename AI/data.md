@@ -3,13 +3,13 @@
 > **速查**
 > - 职责：CSV 字段、Markdown 题目格式、UID、配置、标记与报告存储
 > - 入口：`omrs/common.py`、`omrs/indexing.py`
-> - 不变量：结构化状态唯一可信来源是 `错题/.omrs/ledger.db`，CSV 只是兼容投影
+> - 不变量：题目结构化元数据、复习状态与 Session 以 `ledger.db` 为事实源，CSV 只是兼容投影；展示板、助手、草稿、收件箱和标注集各有独立存储
 > - 必跑测试：`tests/test_history_projection.py`、`tests/test_question_records.py`
 > - 相关：`AI/ledger.md`、`AI/security.md`
 
 > 对应源文件：`omrs/common.py`、`omrs/indexing.py`
 
-> v1.1.0 起，结构化状态的唯一可信来源是 `错题/.omrs/ledger.db`。本文件中的 CSV 仍会由投影器导出，用于兼容既有前端、调试查看和旧数据迁移；不要再把 CSV 当成核心运行时事实源。详见 `ledger.md`。
+> 题目结构化元数据、反馈、熟练度与 Session 的可信来源是 `错题/.omrs/ledger.db`；本文件中的 CSV 由投影器导出，用于兼容既有前端、调试查看和旧数据迁移。Markdown 是题目正文的工作文件，已入账版本保存在 Ledger 的 `blobs` 表。展示板、助手对话、草稿、收件箱和标注集使用各自的文件或数据库，不由 Ledger 重放；存储路径见下文对应章节，Ledger 边界见 `AI/ledger.md`。
 
 ---
 
@@ -167,7 +167,7 @@ tags:
 YYYY-MM-DD 主观:N, 对/错[, 备注:文字]
 ```
 
-v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流程追加。`/api/question` 仍把该小节原文放在 `history` 字段里（纯兼容显示），但正式练习记录是同一响应的 `records[]`（v1.16.1 起，由 Ledger 投影 `history_log.csv` 派生，见 `api.md`）；`common.py::parse_history_lines()` 与前端 `parseQHistory()` 只在老后端没给 `records` 时才用来解析旧手工行。系统只承诺恢复结构化状态、算法状态、Session 和统计，不承诺恢复 Markdown 正文旧版本。
+Markdown `# 历史` 不作为算法输入，也不会由反馈流程追加。`/api/question` 仍把该小节原文放在 `history` 字段里（纯兼容显示），正式练习记录是同一响应的 `records[]`（由 Ledger 投影 `history_log.csv` 派生，见 `AI/api.md`）；`common.py::parse_history_lines()` 与前端 `parseQHistory()` 只在老后端没给 `records` 时才用来解析旧手工行。已入账的完整 Markdown 版本可通过 `/api/question/content/history` 列出、`/api/question/content/version` 取回；活动题目可经 `/api/question/content/restore` 还原。结构化 `state.restore` 不会自动重写 Markdown 文件，未入账的旧正文和附件二进制文件不在此版本保证内；细节见 `AI/ledger.md` §10。
 
 `相关知识点: []` 是显式清空知识点标签的结构化更新。工作区扫描将该空列表写入 Ledger 的题目元数据投影，并在重建 `mastery_data.csv` 时保持 `Knowledge_Tags` 为空；它不会回退到该题此前的知识点标签。
 

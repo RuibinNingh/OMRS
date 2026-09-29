@@ -85,7 +85,7 @@
 | 当前版本 | v1.33.1 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
-| 前端文件 | `omrs_dashboard.html`（结构）+ `assets/`（旧 `styles.css` 与拆分的 JS）+ `assets/app/`（ES Module：token、ui 组件、过渡桥、domain 层、已迁页面 `features/` 下的 dashboard、data、questions、schedule、instant、feedback、history、catalog、reports、settings、assistant、board）|
+| 前端文件 | `omrs_dashboard.html`（结构）+ `assets/app/`（原生 ES Module：设计 token、UI 组件、domain 层及各页面 `features/`）+ `assets/vendor/`（本地字体与 KaTeX）|
 | 数据目录 | 结构化数据在 `错题/.omrs/`；生成的 AI 报告在 `错题/report/` |
 | 依赖边界 | 核心 Python 运行路径无强制第三方库；图片优化可选 Pillow 或 `jpegtran`。前端无构建依赖，Noto Sans SC 与 JetBrains Mono 由 `assets/vendor/fonts/` 本地提供，KaTeX 作为本地静态资源放在 `assets/vendor/katex/`（不可用时公式降级显示源码片段）；AI 识别与外部报告材料按配置使用网络。|
 
@@ -100,7 +100,7 @@
 | `api.md` | 端点的请求体、响应字段与错误语义 |
 | `routes.md` | 路由总表（自动生成，来源 `omrs/server.py` 与 `omrs/agent/http.py`）：方法、路径、说明文档 |
 | `data.md` | CSV 字段、Markdown 题目格式、UID、labels.json、boards.json、config.json、auth.json、报告存储 |
-| `frontend.md` | 前端索引，分册在 `frontend/`：设计系统（token 与门禁）、架构（core、路由、启动顺序）、ui 组件库与过渡桥、外壳与主题、仪表盘与目录、题库与标记、qview、展示板页、复习调度、反馈录入、设置、录入题目、历史 / 复盘 / 报告 |
+| `frontend.md` | 前端索引，分册在 `frontend/`：设计系统（token 与门禁）、架构（core、路由、启动顺序）、UI 组件库、外壳与主题、仪表盘与目录、题库与标记、qview、展示板页、复习调度、反馈录入、设置、录入题目、历史 / 复盘 / 报告 |
 | `export.md` | A4、屏幕版与展示板自包含 HTML 导出 |
 | `ledger.md` | 不可变提交链、投影缓存、历史修正与迁移边界 |
 | `board.md` | 展示板引用模型、版面设置、打印与纸面记录 |

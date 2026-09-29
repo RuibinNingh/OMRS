@@ -1,9 +1,9 @@
 # 前端：设计系统（token、尺度与纪律门禁）
 
 > **速查**
-> - 职责：设计 token（颜色 / 字号 / 间距 / 控件 / 圆角 / 阴影 / 动效 / 层级）、旧名别名、对比度规则、新代码纪律与旧代码棘轮
-> - 入口：`assets/app/styles/tokens.css`（`omrs_dashboard.html` 最先加载）、`assets/app/styles/index.css`（`@layer` 样式总入口）
-> - 不变量：颜色字面量只写在 `tokens.css`；新代码只用语义 token；旧名别名只给旧样式用；旧代码违规计数只减不增
+> - 职责：设计 token（颜色 / 字号 / 间距 / 控件 / 圆角 / 阴影 / 动效 / 层级）、样式分层、对比度规则与全仓前端纪律
+> - 入口：`assets/app/styles/tokens.css`（主题与尺度 token）、`assets/app/styles/index.css`（`@layer` 样式总入口）
+> - 不变量：颜色字面量只写在 `tokens.css`；页面样式使用语义与尺度 token；全仓 UI 违规计数为 0
 > - 必跑测试：`tests/check_ui.py`、`tests/check_contrast.py`、`tests/test_ui_gates.py`
 > - 相关：`AI/frontend/shell.md`、`AI/environment.md`（截图对比与 fixture 配方）
 
@@ -13,12 +13,12 @@
 
 - `assets/app/` 下的一切适用 §5 的零容忍规则。
 - `assets/` 根目录不再新增前端文件，新代码一律进 `assets/app/`（`check_ui.py` 会拦）。
-- 样式分层：`styles/index.css` 声明 `vendor < legacy < base < ui < shell < domain < features < utilities < legacy-bridge`，KaTeX 进 `vendor`、旧 `styles.css` 进 `legacy`。新样式不靠提高选择器权重去压旧规则；也不许出现未分层的样式（未分层规则会压过全部分层规则）。
+- 样式分层：`styles/index.css` 声明 `vendor < base < ui < shell < domain < features < utilities`，KaTeX 进 `vendor`。页面样式按职责放进对应层；未分层规则会压过全部分层规则，因此不添加未分层的页面样式。
 - `domain` 层：共享题目视图 `domain/question/qview.css`（P5 第 4 轮起是 qview 的全部外观，含题目弹窗与 Markdown 编辑器）与标记 `domain/labels/labels.css`（色板、颜色圆点按 `data-lbl-c` 取色）、选板浮层 `domain/board/picker.css`（popover 进顶层，锚定位置由脚本写 `--bpicker-x` / `--bpicker-y`，是它唯一的行内样式）；标记颜色的运行时规则（`domain/labels/sheet.js`）也插在 `@layer domain` 块里。
-- P5 第 4 轮新增 token：`--surface-sunken`（题面块等内嵌区）、`--success-subtle` / `--success-line`（答案块）、`--streak-ok` / `--streak-bad`（战绩带）、`--lbl-preset-1…10`（标记预设色）、`--lbl-fg-dark` / `--lbl-fg-light`（solid 芯片前景）；`check_contrast.py` 加「`fg-1` / `fg-2` 压在 `surface-sunken` 上」两组。
-- 层次（core → ui → domain → features）与依赖方向由 `check_ui.py` 的 R7 约束；`core/`、`ui/`、`domain/`、`features/` 均已建立。各页面样式由 `styles/index.css` 以 `layer(features)` 引入；展示板工作区拆为四份 `board*.css`，旧 `styles.css` 的 `.bd-*` 已删。旧 `styles.css` 的全局元素规则仍在 legacy 层生效，页面用到这些元素时要在自己的层里显式清掉。
-- `styles/index.css` 按层引入各页样式：features 层目前有 `questions.css`、`instant.css`、`feedback.css`、`dashboard.css`、`data.css`、`schedule.css`（类名 `schd-`）、展示板的 `board.css`（外框、板头、纸面列）/ `board-tree.css`（左栏）/ `board-panel.css`（题目面板）/ `board-popovers.css` / `board-dialogs.css`（类名 `brd-`）、`history.css`、`catalog.css`、`reports.css`、`settings.css`，以及录入页的 `create.css`（工作区导航与显隐、整屏工作台、上传、快速录入、收件箱网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（题卡，类名 `crc-`）与 `train.css`（AI 训练，类名 `crt-`）。数据复盘图表颜色用 `data-tone` 映射状态 token；历史记录页的 `.hvw-`、目录页的 `.catw-`、报告页的 `.rpw-`、设置页的 `.st-`、展示板页的 `.brd-`、录入页的 `.crw-` / `.crp-` / `.crc-` / `.crt-` 类使用语义色和控件尺度。仪表盘的「今天」数字是全站唯一的 `--text-display`；热力格四档颜色用 `color-mix(in srgb, var(--success) N%, var(--surface-1))`，不新增 token。
-- 同一行的控件用同一档高度（§3 的 `--ctl-*`）。未迁移页面的旧 `.btn` / `.input` 由 `styles/legacy-bridge.css` 统一到 28 / 32 两档。
+- 内嵌题面用 `--surface-sunken`，答案块用 `--success-subtle` / `--success-line`，战绩带用 `--streak-ok` / `--streak-bad`；标记预设色用 `--lbl-preset-1…10`，实色芯片前景用 `--lbl-fg-dark` / `--lbl-fg-light`。`check_contrast.py` 同时检查 `fg-1` / `fg-2` 在 `surface-sunken` 上的对比度。
+- 层次（core → ui → domain → features）与依赖方向由 `check_ui.py` 的 R7 约束。共享题目、标记与选板样式在 `domain` 层；页面样式由 `styles/index.css` 以 `layer(features)` 引入，实际导入清单以该文件为准。
+- `features` 层包含题库、即时练习、反馈、仪表盘、数据复盘、复习调度、展示板、历史、目录、报告、设置、录入与助手页面样式。展示板拆成外框、目录树、题目面板、浮层和对话框；录入页拆成工作区、草稿、处理、题卡与训练样式。各页使用语义色与控件尺度，数据图表用 `data-tone` 映射状态 token。
+- 同一行的控件使用同一档高度（§3 的 `--ctl-*`）。仪表盘的「今天」数字用 `--text-display`；热力格四档颜色由 `color-mix` 基于 `--success` 与 `--surface-1` 派生。
 
 ## 2. 语义 token
 
@@ -53,19 +53,17 @@
 | 层级 | `--z-sticky` 10 < `--z-sidebar` 20 < `--z-dropdown` 100 < `--z-drawer` 200 < `--z-modal` 300 < `--z-toast` 400 < `--z-tooltip` 500 |
 | 断点 | 只用 760 / 1160 / 1500（媒体查询不能用变量，由 R5 约束） |
 
-字号用 px 定义，不受旧样式 `html{font-size:15px}` 影响。紧凑密度 `html[data-density="compact"]` 把 `--text-sm/md/lg` 各降 1px，`--ctl-md/lg` 降到 30 / 36。窄屏（≤760px）为保证可点目标不小于 40px，三档控件高度统一为 40，不受密度影响。
+字号 token 用 px 定义。紧凑密度 `html[data-density="compact"]` 把 `--text-sm/md/lg` 各降 1px，`--ctl-md/lg` 降到 30 / 36。窄屏（≤760px）为保证可点目标不小于 40px，三档控件高度统一为 40，不受密度影响。
 
-## 4. 旧名别名
+## 4. token 维护边界
 
-`tokens.css` 第 3 段把旧 token 名指向语义 token：`--bg*` → `--surface-*`，`--fg`/`--fg2`/`--fg3` → `--fg-*`，`--red/green/yellow/blue`（及 `-rgb`）→ 四个状态色，`--kill-*`/`--attack-*`/`--trap-*` → 状态色的 `-soft`/`-fg`，`--fam-*` → `--family-*`，`--border`/`--border2` → `--border-*`，`--card-shadow` → `--elev-1`。旧密度变量 `--radius*`、`--pad*`、`--gap`、`--row`、`--ctl`、`--fs*` 原值原样保留在同一段。
+`tokens.css` 定义浅色与深色语义 token，以及字号、间距、控件高度、圆角、动效和层级等尺度 token；紧凑密度与窄屏覆盖也在该文件。页面专用的派生 token 按用途放在同一文件，其他样式只引用 token。
 
-别名在 `<html>` 上求值，深色自动跟随，只有旧 `--shadow` 在深色块里单独覆盖。改调色板只改语义 token 一处；新代码禁止使用旧名。
-
-`styles.css` 其余位置仍有写死的颜色（`check_ui.py --report` 可看存量），以及文件内的 `--ib-role-*` 局部变量，它们随页面迁移逐步清理。
+主题由 `<html data-theme>` 选择，密度由 `<html data-density>` 选择。改调色板时在 `tokens.css` 维护两套主题值，并运行 §6 的对比度门禁；`tests/check_ui.py --report` 可只读查看页面五项计数。
 
 ## 5. 纪律门禁（`tests/check_ui.py`）
 
-新代码（`assets/app/**`）零容忍，规则编号与脚本文件头一致：
+`assets/app/**` 零容忍，规则编号与脚本文件头一致：
 
 - **R1** 颜色字面量只在 `tokens.css`。
 - **R2** 字号、行高、字重、字体族只用 token。
@@ -79,13 +77,11 @@
 
 `assets/` 根目录只允许 `inbox_mobile.html`；它与 `omrs_dashboard.html` 同样按五项计数（行内事件、`innerHTML` 类赋值、行内样式、颜色字面量、硬编码字号），全部必须为 0，没有存量基线。
 
-- **只减不增**：任何一项上升即失败。
-- **下调基线**：减少后运行 `--update-baseline`；若有任何一项上升，拒绝写入。
-- **格式**：基线按文件一行，并行修改时冲突最小；冲突时直接重跑 `--update-baseline`。
+任一违规即失败，没有存量基线；`--update-baseline` 会报错退出。新增组件须覆盖默认、悬停、按下、焦点、禁用、加载、空、错误、溢出、浅 / 深和舒适 / 紧凑状态，并在组件陈列页与 `tests/app/browser_tests.js` 增加对应验证，状态矩阵见 `AI/frontend/components.md`。
 
 ## 6. 对比度（`tests/check_contrast.py`）
 
-脚本解析 `tokens.css` 的浅色与深色两套值，按 WCAG 2.x 计算 24 组 × 2 主题。
+脚本解析 `tokens.css` 的浅色与深色两套值，按 WCAG 2.x 计算 29 组 × 2 主题。
 
 - **4.5:1**：文字类组合，包括 `--fg-1/2/3` 在 `surface-0/1` 上、`--fg-1/2` 在 `surface-2` 上、四个状态色在 `surface-0/1` 上、各 `-fg` 在自己的 `-soft` 上、`--on-accent` 在 `--accent` 上。
 - **3:1**：`--fg-3` 在 `surface-2` 上、焦点环。
@@ -93,12 +89,7 @@
 
 修改任何颜色 token 后必须通过。
 
-## 7. 待办（规划，尚未实现）
-
-- 待办：其余页面迁到 `features/<页>/`（题目库、即时练习、反馈录入已完成），每迁一页删掉旧样式与过渡桥里对应的段落。
-- 已实现：ui 组件库与组件陈列页（状态矩阵见 `AI/frontend/components.md`）；新组件须同样覆盖默认、悬停、按下、焦点、禁用、加载、空、错误、溢出、浅 / 深、舒适 / 紧凑，并在 gallery 与 `tests/app/browser_tests.js` 各加一处。
-
-## 草稿审核工作区
+## 7. 草稿审核工作区
 
 草稿样式在 `features/create/drafts.css`，由 styles/index.css 以 features 层导入；表单与操作复用 ui-input、ui-select、ui-textarea、ui-btn，侧栏计数复用 ui-badge。草稿跨页状态不向 DOM 写行内样式。
 

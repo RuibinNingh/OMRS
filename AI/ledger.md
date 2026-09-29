@@ -3,11 +3,11 @@
 > **速查**
 > - 职责：不可变提交链、投影缓存、历史修正与迁移边界
 > - 入口：`omrs/ledger.py`、`omrs/projections.py`
-> - 不变量：提交只追加不改写，修正以新的 commit 表达；追加在 `BEGIN IMMEDIATE` 事务里；题目正文的每个版本存进 blobs，commit 只引用哈希
+> - 不变量：提交只追加不改写，修正以新的 commit 表达；追加在 `BEGIN IMMEDIATE` 事务里；已入账的题目 Markdown 版本存进 blobs，commit 只引用哈希
 > - 必跑测试：`tests/test_history_projection.py`、`tests/test_sessions_feedback.py`、`tests/test_ledger_concurrency.py`、`tests/test_agent_tools.py`
 > - 相关：`AI/data.md`、`AI/frontend/records.md`、`AI/agent.md`
 
-> v1.1.0 起，结构化状态以 `错题/.omrs/ledger.db` 为唯一可信来源。旧 CSV 仍存在，但只作为兼容投影、迁移输入和调试查看。
+> 题目结构化元数据、反馈、熟练度与 Session 以 `错题/.omrs/ledger.db` 为事实源；兼容 CSV 由投影器生成，也可作旧数据迁移输入和调试查看。展示板、助手对话、草稿、收件箱和标注集使用独立存储，不由 Ledger 重放，见 `AI/data.md`。
 
 ---
 
@@ -103,7 +103,7 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 
 反馈**不会**向题目 Markdown 的 `# 历史` 小节追加行。该小节仍由新题骨架保留，且旧格式解析器仍在兼容旧手工文本，但它不属于结构化复习记录，不能用于推断练习次数、正确率或累计答错次数。
 
-题目库的单题删除会先删除目标 Markdown，再追加 `question.archive` commit。投影会将该题标记为 archived 并从活动题库/兼容 CSV 排除，但既有提交与反馈仍可审计；因为正文不进入 Ledger，删除后的 Markdown 正文无法由 Ledger 恢复。附件图片保留，以避免删掉可能被其他题引用的文件。
+题目库的单题删除先把文件当前正文存入 `blobs`，再删除 Markdown 并追加 `question.archive` commit。投影将该题标记为 archived 并从活动题库/兼容 CSV 排除，既有提交与反馈仍可审计；已入账正文可按 `question_id` 列出并按哈希取回。`/api/question/content/restore` 只接受活动题目的 UID，不直接重建已归档题目。附件图片保留，以免删除其他题共用的文件。
 
 题目停用不删除 Markdown，只追加 `question.suspend`；恢复只追加 `question.resume`。两类 commit 都携带 `question_id`、当时 UID、文件路径和可选 `reason`，投影列 `suspended` 与兼容 CSV 列 `Suspended` 据此派生。停用题保留在题库管理列表和历史链中，但从调度、统计、分析、反馈和复习导出中排除；恢复后沿用原有 Mastery/SM-2 状态。
 
@@ -149,7 +149,7 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 
 规则：
 
-- 仅正文变化：只更新 fingerprint，不写入 Ledger。
+- 仅正文变化：追加 `question.content_update`，把当前 Markdown 存入 `blobs`，再更新 fingerprint。
 - YAML 结构化字段变化：写 `question.metadata_update_external`。
 - 文件移动或改名：通过 `_omrs_id` 写 `question.move_external`。
 - 新增 Markdown 且缺少 `_omrs_id`：分配 `OP-*` 并写 `question.create_external`。
@@ -181,21 +181,21 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 - `--json`：将审计报告打印为 JSON。
 - `--write-ai-prompt [path]`：写出 AI 迁移审计提示词，默认路径为 `tool/ledger_migration_ai_check_prompt.md`。
 
-AI 审计提示词要求外部 AI 按 P0/P1/P2 输出问题清单，并重点检查 Ledger 唯一事实源、链校验、`_omrs_id`、投影重建、备份和正文不版本化边界。
+`--write-ai-prompt` 输出用于 v1.1.0 迁移审计的旧模板；其中“正文不做版本控制”的条款不适用于当前正文历史功能，当前行为以 §10 为准。
 
 旧 history 缺少完整来源上下文，迁移后按 legacy 展示；从 v1.1.0 后的新反馈开始严格记录来源。
 
 ---
 
-## 8. 结构化恢复边界
+## 8. 恢复边界
 
-系统可以通过 Ledger 恢复任意时刻的结构化状态、熟练度、调度、Session 和统计。
+Ledger 的 `state.restore` 可恢复目标节点的题目结构化状态、熟练度、调度、Session 和统计；它不重写 Markdown 正文，也不恢复展示板、助手、草稿、收件箱或标注集的独立存储。
 
-系统不承诺恢复 Markdown 正文旧版本：
+Markdown 正文另按 §10 入账：
 
-- 题干正文、答案正文、错因笔记、备注正文、排版、LaTeX 和图片引用顺序不进入版本链。
-- 如果用户在文件管理器中彻底删除 Markdown，自检可记录题目被外部归档，但无法无损恢复已丢失正文。
-- 网页迁移/编辑会尽量通过原子写与 fingerprint 同步避免重复外部变更提交。
+- 已存入 `blobs` 的完整 Markdown 版本含题干、答案、错因、备注、排版、LaTeX 与图片引用文本，可列出和取回；活动题目可显式还原到其中一个版本。
+- 附件图片二进制不在 `blobs` 中。外部删除文件前若该正文从未入账，无法仅凭 Ledger 还原；已归档题目可查询正文版本，但正文还原接口只接受活动题目。
+- 网页编辑通过原子写和 fingerprint 同步减少重复外部变更提交；写前发现未入账的文件修改时，先记录当前版。正文版本恢复与结构化 `state.restore` 是两个独立操作。
 
 ## 9. 追加原子性与写入来源
 

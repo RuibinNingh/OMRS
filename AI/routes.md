@@ -102,9 +102,9 @@
 | POST | `/api/optimize/scan` | `AI/api.md` |
 | GET | `/api/optimize/summary` | `AI/api.md`、`AI/frontend/settings.md` |
 | GET | `/api/question` | `AI/api.md`、`AI/changelog.md`、`AI/data.md`等 |
-| GET | `/api/question/content/history` | `AI/api.md` |
-| POST | `/api/question/content/restore` | `AI/api.md` |
-| GET | `/api/question/content/version` | `AI/api.md` |
+| GET | `/api/question/content/history` | `AI/api.md`、`AI/data.md` |
+| POST | `/api/question/content/restore` | `AI/api.md`、`AI/data.md`、`AI/ledger.md` |
+| GET | `/api/question/content/version` | `AI/api.md`、`AI/data.md` |
 | POST | `/api/question/delete` | `AI/api.md`、`AI/frontend/library.md` |
 | POST | `/api/question/labels` | `AI/api.md`、`AI/labels.md` |
 | POST | `/api/question/markdown` | `AI/api.md`、`AI/frontend/library.md`、`AI/frontend/qview.md` |
@@ -138,7 +138,7 @@
 | GET | `/api/trainpanel/reviews` | `AI/api.md` |
 | GET | `/api/trainpanel/run` | `AI/api.md` |
 | GET | `/api/trainpanel/service` | `AI/api.md` |
-| GET | `/api/tree` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/architecture.md`等 |
+| GET | `/api/tree` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/dashboard.md` |
 | POST | `/api/workspace/scan` | `AI/api.md`、`AI/ledger.md` |
 | GET | `/login` | `AI/inbox.md`、`AI/security.md` |
 | GET | `/m` | `AI/api.md`、`AI/inbox.md`、`AI/security.md` |

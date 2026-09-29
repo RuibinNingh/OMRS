@@ -2,10 +2,10 @@
 
 > **状态**
 > - 目标：给 OMRS 加内置 AI 助手（自写 Harness、服务端权限、正文入账、按运行撤销、聊天面板），总纲见同目录 `plan.md`
-> - 阶段：**A–H 完成（v1.28.0，受限模式）**；I（部署）待用户授权。推迟项：B2（op_id 幂等）、F3 看图、MCP
+> - 阶段：**A–H 已合入 main 并随 v1.28.1 部署生产**；I 的文档与部署已完成。推迟项：B2（op_id 幂等）、F3（读取题库图片）；MCP 属总纲的可选后续
 > - 基线：导出包 `OMRS-source-sanitized-20260927T230601Z`（v1.27.0），受限模式本地基线提交 `fedd7f1`
-> - 下一步：Codex · 完整：① 按任务日志 `AI/logs/2026-09-28_ai-agent.md`「合入」应用 `changes-2026-09-28-ai-agent.patch` 并提交；② 本机补做 `--write-log-index`、全量 E2E、`tests/visual/run.py --ref` 对比；③ 用真实模型（百炼或 DeepSeek）在设置页「测试连接」后走一遍五个典型对话；④ 等用户授权再部署
-> - 更新：2026-09-28，Claude（对话内，受限模式）完成 A–H，门禁与测试见任务日志「验证」
+> - 下一步：无待合入补丁或待授权部署；五类典型对话的真实模型走查与 I2 要求的生产 Ledger 前后校验未见完成记录，继续本计划时先核实；B2、F3 另行安排
+> - 更新：2026-09-29，Codex · 完整模式按 `9bf65fd` 合入提交、`AI/logs/2026-09-28_board-ui-deploy.md` 生产记录和后续发布日志校正状态；A–H 原始验证见 `AI/logs/2026-09-28_ai-agent.md`
 
 ## 1. 分期状态
 
@@ -19,7 +19,7 @@
 | F | 只读工具 7 个 | 完成；看图推迟 | `omrs/agent/tools/read.py` |
 | G | 按运行撤销、可撤销工具 2 个、需确认工具 7 个 | 完成 | `omrs/agent/revert.py`、`omrs/agent/tools/write.py` |
 | H | 助手页（按示例 UI 移植）、设置页分区 | 完成 | `assets/app/features/assistant/`、`assets/app/features/settings/agent*.js` |
-| I | 文档、版本 v1.28.0；部署 | 文档完成；部署待授权 | `AI/agent.md`、`AI/frontend/assistant.md` |
+| I | 文档、版本 v1.28.0；部署 | 文档与部署完成；I2 生产 Ledger 前后校验未见完成记录 | `AI/agent.md`、`AI/frontend/assistant.md` |
 
 ## 2. 与总纲的偏差
 

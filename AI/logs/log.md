@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-29_project-overview](2026-09-29_project-overview.md)：项目整体情况梳理与文档校正
 - [2026-09-29_inbox-reset](2026-09-29_inbox-reset.md)：收件箱截图重置
 - [2026-09-29_inbox-remove-template-reuse](2026-09-29_inbox-remove-template-reuse.md)：收件箱移除模板与沿用框位并上线重置
 - [2026-09-29_inbox-image-judgment](2026-09-29_inbox-image-judgment.md)：一键提取留图判断提示词

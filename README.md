@@ -27,14 +27,11 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 
 | 优先级 | 技术债 | 影响 | 建议方向 |
 |---|---|---|---|
-| 高 | HTTP 服务单线程 | AI 识别等慢请求会阻塞整个界面 | 改用线程化 HTTP Server，并为 CSV、Markdown、Ledger 写入增加统一锁 |
 | 中高 | Ledger 每次全量重放 | 历史提交增长后，反馈/录入后的重建耗时线性增加 | 引入按 seq 的持久化快照和增量重放 |
-| 中 | 前端大量 `innerHTML` + 行内 `onclick`（各约 200 处） | DOM 高频重建、事件逻辑与模板耦合，也阻碍 ES Module 化 | 反馈工作台已在 v1.10.0 改为局部更新 + 事件委托；其余列表页仍待处理 |
-| 低 | `styles.css` 同名规则叠加 | 实测顶层选择器定义 ≥3 次的只有 4 个（`:root`、`.card-title`、`.paste-zone`；`.instant-qbtn` 已随即时练习迁移删除），比早先估计的轻 | 顺手收拢即可，不单列任务 |
 | 中 | 后端 `server.py` 路由分支过长 | 请求解析和错误处理重复，维护成本高 | 改为路由表 + 统一请求体解析 |
 | 中 | 测试框架与覆盖不完整 | 当前 `unittest` 与 pytest 风格测试混用，核心算法边界覆盖仍不足 | 统一测试入口，补齐算法、Ledger 集成、异常输入和浏览器回归 |
 
-这些项目是已知的维护与扩展成本，不影响当前核心功能运行；线程化服务与增量投影涉及架构边界，实施前应单独设计和验证。远端 PIN、来源校验及报告隔离的当前行为见 [`AI/security.md`](AI/security.md)。
+这些项目是已知的维护与扩展成本，不影响当前核心功能运行；增量投影涉及架构边界，实施前应单独设计和验证。当前 HTTP 服务已线程化，常规写入由进程级写锁串行处理。远端 PIN、来源校验及报告隔离的当前行为见 [`AI/security.md`](AI/security.md)。
 
 ---
 
@@ -64,7 +61,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 | **报告托管** | 上传/浏览/删除复盘报告，浏览器内直接查看 |
 | **源码协助** | 设置页按源码目录和文件类型下载当前工作区的脱敏 ZIP，包含未提交源码且不依赖 Git；排除个人题库、附件、运行数据、日志、缓存和生成导出文件 |
 | **外观** | 深色（首次打开默认，**暖石墨 Warm Graphite**）/ 浅色（编辑式暖色）切换；v1.15.0 增加**界面密度**（紧凑 / 舒适，默认紧凑）——设置页「外观」切换，收紧全站内边距、圆角、行高与控件高度；v1.7.0 重配深色对比度（三级文字与语义色达标、卡片改实色分层）；Ledger 时间线可按浏览器或设置页所选时区显示 |
-| **数据可信** | v1.1.0 起改用不可变 **Ledger 提交链** 作为结构化状态的唯一事实源；CSV 仅作兼容投影；学习、调度和 Session 状态可重放还原 |
+| **数据可信** | 不可变 **Ledger 提交链** 是题目身份、学习反馈和 Session 等核心状态的事实源；CSV 仅作兼容投影，这些状态可重放还原 |
 
 ---
 
@@ -146,23 +143,23 @@ pack_for_ai.bat
 │   ├── migration.py / workspace_sync.py / indexing.py
 │   └── export_templates/   ← A4 / 展示板 / 屏幕版 HTML 模板（CSS + JS）
 ├── assets/                 ← 前端静态资源（无构建）
-│   ├── app/styles/tokens.css ← 设计 token（颜色 / 字号 / 间距等），新前端代码都放 assets/app/
+│   ├── app/main.js         ← ES Module 入口，装配页面与共享数据
+│   ├── app/core/           ← 路由、请求、事件、状态等底座
+│   ├── app/domain/         ← 跨页面的题目、Session、标记等领域模块
+│   ├── app/styles/         ← 设计 token 与分层样式
 │   ├── app/features/questions/ ← 题目库（表格 / 画廊、筛选抽屉、批量、视图预设）
 │   ├── app/features/instant/ ← 即时练习
 │   ├── app/features/create/ ← 录入题目：上传、收件箱网格、框选、题卡、AI 训练与快速录入
 │   ├── app/features/annotate/ ← 框选标注页 /annotate（批量标注题目 / 答案框）
 │   ├── app/features/settings/ ← 设置页
-│   ├── styles.css
-│   ├── core.js / app.js / questions.js / schedule.js
 │   ├── app/features/reports/ ← 报告托管、上传与隔离预览
-│   ├── inbox_mobile.html   ← 手机上传页（录入页五个工作区在 app/features/create/）
-│   ├── labels.js / board.js ← 标记与展示板交互（题库页 v1.24.0 起在 app/features/questions/）
+│   ├── inbox_mobile.html   ← 手机上传页
 │   ├── vendor/fonts/       ← Noto Sans SC / JetBrains Mono（本地 WOFF2 分片）
 │   ├── vendor/katex/       ← KaTeX（本地，公式离线渲染）
 │   └── app/ui/             ← 统一提示、对话框与基础控件
 ├── 错题/                   ← 题库（Markdown + Obsidian 双链）
 │   ├── .omrs/              ← 结构化数据目录（Ledger / 投影 / 备份）
-│   │   ├── ledger.db       ← v1.1.0+ 唯一可信事实源
+│   │   ├── ledger.db       ← 题目、学习与 Session 核心状态的事实源
 │   │   ├── mastery_data.csv
 │   │   ├── history_log.csv
 │   │   ├── sessions.csv
@@ -181,12 +178,13 @@ pack_for_ai.bat
 
 ## 数据架构（v1.1.0+）
 
-OMRS 的所有结构化状态以 `错题/.omrs/ledger.db` 为**唯一可信来源**——一个不可变的全局提交链。
+OMRS 的题目身份、学习反馈、熟练度与 Session 等核心结构化状态以 `错题/.omrs/ledger.db` 为**唯一可信来源**——一个不可变的全局提交链。
 
-- 每个反馈、每条修正、每次录入都生成一条 `commit`（`prev_hash` + `commit_hash` 哈希链接）。
+- 每次学习反馈、历史修正和题目入库都生成一条 `commit`（`prev_hash` + `commit_hash` 哈希链接）。
 - 旧 CSV（`mastery_data.csv` / `history_log.csv`）由 `omrs/projections.py` **重放 Ledger 导出**，仅作兼容、调试和迁移输入。
 - 题目身份有两层：**UID**（Markdown 文件名，可改名/迁移）与 **`_omrs_id`**（隐藏稳定身份 `OP-000001`，写入 YAML）。历史反馈引用 `_omrs_id`，改名不会断链。
-- 任何时候都能从 Ledger 重放出完整的结构化运行状态——这也是「撤销 / 恢复 / 还原」的原理；Markdown 题干、答案、备注、排版和图片引用顺序不做历史版本化。
+- Ledger 可重放结构化运行状态，支持历史修正与还原；题目 Markdown 全文按哈希存入 Ledger 的 `blobs`，可查询已入账的正文版本，并将仍在题库中的题目还原到已有版本。图片文件本身不存入 `blobs`，正文引用的图片仍需单独保留。
+- 其他工作流各自持久化：展示板在 `错题/.omrs/boards.json`，配置和标记定义分别在 `config.json`、`labels.json`，AI 对话、草稿、收件箱和标注分别使用 `agent.db`、`drafts.db`、`inbox.db`、`annotate.db`，报告在 `错题/report/`；这些数据不由 Ledger 重放。草稿或收件箱提交为正式题目后，题目入库事件才写入 Ledger。
 
 详细见 [`AI/ledger.md`](AI/ledger.md)。
 

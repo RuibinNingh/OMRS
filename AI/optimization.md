@@ -35,9 +35,7 @@
 
 - [ ] **`AI/api.md` 超过 40KB** — 影响:低 / 工作量:小。`check_docs.py` 对它给出拆分提醒。可按领域拆成 `AI/api/` 分册（题目与调度、反馈与历史、展示板与导出、系统与认证），路由到文档的定位由 `AI/routes.md` 自动更新。
 
-- [ ] **服务器单线程,AI 识别时整界面卡死** — 影响:高 / 工作量:中
-  `cli.py` 用 `socketserver.TCPServer`(非 Threading),一次只处理一个请求。而 `ai-recognize` 同步调外部大模型(`ai_assist.py`,带 timeout,可能十几秒),期间任何请求都被阻塞;局域网多设备也排队。
-  改法:换 `ThreadingHTTPServer` / `ThreadingTCPServer` + `daemon_threads=True`。**v1.12.0 部分缓解**：收件箱的 detect / extract / classify 已改成后台线程 job + 轮询（`omrs/inbox.py`），批量识别不再卡界面；旧 `/api/ai-recognize` 仍同步。**代价**:并发后文件型数据层(CSV / Markdown / ledger)写入需加锁——给改动型端点 + `append_commit` / `rebuild_projection` 套一把全局 `threading.Lock`。
+- [x] **慢请求阻塞整个服务（已修）。** `omrs/cli.py::OMRSTCPServer` 使用 `ThreadingMixIn`，每连接一个守护线程；`/api/ai-recognize` 调外部模型时不占进程写锁，其他请求可继续处理。持久化写入由 `omrs/locking.py` 的可重入写锁串行，等锁超时返回 503；契约见 `AI/api.md`「并发与写锁」，回归见 `tests/test_write_lock.py`、`tests/test_ledger_concurrency.py`。
 
 - [ ] **投影是全量重放整条 ledger** — 影响:中(随时间恶化)/ 工作量:中高
   `projections.py` 的 `rebuild_projection` / `_project_state` 都 `read_commits(ascending=True)` 后从头 `for commit in commits` 算到尾。提交链只增,成本随历史线性增长——题做多了(几千 commit)每次重建肉眼变慢。
@@ -45,14 +43,9 @@
 
 ## 可维护性(「臃肿 / 草率」的根)
 
-- [x] **前端 JS 杂烩文件已按职责拆分(v1.5.0 完成)**
-  原 `schedule.js`(约 100 行)混了导出 / Session / 反馈页 / 录入提交 / 历史时间线 / 扫描六件事。已拆出 `export.js`、`feedback.js`、`history.js`,`schedule.js` 仅留 Session + 扫描 + 录入提交。因共享全局作用域,拆分零行为改动(函数名/签名/调用全不变,72 个函数原样,`node --check` 通过)。 P6 起导出与复习调度迁到 `assets/app/features/schedule/`，`export.js` 已删。
-  **后续**:`app.js`(26KB,含录入页图片/AI 逻辑 + init)也偏大,可在需要时再拆(旧 `recommend.js` 已确认为死代码并删除,两个仍在用的入口并入 `schedule.js`);前端整体可考虑迁移原生 ES Module(浏览器免构建),但**前提是先把行内 `onclick` 换成 `addEventListener`**(模块作用域下行内 handler 失效)。
+- [x] **旧全局 JS 按职责拆分。** P8 后入口为 `assets/app/main.js` / `shell.js`，各页面在 `features/` 下以原生 ES Module 挂载；旧 `app.js`、`schedule.js`、`feedback.js`、`board.js` 和过渡桥已删除，依赖方向由 `tests/check_ui.py` 约束。
 
-- [ ] **CSS 一层层叠,有真实重复定义** — 影响:中 / 工作量:中 / 风险:低
-  **进行中(前端重构 P0)**:token 已集中到 `assets/app/styles/tokens.css`(旧名保留为别名),`tests/check_ui.py` 对旧代码的颜色字面量、硬编码字号等按文件计数只减不增,`tests/visual/run.py` 提供前后截图对比。重复定义随各页迁入 `assets/app/` 时整段删除,不再单独清理;规范见 `AI/frontend/design-system.md`。
-  `styles.css` 里 `.form-group`、`.fb-toggle` 等被定义两遍(历次「现代化」往后追加却没删旧的)。注意约 30 个「重复」里不少是合理的响应式 / 深色 `@media` 覆盖,不算债;上面这几个是真叠加债。建议按组件集中收拢(配合截图回归)。即时练习页已清理了一批孤立规则,重复的 `.shell` 也已删除(全宽改造时)；2026-08-13 已收拢 `.instant-queue` 的重复定义(删除 v1.4.2 遗留的 55vh 段,保留 v1.5.0 的 62vh 段)。
-  另有一类相关但不同的债在 v1.7.0 清掉:**规则里写死浅色时代的颜色**(`.q-answer .q-md` 的深绿底、时间线 `.fam-review/.fam-session` 标签、`.heat-*` 的白字与 7% 空档、柱状渐变的低位停点、`.btn.danger:hover` 的白字)。这些不是重复定义,而是 token 切深色后它们不跟着走,表现为「深色下看不清」。已统一改为 `var(--*)` / `rgba(var(--*-rgb), α)` 并集中在文件末尾的深色修订段。**新增规则不要再写裸十六进制或裸 `rgba(r,g,b,a)`。**
+- [x] **旧 CSS 叠加与存量违规（已清理）。** P8 删除旧样式文件，页面样式由 `assets/app/styles/index.css` 分层引入，颜色和尺度由 `tokens.css` 管理。`tests/check_ui.py` 对全仓行内事件、HTML 赋值、行内样式、颜色字面量和硬编码字号零容忍；规范见 `AI/frontend/design-system.md`。
 
 - [x] **qview 的「窄了就单栏」容器查询永远不生效（P5 已修）** — 影响:中(手机上题目弹窗、反馈工作台的题面仍是挤在一起的双栏) / 工作量:小。`styles.css` 把 `container-type` 设在 `.qv` 自身，而 `@container qv (max-width:680px)` 要改的正是 `.qv-split` 这个容器本身；容器查询只作用于后代，所以从不命中。现改为以挂载点为容器（`assets/app/domain/question/qview.css`），即时练习与反馈录入的页面补丁已删除，题目弹窗在窄屏单栏。
 
@@ -62,11 +55,7 @@
 - [ ] **后端路由是超长 if/elif** — 影响:中 / 工作量:中
   `server.py` 的 `do_GET`(~150 行)/ `do_POST`(~280 行)是手写分支链,`json.loads(body)` 重复十几次。可收成 `{(method, path): handler}` 派发表 + 统一 body 解析。纯整理,降认知负担。
 
-- [ ] **前端整块 innerHTML 重渲染 + 行内 onclick** — 影响:中 / 工作量:高
-  存量由 `tests/check_ui.py` 的棘轮基线 UI 基线文件 跟踪(只减不增);新代码在 `assets/app/` 下零容忍。
-  项目仍广泛使用 `innerHTML=` 和模板内 `onclick=`；具体数量会随功能变化，不在此硬编码。它们会导致高频交互重建整块 DOM、标记与逻辑混在字符串中，并阻碍 ES Module 化。务实改法：先把队列、反馈行等高频区域改为局部更新和事件委托。
-  **v1.10.0 已完成反馈页部分**：`renderFb()` 拆成 `fbRenderRail` / `fbRenderPanel` / `fbRenderStage`，点「对 / 错」只就地改一行 class（`fbPatchRailRow`）并重绘判定面板，题目 DOM 与 KaTeX 不再整块重建，滑杆焦点与滚动位置不丢；rail 与判定面板的控件改走 `data-fb-go` / `data-fb-act` 事件委托，qview 的工具按钮走 `data-qv-act` 委托。**仍未处理**：题目库表格与画廊、导出选题器、推荐面板、历史时间线、数据复盘表格等仍是整块 `innerHTML` + 行内 `onclick`；（即时练习、反馈录入已随前端重构 P3 / P4 迁到 `assets/app/features/instant/`、`assets/app/features/feedback/`，改用 morph 差量更新，上述 `fbRender*` / `data-fb-*` 随旧 `feedback.js` 一并删除。）
-  **v1.14.0 新增的 `qtable.js` / `board.js` 也保留了整块渲染**：两者都已迁走（题库 P5、展示板 P7），新页面用 `morph` 差量更新。
+- [x] **旧脚本的整块 HTML 赋值和行内事件（已清理）。** P8 后生产代码仅 `assets/app/core/dom.js` 可写 `innerHTML`，由 `render` 或 `morph` 更新 DOM；页面模板不含行内 `onclick`。`tests/check_ui.py` 当前五项计数均为 0。
 
 - [x] **旧经典脚本 assets/board.js 承载多种职责（P7 完成拆分并删除）** — 影响:中 / 工作量:中 / 风险:中
   原文件包含板 CRUD、文件夹操作、条目增删排序、版面设置、保存队列、打印与纸面记录、拖拽、预览协调和事件委托。
@@ -95,10 +84,10 @@
   几何改动走 relayout 已经消化掉绝大多数刷新，所以暂时不做 LRU；真要做的话
   上限按条数而不是按字节，避免为了算字节把整份 HTML 再遍历一遍。
 
-- [ ] **标记批量级联写入可能阻塞单线程服务** — 影响:中 / 工作量:中
+- [ ] **标记批量级联写入可能长时间占用进程写锁** — 影响:中 / 工作量:中
   标记名称存进题目 YAML，因此 `labels.py` 的改名、删除（解除引用）和合并会逐题
   原子写 Markdown，并为结构化元数据产生提交，最后统一扫描投影。几十题通常可接受，
-  但数百题会在当前单线程 HTTP 服务中占住请求；未来可将批量操作改成后台 job 或
+  但数百题会使其他持久化写入排队，等锁超过 60 秒返回 503；未来可将批量操作改成后台 job 或
   在统一写锁下合并提交，同时保留失败题清单和幂等重试。
 
 ## 健壮性
@@ -119,11 +108,11 @@
   - 目录树与行动推荐：`test_catalog_tree.py`、`tests/app/catalog.test.mjs`、`tests/e2e/catalog.py`、`tests/app/dashboard.test.mjs`
   - 反馈录入与答题卡导入：`tests/app/feedback.test.mjs`（P4 起；合并了原 `test_feedback_ui.js`、`test_omr_import.js`、`smoke_feedback_omr_import.js` 的全部断言）、`tests/e2e/feedback.py`（浏览器接线）
   - 标记与展示板：`test_labels.py`、`test_boards.py`、`test_board_export.py`、`tests/app/labels.test.mjs`、`tests/app/board.test.mjs`、`smoke_board_print.py`
-  - 题库界面：`test_qtable_ui.js`、`tests/app/question.test.mjs`（渲染缓存、记录统计、战绩带、Ledger 记录优先于 Markdown 旧行、画廊卡骨架）、`test_question_suspend*.{py,js}`、`test_question_delete.py`、`test_recommend_v2_filters.js`
-  - 其它：`test_inbox.py`（14 例）、`test_sessions_feedback.py`、`test_recommendations.py`、`test_source_export.py`
+  - 题库界面：`tests/app/questions.test.mjs`、`tests/app/question.test.mjs`（渲染缓存、记录统计、战绩带）、`test_question_suspend.py`、`test_question_delete.py`、`tests/e2e/questions.py`
+  - 其它：`test_inbox.py`、`test_sessions_feedback.py`、`test_recommendations.py`、`test_source_export.py`
   - 文档形式体检：`check_docs.py`（不是测试用例，交付前跑一次）
   核心缺口仍是 `compute_mastery_update` / `compute_priority` / SM-2 的边界、Ledger append→projection 集成、CSV/Markdown 异常输入和浏览器端 A4/屏幕/展示板真实打印回归。
-  **当前测试数量与运行方式**：`tests/test_inbox.py` 有 14 个 `test_*` 方法；`test_report_export.py` 有 6 个 pytest 风格用例，其余 Python 测试文件使用 `unittest`。`python3 -m unittest discover -s tests -p "test_*.py"` 会运行 unittest 用例但静默跳过 `test_report_export.py`；无 pytest 的环境需单独安排。JS 用例逐文件跑：`for f in tests/test_*.js; do node --test "$f"; done`（`node --test tests/` 目录形式在 Node 22 下不可用）。
+  **当前运行方式**：`python3 -m unittest discover -s tests -p 'test_*.py' -q` 运行 `unittest` 用例，但会静默跳过 `tests/test_report_export.py` 中的 pytest 风格函数；该文件需要单独用 pytest 跑。前端模块用 `node --test tests/app/*.test.mjs`，真实浏览器路径见 `tests/e2e/` 与 `tests/app/run_browser.py`。
 
 - [x] **展示板打印链路的三处浪费（2026-09-06 已修）** — 导出把 KaTeX 的 woff2/woff/ttf 三份字体全内联且每次重新读盘编码，浏览器模板固定排版两遍，长图在原始分辨率上逐像素找白缝。现在只内联 woff2 并按文件时间缓存（导出 2.0MB→0.95MB）、按是否真的多加载了字体决定第二遍（30 题板就绪 0.4s→0.28s）、白缝分析在 ≤600px 缩图上做。前端页数估算改成可取消，并复用打印预览窗口回传的版面。回归：`tests/test_board_export.py`、`tests/smoke_board_print.py`（3 例）、`tests/app/board.test.mjs`（原 test_board_ui.js）。
   当前预览使用单例 iframe 与最近一份 HTML 缓存；几何改动通过 120ms 去抖发送 `relayout`，页数直接读取预览版面，不再另外排版估算。
@@ -137,8 +126,8 @@
 
 ## 锦上添花
 
-- [ ] `reloadData()` 每次改动全量刷新(~10 处调用):小数据无感,量大偏重,可改局部更新。
-- [ ] **运行时外链 Google Fonts**:离线/弱网首屏阻塞 + 每次访问请求 Google。既然 KaTeX 已本地化,把字体也 vendoring 进 `assets/vendor/` 更彻底(离线 + 隐私 + 首屏)。工作量低。
+- [ ] `reloadData()` 在多个写入点重拉完整统计快照；小数据无感，量大时可评估局部更新。
+- [x] **界面字体本地化。** `omrs_dashboard.html` 加载 `assets/vendor/fonts/fonts.css`，Noto Sans SC 和 JetBrains Mono 均从本地 WOFF2 提供，运行时无 Google Fonts 外链。
 - [x] **局域网模式访问控制。** 远端页面和 API 经 PIN 会话保护；本机及显式豁免网段直连免 PIN。配置与代理边界见 `AI/security.md`。
 
 ## 已经做得好的(不要动)
