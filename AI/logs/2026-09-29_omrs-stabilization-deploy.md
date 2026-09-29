@@ -31,7 +31,11 @@
 
 代码回退可把备份目录中的 `10-release.conf.before` 恢复到 `/etc/systemd/system/omrs.service.d/10-release.conf`，执行 `systemctl daemon-reload` 后重启主服务，并复核版本和在线模型。旧 `omrs-82d396f` 发布目录保留；真实 Vault 的备份仅用于专项数据恢复，不能整目录覆盖发布后新增内容。已补齐的 blob 与回填提交可保留，重复启动不会新增相同回填。
 
-未执行真实用户数据写入试验、付费模型调用、旧版本缺口恢复或模型切换。16:59 的旧模型操作仍无法归因具体操作者，结论保留在前次任务日志。本次 GitHub `main` 推送及远端指针核对待完成。
+未执行真实用户数据写入试验、付费模型调用、旧版本缺口恢复或模型切换。16:59 的旧模型操作仍无法归因具体操作者，结论保留在前次任务日志。
+
+## GitHub 推送
+
+发布记录提交 `c079cef` 前执行 `python3 tests/check_docs.py --write-log-index`、`python3 tests/check_docs.py --diff HEAD` 与 `git diff --check`；文档检查为 57 份、0 处问题、2 条既有大文件提醒，差异检查退出码为 0。随后 `git fetch origin main` 确认远端 `c2dee40` 是本地 `main` 的祖先，执行 `git push origin main` 成功，远端从 `c2dee40` 快进到 `c079cef`。本节与计划进度的最终收尾另行提交并再次推送；最终远端指针以推送后 `git ls-remote origin refs/heads/main` 为准。
 
 ## 影响文件
 
