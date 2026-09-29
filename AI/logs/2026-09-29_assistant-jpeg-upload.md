@@ -30,4 +30,16 @@
 - `python3 tests/visual/run.py --ref HEAD --pages assistant --out /tmp/omrs-jpeg-visual`：4 组截图，0 组像素差异，0 个页面脚本错误；本次没有布局或文案变化。
 - `git diff --check`：通过。
 
-未执行：真实模型联网复测、生产部署与服务重启；本任务只在临时 Vault 和测试模型中验证，外部状态变更须另行授权。
+首次本地交付时未执行真实模型联网复测、生产部署与服务重启；当时只在临时 Vault 和测试模型中验证，等待用户单独授权外部状态变更。
+
+## 后续合入、部署与推送
+
+用户随后明确要求“修复记得合并生产和Git,推送GitHub”，授权本地 `main` 合入、生产切换、服务重启及 GitHub 推送。先确认 `origin/main` 是本地 `main` 的祖先，修复分支可快进；`main` 快进到 `25f3c3f`。原有未跟踪 `.playwright-mcp/` 未纳入提交。远端原本落后本地 42 个已有提交；核对提交清单和改动路径后，`git push origin main` 成功，将远端 `main` 从 `52d9152` 推进到 `25f3c3f`。
+
+发布目录 `/root/workspace/releases/omrs-25f3c3f` 由 `git archive 25f3c3f` 生成，`omrs/drafts.py` 哈希与提交内容一致；在发布目录用 `/usr/bin/python3` 执行 `tests.test_drafts.ImageValidationTests`，3/3 通过。停机前生产 v1.33.1、224 道题，助手活动运行与草稿排队任务均为 0，`omrs.service` 正常运行且 `NRestarts=0`。
+
+停止主服务后，将完整真实 Vault 归档至 `/root/workspace/backups/recycle/assistant-jpeg-25f3c3f-20260929T070258Z/vault-before.tar`（190474240 字节，权限 0600），保存原 drop-in、322 个用户文件哈希、配置哈希及 5 个 SQLite 数据库的 `quick_check` 和逐表行数。仅将主服务 drop-in 的发布路径从 `omrs-f803f2d` 改为 `omrs-25f3c3f`，再 `daemon-reload` 与启动；停机到健康检查通过约 0.95 秒。未改 Nginx、Vault 路径、端口或检测服务。
+
+生产验收：`omrs.service` active/running，实际进程从新发布目录启动，`ExecMainStatus=0`、`NRestarts=0`；`/api/status` 返回 ok、v1.33.1、224 道题。线上原 IMG-1 的只读图片接口返回 218790 字节、带 `FF D9` 结束标记；线上 `attachments.js` 与发布目录哈希相同。390px 手机 Chromium 只读打开生产页面，并用合成缺尾 JPEG 调用线上模块，输出为完整 JPEG；没有页面脚本错误或生产写请求。切换后 322 个用户文件和配置哈希保持一致，5 个数据库 `quick_check` 均为 ok，逐表行数无变化，错误级 journal 无记录；检测服务 PID 未变。
+
+仍未执行真实模型付费请求或生产写入试验。旧失败运行不会自动重试；用户需在手机上重新发消息，若原图还有其他损坏则重新上传。代码回退只需把备份中的 `10-release.conf.before` 恢复到原 drop-in、`daemon-reload` 并重启主服务；不要用旧 Vault 覆盖上线后的新数据。
