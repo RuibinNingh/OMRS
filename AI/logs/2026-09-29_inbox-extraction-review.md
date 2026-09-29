@@ -33,4 +33,10 @@
 
 ## 部署
 
-待门禁完成后，从 main 提交生成独立发布目录，备份生产 Vault 和原 drop-in，再切换主服务并验证。检测服务及模型不变。
+功能提交 `ceba925` 已提交 main（v1.33.0），固定发布目录 `/root/workspace/releases/omrs-ceba925`；发布目录用 `/usr/bin/python3 -m unittest tests.test_inbox tests.test_ai_assist_taxonomy tests.test_asset_cache -q` 在临时 Vault 验证 33/33。
+
+切换前确认助手、收件箱、草稿没有活动任务；停止主服务后对真实 Vault 做一致性归档，并备份原 drop-in。备份 `/root/workspace/backups/recycle/inbox-v133-20260929T033630Z`；切换主服务耗时 0.91 秒，检测服务 PID 不变。615 个非数据库文件哈希完全一致（含原图与配置），5 个数据库 quick_check 通过、所有表行数一致。主服务 active/running、ExecMainStatus=0、NRestarts=0；近 5 分钟错误级 journal 无记录。
+
+生产只读 Chromium 四档（桌面/手机 × 浅/深）确认 v1.33.0、一键提取、无旧选择项、无横向溢出及脚本错误、无写请求；4 份关键 JS 与发布目录逐字节一致。模拟未登录远端的收件箱和助手接口均返回 401。证据 `/tmp/omrs-extract-production.json`、`/tmp/omrs-extract-production/` 和备份中的 verification.json。
+
+回退时恢复备份的 10-release.conf.before 并 daemon-reload、重启主服务；旧 omrs-6437525 保留，不用旧 Vault 覆盖上线后的数据。未推送远端；本次授权的 main 提交和本机生产部署均已完成。下一步为用户刷新页面使用，无待执行实施步骤。
