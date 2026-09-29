@@ -99,8 +99,14 @@ def main():
             current = item(key)
             button = f'.drf-item[data-arg="{current["id"]}"]'
             target_filter = 'done' if current['status'] == 'done' else 'pending'
+            if page.locator('[data-action="create.draftToggleQueue"]').is_visible() and not page.locator('[data-action="create.draftFilter"]').first.is_visible():
+                page.locator('[data-action="create.draftToggleQueue"]').click()
             page.locator(f'[data-action="create.draftFilter"][data-arg="{target_filter}"]').click()
+            if page.locator('[data-action="create.draftToggleQueue"]').is_visible() and not page.locator(button).is_visible():
+                page.locator('[data-action="create.draftToggleQueue"]').click()
             page.locator(button).click()
+            if page.locator('.drf-source-trigger').get_attribute('aria-expanded') == 'false':
+                page.locator('.drf-source-trigger').click()
             page.locator('#drf-stage-src').wait_for()
         def mode(value):
             Path(vault, 'detect-mode').write_text(value)
@@ -139,6 +145,7 @@ def main():
                     original = item('applied')['blocks'][0]['ai_box']
                     page.locator('#drf-stage-img').scroll_into_view_if_needed()
                     handle = page.locator('#drf-stage-img .crp-handle[data-h="se"]')
+                    handle.scroll_into_view_if_needed()
                     point = handle.bounding_box()
                     page.mouse.move(point['x'] + point['width'] / 2, point['y'] + point['height'] / 2)
                     page.mouse.down(); page.mouse.move(point['x'] + point['width'] / 2 + 20, point['y'] + point['height'] / 2 + 10, steps=5); page.mouse.up()
@@ -187,7 +194,10 @@ def main():
                           and page.locator('[data-action="create.draftCommit"]').is_enabled()
                           and page.locator('[data-action="create.draftCanvasMode"][data-arg="training"]').count() == 1)
                     page.locator('[data-action="create.draftCommit"]').click()
-                    check('全文字先入库，正文只读而训练框可画', support.wait(page, "() => !!document.querySelector('.drf-success')", 15000)
+                    check('全文字先入库并进入下一题', support.wait(page, f"() => !document.querySelector('.drf-detail .drf-id')?.textContent.includes('{records['force']['id']}')", 15000)
+                          and item('force')['status'] == 'done')
+                    open_draft(page, 'force')
+                    check('已入库正文只读而训练框可画', page.locator('.drf-success').count() == 1
                           and page.locator('[data-action="create.draftSave"]').count() == 0
                           and page.locator('[data-action="create.draftCanvasMode"][data-arg="training"]').get_attribute('aria-pressed') == 'true')
                     check('入库后三处待审核计数同步减少', support.wait(page, counts_equal)

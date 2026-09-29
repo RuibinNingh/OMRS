@@ -63,7 +63,7 @@ test('AI 歧义候选只展示建议；全文字 done 可独立保存训练框',
   assert.equal(latestDetectResult(draft, null, 'a'.repeat(64)).result.status, 'suggested');
   const markup = draftsView({ list: [draft], listLoaded: true, filter: 'done', selectedId: draft.id,
     draft, value: editValue(draft), training: { 'dt-1': [] }, canvasSha: 'a'.repeat(64), canvasMode: 'training',
-    detailLoaded: true, dirty: true, busy: false }).text;
+    detailLoaded: true, dirty: true, busy: false, sourceOpen: true }).text;
   assert.match(markup, /独立训练框待核对/);
   assert.match(markup, /训练任务：待框选/);
   assert.match(markup, /采用为训练框/);
@@ -74,7 +74,8 @@ test('AI 歧义候选只展示建议；全文字 done 可独立保存训练框',
 test('草稿视图显示原图、只读完成态及来源不完整提示，文本被转义', () => {
   const draft = { ...sample(), sources_complete: false, subject: '<script>', status: 'done', uid: 'MATH-1' };
   const markup = draftsView({ list: [draft], listLoaded: true, filter: 'done', selectedId: draft.id,
-    counts: { cropping: 1, review: 1 }, draft, value: editValue(draft), detailLoaded: true, dirty: false, busy: false }).text;
+    counts: { cropping: 1, review: 1 }, draft, value: editValue(draft), detailLoaded: true, dirty: false, busy: false,
+    sourceOpen: true }).text;
   assert.match(markup, /来源未完整恢复/);
   assert.match(markup, /查看题目/);
   assert.match(markup, /&lt;script&gt;/);
@@ -84,4 +85,22 @@ test('草稿视图显示原图、只读完成态及来源不完整提示，文�
     counts: { cropping: 0, review: 0 }, draft: { ...draft, question_available: false }, value: editValue(draft), detailLoaded: true }).text;
   assert.match(unavailable, /题目当前不可用/);
   assert.doesNotMatch(unavailable, /data-action="create\.draftQuestion"/);
+});
+
+test('审核默认先呈现题目，编辑与来源对照按需展开', () => {
+  const draft = { ...sample(), status: 'review', blocks: [sample().blocks[0], sample().blocks[2]] };
+  const state = { list: [draft], listLoaded: true, filter: 'pending', selectedId: draft.id,
+    counts: { cropping: 0, review: 1 }, draft, value: editValue(draft), detailLoaded: true,
+    reviewTab: 'question', fieldsEditing: false, sourceOpen: false, dirty: false, busy: false };
+  const reading = draftsView(state).text;
+  assert.match(reading, /第 1\/1 题/);
+  assert.match(reading, /保存并入库，下一题/);
+  assert.match(reading, /class="drf-md q-md"/);
+  assert.match(reading, /class="drf-source-trigger"[^>]*aria-expanded="false"/);
+  assert.doesNotMatch(reading, /class="drf-canvas"/);
+  assert.doesNotMatch(reading, /data-input="create\.draftBlockText"|data-input="create\.draftField"/);
+  const editing = draftsView({ ...state, editingBlock: 'q1', fieldsEditing: true, sourceOpen: true }).text;
+  assert.match(editing, /data-input="create\.draftBlockText"/);
+  assert.match(editing, /data-input="create\.draftField"/);
+  assert.match(editing, /class="drf-source-trigger"[^>]*aria-expanded="true"/);
 });

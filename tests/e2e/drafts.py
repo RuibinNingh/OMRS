@@ -126,8 +126,12 @@ def run(page, base, first, second, old, images, results):
     page.locator('#create-flow [data-ib-stage="drafts"]').click()
     check('工作区显示四份待审核草稿', wait(page, "() => document.querySelectorAll('.drf-item').length === 4"))
     page.locator(f'.drf-item[data-arg="{first["id"]}"]').click()
+    check('审核首屏先显示题目且来源默认收起', wait(page, "() => !!document.querySelector('.drf-review-question') && document.querySelector('.drf-source-trigger')?.getAttribute('aria-expanded') === 'false'")
+          and page.locator('[data-input="create.draftBlockText"]').count() == 0)
+    page.locator('.drf-source-trigger').click()
     check('来源两图和有序块真实读取', wait(page, "() => document.querySelectorAll('.drf-source img').length === 2 && document.querySelectorAll('.drf-block').length === 3"))
     check('未框图片阻止通过', page.locator('[data-action="create.draftCommit"]').is_disabled())
+    page.locator('[data-action="create.draftEditFields"]').click()
     page.locator('[data-input="create.draftField"][data-arg="cause"]').fill('计算时漏看平方')
     page.locator('.drf-block [data-action="create.draftWhole"]').click()
     check('整图框使通过可选且显示未保存', wait(page, "() => !document.querySelector('[data-action=\"create.draftCommit\"]')?.disabled && document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
@@ -135,10 +139,17 @@ def run(page, base, first, second, old, images, results):
     check('显式保存把框和错因写入真实 API', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存')")
           and (lambda item: item['draft']['cause'] == '计算时漏看平方' and item['draft']['blocks'][1]['box'] == {'x': 0, 'y': 0, 'w': 1, 'h': 1}
                and item['draft']['status'] == 'review')(api(base, '/api/drafts/item?id=' + first['id'])))
+    lost_responses = []
+    def lose_commit_response(route):
+        lost_responses.append(route.fetch().status)
+        route.abort()
+    page.route('**/api/drafts/commit', lose_commit_response, times=1)
     page.locator('[data-action="create.draftCommit"]').click()
-    check('通过只创建一次并变只读', wait(page, "() => document.querySelector('.drf-success')?.textContent.includes('已入库')")
+    check('通过只创建一次并进入下一题', wait(page, f"() => !!document.querySelector('.drf-detail .drf-id') && !document.querySelector('.drf-detail .drf-id')?.textContent.includes('{first['id']}')")
           and api(base, '/api/drafts/item?id=' + first['id'])['draft']['status'] == 'done'
-          and page.locator('[data-action="create.draftSave"]').count() == 0)
+          and page.locator('[data-action="create.draftCommit"]').count() == 1)
+    check('入库响应丢失后同一操作安全重试', lost_responses == [200]
+          and api(base, '/api/drafts/item?id=' + first['id'])['draft']['status'] == 'done')
     page.locator('#create-flow [data-ib-stage="drafts"]').click()
     page.locator('[data-action="create.draftFilter"][data-arg="pending"]').click()
     page.locator(f'.drf-item[data-arg="{second["id"]}"]').click()
@@ -149,13 +160,15 @@ def run(page, base, first, second, old, images, results):
           and api(base, '/api/drafts/counts')['counts']['discarded'] == 1)
     page.locator('[data-action="create.draftFilter"][data-arg="pending"]').click()
     page.locator(f'.drf-item[data-arg="{old["id"]}"]').click()
-    check('旧来源不完整提示与可补关联图片', wait(page, "() => document.querySelector('.drf-hint')?.textContent.includes('来源未完整恢复') && document.querySelectorAll('#drf-source-select option').length === 5"))
+    page.locator('.drf-source-trigger').click()
+    check('旧来源不完整提示与可补关联图片', wait(page, "() => document.querySelector('.drf-sources .drf-hint')?.textContent.includes('来源未完整恢复') && document.querySelectorAll('#drf-source-select option').length === 5"))
     page.locator('#drf-source-select').select_option(images[1]['sha256'])
     page.locator('[data-action="create.draftSourceAdd"]').click()
     page.locator('[data-action="create.draftSave"]').click()
     check('补关联按 SHA 保存且来源完整', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存') && !document.querySelector('.drf-detail [aria-busy=true]')")
           and (lambda item: item['draft']['sources_complete'] and images[1]['sha256'] in [image['sha256'] for image in item['draft']['source_images']])
               (api(base, '/api/drafts/item?id=' + old['id'])))
+    page.locator('[data-action="create.draftEditFields"]').click()
     page.locator('[data-input="create.draftField"][data-arg="note"]').fill('未保存的临时笔记')
     check('编辑备注进入未保存状态', wait(page, "() => document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
     page.locator('#create-flow [data-ib-stage="upload"]').click()
@@ -173,6 +186,7 @@ def run(page, base, first, second, old, images, results):
     page.reload(wait_until='networkidle')
     page.locator('#create-flow [data-ib-stage="drafts"]').click()
     check('刷新恢复上次选中的草稿', wait(page, f"() => document.querySelector('.drf-detail .drf-id')?.textContent.includes('{old['id']}')"))
+    page.locator('[data-action="create.draftEditFields"]').click()
     current = api(base, '/api/drafts/item?id=' + old['id'])['draft']
     fields = {name: current[name] for name in ('subject', 'category', 'difficulty', 'knowledge_points', 'labels', 'cause', 'note')}
     fields['note'] = '另一标签页已修改'
@@ -185,6 +199,13 @@ def run(page, base, first, second, old, images, results):
     page.locator('[data-action="create.draftReloadDetail"]').click()
     page.locator('dialog[open] [data-dialog-ok]').click()
     check('显式重读后采用服务端版本', wait(page, "() => document.querySelector('[data-input=\"create.draftField\"][data-arg=\"note\"]')?.value === '另一标签页已修改'"))
+    latest = api(base, '/api/drafts/item?id=' + old['id'])['draft']
+    api(base, '/api/drafts/update', {'id': old['id'], 'revision': latest['revision'],
+                                     'fields': {'note': '入库前被其他窗口修改'}, 'blocks': latest['blocks']})
+    page.locator('[data-action="create.draftCommit"]').click()
+    check('入库前版本复核拦截旧草稿', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('新版本')")
+          and api(base, '/api/drafts/item?id=' + old['id'])['draft']['status'] != 'done')
+    page.locator('[data-action="create.draftReloadDetail"]').click()
     page.route('**/api/drafts/list?status=pending&limit=500', lambda route: route.fulfill(
         status=503, content_type='application/json', body='{"status":"error","msg":"列表暂不可用"}'))
     page.locator('.drf-list-head [data-action="create.draftReload"]').click()
@@ -202,12 +223,16 @@ def run_p3(page, base, draft, images, results):
         stage = page.locator('#drf-stage-img')
         stage.scroll_into_view_if_needed()
         bounds = stage.bounding_box()
+        target_y = bounds['y'] + bounds['height'] * y1
+        page.evaluate("y => { const foot = document.querySelector('.drf-footer')?.getBoundingClientRect(); if (foot && y > foot.top - 24) document.querySelector('#ib-stage-drafts').scrollTop += y - foot.top + 110; }", target_y)
+        bounds = stage.bounding_box()
         page.mouse.move(bounds['x'] + bounds['width'] * x0, bounds['y'] + bounds['height'] * y0)
         page.mouse.down()
         page.mouse.move(bounds['x'] + bounds['width'] * x1, bounds['y'] + bounds['height'] * y1, steps=6)
         page.mouse.up()
 
     page.locator(f'.drf-item[data-arg="{draft["id"]}"]').click()
+    page.locator('.drf-source-trigger').click()
     check('P3 多图草稿显示逐图画布', wait(page, "() => document.querySelectorAll('.drf-canvas-tabs [data-action=\"create.draftCanvasImage\"]').length === 2 && !!document.querySelector('#drf-stage-src')"))
     drag(.12, .18, .66, .65)
     check('手动画框使正文可保存', wait(page, "() => document.querySelectorAll('#drf-stage-img .crp-box').length === 1 && document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
@@ -223,15 +248,22 @@ def run_p3(page, base, draft, images, results):
     page.mouse.down(); page.mouse.move(point['x'] + point['width'] / 2 + 20, point['y'] + point['height'] / 2 + 12, steps=5); page.mouse.up()
     check('正文框可缩放', float(page.locator('#drf-stage-img .crp-box').get_attribute('width')) > before_width)
     page.locator('[data-action="create.draftSave"]').click()
+    check('首张框保存完成后才继续操作', wait(page, "() => !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
     check('局部正文框通过真实 API 持久化', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存')")
           and api(base, '/api/drafts/item?id=' + draft['id'])['draft']['blocks'][1]['box'] is not None)
     page.locator('[data-action="create.draftClearBox"]').click()
     check('正文框可删除', wait(page, "() => !document.querySelector('#drf-stage-img .crp-box')"))
     drag(.1, .2, .55, .6)
+    redrawn = wait(page, "() => !!document.querySelector('#drf-stage-img .crp-box') && !!document.querySelector('[data-action=\"create.draftSave\"]:not([disabled])')", 3000)
+    check('删除后重画框可再次保存', redrawn, '' if redrawn else str(page.evaluate("() => { const stage = document.querySelector('#drf-stage-img'); const r = stage.getBoundingClientRect(); return {box: stage.querySelector('.crp-box')?.outerHTML, heading: document.querySelector('.drf-detail h2')?.textContent, hit: document.elementFromPoint(r.x + r.width * .1, r.y + r.height * .2)?.outerHTML.slice(0, 180), stage: r.toJSON(), footer: document.querySelector('.drf-footer')?.getBoundingClientRect().toJSON()}; }")))
+    if not redrawn:
+        return
     page.locator('[data-action="create.draftSave"]').click()
+    wait(page, "() => !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')")
     page.locator(f'[data-action="create.draftCanvasImage"][data-arg="{images[1]["sha256"]}"]').click()
     drag(.2, .18, .78, .7)
     page.locator('[data-action="create.draftSave"]').click()
+    wait(page, "() => !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')")
     current = api(base, '/api/drafts/item?id=' + draft['id'])['draft']
     check('两张来源图的框均已保存', current['status'] == 'review'
           and all(row['box'] for row in current['blocks'] if row['kind'] == 'image'))
@@ -248,6 +280,7 @@ def run_p3(page, base, draft, images, results):
     check('训练框可单独删除', page.locator('.drf-training-box').count() == initial)
     drag(.55, .1, .86, .35)
     page.locator('[data-action="create.draftSave"]').click()
+    wait(page, "() => !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')")
     current = api(base, '/api/drafts/item?id=' + draft['id'])['draft']
     task = next(row for row in current['training_tasks'] if row['image_sha'] == images[0]['sha256'])
     check('训练框单独保存且不改正文', len(task['boxes']) == initial + 1 and current['blocks'][1]['kind'] == 'image')
@@ -264,8 +297,7 @@ def run_p3(page, base, draft, images, results):
           and (lambda row: row['kind'] == 'image' and row['box'] is not None)(
               api(base, '/api/drafts/item?id=' + draft['id'])['draft']['blocks'][2]))
     page.locator('[data-action="create.draftCommit"]').click()
-    check('入库后训练图登记且正文只读', wait(page, "() => !!document.querySelector('.drf-success')", 20000)
-          and page.locator('[data-action="create.draftSave"]').count() == 0
+    check('入库后训练图登记且进入下一题', wait(page, f"() => !document.querySelector('.drf-detail .drf-id')?.textContent.includes('{draft['id']}')", 20000)
           and next(row for row in api(base, '/api/drafts/item?id=' + draft['id'])['draft']['training_tasks']
                    if row['image_sha'] == images[0]['sha256'])['status'] == 'registered')
     page.locator('.drf-list-head [data-action="create.draftCleanup"]').click()
@@ -287,7 +319,16 @@ def run_touch(browser, base, vault, results):
     try:
         page.goto(base + '/#/create', wait_until='networkidle')
         page.locator('#create-flow [data-ib-stage="drafts"]').click()
+        results.append(('手机队列默认收起', not page.locator('.drf-item').first.is_visible(), ''))
+        page.locator('[data-action="create.draftToggleQueue"]').click()
         page.locator(f'.drf-item[data-arg="{draft["id"]}"]').click()
+        results.append(('手机题目标签先显示且信息按需切换', wait(page, "() => !!document.querySelector('.drf-review-question')")
+                        and page.locator('.drf-review-question').is_visible()
+                        and not page.locator('.drf-review-info').is_visible(), ''))
+        page.locator('[data-action="create.draftReviewTab"][data-arg="info"]').click()
+        results.append(('手机信息标签可读', page.locator('.drf-review-info').is_visible(), ''))
+        page.locator('[data-action="create.draftReviewTab"][data-arg="question"]').click()
+        page.locator('.drf-source-trigger').click()
         stage = page.locator('#drf-stage-img')
         stage.scroll_into_view_if_needed()
         box = stage.bounding_box()
@@ -352,16 +393,30 @@ def main():
                         audit_page.on('pageerror', lambda error: audit_errors.append(str(error)))
                         audit_page.goto(base + '/#/create', wait_until='networkidle')
                         audit_page.locator('#create-flow [data-ib-stage="drafts"]').click()
-                        audit_page.locator('[data-action="create.draftFilter"][data-arg="done"]').click()
-                        wait(audit_page, "() => document.querySelectorAll('.drf-source img').length === 2")
+                        if width < 760:
+                            audit_page.locator('[data-action="create.draftToggleQueue"]').click()
+                        first_filter = 'done' if api(base, '/api/drafts/item?id=' + first['id'])['draft']['status'] == 'done' else 'pending'
+                        audit_page.locator(f'[data-action="create.draftFilter"][data-arg="{first_filter}"]').click()
+                        if width < 760 and not audit_page.locator(f'.drf-item[data-arg="{first["id"]}"]').is_visible():
+                            audit_page.locator('[data-action="create.draftToggleQueue"]').click()
+                        audit_page.locator(f'.drf-item[data-arg="{first["id"]}"]').click()
+                        wait(audit_page, "() => !!document.querySelector('.drf-review-question')")
                         shot = os.path.join(SHOTS, f'{theme}-{label}.png')
                         audit_page.screenshot(path=shot, full_page=True)
                         findings = audit_page.evaluate(AUDIT)
                         results.append((f'草稿界面 {theme}·{label} 审计与截图',
                                         not audit_errors and not findings['overflow'] and not findings['inline']
-                                        and not findings['handlers'] and findings['image'] == 2,
+                                        and not findings['handlers'] and findings['image'] == 0,
                                         str(findings) + ' ' + shot))
+                        p3_filter = 'done' if api(base, '/api/drafts/item?id=' + p3['id'])['draft']['status'] == 'done' else 'pending'
+                        if p3_filter != first_filter:
+                            if width < 760 and not audit_page.locator('[data-action="create.draftFilter"]').first.is_visible():
+                                audit_page.locator('[data-action="create.draftToggleQueue"]').click()
+                            audit_page.locator(f'[data-action="create.draftFilter"][data-arg="{p3_filter}"]').click()
+                        if width < 760 and not audit_page.locator(f'.drf-item[data-arg="{p3["id"]}"]').is_visible():
+                            audit_page.locator('[data-action="create.draftToggleQueue"]').click()
                         audit_page.locator(f'.drf-item[data-arg="{p3["id"]}"]').click()
+                        audit_page.locator('.drf-source-trigger').click()
                         wait(audit_page, "() => document.querySelectorAll('#drf-stage-img .crp-box').length === 1")
                         p3_shot = os.path.join(P3_SHOTS, f'{theme}-{label}.png')
                         audit_page.screenshot(path=p3_shot, full_page=True)

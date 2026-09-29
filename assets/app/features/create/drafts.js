@@ -25,7 +25,8 @@ export function createDrafts(root, ctx) {
   const state = { list: [], listLoaded: false, listError: '', filter: 'pending', selectedId: null,
     draft: null, value: null, saved: '', detailLoaded: true, detailError: '', dirty: false,
     busy: false, message: '', conflict: false, counts: currentDraftCounts(), training: {}, trainingSaved: '{}',
-    canvasSha: null, canvasMode: 'body', selectedBlock: null, drawSection: '题目', job: null };
+    canvasSha: null, canvasMode: 'body', selectedBlock: null, drawSection: '题目', job: null,
+    reviewTab: 'question', editingBlock: null, fieldsEditing: false, sourceOpen: false, queueOpen: false };
   let alive = true;
   let listRequest = 0;
   let detailRequest = 0;
@@ -48,6 +49,10 @@ export function createDrafts(root, ctx) {
   function markChanged() { dirty(); paint(); }
   function setDraft(draft) {
     jobs.stop();
+    if (state.draft?.id !== draft?.id) {
+      state.reviewTab = 'question'; state.editingBlock = null; state.fieldsEditing = false; state.sourceOpen = false;
+      state.queueOpen = false;
+    }
     state.draft = draft;
     state.value = editValue(draft);
     state.saved = JSON.stringify(state.value);
@@ -143,6 +148,22 @@ export function createDrafts(root, ctx) {
     inbox.go('drafts');
     return loadDetail(id);
   }
+  async function navigate(step) {
+    const index = state.list.findIndex(row => row.id === state.selectedId);
+    const next = state.list[index + Number(step)];
+    if (!next || state.busy) return false;
+    if (state.dirty && !await guard()) return false;
+    return loadDetail(next.id);
+  }
+  function toggleQueue() { state.queueOpen = !state.queueOpen; paint(); }
+  function toggleSource() {
+    state.sourceOpen = !state.sourceOpen;
+    paint();
+    if (state.sourceOpen) requestAnimationFrame(() => { canvas.refresh(); void paintDraftCrops(host, state.value); });
+  }
+  function reviewTab(tab) { if (!['question', 'answer', 'info'].includes(tab)) return; state.reviewTab = tab; paint(); }
+  function editBlock(key) { if (state.busy || !block(key)) return; state.editingBlock = state.editingBlock === key ? null : key; paint(); }
+  function editFields() { if (state.busy || !state.value) return; state.fieldsEditing = !state.fieldsEditing; paint(); }
   async function enter() {
     paint();
     await loadList();
@@ -294,6 +315,18 @@ export function createDrafts(root, ctx) {
   }
   async function commit() {
     if (!state.draft || state.busy || ['done', 'discarded'].includes(state.draft.status)) return false;
+    const currentId = state.draft.id;
+    const previousIndex = state.list.findIndex(row => row.id === currentId);
+    state.busy = true; paint();
+    const latest = await get(`/api/drafts/item?id=${encodeURIComponent(currentId)}`);
+    state.busy = false;
+    if (!alive || state.selectedId !== currentId) return false;
+    if (!latest.ok || !latest.data?.draft) return showError(latest, '核对草稿版本');
+    if (latest.data.draft.revision !== state.draft.revision || latest.data.draft.status !== state.draft.status) {
+      state.conflict = true;
+      state.message = '草稿已有新版本。本地编辑已保留；请核对后重新读取，未执行入库。';
+      paint(); return false;
+    }
     if (commitProblem(state.value)) { state.message = commitProblem(state.value); paint(); return false; }
     if (state.dirty && !await save()) return false;
     if (state.draft.status !== 'review') { state.message = '草稿尚未达到可通过状态，请先保存并核对图片块。'; paint(); return false; }
@@ -307,16 +340,24 @@ export function createDrafts(root, ctx) {
         if (x === 0 && y === 0 && w === 1 && h === 1) continue;
         crops[row.id] = await cropDataUrl({ id: row.image_sha }, row.box, 'image/png', .92, imageUrl(row.image_sha));
       }
-      const result = await post('/api/drafts/commit', { id, revision: state.draft.revision, crops });
+      const payload = { id, revision: state.draft.revision, crops };
+      let result = await post('/api/drafts/commit', payload);
+      if (alive && !result.ok && result.status === 0) {
+        // 响应丢失时以同一草稿版本重试；服务端入库操作按草稿身份复用。
+        result = await post('/api/drafts/commit', payload);
+      }
       if (!alive) return false;
       if (!result.ok || !result.data?.draft) return showError(result, '入库');
-      setDraft(result.data.draft);
       publishDraftChange([id]);
       notifyHistoryChanged('create'); ctx.bus.emit('catalog:refresh');
       void reloadData();
+      state.filter = 'pending';
       await loadList();
       const failed = result.data.training?.failed || [];
-      notify(`草稿已通过并入库：${state.draft.uid || state.draft.question_id || id}${failed.length ? `；${failed.length} 张训练图登记失败，可在此重试` : ''}`);
+      const remaining = state.list[Math.max(0, Math.min(previousIndex, state.list.length - 1))];
+      if (remaining) await loadDetail(remaining.id);
+      else { state.selectedId = null; setDraft(null); }
+      notify(`草稿已入库：${result.data.draft.uid || result.data.draft.question_id || id}${failed.length ? `；${failed.length} 张训练图登记失败，可在已入库列表重试` : ''}`);
       return true;
     } catch (error) {
       state.message = `入库前裁图失败：${error.message || error}`; paint(); return false;
@@ -343,7 +384,7 @@ export function createDrafts(root, ctx) {
   }
   function beforeUnload(event) { if (!state.dirty) return; event.preventDefault(); event.returnValue = ''; }
   root.ownerDocument.defaultView.addEventListener('beforeunload', beforeUnload);
-  return { state, paint, enter, open, guard, filter, reload, reloadDetail, field,
+  return { state, paint, enter, open, navigate, toggleQueue, toggleSource, reviewTab, editBlock, editFields, guard, filter, reload, reloadDetail, field,
     openLabels,
     sourceAdd, sourceRemove, addBlock, removeBlock, move, whole, canvasImage: canvas.image, canvasMode: canvas.mode, canvasBlock: canvas.selectBlock,
     drawSection: canvas.section, clearBox: canvas.clearBox, trainingSection: canvas.trainingSection, trainingRemove: canvas.trainingRemove,

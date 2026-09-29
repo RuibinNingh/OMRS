@@ -14,10 +14,10 @@ const boxOrigin = origin => ({ manual: '手动', ai: 'AI 建议', ai_edited: 'AI
 const titleOf = draft => draft.blocks?.find(block => block.section === '题目' && block.kind === 'text')?.text?.slice(0, 72)
   || draft.blocks?.find(block => block.section === '题目' && block.kind === 'image')?.note || '图片草稿';
 
-function listView({ list, listLoaded, listError, filter, selectedId, counts, busy }) {
-  return html`<aside class="drf-list" aria-label="AI 草稿列表">
-    <div class="drf-list-head"><h2>AI 草稿</h2><div class="drf-list-actions">${button({ label: '清理', size: 'sm', action: 'create.draftCleanup', disabled: busy })}${button({ label: '刷新', size: 'sm', action: 'create.draftReload', disabled: busy })}</div></div>
-    <p class="drf-count">${draftPendingCount(counts)} 份待审核</p>
+function listView({ list, listLoaded, listError, filter, selectedId, counts, busy, queueOpen }) {
+  return html`<aside class="drf-list ${queueOpen ? 'is-open' : ''}" aria-label="AI 草稿列表">
+    <div class="drf-list-head"><div><h2>AI 草稿</h2><p class="drf-count">${draftPendingCount(counts)} 份待审核</p></div>
+      <div class="drf-list-actions">${button({ label: queueOpen ? '收起队列' : '查看队列', size: 'sm', action: 'create.draftToggleQueue' })}${button({ label: '清理', size: 'sm', action: 'create.draftCleanup', disabled: busy })}${button({ label: '刷新', size: 'sm', action: 'create.draftReload', disabled: busy })}</div></div>
     <div class="drf-filters" role="group" aria-label="筛选草稿">
       ${statuses.map(([value, label]) => button({ label, size: 'sm', action: 'create.draftFilter', arg: value, pressed: filter === value }))}
     </div>
@@ -141,9 +141,15 @@ function canvasPanel({ draft, value, training, canvasSha, canvasMode, selectedBl
 const fieldInput = (name, label, value, readonly, type = 'text') => html`<label class="drf-field">${label}
   <input class="ui-input" type="${type}" data-input="create.draftField" data-arg="${name}" value="${value ?? ''}"${readonly ? html` readonly` : ''}></label>`;
 
-function fieldsView(value, readonly) {
+function fieldsView(value, readonly, editing) {
   const f = value.fields;
-  return html`<section class="drf-fields"><h3>题目信息</h3><div class="drf-fields-grid">
+  return html`<section class="drf-fields drf-review-info"><div class="drf-section-head"><h3>题目信息</h3>
+    ${readonly ? '' : button({ label: editing ? '完成编辑' : '编辑信息', size: 'sm', action: 'create.draftEditFields' })}</div>
+    ${!editing ? html`<dl class="drf-info-summary"><div><dt>科目 · 分类</dt><dd>${f.subject || '未填'} · ${f.category || '未填'}</dd></div>
+      <div><dt>难度 · 知识点</dt><dd>${f.difficulty || '未填'} · ${(f.knowledge_points || []).join('、') || '无'}</dd></div>
+      <div><dt>错因</dt><dd>${f.cause || '未记录'}</dd></div>
+      ${f.note ? html`<div><dt>备注</dt><dd>${f.note}</dd></div>` : ''}
+      ${(f.labels || []).length ? html`<div><dt>标记</dt><dd>${labelChips(f.labels)}</dd></div>` : ''}</dl>` : html`<div class="drf-fields-grid">
     ${fieldInput('subject', '科目 *', f.subject, readonly)}${fieldInput('category', '分类 *', f.category, readonly)}
     ${fieldInput('difficulty', '难度（1–10）', f.difficulty, readonly, 'number')}
     ${fieldInput('knowledge_points', '知识点（逗号分隔）', (f.knowledge_points || []).join('，'), readonly)}
@@ -151,22 +157,23 @@ function fieldsView(value, readonly) {
       ${readonly ? '' : button({ label: '添加标记', icon: 'plus', size: 'sm', action: 'create.draftLabels' })}</div></div>
     <label class="drf-field drf-wide">错因<textarea class="ui-textarea" rows="2" data-input="create.draftField" data-arg="cause"${readonly ? html` readonly` : ''}>${f.cause || ''}</textarea></label>
     <label class="drf-field drf-wide">备注<textarea class="ui-textarea" rows="2" data-input="create.draftField" data-arg="note"${readonly ? html` readonly` : ''}>${f.note || ''}</textarea></label>
-  </div></section>`;
+  </div>`}</section>`;
 }
 
-function blockView(block, index, value, readonly) {
+function blockView(block, index, value, readonly, editingBlock) {
   const key = block.id || block._key;
   const peers = value.blocks.filter(row => row.section === block.section);
   const peerIndex = peers.indexOf(block);
   const image = value.source_images.includes(block.image_sha);
   return html`<article class="drf-block" data-key="${key}"><header><strong>${block.kind === 'text' ? '文字' : '图片'} ${index + 1}</strong>
     ${readonly ? '' : html`<div class="drf-block-actions">
+      ${block.kind === 'text' ? button({ label: editingBlock === key ? '完成编辑' : '编辑文字', size: 'sm', action: 'create.draftEditBlock', arg: key }) : ''}
       ${button({ label: '上移', size: 'sm', action: 'create.draftMove', arg: `${key}|-1`, disabled: peerIndex === 0 })}
       ${button({ label: '下移', size: 'sm', action: 'create.draftMove', arg: `${key}|1`, disabled: peerIndex === peers.length - 1 })}
       ${button({ label: '删除', size: 'sm', variant: 'danger', action: 'create.draftRemoveBlock', arg: key })}</div>`}</header>
     ${readonly ? '' : html`<label class="drf-field">所属部分<select class="ui-select" data-change="create.draftBlockSection" data-arg="${key}">
       <option value="题目"${block.section === '题目' ? html` selected` : ''}>题目</option><option value="答案"${block.section === '答案' ? html` selected` : ''}>答案</option></select></label>`}
-    ${block.kind === 'text' ? html`<label class="drf-field">内容<textarea class="ui-textarea" rows="4" data-input="create.draftBlockText" data-arg="${key}"${readonly ? html` readonly` : ''}>${block.text || ''}</textarea></label>
+    ${block.kind === 'text' ? html`${editingBlock === key && !readonly ? html`<label class="drf-field">内容<textarea class="ui-textarea" rows="5" data-input="create.draftBlockText" data-arg="${key}">${block.text || ''}</textarea></label>` : ''}
       <div class="drf-md q-md" data-hash="${hashText(block.text || '')}">${raw(renderMd(block.text || ''))}</div>`
     : html`<div class="drf-block-image">${image ? block.box && (block.box.x !== 0 || block.box.y !== 0 || block.box.w !== 1 || block.box.h !== 1)
       ? html`<canvas data-draft-crop="${key}" data-morph="skip" aria-label="${block.section}裁图预览"></canvas>`
@@ -178,18 +185,18 @@ function blockView(block, index, value, readonly) {
   </article>`;
 }
 
-function blocksView(value, readonly) {
-  return html`<section class="drf-blocks"><h3>题目与答案 · 按显示顺序入库</h3>
+function blocksView(value, readonly, editingBlock) {
+  return html`<div class="drf-blocks">
     ${['题目', '答案'].map(section => {
       const blocks = value.blocks.filter(block => block.section === section);
-      return html`<div class="drf-section"><div class="drf-section-head"><h4>${section}</h4><span>${blocks.length} 块</span></div>
-        ${blocks.length ? each(blocks, block => block.id || block._key, (block, index) => blockView(block, index, value, readonly))
+      return html`<section class="drf-section drf-review-${section === '题目' ? 'question' : 'answer'}"><div class="drf-section-head"><h3>${section}</h3><span>${blocks.length} 块</span></div>
+        ${blocks.length ? each(blocks, block => block.id || block._key, (block, index) => blockView(block, index, value, readonly, editingBlock))
     : html`<p class="drf-hint">${section === '题目' ? '至少需要一个题目块。' : '可以没有答案。'}</p>`}
         ${readonly ? '' : html`<div class="drf-add">${button({ label: '添加文字', size: 'sm', action: 'create.draftAddText', arg: section })}
           ${value.source_images.length ? html`<select class="ui-select" data-draft-image="${section}" aria-label="${section}图片来源">
             ${value.source_images.map(sha => html`<option value="${sha}">${sha.slice(0, 10)}</option>`)}</select>
-            ${button({ label: '添加图片', size: 'sm', action: 'create.draftAddImage', arg: section })}` : ''}</div>`}</div>`;
-    })}</section>`;
+            ${button({ label: '添加图片', size: 'sm', action: 'create.draftAddImage', arg: section })}` : ''}</div>`}</section>`;
+    })}</div>`;
 }
 
 function detailView(state) {
@@ -200,19 +207,30 @@ function detailView(state) {
   const readonly = draft.status === 'done' || draft.status === 'discarded';
   const editingDisabled = readonly || busy;
   const problem = readonly ? '' : commitProblem(value);
-  return html`<main class="drf-detail"><div class="drf-detail-head"><div><p class="drf-id">${draft.id} · 第 ${draft.revision ?? '?'} 版</p>
-    <h2>${draftStatusLabel(draft.status)} ${dirty ? '· 未保存' : ''}</h2></div><span>${draft.updated_at || ''}</span></div>
+  const position = state.list.findIndex(row => row.id === draft.id);
+  const total = state.list.length;
+  return html`<main class="drf-detail" data-review-tab="${state.reviewTab}"><div class="drf-detail-head"><div>
+      <p class="drf-id">${position >= 0 ? `第 ${position + 1}/${total} 题 · ` : ''}${draft.id} · 第 ${draft.revision ?? '?'} 版</p>
+      <h2>${draftStatusLabel(draft.status)} ${dirty ? '· 未保存' : ''}</h2></div>
+      <div class="drf-review-nav">${button({ label: '上一题', size: 'sm', action: 'create.draftNavigate', arg: '-1', disabled: busy || position <= 0 })}
+        ${button({ label: '下一题', size: 'sm', action: 'create.draftNavigate', arg: '1', disabled: busy || position < 0 || position >= total - 1 })}</div></div>
     ${message ? html`<p class="drf-message" role="status">${message}
       ${conflict ? button({ label: '重新读取并放弃本地修改', size: 'sm', action: 'create.draftReloadDetail' }) : ''}</p>` : ''}
     ${draft.status === 'done' ? html`<p class="drf-success">${draft.question_available === false ? '已入库，题目当前不可用' : `已入库：${draft.uid || draft.question_id || '题目'}`}
       ${draft.uid && draft.question_available !== false ? button({ label: '查看题目', size: 'sm', action: 'create.draftQuestion' }) : ''}</p>` : ''}
-    ${sourceView(draft, value, editingDisabled)}${canvasPanel(state)}${fieldsView(value, editingDisabled)}${blocksView(value, editingDisabled)}
+    ${problem ? html`<p class="drf-review-problem" role="status">入库前需处理：${problem}</p>` : ''}
+    <nav class="drf-review-tabs" aria-label="审核内容">
+      ${[['question', '题目'], ['answer', '答案解析'], ['info', '信息']].map(([tab, label]) => button({ label, size: 'sm', action: 'create.draftReviewTab', arg: tab, pressed: state.reviewTab === tab }))}
+    </nav>
+    ${blocksView(value, editingDisabled, state.editingBlock)}${fieldsView(value, editingDisabled, state.fieldsEditing)}
+    <section class="drf-source-details"><button type="button" class="drf-source-trigger" data-action="create.draftToggleSource"
+      aria-expanded="${state.sourceOpen ? 'true' : 'false'}">${state.sourceOpen ? '收起' : '展开'}来源对照与框选 · ${value.source_images.length} 张图</button>
+      ${state.sourceOpen ? html`${sourceView(draft, value, editingDisabled)}${canvasPanel(state)}` : ''}</section>
     ${readonly ? html`<footer class="drf-footer"><p class="drf-hint">此草稿的正文已锁定。${draft.status === 'done' && (draft.training_tasks || []).some(task => task.status === 'error') ? '训练登记失败，可重试。' : ''}</p>
       ${draft.status === 'done' && dirty ? button({ label: '保存训练框', variant: 'primary', action: 'create.draftSave', loading: busy }) : ''}
       ${draft.status === 'done' && (draft.training_tasks || []).some(task => task.status === 'error') ? button({ label: '重试训练登记', action: 'create.draftRetryTraining', disabled: busy }) : ''}</footer>` : html`<footer class="drf-footer">
-      ${problem ? html`<p class="drf-hint" role="status">${problem}</p>` : ''}
-      ${button({ label: '保存', variant: 'primary', action: 'create.draftSave', loading: busy, disabled: !dirty })}
-      ${button({ label: '通过并入库', action: 'create.draftCommit', loading: busy, disabled: Boolean(problem) })}
+      ${button({ label: '暂存', action: 'create.draftSave', loading: busy, disabled: !dirty })}
+      ${button({ label: '保存并入库，下一题', variant: 'primary', action: 'create.draftCommit', loading: busy, disabled: Boolean(problem) })}
       ${button({ label: '丢弃草稿', variant: 'danger', action: 'create.draftDiscard', disabled: busy })}
     </footer>`}</main>`;
 }
