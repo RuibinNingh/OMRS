@@ -3,6 +3,7 @@ import datetime
 import email.utils
 import http.server
 import json
+import sqlite3
 import os
 import re
 import secrets
@@ -1030,7 +1031,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({"status":"ok", **value})
             except trainaudit_mod.Conflict as exc:
                 self._json({"status":"error", "msg":str(exc)}, 409)
-            except (ValueError, OSError) as exc:
+            except (ValueError, OSError, sqlite3.Error) as exc:
                 self._json({"status":"error", "msg":str(exc)}, 400)
             return
         if path != "/api/trainpanel/try":
@@ -1047,7 +1048,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             body = self.rfile.read(length)
             result = trainpanel_mod.try_image(self.vault_path, self._multipart_files(body, content_type))
             self._json({"status": "ok", **result})
-        except (ValueError, OSError) as exc:
+        except (ValueError, OSError, sqlite3.Error) as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
 
     def _trainpanel_get(self, path, params):
@@ -1089,7 +1090,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(data)
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
-        except (ValueError, OSError) as exc:
+        except (ValueError, OSError, sqlite3.Error) as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
 
     # ────────────── 框选标注集 /api/annotate/* 与独立标注页 /annotate ──────────────

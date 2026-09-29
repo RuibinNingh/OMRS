@@ -1,6 +1,7 @@
 """有独立内存看护进程的 CPU 训练，逐轮原子发布面板状态。"""
 import argparse
 import datetime
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -133,7 +134,7 @@ def worker(args):
         raise
 
 
-def supervise(args):
+def _supervise(args):
     run = Path(args.run).resolve()
     if run.exists() and not args.resume:
         raise ValueError('实验目录已存在，必须换实验名或使用 --resume')
@@ -176,6 +177,18 @@ def supervise(args):
     atomic_json(path, state)
     print(json.dumps(state, ensure_ascii=False, indent=2))
     return 1 if reason or child.returncode else 0
+
+
+
+def supervise(args):
+    root = Path(args.run).resolve().parent.parent
+    root.mkdir(parents=True, exist_ok=True)
+    with (root/'training.lock').open('a') as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise ValueError('已有训练运行，拒绝并行训练')
+        return _supervise(args)
 
 
 def main():

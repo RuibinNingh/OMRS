@@ -118,3 +118,58 @@ class AuditHTTPTests(unittest.TestCase):
         self.assertEqual(req('POST','/api/trainpanel/review',body)[0],200)
         self.assertEqual(req('POST','/api/trainpanel/review',body)[0],409)
         self.assertEqual(req('GET','/api/trainpanel/reviews?id=a&case=c')[0],200)
+
+
+class TrainingBoundaryTests(unittest.TestCase):
+    def test_cgroup_remaining_wins_over_host_and_root_is_unlimited(self):
+        from unittest.mock import patch
+        from tools.boxdetect.train import memory_available
+        gib=1024**3
+        def read(path,*args,**kwargs):
+            name=str(path)
+            if name=='/proc/meminfo':return 'MemAvailable: 20000000 kB\n'
+            if name=='/proc/self/cgroup':return '0::/test\n'
+            if name=='/sys/fs/cgroup/test/memory.max':return str(5*gib)
+            if name=='/sys/fs/cgroup/test/memory.current':return str(3*gib)
+            raise FileNotFoundError(name)
+        with patch.object(Path,'read_text',read),patch.object(Path,'exists',return_value=False):
+            self.assertEqual(memory_available(),2*gib)
+
+    def test_registered_chat_ready_data_and_conflicting_annotations(self):
+        from omrs.inbox import register_chat_training
+        from tests.test_annotate import make_png
+        from tools.boxdetect.build_dataset import inspect_sources
+        import hashlib
+        with tempfile.TemporaryDirectory() as temp:
+            raw=make_png(40,80);sha=hashlib.sha256(raw).hexdigest()
+            boxes=[{'id':'q','section':'题目','box':dict(x=0,y=0,w=1,h=.4),'box_origin':'manual'},
+                   {'id':'a','section':'答案','box':dict(x=0,y=.5,w=1,h=.4),'box_origin':'ai_edited'}]
+            register_chat_training(temp,sha,raw,'d1',boxes)
+            rows,excluded=inspect_sources(temp)
+            self.assertEqual(len(rows),1);self.assertEqual(rows[0]['source'],'chat')
+            register_chat_training(temp,sha,raw,'d2',boxes)
+            rows,excluded=inspect_sources(temp);self.assertEqual(len(rows),1)
+            self.assertTrue(any('去重' in e['reason'] for e in excluded))
+            boxes[0]['box']['h']=.3
+            register_chat_training(temp,sha,raw,'d2',boxes)
+            rows,excluded=inspect_sources(temp);self.assertEqual(rows,[])
+            self.assertTrue(all('冲突' in e['reason'] for e in excluded))
+
+    def test_reweight_rejects_nontrain_and_preserves_validation(self):
+        from tools.boxdetect.reweight import build
+        from tools.boxdetect.common import atomic_json,sha256
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);dataset=root/'datasets/d';dataset.mkdir(parents=True)
+            atomic_json(dataset/'manifest.json',{'version':'d','splits':{'train':['t'],'val':['v'],'test':[]},'samples':[
+                {'id':'t','split':'train','strips':[{'name':'t'}]},{'id':'v','split':'val','strips':[{'name':'v'}]}]})
+            folder=root/'audits/a'
+            meta={'id':'a','split':'test','manifest_sha256':sha256(dataset/'manifest.json'),'cases':[{'id':'c','sample':'t','role':'answer','structural_error':'extra'}]}
+            atomic_json(folder/'audit.json',meta);atomic_json(folder/'c.json',{'state':'done','judgment':{'verdict':'usable'}})
+            a.save_review(root,'a','c',0,'agree',source='executor')
+            with self.assertRaises(ValueError):build(dataset,folder,root/'weighted')
+            meta['split']='train';atomic_json(folder/'audit.json',meta)
+            result=build(dataset,folder,root/'weighted')
+            self.assertEqual(result['weighted_strips'],2)
+            weighted=json.loads((root/'weighted/manifest.json').read_text())
+            self.assertEqual(weighted['splits']['val'],['v'])
+            self.assertEqual(weighted['samples'][1]['sampling_weight'],1)

@@ -8,14 +8,16 @@ import { dialog } from '../../ui/dialog.js';
 import { toast } from '../../ui/toast.js';
 import { createTrainStore } from './store.js';
 import { mountTry } from './try.js';
+import { mountAudits } from './audits.js';
 import { headerView, progressView, curvesView, evaluationView, datasetView, historyView, globalErrorView } from './view.js';
 
 export function mountTrainpanel(root) {
   root.className = 'tp-app';
   render(root, html`<header class="tp-head" id="tp-head"></header><div id="tp-global-errors"></div>
-    <main><section class="tp-section" id="tp-try"></section>
+    <main><section class="tp-section" id="tp-try"></section><section class="tp-section" id="tp-audits"></section>
       ${[['progress', '训练进度'], ['curves', '训练曲线'], ['evaluation', '效果评估'], ['dataset', '数据概况'], ['history', '实验历史']].map(([id, label]) => html`<section class="tp-section" aria-labelledby="tp-${id}-title"><h2 id="tp-${id}-title">${label}</h2><div id="tp-${id}"></div></section>`)}
     </main>`);
+  const disposeAudits = mountAudits(root.querySelector('#tp-audits'), api);
   const tester = mountTry(root.querySelector('#tp-try'), api);
   const signatures = new Map();
   const views = { progress: progressView, curves: curvesView, evaluation: evaluationView, dataset: datasetView, history: historyView, 'global-errors': globalErrorView };
@@ -50,7 +52,7 @@ export function mountTrainpanel(root) {
   const visibility = () => { clearTimeout(timer); if (!document.hidden) refresh(true); };
   document.addEventListener('visibilitychange', visibility);
   paint(store.state); refresh();
-  return () => { disposed = true; clearTimeout(timer); store.dispose(); tester.dispose(); document.removeEventListener('visibilitychange', visibility); };
+  return () => { disposed = true; clearTimeout(timer); store.dispose(); tester.dispose(); disposeAudits(); document.removeEventListener('visibilitychange', visibility); };
 }
 
 installIcons();

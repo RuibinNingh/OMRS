@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import sqlite3
 
-from .trainpanel import safe_path, read_json, train_dir
+from .trainpanel import safe_path, read_json, train_dir, status_view
 
 VERDICTS = ('usable', 'needs_adjustment', 'unusable', 'uncertain')
 
@@ -22,6 +22,15 @@ def audit(root, ident):
     value, error = read_json(path)
     if error or not value or not isinstance(value.get('cases'), list):
         raise ValueError(error or '评测不存在')
+    if not isinstance(value.get('resources', {}),dict):
+        raise ValueError('评测资源清单不合法')
+    seen=set()
+    for c in value['cases']:
+        if not isinstance(c,dict) or not isinstance(c.get('sample'),str) or c.get('role') not in ('question','answer'):
+            raise ValueError('评测案例格式不合法')
+        safe_path(root,'audits',ident,c.get('id'))
+        if c['id'] in seen: raise ValueError('评测案例ID重复')
+        seen.add(c['id'])
     return value
 
 
@@ -43,7 +52,11 @@ def reviews(root, ident, case=None):
 
 def result(root, ident, case):
     value, error = read_json(safe_path(root, 'audits', ident, case + '.json'))
-    return value or {'state': 'pending', 'error': error}
+    if error:
+        return {'state':'error','error':error}
+    if value and (value.get('state') not in ('done','cached','pending','missing','error') or not isinstance(value.get('judgment',{}),dict)):
+        return {'state':'error','error':'评测结果格式不合法'}
+    return value or {'state': 'pending'}
 
 
 def effective(record, history):
@@ -79,7 +92,16 @@ def summary(root, ident):
         final += complete and all(passed(c,r,h,True) for c,r,h in entries)
         missing += any(c.get('structural_error') == 'missing' or effective(r,h) == 'unusable' for c,r,h in entries)
         extra += any(c.get('structural_error') == 'extra' or effective(r,h) == 'needs_adjustment' for c,r,h in entries)
+    attempts = list(safe_path(root, 'audits', ident, 'attempts').glob('*.json'))
+    if attempts:
+        seconds = total_cost = 0
+        for path in attempts:
+            attempt, _ = read_json(path)
+            if attempt:
+                seconds += attempt.get('seconds',0); total_cost += attempt.get('cost_usd',0)
     progress, error = read_json(safe_path(root, 'audits', ident, 'progress.json'))
+    if progress and progress.get('state')=='running' and progress.get('pid'):
+        progress=status_view(progress)
     return {'progress': progress, 'progress_error': error, **{k: data.get(k) for k in ('id','dataset','split','purpose','model','prompt_version','created_at','conf')}} | {
         'images': len(grouped), 'cases': len(data['cases']), 'raw_passed': raw, 'reviewed_passed': final,
         'reviewed': reviewed, 'user_reviewed': user_reviewed, 'cost_usd':total_cost, 'seconds':seconds, 'confusion':confusion, 'missing_images': missing, 'extra_images': extra, 'states': states}
@@ -109,9 +131,18 @@ def detail(vault, ident, params):
         if params.get('role') and params['role'] != c['role']: continue
         if params.get('verdict') and params['verdict'] != judgment.get('verdict', 'uncertain'): continue
         state = params.get('review', '')
-        if state == 'pending' and h: continue
+        if state == 'pending' and any(x['source']=='user' for x in h): continue
         if state == 'disagreed' and (not h or effective(r,h) == judgment.get('verdict')): continue
         if state == 'reviewed' and not h: continue
+        if params.get('case'):
+            attempts=[]
+            for path in sorted(safe_path(root,'audits',ident,'attempts').glob(c['id']+'-*.json'))[-20:]:
+                attempt, err=read_json(path)
+                if attempt:
+                    attempts.append({k:attempt.get(k) for k in ('state','error','seconds','usage','cost_usd','response_model')})
+            row['attempts']=attempts
+            row['response_model']=r.get('response_model',r.get('response',{}).get('model'))
+            row['requested_model']=r.get('requested_model')
         rows.append(row)
     rows.sort(key=lambda c: (bool(c['review']), c['state'] not in ('error','missing'), c['effective']=='usable', c['id']))
     offset = max(0, int(params.get('offset',0))); limit = min(100, max(1,int(params.get('limit',30))))

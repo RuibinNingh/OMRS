@@ -961,3 +961,5 @@ POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 
 `omrs/trainaudit.py` 读取外部 audits 目录，不加载训练框架。`GET /api/trainpanel/audits` 返回最近至多200份评测摘要；`GET /api/trainpanel/audit?id=&role=&verdict=&review=&case=&offset=&limit=` 返回筛选分页案例（默认30、最多100），review 为 pending/reviewed/disagreed。`GET /api/trainpanel/audit-image?id=&resource=` 仅返回 audit.json 登记资源，拒绝路径穿越、越界符号链接及超过30MB图片；缓存 private/no-store。
 
 `GET /api/trainpanel/reviews?id=&case=` 返回最近100次追加历史。`POST /api/trainpanel/review` 接收 `{audit,case,revision,action,verdict?,note?}`；action 为 agree/correct/uncertain，verdict 为 usable/needs_adjustment/unusable/uncertain。说明最多2000字、请求最多16KB；成功返回 revision/verdict，版本冲突409、参数非法400。HTTP来源固定user，不能伪装执行者。沿用登录、同源校验与全局写锁，SQLite再用BEGIN IMMEDIATE保证跨进程revision检查与插入原子性。GET不建库，不调用付费模型。
+
+评测案例损坏以独立error显示，SQLite读取/保存错误返回400；单条详情附最近调用尝试摘要。待复核筛选指尚无用户结论，执行者已看过仍可由用户复核；同一案例用户结论优先。

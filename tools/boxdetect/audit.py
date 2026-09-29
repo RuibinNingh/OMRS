@@ -4,9 +4,11 @@ import base64
 import fcntl
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -21,8 +23,17 @@ PARAMS = {'thinking': {'type':'enabled'}, 'max_tokens':4096, 'stream':False}
 
 def immutable(path, data):
     path = Path(path); path.parent.mkdir(parents=True,exist_ok=True)
-    with path.open('x',encoding='utf-8') as out:
-        json.dump(data,out,ensure_ascii=False,indent=2)
+    # 先完整落盘，再用不覆盖目标的硬链接提交，崩溃不会留下半份正式结果。
+    name=None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w',encoding='utf-8',dir=path.parent,prefix='.audit-',delete=False) as out:
+            name=out.name
+            json.dump(data,out,ensure_ascii=False,indent=2)
+            out.flush();os.fsync(out.fileno())
+        os.link(name,path)
+    finally:
+        if name is not None:Path(name).unlink(missing_ok=True)
+
 
 
 def parse_response(response):
@@ -45,7 +56,7 @@ def cost(usage):
     return (max(0,usage.get('prompt_tokens',0)-hit)*.30+hit*.006+usage.get('completion_tokens',0)*1.2)/1_000_000
 
 
-def prepare(dataset, out, model=None, conf=.55, split='test'):
+def _prepare(dataset, out, model=None, conf=.55, split='test'):
     from PIL import Image
     from tools.boxdetect.evaluate import model_predictions, template_predictions
     from tools.boxdetect.inference import Detector
@@ -91,6 +102,18 @@ def prepare(dataset, out, model=None, conf=.55, split='test'):
     return data
 
 
+
+def prepare(dataset, out, model=None, conf=.55, split='test'):
+    if not 0 < conf <= 1:
+        raise ValueError('检测置信度必须在0到1之间')
+    root=Path(out).resolve().parent.parent
+    root.mkdir(parents=True,exist_ok=True)
+    with (root/'training.lock').open('a') as guard:
+        try: fcntl.flock(guard,fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except BlockingIOError: raise ValueError('训练运行中，暂不批量推理')
+        return _prepare(dataset,out,model,conf,split)
+
+
 def run(out, config_path, budget_name='content-round-1'):
     out=Path(out).resolve(); root=out.parent.parent
     from omrs.trainpanel import safe_path
@@ -108,7 +131,7 @@ def run(out, config_path, budget_name='content-round-1'):
         if sha256(out/'prompt.txt')!=data['prompt_sha256']: raise ValueError('提示词已改变')
         budget=json.loads(ledger.read_text()) if ledger.exists() else {'requests':0,'cost_usd':0,'unknown_usage':0}
         cache=root/'audit-cache'; cache.mkdir(exist_ok=True)
-        status={'state':'running','updated_at':now(),'completed':0,'total':len(data['cases'])}
+        status={'pid':os.getpid(),'state':'running','updated_at':now(),'completed':0,'total':len(data['cases'])}
         atomic_json(out/'progress.json',status)
         try:
             for c in data['cases']:

@@ -104,7 +104,12 @@ def shoot(side, port, args, out, frozen_ms):
                 page.goto(f"http://127.0.0.1:{port}/", wait_until="networkidle")
                 page.add_style_tag(content=STILL_CSS)
                 for name in args.pages:
-                    page.evaluate("n => window.__omrs.router.go(n)", name)
+                    if name == 'trainpanel':
+                        page.goto(f"http://127.0.0.1:{port}/train", wait_until="networkidle")
+                    else:
+                        if '/train' in page.url:
+                            page.goto(f"http://127.0.0.1:{port}/", wait_until="networkidle")
+                        page.evaluate("n => window.__omrs.router.go(n)", name)
                     page.wait_for_load_state("networkidle")
                     if name == "create" and args.create_stage:
                         page.locator(f'#create-flow [data-ib-stage="{args.create_stage}"]').click()

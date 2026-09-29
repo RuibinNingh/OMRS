@@ -21,7 +21,7 @@ def build(dataset, audit_path, out):
         h=reviews(audit_path.parent.parent,audit_path.name,c['id'])
         if not h:continue
         r=result(audit_path.parent.parent,audit_path.name,c['id'])
-        if effective(r,h) in ('unusable','needs_adjustment'):
+        if c.get('structural_error') in ('missing','extra') or effective(r,h) in ('unusable','needs_adjustment'):
             hard.add(c['sample']);evidence.append({'case':c['id'],'sample':c['sample'],'history':h})
     if not hard:raise ValueError('没有已复核困难样本，不重复同配置训练')
     if out.exists() or out.is_relative_to(dataset):raise ValueError('目标目录必须是新的独立快照')

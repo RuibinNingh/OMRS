@@ -139,7 +139,7 @@
 | POST | `/api/workspace/scan` | `AI/api.md`、`AI/ledger.md` |
 | GET | `/login` | `AI/inbox.md`、`AI/security.md` |
 | GET | `/m` | `AI/api.md`、`AI/inbox.md`、`AI/security.md` |
-| GET | `/train` | `AI/api.md`、`AI/README.md`、`AI/frontend.md`等 |
+| GET | `/train` | `AI/api.md`、`AI/README.md`、`AI/environment.md`等 |
 
 按前缀分派（具体子路由见上表或对应文档）：
 
