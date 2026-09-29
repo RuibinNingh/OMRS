@@ -201,7 +201,18 @@ def check_routes():
 
 def render_log_index():
     entries = []
-    for name in sorted(os.listdir(LOG_DIR), reverse=True):
+    names = sorted(os.listdir(LOG_DIR), reverse=True)
+    # 本机可能有明确忽略的私人日志；可提交索引只收 Git 管理或未忽略的文件。
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard", "--", "AI/logs"],
+            cwd=ROOT, check=True, capture_output=True, text=True,
+        )
+        visible = {os.path.basename(path) for path in result.stdout.splitlines()}
+        names = [name for name in names if name in visible]
+    except (OSError, subprocess.CalledProcessError):
+        pass  # 脱敏导出包无 Git 时仍按目录生成。
+    for name in names:
         if not re.match(r"\d{4}-\d{2}-\d{2}_.+\.md$", name):
             continue
         title = ""

@@ -132,7 +132,7 @@ P4 分类和草稿修订路径使用独立的 `tests/fixtures/agent_p4_faux.json
 1. `git status --short` 记录现状。
 2. 按任务日志「合入」一节运行 `git apply --3way <补丁>`（2026-09-26 之前的交付，按它自带的 UPGRADE 文档）。
 3. 跑门禁：`unittest`、`node --test tests/app/*.test.mjs`、`python3 tests/check_docs.py --diff HEAD`、`python3 tests/check_ui.py`、`python3 tests/check_contrast.py`。
-4. 运行 `python3 tests/check_docs.py --write-log-index`，审阅 `AI/logs/log.md` 的 diff 后提交。
+4. 运行 `python3 tests/check_docs.py --write-log-index`，审阅 `AI/logs/log.md` 的 diff 后提交；生成器会跳过 Git 明确忽略的本机私人日志。
 5. 「合入」一节列出的生产验收，须用户授权后再做，结果补进对应的任务日志。
 
 **按执行说明开发。** 执行说明在 `AI/plans/<计划>/exec-*.md`，规则见 `AGENTS.md`「按执行说明执行」。

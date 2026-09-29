@@ -33,6 +33,7 @@
 
 - 行为、接口、数据格式或架构一旦改变，按 `AGENTS.md`「代码到文档的对应关系」同步模块文档，不等到以后补写。
 - 每次产生持久化改动都在 `logs/` 新建任务日志；索引 `logs/log.md` 由脚本生成，不手改。
+- 完整模式生成日志索引时只收 Git 已跟踪或未忽略的日志；本机忽略的私人日志不进入可提交索引。
 - 交付前运行 `python3 tests/check_docs.py --diff <基线>`，退出码必须为 0。改前端时另跑 `python3 tests/check_ui.py` 与 `python3 tests/check_contrast.py`（规则见 `frontend/design-system.md`）；改了 `assets/app/` 再跑 `python3 tests/app/run_browser.py`（组件见 `frontend/components.md`）。它的规则写在脚本文件头；改了路由后先运行 `--write-routes`（草稿 GET / POST 的分派方法已登记到发现清单），完整模式新增日志后运行 `--write-log-index`。
 - 属于某个计划的任务，收尾更新 `plans/<计划>/progress.md`；`tests/check_docs.py` 检查每个计划文件夹有 `plan.md` 与 `progress.md`、`progress.md` 有状态块。
 - 只读调查、答疑或没有产生仓库改动的任务不创建空日志，交付时说明未修改仓库。
