@@ -93,7 +93,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 - detect 效果取决于模型：Qwen3-VL 系列支持 0–1000 定位；不支持定位的模型返回 `[]`，前端提示「0 框」。长截图必须切片（前端已做；无前端在环时需 Pillow 才能服务端切）。
 - 服务端裁图需要 Pillow（可选）；自动策略 / 无人值守流水线在没有 Pillow 时只对覆盖全图的框（整图即题目）有效，其余会以「自动转文本失败」中止并停在 boxed。
 - 模板框选没有 OCR：答案框「从答案标题起」用的是同版式样本的比例位置（或默认模板），需要人工微调；有几张人工样本后会自动改用最近一张的框位。
-- **AI job 尚未接真实模型验证**（沙箱无网络）：`parse_detect_output` 对具体模型输出是否解析正确、`local_http` 与真实检测服务的对接都待实机跑一遍。
+- `local_http`与真实YOLOv8n ONNX服务已通过隔离浏览器链路验证；本机生产服务配置见AI/environment.md。检测能返回框不代表内容质量达标，使用时可人工校正。
 - 待办：手机页作为 PWA share target（需 HTTPS）；`_blind_stats` 每次全量读盲标行（盲标样本通常很少，暂不优化）；`_TEMPLATE_DEFAULTS` 的作业帮数值是估计值，拿到真实截图后校准。
 
 ## 8. 提供方与自动策略（v1.13.0）

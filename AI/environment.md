@@ -15,7 +15,7 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-09-29 实测）：服务 `omrs.service`，监听 TCP 8471，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；systemd drop-in 从 `/root/workspace/releases/omrs-8b6009a` 运行 v1.30.0，真实 Vault 仍是 `/root/workspace/apps/OMRS`。备份目录 `/root/workspace/backups/recycle/`；本次一致性备份为 `ai-draft-v130-20260929T070208`，旧发布目录 `omrs-63adade` 保留用于代码回退。远端经 Nginx 反向代理。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
+生产环境事实（2026-09-29 实测）：服务 `omrs.service`，监听 TCP 8471，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；systemd drop-in 从 `/root/workspace/releases/omrs-211a599` 运行 v1.31.0，真实 Vault 仍是 `/root/workspace/apps/OMRS`。备份目录 `/root/workspace/backups/recycle/`；当前发布的一致性备份为 `box-v131-20260929T101352`，旧发布目录 `omrs-8b6009a` 保留用于代码回退。远端经 Nginx 反向代理。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
 
 ## 2. Claude Code Web 实测能力（2026-09-24）
 
@@ -154,3 +154,11 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 内容评测门禁 `python3 -m unittest tests.test_trainaudit -q` 使用假响应与临时目录，覆盖请求预算、429重试、缓存恢复、原判不可变和HTTP复核冲突，不消耗付费额度。训练看护同时读取宿主机和cgroup v2当前层/祖先内存剩余额度；读取失败拒绝启动，workers固定0。测试产物与真实评测均在仓库外。
 
 视觉工具支持 `--pages trainpanel`，基线与当前都直接打开独立 `/train`，与主站路由区分。评测详情由面板E2E另行以假记录覆盖桌面/手机与浅深主题。
+
+## 本机检测生产服务
+
+`omrs-boxdetect.service`与主服务分开，开机自启、失败3秒后重启，使用训练venv的onnxruntime执行固定发布目录的serve.py；只监听127.0.0.1:18766。固定模型目录为/root/omrs-train/models/production-20260929-yolov8n-640，SHA前缀894cb458，640输入、置信度.55。服务启动加载一次，不热加载训练current。完整SHA见模型元数据及训练记录。
+
+资源限制：ORT内部3线程、systemd CPUQuota=200%、MemoryHigh=512M、MemoryMax=1G、Nice=10，启动内存约60MiB。`systemctl status omrs-boxdetect.service`查状态，`journalctl -u omrs-boxdetect.service`查错误；`systemctl start/stop/restart omrs-boxdetect.service`会影响线上框选，仅在获得授权后操作。主应用配置local_http及http://127.0.0.1:18766/detect，浏览器不直接访问检测端口，不需Nginx增加路由。
+
+代码回退使用旧release drop-in；框选回退恢复备份中的提供方/URL两个配置键，不整份覆盖之后新增的配置。备份只供专项恢复，不用旧Vault覆盖上线后新增题目。该检测模型由用户明确选用，内容回归9/15的未达标事实保留，人工校正仍可用。

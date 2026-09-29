@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-29_box-v131-deploy](2026-09-29_box-v131-deploy.md)：# 旧640模型生产启用与管理面板调查
 - [2026-09-29_box-detect](2026-09-29_box-detect.md)：本地框选训练与训练面板
 - [2026-09-29_box-content-audit](2026-09-29_box-content-audit.md)：# 框选内容验收与评测复核
 - [2026-09-29_ai-draft-v130-deploy](2026-09-29_ai-draft-v130-deploy.md)：# AI 草稿 v1.30.0 合入 main 与生产发布

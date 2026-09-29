@@ -25,6 +25,10 @@
 
 保障范围由 `tests/test_board_integrity.py`、`tests/app/board-preview.test.mjs`、`tests/app/board-locked.test.mjs`、smoke_board_integrity.py（已删除：调用的旧全局 P7 起已不存在；覆盖由新版展示板 E2E 承接） 和既有展示板测试覆盖。排查与修复记录见本机任务日志（2026-09-22 的 board-functional-audit 与 board-integrity-fixes）。
 
+## 训练面板服务管理
+
+- [ ] **离线启动命令未匹配实际配置。** `omrs/trainpanel.py::commands`固定生成models/current与18765，外部URL/受管生产服务不一定使用它们；本机受管服务为18766和固定模型副本。后续服务管理实现应优先显示受管服务操作；手动模式从已验证本机配置生成命令，远端服务不误导为本机启动。当前线上服务正常，不影响在线推理。
+
 ## 最值得动的
 
 - [x] **服务重启时 TCP 端口短暂占用** — `omrs/cli.py::OMRSTCPServer` 启用 `SO_REUSEADDR`（不启用 `SO_REUSEPORT`、不改线程模型与 systemd 重试策略），旧连接处于 `TIME-WAIT` 时可立即重绑。设置页改为比较重启前后 `instance_id`，确认新实例就绪才刷新，90 秒无结果则停在页面提示。回归：`tests/test_restart_lifecycle.py`、`tests/app/settings.test.mjs`、`tests/e2e/settings.py`。
