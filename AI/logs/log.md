@@ -16,10 +16,12 @@
 - [2026-09-29_ai-draft-p4](2026-09-29_ai-draft-p4.md)：# AI 草稿 P4：自动框选与独立训练任务
 - [2026-09-29_ai-draft-p3](2026-09-29_ai-draft-p3.md)：# AI 草稿 P3：手动框选与训练数据登记
 - [2026-09-28_ui-blank-icons](2026-09-28_ui-blank-icons.md)：UI 空白图标修复
+- [2026-09-28_training-records](2026-09-28_training-records.md)：初始化框选模型训练记录
 - [2026-09-28_omrs-icon](2026-09-28_omrs-icon.md)：OMRS 图标更新
 - [2026-09-28_merge-and-cleanup](2026-09-28_merge-and-cleanup.md)：合并工作区与 v1.28.0，补完前端重构 P8 的清理（v1.28.1）
 - [2026-09-28_main-sync](2026-09-28_main-sync.md)：main 与已部署版本同步
 - [2026-09-28_frontend-rearch-p8-final](2026-09-28_frontend-rearch-p8-final.md)：前端重构 P8 与终检
+- [2026-09-28_box-detect-plan](2026-09-28_box-detect-plan.md)：框选模型训练计划
 - [2026-09-28_board-ui-polish](2026-09-28_board-ui-polish.md)：展示板 UI 打磨：详情可滚动、打开题目入口、左栏对齐、纸面自动适配
 - [2026-09-28_board-ui-deploy](2026-09-28_board-ui-deploy.md)：展示板 UI 打磨生产部署
 - [2026-09-28_board-redesign](2026-09-28_board-redesign.md)：展示板 UI 改版
@@ -129,6 +131,7 @@
 - [2026-08-28_partial-feedback-ui-followup](2026-08-28_partial-feedback-ui-followup.md)：分批反馈交互二次优化
 - [2026-08-16_v1.8.0-release](2026-08-16_v1.8.0-release.md)：# v1.8.0 发布记录
 - [2026-08-16_omrs-settings-restart-fix](2026-08-16_omrs-settings-restart-fix.md)：# OMRS 设置页重启修复
+- [2026-08-16_mini-host-deploy](2026-08-16_mini-host-deploy.md)：：迷你主机部署 OMRS
 - [2026-08-16_answer-math-rendering](2026-08-16_answer-math-rendering.md)：：答案跨行 LaTeX 渲染修复
 - [2026-08-16_action-plan-dark-contrast-catalog](2026-08-16_action-plan-dark-contrast-catalog.md)：行动推荐、目录页与深色对比度修订
 - [2026-08-14_doc-code-sync-audit-fixes](2026-08-14_doc-code-sync-audit-fixes.md)：审计偏差修复（文档-代码同步）
