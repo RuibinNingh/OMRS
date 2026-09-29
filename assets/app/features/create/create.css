@@ -166,6 +166,7 @@ details.crw-shot:not([open]) > .crw-shot__body { display: none; }
 .crw-inbox__batch.is-open { display: flex; }
 .crw-inbox__batch strong { padding: 0 var(--sp-2); color: var(--fg-1); font-size: var(--text-sm); }
 @media (max-width: 760px) {
+  .crw-actionbar .ui-btn--primary { height: 44px; }
   .crw-inbox__filters { width: 100%; margin-left: 0; }
   .crw-inbox__filters .ui-btn { min-height: var(--ctl-lg); }
   .crw-inbox__help { grid-template-columns: minmax(0, 1fr); }

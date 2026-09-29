@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-30_v2-p7-release](2026-09-30_v2-p7-release.md)：OMRS 2.0 发布准备与本地集成验收
 - [2026-09-30_v2-p7-migration](2026-09-30_v2-p7-migration.md)：OMRS 2.0 P7 旧库迁移兼容
 - [2026-09-30_v2-p6-usage](2026-09-30_v2-p6-usage.md)：P6 助手用量
 - [2026-09-30_v2-p6-history](2026-09-30_v2-p6-history.md)：v2.0.0 P6 历史摘要与分页

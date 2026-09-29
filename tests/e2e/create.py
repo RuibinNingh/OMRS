@@ -602,6 +602,17 @@ def main():
                             audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))
                         results.append((f'快速录入审计 {label}·{theme}', ok, str(audit)))
                         audit_context.close()
+                touch_context = browser.new_context(viewport={'width': 360, 'height': 800}, is_mobile=True, has_touch=True)
+                touch_page = touch_context.new_page()
+                touch_page.goto(f'http://127.0.0.1:{port}/#/create', wait_until='networkidle')
+                touch_page.locator('#create-flow [data-ib-stage="quick"]').click()
+                size = touch_page.locator('[data-action="create.submit"]').evaluate(
+                    'el => { const r = el.getBoundingClientRect(); return { width: r.width, height: r.height }; }')
+                overflow = touch_page.evaluate('document.documentElement.scrollWidth > innerWidth + 1')
+                results.append(('快速录入 360px 主按钮触摸目标与横向布局',
+                                size['width'] >= 44 and size['height'] >= 44 and not overflow,
+                                f'{size}, overflow={overflow}'))
+                touch_context.close()
                 if not os.environ.get('OMRS_TEST_CDP_URL'):
                     browser.close()
         finally:
