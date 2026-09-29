@@ -86,13 +86,6 @@ def get_draft_tool(ctx, args):
 # ── rev ──
 def create_draft_tool(ctx, args):
     vault, conv = ctx["vault"], ctx["conversation_id"]
-    question = [block for block in args["blocks"] if block["section"] == "题目"]
-    question_images = [str(block.get("image") or "").strip() for block in question if block["kind"] == "image"]
-    if question_images:
-        if any(block["kind"] == "text" for block in question):
-            raise ValueError("题目含不可完整转述的图片时，整道题目必须保留为图片块，不要混排题干或小问文字；答案仍可写文字")
-        if len(question_images) != len(set(question_images)):
-            raise ValueError("同一道题的同一张来源图只保留一个完整题目图片块，不要按局部图表重复建块")
     shas = {}
     for ref in args.get("images") or []:
         shas[ref.strip()] = drafts.resolve_image(vault, conv, ref)["sha256"]
@@ -227,9 +220,9 @@ SPECS = [
      {"type": "object", "required": ["draft_id"], "properties": {"draft_id": _S}}, get_draft_tool),
     ("create_draft", "rev",
      "把一道题录成草稿，放进录入页的 AI 草稿区，由用户审核后入库（不直接写题库，所以不需要用户允许）。"
-     "blocks 按顺序写题目和答案：整道题目能完整转成文字才写 kind=text（公式用 $LaTeX$）；只要题目含无法完整转述的关键图表，"
-     "题目就全部写 kind=image，框住题干、图表和小问，同一来源图只写一个题目图片块，不得与题目文字混排。答案可独立写文字块。"
-     "image 填 IMG-n，note 写明完整题目在截图的位置。images 列出这道题用到的全部截图。难度固定 5。"
+     "blocks 按原题阅读顺序写题目和答案，可混排文字与图片：能完整转述的写 kind=text（公式用 $LaTeX$），独立且能准确框出的局部图写 kind=image。"
+     "题干、图表和小问相互依赖，或不能确定拆开后仍完整时，整道题目写为一个图片块，框住题干、必要图表和全部小问；不要机械拆段。"
+     "同一来源图确有多个独立局部时可引用多次。image 填 IMG-n，note 写明要框的范围。images 列出这道题用到的全部截图。难度固定 5。"
      "错因只能用用户原话：带 cause 时 cause_statement 必须原样摘自用户消息；用户没说就先问，不要自己编。",
      {"type": "object", "required": ["subject", "category", "blocks"], "properties": {
          "subject": _S, "category": _S,

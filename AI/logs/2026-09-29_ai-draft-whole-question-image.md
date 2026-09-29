@@ -23,3 +23,9 @@
 当前共享工作树直接执行同一 `--diff HEAD` 返回 6 处问题，均来自本任务开工前后其他人正在修改的 `omrs/ai_assist.py`、`omrs/server.py`、`assets/app/features/create/`、`assets/app/styles/ui.css`、`assets/app/ui/` 及对应测试而尚未更新其映射文档。本任务未覆盖、暂存或修订这些改动。
 
 未执行：未用真实模型重放该生产截图；未修改生产草稿、部署代码或重启服务。新规则需发布后才会影响后续 AI 建草稿，已有草稿须人工审核调整。
+
+## 方向调整与最终行为
+
+用户随后明确“修改方向,允许混排,但是模型要知道规则”。首版提交 `3002532` 的工具层混排／同图重复校验因此撤回；保留 `create_draft` 原有的有序图文块契约。最终提示词和工具说明允许准确、独立的局部图与完整文字按阅读顺序混排；当题干、图表和小问相互依赖，或拿不准拆分会否漏信息时，要求模型保留整题图片。同一来源图确有多个独立局部时可建多个图片区块。生产草稿 `DR-20260929-2e495e` 是需要整题图片的案例，不把这种判断硬编码成对所有图文题的禁止规则。
+
+调整后已执行：`python3 -m unittest tests.test_agent_draft_tools tests.test_drafts tests.test_agent_images -q`，46 项通过；`python3 tests/e2e/assistant.py`，隔离浏览器 58/58 通过；`git diff --check`，0 问题。按首版提交 HEAD 归档并仅覆盖本次调整的文件后执行 `python3 tests/check_docs.py --diff HEAD`，67 份文档、0 问题、3 条现有超长提醒，退出码 0。生产记录和服务仍保持只读、未发布。
