@@ -59,7 +59,7 @@ assets/app/
 
 录入页的数据所有者在 `tests/app/create-inbox.test.mjs` 用替身接口验证保存队列、旧模板配置兼容与截图重置时旧请求的处理；`tests/app/create-process.test.mjs` 检查框选和批量栏不出现模板与沿用框位入口；`tests/e2e/create.py` 用隔离服务和真实浏览器验证这些入口及提供方选项已移除、提取中重置、旧任务结束后进度保持清空，以及继续画框。
 
-设置页的配置读写在 `tests/app/settings.test.mjs` 用替身接口验证；`tests/e2e/settings.py` 用隔离服务和真实浏览器验证「AI 识别」思考开关的默认状态、保存与回读，并复核四档页面布局。
+设置页的配置读写在 `tests/app/settings.test.mjs` 用替身接口验证；`tests/e2e/settings.py` 用隔离服务和真实浏览器验证「AI 识别」思考开关、助手最大输出 Token 的默认状态、保存与回读，并复核四档页面布局。
 
 展示板的页面测试分三层：`tests/app/board*.test.mjs` 测视图模型与源码约束（`board-regions.test.mjs` 同时读 `view.js` 与 `view-panel.js`），`tests/app/board-preview.test.mjs` 测预览消息与「适应宽度」公式，`tests/e2e/board.py` 走主路径，含详情层独立滚动、答案折叠、「打开题目」弹窗，以及宽屏收起左栏后纸面自动重算缩放。
 

@@ -26,6 +26,8 @@ assets/
 - 页面底部仅以 `<script type="module">` 加载 `assets/app/main.js`。它安装共享组件，创建外壳和页面路由，连接领域服务，并在初始标签、统计、Session 数据加载后进入当前 hash 页面；详见 `AI/frontend/architecture.md` §2。
 - 后端由 `/assets/<file>` 通用静态路由提供资源（`server.py` → `_serve_asset()`，含路径穿越防护与按扩展名的 content-type）。页面样式放在对应的 `features/<页>/`；外壳样式在 `app/styles/shell.css`，组件样式在 `app/ui/`，颜色与尺度在 `app/styles/tokens.css`。
 
+设置页的六个分区由 `tests/e2e/settings.py` 在桌面与手机、浅色与深色下逐一审计；助手分区同时验证最大输出 Token 的输入、保存和回读。
+
 ## 侧栏、顶栏与路由（`assets/app/styles/shell.css`、`assets/app/shell.js`）
 
 - 地址形如 `#/questions`：刷新停在原页，浏览器前进后退可用，页面可以直接用链接打开。路由与页面契约见 `AI/frontend/architecture.md` §3。

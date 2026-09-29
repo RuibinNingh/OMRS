@@ -10,6 +10,7 @@ LIMIT_DEFAULTS = {"rounds": 25, "calls": 40, "writes": 20, "concurrent": 1}
 MSG_CAP = 60
 CONFIRM_TTL_SECONDS = 600
 RESULT_CHAR_CAP = 6000
+MAX_OUTPUT_TOKENS_LIMIT = 65536
 
 
 def limits(cfg=None):
@@ -53,6 +54,7 @@ def settings(vault):
         "draft_crop_mode": cfg.get("draft_crop_mode") if cfg.get("draft_crop_mode") in ("ask", "auto", "manual") else "ask",
         "draft_force_crop": bool(cfg.get("draft_force_crop")),
         "limits": limits(cfg),
+        "max_output_tokens": cfg["agent_max_output_tokens"],
         "debug_log": bool(cfg.get("agent_debug_log")),
         "_base": base,
         "_key": key,
@@ -84,6 +86,10 @@ def validate_agent_config(data: dict):
         raise ValueError("假模型只能由进程环境变量开启")
     if "agent_limits" in data and not isinstance(data["agent_limits"], dict):
         raise ValueError("agent_limits 必须是对象")
+    if "agent_max_output_tokens" in data:
+        value = data["agent_max_output_tokens"]
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= MAX_OUTPUT_TOKENS_LIMIT:
+            raise ValueError(f"agent_max_output_tokens 必须是 1–{MAX_OUTPUT_TOKENS_LIMIT} 的整数")
     if "draft_mode" in data and data["draft_mode"] not in ("silent", "confirm"):
         raise ValueError("draft_mode 只能是 silent 或 confirm")
     for key in ("agent_enabled", "agent_vision", "agent_debug_log"):

@@ -96,6 +96,7 @@ def config_path(vault: str) -> str:
 # （AI 识别的知识点硬过滤为「已有分类 ∪ 已有知识点」）。
 CONFIG_DEFAULTS = {"allow_external": False, "lan_pin_exempt_cidrs": [], "ai_restrict_tags": True,
                    "ai_thinking": False,
+                   "agent_max_output_tokens": 10240,
                    # 收件箱按用途选模型：留空回退 ai_model（detect 需支持定位输出，extract 建议用 OCR 类模型）
                    "ai_model_detect": "", "ai_model_extract": "", "ai_model_classify": "",
                    # 收件箱框选提供方与自动策略（见 AI/inbox.md §4/§8）

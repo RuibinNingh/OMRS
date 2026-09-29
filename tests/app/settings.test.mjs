@@ -86,6 +86,33 @@ test('框选三态及全文字训练设置保存，明确选手动才替换自�
   } finally { globalThis.fetch = originalFetch; }
 });
 
+test('助手最大输出 Token 默认值、保存和输入校验', async () => {
+  assert.match(String(agentView()), /id="st-agent-max-output-tokens"[^>]*value="10240"/);
+  let cfg = { agent_enabled: true, agent_model: 'test' };
+  const fields = Object.fromEntries(['st-agent-enabled', 'st-agent-model', 'st-agent-max-output-tokens', 'st-agent-status']
+    .map(id => [id, { value: '', checked: false, textContent: '', dataset: {}, focus() {} }]));
+  const root = { querySelector: selector => fields[selector.slice(1)] || null };
+  const originalFetch = globalThis.fetch;
+  const saves = [];
+  globalThis.fetch = async (url, init = {}) => {
+    const data = url === '/api/agent/status' ? { faux: false } : init.method === 'POST' ? JSON.parse(init.body) : cfg;
+    if (init.method === 'POST') { saves.push(data); cfg = { ...cfg, ...data }; }
+    return new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const agent = createAgent(root, { emit() {} });
+    await agent.load();
+    assert.equal(fields['st-agent-max-output-tokens'].value, 10240);
+    fields['st-agent-max-output-tokens'].value = '16384';
+    assert.equal(await agent.save(), true);
+    assert.equal(saves.at(-1).agent_max_output_tokens, 16384);
+    fields['st-agent-max-output-tokens'].value = '1.5';
+    assert.equal(await agent.save(), false);
+    assert.equal(saves.length, 1);
+    agent.dispose();
+  } finally { globalThis.fetch = originalFetch; }
+});
+
 test('分区名称非法时回到外观，六个分区次序稳定', () => {
   assert.deepEqual(SECTIONS, ['appearance', 'access', 'ai', 'assistant', 'data', 'service']);
   assert.equal(sectionOf('data'), 'data');

@@ -3,6 +3,8 @@ import { get, post } from '../../core/api.js';
 import { confirm } from '../../ui/dialog.js';
 
 const LIMITS = { rounds: 25, calls: 40, writes: 20 };
+const MAX_OUTPUT_TOKENS_DEFAULT = 10240;
+const MAX_OUTPUT_TOKENS_LIMIT = 65536;
 
 export function createAgent(root, bus) {
   const el = id => root.querySelector(`#${id}`);
@@ -29,6 +31,7 @@ export function createAgent(root, bus) {
     if (el('st-agent-base')) el('st-agent-base').value = cfg.agent_base_url || '';
     if (el('st-agent-model')) el('st-agent-model').value = cfg.agent_model || '';
     if (el('st-agent-compat')) el('st-agent-compat').value = cfg.agent_compat || 'custom';
+    if (el('st-agent-max-output-tokens')) el('st-agent-max-output-tokens').value = cfg.agent_max_output_tokens ?? MAX_OUTPUT_TOKENS_DEFAULT;
     if (el('st-agent-debug')) el('st-agent-debug').checked = !!cfg.agent_debug_log;
     const lim = cfg.agent_limits || {};
     for (const key of Object.keys(LIMITS)) if (el(`st-agent-${key}`)) el(`st-agent-${key}`).value = lim[key] ?? '';
@@ -48,6 +51,7 @@ export function createAgent(root, bus) {
     }
     const out = { agent_enabled: !!el('st-agent-enabled')?.checked, agent_vision: !!el('st-agent-vision')?.checked, agent_base_url: value('st-agent-base'), agent_model: value('st-agent-model'),
       agent_compat: value('st-agent-compat') || 'custom', agent_debug_log: !!el('st-agent-debug')?.checked,
+      agent_max_output_tokens: Number(value('st-agent-max-output-tokens') || MAX_OUTPUT_TOKENS_DEFAULT),
       draft_mode: value('st-draft-mode') || 'silent', draft_crop_mode: value('st-draft-crop-mode') || 'ask',
       draft_train_default: !!el('st-draft-train-default')?.checked,
       draft_force_crop: !!el('st-draft-force-crop')?.checked, agent_limits: limits };
@@ -58,6 +62,12 @@ export function createAgent(root, bus) {
 
   async function save({ quiet = false } = {}) {
     if (busy) return false;
+    const maxOutputRaw = value('st-agent-max-output-tokens');
+    if (maxOutputRaw && (!/^\d+$/.test(maxOutputRaw) || Number(maxOutputRaw) < 1 || Number(maxOutputRaw) > MAX_OUTPUT_TOKENS_LIMIT)) {
+      status(`最大输出 Token 必须是 1–${MAX_OUTPUT_TOKENS_LIMIT} 的整数`, 'danger');
+      el('st-agent-max-output-tokens')?.focus();
+      return false;
+    }
     const data = payload();
     if (data.agent_enabled && !data.agent_model && !faux) { status('启用助手需要填写模型名', 'danger'); el('st-agent-model')?.focus(); return false; }
     busy = true;

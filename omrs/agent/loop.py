@@ -72,10 +72,11 @@ def result_content(result, cap):
 
 
 class AgentLoop:
-    def __init__(self, client, registry, hooks, emit, limits, result_cap=6000):
+    def __init__(self, client, registry, hooks, emit, limits, result_cap=6000, max_output_tokens=10240):
         self.client, self.registry, self.hooks, self.emit = client, registry, hooks, emit
         self.budget = Budget(limits)
         self.result_cap = result_cap
+        self.max_output_tokens = max_output_tokens
 
     def run(self, messages, system, *, take_steering, abort, on_message):
         """messages：会话消息（不含 system，本函数就地追加）。返回 {reason, error}。"""
@@ -100,7 +101,7 @@ class AgentLoop:
                 self.emit("delta", data)
 
             res = self.client.complete([{"role": "system", "content": system}] + messages, tools,
-                                       on_delta=on_delta, cancel=abort)
+                                       max_tokens=self.max_output_tokens, on_delta=on_delta, cancel=abort)
             self.emit("round.end", {"n": n, "finish": res["finish_reason"], "usage": res["usage"],
                                     "ttft_ms": res["ttft_ms"], "duration_ms": res["duration_ms"], "gen_ms": res["gen_ms"],
                                     "error": res.get("error", "")})

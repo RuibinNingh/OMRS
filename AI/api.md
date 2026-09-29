@@ -274,7 +274,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 配置持久化在 `错题/.omrs/config.json`。`ai_*` 键供 AI 识别与收件箱任务使用，按用途模型为空时回退到 `ai_model`；`ai_restrict_tags` 缺失按 `true` 处理，`ai_thinking` 缺失按 `false` 处理，提交非布尔值返回 400。`inbox_*` 键供收件箱框选、盲标、自动处理和清理策略使用；新提交的 `inbox_detect_provider` 只接受 `vlm` / `local_http`，旧 `template` 值运行时按 `vlm` 处理。AI 与收件箱配置保存即生效；`allow_external` 仍需重启服务才改变监听地址。
 
-`agent_*` 键（AI 助手）的含义见 `AI/agent.md` §2：GET 不回显 `agent_api_key`，只返回 `agent_api_key_configured`；POST 可带 `clear_agent_api_key:true`；`agent_compat` 取值、开关类型不合法或模型名填 `faux` 时返回 400。
+`agent_*` 键（AI 助手）的含义见 `AI/agent.md` §2：GET 不回显 `agent_api_key`，只返回 `agent_api_key_configured`；POST 可带 `clear_agent_api_key:true`；`agent_max_output_tokens` 缺省为 10240，只接受 1–65536 的整数，越界或类型不符返回 400；`agent_compat` 取值、开关类型不合法或模型名填 `faux` 时返回 400。
 
 ### `/api/question/content/history?uid=<uid>`（或 `question_id=`）
 列出一道题（含已删除的题）在 Ledger 里入账过的正文版本：`{question_id, uid, archived, current_hash, versions:[{seq, commit_id, created_at, source, commit_type, hash, available}]}`，按提交顺序，同一哈希只列一次。找不到返回 404。见 `AI/ledger.md` §10。

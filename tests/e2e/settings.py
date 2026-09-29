@@ -100,6 +100,18 @@ def run_main(page, base, results):
     page.locator('dialog[open] [data-dialog-ok]').click()
     check('确认清除后状态更新', wait(page, "() => document.querySelector('#st-ai-key-state')?.textContent.includes('尚未配置')"))
 
+    page.click('[data-action="settings.section"][data-arg="assistant"]')
+    check('助手最大输出 Token 默认 10240', page.locator('#st-agent-max-output-tokens').input_value() == '10240')
+    page.fill('#st-agent-max-output-tokens', '16384')
+    page.click('[data-action="settings.saveAgent"]')
+    check('助手最大输出 Token 保存并回显', wait(page, "() => document.querySelector('#st-agent-status')?.textContent.includes('已保存')")
+          and page.locator('#st-agent-max-output-tokens').input_value() == '16384'
+          and page.evaluate("async () => (await (await fetch('/api/config')).json()).agent_max_output_tokens === 16384"))
+    page.fill('#st-agent-max-output-tokens', '1.5')
+    page.click('[data-action="settings.saveAgent"]')
+    check('助手最大输出 Token 非整数原地拒绝', wait(page, "() => document.querySelector('#st-agent-status')?.textContent.includes('必须是')")
+          and page.evaluate("async () => (await (await fetch('/api/config')).json()).agent_max_output_tokens === 16384"))
+
     page.click('[data-action="settings.section"][data-arg="data"]')
     check('存储摘要真实加载', wait(page, "() => document.querySelector('#opt-total')?.textContent !== '—'"))
     with page.expect_download() as backup:
@@ -181,7 +193,7 @@ def audit_sections(browser, base, results):
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto(base + '/#/settings', wait_until='networkidle')
             wait(page, "() => !!document.querySelector('#st-app .st-layout')")
-            for name in ('appearance', 'access', 'ai', 'data', 'service'):
+            for name in ('appearance', 'access', 'ai', 'assistant', 'data', 'service'):
                 page.click(f'[data-action="settings.section"][data-arg="{name}"]')
                 result = page.evaluate(AUDIT, 40 if mobile else 28)
                 ok = len(result['sizes']) <= 6 and min(result['sizes']) >= 12 and not any(

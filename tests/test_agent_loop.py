@@ -26,9 +26,11 @@ def reply(text="", calls=None, finish=None):
 class Stub:
     def __init__(self, replies, on_call=None):
         self.replies, self.seen, self.on_call = list(replies), [], on_call
+        self.max_tokens = []
 
     def complete(self, messages, tools=None, **kw):
         self.seen.append([dict(m) for m in messages])
+        self.max_tokens.append(kw.get("max_tokens"))
         if self.on_call:
             self.on_call(len(self.seen))
         return self.replies.pop(0) if self.replies else reply("完")
@@ -67,14 +69,21 @@ REG = Registry([
 ])
 
 
-def run(stub, hooks=None, steer=None, abort=None, limits=LIMITS):
+def run(stub, hooks=None, steer=None, abort=None, limits=LIMITS, max_output_tokens=10240):
     events, msgs = [], [{"role": "user", "content": "hi"}]
-    loop = AgentLoop(stub, REG, hooks or Hooks(), lambda t, d: events.append((t, d)), limits)
+    loop = AgentLoop(stub, REG, hooks or Hooks(), lambda t, d: events.append((t, d)), limits,
+                     max_output_tokens=max_output_tokens)
     out = loop.run(msgs, "sys", take_steering=steer or (lambda n: []), abort=abort or threading.Event(), on_message=lambda m: None)
     return out, msgs, events
 
 
 class LoopTest(unittest.TestCase):
+    def test_each_round_uses_configured_output_limit(self):
+        stub = Stub([reply(calls=[("echo", {"x": 1})]), reply("好")])
+        out, _, _ = run(stub, max_output_tokens=16384)
+        self.assertEqual(out["reason"], "completed")
+        self.assertEqual(stub.max_tokens, [16384, 16384])
+
     def test_tool_then_answer_completes(self):
         out, msgs, events = run(Stub([reply(calls=[("echo", {"x": 1})]), reply("好")]))
         self.assertEqual(out["reason"], "completed")

@@ -56,6 +56,18 @@ class SecurityTests(unittest.TestCase):
         self.assertEqual(saved[0], 200)
         self.assertTrue(json.loads(self.request("GET", "/api/config")[2])["ai_thinking"])
 
+    def test_agent_output_limit_defaults_validates_and_persists(self):
+        self.assertEqual(json.loads(self.request("GET", "/api/config")[2])["agent_max_output_tokens"], 10240)
+        headers = {"Content-Type": "application/json"}
+        for value in (0, 65537, 1.5, True, "16384"):
+            response = self.request("POST", "/api/config", headers,
+                                    json.dumps({"agent_max_output_tokens": value}))
+            self.assertEqual(response[0], 400)
+            self.assertEqual(load_config(self.vault)["agent_max_output_tokens"], 10240)
+        saved = self.request("POST", "/api/config", headers, '{"agent_max_output_tokens":16384}')
+        self.assertEqual(saved[0], 200)
+        self.assertEqual(json.loads(self.request("GET", "/api/config")[2])["agent_max_output_tokens"], 16384)
+
     def test_local_bypass_remote_login_proxy_and_config_secret(self):
         save_config(self.vault, {"ai_api_key": "secret"})
         local = self.request("GET", "/api/config")

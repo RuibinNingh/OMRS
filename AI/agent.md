@@ -27,7 +27,7 @@
 
 ## 2. 配置
 
-`config.json` 的 `agent_*` 键（`GET /api/config` 不回显密钥，只给 `agent_api_key_configured`）：`agent_enabled`（总开关，默认关）、`agent_base_url` 与 `agent_api_key`（留空回退 `ai_base_url` / `ai_api_key`）、`agent_model`（必填，不回退）、`agent_compat`（`custom` / `openai` / `dashscope` / `deepseek`）、`agent_compat_overrides`（可选，覆写单项兼容开关）、`agent_limits`（`rounds` / `calls` / `writes` / `concurrent`，只能调小）、`agent_debug_log`（请求与响应原文写 `错题/.omrs/logs/agent-llm.jsonl`，不含密钥）、`agent_vision`（主 AI 支持图片，见 §1「附图」）。校验在 `omrs/agent/config.py` 的 `validate_agent_config`。
+`config.json` 的 `agent_*` 键（`GET /api/config` 不回显密钥，只给 `agent_api_key_configured`）：`agent_enabled`（总开关，默认关）、`agent_base_url` 与 `agent_api_key`（留空回退 `ai_base_url` / `ai_api_key`）、`agent_model`（必填，不回退）、`agent_compat`（`custom` / `openai` / `dashscope` / `deepseek`）、`agent_compat_overrides`（可选，覆写单项兼容开关）、`agent_max_output_tokens`（每轮模型请求的最大输出 Token，默认 10240，范围 1–65536；新运行开始时读取，仍受服务商限制）、`agent_limits`（`rounds` / `calls` / `writes` / `concurrent`，只能调小）、`agent_debug_log`（请求与响应原文写 `错题/.omrs/logs/agent-llm.jsonl`，不含密钥）、`agent_vision`（主 AI 支持图片，见 §1「附图」）。校验在 `omrs/agent/config.py` 的 `validate_agent_config`。
 
 兼容差异写成数据（`omrs/llm/compat.py`）：思考内容从哪些增量字段读、带工具调用的 assistant 消息是否回传思考、工具结果是否带 `name`、`max_tokens` 的字段名、system 还是 developer 角色、是否发 `stream_options.include_usage`、工具 schema 是否带 `strict`、上下文窗口（只用于界面用量计）。
 

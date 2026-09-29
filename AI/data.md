@@ -229,6 +229,7 @@ Markdown `# 历史` 不作为算法输入，也不会由反馈流程追加。`/a
 | `agent_enabled` | bool | AI 助手总开关，默认关 |
 | `agent_base_url` / `agent_api_key` / `agent_model` | string | 助手的模型接口；地址与密钥留空沿用 `ai_*`，模型必填；密钥不回显 |
 | `agent_compat` / `agent_compat_overrides` | string / object | 厂商兼容配置名与单项覆写，见 `AI/agent.md` §2 |
+| `agent_max_output_tokens` | int | 助手每轮模型请求的最大输出 Token，默认 10240，允许 1–65536 |
 | `agent_limits` | object | `rounds` / `calls` / `writes` / `concurrent`，只能比默认值小 |
 | `agent_debug_log` / `agent_vision` | bool | 模型请求日志开关；是否把聊天附图直接交给主模型 |
 | `draft_mode` | string | AI 录题方式：silent（默认，只建草稿）/ confirm（可申请确认入库） |

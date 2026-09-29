@@ -354,7 +354,8 @@ class AgentRuntime:
                     run.emit("steer.delivered", {"id": item["id"], "round": n})
                 return [item["text"] for item in items]
 
-            loop = AgentLoop(client, registry, Hooks(self, run, registry), run.emit, s["limits"], RESULT_CHAR_CAP)
+            loop = AgentLoop(client, registry, Hooks(self, run, registry), run.emit, s["limits"], RESULT_CHAR_CAP,
+                             max_output_tokens=s["max_output_tokens"])
             out = loop.run(messages, system, take_steering=take_steering, abort=run.abort,
                            on_message=lambda m: self.store.add_message(run.conv_id, run.id, m))
         except Exception as exc:  # noqa: BLE001
