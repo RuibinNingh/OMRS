@@ -5,6 +5,7 @@
 - [2026-09-29_v2-p2](2026-09-29_v2-p2.md)：OMRS 2.0.0 快速录入与字段安全
 - [2026-09-29_v2-p1](2026-09-29_v2-p1.md)：OMRS 2.0.0 AI 草稿审核工作台
 - [2026-09-29_v2-p0](2026-09-29_v2-p0.md)：OMRS 2.0.0 基线与契约
+- [2026-09-29_v2-agent-execution](2026-09-29_v2-agent-execution.md)：v2.0.0 子代理执行架构
 - [2026-09-29_project-overview](2026-09-29_project-overview.md)：项目整体情况梳理与文档校正
 - [2026-09-29_omrs-stabilization](2026-09-29_omrs-stabilization.md)：OMRS v1.35.0 数据完整性与并发巩固
 - [2026-09-29_omrs-stabilization-deploy](2026-09-29_omrs-stabilization-deploy.md)：OMRS v1.35.0 生产部署与 GitHub 推送
