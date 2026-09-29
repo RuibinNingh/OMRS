@@ -10,6 +10,7 @@ import { itemsOf } from '../../domain/items.js';
 import { labelChips, openCreateLabelPicker } from '../../domain/labels/index.js';
 import { boardQuickAdd } from '../../domain/board/index.js';
 import { reloadData } from '../../domain/data.js';
+import { loadTaxonomy, mergeTaxonomy } from '../../domain/taxonomy.js';
 import { notifyHistoryChanged } from '../../domain/history.js';
 import { newQuickState, createPayload, mergeClassification, afterCreate } from './state.js';
 import { quickView, imageThumbs, resultView, causeCandidate } from './quick-view.js';
@@ -31,7 +32,8 @@ export function createQuick(root, ctx) {
   let alive = true;
   let busy = false;
   const aiBusy = { q: false, a: false };
-  const dataOptions = () => suggestions(itemsOf(ctx.store.get().data));
+  const dataOptions = () => mergeTaxonomy(suggestions(itemsOf(ctx.store.get().data)));
+  void loadTaxonomy();
   const field = name => host.querySelector(`[data-cr-field="${name}"]`);
   const imageList = kind => state.images[kind];
   const sourceKey = current => ['q', 'a'].map(kind => current.images[kind].map(image => image.id).join(',')).join('|');

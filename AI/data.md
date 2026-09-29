@@ -15,6 +15,8 @@
 
 ## 1. UID 规则
 
+科目与分类保存在 `错题/<科目>/<分类>/` 目录中；`<科目>/<科目>.md` 是科目索引，`<分类>/<分类>.md` 是分类锚点。零题分类也使用这套目录与锚点，不创建假题或平行分类数据库。统一词表将有效锚点与已有题目投影合并，按科目隔离同名分类。
+
 - UID = Markdown 文件名（不含 `.md`）。
 - 文件名必须以数字结尾，例：`三角函数1.md`、`工业流程题3.md`。
 - UID 在整个题库中必须唯一，`scan_vault()` 检测冲突并抛出错误。
@@ -440,6 +442,8 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 独立于收件箱的训练数据，由 `omrs/annotate.py` 读写，不进 Ledger、不参与任何投影。`annotate.db` 只有一张 `images` 表：`id (AN-YYYYMMDD-xxxxxx)、sha256（唯一）、file（上传时的文件名）、mime、width、height、bytes、status (todo|done)、boxes（JSON 数组 [{role, x, y, w, h}]，role 为 question / answer，坐标归一化 0–1）、revision、uploaded_at、updated_at`。旧库缺 `revision` 时幂等补列，保存与删除按预期版本检查，保存成功递增。原图在 `images/<sha256>.<ext>`，删除记录时一并删除。整个目录随设置页「备份导出」打包（备份遍历整个 `错题/`），图片压缩优化只处理附件目录，不碰这里。
 
 ## 17. AI 草稿存储
+
+`draft_manual_edits` 表按 `(draft_id,target)` 记录人工编辑过的字段或块，供 AI 修订工具在同一版本内保护人工内容；`events.jsonl` 的 `draft.ai_update` 记录 AI 修改的运行来源、旧新 revision 和实际变化。草稿存储不进入题目 Ledger。
 
 `错题/.omrs/drafts/` 的 drafts.db 独立于 Ledger，包含 images、conv_images、drafts、blocks、draft_images、commit_operations、training_tasks、training_boxes、draft_jobs 与 cleanup_candidates；图片按 hash 保存，事件追加到 events.jsonl。JPEG 在计算 hash 前清除主图结束标记后的相册数据，缺尾时补标记，保留编码像素；旧文件只在读取为 data URL 时临时整理，不改写。revision、来源完整性、清理状态与训练任务 manual_override / force_crop 通过增量迁移添加。字段、来源恢复和入库恢复以 `AI/drafts.md` 为准；只有通过产生带 `_draft` 追溯信息的题目创建提交。
 

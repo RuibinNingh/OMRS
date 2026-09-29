@@ -73,6 +73,8 @@
 
 保存调用 `/api/create`，发送科目、分类、难度、知识点、人工标记、题面、答案、错因，以及分开的 `question_images` 和 `answer_images`；不发送笔记本页码。科目和分类由前端预检。成功后只清空题面、答案、错因和两区图片，其余字段保留，方便连续录入。成功提示含 UID、文件路径、图片数和「加入展示板」入口（`domain/board` 的 `boardQuickAdd`，Shift + 点击直接加进上次用的板）；同时刷新统计、历史和目录。按「重置」才清空整份草稿。
 
+快速录入和收件箱题卡的科目/分类建议合并 `/api/taxonomy` 的零题分类与已入库题目；分类候选仍按当前科目过滤。读取失败保留已有题目的候选，重新进入页面会重读词表。
+
 ## 样式
 
 样式都在 features 层：`create.css`（导航、工作区显隐与整屏工作台、上传、快速录入、网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（`crc-`）、`train.css`（`crt-`）与 `drafts.css`（草稿审核工作区）。只用 token；标注色取 `--info` / `--success` / `--danger`。旧 `styles.css` 里已没有录入页的规则。

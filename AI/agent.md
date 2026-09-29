@@ -38,8 +38,8 @@
 | 级别 | 工具 | 服务端行为 |
 |---|---|---|
 | read | 词表、搜题、读题、概况、推荐、Session、看图追问、查草稿 | 自动执行 |
-| rev | 建复习 Session、打标记、建草稿 | 自动执行，计入写入预算；前两个可按运行撤销，草稿不进 Ledger、不在撤销范围 |
-| confirm | 改题目 / 答案 / 错因、改知识点、移动、停用、恢复、记录反馈，以及确认模式下的草稿入库 | 发 `tool.waiting` 事件后阻塞，等界面 `POST /api/agent/confirm` |
+| rev | 建复习 Session、打标记、建草稿、按版本修订草稿 | 自动执行，计入写入预算；前两个可按运行撤销，草稿不进 Ledger、不在撤销范围 |
+| confirm | 改题目 / 答案 / 错因、改知识点、移动、停用、恢复、记录反馈、独立创建分类，以及确认模式下的草稿入库 | 发 `tool.waiting` 事件后阻塞，等界面 `POST /api/agent/confirm` |
 | 不提供 | 删除、改设置和 PIN、备份恢复、重启、源码导出、标记定义 | 没有工具 |
 
 确认码 = sha256(run_id + 工具名 + 规范化参数)，参数一变就是新请求；10 分钟过期（`CONFIRM_TTL_SECONDS`），过期、拒绝、中止都作为工具结果交还模型，工具不执行。确认前先调工具的 `preview`（例如改正文前后对照、反馈的预计熟练度）；`preview` 抛错时不打扰用户，直接把错误交还模型。
@@ -54,7 +54,9 @@
 
 写入：`create_review_session`、`set_question_labels`（只能用已有标记，单次 ≤50 题，每题一条 `question.metadata_update`）、`update_question_section`（替换或追加；替换时原有图片嵌入保留）、`set_knowledge_points`、`move_question`、`suspend_question`、`resume_question`、`record_feedback`（带 `session_id` 时题目必须在该 Session 的待反馈列表里）。
 
-草稿（`omrs/agent/tools/drafts.py`，存储见 `AI/drafts.md`）：`describe_image`（read，`{image:"IMG-n", question}`，用 `ai_model_extract` 针对一张图回答，≤2000 字）、`list_drafts`（read，默认本对话未入库未丢弃的）、`get_draft`（read）、`create_draft`（rev，按块写题目 / 答案，文字块或引用 IMG-n 的图片块；有图片块时状态为待框选，否则待审核；带 `cause` 时 `cause_statement` 必填，NFKC 去空白后必须是本对话某条用户消息的子串，否则报错不建）。工具上下文带 `tool_call_id`，草稿记下对话、运行、调用。原来的 `create_text_question` 已下线；AI 没有改草稿、丢弃草稿的工具。
+草稿（`omrs/agent/tools/drafts.py`，存储见 `AI/drafts.md`）：`describe_image`（read，`{image:"IMG-n", question}`，用 `ai_model_extract` 针对一张图回答，≤2000 字）、`list_drafts`（read，默认本对话未入库未丢弃的）、`get_draft`（read，返回 revision、稳定 block_id、图片 IMG-n 引用及框状态，不把 SHA 暴露给模型）、`create_draft`（rev，按块写题目 / 答案）、`update_draft`（rev，`draft_id`、`expected_revision`、字段补丁及按 `block_id` 的文字/说明补丁）。`update_draft` 不入库，写入预算按实际修改计；人工编辑保护目标只给建议。AI 的非空错因必须附用户原话 `cause_statement` 并经服务端核对。工具上下文带 `tool_call_id`；AI 没有丢弃工具。
+
+`create_category`（confirm）只在独立创建永久分类时使用；确认后由 `omrs/taxonomy.py` 建分类目录、锚点与科目索引，零题分类进入统一词表。重复创建不覆写锚点；若补上缺失索引仍算实际写入。无题目 Ledger commit，不能按运行自动撤销。
 
 助手建草稿允许题目图文混排：各文字块必须能完整转述，局部图片块须能独立准确框出，按原题阅读顺序排列；同一来源图确有多个独立局部时可重复引用。题干、图表和小问相互依赖，或无法确定拆开后信息完整时，提示词要求把整道题目保留为一个图片块，覆盖题干、必要图表和全部小问。`create_draft` 工具保留有序块契约，不强制禁止混排；答案单独判断。
 

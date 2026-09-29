@@ -25,6 +25,7 @@ import urllib.error
 import urllib.request
 
 from .common import MASTERY_HEADERS, load_config, load_csv, mastery_path
+from .taxonomy import directory_categories
 
 
 def collect_taxonomy(vault: str) -> dict:
@@ -45,6 +46,10 @@ def collect_taxonomy(vault: str) -> dict:
             tag = tag.strip()
             if tag:
                 ktags.add(tag)
+    for subject, names in directory_categories(vault).items():
+        subjects.add(subject)
+        categories.update(names)
+        categories_by_subject.setdefault(subject, set()).update(names)
     return {
         "subjects": sorted(subjects),
         "categories": sorted(categories),

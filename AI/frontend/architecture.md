@@ -16,7 +16,7 @@ assets/app/
 ├── core/              与业务无关的底座：html、dom、events、keys、store、bus、router、api、format
 ├── ui/                无业务组件
 ├── styles/            tokens、index（@layer 总入口）、base、ui、shell、gallery
-├── domain/            跨页业务模块：data、sessions、drafts、history、items、exporting、scan、question/、labels/、board/
+├── domain/            跨页业务模块：data、sessions、drafts、taxonomy、history、items、exporting、scan、question/、labels/、board/
 └── features/          主外壳页面：dashboard/、data/、schedule/、board/、questions/、instant/、feedback/、history/、catalog/、reports/、settings/、create/、assistant/；独立页面：annotate/、trainpanel/
 ```
 
@@ -93,6 +93,8 @@ assets/app/
 草稿后台作业由页面 `drafts-job.js` 管理轮询和卸载，活动标记交给 `domain/drafts.js` 统一维护角标轮询；页面内容以服务端 revision 为边界，后台结果不能覆盖未保存表单。真实 HTTP 进程重启回归见 `tests/test_draft_p3_http.py`；画布复用与收件箱行为由草稿/录入 E2E 联合验证。
 
 草稿审核页把队列展开、题目 / 答案 / 信息标签、局部编辑和来源画布展开状态留在挂载控制器；跨页领域层仍只保存导航目标与计数。入库动作先复核服务端 revision，保存后用相同 revision 串行提交；网络响应丢失时重试同一入库身份。`tests/app/create-drafts.test.mjs` 验证默认阅读结构，`tests/e2e/drafts.py` 与 `tests/e2e/drafts_p4.py` 在隔离 Vault 中验证冲突、响应丢失、移动端队列、框选及独立训练。
+
+`tests/e2e/p4_tools.py` 使用假模型和临时 Vault 从助手确认分类、修订草稿，再进入快速录入与审核页；助手的无 Ledger 写入活动归约由 `tests/app/assistant.test.mjs` 固定。
 
 自动检测与提取共用草稿作业轮询，按 type 区分进度和错误。助手卡片独立读取当前作业并在活动时轮询，结束运行的缓存由 draftVer 失效；隐藏与卸载停止轮询。录入页顶部与草稿列表都复用当前计数快照，接收 counts 事件时同步更新，避免首次挂载或入库后保留旧值。Node 测试覆盖设置、卡片作业状态、候选展示与独立训练框；HTTP 回归验证检测并发和服务重启。
 

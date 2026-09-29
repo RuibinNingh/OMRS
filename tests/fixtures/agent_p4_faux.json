@@ -1,0 +1,21 @@
+{
+  "scenarios": [
+    {
+      "match": "创建零题分类",
+      "rounds": [
+        {"tool_calls": [{"name": "create_category", "arguments": {"subject": "数学", "category": "矩阵"}}]},
+        {"text": "矩阵分类已处理。"}
+      ]
+    },
+    {
+      "match": "修改草稿",
+      "rounds": [
+        {"tool_calls": [{"name": "create_draft", "arguments": {"subject": "数学", "category": "矩阵", "blocks": [{"section": "题目", "kind": "text", "text": "求矩阵 A 的行列式"}, {"section": "答案", "kind": "text", "text": "初稿答案"}]}}]},
+        {"tool_calls": [{"name": "get_draft", "arguments": {"draft_id": "{{r:create_draft.draft_id}}"}}]},
+        {"tool_calls": [{"name": "update_draft", "arguments": {"draft_id": "{{r:create_draft.draft_id}}", "expected_revision": "{{raw:get_draft.revision}}", "block_patches": [{"block_id": "{{r:get_draft.blocks.1.block_id}}", "text": "修订答案：先化为上三角矩阵"}]}}]},
+        {"text": "草稿已修订，请审核。"}
+      ]
+    }
+  ],
+  "default": {"rounds": [{"text": "没有匹配场景。"}]}
+}

@@ -27,7 +27,7 @@ cropping 表示仍有缺框的图片块；全部图片块有合法框后为 revi
 
 框为有限数值的 x/y/w/h，位于 0–1 内且宽高为正，origin 只接受 manual/ai/ai_edited。页面通过手动画布调整框，或「使用整图」显式写 0/0/1/1；全是文字的草稿直接待审核。块 id 保持稳定，新块由服务端生成，数组顺序确定 ord。难度 1–10，知识点最多 8 个；科目、分类与有效题目内容必填，答案可空。
 
-AI 创建时非空错因必须有 cause_statement，并由工具层核对用户消息原话。人工编辑错因不需要伪造对话原话；原始证据保留。AI 不提供修改或丢弃草稿工具。
+AI 创建和修订时，非空错因必须有 cause_statement，并由工具层核对用户消息原话。人工编辑错因不需要伪造对话原话；原始证据保留。AI 的 `update_draft` 按 revision/CAS 和稳定块 id 只改指定字段、文字或说明，不改图片 SHA、框、顺序、身份、状态及训练任务。人工更新过的字段或块记录在 `draft_manual_edits`；AI 遇到这些目标返回建议，不覆盖人工输入。AI 不提供丢弃工具。
 
 ## 3. 一次性入库
 
@@ -60,6 +60,8 @@ GET 保留 `{status:"ok",drafts:[...]}` / `{status:"ok",draft:{...}}` / `{status
 | POST `/api/drafts/cleanup` | 只接受 `{}`；返回 cleaned:{drafts,images,crops}、retained:{images} |
 
 POST 沿用登录、同源与全局写锁。DraftError 含 status/code/current_revision：非法输入 400，不存在 404，状态或版本冲突 409；锁忙 503。GET 保持原错误兼容。页面不能提交 origin/uid/status 覆盖服务端身份。
+
+AI 修订不另开 HTTP 写端点，由助手工具在写锁内调用 `patch_draft`；只接受 subject、category、knowledge_points、cause、note 和已有块的 text/note。旧 revision、其他对话、done/discarded、入库中的草稿和未知块 id 均拒绝。成功新增 `draft.ai_update` 事件，包含 actor、run/call、旧新 revision 与实际字段变化；草稿保存本身不写 Ledger。人工 `/api/drafts/update` 对实际变更的字段与块写保护标记。
 
 公共 Python 函数仍由 drafts.py 提供：add_image、resolve_image、conversation_refs、image_path/image_data_url、get_transcript/set_transcript、create_draft、get_draft、list_drafts、counts；新增 update_draft(vault,id,revision,fields,blocks,source_images=None)、discard_draft(vault,id,revision)、commit_draft(vault,id,revision,crops=None)。写入实现委托 draft_write.py；框选/训练/作业公共入口为 set_boxes、start_extract、start_detect、set_image_training、get_job、cleanup。
 

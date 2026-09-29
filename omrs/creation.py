@@ -12,7 +12,8 @@ from .ledger import append_commit, reserve_operation_id
 from .migration import ensure_ledger_bootstrap
 from .projections import rebuild_projection
 from .workspace_sync import content_hash, metadata_hash, update_fingerprints
-from .path_safety import safe_question_directory, safe_question_path
+from .path_safety import safe_question_path
+from .taxonomy import category_path, create_category
 
 
 def _next_uid(qroot, category):
@@ -187,7 +188,7 @@ def create_question(vault, subject, category, difficulty, related_tags=None,
                     question_text="", answer_text="", cause="",
                     question_images=None, answer_images=None, labels=None,
                     ordered_blocks=None, draft_origin=None, reserved_identity=None, actor="api"):
-    category_dir, subject, category = safe_question_directory(vault, subject, category)
+    category_dir, subject, category = category_path(vault, subject, category)
     if reserved_identity:
         draft_id = (draft_origin or {}).get("draft_id")
         db_path = os.path.join(questions_root(vault), ".omrs", "drafts", "drafts.db")
@@ -203,27 +204,7 @@ def create_question(vault, subject, category, difficulty, related_tags=None,
             raise ValueError("草稿入库身份记录不匹配")
     ensure_ledger_bootstrap(vault)
     qroot = questions_root(vault)
-    os.makedirs(category_dir, exist_ok=True)
-
-    subject_anchor = os.path.join(qroot, subject, f"{subject}.md")
-    safe_question_path(vault, subject_anchor)
-    if not os.path.exists(subject_anchor):
-        with open(subject_anchor, "w", encoding="utf-8") as file:
-            file.write(f"# {subject}\n")
-
-    category_anchor = os.path.join(category_dir, f"{category}.md")
-    safe_question_path(vault, category_anchor)
-    is_new_category = not os.path.exists(category_anchor)
-    if is_new_category:
-        with open(category_anchor, "w", encoding="utf-8") as file:
-            file.write(f"# {category}\n")
-        with open(subject_anchor, "r", encoding="utf-8") as file:
-            anchor_content = file.read()
-        link = f"[[{category}]]"
-        if link not in anchor_content:
-            anchor_content = anchor_content.rstrip() + f"\n- {link}\n"
-            with open(subject_anchor, "w", encoding="utf-8") as file:
-                file.write(anchor_content)
+    create_category(vault, subject, category)
 
     uid = reserved_identity["uid"] if reserved_identity else _next_uid(qroot, category)
     question_id = reserved_identity["question_id"] if reserved_identity else reserve_operation_id(vault)

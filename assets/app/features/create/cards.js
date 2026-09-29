@@ -6,6 +6,7 @@ import { itemsOf } from '../../domain/items.js';
 import { openCreateLabelPicker } from '../../domain/labels/index.js';
 import { boardChooseAndAdd } from '../../domain/board/index.js';
 import { reloadData } from '../../domain/data.js';
+import { loadTaxonomy, mergeTaxonomy } from '../../domain/taxonomy.js';
 import { notifyHistoryChanged } from '../../domain/history.js';
 import { inbox, notify } from './inbox.js';
 import { cropDataUrl, paintCrops } from './crop.js';
@@ -23,6 +24,7 @@ function boardAction(uids) {
 }
 
 export function createCards(root, ctx) {
+  void loadTaxonomy();
   const host = root.querySelector('#ib-stage-create');
   let alive = true;
   let scheduled = false;
@@ -146,7 +148,7 @@ export function createCards(root, ctx) {
   }
 
   const combobox = createCombobox(host, { options(name, input) {
-    const data = suggestions(itemsOf(ctx.store.get().data));
+    const data = mergeTaxonomy(suggestions(itemsOf(ctx.store.get().data)));
     if (name === 'subject') return data.subjects;
     if (name === 'category') {
       const [key] = String(input.dataset.arg || '').split('|');

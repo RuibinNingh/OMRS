@@ -77,7 +77,7 @@ function gateView(run, st, now) {
 
 function toolView(S, run, st, now) {
   const key = `${run.id}|${st.id}`;
-  const open = S.open.has(key) || (st.name === 'create_draft' && st.status === 'done' && !S.closed.has(key));
+  const open = S.open.has(key) || (['create_draft', 'update_draft', 'create_category'].includes(st.name) && st.status === 'done' && !S.closed.has(key));
   const [label, tone] = STATUS[st.status] || STATUS.queued;
   const dur = st.status === 'running' ? fmtS(now - st.t0) : st.dur ? fmtS(st.dur) : '';
   const decided = st.decision && st.decision.how !== 'allow' ? '' : st.decision ? html`<span class="ast-tool__sum">你已允许</span>` : '';
@@ -112,7 +112,7 @@ function footView(run) {
   const tag = run.reason === 'completed' ? '' : html`<span class="${cls('ui-tag', run.reason === 'aborted' ? '' : 'ui-tag--danger')}">${REASON[run.reason] || run.reason}</span>`;
   const writes = run.commits.length;
   return html`<div class="ast-foot">${tag}${run.error ? html`<span class="ast-foot__st is-error">${run.error}</span>` : ''}
-    <span class="ast-foot__st">${fmtS(run.dur)} · ${run.rounds} 轮 · ${run.calls} 次调用${writes ? ` · 写入 ${run.writes}` : ''} · ${fmtK(run.usage.prompt)} 入 / ${fmtK(run.usage.out)} 出</span>
+    <span class="ast-foot__st">${fmtS(run.dur)} · ${run.rounds} 轮 · ${run.calls} 次调用${run.writes ? ` · 写入 ${run.writes}` : ''} · ${fmtK(run.usage.prompt)} 入 / ${fmtK(run.usage.out)} 出</span>
     <span class="ast-foot__acts">${run.reverted ? html`<span class="ui-tag">${icon('undo')}已撤销</span>`
       : writes ? html`<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.undo" data-arg="${run.id}">${icon('undo')}撤销这次写入</button>` : ''}
       <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="assistant.copy" data-arg="${run.id}" aria-label="复制回答">${icon('copy')}</button>
@@ -156,8 +156,8 @@ function offView(S) {
 
 const PERMS = [
   ['read', '找题、看统计、读题目、查推荐与 Session', '直接执行'],
-  ['rev', '建复习 Session、打标记、录 AI 草稿', '直接执行；草稿不进题库'],
-  ['confirm', '改题目 / 答案 / 错因、改知识点、移动 / 停用、记反馈；按设置通过草稿', '你点「允许」才执行'],
+  ['rev', '建复习 Session、打标记、录入或修订 AI 草稿', '直接执行；草稿不进题库'],
+  ['confirm', '改题目 / 答案 / 错因、移动 / 停用、记反馈、独立建分类；按设置通过草稿', '你点「允许」才执行'],
   ['none', '删除题目、改设置和 PIN、备份恢复、重启', '没有工具，助手做不到'],
 ];
 export function emptyView(S) {

@@ -15,6 +15,7 @@ import { itemsNow, reloadData } from '../../domain/data.js';
 import { copyText, refreshSessions } from '../../domain/sessions.js';
 import { invalidateQuestions, viewQ } from '../../domain/question/index.js';
 import { openDraft as navigateToDraft, publishDraftChange, setDraftActivity } from '../../domain/drafts.js';
+import { loadTaxonomy } from '../../domain/taxonomy.js';
 import { applyEvent, mmss, newRun, runFrom, runNow } from './state.js';
 import { confirmOf, setRefRenderer, toolTitle } from './tools-view.js';
 import { SUGS, dockView, headView, railView, streamView } from './view.js';
@@ -153,9 +154,9 @@ function createController(root, { router }) {
         applyEvent(run, ev);
         if (ev.type === 'tool.end' && ev.data?.status === 'done') {
           const step = run.byCall.get(ev.data.call_id);
-          const id = step?.name === 'create_draft' ? ev.data.result?.draft_id
-            : step?.name === 'commit_draft' ? ev.data.result?.draft_id : null;
+          const id = ['create_draft', 'commit_draft', 'update_draft'].includes(step?.name) ? ev.data.result?.draft_id : null;
           if (id) publishDraftChange([id]);
+          if (step?.name === 'create_category') void loadTaxonomy();
         }
       }
       if (res.data.compacted && run.status !== 'done') applyEvent(run, { type: 'run.end', t: run.clock.t, data: { reason: 'interrupted' } });
@@ -324,7 +325,7 @@ function createController(root, { router }) {
   return {
     S, load, schedule, bump, openConv, send, gate, undo,
     async newConv() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); const res = await post('/api/agent/conversation/create', {}); if (res.ok && S.alive) { S.convs.unshift({ ...res.data.conversation, msgs: 0, writes: 0, snippet: '' }); await openConv(res.data.conversation.id); $('ast-input')?.focus(); } },
-    toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.phase === 'live' || st?.name === 'create_draft' && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
+    toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.phase === 'live' || ['create_draft', 'update_draft', 'create_category'].includes(st?.name) && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
     deny(arg) { const { run, st } = findStep(arg); if (run && st?.status === 'waiting') decide(run, st, 'deny'); },
     async stop() { if (S.liveRun) { const res = await post('/api/agent/abort', { run_id: S.liveRun.id }); if (!res.ok) toast(res.error?.message || '停止失败', { kind: 'error' }); } },
     async copy(runId) { const run = S.items.map(i => i.run).find(r => r && r.id === runId); const text = run ? run.steps.filter(s => s.kind === 'text').map(s => s.src).join('\n\n') : ''; if (await copyText(text)) toast('已复制回答', { kind: 'success' }); },

@@ -24,7 +24,7 @@ export function createDraftCards(S, schedule) {
   const detecting = new Set();
   let pollTimer = 0;
   const visibleIds = () => new Set(S.items.flatMap(item => item.run?.steps || [])
-    .filter(step => step.name === 'create_draft' && step.result?.draft_id)
+    .filter(step => ['create_draft', 'update_draft'].includes(step.name) && step.result?.draft_id)
     .map(step => step.result.draft_id));
   function pollIfActive(visible) {
     clearTimeout(pollTimer);

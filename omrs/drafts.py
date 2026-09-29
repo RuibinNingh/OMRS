@@ -182,6 +182,9 @@ CREATE TABLE IF NOT EXISTS draft_jobs (
 );
 CREATE INDEX IF NOT EXISTS draft_jobs_draft ON draft_jobs(draft_id,created_at);
 CREATE TABLE IF NOT EXISTS cleanup_candidates (image_sha TEXT PRIMARY KEY,marked_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS draft_manual_edits (
+  draft_id TEXT NOT NULL, target TEXT NOT NULL, PRIMARY KEY(draft_id,target)
+);
 """
 
 
@@ -665,6 +668,11 @@ def counts(vault):
 def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
     from .draft_write import update_draft as run
     return run(vault, draft_id, revision, fields, blocks, source_images)
+
+
+def patch_draft(vault, draft_id, revision, fields, block_patches, actor):
+    from .draft_write import patch_draft as run
+    return run(vault, draft_id, revision, fields, block_patches, actor)
 
 
 def discard_draft(vault, draft_id, revision):

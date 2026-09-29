@@ -48,6 +48,7 @@ export function inspView(S, perfNow) {
   const u = run.usage;
   const ttft = run.ttfts.length ? run.ttfts.reduce((a, b) => a + b, 0) / run.ttfts.length : 0;
   const lim = run.limits || S.status?.limits || { rounds: 25, calls: 40, writes: 20 };
+  const separateWrites = run.steps.filter(step => step.kind === 'tool' && step.wrote && !step.commits?.length);
   const budget = (label, v, max) => html`<div class="ast-budget__r"><span>${label}</span>${bar(v / max, v / max > 0.8)}<b>${v} / ${max}</b></div>`;
   return html`${head}<div class="ast-insp__body">
     <p class="ast-runmeta">${hms(run.startedAt)} · ${run.model} · ${live ? (run.status === 'waiting' ? '等你确认' : '运行中') : REASON[run.reason] || run.reason}${run.reverted ? ' · 已撤销' : ''}</p>
@@ -58,8 +59,10 @@ export function inspView(S, perfNow) {
     <section class="ast-sec"><h3 class="ast-sec__h">时间线 <small>${fmtS(now)}</small></h3>${waterfall(run, now)}
       <ul class="ast-wf__legend"><li><i class="ast-wf__wait"></i>等首 token</li><li><i class="ast-wf__gen"></i>生成</li><li><i class="ast-wf__tool"></i>工具</li><li><i class="ast-wf__user"></i>等你确认</li></ul></section>
     <section class="ast-sec"><h3 class="ast-sec__h">预算</h3><div class="ast-budget">${budget('轮数', run.rounds, lim.rounds)}${budget('工具调用', run.calls, lim.calls)}${budget('写入', run.writes, lim.writes)}</div></section>
-    <section class="ast-sec"><h3 class="ast-sec__h">写入 <small>${run.commits.length} 条 commit</small></h3>
-      ${run.commits.length ? html`<ul class="ast-commits">${run.commits.map(c => html`<li class="ast-commit">${lvl(c.level === 'confirm' ? 'confirm' : 'rev', c.level === 'confirm' ? '已确认' : '可撤销')}<code>${c.commit_id}</code><span>${c.message}</span></li>`)}</ul>` : html`<p class="ast-note">这次运行没有写入。</p>`}
+    <section class="ast-sec"><h3 class="ast-sec__h">写入 <small>${run.writes} 次，其中 ${run.commits.length} 条 commit</small></h3>
+      ${run.commits.length ? html`<ul class="ast-commits">${run.commits.map(c => html`<li class="ast-commit">${lvl(c.level === 'confirm' ? 'confirm' : 'rev', c.level === 'confirm' ? '已确认' : '可撤销')}<code>${c.commit_id}</code><span>${c.message}</span></li>`)}</ul>` : ''}
+      ${separateWrites.length ? html`<ul class="ast-commits">${separateWrites.map(step => html`<li class="ast-commit">${lvl(step.level, step.level === 'confirm' ? '已确认' : '已执行')}<span>${toolTitle(step)} · ${step.summary || '草稿或分类写入'}（不支持按运行自动撤销）</span></li>`)}</ul>` : ''}
+      ${!run.writes ? html`<p class="ast-note">这次运行没有写入。</p>` : ''}
       ${run.reverted ? html`<p class="ast-note">已于 ${hms(run.reverted.at)} 撤销，另记 ${(run.reverted.commits || []).length} 条 commit。</p>` : ''}</section>
   </div>`;
 }

@@ -1,9 +1,9 @@
-"""草稿工具（ai-draft）：看图追问、查草稿、建草稿。草稿存在 omrs/drafts.py，不进 Ledger。
+"""草稿工具：看图追问、查草稿、建草稿和按版本修订草稿，不进 Ledger。
 
 - describe_image / list_drafts / get_draft：read，自动执行；
 - create_draft：rev，自动执行，不写 Ledger，所以不需要确认；工具结果带 ``wrote: True``，循环照样计入写入预算；
   草稿不产生 commit，天然不在按运行撤销的范围里。
-- AI 没有改草稿、丢弃草稿的工具（用户在草稿区自己改）。
+- update_draft：rev，按版本和块 ID 修改待审草稿；人工改过的目标只返回建议。
 
 错因规则写在服务端：带 cause 就必须带 cause_statement，且它必须是本对话某条用户消息里的原话。
 """
@@ -47,9 +47,10 @@ def _summary(draft):
             "question_preview": _preview(draft), "created_at": draft["created_at"], "revision": draft.get("revision", 1)}
 
 
-def _blocks_out(draft, conv_id, vault):
+def _blocks_out(draft, conv_id, vault, editable=False):
     refs = drafts.conversation_refs(vault, conv_id) if conv_id else {}
-    return [{"section": b["section"], "kind": b["kind"], **({"text": b["text"]} if b["kind"] == "text" else
+    return [{**({"block_id": b["id"], "box": b.get("box"), "box_origin": b.get("box_origin")} if editable else {}),
+             "section": b["section"], "kind": b["kind"], **({"text": b["text"], **({"note": b.get("note") or ""} if editable else {})} if b["kind"] == "text" else
                                                                {"image": refs.get(b["image_sha"]), "note": b.get("note") or ""})}
             for b in draft["blocks"]]
 
@@ -78,9 +79,31 @@ def get_draft_tool(ctx, args):
     sources = [{"ref": image.get("ref"), "width": image.get("width"), "height": image.get("height")}
                for image in draft.get("source_images") or []]
     return {"result": {**_summary(draft), "knowledge_points": draft.get("knowledge_points") or [],
-                       "cause": draft.get("cause") or "", "uid": draft.get("uid"),
+                       "cause": draft.get("cause") or "", "note": draft.get("note") or "", "uid": draft.get("uid"),
                        "source_images": sources,
-                       "blocks": _blocks_out(draft, conv, ctx["vault"])}, "summary": draft["id"]}
+                       "blocks": _blocks_out(draft, conv, ctx["vault"], editable=True)}, "summary": draft["id"]}
+
+
+def update_draft_tool(ctx, args):
+    vault, conv = ctx["vault"], ctx["conversation_id"]
+    fields = args.get("fields") or {}
+    if "cause" in fields:
+        statement = str(args.get("cause_statement") or "").strip()
+        if fields["cause"]:
+            key = _norm(statement)
+            if len(key) < 2 or not any(key in _norm(text) for text in _user_texts(vault, conv)):
+                raise ValueError("错因只能引用用户原话，请重新读取对话并核对 cause_statement")
+    else:
+        statement = ""
+    out = drafts.patch_draft(vault, args["draft_id"].strip(), args["expected_revision"],
+                             fields, args.get("block_patches") or [],
+                             {"conversation_id": conv, "run_id": ctx.get("run_id"),
+                              "tool_call_id": ctx.get("tool_call_id"), "cause_statement": statement})
+    draft = out["draft"]
+    result = {**_summary(draft), "wrote": out["wrote"], "suggestions": out["suggestions"]}
+    if out["suggestions"]:
+        result["message"] = "这些位置曾由人工编辑，未覆盖；请让用户在草稿区核对并采纳建议。"
+    return {"result": result, "summary": draft["id"], "wrote": out["wrote"]}
 
 
 # ── rev ──
@@ -218,6 +241,18 @@ SPECS = [
      list_drafts_tool),
     ("get_draft", "read", "读一份草稿的全部内容：科目、分类、知识点、错因、各块（文字 / 图片）与状态。",
      {"type": "object", "required": ["draft_id"], "properties": {"draft_id": _S}}, get_draft_tool),
+    ("update_draft", "rev", "按 get_draft 读到的 expected_revision 修改本对话待审草稿。只改指定字段或已有 block_id 的文字/说明；人工编辑过的目标只给建议，冲突后必须重新读取，不得盲目重试。不会入库。",
+     {"type": "object", "required": ["draft_id", "expected_revision"], "additionalProperties": False,
+      "properties": {"draft_id": _S, "expected_revision": {"type": "integer", "minimum": 1},
+                     "fields": {"type": "object", "additionalProperties": False,
+                                "properties": {"subject": _S, "category": _S,
+                                               "knowledge_points": {"type": "array", "maxItems": 8, "items": _S},
+                                               "cause": {"type": "string"}, "note": {"type": "string"}}},
+                     "cause_statement": {"type": "string"},
+                     "block_patches": {"type": "array", "maxItems": 20,
+                                       "items": {"type": "object", "required": ["block_id"], "additionalProperties": False,
+                                                 "properties": {"block_id": _S, "text": {"type": "string"},
+                                                                "note": {"type": "string"}}}}}}, update_draft_tool),
     ("create_draft", "rev",
      "把一道题录成草稿，放进录入页的 AI 草稿区，由用户审核后入库（不直接写题库，所以不需要用户允许）。"
      "blocks 按原题阅读顺序写题目和答案，可混排文字与图片：能完整转述的写 kind=text（公式用 $LaTeX$），独立且能准确框出的局部图写 kind=image。"

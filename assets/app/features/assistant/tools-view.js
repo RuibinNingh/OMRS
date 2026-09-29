@@ -34,6 +34,7 @@ const liRec = x => html`<li class="ast-list__i">${ref(x.uid)}<span class="ast-li
 const note = text => html`<p class="ast-note">${text}</p>`;
 const box = (text, after = false) => html`<div class="ast-diff__box${after ? ' is-after' : ''}${text ? '' : ' is-empty'}">${text ? md(text) : html`<span class="ast-diff__none">（空）</span>`}</div>`;
 const diff = (a, b, h1 = '之前', h2 = '之后') => html`<div class="ast-diff"><div><h4>${h1}</h4>${box(a)}</div><div><h4>${h2}</h4>${box(b, true)}</div></div>`;
+const draftValue = value => typeof value === 'string' ? value : Array.isArray(value) ? value.join('、') : [value?.text, value?.note].filter(Boolean).join(' / ');
 const sessRef = id => html`<button type="button" class="ast-ref" data-action="assistant.openSession" data-arg="${id}">${icon('calendar')}${id}</button>`;
 
 const T = {
@@ -74,6 +75,14 @@ const T = {
     title: '查分类', icon: 'list', args: a => a.subject || '全部科目',
     preview: r => html`<dl class="ast-kv">${r.subjects.map(s => html`<dt>${s.name}</dt><dd>${s.categories.map(c => `${c.name} ${c.n} 题`).join('，')}</dd>`)}
       <dt>标记</dt><dd>${labelChips(r.labels.map(l => l.name))}</dd></dl>`,
+  },
+  create_category: {
+    title: '创建分类', icon: 'folder', level: 'confirm', args: a => `${a.subject || ''} / ${a.category || ''}`,
+    gate: a => ({ what: `想永久创建 ${a.subject || ''} / ${a.category || ''}：`, preview: '将建立零题分类目录和锚点。' }),
+    confirm: (a, p) => ({ title: `允许创建分类「${p.subject} / ${p.category}」？`, ok: '允许创建',
+      hint: '分类会立即进入候选词表；此操作不支持按运行自动撤销。',
+      body: html`<dl class="ast-kv"><dt>科目</dt><dd>${p.subject}</dd><dt>分类</dt><dd>${p.category}</dd></dl>` }),
+    preview: r => note(`${r.subject} / ${r.category}${r.created ? ' 已创建，可在录入时选择。' : ' 已存在。'}`),
   },
   create_review_session: {
     title: '建复习 Session', icon: 'calendar', level: 'rev',
@@ -146,6 +155,16 @@ const T = {
         ${needsCrop && detect.phase === 'retry' && cropMode !== 'manual' ? html`<button type="button" class="ui-btn ui-btn--sm" data-action="assistant.detectDraft" data-arg="${r.draft_id}" ${current?.detecting ? 'disabled' : ''}>重试 AI 框</button>` : ''}
         <button type="button" class="ui-btn ui-btn--sm" data-action="assistant.openDraft" data-arg="${r.draft_id}">查看草稿</button></div>`;
     },
+  },
+  update_draft: {
+    title: '修改 AI 草稿', icon: 'edit', level: 'rev', args: a => `${a.draft_id} · 第 ${a.expected_revision} 版`,
+    preview: (r, _a, current) => html`<div class="ast-draft-card"><div class="ast-draft-card__head"><code>${r.draft_id}</code>
+      <span class="ui-tag ui-tag--info">${r.wrote ? `已保存第 ${r.revision} 版` : r.suggestions?.length ? '待人工核对' : '内容未变化'}</span></div>
+      ${r.suggestions?.length ? html`${note('人工修改过的字段或块没有被覆盖；以下建议保留在聊天记录中，请核对后手动采纳。')}
+        ${(r.suggestions || []).map(item => html`<div class="ast-draft-review__block"><strong>${item.target.startsWith('block:') ? `内容块 ${item.target.slice(6)}` : `字段 ${item.target.slice(6)}`}</strong>
+          ${diff(draftValue(item.before), draftValue(item.after), '当前人工内容', 'AI 建议')}</div>`)}` : ''}
+      ${current?.draft && current.draft.revision > r.revision ? note('草稿已有新版本，请核对后继续。') : ''}
+      <button type="button" class="ui-btn ui-btn--sm" data-action="assistant.openDraft" data-arg="${r.draft_id}">查看草稿</button></div>`,
   },
   commit_draft: {
     title: '通过 AI 草稿', icon: 'check-circle', level: 'confirm', args: a => `${a.draft_id} · 第 ${a.revision} 版`,

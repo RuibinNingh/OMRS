@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { applyEvent, newRun, runFrom, ctxUsed, dayGroup, tokOf, fmtS, REASON } from '../../assets/app/features/assistant/state.js';
 import { renderMd, renderInline, plainOf } from '../../assets/app/features/assistant/md.js';
 import { dockView, userView, turnView } from '../../assets/app/features/assistant/view.js';
+import { inspView } from '../../assets/app/features/assistant/insp-view.js';
 import { confirmOf, toolPreview } from '../../assets/app/features/assistant/tools-view.js';
 import { detectCardState } from '../../assets/app/features/assistant/draft-cards.js';
 import { normalizeJpegBytes } from '../../assets/app/features/assistant/attachments.js';
@@ -64,6 +65,38 @@ test('事件归约：思考、参数、确认、插话、写入与结束', () =>
   const seg = run.timeline.find(s => s.kind === 'tool' && s.w0 != null);
   assert.equal(seg.w1, 3000);
   assert.equal(ctxUsed(run), 2900);
+});
+
+test('无 Ledger commit 的分类与草稿写入仍显示真实预算和活动', () => {
+  const events = [
+    ev(0, 0, 'run.start', { model: 'faux', limits: { rounds: 25, calls: 40, writes: 20 } }),
+    ev(1, 5, 'round.start', { n: 1, context: { sys: 0, tools: 0, chat: 0, res: 0 } }),
+    ev(2, 10, 'tool.call', { call_id: 'category', name: 'create_category', args: { subject: '数学', category: '矩阵' }, level: 'confirm' }),
+    ev(3, 20, 'tool.end', { call_id: 'category', status: 'done', result: { subject: '数学', category: '矩阵', created: true }, wrote: true, commits: [] }),
+    ev(4, 30, 'tool.call', { call_id: 'draft', name: 'update_draft', args: { draft_id: 'DR-1', expected_revision: 1 }, level: 'rev' }),
+    ev(5, 40, 'tool.end', { call_id: 'draft', status: 'done', result: { draft_id: 'DR-1', revision: 2, wrote: true }, wrote: true, commits: [] }),
+    ev(6, 50, 'run.end', { reason: 'completed' }),
+  ];
+  const run = runFrom({ id: 'p4', status: 'done', reason: 'completed' }, events);
+  assert.equal(run.writes, 2);
+  assert.equal(run.commits.length, 0);
+  const S = { items: [{ run }], lastRun: run, runSel: run.id, open: new Set(), closed: new Set(), drafts: {}, draftCropMode: 'manual', uiVer: 0, draftVer: 0, status: { limits: { rounds: 25, calls: 40, writes: 20 } } };
+  assert.match(String(turnView(S, run, 0)), /写入 2/);
+  assert.doesNotMatch(String(turnView(S, run, 0)), /撤销这次写入/);
+  const inspector = String(inspView(S, 0));
+  assert.match(inspector, /2 次，其中 0 条 commit/);
+  assert.match(inspector, /创建分类/);
+  assert.match(inspector, /修改 AI 草稿/);
+  assert.doesNotMatch(inspector, /这次运行没有写入/);
+});
+
+test('人工保护的草稿建议卡保留目标与前后内容', () => {
+  const card = String(toolPreview({ name: 'update_draft', args: { draft_id: 'DR-1', expected_revision: 3 },
+    result: { draft_id: 'DR-1', revision: 3, wrote: false, suggestions: [
+      { target: 'block:blk-1', before: { text: '人工解法', note: '' }, after: { text: 'AI 解法', note: '' } },
+      { target: 'field:category', before: '函数', after: '矩阵' },
+    ] } }));
+  for (const value of ['blk-1', '人工解法', 'AI 解法', '函数', '矩阵', 'assistant.openDraft']) assert.match(card, new RegExp(value));
 });
 
 test('中止：未完成的步骤标为已中止，空思考被移除', () => {

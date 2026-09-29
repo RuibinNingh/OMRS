@@ -164,6 +164,9 @@ def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
             drafts._source_view(vault, db, row, drafts._draft_blocks(db, draft_id))
             row = _row(db, draft_id)
             values = _fields(row, fields)
+            old_blocks = {b["id"]: b for b in drafts._draft_blocks(db, draft_id)}
+            old_fields = {key: row[key] for key in ("subject", "category", "difficulty", "cause", "note")}
+            old_fields.update({key: drafts._loads(row[key], []) for key in ("knowledge_points", "labels")})
             old_sources = [r[0] for r in db.execute(
                 "SELECT image_sha FROM draft_images WHERE draft_id=? ORDER BY ord", (draft_id,))]
             if source_images is None:
@@ -188,6 +191,13 @@ def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
                                            (source_images is not None and sources != old_sources)), draft_id))
             db.execute("DELETE FROM blocks WHERE draft_id=?", (draft_id,))
             db.executemany("INSERT INTO blocks(id,draft_id,section,ord,kind,text,image_sha,x,y,w,h,box_origin,ai_box,note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", prepared)
+            protected = [f"field:{key}" for key, value in values.items() if old_fields[key] != value]
+            for b in prepared:
+                old = old_blocks.get(b[0])
+                if old is None or old["text"] != b[5] or old["note"] != b[13] or old["section"] != b[2] or old["kind"] != b[4]:
+                    protected.append(f"block:{b[0]}")
+            db.executemany("INSERT OR IGNORE INTO draft_manual_edits(draft_id,target) VALUES(?,?)",
+                           [(draft_id, target) for target in protected])
             if source_images is not None:
                 db.execute("DELETE FROM draft_images WHERE draft_id=?", (draft_id,))
                 db.executemany("INSERT INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
@@ -202,6 +212,82 @@ def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
             db.close()
     drafts._log(vault, "draft.update", {"draft_id": draft_id, "revision": revision + 1, "status": status})
     return drafts.get_draft(vault, draft_id)
+
+
+_AI_FIELDS = {"subject", "category", "knowledge_points", "cause", "note"}
+
+
+def patch_draft(vault, draft_id, revision, fields, block_patches, actor):
+    """AI 按稳定块 ID 修改文字；保留图片、框位、顺序及训练状态。"""
+    if not isinstance(fields, dict) or set(fields) - _AI_FIELDS:
+        raise drafts.DraftError("AI 草稿字段不在白名单内")
+    if not isinstance(block_patches, list):
+        raise drafts.DraftError("block_patches 必须是数组")
+    if not fields and not block_patches:
+        raise drafts.DraftError("没有草稿修改")
+    if not isinstance(actor, dict) or not all(actor.get(k) for k in ("conversation_id", "run_id", "tool_call_id")):
+        raise drafts.DraftError("缺少 AI 修改来源")
+    with locking.write_lock(), drafts._LOCK:
+        db = drafts.connect(vault)
+        try:
+            row = _row(db, draft_id)
+            _revision(row, revision)
+            _editable(row)
+            if row["conversation_id"] != actor["conversation_id"]:
+                raise drafts.DraftError("只能修改本对话草稿", 403, "forbidden")
+            if db.execute("SELECT 1 FROM commit_operations WHERE draft_id=?", (draft_id,)).fetchone():
+                raise drafts.DraftError("草稿正在入库，请先恢复入库结果", 409, "operation_pending", row["revision"])
+            values = _fields(row, fields)
+            blocks = {b["id"]: b for b in drafts._draft_blocks(db, draft_id)}
+            edits, changed, seen = [], {}, set()
+            for index, patch in enumerate(block_patches):
+                if not isinstance(patch, dict) or set(patch) - {"block_id", "text", "note"}:
+                    raise drafts.DraftError(f"第 {index + 1} 个块补丁格式不对")
+                block_id = patch.get("block_id")
+                if not isinstance(block_id, str) or block_id in seen or block_id not in blocks:
+                    raise drafts.DraftError(f"块不存在或重复：{block_id}")
+                seen.add(block_id)
+                old = blocks[block_id]
+                if "text" in patch and old["kind"] != "text":
+                    raise drafts.DraftError("图片块只能修改说明，不能改图片或框")
+                if "text" in patch and (not isinstance(patch["text"], str) or not patch["text"].strip()):
+                    raise drafts.DraftError("文字块内容不能为空")
+                if "note" in patch and not isinstance(patch["note"], str):
+                    raise drafts.DraftError("图片说明必须是文字")
+                new_text = patch["text"].strip() if "text" in patch else old["text"]
+                new_note = patch["note"].strip() if "note" in patch else old["note"]
+                if new_text != old["text"] or new_note != old["note"]:
+                    edits.append((new_text, new_note, block_id, draft_id))
+                    changed[f"block:{block_id}"] = {"before": {"text": old["text"], "note": old["note"]},
+                                                       "after": {"text": new_text, "note": new_note}}
+            for key in fields:
+                old = drafts._loads(row[key], []) if key == "knowledge_points" else row[key]
+                if values[key] != old:
+                    changed[f"field:{key}"] = {"before": old, "after": values[key]}
+            statement = row["cause_statement"] or ""
+            if "field:cause" in changed:
+                statement = actor.get("cause_statement") or ""
+                if values["cause"] and not statement:
+                    raise drafts.DraftError("AI 修改错因需要用户原话证据")
+            if not changed:
+                return {"draft": drafts.get_draft(vault, draft_id), "wrote": False, "suggestions": []}
+            protected = [target for target in changed if db.execute(
+                "SELECT 1 FROM draft_manual_edits WHERE draft_id=? AND target=?", (draft_id, target)).fetchone()]
+            if protected:
+                return {"draft": drafts.get_draft(vault, draft_id), "wrote": False,
+                        "suggestions": [{"target": target, **changed[target]} for target in protected]}
+            db.execute("UPDATE drafts SET subject=?,category=?,knowledge_points=?,cause=?,cause_statement=?,note=?,revision=revision+1,updated_at=? WHERE id=?",
+                       (values["subject"], values["category"], json.dumps(values["knowledge_points"], ensure_ascii=False),
+                        values["cause"], statement, values["note"], drafts._now(), draft_id))
+            db.executemany("UPDATE blocks SET text=?,note=? WHERE id=? AND draft_id=?", edits)
+            db.commit()
+        finally:
+            db.close()
+    drafts._log(vault, "draft.ai_update", {"draft_id": draft_id, "actor": "agent",
+                 "conversation_id": actor["conversation_id"], "run_id": actor["run_id"],
+                 "tool_call_id": actor["tool_call_id"], "old_revision": revision,
+                 "new_revision": revision + 1, "changes": changed})
+    return {"draft": drafts.get_draft(vault, draft_id), "wrote": True, "suggestions": []}
 
 
 def discard_draft(vault, draft_id, revision):

@@ -25,6 +25,10 @@
 
 ## GET 端点
 
+### `/api/taxonomy`
+
+返回 `{status:"ok",taxonomy:{subjects,categories,categories_by_subject,knowledge_tags}}`。分类词表合并已有题目投影与题库内安全的分类目录锚点；零题分类也在所属科目下可见，同名分类按科目隔离。
+
 ### `/api/stats`
 返回完整统计与题库条目列表。
 

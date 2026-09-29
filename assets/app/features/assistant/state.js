@@ -151,12 +151,13 @@ export function applyEvent(run, ev) {
       st.status = d.status === 'done' ? 'done' : d.status;
       st.summary = d.summary || ''; st.error = d.error || ''; st.result = d.result ?? (d.error ? { ok: false, error: d.error } : null);
       st.resultChars = d.result_chars || 0; st.dur = d.dur_ms || 0; st.extra = d.extra || null; st.t1 = t;
+      st.wrote = Boolean(d.wrote || d.commits?.length);
       if (d.decision && !st.decision) st.decision = { how: d.decision, t };
       if (st.seg) st.seg.t1 = t;
-      if (d.commits?.length) {
+      if (st.wrote) {
         run.writes += 1;
-        st.commits = d.commits;
-        d.commits.forEach(c => run.commits.push({ ...c, level: st.level, callId: st.callId }));
+        st.commits = d.commits || [];
+        st.commits.forEach(c => run.commits.push({ ...c, level: st.level, callId: st.callId }));
       }
       break;
     }

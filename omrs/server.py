@@ -20,7 +20,7 @@ from .reports import create_report, delete_report, get_report_html, list_reports
 from . import traincontrol
 from . import security
 from . import locking
-from .ai_assist import recognize_question
+from .ai_assist import recognize_question, collect_taxonomy
 from .creation import create_question
 from .exporting import _find_image, _read_image_info, export_schedule_artifact, export_board_html, board_export_filename
 from .labels import delete_label, list_label_defs, merge_labels, save_label
@@ -129,6 +129,8 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
         if path == "/api/stats":
             self._json(get_stats(self.vault_path))
+        elif path == "/api/taxonomy":
+            self._json({"status": "ok", "taxonomy": collect_taxonomy(self.vault_path)})
         elif path == "/api/labels":
             self._json({"status": "ok", "labels": list_label_defs(self.vault_path)})
         elif path == "/api/boards":
