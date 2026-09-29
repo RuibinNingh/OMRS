@@ -172,22 +172,12 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 首次没有 `ledger.db` 时，`omrs/migration.py::ensure_ledger_bootstrap()` 会：
 
 1. 备份旧 CSV、config 和 Markdown 文件清单到 `错题/.omrs/legacy_backup/<时间戳>/`。
-2. 为现有题目注入 `_omrs_id` 并补完整 YAML 模板。
+2. 为现有题目注入 `_omrs_id` 并补当前必需的 YAML 字段；原有 `页码` 原样保留，没有该字段的题目不新增空页码。
 3. 创建 `GENESIS`。
 4. 创建 `legacy.bootstrap`，导入题目结构、mastery 快照、sessions 快照和旧 history。
 5. 重建投影并更新 fingerprint。
 
-手动工具：`python tool/migrate_ledger.py --vault <path>`。
-
-常用选项：
-
-- `--check-only`：只检查现有 Ledger，不创建或迁移。
-- `--scan`：迁移/重建后立即执行工作区自检。
-- `--report <path>`：写出 JSON 审计报告。
-- `--json`：将审计报告打印为 JSON。
-- `--write-ai-prompt [path]`：写出 AI 迁移审计提示词，默认路径为 `tool/ledger_migration_ai_check_prompt.md`。
-
-`--write-ai-prompt` 输出用于 v1.1.0 迁移审计的旧模板；其中“正文不做版本控制”的条款不适用于当前正文历史功能，当前行为以 §10 为准。
+仓库内可跟踪的手动迁移入口是 `python3 omrs_engine.py --vault <隔离副本路径> scan`：它调用 `build_index()` 完成首次迁移、工作区扫描和投影重建，**会写入**副本。先在静止状态下取得完整一致的 Vault 备份，再在副本执行；旧迁移生成的 `legacy_backup/` 只含 CSV、配置与 Markdown 文件清单，不是完整恢复备份。源码仓库不提供只读迁移审计命令。
 
 旧 history 缺少完整来源上下文，迁移后按 legacy 展示；从 v1.1.0 后的新反馈开始严格记录来源。
 

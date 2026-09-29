@@ -53,7 +53,7 @@
 **注意：** `Last_Review` 历史数据可能包含 `YYYY/M/D` 格式，`parse_date()` 已做兼容。
 **注意：** SM-2 字段（`Interval`、`Due_Date`、`Repetition`）为 2026-05 新增，旧数据通过 `resolve_sm2_fields()` 自动填充默认值。
 **注意：** `Kill_Count` 为 2026-09 新增，老 CSV 缺列按 `0` 处理（即「还没击杀过」），重放不会报错，首次击杀即第 1 次。
-**写盘安全：** 该文件经 `save_csv(..., backup=True)` 写入——先写 `.tmp` 并 `fsync`，再 `os.replace` 原子覆盖，避免写一半损坏；覆盖前滚动备份为 `mastery_data.csv.bak.1/2/3`（`.1` 最新，保留 3 份）。反馈与重建索引均走此路径。
+**写盘安全：** 该文件经 `save_csv(..., backup=True)` 写入——先写 `.tmp` 并 `fsync`，再 `os.replace` 原子覆盖，避免写一半损坏；覆盖前滚动备份为 `mastery_data.csv.bak.1/2/3`（`.1` 最新，保留 3 份）。反馈与重建索引均走此路径。旧库首次 Ledger 迁移只在原题已有 `页码` 时保留其值；无页码题不补空字段。反馈 `Note`、草稿 note、图片说明及附件有各自语义，迁移页码时不清理。
 
 ---
 

@@ -139,11 +139,12 @@ def normalize_markdown_template(
         "科目": subject or meta.get("科目", ""),
         "分类": f"[[{category}]]" if category and not str(category).startswith("[[") else category,
         "难度": str(difficulty or meta.get("难度") or "5"),
-        "页码": str(page or meta.get("页码", "")),
         "相关知识点": related_tags,
         "标记": labels,
         "tags": [tag or "状态/待攻克"],
     }
+    if "页码" in meta:
+        fields["页码"] = str(page or meta.get("页码", ""))
     # Preserve known existing values unless they were empty and the caller
     # supplied a fallback. _omrs_id is always authoritative.
     if meta.get("相关知识点") and not related_tags:
@@ -167,7 +168,8 @@ def _format_frontmatter(fields):
     lines.append(f"科目: {fields['科目']}")
     lines.append(f"分类: \"{fields['分类']}\"")
     lines.append(f"难度: {fields['难度']}")
-    lines.append(f"页码: {fields['页码']}")
+    if "页码" in fields:
+        lines.append(f"页码: {fields['页码']}")
     tags = [tag for tag in fields.get("相关知识点", []) if str(tag).strip()]
     if tags:
         lines.append("相关知识点:")
