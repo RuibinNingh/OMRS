@@ -88,7 +88,7 @@ export function createInboxStore({ api, emit = () => {}, notify = () => {}, time
   const unsaved = () => pending.patches.size;
 
   /** 提交后台任务并每 pollMs 轮询一次；完成时调 onDone(job)。提交失败抛出，由调用方提示。 */
-  async function job(type, payload, onDone) {
+  async function job(type, payload, onDone, onError) {
     const created = await api.post('/api/inbox/jobs', { type, ...payload });
     if (!created.ok) throw new Error(created.error?.message || '未知错误');
     const id = created.data?.job?.id;
@@ -109,6 +109,7 @@ export function createInboxStore({ api, emit = () => {}, notify = () => {}, time
       } catch (error) {
         stop();
         notify(`读取任务进度或同步结果失败：${error.message || error}`, 'warn');
+        if (onError) await onError(error);
       } finally { inFlight = false; }
     }, pollMs));
     return id;

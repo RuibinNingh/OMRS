@@ -494,8 +494,10 @@ def _assert_ready(db, item_id):
     for r in regions:
         if r["role"] == "ignore":
             continue
+        if r["text_status"] in ("running", "stale", "error"):
+            raise ValueError("还有区域正在提取、提取失败或框位已变，请重新提取后审核")
         if r["convert"] == "auto":
-            raise ValueError("还有区域没决定「转文本 / 保留图片」")
+            raise ValueError("还有区域未提取，请先一键提取后审核")
         if r["convert"] == "text" and not (r["text"] or "").strip():
             raise ValueError("「转文本」区域还没有文本")
 
@@ -898,7 +900,7 @@ def _run_detect(vault, ai, unit):
 
 
 def _auto_policy(vault, ai, item, boxes):
-    """置信度 ≥ inbox_auto_ready_conf 时自动转文本（auto 判断）并置就绪。返回 None 表示未触发。
+    """置信度 ≥ inbox_auto_ready_conf 时自动提取并判断，保留人工审核。返回 None 表示未触发。
     转文本需要裁图：服务端有 Pillow 或框覆盖全图；否则中止并记录原因。"""
     try:
         threshold = float(load_config(vault).get("inbox_auto_ready_conf") or 0)
@@ -923,11 +925,7 @@ def _auto_policy(vault, ai, item, boxes):
             outcome["reason"] = f"自动转文本失败：{exc}"
             _log(vault, "item.auto", {"item_id": item["id"], **outcome})
             return outcome
-    try:
-        update_item(vault, item["id"], {"status": "ready"})
-        outcome["ready"] = True
-    except Exception as exc:  # noqa: BLE001
-        outcome["reason"] = f"未能自动置就绪：{exc}"
+    outcome["reason"] = "提取完成，待人工审核"
     _log(vault, "item.auto", {"item_id": item["id"], **outcome})
     return outcome
 
@@ -951,25 +949,46 @@ def _run_extract(vault, ai, unit):
     item = get_item(vault, row["item_id"])
     image = region_image(vault, item, region, unit.get("crop"))
     mode = region["convert"]
-    result = ai.extract_region(vault, image, role=region["role"], judge=(mode == "auto"))
-    regions = item["regions"]
-    for r in regions:
-        if r["id"] == region_id:
-            r["judge"] = {"ok": bool(result.get("convertible", True)), "reason": result.get("reason", "")}
-            if mode == "auto":
-                r["convert"] = "text" if result.get("convertible", True) else "image"
-            if r["convert"] == "text":
-                r["text"] = result.get("text", "")
-                r["text_status"] = "done" if (r["text"] or "").strip() else "error"
+    # 模型调用不占写锁；写回时核对该区域，避免覆盖其它框或已经修改的内容。
+    signature = lambda r: tuple(r.get(k) for k in
+                               ("role", "x", "y", "w", "h", "convert", "text", "judge", "text_status"))
+    def apply_result(result=None):
+        with _LOCK:
+            fresh = get_item(vault, item["id"])
+            if fresh["status"] in ("done", "discarded"):
+                raise ValueError("图片已录入或丢弃，不能写入提取结果")
+            target = next((r for r in fresh["regions"] if r["id"] == region_id), None)
+            if not target or signature(target) != signature(region):
+                raise ValueError("区域已修改，请重新提取")
+            if result is None:
+                target["text_status"] = "error"
             else:
-                r["text_status"] = "none"
-    update_item(vault, item["id"], {"regions": regions})
+                ok = result["convertible"]
+                target["judge"] = {"ok": ok, "reason": result.get("reason", "")}
+                target["judge_overridden"] = False
+                target["convert"] = "text" if ok else "image"
+                # 不可转时不把局部识别文字当成完整题面；旧文本留存，人工仍可切回。
+                if ok:
+                    target["text"] = result["text"]
+                target["text_status"] = "done" if ok else "none"
+            update_item(vault, item["id"], {"regions": fresh["regions"], "status": "boxed"})
+            return target
+    try:
+        result = ai.extract_region(vault, image, role=region["role"], judge=True)
+        if not isinstance(result.get("convertible"), bool):
+            raise ValueError("模型未返回有效的可提取判断，请重试")
+        if result["convertible"] and not (result.get("text") or "").strip():
+            raise ValueError("模型未返回文本，请重试")
+    except Exception:
+        apply_result()
+        raise
+    target = apply_result(result)
     _log(vault, "ai.extract", {"item_id": item["id"], "region_id": region_id, "role": region["role"],
-                               "convert_before": mode, "judge": result.get("convertible", True),
+                               "convert_before": mode, "judge": result["convertible"],
                                "reason": result.get("reason", ""), "chars": len(result.get("text") or "")})
-    return {"region_id": region_id, "convert": [r["convert"] for r in regions if r["id"] == region_id][0],
-            "judge": result.get("convertible", True), "reason": result.get("reason", ""),
-            "text": result.get("text", "")}
+    return {"region_id": region_id, "convert": target["convert"],
+            "judge": result["convertible"], "reason": result.get("reason", ""),
+            "text": target["text"]}
 
 
 def _run_classify(vault, ai, unit):

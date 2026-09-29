@@ -20,7 +20,7 @@ test('沿用框位按顶部像素锚定，其他框按比例；新框不继承�
   const [question, answer] = transferBoxes(from, { height: 2000 }, () => `new-${++serial}`);
   assert.equal(question.y, .1);
   assert.equal(question.h, .05);
-  assert.equal(question.convert, 'text');
+  assert.equal(question.convert, 'auto');
   assert.equal(question.origin, 'manual');
   assert.equal(question.text, null);
   assert.equal(answer.y, .5);
@@ -33,5 +33,5 @@ test('题卡分组、待处理状态与已录入状态保持旧契约', () => {
   assert.deepEqual(groupCards({ regions }).map(([card, rows]) => [card, rows.length]), [[1, 1], [2, 2]]);
   assert.equal(statusAfterEdit({ regions, status: 'pending' }), 'boxed');
   assert.equal(statusAfterEdit({ regions: [], status: 'boxed' }), 'pending');
-  assert.equal(statusAfterEdit({ regions, status: 'ready' }), 'ready');
+  assert.equal(statusAfterEdit({ regions, status: 'ready' }), 'boxed');
 });

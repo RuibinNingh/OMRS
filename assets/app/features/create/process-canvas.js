@@ -61,7 +61,9 @@ export function createCanvasController(root, state, afterEdit, options = {}) {
       options.onDiscardDraw?.({ data, item, region });
     } else if (item && mode !== 'draw') {
       if (region.origin === 'ai') region.origin = 'ai_edited';
-      if (region.text_status === 'done') region.text_status = 'stale';
+      if (region.judge || region.text_status === 'done') {
+        region.text_status = 'stale'; region.judge = null; region.convert = 'auto';
+      }
     }
     gesture = null; data.dragging = false;
     options.onFinish?.({ data, item, mode, region });

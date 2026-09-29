@@ -14,6 +14,30 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
 from browser_runtime import launch_chromium
 
+SERVER = r'''
+import http.server, sys, time
+from omrs import ai_assist
+from omrs.server import OMRSHandler
+vault, port = sys.argv[1:]
+answers = 0
+def extract(*args, **kwargs):
+    global answers
+    time.sleep(.25)
+    assert kwargs.get('judge') is True
+    if kwargs.get('role') == 'answer':
+        answers += 1
+        if answers == 1:
+            raise TimeoutError('模拟模型超时')
+        return {'convertible': False, 'reason': '含无法转写的图形', 'text': ''}
+    return {'convertible': True, 'reason': '文字与公式', 'text': '已知 $f(x)=x^2$，求 $f(2)$。'}
+ai_assist.extract_region = extract
+class Handler(OMRSHandler):
+    vault_path = vault
+    def log_message(self, *_args):
+        pass
+http.server.ThreadingHTTPServer(('127.0.0.1', int(port)), Handler).serve_forever()
+'''
+
 AUDIT = """target => {
   const root = document.querySelector('#ib-stage-quick');
   const shown = [...root.querySelectorAll('*')].filter(e => e.offsetParent && !e.closest('.katex'));
@@ -123,6 +147,29 @@ def run(page, base, results):
     draw(.52, .55, .88, .84)
     check('切换角色后框选答案区域',
           wait(page, "() => !!document.querySelector('.crp-box[data-role=\"answer\"]') && document.querySelectorAll('#ib-ps-body [data-ib-rg]').length === 2"))
+    check('新框只显示一键提取引导', page.locator('#ib-ps-body [data-action="create.processConvert"]').count() == 0)
+    page.get_by_role('button', name='一键提取', exact=True).click()
+    check('部分失败不会阻止题目文本回填', wait(page, "() => !!document.querySelector('#ib-ps-body textarea') && [...document.querySelectorAll('#ib-ps-body .ib-judge')].some(e => e.textContent.includes('提取失败'))"))
+    check('失败区域不能更改保存方式', page.locator('#ib-ps-body .ib-rg').nth(1).locator('[data-action="create.processConvert"]').count() == 0)
+    page.locator('#ib-ps-body .ib-rg').nth(1).get_by_role('button', name='重新提取', exact=True).click()
+    page.locator('#create-flow [data-ib-stage="upload"]').click()
+    page.locator('#create-flow [data-ib-stage="process"]').click()
+    check('离开再返回能收到不可提取结果和裁图', wait(page, "() => [...document.querySelectorAll('#ib-ps-body .ib-judge')].some(e => e.textContent.includes('无法完整提取')) && !!document.querySelector('#ib-ps-body canvas[data-painted]')"))
+    check('AI 处理结束仍未自动就绪', page.evaluate(INBOX_JS, '题图.png')['status'] == 'boxed')
+    page.locator('#ib-ps-body .ib-rg').nth(1).get_by_role('button', name='改用文本', exact=True).click()
+    page.locator('#ib-ps-body .ib-rg').nth(1).locator('textarea').fill('人工补录答案')
+    page.locator('#ib-ps-body .ib-rg').nth(1).get_by_role('button', name='保存为图片', exact=True).click()
+    check('不可提取后仍可人工补录并保留文本', wait(page, "async () => (await (await fetch('/api/inbox/items')).json()).items.find(i => i.file === '题图.png')?.regions[1].text === '人工补录答案'"))
+    for theme in ('light', 'dark'):
+        for label, width, height in (('desktop', 1440, 900), ('mobile', 390, 844)):
+            page.set_viewport_size({'width': width, 'height': height})
+            page.evaluate("theme => document.documentElement.dataset.theme = theme", theme)
+            page.screenshot(path=f'/tmp/omrs-extract-shots/{theme}-{label}.png', full_page=True)
+            audit = page.evaluate(AUDIT_PROCESS, 40 if width == 390 else 28)
+            check(f'提取结果审计 {label}·{theme}', not any(audit[k] for k in ('small', 'inline', 'handlers', 'over', 'overflow', 'tiny')))
+    page.set_viewport_size({'width': 1280, 'height': 720})
+    page.evaluate("document.documentElement.dataset.theme = 'light'")
+    page.locator('#ib-ps-body .ib-rg').nth(1).locator('.ib-rg-top').click()
     page.keyboard.press('Delete')
     check('处理工作区 Delete 只删除当前选中框',
           wait(page, "() => document.querySelectorAll('#ib-ps-body [data-ib-rg]').length === 1 && !document.querySelector('.crp-box[data-role=\"answer\"]')"))
@@ -229,8 +276,8 @@ READY_JS = """async ([file, text]) => {
   const items = (await (await fetch('/api/inbox/items')).json()).items;
   const item = items.find(row => row.file === file);
   const regions = [
-    { id: 'rq_' + item.id, card: 1, role: 'question', x: 0, y: 0, w: 1, h: .5, origin: 'manual', convert: 'text', text, text_status: 'done' },
-    { id: 'ra_' + item.id, card: 1, role: 'answer', x: 0, y: .5, w: 1, h: .5, origin: 'manual', convert: 'image', text_status: 'none' },
+    { id: 'rq_' + item.id, card: 1, role: 'question', x: 0, y: 0, w: 1, h: .5, origin: 'manual', convert: 'text', text, text_status: 'done', judge: {ok: true, reason: '测试文本'} },
+    { id: 'ra_' + item.id, card: 1, role: 'answer', x: 0, y: .5, w: 1, h: .5, origin: 'manual', convert: 'image', text_status: 'none', judge: {ok: false, reason: '测试图形'} },
   ];
   const res = await fetch('/api/inbox/item/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, regions, status: 'ready' }) });
   return res.ok;
@@ -261,7 +308,21 @@ def run_cards(page, base, results):
     page.locator('.crw-grid-item', has_text='题卡.png').locator('[data-action="create.gridOpen"]').click()
     page.locator('[data-action="create.processWholeImage"]').click()
     check('整图即题目在区域面板显示题目区域', wait(page, "() => document.querySelectorAll('#ib-ps-body [data-ib-rg]').length === 1"))
+    check('提取前没有保存方式和让 AI 判断选项', page.locator('#ib-ps-body [data-action="create.processConvert"]').count() == 0
+          and '让 AI 判断' not in page.locator('#ib-ps-body').inner_text())
+    page.locator('[data-action="create.processMarkReady"]').click()
+    check('未提取不能标记就绪', wait(page, "() => [...document.querySelectorAll('.ui-toast')].some(e => e.textContent.includes('请先一键提取'))"))
+    quiet(page)
+    page.get_by_role('button', name='一键提取', exact=True).click()
+    check('提取中禁止重复点击', page.get_by_role('button', name='一键提取', exact=True).is_disabled())
+    check('一次提取得到可编辑文本且仍待人工审核', wait(page, "() => !!document.querySelector('#ib-ps-body textarea')")
+          and page.evaluate(INBOX_JS, '题卡.png')['status'] == 'boxed')
+    page.locator('#ib-ps-body textarea').fill('人工核对后的题面 $f(2)=4$')
     page.locator('#ib-ps-body [data-action="create.processConvert"][data-arg$=":image"]').click()
+    check('切到图片后仍保存人工修改的文本', wait(page, "async () => (await (await fetch('/api/inbox/items')).json()).items.find(i => i.file === '题卡.png')?.regions[0].text === '人工核对后的题面 $f(2)=4$'"))
+    page.get_by_role('button', name='改用文本', exact=True).click()
+    check('切回文本不丢失编辑', page.locator('#ib-ps-body textarea').input_value() == '人工核对后的题面 $f(2)=4$')
+    page.get_by_role('button', name='保存为图片', exact=True).click()
     check('保留图片的区域画出裁图预览', wait(page, "() => !!document.querySelector('#ib-ps-body canvas[data-crop][data-painted]') && document.querySelector('#ib-ps-body canvas[data-crop]').width > 1"))
     page.locator('[data-action="create.processMarkReady"]').click()
     check('标记就绪后「录入」计数加一', wait(page, "() => document.querySelector('#ib-c-ready')?.textContent === '1'"))
@@ -380,8 +441,8 @@ def main():
         subprocess.run([sys.executable, os.path.join(ROOT, 'tests/fixtures/make_vault.py'), '--out', vault, '--profile', 'empty'], check=True, stdout=subprocess.DEVNULL)
         sock = socket.socket(); sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]; sock.close()
         env = os.environ.copy(); env.pop('OMRS_SYSTEMD_SERVICE', None)
-        proc = subprocess.Popen([sys.executable, os.path.join(ROOT, 'omrs_engine.py'), '--vault', vault, 'serve', '--port', str(port)],
-                                env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        proc = subprocess.Popen([sys.executable, '-c', SERVER, vault, str(port)],
+                                cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
             for _ in range(100):
                 try:

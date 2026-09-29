@@ -170,3 +170,5 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 隔离门禁：`env -u OMRS_SYSTEMD_SERVICE python3 -m unittest tests.test_traincontrol -q`；`env -u OMRS_SYSTEMD_SERVICE python3 tests/e2e/traincontrol.py`。浏览器脚本只注入测试后端，不操作生产unit。正式服务仍限1GiB，登记精确绑定真实Vault，避免隔离实例继承环境误操作。
 
 主服务已通过OMRS_BOXDETECT_CONTROL=/etc/omrs-boxdetect-control.json登记固定unit、Vault与端口；/train可以管理服务、显式应用完整导出候选并回退。2026-09-29初始化revision为0，旧640在线；主服务与检测服务均开机自启。
+
+框选流程视觉对比使用 `python3 tests/visual/run.py --ref <基线> --pages create --create-stage process`，会在临时 fixture 中放入一张合成题图与题目／答案两个待提取框，基线和当前使用完全相同的数据；提取结果态由录入 E2E 的四档截图及审计覆盖。

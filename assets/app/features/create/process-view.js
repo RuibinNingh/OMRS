@@ -41,7 +41,7 @@ export function processView() {
       <div class="ib-pc-foot">
         <span>拖拽空白处画框</span><span><span class="ib-kbd">Q</span>/<span class="ib-kbd">A</span>/<span class="ib-kbd">X</span> 切角色</span>
         <span><span class="ib-kbd">Del</span> 删框</span><span><span class="ib-kbd">Enter</span> 下一张</span>
-        <span><span class="ib-kbd">⌘/Ctrl</span>+<span class="ib-kbd">Enter</span> 转文本</span>
+        <span><span class="ib-kbd">⌘/Ctrl</span>+<span class="ib-kbd">Enter</span> 一键提取</span>
         <span class="grow"></span><span id="ib-pc-zoom" class="mono"></span>
       </div>
     </div>
@@ -61,7 +61,7 @@ export function processView() {
         <button class="ui-btn ui-btn--sm" type="button" data-action="create.processAddCard" title="同一张图里的第 2 道题">+ 新题卡</button>
         <button class="ui-btn ui-btn--sm ui-btn--danger" type="button" data-action="create.processDiscardCurrent">丢弃</button>
         <span class="grow"></span>
-        <button class="ui-btn ui-btn--sm" type="button" data-action="create.processExtractAll">转换文本</button>
+        <button class="ui-btn ui-btn--sm" type="button" data-action="create.processExtractAll">一键提取</button>
         <button class="ui-btn ui-btn--sm ui-btn--primary" type="button" data-action="create.processMarkReady">标记就绪 →</button>
       </div>
     </div>

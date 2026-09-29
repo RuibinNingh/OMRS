@@ -118,3 +118,5 @@ E2E 专用适配器 `tests/e2e/p8_test_modules.js`：8 个 E2E 以 init script �
 训练评测的audits.js独立持有筛选、分页、选中案例与复核表单；列表轮询不重绘详情。异步详情和历史都校验请求序号；卸载后拒绝更新。Node验证提交绑定案例/revision，trainpanel E2E验证真实HTTP保存与刷新历史，不调用外部模型。
 
 训练服务控制由features/trainpanel/control.js独立持有请求身份、服务revision、选择模型与轮询状态；模型选择不改变实验store或在线服务。完成操作后通知父入口刷新health顶栏。tests/app/traincontrol.test.mjs验证请求绑定与评测分母文案，tests/e2e/traincontrol.py验证真实HTTP异步操作与刷新持久性。
+
+录入页端到端测试 `tests/e2e/create.py` 使用临时 Vault、随机高端口和真实后台提取任务，只替换外部模型调用；覆盖一键提取、部分失败重试、结果后改存图片／切回文本、人工审核及提取结果四档审计。

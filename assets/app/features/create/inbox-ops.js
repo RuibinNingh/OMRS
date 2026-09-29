@@ -20,11 +20,11 @@ export function detectSummary(count, job) {
   const rows = job.result || [];
   const boxes = rows.reduce((sum, row) => sum + (row.boxes || 0), 0);
   const blind = rows.filter(row => row.blind).length;
-  const ready = rows.filter(row => row.auto && row.auto.ready).length;
+  const extracted = rows.filter(row => row.auto?.extracted).length;
   const errors = job.errors || [];
   let text = `框选完成：${count} 张，共 ${boxes} 框，请逐张确认`;
   if (blind) text += `；其中 ${blind} 张为盲标（不展示 AI 框，请直接手画）`;
-  if (ready) text += `；${ready} 张已按自动策略转文本并就绪`;
+  if (extracted) text += `；${extracted} 张已自动提取，待人工审核`;
   if (errors.length) text += `；${errors.length} 张失败：${errors[0].msg}`;
   return { text, warn: errors.length > 0 };
 }
@@ -34,7 +34,7 @@ export async function detect(ids, provider) {
   const units = [];
   for (const id of ids) {
     const item = inbox.item(id);
-    if (!item || item.status === 'done') continue;
+    if (!item || item.status === 'done' || item.regions?.some(row => row.text_status === 'running')) continue;
     try {
       const unit = { item_id: id, replace: !(item.regions || []).length };
       if (provider) unit.provider = provider;
@@ -65,7 +65,7 @@ export async function applyLastSelected() {
   let count = 0;
   for (const id of S.sel) {
     const item = inbox.item(id);
-    if (!item || item.status === 'done' || item.id === last.id) continue;
+    if (!item || item.status === 'done' || item.id === last.id || item.regions?.some(row => row.text_status === 'running')) continue;
     item.regions = transferBoxes(last, item);
     await inbox.save(item);
     count += 1;
@@ -78,7 +78,7 @@ export async function wholeSelected() {
   let count = 0;
   for (const id of S.sel) {
     const item = inbox.item(id);
-    if (!item || item.status === 'done') continue;
+    if (!item || item.status === 'done' || item.regions?.some(row => row.text_status === 'running')) continue;
     item.regions = [newRegion(1, 'question', 0, 0, 1, 1)];
     item.layout = 'plain';
     await inbox.save(item);
@@ -88,46 +88,51 @@ export async function wholeSelected() {
   inbox.changed();
 }
 
-/** 提取文本：只同步本次提取的区域字段；当前图正在拖动时字段先合并，拖完再重绘。 */
+/** 一次提交当前图的待提取区域；已完成的人工决定不会被批量操作覆盖。 */
 export async function extractRegions(item, regionIds) {
-  if (!item) return;
-  const crops = [];
-  for (const id of regionIds) {
-    const region = item.regions.find(row => row.id === id);
-    if (!region || region.role === 'ignore' || region.convert === 'image') continue;
-    region.text_status = 'running';
-    crops.push({ region_id: id, crop: await cropDataUrl(item, region) });
-  }
-  if (!crops.length) { notify('没有需要提取的区域（都已提取或选择保留图片）', 'warn'); return; }
-  await inbox.save(item);
+  if (!item || item.regions.some(row => row.text_status === 'running')) return;
+  const regions = item.regions.filter(row => regionIds.includes(row.id) && row.role !== 'ignore');
+  if (!regions.length) { notify('各区域已提取，请审核结果后标记就绪'); return; }
+  const extracted = new Set(regions.map(row => row.id));
+  const fail = async error => {
+    const local = inbox.item(item.id);
+    if (local) {
+      for (const row of local.regions) {
+        if (extracted.has(row.id) && row.text_status === 'running') row.text_status = 'error';
+      }
+      await inbox.save(local, { status: 'boxed' });
+    }
+    inbox.changed();
+    notify(`提取失败：${error.message || error}，请重试`, 'warn');
+  };
+  // 在裁图和请求之前锁定，避免快速连点重复提交。
+  regions.forEach(row => { row.text_status = 'running'; });
   inbox.changed();
-  const extracted = new Set(crops.map(row => row.region_id));
   try {
-    await inbox.job('extract', { regions: crops }, async () => {
+    const crops = [];
+    for (const region of regions) crops.push({ region_id: region.id, crop: await cropDataUrl(item, region) });
+    if (!await inbox.save(item, { status: 'boxed' })) throw new Error('区域未保存');
+    await inbox.job('extract', { regions: crops }, async job => {
       const result = await get(`/api/inbox/item?id=${encodeURIComponent(item.id)}`);
       if (!result.ok) throw new Error(result.error?.message || '未知错误');
       const fresh = result.data?.item;
-      const index = S.items.findIndex(row => row.id === item.id);
-      if (index >= 0 && fresh) {
-        if (S.cur === item.id) {
-          const local = S.items[index];
-          for (const row of fresh.regions || []) {
-            const target = local.regions.find(region => region.id === row.id);
-            if (target && extracted.has(row.id) && target.text_status === 'running') {
-              for (const key of ['convert', 'text', 'text_status', 'judge', 'judge_overridden']) target[key] = row[key];
-            }
+      const local = inbox.item(item.id);
+      const failed = new Set((job.errors || []).map(row => row.unit?.region_id));
+      if (local && fresh) {
+        for (const row of fresh.regions || []) {
+          const target = local.regions.find(region => region.id === row.id);
+          if (target && extracted.has(row.id) && target.text_status === 'running') {
+            for (const key of ['convert', 'text', 'text_status', 'judge', 'judge_overridden']) target[key] = row[key];
+            if (failed.has(row.id)) target.text_status = 'error';
           }
-          local.status = fresh.status;
-        } else S.items[index] = fresh;
+        }
+        local.status = fresh.status;
+        if (failed.size) await inbox.save(local, { status: 'boxed' });
       }
       inbox.changed();
-      notify('文本提取完成，请核对预览；确认后原图不再嵌入题目');
-    });
-  } catch (error) {
-    item.regions.forEach(region => { if (region.text_status === 'running') region.text_status = 'none'; });
-    inbox.changed();
-    notify(`提取失败：${error.message || error}`, 'warn');
-  }
+      notify(failed.size ? '部分区域提取失败，请重试；成功结果已保留' : '提取完成，请审核文本或图片后标记就绪', failed.size ? 'warn' : undefined);
+    }, fail);
+  } catch (error) { await fail(error); }
 }
 
 /** 题卡分类识别：用每张题卡的第一个题目区域；只填空缺项，由服务端合并。 */

@@ -1,3 +1,4 @@
+import { hasExtraction } from './process-state.js';
 /** 处理区动态队列与区域面板；分别挂到 #ib-pq-list、#ib-ps-body。事件一律走 data-action / data-change / data-input。 */
 import { html, each, raw } from '../../core/html.js';
 import { renderMd } from '../../domain/question/index.js';
@@ -34,19 +35,19 @@ function conversionView(region, itemId) {
   if (roleOf(region.role) === 'ignore') return html``;
   const id = region.id;
   const convert = region.convert || 'auto';
-  return html`<div class="ib-rg-conv"><span class="lbl">这块怎么存</span>
-    <div class="ib-seg" role="group" aria-label="区域保存方式">
-      <button type="button" class="${convert === 'text' ? 'on' : ''}" aria-pressed="${convert === 'text'}" data-action="create.processConvert" data-arg="${id}:text">转文本</button>
-      <button type="button" class="${convert === 'image' ? 'on' : ''}" aria-pressed="${convert === 'image'}" data-action="create.processConvert" data-arg="${id}:image">保留图片</button>
-      <button type="button" class="${convert === 'auto' ? 'on' : ''}" aria-pressed="${convert === 'auto'}" data-action="create.processConvert" data-arg="${id}:auto">让 AI 判断</button>
-    </div>
-    ${convert === 'image' ? '' : html`<button type="button" class="ui-btn ui-btn--sm" data-action="create.processExtract" data-arg="${id}"${region.text_status === 'running' ? html` disabled` : ''}>${region.text_status === 'done' ? '重新提取' : '提取文本'}</button>`}
+  const complete = hasExtraction(region);
+  const running = region.text_status === 'running';
+  return html`
+  ${running ? html`<div class="ib-judge busy" role="status"><span class="ib-spin"></span>提取中…完成后请人工审核</div>` : ''}
+  ${region.text_status === 'error' ? html`<div class="ib-judge no" role="status">提取失败，请重试；原图已保留</div>` : ''}
+  ${region.text_status === 'stale' ? html`<div class="ib-judge no">框位或角色改过了，请重新提取后审核</div>` : ''}
+  ${complete ? html`<div class="ib-judge ${region.judge.ok ? 'ok' : 'no'}"><span>${region.judge.ok ? '已提取文本，请核对' : (convert === 'image' ? '无法完整提取，已保留图片' : 'AI 未能完整提取，请核对补录文本')}${region.judge.reason ? `：${region.judge.reason}` : ''}</span></div>` : ''}
+  ${!complete && !running && !['error', 'stale'].includes(region.text_status) ? html`<div class="hint ib-rg-crop-note">点击「一键提取」，完成后审核文本或图片</div>` : ''}
+  <div class="ib-rg-conv">
+    ${complete ? html`<button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-action="create.processConvert" data-arg="${id}:${convert === 'image' ? 'text' : 'image'}">${convert === 'image' ? '改用文本' : '保存为图片'}</button>` : ''}
+    ${region.judge || ['error', 'stale'].includes(region.text_status) ? html`<button type="button" class="ui-btn ui-btn--sm ui-btn--ghost" data-action="create.processExtract" data-arg="${id}"${running ? html` disabled` : ''}>重新提取</button>` : ''}
   </div>
-  ${region.judge ? html`<div class="ib-judge ${region.judge.ok ? 'ok' : 'no'}"><span>AI 判断：${region.judge.reason || (region.judge.ok ? '可转文本' : '建议保留图片')}${region.judge_overridden ? '（已被人工否决）' : ''}</span></div>` : ''}
-  ${region.text_status === 'running' ? html`<div class="ib-judge busy"><span class="ib-spin"></span>提取中…后台任务，可以切到其他图继续</div>` : ''}
-  ${region.text_status === 'error' ? html`<div class="ib-judge no">模型没有返回文本，可重试或改为保留图片</div>` : ''}
-  ${region.text_status === 'stale' ? html`<div class="ib-judge no">框位改过了，文本可能不对应，建议重新提取</div>` : ''}
-  ${region.text && convert !== 'image' ? html`<div class="ib-rg-text"><textarea class="ui-textarea" rows="4" aria-label="区域文本" data-input="create.processText" data-arg="${id}">${region.text}</textarea><div class="ib-rg-prev q-md" id="ib-prev-${id}">${raw(renderMd(region.text))}</div></div>` : ''}
+  ${!running && convert !== 'image' && (region.text || region.judge) ? html`<div class="ib-rg-text"><textarea class="ui-textarea" rows="4" aria-label="区域文本" data-input="create.processText" data-arg="${id}">${region.text}</textarea><div class="ib-rg-prev q-md" id="ib-prev-${id}">${raw(renderMd(region.text))}</div></div>` : ''}
   ${convert === 'image' ? html`<div class="ib-rg-crop" data-key="crop-${boxKey(region)}" data-morph="skip"><canvas data-crop="${itemId}|${id}" data-crop-max="340" aria-label="裁图预览"></canvas></div><div class="hint ib-rg-crop-note">保存为裁剪图嵌入 <code># ${ROLES[roleOf(region.role)]}</code></div>` : ''}`;
 }
 

@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-29_inbox-extraction-review](2026-09-29_inbox-extraction-review.md)：收件箱一键提取与人工审核
 - [2026-09-29_box-v131-deploy](2026-09-29_box-v131-deploy.md)：# 旧640模型生产启用与管理面板调查
 - [2026-09-29_box-service-control](2026-09-29_box-service-control.md)：受管检测服务与模型操作
 - [2026-09-29_box-detect](2026-09-29_box-detect.md)：本地框选训练与训练面板

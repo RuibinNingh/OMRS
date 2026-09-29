@@ -534,7 +534,8 @@ _LAYOUT_HINT = {
 
 JUDGE_SUFFIX = """
 
-另外请判断这块内容【能否忠实地转成纯文本 + LaTeX】：含几何图形、函数图像、手写、复杂版式（无法用 Markdown 表格表示的表格）时为不可转。
+在这一次响应中完成转录与判断：能够忠实、完整地表达为文本 + LaTeX 时，返回 convertible=true 和完整正文。
+含文字无法完整表达的几何图形、函数图像、无法辨认的手写或复杂版式时，返回 convertible=false、简短原因和空 text；不要猜测、补写或仅输出部分正文。
 最终只输出一个 JSON 对象，不要 Markdown 代码块：
 {"convertible": true, "reason": "一句话说明依据（如：纯文字+公式 / 含几何图形）", "text": "转录后的正文；不可转时可为空字符串"}"""
 
@@ -603,7 +604,7 @@ def extract_region(vault: str, image_data_url: str, role: str = "question", judg
                    timeout: int = 120) -> dict:
     """读一个裁剪区域，转录文本；judge=True 时同时判断能否转文本。
 
-    返回 {convertible, reason, text}。模型没按 JSON 返回时，把全文当作 text、convertible=True。"""
+    返回 {convertible, reason, text}。判断模式必须返回布尔判断和有效文本，否则报错供重试。"""
     base_prompt = ANSWER_PROMPT if role == "answer" else QUESTION_TEXT_PROMPT
     if judge:
         prompt = base_prompt + JUDGE_SUFFIX
@@ -613,10 +614,12 @@ def extract_region(vault: str, image_data_url: str, role: str = "question", judg
     if not judge:
         return {"convertible": True, "reason": "", "text": _clean_extracted_text(content, role)}
     parsed = _extract_json(content)
-    if not parsed or "text" not in parsed:
-        return {"convertible": True, "reason": "模型未按 JSON 返回，按可转处理", "text": _clean_extracted_text(content, role)}
+    if not isinstance(parsed, dict) or not isinstance(parsed.get("convertible"), bool):
+        raise ValueError("模型未返回有效的可提取判断，请重试")
+    if parsed["convertible"] and (not isinstance(parsed.get("text"), str) or not parsed["text"].strip()):
+        raise ValueError("模型未返回文本，请重试")
     return {
-        "convertible": bool(parsed.get("convertible", True)),
+        "convertible": parsed["convertible"],
         "reason": str(parsed.get("reason") or ""),
         "text": _clean_extracted_text(str(parsed.get("text") or ""), role),
     }

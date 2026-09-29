@@ -8,6 +8,10 @@ export function newRegion(card, role, x, y, w, h, extra = {}, makeId = () => `r_
   };
 }
 
+export function hasExtraction(region) {
+  return !!region.judge && !['running', 'stale', 'error'].includes(region.text_status);
+}
+
 export function groupCards(item) {
   const groups = new Map();
   for (const region of item?.regions || []) {
@@ -19,6 +23,7 @@ export function groupCards(item) {
 }
 
 export function statusAfterEdit(item) {
+  if (item.status === 'ready') return item.regions?.length ? 'boxed' : 'pending';
   if (item.regions?.length && item.status === 'pending') return 'boxed';
   if (!item.regions?.length && item.status === 'boxed') return 'pending';
   return item.status;
@@ -29,8 +34,7 @@ export function transferBoxes(from, to, makeId) {
     const anchoredTop = region.y < 0.35;
     const y = anchoredTop ? Math.min(0.95, region.y * from.height / to.height) : region.y;
     const h = anchoredTop ? Math.min(1 - y, region.h * from.height / to.height) : Math.min(1 - y, region.h);
-    return newRegion(region.card, region.role, region.x, y, region.w, h,
-      { convert: region.convert === 'auto' ? 'auto' : region.convert }, makeId);
+    return newRegion(region.card, region.role, region.x, y, region.w, h, {}, makeId);
   });
 }
 

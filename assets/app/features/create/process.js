@@ -8,7 +8,7 @@ import { confirm } from '../../ui/dialog.js';
 import { inbox, notify } from './inbox.js';
 import { paintCrops } from './crop.js';
 import { detect, detectSelected, applyLastSelected, extractRegions } from './inbox-ops.js';
-import { groupCards, newRegion, statusAfterEdit, transferBoxes } from './process-state.js';
+import { groupCards, hasExtraction, newRegion, statusAfterEdit, transferBoxes } from './process-state.js';
 import { queueView, sideView } from './process-content.js';
 import { createCanvasController } from './process-canvas.js';
 
@@ -22,7 +22,8 @@ export function createProcess(root, bus) {
   const side = host.querySelector('#ib-ps-body');
   let alive = true;
   let scheduled = false;
-  const canvas = createCanvasController(host, () => S, () => afterEdit());
+  const busy = () => inbox.current()?.regions.some(row => row.text_status === 'running');
+  const canvas = createCanvasController(host, () => S, () => afterEdit(), { canEdit: () => !busy() });
 
   function paint() {
     if (!alive) return;
@@ -45,6 +46,7 @@ export function createProcess(root, bus) {
       button.classList.toggle('on', on);
       button.setAttribute('aria-pressed', String(on));
     });
+    host.querySelector('[data-action="create.processExtractAll"]').disabled = !current || !!busy();
     canvas.paint();
     paintCrops(side, id => inbox.item(id));
     side.querySelector('.ib-rg.sel')?.scrollIntoView({ block: 'nearest' });
@@ -66,9 +68,10 @@ export function createProcess(root, bus) {
   const region = id => inbox.current()?.regions.find(row => row.id === id) || null;
 
   function setRole(role) {
+    if (busy()) { notify('请等本图提取完成后再修改框位', 'warn'); return; }
     S.drawRole = role;
     const selected = region(S.selR);
-    if (selected && selected.role !== role) { selected.role = role; selected.judge = null; afterEdit(); } else schedule();
+    if (selected && selected.role !== role) { selected.role = role; selected.judge = null; selected.convert = 'auto'; selected.text_status = 'stale'; afterEdit(); } else schedule();
   }
   function step(delta) {
     const list = inbox.queue();
@@ -83,6 +86,7 @@ export function createProcess(root, bus) {
     schedule();
   }
   function deleteRegion(id) {
+    if (busy()) { notify('请等本图提取完成后再修改框位', 'warn'); return; }
     const item = inbox.current();
     if (!item) return;
     item.regions = item.regions.filter(row => row.id !== id);
@@ -90,15 +94,17 @@ export function createProcess(root, bus) {
     afterEdit();
   }
   function whole() {
+    if (busy()) { notify('请等本图提取完成后再修改框位', 'warn'); return; }
     const item = inbox.current();
     if (!item) return;
     item.regions = [newRegion(1, 'question', 0, 0, 1, 1)];
     item.layout = 'plain';
     S.selR = item.regions[0].id;
     afterEdit();
-    notify('整张图作为题目区域；「转换文本」会判断是否需要留图');
+    notify('整张图作为题目区域；「一键提取」会判断是否需要留图');
   }
   function applyLast() {
+    if (busy()) { notify('请等本图提取完成后再修改框位', 'warn'); return; }
     const item = inbox.current();
     if (!item) return;
     const last = S.last;
@@ -111,19 +117,18 @@ export function createProcess(root, bus) {
   function setConvert(arg) {
     const [id, value] = String(arg).split(':');
     const target = region(id);
-    if (!target) return;
+    if (!target || !hasExtraction(target) || !['text', 'image'].includes(value)) return;
     const previous = target.convert;
     target.convert = value;
-    if (target.judge && ((value === 'text' && !target.judge.ok) || (value === 'image' && target.judge.ok))) target.judge_overridden = true;
+    target.judge_overridden = (value === 'text') !== target.judge.ok;
     if (value !== previous) afterEdit();
   }
   function editText(id, value) {
     const target = region(id);
-    if (!target) return;
+    if (!target || busy()) return;
     target.text = value;
     target.text_status = String(value).trim() ? 'done' : 'none';
-    inbox.saveSoon(inbox.current());
-    schedule();
+    afterEdit();
   }
   async function discardCurrent() {
     const item = inbox.current();
@@ -139,6 +144,9 @@ export function createProcess(root, bus) {
     const item = inbox.current();
     if (!item) return;
     if (item.regions.some(row => row.text_status === 'running')) { notify('还有区域在提取中', 'warn'); return; }
+    if (item.regions.some(row => row.role !== 'ignore' && !hasExtraction(row))) {
+      notify('请先一键提取并核对各区域的文本或图片', 'warn'); return;
+    }
     const saved = await inbox.save(item, { status: 'ready' });
     if (!saved) return;
     S.last = saved;
@@ -170,7 +178,7 @@ export function createProcess(root, bus) {
   function extractAll() {
     const item = inbox.current();
     if (!item) return;
-    extractRegions(item, item.regions.filter(row => row.role !== 'ignore' && row.convert !== 'image' && row.text_status !== 'done').map(row => row.id));
+    extractRegions(item, item.regions.filter(row => row.role !== 'ignore' && !hasExtraction(row) && row.text_status !== 'running').map(row => row.id));
   }
 
   return {
@@ -182,7 +190,7 @@ export function createProcess(root, bus) {
     role: setRole, step, whole, applyLast, discardCurrent, markReady, extractAll,
     region(id, event) { if (!skip(event)) selectRegion(id); },
     deleteRegion,
-    clear() { const item = inbox.current(); if (!item) return; item.regions = []; S.selR = null; afterEdit(); },
+    clear() { const item = inbox.current(); if (!item || busy()) return; item.regions = []; S.selR = null; afterEdit(); },
     addCard() {
       const item = inbox.current();
       if (!item) return;
@@ -192,7 +200,7 @@ export function createProcess(root, bus) {
     drawCard(card) { S.drawCard = Number(card) || 1; notify(`接下来画的框归入题卡 ${S.drawCard}`); },
     convert: setConvert, text: editText,
     extract(id) { extractRegions(inbox.current(), [id]); },
-    detectCurrent(provider) { if (S.cur) detect([S.cur], provider); },
+    detectCurrent(provider) { if (S.cur && !busy()) detect([S.cur], provider); },
     detectSelected, applyLastSelected,
     dispose() { alive = false; stop(); window.removeEventListener('resize', onResize); canvas.dispose(); },
   };

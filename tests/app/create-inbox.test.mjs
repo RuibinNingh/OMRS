@@ -232,10 +232,10 @@ test('裁图参数：超大 PNG 改 JPEG 白底，预览只缩不放，框位键
   assert.notEqual(boxKey({ x: 0.1, y: 0.2, w: 0.3, h: 0.4 }), boxKey({ x: 0.1, y: 0.2, w: 0.3, h: 0.41 }));
 });
 
-test('AI 框选汇总：盲标、自动就绪与失败数', () => {
+test('AI 框选汇总：盲标、自动提取待审核与失败数', () => {
   assert.deepEqual(detectSummary(2, { result: [{ boxes: 2 }, { boxes: 1, blind: true }], errors: [] }),
     { text: '框选完成：2 张，共 3 框，请逐张确认；其中 1 张为盲标（不展示 AI 框，请直接手画）', warn: false });
-  const summary = detectSummary(1, { result: [{ boxes: 2, auto: { ready: true } }], errors: [{ msg: '超时' }] });
+  const summary = detectSummary(1, { result: [{ boxes: 2, auto: { extracted: 2, ready: false } }], errors: [{ msg: '超时' }] });
   assert.equal(summary.warn, true);
-  assert.match(summary.text, /1 张已按自动策略转文本并就绪；1 张失败：超时/);
+  assert.match(summary.text, /1 张已自动提取，待人工审核；1 张失败：超时/);
 });

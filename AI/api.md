@@ -267,7 +267,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 | `inbox_detect_provider` | string | 收件箱框选提供方：`vlm`、`template` 或 `local_http`，默认 `vlm` |
 | `inbox_local_detect_url` | string | `local_http` 提供方的 POST 地址，默认空 |
 | `inbox_blind_every` | int | 每 N 张图执行一次盲标，`0` 关闭，默认 `0` |
-| `inbox_auto_ready_conf` | number | 框选置信度达到该值时自动转文本并置就绪，`0` 关闭，默认 `0` |
+| `inbox_auto_ready_conf` | number | 框选置信度达到该值时自动提取，仍需人工审核后标记就绪（键名保留兼容），`0` 关闭，默认 `0` |
 | `inbox_auto_on_upload` | bool | 上传后是否自动排队处理，默认 `false` |
 | `inbox_discard_keep_days` | int | 丢弃原图保留天数，默认 `7` |
 

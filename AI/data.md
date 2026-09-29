@@ -247,7 +247,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 | `inbox_detect_provider` | string | 框选提供方：`vlm` / `template` / `local_http`，默认 `vlm` |
 | `inbox_local_detect_url` | string | `local_http` 的 POST 地址，默认空 |
 | `inbox_blind_every` | int | 每 N 张盲标，`0` 关闭，默认 `0` |
-| `inbox_auto_ready_conf` | number | 自动转文本并置就绪的最低置信度，`0` 关闭，默认 `0` |
+| `inbox_auto_ready_conf` | number | 自动提取的最低置信度（键名保留兼容，仍需人工审核），`0` 关闭，默认 `0` |
 | `inbox_auto_on_upload` | bool | 上传后自动排队处理，默认 `false` |
 | `inbox_discard_keep_days` | int | 丢弃原图保留天数，默认 `7` |
 

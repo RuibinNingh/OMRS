@@ -177,6 +177,25 @@ def write_report(out, keys, audit, diffs, audit_only):
     open(os.path.join(out, "report.html"), "w", encoding="utf-8").write(doc)
 
 
+def seed_process_fixture(vault):
+    """框选对比使用同一张合成题图和两个待提取框，不读取真实收件箱。"""
+    import io
+    from PIL import Image, ImageDraw
+    sys.path.insert(0, ROOT)
+    from omrs import inbox
+    image = Image.new('RGB', (600, 480), 'white')
+    draw = ImageDraw.Draw(image)
+    draw.text((48, 70), 'Question: f(x) = x^2. Find f(2).', fill='black', font_size=24)
+    draw.text((48, 310), 'Answer: f(2) = 4.', fill='black', font_size=24)
+    output = io.BytesIO()
+    image.save(output, format='PNG')
+    item = inbox.upload_images(vault, [('一键提取示例.png', output.getvalue())])['items'][0]
+    inbox.update_item(vault, item['id'], {'regions': [
+        {'id': 'visual-q', 'role': 'question', 'x': .05, 'y': .05, 'w': .9, 'h': .4, 'convert': 'auto'},
+        {'id': 'visual-a', 'role': 'answer', 'x': .05, 'y': .55, 'w': .9, 'h': .4, 'convert': 'auto'},
+    ]})
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--ref", default="HEAD", help="基线提交（默认 HEAD）")
@@ -198,6 +217,8 @@ def main(argv=None):
     fixture = os.path.join(out, "fixture")
     subprocess.run([sys.executable, os.path.join(ROOT, "tests", "fixtures", "make_vault.py"), "--out", fixture,
                     "--profile", args.fixture], check=True, stdout=subprocess.DEVNULL)
+    if args.create_stage == "process":
+        seed_process_fixture(fixture)
     sides = [("cur", ROOT)]
     if not args.audit_only:
         sides.insert(0, ("ref", prepare_ref(args.ref, out)))

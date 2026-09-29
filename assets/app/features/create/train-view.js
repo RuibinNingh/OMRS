@@ -64,7 +64,7 @@ function policyView(form, { saving, message }) {
       ${field({ label: '本地检测服务地址', id: 'ib-pl-local', control: html`<span data-input="create.trainPolicy" data-arg="local">${input({ id: 'ib-pl-local', value: form.local, placeholder: 'http://127.0.0.1:8600/detect' })}</span>` })}
     </div>
     ${field({ label: '每 N 张盲标（0 = 关闭）', id: 'ib-pl-blind', hint: '盲标的图不展示 AI 框，人工画完后成对留痕，作干净评估集，避免标注被模型带偏', control: numberInput('ib-pl-blind', 'blind', { placeholder: '0' }) })}
-    ${field({ label: '自动就绪的置信度阈值（0 = 关闭）', id: 'ib-pl-conf', hint: 'AI 框全部 ≥ 阈值时自动转文本（含可转性判断）并置就绪；服务端裁图需 Pillow', control: numberInput('ib-pl-conf', 'conf', { placeholder: '0' }) })}
+    ${field({ label: '自动提取的置信度阈值（0 = 关闭）', id: 'ib-pl-conf', hint: 'AI 框全部 ≥ 阈值时自动提取并判断是否留图，完成后仍需人工审核；服务端裁图需 Pillow', control: numberInput('ib-pl-conf', 'conf', { placeholder: '0' }) })}
     <div class="crt-switch" data-change="create.trainPolicy" data-arg="upload">
       <span class="ui-field__label">上传后自动处理</span>
       ${switchControl({ id: 'ib-pl-upload', label: '手机 / 电脑上传即自动框选（无人值守，配合上面的阈值）', checked: form.upload })}

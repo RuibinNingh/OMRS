@@ -117,7 +117,7 @@ class InboxFlowTests(unittest.TestCase):
             self.assertEqual(len(updated["regions"]), 2)
 
             # 未决定转换方式时不能就绪
-            with self.assertRaisesRegex(ValueError, "转文本"):
+            with self.assertRaisesRegex(ValueError, "未提取"):
                 inbox.update_item(vault, item["id"], {"regions": [dict(regions[0], convert="auto")], "status": "ready"})
             ready = inbox.update_item(vault, item["id"], {"status": "ready"})
             self.assertEqual(ready["status"], "ready")
@@ -197,6 +197,83 @@ def write_config(vault, **kwargs):
     save_config(vault, kwargs)
 
 
+class ExtractionReviewTests(unittest.TestCase):
+    def setup_item(self, vault):
+        item = inbox.upload_images(vault, [("extract.png", make_png(10, 10))])["items"][0]
+        return inbox.update_item(vault, item["id"], {"regions": [
+            {"id": "q", "role": "question", "x": 0, "y": 0, "w": 1, "h": 1, "convert": "auto"}]})
+
+    def test_single_call_judges_even_after_manual_image_override(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as vault:
+            item = self.setup_item(vault)
+            ai = mock.Mock()
+            ai.extract_region.return_value = {"convertible": True, "text": "完整题面", "reason": "纯文字"}
+            inbox._run_extract(vault, ai, {"region_id": "q"})
+            ai.extract_region.assert_called_once()
+            self.assertTrue(ai.extract_region.call_args.kwargs["judge"])
+            item = inbox.get_item(vault, item["id"])
+            self.assertEqual(item["status"], "boxed")
+            item["regions"][0]["convert"] = "image"
+            item["regions"][0]["judge_overridden"] = True
+            inbox.update_item(vault, item["id"], {"regions": item["regions"]})
+            ai.extract_region.return_value = {"convertible": False, "text": "部分文字不应采纳", "reason": "含图形"}
+            result = inbox._run_extract(vault, ai, {"region_id": "q"})
+            self.assertEqual(result["convert"], "image")
+            self.assertEqual(result["text"], "完整题面")
+            self.assertTrue(ai.extract_region.call_args.kwargs["judge"])
+            self.assertFalse(inbox.get_item(vault, item["id"])["regions"][0]["judge_overridden"])
+            self.assertEqual(inbox.update_item(vault, item["id"], {"status": "ready"})["status"], "ready")
+
+    def test_failure_does_not_become_image_success_and_can_retry(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as vault:
+            item = self.setup_item(vault)
+            ai = mock.Mock()
+            ai.extract_region.side_effect = TimeoutError("模拟超时")
+            with self.assertRaises(TimeoutError):
+                inbox._run_extract(vault, ai, {"region_id": "q"})
+            failed = inbox.get_item(vault, item["id"])["regions"][0]
+            self.assertEqual(failed["text_status"], "error")
+            self.assertIsNone(failed["judge"])
+            self.assertEqual(failed["convert"], "auto")
+            with self.assertRaisesRegex(ValueError, "提取失败"):
+                inbox.update_item(vault, item["id"], {"status": "ready"})
+            ai.extract_region.side_effect = None
+            ai.extract_region.return_value = {"convertible": False, "text": "", "reason": "含图形"}
+            inbox._run_extract(vault, ai, {"region_id": "q"})
+            self.assertEqual(inbox.get_item(vault, item["id"])["regions"][0]["convert"], "image")
+
+    def test_late_result_preserves_edited_box_and_other_regions(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as vault:
+            item = self.setup_item(vault)
+            def extract(*args, **kwargs):
+                fresh = inbox.get_item(vault, item["id"])
+                fresh["regions"][0]["w"] = .5
+                fresh["regions"].append({"id": "a", "role": "answer", "x": 0, "y": 0, "w": 1, "h": 1})
+                inbox.update_item(vault, item["id"], {"regions": fresh["regions"]})
+                return {"convertible": True, "text": "过期结果"}
+            with self.assertRaisesRegex(ValueError, "区域已修改"):
+                inbox._run_extract(vault, mock.Mock(extract_region=extract), {"region_id": "q"})
+            fresh = inbox.get_item(vault, item["id"])
+            self.assertEqual(len(fresh["regions"]), 2)
+            self.assertEqual(fresh["regions"][0]["w"], .5)
+            self.assertFalse(fresh["regions"][0]["text"])
+
+    def test_judged_model_protocol_requires_explicit_boolean(self):
+        from unittest import mock
+        from omrs import ai_assist
+        for response in ('不能提取', '{"convertible":"false","text":""}', '{"convertible":true,"text":""}'):
+            with self.subTest(response=response), mock.patch.object(ai_assist, '_call_model', return_value=response):
+                with self.assertRaises(ValueError):
+                    ai_assist.extract_region('/unused', 'data:image/png;base64,AA==')
+        with mock.patch.object(ai_assist, '_call_model', return_value='{"convertible":false,"reason":"含图形"}') as call:
+            result = ai_assist.extract_region('/unused', 'data:image/png;base64,AA==')
+            self.assertFalse(result['convertible'])
+            call.assert_called_once()
+
+
 class ProviderPolicyTests(unittest.TestCase):
     def test_template_boxes_default_and_reference_transfer(self):
         item = {"id": "b", "width": 1080, "height": 6000, "layout": "zuoyebang"}
@@ -269,16 +346,16 @@ class ProviderPolicyTests(unittest.TestCase):
                 labels = [json.loads(l) for l in zf.read("labels.jsonl").decode("utf-8").splitlines() if l]
             self.assertEqual(sum(1 for l in labels if l.get("blind")), 1)
 
-    def test_auto_ready_policy_extracts_and_marks_ready(self):
+    def test_auto_policy_extracts_and_waits_for_review(self):
         with tempfile.TemporaryDirectory() as vault:
             write_config(vault, inbox_auto_ready_conf=0.8)
             item = inbox.upload_images(vault, [("a.png", make_png(10, 10))])["items"][0]
             # 全图框：无 Pillow 也能取到区域图（整图）
             fake = FakeAI(boxes=[{"role": "question", "card": 1, "x": 0, "y": 0, "w": 1, "h": 1, "conf": 0.9}])
             res = inbox._run_detect(vault, fake, {"item_id": item["id"]})
-            self.assertTrue(res["auto"]["ready"])
+            self.assertFalse(res["auto"]["ready"])
             after = inbox.get_item(vault, item["id"])
-            self.assertEqual(after["status"], "ready")
+            self.assertEqual(after["status"], "boxed")
             self.assertEqual(after["regions"][0]["convert"], "text")
             self.assertEqual(after["regions"][0]["text"], "question 文本")
             # 置信度不足：不触发
