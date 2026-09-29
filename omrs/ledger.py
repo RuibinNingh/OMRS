@@ -242,10 +242,14 @@ def _store_blobs(db, blobs, created_at):
     for content in items:
         if content is None:
             continue
+        expected_hash = blob_hash(content)
         db.execute(
             "INSERT OR IGNORE INTO blobs(hash, content, created_at) VALUES (?, ?, ?)",
-            (blob_hash(content), content, created_at),
+            (expected_hash, content, created_at),
         )
+        saved = db.execute("SELECT content FROM blobs WHERE hash = ?", (expected_hash,)).fetchone()
+        if saved is None or saved["content"] != content:
+            raise RuntimeError("Ledger blob 内容与哈希不一致，已拒绝提交")
 
 
 def append_commit_in_db(db, source: str, commit_type: str, message: str, payload: dict, blobs=None):

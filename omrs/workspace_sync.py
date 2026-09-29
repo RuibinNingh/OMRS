@@ -102,19 +102,43 @@ def _scan_workspace_locked(vault: str):
             for row in db.execute("SELECT * FROM question_projection").fetchall()
         }
 
+    # 先核对全部已知文件，再追加任何扫描提交；否则一个冲突题可能在扫描中
+    # 被更新为新哈希，使当前缺失的旧正文只能作为历史缺口被发现。
+    from .content_history import ContentConflict, check_content_reconcile
+    blocked_ids = set()
+    for item in files:
+        question_id = item["meta"].get("_omrs_id")
+        row = projection.get(question_id)
+        if not row:
+            continue
+        try:
+            check_content_reconcile(vault, row, item["content"])
+        except ContentConflict as exc:
+            blocked_ids.add(question_id)
+            conflicts.append(f"{item['uid']}：{exc}")
+
     seen_ids = set()
+    known_ids = set(projection) | {item["meta"].get("_omrs_id") for item in files if item["meta"].get("_omrs_id")}
     for item in files:
         meta = item["meta"]
         question_id = meta.get("_omrs_id")
+        if question_id in blocked_ids:
+            seen_ids.add(question_id)
+            continue
+        is_new = not question_id
         if not question_id:
             question_id = reserve_operation_id(vault)
+            while question_id in known_ids:
+                question_id = reserve_operation_id(vault)
+            known_ids.add(question_id)
             item["content"] = _inject_omrs_id(item["content"], question_id)
             _atomic_write_text(item["full_path"], item["content"])
             item["meta"] = parse_yaml_frontmatter(item["content"])
             meta = item["meta"]
+        if is_new or (question_id not in fingerprints and question_id not in projection):
             append_commit(vault, "self_check", "question.create_external", "检测到外部新增题目", {
                 "question": _question_payload(item, question_id),
-            })
+            }, blobs=[item["content"]])
             changes.append({"type": "question.create_external", "uid": item["uid"]})
         seen_ids.add(question_id)
 
@@ -134,13 +158,13 @@ def _scan_workspace_locked(vault: str):
                 "to_category": extract_category(meta) or item["category"],
             })
             changes.append({"type": "question.move_external", "uid": item["uid"]})
-        elif old["metadata_hash"] != mh:
+        if old["metadata_hash"] != mh:
             append_commit(vault, "self_check", "question.metadata_update_external", "检测到人工修改结构化字段", {
                 "question_id": question_id,
                 "uid_at_that_time": item["uid"],
                 "before": _projection_to_question(current or {}),
                 "after": _question_payload(item, question_id),
-            })
+            }, blobs=[item["content"]])
             changes.append({"type": "question.metadata_update_external", "uid": item["uid"]})
         elif old["content_hash"] != ch:
             # 只改了正文（例如在 Obsidian 里编辑）：记一笔 question.content_update，正文进 blobs
@@ -169,8 +193,8 @@ def _scan_workspace_locked(vault: str):
         _question_to_fingerprint_payload(q) for q in state["questions"].values()
         if not q.get("archived")
     ])
-    _write_scan_status(vault, len([c for c in changes if c["type"] != "content_only"]), [], "")
-    return {"status": "ok", "changes": len(changes), "conflicts": []}
+    _write_scan_status(vault, len([c for c in changes if c["type"] != "content_only"]), conflicts, "")
+    return {"status": "conflict" if conflicts else "ok", "changes": len(changes), "conflicts": conflicts}
 
 
 def update_fingerprints(vault: str, questions: list):

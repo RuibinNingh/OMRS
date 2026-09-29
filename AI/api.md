@@ -469,7 +469,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 返回题目的完整 Markdown 原文与文件路径，用于纯文本编辑器。
 
 ### `POST /api/question/content/restore`
-请求体 `{uid, hash, expected_content_hash?}`：把题目正文还原为 blobs 里的某个版本，写前对齐未入账的修改，写后记一条 `question.metadata_update` 或 `question.content_update`（payload 带 `restored_from`）。`expected_content_hash` 与文件当前正文不符返回 **409**；题目或版本不存在返回 400。
+请求体 `{uid, hash, expected_content_hash?}`：只接受该活动题历史引用过的版本，并核对 blob 内容哈希与正文 `_omrs_id`；不符时不改 Markdown 或 Ledger。通过后写前对齐未入账的修改，写后记一条 `question.metadata_update` 或 `question.content_update`（payload 带 `restored_from`）。`expected_content_hash` 与文件当前正文不符返回 **409**；题目或版本不存在返回 400。
 
 ### `POST /api/question/markdown`
 保存完整 Markdown 原文。
@@ -479,7 +479,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 { "uid": "三角函数1", "markdown": "---\n_omrs_id: OP-000001\n..." }
 ```
 
-若用户试图修改 `_omrs_id`，后端拒绝保存。保存后立即执行该文件的结构化字段自检：仅正文变化不写 commit；结构化字段变化写 `question.metadata_update_external`。
+若用户试图修改 `_omrs_id`，后端拒绝保存。仅正文变化写 `question.content_update`；结构化字段变化写 `question.metadata_update`，前后 Markdown 版本随提交入账。
 
 
 可选 `expected_content_hash`：写入方看到的正文哈希（`GET /api/question/raw` 与本接口的响应都带 `content_hash`），与文件当前正文不符时返回 **409**「题目正文已被修改，请刷新后重试」。保存经 `omrs/content_history.py` 写前对齐、原子写文件并入账（来源 `api`）。
@@ -526,7 +526,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 { "uid": "三角函数4" }
 ```
 
-成功响应包含 `uid`、原 `file_path` 与 `archived: true`。题目会从题库、统计、调度和兼容 CSV 投影中移除，历史反馈和账本记录保留。附件图片不会自动删除，因为它们可能被其他题目引用；已删除的 Markdown 正文不在 Ledger 中，不能通过结构化恢复取回。
+删除前核对文件身份，把当前 Markdown 存入 blob 并逐字确认可取回；失败不删除，归档提交失败则恢复文件。成功响应包含 `uid`、原 `file_path` 与 `archived: true`。题目会从题库、统计、调度和兼容 CSV 投影中移除，历史反馈和账本记录保留。附件图片不会自动删除，因为它们可能被其他题目引用；已归档正文可按题目历史查询和取回，但结构化恢复不重建 Markdown 文件。
 
 ### 历史修正端点
 
@@ -896,7 +896,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 ## 收件箱端点 `/api/inbox/*` 与 `/m`（v1.12.0）
 
-上传 → 框选 → 转换 → 提交 的暂存层，**不进 Ledger**；`commit` 复用 `create_question`。完整定义、job 单元格式、数据模型见 `AI/inbox.md` §3。速览：`POST /upload`（multipart 多文件，sha256 去重）、`GET /items`、`GET /raw?id=`、`POST /item/update`（整体覆盖 regions/cards/layout/status，可带 `reset_epoch` 防旧保存写回，`ready` 服务端校验）、`POST /item/reset`（清空当前图处理进度、保留原图）、`POST /discard`、`GET /slice-plan`、`POST /jobs`（detect / extract / classify / auto 后台线程；detect 单元可指定 `provider: vlm|local_http` 与 `blind`）、`GET /job?id=`、`POST /crops`、`POST /commit`、`GET /dataset/stats`（v1.13.0 多 `blind`、`storage`）、`GET /dataset/export`、`POST /cleanup`（v1.13.0：超期丢弃原图 / 裁图缓存）、`GET /m`（手机上传页）。`POST /api/config` 可写 `inbox_*` 策略键（见 `AI/inbox.md` §8）。
+上传 → 框选 → 转换 → 提交 的暂存层，**不进 Ledger**；`commit` 复用 `create_question`。完整定义、job 单元格式、数据模型见 `AI/inbox.md` §3。`GET /items` 和 `/item` 的 item 含持久 `revision` 与 `reset_epoch`；`POST /item/update` 仅修改显式字段（明确传入的 regions 整体替换），更新、重置、丢弃和录入都必须携带 `expected_revision` 与 `reset_epoch`。旧版本、缺版本或代次冲突返回 409 `{status:"error",code,msg,current_revision}`，数据库不变；批量丢弃先检查全部项，再同事务修改。`ready` 仍由服务端校验。其余上传、任务、裁图、数据集与手机页入口见 `AI/inbox.md` §3；`POST /api/config` 可写 `inbox_*` 策略键（§8）。
 
 `/api/ai-recognize` 行为不变；`ai_assist.py` 新增 `detect_regions`、`extract_region`、`parse_detect_output`，并按用途读 `ai_model_detect / ai_model_extract / ai_model_classify`（缺省回退 `ai_model`）。AI 助手附图另用 `transcribe_image`（截图转述成 `{summary, layout, blocks}`）与 `describe_image`（针对一张图回答具体问题），两者都走 `ai_model_extract`，见 `AI/agent.md` §1「附图」。
 
@@ -906,18 +906,18 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 ## 框选标注集端点 `/api/annotate/*` 与 `/annotate`
 
-独立于收件箱的训练数据标注集，存储见 `AI/data.md` §16，页面见 `AI/frontend/annotate.md`。访问控制与其他端点相同（`_authorize`；POST 走同源校验并在进程级写锁内处理，模块自带 `annotate._LOCK`）。错误统一返回 400 `{status:"error", msg}`。
+独立于收件箱的训练数据标注集，存储见 `AI/data.md` §16，页面见 `AI/frontend/annotate.md`。访问控制与其他端点相同（`_authorize`；POST 走同源校验并在进程级写锁内处理，模块自带 `annotate._LOCK`）。保存和删除以持久 `revision` 做条件写入；版本冲突返回 409 `{status:"error",code:"revision_conflict",msg,current_revision}`，其他非法输入返回 400。
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/annotate` | 标注页 `assets/app/annotate.html` |
-| GET | `/api/annotate/images` | `{images:[{id, file, width, height, bytes, status, boxes, uploaded_at, updated_at}], stats}`，按上传顺序 |
+| GET | `/api/annotate/images` | `{images:[{id, file, width, height, bytes, status, boxes, revision, uploaded_at, updated_at}], stats}`，按上传顺序 |
 | GET | `/api/annotate/stats` | `{images, done, todo, boxes:{question, answer}}`；AI 训练页入口栏用它显示进度 |
 | GET | `/api/annotate/raw?id=` | 原图二进制（`Cache-Control: private, max-age=86400`） |
 | GET | `/api/annotate/export?format=yolo\|omrs_jsonl&all=1` | zip：`images/<sha256>.<ext>`、`labels.jsonl`（每行一张图，`boxes` 归一化）、`README.txt`；yolo 另含 `labels/<sha256>.txt` 与 `classes.txt`（0=question，1=answer）。默认只含 `status=done`，`all=1` 连未完成一起导出。服务端先写临时文件再分块发送，原图按 ZIP_STORED 存 |
 | POST | `/api/annotate/upload` | multipart 多文件（按 `filename=` 识别）；只收 PNG / JPEG / GIF，任一文件不是图片则整批报错不写；sha256 去重 → `{images:[新建], duplicates:[{file, id}]}` |
-| POST | `/api/annotate/save` | `{id, boxes:[{role, x, y, w, h}], status?}`：框整体覆盖；`role` 只能是 question / answer，坐标先按原值算右下角再夹到 0–1，宽或高小于 0.002 的框丢弃，一张最多 200 个；`status` 为 `todo` / `done`，缺省保留原状态 → `{image}` |
-| POST | `/api/annotate/delete` | `{id}`：删除记录与原图文件 → `{id}` |
+| POST | `/api/annotate/save` | `{id, expected_revision, boxes:[{role, x, y, w, h}], status?}`：框整体覆盖；`role` 只能是 question / answer，坐标先按原值算右下角再夹到 0–1，宽或高小于 0.002 的框丢弃，一张最多 200 个；`status` 为 `todo` / `done`，缺省保留原状态 → `{image}`，revision 加一 |
+| POST | `/api/annotate/delete` | `{id, expected_revision}`：版本吻合才删除记录与原图文件 → `{id}` |
 
 ## AI 草稿区端点 `/api/drafts/*`
 
@@ -947,7 +947,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 | 方法 | 路径 | 响应 |
 |---|---|---|
-| GET | `/api/trainpanel/overview` | 当前 model、最新 dataset 摘要、latest、runs、live 完成图计数／新增图数、commands、collect、独立 errors |
+| GET | `/api/trainpanel/overview` | 训练目录 `training_model`（兼容 `model`）、实际服务 `online_state` / `online_model`、最新 dataset 摘要、latest、runs（各含 `current` 训练目录标记与 `online` 在线身份标记）、live 完成图计数／新增图数、commands、collect、独立 errors |
 | GET | `/api/trainpanel/run?name=` | 指定实验 status、metrics、evaluation 与各字段 errors；JSONL 最后未写完的一行留待下次 |
 | GET | `/api/trainpanel/overlay?run=&name=` | 仅返回该实验 eval.json 登记的 JPG／PNG 叠加图，private/no-store |
 | GET | `/api/trainpanel/service` | 对配置检测地址的同源 `/health` 做 2 秒探测，state 为 online/offline/unconfigured；离线附启动命令 |
@@ -975,8 +975,10 @@ POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 
 
 ### 受管检测服务
 
-`GET /api/trainpanel/manager` 返回 supported、revision、operation、实际 online 健康身份、selected 配置身份、matches、previous、models（至多100个完整导出实验及匹配阈值的内容评测摘要）、errors、最近20次 history。未登记实例返回 supported=false 与说明。读取时发现中断操作会在跨进程锁内恢复，正常读取不会启动服务。
+`GET /api/trainpanel/manager` 返回 supported、revision、operation、实际 online 健康身份、selected 配置身份、matches、previous、models（至多100个完整导出实验及匹配阈值的内容评测摘要）、errors、最近20次 history。候选含 `independent_reviewed`、`independent_passed`、`independent_status`（passed/failed/incomplete/missing）；未登记实例返回 supported=false 与说明。此 GET 只读，不触发中断操作恢复；主服务在监听前同步调用恢复，失败时其他页面仍可使用。
 
-`POST /api/trainpanel/control` 请求最多4096字节，接收 `{action,revision,request_id,model_id?,sha256?,conf?,imgsz?}`。action 为 start/stop/restart/activate/rollback；request_id 为32位小写十六进制，activate 必须匹配当前登记候选身份与参数。返回202及 operation，异步结果从 manager 查询；相同请求ID与内容复用记录，变更内容/旧revision/其他操作繁忙返回409，非法参数或未登记返回400。后台工作持有文件锁，长操作不占全局HTTP写锁。登录和写请求来源保护与现有接口一致。
+`POST /api/trainpanel/control` 请求最多4096字节，接收 `{action,revision,request_id,model_id?,sha256?,conf?,imgsz?,confirm_unverified?}`。action 为 start/stop/restart/activate/rollback；request_id 为32位小写十六进制，activate 必须匹配当前登记候选身份与参数。独立内容验收缺失、未完成或未通过时，activate 须显式传 `confirm_unverified:true`，操作快照记录验收状态与确认。返回202及 operation，异步结果从 manager 查询；相同请求ID与内容复用记录，变更内容/旧revision/其他操作繁忙返回409，非法参数或未登记返回400。后台工作持有文件锁，长操作不占全局HTTP写锁。登录和写请求来源保护与现有接口一致。
+
+控制操作的 `actor` 由服务端按认证结果生成，仅记 `auth_mode`（本机、局域网豁免或 PIN 会话）、会话 ID 与可信来源 IP，不接受客户端自报身份，也不记录 PIN 或 Cookie。受管 `local_http` 检测请求前后核对登记指针和实际健康身份；不一致时拒绝框选结果。
 
 应用模型先限额预检，再原子修改受管指针、重启与核验健康SHA/输入/阈值；失败恢复原模型及原在线/离线状态，回退失败单独显示。正常启停不改变模型。离线启动提示优先显示已登记unit；手动模式使用本机配置端口，远程地址提示在服务所在机器启动。

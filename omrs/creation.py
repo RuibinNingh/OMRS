@@ -317,7 +317,7 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
         payload = {"question": question}
         if draft_origin:
             payload["_draft"] = dict(draft_origin)
-        append_commit(vault, actor, "question.create", f"创建题目 {uid}", payload)
+        append_commit(vault, actor, "question.create", f"创建题目 {uid}", payload, blobs=[content])
         state = rebuild_projection(vault)
         update_fingerprints(vault, [
             {
@@ -331,24 +331,8 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
             if not q.get("archived")
         ])
     except Exception:
-        # Ledger 已入账或状态未知时保留文件；下一次提交由 _draft 标记恢复。
-        try:
-            from .ledger import read_commits
-            committed = any(c["commit_type"] == "question.create" and
-                            c["payload"].get("question", {}).get("question_id") == question_id and
-                            (not draft_origin or c["payload"].get("_draft", {}).get("draft_id") == draft_origin["draft_id"])
-                            for c in read_commits(vault, ascending=False))
-        except Exception:
-            committed = True
-        if not committed:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-            for path in q_paths + a_paths:
-                try:
-                    if os.path.exists(path):
-                        os.remove(path)
-                except OSError:
-                    pass
+        # Ledger 提交失败时，刚写出的 Markdown 可能是正文唯一副本；附件也要随正文保留。
+        # 下次扫描可按 _omrs_id 将文件入账，草稿重试仍使用预留身份核对内容。
         raise
 
     all_images = q_names + a_names

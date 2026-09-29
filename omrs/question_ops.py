@@ -1,5 +1,6 @@
 import os
 import re
+import uuid
 
 from .common import extract_category, extract_knowledge_tags, extract_tag, extract_labels, parse_yaml_frontmatter, questions_root
 from .ledger import append_commit, connect
@@ -59,6 +60,8 @@ def set_question_labels(vault: str, uid: str, labels, scan=True):
         content = file.read()
     updated = _replace_frontmatter_list_field(content, "标记", clean)
     if updated != content:
+        from .content_history import ensure_content_recorded
+        ensure_content_recorded(vault, row, content)
         _atomic_write_text(path, updated)
         if scan:
             scan_workspace(vault)
@@ -66,6 +69,7 @@ def set_question_labels(vault: str, uid: str, labels, scan=True):
 
 
 def move_question(vault: str, uid: str, target_subject: str, target_category: str):
+    from .content_history import ensure_content_deletable
     row = _projection_by_uid(vault, uid)
     if not row:
         raise RuntimeError(f"UID 不存在: {uid}")
@@ -81,13 +85,20 @@ def move_question(vault: str, uid: str, target_subject: str, target_category: st
         raise RuntimeError(f"目标 UID 已存在: {target_uid}")
 
     with open(source_path, "r", encoding="utf-8") as file:
-        content = file.read()
+        original = file.read()
+    ensure_content_deletable(vault, row, original)
+    content = original
     content = _replace_frontmatter_field(content, "科目", target_subject or row["subject"])
     content = _replace_frontmatter_field(content, "分类", f'"[[{target_category}]]"')
     tmp = f"{target_path}.tmp"
     _atomic_write_text(tmp, content)
     os.replace(tmp, target_path)
-    os.remove(source_path)
+    staged_source = f"{source_path}.omrs-move-{uuid.uuid4().hex}"
+    try:
+        os.replace(source_path, staged_source)
+    except BaseException:
+        os.remove(target_path)
+        raise
 
     rel = os.path.relpath(target_path, vault)
     meta = parse_yaml_frontmatter(content)
@@ -105,15 +116,21 @@ def move_question(vault: str, uid: str, target_subject: str, target_category: st
         "content_hash": content_hash(content),
         "archived": False,
     }
-    append_commit(vault, "api", "question.move", f"迁移题目 {uid} -> {target_uid}", {
-        "question_id": row["question_id"],
-        "from_uid": uid,
-        "to_uid": target_uid,
-        "from_path": row["file_path"],
-        "to_path": rel,
-        "to_category": target_category,
-        "after": after,
-    })
+    try:
+        append_commit(vault, "api", "question.move", f"迁移题目 {uid} -> {target_uid}", {
+            "question_id": row["question_id"],
+            "from_uid": uid,
+            "to_uid": target_uid,
+            "from_path": row["file_path"],
+            "to_path": rel,
+            "to_category": target_category,
+            "after": after,
+        }, blobs=[content])
+    except BaseException:
+        os.replace(staged_source, source_path)
+        os.remove(target_path)
+        raise
+    os.remove(staged_source)
     state = rebuild_projection(vault)
     update_fingerprints(vault, [
         {
@@ -175,18 +192,24 @@ def delete_question(vault: str, uid: str):
     if not os.path.isfile(path):
         raise RuntimeError(f"题目 Markdown 文件不存在: {row['file_path']}")
 
-    from .content_history import ensure_content_recorded
+    from .content_history import ensure_content_deletable
     with open(path, "r", encoding="utf-8") as file:
         last_content = file.read()
-    last_hash = ensure_content_recorded(vault, row, last_content)  # 删除前保证最后一版正文可取回
-    os.remove(path)
-    append_commit(vault, "api", "question.archive", f"删除题目 {uid}", {
-        "question_id": row["question_id"],
-        "uid_at_that_time": uid,
-        "file_path": row["file_path"],
-        "reason": "通过题目库删除",
-        "content_hash": last_hash,
-    })
+    last_hash = ensure_content_deletable(vault, row, last_content)  # 删除前保证最后一版正文可取回
+    staged = f"{path}.omrs-delete-{uuid.uuid4().hex}"
+    os.replace(path, staged)
+    try:
+        append_commit(vault, "api", "question.archive", f"删除题目 {uid}", {
+            "question_id": row["question_id"],
+            "uid_at_that_time": uid,
+            "file_path": row["file_path"],
+            "reason": "通过题目库删除",
+            "content_hash": last_hash,
+        })
+    except BaseException:
+        os.replace(staged, path)
+        raise
+    os.remove(staged)
     state = rebuild_projection(vault)
     update_fingerprints(vault, [
         {

@@ -80,7 +80,9 @@ POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软
 
 ## 9. 按运行撤销（`omrs/agent/revert.py`）
 
-先 dry-run：列出这次运行的全部 agent commit（`payload._agent.run_id`）及每条的逆操作；之后若有别的 commit 碰过同一道题或同一个 Session，或题目文件被直接改过还没入账，列为冲突并整体拒绝。执行时逆序撤回：标记 / 知识点 / 正文还原到 blobs 里的旧版本、Session 记 `session.retract`、Session 完成记 `session.restore`、反馈逐条 `review.retract`、新题删文件并记 `question.archive`（正文仍在 blobs）、移动移回、停用与恢复互逆。每条逆操作是新 commit，payload 带 `_revert: {run_id, commit_id}`；同一运行只能撤销一次。
+先 dry-run：列出这次运行尚未撤销的 agent commit（`payload._agent.run_id`）及每条的逆操作；预检后续是否有别的 commit 碰过同一道题或 Session、文件身份和哈希是否仍与投影一致、当前及待恢复的旧正文 blob 是否可取回且哈希与 `_omrs_id` 正确，以及移动目标路径是否可用。只要有一题的当前 blob 损坏，就在撤销任何题之前整体拒绝本次执行。通过后逆序撤回：标记 / 知识点 / 正文还原到 blobs 里的旧版本、Session 记 `session.retract`、Session 完成记 `session.restore`、反馈逐条 `review.retract`、新题删除文件并记 `question.archive`（删除前确认正文可取回）、移动移回、停用与恢复互逆。
+
+每项逆操作以新 commit 标记 `_revert: {run_id, commit_id}`；反馈批次按已完成的反馈索引续做。执行期间每项前再次检查冲突，发现外部修改就停止后续操作。中断后再次 dry-run 只列未完成项，执行从剩余项继续；全部完成后再请求撤销会报告已撤销。
 
 ## 草稿确认入库
 

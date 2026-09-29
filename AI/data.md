@@ -4,7 +4,7 @@
 > - 职责：CSV 字段、Markdown 题目格式、UID、配置、标记与报告存储
 > - 入口：`omrs/common.py`、`omrs/indexing.py`
 > - 不变量：题目结构化元数据、复习状态与 Session 以 `ledger.db` 为事实源，CSV 只是兼容投影；展示板、助手、草稿、收件箱和标注集各有独立存储
-> - 必跑测试：`tests/test_history_projection.py`、`tests/test_question_records.py`
+> - 必跑测试：`tests/test_history_projection.py`、`tests/test_question_records.py`、`tests/test_content_integrity.py`
 > - 相关：`AI/ledger.md`、`AI/security.md`
 
 > 对应源文件：`omrs/common.py`、`omrs/indexing.py`
@@ -109,7 +109,7 @@ Session 中的 `source` 贯穿反馈处理：`due` 使用常规 SM-2 间隔，`p
 - `mastery_projection`：熟练度、EF、SM-2 排期投影，含 `kill_count` 累计击杀次数（老库缺列时 `ledger.py` 用 `ALTER TABLE ... DEFAULT 0` 补列）。
 - `session_projection`：Session 投影。
 - `workspace_fingerprint`：Markdown 工作区自检指纹。
-- `blobs`：题目正文的历史版本（`hash` = 正文 sha256，`content`，`created_at`），见 `AI/ledger.md` §10。
+- `blobs`：已入账题目 Markdown 全文（`hash` = 正文 sha256，`content`，`created_at`）；当前缺失版本可在启动时经身份和哈希校验增量回填，内容损坏的已有 blob 不会被静默覆盖，旧哈希不能由当前文件代填。见 `AI/ledger.md` §10。
 - `op_results`：预留的操作结果表（按 `op_id` 存结果 JSON，供幂等重放）；当前没有写入方。
 - `snapshots`：预留的持久化快照表；当前投影器尚未读写此表。`_project_state()` 只在单次重放过程中维护内存快照，`rebuild_projection()` 仍从完整提交链重放。
 
@@ -158,6 +158,8 @@ tags:
 
 > **录入说明**：`POST /api/create` 除建骨架外，可直接写入 `# 题目`、`# 答案`、以及 `# 备注` 的 `## 错因`（由 `cause` 字段写入，导出会带上；`## 关联` 子标题保留）；YAML 可含可选 `页码` 字段。题目图存为 `错题/附件/<uid>-<omrs_id 短后缀>-q-N.<ext>`（如 `力学1-0135-q-1.png`）并嵌入 `# 题目`，答案图存为 `<uid>-<omrs_id 短后缀>-a-N.<ext>` 并嵌入 `# 答案`（短后缀避免迁移后附件覆盖）。「AI 自动识别」支持三种用途：`classify` 读题目图只回填科目/分类/难度/相关知识点（不抄题；知识点可与分类重叠），`question_text` 读题目图把题目正文提取为文本，`answer` 忠实转录答案图内全部可见答案、解析、推导与步骤——最终以文件实际内容为准。
 
+创建题目写出 Markdown 和附件后，若 Ledger 提交失败，文件保留为可能的唯一正文副本，不在失败清理中删除；后续由工作区扫描或原草稿入库恢复路径核对身份和内容。
+
 > **LaTeX 公式（导出 HTML）**：题目/答案/错因中的 `$...$`（行内）与 `$$...$$`（行间）会在 HTML 导出里由内联 KaTeX 渲染；A4 与屏幕版导出都会把 KaTeX CSS/JS/字体嵌入单个 HTML 文件，离线打开仍可显示公式。若 KaTeX 资源缺失或个别公式解析失败，会安全降级为原始公式文本。Obsidian 内仍按其自身 LaTeX 渲染显示。注：旧 docx 导出曾用 `_latex_to_omml` 转 Word 原生公式（OMML），已随 docx 一并移除。
 
 > **Markdown 表格支持子集**：题目或答案可写“表头行 + `---` 分隔行 + 数据行”的管道表格，单元格内的竖线写为 `\|`。主程序预览、A4 和屏幕版会渲染为真实 `<table>`，公式仍走 KaTeX；主程序预览也能渲染备注中的表格，但当前导出只把题目和答案送入结构化表格解析。缺单元格补空，超出表头的单元格忽略，对齐冒号当前不保留语义；A4 导出时可通过 `a4_two_columns=false` 让整份文件使用单栏，前端会在导出前确认栏模式。
@@ -167,7 +169,7 @@ tags:
 YYYY-MM-DD 主观:N, 对/错[, 备注:文字]
 ```
 
-Markdown `# 历史` 不作为算法输入，也不会由反馈流程追加。`/api/question` 仍把该小节原文放在 `history` 字段里（纯兼容显示），正式练习记录是同一响应的 `records[]`（由 Ledger 投影 `history_log.csv` 派生，见 `AI/api.md`）；`common.py::parse_history_lines()` 与前端 `parseQHistory()` 只在老后端没给 `records` 时才用来解析旧手工行。已入账的完整 Markdown 版本可通过 `/api/question/content/history` 列出、`/api/question/content/version` 取回；活动题目可经 `/api/question/content/restore` 还原。结构化 `state.restore` 不会自动重写 Markdown 文件，未入账的旧正文和附件二进制文件不在此版本保证内；细节见 `AI/ledger.md` §10。
+Markdown `# 历史` 不作为算法输入，也不会由反馈流程追加。`/api/question` 仍把该小节原文放在 `history` 字段里（纯兼容显示），正式练习记录是同一响应的 `records[]`（由 Ledger 投影 `history_log.csv` 派生，见 `AI/api.md`）；`common.py::parse_history_lines()` 与前端 `parseQHistory()` 只在老后端没给 `records` 时才用来解析旧手工行。已入账的完整 Markdown 版本可通过 `/api/question/content/history` 列出、`/api/question/content/version` 取回；活动题目可经 `/api/question/content/restore` 还原到属于该题、哈希和 `_omrs_id` 均匹配的版本。结构化 `state.restore` 不会自动重写 Markdown 文件，未入账的旧正文和附件二进制文件不在此版本保证内；细节见 `AI/ledger.md` §10。
 
 `相关知识点: []` 是显式清空知识点标签的结构化更新。工作区扫描将该空列表写入 Ledger 的题目元数据投影，并在重建 `mastery_data.csv` 时保持 `Knowledge_Tags` 为空；它不会回退到该题此前的知识点标签。
 
@@ -298,7 +300,7 @@ Markdown `# 历史` 不作为算法输入，也不会由反馈流程追加。`/a
 
 ## 12. 收件箱 `错题/.omrs/inbox/`（v1.12.0）
 
-`inbox.db`（SQLite：items / regions / cards / jobs / meta / chat_training_boxes；items 扩展列含 `blind`、`blind_boxes`、`reset_epoch`，`connect()` 对旧库 ALTER 补齐）、`raw/<sha256>.<ext>`（上传原件）、`crops/`（裁剪缓存，可重建）、`annotations.jsonl`（append-only 标注事件）。区域坐标归一化 0–1。items.training_only 隔离聊天训练图，chat_training_boxes 独立保存训练标注并按图合并导出。`reset_epoch` 是当前图处理代次，重置递增以阻止旧保存和后台任务写回；重置删除当前区域、题卡和对应裁图缓存，保留原图及历史事件。字段与状态机见 `AI/inbox.md` §2、§9；`items.layout` 的新上传默认值为 `zuoyebang`（作业帮截图），已有记录可在处理页改选。不参与备份导出以外的任何投影；`item.commit` 事件里记录了创建出的 `uid` / `question_id` 便于回溯。
+`inbox.db`（SQLite：items / regions / cards / jobs / meta / chat_training_boxes；items 扩展列含 `blind`、`blind_boxes`、`reset_epoch`、`revision`，`connect()` 对旧库 ALTER 补齐）、`raw/<sha256>.<ext>`（上传原件）、`crops/`（裁剪缓存，可重建）、`annotations.jsonl`（append-only 标注事件）。区域坐标归一化 0–1。items.training_only 隔离聊天训练图，chat_training_boxes 独立保存训练标注并按图合并导出。`reset_epoch` 是当前图处理代次，重置递增以阻止旧保存和后台任务写回；`revision` 是当前图写入版本，更新、重置、丢弃和录入成功后递增，HTTP 写入必须附预期版本。重置删除当前区域、题卡和对应裁图缓存，保留原图及历史事件。字段与状态机见 `AI/inbox.md` §2、§9；`items.layout` 的新上传默认值为 `zuoyebang`（作业帮截图），已有记录可在处理页改选。不参与备份导出以外的任何投影；`item.commit` 事件里记录了创建出的 `uid` / `question_id` 便于回溯。
 
 `config.json` 新增键：`ai_model_detect`、`ai_model_extract`、`ai_model_classify`（string，留空回退 `ai_model`；`CONFIG_DEFAULTS` 均为空串）。v1.13.0 再加 `inbox_detect_provider`（`vlm`）、`inbox_local_detect_url`（`""`）、`inbox_blind_every`（0）、`inbox_auto_ready_conf`（0.0）、`inbox_auto_on_upload`（false）、`inbox_discard_keep_days`（7），含义见 `AI/inbox.md` §8。丢弃项超期清理后 `items.file` 为 NULL、原图文件删除，行与 `annotations.jsonl` 事件保留。
 
@@ -436,7 +438,7 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 
 ## 16. 框选标注集 `错题/.omrs/annotate/`
 
-独立于收件箱的训练数据，由 `omrs/annotate.py` 读写，不进 Ledger、不参与任何投影。`annotate.db` 只有一张 `images` 表：`id (AN-YYYYMMDD-xxxxxx)、sha256（唯一）、file（上传时的文件名）、mime、width、height、bytes、status (todo|done)、boxes（JSON 数组 [{role, x, y, w, h}]，role 为 question / answer，坐标归一化 0–1）、uploaded_at、updated_at`。原图在 `images/<sha256>.<ext>`，删除记录时一并删除。整个目录随设置页「备份导出」打包（备份遍历整个 `错题/`），图片压缩优化只处理附件目录，不碰这里。
+独立于收件箱的训练数据，由 `omrs/annotate.py` 读写，不进 Ledger、不参与任何投影。`annotate.db` 只有一张 `images` 表：`id (AN-YYYYMMDD-xxxxxx)、sha256（唯一）、file（上传时的文件名）、mime、width、height、bytes、status (todo|done)、boxes（JSON 数组 [{role, x, y, w, h}]，role 为 question / answer，坐标归一化 0–1）、revision、uploaded_at、updated_at`。旧库缺 `revision` 时幂等补列，保存与删除按预期版本检查，保存成功递增。原图在 `images/<sha256>.<ext>`，删除记录时一并删除。整个目录随设置页「备份导出」打包（备份遍历整个 `错题/`），图片压缩优化只处理附件目录，不碰这里。
 
 ## 17. AI 草稿存储
 
@@ -469,6 +471,6 @@ reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加acti
 
 ### 受管服务目录
 
-`<训练根>/managed/snapshots/<元数据哈希>/` 保存经过SHA验证的model.onnx/model.json副本；active 为原子替换的相对符号链接。state.json 保存 revision、current、previous、operation；operations/请求ID.json 保存幂等请求、前后模型SHA、操作人、时刻、运行状态、错误和回退错误；events.jsonl 追加完成或恢复事件。状态与请求快照用临时文件加原子替换写入，operation.lock 用flock串行化，预检/重启还与training.lock互斥。运行中的请求记录允许更新到终态，追加事件不会改写。
+`<训练根>/managed/snapshots/<元数据哈希>/` 保存经过 SHA 验证的 model.onnx/model.json 副本；active 为原子替换的相对符号链接。state.json 保存 revision、current、previous、operation；operations/请求ID.json 保存幂等请求、前后模型 SHA、服务端认证方式/会话 ID/可信来源 IP、候选的独立验收状态与人工确认、时刻、运行状态、错误和回退错误，不记录 PIN/Cookie，也不把共享 PIN 会话认定为具体人。events.jsonl 追加完成或恢复事件。状态与请求快照用临时文件加原子替换写入，operation.lock 用 flock 串行化，预检/重启还与 training.lock 互斥。运行中的请求记录允许更新到终态，追加事件不会改写。
 
 受管映射不跟随models/current；初始化只由部署者执行bootstrap_control.py且拒绝覆盖已有state。只发现有export.json、identity.json、eval.json及匹配权重/ONNX哈希的实验。删除或修改实验不会改变已复制的在线模型。独立训练目录仍需单独备份，不随题库备份。

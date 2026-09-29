@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import socket
 import socketserver
@@ -54,6 +55,9 @@ def main():
 
     sub.add_parser("scan", help="扫描并重建错题索引")
 
+    audit_parser = sub.add_parser("content-audit", help="只读盘点题目正文、投影与 Ledger blob")
+    audit_parser.add_argument("--json", action="store_true", help="输出 JSON，不包含正文")
+
     schedule_parser = sub.add_parser("schedule", help="生成复习调度预览")
     schedule_parser.add_argument("-n", "--count", type=int, default=10)
     schedule_parser.add_argument("-s", "--subject", default=None)
@@ -92,7 +96,20 @@ def main():
     args = parser.parse_args()
     vault = os.path.abspath(args.vault)
 
-    if args.command == "scan":
+    if args.command == "content-audit":
+        from .content_history import audit_content_coverage
+        try:
+            result = audit_content_coverage(vault)
+        except (OSError, ValueError) as exc:
+            print(f"正文盘点失败：{exc}", file=sys.stderr)
+            raise SystemExit(2)
+        if args.json:
+            print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        else:
+            print(f"活动题 {result['active_questions']}；当前缺 blob {len(result['current_missing_blobs'])}；"
+                  f"文件冲突 {len(result['file_conflicts'])}；历史缺口 {result['historical_missing_blobs']}")
+
+    elif args.command == "scan":
         print(f"扫描: {questions_root(vault)}")
         try:
             index = build_index(vault)
@@ -121,14 +138,16 @@ def main():
         except RuntimeError as exc:
             print(str(exc))
             raise SystemExit(1)
-        start_workspace_scanner(vault)
         try:
-            from .content_history import ensure_content_snapshot
-            ensure_content_snapshot(vault)
-        except Exception as exc:  # 回填失败不阻止启动；下次启动再试
+            from .content_history import backfill_missing_content
+            backfill = backfill_missing_content(vault)
+            if backfill["conflicts"]:
+                print(f"正文回填跳过 {len(backfill['conflicts'])} 道冲突题，请核对身份与哈希后处理")
+        except Exception as exc:  # 回填失败不阻止其他页面启动；下次启动再试
             print(f"正文回填未完成：{exc}")
         from .agent.runtime import get_runtime
         get_runtime(vault)  # 把上次遗留的 running 运行标为 interrupted
+        start_workspace_scanner(vault)
         OMRSHandler._restart_cmd = [
             sys.executable,
             os.path.abspath(sys.argv[0]),

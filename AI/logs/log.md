@@ -3,6 +3,7 @@
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
 - [2026-09-29_project-overview](2026-09-29_project-overview.md)：项目整体情况梳理与文档校正
+- [2026-09-29_omrs-stabilization](2026-09-29_omrs-stabilization.md)：OMRS v1.35.0 数据完整性与并发巩固
 - [2026-09-29_inbox-reset](2026-09-29_inbox-reset.md)：收件箱截图重置
 - [2026-09-29_inbox-remove-template-reuse](2026-09-29_inbox-remove-template-reuse.md)：收件箱移除模板与沿用框位并上线重置
 - [2026-09-29_inbox-image-judgment](2026-09-29_inbox-image-judgment.md)：一键提取留图判断提示词
@@ -136,7 +137,6 @@
 - [2026-08-28_partial-feedback-ui-followup](2026-08-28_partial-feedback-ui-followup.md)：分批反馈交互二次优化
 - [2026-08-16_v1.8.0-release](2026-08-16_v1.8.0-release.md)：# v1.8.0 发布记录
 - [2026-08-16_omrs-settings-restart-fix](2026-08-16_omrs-settings-restart-fix.md)：# OMRS 设置页重启修复
-- [2026-08-16_mini-host-deploy](2026-08-16_mini-host-deploy.md)：：迷你主机部署 OMRS
 - [2026-08-16_answer-math-rendering](2026-08-16_answer-math-rendering.md)：：答案跨行 LaTeX 渲染修复
 - [2026-08-16_action-plan-dark-contrast-catalog](2026-08-16_action-plan-dark-contrast-catalog.md)：行动推荐、目录页与深色对比度修订
 - [2026-08-14_doc-code-sync-audit-fixes](2026-08-14_doc-code-sync-audit-fixes.md)：审计偏差修复（文档-代码同步）
