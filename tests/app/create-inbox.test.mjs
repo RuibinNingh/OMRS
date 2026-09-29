@@ -196,12 +196,14 @@ test('训练统计模型：百分比、条形比例、盲标与存储文案', ()
     ai: { adoption_rate: 0.5, suggested: 4, adopted: 2, edited: 1, mean_iou_edited: 0.8, rejected: 1 },
     convert: { agreement_rate: null, judged: 0, agree: 0, text: 3, image: 1 },
     layouts: { photo: 1, zuoyebang: 3 }, blind: {}, storage: { raw_bytes: 3 * 1048576, crops_bytes: 2048, discarded: 1 },
+    chat: { images: 2, boxes: 3 },
   });
   assert.deepEqual(model.cards.map(card => card.value), [4, 6, '50%', '—']);
   assert.deepEqual(model.layouts.map(row => [row.label, row.value]), [['作业帮截图', 75], ['拍照 / 扫描', 25]]);
   assert.deepEqual(model.convert.map(row => row.value), [75, 25]);
   assert.match(model.blind, /还没有盲标样本/);
   assert.equal(model.storage, '原图 3.0 MB · 裁图缓存 2 KB · 已丢弃待清理 1 张');
+  assert.match(model.chat, /聊天来源图 2 张 · 标注框 3 个/);
   assert.deepEqual(statsModel(null).layouts, []);
   assert.equal(percent(0.333), '33%');
   assert.equal(bytes(0), '0 KB');

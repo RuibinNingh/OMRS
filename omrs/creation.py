@@ -1,7 +1,10 @@
 import base64
 import datetime
+import hashlib
+import json
 import os
 import re
+import sqlite3
 
 from .common import ATTACHMENTS_DIR, questions_root
 from .common import extract_labels
@@ -21,6 +24,18 @@ def _next_uid(qroot, category):
             match = pattern.match(fname)
             if match:
                 used.add(int(match.group(1)))
+    drafts_db = os.path.join(qroot, ".omrs", "drafts", "drafts.db")
+    if os.path.isfile(drafts_db):
+        db = sqlite3.connect(f"file:{drafts_db}?mode=ro", uri=True)
+        try:
+            for (uid,) in db.execute("SELECT uid FROM commit_operations"):
+                match = re.fullmatch(rf"{re.escape(category)}(\d+)", uid)
+                if match:
+                    used.add(int(match.group(1)))
+        except sqlite3.OperationalError:
+            pass
+        finally:
+            db.close()
     next_num = 1
     while next_num in used:
         next_num += 1
@@ -43,7 +58,8 @@ def _ext_from_mime(mime):
     return _MIME_EXT.get((mime or "").strip().lower(), "png")
 
 
-def _save_pasted_images(vault, uid, question_id, images, suffix):
+def _save_pasted_images(vault, uid, question_id, images, suffix, strict=False, reusable=False,
+                        start_index=0):
     """把前端粘贴/选择的图片（data URL 或裸 base64）存到 错题/附件/。
 
     suffix 用于区分题目图/答案图（'q' / 'a'），文件名形如 `<uid>-q-1.png`，
@@ -55,10 +71,12 @@ def _save_pasted_images(vault, uid, question_id, images, suffix):
     attach_dir = os.path.join(questions_root(vault), ATTACHMENTS_DIR)
     os.makedirs(attach_dir, exist_ok=True)
     names, paths = [], []
-    index = 0
+    index = start_index
     for image in images:
         data_url = image.get("data") if isinstance(image, dict) else image
         if not data_url or not isinstance(data_url, str):
+            if strict:
+                raise ValueError("图片数据缺失")
             continue
         match = re.match(r"^data:([^;,]+);base64,(.*)$", data_url, re.DOTALL)
         if match:
@@ -68,23 +86,33 @@ def _save_pasted_images(vault, uid, question_id, images, suffix):
         if (mime or "").strip().lower() not in _SUPPORTED_IMAGE_MIMES:
             raise ValueError(f"不支持的图片格式 {mime or '未知'}（仅支持 PNG/JPEG/GIF）")
         try:
-            raw = base64.b64decode(b64, validate=False)
+            raw = base64.b64decode(b64, validate=strict)
         except Exception:
+            if strict:
+                raise ValueError("图片 base64 不合法")
             continue
         if not raw:
+            if strict:
+                raise ValueError("图片数据为空")
             continue
         index += 1
         ext = _ext_from_mime(mime)
         candidate = index
-        short_id = (question_id or "").replace("OP-", "")[-4:] or "new"
+        short_id = ((question_id or "").replace("OP-", "") if reusable else
+                    (question_id or "").replace("OP-", "")[-4:]) or "new"
         name = f"{uid}-{short_id}-{suffix}-{candidate}.{ext}"
         full = os.path.join(attach_dir, name)
-        while os.path.exists(full):
+        while os.path.exists(full) and not reusable:
             candidate += 1
             name = f"{uid}-{short_id}-{suffix}-{candidate}.{ext}"
             full = os.path.join(attach_dir, name)
-        with open(full, "wb") as file:
-            file.write(raw)
+        if os.path.exists(full) and reusable:
+            with open(full, "rb") as file:
+                if file.read() != raw:
+                    raise ValueError(f"附件已有不同内容，不能覆盖：{name}")
+        else:
+            with open(full, "wb") as file:
+                file.write(raw)
         names.append(name)
         paths.append(full)
     return names, paths
@@ -101,7 +129,8 @@ def _section_body(text, image_names):
 
 
 def _build_markdown(question_id, subject, category, difficulty, today, note, related_tags,
-                    question_text, answer_text, cause, q_images, a_images, labels=None):
+                    question_text, answer_text, cause, q_images, a_images, labels=None,
+                    ordered_blocks=None):
     related_lines = ["相关知识点: []"]
     if related_tags:
         lines = [f'  - "[[{tag.strip()}]]"' for tag in related_tags if str(tag).strip()]
@@ -115,8 +144,15 @@ def _build_markdown(question_id, subject, category, difficulty, today, note, rel
             f'  - "{label.replace(chr(34), chr(92) + chr(34))}"' for label in label_values
         )
 
-    question_body = _section_body(question_text, q_images) or "（请在 Obsidian 中编辑此题目内容）"
-    answer_body = _section_body(answer_text, a_images)
+    if ordered_blocks is None:
+        question_body = _section_body(question_text, q_images) or "（请在 Obsidian 中编辑此题目内容）"
+        answer_body = _section_body(answer_text, a_images)
+    else:
+        def section_body(section):
+            return "\n\n".join((b["text"].strip() if b["kind"] == "text" else f"![[{b['image_name']}]]")
+                                for b in ordered_blocks if b["section"] == section)
+        question_body = section_body("题目") or "（请在 Obsidian 中编辑此题目内容）"
+        answer_body = section_body("答案")
 
     # 备注区：错因写入 ## 错因（导出 Word 会带上），保留 ## 关联 子标题供 Obsidian 编辑
     cause_clean = cause.strip() if cause else ""
@@ -150,8 +186,22 @@ tags:
 
 def create_question(vault, subject, category, difficulty, note="", related_tags=None,
                     question_text="", answer_text="", cause="",
-                    question_images=None, answer_images=None, labels=None):
+                    question_images=None, answer_images=None, labels=None,
+                    ordered_blocks=None, draft_origin=None, reserved_identity=None, actor="api"):
     category_dir, subject, category = safe_question_directory(vault, subject, category)
+    if reserved_identity:
+        draft_id = (draft_origin or {}).get("draft_id")
+        db_path = os.path.join(questions_root(vault), ".omrs", "drafts", "drafts.db")
+        op_db = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            op = op_db.execute("SELECT uid,question_id,file_path FROM commit_operations WHERE draft_id=?",
+                               (draft_id,)).fetchone()
+        finally:
+            op_db.close()
+        expected = (reserved_identity.get("uid"), reserved_identity.get("question_id"),
+                    os.path.relpath(os.path.join(category_dir, f"{reserved_identity.get('uid')}.md"), vault))
+        if op != expected:
+            raise ValueError("草稿入库身份记录不匹配")
     ensure_ledger_bootstrap(vault)
     qroot = questions_root(vault)
     os.makedirs(category_dir, exist_ok=True)
@@ -176,24 +226,58 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
             with open(subject_anchor, "w", encoding="utf-8") as file:
                 file.write(anchor_content)
 
-    uid = _next_uid(qroot, category)
-    question_id = reserve_operation_id(vault)
+    uid = reserved_identity["uid"] if reserved_identity else _next_uid(qroot, category)
+    question_id = reserved_identity["question_id"] if reserved_identity else reserve_operation_id(vault)
     filepath = os.path.join(category_dir, f"{uid}.md")
     safe_question_path(vault, filepath)
 
-    today = datetime.date.today().isoformat()
+    today = reserved_identity.get("today") if reserved_identity else datetime.date.today().isoformat()
 
     # 先落地图片（命名用 uid + q/a 区分），失败的图片会被跳过
-    q_names, q_paths = _save_pasted_images(vault, uid, question_id, question_images, "q")
-    a_names, a_paths = _save_pasted_images(vault, uid, question_id, answer_images, "a")
+    if ordered_blocks is not None:
+        q_names, a_names, q_paths, a_paths, rendered_blocks = [], [], [], [], []
+        for block in ordered_blocks:
+            if block["kind"] == "text":
+                rendered_blocks.append(block)
+                continue
+            suffix = "q" if block["section"] == "题目" else "a"
+            names, paths = _save_pasted_images(vault, uid, question_id, [block["data"]], suffix,
+                                               strict=True, reusable=bool(reserved_identity),
+                                               start_index=len(q_names if suffix == "q" else a_names))
+            (q_names if suffix == "q" else a_names).extend(names)
+            (q_paths if suffix == "q" else a_paths).extend(paths)
+            rendered_blocks.append({**block, "image_name": names[0]})
+    else:
+        q_names, q_paths = _save_pasted_images(vault, uid, question_id, question_images, "q")
+        a_names, a_paths = _save_pasted_images(vault, uid, question_id, answer_images, "a")
+        rendered_blocks = None
 
     content = _build_markdown(
         question_id, subject, category, difficulty, today, note, related_tags or [],
         question_text, answer_text, cause, q_names, a_names,
-        labels=labels or [],
+        labels=labels or [], ordered_blocks=rendered_blocks,
     )
 
-    _atomic_write_text(filepath, content)
+    if reserved_identity:
+        artifact_hashes = {}
+        for path in q_paths + a_paths:
+            with open(path, "rb") as file:
+                artifact_hashes[os.path.relpath(path, vault)] = hashlib.sha256(file.read()).hexdigest()
+        artifact_hashes[os.path.relpath(filepath, vault)] = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        op_db = sqlite3.connect(db_path)
+        try:
+            op_db.execute("UPDATE commit_operations SET artifacts_json=? WHERE draft_id=? AND question_id=?",
+                          (json.dumps(artifact_hashes, ensure_ascii=False), draft_id, question_id))
+            op_db.commit()
+        finally:
+            op_db.close()
+
+    if reserved_identity and os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as file:
+            if file.read() != content:
+                raise ValueError(f"题目文件已有不同内容，不能覆盖：{filepath}")
+    else:
+        _atomic_write_text(filepath, content)
 
     try:
         relpath = os.path.relpath(filepath, vault)
@@ -230,7 +314,10 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
             "content_hash": content_hash(content),
             "archived": False,
         }
-        append_commit(vault, "api", "question.create", f"创建题目 {uid}", {"question": question})
+        payload = {"question": question}
+        if draft_origin:
+            payload["_draft"] = dict(draft_origin)
+        append_commit(vault, actor, "question.create", f"创建题目 {uid}", payload)
         state = rebuild_projection(vault)
         update_fingerprints(vault, [
             {
@@ -244,19 +331,29 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
             if not q.get("archived")
         ])
     except Exception:
-        # 回滚：删掉本次新建的 md 与刚保存的图片，避免留下半成品
-        if os.path.exists(filepath):
-            os.remove(filepath)
-        for path in q_paths + a_paths:
-            try:
-                if os.path.exists(path):
-                    os.remove(path)
-            except OSError:
-                pass
+        # Ledger 已入账或状态未知时保留文件；下一次提交由 _draft 标记恢复。
+        try:
+            from .ledger import read_commits
+            committed = any(c["commit_type"] == "question.create" and
+                            c["payload"].get("question", {}).get("question_id") == question_id and
+                            (not draft_origin or c["payload"].get("_draft", {}).get("draft_id") == draft_origin["draft_id"])
+                            for c in read_commits(vault, ascending=False))
+        except Exception:
+            committed = True
+        if not committed:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+            for path in q_paths + a_paths:
+                try:
+                    if os.path.exists(path):
+                        os.remove(path)
+                except OSError:
+                    pass
         raise
 
     all_images = q_names + a_names
-    has_content = bool((question_text and question_text.strip()) or all_images
+    has_content = bool((question_text and question_text.strip()) or all_images or
+                       (rendered_blocks and any(b["kind"] == "text" for b in rendered_blocks))
                        or (answer_text and answer_text.strip()) or (cause and cause.strip()))
     if has_content:
         message = f"已创建 {uid}（含题目内容{'/图片' if all_images else ''}）"

@@ -53,10 +53,19 @@
 | GET/POST | `/api/config` | `AI/api.md`、`AI/agent.md`、`AI/algorithm.md`等 |
 | POST | `/api/confirm-schedule` | `AI/api.md`、`AI/algorithm.md`、`AI/data.md`等 |
 | POST | `/api/create` | `AI/api.md`、`AI/data.md`、`AI/frontend/create.md` |
+| POST | `/api/drafts/boxes` | `AI/api.md`、`AI/drafts.md` |
+| POST | `/api/drafts/cleanup` | `AI/api.md`、`AI/drafts.md` |
+| POST | `/api/drafts/commit` | `AI/api.md`、`AI/drafts.md` |
 | GET | `/api/drafts/counts` | `AI/api.md`、`AI/drafts.md` |
+| POST | `/api/drafts/detect` | `AI/api.md`、`AI/drafts.md` |
+| POST | `/api/drafts/discard` | `AI/api.md`、`AI/drafts.md` |
+| POST | `/api/drafts/extract` | `AI/api.md`、`AI/drafts.md` |
 | GET | `/api/drafts/image` | `AI/api.md`、`AI/agent.md`、`AI/drafts.md`等 |
+| POST | `/api/drafts/image/train` | `AI/api.md`、`AI/drafts.md` |
 | GET | `/api/drafts/item` | `AI/api.md`、`AI/drafts.md` |
+| GET | `/api/drafts/job` | `AI/api.md`、`AI/drafts.md` |
 | GET | `/api/drafts/list` | `AI/api.md`、`AI/drafts.md` |
+| POST | `/api/drafts/update` | `AI/api.md`、`AI/drafts.md` |
 | POST | `/api/export` | `AI/api.md`、`AI/board.md`、`AI/changelog.md`等 |
 | GET | `/api/export-review` | `AI/api.md`、`AI/frontend/records.md` |
 | POST | `/api/feedback` | `AI/api.md`、`AI/algorithm.md`、`AI/changelog.md`等 |
@@ -132,7 +141,7 @@
 - GET/POST `/api/agent/…`
 - GET/POST `/api/annotate/…`
 - POST `/api/auth/…`
-- GET `/api/drafts/…`
+- GET/POST `/api/drafts/…`
 - GET/POST `/api/inbox/…`
 - GET/POST `/api/trainpanel/…`
 - GET `/assets/…`

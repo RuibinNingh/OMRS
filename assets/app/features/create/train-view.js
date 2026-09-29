@@ -44,6 +44,7 @@ function datasetView(model, format) {
       </div>
       <dl class="crt-facts">
         <dt>盲标评估集</dt><dd id="ib-tr-blind">${model.blind}</dd>
+        <dt>聊天来源</dt><dd id="ib-tr-chat">${model.chat}</dd>
         <dt>存储</dt><dd id="ib-tr-storage">${model.storage}</dd>
       </dl>
       <div class="crt-row">

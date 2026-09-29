@@ -30,5 +30,8 @@ class Registry:
 
 
 def build_registry(settings=None):
-    tools = [ToolDef(*spec) for spec in read.SPECS + drafts.SPECS + write.SPECS]
+    specs = read.SPECS + drafts.SPECS + write.SPECS
+    if (settings or {}).get("draft_mode") != "confirm":
+        specs = [spec for spec in specs if spec[0] != "commit_draft"]
+    tools = [ToolDef(*spec) for spec in specs]
     return Registry(tools)

@@ -12,7 +12,7 @@ import time
 import urllib.parse
 from http.cookies import SimpleCookie
 
-from .common import HISTORY_HEADERS, history_path, load_config, load_csv, save_config
+from .common import HISTORY_HEADERS, history_path, load_config, load_csv, save_config, validate_draft_config
 from .analytics import build_review_export, get_analytics
 from .catalog import build_tree
 from .reports import create_report, delete_report, get_report_html, list_reports, signed_report_images
@@ -373,6 +373,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         if path.startswith("/api/trainpanel/"):
             self._trainpanel_post(path)
             return
+        if path.startswith("/api/drafts/"):
+            self._drafts_post(path)
+            return
         if path.startswith("/api/annotate/"):
             self._annotate_post(path)
             return
@@ -489,6 +492,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     data.pop("agent_api_key")
                 from .agent.config import validate_agent_config
                 validate_agent_config(data)
+                validate_draft_config(data)
                 data.pop("pin_hash", None)
                 data.pop("salt", None)
                 save_config(self.vault_path, data)
@@ -1118,7 +1122,8 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             if path == "/api/drafts/list":
                 self._json({"status": "ok", "drafts": drafts_mod.list_drafts(
                     self.vault_path, status=params.get("status") or None,
-                    conversation_id=params.get("conversation") or None)})
+                    conversation_id=params.get("conversation") or None,
+                    limit=params.get("limit") or 50)})
             elif path == "/api/drafts/item":
                 self._json({"status": "ok", "draft": drafts_mod.get_draft(self.vault_path, params.get("id", ""))})
             elif path == "/api/drafts/image":
@@ -1137,10 +1142,60 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(data)
             elif path == "/api/drafts/counts":
                 self._json({"status": "ok", "counts": drafts_mod.counts(self.vault_path)})
+            elif path == "/api/drafts/job":
+                self._json({"status": "ok", "job": drafts_mod.get_job(self.vault_path, params.get("id", ""))})
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
+        except drafts_mod.DraftError as exc:
+            payload = {"status": "error", "msg": str(exc), "code": exc.code}
+            if exc.current_revision is not None:
+                payload["current_revision"] = exc.current_revision
+            self._json(payload, exc.status)
         except Exception as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
+
+    def _drafts_post(self, path):
+        try:
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            data = json.loads(body) if body else {}
+            if not isinstance(data, dict):
+                raise drafts_mod.DraftError("请求必须是 JSON 对象")
+            draft_id, revision = data.get("id"), data.get("revision")
+            if path == "/api/drafts/update":
+                result = {"draft": drafts_mod.update_draft(
+                    self.vault_path, draft_id, revision, data.get("fields"), data.get("blocks"),
+                    data.get("source_images"))}
+            elif path == "/api/drafts/discard":
+                result = {"draft": drafts_mod.discard_draft(self.vault_path, draft_id, revision)}
+            elif path == "/api/drafts/commit":
+                result = drafts_mod.commit_draft(self.vault_path, draft_id, revision, data.get("crops"))
+            elif path == "/api/drafts/boxes":
+                result = {"draft": drafts_mod.set_boxes(self.vault_path, draft_id, revision,
+                                                          data.get("blocks"), data.get("training_boxes"))}
+            elif path == "/api/drafts/extract":
+                result = {"job": drafts_mod.start_extract(self.vault_path, draft_id, revision,
+                                                            data.get("block_ids"), data.get("crops"))}
+            elif path == "/api/drafts/detect":
+                result = {"job": drafts_mod.start_detect(self.vault_path, draft_id, revision,
+                                                           data.get("sha"))}
+            elif path == "/api/drafts/image/train":
+                result = drafts_mod.set_image_training(self.vault_path, draft_id, revision,
+                                                       data.get("sha"), data.get("enabled"))
+            elif path == "/api/drafts/cleanup":
+                if data:
+                    raise drafts_mod.DraftError("cleanup 不接受自定义参数")
+                result = drafts_mod.cleanup(self.vault_path)
+            else:
+                self._json({"status": "error", "msg": "not found", "code": "not_found"}, 404)
+                return
+            self._json({"status": "ok", **result})
+        except drafts_mod.DraftError as exc:
+            payload = {"status": "error", "msg": str(exc), "code": exc.code}
+            if exc.current_revision is not None:
+                payload["current_revision"] = exc.current_revision
+            self._json(payload, exc.status)
+        except (ValueError, TypeError) as exc:
+            self._json({"status": "error", "msg": str(exc), "code": "invalid"}, 400)
 
     def _multipart_files(self, body, content_type):
         """解析 multipart 里的全部文件 → [(filename, bytes)]。"""

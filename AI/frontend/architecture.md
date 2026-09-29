@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：`assets/app/` 的分层与依赖方向、`core/` 底座（渲染、事件、快捷键、状态、总线、路由、请求、格式化）、页面契约、启动顺序、过渡桥与静态资源缓存
 > - 入口：`assets/app/main.js`、`assets/app/shell.js`、页面登记模块、`assets/app/core/router.js`
-> - 不变量：模块入口晚于全部经典脚本执行，`init()` 只由 `main.js` 调用；`switchTab` 只是 `router.go` 的一行包装；页面之间不互相 import，联动走 bus；`innerHTML` 只在 `core/dom.js`；过渡桥与旧页面登记表到 P8 必须清空
+> - 不变量：`main.js` 装配外壳与领域服务后启动路由；页面之间不互相 import，联动走 bus；`innerHTML` 只在 `core/dom.js`；生产代码不恢复测试专用旧全局
 > - 必跑测试：`tests/app/core.test.mjs`、`tests/app/run_browser.py`、`tests/e2e/shell_router.py`、`tests/test_asset_cache.py`
 > - 相关：`AI/frontend/components.md`（ui 组件与 gallery）、`AI/frontend/shell.md`（外壳、加载顺序）、`AI/frontend/design-system.md`（token 与门禁）
 
@@ -17,29 +17,28 @@ assets/app/
 ├── ui/                无业务组件
 ├── styles/            tokens、index（@layer 总入口）、base、ui、shell、legacy-bridge、gallery
 ├── domain/            业务领域：question/（共享题目视图，已是真实现）+ 过渡期适配器（新页面只经这里碰旧全局，见 §5）
-└── features/          已迁移的页面：dashboard/、data/、schedule/、board/（展示板，整页原生；板详情 detail.js）、questions/、instant/、feedback/、history/、catalog/、reports/、settings/、create/（录入题目：上传、网格、处理、题卡、AI 训练、快速录入）
+└── features/          已迁移的页面：dashboard/、data/、schedule/、board/（展示板，整页原生；板详情 detail.js）、questions/、instant/、feedback/、history/、catalog/、reports/、settings/、create/（录入题目：上传、网格、处理、题卡、AI 草稿、AI 训练、快速录入）
 ```
 
 依赖方向由 `tests/check_ui.py` 的 R7 强制：`core` 只依赖 `core`；`ui` 依赖 `ui`、`core`；`domain` 依赖 `domain`、`ui`、`core`；`features/<页>` 只依赖本页、`domain`、`ui`、`core`，页面之间禁止互相 import，跨页联动走 bus。根目录的 `main.js`、`shell.js` 是装配层，不受 R7 限制，也不放业务逻辑。
 
 ## 2. 启动顺序
 
-模块脚本在全部经典脚本之后才执行，所以启动权交给 `main.js`，`app.js` 不再自调用 `init()`：
+入口是 HTML 的 `type="module"` 脚本 `main.js`，无需构建。先安装图标、提示、题目 DOM 与展示板入口并启动活动跟踪，再 `startShell(window,pages)` 创建 bus/store/router 与页面契约。
 
-1. `installLegacyBridge(window)`：注入图标 sprite、绑定提示；旧 `uiToast` 等转调新组件，桥装好之前排队的调用按顺序补发。
-2. `startShell(window, LEGACY_PAGES)`：建 bus、store、router，登记页面，绑定事件委托与快捷键；随即按当前地址显示对应页面的外壳（刷新时不先闪一下仪表盘）。
-3. `await window.init()`：旧启动流程（读标记、`reloadData()`、历史、Session、展示板、行动推荐）。出错只记日志，不阻断路由。
-4. `router.start()`：进入当前页（执行它的进入钩子），开始响应前进 / 后退。
+外壳创建后连接统计、Session、历史、标记和草稿领域服务；`connectDrafts` 接入跨页目标、侧栏角标、页面进入与窗口聚焦刷新。初始标记 / 统计 / Session 并行加载后调用 `router.start()`，随后同步助手入口。旧 app.js、init 和过渡桥不在当前启动链中。
 
 ## 3. 路由与页面契约
 
-- 地址形如 `#/questions`。`router.go(id)` 同步切页并 `pushState` 一条历史（旧代码与冒烟测试都假定 `switchTab` 之后页面立即可见）；未登记的 id 落到仪表盘；地址无效时改写成 `#/dashboard`。
+- 地址形如 `#/questions`。`router.go(id)` 无异步守卫时同步切页并 `pushState` 一条历史；未登记的 id 落到仪表盘；地址无效时改写成 `#/dashboard`。
 - 地址变成非路由 hash（例如 `href="#"` 的链接）时不切页，并把地址改回当前页，保证刷新仍停在原页。
 - 侧栏导航是 `<a class="tab" data-tab="页面" href="#/页面">`：普通点击同步切页；带修饰键时交给浏览器（新标签页打开）。旧 `onclick="switchTab(...)"` 继续可用。
 - 新页面契约（`features/<页>/index.js` 导出 `page`）：`{ id, title, workbench, mount(root, ctx) → unmount, actions, keys }`。`root` 是 `#panel-<id>`，`ctx = { bus, store, router }`；离开页面时执行 `mount` 返回的卸载函数。`actions` 与 `keys` 由外壳在登记页面时一次性注册，动作命名空间与快捷键作用域都是页面 id；处理函数只在挂载期间生效。新增一页时在 `main.js` 把页面契约并进登记表（外壳只认 `mount`）。范例：`features/instant/`（见 `AI/frontend/instant.md`）；`features/feedback/`（见 `AI/frontend/feedback.md`）另示范了挂载期的 document 级监听（paste）要在卸载函数里移除。
 - 助手页 `features/assistant/` 的输入框图片粘贴、拖入和文件选择都由页面挂载期监听或页面动作处理，卸载时移除监听；事件归约与视图分别由 `tests/app/assistant.test.mjs` 和 `tests/e2e/assistant.py` 验证。
 - 跨页共用的按钮走外壳登记的全局动作 `app.*`（目前只有 `app.scan`，见 `AI/frontend/shell.md`）；页面自己的动作用页面 id 作命名空间。
 - 外壳在每次进入页面时统一处理：顶栏标题、`document.title`（「页面名 · OMRS」）、侧栏 `.active` 与 `aria-current="page"`、`.panel.active`、`.content.is-workbench`、快捷键作用域、关闭手机抽屉，并在 bus 上发 `page:change`。
+
+路由的 `setLeaveGuard(fn)` 返回注销函数。无守卫保持同步切页；守卫返回 false 或异步未获允许时，页面与地址保持在原处，连续点击合并为同一次确认。AI 草稿页用它保护显式保存前的编辑；浏览器关闭另用原生 beforeunload。
 
 ## 4. core 模块
 
@@ -103,3 +102,13 @@ E2E 专用适配器 `tests/e2e/p8_test_modules.js`：8 个 E2E 以 init script �
 
 - 其余页面逐页迁到 `features/<页>/`（仪表盘、数据复盘、复习调度、历史记录、目录、报告、设置、展示板、题目库、即时练习、反馈录入已完成；录入题目（含收件箱工作台）已完成），同时把该页的 keydown 监听迁到 `core/keys.js`、`onclick` 换成 `data-action`。
 - 筛选语义 `filterItems` / `getDueDays` 仍在旧 `core.js`（node 旧测试直接调它），随调度与导出迁移搬进 `domain/items.js`。
+
+## 草稿跨页状态
+
+`domain/drafts.js` 负责草稿导航目标、sessionStorage 中的已选编号和四态计数，不持有编辑表单。`openDraft(id)` 先保存目标再切 create，挂载方用 consumeDraftTarget 消费；切页成功后发 `drafts:open {id}`。`drafts:changed {ids}` 触发重新取计数，成功发 `drafts:counts`；读取失败保留上次成功数值。首次加载、切页、聚焦重取计数；有活动运行 / 任务时每两秒轮询，隐藏时暂停，销毁后晚到结果不再更新。
+
+`tests/app/draft-navigation.test.mjs` 覆盖目标先于挂载、离页拒绝、计数请求合并、失败保留与晚到响应；`tests/app/core.test.mjs` 覆盖同步路由和异步离页守卫。
+
+草稿后台作业由页面 drafts-job.js 管理轮询和卸载，活动标记交给 domain/drafts 统一维护角标轮询；页面内容以服务端 revision 为边界，后台结果不能覆盖未保存表单。真实 HTTP 进程重启回归见 tests/test_draft_p3_http.py；画布复用与旧收件箱行为由草稿/录入 E2E 联合验证。
+
+自动检测与提取共用草稿作业轮询，按 type 区分进度和错误。助手卡片独立读取当前作业并在活动时轮询，结束运行的缓存由 draftVer 失效；隐藏与卸载停止轮询。录入页顶部与草稿列表都复用当前计数快照，接收 counts 事件时同步更新，避免首次挂载或入库后保留旧值。Node 覆盖三态设置、卡片作业状态、候选展示与独立训练框，P4 HTTP 回归另验证检测并发和服务重启。

@@ -13,11 +13,14 @@ sys.path.insert(0, ROOT)
 
 from omrs import drafts  # noqa: E402
 from omrs.agent.loop import AgentLoop  # noqa: E402
+from omrs.agent.config import settings, validate_agent_config  # noqa: E402
+from omrs.agent.runtime import Hooks, Run  # noqa: E402
 from omrs.agent.revert import plan_revert  # noqa: E402
 from omrs.agent.store import AgentStore  # noqa: E402
 from omrs.agent.tools import Registry, ToolDef, build_registry  # noqa: E402
 from omrs.agent.tools import drafts as tools  # noqa: E402
 from omrs.creation import create_question  # noqa: E402
+from omrs.common import save_config  # noqa: E402
 from omrs.ledger import read_commits  # noqa: E402
 from tests.test_agent_loop import LIMITS, Stub, reply  # noqa: E402
 from tests.test_drafts import data_url, make_png  # noqa: E402
@@ -111,7 +114,132 @@ class DraftToolsTest(unittest.TestCase):
     def test_registry(self):
         levels = build_registry().levels()
         self.assertNotIn("create_text_question", levels)
+        self.assertNotIn("commit_draft", levels)
+        self.assertEqual(build_registry({"draft_mode": "confirm"}).levels()["commit_draft"], "confirm")
         self.assertEqual((levels["create_draft"], levels["describe_image"], levels["list_drafts"]), ("rev", "read", "read"))
+
+    def test_draft_mode_defaults_silent_and_saved_change_is_visible(self):
+        self.assertEqual(settings(self.vault)["draft_mode"], "silent")
+        self.assertEqual(settings(self.vault)["draft_crop_mode"], "ask")
+        self.assertNotIn("commit_draft", build_registry(settings(self.vault)).levels())
+        save_config(self.vault, {"draft_mode": "confirm", "draft_crop_mode": "auto", "draft_force_crop": True})
+        self.assertEqual(settings(self.vault)["draft_mode"], "confirm")
+        self.assertEqual(settings(self.vault)["draft_crop_mode"], "auto")
+        self.assertTrue(settings(self.vault)["draft_force_crop"])
+        self.assertIn("commit_draft", build_registry(settings(self.vault)).levels())
+        with self.assertRaises(ValueError):
+            validate_agent_config({"draft_mode": "unexpected"})
+
+    def test_auto_crop_only_registers_one_background_job(self):
+        ref = self.img()
+        args = {**TEXT_ARGS, "images": [ref]}
+        save_config(self.vault, {"draft_crop_mode": "auto"})
+        with mock.patch.object(drafts, "start_detect", create=True, return_value={"status": "queued"}) as detect:
+            result = tools.create_draft_tool(self.ctx, args)["result"]
+        detect.assert_called_once_with(self.vault, result["draft_id"], result["revision"], sha=None)
+        self.assertEqual(result["auto_detect"], {"status": "queued", "images": 1})
+        self.assertNotIn(drafts.resolve_image(self.vault, self.conv, ref)["sha256"], json.dumps(result))
+
+        for mode in ("ask", "manual"):
+            save_config(self.vault, {"draft_crop_mode": mode})
+            with mock.patch.object(drafts, "start_detect", create=True) as detect:
+                result = tools.create_draft_tool(self.ctx, args)["result"]
+            detect.assert_not_called()
+            self.assertNotIn("auto_detect", result)
+
+    def test_auto_crop_start_failure_keeps_created_draft_and_hides_details(self):
+        ref = self.img()
+        sha = drafts.resolve_image(self.vault, self.conv, ref)["sha256"]
+        save_config(self.vault, {"draft_crop_mode": "auto"})
+        with mock.patch.object(drafts, "start_detect", create=True, side_effect=OSError("/private/images/" + sha)):
+            result = tools.create_draft_tool(self.ctx, {**TEXT_ARGS, "images": [ref]})["result"]
+        self.assertEqual(result["auto_detect"]["status"], "error")
+        self.assertNotIn(sha, json.dumps(result, ensure_ascii=False))
+        self.assertIsNotNone(drafts.get_draft(self.vault, result["draft_id"]))
+
+    def test_confirm_preview_and_execute_recheck_current_draft(self):
+        draft = {"id": "DR-test", "conversation_id": self.conv, "revision": 3, "status": "review",
+                 "subject": "数学", "category": "函数", "difficulty": 5, "blocks": [
+                     {"section": "题目", "kind": "text", "text": "求最小值", "note": ""}],
+                 "cause": "粗心", "source_images": [{"sha256": "a" * 64}]}
+        args = {"draft_id": "DR-test", "revision": 3}
+        with mock.patch.object(tools, "settings", return_value={"draft_mode": "confirm"}), \
+                mock.patch.object(drafts, "get_draft", return_value=draft), \
+                mock.patch.object(drafts, "commit_draft", create=True, return_value={
+                    "draft": draft, "result": {"uid": "函数2"}, "reused": False, "training": []}) as commit:
+            preview = tools.commit_draft_preview(self.ctx, args)
+            self.assertEqual((preview["revision"], preview["blocks"][0]["text"], preview["cause"]),
+                             (3, "求最小值", "粗心"))
+            self.assertEqual(tools.commit_draft_tool(self.ctx, args)["result"]["uid"], "函数2")
+            commit.assert_called_once_with(self.vault, "DR-test", 3)
+            for changed in ({"revision": 4}, {"status": "discarded"}, {"conversation_id": "conv_b"}):
+                with mock.patch.object(drafts, "get_draft", return_value={**draft, **changed}):
+                    with self.assertRaises(ValueError):
+                        tools.commit_draft_tool(self.ctx, args)
+            self.assertEqual(commit.call_count, 1)
+        with mock.patch.object(tools, "settings", return_value={"draft_mode": "silent"}), \
+                mock.patch.object(drafts, "get_draft", return_value=draft):
+            with self.assertRaisesRegex(ValueError, "方式已改变"):
+                tools.commit_draft_tool(self.ctx, args)
+
+    def test_commit_tool_hides_training_sha_and_storage_errors_from_model(self):
+        sha = "a" * 64
+        path = "/private/vault/错题/.omrs/drafts/images/missing.png"
+        draft = {"id": "DR-test", "conversation_id": self.conv, "revision": 3, "status": "review",
+                 "subject": "数学", "category": "函数", "difficulty": 5, "blocks": [],
+                 "source_images": [{"sha256": sha, "url": "/api/drafts/image?sha=" + sha}]}
+        args = {"draft_id": "DR-test", "revision": 3}
+        committed = {**draft, "revision": 4, "status": "done"}
+        training = {"status": "partial", "registered": [sha],
+                    "failed": [{"sha": "b" * 64, "error": path}], "pending": ["c" * 64]}
+        with mock.patch.object(tools, "settings", return_value={"draft_mode": "confirm"}), \
+                mock.patch.object(drafts, "get_draft", return_value=draft), \
+                mock.patch.object(drafts, "commit_draft", return_value={
+                    "draft": committed, "result": {"uid": "函数2"}, "reused": False, "training": training}):
+            preview = tools.commit_draft_preview(self.ctx, args)
+            self.assertEqual(preview["source_images"], draft["source_images"])  # 人看的确认预览保留图 URL
+            result = tools.commit_draft_tool(self.ctx, args)["result"]
+        self.assertEqual(result["training"], {"status": "partial", "registered": 1, "failed": 1,
+                                              "pending": 1, "message": "训练数据登记失败，请在草稿区查看并重试"})
+        self.assertNotIn(sha, json.dumps(result, ensure_ascii=False))
+        self.assertNotIn(path, json.dumps(result, ensure_ascii=False))
+
+        with mock.patch.object(tools, "settings", return_value={"draft_mode": "confirm"}), \
+                mock.patch.object(drafts, "get_draft", side_effect=ValueError("图片文件缺失：" + sha)):
+            for action in (tools.commit_draft_preview, tools.commit_draft_tool):
+                with self.assertRaisesRegex(ValueError, "无法读取草稿，请在草稿区检查后重试") as caught:
+                    action(self.ctx, args)
+                self.assertNotIn(sha, str(caught.exception))
+
+        with mock.patch.object(tools, "settings", return_value={"draft_mode": "confirm"}), \
+                mock.patch.object(drafts, "get_draft", return_value=draft):
+            for error, expected in ((OSError(path), "草稿入库失败"),
+                                    (drafts.DraftError(path, 409, "revision_conflict"), "草稿已变化"),
+                                    (drafts.DraftError(path, 409, "state_conflict"), "草稿状态已变化")):
+                with mock.patch.object(drafts, "commit_draft", side_effect=error):
+                    with self.assertRaisesRegex(ValueError, expected) as caught:
+                        tools.commit_draft_tool(self.ctx, args)
+                    self.assertNotIn(path, str(caught.exception))
+
+    def test_mode_switched_away_and_back_invalidates_old_confirmation(self):
+        save_config(self.vault, {"draft_mode": "confirm"})
+        run = Run("run_x", self.conv, "faux")
+        hooks = Hooks(mock.Mock(vault=self.vault), run, None)
+        execute = mock.Mock(return_value={"result": {}})
+        tool = ToolDef("commit_draft", "confirm", "", {}, execute, lambda ctx, args: {})
+        call = {"id": "call_x", "name": "commit_draft", "args": {"draft_id": "DR-test", "revision": 1}}
+        with mock.patch("omrs.agent.runtime.PendingConfirm") as pending:
+            pending.return_value.token = "test-token"
+            pending.return_value.expires_at = 9999999999
+            def toggle(_abort):
+                save_config(self.vault, {"draft_mode": "silent"})
+                save_config(self.vault, {"draft_mode": "confirm"})
+                return "allow"
+            pending.return_value.wait.side_effect = toggle
+            self.assertIsNone(hooks.before_tool_call(call, tool))
+        with self.assertRaisesRegex(ValueError, "配置已变化"):
+            hooks.execute(call, tool)
+        execute.assert_not_called()
 
 
 class NoCommitHooks:

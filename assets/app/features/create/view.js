@@ -1,4 +1,4 @@
-/** 工作区导航：五个按钮，前三项带收件箱各状态的张数。 */
+/** 工作区导航：录入三步加 AI 草稿、训练和快速录入。 */
 import { html, each } from '../../core/html.js';
 import { icon } from '../../ui/icon.js';
 import { STAGES, stageOf } from './state.js';
@@ -23,6 +23,7 @@ export function createRoots() {
     <section class="ib-stage on" id="ib-stage-upload"><div id="create-upload"></div><div id="create-grid"></div></section>
     <section class="ib-stage" id="ib-stage-process"></section>
     <section class="ib-stage" id="ib-stage-create"></section>
+    <section class="ib-stage" id="ib-stage-drafts"></section>
     <section class="ib-stage" id="ib-stage-train"></section>
     <section class="ib-stage" id="ib-stage-quick"></section>
   </div>`;

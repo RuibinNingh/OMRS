@@ -97,3 +97,9 @@
 
 - 待办：其余页面迁到 `features/<页>/`（题目库、即时练习、反馈录入已完成），每迁一页删掉旧样式与过渡桥里对应的段落。
 - 已实现：ui 组件库与组件陈列页（状态矩阵见 `AI/frontend/components.md`）；新组件须同样覆盖默认、悬停、按下、焦点、禁用、加载、空、错误、溢出、浅 / 深、舒适 / 紧凑，并在 gallery 与 `tests/app/browser_tests.js` 各加一处。
+
+## 草稿审核工作区
+
+草稿样式在 `features/create/drafts.css`，由 styles/index.css 以 features 层导入；表单与操作复用 ui-input、ui-select、ui-textarea、ui-btn，侧栏计数复用 ui-badge。草稿跨页状态不向 DOM 写行内样式。
+
+草稿框选复用 process-canvas 的 SVG 框、遮罩和控制点；适配器只替换图片地址、元素标识与数据回调。草稿画布布局位于 drafts.css，沿用现有 token 与响应式断点，不创建独立配色或行内样式。

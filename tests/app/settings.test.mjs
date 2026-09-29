@@ -8,10 +8,46 @@ import { SECTIONS, sectionOf, parseLanCidrs, networkNeedsRestart, describeAccess
 import { formatBytes, optValues } from '../../assets/app/features/settings/storage-state.js';
 import { formatUptime, waitForRestartReady } from '../../assets/app/features/settings/service.js';
 import { startActivityTracking } from '../../assets/app/core/activity.js';
+import { createAgent } from '../../assets/app/features/settings/agent.js';
+import { agentView } from '../../assets/app/features/settings/agent-view.js';
 
 const LOCAL = { status: 'ok', remote: false, authenticated: true, lan_pin_exempt: false };
 const REMOTE = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: false };
 const EXEMPT = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: true };
+
+test('框选三态及全文字训练设置保存，明确选手动才替换自动', async () => {
+  const view = String(agentView());
+  assert.match(view, /value="auto">自动/);
+  assert.match(view, /id="st-draft-force-crop"/);
+  let cfg = { agent_enabled: true, agent_model: 'test', draft_mode: 'silent', draft_crop_mode: 'auto',
+    draft_train_default: false, draft_force_crop: false };
+  const fields = Object.fromEntries(['st-agent-enabled', 'st-agent-model', 'st-draft-mode', 'st-draft-crop-mode',
+    'st-draft-train-default', 'st-draft-force-crop', 'st-agent-status'].map(id => [id, { value: '', checked: false, textContent: '', dataset: {} }]));
+  const root = { querySelector: selector => fields[selector.slice(1)] || null };
+  const originalFetch = globalThis.fetch;
+  const saves = [];
+  globalThis.fetch = async (url, init = {}) => {
+    let data;
+    if (url === '/api/agent/status') data = { faux: false };
+    else if (init.method === 'POST') { data = JSON.parse(init.body); saves.push(data); cfg = { ...cfg, ...data }; }
+    else data = cfg;
+    return new Response(JSON.stringify(data), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const agent = createAgent(root, { emit() {} });
+    await agent.load();
+    assert.equal(fields['st-draft-crop-mode'].value, 'auto');
+    fields['st-draft-train-default'].checked = true;
+    fields['st-draft-force-crop'].checked = true;
+    assert.equal(await agent.save(), true);
+    assert.equal(saves.at(-1).draft_crop_mode, 'auto');
+    assert.equal(saves.at(-1).draft_force_crop, true);
+    fields['st-draft-crop-mode'].value = 'manual';
+    assert.equal(await agent.save(), true);
+    assert.equal(saves.at(-1).draft_crop_mode, 'manual');
+    agent.dispose();
+  } finally { globalThis.fetch = originalFetch; }
+});
 
 test('分区名称非法时回到外观，六个分区次序稳定', () => {
   assert.deepEqual(SECTIONS, ['appearance', 'access', 'ai', 'assistant', 'data', 'service']);

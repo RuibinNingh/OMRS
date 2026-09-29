@@ -12,6 +12,7 @@ import unicodedata
 
 from ... import drafts
 from ...ai_assist import describe_image as ask_image
+from ..config import settings
 from ..store import AgentStore
 
 DESCRIBE_CAP = 2000
@@ -43,7 +44,7 @@ def _preview(draft, n=60):
 
 def _summary(draft):
     return {"draft_id": draft["id"], "status": draft["status"], "subject": draft["subject"], "category": draft["category"],
-            "question_preview": _preview(draft), "created_at": draft["created_at"]}
+            "question_preview": _preview(draft), "created_at": draft["created_at"], "revision": draft.get("revision", 1)}
 
 
 def _blocks_out(draft, conv_id, vault):
@@ -74,8 +75,11 @@ def list_drafts_tool(ctx, args):
 def get_draft_tool(ctx, args):
     draft = drafts.get_draft(ctx["vault"], args["draft_id"].strip())
     conv = draft.get("conversation_id") or ctx["conversation_id"]
+    sources = [{"ref": image.get("ref"), "width": image.get("width"), "height": image.get("height")}
+               for image in draft.get("source_images") or []]
     return {"result": {**_summary(draft), "knowledge_points": draft.get("knowledge_points") or [],
                        "cause": draft.get("cause") or "", "uid": draft.get("uid"),
+                       "source_images": sources,
                        "blocks": _blocks_out(draft, conv, ctx["vault"])}, "summary": draft["id"]}
 
 
@@ -107,10 +111,93 @@ def create_draft_tool(ctx, args):
     draft = drafts.create_draft(vault, {
         "subject": args["subject"], "category": args["category"],
         "knowledge_points": args.get("knowledge_points") or [], "blocks": blocks,
+        "source_images": list(shas.values()),
         "cause": cause, "cause_statement": statement,
     }, {"conversation_id": conv, "run_id": ctx.get("run_id"), "tool_call_id": ctx.get("tool_call_id")})
-    return {"result": {**_summary(draft), "blocks": _blocks_out(draft, conv, vault), "cause": cause},
+    auto_detect = None
+    if settings(vault)["draft_crop_mode"] == "auto" and draft.get("source_images"):
+        try:
+            # Hooks.execute 此时仍持全局写锁；只登记后台作业，模型调用由作业线程执行。
+            drafts.start_detect(vault, draft["id"], draft["revision"], sha=None)
+            auto_detect = {"status": "queued", "images": len(draft["source_images"])}
+        except Exception:
+            # 草稿已成功创建；自动检测启动失败不能诱使模型重复建草稿。
+            auto_detect = {"status": "error", "message": "自动框选未能启动，请在草稿区手动处理"}
+    result = {**_summary(draft), "blocks": _blocks_out(draft, conv, vault), "cause": cause}
+    if auto_detect:
+        result["auto_detect"] = auto_detect
+    return {"result": result,
             "summary": draft["id"], "wrote": True}
+
+
+def _commit_target(ctx, args):
+    """确认前和执行时均从持久配置及草稿重读，旧许可不能提交新版本。"""
+    if settings(ctx["vault"])["draft_mode"] != "confirm":
+        raise ValueError("AI 录题方式已改变，请在草稿区审核")
+    draft_id = args["draft_id"].strip()
+    revision = args["revision"]
+    if type(revision) is not int or revision < 1:
+        raise ValueError("草稿版本无效，请重新读取草稿")
+    try:
+        draft = drafts.get_draft(ctx["vault"], draft_id)
+    except Exception as exc:
+        raise ValueError("无法读取草稿，请在草稿区检查后重试") from exc
+    if draft.get("conversation_id") != ctx["conversation_id"]:
+        raise ValueError("只能提交本对话创建的草稿")
+    if draft["status"] != "review":
+        raise ValueError("草稿当前不是待审核状态，请在草稿区处理")
+    if draft.get("revision") != revision:
+        raise ValueError("草稿已经变化，请重新读取并重新请求确认")
+    return draft
+
+
+def _training_summary(training):
+    """工具结果只给模型看登记数量，图片 SHA 和本地错误留在草稿 API。"""
+    if not isinstance(training, dict):
+        training = {}
+    status = training.get("status")
+    if status not in ("off", "not_requested", "complete", "partial", "pending"):
+        status = "off"
+    result = {"status": status}
+    for key in ("registered", "failed", "pending"):
+        entries = training.get(key)
+        result[key] = len(entries) if isinstance(entries, list) else 0
+    if result["failed"]:
+        result["message"] = "训练数据登记失败，请在草稿区查看并重试"
+    return result
+
+
+def commit_draft_preview(ctx, args):
+    draft = _commit_target(ctx, args)
+    blocks = [{"section": b["section"], "kind": b["kind"],
+               "text": b.get("text") or "", "image_sha": b.get("image_sha") or "",
+               "box": b.get("box"), "note": b.get("note") or ""} for b in draft["blocks"]]
+    return {"draft_id": draft["id"], "revision": draft["revision"], "subject": draft["subject"],
+            "category": draft["category"], "difficulty": draft["difficulty"],
+            "knowledge_points": draft.get("knowledge_points") or [], "labels": draft.get("labels") or [],
+            "cause": draft.get("cause") or "", "note": draft.get("note") or "", "blocks": blocks,
+            "source_images": draft.get("source_images") or []}
+
+
+def commit_draft_tool(ctx, args):
+    _commit_target(ctx, args)
+    try:
+        out = drafts.commit_draft(ctx["vault"], args["draft_id"].strip(), args["revision"])
+    except drafts.DraftError as exc:
+        if exc.code == "revision_conflict":
+            raise ValueError("草稿已变化，请重新读取并重新请求确认") from exc
+        if exc.code == "state_conflict":
+            raise ValueError("草稿状态已变化，请在草稿区检查后重新请求确认") from exc
+        raise ValueError("草稿入库失败，请在草稿区查看并重试") from exc
+    except Exception as exc:
+        raise ValueError("草稿入库失败，请在草稿区查看并重试") from exc
+    committed = out["draft"]
+    result = out["result"]
+    return {"result": {"draft_id": committed["id"], "revision": committed["revision"],
+                       "status": committed["status"], "uid": result.get("uid"),
+                       "question_id": result.get("question_id"), "reused": bool(out.get("reused")),
+                       "training": _training_summary(out.get("training"))},
+            "summary": committed["id"], "wrote": not out.get("reused", False)}
 
 
 _S = {"type": "string", "minLength": 1}
@@ -143,4 +230,9 @@ SPECS = [
          "blocks": {"type": "array", "minItems": 1, "maxItems": 20, "items": _BLOCK},
          "cause": {"type": "string"}, "cause_statement": {"type": "string"}}},
      create_draft_tool),
+    ("commit_draft", "confirm",
+     "在用户明确允许后，把本对话的一份待审核草稿入库。先用 get_draft 读取当前 revision；等待确认期间草稿变化时必须重新读取并重新申请。",
+     {"type": "object", "required": ["draft_id", "revision"], "properties": {
+         "draft_id": _S, "revision": {"type": "integer", "minimum": 1}}},
+     commit_draft_tool, commit_draft_preview),
 ]

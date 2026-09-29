@@ -49,6 +49,9 @@ def settings(vault):
         "base_host": _host(base) if not faux else "本地假模型",
         "compat": compat,
         "vision": bool(cfg.get("agent_vision")),
+        "draft_mode": cfg.get("draft_mode") if cfg.get("draft_mode") in ("silent", "confirm") else "silent",
+        "draft_crop_mode": cfg.get("draft_crop_mode") if cfg.get("draft_crop_mode") in ("ask", "auto", "manual") else "ask",
+        "draft_force_crop": bool(cfg.get("draft_force_crop")),
         "limits": limits(cfg),
         "debug_log": bool(cfg.get("agent_debug_log")),
         "_base": base,
@@ -81,6 +84,8 @@ def validate_agent_config(data: dict):
         raise ValueError("假模型只能由进程环境变量开启")
     if "agent_limits" in data and not isinstance(data["agent_limits"], dict):
         raise ValueError("agent_limits 必须是对象")
+    if "draft_mode" in data and data["draft_mode"] not in ("silent", "confirm"):
+        raise ValueError("draft_mode 只能是 silent 或 confirm")
     for key in ("agent_enabled", "agent_vision", "agent_debug_log"):
         if key in data and not isinstance(data[key], bool):
             raise ValueError(f"{key} 必须为布尔值")

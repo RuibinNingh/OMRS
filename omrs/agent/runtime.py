@@ -11,6 +11,7 @@ import threading
 import time
 
 from .. import drafts
+from ..common import config_path
 from ..actor import agent_actor
 from ..ai_assist import collect_taxonomy
 from ..labels import list_label_defs
@@ -59,7 +60,7 @@ def _probe_png():
 PROBE_PNG = _probe_png()
 
 
-def build_system_prompt(vault, limits):
+def build_system_prompt(vault, limits, draft_mode="silent"):
     tax = collect_taxonomy(vault)
     lines = [f"- {s}：" + "、".join(tax["categories_by_subject"].get(s, [])) for s in tax["subjects"]]
     labels = [d["name"] for d in list_label_defs(vault)]
@@ -67,9 +68,13 @@ def build_system_prompt(vault, limits):
     text += "\n标记：" + ("、".join(labels) or "（还没有标记）")
     with open(PROMPT_PATH, "r", encoding="utf-8") as file:
         tpl = file.read()
+    draft_rule = ("当前是请求确认后入库：只有本对话的待审核草稿，才可先 get_draft 读取 revision，"
+                  "再用 commit_draft 请求用户确认；拒绝、过期或草稿变化后不要沿用旧许可。" if
+                  draft_mode == "confirm" else
+                  "当前只建草稿。告诉用户去录入页的 AI 草稿区审核并入库，不请求助手直接提交。")
     return (tpl.replace("{today}", datetime.date.today().isoformat()).replace("{taxonomy}", text)
             .replace("{rounds}", str(limits["rounds"])).replace("{calls}", str(limits["calls"]))
-            .replace("{writes}", str(limits["writes"])))
+            .replace("{writes}", str(limits["writes"])).replace("{draft_mode_rule}", draft_rule))
 
 
 def model_messages(stored):
@@ -120,6 +125,14 @@ class Hooks:
     def __init__(self, rt, run, registry):
         self.rt, self.run, self.registry = rt, run, registry
         self.ctx = {"vault": rt.vault, "run_id": run.id, "conversation_id": run.conv_id}
+        self._draft_config_marks = {}
+
+    def _draft_config_mark(self):
+        try:
+            info = os.stat(config_path(self.rt.vault))
+            return (info.st_dev, info.st_ino, info.st_mtime_ns)
+        except FileNotFoundError:
+            return None
 
     def context_estimate(self, system, tools, messages):
         chat = sum(estimate_tokens(m.get("content") or "") + estimate_tokens(
@@ -132,7 +145,12 @@ class Hooks:
         if tool.level != "confirm":
             return None
         try:
+            mark = self._draft_config_mark() if tool.name == "commit_draft" else None
             preview = tool.preview(self.ctx, call["args"]) if tool.preview else {}
+            if tool.name == "commit_draft":
+                if mark != self._draft_config_mark():
+                    raise ValueError("助手配置在预览时已变化，请重新申请确认")
+                self._draft_config_marks[call["id"]] = mark
         except Exception as exc:  # noqa: BLE001 - 参数本身不成立（题目不存在等）：不打扰用户，直接交还模型
             return {"status": "error", "error": f"工具出错：{exc}"}
         pc = PendingConfirm(self.run.id, call["id"], call["name"], call["args"], CONFIRM_TTL_SECONDS)
@@ -153,6 +171,8 @@ class Hooks:
 
     def execute(self, call, tool):
         ctx = {**self.ctx, "tool_call_id": call["id"]}
+        if tool.name == "commit_draft" and self._draft_config_marks.get(call["id"]) != self._draft_config_mark():
+            raise ValueError("助手配置已变化，请重新读取草稿并重新申请确认")
         if tool.level == "read":
             out = tool.run(ctx, call["args"])
             return {**out, "commits": []}
@@ -321,7 +341,7 @@ class AgentRuntime:
         try:
             registry = build_registry(s)
             client = run.client = make_client(self.vault, s)
-            system = build_system_prompt(self.vault, s["limits"])
+            system = build_system_prompt(self.vault, s["limits"], s["draft_mode"])
             run.emit("run.start", {"run_id": run.id, "model": s["model"], "limits": s["limits"], "started_at": now_iso(),
                                    "context_window": s["compat"]["context_window"], "vision": s["vision"]})
             messages = model_messages(expand_images(self.vault, run.conv_id, self.store.messages(run.conv_id),

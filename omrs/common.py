@@ -105,7 +105,26 @@ CONFIG_DEFAULTS = {"allow_external": False, "lan_pin_exempt_cidrs": [], "ai_rest
                    "inbox_blind_every": 0,              # 每 N 张盲标（不展示 AI 框，只留痕作评估集）；0 关闭
                    "inbox_auto_ready_conf": 0.0,        # 置信度 ≥ 阈值时自动转文本并置就绪；0 关闭
                    "inbox_auto_on_upload": False,       # 上传后自动跑 detect（→ 自动策略）；需 Pillow
-                   "inbox_discard_keep_days": 7}        # 丢弃的原图保留天数，超期清理
+                   "inbox_discard_keep_days": 7,        # 丢弃的原图保留天数，超期清理
+                   "draft_mode": "silent", "draft_crop_mode": "ask",
+                   "draft_train_default": False, "draft_force_crop": False,
+                   "draft_discard_keep_days": 7}
+
+
+def validate_draft_config(data):
+    """草稿设置的通用类型与枚举校验。"""
+    enums = {"draft_mode": {"silent", "confirm"},
+             "draft_crop_mode": {"ask", "manual", "auto"}}
+    for key, allowed in enums.items():
+        if key in data and (not isinstance(data[key], str) or data[key] not in allowed):
+            raise ValueError(f"{key} 取值不合法")
+    for key in ("draft_train_default", "draft_force_crop"):
+        if key in data and not isinstance(data[key], bool):
+            raise ValueError(f"{key} 必须是布尔值")
+    if "draft_discard_keep_days" in data:
+        value = data["draft_discard_keep_days"]
+        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError("draft_discard_keep_days 必须是至少 1 天的整数")
 
 
 def load_config(vault: str) -> dict:

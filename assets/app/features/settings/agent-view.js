@@ -5,7 +5,7 @@ const limit = (id, label, max, hint) => html`<div class="form-group"><label for=
   <input id="${id}" class="ui-input" type="number" min="1" max="${max}" step="1" placeholder="${max}"><div class="hint">${hint}，上限 ${max}</div></div>`;
 
 export const agentView = () => html`<section class="st-section" id="st-sec-assistant" role="tabpanel" aria-labelledby="st-tab-assistant">
-  <header class="st-head"><h2>AI 助手</h2><p>侧栏「AI 助手」用的对话模型，需要支持工具调用（function calling）。助手能读写题库：只读与可撤销的操作直接执行，改正文、记反馈、录新题要你在界面上点「允许」。</p></header>
+  <header class="st-head"><h2>AI 助手</h2><p>侧栏「AI 助手」用的对话模型，需要支持工具调用（function calling）。助手能读写题库：建 AI 草稿直接执行；改正文、记反馈与按设置通过草稿时要你点「允许」。</p></header>
   <div class="card st-card">
     <div class="st-row st-row-top">
       <div class="st-row-text"><label class="st-row-label" for="st-agent-enabled">启用 AI 助手</label>
@@ -19,6 +19,26 @@ export const agentView = () => html`<section class="st-section" id="st-sec-assis
       <div class="st-row-text"><label class="st-row-label" for="st-agent-vision">主 AI 支持图片</label>
         <div class="hint">开：图片直接发给主模型。关：先用「AI 识别」里的转录模型把图片转成文字。</div></div>
       <input type="checkbox" class="st-switch" id="st-agent-vision">
+    </div>
+    <div class="st-row st-row-top">
+      <div class="st-row-text"><label class="st-row-label" for="st-draft-mode">AI 录题方式</label>
+        <div class="hint">默认只建草稿，供你在录入页审核。允许请求确认后入库时，助手只能提交本对话当前版本的待审核草稿。</div></div>
+      <select id="st-draft-mode" class="ui-select st-select"><option value="silent">只建草稿</option><option value="confirm">请求确认后入库</option></select>
+    </div>
+    <div class="st-row st-row-top">
+      <div class="st-row-text"><label class="st-row-label" for="st-draft-crop-mode">图片框选方式</label>
+        <div class="hint">「询问我」可在聊天卡片选「我来框」或「AI 框」；「自动」在新建草稿后尝试 AI 框选；「手动」从草稿区打开。</div></div>
+      <select id="st-draft-crop-mode" class="ui-select st-select"><option value="ask">询问我</option><option value="auto">自动</option><option value="manual">手动</option></select>
+    </div>
+    <div class="st-row st-row-top">
+      <div class="st-row-text"><label class="st-row-label" for="st-draft-train-default">默认用于训练数据</label>
+        <div class="hint">新聊天截图按此值预选训练，入库且框选有效后才登记。每张图可在草稿区单独调整；关闭不会删除已登记的数据。</div></div>
+      <input type="checkbox" class="st-switch" id="st-draft-train-default">
+    </div>
+    <div class="st-row st-row-top">
+      <div class="st-row-text"><label class="st-row-label" for="st-draft-force-crop">全文字草稿也收集框选</label>
+        <div class="hint">开启后，新建的全文字草稿若有来源截图，会另建训练框选任务；正文仍可先审核入库，之后再补框。</div></div>
+      <input type="checkbox" class="st-switch" id="st-draft-force-crop">
     </div>
   </div>
   <div class="card st-card">

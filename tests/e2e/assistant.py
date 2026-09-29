@@ -173,7 +173,93 @@ def main():
             card = page.locator('.ast-tool').filter(has_text='建 AI 草稿').last
             check("草稿工具卡片显示编号和待框选", card.locator('.ast-draft-card').count() == 1 and
                   "DR-" in card.text_content() and "待框选" in card.text_content())
+            crop_conv = page.evaluate("() => document.querySelector('.ast-conv.is-active')?.closest('[data-key]')?.dataset.key")
+            page.wait_for_function("() => document.querySelector('.ast-draft-card')?.textContent.includes('我来框')", timeout=8000)
+            check("询问模式卡片提供我来框", card.locator('[data-action="assistant.openDraft"]').filter(has_text='我来框').count() == 1)
+            check("询问模式卡片提供 AI 框", card.locator('[data-action="assistant.detectDraft"]').count() == 1)
+            page.evaluate("async () => fetch('/api/config', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({inbox_detect_provider:'template'})})")
+            with page.expect_response(lambda r: r.url.endswith('/api/drafts/detect') and r.request.method == 'POST', timeout=10000) as detect_response:
+                card.locator('[data-action="assistant.detectDraft"]').click()
+            check("聊天卡片提交后台 AI 框选任务", detect_response.value.status == 200)
+            crop_id = card.locator('.ast-draft-card code').first.inner_text()
+            page.wait_for_function("id => [...document.querySelectorAll('.ast-draft-card')].some(card => card.textContent.includes(id) && card.textContent.includes('AI'))",
+                                   arg=crop_id, timeout=10000)
+            crop_detail = api(base, f'/api/drafts/item?id={crop_id}')["draft"]
+            check("草稿详情可见 detect 作业", any(job["type"] == "detect" for job in crop_detail["jobs"]))
+            page.wait_for_function("id => [...document.querySelectorAll('.ast-draft-card')].some(card => card.textContent.includes(id) && card.textContent.includes('重试 AI 框'))",
+                                   arg=crop_id, timeout=10000)
+            check("检测提供方失败后卡片可重试", card.locator('[data-action="assistant.detectDraft"]').filter(has_text='重试 AI 框').count() == 1)
+            card.locator('[data-action="assistant.detectDraft"]').filter(has_text='重试 AI 框').click()
+            page.wait_for_function("async id => (await (await fetch('/api/drafts/item?id=' + encodeURIComponent(id))).json()).draft.jobs.filter(j => j.type === 'detect').length >= 2",
+                                   arg=crop_id, timeout=10000)
+            check("重试新建第二个后台任务且不重复建草稿", len([job for job in api(base, f'/api/drafts/item?id={crop_id}')["draft"]["jobs"]
+                                                if job["type"] == "detect"]) >= 2)
             check("图片原件可通过草稿接口打开", page.locator('.ast-user__images .ast-image').last.get_attribute('href').startswith('/api/drafts/image?sha='))
+
+            page.wait_for_function("async () => (await (await fetch('/api/agent/status')).json()).active.length === 0", timeout=10000)
+            old_conv = page.evaluate("() => document.querySelector('.ast-conv.is-active')?.closest('[data-key]')?.dataset.key")
+            page.click('[data-action="assistant.newConv"]')
+            page.wait_for_function("old => document.querySelector('.ast-conv.is-active')?.closest('[data-key]')?.dataset.key !== old && !!document.querySelector('.ast-empty')", arg=old_conv, timeout=5000)
+            page.set_input_files('#ast-image-picker', {"name": "text-source.png", "mimeType": "image/png", "buffer": make_png(12, 12)})
+            say("文字截图草稿")
+            done(1)
+            text_draft = api(base, '/api/drafts/list')["drafts"][0]
+            detail = api(base, f'/api/drafts/item?id={text_draft["id"]}')["draft"]
+            check("纯文字草稿保留指定来源截图", detail["status"] == "review" and
+                  len(detail["source_images"]) == 1 and all(b["kind"] == "text" for b in detail["blocks"]),
+                  {"id": detail["id"], "status": detail["status"], "sources": detail["source_images"], "blocks": detail["blocks"]})
+
+            page.wait_for_function("async () => (await (await fetch('/api/agent/status')).json()).active.length === 0", timeout=10000)
+            old_conv = page.evaluate("() => document.querySelector('.ast-conv.is-active')?.closest('[data-key]')?.dataset.key")
+            page.click('[data-action="assistant.newConv"]')
+            page.wait_for_function("old => document.querySelector('.ast-conv.is-active')?.closest('[data-key]')?.dataset.key !== old && !!document.querySelector('.ast-empty')", arg=old_conv, timeout=5000)
+            page.evaluate("async () => fetch('/api/config', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({draft_mode:'confirm'})})")
+            check("确认模式动态注册草稿入库工具", api(base, '/api/agent/status')["tools"].get('commit_draft') == 'confirm')
+            say("确认草稿")
+            page.wait_for_selector('.ast-turn .ast-gate', timeout=15000)
+            gate = page.locator('.ast-turn .ast-gate').last
+            check("草稿入库预览等待用户确认", '第 1 版' in gate.text_content())
+            pending = api(base, '/api/drafts/list')["drafts"][0]
+            before = api(base, f'/api/drafts/item?id={pending["id"]}')["draft"]
+            changed = page.evaluate("""async ({id,revision,blocks}) => {
+              const response = await fetch('/api/drafts/update', {method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({id,revision,fields:{note:'确认期间改过'},blocks})});
+              return {status:response.status,data:await response.json()};
+            }""", {"id": pending["id"], "revision": before["revision"], "blocks": before["blocks"]})
+            check("确认等待期间编辑产生新版本", changed["status"] == 200 and
+                  changed["data"]["draft"]["revision"] == before["revision"] + 1, changed)
+            gate.locator('[data-action="assistant.gate"]').click()
+            page.wait_for_selector('dialog[open] .ast-draft-review', timeout=5000)
+            page.locator('dialog[open] [data-gate="allow"]').click()
+            done(1)
+            after = api(base, f'/api/drafts/item?id={pending["id"]}')["draft"]
+            check("旧确认不能把改过的草稿入库", after["status"] == "review" and after["uid"] is None and
+                  '草稿已经变化' in page.locator('.ast-turn').last.text_content())
+
+            page.wait_for_function("async () => (await (await fetch('/api/agent/status')).json()).active.length === 0", timeout=10000)
+            say("确认草稿")
+            page.wait_for_selector('.ast-turn:last-of-type .ast-gate', timeout=15000)
+            approved_id = page.locator('.ast-turn').last.locator('.ast-draft-card code').first.inner_text()
+            page.locator('.ast-turn').last.locator('[data-action="assistant.gate"]').click()
+            page.wait_for_selector('dialog[open] .ast-draft-review', timeout=5000)
+            page.locator('dialog[open] [data-gate="allow"]').click()
+            done(2)
+            approved = api(base, f'/api/drafts/item?id={approved_id}')["draft"]
+            check("确认模式允许后入库一次", approved["status"] == "done" and bool(approved["uid"]) and
+                  api(base, '/api/ledger/verify').get('valid', True))
+
+            discarded = page.evaluate("""async ({id,revision}) => {
+              const response = await fetch('/api/drafts/discard', {method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({id,revision})}); return {status:response.status,data:await response.json()};
+            }""", {"id": pending["id"], "revision": after["revision"]})
+            check("测试草稿已丢弃", discarded["status"] == 200)
+            page.goto(f"{base}/#/settings", wait_until='networkidle')
+            page.goto(f"{base}/#/assistant", wait_until='networkidle')
+            old_card = page.locator('.ast-draft-card').filter(has_text=pending["id"]).first
+            old_card.wait_for(timeout=8000)
+            page.wait_for_function("id => [...document.querySelectorAll('.ast-draft-card')].some(card => card.textContent.includes(id) && card.textContent.includes('已丢弃'))",
+                                   arg=pending["id"], timeout=8000)
+            check("旧卡片重新进入后显示当前已丢弃状态", '已丢弃' in old_card.text_content())
 
             audit = page.evaluate(AUDIT)
             check("桌面：没有行内样式、没有横向溢出", not audit["inline"] and not audit["overflow"], audit)
@@ -182,15 +268,50 @@ def main():
             page.click("#st-tab-assistant")
             page.wait_for_function("() => document.getElementById('st-agent-enabled')?.checked === true", timeout=5000)
             check("设置页显示主 AI 支持图片", page.locator('#st-agent-vision').is_checked())
+            check("设置页读取 AI 录题方式", page.locator('#st-draft-mode').input_value() == 'confirm')
+            check("框选与训练默认值正确", page.locator('#st-draft-crop-mode').input_value() == 'ask' and
+                  not page.locator('#st-draft-train-default').is_checked() and
+                  not page.locator('#st-draft-force-crop').is_checked())
             page.uncheck("#st-agent-enabled")
             page.click("[data-action='settings.saveAgent']")
             page.wait_for_function("() => document.querySelector('.tab[data-tab=\"assistant\"]').hidden", timeout=5000)
             check("设置里关闭后侧栏入口隐藏", api(base, "/api/agent/status")["enabled"] is False)
             page.check("#st-agent-enabled")
+            page.select_option('#st-draft-crop-mode', 'manual')
+            page.check('#st-draft-train-default')
             page.click("[data-action='settings.agentTest']")
             page.wait_for_function("() => document.getElementById('st-agent-status')?.textContent.includes('连接正常')", timeout=10000)
             check("测试连接成功且入口恢复", page.is_visible('.tab[data-tab="assistant"]'))
             check("测试连接显示图片直传结果", "图片直传正常" in page.locator('#st-agent-status').text_content())
+            cfg = api(base, '/api/config')
+            check("手动框选与训练默认开关已持久化", cfg['draft_crop_mode'] == 'manual' and cfg['draft_train_default'] is True)
+            page.goto(f"{base}/#/assistant", wait_until='networkidle')
+            page.click(f'[data-action="assistant.openConv"][data-arg="{crop_conv}"]')
+            page.wait_for_function("() => document.querySelector('.ast-draft-card')?.textContent.includes('待框选')", timeout=8000)
+            check("手动模式不在聊天卡片显示我来框", '我来框' not in page.locator('.ast-draft-card').first.text_content())
+
+            page.goto(f"{base}/#/settings", wait_until='networkidle')
+            page.click("#st-tab-assistant")
+            page.select_option('#st-draft-crop-mode', 'auto')
+            page.check('#st-draft-force-crop')
+            page.click("[data-action='settings.saveAgent']")
+            page.wait_for_function("() => document.getElementById('st-agent-status')?.textContent.includes('已保存')", timeout=5000)
+            cfg = api(base, '/api/config')
+            check("自动框选与全文字训练设置已持久化", cfg['draft_crop_mode'] == 'auto' and cfg['draft_force_crop'] is True)
+            page.goto(f"{base}/#/assistant", wait_until='networkidle')
+            page.click('[data-action="assistant.newConv"]')
+            page.wait_for_selector('.ast-empty', timeout=5000)
+            page.set_input_files('#ast-image-picker', {"name": "force-source.png", "mimeType": "image/png",
+                                                        "buffer": make_png(12, 12, (0, 120, 0))})
+            say("文字截图草稿")
+            done(1)
+            auto_draft = api(base, '/api/drafts/list')["drafts"][0]
+            auto_detail = api(base, f'/api/drafts/item?id={auto_draft["id"]}')["draft"]
+            check("全文字来源草稿生成独立训练任务且正文待审核", auto_detail['status'] == 'review' and
+                  all(block['kind'] == 'text' for block in auto_detail['blocks']) and
+                  any(task.get('force_crop') for task in auto_detail['training_tasks']))
+            check("自动模式新建草稿只登记后台 detect", any(job['type'] == 'detect' for job in auto_detail['jobs']))
+            check("自动模式卡片不显示我来框", '我来框' not in page.locator('.ast-draft-card').last.text_content())
 
             mobile = browser.new_page(viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
             mobile.goto(f"{base}/#/assistant", wait_until="networkidle")

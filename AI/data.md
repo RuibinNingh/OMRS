@@ -230,7 +230,12 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 | `agent_base_url` / `agent_api_key` / `agent_model` | string | 助手的模型接口；地址与密钥留空沿用 `ai_*`，模型必填；密钥不回显 |
 | `agent_compat` / `agent_compat_overrides` | string / object | 厂商兼容配置名与单项覆写，见 `AI/agent.md` §2 |
 | `agent_limits` | object | `rounds` / `calls` / `writes` / `concurrent`，只能比默认值小 |
-| `agent_debug_log` / `agent_vision` | bool | 模型请求日志开关；视觉能力（预留） |
+| `agent_debug_log` / `agent_vision` | bool | 模型请求日志开关；是否把聊天附图直接交给主模型 |
+| `draft_mode` | string | AI 录题方式：silent（默认，只建草稿）/ confirm（可申请确认入库） |
+| `draft_crop_mode` | string | ask（默认，卡片选择 AI 框/我来框）、auto（建草稿后排检测任务）、manual（去草稿区处理） |
+| `draft_train_default` | bool | 新聊天图片的训练开关初值，默认 false；不覆盖已有图 |
+| `draft_force_crop` | bool | 新建有来源图的全文字草稿也生成强制训练任务，默认 false；不影响入库 |
+| `draft_discard_keep_days` | int | 丢弃草稿保留天数，默认 7；清理仍检查共享引用 |
 | `tuning` | object | 算法可调参数覆盖，键与默认值见 algorithm.md §9；仅接受已知键且为数字 |
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`） |
 | `ai_api_key` | string | AI 接口密钥（Bearer），仅存本机 |
@@ -291,7 +296,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 
 ## 12. 收件箱 `错题/.omrs/inbox/`（v1.12.0）
 
-`inbox.db`（SQLite：items / regions / cards / jobs / meta；v1.13.0 items 多 `blind`、`blind_boxes` 两列，`connect()` 对旧库 ALTER 补齐）、`raw/<sha256>.<ext>`（上传原件）、`crops/`（裁剪缓存，可重建）、`annotations.jsonl`（append-only 标注事件）。区域坐标归一化 0–1。字段与状态机见 `AI/inbox.md` §2；`items.layout` 的新上传默认值为 `zuoyebang`（作业帮截图），已有记录可在处理页改选。不参与备份导出以外的任何投影；`item.commit` 事件里记录了创建出的 `uid` / `question_id` 便于回溯。
+`inbox.db`（SQLite：items / regions / cards / jobs / meta / chat_training_boxes；v1.13.0 items 多 `blind`、`blind_boxes` 两列，`connect()` 对旧库 ALTER 补齐）、`raw/<sha256>.<ext>`（上传原件）、`crops/`（裁剪缓存，可重建）、`annotations.jsonl`（append-only 标注事件）。区域坐标归一化 0–1。items.training_only 隔离聊天训练图，chat_training_boxes 独立保存训练标注并按图合并导出。字段与状态机见 `AI/inbox.md` §2、§9；`items.layout` 的新上传默认值为 `zuoyebang`（作业帮截图），已有记录可在处理页改选。不参与备份导出以外的任何投影；`item.commit` 事件里记录了创建出的 `uid` / `question_id` 便于回溯。
 
 `config.json` 新增键：`ai_model_detect`、`ai_model_extract`、`ai_model_classify`（string，留空回退 `ai_model`；`CONFIG_DEFAULTS` 均为空串）。v1.13.0 再加 `inbox_detect_provider`（`vlm`）、`inbox_local_detect_url`（`""`）、`inbox_blind_every`（0）、`inbox_auto_ready_conf`（0.0）、`inbox_auto_on_upload`（false）、`inbox_discard_keep_days`（7），含义见 `AI/inbox.md` §8。丢弃项超期清理后 `items.file` 为 NULL、原图文件删除，行与 `annotations.jsonl` 事件保留。
 
@@ -431,8 +436,12 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 
 独立于收件箱的训练数据，由 `omrs/annotate.py` 读写，不进 Ledger、不参与任何投影。`annotate.db` 只有一张 `images` 表：`id (AN-YYYYMMDD-xxxxxx)、sha256（唯一）、file（上传时的文件名）、mime、width、height、bytes、status (todo|done)、boxes（JSON 数组 [{role, x, y, w, h}]，role 为 question / answer，坐标归一化 0–1）、uploaded_at、updated_at`。原图在 `images/<sha256>.<ext>`，删除记录时一并删除。整个目录随设置页「备份导出」打包（备份遍历整个 `错题/`），图片压缩优化只处理附件目录，不碰这里。
 
+## 17. AI 草稿存储
 
-## 17. 外部训练目录与面板配置
+`错题/.omrs/drafts/` 的 drafts.db 独立于 Ledger，包含 images、conv_images、drafts、blocks、draft_images、commit_operations、training_tasks、training_boxes、draft_jobs 与 cleanup_candidates；图片按 hash 保存，事件追加到 events.jsonl。revision、来源完整性、清理状态与训练任务 manual_override / force_crop 通过增量迁移添加。字段、来源恢复和入库恢复以 `AI/drafts.md` 为准；只有通过产生带 `_draft` 追溯信息的题目创建提交。
+
+
+## 18. 外部训练目录与面板配置
 
 `config.json` 的 `train_dir` 默认空串（读取 `~/omrs-train`）；`train_try_collect` 默认 false（实时测试成功后是否积累到标注集）。训练数据、权重和运行日志放在 Vault 外，不随题库备份，不进 Git。主程序仅以标准库读文件，不导入训练框架。
 

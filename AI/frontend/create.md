@@ -1,7 +1,7 @@
 # 前端：录入题目与收件箱工作台
 
 > **速查**
-> - 职责：录入页五个工作区（上传、处理、录入、AI 训练、快速录入）的界面、收件箱前端数据与保存队列；后端流程见 `AI/inbox.md`
+> - 职责：录入页六个工作区（上传、处理、录入、AI 训练、快速录入、AI 草稿）的界面、收件箱前端数据与保存队列；后端流程见 `AI/inbox.md`
 > - 入口：`assets/app/features/create/`（`index.js` 页面契约，`inbox.js` / `inbox-store.js` 收件箱数据，其余按工作区分文件）
 > - 不变量：原图先入收件箱暂存层，提交后才写题库；切页保留工作区、当前图、勾选与快速录入草稿；离开处理区或本页前写出未到防抖时间的改动；创建后保留上下文字段
 > - 必跑测试：`tests/app/create.test.mjs`、`tests/app/create-process.test.mjs`、`tests/app/create-inbox.test.mjs`、`tests/e2e/create.py`、`tests/test_inbox.py`、`tests/test_ai_assist_taxonomy.py`
@@ -9,7 +9,7 @@
 
 ## 页面与工作区
 
-`#panel-create` 在 HTML 里只有导航 `#create-flow` 和五个空的 `.ib-stage` 区块，内容全部由 `features/create/index.js` 挂载。导航由 `state.js` / `view.js` 渲染五个按钮（`data-action="create.stage"`），前三项按流程编号并显示待处理、已框选、待创建三个计数。当前工作区存在收件箱单例的 `stage` 里，切到其它页面后返回仍停在原处；进入 AI 训练时重读统计与策略。
+`#panel-create` 在 HTML 里只有导航 `#create-flow` 和工作区容器，内容全部由 `features/create/index.js` 挂载。导航由 `state.js` / `view.js` 渲染六个按钮（`data-action="create.stage"`），前三项按流程编号并显示待处理、已框选、待创建三个计数。当前工作区存在收件箱单例的 `stage` 里，切到其它页面后返回仍停在原处；进入 AI 训练时重读统计与策略。
 
 录入页的快捷键登记在页面契约的 `keys` 里，只在处理区生效：`Q` / `A` / `X` 切画框角色、`Delete` / `Backspace` 删除选中框、`Enter` 下一张、`⌘/Ctrl + Enter` 转换文本、`Esc` 取消选中框。
 
@@ -39,6 +39,22 @@
 
 标记经 `domain/labels` 的录入选择器改。「AI 识别题目信息」用题卡第一个题目区域提交 classify 任务，完成后重读收件箱，服务端只填空缺项。「退回处理」把图片改回已框选并打开处理区。创建前先预检科目、分类，再 flush 待存改动，裁出保留图片的区域，随 `/api/inbox/commit` 上传。单张成功弹一条带「加入展示板」的提示；批量逐张提交，最后只弹一条汇总，「加入展示板（N 题）」一次加入这批新题。成功后刷新统计、历史和目录。
 
+## AI 草稿
+
+`drafts.js` 管理独立的列表、详情、显式保存表单与请求序号，不把草稿放进 inbox-store。默认 pending 筛选，另可看已入库 / 已丢弃；详情编辑科目分类、难度、知识点、标记、错因、备注及题目 / 答案有序块，来源图可预览或从本对话补关联。文字块用现有 Markdown 渲染；图片块完成手动框选或使用整图后才可通过。
+
+保存发送 revision 和完整块数组；失败保留本地编辑，409 提示核对后重新读取，不自动覆盖。「通过」先保存再提交，成功刷新统计 / 历史 / 目录，显示题目入口。done 与 discarded 正文只读；丢弃不立即删原图。
+
+切换草稿、工作区、页面时保护未保存内容，页面切换使用 router.setLeaveGuard，浏览器关闭使用原生 beforeunload。跨页目标由 domain/drafts 先保存后切页；进入工作区消费目标，避免助手卡片事件早于挂载丢失。顶部、列表与侧栏计数读取 domain 当前快照并订阅 drafts:counts，入库或丢弃后同步；初次挂载与重绘不保留旧的初始计数。
+
+草稿画布由 drafts-canvas.js / drafts-canvas-ctl.js 适配现有 process-canvas.js，传入来源图 URL、DOM 标识、数据和编辑回调；旧收件箱调用保留默认值。每次只编辑选中的来源图，正文框绑定稳定块 id，独立训练框绑定 task_id；拖动期间不重建整份表单，松手后记录未保存状态。原 AI 框 ai_box 保留，调整后标记 ai_edited。
+
+图片块可提交异步转文字；drafts-job.js 负责轮询并在卸载时清理，隐藏页面暂停。重进页面从详情 jobs 恢复活动任务；结果只在没有本地编辑时重新读取，冲突或失败提示核对而不覆盖表单。每图训练开关会同步影响关联草稿，已登记后只读；登记失败可重试。清理按钮调用草稿专用入口并报告保留引用图的数量。
+
+「AI 框」保存当前编辑后启动逐图 detect，由同一作业模块按任务类型显示进度；共享、人工框、空结果或候选歧义给出原因与手工处理入口。仅后端明确应用的框自动进入正文，前端不擅自采纳建议。冲突/中断不会显示为部分成功。
+
+全文字强制训练任务按来源图显示，训练开关关闭也能框选；done 草稿仍可编辑未登记的独立训练框，不出现添加正文图片的引导。图级开关只控制数据集登记。AI 训练统计显示聊天来源图片与框数，含同图普通收件箱的聊天关联。
+
 ## AI 训练
 
 `train.js` 在进入工作区时读 `/api/inbox/dataset/stats`、`/api/config` 与 `/api/annotate/stats`。指标卡下面是「框选标注页」一栏：显示独立标注集的张数、完成数与两类框数，「打开标注页」在新标签页打开 `/annotate`（见 `AI/frontend/annotate.md`）。`train-state.js` 把统计换成展示模型：四张指标卡（`ui/stat`）、版式与转换决策条（原生 `<progress>`）、盲标评估集与存储文案。导出是一个随格式变化的下载链接（OMRS JSONL / YOLO）。清理超期丢弃图直接执行；清空裁图缓存先确认。统计或策略读取失败时在原位显示原因和「重试」。
@@ -55,6 +71,6 @@
 
 ## 样式
 
-样式都在 features 层：`create.css`（导航、工作区显隐与整屏工作台、上传、快速录入、网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（`crc-`）、`train.css`（`crt-`）。只用 token；标注色取 `--info` / `--success` / `--danger`。旧 `styles.css` 里已没有录入页的规则。
+样式都在 features 层：`create.css`（导航、工作区显隐与整屏工作台、上传、快速录入、网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（`crc-`）、`train.css`（`crt-`）与 `drafts.css`（草稿审核工作区）。只用 token；标注色取 `--info` / `--success` / `--danger`。旧 `styles.css` 里已没有录入页的规则。
 
 处理区的文字框与输入框用 `ui-textarea` / `ui-input`（与全站同一套控件）。

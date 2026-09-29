@@ -23,6 +23,7 @@ import { installIcons } from './ui/icon.js';
 import { bindTooltips } from './ui/tooltip.js';
 import { registerKeys } from './core/keys.js';
 import { startActivityTracking } from './core/activity.js';
+import { connectDrafts } from './domain/drafts.js';
 
 installIcons(document);
 bindTooltips(document);
@@ -32,6 +33,7 @@ void startActivityTracking(document);
 const pages = [dashboardPage, dataPage, schedulePage, historyPage, catalogPage, reportsPage,
   settingsPage, createPage, boardPage, questionsPage, instantPage, feedbackPage, assistantPage];
 const { router, bus } = startShell(window, pages);
+connectDrafts({ bus, router, document, window });
 connectData({ emit: (type, payload) => bus.emit(type, payload) });
 connectSessions({ emit: (type, payload) => bus.emit(type, payload) });
 connectHistory({ emit: (type, payload) => bus.emit(type, payload) });

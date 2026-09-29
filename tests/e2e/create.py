@@ -1,4 +1,4 @@
-"""录入题目 E2E：工作区导航、上传与收件箱网格、框选、题卡创建、AI 训练与策略、快速录入主路径，以及五个工作区的四种审计。"""
+"""录入题目 E2E：工作区导航、上传与收件箱网格、框选、题卡创建、AI 训练与策略、快速录入主路径，以及工作区的四种审计。"""
 import os
 import json
 import socket
@@ -65,12 +65,12 @@ def run(page, base, results):
         results.append((name, bool(ok), ''))
 
     page.goto(base + '/#/create', wait_until='networkidle')
-    check('录入页由 features/create 注册并显示五个工作区',
-          wait(page, "() => document.querySelectorAll('#create-flow button[data-ib-stage]').length === 5")
+    check('录入页由 features/create 注册并显示六个工作区',
+          wait(page, "() => document.querySelectorAll('#create-flow button[data-ib-stage]').length === 6")
           and page.locator('#create-flow [aria-current="step"]').count() == 1)
     check('工作区导航与上传区没有行内事件和样式',
           page.locator('#create-flow [onclick]').count() == 0
-          and page.locator('#create-flow button svg').count() == 2
+          and page.locator('#create-flow button svg').count() == 3
           and page.locator('#create-upload [onclick], #create-upload [style]').count() == 0)
     page.locator('#ib-file').set_input_files({'name': '说明.txt', 'mimeType': 'text/plain', 'buffer': b'not an image'})
     check('非图片文件在上传区就地提示', wait(page, "() => document.querySelector('#ib-up-status')?.textContent.includes('请选择图片文件')"))

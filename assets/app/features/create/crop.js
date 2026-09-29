@@ -23,9 +23,9 @@ export function previewSize(region, naturalWidth, naturalHeight, maxWidth) {
 
 export const boxKey = region => ['x', 'y', 'w', 'h'].map(key => Number(region[key] || 0).toFixed(4)).join(',');
 
-export function loadImage(item) {
-  let image = images.get(item.id);
-  if (!image) { image = new Image(); image.src = rawUrl(item.id); images.set(item.id, image); }
+export function loadImage(item, url = rawUrl(item.id)) {
+  let image = images.get(url);
+  if (!image) { image = new Image(); image.src = url; images.set(url, image); }
   if (image.complete && image.naturalWidth) return Promise.resolve(image);
   return new Promise((resolve, reject) => {
     image.addEventListener('load', () => resolve(image), { once: true });
@@ -33,8 +33,8 @@ export function loadImage(item) {
   });
 }
 
-export async function cropDataUrl(item, region, type = 'image/png', quality = 0.92) {
-  const image = await loadImage(item);
+export async function cropDataUrl(item, region, type = 'image/png', quality = 0.92, url = rawUrl(item.id)) {
+  const image = await loadImage(item, url);
   const plan = cropPlan(region, image.naturalWidth, image.naturalHeight, type, quality);
   const canvas = document.createElement('canvas');
   canvas.width = plan.width;

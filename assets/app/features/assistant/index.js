@@ -13,11 +13,13 @@ import { openModal } from '../../ui/overlay.js';
 import { itemsNow, reloadData } from '../../domain/data.js';
 import { copyText, refreshSessions } from '../../domain/sessions.js';
 import { invalidateQuestions, viewQ } from '../../domain/question/index.js';
+import { openDraft as navigateToDraft, publishDraftChange, setDraftActivity } from '../../domain/drafts.js';
 import { applyEvent, mmss, newRun, runFrom, runNow } from './state.js';
 import { confirmOf, setRefRenderer, toolTitle } from './tools-view.js';
 import { SUGS, dockView, headView, railView, streamView } from './view.js';
 import { inspView } from './insp-view.js';
 import { MAX_ATTACHMENTS, prepareImageFile } from './attachments.js';
+import { createDraftCards } from './draft-cards.js';
 
 let C = null;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -46,7 +48,8 @@ export async function syncAssistantNav(doc = document, status) {
 
 function createController(root, { router }) {
   const S = { status: null, convs: [], convId: null, items: [], msgs: 0, attachments: [], imageNo: 1, open: new Set(), closed: new Set(), runSel: null,
-    liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false, uiVer: 0, sugs: SUGS, alive: true };
+    liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false,
+    uiVer: 0, draftVer: 0, draftCropMode: 'manual', drafts: {}, sugs: SUGS, alive: true };
   morph(root, html`<div class="ast" data-rail="closed" data-insp="closed">
     <div class="ast-scrim" data-action="assistant.closeDrawers"></div>
     <aside class="ast-card ast-rail" id="ast-rail" aria-label="对话列表"></aside>
@@ -80,6 +83,9 @@ function createController(root, { router }) {
     root.querySelector('.ast-jump').hidden = S.stick || !S.liveRun;
   }
   const schedule = () => { if (!frame) frame = requestAnimationFrame(paint); };
+  const draftCards = createDraftCards(S, schedule);
+  const refreshDrafts = ids => draftCards.refresh(ids);
+  const detectDraft = id => draftCards.detect(id, message => toast(message, { kind: 'error' }));
   // 贴底跟随：只有用户自己往上滚才停止跟随；滚回底部恢复
   const atBottom = () => scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 48;
   const onUserScroll = () => requestAnimationFrame(() => { S.stick = atBottom(); root.querySelector('.ast-jump').hidden = S.stick || !S.liveRun; });
@@ -89,7 +95,9 @@ function createController(root, { router }) {
   const bump = () => { S.uiVer += 1; schedule(); };
 
   function setLive(run) {
+    const wasLive = !!S.liveRun;
     S.liveRun = run && run.status !== 'done' ? run : null;
+    if (wasLive !== !!S.liveRun) setDraftActivity('assistant', !!S.liveRun);
     clearInterval(ticker);
     if (S.liveRun) ticker = setInterval(schedule, 250);
     syncAssistantNav(document, { ...S.status, active: S.liveRun ? [{ status: S.liveRun.status }] : [] });
@@ -103,7 +111,7 @@ function createController(root, { router }) {
   }
 
   async function load() {
-    const st = await loadList();
+    const [st] = await Promise.all([loadList(), draftCards.loadMode()]);
     const active = st?.active?.[0];
     const target = active?.conversation_id || S.convId || S.convs[0]?.id || null;
     if (target) await openConv(target); else schedule();
@@ -123,6 +131,7 @@ function createController(root, { router }) {
     setLive(live ? live.run : null);
     if (live) follow(live.run);
     schedule();
+    refreshDrafts();
   }
 
   async function follow(run) {
@@ -132,11 +141,20 @@ function createController(root, { router }) {
       const res = await get(`/api/agent/events?run=${encodeURIComponent(run.id)}&after=${run.next}&wait=20`, { timeout: 28000 });
       if (!S.alive) return;
       if (!res.ok) { await new Promise(r => setTimeout(r, 1500)); continue; }
-      for (const ev of res.data.events) applyEvent(run, ev);
+      for (const ev of res.data.events) {
+        applyEvent(run, ev);
+        if (ev.type === 'tool.end' && ev.data?.status === 'done') {
+          const step = run.byCall.get(ev.data.call_id);
+          const id = step?.name === 'create_draft' ? ev.data.result?.draft_id
+            : step?.name === 'commit_draft' ? ev.data.result?.draft_id : null;
+          if (id) publishDraftChange([id]);
+        }
+      }
       if (res.data.compacted && run.status !== 'done') applyEvent(run, { type: 'run.end', t: run.clock.t, data: { reason: 'interrupted' } });
       schedule();
     }
     run.following = false;
+    refreshDrafts();
     await finish(run);
   }
 
@@ -326,7 +344,11 @@ function createController(root, { router }) {
     removeImage(index) { S.attachments.splice(Number(index), 1); schedule(); },
     pickImages({ event }) { if (event?.type === 'click') { $('ast-image-picker')?.click(); return; } addFiles(event?.target?.files); if (event?.target) event.target.value = ''; },
     openImage({ el }) { const href = el?.dataset?.imageUrl; if (href) window.open(href, '_blank', 'noopener'); },
-    dispose() { S.alive = false; clearInterval(ticker); cancelAnimationFrame(frame); root.removeEventListener('keydown', onKey); root.removeEventListener('paste', onPaste); root.removeEventListener('dragover', onDragOver); root.removeEventListener('drop', onDrop); document.removeEventListener('click', onDoc); },
+    refreshDrafts,
+    detectDraft,
+    loadDraftMode: () => draftCards.loadMode(),
+    openDraft(id) { navigateToDraft(id); },
+    dispose() { S.alive = false; setDraftActivity('assistant', false); draftCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); root.removeEventListener('keydown', onKey); root.removeEventListener('paste', onPaste); root.removeEventListener('dragover', onDragOver); root.removeEventListener('drop', onDrop); document.removeEventListener('click', onDoc); },
     title: toolTitle,
   };
 }
@@ -338,7 +360,12 @@ export const page = {
     C.schedule();
     C.load();
     const off = ctx.bus?.on?.('data', () => C?.bump());
-    return () => { off?.(); C?.dispose(); C = null; };
+    const offDrafts = ctx.bus?.on?.('drafts:changed', payload => C?.refreshDrafts(payload?.ids));
+    const offConfig = ctx.bus?.on?.('agent:config', () => C?.loadDraftMode());
+    const focus = () => { if (!document.hidden) C?.refreshDrafts(); };
+    window.addEventListener('focus', focus);
+    document.addEventListener('visibilitychange', focus);
+    return () => { off?.(); offDrafts?.(); offConfig?.(); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', focus); C?.dispose(); C = null; };
   },
   actions: {
     newConv: () => C?.newConv(),
@@ -353,6 +380,9 @@ export const page = {
     copy: ({ arg }) => C?.copy(arg),
     selectRun: ({ arg }) => C?.select(arg),
     openQ: ({ arg }) => viewQ(arg),
+    openDraft: ({ arg }) => C?.openDraft(arg),
+    detectDraft: ({ arg }) => C?.detectDraft(arg),
+    retryDraft: ({ arg }) => C?.refreshDrafts([arg]),
     openSession: () => C?.openSession(),
     toggleRail: () => C?.toggle('railOpen'),
     toggleInsp: () => C?.toggle('inspOpen'),

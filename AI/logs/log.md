@@ -3,6 +3,9 @@
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
 - [2026-09-29_box-detect](2026-09-29_box-detect.md)：本地框选训练与训练面板
+- [2026-09-29_ai-draft-v130-deploy](2026-09-29_ai-draft-v130-deploy.md)：# AI 草稿 v1.30.0 合入 main 与生产发布
+- [2026-09-29_ai-draft-p4](2026-09-29_ai-draft-p4.md)：# AI 草稿 P4：自动框选与独立训练任务
+- [2026-09-29_ai-draft-p3](2026-09-29_ai-draft-p3.md)：# AI 草稿 P3：手动框选与训练数据登记
 - [2026-09-28_ui-blank-icons](2026-09-28_ui-blank-icons.md)：UI 空白图标修复
 - [2026-09-28_omrs-icon](2026-09-28_omrs-icon.md)：OMRS 图标更新
 - [2026-09-28_merge-and-cleanup](2026-09-28_merge-and-cleanup.md)：合并工作区与 v1.28.0，补完前端重构 P8 的清理（v1.28.1）
@@ -13,6 +16,8 @@
 - [2026-09-28_board-redesign](2026-09-28_board-redesign.md)：展示板 UI 改版
 - [2026-09-28_annotate-page](2026-09-28_annotate-page.md)：独立框选标注页（训练数据采集）
 - [2026-09-28_annotate-merge](2026-09-28_annotate-merge.md)：框选标注页合入当前版本
+- [2026-09-28_ai-draft-parallel-plan](2026-09-28_ai-draft-parallel-plan.md)：# AI 录题与草稿区多智能体执行规划
+- [2026-09-28_ai-draft-p2](2026-09-28_ai-draft-p2.md)：# AI 草稿 P2：审核入库与确认模式
 - [2026-09-28_ai-draft-p1](2026-09-28_ai-draft-p1.md)：ai-draft P1-1：草稿存储 `omrs/drafts.py` 与只读接口
 - [2026-09-28_ai-draft-p1-partial-deploy](2026-09-28_ai-draft-p1-partial-deploy.md)：AI 草稿 P1 前三步提前合入生产
 - [2026-09-28_ai-agent](2026-09-28_ai-agent.md)：内置 AI 助手（v1.28.0）
