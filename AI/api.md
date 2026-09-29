@@ -955,3 +955,9 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 万像素（长图可超过 10000 高）；原图与条带都在内存，不开积累时不创建文件或库。复用 slice_plan → JPEG 85 → detect_regions_local → merge_strip_boxes，返回 `{status:"ok", boxes, width, height, strips, elapsed_ms, collected?}`，框置信度为 conf。每进程最多同时测试一图，繁忙、非法文件、超限、服务未配置／离线／非法响应均返回 400 与中文 msg，离线附启动命令；继续沿用来源与登录校验。
 
 配置 train_try_collect 为 true 时，仅积累阶段取得进程写锁，调用 annotate.upload 并以模型框 annotate.save(status=None)，保持 todo；返回 collected `{id, duplicate:false, status:"todo"}`。重复 SHA 返回 `{id, duplicate:true}`，不覆盖旧框或完成状态。积累失败仍返回检测结果，并带 collect_error。`POST /api/config` 保存开关，默认 false；推理不持有写锁，等待锁后重查开关，已关闭时不写。
+
+### 内容评测与复核
+
+`omrs/trainaudit.py` 读取外部 audits 目录，不加载训练框架。`GET /api/trainpanel/audits` 返回最近至多200份评测摘要；`GET /api/trainpanel/audit?id=&role=&verdict=&review=&case=&offset=&limit=` 返回筛选分页案例（默认30、最多100），review 为 pending/reviewed/disagreed。`GET /api/trainpanel/audit-image?id=&resource=` 仅返回 audit.json 登记资源，拒绝路径穿越、越界符号链接及超过30MB图片；缓存 private/no-store。
+
+`GET /api/trainpanel/reviews?id=&case=` 返回最近100次追加历史。`POST /api/trainpanel/review` 接收 `{audit,case,revision,action,verdict?,note?}`；action 为 agree/correct/uncertain，verdict 为 usable/needs_adjustment/unusable/uncertain。说明最多2000字、请求最多16KB；成功返回 revision/verdict，版本冲突409、参数非法400。HTTP来源固定user，不能伪装执行者。沿用登录、同源校验与全局写锁，SQLite再用BEGIN IMMEDIATE保证跨进程revision检查与插入原子性。GET不建库，不调用付费模型。

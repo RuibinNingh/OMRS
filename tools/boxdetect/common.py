@@ -87,3 +87,29 @@ def clip_box(box, y0, y1):
 
 def yolo_line(box):
     return f"{ROLES.index(box['role'])} {box['x'] + box['w']/2:.8f} {box['y'] + box['h']/2:.8f} {box['w']:.8f} {box['h']:.8f}\n"
+
+
+def preserve_splits(groups, previous, seed):
+    """保留全部旧归属；桥接不同集合拒绝构建，新相近测试图隔离。"""
+    import random
+    result = {k: [] for k in ('train','val','test','independent','quarantine')}
+    old = {i:k for k,ids in previous.items() for i in ids}
+    fresh = []
+    for group in groups:
+        memberships = {old[i] for i in group if i in old and old[i]!='quarantine'}
+        if len(memberships)>1:
+            raise ValueError('近似分组桥接不同冻结集合，停止以防泄漏')
+        if not memberships:
+            if any(i in old for i in group): result['quarantine'].extend(group)
+            else: fresh.append(sorted(group))
+            continue
+        kind = next(iter(memberships))
+        for ident in group:
+            dest = old.get(ident, 'quarantine' if kind in ('test','independent','val') else kind)
+            result[dest].append(ident)
+    random.Random(seed).shuffle(fresh)
+    count = len(fresh); hold = round(count*.15)
+    for index,group in enumerate(fresh):
+        dest = 'independent' if index<hold else ('val' if index<2*hold else 'train')
+        result[dest].extend(group)
+    return {k:sorted(v) for k,v in result.items()}

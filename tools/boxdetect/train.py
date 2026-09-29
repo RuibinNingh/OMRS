@@ -19,7 +19,22 @@ def now():
 def memory_available():
     for line in Path('/proc/meminfo').read_text().splitlines():
         if line.startswith('MemAvailable:'):
-            return int(line.split()[1]) * 1024
+            available = int(line.split()[1]) * 1024
+            # cgroup v2 当前进程及祖先的剩余额度，与宿主机取较小值。
+            try:
+                relative = next(x.split(':',2)[2] for x in Path('/proc/self/cgroup').read_text().splitlines() if x.startswith('0::'))
+                base = Path('/sys/fs/cgroup')
+                current = base / relative.lstrip('/')
+                for folder in [current, *current.parents]:
+                    if not folder.is_relative_to(base): break
+                    if folder == base and not (folder/'memory.max').exists():
+                        continue  # cgroup v2 根层不提供 memory.max，无此层限额。
+                    limit = (folder/'memory.max').read_text().strip()
+                    used = int((folder/'memory.current').read_text())
+                    if limit != 'max': available = min(available, max(0,int(limit)-used))
+            except (OSError,ValueError,StopIteration):
+                raise RuntimeError('无法读取 cgroup 内存边界，拒绝无保护启动')
+            return available
     raise RuntimeError('无法读取可用内存，拒绝无保护启动')
 
 
@@ -48,13 +63,14 @@ def worker(args):
         os.sched_setaffinity(0, sorted(os.sched_getaffinity(0))[:args.threads])
     os.nice(max(0, 19-os.getpriority(os.PRIO_PROCESS, 0)))
     import torch
+    import importlib.metadata
     from ultralytics import YOLO
     torch.set_num_threads(args.threads)
     torch.set_num_interop_threads(1)
     run = Path(args.run)
     dataset = Path(args.dataset)
     fingerprint = sha256(dataset / 'manifest.json')
-    identity = {'dataset': str(dataset.resolve()), 'manifest_sha256': fingerprint,
+    identity = {'dataset': str(dataset.resolve()), 'manifest_sha256': fingerprint, 'data_yaml_sha256': sha256(dataset/'data.yaml'),
                 'imgsz': args.imgsz, 'batch': args.batch, 'epochs': args.epochs,
                 'threads': args.threads, 'weights': str(Path(args.weights).resolve()),
                 'weights_sha256': sha256(args.weights)}
@@ -67,6 +83,7 @@ def worker(args):
         model = YOLO(checkpoint)
     else:
         atomic_json(run / 'identity.json', identity)
+        atomic_json(run/'environment.json', {name:importlib.metadata.version(name) for name in ('torch','ultralytics','onnx','onnxruntime','numpy','pillow')})
         model = YOLO(args.weights)
     state = {'state': 'running', 'epoch': 0, 'epochs': args.epochs, 'started_at': now(),
              'updated_at': now(), 'epoch_seconds': 0, 'pid': os.getpid(), 'dataset': dataset.name}
@@ -101,7 +118,7 @@ def worker(args):
     model.add_callback('on_fit_epoch_end', epoch)
     try:
         kwargs = dict(data=str(dataset / 'data.yaml'), device='cpu', epochs=args.epochs, imgsz=args.imgsz,
-                      batch=args.batch, workers=2, project=str(run.parent), name=run.name, exist_ok=True,
+                      batch=args.batch, workers=0, project=str(run.parent), name=run.name, exist_ok=True,
                       seed=20260929, cache=False, amp=False, plots=False, patience=40,
                       mosaic=0, fliplr=0, flipud=0, degrees=0, translate=.05, scale=.15,
                       close_mosaic=0, optimizer='AdamW', lr0=.001, deterministic=True)

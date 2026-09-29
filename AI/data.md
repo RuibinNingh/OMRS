@@ -456,3 +456,11 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 实时测试默认只在内存中运行。积累开启后调用现有 annotate 模块写原图与模型框，status 保持 todo；重复 SHA 只提示已有，不更新框。完成标注前不进入默认导出和训练数据集，不增加任何数据表或来源字段。单图 15 MB／4000 万像素与每进程单并发限制用于约束内存。
 
 面板生成的构建与开始训练命令采用未占用的新版本／实验目录；续训沿用旧目录和 identity 参数。评估命令支持一次完成导出、验证集阈值选择、固定测试评估与本地模型文件发布，网页本身只展示命令。
+
+### 内容评测产物与复核存储
+
+外部训练根目录的 audits/评测/audit.json 保存数据集和manifest哈希、样本/分组/用途、检测模型与权重哈希、阈值、提示词版本/哈希、参数、原图/裁图资源ID及坐标。images/仅保存登记图片；案例JSON与attempts/每次响应只允许首次写入，不覆盖原判；progress.json为可恢复的进度快照。缺框也有案例，不从指标分母排除。历史校准导入保留原响应和各轮参数，不作为独立验收。
+
+reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加action/verdict/note/source/created_at；source为user或executor。用户结论优先于执行者，未复核项仍沿用原判。该库与训练产物不进入题库备份、不修改标注框。audit-cache/按图/提示/模型/请求参数及渠道指纹保存成功调用；content-round-1.json记录整个实验轮次的实际请求次数、参考费用和未知usage次数，请求前持久计数。
+
+内容数据快照保留全部旧train/val/test归属；test用途标为historical_regression，全新分组才可进入independent。相近验证/测试新图隔离，桥接不同冻结集合拒绝构建。草稿框只读chat_training_boxes，接受人工或人工编辑来源；同SHA相同标签去重，冲突标签排除。困难加权快照只从同manifest的train评测读取已复核错误，记录复核证据；不修改旧数据版本。

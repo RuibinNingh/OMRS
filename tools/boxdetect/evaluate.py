@@ -125,19 +125,18 @@ def main():
     parser.add_argument('--dataset', required=True)
     parser.add_argument('--baseline', choices=['template'])
     parser.add_argument('--model')
-    parser.add_argument('--run', help='完成实验的导出、验证选阈值、测试评估与本地文件发布')
+    parser.add_argument('--run', help='完成实验的导出、验证选阈值、测试评估（不发布）')
     parser.add_argument('--split', choices=['val', 'test'], default='test')
     parser.add_argument('--out')
     parser.add_argument('--conf', type=float, default=.25)
     parser.add_argument('--select-conf', action='store_true')
     args = parser.parse_args()
     if args.run:
-        from tools.boxdetect.publish import export, publish
+        from tools.boxdetect.publish import export
         run = Path(args.run).resolve()
         model = export(run)
         selection = select_confidence(args.dataset, model, run / 'thresholds.json')
         result = evaluate(args.dataset, model=model, split='test', out=run / 'eval.json', conf=selection['selected'])
-        publish(run, run.parent.parent / 'models', selection['selected'])
         print(json.dumps({'model': result['model'], 'template': result['template']}, ensure_ascii=False, indent=2))
         return
     if args.select_conf:

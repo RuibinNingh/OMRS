@@ -25,9 +25,9 @@ nice -n 19 ~/omrs-train/.venv/bin/python tools/boxdetect/train.py --dataset ~/om
 ~/omrs-train/.venv/bin/python tools/boxdetect/serve.py --model-dir ~/omrs-train/models/current --port 18765
 ```
 
-第三步显式导出 ONNX，在验证集选择置信度，再评估冻结测试集并发布本地 models/current 文件；不会改 OMRS 配置。旧当前模型移入 models/原实验名目录。第四步仅绑定 127.0.0.1，`GET /health` 返回 SHA-256，POST 地址可用 `/detect`。隔离实例把 inbox_local_detect_url 配成该地址；生产服务常驻与配置切换须另行授权。
+第三步显式导出 ONNX，在验证集选择置信度，再评估冻结测试集，不会发布 models/current 或修改 OMRS 配置。发布必须另行显式运行 publish.py。第四步仅绑定 127.0.0.1，`GET /health` 返回 SHA-256，POST 地址可用 `/detect`。隔离实例把 inbox_local_detect_url 配成该地址；生产服务常驻与配置切换须另行授权。
 
-训练脚本 CPU 最多 6 线程，默认 batch 4、640 输入；workers 指定 2，ultralytics CPU 会自动改为 0。固定 nice 19、关闭 RAM 图像缓存，独立看护每 0.5 秒检查内存：可用低于 2 GiB 或训练进程树 RSS 超过默认 6 GiB 即停止。默认最多 4 小时；启动时可用内存不足 4 GiB 拒绝运行。训练日志是 run/train.log，每轮原子 status.json 和追加 metrics.jsonl 供面板读取。
+训练脚本 CPU 最多 6 线程，默认 batch 4、640 输入；workers 固定 0。固定 nice 19、关闭 RAM 图像缓存，独立看护每 0.5 秒检查内存：可用低于 2 GiB 或训练进程树 RSS 超过默认 6 GiB 即停止。默认最多 4 小时；启动时可用内存不足 4 GiB 拒绝运行。训练日志是 run/train.log，每轮原子 status.json 和追加 metrics.jsonl 供面板读取。
 
 ## 单独评估、导出与恢复
 
@@ -63,3 +63,17 @@ python3 tests/e2e/boxdetect.py --dataset ~/omrs-train/datasets/20260929-1
 ```
 
 前一行可使用未安装 torch/onnxruntime 的系统 Python；真实模型 E2E 会用训练根目录下的独立 venv 启动服务，OMRS 和浏览器只使用临时 Vault。实验与限制见 `AI/training/`；当前精度是否达标以实验记录为准，不能因服务成功返回框就建议上线。
+
+
+## DeepSeek 内容评测
+
+以下命令在仓库根目录运行；替换评测名时用尚不存在的目录。prepare 只推理生成实际裁图，run 才付费调用；run 中断后使用相同命令恢复，不覆盖已有结果。CLI沿用agent渠道，固定deepseek-flash、思考开启、4096输出；单并发/60秒，临时错误最多重试两次。整个轮次默认共用content-round-1台账，最多300次请求、官方等价费用达到US$2后暂停；中转真实扣费未知。不能换台账绕过本轮限额。
+
+```bash
+~/omrs-train/.venv/bin/python tools/boxdetect/audit.py prepare --dataset ~/omrs-train/datasets/20260929-content-1 --model ~/omrs-train/runs/20260929-yolov8n-640/model.onnx --split val --conf .55 --out ~/omrs-train/audits/new-val
+~/omrs-train/.venv/bin/python tools/boxdetect/audit.py run --out ~/omrs-train/audits/new-val --config /root/workspace/apps/OMRS/错题/.omrs/config.json
+```
+
+验证集比较.1/.25/.4/.55，按内容通过数、较少缺漏、较少多余、较高阈值选定，再冻结参数评test（历史回归）和independent。省略--model生成模板基线。不传人工框或预期给DeepSeek；漏检不调用也计失败。原判和复核记录在/train查看。历史25次实验用audit.py import导入，保留失败、思考参数、提示版本及校准标记。
+
+重训需要先在train分区评测、逐个目视确认困难案例。reweight.py --dataset 原快照 --audit-path 训练评测目录 --out 新快照，只对经复核失败的训练原图全部条带重复采样一次。评测来自验证/测试或manifest不符则拒绝。先3轮冒烟再正式120轮，640/batch4/线程6；无新数据与困难样本就不重复训练。冻结图或标签变动、跨集合近似桥接均停止构建。

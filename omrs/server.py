@@ -42,6 +42,7 @@ from .boards import (
 from .feedback import process_feedback
 from .indexing import build_index
 from . import trainpanel as trainpanel_mod
+from . import trainaudit as trainaudit_mod
 from . import annotate as annotate_mod
 from . import drafts as drafts_mod
 from . import inbox as inbox_mod
@@ -1015,6 +1016,23 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             self._json({"status": "error", "msg": str(exc)}, 400)
 
     def _trainpanel_post(self, path):
+        if path == "/api/trainpanel/review":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                if not 0 < length <= 16384:
+                    self.close_connection = True
+                    raise ValueError("复核请求过大或为空")
+                data = json.loads(self.rfile.read(length))
+                if not isinstance(data, dict): raise ValueError("复核请求必须是对象")
+                value = trainaudit_mod.save_review(trainpanel_mod.train_dir(self.vault_path),
+                    data.get("audit", ""), data.get("case", ""), data.get("revision"),
+                    data.get("action"), data.get("verdict"), data.get("note", ""), source="user")
+                self._json({"status":"ok", **value})
+            except trainaudit_mod.Conflict as exc:
+                self._json({"status":"error", "msg":str(exc)}, 409)
+            except (ValueError, OSError) as exc:
+                self._json({"status":"error", "msg":str(exc)}, 400)
+            return
         if path != "/api/trainpanel/try":
             self._json({"status": "error", "msg": "not found"}, 404)
             return
@@ -1036,6 +1054,24 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         try:
             if path == "/train":
                 self._serve("assets/app/trainpanel.html", "text/html")
+            elif path == "/api/trainpanel/audits":
+                self._json({"status":"ok", **trainaudit_mod.list_audits(self.vault_path)})
+            elif path == "/api/trainpanel/audit":
+                self._json({"status":"ok", **trainaudit_mod.detail(self.vault_path, params.get("id", ""), params)})
+            elif path == "/api/trainpanel/reviews":
+                root = trainpanel_mod.train_dir(self.vault_path)
+                trainaudit_mod.audit(root, params.get("id", ""))
+                rows = trainaudit_mod.reviews(root, params.get("id", ""), params.get("case", ""))
+                self._json({"status":"ok", "reviews":rows[-100:]})
+            elif path == "/api/trainpanel/audit-image":
+                image = trainaudit_mod.image_path(self.vault_path, params.get("id", ""), params.get("resource", ""))
+                data = image.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png" if image.suffix.lower()==".png" else "image/jpeg")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "private, no-store")
+                self.end_headers()
+                self.wfile.write(data)
             elif path == "/api/trainpanel/overview":
                 self._json({"status": "ok", **trainpanel_mod.overview(self.vault_path)})
             elif path == "/api/trainpanel/run":

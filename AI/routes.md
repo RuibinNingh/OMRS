@@ -126,8 +126,13 @@
 | GET | `/api/source/export` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/settings.md` |
 | GET | `/api/stats` | `AI/api.md`、`AI/algorithm.md`、`AI/changelog.md`等 |
 | GET | `/api/status` | `AI/api.md`、`AI/frontend/settings.md`、`AI/security.md` |
+| GET | `/api/trainpanel/audit` | `AI/api.md` |
+| GET | `/api/trainpanel/audit-image` | `AI/api.md` |
+| GET | `/api/trainpanel/audits` | `AI/api.md` |
 | GET | `/api/trainpanel/overlay` | `AI/api.md` |
 | GET | `/api/trainpanel/overview` | `AI/api.md` |
+| POST | `/api/trainpanel/review` | `AI/api.md` |
+| GET | `/api/trainpanel/reviews` | `AI/api.md` |
 | GET | `/api/trainpanel/run` | `AI/api.md` |
 | GET | `/api/trainpanel/service` | `AI/api.md` |
 | GET | `/api/tree` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/architecture.md`等 |

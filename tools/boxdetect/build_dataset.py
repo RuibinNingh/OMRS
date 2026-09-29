@@ -34,6 +34,18 @@ def source_rows(vault):
                            path=data / source / folder / (row['sha256'] + '.' + EXT.get(row['mime'], 'png')),
                            width=row['width'], height=row['height'], boxes=boxes,
                            layout=row.get('layout', 'zuoyebang'), updated_at=row['updated_at'])
+            if source == 'inbox' and db.execute("SELECT 1 FROM sqlite_master WHERE name='chat_training_boxes'").fetchone():
+                for row in db.execute("SELECT DISTINCT items.* FROM items JOIN chat_training_boxes ON items.id=chat_training_boxes.item_id ORDER BY items.id"):
+                    row = dict(row)
+                    annotations = [dict(b) for b in db.execute('SELECT * FROM chat_training_boxes WHERE item_id=? ORDER BY draft_id,ord', (row['id'],))]
+                    by_draft = {}
+                    for b in annotations:
+                        by_draft.setdefault(b['draft_id'], []).append(dict(b, role='question' if b['section']=='题目' else 'answer'))
+                    for draft, boxes in by_draft.items():
+                        yield dict(id='chat:'+row['id']+'-'+draft, source='chat', sha256=row['sha256'],
+                                   path=data/'inbox/raw'/(row['sha256']+'.'+EXT.get(row['mime'],'png')),
+                                   width=row['width'], height=row['height'], boxes=boxes,
+                                   layout=row.get('layout','other'), updated_at=row['updated_at'])
         finally:
             db.close()
 
@@ -45,7 +57,7 @@ def inspect_sources(vault):
         boxes = sample['boxes']
         if not set(ROLES) <= {b['role'] for b in boxes}:
             reason = '缺少题目或答案框'
-        elif any(b.get('origin') == 'ai' for b in boxes):
+        elif any(b.get('origin') not in (None, 'manual', 'human', 'ai_edited') for b in boxes):
             reason = '含未编辑 AI 框'
         else:
             try:
@@ -70,7 +82,19 @@ def inspect_sources(vault):
         else:
             sample['boxes'] = [{k: b[k] for k in ('role', 'x', 'y', 'w', 'h')} for b in boxes if b['role'] in ROLES]
             samples.append(sample)
-    return samples, excluded
+    # 同图的不同来源不能产生重复训练权重；冲突整组隔离。
+    by_sha = {}
+    for sample in samples:
+        by_sha.setdefault(sample['sha256'], []).append(sample)
+    unique = []
+    for group in by_sha.values():
+        signatures = {json.dumps(sorted(s['boxes'], key=lambda b:(b['role'],b['y'],b['x'])),sort_keys=True) for s in group}
+        if len(signatures)>1:
+            excluded.extend({'id':s['id'],'reason':'同图人工标注冲突，待复核'} for s in group)
+        else:
+            unique.append(group[0])
+            excluded.extend({'id':s['id'],'reason':'同图相同标注去重','duplicate_of':group[0]['id']} for s in group[1:])
+    return unique, excluded
 
 
 def build(vault, out, frozen_manifest=None, threshold=4, seed=20260929):
@@ -89,7 +113,7 @@ def build(vault, out, frozen_manifest=None, threshold=4, seed=20260929):
     old = None
     if frozen_manifest:
         old = json.loads(Path(frozen_manifest).read_text())
-        frozen = old['splits']['test']
+        frozen = [i for k,ids in old['splits'].items() if k != 'quarantine' for i in ids]
     samples, excluded = inspect_sources(vault)
     if old:
         current = {s['id']: s for s in samples}
@@ -98,12 +122,16 @@ def build(vault, out, frozen_manifest=None, threshold=4, seed=20260929):
                     current[s['id']][k] != s[k] for k in ('sha256', 'boxes'))):
                 raise ValueError('冻结测试图或标签发生变化，禁止静默替换')
     groups = group_samples(samples, threshold)
-    splits = split_groups(groups, seed, frozen, min_test=15)
+    if old:
+        from tools.boxdetect.common import preserve_splits
+        splits = preserve_splits(groups, old['splits'], seed)
+    else:
+        splits = split_groups(groups, seed, min_test=15)
     if not splits['train'] or not splits['val'] or len(splits['test']) < 15:
         raise ValueError('分组后必须有训练／验证数据以及至少 15 张测试图')
     out.mkdir(parents=True)
     counts = collections.Counter()
-    for split in ('train', 'val', 'test'):
+    for split in ('train', 'val', 'test', 'independent'):
         (out / 'images' / split).mkdir(parents=True)
         (out / 'labels' / split).mkdir(parents=True)
     (out / 'originals').mkdir()
@@ -128,7 +156,7 @@ def build(vault, out, frozen_manifest=None, threshold=4, seed=20260929):
                 sample['strips'].append({'name': name, 'y0': y0, 'y1': y1})
                 counts[sample['split']] += 1
     manifest = {'version': out.name, 'seed': seed, 'dhash_threshold': threshold, 'classes': list(ROLES),
-                'frozen_from': old['version'] if old else None, 'groups': groups, 'splits': splits,
+                'purposes': {'test':'historical_regression','independent':'independent'}, 'frozen_from': old['version'] if old else None, 'groups': groups, 'splits': splits,
                 'counts': {k: len(v) for k, v in splits.items()}, 'strip_counts': dict(counts),
                 'excluded': excluded, 'samples': samples}
     atomic_json(out / 'manifest.json', manifest)
