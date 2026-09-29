@@ -49,7 +49,7 @@ export async function syncAssistantNav(doc = document, status) {
 function createController(root, { router }) {
   const S = { status: null, convs: [], convId: null, items: [], msgs: 0, attachments: [], imageNo: 1, open: new Set(), closed: new Set(), runSel: null,
     liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false,
-    uiVer: 0, draftVer: 0, draftCropMode: 'manual', drafts: {}, sugs: SUGS, alive: true };
+    uiVer: 0, draftVer: 0, draftCropMode: 'manual', drafts: {}, sugs: SUGS, alive: true, convRequest: 0 };
   morph(root, html`<div class="ast" data-rail="closed" data-insp="closed">
     <div class="ast-scrim" data-action="assistant.closeDrawers"></div>
     <aside class="ast-card ast-rail" id="ast-rail" aria-label="对话列表"></aside>
@@ -118,7 +118,9 @@ function createController(root, { router }) {
   }
 
   async function openConv(id) {
+    const request = ++S.convRequest;
     const res = await get(`/api/agent/conversation?id=${encodeURIComponent(id)}`);
+    if (!S.alive || request !== S.convRequest) return;
     if (!res.ok) { toast(res.error?.message || '打开对话失败', { kind: 'error' }); return; }
     S.convId = id; S.railOpen = false; S.runSel = null; S.popOpen = false; S.stick = true;
     S.msgs = res.data.msgs;
@@ -159,10 +161,11 @@ function createController(root, { router }) {
   }
 
   async function finish(run) {
-    setLive(null);
-    S.lastRun = run;
+    const displayed = () => S.alive && S.convId === run.conversation_id;
+    if (displayed() && S.liveRun?.id === run.id) setLive(null);
+    if (displayed()) S.lastRun = run;
     await loadList();
-    S.msgs = S.convs.find(c => c.id === S.convId)?.msgs ?? S.msgs;
+    if (displayed()) S.msgs = S.convs.find(c => c.id === S.convId)?.msgs ?? S.msgs;
     if (run.commits.length) {
       const uids = new Set();
       run.steps.forEach(s => { const a = s.args || {}; [a.uid, ...(a.uids || []), ...(a.items || []).map(i => i.uid)].filter(Boolean).forEach(u => uids.add(u)); });
@@ -348,7 +351,7 @@ function createController(root, { router }) {
     detectDraft,
     loadDraftMode: () => draftCards.loadMode(),
     openDraft(id) { navigateToDraft(id); },
-    dispose() { S.alive = false; setDraftActivity('assistant', false); draftCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); root.removeEventListener('keydown', onKey); root.removeEventListener('paste', onPaste); root.removeEventListener('dragover', onDragOver); root.removeEventListener('drop', onDrop); document.removeEventListener('click', onDoc); },
+    dispose() { S.alive = false; S.convRequest += 1; setDraftActivity('assistant', false); draftCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); root.removeEventListener('keydown', onKey); root.removeEventListener('paste', onPaste); root.removeEventListener('dragover', onDragOver); root.removeEventListener('drop', onDrop); document.removeEventListener('click', onDoc); },
     title: toolTitle,
   };
 }

@@ -216,6 +216,52 @@ class ContentIntegrityTests(unittest.TestCase):
         with open(ledger_path(self.vault), "rb") as file:
             self.assertEqual(file.read(), before)
 
+    def test_server_backfills_and_recovers_before_scanner_and_listener(self):
+        from omrs.cli import main
+        q = self.create()
+        with open(self.path(q), encoding="utf-8") as file:
+            content = file.read()
+        h = blob_hash(content)
+        with connect(self.vault) as db:
+            db.execute("DELETE FROM blobs WHERE hash = ?", (h,))
+        events = []
+
+        def recover(_vault):
+            self.assertEqual(get_blob(self.vault, h), content)
+            events.append("recover")
+            return {"state": "none"}
+
+        def scanner(_vault):
+            self.assertEqual(events, ["recover"])
+            events.append("scanner")
+
+        class FakeServer:
+            def __init__(self, *_args):
+                self.assertion = events == ["recover", "scanner"]
+                events.append("listener")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def serve_forever(self):
+                if not self.assertion:
+                    raise AssertionError("监听早于回填、恢复或扫描")
+
+        with mock.patch.object(sys, "argv", ["omrs_engine.py", "--vault", self.vault, "serve", "--port", "0"]), \
+             mock.patch("omrs.cli.build_index", return_value=[]), \
+             mock.patch("omrs.cli.ensure_image_dependencies_interactive"), \
+             mock.patch("omrs.cli.load_config", return_value={}), \
+             mock.patch("omrs.traincontrol.recover_pending", side_effect=recover), \
+             mock.patch("omrs.agent.runtime.get_runtime"), \
+             mock.patch("omrs.cli.start_workspace_scanner", side_effect=scanner), \
+             mock.patch("omrs.cli.OMRSTCPServer", FakeServer), \
+             contextlib.redirect_stdout(io.StringIO()):
+            main()
+        self.assertEqual(events, ["recover", "scanner", "listener"])
+
     def test_audit_reports_historical_gap_separately(self):
         q = self.create("旧版")
         with open(self.path(q), encoding="utf-8") as file:

@@ -167,6 +167,10 @@ def overview(vault):
     result = {'model': None, 'dataset': None, 'latest': None, 'runs': [], 'errors': {},
               'collect': config(vault).get('train_try_collect') is True}
     result['model'], error = read_json(safe_path(root, 'models', 'current', 'model.json'))
+    result['training_model'] = result['model']
+    detection = service(vault)
+    result['online_state'] = detection['state']
+    result['online_model'] = detection.get('model') if detection['state'] == 'online' else None
     if error:
         result['errors']['model'] = error
     datasets = safe_path(root, 'datasets')
@@ -190,12 +194,18 @@ def overview(vault):
             folder = safe_path(root, 'runs', folder.name)
             value, error = read_json(safe_path(folder, 'status.json'))
             evaluation, eval_error = read_json(safe_path(folder, 'eval.json'))
+            exported_path = safe_path(folder, 'export.json')
+            exported, _ = read_json(exported_path) if exported_path.is_file() else (None, None)
         except ValueError:
             continue
+        model_sha = (exported or {}).get('onnx_sha256') or (evaluation or {}).get('model_sha256')
         run = {'name': folder.name, 'status': status_view(value) if value else None,
                'evaluation': {k: evaluation.get(k) for k in ('model', 'template')} if evaluation else None,
+               'evaluation_split': evaluation.get('split') if evaluation else None,
                'error': error, 'eval_error': eval_error,
-               'current': bool(result['model'] and result['model'].get('run') == folder.name)}
+               'current': bool(result['model'] and result['model'].get('run') == folder.name),
+               'online': bool(model_sha and result['online_model'] and
+                              result['online_model'].get('sha256') == model_sha)}
         result['runs'].append(run)
     result['runs'].sort(key=lambda r: (timestamp((r['status'] or {}).get('started_at')), r['name']), reverse=True)
     result['latest'] = result['runs'][0] if result['runs'] else None
@@ -350,7 +360,8 @@ def try_image(vault, files):
                             result['collected'] = {'id': uploaded['duplicates'][0]['id'], 'duplicate': True}
                         else:
                             image_id = uploaded['images'][0]['id']
-                            annotate.save(vault, image_id, result['boxes'], status=None)
+                            annotate.save(vault, image_id, result['boxes'], status=None,
+                                          expected_revision=uploaded['images'][0]['revision'])
                             result['collected'] = {'id': image_id, 'duplicate': False, 'status': 'todo'}
             except Exception as exc:
                 result['collect_error'] = '积累失败：' + str(exc)

@@ -31,6 +31,14 @@ _MIME_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif"}
 _LOCK = threading.RLock()
 
 
+class RevisionConflict(ValueError):
+    """标注已被另一处修改，调用方须重新读取。"""
+
+    def __init__(self, revision):
+        super().__init__("标注已被修改，请核对后刷新")
+        self.current_revision = revision
+
+
 def annotate_dir(vault):
     path = os.path.join(omrs_data_dir(vault), ANNOTATE_DIR)
     os.makedirs(path, exist_ok=True)
@@ -58,7 +66,11 @@ def connect(vault):
         "CREATE TABLE IF NOT EXISTS images (id TEXT PRIMARY KEY, sha256 TEXT UNIQUE NOT NULL, file TEXT, "
         "mime TEXT NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, bytes INTEGER NOT NULL, "
         "status TEXT NOT NULL DEFAULT 'todo', boxes TEXT NOT NULL DEFAULT '[]', "
-        "uploaded_at TEXT NOT NULL, updated_at TEXT NOT NULL)")
+        "uploaded_at TEXT NOT NULL, updated_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0)")
+    columns = {row[1] for row in db.execute("PRAGMA table_info(images)")}
+    if "revision" not in columns:
+        db.execute("ALTER TABLE images ADD COLUMN revision INTEGER NOT NULL DEFAULT 0")
+        db.commit()
     return db
 
 
@@ -78,7 +90,7 @@ def _row(row):
     return {
         "id": row["id"], "file": row["file"], "width": row["width"], "height": row["height"],
         "bytes": row["bytes"], "status": row["status"], "boxes": _loads(row["boxes"]),
-        "uploaded_at": row["uploaded_at"], "updated_at": row["updated_at"],
+        "uploaded_at": row["uploaded_at"], "updated_at": row["updated_at"], "revision": row["revision"],
     }
 
 
@@ -187,7 +199,14 @@ def raw_file(vault, image_id):
         return row["mime"], handle.read()
 
 
-def save(vault, image_id, boxes, status=None):
+def _check_revision(row, expected_revision):
+    if type(expected_revision) is not int or expected_revision < 0:
+        raise ValueError("缺少有效的 expected_revision")
+    if row["revision"] != expected_revision:
+        raise RevisionConflict(row["revision"])
+
+
+def save(vault, image_id, boxes, status=None, expected_revision=None):
     """整体覆盖一张图的框；status 为 None 时保留原状态。"""
     cleaned = clean_boxes(boxes)
     if status is not None and status not in STATUSES:
@@ -196,7 +215,8 @@ def save(vault, image_id, boxes, status=None):
         db = connect(vault)
         try:
             row = _fetch(db, image_id)
-            db.execute("UPDATE images SET boxes=?, status=?, updated_at=? WHERE id=?",
+            _check_revision(row, expected_revision)
+            db.execute("UPDATE images SET boxes=?, status=?, updated_at=?, revision=revision+1 WHERE id=?",
                        (json.dumps(cleaned, ensure_ascii=False), status or row["status"], _now(), row["id"]))
             db.commit()
             return _row(_fetch(db, row["id"]))
@@ -204,11 +224,12 @@ def save(vault, image_id, boxes, status=None):
             db.close()
 
 
-def delete(vault, image_id):
+def delete(vault, image_id, expected_revision=None):
     with _LOCK:
         db = connect(vault)
         try:
             row = _fetch(db, image_id)
+            _check_revision(row, expected_revision)
             db.execute("DELETE FROM images WHERE id=?", (row["id"],))
             db.commit()
         finally:

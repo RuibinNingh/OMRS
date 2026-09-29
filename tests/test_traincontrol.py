@@ -20,6 +20,9 @@ class FakeBackend:
     def active(self):return self.state['active']
     def health(self):return self.state['online'] if self.state['active'] else None
     def command(self, action):
+        if self.state.get('fail_old_restart') and action=='restart' and c.model_info(
+                Path(self.config['root'])/'managed/active')['name']=='old':
+            raise ValueError('旧模型恢复失败')
         self.state['calls'].append(action);self.state['active']=action!='stop'
         if action!='stop':self.state['online']=c.model_info(Path(self.config['root'])/'managed/active')
         if self.state.get('fail_restart') and self.state['online']['name']=='new':raise ValueError('候选服务启动失败')
@@ -53,7 +56,54 @@ class ControlTests(unittest.TestCase):
 
     def request(self,action='activate',**kwargs):
         return {'action':action,'revision':self.control.state()['revision'],'request_id':os.urandom(16).hex(),
-                'model_id':'new','conf':.55,'imgsz':640,'sha256':c.digest(self.root/'runs/new/model.onnx'),**kwargs}
+                'model_id':'new','conf':.55,'imgsz':640,'sha256':c.digest(self.root/'runs/new/model.onnx'),
+                **({'confirm_unverified':True} if action=='activate' else {}),**kwargs}
+
+    def test_unverified_model_requires_explicit_confirmation_and_records_status(self):
+        rows,_=c.candidates(self.root)
+        self.assertEqual(next(row for row in rows if row['id']=='new')['independent_status'],'missing')
+        with self.assertRaisesRegex(ValueError,'明确确认'):
+            self.control.submit(self.request(confirm_unverified=False))
+        actor={'auth_mode':'pin_session','session_id':'session-1','client_ip':'192.0.2.9'}
+        self.control.submit(self.request(),actor=actor)
+        operation=self.finish()['operation']
+        self.assertEqual(operation['independent_status'],'missing')
+        self.assertEqual(operation['verification'],'unverified_confirmed')
+        self.assertEqual(operation['actor'],actor)
+
+    def test_failed_and_passed_independent_audit_confirmation(self):
+        audit=self.root/'audits/check/audit.json'
+        c.write(audit,{'model_sha256':c.digest(self.root/'runs/new/model.onnx'),
+                       'conf':.55,'split':'independent'})
+        score={'id':'check','purpose':'independent','images':5,'cases':10,
+               'raw_passed':3,'reviewed_passed':3,'reviewed':10,'user_reviewed':10,
+               'states':{'done':10}}
+        with patch.object(c.trainaudit,'summary',return_value=score):
+            candidate=next(row for row in c.candidates(self.root)[0] if row['id']=='new')
+            self.assertEqual(candidate['independent_status'],'failed')
+            with self.assertRaisesRegex(ValueError,'明确确认'):
+                self.control.submit(self.request(confirm_unverified=False))
+            score['reviewed_passed']=4
+            candidate=next(row for row in c.candidates(self.root)[0] if row['id']=='new')
+            self.assertEqual(candidate['independent_status'],'passed')
+            self.control.submit(self.request(confirm_unverified=False))
+            self.assertEqual(self.finish()['operation']['verification'],'independent_passed')
+
+    def test_startup_recovery_failure_keeps_management_readable_and_rejects_mismatched_detection(self):
+        before=self.control.pointer()
+        target=self.control.stage('new',c.digest(self.root/'runs/new/model.onnx'))
+        self.control.point(target);self.control.backend.command('restart')
+        op=dict(self.request(),state='running',before=before,was_active=True,started_at='now')
+        c.write(self.root/'managed/state.json',{'revision':1,'current':before,'previous':None,'operation':op})
+        self.control.backend.state['fail_old_restart']=True
+        with patch.object(c,'registration',return_value=self.config):
+            result=c.recover_pending(self.vault)
+            self.assertEqual(result['state'],'failed')
+            self.assertTrue(result['operation']['rollback_error'])
+            self.assertEqual(c.overview(self.vault)['operation']['state'],'failed')
+            with self.assertRaisesRegex(ValueError,'不一致'):
+                c.managed_identity('http://127.0.0.1:18991/detect')
+        self.assertEqual(self.control.state()['operation']['state'],'failed')
 
     def finish(self):
         for _ in range(300):
@@ -165,7 +215,10 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(req('POST','/api/trainpanel/control',self.request('stop'),{'Origin':'https://evil.invalid'})[0],403)
         self.assertEqual(req('POST','/api/trainpanel/control',self.request('stop'),{'X-Forwarded-Proto':'https'})[0],401)
         self.assertEqual(req('GET','/api/trainpanel/manager',headers={'X-Forwarded-For':'203.0.113.1','X-Forwarded-Proto':'https'})[0],401)
-        payload=self.request('stop');self.assertEqual(req('POST','/api/trainpanel/control',payload)[0],202);self.finish()
+        payload=self.request('stop');payload['actor']={'auth_mode':'pin_session','session_id':'spoofed','client_ip':'8.8.8.8'}
+        self.assertEqual(req('POST','/api/trainpanel/control',payload)[0],202);self.finish()
+        self.assertEqual(self.control.state()['operation']['actor'],
+                         {'auth_mode':'local','session_id':'','client_ip':'127.0.0.1'})
         self.assertEqual(req('POST','/api/trainpanel/control',dict(self.request('start'),revision=0))[0],409)
 
 if __name__=='__main__':unittest.main()

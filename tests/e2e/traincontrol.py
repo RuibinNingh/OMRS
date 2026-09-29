@@ -35,7 +35,9 @@ def main():
                         print('浏览器错误',errors,flush=True);print(page.locator('body').inner_text()[:1800],flush=True);raise
                     def act(label):
                         page.locator('#tp-control').get_by_role('button',name=label,exact=True).click()
-                        page.get_by_role('button',name='确认'+label,exact=True).click()
+                        confirm = ('确认应用未通过验收模型' if label == '应用到框选'
+                                   else '确认' + label)
+                        page.get_by_role('button',name=confirm,exact=True).click()
                         page.wait_for_function("()=>document.querySelector('#tc-result')?.textContent.includes('已完成') && !document.querySelector('#tp-control').textContent.includes('操作进行中')")
                     page.locator('#tc-model').select_option('new')
                     assert fixture.control.backend.health()['name']=='old';checks.append('查看模型不应用')

@@ -15,6 +15,8 @@ export function createAnnotateStore({ api, notify = () => {}, timers = globalThi
   const history = createHistory();
   const listeners = new Set();
   const pending = new Map();   // id → { status? }
+  const inflightIds = new Set();
+  const blocked = new Set();   // 保存失败后保留本地框，等待用户核对并刷新
   let timer = null;
   let inflight = null;
 
@@ -33,7 +35,9 @@ export function createAnnotateStore({ api, notify = () => {}, timers = globalThi
     const result = await api.get('/api/annotate/images');
     state.loading = false;
     if (!result.ok) { state.error = `读取标注图片失败：${message(result)}`; emit(); return false; }
-    state.images = result.data?.images || [];
+    const local = new Map(state.images.filter(image => pending.has(image.id) || inflightIds.has(image.id) || blocked.has(image.id))
+      .map(image => [image.id, image]));
+    state.images = (result.data?.images || []).map(image => local.get(image.id) || image);
     if (!current()) state.cur = nextTodo(state.images, null) || state.images[0]?.id || null;
     emit();
     return true;
@@ -93,6 +97,7 @@ export function createAnnotateStore({ api, notify = () => {}, timers = globalThi
     timers.clearTimeout(timer); timer = null;
     if (inflight) { await inflight; return pending.size ? flush() : true; }
     if (!pending.size) return true;
+    if ([...pending.keys()].some(id => blocked.has(id))) { state.saving = 'error'; emit(); return false; }
     const batch = [...pending]; pending.clear();
     state.saving = 'saving'; emit();
     inflight = (async () => {
@@ -100,15 +105,20 @@ export function createAnnotateStore({ api, notify = () => {}, timers = globalThi
       for (const [id, entry] of batch) {
         const image = state.images.find(row => row.id === id);
         if (!image) continue;
-        const body = { id, boxes: image.boxes.map(cleanBox), ...(entry.status ? { status: entry.status } : {}) };
+        const body = { id, boxes: image.boxes.map(cleanBox), expected_revision: image.revision,
+          ...(entry.status ? { status: entry.status } : {}) };
+        inflightIds.add(id);
         const result = await api.post('/api/annotate/save', body);
+        inflightIds.delete(id);
         if (result.ok) {
-          image.status = result.data?.image?.status || image.status;
+          image.revision = result.data?.image?.revision;
+          if (!pending.has(id)) image.status = result.data?.image?.status || image.status;
           image.updated_at = result.data?.image?.updated_at || image.updated_at;
         } else {
           ok = false;
+          blocked.add(id);
           if (!pending.has(id)) pending.set(id, entry);
-          notify(`保存失败：${message(result)}`, 'error');
+          notify(`保存失败：${message(result)}；本页框位已保留，请核对后刷新`, 'error');
         }
       }
       return ok;
@@ -232,8 +242,9 @@ export function createAnnotateStore({ api, notify = () => {}, timers = globalThi
     async removeImage() {
       const image = current();
       if (!image) return false;
+      if (!(await flush())) return false;
       pending.delete(image.id);
-      const result = await api.post('/api/annotate/delete', { id: image.id });
+      const result = await api.post('/api/annotate/delete', { id: image.id, expected_revision: image.revision });
       if (!result.ok) { notify(`删除失败：${message(result)}`, 'error'); return false; }
       const list = visible();
       const index = list.findIndex(row => row.id === image.id);

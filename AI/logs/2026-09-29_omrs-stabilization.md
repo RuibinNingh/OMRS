@@ -6,7 +6,7 @@
 
 ## 行为变化
 
-当前工作树已实现只读正文覆盖率盘点、正文随对应 Ledger 提交入账、启动前增量回填、删除前可取回校验、跨题还原拒绝与助手撤销续做。收件箱用持久 revision 和 reset_epoch 检查更新、重置、丢弃及录入；前端字段补丁与后台作业防止过期结果覆盖人工编辑，flush 失败不继续录入。受管模型在主站监听前恢复中断操作，管理查询只读，检测请求核对实际在线身份；未过独立内容验收的应用需明确确认并记录服务端认证来源。助手、标注和展示板的迟到响应或冲突保留当前状态。本地代码与受影响浏览器主路径已完成复验，切片提交仍待主控执行。
+本地 v1.35.0 已实现只读正文覆盖率盘点、正文随对应 Ledger 提交入账、启动前增量回填、删除前可取回校验、跨题还原拒绝与助手撤销续做。收件箱用持久 revision 和 reset_epoch 检查更新、重置、丢弃及录入；前端字段补丁与后台作业防止过期结果覆盖人工编辑，flush 失败不继续录入。受管模型在主站监听前恢复中断操作，管理查询只读，检测请求核对实际在线身份；未过独立内容验收的应用需明确确认并记录服务端认证来源。助手、标注和展示板的迟到响应或冲突保留当前状态。本地代码与受影响浏览器主路径已完成复验。
 
 质量补丁进一步保护唯一正文：创建题目的 Ledger 提交失败时保留已写出的 Markdown 与附件；助手撤销先验证所有涉及正文的当前 blob，损坏时不先撤其他题。旧投影 blob 缺失且文件已改、或 blob 内容/身份损坏时，API 编辑、标签、移动、删除与工作区扫描拒绝该题写入；扫描会报告并跳过冲突题，其他题仍继续。
 
@@ -15,12 +15,13 @@
 - `omrs/content_history.py`、`creation.py`、`question_ops.py`、`workspace_sync.py`、`agent/revert.py`、`ledger.py`、`cli.py`：正文审计、入账、删除与撤销边界。
 - `omrs/inbox.py`、`server.py`、`annotate.py`、`traincontrol.py`、`trainpanel.py`、`ai_assist.py`：CAS 接口、模型恢复、在线身份与操作审计。
 - `assets/app/features/create/`、`annotate/`、`assistant/`、`board/`、`trainpanel/`：保存队列、冲突提示和迟到响应处理；`omrs/version.py`、`omrs_dashboard.html` 标明 v1.35.0。
-- `tests/` 下的后端、Node 与隔离浏览器回归验证上述路径；`AI/` 模块文档、计划、任务日志和根 `README.md` 同步契约。最终切片提交前再次运行 `git diff --name-status` 核对实际文件。
+- `tests/` 下的后端、Node 与隔离浏览器回归验证上述路径；`AI/` 模块文档、计划、任务日志和根 `README.md` 同步契约。已用 `git diff --name-status c2dee40` 结合未跟踪文件状态核对实际变化。
 
 ## 本地提交
 
 - `15301b8`：正文审计、入账、回填、删除保险与按运行撤销；附隔离回归及计划、模块文档。
-- 收件箱 revision 与异步保存切片正在提交，最终哈希在收尾时补记。
+- `0130415`：收件箱 revision、字段补丁、后台代次校验及浏览器交错回归。
+- 本提交：模型服务恢复与审计、标注和异步页面状态、版本与文档收尾；哈希以本分支最新提交为准。
 
 ## 已执行验证
 
@@ -31,13 +32,14 @@
 - 质量补丁定向验证：`python3 -m unittest tests.test_content_integrity tests.test_labels -q` **23/23**；`git diff --check` 通过。此结果不替代质量补丁后的全仓复测。
 - 质量补丁后全仓 Python 复验：`env -u OMRS_SYSTEMD_SERVICE python3 -W ignore::ResourceWarning -m unittest discover -s tests -p 'test_*.py' -q` **379/379** 通过。
 - 质量补丁后隔离浏览器复验：`env -u OMRS_SYSTEMD_SERVICE python3 tests/e2e/create.py` **104/104**、`env -u OMRS_SYSTEMD_SERVICE python3 tests/e2e/assistant.py` **58/58**，均使用临时 Vault 与随机高端口。质量补丁未修改前端；其余 Node、组件浏览器和页面主路径的首轮通过结果仍适用。
+- 切片隔离回归：将 `15301b8` 与 `0130415` 分别用 `git archive` 导出到临时源码运行全仓门禁；前者 Python **368/368**、Node **369/369**、助手浏览器 **58/58**，后者 Python **373/373**、Node **375/375**、组件浏览器 **32/32**、录入浏览器 **104/104**，均通过。
 - 隔离浏览器主路径：`tests/e2e/create.py` **104/104**、`assistant.py` **58/58**、`assistant_race.py` **2/2**、`annotate.py` **34/34**、`traincontrol.py` **32/32**、`trainpanel.py` **32/32**、`board.py` **25/25**，均通过。
 - 静态门禁：`python3 tests/check_ui.py` **0 个问题**；`python3 tests/check_contrast.py` **58/58**；`python3 tests/check_docs.py --diff c2dee40` 检查 **57 份文档、0 个问题**。文档检查另提醒 `AI/api.md` 与旧执行说明超过建议文件大小上限，不计为失败。
 - `python3 tests/visual/run.py --ref c2dee40` 比较 **48 张**：24 张有差异、24 张无差异，脚本错误 0。历史页因启动时不再生成一次性正文快照而少一条时间线项，差异 **1.889–3.981%**；仪表盘最近动态同因变化 **0.352–0.714%**；其余页面桌面端 **0.001–0.002%** 的差异来自侧栏版本号。未发现本轮功能区域的其他视觉回归。
 
 ## 未执行验证与下一步
 
-本地代码与页面主路径验收已完成，切片提交待主控执行。未执行生产部署、真实 Vault 增量回填、真实 Vault 写入后的 Ledger/Markdown/模型身份验收，均需用户单独授权；不能把本地通过或只读盘点当作生产已发布或缺口已补齐。
+本地代码与页面主路径验收已完成。未执行生产部署、真实 Vault 增量回填、真实 Vault 写入后的 Ledger/Markdown/模型身份验收，均需用户单独授权；不能把本地通过或只读盘点当作生产已发布或缺口已补齐。
 
 ## 只读数据盘点与 16:59 调查
 

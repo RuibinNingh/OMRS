@@ -1028,7 +1028,13 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 if not 0 < length <= 4096:
                     self.close_connection = True
                     raise ValueError("控制请求过大或为空")
-                value = traincontrol.submit(self.vault_path, json.loads(self.rfile.read(length)))
+                remote, client_ip, _ = self._security_context()
+                session = self._active_session
+                actor = {'auth_mode': 'pin_session' if session else
+                         'lan_exempt' if remote else 'local',
+                         'session_id': session['id'] if session else '',
+                         'client_ip': client_ip}
+                value = traincontrol.submit(self.vault_path, json.loads(self.rfile.read(length)), actor=actor)
                 self._json({"status":"ok", "operation":value}, 202)
             except traincontrol.Conflict as exc:
                 self._json({"status":"error", "msg":str(exc)}, 409)
@@ -1165,11 +1171,16 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 raise ValueError("请求体必须是 JSON 对象")
             if path == "/api/annotate/save":
                 self._json({"status": "ok", "image": annotate_mod.save(
-                    self.vault_path, data.get("id", ""), data.get("boxes"), data.get("status"))})
+                    self.vault_path, data.get("id", ""), data.get("boxes"), data.get("status"),
+                    data.get("expected_revision"))})
             elif path == "/api/annotate/delete":
-                self._json({"status": "ok", **annotate_mod.delete(self.vault_path, data.get("id", ""))})
+                self._json({"status": "ok", **annotate_mod.delete(
+                    self.vault_path, data.get("id", ""), data.get("expected_revision"))})
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
+        except annotate_mod.RevisionConflict as exc:
+            self._json({"status": "error", "code": "revision_conflict", "msg": str(exc),
+                        "current_revision": exc.current_revision}, 409)
         except Exception as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
 

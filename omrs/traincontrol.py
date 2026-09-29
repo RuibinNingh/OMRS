@@ -117,9 +117,18 @@ def candidates(root):
                     data = json.loads(path.read_text())
                     if data.get('model_sha256') == meta['sha256'] and data.get('conf') == meta['conf'] and data.get('split') in ('test','independent'):
                         score = trainaudit.summary(root,path.parent.name)
-                        scores.append({k:score[k] for k in ('id','purpose','images','raw_passed','reviewed_passed','reviewed','cases','user_reviewed')})
+                        scores.append({k:score[k] for k in ('id','purpose','images','raw_passed','reviewed_passed','reviewed','cases','user_reviewed','states')})
                 except (ValueError,OSError,KeyError): continue
-            rows.append({'id':folder.name,**meta,'scores':scores})
+            independent = [score for score in scores if score['purpose'] == 'independent']
+            complete = [score for score in independent if score['images'] > 0 and score['cases'] > 0
+                        and score['reviewed'] == score['cases']
+                        and not score['states'].get('pending', 0)]
+            passed = any(5 * score['reviewed_passed'] >= 4 * score['images'] for score in complete)
+            audit_status = ('passed' if passed else 'failed' if complete else
+                            'incomplete' if independent else 'missing')
+            rows.append({'id':folder.name,**meta,'scores':scores,
+                         'independent_reviewed':bool(complete),
+                         'independent_passed':passed, 'independent_status':audit_status})
         except (ValueError,OSError,KeyError,TypeError) as exc: errors.append({'id':folder.name,'error':str(exc)})
     return rows, errors
 
@@ -160,7 +169,7 @@ class Controller:
     def stage(self, ident, expected_sha, conf=None, imgsz=None):
         rows,_ = candidates(self.root); candidate = next((r for r in rows if r['id']==ident),None)
         if not candidate or candidate['sha256'] != expected_sha or (conf is not None and candidate['conf'] != conf) or (imgsz is not None and candidate['imgsz'] != imgsz): raise ValueError('模型不存在或身份已改变，请刷新')
-        meta = {k:v for k,v in candidate.items() if k not in ('id','scores')}
+        meta = {k:candidate[k] for k in ('name','run','sha256','imgsz','conf','classes')}
         name = hashlib.sha256(json.dumps(meta,sort_keys=True).encode()).hexdigest()
         dest = self.home/'snapshots'/name
         if not dest.exists():
@@ -226,13 +235,24 @@ class Controller:
                 handle.close(); return
             self.launch(current,handle,True)
 
-    def submit(self, data):
+    def submit(self, data, *, actor=None):
         action = data.get('action'); ident = data.get('request_id')
         if action not in ACTIONS or not isinstance(ident,str) or len(ident)!=32 or any(c not in '0123456789abcdef' for c in ident):
             raise ValueError('操作或请求ID不合法')
         if type(data.get('revision')) is not int: raise ValueError('缺少操作版本')
         if action=='activate': trainpanel.safe_path(self.root,'runs',data.get('model_id',''))
+        if actor is None:
+            actor = {'auth_mode':'local','session_id':'','client_ip':'127.0.0.1'}
+        if (not isinstance(actor,dict) or actor.get('auth_mode') not in ('local','lan_exempt','pin_session')
+                or not isinstance(actor.get('session_id'),str) or len(actor['session_id']) > 128
+                or not isinstance(actor.get('client_ip'),str) or not 0 < len(actor['client_ip']) <= 128
+                or (actor['auth_mode'] == 'pin_session') != bool(actor['session_id'])):
+            raise ValueError('操作身份不合法')
+        actor = {k:actor[k] for k in ('auth_mode','session_id','client_ip')}
+        if action == 'activate' and type(data.get('confirm_unverified',False)) is not bool:
+            raise ValueError('未验收模型确认字段不合法')
         request = {k:data.get(k) for k in ('action','revision','request_id','model_id','sha256','conf','imgsz')}
+        if action == 'activate': request['confirm_unverified'] = data.get('confirm_unverified',False)
         record = self.home/'operations'/(ident+'.json')
         if record.exists():
             op = json.loads(record.read_text())
@@ -243,25 +263,39 @@ class Controller:
             state = self.state()
             if state.get('operation',{}).get('state')=='running': raise Conflict('上次操作待恢复，请刷新')
             if state['revision'] != data['revision']: raise Conflict('服务状态已被修改，请刷新后重试')
-            if action=='activate' and not any(r['id']==data.get('model_id') and r['sha256']==data.get('sha256') and r['conf']==data.get('conf') and r['imgsz']==data.get('imgsz') for r in candidates(self.root)[0]):
-                raise ValueError('模型未登记或哈希已改变')
+            candidate = None
+            if action == 'activate':
+                candidate = next((r for r in candidates(self.root)[0]
+                                  if r['id']==data.get('model_id') and r['sha256']==data.get('sha256')
+                                  and r['conf']==data.get('conf') and r['imgsz']==data.get('imgsz')),None)
+                if not candidate: raise ValueError('模型未登记或哈希已改变')
+                if not candidate['independent_passed'] and data.get('confirm_unverified') is not True:
+                    raise ValueError('独立内容验收缺失、未完成或未通过，请明确确认后再应用')
             before = self.pointer()
             if action=='rollback' and not state.get('previous'): raise ValueError('没有上一模型')
             op = dict(request,request=request,state='running',before=before,was_active=self.backend.active(),
-                      actor='已认证用户',before_sha256=model_info(self.home/'snapshots'/before)['sha256'],
+                      actor=actor,before_sha256=model_info(self.home/'snapshots'/before)['sha256'],
                       started_at=trainaudit.now(),error='',rollback_error='')
+            if candidate:
+                op['independent_audits'] = [score for score in candidate['scores'] if score['purpose']=='independent']
+                op['independent_reviewed'] = candidate['independent_reviewed']
+                op['independent_passed'] = candidate['independent_passed']
+                op['independent_status'] = candidate['independent_status']
+                op['verification'] = ('independent_passed' if candidate['independent_passed']
+                                      else 'unverified_confirmed')
+                op['confirm_unverified'] = data.get('confirm_unverified',False)
             state.update(revision=state['revision']+1,operation=op)
             write(record,op); write(self.home/'state.json',state)
             self.launch(op,handle); return op
         except BaseException: handle.close(); raise
 
     def overview(self):
-        self.recover(); state = self.state(); health = self.backend.health(); rows,errors = candidates(self.root)
+        state = self.state(); health = self.backend.health(); rows,errors = candidates(self.root)
         chosen = model_info(self.home/'snapshots'/state['current'])
         match = bool(health and all(health.get(k)==chosen[k] for k in ('sha256','imgsz','conf')))
         history = []
         for path in sorted((self.home/'operations').glob('*.json'),key=lambda p:p.stat().st_mtime,reverse=True)[:20]:
-            item = json.loads(path.read_text()); history.append({k:item.get(k) for k in ('action','state','started_at','finished_at','error','rollback_error','model_id','actor','sha256','resulting_sha256')})
+            item = json.loads(path.read_text()); history.append({k:item.get(k) for k in ('action','state','started_at','finished_at','error','rollback_error','model_id','actor','sha256','resulting_sha256','verification','independent_status','independent_passed','confirm_unverified')})
         return {'supported':True,'revision':state['revision'],'operation':state.get('operation'),
                 'online':health,'matches':match,'selected':chosen,'previous':bool(state.get('previous')),
                 'models':rows,'errors':errors,'history':history}
@@ -273,8 +307,50 @@ def overview(vault):
     return Controller(config).overview()
 
 
-def submit(vault, data):
+def recover_pending(vault):
+    """服务器开始监听前同步回退中断操作；普通状态查询不触发服务变更。"""
+    config = registration(vault)
+    if not config: return {'supported':False,'state':'none'}
+    controller = Controller(config)
+    op = controller.state().get('operation')
+    if not op or op.get('state') != 'running':
+        return {'supported':True,'state':'none','operation':op}
+    try: handle = controller.acquire()
+    except Conflict: return {'supported':True,'state':'in_progress','operation':op}
+    current = controller.state().get('operation')
+    if not current or current.get('state') != 'running':
+        handle.close()
+        return {'supported':True,'state':'none','operation':current}
+    controller.execute(current,handle,True)
+    final = controller.state()['operation']
+    return {'supported':True,'state':final['state'],'operation':final}
+
+
+def managed_identity(url):
+    """受管检测地址每次请求核对磁盘配置、指针与实际服务身份。"""
+    name = os.environ.get('OMRS_BOXDETECT_CONTROL')
+    if not name: return None
+    try:
+        descriptor = json.loads(Path(name).read_text())
+        managed_url = f"http://127.0.0.1:{descriptor['port']}/detect"
+    except (OSError,ValueError,KeyError,TypeError) as exc:
+        raise ValueError('受管检测服务登记无效') from exc
+    if url != managed_url: return None
+    config = registration(descriptor['vault'])
+    if not config: raise ValueError('受管检测服务登记无效')
+    controller = Controller(config); state = controller.state()
+    selected = state['current']
+    if controller.pointer() != selected:
+        raise ValueError('检测服务模型映射与已配置模型不一致，已拒绝框选')
+    expected = model_info(controller.home/'snapshots'/selected)
+    health = controller.backend.health()
+    if not health or any(health.get(k) != expected[k] for k in ('sha256','imgsz','conf')):
+        raise ValueError('检测服务实际模型与已配置模型不一致，已拒绝框选')
+    return {k:expected[k] for k in ('sha256','imgsz','conf')}
+
+
+def submit(vault, data, *, actor=None):
     config = registration(vault)
     if not config: raise ValueError('此实例未登记受管检测服务')
     if not isinstance(data,dict): raise ValueError('请求必须是对象')
-    return Controller(config).submit(data)
+    return Controller(config).submit(data, actor=actor)

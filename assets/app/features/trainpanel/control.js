@@ -5,11 +5,18 @@ import { button } from '../../ui/button.js';
 import { dialog } from '../../ui/dialog.js';
 
 const names = {start:'启动服务',stop:'停止服务',restart:'重启服务',activate:'应用到框选',rollback:'恢复上一模型'};
-export function controlPayload(data, action, model, requestId) {
-  return {action, revision:data.revision, request_id:requestId, ...(action==='activate' ? {model_id:model.id,sha256:model.sha256,conf:model.conf,imgsz:model.imgsz} : {})};
+const auditLabels = {passed:'独立内容验收已通过',failed:'独立内容验收未通过',incomplete:'独立内容验收未完成',missing:'缺少独立内容验收'};
+export function controlPayload(data, action, model, requestId, confirmUnverified=false) {
+  return {action, revision:data.revision, request_id:requestId, ...(action==='activate' ? {model_id:model.id,sha256:model.sha256,conf:model.conf,imgsz:model.imgsz,
+    ...(confirmUnverified ? {confirm_unverified:true} : {})} : {})};
 }
 export function modelScores(model) {
   return model?.scores?.length ? model.scores.map(s=>`${s.purpose==='independent'?'独立验收':'历史回归'}：原判 ${s.raw_passed}/${s.images}，复核后 ${s.reviewed_passed}/${s.images}；已复核 ${s.reviewed}/${s.cases}（用户 ${s.user_reviewed}）`).join('；') : '暂无内容验收记录，不代表质量达标';
+}
+export function actorLabel(actor) {
+  if (!actor || typeof actor !== 'object') return actor || '历史记录未注明身份';
+  const mode = {local:'本机',lan_exempt:'局域网免 PIN',pin_session:'PIN 会话'}[actor.auth_mode] || '未知来源';
+  return `${mode} · ${actor.client_ip || '地址未知'}${actor.session_id ? ` · 会话 ${actor.session_id}` : ''}`;
 }
 export function mountControl(root, api, changed) {
   let data=null, selected='', timer=null, disposed=false, sending=false, generation=0;
@@ -23,17 +30,17 @@ export function mountControl(root, api, changed) {
       <span>${busy?'操作进行中':data.online?'检测服务在线':'检测服务离线'}</span>
       <span>实际在线：${data.online?.name || '未加载'}</span>
       ${data.online ? html`<span>${data.online.imgsz} · 置信度 ${data.online.conf} · SHA ${data.online.sha256}</span>`:''}
-      ${data.online && !data.matches ? html`<strong>实际在线模型与所选配置不一致，请检查后重启服务。</strong>`:''}</div>
+      ${data.online && !data.matches ? html`<strong>实际在线模型与所选配置不一致，本地框选已拒绝使用；需人工核对并处理。</strong>`:''}</div>
       <p>已配置模型：${data.selected?.name}。实时测试使用实际在线模型；查看下方实验或选择列表不会切换服务。</p>
       <div class="tp-row">${['start','stop','restart','rollback'].map(action=>button({label:names[action],action:'tc-action',arg:action,disabled:busy || (action==='rollback'&&!data.previous)}))}${button({label:'刷新服务',action:'tc-refresh',disabled:sending})}</div>
       <label class="tc-model-label">查看模型<select class="ui-select" id="tc-model" ${busy?'disabled':''}>${data.models.map(m=>html`<option value="${m.id}" ${m.id===selected?'selected':''}>${m.name}${m.sha256===data.online?.sha256?' · 当前在线':''}</option>`)}</select></label>
-      <p id="tc-score">${modelScores(model)}</p><p>模型 ${model?.imgsz || '—'} · 置信度 ${model?.conf ?? '—'}。复核后指标含未复核原判，不是独立准确率。</p>
+      <p id="tc-score">${modelScores(model)}</p><p>模型 ${model?.imgsz || '—'} · 置信度 ${model?.conf ?? '—'}。${auditLabels[model?.independent_status] || '验收状态未知'}${model && !model.independent_passed ? '，应用时需明确确认。' : '。'}复核后指标含未复核原判，不是独立准确率。</p>
       ${button({label:names.activate,action:'tc-action',arg:'activate',variant:'primary',disabled:busy || !model})}
       <p id="tc-error" class="tp-errors" role="alert">${failure || data.operation?.rollback_error || data.operation?.error || ''}</p>
       ${pending ? button({label:'重试获取操作结果',action:'tc-retry',disabled:sending}):''}
       <p id="tc-result" aria-live="polite">${data.operation?.state==='done'?'上次操作已完成':data.operation?.state==='failed'?'上次操作失败，详见原因与历史':''}</p>
       ${data.errors?.map(e=>html`<p class="tp-errors">${e.id}：${e.error}</p>`)}
-      <details><summary>服务操作历史</summary>${data.history?.map(h=>html`<p>${h.started_at} · ${h.actor} · ${names[h.action]} · ${h.state==='done'?'完成':h.state==='failed'?'失败':'进行中'} ${h.model_id || ''} ${h.error || ''} ${h.rollback_error || ''}</p>`)}</details>`);
+      <details><summary>服务操作历史</summary>${data.history?.map(h=>html`<p>${h.started_at} · ${actorLabel(h.actor)} · ${names[h.action]} · ${h.state==='done'?'完成':h.state==='failed'?'失败':'进行中'} ${h.model_id || ''} ${h.independent_status ? `· ${auditLabels[h.independent_status] || '验收状态未知'}` : ''} ${h.verification==='unverified_confirmed'?'· 已确认应用':''} ${h.error || ''} ${h.rollback_error || ''}</p>`)}</details>`);
   }
   async function refresh() {
     clearTimeout(timer); const gen=++generation;
@@ -61,9 +68,9 @@ export function mountControl(root, api, changed) {
     if(target.dataset.action==='tc-retry'&&pending) {await send(pending);return;}
     if(target.dataset.action!=='tc-action')return;
     const action=target.dataset.arg, model=data.models.find(m=>m.id===selected);
-    const payload=controlPayload(data,action,model,crypto.randomUUID().replaceAll('-',''));
-    const answer=await dialog({title:names[action],size:'md',okText:'确认'+names[action],body:html`<p>此操作影响收件箱和聊天草稿的自动框选。</p>${action==='activate'?html`<p>将应用 ${model.name}。${modelScores(model)}</p><p>先预检模型，再切换服务；失败自动恢复原模型。不会启动训练或付费评测。</p>`:html`<p>${action==='stop'?'停止后自动框选暂不可用。':action==='rollback'?'恢复最近一次切换前的模型。':'服务启动后会核验实际加载的模型。'}</p>`}`});
-    if(answer.ok && !disposed) await send(payload);
+    const unverified=action==='activate' && !model.independent_passed;
+    const answer=await dialog({title:names[action],size:'md',okText:unverified?'确认应用未通过验收模型':'确认'+names[action],body:html`<p>此操作影响收件箱和聊天草稿的自动框选。</p>${action==='activate'?html`<p>将应用 ${model.name}。${modelScores(model)}</p>${unverified?html`<p><strong>${auditLabels[model.independent_status] || '独立内容验收状态未知'}。确认后仍会切换在线框选，操作历史将记录本次确认。</strong></p>`:''}<p>先预检模型，再切换服务；失败自动恢复原模型。不会启动训练或付费评测。</p>`:html`<p>${action==='stop'?'停止后自动框选暂不可用。':action==='rollback'?'恢复最近一次切换前的模型。':'服务启动后会核验实际加载的模型。'}</p>`}`});
+    if(answer.ok && !disposed) await send(controlPayload(data,action,model,crypto.randomUUID().replaceAll('-',''),unverified));
   }
   root.addEventListener('click',click);
   root.addEventListener('change',event=>{if(event.target.id==='tc-model'){selected=event.target.value;paint();}});

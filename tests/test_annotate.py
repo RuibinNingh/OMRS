@@ -64,11 +64,12 @@ class StoreTests(unittest.TestCase):
     def test_save_keeps_status_until_given_and_stats(self):
         image = annotate.upload(self.vault, [("a.png", make_png(10, 30))])["images"][0]
         box = {"role": "question", "x": 0.1, "y": 0.1, "w": 0.5, "h": 0.3}
-        saved = annotate.save(self.vault, image["id"], [box])
+        saved = annotate.save(self.vault, image["id"], [box], expected_revision=image["revision"])
         self.assertEqual(saved["status"], "todo")
-        saved = annotate.save(self.vault, image["id"], [box, {**box, "role": "answer", "y": 0.5}], "done")
+        saved = annotate.save(self.vault, image["id"], [box, {**box, "role": "answer", "y": 0.5}], "done",
+                              expected_revision=saved["revision"])
         self.assertEqual(saved["status"], "done")
-        self.assertEqual(annotate.save(self.vault, image["id"], [box])["status"], "done")
+        self.assertEqual(annotate.save(self.vault, image["id"], [box], expected_revision=saved["revision"])["status"], "done")
         self.assertEqual(annotate.stats(self.vault), {"images": 1, "done": 1, "todo": 0,
                                                       "boxes": {"question": 1, "answer": 0}})
         with self.assertRaises(ValueError):
@@ -79,8 +80,10 @@ class StoreTests(unittest.TestCase):
     def test_export_yolo_only_done_by_default(self):
         done, todo = annotate.upload(self.vault, [("a.png", make_png(10, 30)),
                                                   ("b.png", make_png(12, 30))])["images"]
-        annotate.save(self.vault, done["id"], [{"role": "answer", "x": 0.2, "y": 0.4, "w": 0.4, "h": 0.2}], "done")
-        annotate.save(self.vault, todo["id"], [{"role": "question", "x": 0, "y": 0, "w": 1, "h": 1}])
+        annotate.save(self.vault, done["id"], [{"role": "answer", "x": 0.2, "y": 0.4, "w": 0.4, "h": 0.2}], "done",
+                      expected_revision=done["revision"])
+        annotate.save(self.vault, todo["id"], [{"role": "question", "x": 0, "y": 0, "w": 1, "h": 1}],
+                      expected_revision=todo["revision"])
         with zipfile.ZipFile(io.BytesIO(annotate.export(self.vault, "yolo"))) as zf:
             names = zf.namelist()
             lines = zf.read("labels.jsonl").decode().strip().split("\n")
@@ -100,9 +103,21 @@ class StoreTests(unittest.TestCase):
         image = annotate.upload(self.vault, [("a.png", make_png(10, 30))])["images"][0]
         folder = annotate.images_dir(self.vault)
         self.assertEqual(len(os.listdir(folder)), 1)
-        annotate.delete(self.vault, image["id"])
+        annotate.delete(self.vault, image["id"], image["revision"])
         self.assertEqual(os.listdir(folder), [])
         self.assertEqual(annotate.list_images(self.vault), [])
+
+    def test_stale_tab_cannot_overwrite_or_delete_boxes(self):
+        image = annotate.upload(self.vault, [("a.png", make_png(10, 30))])["images"][0]
+        box = {"role": "question", "x": 0.1, "y": 0.1, "w": 0.5, "h": 0.3}
+        saved = annotate.save(self.vault, image["id"], [box], expected_revision=0)
+        with self.assertRaises(annotate.RevisionConflict) as conflict:
+            annotate.save(self.vault, image["id"], [], expected_revision=0)
+        self.assertEqual(conflict.exception.current_revision, 1)
+        with self.assertRaises(annotate.RevisionConflict):
+            annotate.delete(self.vault, image["id"], 0)
+        self.assertEqual(annotate.list_images(self.vault)[0]["boxes"], [box])
+        self.assertEqual(saved["revision"], 1)
 
 
 class HttpTests(unittest.TestCase):
@@ -142,10 +157,13 @@ class HttpTests(unittest.TestCase):
         image = json.loads(data)["images"][0]
         resp, data = self.call("GET", f"/api/annotate/raw?id={image['id']}")
         self.assertEqual((resp.status, resp.getheader("Content-Type")), (200, "image/png"))
-        payload = json.dumps({"id": image["id"], "status": "done",
+        payload = json.dumps({"id": image["id"], "status": "done", "expected_revision": image["revision"],
                               "boxes": [{"role": "question", "x": 0.1, "y": 0.1, "w": 0.8, "h": 0.4}]})
         resp, data = self.call("POST", "/api/annotate/save", payload, {"Content-Type": "application/json"})
         self.assertEqual(json.loads(data)["image"]["status"], "done")
+        resp, data = self.call("POST", "/api/annotate/save", payload, {"Content-Type": "application/json"})
+        self.assertEqual(resp.status, 409)
+        self.assertEqual(json.loads(data)["current_revision"], 1)
         resp, data = self.call("GET", "/api/annotate/images")
         listing = json.loads(data)
         self.assertEqual((listing["images"][0]["id"], listing["stats"]["done"]), (image["id"], 1))
@@ -155,7 +173,7 @@ class HttpTests(unittest.TestCase):
         resp, data = self.call("POST", "/api/annotate/save", json.dumps({"id": image["id"], "boxes": "x"}),
                                {"Content-Type": "application/json"})
         self.assertEqual(resp.status, 400)
-        resp, data = self.call("POST", "/api/annotate/delete", json.dumps({"id": image["id"]}),
+        resp, data = self.call("POST", "/api/annotate/delete", json.dumps({"id": image["id"], "expected_revision": 1}),
                                {"Content-Type": "application/json"})
         self.assertEqual(resp.status, 200)
         resp, data = self.call("GET", "/api/annotate/stats")

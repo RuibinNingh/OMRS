@@ -127,7 +127,7 @@ AI 助手没有网络也能完整测试：启动服务前设环境变量 `OMRS_A
 
 1. `git status --short` 记录现状。
 2. 按任务日志「合入」一节运行 `git apply --3way <补丁>`（2026-09-26 之前的交付，按它自带的 UPGRADE 文档）。
-3. 跑门禁：`unittest`、`node --test tests/app/*.test.mjs tests/app/*.test.mjs`、`python3 tests/check_docs.py --diff HEAD`、`python3 tests/check_ui.py`、`python3 tests/check_contrast.py`。
+3. 跑门禁：`unittest`、`node --test tests/app/*.test.mjs`、`python3 tests/check_docs.py --diff HEAD`、`python3 tests/check_ui.py`、`python3 tests/check_contrast.py`。
 4. 运行 `python3 tests/check_docs.py --write-log-index`，审阅 `AI/logs/log.md` 的 diff 后提交。
 5. 「合入」一节列出的生产验收，须用户授权后再做，结果补进对应的任务日志。
 
@@ -135,6 +135,7 @@ AI 助手没有网络也能完整测试：启动服务前设环境变量 `OMRS_A
 
 - 生产服务如果运行在本机工作区里，开发一律放到 `git worktree` 里做，生产目录只在授权部署时才改动。
 - 浏览器测试在本机崩溃时，按第 5 节设置 `OMRS_TEST_CDP_URL`。
+- 正文覆盖率可用 `python3 omrs_engine.py --vault /path/to/vault content-audit --json` 只读盘点。命令不初始化或迁移 Ledger，不输出正文；JSON 分列当前缺 blob、文件与投影冲突和历史缺口。未授权时只做只读审计，真实 Vault 的增量回填须单独授权；隔离验证仍使用临时 Vault 与随机高端口，并在启动前去掉 `OMRS_SYSTEMD_SERVICE`。
 
 ## 7. 本地框选训练环境
 

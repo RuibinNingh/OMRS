@@ -13,7 +13,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 - 一个 **HTML/CSS/JS 单页前端**（`omrs_dashboard.html` + `assets/`）负责录入、即时练习、复习 Session、反馈、数据复盘与导出。
 - 没有构建步骤，题库、算法、Ledger、复习和导出均可离线使用；界面字体随 `assets/vendor/fonts/` 本地提供，AI 图片识别以及报告中用户选择的 HTTPS 外部资源属于可选联网能力。
 
-当前版本：**v1.34.0**。
+当前版本：**v1.35.0**。
 
 展示板锁定后仍可添加新题并补印：增删引用、排序和调整未打印题留白不会清空旧纸面记录；仅新增会沿用纸面记录中的实际比例与留白，改动已打印区域的版式才需要明确确认重印。
 
@@ -79,7 +79,13 @@ run.bat
 python omrs_engine.py serve
 ```
 
-启动后访问 <http://localhost:8471/>。
+启动后访问 <http://localhost:8471/>。已有题库可先只读盘点正文版本覆盖情况：
+
+```bash
+python3 omrs_engine.py --vault /path/to/vault content-audit --json
+```
+
+此命令列出当前缺失的正文 blob、文件与投影冲突及历史缺口，不初始化题库，也不输出正文。
 
 ### Linux / systemd
 
@@ -185,7 +191,7 @@ OMRS 的题目身份、学习反馈、熟练度与 Session 等核心结构化状
 - 每次学习反馈、历史修正和题目入库都生成一条 `commit`（`prev_hash` + `commit_hash` 哈希链接）。
 - 旧 CSV（`mastery_data.csv` / `history_log.csv`）由 `omrs/projections.py` **重放 Ledger 导出**，仅作兼容、调试和迁移输入。
 - 题目身份有两层：**UID**（Markdown 文件名，可改名/迁移）与 **`_omrs_id`**（隐藏稳定身份 `OP-000001`，写入 YAML）。历史反馈引用 `_omrs_id`，改名不会断链。
-- Ledger 可重放结构化运行状态，支持历史修正与还原；题目 Markdown 全文按哈希存入 Ledger 的 `blobs`，可查询已入账的正文版本，并将仍在题库中的题目还原到已有版本。图片文件本身不存入 `blobs`，正文引用的图片仍需单独保留。
+- Ledger 可重放结构化运行状态，支持历史修正与还原；题目 Markdown 全文按哈希存入 Ledger 的 `blobs`，可查询已入账的正文版本，并将仍在题库中的题目还原到身份和哈希均匹配的已有版本。启动时只增量补齐当前文件与投影一致的缺失 blob，冲突跳过；删除题目之前确认当前正文可从 blob 取回。旧版本缺口不会用当前正文代填。图片文件本身不存入 `blobs`，正文引用的图片仍需单独保留。
 - 其他工作流各自持久化：展示板在 `错题/.omrs/boards.json`，配置和标记定义分别在 `config.json`、`labels.json`，AI 对话、草稿、收件箱和标注分别使用 `agent.db`、`drafts.db`、`inbox.db`、`annotate.db`，报告在 `错题/report/`；这些数据不由 Ledger 重放。草稿或收件箱提交为正式题目后，题目入库事件才写入 Ledger。
 
 详细见 [`AI/ledger.md`](AI/ledger.md)。
@@ -236,7 +242,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 入口 `omrs_dashboard.html` 是纯结构文件，样式与脚本拆到 `assets/`。
 
-- **无构建步骤**：所有 JS 是普通 `<script>`（非 ES module），共享全局作用域。
+- **无构建步骤**：主页面通过原生 ES Module 加载 `assets/app/main.js`，各页按模块导入；无需打包器或共享全局脚本。
 - **图表纯 CSS + 内联 SVG**，无 ECharts/Chart.js 等图表库。
 - **KaTeX** 放在 `assets/vendor/katex/`，公式离线渲染；不可用时降级显示源码。
 - **响应式**：≤860px 侧栏自动转为顶部横滚条。
@@ -282,7 +288,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ## 版本
 
-当前版本 **v1.34.0**。各版本改了什么见 [`AI/changelog.md`](AI/changelog.md)（倒序）。
+当前版本 **v1.35.0**。各版本改了什么见 [`AI/changelog.md`](AI/changelog.md)（倒序）。
 
 ---
 

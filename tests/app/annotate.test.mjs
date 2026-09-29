@@ -15,7 +15,7 @@ function fakeTimers() {
   };
 }
 
-const img = (id, extra = {}) => ({ id, file: `${id}.png`, width: 100, height: 400, status: 'todo', boxes: [], ...extra });
+const img = (id, extra = {}) => ({ id, file: `${id}.png`, width: 100, height: 400, status: 'todo', boxes: [], revision: 0, ...extra });
 const box = (role, x, y, w, h) => ({ role, x, y, w, h });
 
 function fakeApi(images) {
@@ -25,7 +25,7 @@ function fakeApi(images) {
     async get(path) { calls.push(['get', path]); return { ok: true, data: { images: structuredClone(images) } }; },
     async post(path, body) {
       calls.push(['post', path, structuredClone(body)]);
-      if (path === '/api/annotate/save') return { ok: true, data: { image: { id: body.id, status: body.status || 'todo' } } };
+      if (path === '/api/annotate/save') return { ok: true, data: { image: { id: body.id, status: body.status || 'todo', revision: body.expected_revision + 1 } } };
       return { ok: true, data: { id: body.id } };
     },
     async upload(files) { calls.push(['upload', files.length]); return { ok: true, data: { images: [img('new')], duplicates: [{ id: 'a' }] } }; },
@@ -95,7 +95,7 @@ test('store：读取后停在第一张未完成，改框去抖保存，Enter 完
   assert.equal(timers.size, 1);
   await timers.run();
   const save = api.calls.find(c => c[1] === '/api/annotate/save');
-  assert.deepEqual(save[2], { id: 'b', boxes: [box('question', .1, .1, .3, .3)] });
+  assert.deepEqual(save[2], { id: 'b', boxes: [box('question', .1, .1, .3, .3)], expected_revision: 0 });
   assert.equal(store.state.saving, 'idle');
   await store.finish();
   await store.flush();
@@ -105,6 +105,28 @@ test('store：读取后停在第一张未完成，改框去抖保存，Enter 完
   assert.equal(await store.finish(), false, '没有框时 Enter 不完成');
   assert.equal(notes.pop()[0], 'warn');
   assert.equal(await store.finish({ allowEmpty: true }), true);
+});
+
+test('store：另一标签页先保存时保留本地框并停止盲写', async () => {
+  const api = fakeApi([img('a')]);
+  api.post = async (path, body) => {
+    api.calls.push(['post', path, structuredClone(body)]);
+    return { ok: false, error: { message: '标注已被修改' }, status: 409 };
+  };
+  const notes = [];
+  const store = createAnnotateStore({ api, timers: fakeTimers(), notify: text => notes.push(text) });
+  await store.load();
+  const local = [box('question', .1, .1, .3, .3)];
+  store.setBoxes(local);
+  assert.equal(await store.flush(), false);
+  assert.deepEqual(store.current().boxes, local);
+  assert.equal(store.state.saving, 'error');
+  store.setBoxes([...local, box('answer', .2, .5, .3, .2)]);
+  assert.equal(await store.flush(), false);
+  assert.equal(api.calls.filter(call => call[1] === '/api/annotate/save').length, 1);
+  await store.load();
+  assert.equal(store.current().boxes.length, 2, '后台重载不抹掉冲突后的本地框');
+  assert.match(notes[0], /本页框位已保留/);
 });
 
 test('store：角色切换改选中框，撤销恢复，沿用上一张，删除选中框', async () => {

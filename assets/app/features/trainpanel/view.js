@@ -20,7 +20,7 @@ export const overlayURL = (run, name) => `/api/trainpanel/overlay?run=${encodeUR
 export function headerView(data, service) {
   const model = service?.state === 'online' ? service.model : null;
   const label = { online: '检测服务在线', offline: '检测服务未启动', unconfigured: '检测服务未配置' }[service?.state] || '正在检查服务';
-  return html`<div><h1>训练面板</h1><p>${model ? `${model.name} · ${formatDate(model.created_at)} · SHA-256 ${model.sha256?.slice(0, 8)}` : '未加载在线模型 · 训练与测试题目、答案的范围'}</p></div>
+  return html`<div><h1>训练面板</h1><p>${model ? `在线模型 ${model.name}${model.created_at ? ` · ${formatDate(model.created_at)}` : ''} · SHA-256 ${model.sha256?.slice(0, 8)}` : '未加载在线模型 · 训练与测试题目、答案的范围'}</p></div>
     <div class="tp-row">${status({ tone: service?.state === 'online' ? 'success' : 'warning', text: label })}<a class="ui-btn ui-btn--sm" href="/#/create">返回录入题目</a>${button({ label: '刷新', size: 'sm', action: 'refresh' })}</div>`;
 }
 
@@ -87,7 +87,7 @@ export function historyView(state) {
     { label: '日期／数据', render: row => `${formatDate(row.status?.started_at)} / ${row.status?.dataset || '—'}` },
     { label: '轮次／用时', render: row => `${row.status?.epoch ?? '—'} 轮 / ${duration(row.status?.wall_seconds ?? row.status?.total_seconds)}` },
     { label: '题目／答案 IoU 达标率', render: row => `${pct(row.evaluation?.model?.question?.pass_rate)} / ${pct(row.evaluation?.model?.answer?.pass_rate)}` },
-    { label: '状态', render: row => row.error ? '读取失败' : `${stateLabels[row.status?.state] || '未知'}${row.current ? ' · 当前模型' : ''}` },
+    { label: '状态', render: row => row.error ? '读取失败' : `${stateLabels[row.status?.state] || '未知'}${row.online ? ' · 在线模型' : ''}${row.current ? ' · 训练目录当前' : ''}` },
   ] });
 }
 export const globalErrorView = state => html`${state.error ? failure(state.error) : ''}${state.overview?.errors?.model ? failure(state.overview.errors.model) : ''}`;

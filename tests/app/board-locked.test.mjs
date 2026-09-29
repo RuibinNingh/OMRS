@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { createBoardDetail } from '../../assets/app/features/board/detail.js';
 import { boardStatusModel } from '../../assets/app/features/board/model.js';
 import { inspectorView } from '../../assets/app/features/board/state.js';
-import { configureBoards, adoptBoards, boardRemember } from '../../assets/app/domain/board/boards.js';
+import { configureBoards, adoptBoards, boardRemember, boardCurrentId } from '../../assets/app/domain/board/boards.js';
 const clone = value => JSON.parse(JSON.stringify(value));
 
 function harness({ paper = true, locked = true, confirm = false, extra = {} } = {}) {
@@ -53,6 +53,14 @@ test('统一加题入口：锁定板无需破坏性确认，新增打印范围�
   assert.deepEqual(h.detail().printed, before);
   assert.equal(boardStatusModel(h.d.detail(), 'new', null).scope, 'new');
   assert.equal(h.d.settings().granted(), false, '安全操作不应授予下一次破坏性修改权限');
+});
+
+test('切板读取失败时选中项与详情仍指向原板', async () => {
+  const h = harness({ extra: { get: async () => { throw new Error('网络中断'); } } });
+  await h.d.load('BD-other');
+  assert.equal(boardCurrentId(), 'BD-test');
+  assert.equal(h.d.detail().id, 'BD-test');
+  assert.match(h.toasts.at(-1)[0], /网络中断/);
 });
 
 test('重置或切换范围后，旧打印窗口消息不能恢复已清空纸面', async () => {

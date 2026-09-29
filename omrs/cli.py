@@ -145,6 +145,19 @@ def main():
                 print(f"正文回填跳过 {len(backfill['conflicts'])} 道冲突题，请核对身份与哈希后处理")
         except Exception as exc:  # 回填失败不阻止其他页面启动；下次启动再试
             print(f"正文回填未完成：{exc}")
+        try:
+            from .traincontrol import recover_pending
+            recovery = recover_pending(vault)
+            if recovery.get("state") not in ("none", "in_progress"):
+                op = recovery.get("operation") or {}
+                if recovery["state"] == "failed" and op.get("rollback_error"):
+                    print("受管检测模型回退未完成，检测服务需人工处理")
+                elif recovery["state"] == "failed":
+                    print("已处理上次中断的受管检测操作，请核对模型状态")
+            elif recovery.get("state") == "in_progress":
+                print("受管检测操作仍在处理中，请核对模型状态")
+        except Exception as exc:
+            print(f"受管检测模型恢复未完成，需人工处理：{exc}")
         from .agent.runtime import get_runtime
         get_runtime(vault)  # 把上次遗留的 running 运行标为 interrupted
         start_workspace_scanner(vault)

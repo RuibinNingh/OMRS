@@ -690,6 +690,9 @@ def detect_regions_local(url: str, image_data_url: str, layout: str = "other",
     url = (url or "").strip()
     if not url:
         raise ValueError("尚未配置本地检测服务地址（inbox_local_detect_url）")
+    # 受管地址在请求前后都核对：切换或回退失败时不得把异模型的框交给收件箱或草稿。
+    from . import traincontrol
+    identity = traincontrol.managed_identity(url)
     body = json.dumps({"image": image_data_url, "layout": layout, "width": image_width, "height": image_height},
                       ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(url, data=body, method="POST",
@@ -709,4 +712,6 @@ def detect_regions_local(url: str, image_data_url: str, layout: str = "other",
         parsed = parsed.get("boxes") or parsed.get("regions") or []
     if not isinstance(parsed, list):
         raise ValueError("本地检测服务返回格式不对：需要数组或 {boxes:[…]}")
+    if traincontrol.managed_identity(url) != identity:
+        raise ValueError("检测服务在请求期间切换模型，已拒绝框选")
     return parse_detect_output(json.dumps(parsed), image_width, image_height)

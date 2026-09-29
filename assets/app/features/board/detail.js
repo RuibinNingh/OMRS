@@ -158,9 +158,12 @@ export function createBoardDetail(initialDeps = {}) {
       const result = await deps.get('/api/boards');
       if (seq !== st.seq) return;
       adoptBoards({ boards: result.boards || [], folders: result.folders || [] });
+      if (boardCurrentId() && !(result.boards || []).some(board => board.id === boardCurrentId())) {
+        st.detail = null;
+        boardRemember('');
+      }
       const selected = boardPreferredId();
       if (selected) {
-        boardRemember(selected);
         await load(selected, false, seq);
         if (seq !== st.seq) return;
       } else {
@@ -179,11 +182,11 @@ export function createBoardDetail(initialDeps = {}) {
     if (!id) return;
     if (!(await flush())) return;   // 保存失败留在原板，保留待重试的编辑
     const token = seq ?? ++st.seq;
-    boardRemember(id);              // 先记住用户选的板：期间若有重读并发进来，重载的也是这个板
     try {
       const result = await deps.get(`/api/board?id=${encodeURIComponent(id)}`);
       if (token !== st.seq) return;
       st.detail = result.board || null;
+      boardRemember(id);
       if (!items().some(item => item.uid === st.selected)) st.selected = '';
       if (st.mode === 'new' && !hasPaper()) st.mode = 'all';
       if (repaint) render();

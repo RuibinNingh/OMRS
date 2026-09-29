@@ -7,6 +7,7 @@ from pathlib import Path
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 from omrs import trainpanel
 from omrs.cli import OMRSTCPServer
@@ -69,6 +70,18 @@ class PanelTests(unittest.TestCase):
         self.write('runs/r2/status.json', {}).write_text('[')
         self.assertEqual(len(trainpanel.overview(str(self.vault))['runs']), 2)
 
+    def test_online_model_and_training_default_are_separate(self):
+        self.write('models/current/model.json', {'name': 'old', 'run': 'old', 'sha256': 'old-sha'})
+        self.write('runs/new/export.json', {'onnx_sha256': 'online-sha'})
+        self.write('runs/new/status.json', {'state': 'done'})
+        with patch.object(trainpanel, 'service', return_value={'state': 'online',
+                'model': {'name': 'new', 'sha256': 'online-sha'}}):
+            overview = trainpanel.overview(str(self.vault))
+        self.assertEqual(overview['training_model']['name'], 'old')
+        self.assertEqual(overview['online_model']['name'], 'new')
+        self.assertTrue(overview['runs'][0]['online'])
+        self.assertFalse(overview['runs'][0]['current'])
+
     def test_path_traversal_and_symlink(self):
         self.root.mkdir()
         (self.root / 'runs').mkdir()
@@ -92,7 +105,8 @@ class PanelTests(unittest.TestCase):
         from omrs import annotate
         from tests.test_annotate import make_png
         image = annotate.upload(str(self.vault), [('x.png', make_png(10, 20))])['images'][0]
-        annotate.save(str(self.vault), image['id'], [], status='done')
+        annotate.save(str(self.vault), image['id'], [], status='done',
+                      expected_revision=image['revision'])
         self.write('datasets/d1/manifest.json', {'version': 'd1', 'samples': [], 'excluded': [{'id':'annotate:'+image['id'], 'reason':'缺类'}]})
         self.assertEqual(trainpanel.overview(str(self.vault))['live']['additional'], 0)
 
@@ -188,7 +202,8 @@ class TryTests(unittest.TestCase):
         self.assertEqual(image['status'], 'todo')
         self.assertGreater(len(image['boxes']), 0)
         human = [{'role':'answer','x':0,'y':0,'w':1,'h':1}]
-        annotate.save(str(self.vault), image_id, human, status='done')
+        annotate.save(str(self.vault), image_id, human, status='done',
+                      expected_revision=image['revision'])
         again = trainpanel.try_image(str(self.vault), [('same.png', self.png())])
         self.assertTrue(again['collected']['duplicate'])
         images = annotate.list_images(str(self.vault))
