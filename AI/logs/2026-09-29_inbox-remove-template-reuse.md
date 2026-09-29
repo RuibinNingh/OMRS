@@ -18,8 +18,14 @@
 
 视觉对比 `python3 tests/visual/run.py --ref HEAD --pages create --create-stage process`：4/4 截图有预期差异，桌面约 2%，手机约 16–18%，处理区按钮删去后画布和下方内容上移；无脚本错误。`--create-stage train`：4/4 截图有预期差异，桌面浅色和深色均 0.002%，手机浅色 5.214%、深色 5.142%；提供方说明删去模板文字后卡片高度缩短，下面的输入项上移；无脚本错误。两组桌面与手机浅色截图已目视检查，无异常遮挡。报告分别在 `/tmp/omrs-inbox-remove-process-visual/report.html` 与 `/tmp/omrs-inbox-remove-train-visual/report.html`。
 
-未执行：真实外部模型识别质量和真实远端设备登录；本任务仅验证应用逻辑与隔离浏览器路径，不把测试替身当作模型质量验收。生产只读验收和一致性备份结果在部署后补充。
+文档差异门禁 `python3 tests/check_docs.py --diff HEAD`：54 个文档，0 处问题，2 条既有大文件提醒。固定发布目录 `/root/workspace/releases/omrs-f803f2d` 再跑相关 Python 单测 38/38。生产只读 Chromium 在桌面/手机、浅色/深色四档均确认 v1.33.1、重置入口可见、两个旧入口消失、无横向溢出、脚本错误和写请求；5 份关键 JS 与发布目录逐字节一致。证据 `/tmp/omrs-remove-production/results.json` 及同目录截图。
+
+未执行：真实外部模型识别质量和真实远端设备登录；本任务验证应用逻辑、隔离浏览器路径和生产只读页面，不把测试替身当作模型质量验收。
 
 ## 部署
 
-待收尾记录 main 提交、固定发布目录、原服务与新服务状态、备份和回退路径。仅切换主应用发布目录并重启主服务；检测服务和模型配置保持原值。未获授权推送远端，本次不执行 Git push。
+功能提交 `f803f2d` 已提交 main；固定发布目录 `/root/workspace/releases/omrs-f803f2d`。切换前确认助手运行均 done（25）、收件箱作业均 done（115）、草稿无作业；原服务从 `/root/workspace/releases/omrs-2459490` 运行 v1.33.0。
+
+停主服务后备份真实 Vault 和原 `10-release.conf` 到 `/root/workspace/backups/recycle/inbox-remove-template-f803f2d-20260929T050505Z`，归档 SHA-256 为 `92389eb282cacf860458a1d51568214cff6c6358cbc950bae87e02197d04c763`。切换后 5 个数据库 `quick_check` 通过且各表行数未变；732 个非数据库文件哈希一致。主服务 active/running、ExecMainStatus=0、NRestarts=0，v1.33.1 HTTP 响应正常，近时段错误级 journal 无记录。检测服务 PID 保持 512746，模型配置和 Nginx 未改。
+
+回退时恢复备份中的 `10-release.conf.before`，执行 daemon-reload 并重启主服务；旧发布目录保留。不得用旧 Vault 覆盖上线后新增数据。本次未推送远端；已授权的 main 提交与本机生产部署完成，下一步为用户刷新页面使用。
