@@ -74,7 +74,9 @@ class ImageValidationTests(unittest.TestCase):
     def test_jpeg_missing_end_marker_is_completed_for_new_and_old_images(self):
         sof = (b"\xff\xc0" + struct.pack(">H", 17) + b"\x08" + struct.pack(">HH", 12, 10)
                + b"\x03" + b"\x00" * 9)
-        incomplete = b"\xff\xd8\xff\xe0\x00\x04\x00\x00" + sof
+        # APP1 内含缩略图结束标记，主图扫描内含转义 FF 和重启标记。
+        incomplete = (b"\xff\xd8\xff\xe1\x00\x06\xff\xd9ab" + sof
+                      + b"\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00abc\xff\x00d\xff\xd0ef")
         complete = incomplete + b"\xff\xd9"
         with tempfile.TemporaryDirectory() as vault:
             added = drafts.add_image(vault, data_url(incomplete, "image/jpeg"), "conv1", "run1")
@@ -83,6 +85,11 @@ class ImageValidationTests(unittest.TestCase):
             self.assertEqual(base64.b64decode(drafts.image_data_url(vault, added["sha256"]).split(",", 1)[1]), complete)
             same = drafts.add_image(vault, data_url(complete, "image/jpeg"), "conv1", "run2")
             self.assertEqual(same["ref"], added["ref"])
+            trailer = drafts.add_image(vault, data_url(complete + b"vivo album!", "image/jpeg"), "conv1", "run3")
+            self.assertEqual(trailer["sha256"], added["sha256"])
+            self.assertEqual(drafts._complete_jpeg("image/jpeg", incomplete + b"\xff"), complete)
+            self.assertEqual(drafts._complete_jpeg("image/jpeg", b"\xff\xd8\xff\xe1\x00\x10abc"),
+                             b"\xff\xd8\xff\xe1\x00\x10abc")
             # 旧版本已保存的缺尾图片在发给模型时也要补全，原件保持不变。
             with open(drafts.image_path(vault, added["sha256"]), "wb") as file:
                 file.write(incomplete)

@@ -15,7 +15,7 @@
 
 ### 附图（`omrs/agent/images.py`）
 
-`POST /api/agent/message` 可带 `images`（图片 data URL 数组，≤6 张，PNG / JPEG / GIF，单张解码后 ≤8MB）。图片经 `drafts.add_image` 存进 `错题/.omrs/drafts/images/`，本对话内编号 IMG-n（同一张图沿用旧编号）；缺少结束标记的 JPEG 入库时补标记，旧图送模型前临时补标记。用户消息存为 `{"role":"user","content":text,"_images":["IMG-1",…]}`，`agent.db` 里不存图片本体。任何一张不合格，整条消息 400，不建运行；运行中带图插话 409。
+`POST /api/agent/message` 可带 `images`（图片 data URL 数组，≤6 张，PNG / JPEG / GIF，单张解码后 ≤8MB）。图片经 `drafts.add_image` 存进 `错题/.omrs/drafts/images/`，本对话内编号 IMG-n（同一张图沿用旧编号）；JPEG 入库时按主图标记清除相册尾数据或补结束标记，保留编码像素；旧图送模型前也临时整理。用户消息存为 `{"role":"user","content":text,"_images":["IMG-1",…]}`，`agent.db` 里不存图片本体。任何一张不合格，整条消息 400，不建运行；运行中带图插话 409。
 
 运行开始（`run.start` 之后、进入循环之前）由 `expand_images` 按 `agent_vision` 把附图展开到送给模型的副本里：
 - **开**：从最新往前数，最近 4 张（`MAX_VISION_IMAGES`）以 `image_url` 内容块发给主模型，用户消息 `content` 变成内容块数组；更早的换成「[IMG-n 已省略，需要时调 describe_image]」。

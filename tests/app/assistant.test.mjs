@@ -6,6 +6,19 @@ import { renderMd, renderInline, plainOf } from '../../assets/app/features/assis
 import { dockView, userView } from '../../assets/app/features/assistant/view.js';
 import { confirmOf, toolPreview } from '../../assets/app/features/assistant/tools-view.js';
 import { detectCardState } from '../../assets/app/features/assistant/draft-cards.js';
+import { normalizeJpegBytes } from '../../assets/app/features/assistant/attachments.js';
+
+test('手机 JPEG：保留编码像素，跳过缩略图标记，清除相册尾数据或补主图结束标记', () => {
+  const body = Uint8Array.from([0xff, 0xd8, 0xff, 0xe1, 0, 6, 0xff, 0xd9, 1, 2,
+    0xff, 0xda, 0, 8, 1, 1, 0, 0, 63, 0, 10, 20, 0xff, 0, 30, 0xff, 0xd0, 40]);
+  const complete = Uint8Array.from([...body, 0xff, 0xd9]);
+  assert.deepEqual(normalizeJpegBytes(body), complete);
+  assert.deepEqual(normalizeJpegBytes(Uint8Array.from([...body, 0xff])), complete);
+  assert.deepEqual(normalizeJpegBytes(Uint8Array.from([...complete, 97, 108, 98, 117, 109, 33])), complete);
+  assert.strictEqual(normalizeJpegBytes(complete), complete);
+  const brokenHeader = Uint8Array.from([0xff, 0xd8, 0xff, 0xe1, 0, 16, 1]);
+  assert.strictEqual(normalizeJpegBytes(brokenHeader), brokenHeader);
+});
 
 const ev = (i, t, type, data = {}) => ({ i, t, type, data });
 const script = [

@@ -23,22 +23,47 @@ function loadImage(dataUrl) {
   });
 }
 
-async function jpegHasEndMarker(file) {
-  const tail = new Uint8Array(await file.slice(-2).arrayBuffer());
-  return tail.length === 2 && tail[0] === 0xff && tail[1] === 0xd9;
+export function normalizeJpegBytes(bytes) {
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return bytes;
+  let offset = 2;
+  let scan = false;
+  const finish = tail => {
+    const out = new Uint8Array(bytes.length + tail.length);
+    out.set(bytes); out.set(tail, bytes.length);
+    return out;
+  };
+  // 按段长度跳过 EXIF/缩略图；结束标记之后可能还有手机相册私有数据。
+  while (offset < bytes.length) {
+    if (scan) while (offset < bytes.length && bytes[offset] !== 0xff) offset += 1;
+    if (offset === bytes.length) return finish([0xff, 0xd9]);
+    if (bytes[offset] !== 0xff) return bytes;
+    while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
+    if (offset === bytes.length) return scan ? finish([0xd9]) : bytes;
+    const marker = bytes[offset++];
+    if (marker === 0xd9) return offset === bytes.length ? bytes : bytes.slice(0, offset);
+    if (scan && (marker === 0 || (marker >= 0xd0 && marker <= 0xd7))) continue;
+    if (marker === 1) continue;
+    if (marker === 0 || marker === 0xd8 || offset + 2 > bytes.length) return bytes;
+    const length = bytes[offset] * 256 + bytes[offset + 1];
+    if (length < 2 || offset + length > bytes.length) return bytes;
+    scan = marker === 0xda || (scan && marker === 0xdc);
+    offset += length;
+  }
+  return scan ? finish([0xff, 0xd9]) : bytes;
 }
 
 export async function prepareImageFile(file) {
   if (!file || !TYPES.has(file.type)) throw new Error('只支持 PNG、JPEG 或 GIF 图片');
   if (file.size > MAX_IMAGE_BYTES) throw new Error('图片超过 8MB，已忽略');
-  const original = await readFileDataUrl(file);
+  const source = file.type === 'image/jpeg'
+    ? new Blob([normalizeJpegBytes(new Uint8Array(await file.arrayBuffer()))], { type: file.type }) : file;
+  const original = await readFileDataUrl(source);
   const image = await loadImage(original);
   const width = image.naturalWidth || image.width;
   const height = image.naturalHeight || image.height;
   if (!width || !height) throw new Error('无法读取图片尺寸');
   const edge = Math.max(width, height);
-  const incompleteJpeg = file.type === 'image/jpeg' && !await jpegHasEndMarker(file);
-  if (edge <= MAX_IMAGE_EDGE && !incompleteJpeg) return { dataUrl: original, width, height, type: file.type };
+  if (edge <= MAX_IMAGE_EDGE) return { dataUrl: original, width, height, type: file.type };
   const scale = Math.min(1, MAX_IMAGE_EDGE / edge);
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(width * scale));

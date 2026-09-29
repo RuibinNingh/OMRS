@@ -326,23 +326,30 @@ def main():
             mobile.wait_for_selector('.ast-empty', timeout=5000)
             jpeg = base64.b64decode(mobile.evaluate("""() => {
               const canvas = document.createElement('canvas');
-              canvas.width = 12; canvas.height = 12;
-              canvas.getContext('2d').fillRect(0, 0, 12, 12);
+              canvas.width = 120; canvas.height = 200;
+              const context = canvas.getContext('2d');
+              context.fillStyle = 'white'; context.fillRect(0, 0, 120, 200);
+              context.fillStyle = 'red'; context.fillRect(10, 10, 30, 30);
+              context.fillStyle = 'black'; context.fillText('JPEG 123', 10, 80);
               return canvas.toDataURL('image/jpeg').split(',')[1];
             }"""))
             check("浏览器生成的 JPEG 原图完整", jpeg.endswith(b'\xff\xd9'))
-            mobile.set_input_files('#ast-image-picker', {"name": "phone.jpg", "mimeType": "image/jpeg", "buffer": jpeg[:-2]})
-            mobile.wait_for_function("() => document.querySelectorAll('.ast-attachment').length === 1")
-            prepared = mobile.locator('.ast-attachment img').first.get_attribute('src')
-            check("缺少结束标记的手机 JPEG 在发送前重新编码", prepared.startswith('data:image/jpeg;base64,') and
-                  base64.b64decode(prepared.split(',', 1)[1]).endswith(b'\xff\xd9'))
+            for name, data in (("缺结束标记", jpeg[:-2]), ("带相册尾数据", jpeg + b'vivo album!')):
+                mobile.set_input_files('#ast-image-picker', {"name": "phone.jpg", "mimeType": "image/jpeg", "buffer": data})
+                mobile.wait_for_function("() => document.querySelectorAll('.ast-attachment').length === 1")
+                prepared = mobile.locator('.ast-attachment img').first.get_attribute('src')
+                check(name + "：上传前保留全部原始 JPEG 像素编码", prepared.startswith('data:image/jpeg;base64,') and
+                      base64.b64decode(prepared.split(',', 1)[1]) == jpeg)
+                if name == "缺结束标记":
+                    mobile.locator('.ast-attachment__remove').click()
+                    mobile.wait_for_function("() => document.querySelectorAll('.ast-attachment').length === 0")
             mobile.fill('#ast-input', '添加题目')
             mobile.press('#ast-input', 'Enter')
             mobile.wait_for_function("() => document.querySelectorAll('.ast-turn:not(.is-live)').length >= 1", timeout=30000)
             image_url = mobile.locator('.ast-user__images .ast-image').last.get_attribute('href')
             with urllib.request.urlopen(base + image_url, timeout=10) as response:
                 saved = response.read()
-            check("修复后的 JPEG 已保存并能通过图片接口读取", saved.endswith(b'\xff\xd9'))
+            check("图片接口返回完整原始 JPEG，文字和颜色未被黑图替换", saved == jpeg)
             browser.close()
     except Exception as exc:  # noqa: BLE001
         results.append(("执行出错", False, repr(exc)[:400]))

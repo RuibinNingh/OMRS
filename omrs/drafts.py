@@ -42,8 +42,37 @@ _JPEG_EOI = b"\xff\xd9"
 
 
 def _complete_jpeg(mime, data):
-    """补全手机导出 JPEG 偶尔缺失的结束标记；不改动其他图片字节。"""
-    if mime == "image/jpeg" and data.startswith(b"\xff\xd8") and not data.endswith(_JPEG_EOI):
+    """沿 JPEG 标记定位真实结尾，去掉相册尾数据或补结束标记，保留编码像素。"""
+    if mime != "image/jpeg" or not data.startswith(b"\xff\xd8"):
+        return data
+    offset, scan = 2, False
+    while offset < len(data):
+        if scan:
+            offset = data.find(b"\xff", offset)
+            if offset < 0:
+                return data + _JPEG_EOI
+        if data[offset] != 0xff:
+            return data
+        while offset < len(data) and data[offset] == 0xff:
+            offset += 1
+        if offset == len(data):
+            return data + b"\xd9" if scan else data
+        marker = data[offset]
+        offset += 1
+        if marker == 0xd9:
+            return data[:offset]
+        if scan and (marker == 0 or 0xd0 <= marker <= 0xd7):
+            continue
+        if marker == 1:
+            continue
+        if marker in (0, 0xd8) or offset + 2 > len(data):
+            return data
+        length = int.from_bytes(data[offset:offset + 2], "big")
+        if length < 2 or offset + length > len(data):
+            return data
+        scan = marker == 0xda or (scan and marker == 0xdc)
+        offset += length
+    if scan:
         return data + _JPEG_EOI
     return data
 

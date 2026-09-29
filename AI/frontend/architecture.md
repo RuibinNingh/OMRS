@@ -34,7 +34,7 @@ assets/app/
 - 地址变成非路由 hash（例如 `href="#"` 的链接）时不切页，并把地址改回当前页，保证刷新仍停在原页。
 - 侧栏导航是 `<a class="tab" data-tab="页面" href="#/页面">`：普通点击同步切页；带修饰键时交给浏览器（新标签页打开）。旧 `onclick="switchTab(...)"` 继续可用。
 - 新页面契约（`features/<页>/index.js` 导出 `page`）：`{ id, title, workbench, mount(root, ctx) → unmount, actions, keys }`。`root` 是 `#panel-<id>`，`ctx = { bus, store, router }`；离开页面时执行 `mount` 返回的卸载函数。`actions` 与 `keys` 由外壳在登记页面时一次性注册，动作命名空间与快捷键作用域都是页面 id；处理函数只在挂载期间生效。新增一页时在 `main.js` 把页面契约并进登记表（外壳只认 `mount`）。范例：`features/instant/`（见 `AI/frontend/instant.md`）；`features/feedback/`（见 `AI/frontend/feedback.md`）另示范了挂载期的 document 级监听（paste）要在卸载函数里移除。
-- 助手页 `features/assistant/` 的输入框图片粘贴、拖入和文件选择都由页面挂载期监听或页面动作处理，卸载时移除监听；事件归约与视图分别由 `tests/app/assistant.test.mjs` 和 `tests/e2e/assistant.py` 验证，后者还覆盖缺少结束标记的 JPEG 上传修复。
+- 助手页 `features/assistant/` 的输入框图片粘贴、拖入和文件选择都由页面挂载期监听或页面动作处理，卸载时移除监听；事件归约与视图分别由 `tests/app/assistant.test.mjs` 和 `tests/e2e/assistant.py` 验证，后者还覆盖缺尾与带相册尾数据的 JPEG 上传，并逐字节核对图像编码保持不变。
 - 跨页共用的按钮走外壳登记的全局动作 `app.*`（目前只有 `app.scan`，见 `AI/frontend/shell.md`）；页面自己的动作用页面 id 作命名空间。
 - 外壳在每次进入页面时统一处理：顶栏标题、`document.title`（「页面名 · OMRS」）、侧栏 `.active` 与 `aria-current="page"`、`.panel.active`、`.content.is-workbench`、快捷键作用域、关闭手机抽屉，并在 bus 上发 `page:change`。
 
