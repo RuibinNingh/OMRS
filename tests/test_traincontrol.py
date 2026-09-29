@@ -130,6 +130,11 @@ class ControlTests(unittest.TestCase):
         (self.root/'runs/new/model.onnx').write_bytes(b'changed')
         rows,errors=c.candidates(self.root);self.assertEqual([r['id'] for r in rows],['old']);self.assertEqual(errors[0]['id'],'new')
 
+    def test_incomplete_smoke_is_not_a_candidate_or_error(self):
+        (self.root/'runs/new/eval.json').unlink()
+        rows,errors=c.candidates(self.root)
+        self.assertEqual([r['id'] for r in rows],['old']);self.assertEqual(errors,[])
+
     def test_training_lock_and_changed_threshold_are_rejected(self):
         import fcntl
         with (self.root/'training.lock').open('a') as lock:

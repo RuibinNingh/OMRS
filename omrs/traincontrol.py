@@ -98,7 +98,8 @@ def candidates(root):
     """只发现完整已导出的run；切换时重新校验，不把训练目录直接交给服务。"""
     rows, errors = [], []
     for folder in sorted((root/'runs').glob('*'))[:100]:
-        if not (folder/'export.json').exists(): continue
+        # 冒烟/未完成实验不是可应用模型，不把正常缺失评估展示为故障。
+        if not all((folder/name).is_file() for name in ('export.json','identity.json','eval.json')): continue
         try:
             folder = trainpanel.safe_path(root,'runs',folder.name)
             ex = json.loads((folder/'export.json').read_text()); identity = json.loads((folder/'identity.json').read_text())
