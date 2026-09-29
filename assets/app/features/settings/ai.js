@@ -29,6 +29,7 @@ export function createAi(root) {
     if (el('st-ai-key-state')) el('st-ai-key-state').textContent = cfg.ai_api_key_configured
       ? '已配置密钥（不会从服务器回显）' : '尚未配置密钥';
     if (el('st-ai-model')) el('st-ai-model').value = cfg.ai_model || '';
+    if (el('st-ai-thinking')) el('st-ai-thinking').checked = cfg.ai_thinking === true;
     if (el('st-ai-restrict')) el('st-ai-restrict').checked = cfg.ai_restrict_tags !== false;
     for (const kind of ['detect', 'extract', 'classify']) {
       if (el(`st-ai-model-${kind}`)) el(`st-ai-model-${kind}`).value = cfg[`ai_model_${kind}`] || '';
@@ -49,6 +50,7 @@ export function createAi(root) {
     if (busy) return;
     const payload = {
       ai_base_url: value('st-ai-base'), ai_model: value('st-ai-model'),
+      ai_thinking: !!el('st-ai-thinking')?.checked,
       ai_restrict_tags: !!el('st-ai-restrict')?.checked,
       ai_model_detect: value('st-ai-model-detect'),
       ai_model_extract: value('st-ai-model-extract'),

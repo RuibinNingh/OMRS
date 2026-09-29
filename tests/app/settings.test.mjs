@@ -10,10 +10,47 @@ import { formatUptime, waitForRestartReady } from '../../assets/app/features/set
 import { startActivityTracking } from '../../assets/app/core/activity.js';
 import { createAgent } from '../../assets/app/features/settings/agent.js';
 import { agentView } from '../../assets/app/features/settings/agent-view.js';
+import { createAi } from '../../assets/app/features/settings/ai.js';
+import { aiView } from '../../assets/app/features/settings/ai-view.js';
 
 const LOCAL = { status: 'ok', remote: false, authenticated: true, lan_pin_exempt: false };
 const REMOTE = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: false };
 const EXEMPT = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: true };
+
+test('AI 识别思考开关读取、开启与关闭后保存', async () => {
+  assert.match(String(aiView()), /id="st-ai-thinking"/);
+  let cfg = { ai_model: 'deepseek-flash', ai_thinking: false };
+  const saves = [];
+  const fields = Object.fromEntries(['st-ai-thinking', 'st-ai-model', 'st-ai-settings-status']
+    .map(id => [id, { value: '', checked: false, textContent: '', dataset: {} }]));
+  const root = { querySelector: selector => fields[selector.slice(1)] || null };
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    if (init.method === 'POST') {
+      const payload = JSON.parse(init.body);
+      saves.push(payload);
+      cfg = { ...cfg, ...payload };
+      return new Response(JSON.stringify({ status: 'ok' }), { status: 200,
+        headers: { 'content-type': 'application/json' } });
+    }
+    return new Response(JSON.stringify(cfg), { status: 200,
+      headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const ai = createAi(root);
+    await ai.load();
+    assert.equal(fields['st-ai-thinking'].checked, false);
+    fields['st-ai-thinking'].checked = true;
+    await ai.save();
+    assert.equal(saves.at(-1).ai_thinking, true);
+    assert.equal(fields['st-ai-thinking'].checked, true);
+    fields['st-ai-thinking'].checked = false;
+    await ai.save();
+    assert.equal(saves.at(-1).ai_thinking, false);
+    assert.equal(fields['st-ai-thinking'].checked, false);
+    ai.dispose();
+  } finally { globalThis.fetch = originalFetch; }
+});
 
 test('框选三态及全文字训练设置保存，明确选手动才替换自动', async () => {
   const view = String(agentView());

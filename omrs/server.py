@@ -478,6 +478,8 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 data = json.loads(body) if body else {}
                 if not isinstance(data, dict):
                     raise ValueError("配置必须是 JSON 对象")
+                if "ai_thinking" in data and not isinstance(data["ai_thinking"], bool):
+                    raise ValueError("ai_thinking 必须是布尔值")
                 if "lan_pin_exempt_cidrs" in data:
                     data["lan_pin_exempt_cidrs"] = security.normalize_lan_cidrs(data["lan_pin_exempt_cidrs"])
                 effective = {**load_config(self.vault_path), **data}

@@ -240,6 +240,7 @@ v1.1.0 后 Markdown `# 历史` 不再作为算法输入，也不会由反馈流�
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`） |
 | `ai_api_key` | string | AI 接口密钥（Bearer），仅存本机 |
 | `ai_model` | string | 默认 AI 模型名；需支持图片输入，如 `gpt-4o` |
+| `ai_thinking` | bool | AI 识图是否启用思考，默认 `false`；仅 `deepseek-flash` 显式支持，其它模型沿用服务商默认行为 |
 | `ai_model_detect` | string | 收件箱框选模型；为空回退 `ai_model` |
 | `ai_model_extract` | string | 收件箱转文本模型；为空回退 `ai_model` |
 | `ai_model_classify` | string | 收件箱分类模型；为空回退 `ai_model` |

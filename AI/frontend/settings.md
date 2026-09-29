@@ -25,7 +25,7 @@ PIN 支持首次设置、更换、空闲分钟修改、本机停用和远端登�
 
 ## AI 识别
 
-AI 地址、模型、三种用途模型和知识点限制开关经 `/api/config` 保存后立即生效。API Key 仅在输入非空时提交；服务端只返回 `ai_api_key_configured`，页面不回显密钥，留空表示保留。清除密钥需确认，单独提交 `clear_ai_api_key:true`。设置页只配置识别，图片识别的实际请求由录入题目页发起。
+AI 地址、模型、三种用途模型、思考与知识点限制开关经 `/api/config` 保存后立即生效。`ai_thinking` 默认关闭；使用 `deepseek-flash` 时，开启/关闭分别发送 `thinking:{type:"enabled"}` / `thinking:{type:"disabled"}`，覆盖提取、分类等 AI 识图请求及助手图片转述，不控制 AI 助手主模型。其它模型不附思考参数，遵循服务商默认行为。API Key 仅在输入非空时提交；服务端只返回 `ai_api_key_configured`，页面不回显密钥，留空表示保留。清除密钥需确认，单独提交 `clear_ai_api_key:true`。
 
 ## AI 助手
 

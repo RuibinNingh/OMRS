@@ -21,6 +21,8 @@
 - **开**：从最新往前数，最近 4 张（`MAX_VISION_IMAGES`）以 `image_url` 内容块发给主模型，用户消息 `content` 变成内容块数组；更早的换成「[IMG-n 已省略，需要时调 describe_image]」。
 - **关**：逐张调 `ai_assist.transcribe_image`（`ai_model_extract` 模型），转述按 sha256 + 模型缓存在 `drafts.db`；渲染成「[IMG-n 转述]」文本拼进用户消息，每张截断 3000 字。调用前后发 `image.transcribe` / `image.transcribed` 事件；失败不终止运行，写入「[IMG-n 转述失败：原因。可调 describe_image 再试]」。
 
+图片转述与 `describe_image` 调用 `ai_assist.py`，遵循「设置 → AI 识别」的 `ai_thinking`；这不改变主 AI 对话模型的思考行为。
+
 `estimate_tokens` 对内容块数组只计文字，每张图按 1000 估（只影响界面用量计）。
 
 ## 2. 配置

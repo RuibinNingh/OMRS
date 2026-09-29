@@ -114,6 +114,9 @@ def shoot(side, port, args, out, frozen_ms):
                     if name == "create" and args.create_stage:
                         page.locator(f'#create-flow [data-ib-stage="{args.create_stage}"]').click()
                         page.wait_for_load_state("networkidle")
+                    if name == "settings" and args.settings_section:
+                        page.locator(f'[data-st-section="{args.settings_section}"]').click()
+                        page.wait_for_load_state("networkidle")
                     page.evaluate("document.fonts.ready")
                     page.wait_for_timeout(args.settle)
                     key = f"{name}-{theme}-{vp}"
@@ -206,6 +209,7 @@ def main(argv=None):
     ap.add_argument("--themes", default="light,dark")
     ap.add_argument("--viewports", default="desktop,mobile")
     ap.add_argument("--create-stage", choices=["upload", "process", "create", "train", "quick"], help="录入页截图时切到指定工作区")
+    ap.add_argument("--settings-section", choices=["appearance", "access", "ai", "assistant", "data", "service"], help="设置页截图时切到指定分区")
     ap.add_argument("--settle", type=int, default=500, help="每页切换后额外等待毫秒数")
     args = ap.parse_args(argv)
     args.pages, args.themes, args.viewports = (v.split(",") for v in (args.pages, args.themes, args.viewports))

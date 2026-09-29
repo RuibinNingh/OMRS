@@ -46,6 +46,16 @@ class SecurityTests(unittest.TestCase):
         return {"Host": "omrs.example", "X-Real-IP": "192.0.2.15",
                 "X-Forwarded-Proto": "https", **extra}
 
+    def test_ai_thinking_config_requires_boolean_and_persists(self):
+        self.assertFalse(json.loads(self.request("GET", "/api/config")[2])["ai_thinking"])
+        headers = {"Content-Type": "application/json"}
+        invalid = self.request("POST", "/api/config", headers, '{"ai_thinking":"false"}')
+        self.assertEqual(invalid[0], 400)
+        self.assertFalse(load_config(self.vault)["ai_thinking"])
+        saved = self.request("POST", "/api/config", headers, '{"ai_thinking":true}')
+        self.assertEqual(saved[0], 200)
+        self.assertTrue(json.loads(self.request("GET", "/api/config")[2])["ai_thinking"])
+
     def test_local_bypass_remote_login_proxy_and_config_secret(self):
         save_config(self.vault, {"ai_api_key": "secret"})
         local = self.request("GET", "/api/config")

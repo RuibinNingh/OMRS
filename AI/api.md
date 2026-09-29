@@ -260,6 +260,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 | `ai_api_key_configured` | bool | AI 接口密钥是否已保存；不回显密钥本身 |
 | `pin_configured` / `idle_minutes` | bool / int | 远端 PIN 状态与空闲分钟数，不返回 PIN 哈希 |
 | `ai_model` | string | AI 模型名（需支持图片输入，如 `gpt-4o`），可空 |
+| `ai_thinking` | bool | AI 识图思考开关，默认 `false`；仅 `deepseek-flash` 显式支持 |
 | `ai_model_detect` | string | 收件箱框选模型；为空时回退 `ai_model` |
 | `ai_model_extract` | string | 收件箱转文本模型；为空时回退 `ai_model` |
 | `ai_model_classify` | string | 收件箱分类模型；为空时回退 `ai_model` |
@@ -271,7 +272,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 | `inbox_auto_on_upload` | bool | 上传后是否自动排队处理，默认 `false` |
 | `inbox_discard_keep_days` | int | 丢弃原图保留天数，默认 `7` |
 
-配置持久化在 `错题/.omrs/config.json`。`ai_*` 键供 AI 识别与收件箱任务使用，按用途模型为空时回退到 `ai_model`；`ai_restrict_tags` 缺失按 `true` 处理。`inbox_*` 键供收件箱框选、盲标、自动处理和清理策略使用。AI 与收件箱配置保存即生效；`allow_external` 仍需重启服务才改变监听地址。
+配置持久化在 `错题/.omrs/config.json`。`ai_*` 键供 AI 识别与收件箱任务使用，按用途模型为空时回退到 `ai_model`；`ai_restrict_tags` 缺失按 `true` 处理，`ai_thinking` 缺失按 `false` 处理，提交非布尔值返回 400。`inbox_*` 键供收件箱框选、盲标、自动处理和清理策略使用。AI 与收件箱配置保存即生效；`allow_external` 仍需重启服务才改变监听地址。
 
 `agent_*` 键（AI 助手）的含义见 `AI/agent.md` §2：GET 不回显 `agent_api_key`，只返回 `agent_api_key_configured`；POST 可带 `clear_agent_api_key:true`；`agent_compat` 取值、开关类型不合法或模型名填 `faux` 时返回 400。
 
@@ -547,7 +548,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 请求只用 user 角色：指令文本 + 图片（`image_url` 传 data URL）都放在 user 的 `content` 里（不设 System Message，符合 Qwen-VL 推荐用法）；协议为 `POST {ai_base_url}/chat/completions`，`Authorization: Bearer <key>`，由本地后端用标准库 `urllib` 转发（不经第三方、规避浏览器跨域）。
 
-`question_text` 和 `answer` 使用 `deepseek-flash` 时，请求附 `thinking:{type:"disabled"}`；分类请求与其它模型不附此参数。
+`ai_thinking` 控制 AI 识图请求的思考，默认 `false`。使用 `deepseek-flash` 时，所有识图用途按开关发送 `thinking:{type:"enabled"}` 或 `thinking:{type:"disabled"}`；其它模型不附此参数。该设置不改变 AI 助手主模型的思考配置。
 
 **请求体：**
 ```json

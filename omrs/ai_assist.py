@@ -106,6 +106,13 @@ def _ai_config(vault: str, purpose: str = ""):
     return base, key, model
 
 
+def _apply_thinking(vault: str, model: str, payload: dict) -> None:
+    """按 AI 识别设置控制已验证模型的思考；其它模型沿用各自默认行为。"""
+    if model == "deepseek-flash":
+        enabled = load_config(vault).get("ai_thinking") is True
+        payload["thinking"] = {"type": "enabled" if enabled else "disabled"}
+
+
 def _endpoint(base: str) -> str:
     """根据用户填写的基础地址拼出 chat/completions 端点。
 
@@ -180,8 +187,8 @@ def _extract_json(text: str) -> dict:
 
 
 def _call_model(vault: str, user_text: str, image_data_url: str, max_tokens: int, timeout: int,
-                purpose: str = "", disable_thinking: bool = False) -> str:
-    """组 OpenAI 兼容请求并返回文本。purpose 选择模型；提取可关闭已验证模型的思考。"""
+                purpose: str = "") -> str:
+    """组 OpenAI 兼容请求并返回文本；purpose 选择按用途配置的模型。"""
     base, key, model = _ai_config(vault, purpose)
     missing = [name for name, val in (("API 地址", base), ("API Key", key), ("模型", model)) if not val]
     if missing:
@@ -204,10 +211,7 @@ def _call_model(vault: str, user_text: str, image_data_url: str, max_tokens: int
         "temperature": 0.1,
         "max_tokens": max_tokens,
     }
-    # 当前接入的 deepseek-flash 默认会思考；纯转录无需这段生成时间。
-    # 只对已验证支持此参数的模型发送，避免其他 OpenAI 兼容服务拒绝请求。
-    if disable_thinking and model == "deepseek-flash":
-        payload["thinking"] = {"type": "disabled"}
+    _apply_thinking(vault, model, payload)
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
         _endpoint(base),
@@ -274,6 +278,7 @@ def _call_model_multi_image(vault: str, user_text: str, image_data_urls: list, m
         "temperature": 0.1,
         "max_tokens": max_tokens,
     }
+    _apply_thinking(vault, model, payload)
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     request = urllib.request.Request(
         _endpoint(base),
@@ -493,15 +498,13 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
 
 def extract_answer(vault: str, image_data_url: str, timeout: int = 90) -> dict:
     """读答案图片，把答案/解析提取为纯文本，返回 {answer}。"""
-    content = _call_model(vault, ANSWER_PROMPT, image_data_url, max_tokens=2000, timeout=timeout,
-                          disable_thinking=True)
+    content = _call_model(vault, ANSWER_PROMPT, image_data_url, max_tokens=2000, timeout=timeout)
     return {"mode": "answer", "answer": _clean_extracted_text(content, "answer")}
 
 
 def extract_question_text(vault: str, image_data_url: str, timeout: int = 90) -> dict:
     """读题目图片，只提取题目正文，返回 {question_text}。"""
-    content = _call_model(vault, QUESTION_TEXT_PROMPT, image_data_url, max_tokens=2000, timeout=timeout,
-                          disable_thinking=True)
+    content = _call_model(vault, QUESTION_TEXT_PROMPT, image_data_url, max_tokens=2000, timeout=timeout)
     return {"mode": "question_text", "question_text": _clean_extracted_text(content, "question")}
 
 
@@ -617,8 +620,7 @@ def extract_region(vault: str, image_data_url: str, role: str = "question", judg
         prompt = base_prompt + JUDGE_SUFFIX
     else:
         prompt = base_prompt
-    content = _call_model(vault, prompt, image_data_url, max_tokens=4000, timeout=timeout,
-                          purpose="extract", disable_thinking=True)
+    content = _call_model(vault, prompt, image_data_url, max_tokens=4000, timeout=timeout, purpose="extract")
     if not judge:
         return {"convertible": True, "reason": "", "text": _clean_extracted_text(content, role)}
     parsed = _extract_json(content)

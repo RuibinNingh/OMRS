@@ -82,9 +82,13 @@ def run_main(page, base, results):
     page.unroute('**/api/restart')
 
     page.click('[data-action="settings.section"][data-arg="ai"]')
+    check('AI 识别思考默认关闭', not page.locator('#st-ai-thinking').is_checked())
+    page.locator('#st-ai-thinking').check()
     page.fill('#st-ai-key', 'test-only-key')
     page.fill('#st-ai-model', 'test-model')
     page.click('[data-action="settings.saveAi"]')
+    check('AI 识别思考开关保存并回显', wait(page, "() => document.querySelector('#st-ai-thinking')?.checked")
+          and page.evaluate("async () => (await (await fetch('/api/config')).json()).ai_thinking === true"))
     check('AI Key 保存后不回显', wait(page, "() => document.querySelector('#st-ai-settings-status')?.textContent.includes('已保存')")
           and page.locator('#st-ai-key').input_value() == ''
           and '已配置' in page.locator('#st-ai-key-state').inner_text())

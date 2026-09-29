@@ -42,6 +42,13 @@ export const aiView = () => html`<section class="st-section" id="st-sec-ai" role
             </div>
             <div class="st-row st-row-top">
               <div class="st-row-text">
+                <label class="st-row-label" for="st-ai-thinking">启用思考</label>
+                <div class="hint">关闭后，deepseek-flash 的图片提取、分类等识图请求不生成思考，通常更快；其它模型沿用服务商默认行为。此项不控制 AI 助手主模型。</div>
+              </div>
+              <input type="checkbox" class="st-switch" id="st-ai-thinking">
+            </div>
+            <div class="st-row st-row-top">
+              <div class="st-row-text">
                 <label class="st-row-label" for="st-ai-restrict">知识点只从已有项中选择</label>
                 <div class="hint">开启时，AI 给出的知识点只能取自「已有分类 ∪ 已有知识点」，新造的词会被剔除，便于按知识点筛选。关闭后，没有贴切的已有项时允许新建（最多 4 个）。科目和分类始终允许新建。</div>
               </div>
