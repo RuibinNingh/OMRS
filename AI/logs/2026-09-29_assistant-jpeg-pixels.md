@@ -28,4 +28,12 @@
 
 ## 限制与下一步
 
-实体手机浏览器未远程连接复测；本轮通过原图字节/像素一致性和真实模型识别验证修正后的路径。此前已保存的纯黑图片没有原文字像素，不能靠补标记恢复，用户须刷新页面后重新上传原图。发布、备份及远端推送结果在本日志后续补记。
+实体手机浏览器未远程连接复测；本轮通过原图字节/像素一致性和真实模型识别验证修正后的路径。此前已保存的纯黑图片没有原文字像素，不能靠补标记恢复，用户须刷新页面后重新上传原图。
+
+## 合入、生产与 GitHub
+
+功能提交 `e339183` 从 `codex/assistant-jpeg-pixels` 快进合入 `main`。`git archive` 生成 `/root/workspace/releases/omrs-e339183`，在发布目录用系统 Python 执行 `tests.test_drafts.ImageValidationTests`，3/3 通过。线上助手、草稿和收件箱均无待运行作业后，停止主服务并将真实 Vault 一致性归档到 `/root/workspace/backups/recycle/assistant-jpeg-pixels-e339183-20260929T081938Z/vault-before.tar`（195471360 字节），保留原 drop-in、323 个用户文件哈希、配置哈希与 5 个数据库检查结果。
+
+主服务 drop-in 切到新发布目录，停机到健康检查通过约 0.97 秒；版本仍为 v1.33.1，225 道题。启动后 active、`NRestarts=0`、`ExecMainStatus=0`，错误级 journal 无记录；323 个用户文件和配置哈希一致，5 个数据库 `quick_check` 为 ok 且所有原有表行数不变。未改 Nginx、检测服务或真实对话内容。线上 390px Chromium 实际加载的新模块处理用户本次原图，输出 399187 字节，与已通过真实模型识别的输入逐字节一致；无脚本错误、无生产写请求，线上附件脚本与发布目录一致。
+
+`git push origin main` 已将 GitHub `main` 从 `7d51c9b` 更新到 `e339183`；本次发布记录与 `AI/environment.md` 同步当前发布路径。文档门禁检查 54 份、0 处问题，`git diff --check` 通过。代码回退时恢复备份中的 drop-in 后重启即可，避免用旧 Vault 覆盖上线后新数据。
