@@ -19,6 +19,7 @@
 - [2026-09-29_ai-draft-p4](2026-09-29_ai-draft-p4.md)：# AI 草稿 P4：自动框选与独立训练任务
 - [2026-09-29_ai-draft-p3](2026-09-29_ai-draft-p3.md)：# AI 草稿 P3：手动框选与训练数据登记
 - [2026-09-29_agent-output-tokens](2026-09-29_agent-output-tokens.md)：AI 助手最大输出 Token 设置
+- [2026-09-29_agent-output-tokens-deploy](2026-09-29_agent-output-tokens-deploy.md)：AI 助手输出上限合入与生产发布
 - [2026-09-28_ui-blank-icons](2026-09-28_ui-blank-icons.md)：UI 空白图标修复
 - [2026-09-28_training-records](2026-09-28_training-records.md)：初始化框选模型训练记录
 - [2026-09-28_omrs-icon](2026-09-28_omrs-icon.md)：OMRS 图标更新

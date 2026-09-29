@@ -33,6 +33,7 @@ assets/
 - 地址形如 `#/questions`：刷新停在原页，浏览器前进后退可用，页面可以直接用链接打开。路由与页面契约见 `AI/frontend/architecture.md` §3。
 - 页面 `<head>` 注册 `assets/app/omrs-favicon.svg` 作为 16–32px 标签页图标，注册 `assets/app/omrs-icon.svg` 作为 48px 以上与触控主屏图标；侧栏左上角 32px 品牌位使用小尺寸图标，旁边保留 OMRS 名称与中文副标题。
 - 侧栏宽 232px，导航项是 `<a class="tab" href="#/页面">`（键盘可达）。当前页：强调浅底、半粗、左侧 3px 指示条，并带 `aria-current="page"`。
+- 侧栏页脚展示当前版本号，与 `omrs/version.py` 和根 `README.md` 的版本保持同步。
 - 侧栏、折叠按钮和手机汉堡按钮的图标都引用页面内的 `#i-*` SVG sprite；`.nav-ico` 统一设置 `currentColor` 描边、无填充、圆角线帽和 18px 盒子，避免 symbol 缺少外观规则时退回浏览器默认填充。
 - 折叠：侧栏按钮的 `data-action="app.collapse"` 更新 `<html data-sidebar>` 和 localStorage，侧栏收成 58px 图标栏；折叠时外壳给导航项挂 `data-tooltip`，悬停显示页面名。
 - 顶栏：标题是 `<h1 id="topbar-title">`，由外壳按页面登记写入，同时写 `document.title`。顶栏的全局「录入题目」按钮走 `app.create`。各页的「重新扫描」按钮走 `app.scan`：外壳调用 `domain/scan.js::scanVault()`，期间相关按钮置忙；在目录页扫描成功时发 `catalog:refresh`，使目录控制器重读磁盘树。
