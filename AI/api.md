@@ -547,6 +547,8 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 请求只用 user 角色：指令文本 + 图片（`image_url` 传 data URL）都放在 user 的 `content` 里（不设 System Message，符合 Qwen-VL 推荐用法）；协议为 `POST {ai_base_url}/chat/completions`，`Authorization: Bearer <key>`，由本地后端用标准库 `urllib` 转发（不经第三方、规避浏览器跨域）。
 
+`question_text` 和 `answer` 使用 `deepseek-flash` 时，请求附 `thinking:{type:"disabled"}`；分类请求与其它模型不附此参数。
+
 **请求体：**
 ```json
 { "image": "data:image/png;base64,...", "mode": "classify", "subject": "数学", "category": "手拉手模型" }

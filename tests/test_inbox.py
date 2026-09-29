@@ -272,6 +272,7 @@ class ExtractionReviewTests(unittest.TestCase):
             result = ai_assist.extract_region('/unused', 'data:image/png;base64,AA==')
             self.assertFalse(result['convertible'])
             call.assert_called_once()
+            self.assertTrue(call.call_args.kwargs['disable_thinking'])
 
 
 class ProviderPolicyTests(unittest.TestCase):

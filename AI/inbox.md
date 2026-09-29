@@ -65,7 +65,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 - `_ai_config(vault, purpose)`：按 `ai_model_detect / ai_model_extract / ai_model_classify` 选模型，留空回退 `ai_model`（`common.CONFIG_DEFAULTS` 已加三键；设置页有三个输入框）。
 - `detect_regions_local(url, image, layout, width, height)`（v1.13.0）：`local_http` 提供方，`POST url` JSON `{image, layout, width, height}`，响应数组或 `{boxes:[…]}`，同样经 `parse_detect_output` 归一化（传了宽高所以像素坐标也能解析）。
 - `detect_regions(vault, image, layout)`：`DETECT_PROMPT` 要求输出 `[{label, card, bbox_2d:[x1,y1,x2,y2], confidence}]`，坐标 **0–1000 相对**（Qwen3-VL 约定）。`parse_detect_output()` 兼容三种坐标：≤1 视为小数；>1000 且给了尺寸视为绝对像素（Qwen2.5-VL 风格）；否则 /1000。`label` 以 answer/答案/解析 开头 → answer，其余 → question。
-- `extract_region(vault, image, role, judge)`：复用 `ANSWER_PROMPT` / `QUESTION_TEXT_PROMPT`，`judge=True` 时追加 `JUDGE_SUFFIX` 要求返回 `{convertible, reason, text}`；判断模式要求 JSON 中 convertible 为布尔值，可提取时 text 为非空字符串，否则报错供重试；不可提取不要求正文。题目文本会去掉整段开头题号；答案仅在开头为“题号+答案/解析标题”时去掉题号，解析内部步骤编号保留。`max_tokens=4000`。
+- `extract_region(vault, image, role, judge)`：复用 `ANSWER_PROMPT` / `QUESTION_TEXT_PROMPT`，`judge=True` 时追加 `JUDGE_SUFFIX` 要求返回 `{convertible, reason, text}`；判断模式要求 JSON 中 convertible 为布尔值，可提取时 text 为非空字符串，否则报错供重试；不可提取不要求正文。题目文本会去掉整段开头题号；答案仅在开头为“题号+答案/解析标题”时去掉题号，解析内部步骤编号保留。`max_tokens=4000`；模型为 `deepseek-flash` 时发送 `thinking:{type:"disabled"}`，其它模型不附此参数。
 - 旧的 `/api/ai-recognize` 三种 mode 行为不变（classify 现在也走 `purpose="classify"`）。
 
 ## 5. 前端（`assets/app/features/create/`）

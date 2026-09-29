@@ -1,4 +1,5 @@
 import csv
+import io
 import json
 import tempfile
 import unittest
@@ -18,6 +19,25 @@ def write_mastery(vault, rows):
 
 
 class AiAssistTaxonomyTests(unittest.TestCase):
+    def test_extraction_disables_thinking_only_for_verified_model(self):
+        payloads = []
+
+        def respond(request, timeout):
+            payloads.append(json.loads(request.data))
+            return io.BytesIO(b'{"choices":[{"message":{"content":"ok"}}]}')
+
+        with mock.patch.object(ai_assist.urllib.request, "urlopen", side_effect=respond):
+            for model, disable in (("deepseek-flash", True), ("deepseek-flash", False),
+                                   ("qwen3.5-ocr", True)):
+                with mock.patch.object(ai_assist, "_ai_config",
+                                       return_value=("https://example.test/v1", "test-key", model)):
+                    self.assertEqual(ai_assist._call_model("vault", "转录", "data:image/png;base64,AA==",
+                                                            200, 30, disable_thinking=disable), "ok")
+
+        self.assertEqual(payloads[0]["thinking"], {"type": "disabled"})
+        self.assertNotIn("thinking", payloads[1])
+        self.assertNotIn("thinking", payloads[2])
+
     def test_extraction_prompts_remove_only_leading_question_number(self):
         self.assertIn("只去掉这个开头题号", ai_assist.QUESTION_TEXT_PROMPT)
         self.assertIn("只去掉这个开头题号", ai_assist.ANSWER_PROMPT)
@@ -57,6 +77,7 @@ class AiAssistTaxonomyTests(unittest.TestCase):
 
         self.assertEqual(result["answer"], reply)
         self.assertEqual(call.call_args.args[1], ai_assist.ANSWER_PROMPT)
+        self.assertTrue(call.call_args.kwargs["disable_thinking"])
 
     def test_collect_taxonomy_groups_categories_by_subject(self):
         with tempfile.TemporaryDirectory() as vault:
