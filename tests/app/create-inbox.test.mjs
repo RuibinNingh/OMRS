@@ -377,7 +377,8 @@ test('题卡字段归一、写入路径、必填与汇总文案', () => {
   assert.equal(missingRequired({ subject: '数学', category: ' ' }), true);
   assert.equal(commitSummary(3, 1), '已创建 3 道题目，1 张失败；原图与框位已存入数据集');
   assert.deepEqual(suggestions([{ subject: '物理', category: '力', knowledge_tags: ['牛顿'] }, { subject: '数学', category: '函数' }]),
-    { subjects: ['数学', '物理'], categories: ['函数', '力'], tags: ['函数', '力', '牛顿'] });
+    { subjects: ['数学', '物理'], categories: ['函数', '力'], tags: ['函数', '力', '牛顿'],
+      categoriesBySubject: { 数学: ['函数'], 物理: ['力'] } });
 });
 
 test('训练统计模型：百分比、条形比例、盲标与存储文案', () => {

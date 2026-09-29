@@ -194,6 +194,7 @@ CREATE INDEX IF NOT EXISTS regions_item ON regions(item_id);
 CREATE TABLE IF NOT EXISTS cards (
   item_id TEXT, card INTEGER, subject TEXT, category TEXT, difficulty INTEGER, tags TEXT,
   cause TEXT, page TEXT, classified INTEGER, created_uid TEXT, created_question_id TEXT,
+  manual_fields TEXT NOT NULL DEFAULT '{}', field_sources TEXT NOT NULL DEFAULT '{}',
   PRIMARY KEY (item_id, card)
 );
 CREATE TABLE IF NOT EXISTS jobs (
@@ -243,6 +244,10 @@ def connect(vault):
     for column, decl in _ITEM_EXTRA_COLUMNS:
         if column not in existing:
             db.execute(f"ALTER TABLE items ADD COLUMN {column} {decl}")
+    card_columns = {row[1] for row in db.execute("PRAGMA table_info(cards)")}
+    for column in ("manual_fields", "field_sources"):
+        if column not in card_columns:
+            db.execute(f"ALTER TABLE cards ADD COLUMN {column} TEXT NOT NULL DEFAULT '{{}}'")
     db.commit()
     return db
 
@@ -286,8 +291,10 @@ def _row_card(row):
     return {
         "card": row["card"], "subject": row["subject"] or "", "category": row["category"] or "",
         "difficulty": row["difficulty"] if row["difficulty"] is not None else 5,
-        "tags": _loads(row["tags"], []), "cause": row["cause"] or "", "page": row["page"] or "",
+        "tags": _loads(row["tags"], []), "cause": row["cause"] or "",
         "classified": bool(row["classified"]), "created_uid": row["created_uid"] or "",
+        "manual_fields": _loads(row["manual_fields"], {}),
+        "field_sources": _loads(row["field_sources"], {}),
     }
 
 
@@ -420,7 +427,7 @@ def _write_regions(db, item_id, regions, now):
         )
 
 
-def _write_cards(db, item_id, cards):
+def _write_cards(db, item_id, cards, ai=False):
     for key, form in (cards or {}).items():
         try:
             card = int(key)
@@ -429,18 +436,36 @@ def _write_cards(db, item_id, cards):
         tags = form.get("tags", [])
         if isinstance(tags, str):
             tags = [t.strip() for t in re.split(r"[,，]", tags) if t.strip()]
+        previous = db.execute("SELECT * FROM cards WHERE item_id=? AND card=?", (item_id, card)).fetchone()
+        manual = dict(_loads(previous["manual_fields"], {}) if previous else {})
+        manual.update(form.get("manual_fields") or {})
+        sources = dict(_loads(previous["field_sources"], {}) if previous else {})
+        sources.update(form.get("field_sources") or {})
+        if not ai:
+            for name, column, value, default in (
+                ("subject", "subject", form.get("subject", ""), ""),
+                ("category", "category", form.get("category", ""), ""),
+                ("difficulty", "difficulty", int(form.get("difficulty", 5) or 5), 5),
+                ("tags", "tags", tags, []),
+                ("cause", "cause", form.get("cause", ""), ""),
+            ):
+                old = (_loads(previous[column], []) if name == "tags" else previous[column]) if previous else default
+                if value != old:
+                    manual[name] = True
+                    sources.pop(name, None)
         db.execute(
-            "INSERT INTO cards (item_id, card, subject, category, difficulty, tags, cause, page, classified) "
-            "VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(item_id, card) DO UPDATE SET subject=excluded.subject, "
+            "INSERT INTO cards (item_id, card, subject, category, difficulty, tags, cause, page, classified, manual_fields, field_sources) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(item_id, card) DO UPDATE SET subject=excluded.subject, "
             "category=excluded.category, difficulty=excluded.difficulty, tags=excluded.tags, cause=excluded.cause, "
-            "page=excluded.page, classified=excluded.classified",
+            "page=excluded.page, classified=excluded.classified, manual_fields=excluded.manual_fields, field_sources=excluded.field_sources",
             (item_id, card, form.get("subject", ""), form.get("category", ""),
              int(form.get("difficulty", 5) or 5), json.dumps(tags, ensure_ascii=False),
-             form.get("cause", ""), form.get("page", ""), 1 if form.get("classified") else 0),
+             form.get("cause", ""), "", 1 if form.get("classified") else 0,
+             json.dumps(manual, ensure_ascii=False), json.dumps(sources, ensure_ascii=False)),
         )
 
 
-def update_item(vault, item_id, data, require_epoch=False, require_version=False):
+def update_item(vault, item_id, data, require_epoch=False, require_version=False, _ai=False):
     """只修改明确提交的字段；regions 明确传入时整体替换。"""
     with _LOCK:
         db = connect(vault)
@@ -460,7 +485,7 @@ def update_item(vault, item_id, data, require_epoch=False, require_version=False
             if "regions" in data and isinstance(data["regions"], list):
                 _write_regions(db, item_id, data["regions"], now)
             if "cards" in data and isinstance(data["cards"], dict):
-                _write_cards(db, item_id, data["cards"])
+                _write_cards(db, item_id, data["cards"], ai=_ai)
             layout = data.get("layout")
             if layout in LAYOUTS:
                 db.execute("UPDATE items SET layout=? WHERE id=?", (layout, item_id))
@@ -1065,7 +1090,7 @@ def _run_classify(vault, ai, unit):
     if not question:
         raise ValueError(f"题卡 {card} 没有题目框")
     image = region_image(vault, item, question, unit.get("crop"))
-    form = item["cards"].get(str(card), {"subject": "", "category": "", "difficulty": 5, "tags": [], "cause": "", "page": ""})
+    form = item["cards"].get(str(card), {"subject": "", "category": "", "difficulty": 5, "tags": [], "cause": ""})
     result = ai.classify_question(vault, image, hint_subject=form.get("subject", ""), hint_category=form.get("category", ""))
     with _LOCK:
         fresh = get_item(vault, item["id"])
@@ -1076,20 +1101,30 @@ def _run_classify(vault, ai, unit):
         if not any(r["id"] == question["id"] and r["role"] == "question" for r in fresh["regions"]):
             raise ValueError("题目框已修改，旧分类结果已失效")
         merged = dict(fresh["cards"].get(str(card), form))
-        if not merged.get("subject") and result.get("subject"):
+        manual = merged.get("manual_fields") or {}
+        sources = dict(merged.get("field_sources") or {})
+        provenance = {"kind": "ai", "image_sha": fresh["sha256"], "region_id": question["id"],
+                      "source_revision": item["revision"]}
+        if not manual.get("subject") and not merged.get("subject") and result.get("subject"):
             merged["subject"] = result["subject"]
-        if not merged.get("category") and result.get("category"):
+            sources["subject"] = provenance
+        if not manual.get("category") and not merged.get("category") and result.get("category"):
             merged["category"] = result["category"]
-        if merged.get("difficulty", 5) == form.get("difficulty", 5):
+            sources["category"] = provenance
+        if not manual.get("difficulty") and merged.get("difficulty", 5) == 5:
             merged["difficulty"] = result.get("difficulty", merged.get("difficulty", 5))
+            sources["difficulty"] = provenance
         tags = list(merged.get("tags") or [])
-        for tag in result.get("knowledge_tags") or []:
-            if tag not in tags:
-                tags.append(tag)
+        if not manual.get("tags"):
+            for tag in result.get("knowledge_tags") or []:
+                if tag not in tags:
+                    tags.append(tag)
+            sources["tags"] = provenance
         merged["tags"] = tags
+        merged["field_sources"] = sources
         merged["classified"] = True
         update_item(vault, item["id"], {"cards": {str(card): merged}, "reset_epoch": epoch,
-                                               "expected_revision": fresh["revision"]})
+                                               "expected_revision": fresh["revision"]}, _ai=True)
     return {"item_id": item["id"], "card": card, "form": merged}
 
 
@@ -1122,7 +1157,7 @@ def _commit_item_checked(vault, item_id, card=1, form=None, crops=None):
     if not any(r["role"] == "question" for r in regions):
         raise ValueError(f"题卡 {card} 没有题目框")
     saved = dict(item["cards"].get(str(card), {}))
-    saved.update({k: v for k, v in (form or {}).items() if k in ("subject", "category", "difficulty", "tags", "labels", "cause", "page")})
+    saved.update({k: v for k, v in (form or {}).items() if k in ("subject", "category", "difficulty", "tags", "labels", "cause")})
     subject = str(saved.get("subject") or "").strip()
     category = str(saved.get("category") or "").strip()
     if not subject or not category:
@@ -1149,7 +1184,7 @@ def _commit_item_checked(vault, item_id, card=1, form=None, crops=None):
 
     result = create_question(
         vault, subject=subject, category=category,
-        difficulty=int(saved.get("difficulty", 5) or 5), note=str(saved.get("page") or ""),
+        difficulty=int(saved.get("difficulty", 5) or 5),
         related_tags=tags, labels=labels, question_text="\n\n".join(texts["question"]),
         answer_text="\n\n".join(texts["answer"]), cause=str(saved.get("cause") or ""),
         question_images=images["question"], answer_images=images["answer"],

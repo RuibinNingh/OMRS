@@ -6,12 +6,12 @@ import { quickView } from '../../assets/app/features/create/quick-view.js';
 test('快速录入请求保留题目与答案图片的分区、标记和知识点', () => {
   const state = newQuickState();
   assert.deepEqual(createPayload(state), { ok: false, error: '请填写科目和分类' });
-  Object.assign(state.form, { subject: ' 数学 ', category: ' 函数 ', difficulty: '7', related: '导数，极值', question: '题面', answer: '解析', cause: '审题', note: ' p.3 ' });
+  Object.assign(state.form, { subject: ' 数学 ', category: ' 函数 ', difficulty: '7', related: '导数，极值', question: '题面', answer: '解析', cause: '审题' });
   state.labels = ['待攻克'];
   state.images.q = [{ id: 1, dataUrl: 'data:image/png;base64,QQ==' }];
   state.images.a = [{ id: 2, dataUrl: 'data:image/png;base64,Qg==' }];
   assert.deepEqual(createPayload(state).data, {
-    subject: '数学', category: '函数', difficulty: 7, note: 'p.3', related_tags: ['导数', '极值'], labels: ['待攻克'],
+    subject: '数学', category: '函数', difficulty: 7, related_tags: ['导数', '极值'], labels: ['待攻克'],
     question_text: '题面', answer_text: '解析', cause: '审题',
     question_images: [{ data: 'data:image/png;base64,QQ==' }], answer_images: [{ data: 'data:image/png;base64,Qg==' }],
   });
@@ -19,7 +19,7 @@ test('快速录入请求保留题目与答案图片的分区、标记和知识�
 
 test('分类识别只填空缺项，提交后保留录入上下文并清空内容与图片', () => {
   const state = newQuickState();
-  Object.assign(state.form, { subject: '数学', category: '函数', related: '极值', question: '题面', answer: '解析', cause: '审题', note: 'p.4' });
+  Object.assign(state.form, { subject: '数学', category: '函数', related: '极值', question: '题面', answer: '解析', cause: '审题' });
   state.form = mergeClassification(state.form, { subject: '物理', category: '动力学', difficulty: 8, knowledge_tags: ['极值', '定义域'] });
   assert.equal(state.form.subject, '数学');
   assert.equal(state.form.category, '函数');
@@ -29,8 +29,17 @@ test('分类识别只填空缺项，提交后保留录入上下文并清空内�
   state.images.q = [{ id: 1, dataUrl: 'data:a' }];
   const next = afterCreate(state);
   assert.deepEqual(next.images, { q: [], a: [] });
-  assert.deepEqual([next.form.subject, next.form.category, next.form.related, next.form.note, next.labels[0]], ['数学', '函数', '极值, 定义域', 'p.4', '待攻克']);
+  assert.deepEqual([next.form.subject, next.form.category, next.form.related, next.labels[0]], ['数学', '函数', '极值, 定义域', '待攻克']);
   assert.deepEqual([next.form.question, next.form.answer, next.form.cause], ['', '', '']);
+});
+
+test('快速录入识别保留人工字段，错因候选和模型标记不能直接写入', () => {
+  const form = { subject: '', category: '', difficulty: '5', related: '手写知识点', cause: '人工错因' };
+  const result = { subject: '数学', category: '函数', difficulty: 9, knowledge_tags: ['导数'],
+    labels: ['模型标记'], cause_candidate: { value: '粗心', evidence_text: '粗心' } };
+  const next = mergeClassification(form, result, { manual: { difficulty: true, related: true, cause: true } });
+  assert.deepEqual(next, { ...form, subject: '数学', category: '函数' });
+  assert.equal('labels' in next, false);
 });
 
 test('快速录入视图只有委托动作、图片区域各自可选文件', () => {
@@ -40,6 +49,7 @@ test('快速录入视图只有委托动作、图片区域各自可选文件', ()
   assert.match(markup, /id="cr-q-file"[^>]*multiple/);
   assert.match(markup, /id="cr-a-file"[^>]*multiple/);
   assert.match(markup, /data-action="create.submit"/);
+  assert.doesNotMatch(markup, /笔记本页码/);
 });
 
 import { liveItems, visibleItems, selectableItems, selectedCount, gridView } from '../../assets/app/features/create/grid-view.js';

@@ -64,8 +64,8 @@
 .crw-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); align-items: start; }
 .crw-pane { min-width: 0; display: grid; gap: var(--sp-4); padding: var(--sp-5); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); }
 .crw-pane h2 { margin: 0; font-size: var(--text-lg); }
-.crw-pane label { display: grid; gap: var(--sp-2); min-width: 0; color: var(--fg-2); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
-.crw-pane input:not([type="file"]), .crw-pane textarea { box-sizing: border-box; width: 100%; min-height: var(--ctl-lg); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border-2); border-radius: var(--r-sm); background: var(--surface-1); color: var(--fg-1); font: var(--text-md)/var(--leading-ui) var(--font-sans); }
+.crw-pane .crw-field { display: grid; gap: var(--sp-2); min-width: 0; color: var(--fg-2); font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.crw-pane .crw-field input, .crw-pane .crw-field textarea { box-sizing: border-box; width: 100%; min-height: var(--ctl-lg); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border-2); border-radius: var(--r-sm); background: var(--surface-1); color: var(--fg-1); font: var(--text-md)/var(--leading-ui) var(--font-sans); }
 .crw-pane textarea { resize: vertical; }
 .crw-pane input:focus-visible, .crw-pane textarea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .crw-fields-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
@@ -73,12 +73,23 @@
 .crw-range output { min-width: var(--sp-6); text-align: right; color: var(--fg-1); font: var(--text-lg) var(--font-mono); }
 .crw-cause { padding: var(--sp-3); border: 1px solid var(--border-2); border-radius: var(--r-md); background: var(--surface-sunken); }
 .crw-shot { display: grid; gap: var(--sp-3); padding: var(--sp-4); border: 1px solid var(--border-2); border-radius: var(--r-md); }
+.crw-pane--shots { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.crw-pane--shots > h2, .crw-pane--shots > .crw-help { grid-column: 1 / -1; }
+.crw-shot { min-width: 0; align-content: start; }
 .crw-shot.is-target { border-color: var(--focus-ring); background: var(--accent-soft); }
-.crw-shot h3 { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--text-md); }
-.crw-shot h3 small { color: var(--fg-3); font-size: var(--text-sm); font-weight: var(--weight-regular); }
+.crw-shot h3, .crw-shot summary { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.crw-shot summary { min-height: var(--ctl-lg); cursor: pointer; }
+.crw-shot summary::marker { color: var(--fg-3); }
+.crw-shot summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.crw-shot summary small { color: var(--fg-3); font-size: var(--text-sm); font-weight: var(--weight-regular); }
+.crw-shot__body { display: grid; gap: var(--sp-3); }
+details.crw-shot:not([open]) > .crw-shot__body { display: none; }
 .crw-shot .ui-filedrop { min-height: 100px; }
+.crw-shot .ui-filedrop__icon, .crw-shot .ui-filedrop__title, .crw-shot .ui-filedrop__hint { align-self: center; }
 .crw-shot__actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
-.crw-shot__status { min-height: 1.5em; color: var(--fg-3); font-size: var(--text-sm); }
+.crw-shot__status { color: var(--fg-3); font-size: var(--text-sm); }
+.crw-shot__status:empty { display: none; }
+.crw-thumbs[hidden] { display: none; }
 .crw-shot__status.is-error { color: var(--danger-fg); }
 .crw-thumbs { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .crw-thumb { position: relative; width: 84px; height: 84px; overflow: hidden; border: 1px solid var(--border-2); border-radius: var(--r-sm); background: var(--surface-2); }
@@ -88,6 +99,10 @@
 .crw-thumb__number { position: absolute; bottom: 0; left: 0; padding: var(--sp-0_5) var(--sp-1); background: var(--surface-1); color: var(--fg-1); font-size: var(--text-xs); }
 .crw-help, .crw-details { margin: 0; color: var(--fg-3); font-size: var(--text-sm); line-height: var(--leading-ui); }
 .crw-labels { display: grid; gap: var(--sp-2); font-size: var(--text-sm); color: var(--fg-2); }
+.crw-candidate { display: grid; gap: var(--sp-2); padding: var(--sp-3); border: 1px solid var(--info); border-radius: var(--r-md); background: var(--info-soft); font-size: var(--text-sm); }
+.crw-candidate p { margin: 0; }
+.crw-candidate small { color: var(--fg-2); }
+.crw-candidate .ui-btn { justify-self: start; }
 #crw-labels { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .crw-actionbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-3); padding: var(--sp-4); border-top: 1px solid var(--border-1); }
 .crw-actionbar p { margin: 0; color: var(--fg-2); font-size: var(--text-sm); }
@@ -99,6 +114,8 @@
 .crw-result__action { margin-top: var(--sp-2); color: var(--fg-2); }
 .crw-details summary { display: flex; align-items: center; min-height: var(--ctl-lg); cursor: pointer; }
 @media (max-width: 1160px) { .crw-columns { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1161px) and (max-width: 1500px) { .crw-pane--shots { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 760px) { .crw-pane--shots { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) { .crw-fields-pair { grid-template-columns: minmax(0, 1fr); } .crw-pane { padding: var(--sp-4); } }
 
 /* 收件箱网格：与处理区共用 inbox.js 的图片列表与勾选。 */

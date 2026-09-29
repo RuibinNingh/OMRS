@@ -32,6 +32,23 @@ class ContentIntegrityTests(unittest.TestCase):
     def path(self, q):
         return os.path.join(self.vault, q["file_path"])
 
+    def test_legacy_page_survives_history_but_normal_edit_removes_active_field(self):
+        q = self.create()
+        with open(self.path(q), encoding="utf-8") as file:
+            original = file.read()
+        legacy = original.replace("难度: 5\n", "难度: 5\n页码: p.23\n", 1)
+        with open(self.path(q), "w", encoding="utf-8") as file:
+            file.write(legacy)
+        scan_workspace(self.vault)
+        self.assertEqual(get_blob(self.vault, blob_hash(legacy)), legacy)
+        saved = save_question_markdown(self.vault, q["uid"], legacy.replace("题面", "人工修改的题面"))
+        with open(self.path(q), encoding="utf-8") as file:
+            current = file.read()
+        self.assertNotIn("页码:", current)
+        self.assertIn("人工修改的题面", current)
+        self.assertEqual(saved["content_hash"], blob_hash(current))
+        self.assertEqual(get_blob(self.vault, blob_hash(legacy)), legacy)
+
     def test_create_move_and_external_changes_store_new_hashes(self):
         q = self.create()
         with open(self.path(q), encoding="utf-8") as file:

@@ -25,15 +25,20 @@ export function imageThumbs(images, kind) {
 
 function imageField(field, state) {
   const kind = field.kind;
-  return html`<section class="crw-shot${state.target === kind ? ' is-target' : ''}" id="cr-${kind}-paste" data-cr-paste="${kind}">
-    <h3>${field.title}${kind === 'a' ? html`<small>可选</small>` : ''}</h3>
-    ${filedrop({ id: `cr-${kind}-file`, title: field.hint, accept: 'image/*', multiple: true })}
-    <div class="crw-thumbs" id="cr-${kind}-images">${imageThumbs(state.images[kind], kind)}</div>
+  const body = html`<div class="crw-shot__body">
+    ${filedrop({ id: `cr-${kind}-file`, title: '拖入、点击或拍照选择图片', hint: field.hint, accept: 'image/*', multiple: true })}
+    <div class="crw-thumbs" id="cr-${kind}-images"${state.images[kind].length ? '' : html` hidden`}>${imageThumbs(state.images[kind], kind)}</div>
     <div class="crw-shot__actions">
       ${button({ label: `从剪贴板读取到「${kind === 'q' ? '题目' : '答案'}」`, icon: 'copy', action: 'create.readImage', arg: kind })}
       ${field.ai.map(action => html`<button type="button" class="ui-btn" id="${action.id}" data-action="create.${action.action}"${state.images[kind].length ? '' : html` disabled`}>${icon('sparkle')}<span>${action.label}</span></button>`)}
     </div>
     <span class="crw-shot__status" id="${kind === 'q' ? 'cr-classify-status' : 'cr-extract-status'}" role="status" aria-live="polite"></span>
+  </div>`;
+  if (kind === 'a') return html`<details class="crw-shot ui-disclosure${state.target === kind ? ' is-target' : ''}" id="cr-a-paste" data-cr-paste="a"${state.answerOpen ? html` open` : ''}>
+    <summary>答案截图 <small>可选 · 点此展开</small></summary>${body}
+  </details>`;
+  return html`<section class="crw-shot${state.target === kind ? ' is-target' : ''}" id="cr-q-paste" data-cr-paste="q">
+    <h3>${field.title}</h3>${body}
   </section>`;
 }
 
@@ -47,35 +52,42 @@ export function resultView(result) {
   </div>`;
 }
 
-export function quickView(state, { subjects = [], categories = [], tags = [] } = {}) {
+export function causeCandidate(candidate) {
+  if (!candidate) return html``;
+  return html`<div class="crw-candidate"><strong>AI 提取的错因候选</strong><p>${candidate.value}</p>
+    <small>图片文字引用：「${candidate.evidence}」。引用未经自动核实，请对照原图确认。</small>
+    ${button({ label: '采纳为错因', action: 'create.acceptCause' })}</div>`;
+}
+
+export function quickView(state) {
   const f = state.form;
   return html`<div class="crw-quick">
     <div class="crw-steps" aria-label="快速录入流程"><span>1 截图</span>${icon('arrow-right')}<span>2 识别</span>${icon('arrow-right')}<strong>3 核对</strong>${icon('arrow-right')}<span>4 保存</span></div>
     <div class="crw-columns">
-      <section class="crw-pane" aria-label="截图工作区"><h2>截图工作区</h2>
+      <section class="crw-pane crw-pane--shots" aria-label="截图工作区"><h2>截图工作区</h2>
         ${IMAGE_FIELDS.map(field => imageField(field, state))}
         <p class="crw-help">点击图片区会切换粘贴目标；题目图可提取题面与分类，答案图可提取解析。识别结果仍可手动核对。</p>
       </section>
       <section class="crw-pane" aria-label="题卡内容"><h2>题卡内容</h2>
         <div class="crw-fields-pair">
-          <label>科目 *<input id="cr-subject" data-cr-field="subject" list="crw-subj-list" value="${f.subject}" placeholder="数学、物理、化学…"><datalist id="crw-subj-list">${subjects.map(value => html`<option value="${value}"></option>`)}</datalist></label>
-          <label>分类（知识点）*<input id="cr-category" data-cr-field="category" list="crw-cat-list" value="${f.category}" placeholder="函数、动能定理…"><datalist id="crw-cat-list">${categories.map(value => html`<option value="${value}"></option>`)}</datalist></label>
+          <label class="crw-field">科目 *<input id="cr-subject" data-cr-field="subject" data-combobox="subject" autocomplete="off" value="${f.subject}" placeholder="数学、物理、化学…"></label>
+          <label class="crw-field">分类（知识点）*<input id="cr-category" data-cr-field="category" data-combobox="category" autocomplete="off" value="${f.category}" placeholder="函数、动能定理…"></label>
         </div>
         <div class="crw-fields-pair">
-          <label>难度（1–10）<span class="crw-range"><input type="range" id="cr-diff" data-cr-field="difficulty" min="1" max="10" value="${f.difficulty}"><output id="cr-diff-val">${f.difficulty}</output></span></label>
-          <label>相关知识点<input id="cr-related" data-cr-field="related" list="crw-ktag-list" value="${f.related}" placeholder="逗号分隔"><datalist id="crw-ktag-list">${tags.map(value => html`<option value="${value}"></option>`)}</datalist></label>
+          <label class="crw-field">难度（1–10）<span class="crw-range"><input type="range" id="cr-diff" data-cr-field="difficulty" min="1" max="10" value="${f.difficulty}"><output id="cr-diff-val">${f.difficulty}</output></span></label>
+          <label class="crw-field">相关知识点<input id="cr-related" data-cr-field="related" data-combobox="tags" autocomplete="off" value="${f.related}" placeholder="逗号分隔"></label>
         </div>
-        <label>题目正文<textarea id="cr-question" data-cr-field="question" rows="3" placeholder="支持 LaTeX，如 $x^2+1$">${f.question}</textarea></label>
-        <label>答案 / 解析<textarea id="cr-answer" data-cr-field="answer" rows="3" placeholder="可手动输入或从答案图提取">${f.answer}</textarea></label>
-        <label class="crw-cause">错因 · 这道题为什么错？<textarea id="cr-cause" data-cr-field="cause" rows="2" placeholder="复习时先看这里">${f.cause}</textarea></label>
+        <label class="crw-field">题目正文<textarea id="cr-question" data-cr-field="question" rows="3" placeholder="支持 LaTeX，如 $x^2+1$">${f.question}</textarea></label>
+        <label class="crw-field">答案 / 解析<textarea id="cr-answer" data-cr-field="answer" rows="3" placeholder="可手动输入或从答案图提取">${f.answer}</textarea></label>
+        <label class="crw-field crw-cause">错因 · 这道题为什么错？<textarea id="cr-cause" data-cr-field="cause" rows="2" placeholder="复习时先看这里">${f.cause}</textarea></label>
+        <div id="cr-cause-candidate">${causeCandidate(state.candidates.cause)}</div>
         <div class="crw-labels"><span>标记 · 可选</span><div id="crw-labels">${labelChips(state.labels)}${button({ label: '添加标记', icon: 'plus', action: 'create.openLabels' })}</div></div>
-        <label>笔记本页码 · 可选<input id="cr-note" data-cr-field="note" value="${f.note}" placeholder="p.23"></label>
       </section>
     </div>
     <div class="crw-actionbar"><p>核对无误后保存：题目写入对应科目和分类，图片自动嵌入，随后可在「题目库」查看。</p>
       <div>${button({ label: '重置', action: 'create.reset' })}${button({ label: '创建题目', variant: 'primary', action: 'create.submit' })}</div>
     </div>
     <div id="cr-result">${resultView(state.result)}</div>
-    <details class="crw-details"><summary>文件结构与说明</summary><p>系统自动编号，题目文件位于对应的科目和分类文件夹，图片存入附件文件夹。AI 识别需先在「设置 → AI 识别」中配置。</p></details>
+    <details class="crw-details ui-disclosure"><summary>文件结构与说明</summary><p>系统自动编号，题目文件位于对应的科目和分类文件夹，图片存入附件文件夹。AI 识别需先在「设置 → AI 识别」中配置。</p></details>
   </div>`;
 }

@@ -360,6 +360,22 @@ CLASSIFY_TEMPLATE_OPEN = """你是错题分类助手。请根据图片中的题�
 {"subject": "", "category": "", "difficulty": 5, "knowledge_tags": [], "labels": []}"""
 
 
+QUICK_CLASSIFY_TEMPLATE = """你是快速录入的题目字段识别助手。根据题目%s，仅生成科目、分类、难度、知识点和有原图文字依据的错因候选。不要转写题目或解题。
+
+已有科目：%s
+已有分类（按科目分组）：
+%s
+已有知识点：%s
+
+要求：
+1. 先判断 subject，再判断 category；已有科目原样使用。category 只能选所选科目下的分类；没有贴切分类时可给出简短新名称，不得跨科目借用。
+2. difficulty 为 1–10 的整数，按题目综合难度估计。
+3. knowledge_tags 最多 4 个。%s
+4. 只有图片中直接写有用户自己的错误原因时，才返回 cause_candidate。value 是错因，evidence_text 必须逐字引用图上可核对的原话；否则返回 null。不要把模型推测当作已发生的错因，不要默认写“粗心”或“概念不清”。候选只供用户审核，不直接写入。
+5. 只输出 JSON 对象，键固定如下，不要解释或代码块：
+{"subject":"","category":"","difficulty":5,"knowledge_tags":[],"cause_candidate":null}"""
+
+
 ANSWER_PROMPT = """请忠实转录图片中这道题所有可见的【答案和解析】。这是内容提取任务，不是解题、总结或改写任务。
 
 要求：
@@ -408,8 +424,9 @@ def _clean_extracted_text(text: str, role: str) -> str:
 
 def classify_question(vault: str, image_data_url: str, timeout: int = 90,
                       hint_subject: str = "", hint_category: str = "",
-                      restrict_tags: bool = None, answer_image: str = "") -> dict:
-    """读题目图片（可选答案图片），返回 {subject, category, difficulty, knowledge_tags, labels}。
+                      restrict_tags: bool = None, answer_image: str = "",
+                      allow_labels: bool = True) -> dict:
+    """读题目图片（可选答案图片）；quick 调用不请求或返回 labels。
 
     hint_subject / hint_category：用户在表单里已填的科目/分类。若给出，会随提示词
     发给模型并要求**原样沿用、不要改动**，模型据此判断难度与知识点（更准更一致）。
@@ -429,21 +446,26 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
     # ``list_label_defs`` is the public labels API; keep archived definitions
     # out of the prompt (the helper already filters them, but retaining the
     # guard keeps this call safe for compatible/custom implementations).
-    from .labels import list_label_defs
-    existing_labels = [
-        label["name"] for label in list_label_defs(vault)
-        if not label.get("archived")
-    ]
+    existing_labels = []
+    if allow_labels:
+        from .labels import list_label_defs
+        existing_labels = [
+            label["name"] for label in list_label_defs(vault)
+            if not label.get("archived")
+        ]
 
     answer_hint = "和答案" if answer_image and answer_image.strip() else ""
-    template = CLASSIFY_TEMPLATE if restrict_tags else CLASSIFY_TEMPLATE_OPEN
-    user_text = template % (
-        answer_hint,
-        "、".join(taxonomy["subjects"]) or "（暂无，可自行命名）",
-        _format_category_tree(taxonomy),
-        "、".join(taxonomy["knowledge_tags"]) or "（暂无）",
-        "、".join(existing_labels) or "（暂无）",
-    )
+    subjects_text = "、".join(taxonomy["subjects"]) or "（暂无，可自行命名）"
+    categories_text = _format_category_tree(taxonomy)
+    tags_text = "、".join(taxonomy["knowledge_tags"]) or "（暂无）"
+    if allow_labels:
+        template = CLASSIFY_TEMPLATE if restrict_tags else CLASSIFY_TEMPLATE_OPEN
+        user_text = template % (answer_hint, subjects_text, categories_text, tags_text,
+                                "、".join(existing_labels) or "（暂无）")
+    else:
+        tag_rule = ("只能从所选科目已有分类和已有知识点中原样选择，没有合适项就返回空数组。" if restrict_tags
+                    else "优先复用所选科目已有分类和已有知识点，没有贴切项才可给出简洁新名称。")
+        user_text = QUICK_CLASSIFY_TEMPLATE % (answer_hint, subjects_text, categories_text, tags_text, tag_rule)
     hints = []
     if hint_subject and hint_subject.strip():
         hints.append(f"科目=「{hint_subject.strip()}」")
@@ -453,7 +475,7 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
         user_text += (
             "\n\n用户在表单中已指定：" + "、".join(hints)
             + "。这些已指定的值请**原样沿用、不要改动**（即按它们填回对应字段），"
-            "并据此判断其余字段（难度、知识点、标记）。"
+            "并据此判断其余字段（难度、知识点）。"
         )
 
     # 如果有答案图片，构建多图消息
@@ -479,21 +501,28 @@ def classify_question(vault: str, image_data_url: str, timeout: int = 90,
         # 允许新建：仅按提示词约定限制数量（已去重 / 去 [[]] 由 _as_str_list 处理）
         tags = tags[:4]
 
-    # 处理标记：只保留已有标记中的
-    labels = _as_str_list(parsed.get("labels", []))
-    existing_labels_set = set(existing_labels)
-    labels = [label for label in labels if label in existing_labels_set][:3]
-
-    return {
+    result = {
         "mode": "classify",
         "subject": subject,
         "category": category,
         "difficulty": _clamp_difficulty(parsed.get("difficulty", 5)),
         "knowledge_tags": tags,
-        "labels": labels,
         "restrict_tags": restrict_tags,
         "raw": "" if parsed else content.strip(),
     }
+    if allow_labels:
+        labels = _as_str_list(parsed.get("labels", []))
+        existing_labels_set = set(existing_labels)
+        result["labels"] = [label for label in labels if label in existing_labels_set][:3]
+    else:
+        candidate = parsed.get("cause_candidate")
+        if isinstance(candidate, dict):
+            cause = str(candidate.get("value") or "").strip()[:120]
+            evidence = str(candidate.get("evidence_text") or "").strip()[:180]
+            if cause and evidence:
+                result["cause_candidate"] = {"value": cause, "evidence_text": evidence,
+                                             "source": "题图可见文字", "requires_confirmation": True}
+    return result
 
 
 def extract_answer(vault: str, image_data_url: str, timeout: int = 90) -> dict:
@@ -510,8 +539,9 @@ def extract_question_text(vault: str, image_data_url: str, timeout: int = 90) ->
 
 def recognize_question(vault: str, image_data_url: str, mode: str = "classify", timeout: int = 90,
                        hint_subject: str = "", hint_category: str = "",
-                       restrict_tags: bool = None, answer_image: str = "") -> dict:
-    """统一入口：mode='classify' 填科目/分类/难度/知识点/标记（可带 hint，restrict_tags 控制是否
+                       restrict_tags: bool = None, answer_image: str = "",
+                       allow_labels: bool = True) -> dict:
+    """统一入口：mode='classify' 填科目/分类/难度/知识点；allow_labels 控制标记字段（可带 hint，restrict_tags 控制是否
     限定已有知识点，None=读 config；可选 answer_image 提供答案图片以更准确分析）；
     mode='answer' 提取答案文本；mode='question_text' 提取题目文本。"""
     if mode == "answer":
@@ -520,7 +550,8 @@ def recognize_question(vault: str, image_data_url: str, mode: str = "classify", 
         return extract_question_text(vault, image_data_url, timeout=timeout)
     return classify_question(vault, image_data_url, timeout=timeout,
                              hint_subject=hint_subject, hint_category=hint_category,
-                             restrict_tags=restrict_tags, answer_image=answer_image)
+                             restrict_tags=restrict_tags, answer_image=answer_image,
+                             allow_labels=allow_labels)
 
 
 # ────────────────────────── 收件箱：框选 / 带可转性判断的提取 ──────────────────────────

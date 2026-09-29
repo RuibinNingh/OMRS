@@ -1,6 +1,7 @@
 /** 题卡工作区：就绪图片按题卡逐张核对、识别、创建。字段去抖 600ms 存进收件箱的 cards，创建走 /api/inbox/commit。 */
 import { morph } from '../../core/dom.js';
 import { post } from '../../core/api.js';
+import { createCombobox } from '../../ui/combobox.js';
 import { itemsOf } from '../../domain/items.js';
 import { openCreateLabelPicker } from '../../domain/labels/index.js';
 import { boardChooseAndAdd } from '../../domain/board/index.js';
@@ -38,7 +39,8 @@ export function createCards(root, ctx) {
   function paint() {
     if (!alive || S.stage !== 'create') return;
     const cards = readyCards(S.items);
-    morph(host, cardsView({ cards, selected: S.csel, busy, batch, loaded: S.loaded, suggest: suggestions(itemsOf(ctx.store.get().data)) }));
+    morph(host, cardsView({ cards, selected: S.csel, busy, batch, loaded: S.loaded }));
+    combobox.sync();
     paintCrops(host, id => inbox.item(id));
   }
   function schedule() {
@@ -52,6 +54,8 @@ export function createCards(root, ctx) {
     const found = entry(key);
     if (!found) return;
     found.form[name] = cardValue(name, value);
+    found.form.manual_fields = { ...(found.form.manual_fields || {}), [name]: true };
+    if (found.form.field_sources) delete found.form.field_sources[name];
     inbox.saveSoon(found.item, { cards: { [found.card]: found.form } }, 600);
     schedule();
   }
@@ -141,6 +145,15 @@ export function createCards(root, ctx) {
     inbox.go('process');
   }
 
+  const combobox = createCombobox(host, { options(name, input) {
+    const data = suggestions(itemsOf(ctx.store.get().data));
+    if (name === 'subject') return data.subjects;
+    if (name === 'category') {
+      const [key] = String(input.dataset.arg || '').split('|');
+      return data.categoriesBySubject[entry(key)?.form.subject?.trim()] || [];
+    }
+    return data.tags;
+  } });
   const stop = ctx.bus.on('inbox:changed', schedule);
   const stopLabels = ctx.bus.on('labels', schedule);
   const stopData = ctx.store.subscribe(schedule, value => value.data);
@@ -156,6 +169,6 @@ export function createCards(root, ctx) {
       if (!found.length) { notify('先勾选要识别的题卡', 'warn'); return; }
       classifyCards(found);
     },
-    dispose() { alive = false; stop(); stopLabels(); stopData(); },
+    dispose() { alive = false; combobox.dispose(); stop(); stopLabels(); stopData(); },
   };
 }

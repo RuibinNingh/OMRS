@@ -364,7 +364,7 @@ def commit_draft(vault, draft_id, revision, crops=None, actor="api"):
                 uid, question_id, relpath, actor = op["uid"], op["question_id"], op["file_path"], op["actor"]
                 prepared_at = op["created_at"]
             result = creation.create_question(
-                vault, row["subject"], row["category"], row["difficulty"], note=row["note"],
+                vault, row["subject"], row["category"], row["difficulty"],
                 related_tags=drafts._loads(row["knowledge_points"], []), cause=row["cause"],
                 labels=drafts._loads(row["labels"], []), ordered_blocks=rendered,
                 draft_origin={"draft_id": draft_id, "conversation_id": row["conversation_id"]},

@@ -13,7 +13,7 @@
 
 images 以 sha256 去重，保存 mime / width / height / bytes、转述缓存与训练预留字段；conv_images 按 conversation_id + n 将每张图映射为 IMG-n。同一对话重复贴同图沿用编号。图片支持 PNG/JPEG/GIF，单张解码后不超过 8MB；尺寸由现有图片头解析器读取。JPEG 沿标记段跳过 EXIF 与缩略图，主图结尾后的相册数据会清除，扫描数据缺尾时补结束标记；整理后计算 hash 并保存，已有图片在生成 data URL 时临时整理，旧文件不改写。编码像素与其他格式字节保持不变；这不代表能恢复已丢失的像素。
 
-`drafts` 含 id、四态 status、conversation_id/run_id/tool_call_id、科目分类、知识点、难度、标记、错因及原话、备注、入库 uid/question_id、时间和整数 revision；老库增量加列，revision 初始 1。`blocks` 含稳定 id、section（题目/答案）、ord、kind（text/image）、text/image_sha、归一化 box、box_origin、ai_box、note。
+`drafts` 含 id、四态 status、conversation_id/run_id/tool_call_id、科目分类、知识点、难度、标记、错因及原话、备注、入库 uid/question_id、时间和整数 revision；老库增量加列，revision 初始 1。`blocks` 含稳定 id、section（题目/答案）、ord、kind（text/image）、text/image_sha、归一化 box、box_origin、ai_box、note。草稿备注和图片说明是独立语义；入库时不会被映射成题目 YAML 的旧页码。
 
 `draft_images` 保存每份草稿的完整来源图及顺序，全文字草稿也能关联图片。老来源先从图片块恢复，再按准确的对话 / 运行 / 工具调用恢复 images 参数，无法证实的来源标 sources_complete=false；不会把整段对话的所有图猜成一道题。详情另提供 conversation_images，供用户明确补关联。
 

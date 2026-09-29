@@ -30,6 +30,8 @@ assets/
 
 页面切换或卸载后的异步响应由各页面控制器按请求序号和当前身份核对，不反写外壳的现有路由选择。`tests/e2e/assistant_race.py`、`tests/app/create-inbox.test.mjs`、`annotate.test.mjs` 与 `board-locked.test.mjs` 覆盖迟到响应、未保存编辑和目标读取失败时的页面状态；入口与具体契约见对应页面分册。
 
+录入页的可搜索建议层挂在 body，页面控制器卸载时移除，不由外壳持有；手机端依据 VisualViewport 可见高度贴在键盘上方。快速录入的迟到识别结果只在当前题目和图片版本仍匹配时应用。
+
 ## 侧栏、顶栏与路由（`assets/app/styles/shell.css`、`assets/app/shell.js`）
 
 - 地址形如 `#/questions`：刷新停在原页，浏览器前进后退可用，页面可以直接用链接打开。路由与页面契约见 `AI/frontend/architecture.md` §3。

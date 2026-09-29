@@ -333,6 +333,26 @@ class ExtractionReviewTests(unittest.TestCase):
                 inbox._run_classify(vault, mock.Mock(classify_question=classify), {"item_id": item["id"]})
             self.assertEqual(inbox.get_item(vault, item["id"])["cards"]["1"]["subject"], "人工科目")
 
+    def test_classify_preserves_manual_default_difficulty_and_old_page_is_inactive(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as vault:
+            item = self.setup_item(vault)
+            edited = inbox.update_item(vault, item["id"], {"cards": {"1": {
+                "subject": "", "category": "", "difficulty": 5, "tags": ["人工知识点"],
+                "manual_fields": {"difficulty": True, "tags": True}, "page": "p.23",
+            }}})
+            self.assertNotIn("page", edited["cards"]["1"])
+            ai = mock.Mock(classify_question=lambda *_args, **_kwargs: {
+                "subject": "数学", "category": "函数", "difficulty": 9,
+                "knowledge_tags": ["模型知识点"], "labels": ["模型标记"],
+            })
+            result = inbox._run_classify(vault, ai, {"item_id": item["id"], "card": 1})["form"]
+            self.assertEqual(result["difficulty"], 5)
+            self.assertEqual(result["tags"], ["人工知识点"])
+            self.assertEqual(result["subject"], "数学")
+            self.assertEqual(result["field_sources"]["subject"]["image_sha"], item["sha256"])
+            self.assertNotIn("page", result)
+
     def test_auto_forwards_reset_epoch_to_detect(self):
         from unittest import mock
         with mock.patch.object(inbox, "_run_detect", return_value={}) as detect:

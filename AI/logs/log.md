@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-09-29_v2-p2](2026-09-29_v2-p2.md)：OMRS 2.0.0 快速录入与字段安全
 - [2026-09-29_v2-p1](2026-09-29_v2-p1.md)：OMRS 2.0.0 AI 草稿审核工作台
 - [2026-09-29_v2-p0](2026-09-29_v2-p0.md)：OMRS 2.0.0 基线与契约
 - [2026-09-29_project-overview](2026-09-29_project-overview.md)：项目整体情况梳理与文档校正

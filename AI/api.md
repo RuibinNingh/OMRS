@@ -359,7 +359,6 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
   "subject": "数学",
   "category": "三角函数",
   "difficulty": 6,
-  "note": "p.23",
   "related_tags": ["二倍角公式"],
   "labels": ["考前必看"],
   "question_text": "题目正文（可选，含 LaTeX/多行）",
@@ -374,7 +373,6 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 |---|---|---|
 | `subject` / `category` | string | 必填。科目 / 分类 |
 | `difficulty` | int | 难度 1-10，默认 5 |
-| `note` | string | 笔记本页码，写入 YAML `页码`（此前被忽略，现已生效） |
 | `related_tags` | array | 相关知识点，写入 YAML `相关知识点` 为 `[[双链]]` |
 | `labels` | array | 用户标记名称，写入 YAML `标记`；名称去重，默认空列表 |
 | `question_text` | string | 题目正文，写入 `# 题目`；为空则写占位提示 |
@@ -382,6 +380,8 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 | `cause` | string | 错因（为什么做错），写入 `# 备注` 的 `## 错因` 子标题（导出会带上）；`## 关联` 子标题保留 |
 | `question_images` | array | 题目图：每项 `{data}`，存为 `<uid>-<omrs_id 短后缀>-q-N.<ext>`（如 `力学1-0135-q-1.png`），以 `![[名]]` 追加到 `# 题目` |
 | `answer_images` | array | 答案图：每项 `{data}`，存为 `<uid>-<omrs_id 短后缀>-a-N.<ext>`，以 `![[名]]` 追加到 `# 答案` |
+
+旧客户端仍传 `note` 时，服务端忽略它并在成功响应中返回 `deprecated_fields:["note"]`；新题不写入 YAML 页码。反馈 `note` 与草稿备注各有独立语义，不受影响。
 
 **响应：** `{ "status":"ok", "uid", "file_path", "images":[全部], "question_images":[...], "answer_images":[...], "message" }`。  
 图片存到 `错题/附件/`；文件名含 UID 与 `_omrs_id` 短后缀，避免迁移后附件覆盖。建索引失败会回滚（删除本次 md 与已存图片）。图片服务仅支持 PNG/JPEG/GIF。
@@ -556,13 +556,15 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 ```
 `mode='classify'` 时可选带 `subject` / `category`（用户在表单里**已填**的值）：后端会把它们写进提示词并要求模型**原样沿用、不要改动**，据此判断难度与知识点。前端拿到结果后**只填空缺项、不覆盖已填的科目/分类**（知识点与已填的合并去重）。
 
+快速录入额外传 `scope:"quick"`。该分支不向模型请求用户标记，也不返回 `labels` 或白名单外字段；识别结果只供当前图片和字段版本使用。分类结果可附 `cause_candidate:{value,evidence_text,source,requires_confirmation}`，证据仅是模型引用的题图文字，前端要求用户对照原图并主动采纳，不直接写错因。共享分类器的其他调用方仍保持既有标记能力。
+
 是否把识别出的知识点限定在「已有分类 ∪ 已有知识点」内，由配置 `ai_restrict_tags`（默认 `true`，见设置页「AI 自动识别 → 仅从已有知识点中选择」开关）决定，**每次请求读盘、即时生效、无需重启**；该端点不接受 per-request 覆盖。
 
 分类提示中的已有用户标记定义通过 `list_label_defs()` 读取，并排除已归档定义；该查询失败不会把旧版不存在的 `list_labels()` 当作替代 API。
 
 | `mode` | 用途 | 提示词 | 返回 |
 |---|---|---|---|
-| `classify`（默认） | 读**题目**图，判断科目/分类/难度/相关知识点（不抄题、不解题） | 注入当前科目、按科目分组的分类树、知识点；要求先定科目，再只能从该科目下选分类，禁止跨科目借用分类；`ai_restrict_tags=true` 时要求 knowledge_tags **只能取自所选科目下的已有分类+已有知识点**，`false` 时**优先复用、无贴切项才可新建**；只输出 `{"subject","category","difficulty","knowledge_tags"}` JSON | `{subject, category, difficulty, knowledge_tags, restrict_tags, raw}` |
+| `classify`（默认） | 读**题目**图，判断科目/分类/难度/相关知识点（不抄题、不解题） | 注入当前科目、按科目分组的分类树、知识点；要求先定科目，再只能从该科目下选分类，禁止跨科目借用分类；`ai_restrict_tags=true` 时要求 knowledge_tags **只能取自所选科目下的已有分类+已有知识点**，`false` 时**优先复用、无贴切项才可新建** | `{subject, category, difficulty, knowledge_tags, restrict_tags, raw}`；普通调用可带 `labels`，quick 分支不带 |
 | `question_text` | 读**题目**图，把题干/条件/选项/图表说明提取为纯文本 | 要求只输出题目正文，不解题、不补答案/解析；若开头有题号，只去掉开头题号，正文内部编号保留 | `{question_text}` |
 | `answer` | 读**答案**图，忠实转录全部可见答案与解析 | 保留详解、推导、计算步骤、选项说明、原顺序和必要换行；若开头是对应题号+答案/解析标题，只去掉该开头题号；禁止概括、压缩、省略或补写，只有图片确实没有解析时才只返回答案 | `{answer}` |
 

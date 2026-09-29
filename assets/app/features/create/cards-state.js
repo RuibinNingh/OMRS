@@ -1,7 +1,8 @@
 /** 题卡工作区的纯函数：就绪题卡清单、字段归一、写入路径、预览类型与创建汇总。 */
 import { groupCards } from './process-state.js';
 
-export const newCardForm = () => ({ subject: '', category: '', difficulty: 5, tags: [], labels: [], cause: '', page: '', classified: false });
+export const newCardForm = () => ({ subject: '', category: '', difficulty: 5, tags: [], labels: [], cause: '',
+  manual_fields: {}, field_sources: {}, classified: false });
 export const cardKey = (id, card) => `${id}#${card}`;
 
 export function parseKey(key) {
@@ -25,6 +26,7 @@ export function readyCards(items = []) {
       const slot = String(card);
       if (!item.cards[slot]) item.cards[slot] = newCardForm();
       const form = item.cards[slot];
+      delete form.page;
       if (!Array.isArray(form.labels)) form.labels = splitList(form.labels);
       if (!form.created_uid) out.push({ key: cardKey(item.id, card), item, card, regions, form });
     }
@@ -54,10 +56,16 @@ export const missingRequired = form => !String(form.subject || '').trim() || !St
 /** 已有题目里的科目、分类与知识点，供表单 datalist 提示（快速录入与题卡共用）。 */
 export function suggestions(items = []) {
   const unique = values => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  const categoriesBySubject = {};
+  for (const item of items) {
+    if (item.subject && item.category) (categoriesBySubject[item.subject] ||= []).push(item.category);
+  }
+  for (const subject of Object.keys(categoriesBySubject)) categoriesBySubject[subject] = unique(categoriesBySubject[subject]);
   return {
     subjects: unique(items.map(item => item.subject)),
     categories: unique(items.map(item => item.category)),
     tags: unique(items.flatMap(item => [item.category, ...(item.knowledge_tags || [])])),
+    categoriesBySubject,
   };
 }
 

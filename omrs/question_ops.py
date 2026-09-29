@@ -32,6 +32,10 @@ def save_question_markdown(vault: str, uid: str, markdown: str, expected_content
     new_meta = parse_yaml_frontmatter(markdown)
     if new_meta.get("_omrs_id") != old_id:
         raise RuntimeError("_omrs_id 是系统内部身份，不能在编辑器中修改")
+    frontmatter = re.match(r"\A---\s*\n.*?\n---\s*\n?", markdown, re.DOTALL)
+    if frontmatter:
+        clean = re.sub(r"(?m)^页码:[^\r\n]*(?:\r?\n)?", "", frontmatter.group())
+        markdown = clean + markdown[frontmatter.end():]
     # 写前对齐 + 可选的 expected_content_hash（对不上抛 ContentConflict → 409）；改动入账
     write_question(vault, row, markdown, f"编辑题目 {uid}", expected_hash=expected_content_hash or None)
     refresh_projection(vault)

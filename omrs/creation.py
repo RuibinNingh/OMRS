@@ -128,7 +128,7 @@ def _section_body(text, image_names):
     return "\n\n".join(parts)
 
 
-def _build_markdown(question_id, subject, category, difficulty, today, note, related_tags,
+def _build_markdown(question_id, subject, category, difficulty, today, related_tags,
                     question_text, answer_text, cause, q_images, a_images, labels=None,
                     ordered_blocks=None):
     related_lines = ["相关知识点: []"]
@@ -163,7 +163,6 @@ _omrs_id: {question_id}
 科目: {subject}
 分类: "[[{category}]]"
 难度: {difficulty}
-页码: {str(note).strip() if note else ''}
 {related_section}
 {label_section}
 tags:
@@ -184,7 +183,7 @@ tags:
 """
 
 
-def create_question(vault, subject, category, difficulty, note="", related_tags=None,
+def create_question(vault, subject, category, difficulty, related_tags=None,
                     question_text="", answer_text="", cause="",
                     question_images=None, answer_images=None, labels=None,
                     ordered_blocks=None, draft_origin=None, reserved_identity=None, actor="api"):
@@ -253,7 +252,7 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
         rendered_blocks = None
 
     content = _build_markdown(
-        question_id, subject, category, difficulty, today, note, related_tags or [],
+        question_id, subject, category, difficulty, today, related_tags or [],
         question_text, answer_text, cause, q_names, a_names,
         labels=labels or [], ordered_blocks=rendered_blocks,
     )
@@ -296,7 +295,6 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
                 "科目": subject,
                 "分类": category,
                 "难度": str(difficulty),
-                "页码": note or "",
                 "相关知识点": related_tags or [],
                 "标记": labels or [],
                 "tags": ["状态/待攻克"],
@@ -306,7 +304,6 @@ def create_question(vault, subject, category, difficulty, note="", related_tags=
                 "科目": subject,
                 "分类": category,
                 "难度": str(difficulty),
-                "页码": note or "",
                 "相关知识点": related_tags or [],
                 "标记": labels or [],
                 "tags": ["状态/待攻克"],

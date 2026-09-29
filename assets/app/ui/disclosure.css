@@ -1,0 +1,6 @@
+.ui-disclosure > summary { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--ctl-lg); list-style: none; cursor: pointer; border-radius: var(--r-sm); }
+.ui-disclosure > summary::-webkit-details-marker { display: none; }
+.ui-disclosure > summary::before { content: ''; flex: 0 0 auto; width: var(--sp-2); height: var(--sp-2); border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform var(--dur-1) var(--ease-out); }
+.ui-disclosure[open] > summary::before { transform: rotate(45deg); }
+.ui-disclosure > summary:hover { color: var(--accent); }
+.ui-disclosure > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }

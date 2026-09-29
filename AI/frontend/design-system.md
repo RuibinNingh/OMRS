@@ -9,7 +9,7 @@
 
 ## 1. 目录与分层
 
-前端全部在 `assets/app/`（原生 ES Module，无构建）：`styles/`（token、分层总入口、base、组件汇总、外壳）、`core/`、`ui/`（23 个组件）、`domain/`、`features/`，入口 `main.js`、`shell.js`；`assets/` 根目录只剩手机上传页 `inbox_mobile.html`。按钮与输入框只有 `ui-btn` / `ui-input` / `ui-select` / `ui-textarea` 一套。架构见 `AI/frontend/architecture.md`、组件见 `AI/frontend/components.md`。
+前端全部在 `assets/app/`（原生 ES Module，无构建）：`styles/`（token、分层总入口、base、组件汇总、外壳）、`core/`、`ui/`（共享组件）、`domain/`、`features/`，入口 `main.js`、`shell.js`；`assets/` 根目录只剩手机上传页 `inbox_mobile.html`。按钮与输入框只有 `ui-btn` / `ui-input` / `ui-select` / `ui-textarea` 一套；科目、分类和知识点建议复用 `ui/combobox`。架构见 `AI/frontend/architecture.md`、组件见 `AI/frontend/components.md`。
 
 - `assets/app/` 下的一切适用 §5 的零容忍规则。
 - `assets/` 根目录不再新增前端文件，新代码一律进 `assets/app/`（`check_ui.py` 会拦）。

@@ -7,8 +7,6 @@ import { renderMd, hashText } from '../../domain/question/index.js';
 import { boxKey } from './crop.js';
 import { allText, regionKinds, tagText, targetPath } from './cards-state.js';
 
-const datalist = (id, values) => html`<datalist id="${id}">${values.map(value => html`<option value="${value}"></option>`)}</datalist>`;
-
 function block(item, region) {
   if (region.convert === 'text' && region.text) {
     return html`<div class="crc-text q-md" data-key="t-${region.id}" data-hash="${hashText(region.text)}">${raw(renderMd(region.text))}</div>`;
@@ -27,19 +25,18 @@ function preview(item, role, regions) {
 function formView(entry) {
   const { key, form } = entry;
   const ai = form.classified ? html`<span class="crc-ai">AI 已填 · 可改</span>` : '';
-  const input = (field, value, { list, placeholder } = {}) => html`<input class="crc-input" data-input="create.cardField" data-arg="${key}|${field}" value="${value ?? ''}"${list ? html` list="${list}" autocomplete="off"` : ''}${placeholder ? html` placeholder="${placeholder}"` : ''}>`;
+  const input = (field, value, { placeholder } = {}) => html`<input class="crc-input" data-input="create.cardField" data-arg="${key}|${field}" data-combobox="${field === 'tags' ? 'tags' : field}" autocomplete="off" value="${value ?? ''}"${placeholder ? html` placeholder="${placeholder}"` : ''}>`;
   return html`<div class="crc-form">
     <div class="crc-pair">
-      <label>科目 *${ai}${input('subject', form.subject, { list: 'crc-subj-list' })}</label>
-      <label>分类 *${ai}${input('category', form.category, { list: 'crc-cat-list' })}</label>
+      <label>科目 *${ai}${input('subject', form.subject)}</label>
+      <label>分类 *${ai}${input('category', form.category)}</label>
     </div>
     <label>难度${ai}<span class="crc-range"><input type="range" min="1" max="10" data-input="create.cardField" data-arg="${key}|difficulty" value="${form.difficulty || 5}"><output>${form.difficulty || 5}</output></span></label>
-    <label>相关知识点${ai}${input('tags', tagText(form.tags), { list: 'crc-ktag-list', placeholder: '逗号分隔，写入 YAML 为 [[双链]]' })}</label>
+    <label>相关知识点${ai}${input('tags', tagText(form.tags), { placeholder: '逗号分隔，写入 YAML 为 [[双链]]' })}</label>
     <div class="crc-labels"><span>标记${ai}</span>
       <div class="crc-labels__chips" data-card-labels="${key}">${labelChips(form.labels || [], { lg: true })}${button({ label: '添加标记', icon: 'plus', size: 'sm', action: 'create.cardLabels', arg: key })}</div>
     </div>
     <label class="crc-cause">错因 · 这道题为什么错？<textarea class="crc-input" rows="2" data-input="create.cardField" data-arg="${key}|cause" placeholder="写入 # 备注 的「## 错因」，复习时先看这里">${form.cause || ''}</textarea></label>
-    <label class="crc-page">笔记本页码${input('page', form.page, { placeholder: 'p.23' })}</label>
   </div>`;
 }
 
@@ -76,7 +73,7 @@ function cardView(entry, index, { selected, busy, multi }) {
   </article>`;
 }
 
-export function cardsView({ cards = [], selected = new Set(), busy = new Set(), batch = false, loaded = true, suggest = {} } = {}) {
+export function cardsView({ cards = [], selected = new Set(), busy = new Set(), batch = false, loaded = true } = {}) {
   const images = new Set(cards.map(entry => entry.item.id)).size;
   const multi = new Set(cards.filter(entry => cards.some(other => other !== entry && other.item.id === entry.item.id)).map(entry => entry.item.id));
   const all = cards.length > 0 && cards.every(entry => selected.has(entry.key));
@@ -94,6 +91,5 @@ export function cardsView({ cards = [], selected = new Set(), busy = new Set(), 
     : cards.length ? each(cards, entry => entry.key, (entry, index) => cardView(entry, index, { selected, busy, multi }))
       : empty({ icon: 'inbox', title: '还没有就绪的题卡', hint: '在「处理」里把框选好的图标记就绪，题卡会出现在这里。', action: { label: '去处理', action: 'create.stage', arg: 'process' }, bordered: true })}
     </div>
-    ${datalist('crc-subj-list', suggest.subjects || [])}${datalist('crc-cat-list', suggest.categories || [])}${datalist('crc-ktag-list', suggest.tags || [])}
   </div>`;
 }

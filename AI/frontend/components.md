@@ -1,7 +1,7 @@
 # 前端：ui 组件库与 gallery
 
 > **速查**
-> - 职责：`assets/app/ui/` 的无业务组件（23 个 + 自绘 SVG 图标）、`assets/app/core/` 的渲染底座（`html```、`render`）、入口 `assets/app/main.js`、组件陈列页 gallery
+> - 职责：`assets/app/ui/` 的无业务组件与自绘 SVG 图标、`assets/app/core/` 的渲染底座（`html```、`render`）、入口 `assets/app/main.js`、组件陈列页 gallery
 > - 入口：`assets/app/main.js`（`type="module"`）、`assets/app/styles/index.css`、`assets/app/gallery.html`
 > - 不变量：全站共用 `assets/app/ui/` 的 toast 与对话框；`innerHTML` 只出现在 `assets/app/core/dom.js`；页面直接导入组件，样式经 `styles/ui.css` 进入 `ui` 层
 > - 必跑测试：`tests/app/run_browser.py`、`tests/app/html.test.mjs`、`tests/e2e/ui_bridge.py`、`tests/test_app_browser.py`、`tests/check_ui.py`
@@ -40,6 +40,8 @@ assets/app/
 | 图标 | `icon(name, {label, size})`、`installIcons()` | 自绘 61 个，24 网格、1.5 描边；sprite `#ui-icon-sprite`，symbol 名 `ic-<name>`；未知名字抛错 |
 | 字段 / 输入 | `field({label, id, hint, error, required, control})`、`input()`、`textarea()` | 统一 label、提示、错误的位置；错误 role=alert |
 | 选择框 | `select({id, options, value, size})` | 原生 select 统一外观；上下内边距为 0，文字不裁切（D3） |
+| 可搜索建议 | `createCombobox(host, {options,onSelect})` | 原生 input + body 浮层；分类按科目给候选，输入法组合期间不选，方向键 / Enter / Esc / Tab 可用；手机建议层贴实际可视区域底部 |
+| 折叠区域 | 原生 `<details class="ui-disclosure">` | 统一摘要箭头、悬停、聚焦与展开状态；保留原生键盘语义 |
 | 开关 | `switchControl({id, label, checked})` | 原生 checkbox + role=switch |
 | 分段 | `segmented({name, label, options, value, size})` | 原生 radio 组 |
 | 标签页 | `tabs({...})` + `bindTabs(list)` | ←/→/Home/End 自动激活，按 aria-controls 切面板，派发 `ui-tabs:change` |

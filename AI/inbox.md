@@ -30,7 +30,9 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 
 `regions`（一张图 N 个，坐标归一化 0–1）：`card`（同图第几道题）、`ord`、`role (question|answer|ignore)`、`x y w h`、`origin (manual|ai|ai_edited)`、`conf`、`ai_box`（AI 原框，人工改过也保留，用于算 IoU）、`convert (text|image|auto)`、`text`、`text_status (none|running|done|stale|error)`、`judge {ok, reason}`、`judge_overridden`。
 
-`cards`（`item_id + card`）：`subject、category、difficulty、tags(JSON)、cause、page、classified、created_uid、created_question_id`。
+`cards`（`item_id + card`）：`subject、category、difficulty、tags(JSON)、cause、classified、created_uid、created_question_id、manual_fields(JSON)、field_sources(JSON)`。旧 `page` 列只为读取旧库保留，API 不返回，保存时清空，新题不写页码。`connect()` 给旧库幂等补齐来源列；人工字段变更记入 `manual_fields`，AI 来源保存当前图片哈希、题目框 ID 和请求时 revision。
+
+旧客户端在 `/api/inbox/item/update` 的题卡里传 `page` 时，响应返回 `deprecated_fields:["cards.<编号>.page"]`；在 `/api/inbox/commit` 的 `form.page` 传入时返回 `deprecated_fields:["form.page"]`。两者均忽略页码，现有旧库行和已入账历史不批量改写。
 
 图片尺寸由 `inbox.image_size()` 直接读文件头（PNG/GIF/JPEG SOF），不依赖 Pillow。
 

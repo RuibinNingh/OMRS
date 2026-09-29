@@ -19,6 +19,19 @@ def write_mastery(vault, rows):
 
 
 class AiAssistTaxonomyTests(unittest.TestCase):
+    def test_quick_classifier_never_requests_or_returns_labels(self):
+        reply = json.dumps({"subject": "数学", "category": "函数", "difficulty": 6,
+                            "knowledge_tags": [], "labels": ["重点"],
+                            "cause_candidate": {"value": "审题漏条件", "evidence_text": "我漏看了定义域"}},
+                           ensure_ascii=False)
+        with tempfile.TemporaryDirectory() as vault, \
+             mock.patch.object(ai_assist, "_call_model", return_value=reply) as call:
+            result = ai_assist.classify_question(vault, "data:image/png;base64,xxx", allow_labels=False)
+        self.assertNotIn("labels", result)
+        self.assertNotIn("标记", call.call_args.args[1])
+        self.assertNotIn("labels", call.call_args.args[1])
+        self.assertEqual(result["cause_candidate"]["evidence_text"], "我漏看了定义域")
+
     def test_ai_thinking_switch_controls_verified_model_requests(self):
         payloads = []
 

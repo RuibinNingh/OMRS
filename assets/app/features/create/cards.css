@@ -38,7 +38,6 @@ textarea.crc-input { resize: vertical; }
 .crc-range output { min-width: var(--sp-6); color: var(--fg-1); font: var(--weight-semibold) var(--text-md) var(--font-mono); text-align: right; }
 .crc-labels__chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); font-weight: var(--weight-regular); }
 .crc-cause { padding: var(--sp-3); border: 1px solid var(--border-2); border-radius: var(--r-md); background: var(--surface-sunken); }
-.crc-page .crc-input { max-width: 160px; }
 .crc-card__foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); padding: var(--sp-2) var(--sp-4); border-top: 1px solid var(--border-1); }
 .crc-path { min-width: 0; color: var(--fg-3); font: var(--text-sm) var(--font-mono); overflow-wrap: anywhere; }
 @media (max-width: 1160px) {

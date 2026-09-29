@@ -443,7 +443,6 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     subject=data["subject"],
                     category=data["category"],
                     difficulty=int(data.get("difficulty", 5)),
-                    note=data.get("note", ""),
                     related_tags=data.get("related_tags", []),
                     labels=data.get("labels", []),
                     question_text=data.get("question_text", ""),
@@ -452,13 +451,15 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     question_images=data.get("question_images", []),
                     answer_images=data.get("answer_images", []),
                 )
-                self._json({"status": "ok", **result})
+                self._json({"status": "ok", **result,
+                            **({"deprecated_fields": ["note"]} if "note" in data else {})})
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
 
         elif path == "/api/ai-recognize":
             try:
                 data = json.loads(body) if body else {}
+                quick_scope = data.get("scope") == "quick"
                 # 兼容旧字段名 image，新的使用 question_image
                 question_image = data.get("question_image") or data.get("image", "")
                 answer_image = data.get("answer_image", "")
@@ -468,7 +469,14 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     hint_subject=data.get("subject", ""),
                     hint_category=data.get("category", ""),
                     answer_image=answer_image,
+                    allow_labels=not quick_scope,
                 )
+                if quick_scope:
+                    allowed = ({"mode", "subject", "category", "difficulty", "knowledge_tags",
+                                "cause_candidate", "restrict_tags"} if mode == "classify" else
+                               {"mode", "question_text"} if mode in ("question_text", "question") else
+                               {"mode", "answer"})
+                    result = {key: value for key, value in result.items() if key in allowed}
                 self._json({"status": "ok", **result})
             except Exception as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
@@ -1314,8 +1322,12 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 return
             data = json.loads(body.decode("utf-8") or "{}")
             if path == "/api/inbox/item/update":
+                cards = data.get("cards") if isinstance(data.get("cards"), dict) else {}
+                deprecated = [f"cards.{key}.page" for key, form in cards.items()
+                              if isinstance(form, dict) and "page" in form]
                 self._json({"status": "ok", "item": inbox_mod.update_item(self.vault_path, data.get("id", ""), data,
-                                                                            require_epoch=True, require_version=True)})
+                                                                            require_epoch=True, require_version=True),
+                            **({"deprecated_fields": deprecated} if deprecated else {})})
             elif path == "/api/inbox/item/reset":
                 self._json({"status": "ok", "item": inbox_mod.reset_item(
                     self.vault_path, data.get("id", ""), data.get("expected_revision"),
@@ -1328,11 +1340,12 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             elif path == "/api/inbox/jobs":
                 self._json({"status": "ok", "job": inbox_mod.start_job(self.vault_path, data.get("type", ""), data)})
             elif path == "/api/inbox/commit":
+                deprecated = ["form.page"] if "page" in (data.get("form") or {}) else []
                 self._json({"status": "ok", **inbox_mod.commit_item(
                     self.vault_path, data.get("id", ""), card=data.get("card", 1),
                     form=data.get("form") or {}, crops=data.get("crops") or {},
                     expected_revision=data.get("expected_revision"), reset_epoch=data.get("reset_epoch"),
-                    require_version=True)})
+                    require_version=True), **({"deprecated_fields": deprecated} if deprecated else {})})
             elif path == "/api/inbox/crops":
                 saved = [inbox_mod.save_crop(self.vault_path, rid, url) for rid, url in (data.get("crops") or {}).items()]
                 self._json({"status": "ok", "saved": len(saved)})

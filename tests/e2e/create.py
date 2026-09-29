@@ -230,10 +230,36 @@ def run(page, base, results):
           and page.locator('#cr-category').input_value() == '函数'
           and page.locator('#cr-question').input_value() == ''
           and page.locator('#cr-answer').input_value() == '')
+    page.locator('#cr-category').focus()
+    check('分类建议按当前科目显示且 Esc 可关闭',
+          wait(page, "() => [...document.querySelectorAll('.ui-combobox-menu:not([hidden]) [role=option]')].some(e => e.textContent.includes('函数'))"))
+    page.locator('#cr-category').press('Escape')
+    check('共享建议框支持键盘退出', page.locator('.ui-combobox-menu:not([hidden])').count() == 0)
+    page.locator('#cr-subject').focus()
+    page.evaluate("""() => {
+      const input = document.querySelector('#cr-subject');
+      input.dispatchEvent(new CompositionEvent('compositionstart', {bubbles:true}));
+      input.value = '数';
+      input.dispatchEvent(new Event('input', {bubbles:true}));
+    }""")
+    page.locator('#cr-subject').press('Enter')
+    check('中文输入组合期间 Enter 不选择候选', page.locator('#cr-subject').input_value() == '数')
+    page.evaluate("document.querySelector('#cr-subject').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}))")
+    page.locator('#cr-subject').fill('数学')
+    page.locator('#cr-subject').press('Escape')
     page.locator('#cr-q-file').set_input_files({'name': '题目.png', 'mimeType': 'image/png', 'buffer': png()})
     page.locator('#cr-a-file').set_input_files({'name': '答案.png', 'mimeType': 'image/png', 'buffer': png()})
     check('题目与答案图片区各自暂存图片',
           wait(page, "() => document.querySelectorAll('#cr-q-images img').length === 1 && document.querySelectorAll('#cr-a-images img').length === 1"))
+    check('截图上传区由组件自身居中且没有页码入口',
+          page.evaluate("""() => {
+            const area = document.querySelector('#cr-q-paste .ui-filedrop');
+            const style = getComputedStyle(area);
+            const title = area.querySelector('.ui-filedrop__title').getBoundingClientRect();
+            const frame = area.getBoundingClientRect();
+            return style.display === 'flex' && style.alignItems === 'center'
+              && Math.abs((title.left + title.right - frame.left - frame.right) / 2) < 8;
+          }""") and page.locator('#cr-note, .crc-page').count() == 0)
     page.evaluate("""bytes => {
       document.querySelector('#cr-a-paste').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       const transfer = new DataTransfer();
@@ -243,6 +269,11 @@ def run(page, base, results):
     check('切换粘贴目标后图片进入答案区',
           wait(page, "() => document.querySelectorAll('#cr-a-images img').length === 2")
           and page.locator('#cr-q-images img').count() == 1)
+    page.click('#crw-labels [data-action="create.openLabels"]')
+    page.locator('.label-picker-search').fill('人工保留')
+    page.locator('.label-picker-search').press('Enter')
+    page.click('.label-picker-pop [data-lbl-save]')
+    check('人工标记可以选择', wait(page, "() => document.querySelector('#crw-labels')?.textContent.includes('人工保留')"))
     calls = []
 
     def ai_result(route):
@@ -250,7 +281,9 @@ def run(page, base, results):
         calls.append(body)
         mode = body.get('mode')
         if mode == 'classify':
-            data = {'subject': '物理', 'category': '动力学', 'difficulty': 7, 'knowledge_tags': ['定义域'], 'labels': []}
+            data = {'mode': mode, 'subject': '物理', 'category': '动力学', 'difficulty': 7,
+                    'knowledge_tags': ['定义域'], 'labels': ['模型恶意标记'],
+                    'cause_candidate': {'value': '漏看定义域', 'evidence_text': '我漏看了定义域'}}
         elif mode == 'question_text':
             data = {'mode': mode, 'question_text': '求 $f(x)$ 的定义域'}
         else:
@@ -264,6 +297,44 @@ def run(page, base, results):
           and page.locator('#cr-subject').input_value() == '数学'
           and page.locator('#cr-category').input_value() == '函数'
           and page.locator('#cr-diff').input_value() == '7')
+    check('恶意模型标记无法改动人工标记且错因只作为候选',
+          page.locator('#crw-labels').inner_text().count('人工保留') == 1
+          and '模型恶意标记' not in page.locator('#crw-labels').inner_text()
+          and page.locator('#cr-cause').input_value() == ''
+          and page.locator('#cr-cause-candidate [data-action="create.acceptCause"]').count() == 1)
+    page.evaluate("""() => {
+      window.__quickFetchOriginal = window.fetch;
+      window.fetch = (path, options) => path === '/api/ai-recognize' && JSON.parse(options.body).mode === 'classify'
+        ? new Promise(resolve => { window.__quickReply = resolve; })
+        : window.__quickFetchOriginal(path, options);
+    }""")
+    page.click('#cr-classify-btn')
+    wait(page, '() => !!window.__quickReply')
+    page.locator('#cr-diff').fill('4')
+    page.locator('#cr-related').fill('定义域')
+    page.evaluate("""() => {
+      window.__quickReply(new Response(JSON.stringify({mode:'classify',difficulty:9,knowledge_tags:['迟到知识点']}),
+        {status:200,headers:{'Content-Type':'application/json'}}));
+      window.__quickReply = null;
+    }""")
+    check('识别期间人工调整难度后迟到结果不覆盖',
+          wait(page, "() => document.querySelector('#cr-classify-status')?.textContent.includes('已补全')")
+          and page.locator('#cr-diff').input_value() == '4'
+          and page.locator('#cr-related').input_value() == '定义域')
+    page.click('#cr-classify-btn')
+    wait(page, '() => !!window.__quickReply')
+    page.locator('#cr-q-images [data-action="create.removeImage"]').click()
+    page.locator('#cr-q-file').set_input_files({'name': '新题.png', 'mimeType': 'image/png', 'buffer': png(210)})
+    wait(page, "() => document.querySelectorAll('#cr-q-images img').length === 1")
+    page.evaluate("""() => {
+      window.__quickReply(new Response(JSON.stringify({mode:'classify',knowledge_tags:['另一题的知识点']}),
+        {status:200,headers:{'Content-Type':'application/json'}}));
+      window.__quickReply = null;
+      window.fetch = window.__quickFetchOriginal;
+    }""")
+    check('更换题图后旧识别结果不能写入新题',
+          wait(page, "() => document.querySelector('#cr-classify-status')?.textContent.includes('已舍弃')")
+          and '另一题的知识点' not in page.locator('#cr-related').input_value())
     page.click('#cr-question-text-btn')
     page.click('#cr-extract-btn')
     check('题面和答案提取使用各自第一张图片',
@@ -271,6 +342,7 @@ def run(page, base, results):
           and page.locator('#cr-question').input_value() == '求 $f(x)$ 的定义域'
           and page.locator('#cr-answer').input_value() == '答案：全体实数'
           and [call['mode'] for call in calls] == ['classify', 'question_text', 'answer']
+          and all(call.get('scope') == 'quick' for call in calls)
           and all(call.get('image', call.get('question_image', '')).startswith('data:image/png;base64,') for call in calls))
     page.click('[data-action="create.submit"]')
     check('含图提交后上下文仍保留、图片已清空且可加入展示板',

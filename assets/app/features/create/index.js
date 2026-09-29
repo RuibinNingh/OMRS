@@ -131,6 +131,7 @@ export const page = {
     classify: () => parts?.quick.classify(),
     questionText: () => parts?.quick.questionText(),
     answerText: () => parts?.quick.answerText(),
+    acceptCause: () => parts?.quick.acceptCause(),
     openLabels: ({ el }) => parts?.quick.openLabels(el),
     reset: () => parts?.quick.reset(),
     submit: () => parts?.quick.submit(),
