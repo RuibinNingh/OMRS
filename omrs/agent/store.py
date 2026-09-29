@@ -7,6 +7,7 @@ import json
 import os
 import sqlite3
 import threading
+import secrets
 
 from ..common import omrs_data_dir
 
@@ -44,7 +45,21 @@ class AgentStore:
                 args_json TEXT NOT NULL, status TEXT NOT NULL, decision TEXT, result_json TEXT,
                 commits_json TEXT NOT NULL DEFAULT '[]', started_at TEXT, ended_at TEXT,
                 PRIMARY KEY (run_id, call_id));
+            CREATE TABLE IF NOT EXISTS practice_cards (
+                card_id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, run_id TEXT NOT NULL,
+                call_id TEXT NOT NULL, card_json TEXT NOT NULL, created_at TEXT NOT NULL,
+                UNIQUE (run_id, call_id));
+            CREATE TABLE IF NOT EXISTS practice_attempts (
+                attempt_id TEXT PRIMARY KEY, card_id TEXT NOT NULL, created_at TEXT NOT NULL,
+                is_default INTEGER NOT NULL DEFAULT 0, request_id TEXT UNIQUE,
+                progress_json TEXT NOT NULL DEFAULT '{}');
+            CREATE UNIQUE INDEX IF NOT EXISTS practice_default_attempt
+                ON practice_attempts(card_id) WHERE is_default = 1;
             """)
+            columns = {row["name"] for row in db.execute("PRAGMA table_info(practice_attempts)")}
+            if "request_id" not in columns:
+                db.execute("ALTER TABLE practice_attempts ADD COLUMN request_id TEXT")
+            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS practice_restart_request ON practice_attempts(request_id)")
 
     def _db(self):
         db = sqlite3.connect(db_path(self.vault), timeout=5)
@@ -167,3 +182,73 @@ class AgentStore:
                    (call_id, run_id, name, level, json.dumps(args, ensure_ascii=False), status, decision,
                     json.dumps(result, ensure_ascii=False, default=str) if result is not None else None,
                     json.dumps(commits or [], ensure_ascii=False), now_iso(), now_iso()))
+
+    # ── 聊天练习卡与尝试：只存题序和非权威界面进度，反馈事实来自 Ledger ──
+    def save_practice_card(self, card, conv_id, run_id, call_id):
+        with _LOCK:
+            with self._db() as db:
+                row = db.execute("SELECT card_json FROM practice_cards WHERE run_id=? AND call_id=?", (run_id, call_id)).fetchone()
+                if row:
+                    return json.loads(row["card_json"])
+                db.execute("INSERT INTO practice_cards(card_id,conversation_id,run_id,call_id,card_json,created_at) VALUES(?,?,?,?,?,?)",
+                           (card["card_id"], conv_id, run_id, call_id, json.dumps(card, ensure_ascii=False), now_iso()))
+                return card
+
+    def practice_card(self, card_id):
+        rows = self._all("SELECT p.*, c.deleted FROM practice_cards p JOIN conversations c ON c.id=p.conversation_id WHERE p.card_id=?", (card_id,))
+        if not rows:
+            return None
+        row = rows[0]
+        return {**json.loads(row["card_json"]), "conversation_id": row["conversation_id"], "deleted": bool(row["deleted"])}
+
+    def start_practice(self, card_id, restart=False, request_id=""):
+        with _LOCK:
+            with self._db() as db:
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT c.deleted FROM practice_cards p JOIN conversations c ON c.id=p.conversation_id WHERE p.card_id=?", (card_id,)).fetchone()
+                if not row:
+                    raise ValueError("练习卡不存在")
+                if row["deleted"]:
+                    raise ValueError("对话已删除，不能重新开始练习")
+                if restart:
+                    if not request_id or len(request_id) > 100:
+                        raise ValueError("重新练习需要稳定请求标识")
+                    prior = db.execute("SELECT attempt_id,card_id FROM practice_attempts WHERE request_id=?", (request_id,)).fetchone()
+                    if prior:
+                        if prior["card_id"] != card_id:
+                            raise ValueError("请求标识已用于另一张练习卡")
+                        return prior["attempt_id"]
+                if not restart:
+                    found = db.execute("SELECT attempt_id FROM practice_attempts WHERE card_id=? ORDER BY rowid DESC LIMIT 1", (card_id,)).fetchone()
+                    if found:
+                        return found["attempt_id"]
+                attempt_id = "PA-" + secrets.token_hex(12)
+                db.execute("INSERT INTO practice_attempts(attempt_id,card_id,created_at,is_default,request_id) VALUES(?,?,?,?,?)",
+                           (attempt_id, card_id, now_iso(), 0 if restart else 1, request_id or None))
+                return attempt_id
+
+    def practice_attempt(self, attempt_id):
+        rows = self._all("SELECT * FROM practice_attempts WHERE attempt_id=?", (attempt_id,))
+        if not rows:
+            return None
+        row = rows[0]
+        return {**row, "progress": json.loads(row["progress_json"] or "{}")}
+
+    def default_practice_attempt(self, card_id):
+        rows = self._all("SELECT * FROM practice_attempts WHERE card_id=? ORDER BY rowid DESC LIMIT 1", (card_id,))
+        if not rows:
+            return None
+        row = rows[0]
+        return {**row, "progress": json.loads(row["progress_json"] or "{}")}
+
+    def save_practice_progress(self, attempt_id, progress):
+        with _LOCK:
+            with self._db() as db:
+                db.execute("BEGIN IMMEDIATE")
+                row = db.execute("SELECT progress_json FROM practice_attempts WHERE attempt_id=?", (attempt_id,)).fetchone()
+                if not row:
+                    raise ValueError("练习尝试不存在")
+                old = json.loads(row["progress_json"] or "{}")
+                if int(progress.get("seq") or 0) > int(old.get("seq") or 0):
+                    db.execute("UPDATE practice_attempts SET progress_json=? WHERE attempt_id=?",
+                               (json.dumps(progress, ensure_ascii=False), attempt_id))

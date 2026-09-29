@@ -291,7 +291,6 @@ function createController(root, { router }) {
       if (how !== 'close') decide(run, st, how);
     });
   }
-
   async function undo(runId) {
     const run = S.items.map(i => i.run).find(r => r && r.id === runId);
     const res = await post('/api/agent/run/revert', { run_id: runId, dry_run: true });
@@ -317,7 +316,6 @@ function createController(root, { router }) {
       },
     });
   }
-
   const unbindInteractions = bindAssistantInteractions(root, main, S, { send, addFiles, sizeInput, syncViewport, schedule });
   const onDoc = event => { if (S.popOpen && !event.target.closest('.ast-pop, .ast-meter')) { S.popOpen = false; schedule(); } };
   document.addEventListener('click', onDoc);
@@ -325,7 +323,7 @@ function createController(root, { router }) {
   return {
     S, load, schedule, bump, openConv, send, gate, undo,
     async newConv() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); const res = await post('/api/agent/conversation/create', {}); if (res.ok && S.alive) { S.convs.unshift({ ...res.data.conversation, msgs: 0, writes: 0, snippet: '' }); await openConv(res.data.conversation.id); $('ast-input')?.focus(); } },
-    toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.phase === 'live' || ['create_draft', 'update_draft', 'create_category'].includes(st?.name) && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
+    toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.phase === 'live' || ['create_draft', 'update_draft', 'create_category', 'create_practice_card'].includes(st?.name) && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
     deny(arg) { const { run, st } = findStep(arg); if (run && st?.status === 'waiting') decide(run, st, 'deny'); },
     async stop() { if (S.liveRun) { const res = await post('/api/agent/abort', { run_id: S.liveRun.id }); if (!res.ok) toast(res.error?.message || '停止失败', { kind: 'error' }); } },
     async copy(runId) { const run = S.items.map(i => i.run).find(r => r && r.id === runId); const text = run ? run.steps.filter(s => s.kind === 'text').map(s => s.src).join('\n\n') : ''; if (await copyText(text)) toast('已复制回答', { kind: 'success' }); },
@@ -334,6 +332,7 @@ function createController(root, { router }) {
     closeDrawers() { S.railOpen = false; S.inspOpen = false; schedule(); },
     jump() { S.stick = true; scroller.scrollTop = scroller.scrollHeight; schedule(); },
     openSession() { router?.go?.('schedule'); },
+    openPractice(id) { if (/^PC-[0-9a-f]{24}$/.test(String(id))) router?.go?.(`instant?practice=${encodeURIComponent(id)}`); },
     removeImage(index) { S.attachments.splice(Number(index), 1); schedule(); },
     clearImages() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); },
     toggleLong(index) { const n = Number(index); if (S.longOpen.has(n)) S.longOpen.delete(n); else S.longOpen.add(n); schedule(); },
@@ -382,6 +381,7 @@ export const page = {
     detectDraft: ({ arg }) => C?.detectDraft(arg),
     retryDraft: ({ arg }) => C?.refreshDrafts([arg]),
     openSession: () => C?.openSession(),
+    openPractice: ({ arg }) => C?.openPractice(arg),
     toggleRail: () => C?.toggle('railOpen'),
     toggleInsp: () => C?.toggle('inspOpen'),
     closeDrawers: () => C?.closeDrawers(),

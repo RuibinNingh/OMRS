@@ -100,6 +100,8 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 - `occurred_at`
 - `recorded_at`
 
+聊天练习卡的反馈另带 `attempt_id` 和稳定 `entry_id`（当前为 `question_id`）。服务端在进程写锁内先从 Ledger 重建投影，再在同一 `BEGIN IMMEDIATE` 事务中检查该 attempt 已提交条目并追加新 `review.batch_submit`；同一题重试直接返回已成功，不再次增加 Attempts。Ledger 提交后即使投影或卡片进度写回失败，下次从 Ledger 恢复；`agent.db` 的进度不能代替提交事实。此边界保护同进程多请求与投影重建的串行性。
+
 反馈**不会**向题目 Markdown 的 `# 历史` 小节追加行。该小节仍由新题骨架保留，且旧格式解析器仍在兼容旧手工文本，但它不属于结构化复习记录，不能用于推断练习次数、正确率或累计答错次数。
 
 题目库的单题删除先核对文件 `_omrs_id` 与投影身份，把当前正文存入 `blobs`，并逐字确认能按哈希取回；不满足时拒绝删除。通过后暂存 Markdown 并追加 `question.archive`，提交失败则恢复文件。投影将该题标记为 archived 并从活动题库/兼容 CSV 排除，既有提交与反馈仍可审计；已入账正文可按 `question_id` 列出并按哈希取回。`/api/question/content/restore` 只接受活动题目的 UID，不直接重建已归档题目。附件图片保留，以免删除其他题共用的文件。

@@ -33,6 +33,12 @@ function options(values, placeholder, value) {
 }
 
 function filterBar(s, env) {
+  if (s.cardId) return html`<section class="inst-bar" data-key="bar" aria-label="临时练习卡">
+    <h2>${s.cardTitle}</h2><p class="inst-bar__note">临时练习 · ${s.queue.length} 题。只有提交判定才记练习记录，不创建正式 Session。</p>
+    ${s.chatDeleted ? status({ tone: 'warning', text: '关联对话已删除；当前练习仍可继续提交，不能再从聊天重新开始。', block: true }) : ''}
+    ${s.unavailable.length ? status({ tone: 'warning', text: `${s.unavailable.length} 道题已删除或停用，按原题序跳过：${s.unavailable.map(i => i.uid_at_creation).join('、')}`, block: true }) : ''}
+    ${s.chatDeleted ? '' : button({ label: '重新练一轮', action: 'instant.restartPractice' })}${button({ label: '加载推荐', action: 'instant.load' })}
+  </section>`;
   const f = s.filters;
   const { subjects, categories, ktags } = env.facets;
   const loading = s.loading || s.phase === 'loading';
@@ -153,7 +159,7 @@ function results(s) {
     <h3 class="inst-rail__cap">本次提交</h3>
     <ul class="inst-res__list">${each(s.lastSubmit, (r, i) => `${r.uid}:${i}`, (r, i) => {
       const ok = r.status === 'ok';
-      return html`<li class="${cls('inst-res__row', ok ? 'is-ok' : 'is-err')}" data-key="${r.uid}:${i}"><span class="inst-res__uid">${r.uid}</span>${r.label ? tag({ label: r.label, tone: RESULT_TONE[r.label] || 'warning' }) : ''}<span class="inst-res__delta">${ok ? `${pct(r.old_mastery)} → ${pct(r.new_mastery)}` : (r.msg || '失败')}</span></li>`;
+      return html`<li class="${cls('inst-res__row', ok ? 'is-ok' : 'is-err')}" data-key="${r.uid}:${i}"><span class="inst-res__uid">${r.uid}</span>${r.label ? tag({ label: r.label, tone: RESULT_TONE[r.label] || 'warning' }) : ''}<span class="inst-res__delta">${ok ? (r.reused ? '已记录，未重复计分' : `${pct(r.old_mastery)} → ${pct(r.new_mastery)}`) : (r.msg || '失败')}</span></li>`;
     })}</ul>
   </section>`;
 }

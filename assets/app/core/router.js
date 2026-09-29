@@ -14,28 +14,34 @@ export function parseHash(hash) {
 export function createRouter({ win = globalThis.window, fallback = 'dashboard', onEnter } = {}) {
   const pages = new Map();
   let current = null;
+  let currentRoute = null;
   let started = false;
   let leaveGuard = null;
   let pending = null;
   let historyIndex = Number.isInteger(win.history.state?.omrsRouteIndex) ? win.history.state.omrsRouteIndex : 0;
 
-  const target = id => (pages.has(id) ? id : fallback);
+  const target = value => {
+    const route = parseHash(`#/${value}`);
+    return route && pages.has(route.id) ? `${route.id}${route.query ? '?' + route.query : ''}` : fallback;
+  };
   const setHash = (id, replace) => {
     const hash = `#/${id}`;
     if (win.location.hash === hash) return;
     if (!replace) historyIndex += 1;
     win.history[replace ? 'replaceState' : 'pushState']({ ...win.history.state, omrsRouteIndex: historyIndex }, '', hash);
   };
-  const activate = id => {
-    if (id === current) return;
+  const activate = route => {
+    if (route === currentRoute) return;
+    const id = route.split('?')[0];
     const prev = current;
     current = id;
+    currentRoute = route;
     onEnter?.(pages.get(id), prev);
   };
   // 无守卫时保持同步切页；有未保存内容时，确认完成前页面与地址保持在原处。
   const navigate = (to, { replace = false, external = false } = {}) => {
     if (pending) {
-      if (external) setHash(current, true);
+      if (external) setHash(currentRoute, true);
       return pending;
     }
     const externalState = win.history.state;
@@ -45,9 +51,9 @@ export function createRouter({ win = globalThis.window, fallback = 'dashboard', 
       if (external && Number.isInteger(externalIndex)) historyIndex = externalIndex;
       setHash(to, external || replace); activate(to); return to;
     };
-    if (!current || current === to || !leaveGuard) return enter();
+    if (!current || current === to.split('?')[0] || !leaveGuard) return enter();
     const from = current;
-    if (external) setHash(from, true);
+    if (external) setHash(currentRoute, true);
     const cancel = () => {
       if (external) {
         // 先还原被临时替换的历史项，再返回原页面，避免取消后退丢失上一页。
@@ -55,7 +61,7 @@ export function createRouter({ win = globalThis.window, fallback = 'dashboard', 
         if (Number.isInteger(externalIndex) && externalIndex !== historyIndex && win.history.go) {
           win.history.go(historyIndex - externalIndex);
         } else {
-          win.history.pushState({ ...externalState, omrsRouteIndex: ++historyIndex }, '', `#/${from}`);
+          win.history.pushState({ ...externalState, omrsRouteIndex: ++historyIndex }, '', `#/${currentRoute}`);
         }
       }
       return current;
@@ -89,14 +95,15 @@ export function createRouter({ win = globalThis.window, fallback = 'dashboard', 
         win.history.replaceState({ ...win.history.state, omrsRouteIndex: historyIndex }, '', win.location.hash || `#/${fallback}`);
         const onNavigate = () => {
           const r = parseHash(win.location.hash);
-          if (!r) { if (current) win.history.replaceState(null, '', `#/${current}`); return; }
+          if (!r) { if (current) win.history.replaceState(null, '', `#/${currentRoute}`); return; }
           if (!pages.has(r.id)) { navigate(fallback, { external: true }); return; }
-          navigate(r.id, { external: true });
+          navigate(`${r.id}${r.query ? '?' + r.query : ''}`, { external: true });
         };
         win.addEventListener('popstate', onNavigate);
         win.addEventListener('hashchange', onNavigate);
       }
-      return api.go(api.resolve(win.location.hash), { replace: true });
+      const route = parseHash(win.location.hash);
+      return api.go(route && pages.has(route.id) ? `${route.id}${route.query ? '?' + route.query : ''}` : fallback, { replace: true });
     },
     current: () => current,
     page: id => pages.get(id ?? current),

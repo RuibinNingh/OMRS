@@ -352,6 +352,8 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 **响应：** 每条反馈的 `label`、`old_mastery`、`new_mastery`、`tag`、`source`、`new_interval`、`new_due_date`。
 
+聊天练习卡提交时，`session_id` 必须为服务端签发的 `IMM-<attempt_id>`，请求顶层另带 `attempt_id`，每条反馈带卡片的 `question_id` 与相同的 `entry_id`。服务端按稳定题目身份解析当前 UID、核对卡片及来源；`IMM-PA-*` 缺少 attempt 身份会拒绝。返回的 `results` 逐条标 `status:ok/error`，已落账重试返回 `ok`、`reused:true`，失败项不锁定。创建或打开卡片不写反馈；只有首次成功提交才增加 Attempts。
+
 ---
 
 ### `POST /api/create`

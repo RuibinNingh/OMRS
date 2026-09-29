@@ -77,7 +77,7 @@ function gateView(run, st, now) {
 
 function toolView(S, run, st, now) {
   const key = `${run.id}|${st.id}`;
-  const open = S.open.has(key) || (['create_draft', 'update_draft', 'create_category'].includes(st.name) && st.status === 'done' && !S.closed.has(key));
+  const open = S.open.has(key) || (['create_draft', 'update_draft', 'create_category', 'create_practice_card'].includes(st.name) && st.status === 'done' && !S.closed.has(key));
   const [label, tone] = STATUS[st.status] || STATUS.queued;
   const dur = st.status === 'running' ? fmtS(now - st.t0) : st.dur ? fmtS(st.dur) : '';
   const decided = st.decision && st.decision.how !== 'allow' ? '' : st.decision ? html`<span class="ast-tool__sum">你已允许</span>` : '';

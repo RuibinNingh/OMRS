@@ -72,6 +72,18 @@ test('router：parseHash 只认 #/页面', () => {
   assert.equal(parseHash(''), null);
 });
 
+test('router：练习卡查询参数在启动、切页与同页换卡后保留', () => {
+  const win = fakeWindow('#/instant?practice=PC-one');
+  const entered = [];
+  const router = createRouter({ win, onEnter: page => entered.push(page.id) });
+  router.register({ id: 'dashboard' }).register({ id: 'instant' });
+  router.start();
+  assert.equal(win.location.hash, '#/instant?practice=PC-one');
+  router.go('instant?practice=PC-two');
+  assert.equal(win.location.hash, '#/instant?practice=PC-two');
+  assert.deepEqual(entered, ['instant', 'instant']);
+});
+
 test('router：start 按地址进入、无效地址改写为 fallback、go 同步切页并写历史、后退回到上一页', () => {
   const win = fakeWindow('#/questions');
   const entered = [];

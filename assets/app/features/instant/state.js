@@ -29,6 +29,7 @@ export function createState() {
     submitting: false,
     submitError: '',
     lastSubmit: [], // /api/feedback 的 results
+    cardId: '', attemptId: '', cardTitle: '', unavailable: [], chatDeleted: false, progressSeq: 0,
   };
 }
 
@@ -94,7 +95,7 @@ export function counts(s) {
   let submitted = 0;
   s.queue.forEach(item => {
     const row = s.results[item.uid];
-    if (isJudged(row)) judged += 1;
+    if (isJudged(row) || row?.submitted) judged += 1;
     if (row?.submitted) submitted += 1;
   });
   return { total: s.queue.length, judged, submitted, pending: judged - submitted };
@@ -139,6 +140,7 @@ export function submitRows(s) {
     const row = s.results[item.uid];
     return {
       uid: item.uid,
+      ...(s.attemptId ? { question_id: item.question_id, entry_id: item.question_id } : {}),
       sub_score: row.score == null ? defaultScore(row.correct) : row.score,
       is_correct: row.correct,
       source: item._source || 'due',
@@ -148,7 +150,11 @@ export function submitRows(s) {
 }
 
 export function markSubmitted(s, rows) {
-  rows.forEach(row => { resultOf(s, row.uid).submitted = true; });
+  rows.forEach(row => {
+    if (row.status && row.status !== 'ok') return;
+    const item = s.queue.find(i => s.attemptId && i.question_id === row.question_id) || s.queue.find(i => i.uid === row.uid);
+    if (item) resultOf(s, item.uid).submitted = true;
+  });
 }
 
 /** 开始一轮新的练习（载入新队列）。 */
@@ -157,8 +163,27 @@ export function startRound(s, queue, now = new Date()) {
   s.index = 0;
   s.results = {};
   s.sessionId = sessionId(now);
+  s.cardId = ''; s.attemptId = ''; s.cardTitle = ''; s.unavailable = []; s.chatDeleted = false;
   s.submitError = '';
   s.lastSubmit = [];
   s.error = '';
   s.phase = queue.length ? 'ready' : 'empty';
+}
+
+export function startPractice(s, data) {
+  startRound(s, data.items || []);
+  s.cardId = data.card?.card_id || '';
+  s.cardTitle = data.card?.title || '';
+  s.attemptId = data.attempt_id || '';
+  s.sessionId = data.session_id || '';
+  s.unavailable = data.unavailable || [];
+  s.chatDeleted = !!data.deleted;
+  const saved = data.progress?.results || {};
+  s.results = Object.fromEntries(s.queue.map(item => [item.uid, saved[item.question_id] || saved[item.uid] || {}]));
+  s.progressSeq = Number(data.progress?.seq) || 0;
+  s.index = Math.min(Math.max(0, Number(data.progress?.index) || 0), Math.max(0, s.queue.length - 1));
+  for (const item of s.queue) {
+    resultOf(s, item.uid).submitted = (data.submitted || []).includes(item.question_id);
+  }
+  s.phase = s.queue.length ? 'ready' : 'empty';
 }

@@ -52,7 +52,9 @@
 
 只读：`list_taxonomy`（科目、分类、知识点、标记及题数）、`search_questions`（关键词在题目 / 答案 / 错因 / 分类 / 知识点里做 NFKC + 小写 + 去 LaTeX 反斜杠与空白后的子串匹配，可按科目、分类、知识点、标记、状态、熟练度区间筛，单页 ≤30，纯图片题计入 `image_only`）、`get_question`（各节 ≤1500 字）、`get_overview`（最弱分类按已练题平均熟练度升序）、`get_recommendations`（到期优先、熟练度补足，已排除进行中 Session 的题，附 `selection`）、`list_sessions`、`get_session`。
 
-写入：`create_review_session`、`set_question_labels`（只能用已有标记，单次 ≤50 题，每题一条 `question.metadata_update`）、`update_question_section`（替换或追加；替换时原有图片嵌入保留）、`set_knowledge_points`、`move_question`、`suspend_question`、`resume_question`、`record_feedback`（带 `session_id` 时题目必须在该 Session 的待反馈列表里）。
+写入：`create_review_session`、`create_practice_card`、`set_question_labels`（只能用已有标记，单次 ≤50 题，每题一条 `question.metadata_update`）、`update_question_section`（替换或追加；替换时原有图片嵌入保留）、`set_knowledge_points`、`move_question`、`suspend_question`、`resume_question`、`record_feedback`（带 `session_id` 时题目必须在该 Session 的待反馈列表里）。
+
+`create_practice_card` 接受标题与 1–50 个已入库题目的 UID，服务端核对题目未删除、未停用并去重，再把稳定 `question_id`、当时 UID 和来源按题序存成 `schema_version:1` 卡片。卡片归属由运行上下文给出，模型不能指定对话、运行或调用 ID。建卡只写 `agent.db`，计入助手写入预算，不创建正式 Session、不改变练习次数；真实反馈由即时练习页提交。卡片详情、签发 attempt 和进度接口见 `AI/api.md`。
 
 草稿（`omrs/agent/tools/drafts.py`，存储见 `AI/drafts.md`）：`describe_image`（read，`{image:"IMG-n", question}`，用 `ai_model_extract` 针对一张图回答，≤2000 字）、`list_drafts`（read，默认本对话未入库未丢弃的）、`get_draft`（read，返回 revision、稳定 block_id、图片 IMG-n 引用及框状态，不把 SHA 暴露给模型）、`create_draft`（rev，按块写题目 / 答案）、`update_draft`（rev，`draft_id`、`expected_revision`、字段补丁及按 `block_id` 的文字/说明补丁）。`update_draft` 不入库，写入预算按实际修改计；人工编辑保护目标只给建议。AI 的非空错因必须附用户原话 `cause_statement` 并经服务端核对。工具上下文带 `tool_call_id`；AI 没有丢弃工具。
 
@@ -78,9 +80,11 @@ GET：`/api/agent/status`（开关、是否配置好与缺什么、是否假模�
 
 POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软删除，运行中 409）、`/api/agent/message`（`{conversation_id, text, images?}` → `{run_id, steered}`；未启用 403、未配置或图片不合格 400、并发、消息上限或运行中带图插话 409）、`/api/agent/confirm`（`{run_id, call_id, token, decision}`；码不符 400、没有等待中的调用 409）、`/api/agent/abort`、`/api/agent/test`（用已保存配置发一次带 `ping` 工具的非流式请求，返回耗时与是否调用了工具；`agent_vision` 开时再发一张 8×8 白图，多返回 `vision_ok` 与 `vision_error`）、`/api/agent/run/revert`（`{run_id, dry_run}`，见 §9）。除 `run/revert` 在应用撤销时自取写锁外，这些 POST 都不进进程写锁（理由见 `omrs/locking.py` 的豁免清单）。
 
+练习卡 GET `/api/agent/practice?card=<card_id>&attempt=<可选 attempt_id>` 返回原卡片、当前有效题序、不可用题及原因、已从 Ledger 查到的提交身份和界面进度；题目移动后返回当前 UID。POST `/api/agent/practice/start` 接受 `{card_id,restart?,request_id?}` 并返回同一详情；默认续最新 attempt，`restart:true` 必须提供稳定 `request_id`，重试同一请求不会多签发。POST `/api/agent/practice/progress` 接受 `{attempt_id,progress}`，只保存更大的 `progress.seq`，不决定真实反馈是否成功。对话删除后不能签发新 attempt；已签发的仍可读取和提交。
+
 ## 8. 存储
 
-`错题/.omrs/agent.db`（随备份导出，不进 Ledger）：`conversations`（id、标题、时间、软删除）、`messages`（会话消息按 OpenAI 格式存 JSON，含 assistant 的 `tool_calls` 与思考内容，用于重放上下文；缺结果的工具调用在重放时补「运行被中断」）、`runs`（状态、原因、错误、模型、起止时间、统计、合并后的事件、撤销信息）、`tool_calls`（参数、决定、结果、commit）。连接每次新建，模块锁只包单次事务。
+`错题/.omrs/agent.db`（随备份导出，不进 Ledger）：`conversations`（id、标题、时间、软删除）、`messages`（会话消息按 OpenAI 格式存 JSON，含 assistant 的 `tool_calls` 与思考内容，用于重放上下文；缺结果的工具调用在重放时补「运行被中断」）、`runs`（状态、原因、错误、模型、起止时间、统计、合并后的事件、撤销信息）、`tool_calls`（参数、决定、结果、commit）、`practice_cards`（结构化卡片、对话与工具调用归属）、`practice_attempts`（签发身份、重练请求标识、非权威界面进度）。连接每次新建，模块锁只包单次事务。练习是否提交以 Ledger 中的 `attempt_id + entry_id` 为准，不以进度 JSON 为准；对话软删除后不能新签发 attempt，已签发 attempt 仍可提交。
 
 ## 9. 按运行撤销（`omrs/agent/revert.py`）
 

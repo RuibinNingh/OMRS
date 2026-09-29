@@ -432,6 +432,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     self.vault_path,
                     data.get("feedbacks", []),
                     data.get("session_id", ""),
+                    attempt_id=data.get("attempt_id", ""),
                 )
                 self._json({"status": "ok", "results": results})
             except Exception as exc:

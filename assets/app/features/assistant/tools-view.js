@@ -49,6 +49,13 @@ const T = {
     preview: r => html`<div class="ast-cols"><div><h5>到期列表 ${r.due.length}</h5><ul class="ast-list">${r.due.map(liRec)}</ul></div><div><h5>熟练度列表 ${r.proficiency.length}</h5><ul class="ast-list">${r.proficiency.map(liRec)}</ul></div></div>
       ${note('两个列表互斥分配，进行中的 Session 里的题已排除。')}`,
   },
+  create_practice_card: {
+    title: '临时练习卡', icon: 'play', args: a => `${a.title || '练习'} · ${(a.items || []).length} 题`,
+    preview: r => html`<div class="ast-draft-card"><div class="ast-draft-card__head"><strong>${r.title}</strong><span class="ui-tag ui-tag--info">${r.items?.length || 0} 题</span></div>
+      <p class="ast-note">按卡片生成时的题序练习；打开卡片不增加练习次数。</p>
+      <div class="ast-chips">${(r.items || []).map(item => ref(item.uid_at_creation))}</div>
+      <button type="button" class="ui-btn ui-btn--sm ui-btn--primary" data-action="assistant.openPractice" data-arg="${r.card_id}">${icon('play')}开始练习</button></div>`,
+  },
   search_questions: {
     title: '搜题', icon: 'search',
     args: a => [a.keywords?.length && `「${a.keywords.join(' ')}」`, a.subject, a.category, a.knowledge_point, a.label, a.status,

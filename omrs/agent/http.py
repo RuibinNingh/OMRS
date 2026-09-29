@@ -3,6 +3,7 @@ import json
 
 from ..locking import WriteLockTimeout
 from .runtime import AgentError, get_runtime
+from .practice import get_practice, save_progress, start_practice
 
 
 def _body(handler):
@@ -32,6 +33,7 @@ def handle_agent_get(handler, path, params):
         "/api/agent/conversation": lambda: rt.conversation(params.get("id", "")),
         "/api/agent/events": lambda: rt.events(params.get("run", ""), int(params.get("after", 0) or 0),
                                                float(params.get("wait", 0) or 0)),
+        "/api/agent/practice": lambda: get_practice(handler.vault_path, params.get("card", ""), params.get("attempt", "")),
     }
     fn = routes.get(path)
     if fn is None:
@@ -60,4 +62,9 @@ def agent_post_routes(rt, path, data):
         return rt.test_connection()
     if path == "/api/agent/run/revert":
         return rt.revert(data.get("run_id", ""), dry_run=data.get("dry_run", True) is not False)
+    if path == "/api/agent/practice/start":
+        return start_practice(rt.vault, data.get("card_id", ""), restart=data.get("restart") is True,
+                              request_id=data.get("request_id", ""))
+    if path == "/api/agent/practice/progress":
+        return save_progress(rt.vault, data.get("attempt_id", ""), data.get("progress"))
     raise AgentError(404, "not found")

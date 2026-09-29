@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as S from '../../assets/app/features/instant/state.js';
+import { practiceRequestId } from '../../assets/app/features/instant/index.js';
 import { facets, practiceFilters } from '../../assets/app/domain/items.js';
 
 const item = (uid, extra = {}) => ({ uid, mastery: 0.2, ...extra });
@@ -61,6 +62,26 @@ test('提交：只发已判定未提交的题；提交后锁定，不能改判�
   assert.equal(s.results.a.correct, false);
   assert.equal(S.setScore(s, 'b', 1), false);
   assert.deepEqual(S.submitRows(s), []);
+});
+
+test('练习卡恢复题序和已提交项；部分失败仅锁成功条目', () => {
+  const s = S.createState();
+  S.startPractice(s, { card: { card_id: 'PC-a', title: '函数巩固' }, attempt_id: 'PA-a', session_id: 'IMM-PA-a',
+    items: [item('a', { question_id: 'Q1' }), item('b', { question_id: 'Q2' }), item('c', { question_id: 'Q3' })],
+    submitted: ['Q1'], progress: { results: { Q2: { revealed: true, correct: false, score: 4, submitted: false } } }, unavailable: [] });
+  assert.deepEqual(s.queue.map(i => i.uid), ['a', 'b', 'c']);
+  assert.equal(s.results.a.submitted, true);
+  assert.equal(s.results.b.correct, false);
+  assert.deepEqual(S.submitRows(s).map(r => r.entry_id), ['Q2']);
+  S.markSubmitted(s, [{ uid: 'b', question_id: 'Q2', status: 'error' }]);
+  assert.equal(s.results.b.submitted, false);
+  S.markSubmitted(s, [{ uid: 'b', question_id: 'Q2', status: 'ok' }]);
+  assert.equal(s.results.b.submitted, true);
+});
+
+test('非安全上下文只需 getRandomValues，不依赖 randomUUID', () => {
+  const id = practiceRequestId({ getRandomValues(bytes) { bytes.fill(7); return bytes; } });
+  assert.equal(id, 'PR-' + '07'.repeat(16));
 });
 
 test('nextOpenIndex：从下一题起循环找没判定也没提交的题；全做完返回 -1', () => {

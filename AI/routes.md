@@ -14,6 +14,9 @@
 | GET | `/api/agent/conversations` | `AI/agent.md` |
 | GET | `/api/agent/events` | `AI/agent.md` |
 | POST | `/api/agent/message` | `AI/api.md`、`AI/agent.md` |
+| GET | `/api/agent/practice` | `AI/agent.md` |
+| POST | `/api/agent/practice/progress` | `AI/agent.md` |
+| POST | `/api/agent/practice/start` | `AI/agent.md` |
 | POST | `/api/agent/run/revert` | `AI/api.md`、`AI/agent.md` |
 | GET | `/api/agent/status` | `AI/agent.md`、`AI/frontend/settings.md` |
 | POST | `/api/agent/test` | `AI/api.md`、`AI/agent.md`、`AI/frontend/settings.md` |

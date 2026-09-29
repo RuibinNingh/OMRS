@@ -12,25 +12,51 @@ from .common import (
     omrs_data_dir,
     resolve_sm2_fields,
 )
-from .ledger import append_commit, connect
+from .ledger import append_commit, append_commit_in_db, connect
+from .locking import write_lock
 from .projections import rebuild_projection
 from .scheduling import _safe_float, _safe_int, compute_mastery_update
 from .sessions import get_session, get_session_uid_sources, mark_session_completed
 
 
-def process_feedback(vault, feedbacks, session_id=""):
+def process_feedback(vault, feedbacks, session_id="", attempt_id=""):
+    if str(session_id).startswith("IMM-PA-") and not attempt_id:
+        raise ValueError("聊天练习反馈必须提供已签发的 attempt_id")
+    if attempt_id:
+        with write_lock():
+            from .agent.practice import submitted_entries_in_db
+            from .agent.store import AgentStore
+            attempt = AgentStore(vault).practice_attempt(attempt_id)
+            if not attempt or session_id != f"IMM-{attempt_id}":
+                raise ValueError("练习尝试不存在或来源不匹配")
+            card = AgentStore(vault).practice_card(attempt["card_id"])
+            if not card:
+                raise ValueError("练习卡不存在")
+            # 上次 Ledger 已成功而投影导出失败时，先从事实源修复派生数据。
+            rebuild_projection(vault)
+            with connect(vault) as db:
+                db.execute("BEGIN IMMEDIATE")
+                seen = submitted_entries_in_db(db, attempt_id)
+                return _process_feedback(vault, feedbacks, session_id, attempt_id=attempt_id,
+                                         card=card, ledger_db=db, seen=seen)
+    return _process_feedback(vault, feedbacks, session_id)
+
+
+def _process_feedback(vault, feedbacks, session_id="", *, attempt_id="", card=None, ledger_db=None, seen=None):
     omrs_data_dir(vault)
     tuning = load_tuning(vault)
     rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
     row_map = {row["UID"]: row for row in rows}
     history = load_csv(history_path(vault), HISTORY_HEADERS)
     explicit_session_id = bool(session_id)
-    question_ids = _question_ids_by_uid(vault)
-    suspended_uids = _suspended_uids(vault)
+    question_ids = _question_ids_by_uid(vault, ledger_db)
+    current_uids = {qid: uid for uid, qid in question_ids.items()}
+    allowed = {item["question_id"]: item for item in card["items"]} if card else {}
+    suspended_uids = _suspended_uids(vault, ledger_db)
 
     # 获取题目来源映射（到期 vs 熟练度）
     uid_sources = {}
-    if explicit_session_id:
+    if explicit_session_id and not attempt_id:
         uid_sources = get_session_uid_sources(vault, session_id)
 
     if not session_id:
@@ -41,28 +67,51 @@ def process_feedback(vault, feedbacks, session_id=""):
 
     for feedback in feedbacks:
         uid = (feedback.get("uid") or "").strip()
+        entry_id = str(feedback.get("entry_id") or "") if attempt_id else ""
+        if attempt_id:
+            qid = str(feedback.get("question_id") or "")
+            if qid not in allowed or entry_id != qid:
+                results.append({"uid": uid, "question_id": qid, "entry_id": entry_id,
+                                "status": "error", "msg": "练习条目不属于当前卡片"})
+                continue
+            uid = current_uids.get(qid, "")
+            if not uid:
+                results.append({"uid": "", "question_id": qid, "entry_id": entry_id,
+                                "status": "error", "msg": "题目已删除，不能提交反馈"})
+                continue
+            if entry_id in seen:
+                results.append({"uid": uid, "question_id": qid, "entry_id": entry_id,
+                                "status": "ok", "reused": True})
+                continue
         try:
             sub_score = _parse_sub_score(feedback.get("sub_score"))
             is_correct = _parse_bool(feedback.get("is_correct"))
         except ValueError as exc:
-            results.append({"uid": uid, "status": "error", "msg": str(exc)})
+            results.append({"uid": uid, "question_id": feedback.get("question_id"), "entry_id": entry_id,
+                            "status": "error", "msg": str(exc)})
             continue
         note = feedback.get("note", "")
 
         if uid not in row_map:
-            results.append({"uid": uid, "status": "error", "msg": "UID 未找到"})
+            results.append({"uid": uid, "question_id": feedback.get("question_id"), "entry_id": entry_id,
+                            "status": "error", "msg": "UID 未找到"})
             continue
         question_id = question_ids.get(uid)
         if not question_id:
-            results.append({"uid": uid, "status": "error", "msg": "题目缺少 question_id，请先扫描工作区"})
+            results.append({"uid": uid, "entry_id": entry_id, "status": "error", "msg": "题目缺少 question_id，请先扫描工作区"})
+            continue
+        if attempt_id and question_id != qid:
+            results.append({"uid": uid, "question_id": qid, "entry_id": entry_id,
+                            "status": "error", "msg": "练习题目身份已变化"})
             continue
 
         if uid in suspended_uids:
-            results.append({"uid": uid, "status": "error", "msg": "题目已停用，不能提交反馈；请先恢复"})
+            results.append({"uid": uid, "question_id": question_id, "entry_id": entry_id,
+                            "status": "error", "msg": "题目已停用，不能提交反馈；请先恢复"})
             continue
 
         row = resolve_sm2_fields(row_map[uid])
-        source = uid_sources.get(uid) or _parse_source(feedback.get("source")) or "due"
+        source = allowed[qid]["source"] if attempt_id else uid_sources.get(uid) or _parse_source(feedback.get("source")) or "due"
         old_mastery = _safe_float(row.get("Mastery", 0))
         # 先把本次复习计入 Attempts，再判定冷启动：
         # 冷启动门 `attempts < 3` 现在统计「含本次」的复习次数，
@@ -98,6 +147,7 @@ def process_feedback(vault, feedbacks, session_id=""):
 
         commit_feedbacks.append({
             "question_id": question_id,
+            **({"attempt_id": attempt_id, "entry_id": entry_id} if attempt_id else {}),
             "uid_at_that_time": uid,
             "session_id": session_id,
             "source": source,
@@ -112,9 +162,13 @@ def process_feedback(vault, feedbacks, session_id=""):
             "Session_ID": session_id,
         })
 
+        if attempt_id:
+            seen.add(entry_id)
         results.append(
             {
                 "uid": uid,
+                "question_id": question_id,
+                "entry_id": entry_id,
                 "status": "ok",
                 "label": update["label"],
                 "old_mastery": old_mastery,
@@ -127,12 +181,14 @@ def process_feedback(vault, feedbacks, session_id=""):
         )
 
     if commit_feedbacks:
-        append_commit(vault, "api", "review.batch_submit", f"提交 {len(commit_feedbacks)} 条练习反馈", {
-            "session_id": session_id,
-            "feedbacks": commit_feedbacks,
-        })
+        payload = {"session_id": session_id, "feedbacks": commit_feedbacks}
+        if ledger_db is not None:
+            append_commit_in_db(ledger_db, "api", "review.batch_submit", f"提交 {len(commit_feedbacks)} 条练习反馈", payload)
+            ledger_db.commit()
+        else:
+            append_commit(vault, "api", "review.batch_submit", f"提交 {len(commit_feedbacks)} 条练习反馈", payload)
         rebuild_projection(vault)
-    if explicit_session_id and _session_feedback_complete(vault, session_id, history):
+    if explicit_session_id and not attempt_id and _session_feedback_complete(vault, session_id, history):
         try:
             mark_session_completed(vault, session_id)
         except Exception:
@@ -140,17 +196,21 @@ def process_feedback(vault, feedbacks, session_id=""):
     return results
 
 
-def _question_ids_by_uid(vault):
-    with connect(vault) as db:
+def _question_ids_by_uid(vault, db=None):
+    if db is None:
+        with connect(vault) as own:
+            rows = own.execute("SELECT question_id, uid FROM question_projection WHERE archived = 0").fetchall()
+    else:
         rows = db.execute("SELECT question_id, uid FROM question_projection WHERE archived = 0").fetchall()
     return {row["uid"]: row["question_id"] for row in rows}
 
 
-def _suspended_uids(vault):
-    with connect(vault) as db:
-        rows = db.execute(
-            "SELECT uid FROM question_projection WHERE archived = 0 AND suspended = 1"
-        ).fetchall()
+def _suspended_uids(vault, db=None):
+    if db is None:
+        with connect(vault) as own:
+            rows = own.execute("SELECT uid FROM question_projection WHERE archived = 0 AND suspended = 1").fetchall()
+    else:
+        rows = db.execute("SELECT uid FROM question_projection WHERE archived = 0 AND suspended = 1").fetchall()
     return {row["uid"] for row in rows}
 
 

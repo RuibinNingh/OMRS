@@ -1,8 +1,8 @@
 # 前端：即时练习
 
 > **速查**
-> - 职责：即时练习页（按推荐算法取题、在线翻答案、判定打分、提交反馈），第一个迁到新架构的页面
-> - 入口：`assets/app/features/instant/`（`index.js` 页面契约）、地址 `#/instant`
+> - 职责：即时练习页（推荐题或聊天练习卡的固定题序、翻答案、判定打分、提交反馈），第一个迁到新架构的页面
+> - 入口：`assets/app/features/instant/`（`index.js` 页面契约）、地址 `#/instant` 或 `#/instant?practice=<card_id>`
 > - 不变量：不写 `sessions.csv`（`session_id` 为 `IMM-*`）；判定、打分、切队列不重建题面；已提交的题锁定；只经 `assets/app/domain/` 碰旧全局
 > - 必跑测试：`tests/app/instant.test.mjs`、`tests/e2e/instant.py`、`tests/check_ui.py`
 > - 相关：`AI/frontend/review.md`（复习调度与临时 / 常规 Session）、`AI/frontend/architecture.md`（页面契约）、`AI/frontend/qview.md`
@@ -28,11 +28,13 @@
 
 即时练习复用 `process_feedback()` 的熟练度、EF、SM-2 更新逻辑。提交成功后这些题锁定：不能再改判，也不会被下一次提交重复发送；右栏列出本次结果（熟练度前 → 后），随后 `reloadData()`，并让这些题的 qview 失效重绘。有已判定未提交的题时重新取题，会先弹确认。
 
+聊天练习卡走 `#/instant?practice=<card_id>`：页面从服务端取固定题序及有效题目，移动题目使用当前 UID，删除或停用项说明原因并跳过；不重新调用推荐算法。默认续最近 attempt，刷新恢复判定、位置和 Ledger 已提交项。重新练习显式签发新 attempt，`sessionStorage` 留住请求标识供响应丢失后重试；URL 可带 `attempt` 指向指定轮次。卡片反馈使用 `IMM-PA-*` 和稳定题目身份，逐题成功才锁定；失败项保留重试。创建、打开、切题与保存界面进度均不增加 Attempts，实际反馈才增加；仍不建立正式 Session。
+
 ## 渲染与不变量
 
 - 每次状态变化 `morph(#panel-instant, view(state))`；会出现或消失的块都带 `data-key`，morph 按 key 对齐。
 - 题面挂载点带 `data-morph="skip"`，key 是「uid + 是否翻开」：只有换题、翻答案时换新挂载点。判定、打分、切队列都不碰题面，KaTeX、图片与滚动位置保留，聚焦的按钮与滑杆保留焦点。
-- 状态是模块单例：离开页面再回来，队列、判定、筛选都还在；整页刷新后清空。
+- 常规推荐练习状态是模块单例：离开页面再回来，队列、判定、筛选都还在；整页刷新后清空。聊天卡从服务端恢复进度与提交状态。
 - 取题时按钮立即进入加载态；超过 300ms 还没返回才换成骨架屏。
 - 字号全部来自 token（页面自身 ≤6 种，题面 qview 子树不计）；可点目标桌面 ≥28px、手机 40px。
 

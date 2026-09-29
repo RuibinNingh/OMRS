@@ -435,7 +435,7 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 
 ## 15. 对话库 `agent.db`
 
-路径：`错题/.omrs/agent.db`（SQLite，随备份导出，不进 Ledger）。表：`conversations`（对话，软删除）、`messages`（按 OpenAI 格式存的会话消息，用于重放模型上下文）、`runs`（每次运行的状态、结束原因、统计、合并后的事件、撤销信息）、`tool_calls`（参数、用户决定、结果、产生的 commit）。字段与读写规则见 `AI/agent.md` §8。模型请求日志（开关打开时）在 `错题/.omrs/logs/agent-llm.jsonl`，含题目内容，不含密钥。
+路径：`错题/.omrs/agent.db`（SQLite，随备份导出，不进 Ledger）。表：`conversations`（对话，软删除）、`messages`（按 OpenAI 格式存的会话消息，用于重放模型上下文）、`runs`（每次运行的状态、结束原因、统计、合并后的事件、撤销信息）、`tool_calls`（参数、用户决定、结果、产生的 commit）、`practice_cards`（按工具调用保存结构化卡片和稳定题序）、`practice_attempts`（签发的 attempt、唯一重练请求标识及界面进度）。后两表不保存正式 Session 或反馈事实，反馈仍在 Ledger；字段与读写规则见 `AI/agent.md` §8。模型请求日志（开关打开时）在 `错题/.omrs/logs/agent-llm.jsonl`，含题目内容，不含密钥。
 
 ## 16. 框选标注集 `错题/.omrs/annotate/`
 
