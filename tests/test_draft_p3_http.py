@@ -192,7 +192,8 @@ class DraftP3HttpTests(unittest.TestCase):
         saved_item = self.ok("/api/inbox/item?id=" + trained)["item"]
         self.assertEqual((saved_item["source"], saved_item["layout"], saved_item["status"]), ("chat", "other", "ready"))
         self.assertTrue(saved_item["training_only"])
-        status, result = self.request("/api/inbox/commit", {"id": trained})
+        status, result = self.request("/api/inbox/commit", {"id": trained,
+            "expected_revision": saved_item["revision"], "reset_epoch": saved_item["reset_epoch"]})
         self.assertEqual(status, 400, result)
         retried = self.ok("/api/drafts/commit", {"id": current["id"], "revision": current["revision"]})
         self.assertTrue(retried["reused"])

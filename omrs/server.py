@@ -1304,18 +1304,24 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             data = json.loads(body.decode("utf-8") or "{}")
             if path == "/api/inbox/item/update":
                 self._json({"status": "ok", "item": inbox_mod.update_item(self.vault_path, data.get("id", ""), data,
-                                                                            require_epoch=True)})
+                                                                            require_epoch=True, require_version=True)})
             elif path == "/api/inbox/item/reset":
-                self._json({"status": "ok", "item": inbox_mod.reset_item(self.vault_path, data.get("id", ""))})
+                self._json({"status": "ok", "item": inbox_mod.reset_item(
+                    self.vault_path, data.get("id", ""), data.get("expected_revision"),
+                    data.get("reset_epoch"), require_version=True)})
             elif path == "/api/inbox/discard":
-                ids = data.get("ids") or ([data["id"]] if data.get("id") else [])
-                self._json({"status": "ok", "results": [inbox_mod.discard_item(self.vault_path, i) for i in ids]})
+                entries = data.get("items") or ([data] if data.get("id") else [
+                    {"id": item_id} for item_id in data.get("ids") or []])
+                self._json({"status": "ok", "results": inbox_mod.discard_items(
+                    self.vault_path, entries, require_version=True)})
             elif path == "/api/inbox/jobs":
                 self._json({"status": "ok", "job": inbox_mod.start_job(self.vault_path, data.get("type", ""), data)})
             elif path == "/api/inbox/commit":
                 self._json({"status": "ok", **inbox_mod.commit_item(
                     self.vault_path, data.get("id", ""), card=data.get("card", 1),
-                    form=data.get("form") or {}, crops=data.get("crops") or {})})
+                    form=data.get("form") or {}, crops=data.get("crops") or {},
+                    expected_revision=data.get("expected_revision"), reset_epoch=data.get("reset_epoch"),
+                    require_version=True)})
             elif path == "/api/inbox/crops":
                 saved = [inbox_mod.save_crop(self.vault_path, rid, url) for rid, url in (data.get("crops") or {}).items()]
                 self._json({"status": "ok", "saved": len(saved)})
@@ -1326,6 +1332,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     crops=bool(data.get("crops")))})
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
+        except inbox_mod.InboxConflict as exc:
+            self._json({"status": "error", "msg": str(exc), "code": exc.code,
+                        "current_revision": exc.current_revision}, 409)
         except Exception as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
 

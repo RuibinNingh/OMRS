@@ -78,12 +78,22 @@ export function createCards(root, ctx) {
     if (missingRequired(form)) { notify(`${quiet ? `题卡 ${card}：` : ''}科目和分类是必填项`, 'warn'); return null; }
     busy.add(key); schedule();
     try {
-      await inbox.flush();
+      if (!await inbox.flush()) { notify('还有未保存的修改，创建已取消', 'warn'); return null; }
+      const fresh = inbox.item(item.id);
+      if (!fresh || fresh.status !== 'ready') { notify('题卡状态已变化，请核对后重新创建', 'warn'); return null; }
+      const snapshot = JSON.parse(JSON.stringify(fresh));
+      const currentForm = snapshot.cards?.[String(card)];
+      if (!currentForm || missingRequired(currentForm)) { notify('题卡内容已变化，请核对后重新创建', 'warn'); return null; }
       const crops = {};
-      for (const region of item.regions.filter(row => Number(row.card) === card && row.role !== 'ignore' && row.convert === 'image')) {
-        crops[region.id] = await cropDataUrl(item, region);
+      for (const region of snapshot.regions.filter(row => Number(row.card) === card && row.role !== 'ignore' && row.convert === 'image')) {
+        crops[region.id] = await cropDataUrl(snapshot, region);
       }
-      const result = await post('/api/inbox/commit', { id: item.id, card, form, crops });
+      if (!await inbox.flush()) { notify('还有未保存的修改，创建已取消', 'warn'); return null; }
+      if (inbox.item(item.id)?.revision !== snapshot.revision) {
+        notify('裁图期间题卡内容发生变化，请核对后重新创建', 'warn'); return null;
+      }
+      const result = await post('/api/inbox/commit', { id: snapshot.id, card, form: currentForm, crops,
+        expected_revision: snapshot.revision, reset_epoch: snapshot.reset_epoch });
       if (!result.ok) { notify(`创建失败：${result.error?.message || '未知错误'}`, 'warn'); return null; }
       const data = result.data || {};
       S.csel.delete(key);
@@ -126,7 +136,7 @@ export function createCards(root, ctx) {
     const item = inbox.item(id);
     if (!item) return;
     item.status = 'boxed';
-    await inbox.save(item, { status: 'boxed' });
+    if (!await inbox.save(item, { status: 'boxed' })) return;
     inbox.open(id);
     inbox.go('process');
   }

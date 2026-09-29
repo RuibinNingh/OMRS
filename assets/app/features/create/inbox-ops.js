@@ -65,8 +65,7 @@ export async function wholeSelected() {
     if (!item || item.status === 'done' || item.regions?.some(row => row.text_status === 'running')) continue;
     item.regions = [newRegion(1, 'question', 0, 0, 1, 1)];
     item.layout = 'plain';
-    await inbox.save(item);
-    count += 1;
+    if (await inbox.save(item, { regions: item.regions, layout: item.layout })) count += 1;
   }
   notify(`已把 ${count} 张整图标为题目区域`);
   inbox.changed();
@@ -85,7 +84,7 @@ export async function extractRegions(item, regionIds) {
       for (const row of local.regions) {
         if (extracted.has(row.id) && row.text_status === 'running') row.text_status = 'error';
       }
-      await inbox.save(local, { status: 'boxed' });
+      await inbox.save(local, { regions: local.regions, status: 'boxed' });
     }
     inbox.changed();
     notify(`提取失败：${error.message || error}，请重试`, 'warn');
@@ -97,25 +96,11 @@ export async function extractRegions(item, regionIds) {
     const crops = [];
     for (const region of regions) crops.push({ region_id: region.id, crop: await cropDataUrl(item, region) });
     if (inbox.item(item.id)?.reset_epoch !== epoch) return;
-    if (!await inbox.save(item, { status: 'boxed' })) throw new Error('区域未保存');
+    if (!await inbox.save(item, { regions: item.regions, status: 'boxed' })) throw new Error('区域未保存');
     if (inbox.item(item.id)?.reset_epoch !== epoch) return;
     await inbox.job('extract', { regions: crops.map(row => ({ ...row, reset_epoch: epoch })) }, async job => {
-      const result = await get(`/api/inbox/item?id=${encodeURIComponent(item.id)}`);
-      if (!result.ok) throw new Error(result.error?.message || '未知错误');
-      const fresh = result.data?.item;
-      const local = inbox.item(item.id);
       const failed = new Set((job.errors || []).map(row => row.unit?.region_id));
-      if (local && fresh && local.reset_epoch === epoch && fresh.reset_epoch === epoch) {
-        for (const row of fresh.regions || []) {
-          const target = local.regions.find(region => region.id === row.id);
-          if (target && extracted.has(row.id) && target.text_status === 'running') {
-            for (const key of ['convert', 'text', 'text_status', 'judge', 'judge_overridden']) target[key] = row[key];
-            if (failed.has(row.id)) target.text_status = 'error';
-          }
-        }
-        local.status = fresh.status;
-        if (failed.size) await inbox.save(local, { status: 'boxed' });
-      }
+      if (!await inbox.load()) throw new Error('读取提取结果失败');
       inbox.changed();
       notify(failed.size ? '部分区域提取失败，请重试；成功结果已保留' : '提取完成，请审核文本或图片后标记就绪', failed.size ? 'warn' : undefined);
     }, fail);

@@ -212,7 +212,26 @@ CREATE INDEX IF NOT EXISTS chat_training_item ON chat_training_boxes(item_id);
 # items 扩展列：盲标、训练专用图与重置代次。旧库通过 ALTER 补齐。
 _ITEM_EXTRA_COLUMNS = (("blind", "INTEGER DEFAULT 0"), ("blind_boxes", "TEXT"),
                        ("training_only", "INTEGER NOT NULL DEFAULT 0"),
-                       ("reset_epoch", "INTEGER NOT NULL DEFAULT 0"))
+                       ("reset_epoch", "INTEGER NOT NULL DEFAULT 0"),
+                       ("revision", "INTEGER NOT NULL DEFAULT 0"))
+
+
+class InboxConflict(ValueError):
+    """图片已被其他操作修改；调用方须重新读取后明确处理本地编辑。"""
+
+    def __init__(self, message, code="revision_conflict", current_revision=None):
+        super().__init__(message)
+        self.code = code
+        self.current_revision = current_revision
+
+
+def _check_write(row, expected_revision=None, reset_epoch=None, require_version=False):
+    if require_version and (type(expected_revision) is not int or type(reset_epoch) is not int):
+        raise InboxConflict("缺少图片修订号或重置代次，请刷新页面后重试", "revision_required", row["revision"])
+    if reset_epoch is not None and (type(reset_epoch) is not int or reset_epoch != row["reset_epoch"]):
+        raise InboxConflict("图片已重置，请重新读取后再保存", "reset_conflict", row["revision"])
+    if expected_revision is not None and (type(expected_revision) is not int or expected_revision != row["revision"]):
+        raise InboxConflict("图片已在其他位置修改，请核对后重新保存", "revision_conflict", row["revision"])
 
 
 def connect(vault):
@@ -279,6 +298,7 @@ def _row_item(db, row, with_children=True):
         "source": row["source"], "uploaded_at": row["uploaded_at"], "status": row["status"],
         "training_only": bool(row["training_only"]),
         "reset_epoch": row["reset_epoch"],
+        "revision": row["revision"],
         "layout": row["layout"], "updated_at": row["updated_at"],
         "link": {"uid": row["link_uid"], "question_id": row["link_question_id"]} if row["link_uid"] else None,
         # 盲标：AI 框已跑但不展示给标注者；blind_boxes 只在事件与数据集导出里出现，不进 item 响应
@@ -420,8 +440,8 @@ def _write_cards(db, item_id, cards):
         )
 
 
-def update_item(vault, item_id, data, require_epoch=False):
-    """整体覆盖式更新：regions（列表）、cards（dict）、layout、status。返回更新后的 item。"""
+def update_item(vault, item_id, data, require_epoch=False, require_version=False):
+    """只修改明确提交的字段；regions 明确传入时整体替换。"""
     with _LOCK:
         db = connect(vault)
         try:
@@ -430,12 +450,11 @@ def update_item(vault, item_id, data, require_epoch=False):
                 raise ValueError(f"收件箱里没有 {item_id}")
             if row["training_only"]:
                 raise ValueError("训练专用图片不能进入普通处理流程")
-            if row["status"] == "done":
-                raise ValueError("已录入的图片不能再修改")
+            if row["status"] in ("done", "discarded"):
+                raise ValueError("已结束的图片不能再修改")
             if require_epoch and row["reset_epoch"] and "reset_epoch" not in data:
-                raise ValueError("图片已重置，请重新读取后再保存")
-            if "reset_epoch" in data and data["reset_epoch"] != row["reset_epoch"]:
-                raise ValueError("图片已重置，请重新读取后再保存")
+                raise InboxConflict("图片已重置，请重新读取后再保存", "reset_conflict", row["revision"])
+            _check_write(row, data.get("expected_revision"), data.get("reset_epoch"), require_version)
             before = _row_item(db, row)
             now = _now()
             if "regions" in data and isinstance(data["regions"], list):
@@ -456,7 +475,7 @@ def update_item(vault, item_id, data, require_epoch=False):
                 if current in ("pending", "boxed"):
                     db.execute("UPDATE items SET status=? WHERE id=?",
                                ("boxed" if count else "pending", item_id))
-            db.execute("UPDATE items SET updated_at=? WHERE id=?", (now, item_id))
+            db.execute("UPDATE items SET revision=revision+1, updated_at=? WHERE id=?", (now, item_id))
             after = _row_item(db, db.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone())
             if "regions" in data:
                 # 被删掉的 AI 原框 = 拒绝；增量计数，避免统计时全量扫 annotations.jsonl
@@ -485,7 +504,7 @@ def update_item(vault, item_id, data, require_epoch=False):
     return after
 
 
-def reset_item(vault, item_id):
+def reset_item(vault, item_id, expected_revision=None, reset_epoch=None, require_version=False):
     """原子清空当前截图的处理进度；原图和上传信息保留。"""
     with _LOCK:
         db = connect(vault)
@@ -495,6 +514,7 @@ def reset_item(vault, item_id):
                 raise ValueError(f"收件箱里没有 {item_id}")
             if row["training_only"] or row["status"] in ("done", "discarded"):
                 raise ValueError("这张图片不能重置")
+            _check_write(row, expected_revision, reset_epoch, require_version)
             committed = db.execute("SELECT 1 FROM cards WHERE item_id=? AND created_uid IS NOT NULL "
                                    "AND created_uid!='' LIMIT 1", (item_id,)).fetchone()
             if committed:
@@ -504,7 +524,7 @@ def reset_item(vault, item_id):
             db.execute("DELETE FROM regions WHERE item_id=?", (item_id,))
             db.execute("DELETE FROM cards WHERE item_id=?", (item_id,))
             db.execute("UPDATE items SET status='pending', layout='zuoyebang', blind=0, blind_boxes=NULL, "
-                       "reset_epoch=reset_epoch+1, updated_at=? WHERE id=?", (_now(), item_id))
+                       "reset_epoch=reset_epoch+1, revision=revision+1, updated_at=? WHERE id=?", (_now(), item_id))
             after = _row_item(db, db.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone())
             db.commit()
         finally:
@@ -544,21 +564,40 @@ def _assert_ready(db, item_id):
             raise ValueError("「转文本」区域还没有文本")
 
 
-def discard_item(vault, item_id):
+def discard_item(vault, item_id, expected_revision=None, reset_epoch=None, require_version=False):
+    return discard_items(vault, [{"id": item_id, "expected_revision": expected_revision,
+                                  "reset_epoch": reset_epoch}], require_version=require_version)[0]
+
+
+def discard_items(vault, entries, require_version=False):
+    """批量丢弃先核对全部版本，再在一个事务内修改；冲突时整批不动。"""
+    if not entries or not isinstance(entries, list):
+        raise ValueError("没有要丢弃的图片")
     with _LOCK:
         db = connect(vault)
         try:
-            row = db.execute("SELECT status FROM items WHERE id=?", (item_id,)).fetchone()
-            if not row:
-                raise ValueError(f"收件箱里没有 {item_id}")
-            if row["status"] == "done":
-                raise ValueError("已录入的图片不能丢弃")
-            db.execute("UPDATE items SET status='discarded', updated_at=? WHERE id=?", (_now(), item_id))
+            checked = []
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    raise ValueError("丢弃项必须是对象")
+                item_id = entry.get("id")
+                if item_id in checked:
+                    raise ValueError("丢弃列表中有重复图片")
+                row = db.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+                if not row:
+                    raise ValueError(f"收件箱里没有 {item_id}")
+                if row["status"] in ("done", "discarded"):
+                    raise ValueError("已结束的图片不能丢弃")
+                _check_write(row, entry.get("expected_revision"), entry.get("reset_epoch"), require_version)
+                checked.append(item_id)
+            for item_id in checked:
+                db.execute("UPDATE items SET status='discarded', revision=revision+1, updated_at=? WHERE id=?", (_now(), item_id))
             db.commit()
         finally:
             db.close()
-    _log(vault, "item.discard", {"item_id": item_id})
-    return {"item_id": item_id, "status": "discarded"}
+    for item_id in checked:
+        _log(vault, "item.discard", {"item_id": item_id})
+    return [{"item_id": item_id, "status": "discarded"} for item_id in checked]
 
 
 def save_crop(vault, region_id, data_url):
@@ -860,8 +899,8 @@ def _run_detect(vault, ai, unit):
     epoch = unit.get("reset_epoch", item["reset_epoch"])
     if item["reset_epoch"] != epoch:
         raise ValueError("图片已重置，旧框选任务已失效")
-    if item["status"] == "done":
-        raise ValueError("已录入的图片不再框选")
+    if item["status"] in ("done", "discarded"):
+        raise ValueError("已结束的图片不再框选")
     provider = detect_provider(vault, unit.get("provider"))
     boxes, strips_n = _detect_with_provider(vault, ai, item, unit, provider)
     summary = [{k: b[k] for k in ("role", "card", "x", "y", "w", "h", "conf")} for b in boxes]
@@ -871,10 +910,12 @@ def _run_detect(vault, ai, unit):
         with _LOCK:
             db = connect(vault)
             try:
-                fresh = db.execute("SELECT reset_epoch, status FROM items WHERE id=?", (item["id"],)).fetchone()
-                if not fresh or fresh["reset_epoch"] != epoch or fresh["status"] in ("done", "discarded"):
+                fresh = db.execute("SELECT reset_epoch, revision, status FROM items WHERE id=?", (item["id"],)).fetchone()
+                if not fresh or fresh["reset_epoch"] != epoch or fresh["status"] not in ("pending", "boxed"):
                     raise ValueError("图片已重置或结束，旧框选任务已失效")
-                db.execute("UPDATE items SET blind=1, blind_boxes=?, updated_at=? WHERE id=?",
+                if fresh["revision"] != item["revision"]:
+                    raise InboxConflict("框选期间图片已修改，旧检测结果未写入", current_revision=fresh["revision"])
+                db.execute("UPDATE items SET blind=1, blind_boxes=?, revision=revision+1, updated_at=? WHERE id=?",
                            (json.dumps(summary, ensure_ascii=False), _now(), item["id"]))
                 db.commit()
             finally:
@@ -889,10 +930,17 @@ def _run_detect(vault, ai, unit):
          "ai_box": {"x": b["x"], "y": b["y"], "w": b["w"], "h": b["h"]}, "convert": "auto"}
         for b in boxes
     ]
-    if not unit.get("replace") and item["regions"]:
-        # 已有人工框时不覆盖，只把 AI 框补在后面
-        regions = item["regions"] + regions
-    updated = update_item(vault, item["id"], {"regions": regions, "reset_epoch": epoch})
+    with _LOCK:
+        fresh = get_item(vault, item["id"])
+        if fresh["reset_epoch"] != epoch or fresh["status"] not in ("pending", "boxed"):
+            raise ValueError("图片已重置或结束，旧框选任务已失效")
+        if fresh["revision"] != item["revision"]:
+            raise InboxConflict("框选期间图片已修改，旧检测结果未写入", current_revision=fresh["revision"])
+        if not unit.get("replace"):
+            # 模型调用期间可能新增人工框，只在最新区域后追加 AI 框。
+            regions = fresh["regions"] + regions
+        updated = update_item(vault, item["id"], {"regions": regions, "reset_epoch": epoch,
+                                                   "expected_revision": fresh["revision"]})
     _log(vault, "ai.detect", {"item_id": item["id"], "provider": provider, "strips": strips_n, "boxes": summary})
     result = {"item_id": item["id"], "provider": provider, "blind": False, "boxes": len(boxes),
               "regions": updated["regions"]}
@@ -922,7 +970,7 @@ def _auto_policy(vault, ai, item, boxes):
         if r["role"] == "ignore" or r["convert"] == "image" or (r["convert"] == "text" and r["text"]):
             continue
         try:
-            _run_extract(vault, ai, {"region_id": r["id"]})
+            _run_extract(vault, ai, {"region_id": r["id"], "reset_epoch": item["reset_epoch"]})
             outcome["extracted"] += 1
         except Exception as exc:  # noqa: BLE001
             outcome["reason"] = f"自动转文本失败：{exc}"
@@ -935,8 +983,11 @@ def _auto_policy(vault, ai, item, boxes):
 
 def _run_auto(vault, ai, unit):
     """无人值守：服务端切片 → detect（配置的提供方）→ 自动策略。前端不在环，需 Pillow 或整图即题目。"""
-    return _run_detect(vault, ai, {"item_id": unit["item_id"], "provider": unit.get("provider"),
-                                   "replace": unit.get("replace", False)})
+    detect_unit = {"item_id": unit["item_id"], "provider": unit.get("provider"),
+                   "replace": unit.get("replace", False)}
+    if "reset_epoch" in unit:
+        detect_unit["reset_epoch"] = unit["reset_epoch"]
+    return _run_detect(vault, ai, detect_unit)
 
 
 def _run_extract(vault, ai, unit):
@@ -953,6 +1004,8 @@ def _run_extract(vault, ai, unit):
     epoch = unit.get("reset_epoch", item["reset_epoch"])
     if item["reset_epoch"] != epoch:
         raise ValueError("图片已重置，旧提取任务已失效")
+    if item["status"] in ("done", "discarded"):
+        raise ValueError("图片已结束，旧提取任务已失效")
     image = region_image(vault, item, region, unit.get("crop"))
     mode = region["convert"]
     # 模型调用不占写锁；写回时核对该区域，避免覆盖其它框或已经修改的内容。
@@ -979,7 +1032,8 @@ def _run_extract(vault, ai, unit):
                 if ok:
                     target["text"] = result["text"]
                 target["text_status"] = "done" if ok else "none"
-            update_item(vault, item["id"], {"regions": fresh["regions"], "status": "boxed"})
+            update_item(vault, item["id"], {"regions": fresh["regions"], "status": "boxed",
+                                                   "reset_epoch": epoch, "expected_revision": fresh["revision"]})
             return target
     try:
         result = ai.extract_region(vault, image, role=region["role"], judge=True)
@@ -1004,6 +1058,8 @@ def _run_classify(vault, ai, unit):
     epoch = unit.get("reset_epoch", item["reset_epoch"])
     if item["reset_epoch"] != epoch:
         raise ValueError("图片已重置，旧分类任务已失效")
+    if item["status"] in ("done", "discarded"):
+        raise ValueError("图片已结束，旧分类任务已失效")
     card = int(unit.get("card", 1) or 1)
     question = next((r for r in item["regions"] if r["card"] == card and r["role"] == "question"), None)
     if not question:
@@ -1011,31 +1067,56 @@ def _run_classify(vault, ai, unit):
     image = region_image(vault, item, question, unit.get("crop"))
     form = item["cards"].get(str(card), {"subject": "", "category": "", "difficulty": 5, "tags": [], "cause": "", "page": ""})
     result = ai.classify_question(vault, image, hint_subject=form.get("subject", ""), hint_category=form.get("category", ""))
-    merged = dict(form)
-    if not merged.get("subject") and result.get("subject"):
-        merged["subject"] = result["subject"]
-    if not merged.get("category") and result.get("category"):
-        merged["category"] = result["category"]
-    merged["difficulty"] = result.get("difficulty", merged.get("difficulty", 5))
-    tags = list(merged.get("tags") or [])
-    for tag in result.get("knowledge_tags") or []:
-        if tag not in tags:
-            tags.append(tag)
-    merged["tags"] = tags
-    merged["classified"] = True
-    update_item(vault, item["id"], {"cards": {str(card): merged}, "reset_epoch": epoch})
+    with _LOCK:
+        fresh = get_item(vault, item["id"])
+        if fresh["reset_epoch"] != epoch or fresh["status"] in ("done", "discarded"):
+            raise ValueError("图片已重置或结束，旧分类任务已失效")
+        if fresh["revision"] != item["revision"]:
+            raise InboxConflict("分类期间图片已修改，旧分类结果未写入", current_revision=fresh["revision"])
+        if not any(r["id"] == question["id"] and r["role"] == "question" for r in fresh["regions"]):
+            raise ValueError("题目框已修改，旧分类结果已失效")
+        merged = dict(fresh["cards"].get(str(card), form))
+        if not merged.get("subject") and result.get("subject"):
+            merged["subject"] = result["subject"]
+        if not merged.get("category") and result.get("category"):
+            merged["category"] = result["category"]
+        if merged.get("difficulty", 5) == form.get("difficulty", 5):
+            merged["difficulty"] = result.get("difficulty", merged.get("difficulty", 5))
+        tags = list(merged.get("tags") or [])
+        for tag in result.get("knowledge_tags") or []:
+            if tag not in tags:
+                tags.append(tag)
+        merged["tags"] = tags
+        merged["classified"] = True
+        update_item(vault, item["id"], {"cards": {str(card): merged}, "reset_epoch": epoch,
+                                               "expected_revision": fresh["revision"]})
     return {"item_id": item["id"], "card": card, "form": merged}
 
 
 # ────────────────────────── 提交（写题库） ──────────────────────────
 
-def commit_item(vault, item_id, card=1, form=None, crops=None):
+def commit_item(vault, item_id, card=1, form=None, crops=None,
+                expected_revision=None, reset_epoch=None, require_version=False):
+    # 建题与收件箱标记必须共用同一张图的锁；否则检查版本后，后台任务仍可能改框。
+    with _LOCK:
+        db = connect(vault)
+        try:
+            row = db.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
+            if not row:
+                raise ValueError(f"收件箱里没有 {item_id}")
+            _check_write(row, expected_revision, reset_epoch, require_version)
+        finally:
+            db.close()
+        return _commit_item_checked(vault, item_id, card, form, crops)
+
+
+def _commit_item_checked(vault, item_id, card=1, form=None, crops=None):
     """把一张题卡写成题目：文本区拼进正文，图片区裁图嵌入。成功后 item → done。"""
     item = get_item(vault, item_id)
     if item["training_only"]:
         raise ValueError("训练专用图片不能创建题目")
-    if item["status"] == "done":
-        raise ValueError("这张图已经录入过了")
+    if item["status"] in ("done", "discarded"):
+        raise ValueError("这张图已经结束，不能录入题库")
     card = int(card or 1)
     regions = [r for r in item["regions"] if r["card"] == card and r["role"] != "ignore"]
     if not any(r["role"] == "question" for r in regions):
@@ -1086,6 +1167,7 @@ def commit_item(vault, item_id, card=1, form=None, crops=None):
             if set(all_cards) <= done_cards:
                 db.execute("UPDATE items SET status='done', link_uid=?, link_question_id=?, updated_at=? WHERE id=?",
                            (result["uid"], result["question_id"], _now(), item_id))
+            db.execute("UPDATE items SET revision=revision+1, updated_at=? WHERE id=?", (_now(), item_id))
             db.commit()
         finally:
             db.close()

@@ -63,7 +63,7 @@ export function createProcess(root, bus) {
     if (!item) return;
     item.status = statusAfterEdit(item);
     inbox.changed();
-    if (save) inbox.saveSoon(item);
+    if (save) inbox.saveSoon(item, { regions: item.regions, status: item.status });
   }
   const region = id => inbox.current()?.regions.find(row => row.id === id) || null;
 
@@ -122,7 +122,10 @@ export function createProcess(root, bus) {
   async function discardCurrent() {
     const item = inbox.current();
     if (!item || !await confirm('丢弃这张图？', { danger: true })) return;
-    const result = await post('/api/inbox/discard', { id: item.id });
+    if (!await inbox.flush()) { notify('还有未保存的修改，丢弃已取消', 'warn'); return; }
+    const current = inbox.item(item.id);
+    const result = await post('/api/inbox/discard', { id: item.id,
+      expected_revision: current.revision, reset_epoch: current.reset_epoch });
     if (!result.ok) { notify(result.error?.message || '丢弃失败', 'warn'); return; }
     S.sel.delete(item.id);
     await inbox.load();
@@ -149,7 +152,8 @@ export function createProcess(root, bus) {
     if (item.regions.some(row => row.role !== 'ignore' && !hasExtraction(row))) {
       notify('请先一键提取并核对各区域的文本或图片', 'warn'); return;
     }
-    const saved = await inbox.save(item, { status: 'ready' });
+    if (!await inbox.flush()) { notify('保存失败，请先核对本地修改', 'warn'); return; }
+    const saved = await inbox.save(inbox.item(item.id), { status: 'ready' });
     if (!saved) return;
     const next = inbox.queue().find(row => row.status !== 'ready' && row.id !== item.id);
     notify(`${item.file} 已就绪，进入「录入」；${next ? '已切到下一张' : '队列里没有待处理的图了'}`);
@@ -187,7 +191,7 @@ export function createProcess(root, bus) {
     open(id, event) { if (!skip(event)) inbox.open(id); },
     select(id, checked) { if (checked) S.sel.add(id); else S.sel.delete(id); inbox.changed(); },
     queueAll(checked) { inbox.queue().forEach(item => checked ? S.sel.add(item.id) : S.sel.delete(item.id)); inbox.changed(); },
-    layout(value) { const item = inbox.current(); if (item) { item.layout = value; inbox.saveSoon(item); } },
+    layout(value) { const item = inbox.current(); if (item) { item.layout = value; inbox.saveSoon(item, { layout: value }); } },
     role: setRole, step, whole, discardCurrent, resetCurrent, markReady, extractAll,
     region(id, event) { if (!skip(event)) selectRegion(id); },
     deleteRegion,

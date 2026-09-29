@@ -16,13 +16,21 @@ from browser_runtime import launch_chromium
 
 SERVER = r'''
 import http.server, sys, time
-from omrs import ai_assist
+from omrs import ai_assist, inbox
 from omrs.server import OMRSHandler
 vault, port = sys.argv[1:]
 answers = 0
+extracts = 0
 def extract(*args, **kwargs):
-    global answers
-    time.sleep(.25)
+    global answers, extracts
+    extracts += 1
+    if extracts == 1:
+        # 第一项提取等用户重置完成，再让旧结果返回，稳定复现任务乱序。
+        deadline = time.monotonic() + 4
+        while time.monotonic() < deadline and not any(row['reset_epoch'] for row in inbox.list_items(vault)):
+            time.sleep(.02)
+    else:
+        time.sleep(.25)
     assert kwargs.get('judge') is True
     if kwargs.get('role') == 'answer':
         answers += 1
@@ -154,7 +162,7 @@ def run(page, base, results):
     check('重置前确认会保留原图', wait(page, "() => document.querySelector('dialog[open]')?.textContent.includes('原图保留')"))
     page.locator('dialog[open] [data-dialog-ok]').click()
     check('重置后原图保留且框位和进度清空',
-          wait(page, "async () => { const item = (await (await fetch('/api/inbox/items')).json()).items.find(i => i.file === '题图.png'); return item?.status === 'pending' && item.regions.length === 0 && item.cards && Object.keys(item.cards).length === 0; }")
+          wait(page, "async () => { const item = (await (await fetch('/api/inbox/items')).json()).items.find(i => i.file === '题图.png'); return item?.reset_epoch === 1 && item.status === 'pending' && item.regions.length === 0 && item.cards && Object.keys(item.cards).length === 0; }")
           and page.locator('#ib-stage-src').get_attribute('src') is not None)
     page.wait_for_timeout(650)
     check('旧提取任务结束后不恢复已清空区域', page.evaluate(INBOX_JS, '题图.png')['regions'] == [])
@@ -296,7 +304,7 @@ READY_JS = """async ([file, text]) => {
     { id: 'rq_' + item.id, card: 1, role: 'question', x: 0, y: 0, w: 1, h: .5, origin: 'manual', convert: 'text', text, text_status: 'done', judge: {ok: true, reason: '测试文本'} },
     { id: 'ra_' + item.id, card: 1, role: 'answer', x: 0, y: .5, w: 1, h: .5, origin: 'manual', convert: 'image', text_status: 'none', judge: {ok: false, reason: '测试图形'} },
   ];
-  const res = await fetch('/api/inbox/item/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, regions, status: 'ready' }) });
+  const res = await fetch('/api/inbox/item/update', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id, regions, status: 'ready', expected_revision: item.revision, reset_epoch: item.reset_epoch }) });
   return res.ok;
 }"""
 

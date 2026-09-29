@@ -29,7 +29,7 @@ function fakeApi(routes) {
   return { calls, get: path => respond('GET', path), post: (path, body) => respond('POST', path, body) };
 }
 
-const item = (id, extra = {}) => ({ id, file: `${id}.png`, width: 100, height: 200, status: 'pending', layout: 'zuoyebang', regions: [], cards: {}, ...extra });
+const item = (id, extra = {}) => ({ id, file: `${id}.png`, width: 100, height: 200, status: 'pending', layout: 'zuoyebang', regions: [], cards: {}, reset_epoch: 0, revision: 0, ...extra });
 
 test('保存补丁在防抖期内合并，题卡按编号合并', () => {
   assert.deepEqual(mergePatch({ status: 'ready', cards: { 1: { a: 1 } } }, { cards: { 2: { b: 2 } } }),
@@ -61,9 +61,10 @@ test('saveSoon 去抖合并为一次请求；flush 立即写出；notify 报告�
   assert.deepEqual(Object.keys(updates[0].body.cards), ['1', '2']);
   assert.equal(updates[0].body.layout, 'photo');
   assert.equal(store.item('a').status, 'boxed');
-  store.saveSoon(store.item('b'));
+  store.item('b').layout = 'photo';
+  store.saveSoon(store.item('b'), { layout: 'photo' });
   await store.flush();
-  assert.equal(store.unsaved(), 0);
+  assert.equal(store.unsaved(), 1, '失败的补丁仍待保存');
   assert.deepEqual(notes.at(-1), ['保存失败：磁盘满', 'warn']);
   assert.ok(events.includes('inbox:changed'));
 });
@@ -77,6 +78,7 @@ test('响应晚于新改动时不覆盖本地；拖框期间只同步状态', as
   const store = createInboxStore({ api, timers: fakeTimers() });
   await store.load();
   const local = store.item('a');
+  local.layout = 'photo';
   const saving = store.save(local);
   await Promise.resolve(); await Promise.resolve();
   local.regions.push({ id: 'r1' });
@@ -104,14 +106,16 @@ test('重置当前图取消待保存补丁，旧请求晚返回也不能恢复�
   });
   const store = createInboxStore({ api, timers });
   await store.load();
+  store.item('a').layout = 'photo';
   const saving = store.save(store.item('a'));
   await Promise.resolve(); await Promise.resolve();
   store.saveSoon(store.item('a'), { status: 'boxed' });
   assert.equal(store.unsaved(), 1);
-  assert.equal((await store.reset('a')).status, 'pending');
+  const resetting = store.reset('a');
+  release();
+  assert.equal((await resetting).status, 'pending');
   assert.equal(store.unsaved(), 0);
   await timers.run();
-  release();
   await saving;
   assert.equal(store.item('a').reset_epoch, 1);
   assert.deepEqual(store.item('a').regions, []);
@@ -119,7 +123,7 @@ test('重置当前图取消待保存补丁，旧请求晚返回也不能恢复�
   assert.equal(api.calls.find(call => call.path === '/api/inbox/item/update').body.reset_epoch, 0);
 });
 
-test('读取失败清空列表并提示；重载后清掉已不存在的勾选与当前图', async () => {
+test('读取失败保留本地列表并提示；重载后清掉已不存在的勾选与当前图', async () => {
   let fail = false;
   const notes = [];
   const api = fakeApi({ 'GET /api/inbox/items': () => (fail ? { ok: false, error: { message: '断网' } } : { ok: true, data: { items: [item('a'), item('b', { status: 'discarded' })] } }) });
@@ -131,7 +135,7 @@ test('读取失败清空列表并提示；重载后清掉已不存在的勾选�
   assert.equal(store.state.cur, null);
   fail = true;
   assert.equal(await store.load(), false);
-  assert.deepEqual(store.state.items, []);
+  assert.equal(store.state.items.length, 2);
   assert.equal(notes.at(-1), '读取收件箱失败：断网');
 });
 
@@ -153,6 +157,167 @@ test('切换工作区：进处理区默认第一张，离开处理区写出待�
   await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
   assert.equal(api.calls.filter(call => call.path === '/api/inbox/item/update').length, 1);
   assert.equal(store.state.stage, 'upload');
+});
+
+test('后台重载与第二次编辑交错时保留未保存框位', async () => {
+  const remote = item('a', { revision: 4 });
+  const sent = [];
+  const api = fakeApi({
+    'GET /api/inbox/items': () => ({ ok: true, data: { items: [structuredClone(remote)] } }),
+    'POST /api/inbox/item/update': body => {
+      sent.push(structuredClone(body));
+      Object.assign(remote, body, { revision: remote.revision + 1 });
+      return { ok: true, data: { item: structuredClone(remote) } };
+    },
+  });
+  const store = createInboxStore({ api, timers: fakeTimers() });
+  await store.load();
+  const local = store.item('a');
+  local.regions.push({ id: 'r1', role: 'question' });
+  store.saveSoon(local, { regions: local.regions, status: 'boxed' });
+  await store.load();
+  assert.equal(store.item('a'), local, '后台刷新不能替换有待存补丁的对象');
+  local.layout = 'photo';
+  store.saveSoon(local, { layout: 'photo' });
+  assert.equal(await store.flush(), true);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].expected_revision, 4);
+  assert.equal(sent[0].regions[0].id, 'r1');
+  assert.equal(sent[0].layout, 'photo');
+});
+
+test('两个 load 乱序返回时不退回较旧修订号', async () => {
+  const replies = [];
+  let first = true;
+  const api = {
+    get: () => first ? (first = false, Promise.resolve({ ok: true, data: { items: [item('a', { revision: 8 })] } }))
+      : new Promise(resolve => replies.push(resolve)),
+  };
+  const store = createInboxStore({ api, timers: fakeTimers() });
+  await store.load();
+  const older = store.load();
+  const newer = store.load();
+  replies[1]({ ok: true, data: { items: [item('a', { revision: 10, status: 'done' })] } });
+  await newer;
+  replies[0]({ ok: true, data: { items: [item('a', { revision: 9, status: 'boxed' })] } });
+  await older;
+  assert.equal(store.item('a').revision, 10);
+  assert.equal(store.item('a').status, 'done');
+});
+
+test('模型先写入提取结果时，版式补丁按新 revision 保存且不回写旧区域', async () => {
+  const remote = item('a', { revision: 8, status: 'boxed', regions: [{ id: 'r1', text_status: 'running', judge: null }] });
+  const sent = [];
+  const api = fakeApi({
+    'GET /api/inbox/items': () => ({ ok: true, data: { items: [structuredClone(remote)] } }),
+    'POST /api/inbox/item/update': body => {
+      sent.push(structuredClone(body));
+      Object.assign(remote, body, { revision: remote.revision + 1 });
+      return { ok: true, data: { item: structuredClone(remote) } };
+    },
+  });
+  const store = createInboxStore({ api, timers: fakeTimers() });
+  await store.load();
+  const local = store.item('a');
+  local.layout = 'photo';
+  store.saveSoon(local, { layout: 'photo' });
+  remote.regions[0] = { id: 'r1', text_status: 'done', text: '模型文字', judge: { ok: true } };
+  remote.revision += 1;
+  await store.load();
+  assert.equal(local.regions[0].text, '模型文字');
+  assert.equal(await store.flush(), true);
+  assert.equal(sent[0].expected_revision, 9);
+  assert.equal(Object.hasOwn(sent[0], 'regions'), false);
+  assert.equal(remote.regions[0].text, '模型文字');
+});
+
+test('拖框中后台 load 不替换手势对象，松手后按新 revision 保存', async () => {
+  const remote = item('a', { revision: 2 });
+  const api = fakeApi({
+    'GET /api/inbox/items': () => ({ ok: true, data: { items: [structuredClone(remote)] } }),
+    'GET /api/inbox/item': () => ({ ok: true, data: { item: structuredClone(remote) } }),
+    'POST /api/inbox/item/update': body => {
+      if (body.expected_revision !== remote.revision) return { ok: false, status: 409, error: { message: '修订号冲突' } };
+      Object.assign(remote, { regions: structuredClone(body.regions), revision: remote.revision + 1 });
+      return { ok: true, data: { item: structuredClone(remote) } };
+    },
+  });
+  const store = createInboxStore({ api, timers: fakeTimers() });
+  await store.load();
+  const local = store.item('a');
+  store.state.cur = 'a';
+  store.state.dragging = true;
+  local.regions.push({ id: 'r1', role: 'question' });
+  remote.status = 'boxed';
+  remote.revision += 1;
+  await store.load();
+  assert.equal(store.item('a'), local);
+  assert.equal(local.regions[0].id, 'r1');
+  store.state.dragging = false;
+  store.saveSoon(local, { regions: local.regions });
+  assert.equal(await store.flush(), true);
+  assert.equal(remote.regions[0].id, 'r1');
+  assert.equal(remote.status, 'boxed');
+});
+
+test('旧保存响应晚于模型结果时保留较新区域与修订号', async () => {
+  const remote = item('a', { revision: 8, status: 'boxed', regions: [{ id: 'r1', text_status: 'running' }] });
+  let release;
+  const api = fakeApi({
+    'GET /api/inbox/items': () => ({ ok: true, data: { items: [structuredClone(remote)] } }),
+    'POST /api/inbox/item/update': body => {
+      remote.layout = body.layout;
+      remote.revision += 1;
+      const response = structuredClone(remote);
+      return new Promise(resolve => { release = () => resolve({ ok: true, data: { item: response } }); });
+    },
+  });
+  const store = createInboxStore({ api, timers: fakeTimers() });
+  await store.load();
+  store.item('a').layout = 'photo';
+  const saving = store.save(store.item('a'), { layout: 'photo' });
+  await Promise.resolve(); await Promise.resolve();
+  remote.regions[0] = { id: 'r1', text_status: 'done', text: '模型文字' };
+  remote.revision += 1;
+  await store.load();
+  release();
+  await saving;
+  assert.equal(store.item('a').regions[0].text, '模型文字');
+  assert.equal(store.item('a').layout, 'photo');
+  assert.equal(store.item('a').revision, 10);
+});
+
+test('前一次写入失败时冻结后续写入，flush 报失败并保留全部补丁供重试', async () => {
+  let release;
+  const sent = [];
+  let attempt = 0;
+  const api = fakeApi({
+    'GET /api/inbox/items': () => ({ ok: true, data: { items: [item('a', { revision: 3 })] } }),
+    'POST /api/inbox/item/update': body => {
+      sent.push(structuredClone(body));
+      if (++attempt === 1) return new Promise(resolve => { release = () => resolve({ ok: false, error: { message: '磁盘满' } }); });
+      return { ok: true, data: { item: item('a', { revision: 4, layout: body.layout, status: body.status }) } };
+    },
+  });
+  const store = createInboxStore({ api, timers: fakeTimers() });
+  await store.load();
+  const local = store.item('a');
+  local.layout = 'photo';
+  const first = store.save(local, { layout: 'photo' });
+  await Promise.resolve(); await Promise.resolve();
+  local.status = 'boxed';
+  const second = store.save(local, { status: 'boxed' });
+  release();
+  await Promise.all([first, second]);
+  assert.equal(sent.length, 1, '失败后不能发送按旧 revision 排队的请求');
+  assert.equal(await store.flush(), false);
+  assert.equal(store.item('a').status, 'boxed');
+  assert.equal(store.unsaved(), 1);
+  assert.ok(await store.retry('a'));
+  assert.equal(sent.length, 2);
+  assert.equal(sent[1].expected_revision, 3);
+  assert.equal(sent[1].layout, 'photo');
+  assert.equal(sent[1].status, 'boxed');
 });
 
 test('后台任务轮询到完成调用 onDone；失败项与轮询出错都提示', async () => {

@@ -2,6 +2,7 @@ import base64
 import io
 import json
 import os
+import sqlite3
 import struct
 import tempfile
 import unittest
@@ -306,6 +307,38 @@ class ExtractionReviewTests(unittest.TestCase):
                                     {"item_id": item["id"], "reset_epoch": fresh["reset_epoch"], "card": 1})
             self.assertEqual(inbox.get_item(vault, item["id"])["cards"], {})
 
+    def test_late_detect_and_classify_do_not_overwrite_human_revision(self):
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as vault:
+            item = self.setup_item(vault)
+            def detect(*_args):
+                current = inbox.get_item(vault, item["id"])
+                inbox.update_item(vault, item["id"], {"layout": "photo",
+                    "expected_revision": current["revision"], "reset_epoch": current["reset_epoch"]},
+                    require_version=True)
+                return ([{"role":"question","card":1,"x":0,"y":0,"w":1,"h":1,"conf":.9}],1)
+            with mock.patch.object(inbox, "_detect_with_provider", side_effect=detect):
+                with self.assertRaises(inbox.InboxConflict):
+                    inbox._run_detect(vault, mock.Mock(), {"item_id": item["id"]})
+            current = inbox.get_item(vault, item["id"])
+            self.assertEqual(current["layout"], "photo")
+            self.assertEqual(len(current["regions"]), 1)
+            def classify(*_args, **_kwargs):
+                fresh = inbox.get_item(vault, item["id"])
+                inbox.update_item(vault, item["id"], {"cards": {"1": {"subject": "人工科目"}},
+                    "expected_revision": fresh["revision"], "reset_epoch": fresh["reset_epoch"]},
+                    require_version=True)
+                return {"subject": "过期科目"}
+            with self.assertRaises(inbox.InboxConflict):
+                inbox._run_classify(vault, mock.Mock(classify_question=classify), {"item_id": item["id"]})
+            self.assertEqual(inbox.get_item(vault, item["id"])["cards"]["1"]["subject"], "人工科目")
+
+    def test_auto_forwards_reset_epoch_to_detect(self):
+        from unittest import mock
+        with mock.patch.object(inbox, "_run_detect", return_value={}) as detect:
+            inbox._run_auto("/unused", mock.Mock(), {"item_id": "image", "reset_epoch": 7})
+            self.assertEqual(detect.call_args.args[2]["reset_epoch"], 7)
+
     def test_reset_refuses_partially_committed_image(self):
         with tempfile.TemporaryDirectory() as vault:
             item = self.setup_item(vault)
@@ -331,6 +364,81 @@ class ExtractionReviewTests(unittest.TestCase):
             result = ai_assist.extract_region('/unused', 'data:image/png;base64,AA==')
             self.assertFalse(result['convertible'])
             call.assert_called_once()
+
+
+class RevisionContractTests(unittest.TestCase):
+    def test_discarded_item_cannot_be_committed_even_with_current_revision(self):
+        with tempfile.TemporaryDirectory() as vault:
+            item = inbox.upload_images(vault, [("a.png", make_png(10, 10))])["items"][0]
+            prepared = inbox.update_item(vault, item["id"], {"regions": [
+                {"id": "q", "role": "question", "x": 0, "y": 0, "w": 1, "h": 1, "convert": "image"}]})
+            inbox.discard_item(vault, item["id"], prepared["revision"], prepared["reset_epoch"], True)
+            current = inbox.get_item(vault, item["id"])
+            with self.assertRaisesRegex(ValueError, "已经结束"):
+                inbox.commit_item(vault, item["id"], form={"subject": "数学", "category": "函数"},
+                                  expected_revision=current["revision"], reset_epoch=current["reset_epoch"],
+                                  require_version=True)
+            self.assertEqual(inbox.get_item(vault, item["id"])["status"], "discarded")
+
+    def test_old_database_migrates_once_and_rejects_stale_writes(self):
+        with tempfile.TemporaryDirectory() as vault:
+            path = os.path.join(inbox.inbox_dir(vault), "inbox.db")
+            with sqlite3.connect(path) as legacy:
+                legacy.executescript(inbox._SCHEMA)
+            with inbox.connect(vault) as db:
+                self.assertIn("revision", {row[1] for row in db.execute("PRAGMA table_info(items)")})
+            item = inbox.upload_images(vault, [("a.png", make_png(10, 10))])["items"][0]
+            version = {"expected_revision": item["revision"], "reset_epoch": item["reset_epoch"]}
+            changed = inbox.update_item(vault, item["id"], {"layout": "photo", **version}, require_version=True)
+            self.assertEqual(changed["revision"], item["revision"] + 1)
+            self.assertEqual(changed["regions"], [])
+            with self.assertRaises(inbox.InboxConflict) as stale:
+                inbox.update_item(vault, item["id"], {"layout": "zuoyebang", **version}, require_version=True)
+            self.assertEqual(stale.exception.current_revision, changed["revision"])
+            self.assertEqual(inbox.get_item(vault, item["id"])["layout"], "photo")
+            with self.assertRaises(inbox.InboxConflict):
+                inbox.update_item(vault, item["id"], {"layout": "zuoyebang"}, require_version=True)
+            reset = inbox.reset_item(vault, item["id"], changed["revision"], changed["reset_epoch"], True)
+            self.assertEqual((reset["revision"], reset["reset_epoch"]),
+                             (changed["revision"] + 1, changed["reset_epoch"] + 1))
+            with self.assertRaises(inbox.InboxConflict):
+                inbox.discard_item(vault, item["id"], reset["revision"], changed["reset_epoch"], True)
+            self.assertEqual(inbox.get_item(vault, item["id"])["status"], "pending")
+
+    def test_http_conflict_returns_409_and_current_revision_without_mutation(self):
+        import http.client
+        import threading
+        from omrs.cli import OMRSTCPServer
+        from omrs.server import OMRSHandler
+        with tempfile.TemporaryDirectory() as vault:
+            item = inbox.upload_images(vault, [("a.png", make_png(10, 10))])["items"][0]
+            class Handler(OMRSHandler):
+                vault_path = vault
+                def log_message(self, *_args):
+                    pass
+            server = OMRSTCPServer(("127.0.0.1", 0), Handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            self.addCleanup(server.server_close)
+            self.addCleanup(server.shutdown)
+            def post(path, data):
+                conn = http.client.HTTPConnection("127.0.0.1", server.server_address[1])
+                conn.request("POST", path, json.dumps(data), {"Content-Type": "application/json"})
+                response = conn.getresponse()
+                result = response.status, json.loads(response.read())
+                conn.close()
+                return result
+            version = {"id": item["id"], "expected_revision": item["revision"],
+                       "reset_epoch": item["reset_epoch"]}
+            status, body = post("/api/inbox/item/update", {**version, "layout": "photo"})
+            self.assertEqual(status, 200)
+            self.assertEqual(body["item"]["revision"], item["revision"] + 1)
+            status, body = post("/api/inbox/item/update", {**version, "regions": []})
+            self.assertEqual(status, 409)
+            self.assertEqual(body["current_revision"], item["revision"] + 1)
+            status, _ = post("/api/inbox/item/reset", {"id": item["id"]})
+            self.assertEqual(status, 409)
+            self.assertEqual(inbox.get_item(vault, item["id"])["layout"], "photo")
 
 
 class ProviderPolicyTests(unittest.TestCase):

@@ -17,6 +17,11 @@
 - `assets/app/features/create/`、`annotate/`、`assistant/`、`board/`、`trainpanel/`：保存队列、冲突提示和迟到响应处理；`omrs/version.py`、`omrs_dashboard.html` 标明 v1.35.0。
 - `tests/` 下的后端、Node 与隔离浏览器回归验证上述路径；`AI/` 模块文档、计划、任务日志和根 `README.md` 同步契约。最终切片提交前再次运行 `git diff --name-status` 核对实际文件。
 
+## 本地提交
+
+- `15301b8`：正文审计、入账、回填、删除保险与按运行撤销；附隔离回归及计划、模块文档。
+- 收件箱 revision 与异步保存切片正在提交，最终哈希在收尾时补记。
+
 ## 已执行验证
 
 - 建立基础版前执行 `git status --short`，确认当前分支有多份并行在制的后端、前端和测试文件；未覆盖或清理这些改动。

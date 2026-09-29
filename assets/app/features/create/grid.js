@@ -52,7 +52,10 @@ export function createGrid(root, bus) {
       if (!ids.length) return;
       if (!await confirm(`丢弃 ${ids.length} 张？原图会保留在收件箱数据目录，不进题库。`, { danger: true })) return;
       busy = true; error = ''; paint();
-      const result = await post('/api/inbox/discard', { ids });
+      if (!await inbox.flush()) { busy = false; error = '还有未保存的修改，丢弃已取消'; paint(); return; }
+      const entries = ids.map(id => inbox.item(id)).filter(Boolean).map(item => ({ id: item.id,
+        expected_revision: item.revision, reset_epoch: item.reset_epoch }));
+      const result = await post('/api/inbox/discard', { items: entries });
       busy = false;
       if (!alive) return;
       if (!result.ok) { error = `丢弃失败：${result.error?.message || '未知错误'}`; paint(); return; }
