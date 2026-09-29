@@ -6,7 +6,7 @@ import { notify } from './inbox.js';
 import { statsModel, policyForm, policyPayload, cleanupSummary } from './train-state.js';
 import { trainView } from './train-view.js';
 
-const view = { stats: null, loading: false, error: '', format: 'omrs_jsonl', policy: null, policyError: '', saving: false, message: null, annotate: null };
+const view = { stats: null, loading: false, error: '', format: 'omrs_jsonl', policy: null, policyError: '', saving: false, message: null, annotate: null, trainpanel: null };
 
 export function createTrain(root) {
   const host = root.querySelector('#ib-stage-train');
@@ -45,7 +45,14 @@ export function createTrain(root) {
     paint();
   }
 
-  function enter() { view.message = null; loadStats(); loadPolicy(); loadAnnotate(); }
+  async function loadTrainpanel() {
+    const result = await get('/api/trainpanel/overview');
+    if (!alive) return;
+    view.trainpanel = result.ok ? result.data || null : null;
+    paint();
+  }
+
+  function enter() { view.message = null; loadStats(); loadPolicy(); loadAnnotate(); loadTrainpanel(); }
 
   function setPolicy(key, event) {
     if (!view.policy) return;

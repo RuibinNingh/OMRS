@@ -263,6 +263,7 @@
 | `assets/app/features/assistant/` | `AI/frontend/assistant.md`（AI 助手页）|
 | `assets/app/features/settings/` | `AI/frontend/settings.md` |
 | `assets/app/features/create/` | `AI/frontend/create.md`，流程细节同时更新 `AI/inbox.md` |
+| `assets/app/features/trainpanel/`、`assets/app/trainpanel.html` | `AI/frontend/trainpanel.md` |
 | `assets/app/features/annotate/`、`assets/app/annotate.html`、`omrs/annotate.py` | `AI/frontend/annotate.md`，接口变化同时更新 `AI/api.md`，存储变化同时更新 `AI/data.md` |
 | `assets/app/features/data/` | `AI/frontend/records.md`（数据复盘）|
 | `assets/app/features/history/` | `AI/frontend/records.md`（历史记录）|

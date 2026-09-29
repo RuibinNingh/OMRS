@@ -31,3 +31,5 @@
 | [`frontend/annotate.md`](frontend/annotate.md) | **框选标注页**（`/annotate`，`assets/app/features/annotate/`）：独立于题库的训练数据采集页，批量上传、只标题目 / 答案框、快捷键、导出 |
 | [`frontend/create.md`](frontend/create.md) | **录入题目与收件箱入口**：录入题目页表单、AI 识别入口、提交后表单状态，以及收件箱在前端的入口（流程细节见 `AI/inbox.md`） |
 | [`frontend/records.md`](frontend/records.md) | **历史记录、数据复盘与报告**：Ledger 时间线、数据复盘页、AI 报告托管页 |
+
+独立训练面板 `/train` 的入口、图表、实时测试与可选积累见 `AI/frontend/trainpanel.md`。

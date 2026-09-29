@@ -91,10 +91,22 @@ function annotateView(annotate) {
   </section>`;
 }
 
-export function trainView({ model, loading = false, error = '', format = 'omrs_jsonl', policy = null, policyError = '', saving = false, message = null, annotate = null } = {}) {
+function trainpanelView(panel) {
+  const current = panel?.latest?.status;
+  const published = panel?.runs?.find(run => run.current)?.evaluation?.model?.answer?.pass_rate;
+  const summary = current?.state === 'running' ? `训练中 第 ${current.epoch} / ${current.epochs} 轮`
+    : panel?.model ? `${panel.model.name} · 答案框达标率 ${published == null ? '待评估' : `${(published * 100).toFixed(1)}%`}` : '还没有模型 · 查看训练进度、评估与实时测试';
+  return html`<section class="crt-panel crt-annotate" aria-labelledby="crt-trainpanel-title">
+    <div class="crt-annotate__text"><h3 id="crt-trainpanel-title">训练面板</h3><p class="crt-muted" id="ib-tr-panel-summary">${summary}</p></div>
+    <a class="ui-btn ui-btn--sm ui-btn--primary" id="ib-tr-panel-open" href="/train" target="_blank" rel="noopener">${icon('external')}<span class="ui-btn__label">打开训练面板</span></a>
+  </section>`;
+}
+
+export function trainView({ model, loading = false, error = '', format = 'omrs_jsonl', policy = null, policyError = '', saving = false, message = null, annotate = null, trainpanel = null } = {}) {
   return html`<div class="crt" id="ib-train">
     ${statsView(model, { loading, error })}
     ${annotateView(annotate)}
+    ${trainpanelView(trainpanel)}
     ${datasetView(model, format)}
     <section class="crt-panel" aria-labelledby="crt-policy-title">
       <h3 id="crt-policy-title">框选提供方与自动策略</h3>

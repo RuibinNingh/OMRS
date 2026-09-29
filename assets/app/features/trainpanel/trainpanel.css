@@ -1,0 +1,62 @@
+@layer base, ui, features;
+@import url("../../styles/base.css") layer(base);
+@import url("../../styles/ui.css") layer(ui);
+/* 独立训练面板：所有视觉颜色与尺度复用设计 token。 */
+@layer features {
+.tp-page { font-size: var(--text-md); line-height: var(--leading-ui); }
+.tp-app { width: min(1240px, 100%); margin: 0 auto; padding: var(--sp-6); }
+.tp-head, .tp-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; }
+.tp-head { padding: var(--sp-2) 0 var(--sp-6); }
+.tp-head h1 { font-size: var(--text-2xl); font-weight: var(--weight-semibold); }
+.tp-head p, .tp-muted { color: var(--fg-2); font-size: var(--text-sm); }
+.tp-section { margin-bottom: var(--sp-5); padding: var(--sp-5); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); min-width: 0; }
+.tp-section h2 { font-size: var(--text-xl); font-weight: var(--weight-semibold); margin-bottom: var(--sp-4); }
+.tp-section h3 { font-size: var(--text-lg); font-weight: var(--weight-semibold); margin: var(--sp-4) 0 var(--sp-2); }
+.tp-cols, .tp-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-4); }
+.tp-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); margin: var(--sp-4) 0; }
+.tp-chart, .tp-compare { min-width: 0; padding: var(--sp-3); border-radius: var(--r-md); background: var(--surface-0); }
+.tp-chart figcaption, .tp-compare figcaption { font-weight: var(--weight-medium); }
+.tp-chart svg, .tp-compare svg { width: 100%; display: block; }
+.tp-tick, .tp-value { fill: var(--fg-2); font-family: var(--font-sans); font-size: var(--text-xs); }
+.tp-value { fill: var(--fg-1); }
+.tp-grid { stroke: var(--border-1); }
+.tp-line { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.tp-series-0 { stroke: var(--info); color: var(--info); }
+.tp-series-1 { stroke: var(--success); color: var(--success); }
+.tp-series-2 { stroke: var(--warning); color: var(--warning); stroke-dasharray: 6 3; }
+.tp-series-3 { stroke: var(--accent); color: var(--accent); stroke-dasharray: 6 3; }
+.tp-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3); padding-top: var(--sp-2); font-size: var(--text-xs); }
+.tp-legend-item::before { content: '━'; margin-right: var(--sp-1); }
+.tp-model-bar { fill: var(--info); }
+.tp-template-bar { fill: var(--success); }
+.tp-target { stroke: var(--warning); stroke-width: 2; stroke-dasharray: 5 3; }
+.tp-commands { display: grid; gap: var(--sp-3); margin-top: var(--sp-4); }
+.tp-command { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); background: var(--surface-0); border-radius: var(--r-md); }
+.tp-command code { flex: 1; min-width: 0; overflow-wrap: anywhere; font-family: var(--font-mono); font-size: var(--text-xs); }
+.tp-errors { margin: var(--sp-3) 0; color: var(--danger); overflow-wrap: anywhere; }
+.tp-wall { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--sp-3); }
+.tp-thumb { cursor: pointer; min-height: var(--ctl-md); padding: var(--sp-2); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-0); color: var(--fg-2); }
+.tp-thumb img { display: block; width: 100%; height: 140px; object-fit: contain; }
+.tp-thumb span { display: block; font-size: var(--text-xs); }
+.tp-overlay-large { display: block; max-width: 100%; max-height: 75vh; margin: 0 auto; object-fit: contain; }
+.tp-preview { position: relative; max-width: 480px; margin: var(--sp-4) auto; }
+.tp-preview img { display: block; width: 100%; height: auto; }
+.tp-preview svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tp-box { fill: none; stroke-width: 3; vector-effect: non-scaling-stroke; }
+.tp-box-question { stroke: var(--info); }
+.tp-box-answer { stroke: var(--success); }
+.tp-try-result { margin-top: var(--sp-4); }
+.tp-try-controls { margin-top: var(--sp-4); }
+.tp-facts { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin: var(--sp-3) 0; color: var(--fg-2); }
+.tp-link { color: var(--accent); }
+.tp-head a, .tp-section a { min-height: var(--ctl-sm); display: inline-flex; align-items: center; }
+.tp-error-row { display: flex; align-items: center; gap: var(--sp-3); }
+@media (max-width: 760px) {
+  .tp-app { padding: var(--sp-3); }
+  .tp-section { padding: var(--sp-4); }
+  .tp-cols, .tp-stats { grid-template-columns: 1fr; }
+  .tp-wall { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tp-head h1 { font-size: var(--text-xl); }
+  .tp-command { flex-wrap: wrap; }
+}
+}

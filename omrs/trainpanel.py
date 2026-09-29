@@ -1,6 +1,7 @@
 """训练面板：只读外部实验文件，主程序不加载训练／推理框架。"""
 import datetime
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -27,7 +28,10 @@ def config(vault):
 
 
 def train_dir(vault):
-    return Path(config(vault).get('train_dir') or '~/omrs-train').expanduser().resolve()
+    value = config(vault).get('train_dir') or '~/omrs-train'
+    if not isinstance(value, str):
+        raise ValueError('训练目录配置必须是字符串')
+    return Path(value).expanduser().resolve()
 
 
 def safe_path(root, *names):
@@ -52,6 +56,21 @@ def read_json(path):
         value = json.loads(data)
         if not isinstance(value, dict):
             raise ValueError('必须为 JSON 对象')
+        shapes = {
+            'manifest.json': {'samples': list, 'excluded': list, 'counts': dict, 'strip_counts': dict},
+            'eval.json': {'model': dict, 'template': dict, 'rows': list, 'overlays': list},
+        }.get(path.name, {})
+        for key, kind in shapes.items():
+            if key in value and value[key] is not None and not isinstance(value[key], kind):
+                raise ValueError(key + ' 字段类型不合法')
+            if value.get(key) is None and key in value and key not in ('model', 'template'):
+                raise ValueError(key + ' 字段不能为空')
+        if path.name == 'status.json':
+            if value.get('state') not in ('running', 'done', 'failed'):
+                raise ValueError('训练状态不合法')
+            for key in ('epoch', 'epochs', 'pid', 'epoch_seconds'):
+                if key in value and (not isinstance(value[key], (int, float)) or not math.isfinite(value[key]) or value[key] < 0):
+                    raise ValueError(key + ' 必须是非负有限数值')
         return value, None
     except (OSError, ValueError) as exc:
         return None, '读取失败：' + str(exc)
@@ -87,15 +106,24 @@ def status_view(value, current_time=None):
     return result
 
 
-def commands(root, latest=None, dataset=None):
+def commands(root, latest=None, dataset=None, vault=None):
+    def unused(folder):
+        stem = datetime.datetime.now().strftime('%Y%m%d')
+        index = 1
+        while (root / folder / f'{stem}-{index}').exists():
+            index += 1
+        return str(root / folder / f'{stem}-{index}')
     py = shlex.quote(str(root / '.venv/bin/python'))
-    dataset_path = shlex.quote(str(root / 'datasets' / (dataset or '新的数据版本')))
-    run_path = shlex.quote(str(root / 'runs' / (latest or '新的实验名')))
-    prefix = f'nice -n 19 {py} tools/boxdetect/'
-    train = prefix + f'train.py --dataset {dataset_path} --run {run_path}'
-    return {'build': f'{py} tools/boxdetect/build_dataset.py --vault <Vault目录> --out {dataset_path}',
-            'train': train, 'resume': train + ' --resume',
-            'evaluate': f'{py} tools/boxdetect/evaluate.py --dataset {dataset_path} --model {shlex.quote(str(root / "models/current/model.onnx"))}',
+    dataset_path = shlex.quote(str(root / 'datasets' / dataset) if dataset else unused('datasets'))
+    next_dataset = shlex.quote(unused('datasets'))
+    new_run = shlex.quote(unused('runs'))
+    run_path = shlex.quote(str(root / 'runs' / latest)) if latest else new_run
+    vault_path = shlex.quote(str(vault or '<Vault目录>'))
+    train = f'nice -n 19 {py} tools/boxdetect/train.py --dataset {dataset_path}'
+    return {'build': f'{py} tools/boxdetect/build_dataset.py --vault {vault_path} --out {next_dataset}',
+            'train': train + ' --run ' + new_run,
+            'resume': train + ' --run ' + run_path + ' --resume',
+            'evaluate': f'{py} tools/boxdetect/evaluate.py --dataset {dataset_path} --run {run_path}',
             'serve': f'{py} tools/boxdetect/serve.py --model-dir {shlex.quote(str(root / "models/current"))} --port 18765'}
 
 
@@ -159,7 +187,7 @@ def overview(vault):
     result['latest'] = result['runs'][0] if result['runs'] else None
     latest = result['latest']
     result['commands'] = commands(root, latest['name'] if latest else None,
-                                  (latest['status'] or {}).get('dataset') if latest else (result['dataset'] or {}).get('version'))
+                                  (latest['status'] or {}).get('dataset') if latest else (result['dataset'] or {}).get('version'), vault=vault)
     if latest:
         identity, _ = read_json(safe_path(root, 'runs', latest['name'], 'identity.json'))
         if identity:
@@ -221,6 +249,8 @@ def service(vault):
     if not url:
         return {'state': 'unconfigured', 'message': '尚未配置本地检测服务地址'}
     try:
+        if not isinstance(url, str):
+            raise ValueError('检测服务地址必须是字符串')
         parts = urllib.parse.urlsplit(url)
         if parts.scheme not in ('http', 'https') or not parts.netloc:
             raise ValueError('地址不合法')
@@ -257,6 +287,8 @@ def try_image(vault, files):
     if not data or len(data) > MAX_UPLOAD_BYTES:
         raise ValueError('图片不能为空且不能超过 15 MB')
     url = config(vault).get('inbox_local_detect_url', '')
+    if not isinstance(url, str):
+        raise ValueError('检测服务地址必须是字符串')
     if not url:
         raise ValueError('尚未配置本地检测服务地址，请到录入题目 → AI 训练填写')
     if not _TRY_SLOT.acquire(blocking=False):

@@ -118,3 +118,5 @@
 训练工具位于 `tools/boxdetect/`；数据基线、实验与经验索引见 `training/README.md`。
 
 训练面板后端 `omrs/trainpanel.py` 只读实验文件，契约见 `api.md` 与 `data.md` §17，训练环境及门禁见 `environment.md`。
+
+独立训练面板前端 `/train` 见 `frontend/trainpanel.md`，从录入题目的 AI 训练工作区打开；支持实时测试与可选积累。

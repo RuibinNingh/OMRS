@@ -112,3 +112,5 @@ E2E 专用适配器 `tests/e2e/p8_test_modules.js`：8 个 E2E 以 init script �
 草稿后台作业由页面 drafts-job.js 管理轮询和卸载，活动标记交给 domain/drafts 统一维护角标轮询；页面内容以服务端 revision 为边界，后台结果不能覆盖未保存表单。真实 HTTP 进程重启回归见 tests/test_draft_p3_http.py；画布复用与旧收件箱行为由草稿/录入 E2E 联合验证。
 
 自动检测与提取共用草稿作业轮询，按 type 区分进度和错误。助手卡片独立读取当前作业并在活动时轮询，结束运行的缓存由 draftVer 失效；隐藏与卸载停止轮询。录入页顶部与草稿列表都复用当前计数快照，接收 counts 事件时同步更新，避免首次挂载或入库后保留旧值。Node 覆盖三态设置、卡片作业状态、候选展示与独立训练框，P4 HTTP 回归另验证检测并发和服务重启。
+
+独立训练面板 `/train` 由 `features/trainpanel/store.js` 持有实验快照、选择状态与指标；按块 morph 保留实时测试原图和滚动。纯模型与增量读取测试见 `tests/app/trainpanel.test.mjs`；`tests/e2e/trainpanel.py` 用假实验目录审计四档状态，`tests/e2e/boxdetect.py` 使用外部真实模型和临时 Vault 复核收件箱及面板。

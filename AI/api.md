@@ -938,7 +938,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 ## 训练面板（只读接口）
 
-`omrs/trainpanel.py` 只读配置 `train_dir` 指向的外部训练目录（空值为 `~/omrs-train`），不加载 torch／onnxruntime、不启动或停止训练。`/train` 为独立训练面板入口，前端按 box-detect 计划 C7 提供。以下 GET 沿用登录授权：
+`omrs/trainpanel.py` 只读配置 `train_dir` 指向的外部训练目录（空值为 `~/omrs-train`），不加载 torch／onnxruntime、不启动或停止训练。`/train` 为独立训练面板入口，前端说明见 `AI/frontend/trainpanel.md`。以下 GET 沿用登录授权：
 
 | 方法 | 路径 | 响应 |
 |---|---|---|

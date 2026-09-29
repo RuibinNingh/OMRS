@@ -109,6 +109,26 @@ class PanelTests(unittest.TestCase):
         self.addCleanup(server.shutdown)
         return server.server_address[1]
 
+    def test_structurally_corrupt_file_isolated(self):
+        self.write('runs/r1/status.json', self.status())
+        self.write('runs/r1/eval.json', {'overlays':None})
+        self.write('datasets/d1/manifest.json', {'samples':None})
+        result = trainpanel.overview(str(self.vault))
+        self.assertIn('dataset', result['errors'])
+        self.assertIsNotNone(result['latest']['eval_error'])
+        self.assertEqual(result['latest']['status']['state'], 'running')
+
+    def test_commands_use_fresh_paths_and_exact_resume_identity(self):
+        self.write('runs/r1/status.json', self.status())
+        self.write('runs/r1/identity.json', {'epochs':3,'imgsz':960,'batch':2,'threads':4,'weights':'/tmp/a b.pt'})
+        self.write('datasets/d1/manifest.json', {'version':'d1'})
+        value = trainpanel.overview(str(self.vault))['commands']
+        self.assertIn('--epochs 3', value['resume'])
+        self.assertIn('--imgsz 960', value['resume'])
+        self.assertNotIn('--run ' + str(self.root / 'runs/r1'), value['train'])
+        self.assertNotIn('--out ' + str(self.root / 'datasets/d1'), value['build'])
+        self.assertIn('--run ' + str(self.root / 'runs/r1'), value['evaluate'])
+
     def test_http_routes_and_error(self):
         self.write('runs/r1/status.json', self.status())
         port = self.start_http()

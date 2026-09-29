@@ -25,7 +25,7 @@ nice -n 19 ~/omrs-train/.venv/bin/python tools/boxdetect/train.py --dataset ~/om
 ~/omrs-train/.venv/bin/python tools/boxdetect/serve.py --model-dir ~/omrs-train/models/current --port 18765
 ```
 
-第三步显式导出 ONNX，在验证集选择置信度，再评估冻结测试集并发布本地 models/current 文件；不会改 OMRS 配置。旧当前模型移入 models/原实验名目录。第四步的 serve.py 在 C3 提交后提供，仅绑定 127.0.0.1，`GET /health` 返回 SHA-256，POST 地址可用 `/detect`。隔离实例把 inbox_local_detect_url 配成该地址；生产服务常驻与配置切换须另行授权。
+第三步显式导出 ONNX，在验证集选择置信度，再评估冻结测试集并发布本地 models/current 文件；不会改 OMRS 配置。旧当前模型移入 models/原实验名目录。第四步仅绑定 127.0.0.1，`GET /health` 返回 SHA-256，POST 地址可用 `/detect`。隔离实例把 inbox_local_detect_url 配成该地址；生产服务常驻与配置切换须另行授权。
 
 训练脚本 CPU 最多 6 线程，默认 batch 4、640 输入；workers 指定 2，ultralytics CPU 会自动改为 0。固定 nice 19、关闭 RAM 图像缓存，独立看护每 0.5 秒检查内存：可用低于 2 GiB 或训练进程树 RSS 超过默认 6 GiB 即停止。默认最多 4 小时；启动时可用内存不足 4 GiB 拒绝运行。训练日志是 run/train.log，每轮原子 status.json 和追加 metrics.jsonl 供面板读取。
 
@@ -58,6 +58,8 @@ nice -n 19 ~/omrs-train/.venv/bin/python tools/boxdetect/train.py --dataset ~/om
 
 ```bash
 python3 -m unittest tests.test_boxdetect tests.test_boxdetect_training tests.test_boxdetect_inference tests.test_trainpanel -q
+python3 tests/e2e/trainpanel.py
+python3 tests/e2e/boxdetect.py --dataset ~/omrs-train/datasets/20260929-1
 ```
 
-前一行可使用未安装 torch/onnxruntime 的系统 Python；真实模型 E2E 与训练面板前端由后续切片提交，验证使用临时 Vault。实验与限制见 `AI/training/`；当前精度是否达标以实验记录为准，不能因服务成功返回框就建议上线。
+前一行可使用未安装 torch/onnxruntime 的系统 Python；真实模型 E2E 会用训练根目录下的独立 venv 启动服务，OMRS 和浏览器只使用临时 Vault。实验与限制见 `AI/training/`；当前精度是否达标以实验记录为准，不能因服务成功返回框就建议上线。

@@ -74,3 +74,5 @@
 样式都在 features 层：`create.css`（导航、工作区显隐与整屏工作台、上传、快速录入、网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（`crc-`）、`train.css`（`crt-`）与 `drafts.css`（草稿审核工作区）。只用 token；标注色取 `--info` / `--success` / `--danger`。旧 `styles.css` 里已没有录入页的规则。
 
 处理区的文字框与输入框用 `ui-textarea` / `ui-input`（与全站同一套控件）。
+
+AI 训练工作区在原标注入口旁显示「训练面板」：当前模型／答案达标率，或运行中轮次摘要，读取失败显示说明；「打开训练面板」在新标签页打开 `/train`。原统计、导出、清理、提供方与标注入口保持原行为，独立页见 `AI/frontend/trainpanel.md`。
