@@ -321,6 +321,28 @@ def main():
             mobile.click("[data-action='assistant.toggleRail']")
             mobile.wait_for_timeout(400)
             check("390px：对话列表从左侧抽屉打开", mobile.evaluate("() => document.querySelector('.ast').dataset.rail === 'open' && document.querySelector('.ast-rail').getBoundingClientRect().left >= 0"))
+            mobile.wait_for_function("async () => (await (await fetch('/api/agent/status')).json()).active.length === 0", timeout=10000)
+            mobile.click('[data-action="assistant.newConv"]')
+            mobile.wait_for_selector('.ast-empty', timeout=5000)
+            jpeg = base64.b64decode(mobile.evaluate("""() => {
+              const canvas = document.createElement('canvas');
+              canvas.width = 12; canvas.height = 12;
+              canvas.getContext('2d').fillRect(0, 0, 12, 12);
+              return canvas.toDataURL('image/jpeg').split(',')[1];
+            }"""))
+            check("浏览器生成的 JPEG 原图完整", jpeg.endswith(b'\xff\xd9'))
+            mobile.set_input_files('#ast-image-picker', {"name": "phone.jpg", "mimeType": "image/jpeg", "buffer": jpeg[:-2]})
+            mobile.wait_for_function("() => document.querySelectorAll('.ast-attachment').length === 1")
+            prepared = mobile.locator('.ast-attachment img').first.get_attribute('src')
+            check("缺少结束标记的手机 JPEG 在发送前重新编码", prepared.startswith('data:image/jpeg;base64,') and
+                  base64.b64decode(prepared.split(',', 1)[1]).endswith(b'\xff\xd9'))
+            mobile.fill('#ast-input', '添加题目')
+            mobile.press('#ast-input', 'Enter')
+            mobile.wait_for_function("() => document.querySelectorAll('.ast-turn:not(.is-live)').length >= 1", timeout=30000)
+            image_url = mobile.locator('.ast-user__images .ast-image').last.get_attribute('href')
+            with urllib.request.urlopen(base + image_url, timeout=10) as response:
+                saved = response.read()
+            check("修复后的 JPEG 已保存并能通过图片接口读取", saved.endswith(b'\xff\xd9'))
             browser.close()
     except Exception as exc:  # noqa: BLE001
         results.append(("执行出错", False, repr(exc)[:400]))

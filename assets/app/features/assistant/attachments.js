@@ -23,6 +23,11 @@ function loadImage(dataUrl) {
   });
 }
 
+async function jpegHasEndMarker(file) {
+  const tail = new Uint8Array(await file.slice(-2).arrayBuffer());
+  return tail.length === 2 && tail[0] === 0xff && tail[1] === 0xd9;
+}
+
 export async function prepareImageFile(file) {
   if (!file || !TYPES.has(file.type)) throw new Error('只支持 PNG、JPEG 或 GIF 图片');
   if (file.size > MAX_IMAGE_BYTES) throw new Error('图片超过 8MB，已忽略');
@@ -31,14 +36,16 @@ export async function prepareImageFile(file) {
   const width = image.naturalWidth || image.width;
   const height = image.naturalHeight || image.height;
   if (!width || !height) throw new Error('无法读取图片尺寸');
-  if (Math.max(width, height) <= MAX_IMAGE_EDGE) return { dataUrl: original, width, height, type: file.type };
-  const scale = MAX_IMAGE_EDGE / Math.max(width, height);
+  const edge = Math.max(width, height);
+  const incompleteJpeg = file.type === 'image/jpeg' && !await jpegHasEndMarker(file);
+  if (edge <= MAX_IMAGE_EDGE && !incompleteJpeg) return { dataUrl: original, width, height, type: file.type };
+  const scale = Math.min(1, MAX_IMAGE_EDGE / edge);
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(width * scale));
   canvas.height = Math.max(1, Math.round(height * scale));
   canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
   const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-  if ((dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75 > MAX_IMAGE_BYTES) throw new Error('缩放后的图片仍超过 8MB，已忽略');
+  if ((dataUrl.length - dataUrl.indexOf(',') - 1) * 0.75 > MAX_IMAGE_BYTES) throw new Error('处理后的图片仍超过 8MB，已忽略');
   return { dataUrl, width: canvas.width, height: canvas.height, type: 'image/jpeg' };
 }
 

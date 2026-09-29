@@ -11,7 +11,7 @@
 
 文件在 `错题/.omrs/drafts/`：drafts.db 保存草稿、块、来源和入库操作，images/<sha256>.<ext> 保存聊天原图，events.jsonl 追加事件。草稿不会自动进入收件箱或题库；只有通过才调用创建题目的领域入口。
 
-images 以 sha256 去重，保存 mime / width / height / bytes、转述缓存与训练预留字段；conv_images 按 conversation_id + n 将每张图映射为 IMG-n。同一对话重复贴同图沿用编号。图片支持 PNG/JPEG/GIF，单张解码后不超过 8MB；尺寸由现有图片头解析器读取。
+images 以 sha256 去重，保存 mime / width / height / bytes、转述缓存与训练预留字段；conv_images 按 conversation_id + n 将每张图映射为 IMG-n。同一对话重复贴同图沿用编号。图片支持 PNG/JPEG/GIF，单张解码后不超过 8MB；尺寸由现有图片头解析器读取。缺少 JPEG 结束标记时，入库前补上标记再计算 hash；读取旧图生成 data URL 时也会临时补上，旧文件不改写。其他图片字节不变。
 
 `drafts` 含 id、四态 status、conversation_id/run_id/tool_call_id、科目分类、知识点、难度、标记、错因及原话、备注、入库 uid/question_id、时间和整数 revision；老库增量加列，revision 初始 1。`blocks` 含稳定 id、section（题目/答案）、ord、kind（text/image）、text/image_sha、归一化 box、box_origin、ai_box、note。
 

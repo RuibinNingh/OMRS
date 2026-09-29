@@ -11,6 +11,7 @@
 - [2026-09-29_box-service-control](2026-09-29_box-service-control.md)：受管检测服务与模型操作
 - [2026-09-29_box-detect](2026-09-29_box-detect.md)：本地框选训练与训练面板
 - [2026-09-29_box-content-audit](2026-09-29_box-content-audit.md)：# 框选内容验收与评测复核
+- [2026-09-29_assistant-jpeg-upload](2026-09-29_assistant-jpeg-upload.md)：助手手机 JPEG 上传修复
 - [2026-09-29_ai-thinking-setting](2026-09-29_ai-thinking-setting.md)：AI 识图思考开关
 - [2026-09-29_ai-draft-v130-deploy](2026-09-29_ai-draft-v130-deploy.md)：# AI 草稿 v1.30.0 合入 main 与生产发布
 - [2026-09-29_ai-draft-p4](2026-09-29_ai-draft-p4.md)：# AI 草稿 P4：自动框选与独立训练任务

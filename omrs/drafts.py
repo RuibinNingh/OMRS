@@ -38,6 +38,14 @@ _MIME_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif"}
 _DATA_URL_RE = re.compile(r"^data:image/(png|jpeg|gif);base64,(.+)$", re.DOTALL)
 _IMG_REF_RE = re.compile(r"^IMG-(\d+)$")
 _MAX_IMAGE_BYTES = 8 * 1024 * 1024
+_JPEG_EOI = b"\xff\xd9"
+
+
+def _complete_jpeg(mime, data):
+    """补全手机导出 JPEG 偶尔缺失的结束标记；不改动其他图片字节。"""
+    if mime == "image/jpeg" and data.startswith(b"\xff\xd8") and not data.endswith(_JPEG_EOI):
+        return data + _JPEG_EOI
+    return data
 
 
 class DraftError(ValueError):
@@ -193,6 +201,9 @@ def _decode_image_data_url(data_url):
         mime, width, height = image_size(data)
     except ValueError:
         raise ValueError("无法识别图片尺寸，可能不是有效的 PNG / JPEG / GIF")
+    data = _complete_jpeg(mime, data)
+    if len(data) > _MAX_IMAGE_BYTES:
+        raise ValueError(f"图片超过 {_MAX_IMAGE_BYTES // (1024 * 1024)}MB 限制")
     return mime, width, height, data
 
 
@@ -296,7 +307,7 @@ def image_data_url(vault, sha):
     path = image_path(vault, sha)
     with open(path, "rb") as file:
         data = file.read()
-    return f"data:{row['mime']};base64," + base64.b64encode(data).decode("ascii")
+    return f"data:{row['mime']};base64," + base64.b64encode(_complete_jpeg(row['mime'], data)).decode("ascii")
 
 
 def get_transcript(vault, sha, model):

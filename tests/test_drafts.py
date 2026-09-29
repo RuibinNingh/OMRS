@@ -3,6 +3,7 @@ import base64
 import http.client
 import json
 import os
+from pathlib import Path
 import socketserver
 import struct
 import tempfile
@@ -69,6 +70,24 @@ class ImageValidationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as vault:
             with self.assertRaisesRegex(ValueError, "无法识别图片尺寸"):
                 drafts.add_image(vault, data_url(b"not-a-real-image"), "conv1", "run1")
+
+    def test_jpeg_missing_end_marker_is_completed_for_new_and_old_images(self):
+        sof = (b"\xff\xc0" + struct.pack(">H", 17) + b"\x08" + struct.pack(">HH", 12, 10)
+               + b"\x03" + b"\x00" * 9)
+        incomplete = b"\xff\xd8\xff\xe0\x00\x04\x00\x00" + sof
+        complete = incomplete + b"\xff\xd9"
+        with tempfile.TemporaryDirectory() as vault:
+            added = drafts.add_image(vault, data_url(incomplete, "image/jpeg"), "conv1", "run1")
+            self.assertEqual((added["mime"], added["width"], added["height"]), ("image/jpeg", 10, 12))
+            self.assertEqual(Path(drafts.image_path(vault, added["sha256"])).read_bytes(), complete)
+            self.assertEqual(base64.b64decode(drafts.image_data_url(vault, added["sha256"]).split(",", 1)[1]), complete)
+            same = drafts.add_image(vault, data_url(complete, "image/jpeg"), "conv1", "run2")
+            self.assertEqual(same["ref"], added["ref"])
+            # 旧版本已保存的缺尾图片在发给模型时也要补全，原件保持不变。
+            with open(drafts.image_path(vault, added["sha256"]), "wb") as file:
+                file.write(incomplete)
+            self.assertEqual(base64.b64decode(drafts.image_data_url(vault, added["sha256"]).split(",", 1)[1]), complete)
+            self.assertEqual(Path(drafts.image_path(vault, added["sha256"])).read_bytes(), incomplete)
 
 
 class DedupeAndNumberingTests(unittest.TestCase):
