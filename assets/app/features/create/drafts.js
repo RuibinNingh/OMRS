@@ -16,6 +16,7 @@ import { paintDraftCrops } from './drafts-canvas.js';
 import { createDraftCanvasControl } from './drafts-canvas-ctl.js';
 import { createDraftJobPolling } from './drafts-job.js';
 import { createDraftImageActions } from './drafts-image-actions.js';
+import { previewDraftSource } from './drafts-preview.js';
 
 let nextLocalBlock = 0;
 const responseError = result => result.error?.message || result.data?.msg || '请求失败';
@@ -386,7 +387,7 @@ export function createDrafts(root, ctx) {
   root.ownerDocument.defaultView.addEventListener('beforeunload', beforeUnload);
   return { state, paint, enter, open, navigate, toggleQueue, toggleSource, reviewTab, editBlock, editFields, guard, filter, reload, reloadDetail, field,
     openLabels,
-    sourceAdd, sourceRemove, addBlock, removeBlock, move, whole, canvasImage: canvas.image, canvasMode: canvas.mode, canvasBlock: canvas.selectBlock,
+    sourceAdd, sourceRemove, previewSource: sha => previewDraftSource(state, sha), addBlock, removeBlock, move, whole, canvasImage: canvas.image, canvasMode: canvas.mode, canvasBlock: canvas.selectBlock,
     drawSection: canvas.section, clearBox: canvas.clearBox, trainingSection: canvas.trainingSection, trainingRemove: canvas.trainingRemove,
     trainToggle: images.trainToggle, extract: images.extract, detect: images.detect, acceptCandidate: images.acceptCandidate, retryTraining, cleanup,
     save, commit, discard, openQuestion,

@@ -80,7 +80,7 @@ test('草稿视图显示原图、只读完成态及来源不完整提示，文�
   assert.match(markup, /查看题目/);
   assert.match(markup, /&lt;script&gt;/);
   assert.doesNotMatch(markup, /data-action="create\.draftCommit"|onclick=|style=/);
-  assert.match(markup, /打开来源截图/);
+  assert.match(markup, /预览来源截图/);
   const unavailable = draftsView({ list: [draft], listLoaded: true, filter: 'done', selectedId: draft.id,
     counts: { cropping: 0, review: 0 }, draft: { ...draft, question_available: false }, value: editValue(draft), detailLoaded: true }).text;
   assert.match(unavailable, /题目当前不可用/);

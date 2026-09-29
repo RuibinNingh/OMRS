@@ -32,6 +32,10 @@ export const MENU_ITEMS = [
 ];
 
 export const SECTIONS_B = [
+  { id: 'image-viewer', title: '图片预览 Image Viewer', desc: '待发送、历史和草稿来源图共用站内预览；支持缩放、切图、下载、返回键与关闭后焦点恢复。', demos: [['image-viewer', '打开图片预览']], cells: [
+    cell('默认 · 多图', html`<div class="gl-static gl-row"><img src="/assets/app/omrs-icon.svg" alt="示例图片" width="72" height="72">${button({ label: '预览两张图片', action: 'demo.image-viewer' })}</div>`),
+    cell('溢出 · 长图名', html`<div class="gl-static">缩放后图片保留原分辨率，可在浮层内滚动查看；新标签打开为次级操作。</div>`),
+  ] },
   { id: 'dialog', title: '对话框 Dialog', desc: '<dialog>.showModal() 进顶层：焦点陷阱、Esc 与遮罩关闭、Enter 确认、关闭后焦点回到触发元素、锁定背景滚动。旧 uiDialog / uiPrompt / uiConfirm 已转调这里。', demos: [['dialog', '打开对话框'], ['confirm', '危险确认'], ['prompt', '输入框'], ['long', '长内容']], cells: [
     cell('默认（带表单）', panel({ title: '重命名分组', hint: '只影响展示板里的显示名称。', body: field({ label: '分组名称', id: 'gd-s1', control: input({ id: 'gd-s1', value: '第三章 电磁学' }) }), ok: '保存' }), { stage: 'gl-scrim' }),
     cell('危险确认（默认聚焦「取消」）', panel({ title: '删除这个展示板？', hint: '板上的 12 道题不会被删除，只是从板上移走。', ok: '删除', danger: true }), { stage: 'gl-scrim' }),

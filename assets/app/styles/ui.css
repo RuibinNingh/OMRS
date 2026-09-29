@@ -24,6 +24,7 @@
 @import url("../ui/tooltip.css");
 @import url("../ui/kbd.css");
 @import url("../ui/filedrop.css");
+@import url("../ui/image-viewer.css");
 
 
 /* 共享动效关键帧：时长与缓动一律由调用处的 --dur-* / --ease-* 决定，减少动效时这些 token 归零。 */

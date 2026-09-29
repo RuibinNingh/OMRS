@@ -7,7 +7,9 @@
 .ast-composer { position: relative; display: grid; gap: var(--sp-1); width: 100%; max-width: var(--ast-stream-w); margin: 0 auto; padding: var(--sp-2) var(--sp-2) var(--sp-1_5) var(--sp-3); background: var(--surface-0); border: 1px solid var(--border-2); border-radius: var(--r-lg); }
 .ast-composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--focus-ring); }
 .ast-composer.is-busy { border-style: dashed; }
-.ast-attachments { display: flex; flex-wrap: wrap; gap: var(--sp-2); padding-bottom: var(--sp-1); }
+.ast-attachments { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--sp-2); padding: var(--sp-2); overflow-x: auto; }
+.ast-attachment { flex: none; }
+.ast-attachment__pending { flex: none; color: var(--fg-2); font-size: var(--text-xs); }
 .ast-attachment { position: relative; display: grid; justify-items: center; gap: var(--sp-0_5); color: var(--fg-3); font-size: var(--text-2xs); }
 .ast-attachment__preview { display: block; padding: 0; background: transparent; border: 0; cursor: pointer; }
 .ast-attachment__preview img { display: block; width: 4.5rem; height: 4.5rem; object-fit: cover; border: 1px solid var(--border-1); border-radius: var(--r-sm); }
@@ -16,6 +18,7 @@
 .ast-cbar > .ui-btn--icon { flex: none; }
 .ast-input { field-sizing: content; box-sizing: border-box; width: 100%; min-height: var(--ctl-sm); max-height: 12rem; padding: var(--sp-1) 0; color: var(--fg-1); background: transparent; border: 0; outline: none; resize: none; font: inherit; font-size: var(--text-sm); line-height: var(--leading-read); }
 .ast-input::placeholder { color: var(--fg-3); }
+.ast-input.is-expanded { max-height: 70dvh; }
 .ast-cbar { display: flex; align-items: center; gap: var(--sp-2); }
 .ast-cbar__sp { flex: 1; min-width: 0; overflow: hidden; color: var(--fg-3); font-size: var(--text-2xs); white-space: nowrap; text-overflow: ellipsis; }
 .ast-meter { display: inline-flex; align-items: center; gap: var(--sp-1); min-height: var(--ctl-sm); padding: 0 var(--sp-1); color: var(--fg-3); background: transparent; border: 0; border-radius: var(--r-sm); cursor: pointer; font: inherit; font-size: var(--text-2xs); font-variant-numeric: tabular-nums; }
@@ -124,6 +127,13 @@
   .ast-ov { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ast-cols, .ast-diff { grid-template-columns: minmax(0, 1fr); }
   .ast-dock { padding: var(--sp-1_5) var(--sp-2) var(--sp-2); }
+  .ast-composer { padding: var(--sp-1) var(--sp-2); }
+  .ast-input { min-height: 0; }
+  .ast-cbar__sp, .ast-meter span { display: none; }
+  .ast-meter { margin-left: auto; }
+  .ast-cbar .ui-btn { min-width: 44px; min-height: 44px; }
+  .ast-cbar .ast-meter, .ast-attachment__remove { min-width: 44px; min-height: 44px; }
+  .ast-attachment__preview img { width: var(--ctl-lg); height: var(--ctl-lg); }
   .ast-sugs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .ast-sug { flex: none; }
 }

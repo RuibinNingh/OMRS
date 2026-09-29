@@ -8,6 +8,8 @@
 .ast-turn__live { color: var(--accent); font-variant-numeric: tabular-nums; }
 .ast-turn.is-selected .ast-turn__who { color: var(--accent); }
 .ast-trace { position: relative; display: grid; gap: var(--sp-2); padding-left: var(--ast-trace-pad); }
+.ast-trace__toggle { justify-self: start; padding: var(--sp-1) var(--sp-2); color: var(--fg-2); background: var(--surface-2); border: 1px solid var(--border-1); border-radius: var(--r-sm); cursor: pointer; font: inherit; font-size: var(--text-xs); }
+.ast-trace__toggle:focus-visible { outline: 2px solid var(--focus-ring); }
 .ast-trace::before { position: absolute; top: var(--sp-1); bottom: var(--sp-1); left: var(--ast-rail-line); width: 1px; background: var(--border-1); content: ""; }
 .ast-node { position: relative; min-width: 0; }
 .ast-node::after { position: absolute; top: var(--sp-2); left: calc(var(--ast-trace-pad) * -1 + var(--ast-rail-line) - 3px); z-index: 1; width: 7px; height: 7px; background: var(--surface-1); border: 1.5px solid var(--fg-3); border-radius: 50%; box-sizing: border-box; content: ""; }

@@ -122,24 +122,29 @@ function footView(run) {
 export function turnView(S, run, perfNow) {
   const live = run.status !== 'done';
   const now = runNow(run, perfNow);
+  const quietTools = run.steps.filter(st => st.kind === 'tool' && st.level === 'read' && st.status === 'done');
+  const hidden = quietTools.length > 3 && !S.traceOpen?.has(run.id);
+  const steps = hidden ? run.steps.filter(st => !quietTools.includes(st)) : run.steps;
   const body = html`<header class="ast-turn__head"><span class="ast-turn__who">${icon('sparkle')}助手</span><span class="ast-turn__model">${run.model}</span>
       <span class="ast-turn__time">${hhmm(run.startedAt)}</span>${live ? html`<span class="ast-turn__live" role="status">${run.status === 'waiting' ? '等你确认' : run.aborting ? '正在中止…' : `运行中 ${fmtS(now)}`}</span>` : ''}</header>
-    <div class="ast-trace">${each(run.steps, st => st.id, st => stepView(S, run, st, now))}${live ? '' : html`<div class="ast-node ast-node--end" data-key="end">${footView(run)}</div>`}</div>`;
+    <div class="ast-trace">${quietTools.length > 3 ? html`<button type="button" class="ast-trace__toggle" data-action="assistant.toggleTrace" data-arg="${run.id}" aria-expanded="${hidden ? 'false' : 'true'}">${hidden ? `展开 ${quietTools.length} 项查询轨迹` : '收起查询轨迹'}</button>` : ''}${each(steps, st => st.id, st => stepView(S, run, st, now))}${live ? '' : html`<div class="ast-node ast-node--end" data-key="end">${footView(run)}</div>`}</div>`;
   return html`<article class="${cls('ast-turn', live && 'is-live', run.reverted && 'is-undone', S.runSel === run.id && 'is-selected')}" data-key="run-${run.id}" ${live ? '' : raw(`data-hash="${run.id}:${run.ver}:${S.uiVer}:${S.draftVer || 0}:${S.runSel === run.id ? 1 : 0}"`)}>${body}</article>`;
 }
 
-export function userView(item, i) {
+export function userView(item, i, S = {}) {
   const images = item.images || [];
-  return html`<div class="ast-user" data-key="u-${i}" data-hash="u${i}:${item.text.length}:${images.map(image => image.sha || image.ref).join(',')}"><span class="ast-user__m">你 · ${hhmm(item.at)}</span>
-    ${images.length ? html`<div class="ast-user__images">${images.map((image, n) => html`<a class="ast-image" href="${imageSrc(image)}" target="_blank" rel="noreferrer" title="查看 ${image.ref || `IMG-${n + 1}`} 大图"><img src="${imageSrc(image)}" alt="${image.ref || `IMG-${n + 1}`}" loading="lazy"><span>${image.ref || `IMG-${n + 1}`}</span></a>`)}</div>` : ''}
-    ${item.text ? html`<div class="ast-user__b">${item.text}</div>` : ''}</div>`;
+  const long = item.text?.length > 360;
+  const expanded = S.longOpen?.has(i);
+  return html`<div class="ast-user" data-key="u-${i}" data-hash="u${i}:${item.text?.length || 0}:${images.map(image => image.sha || image.ref).join(',')}:${expanded ? 1 : 0}"><span class="ast-user__m">你 · ${hhmm(item.at)}</span>
+    ${images.length ? html`<div class="ast-user__images">${images.map((image, n) => html`<button type="button" class="ast-image" data-action="assistant.openSentImage" data-arg="${i}|${n}" aria-label="预览 ${image.ref || `IMG-${n + 1}`}"><img src="${imageSrc(image)}" alt="${image.ref || `IMG-${n + 1}`}" loading="lazy"><span>${image.ref || `IMG-${n + 1}`}</span></button>`)}</div>` : ''}
+    ${item.text ? html`<div class="ast-user__b${long && !expanded ? ' is-clamped' : ''}">${item.text}</div>${long ? html`<button type="button" class="ast-user__expand" data-action="assistant.toggleLong" data-arg="${i}" aria-expanded="${expanded ? 'true' : 'false'}">${expanded ? '收起' : '展开全文'}</button>` : ''}` : ''}</div>`;
 }
 
 export function streamView(S, perfNow) {
   if (!S.status?.enabled) return offView(S);
   if (!S.items.length) return emptyView(S);
   return each(S.items, (it, i) => (it.type === 'user' ? `u-${i}` : `run-${it.run.id}`),
-    (it, i) => (it.type === 'user' ? userView(it, i) : turnView(S, it.run, perfNow)));
+    (it, i) => (it.type === 'user' ? userView(it, i, S) : turnView(S, it.run, perfNow)));
 }
 
 function offView(S) {
@@ -171,21 +176,22 @@ export function dockView(S, perfNow) {
   const used = ctxUsed(run || S.lastRun) || 0;
   const ratio = Math.min(1, used / win);
   const circ = 2 * Math.PI * 9;
-  const sugs = !busy && S.convId !== null && st.enabled ? Object.entries(S.sugs) : [];
+  const sugs = !busy && !S.composing && !S.inputActive && !S.inputValue && !(S.items || []).length && st.enabled ? Object.entries(S.sugs) : [];
   const disabled = !st.enabled || !st.configured;
   return html`${sugs.length ? html`<div class="ast-sugs" data-key="sugs">${sugs.map(([k, s]) => html`<button type="button" class="ast-sug" data-action="assistant.sug" data-arg="${k}">${icon(s.icon)}${s.label}</button>`)}</div>` : ''}
     <div class="${cls('ast-composer', busy && 'is-busy')}" data-key="composer">
-      ${S.attachments.length ? html`<div class="ast-attachments" aria-label="待发送图片">${S.attachments.map((image, i) => html`<div class="ast-attachment" data-key="attachment-${i}"><button type="button" class="ast-attachment__preview" data-action="assistant.openImage" data-image-url="${image.dataUrl}" aria-label="查看待发送图片 ${i + 1} 大图"><img src="${image.dataUrl}" alt="待发送图片 ${i + 1}"></button><span>图片 ${i + 1}</span><button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm ast-attachment__remove" data-action="assistant.removeImage" data-arg="${i}" aria-label="删除图片 ${i + 1}">${icon('x')}</button></div>`)}</div>` : ''}
-      <textarea id="ast-input" class="ast-input" rows="1" maxlength="4000" placeholder="${busy ? '插话：下一轮模型请求前送达' : '问点什么，Enter 发送，Shift+Enter 换行'}" aria-label="给助手的消息" ${disabled ? 'disabled' : ''}></textarea>
+      ${S.attachments.length || S.pendingFiles ? html`<div class="ast-attachments" aria-label="待发送图片">${S.attachments.map((image, i) => html`<div class="ast-attachment" data-key="attachment-${i}"><button type="button" class="ast-attachment__preview" data-action="assistant.openImage" data-arg="${i}" aria-label="查看待发送图片 ${i + 1} 大图"><img src="${image.dataUrl}" alt="待发送图片 ${i + 1}"></button><span>图片 ${i + 1}</span><button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm ast-attachment__remove" data-action="assistant.removeImage" data-arg="${i}" aria-label="删除图片 ${i + 1}">${icon('x')}</button></div>`)}${S.pendingFiles ? html`<span class="ast-attachment__pending" role="status">正在处理 ${S.pendingFiles} 张图片…</span>` : ''}<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.clearImages">清空</button></div>` : ''}
+      <textarea id="ast-input" class="ast-input${S.editorOpen ? ' is-expanded' : ''}" rows="1" maxlength="4000" placeholder="${busy ? '插话：下一轮模型请求前送达' : '问点什么'}" aria-label="给助手的消息" ${disabled ? 'disabled' : ''}></textarea>
       <div class="ast-cbar">
         <input id="ast-image-picker" type="file" accept="image/png,image/jpeg,image/gif" multiple hidden data-change="assistant.pickImages">
         <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" data-action="assistant.pickImages" aria-label="添加图片" title="添加图片" ${disabled ? 'disabled' : ''}>${icon('paperclip')}</button>
+        <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ast-editor-toggle" data-action="assistant.toggleEditor" aria-label="${S.editorOpen ? '收起编辑区' : '展开编辑区'}" aria-pressed="${S.editorOpen ? 'true' : 'false'}">${S.editorOpen ? '收起' : '展开'}</button>
         <button type="button" class="ast-meter" data-action="assistant.pop" aria-expanded="${S.popOpen ? 'true' : 'false'}" aria-label="上下文用量 ${Math.round(ratio * 100)}%">
           <svg class="${cls('ast-ring', ratio > 0.8 && 'is-warn')}" viewBox="0 0 24 24" aria-hidden="true"><circle class="t" cx="12" cy="12" r="9"/><circle class="v" cx="12" cy="12" r="9" stroke-dasharray="${(circ * ratio).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 12 12)"/></svg>
           <span>${fmtK(used)} / ${fmtK(win)}</span></button>
         <span class="ast-cbar__sp">${busy ? html`<span class="ast-model">${fmtS(runNow(run, perfNow))} · ${Math.round(avgTps(run))} tok/s</span>` : `${S.msgs} / ${st.msg_cap || 60} 条消息`}</span>
         ${busy ? html`<button type="button" class="ui-btn ui-btn--sm ast-stop" data-action="assistant.stop">${icon('stop')}停止</button>` : ''}
-        <button type="button" class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon ast-send" data-action="assistant.send" aria-label="${busy ? '插话' : '发送'}" ${disabled ? 'disabled' : ''}>${icon('arrow-up')}</button>
+        <button type="button" class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon ast-send" data-action="assistant.send" aria-label="${busy ? '插话' : '发送'}" ${disabled || S.pendingFiles ? 'disabled' : ''}>${icon('arrow-up')}</button>
       </div>
       ${S.popOpen ? popView(S, run || S.lastRun, used, win) : ''}
     </div>`;

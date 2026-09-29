@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applyEvent, newRun, runFrom, ctxUsed, dayGroup, tokOf, fmtS, REASON } from '../../assets/app/features/assistant/state.js';
 import { renderMd, renderInline, plainOf } from '../../assets/app/features/assistant/md.js';
-import { dockView, userView } from '../../assets/app/features/assistant/view.js';
+import { dockView, userView, turnView } from '../../assets/app/features/assistant/view.js';
 import { confirmOf, toolPreview } from '../../assets/app/features/assistant/tools-view.js';
 import { detectCardState } from '../../assets/app/features/assistant/draft-cards.js';
 import { normalizeJpegBytes } from '../../assets/app/features/assistant/attachments.js';
@@ -137,6 +137,22 @@ test('附图输入与草稿结果显示图片编号、删除入口和草稿状�
     { draft: { id: 'DR-1', status: 'done', subject: '数学', category: '函数', blocks: [{ section: '题目', kind: 'text', text: '已入库' }] } }));
   assert.match(changed, /已入库/);
   assert.match(changed, /已入库.*查看草稿/s);
+});
+
+test('长用户消息保留原文，长查询轨迹默认折叠且可展开', () => {
+  const text = '完整消息'.repeat(100);
+  const state = { longOpen: new Set(), traceOpen: new Set(), open: new Set(), closed: new Set(), drafts: {}, runSel: null, uiVer: 0 };
+  const user = String(userView({ text, at: '2026-09-29T10:00:00Z', images: [] }, 0, state));
+  assert.match(user, /展开全文/);
+  assert.match(user, /完整消息/);
+  const run = newRun({ id: 'r-1', status: 'done' });
+  run.steps = Array.from({ length: 4 }, (_, index) => ({ kind: 'tool', id: `t-${index}`, name: 'search_questions', level: 'read', status: 'done', result: {} }));
+  run.steps.push({ kind: 'text', id: 'answer', src: '最终回答', live: false });
+  const compact = String(turnView(state, run, 0));
+  assert.match(compact, /展开 4 项查询轨迹/);
+  assert.match(compact, /最终回答/);
+  state.traceOpen.add(run.id);
+  assert.match(String(turnView(state, run, 0)), /收起查询轨迹/);
 });
 
 test('入库确认展示当前版本的正文、来源图与错因', () => {

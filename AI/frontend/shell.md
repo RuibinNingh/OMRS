@@ -42,6 +42,7 @@ assets/
 - 折叠：侧栏按钮的 `data-action="app.collapse"` 更新 `<html data-sidebar>` 和 localStorage，侧栏收成 58px 图标栏；折叠时外壳给导航项挂 `data-tooltip`，悬停显示页面名。
 - 顶栏：标题是 `<h1 id="topbar-title">`，由外壳按页面登记写入，同时写 `document.title`。顶栏的全局「录入题目」按钮走 `app.create`。各页的「重新扫描」按钮走 `app.scan`：外壳调用 `domain/scan.js::scanVault()`，期间相关按钮置忙；在目录页扫描成功时发 `catalog:refresh`，使目录控制器重读磁盘树。
 - 手机（≤760px）：侧栏变左侧抽屉（汉堡按钮打开，遮罩或 Esc 关闭，切页后自动关闭）；顶栏的「录入题目」只留 40×40 图标（文字对读屏保留），标题占满剩余宽度、过长时省略，不再被按钮挤压。
+- 助手手机模式在挂载期给 `.content` 加 `is-assistant`，由助手头部的一行按钮打开同一个主导航抽屉；外壳的重复顶栏隐藏，卸载时恢复。其页面高度与输入框增长由助手控制器按可见视口调整，具体见 `AI/frontend/assistant.md`。
 
 ## 整屏工作台布局（`.is-workbench`）
 

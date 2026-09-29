@@ -2,9 +2,9 @@
 
 > **速查**
 > - 职责：`#/assistant` 页面——对话列表、附图消息、运行轨迹、草稿卡片、确认与撤销、检查器、上下文用量
-> - 入口：`assets/app/features/assistant/index.js`（页面契约与控制器）、`attachments.js`（图片校验与缩放）、`state.js`（事件归约）、`view.js` / `insp-view.js` / `tools-view.js`（视图）
+> - 入口：`assets/app/features/assistant/index.js`（页面契约与控制器）、`attachments.js`（图片校验与缩放）、`interactions.js`（输入和拖放）、`mobile-layout.js`（可见视口）、`state.js`（事件归约）、`view.js` / `insp-view.js` / `tools-view.js`（视图）
 > - 不变量：模板不写 `style=`，条形、瀑布、火花线、用量环一律 SVG 属性；已结束的运行带 `data-hash` 整棵跳过 morph；「允许」只由用户点按钮发出
-> - 必跑测试：`tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_race.py`
+> - 必跑测试：`tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_p3.py`、`tests/e2e/assistant_race.py`
 > - 相关：`AI/agent.md`（接口、事件、权限）、`AI/frontend/settings.md`（AI 助手分区）、`AI/frontend/design-system.md`
 
 ## 结构
@@ -19,7 +19,9 @@
 
 ## 交互
 
-发送：Enter 发送、Shift+Enter 换行；运行中再发纯文字即插话（虚线框提示，下一轮前送达）。输入区支持粘贴、拖入、回形针按钮选择 PNG / JPEG / GIF 图片，最多 6 张；超过 8MB 的原图忽略，长边超过 4096 的图经 canvas 等比缩成 JPEG 0.9；JPEG 按标记段定位主图结尾，清除其后的相册数据、缺尾时补标记；尺寸未超限时直接保留原编码，不经过 canvas。缩略图可单张删除；有图时请求增加 `images:[dataURL…]`，纯文字仍只发 `conversation_id` 与 `text`。发送失败保留文字和图片；关视觉模式而转述模型未配置时发送前提示。消息气泡显示服务端返回的 `IMG-n` 缩略图与编号，点击在新标签打开 `/api/drafts/image?sha=…` 图片。
+发送：桌面 Enter 发送、Shift+Enter 换行；手机 Enter 换行、点发送按钮提交；输入法组合中及结束后的短时间内 Enter 不发送。运行中再发纯文字即插话（虚线框提示，下一轮前送达）。聊天主面板和输入区都接受文件拖放，统一遮罩只响应文件类型；粘贴与回形针按钮也可加 PNG / JPEG / GIF，PDF/TXT 明确提示不支持。最多 6 张，每张最多 8MB，长边超过 4096 的图经 canvas 等比缩成 JPEG 0.9；JPEG 清除主图后的相册数据，缺尾时补标记。处理中的图片计入数量限制并禁用发送；切换会话、清空附件、离开页面会使迟到读取失效，切换成功时再次清空切换期间拖入的图片。有图时请求增加 `images:[dataURL…]`，纯文字仍只发 `conversation_id` 与 `text`。发送失败保留文字和图片；转述模型未配置时发送前提示。待发送图与历史 `IMG-n` 图片都走 `ui/image-viewer` 站内预览；历史图从 `/api/drafts/image?sha=…` 读取，不重新上传。
+
+手机聊天模式隐藏外壳重复顶栏，由助手头部一行保留主导航、对话列表、标题、新对话与运行详情。消息区独立滚动，输入区按 VisualViewport 的可见高度落在软键盘上方；页面缩放时不作键盘补偿。空输入一行，通常最多增长至四行并内部滚动，可显式展开编辑；附件横向滚动，用量收在环形入口。快捷建议只在空对话、未输入且未聚焦时出现。长用户消息默认折叠，可展开全文，DOM 中仍保留原文供复制；一次运行若完成的只读查询超过三项，查询轨迹收成入口，回答、待确认操作和写入卡仍直接展示。浏览器返回键关闭图片预览，Esc 与关闭按钮也可关闭并把焦点还给触发元素。
 
 `create_draft` 工具完成后自动展开结果卡片，显示草稿编号、科目 / 分类、题目前 60 字、文字或图片块类型及「待审核 / 待框选」状态；卡片有「查看草稿」，通过 domain/drafts 先保存目标再切录入页。卡片用当前草稿详情叠加历史结果，响应变更与窗口聚焦刷新，变更时使已结束运行的 data-hash 失效；读取失败保留重试入口。草稿不进 Ledger，所以不在按运行撤销列表中。停止：`/api/agent/abort`。确认：工具行下出现内联确认卡（将写入的内容、倒计时、拒绝 / 查看并决定），「查看并决定」打开对话框展示服务端 `preview`（改前改后、预计熟练度），底部拒绝 / 允许；关闭对话框不做决定。撤销：运行页脚「撤销这次写入」先取 dry-run 计划，有冲突时对话框只列冲突。引用芯片：正文与预览里的题目 UID 变成按钮（圆点按到期 / 顽固 / 停用着色），点开走 `domain/question` 的题目弹窗；Session 号跳复习调度。运行结束且有 Ledger 写入时刷新题目数据、Session 与题目缓存并提示。
 

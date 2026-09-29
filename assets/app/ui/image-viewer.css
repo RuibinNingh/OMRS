@@ -1,0 +1,14 @@
+.ui-image-viewer { box-sizing: border-box; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: var(--sp-2); color: var(--fg-1); background: var(--surface-0); border: 0; }
+.ui-image-viewer::backdrop { background: var(--scrim); }
+.ui-image-viewer__bar, .ui-image-viewer__actions, .ui-image-viewer__stage { display: flex; align-items: center; gap: var(--sp-2); }
+.ui-image-viewer__bar { justify-content: space-between; min-height: var(--ctl-lg); }
+.ui-image-viewer__actions { flex-wrap: wrap; justify-content: flex-end; }
+.ui-image-viewer__count { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-image-viewer__stage { justify-content: space-between; height: calc(100% - var(--ctl-lg) - var(--sp-2)); overflow: auto; }
+.ui-image-viewer__stage img { display: block; max-width: calc(100% - var(--ctl-lg) * 2 - var(--sp-4)); max-height: 100%; margin: auto; object-fit: contain; }
+.ui-image-viewer.is-zoomed .ui-image-viewer__stage img { max-width: none; max-height: none; }
+@media (max-width: 760px) {
+  .ui-image-viewer__actions .ui-btn { min-width: 44px; min-height: 44px; }
+  .ui-image-viewer__actions .ui-btn:not([data-image-action="close"]) span { display: none; }
+  .ui-image-viewer__stage .ui-btn { min-width: 44px; min-height: 44px; }
+}

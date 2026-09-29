@@ -7,6 +7,7 @@ import { button } from '/assets/app/ui/button.js';
 import { input } from '/assets/app/ui/field.js';
 import { select } from '/assets/app/ui/select.js';
 import { dialog, confirm, prompt } from '/assets/app/ui/dialog.js';
+import { openImageViewer } from '/assets/app/ui/image-viewer.js';
 import { openDrawer } from '/assets/app/ui/drawer.js';
 import { openCount, hostGuest, releaseGuest, guestOpen } from '/assets/app/ui/overlay.js';
 import { toast } from '/assets/app/ui/toast.js';
@@ -111,6 +112,23 @@ test('dialog：模态打开、聚焦首个输入、Enter 确认并按 id 收集�
   eq(result.ok, true);
   eq(result.values['t-name'], '新名字');
   eq(result.values['t-chk'], true);
+});
+
+test('image-viewer：切图、缩放、Esc、焦点与背景滚动锁', async () => {
+  const opener = mount(html`<button type="button">预览图片</button>`);
+  opener.focus();
+  openImageViewer([{ src: '/assets/app/omrs-icon.svg', label: '第一张' }, { src: '/assets/app/omrs-favicon.svg', label: '第二张' }]);
+  const viewer = document.querySelector('dialog.ui-image-viewer');
+  assert(viewer?.open && document.documentElement.classList.contains('ui-scroll-lock'), '应作为模态浮层打开');
+  eq(viewer.querySelector('img').getAttribute('alt'), '第一张');
+  viewer.querySelector('[data-image-action="next"]').click();
+  eq(viewer.querySelector('img').getAttribute('alt'), '第二张');
+  viewer.querySelector('[data-image-action="zoom"]').click();
+  assert(viewer.classList.contains('is-zoomed'), '可缩放');
+  key(document.activeElement, 'Escape');
+  await sleep(360);
+  eq(document.querySelector('dialog.ui-image-viewer'), null, 'Esc 关闭');
+  eq(document.activeElement, opener, '焦点返回触发按钮');
 });
 
 test('dialog：Esc 取消且不外泄给 document；点遮罩取消；关闭后焦点回到触发元素', async () => {

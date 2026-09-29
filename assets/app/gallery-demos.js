@@ -12,10 +12,15 @@ import { switchControl } from './ui/switch.js';
 import { button } from './ui/button.js';
 import { LONG } from './gallery-sections.js';
 import { MENU_ITEMS } from './gallery-sections-2.js';
+import { openImageViewer } from './ui/image-viewer.js';
 
 const done = (ok, text) => toast(ok ? text : '已取消', { kind: ok ? 'ok' : 'info' });
 
 export const DEMOS = {
+  'image-viewer': () => openImageViewer([
+    { src: '/assets/app/omrs-icon.svg', label: '图片一' },
+    { src: '/assets/app/omrs-favicon.svg', label: '图片二' },
+  ]),
   dialog: () => dialog({
     title: '重命名分组', hint: '只影响展示板里的显示名称。', okText: '保存',
     body: field({ label: '分组名称', id: 'gdd-name', control: input({ id: 'gdd-name', value: '第三章 电磁学' }) }),

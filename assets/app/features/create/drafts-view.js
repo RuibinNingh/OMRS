@@ -41,7 +41,7 @@ function sourceView(draft, value, readonly) {
   return html`<section class="drf-sources"><div class="drf-section-head"><h3>来源截图</h3><span>${attached.length} 张</span></div>
     ${draft.sources_complete === false ? html`<p class="drf-hint" role="status">旧草稿的来源未完整恢复，请核对并从本次对话截图补关联。</p>` : ''}
     ${attached.length ? html`<div class="drf-image-grid">${each(attached, image => imageSha(image), image => html`
-      <figure class="drf-source" data-key="${imageSha(image)}"><a href="${imageUrl(imageSha(image))}" target="_blank" rel="noopener" aria-label="打开来源截图 ${image.ref || imageSha(image)?.slice(0, 8)} 原图"><img loading="lazy" src="${imageUrl(imageSha(image))}" alt="来源截图 ${image.ref || imageSha(image)?.slice(0, 8)}"></a>
+      <figure class="drf-source" data-key="${imageSha(image)}"><button type="button" class="drf-source__preview" data-action="create.draftPreviewSource" data-arg="${imageSha(image)}" aria-label="预览来源截图 ${image.ref || imageSha(image)?.slice(0, 8)}"><img loading="lazy" src="${imageUrl(imageSha(image))}" alt="来源截图 ${image.ref || imageSha(image)?.slice(0, 8)}"></button>
         <figcaption>${image.ref || imageSha(image)?.slice(0, 10)} · ${image.width && image.height ? `${image.width}×${image.height}` : '原图'}
         ${(draft.training_tasks || []).some(task => task.image_sha === imageSha(image) && task.force_crop && task.status !== 'registered')
           ? html`<small>独立训练框待核对；不影响题目入库</small>` : ''}

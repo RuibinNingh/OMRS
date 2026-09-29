@@ -10,6 +10,7 @@ import { icon } from '../../ui/icon.js';
 import { toast } from '../../ui/toast.js';
 import { dialog } from '../../ui/dialog.js';
 import { openModal } from '../../ui/overlay.js';
+import { openImageViewer } from '../../ui/image-viewer.js';
 import { itemsNow, reloadData } from '../../domain/data.js';
 import { copyText, refreshSessions } from '../../domain/sessions.js';
 import { invalidateQuestions, viewQ } from '../../domain/question/index.js';
@@ -18,12 +19,12 @@ import { applyEvent, mmss, newRun, runFrom, runNow } from './state.js';
 import { confirmOf, setRefRenderer, toolTitle } from './tools-view.js';
 import { SUGS, dockView, headView, railView, streamView } from './view.js';
 import { inspView } from './insp-view.js';
-import { MAX_ATTACHMENTS, prepareImageFile } from './attachments.js';
+import { MAX_ATTACHMENTS, prepareImageFile, imageSrc } from './attachments.js';
 import { createDraftCards } from './draft-cards.js';
-
+import { bindAssistantInteractions } from './interactions.js';
+import { bindAssistantViewport } from './mobile-layout.js';
 let C = null;
 const today = () => new Date().toISOString().slice(0, 10);
-
 function refRenderer(code) {
   const item = itemsNow().find(i => i.uid === code);
   if (item) {
@@ -34,7 +35,6 @@ function refRenderer(code) {
   if (/^CMT-\d{6}$/.test(code)) return `<span class="ast-ref ast-ref--commit">${escape(code)}</span>`;
   return `<code>${escape(code)}</code>`;
 }
-
 /** 侧栏入口：未启用时隐藏；运行中显示活动点，等确认时显示角标。main.js 启动时调用一次。 */
 export async function syncAssistantNav(doc = document, status) {
   const st = status || (await get('/api/agent/status')).data;
@@ -45,26 +45,28 @@ export async function syncAssistantNav(doc = document, status) {
   tab.classList.toggle('is-live', !!active);
   tab.classList.toggle('is-waiting', active?.status === 'waiting');
 }
-
 function createController(root, { router }) {
   const S = { status: null, convs: [], convId: null, items: [], msgs: 0, attachments: [], imageNo: 1, open: new Set(), closed: new Set(), runSel: null,
     liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false,
-    uiVer: 0, draftVer: 0, draftCropMode: 'manual', drafts: {}, sugs: SUGS, alive: true, convRequest: 0 };
+    uiVer: 0, draftVer: 0, draftCropMode: 'manual', drafts: {}, sugs: SUGS, alive: true, convRequest: 0,
+    attachmentGeneration: 0, pendingFiles: 0, longOpen: new Set(), traceOpen: new Set(), inputValue: '', inputActive: false, composing: false, editorOpen: false };
   morph(root, html`<div class="ast" data-rail="closed" data-insp="closed">
     <div class="ast-scrim" data-action="assistant.closeDrawers"></div>
     <aside class="ast-card ast-rail" id="ast-rail" aria-label="对话列表"></aside>
-    <section class="ast-card ast-main" aria-label="对话"><header class="ast-head" id="ast-head"></header>
+    <section class="ast-card ast-main" aria-label="对话"><header class="ast-head"><button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ast-app-toggle" data-action="app.drawer" aria-label="打开主导航">${icon('menu')}</button><div id="ast-head"></div></header>
       <div class="ast-scroll" id="ast-scroll"><div class="ast-stream" id="ast-stream" aria-live="polite"></div></div>
       <div class="ast-dockwrap"><button type="button" class="ui-btn ui-btn--sm ast-jump" data-action="assistant.jump" hidden>${icon('arrow-down')}回到最新</button>
-      <div class="ast-dock" id="ast-dock"></div></div></section>
+      <div class="ast-dock" id="ast-dock"></div></div><div class="ast-drop" role="status" aria-live="polite">松开即可添加图片</div></section>
     <aside class="ast-card ast-insp" id="ast-insp" aria-label="运行详情"></aside></div>`);
   const $ = id => root.querySelector('#' + id);
   const shell = root.querySelector('.ast');
   const scroller = $('ast-scroll');
+  const main = root.querySelector('.ast-main');
+  const content = root.closest('.content');
+  content?.classList.add('is-assistant');
   let frame = 0;
   let ticker = 0;
   setRefRenderer(refRenderer);
-
   function paint() {
     frame = 0;
     if (!S.alive) return;
@@ -78,6 +80,7 @@ function createController(root, { router }) {
     const draft = input ? input.value : '';
     morph($('ast-dock'), dockView(S, now));
     if ($('ast-input') && !$('ast-input').value && draft) $('ast-input').value = draft;
+    sizeInput();
     morph($('ast-insp'), inspView(S, now));
     if (S.stick) scroller.scrollTop = scroller.scrollHeight;
     root.querySelector('.ast-jump').hidden = S.stick || !S.liveRun;
@@ -93,7 +96,8 @@ function createController(root, { router }) {
   scroller.addEventListener('touchmove', onUserScroll, { passive: true });
   scroller.addEventListener('keyup', onUserScroll);
   const bump = () => { S.uiVer += 1; schedule(); };
-
+  const viewport = bindAssistantViewport(shell, () => $('ast-input'), S);
+  const { sizeInput, syncViewport } = viewport;
   function setLive(run) {
     const wasLive = !!S.liveRun;
     S.liveRun = run && run.status !== 'done' ? run : null;
@@ -102,30 +106,33 @@ function createController(root, { router }) {
     if (S.liveRun) ticker = setInterval(schedule, 250);
     syncAssistantNav(document, { ...S.status, active: S.liveRun ? [{ status: S.liveRun.status }] : [] });
   }
-
   async function loadList() {
     const [st, cv] = await Promise.all([get('/api/agent/status'), get('/api/agent/conversations')]);
     if (st.ok) S.status = st.data;
     if (cv.ok) S.convs = cv.data.conversations || [];
     return st.data;
   }
-
   async function load() {
     const [st] = await Promise.all([loadList(), draftCards.loadMode()]);
     const active = st?.active?.[0];
     const target = active?.conversation_id || S.convId || S.convs[0]?.id || null;
     if (target) await openConv(target); else schedule();
   }
-
   async function openConv(id) {
     const request = ++S.convRequest;
+    S.attachmentGeneration += 1;
+    S.pendingFiles = 0;
+    S.longOpen.clear();
+    schedule();
     const res = await get(`/api/agent/conversation?id=${encodeURIComponent(id)}`);
     if (!S.alive || request !== S.convRequest) return;
     if (!res.ok) { toast(res.error?.message || '打开对话失败', { kind: 'error' }); return; }
+    S.attachmentGeneration += 1;
+    S.pendingFiles = 0;
+    S.attachments = [];
     S.convId = id; S.railOpen = false; S.runSel = null; S.popOpen = false; S.stick = true;
     S.msgs = res.data.msgs;
     S.items = res.data.items.map(it => (it.type === 'user' ? it : { type: 'run', run: runFrom(it.run, it.events), live: it.live }));
-    S.attachments = [];
     S.imageNo = 1 + S.items.flatMap(it => it.type === 'user' ? (it.images || []) : []).reduce((n, image) => Math.max(n, Number(String(image.ref || '').replace('IMG-', '')) || 0), 0);
     const runs = S.items.filter(i => i.run).map(i => i.run);
     S.lastRun = runs[runs.length - 1] || null;
@@ -135,7 +142,6 @@ function createController(root, { router }) {
     schedule();
     refreshDrafts();
   }
-
   async function follow(run) {
     if (run.following) return;
     run.following = true;
@@ -159,7 +165,6 @@ function createController(root, { router }) {
     refreshDrafts();
     await finish(run);
   }
-
   async function finish(run) {
     const displayed = () => S.alive && S.convId === run.conversation_id;
     if (displayed() && S.liveRun?.id === run.id) setLive(null);
@@ -175,33 +180,37 @@ function createController(root, { router }) {
     }
     bump();
   }
-
   function notifyAttachment(message) { toast(message, { kind: 'error' }); }
-
   async function addFiles(files) {
     const list = [...(files || [])];
     if (!list.length) return;
-    if (S.attachments.length + list.length > MAX_ATTACHMENTS) {
-      notifyAttachment('一次最多 6 张');
-    }
-    for (const file of list) {
-      if (!S.alive || S.attachments.length >= MAX_ATTACHMENTS) break;
+    const generation = S.attachmentGeneration;
+    const accepted = list.slice(0, Math.max(0, MAX_ATTACHMENTS - S.attachments.length - S.pendingFiles));
+    if (accepted.length !== list.length) notifyAttachment('一次最多 6 张');
+    S.pendingFiles += accepted.length;
+    schedule();
+    for (const file of accepted) {
       try {
         const image = await prepareImageFile(file);
-        S.attachments.push(image);
+        if (S.alive && generation === S.attachmentGeneration) S.attachments.push(image);
       } catch (error) {
-        notifyAttachment(error.message || '图片读取失败');
+        if (S.alive && generation === S.attachmentGeneration) notifyAttachment(error.message || '图片读取失败');
+      } finally {
+        if (S.alive && generation === S.attachmentGeneration) S.pendingFiles -= 1;
       }
     }
     schedule();
   }
-
   async function send(text) {
+    if (S.pendingFiles) { notifyAttachment('请等图片处理完成后发送'); return false; }
     text = String(text || '').trim();
     if (!text && !S.attachments.length) return;
+    const generation = S.attachmentGeneration;
+    const conversation = S.convId;
     const attachments = S.attachments.slice();
     if (attachments.length && !S.status?.faux) {
       const config = await get('/api/config');
+      if (!S.alive || generation !== S.attachmentGeneration || conversation !== S.convId) return false;
       if (!config.ok) { toast('无法检查图片模型配置', { kind: 'error' }); return false; }
       const cfg = config.data || {};
       if (!cfg.agent_vision && (!cfg.ai_base_url || !cfg.ai_api_key_configured || !(cfg.ai_model_extract || cfg.ai_model))) {
@@ -211,15 +220,19 @@ function createController(root, { router }) {
     }
     if (!S.convId) {
       const res = await post('/api/agent/conversation/create', {});
+      if (!S.alive || generation !== S.attachmentGeneration || conversation !== S.convId) return false;
       if (!res.ok) { toast(res.error?.message || '新建对话失败', { kind: 'error' }); return; }
       S.convId = res.data.conversation.id; S.items = []; S.msgs = 0;
     }
     const body = { conversation_id: S.convId, text };
     if (attachments.length) body.images = attachments.map(image => image.dataUrl);
     const res = await post('/api/agent/message', body);
+    if (!S.alive || generation !== S.attachmentGeneration || S.convId !== body.conversation_id) return false;
     if (!res.ok) { toast(res.error?.message || '发送失败', { kind: 'error' }); return false; }
     const input = $('ast-input');
     if (input) input.value = '';
+    S.inputValue = '';
+    S.attachmentGeneration += 1;
     S.attachments = [];
     if (res.data.steered) return true;
     const run = newRun({ id: res.data.run_id, conversation_id: S.convId, model: S.status?.model });
@@ -233,7 +246,7 @@ function createController(root, { router }) {
     follow(run);
     loadList().then(schedule);
     get(`/api/agent/conversation?id=${encodeURIComponent(S.convId)}`).then(detail => {
-      if (!S.alive || !detail.ok) return;
+      if (!S.alive || !detail.ok || S.convId !== run.conv) return;
       const at = (detail.data.items || []).findIndex((it, i, all) => it.type === 'run' && it.run?.id === run.id && all[i - 1]?.type === 'user');
       if (at > 0) {
         sent.images = detail.data.items[at - 1].images || sent.images;
@@ -243,18 +256,15 @@ function createController(root, { router }) {
     });
     return true;
   }
-
   const findStep = arg => {
     const [runId, id] = String(arg).split('|');
     const run = S.items.map(i => i.run).find(r => r && r.id === runId);
     return { run, st: run && (run.byCall.get(id) || run.steps.find(s => s.id === id)) };
   };
-
   async function decide(run, st, how) {
     const res = await post('/api/agent/confirm', { run_id: run.id, call_id: st.callId, token: st.token, decision: how });
     if (!res.ok) toast(res.error?.message || '确认没有送达', { kind: 'error' });
   }
-
   function gate(arg) {
     const { run, st } = findStep(arg);
     if (!run || !st || st.status !== 'waiting') return;
@@ -307,34 +317,13 @@ function createController(root, { router }) {
     });
   }
 
-  const onKey = event => {
-    if (event.target.id !== 'ast-input' || event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
-    event.preventDefault();
-    send(event.target.value);
-  };
-  const onPaste = event => {
-    if (event.target?.id !== 'ast-input') return;
-    const files = [...(event.clipboardData?.items || [])].filter(item => item.kind === 'file' && item.type.startsWith('image/')).map(item => item.getAsFile()).filter(Boolean);
-    if (!files.length) return;
-    event.preventDefault();
-    addFiles(files);
-  };
-  const onDragOver = event => { if (event.target.closest?.('.ast-composer') && [...(event.dataTransfer?.types || [])].includes('Files')) event.preventDefault(); };
-  const onDrop = event => {
-    if (!event.target.closest?.('.ast-composer') || !event.dataTransfer?.files?.length) return;
-    event.preventDefault();
-    addFiles(event.dataTransfer.files);
-  };
-  root.addEventListener('keydown', onKey);
-  root.addEventListener('paste', onPaste);
-  root.addEventListener('dragover', onDragOver);
-  root.addEventListener('drop', onDrop);
+  const unbindInteractions = bindAssistantInteractions(root, main, S, { send, addFiles, sizeInput, syncViewport, schedule });
   const onDoc = event => { if (S.popOpen && !event.target.closest('.ast-pop, .ast-meter')) { S.popOpen = false; schedule(); } };
   document.addEventListener('click', onDoc);
 
   return {
     S, load, schedule, bump, openConv, send, gate, undo,
-    async newConv() { const res = await post('/api/agent/conversation/create', {}); if (res.ok) { S.convs.unshift({ ...res.data.conversation, msgs: 0, writes: 0, snippet: '' }); await openConv(res.data.conversation.id); $('ast-input')?.focus(); } },
+    async newConv() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); const res = await post('/api/agent/conversation/create', {}); if (res.ok && S.alive) { S.convs.unshift({ ...res.data.conversation, msgs: 0, writes: 0, snippet: '' }); await openConv(res.data.conversation.id); $('ast-input')?.focus(); } },
     toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.phase === 'live' || st?.name === 'create_draft' && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
     deny(arg) { const { run, st } = findStep(arg); if (run && st?.status === 'waiting') decide(run, st, 'deny'); },
     async stop() { if (S.liveRun) { const res = await post('/api/agent/abort', { run_id: S.liveRun.id }); if (!res.ok) toast(res.error?.message || '停止失败', { kind: 'error' }); } },
@@ -345,13 +334,18 @@ function createController(root, { router }) {
     jump() { S.stick = true; scroller.scrollTop = scroller.scrollHeight; schedule(); },
     openSession() { router?.go?.('schedule'); },
     removeImage(index) { S.attachments.splice(Number(index), 1); schedule(); },
+    clearImages() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); },
+    toggleLong(index) { const n = Number(index); if (S.longOpen.has(n)) S.longOpen.delete(n); else S.longOpen.add(n); schedule(); },
+    toggleTrace(id) { if (S.traceOpen.has(id)) S.traceOpen.delete(id); else S.traceOpen.add(id); bump(); },
+    toggleEditor() { S.editorOpen = !S.editorOpen; schedule(); },
     pickImages({ event }) { if (event?.type === 'click') { $('ast-image-picker')?.click(); return; } addFiles(event?.target?.files); if (event?.target) event.target.value = ''; },
-    openImage({ el }) { const href = el?.dataset?.imageUrl; if (href) window.open(href, '_blank', 'noopener'); },
+    openImage({ arg }) { openImageViewer(S.attachments.map((image, i) => ({ src: image.dataUrl, label: `待发送图片 ${i + 1}` })), Number(arg)); },
+    openSentImage(arg) { const [message, index] = String(arg).split('|').map(Number); const images = S.items[message]?.images || []; openImageViewer(images.map((image, i) => ({ src: imageSrc(image), label: image.ref || `图片 ${i + 1}` })), index); },
     refreshDrafts,
     detectDraft,
     loadDraftMode: () => draftCards.loadMode(),
     openDraft(id) { navigateToDraft(id); },
-    dispose() { S.alive = false; S.convRequest += 1; setDraftActivity('assistant', false); draftCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); root.removeEventListener('keydown', onKey); root.removeEventListener('paste', onPaste); root.removeEventListener('dragover', onDragOver); root.removeEventListener('drop', onDrop); document.removeEventListener('click', onDoc); },
+    dispose() { S.alive = false; S.convRequest += 1; S.attachmentGeneration += 1; content?.classList.remove('is-assistant'); setDraftActivity('assistant', false); draftCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); viewport.dispose(); unbindInteractions();  document.removeEventListener('click', onDoc); },
     title: toolTitle,
   };
 }
@@ -395,5 +389,10 @@ export const page = {
     removeImage: ({ arg }) => C?.removeImage(arg),
     pickImages: ctx => C?.pickImages(ctx),
     openImage: ctx => C?.openImage(ctx),
+    openSentImage: ({ arg }) => C?.openSentImage(arg),
+    clearImages: () => C?.clearImages(),
+    toggleLong: ({ arg }) => C?.toggleLong(arg),
+    toggleTrace: ({ arg }) => C?.toggleTrace(arg),
+    toggleEditor: () => C?.toggleEditor(),
   },
 };

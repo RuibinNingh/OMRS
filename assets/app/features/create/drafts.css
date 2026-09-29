@@ -42,7 +42,8 @@
 .drf-image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: var(--sp-3); }
 .drf-source { min-width: 0; margin: 0; border: 1px solid var(--border-1); border-radius: var(--r-md); overflow: hidden; background: var(--surface-2); }
 .drf-source img { display: block; width: 100%; height: 150px; object-fit: contain; }
-.drf-source a { display: block; }
+.drf-source__preview { display: block; width: 100%; padding: 0; background: transparent; border: 0; cursor: pointer; }
+.drf-source__preview:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .drf-source figcaption { display: grid; gap: var(--sp-2); padding: var(--sp-2); overflow-wrap: anywhere; color: var(--fg-2); font-size: var(--text-sm); }
 .drf-source-add { padding: var(--sp-3); border: 1px dashed var(--border-2); border-radius: var(--r-md); }
 .drf-source-add label { font-size: var(--text-sm); }

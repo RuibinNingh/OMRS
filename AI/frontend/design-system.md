@@ -14,6 +14,7 @@
 - `assets/app/` 下的一切适用 §5 的零容忍规则。
 - `assets/` 根目录不再新增前端文件，新代码一律进 `assets/app/`（`check_ui.py` 会拦）。
 - 样式分层：`styles/index.css` 声明 `vendor < base < ui < shell < domain < features < utilities`，KaTeX 进 `vendor`。页面样式按职责放进对应层；未分层规则会压过全部分层规则，因此不添加未分层的页面样式。
+- `styles/ui.css` 汇总共享图片预览、对话框和其余 `ui/` 组件样式；助手的可见视口与输入框实测高度通过挂载期 CSSOM 规则更新，卸载时移除规则，页面节点不带运行时行内样式。
 - `domain` 层：共享题目视图 `domain/question/qview.css`（P5 第 4 轮起是 qview 的全部外观，含题目弹窗与 Markdown 编辑器）与标记 `domain/labels/labels.css`（色板、颜色圆点按 `data-lbl-c` 取色）、选板浮层 `domain/board/picker.css`（popover 进顶层，锚定位置由脚本写 `--bpicker-x` / `--bpicker-y`，是它唯一的行内样式）；标记颜色的运行时规则（`domain/labels/sheet.js`）也插在 `@layer domain` 块里。
 - 内嵌题面用 `--surface-sunken`，答案块用 `--success-subtle` / `--success-line`，战绩带用 `--streak-ok` / `--streak-bad`；标记预设色用 `--lbl-preset-1…10`，实色芯片前景用 `--lbl-fg-dark` / `--lbl-fg-light`。`check_contrast.py` 同时检查 `fg-1` / `fg-2` 在 `surface-sunken` 上的对比度。
 - 层次（core → ui → domain → features）与依赖方向由 `check_ui.py` 的 R7 约束。共享题目、标记与选板样式在 `domain` 层；页面样式由 `styles/index.css` 以 `layer(features)` 引入，实际导入清单以该文件为准。

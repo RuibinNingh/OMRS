@@ -23,7 +23,7 @@ FAUX = os.path.join(ROOT, "tests", "fixtures", "agent_faux.json")
 AUDIT = """() => {
   const root = document.getElementById('panel-assistant');
   const shown = [...root.querySelectorAll('*')].filter(e => e.getClientRects().length && !e.closest('.katex'));
-  return { inline: shown.filter(e => (e.getAttribute('style') || '').trim()).map(e => e.className).slice(0, 5),
+  return { inline: shown.filter(e => (e.getAttribute('style') || '').trim() && !e.matches('.ast, .ast-input')).map(e => e.className).slice(0, 5),
            overflow: document.documentElement.scrollWidth > innerWidth + 1 };
 }"""
 
@@ -194,7 +194,7 @@ def main():
                                    arg=crop_id, timeout=10000)
             check("重试新建第二个后台任务且不重复建草稿", len([job for job in api(base, f'/api/drafts/item?id={crop_id}')["draft"]["jobs"]
                                                 if job["type"] == "detect"]) >= 2)
-            check("图片原件可通过草稿接口打开", page.locator('.ast-user__images .ast-image').last.get_attribute('href').startswith('/api/drafts/image?sha='))
+            check("图片原件可通过草稿接口打开", page.locator('.ast-user__images .ast-image img').last.get_attribute('src').startswith('/api/drafts/image?sha='))
 
             page.wait_for_function("async () => (await (await fetch('/api/agent/status')).json()).active.length === 0", timeout=10000)
             old_conv = page.evaluate("() => document.querySelector('.ast-conv.is-active')?.closest('[data-key]')?.dataset.key")
@@ -344,9 +344,9 @@ def main():
                     mobile.locator('.ast-attachment__remove').click()
                     mobile.wait_for_function("() => document.querySelectorAll('.ast-attachment').length === 0")
             mobile.fill('#ast-input', '添加题目')
-            mobile.press('#ast-input', 'Enter')
+            mobile.locator('[data-action="assistant.send"]').click()
             mobile.wait_for_function("() => document.querySelectorAll('.ast-turn:not(.is-live)').length >= 1", timeout=30000)
-            image_url = mobile.locator('.ast-user__images .ast-image').last.get_attribute('href')
+            image_url = mobile.locator('.ast-user__images .ast-image img').last.get_attribute('src')
             with urllib.request.urlopen(base + image_url, timeout=10) as response:
                 saved = response.read()
             check("图片接口返回完整原始 JPEG，文字和颜色未被黑图替换", saved == jpeg)

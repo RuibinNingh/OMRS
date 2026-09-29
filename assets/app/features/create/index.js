@@ -100,6 +100,7 @@ export const page = {
     draftLabels: ({ el }) => parts?.drafts.openLabels(el),
     draftSourceAdd: () => parts?.drafts.sourceAdd(),
     draftSourceRemove: ({ arg }) => parts?.drafts.sourceRemove(arg),
+    draftPreviewSource: ({ arg }) => parts?.drafts.previewSource(arg),
     draftBlockText: ({ arg, el }) => parts?.drafts.blockField(arg, 'text', el.value),
     draftBlockNote: ({ arg, el }) => parts?.drafts.blockField(arg, 'note', el.value),
     draftBlockSection: ({ arg, el }) => parts?.drafts.blockField(arg, 'section', el.value),

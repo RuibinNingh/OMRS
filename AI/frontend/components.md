@@ -49,6 +49,7 @@ assets/app/
 | 卡片 / 统计 | `card({title, subtitle, actions, body, footer, interactive})`、`stat({label, value, unit, delta, trend, size})` | stat 的 lg（40px display）全站只给仪表盘首屏 |
 | 表格 | `table({columns, rows, rowKey, selected, empty, stack})` | 表头固定；悬停 / 选中 / 行内操作三态；stack 在 ≤760px 变卡片列表（D4），表头只留给读屏（1px 裁剪、表头行无内边距，不算作溢出） |
 | 对话框 | `dialog(spec)`、`confirm(title, o)`、`prompt(title, value, o)` | 见 §4 |
+| 图片预览 | `openImageViewer(images, initial)` | 站内模态预览、缩放、切图、下载、新标签次级操作；Esc / 浏览器返回键关闭并恢复焦点 |
 | 抽屉 | `openDrawer({title, body, content, footer, side, onClose})` | 与对话框共用模态底座；窄屏变底部面板 |
 | 菜单 | `openMenu(anchor, items)` → value 或 null | ↑/↓ 跳过禁用项、Esc 还焦点、点外面关闭；锚点在对话框里时挂进对话框 |
 | 通知 | `toast(text, {kind, actions, duration})` | kind：info / ok / warn / error；最多 3 条、同文同类合并、悬停或聚焦时暂停 |
