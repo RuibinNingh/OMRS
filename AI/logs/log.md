@@ -19,6 +19,7 @@
 - [2026-09-29_assistant-jpeg-upload](2026-09-29_assistant-jpeg-upload.md)：助手手机 JPEG 上传修复
 - [2026-09-29_assistant-jpeg-pixels](2026-09-29_assistant-jpeg-pixels.md)：手机 JPEG 上传保持图像内容
 - [2026-09-29_ai-thinking-setting](2026-09-29_ai-thinking-setting.md)：AI 识图思考开关
+- [2026-09-29_ai-draft-whole-question-image](2026-09-29_ai-draft-whole-question-image.md)：AI 草稿完整题目图片
 - [2026-09-29_ai-draft-v130-deploy](2026-09-29_ai-draft-v130-deploy.md)：# AI 草稿 v1.30.0 合入 main 与生产发布
 - [2026-09-29_ai-draft-p4](2026-09-29_ai-draft-p4.md)：# AI 草稿 P4：自动框选与独立训练任务
 - [2026-09-29_ai-draft-p3](2026-09-29_ai-draft-p3.md)：# AI 草稿 P3：手动框选与训练数据登记

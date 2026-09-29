@@ -75,6 +75,26 @@ class DraftToolsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "本对话里没有 IMG-1"):
             tools.create_draft_tool({**self.ctx, "conversation_id": other}, args)
 
+    def test_question_with_untranscribable_graph_keeps_whole_question_image(self):
+        ref = self.img()
+        graph = {"section": "题目", "kind": "image", "image": ref, "note": "完整题目含两幅曲线图"}
+        answer = {"section": "答案", "kind": "text", "text": "答案与解析"}
+        mixed = [
+            {"section": "题目", "kind": "text", "text": "题干"}, graph,
+            {**graph, "note": "第二幅曲线图"},
+            {"section": "题目", "kind": "text", "text": "四个小问"}, answer,
+        ]
+        with self.assertRaisesRegex(ValueError, "整道题目必须保留为图片块"):
+            tools.create_draft_tool(self.ctx, {**TEXT_ARGS, "images": [ref], "blocks": mixed})
+        with self.assertRaisesRegex(ValueError, "同一张来源图只保留一个"):
+            tools.create_draft_tool(self.ctx, {**TEXT_ARGS, "images": [ref], "blocks": [graph, graph, answer]})
+        self.assertEqual(drafts.list_drafts(self.vault), [])
+        created = tools.create_draft_tool(self.ctx, {**TEXT_ARGS, "images": [ref],
+                                                     "blocks": [graph, answer]})["result"]
+        self.assertEqual(created["status"], "cropping")
+        self.assertEqual([(block["section"], block["kind"]) for block in created["blocks"]],
+                         [("题目", "image"), ("答案", "text")])
+
     def test_cause_needs_user_statement(self):
         with self.assertRaisesRegex(ValueError, "错因只能用用户说过的话"):
             tools.create_draft_tool(self.ctx, {**TEXT_ARGS, "cause": "粗心"})

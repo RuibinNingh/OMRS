@@ -56,6 +56,8 @@
 
 草稿（`omrs/agent/tools/drafts.py`，存储见 `AI/drafts.md`）：`describe_image`（read，`{image:"IMG-n", question}`，用 `ai_model_extract` 针对一张图回答，≤2000 字）、`list_drafts`（read，默认本对话未入库未丢弃的）、`get_draft`（read）、`create_draft`（rev，按块写题目 / 答案，文字块或引用 IMG-n 的图片块；有图片块时状态为待框选，否则待审核；带 `cause` 时 `cause_statement` 必填，NFKC 去空白后必须是本对话某条用户消息的子串，否则报错不建）。工具上下文带 `tool_call_id`，草稿记下对话、运行、调用。原来的 `create_text_question` 已下线；AI 没有改草稿、丢弃草稿的工具。
 
+助手建草稿时以整道题目为文字／图片判断单位：题目依赖无法完整转述的图表时，题目只用图片块，框选范围须包含题干、图表和全部小问；同一来源图在同一道题中只建一个题目图片块。`create_draft` 拒绝题目文字与图片混排，以及同一来源图重复建题目图片块；答案仍可单独使用文字。人工审核编辑继续使用草稿存储的有序块能力。
+
 改文件的工具一律经 `omrs/content_history.py` 的 `write_question`：写前对齐未入账的正文，写后按「元数据变了 / 只改正文」记 `question.metadata_update` 或 `question.content_update`，前后两版正文进 blobs。工具结果 JSON 超过 6000 字符截断并注明。
 
 ## 5. 循环行为（`omrs/agent/loop.py`）
