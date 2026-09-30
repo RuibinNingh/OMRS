@@ -56,9 +56,9 @@ def record(results, name, ok, detail=""):
 def seed(port):
     items = http(port, "/api/stats")["items"]
     used = set(http(port, "/api/boards")["boards"][0]["uids"])
-    uids = [item["uid"] for item in items if item["uid"] not in used and not item.get("suspended")][:5]
+    uids = [item["uid"] for item in items if item["uid"] not in used and not item.get("suspended")][:18]
     folder = http(port, "/api/board/folder/create", {"name": "高三复习"})["folder"]["id"]
-    first = http(port, "/api/board/create", {"name": "E2E 甲", "uids": uids[:4], "folder_id": folder})["board"]["id"]
+    first = http(port, "/api/board/create", {"name": "E2E 甲", "uids": uids[:12], "folder_id": folder})["board"]["id"]
     second = http(port, "/api/board/create", {"name": "E2E 乙", "uids": []})["board"]["id"]
     return folder, first, second
 
@@ -108,6 +108,44 @@ def run_path(page, base, port, ids, results):
     layout_pop = page.locator('.brd-pop [data-board-print="note_ratio"]').is_visible()
     page.locator('[data-action="board.closePop"]').last.click()
     record(results, "版式从工具条打开浮层", layout_pop)
+
+    # 纸面切换动效：设置只保存在浏览器本地，下一次预览消息带上当前配置。
+    page.locator('[data-action="board.motionPop"]').click()
+    motion = page.locator('.brd-pop[data-kind="motion"]')
+    menu_open = motion.is_visible() and motion.locator('[data-action="board.motionKind"]').count() == 4
+    motion.locator('[data-action="board.motionKind"][data-arg="slide"]').click()
+    duration = motion.locator('[data-input="board.motionDuration"]')
+    duration.fill('450')
+    duration.dispatch_event('input')
+    pref = poll(lambda: page.evaluate("""() => {
+      const value = JSON.parse(localStorage.getItem('omrs-board-motion') || '{}');
+      return value.kind === 'slide' && value.duration === 450;
+    }"""), 3)
+    host_motion = page.evaluate("() => boardPreviewView().motion")
+    page.locator('[data-action="board.closePop"]').last.click()
+    record(results, "动效菜单：四种模式、时长滑杆和本地保存", menu_open and pref and host_motion == {"kind": "slide", "duration": 450}, host_motion)
+
+    # 连续翻页不排队；最终页码以最后一次操作为准。单页板没有下一页时仍检查配置不报错。
+    page_count = page.evaluate("() => boardPreviewLayout()?.page_numbers?.length || 0")
+    if page_count > 1:
+        next_button = page.locator('[data-action="board.page"][data-arg="next"]')
+        next_button.click()
+        next_button.click()
+        latest = page.evaluate("() => boardPreviewLayout()?.page_numbers?.slice(-1)[0]")
+        settled = wait(page, f"() => boardPreviewView().page === {latest}", 5000)
+        frame_motion = page.evaluate("""() => {
+          const frame = document.querySelector('#bd-stage > iframe');
+          return frame?.contentDocument?.body?.classList.contains('embedded') &&
+            frame?.contentDocument?.querySelector('#stage.motion-layer') !== null;
+        }""")
+        record(results, "连续翻页：取消旧动效并停在最新目标页", settled and (frame_motion or page.evaluate("() => boardPreviewView().page") == latest), latest)
+    else:
+        record(results, "单页板：翻页按钮无效时不抛错", True)
+
+    page.reload()
+    page.wait_for_function("() => window.__p8TestReady && !!document.querySelector('#bd-stage > iframe')", timeout=20000)
+    restored = wait(page, "() => boardPreviewIsReady() && boardPreviewView().motion?.kind === 'slide'", 20000)
+    record(results, "刷新后恢复动效偏好", restored and page.evaluate("() => boardPreviewView().motion.duration") == 450)
 
     board_row(page, "E2E 乙").locator(".brd-item__main").click()
     blank = wait(page, "() => document.querySelector('.brd-title')?.textContent === 'E2E 乙' && !!document.querySelector('.brd-placeholder')")

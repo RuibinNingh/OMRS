@@ -531,13 +531,29 @@
   // 宿主（展示板页）把这份导出放进常驻 iframe，用消息驱动重排 / 翻页 / 缩放，
   // 几何类改动全程零网络请求；只有增删题、换模式这类内容变化才重新拉导出。
   let VIEW = { single: false, page: 0, scale: 1 };
+  let MOTION = { kind: "fade", duration: 280 };
+  let MOTION_RUN = null;
+  const MOTION_KINDS = ["fade", "slide", "paper", "none"];
+  function normalizeMotion(value) {
+    const kind = MOTION_KINDS.indexOf(value && value.kind) >= 0 ? value.kind : "fade";
+    if (!value || value.duration == null || value.duration === "") return { kind, duration: 280 };
+    const raw = Number(value && value.duration);
+    const safe = Number.isFinite(raw) ? raw : 280;
+    if (safe === 280) return { kind, duration: 280 };
+    const duration = Math.max(100, Math.min(800, 100 + Math.round((safe - 100) / 50) * 50));
+    return { kind, duration };
+  }
+  function motionReduced() {
+    try { return !!window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; }
+  }
   function viewStyleEl() {
     let node = document.getElementById("omrs-view-style");
     if (!node) { node = el("style"); node.id = "omrs-view-style"; document.head.appendChild(node); }
     return node;
   }
   function pageNumbers() { return [...document.querySelectorAll("#stage .page")].map(p => Number(p.dataset.page)); }
-  function applyView() {
+  function applyView(options) {
+    const show = options && Array.isArray(options.show) ? options.show : null;
     const numbers = pageNumbers();
     if (!numbers.length) { viewStyleEl().textContent = ""; return; }
     if (!numbers.includes(VIEW.page)) VIEW.page = numbers[0];
@@ -545,7 +561,8 @@
     if (VIEW.single) {
       // 模板本身不需要知道「单页」这回事：每页早就有 data-page，靠一条 CSS 就能只留一面
       rules.push('#stage .page{display:none;}');
-      rules.push('#stage .page[data-page="' + VIEW.page + '"]{display:block;}');
+      const visible = show && show.length ? show : [VIEW.page];
+      rules.push(visible.map(number => '#stage .page[data-page="' + number + '"]').join(',') + '{display:block;}');
     }
     const scale = clamp(Number(VIEW.scale) || 1, .2, 2);
     if (scale !== 1) {
@@ -557,12 +574,88 @@
     viewStyleEl().textContent = rules.join("\n");
     notify("omrs-board-view-state", window.OMRS_LAYOUT || null);
   }
+  function pageNode(number) { return document.querySelector('#stage .page[data-page="' + number + '"]'); }
+  function clearPageMotion() {
+    if (!MOTION_RUN) return;
+    const run = MOTION_RUN;
+    MOTION_RUN = null;
+    (run.animations || []).forEach(animation => { try { animation.cancel(); } catch (e) {} });
+    run.cleanup();
+    applyView();
+  }
+  function motionLayer(oldPage, newPage) {
+    const stage = document.getElementById("stage");
+    if (!stage || !oldPage || !newPage) return null;
+    const saved = { stageMinHeight: stage.style.minHeight, old: oldPage.style.cssText, next: newPage.style.cssText };
+    // getBoundingClientRect() includes the host scale; offsetHeight keeps the
+    // temporary stage height in the template's unscaled A4 coordinate system.
+    const height = stage.offsetHeight || stage.getBoundingClientRect().height;
+    const top = oldPage.offsetTop;
+    stage.classList.add("motion-layer");
+    stage.style.minHeight = height + "px";
+    [oldPage, newPage].forEach((page, index) => {
+      page.style.position = "absolute";
+      page.style.left = "50%";
+      page.style.top = top + "px";
+      page.style.margin = "0";
+      page.style.zIndex = index ? "2" : "1";
+      page.style.transform = "translateX(-50%)";
+    });
+    return () => {
+      oldPage.style.cssText = saved.old;
+      newPage.style.cssText = saved.next;
+      stage.style.minHeight = saved.stageMinHeight;
+      stage.classList.remove("motion-layer");
+    };
+  }
+  function transitionFrames(kind, direction) {
+    const sign = direction > 0 ? 1 : -1;
+    if (kind === "fade") return {
+      old: [{ opacity: 1 }, { opacity: 0 }], next: [{ opacity: 0 }, { opacity: 1 }],
+      easing: "cubic-bezier(.23,1,.32,1)",
+    };
+    if (kind === "slide") return {
+      old: [{ opacity: 1, transform: "translateX(-50%)" }, { opacity: 1, transform: "translateX(calc(-50% - " + (sign * 100) + "%))" }],
+      next: [{ opacity: 1, transform: "translateX(calc(-50% + " + (sign * 100) + "%))" }, { opacity: 1, transform: "translateX(-50%)" }],
+      easing: "cubic-bezier(.77,0,.175,1)",
+    };
+    return {
+      old: [{ opacity: 1, transform: "translate(-50%, 0)" }, { opacity: .72, transform: "translate(-50%, " + (-sign * 100) + "%)" }],
+      next: [{ opacity: .72, transform: "translate(-50%, " + (sign * 100) + "%)" }, { opacity: 1, transform: "translate(-50%, 0)" }],
+      easing: "cubic-bezier(.77,0,.175,1)",
+    };
+  }
+  function animatePageChange(oldPage, newPage, direction, oldNumber, newNumber) {
+    const kind = MOTION.kind;
+    if (!document.body.classList.contains("embedded") || !VIEW.single || kind === "none" || motionReduced() || typeof oldPage.animate !== "function") return false;
+    const cleanup = motionLayer(oldPage, newPage);
+    if (!cleanup) return false;
+    applyView({ show: [oldNumber, newNumber] });
+    const frames = transitionFrames(kind, direction);
+    const options = { duration: MOTION.duration, easing: frames.easing, fill: "forwards" };
+    const animations = [oldPage.animate(frames.old, options), newPage.animate(frames.next, options)];
+    const run = { animations, cleanup };
+    MOTION_RUN = run;
+    Promise.all(animations.map(animation => animation.finished || Promise.resolve())).then(() => {
+      if (MOTION_RUN !== run) return;
+      MOTION_RUN = null;
+      cleanup();
+      applyView();
+    }).catch(() => { if (MOTION_RUN === run) clearPageMotion(); });
+    return true;
+  }
   function gotoPage(value) {
     const numbers = pageNumbers();
     if (!numbers.length) return;
     const target = Number(value);
-    VIEW.page = numbers.includes(target) ? target : numbers[0];
-    applyView();
+    const valid = numbers.includes(target);
+    const next = valid ? target : numbers[0];
+    const previous = VIEW.page;
+    if (MOTION_RUN) clearPageMotion();
+    if (!valid || next === previous) { VIEW.page = next; applyView(); if (!VIEW.single) pageNode(next)?.scrollIntoView({ block: "start" }); return; }
+    const oldPage = pageNode(previous), newPage = pageNode(next);
+    VIEW.page = next;
+    if (!animatePageChange(oldPage, newPage, next > previous ? 1 : -1, previous, next)) applyView();
     if (!VIEW.single) document.querySelector('#stage .page[data-page="' + VIEW.page + '"]')?.scrollIntoView({ block: "start" });
   }
   function gotoUid(uid) {
@@ -572,6 +665,7 @@
   }
   function relayout(message) {
     if (message && message.gaps && typeof message.gaps === "object") GAPS = message.gaps;
+    if (MOTION_RUN) clearPageMotion();
     applyPrint(message && message.print);
     const report = run();
     applyView();
@@ -658,6 +752,7 @@
       if (message.single != null) VIEW.single = !!message.single;
       if (message.page != null) VIEW.page = Number(message.page) || VIEW.page;
       if (message.scale != null) VIEW.scale = Number(message.scale) || 1;
+      if (message.motion) MOTION = normalizeMotion(message.motion);
       applyView();
       return;
     }

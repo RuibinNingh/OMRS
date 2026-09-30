@@ -18,7 +18,7 @@ import * as B from '../../domain/board/boards.js';
 import { boardDetail } from './runtime.js';
 import { openBoardAdd } from './add.js';
 import { boardKeySelectTarget, boardKeyReorderTarget, boardTreeDropPlan, bindBoardTreeDrag, bindBoardRowDrag } from './drag.js';
-import { boardPreviewMount, boardPreviewGoto, boardPreviewStep, boardPreviewScale, boardPreviewLayout, boardPreviewView } from './preview.js';
+import { boardPreviewMount, boardPreviewGoto, boardPreviewStep, boardPreviewScale, boardPreviewLayout, boardPreviewView, boardPreviewSetMotion } from './preview.js';
 import * as S from './state.js';
 import { view } from './view.js';
 import { recordSummary } from './view-panel.js';
@@ -169,6 +169,8 @@ function createController(root) {
       boardPreviewScale(s.zoom);
       paint();
     },
+    motionKind(kind) { if (S.MOTION_KINDS.includes(kind)) { boardPreviewSetMotion(S.setMotion({ kind })); paint(); } },
+    motionDuration(value) { boardPreviewSetMotion(S.setMotion({ duration: value })); paint(); },
     toggleBoards() {
       if (narrow()) s.boardsOpen = !s.boardsOpen; else { s.listHidden = !s.listHidden; s.boardsOpen = false; }
       paint();
@@ -357,6 +359,7 @@ export const page = {
     zoom: ({ arg }) => ctl?.zoom(arg),
     layoutPop: () => ctl?.showPop('layout'),
     paperPop: () => ctl?.showPop('paper'),
+    motionPop: () => ctl?.showPop('motion'), motionKind: ({ arg }) => ctl?.motionKind(arg), motionDuration: ({ value }) => ctl?.motionDuration(value),
     closePop: () => ctl?.closePop(),
     back: () => ctl?.back(),
     detailStep: ({ arg }) => ctl?.detailStep(Number(arg)),

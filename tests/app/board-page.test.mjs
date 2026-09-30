@@ -84,6 +84,20 @@ test('stageView / estimateView：视图、警告计数、翻页条读数；仅�
   assert.equal(S.stageView({ detail: detail(), mode: 'new' }, { layout: { pages: 1 } }).pager.estimate.scope, 'all');
   assert.equal(S.estimateView({ pages: 4, rendered_pages: 1, page_numbers: [4], partial_page: 3 }, 'new').range, '第 4 页');
   assert.equal(S.firstNewUid([{ uid: 'x', printed: true }, { uid: 'y', missing: true }, { uid: 'z' }]), 'z');
+  assert.deepEqual(s.pager.motion, { kind: 'fade', duration: 280 });
+});
+
+test('展示板动效偏好：非法值回默认，时长按 50ms 步进并写入浏览器本地', () => {
+  const data = new Map();
+  const storage = { getItem: key => data.get(key) || null, setItem: (key, value) => data.set(key, value) };
+  assert.deepEqual(S.normalizeMotion(), { kind: 'fade', duration: 280 });
+  assert.deepEqual(S.normalizeMotion({ kind: 'unknown', duration: 9999 }), { kind: 'fade', duration: 800 });
+  assert.deepEqual(S.normalizeMotion({ kind: 'paper', duration: 280 }), { kind: 'paper', duration: 280 });
+  assert.deepEqual(S.normalizeMotion({ kind: 'slide', duration: 123 }), { kind: 'slide', duration: 100 });
+  assert.deepEqual(S.saveMotionPreference({ kind: 'paper', duration: 450 }, storage), { kind: 'paper', duration: 450 });
+  assert.deepEqual(S.readMotionPreference(storage), { kind: 'paper', duration: 450 });
+  assert.equal(JSON.parse(data.get('omrs-board-motion')).kind, 'paper');
+  S.setMotion({ kind: 'fade', duration: 280 }, storage);
 });
 
 test('菜单：板菜单列出别的文件夹与未归档；文件夹菜单到头时禁用上移 / 下移', () => {
@@ -246,6 +260,7 @@ test('inspectorView：没选中时只有版式与纸面；选中后给第 N 题�
   const none = S.inspectorView({ detail: base, selected: '' });
   assert.equal(none.selected, false);
   assert.equal(none.item, null);
+  assert.deepEqual(none.motion, { kind: 'fade', duration: 280 });
   assert.deepEqual([none.layout.ratio, none.layout.gap, none.layout.cut, none.layout.answers, none.layout.locked], [42, 4, 'none', 'append', true]);
   assert.deepEqual([none.paper.has, none.paper.cursorPage, none.paper.cursorY, none.paper.changed], [true, 2, 89, 1]);
   const one = S.inspectorView({ detail: base, selected: 'a' });

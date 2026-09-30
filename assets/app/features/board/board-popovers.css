@@ -36,6 +36,11 @@
 .brd-insnote, .brd-ins-empty { margin: var(--sp-3) 0 0; color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-read); }
 .brd-pop__body > .ui-btn { align-self: flex-start; }
 
+/* 纸面切换动效：选项保持与版式分段按钮同一视觉，时长读数始终可见。 */
+.brd-motion__options { flex-wrap: wrap; }
+.brd-motion__options .brd-seg__btn { min-width: 0; flex: 1 1 9em; }
+.brd-motion-btn .ui-icon { width: 15px; height: 15px; }
+
 @media (max-width: 760px) {
   .brd-pop, .brd-pop[data-kind="paper"] { position: fixed; top: auto; right: var(--sp-2); bottom: var(--sp-2); left: var(--sp-2); width: auto; max-height: 80vh; }
   .brd-check, .brd-num, .brd-range { min-height: var(--ctl-lg); }

@@ -106,6 +106,9 @@ body.embedded #notice{margin-top:12px;}
 #notice b{color:#8b5e3c;}
 #stage{padding:20px 0 40px;}
 #stage.no-notice{padding-top:64px;}
+/* 嵌入式预览的单页过渡层：页面本身仍保持 A4 固定几何，动画只改 transform / opacity。 */
+#stage.motion-layer{position:relative;overflow:hidden;}
+#stage.motion-layer .page{will-change:transform,opacity;}
 
 @page{size:A4;margin:0;}
 @media print{
@@ -115,6 +118,8 @@ body.embedded #notice{margin-top:12px;}
   .cut-line.draggable::before,.cut-line .drag-tag{display:none;}
   #bar,#notice{display:none !important;}
   #stage{padding:0 !important;}
+  #stage.motion-layer{position:static;overflow:visible;min-height:0 !important;}
+  #stage.motion-layer .page{position:relative !important;top:auto !important;left:auto !important;transform:none !important;opacity:1 !important;will-change:auto;}
   .page{margin:0;box-shadow:none;break-after:page;}
   .page:last-child{break-after:auto;}
   .ghost{background:none;border-color:transparent;}

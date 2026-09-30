@@ -18,7 +18,7 @@ export function view(m) {
       <div class="brd-confirm" data-key="confirm"${!m.status.awaiting ? html` hidden` : ''}>${confirmBar(m.status)}</div>
       <div class="brd-work" data-key="work">
         <section class="brd-paper-col" aria-label="纸面预览" data-key="paper">
-          <div class="brd-head" data-key="head">${stageHead(m.stage)}</div>
+          <div class="brd-head" data-key="head">${stageHead({ ...m.stage, motionOpen: m.pop === 'motion' })}</div>
           <div class="brd-desk" data-key="desk"><div class="brd-stage" id="bd-stage" data-morph="skip" data-key="stage"></div></div>
           <div class="brd-pop-host" data-key="pop"${!m.pop ? html` hidden` : ''}>${popover(m.pop, m.inspector)}</div>
         </section>
@@ -100,13 +100,15 @@ function stageHead(s) {
       <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.page" data-arg="next" aria-label="下一页" title="下一页（→）"${off(!p.multi)}>${icon('chevron-down')}</button></div>
     <span class="brd-tsep" aria-hidden="true"></span>
     <div class="brd-seg brd-zoom" role="group" aria-label="缩放"><button type="button" class="brd-seg__btn" data-action="board.zoom" data-arg="fit" aria-pressed="${pressed(p.zoom === 'fit')}">适应宽度</button><button type="button" class="brd-seg__btn" data-action="board.zoom" data-arg="1" aria-pressed="${pressed(p.zoom !== 'fit')}">100%</button></div>
+    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm brd-motion-btn" data-action="board.motionPop" aria-haspopup="dialog" aria-expanded="${pressed(!!s.motionOpen)}" title="调整纸面切换动效">${icon('sparkle')}动效</button>
     <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="board.layoutPop" aria-haspopup="dialog">${icon('sliders')}版式</button>`;
 }
 function popover(kind, v) {
   if (!kind || v.empty) return '';
-  return html`<div class="brd-pop-scrim" data-action="board.closePop"></div><section class="brd-pop" data-kind="${kind}" role="dialog" aria-label="${kind === 'layout' ? '版式' : '纸面记录'}">
-    <header><h3>${kind === 'layout' ? '版式' : '纸面记录'}</h3><button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.closePop" aria-label="关闭">${icon('x')}</button></header>
-    <div class="brd-pop__body">${kind === 'layout' ? inspectorLayout(v.layout) : inspectorPaper(v.paper)}</div></section>`;
+  const title = kind === 'layout' ? '版式' : kind === 'motion' ? '切换动效' : '纸面记录';
+  return html`<div class="brd-pop-scrim" data-action="board.closePop"></div><section class="brd-pop" data-kind="${kind}" role="dialog" aria-label="${title}">
+    <header><h3>${title}</h3><button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.closePop" aria-label="关闭">${icon('x')}</button></header>
+    <div class="brd-pop__body">${kind === 'layout' ? inspectorLayout(v.layout) : kind === 'motion' ? inspectorMotion(v.motion) : inspectorPaper(v.paper)}</div></section>`;
 }
 const segBtns = (field, options, current) => options.map(([value, label]) => html`<button type="button" class="brd-seg__btn" data-value="${value}" data-action="board.seg" data-arg="${field}" aria-pressed="${pressed(current === value)}">${label}</button>`);
 const check = (field, on, label, disabled = false) => html`<label class="brd-check"><input type="checkbox" data-board-print="${field}" data-change="board.printSet" data-arg="${field}"${on ? html` checked` : ''}${off(disabled)}> ${label}</label>`;
@@ -139,6 +141,17 @@ function inspectorPaper(p) {
     </dl>
     <button class="ui-btn ui-btn--ghost ui-btn--sm" type="button" data-action="board.resetPrinted" data-key="reset">清空纸面记录</button>
     <p class="brd-insnote" data-key="tip">已打印位置固定，增删与排序不会改动旧占位；「仅新增」按纸面记录续排。锁定时确认真实版式变更会清空记录，需打印全部换新纸。打印时选 A4、缩放 100%。</p>`;
+}
+
+function inspectorMotion(m) {
+  const current = m || { kind: 'fade', duration: 280 };
+  const options = [['fade', '渐隐渐显'], ['slide', '左右滑页'], ['paper', '抽纸'], ['none', '关闭动效']];
+  return html`<div class="brd-field" data-key="motion-kind"><span class="brd-field__label">翻页方式</span>
+      <div class="brd-seg brd-seg--fill brd-motion__options" role="group" aria-label="翻页方式">${options.map(([value, label]) => html`<button type="button" class="brd-seg__btn" data-action="board.motionKind" data-arg="${value}" aria-pressed="${pressed(current.kind === value)}">${label}</button>`)}</div>
+      <p class="brd-hint">板切换始终使用渐隐渐显。</p></div>
+    <div class="brd-field" data-key="motion-duration"><label class="brd-field__label" for="bd-motion-duration">过渡时长 <b data-board-motion-duration>${current.duration}ms</b></label>
+      <input class="brd-range" id="bd-motion-duration" type="range" min="100" max="800" step="50" value="${current.duration}" data-input="board.motionDuration" aria-label="过渡时长" aria-valuetext="${current.duration} 毫秒">
+      <p class="brd-hint">只影响下一次切换，系统减少动效时会自动跳过位移动画。</p></div>`;
 }
 
 // ---------- 「按标记同步」对话框的正文（detail.js 的 syncLabel 用 ui/dialog 打开；单选按 id bd-sync-N 收值） ----------

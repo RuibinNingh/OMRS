@@ -11,11 +11,13 @@
  * 导出指纹命中缓存时连第三档也省掉。旧 board.js 经过渡桥 installBoardBridge 读这些函数的同名全局。
  */
 import { fetchBoardExport } from './print.js';
+import { normalizeMotion, readMotionPreference } from './state.js';
 
 let BP_FRAME = null;                  // 单例 iframe
 let BP_STATE = { boardId: '', mode: 'all', key: '', ready: false };
 let BP_LAYOUT = null;                 // 最近一次 OMRS_LAYOUT
-let BP_VIEW = { single: true, page: 1, scale: 1 };
+let BP_MOTION = readMotionPreference();
+let BP_VIEW = { single: true, page: 1, scale: 1, motion: { ...BP_MOTION } };
 let BP_RELAYOUT_TIMER = null;
 let BP_REFRESH_TIMER = null;
 let BP_PENDING = null;                // {print, gaps} 待发的几何改动
@@ -26,6 +28,7 @@ let BP_ON_SELECT = null;              // 宿主回调：纸面上点了某道题
 let BP_ON_GAP = null;                 // 宿主回调：拖切割线改了某题的题后留白
 let BP_VISIBLE = true;
 let BP_GENERATION = 0;
+let BP_SWAP = null;                   // {token, animation}：切板时 iframe 的渐隐 / 渐显
 
 const BP_SCALES = { fit: 'fit', 1: 1 };
 
@@ -43,6 +46,34 @@ export function boardPreviewOn(handlers) {
   if (handlers?.onLayout) BP_ON_LAYOUT = handlers.onLayout;
   if (handlers?.onSelect) BP_ON_SELECT = handlers.onSelect;
   if (handlers?.onGap) BP_ON_GAP = handlers.onGap;
+}
+
+function reducedMotion() {
+  try { return !!globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches; } catch (error) { return false; }
+}
+
+function cancelBoardSwap() {
+  try { BP_SWAP?.animation?.cancel?.(); } catch (error) {}
+  BP_SWAP = null;
+}
+
+function boardSwapOut(token) {
+  cancelBoardSwap();
+  if (!BP_FRAME || reducedMotion() || typeof BP_FRAME.animate !== 'function') return;
+  const animation = BP_FRAME.animate([{ opacity: 1 }, { opacity: 0 }], {
+    duration: BP_MOTION.duration, easing: 'cubic-bezier(.23,1,.32,1)', fill: 'forwards',
+  });
+  BP_SWAP = { token, animation };
+}
+
+function boardSwapIn(token) {
+  if (!BP_SWAP || BP_SWAP.token !== token || !BP_FRAME || typeof BP_FRAME.animate !== 'function') return;
+  try { BP_SWAP.animation?.cancel?.(); } catch (error) {}
+  const animation = BP_FRAME.animate([{ opacity: 0 }, { opacity: 1 }], {
+    duration: BP_MOTION.duration, easing: 'cubic-bezier(.23,1,.32,1)', fill: 'none',
+  });
+  BP_SWAP = { token, animation };
+  if (animation.finished) animation.finished.catch(() => {}).finally(() => { if (BP_SWAP?.token === token) BP_SWAP = null; });
 }
 
 // 不在前台就不排版：切到别的 Tab、或预览滚出视口时，几何改动只记不发，回来再补一次。
@@ -111,9 +142,17 @@ export function boardPreviewStep(delta) {
 }
 export function boardPreviewSetView(view) {
   BP_VIEW = { ...BP_VIEW, ...(view || {}) };
+  if (view?.motion) BP_MOTION = normalizeMotion(view.motion);
+  BP_VIEW.motion = { ...BP_MOTION };
   // embedded:true 让导出模板收起自带的「打印 / 已打印，记录纸面」动作条：
   // 那一条是给独立下载的 HTML 用的，嵌在舞台里就成了第二个打印入口和第二个记录入口。
-  boardPreviewPost({ type: 'omrs-board-view', single: BP_VIEW.single, page: BP_VIEW.page, scale: BP_VIEW.scale, embedded: true });
+  boardPreviewPost({ type: 'omrs-board-view', single: BP_VIEW.single, page: BP_VIEW.page, scale: BP_VIEW.scale, embedded: true, motion: { ...BP_MOTION } });
+}
+export function boardPreviewSetMotion(motion) {
+  BP_MOTION = normalizeMotion(motion);
+  BP_VIEW.motion = { ...BP_MOTION };
+  if (BP_FRAME && BP_STATE.ready) boardPreviewSetView({ motion: BP_MOTION });
+  return { ...BP_MOTION };
 }
 // 「适应宽度」按容器实际宽度算比例，两侧各留约 32px 桌面：A4 屏幕宽 793.7px 是模板里的硬几何，不跟版面设置走。
 // 页面在容器宽度变化时（首次挂载、拖窗口、收起左栏）经 ResizeObserver 重新调用。
@@ -131,16 +170,21 @@ export function boardPreviewView() { return { ...BP_VIEW }; }
 // ---------- 换板 / 换内容（走网络，带指纹缓存） ----------
 export async function boardPreviewSetBoard(boardId, mode, options = {}) {
   const key = boardPreviewKey(boardId, mode, options.signature, options.printedAt);
-  if (!boardId) { BP_STATE = { boardId: '', mode: 'all', key: '', ready: false, loading: false }; BP_LAYOUT = null; return null; }
+  if (!boardId) { cancelBoardSwap(); BP_STATE = { boardId: '', mode: 'all', key: '', ready: false, loading: false }; BP_LAYOUT = null; return null; }
   // 同一份内容已经排好、或正在路上，就别再拉一次：导出 HTML 将近 1MB，
   // 初次进板时 boardInit 与随后的 render 会连着 sync 两次，没有这道闸就白拉一遍。
   if (key === BP_STATE.key && (BP_STATE.ready || BP_STATE.loading) && !options.force) return BP_STATE.ready ? BP_LAYOUT : null;
   clearTimeout(BP_REFRESH_TIMER);
+  const switchingBoard = !!(BP_STATE.boardId && BP_STATE.boardId !== boardId && BP_STATE.ready);
+  // Any pending fade belongs to the document being replaced. Cancel it before
+  // assigning a new token so a fast board switch cannot leave the iframe hidden.
+  cancelBoardSwap();
   if (BP_FETCH) { try { BP_FETCH.controller.abort(); } catch (error) {} BP_FETCH = null; }
   BP_PENDING = null; // 新导出已包含此前保存的设置；仅重放请求发出之后的编辑
   const token = String(++BP_GENERATION);
   BP_STATE = { boardId, mode: mode === 'new' ? 'new' : 'all', key, token, ready: false, loading: true };
   BP_LAYOUT = null;
+  if (switchingBoard) boardSwapOut(token);
   let html = BP_HTML_CACHE.get(key);
   if (!html) {
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -152,6 +196,7 @@ export async function boardPreviewSetBoard(boardId, mode, options = {}) {
       BP_STATE.error = error.message || String(error);
       BP_STATE.loading = false;
       BP_STATE.key = '';                                 // 失败不占坑，下次 sync 会重试
+      if (BP_SWAP?.token === token) { cancelBoardSwap(); }
       throw error;
     } finally {
       if (BP_FETCH?.token === token) BP_FETCH = null;
@@ -174,6 +219,7 @@ export function boardPreviewScheduleRefresh(boardId, mode, options = {}) {
   }, 500);
 }
 export function boardPreviewInvalidate() {
+  cancelBoardSwap();
   BP_HTML_CACHE = new Map();
   if (BP_FETCH) { try { BP_FETCH.controller.abort(); } catch (error) {} BP_FETCH = null; }
   BP_STATE = { ...BP_STATE, key: '', token: String(++BP_GENERATION), loading: false, ready: false };
@@ -195,6 +241,7 @@ if (typeof window !== 'undefined') {
         BP_STATE.loading = false;
         boardPreviewSetView(BP_VIEW);                            // 新 srcdoc 要重放单页/缩放状态
         boardPreviewFlushPending();
+        boardSwapIn(BP_STATE.token);
       }
       const numbers = boardPreviewPages();
       if (numbers.length && !numbers.includes(BP_VIEW.page)) BP_VIEW.page = numbers[0];

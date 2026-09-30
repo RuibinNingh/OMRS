@@ -119,9 +119,15 @@ test('goto / step / view speak the documented message protocol', async () => {
   POSTED.length = 0;
   bp.boardPreviewSetView({ single: true, page: 1 });
   // embedded:true 是常驻预览专用的：告诉导出模板收起它自带的打印 / 记录纸面动作条
-  assert.deepEqual(POSTED[0], { type: 'omrs-board-view', single: true, page: 1, scale: 1, embedded: true, previewToken: token() });
+  assert.deepEqual(POSTED[0], { type: 'omrs-board-view', single: true, page: 1, scale: 1, embedded: true,
+    motion: { kind: 'fade', duration: 280 }, previewToken: token() });
   assert.deepEqual(bp.boardPreviewPages(), [1, 2, 3]);
   assert.equal(bp.boardPreviewView().single, true);
+
+  POSTED.length = 0;
+  assert.deepEqual(bp.boardPreviewSetMotion({ kind: 'slide', duration: 450 }), { kind: 'slide', duration: 450 });
+  assert.deepEqual(POSTED[0].motion, { kind: 'slide', duration: 450 });
+  bp.boardPreviewSetMotion({ kind: 'fade', duration: 280 });
 });
 
 test('fit scale is derived from the container width, not from the layout', async () => {

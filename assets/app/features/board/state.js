@@ -9,7 +9,36 @@ import { boardFolderTree } from '../../domain/board/model.js';
 
 /** 页面自己的 UI 状态：纸面缩放、就地改名、左栏（窄屏抽屉 boardsOpen / 宽屏收起 listHidden）、题目详情、
  *  详情里已显示答案的题（revealUid）与浮层。板详情、打印范围、选中题归 detail.js。 */
-export const state = { zoom: 'fit', renaming: false, boardsOpen: false, listHidden: false, query: '', panel: 'list', pop: '', revealUid: '' };
+export const MOTION_KINDS = Object.freeze(['fade', 'slide', 'paper', 'none']);
+export const MOTION_DEFAULT = Object.freeze({ kind: 'fade', duration: 280 });
+export const MOTION_LIMITS = Object.freeze({ min: 100, max: 800, step: 50 });
+const MOTION_KEY = 'omrs-board-motion';
+
+export function normalizeMotion(value = {}) {
+  const kind = MOTION_KINDS.includes(value?.kind) ? value.kind : MOTION_DEFAULT.kind;
+  if (value?.duration == null || value.duration === '') return { kind, duration: MOTION_DEFAULT.duration };
+  const raw = Number(value?.duration);
+  const safe = Number.isFinite(raw) ? raw : MOTION_DEFAULT.duration;
+  if (safe === MOTION_DEFAULT.duration) return { kind, duration: MOTION_DEFAULT.duration };
+  const stepped = MOTION_LIMITS.min + Math.round((safe - MOTION_LIMITS.min) / MOTION_LIMITS.step) * MOTION_LIMITS.step;
+  const duration = Math.max(MOTION_LIMITS.min, Math.min(MOTION_LIMITS.max, stepped));
+  return { kind, duration };
+}
+
+export function readMotionPreference(storage = globalThis.localStorage) {
+  try { return normalizeMotion(JSON.parse(storage?.getItem(MOTION_KEY) || '{}')); }
+  catch (error) { return { ...MOTION_DEFAULT }; }
+}
+
+export function saveMotionPreference(value, storage = globalThis.localStorage) {
+  const next = normalizeMotion(value);
+  try { storage?.setItem(MOTION_KEY, JSON.stringify(next)); } catch (error) { /* 隐私模式 / 禁用存储时退化为内存偏好 */ }
+  return next;
+}
+
+export const motionLabel = kind => ({ fade: '渐隐渐显', slide: '左右滑页', paper: '抽纸', none: '关闭动效' }[kind] || '渐隐渐显');
+
+export const state = { zoom: 'fit', motion: readMotionPreference(), renaming: false, boardsOpen: false, listHidden: false, query: '', panel: 'list', pop: '', revealUid: '' };
 const LINK_KEY = 'omrs-board-linked-labels';
 
 /** 关联标记只存本机浏览器；板的服务端格式不因此改变。 */
@@ -22,6 +51,11 @@ export function setLinkedLabel(id, name, storage = globalThis.localStorage) {
     if (name) values[id] = name; else delete values[id];
     storage?.setItem(LINK_KEY, JSON.stringify(values));
   } catch (error) { /* 浏览器禁用本地存储时，本次选择仍可通过现有同步对话框完成 */ }
+}
+
+export function setMotion(patch, storage = globalThis.localStorage) {
+  state.motion = saveMotionPreference({ ...state.motion, ...(patch || {}) }, storage);
+  return state.motion;
 }
 
 const num = (value, fallback = 0) => (Number.isFinite(Number(value)) ? Number(value) : fallback);
@@ -114,6 +148,7 @@ export function stageView(snap, { layout = null, view = null, zoom = 'fit' } = {
       multi: numbers.length > 1, page: num(view?.page, 0) || numbers[0] || 1, pages: num(layout?.pages),
       jumpNew: !!paper.new_count, estimate: estimateView(layout, scope), error: snap.previewError || '',
       zoom: zoom === 'fit' ? 'fit' : '1',
+      motion: { ...state.motion },
     },
   };
 }
@@ -240,6 +275,7 @@ export function inspectorView(snap) {
       ? { has: true, count: num(paper.count), pages: num(paper.pages), at: boardFormatTime(paper.at), cursorPage: num(paper.cursor?.page, 0) || num(paper.pages),
         cursorY: paper.cursor?.y != null ? Math.round(num(paper.cursor.y)) : null, changed: num(paper.changed_count) }
       : { has: false },
+    motion: { ...state.motion },
   };
 }
 

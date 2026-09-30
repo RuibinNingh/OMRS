@@ -75,8 +75,22 @@ test('版式和纸面记录由工具条打开浮层，题目详情可返回及�
   assert.match(PAGE, /onPaperSelect: uid => current\.openDetail\(uid\)/);
 });
 
+test('纸面工具条提供可配置动效入口，动效只通过嵌入式预览消息传递', () => {
+  assert.match(VIEW, /data-action="board\.motionPop"/);
+  assert.match(VIEW, /data-action="board\.motionKind"/);
+  assert.match(VIEW, /data-input="board\.motionDuration"/);
+  assert.match(PAGE, /boardPreviewSetMotion/);
+  assert.match(PREVIEW, /motion: \{ \.\.\.BP_MOTION \}/);
+  assert.match(PREVIEW, /type: 'omrs-board-view'/);
+  assert.match(PREVIEW, /boardSwapOut/);
+});
+
 test('嵌入纸面时导出模板隐藏自己的打印动作条', () => {
   assert.match(PREVIEW, /omrs-board-view[\s\S]{0,200}embedded: true/);
   const template = fs.readFileSync(path.join(root, 'omrs/export_templates/board.js'), 'utf8');
   assert.ok(template.includes('classList.toggle("embedded"'));
+  assert.match(template, /function animatePageChange/);
+  assert.match(template, /if \(!valid \|\| next === previous\)/);
+  assert.match(template, /prefers-reduced-motion/);
+  assert.match(template, /MOTION_KINDS/);
 });

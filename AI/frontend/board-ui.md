@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：展示板工作区的板列表、板头、常驻纸面、题目列表、滑入式详情、版式与纸面记录浮层，以及保存与预览
 > - 入口：页面契约 `assets/app/features/board/index.js`；视图 `view.js`（工作台）/ `view-panel.js`（题目面板）/ `state.js`；板详情 `detail.js`；板列表 `assets/app/domain/board/boards.js`
-> - 不变量：保存按字段记脏并串行提交；预览消息校验 `previewToken`；morph 保持 `#bd-stage` 和 iframe 原位；关联标记只存在浏览器本地
+> - 不变量：保存按字段记脏并串行提交；预览消息校验 `previewToken`；morph 保持 `#bd-stage` 和 iframe 原位；关联标记与动效偏好只存在浏览器本地
 > - 必跑测试：`node --test tests/app/board*.test.mjs`、`python3 tests/e2e/board.py`、`python3 tests/e2e/board_picker.py`
 > - 相关：`AI/board.md`、`AI/frontend/design-system.md`、`AI/frontend/shell.md`
 
@@ -14,7 +14,7 @@
 | 模块 | 当前职责 |
 |---|---|
 | `model.js` | 打印状态、有效留白、保存载荷、锁定边界、纸面几何与排序等纯函数 |
-| `state.js` | 页面 UI 状态、板头 / 板树 / 纸面工具条 / 题目行 / 详情 / 版式与纸面记录的派生模型；按板存本地关联标记 |
+| `state.js` | 页面 UI 状态、板头 / 板树 / 纸面工具条 / 题目行 / 详情 / 版式与纸面记录的派生模型；按板存本地关联标记，浏览器级保存动效偏好 |
 | `view.js`、`view-panel.js` | 工作区 HTML：`view.js` 画左栏树、板头、确认条、纸面工具条与浮层；`view-panel.js` 画题目列表、详情层和练习记录摘要 |
 | `board.css`、`board-tree.css`、`board-panel.css`、`board-popovers.css`、`board-dialogs.css` | 分区样式（外框与纸面列 / 左栏 / 题目面板 / 浮层 / 对话框内容）；类名前缀 `brd-` |
 | `index.js` | 页面动作、键盘、拖放、浮层切换、行内与详情留白操作、详情题面与记录摘要水合、「适应宽度」随容器重算 |
@@ -29,7 +29,7 @@
 
 板列表有新建、查找、文件夹折叠和板 / 文件夹菜单。层级只靠一条对齐线：最左 20px 的结构列放文件夹折叠箭头和当前板指示条，文件夹图标、「未归档」与板名从同一条线起排，不再用缩进加竖线。空文件夹显示可放置的虚线提示。文件夹及板可拖动排序，板行显示题数、已印页数与未印题数，更新时间在悬停提示里。宽屏（≥1161px）可点左栏标题旁的按钮收起左栏，板头出现打开按钮。关联标记记录在 `localStorage['omrs-board-linked-labels']`，按板 ID 保存，不改 `boards.json`；用户显式点击「同步」时，现有标签同步逻辑追加新题并去重。停用或缺失题保留在列表，打印跳过，并提供「移出」。
 
-纸面始终由 `#bd-stage[data-morph="skip"]` 中的同一个 iframe 呈现，灰色桌面和纸张阴影由样式实现；不切列表或画廊视图。iframe 自己滚动；「适应宽度」按桌面宽度两侧各留约 32px，`index.js` 用 `ResizeObserver` 观察舞台，首次挂载、改窗口、收起左栏时自动重算缩放（一帧一次）。工具条显示纸面题数与页数、未印 / 已改动计数、翻页、缩放和版式入口。点击「纸上 N 题 · M 页」打开纸面记录浮层；版式浮层包含右侧留白、题间留白、答案、题头、切割线和锁定。两者都在工作区内弹出。
+纸面始终由 `#bd-stage[data-morph="skip"]` 中的同一个 iframe 呈现，灰色桌面和纸张阴影由样式实现；不切列表或画廊视图。iframe 自己滚动；「适应宽度」按桌面宽度两侧各留约 32px，`index.js` 用 `ResizeObserver` 观察舞台，首次挂载、改窗口、收起左栏时自动重算缩放（一帧一次）。工具条显示纸面题数与页数、未印 / 已改动计数、翻页、缩放、切换动效和版式入口。动效浮层提供渐隐渐显、左右滑页、抽纸、关闭动效及 100–800ms（步进 50ms、默认 280ms）时长滑杆，设置保存在 `localStorage['omrs-board-motion']`；板切换固定渐隐，翻页动画被再次操作时立即取消并执行最新目标。点击「纸上 N 题 · M 页」打开纸面记录浮层；版式浮层包含右侧留白、题间留白、答案、题头、切割线和锁定。两者都在工作区内弹出。
 
 题目列表与纸面并列：表头含题号、题目和题后留白，行内显示 UID、纸面状态、分类、难度、标记圆点及留白步进。点击题目行或纸上的题，从右侧滑入详情层。列表层与详情层都是「固定头 + 独立滚动的正文 + 固定脚」，面板本身不滚，任何高度下详情都能滚到底。
 
@@ -66,7 +66,7 @@ HTML。常驻而不是每次新建：那份 HTML 内联了将近 1MB 的 KaTeX �
 
 不在前台就不排版：切到别的 Tab、或预览滚出视口（`IntersectionObserver`）时几何改动只记不发，
 回来再 `boardPreviewFlushPending()` 补一次。切板时进行中的导出请求会被 `AbortController`
-取消，晚到的结果按文档代次 `previewToken` 丢弃。宿主为每份 srcdoc 注入独立 token，消息同时校验来源窗口、token、板 ID 和模式；模板也拒绝旧 token 的宿主消息。内嵌 HTML 从加载开始就带 `embedded`，就绪后重放单页和缩放状态。
+取消，晚到的结果按文档代次 `previewToken` 丢弃。宿主为每份 srcdoc 注入独立 token，消息同时校验来源窗口、token、板 ID 和模式；模板也拒绝旧 token 的宿主消息。内嵌 HTML 从加载开始就带 `embedded`，就绪后重放单页、缩放和动效配置。动效只改变 iframe 内页的 `transform` / `opacity`；动画被再次操作时取消当前动画并执行最新目标，系统启用 `prefers-reduced-motion` 时立即切换。
 
 页数不再单独跑一遍排版估算：翻页条直接读预览已经排好的 `layout`（`page_numbers` / `pages`），
 预览回传版面时 `detail.js` 通知页面整页 morph（舞台是 skip 节点，不会被卷进去）；
