@@ -277,6 +277,7 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 | `ai_model_extract` | string | 收件箱转文本模型；为空时回退 `ai_model` |
 | `ai_model_classify` | string | 收件箱分类模型；为空时回退 `ai_model` |
 | `ai_restrict_tags` | bool | 「AI 自动识别」是否把相关知识点限定在「已有分类 ∪ 已有知识点」内（默认 `true`，见设置页开关） |
+| `entry_background` | object | 入口锁屏背景的脱敏配置：`mode` 为 `black-hole` 或 `custom`，`style` 当前为 `gaussian-blur`，`blur_px` 为 0–32，`asset` 只含当前媒体的 opaque id、kind、mime、bytes；不返回服务器路径 |
 | `inbox_detect_provider` | string | 收件箱框选提供方：`vlm` 或 `local_http`；旧配置 `template` 运行时按 `vlm` 处理，默认 `vlm` |
 | `inbox_local_detect_url` | string | `local_http` 提供方的 POST 地址，默认空 |
 | `inbox_blind_every` | int | 每 N 张图执行一次盲标，`0` 关闭，默认 `0` |
@@ -287,6 +288,9 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 配置持久化在 `错题/.omrs/config.json`。`ai_*` 键供 AI 识别与收件箱任务使用，按用途模型为空时回退到 `ai_model`；`ai_restrict_tags` 缺失按 `true` 处理，`ai_thinking` 缺失按 `false` 处理，提交非布尔值返回 400。`inbox_*` 键供收件箱框选、盲标、自动处理和清理策略使用；新提交的 `inbox_detect_provider` 只接受 `vlm` / `local_http`，旧 `template` 值运行时按 `vlm` 处理。AI 与收件箱配置保存即生效；`allow_external` 仍需重启服务才改变监听地址。
 
 `agent_*` 键（AI 助手）的含义见 `AI/agent.md` §2：GET 不回显 `agent_api_key`，只返回 `agent_api_key_configured`；POST 可带 `clear_agent_api_key:true`；`agent_max_output_tokens` 缺省为 10240，只接受 1–65536 的整数，越界或类型不符返回 400；`agent_compat` 取值、开关类型不合法或模型名填 `faux` 时返回 400。
+
+### `GET /api/entry-background`
+只返回当前选中的自定义媒体文件，响应为二进制流并带保存时校验过的 `Content-Type`、`ETag` 和 `X-Content-Type-Options: nosniff`。未选择自定义背景、文件缺失或配置损坏时返回 404。该端点是入口页所需的公开资源，只能读取当前配置指向的单个文件，不能用查询参数访问历史媒体或 Vault 中的其他路径。
 
 ### `/api/question/content/history?uid=<uid>`（或 `question_id=`）
 列出一道题（含已删除的题）在 Ledger 里入账过的正文版本：`{question_id, uid, archived, current_hash, versions:[{seq, commit_id, created_at, source, commit_type, hash, available}]}`，按提交顺序，同一哈希只列一次。找不到返回 404。见 `AI/ledger.md` §10。
@@ -310,6 +314,9 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 ### `POST /api/scan`
 执行工作区自检与投影重建，返回 `{status:"ok", count, scan}`；GET 不执行扫描。
+
+### `POST /api/entry-background`
+使用 `multipart/form-data` 保存入口锁屏背景。字段为 `mode`（`black-hole` / `custom`）、`style`（`gaussian-blur`）、`blur_px`（0–32）、可选 `asset_id`（复用已保存媒体）和可选 `file`（单个图片或视频）。服务端分块接收文件并按签名、声明 MIME、空文件和 200MB 上限校验；文件路径由服务端生成，拒绝 SVG、HTML、未知格式、路径穿越和类型不一致。选择黑洞不需要文件，切回黑洞会保留旧自定义文件但不会通过公共接口暴露。成功返回 `{status:"ok",entry_background}`；失败返回 400 `{status:"error",msg}`，配置和文件均保持原值。
 
 ### `POST /api/auth/login`、`/api/auth/logout`、`/api/auth/activity`
 远端登录提交 `{pin}`，成功设置 `HttpOnly; SameSite=Strict` 会话 Cookie；退出清除会话。真实用户操作按分钟节流调用 `activity` 刷新空闲时间。`GET /api/auth/session` 可在登录前查询 `{instance_id, remote, authenticated, lan_pin_exempt, pin_configured, warning_required}`；免 PIN 网段直连时 `remote=true`、`authenticated=true`、`lan_pin_exempt=true`。

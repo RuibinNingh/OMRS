@@ -233,6 +233,7 @@ Markdown `# 历史` 不作为算法输入，也不会由反馈流程追加。`/a
 |---|---|---|
 | `allow_external` | bool | 是否绑定 0.0.0.0（见 `AI/frontend/settings.md`） |
 | `lan_pin_exempt_cidrs` | string[] | 直连免 PIN 的私有局域网 CIDR；默认空列表，代理请求不豁免 |
+| `entry_background` | object | 入口锁屏背景配置：`mode` 为 `black-hole` / `custom`，`style` 当前为 `gaussian-blur`，`blur_px` 为 0–32，`asset` 为当前媒体的 `{id,kind,mime,bytes}`；缺失或损坏时按黑洞读取 |
 | `agent_enabled` | bool | AI 助手总开关，默认关 |
 | `agent_base_url` / `agent_api_key` / `agent_model` | string | 助手的模型接口；地址与密钥留空沿用 `ai_*`，模型必填；密钥不回显 |
 | `agent_compat` / `agent_compat_overrides` | string / object | 厂商兼容配置名与单项覆写，见 `AI/agent.md` §2 |
@@ -261,6 +262,8 @@ Markdown `# 历史` 不作为算法输入，也不会由反馈流程追加。`/a
 | `inbox_discard_keep_days` | int | 丢弃原图保留天数，默认 `7` |
 
 `load_tuning()` 带进程内缓存，`save_config()` 写入后自动失效缓存；算法调参、AI 和收件箱策略保存即生效，无需重启。只有 `allow_external` 改变监听地址时需要重启。`save_config()` 按键合并，可单独提交；`load_config()` 的缺省键集中在 `common.CONFIG_DEFAULTS`。
+
+入口自定义媒体位于 `错题/.omrs/entry-background/`，文件名由服务端生成并按当前资源 ID 加白名单扩展名保存。每次只保留一个当前自定义媒体；替换成功后删除旧媒体，切回黑洞保留该媒体以便再次切回。它位于 `.omrs` 内，随现有完整备份与恢复流程一起打包，不进入题目图片压缩任务。
 
 `错题/.omrs/auth.json` 保存远端 PIN 的随机盐、PBKDF2-SHA256 哈希和空闲分钟数；写入时使用临时文件替换并设为仅文件所有者可读写。会话令牌只保留在服务进程内，进程重启后失效。`GET /api/config` 不返回 `ai_api_key` 或 PIN 哈希，仅提供已配置状态；备份包含 `错题/.omrs/`，因此备份下载仅供本机、显式豁免的直连局域网设备及已登录远端使用。
 

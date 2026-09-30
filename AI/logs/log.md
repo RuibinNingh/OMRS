@@ -15,6 +15,7 @@
 - [2026-09-30_question-creation-search](2026-09-30_question-creation-search.md)：题目创建信息与助手检索增强
 - [2026-09-30_markdown-linebreaks](2026-09-30_markdown-linebreaks.md)：Markdown 与普通换行兼容
 - [2026-09-30_lock-screen-entry](2026-09-30_lock-screen-entry.md)：锁屏入口
+- [2026-09-30_entry-background](2026-09-30_entry-background.md)：入口背景配置
 - [2026-09-30_create-ready-status](2026-09-30_create-ready-status.md)：录入就绪状态提示
 - [2026-09-30_board-motion](2026-09-30_board-motion.md)：展示板页面切换动效
 - [2026-09-30_assistant-ui](2026-09-30_assistant-ui.md)：AI 助手界面重设计

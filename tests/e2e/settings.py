@@ -65,6 +65,19 @@ def run_main(page, base, results):
     page.select_option('#st-ledger-time-zone', 'UTC')
     check('时区键名保持兼容', page.evaluate("localStorage.getItem('omrs-ledger-time-zone') === 'UTC'"))
 
+    page.click('[data-action="settings.entryBackgroundMode"][data-arg="custom"]')
+    png = bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000000020001e221bc330000000049454e44ae426082')
+    page.locator('#st-entry-background-file').set_input_files({'name': 'entry.png', 'mimeType': 'image/png', 'buffer': png})
+    page.locator('#st-entry-background-blur').fill('32')
+    check('入口背景本地预览和模糊参数同步', wait(page, "() => document.querySelector('#st-entry-background-preview img') && document.querySelector('#st-entry-background-blur-value')?.textContent === '32px'"))
+    page.click('[data-action="settings.saveEntryBackground"]')
+    check('入口自定义图片保存', wait(page, "() => document.querySelector('#st-entry-background-status')?.textContent.includes('已保存')")
+          and page.evaluate("async () => { const c = await (await fetch('/api/config')).json(); return c.entry_background.mode === 'custom' && c.entry_background.blur_px === 32 && c.entry_background.asset.kind === 'image'; }"))
+    page.click('[data-action="settings.entryBackgroundMode"][data-arg="black-hole"]')
+    page.click('[data-action="settings.saveEntryBackground"]')
+    check('入口背景切回黑洞并隐藏当前媒体', wait(page, "() => document.querySelector('#st-entry-background-status')?.textContent.includes('黑洞')")
+          and page.evaluate("async () => (await (await fetch('/api/config')).json()).entry_background.mode === 'black-hole'"))
+
     page.click('[data-action="settings.section"][data-arg="access"]')
     check('分区切换记忆', page.evaluate("localStorage.getItem('omrs-settings-section') === 'access'"))
     page.fill('#st-pin-new', '1234')
@@ -166,6 +179,8 @@ def run_main(page, base, results):
     check('脱敏源码包可下载', source.value.suggested_filename.startswith('OMRS-source-sanitized'))
     page.unroute('**/api/source/export')
 
+    # 主路径前面设置过 PIN；清掉测试凭据，避免后续重启 / 新上下文被入口锁屏挡住。
+    page.evaluate("async () => fetch('/api/auth/disable', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})")
     calls = {'restart': 0, 'session': 0}
     page.route('**/api/restart', lambda route: (calls.__setitem__('restart', calls['restart'] + 1),
         route.fulfill(status=200, content_type='application/json', body='{"status":"ok"}')))

@@ -17,6 +17,8 @@
 
 主题、密度与深色题图反相分别使用原有 `omrs-theme`、`omrs-density`、`omrs-invert-img` 本地键；修改后立刻更新 `<html>` 对应属性。首次主题沿用首帧脚本的深色默认值。Ledger 时区使用 `omrs-ledger-time-zone`，修改时发 `ledger:tz` 总线事件，历史记录与仪表盘最近动态按新时区显示；带时区偏移的时间戳才转换，旧的无偏移时间保留原墙上时间。
 
+同一分区的「入口背景」卡片写入当前 Vault 的 `entry_background`：默认黑洞 WebGL 预设，也可切换到自定义并上传图片或视频。浏览器先本地预览，保存时才通过 `multipart/form-data` 上传；支持的文件由服务端再次校验，单文件上限 200MB。自定义模式首版提供「高斯模糊」，滑杆为 0–32px，预览与入口页使用同一套夹取规则。切回黑洞不会删除已保存媒体，卡片会显示当前文件类型和大小，并提示入口访问设备都能看到自定义背景。
+
 ## 访问与安全
 
 `access.js` 并行读取 `/api/config`、`/api/auth/session` 和 `/api/status`，用运行中 `listen_external` 判断当前暴露范围；读不到运行状态时退回已保存配置。概览显示本机 / 远端、PIN 和免 PIN 网段；保存 `allow_external` 与 `lan_pin_exempt_cidrs` 时，仅运行监听范围需要改变才请求重启。只改免 PIN 网段时立即生效。远端关闭局域网前先确认失联后果。
