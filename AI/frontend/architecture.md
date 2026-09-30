@@ -26,7 +26,7 @@ assets/app/
 
 主页面入口是 HTML 的 `type="module"` 脚本 `main.js`，无需构建。先安装图标、提示、题目 DOM 与展示板窗口监听并启动活动跟踪，再 `startShell(window,pages)` 创建 bus/store/router、登记页面契约。
 
-外壳创建后连接草稿、统计、Session、历史和标记领域服务，绑定标记选择器事件与全局 Esc。初始标记 / 统计 / Session 并行加载后调用 `router.start()`，随后同步助手入口；设置变更通过 `agent:config` 再同步。独立的 `/annotate`、`/train` 使用各自入口，不在主外壳的页面登记表中。
+外壳创建后连接草稿、统计、Session、历史和标记领域服务，绑定标记选择器事件与全局 Esc。先调用 `router.start()` 安装 hash 监听并稳定当前页面，再并行加载初始标记 / 统计 / Session，随后同步助手入口；设置变更通过 `agent:config` 再同步。独立的 `/annotate`、`/train` 使用各自入口，不在主外壳的页面登记表中。
 
 ## 3. 路由与页面契约
 
@@ -84,7 +84,7 @@ assets/app/
 
 ## 7. 静态资源缓存
 
-`/assets/` 响应带弱 ETag（文件 mtime + 大小）与 `Last-Modified`，使用 `Cache-Control: no-cache`：浏览器每次会重新验证，文件没变时收到空的 304。模块间的 import 不带 `?v=`，由资源校验处理更新；`omrs_dashboard.html` 直接引用的样式、主模块和图标仍带各自的 `?v=`。
+`/assets/` 响应带弱 ETag（文件 mtime + 大小）与 `Last-Modified`，使用 `Cache-Control: no-cache`：浏览器每次会重新验证，文件没变时收到空的 304。模块间的 import 不带 `?v=`，由资源校验处理更新；`omrs_dashboard.html` 直接引用的样式、主模块和图标仍带各自的 `?v=`。锁屏入口的 WebGL 场景实现、公式 atlas 和降级主视觉放在 `assets/vendor/entry-*`，由入口页按需加载，不进入应用层依赖检查。
 
 ## 8. 草稿与录入页状态
 

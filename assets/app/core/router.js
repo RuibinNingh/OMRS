@@ -92,10 +92,17 @@ export function createRouter({ win = globalThis.window, fallback = 'dashboard', 
     start() {
       if (!started) {
         started = true;
-        win.history.replaceState({ ...win.history.state, omrsRouteIndex: historyIndex }, '', win.location.hash || `#/${fallback}`);
+        // 保留入口跳转携带的查询串，首个有效 hash 不再触发一次额外的文档导航；
+        // 后续 go()/后退前进仍会写入带 omrsRouteIndex 的历史项。
         const onNavigate = () => {
           const r = parseHash(win.location.hash);
-          if (!r) { if (current) win.history.replaceState(null, '', `#/${currentRoute}`); return; }
+          if (!r) {
+            if (current) {
+              const suffix = `${win.location.pathname}${win.location.search}#/${currentRoute}`;
+              win.history.replaceState(null, '', suffix);
+            }
+            return;
+          }
           if (!pages.has(r.id)) { navigate(fallback, { external: true }); return; }
           navigate(`${r.id}${r.query ? '?' + r.query : ''}`, { external: true });
         };

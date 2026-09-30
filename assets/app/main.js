@@ -45,8 +45,8 @@ registerKeys('global', { escape: { inInput: true, inDialog: true, handler: () =>
   return false;
 } } });
 applyChrome(router.page(router.resolve(window.location.hash)), document);
+router.start();
 try { await Promise.all([loadLabels(), reloadData(), refreshSessions()]); }
 catch (error) { console.error('[omrs] 初始数据加载出错', error); }
-router.start();
 syncAssistantNav(document).catch(() => {});
 bus.on('agent:config', () => syncAssistantNav(document).catch(() => {}));
