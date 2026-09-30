@@ -15,7 +15,7 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-09-30 实测）：服务 `omrs.service`，监听 TCP 8471，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；systemd drop-in 从 `/root/workspace/releases/omrs-linebreaks-545b604cb25b` 运行 v2.0.0，真实 Vault 仍是 `/root/workspace/apps/OMRS`。备份目录 `/root/workspace/backups/recycle/`；本次 Markdown 与普通换行兼容发布的一致性备份为 `markdown-linebreaks-20260930T060320Z`，其中 `vault-before.tar` 的 SHA-256 为 `9ae99d68fecf37d2b1e03ab8eb04741961e588c6985033035f9aa2292e6405cb`；上一版发布目录 `/root/workspace/releases/omrs-d51efb3` 保留用于代码回退。远端经 Nginx 反向代理。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
+生产环境事实（2026-09-30 实测）：服务 `omrs.service`，监听 TCP 8471，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；systemd drop-in 从 `/root/workspace/releases/omrs-ebaaf80` 运行 v2.0.0，真实 Vault 仍是 `/root/workspace/apps/OMRS`。备份目录 `/root/workspace/backups/recycle/`；最近修改合入发布的一致性备份为 `recent-changes-20260930T104035Z`，其中 `vault-before.tar` 的 SHA-256 为 `2d7efa4b64d3044cf44224c88cfdc957ae7c58173c29b41c7d525272861a1264`；上一版发布目录 `/root/workspace/releases/omrs-linebreaks-545b604cb25b` 保留用于代码回退。远端经 Nginx 反向代理。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
 
 ## 2. Claude Code Web 实测能力（2026-09-24）
 

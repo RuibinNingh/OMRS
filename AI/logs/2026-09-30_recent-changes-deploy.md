@@ -39,8 +39,15 @@
 
 ## GitHub 推送
 
-待最终提交、门禁和远端快进确认后补写提交哈希、远端指针及推送结果。
+待最后的文档收尾提交后执行 `git push origin main`，并以 `git ls-remote origin refs/heads/main` 核对远端指针。
 
 ## 生产部署
 
-待最终提交后补写发布目录、生产备份、systemd 切换、只读接口 / 浏览器验收和回退路径。
+- 以提交 `ebaaf80` 的 `git archive` 生成 `/root/workspace/releases/omrs-ebaaf80`，共 928 个工作树文件；旧发布目录 `/root/workspace/releases/omrs-linebreaks-545b604cb25b` 保留用于代码回退。
+- 切换前停止 `omrs.service` 并备份真实 Vault 到 `/root/workspace/backups/recycle/recent-changes-20260930T104035Z/vault-before.tar`；归档 SHA-256 为 `2d7efa4b64d3044cf44224c88cfdc957ae7c58173c29b41c7d525272861a1264`，旧 drop-in、前后状态、Ledger 和发布清单同目录保存。
+- 替换 drop-in 后执行 `systemctl daemon-reload`、`systemctl start omrs.service`。当前服务 `active/running`，`MainPID=1696938`、`NRestarts=0`、`ExecMainStatus=0`、工作目录为新发布目录；错误级 journal 无记录。
+- 生产 `/api/status` 返回 `status=ok`、`version=v2.0.0`、261 道题、workspace scan 变更 0 / 冲突 0；`/api/ledger/verify` 返回 `valid=true`、提交数 716；草稿计数为 cropping 0、review 1、done 19、discarded 7。
+- 真实 Chromium 只读验收使用发布目录的 `omrs_dashboard.html` 响应绕过入口锁屏，桌面 1280×900 与手机 390×844 依次打开仪表盘、题库、即时练习、反馈录入、录入题目、展示板；12 个页面均就绪、无横向溢出、无脚本错误。录入页草稿审核均看到 Inspector / 来源入口，普通换行渲染为含 2 个 `<br>` 的单段；展示板预览唯一非 GET 请求为只读 `POST /api/export`。
+- 5 个关键前端资源经 HTTP 返回并与发布目录 SHA-256 一致；生产浏览器结果保存在备份目录 `production-browser.json`，静态资源哈希在 `static-hashes.json`。
+
+回退：恢复备份中的 `10-release.conf.before`，执行 `systemctl daemon-reload && systemctl restart omrs.service`；旧发布目录为 `/root/workspace/releases/omrs-linebreaks-545b604cb25b`。不要用 Vault 归档覆盖发布后新增数据。
