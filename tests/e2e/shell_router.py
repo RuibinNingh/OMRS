@@ -15,6 +15,8 @@ import urllib.error
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, ROOT)
+from omrs import security
 _spec = importlib.util.spec_from_file_location("visual_run", os.path.join(ROOT, "tests", "visual", "run.py"))
 visual = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(visual)
@@ -44,7 +46,7 @@ def settle(page, expression, timeout=3000):
         return False
 
 
-def run_checks(page, base, results):
+def run_checks(page, base, vault, results):
     def check(name, ok, detail=""):
         results.append((name, bool(ok), detail))
 
@@ -129,6 +131,17 @@ def run_checks(page, base, results):
         busy = ev("document.querySelector('#panel-catalog [data-action=\"app.scan\"]').getAttribute('aria-busy')")
     done = settle(page, "!document.querySelector('[data-action=\"app.scan\"][aria-busy]') && [...document.querySelectorAll('.ui-toast')].some(t => t.textContent.includes('扫描完成'))", 8000)
     check("DP4：点「重新扫描」调用 /api/scan、期间置忙、完成后提示", scan.value.status == 200 and busy == "true" and done, f"busy={busy} done={done}")
+    # Also exercise the configured-PIN handoff.  This is the path users take
+    # from the lock-screen button after enabling remote access.
+    security.set_pin(vault, "2468")
+    page.goto(f"{base}/", wait_until="networkidle")
+    page.locator("#pin").fill("2468")
+    page.locator("#submit").click()
+    page.wait_for_function("location.search.includes('omrs_reload') && !!window.__omrs", timeout=15000)
+    pin_state = ev("({ url: location.href, panel: document.querySelector('.content > .panel.active')?.id, text: document.body.innerText })")
+    check("配置 PIN 后点击解锁仍进入仪表盘", "omrs_reload=" in pin_state["url"] and
+          pin_state["panel"] == "panel-dashboard" and "仪表盘" in pin_state["text"], str(pin_state))
+    security.disable_pin(vault)
 
 
 def run_mobile(browser, base, results):
@@ -185,7 +198,7 @@ def main():
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
             page.on("response", lambda r: r.status >= 400 and errors.append(f"{r.status} {r.url}"))
-            run_checks(page, base, results)
+            run_checks(page, base, vault, results)
             results.append(("桌面：页面脚本错误为 0", not errors, "; ".join(errors[:3])))
             context.close()
             run_mobile(browser, base, results)

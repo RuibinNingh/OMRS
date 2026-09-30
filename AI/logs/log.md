@@ -10,6 +10,7 @@
 - [2026-09-30_v2-p5-practice](2026-09-30_v2-p5-practice.md)：v2.0.0 P5 聊天练习卡
 - [2026-09-30_v2-p4-tools](2026-09-30_v2-p4-tools.md)：v2.0.0 P4 分类与 AI 草稿编辑工具
 - [2026-09-30_v2-p3-assistant](2026-09-30_v2-p3-assistant.md)：v2.0.0 P3 助手附件与移动交互
+- [2026-09-30_unlock-white-screen](2026-09-30_unlock-white-screen.md)：解锁后白屏
 - [2026-09-30_recent-changes-deploy](2026-09-30_recent-changes-deploy.md)：最近修改调查、GitHub 合入与生产更新
 - [2026-09-30_question-modal-scroll](2026-09-30_question-modal-scroll.md)：修复手机版题目详情滚动
 - [2026-09-30_question-creation-search](2026-09-30_question-creation-search.md)：题目创建信息与助手检索增强

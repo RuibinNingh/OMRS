@@ -112,6 +112,11 @@ class SecurityTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("OMRS — 错题重构系统", body.decode("utf-8"))
 
+        # The shell imports a module graph; never cache the document that
+        # embeds that graph across a deployment.
+        headers = self.request("GET", "/?unlocked=1")[1]
+        self.assertEqual(headers.get("Cache-Control"), "no-store")
+
         security.set_pin(self.vault, "2468")
         status, headers, _ = self.request("GET", "/?unlocked=1")
         self.assertEqual(status, 302)
