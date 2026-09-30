@@ -8,6 +8,7 @@ import unittest
 
 from omrs.common import load_config
 from omrs.common import save_config
+from omrs.entry_background import MAX_UPLOAD_BYTES, inspect_upload
 from omrs.server import OMRSHandler
 
 
@@ -120,6 +121,15 @@ class EntryBackgroundHttpTests(unittest.TestCase):
         self.assertEqual(state["mode"], "black-hole")
         self.assertIsNone(state["asset"])
         self.assertEqual(self.request("GET", "/api/entry-background")[0], 404)
+
+    def test_inspect_upload_rejects_sparse_file_over_200mb_without_reading_it(self):
+        fd, path = tempfile.mkstemp(dir=self.vault)
+        os.close(fd)
+        self.addCleanup(lambda: os.path.exists(path) and os.remove(path))
+        with open(path, "wb") as stream:
+            stream.truncate(MAX_UPLOAD_BYTES + 1)
+        with self.assertRaisesRegex(ValueError, "不能超过 200 MB"):
+            inspect_upload(path, "large.mp4", "video/mp4")
 
     def test_custom_without_current_asset_and_path_traversal_id_are_rejected(self):
         content_type, body = multipart({"mode": "custom", "asset_id": "../secret", "blur_px": "0"})

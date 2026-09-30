@@ -23,7 +23,7 @@
 已实际执行：
 
 - `python3 -m py_compile omrs/server.py omrs/entry_background.py`：通过。
-- `python3 -m unittest tests.test_entry_background`：6/6 通过。
+- `python3 -m unittest tests.test_entry_background`：7/7 通过。
 - `python3 -m unittest tests.test_security`：13/13 通过。
 - `node --test tests/app/settings.test.mjs`：23/23 通过。
 - `python3 tests/check_ui.py`：通过；`python3 tests/check_contrast.py`：通过。
