@@ -39,7 +39,7 @@
 
 ## GitHub 推送
 
-已执行 `git fetch origin main`，确认远端 `3c0df69` 是本地历史祖先；第一次 `git push origin main` 将远端快进到 `019fa4e`，随后补写推送证据并再次推送，最终远端 `main` 为 `c663951`。
+已执行 `git fetch origin main`，确认远端 `3c0df69` 是本地历史祖先；随后连续推送本次代码与文档收尾提交均成功。最终用 `git ls-remote origin refs/heads/main` 核对，远端 `main` 与本地 `HEAD` 一致，`git status --short --branch` 无 ahead/behind。
 
 ## 生产部署
 
