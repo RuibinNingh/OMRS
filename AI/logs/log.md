@@ -21,6 +21,7 @@
 - [2026-09-30_board-motion](2026-09-30_board-motion.md)：展示板页面切换动效
 - [2026-09-30_assistant-ui](2026-09-30_assistant-ui.md)：AI 助手界面重设计
 - [2026-09-30_assistant-ui-deploy](2026-09-30_assistant-ui-deploy.md)：助手界面生产部署
+- [2026-09-30_assistant-processing](2026-09-30_assistant-processing.md)：助手处理状态行样式
 - [2026-09-30_answer-blocks](2026-09-30_answer-blocks.md)：AI 答案块边界
 - [2026-09-30_ai-draft-ui](2026-09-30_ai-draft-ui.md)：AI 草稿审核台右侧布局重设计
 - [2026-09-29_v2-p2](2026-09-29_v2-p2.md)：OMRS 2.0.0 快速录入与字段安全

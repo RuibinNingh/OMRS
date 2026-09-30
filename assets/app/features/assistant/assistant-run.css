@@ -9,10 +9,10 @@
 .ast-turn.is-selected .ast-turn__who { color: var(--accent); }
 .ast-trace { position: relative; display: grid; gap: var(--sp-2); padding-left: var(--ast-trace-pad); }
 .ast-process { min-width: 0; }
-.ast-process__toggle { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--ctl-lg); padding: var(--sp-1) var(--sp-2); color: var(--fg-2); text-align: left; background: var(--surface-0); border: 1px solid var(--border-1); border-radius: var(--r-md); cursor: pointer; font: inherit; font-size: var(--text-xs); touch-action: manipulation; }
-.ast-process__toggle > .ui-icon { margin-left: auto; }
+.ast-process__toggle { display: inline-flex; align-items: center; gap: var(--sp-2); max-width: 100%; min-height: var(--ctl-md); padding: var(--sp-1) 0; color: var(--fg-2); text-align: left; background: transparent; border: 0; border-radius: var(--r-sm); cursor: pointer; font: inherit; font-size: var(--text-xs); touch-action: manipulation; }
+.ast-process__toggle > .ui-icon { margin-left: var(--sp-1); color: var(--fg-3); }
 .ast-process__toggle:disabled { cursor: default; }
-.ast-process__toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.ast-process__toggle:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: var(--sp-1); }
 .ast-process__toggle:active:not(:disabled) { background: var(--surface-2); }
 .ast-process__meta { color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .ast-turn.is-live .ast-process__label { color: var(--accent); }
