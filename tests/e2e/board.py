@@ -138,7 +138,15 @@ def run_path(page, base, port, ids, results):
           return frame?.contentDocument?.body?.classList.contains('embedded') &&
             frame?.contentDocument?.querySelector('#stage.motion-layer') !== null;
         }""")
-        record(results, "连续翻页：取消旧动效并停在最新目标页", settled and (frame_motion or page.evaluate("() => boardPreviewView().page") == latest), latest)
+        settled_layout = wait(page, f"""() => {{
+          if (boardPreviewView().page !== {latest}) return false;
+          const frame = document.querySelector('#bd-stage > iframe');
+          const doc = frame?.contentDocument;
+          const target = doc?.querySelector('#stage .page[data-page="{latest}"]');
+          return !!target && !doc.querySelector('#stage.motion-layer') &&
+            target.getAnimations().length === 0 && getComputedStyle(target).transform === 'none';
+        }}""", 5000)
+        record(results, "连续翻页：取消旧动效并停在最新目标页", settled and settled_layout and (frame_motion or page.evaluate("() => boardPreviewView().page") == latest), latest)
     else:
         record(results, "单页板：翻页按钮无效时不抛错", True)
 

@@ -165,7 +165,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 
 关键取舍：**几何类改动全程零网络请求**。拖版面滑块、改题间留白、换切割线样式都走
 `omrs-board-relayout` 在 iframe 里就地重排，不重新请求那份将近 1MB 的导出 HTML；
-翻页动效也只在 iframe 内改变 `transform` / `opacity`，不重新排版。动效未完成时再次翻页会取消当前动画，只执行最新目标；`prefers-reduced-motion: reduce` 或关闭动效时立即切换。
+翻页动效也只在 iframe 内改变 `transform` / `opacity`，不重新排版。动效未完成时再次翻页会取消当前动画，只执行最新目标；动画结束会清掉 `fill: forwards` 的残留效果，确保纸面恢复静态几何；`prefers-reduced-motion: reduce` 或关闭动效时立即切换。
 增删题、排序、换模式以及答案 / 标记显示开关变化会在保存后重新导出。
 
 排版完成后模板写 `window.OMRS_LAYOUT`（`{mode, print, pages, page_numbers, rendered_pages,

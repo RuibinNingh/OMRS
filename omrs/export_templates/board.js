@@ -575,13 +575,21 @@
     notify("omrs-board-view-state", window.OMRS_LAYOUT || null);
   }
   function pageNode(number) { return document.querySelector('#stage .page[data-page="' + number + '"]'); }
-  function clearPageMotion() {
-    if (!MOTION_RUN) return;
-    const run = MOTION_RUN;
+  function settlePageMotion(run) {
+    if (!run || MOTION_RUN !== run) return;
     MOTION_RUN = null;
+    // `fill: forwards` keeps the finished transform active until the
+    // Animation is cancelled.  Remove it before restoring the page's normal
+    // layout; otherwise slide/paper leave `translateX(-50%)` on the target
+    // page and every settled page stays half a sheet off-screen.
     (run.animations || []).forEach(animation => { try { animation.cancel(); } catch (e) {} });
     run.cleanup();
     applyView();
+  }
+  function clearPageMotion() {
+    if (!MOTION_RUN) return;
+    const run = MOTION_RUN;
+    settlePageMotion(run);
   }
   function motionLayer(oldPage, newPage) {
     const stage = document.getElementById("stage");
@@ -637,10 +645,7 @@
     const run = { animations, cleanup };
     MOTION_RUN = run;
     Promise.all(animations.map(animation => animation.finished || Promise.resolve())).then(() => {
-      if (MOTION_RUN !== run) return;
-      MOTION_RUN = null;
-      cleanup();
-      applyView();
+      settlePageMotion(run);
     }).catch(() => { if (MOTION_RUN === run) clearPageMotion(); });
     return true;
   }

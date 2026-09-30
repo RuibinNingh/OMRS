@@ -29,3 +29,9 @@
 - `python3 tests/check_docs.py --write-log-index` 已更新索引；`python3 tests/check_docs.py --diff 3c0df69` 通过（0 个问题，3 条既有超长文档提醒）。最终改动范围复核随后完成。
 
 提交只包含本任务的 18 个文件；提交哈希在最终汇报中给出。工作区其他未提交改动属于并行任务，已保留。
+
+## 追补修复
+
+用户录屏确认左右滑页 / 抽纸在动画结束后纸面仍向左偏移。实测原因是 `fill: "forwards"` 的 Web Animation 在 `finished` 回调中只恢复了内联布局，没有调用 `Animation.cancel()`，最后一帧的 `translateX(-50%)` 继续覆盖静态样式。`settlePageMotion()` 现在在正常结束和取消路径统一先取消动画，再恢复页面布局；E2E 额外检查目标页没有残留动画且计算后的 transform 为 `none`。
+
+追补验证：`node --test tests/app/board*.test.mjs` 123/123；`python3 tests/e2e/board.py` 28/28；`git diff --check` 通过。
