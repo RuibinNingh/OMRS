@@ -34,8 +34,14 @@
 
 备注：全量 `node --test tests/app/*.test.mjs` 为 388/389；唯一失败是现有 `core.test.mjs` 路由假窗口缺少 `pathname/search` 导致的 `undefinedundefined#/board` 断言，本次未修改路由或该测试；录入相关 28/28 已单独通过。
 
-未执行：GitHub 推送和生产切换在本日志初稿完成后执行，结果补在「生产部署」一节。
+GitHub 推送和生产切换结果见下方「生产部署」一节。
 
 ## 生产部署
 
-待代码提交和生产切换后补写发布提交、备份目录、服务状态、生产浏览器验收和回退方式。
+- Git 提交 `d51efb3` 已推送到 GitHub `origin/main`；发布目录由 `git archive d51efb3` 生成于 `/root/workspace/releases/omrs-d51efb3`，发布目录迁移兼容测试 4/4 通过。
+- 切换前服务为 active/running，生产 `/api/status` 返回 v2.0.0、239 道题、扫描 0 变更 / 0 冲突；助手 `active=[]`；收件箱 87 条，状态为 done 78 / ready 8 / boxed 1。备份目录为 `/root/workspace/backups/recycle/create-ready-d51efb3-20260930T033859Z`，真实 Vault 归档 `vault-before.tar` 的 SHA-256 为 `74fcf06356266595ac060335b177f3850e5da75738bd6627c2d1dfa7dd6bf78c`，原 drop-in 保存在 `10-release.conf.before`。
+- 只替换 `/etc/systemd/system/omrs.service.d/10-release.conf` 的发布目录，执行 `systemctl daemon-reload` 后启动 `omrs.service`；最终 active/running、`MainPID=523356`、`NRestarts=0`、`ExecMainStatus=0`，工作目录为 `/root/workspace/releases/omrs-d51efb3`。
+- 上线后 `/api/status` 仍为 v2.0.0、239 道题、0 变更 / 0 冲突；助手无活动运行；收件箱前后 JSON 快照 SHA-256 均为 `2d8912ba4f533ae06e5705882556211a27cc0adfb9f8b12e29957dbfb2c95652`；错误级 journal 为空。
+- 生产真实 Chromium 只读验收使用 1440×900 与 390×844：首个 dashboard 文档响应为同一发布目录文件以避开 PIN 输入，之后的模块、静态资源和 API 均从 `127.0.0.1:8471` 读取；六个录入工作区、`#ib-ps-status` 状态槽位和新 `showStatus` 逻辑均存在，无横向溢出、无脚本错误、无 POST / PUT / PATCH / DELETE 请求。证据保存在备份目录 `production-browser.json`。
+
+回退：恢复备份中的 `10-release.conf.before`，执行 `systemctl daemon-reload && systemctl restart omrs.service`；旧发布目录 `/root/workspace/releases/omrs-7108d8e` 保留。不得用 Vault 归档覆盖上线后的新增数据。
