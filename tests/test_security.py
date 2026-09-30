@@ -102,6 +102,27 @@ class SecurityTests(unittest.TestCase):
         self.assertEqual(denied[0], 403)
         self.assertEqual(load_config(self.vault), before)
 
+    def test_lock_screen_is_the_first_page_and_unlocked_dashboard_stays_guarded(self):
+        status, _, body = self.request("GET", "/")
+        self.assertEqual(status, 200)
+        self.assertIn("PRIVATE STUDY WORKSPACE", body.decode("utf-8"))
+        self.assertIn("/api/auth/session", body.decode("utf-8"))
+
+        status, _, body = self.request("GET", "/?unlocked=1")
+        self.assertEqual(status, 200)
+        self.assertIn("OMRS — 错题重构系统", body.decode("utf-8"))
+
+        security.set_pin(self.vault, "2468")
+        status, headers, _ = self.request("GET", "/?unlocked=1")
+        self.assertEqual(status, 302)
+        self.assertIn("/login?next=", headers.get("Location", ""))
+        status, _, body = self.request("GET", "/", self.remote_headers())
+        self.assertEqual(status, 200)
+        self.assertIn("输入 4–12 位 PIN", body.decode("utf-8"))
+        status, headers, _ = self.request("GET", "/?unlocked=1", self.remote_headers())
+        self.assertEqual(status, 302)
+        self.assertIn("/login?next=", headers.get("Location", ""))
+
     def test_path_components_and_symlink(self):
         for subject, category in (("../outside", "x"), ("x", "/tmp/outside"), ("x", ".."),
                                   ("x\\y", "z")):
@@ -234,7 +255,7 @@ class SecurityTests(unittest.TestCase):
         _, _, page = self.request("GET", "/login")
         text = page.decode("utf-8")
         self.assertIn("new URL(", text)
-        self.assertIn("origin===location.origin", text)
+        self.assertTrue("origin===location.origin" in text or "origin!==location.origin" in text)
         self.assertNotIn("startsWith('//')", text)
 
 

@@ -50,6 +50,9 @@ def run_checks(page, base, results):
 
     ev = page.evaluate
     page.goto(f"{base}/", wait_until="networkidle")
+    if page.locator("#enter").is_visible():
+        page.locator("#enter").click()
+        page.wait_for_load_state("networkidle")
     st = ev(STATE)
     check("首次打开落到 #/dashboard", st["hash"] == "#/dashboard" and st["panel"] == "panel-dashboard", str(st))
     check("文档标题与侧栏 aria-current", st["docTitle"] == "仪表盘 · OMRS" and st["current"] == "dashboard")

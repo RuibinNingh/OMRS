@@ -91,7 +91,7 @@ run.bat
 python omrs_engine.py serve
 ```
 
-启动后访问 <http://localhost:8471/>。已有题库可先只读盘点正文版本覆盖情况：
+启动后访问 <http://localhost:8471/>。首次进入会先显示 OMRS 锁屏入口；启用 PIN 时直接在入口输入 PIN 解锁，未启用 PIN 时点击「进入 OMRS」。已有题库可先只读盘点正文版本覆盖情况：
 
 ```bash
 python3 omrs_engine.py --vault /path/to/vault content-audit --json

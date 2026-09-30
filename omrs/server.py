@@ -102,10 +102,16 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         params = dict(query_pairs)
 
         if path == "/login":
-            self._serve_login()
+            self._serve_entry()
             return
         if path == "/api/auth/session":
             self._auth_status()
+            return
+        # The first visit is always the lock-screen entry.  The unlocked
+        # dashboard is still protected by the normal remote authorization
+        # check below, so this public page never exposes vault data or assets.
+        if path in ("/", "/index.html") and params.get("unlocked") != "1":
+            self._serve_entry()
             return
         if not self._authorize(path, params):
             return
@@ -1471,6 +1477,20 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
     def _authorize(self, path, params):
         remote, _, _ = self._security_context()
         self._active_session = None
+        # A configured PIN also gates the lock-screen handoff on local access.
+        # The existing local API exemption remains unchanged after the
+        # dashboard has been opened.
+        if path in ("/", "/index.html") and params.get("unlocked") == "1" and \
+                security.auth_summary(self.vault_path)["pin_configured"]:
+            session = security.session_for(self.vault_path, self._cookie_token())
+            if session:
+                self._active_session = session
+                return True
+            self.send_response(302)
+            self.send_header("Location", "/login?next=" + urllib.parse.quote(self.path, safe=""))
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return False
         if not remote or self._direct_lan_exempt():
             return True
         session = security.session_for(self.vault_path, self._cookie_token())
@@ -1597,8 +1617,50 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
 
-    def _serve_login(self):
-        page = '''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OMRS 登录</title><style>body{font:16px system-ui,sans-serif;background:#f6f2eb;color:#27231f;display:grid;place-items:center;min-height:100vh;margin:0}main{background:white;padding:32px;border:1px solid #ddd;border-radius:12px;max-width:360px;width:85%}input,button{font:inherit;padding:12px;width:100%;box-sizing:border-box;margin-top:12px}button{background:#765c45;color:white;border:0;border-radius:6px;cursor:pointer}p{line-height:1.5}</style><main><h1>OMRS 远端登录</h1><p id="hint">输入 PIN 后继续访问。</p><form id="login"><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="off" placeholder="4 到 12 位 PIN" required><button>登录</button></form></main><script>const hint=document.getElementById('hint');const next=()=>{try{const u=new URL(new URLSearchParams(location.search).get('next')||'/',location.origin);return u.origin===location.origin?u.pathname+u.search+u.hash:'/'}catch(_){return '/'}};fetch('/api/auth/session').then(r=>r.json()).then(s=>{if(!s.pin_configured)hint.textContent='尚未配置 PIN，请在本机设置页完成配置。';if(s.authenticated)location.replace(next())});document.getElementById('login').onsubmit=async e=>{e.preventDefault();try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:document.getElementById('pin').value})});const j=await r.json();if(!r.ok)throw Error(j.msg||'登录失败');const s=await(await fetch('/api/auth/session')).json();if(s.warning_required){alert('当前通过 HTTP 访问，PIN 和会话可能被同一网络中的设备看到。建议使用 HTTPS。');await fetch('/api/auth/warning-ack',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'})}location.replace(next())}catch(err){hint.textContent=err.message}}</script></html>'''.encode("utf-8")
+    def _serve_entry(self):
+        page = '''<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05060a">
+<title>OMRS · 入口</title>
+<style>
+:root{color-scheme:dark;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#05060a;color:#f4f0e8}
+*{box-sizing:border-box}html,body{min-height:100%;margin:0}body{overflow:hidden;background:#05060a}
+.lock{position:relative;display:grid;place-items:center;min-height:100svh;isolation:isolate;overflow:hidden;background:radial-gradient(ellipse at 50% 44%,#20252c 0,#0c0e13 34%,#05060a 72%)}
+.lock:before,.lock:after{content:"";position:absolute;inset:-35%;z-index:-2;pointer-events:none;background-image:radial-gradient(circle at 20% 20%,#fff 0 1px,transparent 1.5px),radial-gradient(circle at 80% 30%,#b7c8de 0 1px,transparent 1.5px),radial-gradient(circle at 45% 75%,#e5c58c 0 1px,transparent 1.5px);background-size:190px 160px,260px 220px,330px 280px;opacity:.34;animation:drift 34s linear infinite}
+.lock:after{inset:-20%;opacity:.12;filter:blur(1px);transform:rotate(18deg);animation-duration:48s;animation-direction:reverse}
+.grain{position:absolute;inset:0;z-index:-1;opacity:.14;pointer-events:none;background-image:linear-gradient(115deg,transparent 0 47%,#d8b675 47.3% 47.45%,transparent 47.8% 100%),linear-gradient(75deg,transparent 0 68%,#7087a6 68.2% 68.3%,transparent 68.7% 100%);background-size:370px 280px,520px 390px;mix-blend-mode:screen;animation:sweep 22s ease-in-out infinite alternate}
+.orbit{position:absolute;width:min(72vw,720px);aspect-ratio:1.75/1;border:1px solid rgb(210 177 111/.2);border-radius:50%;transform:rotate(-17deg);box-shadow:0 0 80px rgb(187 145 69/.08),inset 0 0 50px rgb(187 145 69/.05);animation:orbit 18s linear infinite}
+.orbit:before,.orbit:after{content:"";position:absolute;border:1px solid rgb(230 198 137/.17);border-radius:50%;inset:12% -4%;transform:rotate(32deg)}.orbit:after{inset:-8% 19%;transform:rotate(-42deg);opacity:.5}
+.panel{width:min(420px,calc(100vw - 40px));display:grid;justify-items:center;gap:18px;text-align:center;padding:28px 30px 30px;border:1px solid rgb(255 255 255/.12);border-radius:24px;background:rgb(10 12 17/.68);box-shadow:0 24px 90px rgb(0 0 0/.45),0 0 80px rgb(196 156 81/.08);backdrop-filter:blur(18px)}
+.mark{display:grid;place-items:center;width:56px;height:56px;border:1px solid rgb(226 193 126/.65);border-radius:50%;color:#f0d59c;box-shadow:0 0 28px rgb(217 171 91/.2)}.mark:before{content:"";width:20px;height:20px;border:2px solid currentColor;border-radius:50%;box-shadow:0 0 16px currentColor}.brand{margin:0;color:#d9bf8b;letter-spacing:.26em;font-size:11px;text-transform:uppercase}.clock{margin:0;font-size:clamp(52px,10vw,76px);font-weight:300;letter-spacing:.06em;line-height:1;font-variant-numeric:tabular-nums}.date{margin:-8px 0 2px;color:#9ca2ad;font-size:13px}.title{margin:0;font-size:15px;font-weight:500;letter-spacing:.08em}.hint{min-height:21px;margin:0;color:#969da8;font-size:13px;line-height:1.5}.error{color:#f4a9a0}.entry{width:100%;display:grid;gap:10px}.entry[hidden]{display:none}.entry input,.entry button{width:100%;height:48px;border-radius:12px;font:inherit}.entry input{border:1px solid rgb(255 255 255/.16);background:rgb(255 255 255/.06);color:#fff;text-align:center;font-size:20px;letter-spacing:.34em;outline:none}.entry input:focus{border-color:#d9b978;box-shadow:0 0 0 3px rgb(217 185 120/.15)}.entry button{border:1px solid #c6a464;background:linear-gradient(135deg,#caa867,#94733d);color:#17130d;font-weight:650;cursor:pointer;transition:filter .2s,transform .2s}.entry button:hover{filter:brightness(1.1);transform:translateY(-1px)}.entry button:disabled{cursor:wait;opacity:.55;transform:none}.foot{margin:0;color:#6e747e;font-size:11px;letter-spacing:.08em}
+@keyframes drift{to{transform:translate3d(90px,40px,0) rotate(4deg)}}@keyframes sweep{to{transform:translate3d(-50px,35px,0) rotate(4deg)}}@keyframes orbit{to{transform:rotate(343deg)}}
+@media (prefers-reduced-motion:reduce){.lock:before,.lock:after,.grain,.orbit{animation:none}}
+</style></head>
+<body><main class="lock"><div class="grain" aria-hidden="true"></div><div class="orbit" aria-hidden="true"></div>
+<section class="panel" aria-labelledby="entry-title"><div class="mark" aria-hidden="true"></div><p class="brand">Obsidian Mistake Reconstruction System</p><p class="clock" id="clock" aria-label="当前时间">--:--</p><p class="date" id="date">正在读取时间…</p><h1 class="title" id="entry-title">准备进入 OMRS</h1><p class="hint" id="hint" role="status">正在检查访问状态…</p>
+<form class="entry" id="entry-form" hidden><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="current-password" placeholder="输入 4–12 位 PIN" aria-label="PIN"><button type="submit" id="submit">解锁</button></form>
+<button class="entry" id="enter" type="button" hidden>进入 OMRS</button><p class="foot">PRIVATE STUDY WORKSPACE</p></section></main>
+<script>
+const $=id=>document.getElementById(id), clock=$("clock"), date=$("date"), hint=$("hint"), form=$("entry-form"), pin=$("pin"), enter=$("enter"), submit=$("submit");
+const nextParam=new URLSearchParams(location.search).get('next');
+function destination(){try{const raw=nextParam||('/'+(location.hash||''));const url=new URL(raw,location.origin);if(url.origin!==location.origin)return '/?unlocked=1#/dashboard';if(url.pathname==='/'||url.pathname==='/index.html'){url.searchParams.set('unlocked','1');return url.pathname+url.search+url.hash;}return url.pathname+url.search+url.hash;}catch(_){return '/?unlocked=1#/dashboard';}}
+const hasHash=location.hash.length>1||Boolean(nextParam&&nextParam.includes('#'));
+function tick(){const now=new Date();clock.textContent=now.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false});date.textContent=now.toLocaleDateString('zh-CN',{weekday:'long',month:'long',day:'numeric'});} tick(); setInterval(tick,1000);
+function unlock(){location.replace(destination());}
+function fail(message){hint.textContent=message;hint.className='hint error';}
+function show(s){
+  if(s.pin_configured){form.hidden=false;pin.focus();hint.textContent='输入 PIN 解锁你的学习空间';return;}
+  const allowed=!s.remote||s.authenticated||s.lan_pin_exempt;
+  if(allowed){enter.hidden=false;hint.textContent='这是你的学习空间入口';if(hasHash) setTimeout(unlock,80);}
+  else {hint.textContent='此设备未配置可用的 PIN，请在本机设置访问方式';}
+}
+fetch('/api/auth/session',{cache:'no-store'}).then(r=>r.json()).then(show).catch(()=>fail('无法读取访问状态，请检查服务是否运行'));
+enter.onclick=unlock;
+form.onsubmit=async event=>{event.preventDefault();submit.disabled=true;hint.className='hint';hint.textContent='正在验证…';try{const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:pin.value})});const data=await r.json();if(!r.ok)throw Error(data.msg||'PIN 错误');const state=await (await fetch('/api/auth/session',{cache:'no-store'})).json();if(state.warning_required){alert('当前通过 HTTP 访问，PIN 和会话可能被同一网络中的设备看到。建议使用 HTTPS。');await fetch('/api/auth/warning-ack',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});}unlock();}catch(error){fail(error.message||'PIN 错误');pin.select();submit.disabled=false;}};
+</script></body></html>'''.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Cache-Control", "no-store")

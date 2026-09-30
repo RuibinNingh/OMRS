@@ -145,7 +145,7 @@
 | GET | `/api/trainpanel/service` | `AI/api.md` |
 | GET | `/api/tree` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/dashboard.md` |
 | POST | `/api/workspace/scan` | `AI/api.md`、`AI/ledger.md` |
-| GET | `/login` | `AI/inbox.md`、`AI/security.md` |
+| GET | `/login` | `AI/api.md`、`AI/frontend/shell.md`、`AI/inbox.md`等 |
 | GET | `/m` | `AI/api.md`、`AI/inbox.md`、`AI/security.md` |
 | GET | `/train` | `AI/api.md`、`AI/README.md`、`AI/environment.md`等 |
 

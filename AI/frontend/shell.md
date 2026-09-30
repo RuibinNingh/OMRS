@@ -21,6 +21,8 @@ assets/
 └── vendor/           ← 本地字体与 KaTeX
 ```
 
+首次打开 `/` 或 `/login` 时，服务端先返回独立的锁屏入口。入口显示当前时间和低强度星尘 / 轨道动效；启用 PIN 时在此输入 4–12 位数字解锁，未启用 PIN 且当前来源有访问权限时点击「进入 OMRS」。解锁后通过 `/?unlocked=1` 回到原有单页外壳，Hash 路由继续保留。入口页不加载工作台静态资源，也不读取题库数据；`prefers-reduced-motion` 会关闭背景动效。
+
 **加载约定：**
 - `<head>` 先运行 `assets/app/theme-boot.js` 读取主题、密度、侧栏与图片反色偏好；随后加载本地字体、`tokens.css`、`index.css` 和 KaTeX 脚本。`index.css` 用 `@layer` 引入 KaTeX 样式、基础样式、组件、领域与页面样式。
 - 页面底部仅以 `<script type="module">` 加载 `assets/app/main.js`。它安装共享组件，创建外壳和页面路由，连接领域服务，并在初始标签、统计、Session 数据加载后进入当前 hash 页面；详见 `AI/frontend/architecture.md` §2。

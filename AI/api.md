@@ -292,8 +292,8 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 ### `/api/question/content/version?hash=<sha256>`
 取回某个版本的正文：`{hash, markdown}`；不在 blobs 里返回 404。
 
-### `/`、`/index.html`
-返回 `omrs_dashboard.html`。
+### `/`、`/index.html`、`/login`
+首次访问 `/` 或 `/login` 时返回独立的锁屏入口（不加载工作台静态资源，也不读取题库数据）。入口调用公开的 `GET /api/auth/session` 判断是否显示 PIN 表单；启用 PIN 时提交 `POST /api/auth/login`，未启用 PIN 且当前来源有权限时点击进入。入口成功后回到同源的 `?unlocked=1` 地址，再由常规授权检查放行并返回 `omrs_dashboard.html`；Hash 路由会保留。配置了 PIN 时本机的 `?unlocked=1` 也需要 PIN 会话；未登录远端返回 302 或 401。
 
 ### `/assets/<file>`
 通用静态资源路由（`_serve_asset()`），提供 `assets/` 下的样式与脚本（css/js/图片等），含路径穿越防护。content-type 按扩展名取自 `_ASSET_TYPES`：css、js 与 mjs（ES 模块要求 JavaScript 类型）、html（组件陈列页 `assets/app/gallery.html`）、svg、png、jpg、gif、ico、json、map、woff、woff2；表外扩展名按 `application/octet-stream` 返回。响应带弱 `ETag`（文件 mtime 与大小）与 `Last-Modified`，`Cache-Control: no-cache`；请求带匹配的 `If-None-Match`（弱比较，支持逗号列表与 `*`）或不早于文件修改时间的 `If-Modified-Since` 时回 304、不发正文；两者都带时以 `If-None-Match` 为准。原 `/omrs_dashboard.js` 路由已移除（脚本已拆分到 `assets/`）。
