@@ -49,7 +49,7 @@ export function inspView(S, perfNow) {
   const totals = run.usageTotals || {};
   const main = totals.main || { input: u.prompt, output: u.out, total: u.prompt + u.out, complete: false, count: 0 };
   const aux = totals.aux || { input: 0, output: 0, total: 0, count: 0 };
-  const all = totals.all || { total: main.total, complete: false };
+  const all = totals.all || { input: main.input, uncached: main.input, output: main.output, cache: 0, total: main.total, complete: false };
   const cache = totals.cache || { ratio: null, covered: 0, total: 0 };
   const ttft = run.ttfts.length ? run.ttfts.reduce((a, b) => a + b, 0) / run.ttfts.length : 0;
   const lim = run.limits || S.status?.limits || { rounds: 25, calls: 40, writes: 20 };
@@ -57,10 +57,12 @@ export function inspView(S, perfNow) {
   const budget = (label, v, max) => html`<div class="ast-budget__r"><span>${label}</span>${bar(v / max, v / max > 0.8)}<b>${v} / ${max}</b></div>`;
   return html`${head}<div class="ast-insp__body">
     <p class="ast-runmeta">${hms(run.startedAt)} · ${run.model} · ${live ? (run.status === 'waiting' ? '等你确认' : '运行中') : REASON[run.reason] || run.reason}${run.reverted ? ' · 已撤销' : ''}</p>
-    <section class="ast-sec"><h3 class="ast-sec__h">用量</h3><div class="ast-usage">
-      ${usage('主对话输入', fmtN(main.input), `${main.count} 次请求`)}${usage('主对话输出', fmtN(main.output), u.think ? `含思考 ${fmtK(u.think)}` : '')}
+    <section class="ast-sec"><h3 class="ast-sec__h">用量 <small>tokens</small></h3>
+      <div class="ast-usage-total"><div class="ast-usage-total__head"><span>${all.complete ? '本次总量' : '已知总量'}</span><strong>${fmtN(all.total)}</strong></div>
+        <div class="ast-usage-total__parts"><span>输入 ${fmtN(all.uncached)}</span><span>＋ 输出 ${fmtN(all.output)}</span><span>＋ 缓存 ${all.cacheKnown ? fmtN(all.cache) : '未知'}</span></div>
+        <p class="ast-note">${all.cacheComplete ? '输入为未缓存部分；含主对话与图片辅助。' : '输入含尚未拆分的缓存；仅扣除已知缓存，未知不按零计。'}${all.complete ? '' : ' 用量为部分或估算。'}</p></div><div class="ast-usage">
+      ${usage('主对话输入', fmtN(main.uncached ?? main.input), `${main.count} 次请求 · ${main.cacheComplete ? '未缓存' : '含未拆分缓存'}`)}${usage('主对话输出', fmtN(main.output), u.think ? `含思考 ${fmtK(u.think)}` : '')}
       ${usage('图片辅助', aux.count ? fmtN(aux.total) : '无调用', aux.count ? `${aux.count} 次 · ${fmtN(aux.input)} 入 / ${fmtN(aux.output)} 出` : '')}
-      ${usage(all.complete ? '本次总量' : '已知总量', fmtN(all.total), all.complete ? '输入 + 输出' : '部分或估算；未知未计入')}
       ${usage('主对话缓存', cache.ratio == null ? '未知/未返回' : `${Math.round(cache.ratio * 100)}%`, `${cache.covered} / ${cache.total} 次可统计${cache.complete ? '' : ' · 部分调用可统计'}`)}
       ${usage('首 token', fmtS(ttft), `${run.ttfts.length} 轮平均`)}${usage('速度', `${Math.round(live ? liveTps(run, now) : avgTps(run))} tok/s`, run.peak ? `峰值 ${Math.round(run.peak)}` : '')}</div>
       ${live ? spark(run, now) : ''}</section>

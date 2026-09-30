@@ -1,14 +1,5 @@
 /** 一次运行的用量：按请求身份替换，缓存和思考均只作子集展示。 */
 const count = value => Number.isSafeInteger(value) && value >= 0 ? value : null;
-export function readMeterMode(storage = globalThis.localStorage) {
-  try { return storage.getItem('omrs-assistant-meter') === 'cache' ? 'cache' : 'context'; }
-  catch { return 'context'; }
-}
-export function saveMeterMode(storage, mode) {
-  if (!['context', 'cache'].includes(mode)) return false;
-  try { storage.setItem('omrs-assistant-meter', mode); } catch { /* 本次选择仍有效 */ }
-  return true;
-}
 const pick = (row, modern, legacy) => Object.hasOwn(row, modern) ? count(row[modern])
   : Object.hasOwn(row, legacy) ? count(row[legacy]) : null;
 
@@ -38,9 +29,16 @@ export function usageTotals(requests) {
   const aux = rows.filter(row => row.scope === 'aux');
   const complete = items => items.length > 0 && items.every(row => row.input !== null && row.output !== null
     && !row.estimated && !row.invalid);
-  const group = items => ({ input: sum(items, 'input'), output: sum(items, 'output'),
-    total: sum(items, 'input') + sum(items, 'output'), complete: complete(items), count: items.length,
-    known: items.filter(row => row.input !== null && row.output !== null && !row.estimated && !row.invalid).length });
+  const group = items => {
+    const eligible = items.filter(row => row.input !== null && row.cache !== null && !row.invalid && !row.estimated);
+    const cached = sum(eligible, 'cache');
+    // 供应商 input 已含缓存；界面拆成互斥的输入、输出、缓存三项。
+    return { input: sum(items, 'input'), output: sum(items, 'output'), cache: cached,
+      uncached: sum(items, 'input') - cached, cacheKnown: eligible.length,
+      cacheComplete: !!items.length && eligible.length === items.length,
+      total: sum(items, 'input') + sum(items, 'output'), complete: complete(items), count: items.length,
+      known: items.filter(row => row.input !== null && row.output !== null && !row.estimated && !row.invalid).length };
+  };
   const eligible = main.filter(row => row.input !== null && row.cache !== null && !row.invalid && !row.estimated);
   const denominator = sum(eligible, 'input');
   const cache = { read: sum(eligible, 'cache'), input: denominator, covered: eligible.length, total: main.length,

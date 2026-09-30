@@ -65,8 +65,11 @@ def free_port():
 def start_server(tree, vault, log_path):
     port = free_port()
     log = open(log_path, "w")
+    env = dict(os.environ)
+    env.pop("OMRS_SYSTEMD_SERVICE", None)
+    env["OMRS_AGENT_FAUX_SCRIPT"] = os.path.join(tree, "tests", "fixtures", "agent_faux.json")
     proc = subprocess.Popen([sys.executable, os.path.join(tree, "omrs_engine.py"), "--vault", vault, "serve", "-p", str(port)],
-                            cwd=tree, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
+                            cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
     for _ in range(150):
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=2) as response:
@@ -221,6 +224,10 @@ def main(argv=None):
     fixture = os.path.join(out, "fixture")
     subprocess.run([sys.executable, os.path.join(ROOT, "tests", "fixtures", "make_vault.py"), "--out", fixture,
                     "--profile", args.fixture], check=True, stdout=subprocess.DEVNULL)
+    if "assistant" in args.pages:
+        sys.path.insert(0, ROOT)
+        from omrs.common import save_config
+        save_config(fixture, {"agent_enabled": True})
     if args.create_stage == "process":
         seed_process_fixture(fixture)
     sides = [("cur", ROOT)]

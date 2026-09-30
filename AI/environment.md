@@ -106,6 +106,8 @@ git add -A && git diff --cached <基线> > /mnt/user-data/outputs/changes-<日�
 mkdir /tmp/chk && cd /tmp/chk && unzip -q /mnt/user-data/uploads/<原始导出包>.zip && cd OMRS && git apply --check /mnt/user-data/outputs/changes-<日期>.patch
 ```
 
+视觉脚本传入 `--pages assistant` 时会给隔离 fixture 开启 `agent_enabled` 并注入 `tests/fixtures/agent_faux.json`，可对助手欢迎页、输入区和处理过程做浅 / 深色桌面与手机截图；不会连接真实模型。
+
 AI 助手没有网络也能完整测试：启动服务前设环境变量 `OMRS_AGENT_FAUX_SCRIPT=tests/fixtures/agent_faux.json`，运行时改用脚本化假模型（按最近一条用户消息选场景，模板可引用之前的工具结果），再在 `config.json` 里设 `agent_enabled: true`。`tests/e2e/assistant.py` 就是这样起隔离实例的。
 
 P4 分类和草稿修订路径使用独立的 `tests/fixtures/agent_p4_faux.json` 与 `tests/e2e/p4_tools.py`；脚本自己创建临时 Vault、随机端口并清除 `OMRS_SYSTEMD_SERVICE`，在 Chromium 中确认分类、审核修订卡和零题候选。

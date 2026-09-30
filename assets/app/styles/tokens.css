@@ -71,6 +71,7 @@
   --ast-wf-wait: rgba(var(--accent-rgb), .3);
   --ast-fs-code: .86em;
   --ast-fs-ref: .92em;
+  --ast-fs-input: 16px;
 }
 
 /* ── 1. 语义 token：深色「暖石墨」 ───────────────────── */

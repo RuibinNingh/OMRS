@@ -48,14 +48,14 @@ export function headView(S) {
   return html`<button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ast-rail-toggle" data-action="assistant.toggleRail" aria-label="对话列表">${icon('menu')}</button>
     <div class="ast-head__text"><h2 class="ast-head__title">${conv ? conv.title : 'AI 助手'}</h2>
       <p class="ast-head__meta">${st.model ? html`<span class="ast-model">${icon('sparkle')}${st.model}</span>` : ''}${st.faux ? html`<span class="ui-tag ui-tag--warning">假模型</span>` : ''}<span>${st.base_host || ''}</span></p></div>
-    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.newConv">${icon('plus')}<span class="ast-hide-sm">新对话</span></button>
+    <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.newConv" aria-label="新对话">${icon('plus')}<span class="ast-hide-sm">新对话</span></button>
     <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ast-insp-toggle" data-action="assistant.toggleInsp" aria-label="运行详情" aria-pressed="${S.inspOpen ? 'true' : 'false'}">${icon('chart')}</button>`;
 }
 
 /* ── 对话流 ── */
 function thinkView(S, run, st, now) {
   const key = `${run.id}|${st.id}`;
-  const open = S.open.has(key) || (st.phase === 'live' && !S.closed.has(key));
+  const open = !S.closed.has(key);
   const secs = st.phase === 'done' || st.phase === 'cut' ? fmtS((st.t1 ?? now) - (st.tStart ?? st.t0)) : fmtS(now - (st.tStart ?? st.t0));
   const label = st.phase === 'wait' ? '等待首个 token' : st.phase === 'live' ? `思考中 ${secs}` : st.phase === 'cut' ? `思考被中止 · ${secs}` : `思考了 ${secs}`;
   return html`<div class="ast-node ast-node--dot" data-key="${st.id}"><div class="${cls('ast-think', st.phase === 'live' && 'is-live')}">
@@ -122,12 +122,22 @@ function footView(run) {
 export function turnView(S, run, perfNow) {
   const live = run.status !== 'done';
   const now = runNow(run, perfNow);
-  const quietTools = run.steps.filter(st => st.kind === 'tool' && st.level === 'read' && st.status === 'done');
-  const hidden = quietTools.length > 3 && !S.traceOpen?.has(run.id);
-  const steps = hidden ? run.steps.filter(st => !quietTools.includes(st)) : run.steps;
+  const collapsed = !live && S.traceClosed?.has(run.id);
+  const answer = [...run.steps].reverse().find(st => st.kind === 'text');
+  // 回答、插话和需要用户操作的结果始终可见，不随处理过程收起。
+  const outside = run.steps.filter(st => st === answer || st.kind === 'steer'
+    || st.kind === 'tool' && (st.level !== 'read' || st.wrote || ['waiting', 'error', 'denied'].includes(st.status)));
+  const process = run.steps.filter(st => !outside.includes(st));
+  const label = live ? '处理中' : run.reason === 'aborted' ? '处理已停止'
+    : run.error || run.reason && run.reason !== 'completed' ? '处理已结束' : '处理完成';
+  const detail = live && run.status === 'waiting' ? '等你确认' : live && run.aborting ? '正在中止…' : fmtS(live ? now : run.dur);
   const body = html`<header class="ast-turn__head"><span class="ast-turn__who">${icon('sparkle')}助手</span><span class="ast-turn__model">${run.model}</span>
-      <span class="ast-turn__time">${hhmm(run.startedAt)}</span>${live ? html`<span class="ast-turn__live" role="status">${run.status === 'waiting' ? '等你确认' : run.aborting ? '正在中止…' : `运行中 ${fmtS(now)}`}</span>` : ''}</header>
-    <div class="ast-trace">${quietTools.length > 3 ? html`<button type="button" class="ast-trace__toggle" data-action="assistant.toggleTrace" data-arg="${run.id}" aria-expanded="${hidden ? 'false' : 'true'}">${hidden ? `展开 ${quietTools.length} 项查询轨迹` : '收起查询轨迹'}</button>` : ''}${each(steps, st => st.id, st => stepView(S, run, st, now))}${live ? '' : html`<div class="ast-node ast-node--end" data-key="end">${footView(run)}</div>`}</div>`;
+      <span class="ast-turn__time">${hhmm(run.startedAt)}</span></header>
+    <section class="ast-process" data-key="process"><button type="button" class="ast-process__toggle" data-action="assistant.toggleTrace" data-arg="${run.id}" aria-expanded="${collapsed ? 'false' : 'true'}" aria-controls="process-${run.id}" ${live ? 'disabled' : ''}>
+      <span class="ast-process__label" role="status">${label}</span><span class="ast-process__meta">${detail}</span>${icon(collapsed ? 'chevron-right' : 'chevron-down')}</button>
+      ${collapsed ? '' : html`<div class="ast-trace" id="process-${run.id}" data-key="process-body">${each(process, st => st.id, st => stepView(S, run, st, now))}</div>`}</section>
+    <div class="ast-result" data-key="result">${each(outside, st => st.id, st => stepView(S, run, st, now))}</div>
+    ${live ? '' : footView(run)}`;
   return html`<article class="${cls('ast-turn', live && 'is-live', run.reverted && 'is-undone', S.runSel === run.id && 'is-selected')}" data-key="run-${run.id}" ${live ? '' : raw(`data-hash="${run.id}:${run.ver}:${S.uiVer}:${S.draftVer || 0}:${S.runSel === run.id ? 1 : 0}"`)}>${body}</article>`;
 }
 
@@ -155,16 +165,17 @@ function offView(S) {
 }
 
 const PERMS = [
-  ['read', '找题、看统计、读题目、查推荐与 Session', '直接执行'],
-  ['rev', '建复习 Session、打标记、录入或修订 AI 草稿', '直接执行；草稿不进题库'],
-  ['confirm', '改题目 / 答案 / 错因、移动 / 停用、记反馈、独立建分类；按设置通过草稿', '你点「允许」才执行'],
-  ['none', '删除题目、改设置和 PIN、备份恢复、重启', '没有工具，助手做不到'],
+  ['read', '找题、读题、看统计与复习推荐', '直接执行'],
+  ['rev', '安排复习、打标记、录入或修订 AI 草稿；草稿不进题库', '直接执行'],
+  ['confirm', '改题目、答案与错因，移动或停用题目，记反馈、建分类；草稿入库按设置确认', '你允许后执行'],
+  ['none', '删除题目、修改设置与 PIN、备份恢复、重启服务', '不支持'],
 ];
 export function emptyView(S) {
   const st = S.status || {};
-  return html`<div class="ast-empty" data-key="empty"><div class="ast-empty__mark">${icon('sparkle')}</div><h3>问问你的错题本</h3>
-    <p>助手能直接读写题库。${st.configured === false ? html`<strong>还没配置好：缺 ${(st.missing || []).join('、')}。</strong>` : ''}</p>
-    <div class="ast-perm">${PERMS.map(([k, what, how]) => html`<div class="ast-perm__row">${lvl(k)}<span class="ast-perm__what">${what}</span><span class="ast-perm__how">${how}</span></div>`)}</div></div>`;
+  return html`<div class="ast-empty ast-welcome" data-key="empty"><div class="ast-welcome__intro"><div class="ast-empty__mark">${icon('sparkle')}</div>
+    <h3>从一道题，开始聊起</h3><p>找题、梳理薄弱点，或发张图片一起整理。</p></div>
+    ${st.configured === false ? html`<p class="ast-welcome__warning">还没配置好：缺 ${(st.missing || []).join('、')}。</p>` : ''}
+    <div class="ast-perm" aria-label="助手的能力与权限">${PERMS.map(([k, what, how]) => html`<div class="ast-perm__row"><div class="ast-perm__head">${lvl(k)}<span class="ast-perm__how">${how}</span></div><p class="ast-perm__what">${what}</p></div>`)}</div></div>`;
 }
 
 /* ── 底部：建议、输入框、用量计 ── */
@@ -176,24 +187,21 @@ export function dockView(S, perfNow) {
   const used = ctxUsed(run || S.lastRun) || 0;
   const ratio = Math.min(1, used / win);
   const cache = (run || S.lastRun)?.usageTotals?.cache;
-  const cacheMode = S.meterMode === 'cache';
-  const meterRatio = cacheMode ? cache?.ratio : ratio;
-  const meterLabel = cacheMode ? `缓存命中率 ${meterRatio == null ? '未知' : `${Math.round(meterRatio * 100)}%`}`
-    : `上下文占用 ${Math.round(ratio * 100)}%`;
+  const cacheLabel = cache?.ratio == null ? '缓存未知' : `缓存 ${Math.round(cache.ratio * 100)}%${cache.complete ? '' : '（部分）'}`;
+  const meterLabel = `上下文占用 ${Math.round(ratio * 100)}%，${cacheLabel}，查看用量`;
   const circ = 2 * Math.PI * 9;
   const sugs = !busy && !S.composing && !S.inputActive && !S.inputValue && !(S.items || []).length && st.enabled ? Object.entries(S.sugs) : [];
   const disabled = !st.enabled || !st.configured;
   return html`${sugs.length ? html`<div class="ast-sugs" data-key="sugs">${sugs.map(([k, s]) => html`<button type="button" class="ast-sug" data-action="assistant.sug" data-arg="${k}">${icon(s.icon)}${s.label}</button>`)}</div>` : ''}
     <div class="${cls('ast-composer', busy && 'is-busy')}" data-key="composer">
       ${S.attachments.length || S.pendingFiles ? html`<div class="ast-attachments" aria-label="待发送图片">${S.attachments.map((image, i) => html`<div class="ast-attachment" data-key="attachment-${i}"><button type="button" class="ast-attachment__preview" data-action="assistant.openImage" data-arg="${i}" aria-label="查看待发送图片 ${i + 1} 大图"><img src="${image.dataUrl}" alt="待发送图片 ${i + 1}"></button><span>图片 ${i + 1}</span><button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm ast-attachment__remove" data-action="assistant.removeImage" data-arg="${i}" aria-label="删除图片 ${i + 1}">${icon('x')}</button></div>`)}${S.pendingFiles ? html`<span class="ast-attachment__pending" role="status">正在处理 ${S.pendingFiles} 张图片…</span>` : ''}<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.clearImages">清空</button></div>` : ''}
-      <textarea id="ast-input" class="ast-input${S.editorOpen ? ' is-expanded' : ''}" rows="1" maxlength="4000" placeholder="${busy ? '插话：下一轮模型请求前送达' : '问点什么'}" aria-label="给助手的消息" ${disabled ? 'disabled' : ''}></textarea>
+      <textarea id="ast-input" class="ast-input" rows="1" maxlength="4000" placeholder="${busy ? '插话：下一轮模型请求前送达' : '问点什么'}" aria-label="给助手的消息" ${disabled ? 'disabled' : ''}></textarea>
       <div class="ast-cbar">
         <input id="ast-image-picker" type="file" accept="image/png,image/jpeg,image/gif" multiple hidden data-change="assistant.pickImages">
         <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" data-action="assistant.pickImages" aria-label="添加图片" title="添加图片" ${disabled ? 'disabled' : ''}>${icon('paperclip')}</button>
-        <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ast-editor-toggle" data-action="assistant.toggleEditor" aria-label="${S.editorOpen ? '收起编辑区' : '展开编辑区'}" aria-pressed="${S.editorOpen ? 'true' : 'false'}">${S.editorOpen ? '收起' : '展开'}</button>
         <button type="button" class="ast-meter" data-action="assistant.pop" aria-expanded="${S.popOpen ? 'true' : 'false'}" aria-label="${meterLabel}">
-          <svg class="${cls('ast-ring', !cacheMode && ratio > 0.8 && 'is-warn')}" viewBox="0 0 24 24" aria-hidden="true"><circle class="t" cx="12" cy="12" r="9"/><circle class="v" cx="12" cy="12" r="9" stroke-dasharray="${(circ * (meterRatio ?? 0)).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 12 12)"/></svg>
-          <span>${cacheMode ? (meterRatio == null ? '缓存未知' : `缓存 ${Math.round(meterRatio * 100)}%`) : `${fmtK(used)} / ${fmtK(win)}`}</span></button>
+          <svg class="${cls('ast-ring', ratio > 0.8 && 'is-warn')}" viewBox="0 0 24 24" aria-hidden="true"><circle class="t" cx="12" cy="12" r="9"/><circle class="v" cx="12" cy="12" r="9" stroke-dasharray="${(circ * ratio).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 12 12)"/></svg>
+          <span class="ast-meter__context">${fmtK(used)} / ${fmtK(win)}</span><span class="ast-meter__cache">${cacheLabel}</span></button>
         <span class="ast-cbar__sp">${busy ? html`<span class="ast-model">${fmtS(runNow(run, perfNow))} · ${Math.round(avgTps(run))} tok/s</span>` : `${S.msgs} / ${st.msg_cap || 60} 条消息`}</span>
         ${busy ? html`<button type="button" class="ui-btn ui-btn--sm ast-stop" data-action="assistant.stop">${icon('stop')}停止</button>` : ''}
         <button type="button" class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon ast-send" data-action="assistant.send" aria-label="${busy ? '插话' : '发送'}" ${disabled || S.pendingFiles ? 'disabled' : ''}>${icon('arrow-up')}</button>
@@ -210,15 +218,15 @@ function popView(S, run, used, win) {
   let x = 0;
   const rects = parts.map(([k, , v]) => { const w = (v / total) * 100; const r = `<rect class="c-${k}" x="${x.toFixed(2)}" width="${w.toFixed(2)}" height="6"/>`; x += w; return r; }).join('');
   const lim = S.status?.limits || {};
-  return html`<div class="ast-pop" role="dialog" aria-label="用量指标"><div class="ast-pop__modes" role="group" aria-label="圆环指标">
-    <button type="button" data-action="assistant.meterMode" data-arg="context" aria-pressed="${S.meterMode !== 'cache'}">上下文</button>
-    <button type="button" data-action="assistant.meterMode" data-arg="cache" aria-pressed="${S.meterMode === 'cache'}">缓存</button></div>
-    ${S.meterMode === 'cache' ? html`<h4 class="ast-pop__h">缓存命中 ${cache?.ratio == null ? '未知/未返回' : `${Math.round(cache.ratio * 100)}%`}</h4>
-      <p class="ast-pop__note">本次主对话：${fmtN(cache?.read || 0)} / ${fmtN(cache?.input || 0)} 输入 token；${cache?.covered || 0} / ${cache?.total || 0} 次调用可统计${cache?.complete ? '' : '（部分调用可统计）'}。缓存占比不代表费用节省比例。</p>`
-      : html`<h4 class="ast-pop__h">上下文 ${fmtN(used)} / ${fmtN(win)} tokens（最近请求）</h4>
-    ${raw(`<svg class="ast-stack" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true">${rects}</svg>`)}
-    <ul class="ast-legend">${parts.map(([k, label, v]) => html`<li><i class="c-${k}"></i>${label}<b>${fmtK(v)}</b></li>`)}</ul>
-    <p class="ast-pop__note">每次运行最多 ${lim.rounds} 轮、${lim.calls} 次调用、${lim.writes} 次写入；对话到 ${S.status?.msg_cap || 60} 条消息需新开。</p>`}</div>`;
+  return html`<div class="ast-pop" role="dialog" aria-label="上下文与缓存">
+    <section class="ast-pop__section"><h4 class="ast-pop__h">上下文 <span>${fmtN(used)} / ${fmtN(win)}</span></h4>
+      <p class="ast-pop__note">最近请求 · tokens</p>
+      ${raw(`<svg class="ast-stack" viewBox="0 0 100 6" preserveAspectRatio="none" aria-hidden="true">${rects}</svg>`)}
+      <ul class="ast-legend">${parts.map(([k, label, v]) => html`<li><i class="c-${k}"></i>${label}<b>${fmtK(v)}</b></li>`)}</ul></section>
+    <section class="ast-pop__section"><h4 class="ast-pop__h">缓存命中 <span>${cache?.ratio == null ? '未知/未返回' : `${Math.round(cache.ratio * 100)}%`}</span></h4>
+      <p class="ast-pop__note">本次主对话 · ${cache?.ratio == null ? '供应商未返回可统计的缓存用量' : `${fmtN(cache.read)} / ${fmtN(cache.input)} 输入 tokens`}；${cache?.covered || 0} / ${cache?.total || 0} 次调用可统计${cache?.complete ? '' : '（部分调用可统计）'}。</p></section>
+    <p class="ast-pop__note">${S.msgs} / ${S.status?.msg_cap || 60} 条消息 · 每次最多 ${lim.rounds || 25} 轮、${lim.calls || 40} 次调用、${lim.writes || 20} 次写入。</p></div>`;
+
 }
 
 export { LVL };

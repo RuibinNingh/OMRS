@@ -22,6 +22,9 @@ test('两轮缓存按输入加权，显式零和缺失分开，总量不重复�
   assert.equal(run.usageTotals.cache.ratio, 0.9);
   assert.equal(run.usageTotals.cache.complete, true);
   assert.equal(run.usageTotals.all.total, 10500);
+  assert.equal(run.usageTotals.all.uncached, 1000);
+  assert.equal(run.usageTotals.all.cache, 9000);
+  assert.equal(run.usageTotals.all.uncached + run.usageTotals.all.output + run.usageTotals.all.cache, 10500);
   applyEvent(run, events[3]);
   applyEvent(run, { ...events[3], i: 4 });
   assert.equal(run.usageTotals.main.total, 10500);
@@ -41,6 +44,12 @@ test('缺缓存、中断、completion=0 和辅助请求保留统计边界', () =
     cache_read: null, reasoning_output: null, scope: 'aux' } } });
   assert.equal(run.usageTotals.aux.total, 7);
   assert.equal(run.usageTotals.all.total, 17);
+  assert.equal(run.usageTotals.all.cacheComplete, false);
+  assert.equal(run.usageTotals.all.cacheKnown, 0);
+  run.status = 'done';
+  const detail = String(inspView({ items: [{ run }], lastRun: run, status: {} }, 0));
+  assert.match(detail, /缓存 未知/);
+  assert.match(detail, /输入含尚未拆分的缓存/);
   assert.equal(usageRecord({ prompt: 10, completion: 2 }).cache, null);
   assert.equal(usageRecord({ prompt: 10, completion: 2, cached: 0 }).cache, null);
   assert.equal(usageRecord({ input_total: 10, output_total: 2, cache_read: 0 }).cache, 0);
@@ -217,9 +226,9 @@ test('附图输入与草稿结果显示图片编号、删除入口和草稿状�
   assert.match(changed, /已入库.*查看草稿/s);
 });
 
-test('长用户消息保留原文，长查询轨迹默认折叠且可展开', () => {
+test('长用户消息保留原文，处理默认展开且只由用户收起', () => {
   const text = '完整消息'.repeat(100);
-  const state = { longOpen: new Set(), traceOpen: new Set(), open: new Set(), closed: new Set(), drafts: {}, runSel: null, uiVer: 0 };
+  const state = { longOpen: new Set(), traceClosed: new Set(), open: new Set(), closed: new Set(), drafts: {}, runSel: null, uiVer: 0 };
   const user = String(userView({ text, at: '2026-09-29T10:00:00Z', images: [] }, 0, state));
   assert.match(user, /展开全文/);
   assert.match(user, /完整消息/);
@@ -227,10 +236,17 @@ test('长用户消息保留原文，长查询轨迹默认折叠且可展开', ()
   run.steps = Array.from({ length: 4 }, (_, index) => ({ kind: 'tool', id: `t-${index}`, name: 'search_questions', level: 'read', status: 'done', result: {} }));
   run.steps.push({ kind: 'text', id: 'answer', src: '最终回答', live: false });
   const compact = String(turnView(state, run, 0));
-  assert.match(compact, /展开 4 项查询轨迹/);
+  assert.match(compact, /处理完成/);
+  assert.equal((compact.match(/ast-node--tool/g) || []).length, 4);
   assert.match(compact, /最终回答/);
-  state.traceOpen.add(run.id);
-  assert.match(String(turnView(state, run, 0)), /收起查询轨迹/);
+  state.traceClosed.add(run.id);
+  const closed = String(turnView(state, run, 0));
+  assert.doesNotMatch(closed, /ast-node--tool/);
+  assert.match(closed, /最终回答/);
+  assert.match(closed, /aria-expanded="false"/);
+  run.status = 'running';
+  assert.match(String(turnView(state, run, 0)), /处理中/);
+  assert.equal((String(turnView(state, run, 0)).match(/ast-node--tool/g) || []).length, 4);
 });
 
 test('入库确认展示当前版本的正文、来源图与错因', () => {
@@ -288,4 +304,33 @@ test('草稿卡片展示自动框选作业与可重试状态，不显示图片 S
   const afterCommit = String(toolPreview(step, { draft: force }, 'ask'));
   assert.match(afterCommit, /我来框/);
   assert.match(afterCommit, /AI 框/);
+});
+
+// 确认卡与写入结果不能藏进处理折叠区。
+test('收起处理仍可查看确认卡、写入结果和最终回答', () => {
+  const run = newRun({ id: 'safe', status: 'done' });
+  run.steps = [
+    { kind: 'think', id: 'think', phase: 'done', src: '中间思考' },
+    { kind: 'text', id: 'intermediate', src: '先查询', live: false },
+    { kind: 'tool', id: 'write', name: 'create_category', level: 'confirm', status: 'done', result: { subject: '数学', category: '新分类' } },
+    { kind: 'text', id: 'answer', src: '已经完成', live: false },
+  ];
+  const state = { open: new Set(), closed: new Set(), traceClosed: new Set(['safe']) };
+  const result = String(turnView(state, run, 0));
+  assert.doesNotMatch(result, /中间思考|先查询/);
+  assert.match(result, /新分类/);
+  assert.match(result, /已经完成/);
+});
+
+test('图片辅助缓存纳入三项总量，非法缓存不作为已知数', () => {
+  const totals = usageTotals(new Map([
+    ['main', usageRecord({ input_total: 1000, output_total: 200, cache_read: 600 })],
+    ['aux', usageRecord({ input_total: 100, output_total: 50, cache_read: 80 }, 'aux')],
+  ]));
+  assert.deepEqual([totals.all.uncached, totals.all.output, totals.all.cache, totals.all.total], [420, 250, 680, 1350]);
+  assert.equal(totals.all.cacheComplete, true);
+  assert.equal(totals.cache.ratio, 0.6);
+  const bad = usageTotals(new Map([['bad', usageRecord({ input_total: 10, output_total: 5, cache_read: 20 })]]));
+  assert.equal(bad.all.cacheKnown, 0);
+  assert.equal(bad.all.complete, false);
 });

@@ -1,5 +1,5 @@
 /** 输入高度与可见视口高度：键盘出现时按真实可视区域计算，缩放时不补偿。 */
-export function bindAssistantViewport(shell, inputOf, state) {
+export function bindAssistantViewport(shell, inputOf) {
   let frame = 0;
   const rules = document.createElement('style');
   rules.textContent = '.content.is-assistant .ast { height: auto; } .content.is-assistant .ast-input { height: auto; }';
@@ -11,7 +11,7 @@ export function bindAssistantViewport(shell, inputOf, state) {
     if (!input) return;
     inputRule.height = 'auto';
     const line = Number.parseFloat(getComputedStyle(input).lineHeight) || 20;
-    const limit = line * (state.editorOpen ? 12 : matchMedia('(max-width: 760px)').matches ? 4 : 8);
+    const limit = line * (matchMedia('(max-width: 760px)').matches ? 4 : 8);
     inputRule.height = `${Math.min(input.scrollHeight, limit)}px`;
   }
   function syncViewport() {

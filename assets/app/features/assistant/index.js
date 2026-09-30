@@ -17,7 +17,6 @@ import { invalidateQuestions, viewQ } from '../../domain/question/index.js';
 import { openDraft as navigateToDraft, publishDraftChange, setDraftActivity } from '../../domain/drafts.js';
 import { loadTaxonomy } from '../../domain/taxonomy.js';
 import { applyEvent, mmss, newRun, runFrom, runNow } from './state.js';
-import { readMeterMode, saveMeterMode } from './usage.js';
 import { confirmOf, setRefRenderer, toolTitle } from './tools-view.js';
 import { SUGS, dockView, headView, railView, streamView } from './view.js';
 import { inspView } from './insp-view.js';
@@ -49,9 +48,9 @@ export async function syncAssistantNav(doc = document, status) {
 }
 function createController(root, { router }) {
   const S = { status: null, convs: [], convId: null, items: [], msgs: 0, attachments: [], imageNo: 1, open: new Set(), closed: new Set(), runSel: null,
-    liveRun: null, lastRun: null, popOpen: false, meterMode: readMeterMode(), stick: true, inspOpen: false, railOpen: false,
+    liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false,
     uiVer: 0, draftVer: 0, draftCropMode: 'manual', drafts: {}, sugs: SUGS, alive: true, convRequest: 0,
-    attachmentGeneration: 0, pendingFiles: 0, longOpen: new Set(), traceOpen: new Set(), inputValue: '', inputActive: false, composing: false, editorOpen: false };
+    attachmentGeneration: 0, pendingFiles: 0, longOpen: new Set(), traceClosed: new Set(), inputValue: '', inputActive: false, composing: false };
   morph(root, html`<div class="ast" data-rail="closed" data-insp="closed">
     <div class="ast-scrim" data-action="assistant.closeDrawers"></div>
     <aside class="ast-card ast-rail" id="ast-rail" aria-label="对话列表"></aside>
@@ -98,7 +97,7 @@ function createController(root, { router }) {
   scroller.addEventListener('touchmove', onUserScroll, { passive: true });
   scroller.addEventListener('keyup', onUserScroll);
   const bump = () => { S.uiVer += 1; schedule(); };
-  const viewport = bindAssistantViewport(shell, () => $('ast-input'), S);
+  const viewport = bindAssistantViewport(shell, () => $('ast-input'));
   const { sizeInput, syncViewport } = viewport;
   function setLive(run) {
     const wasLive = !!S.liveRun;
@@ -323,13 +322,12 @@ function createController(root, { router }) {
   return {
     S, load, schedule, bump, openConv, send, gate, undo,
     async newConv() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); const res = await post('/api/agent/conversation/create', {}); if (res.ok && S.alive) { S.convs.unshift({ ...res.data.conversation, msgs: 0, writes: 0, snippet: '' }); await openConv(res.data.conversation.id); $('ast-input')?.focus(); } },
-    toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.phase === 'live' || ['create_draft', 'update_draft', 'create_category', 'create_practice_card'].includes(st?.name) && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
+    toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.kind === 'think' || ['create_draft', 'update_draft', 'create_category', 'create_practice_card'].includes(st?.name) && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
     deny(arg) { const { run, st } = findStep(arg); if (run && st?.status === 'waiting') decide(run, st, 'deny'); },
     async stop() { if (S.liveRun) { const res = await post('/api/agent/abort', { run_id: S.liveRun.id }); if (!res.ok) toast(res.error?.message || '停止失败', { kind: 'error' }); } },
     async copy(runId) { const run = S.items.map(i => i.run).find(r => r && r.id === runId); const text = run ? run.steps.filter(s => s.kind === 'text').map(s => s.src).join('\n\n') : ''; if (await copyText(text)) toast('已复制回答', { kind: 'success' }); },
     select(runId) { S.runSel = runId; S.inspOpen = true; bump(); },
     toggle(key) { S[key] = !S[key]; if (key === 'railOpen' && S.railOpen) S.inspOpen = false; if (key === 'inspOpen' && S.inspOpen) S.railOpen = false; schedule(); },
-    meterMode(mode) { if (saveMeterMode(localStorage, mode)) { S.meterMode = mode; schedule(); } },
     closeDrawers() { S.railOpen = false; S.inspOpen = false; schedule(); },
     jump() { S.stick = true; scroller.scrollTop = scroller.scrollHeight; schedule(); },
     openSession() { router?.go?.('schedule'); },
@@ -337,8 +335,7 @@ function createController(root, { router }) {
     removeImage(index) { S.attachments.splice(Number(index), 1); schedule(); },
     clearImages() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); },
     toggleLong(index) { const n = Number(index); if (S.longOpen.has(n)) S.longOpen.delete(n); else S.longOpen.add(n); schedule(); },
-    toggleTrace(id) { if (S.traceOpen.has(id)) S.traceOpen.delete(id); else S.traceOpen.add(id); bump(); },
-    toggleEditor() { S.editorOpen = !S.editorOpen; schedule(); },
+    toggleTrace(id) { if (S.traceClosed.has(id)) S.traceClosed.delete(id); else S.traceClosed.add(id); bump(); },
     pickImages({ event }) { if (event?.type === 'click') { $('ast-image-picker')?.click(); return; } addFiles(event?.target?.files); if (event?.target) event.target.value = ''; },
     openImage({ arg }) { openImageViewer(S.attachments.map((image, i) => ({ src: image.dataUrl, label: `待发送图片 ${i + 1}` })), Number(arg)); },
     openSentImage(arg) { const [message, index] = String(arg).split('|').map(Number); const images = S.items[message]?.images || []; openImageViewer(images.map((image, i) => ({ src: imageSrc(image), label: image.ref || `图片 ${i + 1}` })), index); },
@@ -386,7 +383,6 @@ export const page = {
     toggleInsp: () => C?.toggle('inspOpen'),
     closeDrawers: () => C?.closeDrawers(),
     pop: () => C?.toggle('popOpen'),
-    meterMode: ({ arg }) => C?.meterMode(arg),
     jump: () => C?.jump(),
     removeImage: ({ arg }) => C?.removeImage(arg),
     pickImages: ctx => C?.pickImages(ctx),
@@ -395,6 +391,5 @@ export const page = {
     clearImages: () => C?.clearImages(),
     toggleLong: ({ arg }) => C?.toggleLong(arg),
     toggleTrace: ({ arg }) => C?.toggleTrace(arg),
-    toggleEditor: () => C?.toggleEditor(),
   },
 };

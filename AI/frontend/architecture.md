@@ -109,3 +109,6 @@ assets/app/
 训练评测的audits.js独立持有筛选、分页、选中案例与复核表单；列表轮询不重绘详情。异步详情和历史都校验请求序号；卸载后拒绝更新。Node验证提交绑定案例/revision，trainpanel E2E验证真实HTTP保存与刷新历史，不调用外部模型。
 
 训练服务控制由 `features/trainpanel/control.js` 独立持有请求身份、服务 revision、选择模型与轮询状态；模型选择不改变实验 store 或在线服务。完成操作后通知父入口刷新 health 顶栏。`tests/app/traincontrol.test.mjs` 验证请求绑定与评测分母文案，`tests/e2e/traincontrol.py` 验证真实 HTTP 异步操作与刷新持久性。
+
+
+助手页面的 Node 与浏览器回归位于 `tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_p3.py` 与 `tests/e2e/assistant_usage.py`；这些测试覆盖运行过程折叠、移动输入和用量显示。
