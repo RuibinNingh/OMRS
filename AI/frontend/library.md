@@ -39,7 +39,7 @@
 题面预览挂载点 `data-morph="skip"`，key 编码「uid + 截断行数」，只有换题或换密度才重挂；截断走 qview 的 `clamp`（`data-clamp`，
 舒适 5 / 紧凑 3 行，开元数据 8 / 6 行），溢出时挂载点加 `.is-clipped` 渐隐。**战绩带不额外发请求**：画廊本来就要为预览拉一次详情，
 首次拉到详情的卡全部到齐后整页重绘一次，脚注由 `streakFoot()` 换成 `qStreakHtml()` + 记录数 +（连错 ≥2 时）「连错 N」；
-记录来源 `detail.records[]`（Ledger 投影），`# 历史` 旧文本只在后端没给 `records` 时兜底。
+记录来源 `detail.records[]`（Ledger 投影），`# 历史` 旧文本只在后端没给 `records` 时兜底。题库排序下拉另提供「创建日期 ↑ / ↓」：优先使用 `/api/stats.items[].created_at`，旧迁移题回退 `entry_date`，两者都缺失的题目排在有日期题目之后并以 UID 升序稳定收尾；列表不新增创建日期列。
 
 **行内 `⋯` 菜单**（`ui/menu`）：查看详情 / 加入展示板 / 打标记 / 编辑 Markdown / 迁移分类 / 停用·恢复 / 删除。菜单项在 `setTimeout(0)`
 之后执行——旧 `labels.js` 的标记选择器与 `domain/board/picker.js` 的选板浮层都在 document 上监听点击关闭，同一次点击里打开会被立刻关掉。

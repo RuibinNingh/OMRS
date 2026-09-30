@@ -11,7 +11,53 @@ function decayMastery(mastery,days){const m=clampNumber(mastery,0,1,0);const d=M
 function isKilledItem(item){return asNumber(item.mastery,0)>=1||(item.tag||'').includes('已击杀')}
 function scoreScheduleCandidate(item){const mastery=clampNumber(item.mastery,0,1,0);const difficulty=clampNumber(item.difficulty,1,10,5);const days=daysSinceReview(item.last_review,30);const decayed=decayMastery(mastery,days);let priority=(1-decayed)*(difficulty/10)+(days/60)*.3;if((item.tag||'').includes('待攻克')&&mastery<.3)priority+=.5;return{item,priority,days,decayed}}
 function getDueDays(item){const dueDate=item.due_date;if(!dueDate)return null;const d=parseReviewDate(dueDate);if(!d)return null;const today=new Date();const todayUtc=Date.UTC(today.getFullYear(),today.getMonth(),today.getDate());const dueUtc=Date.UTC(d.getFullYear(),d.getMonth(),d.getDate());return Math.floor((dueUtc-todayUtc)/86400000)}
-export function filterItems(items,filters){let result=[...items];if(filters.suspended!=='all'&&filters.suspended!=='suspended')result=result.filter(item=>!item.suspended);else if(filters.suspended==='suspended')result=result.filter(item=>item.suspended);if(filters.text){result=result.filter(item=>[item.uid,item.subject,item.category,item.tag,...(item.knowledge_tags||[]),...(item.labels||[])].join(' ').toLowerCase().includes(filters.text))}if(filters.subject)result=result.filter(item=>item.subject===filters.subject);if(filters.category)result=result.filter(item=>item.category===filters.category);if(filters.tag)result=result.filter(item=>(item.tag||'').includes(filters.tag));if(filters.knowledgeTag)result=result.filter(item=>(item.knowledge_tags||[]).includes(filters.knowledgeTag));if(filters.labels?.length){result=result.filter(item=>{const values=new Set(item.labels||[]);return filters.labelMode==='all'?filters.labels.every(label=>values.has(label)):filters.labels.some(label=>values.has(label))})}result=result.filter(item=>asNumber(item.difficulty,0)>=filters.difficultyMin&&asNumber(item.difficulty,0)<=(filters.difficultyMax||10));if(filters.masteryMin!=null)result=result.filter(item=>asNumber(item.mastery,0)>=filters.masteryMin);if(filters.masteryMax!=null)result=result.filter(item=>asNumber(item.mastery,0)<=filters.masteryMax);if(filters.dueFilter){result=result.filter(item=>{const dueDays=getDueDays(item);if(dueDays===null)return false;switch(filters.dueFilter){case'overdue':return dueDays<0;case'today':return dueDays===0;case'3days':return dueDays>=0&&dueDays<=3;case'7days':return dueDays>=0&&dueDays<=7;case'future':return dueDays>0;default:return true}})}switch(filters.sort){case'mastery-desc':result.sort((a,b)=>asNumber(b.mastery,0)-asNumber(a.mastery,0));break;case'diff-desc':result.sort((a,b)=>asNumber(b.difficulty,0)-asNumber(a.difficulty,0));break;case'diff-asc':result.sort((a,b)=>asNumber(a.difficulty,0)-asNumber(b.difficulty,0));break;case'date-desc':result.sort((a,b)=>(b.last_review||'').localeCompare(a.last_review||''));break;case'due-asc':result.sort((a,b)=>(getDueDays(a)??999)-(getDueDays(b)??999));break;case'due-desc':result.sort((a,b)=>(getDueDays(b)??-999)-(getDueDays(a)??-999));break;default:result.sort((a,b)=>asNumber(a.mastery,0)-asNumber(b.mastery,0))}return result}
+function parseCreationDate(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const date = text.length <= 10 ? parseReviewDate(text) : new Date(text);
+  return date && !Number.isNaN(date.getTime()) ? date : null;
+}
+export function creationDateValue(item) {
+  const precise = parseCreationDate(item?.created_at);
+  if (precise) return precise.getTime();
+  const entry = parseCreationDate(item?.entry_date);
+  return entry ? entry.getTime() : null;
+}
+function compareCreation(a, b, direction) {
+  const av = creationDateValue(a), bv = creationDateValue(b);
+  if (av == null && bv == null) return String(a?.uid || '').localeCompare(String(b?.uid || ''), 'zh-CN');
+  if (av == null) return 1;
+  if (bv == null) return -1;
+  if (av !== bv) return direction === 'desc' ? bv - av : av - bv;
+  return String(a?.uid || '').localeCompare(String(b?.uid || ''), 'zh-CN');
+}
+export function filterItems(items,filters){
+  let result=[...items];
+  if(filters.suspended!=='all'&&filters.suspended!=='suspended')result=result.filter(item=>!item.suspended);
+  else if(filters.suspended==='suspended')result=result.filter(item=>item.suspended);
+  if(filters.text){result=result.filter(item=>[item.uid,item.subject,item.category,item.tag,...(item.knowledge_tags||[]),...(item.labels||[])].join(' ').toLowerCase().includes(filters.text))}
+  if(filters.subject)result=result.filter(item=>item.subject===filters.subject);
+  if(filters.category)result=result.filter(item=>item.category===filters.category);
+  if(filters.tag)result=result.filter(item=>(item.tag||'').includes(filters.tag));
+  if(filters.knowledgeTag)result=result.filter(item=>(item.knowledge_tags||[]).includes(filters.knowledgeTag));
+  if(filters.labels?.length){result=result.filter(item=>{const values=new Set(item.labels||[]);return filters.labelMode==='all'?filters.labels.every(label=>values.has(label)):filters.labels.some(label=>values.has(label))})}
+  result=result.filter(item=>asNumber(item.difficulty,0)>=filters.difficultyMin&&asNumber(item.difficulty,0)<=(filters.difficultyMax||10));
+  if(filters.masteryMin!=null)result=result.filter(item=>asNumber(item.mastery,0)>=filters.masteryMin);
+  if(filters.masteryMax!=null)result=result.filter(item=>asNumber(item.mastery,0)<=filters.masteryMax);
+  if(filters.dueFilter){result=result.filter(item=>{const dueDays=getDueDays(item);if(dueDays===null)return false;switch(filters.dueFilter){case'overdue':return dueDays<0;case'today':return dueDays===0;case'3days':return dueDays>=0&&dueDays<=3;case'7days':return dueDays>=0&&dueDays<=7;case'future':return dueDays>0;default:return true}})}
+  switch(filters.sort){
+    case'mastery-desc':result.sort((a,b)=>asNumber(b.mastery,0)-asNumber(a.mastery,0));break;
+    case'diff-desc':result.sort((a,b)=>asNumber(b.difficulty,0)-asNumber(a.difficulty,0));break;
+    case'diff-asc':result.sort((a,b)=>asNumber(a.difficulty,0)-asNumber(b.difficulty,0));break;
+    case'date-desc':result.sort((a,b)=>(b.last_review||'').localeCompare(a.last_review||''));break;
+    case'due-asc':result.sort((a,b)=>(getDueDays(a)??999)-(getDueDays(b)??999));break;
+    case'due-desc':result.sort((a,b)=>(getDueDays(b)??-999)-(getDueDays(a)??-999));break;
+    case'created-asc':result.sort((a,b)=>compareCreation(a,b,'asc'));break;
+    case'created-desc':result.sort((a,b)=>compareCreation(a,b,'desc'));break;
+    default:result.sort((a,b)=>asNumber(a.mastery,0)-asNumber(b.mastery,0))
+  }
+  return result
+}
 
 
 export const allItems = getItems;

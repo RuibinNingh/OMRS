@@ -8,6 +8,7 @@ import { escape } from '../../core/html.js';
 import { renderMd } from './markdown.js';
 import { qRecordsFromDetail, qHistoryStats } from './records.js';
 import { dueDays, itemOf } from '../items.js';
+import { formatLedgerTime, ledgerTimeZone } from '../history.js';
 
 const num = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
 
@@ -17,6 +18,7 @@ export const QV_DEFAULTS = Object.freeze({
   showAnswer: true,
   showNotes: true,
   showHistory: true,    // 题目详情最下面的「记录」通栏模块
+  showCreation: true,   // 记录下面的录入日期 / Ledger 创建时间；缩略卡关闭
   showMeta: true,       // 头部 UID / 科目 / 难度 / 熟练度 / 到期
   bare: false,          // true 时去掉正文的边框底色，供画廊缩略卡嵌套
   actions: [],          // 'edit' | 'board' | 'labels' | 'suspend' | 'delete' | 'open'
@@ -25,7 +27,7 @@ export const QV_DEFAULTS = Object.freeze({
 });
 
 /** 画廊 / 选题卡片用的缩略预设（旧 questions.js 的 QV_CARD_OPTS 另有一份按密度调整的副本，随题库页迁移合并）。 */
-export const QV_CARD_OPTS = Object.freeze({ layout: 'stack', showMeta: false, showAnswer: false, showNotes: false, showHistory: false, actions: [], bare: true, clamp: 5 });
+export const QV_CARD_OPTS = Object.freeze({ layout: 'stack', showMeta: false, showAnswer: false, showNotes: false, showHistory: false, showCreation: false, actions: [], bare: true, clamp: 5 });
 
 export const qvOptions = opts => ({ ...QV_DEFAULTS, ...(opts || {}) });
 
@@ -125,9 +127,10 @@ export function qvHtml(q, item, opts) {
   }
   const answer = side.length ? `<section class="qv-a">${side.join('')}</section>` : '';
   const record = o.showHistory ? qvRecordHtml(detail, model) : '';
+  const creation = o.showCreation && o.showHistory ? qvCreationHtml(detail, model) : '';
 
   return `<div class="${classes.join(' ')}" data-qv-uid="${escape(uid)}" data-reveal="${o.reveal ? '1' : '0'}">
-    ${head}${question}${answer}${record}
+    ${head}${question}${answer}${record}${creation}
   </div>`;
 }
 
@@ -187,6 +190,27 @@ export function qvRecordHtml(detail) {
     <div class="qv-rec-nums">${nums}</div>
     ${recordSparkHtml(records)}
     <div class="qv-rec-list">${newest.slice(0, 3).map(recordRowHtml).join('')}</div>${more}
+  </section>`;
+}
+
+function displayEntryDate(value) {
+  const text = String(value || '').trim();
+  return text ? escape(text.slice(0, 10)) : '—';
+}
+
+/** 题目详情的创建信息，紧跟在记录模块之后；精确时间按设置页 Ledger 时区显示。 */
+export function qvCreationHtml(detail, item) {
+  const d = detail || {};
+  const model = item || {};
+  const entryDate = d.entry_date || model.entry_date || '';
+  const created = d.created_at || model.created_at || '';
+  const createdText = created ? formatLedgerTime(created, ledgerTimeZone()) : '';
+  return `<section class="qv-creation">
+    <div class="qv-label">创建信息</div>
+    <dl class="qv-creation-list">
+      <div><dt>录入日期</dt><dd>${displayEntryDate(entryDate)}</dd></div>
+      <div><dt>创建时间</dt><dd>${createdText ? escape(createdText) : '—'}</dd></div>
+    </dl>
   </section>`;
 }
 

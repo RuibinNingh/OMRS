@@ -21,7 +21,7 @@ export const FIELD_IDS = Object.freeze({
 export const RANGES = Object.freeze({ diff: { lo: 'diffMin', hi: 'diffMax', min: 1, max: 10, step: 1 }, mastery: { lo: 'masteryMin', hi: 'masteryMax', min: 0, max: 100, step: 5 } });
 
 export const SORTS = [['mastery-asc', '熟练度 ↑'], ['mastery-desc', '熟练度 ↓'], ['due-asc', '到期日 ↑'], ['due-desc', '到期日 ↓'],
-  ['diff-desc', '难度 ↓'], ['diff-asc', '难度 ↑'], ['date-desc', '最近复习优先']];
+  ['diff-desc', '难度 ↓'], ['diff-asc', '难度 ↑'], ['date-desc', '最近复习优先'], ['created-asc', '创建日期 ↑'], ['created-desc', '创建日期 ↓']];
 export const DUE_OPTIONS = [['', '全部'], ['overdue', '逾期'], ['today', '今日'], ['3days', '3 天'], ['7days', '7 天'], ['future', '未到期']];
 export const TAG_OPTIONS = [['', '全部'], ['待攻克', '待攻克'], ['已击杀', '已击杀'], ['易错', '易错坑']];
 export const SUSPENDED_OPTIONS = [['', '活动'], ['suspended', '仅停用'], ['all', '全部']];

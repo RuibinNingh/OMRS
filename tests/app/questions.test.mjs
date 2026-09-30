@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as S from '../../assets/app/features/questions/state.js';
+import { filterItems } from '../../assets/app/domain/items.js';
 import { tableView, galleryView, streakFoot } from '../../assets/app/features/questions/list.js';
 
 const base = { text: '', subject: '', category: '', tag: '', knowledgeTag: '', labels: [], labelMode: 'any',
@@ -70,6 +71,18 @@ test('toItemFilters maps page filters onto the shared filterItems shape', () => 
   assert.deepEqual(out.labels, ['A']);
   assert.equal(out.labelMode, 'all');
   assert.equal(S.toItemFilters(S.withLive(f, { diffMin: 5 })).difficultyMin, 5);
+});
+
+test('created date sorting prefers precise time, falls back to entry date, and closes ties by UID', () => {
+  const items = [
+    { uid: 'b', created_at: '2026-01-02T00:00:00+00:00', entry_date: '2026-01-01', mastery: 0, difficulty: 5 },
+    { uid: 'a', created_at: '2026-01-02T00:00:00+00:00', entry_date: '2026-01-01', mastery: 0, difficulty: 5 },
+    { uid: 'c', created_at: '', entry_date: '2025-12-31', mastery: 0, difficulty: 5 },
+    { uid: 'd', created_at: '', entry_date: '', mastery: 0, difficulty: 5 },
+  ];
+  const baseFilters = { suspended: '', text: '', subject: '', category: '', tag: '', knowledgeTag: '', labels: [], labelMode: 'any', difficultyMin: 0, difficultyMax: 10, masteryMin: null, masteryMax: null, dueFilter: '' };
+  assert.deepEqual(filterItems(items, { ...baseFilters, sort: 'created-asc' }).map(item => item.uid), ['c', 'a', 'b', 'd']);
+  assert.deepEqual(filterItems(items, { ...baseFilters, sort: 'created-desc' }).map(item => item.uid), ['a', 'b', 'c', 'd']);
 });
 
 test('clearFilter undoes exactly one condition; reset keeps the sort (and optionally the search)', () => {

@@ -13,7 +13,7 @@
 |---|---|
 | `markdown.js` | `renderMd(text, mode)`（带缓存）、`renderMdUncached`、`renderMdInline`、表格、图片、KaTeX、`mdLineBreakMode()` |
 | `records.js` | `parseQHistory`、`qRecordsFromDetail`、`qHistoryStats`、`qStreakHtml`、`parseDay` |
-| `view.js` | 纯函数：`qvHtml(detail, item, opts)`、`qvChips`、`qvToolsHtml`、`qvRecordHtml`、`qvGalleryCard`、`qvGalleryIdHtml`、`QV_DEFAULTS`、`QV_CARD_OPTS` |
+| `view.js` | 纯函数：`qvHtml(detail, item, opts)`、`qvChips`、`qvToolsHtml`、`qvRecordHtml`、`qvCreationHtml`、`qvGalleryCard`、`qvGalleryIdHtml`、`QV_DEFAULTS`、`QV_CARD_OPTS` |
 | `mount.js` | `ensureDetail`、`qvRender`、`qvInvalidate(Many)`、`qvRerenderAll`、`qvSetContext`、`bindQuestionDom()`（工具按钮委托、题图降级，并登记弹窗 ←/→） |
 | `modal.js` | 题目弹窗（`ui/dialog` 外壳）：`viewQ(uid, context?, {returnFocus}?)`、`closeModal`、`modalOpen`、`modalUid`；翻页条与 ←/→（P5 第 3 轮起） |
 | `editor.js` | Markdown 编辑器（`ui/dialog`）：`openEditor(uid)`、`closeEditor`、`editorOpen`（P5 第 3 轮起，原 questions.js 的 `.modal#md-editor`） |
@@ -35,12 +35,13 @@
 
 `opts` 默认值（`QV_DEFAULTS`）：`layout:'split'`（`'stack'` 单栏）、`reveal:true`、`showAnswer/showNotes/showHistory/showMeta:true`、`bare:false`、`actions:[]`、`clamp:0`。
 
-- 结构：`.qv > .qv-head`（UID / chips / 工具栏）+ `.qv-q`（题目）+ `.qv-a`（答案 / 备注）+ `.qv-rec`（记录模块，通栏）。
+- 结构：`.qv > .qv-head`（UID / chips / 工具栏）+ `.qv-q`（题目）+ `.qv-a`（答案 / 备注）+ `.qv-rec`（记录模块，通栏）+ `.qv-creation`（创建信息，完整详情视图显示）。`.qv-creation` 位于记录之后，显示 Markdown `录入日期` 和 Ledger 精确 `创建时间`；旧迁移题缺少精确时间时显示 `—`，时间按设置页 Ledger 时区格式化。
 - `reveal:false` 不渲染答案 DOM，只给「显示答案」按钮（`opts.onReveal` 回调）。
 - `actions`：`edit`、`board`、`labels`、`suspend`（按当前状态显示停用 / 恢复）、`delete`、`open`（关弹窗，经过渡桥 `questionsLoadPreset({'q-search': uid, …})` 切到题库并按 UID 搜索，停用题同时放开停用筛选）。按钮只带 `data-qv-act`，由 `mount.js` 的委托处理器调 `ops.js`（编辑、停用 / 恢复、删除）或旧全局（`boardQuickAdd`、`openLabelPicker`）。
 - `bare:true` + `clamp:N` 给画廊缩略卡：去掉正文边框底色，正文写 `data-clamp="N"`（1–12），由 `qview.css` 的档位规则截断。
 - 详情取不到时 `ensureDetail` 缓存一份带 `_fallback:true` 的降级副本，qview 显示「无法加载题目预览 + 重试」，重试即 `qvInvalidate`。
 - 复燃题在到期 chip 之后追加「复燃 · 已休眠 N 天」：复燃题的 `Due_Date` 是击杀时的旧值，只看「逾期 N 天」会读成没做完的旧账。
+- 画廊缩略卡和即时练习通过 `showCreation:false` / `showHistory:false` 隐藏创建信息；题目详情弹窗保留完整记录和创建信息，即使没有练习记录也显示该区块。
 
 ### 3.1 布局：挂载点是容器
 

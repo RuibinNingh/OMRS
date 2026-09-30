@@ -198,6 +198,16 @@ test('record module is a full-width section after the answer, and opt-out still 
   assert.ok(!qvHtml(detail, { uid: '三角函数7' }, { showHistory: false }).includes('qv-rec'));
 });
 
+test('creation information follows records, renders empty records, and hides in cards', () => {
+  const detail = { uid: 'Q-1', question: '题面', answer: '答案', records: [], entry_date: '2026-09-30', created_at: '2026-09-30T01:02:03+00:00' };
+  const html = qvHtml(detail, { uid: 'Q-1' }, {});
+  assert.ok(html.indexOf('qv-creation') > html.indexOf('qv-rec'));
+  assert.ok(html.includes('录入日期') && html.includes('2026-09-30'));
+  assert.ok(html.includes('创建时间') && html.includes('2026-09-30 09:02:03'));
+  assert.ok(qvHtml({ ...detail, entry_date: '', created_at: '' }, { uid: 'Q-1' }, {}).includes('>—</dd>'));
+  assert.ok(!qvHtml(detail, { uid: 'Q-1' }, QV_CARD_OPTS).includes('qv-creation'));
+});
+
 // ── qview HTML（P5 新增）──
 test('clamp becomes a data-clamp level on the question body, never an inline style', () => {
   const html = qvHtml({ uid: 'Q1', question: '题面' }, { uid: 'Q1' }, QV_CARD_OPTS);

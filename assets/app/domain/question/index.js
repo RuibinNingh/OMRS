@@ -9,7 +9,7 @@ export { editQuestion, suspendQuestion, resumeQuestion, deleteQuestion, moveQues
 
 export { renderMd, renderMdInline, renderMdUncached, mdLineBreakMode, setMdLineBreakMode, mdCacheStats, clearMdCache, hashText } from './markdown.js';
 export { parseQHistory, qRecordsFromDetail, qHistoryStats, qStreakHtml } from './records.js';
-export { QV_DEFAULTS, QV_CARD_OPTS, qvHtml, qvChips, qvToolsHtml, qvRecordHtml, qvGalleryCard, qvGalleryIdHtml } from './view.js';
+export { QV_DEFAULTS, QV_CARD_OPTS, qvHtml, qvChips, qvToolsHtml, qvRecordHtml, qvCreationHtml, qvGalleryCard, qvGalleryIdHtml } from './view.js';
 export {
   cachedDetail, dropDetail, ensureDetail, qvSetContext, qvContext, qvRender, qvUnmount, qvInvalidate, qvInvalidateMany, qvRerenderAll,
   bindQuestionDom, detailCacheObject, pendingDetailsObject,

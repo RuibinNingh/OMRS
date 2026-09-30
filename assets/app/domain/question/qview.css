@@ -10,7 +10,7 @@
 
 /* ── 布局 ── */
 .qv-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
-.qv-split > .qv-head, .qv-split > .qv-rec { grid-column: 1 / -1; }
+.qv-split > .qv-head, .qv-split > .qv-rec, .qv-split > .qv-creation { grid-column: 1 / -1; }
 .qv-q, .qv-a { min-width: 0; }
 .qv-stack .qv-a { margin-top: var(--sp-4); }
 [data-qv-mount]:has(> .qv-split) { container: qv / inline-size; min-width: 0; }
@@ -101,6 +101,12 @@
 .qv-rec-more > summary:hover { color: var(--fg-1); }
 .qv-rec-empty { color: var(--fg-3); font-size: var(--text-xs); }
 .qv-rec-raw { margin-top: var(--sp-2); color: var(--fg-2); font-family: var(--font-mono); font-size: var(--text-xs); line-height: var(--leading-read); white-space: pre-wrap; }
+.qv-creation { margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--border-1); }
+.qv-creation-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2) var(--sp-5); margin: 0; }
+.qv-creation-list > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2); min-width: 0; font-size: var(--text-xs); }
+.qv-creation-list dt { color: var(--fg-3); }
+.qv-creation-list dd { margin: 0; color: var(--fg-1); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) { .qv-creation-list { grid-template-columns: minmax(0, 1fr); } }
 
 /* ── 战绩带：一根竖条一次练习，绿对红错，高度是主观分（data-h 0–9 对应 0–10 分，3px 起每档 +1px），左 → 右是时间；画廊脚注与记录模块共用 ── */
 .q-streak { display: inline-flex; align-items: flex-end; gap: var(--sp-0_5); height: 12px; }
