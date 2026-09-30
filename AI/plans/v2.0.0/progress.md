@@ -123,6 +123,10 @@ P5 主线集成后已执行：Python 394/394、Node 385/385、组件浏览器 33
 - `tests/e2e/drafts.py` 52/52（含服务端已入库但响应丢失后的同身份重试）、`tests/e2e/drafts_p4.py` 24/24；`node --test tests/app/*.test.mjs` 378/378；`tests/app/run_browser.py` 32/32；UI 0 处、对比度 58 组通过。
 - `tests/visual/run.py --ref 1d082194ad959aaf6d754a90ed95db9183484adc --out /tmp/omrs-v2-p1-visual`：48 个仓库标准页面 0 差异、无脚本错误；该 fixture 没有草稿，实际草稿前后差异由专门 E2E 截图记录。基线手机图先出现来源大图/画布，当前图先出现题目与切换控件，来源按需展开。
 
+## 助手界面增量发布（2026-09-30）
+
+用户再次授权部署助手界面重设计提交 `1b0558c`。固定发布目录 `/root/workspace/releases/omrs-1b0558c` 已切换上线；服务 active/running，版本 v2.0.0、239 题，工作区扫描 0 变更 / 0 冲突，`NRestarts=0`。停服期间生成备份 `/root/workspace/backups/recycle/assistant-ui-1b0558c-20260930T004155Z`；生产资源哈希与发布目录一致。桌面 1440×900 与手机 390×844 只读浏览器验收通过：输入区无展开按钮、上下文与缓存同显、无横向溢出、脚本错误 0。
+
 ## 生产发布（2026-09-30）
 
 用户另行授权部署生产及提交 GitHub。固定发布 `omrs-dccbe6b` 已切换上线，服务 active/running，版本 v2.0.0、239 题、扫描无冲突。完整停服备份 `omrs-v200-20260930T000153Z` 解包校验通过，5 个 SQLite 数据库检查通过，Ledger 694 个提交链有效；正文、附件、配置未变。旧 `omrs-c94e459` 保留供代码回退。真机与真实供应商验收仍未执行。
