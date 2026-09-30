@@ -92,6 +92,7 @@ html[data-theme="dark"][data-invert-img="1"] #ib-stage-process .ib-stage-img img
 #ib-stage-process .ib-ps-head .layout { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-3); color: var(--fg-2); font-size: var(--text-xs); }
 #ib-stage-process .ib-ps-head .layout select { width: auto; min-height: var(--ctl-sm); }
 #ib-stage-process .ib-ps-head .layout .hint { margin-left: auto; }
+#ib-stage-process .ib-ps-status { margin-top: var(--sp-3); }
 #ib-stage-process .ib-ps-body { flex: 1; overflow-y: auto; padding: var(--sp-3); }
 #ib-stage-process .ib-ps-foot { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); padding: var(--sp-3); border-top: 1px solid var(--border-1); }
 #ib-stage-process .ib-cardgrp { overflow: hidden; margin-bottom: var(--sp-3); border: 1px solid var(--border-1); border-radius: var(--r-md); }

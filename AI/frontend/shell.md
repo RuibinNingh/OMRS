@@ -63,7 +63,7 @@ assets/
 |---|---|---|
 | 题目库 | `.qlb` → `.qlb-card` → `.qlb-body`（`features/questions/questions.css`） | `.qlb-main` 里的表格 / 画廊、`.qlb-drawer` |
 | 反馈录入 | `.fb-work`（`grid-template-rows:minmax(0,1fr)`） | `.fb-rail` / `.fb-stage` / `.fb-panel` 三栏独立 |
-| 录入题目 | `#create-app` → `.ib-stage.on`；处理页额外 `#ib-stage-process.on` → `.ib-proc` | 上传、处理、录入与 AI 训练各工作区按自身布局滚动 |
+| 录入题目 | `#create-app` → `.ib-stage.on`；处理页额外 `#ib-stage-process.on` → `.ib-proc` | 上传、处理、录入与 AI 训练各工作区按自身布局滚动；处理区的成功状态写在右侧标题下，不占用全局 toast 层 |
 | 展示板 | `.brd` → `.brd-main` → `.brd-work` | 板列表、纸面桌面、题目面板各自滚动 |
 | 即时练习 | `.inst-work`（`features/instant/instant.css`） | `.inst-main` / `.inst-queue__list` |
 

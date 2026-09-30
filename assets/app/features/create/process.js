@@ -22,8 +22,29 @@ export function createProcess(root, bus) {
   const side = host.querySelector('#ib-ps-body');
   let alive = true;
   let scheduled = false;
+  let statusMessage = '';
+  let statusTimer = null;
   const busy = () => inbox.current()?.regions.some(row => row.text_status === 'running');
   const canvas = createCanvasController(host, () => S, () => afterEdit(), { canEdit: () => !busy() });
+
+  function paintStatus() {
+    const statusHost = host.querySelector('#ib-ps-status');
+    if (!statusHost) return;
+    statusHost.hidden = !statusMessage;
+    const text = statusHost.querySelector('.ui-status__text');
+    if (text) text.textContent = statusMessage;
+  }
+
+  function showStatus(message) {
+    statusMessage = String(message || '');
+    clearTimeout(statusTimer);
+    statusTimer = statusMessage ? setTimeout(() => {
+      statusMessage = '';
+      statusTimer = null;
+      if (alive) paintStatus();
+    }, 3200) : null;
+    paintStatus();
+  }
 
   function paint() {
     if (!alive) return;
@@ -40,6 +61,7 @@ export function createProcess(root, bus) {
       ? `${current.id} · ${current.width}×${current.height} · ${current.source === 'phone' ? '手机上传' : '电脑上传'}${current.blind ? ' · 盲标（AI 框已隐藏，请直接手画）' : ''}` : '';
     const cards = groupCards(current).length;
     host.querySelector('#ib-ps-card-n').textContent = cards > 1 ? `· ${cards} 张题卡` : '';
+    paintStatus();
     host.querySelector('#ib-layout').value = current?.layout || 'zuoyebang';
     host.querySelectorAll('#ib-role-seg button').forEach(button => {
       const on = button.dataset.v === S.drawRole;
@@ -156,7 +178,7 @@ export function createProcess(root, bus) {
     const saved = await inbox.save(inbox.item(item.id), { status: 'ready' });
     if (!saved) return;
     const next = inbox.queue().find(row => row.status !== 'ready' && row.id !== item.id);
-    notify(`${item.file} 已就绪，进入「录入」；${next ? '已切到下一张' : '队列里没有待处理的图了'}`);
+    showStatus(`${item.file} 已就绪，进入「录入」；${next ? '已切到下一张' : '队列里没有待处理的图了'}`);
     if (next) inbox.open(next.id); else inbox.changed();
   }
 
@@ -207,6 +229,6 @@ export function createProcess(root, bus) {
     extract(id) { extractRegions(inbox.current(), [id]); },
     detectCurrent() { if (S.cur && !busy()) detect([S.cur]); },
     detectSelected,
-    dispose() { alive = false; stop(); window.removeEventListener('resize', onResize); canvas.dispose(); },
+    dispose() { alive = false; clearTimeout(statusTimer); statusTimer = null; stop(); window.removeEventListener('resize', onResize); canvas.dispose(); },
   };
 }

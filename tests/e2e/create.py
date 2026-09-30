@@ -423,6 +423,11 @@ def run_cards(page, base, results):
     check('保留图片的区域画出裁图预览', wait(page, "() => !!document.querySelector('#ib-ps-body canvas[data-crop][data-painted]') && document.querySelector('#ib-ps-body canvas[data-crop]').width > 1"))
     page.locator('[data-action="create.processMarkReady"]').click()
     check('标记就绪后「录入」计数加一', wait(page, "() => document.querySelector('#ib-c-ready')?.textContent === '1'"))
+    check('标记就绪成功反馈显示在录入工作区且不再弹全局提示', wait(page, """() => {
+      const status = document.querySelector('#ib-ps-status');
+      const toasts = [...document.querySelectorAll('.ui-toast')].map(e => e.textContent);
+      return status && !status.hidden && status.textContent.includes('题卡.png 已就绪') && !toasts.some(text => text.includes('题卡.png 已就绪'));
+    }"""))
     page.locator('#create-flow [data-ib-stage="create"]').click()
     check('题卡工作区列出就绪题卡并画出裁图', wait(page, "() => document.querySelectorAll('#ib-stage-create .crc-card').length === 1 && !!document.querySelector('#ib-stage-create canvas[data-crop][data-painted]')")
           and '1 张题卡待创建' in page.locator('#ib-cr-count').inner_text())

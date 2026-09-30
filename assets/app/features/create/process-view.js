@@ -1,6 +1,7 @@
 /** 处理工作区静态三栏；由控制器挂到现有的 #ib-stage-process。 */
 import { html } from '../../core/html.js';
 import { icon } from '../../ui/icon.js';
+import { status } from '../../ui/status.js';
 
 export function processView() {
   return html`<div class="ib-proc">
@@ -51,6 +52,7 @@ export function processView() {
             <option value="plain">已裁好的题图</option><option value="other">其他</option>
           </select><span class="hint">作为训练标签记录</span>
         </div>
+        <div id="ib-ps-status" class="ib-ps-status" hidden>${status({ tone: 'success', text: '', block: true })}</div>
       </div>
       <div class="ib-ps-body" id="ib-ps-body" data-morph="skip"></div>
       <div class="ib-ps-foot">

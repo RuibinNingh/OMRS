@@ -21,6 +21,7 @@ test('框选工作区和批量栏不再提供模板或沿用框位入口', () =>
     assert.match(markup, /AI 框选/);
   }
   assert.match(process, /重置此图/);
+  assert.match(process, /id="ib-ps-status"[\s\S]*ui-status--success/);
 });
 
 test('题卡分组、待处理状态与已录入状态保持旧契约', () => {
