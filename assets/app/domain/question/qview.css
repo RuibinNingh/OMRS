@@ -148,7 +148,7 @@
 .qv-nav { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; margin: 0; color: var(--fg-3); font-size: var(--text-sm); }
 .qv-nav.is-single { display: none; }
 .qv-nav__pos { padding: 0 var(--sp-1); font-family: var(--font-mono); font-size: var(--text-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.qv-dialog__stage { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 var(--sp-6); }
+.qv-dialog__stage { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 0 var(--sp-6); }
 .qv-dialog__stage:focus { outline: none; }
 
 /* Markdown 编辑器（editor.js）：等宽、阅读行高；状态行在文本框下方，未保存 / 失败换色 */

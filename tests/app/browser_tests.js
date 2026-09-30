@@ -114,6 +114,21 @@ test('dialog：模态打开、聚焦首个输入、Enter 确认并按 id 收集�
   eq(result.values['t-chk'], true);
 });
 
+test('dialog：长内容限制在视口内并由正文区滚动', async () => {
+  const rows = Array.from({ length: 80 }, (_, i) => `<p>第 ${i + 1} 行长内容，用于验证对话框在受限高度下仍保留正文滚动区。</p>`).join('');
+  const pending = dialog({ title: '长内容', body: html`<div id="t-long">${raw(rows)}</div>` });
+  const el = topDialog();
+  const panel = el.querySelector('.ui-dialog__panel');
+  const body = el.querySelector('.ui-dialog__body');
+  const bounds = panel.getBoundingClientRect();
+  assert(bounds.top >= -1 && bounds.bottom <= innerHeight + 1, `面板应在视口内：${bounds.top}–${bounds.bottom}/${innerHeight}`);
+  assert(body.scrollHeight > body.clientHeight, `正文应可滚动：${body.scrollHeight}/${body.clientHeight}`);
+  body.scrollTop = body.scrollHeight;
+  assert(body.scrollTop > 0, '正文滚动位置应改变');
+  el.querySelector('[data-dialog-cancel]').click();
+  eq((await pending).ok, false);
+});
+
 test('image-viewer：切图、缩放、Esc、焦点与背景滚动锁', async () => {
   const opener = mount(html`<button type="button">预览图片</button>`);
   opener.focus();

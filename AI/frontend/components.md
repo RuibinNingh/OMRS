@@ -67,7 +67,7 @@ assets/app/
 
 ## 4. 弹层与通知
 
-- `dialog` / `drawer` 用 `<dialog>.showModal()` 进入浏览器顶层，背景自动 inert。`overlay.js` 管理 Esc 与遮罩关闭（按下和松开都落在遮罩上才算）、Enter 确认（textarea、按钮、链接里的 Enter 除外）、关闭动画、焦点还给触发元素、`html.ui-scroll-lock` 锁定背景滚动、嵌套时只关闭最上层。
+- `dialog` / `drawer` 用 `<dialog>.showModal()` 进入浏览器顶层，背景自动 inert。`dialog` 面板是可收缩的 flex 列，受限高度时由正文区承担滚动；`overlay.js` 管理 Esc 与遮罩关闭（按下和松开都落在遮罩上才算）、Enter 确认（textarea、按钮、链接里的 Enter 除外）、关闭动画、焦点还给触发元素、`html.ui-scroll-lock` 锁定背景滚动、嵌套时只关闭最上层。
 - Esc 在 document 捕获阶段拦下并 `stopPropagation`，避免同一次按键继续作用到下层弹层。危险确认默认聚焦「取消」。
 - `dialog(spec)` 返回 `{ok, values}`，values 按 id 收集对话框内的 input / select / textarea（复选与单选取 checked）。`body` 可以是 `html``` 结果；传字符串时会原样插入，调用方必须先转义不可信内容；`content` 可以是 DOM 节点。
 - `dialog(spec)` 另收（P5 第 3 轮起）：`size:'xl'`（1180，题目弹窗与 Markdown 编辑器）、`id`、`onOpen(el)`、`onOk(values, el)`（异步；等待时确定按钮 `aria-busy` 并禁用，返回 false 或抛错则留在对话框，用于保存失败）、`dismissible` 为函数（每次 Esc / 点遮罩时再问，如「有未保存修改」）、`returnFocus()`（关闭后优先把焦点交给它返回的元素）；`closeDialog(el)` 按元素关闭。多行文本里的 Enter 不确认，Ctrl / ⌘ + Enter 在任何位置都确认。

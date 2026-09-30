@@ -184,6 +184,61 @@ def run_mobile(browser, base, uid, results):
     ctx.close()
 
 
+def run_mobile_question_scroll(browser, base, results, viewport):
+    """长题详情在窄屏中保持面板边界，并把纵向滚动交给题面区。"""
+    width, height = viewport
+    def check(name, ok, detail=""):
+        results.append((name, bool(ok), detail))
+    ctx = browser.new_context(viewport={"width": width, "height": height}, is_mobile=True, has_touch=True)
+    ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
+    page = ctx.new_page()
+    errors = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    try:
+        page.goto(f"{base}/?unlocked=1#/questions", wait_until="networkidle")
+        page.wait_for_function("() => window.__p8TestReady", timeout=15000)
+        page.evaluate("""async () => { await window.__p8TestReady; await viewQ('三角函数3'); }""")
+        opened = wait(page, "() => document.querySelector('dialog#modal[open] #modal-stage [data-qv-uid]')", 10000)
+        check(f"手机 {width}×{height}：长题弹窗打开", opened)
+        if not opened:
+            return
+        page.wait_for_timeout(400)
+        metrics = page.evaluate("""() => {
+          const panel = document.querySelector('#modal .ui-dialog__panel');
+          const stage = document.getElementById('modal-stage');
+          const p = panel.getBoundingClientRect();
+          return {
+            panelTop: p.top, panelBottom: p.bottom,
+            stageClient: stage.clientHeight, stageScroll: stage.scrollHeight,
+            overflowY: getComputedStyle(stage).overflowY,
+            pageOverflowX: document.documentElement.scrollWidth - innerWidth,
+          };
+        }""")
+        bounded = metrics["panelTop"] >= -1 and metrics["panelBottom"] <= height + 1
+        scrollable = metrics["stageScroll"] > metrics["stageClient"] and metrics["overflowY"] in ("auto", "scroll")
+        check(f"手机 {width}×{height}：面板在视口内、题面区可滚动", bounded and scrollable, json.dumps(metrics))
+        page.locator("#modal-stage").hover()
+        page.mouse.wheel(0, max(400, height // 2))
+        moved = wait(page, "() => document.getElementById('modal-stage').scrollTop > 0")
+        check(f"手机 {width}×{height}：滚动题面区不会滚动背景", moved and page.evaluate("() => document.documentElement.scrollTop === 0"))
+        page.evaluate("() => { const s = document.getElementById('modal-stage'); s.scrollTop = s.scrollHeight; }")
+        end = page.evaluate("""() => {
+          const stage = document.getElementById('modal-stage');
+          const last = stage.querySelector('.qv-creation');
+          const sr = stage.getBoundingClientRect();
+          const lr = last?.getBoundingClientRect();
+          return { atEnd: stage.scrollTop + stage.clientHeight >= stage.scrollHeight - 1,
+            lastVisible: !!lr && lr.bottom <= sr.bottom + 1,
+            pageOverflowX: document.documentElement.scrollWidth - innerWidth };
+        }""")
+        check(f"手机 {width}×{height}：长题可滚到创建信息末尾", end["atEnd"] and end["lastVisible"] and end["pageOverflowX"] <= 1, json.dumps(end))
+        page.keyboard.press("Escape")
+        check(f"手机 {width}×{height}：滚动后仍可关闭弹窗", wait(page, CLOSED))
+        check(f"手机 {width}×{height}：页面脚本错误为 0", not errors, "; ".join(errors[:3]))
+    finally:
+        ctx.close()
+
+
 def run_library(page, base, results):
     def check(name, ok, detail=""):
         results.append((name, bool(ok), detail))
@@ -417,6 +472,8 @@ def main():
             ctx.close()
             if uid:
                 guarded(results, "手机", run_mobile, browser, base, uid, results)
+            for viewport in ((390, 844), (320, 640)):
+                guarded(results, f"手机长题滚动 {viewport[0]}×{viewport[1]}", run_mobile_question_scroll, browser, base, results, viewport)
             for theme in ("light", "dark"):
                 for label, size in (("桌面", (1440, 900)), ("手机", (390, 844))):
                     c = browser.new_context(viewport={"width": size[0], "height": size[1]})
