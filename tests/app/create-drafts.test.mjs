@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { draftPendingCount, editValue, updatePayload, draftProblems, commitProblem, moveBlock, latestDetectResult } from '../../assets/app/features/create/drafts-state.js';
+import { draftPendingCount, editValue, updatePayload, draftProblems, commitProblem, moveBlock, latestDetectResult, reviewChecks } from '../../assets/app/features/create/drafts-state.js';
 import { draftsView } from '../../assets/app/features/create/drafts-view.js';
 
 const sample = () => ({ id: 'DR-1', revision: 3, status: 'cropping', subject: '数学', category: '函数', difficulty: 5,
@@ -63,7 +63,7 @@ test('AI 歧义候选只展示建议；全文字 done 可独立保存训练框',
   assert.equal(latestDetectResult(draft, null, 'a'.repeat(64)).result.status, 'suggested');
   const markup = draftsView({ list: [draft], listLoaded: true, filter: 'done', selectedId: draft.id,
     draft, value: editValue(draft), training: { 'dt-1': [] }, canvasSha: 'a'.repeat(64), canvasMode: 'training',
-    detailLoaded: true, dirty: true, busy: false, sourceOpen: true }).text;
+    detailLoaded: true, dirty: true, busy: false, workspaceMode: 'source', reviewTab: 'source' }).text;
   assert.match(markup, /独立训练框待核对/);
   assert.match(markup, /训练任务：待框选/);
   assert.match(markup, /采用为训练框/);
@@ -75,7 +75,7 @@ test('草稿视图显示原图、只读完成态及来源不完整提示，文�
   const draft = { ...sample(), sources_complete: false, subject: '<script>', status: 'done', uid: 'MATH-1' };
   const markup = draftsView({ list: [draft], listLoaded: true, filter: 'done', selectedId: draft.id,
     counts: { cropping: 1, review: 1 }, draft, value: editValue(draft), detailLoaded: true, dirty: false, busy: false,
-    sourceOpen: true }).text;
+    workspaceMode: 'source', reviewTab: 'source' }).text;
   assert.match(markup, /来源未完整恢复/);
   assert.match(markup, /查看题目/);
   assert.match(markup, /&lt;script&gt;/);
@@ -87,20 +87,33 @@ test('草稿视图显示原图、只读完成态及来源不完整提示，文�
   assert.doesNotMatch(unavailable, /data-action="create\.draftQuestion"/);
 });
 
-test('审核默认先呈现题目，编辑与来源对照按需展开', () => {
+test('审核工作台把信息与入库检查固定到右侧，来源切换为独立模式', () => {
   const draft = { ...sample(), status: 'review', blocks: [sample().blocks[0], sample().blocks[2]] };
   const state = { list: [draft], listLoaded: true, filter: 'pending', selectedId: draft.id,
     counts: { cropping: 0, review: 1 }, draft, value: editValue(draft), detailLoaded: true,
-    reviewTab: 'question', fieldsEditing: false, sourceOpen: false, dirty: false, busy: false };
+    reviewTab: 'question', workspaceMode: 'review', fieldsEditing: false, dirty: false, busy: false };
   const reading = draftsView(state).text;
   assert.match(reading, /第 1\/1 题/);
   assert.match(reading, /保存并入库，下一题/);
   assert.match(reading, /class="drf-md q-md"/);
-  assert.match(reading, /class="drf-source-trigger"[^>]*aria-expanded="false"/);
-  assert.doesNotMatch(reading, /class="drf-canvas"/);
+  assert.match(reading, /class="drf-source-trigger ui-btn ui-btn--sm"[^>]*aria-expanded="false"/);
+  assert.match(reading, /class="drf-review-inspector"/);
+  assert.match(reading, /class="drf-review-checks"/);
   assert.doesNotMatch(reading, /data-input="create\.draftBlockText"|data-input="create\.draftField"/);
-  const editing = draftsView({ ...state, editingBlock: 'q1', fieldsEditing: true, sourceOpen: true }).text;
+  const editing = draftsView({ ...state, editingBlock: 'q1', fieldsEditing: true }).text;
   assert.match(editing, /data-input="create\.draftBlockText"/);
   assert.match(editing, /data-input="create\.draftField"/);
-  assert.match(editing, /class="drf-source-trigger"[^>]*aria-expanded="true"/);
+  const source = draftsView({ ...state, workspaceMode: 'source', reviewTab: 'source' }).text;
+  assert.match(source, /class="drf-source-trigger ui-btn ui-btn--sm"[^>]*aria-expanded="true"/);
+  assert.match(source, /class="drf-source-workspace"/);
+  assert.match(source, /class="drf-canvas"/);
+});
+
+test('审核检查只提示前端可见的缺项，不复制入库业务校验', () => {
+  const value = editValue(sample());
+  value.fields.subject = '';
+  value.blocks[1].box = null;
+  assert.deepEqual(reviewChecks(value).map(check => [check.key, check.status]), [
+    ['subject', 'warning'], ['category', 'ok'], ['question', 'ok'], ['imageBox', 'warning'],
+  ]);
 });

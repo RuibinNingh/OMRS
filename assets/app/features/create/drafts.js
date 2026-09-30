@@ -20,14 +20,13 @@ import { previewDraftSource } from './drafts-preview.js';
 
 let nextLocalBlock = 0;
 const responseError = result => result.error?.message || result.data?.msg || '请求失败';
-
 export function createDrafts(root, ctx) {
   const host = root.querySelector('#ib-stage-drafts');
   const state = { list: [], listLoaded: false, listError: '', filter: 'pending', selectedId: null,
     draft: null, value: null, saved: '', detailLoaded: true, detailError: '', dirty: false,
     busy: false, message: '', conflict: false, counts: currentDraftCounts(), training: {}, trainingSaved: '{}',
     canvasSha: null, canvasMode: 'body', selectedBlock: null, drawSection: '题目', job: null,
-    reviewTab: 'question', editingBlock: null, fieldsEditing: false, sourceOpen: false, queueOpen: false };
+    reviewTab: 'question', workspaceMode: 'review', editingBlock: null, fieldsEditing: false, queueOpen: false };
   let alive = true;
   let listRequest = 0;
   let detailRequest = 0;
@@ -51,7 +50,7 @@ export function createDrafts(root, ctx) {
   function setDraft(draft) {
     jobs.stop();
     if (state.draft?.id !== draft?.id) {
-      state.reviewTab = 'question'; state.editingBlock = null; state.fieldsEditing = false; state.sourceOpen = false;
+      state.reviewTab = 'question'; state.workspaceMode = 'review'; state.editingBlock = null; state.fieldsEditing = false;
       state.queueOpen = false;
     }
     state.draft = draft;
@@ -157,12 +156,17 @@ export function createDrafts(root, ctx) {
     return loadDetail(next.id);
   }
   function toggleQueue() { state.queueOpen = !state.queueOpen; paint(); }
-  function toggleSource() {
-    state.sourceOpen = !state.sourceOpen;
+  function workspaceMode(mode) {
+    if (!['review', 'source'].includes(mode)) return;
+    state.workspaceMode = mode;
+    if (mode === 'source') state.reviewTab = 'source';
+    else if (state.reviewTab === 'source') state.reviewTab = 'question';
     paint();
-    if (state.sourceOpen) requestAnimationFrame(() => { canvas.refresh(); void paintDraftCrops(host, state.value); });
+    if (mode === 'source') requestAnimationFrame(() => { canvas.refresh(); void paintDraftCrops(host, state.value); });
   }
-  function reviewTab(tab) { if (!['question', 'answer', 'info'].includes(tab)) return; state.reviewTab = tab; paint(); }
+  function toggleSource() { workspaceMode(state.workspaceMode === 'source' ? 'review' : 'source'); }
+  function reviewTab(tab) { if (!['question', 'answer', 'info', 'source'].includes(tab)) return;
+    if (tab === 'source') { workspaceMode('source'); return; } state.workspaceMode = 'review'; state.reviewTab = tab; paint(); }
   function editBlock(key) { if (state.busy || !block(key)) return; state.editingBlock = state.editingBlock === key ? null : key; paint(); }
   function editFields() { if (state.busy || !state.value) return; state.fieldsEditing = !state.fieldsEditing; paint(); }
   async function enter() {
@@ -385,7 +389,7 @@ export function createDrafts(root, ctx) {
   }
   function beforeUnload(event) { if (!state.dirty) return; event.preventDefault(); event.returnValue = ''; }
   root.ownerDocument.defaultView.addEventListener('beforeunload', beforeUnload);
-  return { state, paint, enter, open, navigate, toggleQueue, toggleSource, reviewTab, editBlock, editFields, guard, filter, reload, reloadDetail, field,
+  return { state, paint, enter, open, navigate, toggleQueue, toggleSource, workspaceMode, reviewTab, editBlock, editFields, guard, filter, reload, reloadDetail, field,
     openLabels,
     sourceAdd, sourceRemove, previewSource: sha => previewDraftSource(state, sha), addBlock, removeBlock, move, whole, canvasImage: canvas.image, canvasMode: canvas.mode, canvasBlock: canvas.selectBlock,
     drawSection: canvas.section, clearBox: canvas.clearBox, trainingSection: canvas.trainingSection, trainingRemove: canvas.trainingRemove,

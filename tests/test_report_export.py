@@ -98,6 +98,16 @@ $$""",
     ]
 
 
+def test_plain_newlines_remain_separate_export_text_blocks():
+    blocks = exporting._text_to_blocks("unused", "题干\nA. 甲\nB. 乙")
+
+    assert blocks == [
+        {"t": "txt", "text": "题干"},
+        {"t": "txt", "text": "A. 甲"},
+        {"t": "txt", "text": "B. 乙"},
+    ]
+
+
 def test_export_data_keeps_a4_question_gap_line_count():
     data = exporting._build_export_data(
         "unused",

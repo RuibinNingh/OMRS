@@ -21,7 +21,7 @@ test('consecutive blank lines still collapse into a single paragraph break', () 
   assert.equal(renderMd('甲\n\n\n\n乙', 'lean'), renderMd('甲\n\n乙', 'lean'));
 });
 
-test('lean mode joins single newlines, full mode keeps every one', () => {
+test('full mode keeps ordinary newlines while lean remains an explicit compatibility mode', () => {
   assert.equal(renderMd(CHOICES, 'lean'), '<p class="md-p">下列说法正确的是（　） A. 甲 B. 乙 C. 丙</p>');
   assert.equal(renderMd(CHOICES, 'full'), '<p class="md-p">下列说法正确的是（　）<br>A. 甲<br>B. 乙<br>C. 丙</p>');
 });
@@ -43,9 +43,10 @@ test('tables stay their own block with no stray <br> around them', () => {
   assert.ok(!html.includes('<br></p>'));
 });
 
-test('mode falls back to lean when the preference global is absent', () => {
-  assert.equal(mdLineBreakMode(), 'lean');
-  assert.equal(renderMd(CHOICES), renderMd(CHOICES, 'lean'));
+test('the default mode preserves ordinary newlines and still treats blank lines as Markdown paragraphs', () => {
+  assert.equal(mdLineBreakMode(), 'full');
+  assert.equal(renderMd(CHOICES), renderMd(CHOICES, 'full'));
+  assert.equal(renderMd('题干\n\nA. 甲\nB. 乙'), '<p class="md-p">题干</p><p class="md-p">A. 甲<br>B. 乙</p>');
 });
 
 test('empty input renders nothing at all', () => {

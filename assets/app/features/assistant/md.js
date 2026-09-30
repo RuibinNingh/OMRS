@@ -19,18 +19,19 @@ export function tex(src, display) {
 
 export function renderInline(src, refOf = code => `<code>${escape(code)}</code>`) {
   const re = /(\$[^$\n]+?\$)|(`[^`\n]+`)|(\*\*[^*\n]+?\*\*)/g;
+  const plain = value => escape(value).replace(/\r?\n/g, '<br>');
   let out = '';
   let last = 0;
   let m;
   const text = String(src ?? '');
   while ((m = re.exec(text))) {
-    out += escape(text.slice(last, m.index));
+    out += plain(text.slice(last, m.index));
     if (m[1]) out += tex(m[1].slice(1, -1), false);
     else if (m[2]) out += refOf(m[2].slice(1, -1));
     else out += `<strong>${renderInline(m[3].slice(2, -2), refOf)}</strong>`;
     last = m.index + m[0].length;
   }
-  return out + escape(text.slice(last));
+  return out + plain(text.slice(last));
 }
 
 const cellsOf = r => r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());

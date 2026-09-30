@@ -120,7 +120,7 @@ function layoutMenu(env) {
   <p class="qlb-pop__title">${gallery ? '卡片密度' : '行密度'}</p>
   ${seg('questions.density', 'density', p.density, [['comfortable', '舒适'], ['compact', '紧凑']])}
   <p class="qlb-pop__title">题面换行</p>
-  ${seg('questions.mdMode', 'md', env.mdMode, [['lean', '简略', '忽略原文里单个换行，只在空行处分段'], ['full', '完整', '保留原文每一处换行，选项 / 小问各占一行']])}
+  ${seg('questions.mdMode', 'md', env.mdMode, [['full', '逐行', '保留普通文本的每一处换行，选项 / 小问各占一行'], ['lean', '简略', '按 Markdown 软换行合并单个换行，只在空行处分段']])}
   <div class="qlb-pop__actions">
     <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="questions.saveView">存为视图…</button>
     <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="questions.manageViews">管理视图…</button>

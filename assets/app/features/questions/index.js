@@ -141,7 +141,7 @@ function createController(root, ctx) {
     resetLayout() {
       s.prefs = S.resetLayout(s.prefs);
       savePrefs();
-      setMdLineBreakMode('lean');
+      setMdLineBreakMode('full');
       qvRerenderAll();
       paint();
       toast('显示设置已恢复默认', { kind: 'ok' });

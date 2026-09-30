@@ -194,7 +194,7 @@ export const sameFilters = (a, b) => normalized(a) === normalized(b);
 export function snapshot(filters, prefs, mdMode) {
   return {
     fields: fieldsFromFilters(filters), labels: [...filters.labels], view: prefs.view, columns: [...visibleColumns(prefs.columns)],
-    density: prefs.density, galleryCols: prefs.galleryCols, galleryDetail: prefs.galleryDetail, streak: prefs.streak, mdMode: mdMode || 'lean',
+    density: prefs.density, galleryCols: prefs.galleryCols, galleryDetail: prefs.galleryDetail, streak: prefs.streak, mdMode: mdMode || 'full',
   };
 }
 export function applySnapshot(view, prefs) {

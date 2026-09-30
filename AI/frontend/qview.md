@@ -25,7 +25,7 @@
 
 ## 2. Markdown 渲染与缓存
 
-- 逐行渲染：空行分段为 `<p class="md-p">`（连续空行只算一段）；`lean`（默认）把单个换行当软换行接续，`full` 保留每一处换行；行尾两个空格是硬换行。换行偏好归本模块：`mdLineBreakMode()` / `setMdLineBreakMode()`，存 `localStorage('omrs-qb-md-mode')`（键名沿用旧版）；题库页「显示设置」切换后调 `qvRerenderAll()`。
+- 逐行渲染：普通文本默认保留每一处换行（`full`），输出为同一段中的 `<br>`；空行分段为 `<p class="md-p">`（连续空行只算一段），所以 Markdown 段落和 AI 的普通逐行文本都能直接显示。`lean` 是显式兼容选项，把单个换行当软换行接续；行尾两个空格在两种模式下都是硬换行。换行偏好归本模块：`mdLineBreakMode()` / `setMdLineBreakMode()`，存 `localStorage('omrs-qb-md-mode')`（键名沿用旧版；没有旧偏好时迁移到 `full`）；题库页「显示设置」切换后调 `qvRerenderAll()`。题库、录入预览、草稿审核、反馈、即时练习和展示板详情都复用这条渲染路径。
 - 表格：表头 + 分隔行（`:?-{3,}:?`），`\|` 是单元格内竖线，输出 `.md-table-wrap > table.md-table`。
 - 图片：`![[名.png|300]]` 与 `![说明](路径)`，只取文件名，输出 `<img class="md-img" data-omrs-image=… width=…>`；宽度上限 600，不写行内样式。加载失败时由 `bindQuestionDom` 的捕获监听换成 `.md-img-missing` 文件名提示。
 - 公式：`$…$`、`$$…$$`（可跨行）走 KaTeX；KaTeX 不可用时降级为 `<span class="math">` 源码。普通文本一律先转义，只放行图片、KaTeX 输出和降级公式三类 HTML。

@@ -24,16 +24,23 @@ export function hashText(text) {
 
 const katexReady = () => !!(g.katex && typeof g.katex.renderToString === 'function');
 
-/** 题面换行模式：lean（默认）把单个换行当软换行接续；full 保留每一处换行。全站 qview 共用一个偏好，
- * 存 localStorage('omrs-qb-md-mode')（键名沿用旧版）；题库页的「显示设置」经 setMdLineBreakMode 改它，再 qvRerenderAll 重绘。 */
+/** 题面换行模式：full（默认）保留普通文本的每一处换行；lean 作为兼容选项把单个换行当软换行接续。
+ * 空行在两种模式下都表示 Markdown 段落。全站 qview 共用一个偏好，存 localStorage('omrs-qb-md-mode')
+ *（键名沿用旧版）；题库页的「显示设置」经 setMdLineBreakMode 改它，再 qvRerenderAll 重绘。 */
 const MD_MODE_KEY = 'omrs-qb-md-mode';
-let lineBreak = (() => { try { return g.localStorage?.getItem(MD_MODE_KEY) === 'full' ? 'full' : 'lean'; } catch (error) { return 'lean'; } })();
+let lineBreak = (() => {
+  try {
+    // 旧版本把默认的 lean 当作“未设置”并删除了 localStorage 项；迁移后无值必须按 full，
+    // 只有用户明确选过简略模式（存为 lean）才继续合并单个换行。
+    return g.localStorage?.getItem(MD_MODE_KEY) === 'lean' ? 'lean' : 'full';
+  } catch (error) { return 'full'; }
+})();
 
 export const mdLineBreakMode = () => lineBreak;
 
 export function setMdLineBreakMode(mode) {
   lineBreak = mode === 'full' ? 'full' : 'lean';
-  try { if (lineBreak === 'full') g.localStorage?.setItem(MD_MODE_KEY, 'full'); else g.localStorage?.removeItem(MD_MODE_KEY); } catch (error) { /* 偏好只在本次会话生效 */ }
+  try { g.localStorage?.setItem(MD_MODE_KEY, lineBreak); } catch (error) { /* 偏好只在本次会话生效 */ }
   return lineBreak;
 }
 

@@ -55,6 +55,33 @@ def _blocks_out(draft, conv_id, vault, editable=False):
             for b in draft["blocks"]]
 
 
+def _merge_answer_text_runs(blocks):
+    """答案块只在图片处断开；合并模型按段落拆出的相邻文字块。"""
+    normalized = []
+    i = 0
+    while i < len(blocks):
+        block = blocks[i]
+        if block.get("section") != "答案" or block.get("kind") != "text":
+            normalized.append(dict(block))
+            i += 1
+            continue
+        run = [block]
+        i += 1
+        while i < len(blocks) and blocks[i].get("section") == "答案" and blocks[i].get("kind") == "text":
+            run.append(blocks[i])
+            i += 1
+        if len(run) == 1:
+            normalized.append(dict(run[0]))
+            continue
+        merged = dict(run[0])
+        merged["text"] = "\n\n".join(str(item.get("text") or "").strip() for item in run)
+        notes = [str(item.get("note") or "").strip() for item in run if str(item.get("note") or "").strip()]
+        if notes:
+            merged["note"] = "\n".join(dict.fromkeys(notes))
+        normalized.append(merged)
+    return normalized
+
+
 # ── read ──
 def describe_image_tool(ctx, args):
     row = drafts.resolve_image(ctx["vault"], ctx["conversation_id"], args["image"])
@@ -117,7 +144,7 @@ def create_draft_tool(ctx, args):
     for ref in args.get("images") or []:
         shas[ref.strip()] = drafts.resolve_image(vault, conv, ref)["sha256"]
     blocks = []
-    for i, b in enumerate(args["blocks"]):
+    for i, b in enumerate(_merge_answer_text_runs(args["blocks"])):
         if b["kind"] == "image":
             ref = str(b.get("image") or "").strip()
             if not ref:
@@ -261,6 +288,7 @@ SPECS = [
      "把一道题录成草稿，放进录入页的 AI 草稿区，由用户审核后入库（不直接写题库，所以不需要用户允许）。"
      "blocks 按原题阅读顺序写题目和答案，可混排文字与图片：能完整转述的写 kind=text（公式用 $LaTeX$），独立且能准确框出的局部图写 kind=image。"
      "题干、图表和小问相互依赖，或不能确定拆开后仍完整时，整道题目写为一个图片块，框住题干、必要图表和全部小问；不要机械拆段。"
+     "答案没有图片时必须只有一个 kind=text 块，所有步骤、公式和段落用换行写在一起，不能按段落拆块；只有图片夹在答案文字中间时才在图片两侧分块，图片在开头或结尾时也合并相邻文字。"
      "同一来源图确有多个独立局部时可引用多次。image 填 IMG-n，note 写明要框的范围。images 列出这道题用到的全部截图。难度固定 5。"
      "错因只能用用户原话：带 cause 时 cause_statement 必须原样摘自用户消息；用户没说就先问，不要自己编。",
      {"type": "object", "required": ["subject", "category", "blocks"], "properties": {

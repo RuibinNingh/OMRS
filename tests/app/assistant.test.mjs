@@ -190,6 +190,7 @@ test('聊天 Markdown：引用芯片、表格、列表、转义与光标', () =>
   assert.match(out, /<th>指标<\/th>/);
   assert.match(out, /<li>&lt;x&gt;<span class="ast-caret"/);
   assert.doesNotMatch(renderInline('<script>'), /<script>/);
+  assert.equal(renderInline('题干\nA. 甲\nB. 乙'), '题干<br>A. 甲<br>B. 乙');
   assert.equal(plainOf('| a |\n周期是 $\\pi$，**好**'), '周期是 pi，好');
 });
 

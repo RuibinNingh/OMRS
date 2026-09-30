@@ -93,6 +93,7 @@ export const page = {
     draftNavigate: ({ arg }) => parts?.drafts.navigate(arg),
     draftToggleQueue: () => parts?.drafts.toggleQueue(),
     draftToggleSource: () => parts?.drafts.toggleSource(),
+    draftWorkspace: ({ arg }) => parts?.drafts.workspaceMode(arg),
     draftReviewTab: ({ arg }) => parts?.drafts.reviewTab(arg),
     draftEditBlock: ({ arg }) => parts?.drafts.editBlock(arg),
     draftEditFields: () => parts?.drafts.editFields(),

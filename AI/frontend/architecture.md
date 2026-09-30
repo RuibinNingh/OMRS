@@ -73,7 +73,7 @@ assets/app/
 - `domain/data.js` 是 `/api/stats` 快照的所有者。`reloadData()` 成功后发布 `data`，外壳同步到 `store.data`；失败保留上次快照，首次失败给空快照。并发调用合并为当前请求和至多一次补拉，调用方可从返回值与 `lastError()` 读取结果。
 - `domain/sessions.js` 持有 Session 列表、当前反馈 Session、详情与删除入口。`refreshSessions()` 只接受最新请求的结果，加载开始和结束时发布 `sessions`；删除成功后移除本地记录并使在途旧响应失效。
 - `domain/labels/` 持有标记定义、芯片、选择器和管理弹层；写入后通过 `labels`、`questions:render`、`schedule:render`、`feedback:render`、`board:reload` 通知已挂载页面。`domain/items.js` 集中题库、练习和导出的筛选语义与到期天数。
-- `domain/question/` 提供 Markdown / KaTeX 渲染、题目详情缓存、共享题目视图、弹窗和编辑器。题目内容或练习记录变化后，由调用方让缓存失效并重绘挂载视图。`domain/board/` 持有板列表与选板浮层，板详情经 `detail-port.js` 连接到 `features/board/runtime.js`，domain 不反向 import feature。
+- `domain/question/` 提供 Markdown / KaTeX 渲染、题目详情缓存、共享题目视图、弹窗和编辑器。渲染默认保留普通换行、空行仍按 Markdown 分段，显式「简略」偏好才合并单个换行；题库、录入预览、反馈、即时练习和展示板详情共用这条路径。题目内容或练习记录变化后，由调用方让缓存失效并重绘挂载视图。`domain/board/` 持有板列表与选板浮层，板详情经 `detail-port.js` 连接到 `features/board/runtime.js`，domain 不反向 import feature。
 - `features/create/inbox-store.js` 持有收件箱图片列表、当前图、勾选、保存队列和任务轮询；录入页的网格、处理、题卡与训练工作区共用该状态，变化时发 `inbox:changed`。`domain/drafts.js` 持有跨页草稿导航目标与角标计数，不持有草稿编辑表单。
 
 其他跨页入口包括 `domain/history.js`（历史读取、修正与通知）、`domain/exporting.js`（导出请求和下载）、`domain/scan.js`（扫描后刷新统计与 Session）。页面之间的导航与刷新由路由和 bus 协调：外壳发 `page:change`，仪表盘可发 `questions:preset`、`instant:load`、`schedule:view` 或 `feedback:session`，设置页发 `agent:config` 后由入口同步助手导航。新增跨页事件时在这里登记其来源与接收方。

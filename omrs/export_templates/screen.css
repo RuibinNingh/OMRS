@@ -89,7 +89,7 @@ body{background:var(--bg);color:var(--fg);font-family:var(--sans);
 
 /* 题面 */
 .qbody{padding:16px 18px}
-.qbody p{font-size:1rem;line-height:1.74;margin:8px 0;color:var(--fg);word-wrap:break-word}
+.qbody p{font-size:1rem;line-height:1.74;margin:8px 0;color:var(--fg);word-wrap:break-word;white-space:pre-wrap}
 .qbody p:first-child{margin-top:0}
 .math{font-family:inherit;color:inherit;background:transparent;border-radius:0;padding:0;font-size:1em}
 .math.display{display:block;margin:10px 0;text-align:center}
@@ -104,7 +104,7 @@ body{background:var(--bg);color:var(--fg);font-family:var(--sans);
 /* 错因 / 关联 批注 */
 .note{font-size:.82rem;line-height:1.62;background:#faf6f0;border:1px solid var(--border);
   border-left:3px solid var(--accent-light);border-radius:0 var(--radius-sm) var(--radius-sm) 0;
-  padding:9px 13px;margin:10px 18px}
+  padding:9px 13px;margin:10px 18px;white-space:pre-wrap;overflow-wrap:anywhere}
 .note b{color:var(--accent)}
 .note.hide{display:none}
 

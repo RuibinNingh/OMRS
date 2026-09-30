@@ -75,6 +75,34 @@ class DraftToolsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "本对话里没有 IMG-1"):
             tools.create_draft_tool({**self.ctx, "conversation_id": other}, args)
 
+    def test_answer_text_runs_are_merged_unless_image_separates_them(self):
+        pure_text = {**TEXT_ARGS, "blocks": [
+            TEXT_ARGS["blocks"][0],
+            {"section": "答案", "kind": "text", "text": "第一步。"},
+            {"section": "答案", "kind": "text", "text": "第二步。"},
+        ]}
+        created = tools.create_draft_tool(self.ctx, pure_text)["result"]
+        self.assertEqual([(block["section"], block["kind"], block.get("text")) for block in created["blocks"]], [
+            ("题目", "text", "求 $y=x^2$ 的最小值"),
+            ("答案", "text", "第一步。\n\n第二步。"),
+        ])
+
+        ref = self.img()
+        mixed = {**TEXT_ARGS, "images": [ref], "blocks": [
+            TEXT_ARGS["blocks"][0],
+            {"section": "答案", "kind": "text", "text": "图片前。"},
+            {"section": "答案", "kind": "image", "image": ref},
+            {"section": "答案", "kind": "text", "text": "图片后第一步。"},
+            {"section": "答案", "kind": "text", "text": "图片后第二步。"},
+        ]}
+        created = tools.create_draft_tool(self.ctx, mixed)["result"]
+        self.assertEqual([(block["section"], block["kind"], block.get("text")) for block in created["blocks"]], [
+            ("题目", "text", "求 $y=x^2$ 的最小值"),
+            ("答案", "text", "图片前。"),
+            ("答案", "image", None),
+            ("答案", "text", "图片后第一步。\n\n图片后第二步。"),
+        ])
+
     def test_question_text_and_separate_graphs_may_mix(self):
         ref = self.img()
         graph = {"section": "题目", "kind": "image", "image": ref, "note": "独立图甲"}

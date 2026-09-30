@@ -71,7 +71,7 @@
 **Markdown 编辑器**在 `assets/app/domain/question/editor.js`（`ui/dialog`，P5 第 3 轮起；打开、保存与焦点规则见 `AI/frontend/qview.md` §4.2）：`GET /api/question/raw` 打开纯文本，保存 `POST /api/question/markdown`；只改正文时后端只更新 fingerprint，改 YAML 结构化字段写 metadata update commit。`questions.js` 只剩 `masteryBarHtml()`（board.js，P7 迁走）与 `reviveChipHtml()`（recommend_v2.js，P6 迁走）。
 
 ### 通用 Markdown / LaTeX 渲染
-- `renderMdContent()` 只允许三类受控 HTML：图片 `<img>`、KaTeX 输出、降级公式 `<span class="math">`；普通文本始终先转义。
+- `renderMdContent()` 只允许三类受控 HTML：图片 `<img>`、KaTeX 输出、降级公式 `<span class="math">`；普通文本始终先转义。默认 `full` 保留每一处普通换行，空行仍按 Markdown 段落处理；只有用户在显示设置中选「简略」时才合并单个换行。
 - 支持 Obsidian 图片 `![[name.png]]`、`![[name.png|300]]` 和 Markdown 图片 `![alt](path)`，图片名统一取 basename 后走 `/api/image?name=...`。
 - 题图加载失败时，捕获 `img[data-omrs-image]` 的 `error` 事件并用 `textContent` 显示缺图文件名；图片名不进入内联 JavaScript。
 - 支持行内 `$...$` 和行间 `$$...$$`，包括跨多行的 `$$` 块（先合并后再交给 KaTeX，`cases` 等环境不会被按行拆散）。KaTeX 加载成功时使用 `katex.renderToString(..., {throwOnError:false})`；加载失败时保留公式内容并加 `.math` 样式。

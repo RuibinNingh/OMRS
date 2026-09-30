@@ -10,12 +10,17 @@
 - [2026-09-30_v2-p5-practice](2026-09-30_v2-p5-practice.md)：v2.0.0 P5 聊天练习卡
 - [2026-09-30_v2-p4-tools](2026-09-30_v2-p4-tools.md)：v2.0.0 P4 分类与 AI 草稿编辑工具
 - [2026-09-30_v2-p3-assistant](2026-09-30_v2-p3-assistant.md)：v2.0.0 P3 助手附件与移动交互
+- [2026-09-30_recent-changes-deploy](2026-09-30_recent-changes-deploy.md)：最近修改调查、GitHub 合入与生产更新
 - [2026-09-30_question-modal-scroll](2026-09-30_question-modal-scroll.md)：修复手机版题目详情滚动
 - [2026-09-30_question-creation-search](2026-09-30_question-creation-search.md)：题目创建信息与助手检索增强
+- [2026-09-30_markdown-linebreaks](2026-09-30_markdown-linebreaks.md)：Markdown 与普通换行兼容
 - [2026-09-30_lock-screen-entry](2026-09-30_lock-screen-entry.md)：锁屏入口
 - [2026-09-30_create-ready-status](2026-09-30_create-ready-status.md)：录入就绪状态提示
+- [2026-09-30_board-motion](2026-09-30_board-motion.md)：展示板页面切换动效
 - [2026-09-30_assistant-ui](2026-09-30_assistant-ui.md)：AI 助手界面重设计
 - [2026-09-30_assistant-ui-deploy](2026-09-30_assistant-ui-deploy.md)：助手界面生产部署
+- [2026-09-30_answer-blocks](2026-09-30_answer-blocks.md)：AI 答案块边界
+- [2026-09-30_ai-draft-ui](2026-09-30_ai-draft-ui.md)：AI 草稿审核台右侧布局重设计
 - [2026-09-29_v2-p2](2026-09-29_v2-p2.md)：OMRS 2.0.0 快速录入与字段安全
 - [2026-09-29_v2-p1](2026-09-29_v2-p1.md)：OMRS 2.0.0 AI 草稿审核工作台
 - [2026-09-29_v2-p0](2026-09-29_v2-p0.md)：OMRS 2.0.0 基线与契约

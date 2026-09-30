@@ -26,6 +26,7 @@ assets/
 **加载约定：**
 - `<head>` 先运行 `assets/app/theme-boot.js` 读取主题、密度、侧栏与图片反色偏好；随后加载本地字体、`tokens.css`、`index.css` 和 KaTeX 脚本。`index.css` 用 `@layer` 引入 KaTeX 样式、基础样式、组件、领域与页面样式。
 - 页面底部仅以 `<script type="module">` 加载 `assets/app/main.js`。它安装共享组件，创建外壳和页面路由，连接领域服务，并在初始标签、统计、Session 数据加载后进入当前 hash 页面；详见 `AI/frontend/architecture.md` §2。
+- 题目 Markdown 的 HTML 由 `domain/question/markdown.js` 统一生成，`domain/question/qview.css` 提供题面块与换行样式；普通换行默认逐行显示，空行仍分段。题库显示设置可显式切回简略模式，测试见 `tests/app/question.test.mjs`。
 - 后端由 `/assets/<file>` 通用静态路由提供资源（`server.py` → `_serve_asset()`，含路径穿越防护与按扩展名的 content-type）。页面样式放在对应的 `features/<页>/`；外壳样式在 `app/styles/shell.css`，组件样式在 `app/ui/`，颜色与尺度在 `app/styles/tokens.css`。
 
 设置页的六个分区由 `tests/e2e/settings.py` 在桌面与手机、浅色与深色下逐一审计；助手分区同时验证最大输出 Token 的输入、保存和回读。

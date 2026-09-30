@@ -9,6 +9,21 @@ export const csvValues = text => [...new Set(String(text || '').split(/[,，\n]/
 export const imageSha = image => typeof image === 'string' ? image : image?.sha256;
 export const imageUrl = sha => `/api/drafts/image?sha=${encodeURIComponent(sha || '')}`;
 
+/** 审核台的轻量提示；真正的入库校验仍由 commitProblem 与服务端负责。 */
+export function reviewChecks(value) {
+  if (!value) return [];
+  const fields = value.fields || {};
+  const questionBlocks = (value.blocks || []).filter(block => block.section === '题目');
+  const imageBlocks = (value.blocks || []).filter(block => block.kind === 'image');
+  const hasQuestion = questionBlocks.some(block => block.kind === 'text' ? Boolean(block.text?.trim()) : Boolean(block.image_sha));
+  return [
+    { key: 'subject', label: '科目', status: fields.subject?.trim() ? 'ok' : 'warning' },
+    { key: 'category', label: '分类', status: fields.category?.trim() ? 'ok' : 'warning' },
+    { key: 'question', label: '题目正文', status: hasQuestion ? 'ok' : 'warning' },
+    ...(imageBlocks.length ? [{ key: 'imageBox', label: '图片框选', status: imageBlocks.every(block => block.box) ? 'ok' : 'warning' }] : []),
+  ];
+}
+
 export function latestDetectResult(draft, activeJob, sha) {
   const jobs = [...(activeJob?.type === 'detect' ? [activeJob] : []), ...(draft?.jobs || [])];
   for (const job of jobs) {

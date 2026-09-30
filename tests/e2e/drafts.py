@@ -129,7 +129,7 @@ def run(page, base, first, second, old, images, results):
     check('审核首屏先显示题目且来源默认收起', wait(page, "() => !!document.querySelector('.drf-review-question') && document.querySelector('.drf-source-trigger')?.getAttribute('aria-expanded') === 'false'")
           and page.locator('[data-input="create.draftBlockText"]').count() == 0)
     page.locator('.drf-source-trigger').click()
-    check('来源两图和有序块真实读取', wait(page, "() => document.querySelectorAll('.drf-source img').length === 2 && document.querySelectorAll('.drf-block').length === 3"))
+    check('来源模式显示两图和主画布', wait(page, "() => document.querySelectorAll('.drf-source img').length === 2 && !!document.querySelector('.drf-source-workspace .drf-canvas')"))
     page.locator('[data-action="create.draftPreviewSource"]').first.click()
     check('来源图使用站内预览且保持两图顺序', page.locator('dialog.ui-image-viewer[open] img').count() == 1
           and page.locator('dialog.ui-image-viewer[open] .ui-image-viewer__count').text_content().startswith('1 / 2'))
@@ -138,6 +138,7 @@ def run(page, base, first, second, old, images, results):
     page.keyboard.press('Escape')
     page.wait_for_selector('dialog.ui-image-viewer', state='detached')
     check('来源图关闭后回到审核页原按钮', page.locator('[data-action="create.draftPreviewSource"]').first.evaluate('e => document.activeElement === e'))
+    page.locator('.drf-source-trigger').click()
     check('未框图片阻止通过', page.locator('[data-action="create.draftCommit"]').is_disabled())
     page.locator('[data-action="create.draftEditFields"]').click()
     page.locator('[data-input="create.draftField"][data-arg="cause"]').fill('计算时漏看平方')
@@ -176,6 +177,7 @@ def run(page, base, first, second, old, images, results):
     check('补关联按 SHA 保存且来源完整', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存') && !document.querySelector('.drf-detail [aria-busy=true]')")
           and (lambda item: item['draft']['sources_complete'] and images[1]['sha256'] in [image['sha256'] for image in item['draft']['source_images']])
               (api(base, '/api/drafts/item?id=' + old['id'])))
+    page.locator('.drf-source-trigger').click()
     page.locator('[data-action="create.draftEditFields"]').click()
     page.locator('[data-input="create.draftField"][data-arg="note"]').fill('未保存的临时笔记')
     check('编辑备注进入未保存状态', wait(page, "() => document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
@@ -294,7 +296,8 @@ def run_p3(page, base, draft, images, results):
     check('训练框单独保存且不改正文', len(task['boxes']) == initial + 1 and current['blocks'][1]['kind'] == 'image')
     page.locator('[data-action="create.draftCanvasMode"][data-arg="body"]').click()
     page.locator('[data-action="create.draftExtract"]').click()
-    check('局部裁图提交真实提取任务并转文字', wait(page, "() => [...document.querySelectorAll('.drf-block')].some(e => e.textContent.includes('局部提取结果'))", 20000))
+    check('局部裁图提交真实提取任务并转文字', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('转文字完成')", 20000)
+          and api(base, '/api/drafts/item?id=' + draft['id'])['draft']['blocks'][1]['kind'] == 'text')
     current = api(base, '/api/drafts/item?id=' + draft['id'])['draft']
     check('转文字后原图与训练框仍在', current['blocks'][1]['kind'] == 'text'
           and len(current['source_images']) == 2
@@ -335,8 +338,8 @@ def run_touch(browser, base, vault, results):
                         and not page.locator('.drf-review-info').is_visible(), ''))
         page.locator('[data-action="create.draftReviewTab"][data-arg="info"]').click()
         results.append(('手机信息标签可读', page.locator('.drf-review-info').is_visible(), ''))
-        page.locator('[data-action="create.draftReviewTab"][data-arg="question"]').click()
-        page.locator('.drf-source-trigger').click()
+        page.locator('[data-action="create.draftReviewTab"][data-arg="source"]').click()
+        results.append(('手机来源标签进入独立工作区', page.locator('.drf-source-workspace').is_visible(), ''))
         stage = page.locator('#drf-stage-img')
         stage.scroll_into_view_if_needed()
         box = stage.bounding_box()
