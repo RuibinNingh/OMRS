@@ -53,3 +53,11 @@
 - systemd drop-in 已切到 `/root/workspace/releases/omrs-cdca589`，执行 `systemctl daemon-reload` 后启动 `omrs.service`。上线后 active/running、`MainPID=116370`、`NRestarts=0`、`ExecMainStatus=0`；`/api/status` 返回 v2.0.0、239 题、0 冲突。
 - 生产入口验收：`/` 与 `/login` 返回锁屏页；配置 PIN 的本机在无会话访问 `/?unlocked=1` 时返回 302 到 `/login`；真实 Chromium 桌面 1440×900 与手机 390×844 均看到 PIN 输入框、无横向溢出、脚本错误 0；错误级 journal 为空。验收证据保存在备份目录 `verification.json`。
 - 回退：恢复备份中的 `10-release.conf.before`，执行 `systemctl daemon-reload` 和 `systemctl restart omrs.service`；旧发布目录 `/root/workspace/releases/omrs-1b0558c` 保留。不得用旧 Vault 归档覆盖发布后的新增数据。
+
+## 视觉复刻生产部署
+
+- 提交 `1f88c78`（完整 Gravity Journey 入口）与 `7108d8e`（PIN 页面隐藏无 PIN 操作）已发布；最终 systemd drop-in 指向 `/root/workspace/releases/omrs-7108d8e`。
+- 切换前备份目录为 `/root/workspace/backups/recycle/gravity-lock-1f88c78-20260930T022446Z`，Vault 归档 SHA-256 为 `d7134bbc0996f6279de43f983cfa7d00339e918b6a3fdf199529efd0224a3b05`；该目录同时保存旧 drop-in、最终验收 JSON 和错误日志。
+- 最终服务验收：`active/running`、`MainPID=329335`、`NRestarts=0`、`ExecMainStatus=0`；`/api/status` 返回 v2.0.0、239 题、0 冲突。
+- 最终真实 Chromium 验收：生产 `/` 在 1440×900 加载真实 WebGL 场景（`data-status=ready`、canvas 存在），PIN 输入可见、无 PIN 按钮隐藏、无横向溢出、脚本错误 0、错误响应 0；`/login` 同样返回入口页。
+- 回退：把 `/etc/systemd/system/omrs.service.d/10-release.conf` 恢复为备份中的版本（本轮备份内 `10-release.conf.1f88c78` 可回到上一场景版本，`10-release.conf.before` 可回到切换前版本），执行 `systemctl daemon-reload && systemctl restart omrs.service`；不要用 Vault 归档覆盖生产数据。
