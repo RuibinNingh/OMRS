@@ -15,7 +15,7 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-09-29 实测）：服务 `omrs.service`，监听 TCP 8471，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；systemd drop-in 从 `/root/workspace/releases/omrs-c94e459` 运行 v1.35.0，真实 Vault 仍是 `/root/workspace/apps/OMRS`。备份目录 `/root/workspace/backups/recycle/`；本次发布的一致性备份为 `omrs-stabilization-v135-20260929T131104Z`，旧发布目录 `omrs-82d396f` 保留用于代码回退。远端经 Nginx 反向代理。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
+生产环境事实（2026-09-30 实测）：服务 `omrs.service`，监听 TCP 8471，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；systemd drop-in 从 `/root/workspace/releases/omrs-dccbe6b` 运行 v2.0.0，真实 Vault 仍是 `/root/workspace/apps/OMRS`。备份目录 `/root/workspace/backups/recycle/`；本次发布的一致性备份为 `omrs-v200-20260930T000153Z`，旧发布目录 `omrs-c94e459` 保留用于代码回退。远端经 Nginx 反向代理。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
 
 ## 2. Claude Code Web 实测能力（2026-09-24）
 
@@ -164,7 +164,7 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 
 ## 本机检测生产服务
 
-`omrs-boxdetect.service` 与主服务分开，开机自启、失败 3 秒后重启，使用训练 venv 的 onnxruntime 执行固定发布目录的 serve.py；只监听 127.0.0.1:18766。受管模型入口为 `/root/omrs-train/managed/active`；当前实际在线 `v2-20260929-b`，SHA-256 为 `f62581b7c28353d5d7799973018a6986e706cd7dcf4fb43ccd10972be4a4c7c3`，输入 640、置信度 0.1，独立内容验收状态为 missing。服务启动加载一次，不热加载训练目录的 current；主服务 v1.35.0 发布没有切换此模型。
+`omrs-boxdetect.service` 与主服务分开，开机自启、失败 3 秒后重启，使用训练 venv 的 onnxruntime 执行固定发布目录的 serve.py；只监听 127.0.0.1:18766。受管模型入口为 `/root/omrs-train/managed/active`；当前实际在线 `v2-20260929-b`，SHA-256 为 `f62581b7c28353d5d7799973018a6986e706cd7dcf4fb43ccd10972be4a4c7c3`，输入 640、置信度 0.1，独立内容验收状态为 missing。服务启动加载一次，不热加载训练目录的 current；主服务本次发布没有切换此模型。
 
 资源限制：ORT内部3线程、systemd CPUQuota=200%、MemoryHigh=512M、MemoryMax=1G、Nice=10，启动内存约60MiB。`systemctl status omrs-boxdetect.service`查状态，`journalctl -u omrs-boxdetect.service`查错误；`systemctl start/stop/restart omrs-boxdetect.service`会影响线上框选，仅在获得授权后操作。主应用配置local_http及http://127.0.0.1:18766/detect，浏览器不直接访问检测端口，不需Nginx增加路由。
 
