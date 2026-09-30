@@ -3,6 +3,7 @@ import datetime
 import email.utils
 import http.server
 import json
+import mmap
 import sqlite3
 import os
 import re
@@ -48,6 +49,7 @@ from . import trainaudit as trainaudit_mod
 from . import annotate as annotate_mod
 from . import drafts as drafts_mod
 from . import inbox as inbox_mod
+from . import entry_background
 from .ledger import append_commit, get_commit, get_commit_by_id, read_commits, verify_ledger
 from .optimization import (
     create_backup_export,
@@ -106,6 +108,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             return
         if path == "/api/auth/session":
             self._auth_status()
+            return
+        if path == "/api/entry-background":
+            self._serve_entry_background()
             return
         # The first visit is always the lock-screen entry.  The unlocked
         # dashboard is still protected by the normal remote authorization
@@ -291,6 +296,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             config.pop("agent_api_key", None)
             config["agent_api_key_configured"] = agent_key_configured
             config.update(security.auth_summary(self.vault_path))
+            config["entry_background"] = entry_background.public_state(self.vault_path)
             self._json(config)
         elif path == "/api/reports":
             try:
@@ -395,6 +401,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
     def _do_post_routes(self, path):
         if path == "/api/backup/import":
             self._handle_backup_import()
+            return
+        if path == "/api/entry-background":
+            self._entry_background_post()
             return
         if path.startswith("/api/inbox/"):
             self._inbox_post(path)
@@ -1300,6 +1309,130 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         except (ValueError, TypeError) as exc:
             self._json({"status": "error", "msg": str(exc), "code": "invalid"}, 400)
 
+    def _entry_background_post(self):
+        """分块接收入口背景，文件落盘后才在写锁内提交配置。"""
+        raw_path = None
+        upload_path = None
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            max_request = entry_background.MAX_UPLOAD_BYTES + 1024 * 1024
+            if length <= 0 or length > max_request:
+                raise ValueError("入口背景请求不能超过 200 MB")
+            content_type = self.headers.get("Content-Type", "")
+            if "multipart/form-data" not in content_type:
+                raise ValueError("请用 multipart/form-data 上传入口背景")
+            fields, file_info, raw_path = self._read_entry_background_multipart(length, content_type)
+            upload = None
+            if file_info:
+                filename, declared_mime, upload_path = file_info
+                upload = entry_background.inspect_upload(upload_path, filename, declared_mime)
+                upload["path"] = upload_path
+            mode = fields.get("mode", entry_background.DEFAULT_MODE)
+            style = fields.get("style", entry_background.DEFAULT_STYLE)
+            blur = fields.get("blur_px", entry_background.DEFAULT_BLUR_PX)
+            asset_id = fields.get("asset_id", "")
+            with locking.write_lock():
+                state = entry_background.save_state(
+                    self.vault_path, mode, style, blur, asset_id=asset_id, upload=upload,
+                )
+            upload_path = None  # save_state 已经把新文件原子移动到最终路径
+            self._json({"status": "ok", "entry_background": state})
+        except (ValueError, TypeError, OSError) as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+        finally:
+            for path in (raw_path, upload_path):
+                if path:
+                    try:
+                        os.remove(path)
+                    except OSError:
+                        pass
+
+    def _read_entry_background_multipart(self, length, content_type):
+        """把 multipart 请求先流式写入临时文件，再用 mmap 分离字段和文件。
+
+        这样 200MB 视频不会同时驻留在 Python 堆内存中；请求只允许一个 file 字段。
+        """
+        marker_text = "boundary="
+        if marker_text not in content_type:
+            raise ValueError("缺少 multipart boundary")
+        boundary = content_type.split(marker_text, 1)[1].strip().strip('"').split(";", 1)[0]
+        if not boundary or len(boundary) > 200:
+            raise ValueError("multipart boundary 不合法")
+        upload_dir = entry_background.background_dir(self.vault_path)
+        fd, raw_path = tempfile.mkstemp(prefix=".request-", suffix=".multipart", dir=upload_dir)
+        try:
+            with os.fdopen(fd, "wb") as raw:
+                remaining = length
+                while remaining:
+                    chunk = self.rfile.read(min(1024 * 1024, remaining))
+                    if not chunk:
+                        raise ValueError("上传请求提前结束")
+                    raw.write(chunk)
+                    remaining -= len(chunk)
+                raw.flush()
+                os.fsync(raw.fileno())
+            fields = {}
+            file_info = None
+            boundary_bytes = b"--" + boundary.encode("ascii", errors="strict")
+            with open(raw_path, "rb") as raw, mmap.mmap(raw.fileno(), 0, access=mmap.ACCESS_READ) as mapped:
+                marker = mapped.find(boundary_bytes)
+                if marker < 0:
+                    raise ValueError("multipart 请求缺少边界")
+                while marker >= 0:
+                    after = marker + len(boundary_bytes)
+                    if mapped[after:after + 2] == b"--":
+                        break
+                    if mapped[after:after + 2] != b"\r\n":
+                        raise ValueError("multipart 边界格式错误")
+                    part_start = after + 2
+                    next_marker = mapped.find(boundary_bytes, part_start)
+                    if next_marker < 0:
+                        raise ValueError("multipart 请求不完整")
+                    part_end = next_marker - 2 if mapped[next_marker - 2:next_marker] == b"\r\n" else next_marker
+                    header_end = mapped.find(b"\r\n\r\n", part_start, part_end)
+                    if header_end < 0:
+                        raise ValueError("multipart 字段缺少头部")
+                    header_text = bytes(mapped[part_start:header_end]).decode("utf-8", errors="replace")
+                    headers = {}
+                    for line in header_text.split("\r\n"):
+                        if ":" in line:
+                            key, value = line.split(":", 1)
+                            headers[key.strip().lower()] = value.strip()
+                    disposition = headers.get("content-disposition", "")
+                    name_match = re.search(r'name="([^"]+)"', disposition)
+                    if not name_match:
+                        raise ValueError("multipart 字段缺少 name")
+                    name = name_match.group(1)
+                    body_start = header_end + 4
+                    body_size = max(0, part_end - body_start)
+                    filename_match = re.search(r'filename="([^"]*)"', disposition)
+                    if filename_match:
+                        if file_info is not None:
+                            raise ValueError("一次只能上传一个入口背景文件")
+                        filename = os.path.basename(filename_match.group(1)) or "background"
+                        fd, path = tempfile.mkstemp(prefix=".media-", suffix=".upload", dir=upload_dir)
+                        with os.fdopen(fd, "wb") as target:
+                            offset = body_start
+                            while offset < part_end:
+                                block = mapped[offset:min(offset + 1024 * 1024, part_end)]
+                                target.write(block)
+                                offset += len(block)
+                            target.flush()
+                            os.fsync(target.fileno())
+                        file_info = (filename, headers.get("content-type", ""), path)
+                    else:
+                        if body_size > 64 * 1024:
+                            raise ValueError("入口背景字段过大")
+                        fields[name] = bytes(mapped[body_start:part_end]).decode("utf-8", errors="strict")
+                    marker = next_marker
+            return fields, file_info, raw_path
+        except Exception:
+            try:
+                os.remove(raw_path)
+            except OSError:
+                pass
+            raise
+
     def _multipart_files(self, body, content_type):
         """解析 multipart 里的全部文件 → [(filename, bytes)]。"""
         marker = "boundary="
@@ -1474,6 +1607,33 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             raise ValueError("报告图片必须是附件目录中的文件名")
         return security.sign_image(self._active_session, name)
 
+    def _serve_entry_background(self):
+        media = entry_background.media_content(self.vault_path)
+        if not media:
+            self.send_error(404)
+            return
+        path, asset = media
+        try:
+            stat = os.stat(path)
+            etag = f'W/"{asset["id"]}-{stat.st_size:x}-{stat.st_mtime_ns:x}"'
+            if self._asset_not_modified(etag, int(stat.st_mtime)):
+                self.send_response(304)
+                self.send_header("ETag", etag)
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", asset["mime"])
+            self.send_header("Content-Length", str(stat.st_size))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("ETag", etag)
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            with open(path, "rb") as stream:
+                shutil.copyfileobj(stream, self.wfile, length=1024 * 1024)
+        except (OSError, ValueError):
+            self.send_error(404)
+
     def _authorize(self, path, params):
         remote, _, _ = self._security_context()
         self._active_session = None
@@ -1492,6 +1652,12 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             return False
         if not remote or self._direct_lan_exempt():
+            return True
+        if path in {
+            "/assets/vendor/entry-scene.js",
+            "/assets/vendor/entry-math-atlas.svg",
+            "/assets/vendor/entry-fallback.webp",
+        }:
             return True
         session = security.session_for(self.vault_path, self._cookie_token())
         if session:
@@ -1618,16 +1784,26 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             self._json({"status": "error", "msg": str(exc)}, 400)
 
     def _serve_entry(self):
+        background = entry_background.public_state(self.vault_path)
+        asset = background.get("asset")
+        entry_payload = {
+            "mode": background.get("mode", entry_background.DEFAULT_MODE),
+            "style": background.get("style", entry_background.DEFAULT_STYLE),
+            "blur_px": background.get("blur_px", entry_background.DEFAULT_BLUR_PX),
+            "kind": asset.get("kind") if asset else "",
+            "asset_url": f"/api/entry-background?v={asset.get('id')}" if asset else "",
+        }
+        entry_payload_json = json.dumps(entry_payload, ensure_ascii=False).replace("</", "<\\/")
         page = '''\n<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#020304"><title>OMRS · 入口</title><style>
-:root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#020304;color:#d0c4ab}*{box-sizing:border-box}html{scrollbar-width:none;background:#020304}html::-webkit-scrollbar{width:0;height:0;display:none}body{background:#020304;min-width:320px;min-height:100vh;margin:0;scrollbar-width:none}body::-webkit-scrollbar{width:0;height:0;display:none}.gravity-journey{background:#020304;min-height:850svh;position:relative}.gravity-viewport{opacity:0;touch-action:pan-y;width:100%;height:100dvh;transition:opacity 1.5s;position:fixed;inset:0;overflow:hidden}.gravity-viewport canvas{width:100%;height:100%;display:block}.gravity-journey[data-status=ready] .gravity-viewport{opacity:1}.gravity-core-handle,.gravity-core-handle:hover{z-index:2;box-shadow:none;cursor:grab;touch-action:none;user-select:none;border:0;border-radius:50%;padding:0;transition:none;position:absolute;transform:translate(-50%,-50%);background:transparent!important}.gravity-core-handle[data-dragging=true]{cursor:grabbing}.gravity-core-handle:focus-visible{outline-offset:5px;outline:1px solid #d5bc8277}.gravity-journey:not([data-status=ready]) .gravity-core-handle{visibility:hidden}.gravity-loading{background:#020304;flex-direction:column;justify-content:center;align-items:center;gap:24px;display:flex;position:fixed;inset:0}.gravity-loading-orbit{border:1px solid #51422b;border-top-color:#e5c58c;border-radius:50%;width:38px;height:38px;animation:gravity-orbit 2.5s linear infinite}.gravity-loading-label{color:#d0c4ab;letter-spacing:.23em;border:0;padding:0;font-size:10px;font-weight:400}.gravity-fallback{background:#000;position:fixed;inset:0}.gravity-fallback img{object-fit:cover;width:100%;height:100%}.gravity-fallback .gravity-loading-label{white-space:normal;background:#000b;max-width:90vw;padding:12px;line-height:1.7;position:absolute;bottom:40px;left:50%;transform:translate(-50%)}@keyframes gravity-orbit{to{transform:rotate(360deg)}}[data-layout]{color:#d0c4ab;opacity:.65;letter-spacing:.08em;pointer-events:none;height:100dvh;position:fixed;inset:0;z-index:50;padding:40px}.layout-grid{display:grid;height:100%;width:100%;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(6,minmax(0,1fr));font-size:14px;text-transform:uppercase}.layout-top{height:40px;width:100%;grid-column:1/8}.layout-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.layout-nav div:nth-child(2){text-align:center}.layout-nav div:nth-child(3){text-align:right}.layout-footer{display:flex;flex-direction:column;justify-content:flex-end;grid-row:7/8}.layout-footer.left{grid-column:2/3}.layout-footer.links{grid-column:1/2}.layout-footer.right{grid-column:7/8}.entry-access{pointer-events:auto;position:absolute;right:clamp(22px,9vw,140px);bottom:clamp(88px,15vh,150px);width:min(340px,calc(100vw - 44px));padding:20px 0 18px;border-top:1px solid #d5bc8277;border-bottom:1px solid #d5bc8244;text-transform:none;letter-spacing:.03em;opacity:1;color:#e4d6b8;text-shadow:0 1px 10px #000}.entry-access:before{content:"";position:absolute;top:-2px;left:0;width:34px;height:3px;background:#e5c58c;box-shadow:0 0 16px #d5bc8277}.entry-access .kicker{margin:0 0 10px;color:#d5bc82;font:10px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.2em;text-transform:uppercase}.entry-access h1{margin:0 0 8px;font-size:20px;font-weight:400;letter-spacing:.04em}.entry-access .hint{min-height:20px;margin:0 0 17px;color:#b2a68f;font-size:12px;line-height:1.55}.entry-access .hint.error{color:#e6a9a0}.entry{display:grid;gap:10px}.entry[hidden]{display:none}.entry input{width:100%;height:38px;padding:0 2px;border:0;border-bottom:1px solid #d5bc82aa;border-radius:0;background:transparent;color:#f8ecd4;outline:none;font-size:18px;letter-spacing:.4em}.entry input::placeholder{color:#d5bc8266;font:10px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em}.entry input:focus{border-bottom-color:#f1d79e;box-shadow:0 8px 18px -15px #f1d79e}.entry button{display:flex;align-items:center;justify-content:space-between;width:100%;height:38px;padding:0 12px;border:1px solid #d5bc82aa;border-radius:0;background:transparent;color:#e5c58c;font-size:10px;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;transition:background-color .18s ease,color .18s ease,transform .18s cubic-bezier(.23,1,.32,1)}.entry button:after{content:"↗";font-size:17px;line-height:1}.entry button:hover{background:#e5c58c;color:#080807;transform:translateY(-1px)}.entry button:disabled{cursor:wait;opacity:.5;transform:none}.entry#enter[hidden]{display:none}.entry#enter{display:flex;align-items:center;justify-content:space-between;width:100%;height:38px;padding:0 12px;border:1px solid #d5bc82aa;border-radius:0;background:transparent;color:#e5c58c;font-size:10px;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;transition:background-color .18s ease,color .18s ease,transform .18s cubic-bezier(.23,1,.32,1)}.entry#enter:after{content:"↗";font-size:17px;line-height:1}.entry#enter:hover{background:#e5c58c;color:#080807;transform:translateY(-1px)}.entry-meta{display:flex;justify-content:space-between;margin-top:15px;color:#b2a68f99;font:9px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase}.entry-meta strong{color:#e5c58c;font-size:12px;font-weight:400}.entry-meta .workspace{color:#b2a68f99}.gravity-journey[data-exploring=true] .entry-access{opacity:.18;transition:opacity .5s ease}.gravity-journey[data-exploring=true] .entry-access:hover,.entry-access:focus-within{opacity:1}@media (max-width:700px){.gravity-journey{min-height:720svh}.gravity-viewport{transition-duration:.5s}[data-layout]{padding:max(22px,env(safe-area-inset-top)) 20px;font-size:8px}.entry-access{right:20px;bottom:21vh;width:calc(100vw - 40px);padding-top:16px}.layout-footer.left{grid-column:3/4}.layout-footer.links{grid-column:1/2}.layout-footer.right{display:none}}@media (prefers-reduced-motion:reduce){.gravity-loading-orbit{animation:none}.gravity-viewport{transition-duration:.2s}.entry button,.entry#enter{transition:none}.gravity-journey[data-exploring=true] .entry-access{opacity:1}}
-</style></head><body><main class="gravity-journey" id="gravity" data-status="loading" aria-label="OMRS 引力入口"><div class="gravity-viewport" id="gravity-viewport"><button class="gravity-core-handle" data-gravity-drag-handle aria-label="拖动黑洞移动位置，也可使用方向键" tabindex="-1"></button></div><div class="gravity-loading" id="gravity-loading" role="status"><span class="gravity-loading-orbit"></span><span class="gravity-loading-label">正在展开宇宙</span></div></main><div data-layout><div class="layout-grid"><div class="layout-top"><div class="layout-nav"><div>( Deploy )</div><div>( Preview )</div><div>( Ship )</div></div></div><div class="layout-footer left"><div>Built By</div><div>OMRS</div></div><div class="layout-footer links"><div>Private</div><div>Workspace</div></div><div class="layout-footer right"><div>© OMRS</div></div><section class="entry-access" aria-labelledby="entry-title"><p class="kicker">Access point / 001</p><h1 id="entry-title">准备进入 OMRS</h1><p class="hint" id="hint" role="status">正在检查访问状态…</p><form class="entry" id="entry-form" hidden><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="current-password" placeholder="输入 4–12 位 PIN" aria-label="PIN"><button type="submit" id="submit"><span>解锁学习空间</span></button></form><button class="entry" id="enter" type="button" hidden><span>进入 OMRS</span></button><div class="entry-meta"><span><strong id="clock" aria-label="当前时间">--:--</strong> LOCAL TIME</span><span class="workspace">PRIVATE STUDY WORKSPACE</span></div></section></div></div><script>
-const $=id=>document.getElementById(id),gravity=$("gravity"),viewport=$("gravity-viewport"),loading=$("gravity-loading"),clock=$("clock"),hint=$("hint"),form=$("entry-form"),pin=$("pin"),enter=$("enter"),submit=$("submit");
+:root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#020304;color:#d0c4ab}*{box-sizing:border-box}html{scrollbar-width:none;background:#020304}html::-webkit-scrollbar{width:0;height:0;display:none}body{background:#020304;min-width:320px;min-height:100vh;margin:0;scrollbar-width:none}body::-webkit-scrollbar{width:0;height:0;display:none}.gravity-journey{background:#020304;min-height:850svh;position:relative}.gravity-viewport{opacity:0;touch-action:pan-y;width:100%;height:100dvh;transition:opacity 1.5s;position:fixed;inset:0;overflow:hidden}.gravity-viewport canvas{width:100%;height:100%;display:block}.gravity-journey[data-status=ready] .gravity-viewport,.gravity-journey[data-status=custom-ready] .gravity-viewport,.gravity-journey[data-status=fallback] .gravity-viewport{opacity:1}.entry-custom{display:none;position:absolute;inset:-4%;overflow:hidden;background:#020304}.gravity-journey[data-status=custom-ready] .entry-custom{display:block}.entry-custom:after{content:\"\";position:absolute;inset:0;background:linear-gradient(180deg,#02030444,#02030466 60%,#020304bb)}.entry-custom img,.entry-custom video{display:block;width:100%;height:100%;object-fit:cover;transform:scale(1.05);filter:blur(var(--entry-blur,0px))}.gravity-core-handle,.gravity-core-handle:hover{z-index:2;box-shadow:none;cursor:grab;touch-action:none;user-select:none;border:0;border-radius:50%;padding:0;transition:none;position:absolute;transform:translate(-50%,-50%);background:transparent!important}.gravity-core-handle[data-dragging=true]{cursor:grabbing}.gravity-core-handle:focus-visible{outline-offset:5px;outline:1px solid #d5bc8277}.gravity-journey:not([data-status=ready]) .gravity-core-handle{visibility:hidden}.gravity-loading{background:#020304;flex-direction:column;justify-content:center;align-items:center;gap:24px;display:flex;position:fixed;inset:0}.gravity-loading-orbit{border:1px solid #51422b;border-top-color:#e5c58c;border-radius:50%;width:38px;height:38px;animation:gravity-orbit 2.5s linear infinite}.gravity-loading-label{color:#d0c4ab;letter-spacing:.23em;border:0;padding:0;font-size:10px;font-weight:400}.gravity-fallback{background:#000;position:fixed;inset:0}.gravity-fallback img{object-fit:cover;width:100%;height:100%}.gravity-fallback .gravity-loading-label{white-space:normal;background:#000b;max-width:90vw;padding:12px;line-height:1.7;position:absolute;bottom:40px;left:50%;transform:translate(-50%)}@keyframes gravity-orbit{to{transform:rotate(360deg)}}[data-layout]{color:#d0c4ab;opacity:.65;letter-spacing:.08em;pointer-events:none;height:100dvh;position:fixed;inset:0;z-index:50;padding:40px}.layout-grid{display:grid;height:100%;width:100%;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(6,minmax(0,1fr));font-size:14px;text-transform:uppercase}.layout-top{height:40px;width:100%;grid-column:1/8}.layout-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.layout-nav div:nth-child(2){text-align:center}.layout-nav div:nth-child(3){text-align:right}.layout-footer{display:flex;flex-direction:column;justify-content:flex-end;grid-row:7/8}.layout-footer.left{grid-column:2/3}.layout-footer.links{grid-column:1/2}.layout-footer.right{grid-column:7/8}.entry-access{pointer-events:auto;position:absolute;right:clamp(22px,9vw,140px);bottom:clamp(88px,15vh,150px);width:min(340px,calc(100vw - 44px));padding:20px 0 18px;border-top:1px solid #d5bc8277;border-bottom:1px solid #d5bc8244;text-transform:none;letter-spacing:.03em;opacity:1;color:#e4d6b8;text-shadow:0 1px 10px #000}.entry-access:before{content:"";position:absolute;top:-2px;left:0;width:34px;height:3px;background:#e5c58c;box-shadow:0 0 16px #d5bc8277}.entry-access .kicker{margin:0 0 10px;color:#d5bc82;font:10px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.2em;text-transform:uppercase}.entry-access h1{margin:0 0 8px;font-size:20px;font-weight:400;letter-spacing:.04em}.entry-access .hint{min-height:20px;margin:0 0 17px;color:#b2a68f;font-size:12px;line-height:1.55}.entry-access .hint.error{color:#e6a9a0}.entry{display:grid;gap:10px}.entry[hidden]{display:none}.entry input{width:100%;height:38px;padding:0 2px;border:0;border-bottom:1px solid #d5bc82aa;border-radius:0;background:transparent;color:#f8ecd4;outline:none;font-size:18px;letter-spacing:.4em}.entry input::placeholder{color:#d5bc8266;font:10px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em}.entry input:focus{border-bottom-color:#f1d79e;box-shadow:0 8px 18px -15px #f1d79e}.entry button{display:flex;align-items:center;justify-content:space-between;width:100%;height:38px;padding:0 12px;border:1px solid #d5bc82aa;border-radius:0;background:transparent;color:#e5c58c;font-size:10px;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;transition:background-color .18s ease,color .18s ease,transform .18s cubic-bezier(.23,1,.32,1)}.entry button:after{content:"↗";font-size:17px;line-height:1}.entry button:hover{background:#e5c58c;color:#080807;transform:translateY(-1px)}.entry button:disabled{cursor:wait;opacity:.5;transform:none}.entry#enter[hidden]{display:none}.entry#enter{display:flex;align-items:center;justify-content:space-between;width:100%;height:38px;padding:0 12px;border:1px solid #d5bc82aa;border-radius:0;background:transparent;color:#e5c58c;font-size:10px;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;transition:background-color .18s ease,color .18s ease,transform .18s cubic-bezier(.23,1,.32,1)}.entry#enter:after{content:"↗";font-size:17px;line-height:1}.entry#enter:hover{background:#e5c58c;color:#080807;transform:translateY(-1px)}.entry-meta{display:flex;justify-content:space-between;margin-top:15px;color:#b2a68f99;font:9px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.11em;text-transform:uppercase}.entry-meta strong{color:#e5c58c;font-size:12px;font-weight:400}.entry-meta .workspace{color:#b2a68f99}.gravity-journey[data-exploring=true] .entry-access{opacity:.18;transition:opacity .5s ease}.gravity-journey[data-exploring=true] .entry-access:hover,.entry-access:focus-within{opacity:1}@media (max-width:700px){.gravity-journey{min-height:720svh}.gravity-viewport{transition-duration:.5s}[data-layout]{padding:max(22px,env(safe-area-inset-top)) 20px;font-size:8px}.entry-access{right:20px;bottom:21vh;width:calc(100vw - 40px);padding-top:16px}.layout-footer.left{grid-column:3/4}.layout-footer.links{grid-column:1/2}.layout-footer.right{display:none}}@media (prefers-reduced-motion:reduce){.gravity-loading-orbit{animation:none}.gravity-viewport{transition-duration:.2s}.entry button,.entry#enter{transition:none}.gravity-journey[data-exploring=true] .entry-access{opacity:1}}
+</style></head><body><main class="gravity-journey" id="gravity" data-status="loading" aria-label="OMRS 引力入口"><div class="gravity-viewport" id="gravity-viewport"><div class="entry-custom" id="entry-custom"></div><button class="gravity-core-handle" data-gravity-drag-handle aria-label="拖动黑洞移动位置，也可使用方向键" tabindex="-1"></button></div><div class="gravity-loading" id="gravity-loading" role="status"><span class="gravity-loading-orbit"></span><span class="gravity-loading-label">正在展开宇宙</span></div></main><div data-layout><div class="layout-grid"><div class="layout-top"><div class="layout-nav"><div>( Deploy )</div><div>( Preview )</div><div>( Ship )</div></div></div><div class="layout-footer left"><div>Built By</div><div>OMRS</div></div><div class="layout-footer links"><div>Private</div><div>Workspace</div></div><div class="layout-footer right"><div>© OMRS</div></div><section class="entry-access" aria-labelledby="entry-title"><p class="kicker">Access point / 001</p><h1 id="entry-title">准备进入 OMRS</h1><p class="hint" id="hint" role="status">正在检查访问状态…</p><form class="entry" id="entry-form" hidden><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="current-password" placeholder="输入 4–12 位 PIN" aria-label="PIN"><button type="submit" id="submit"><span>解锁学习空间</span></button></form><button class="entry" id="enter" type="button" hidden><span>进入 OMRS</span></button><div class="entry-meta"><span><strong id="clock" aria-label="当前时间">--:--</strong> LOCAL TIME</span><span class="workspace">PRIVATE STUDY WORKSPACE</span></div></section></div></div><script>
+const $=id=>document.getElementById(id),gravity=$("gravity"),viewport=$("gravity-viewport"),custom=$("entry-custom"),loading=$("gravity-loading"),clock=$("clock"),hint=$("hint"),form=$("entry-form"),pin=$("pin"),enter=$("enter"),submit=$("submit");
+const entryBackground=__ENTRY_BACKGROUND__;
 const nextParam=new URLSearchParams(location.search).get("next");function destination(){try{const raw=nextParam||(location.hash?"/"+location.hash:"/?unlocked=1#/dashboard");const url=new URL(raw,location.origin);if(url.origin!==location.origin)return "/?unlocked=1#/dashboard";if(url.pathname==="/"||url.pathname==="/index.html"){url.searchParams.set("unlocked","1");return url.pathname+url.search+url.hash}return url.pathname+url.search+url.hash}catch(_){return "/?unlocked=1#/dashboard"}}const hasHash=location.hash.length>1||Boolean(nextParam&&nextParam.includes("#"));
-let disposeScene=()=>{};function tick(){const now=new Date();clock.textContent=now.toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit",hour12:false})}tick();setInterval(tick,1000);function unlock(){disposeScene();location.replace(destination())}function fail(message){hint.textContent=message;hint.className="hint error"}function show(s){if(s.pin_configured){form.hidden=false;pin.focus();hint.textContent="输入 PIN 解锁你的学习空间";return}const allowed=!s.remote||s.authenticated||s.lan_pin_exempt;if(allowed){enter.hidden=false;hint.textContent="这是你的学习空间入口";if(hasHash)unlock()}else hint.textContent="此设备未配置可用的 PIN，请在本机设置访问方式"}
-fetch("/api/auth/session",{cache:"no-store"}).then(r=>r.json()).then(show).catch(()=>fail("无法读取访问状态，请检查服务是否运行"));enter.onclick=unlock;form.onsubmit=async event=>{event.preventDefault();submit.disabled=true;hint.className="hint";hint.textContent="正在验证…";try{const r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:pin.value})});const data=await r.json();if(!r.ok)throw Error(data.msg||"PIN 错误");const state=await(await fetch("/api/auth/session",{cache:"no-store"})).json();if(state.warning_required){alert("当前通过 HTTP 访问，PIN 和会话可能被同一网络中的设备看到。建议使用 HTTPS。");await fetch("/api/auth/warning-ack",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})}unlock()}catch(error){fail(error.message||"PIN 错误");pin.select();submit.disabled=false}};
-(async()=>{try{const scene=await import("/assets/vendor/entry-scene.js");await scene.prepareGravityScene();disposeScene=scene.createGravityScene(viewport,()=>{gravity.dataset.status="ready";loading.remove();},()=>{gravity.dataset.status="fallback";loading.remove();viewport.innerHTML='<div class="gravity-fallback"><img src="/assets/vendor/entry-fallback.webp" alt="金白色黑洞与弯曲公式曲面的参考主视觉"><span class="gravity-loading-label">此设备暂不支持 WebGL，当前展示参考主视觉。</span></div>'})}catch(error){console.warn("OMRS gravity scene unavailable",error);gravity.dataset.status="fallback";loading.remove();viewport.innerHTML='<div class="gravity-fallback"><img src="/assets/vendor/entry-fallback.webp" alt="金白色黑洞与弯曲公式曲面的参考主视觉"><span class="gravity-loading-label">当前展示参考主视觉。</span></div>'}})();
+let disposeScene=()=>{},media=null;function tick(){const now=new Date();clock.textContent=now.toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit",hour12:false})}tick();setInterval(tick,1000);function stopMedia(){if(media){try{media.pause()}catch(_){ }media.remove()}media=null}function unlock(){stopMedia();disposeScene();location.replace(destination())}function fail(message){hint.textContent=message;hint.className="hint error"}function show(s){if(s.pin_configured){form.hidden=false;pin.focus();hint.textContent="输入 PIN 解锁你的学习空间";return}const allowed=!s.remote||s.authenticated||s.lan_pin_exempt;if(allowed){enter.hidden=false;hint.textContent="这是你的学习空间入口";if(hasHash)unlock()}else hint.textContent="此设备未配置可用的 PIN，请在本机设置访问方式"}function showSceneFallback(){stopMedia();custom.hidden=true;try{const scenePromise=import("/assets/vendor/entry-scene.js");scenePromise.then(async scene=>{await scene.prepareGravityScene();disposeScene=scene.createGravityScene(viewport,()=>{gravity.dataset.status="ready";loading.remove()},()=>{gravity.dataset.status="fallback";loading.remove();viewport.innerHTML='<div class="gravity-fallback"><img src="/assets/vendor/entry-fallback.webp" alt="金白色黑洞与弯曲公式曲面的参考主视觉"><span class="gravity-loading-label">此设备暂不支持 WebGL，当前展示参考主视觉。</span></div>'})}).catch(error=>{console.warn("OMRS gravity scene unavailable",error);gravity.dataset.status="fallback";loading.remove();viewport.innerHTML='<div class="gravity-fallback"><img src="/assets/vendor/entry-fallback.webp" alt="金白色黑洞与弯曲公式曲面的参考主视觉"><span class="gravity-loading-label">当前展示参考主视觉。</span></div>'})}catch(error){console.warn("OMRS gravity scene unavailable",error);gravity.dataset.status="fallback";loading.remove()}}function activateCustom(){if(!entryBackground.asset_url){showSceneFallback();return}const reduced=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;gravity.dataset.status="custom-loading";custom.style.setProperty("--entry-blur",String(entryBackground.blur_px||0)+"px");media=document.createElement(entryBackground.kind==="video"?"video":"img");media.className="entry-custom-media";media.src=entryBackground.asset_url;if(entryBackground.kind==="video"){media.muted=true;media.loop=true;media.controls=false;media.playsInline=true;media.autoplay=!reduced;media.setAttribute("aria-label","自定义入口视频背景");media.addEventListener("loadeddata",()=>{custom.hidden=false;gravity.dataset.status="custom-ready";loading.remove();if(!reduced)media.play().catch(()=>{})},{once:true})}else{media.alt="自定义入口背景";media.addEventListener("load",()=>{custom.hidden=false;gravity.dataset.status="custom-ready";loading.remove()},{once:true})}media.addEventListener("error",showSceneFallback,{once:true});custom.replaceChildren(media)}
+fetch("/api/auth/session",{cache:"no-store"}).then(r=>r.json()).then(show).catch(()=>fail("无法读取访问状态，请检查服务是否运行"));enter.onclick=unlock;form.onsubmit=async event=>{event.preventDefault();submit.disabled=true;hint.className="hint";hint.textContent="正在验证…";try{const r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:pin.value})});const data=await r.json();if(!r.ok)throw Error(data.msg||"PIN 错误");const state=await(await fetch("/api/auth/session",{cache:"no-store"})).json();if(state.warning_required){alert("当前通过 HTTP 访问，PIN 和会话可能被同一网络中的设备看到。建议使用 HTTPS。");await fetch("/api/auth/warning-ack",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})}unlock()}catch(error){fail(error.message||"PIN 错误");pin.select();submit.disabled=false}};if(entryBackground.mode==="custom")activateCustom();else showSceneFallback();
 </script></body></html>
-'''.encode("utf-8")
+'''.replace("__ENTRY_BACKGROUND__", entry_payload_json).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Cache-Control", "no-store")

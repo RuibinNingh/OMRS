@@ -30,6 +30,7 @@ POST_LOCK_EXEMPT = {
     "/api/agent/test": "只向模型发一次测试请求，不写任何状态",
     "/api/agent/conversation/create": "只写 agent.db",
     "/api/agent/conversation/delete": "只写 agent.db",
+    "/api/entry-background": "上传先分块写临时文件，校验后在处理函数内短暂取得写锁原子提交",
 }
 POST_LOCK_EXEMPT_PREFIXES = ("/api/auth/",)
 
