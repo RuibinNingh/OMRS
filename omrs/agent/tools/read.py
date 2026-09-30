@@ -1,6 +1,8 @@
 """只读工具（read 级，自动执行）：词表、搜题、看题、概况、推荐、Session。输出都控制在 6000 字符内。"""
 import datetime
 import math
+import re
+from functools import cmp_to_key
 
 from ...ai_assist import collect_taxonomy
 from ...content_history import projection_row, read_question_file
@@ -66,6 +68,172 @@ def list_taxonomy(ctx, args):
 STATUS = ("due", "overdue", "leech", "killed", "suspended", "new", "active")
 
 
+def _parse_search_date(value, field):
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?", text):
+        raise ValueError(f"{field} 必须是 YYYY-MM-DD 日期")
+    try:
+        # 搜题筛选使用日期边界；时间戳也接受但统一按本地日期比较。
+        return datetime.date.fromisoformat(text[:10])
+    except (TypeError, ValueError):
+        raise ValueError(f"{field} 必须是 YYYY-MM-DD 日期")
+
+
+def _effective_created_date(item):
+    for value in (item.get("created_at"), item.get("entry_date")):
+        text = str(value or "").strip()
+        if not text:
+            continue
+        try:
+            return datetime.date.fromisoformat(text[:10])
+        except ValueError:
+            continue
+    return None
+
+
+def _optional_number(value, field):
+    """把工具参数中的数字边界规范化；JSON schema 之外的直接调用也给出可读错误。"""
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{field} 必须是数字")
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field} 必须是数字")
+    if not math.isfinite(number):
+        raise ValueError(f"{field} 必须是有限数字")
+    return number
+
+
+def _due_range_ok(days, value):
+    if value in (None, ""):
+        return True
+    if value not in {"overdue", "today", "3days", "7days", "future", "not_due"}:
+        raise ValueError("due_range 只能是 overdue、today、3days、7days 或 not_due")
+    if days is None:
+        return False
+    if value == "overdue":
+        return days < 0
+    if value == "today":
+        return days == 0
+    if value == "3days":
+        return 0 <= days <= 3
+    if value == "7days":
+        return 0 <= days <= 7
+    if value in {"future", "not_due"}:
+        return days > 0
+    return True
+
+
+SORT_FIELDS = {
+    "uid": "uid", "path": "path", "file_path": "file_path", "subject": "subject", "category": "category",
+    "current_tag": "tag", "tag": "tag",
+    "difficulty": "difficulty", "mastery": "mastery", "decayed_mastery": "decayed_mastery",
+    "ef": "ef", "attempts": "attempts", "practice_count": "attempts", "review_count": "attempts",
+    "last_review": "last_review", "last_review_at": "last_review",
+    "due": "due_date", "due_date": "due_date", "entry_date": "entry_date", "created_at": "created_at",
+    "status": "status", "suspended": "suspended", "archived": "archived", "fail_count": "fail_count",
+    "errors": "fail_count", "wrong_streak": "wrong_streak", "consecutive_errors": "wrong_streak",
+    "high_correct_streak": "high_correct_streak", "repetition": "repetition",
+    "interval": "interval", "kill_count": "kill_count", "is_leech": "is_leech",
+    "is_killed": "is_killed", "is_revived": "is_revived", "revived": "is_revived", "dormant_days": "dormant_days", "next_revive_date": "next_revive_date",
+}
+NUMERIC_SORT_FIELDS = {
+    "difficulty", "mastery", "decayed_mastery", "ef", "attempts", "suspended", "archived", "fail_count",
+    "wrong_streak", "high_correct_streak", "repetition", "interval", "kill_count", "is_killed", "is_leech", "is_revived",
+    "dormant_days",
+}
+
+
+def _sort_value(item, field):
+    key = SORT_FIELDS[field]
+    if field == "status":
+        return "suspended" if item.get("suspended") else (item.get("tag") or "active")
+    if field == "created_at":
+        # 精确创建时间缺失时按录入日期回退；外部题和新题都因此能进入同一序列。
+        values = (item.get("created_at"), item.get("entry_date"))
+    else:
+        value = item.get(key)
+        values = (value,)
+    for value in values:
+        if value in (None, ""):
+            continue
+        text = str(value).strip()
+        if not text:
+            continue
+        if field in {"created_at", "entry_date"}:
+            try:
+                parsed = datetime.datetime.fromisoformat(text.replace("Z", "+00:00"))
+                if parsed.tzinfo is not None:
+                    parsed = parsed.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+                return parsed.isoformat(timespec="microseconds")
+            except ValueError:
+                try:
+                    return datetime.datetime.combine(datetime.date.fromisoformat(text[:10]), datetime.time()).isoformat(timespec="microseconds")
+                except ValueError:
+                    continue
+        if field in NUMERIC_SORT_FIELDS:
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+        return text.lower()
+    return None
+
+
+def _validated_sort(args):
+    raw = args.get("sort")
+    if raw in (None, ""):
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("sort 必须是数组")
+    if len(raw) > 3:
+        raise ValueError("sort 最多支持 3 级")
+    result, seen = [], set()
+    for index, spec in enumerate(raw):
+        if not isinstance(spec, dict):
+            raise ValueError(f"sort[{index}] 必须是对象")
+        field = str(spec.get("field") or "").strip()
+        direction = str(spec.get("direction") or "asc").strip().lower()
+        if field not in SORT_FIELDS:
+            raise ValueError(f"sort[{index}].field 不支持：{field or '空'}")
+        canonical = SORT_FIELDS[field]
+        if canonical in seen:
+            raise ValueError(f"sort 不能重复字段：{field}")
+        if direction not in {"asc", "desc"}:
+            raise ValueError(f"sort[{index}].direction 只能是 asc 或 desc")
+        seen.add(canonical)
+        result.append((field, direction))
+    return result
+
+
+def _sort_hits(hits, specs):
+    if not specs:
+        return hits
+
+    def compare(left, right):
+        for field, direction in specs:
+            a, b = _sort_value(left, field), _sort_value(right, field)
+            if a is None and b is None:
+                continue
+            if a is None:
+                return 1
+            if b is None:
+                return -1
+            if a == b:
+                continue
+            result = -1 if a < b else 1
+            return -result if direction == "desc" else result
+        left_uid = str(left.get("uid") or "").lower()
+        right_uid = str(right.get("uid") or "").lower()
+        return -1 if left_uid < right_uid else (1 if left_uid > right_uid else 0)
+
+    return sorted(hits, key=cmp_to_key(compare))
+
+
 def _status_ok(item, status, days):
     killed = is_killed_state(item.get("mastery", 0), item.get("tag", ""))
     return {
@@ -83,7 +251,34 @@ def search_questions(ctx, args):
     vault = ctx["vault"]
     keywords = [k.strip() for k in args.get("keywords") or [] if str(k).strip()]
     match_all = args.get("match") == "all"
-    lo, hi = args.get("mastery_min"), args.get("mastery_max")
+    lo = _optional_number(args.get("mastery_min"), "mastery_min")
+    hi = _optional_number(args.get("mastery_max"), "mastery_max")
+    difficulty_min = _optional_number(args.get("difficulty_min"), "difficulty_min")
+    difficulty_max = _optional_number(args.get("difficulty_max"), "difficulty_max")
+    if lo is not None and not 0 <= lo <= 1 or hi is not None and not 0 <= hi <= 1:
+        raise ValueError("熟练度范围必须在 0 到 1 之间")
+    if difficulty_min is not None and not 1 <= difficulty_min <= 10 or difficulty_max is not None and not 1 <= difficulty_max <= 10:
+        raise ValueError("难度范围必须在 1 到 10 之间")
+    if difficulty_min is not None and difficulty_max is not None and difficulty_min > difficulty_max:
+        raise ValueError("difficulty_min 不能大于 difficulty_max")
+    due_range = args.get("due_range") or args.get("due")
+    raw_labels = args.get("labels") or []
+    if isinstance(raw_labels, str):
+        raw_labels = [raw_labels]
+    labels = [str(label).strip() for label in raw_labels if str(label).strip()]
+    if args.get("label"):
+        labels.append(str(args["label"]).strip())
+    labels = list(dict.fromkeys(label for label in labels if label))
+    label_match = args.get("label_match", args.get("labels_match", args.get("label_mode", "any")))
+    if label_match not in {"any", "all"}:
+        raise ValueError("label_match 只能是 any 或 all")
+    if due_range not in (None, "", "overdue", "today", "3days", "7days", "future", "not_due"):
+        raise ValueError("due_range 只能是 overdue、today、3days、7days 或 not_due")
+    created_from = _parse_search_date(args.get("created_from"), "created_from")
+    created_to = _parse_search_date(args.get("created_to"), "created_to")
+    if created_from and created_to and created_from > created_to:
+        raise ValueError("created_from 不能晚于 created_to")
+    sort_specs = _validated_sort(args)
     hits, image_only, scope = [], 0, 0
     for uid, item in sorted(_items(vault).items(), key=lambda kv: (kv[1]["subject"], kv[1]["category"], kv[0])):
         if args.get("subject") and item["subject"] != args["subject"]:
@@ -92,9 +287,13 @@ def search_questions(ctx, args):
             continue
         if args.get("knowledge_point") and args["knowledge_point"] not in (item.get("knowledge_tags") or []):
             continue
-        if args.get("label") and args["label"] not in (item.get("labels") or []):
+        item_labels = set(item.get("labels") or [])
+        if labels and (not all(label in item_labels for label in labels) if label_match == "all"
+                       else not any(label in item_labels for label in labels)):
             continue
         due_text, days = due_info(item)
+        if not _due_range_ok(days, due_range):
+            continue
         if args.get("status") and not _status_ok(item, args["status"], days):
             continue
         if not args.get("status") and item.get("suspended"):
@@ -103,6 +302,16 @@ def search_questions(ctx, args):
         if lo is not None and (m is None or m < lo):
             continue
         if hi is not None and (m is None or m >= hi):
+            continue
+        difficulty = item.get("difficulty")
+        if difficulty_min is not None and (difficulty is None or difficulty < difficulty_min):
+            continue
+        if difficulty_max is not None and (difficulty is None or difficulty > difficulty_max):
+            continue
+        created_date = _effective_created_date(item)
+        if created_from and (created_date is None or created_date < created_from):
+            continue
+        if created_to and (created_date is None or created_date > created_to):
             continue
         scope += 1
         row, cached = _content(vault, uid)
@@ -126,8 +335,22 @@ def search_questions(ctx, args):
                 continue
             first, field = found[0]
         source = secs["题目"] if field in ("题目", "分类 / 知识点") else secs[field]
-        hits.append({"uid": uid, "path": f"{item['subject']} / {item['category']}", "snippet": snippet(source, first),
-                     "field": field, "mastery": m, "due": due_text, "labels": item.get("labels") or []})
+        hits.append({"uid": uid, "path": f"{item['subject']} / {item['category']}", "file_path": item.get("path", ""), "snippet": snippet(source, first),
+                     "field": field, "subject": item.get("subject", ""), "category": item.get("category", ""),
+                     "difficulty": item.get("difficulty"), "mastery": m, "decayed_mastery": item.get("decayed_mastery"),
+                     "ef": item.get("ef"), "attempts": item.get("attempts"), "last_review": item.get("last_review", ""),
+                     "due": due_text, "due_date": item.get("due_date", ""), "entry_date": item.get("entry_date", ""),
+                     "created_at": item.get("created_at", ""), "suspended": bool(item.get("suspended")),
+                     "archived": item.get("archived"), "tag": item.get("tag", ""),
+                     "status": "suspended" if item.get("suspended") else (item.get("tag") or "active"),
+                     "current_tag": item.get("tag", ""), "is_killed": is_killed_state(item.get("mastery", 0), item.get("tag", "")),
+                     "is_leech": bool(item.get("is_leech")), "is_revived": bool(item.get("is_revived")),
+                     "wrong_streak": item.get("wrong_streak", 0), "fail_count": item.get("fail_count", 0),
+                     "high_correct_streak": item.get("high_correct_streak", 0), "repetition": item.get("repetition", 0),
+                     "interval": item.get("interval", 0), "kill_count": item.get("kill_count", 0),
+                     "dormant_days": item.get("dormant_days", 0), "next_revive_date": item.get("next_revive_date", ""),
+                     "labels": item.get("labels") or []})
+    hits = _sort_hits(hits, sort_specs)
     size = min(30, max(1, int(args.get("page_size") or 20)))
     page = max(1, int(args.get("page") or 1))
     pages = max(1, math.ceil(len(hits) / size))
@@ -155,6 +378,7 @@ def get_question(ctx, args):
                        "knowledge_points": item.get("knowledge_tags") or [], "labels": item.get("labels") or [],
                        "mastery": mastery_of(item), "due": due_text, "due_days": days,
                        "suspended": bool(item.get("suspended")), "wrong_streak": wrong,
+                       "entry_date": item.get("entry_date", ""), "created_at": item.get("created_at", ""),
                        "is_leech": bool(item.get("is_leech")), "content_hash": row.get("content_hash") or "",
                        "records": [{"date": r["date"], "correct": r["correct"], "score": r["score"], "note": r["note"]}
                                    for r in records]},
@@ -234,14 +458,25 @@ SPECS = [
     ("list_taxonomy", "read", "列出题库现有的科目、按科目分组的分类（含题数）、知识点与标记。搜题或录题前先用它对齐叫法。",
      {"type": "object", "properties": {"subject": _S, "page": {"type": "integer", "minimum": 1}}}, list_taxonomy),
     ("search_questions", "read",
-     "按关键词在题目、答案、错因、分类、知识点里找题（规范化后子串匹配，两字词也能命中），可按科目、分类、知识点、标记、"
-     "状态、熟练度区间筛选。纯图片题没有正文，关键词搜不到，结果里 image_only 给出筛选范围内这类题的数量。单页最多 30 条。",
+     "按关键词在题目、答案、错因、分类、知识点里找题（规范化后子串匹配，两字词也能命中），可组合筛选科目、分类、知识点、"
+     "多标记、状态、难度 / 熟练度 / 到期 / 创建日期范围，并在分页前按最多 3 级自定义排序。纯图片题没有正文，关键词搜不到，"
+     "结果里 image_only 给出筛选范围内这类题的数量。单页最多 30 条。",
      {"type": "object", "properties": {
          "keywords": {"type": "array", "items": _S, "maxItems": 8}, "match": {"type": "string", "enum": ["any", "all"]},
          "subject": _S, "category": _S, "knowledge_point": _S, "label": _S,
+         "labels": {"type": "array", "items": _S, "maxItems": 20},
+         "label_match": {"type": "string", "enum": ["any", "all"]}, "labels_match": {"type": "string", "enum": ["any", "all"]},
+         "label_mode": {"type": "string", "enum": ["any", "all"]},
          "status": {"type": "string", "enum": list(STATUS)},
          "mastery_min": {"type": "number", "minimum": 0, "maximum": 1},
          "mastery_max": {"type": "number", "minimum": 0, "maximum": 1},
+         "difficulty_min": {"type": "number", "minimum": 1, "maximum": 10},
+         "difficulty_max": {"type": "number", "minimum": 1, "maximum": 10},
+         "due_range": {"type": "string", "enum": ["overdue", "today", "3days", "7days", "future", "not_due"]},
+         "due": {"type": "string", "enum": ["overdue", "today", "3days", "7days", "future", "not_due"]},
+         "created_from": _S, "created_to": _S,
+         "sort": {"type": "array", "maxItems": 3, "items": {"type": "object", "required": ["field"],
+             "properties": {"field": _S, "direction": {"type": "string", "enum": ["asc", "desc"]}}}},
          "page": {"type": "integer", "minimum": 1}, "page_size": {"type": "integer", "minimum": 1, "maximum": 30}}},
      search_questions),
     ("get_question", "read", "读一道题：题目、答案、错因（长的会截断）、图片名、知识点、标记、熟练度、到期、最近练习记录。",

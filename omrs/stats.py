@@ -40,7 +40,7 @@ def get_stats(vault):
     history = load_csv(history_path(vault), HISTORY_HEADERS)
     with connect(vault) as db:
         projection_rows = db.execute(
-            "SELECT question_id, uid, suspended, archived FROM question_projection"
+            "SELECT * FROM question_projection"
         ).fetchall()
     projected_suspended_uids = {
         row["uid"] for row in projection_rows if not row["archived"] and row["suspended"]
@@ -200,11 +200,18 @@ def get_stats(vault):
         if priority > 0.3:
             total_due += 1
 
+    created_at_by_uid = {
+        row["uid"]: (row["created_at"] or "")
+        for row in projection_rows
+        if not row["archived"]
+    }
     items = [
         _row_to_item(row, today, all_fail_counts.get(row.get("UID", ""), 0), tuning,
                      all_wrong_streaks.get(row.get("UID", ""), 0))
         for row in rows
     ]
+    for item in items:
+        item["created_at"] = created_at_by_uid.get(item["uid"], "")
 
     return {
         "total": total,
@@ -249,6 +256,14 @@ def get_question_content(vault, uid):
     sections = split_sections(content)
     meta = parse_yaml_frontmatter(content)
     question_text = sections.get("题目", "")
+    with connect(vault) as db:
+        projection = db.execute(
+            "SELECT created_at FROM question_projection WHERE uid = ? AND archived = 0", (uid,)
+        ).fetchone()
+    entry_date = row.get("Entry_Date", "")
+    created_at = ""
+    if projection:
+        created_at = projection["created_at"] or ""
     return {
         "uid": uid,
         "subject": meta.get("科目", ""),
@@ -265,6 +280,8 @@ def get_question_content(vault, uid):
         "knowledge_tags": extract_knowledge_tags(meta),
         "labels": extract_labels(meta),
         "images": extract_images(question_text),
+        "entry_date": entry_date,
+        "created_at": created_at,
     }
 
 

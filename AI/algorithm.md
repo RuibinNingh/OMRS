@@ -133,6 +133,7 @@ v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `fe
 - 日期解析失败时：`days = 0`（列表视图语义：今天刚看过）。
 - `high_correct_streak`：连续高分答对次数，供前端展示和调试确认。
 - `kill_count`：累计击杀次数（来源 `mastery_projection.kill_count`，老 CSV 缺 `Kill_Count` 列按 0 处理）。复燃周期据此分级。
+- `entry_date` / `created_at`：题目录入日期与 Ledger 首次创建时间，供题库和助手检索排序使用；不参与熟练度或推荐优先级计算。
 - `is_revived` / `dormant_days` / `next_revive_date`：已击杀题是否已休眠够久（§11）。`dormant_days` 只在击杀态下给值，非击杀态为 0；`next_revive_date` 由 `Last_Review + dormant_days` 得出，供界面显示「下次复燃」，非击杀态为空串。
 
 ---

@@ -50,7 +50,7 @@
 | `daily_trend` | object | 近30天每日练习趋势 |
 | `scatter_data` | array | 每题的散点数据 |
 | `review_alert` | object | 到期与风险统计：`overdue`、`due_today`、`due_next_3_days`（明天起 3 天）、`due_next_7_days`（明天起 7 天）、`due_within_3_days`、`due_within_7_days`、`low_mastery_not_due`；兼容保留 `urgent`/`warning`/`cold`/`total_due`/`leech` |
-| `items` | array | 所有未归档题目条目（含停用题），每条含 `suspended`、`fail_count`（累计答错次数）、`wrong_streak`（最近连续答错次数）、`is_leech`（未击杀且连错达到阈值，默认 3 次）与复燃字段 `is_revived` / `kill_count` / `dormant_days` / `next_revive_date`（algorithm.md §11）；停用题只用于题库管理，不参与统计/调度；该端点不返回 `images`，需要图片名时使用 `/api/question` 或 `/api/analytics` |
+| `items` | array | 所有未归档题目条目（含停用题），每条含 `entry_date`（Markdown 录入日期）与 `created_at`（首次 `question.create` / `question.create_external` 的 Ledger UTC 时间，旧迁移题为空），以及 `suspended`、`fail_count`（累计答错次数）、`wrong_streak`（最近连续答错次数）、`is_leech`（未击杀且连错达到阈值，默认 3 次）与复燃字段 `is_revived` / `kill_count` / `dormant_days` / `next_revive_date`（algorithm.md §11）；停用题只用于题库管理，不参与统计/调度；该端点不返回 `images`，需要图片名时使用 `/api/question` 或 `/api/analytics` |
 
 ---
 
@@ -150,7 +150,9 @@
 复习调度工作台用该端点加载已有计划详情；题目条目保留 Session 中的 `_source`，反馈进度包含 `feedback_count`、`pending_count`、`feedback_uids`。计划不存在或请求失败时前端在详情区域提供重试，不会用过期请求结果覆盖当前计划。
 
 ### `/api/question?uid=<uid>`
-返回题目的完整内容（题面、答案、备注、正式练习记录、标签、知识点）。
+返回题目的完整内容（题面、答案、备注、正式练习记录、标签、知识点、录入日期与精确创建时间）。
+
+`entry_date` 是 Markdown 的 `录入日期`；`created_at` 是首次创建提交的 Ledger 时间戳，按前端设置的 Ledger 时区显示。`legacy.bootstrap` 迁移题没有精确时间时返回空字符串，由界面显示 `—`；外部扫描题表示首次纳入 Ledger 的时间。
 
 **响应字段（记录相关）：**
 - `records`：**正式练习记录**（v1.16.1 起），数组，按 Ledger 提交顺序旧→新。由 `stats.get_question_records()` 从 `history_log.csv` 兼容投影派生：优先按隐藏稳定身份 `Question_ID` 匹配（改名不断链），老行没有 `Question_ID` 时退回按 `UID` 匹配。每条 `{log_id, date:"YYYY-MM-DD", time:"HH:MM"|"", score:0–10, correct:bool, note, session_id}`。没练过时是 `[]`（不是缺字段）。前端画廊战绩带和题目详情记录模块只认这个字段。

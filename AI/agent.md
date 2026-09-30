@@ -50,7 +50,7 @@
 
 ## 4. 工具
 
-只读：`list_taxonomy`（科目、分类、知识点、标记及题数）、`search_questions`（关键词在题目 / 答案 / 错因 / 分类 / 知识点里做 NFKC + 小写 + 去 LaTeX 反斜杠与空白后的子串匹配，可按科目、分类、知识点、标记、状态、熟练度区间筛，单页 ≤30，纯图片题计入 `image_only`）、`get_question`（各节 ≤1500 字）、`get_overview`（最弱分类按已练题平均熟练度升序）、`get_recommendations`（到期优先、熟练度补足，已排除进行中 Session 的题，附 `selection`）、`list_sessions`、`get_session`。
+只读：`list_taxonomy`（科目、分类、知识点、标记及题数）、`search_questions`（关键词在题目 / 答案 / 错因 / 分类 / 知识点里做 NFKC + 小写 + 去 LaTeX 反斜杠与空白后的子串匹配，可按科目、分类、知识点、多标记、状态、难度 / 熟练度 / 到期 / 创建日期范围组合筛选；`sort` 支持最多 3 级标量字段排序，筛选与排序均在分页前执行，单页 ≤30，纯图片题计入 `image_only`）、`get_question`（各节 ≤1500 字，含录入日期和创建时间）、`get_overview`（最弱分类按已练题平均熟练度升序）、`get_recommendations`（到期优先、熟练度补足，已排除进行中 Session 的题，附 `selection`；不接受自定义排序）、`list_sessions`、`get_session`。
 
 写入：`create_review_session`、`create_practice_card`、`set_question_labels`（只能用已有标记，单次 ≤50 题，每题一条 `question.metadata_update`）、`update_question_section`（替换或追加；替换时原有图片嵌入保留）、`set_knowledge_points`、`move_question`、`suspend_question`、`resume_question`、`record_feedback`（带 `session_id` 时题目必须在该 Session 的待反馈列表里）。
 

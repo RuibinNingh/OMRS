@@ -59,7 +59,7 @@ tags:
 
 `omrs/projections.py` 从提交链重放出以下投影表：
 
-- `question_projection`（含 `suspended` 停用标记）
+- `question_projection`（含 `suspended` 停用标记和可空 `created_at`）
 - `question_knowledge_points`
 - `question_labels`（题目用户标记的查询投影）
 - `mastery_projection`
@@ -76,6 +76,8 @@ tags:
 - `sessions.csv`
 
 现有统计、推荐和前端大部分接口仍读取这些兼容 CSV，因此外部响应结构尽量保持稳定。
+
+`created_at` 只在首次 `question.create` 或 `question.create_external` 重放时写入对应 Ledger 提交的 UTC 时间；移动、元数据修改、停用和恢复不会改变它。`legacy.bootstrap` 题目没有可核验的精确时间，保持空值。旧库启动时 `ledger.init_db()` 会自动补列。外部扫描题的时间含义是首次纳入 Ledger，而不是文件系统创建时间。
 
 v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 `错题/.omrs/labels.json`，题目归属保存在 Markdown YAML 的 `标记:` 字段。

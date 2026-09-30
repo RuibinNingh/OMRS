@@ -109,7 +109,7 @@ Session 中的 `source` 贯穿反馈处理：`due` 使用常规 SM-2 间隔，`p
 核心表：
 
 - `commits`：不可变提交链。
-- `question_projection` / `question_knowledge_points`：题目结构化投影。
+- `question_projection` / `question_knowledge_points`：题目结构化投影；`question_projection.created_at` 是可空的 Ledger 创建时间。首次 `question.create` / `question.create_external` 写入提交的 UTC 时间；移动、结构化修改、停用与恢复沿用原值；`legacy.bootstrap` 题为空。旧库启动时由 `ledger.init_db()` 自动补列。
 - `mastery_projection`：熟练度、EF、SM-2 排期投影，含 `kill_count` 累计击杀次数（老库缺列时 `ledger.py` 用 `ALTER TABLE ... DEFAULT 0` 补列）。
 - `session_projection`：Session 投影。
 - `workspace_fingerprint`：Markdown 工作区自检指纹。

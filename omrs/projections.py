@@ -115,7 +115,11 @@ def apply_commit(vault: str, state: dict, commit: dict):
     if ctype == "legacy.bootstrap":
         _apply_legacy_bootstrap(state, payload, seq)
     elif ctype in {"question.create", "question.create_external"}:
-        question = payload.get("question") or payload
+        question = dict(payload.get("question") or payload)
+        # 创建时间以 Ledger 提交时间为准。外部扫描题的语义是首次纳入 Ledger，
+        # legacy.bootstrap 不走这里，旧题因此保留空值并由上层回退到录入日期。
+        existing = state["questions"].get(question.get("question_id"))
+        question["created_at"] = (existing or {}).get("created_at") or commit.get("created_at") or ""
         _upsert_question(state, question, seq)
     elif ctype in {"question.move", "question.move_external"}:
         question_id = payload.get("question_id")
@@ -226,6 +230,9 @@ def apply_commit(vault: str, state: dict, commit: dict):
 
 def _apply_legacy_bootstrap(state, payload, seq):
     for question in payload.get("questions", []):
+        question = dict(question)
+        # 旧迁移只知道录入日期，没有可核验的 Ledger 精确创建时间。
+        question.pop("created_at", None)
         _upsert_question(state, question, seq)
     for row in payload.get("mastery_rows", []):
         question_id = row.get("question_id") or state["uid_to_question_id"].get(row.get("UID"))
@@ -332,6 +339,7 @@ def _normalize_question_fields(question, fallback=None):
         "metadata": metadata or fallback.get("metadata", {}),
         "metadata_hash": question.get("metadata_hash", fallback.get("metadata_hash", "")),
         "content_hash": question.get("content_hash", fallback.get("content_hash", "")),
+        "created_at": question.get("created_at") or fallback.get("created_at", ""),
         "archived": bool(question.get("archived", fallback.get("archived", False))),
         "suspended": bool(question.get("suspended", fallback.get("suspended", False))),
     }
@@ -492,8 +500,8 @@ def _write_projection_tables(db, state):
             """
             INSERT OR REPLACE INTO question_projection
             (question_id, uid, file_path, subject, category, difficulty, current_tag,
-             metadata_json, metadata_hash, content_hash, archived, suspended, updated_seq)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             metadata_json, metadata_hash, content_hash, created_at, archived, suspended, updated_seq)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 qid,
@@ -506,6 +514,7 @@ def _write_projection_tables(db, state):
                 canonical_json(question.get("metadata", {})),
                 question.get("metadata_hash", ""),
                 question.get("content_hash", ""),
+                question.get("created_at") or None,
                 1 if question.get("archived") else 0,
                 1 if question.get("suspended") else 0,
                 _safe_int(question.get("updated_seq"), 0),

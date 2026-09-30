@@ -479,6 +479,7 @@ def _row_to_item(row, today=None, fail_count=0, tuning=None, wrong_streak=0):
         "repetition": _safe_int(row.get("Repetition", 0), 0),
         "tag": tag,
         "entry_date": row.get("Entry_Date", ""),
+        "created_at": row.get("created_at", row.get("Created_At", "")) or "",
         "knowledge_tags": [k for k in row.get("Knowledge_Tags", "").split("|") if k],
         "labels": _row_labels(row),
         "suspended": is_suspended_row(row),

@@ -79,6 +79,7 @@ def init_db(db):
             metadata_json TEXT NOT NULL,
             metadata_hash TEXT NOT NULL,
             content_hash  TEXT,
+            created_at    TEXT,
             archived      INTEGER NOT NULL DEFAULT 0,
             suspended     INTEGER NOT NULL DEFAULT 0,
             updated_seq   INTEGER NOT NULL
@@ -164,6 +165,10 @@ def init_db(db):
     if "suspended" not in columns:
         db.execute(
             "ALTER TABLE question_projection ADD COLUMN suspended INTEGER NOT NULL DEFAULT 0"
+        )
+    if "created_at" not in columns:
+        db.execute(
+            "ALTER TABLE question_projection ADD COLUMN created_at TEXT"
         )
     mastery_columns = {
         row["name"] for row in db.execute("PRAGMA table_info(mastery_projection)").fetchall()

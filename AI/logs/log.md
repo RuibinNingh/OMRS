@@ -10,6 +10,7 @@
 - [2026-09-30_v2-p5-practice](2026-09-30_v2-p5-practice.md)：v2.0.0 P5 聊天练习卡
 - [2026-09-30_v2-p4-tools](2026-09-30_v2-p4-tools.md)：v2.0.0 P4 分类与 AI 草稿编辑工具
 - [2026-09-30_v2-p3-assistant](2026-09-30_v2-p3-assistant.md)：v2.0.0 P3 助手附件与移动交互
+- [2026-09-30_question-creation-search](2026-09-30_question-creation-search.md)：题目创建信息与助手检索增强
 - [2026-09-30_lock-screen-entry](2026-09-30_lock-screen-entry.md)：锁屏入口
 - [2026-09-30_create-ready-status](2026-09-30_create-ready-status.md)：录入就绪状态提示
 - [2026-09-30_assistant-ui](2026-09-30_assistant-ui.md)：AI 助手界面重设计
