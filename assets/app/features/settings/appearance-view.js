@@ -36,4 +36,35 @@ export const appearanceView = () => html`<section class="st-section" id="st-sec-
               </select>
             </div>
           </div>
+          <div class="card st-card st-entry-background-card">
+            <div class="card-title">入口背景</div>
+            <p class="hint st-lead">只作用于入口锁屏页，工作台页面背景、主题和布局保持不变。当前自定义背景会显示给能够访问入口页的设备。</p>
+            <div class="st-entry-background-presets" role="group" aria-label="入口背景预设">
+              <button class="st-entry-preset active" type="button" id="st-entry-background-black-hole" data-action="settings.entryBackgroundMode" data-arg="black-hole" aria-pressed="true">
+                <span class="st-entry-preset-visual st-entry-hole-thumb" aria-hidden="true"></span><strong>黑洞</strong><small>现有 WebGL 入口视觉</small>
+              </button>
+              <button class="st-entry-preset" type="button" id="st-entry-background-custom" data-action="settings.entryBackgroundMode" data-arg="custom" aria-pressed="false">
+                <span class="st-entry-preset-visual st-entry-custom-thumb" aria-hidden="true"></span><strong>自定义</strong><small>上传图片或视频</small>
+              </button>
+            </div>
+            <div class="st-entry-background-preview" id="st-entry-background-preview" data-mode="black-hole" role="img" aria-label="入口背景实时预览"></div>
+            <div class="st-entry-background-controls">
+              <div class="form-group">
+                <label for="st-entry-background-file">上传图片或视频</label>
+                <input id="st-entry-background-file" class="ui-input" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/avif,image/bmp,video/mp4,video/webm,video/ogg" data-change="settings.entryBackgroundChoose" disabled>
+                <div class="hint" id="st-entry-background-file-meta">切换到自定义后可上传媒体</div>
+              </div>
+              <div class="st-row st-entry-background-row">
+                <div class="st-row-text"><label class="st-row-label" for="st-entry-background-style">样式预设</label><div class="hint">首版提供高斯模糊，图片和视频共用。</div></div>
+                <select id="st-entry-background-style" class="ui-select st-select" data-change="settings.entryBackgroundStyle">
+                  <option value="gaussian-blur">高斯模糊</option>
+                </select>
+              </div>
+              <div class="st-row st-entry-background-row">
+                <div class="st-row-text"><label class="st-row-label" for="st-entry-background-blur">模糊程度</label><div class="hint">可调范围 0–32px，实时应用到预览和入口。</div></div>
+                <div class="st-entry-background-range"><input id="st-entry-background-blur" type="range" min="0" max="32" step="1" value="0" data-input="settings.entryBackgroundBlur" aria-label="高斯模糊程度"><output id="st-entry-background-blur-value">0px</output></div>
+              </div>
+            </div>
+            <div class="st-actions"><button class="ui-btn ui-btn--primary" type="button" data-action="settings.saveEntryBackground">保存入口背景</button><span class="st-actions-gap"></span><span class="st-status" id="st-entry-background-status" role="status"></span></div>
+          </div>
         </section>`;

@@ -2,6 +2,7 @@
 import { morph } from '../../core/dom.js';
 import { view } from './view.js';
 import { createAppearance } from './appearance.js';
+import { createEntryBackground } from './entry-background.js';
 import { createAccess } from './access.js';
 import { createAi } from './ai.js';
 import { createAgent } from './agent.js';
@@ -12,6 +13,7 @@ import { SECTIONS, SECTION_KEY, sectionOf } from './state.js';
 let root = null;
 let onKeys = null;
 let appearance = null;
+let entryBackground = null;
 let access = null;
 let ai = null;
 let agent = null;
@@ -48,6 +50,7 @@ export const page = {
     root = host.querySelector('#st-app') || host;
     morph(root, view());
     appearance = createAppearance(root, ctx.bus);
+    entryBackground = createEntryBackground(root);
     service = createService(root);
     access = createAccess(root, id => service?.restart(id));
     ai = createAi(root);
@@ -66,14 +69,15 @@ export const page = {
     };
     root.addEventListener('keydown', onKeys);
     access.load();
+    entryBackground.load();
     ai.load();
     agent.load();
     storage.load();
     service.load();
     return () => {
       root?.removeEventListener('keydown', onKeys);
-      access?.dispose(); ai?.dispose(); agent?.dispose(); storage?.dispose(); service?.dispose();
-      root = null; onKeys = null; appearance = null; access = null; ai = null; agent = null; storage = null; service = null;
+      access?.dispose(); ai?.dispose(); agent?.dispose(); storage?.dispose(); service?.dispose(); entryBackground?.dispose();
+      root = null; onKeys = null; appearance = null; entryBackground = null; access = null; ai = null; agent = null; storage = null; service = null;
     };
   },
   actions: {
@@ -82,6 +86,11 @@ export const page = {
     density: ({ arg }) => appearance?.density(arg),
     invert: ({ el }) => appearance?.invert(el.checked),
     timeZone: ({ value }) => appearance?.timeZone(value),
+    entryBackgroundMode: ({ arg }) => entryBackground?.mode(arg),
+    entryBackgroundStyle: () => entryBackground?.render(),
+    entryBackgroundBlur: ({ value }) => entryBackground?.blur(value),
+    entryBackgroundChoose: ({ event }) => entryBackground?.choose(event),
+    saveEntryBackground: () => entryBackground?.save(),
     savePin: () => access?.savePin(),
     logout: () => access?.logout(),
     disablePin: () => access?.disablePin(),

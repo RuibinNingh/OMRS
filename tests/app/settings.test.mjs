@@ -12,10 +12,29 @@ import { createAgent } from '../../assets/app/features/settings/agent.js';
 import { agentView } from '../../assets/app/features/settings/agent-view.js';
 import { createAi } from '../../assets/app/features/settings/ai.js';
 import { aiView } from '../../assets/app/features/settings/ai-view.js';
+import { clampBlur, formatEntryBytes, normalizeEntryBackground, validateEntryFile } from '../../assets/app/features/settings/entry-background.js';
 
 const LOCAL = { status: 'ok', remote: false, authenticated: true, lan_pin_exempt: false };
 const REMOTE = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: false };
 const EXEMPT = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: true };
+
+test('入口背景参数统一夹到 0–32px，损坏配置回到黑洞', () => {
+  assert.equal(clampBlur(-1), 0);
+  assert.equal(clampBlur(33), 32);
+  assert.equal(clampBlur('1'), 1);
+  assert.deepEqual(normalizeEntryBackground({ mode: 'custom', blur_px: 99, style: 'other' }),
+    { mode: 'custom', style: 'gaussian-blur', blur_px: 32, asset: null });
+  assert.equal(normalizeEntryBackground(null).mode, 'black-hole');
+  assert.equal(formatEntryBytes(1024 * 1024), '1.0 MB');
+});
+
+test('入口背景文件校验拒绝空文件、未知 MIME 和 200MB 以上文件', () => {
+  assert.equal(validateEntryFile(null).ok, false);
+  assert.equal(validateEntryFile({ size: 5, type: 'text/html' }).ok, false);
+  assert.equal(validateEntryFile({ size: 0, type: 'image/png' }).ok, false);
+  assert.equal(validateEntryFile({ size: 200 * 1024 * 1024 + 1, type: 'image/png' }).ok, false);
+  assert.deepEqual(validateEntryFile({ size: 5, type: 'video/webm' }), { ok: true, kind: 'video' });
+});
 
 test('AI 识别思考开关读取、开启与关闭后保存', async () => {
   assert.match(String(aiView()), /id="st-ai-thinking"/);
