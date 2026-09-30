@@ -39,7 +39,7 @@
 
 ## GitHub 推送
 
-待最后的文档收尾提交后执行 `git push origin main`，并以 `git ls-remote origin refs/heads/main` 核对远端指针。
+已执行 `git fetch origin main`，确认远端 `3c0df69` 是本地历史祖先；随后 `git push origin main` 成功，远端 `main` 从 `3c0df69` 快进到 `019fa4e`。`019fa4e` 是本次生产发布记录提交，运行时代码发布基线为其前一提交 `ebaaf80`；后续仅补写本节的文档提交不改变运行时代码。
 
 ## 生产部署
 
