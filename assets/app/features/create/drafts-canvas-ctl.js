@@ -12,7 +12,7 @@ export function createDraftCanvasControl(host, state, { markChanged, paint, bloc
   function refresh() {
     const detected = latestDetectResult(state.draft, state.job, state.canvasSha);
     data.item = draftCanvasItem(state.draft, state.value, state.training, state.canvasSha, state.canvasMode,
-      detected?.job.revision === state.draft?.revision && detected.result?.status === 'suggested'
+      detected?.job.revision === state.draft?.revision && detected?.result?.status === 'suggested'
         ? detected.result.candidates || [] : []);
     data.selR = state.canvasMode === 'body' ? state.selectedBlock : null;
     data.drawRole = state.drawSection === '答案' ? 'answer' : 'question';

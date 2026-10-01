@@ -153,7 +153,10 @@ def run(page, base, first, second, images, check):
     check('取消丢弃仍可继续审核', page.locator('[data-action="create.draftCommit"]').is_enabled())
     page.locator('[data-action="create.draftDiscard"]').click()
     page.locator('dialog[open] [data-dialog-ok]').click()
-    check('已丢弃正文只读', support.wait(page, "() => document.querySelector('.drf-detail h2')?.textContent.includes('已丢弃')")
+    check('丢弃后留在待审核并进入下一份草稿', support.wait(page, f"() => document.querySelector('.drf-id') && !document.querySelector('.drf-id').textContent.includes('{second['id']}') && document.querySelector('[data-change=\"create.draftFilter\"]')?.value === 'pending'"))
+    page.locator('[data-change="create.draftFilter"]').select_option('discarded')
+    page.locator(f'.drf-item[data-arg="{second["id"]}"]').click()
+    check('手动查看已丢弃草稿时正文只读', support.wait(page, "() => document.querySelector('.drf-detail h2')?.textContent.includes('已丢弃')")
           and page.locator('[data-action="create.draftEditBlock"]').count() == 0)
 
 

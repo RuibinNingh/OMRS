@@ -164,7 +164,7 @@ def run(page, base, first, second, old, images, results):
     page.locator(f'.drf-item[data-arg="{second["id"]}"]').click()
     page.locator('[data-action="create.draftDiscard"]').click()
     page.locator('dialog[open] [data-dialog-ok]').click()
-    check('丢弃状态持久且待审核计数减少', wait(page, "() => document.querySelector('.drf-detail h2')?.textContent.includes('已丢弃')")
+    check('丢弃状态持久且留在待审核队列继续下一题', wait(page, f"() => document.querySelector('.drf-id') && !document.querySelector('.drf-id').textContent.includes('{second['id']}') && document.querySelector('[data-change=\"create.draftFilter\"]')?.value === 'pending'")
           and api(base, '/api/drafts/item?id=' + second['id'])['draft']['status'] == 'discarded'
           and api(base, '/api/drafts/counts')['counts']['discarded'] == 1)
     page.locator('[data-change="create.draftFilter"]').select_option('pending')
@@ -224,6 +224,107 @@ def run(page, base, first, second, old, images, results):
     page.unroute('**/api/drafts/list?status=pending&limit=500')
     page.locator('.drf-list .drf-error [data-action="create.draftReload"]').click()
     check('列表失败后可重试', wait(page, "() => !document.querySelector('.drf-list .drf-error') && !!document.querySelector('.drf-item')"))
+
+
+def run_discard_queue(browser, base, vault, results):
+    """丢弃的队列连续性、失败保护与空队列记忆，全部经过真实浏览器和 HTTP。"""
+    for number in range(3):
+        drafts.create_draft(vault, {
+            'subject': '数学', 'category': '丢弃队列回归',
+            'blocks': [{'section': '题目', 'kind': 'text', 'text': f'队列回归题 {number + 1}。'}],
+        }, {'conversation_id': 'discard-queue', 'run_id': 'discard-run', 'tool_call_id': str(number)})
+    context = browser.new_context(viewport={'width': 1440, 'height': 900})
+    page = context.new_page()
+    errors = []
+    page.on('pageerror', lambda error: errors.append(str(error)))
+    def check(name, passed, detail=''):
+        results.append((name, bool(passed), detail))
+        if not passed:
+            raise AssertionError(name + ': ' + detail)
+    def queue():
+        return page.locator('.drf-item').evaluate_all('els => els.map(el => el.dataset.arg)')
+    def selected(id):
+        return wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{id}') && !document.querySelector('[data-action=\"create.draftDiscard\"]')?.disabled")
+    def discard():
+        page.locator('[data-action="create.draftDiscard"]').click()
+        page.locator('dialog[open] [data-dialog-ok]').click()
+    def remembered():
+        return page.evaluate("sessionStorage.getItem('omrs-selected-draft')")
+    try:
+        page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
+        page.locator('#create-flow [data-ib-stage="drafts"]').click()
+        check('丢弃回归队列至少有三份', wait(page, "() => document.querySelectorAll('.drf-item').length >= 3"))
+        ids = queue()
+        current, next_id = ids[1:3]
+        page.locator(f'.drf-item[data-arg="{current}"]').click()
+        check('丢弃前可打开队列中间草稿', selected(current))
+        page.locator('[data-action="create.draftEditFields"]').click()
+        note = page.locator('[data-input="create.draftField"][data-arg="note"]')
+        note.fill('丢弃取消或失败时保留这段未保存备注')
+        page.locator('[data-action="create.draftDiscard"]').click()
+        page.locator('dialog[open] .ui-dialog__foot [data-dialog-cancel]').click()
+        check('取消丢弃保留当前草稿、分类和未保存编辑', selected(current)
+              and page.locator('[data-change="create.draftFilter"]').input_value() == 'pending'
+              and note.input_value() == '丢弃取消或失败时保留这段未保存备注' and remembered() == current)
+        page.route('**/api/drafts/discard', lambda route: route.fulfill(
+            status=503, content_type='application/json', body='{"status":"error","msg":"丢弃暂不可用"}'))
+        discard()
+        check('丢弃请求失败保留当前草稿和未保存编辑', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('丢弃失败')")
+              and selected(current) and remembered() == current
+              and page.locator('[data-change="create.draftFilter"]').input_value() == 'pending'
+              and note.input_value() == '丢弃取消或失败时保留这段未保存备注'
+              and api(base, '/api/drafts/item?id=' + current)['draft']['status'] != 'discarded')
+        page.unroute('**/api/drafts/discard')
+        discard()
+        check('丢弃中间草稿后留在待审核并选择原下一份', selected(next_id)
+              and page.locator('[data-change="create.draftFilter"]').input_value() == 'pending'
+              and queue() == [id for id in ids if id != current] and remembered() == next_id
+              and api(base, '/api/drafts/item?id=' + current)['draft']['status'] == 'discarded')
+        check('丢弃后计数同步且下一份没有继承本地修改', wait(page, f"() => document.querySelector('.drf-count')?.textContent.includes('{len(ids) - 1} 份待审核') && !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
+        ids = queue()
+        page.locator(f'.drf-item[data-arg="{ids[-1]}"]').click()
+        check('可选择队列最后一份', selected(ids[-1]))
+        discard()
+        check('丢弃最后一份自动选择上一份', selected(ids[-2]) and remembered() == ids[-2]
+              and page.locator('[data-change="create.draftFilter"]').input_value() == 'pending')
+        failed_id = ids[-2]
+        page.route('**/api/drafts/list?status=pending&limit=500', lambda route: route.fulfill(
+            status=503, content_type='application/json', body='{"status":"error","msg":"列表暂不可用"}'))
+        discard()
+        check('丢弃成功但列表刷新失败时留在待审核且清除旧选择', wait(page, "() => document.querySelector('.drf-list .drf-error')?.textContent.includes('列表暂不可用')")
+              and page.locator('[data-change="create.draftFilter"]').input_value() == 'pending'
+              and page.locator('.drf-id').count() == 0 and remembered() is None
+              and api(base, '/api/drafts/item?id=' + failed_id)['draft']['status'] == 'discarded')
+        page.unroute('**/api/drafts/list?status=pending&limit=500')
+        page.locator('.drf-list [data-action="create.draftReload"]').click()
+        check('列表刷新失败后可重试且不恢复已丢弃草稿', wait(page, "() => !document.querySelector('.drf-list .drf-error') && !!document.querySelector('.drf-item')")
+              and failed_id not in queue() and remembered() is None)
+        while queue():
+            ids = queue()
+            page.locator(f'.drf-item[data-arg="{ids[-1]}"]').click()
+            check(f'连续丢弃前可打开剩余 {len(ids)} 份中的最后一份', selected(ids[-1]))
+            discard()
+            check(f'连续丢弃后剩余 {len(ids) - 1} 份且分类保持待审核', wait(page, f"() => document.querySelectorAll('.drf-item').length === {len(ids) - 1} && document.querySelector('[data-change=\"create.draftFilter\"]')?.value === 'pending'")
+                  and api(base, '/api/drafts/item?id=' + ids[-1])['draft']['status'] == 'discarded')
+        check('最后一份丢弃后显示空队列并清空选中记忆', wait(page, "() => document.querySelector('.drf-list')?.textContent.includes('没有待审核草稿') && !document.querySelector('.drf-id')")
+              and remembered() is None and api(base, '/api/drafts/counts')['counts']['review'] == 0)
+        page.locator('#create-flow [data-ib-stage="upload"]').click()
+        page.locator('#create-flow [data-ib-stage="drafts"]').click()
+        check('离开工作区后返回仍是空的待审核分类', wait(page, "() => document.querySelector('[data-change=\"create.draftFilter\"]')?.value === 'pending' && !document.querySelector('.drf-id')"))
+        page.reload(wait_until='networkidle')
+        page.locator('#create-flow [data-ib-stage="drafts"]').click()
+        check('刷新页面不会重新打开最后丢弃的草稿', wait(page, "() => document.querySelector('.drf-list')?.textContent.includes('没有待审核草稿') && document.querySelector('[data-change=\"create.draftFilter\"]')?.value === 'pending' && !document.querySelector('.drf-id')")
+              and remembered() is None)
+        page.locator('[data-change="create.draftFilter"]').select_option('discarded')
+        page.locator(f'.drf-item[data-arg="{current}"]').click()
+        check('手动进入已丢弃分类仍可查看只读正文', wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{current}') && document.querySelector('.drf-detail h2')?.textContent.includes('已丢弃')")
+              and page.locator('[data-action="create.draftEditBlock"], [data-action="create.draftDiscard"]').count() == 0)
+        page.locator('[data-change="create.draftFilter"]').select_option('pending')
+        page.evaluate("id => import('/assets/app/domain/drafts.js').then(module => module.openDraft(id))", current)
+        check('指定草稿导航仍能自动匹配已丢弃分类', wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{current}') && document.querySelector('[data-change=\"create.draftFilter\"]')?.value === 'discarded'"))
+        check('丢弃队列回归没有页面脚本错误', not errors, str(errors))
+    finally:
+        context.close()
 
 
 def run_p3(page, base, draft, images, results):
@@ -391,6 +492,7 @@ def main():
                     run(page, base, first, second, old, images, results)
                     run_p3(page, base, p3, p3_images, results)
                     run_touch(browser, base, vault, results)
+                    run_discard_queue(browser, base, vault, results)
                 except Exception as error:
                     results.append(('草稿主路径执行', False, repr(error)[:500]))
                 results.append(('主路径页面脚本无错误', not errors, str(errors[:3])))

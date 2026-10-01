@@ -315,6 +315,13 @@ export function createDrafts(root, ctx) {
       return true;
     } finally { state.busy = false; paint(); }
   }
+  async function nextPending(previousIndex) {
+    state.filter = 'pending'; state.list = state.list.filter(row => row.id !== state.selectedId);
+    state.selectedId = null; selectDraftId(null); setDraft(null);
+    if (!await loadList()) return;
+    const next = state.list[Math.max(0, Math.min(previousIndex, state.list.length - 1))];
+    if (next) await loadDetail(next.id);
+  }
   async function commit() {
     if (!state.draft || state.busy || ['done', 'discarded'].includes(state.draft.status)) return false;
     const currentId = state.draft.id;
@@ -353,12 +360,8 @@ export function createDrafts(root, ctx) {
       publishDraftChange([id]);
       notifyHistoryChanged('create'); ctx.bus.emit('catalog:refresh');
       void reloadData();
-      state.filter = 'pending';
-      await loadList();
+      await nextPending(previousIndex);
       const failed = result.data.training?.failed || [];
-      const remaining = state.list[Math.max(0, Math.min(previousIndex, state.list.length - 1))];
-      if (remaining) await loadDetail(remaining.id);
-      else { state.selectedId = null; setDraft(null); }
       notify(`草稿已入库：${result.data.draft.uid || result.data.draft.question_id || id}${failed.length ? `；${failed.length} 张训练图登记失败，可在已入库列表重试` : ''}`);
       return true;
     } catch (error) {
@@ -370,13 +373,12 @@ export function createDrafts(root, ctx) {
     if (!await confirm('确定丢弃这份草稿？', { hint: '丢弃后正文不能再编辑。', okText: '丢弃草稿', danger: true })) return false;
     state.busy = true; paint();
     try {
-      const id = state.draft.id;
+      const id = state.draft.id, previousIndex = state.list.findIndex(row => row.id === id);
       const result = await post('/api/drafts/discard', { id, revision: state.draft.revision });
       if (!alive) return false;
       if (!result.ok || !result.data?.draft) return showError(result, '丢弃');
-      setDraft(result.data.draft);
       publishDraftChange([id]);
-      await loadList();
+      await nextPending(previousIndex);
       notify('草稿已丢弃');
       return true;
     } finally { state.busy = false; paint(); }
