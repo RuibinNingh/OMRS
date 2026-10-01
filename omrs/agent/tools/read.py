@@ -387,11 +387,9 @@ def get_question(ctx, args):
 
 def get_overview(ctx, args):
     vault = ctx["vault"]
-    stats = get_stats(vault)
+    stats = get_stats(vault, subject=args.get("subject") or None)
     alert = stats["review_alert"]
     items = [i for i in stats["items"] if not i.get("suspended")]
-    if args.get("subject"):
-        items = [i for i in items if i["subject"] == args["subject"]]
     groups = {}
     today = datetime.date.today()
     for i in items:

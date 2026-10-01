@@ -35,13 +35,23 @@ from .scheduling import (
 )
 
 
-def get_stats(vault):
+def get_stats(vault, subject=None):
     rows = [resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)]
     history = load_csv(history_path(vault), HISTORY_HEADERS)
     with connect(vault) as db:
         projection_rows = db.execute(
             "SELECT * FROM question_projection"
         ).fetchall()
+    if subject:
+        rows = [row for row in rows if row.get("Subject", "") == subject]
+        scoped_uids = {row.get("UID", "") for row in rows}
+        projection_rows = [row for row in projection_rows if row["uid"] in scoped_uids]
+        scoped_qids = {row["question_id"] for row in projection_rows if not row["archived"]}
+        # 改名后的历史以稳定身份匹配，旧记录才退回 UID。
+        history = [log for log in history if (
+            log["Question_ID"] in scoped_qids if log.get("Question_ID")
+            else log.get("UID", "") in scoped_uids
+        )]
     projected_suspended_uids = {
         row["uid"] for row in projection_rows if not row["archived"] and row["suspended"]
     }
@@ -212,6 +222,7 @@ def get_stats(vault):
     ]
     for item in items:
         item["created_at"] = created_at_by_uid.get(item["uid"], "")
+        item["suspended"] = item["suspended"] or item["uid"] in projected_suspended_uids
 
     return {
         "total": total,

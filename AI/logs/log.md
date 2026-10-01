@@ -5,6 +5,8 @@
 - [2026-10-01_mcp-ui-gate](2026-10-01_mcp-ui-gate.md)：# MCP 发布前 UI 门禁修正
 - [2026-10-01_mcp-production-deploy](2026-10-01_mcp-production-deploy.md)：# MCP 生产部署与 GitHub 同步
 - [2026-10-01_mcp-integration](2026-10-01_mcp-integration.md)：OMRS MCP 接入
+- [2026-10-01_mcp-fixes](2026-10-01_mcp-fixes.md)：MCP 审查修复执行
+- [2026-10-01_mcp-fix-plan](2026-10-01_mcp-fix-plan.md)：MCP 审查修复计划
 - [2026-09-30_v2-production-deploy](2026-09-30_v2-production-deploy.md)：# v2.0.0 生产部署与 GitHub 同步
 - [2026-09-30_v2-p7-release](2026-09-30_v2-p7-release.md)：OMRS 2.0 发布准备与本地集成验收
 - [2026-09-30_v2-p7-migration](2026-09-30_v2-p7-migration.md)：OMRS 2.0 P7 旧库迁移兼容

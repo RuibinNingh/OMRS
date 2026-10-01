@@ -34,6 +34,8 @@
 
 > 对应 Tab：「数据复盘」（位于「仪表盘」与「题目库」之间）；面板 `#panel-data`；数据来源 `GET /api/analytics` 与统计快照（`store.data`）；导出 `GET /api/export-review`。
 
+页面统计快照沿用 `get_stats` 的默认全局范围；助手/MCP 科目概况通过同一内部入口限定科目，不改变页面请求。平均熟练度由原始行最后舍入，停用题按 CSV 与当前投影状态排除。
+
 - **文件**：`index.js`（页面契约 `id: 'data'`、控制器）、`state.js`（把 analytics 整理成视图行的纯函数）、`charts.js`（三张 SVG）、`view.js`、`data.css`；node 单测 `tests/app/analytics.test.mjs`，E2E `tests/e2e/data.py`。
 - **何时拉数据**：每次进入页面、点「刷新」、以及统计快照变化（写操作之后 `reloadData()`）时重拉 `/api/analytics`；首次加载超过 300ms 才出骨架。失败时：没有旧数据就在页面位置显示原因与「重试」，有旧数据则保留旧数据、只在页首报错。
 - **「每日练习趋势」「标记分布」**直接取统计快照（`daily_trend`、未停用题的 `labels`），随快照自动更新。

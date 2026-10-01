@@ -54,6 +54,8 @@
 
 写入：`create_review_session`、`create_practice_card`、`set_question_labels`（只能用已有标记，单次 ≤50 题，每题一条 `question.metadata_update`）、`update_question_section`（替换或追加；替换时原有图片嵌入保留）、`set_knowledge_points`、`move_question`、`suspend_question`、`resume_question`、`record_feedback`（带 `session_id` 时题目必须在该 Session 的待反馈列表里）。
 
+`get_overview` 指定科目时，题数、停用、逾期、今日到期、顽固、击杀、未练、平均熟练度、薄弱分类、顽固题明细与摘要均使用相同科目范围。未知科目返回零计数与空明细；空科目保持全局。全体平均以未停用题为分母，使用原始熟练度最后舍入；薄弱分类仍只平均已练题。
+
 `create_practice_card` 接受标题与 1–50 个已入库题目的 UID，服务端核对题目未删除、未停用并去重，再把稳定 `question_id`、当时 UID 和来源按题序存成 `schema_version:1` 卡片。卡片归属由运行上下文给出，模型不能指定对话、运行或调用 ID。建卡只写 `agent.db`，计入助手写入预算，不创建正式 Session、不改变练习次数；真实反馈由即时练习页提交。卡片详情、签发 attempt 和进度接口见 `AI/api.md`。
 
 草稿（`omrs/agent/tools/drafts.py`，存储见 `AI/drafts.md`）：`describe_image`（read，`{image:"IMG-n", question}`，用 `ai_model_extract` 针对一张图回答，≤2000 字）、`list_drafts`（read，默认本对话未入库未丢弃的）、`get_draft`（read，返回 revision、稳定 block_id、图片 IMG-n 引用及框状态，不把 SHA 暴露给模型）、`create_draft`（rev，按块写题目 / 答案）、`update_draft`（rev，`draft_id`、`expected_revision`、字段补丁及按 `block_id` 的文字/说明补丁）。`update_draft` 不入库，写入预算按实际修改计；人工编辑保护目标只给建议。AI 的非空错因必须附用户原话 `cause_statement` 并经服务端核对。工具上下文带 `tool_call_id`；AI 没有丢弃工具。

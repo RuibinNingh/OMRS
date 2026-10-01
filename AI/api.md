@@ -36,6 +36,8 @@ MCP 使用独立的 Streamable HTTP 端点（推荐 `serve --mcp-port 8472` 同�
 ### `/api/stats`
 返回完整统计与题库条目列表。
 
+内部 `get_stats(vault, subject=None)` 可按科目精确限定原始题目行及练习历史；助手/MCP 的 `get_overview(subject=...)` 共用该入口，所有计数、平均值、明细及助手摘要采用同一范围。平均熟练度以未停用题的原始值求和、除以题数后保留三位；停用状态同时核对 CSV 与当前投影。HTTP `/api/stats` 仍返回全局快照，不增加查询参数。
+
 **响应字段：**
 
 | 字段 | 类型 | 说明 |

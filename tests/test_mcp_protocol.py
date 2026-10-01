@@ -320,6 +320,23 @@ class MCPProtocolTests(unittest.TestCase):
                 self.assertIsNotNone(question["mastery"])
         asyncio.run(run())
 
+    def test_overview_scopes_all_counts_in_real_protocol(self):
+        async def run():
+            async with _session(self.server.mcp_port, self.server.keys["read"]["secret"]) as session:
+                for subject in ("数学", "物理", "未知科目", ""):
+                    remote = _json_result(await session.call_tool("get_overview", {"subject": subject}))
+                    expected = read_tools.get_overview({"vault": self.server.vault}, {"subject": subject})["result"]
+                    self.assertEqual(remote, expected)
+                    if subject == "未知科目":
+                        self.assertEqual(remote, {"total": 0, "suspended": 0, "overdue": 0,
+                                                  "due_today": 0, "leech": 0, "killed": 0, "fresh": 0,
+                                                  "avg_mastery": 0, "weakest": [], "leeches": []})
+                    elif subject == "物理":
+                        self.assertEqual(remote, {"total": 1, "suspended": 0, "overdue": 0,
+                                                  "due_today": 1, "leech": 0, "killed": 0, "fresh": 1,
+                                                  "avg_mastery": 0, "weakest": [], "leeches": []})
+        asyncio.run(run())
+
     def test_create_original_images_idempotency_and_no_training_side_effect(self):
         images = [_png(), _jpeg() + b"TAIL-DATA", _gif()]
         encoded = [{"data_base64": base64.b64encode(item).decode(), "file_name": f"source-{i}",

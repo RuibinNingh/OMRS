@@ -1,9 +1,11 @@
 """F / G / C：工具读写、写入来源、按运行撤销与冲突、正文入账与还原。走 AgentRuntime + 假模型之外的直接调用。"""
+import datetime
 import os
 import shutil
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -13,10 +15,113 @@ from omrs.agent.revert import apply_revert, plan_revert  # noqa: E402
 from omrs.agent.tools import read, write  # noqa: E402
 from omrs.content_history import ContentConflict, content_versions, restore_content  # noqa: E402
 from omrs.creation import create_question  # noqa: E402
+from omrs.common import HISTORY_HEADERS, MASTERY_HEADERS, history_path, load_csv, mastery_path, save_csv  # noqa: E402
 from omrs.labels import save_label  # noqa: E402
-from omrs.ledger import read_commits, verify_ledger  # noqa: E402
+from omrs.ledger import connect, read_commits, verify_ledger  # noqa: E402
 from omrs.locking import write_lock  # noqa: E402
 from omrs.question_ops import get_question_raw, save_question_markdown  # noqa: E402
+from omrs.stats import get_stats  # noqa: E402
+
+
+class OverviewDate(datetime.date):
+    @classmethod
+    def today(cls):
+        return cls(2026, 9, 20)
+
+
+class OverviewScopeTests(unittest.TestCase):
+    def setUp(self):
+        self.work = tempfile.TemporaryDirectory(prefix="omrs-overview-")
+        self.addCleanup(self.work.cleanup)
+        self.vault = self.work.name
+        self.ctx = {"vault": self.vault}
+        self.ids = {}
+
+    def fixture(self, specs):
+        for name, subject, mastery, attempts, due, suspended, wrong in specs:
+            question = create_question(self.vault, subject, "概况" + subject, 5, question_text=name)
+            self.ids[name] = question
+        rows = load_csv(mastery_path(self.vault), MASTERY_HEADERS)
+        by_uid = {self.ids[spec[0]]["uid"]: spec for spec in specs}
+        history = []
+        with connect(self.vault) as db:
+            for row in rows:
+                name, subject, mastery, attempts, due, suspended, wrong = by_uid[row["UID"]]
+                row.update(Mastery=str(mastery), Attempts=str(attempts), Due_Date=due,
+                           Current_Tag="", Last_Review="2026-09-19", Suspended="1" if suspended == "csv" else "0")
+                if suspended:
+                    db.execute("UPDATE question_projection SET suspended=1 WHERE uid=?", (row["UID"],))
+                for n in range(wrong):
+                    # 稳定身份优先：历史 UID 可与当前名称不同。
+                    history.append({"UID": "旧名称", "Question_ID": self.ids[name]["question_id"],
+                                    "Date": "2026-09-19", "Is_Correct": "0", "Log_ID": f"{name}-{n}"})
+        save_csv(mastery_path(self.vault), MASTERY_HEADERS, rows)
+        save_csv(history_path(self.vault), HISTORY_HEADERS, history)
+        clock = patch("omrs.stats.datetime.date", OverviewDate)
+        clock.start()
+        self.addCleanup(clock.stop)
+
+    def assert_overview(self, subject, counts, summary, weakest, leeches):
+        args = {"subject": subject} if subject is not None else {}
+        actual = read.get_overview(self.ctx, args)
+        self.assertEqual(actual, {"result": {**counts, "weakest": weakest, "leeches": leeches},
+                                  "summary": summary})
+
+    def test_all_overview_fields_follow_subject_and_global_counts(self):
+        self.fixture([
+            ("m-fresh", "数学", 0, 0, "2026-09-20", False, 0),
+            ("m-leech", "数学", .4, 3, "2026-09-19", False, 3),
+            ("m-killed", "数学", 1, 4, "2026-09-19", False, 0),
+            ("m-stop", "数学", .1, 5, "2026-09-19", "csv", 3),
+            ("p-leech", "物理", .2, 4, "2026-09-20", False, 4),
+            ("p-other", "物理", .8, 1, "无效日期", False, 0),
+            ("p-stop", "物理", .7, 1, "", "csv", 0),
+            ("b-stop", "生物", .25, 1, "2026-09-19", "projection", 4),
+        ])
+        math = {"total": 3, "suspended": 1, "overdue": 1, "due_today": 1, "leech": 1,
+                "killed": 1, "fresh": 1, "avg_mastery": .467}
+        physics = {"total": 2, "suspended": 1, "overdue": 0, "due_today": 1, "leech": 1,
+                   "killed": 0, "fresh": 0, "avg_mastery": .5}
+        math_weakest = {"path": "数学 / 概况数学", "n": 3, "avg": .7, "due": 2}
+        physics_weakest = {"path": "物理 / 概况物理", "n": 2, "avg": .5, "due": 1}
+        math_leech = {"uid": self.ids["m-leech"]["uid"], "wrong_streak": 3}
+        physics_leech = {"uid": self.ids["p-leech"]["uid"], "wrong_streak": 4}
+        self.assert_overview("数学", math, "待复习 2，顽固 1", [math_weakest], [math_leech])
+        self.assert_overview("物理", physics, "待复习 1，顽固 1", [physics_weakest], [physics_leech])
+        global_counts = {"total": 5, "suspended": 3, "overdue": 1, "due_today": 2, "leech": 2,
+                         "killed": 1, "fresh": 1, "avg_mastery": .48}
+        for scope in (None, ""):
+            self.assert_overview(scope, global_counts, "待复习 3，顽固 2",
+                                 [physics_weakest, math_weakest], [physics_leech, math_leech])
+        for subject, n, activity in (("数学", 3, 3), ("物理", 2, 4)):
+            stats = get_stats(self.vault, subject=subject)
+            self.assertEqual(set(stats["subject_dist"]), {subject})
+            self.assertEqual(len(stats["scatter_data"]), n)
+            self.assertEqual(stats["recent_activity"], {"2026-09-19": activity})
+            self.assertEqual(stats["daily_trend"]["2026-09-19"], activity)
+        zero = dict.fromkeys(math, 0)
+        self.assert_overview("未知科目", zero, "待复习 0，顽固 0", [], [])
+        self.assert_overview("生物", {**zero, "suspended": 1}, "待复习 0，顽固 0", [], [])
+
+    def test_empty_vault(self):
+        zero = dict.fromkeys(("total", "suspended", "overdue", "due_today", "leech", "killed", "fresh", "avg_mastery"), 0)
+        for subject in (None, "", "未知科目"):
+            self.assert_overview(subject, zero, "待复习 0，顽固 0", [], [])
+
+    def test_mastery_is_aggregated_before_rounding_and_kill_detection(self):
+        self.fixture([
+            ("raw-a", "数学", .00049, 1, "", False, 0),
+            ("raw-b", "数学", .00049, 1, "", False, 0),
+            ("raw-c", "数学", .00149, 1, "", False, 0),
+            ("near-kill", "物理", .9996, 1, "2026-09-19", False, 0),
+        ])
+        math = read.get_overview(self.ctx, {"subject": "数学"})["result"]
+        self.assertEqual(math["avg_mastery"], .001)
+        self.assertEqual(math["killed"], 0)
+        physics = read.get_overview(self.ctx, {"subject": "物理"})["result"]
+        self.assertEqual(physics["avg_mastery"], 1)
+        self.assertEqual(physics["killed"], 0)
+        self.assertEqual(physics["overdue"], 1)
 
 
 class ToolsTest(unittest.TestCase):
