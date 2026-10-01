@@ -9,6 +9,7 @@
 - [2026-10-01_mcp-fixes-production](2026-10-01_mcp-fixes-production.md)：MCP 修复生产部署
 - [2026-10-01_mcp-fix-plan](2026-10-01_mcp-fix-plan.md)：MCP 审查修复计划
 - [2026-10-01_ai-draft-compact](2026-10-01_ai-draft-compact.md)：AI 草稿多块审核界面精简
+- [2026-10-01_ai-draft-compact-merge](2026-10-01_ai-draft-compact-merge.md)：AI 草稿界面合入主分支
 - [2026-09-30_v2-production-deploy](2026-09-30_v2-production-deploy.md)：# v2.0.0 生产部署与 GitHub 同步
 - [2026-09-30_v2-p7-release](2026-09-30_v2-p7-release.md)：OMRS 2.0 发布准备与本地集成验收
 - [2026-09-30_v2-p7-migration](2026-09-30_v2-p7-migration.md)：OMRS 2.0 P7 旧库迁移兼容
