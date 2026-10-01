@@ -331,6 +331,12 @@ def _draft_view(draft):
             "updated_at": draft.get("updated_at"), "reused": bool(draft.get("reused"))}
 
 
+def _create_result(vault, draft):
+    """缓存与新建均在封装结果前复查，保留已提交的草稿和原件。"""
+    _require(vault, "draft:create")
+    return _draft_view(draft)
+
+
 def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
     """创建带固定工具白名单的 FastMCP 实例。"""
     resource_url = f"http://{host}:{port}/mcp"
@@ -493,7 +499,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
         if existing and existing.get("stable_hash") == stable_hash and stable_identity and not inline_images:
             draft = drafts.get_draft(vault, existing["draft_id"], readonly=True)
             draft["reused"] = True
-            return _draft_view(draft)
+            return _create_result(vault, draft)
         prepared_images = [_parse_image(value) for value in images]
         if sum(len(item["data"]) for item in prepared_images) > MAX_TOTAL_IMAGE_BYTES:
             raise ValueError("图片总大小超过 48MiB 限制")
@@ -503,12 +509,13 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
                         if block["kind"] == "image" else block for block in clean_blocks]
         # 下载已在锁外完成；幂等复查与原子创建共用领域层全局写锁。
         with locking.write_lock():
+            _require(vault, "draft:create")
             existing = drafts.mcp_request(vault, key_id, request_id)
             if existing:
                 if (existing.get("stable_hash") == stable_hash and stable_identity and not inline_images) or existing["content_hash"] == fingerprint:
                     draft = drafts.get_draft(vault, existing["draft_id"], readonly=True)
                     draft["reused"] = True
-                    return _draft_view(draft)
+                    return _create_result(vault, draft)
                 if existing["content_hash"] != fingerprint:
                     raise ValueError("同一 request_id 的内容不同，请使用新的 request_id")
             _require(vault, "draft:create")
@@ -521,7 +528,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
                  "content_hash": fingerprint, "cause_verification": "client_asserted" if cause else "none",
                  "source_client_name": client_name, "stable_hash": stable_hash},
                 [item["data"] for item in prepared_images])
-            return _draft_view(draft)
+            return _create_result(vault, draft)
 
     read_defs = [
         (list_taxonomy, "list_taxonomy", "列出 OMRS 科目、分类、知识点和标记。"),

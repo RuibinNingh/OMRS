@@ -27,6 +27,8 @@ MCP 使用独立的 Streamable HTTP 端点（推荐 `serve --mcp-port 8472` 同�
 
 `GET /api/agent/events` 与对话详情的运行事件中，`round.end` 带稳定请求标识和新旧兼容的用量字段；图片转述及 `describe_image` 的实际模型请求另有 `usage.aux`，字段和未知值语义见 `AI/agent.md` §6。接口路径和请求体不变。
 
+MCP `create_draft` 在图片处理与等锁后、实际写入前重新验证 `draft:create`；新建与两种幂等复用结果封装前也复查。处理中 Key 失效返回 `isError=true` 的稳定 `forbidden`，不返回草稿正文；已有合法提交及原图保留。相同 Key 恢复有效后可继续幂等复用，复用不额外要求读权限。
+
 ---
 
 ## GET 端点

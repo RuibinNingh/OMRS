@@ -16,11 +16,12 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import urllib.error
 import urllib.request
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from unittest.mock import Mock, patch
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -38,7 +39,7 @@ MCP_AVAILABLE = ClientSession is not None and streamable_http_client is not None
 
 from omrs.common import omrs_data_dir
 from omrs.creation import create_question
-from omrs import drafts
+from omrs import drafts, locking
 from omrs.mcp.keys import create_key, revoke_key
 from omrs.agent.tools import read as read_tools
 from omrs.feedback import process_feedback
@@ -583,6 +584,213 @@ class MCPDownloadAdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "受限网络"):
                 _download("https://example.com/image.png")
             factory.assert_not_called()
+
+
+@unittest.skipUnless(MCP_AVAILABLE, "可选依赖 mcp 未安装，跳过处理中鉴权验收")
+class MCPReauthenticationTests(unittest.TestCase):
+    @contextmanager
+    def case(self):
+        from mcp.server.auth.provider import AccessToken
+        from omrs.mcp.server import build_server
+        with tempfile.TemporaryDirectory(prefix="omrs-mcp-auth-race-") as vault:
+            key = create_key(vault, "仅建草稿", ["draft:create"])
+            token = AccessToken(token=key["secret"], client_id=key["key_id"], scopes=key["scopes"])
+            server = build_server(vault)
+            payload = {"subject": "数学", "category": "鉴权窗口", "request_id": "auth-race",
+                       "blocks": [{"section": "题目", "kind": "text", "text": "不应泄漏的题干"},
+                                  {"section": "题目", "kind": "image", "image": 0}],
+                       "images": [{"download_url": "https://example.com/original", "file_id": "auth-image",
+                                   "data_base64": base64.b64encode(_png()).decode()}]}
+            with patch("omrs.mcp.server.get_access_token", return_value=token):
+                yield vault, key, server, payload
+
+    def change_key(self, vault, key, mode):
+        from omrs.mcp import keys
+        if mode == "revoke":
+            revoke_key(vault, key["key_id"])
+            return
+        with keys._key_lock(vault):
+            data = keys._load(vault)
+            row = next(row for row in data["keys"] if row["key_id"] == key["key_id"])
+            if mode == "expire":
+                row["expires_at"] = "2020-01-01T00:00:00+00:00"
+            elif mode == "scope":
+                row["scopes"] = ["omrs:read"]
+            elif mode == "restore":
+                row.update(revoked_at=None, expires_at=None, scopes=["draft:create"])
+            else:
+                raise AssertionError(mode)
+            keys._save(vault, data)
+
+    def deny_at(self, vault, key, server, payload, mode, target, fn):
+        """领域操作是真实路径，仅在指定完成点用事件控制 Key 失效时刻。"""
+        from mcp.server.fastmcp.exceptions import ToolError
+        entered, release = threading.Event(), threading.Event()
+
+        def paused(*args, **kwargs):
+            value = fn(*args, **kwargs)
+            entered.set()
+            if not release.wait(5):
+                raise AssertionError("鉴权窗口未在限时内释放")
+            return value
+
+        async def run():
+            with patch(target, side_effect=paused):
+                task = asyncio.create_task(server.call_tool("create_draft", payload))
+                try:
+                    self.assertTrue(await asyncio.to_thread(entered.wait, 5), target)
+                    self.change_key(vault, key, mode)
+                finally:
+                    release.set()
+                with self.assertRaisesRegex(ToolError, "^forbidden:") as denied:
+                    await asyncio.wait_for(task, 10)
+                self.assertNotIn("不应泄漏的题干", str(denied.exception))
+        asyncio.run(run())
+
+    def test_fast_url_reuse_rechecks_after_storage_and_before_return(self):
+        for target in ("omrs.mcp.server.drafts.mcp_request", "omrs.mcp.server.drafts.get_draft"):
+            for mode in ("revoke", "expire", "scope"):
+                with self.subTest(target=target, mode=mode), self.case() as (vault, key, server, payload):
+                    from omrs.mcp import server as module
+                    payload["images"][0].pop("data_base64")
+                    with patch.object(module, "_download", return_value=_png()):
+                        first = asyncio.run(server._tool_manager.call_tool("create_draft", payload))
+                    before = drafts.get_draft(vault, first["draft_id"], readonly=True)
+                    fn = drafts.mcp_request if target.endswith("mcp_request") else drafts.get_draft
+                    with patch.object(module, "_download", side_effect=AssertionError("快速复用不能下载")):
+                        self.deny_at(vault, key, server, payload, mode, target, fn)
+                    self.assertEqual(drafts.get_draft(vault, first["draft_id"], readonly=True), before)
+                    self.assertEqual(drafts.counts(vault)["review"], 1)
+
+    def test_processed_inline_reuse_and_new_create_recheck_key(self):
+        for reuse in (False, True):
+            for mode in ("revoke", "expire", "scope"):
+                with self.subTest(reuse=reuse, mode=mode), self.case() as (vault, key, server, payload):
+                    from omrs.mcp import server as module
+                    first = asyncio.run(server._tool_manager.call_tool("create_draft", payload)) if reuse else None
+                    self.deny_at(vault, key, server, payload, mode, "omrs.mcp.server._parse_image", module._parse_image)
+                    self.assertEqual(drafts.counts(vault)["review"], int(reuse))
+                    images = Path(drafts.images_dir(vault))
+                    self.assertEqual(len(list(images.iterdir())), int(reuse))
+                    if first:
+                        self.assertEqual(Path(drafts.image_path(vault, hashlib.sha256(_png()).hexdigest())).read_bytes(), _png())
+
+    def test_key_loss_while_waiting_for_final_write_lock(self):
+        from mcp.server.fastmcp.exceptions import ToolError
+        from omrs.mcp import server as module
+        for reuse in (False, True):
+            for mode in ("revoke", "expire", "scope"):
+                with self.subTest(reuse=reuse, mode=mode), self.case() as (vault, key, server, payload):
+                    if reuse:
+                        asyncio.run(server._tool_manager.call_tool("create_draft", payload))
+                    parsed, held, waiting, release = [threading.Event() for _ in range(4)]
+                    real_parse, real_lock = module._parse_image, locking.write_lock
+
+                    def parse(value):
+                        result = real_parse(value)
+                        parsed.set()
+                        if not held.wait(5):
+                            raise AssertionError("测试持锁线程未就绪")
+                        return result
+
+                    def hold():
+                        with real_lock():
+                            held.set()
+                            if not release.wait(5):
+                                raise AssertionError("测试写锁未释放")
+
+                    def observed_lock(*args, **kwargs):
+                        if parsed.is_set() and held.is_set() and not locking.held_by_current_thread():
+                            waiting.set()
+                        return real_lock(*args, **kwargs)
+
+                    async def run():
+                        with patch.object(module, "_parse_image", side_effect=parse), \
+                                patch.object(locking, "write_lock", side_effect=observed_lock):
+                            request = asyncio.create_task(server.call_tool("create_draft", payload))
+                            holder = None
+                            try:
+                                self.assertTrue(await asyncio.to_thread(parsed.wait, 5))
+                                holder = asyncio.create_task(asyncio.to_thread(hold))
+                                self.assertTrue(await asyncio.to_thread(waiting.wait, 5))
+                                self.change_key(vault, key, mode)
+                            finally:
+                                release.set()
+                            if holder:
+                                await asyncio.wait_for(holder, 10)
+                            with self.assertRaisesRegex(ToolError, "^forbidden:"):
+                                await asyncio.wait_for(request, 10)
+                    asyncio.run(run())
+                    self.assertEqual(drafts.counts(vault)["review"], int(reuse))
+                    self.assertEqual(len(list(Path(drafts.images_dir(vault)).iterdir())), int(reuse))
+
+    def test_key_loss_while_waiting_for_storage_migration(self):
+        from mcp.server.fastmcp.exceptions import ToolError
+        for mode in ("revoke", "expire", "scope"):
+            with self.subTest(mode=mode), self.case() as (vault, key, server, payload):
+                migrating, waiting, release = [threading.Event() for _ in range(3)]
+                real_initialize, real_lock = drafts._initialize, locking.write_lock
+
+                def initialize(*args):
+                    real_initialize(*args)
+                    migrating.set()
+                    if not release.wait(5):
+                        raise AssertionError("迁移未在限时内释放")
+
+                def observed_lock(*args, **kwargs):
+                    if migrating.is_set() and not locking.held_by_current_thread():
+                        waiting.set()
+                    return real_lock(*args, **kwargs)
+
+                async def run():
+                    with patch.object(drafts, "_initialize", side_effect=initialize), \
+                            patch.object(locking, "write_lock", side_effect=observed_lock):
+                        migration = asyncio.create_task(asyncio.to_thread(drafts.counts, vault))
+                        request = None
+                        try:
+                            self.assertTrue(await asyncio.to_thread(migrating.wait, 5))
+                            request = asyncio.create_task(server.call_tool("create_draft", payload))
+                            self.assertTrue(await asyncio.to_thread(waiting.wait, 5))
+                            self.change_key(vault, key, mode)
+                        finally:
+                            release.set()
+                        await asyncio.wait_for(migration, 10)
+                        if request:
+                            with self.assertRaisesRegex(ToolError, "^forbidden:"):
+                                await asyncio.wait_for(request, 10)
+                asyncio.run(run())
+                self.assertEqual(drafts.counts(vault)["review"], 0)
+                self.assertEqual(list(Path(drafts.images_dir(vault)).iterdir()), [])
+
+    def test_committed_data_survives_key_loss_before_response(self):
+        for mode in ("revoke", "expire", "scope"):
+            with self.subTest(mode=mode), self.case() as (vault, key, server, payload):
+                self.deny_at(vault, key, server, payload, mode,
+                             "omrs.mcp.server.drafts.create_mcp_draft", drafts.create_mcp_draft)
+                record = drafts.mcp_request(vault, key["key_id"], payload["request_id"])
+                self.assertIsNotNone(record)
+                self.assertEqual(drafts.counts(vault)["review"], 1)
+                sha = hashlib.sha256(_png()).hexdigest()
+                self.assertEqual(Path(drafts.image_path(vault, sha)).read_bytes(), _png())
+                self.change_key(vault, key, "restore")
+                reused = asyncio.run(server._tool_manager.call_tool("create_draft", payload))
+                self.assertTrue(reused["reused"])
+                self.assertEqual(reused["draft_id"], record["draft_id"])
+
+    def test_valid_create_only_key_reuses_current_manual_and_discarded_state(self):
+        with self.case() as (vault, key, server, payload):
+            manager = server._tool_manager
+            first = asyncio.run(manager.call_tool("create_draft", payload))
+            saved = drafts.get_draft(vault, first["draft_id"], readonly=True)
+            edited = drafts.update_draft(vault, saved["id"], saved["revision"], {"category": "人工分类"}, saved["blocks"])
+            reused = asyncio.run(manager.call_tool("create_draft", payload))
+            self.assertTrue(reused["reused"])
+            self.assertEqual(reused["category"], "人工分类")
+            drafts.discard_draft(vault, edited["id"], edited["revision"])
+            discarded = asyncio.run(manager.call_tool("create_draft", payload))
+            self.assertTrue(discarded["reused"])
+            self.assertEqual(discarded["status"], "discarded")
+            self.assertEqual(discarded["draft_id"], first["draft_id"])
 
 
 if __name__ == "__main__":
