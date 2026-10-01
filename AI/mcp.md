@@ -13,12 +13,12 @@ MCP 使用官方 Python SDK 的 Streamable HTTP。安装可选依赖后与主 We
 
 ```bash
 python3 -m pip install -r requirements-mcp.txt
-python3 omrs_engine.py --vault /path/to/vault serve --port 8471 --mcp-port 8472
+python3 omrs_engine.py --vault /path/to/vault serve --port 8471 --mcp-port 18472
 ```
 
-MCP 只监听 `127.0.0.1`，地址是 `http://127.0.0.1:8472/mcp`。外部客户端使用 HTTPS 反向代理，仅转发 `/mcp`，并在启动时指定 `--mcp-public-url https://your-host/mcp`，登记精确 Host/Origin 白名单。SDK 负责协议协商、JSON-RPC、认证 challenge 和传输安全；启动失败时主命令明确退出。没有独立读写 Vault 的 MCP 进程入口。
+MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外部客户端使用 HTTPS 反向代理，仅转发 `/mcp`，并在启动时指定 `--mcp-public-url https://your-host/mcp`，登记精确 Host/Origin 白名单。SDK 负责协议协商、JSON-RPC、认证 challenge 和传输安全；启动失败时主命令明确退出。没有独立读写 Vault 的 MCP 进程入口。生产 HTTPS 8472 已由 Web/Nginx 共用，不能把内部 MCP 绑定到该端口；实际发布根与参数见 `AI/environment.md`。
 
-在 OMRS 设置 → 访问与安全 → 外部 AI / MCP 创建 Key，选择 `omrs:read`、`draft:create` 或两者。明文只在创建响应显示一次；也可以本机使用 `mcp-key create --name 名称`、`mcp-key list`、`mcp-key revoke --id key_id` 管理。MCP 请求使用 `Authorization: Bearer <secret>`，兼容 `X-OMRS-MCP-Key`；密钥不得放进 URL、模型参数或日志。
+在 OMRS 设置 → 访问与安全 → 外部 AI / MCP 创建 Key，选择 `omrs:read`、`draft:create` 或两者。明文只在创建响应显示一次；也可以本机使用 `mcp-key create --name 名称`、`mcp-key list`、`mcp-key revoke --id key_id` 管理。MCP 请求使用 `Authorization: Bearer <key>` 或 `X-OMRS-MCP-Key: <key>`；密钥不得放进 URL、模型参数或日志。
 
 ## 2. 工具与权限
 
@@ -56,6 +56,8 @@ MCP 只监听 `127.0.0.1`，地址是 `http://127.0.0.1:8472/mcp`。外部客户
 
 已使用官方 `mcp==1.28.1` ClientSession，对真实临时 Vault 的同进程服务完成 initialize、tools/list、tools/call、连续 Bearer 鉴权、查询、原图草稿、并发重试、吊销和越权拒绝，并用真实浏览器验证草稿区和 Key 管理。可运行速查头中的测试重现，无 SDK 时协议测试明确 SKIP。
 
-ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentication、Mixed Authentication。文档中的 static credentials 是 OAuth 客户端凭据，不证明支持任意 API Key 请求头。因此当前交付可用于支持 Bearer/自定义 Header 的外部 MCP 客户端；当前环境没有 ChatGPT 账户配置，未宣称账户已接通。ChatGPT 原生入口若不能发送本 Key，需要另行实现保持同一 scope 边界的 OAuth 兼容入口；不能改成公网无鉴权或把 Key 放 URL。
+ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentication、Mixed Authentication。文档中的 static credentials 是 OAuth 客户端凭据，不证明直接 URL 连接支持任意 API Key 请求头。可使用 Secure MCP Tunnel 私有连接，由客户侧 Tunnel 客户端从受限文件注入 Authorization，仍由本 MCP 验证 scope；无需把公网入口改成无鉴权。直接 URL 模式若不能发送 Key，则需另行提供保持相同 scope 的 OAuth 兼容入口。当前 ChatGPT 账户尚未联调，不能把外部 SDK 或 Tunnel 健康检查当成账户已接通。
 
-官方参考：[Developer Mode](https://developers.openai.com/api/docs/guides/developer-mode)、[Apps SDK 文件参数](https://developers.openai.com/apps-sdk/reference/)、[认证](https://developers.openai.com/apps-sdk/build/auth/)。本地验收不涉及生产服务或实际反向代理配置。
+生产已启用同进程 MCP，并完成公网 HTTPS 握手、工具发现、只读查询及越权拒绝；详细证据和回滚从 `AI/plans/mcp-integration/progress.md` 定位。生产未创建验收草稿，主应用浏览器因缺少 PIN 会话只验入口，完整页面闭环仍为隔离实例结果。
+
+官方参考：[Developer Mode](https://developers.openai.com/api/docs/guides/developer-mode)、[Apps SDK 文件参数](https://developers.openai.com/apps-sdk/reference/)、[认证](https://developers.openai.com/apps-sdk/build/auth/)、[Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。

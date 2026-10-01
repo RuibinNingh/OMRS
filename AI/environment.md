@@ -15,7 +15,9 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-09-30 实测）：服务 `omrs.service`，监听 TCP 8471，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；systemd drop-in 当前从 `/root/workspace/releases/omrs-1804d1e` 运行 v2.0.0，真实 Vault 仍是 `/root/workspace/apps/OMRS`。本次助手处理状态行更新的完整 Vault 备份为 `/root/workspace/backups/recycle/assistant-processing-1804d1e-20260930T221604+0800/vault-before.tar`，SHA-256 记录在同目录 `vault-before.sha256`；上一版发布目录 `/root/workspace/releases/omrs-541e7f9` 保留用于代码回退，备份目录统一为 `/root/workspace/backups/recycle/`。远端经 Nginx 反向代理。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
+生产环境事实（2026-10-01 实测）：服务 `omrs.service`，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；有效 systemd drop-in 从 `/root/workspace/apps/releases/omrs-bbf3757` 的独立 venv 运行 v2.0.0，真实 Vault 仍是 `/root/workspace/apps/OMRS`。Web 监听 8471；同进程 MCP 仅监听 `127.0.0.1:18472`，启动参数登记公网 `https://home.ruibin-ningh.top:8472/mcp`。Nginx 共用 HTTPS 8472 按路径分流网页与 MCP。当前 PIN 已配置，浏览器主应用要求有效 PIN 会话，本机 API 免 PIN 不代表页面免登录。
+
+本次源码、配置与完整 Vault 回滚包为 `/root/workspace/apps/releases/OMRS-mcp-rollback-20261001-114502/`，校验与隔离恢复结果从 `AI/plans/mcp-integration/progress.md` 定位。旧发布目录保留；数据归档不能覆盖上线后新增数据。ChatGPT Tunnel 尚未启动或完成账户联调。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
 
 ## 2. Claude Code Web 实测能力（2026-09-24）
 

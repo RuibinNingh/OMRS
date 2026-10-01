@@ -3,6 +3,7 @@
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
 - [2026-10-01_mcp-ui-gate](2026-10-01_mcp-ui-gate.md)：# MCP 发布前 UI 门禁修正
+- [2026-10-01_mcp-production-deploy](2026-10-01_mcp-production-deploy.md)：# MCP 生产部署与 GitHub 同步
 - [2026-10-01_mcp-integration](2026-10-01_mcp-integration.md)：OMRS MCP 接入
 - [2026-09-30_v2-production-deploy](2026-09-30_v2-production-deploy.md)：# v2.0.0 生产部署与 GitHub 同步
 - [2026-09-30_v2-p7-release](2026-09-30_v2-p7-release.md)：OMRS 2.0 发布准备与本地集成验收
