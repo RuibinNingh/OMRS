@@ -15,7 +15,6 @@ import io
 import json
 import socket
 import ssl
-import threading
 import time
 from typing import Annotated, Literal
 import urllib.parse
@@ -44,7 +43,6 @@ MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_IMAGE_BYTES = MAX_IMAGES * MAX_IMAGE_BYTES
 MAX_FIELD_CHARS = 20_000
 MAX_TOTAL_TEXT_CHARS = 500_000
-_MCP_CREATE_LOCK = threading.RLock()
 
 
 class MCPFile(BaseModel):
@@ -503,9 +501,8 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
         # 已验证的附件下标转成现有领域层的图片 SHA。
         clean_blocks = [{**block, "image_sha": prepared_images[block["image"]]["sha256"]}
                         if block["kind"] == "image" else block for block in clean_blocks]
-        # 同一进程内串行化幂等检查、图片落盘和草稿插入，避免并发重试各自
-        # 先保存一份图片后才发现 mcp_requests 已存在。
-        with _MCP_CREATE_LOCK:
+        # 下载已在锁外完成；幂等复查与原子创建共用领域层全局写锁。
+        with locking.write_lock():
             existing = drafts.mcp_request(vault, key_id, request_id)
             if existing:
                 if (existing.get("stable_hash") == stable_hash and stable_identity and not inline_images) or existing["content_hash"] == fingerprint:

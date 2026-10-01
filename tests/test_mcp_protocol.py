@@ -11,6 +11,7 @@ import hashlib
 import glob
 import json
 import os
+from pathlib import Path
 import socket
 import subprocess
 import sys
@@ -130,6 +131,7 @@ class MCPServerProcess:
     def start(self):
         env = os.environ.copy()
         env.pop("OMRS_SYSTEMD_SERVICE", None)
+        env.pop("OMRS_BOXDETECT_CONTROL", None)
         env["PYTHONUNBUFFERED"] = "1"
         log = open(os.path.join(self.work.name, "server.log"), "w", encoding="utf-8")
         self.process = subprocess.Popen(
@@ -392,6 +394,44 @@ class MCPProtocolTests(unittest.TestCase):
                 self.assertTrue(conflict.isError)
         asyncio.run(run())
         self.assertEqual(formal_snapshot(), before)
+
+    def test_first_concurrent_creates_initialize_once_and_preserve_formal_data(self):
+        fresh = MCPServerProcess()
+        try:
+            fresh.start()
+            self.assertFalse(os.path.exists(os.path.join(omrs_data_dir(fresh.vault), "drafts", "drafts.db")))
+            before_commits = read_commits(fresh.vault)
+            paths = glob.glob(os.path.join(fresh.vault, "错题", "**", "*.md"), recursive=True)
+            before_files = {path: hashlib.sha256(Path(path).read_bytes()).hexdigest() for path in paths}
+            image = {"download_url": "https://example.com/cold", "file_id": "cold-original",
+                     "data_base64": base64.b64encode(_png()).decode()}
+            payload = {"subject": "数学", "category": "首次并发", "images": [image],
+                       "blocks": [{"section": "题目", "kind": "image", "image": 0}]}
+
+            async def run():
+                async with _session(fresh.mcp_port, fresh.keys["all"]["secret"]) as session:
+                    different = [_json_result(value) for value in await asyncio.gather(*[
+                        session.call_tool("create_draft", {**payload, "request_id": f"cold-{n}"}) for n in range(4)
+                    ])]
+                    self.assertEqual(len({value["draft_id"] for value in different}), 4)
+                    self.assertTrue(all(not value["reused"] for value in different))
+                    same = [_json_result(value) for value in await asyncio.gather(*[
+                        session.call_tool("create_draft", {**payload, "request_id": "cold-same"}) for _ in range(4)
+                    ])]
+                    self.assertEqual(len({value["draft_id"] for value in same}), 1)
+                    self.assertEqual(sum(not value["reused"] for value in same), 1)
+            asyncio.run(run())
+            self.assertEqual(drafts.counts(fresh.vault)["review"], 5)
+            self.assertEqual(read_commits(fresh.vault), before_commits)
+            self.assertEqual({path: hashlib.sha256(Path(path).read_bytes()).hexdigest() for path in paths}, before_files)
+            db = drafts.connect(fresh.vault)
+            try:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM images").fetchone()[0], 1)
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM mcp_requests").fetchone()[0], 5)
+            finally:
+                db.close()
+        finally:
+            fresh.stop()
 
     def test_answer_text_merge_and_whitespace_normalized_retry(self):
         image = {"download_url": "https://example.com/answer", "file_id": "answer-file",

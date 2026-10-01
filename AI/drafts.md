@@ -11,6 +11,8 @@
 
 文件在 `错题/.omrs/drafts/`：drafts.db 保存草稿、块、来源和入库操作，images/<sha256>.<ext> 保存聊天原图，events.jsonl 追加事件。草稿不会自动进入收件箱或题库；只有通过才调用创建题目的领域入口。
 
+`connect` 在全局写锁、草稿模块锁的固定顺序下执行建表、增量迁移与提交；来自 Web、助手和 MCP 的首次连接都共用该入口。初始化失败关闭连接并释放锁，成功返回后不为连接整个生命周期持锁；领域事务仍独立取锁。
+
 images 以 sha256 去重，保存 mime / width / height / bytes、转述缓存与训练预留字段；conv_images 按 conversation_id + n 将每张图映射为 IMG-n。同一对话重复贴同图沿用编号。图片支持 PNG/JPEG/GIF，单张解码后不超过 8MB；尺寸由现有图片头解析器读取。JPEG 沿标记段跳过 EXIF 与缩略图，主图结尾后的相册数据会清除，扫描数据缺尾时补结束标记；整理后计算 hash 并保存，已有图片在生成 data URL 时临时整理，旧文件不改写。编码像素与其他格式字节保持不变；这不代表能恢复已丢失的像素。
 
 `drafts` 含 id、四态 status、conversation_id/run_id/tool_call_id、科目分类、知识点、难度、标记、错因及原话、备注、入库 uid/question_id、时间和整数 revision；老库增量加列，revision 初始 1。MCP 草稿另有 `source_channel=mcp`、`source_key_id`、`source_request_id`、`cause_verification` 和可选客户端名，来源由服务端写入且不可由普通字段覆盖。旧库仅在真实助手运行、工具调用与对话匹配时标为 agent，其余标为 legacy。`blocks` 含稳定 id、section（题目/答案）、ord、kind（text/image）、text/image_sha、归一化 box、box_origin、ai_box、note。草稿备注和图片说明是独立语义；入库时不会被映射成题目 YAML 的旧页码。

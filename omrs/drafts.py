@@ -202,9 +202,20 @@ CREATE INDEX IF NOT EXISTS mcp_requests_draft ON mcp_requests(draft_id);
 
 
 def connect(vault):
-    path = os.path.join(drafts_dir(vault), "drafts.db")
-    db = sqlite3.connect(path, timeout=10, check_same_thread=False)
-    db.row_factory = sqlite3.Row
+    # 首次连接与旧库迁移也会写入；所有入口共用同一锁顺序。
+    with locking.write_lock(), _LOCK:
+        path = os.path.join(drafts_dir(vault), "drafts.db")
+        db = sqlite3.connect(path, timeout=10, check_same_thread=False)
+        try:
+            db.row_factory = sqlite3.Row
+            _initialize(vault, db)
+        except BaseException:
+            db.close()
+            raise
+    return db
+
+
+def _initialize(vault, db):
     db.executescript(_SCHEMA)
     cols = {r["name"] for r in db.execute("PRAGMA table_info(drafts)")}
     if "revision" not in cols:
@@ -256,7 +267,6 @@ def connect(vault):
         db.execute("ALTER TABLE mcp_requests ADD COLUMN stable_hash TEXT")
     db.execute("CREATE INDEX IF NOT EXISTS mcp_requests_stable ON mcp_requests(source_key_id,stable_hash)")
     db.commit()
-    return db
 
 
 # ────────────────────────── 图片 ──────────────────────────

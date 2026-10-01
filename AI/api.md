@@ -21,6 +21,8 @@
 
 `/api/agent/*`（AI 助手）的请求与响应见 `AI/agent.md` §7。
 
+草稿库连接的建表与迁移也按全局写锁在外、草稿锁在内串行，初始化完成即释放连接初始化锁。MCP 图片下载与校验在写锁之外，最后的幂等复查与原子创建共用领域层全局写锁，不再套独立 MCP 模块锁；锁超时沿用工具错误 `write_busy`。
+
 MCP 使用独立的 Streamable HTTP 端点（推荐 `serve --mcp-port 8472` 同进程启动），不复用普通 `/api/*` RPC。适配器仅监听回环地址；HTTPS 代理通过 `--mcp-public-url` 配置精确 Host/Origin 白名单。协议入口为 `POST /mcp`，认证为 `Authorization: Bearer <MCP Key>` 或 `X-OMRS-MCP-Key`；无效、过期、吊销密钥返回 401，scope 不足由工具返回权限错误。`GET/POST /api/mcp/keys` 与 `POST /api/mcp/keys/revoke` 仅供已有 Web PIN/Cookie 会话管理 Key，创建响应只返回一次明文并设 `Cache-Control: no-store`。请求体与超时、Key 资源限制详见 `AI/mcp.md`。
 
 `GET /api/agent/events` 与对话详情的运行事件中，`round.end` 带稳定请求标识和新旧兼容的用量字段；图片转述及 `describe_image` 的实际模型请求另有 `usage.aux`，字段和未知值语义见 `AI/agent.md` §6。接口路径和请求体不变。

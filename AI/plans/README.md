@@ -39,4 +39,4 @@ AI/plans/<计划名>/
 | `ai-draft/` | P1–P4 已完成并部署 v1.30.0 | 主 AI 聊天录题、草稿审核入库、框选与独立训练任务；执行结果与发布状态见 `ai-draft/progress.md` |
 | `box-detect/` | 已完成并部署v1.31.0 | 旧640按用户选择接入生产；训练/内容评测/复核面板已交付，服务与模型管理扩展已调查，见progress.md |
 | `v2.0.0/` | P0–P1 完成，P2 进行中 | 审核优先、快速录入、AI 助手、练习卡、历史与用量的 P0–P7 升级 |
-| `mcp-integration/` | 已集成发布，修复 F1 完成、F2–F4 进行中 | 科目统计、并发迁移、幂等鉴权与 scope 发现，按 `mcp-integration/exec-2026-10-01-mcp-fixes.md` 执行 |
+| `mcp-integration/` | 已集成发布，修复 F1–F2 完成、F3–F4 进行中 | 科目统计、并发迁移、幂等鉴权与 scope 发现，按 `mcp-integration/exec-2026-10-01-mcp-fixes.md` 执行 |

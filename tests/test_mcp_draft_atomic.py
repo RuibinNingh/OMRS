@@ -15,6 +15,7 @@ from unittest import mock
 import zlib
 
 from omrs import drafts
+from omrs import locking
 from omrs.server import OMRSHandler
 
 
@@ -69,6 +70,105 @@ class MCPAtomicDraftTests(unittest.TestCase):
                 self.assertEqual(db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0], 0, table)
         finally:
             db.close()
+
+    def test_first_connections_serialize_new_and_old_schema_migration(self):
+        """冻结首连接的旧列快照；旧代码第二连接先迁移，首连接随后发生列冲突。"""
+        for old_schema in (False, True):
+            with self.subTest(old_schema=old_schema), tempfile.TemporaryDirectory() as vault:
+                if old_schema:
+                    db = sqlite3.connect(Path(drafts.drafts_dir(vault)) / "drafts.db")
+                    db.execute("CREATE TABLE drafts(id TEXT PRIMARY KEY,status TEXT,conversation_id TEXT,run_id TEXT,tool_call_id TEXT)")
+                    db.execute("INSERT INTO drafts VALUES('old','review','old-conv',NULL,NULL)")
+                    db.commit()
+                    db.close()
+                paused, release, checkpoint = threading.Event(), threading.Event(), threading.Event()
+                role = threading.local()
+                real_connect, real_lock = sqlite3.connect, locking.write_lock
+
+                class PausedConnection(sqlite3.Connection):
+                    def execute(self, sql, *args, **kwargs):
+                        cursor = super().execute(sql, *args, **kwargs)
+                        if sql == "PRAGMA table_info(drafts)" and getattr(role, "name", "") == "first":
+                            snapshot = cursor.fetchall()
+                            paused.set()
+                            if not release.wait(5):
+                                raise AssertionError("首连接未在限时内释放")
+                            return snapshot
+                        return cursor
+
+                def observed_lock(*args, **kwargs):
+                    if getattr(role, "name", "") == "second":
+                        # 修复后第二连接会在这里等待；由主线程释放首连接。
+                        checkpoint.set()
+                    return real_lock(*args, **kwargs)
+
+                def query(name):
+                    role.name = name
+                    try:
+                        return drafts.mcp_request(vault, "key", "missing")
+                    finally:
+                        if name == "second":
+                            # 未修复入口没有取锁，第二连接完成迁移后再释放首连接。
+                            checkpoint.set()
+
+                with mock.patch.object(drafts.sqlite3, "connect", side_effect=lambda *a, **kw: real_connect(*a, **kw, factory=PausedConnection)), \
+                        mock.patch.object(locking, "write_lock", side_effect=observed_lock), \
+                        ThreadPoolExecutor(max_workers=2) as pool:
+                    first = pool.submit(query, "first")
+                    try:
+                        self.assertTrue(paused.wait(5), "首连接未到达列快照")
+                        second = pool.submit(query, "second")
+                        self.assertTrue(checkpoint.wait(5), "第二连接未到达迁移/锁边界")
+                    finally:
+                        release.set()
+                    self.assertIsNone(first.result(timeout=5))
+                    self.assertIsNone(second.result(timeout=5))
+                for _ in range(2):
+                    db = drafts.connect(vault)
+                    try:
+                        cols = [row["name"] for row in db.execute("PRAGMA table_info(drafts)")]
+                        self.assertEqual(len(cols), len(set(cols)))
+                        self.assertTrue({"revision", "sources_complete", "source_channel"} <= set(cols))
+                        if old_schema:
+                            old = db.execute("SELECT id,source_channel FROM drafts WHERE id='old'").fetchone()
+                            self.assertEqual(tuple(old), ("old", "legacy"))
+                    finally:
+                        db.close()
+
+    def test_initialization_failure_closes_connection_and_allows_retry(self):
+        with tempfile.TemporaryDirectory() as vault:
+            closed = threading.Event()
+            real_connect = sqlite3.connect
+
+            class BrokenConnection(sqlite3.Connection):
+                def executescript(self, *_args):
+                    raise sqlite3.OperationalError("测试迁移中断")
+
+                def close(self):
+                    closed.set()
+                    super().close()
+
+            with mock.patch.object(drafts.sqlite3, "connect", side_effect=lambda *a, **kw: real_connect(*a, **kw, factory=BrokenConnection)):
+                with self.assertRaisesRegex(sqlite3.OperationalError, "迁移中断"):
+                    drafts.connect(vault)
+            self.assertTrue(closed.is_set())
+            db = drafts.connect(vault)
+            try:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM drafts").fetchone()[0], 0)
+                self.assertFalse(locking.held_by_current_thread())
+                # 连接保持打开时，初始化锁已经释放。
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    self.assertEqual(pool.submit(drafts.counts, vault).result(timeout=5)["review"], 0)
+            finally:
+                db.close()
+
+    def test_initialization_lock_timeout_does_not_open_database(self):
+        with tempfile.TemporaryDirectory() as vault:
+            with mock.patch.object(locking, "write_lock", side_effect=locking.WriteLockTimeout("测试锁忙")), \
+                    mock.patch.object(drafts.sqlite3, "connect") as opened:
+                with self.assertRaises(locking.WriteLockTimeout):
+                    drafts.connect(vault)
+                opened.assert_not_called()
 
     def test_failure_leaves_no_draft_relation_or_new_file(self):
         with tempfile.TemporaryDirectory() as vault:
