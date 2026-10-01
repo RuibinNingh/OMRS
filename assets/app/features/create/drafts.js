@@ -2,8 +2,7 @@
 import { get, post } from '../../core/api.js';
 import { morph } from '../../core/dom.js';
 import { currentDraftCounts, consumeDraftTarget, publishDraftChange, selectedDraftId, selectDraftId } from '../../domain/drafts.js';
-import { notify } from './inbox.js';
-import { inbox } from './inbox.js';
+import { notify, inbox } from './inbox.js';
 import { csvValues, draftProblems, editTraining, editValue, imageSha, imageUrl, moveBlock, trainingBoxPayload, updatePayload, commitProblem } from './drafts-state.js';
 import { draftsView } from './drafts-view.js';
 import { notifyHistoryChanged } from '../../domain/history.js';
@@ -17,7 +16,6 @@ import { createDraftCanvasControl } from './drafts-canvas-ctl.js';
 import { createDraftJobPolling } from './drafts-job.js';
 import { createDraftImageActions } from './drafts-image-actions.js';
 import { previewDraftSource } from './drafts-preview.js';
-
 let nextLocalBlock = 0;
 const responseError = result => result.error?.message || result.data?.msg || '请求失败';
 export function createDrafts(root, ctx) {
@@ -33,7 +31,6 @@ export function createDrafts(root, ctx) {
   const jobs = createDraftJobPolling(root, state, { isAlive: () => alive, loadDetail, paint, responseError });
   const canvas = createDraftCanvasControl(host, state, { markChanged, paint, block });
   const images = createDraftImageActions(state, { isAlive: () => alive, save, setDraft, showError, paint, canvas, jobs, markChanged, block });
-
   function paint() {
     if (!alive || !host || inbox.state.stage !== 'drafts' || canvas.isDragging()) return;
     state.counts = currentDraftCounts() || state.counts;
