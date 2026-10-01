@@ -122,7 +122,7 @@ def run(page, base, first, second, old, images, results):
     def check(name, passed, detail=''):
         results.append((name, bool(passed), detail))
 
-    page.goto(base + '/#/create', wait_until='networkidle')
+    page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
     page.locator('#create-flow [data-ib-stage="drafts"]').click()
     check('工作区显示四份待审核草稿', wait(page, "() => document.querySelectorAll('.drf-item').length === 4"))
     page.locator(f'.drf-item[data-arg="{first["id"]}"]').click()
@@ -160,14 +160,14 @@ def run(page, base, first, second, old, images, results):
     check('入库响应丢失后同一操作安全重试', lost_responses == [200]
           and api(base, '/api/drafts/item?id=' + first['id'])['draft']['status'] == 'done')
     page.locator('#create-flow [data-ib-stage="drafts"]').click()
-    page.locator('[data-action="create.draftFilter"][data-arg="pending"]').click()
+    page.locator('[data-change="create.draftFilter"]').select_option('pending')
     page.locator(f'.drf-item[data-arg="{second["id"]}"]').click()
     page.locator('[data-action="create.draftDiscard"]').click()
     page.locator('dialog[open] [data-dialog-ok]').click()
     check('丢弃状态持久且待审核计数减少', wait(page, "() => document.querySelector('.drf-detail h2')?.textContent.includes('已丢弃')")
           and api(base, '/api/drafts/item?id=' + second['id'])['draft']['status'] == 'discarded'
           and api(base, '/api/drafts/counts')['counts']['discarded'] == 1)
-    page.locator('[data-action="create.draftFilter"][data-arg="pending"]').click()
+    page.locator('[data-change="create.draftFilter"]').select_option('pending')
     page.locator(f'.drf-item[data-arg="{old["id"]}"]').click()
     page.locator('.drf-source-trigger').click()
     check('旧来源不完整提示与可补关联图片', wait(page, "() => document.querySelector('.drf-sources .drf-hint')?.textContent.includes('来源未完整恢复') && document.querySelectorAll('#drf-source-select option').length === 5"))
@@ -218,7 +218,8 @@ def run(page, base, first, second, old, images, results):
     page.locator('[data-action="create.draftReloadDetail"]').click()
     page.route('**/api/drafts/list?status=pending&limit=500', lambda route: route.fulfill(
         status=503, content_type='application/json', body='{"status":"error","msg":"列表暂不可用"}'))
-    page.locator('.drf-list-head [data-action="create.draftReload"]').click()
+    page.locator('[data-action="create.draftQueueMenu"]').click()
+    page.get_by_role('menuitem', name='刷新列表', exact=True).click()
     check('列表读取失败与空态区分', wait(page, "() => document.querySelector('.drf-list .drf-error')?.textContent.includes('列表暂不可用')"))
     page.unroute('**/api/drafts/list?status=pending&limit=500')
     page.locator('.drf-list .drf-error [data-action="create.draftReload"]').click()
@@ -311,7 +312,8 @@ def run_p3(page, base, draft, images, results):
     check('入库后训练图登记且进入下一题', wait(page, f"() => !document.querySelector('.drf-detail .drf-id')?.textContent.includes('{draft['id']}')", 20000)
           and next(row for row in api(base, '/api/drafts/item?id=' + draft['id'])['draft']['training_tasks']
                    if row['image_sha'] == images[0]['sha256'])['status'] == 'registered')
-    page.locator('.drf-list-head [data-action="create.draftCleanup"]').click()
+    page.locator('[data-action="create.draftQueueMenu"]').click()
+    page.get_by_role('menuitem', name='清理过期草稿', exact=True).click()
     page.locator('dialog[open] [data-dialog-ok]').click()
     check('清理接口结果按对象字段展示', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已清理')"))
 
@@ -328,18 +330,16 @@ def run_touch(browser, base, vault, results):
     errors = []
     page.on('pageerror', lambda error: errors.append(error.stack or str(error)))
     try:
-        page.goto(base + '/#/create', wait_until='networkidle')
+        page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
         page.locator('#create-flow [data-ib-stage="drafts"]').click()
         results.append(('手机队列默认收起', not page.locator('.drf-item').first.is_visible(), ''))
         page.locator('[data-action="create.draftToggleQueue"]').click()
         page.locator(f'.drf-item[data-arg="{draft["id"]}"]').click()
-        results.append(('手机题目标签先显示且信息按需切换', wait(page, "() => !!document.querySelector('.drf-review-question')")
+        results.append(('手机信息与题目连续阅读', wait(page, "() => !!document.querySelector('.drf-review-question')")
                         and page.locator('.drf-review-question').is_visible()
-                        and not page.locator('.drf-review-info').is_visible(), ''))
-        page.locator('[data-action="create.draftReviewTab"][data-arg="info"]').click()
-        results.append(('手机信息标签可读', page.locator('.drf-review-info').is_visible(), ''))
-        page.locator('[data-action="create.draftReviewTab"][data-arg="source"]').click()
-        results.append(('手机来源标签进入独立工作区', page.locator('.drf-source-workspace').is_visible(), ''))
+                        and page.locator('.drf-review-info').is_visible(), ''))
+        page.locator('.drf-source-trigger').click()
+        results.append(('手机来源入口进入独立工作区', page.locator('.drf-source-workspace').is_visible(), ''))
         stage = page.locator('#drf-stage-img')
         stage.scroll_into_view_if_needed()
         box = stage.bounding_box()
@@ -402,12 +402,12 @@ def main():
                         audit_page = audit_context.new_page()
                         audit_errors = []
                         audit_page.on('pageerror', lambda error: audit_errors.append(str(error)))
-                        audit_page.goto(base + '/#/create', wait_until='networkidle')
+                        audit_page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
                         audit_page.locator('#create-flow [data-ib-stage="drafts"]').click()
                         if width < 760:
                             audit_page.locator('[data-action="create.draftToggleQueue"]').click()
                         first_filter = 'done' if api(base, '/api/drafts/item?id=' + first['id'])['draft']['status'] == 'done' else 'pending'
-                        audit_page.locator(f'[data-action="create.draftFilter"][data-arg="{first_filter}"]').click()
+                        audit_page.locator('[data-change="create.draftFilter"]').select_option(first_filter)
                         if width < 760 and not audit_page.locator(f'.drf-item[data-arg="{first["id"]}"]').is_visible():
                             audit_page.locator('[data-action="create.draftToggleQueue"]').click()
                         audit_page.locator(f'.drf-item[data-arg="{first["id"]}"]').click()
@@ -421,9 +421,9 @@ def main():
                                         str(findings) + ' ' + shot))
                         p3_filter = 'done' if api(base, '/api/drafts/item?id=' + p3['id'])['draft']['status'] == 'done' else 'pending'
                         if p3_filter != first_filter:
-                            if width < 760 and not audit_page.locator('[data-action="create.draftFilter"]').first.is_visible():
+                            if width < 760 and not audit_page.locator('[data-change="create.draftFilter"]').is_visible():
                                 audit_page.locator('[data-action="create.draftToggleQueue"]').click()
-                            audit_page.locator(f'[data-action="create.draftFilter"][data-arg="{p3_filter}"]').click()
+                            audit_page.locator('[data-change="create.draftFilter"]').select_option(p3_filter)
                         if width < 760 and not audit_page.locator(f'.drf-item[data-arg="{p3["id"]}"]').is_visible():
                             audit_page.locator('[data-action="create.draftToggleQueue"]').click()
                         audit_page.locator(f'.drf-item[data-arg="{p3["id"]}"]').click()

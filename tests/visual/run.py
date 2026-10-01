@@ -202,6 +202,33 @@ def seed_process_fixture(vault):
     ]})
 
 
+def seed_drafts_fixture(vault):
+    """草稿前后对比共用多文字块、公式与来源图，不连接真实草稿区。"""
+    import base64
+    import io
+    from PIL import Image, ImageDraw
+    sys.path.insert(0, ROOT)
+    from omrs import drafts
+    image = Image.new('RGB', (600, 360), 'white')
+    ImageDraw.Draw(image).text((48, 100), 'f(x) = x^2 - 2x', fill='black', font_size=32)
+    output = io.BytesIO()
+    image.save(output, format='PNG')
+    source = drafts.add_image(vault, 'data:image/png;base64,' + base64.b64encode(output.getvalue()).decode(), 'visual-drafts', 'visual-run')
+    for index in range(3):
+        drafts.create_draft(vault, {
+            'subject': '数学', 'category': '函数与导数', 'difficulty': 5,
+            'knowledge_points': ['导数', '单调性'], 'cause': '求导后未检查区间端点，遗漏最小值。',
+            'cause_statement': '求导后未检查区间端点，遗漏最小值。',
+            'source_images': [source['sha256']], 'blocks': [
+                {'section': '题目', 'kind': 'text', 'text': f'第 {index + 1} 题：已知函数 $f(x)=x^2-2x$，定义域为 $[0,3]$。'},
+                {'section': '题目', 'kind': 'text', 'text': '（1）求函数的单调区间。'},
+                {'section': '题目', 'kind': 'text', 'text': '（2）求函数在给定区间上的最小值，并说明理由。'},
+                {'section': '答案', 'kind': 'text', 'text': '$f\'(x)=2x-2$，当 $x<1$ 时导数为负，当 $x>1$ 时导数为正。'},
+                {'section': '答案', 'kind': 'text', 'text': '所以在 $[0,1]$ 上单调递减，在 $[1,3]$ 上单调递增。最小值为 $f(1)=-1$。'},
+            ],
+        }, {'conversation_id': 'visual-drafts', 'run_id': 'visual-run', 'tool_call_id': f'visual-{index}'})
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--ref", default="HEAD", help="基线提交（默认 HEAD）")
@@ -230,6 +257,8 @@ def main(argv=None):
         save_config(fixture, {"agent_enabled": True})
     if args.create_stage == "process":
         seed_process_fixture(fixture)
+    if args.create_stage == "drafts":
+        seed_drafts_fixture(fixture)
     sides = [("cur", ROOT)]
     if not args.audit_only:
         sides.insert(0, ("ref", prepare_ref(args.ref, out)))

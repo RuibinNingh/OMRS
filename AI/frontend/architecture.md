@@ -94,7 +94,9 @@ assets/app/
 
 草稿后台作业由页面 `drafts-job.js` 管理轮询和卸载，活动标记交给 `domain/drafts.js` 统一维护角标轮询；页面内容以服务端 revision 为边界，后台结果不能覆盖未保存表单。真实 HTTP 进程重启回归见 `tests/test_draft_p3_http.py`；画布复用与收件箱行为由草稿/录入 E2E 联合验证。
 
-草稿审核页把队列展开、题目 / 答案 / 信息标签、局部编辑和来源画布展开状态留在挂载控制器；跨页领域层仍只保存导航目标与计数。入库动作先复核服务端 revision，保存后用相同 revision 串行提交；网络响应丢失时重试同一入库身份。`tests/app/create-drafts.test.mjs` 验证默认阅读结构，`tests/e2e/drafts.py` 与 `tests/e2e/drafts_p4.py` 在隔离 Vault 中验证冲突、响应丢失、移动端队列、框选及独立训练。
+草稿审核页把队列展开、单块编辑、字段表单与来源模式状态留在挂载控制器；跨页领域层仍只保存导航目标与计数。正文视图在 `drafts-review.js`，局部块操作在 `drafts-block-actions.js`，复用共享菜单和确认对话框。插入与跨组移动保留对象身份，暂存响应后把本地块键映射为服务端 id；取消状态下拉切换恢复原筛选值。格式提示与提交预检共用 `draftIssue`。
+
+入库动作先复核服务端 revision，保存后用相同 revision 串行提交；网络响应丢失时重试同一入库身份。`tests/app/create-drafts.test.mjs` 验证阅读结构与块身份，`tests/e2e/drafts_blocks.py` 用真实隔离服务验证逐块焦点、插入、调序、跨组移动、删除确认、保存重读、图文入库和 320 / 390 / 1024 / 1440px 布局。`tests/e2e/drafts.py` 与 `tests/e2e/drafts_p4.py` 验证冲突、响应丢失、移动端队列、框选及独立训练。
 
 `tests/e2e/p4_tools.py` 使用假模型和临时 Vault 从助手确认分类、修订草稿，再进入快速录入与审核页；助手的无 Ledger 写入活动归约由 `tests/app/assistant.test.mjs` 固定。
 

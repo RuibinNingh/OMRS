@@ -9,21 +9,6 @@ export const csvValues = text => [...new Set(String(text || '').split(/[,，\n]/
 export const imageSha = image => typeof image === 'string' ? image : image?.sha256;
 export const imageUrl = sha => `/api/drafts/image?sha=${encodeURIComponent(sha || '')}`;
 
-/** 审核台的轻量提示；真正的入库校验仍由 commitProblem 与服务端负责。 */
-export function reviewChecks(value) {
-  if (!value) return [];
-  const fields = value.fields || {};
-  const questionBlocks = (value.blocks || []).filter(block => block.section === '题目');
-  const imageBlocks = (value.blocks || []).filter(block => block.kind === 'image');
-  const hasQuestion = questionBlocks.some(block => block.kind === 'text' ? Boolean(block.text?.trim()) : Boolean(block.image_sha));
-  return [
-    { key: 'subject', label: '科目', status: fields.subject?.trim() ? 'ok' : 'warning' },
-    { key: 'category', label: '分类', status: fields.category?.trim() ? 'ok' : 'warning' },
-    { key: 'question', label: '题目正文', status: hasQuestion ? 'ok' : 'warning' },
-    ...(imageBlocks.length ? [{ key: 'imageBox', label: '图片框选', status: imageBlocks.every(block => block.box) ? 'ok' : 'warning' }] : []),
-  ];
-}
-
 export function latestDetectResult(draft, activeJob, sha) {
   const jobs = [...(activeJob?.type === 'detect' ? [activeJob] : []), ...(draft?.jobs || [])];
   for (const job of jobs) {
@@ -76,24 +61,47 @@ export function updatePayload(draft, value) {
   return { id: draft.id, revision: draft.revision, fields, blocks, source_images: [...value.source_images] };
 }
 
-export function draftProblems(value) {
-  if (!value.fields.subject?.trim() || !value.fields.category?.trim()) return '请填写科目和分类';
+/** 同一份校验供暂存、入库和界面定位使用；通过只表示格式完整。 */
+export function draftIssue(value, includeBoxes = true) {
+  if (!value.fields.subject?.trim() || !value.fields.category?.trim()) return {
+    message: '请填写科目和分类', field: value.fields.subject?.trim() ? 'category' : 'subject' };
   const difficulty = Number(value.fields.difficulty);
-  if (!Number.isInteger(difficulty) || difficulty < 1 || difficulty > 10) return '难度须为 1 到 10 的整数';
-  if (value.fields.knowledge_points.length > 8) return '知识点最多 8 个';
-  if (!value.blocks.length || !value.blocks.some(block => block.section === '题目')) return '至少需要一个题目块';
-  if (value.blocks.some(block => block.kind === 'text' && !block.text?.trim())) return '文字块不能为空';
-  if (value.blocks.some(block => block.kind === 'image' && (!block.image_sha || !value.source_images.includes(block.image_sha)))) return '图片块必须关联一张来源图';
-  return '';
+  if (!Number.isInteger(difficulty) || difficulty < 1 || difficulty > 10) return { message: '难度须为 1 到 10 的整数', field: 'difficulty' };
+  if (value.fields.knowledge_points.length > 8) return { message: '知识点最多 8 个', field: 'knowledge_points' };
+  if (!value.blocks.some(block => block.section === '题目')) return { message: '至少需要一个题目块', section: '题目' };
+  const text = value.blocks.find(block => block.kind === 'text' && !block.text?.trim());
+  if (text) return { message: '文字块不能为空', blockKey: text.id || text._key };
+  const image = value.blocks.find(block => block.kind === 'image' && (!block.image_sha || !value.source_images.includes(block.image_sha)));
+  if (image) return { message: '图片块必须关联一张来源图', source: true };
+  const unboxed = includeBoxes && value.blocks.find(block => block.kind === 'image' && !block.box);
+  return unboxed ? { message: '图片块尚未框选，请手动画框或点「使用整图」并保存', blockKey: unboxed.id || unboxed._key } : null;
 }
 
-export function commitProblem(value) {
-  const invalid = draftProblems(value);
-  if (invalid) return invalid;
-  return value.blocks.some(block => block.kind === 'image' && !block.box) ? '图片块尚未框选，请手动画框或点「使用整图」并保存' : '';
+export const draftProblems = value => draftIssue(value, false)?.message || '';
+export const commitProblem = value => draftIssue(value)?.message || '';
+
+/** 新块放在同组末尾，或指定同组块之后；不改变其他块的身份。 */
+export function insertBlock(blocks, row, afterKey = null) {
+  if (!DRAFT_SECTIONS.includes(row.section)) return false;
+  let index = -1;
+  if (afterKey) {
+    index = blocks.findIndex(block => (block.id || block._key) === afterKey && block.section === row.section);
+    if (index < 0) return false;
+  } else blocks.forEach((block, i) => { if (block.section === row.section) index = i; });
+  blocks.splice(index < 0 ? blocks.length : index + 1, 0, row);
+  return true;
+}
+
+export function moveBlockToSection(blocks, key, section) {
+  const index = blocks.findIndex(block => (block.id || block._key) === key);
+  if (index < 0 || !DRAFT_SECTIONS.includes(section) || blocks[index].section === section) return false;
+  const [row] = blocks.splice(index, 1);
+  row.section = section;
+  return insertBlock(blocks, row);
 }
 
 export function moveBlock(blocks, key, step) {
+  if (![-1, 1].includes(step)) return false;
   const index = blocks.findIndex(block => (block.id || block._key) === key);
   if (index < 0) return false;
   const peers = blocks.map((block, i) => ({ block, i })).filter(row => row.block.section === blocks[index].section);

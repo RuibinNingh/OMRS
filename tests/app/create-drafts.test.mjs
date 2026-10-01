@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { draftPendingCount, editValue, updatePayload, draftProblems, commitProblem, moveBlock, latestDetectResult, reviewChecks } from '../../assets/app/features/create/drafts-state.js';
+import { draftPendingCount, editValue, updatePayload, draftProblems, commitProblem, draftIssue, insertBlock, moveBlockToSection, moveBlock, latestDetectResult } from '../../assets/app/features/create/drafts-state.js';
 import { draftsView } from '../../assets/app/features/create/drafts-view.js';
 
 const sample = () => ({ id: 'DR-1', revision: 3, status: 'cropping', subject: '数学', category: '函数', difficulty: 5,
@@ -87,37 +87,68 @@ test('草稿视图显示原图、只读完成态及来源不完整提示，文�
   assert.doesNotMatch(unavailable, /data-action="create\.draftQuestion"/);
 });
 
-test('审核工作台把信息与入库检查固定到右侧，来源切换为独立模式', () => {
+test('审核信息位于连续正文上方，局部编辑不重复显示预览，来源仍为独立模式', () => {
   const draft = { ...sample(), status: 'review', blocks: [sample().blocks[0], sample().blocks[2]] };
   const state = { list: [draft], listLoaded: true, filter: 'pending', selectedId: draft.id,
     counts: { cropping: 0, review: 1 }, draft, value: editValue(draft), detailLoaded: true,
     reviewTab: 'question', workspaceMode: 'review', fieldsEditing: false, dirty: false, busy: false };
   const reading = draftsView(state).text;
   assert.match(reading, /第 1\/1 题/);
-  assert.match(reading, /保存并入库，下一题/);
+  assert.match(reading, /入库并下一题/);
   assert.match(reading, /class="drf-md q-md"/);
   assert.match(reading, /class="drf-source-trigger ui-btn ui-btn--sm"[^>]*aria-expanded="false"/);
-  assert.match(reading, /class="drf-review-inspector"/);
-  assert.match(reading, /class="drf-review-checks"/);
+  assert.doesNotMatch(reading, /drf-review-inspector|所属部分|已确认|文字 1/);
+  assert.ok(reading.indexOf('drf-review-info') < reading.indexOf('drf-review-question'));
+  assert.match(reading, /格式检查通过/);
   assert.doesNotMatch(reading, /data-input="create\.draftBlockText"|data-input="create\.draftField"/);
   const editing = draftsView({ ...state, editingBlock: 'q1', fieldsEditing: true }).text;
   assert.match(editing, /data-input="create\.draftBlockText"/);
   assert.match(editing, /data-input="create\.draftField"/);
+  assert.equal((editing.match(/class="drf-md q-md"/g) || []).length, 1);
+  assert.equal((editing.match(/data-input="create\.draftBlockText"/g) || []).length, 1);
+  assert.match(editing, /data-action="create\.draftBlockMenu"/);
   const source = draftsView({ ...state, workspaceMode: 'source', reviewTab: 'source' }).text;
   assert.match(source, /class="drf-source-trigger ui-btn ui-btn--sm"[^>]*aria-expanded="true"/);
   assert.match(source, /class="drf-source-workspace"/);
   assert.match(source, /class="drf-canvas"/);
 });
 
-test('审核检查只提示前端可见的缺项，不复制入库业务校验', () => {
-  const value = editValue(sample());
-  value.fields.subject = '';
-  value.blocks[1].box = null;
-  assert.deepEqual(reviewChecks(value).map(check => [check.key, check.status]), [
-    ['subject', 'warning'], ['category', 'ok'], ['question', 'ok'], ['imageBox', 'warning'],
-  ]);
+test('插入、调序和跨组移动保留文字与图片身份，完整保存按目标组末尾排序', () => {
+  const draft = sample();
+  const value = editValue(draft);
+  const image = value.blocks[1];
+  image.box = { x: .1, y: .2, w: .5, h: .6 };
+  image.ai_box = { x: .1, y: .2, w: .4, h: .5 };
+  const inserted = { _key: 'local-1', section: '题目', kind: 'text', text: '补充条件' };
+  assert.equal(insertBlock(value.blocks, inserted, 'q1'), true);
+  assert.deepEqual(value.blocks.filter(row => row.section === '题目').map(row => row.id || row._key), ['q1', 'local-1', 'q2']);
+  assert.equal(moveBlockToSection(value.blocks, 'q2', '答案'), true);
+  assert.equal(value.blocks.at(-1), image);
+  assert.equal(moveBlock(value.blocks, 'q2', -1), true);
+  const payload = updatePayload(draft, value);
+  assert.deepEqual(payload.blocks.map(row => row.id), ['q1', undefined, 'q2', 'a1']);
+  assert.deepEqual(payload.blocks[2].box, image.box);
+  assert.deepEqual(payload.blocks[2].ai_box, image.ai_box);
+  assert.equal(moveBlockToSection(value.blocks, 'q2', '其他'), false);
+  assert.equal(insertBlock(value.blocks, { section: '题目' }, 'a1'), false);
+  assert.equal(moveBlock(value.blocks, 'q1', -1), false);
 });
 
+test('格式缺项与暂存/入库校验一致，并定位到具体字段或块', () => {
+  const value = editValue(sample());
+  assert.equal(draftProblems(value), '');
+  assert.equal(draftIssue(value).blockKey, 'q2');
+  value.blocks[0].text = ' ';
+  assert.equal(draftIssue(value).blockKey, 'q1');
+  value.fields.difficulty = 1.5;
+  assert.equal(draftIssue(value).field, 'difficulty');
+  value.fields.subject = '';
+  assert.equal(draftIssue(value).field, 'subject');
+  const draft = sample();
+  const markup = draftsView({ draft, value, list: [], listLoaded: true, detailLoaded: true }).text;
+  assert.match(markup, /data-action="create\.draftLocateIssue"/);
+  assert.doesNotMatch(markup, /格式检查通过/);
+});
 
 test('MCP 审核来源保留完整原图，正文仍可编辑且错因提示待核对', () => {
   const draft = { ...sample(), status: 'review', source_channel: 'mcp',

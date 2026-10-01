@@ -99,9 +99,11 @@ def main():
             current = item(key)
             button = f'.drf-item[data-arg="{current["id"]}"]'
             target_filter = 'done' if current['status'] == 'done' else 'pending'
-            if page.locator('[data-action="create.draftToggleQueue"]').is_visible() and not page.locator('[data-action="create.draftFilter"]').first.is_visible():
+            if page.locator('[data-action="create.draftToggleQueue"]').is_visible() and not page.locator('[data-change="create.draftFilter"]').is_visible():
                 page.locator('[data-action="create.draftToggleQueue"]').click()
-            page.locator(f'[data-action="create.draftFilter"][data-arg="{target_filter}"]').click()
+            page.locator('[data-change="create.draftFilter"]').select_option(target_filter)
+            # 筛选会自动选中首题并折叠手机队列，先等详情就绪再展开。
+            page.wait_for_selector('.drf-detail .drf-id')
             if page.locator('[data-action="create.draftToggleQueue"]').is_visible() and not page.locator(button).is_visible():
                 page.locator('[data-action="create.draftToggleQueue"]').click()
             page.locator(button).click()
@@ -123,7 +125,7 @@ def main():
                 errors = []
                 page.on('pageerror', lambda error: errors.append(error.stack or str(error)))
                 try:
-                    page.goto(base + '/#/create', wait_until='networkidle')
+                    page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
                     page.locator('#create-flow [data-ib-stage="drafts"]').click()
                     counts_equal = """() => {
                       const side = document.querySelector('#nav-draft-count');
@@ -139,6 +141,7 @@ def main():
                     applied_ready = support.wait(page, "() => !!document.querySelector('#drf-stage-img .crp-box') && !!document.querySelector('[data-action=\"create.draftDetect\"]') && !document.querySelector('.drf-canvas .drf-message')", 15000)
                     applied_item = item('applied')
                     applied_ok = (applied_ready and applied_item['blocks'][0]['box_origin'] == 'ai'
+                                  and applied_item['blocks'][0]['box'] == {'x': .1, 'y': .15, 'w': .6, 'h': .55}
                                   and page.locator('.drf-canvas').get_by_text('AI 已填入', exact=False).count() > 0)
                     check('明确匹配的 AI 框写入正文并展示结果', applied_ok,
                           '' if applied_ok else str({'job': applied_item['jobs'][0], 'message': page.locator('.drf-message').all_text_contents()}))
@@ -235,7 +238,7 @@ def main():
                 touch_context = browser.new_context(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
                 touch_page = touch_context.new_page()
                 try:
-                    touch_page.goto(base + '/#/create', wait_until='networkidle')
+                    touch_page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
                     touch_page.locator('#create-flow [data-ib-stage="drafts"]').click()
                     open_draft(touch_page, 'touch')
                     stage = touch_page.locator('#drf-stage-img'); stage.scroll_into_view_if_needed(); bounds = stage.bounding_box()
@@ -262,7 +265,7 @@ def main():
                         audit_errors = []
                         audit_page.on('pageerror', lambda error: audit_errors.append(str(error)))
                         try:
-                            audit_page.goto(base + '/#/create', wait_until='networkidle')
+                            audit_page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
                             audit_page.locator('#create-flow [data-ib-stage="drafts"]').click()
                             open_draft(audit_page, 'force')
                             support.wait(audit_page, counts_equal)

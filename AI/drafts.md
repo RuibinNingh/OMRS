@@ -91,10 +91,10 @@ extract 创建持久 draft_jobs 后异步调用现有识图提取；模型请求
 
 start_detect(vault,id,revision,sha=None) 持久登记后台任务，复用当前 inbox_detect_provider（vlm/local_http；旧 template 配置按 vlm 处理）、长图切片和合框逻辑，不先上传收件箱。模型调用前及回写前均检查来源完整性、非 discarded 草稿共享关系（包括 done）和人工框；共享图、manual/ai_edited 或人工清空训练任务均不能自动覆盖。无 Pillow 时长图退回整图检测。
 
-仅待框 image 块与题目/答案候选一一对应时自动写框。多题、多候选或数量不匹配只保留建议，正文不变。逐图 result 包含 sha、status（applied/suggested/skipped/conflict）、reason_code、reason、candidates、applied_blocks、training_task_id；空结果和歧义给出人工处理提示。revision 或快照变化后 job 为 conflict；重启后孤立作业为 interrupted。同图同草稿版本的 detect/extract 活动任务互斥；相同 detect 请求复用作业，部分重叠返回 409。详情按持久插入顺序打破同秒时间戳并列，重试不会取到旧任务。ai_box 保存原建议，人工移动标为 ai_edited。
+仅待框 image 块与题目/答案候选一一对应时自动写框。正文坐标按 x/y/w/h 显式写入，对应的 ai_box 与训练框使用相同坐标，不依赖字典键顺序。多题、多候选或数量不匹配只保留建议，正文不变。逐图 result 包含 sha、status（applied/suggested/skipped/conflict）、reason_code、reason、candidates、applied_blocks、training_task_id；空结果和歧义给出人工处理提示。revision 或快照变化后 job 为 conflict；重启后孤立作业为 interrupted。同图同草稿版本的 detect/extract 活动任务互斥；相同 detect 请求复用作业，部分重叠返回 409。详情按持久插入顺序打破同秒时间戳并列，重试不会取到旧任务。ai_box 保存原建议，人工移动标为 ai_edited。
 
 training_tasks.force_crop 区分强制训练任务与普通来源图标注容器。仅创建有来源图的全文字草稿时按 draft_force_crop 配置设置；修改配置不会追溯旧草稿，无图不造任务。旧全文字草稿可逐图显式发起检测或手工训练框选。训练任务不添加正文图片，不阻止入库；done 仍可完成任务，正文不可改。是否登记仍取决于图级训练开关；入库后有效训练框保存或检测完成会尝试登记，失败可重试。
 
 ## 8. 测试边界
 
-后端覆盖草稿校验、图片引用、老库来源恢复、HTTP、并发 / 重复入库、来源归属与创建失败恢复；助手工具测试覆盖原话校验、动态注册与确认版本。真实浏览器 `tests/e2e/drafts.py` 走审核、整图、保存失败保留、冲突、丢弃与窄屏路径；`tests/e2e/drafts_p4.py` 使用本地检测替身走自动框、歧义采纳、共享回退和入库后训练。所有实例使用临时 Vault；真实模型与生产数据不作为自动测试输入。
+后端覆盖草稿校验、图片引用、老库来源恢复、HTTP、并发 / 重复入库、来源归属与创建失败恢复；助手工具测试覆盖原话校验、动态注册与确认版本。真实浏览器 `tests/e2e/drafts_blocks.py` 验证多块编辑、调序、跨组、删除确认、稳定 id、图文入库和四档宽度；`tests/e2e/drafts.py` 走审核、整图、保存失败保留、冲突、丢弃与窄屏路径；`tests/e2e/drafts_p4.py` 使用本地检测替身走自动框、歧义采纳、共享回退和入库后训练。所有实例使用临时 Vault；真实模型与生产数据不作为自动测试输入。

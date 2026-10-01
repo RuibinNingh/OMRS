@@ -4,14 +4,14 @@
 > - 职责：录入页六个工作区（上传、处理、录入、AI 训练、快速录入、AI 草稿）的界面、收件箱前端数据与保存队列；后端流程见 `AI/inbox.md`
 > - 入口：`assets/app/features/create/`（`index.js` 页面契约，`inbox.js` / `inbox-store.js` 收件箱数据，其余按工作区分文件）
 > - 不变量：原图先入收件箱暂存层，提交后才写题库；切页保留工作区、当前图、勾选与快速录入草稿；离开处理区或本页前写出未到防抖时间的改动；创建后保留上下文字段
-> - 必跑测试：`tests/app/create.test.mjs`、`tests/app/create-process.test.mjs`、`tests/app/create-inbox.test.mjs`、`tests/e2e/create.py`、`tests/test_inbox.py`、`tests/test_ai_assist_taxonomy.py`
+> - 必跑测试：`tests/app/create.test.mjs`、`tests/app/create-process.test.mjs`、`tests/app/create-inbox.test.mjs`、`tests/e2e/create.py`、`tests/e2e/drafts_blocks.py`、`tests/test_inbox.py`、`tests/test_ai_assist_taxonomy.py`
 > - 相关：`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/design-system.md`
 
 ## 页面与工作区
 
 `#panel-create` 在 HTML 里只有导航 `#create-flow` 和工作区容器，内容全部由 `features/create/index.js` 挂载。导航由 `state.js` / `view.js` 渲染六个按钮（`data-action="create.stage"`），前三项按流程编号并显示待处理、已框选、待创建三个计数。当前工作区存在收件箱单例的 `stage` 里，切到其它页面后返回仍停在原处；进入 AI 训练时重读统计与策略。
 
-AI 草稿列表和详情会在 `source_channel=mcp` 时显示“来源：MCP”。这类草稿仍进入同一待审核队列、版本保护和人工入库路径；完整来源图通过既有来源 Inspector 查看，来源标识不随普通字段编辑覆盖。MCP 原始来源图显示保留提示并禁止取消关联；正文仍可正常人工编辑。全幅块显示“完整原图”，人工改框后记为手动；错因显示由外部助手提供、待核对。
+AI 草稿列表和详情会在 `source_channel=mcp` 时显示“来源：MCP”。这类草稿仍进入同一待审核队列、版本保护和人工入库路径；完整来源图通过既有来源 Inspector 查看，来源标识不随普通字段编辑覆盖。MCP 原始来源图显示保留提示并禁止取消关联；正文仍可正常人工编辑。MCP 全幅正文块以整图预览展示，人工改框后记为手动；错因显示由外部助手提供、待核对。
 
 录入页的快捷键登记在页面契约的 `keys` 里，只在处理区生效：`Q` / `A` / `X` 切画框角色、`Delete` / `Backspace` 删除选中框、`Enter` 下一张、`⌘/Ctrl + Enter` 一键提取、`Esc` 取消选中框。
 
@@ -49,9 +49,13 @@ AI 草稿列表和详情会在 `source_channel=mcp` 时显示“来源：MCP”�
 
 控制器 `drafts.js` 同样受前端 R8 单文件最多 400 行的门禁约束；MCP 来源适配不豁免该限制，同一模块导入可合并。发布前执行 `python3 tests/check_ui.py` 与 `tests.test_ui_gates`，不得为了增量接入放宽门禁。
 
-`drafts.js` 管理独立的列表、详情、显式保存表单与请求序号，不把草稿放进 inbox-store。默认 pending 筛选，另可看已入库 / 已丢弃。桌面详情是「内容审核 + Inspector」工作台：正文区同时显示题目和答案解析，右侧固定显示题目信息、入库检查和主要操作；字段仍先展示摘要，点击「编辑信息」再改，文字块仍点击「编辑文字」后才显示 textarea。`workspaceMode` 只有 `review`（正文审核）和 `source`（来源对照 / 框选）两种，来源 Canvas 不再追加到正文底部；来源模式把 Canvas 放在主区域，来源截图与训练状态放在右侧。手机队列默认折叠，一次审核一题，用「题目 / 答案解析 / 信息 / 来源」四个标签切换；上一题/下一题保留未保存保护。图片块完成手动框选或使用整图后才可入库。
+`drafts.js` 管理独立的列表、详情、显式保存表单与请求序号，不把草稿放进 inbox-store。队列使用紧凑列表和状态下拉框，默认 pending，另可看已入库 / 已丢弃；刷新与清理在队列「更多」菜单。桌面采用窄队列、宽正文：`drafts-review.js` 将信息摘要放在正文上方，错因直接可读，「编辑信息」展开字段表单。题目与答案解析同时显示，块使用小序号与分隔线，每次只展开一个编辑框，编辑文字时不重复显示预览。手机队列默认折叠，信息与两组正文在同一列连续阅读。
 
-保存发送 revision 和完整块数组；失败保留本地编辑，409 提示核对后重新读取，不自动覆盖。「保存并入库，下一题」先重新读取并核对当前 revision，发现新版本即停下并保留本地编辑；随后暂存脏字段、用新 revision 提交。提交响应因网络中断丢失时，以相同草稿身份和 revision 重试一次，复用服务端入库操作；成功后刷新统计 / 历史 / 目录并进入下一份待审草稿。已入库题目可在「已入库」列表查看并打开。done 与 discarded 正文只读，done 的独立训练框仍可补标；丢弃不立即删原图。
+`drafts-block-actions.js` 复用共享菜单处理同组上移 / 下移、在下方插入文字、移到另一部分及确认删除；跨组块追加到目标组末尾，原块 id、图片框与说明保留。新文字块立即进入编辑并聚焦，保存后本地块键映射为服务端 id。添加图片按需选择来源图，不常驻来源下拉框。底部统一显示暂存、丢弃和「入库并下一题」；格式检查与暂存 / 入库共用 `draftIssue`，通过仅表示格式完整，有缺项可定位到字段、空文字块或对应图片区块。
+
+`workspaceMode` 只有 `review`（正文审核）和 `source`（来源对照 / 框选）两种，来源模式把 Canvas 放在主区域，来源截图与训练状态放在右侧，窄屏改为单列。图片块的「框选 / 转文字」可直接选择该块进入来源模式；完成手动框选或使用整图后才可入库。上一题 / 下一题和状态切换保留未保存保护；取消筛选切换时恢复下拉值。
+
+保存发送 revision 和完整块数组；失败保留本地编辑，409 提示核对后重新读取，不自动覆盖。「入库并下一题」先重新读取并核对当前 revision，发现新版本即停下并保留本地编辑；随后暂存脏字段、用新 revision 提交。提交响应因网络中断丢失时，以相同草稿身份和 revision 重试一次，复用服务端入库操作；成功后刷新统计 / 历史 / 目录并进入下一份待审草稿。已入库题目可在「已入库」列表查看并打开。done 与 discarded 正文只读，done 的独立训练框仍可补标；丢弃不立即删原图。
 
 切换草稿、工作区、页面时保护未保存内容，页面切换使用 router.setLeaveGuard，浏览器关闭使用原生 beforeunload。跨页目标由 domain/drafts 先保存后切页；进入工作区消费目标，避免助手卡片事件早于挂载丢失。顶部、列表与侧栏计数读取 domain 当前快照并订阅 drafts:counts，入库或丢弃后同步；初次挂载与重绘不保留旧的初始计数。
 
@@ -83,7 +87,7 @@ AI 草稿列表和详情会在 `source_channel=mcp` 时显示“来源：MCP”�
 
 ## 样式
 
-样式都在 features 层：`create.css`（导航、工作区显隐与整屏工作台、上传、快速录入、网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（`crc-`）、`train.css`（`crt-`）与 `drafts.css`（草稿审核工作区、Inspector、来源模式与移动端标签）。只用 token；标注色取 `--info` / `--success` / `--danger`。旧 `styles.css` 里已没有录入页的规则。
+样式都在 features 层：`create.css`（导航、工作区显隐与整屏工作台、上传、快速录入、网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（`crc-`）、`train.css`（`crt-`）与 `drafts.css`（草稿队列、连续正文、统一底部操作与来源模式）。只用 token；标注色取 `--info` / `--success` / `--danger`。旧 `styles.css` 里已没有录入页的规则。
 
 处理区的文字框与输入框用 `ui-textarea` / `ui-input`（与全站同一套控件）。
 

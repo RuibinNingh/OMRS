@@ -289,7 +289,8 @@ def _run_detect(vault, job_id, draft_id, revision, snapshots):
                             for block_id, candidate in mapping.items():
                                 rect = _box({key: candidate[key] for key in ("x", "y", "w", "h")})
                                 db.execute("UPDATE blocks SET x=?,y=?,w=?,h=?,box_origin='ai',ai_box=? "
-                                           "WHERE id=? AND draft_id=?", (*rect.values(), json.dumps(rect), block_id, draft_id))
+                                           "WHERE id=? AND draft_id=?",
+                                           (rect["x"], rect["y"], rect["w"], rect["h"], json.dumps(rect), block_id, draft_id))
                             from .draft_training import sync_block_boxes
                             sync_block_boxes(db, draft_id)
                             item["applied_blocks"] = list(mapping)

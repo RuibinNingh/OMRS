@@ -86,6 +86,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 - AI 框选（`inbox-ops.js` 的 `detect`）：`slice-plan` → canvas 切条带（JPEG 0.85）→ `jobs detect` → 1.2s 轮询 → 完成后重读收件箱回填。提取、分类也用后台 job 和轮询。detect 完成的提示汇总盲标张数、自动提取待审核张数与失败数；区域面板 meta 行对盲标图显示「盲标（AI 框已隐藏，请直接手画）」。
 - 文本提取完成时，前端重读收件箱；正在保存、待保存或拖动的图片保留本地对象和编辑，安全字段才与服务端状态合并。读取失败时保留当前列表和编辑并提示，不以空列表替换。
 - ③ 录入：`ready` 的每张题卡一行——左预览（文本 Markdown 或裁图 canvas）右表单；字段去抖 600ms 存到 `cards`；「AI 识别题目信息」走 classify job；「创建题目」先确认待存改动已全部写出，失败则中止，再用最新 revision/epoch 连同裁图提交。单张创建弹一条带「加入展示板」的提示（停留 8 秒）；批量逐张提交、最后只弹一条汇总，「加入展示板（N 题）」一次加入这批新题。
+- AI 草稿：正文块显式暂存，发送 revision 与完整有序块数组；插入与跨组移动不新增收件箱条目。来源框选和训练仍使用草稿专用接口，入库成功后进入下一份待审草稿，界面细节见 `AI/frontend/create.md`。
 - AI 训练：`dataset/stats` 四张指标卡 + 版式 / 转换决策条 + 盲标评估集与存储概览 + 导出（JSONL / YOLO）+ 清理按钮 +「框选提供方与自动策略」表单（直接读写 `/api/config` 的 `inbox_*` 键）。
 - 裁图（`crop.js`）：PNG 裁图超过 150 万像素（整张长截图的答案区）自动改 JPEG 0.9（白底），避免 commit 请求带几 MB base64。
 

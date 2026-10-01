@@ -55,6 +55,24 @@ class DraftDetectTests(unittest.TestCase):
         self.assertEqual(current["training_tasks"][0]["boxes"][0]["box_origin"], "ai")
         self.assertEqual(current["revision"], d["revision"] + 1)
 
+    def test_candidate_coordinates_do_not_depend_on_dictionary_order(self):
+        """归一化字典的键顺序改变，正文和训练框仍须使用同一组坐标。"""
+        from omrs.draft_write import _box
+        expected = {"x": 0.1, "y": 0.15, "w": 0.6, "h": 0.55}
+        candidate = {**QUESTION, **expected}
+        def reversed_box(value):
+            result = _box(value)
+            return {key: result[key] for key in ("h", "w", "y", "x")}
+        draft = self.create()
+        with mock.patch("omrs.draft_detect._box", side_effect=reversed_box), \
+                mock.patch("omrs.draft_detect.ai_assist.detect_regions", return_value=[candidate]):
+            job = self.wait_job(drafts.start_detect(self.vault, draft["id"], draft["revision"]))
+        current = drafts.get_draft(self.vault, draft["id"])
+        self.assertEqual(job["status"], "done")
+        self.assertEqual(current["blocks"][0]["box"], expected)
+        self.assertEqual(current["blocks"][0]["ai_box"], expected)
+        self.assertEqual(current["training_tasks"][0]["boxes"][0]["box"], expected)
+
     def test_local_provider_slices_tall_source_image(self):
         try:
             import PIL  # noqa: F401 - 条带裁图的可选依赖

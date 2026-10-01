@@ -3,12 +3,13 @@ import { get, post } from '../../core/api.js';
 import { morph } from '../../core/dom.js';
 import { currentDraftCounts, consumeDraftTarget, publishDraftChange, selectedDraftId, selectDraftId } from '../../domain/drafts.js';
 import { notify, inbox } from './inbox.js';
-import { csvValues, draftProblems, editTraining, editValue, imageSha, imageUrl, moveBlock, trainingBoxPayload, updatePayload, commitProblem } from './drafts-state.js';
+import { csvValues, draftProblems, editTraining, editValue, imageSha, imageUrl, trainingBoxPayload, updatePayload, commitProblem } from './drafts-state.js';
 import { draftsView } from './drafts-view.js';
 import { notifyHistoryChanged } from '../../domain/history.js';
 import { reloadData } from '../../domain/data.js';
 import { viewQ } from '../../domain/question/index.js';
 import { dialog, confirm } from '../../ui/dialog.js';
+import { openMenu } from '../../ui/menu.js';
 import { openCreateLabelPicker } from '../../domain/labels/index.js';
 import { cropDataUrl } from './crop.js';
 import { paintDraftCrops } from './drafts-canvas.js';
@@ -16,7 +17,7 @@ import { createDraftCanvasControl } from './drafts-canvas-ctl.js';
 import { createDraftJobPolling } from './drafts-job.js';
 import { createDraftImageActions } from './drafts-image-actions.js';
 import { previewDraftSource } from './drafts-preview.js';
-let nextLocalBlock = 0;
+import { createDraftBlockActions } from './drafts-block-actions.js';
 const responseError = result => result.error?.message || result.data?.msg || '请求失败';
 export function createDrafts(root, ctx) {
   const host = root.querySelector('#ib-stage-drafts');
@@ -24,12 +25,13 @@ export function createDrafts(root, ctx) {
     draft: null, value: null, saved: '', detailLoaded: true, detailError: '', dirty: false,
     busy: false, message: '', conflict: false, counts: currentDraftCounts(), training: {}, trainingSaved: '{}',
     canvasSha: null, canvasMode: 'body', selectedBlock: null, drawSection: '题目', job: null,
-    reviewTab: 'question', workspaceMode: 'review', editingBlock: null, fieldsEditing: false, queueOpen: false };
+    workspaceMode: 'review', editingBlock: null, fieldsEditing: false, queueOpen: false };
   let alive = true;
   let listRequest = 0;
   let detailRequest = 0;
   const jobs = createDraftJobPolling(root, state, { isAlive: () => alive, loadDetail, paint, responseError });
   const canvas = createDraftCanvasControl(host, state, { markChanged, paint, block });
+  const blocks = createDraftBlockActions(host, state, { isAlive: () => alive, block, paint, markChanged, canvas });
   const images = createDraftImageActions(state, { isAlive: () => alive, save, setDraft, showError, paint, canvas, jobs, markChanged, block });
   function paint() {
     if (!alive || !host || inbox.state.stage !== 'drafts' || canvas.isDragging()) return;
@@ -47,7 +49,7 @@ export function createDrafts(root, ctx) {
   function setDraft(draft) {
     jobs.stop();
     if (state.draft?.id !== draft?.id) {
-      state.reviewTab = 'question'; state.workspaceMode = 'review'; state.editingBlock = null; state.fieldsEditing = false;
+      blocks.dispose(); state.workspaceMode = 'review'; state.editingBlock = null; state.fieldsEditing = false;
       state.queueOpen = false;
     }
     state.draft = draft;
@@ -156,16 +158,23 @@ export function createDrafts(root, ctx) {
   function workspaceMode(mode) {
     if (!['review', 'source'].includes(mode)) return;
     state.workspaceMode = mode;
-    if (mode === 'source') state.reviewTab = 'source';
-    else if (state.reviewTab === 'source') state.reviewTab = 'question';
     paint();
     if (mode === 'source') requestAnimationFrame(() => { canvas.refresh(); void paintDraftCrops(host, state.value); });
   }
   function toggleSource() { workspaceMode(state.workspaceMode === 'source' ? 'review' : 'source'); }
-  function reviewTab(tab) { if (!['question', 'answer', 'info', 'source'].includes(tab)) return;
-    if (tab === 'source') { workspaceMode('source'); return; } state.workspaceMode = 'review'; state.reviewTab = tab; paint(); }
-  function editBlock(key) { if (state.busy || !block(key)) return; state.editingBlock = state.editingBlock === key ? null : key; paint(); }
-  function editFields() { if (state.busy || !state.value) return; state.fieldsEditing = !state.fieldsEditing; paint(); }
+  function editFields() {
+    if (state.busy || !state.value || ['done', 'discarded'].includes(state.draft?.status)) return;
+    state.fieldsEditing = !state.fieldsEditing; paint();
+    if (state.fieldsEditing) host.querySelector('[data-input="create.draftField"]')?.focus({ preventScroll: true });
+  }
+  async function queueMenu(anchor) {
+    if (!alive || state.busy) return;
+    const action = await openMenu(anchor, [{ value: 'reload', label: '刷新列表', disabled: state.busy },
+      { value: 'cleanup', label: '清理过期草稿', disabled: state.busy }], { label: '草稿队列操作' });
+    if (!alive) return;
+    if (action === 'reload') await reload();
+    else if (action === 'cleanup') await cleanup();
+  }
   async function enter() {
     paint();
     await loadList();
@@ -175,7 +184,9 @@ export function createDrafts(root, ctx) {
   }
   async function filter(next) {
     if (!['pending', 'done', 'discarded'].includes(next) || next === state.filter) return;
-    if (state.dirty && !await guard()) return;
+    if (state.dirty && !await guard()) {
+      const select = host.querySelector('[data-change="create.draftFilter"]'); if (select) select.value = state.filter; return;
+    }
     state.filter = next;
     state.selectedId = null; state.draft = null; state.value = null;
     state.listLoaded = false; paint();
@@ -208,7 +219,6 @@ export function createDrafts(root, ctx) {
     const row = block(key);
     if (!row) return;
     row[name] = raw;
-    if (name === 'section') canvas.refresh();
     markChanged();
   }
   function sourceAdd() {
@@ -230,20 +240,6 @@ export function createDrafts(root, ctx) {
     canvas.refresh();
     markChanged();
   }
-  function addBlock(section, kind) {
-    if (state.busy || !state.value || ['done', 'discarded'].includes(state.draft?.status) || !['题目', '答案'].includes(section)) return;
-    const row = { _key: `local-${++nextLocalBlock}`, section, kind, text: kind === 'text' ? '' : null,
-      image_sha: null, note: '', box: null, box_origin: null };
-    if (kind === 'image') {
-      row.image_sha = host.querySelector(`[data-draft-image="${section}"]`)?.value;
-      if (!row.image_sha) return;
-    }
-    state.value.blocks.push(row);
-    if (kind === 'image') { state.canvasSha = row.image_sha; state.canvasMode = 'body'; state.selectedBlock = row._key; canvas.refresh(); }
-    markChanged();
-  }
-  function removeBlock(key) { if (!state.value || state.busy || ['done', 'discarded'].includes(state.draft?.status)) return; state.value.blocks = state.value.blocks.filter(row => (row.id || row._key) !== key); if (state.selectedBlock === key) state.selectedBlock = null; canvas.refresh(); markChanged(); }
-  function move(key, step) { if (!state.value || state.busy || ['done', 'discarded'].includes(state.draft?.status)) return; if (moveBlock(state.value.blocks, key, step)) markChanged(); }
   function whole(key) {
     const row = block(key);
     if (!row || row.kind !== 'image' || state.busy || ['done', 'discarded'].includes(state.draft?.status)) return;
@@ -298,7 +294,8 @@ export function createDrafts(root, ctx) {
         const changedTraining = Object.fromEntries(Object.entries(state.training).filter(([taskId, boxes]) =>
           JSON.stringify(boxes) !== JSON.stringify(previousTraining[taskId] || [])));
         state.draft = result.data.draft;
-        state.value = editValue(state.draft);
+        const previousValue = state.value;
+        state.value = editValue(state.draft); blocks.remapEditing(previousValue);
         state.saved = JSON.stringify(state.value);
         state.training = { ...editTraining(state.draft), ...changedTraining };
         state.trainingSaved = JSON.stringify(editTraining(state.draft));
@@ -389,12 +386,12 @@ export function createDrafts(root, ctx) {
   }
   function beforeUnload(event) { if (!state.dirty) return; event.preventDefault(); event.returnValue = ''; }
   root.ownerDocument.defaultView.addEventListener('beforeunload', beforeUnload);
-  return { state, paint, enter, open, navigate, toggleQueue, toggleSource, workspaceMode, reviewTab, editBlock, editFields, guard, filter, reload, reloadDetail, field,
-    openLabels,
-    sourceAdd, sourceRemove, previewSource: sha => previewDraftSource(state, sha), addBlock, removeBlock, move, whole, canvasImage: canvas.image, canvasMode: canvas.mode, canvasBlock: canvas.selectBlock,
+  return { state, paint, enter, open, navigate, toggleQueue, toggleSource, workspaceMode, editFields, queueMenu, guard, filter, reload, reloadDetail, field,
+    openLabels, editBlock: blocks.editBlock, editImage: blocks.editImage, blockMenu: blocks.blockMenu, locateIssue: blocks.locateIssue,
+    sourceAdd, sourceRemove, previewSource: sha => previewDraftSource(state, sha), addBlock: blocks.addBlock, addImage: blocks.addImage, whole, canvasImage: canvas.image, canvasMode: canvas.mode, canvasBlock: canvas.selectBlock,
     drawSection: canvas.section, clearBox: canvas.clearBox, trainingSection: canvas.trainingSection, trainingRemove: canvas.trainingRemove,
     trainToggle: images.trainToggle, extract: images.extract, detect: images.detect, acceptCandidate: images.acceptCandidate, retryTraining, cleanup,
     save, commit, discard, openQuestion,
-    blockField, dispose() { alive = false; jobs.stop(); canvas.dispose();
+    blockField, dispose() { alive = false; jobs.stop(); blocks.dispose(); canvas.dispose();
       root.ownerDocument.defaultView.removeEventListener('beforeunload', beforeUnload); } };
 }
