@@ -29,6 +29,8 @@ MCP 使用独立的 Streamable HTTP 端点（推荐 `serve --mcp-port 8472` 同�
 
 MCP `create_draft` 在图片处理与等锁后、实际写入前重新验证 `draft:create`；新建与两种幂等复用结果封装前也复查。处理中 Key 失效返回 `isError=true` 的稳定 `forbidden`，不返回草稿正文；已有合法提交及原图保留。相同 Key 恢复有效后可继续幂等复用，复用不额外要求读权限。
 
+`tools/list` 按实时 `omrs:read` / `draft:create` 返回九个查询工具 / 创建工具 / 两者合集；创建工具的 schema、fileParams 与 annotations 保持。`tools/call` 独立检查同一显式映射及当前 Key，不使用 SDK 的共享工具定义缓存授予权限。
+
 ---
 
 ## GET 端点

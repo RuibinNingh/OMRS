@@ -1,11 +1,13 @@
 """MCP 密钥、能力白名单和外部草稿图片链路。"""
 
+import asyncio
 import base64
 import hashlib
 import os
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 import zlib
 
 from omrs import drafts
@@ -62,6 +64,36 @@ class MCPPolicyTests(unittest.TestCase):
             ])
             create = server._tool_manager.get_tool("create_draft")
             self.assertEqual(create.meta["openai/fileParams"], ["images"])
+            from omrs.mcp.server import TOOL_SCOPES
+            self.assertEqual(set(TOOL_SCOPES), set(names))
+            self.assertEqual({name for name, scope in TOOL_SCOPES.items() if scope == "draft:create"}, {"create_draft"})
+
+    def test_discovery_uses_live_scopes_and_unmapped_tool_is_never_callable(self):
+        from mcp.server.auth.provider import AccessToken
+        from mcp.server.fastmcp.exceptions import ToolError
+        with tempfile.TemporaryDirectory() as vault:
+            key = create_key(vault, "当前仅写", ["draft:create"])
+            # 旧 token 对象的 scope 不能覆盖磁盘上的当前权限。
+            token = AccessToken(token=key["secret"], client_id=key["key_id"], scopes=["omrs:read", "draft:create"])
+            server = build_server(vault)
+            called = []
+
+            def future_tool():
+                called.append(True)
+                return {"result": "不应执行"}
+
+            server.add_tool(future_tool, name="future_tool")
+
+            async def run():
+                with patch("omrs.mcp.server.get_access_token", return_value=token):
+                    self.assertEqual([tool.name for tool in await server.list_tools()], ["create_draft"])
+                    with self.assertRaisesRegex(ToolError, "^forbidden:"):
+                        await server.call_tool("get_overview", {})
+                    with self.assertRaisesRegex(ToolError, "^unknown_tool:"):
+                        await server.call_tool("future_tool", {})
+            asyncio.run(run())
+            self.assertEqual(called, [])
+            self.assertEqual(len(server._tool_manager.list_tools()), 11)
 
     def test_ssrf_loopback_and_non_https_are_rejected_before_download(self):
         with self.assertRaises(ValueError):

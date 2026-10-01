@@ -43,6 +43,18 @@ MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_TOTAL_IMAGE_BYTES = MAX_IMAGES * MAX_IMAGE_BYTES
 MAX_FIELD_CHARS = 20_000
 MAX_TOTAL_TEXT_CHARS = 500_000
+TOOL_SCOPES = {
+    "list_taxonomy": "omrs:read",
+    "search_questions": "omrs:read",
+    "get_question": "omrs:read",
+    "get_overview": "omrs:read",
+    "get_recommendations": "omrs:read",
+    "list_sessions": "omrs:read",
+    "get_session": "omrs:read",
+    "list_drafts": "omrs:read",
+    "get_draft": "omrs:read",
+    "create_draft": "draft:create",
+}
 
 
 class MCPFile(BaseModel):
@@ -86,10 +98,25 @@ class MCPTokenVerifier:
 class RestrictedMCP(FastMCP):
     """在 SDK 执行函数前按公开 schema 校验，错误不回显输入或本地堆栈。"""
 
+    def __init__(self, *args, vault, **kwargs):
+        self.vault = vault
+        super().__init__(*args, **kwargs)
+
+    async def list_tools(self):
+        _, row = await asyncio.to_thread(_verified_key, self.vault)
+        scopes = set(row["scopes"])
+        tools = await super().list_tools()
+        # 仅过滤当前请求的描述；全局注册表与 SDK 定义缓存不承担授权。
+        return [tool for tool in tools if TOOL_SCOPES.get(tool.name) in scopes]
+
     async def call_tool(self, name, arguments):
         tool = self._tool_manager.get_tool(name)
-        if tool is None:
+        if tool is None or name not in TOOL_SCOPES:
             raise ToolError("unknown_tool: 未开放此工具")
+        try:
+            await asyncio.to_thread(_require, self.vault, TOOL_SCOPES[name])
+        except PermissionError:
+            raise ToolError("forbidden: MCP Key 无权执行此能力或已失效") from None
         if next(Draft202012Validator(tool.parameters).iter_errors(arguments), None) is not None:
             raise ToolError("invalid_arguments: 参数不符合工具 schema")
         try:
@@ -120,11 +147,16 @@ def _token():
     return token
 
 
-def _require(vault, scope):
+def _verified_key(vault):
     token = _token()
     row = verify_key(vault, token.token)
     if row is None:
         raise PermissionError("MCP Key 无效或已吊销")
+    return token, row
+
+
+def _require(vault, scope):
+    token, row = _verified_key(vault)
     if scope not in set(row["scopes"] or []):
         raise PermissionError("MCP Key 没有执行此操作的权限")
     return token
@@ -352,6 +384,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
         allowed_origins.append("https://" + url.netloc)
     server = RestrictedMCP(
         "OMRS",
+        vault=vault,
         instructions="只读查询 OMRS 学习数据；唯一业务写入是创建待审核草稿。",
         token_verifier=MCPTokenVerifier(vault),
         auth=AuthSettings(issuer_url="https://omrs.invalid", resource_server_url=resource_url),

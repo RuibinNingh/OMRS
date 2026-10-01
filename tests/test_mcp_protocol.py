@@ -496,6 +496,79 @@ class MCPProtocolTests(unittest.TestCase):
                     urllib.request.urlopen(request, timeout=5)
                 self.assertEqual(caught.exception.code, 403)
 
+    def test_discovery_scopes_remain_isolated_and_refresh_in_existing_client(self):
+        from omrs.mcp import keys
+        full_key = create_key(self.server.vault, "discovery-all", ["omrs:read", "draft:create"])
+        write_key = create_key(self.server.vault, "discovery-create", ["draft:create"])
+        reads = ["list_taxonomy", "search_questions", "get_question", "get_overview", "get_recommendations",
+                 "list_sessions", "get_session", "list_drafts", "get_draft"]
+        payload = {"subject": "数学", "category": "发现权限", "request_id": "discovery-only-create",
+                   "blocks": [{"section": "题目", "kind": "text", "text": "待审核"}]}
+
+        def scopes(value):
+            with keys._key_lock(self.server.vault):
+                data = keys._load(self.server.vault)
+                row = next(row for row in data["keys"] if row["key_id"] == full_key["key_id"])
+                row["scopes"] = value
+                keys._save(self.server.vault, data)
+
+        async def listing(session, names):
+            result = await session.list_tools()
+            self.assertEqual([tool.name for tool in result.tools], names)
+            return {tool.name: tool.model_dump() for tool in result.tools}
+
+        async def forbidden(session, name, args):
+            result = await session.call_tool(name, args)
+            self.assertTrue(result.isError)
+            self.assertIn("forbidden:", "".join(getattr(item, "text", "") for item in result.content))
+
+        async def run():
+            async with _session(self.server.mcp_port, full_key["secret"]) as full, \
+                    _session(self.server.mcp_port, self.server.keys["read"]["secret"]) as reader, \
+                    _session(self.server.mcp_port, write_key["secret"]) as writer:
+                all_descriptions = await listing(full, [*reads, "create_draft"])
+                read_descriptions = await listing(reader, reads)
+                write_descriptions = await listing(writer, ["create_draft"])
+                self.assertEqual(read_descriptions, {name: all_descriptions[name] for name in reads})
+                self.assertEqual(write_descriptions, {"create_draft": all_descriptions["create_draft"]})
+                self.assertEqual(write_descriptions["create_draft"]["meta"]["openai/fileParams"], ["images"])
+                self.assertFalse(write_descriptions["create_draft"]["annotations"]["readOnlyHint"])
+                before = drafts.counts(self.server.vault)
+                # SDK 的全局定义缓存曾被其它客户端覆盖；调用仍独立校验。
+                self.assertFalse((await full.call_tool("get_overview", {})).isError)
+                await forbidden(reader, "create_draft", payload)
+                await forbidden(writer, "get_overview", {})
+                self.assertEqual(drafts.counts(self.server.vault), before)
+                self.assertFalse((await writer.call_tool("create_draft", payload)).isError)
+                await listing(reader, reads)
+                await listing(writer, ["create_draft"])
+                scopes(["omrs:read"])
+                await listing(full, reads)
+                await forbidden(full, "create_draft", payload)
+                scopes(["draft:create"])
+                await listing(full, ["create_draft"])
+                await forbidden(full, "get_overview", {})
+                self.assertFalse((await full.call_tool("create_draft", {**payload, "request_id": "discovery-changed"})).isError)
+                scopes(["omrs:read", "draft:create"])
+                self.assertEqual(await listing(full, [*reads, "create_draft"]), all_descriptions)
+                await listing(reader, reads)
+                await listing(writer, ["create_draft"])
+        asyncio.run(run())
+
+    def test_revoked_existing_client_cannot_discover_tools(self):
+        key = create_key(self.server.vault, "discovery-revoke", ["omrs:read"])
+        discovered = False
+        async def run():
+            nonlocal discovered
+            with self.assertRaises(Exception):
+                async with _session(self.server.mcp_port, key["secret"]) as session:
+                    self.assertTrue((await session.list_tools()).tools)
+                    discovered = True
+                    revoke_key(self.server.vault, key["key_id"])
+                    await session.list_tools()
+        asyncio.run(run())
+        self.assertTrue(discovered)
+
     def test_transport_rejects_untrusted_host_and_origin(self):
         body = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
             "protocolVersion": "2025-11-25", "capabilities": {},
