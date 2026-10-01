@@ -64,6 +64,6 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentication、Mixed Authentication。文档中的 static credentials 是 OAuth 客户端凭据，不证明直接 URL 连接支持任意 API Key 请求头。可使用 Secure MCP Tunnel 私有连接，由客户侧 Tunnel 客户端从受限文件注入 Authorization，仍由本 MCP 验证 scope；无需把公网入口改成无鉴权。直接 URL 模式若不能发送 Key，则需另行提供保持相同 scope 的 OAuth 兼容入口。当前 ChatGPT 账户尚未联调，不能把外部 SDK 或 Tunnel 健康检查当成账户已接通。
 
-生产当前运行 `/root/workspace/apps/releases/omrs-af9e400`，同进程 MCP 仅监听回环端口并经 HTTPS 反代，包含权限修复与密钥管理界面。官方 SDK 发现 9 个只读工具，`get_overview(subject="生物")` 返回 19 题、逾期 3、今日到期 16；普通 Web API 对 MCP Key 返回 403，吊销后的 Key 返回 401。生产未创建验收草稿，临时只读验收密钥已吊销；公网 PIN 入口可见且无页面脚本错误。主应用浏览器因缺少 PIN 会话未进入，完整页面闭环仍以发布目录的隔离实例结果为准。部署与数据核验见 `AI/plans/mcp-integration/progress.md`。
+生产当前运行 `/root/workspace/apps/releases/omrs-477c5b2`，同进程 MCP 仅监听回环端口并经 HTTPS 反代，包含权限修复与密钥管理界面。官方 SDK 发现 9 个只读工具，`get_overview(subject="生物")` 返回 19 题、逾期 3、今日到期 16；普通 Web API 对 MCP Key 返回 403，吊销后的 Key 返回 401。生产未创建验收草稿，临时只读验收密钥已吊销；公网 PIN 入口可见且无页面脚本错误。主应用浏览器因缺少 PIN 会话未进入，完整页面闭环仍以发布目录的隔离实例结果为准。部署与数据核验见 `AI/plans/mcp-integration/progress.md`。
 
 官方参考：[Developer Mode](https://developers.openai.com/api/docs/guides/developer-mode)、[Apps SDK 文件参数](https://developers.openai.com/apps-sdk/reference/)、[认证](https://developers.openai.com/apps-sdk/build/auth/)、[Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。
