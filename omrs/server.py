@@ -103,6 +103,12 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         query_pairs = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
         params = dict(query_pairs)
 
+        # 先拒绝 MCP 凭据，再处理普通端口的公开页面和登录状态接口，避免
+        # 通过 /api/auth/login 等路径借道建立 Web 会话。
+        if self._mcp_credential_present():
+            self._json({"status": "error", "code": "mcp_boundary", "msg": "MCP Key 不能调用普通 OMRS 接口"}, 403)
+            return
+
         if path == "/login":
             self._serve_entry()
             return
@@ -133,6 +139,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         if path.startswith("/api/agent/"):
             from .agent.http import handle_agent_get
             handle_agent_get(self, path, params)
+            return
+        if path.startswith("/api/mcp/"):
+            self._mcp_get(path, params)
             return
         if path.startswith("/api/drafts/"):
             self._drafts_get(path, params)
@@ -372,6 +381,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
+        if self._mcp_credential_present():
+            self._json({"status": "error", "code": "mcp_boundary", "msg": "MCP Key 不能调用普通 OMRS 接口"}, 403)
+            return
         if not self._check_write_origin():
             return
         if path == "/api/auth/login":
@@ -385,6 +397,9 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         if path.startswith("/api/agent/"):
             from .agent.http import handle_agent_post
             handle_agent_post(self, path)
+            return
+        if path.startswith("/api/mcp/"):
+            self._mcp_post(path)
             return
         if locking.post_exempt(path):
             self._do_post_routes(path)
@@ -1309,6 +1324,51 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         except (ValueError, TypeError) as exc:
             self._json({"status": "error", "msg": str(exc), "code": "invalid"}, 400)
 
+    # ────────────────────────── MCP Key 管理 ──────────────────────────
+    def _mcp_get(self, path, params):
+        try:
+            if path == "/api/mcp/keys":
+                from .mcp.keys import list_keys
+                self._json({"status": "ok", "keys": list_keys(self.vault_path)})
+            else:
+                self._json({"status": "error", "msg": "not found"}, 404)
+        except (ValueError, TypeError) as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+
+    def _mcp_post(self, path):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            if not 0 <= length <= 16 * 1024:
+                raise ValueError("Key 管理请求超过大小限制")
+            body = self.rfile.read(length)
+            data = json.loads(body or b"{}")
+            if not isinstance(data, dict):
+                raise ValueError("请求必须是 JSON 对象")
+            from .mcp.keys import create_key, revoke_key
+            if path == "/api/mcp/keys":
+                if set(data) - {"name", "scopes", "expires_at"}:
+                    raise ValueError("Key 管理请求包含不允许的字段")
+                self._json({"status": "ok", "key": create_key(
+                    self.vault_path, data.get("name", ""), data.get("scopes"), data.get("expires_at"))})
+            elif path == "/api/mcp/keys/revoke":
+                if set(data) != {"key_id"}:
+                    raise ValueError("吊销请求只能包含 key_id")
+                self._json({"status": "ok", "key": revoke_key(self.vault_path, data.get("key_id", ""))})
+            else:
+                self._json({"status": "error", "msg": "not found"}, 404)
+        except (ValueError, TypeError, json.JSONDecodeError) as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+
+    def _mcp_credential_present(self):
+        """普通 Web 端口拒绝 MCP 专用凭据，防止跨接口借道。"""
+        # 一些只调用路由方法的单元测试 handler 不经过 BaseHTTPRequestHandler
+        # 初始化，因此没有 headers 属性；缺少请求头等同于没有 MCP 凭据。
+        headers = getattr(self, "headers", None)
+        if headers is None:
+            return False
+        return bool(headers.get("X-OMRS-MCP-Key") or
+                    (headers.get("Authorization") or "").lower().startswith("bearer "))
+
     def _entry_background_post(self):
         """分块接收入口背景，文件落盘后才在写锁内提交配置。"""
         raw_path = None
@@ -1830,6 +1890,8 @@ fetch("/api/auth/session",{cache:"no-store"}).then(r=>r.json()).then(show).catch
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        if urllib.parse.urlparse(self.path).path.startswith("/api/mcp/"):
+            self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
 

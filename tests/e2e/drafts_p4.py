@@ -145,8 +145,13 @@ def main():
                     original = item('applied')['blocks'][0]['ai_box']
                     page.locator('#drf-stage-img').scroll_into_view_if_needed()
                     handle = page.locator('#drf-stage-img .crp-handle[data-h="se"]')
-                    handle.scroll_into_view_if_needed()
+                    page.wait_for_function("() => { const img = document.querySelector('#drf-stage-src'); return img?.complete && img.naturalWidth > 0; }")
+                    # 页面启用了平滑滚动；hover 会等目标稳定并通过命中检查，
+                    # 避免读到滚动过程中的坐标后把拖动落在画布外。
+                    handle.hover()
                     point = handle.bounding_box()
+                    if not handle.evaluate("element => { const bounds = element.getBoundingClientRect(); return document.elementFromPoint(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2) === element; }"):
+                        raise AssertionError('AI 框缩放柄中心没有命中目标')
                     page.mouse.move(point['x'] + point['width'] / 2, point['y'] + point['height'] / 2)
                     page.mouse.down(); page.mouse.move(point['x'] + point['width'] / 2 + 20, point['y'] + point['height'] / 2 + 10, steps=5); page.mouse.up()
                     support.wait(page, "() => document.querySelector('.drf-detail h2')?.textContent.includes('未保存')", 3000)

@@ -18,6 +18,7 @@ _ROOT_FILES = {
     "omrs_dashboard.html",
     "omrs_engine.py",
     "pack_for_ai.bat",
+    "requirements-mcp.txt",
     "run.bat",
 }
 _SOURCE_DIRS = {"AI", "Skills", "assets", "deploy", "omrs", "tests", "web"}

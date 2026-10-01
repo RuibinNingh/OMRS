@@ -104,14 +104,14 @@ def shoot(side, port, args, out, frozen_ms):
                 page = ctx.new_page()
                 errors = []
                 page.on("pageerror", lambda e, errors=errors: errors.append(str(e)))
-                page.goto(f"http://127.0.0.1:{port}/", wait_until="networkidle")
+                page.goto(f"http://127.0.0.1:{port}/?unlocked=1", wait_until="networkidle")
                 page.add_style_tag(content=STILL_CSS)
                 for name in args.pages:
                     if name == 'trainpanel':
                         page.goto(f"http://127.0.0.1:{port}/train", wait_until="networkidle")
                     else:
                         if '/train' in page.url:
-                            page.goto(f"http://127.0.0.1:{port}/", wait_until="networkidle")
+                            page.goto(f"http://127.0.0.1:{port}/?unlocked=1", wait_until="networkidle")
                         page.evaluate("n => window.__omrs.router.go(n)", name)
                     page.wait_for_load_state("networkidle")
                     if name == "create" and args.create_stage:
@@ -211,7 +211,7 @@ def main(argv=None):
     ap.add_argument("--pages", default=",".join(PAGES))
     ap.add_argument("--themes", default="light,dark")
     ap.add_argument("--viewports", default="desktop,mobile")
-    ap.add_argument("--create-stage", choices=["upload", "process", "create", "train", "quick"], help="录入页截图时切到指定工作区")
+    ap.add_argument("--create-stage", choices=["upload", "process", "create", "train", "quick", "drafts"], help="录入页截图时切到指定工作区")
     ap.add_argument("--settings-section", choices=["appearance", "access", "ai", "assistant", "data", "service"], help="设置页截图时切到指定分区")
     ap.add_argument("--settle", type=int, default=500, help="每页切换后额外等待毫秒数")
     args = ap.parse_args(argv)

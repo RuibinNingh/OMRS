@@ -11,6 +11,8 @@
 
 `#panel-create` 在 HTML 里只有导航 `#create-flow` 和工作区容器，内容全部由 `features/create/index.js` 挂载。导航由 `state.js` / `view.js` 渲染六个按钮（`data-action="create.stage"`），前三项按流程编号并显示待处理、已框选、待创建三个计数。当前工作区存在收件箱单例的 `stage` 里，切到其它页面后返回仍停在原处；进入 AI 训练时重读统计与策略。
 
+AI 草稿列表和详情会在 `source_channel=mcp` 时显示“来源：MCP”。这类草稿仍进入同一待审核队列、版本保护和人工入库路径；完整来源图通过既有来源 Inspector 查看，来源标识不随普通字段编辑覆盖。MCP 原始来源图显示保留提示并禁止取消关联；正文仍可正常人工编辑。全幅块显示“完整原图”，人工改框后记为手动；错因显示由外部助手提供、待核对。
+
 录入页的快捷键登记在页面契约的 `keys` 里，只在处理区生效：`Q` / `A` / `X` 切画框角色、`Delete` / `Backspace` 删除选中框、`Enter` 下一张、`⌘/Ctrl + Enter` 一键提取、`Esc` 取消选中框。
 
 ## 收件箱数据（`inbox-store.js` / `inbox.js`）

@@ -15,12 +15,14 @@
 """
 
 import base64
+import contextlib
 import datetime
 import hashlib
 import json
 import os
 import re
 import sqlite3
+import tempfile
 import threading
 import uuid
 
@@ -38,6 +40,9 @@ _MIME_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif"}
 _DATA_URL_RE = re.compile(r"^data:image/(png|jpeg|gif);base64,(.+)$", re.DOTALL)
 _IMG_REF_RE = re.compile(r"^IMG-(\d+)$")
 _MAX_IMAGE_BYTES = 8 * 1024 * 1024
+# MCP 原图仍按实际字节保存，但拒绝异常大的像素头，避免后续审核/显示
+# 解码时占用不可控的内存。该上限与训练面板现有防护保持一致。
+_MCP_MAX_IMAGE_PIXELS = 40_000_000
 _JPEG_EOI = b"\xff\xd9"
 
 
@@ -144,7 +149,9 @@ CREATE TABLE IF NOT EXISTS drafts (
   id TEXT PRIMARY KEY, status TEXT, conversation_id TEXT, run_id TEXT, tool_call_id TEXT,
   subject TEXT, category TEXT, knowledge_points TEXT, difficulty INTEGER, labels TEXT,
   cause TEXT, cause_statement TEXT, note TEXT, uid TEXT, question_id TEXT,
-  created_at TEXT, updated_at TEXT
+  created_at TEXT, updated_at TEXT,
+  source_channel TEXT NOT NULL DEFAULT 'agent', source_key_id TEXT,
+  source_request_id TEXT, cause_verification TEXT, source_client_name TEXT
 );
 CREATE INDEX IF NOT EXISTS drafts_status ON drafts(status);
 CREATE INDEX IF NOT EXISTS drafts_conv ON drafts(conversation_id);
@@ -185,6 +192,12 @@ CREATE TABLE IF NOT EXISTS cleanup_candidates (image_sha TEXT PRIMARY KEY,marked
 CREATE TABLE IF NOT EXISTS draft_manual_edits (
   draft_id TEXT NOT NULL, target TEXT NOT NULL, PRIMARY KEY(draft_id,target)
 );
+CREATE TABLE IF NOT EXISTS mcp_requests (
+  source_key_id TEXT NOT NULL, request_id TEXT NOT NULL, content_hash TEXT NOT NULL,
+  stable_hash TEXT, draft_id TEXT NOT NULL, created_at TEXT NOT NULL,
+  PRIMARY KEY(source_key_id, request_id)
+);
+CREATE INDEX IF NOT EXISTS mcp_requests_draft ON mcp_requests(draft_id);
 """
 
 
@@ -200,6 +213,36 @@ def connect(vault):
         db.execute("ALTER TABLE drafts ADD COLUMN sources_complete INTEGER NOT NULL DEFAULT 0")
     if "cleaned_at" not in cols:
         db.execute("ALTER TABLE drafts ADD COLUMN cleaned_at TEXT")
+    added_source_channel = False
+    for name, definition in (
+        ("source_channel", "TEXT NOT NULL DEFAULT 'agent'"),
+        ("source_key_id", "TEXT"),
+        ("source_request_id", "TEXT"),
+        ("cause_verification", "TEXT"),
+        ("source_client_name", "TEXT"),
+    ):
+        if name not in cols:
+            db.execute(f"ALTER TABLE drafts ADD COLUMN {name} {definition}")
+            added_source_channel = added_source_channel or name == "source_channel"
+    if added_source_channel:
+        # 旧库只记录了来源字符串。只有 agent.db 中真实的运行和创建调用
+        # 能证明来源时才归 agent；缺库、缺表或身份不匹配都保守标 legacy。
+        db.execute("UPDATE drafts SET source_channel='legacy'")
+        agent_path = os.path.join(omrs_data_dir(vault), "agent.db")
+        if os.path.isfile(agent_path):
+            try:
+                agent = sqlite3.connect(f"file:{agent_path}?mode=ro", uri=True)
+                try:
+                    for row in db.execute("SELECT id,conversation_id,run_id,tool_call_id FROM drafts"):
+                        if agent.execute("SELECT 1 FROM tool_calls tc JOIN runs r ON r.id=tc.run_id "
+                                         "WHERE tc.run_id=? AND tc.call_id=? AND tc.name='create_draft' "
+                                         "AND r.conversation_id=?",
+                                         (row["run_id"], row["tool_call_id"], row["conversation_id"])).fetchone():
+                            db.execute("UPDATE drafts SET source_channel='agent' WHERE id=?", (row["id"],))
+                finally:
+                    agent.close()
+            except sqlite3.Error:
+                pass
     op_cols = {r["name"] for r in db.execute("PRAGMA table_info(commit_operations)")}
     if "artifacts_json" not in op_cols:
         db.execute("ALTER TABLE commit_operations ADD COLUMN artifacts_json TEXT")
@@ -208,6 +251,10 @@ def connect(vault):
         db.execute("ALTER TABLE training_tasks ADD COLUMN manual_override INTEGER NOT NULL DEFAULT 0")
     if "force_crop" not in task_cols:
         db.execute("ALTER TABLE training_tasks ADD COLUMN force_crop INTEGER NOT NULL DEFAULT 0")
+    mcp_cols = {r["name"] for r in db.execute("PRAGMA table_info(mcp_requests)")}
+    if "stable_hash" not in mcp_cols:
+        db.execute("ALTER TABLE mcp_requests ADD COLUMN stable_hash TEXT")
+    db.execute("CREATE INDEX IF NOT EXISTS mcp_requests_stable ON mcp_requests(source_key_id,stable_hash)")
     db.commit()
     return db
 
@@ -283,6 +330,165 @@ def add_image(vault, data_url, conversation_id, run_id):
             "bytes": len(data)}
 
 
+def add_mcp_image(vault, data, conversation_id, run_id, ordinal=0):
+    """保存 MCP 实际收到的原始图片字节，不做 JPEG 整理或重编码。"""
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        raise ValueError("图片数据为空")
+    raw = bytes(data)
+    if len(raw) > _MAX_IMAGE_BYTES:
+        raise ValueError(f"图片超过 {_MAX_IMAGE_BYTES // (1024 * 1024)}MB 限制")
+    try:
+        mime, width, height = image_size(raw)
+    except ValueError as exc:
+        raise ValueError("无法识别图片尺寸，可能不是有效的 PNG / JPEG / GIF") from exc
+    if mime not in _MIME_EXT:
+        raise ValueError("图片格式不支持，只接受 PNG / JPEG / GIF")
+    if width <= 0 or height <= 0 or width * height > _MCP_MAX_IMAGE_PIXELS:
+        raise ValueError("图片像素超过 4000 万限制")
+    sha = hashlib.sha256(raw).hexdigest()
+    now = _now()
+    with locking.write_lock(), _LOCK:
+        db = connect(vault)
+        try:
+            row = db.execute("SELECT MAX(n) AS mx FROM conv_images WHERE conversation_id=?", (conversation_id,)).fetchone()
+            n = int(row["mx"] or 0) + 1
+            existing = db.execute("SELECT sha256 FROM images WHERE sha256=?", (sha,)).fetchone()
+            if not existing:
+                ext = _MIME_EXT[mime]
+                path = os.path.join(images_dir(vault), f"{sha}.{ext}")
+                if not os.path.exists(path):
+                    with open(path, "xb") as stream:
+                        stream.write(raw)
+                db.execute(
+                    "INSERT INTO images (sha256,file,mime,width,height,bytes,created_at,transcript,"
+                    "transcript_model,train,inbox_item_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (sha, os.path.basename(path), mime, width, height, len(raw), now, None, None, None, None),
+                )
+            db.execute("INSERT OR IGNORE INTO conv_images(conversation_id,n,sha256,run_id,created_at) VALUES(?,?,?,?,?)",
+                       (conversation_id, n, sha, run_id, now))
+            db.commit()
+        finally:
+            db.close()
+    _log(vault, "image.add", {"conversation_id": conversation_id, "run_id": run_id,
+                               "sha256": sha, "n": n, "ref": f"IMG-{n}", "mime": mime,
+                               "width": width, "height": height, "bytes": len(raw), "source": "mcp"})
+    return {"sha256": sha, "n": n, "ref": f"IMG-{n}", "width": width, "height": height,
+            "mime": mime, "bytes": len(raw)}
+
+
+def _validate_mcp_bytes(data):
+    """校验 MCP 原图并返回原字节及其元数据；绝不整理或重编码。"""
+    if not isinstance(data, (bytes, bytearray)) or not data:
+        raise ValueError("图片数据为空")
+    raw = bytes(data)
+    if len(raw) > _MAX_IMAGE_BYTES:
+        raise ValueError(f"图片超过 {_MAX_IMAGE_BYTES // (1024 * 1024)}MB 限制")
+    try:
+        mime, width, height = image_size(raw)
+    except ValueError as exc:
+        raise ValueError("无法识别图片尺寸，可能不是有效的 PNG / JPEG / GIF") from exc
+    if mime not in _MIME_EXT:
+        raise ValueError("图片格式不支持，只接受 PNG / JPEG / GIF")
+    if width <= 0 or height <= 0 or width * height > _MCP_MAX_IMAGE_PIXELS:
+        raise ValueError("图片像素超过 4000 万限制")
+    return {"data": raw, "sha256": hashlib.sha256(raw).hexdigest(), "mime": mime,
+            "width": width, "height": height, "bytes": len(raw)}
+
+
+def _mcp_image_entries(images):
+    """接受原始字节列表，或含 data/bytes 的条目列表，供原子 MCP 入口使用。"""
+    if images is None:
+        return []
+    if not isinstance(images, list):
+        raise ValueError("images 必须是数组")
+    entries = []
+    for item in images:
+        if isinstance(item, dict):
+            raw = item.get("data", item.get("bytes"))
+            entry = _validate_mcp_bytes(raw)
+            if item.get("sha256") and str(item["sha256"]) != entry["sha256"]:
+                raise ValueError("图片 SHA-256 与实际字节不一致")
+            entries.append(entry)
+        else:
+            entries.append(_validate_mcp_bytes(item))
+    return entries
+
+
+def _mcp_write_images(db, vault, entries, conversation_id, run_id):
+    """在调用方事务内保存图片和对话映射，失败时只清理本次新建的临时文件。"""
+    now = _now()
+    directory = images_dir(vault)
+    created = []
+    rows = []
+    try:
+        for ordinal, entry in enumerate(entries):
+            sha, ext = entry["sha256"], _MIME_EXT[entry["mime"]]
+            path = os.path.join(directory, f"{sha}.{ext}")
+            exists = db.execute("SELECT sha256 FROM images WHERE sha256=?", (sha,)).fetchone()
+            if os.path.islink(path):
+                raise ValueError("原图路径不能是符号链接")
+            path_existed = os.path.exists(path)
+            actual_hash = None
+            if path_existed:
+                if not os.path.isfile(path):
+                    raise ValueError("原图路径不是普通文件")
+                with open(path, "rb") as stream:
+                    actual = stream.read(_MAX_IMAGE_BYTES + 1)
+                actual_hash = hashlib.sha256(actual).hexdigest()
+            if actual_hash != sha:
+                # 崩溃后可能留下同名但不完整的旧文件；仅用已校验、SHA 与
+                # 文件名一致的原始字节原子恢复，绝不信任“文件存在”。
+                # 临时文件同目录，os.replace 在同一文件系统内原子生效。
+                fd, temp = tempfile.mkstemp(prefix=f".{sha}.", dir=directory)
+                try:
+                    with os.fdopen(fd, "wb") as stream:
+                        stream.write(entry["data"])
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    os.replace(temp, path)
+                    if not path_existed and not exists:
+                        created.append(path)
+                except Exception:
+                    try:
+                        os.unlink(temp)
+                    except OSError:
+                        pass
+                    raise
+            if not exists:
+                db.execute("INSERT INTO images (sha256,file,mime,width,height,bytes,created_at,transcript,"
+                           "transcript_model,train,inbox_item_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                           (sha, os.path.basename(path), entry["mime"], entry["width"], entry["height"],
+                            entry["bytes"], now, None, None, None, None))
+            row = db.execute("SELECT MAX(n) AS mx FROM conv_images WHERE conversation_id=?", (conversation_id,)).fetchone()
+            n = int(row["mx"] or 0) + 1
+            old = db.execute("SELECT n FROM conv_images WHERE conversation_id=? AND sha256=?",
+                             (conversation_id, sha)).fetchone()
+            if old:
+                n = int(old["n"])
+            else:
+                db.execute("INSERT INTO conv_images(conversation_id,n,sha256,run_id,created_at) VALUES(?,?,?,?,?)",
+                           (conversation_id, n, sha, run_id, now))
+            rows.append({**entry, "n": n, "ref": f"IMG-{n}"})
+        # 文件名与数据先持久化，随后调用方才提交 SQLite 引用；重启不会
+        # 出现已提交的草稿指向尚未落盘的原图。
+        # Windows 的 CRT 不能像 POSIX 一样打开目录；文件自身已 fsync，
+        # 原子替换仍保留，目录同步只在支持该操作的平台执行。
+        if os.name != "nt":
+            directory_fd = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        return rows, created
+    except Exception:
+        for path in created:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+        raise
+
+
 def resolve_image(vault, conversation_id, ref):
     """`"IMG-3"` → 本对话里那张图的信息；找不到抛 ValueError。"""
     match = _IMG_REF_RE.match(str(ref or "").strip())
@@ -331,7 +537,9 @@ def image_path(vault, sha):
 def image_data_url(vault, sha):
     db = connect(vault)
     try:
-        row = db.execute("SELECT mime FROM images WHERE sha256=?", (sha,)).fetchone()
+        row = db.execute("SELECT i.mime,EXISTS(SELECT 1 FROM draft_images di JOIN drafts d ON d.id=di.draft_id "
+                         "WHERE di.image_sha=i.sha256 AND d.source_channel='mcp') AS mcp_original "
+                         "FROM images i WHERE i.sha256=?", (sha,)).fetchone()
     finally:
         db.close()
     if not row:
@@ -339,7 +547,11 @@ def image_data_url(vault, sha):
     path = image_path(vault, sha)
     with open(path, "rb") as file:
         data = file.read()
-    return f"data:{row['mime']};base64," + base64.b64encode(_complete_jpeg(row['mime'], data)).decode("ascii")
+    # MCP 来源须连同 JPEG 尾数据按原字节展示/下载；现有助手图片仍沿用
+    # 临时补尾与相册尾数据整理，原磁盘文件均不改写。
+    if not row["mcp_original"]:
+        data = _complete_jpeg(row["mime"], data)
+    return f"data:{row['mime']};base64," + base64.b64encode(data).decode("ascii")
 
 
 def get_transcript(vault, sha, model):
@@ -395,6 +607,11 @@ def _row_draft(row, blocks):
         "cause_statement": row["cause_statement"] or "", "note": row["note"] or "",
         "uid": row["uid"], "question_id": row["question_id"],
         "created_at": row["created_at"], "updated_at": row["updated_at"], "blocks": blocks,
+        "source_channel": row["source_channel"] if "source_channel" in row.keys() else "agent",
+        "source_key_id": row["source_key_id"] if "source_key_id" in row.keys() else None,
+        "source_request_id": row["source_request_id"] if "source_request_id" in row.keys() else None,
+        "cause_verification": row["cause_verification"] if "cause_verification" in row.keys() else None,
+        "source_client_name": row["source_client_name"] if "source_client_name" in row.keys() else None,
     }
 
 
@@ -417,11 +634,11 @@ def _draft_blocks(db, draft_id):
         "SELECT * FROM blocks WHERE draft_id=? ORDER BY ord", (draft_id,))]
 
 
-def _source_view(vault, db, row, blocks):
+def _source_view(vault, db, row, blocks, persist=True):
     """旧草稿只从精确工具调用或图片块恢复来源，绝不猜整个对话。"""
     conv = row["conversation_id"]
     candidates = db.execute(
-        "SELECT ci.n,ci.sha256,i.width,i.height,i.mime,i.train,i.inbox_item_id "
+        "SELECT ci.n,ci.sha256,i.width,i.height,i.mime,i.bytes,i.train,i.inbox_item_id "
         "FROM conv_images ci JOIN images i ON i.sha256=ci.sha256 "
         "WHERE ci.conversation_id=? ORDER BY ci.n", (conv,)).fetchall()
     by_sha = {r["sha256"]: r for r in candidates}
@@ -429,7 +646,7 @@ def _source_view(vault, db, row, blocks):
     if row["cleaned_at"]:
         return [], bool(row["sources_complete"]), [
             {"sha256": r["sha256"], "ref": f"IMG-{r['n']}", "width": r["width"],
-             "height": r["height"], "mime": r["mime"], "train": bool(r["train"]),
+             "height": r["height"], "mime": r["mime"], "bytes": r["bytes"], "train": bool(r["train"]),
              "inbox_item_id": r["inbox_item_id"]} for r in candidates]
     associated = [r["image_sha"] for r in db.execute(
         "SELECT image_sha FROM draft_images WHERE draft_id=? ORDER BY ord", (row["id"],))]
@@ -450,27 +667,30 @@ def _source_view(vault, db, row, blocks):
                     if isinstance(refs, list) and all(isinstance(ref, str) and ref in by_ref for ref in refs):
                         exact = list(dict.fromkeys(by_ref[ref] for ref in refs))
                         if all(b["image_sha"] in exact for b in blocks if b["image_sha"]):
-                            db.execute("DELETE FROM draft_images WHERE draft_id=?", (row["id"],))
-                            db.executemany("INSERT INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
-                                           [(row["id"], sha, i) for i, sha in enumerate(exact)])
-                            db.execute("UPDATE drafts SET sources_complete=1 WHERE id=?", (row["id"],))
-                            db.commit()
+                            if persist:
+                                db.execute("DELETE FROM draft_images WHERE draft_id=?", (row["id"],))
+                                db.executemany("INSERT INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
+                                               [(row["id"], sha, i) for i, sha in enumerate(exact)])
+                                db.execute("UPDATE drafts SET sources_complete=1 WHERE id=?", (row["id"],))
+                                db.commit()
                             associated, complete = exact, True
             except (sqlite3.Error, OSError):
                 pass
     for sha in (b["image_sha"] for b in blocks if b["image_sha"]):
         if sha not in associated:
             associated.append(sha)
-            db.execute("INSERT OR IGNORE INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
-                       (row["id"], sha, len(associated) - 1))
-            db.commit()
-    from .draft_training import sync_tasks
-    sync_tasks(db, row["id"])
-    db.commit()
+            if persist:
+                db.execute("INSERT OR IGNORE INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
+                           (row["id"], sha, len(associated) - 1))
+                db.commit()
+    if persist and (row["source_channel"] if "source_channel" in row.keys() else "agent") != "mcp":
+        from .draft_training import sync_tasks
+        sync_tasks(db, row["id"])
+        db.commit()
 
     def view(r):
         return {"sha256": r["sha256"], "ref": f"IMG-{r['n']}", "width": r["width"],
-                "height": r["height"], "mime": r["mime"], "train": bool(r["train"]),
+                "height": r["height"], "mime": r["mime"], "bytes": r["bytes"], "train": bool(r["train"]),
                 "inbox_item_id": r["inbox_item_id"]}
 
     sources = [view(by_sha[sha]) for sha in associated if sha in by_sha]
@@ -478,7 +698,7 @@ def _source_view(vault, db, row, blocks):
     return sources, complete, conversation
 
 
-def create_draft(vault, data, origin=None):
+def create_draft(vault, data, origin=None, _db=None):
     """建一份草稿。`data`：subject/category/knowledge_points/blocks/cause/cause_statement；
     `origin`：conversation_id/run_id/tool_call_id。校验失败抛 ValueError（中文），不建行。"""
     data = data or {}
@@ -500,13 +720,22 @@ def create_draft(vault, data, origin=None):
     if cause and not cause_statement:
         raise ValueError("错因只能用用户说过的话：cause_statement 不能为空")
     labels = [str(v).strip() for v in (data.get("labels") or []) if str(v).strip()]
+    source_channel = str(origin.get("source_channel") or "agent").strip() or "agent"
+    if source_channel not in {"agent", "mcp", "legacy"}:
+        raise ValueError("source_channel 不合法")
+    if source_channel == "mcp":
+        if not str(origin.get("source_key_id") or "").strip() or not str(origin.get("source_request_id") or "").strip():
+            raise ValueError("MCP 草稿缺少可信来源标识")
+        if not str(origin.get("content_hash") or "").strip():
+            raise ValueError("MCP 草稿缺少幂等摘要")
     source_images = data.get("source_images")
     if source_images is not None and (not isinstance(source_images, list) or
                                       any(not isinstance(v, str) for v in source_images)):
         raise ValueError("source_images 必须是图片 SHA 数组")
 
-    with locking.write_lock(), _LOCK:
-        db = connect(vault)
+    lock_context = contextlib.nullcontext() if _db is not None else locking.write_lock()
+    with lock_context, _LOCK:
+        db = _db or connect(vault)
         try:
             blocks = []
             for index, raw in enumerate(raw_blocks):
@@ -537,7 +766,12 @@ def create_draft(vault, data, origin=None):
                             (origin["conversation_id"], image_sha)).fetchone():
                         raise ValueError(f"第 {index + 1} 块引用的图片不属于本对话")
                     blocks.append({"section": section, "ord": index, "kind": kind, "text": None,
-                                   "image_sha": image_sha, "note": note})
+                                   "image_sha": image_sha, "note": note,
+                                   # MCP 的图片语义是整图来源；固定全幅范围使草稿
+                                   # 可直接进入人工审核，不启动自动框选。
+                                   "box": ({"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0}
+                                           if source_channel == "mcp" else None),
+                                   "box_origin": ("original" if source_channel == "mcp" else None)})
             if not any(b["section"] == "题目" for b in blocks):
                 raise ValueError("草稿至少要有一个题目块")
 
@@ -557,58 +791,184 @@ def create_draft(vault, data, origin=None):
                 source_images.extend(b["image_sha"] for b in blocks
                                      if b["image_sha"] and b["image_sha"] not in source_images)
 
-            status = "cropping" if any(b["kind"] == "image" for b in blocks) else "review"
+            status = "review" if source_channel == "mcp" else ("cropping" if any(b["kind"] == "image" for b in blocks) else "review")
             draft_id = _new_draft_id()
             now = _now()
+            if source_channel == "mcp":
+                existing = db.execute(
+                    "SELECT draft_id,content_hash FROM mcp_requests WHERE source_key_id=? AND request_id=?",
+                    (origin["source_key_id"], origin["source_request_id"])).fetchone()
+                if existing:
+                    if existing["content_hash"] != origin["content_hash"]:
+                        raise DraftError("同一 request_id 的内容不同，必须使用新的 request_id", 409, "request_conflict")
+                    return {**get_draft(vault, existing["draft_id"]), "reused": True}
             db.execute(
                 "INSERT INTO drafts (id, status, conversation_id, run_id, tool_call_id, subject, category, "
                 "knowledge_points, difficulty, labels, cause, cause_statement, note, uid, question_id, "
-                "created_at, updated_at, revision, sources_complete) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "created_at, updated_at, revision, sources_complete, source_channel, source_key_id, "
+                "source_request_id, cause_verification, source_client_name) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (draft_id, status, origin.get("conversation_id"), origin.get("run_id"),
                  origin.get("tool_call_id"), subject, category, json.dumps(knowledge_points, ensure_ascii=False),
                  5, json.dumps(labels, ensure_ascii=False), cause, cause_statement, "", None, None, now, now,
-                 1, int(sources_complete)))
+                 1, int(sources_complete), source_channel, origin.get("source_key_id"),
+                 origin.get("source_request_id"), origin.get("cause_verification"),
+                 str(origin.get("source_client_name") or "")[:80] or None))
+            if source_channel == "mcp":
+                db.execute("INSERT INTO mcp_requests(source_key_id,request_id,content_hash,stable_hash,draft_id,created_at) VALUES(?,?,?,?,?,?)",
+                           (origin["source_key_id"], origin["source_request_id"], origin["content_hash"],
+                            origin.get("stable_hash"), draft_id, now))
             for index, sha in enumerate(source_images):
                 db.execute("INSERT INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
                            (draft_id, sha, index))
-                db.execute("UPDATE images SET train=? WHERE sha256=? AND train IS NULL",
-                           (int(bool(load_config(vault).get("draft_train_default", False))), sha))
-            from .draft_training import sync_tasks
-            force_crop = bool(source_images and all(b["kind"] == "text" for b in blocks) and
-                              load_config(vault).get("draft_force_crop", False))
-            sync_tasks(db, draft_id, force_crop=force_crop)
+                if source_channel != "mcp":
+                    db.execute("UPDATE images SET train=? WHERE sha256=? AND train IS NULL",
+                               (int(bool(load_config(vault).get("draft_train_default", False))), sha))
+            if source_channel != "mcp":
+                from .draft_training import sync_tasks
+                force_crop = bool(source_images and all(b["kind"] == "text" for b in blocks) and
+                                  load_config(vault).get("draft_force_crop", False))
+                sync_tasks(db, draft_id, force_crop=force_crop)
             for block in blocks:
                 db.execute(
                     "INSERT INTO blocks (id, draft_id, section, ord, kind, text, image_sha, x, y, w, h, "
                     "box_origin, ai_box, note) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (f"blk_{uuid.uuid4().hex[:10]}", draft_id, block["section"], block["ord"], block["kind"],
-                     block["text"], block["image_sha"], None, None, None, None, None, None, block["note"]))
-            db.commit()
+                     block["text"], block["image_sha"],
+                     *((block.get("box") or {}).get(key) for key in ("x", "y", "w", "h")),
+                     block.get("box_origin"), None, block["note"]))
+            if _db is None:
+                db.commit()
         finally:
-            db.close()
-    _log(vault, "draft.create", {"draft_id": draft_id, "conversation_id": origin.get("conversation_id"),
+            if _db is None:
+                db.close()
+    event = {"draft_id": draft_id, "conversation_id": origin.get("conversation_id"),
                                  "run_id": origin.get("run_id"), "tool_call_id": origin.get("tool_call_id"),
+                                 "source_channel": source_channel, "source_key_id": origin.get("source_key_id"),
                                  "subject": subject, "category": category, "status": status,
-                                 "blocks": len(blocks)})
+                                 "blocks": len(blocks)}
+    if _db is not None:
+        # 外层事务尚未提交，事件和响应只能由事务所有者在提交后产生。
+        return {"id": draft_id, "reused": False, "_create_event": event}
+    _log(vault, "draft.create", event)
     try:
         from .draft_training import cleanup
-        cleanup(vault)
+        if source_channel != "mcp":
+            cleanup(vault)
     except Exception as exc:
         _log(vault, "draft.cleanup.error", {"draft_id": draft_id, "error": str(exc)})
-    return get_draft(vault, draft_id)
+    result = get_draft(vault, draft_id)
+    result["reused"] = False
+    return result
 
 
-def get_draft(vault, draft_id):
+def create_mcp_draft(vault, data, origin, images=None):
+    """原子创建 MCP 草稿及其原图。
+
+    ``images`` 是原始 PNG/JPEG/GIF 字节列表（也接受 ``{"data": bytes}``）。
+    图片校验、原子文件落盘、SQLite 关系和草稿插入共用一次事务；失败时不
+    留草稿或关系，已存在的同哈希共享原件不会被删除。调用者可在 ``origin``
+    提供 ``stable_hash``，用于不含临时下载 URL 的稳定幂等查询。
+    """
+    origin = dict(origin or {})
+    origin["source_channel"] = "mcp"
+    if not origin.get("conversation_id"):
+        raise ValueError("MCP 草稿缺少 conversation_id")
+    if not origin.get("source_key_id") or not origin.get("source_request_id"):
+        raise ValueError("MCP 草稿缺少可信来源标识")
+    entries = _mcp_image_entries(images)
+    # 先校验请求摘要字段；content_hash 是本次实际 payload 的摘要，调用方
+    # 通常已按实际字节计算。为兼容旧客户端，缺失时由结构化内容和图片摘要生成。
+    if not origin.get("content_hash"):
+        payload = {k: (data or {}).get(k) for k in
+                   ("subject", "category", "knowledge_points", "blocks", "cause", "cause_statement")}
+        payload["images"] = [entry["sha256"] for entry in entries]
+        origin["content_hash"] = hashlib.sha256(
+            json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    origin["content_hash"] = str(origin["content_hash"])
+    if len(origin["content_hash"]) != 64 or any(ch not in "0123456789abcdefABCDEF" for ch in origin["content_hash"]):
+        raise ValueError("content_hash 必须是实际 SHA-256 摘要")
+    if origin.get("stable_hash") is not None:
+        origin["stable_hash"] = str(origin["stable_hash"])
+
+    # 若上层传的是 image 下标，转换为领域层统一的 image_sha；若已传 SHA，
+    # 则严格要求它来自本次原始图片，避免借用其他来源图。
+    data = dict(data or {})
+    raw_blocks = data.get("blocks")
+    if not isinstance(raw_blocks, list):
+        raise ValueError("blocks 必须是数组")
+    shas = [entry["sha256"] for entry in entries]
+    clean_blocks = []
+    for index, raw in enumerate(raw_blocks):
+        if not isinstance(raw, dict):
+            raise ValueError(f"第 {index + 1} 块格式不对")
+        item = dict(raw)
+        if item.get("kind") == "image":
+            ref = item.get("image_sha")
+            if ref is None:
+                ref = item.get("image")
+                if isinstance(ref, str) and ref.startswith("image-"):
+                    try:
+                        ref = int(ref.split("-", 1)[1])
+                    except ValueError:
+                        ref = -1
+                if isinstance(ref, int) and not isinstance(ref, bool) and 0 <= ref < len(shas):
+                    ref = shas[ref]
+            if ref not in shas:
+                raise ValueError(f"第 {index + 1} 个图片块未引用本次提供的原图")
+            item["image_sha"] = ref
+            item.pop("image", None)
+        clean_blocks.append(item)
+    data["blocks"] = clean_blocks
+    data["source_images"] = list(dict.fromkeys(shas))
+
+    created_files = []
+    committed = False
+    with locking.write_lock(), _LOCK:
+        db = connect(vault)
+        try:
+            existing = db.execute("SELECT draft_id,content_hash FROM mcp_requests WHERE source_key_id=? AND request_id=?",
+                                 (origin["source_key_id"], origin["source_request_id"])).fetchone()
+            if existing:
+                if existing["content_hash"] != origin["content_hash"]:
+                    raise DraftError("同一 request_id 的内容不同，必须使用新的 request_id", 409, "request_conflict")
+                result = {**get_draft(vault, existing["draft_id"], readonly=True), "reused": True}
+                return result
+            _, created_files = _mcp_write_images(db, vault, entries, origin["conversation_id"], origin.get("run_id"))
+            result = create_draft(vault, data, origin, _db=db)
+            # 兼容已有数据库上 stable_hash 的迁移，并保留首次请求实际摘要。
+            db.execute("UPDATE mcp_requests SET stable_hash=? WHERE source_key_id=? AND request_id=?",
+                       (origin.get("stable_hash"), origin["source_key_id"], origin["source_request_id"]))
+            db.commit()
+            committed = True
+            _log(vault, "draft.create", result["_create_event"])
+            draft = get_draft(vault, result["id"], readonly=True)
+            draft["reused"] = False
+            return draft
+        except Exception:
+            if not committed:
+                db.rollback()
+                for path in created_files:
+                    try:
+                        os.unlink(path)
+                    except OSError:
+                        pass
+            raise
+        finally:
+            db.close()
+
+
+def get_draft(vault, draft_id, readonly=False):
     from .draft_jobs import recover_orphan_jobs
     with locking.write_lock(), _LOCK:
-        recover_orphan_jobs(vault, draft_id)
+        if not readonly:
+            recover_orphan_jobs(vault, draft_id)
         db = connect(vault)
         try:
             row = db.execute("SELECT * FROM drafts WHERE id=?", (draft_id,)).fetchone()
             if not row:
                 raise ValueError(f"没有这份草稿：{draft_id}")
             blocks = _draft_blocks(db, draft_id)
-            source_images, complete, conversation_images = _source_view(vault, db, row, blocks)
+            source_images, complete, conversation_images = _source_view(vault, db, row, blocks, persist=not readonly)
             from .draft_training import task_view
             training_tasks = task_view(db, draft_id)
             from .draft_jobs import jobs_for_draft
@@ -621,7 +981,7 @@ def get_draft(vault, draft_id):
             "training_tasks": training_tasks, "jobs": jobs}
 
 
-def list_drafts(vault, status=None, conversation_id=None, limit=50):
+def list_drafts(vault, status=None, conversation_id=None, limit=50, readonly=False, source_channel=None):
     """默认排除 discarded（含 done）；按 created_at 倒序。"""
     try:
         limit = max(1, min(int(limit or 50), 500))
@@ -638,6 +998,11 @@ def list_drafts(vault, status=None, conversation_id=None, limit=50):
     if conversation_id:
         clauses.append("conversation_id=?")
         params.append(conversation_id)
+    if source_channel:
+        if source_channel not in {"agent", "mcp", "legacy"}:
+            raise ValueError("草稿来源不合法")
+        clauses.append("source_channel=?")
+        params.append(source_channel)
     where = " AND ".join(clauses)
     with locking.write_lock(), _LOCK:
         db = connect(vault)
@@ -646,7 +1011,7 @@ def list_drafts(vault, status=None, conversation_id=None, limit=50):
                 f"SELECT * FROM drafts WHERE {where} ORDER BY created_at DESC LIMIT ?",
                 (*params, limit)).fetchall()
             return [{**_row_draft(row, _draft_blocks(db, row["id"])),
-                     "source_images": _source_view(vault, db, row, _draft_blocks(db, row["id"]))[0]}
+                     "source_images": _source_view(vault, db, row, _draft_blocks(db, row["id"]), persist=not readonly)[0]}
                     for row in rows]
         finally:
             db.close()
@@ -663,6 +1028,26 @@ def counts(vault):
         if row["status"] in result:
             result[row["status"]] = row["n"]
     return result
+
+
+def mcp_request(vault, source_key_id, request_id=None, stable_hash=None):
+    """返回 MCP 幂等记录，不触发草稿恢复或其他修复副作用。
+
+    传 ``stable_hash`` 时可在文件下载 URL 过期后按稳定内容身份查找首次请求。
+    """
+    db = connect(vault)
+    try:
+        if stable_hash is not None:
+            row = db.execute("SELECT source_key_id,request_id,content_hash,stable_hash,draft_id,created_at "
+                             "FROM mcp_requests WHERE source_key_id=? AND stable_hash=? ORDER BY created_at LIMIT 1",
+                             (source_key_id, str(stable_hash))).fetchone()
+        else:
+            row = db.execute("SELECT source_key_id,request_id,content_hash,stable_hash,draft_id,created_at "
+                             "FROM mcp_requests WHERE source_key_id=? AND request_id=?",
+                             (source_key_id, request_id)).fetchone()
+        return dict(row) if row else None
+    finally:
+        db.close()
 
 
 def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):

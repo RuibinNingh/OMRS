@@ -108,9 +108,11 @@ def _blocks(db, row, supplied, source_shas):
                 raise drafts.DraftError(f"第 {index + 1} 块图片不在草稿来源中")
             box = _box(raw.get("box"))
             origin = raw.get("box_origin")
-            if box and origin not in ("manual", "ai", "ai_edited"):
+            if box and origin not in ("manual", "ai", "ai_edited", "original"):
                 raise drafts.DraftError(f"第 {index + 1} 块 box_origin 不合法")
             ai_box = _box(raw.get("ai_box"))
+            if origin == "original" and (box != {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0} or ai_box is not None):
+                raise drafts.DraftError(f"第 {index + 1} 块 original 框必须是无 AI 框的全幅")
             coords = tuple(box[k] for k in ("x", "y", "w", "h")) if box else (None, None, None, None)
             prepared.append((block_id, row["id"], section, index, kind, None, sha,
                              *coords,
@@ -164,6 +166,7 @@ def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
             drafts._source_view(vault, db, row, drafts._draft_blocks(db, draft_id))
             row = _row(db, draft_id)
             values = _fields(row, fields)
+            is_mcp = row["source_channel"] == "mcp"
             old_blocks = {b["id"]: b for b in drafts._draft_blocks(db, draft_id)}
             old_fields = {key: row[key] for key in ("subject", "category", "difficulty", "cause", "note")}
             old_fields.update({key: drafts._loads(row[key], []) for key in ("knowledge_points", "labels")})
@@ -179,11 +182,18 @@ def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
                     if not db.execute("SELECT 1 FROM conv_images WHERE conversation_id=? AND sha256=?",
                                       (row["conversation_id"], sha)).fetchone():
                         raise drafts.DraftError(f"来源图片不属于本对话：{sha}")
+                if row["source_channel"] == "mcp":
+                    # MCP 原始来源是审核链的一部分，人工编辑可以追加来源，
+                    # 但不能从草稿关系中抹掉服务端收到的完整原图。
+                    sources = list(dict.fromkeys(old_sources + sources))
             prepared = _blocks(db, row, blocks, set(sources))
             status = "cropping" if any(b[4] == "image" and b[7] is None for b in prepared) else "review"
             _prepared_before_change(vault, db, row)
             from .draft_training import sync_block_boxes, sync_tasks
-            sync_block_boxes(db, draft_id)
+            # MCP 创建的完整原图不因普通人工编辑自动进入训练流程；若用户
+            # 明确提交训练框，set_boxes 会走显式训练路径。
+            if not is_mcp:
+                sync_block_boxes(db, draft_id)
             db.execute("UPDATE drafts SET subject=?,category=?,difficulty=?,knowledge_points=?,labels=?,cause=?,note=?,status=?,revision=revision+1,updated_at=?,sources_complete=? WHERE id=?",
                        (values["subject"], values["category"], values["difficulty"], json.dumps(values["knowledge_points"], ensure_ascii=False),
                         json.dumps(values["labels"], ensure_ascii=False), values["cause"], values["note"], status,
@@ -202,11 +212,13 @@ def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
                 db.execute("DELETE FROM draft_images WHERE draft_id=?", (draft_id,))
                 db.executemany("INSERT INTO draft_images(draft_id,image_sha,ord) VALUES(?,?,?)",
                                [(draft_id, sha, i) for i, sha in enumerate(sources)])
-                for sha in sources:
-                    db.execute("UPDATE images SET train=? WHERE sha256=? AND train IS NULL",
-                               (int(bool(load_config(vault).get("draft_train_default", False))), sha))
-            sync_tasks(db, draft_id)
-            sync_block_boxes(db, draft_id)
+                if not is_mcp:
+                    for sha in sources:
+                        db.execute("UPDATE images SET train=? WHERE sha256=? AND train IS NULL",
+                                   (int(bool(load_config(vault).get("draft_train_default", False))), sha))
+            if not is_mcp:
+                sync_tasks(db, draft_id)
+                sync_block_boxes(db, draft_id)
             db.commit()
         finally:
             db.close()
@@ -321,6 +333,10 @@ def set_boxes(vault, draft_id, revision, blocks=None, training_boxes=None):
             _revision(row, revision)
             if row["status"] == "discarded" or (row["status"] == "done" and blocks is not None):
                 raise drafts.DraftError("草稿状态不允许修改正文框", 409, "state_conflict", row["revision"])
+            if row["source_channel"] == "mcp" and training_boxes:
+                # 训练是人工明确操作；MCP 创建阶段不会登记任务。
+                from .draft_training import sync_tasks
+                sync_tasks(db, draft_id)
             seen, prepared = set(), []
             for index, raw in enumerate(blocks or []):
                 if not isinstance(raw, dict) or set(raw) - {"id", "box", "box_origin", "ai_box"}:
@@ -332,9 +348,11 @@ def set_boxes(vault, draft_id, revision, blocks=None, training_boxes=None):
                 seen.add(block_id)
                 box = _box(raw.get("box"))
                 origin = raw.get("box_origin")
-                if box and origin not in ("manual", "ai", "ai_edited"):
+                if box and origin not in ("manual", "ai", "ai_edited", "original"):
                     raise drafts.DraftError("box_origin 不合法")
                 ai_box = _box(raw.get("ai_box"))
+                if origin == "original" and (box != {"x": 0.0, "y": 0.0, "w": 1.0, "h": 1.0} or ai_box is not None):
+                    raise drafts.DraftError("original 框必须是无 AI 框的全幅")
                 prepared.append((block_id, box, origin if box else None, ai_box))
             from .draft_training import prepare_training_boxes, replace_training_boxes, sync_block_boxes
             training_prepared = prepare_training_boxes(db, draft_id, training_boxes) if training_boxes is not None else {}
@@ -344,7 +362,10 @@ def set_boxes(vault, draft_id, revision, blocks=None, training_boxes=None):
                 coords = tuple(box[k] for k in ("x", "y", "w", "h")) if box else (None,) * 4
                 db.execute("UPDATE blocks SET x=?,y=?,w=?,h=?,box_origin=?,ai_box=? WHERE id=?",
                            (*coords, origin, json.dumps(ai_box) if ai_box else None, block_id))
-            sync_block_boxes(db, draft_id)
+            # MCP 草稿的正文框编辑只是审核内容，不会隐式创建训练任务；
+            # 只有用户明确提交 training_boxes 时才登记训练。
+            if row["source_channel"] != "mcp" or training_boxes:
+                sync_block_boxes(db, draft_id)
             selected_tasks = replace_training_boxes(db, training_prepared)
             changed = bool(prepared or selected_tasks)
             if changed:

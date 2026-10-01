@@ -13,10 +13,20 @@ import { agentView } from '../../assets/app/features/settings/agent-view.js';
 import { createAi } from '../../assets/app/features/settings/ai.js';
 import { aiView } from '../../assets/app/features/settings/ai-view.js';
 import { clampBlur, formatEntryBytes, normalizeEntryBackground, validateEntryFile } from '../../assets/app/features/settings/entry-background.js';
+import { mcpKeysView } from '../../assets/app/features/settings/mcp-keys-view.js';
 
 const LOCAL = { status: 'ok', remote: false, authenticated: true, lan_pin_exempt: false };
 const REMOTE = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: false };
 const EXEMPT = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: true };
+
+test('MCP 设置提供固定 scope，完整密钥只在创建后的临时输入框显示', () => {
+  const view = String(mcpKeysView());
+  assert.match(view, /创建 MCP Key/);
+  assert.match(view, /st-mcp-scope-read/);
+  assert.match(view, /st-mcp-scope-draft/);
+  assert.match(view, /完整密钥只在创建成功时显示一次/);
+  assert.doesNotMatch(view, /localStorage/);
+});
 
 test('入口背景参数统一夹到 0–32px，损坏配置回到黑洞', () => {
   assert.equal(clampBlur(-1), 0);

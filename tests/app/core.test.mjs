@@ -45,20 +45,24 @@ test('bus：on / once / off / emit，监听出错不影响其余监听', () => {
   assert.deepEqual(got, ['a1', 'b1', 'a2']);
 });
 
-function fakeWindow(hash = '') {
+function fakeWindow(hash = '', pathname = '/', search = '') {
   const listeners = {};
+  const setLocation = value => {
+    const parsed = new URL(value, `http://omrs.test${win.location.pathname}${win.location.search}${win.location.hash}`);
+    Object.assign(win.location, { pathname: parsed.pathname, search: parsed.search, hash: parsed.hash });
+  };
   const win = {
-    location: { hash },
+    location: { hash, pathname, search },
     history: {
       entries: [hash], index: 0,
       states: [null],
       get state() { return this.states[this.index]; },
-      pushState(s, _t, h) { this.entries = this.entries.slice(0, this.index + 1); this.states = this.states.slice(0, this.index + 1); this.entries.push(h); this.states.push(s); this.index += 1; win.location.hash = h; },
-      replaceState(s, _t, h) { this.entries[this.index] = h; this.states[this.index] = s; win.location.hash = h; },
-      go(delta) { this.index += delta; win.location.hash = this.entries[this.index]; (listeners.popstate || []).forEach(fn => fn()); },
+      pushState(s, _t, h) { this.entries = this.entries.slice(0, this.index + 1); this.states = this.states.slice(0, this.index + 1); this.entries.push(h); this.states.push(s); this.index += 1; setLocation(h); },
+      replaceState(s, _t, h) { this.entries[this.index] = h; this.states[this.index] = s; setLocation(h); },
+      go(delta) { this.index += delta; setLocation(this.entries[this.index]); (listeners.popstate || []).forEach(fn => fn()); },
     },
     addEventListener(type, fn) { (listeners[type] ||= []).push(fn); },
-    back() { this.history.index -= 1; this.location.hash = this.history.entries[this.history.index]; (listeners.popstate || []).forEach(fn => fn()); },
+    back() { this.history.index -= 1; setLocation(this.history.entries[this.history.index]); (listeners.popstate || []).forEach(fn => fn()); },
     navigateHash(h) { this.location.hash = h; (listeners.hashchange || []).forEach(fn => fn()); },
   };
   return win;
@@ -102,6 +106,17 @@ test('router：start 按地址进入、无效地址改写为 fallback、go 同�
   const bad = createRouter({ win: fakeWindow('#/nope'), fallback: 'dashboard' });
   bad.register({ id: 'dashboard' });
   assert.equal(bad.start(), 'dashboard');
+});
+
+test('router：恢复当前页保留 pathname 和入口查询串', () => {
+  const win = fakeWindow('#/board', '/app/', '?unlocked=1');
+  const router = createRouter({ win });
+  router.register({ id: 'dashboard' }).register({ id: 'board' }).start();
+  win.navigateHash('#');
+  assert.equal(win.location.hash, '#/board');
+  assert.equal(win.location.pathname, '/app/');
+  assert.equal(win.location.search, '?unlocked=1');
+  assert.equal(win.history.entries[win.history.index], '/app/?unlocked=1#/board');
 });
 
 test('router：地址变成非路由 hash（href="#"）时不切页，并把地址改回当前页', () => {

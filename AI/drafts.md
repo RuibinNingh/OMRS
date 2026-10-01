@@ -13,11 +13,13 @@
 
 images 以 sha256 去重，保存 mime / width / height / bytes、转述缓存与训练预留字段；conv_images 按 conversation_id + n 将每张图映射为 IMG-n。同一对话重复贴同图沿用编号。图片支持 PNG/JPEG/GIF，单张解码后不超过 8MB；尺寸由现有图片头解析器读取。JPEG 沿标记段跳过 EXIF 与缩略图，主图结尾后的相册数据会清除，扫描数据缺尾时补结束标记；整理后计算 hash 并保存，已有图片在生成 data URL 时临时整理，旧文件不改写。编码像素与其他格式字节保持不变；这不代表能恢复已丢失的像素。
 
-`drafts` 含 id、四态 status、conversation_id/run_id/tool_call_id、科目分类、知识点、难度、标记、错因及原话、备注、入库 uid/question_id、时间和整数 revision；老库增量加列，revision 初始 1。`blocks` 含稳定 id、section（题目/答案）、ord、kind（text/image）、text/image_sha、归一化 box、box_origin、ai_box、note。草稿备注和图片说明是独立语义；入库时不会被映射成题目 YAML 的旧页码。
+`drafts` 含 id、四态 status、conversation_id/run_id/tool_call_id、科目分类、知识点、难度、标记、错因及原话、备注、入库 uid/question_id、时间和整数 revision；老库增量加列，revision 初始 1。MCP 草稿另有 `source_channel=mcp`、`source_key_id`、`source_request_id`、`cause_verification` 和可选客户端名，来源由服务端写入且不可由普通字段覆盖。旧库仅在真实助手运行、工具调用与对话匹配时标为 agent，其余标为 legacy。`blocks` 含稳定 id、section（题目/答案）、ord、kind（text/image）、text/image_sha、归一化 box、box_origin、ai_box、note。草稿备注和图片说明是独立语义；入库时不会被映射成题目 YAML 的旧页码。
 
 `draft_images` 保存每份草稿的完整来源图及顺序，全文字草稿也能关联图片。老来源先从图片块恢复，再按准确的对话 / 运行 / 工具调用恢复 images 参数，无法证实的来源标 sources_complete=false；不会把整段对话的所有图猜成一道题。详情另提供 conversation_images，供用户明确补关联。
 
 来源未完整恢复时，仅保存字段或回传相同来源列表不会把标记改为完整；用户实际修改关联列表后才记录已补关联。
+
+MCP 图片通过内容哈希原样落盘，普通图片接口也不截除 JPEG 尾数据；MCP 草稿固定为 `review`，整图块使用 0/0/1/1 与 `box_origin=original`（完整原图），不创建自动框选或训练任务；普通人工正文修改不自动登记训练，明确操作训练功能后才进入既有流程。`mcp_requests` 以 `(source_key_id, request_id)` 唯一记录幂等请求；记录实际内容 `content_hash` 和排除临时 URL 的 `stable_hash`；同摘要重试复用原草稿，内容变化返回冲突。原图文件原子落盘、关系与草稿共用数据库事务，失败仅清理本次新文件，提交后响应异常仍保留原件。MCP 只读查询使用不触发作业恢复的视图；来源过滤在条数截断前由共享查询函数执行。
 
 转述缓存按 sha256 + 模型命中；换模型覆盖旧缓存。创建草稿的来源、内容更新、丢弃和入库均有本模块事件记录，不进 Ledger 不等于没有留痕。
 
@@ -71,7 +73,7 @@ AI 修订不另开 HTTP 写端点，由助手工具在写锁内调用 `patch_dra
 
 ## 6. 框选提取与训练任务
 
-来源图对应独立 training_tasks，training_boxes 保存归一化框、section、box_origin 和 ai_box。正文图片框同步为训练标注，提取成文字后仍保留标注；正文与训练任务分别管理，done 正文不可再改。用户独立编辑或清空训练任务后，manual_override 持久标记使后续正文保存不再自动覆盖该任务的人工标注。训练任务状态为 pending/ready/registered/error。
+来源图对应独立 training_tasks，training_boxes 保存归一化框、section、box_origin 和 ai_box。正文图片框同步为训练标注（`original` 全幅引用除外），提取成文字后仍保留标注；正文与训练任务分别管理，done 正文不可再改。用户独立编辑或清空训练任务后，manual_override 持久标记使后续正文保存不再自动覆盖该任务的人工标注。训练任务状态为 pending/ready/registered/error。
 
 extract 创建持久 draft_jobs 后异步调用现有识图提取；模型请求不持全局写锁，回写复核 revision、来源与框快照。失败保留对应原块，冲突不覆盖人工内容。详情 jobs 返回最近任务，页面重进可继续轮询；服务新进程把失去执行线程的 queued/running 标为 interrupted，用户可重试。
 

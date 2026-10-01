@@ -16,8 +16,12 @@ class SourceExportTests(unittest.TestCase):
             (root / "tests").mkdir()
             (root / "tests" / "test_new.py").write_text("pass\n", encoding="utf-8")
             (root / "README.md").write_text("OMRS\n", encoding="utf-8")
+            (root / "requirements-mcp.txt").write_text("mcp==1.28.1\n", encoding="utf-8")
             (root / "错题").mkdir()
             (root / "错题" / "private.md").write_text("private\n", encoding="utf-8")
+            (root / "错题" / ".omrs").mkdir()
+            (root / "错题" / ".omrs" / "mcp_keys.json").write_text(
+                '{"keys":[{"secret_sha256":"secret-test-digest"}]}', encoding="utf-8")
             (root / "Task").mkdir()
             (root / "Task" / "notes.md").write_text("private\n", encoding="utf-8")
             (root / "AI" / "logs").mkdir(parents=True)
@@ -38,14 +42,17 @@ class SourceExportTests(unittest.TestCase):
 
             self.assertTrue(filename.startswith("OMRS-source-sanitized-"))
             self.assertTrue(filename.endswith(".zip"))
-            self.assertEqual(meta["files"], 5)
+            self.assertEqual(meta["files"], 6)
             with zipfile.ZipFile(io.BytesIO(payload)) as archive:
                 names = set(archive.namelist())
                 self.assertEqual(names, {
                     "OMRS/README.md", "OMRS/AI/README.md", "OMRS/omrs/server.py",
                     "OMRS/tests/test_new.py", "OMRS/assets/app/package.json",
+                    "OMRS/requirements-mcp.txt",
                     "OMRS/SOURCE_EXPORT_MANIFEST.txt",
                 })
+                self.assertEqual(archive.read("OMRS/requirements-mcp.txt"), b"mcp==1.28.1\n")
+                self.assertNotIn(b"secret", b"".join(archive.read(name) for name in names))
                 manifest = archive.read("OMRS/SOURCE_EXPORT_MANIFEST.txt").decode("utf-8")
                 self.assertIn("不依赖 Git", manifest)
                 self.assertIn("tests/test_new.py", manifest)

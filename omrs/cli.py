@@ -4,6 +4,7 @@ import os
 import socket
 import socketserver
 import sys
+import time
 
 from .common import QUESTIONS_DIR, load_config, questions_root
 from .creation import create_question
@@ -64,6 +65,17 @@ def main():
 
     serve_parser = sub.add_parser("serve", help="启动 Web 仪表盘")
     serve_parser.add_argument("-p", "--port", type=int, default=8471)
+    serve_parser.add_argument("--mcp-port", type=int, default=None,
+                              help="在同一 OMRS 进程启用 MCP Streamable HTTP（推荐由反向代理转发）")
+    serve_parser.add_argument("--mcp-public-url", default=None,
+                              help="HTTPS 反向代理的完整 /mcp 地址，用于精确 Host/Origin 白名单")
+
+    mcp_key_parser = sub.add_parser("mcp-key", help="管理 MCP API Key")
+    mcp_key_parser.add_argument("action", choices=["create", "list", "revoke"])
+    mcp_key_parser.add_argument("--name", default="", help="显示名称")
+    mcp_key_parser.add_argument("--scope", action="append", dest="scopes", help="权限，可重复指定")
+    mcp_key_parser.add_argument("--expires-at", default=None, help="ISO-8601 到期时间")
+    mcp_key_parser.add_argument("--id", default=None, help="revoke 的 key_id")
 
     sub.add_parser("stats", help="输出统计摘要")
 
@@ -95,6 +107,23 @@ def main():
 
     args = parser.parse_args()
     vault = os.path.abspath(args.vault)
+    if args.command == "serve":
+        if args.mcp_port is not None and (not 1 <= args.mcp_port <= 65535 or args.mcp_port == args.port):
+            parser.error("MCP 端口必须为 1–65535，且不能与 Web 端口相同")
+        if args.mcp_public_url and args.mcp_port is None:
+            parser.error("--mcp-public-url 需要同时指定 --mcp-port")
+
+    if args.command == "mcp-key":
+        from .mcp.keys import create_key, list_keys, revoke_key
+        if args.action == "create":
+            print(json.dumps(create_key(vault, args.name, args.scopes, args.expires_at), ensure_ascii=False, indent=2))
+        elif args.action == "list":
+            print(json.dumps({"keys": list_keys(vault)}, ensure_ascii=False, indent=2))
+        else:
+            if not args.id:
+                raise SystemExit("revoke 需要 --id")
+            print(json.dumps({"key": revoke_key(vault, args.id)}, ensure_ascii=False, indent=2))
+        return
 
     if args.command == "content-audit":
         from .content_history import audit_content_coverage
@@ -165,6 +194,31 @@ def main():
             sys.executable,
             os.path.abspath(sys.argv[0]),
         ] + list(sys.argv[1:])
+        mcp_server = None
+        mcp_thread = None
+        if args.mcp_port is not None:
+            # MCP 适配器和 Web 服务共用本进程的领域对象与写锁；不要为同一
+            # Vault 另起一个直接读写 drafts.db 的 MCP 进程。
+            import threading
+            try:
+                import uvicorn
+                from .mcp.server import build_app
+            except ModuleNotFoundError:
+                raise SystemExit("启用 MCP 前请安装 requirements-mcp.txt")
+            mcp_server = uvicorn.Server(uvicorn.Config(
+                build_app(vault, host="127.0.0.1", port=args.mcp_port, public_url=args.mcp_public_url),
+                host="127.0.0.1", port=args.mcp_port, log_level="warning", access_log=False,
+            ))
+            mcp_thread = threading.Thread(target=mcp_server.run, name="omrs-mcp", daemon=True)
+            mcp_thread.start()
+            deadline = time.monotonic() + 10
+            while not mcp_server.started and mcp_thread.is_alive() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            if not mcp_server.started:
+                mcp_server.should_exit = True
+                mcp_thread.join(timeout=2)
+                raise SystemExit("MCP 启动失败，请检查端口与依赖")
+            print(f"   MCP： http://127.0.0.1:{args.mcp_port}/mcp（与主进程共享写锁）")
         with OMRSTCPServer((bind_host, args.port), OMRSHandler) as httpd:
             print(f"\nOMRS 已启动（端口 {args.port}）")
             print(f"   本机访问： http://127.0.0.1:{args.port}")
@@ -187,6 +241,11 @@ def main():
                 httpd.serve_forever()
             except KeyboardInterrupt:
                 print("\n已停止")
+            finally:
+                if mcp_server is not None:
+                    mcp_server.should_exit = True
+                if mcp_thread is not None:
+                    mcp_thread.join(timeout=5)
 
     elif args.command == "stats":
         stats = get_stats(vault)

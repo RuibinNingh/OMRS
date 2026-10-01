@@ -48,7 +48,7 @@ export function createDraftCanvasControl(host, state, { markChanged, paint, bloc
     if (!target) { state.message = '先在下方添加图片区块，再选择它画框。'; queueMicrotask(paint); return null; }
     state.selectedBlock = target.id || target._key;
     return newRegion(1, target.section === '答案' ? 'answer' : 'question', start.x, start.y, 0, 0,
-      { id: state.selectedBlock, origin: target.box_origin === 'ai' ? 'ai_edited' : target.box_origin || 'manual',
+      { id: state.selectedBlock, origin: target.box_origin === 'ai' ? 'ai_edited' : target.box_origin === 'original' ? 'manual' : target.box_origin || 'manual',
         ai_box: target.ai_box || null, target: 'body' });
   }
   function bind() {

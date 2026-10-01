@@ -1,5 +1,6 @@
 /** 设置页「access」分区结构。 */
 import { html } from '../../core/html.js';
+import { mcpKeysView } from './mcp-keys-view.js';
 
 export const accessView = () => html`<section class="st-section" id="st-sec-access" role="tabpanel" aria-labelledby="st-tab-access">
           <header class="st-head"><h2>访问与安全</h2><p>决定哪些设备能打开 OMRS，以及远端设备如何登录。</p></header>
@@ -62,4 +63,5 @@ export const accessView = () => html`<section class="st-section" id="st-sec-acce
             </div>
             <div id="st-net-status" class="st-status" role="status"></div>
           </div>
+          ${mcpKeysView()}
         </section>`;

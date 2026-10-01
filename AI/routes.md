@@ -157,5 +157,6 @@
 - POST `/api/auth/…`
 - GET/POST `/api/drafts/…`
 - GET/POST `/api/inbox/…`
+- GET/POST `/api/mcp/…`
 - GET/POST `/api/trainpanel/…`
 - GET `/assets/…`

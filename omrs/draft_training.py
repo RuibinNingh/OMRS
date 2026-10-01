@@ -73,7 +73,8 @@ def sync_block_boxes(db, draft_id):
                                       (record["x"] is None or record["image_sha"] != record["task_sha"])):
             db.execute("DELETE FROM training_boxes WHERE id=?", (record["id"],))
             _refresh_task(db, record["task_id"])
-    rows = db.execute("SELECT * FROM blocks WHERE draft_id=? AND kind='image' AND x IS NOT NULL ORDER BY ord", (draft_id,))
+    rows = db.execute("SELECT * FROM blocks WHERE draft_id=? AND kind='image' AND x IS NOT NULL "
+                      "AND (box_origin IS NULL OR box_origin!='original') ORDER BY ord", (draft_id,))
     for block in rows:
         task = db.execute("SELECT id,status,manual_override FROM training_tasks WHERE draft_id=? AND image_sha=?",
                           (draft_id, block["image_sha"])).fetchone()
@@ -161,6 +162,10 @@ def set_image_training(vault, draft_id, revision, sha, enabled):
                                 "WHERE di.draft_id=? AND di.image_sha=?", (draft_id, sha)).fetchone()
             if source is None:
                 raise drafts.DraftError("图片不是该草稿来源", 400, "invalid")
+            if row["source_channel"] == "mcp" and enabled:
+                # MCP 草稿创建时不自动建立训练任务；用户在页面明确打开
+                # 训练开关时才补建对应任务。
+                sync_tasks(db, draft_id)
             if not enabled and db.execute("SELECT 1 FROM training_tasks WHERE image_sha=? AND status='registered' LIMIT 1",
                                           (sha,)).fetchone():
                 raise drafts.DraftError("图片已登记，训练开关只读", 409, "state_conflict", row["revision"])

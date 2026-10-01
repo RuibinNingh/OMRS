@@ -23,6 +23,8 @@
 
 `access.js` 并行读取 `/api/config`、`/api/auth/session` 和 `/api/status`，用运行中 `listen_external` 判断当前暴露范围；读不到运行状态时退回已保存配置。概览显示本机 / 远端、PIN 和免 PIN 网段；保存 `allow_external` 与 `lan_pin_exempt_cidrs` 时，仅运行监听范围需要改变才请求重启。只改免 PIN 网段时立即生效。远端关闭局域网前先确认失联后果。
 
+访问与安全分区的“外部 AI / MCP”卡片由 `mcp-keys.js` 管理 `/api/mcp/keys` 和 `/api/mcp/keys/revoke`。可以创建查询 Key、建草稿 Key 或两者兼有，并可设置到期时间；列表只显示名称、短前缀、scope、时间和吊销状态。创建响应中的完整明文只放在当前页面内存和一次性输入框中，隐藏、刷新或离开页面后清空，不写入 `localStorage`、配置或普通日志。吊销前要求确认，服务端立即使该 Key 失效；MCP Key 不会改变 Web PIN、AI 模型密钥或普通 API 权限。
+
 PIN 支持首次设置、更换、空闲分钟修改、本机停用和远端登出。PIN 为 4–12 位数字，空闲时间为 5–240 整数分钟；远端更换已有 PIN 须提供当前 PIN，成功后已登录远端跳回登录页。本机仍允许局域网访问时不能停用 PIN。网络或配置请求失败在所属分区显示原因；写操作进行中防重复提交。
 
 ## AI 识别
@@ -45,6 +47,6 @@ AI 地址、模型、三种用途模型、思考与知识点限制开关经 `/ap
 
 运行状态取自 `/api/status`。重启前读取 `/api/auth/session` 的 `instance_id`；读不到则不请求重启。发出 `/api/restart` 后每 500ms 探测新实例，最长 90 秒；旧实例仍响应、连接暂断或探测超时都不会刷新。只有读到不同的 `instance_id` 才刷新页面。E2E 用 `page.route` 拦截重启请求，隔离实例移除 `OMRS_SYSTEMD_SERVICE`。
 
-脱敏源码下载直接调用 `/api/source/export`，完成后由 `core/download.js` 下载 ZIP。测试实例的 Vault 是临时空目录，E2E 用固定 ZIP 响应核对前端下载路径；服务端真实打包契约由 `tests/test_source_export.py` 验证。
+脱敏源码下载直接调用 `/api/source/export`，完成后由 `core/download.js` 下载 ZIP。测试实例的 Vault 是临时空目录，E2E 用固定 ZIP 响应核对前端下载路径；服务端真实打包契约由 `tests/test_source_export.py` 验证，源码包包含可选 `requirements-mcp.txt`，排除 Vault 中的 MCP Key 摘要与明文。
 
 助手设置提供「图片框选方式」与「默认用于训练数据」：询问模式在聊天草稿卡片给出 AI 框/我来框；自动模式为新草稿排检测任务；手动模式从草稿区处理。另有「全文字也要框」开关，只影响之后新建且有来源图的全文字草稿，训练任务不阻止入库。训练默认开关只影响新图的初值，已有图仍按图设置，关闭不撤销已经登记的数据。

@@ -222,6 +222,9 @@ export function createDrafts(root, ctx) {
     markChanged();
   }
   function sourceRemove(sha) {
+    if (state.draft?.source_channel === 'mcp' && state.draft.source_images?.some(image => imageSha(image) === sha)) {
+      state.message = 'MCP 完整来源原图需保留，正文仍可人工编辑。'; paint(); return;
+    }
     if (state.busy || !state.value || ['done', 'discarded'].includes(state.draft?.status) || state.value.blocks.some(row => row.image_sha === sha)) {
       state.message = '这张来源图仍被图片块使用，请先删除或更换该块。'; paint(); return;
     }
@@ -248,7 +251,7 @@ export function createDrafts(root, ctx) {
     const row = block(key);
     if (!row || row.kind !== 'image' || state.busy || ['done', 'discarded'].includes(state.draft?.status)) return;
     row.box = { x: 0, y: 0, w: 1, h: 1 };
-    row.box_origin = row.box_origin === 'ai' ? 'ai_edited' : row.box_origin || 'manual';
+    row.box_origin = row.box_origin === 'ai' ? 'ai_edited' : row.box_origin === 'original' ? 'manual' : row.box_origin || 'manual';
     canvas.refresh();
     markChanged();
   }

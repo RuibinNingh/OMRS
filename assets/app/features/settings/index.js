@@ -8,6 +8,7 @@ import { createAi } from './ai.js';
 import { createAgent } from './agent.js';
 import { createStorage } from './storage.js';
 import { createService } from './service.js';
+import { createMcpKeys } from './mcp-keys.js';
 import { SECTIONS, SECTION_KEY, sectionOf } from './state.js';
 
 let root = null;
@@ -19,6 +20,7 @@ let ai = null;
 let agent = null;
 let storage = null;
 let service = null;
+let mcpKeys = null;
 let current = 'appearance';
 
 function openSection(value, { focus = false } = {}) {
@@ -52,6 +54,7 @@ export const page = {
     appearance = createAppearance(root, ctx.bus);
     entryBackground = createEntryBackground(root);
     service = createService(root);
+    mcpKeys = createMcpKeys(root);
     access = createAccess(root, id => service?.restart(id));
     ai = createAi(root);
     agent = createAgent(root, ctx.bus);
@@ -74,10 +77,11 @@ export const page = {
     agent.load();
     storage.load();
     service.load();
+    mcpKeys.load();
     return () => {
       root?.removeEventListener('keydown', onKeys);
-      access?.dispose(); ai?.dispose(); agent?.dispose(); storage?.dispose(); service?.dispose(); entryBackground?.dispose();
-      root = null; onKeys = null; appearance = null; entryBackground = null; access = null; ai = null; agent = null; storage = null; service = null;
+      access?.dispose(); ai?.dispose(); agent?.dispose(); storage?.dispose(); service?.dispose(); mcpKeys?.dispose(); entryBackground?.dispose();
+      root = null; onKeys = null; appearance = null; entryBackground = null; access = null; ai = null; agent = null; storage = null; service = null; mcpKeys = null;
     };
   },
   actions: {
@@ -111,5 +115,10 @@ export const page = {
     refreshStatus: () => service?.load(),
     restart: () => service?.restart(),
     sourceExport: () => service?.sourceExport(),
+    mcpCreate: () => mcpKeys?.create(),
+    mcpRefresh: () => mcpKeys?.load(),
+    mcpRevoke: ({ arg }) => mcpKeys?.revoke(arg),
+    mcpCopy: () => mcpKeys?.copy(),
+    mcpHide: () => mcpKeys?.clearSecret(),
   },
 };

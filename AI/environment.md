@@ -181,3 +181,9 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 主服务已通过 `OMRS_BOXDETECT_CONTROL=/etc/omrs-boxdetect-control.json` 登记固定 unit、Vault 与端口；`/train` 可以管理服务、显式应用完整导出候选并回退。受管 revision 当前为 1，实际在线 `v2-20260929-b` 且与配置指针一致；主服务与检测服务均开机自启。
 
 框选流程视觉对比使用 `python3 tests/visual/run.py --ref <基线> --pages create --create-stage process`，会在临时 fixture 中放入一张合成题图与题目／答案两个待提取框，基线和当前使用完全相同的数据；提取结果态由录入 E2E 的四档截图及审计覆盖。
+
+## MCP 隔离验收
+
+`tests/test_mcp_protocol.py` 用官方可选 SDK 启动随机高端口的同进程 Web/MCP，真实读取临时 Vault 并校验原件字节、权限和正式数据不变。`tests/e2e/mcp.py` 在同实例打开草稿与 Key 管理页面；`tests/test_mcp_http.py` 和 `tests/test_mcp_keys.py` 可在无 SDK 环境验证标准库边界。所有实例移除 `OMRS_SYSTEMD_SERVICE`。视觉脚本的 `--create-stage drafts` 支持审核队列；测试直接访问已授权的本地 `/?unlocked=1` 外壳，避免停在锁屏。
+
+草稿 P4 鼠标验收在获取缩放柄坐标前等待来源图片加载，并通过 hover 等平滑滚动稳定与命中检查，随后执行真实拖动；避免布局移动让拖动落到画布外，保存和人工调整断言保持完整。

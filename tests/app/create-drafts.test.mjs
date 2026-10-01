@@ -117,3 +117,18 @@ test('审核检查只提示前端可见的缺项，不复制入库业务校验',
     ['subject', 'warning'], ['category', 'ok'], ['question', 'ok'], ['imageBox', 'warning'],
   ]);
 });
+
+
+test('MCP 审核来源保留完整原图，正文仍可编辑且错因提示待核对', () => {
+  const draft = { ...sample(), status: 'review', source_channel: 'mcp',
+    cause_verification: 'client_asserted', cause_statement: '用户提供的原话' };
+  const state = { list: [draft], listLoaded: true, counts: { review: 1 }, selectedId: draft.id,
+    draft, value: editValue(draft), training: {}, detailLoaded: true, dirty: false, busy: false,
+    workspaceMode: 'source', reviewTab: 'source' };
+  const markup = draftsView(state).text;
+  assert.match(markup, /来源：MCP/);
+  assert.match(markup, /MCP 完整原图保留/);
+  assert.match(markup, /错因由外部助手提供，待核对/);
+  assert.doesNotMatch(markup, /data-action="create.draftSourceRemove"/);
+  assert.match(markup, /data-action="create.draftCommit"/);
+});

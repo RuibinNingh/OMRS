@@ -93,6 +93,10 @@ run.bat
 
 :: 或手动
 python omrs_engine.py serve
+
+# 外部 AI 接入（可选）：安装依赖后与 Web 服务同进程开启 MCP
+python -m pip install -r requirements-mcp.txt
+python omrs_engine.py --vault /path/to/vault serve --mcp-port 8472
 ```
 
 启动后访问 <http://localhost:8471/>。首次进入会先显示 OMRS 锁屏入口；启用 PIN 时直接在入口输入 PIN 解锁，未启用 PIN 时点击「进入 OMRS」。已有题库可先只读盘点正文版本覆盖情况：
@@ -299,6 +303,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 - AI 识别：只有调用 `/api/ai-recognize` 时才访问用户配置的 OpenAI 兼容服务。
 - AI 报告：核心 HTML 可自包含；报告提示词允许按需引用 HTTPS 字体/图表/图标资源，并要求失败时正文仍可读。
 - 数据：纯文件（Markdown + SQLite/CSV），无外部数据库。
+- 外部 MCP：可选 `mcp` SDK、`uvicorn` 和 Pillow 原图校验，固定九读一写，API Key 与 Web PIN 分离；使用 `serve --mcp-port` 启用。
 
 ---
 
