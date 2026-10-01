@@ -131,7 +131,7 @@
 | GET | `/api/sessions` | `AI/api.md`、`AI/changelog.md` |
 | GET | `/api/source/export` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/settings.md` |
 | GET | `/api/stats` | `AI/api.md`、`AI/algorithm.md`、`AI/changelog.md`等 |
-| GET | `/api/status` | `AI/api.md`、`AI/frontend/settings.md`、`AI/security.md` |
+| GET | `/api/status` | `AI/api.md`、`AI/frontend/settings.md`、`AI/frontend/shell.md`等 |
 | GET | `/api/taxonomy` | `AI/api.md`、`AI/frontend/create.md` |
 | GET | `/api/trainpanel/audit` | `AI/api.md` |
 | GET | `/api/trainpanel/audit-image` | `AI/api.md` |
