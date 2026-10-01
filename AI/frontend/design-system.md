@@ -18,7 +18,7 @@
 - `domain` 层：共享题目视图 `domain/question/qview.css`（P5 第 4 轮起是 qview 的全部外观，含题目弹窗与 Markdown 编辑器）与标记 `domain/labels/labels.css`（色板、颜色圆点按 `data-lbl-c` 取色）、选板浮层 `domain/board/picker.css`（popover 进顶层，锚定位置由脚本写 `--bpicker-x` / `--bpicker-y`，是它唯一的行内样式）；标记颜色的运行时规则（`domain/labels/sheet.js`）也插在 `@layer domain` 块里。
 - 内嵌题面用 `--surface-sunken`，答案块用 `--success-subtle` / `--success-line`，战绩带用 `--streak-ok` / `--streak-bad`；标记预设色用 `--lbl-preset-1…10`，实色芯片前景用 `--lbl-fg-dark` / `--lbl-fg-light`。`check_contrast.py` 同时检查 `fg-1` / `fg-2` 在 `surface-sunken` 上的对比度。
 - 层次（core → ui → domain → features）与依赖方向由 `check_ui.py` 的 R7 约束。共享题目、标记与选板样式在 `domain` 层；页面样式由 `styles/index.css` 以 `layer(features)` 引入，实际导入清单以该文件为准。
-- `features` 层包含题库、即时练习、反馈、仪表盘、数据复盘、复习调度、展示板、历史、目录、报告、设置、录入与助手页面样式。展示板拆成外框、目录树、题目面板、浮层和对话框；录入页拆成工作区、草稿、处理、题卡与训练样式。各页使用语义色与控件尺度，数据图表用 `data-tone` 映射状态 token。
+- `features` 层包含题库、即时练习、反馈、仪表盘、数据复盘、复习调度、展示板、历史、目录、报告、设置、录入与助手页面样式。展示板拆成外框、目录树、题目面板、浮层和对话框；录入页拆成工作区、草稿、处理、题卡与训练样式。设置页的 MCP 区域单独放在 `features/settings/mcp-keys.css`，在通用设置样式后以 `layer(features)` 导入；窗口复用共享对话框，按钮、输入和图标沿用现有组件与 token，有效状态使用成功语义色，失效记录使用中性色。各页使用语义色与控件尺度，数据图表用 `data-tone` 映射状态 token。
 - 同一行的控件使用同一档高度（§3 的 `--ctl-*`）。仪表盘的「今天」数字用 `--text-display`；热力格四档颜色由 `color-mix` 基于 `--success` 与 `--surface-1` 派生。
 
 ## 2. 语义 token

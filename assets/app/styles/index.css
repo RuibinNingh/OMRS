@@ -25,6 +25,7 @@
 @import url("../features/catalog/catalog.css") layer(features);
 @import url("../features/reports/reports.css") layer(features);
 @import url("../features/settings/settings.css") layer(features);
+@import url("../features/settings/mcp-keys.css") layer(features);
 @import url("../features/create/create.css") layer(features);
 @import url("../features/create/drafts.css") layer(features);
 @import url("../features/create/process.css") layer(features);

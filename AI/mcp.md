@@ -18,7 +18,7 @@ python3 omrs_engine.py --vault /path/to/vault serve --port 8471 --mcp-port 18472
 
 MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外部客户端使用 HTTPS 反向代理，仅转发 `/mcp`，并在启动时指定 `--mcp-public-url https://your-host/mcp`，登记精确 Host/Origin 白名单。SDK 负责协议协商、JSON-RPC、认证 challenge 和传输安全；启动失败时主命令明确退出。没有独立读写 Vault 的 MCP 进程入口。生产 HTTPS 8472 已由 Web/Nginx 共用，不能把内部 MCP 绑定到该端口；实际发布根与参数见 `AI/environment.md`。
 
-在 OMRS 设置 → 访问与安全 → 外部 AI / MCP 创建 Key，选择 `omrs:read`、`draft:create` 或两者。明文只在创建响应显示一次；也可以本机使用 `mcp-key create --name 名称`、`mcp-key list`、`mcp-key revoke --id key_id` 管理。MCP 请求使用 `Authorization: Bearer <key>` 或 `X-OMRS-MCP-Key: <key>`；密钥不得放进 URL、模型参数或日志。
+在 OMRS 设置 → 访问与安全 → 外部 AI / MCP 点击“创建密钥”，在窗口选择查询权限（`omrs:read`）、创建待审核草稿（`draft:create`）或两者，并可指定到期时间。成功后同一窗口显示一次明文，关闭后无法再次查看；列表展示可用密钥，失效记录默认折叠，时间按设备本地时区显示。页面行为见 `AI/frontend/settings.md`。也可以本机使用 `mcp-key create --name 名称`、`mcp-key list`、`mcp-key revoke --id key_id` 管理。MCP 请求使用 `Authorization: Bearer <key>` 或 `X-OMRS-MCP-Key: <key>`；密钥不得放进 URL、模型参数或日志。
 
 ## 2. 工具与权限
 

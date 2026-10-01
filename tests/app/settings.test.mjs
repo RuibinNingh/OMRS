@@ -13,19 +13,60 @@ import { agentView } from '../../assets/app/features/settings/agent-view.js';
 import { createAi } from '../../assets/app/features/settings/ai.js';
 import { aiView } from '../../assets/app/features/settings/ai-view.js';
 import { clampBlur, formatEntryBytes, normalizeEntryBackground, validateEntryFile } from '../../assets/app/features/settings/entry-background.js';
-import { mcpKeysView } from '../../assets/app/features/settings/mcp-keys-view.js';
+import { mcpKeysView, mcpCreateView, mcpListView } from '../../assets/app/features/settings/mcp-keys-view.js';
+import { keyStatus, keyTime, splitKeys } from '../../assets/app/features/settings/mcp-keys-state.js';
 
 const LOCAL = { status: 'ok', remote: false, authenticated: true, lan_pin_exempt: false };
 const REMOTE = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: false };
 const EXEMPT = { status: 'ok', remote: true, authenticated: true, lan_pin_exempt: true };
 
-test('MCP 设置提供固定 scope，完整密钥只在创建后的临时输入框显示', () => {
+test('MCP 设置以列表为主，权限和到期时间在创建窗口配置', () => {
   const view = String(mcpKeysView());
-  assert.match(view, /创建 MCP Key/);
-  assert.match(view, /st-mcp-scope-read/);
-  assert.match(view, /st-mcp-scope-draft/);
-  assert.match(view, /完整密钥只在创建成功时显示一次/);
+  const form = String(mcpCreateView());
+  assert.match(view, /创建密钥/);
+  assert.match(form, /st-mcp-scope-read/);
+  assert.match(form, /st-mcp-scope-draft/);
+  assert.doesNotMatch(view, /st-mcp-scope-read/);
+  assert.match(view, /完整密钥仅在创建时显示一次/);
   assert.doesNotMatch(view, /localStorage/);
+});
+
+test('MCP 到期瞬间归入失效记录，吊销状态优先且原列表不被修改', () => {
+  const now = Date.parse('2026-10-01T10:00:00Z');
+  const keys = [
+    { key_id: 'never' }, { key_id: 'future', expires_at: '2026-10-01T10:00:01Z' },
+    { key_id: 'expired', expires_at: '2026-10-01T10:00:00Z' },
+    { key_id: 'revoked', expires_at: '2026-09-01T00:00:00Z', revoked_at: '2026-09-01T00:00:00Z' },
+  ];
+  const before = structuredClone(keys);
+  assert.equal(keyStatus(keys[1], now), 'active');
+  assert.equal(keyStatus(keys[2], now), 'expired');
+  assert.equal(keyStatus(keys[3], now), 'revoked');
+  const groups = splitKeys(keys, now);
+  assert.deepEqual(groups.active.map(key => key.key_id), ['never', 'future']);
+  assert.deepEqual(groups.inactive.map(key => key.key_id), ['expired', 'revoked']);
+  assert.deepEqual(keys, before);
+});
+
+test('MCP 时间按本地自然日简写今天，详情和非法时间保持清晰', () => {
+  const value = new Date(2026, 9, 1, 10, 7).toISOString();
+  const now = new Date(2026, 9, 1, 23, 59).getTime();
+  assert.equal(keyTime(value, true, now), '今天 10:07');
+  assert.equal(keyTime(value, false, now), '2026-10-01 10:07');
+  assert.equal(keyTime(value, true, new Date(2026, 9, 2).getTime()), '2026-10-01 10:07');
+  assert.equal(keyTime('损坏时间', true, now), '—');
+  assert.equal(keyTime(null, true, now), '—');
+});
+
+test('MCP 失效密钥保留元数据但不提供吊销操作，名称按文本转义', () => {
+  const key = { key_id: 'expired', name: '<img src=x onerror=alert(1)>', scopes: ['omrs:read'], expires_at: '2026-09-01T00:00:00Z' };
+  const view = String(mcpListView([key], { now: Date.parse('2026-10-01T10:00:00Z') }));
+  assert.match(view, /已到期/);
+  assert.match(view, /已失效的密钥/);
+  assert.match(view, /&lt;img/);
+  assert.doesNotMatch(view, /<img/);
+  assert.doesNotMatch(view, /settings\.mcpRevoke/);
+  assert.match(view, /创建密钥/);
 });
 
 test('入口背景参数统一夹到 0–32px，损坏配置回到黑洞', () => {

@@ -4,14 +4,14 @@
 > - 职责：外观、访问与安全、AI 识别、AI 助手、数据与存储、服务与运行六分区
 > - 入口：`assets/app/features/settings/index.js`，挂载根 `omrs_dashboard.html` 的 `#st-app`
 > - 不变量：重启只认新的 `instance_id`；只改免 PIN 网段不重启；AI Key 不回显；外观键名保持兼容
-> - 必跑测试：`tests/app/settings.test.mjs`、`tests/e2e/settings.py`、`tests/test_source_export.py`
+> - 必跑测试：`tests/app/settings.test.mjs`、`tests/e2e/settings.py`、`tests/e2e/mcp.py`、`tests/test_source_export.py`
 > - 相关：`AI/frontend/shell.md`、`AI/security.md`、`AI/api.md`、`AI/frontend/design-system.md`
 
 ## 页面结构与生命周期
 
 `main.js` 注册 `settings` 页面契约；`index.js` 在 `#st-app` 渲染六个静态分区，使用页面动作代理分发按钮、输入和变更事件。`appearance.js`、`access.js`、`ai.js`、`agent.js`、`storage.js`、`service.js` 各管理一个分区；`state.js` 和 `storage-state.js` 保存纯投影。进入时各区读取当前服务状态；离开时撤销事件监听和图片任务轮询，未保存的输入按原行为丢弃，不拦截切页。
 
-左侧导航是 `tablist`，支持方向键、Home、End、焦点移动及 `aria-selected`；上次分区保存在 `localStorage('omrs-settings-section')`，非法值回退到外观。手机端导航横向滚动，分区正文单列。样式在 `settings.css`，使用设计 token。除仍被测试或外部调用的标识外，旧设置 DOM 的 ID 不作为兼容契约。
+左侧导航是 `tablist`，支持方向键、Home、End、焦点移动及 `aria-selected`；上次分区保存在 `localStorage('omrs-settings-section')`，非法值回退到外观。手机端导航横向滚动，分区正文单列。通用样式在 `settings.css`，MCP 区域与其弹窗样式在 `mcp-keys.css`，均使用设计 token。除仍被测试或外部调用的标识外，旧设置 DOM 的 ID 不作为兼容契约。
 
 ## 外观与显示
 
@@ -23,7 +23,11 @@
 
 `access.js` 并行读取 `/api/config`、`/api/auth/session` 和 `/api/status`，用运行中 `listen_external` 判断当前暴露范围；读不到运行状态时退回已保存配置。概览显示本机 / 远端、PIN 和免 PIN 网段；保存 `allow_external` 与 `lan_pin_exempt_cidrs` 时，仅运行监听范围需要改变才请求重启。只改免 PIN 网段时立即生效。远端关闭局域网前先确认失联后果。
 
-访问与安全分区的“外部 AI / MCP”卡片由 `mcp-keys.js` 管理 `/api/mcp/keys` 和 `/api/mcp/keys/revoke`。可以创建查询 Key、建草稿 Key 或两者兼有，并可设置到期时间；列表只显示名称、短前缀、scope、时间和吊销状态。创建响应中的完整明文只放在当前页面内存和一次性输入框中，隐藏、刷新或离开页面后清空，不写入 `localStorage`、配置或普通日志。吊销前要求确认，服务端立即使该 Key 失效；MCP Key 不会改变 Web PIN、AI 模型密钥或普通 API 权限。
+访问与安全分区的“外部 AI / MCP”包含能力说明和密钥管理两个面板，由 `mcp-keys.js` 调用 `/api/mcp/keys` 和 `/api/mcp/keys/revoke`；结构与元数据投影分别在 `mcp-keys-view.js`、`mcp-keys-state.js`。首屏以可用密钥列表为主，显示名称、短前缀、权限、最近使用和到期时间；ID 与完整时间放在可展开的详情里。已吊销和已到期的密钥进入默认折叠的失效记录，到期时自动更新分组。时间按设备本地时区显示，当天简写为“今天 HH:mm”。刷新保留展开状态，读取失败保留上次成功列表并显示原因，迟到的旧读取结果不覆盖当前状态。
+
+“创建密钥”使用共享 `ui/dialog`：名称可选，默认永不过期，也可指定未来时间；权限卡可整卡点击，允许查询、创建待审核草稿或两者兼有，至少选择一项。请求进行中禁止重复提交与关闭，失败保留表单供重试。成功后同一窗口切换为一次性明文展示，提供复制反馈和“我已保存，完成”。明文只在当前控制器内存和窗口输入框中，关闭窗口、刷新页面或离开设置页时清空值及 `value` 属性，不写入浏览器存储、配置或普通日志；列表刷新仅读取元数据。
+
+吊销窗口显示密钥名称与影响，默认聚焦“保留密钥”；失败可在原窗口重试，成功后密钥立即失效并移入失效记录，草稿和题库保留。写入成功先更新本地元数据，后续刷新失败仍显示已完成的状态。MCP 密钥不会改变 Web PIN、AI 模型密钥或普通 API 权限。
 
 PIN 支持首次设置、更换、空闲分钟修改、本机停用和远端登出。PIN 为 4–12 位数字，空闲时间为 5–240 整数分钟；远端更换已有 PIN 须提供当前 PIN，成功后已登录远端跳回登录页。本机仍允许局域网访问时不能停用 PIN。网络或配置请求失败在所属分区显示原因；写操作进行中防重复提交。
 

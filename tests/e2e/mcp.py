@@ -7,6 +7,8 @@
 
 import asyncio
 import base64
+import datetime
+import json
 import os
 import sys
 
@@ -24,11 +26,141 @@ except ImportError:
     PlaywrightTimeoutError = Exception
 
 from browser_runtime import launch_chromium
-from omrs.mcp.keys import verify_key
+from omrs.mcp.keys import create_key, verify_key
 try:
     from test_mcp_protocol import MCP_AVAILABLE, MCPServerProcess, _gif, _jpeg, _json_result, _png, _session
 except ImportError:
     from tests.test_mcp_protocol import MCP_AVAILABLE, MCPServerProcess, _gif, _jpeg, _json_result, _png, _session
+
+
+def run_key_ui(page, base, server, checks):
+    def check(label, ok):
+        checks.append((label, bool(ok)))
+
+    page.goto(base + "/#/settings", wait_until="networkidle")
+    page.click('[data-action="settings.section"][data-arg="access"]')
+    page.wait_for_selector('.st-mcp-key')
+    check("MCP 首屏为密钥管理，创建表单按需打开", page.locator('#st-mcp-name').count() == 0)
+    page.click('.st-mcp-intro [data-action="settings.mcpCreate"]')
+    page.wait_for_selector('#st-mcp-dialog')
+    check("创建窗口聚焦名称，权限控件尺寸紧凑", page.locator('#st-mcp-name').evaluate('el => el === document.activeElement')
+          and page.locator('#st-mcp-scope-read').evaluate('el => el.getBoundingClientRect().height < 28'))
+    page.locator('#st-mcp-scope-read').uncheck()
+    page.locator('#st-mcp-scope-draft').uncheck()
+    page.locator('#st-mcp-dialog [data-dialog-ok]').click()
+    page.wait_for_function("() => document.querySelector('#st-mcp-create-status')?.textContent.includes('至少选择')")
+    check("至少一项权限校验留在创建窗口", page.locator('#st-mcp-dialog').is_visible())
+    page.locator('#st-mcp-scope-read').check()
+    page.locator('#st-mcp-scope-draft').check()
+    page.select_option('#st-mcp-expiry-kind', 'custom')
+    page.fill('#st-mcp-expires', '2000-01-01T00:00')
+    page.locator('#st-mcp-dialog [data-dialog-ok]').click()
+    page.wait_for_function("() => document.querySelector('#st-mcp-create-status')?.textContent.includes('晚于当前')")
+    check("过去的到期时间原地拒绝", page.locator('#st-mcp-dialog').is_visible())
+    page.select_option('#st-mcp-expiry-kind', 'never')
+    page.fill('#st-mcp-name', '浏览器创建 Key')
+
+    def create_failure(route):
+        if route.request.method == 'POST':
+            route.fulfill(status=500, content_type='application/json', body=json.dumps({'msg': '模拟创建失败'}))
+        else:
+            route.continue_()
+    page.route('**/api/mcp/keys', create_failure)
+    page.locator('#st-mcp-dialog [data-dialog-ok]').click()
+    page.wait_for_function("() => document.querySelector('#st-mcp-create-status')?.textContent.includes('创建失败')")
+    check("创建失败保留名称和权限，可继续重试", page.locator('#st-mcp-name').input_value() == '浏览器创建 Key'
+          and page.locator('#st-mcp-scope-draft').is_checked())
+    page.unroute('**/api/mcp/keys', create_failure)
+    page.locator('#st-mcp-dialog [data-dialog-ok]').click()
+    page.wait_for_function("() => document.querySelector('#st-mcp-secret-value')?.value.startsWith('omrs_mcp_')")
+    secret = page.locator('#st-mcp-secret-value').input_value()
+    row = verify_key(server.vault, secret)
+    check("设置 UI 创建真实 Key 且仅创建时显示明文", bool(row) and page.locator('#st-mcp-secret').is_visible())
+    check("浏览器未持久化明文 Key", page.evaluate("secret => !JSON.stringify([localStorage,sessionStorage]).includes(secret)", secret))
+    page.click('[data-action="settings.mcpCopy"]')
+    page.wait_for_function("() => !!document.querySelector('#st-mcp-secret-status')?.textContent")
+    check("复制密钥有可见结果反馈", bool(page.locator('#st-mcp-secret-status').inner_text()))
+    secret_input = page.locator('#st-mcp-secret-value').element_handle()
+    page.locator('#st-mcp-dialog [data-dialog-ok]').click()
+    page.wait_for_selector('#st-mcp-dialog', state='detached')
+    check("关闭窗口同时清空输入值与 value 属性", secret_input.evaluate("el => el.value === '' && !el.hasAttribute('value')"))
+    page.reload(wait_until='networkidle')
+    page.wait_for_selector(f'.st-mcp-key[data-key="{row["key_id"]}"]')
+    check("刷新只能看到 Key 元数据", page.locator('#st-mcp-secret-value').count() == 0)
+
+    page.click(f'[data-action="settings.mcpRevoke"][data-arg="{row["key_id"]}"]')
+    page.wait_for_selector('#st-mcp-revoke-dialog')
+    check("吊销确认显示名称并默认聚焦保留", '浏览器创建 Key' in page.locator('#st-mcp-revoke-dialog').inner_text()
+          and page.locator('#st-mcp-revoke-dialog .ui-dialog__foot [data-dialog-cancel]').evaluate('el => el === document.activeElement'))
+    page.locator('#st-mcp-revoke-dialog .ui-dialog__foot [data-dialog-cancel]').click()
+    page.wait_for_selector('#st-mcp-revoke-dialog', state='detached')
+    check("取消吊销没有改变 Key", verify_key(server.vault, secret) is not None)
+    page.click(f'[data-action="settings.mcpRevoke"][data-arg="{row["key_id"]}"]')
+    page.route('**/api/mcp/keys/revoke', lambda route: route.fulfill(status=500,
+        content_type='application/json', body=json.dumps({'msg': '模拟吊销失败'})))
+    page.locator('#st-mcp-revoke-dialog [data-dialog-ok]').click()
+    page.wait_for_function("() => document.querySelector('#st-mcp-revoke-status')?.textContent.includes('吊销失败')")
+    check("吊销失败保留确认窗口且原 Key 可用", page.locator('#st-mcp-revoke-dialog').is_visible()
+          and verify_key(server.vault, secret) is not None)
+    page.unroute('**/api/mcp/keys/revoke')
+    page.locator('#st-mcp-revoke-dialog [data-dialog-ok]').click()
+    page.wait_for_selector('#st-mcp-revoke-dialog', state='detached')
+    check("设置 UI 吊销立即使 Key 无效", verify_key(server.vault, secret) is None)
+    check("失效记录默认折叠且可用列表无已吊销项", not page.locator('#st-mcp-history').evaluate('el => el.open')
+          and page.locator(f'.st-mcp-active [data-key="{row["key_id"]}"]').count() == 0)
+    page.locator('#st-mcp-history > summary').click()
+    details = page.locator(f'[data-key-details="{row["key_id"]}"]')
+    details.locator('summary').click()
+    page.click('[data-action="settings.mcpRefresh"]')
+    page.wait_for_load_state('networkidle')
+    check("刷新保留失效记录和详情展开状态", page.locator('#st-mcp-history').evaluate('el => el.open') and details.evaluate('el => el.open'))
+    count = page.locator('.st-mcp-key').count()
+    page.route('**/api/mcp/keys', lambda route: route.fulfill(status=500,
+        content_type='application/json', body=json.dumps({'msg': '模拟列表失败'})))
+    page.click('[data-action="settings.mcpRefresh"]')
+    page.wait_for_function("() => document.querySelector('#st-mcp-status')?.textContent.includes('无法读取')")
+    check("列表读取失败保留上次成功数据", page.locator('.st-mcp-key').count() == count)
+    page.unroute('**/api/mcp/keys')
+
+    expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=3)
+    expiring = create_key(server.vault, '即将到期验收', ['omrs:read'], expiry.isoformat())
+    page.click('[data-action="settings.mcpRefresh"]')
+    page.wait_for_function("id => !!document.querySelector(`.st-mcp-key[data-key='${id}'] [data-state='expired']`)",
+        arg=expiring['key_id'], timeout=8000)
+    check("到期时自动移入失效记录并移除吊销按钮", page.locator(f'.st-mcp-active [data-key="{expiring["key_id"]}"]').count() == 0
+          and verify_key(server.vault, expiring['secret']) is None)
+    page.locator('#st-mcp-history > summary').click()
+    page.locator('.st-mcp-card').screenshot(path='/tmp/omrs-mcp-ui-desktop.png')
+
+    page.click('.st-mcp-intro [data-action="settings.mcpCreate"]')
+    page.fill('#st-mcp-name', '离开页面验收')
+    page.select_option('#st-mcp-expiry-kind', 'custom')
+    future = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)
+    local_future = page.evaluate("iso => {const d=new Date(iso), p=v=>String(v).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;}", future.isoformat())
+    page.fill('#st-mcp-expires', local_future)
+    page.locator('#st-mcp-dialog [data-dialog-ok]').click()
+    page.wait_for_function("() => document.querySelector('#st-mcp-secret-value')?.value.startsWith('omrs_mcp_')")
+    next_key = verify_key(server.vault, page.locator('#st-mcp-secret-value').input_value())
+    check("指定到期时间创建为真实有期限的 Key", bool(next_key and next_key['expires_at']))
+    page.evaluate("window.__omrs.router.go('questions')")
+    page.wait_for_selector('#st-mcp-dialog', state='detached')
+    page.evaluate("window.__omrs.router.go('settings')")
+    page.wait_for_selector('.st-mcp-card')
+    page.click('[data-action="settings.section"][data-arg="access"]')
+    check("离开设置页卸载弹窗并清空完整 Key", page.locator('#st-mcp-secret-value').count() == 0 and page.locator('#st-mcp-secret').count() == 0)
+    for theme in ('light', 'dark'):
+        for width in (1440, 390):
+            page.set_viewport_size({'width': width, 'height': 900 if width == 1440 else 844})
+            page.evaluate("theme => document.documentElement.dataset.theme = theme", theme)
+            page.click('.st-mcp-intro [data-action="settings.mcpCreate"]')
+            page.fill('#st-mcp-name', '长名称布局验收' * 9)
+            ok = page.locator('#st-mcp-dialog .ui-dialog__panel').evaluate("el => {const r=el.getBoundingClientRect(); return r.left>=0 && r.right<=innerWidth && r.bottom<=innerHeight;}")
+            ok = ok and page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")
+            check(f"MCP 创建窗口 {theme} {width}px 布局与长名称正常", ok)
+            page.keyboard.press('Escape')
+            page.wait_for_selector('#st-mcp-dialog', state='detached')
+            if width == 390 and theme == 'light':
+                page.locator('.st-mcp-card').screenshot(path='/tmp/omrs-mcp-ui-mobile.png')
 
 
 def main():
@@ -106,35 +238,7 @@ def main():
             page.screenshot(path="/tmp/omrs-mcp-e2e-mobile.png", full_page=True)
             page.set_viewport_size({"width": 1440, "height": 900})
 
-            page.goto(base + "/#/settings", wait_until="networkidle")
-            page.click('[data-action="settings.section"][data-arg="access"]')
-            page.fill("#st-mcp-name", "浏览器创建 Key")
-            page.click('[data-action="settings.mcpCreate"]')
-            page.wait_for_function("() => document.querySelector('#st-mcp-secret-value')?.value.startsWith('omrs_mcp_')")
-            secret = page.locator("#st-mcp-secret-value").input_value()
-            row = verify_key(server.vault, secret)
-            checks.append(("设置 UI 创建真实 Key 且仅创建时显示明文", bool(row)
-                           and page.locator("#st-mcp-secret").is_visible()))
-            checks.append(("浏览器未持久化明文 Key", page.evaluate(
-                "secret => !JSON.stringify([localStorage,sessionStorage]).includes(secret)", secret)))
-            page.click('[data-action="settings.mcpHide"]')
-            checks.append(("隐藏明文清空输入", page.locator("#st-mcp-secret-value").input_value() == ""))
-            page.reload(wait_until="networkidle")
-            page.wait_for_selector(f'.st-mcp-key[data-key="{row["key_id"]}"]')
-            checks.append(("刷新只能看到 Key 元数据", page.locator("#st-mcp-secret-value").input_value() == ""))
-            page.click(f'[data-action="settings.mcpRevoke"][data-arg="{row["key_id"]}"]')
-            page.wait_for_selector("dialog[open]")
-            page.locator("dialog[open] [data-dialog-ok]").click()
-            page.wait_for_function("() => document.querySelector('#st-mcp-status')?.textContent.includes('已吊销')")
-            checks.append(("设置 UI 吊销立即使 Key 无效", verify_key(server.vault, secret) is None))
-            page.fill("#st-mcp-name", "离开页面验收")
-            page.click('[data-action="settings.mcpCreate"]')
-            page.wait_for_function("() => document.querySelector('#st-mcp-secret-value')?.value.startsWith('omrs_mcp_')")
-            page.goto(base + "/#/questions", wait_until="networkidle")
-            page.goto(base + "/#/settings", wait_until="networkidle")
-            page.click('[data-action="settings.section"][data-arg="access"]')
-            checks.append(("离开设置页后完整 Key 清空", page.locator("#st-mcp-secret-value").input_value() == ""
-                           and not page.locator("#st-mcp-secret").is_visible()))
+            run_key_ui(page, base, server, checks)
             context.close()
     except (PlaywrightTimeoutError, KeyError, AssertionError) as exc:
         checks.append(("浏览器路径无异常", False, repr(exc)))

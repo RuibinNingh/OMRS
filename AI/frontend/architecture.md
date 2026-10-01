@@ -62,7 +62,9 @@ assets/app/
 
 录入页的数据所有者在 `tests/app/create-inbox.test.mjs` 用替身接口验证保存队列、字段补丁、revision 冲突、load 与保存交错、旧模板配置兼容及截图重置时旧请求的处理；`tests/app/create-process.test.mjs` 检查框选和批量栏不出现模板与沿用框位入口，并固定录入成功状态块；`tests/e2e/create.py` 用隔离服务和真实浏览器验证提取中重置、旧任务结束后进度保持清空、保存失败不入库、继续画框，以及标记就绪成功反馈留在工作区内而不再弹同文 toast。`tests/app/annotate.test.mjs`、`board-locked.test.mjs` 与 `tests/e2e/assistant_race.py` 分别固定标注版本冲突、换板读取失败和迟到对话响应不覆盖当前状态。
 
-设置页的配置读写在 `tests/app/settings.test.mjs` 用替身接口验证；其中 MCP 卡片只声明 `omrs:read` / `draft:create` 两个固定 scope，完整 Key 不写浏览器存储。`tests/e2e/settings.py` 用隔离服务和真实浏览器验证「AI 识别」思考开关、助手最大输出 Token 的默认状态、保存与回读，并复核四档页面布局。
+设置页的配置读写在 `tests/app/settings.test.mjs` 用替身接口验证；MCP 密钥元数据投影同时覆盖到期边界、吊销优先、本地时间与名称转义。`tests/e2e/settings.py` 用隔离服务和真实浏览器验证「AI 识别」思考开关、助手最大输出 Token 的默认状态、保存与回读，并复核四档页面布局。
+
+`tests/e2e/mcp.py` 在临时 Vault 的同进程 Web + MCP 服务上验证真实密钥创建、一次性明文、复制反馈、窗口关闭及页面卸载清理、吊销确认与取消、到期自动分组、刷新保留展开和读取失败保留列表；创建及吊销失败可原地重试。权限仅有 `omrs:read` / `draft:create`，完整密钥不写浏览器存储。脚本同时检查浅深色桌面/手机创建窗口，并保留官方 SDK 创建草稿、浏览器查看来源和完整原图的路径。
 
 展示板的页面测试分三层：`tests/app/board*.test.mjs` 测视图模型与源码约束（`board-regions.test.mjs` 同时读 `view.js` 与 `view-panel.js`），`tests/app/board-preview.test.mjs` 测预览消息与「适应宽度」公式，`tests/e2e/board.py` 走主路径，含详情层独立滚动、答案折叠、「打开题目」弹窗、宽屏收起左栏后纸面自动重算缩放，以及翻页动效结束后无残留动画和位移。
 
