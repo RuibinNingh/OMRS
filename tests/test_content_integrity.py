@@ -1,8 +1,12 @@
 """正文入账、回填、删除与按运行撤销的临时 Vault 回归。"""
 import os
 import contextlib
+import hashlib
 import io
 import json
+from pathlib import Path
+import sqlite3
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,7 +17,7 @@ from omrs.agent import revert
 from omrs.content_history import (audit_content_coverage, backfill_missing_content,
                                   content_versions, ensure_content_snapshot, restore_content)
 from omrs.creation import create_question
-from omrs.ledger import append_commit, blob_hash, connect, get_blob, ledger_path, read_commits
+from omrs.ledger import append_commit, blob_hash, compute_commit_hash, connect, get_blob, ledger_path, read_commits
 from omrs.question_ops import delete_question, move_question, save_question_markdown, set_question_labels
 from omrs.workspace_sync import scan_workspace
 
@@ -232,6 +236,106 @@ class ContentIntegrityTests(unittest.TestCase):
         self.assertNotIn("正文机密标记XYZ", output.getvalue())
         with open(ledger_path(self.vault), "rb") as file:
             self.assertEqual(file.read(), before)
+
+    def test_content_audit_old_schema_preserves_schema_facts_and_files(self):
+        # 用原生 SQLite 建立旧版整表唯一结构，不能先调用新版建库入口。
+        data_dir = Path(self.vault) / "错题" / ".omrs"
+        data_dir.mkdir(parents=True)
+        path = data_dir / "ledger.db"
+        content = "---\n_omrs_id: Q-old\n---\n# 题目\n正文机密旧库XYZ\n"
+        question_path = Path(self.vault) / "错题" / "数学" / "函数" / "函数1.md"
+        question_path.parent.mkdir(parents=True)
+        question_path.write_text(content, encoding="utf-8")
+        (data_dir / "config.json").write_text('{"allow_external": false}\n', encoding="utf-8")
+        current_hash, old_hash = blob_hash(content), blob_hash("已缺失的历史正文")
+        with contextlib.closing(sqlite3.connect(path)) as db, db:
+            db.executescript("""
+                CREATE TABLE commits (
+                    seq INTEGER PRIMARY KEY AUTOINCREMENT, commit_id TEXT NOT NULL UNIQUE,
+                    prev_hash TEXT, commit_hash TEXT NOT NULL UNIQUE, created_at TEXT NOT NULL,
+                    source TEXT NOT NULL, commit_type TEXT NOT NULL, message TEXT NOT NULL,
+                    payload_json TEXT NOT NULL, schema_version INTEGER NOT NULL,
+                    projector_version TEXT NOT NULL);
+                CREATE TABLE question_projection (
+                    question_id TEXT PRIMARY KEY, uid TEXT NOT NULL UNIQUE,
+                    file_path TEXT NOT NULL UNIQUE, subject TEXT NOT NULL, category TEXT NOT NULL,
+                    difficulty INTEGER, current_tag TEXT, metadata_json TEXT NOT NULL,
+                    metadata_hash TEXT NOT NULL, content_hash TEXT, created_at TEXT,
+                    archived INTEGER NOT NULL DEFAULT 0, suspended INTEGER NOT NULL DEFAULT 0,
+                    updated_seq INTEGER NOT NULL);
+                CREATE TABLE blobs (hash TEXT PRIMARY KEY, content TEXT NOT NULL, created_at TEXT NOT NULL);
+            """)
+            db.execute("INSERT INTO question_projection VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", (
+                "Q-old", "函数1", "错题/数学/函数/函数1.md", "数学", "函数", 5,
+                "#状态/待攻克", "{}", "", current_hash, "2026-10-01", 0, 0, 3))
+            db.execute("INSERT INTO blobs VALUES(?,?,?)", (current_hash, content, "2026-10-01"))
+            previous = None
+            facts = [
+                ("legacy.bootstrap", {"questions": [{"question_id": "Q-old", "content_hash": old_hash}]}),
+                ("question.content_snapshot", {"items": [{"question_id": "Q-old", "content_hash": current_hash}]}),
+                ("question.content_update", {"question_id": "Q-old", "before_hash": old_hash, "after_hash": current_hash}),
+            ]
+            for seq, (kind, payload) in enumerate(facts, 1):
+                digest = compute_commit_hash(previous, "2026-10-01", "migration", kind, payload)
+                db.execute("INSERT INTO commits VALUES(?,?,?,?,?,?,?,?,?,?,?)", (
+                    seq, f"CMT-{seq:06d}", previous, digest, "2026-10-01", "migration", kind,
+                    "旧库只读盘点夹具", json.dumps(payload, ensure_ascii=False), 1, "ledger-v1"))
+                previous = digest
+        # 生命周期锁属于独立维护目录；盘点期间不改变已建立的锁或任何业务文件。
+        from omrs.vault_lifecycle import lease
+        with lease(self.vault):
+            pass
+
+        def snapshot():
+            with contextlib.closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
+                schema = db.execute("SELECT type,name,tbl_name,sql FROM sqlite_master ORDER BY type,name").fetchall()
+                commits = db.execute("SELECT * FROM commits ORDER BY seq").fetchall()
+            files = {str(p.relative_to(self.vault)): (hashlib.sha256(p.read_bytes()).hexdigest(), p.stat().st_mtime_ns)
+                     for p in Path(self.vault).rglob("*") if p.is_file()}
+            return schema, commits, files
+
+        before = snapshot()
+        self.assertIn("NOT NULL UNIQUE", next(row[3] for row in before[0] if row[1] == "question_projection"))
+        root = Path(__file__).resolve().parents[1]
+        environment = dict(os.environ)
+        for key in ("OMRS_SYSTEMD_SERVICE", "OMRS_BOXDETECT_CONTROL"):
+            environment.pop(key, None)
+        for entry in ("domain", "cli"):
+            with self.subTest(entry=entry):
+                if entry == "domain":
+                    report = audit_content_coverage(self.vault)
+                else:
+                    run = subprocess.run([sys.executable, str(root / "omrs_engine.py"), "--vault", self.vault,
+                                          "content-audit", "--json"], cwd=root, env=environment,
+                                         capture_output=True, text=True, timeout=30)
+                    self.assertEqual(run.returncode, 0, run.stderr)
+                    self.assertNotIn("正文机密旧库XYZ", run.stdout)
+                    report = json.loads(run.stdout)
+                self.assertEqual(report["active_questions"], 1)
+                self.assertEqual(report["current_missing_blobs"], [])
+                self.assertEqual(report["file_conflicts"], [])
+                self.assertEqual(report["historical_missing_blobs"], 1)
+                self.assertEqual(report["historical_pre_snapshot_missing"], 1)
+                self.assertEqual(report["historical_gaps"][0]["hash"], old_hash)
+                self.assertEqual(snapshot(), before)
+
+    def test_content_audit_missing_ledger_does_not_create_question_directory(self):
+        with self.assertRaises(FileNotFoundError):
+            audit_content_coverage(self.vault)
+        self.assertFalse((Path(self.vault) / "错题").exists())
+
+    def test_content_audit_pending_restore_keeps_journal_and_database(self):
+        self.create()
+        journal = Path(self.vault) / ".omrs-maintenance" / "restore-journal.json"
+        journal.write_text('{"phase": "old_moved"}\n', encoding="utf-8")
+        before = Path(ledger_path(self.vault)).read_bytes(), journal.read_bytes()
+        with self.assertRaisesRegex(ValueError, "未完成恢复"):
+            audit_content_coverage(self.vault)
+        from omrs.cli import main
+        with mock.patch.object(sys, "argv", ["omrs_engine.py", "--vault", self.vault, "content-audit", "--json"]):
+            with self.assertRaisesRegex(ValueError, "未完成恢复"):
+                main()
+        self.assertEqual((Path(ledger_path(self.vault)).read_bytes(), journal.read_bytes()), before)
 
     def test_server_backfills_and_recovers_before_scanner_and_listener(self):
         from omrs.cli import main

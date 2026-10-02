@@ -12,8 +12,8 @@ import os
 import sqlite3
 from pathlib import Path
 
-from .common import (extract_category, extract_knowledge_tags, extract_labels, extract_tag,
-                     parse_yaml_frontmatter)
+from .common import (OMRS_DIR, extract_category, extract_knowledge_tags, extract_labels, extract_tag,
+                     parse_yaml_frontmatter, questions_root)
 from .ledger import append_commit, append_commit_in_db, blob_hash, connect, get_blob, has_blob, store_blob
 from .data_repository import storage_write
 from .vault_lifecycle import storage, open_sqlite
@@ -212,8 +212,10 @@ def ensure_content_snapshot(vault):
 @storage
 def audit_content_coverage(vault):
     """只读盘点当前文件、投影与 blob；不会初始化或迁移 Ledger。"""
-    from .ledger import ledger_path
-    path = ledger_path(vault)
+    from .backup_store import recover_restore
+    recover_restore(vault, allow_recovery=False)
+    # 不使用会创建数据目录的 ledger_path，也不使用会迁移 Schema 的 connect。
+    path = os.path.join(questions_root(vault), OMRS_DIR, "ledger.db")
     if not os.path.isfile(path):
         raise FileNotFoundError(path)
     db = open_sqlite(vault, f"{Path(path).absolute().as_uri()}?mode=ro", uri=True)
@@ -227,6 +229,24 @@ def audit_content_coverage(vault):
             blob_hashes.add(blob["hash"])
             if blob_hash(blob["content"]) == blob["hash"]:
                 available_hashes.add(blob["hash"])
+        snapshot_seq = db.execute("SELECT MIN(seq) FROM commits WHERE commit_type='question.content_snapshot'").fetchone()[0]
+        historical = {}
+        for raw in db.execute("SELECT seq,commit_type,payload_json FROM commits WHERE commit_type NOT LIKE 'review.%' ORDER BY seq"):
+            seq, typ, payload = raw["seq"], raw["commit_type"], json.loads(raw["payload_json"] or "{}")
+            if typ == "legacy.bootstrap":
+                pairs = [(x.get("question_id"), x.get("content_hash")) for x in payload.get("questions", [])]
+            elif typ in ("question.content_snapshot", "question.content_backfill"):
+                pairs = [(x.get("question_id"), x.get("content_hash")) for x in payload.get("items", [])]
+            else:
+                question = payload.get("question") or {}
+                qid = payload.get("question_id") or question.get("question_id")
+                refs = [payload.get("before_hash"), payload.get("after_hash"), payload.get("content_hash"),
+                        question.get("content_hash"), (payload.get("before") or {}).get("content_hash"),
+                        (payload.get("after") or {}).get("content_hash")]
+                pairs = [(qid, h) for h in refs]
+            for qid, h in pairs:
+                if qid and h and h not in available_hashes:
+                    historical.setdefault((qid, h), seq)
     finally:
         db.close()
     active = [r for r in rows if not r["archived"]]
@@ -250,27 +270,6 @@ def audit_content_coverage(vault):
         elif h and h not in available_hashes:
             conflicts.append({"question_id": row["question_id"], "uid": row["uid"],
                               "reason": "已有 blob 内容与哈希不一致"})
-    with connect(vault) as connection:
-        found = connection.execute("SELECT MIN(seq) FROM commits WHERE commit_type='question.content_snapshot'").fetchone()
-        snapshot_seq = found[0]
-    historical = {}
-    with connect(vault) as connection:
-        for raw in connection.execute("SELECT seq,commit_type,payload_json FROM commits WHERE commit_type NOT LIKE 'review.%' ORDER BY seq"):
-            seq, typ, payload = raw["seq"], raw["commit_type"], json.loads(raw["payload_json"] or "{}")
-            if typ == "legacy.bootstrap":
-                pairs = [(x.get("question_id"), x.get("content_hash")) for x in payload.get("questions", [])]
-            elif typ in ("question.content_snapshot", "question.content_backfill"):
-                pairs = [(x.get("question_id"), x.get("content_hash")) for x in payload.get("items", [])]
-            else:
-                question = payload.get("question") or {}
-                qid = payload.get("question_id") or question.get("question_id")
-                refs = [payload.get("before_hash"), payload.get("after_hash"), payload.get("content_hash"),
-                        question.get("content_hash"), (payload.get("before") or {}).get("content_hash"),
-                        (payload.get("after") or {}).get("content_hash")]
-                pairs = [(qid, h) for h in refs]
-            for qid, h in pairs:
-                if qid and h and h not in available_hashes:
-                    historical.setdefault((qid, h), seq)
     current_pairs = {(r["question_id"], r["content_hash"]) for r in active}
     historical_gaps = [{"question_id": qid, "hash": h, "first_referenced_seq": seq,
                         "reason": "blob 缺失" if h not in blob_hashes else "blob 内容与哈希不一致",

@@ -202,7 +202,7 @@ Markdown 正文另按 §10 入账：
 
 `blobs(hash, content, created_at)` 存题目 Markdown 的全文，哈希是 UTF-8 正文的 sha256；commit 只引用哈希。录入题目时，`question.create` 与当前正文 blob 在同一事务提交；若 Ledger 提交失败，已写出的 Markdown 和附件保留为可能的唯一副本，供后续核查与扫描。网页修改正文或结构化字段时，`question.content_update` / `question.metadata_update` 的前后版本随 commit 入账；工作区扫描发现外部新增、正文变化或结构化字段变化时，当前版本随对应 commit 入账。网页迁移题目先保全旧正文，再把新正文随 `question.move` 入账；删除前必须确认最后一版能从 blob 逐字取回。`question.content_backfill` 仅记录增量补齐的当前版本，投影不处理它。
 
-服务启动时在监听请求和启动工作区扫描前调用 `backfill_missing_content`：仅检查活动题当前投影哈希所指的缺失 blob；文件安全路径、`_omrs_id` 和正文哈希都与投影一致才补入。已有 blob 内容与哈希不符时不覆盖，冲突跳过并报告；已有正确 blob 或重复启动不新增回填提交。`python3 omrs_engine.py --vault /path/to/vault content-audit --json` 用只读 SQLite 盘点活动题、当前缺 blob、文件/投影冲突和历史缺口，不初始化或迁移 Ledger，也不输出正文。旧版本缺口只表示对应哈希不可从当前 `blobs` 取回；回填当前文件不会生成该旧版本。
+服务启动时在监听请求和启动工作区扫描前调用 `backfill_missing_content`：仅检查活动题当前投影哈希所指的缺失 blob；文件安全路径、`_omrs_id` 和正文哈希都与投影一致才补入。已有 blob 内容与哈希不符时不覆盖，冲突跳过并报告；已有正确 blob 或重复启动不新增回填提交。`python3 omrs_engine.py --vault /path/to/vault content-audit --json` 用同一只读 SQLite 事务盘点活动题、当前缺 blob、文件/投影冲突和历史缺口，兼容升级前的 Ledger 表结构，不初始化或迁移 Ledger，也不输出正文；缺库时不创建错题目录。生命周期租约可建立独立的维护锁文件；存在待恢复 journal 时拒绝盘点，须先由正常启动收束恢复。旧版本缺口只表示对应哈希不可从当前 `blobs` 取回；回填当前文件不会生成该旧版本。
 
 写文件前对齐：`ensure_content_recorded` 先核对 `_omrs_id` 与投影旧正文。旧 blob 缺失但文件哈希仍与投影一致时可补存；旧 blob 缺失且文件已改，或 blob 内容哈希/身份不符时拒绝该题写入。验证通过后，若文件正文有未入账的变化（例如刚在 Obsidian 里改过），以 `self_check` 补记这一版，再做本次写入；调用方给了 `expected_content_hash` 而对不上时抛 `ContentConflict`（HTTP 409）。正文版本列表的 `available` 也要求 blob 哈希及 `_omrs_id` 都正确。历史、取回与还原的接口见 `AI/api.md`。
 
