@@ -15,9 +15,13 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-02 实测）：服务 `omrs.service`，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；有效 systemd drop-in 从 `/root/workspace/apps/releases/omrs-ba6501b` 运行 v2.1.0，包含历史分区时间线、MCP 运行记录和按需题图读取。`.venv` 相对链接复用保留的 `/root/workspace/apps/releases/omrs-bbf3757/.venv`（MCP SDK 1.28.1），真实 Vault 仍是 `/root/workspace/apps/OMRS`。Web 监听 8471；同进程 MCP 仅监听 `127.0.0.1:18472`，启动参数登记公网 `https://home.ruibin-ningh.top:8472/mcp`。Nginx 共用 HTTPS 8472 按路径分流网页与 MCP。当前 PIN 已配置，浏览器主应用要求有效 PIN 会话，本机 API 免 PIN 不代表页面免登录。
+生产环境事实（2026-10-02 实测）：服务 `omrs.service`，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；有效 systemd drop-in 从 `/root/workspace/apps/releases/omrs-97e0927` 运行 v2.1.0，提供全量 38 个 MCP 工具、受保护草稿修订、报告保存、展示板管理、网页确认及导出。`.venv` 相对链接复用保留的 `/root/workspace/apps/releases/omrs-bbf3757/.venv`（Python 3.13.5、MCP SDK 1.28.1、Pillow 12.3.0），真实 Vault 仍是 `/root/workspace/apps/OMRS`。
 
-当前发布的代码回滚快照为 `/root/workspace/apps/releases/OMRS-question-image-rollback-20261002T090103Z/`，清单哈希与停服 Vault 归档均已校验；旧发布目录 `omrs-477c5b2` 保留。回滚代码时只恢复 systemd release drop-in，不用 Vault 归档覆盖上线后数据。独立 OMRS Tunnel 为 `tunnel-client-omrs.service`，实测 active/running、NRestarts=0；用户已反馈 ChatGPT 文字查询可用，新增题图工具的账户发现与视觉处理仍须确认。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
+Web 监听 8471；同进程 MCP 仅监听 `127.0.0.1:18472`，启动参数登记 --mcp-public-url `https://home.ruibin-ningh.top:8472/mcp` 和 --web-public-url `https://home.ruibin-ningh.top:8472`。Nginx 共用 HTTPS 8472 按路径分流网页与 MCP；确认和下载使用主 Web 公网地址。PIN 已配置，浏览器主应用要求有效 PIN 会话，本机 API 免 PIN 不代表页面免登录；已有密钥不会自动获得扩展写权限。
+
+当前发布的代码回滚快照为 `/root/workspace/apps/releases/OMRS-mcp-expansion-rollback-20261002T135921Z/`（0700），停服 Vault 归档与八项清单哈希均已校验；旧发布目录 `omrs-ba6501b` 和共享依赖目录保留。回滚只恢复快照中的 10-release.conf.before 到 release drop-in，然后 daemon-reload、重启主服务，不用 Vault 归档覆盖上线后数据。
+
+独立 OMRS Tunnel 为 `tunnel-client-omrs.service`，实测 active/running、NRestarts=0；受管检测服务及模型指针保持。公网 SDK 已验收 22 个只读工具的发现、新增查询与权限边界；用户已反馈 ChatGPT 文字查询可用，扩展工具的账户发现与题图视觉处理仍待账户验证。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
 
 ## 2. Claude Code Web 实测能力（2026-09-24）
 

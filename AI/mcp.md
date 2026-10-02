@@ -144,7 +144,7 @@ ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentic
 
 记录存储故障不会改变已授权工具的结果或撤回已有合法提交，只输出固定无敏感内容的诊断。记录结束写入失败可能留下 `running`，下次 `serve` 启动会恢复为中断；中断不证明草稿未写入，重试前仍需核对草稿或使用原幂等请求。读取接口独立报告故障，学习详情的来源关联读取失败则保留学习信息并给出说明。
 
-生产发布目录和端口事实见 `AI/environment.md`；部署与账户验证记录见 `AI/plans/mcp-integration/progress.md`。当前工作区的完整工具清单不代表已经部署或完成账户联调。
+生产已部署完整 38 工具，现有密钥权限保持；新增写权限须在设置页显式启用，外部客户端随后刷新工具清单。公网 SDK 已实测只读权限发现 22 工具、新增查询及所有隐藏写工具拒绝；完整授权 38 工具与写入闭环在临时实例验收。发布目录和地址见 `AI/environment.md`，部署与账户验证记录见 `AI/plans/mcp-integration/progress.md`；SDK 通过不代表 ChatGPT 账户联调完成。
 
 官方参考：[Developer Mode](https://developers.openai.com/api/docs/guides/developer-mode)、[Apps SDK 文件参数](https://developers.openai.com/apps-sdk/reference/)、[认证](https://developers.openai.com/apps-sdk/build/auth/)、[Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。
 
