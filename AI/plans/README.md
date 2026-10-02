@@ -39,5 +39,5 @@ AI/plans/<计划名>/
 | `ai-draft/` | P1–P4 已完成并部署 v1.30.0 | 主 AI 聊天录题、草稿审核入库、框选与独立训练任务；执行结果与发布状态见 `ai-draft/progress.md` |
 | `box-detect/` | 已完成并部署v1.31.0 | 旧640按用户选择接入生产；训练/内容评测/复核面板已交付，服务与模型管理扩展已调查，见progress.md |
 | `v2.0.0/` | P0–P1 完成，P2 进行中 | 审核优先、快速录入、AI 助手、练习卡、历史与用量的 P0–P7 升级 |
-| `mcp-integration/` | P0–P5、F0–F4 和 U1 已部署至 v2.1.0；I1–I3 题图读取本地验收完成 | 科目统计、并发迁移、幂等鉴权、scope 发现、密钥管理与按需原生题图；目标账户联调待后续，实际验收见 `mcp-integration/progress.md` |
-| `history-redesign/` | 本地实现与验收已完成，未部署 | 学习与变更 / 系统运行分区时间线、真实 MCP 调用与草稿入库双向关联，见 `history-redesign/progress.md` |
+| `mcp-integration/` | P0–P5、F0–F4、U1、I1–I3 已部署至 v2.1.0 | 科目统计、并发迁移、幂等鉴权、scope 发现、密钥管理与按需原生题图；目标账户联调待后续，实际验收见 `mcp-integration/progress.md` |
+| `history-redesign/` | 已部署 v2.1.0，随 ba6501b 发布 | 学习与变更 / 系统运行分区时间线、真实 MCP 调用与草稿入库双向关联，见 `history-redesign/progress.md` |

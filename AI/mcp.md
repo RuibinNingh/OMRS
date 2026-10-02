@@ -86,6 +86,6 @@ ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentic
 
 记录存储故障不会改变已授权工具的结果或撤回已有合法提交，只输出固定无敏感内容的诊断。记录结束写入失败可能留下 `running`，下次 `serve` 启动会恢复为中断；中断不证明草稿未写入，重试前仍需核对草稿或使用原幂等请求。读取接口独立报告故障，学习详情的来源关联读取失败则保留学习信息并给出说明。
 
-生产当前运行 `/root/workspace/apps/releases/omrs-477c5b2`，同进程 MCP 仅监听回环端口并经 HTTPS 反代，包含权限修复与密钥管理界面。官方 SDK 发现 9 个只读工具，`get_overview(subject="生物")` 返回 19 题、逾期 3、今日到期 16；普通 Web API 对 MCP Key 返回 403，吊销后的 Key 返回 401。生产未创建验收草稿，临时只读验收密钥已吊销；公网 PIN 入口可见且无页面脚本错误。主应用浏览器因缺少 PIN 会话未进入，完整页面闭环仍以发布目录的隔离实例结果为准。部署与数据核验见 `AI/plans/mcp-integration/progress.md`。
+生产当前运行 `/root/workspace/apps/releases/omrs-ba6501b`，同进程 MCP 仅监听回环端口并经 HTTPS 反代，包含运行记录和按需题图读取。公网官方 SDK 发现 10 个只读工具，按共享读题 images[] 下标返回原生 PNG，Base64 解码与磁盘原件一致；题图调用只保留 UID、下标和终态。普通 Web API 对 MCP Key 返回 403，吊销后的 Key 返回 401。生产未创建验收题目或草稿，临时只读验收密钥已吊销；公网 PIN 入口可见且无页面脚本错误。主应用浏览器因缺少 PIN 会话未进入，完整页面闭环仍以发布目录的隔离实例结果为准。部署与数据核验见 `AI/plans/mcp-integration/progress.md`。
 
 官方参考：[Developer Mode](https://developers.openai.com/api/docs/guides/developer-mode)、[Apps SDK 文件参数](https://developers.openai.com/apps-sdk/reference/)、[认证](https://developers.openai.com/apps-sdk/build/auth/)、[Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。
