@@ -11,7 +11,7 @@
 
 路径 `错题/.omrs/runtime.db`，由 `omrs/runtime_records.py` 管理。首批来源固定 `mcp`，独立于学习 Ledger、草稿和助手库；首个工具调用才创建数据库，空库查询和详情使用只读连接且不建库。SQLite 启用 WAL、5 秒等待，模块写锁串行写入，连接在操作后关闭；创建文件权限为 0600，拒绝数据库符号链接。备份整个 `错题/` 时随目录保留，不由 Ledger 重放或 `state.restore` 还原。
 
-`records` 表含自增 `seq`、唯一随机 `call_id`、`source/tool/title`、`key_id/key_name`、UTC `started_at/finished_at`、`status/duration_ms`、`arguments_json/result_json`、`error_code/draft_id`；按草稿和密钥建立索引。开始插入 `running`，结束仅将同一进行中行更新到 `success/failure/interrupted`，已结束行不改写。耗时取单调时钟；未知完成耗时为 null。`serve` 监听前将遗留 `running` 改为中断并补完成时间，不推测其业务结果。
+`records` 表含自增 `seq`、唯一随机 `call_id`、`source/tool/title`、`key_id/key_name`、UTC `started_at/finished_at`、`status/duration_ms`、`arguments_json/result_json`、`error_code/draft_id`；按草稿和密钥建立索引。开始插入 `running`，结束仅将同一进行中行更新到 `success/failure/interrupted`，普通已结束行不改写；关联确认操作随独立确认库同步到已应用、拒绝、到期或冲突。耗时取单调时钟；未知完成耗时为 null。`serve` 监听前将遗留 `running` 改为中断并补完成时间，不推测其业务结果。
 
 ## 摘要与关联
 
@@ -28,3 +28,11 @@ get_question_image 的名称登记为“读取题图”，成功的 ImageContent
 分析与报告工具登记中文标题；报告 HTML 不保存到 runtime 摘要，幂等冲突使用 request_conflict。
 
 草稿修订登记中文运行标题与版本、状态、操作恢复等稳定错误码；原结果正文和建议细节不保存到运行摘要。
+
+## 网页确认操作
+
+独立 错题/.omrs/mcp_operations.db 0600/WAL 保存完整参数、影响预览、预期快照和幂等身份，不混入 runtime.db。有效期10分钟。pending_confirmation 显示“尚未变更”；applied/rejected/expired/conflict 分别显示应用、拒绝、到期和冲突。applying 表示网页已确认但执行待恢复。
+
+确认持共享领域写锁重新鉴权和预览；快照不同返回冲突。执行前持久化 applying，领域变更与回执原子提交，重启按回执恢复：已提交不重做，无回执则重新校验后恢复。重复确认、拒绝或到期均不会多次变更。读系统记录时同步到期及已确认的中断操作。
+
+运行摘要仅添加 board_id/folder_id/report_id/export_id/operation_id、版本与有限计数，完整补丁、HTML、题目文字和链接均不保存。详情从确认库取得网页影响预览，不把工具生成预览表示成已完成。

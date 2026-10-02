@@ -23,7 +23,7 @@ export async function request(path, options = {}) {
     const type = (res.headers && res.headers.get('content-type')) || '';
     const data = type.includes('application/json') ? await res.json().catch(() => null) : await res.text();
     if (res.status === 401 && redirectOn401 && typeof location !== 'undefined') {
-      location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search)}`);
+      location.assign(`/login?next=${encodeURIComponent(location.pathname + location.search + (location.hash || ''))}`);
     }
     if (!res.ok) {
       const message = (data && typeof data === 'object' && (data.msg || data.error)) || `HTTP ${res.status}`;

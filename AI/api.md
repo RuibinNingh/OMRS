@@ -1044,3 +1044,7 @@ update_draft(draft_id, expected_revision, request_id, fields?, block_patches?, c
 ## 展示板并发契约
 
 GET /api/boards 返回 catalog_revision，各板摘要含 revision，详情亦含目录版本。全部已有板修改、引用增删、纸面记录/重置携带 expected_revision；目录变化同时携带 expected_catalog_revision。缺失版本返回 400，过期返回 409 revision_conflict；检查和读改写在同一领域锁。响应返回当前 catalog_revision，客户端仅采用已成功写入的版本。
+
+## MCP 权限编辑与确认接口
+
+POST /api/mcp/keys/update 只接受 key_id/scopes，编辑有效密钥权限，失效不可复活。GET /api/mcp/operations/detail?operation_id=编号 返回 operation 含工具、影响、生命周期和结果；POST /api/mcp/operations/decide 只接受 operation_id/decision（confirm 或 reject）。所有端点沿用 Web 会话、来源校验、禁止缓存及 MCP 凭据拒绝；读不到返回 not_found，存储故障503。确认变化返回 operation.status=conflict 和稳定 error_code，重复决定返回现有状态。

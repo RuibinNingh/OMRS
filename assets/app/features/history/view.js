@@ -18,7 +18,7 @@ function toolbar(s, rows) {
     <label class="hvw-search">${icon('search')}<input class="ui-input" type="search" maxlength="200" value="${s.query}" placeholder="搜索动作、科目或题目" aria-label="搜索历史记录" data-input="history.query"></label>
     <select class="ui-select" aria-label="时间范围" data-change="history.range">${choices([['all','全部时间'],['today','今天'],['7d','最近 7 天'],['30d','最近 30 天']], s.range)}</select>
     ${s.tab === 'system' ? html`<select class="ui-select" aria-label="所用密钥" data-change="history.key">${choices([['','全部密钥'], ...s.system.keys.map(key => [key.key_id, key.name])], s.system.key)}</select>
-      <select class="ui-select" aria-label="调用状态" data-change="history.status">${choices([['','全部状态'],['failure','失败'],['success','成功'],['running','进行中'],['interrupted','已中断']], s.system.status)}</select>`
+      <select class="ui-select" aria-label="调用状态" data-change="history.status">${choices([['','全部状态'],['failure','失败'],['success','成功'],['running','进行中'],['interrupted','已中断'],['pending_confirmation','待网页确认'],['applied','已应用'],['rejected','已拒绝'],['expired','已到期'],['conflict','冲突']], s.system.status)}</select>`
       : html`<select class="ui-select" id="history-sort" aria-label="记录排序" data-change="history.sort">${choices([['desc','最新在前'],['asc','最早在前']], s.sort)}</select>
         ${button({ label: `修正记录 ${rows.corrections.length}`, size: 'md', action: 'history.corrections', pressed: s.correctionsOpen })}
         ${button({ label: `修正模式：${s.edit ? '开' : '关'}`, size: 'md', action: 'history.mode', pressed: s.edit, variant: s.edit ? 'primary' : 'default' })}`}
@@ -83,9 +83,9 @@ export function view(s, zone) {
     </section>
     <section id="history-system-panel" role="tabpanel" aria-labelledby="history-tab-system"${s.tab !== 'system' ? ' hidden' : ''}>
       ${system.error && system.records.length ? status({ tone: 'danger', text: `运行记录刷新失败：${system.error}；保留上次成功结果。` }) : ''}
-      <p class="hvw-summary" role="status">MCP · ${system.summary.total} 次调用 · ${system.summary.failure} 次失败 · ${system.summary.running} 次进行中${system.summary.interrupted ? ` · ${system.summary.interrupted} 次中断` : ''}</p>
+      <p class="hvw-summary" role="status">MCP · ${system.summary.total} 次调用 · ${system.summary.failure} 次失败 · ${system.summary.running} 次进行中${system.summary.interrupted ? ` · ${system.summary.interrupted} 次中断` : ''}${system.summary.pending_confirmation ? ` · ${system.summary.pending_confirmation} 次待确认` : ''}</p>
       ${content(s, rows, 'system', zone)}
-      <p class="hvw-summary">已显示 ${system.records.length} 条 · 调用记录只读</p>
+      <p class="hvw-summary">已显示 ${system.records.length} 条 · 高风险操作在详情确认</p>
     </section>
   </section>`;
 }

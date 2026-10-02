@@ -4,7 +4,7 @@ import { html } from '../../core/html.js';
 import { morph } from '../../core/dom.js';
 import { dialog, closeDialog } from '../../ui/dialog.js';
 import { copyText } from '../../domain/sessions.js';
-import { mcpCreateView, mcpSecretView, mcpListView } from './mcp-keys-view.js';
+import { mcpCreateView, mcpSecretView, mcpListView, mcpEditView, MCP_SCOPE_INPUTS } from './mcp-keys-view.js';
 import { keyStatus, splitKeys } from './mcp-keys-state.js';
 
 export function createMcpKeys(root) {
@@ -84,9 +84,7 @@ export function createMcpKeys(root) {
       async onOk(values, window) {
         if (!alive) return true;
         if (created) return true;
-        const scopes = [];
-        if (values['st-mcp-scope-read']) scopes.push('omrs:read');
-        if (values['st-mcp-scope-draft']) scopes.push('draft:create');
+        const scopes = Object.entries(MCP_SCOPE_INPUTS).filter(([id]) => values[id]).map(([, scope]) => scope);
         if (!scopes.length) { note('st-mcp-create-status', '至少选择一项权限。', 'danger'); return false; }
         const custom = values['st-mcp-expiry-kind'] === 'custom';
         const input = el('st-mcp-expires');
@@ -155,6 +153,31 @@ export function createMcpKeys(root) {
     return result.ok;
   }
 
+  async function edit(keyId) {
+    if (!alive || busy || modal) return false;
+    const key = keys.find(item => item.key_id === keyId);
+    if (!key || keyStatus(key) !== 'active') return false;
+    const result = await dialog({ id: 'st-mcp-edit-dialog', title: '编辑密钥权限', hint: key.name || key.key_id,
+      okText: '保存权限', body: mcpEditView(key.scopes || []), dismissible: () => !busy,
+      onOpen(window) { modal = window; },
+      async onOk(values) {
+        const scopes = Object.entries(MCP_SCOPE_INPUTS).filter(([id]) => values[id]).map(([, scope]) => scope);
+        if (!scopes.length) { note('st-mcp-edit-status', '至少选择一项权限。', 'danger'); return false; }
+        busy = true; lockWindow(true);
+        const response = await post('/api/mcp/keys/update', { key_id: keyId, scopes });
+        busy = false; lockWindow(false);
+        if (!alive) return true;
+        if (!response.ok) { note('st-mcp-edit-status', `保存失败：${response.error?.message || '未知错误'}`, 'danger'); return false; }
+        rememberKey(response.data?.key || {});
+        await load();
+        note('st-mcp-status', '权限已更新，立即生效。', 'success');
+        return true;
+      },
+    });
+    modal = null;
+    return result.ok;
+  }
+
   async function copy() {
     if (!alive || !secret) return false;
     const copySecret = secret, copyWindow = modal;
@@ -164,7 +187,7 @@ export function createMcpKeys(root) {
     return ok;
   }
 
-  return { load, create, revoke, copy, clearSecret, dispose() {
+  return { load, create, edit, revoke, copy, clearSecret, dispose() {
     clearSecret();
     alive = false;
     ++loadSeq;

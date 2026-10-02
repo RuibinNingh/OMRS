@@ -1,10 +1,33 @@
 /** 系统运行记录：分页、详情、请求竞争与进行中调用刷新。 */
-import { fetchRuntimePage, fetchRuntimeDetail } from '../../domain/history.js';
+import { fetchRuntimePage, fetchRuntimeDetail, fetchMcpOperation, decideMcpOperation } from '../../domain/history.js';
 
 export function runtimeController(s, paint, filters, active) {
   let alive = true, request = 0, slow = 0, poll = 0;
   let loadedFilter = '', linkedSeq = null;
   const detailRequests = new Map();
+  let operationRequest = 0;
+  async function openOperation(id) {
+    const mine = ++operationRequest;
+    s.operationError = '';
+    const result = await fetchMcpOperation(id);
+    if (!alive || operationRequest !== mine) return;
+    if (result.ok) { s.operation = result.operation; s.selectedSeq = null; }
+    else { s.operation = null; s.operationError = result.error; }
+    paint();
+  }
+  async function decide(id, decision) {
+    if (s.operationBusy || !id) return;
+    s.operationBusy = true; s.operationError = ''; paint();
+    const result = await decideMcpOperation(id, decision);
+    if (!alive) return;
+    s.operationBusy = false;
+    if (result.ok) {
+      if (s.operation?.operation_id === id) s.operation = result.operation;
+      s.details.clear();
+      await load();
+    } else s.operationError = result.error;
+    paint();
+  }
   async function detail(seq, force = false) {
     const key = String(seq);
     if (!force && (s.details.has(key) || detailRequests.has(key))) return;
@@ -47,7 +70,7 @@ export function runtimeController(s, paint, filters, active) {
       s.hasMore = result.has_more; s.nextBeforeSeq = result.next_before_seq;
       s.phase = 'ready'; s.error = '';
       if (s.selectedSeq !== linkedSeq && !s.records.some(row => row.seq === Number(s.selectedSeq))) s.selectedSeq = null;
-      if (s.selectedSeq == null && s.records.length) s.selectedSeq = s.records[0].seq;
+      if (s.selectedSeq == null && s.records.length && !s.operation) s.selectedSeq = s.records[0].seq;
       if (s.selectedSeq != null) {
         const row = s.records.find(row => row.seq === Number(s.selectedSeq));
         const cached = s.details.get(String(s.selectedSeq));
@@ -57,13 +80,16 @@ export function runtimeController(s, paint, filters, active) {
       }
     } else { s.error = result.error; s.phase = 'error'; }
     paint();
-    if (active() && s.summary.running) poll = setTimeout(() => { void load(); }, 2500);
+    if (active() && (s.summary.running || s.summary.pending_confirmation || s.summary.applying)) poll = setTimeout(() => {
+      if (s.operation?.status === 'pending_confirmation' || s.operation?.status === 'applying') void openOperation(s.operation.operation_id);
+      void load();
+    }, 2500);
     return result;
   }
-  return { load, detail,
-    select(seq, linked = false) { linkedSeq = linked ? Number(seq) : null; s.selectedSeq = Number(seq); paint(); void detail(seq, s.detailErrors.has(String(seq))); },
+  return { load, detail, openOperation, decide,
+    select(seq, linked = false) { s.operation = null; s.operationError = ''; linkedSeq = linked ? Number(seq) : null; s.selectedSeq = Number(seq); paint(); void detail(seq, s.detailErrors.has(String(seq))); },
     pause() { request++; clearTimeout(slow); clearTimeout(poll); s.loadingMore = false; },
     refresh() { if (s.selectedSeq != null) void detail(s.selectedSeq, true); return load(); },
-    dispose() { alive = false; request++; clearTimeout(slow); clearTimeout(poll); detailRequests.clear(); },
+    dispose() { alive = false; request++; operationRequest++; clearTimeout(slow); clearTimeout(poll); detailRequests.clear(); },
   };
 }

@@ -430,7 +430,7 @@ def _mutation(fn):
     return wrapped
 
 
-def transaction(vault, fn, identity='', digest='', authorize=lambda: None, preview=False):
+def transaction(vault, fn, identity='', digest='', authorize=lambda: None, preview=False, protect_paper=False):
     """领域暂存：预览不写盘；变更和回执只进行一次原子替换。"""
     from .mcp.common import RequestError
     with locking.write_lock():
@@ -442,7 +442,8 @@ def transaction(vault, fn, identity='', digest='', authorize=lambda: None, previ
                 raise RequestError('request_conflict', '同一 request_id 的内容不同')
             authorize()
             return {**copy.deepcopy(receipt['result']), 'reused': True}
-        stage = {'vault': os.path.realpath(vault), 'original': previous, 'data': copy.deepcopy(previous), 'history': []}
+        stage = {'vault': os.path.realpath(vault), 'original': previous, 'data': copy.deepcopy(previous), 'history': [],
+                 'protect_paper': protect_paper}
         token = _STAGED.set(stage)
         try:
             result = fn()
@@ -853,7 +854,9 @@ def update_board(vault: str, board_id: str, **changes) -> dict:
         or (board["print"]["cut_line"] != "none" and old_print["cut_label"] != board["print"]["cut_label"])
         or printed_gap_changed
     )
-    if layout_changed and (old_print.get("locked") or board["print"].get("locked")):
+    staged = _STAGED.get()
+    if layout_changed and (old_print.get("locked") or board["print"].get("locked") or
+                           (staged and staged.get('protect_paper'))):
         _append_printed_history(vault, board, "reset")
         board["printed"] = copy.deepcopy(EMPTY_PRINTED)
     board["updated_at"] = _now()

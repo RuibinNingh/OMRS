@@ -69,13 +69,14 @@ def main():
                               help="在同一 OMRS 进程启用 MCP Streamable HTTP（推荐由反向代理转发）")
     serve_parser.add_argument("--mcp-public-url", default=None,
                               help="HTTPS 反向代理的完整 /mcp 地址，用于精确 Host/Origin 白名单")
+    serve_parser.add_argument('--web-public-url', default=None, help='主 Web 服务的公共来源，用于 MCP 网页确认与下载链接')
 
     mcp_key_parser = sub.add_parser("mcp-key", help="管理 MCP API Key")
-    mcp_key_parser.add_argument("action", choices=["create", "list", "revoke"])
+    mcp_key_parser.add_argument("action", choices=["create", "list", "revoke", "update"])
     mcp_key_parser.add_argument("--name", default="", help="显示名称")
     mcp_key_parser.add_argument("--scope", action="append", dest="scopes", help="权限，可重复指定")
     mcp_key_parser.add_argument("--expires-at", default=None, help="ISO-8601 到期时间")
-    mcp_key_parser.add_argument("--id", default=None, help="revoke 的 key_id")
+    mcp_key_parser.add_argument("--id", default=None, help="revoke/update 的 key_id")
 
     sub.add_parser("stats", help="输出统计摘要")
 
@@ -114,15 +115,18 @@ def main():
             parser.error("--mcp-public-url 需要同时指定 --mcp-port")
 
     if args.command == "mcp-key":
-        from .mcp.keys import create_key, list_keys, revoke_key
+        from .mcp.keys import create_key, list_keys, revoke_key, update_scopes
         if args.action == "create":
             print(json.dumps(create_key(vault, args.name, args.scopes, args.expires_at), ensure_ascii=False, indent=2))
         elif args.action == "list":
             print(json.dumps({"keys": list_keys(vault)}, ensure_ascii=False, indent=2))
         else:
             if not args.id:
-                raise SystemExit("revoke 需要 --id")
-            print(json.dumps({"key": revoke_key(vault, args.id)}, ensure_ascii=False, indent=2))
+                raise SystemExit('revoke/update 需要 --id')
+            if args.action == 'update' and not args.scopes:
+                raise SystemExit('update 需要 --scope')
+            key = update_scopes(vault, args.id, args.scopes) if args.action == 'update' else revoke_key(vault, args.id)
+            print(json.dumps({'key': key}, ensure_ascii=False, indent=2))
         return
 
     if args.command == "content-audit":
@@ -208,7 +212,8 @@ def main():
             except ModuleNotFoundError:
                 raise SystemExit("启用 MCP 前请安装 requirements-mcp.txt")
             mcp_server = uvicorn.Server(uvicorn.Config(
-                build_app(vault, host="127.0.0.1", port=args.mcp_port, public_url=args.mcp_public_url),
+                build_app(vault, host="127.0.0.1", port=args.mcp_port, public_url=args.mcp_public_url,
+                          web_url=args.web_public_url or f'http://127.0.0.1:{args.port}'),
                 host="127.0.0.1", port=args.mcp_port, log_level="warning", access_log=False,
             ))
             mcp_thread = threading.Thread(target=mcp_server.run, name="omrs-mcp", daemon=True)

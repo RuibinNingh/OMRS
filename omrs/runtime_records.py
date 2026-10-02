@@ -12,6 +12,7 @@ import uuid
 from contextlib import closing
 
 from .common import omrs_data_dir
+from .mcp.common import RequestError
 
 _LOCK = threading.RLock()
 TITLES = {
@@ -27,6 +28,13 @@ TITLES = {
     "get_analytics": "读取详细分析", "list_reports": "读取报告列表",
     "get_report": "读取报告源码", "create_report": "保存分析报告",
     "update_draft": "修订待审核草稿",
+    'list_boards': '读取展示板列表', 'get_board': '读取展示板详情',
+    'create_board': '创建展示板', 'update_board': '编辑展示板', 'duplicate_board': '复制展示板',
+    'delete_board': '删除展示板', 'add_board_items': '加入板内题目', 'remove_board_items': '移出板内题目',
+    'reorder_board_items': '排序板内题目', 'update_board_layout': '调整展示板版式',
+    'update_board_item': '调整单题留白与置顶', 'create_board_folder': '创建展示板文件夹',
+    'update_board_folder': '编辑展示板文件夹', 'delete_board_folder': '删除展示板文件夹',
+    'move_board': '移动展示板', 'get_mcp_operation': '查询网页确认状态', 'export_board': '导出展示板快照',
 }
 ERRORS = {
     "revision_conflict": "目标版本已变化，请重新读取。",
@@ -41,9 +49,10 @@ ERRORS = {
     "write_busy": "写入繁忙，请稍后重试。", "internal_error": "执行失败，请稍后重试。",
     "interrupted": "调用已中断；请核对草稿队列后再决定是否重试。",
 }
-_TEXT_FIELDS = {"subject", "category", "uid", "session_id", "draft_id", "status", "source", "due_range", "match"}
+_TEXT_FIELDS = {"subject", "category", "uid", "session_id", "draft_id", "status", "source", "due_range", "match",
+                'board_id', 'folder_id', 'operation_id', 'report_id', 'mode', 'view', 'version'}
 _NUMBER_FIELDS = {"count", "limit", "page", "page_size", "mastery_min", "mastery_max", "difficulty_min", "difficulty_max",
-                  "image_index"}
+                  "image_index", 'expected_revision', 'expected_catalog_revision', 'offset'}
 _PRIVATE = re.compile(r"omrs_mcp_\S+|\bbearer\s+\S+|https?://\S+|data:\S+", re.I)
 
 
@@ -72,7 +81,7 @@ def argument_summary(arguments):
     result = {key: _safe_text(value) for key, value in arguments.items() if key in _TEXT_FIELDS and isinstance(value, str)}
     result.update({key: value for key, value in arguments.items() if key in _NUMBER_FIELDS
                    and _safe_number(value)})
-    for field in ("images", "blocks", "keywords", "labels", "knowledge_points"):
+    for field in ("images", "blocks", "keywords", "labels", "knowledge_points", 'uids', 'item_refs', 'block_patches'):
         if isinstance(arguments.get(field), list):
             result[f"{field}_count"] = len(arguments[field])
     return result
@@ -97,13 +106,16 @@ def result_summary(result):
                 break
     if not isinstance(value, dict):
         return {}
-    result = {key: _safe_text(value[key]) for key in ("draft_id", "uid", "subject", "status", "session_id")
+    result = {key: _safe_text(value[key]) for key in ("draft_id", "uid", "subject", "status", "session_id",
+                                                   'operation_id', 'board_id', 'report_id', 'export_id')
               if isinstance(value.get(key), str)}
-    for key in ("total", "count", "total_questions", "page", "page_size"):
+    for key in ("total", "count", "total_questions", "page", "page_size", 'revision', 'catalog_revision', 'size_bytes'):
         if _safe_number(value.get(key)):
             result[key] = value[key]
     if isinstance(value.get("reused"), bool):
         result["reused"] = value["reused"]
+    if isinstance(value.get('wrote'), bool):
+        result['wrote'] = value['wrote']
     for field in ("items", "questions", "sessions", "recommendations", "source_images", "blocks"):
         if isinstance(value.get(field), list):
             result[f"{field}_count"] = len(value[field])
@@ -159,12 +171,35 @@ def begin(vault, tool, arguments, identity=None):
 def finish(vault, seq, duration_ms, result=None, error_code=""):
     summary = result_summary(result) if not error_code else {}
     status = "interrupted" if error_code == "interrupted" else "failure" if error_code else "success"
+    if not error_code and summary.get('operation_id'):
+        status = summary.get('status') if summary.get('status') in OPERATION_STATUSES else 'success'
+        from . import mcp_operations
+        current = safely(mcp_operations.get, vault, summary['operation_id'])
+        if current:
+            status = current['status']
+            summary['status'] = status
     with _LOCK, closing(_connect(vault, write=True)) as db:
         db.execute("UPDATE records SET finished_at=?,status=?,duration_ms=?,result_json=?,error_code=?,draft_id=? "
                    "WHERE seq=? AND status='running'", (
                        _now(), status, max(0, int(duration_ms)), json.dumps(summary, ensure_ascii=False),
                        error_code if error_code in ERRORS else "internal_error" if error_code else "",
                        summary.get("draft_id", ""), seq))
+        db.commit()
+
+
+OPERATION_STATUSES = ('pending_confirmation', 'applying', 'applied', 'rejected', 'expired', 'conflict')
+OPERATION_LABELS = {'pending_confirmation': '等待网页确认，尚未变更', 'applying': '已确认，正在执行',
+                    'applied': '变更已应用', 'rejected': '用户已拒绝，未应用',
+                    'expired': '确认已到期，未应用', 'conflict': '确认条件已变化，未应用'}
+
+
+def operation_status(vault, operation_id, status, error_code=''):
+    if not os.path.exists(path(vault)):
+        return
+    with _LOCK, closing(_connect(vault, True)) as db:
+        db.execute("UPDATE records SET status=?,error_code=?,result_json=json_set(result_json,'$.status',?) "
+                   "WHERE json_extract(result_json,'$.operation_id')=?",
+                   (status, error_code, status, operation_id))
         db.commit()
 
 
@@ -195,7 +230,7 @@ def filters(params):
         if not isinstance(value, str) or len(value) > 200:
             raise ValueError("筛选条件过长或格式不正确")
         result[key] = value.strip()
-    if result["source"] not in ("", "mcp") or result["status"] not in ("", "success", "failure", "running", "interrupted"):
+    if result["source"] not in ("", "mcp") or result["status"] not in ('', 'success', 'failure', 'running', 'interrupted', *OPERATION_STATUSES):
         raise ValueError("记录来源或状态不正确")
     for key in ("since", "until"):
         value = params.get(key, "")
@@ -236,12 +271,20 @@ def _row(row, detail=False):
     arguments = json.loads(item.pop("arguments_json"))
     result = json.loads(item.pop("result_json"))
     item["scope_summary"] = " / ".join(str(arguments[key]) for key in ("subject", "category", "uid") if arguments.get(key))
-    if item["error_code"]:
+    if item['status'] in OPERATION_LABELS:
+        item['summary'] = OPERATION_LABELS[item['status']]
+        if item['error_code']:
+            item['summary'] += '；' + ERRORS.get(item['error_code'], ERRORS['internal_error'])
+    elif item["error_code"]:
         item["summary"] = ERRORS.get(item["error_code"], ERRORS["internal_error"])
     elif item["status"] == "running":
         item["summary"] = "正在处理请求"
     elif item["tool"] == "create_draft":
         item["summary"] = "复用已有草稿" if result.get("reused") else "已创建待审核草稿"
+    elif item['tool'] == 'update_draft' and result.get('wrote') is False:
+        item['summary'] = '草稿未修改；人工保护或没有实际变更，请核对建议'
+    elif item['tool'].startswith(('create_', 'update_', 'delete_', 'duplicate_', 'add_', 'remove_', 'reorder_', 'move_', 'export_')):
+        item['summary'] = '复用已有结果' if result.get('reused') else '变更已完成' if item['tool'] != 'export_board' else '导出快照已生成'
     else:
         count = next((result[key] for key in ("total", "total_questions", "count", "items_count", "questions_count") if key in result), None)
         item["summary"] = f"返回 {count} 项结果" if count is not None else "查询完成"
@@ -251,6 +294,8 @@ def _row(row, detail=False):
 
 
 def list_records(vault, params):
+    from . import mcp_operations
+    mcp_operations.refresh(vault)
     options = filters(params)
     try:
         limit = int(params.get("limit", 60))
@@ -269,7 +314,7 @@ def list_records(vault, params):
         db.execute("BEGIN")
         summary = {**empty["summary"], **{row["status"]: row["n"] for row in db.execute(
             f"SELECT status,COUNT(*) AS n FROM records WHERE {where} GROUP BY status", values)}}
-        summary["total"] = sum(summary[key] for key in ("success", "failure", "running", "interrupted"))
+        summary['total'] = sum(value for key, value in summary.items() if key != 'total')
         cursor_clause = " AND seq<?" if cursor is not None else ""
         rows = db.execute(f"SELECT * FROM records WHERE {where}{cursor_clause} ORDER BY seq DESC LIMIT ?",
                           [*values, *([cursor] if cursor is not None else []), limit + 1]).fetchall()
@@ -288,6 +333,8 @@ def calls_for_draft(vault, draft_id):
 
 
 def detail(vault, seq):
+    from . import mcp_operations
+    mcp_operations.refresh(vault)
     if not os.path.isfile(path(vault)):
         return None
     with closing(_connect(vault)) as db:
@@ -295,6 +342,11 @@ def detail(vault, seq):
     if row is None:
         return None
     item = _row(row, detail=True)
+    if item['result'].get('operation_id'):
+        try:
+            item['operation'] = mcp_operations.get(vault, item['result']['operation_id'])
+        except RequestError:
+            item['operation'] = None
     item["related_commits"] = []
     if not item["draft_id"]:
         return item

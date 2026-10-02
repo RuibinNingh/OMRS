@@ -102,6 +102,8 @@
 | POST | `/api/label/save` | `AI/api.md`、`AI/labels.md` |
 | GET | `/api/labels` | `AI/api.md`、`AI/labels.md` |
 | GET | `/api/ledger/verify` | `AI/api.md`、`AI/ledger.md` |
+| GET/POST | `/api/mcp/keys` | `AI/api.md`、`AI/frontend/settings.md` |
+| POST | `/api/mcp/keys/revoke` | `AI/api.md`、`AI/frontend/settings.md` |
 | POST | `/api/optimize/compress` | `AI/api.md` |
 | GET | `/api/optimize/job` | `AI/api.md`、`AI/frontend/settings.md` |
 | POST | `/api/optimize/scan` | `AI/api.md` |

@@ -9,7 +9,7 @@ export const mcpKeysView = () => html`<section class="st-mcp-card" aria-label="�
       <div class="st-mcp-heading"><span class="st-mcp-symbol">${icon('link')}</span><h3>外部 AI / MCP</h3></div>
       <button class="ui-btn ui-btn--primary ui-btn--lg" type="button" data-action="settings.mcpCreate">${icon('plus')}创建密钥</button>
     </div>
-    <p class="st-mcp-lead">让外部 AI 查询你的学习数据，或为你准备待审核草稿。</p>
+    <p class="st-mcp-lead">让外部 AI 查询学习数据、修订待审核草稿、保存报告与管理展示板。</p>
     <div class="st-mcp-capabilities">
       <div>${icon('book')}<div><strong>查询学习数据</strong><p>题目、练习记录与复习建议</p></div></div>
       <div>${icon('edit')}<div><strong>创建待审核草稿</strong><p>由你审核后，再进入正式题库</p></div></div>
@@ -37,10 +37,29 @@ export const mcpCreateView = () => html`<div class="st-mcp-form">
   <fieldset class="st-mcp-scopes"><legend>授予的权限<span>至少选择一项</span></legend>
     <label>${icon('book')}<span><strong>查询学习数据</strong><small>查看题目、练习记录与复习建议</small></span><input id="st-mcp-scope-read" type="checkbox" checked></label>
     <label>${icon('edit')}<span><strong>创建待审核草稿</strong><small>发送到草稿区，由你审核后入库</small></span><input id="st-mcp-scope-draft" type="checkbox" checked></label>
+    ${mcpAdvancedScopes()}
   </fieldset>
   <p class="st-mcp-form-note">${icon('lock')}<span>创建后请立即复制完整密钥，关闭后将无法再次查看。</span></p>
   <div id="st-mcp-create-status" class="st-status" role="alert"></div>
 </div>`;
+
+export const MCP_SCOPE_INPUTS = Object.freeze({ 'st-mcp-scope-read': 'omrs:read', 'st-mcp-scope-draft': 'draft:create',
+  'st-mcp-scope-update': 'draft:update', 'st-mcp-scope-report': 'report:create',
+  'st-mcp-scope-board': 'board:write', 'st-mcp-scope-delete': 'board:delete' });
+
+const advanced = [
+  ['st-mcp-scope-update', '修订待审核草稿', '需同时授予查询；人工修改受保护'],
+  ['st-mcp-scope-report', '保存分析报告', '新建报告，沿用沙箱预览'],
+  ['st-mcp-scope-board', '管理展示板', '需同时授予查询；影响已有纸面时由你确认'],
+  ['st-mcp-scope-delete', '删除板与文件夹', '需同时授予查询；每次删除需网页确认'],
+];
+function mcpAdvancedScopes(scopes = []) {
+  return advanced.map(([id, label, hint]) => html`<label>${icon('edit')}<span><strong>${label}</strong><small>${hint}</small></span><input id="${id}" type="checkbox" ${scopes.includes(MCP_SCOPE_INPUTS[id]) ? html`checked` : ''}></label>`);
+}
+export const mcpEditView = scopes => html`<div class="st-mcp-form"><fieldset class="st-mcp-scopes"><legend>授予的权限<span>至少选择一项</span></legend>
+  <label>${icon('book')}<span><strong>查询学习数据</strong><small>查看题目、练习与复习建议</small></span><input id="st-mcp-scope-read" type="checkbox" ${scopes.includes('omrs:read') ? html`checked` : ''}></label>
+  <label>${icon('edit')}<span><strong>创建待审核草稿</strong><small>由你审核后入库</small></span><input id="st-mcp-scope-draft" type="checkbox" ${scopes.includes('draft:create') ? html`checked` : ''}></label>
+  ${mcpAdvancedScopes(scopes)}</fieldset><div id="st-mcp-edit-status" class="st-status" role="alert"></div></div>`;
 
 export const mcpSecretView = secret => html`<div id="st-mcp-secret">
   <div class="st-mcp-secret-note">${icon('alert-triangle')}<div><strong>请保存这一次显示的完整密钥</strong><p>OMRS 不保存密钥明文。关闭此窗口后，将无法再次查看。</p></div></div>
@@ -50,7 +69,8 @@ export const mcpSecretView = secret => html`<div id="st-mcp-secret">
     <button class="ui-btn" type="button" data-action="settings.mcpCopy">${icon('copy')}复制密钥</button></div>
 </div>`;
 
-const scopeLabel = scope => ({ 'omrs:read': '查询', 'draft:create': '创建草稿' })[scope] || scope;
+const scopeLabel = scope => ({ 'omrs:read': '查询', 'draft:create': '创建草稿', 'draft:update': '修订草稿',
+  'report:create': '保存报告', 'board:write': '管理展示板', 'board:delete': '删除板' })[scope] || scope;
 const statusLabel = status => ({ active: '有效', revoked: '已吊销', expired: '已到期' })[status];
 
 function detailsView(key, openKeys) {
@@ -70,7 +90,7 @@ function keyView(key, now, openKeys) {
   return html`<article class="st-mcp-key${active ? '' : ' st-mcp-key-inactive'}" data-key="${key.key_id}">
     <div class="st-mcp-key-top"><div class="st-mcp-key-main"><div class="st-mcp-key-name"><strong>${key.name || key.key_id}</strong><span class="st-mcp-badge" data-state="${status}">${statusLabel(status)}</span></div>
       ${active ? html`<code>${key.prefix || 'omrs_mcp_…'}</code>` : ''}</div>
-      ${active ? html`<button class="ui-btn ui-btn--ghost st-mcp-revoke" type="button" data-action="settings.mcpRevoke" data-arg="${key.key_id}" aria-label="吊销 ${key.name || key.key_id} 密钥">吊销</button>` : ''}
+      ${active ? html`<div><button class="ui-btn ui-btn--ghost" type="button" data-action="settings.mcpEdit" data-arg="${key.key_id}" aria-label="编辑 ${key.name || key.key_id} 权限">权限</button><button class="ui-btn ui-btn--ghost st-mcp-revoke" type="button" data-action="settings.mcpRevoke" data-arg="${key.key_id}" aria-label="吊销 ${key.name || key.key_id} 密钥">吊销</button></div>` : ''}
     </div>
     ${active ? html`<dl class="st-mcp-key-meta"><div><dt>权限</dt><dd class="st-mcp-scope-list">${(key.scopes || []).length ? each(key.scopes, scope => scope, scope => html`<span class="st-mcp-scope">${icon(scope === 'draft:create' ? 'edit' : 'book')}${scopeLabel(scope)}</span>`) : '无权限'}</dd></div>
       <div><dt>最近使用</dt><dd>${key.last_used_at ? keyTime(key.last_used_at, true, now) : '尚未使用'}</dd></div><div><dt>到期时间</dt><dd>${key.expires_at ? keyTime(key.expires_at, true, now) : '永不过期'}</dd></div></dl>`

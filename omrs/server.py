@@ -22,6 +22,7 @@ from . import traincontrol
 from . import security
 from . import locking
 from . import boards as board_mod
+from .mcp.common import RequestError
 from .ai_assist import recognize_question, collect_taxonomy
 from .creation import create_question
 from .exporting import _find_image, _read_image_info, export_schedule_artifact, export_board_html, board_export_filename
@@ -1400,10 +1401,17 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             if path == "/api/mcp/keys":
                 from .mcp.keys import list_keys
                 self._json({"status": "ok", "keys": list_keys(self.vault_path)})
+            elif path == '/api/mcp/operations/detail':
+                from .mcp_operations import get
+                self._json({'status': 'ok', 'operation': get(self.vault_path, params.get('operation_id', ''))})
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
+        except RequestError as exc:
+            self._json({'status': 'error', 'error': exc.code, 'msg': str(exc)}, 404 if exc.code == 'not_found' else 409)
         except (ValueError, TypeError) as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
+        except (OSError, sqlite3.Error):
+            self._json({'status': 'error', 'msg': 'MCP 管理数据暂时无法读取'}, 503)
 
     def _mcp_post(self, path):
         try:
@@ -1414,7 +1422,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             data = json.loads(body or b"{}")
             if not isinstance(data, dict):
                 raise ValueError("请求必须是 JSON 对象")
-            from .mcp.keys import create_key, revoke_key
+            from .mcp.keys import create_key, revoke_key, update_scopes
             if path == "/api/mcp/keys":
                 if set(data) - {"name", "scopes", "expires_at"}:
                     raise ValueError("Key 管理请求包含不允许的字段")
@@ -1424,10 +1432,23 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 if set(data) != {"key_id"}:
                     raise ValueError("吊销请求只能包含 key_id")
                 self._json({"status": "ok", "key": revoke_key(self.vault_path, data.get("key_id", ""))})
+            elif path == '/api/mcp/keys/update':
+                if set(data) != {'key_id', 'scopes'}:
+                    raise ValueError('权限编辑只接受 key_id 和 scopes')
+                self._json({'status': 'ok', 'key': update_scopes(self.vault_path, data['key_id'], data['scopes'])})
+            elif path == '/api/mcp/operations/decide':
+                if set(data) != {'operation_id', 'decision'}:
+                    raise ValueError('确认请求只接受 operation_id 和 decision')
+                from .mcp_operations import decide
+                self._json({'status': 'ok', 'operation': decide(self.vault_path, data['operation_id'], data['decision'])})
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
+        except RequestError as exc:
+            self._json({'status': 'error', 'error': exc.code, 'msg': str(exc)}, 404 if exc.code == 'not_found' else 409)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
+        except (OSError, sqlite3.Error):
+            self._json({'status': 'error', 'msg': 'MCP 管理数据暂时无法保存，请重试'}, 503)
 
     def _mcp_credential_present(self):
         """普通 Web 端口拒绝 MCP 专用凭据，防止跨接口借道。"""
@@ -1932,7 +1953,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
 </style></head><body><main class="gravity-journey" id="gravity" data-status="loading" aria-label="OMRS 引力入口"><div class="gravity-viewport" id="gravity-viewport"><div class="entry-custom" id="entry-custom"></div><button class="gravity-core-handle" data-gravity-drag-handle aria-label="拖动黑洞移动位置，也可使用方向键" tabindex="-1"></button></div><div class="gravity-loading" id="gravity-loading" role="status"><span class="gravity-loading-orbit"></span><span class="gravity-loading-label">正在展开宇宙</span></div></main><div data-layout><div class="layout-grid"><div class="layout-top"><div class="layout-nav"><div>( Deploy )</div><div>( Preview )</div><div>( Ship )</div></div></div><div class="layout-footer left"><div>Built By</div><div>OMRS</div></div><div class="layout-footer links"><div>Private</div><div>Workspace</div></div><div class="layout-footer right"><div>© OMRS</div></div><section class="entry-access" aria-labelledby="entry-title"><p class="kicker">Access point / 001</p><h1 id="entry-title">准备进入 OMRS</h1><p class="hint" id="hint" role="status">正在检查访问状态…</p><form class="entry" id="entry-form" hidden><input id="pin" type="password" inputmode="numeric" pattern="[0-9]{4,12}" minlength="4" maxlength="12" autocomplete="current-password" placeholder="输入 4–12 位 PIN" aria-label="PIN"><button type="submit" id="submit"><span>解锁学习空间</span></button></form><button class="entry" id="enter" type="button" hidden><span>进入 OMRS</span></button><div class="entry-meta"><span><strong id="clock" aria-label="当前时间">--:--</strong> LOCAL TIME</span><span class="workspace">PRIVATE STUDY WORKSPACE</span></div></section></div></div><script>
 const $=id=>document.getElementById(id),gravity=$("gravity"),viewport=$("gravity-viewport"),custom=$("entry-custom"),loading=$("gravity-loading"),clock=$("clock"),hint=$("hint"),form=$("entry-form"),pin=$("pin"),enter=$("enter"),submit=$("submit");
 const entryBackground=__ENTRY_BACKGROUND__;
-const nextParam=new URLSearchParams(location.search).get("next");function destination(){try{const raw=nextParam||(location.hash?"/"+location.hash:"/?unlocked=1#/dashboard");const url=new URL(raw,location.origin);if(url.origin!==location.origin)return "/?unlocked=1&omrs_reload=1#/dashboard";if(url.pathname==="/"||url.pathname==="/index.html"){url.searchParams.set("unlocked","1");url.searchParams.set("omrs_reload",entryBackground.reload_token||"1");return url.pathname+url.search+url.hash}return url.pathname+url.search+url.hash}catch(_){return "/?unlocked=1&omrs_reload=1#/dashboard"}}const hasHash=location.hash.length>1||Boolean(nextParam&&nextParam.includes("#"));
+const nextParam=new URLSearchParams(location.search).get("next");function destination(){try{const raw=(nextParam?(nextParam+(nextParam.includes("#")?"":location.hash)):null)||(location.hash?"/"+location.hash:"/?unlocked=1#/dashboard");const url=new URL(raw,location.origin);if(url.origin!==location.origin)return "/?unlocked=1&omrs_reload=1#/dashboard";if(url.pathname==="/"||url.pathname==="/index.html"){url.searchParams.set("unlocked","1");url.searchParams.set("omrs_reload",entryBackground.reload_token||"1");return url.pathname+url.search+url.hash}return url.pathname+url.search+url.hash}catch(_){return "/?unlocked=1&omrs_reload=1#/dashboard"}}const hasHash=location.hash.length>1||Boolean(nextParam&&nextParam.includes("#"));
 let disposeScene=()=>{},media=null;function tick(){const now=new Date();clock.textContent=now.toLocaleTimeString("zh-CN",{hour:"2-digit",minute:"2-digit",hour12:false})}tick();setInterval(tick,1000);function stopMedia(){if(media){try{media.pause()}catch(_){ }media.remove()}media=null}function unlock(){stopMedia();disposeScene();location.replace(destination())}function fail(message){hint.textContent=message;hint.className="hint error"}function show(s){if(s.pin_configured){form.hidden=false;pin.focus();hint.textContent="输入 PIN 解锁你的学习空间";return}const allowed=!s.remote||s.authenticated||s.lan_pin_exempt;if(allowed){enter.hidden=false;hint.textContent="这是你的学习空间入口";if(hasHash)unlock()}else hint.textContent="此设备未配置可用的 PIN，请在本机设置访问方式"}function showSceneFallback(){stopMedia();custom.hidden=true;try{const scenePromise=import("/assets/vendor/entry-scene.js");scenePromise.then(async scene=>{await scene.prepareGravityScene();disposeScene=scene.createGravityScene(viewport,()=>{gravity.dataset.status="ready";loading.remove()},()=>{gravity.dataset.status="fallback";loading.remove();viewport.innerHTML='<div class="gravity-fallback"><img src="/assets/vendor/entry-fallback.webp" alt="金白色黑洞与弯曲公式曲面的参考主视觉"><span class="gravity-loading-label">此设备暂不支持 WebGL，当前展示参考主视觉。</span></div>'})}).catch(error=>{console.warn("OMRS gravity scene unavailable",error);gravity.dataset.status="fallback";loading.remove();viewport.innerHTML='<div class="gravity-fallback"><img src="/assets/vendor/entry-fallback.webp" alt="金白色黑洞与弯曲公式曲面的参考主视觉"><span class="gravity-loading-label">当前展示参考主视觉。</span></div>'})}catch(error){console.warn("OMRS gravity scene unavailable",error);gravity.dataset.status="fallback";loading.remove()}}function activateCustom(){if(!entryBackground.asset_url){showSceneFallback();return}const reduced=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;gravity.dataset.status="custom-loading";custom.style.setProperty("--entry-blur",String(entryBackground.blur_px||0)+"px");media=document.createElement(entryBackground.kind==="video"?"video":"img");media.className="entry-custom-media";media.src=entryBackground.asset_url;if(entryBackground.kind==="video"){media.muted=true;media.loop=true;media.controls=false;media.playsInline=true;media.autoplay=!reduced;media.setAttribute("aria-label","自定义入口视频背景");media.addEventListener("loadeddata",()=>{custom.hidden=false;gravity.dataset.status="custom-ready";loading.remove();if(!reduced)media.play().catch(()=>{})},{once:true})}else{media.alt="自定义入口背景";media.addEventListener("load",()=>{custom.hidden=false;gravity.dataset.status="custom-ready";loading.remove()},{once:true})}media.addEventListener("error",showSceneFallback,{once:true});custom.replaceChildren(media)}
 fetch("/api/auth/session",{cache:"no-store"}).then(r=>r.json()).then(show).catch(()=>fail("无法读取访问状态，请检查服务是否运行"));enter.onclick=unlock;form.onsubmit=async event=>{event.preventDefault();submit.disabled=true;hint.className="hint";hint.textContent="正在验证…";try{const r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:pin.value})});const data=await r.json();if(!r.ok)throw Error(data.msg||"PIN 错误");const state=await(await fetch("/api/auth/session",{cache:"no-store"})).json();if(state.warning_required){alert("当前通过 HTTP 访问，PIN 和会话可能被同一网络中的设备看到。建议使用 HTTPS。");await fetch("/api/auth/warning-ack",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})}unlock()}catch(error){fail(error.message||"PIN 错误");pin.select();submit.disabled=false}};if(entryBackground.mode==="custom")activateCustom();else showSceneFallback();
 </script></body></html>

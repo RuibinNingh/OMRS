@@ -126,3 +126,5 @@ assets/app/
 真实 SDK 和临时 Web 实例共用测试 Vault；查询扩展测试读取完整正文、原生草稿图及 Ledger 修正时间线。测试不连接生产端口。
 
 展示板 Web/MCP 版本冲突用真实浏览器验证：本地留白保留，服务端其它客户端备注保留，自动/关页重试停止，主动重新读取需要网页确认。
+
+MCP 确认 hash 在 core/api.js 的401跳转和 PIN 登录 destination 中保留；history 页面自行解析 operation 查询参数。所有新增动态视图继续使用 html/morph 和页面动作代理。

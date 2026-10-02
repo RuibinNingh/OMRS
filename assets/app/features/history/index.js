@@ -254,11 +254,15 @@ function createController(root, ctx) {
   return {
     paint, load, detail,
     tab, select, filter, related,
+    operation(id) { s.query = ''; s.range = 'all'; s.system.key = ''; s.system.status = ''; s.system.operation = null;
+      s.mobileDetail = true; tab('system'); s.mobileDetail = true; void runtime.openOperation(id); },
+    operationConfirm: id => runtime.decide(id, 'confirm'),
+    operationReject: id => runtime.decide(id, 'reject'),
     refresh() { return s.tab === 'system' ? runtime.refresh() : load(); },
     more() { return s.tab === 'system' ? runtime.load(true) : load({ more: true }); },
     close() {
       const seq = s.tab === 'system' ? s.system.selectedSeq : s.selectedSeq;
-      s.mobileDetail = false; if (s.tab === 'system') s.system.selectedSeq = null; else s.selectedSeq = null;
+      s.mobileDetail = false; if (s.tab === 'system') { s.system.selectedSeq = null; s.system.operation = null; } else s.selectedSeq = null;
       paint(); host.querySelector(`#history-${s.tab}-panel .hvw-row[data-arg="${seq}"]`)?.focus({ preventScroll: true });
     },
     sort(value) {
@@ -287,7 +291,9 @@ export const page = {
       if (payload?.source !== 'history') ctl?.refresh();
     }), ctx.bus.on('ledger:tz', () => ctl?.paint())];
     ctl.paint();
-    ctl.refresh();
+    const operation = new URLSearchParams(location.hash.split('?')[1] || '').get('operation');
+    if (operation) ctl.operation(operation);
+    else ctl.refresh();
     return () => { off.forEach(stop => stop()); ctl?.dispose(); ctl = null; };
   },
   actions: {
@@ -304,6 +310,8 @@ export const page = {
     runtimeRelated: ({ arg }) => ctl?.related(arg, 'system'),
     learningRelated: ({ arg }) => ctl?.related(arg, 'learning'),
     openDraft: ({ arg }) => openDraft(arg),
+    operationConfirm: ({ arg }) => ctl?.operationConfirm(arg),
+    operationReject: ({ arg }) => ctl?.operationReject(arg),
     refresh: () => ctl?.refresh(),
     more: () => ctl?.more(),
     detail: ({ arg }) => ctl?.detail(arg, true),

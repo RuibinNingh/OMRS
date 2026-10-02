@@ -30,14 +30,14 @@ from .http import MCPRequestGuard
 from .. import locking
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from .. import drafts
+from .. import drafts, boards, mcp_operations
 from .. import runtime_records
 from ..draft_prepare import merge_answer_text_runs
 from ..agent.tools import read as read_tools
 from ..question_images import read_question_image, validate_original_image
 from .keys import verify_key, key_for_id
 from .common import RequestError
-from . import queries, analysis_reports, draft_edit, board_read
+from . import queries, analysis_reports, draft_edit, board_read, board_write
 
 MAX_IMAGES = 6
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -62,6 +62,7 @@ TOOL_SCOPES.update(queries.SCOPES)
 TOOL_SCOPES.update(analysis_reports.SCOPES)
 TOOL_SCOPES.update(draft_edit.SCOPES)
 TOOL_SCOPES.update(board_read.SCOPES)
+TOOL_SCOPES.update(board_write.SCOPES)
 
 
 class MCPFile(BaseModel):
@@ -165,6 +166,8 @@ class RestrictedMCP(FastMCP):
             if isinstance(cause, drafts.DraftError):
                 raise ToolError(f"{cause.code}: {cause}") from None
             if isinstance(cause, RequestError):
+                raise ToolError(f"{cause.code}: {cause}") from None
+            if isinstance(cause, boards.BoardConflict):
                 raise ToolError(f"{cause.code}: {cause}") from None
             if isinstance(cause, ValueError):
                 raise ToolError(f"invalid_request: {cause}") from None
@@ -389,7 +392,8 @@ def _create_result(vault, draft):
     return _draft_view(draft)
 
 
-def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
+def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='http://127.0.0.1:8471'):
+    web_url = mcp_operations.web_origin(web_url)
     """创建带固定工具白名单的 FastMCP 实例。"""
     resource_url = f"http://{host}:{port}/mcp"
     allowed_hosts = [f"127.0.0.1:{port}", f"localhost:{port}", f"[::1]:{port}"]
@@ -614,6 +618,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
     analysis_reports.register(server, vault, _require, _threaded)
     draft_edit.register(server, vault, _require, _threaded)
     board_read.register(server, vault, _require, _threaded)
+    board_write.register(server, vault, _require, _threaded, web_url)
     # FastMCP 默认会忽略函数参数模型中的未知字段；MCP 是权限边界，必须
     # 把拼写错误或试图注入的顶层参数显式拒绝。
     for tool in server._tool_manager.list_tools():
@@ -641,6 +646,6 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
     return server
 
 
-def build_app(vault, host="127.0.0.1", port=8472, public_url=None):
-    server = build_server(vault, host=host, port=port, public_url=public_url)
+def build_app(vault, host="127.0.0.1", port=8472, public_url=None, web_url='http://127.0.0.1:8471'):
+    server = build_server(vault, host=host, port=port, public_url=public_url, web_url=web_url)
     return MCPRequestGuard(server.streamable_http_app(), vault)

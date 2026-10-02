@@ -347,3 +347,9 @@ POST /api/board/update
 boards.json 为 v4，读取兼容旧文件且不写迁移；首次实际写入保存 v4。每板 revision 初始 1，真实内容改变才递增；目录 catalog_revision 初始 0，在文件夹、板名、板创建/删除/位置变化时递增。读取/规范化保留 mcp_receipts；共享写锁包住版本检查和读改写。领域 transaction 支持纯暂存预览和变更/回执同次原子替换，预览不写纸面历史。
 
 Web 已有板写必填 expected_revision；文件夹、创建、复制、删除、移动及归属变化必填 expected_catalog_revision，409 revision_conflict 不覆盖服务器。可信内部调用可省略版本；HTTP/MCP 入口不能省略。
+
+## MCP 局部管理
+
+MCP 在 mcp_board.py 严格校验后复用领域暂存事务。元数据只改 name/note/source_labels，版式只用 DEFAULT_PRINT 字段和现有范围（note_ratio 0.30..0.55、全局 gap_lines 0..24）；单题仅 gap_lines 0..48/null 与 pin。非法值明确拒绝。批量最多100 UID，全部存在才写；已有引用跳过并返回 actual added/skipped；完整排序可用稳定 question_id 或当前 UID，不接受子集或重复。
+
+删文件夹默认保留板移到未归档；复制不带纸面；移出题目只移引用。预览和应用运行相同校验，预览不落盘。MCP 会保守保护已有纸面：即使解除锁定，实际版式或已印题留白变化仍触发确认。高风险详情及生命周期见 AI/mcp.md、AI/runtime.md。

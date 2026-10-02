@@ -203,3 +203,38 @@ def key_for_id(vault, key_id):
             if row.get("key_id") == key_id:
                 return _public(row)
     return None
+
+
+def active_key(vault, key_id):
+    """网页确认只凭稳定编号重新鉴权，不存储或恢复明文凭据。"""
+    return _active(key_for_id(vault, key_id))
+
+
+def _active(row):
+    if not row or row.get('revoked_at'):
+        return None
+    scopes = row.get('scopes')
+    if not isinstance(scopes, list) or not scopes or any(scope not in _SCOPES for scope in scopes):
+        return None
+    if row.get('expires_at'):
+        try:
+            expiry = datetime.datetime.fromisoformat(row['expires_at'].replace('Z', '+00:00'))
+            expiry = expiry.replace(tzinfo=datetime.timezone.utc) if expiry.tzinfo is None else expiry
+            if expiry <= datetime.datetime.now(datetime.timezone.utc):
+                return None
+        except (ValueError, TypeError):
+            return None
+    return row
+
+
+def update_scopes(vault, key_id, scopes):
+    """只编辑有效密钥的权限，吊销和到期均不可复活。"""
+    scopes = _scopes(scopes)
+    with _key_lock(vault):
+        data = _load(vault)
+        row = next((item for item in data['keys'] if item.get('key_id') == key_id), None)
+        if not _active(row):
+            raise ValueError('密钥不存在、已吊销或已到期，不能编辑权限')
+        row['scopes'] = scopes
+        _save(vault, data)
+        return _public(row)

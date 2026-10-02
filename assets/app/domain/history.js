@@ -48,6 +48,15 @@ export async function fetchRuntimeDetail(seq) {
   return res.ok ? { ok: true, detail: res.data?.detail } : { ok: false, error: res.error?.message || '未知错误' };
 }
 
+export async function fetchMcpOperation(id) {
+  const res = await get(`/api/mcp/operations/detail?operation_id=${encodeURIComponent(id)}`);
+  return res.ok ? { ok: true, operation: res.data?.operation } : { ok: false, error: res.error?.message || '未知错误' };
+}
+export async function decideMcpOperation(id, decision) {
+  const res = await post('/api/mcp/operations/decide', { operation_id: id, decision });
+  return res.ok ? { ok: true, operation: res.data?.operation } : { ok: false, error: res.error?.message || '未知错误' };
+}
+
 export async function fetchHistoryDetail(seq) {
   const res = await get(`/api/history/detail?seq=${encodeURIComponent(seq)}`);
   return res.ok ? { ok: true, detail: res.data?.detail } : { ok: false, error: res.error?.message || '未知错误' };

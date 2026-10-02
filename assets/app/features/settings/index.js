@@ -118,6 +118,7 @@ export const page = {
     mcpCreate: () => mcpKeys?.create(),
     mcpRefresh: () => mcpKeys?.load(),
     mcpRevoke: ({ arg }) => mcpKeys?.revoke(arg),
+    mcpEdit: ({ arg }) => mcpKeys?.edit(arg),
     mcpCopy: () => mcpKeys?.copy(),
     mcpHide: () => mcpKeys?.clearSecret(),
   },

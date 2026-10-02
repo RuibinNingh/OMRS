@@ -6,9 +6,26 @@ import { status } from '../../ui/status.js';
 import { formatLedgerTime } from '../../domain/history.js';
 import { durationText, timeGroups } from './state.js';
 
-const LABELS = { success: '成功', failure: '失败', running: '进行中', interrupted: '已中断' };
+const LABELS = { success: '成功', failure: '失败', running: '进行中', interrupted: '已中断',
+  pending_confirmation: '待网页确认', applying: '执行中', applied: '已应用', rejected: '已拒绝', expired: '已到期', conflict: '冲突' };
 const DRAFTS = { review: '待审核', pending: '待处理', cropping: '待框选', done: '已入库', discarded: '已丢弃', missing: '草稿不可用' };
 export const runtimeLabel = row => LABELS[row.status] || '未知状态';
+
+function operationView(op, s) {
+  if (!op) return '';
+  const pending = op.status === 'pending_confirmation';
+  return html`<section class="hvw-related" data-operation="${op.operation_id}"><h4>网页确认 · ${runtimeLabel(op)}</h4>
+    <p>${(op.impact?.reasons || []).join('、')}</p>
+    <dl class="hvw-facts"><dt>操作编号</dt><dd>${op.operation_id}</dd><dt>有效期至</dt><dd>${formatLedgerTime(op.expires_at, 'local')}</dd></dl>
+    ${(op.impact?.boards || []).map(board => html`<p>${board.name}：${board.deleted ? '删除展示板' : `${board.items_before} → ${board.items_after} 道题`}${board.paper_reset ? `；重置 ${board.paper_pages} 页纸面记录` : ''}</p>`)}
+    ${op.impact?.folder ? html`<p>文件夹「${op.impact.folder.name}」：${op.impact.keep_boards ? '板移到未归档，保留纸面记录' : '连同板一起删除'}</p>` : ''}
+    <details class="hvw-details" data-key="operation-impact"><summary>查看完整影响预览</summary><pre>${JSON.stringify(op.impact, null, 2)}</pre></details>
+    ${op.error_code ? status({ tone: 'danger', text: `未应用：${op.error_code}，请重新发起操作。` }) : ''}
+    ${pending ? html`<p class="hvw-muted">尚未修改展示板。确认时会重新检查权限、版本和影响范围。</p>
+      ${button({ label: s.operationBusy ? '处理中…' : '确认执行', size: 'md', variant: 'primary', action: 'history.operationConfirm', arg: op.operation_id, disabled: s.operationBusy })}
+      ${button({ label: '拒绝', size: 'md', action: 'history.operationReject', arg: op.operation_id, disabled: s.operationBusy })}` : ''}
+  </section>`;
+}
 
 export function runtimeTimeline(s, zone) {
   return timeGroups(s.records, zone).map(group => html`<section class="hvw-day" data-key="runtime-day-${group.date}">
@@ -27,6 +44,8 @@ export function runtimeTimeline(s, zone) {
 }
 
 export function runtimePanel(s, zone) {
+  if (s.operation) return html`<article class="hvw-panel-content"><h3 class="hvw-title">MCP 展示板操作</h3>${s.operationError ? status({ tone: 'danger', text: s.operationError }) : ''}${operationView(s.operation, s)}</article>`;
+  if (s.operationError && s.selectedSeq == null) return status({ tone: 'danger', text: `确认操作读取失败：${s.operationError}` });
   if (s.selectedSeq == null) return html`<p class="hvw-panel-empty">选择一条调用，查看结果与关联。</p>`;
   const key = String(s.selectedSeq), cached = s.details.get(key);
   const row = cached || s.records.find(item => item.seq === Number(s.selectedSeq));
@@ -40,7 +59,9 @@ export function runtimePanel(s, zone) {
     <p class="hvw-outcome" data-tone="${row.status}">${row.summary}</p>
     <dl class="hvw-facts"><dt>时间</dt><dd>${formatLedgerTime(row.started_at, zone)}</dd>
       <dt>来源</dt><dd>MCP</dd><dt>所用密钥</dt><dd>${row.key_name || '未识别密钥'}</dd>
-      <dt>耗时</dt><dd>${durationText(row)}</dd><dt>调用性质</dt><dd>${row.tool === 'create_draft' ? '创建待审核草稿' : row.tool === 'unknown_tool' ? '未开放工具' : '只读查询'}</dd></dl>
+      <dt>耗时</dt><dd>${durationText(row)}</dd><dt>调用性质</dt><dd>${row.tool === 'unknown_tool' ? '未开放工具' : /^(create|update|delete|duplicate|add|remove|reorder|move|export)_/.test(row.tool) ? '获授权写入' : '只读查询'}</dd></dl>
+    ${s.operationError ? status({ tone: 'danger', text: s.operationError }) : ''}
+    ${operationView(cached?.operation, s)}
     ${cached?.draft ? html`<section class="hvw-related"><h4>关联草稿</h4>
       <p class="hvw-muted">${DRAFTS[cached.draft.status] || cached.draft.status}</p>
       ${button({ label: '查看草稿', size: 'sm', iconRight: 'arrow-right', action: 'history.openDraft', arg: cached.draft.id, disabled: cached.draft.status === 'missing' })}
