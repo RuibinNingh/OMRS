@@ -11,14 +11,12 @@ import functools
 import hashlib
 import http.client
 import ipaddress
-import io
 import json
 import socket
 import ssl
 import time
 from typing import Annotated, Literal
 import urllib.parse
-import warnings
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken
@@ -28,7 +26,6 @@ from mcp.types import ToolAnnotations
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from jsonschema import Draft202012Validator
-from PIL import Image, UnidentifiedImageError
 from .http import MCPRequestGuard
 from .. import locking
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,6 +34,7 @@ from .. import drafts
 from .. import runtime_records
 from ..draft_prepare import merge_answer_text_runs
 from ..agent.tools import read as read_tools
+from ..question_images import validate_original_image
 from .keys import verify_key, key_for_id
 
 MAX_IMAGES = 6
@@ -216,32 +214,8 @@ def _parse_image(value):
         raw = _download(url)
     if not raw or len(raw) > MAX_IMAGE_BYTES:
         raise ValueError("图片为空或超过 8MB 限制")
-    checked = drafts._validate_mcp_bytes(raw)
+    checked = validate_original_image(raw)
     mime, width, height = checked["mime"], checked["width"], checked["height"]
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter("error", Image.DecompressionBombWarning)
-            with Image.open(io.BytesIO(raw)) as original:
-                if Image.MIME.get(original.format) != mime or original.size != (width, height):
-                    raise ValueError("图片格式或尺寸与实际内容不一致")
-                original.verify()
-            # 校验像素流，但不把解码结果编码回文件，原件仍是 raw。
-            with Image.open(io.BytesIO(raw)) as original:
-                pixels = 0
-                for frame in range(100):
-                    original.seek(frame)
-                    pixels += original.width * original.height
-                    if pixels > drafts._MCP_MAX_IMAGE_PIXELS:
-                        raise ValueError("图片解码像素总量超过 4000 万限制")
-                    original.load()
-                    try:
-                        original.seek(frame + 1)
-                    except EOFError:
-                        break
-                else:
-                    raise ValueError("图片帧数超过 100 帧限制")
-    except (OSError, UnidentifiedImageError, Image.DecompressionBombError, Image.DecompressionBombWarning) as exc:
-        raise ValueError("图片内容无法完整解码，请提供有效 PNG / JPEG / GIF") from exc
     return {"data": raw, "mime": mime, "width": width, "height": height,
             "sha256": hashlib.sha256(raw).hexdigest(),
             "file_id": str(value.get("file_id") or "").strip(),

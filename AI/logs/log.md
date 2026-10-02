@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-10-02_mcp-question-image-read](2026-10-02_mcp-question-image-read.md)：MCP 题图按需读取
 - [2026-10-02_history-redesign](2026-10-02_history-redesign.md)：历史页重设计与 MCP 运行记录
 - [2026-10-01_v2.1.0-release](2026-10-01_v2.1.0-release.md)：v2.1.0 阶段总结与 GitHub 同步
 - [2026-10-01_v2.1.0-production](2026-10-01_v2.1.0-production.md)：v2.1.0 生产更新
