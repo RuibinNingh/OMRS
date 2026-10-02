@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：向获授权外部 AI 提供 OMRS 只读查询和待审核草稿创建
 > - 入口：`omrs/mcp/server.py`、`http.py`、`keys.py`；`serve --mcp-port`
-> - 不变量：十五读一写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
+> - 不变量：十八读二写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
 > - 必跑测试：`python3 -m unittest tests.test_mcp tests.test_mcp_keys tests.test_mcp_http tests.test_mcp_protocol tests.test_mcp_draft_atomic tests.test_runtime_records -q`、`python3 tests/e2e/mcp.py`、`python3 tests/e2e/runtime_history.py`
 > - 相关：`AI/api.md`、`AI/drafts.md`、`AI/security.md`、`AI/agent.md`、`requirements-mcp.txt`
 
@@ -22,11 +22,11 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 ## 2. 工具与权限
 
-固定开放十五个查询工具：`list_taxonomy`、`search_questions`、`get_question`、`get_question_image`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。七个学习数据查询直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
+固定开放十八个查询工具：`list_taxonomy`、`search_questions`、`get_question`、`get_question_image`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。七个学习数据查询直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
 
-`create_draft` 是唯一业务写工具，需要 `draft:create`。它不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在正式建题、提交/修改/丢弃草稿、反馈、标记、Session、设置、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
+`create_draft` 需要 `draft:create`，`create_report` 需要 `report:create`。它不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在正式建题、提交/修改/丢弃草稿、反馈、标记、Session、设置、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
 
-每次协议请求和领域调用重新验证 Key；创建在下载及等锁之后、实际写入前复查，URL 快速复用、inline 处理后复用及新建都在结果封装前再次校验 `draft:create`。处理中吊销、到期或权限变化返回 `forbidden`，提交后失效仍保留草稿与原图。`tools/list` 按当前 Key 的实时 scope 返回十五读、仅 `create_draft` 或全部十六项；发现与调用共用显式工具→scope 映射。过滤只作用于当前请求的描述，完整注册表保持，SDK 共享定义缓存不承担授权；直接点名隐藏工具仍拒绝。`错题/.omrs/mcp_keys.json` 仅保存 SHA-256 摘要和非秘密元数据，0600；线程锁和操作系统文件锁共同避免本机 CLI 与 Web 的创建/吊销/最近使用时间互相覆盖。Key 管理响应禁止缓存。
+每次协议请求和领域调用重新验证 Key；创建在下载及等锁之后、实际写入前复查，URL 快速复用、inline 处理后复用及新建都在结果封装前再次校验 `draft:create`。处理中吊销、到期或权限变化返回 `forbidden`，提交后失效仍保留草稿与原图。`tools/list` 按当前 Key 的实时 scope 按当前 scope 返回查询、草稿创建及报告创建；发现与调用共用显式工具→scope 映射。过滤只作用于当前请求的描述，完整注册表保持，SDK 共享定义缓存不承担授权；直接点名隐藏工具仍拒绝。`错题/.omrs/mcp_keys.json` 仅保存 SHA-256 摘要和非秘密元数据，0600；线程锁和操作系统文件锁共同避免本机 CLI 与 Web 的创建/吊销/最近使用时间互相覆盖。Key 管理响应禁止缓存。
 
 审查修复验收状态统一见 `AI/optimization.md`「MCP 修复」，实施按 `AI/plans/mcp-integration/exec-2026-10-01-mcp-fixes.md`。
 
@@ -99,3 +99,11 @@ get_questions(uids, detail=false) 按输入顺序返回最多 20 题，保留重
 get_question_history 提供 reviews 和 content_versions，默认 50/最多 100，按最新优先分页。练习记录复用有效反馈投影并优先稳定 Question_ID；正文版本只查询。get_learning_history 从 Ledger 计算当前修正状态，按 subject/uid/since/until/before_seq 先筛选后分页，批量练习节点只带匹配题目的摘要。日期含首尾，ISO 时间戳的结束边界不含；未指定时不筛选。
 
 get_draft_image 按 get_draft.source_images 的从 0 开始下标读取原件，验证来源 SHA、普通目录和文件身份，共用完整解码及 8 MiB 限制，前后复查 omrs:read；返回原生图片，不包含其它对话图片、不裁剪或转码。
+
+## 9. 分析与报告
+
+get_analytics 提供 overview/trends/accuracy/distributions/weak_spots/forecast；先筛选科目和分类，再按有效反馈聚合，同名分类按科目和分类分桶。since/until 只影响练习行为和正确率；熟练度、薄弱项和预测标为当前快照，失败计数和连续错误仍用当前完整有效反馈。空库和未知范围返回零计数/空明细。
+
+list_reports 默认 50/最多 100 项；get_report 返回 HTML 源码字符串、元数据、哈希和下一页位置，默认 4000/最多 8000 字，不执行报告脚本。create_report 仅新建，名称最多 200 字、HTML 非空且最多 2 MiB，必填 request_id；report:create 默认不授予，旧 Key 和默认创建仍只具有原两项权限。
+
+报告回执在 mcp_reports.db：先提交稳定报告编号与请求摘要，再原子落 HTML、登记 index.json、完成回执。相同内容重试复用编号，内容不同返回 request_conflict，文件已保存而索引中断可恢复。已完成后人工删除报告，技术重试仍返回原编号，不复活报告。保存及回执返回前复查权限。

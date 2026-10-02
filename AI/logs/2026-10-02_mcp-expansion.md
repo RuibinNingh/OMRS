@@ -21,3 +21,9 @@ AI/plans/mcp-integration 的总纲、进度、扩展执行说明和本日志；�
 实现 5 个查询工具及共同分页/稳定错误契约；当前正文后续页必查哈希，历史版本只读已登记 blob，草稿图验证来源 SHA 和普通路径。时间线先按题/科目/日期筛选、显示当前修正状态；测试发现 Session 投影 UIDs 实际为对象数组，已按代码修正解析。
 
 影响 omrs/mcp/server.py、queries.py、common.py、question_images.py、runtime_records.py，相关 MCP/查询回归及模块文档。实跑 MCP 专项 73/73（含 5 项新增、真实 SDK，无 SKIP）；MCP SDK/浏览器 39/39；docs 82 文档、0 问题；git diff --check 通过。未运行全量 Python，留 P7。
+
+## P2 分析与报告
+
+新增 4 工具；共享 analytics 在科目/分类筛选后聚合，同名分类拆桶，日期仅筛选练习行为，当前薄弱项和预测保留完整有效反馈口径。报告使用独立 SQLite 预留稳定编号，原子 HTML 和可恢复索引；已删除报告不因技术重试复活。Key 可用权限扩展，但默认保持原两项。
+
+影响 analytics.py、reports.py、mcp/analysis_reports.py、keys.py、server.py、runtime_records.py 及相关回归/文档。实跑 MCP 专项 78/78，无 SKIP。报告文件使用 pytest 函数，unittest 专项收集为 0 后改跑 pytest：7/7；报告浏览器 24/24；docs 0 问题及 git diff --check 通过。全量门禁留 P7。

@@ -304,7 +304,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 - AI 识别：只有调用 `/api/ai-recognize` 时才访问用户配置的 OpenAI 兼容服务。
 - AI 报告：核心 HTML 可自包含；报告提示词允许按需引用 HTTPS 字体/图表/图标资源，并要求失败时正文仍可读。
 - 数据：纯文件（Markdown + SQLite/CSV），无外部数据库。
-- 外部 MCP：可选 `mcp` SDK、`uvicorn` 和 Pillow 原图校验，固定十五读一写，API Key 与 Web PIN 分离；工具发现只显示所选权限允许的接口，创建及重试会复查当前 Key。使用 `serve --mcp-port` 启用。
+- 外部 MCP：可选 `mcp` SDK、`uvicorn` 和 Pillow 原图校验，固定十八读二写，API Key 与 Web PIN 分离；工具发现只显示所选权限允许的接口，创建及重试会复查当前 Key。使用 `serve --mcp-port` 启用。
 - MCP 密钥在「设置 → 访问与安全」管理：点击创建打开权限与到期时间窗口，成功后复制一次性明文；可用密钥与折叠的失效记录分开显示，时间按设备本地时区展示。
 - 外部 AI 需要题图时，先读取题目 images 列表，再用 get_question_image(uid, image_index) 按下标取一张完整原图；返回 MCP 原生图片内容，支持 PNG/JPEG/GIF，单张不超过 8 MiB。
 - 助手与 MCP 的科目概况共用统计入口，题量、待复习、顽固题、击杀和平均熟练度均按所选科目汇总。

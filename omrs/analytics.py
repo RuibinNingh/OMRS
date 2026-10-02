@@ -113,8 +113,13 @@ def _bucket_label(value, edges, labels):
     return labels[-1]
 
 
-def get_analytics(vault):
+def get_analytics(vault, subject="", category="", since="", until=""):
+    from .mcp.common import date_bounds, within_date
+    bounds = date_bounds(since, until)
     all_rows = [resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)]
+    all_rows = [r for r in all_rows if (not subject or r.get("Subject") == subject)
+                and (not category or r.get("Category") == category)]
+    scoped_uids = {r.get("UID") for r in all_rows}
     with connect(vault) as db:
         projection_rows = db.execute(
             "SELECT question_id, uid, suspended, archived FROM question_projection"
@@ -123,18 +128,18 @@ def get_analytics(vault):
         row.get("UID", "") for row in all_rows if is_suspended_row(row)
     }
     suspended_uids.update(
-        row["uid"] for row in projection_rows if not row["archived"] and row["suspended"]
+        row["uid"] for row in projection_rows if not row["archived"] and row["suspended"] and row["uid"] in scoped_uids
     )
     active_uids = {row.get("UID", "") for row in all_rows if row.get("UID", "") not in suspended_uids}
     uid_by_qid = {row["question_id"]: row["uid"] for row in projection_rows if not row["archived"]}
     qid_by_uid = {uid: qid for qid, uid in uid_by_qid.items()}
     active_qids = {
         row["question_id"] for row in projection_rows
-        if not row["archived"] and not row["suspended"]
+        if not row["archived"] and not row["suspended"] and row["uid"] in scoped_uids
     }
     rows = [row for row in all_rows if row.get("UID", "") in active_uids]
     all_history = load_csv(history_path(vault), HISTORY_HEADERS)
-    history = [
+    current_history = [
         row for row in all_history
         if (
             row.get("Question_ID") in active_qids
@@ -143,8 +148,9 @@ def get_analytics(vault):
         )
     ]
     tuning = load_tuning(vault)
-    fail_counts = build_fail_counts(history, uid_by_qid)
-    wrong_streaks = build_wrong_streaks(history, uid_by_qid)
+    fail_counts = build_fail_counts(current_history, uid_by_qid)
+    wrong_streaks = build_wrong_streaks(current_history, uid_by_qid)
+    history = [row for row in current_history if within_date(row.get("Date", ""), bounds)]
     today = datetime.date.today()
 
     total = len(rows)
@@ -221,7 +227,7 @@ def get_analytics(vault):
     for h in history:
         d, hour = _parse_dt(h.get("Date", ""))
         correct = str(h.get("Is_Correct", "")).strip() == "1"
-        uid = (h.get("UID") or "").strip()
+        uid = uid_by_qid.get(h.get("Question_ID")) or (h.get("UID") or "").strip()
         score = _safe_int(h.get("Sub_Score", 0), 0)
         if 0 <= score <= 10:
             by_score[score]["count"] += 1
@@ -281,7 +287,7 @@ def get_analytics(vault):
     cat = {}
     for it in items:
         c = it["category"] or "未分类"
-        bucket = cat.setdefault(c, {"category": c, "subject": it["subject"],
+        bucket = cat.setdefault((it["subject"], c), {"category": c, "subject": it["subject"],
                                     "total": 0, "sum_m": 0.0, "reviews": 0, "correct": 0,
                                     "leech": 0})
         bucket["total"] += 1
@@ -291,7 +297,7 @@ def get_analytics(vault):
         bucket["reviews"] += ur[0]
         bucket["correct"] += ur[1]
     categories = []
-    for c, b in cat.items():
+    for (_, c), b in cat.items():
         categories.append({
             "category": c, "subject": b["subject"], "total": b["total"],
             "avg_mastery": round(b["sum_m"] / b["total"], 3) if b["total"] else 0,

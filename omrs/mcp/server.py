@@ -37,7 +37,7 @@ from ..agent.tools import read as read_tools
 from ..question_images import read_question_image, validate_original_image
 from .keys import verify_key, key_for_id
 from .common import RequestError
-from . import queries
+from . import queries, analysis_reports
 
 MAX_IMAGES = 6
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -59,6 +59,7 @@ TOOL_SCOPES = {
 }
 
 TOOL_SCOPES.update(queries.SCOPES)
+TOOL_SCOPES.update(analysis_reports.SCOPES)
 
 
 class MCPFile(BaseModel):
@@ -395,7 +396,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
     server = RestrictedMCP(
         "OMRS",
         vault=vault,
-        instructions="只读查询 OMRS 学习数据；唯一业务写入是创建待审核草稿。",
+        instructions="按授权查询 OMRS；录题进入待审核草稿，报告只新建，不修改正式题目或学习状态。",
         token_verifier=MCPTokenVerifier(vault),
         auth=AuthSettings(issuer_url="https://omrs.invalid", resource_server_url=resource_url),
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=True,
@@ -601,6 +602,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
                     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True,
                                                 openWorldHint=True), meta={"openai/fileParams": ["images"]})
     queries.register(server, vault, _require, _threaded)
+    analysis_reports.register(server, vault, _require, _threaded)
     # FastMCP 默认会忽略函数参数模型中的未知字段；MCP 是权限边界，必须
     # 把拼写错误或试图注入的顶层参数显式拒绝。
     for tool in server._tool_manager.list_tools():

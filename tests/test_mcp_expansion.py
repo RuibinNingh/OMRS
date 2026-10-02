@@ -123,3 +123,92 @@ class ExtendedSDKTests(unittest.TestCase):
                 self.assertFalse(image.isError)
                 self.assertEqual(base64.b64decode(image.content[0].data), raw)
         asyncio.run(run())
+
+
+class AnalyticsReportTests(unittest.TestCase):
+    def setUp(self):
+        self.work = tempfile.TemporaryDirectory()
+        self.addCleanup(self.work.cleanup)
+        self.vault = self.work.name
+
+    def test_subject_category_and_date_filter_before_aggregation(self):
+        from omrs.analytics import get_analytics
+        from omrs.common import load_csv, save_csv, history_path, HISTORY_HEADERS
+        from omrs.feedback import process_feedback
+        first = create_question(self.vault, '数学', '同名', 5, question_text='数学题')['uid']
+        second = create_question(self.vault, '物理', '同名', 5, question_text='物理题')['uid']
+        process_feedback(self.vault, [{'uid': first, 'sub_score': 3, 'is_correct': False, 'source': 'manual'}], '')
+        process_feedback(self.vault, [{'uid': second, 'sub_score': 10, 'is_correct': True, 'source': 'manual'}], '')
+        rows = load_csv(history_path(self.vault), HISTORY_HEADERS)
+        rows[0]['Date'] = '2026-01-01 00:00'
+        rows[1]['Date'] = '2026-01-02 00:00'
+        save_csv(history_path(self.vault), HISTORY_HEADERS, rows)
+        all_data = get_analytics(self.vault)
+        self.assertEqual({(r['subject'], r['category']) for r in all_data['categories']}, {('数学', '同名'), ('物理', '同名')})
+        chosen = get_analytics(self.vault, category='同名', since='2026-01-02', until='2026-01-02')
+        self.assertEqual(chosen['overview']['total_reviews'], 1)
+        self.assertEqual(chosen['overview']['accuracy'], 1)
+        self.assertEqual(chosen['forecast'], all_data['forecast'])
+        self.assertEqual(chosen['overview']['avg_mastery'], all_data['overview']['avg_mastery'])
+        self.assertEqual(get_analytics(self.vault, subject='数学')['overview']['total_reviews'], 1)
+        self.assertEqual(get_analytics(self.vault, subject='不存在')['overview']['total'], 0)
+        self.assertEqual(get_analytics(self.vault, category='不存在')['categories'], [])
+
+    def test_empty_analytics_and_bad_dates(self):
+        from omrs.analytics import get_analytics
+        self.assertEqual(get_analytics(self.vault)['overview']['total_reviews'], 0)
+        with self.assertRaises(ValueError):
+            get_analytics(self.vault, since='2026-01-03', until='2026-01-01')
+
+    def test_report_crash_after_file_recovers_same_reservation_and_index(self):
+        from omrs import reports
+        with patch.object(reports, '_save_index', side_effect=RuntimeError('模拟崩溃')):
+            with self.assertRaises(RuntimeError):
+                reports.create_mcp_report(self.vault, '报告', '<p>原报告</p>', 'key', 'retry')
+        files = list(Path(reports.reports_dir(self.vault)).glob('RPT-MCP-*.html'))
+        self.assertEqual(len(files), 1)
+        result = reports.create_mcp_report(self.vault, '报告', '<p>原报告</p>', 'key', 'retry')
+        self.assertEqual(result['id'] + '.html', files[0].name)
+        self.assertTrue(result['reused'])
+        self.assertEqual(len(reports.list_reports(self.vault)), 1)
+        with self.assertRaises(RequestError):
+            reports.create_mcp_report(self.vault, '报告', '<p>改了</p>', 'key', 'retry')
+        reports.delete_report(self.vault, result['id'])
+        repeated = reports.create_mcp_report(self.vault, '报告', '<p>原报告</p>', 'key', 'retry')
+        self.assertEqual(repeated['id'], result['id'])
+        self.assertEqual(reports.list_reports(self.vault), [])
+
+    def test_report_size_and_permission_check_before_reuse(self):
+        from omrs import reports
+        from omrs.mcp.keys import create_key
+        self.assertEqual(create_key(self.vault)['scopes'], ['omrs:read', 'draft:create'])
+        result = reports.create_mcp_report(self.vault, '报告', 'x', 'key', 'id')
+        def reject():
+            raise PermissionError('已吊销')
+        with self.assertRaises(PermissionError):
+            reports.create_mcp_report(self.vault, '报告', 'x', 'key', 'id', reject)
+        self.assertEqual(reports.get_report_html(self.vault, result['id']), b'x')
+        with self.assertRaises(ValueError):
+            reports.create_mcp_report(self.vault, '报告', '中' * 700000, 'key', 'large')
+
+
+def _sdk_reports_test(self):
+    from omrs.mcp.keys import create_key
+    key = create_key(self.server.vault, '报告保存', ['omrs:read', 'report:create'])
+    async def run():
+        async with _session(self.server.mcp_port, key['secret']) as session:
+            arguments = {'name': 'SDK 报告', 'html': '<script>window.malicious=true</script><p>保存</p>', 'request_id': 'sdk-report'}
+            saved = _json_result(await session.call_tool('create_report', arguments))
+            again = _json_result(await session.call_tool('create_report', arguments))
+            self.assertEqual(saved['report_id'], again['report_id'])
+            self.assertTrue(again['reused'])
+            listed = _json_result(await session.call_tool('list_reports', {}))
+            self.assertIn(saved['report_id'], [it['id'] for it in listed['items']])
+            read = _json_result(await session.call_tool('get_report', {'report_id': saved['report_id'], 'limit': 20}))
+            self.assertEqual(read['html'], arguments['html'][:20])
+            self.assertEqual(read['next_offset'], 20)
+            overview = _json_result(await session.call_tool('get_analytics', {'subject': '未知'}))
+            self.assertEqual(overview['overview']['total'], 0)
+    asyncio.run(run())
+
+ExtendedSDKTests.test_real_sdk_report_idempotency_and_filtered_analysis = _sdk_reports_test

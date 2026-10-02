@@ -29,7 +29,7 @@ MCP 使用独立的 Streamable HTTP 端点（推荐 `serve --mcp-port 8472` 同�
 
 MCP `create_draft` 在图片处理与等锁后、实际写入前重新验证 `draft:create`；新建与两种幂等复用结果封装前也复查。处理中 Key 失效返回 `isError=true` 的稳定 `forbidden`，不返回草稿正文；已有合法提交及原图保留。相同 Key 恢复有效后可继续幂等复用，复用不额外要求读权限。
 
-`tools/list` 按实时 `omrs:read` / `draft:create` 返回十五个查询工具 / 创建工具 / 两者合集；创建工具的 schema、fileParams 与 annotations 保持。`tools/call` 独立检查同一显式映射及当前 Key，不使用 SDK 的共享工具定义缓存授予权限。
+`tools/list` 按实时 `omrs:read` / `draft:create` 返回十八个查询工具 / 创建工具 / 两者合集；创建工具的 schema、fileParams 与 annotations 保持。`tools/call` 独立检查同一显式映射及当前 Key，不使用 SDK 的共享工具定义缓存授予权限。
 
 get_question_image(uid, image_index) 是 MCP 的只读工具，非空 UID 最多 200 字符，下标为从 0 开始的严格整数。成功返回单个 PNG/JPEG/GIF 原生 ImageContent（无结构化图片 JSON），原字节最多 8 MiB；按共享 get_question.images 的当前顺序读取受限题目/答案附件，读取前与返回前复查 omrs:read。参数非法返回 invalid_arguments；无题、无图、越界、缺失、歧义、损坏或超限返回 invalid_request，不泄漏服务器路径。旧 get_question 与 Web 图片接口保持。
 
@@ -1032,3 +1032,7 @@ POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 
 控制操作的 `actor` 由服务端按认证结果生成，仅记 `auth_mode`（本机、局域网豁免或 PIN 会话）、会话 ID 与可信来源 IP，不接受客户端自报身份，也不记录 PIN 或 Cookie。受管 `local_http` 检测请求前后核对登记指针和实际健康身份；不一致时拒绝框选结果。
 
 应用模型先限额预检，再原子修改受管指针、重启与核验健康SHA/输入/阈值；失败恢复原模型及原在线/离线状态，回退失败单独显示。正常启停不改变模型。离线启动提示优先显示已登记unit；手动模式使用本机配置端口，远程地址提示在服务所在机器启动。
+
+## MCP 分析与报告扩展
+
+独立 MCP get_analytics 的科目/分类过滤发生在聚合前，日期只筛选练习；同名分类按科目分别统计。list_reports/get_report 查询元数据与分页 HTML 源码；create_report(name, html, request_id) 新建，需 report:create，2 MiB 上限，同编号内容冲突返回 request_conflict。回执和恢复见 AI/mcp.md；Web 报告仍在原沙箱预览。

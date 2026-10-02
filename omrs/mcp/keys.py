@@ -19,7 +19,8 @@ from ..common import omrs_data_dir
 
 _LOCK = threading.RLock()
 _FILENAME = "mcp_keys.json"
-_SCOPES = ("omrs:read", "draft:create")
+_SCOPES = ("omrs:read", "draft:create", "draft:update", "report:create", "board:write", "board:delete")
+_DEFAULT_SCOPES = ("omrs:read", "draft:create")
 
 
 @contextlib.contextmanager
@@ -94,11 +95,11 @@ def _save(vault, data):
 
 def _scopes(value):
     if value is None:
-        return list(_SCOPES)
+        return list(_DEFAULT_SCOPES)
     if isinstance(value, str):
         value = [item for item in value.replace(",", " ").split() if item]
     if not isinstance(value, list) or not value or any(item not in _SCOPES for item in value):
-        raise ValueError("scope 只能是 omrs:read 和 draft:create")
+        raise ValueError("scope 必须是已登记的 MCP 权限")
     return list(dict.fromkeys(value))
 
 

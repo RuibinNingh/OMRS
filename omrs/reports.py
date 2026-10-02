@@ -158,3 +158,78 @@ def delete_report(vault: str, report_id: str) -> bool:
         pass
     _save_index(vault, [it for it in items if it.get("id") != report_id])
     return True
+
+
+def create_mcp_report(vault, name, html, key_id, request_id, authorize=lambda: None):
+    """预留稳定编号→原子文件→索引→回执；重试可修复中断的索引登记。"""
+    import hashlib
+    import sqlite3
+    import uuid
+    from contextlib import closing
+    from . import locking
+    from .common import omrs_data_dir
+    from .mcp.common import request_identity, RequestError
+
+    if not isinstance(name, str) or not name.strip() or len(name) > 200:
+        raise ValueError('报告名称必须为 1 到 200 字符')
+    if not isinstance(html, str) or not html.strip() or len(html.encode('utf-8')) > 2 * 1024 * 1024:
+        raise ValueError('HTML 必须非空且不超过 2 MiB')
+    name = name.strip()
+    identity, digest = request_identity(key_id, 'create_report', request_id, {'name': name, 'html': html})
+    payload = html.encode('utf-8')
+    receipt_path = os.path.join(omrs_data_dir(vault), 'mcp_reports.db')
+    if os.path.islink(receipt_path):
+        raise ValueError('报告回执路径不允许链接')
+    with locking.write_lock():
+        authorize()
+        descriptor = os.open(receipt_path, os.O_CREAT | os.O_WRONLY, 0o600)
+        os.close(descriptor)
+        with closing(sqlite3.connect(receipt_path, timeout=5)) as db:
+            db.row_factory = sqlite3.Row
+            db.execute('CREATE TABLE IF NOT EXISTS requests(identity TEXT PRIMARY KEY, digest TEXT NOT NULL, '
+                       'meta TEXT NOT NULL, applied INTEGER NOT NULL DEFAULT 0)')
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT * FROM requests WHERE identity=?', (identity,)).fetchone()
+            reused = row is not None
+            if row:
+                if row['digest'] != digest:
+                    raise RequestError('request_conflict', '同一 request_id 的内容不同')
+                meta = json.loads(row['meta'])
+                if row['applied']:
+                    authorize()
+                    return {**meta, 'report_id': meta['id'], 'reused': True}
+            else:
+                now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                report_id = 'RPT-MCP-' + uuid.uuid4().hex
+                meta = {'id': report_id, 'name': name, 'filename': report_id + '.html', 'created_at': now, 'size': len(payload)}
+                db.execute('INSERT INTO requests(identity,digest,meta) VALUES(?,?,?)',
+                           (identity, digest, json.dumps(meta, ensure_ascii=False)))
+            db.commit()  # 预留编号独立持久化，崩溃重试不能换编号。
+            authorize()
+            target = os.path.join(reports_dir(vault), meta['filename'])
+            if os.path.islink(target):
+                raise ValueError('报告文件不允许链接')
+            if os.path.exists(target):
+                with open(target, 'rb') as source:
+                    if hashlib.sha256(source.read()).digest() != hashlib.sha256(payload).digest():
+                        raise RequestError('content_conflict', '预留报告的文件内容不一致')
+            else:
+                tmp = target + '.' + uuid.uuid4().hex + '.tmp'
+                try:
+                    with open(tmp, 'xb') as output:
+                        output.write(payload)
+                        output.flush()
+                        os.fsync(output.fileno())
+                    authorize()
+                    os.replace(tmp, target)
+                finally:
+                    if os.path.exists(tmp):
+                        os.unlink(tmp)
+            items = _load_index(vault)
+            if not any(item.get('id') == meta['id'] for item in items):
+                authorize()
+                _save_index(vault, [*items, meta])
+            db.execute('UPDATE requests SET applied=1 WHERE identity=?', (identity,))
+            db.commit()
+            authorize()
+            return {**meta, 'report_id': meta['id'], 'reused': reused}

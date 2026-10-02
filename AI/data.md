@@ -490,3 +490,7 @@ reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加acti
 ## 19. 系统运行记录 `runtime.db`
 
 `错题/.omrs/runtime.db` 独立保存 MCP 工具调用，首次调用才建库；读接口只读，学习修正与状态还原不影响调用事实。存储字段、白名单摘要、生命周期、启动中断恢复与草稿关联统一见 `AI/runtime.md`。
+
+## MCP 报告回执
+
+错题/.omrs/mcp_reports.db 保存请求身份摘要、内容摘要、预留元数据和 applied 状态，0600；不进入 Ledger。报告仍保存在错题/report/，HTML 原子写入后可恢复 index.json 登记；相同请求不能生成第二份报告。
