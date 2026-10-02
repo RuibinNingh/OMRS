@@ -226,3 +226,62 @@ def read_question_image(vault, uid, image_index):
         raise ValueError("题目引用的图片无法安全读取") from None
     checked = validate_original_image(raw)
     return checked["data"], checked["format"]
+
+
+def read_draft_image(vault, draft_id, image_index):
+    """只读草稿来源列表中的原件，验证 SHA 和目录/文件身份。"""
+    import hashlib
+    import re
+    from . import drafts
+    from .common import QUESTIONS_DIR
+
+    if not isinstance(draft_id, str) or not draft_id.strip() or len(draft_id) > 200:
+        raise ValueError('draft_id 不能为空或超长')
+    if type(image_index) is not int or image_index < 0:
+        raise ValueError('image_index 必须是从 0 开始的整数')
+    draft = drafts.get_draft(vault, draft_id.strip(), readonly=True)
+    sources = draft.get('source_images') or []
+    if image_index >= len(sources):
+        raise ValueError('图片下标超出草稿来源图片列表范围')
+    source = sources[image_index]
+    sha = source.get('sha256', '')
+    formats = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif'}
+    if not re.fullmatch('[0-9a-f]{64}', sha) or source.get('mime') not in formats:
+        raise ValueError('草稿原图身份不合法')
+    name = sha + '.' + formats[source['mime']]
+    parts = [QUESTIONS_DIR, '.omrs', 'drafts', 'images']
+    try:
+        if _DIRECTORY_FDS:
+            from contextlib import ExitStack
+            with ExitStack() as stack:
+                parent = stack.enter_context(_directory(os.path.realpath(vault)))
+                for part in parts:
+                    parent = stack.enter_context(_directory(part, parent))
+                descriptor = _open_image(name, parent)
+                try:
+                    raw = _read_bytes(descriptor)
+                finally:
+                    os.close(descriptor)
+        else:
+            path = os.path.realpath(vault)
+            directories = []
+            for part in parts:
+                path = os.path.join(path, part)
+                info = os.lstat(path)
+                if _linked(info) or not stat.S_ISDIR(info.st_mode):
+                    raise ValueError('草稿图片目录不安全')
+                directories.append((path, _identity(info)))
+            descriptor = _open_image(os.path.join(path, name))
+            try:
+                raw = _read_bytes(descriptor)
+                for directory, identity in directories:
+                    if _identity(os.lstat(directory)) != identity or _linked(os.lstat(directory)):
+                        raise ValueError('草稿图片目录在读取期间变化')
+            finally:
+                os.close(descriptor)
+    except OSError:
+        raise ValueError('草稿原图无法安全读取') from None
+    if hashlib.sha256(raw).hexdigest() != sha:
+        raise ValueError('草稿原图内容与登记 SHA 不一致')
+    checked = validate_original_image(raw)
+    return checked['data'], checked['format']

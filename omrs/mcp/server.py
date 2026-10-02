@@ -36,6 +36,8 @@ from ..draft_prepare import merge_answer_text_runs
 from ..agent.tools import read as read_tools
 from ..question_images import read_question_image, validate_original_image
 from .keys import verify_key, key_for_id
+from .common import RequestError
+from . import queries
 
 MAX_IMAGES = 6
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -55,6 +57,8 @@ TOOL_SCOPES = {
     "get_draft": "omrs:read",
     "create_draft": "draft:create",
 }
+
+TOOL_SCOPES.update(queries.SCOPES)
 
 
 class MCPFile(BaseModel):
@@ -155,6 +159,8 @@ class RestrictedMCP(FastMCP):
                 raise ToolError("forbidden: MCP Key 无权执行此能力或已失效") from None
             if isinstance(cause, locking.WriteLockTimeout):
                 raise ToolError("write_busy: 写入繁忙，请稍后重试") from None
+            if isinstance(cause, RequestError):
+                raise ToolError(f"{cause.code}: {cause}") from None
             if isinstance(cause, ValueError):
                 raise ToolError(f"invalid_request: {cause}") from None
             raise ToolError("internal_error: OMRS 执行失败，请稍后重试") from None
@@ -594,6 +600,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
     server.add_tool(_threaded(create_draft), name="create_draft", description="仅在用户明确要求保存时，创建来源为 MCP 的待审核草稿；不正式入库。images 是完整原图，image 块使用从 0 开始的附件下标，request_id 用于技术重试。",
                     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True,
                                                 openWorldHint=True), meta={"openai/fileParams": ["images"]})
+    queries.register(server, vault, _require, _threaded)
     # FastMCP 默认会忽略函数参数模型中的未知字段；MCP 是权限边界，必须
     # 把拼写错误或试图注入的顶层参数显式拒绝。
     for tool in server._tool_manager.list_tools():

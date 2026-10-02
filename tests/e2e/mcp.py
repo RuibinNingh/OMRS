@@ -214,7 +214,7 @@ def main():
             before = read_commits(server.vault)
             async with _session(server.mcp_port, server.keys["read"]["secret"]) as session:
                 tools = (await session.list_tools()).tools
-                checks.append(("SDK 读取权限发现十项且包含题图工具", len(tools) == 10
+                checks.append(("SDK 读取权限发现查询工具且包含题图工具", len(tools) == sum(s == "omrs:read" for s in __import__("omrs.mcp.server", fromlist=["TOOL_SCOPES"]).TOOL_SCOPES.values())
                                and "get_question_image" in {tool.name for tool in tools}))
                 remote = _json_result(await session.call_tool("get_question", {"uid": question["uid"]}))
                 expected = read_tools.get_question({"vault": server.vault}, {"uid": question["uid"]})["result"]

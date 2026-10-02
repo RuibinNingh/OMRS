@@ -20,3 +20,7 @@
 get_question_image 的名称登记为“读取题图”，成功的 ImageContent 结果不保存内容或 Base64，参数只记录 UID 与下标。
 
 调用的 `draft_id` 可供只读查询当前草稿状态，以及 Ledger 中已存在 `_draft.draft_id` 的人工入库提交；学习摘要的 `source_draft_id` 只是这一原字段的读取投影。旧调用不补造，没有来源记录时返回空列表。记录写入故障不改变工具结果，读取故障通过接口固定说明报告；接口与页面契约见 `AI/api.md` 和 `AI/frontend/records.md`。
+
+## 扩展查询记录
+
+批量读题、完整正文、草稿原图、单题历史和学习时间线登记中文标题。not_found/content_conflict 使用稳定说明；正文、HTML 和图片不会进入结果摘要。

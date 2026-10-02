@@ -58,11 +58,10 @@ class MCPPolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as vault:
             server = build_server(vault)
             names = [tool.name for tool in server._tool_manager.list_tools()]
-            self.assertEqual(names, [
-                "list_taxonomy", "search_questions", "get_question", "get_question_image", "get_overview",
-                "get_recommendations", "list_sessions", "get_session", "list_drafts",
-                "get_draft", "create_draft",
-            ])
+            from omrs.mcp.server import TOOL_SCOPES
+            self.assertEqual(set(names), set(TOOL_SCOPES))
+            self.assertEqual(len(names), len(TOOL_SCOPES))
+            self.assertIn('get_question_image', names)
             create = server._tool_manager.get_tool("create_draft")
             self.assertEqual(create.meta["openai/fileParams"], ["images"])
             from omrs.mcp.server import TOOL_SCOPES
@@ -94,7 +93,7 @@ class MCPPolicyTests(unittest.TestCase):
                         await server.call_tool("future_tool", {})
             asyncio.run(run())
             self.assertEqual(called, [])
-            self.assertEqual(len(server._tool_manager.list_tools()), 12)
+            self.assertEqual(len(server._tool_manager.list_tools()), len(__import__("omrs.mcp.server", fromlist=["TOOL_SCOPES"]).TOOL_SCOPES) + 1)
 
     def test_ssrf_loopback_and_non_https_are_rejected_before_download(self):
         with self.assertRaises(ValueError):

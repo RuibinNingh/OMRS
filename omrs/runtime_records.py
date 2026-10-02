@@ -21,8 +21,12 @@ TITLES = {
     "get_recommendations": "查询复习推荐", "list_sessions": "读取练习列表",
     "get_session": "读取练习详情", "list_drafts": "读取草稿列表",
     "get_draft": "读取草稿", "create_draft": "创建待审核草稿",
+    "get_questions": "批量读取题目", "get_question_content": "读取完整正文",
+    "get_draft_image": "读取草稿原图", "get_question_history": "读取单题历史",
+    "get_learning_history": "读取学习时间线",
 }
 ERRORS = {
+    "not_found": "目标不存在或不可读取。", "content_conflict": "正文已变化，请重新读取。",
     "forbidden": "所用密钥缺少权限，或在处理期间已失效。",
     "unknown_tool": "此工具未开放。", "invalid_arguments": "参数不符合工具要求。",
     "invalid_request": "请求内容不合法，请检查分类、原图或幂等请求。",

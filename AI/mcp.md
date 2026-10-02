@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：向获授权外部 AI 提供 OMRS 只读查询和待审核草稿创建
 > - 入口：`omrs/mcp/server.py`、`http.py`、`keys.py`；`serve --mcp-port`
-> - 不变量：十读一写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
+> - 不变量：十五读一写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
 > - 必跑测试：`python3 -m unittest tests.test_mcp tests.test_mcp_keys tests.test_mcp_http tests.test_mcp_protocol tests.test_mcp_draft_atomic tests.test_runtime_records -q`、`python3 tests/e2e/mcp.py`、`python3 tests/e2e/runtime_history.py`
 > - 相关：`AI/api.md`、`AI/drafts.md`、`AI/security.md`、`AI/agent.md`、`requirements-mcp.txt`
 
@@ -22,11 +22,11 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 ## 2. 工具与权限
 
-固定开放十个查询工具：`list_taxonomy`、`search_questions`、`get_question`、`get_question_image`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。七个学习数据查询直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
+固定开放十五个查询工具：`list_taxonomy`、`search_questions`、`get_question`、`get_question_image`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。七个学习数据查询直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
 
 `create_draft` 是唯一业务写工具，需要 `draft:create`。它不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在正式建题、提交/修改/丢弃草稿、反馈、标记、Session、设置、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
 
-每次协议请求和领域调用重新验证 Key；创建在下载及等锁之后、实际写入前复查，URL 快速复用、inline 处理后复用及新建都在结果封装前再次校验 `draft:create`。处理中吊销、到期或权限变化返回 `forbidden`，提交后失效仍保留草稿与原图。`tools/list` 按当前 Key 的实时 scope 返回十读、仅 `create_draft` 或全部十一项；发现与调用共用显式工具→scope 映射。过滤只作用于当前请求的描述，完整注册表保持，SDK 共享定义缓存不承担授权；直接点名隐藏工具仍拒绝。`错题/.omrs/mcp_keys.json` 仅保存 SHA-256 摘要和非秘密元数据，0600；线程锁和操作系统文件锁共同避免本机 CLI 与 Web 的创建/吊销/最近使用时间互相覆盖。Key 管理响应禁止缓存。
+每次协议请求和领域调用重新验证 Key；创建在下载及等锁之后、实际写入前复查，URL 快速复用、inline 处理后复用及新建都在结果封装前再次校验 `draft:create`。处理中吊销、到期或权限变化返回 `forbidden`，提交后失效仍保留草稿与原图。`tools/list` 按当前 Key 的实时 scope 返回十五读、仅 `create_draft` 或全部十六项；发现与调用共用显式工具→scope 映射。过滤只作用于当前请求的描述，完整注册表保持，SDK 共享定义缓存不承担授权；直接点名隐藏工具仍拒绝。`错题/.omrs/mcp_keys.json` 仅保存 SHA-256 摘要和非秘密元数据，0600；线程锁和操作系统文件锁共同避免本机 CLI 与 Web 的创建/吊销/最近使用时间互相覆盖。Key 管理响应禁止缓存。
 
 审查修复验收状态统一见 `AI/optimization.md`「MCP 修复」，实施按 `AI/plans/mcp-integration/exec-2026-10-01-mcp-fixes.md`。
 
@@ -36,7 +36,7 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 get_question_image(uid, image_index) 必须提供非空 UID（去首尾空白、最多 200 字符）和从 0 开始的严格整数下标；布尔值、小数、字符串和额外参数拒绝。先调用共享 get_question 并按其 images[] 当前顺序选图，包含题目与答案图片，不从已截断正文重新提取。每次重新定位，不缓存图片或授权。
 
-get_question 与 get_draft 保持正文、图片引用及元数据输出，不自动附加图片内容。正式题图需单独调用 get_question_image，不能用草稿编号代替 UID；本工具没有扩展为草稿原图接口。外部客户端须刷新工具清单并启用新工具；ChatGPT 的应用详情支持刷新工具、描述与服务端 instructions，必要时在提示中明确指定工具名和参数顺序。
+get_question 与 get_draft 保持正文、图片引用及元数据输出，不自动附加图片内容。正式题图需单独调用 get_question_image，不能用草稿编号代替 UID；草稿原图由 get_draft_image 单独提供。外部客户端须刷新工具清单并启用新工具；ChatGPT 的应用详情支持刷新工具、描述与服务端 instructions，必要时在提示中明确指定工具名和参数顺序。
 
 工具需要 omrs:read，在线程内完成受限附件读取与完整解码；读取前和返回前复查实时权限。成功仅返回一个原生 ImageContent，MIME 根据实际原件确认为 image/png、image/jpeg 或 image/gif；SDK 只做 Base64 封装，不返回图片 JSON、服务器路径或下载链接。读取允许的文件树、大小和像素保护见下方领域说明。
 
@@ -91,3 +91,11 @@ ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentic
 生产当前运行 `/root/workspace/apps/releases/omrs-ba6501b`，同进程 MCP 仅监听回环端口并经 HTTPS 反代，包含运行记录和按需题图读取。公网官方 SDK 发现 10 个只读工具，按共享读题 images[] 下标返回原生 PNG，Base64 解码与磁盘原件一致；题图调用只保留 UID、下标和终态。普通 Web API 对 MCP Key 返回 403，吊销后的 Key 返回 401。生产未创建验收题目或草稿，临时只读验收密钥已吊销；公网 PIN 入口可见且无页面脚本错误。主应用浏览器因缺少 PIN 会话未进入，完整页面闭环仍以发布目录的隔离实例结果为准。部署与数据核验见 `AI/plans/mcp-integration/progress.md`。
 
 官方参考：[Developer Mode](https://developers.openai.com/api/docs/guides/developer-mode)、[Apps SDK 文件参数](https://developers.openai.com/apps-sdk/reference/)、[认证](https://developers.openai.com/apps-sdk/build/auth/)、[Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。
+
+## 8. 扩展查询
+
+get_questions(uids, detail=false) 按输入顺序返回最多 20 题，保留重复编号并逐项报告 not_found；默认摘要，可选原有 get_question 详情。get_question_content 读取题目、答案、错因、备注或全文，默认 4000/最多 8000 字，返回全文件 content_hash/next_offset；当前正文后续页必带 expected_hash，换版返回 content_conflict。version 只接受该题已登记且可验证的正文哈希，不恢复或回填内容。
+
+get_question_history 提供 reviews 和 content_versions，默认 50/最多 100，按最新优先分页。练习记录复用有效反馈投影并优先稳定 Question_ID；正文版本只查询。get_learning_history 从 Ledger 计算当前修正状态，按 subject/uid/since/until/before_seq 先筛选后分页，批量练习节点只带匹配题目的摘要。日期含首尾，ISO 时间戳的结束边界不含；未指定时不筛选。
+
+get_draft_image 按 get_draft.source_images 的从 0 开始下标读取原件，验证来源 SHA、普通目录和文件身份，共用完整解码及 8 MiB 限制，前后复查 omrs:read；返回原生图片，不包含其它对话图片、不裁剪或转码。

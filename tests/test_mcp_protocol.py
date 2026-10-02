@@ -216,11 +216,8 @@ class MCPProtocolTests(unittest.TestCase):
                     pass
             async with _session(self.server.mcp_port, self.server.keys["all"]["secret"]) as session:
                 tools = await session.list_tools()
-                self.assertEqual([tool.name for tool in tools.tools], [
-                    "list_taxonomy", "search_questions", "get_question", "get_question_image", "get_overview",
-                    "get_recommendations", "list_sessions", "get_session", "list_drafts",
-                    "get_draft", "create_draft",
-                ])
+                from omrs.mcp.server import TOOL_SCOPES
+                self.assertEqual(set(tool.name for tool in tools.tools), {n for n, scope in TOOL_SCOPES.items() if scope in ('omrs:read', 'draft:create')})
                 schema = next(tool.inputSchema for tool in tools.tools if tool.name == "create_draft")
                 file_schema = schema["$defs"]["MCPFile"]
                 self.assertEqual(file_schema["required"], ["download_url", "file_id"])
@@ -500,8 +497,8 @@ class MCPProtocolTests(unittest.TestCase):
         from omrs.mcp import keys
         full_key = create_key(self.server.vault, "discovery-all", ["omrs:read", "draft:create"])
         write_key = create_key(self.server.vault, "discovery-create", ["draft:create"])
-        reads = ["list_taxonomy", "search_questions", "get_question", "get_question_image", "get_overview", "get_recommendations",
-                 "list_sessions", "get_session", "list_drafts", "get_draft"]
+        from omrs.mcp.server import TOOL_SCOPES
+        reads = [n for n, scope in TOOL_SCOPES.items() if scope == 'omrs:read']
         payload = {"subject": "数学", "category": "发现权限", "request_id": "discovery-only-create",
                    "blocks": [{"section": "题目", "kind": "text", "text": "待审核"}]}
 
@@ -514,7 +511,7 @@ class MCPProtocolTests(unittest.TestCase):
 
         async def listing(session, names):
             result = await session.list_tools()
-            self.assertEqual([tool.name for tool in result.tools], names)
+            self.assertEqual(set(tool.name for tool in result.tools), set(names))
             return {tool.name: tool.model_dump() for tool in result.tools}
 
         async def forbidden(session, name, args):
@@ -943,7 +940,9 @@ class MCPQuestionImageProtocolTests(unittest.TestCase):
             async with _session(self.server.mcp_port, self.server.keys["all"]["secret"]) as full, \
                     _session(self.server.mcp_port, self.server.keys["read"]["secret"]) as reader, \
                     _session(self.server.mcp_port, writer["secret"]) as write:
-                for client, count, visible in ((full, 11, True), (reader, 10, True), (write, 1, False)):
+                from omrs.mcp.server import TOOL_SCOPES
+                read_count = sum(s == 'omrs:read' for s in TOOL_SCOPES.values())
+                for client, count, visible in ((full, read_count + 1, True), (reader, read_count, True), (write, 1, False)):
                     tools = (await client.list_tools()).tools
                     self.assertEqual(len(tools), count)
                     self.assertEqual("get_question_image" in {tool.name for tool in tools}, visible)

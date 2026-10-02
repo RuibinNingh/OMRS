@@ -120,3 +120,7 @@ assets/app/
 助手页面的 Node 与浏览器回归位于 `tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_p3.py` 与 `tests/e2e/assistant_usage.py`；这些测试覆盖运行过程折叠、移动输入和用量显示。
 
 路由单测的窗口替身按 URL 解析历史地址并保留 pathname/search/hash，覆盖锁屏入口查询串与当前页恢复；MCP 草稿/设置浏览器验收使用实际页面导航。
+
+## MCP 扩展验收
+
+真实 SDK 和临时 Web 实例共用测试 Vault；查询扩展测试读取完整正文、原生草稿图及 Ledger 修正时间线。测试不连接生产端口。
