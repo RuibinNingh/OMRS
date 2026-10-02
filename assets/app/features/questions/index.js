@@ -257,6 +257,7 @@ export const page = {
     root.addEventListener('click', onRootClick);
     document.addEventListener('click', onDocClick);
     const offs = [
+      ctx.bus.on('data', () => ctl?.paint()),
       ctx.bus.on('labels', () => ctl?.paint()),
       ctx.bus.on('questions:render', () => ctl?.paint()),
       ctx.bus.on('questions:preset', preset => { loadPreset(preset); ctl?.paint(); }),

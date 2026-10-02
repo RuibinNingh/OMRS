@@ -67,6 +67,14 @@ def wait(page, expression, timeout=6000, arg=None):
 
 
 def http(port, path, body=None):
+    if body is not None and path.startswith('/api/board/'):
+        body = dict(body)
+        catalog = http(port, '/api/boards')
+        if body.get('id') and '/folder/' not in path:
+            current = next((b for b in catalog['boards'] if b['id'] == body['id']), None)
+            if current:
+                body.setdefault('expected_revision', current['revision'])
+        body.setdefault('expected_catalog_revision', catalog['catalog_revision'])
     data = None if body is None else json.dumps(body).encode("utf-8")
     req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=data, headers={"Content-Type": "application/json"})
     return json.load(urllib.request.urlopen(req, timeout=10))
@@ -166,8 +174,8 @@ def run_main(page, base, port, folder, results):
     bid, _ = board_uids(port, target)
     page.keyboard.press("Enter")
     closed = wait(page, CLOSED)
-    present = uid in board_uids(port, target)[1]
     toasted = wait(page, "n => [...document.querySelectorAll('.ui-toast')].some(t => t.textContent.includes('已加入《' + n + '》'))", arg=target)
+    present = uid in board_uids(port, target)[1]
     check("Enter 加入并关闭，toast 报告结果", closed and present and toasted,
           json.dumps({"closed": closed, "present": present, "toasted": toasted,
                       "toasts": page.locator('.ui-toast').all_inner_texts()}, ensure_ascii=False))

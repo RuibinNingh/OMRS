@@ -126,3 +126,24 @@ test('boardAdoptSaved：只保留 dirty 里列出的本地字段', () => {
   assert.deepEqual(boardAdoptSaved(saved, live, { print: true }), { ...saved, print: { a: 2 } });
   assert.deepEqual(boardAdoptSaved(saved, live, { items: true, print: true }), { ...saved, print: { a: 2 }, items: [2] });
 });
+
+test('版本冲突保留本地修改，停止后续重试与关页写入，重新读取须主动丢弃', async () => {
+  let attempts = 0;
+  const board = { id: 'conflict', revision: 1, items: [], print: { gap_lines: 7 } };
+  const queue = createBoardSaveQueue({
+    detail: () => board, post: async () => { attempts += 1; throw Object.assign(new Error('已变化'), { code: 'revision_conflict', status: 409 }); },
+    adopt: () => assert.fail('冲突不得覆盖本地'), setTimer: () => 1, clearTimer: () => {},
+  });
+  queue.mark('print');
+  assert.equal(await queue.flush(), false);
+  assert.equal(queue.conflicted(), true);
+  assert.deepEqual(queue.dirty(), { print: true });
+  queue.mark('items');
+  assert.equal(await queue.flush(), false);
+  assert.equal(attempts, 1);
+  assert.equal(queue.takePayload(), null);
+  assert.equal(board.print.gap_lines, 7);
+  queue.discard();
+  assert.equal(queue.conflicted(), false);
+  assert.equal(queue.dirty(), null);
+});

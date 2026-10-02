@@ -108,6 +108,14 @@ def free_port():
 
 
 def post(port, path, body):
+    if path.startswith("/api/board/"):
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/boards", timeout=10) as response:
+            catalog = json.load(response)
+        body = {**body, "expected_catalog_revision": catalog["catalog_revision"]}
+        if body.get("id") and "/folder/" not in path:
+            board = next((b for b in catalog["boards"] if b["id"] == body["id"]), None)
+            if board:
+                body["expected_revision"] = board["revision"]
     req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=json.dumps(body).encode(),
                                  headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=60) as resp:

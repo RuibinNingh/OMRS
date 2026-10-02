@@ -28,17 +28,20 @@ export function createBoardSaveQueue(deps) {
   let dirty = null;
   let timer = null;
   let inFlight = null;
+  let conflict = false;
 
   const queue = {
     /** 待保存的脏字段 {items?, print?}，没有时为 null。 */
     dirty: () => dirty,
+    conflicted: () => conflict,
+    discard() { dirty = null; conflict = false; clearTimer(timer); },
     /** 有待保存或在途的保存：预览不在这时重新导出。 */
     busy: () => !!(dirty || inFlight),
     mark(kind) {
       if (!detail()) return;
       dirty = boardDirtyMerge(dirty, kind);
       clearTimer(timer);
-      timer = setTimer(() => queue.flush(), delay);
+      if (!conflict) timer = setTimer(() => queue.flush(), delay);
     },
     /** 调用方自己整体提交了某个字段（如排序直接 POST items），把它从脏队列里拿掉。 */
     drop(kind) {
@@ -50,7 +53,7 @@ export function createBoardSaveQueue(deps) {
     /** 关页前：取出待保存的载荷交给 sendBeacon，并清空队列；没有时返回 null。 */
     takePayload() {
       const current = detail();
-      if (!dirty || !current) return null;
+      if (conflict || !dirty || !current) return null;
       const sent = dirty;
       dirty = null;
       clearTimer(timer);
@@ -58,6 +61,7 @@ export function createBoardSaveQueue(deps) {
     },
     async flush(options = {}) {
       clearTimer(timer);
+      if (conflict) return false;
       if (inFlight) {
         if (!(await inFlight)) return false;
         return queue.flush(options);
@@ -76,6 +80,7 @@ export function createBoardSaveQueue(deps) {
           return true;
         } catch (error) {
           dirty = { ...sent, ...(dirty || {}) };
+          if (error.code === 'revision_conflict' || error.status === 409) conflict = true;
           failed(error, options);
           return false;
         }

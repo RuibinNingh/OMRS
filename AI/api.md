@@ -29,7 +29,7 @@ MCP 使用独立的 Streamable HTTP 端点（推荐 `serve --mcp-port 8472` 同�
 
 MCP `create_draft` 在图片处理与等锁后、实际写入前重新验证 `draft:create`；新建与两种幂等复用结果封装前也复查。处理中 Key 失效返回 `isError=true` 的稳定 `forbidden`，不返回草稿正文；已有合法提交及原图保留。相同 Key 恢复有效后可继续幂等复用，复用不额外要求读权限。
 
-`tools/list` 按实时 `omrs:read` / `draft:create` 返回十八个查询工具 / 创建工具 / 两者合集；创建工具的 schema、fileParams 与 annotations 保持。`tools/call` 独立检查同一显式映射及当前 Key，不使用 SDK 的共享工具定义缓存授予权限。
+`tools/list` 按实时 `omrs:read` / `draft:create` 返回二十个查询工具 / 创建工具 / 两者合集；创建工具的 schema、fileParams 与 annotations 保持。`tools/call` 独立检查同一显式映射及当前 Key，不使用 SDK 的共享工具定义缓存授予权限。
 
 get_question_image(uid, image_index) 是 MCP 的只读工具，非空 UID 最多 200 字符，下标为从 0 开始的严格整数。成功返回单个 PNG/JPEG/GIF 原生 ImageContent（无结构化图片 JSON），原字节最多 8 MiB；按共享 get_question.images 的当前顺序读取受限题目/答案附件，读取前与返回前复查 omrs:read。参数非法返回 invalid_arguments；无题、无图、越界、缺失、歧义、损坏或超限返回 invalid_request，不泄漏服务器路径。旧 get_question 与 Web 图片接口保持。
 
@@ -1040,3 +1040,7 @@ POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 
 ## MCP 草稿修订
 
 update_draft(draft_id, expected_revision, request_id, fields?, block_patches?, cause_statement?) 同时需要 omrs:read/draft:update；返回 draft_id/revision/wrote/suggestions/reused。人工保护整次不写；重复请求返回原回执，版本/状态冲突有稳定错误码。只修订待审核草稿，不改变 Web 审核或内置助手的归属规则。
+
+## 展示板并发契约
+
+GET /api/boards 返回 catalog_revision，各板摘要含 revision，详情亦含目录版本。全部已有板修改、引用增删、纸面记录/重置携带 expected_revision；目录变化同时携带 expected_catalog_revision。缺失版本返回 400，过期返回 409 revision_conflict；检查和读改写在同一领域锁。响应返回当前 catalog_revision，客户端仅采用已成功写入的版本。

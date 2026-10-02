@@ -111,3 +111,5 @@
 展示板、数据复盘和仪表盘。数据页显示按标记正确率/平均分，仪表盘显示活动题目的
 标记分布；`boardPickerOpen()` 统一处理各页面的「加入展示板」入口，接受单个 UID 或 UID 数组；
 `boardQuickAdd()` / `boardChooseAndAdd()` 是它的薄封装，调用点函数名不变；题目库经 `assets/app/domain/board/index.js` 调用它们。
+
+直接进入题库 hash 路由时，页面先挂载，再收到初始统计快照；挂载订阅 data 事件重绘列表，确保初始加板入口可用。

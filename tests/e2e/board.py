@@ -17,6 +17,14 @@ _spec.loader.exec_module(visual)
 
 
 def http(port, path, body=None):
+    if body is not None and path.startswith('/api/board/'):
+        body = dict(body)
+        catalog = http(port, '/api/boards')
+        if body.get('id') and '/folder/' not in path:
+            current = next((b for b in catalog['boards'] if b['id'] == body['id']), None)
+            if current:
+                body.setdefault('expected_revision', current['revision'])
+        body.setdefault('expected_catalog_revision', catalog['catalog_revision'])
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", data=data,
                                  headers={"Content-Type": "application/json"})
@@ -293,6 +301,28 @@ def run_path(page, base, port, ids, results):
            str(paper["pages"]) in pop_text and "续排位置" in pop_text and "清空纸面记录" in pop_text)
 
 
+def conflict_path(page, base, port, results):
+    uid = http(port, '/api/stats')['items'][0]['uid']
+    created = http(port, '/api/board/create', {'name': '并发冲突验收', 'uids': [uid]})['board']
+    page.goto(base + '/#/board')
+    page.wait_for_function('() => window.__p8TestReady')
+    page.evaluate('(id) => boardLoad(id)', created['id'])
+    page.evaluate("async () => configureBoardDetail({ confirm: (await import('/assets/app/ui/dialog.js')).confirm })")
+    http(port, '/api/board/update', {'id': created['id'], 'note': '其它客户端已保存'})
+    page.evaluate('(uid) => boardSetItemGap(uid, 6)', uid)
+    saved = page.evaluate('() => boardFlushSave()')
+    retained = page.evaluate('() => ({blocked: boardSaveQueue().conflicted(), gap: BOARD_DETAIL.items[0].gap_lines, payload: boardSaveQueue().takePayload()})')
+    server = board(port, created['id'])
+    record(results, '网页与其它客户端同时编辑：409 保留本地留白并停止自动/关页重试',
+           saved is False and retained['blocked'] and retained['gap'] == 6 and retained['payload'] is None
+           and server['note'] == '其它客户端已保存' and server['items'][0]['gap_lines'] is None,
+           {'saved': saved, 'retained': retained, 'server_note': server['note'], 'server_gap': server['items'][0]['gap_lines']})
+    page.get_by_role('button', name='重新读取', exact=True).last.click()
+    page.locator('dialog[open] [data-dialog-ok]').click()
+    recovered = wait(page, "() => BOARD_DETAIL.note === '其它客户端已保存' && !boardSaveQueue().conflicted()")
+    record(results, '用户主动重新读取后展示服务端版本，丢弃动作由网页确认', recovered)
+
+
 def audit(page, base, theme, size, results):
     page.set_viewport_size({"width": size[0], "height": size[1]})
     page.add_init_script(f"try{{localStorage.setItem('omrs-theme','{theme}')}}catch(e){{}}")
@@ -349,6 +379,7 @@ def main():
             page.on("pageerror", lambda error: errors.append(str(error)))
             try:
                 run_path(page, base, port, ids, results)
+                conflict_path(page, base, port, results)
             except Exception as error:
                 record(results, "主路径中途出错", False, str(error).splitlines()[0])
             record(results, "主路径页面脚本错误为 0", not errors, "; ".join(errors[:3]))

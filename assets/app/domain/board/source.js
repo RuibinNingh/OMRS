@@ -11,7 +11,7 @@ export const boardSource = Object.freeze({
   boards: () => boardList(),
   folders: () => boardFolders(),
   /** 采纳 /api/boards 的结果（展示板页与浮层共用同一份缓存，采纳后展示板页随之重绘）。 */
-  adopt: ({ boards = [], folders = [] } = {}) => adoptBoards({ boards, folders }),
+  adopt: data => adoptBoards(data),
   lastId: () => boardLastId(),
   remember: id => boardRemember(id),
   collapsed: () => boardFolderCollapsed(),

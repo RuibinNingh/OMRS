@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import copy
+import contextvars
+import functools
 import datetime
 import hashlib
 import json
@@ -19,11 +21,13 @@ import uuid
 
 from .common import MASTERY_HEADERS, load_csv, mastery_path, omrs_data_dir, questions_root, split_sections
 from .ledger import connect
+from . import locking
 
 
 BOARDS_FILENAME = "boards.json"
 PRINTED_HISTORY_FILENAME = "boards_printed_history.jsonl"
-BOARDS_VERSION = 3
+BOARDS_VERSION = 4
+_STAGED = contextvars.ContextVar("board_transaction", default=None)
 QUESTION_SECTION = "题目"
 UNFILED = ""                  # 未归档：folder_id 为空串，不是一个真实文件夹记录
 
@@ -250,6 +254,7 @@ def _normalize_board(board) -> dict:
         items.append(item)
     return {
         "id": str(board.get("id") or "").strip(),
+        "revision": _int(board.get("revision", 1), 1, 1, 2**53 - 1),
         "name": str(board.get("name") or "未命名展示板").strip()[:120],
         "note": str(board.get("note") or ""),
         "folder_id": str(board.get("folder_id") or "").strip(),
@@ -309,21 +314,30 @@ def _neg_time(value: str) -> str:
     return "".join(chr(0x10FFFD - ord(char)) if ord(char) < 0x10FFFD else char for char in str(value or ""))
 
 
+def _normalized(data):
+    folders, boards = _arrange(data.get('folders') or [], [_normalize_board(b) for b in data.get('boards') or []])
+    return {'version': BOARDS_VERSION, 'folders': folders, 'boards': boards,
+            'catalog_revision': _int(data.get('catalog_revision', 0), 0, 0, 2**53 - 1),
+            'mcp_receipts': copy.deepcopy(data.get('mcp_receipts') or {})}
+
+
 def load_boards(vault: str) -> dict:
+    staged = _STAGED.get()
+    if staged and staged['vault'] == os.path.realpath(vault):
+        return copy.deepcopy(staged['data'])
     path = boards_path(vault)
+    if os.path.islink(path):
+        raise ValueError('展示板文件不允许符号链接')
     if not os.path.isfile(path):
-        return {"version": BOARDS_VERSION, "folders": [], "boards": []}
+        return _normalized({})
     try:
-        with open(path, "r", encoding="utf-8") as file:
+        with open(path, 'r', encoding='utf-8') as file:
             raw = json.load(file)
     except (OSError, ValueError):
-        return {"version": BOARDS_VERSION, "folders": [], "boards": []}
-    # v1 没有 folders 键：全部板落到未归档，写回时自然升到 v2
-    folders, boards = _arrange(
-        raw.get("folders") or [],
-        [_normalize_board(board) for board in (raw.get("boards") or [])],
-    )
-    return {"version": BOARDS_VERSION, "folders": folders, "boards": boards}
+        raise ValueError('展示板文件损坏或不可读取，已停止写入') from None
+    if not isinstance(raw, dict):
+        raise ValueError('展示板文件格式不合法')
+    return _normalized(raw)
 
 
 def _rotate(path: str, keep: int = 3) -> None:
@@ -338,21 +352,121 @@ def _rotate(path: str, keep: int = 3) -> None:
         target.write(source.read())
 
 
-def save_boards(vault: str, data: dict) -> dict:
-    path = boards_path(vault)
-    folders, boards = _arrange(
-        data.get("folders") or [],
-        [_normalize_board(board) for board in (data.get("boards") or [])],
-    )
-    normalized = {"version": BOARDS_VERSION, "folders": folders, "boards": boards}
-    _rotate(path)
-    tmp = f"{path}.tmp"
-    with open(tmp, "w", encoding="utf-8") as file:
-        json.dump(normalized, file, ensure_ascii=False, indent=2)
-        file.flush()
-        os.fsync(file.fileno())
-    os.replace(tmp, path)
+def _catalog_shape(data):
+    return {'folders': [{k: f[k] for k in ('id', 'name', 'order')} for f in data['folders']],
+            'boards': [{k: b[k] for k in ('id', 'name', 'folder_id', 'order')} for b in data['boards']]}
+
+
+def _prepare(data, previous):
+    normalized = _normalized(data)
+    old = {b['id']: b for b in previous['boards']}
+    for board in normalized['boards']:
+        before = old.get(board['id'])
+        if before:
+            shape = lambda value: {k: v for k, v in value.items() if k not in ('revision', 'updated_at')}
+            changed = shape(board) != shape(before)
+            board['revision'] = before['revision'] + int(changed)
+            if not changed:
+                board['updated_at'] = before['updated_at']
+        else:
+            board['revision'] = 1
+    normalized['catalog_revision'] = previous['catalog_revision'] + int(_catalog_shape(normalized) != _catalog_shape(previous))
     return normalized
+
+
+def _persist(vault, normalized):
+    path = boards_path(vault)
+    if os.path.islink(path):
+        raise ValueError('展示板文件不允许符号链接')
+    _rotate(path)
+    tmp = f'{path}.{uuid.uuid4().hex}.tmp'
+    try:
+        with open(tmp, 'x', encoding='utf-8') as file:
+            json.dump(normalized, file, ensure_ascii=False, indent=2)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(tmp, path)
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+
+
+def save_boards(vault: str, data: dict) -> dict:
+    with locking.write_lock():
+        staged = _STAGED.get()
+        if staged and staged['vault'] == os.path.realpath(vault):
+            normalized = _prepare(data, staged['original'])
+            staged['data'] = normalized
+            return copy.deepcopy(normalized)
+        previous = load_boards(vault)
+        normalized = _prepare(data, previous)
+        if normalized != previous:
+            _persist(vault, normalized)
+        return normalized
+
+
+class BoardConflict(ValueError):
+    code = 'revision_conflict'
+
+
+def check_versions(data, board_id=None, expected_revision=None, expected_catalog_revision=None):
+    if expected_catalog_revision is not None:
+        if type(expected_catalog_revision) is not int or expected_catalog_revision != data['catalog_revision']:
+            raise BoardConflict('展示板目录已变化，请重新读取')
+    if expected_revision is not None:
+        if type(expected_revision) is not int or not board_id or _find(data, board_id)['revision'] != expected_revision:
+            raise BoardConflict('展示板已变化，请重新读取；未覆盖服务端')
+
+
+def _mutation(fn):
+    """现有可信内部调用可省略版本；Web/MCP 入口必须显式提供。"""
+    @functools.wraps(fn)
+    def wrapped(vault, *args, **kwargs):
+        expected = kwargs.pop('expected_revision', None)
+        catalog = kwargs.pop('expected_catalog_revision', None)
+        with locking.write_lock():
+            check_versions(load_boards(vault), args[0] if args else kwargs.get('board_id'), expected, catalog)
+            return fn(vault, *args, **kwargs)
+    return wrapped
+
+
+def transaction(vault, fn, identity='', digest='', authorize=lambda: None, preview=False):
+    """领域暂存：预览不写盘；变更和回执只进行一次原子替换。"""
+    from .mcp.common import RequestError
+    with locking.write_lock():
+        authorize()
+        previous = load_boards(vault)
+        receipt = previous['mcp_receipts'].get(identity) if identity else None
+        if receipt:
+            if receipt['digest'] != digest:
+                raise RequestError('request_conflict', '同一 request_id 的内容不同')
+            authorize()
+            return {**copy.deepcopy(receipt['result']), 'reused': True}
+        stage = {'vault': os.path.realpath(vault), 'original': previous, 'data': copy.deepcopy(previous), 'history': []}
+        token = _STAGED.set(stage)
+        try:
+            result = fn()
+            after = stage['data']
+            if preview:
+                return result, previous, copy.deepcopy(after)
+            if identity:
+                after['mcp_receipts'][identity] = {'digest': digest, 'result': copy.deepcopy(result)}
+            authorize()
+            if after != previous:
+                _persist(vault, after)
+        finally:
+            _STAGED.reset(token)
+        for board, event, mode in stage['history']:
+            _append_printed_history(vault, board, event, mode)
+        authorize()
+        return result
+
+
+def catalog(vault):
+    with locking.write_lock():
+        data = load_boards(vault)
+        return {'boards': list_boards(vault), 'folders': copy.deepcopy(data['folders']),
+                'catalog_revision': data['catalog_revision']}
 
 
 def _find(data: dict, board_id: str) -> dict:
@@ -510,6 +624,7 @@ def list_boards(vault: str) -> list:
         details = [resolver.detail(item, index) for item in board["items"]]
         result.append({
             "id": board["id"],
+            "revision": board["revision"],
             "name": board["name"],
             "note": board["note"],
             "folder_id": board["folder_id"],
@@ -539,6 +654,7 @@ def get_board(vault: str, board_id: str):
         detail["effective_gap_lines"] = effective_gap_lines(detail, board["print"])
     return {
         **copy.deepcopy(board),
+        "catalog_revision": data["catalog_revision"],
         "items": details,
         "printed_summary": _printed_summary(board, details),
     }
@@ -572,6 +688,7 @@ def list_folders(vault: str) -> list:
     return [dict(folder) for folder in load_boards(vault)["folders"]]
 
 
+@_mutation
 def create_folder(vault: str, name: str) -> dict:
     data = load_boards(vault)
     now = _now()
@@ -587,6 +704,7 @@ def create_folder(vault: str, name: str) -> dict:
     return next(item for item in load_boards(vault)["folders"] if item["id"] == folder["id"])
 
 
+@_mutation
 def update_folder(vault: str, folder_id: str, **changes) -> dict:
     data = load_boards(vault)
     folder = next((item for item in data["folders"] if item["id"] == str(folder_id or "").strip()), None)
@@ -606,6 +724,7 @@ def update_folder(vault: str, folder_id: str, **changes) -> dict:
     return next(item for item in load_boards(vault)["folders"] if item["id"] == folder["id"])
 
 
+@_mutation
 def delete_folder(vault: str, folder_id: str, keep_boards: bool = True) -> dict:
     """删除文件夹。keep_boards 时把组内板移到未归档，否则连板一起删。"""
     data = load_boards(vault)
@@ -627,6 +746,7 @@ def delete_folder(vault: str, folder_id: str, keep_boards: bool = True) -> dict:
             "boards_deleted": 0 if keep_boards else len(affected)}
 
 
+@_mutation
 def move_board(vault: str, board_id: str, folder_id=None, index=None) -> dict:
     """把板移到某个文件夹，并可指定它在该组内的位置。"""
     data = load_boards(vault)
@@ -642,6 +762,7 @@ def move_board(vault: str, board_id: str, folder_id=None, index=None) -> dict:
     return get_board(vault, board_id)
 
 
+@_mutation
 def create_board(vault: str, name: str, uids=None, label: str = "", folder_id: str = "") -> dict:
     data = load_boards(vault)
     resolver = _Resolver(vault)
@@ -673,6 +794,7 @@ def create_board(vault: str, name: str, uids=None, label: str = "", folder_id: s
     return get_board(vault, board["id"])
 
 
+@_mutation
 def update_board(vault: str, board_id: str, **changes) -> dict:
     data = load_boards(vault)
     board = _find(data, board_id)
@@ -739,6 +861,7 @@ def update_board(vault: str, board_id: str, **changes) -> dict:
     return get_board(vault, board_id)
 
 
+@_mutation
 def add_items(vault: str, board_id: str, uids, position=None) -> dict:
     data = load_boards(vault)
     board = _find(data, board_id)
@@ -769,6 +892,7 @@ def add_items(vault: str, board_id: str, uids, position=None) -> dict:
     return result
 
 
+@_mutation
 def remove_items(vault: str, board_id: str, uids) -> dict:
     data = load_boards(vault)
     board = _find(data, board_id)
@@ -783,6 +907,7 @@ def remove_items(vault: str, board_id: str, uids) -> dict:
     return get_board(vault, board_id)
 
 
+@_mutation
 def duplicate_board(vault: str, board_id: str, name: str) -> dict:
     """复制板：复制题目引用与版面设置；纸面记录不复制（新板对应新纸）。"""
     data = load_boards(vault)
@@ -811,6 +936,7 @@ def duplicate_board(vault: str, board_id: str, name: str) -> dict:
     return get_board(vault, clone["id"])
 
 
+@_mutation
 def delete_board(vault: str, board_id: str) -> bool:
     data = load_boards(vault)
     before = len(data["boards"])
@@ -831,6 +957,10 @@ def _append_printed_history(vault: str, board: dict, event: str, mode: str = "")
     空纸面（pages<=0）没有可留存的历史，跳过。
     写失败只记运行日志，绝不打断打印记录本身。
     """
+    staged = _STAGED.get()
+    if staged and staged["vault"] == os.path.realpath(vault):
+        staged["history"].append((copy.deepcopy(board), event, mode))
+        return True
     snapshot = (board or {}).get("printed") or {}
     if _int(snapshot.get("pages"), 0, 0, 100000) <= 0:
         return False
@@ -911,6 +1041,7 @@ def board_items_for_export(vault: str, board_id: str, mode: str = "all"):
     return board, items
 
 
+@_mutation
 def record_printed(vault: str, board_id: str, mode: str, layout: dict) -> dict:
     """把浏览器测得的版面写入纸面记录。
 
@@ -1032,6 +1163,7 @@ def record_printed(vault: str, board_id: str, mode: str, layout: dict) -> dict:
     return get_board(vault, board_id)
 
 
+@_mutation
 def reset_printed(vault: str, board_id: str) -> dict:
     data = load_boards(vault)
     board = _find(data, board_id)

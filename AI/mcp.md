@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：向获授权外部 AI 提供 OMRS 只读查询和待审核草稿创建
 > - 入口：`omrs/mcp/server.py`、`http.py`、`keys.py`；`serve --mcp-port`
-> - 不变量：十八读三写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
+> - 不变量：二十读三写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
 > - 必跑测试：`python3 -m unittest tests.test_mcp tests.test_mcp_keys tests.test_mcp_http tests.test_mcp_protocol tests.test_mcp_draft_atomic tests.test_runtime_records -q`、`python3 tests/e2e/mcp.py`、`python3 tests/e2e/runtime_history.py`
 > - 相关：`AI/api.md`、`AI/drafts.md`、`AI/security.md`、`AI/agent.md`、`requirements-mcp.txt`
 
@@ -22,7 +22,7 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 ## 2. 工具与权限
 
-固定开放十八个查询工具：`list_taxonomy`、`search_questions`、`get_question`、`get_question_image`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。七个学习数据查询直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
+固定开放二十个查询工具：`list_taxonomy`、`search_questions`、`get_question`、`get_question_image`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。七个学习数据查询直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
 
 `create_draft` 需要 `draft:create`，`create_report` 需要 `report:create`。它不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在正式建题、提交/丢弃草稿、反馈、标记、Session、设置、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
 
@@ -113,3 +113,7 @@ list_reports 默认 50/最多 100 项；get_report 返回 HTML 源码字符串�
 update_draft 需同时 omrs:read/draft:update；expected_revision 和 request_id 必填，允许各来源 cropping/review 草稿，仅科目/分类/知识点/错因/备注及现有块 text/note。图片、框位、顺序、来源、状态和训练不允许修改；人工保护任一变化目标则整次不写、返回 suggestions。内置助手继续检查本对话及完整运行身份；两入口共用补丁校验。
 
 MCP 错因需 cause_statement，保存 client_asserted；原草稿 source_channel/原来源身份保留，last_mcp_edit 单独记录本次密钥和请求身份。草稿补丁与 mcp_patch_requests 幂等回执同一 SQLite 事务；相同请求优先复用回执，内容不同为 request_conflict，新请求旧版本为 revision_conflict，已结束为 state_conflict。返回前复查权限，失败事务不部分写入。
+
+## 11. 展示板读取与版本
+
+list_boards 默认 50/最多 100，返回分页板摘要及完整文件夹/catalog_revision。get_board 同上分页题目引用，含 revision、catalog_revision、版式与纸面摘要。boards v4 首次实际写入升级，旧文件读取不落盘；每板和目录单调版本、MCP 回执保留在同一原子 JSON 中。

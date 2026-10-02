@@ -18,14 +18,14 @@ import { boardDetailPort } from './detail-port.js';
 export const BOARD_LAST_KEY = 'omrs-board-last';
 export const BOARD_FOLD_KEY = 'omrs-board-folders-collapsed';
 
-const state = { boards: [], folders: [], current: '' };
+const state = { boards: [], folders: [], current: '', catalogRevision: null };
 const listeners = new Set();
 const defaults = () => ({ post: apiPost, prompt, confirm, dialog, toast, storage: () => globalThis.localStorage, hooks: boardDetailPort });
 let deps = defaults();
 
 /** 测试替身：{ post, prompt, confirm, dialog, toast, storage, hooks }；{ reset: true } 恢复缺省并清空列表。 */
 export function configureBoards(patch = {}) {
-  if (patch.reset) { deps = defaults(); state.boards = []; state.folders = []; state.current = ''; listeners.clear(); return; }
+  if (patch.reset) { deps = defaults(); state.boards = []; state.folders = []; state.current = ''; state.catalogRevision = null; listeners.clear(); return; }
   deps = { ...deps, ...patch };
 }
 
@@ -41,10 +41,30 @@ export const boardFind = id => state.boards.find(board => board.id === id) || nu
 const folderOf = id => state.folders.find(folder => folder.id === id) || null;
 
 /** 采纳 /api/boards 的结果（展示板页与选板浮层共用这一份）。 */
-export function adoptBoards({ boards, folders } = {}) {
+export function adoptBoards({ boards, folders, catalog_revision } = {}) {
+  if (Number.isInteger(catalog_revision)) state.catalogRevision = catalog_revision;
   state.boards = Array.isArray(boards) ? boards : [];
   state.folders = Array.isArray(folders) ? folders : [];
   notify();
+}
+
+/** 写入使用已读取版本，不在提交前获取新版本掩盖并发冲突。 */
+export function boardWritePayload(path, body, current = null) {
+  const result = { ...body };
+  if (!path.startsWith('/api/board/')) return result;
+  const catalog = path.includes('/folder/') || ['/api/board/create', '/api/board/move', '/api/board/duplicate', '/api/board/delete'].includes(path) || 'folder_id' in body;
+  const board = body.id && !path.includes('/folder/');
+  const target = current?.id === body.id ? current : boardFind(body.id);
+  if (board && Number.isInteger(target?.revision) && result.expected_revision === undefined) result.expected_revision = target.revision;
+  if (catalog && Number.isInteger(state.catalogRevision) && result.expected_catalog_revision === undefined) result.expected_catalog_revision = state.catalogRevision;
+  return result;
+}
+export function adoptBoardVersions(data) {
+  if (Number.isInteger(data?.catalog_revision)) state.catalogRevision = data.catalog_revision;
+  if (data?.board?.id) {
+    const target = boardFind(data.board.id);
+    if (target) Object.assign(target, { revision: data.board.revision });
+  }
 }
 
 function store() { try { return deps.storage() || null; } catch (error) { return null; } }
@@ -82,8 +102,9 @@ export function boardHintText() {
 
 // ---------- 写操作 ----------
 async function send(path, body) {
-  const res = await deps.post(path, body);
-  if (!res?.ok) throw new Error(res?.error?.message || '请求失败');
+  const res = await deps.post(path, boardWritePayload(path, body, deps.hooks.detail()));
+  if (!res?.ok) throw Object.assign(new Error(res?.error?.message || '请求失败'), res?.error);
+  adoptBoardVersions(res.data);
   return res.data || {};
 }
 const fail = (what, error) => deps.toast(`${what}：${error.message}`, { kind: 'error' });

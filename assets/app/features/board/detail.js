@@ -9,8 +9,9 @@
  * - 板列表归 domain/board/boards.js（adoptBoards、boardRemember 等），这里只在重读 / 加载时采纳与记住当前板。
  */
 import { boardUniqueUids } from '../../domain/board/model.js';
-import { adoptBoards, boardRemember, boardPreferredId, boardCurrentId } from '../../domain/board/boards.js';
+import { adoptBoards, boardRemember, boardPreferredId, boardCurrentId, boardFind } from '../../domain/board/boards.js';
 import { boardStatusModel, boardMoveItems, boardItemsPayload, boardItemsSignature, boardGapMap, boardSortItems, boardPaperSummary as paperSummary } from './model.js';
+import { boardWritePayload, adoptBoardVersions } from '../../domain/board/boards.js';
 import { createBoardSaveQueue } from './save.js';
 import { createBoardPrint } from './print.js';
 import { createBoardSettings } from './settings.js';
@@ -40,6 +41,18 @@ export function createBoardDetail(initialDeps = {}) {
   /** 重绘 + 同步常驻预览（旧 boardRender）。 */
   function render() { changed(); syncPreview(); }
 
+  async function postBoard(path, body, current = st.detail) {
+    const result = await deps.post(path, boardWritePayload(path, body, current));
+    adoptBoardVersions(result);
+    if (result.board?.id === st.detail?.id) st.detail.revision = result.board.revision;
+    return result;
+  }
+  async function reloadConflict() {
+    const ok = await deps.confirm('重新读取展示板？', { hint: '本地未保存的修改仍在页面上；确认后丢弃这些修改并读取服务端最新内容。', okText: '重新读取' });
+    if (!ok) return;
+    saveQueue().discard();
+    await reloadData();
+  }
   // ---------- 视图（只存本地） ----------
   function view() {
     try { const value = deps.storage()?.getItem(BOARD_VIEW_KEY); return value === 'list' || value === 'gallery' ? value : 'paper'; } catch (error) { return 'paper'; }
@@ -54,14 +67,19 @@ export function createBoardDetail(initialDeps = {}) {
   function saveQueue() {
     if (!save) save = createBoardSaveQueue({
       detail: () => st.detail,
-      post: (path, body) => deps.post(path, body),
+      post: (path, body) => postBoard(path, body),
       adopt: (board, { hadPaper }) => {
         st.detail = board;
         boardSettings().revoke();
         if (hadPaper && !hasPaper(st.detail)) render();
       },
       drained: () => { changed(); syncPreview(); },
-      failed: (error, options) => { if (!options.silent) toast(`保存展示板失败：${error.message}`, { kind: 'error' }); },
+      failed: (error, options) => {
+        if (options.silent) return;
+        const conflict = error.code === 'revision_conflict' || error.status === 409;
+        toast(conflict ? '展示板已被其它窗口或 MCP 修改。本地改动已保留，请重新读取后核对。' : `保存展示板失败：${error.message}`,
+          { kind: 'error', ...(conflict ? { actions: [{ label: '重新读取', onClick: reloadConflict }] } : {}) });
+      },
       setTimer: (fn, ms) => deps.setTimer(fn, ms),
       clearTimer: id => deps.clearTimer(id),
     });
@@ -95,7 +113,7 @@ export function createBoardDetail(initialDeps = {}) {
       detail: () => st.detail,
       mode: () => effectiveMode(),
       flush: () => flush(),
-      post: (path, body) => deps.post(path, body),
+      post: (path, body) => postBoard(path, body),
       reload: () => reloadData(),
       renderStatus: () => changed(),
       toast: (text, options) => toast(text, options),
@@ -157,7 +175,7 @@ export function createBoardDetail(initialDeps = {}) {
     try {
       const result = await deps.get('/api/boards');
       if (seq !== st.seq) return;
-      adoptBoards({ boards: result.boards || [], folders: result.folders || [] });
+      adoptBoards(result);
       if (boardCurrentId() && !(result.boards || []).some(board => board.id === boardCurrentId())) {
         st.detail = null;
         boardRemember('');
@@ -202,7 +220,7 @@ export function createBoardDetail(initialDeps = {}) {
     if (!clean.length || !boardId) return null;
     if (!(await flush())) return null;
     try {
-      const result = await deps.post('/api/board/items/add', { id: boardId, uids: clean });
+      const result = await postBoard('/api/board/items/add', { id: boardId, uids: clean }, boardFind(boardId));
       const board = result.board;
       boardRemember(board.id);
       if (boardCurrentId() === board.id) st.detail = board;
@@ -211,7 +229,7 @@ export function createBoardDetail(initialDeps = {}) {
       const addedUids = board.added_uids || [];
       const added = Number(board.added ?? addedUids.length);
       const actions = [];
-      if (addedUids.length) actions.push({ label: '撤销', onClick: () => deps.post('/api/board/items/remove', { id: board.id, uids: addedUids }).then(reloadData).then(() => toast('已撤销加入')) });
+      if (addedUids.length) actions.push({ label: '撤销', onClick: () => postBoard('/api/board/items/remove', { id: board.id, uids: addedUids }).then(reloadData).then(() => toast('已撤销加入')) });
       if (boardCurrentId() !== board.id || !deps.pageActive()) {
         actions.push({ label: '打开展示板', onClick: () => { deps.gotoBoard(); load(board.id); } });
       }
@@ -230,7 +248,7 @@ export function createBoardDetail(initialDeps = {}) {
     const item = itemOf(uid);
     try {
       const boardId = st.detail.id;
-      const result = await deps.post('/api/board/items/remove', { id: boardId, uids: [uid] });
+      const result = await postBoard('/api/board/items/remove', { id: boardId, uids: [uid] });
       st.detail = result.board;
       await reloadData();
       toast(`已移除 ${uid}${item?.printed ? '（纸上仍有这道题，纸面记录保留其占位）' : ''}`, { actions: [{ label: '撤销', onClick: () => addToBoard(boardId, [uid], { silent: true }) }] });
@@ -242,7 +260,7 @@ export function createBoardDetail(initialDeps = {}) {
     if (!(await boardSettings().allow({ items: list }))) return;
     saveQueue().drop('items');
     try {
-      const result = await deps.post('/api/board/update', { id: st.detail.id, items: boardItemsPayload(list) });
+      const result = await postBoard('/api/board/update', { id: st.detail.id, items: boardItemsPayload(list) });
       st.detail = result.board;
       await reloadData();
       if (message) toast(message);
@@ -289,8 +307,8 @@ export function createBoardDetail(initialDeps = {}) {
     if (!(await flush())) return;   // 对话框关闭后再查一次：同步追加前没有新的脏字段或在途保存
     const uids = deps.items().filter(item => !item.suspended && (item.labels || []).includes(label)).map(item => item.uid);
     try {
-      const result = uids.length ? await deps.post('/api/board/items/add', { id: st.detail.id, uids }) : { board: { added: 0 } };
-      if (!preferred) await deps.post('/api/board/update', { id: st.detail.id, source_labels: [label] });
+      const result = uids.length ? await postBoard('/api/board/items/add', { id: st.detail.id, uids }) : { board: { added: 0 } };
+      if (!preferred) await postBoard('/api/board/update', { id: st.detail.id, source_labels: [label] });
       await reloadData();
       toast(result.board.added ? `已同步 ${result.board.added} 道「${label}」题目` : `没有带「${label}」的新题目`);
     } catch (error) { toast(`同步标记失败：${error.message}`, { kind: 'error' }); }
@@ -332,8 +350,8 @@ export function createBoardDetail(initialDeps = {}) {
     if (!payload) return;
     try {
       const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-      if (!deps.beacon('/api/board/update', blob)) deps.post('/api/board/update', payload).catch(() => {});
-    } catch (error) { try { deps.post('/api/board/update', payload).catch(() => {}); } catch (inner) { /* 放弃 */ } }
+      if (!deps.beacon('/api/board/update', blob)) postBoard('/api/board/update', payload).catch(() => {});
+    } catch (error) { try { postBoard('/api/board/update', payload).catch(() => {}); } catch (inner) { /* 放弃 */ } }
   }
   /** 独立打印窗口的回传（版面 / 「已打印，记录纸面」）只更新它自己的导出快照，见 print.js handleMessage。 */
   const handleMessage = event => boardPrint().handleMessage(event);

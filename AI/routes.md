@@ -52,7 +52,7 @@
 | POST | `/api/board/printed` | `AI/api.md`、`AI/board.md`、`AI/data.md`等 |
 | POST | `/api/board/printed/reset` | `AI/api.md`、`AI/board.md` |
 | POST | `/api/board/update` | `AI/api.md`、`AI/board.md`、`AI/frontend/board-ui.md` |
-| GET | `/api/boards` | `AI/api.md`、`AI/board.md`、`AI/changelog.md` |
+| GET | `/api/boards` | `AI/api.md`、`AI/board.md`、`AI/changelog.md`等 |
 | GET/POST | `/api/config` | `AI/api.md`、`AI/agent.md`、`AI/algorithm.md`等 |
 | POST | `/api/confirm-schedule` | `AI/api.md`、`AI/algorithm.md`、`AI/data.md`等 |
 | POST | `/api/create` | `AI/api.md`、`AI/data.md`、`AI/frontend/create.md` |

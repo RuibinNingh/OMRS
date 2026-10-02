@@ -314,3 +314,55 @@ def _sdk_draft_patch_test(self):
     self.assertEqual(ledger.read_commits(self.server.vault), before)
 
 ExtendedSDKTests.test_real_sdk_cross_source_patch_and_cas = _sdk_draft_patch_test
+
+
+class BoardVersionTests(unittest.TestCase):
+    def setUp(self):
+        self.work = tempfile.TemporaryDirectory()
+        self.addCleanup(self.work.cleanup)
+        self.vault = self.work.name
+
+    def test_v3_read_stays_unwritten_until_change_and_revisions_preserved(self):
+        import json
+        from omrs import boards
+        old = {'version': 3, 'folders': [], 'boards': [{'id': 'old', 'name': '旧板', 'items': []}]}
+        path = Path(boards.boards_path(self.vault))
+        path.write_text(json.dumps(old))
+        before = path.read_bytes()
+        self.assertEqual(boards.get_board(self.vault, 'old')['revision'], 1)
+        self.assertEqual(path.read_bytes(), before)
+        changed = boards.update_board(self.vault, 'old', note='新备注', expected_revision=1)
+        self.assertEqual(changed['revision'], 2)
+        self.assertEqual(json.loads(path.read_text())['version'], 4)
+        with self.assertRaises(boards.BoardConflict):
+            boards.update_board(self.vault, 'old', name='过期覆盖', expected_revision=1)
+        self.assertEqual(boards.get_board(self.vault, 'old')['note'], '新备注')
+
+    def test_catalog_cas_and_transaction_preview_receipt_are_atomic(self):
+        from omrs import boards
+        folder = boards.create_folder(self.vault, '文件夹', expected_catalog_revision=0)
+        with self.assertRaises(boards.BoardConflict):
+            boards.create_folder(self.vault, '过期', expected_catalog_revision=0)
+        board = boards.create_board(self.vault, '展示板', folder_id=folder['id'], expected_catalog_revision=1)
+        path = Path(boards.boards_path(self.vault))
+        original = path.read_bytes()
+        def change():
+            result = boards.update_board(self.vault, board['id'], note='MCP 修改', expected_revision=1)
+            return {'board_id': result['id'], 'revision': result['revision']}
+        preview, before, after = boards.transaction(self.vault, change, preview=True)
+        self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(preview['revision'], 2)
+        with patch.object(boards, '_persist', side_effect=OSError('模拟中断')):
+            with self.assertRaises(OSError):
+                boards.transaction(self.vault, change, identity='request', digest='same')
+        self.assertEqual(path.read_bytes(), original)
+        result = boards.transaction(self.vault, change, identity='request', digest='same')
+        self.assertEqual(result['revision'], 2)
+        saved_bytes = path.read_bytes()
+        self.assertTrue(boards.transaction(self.vault, change, identity='request', digest='same')['reused'])
+        self.assertEqual(path.read_bytes(), saved_bytes)
+        with self.assertRaises(RequestError):
+            boards.transaction(self.vault, change, identity='request', digest='different')
+        boards.create_folder(self.vault, '后续')
+        self.assertIn('request', boards.load_boards(self.vault)['mcp_receipts'])
+        self.assertEqual(boards.get_board(self.vault, board['id'])['revision'], 2)

@@ -21,6 +21,7 @@ from .reports import create_report, delete_report, get_report_html, list_reports
 from . import traincontrol
 from . import security
 from . import locking
+from . import boards as board_mod
 from .ai_assist import recognize_question, collect_taxonomy
 from .creation import create_question
 from .exporting import _find_image, _read_image_info, export_schedule_artifact, export_board_html, board_export_filename
@@ -154,8 +155,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         elif path == "/api/labels":
             self._json({"status": "ok", "labels": list_label_defs(self.vault_path)})
         elif path == "/api/boards":
-            self._json({"status": "ok", "boards": list_boards(self.vault_path),
-                        "folders": board_list_folders(self.vault_path)})
+            self._json({"status": "ok", **board_mod.catalog(self.vault_path)})
         elif path == "/api/board":
             board = get_board(self.vault_path, params.get("id", ""))
             if board is None:
@@ -955,10 +955,13 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     uids,
                     data.get("label", ""),
                     str(data.get("folder_id") or ""),
+                    **self._board_versions(data, catalog=True),
                 )
-                self._json({"status": "ok", "board": board})
+                self._board_json({"status": "ok", "board": board})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/board/update":
             try:
                 data = json.loads(body) if body else {}
@@ -966,72 +969,91 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 if not board_id:
                     raise ValueError("展示板 id 不能为空")
                 changes = {key: data[key] for key in ("name", "note", "print", "items", "source_labels", "folder_id") if key in data}
-                self._json({"status": "ok", "board": update_board(self.vault_path, board_id, **changes)})
+                self._board_json({"status": "ok", "board": update_board(self.vault_path, board_id, **changes, **self._board_versions(data, board=True, catalog="folder_id" in changes))})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/board/items/add":
             try:
                 data = json.loads(body) if body else {}
-                self._json({"status": "ok", "board": board_add_items(
+                self._board_json({"status": "ok", "board": board_add_items(
                     self.vault_path, str(data.get("id") or ""), data.get("uids") or [], data.get("position"),
+                    **self._board_versions(data, board=True),
                 )})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/board/items/remove":
             try:
                 data = json.loads(body) if body else {}
-                self._json({"status": "ok", "board": board_remove_items(
-                    self.vault_path, str(data.get("id") or ""), data.get("uids") or [],
+                self._board_json({"status": "ok", "board": board_remove_items(
+                    self.vault_path, str(data.get("id") or ""), data.get("uids") or [], **self._board_versions(data, board=True),
                 )})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/board/duplicate":
             try:
                 data = json.loads(body) if body else {}
-                self._json({"status": "ok", "board": duplicate_board(
-                    self.vault_path, str(data.get("id") or ""), data.get("name", ""),
+                self._board_json({"status": "ok", "board": duplicate_board(
+                    self.vault_path, str(data.get("id") or ""), data.get("name", ""), **self._board_versions(data, board=True, catalog=True),
                 )})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/board/folder/create":
             try:
                 data = json.loads(body) if body else {}
-                self._json({"status": "ok", "folder": board_create_folder(self.vault_path, data.get("name", ""))})
+                self._board_json({"status": "ok", "folder": board_create_folder(self.vault_path, data.get("name", ""), **self._board_versions(data, catalog=True))})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/board/folder/update":
             try:
                 data = json.loads(body) if body else {}
                 changes = {key: data[key] for key in ("name", "order") if key in data}
-                self._json({"status": "ok", "folder": board_update_folder(
-                    self.vault_path, str(data.get("id") or ""), **changes,
+                self._board_json({"status": "ok", "folder": board_update_folder(
+                    self.vault_path, str(data.get("id") or ""), **changes, **self._board_versions(data, catalog=True),
                 )})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/board/folder/delete":
             try:
                 data = json.loads(body) if body else {}
                 keep = data.get("keep_boards", True)
-                result = board_delete_folder(self.vault_path, str(data.get("id") or ""), keep is not False)
-                self._json({"status": "ok", **result})
+                result = board_delete_folder(self.vault_path, str(data.get("id") or ""), keep is not False, **self._board_versions(data, catalog=True))
+                self._board_json({"status": "ok", **result})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/board/move":
             try:
                 data = json.loads(body) if body else {}
-                self._json({"status": "ok", "board": board_move(
+                self._board_json({"status": "ok", "board": board_move(
                     self.vault_path, str(data.get("id") or ""),
-                    data.get("folder_id"), data.get("index"),
+                    data.get("folder_id"), data.get("index"), **self._board_versions(data, board=True, catalog=True),
                 )})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/board/delete":
             try:
                 data = json.loads(body) if body else {}
-                ok = delete_board(self.vault_path, str(data.get("id") or ""))
-                self._json({"status": "ok" if ok else "error", "deleted": ok})
+                ok = delete_board(self.vault_path, str(data.get("id") or ""), **self._board_versions(data, board=True, catalog=True))
+                self._board_json({"status": "ok" if ok else "error", "deleted": ok})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/board/printed":
             try:
                 data = json.loads(body) if body else {}
@@ -1039,19 +1061,36 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                     self.vault_path,
                     str(data.get("id") or ""),
                     str(data.get("mode") or "all"),
-                    data.get("layout") if isinstance(data.get("layout"), dict) else {},
+                    data.get("layout") if isinstance(data.get("layout"), dict) else {}, **self._board_versions(data, board=True),
                 )
-                self._json({"status": "ok", "board": board})
+                self._board_json({"status": "ok", "board": board})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         elif path == "/api/board/printed/reset":
             try:
                 data = json.loads(body) if body else {}
-                self._json({"status": "ok", "board": board_reset_printed(self.vault_path, str(data.get("id") or ""))})
+                self._board_json({"status": "ok", "board": board_reset_printed(self.vault_path, str(data.get("id") or ""), **self._board_versions(data, board=True))})
+            except board_mod.BoardConflict as exc:
+                self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:
-                self._json({"status": "error", "msg": str(exc)}, 400)
+                self._board_json({"status": "error", "msg": str(exc)}, 400)
         else:
             self._json({"error": "not found"}, 404)
+
+    def _board_versions(self, data, board=False, catalog=False):
+        result = {}
+        for needed, key in ((board, 'expected_revision'), (catalog, 'expected_catalog_revision')):
+            if needed:
+                value = data.get(key)
+                if type(value) is not int or value < (1 if key == 'expected_revision' else 0):
+                    raise ValueError(f'{key} 必须提供当前版本')
+                result[key] = value
+        return result
+
+    def _board_json(self, data, status=200):
+        self._json({**data, 'catalog_revision': board_mod.load_boards(self.vault_path)['catalog_revision']}, status)
 
     # ────────────── 收件箱 /api/inbox/* 与手机上传页 /m ──────────────
     def _inbox_get(self, path, params):

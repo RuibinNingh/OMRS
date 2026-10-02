@@ -341,3 +341,9 @@ POST /api/board/update
   `assets/app/features/board/preview.js` 与这份测试必须一起改。
 - 每题留白的算式有三处实现，必须同解：`omrs/boards.py::effective_gap_lines`、
   `omrs/exporting.py::_board_gap_lines`、`assets/app/features/board/model.js::boardEffectiveGap`。
+
+## 版本与原子操作
+
+boards.json 为 v4，读取兼容旧文件且不写迁移；首次实际写入保存 v4。每板 revision 初始 1，真实内容改变才递增；目录 catalog_revision 初始 0，在文件夹、板名、板创建/删除/位置变化时递增。读取/规范化保留 mcp_receipts；共享写锁包住版本检查和读改写。领域 transaction 支持纯暂存预览和变更/回执同次原子替换，预览不写纸面历史。
+
+Web 已有板写必填 expected_revision；文件夹、创建、复制、删除、移动及归属变化必填 expected_catalog_revision，409 revision_conflict 不覆盖服务器。可信内部调用可省略版本；HTTP/MCP 入口不能省略。

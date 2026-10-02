@@ -345,7 +345,7 @@ Markdown `# 历史` 不作为算法输入，也不会由反馈流程追加。`/a
 
 ## 14. 展示板 `boards.json`
 
-路径：`错题/.omrs/boards.json`，当前 `version: 3`。展示板是呈现层引用集合，不进入 Ledger，也不
+路径：`错题/.omrs/boards.json`，当前 `version: 4`。展示板是呈现层引用集合，不进入 Ledger，也不
 复制题目正文。文件写入会滚动 `.bak.1/2/3`，再使用临时文件、`fsync` 和
 `os.replace` 原子替换。
 
@@ -498,3 +498,7 @@ reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加acti
 ## 草稿修订回执
 
 草稿库 mcp_patch_requests 保存请求/内容摘要、draft_id、编辑身份、原结果及时间；补丁和回执同事务。drafts.last_mcp_edit_json 与原 source_channel/source_key_id 独立，MCP 修订不改原来源。
+
+## 展示板 v4 元数据
+
+boards.json 增加 catalog_revision、每板 revision 和 mcp_receipts；旧文件读取只在内存规范化，首次实际写入迁移。版本与回执由领域写锁保护；回执随板变更同次 JSON 原子保存，后续 Web 写不会清除。

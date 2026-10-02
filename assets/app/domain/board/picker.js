@@ -20,6 +20,7 @@ import { toast } from '../../ui/toast.js';
 import { dialog, prompt } from '../../ui/dialog.js';
 import { boardUniqueUids, boardPickerItems, boardPickerDefaultActive, boardPickerStep, boardPickerFoldTarget, boardPickerRowAfterGroup, boardPickerPlan, boardPickerPosition } from './model.js';
 import { boardPickerView, boardPickerNewBody } from './picker-view.js';
+import { boardWritePayload, adoptBoardVersions } from './boards.js';
 import { boardSource } from './source.js';
 
 const DEFAULTS = Object.freeze({ source: boardSource, get, post, toast, dialog, prompt });
@@ -34,6 +35,11 @@ export const boardPickerIsOpen = () => !!current;
 /** 当前浮层的根节点（没有则 null）。 */
 export const boardPickerNode = () => current?.node || null;
 
+async function postBoard(path, body) {
+  const result = await deps.post(path, boardWritePayload(path, body));
+  if (result?.ok) adoptBoardVersions(result.data);
+  return result;
+}
 async function need(pending) {
   const result = await pending;
   if (!result?.ok) throw new Error(result?.error?.message || '请求失败');
@@ -44,7 +50,7 @@ const fail = (text, error) => deps.toast(`${text}：${error?.message || error}`,
 
 async function fetchBoards() {
   const data = await need(deps.get('/api/boards'));
-  deps.source.adopt({ boards: data.boards || [], folders: data.folders || [] });
+  deps.source.adopt(data);
 }
 
 function render(reset = false) {
@@ -125,7 +131,7 @@ async function commit(board, additive) {
   if (plan.kind === 'undo') {
     p.added.delete(board.id);
     try {
-      await need(deps.post('/api/board/items/remove', { id: board.id, uids: plan.uids }));
+      await need(postBoard('/api/board/items/remove', { id: board.id, uids: plan.uids }));
       await refresh();
     } catch (error) {
       p.added.set(board.id, plan.uids);
@@ -146,7 +152,7 @@ async function commit(board, additive) {
   const result = await src.add(board.id, plan.uids, { moveFromName: from });
   if (result && p.moveFrom && p.moveFrom !== board.id) {
     try {
-      await need(deps.post('/api/board/items/remove', { id: p.moveFrom, uids: p.uids }));
+      await need(postBoard('/api/board/items/remove', { id: p.moveFrom, uids: p.uids }));
       await src.reload();
     } catch (error) { fail('已加入目标板，原板移除失败', error); }
   }
@@ -157,7 +163,7 @@ async function createBoard(name, uids, folderId) {
   try {
     const body = { name, uids };
     if (folderId !== undefined) body.folder_id = folderId;
-    const created = await need(deps.post('/api/board/create', body));
+    const created = await need(postBoard('/api/board/create', body));
     src.remember(created.board.id);
     src.adoptDetail(created.board);
     await src.reload();
@@ -203,7 +209,7 @@ async function addDirect(uids) {
   const added = board.added_uids || [];
   const undo = async () => {
     try {
-      await need(deps.post('/api/board/items/remove', { id: board.id, uids: added }));
+      await need(postBoard('/api/board/items/remove', { id: board.id, uids: added }));
       await src.reload();
       say('已撤销加入');
     } catch (error) { fail('撤销失败', error); }

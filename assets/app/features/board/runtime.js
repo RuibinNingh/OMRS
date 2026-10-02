@@ -17,7 +17,7 @@ import * as preview from './preview.js';
 /** 成功返回 data，失败抛 Error（打印协调、保存队列都按这个约定写）。 */
 async function unwrap(promise) {
   const res = await promise;
-  if (!res?.ok) throw new Error(res?.error?.message || '请求失败');
+  if (!res?.ok) throw Object.assign(new Error(res?.error?.message || '请求失败'), res?.error);
   return res.data || {};
 }
 

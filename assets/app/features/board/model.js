@@ -130,7 +130,7 @@ export function boardDirtyMerge(current, kind) {
  */
 export function boardSavePayload(detail, dirty) {
   if (!detail || !dirty || !Object.keys(dirty).length) return null;
-  const payload = { id: detail.id };
+  const payload = { id: detail.id, ...(Number.isInteger(detail.revision) ? { expected_revision: detail.revision } : {}) };
   if (dirty.items) payload.items = boardItemsPayload(detail.items || []);
   if (dirty.print) payload.print = detail.print;
   return payload;
