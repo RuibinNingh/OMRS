@@ -28,7 +28,7 @@
 | A18 | 图片统一受限路径解析，拒绝绝对/遍历/双编码/符号链接越界 | test_http_boundaries的image_absolute_traversal；导出与题图回归 |
 | A19 | HEAD使用GET的同一授权、资源白名单及路由，仅不发送正文 | test_http_boundaries的head_uses_get_auth_and_resource_allowlist |
 
-完整文件位置：Python入口均位于tests/，Node入口位于tests/app/，浏览器入口位于tests/e2e/。最终提交索引写在progress.md。
+完整文件位置：Python入口均位于tests/，Node入口位于tests/app/，浏览器入口位于tests/e2e/。全部十九修复及治理代码对应本地提交757e1ed（v2.2.0），最终文档提交与状态见progress.md。
 
 ## 2. 完整维护性治理
 

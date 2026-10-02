@@ -697,5 +697,8 @@
     "default": "/tmp/omrs-repair-final-gates/visual/report.html",
     "settings_data": "/tmp/omrs-settings-tuning-final-visual/report.html",
     "explanation": "AI/plans/omrs-audit-repair/visual.md"
-  }
+  },
+  "implementation_commit": "757e1edfafed05e0390263fae1a60078efc6326b",
+  "version": "v2.2.0",
+  "branch": "codex/omrs-audit-repair"
 }
