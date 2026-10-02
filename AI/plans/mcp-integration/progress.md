@@ -4,7 +4,7 @@
 > - 目标：独立 API Key、助手同口径查询、唯一写入待审核草稿、MCP 来源与完整原图。
 > - 阶段：I1–I3 本地验收完成，题图读取与历史运行记录已推送 GitHub 并部署 ba6501b，版本 v2.1.0。
 > - 基线：原集成 2957939；修复调查 79f0a548b7fbfd68b225cbf9f790e1cef619bdc4；U1 UI 打磨 bec821d；题图批次 73e34fd。
-> - 下一步：Codex 完整模式已完成题图实施及授权发布；本批无剩余步骤，目标账户与 Windows 实机联调仍待后续。
+> - 下一步：实施及发布已完成；用户在 ChatGPT 刷新并启用 get_question_image，再实测原生图片视觉链路；Windows 实机仍待后续。
 > - 更新：2026-10-02。
 
 ## 用户诉求
@@ -77,6 +77,10 @@ I3 已生成日志索引，当前切片与累计基线 73e34fd 的文档检查�
 
 868 个内容文件（含 282 个 Markdown）不变；原六个数据库业务表内容不变，扫描元数据按启动更新。验收新增独立 runtime.db，最终七个 SQLite 库 quick_check 均为 ok；临时密钥元数据与三次运行记录为预期技术变化。详细快照、命令与回滚见 AI/logs/2026-10-02_mcp-question-image-production.md。
 
+### ChatGPT 题图诊断
+
+用户反馈文字工具可用、图片只返回引用。运行记录中运动学58 的查询均为 get_question，未调用 get_question_image；唯一读图调用仍为上线验收。共享读题及安全读图领域函数确认该题下标 0 为有效 PNG、89648 字节。已实测 OMRS Tunnel active/running，订正模块文档中「尚未启动」的过时事实。客户端工具清单未刷新或未选择新工具是待验证解释，尚不能断定 ChatGPT 不支持图片内容；先刷新/启用工具并明确调用，再判断视觉处理。
+
 原 P0–P5 的交付记录（本批未重复 UI、视觉与组件门禁）：
 
 - Python 全量 470/470；MCP/Key/HTTP/原子/源码导出 49/49。
@@ -105,7 +109,7 @@ U1 日志索引已生成，`python3 tests/check_docs.py --diff HEAD` 检查 77 �
 
 ## 未验证与后续
 
-目标 ChatGPT 账户、Windows 实机尚未联调；生产浏览器主应用因没有可用 PIN 会话未进入，入口 HTTPS 与鉴权边界已验收。生产仅使用临时 `omrs:read` Key 做只读 SDK 检查，随后吊销；没有调用成功的草稿创建，也没有真实草稿或题目写入。Tunnel 的客户端 ready、账户发现与真实调用仍需分别验证；本次没有启动 Tunnel、推送 GitHub 或降低鉴权。四项修复状态统一登记在 `AI/optimization.md`。
+用户已反馈 ChatGPT 文字查询可用，新增题图工具的实际工具清单与视觉处理尚未验证；Windows 实机仍待后续。生产浏览器主应用因没有可用 PIN 会话未进入，入口 HTTPS 与鉴权边界已验收。既有修复批次仅使用临时 omrs:read Key 做只读 SDK 检查，随后吊销，没有生产题目或草稿写入；其历史计数保持。当前 Tunnel 服务已运行，不能把进程运行或 SDK 成功当成账户原生图片处理通过。四项修复状态统一登记在 AI/optimization.md。
 
 ## 计划变更
 
@@ -118,7 +122,7 @@ U1 日志索引已生成，`python3 tests/check_docs.py --diff HEAD` 检查 77 �
 
 ## 下一步
 
-Codex 完整模式已完成 exec-2026-10-02-question-image-read.md 的 I1–I3，并按之后的独立授权推送及部署 ba6501b，本批无剩余步骤。Tunnel、ChatGPT 账户与 Windows 实机联调仍待后续，版本保持 v2.1.0；历史改造保持独立提交，随当前 main 一起发布。下方保留既有发布与账户联调记录。
+Codex 完整模式已完成 exec-2026-10-02-question-image-read.md 的 I1–I3，并按之后的独立授权推送及部署 ba6501b。ChatGPT 文字查询已获得用户反馈；下一步在应用详情刷新/启用 get_question_image，并明确用 UID 和下标调用，实际观察图片内容及视觉处理。Windows 实机仍待后续，版本保持 v2.1.0；历史改造保持独立提交，随当前 main 一起发布。下方保留既有发布记录。
 
 Codex 完整模式已按 `exec-2026-10-01-mcp-fixes.md` 完成本地修复、隔离验收与生产更新；四个修复切片各自提交，部署记录见 `AI/logs/2026-10-01_mcp-fixes-production.md`。当前无需再切换生产。
 

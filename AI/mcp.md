@@ -36,6 +36,8 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 get_question_image(uid, image_index) 必须提供非空 UID（去首尾空白、最多 200 字符）和从 0 开始的严格整数下标；布尔值、小数、字符串和额外参数拒绝。先调用共享 get_question 并按其 images[] 当前顺序选图，包含题目与答案图片，不从已截断正文重新提取。每次重新定位，不缓存图片或授权。
 
+get_question 与 get_draft 保持正文、图片引用及元数据输出，不自动附加图片内容。正式题图需单独调用 get_question_image，不能用草稿编号代替 UID；本工具没有扩展为草稿原图接口。外部客户端须刷新工具清单并启用新工具；ChatGPT 的应用详情支持刷新工具、描述与服务端 instructions，必要时在提示中明确指定工具名和参数顺序。
+
 工具需要 omrs:read，在线程内完成受限附件读取与完整解码；读取前和返回前复查实时权限。成功仅返回一个原生 ImageContent，MIME 根据实际原件确认为 image/png、image/jpeg 或 image/gif；SDK 只做 Base64 封装，不返回图片 JSON、服务器路径或下载链接。读取允许的文件树、大小和像素保护见下方领域说明。
 
 注解为 readOnlyHint=true、destructiveHint=false、idempotentHint=true、openWorldHint=false，显式使用非结构化图片输出。schema/严格参数模型拒绝非法输入时返回 invalid_arguments；题目不存在、无图、越界、缺失、歧义、格式无效和容量超限返回 invalid_request 及可区分中文说明，OS 异常不回显本地路径。该工具只在 MCP 注册，不加入内置助手注册表。
