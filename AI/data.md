@@ -494,3 +494,7 @@ reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加acti
 ## MCP 报告回执
 
 错题/.omrs/mcp_reports.db 保存请求身份摘要、内容摘要、预留元数据和 applied 状态，0600；不进入 Ledger。报告仍保存在错题/report/，HTML 原子写入后可恢复 index.json 登记；相同请求不能生成第二份报告。
+
+## 草稿修订回执
+
+草稿库 mcp_patch_requests 保存请求/内容摘要、draft_id、编辑身份、原结果及时间；补丁和回执同事务。drafts.last_mcp_edit_json 与原 source_channel/source_key_id 独立，MCP 修订不改原来源。

@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：向获授权外部 AI 提供 OMRS 只读查询和待审核草稿创建
 > - 入口：`omrs/mcp/server.py`、`http.py`、`keys.py`；`serve --mcp-port`
-> - 不变量：十八读二写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
+> - 不变量：十八读三写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
 > - 必跑测试：`python3 -m unittest tests.test_mcp tests.test_mcp_keys tests.test_mcp_http tests.test_mcp_protocol tests.test_mcp_draft_atomic tests.test_runtime_records -q`、`python3 tests/e2e/mcp.py`、`python3 tests/e2e/runtime_history.py`
 > - 相关：`AI/api.md`、`AI/drafts.md`、`AI/security.md`、`AI/agent.md`、`requirements-mcp.txt`
 
@@ -24,7 +24,7 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 固定开放十八个查询工具：`list_taxonomy`、`search_questions`、`get_question`、`get_question_image`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。七个学习数据查询直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
 
-`create_draft` 需要 `draft:create`，`create_report` 需要 `report:create`。它不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在正式建题、提交/修改/丢弃草稿、反馈、标记、Session、设置、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
+`create_draft` 需要 `draft:create`，`create_report` 需要 `report:create`。它不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在正式建题、提交/丢弃草稿、反馈、标记、Session、设置、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
 
 每次协议请求和领域调用重新验证 Key；创建在下载及等锁之后、实际写入前复查，URL 快速复用、inline 处理后复用及新建都在结果封装前再次校验 `draft:create`。处理中吊销、到期或权限变化返回 `forbidden`，提交后失效仍保留草稿与原图。`tools/list` 按当前 Key 的实时 scope 按当前 scope 返回查询、草稿创建及报告创建；发现与调用共用显式工具→scope 映射。过滤只作用于当前请求的描述，完整注册表保持，SDK 共享定义缓存不承担授权；直接点名隐藏工具仍拒绝。`错题/.omrs/mcp_keys.json` 仅保存 SHA-256 摘要和非秘密元数据，0600；线程锁和操作系统文件锁共同避免本机 CLI 与 Web 的创建/吊销/最近使用时间互相覆盖。Key 管理响应禁止缓存。
 
@@ -66,7 +66,7 @@ read_question_image 按共享 get_question.images 的当前下标读取题目/�
 
 `(source_key_id, request_id)` 唯一。相同内容重试返回原草稿及 `reused=true`，不同内容拒绝。稳定 `file_id` 的下载附件允许更新短期签名 URL 后重试，无需重新下载已保存原件；带 inline 原字节的重试仍验证内容 SHA。人工已修改或丢弃的草稿只返回当前状态，不复建或覆写。
 
-用户在已有草稿区查看“来源：MCP”和完整来源图片，再编辑、审核、通过或丢弃。正式入库仍由当前人工流程决定；MCP Key 没有后续修改或提交权限。未收到图片的文字草稿同样进入审核队列。
+用户在已有草稿区查看“来源：MCP”和完整来源图片，再编辑、审核、通过或丢弃。正式入库仍由当前人工流程决定；MCP Key 可按 draft:update 修订，不能提交或丢弃。未收到图片的文字草稿同样进入审核队列。
 
 ## 5. HTTP 与下载边界
 
@@ -107,3 +107,9 @@ get_analytics 提供 overview/trends/accuracy/distributions/weak_spots/forecast�
 list_reports 默认 50/最多 100 项；get_report 返回 HTML 源码字符串、元数据、哈希和下一页位置，默认 4000/最多 8000 字，不执行报告脚本。create_report 仅新建，名称最多 200 字、HTML 非空且最多 2 MiB，必填 request_id；report:create 默认不授予，旧 Key 和默认创建仍只具有原两项权限。
 
 报告回执在 mcp_reports.db：先提交稳定报告编号与请求摘要，再原子落 HTML、登记 index.json、完成回执。相同内容重试复用编号，内容不同返回 request_conflict，文件已保存而索引中断可恢复。已完成后人工删除报告，技术重试仍返回原编号，不复活报告。保存及回执返回前复查权限。
+
+## 10. 受保护草稿修订
+
+update_draft 需同时 omrs:read/draft:update；expected_revision 和 request_id 必填，允许各来源 cropping/review 草稿，仅科目/分类/知识点/错因/备注及现有块 text/note。图片、框位、顺序、来源、状态和训练不允许修改；人工保护任一变化目标则整次不写、返回 suggestions。内置助手继续检查本对话及完整运行身份；两入口共用补丁校验。
+
+MCP 错因需 cause_statement，保存 client_asserted；原草稿 source_channel/原来源身份保留，last_mcp_edit 单独记录本次密钥和请求身份。草稿补丁与 mcp_patch_requests 幂等回执同一 SQLite 事务；相同请求优先复用回执，内容不同为 request_conflict，新请求旧版本为 revision_conflict，已结束为 state_conflict。返回前复查权限，失败事务不部分写入。

@@ -212,3 +212,105 @@ def _sdk_reports_test(self):
     asyncio.run(run())
 
 ExtendedSDKTests.test_real_sdk_report_idempotency_and_filtered_analysis = _sdk_reports_test
+
+
+class DraftPatchTests(unittest.TestCase):
+    def setUp(self):
+        self.work = tempfile.TemporaryDirectory()
+        self.addCleanup(self.work.cleanup)
+        self.vault = self.work.name
+
+    def make(self, source='agent'):
+        data = {'subject': '数学', 'category': '函数', 'blocks': [{'section': '题目', 'kind': 'text', 'text': '原题'}]}
+        origin = {'conversation_id': 'other-conversation', 'run_id': 'run', 'tool_call_id': 'call', 'source_channel': source}
+        if source == 'mcp':
+            origin.update(source_key_id='original-key', source_request_id='original', content_hash='a' * 64)
+            d = drafts.create_mcp_draft(self.vault, data, origin, [])
+        else:
+            d = drafts.create_draft(self.vault, data, origin)
+        return d
+
+    def apply(self, d, fields=None, patches=None, request_id='edit', **options):
+        from omrs.draft_write import patch_mcp_draft
+        return patch_mcp_draft(self.vault, d['id'], d['revision'], fields or {}, patches or [],
+                               'mcp-key', request_id, **options)
+
+    def test_all_origins_preserved_and_client_assertion_is_separate(self):
+        for source in ('agent', 'legacy', 'mcp'):
+            with self.subTest(source=source):
+                d = self.make(source)
+                result = self.apply(d, {'cause': '没有考虑边界'}, request_id=source, cause_statement='我没考虑边界')
+                self.assertTrue(result['wrote'])
+                saved = drafts.get_draft(self.vault, d['id'], readonly=True)
+                self.assertEqual(saved['source_channel'], source)
+                self.assertEqual(saved['conversation_id'], 'other-conversation')
+                self.assertEqual(saved['cause_verification'], 'client_asserted')
+                self.assertEqual(saved['last_mcp_edit']['key_id'], 'mcp-key')
+                from omrs.draft_write import patch_draft
+                with self.assertRaises(drafts.DraftError):
+                    patch_draft(self.vault, d['id'], saved['revision'], {'note': '不能越权'}, [],
+                                {'conversation_id': 'mine', 'run_id': 'r', 'tool_call_id': 'c'})
+
+    def test_manual_protection_prevents_entire_patch_and_retry_reuses_receipt(self):
+        d = self.make()
+        manual = drafts.update_draft(self.vault, d['id'], 1, {'note': '用户备注'}, d['blocks'])
+        result = self.apply(manual, {'note': '覆盖', 'category': '新分类'})
+        self.assertFalse(result['wrote'])
+        self.assertEqual(result['suggestions'][0]['target'], 'field:note')
+        saved = drafts.get_draft(self.vault, d['id'], readonly=True)
+        self.assertEqual((saved['note'], saved['category'], saved['revision']), ('用户备注', '函数', 2))
+        repeated = self.apply(manual, {'note': '覆盖', 'category': '新分类'})
+        self.assertTrue(repeated['reused'])
+        with self.assertRaises(RequestError):
+            self.apply(manual, {'note': '不同'})
+
+    def test_cas_finished_invalid_block_and_receipt_atomicity(self):
+        d = self.make()
+        with self.assertRaises(drafts.DraftError):
+            self.apply(d, {'difficulty': 3})
+        with self.assertRaises(drafts.DraftError):
+            self.apply(d, {'cause': '猜测'})
+        with self.assertRaises(drafts.DraftError):
+            self.apply(d, patches=[{'block_id': d['blocks'][0]['id'], 'box': {}}])
+        calls = []
+        def interrupted():
+            calls.append(1)
+            if len(calls) == 3:
+                raise PermissionError('处理中失效')
+        with self.assertRaises(PermissionError):
+            self.apply(d, {'category': '新分类'}, authorize=interrupted)
+        self.assertEqual(drafts.get_draft(self.vault, d['id'], readonly=True)['revision'], 1)
+        result = self.apply(d, {'category': '新分类'})
+        self.assertFalse(result['reused'])
+        self.assertTrue(self.apply(d, {'category': '新分类'})['reused'])
+        with self.assertRaises(drafts.DraftError) as caught:
+            self.apply(d, {'note': '旧版本'}, request_id='old')
+        self.assertEqual(caught.exception.code, 'revision_conflict')
+        current = drafts.get_draft(self.vault, d['id'], readonly=True)
+        drafts.discard_draft(self.vault, d['id'], current['revision'])
+        current = drafts.get_draft(self.vault, d['id'], readonly=True)
+        with self.assertRaises(drafts.DraftError) as caught:
+            self.apply(current, {'note': '已结束'}, request_id='ended')
+        self.assertEqual(caught.exception.code, 'state_conflict')
+
+
+def _sdk_draft_patch_test(self):
+    from omrs.mcp.keys import create_key
+    key = create_key(self.server.vault, '草稿修订', ['omrs:read', 'draft:update'])
+    d = drafts.create_draft(self.server.vault, {'subject': '数学', 'category': '函数',
+        'blocks': [{'section': '题目', 'kind': 'text', 'text': '别的来源'}]}, {'conversation_id': 'external-origin'})
+    before = ledger.read_commits(self.server.vault)
+    async def run():
+        async with _session(self.server.mcp_port, key['secret']) as session:
+            args = {'draft_id': d['id'], 'expected_revision': 1, 'request_id': 'sdk-update',
+                    'block_patches': [{'block_id': d['blocks'][0]['id'], 'text': '修订正文'}]}
+            updated = _json_result(await session.call_tool('update_draft', args))
+            self.assertTrue(updated['wrote'])
+            self.assertTrue(_json_result(await session.call_tool('update_draft', args))['reused'])
+            conflict = await session.call_tool('update_draft', {**args, 'request_id': 'new-id'})
+            self.assertTrue(conflict.isError)
+            self.assertIn('revision_conflict:', conflict.content[0].text)
+    asyncio.run(run())
+    self.assertEqual(ledger.read_commits(self.server.vault), before)
+
+ExtendedSDKTests.test_real_sdk_cross_source_patch_and_cas = _sdk_draft_patch_test

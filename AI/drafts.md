@@ -102,3 +102,7 @@ training_tasks.force_crop 区分强制训练任务与普通来源图标注容器
 ## MCP 原图查询
 
 get_draft_image 使用只读来源视图，按 source_images 下标返回原生 PNG/JPEG/GIF。仅读取哈希命名原件，验证 SHA、普通目录及文件身份；不读取其它对话图，不触发来源回填、作业恢复或训练。单张 8 MiB 和完整解码保护与正式题图一致。
+
+## MCP 修订入口
+
+独立 patch_mcp_draft 授权各来源待审核草稿，共用 AI 白名单/稳定块/人工保护校验，不触发作业恢复或训练。修订与 mcp_patch_requests 回执同 SQLite 事务；原来源不变，last_mcp_edit_json 保存编辑身份，错因标 client_asserted。MCP 同时要求读和修订权限。内置助手仍限制本对话草稿。

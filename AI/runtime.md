@@ -26,3 +26,5 @@ get_question_image 的名称登记为“读取题图”，成功的 ImageContent
 批量读题、完整正文、草稿原图、单题历史和学习时间线登记中文标题。not_found/content_conflict 使用稳定说明；正文、HTML 和图片不会进入结果摘要。
 
 分析与报告工具登记中文标题；报告 HTML 不保存到 runtime 摘要，幂等冲突使用 request_conflict。
+
+草稿修订登记中文运行标题与版本、状态、操作恢复等稳定错误码；原结果正文和建议细节不保存到运行摘要。

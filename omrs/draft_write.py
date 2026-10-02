@@ -229,14 +229,73 @@ def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
 _AI_FIELDS = {"subject", "category", "knowledge_points", "cause", "note"}
 
 
-def patch_draft(vault, draft_id, revision, fields, block_patches, actor):
-    """AI 按稳定块 ID 修改文字；保留图片、框位、顺序及训练状态。"""
+def _validate_patch(fields, block_patches):
     if not isinstance(fields, dict) or set(fields) - _AI_FIELDS:
         raise drafts.DraftError("AI 草稿字段不在白名单内")
     if not isinstance(block_patches, list):
         raise drafts.DraftError("block_patches 必须是数组")
     if not fields and not block_patches:
         raise drafts.DraftError("没有草稿修改")
+
+
+def _patch_content(db, row, fields, block_patches, actor):
+    """共享补丁校验与写 SQL；调用方负责授权、CAS 和原子事务。"""
+    draft_id = row["id"]
+    values = _fields(row, fields)
+    blocks = {b["id"]: b for b in drafts._draft_blocks(db, draft_id)}
+    edits, changed, seen = [], {}, set()
+    for index, patch in enumerate(block_patches):
+        if not isinstance(patch, dict) or set(patch) - {"block_id", "text", "note"}:
+            raise drafts.DraftError(f"第 {index + 1} 个块补丁格式不对")
+        block_id = patch.get("block_id")
+        if not isinstance(block_id, str) or block_id in seen or block_id not in blocks:
+            raise drafts.DraftError(f"块不存在或重复：{block_id}")
+        seen.add(block_id)
+        old = blocks[block_id]
+        if "text" in patch and old["kind"] != "text":
+            raise drafts.DraftError("图片块只能修改说明，不能改图片或框")
+        if "text" in patch and (not isinstance(patch["text"], str) or not patch["text"].strip()):
+            raise drafts.DraftError("文字块内容不能为空")
+        if "note" in patch and not isinstance(patch["note"], str):
+            raise drafts.DraftError("图片说明必须是文字")
+        new_text = patch["text"].strip() if "text" in patch else old["text"]
+        new_note = patch["note"].strip() if "note" in patch else old["note"]
+        if new_text != old["text"] or new_note != old["note"]:
+            edits.append((new_text, new_note, block_id, draft_id))
+            changed[f"block:{block_id}"] = {"before": {"text": old["text"], "note": old["note"]},
+                                               "after": {"text": new_text, "note": new_note}}
+    for key in fields:
+        old = drafts._loads(row[key], []) if key == "knowledge_points" else row[key]
+        if values[key] != old:
+            changed[f"field:{key}"] = {"before": old, "after": values[key]}
+    statement = row["cause_statement"] or ""
+    if "field:cause" in changed:
+        statement = actor.get("cause_statement") or ""
+        if values["cause"] and not statement:
+            raise drafts.DraftError("AI 修改错因需要用户原话证据")
+    if not changed:
+        return {"wrote": False, "suggestions": [], "changes": changed}
+    protected = [target for target in changed if db.execute(
+        "SELECT 1 FROM draft_manual_edits WHERE draft_id=? AND target=?", (draft_id, target)).fetchone()]
+    if protected:
+        return {"wrote": False, "changes": changed,
+                "suggestions": [{"target": target, **changed[target]} for target in protected]}
+    db.execute("UPDATE drafts SET subject=?,category=?,knowledge_points=?,cause=?,cause_statement=?,note=?,revision=revision+1,updated_at=? WHERE id=?",
+               (values["subject"], values["category"], json.dumps(values["knowledge_points"], ensure_ascii=False),
+                values["cause"], statement, values["note"], drafts._now(), draft_id))
+    db.executemany("UPDATE blocks SET text=?,note=? WHERE id=? AND draft_id=?", edits)
+    if actor.get("source_channel") == "mcp":
+        identity = {key: actor.get(key) for key in ("source_channel", "key_id", "request_id")}
+        db.execute("UPDATE drafts SET last_mcp_edit_json=? WHERE id=?", (json.dumps(identity), draft_id))
+        if "field:cause" in changed:
+            db.execute("UPDATE drafts SET cause_verification=? WHERE id=?",
+                       ("client_asserted" if values["cause"] else "none", draft_id))
+    return {"wrote": True, "suggestions": [], "changes": changed}
+
+
+def patch_draft(vault, draft_id, revision, fields, block_patches, actor):
+    """内置助手仍只允许修改有完整运行身份的本对话草稿。"""
+    _validate_patch(fields, block_patches)
     if not isinstance(actor, dict) or not all(actor.get(k) for k in ("conversation_id", "run_id", "tool_call_id")):
         raise drafts.DraftError("缺少 AI 修改来源")
     with locking.write_lock(), drafts._LOCK:
@@ -249,57 +308,71 @@ def patch_draft(vault, draft_id, revision, fields, block_patches, actor):
                 raise drafts.DraftError("只能修改本对话草稿", 403, "forbidden")
             if db.execute("SELECT 1 FROM commit_operations WHERE draft_id=?", (draft_id,)).fetchone():
                 raise drafts.DraftError("草稿正在入库，请先恢复入库结果", 409, "operation_pending", row["revision"])
-            values = _fields(row, fields)
-            blocks = {b["id"]: b for b in drafts._draft_blocks(db, draft_id)}
-            edits, changed, seen = [], {}, set()
-            for index, patch in enumerate(block_patches):
-                if not isinstance(patch, dict) or set(patch) - {"block_id", "text", "note"}:
-                    raise drafts.DraftError(f"第 {index + 1} 个块补丁格式不对")
-                block_id = patch.get("block_id")
-                if not isinstance(block_id, str) or block_id in seen or block_id not in blocks:
-                    raise drafts.DraftError(f"块不存在或重复：{block_id}")
-                seen.add(block_id)
-                old = blocks[block_id]
-                if "text" in patch and old["kind"] != "text":
-                    raise drafts.DraftError("图片块只能修改说明，不能改图片或框")
-                if "text" in patch and (not isinstance(patch["text"], str) or not patch["text"].strip()):
-                    raise drafts.DraftError("文字块内容不能为空")
-                if "note" in patch and not isinstance(patch["note"], str):
-                    raise drafts.DraftError("图片说明必须是文字")
-                new_text = patch["text"].strip() if "text" in patch else old["text"]
-                new_note = patch["note"].strip() if "note" in patch else old["note"]
-                if new_text != old["text"] or new_note != old["note"]:
-                    edits.append((new_text, new_note, block_id, draft_id))
-                    changed[f"block:{block_id}"] = {"before": {"text": old["text"], "note": old["note"]},
-                                                       "after": {"text": new_text, "note": new_note}}
-            for key in fields:
-                old = drafts._loads(row[key], []) if key == "knowledge_points" else row[key]
-                if values[key] != old:
-                    changed[f"field:{key}"] = {"before": old, "after": values[key]}
-            statement = row["cause_statement"] or ""
-            if "field:cause" in changed:
-                statement = actor.get("cause_statement") or ""
-                if values["cause"] and not statement:
-                    raise drafts.DraftError("AI 修改错因需要用户原话证据")
-            if not changed:
-                return {"draft": drafts.get_draft(vault, draft_id), "wrote": False, "suggestions": []}
-            protected = [target for target in changed if db.execute(
-                "SELECT 1 FROM draft_manual_edits WHERE draft_id=? AND target=?", (draft_id, target)).fetchone()]
-            if protected:
-                return {"draft": drafts.get_draft(vault, draft_id), "wrote": False,
-                        "suggestions": [{"target": target, **changed[target]} for target in protected]}
-            db.execute("UPDATE drafts SET subject=?,category=?,knowledge_points=?,cause=?,cause_statement=?,note=?,revision=revision+1,updated_at=? WHERE id=?",
-                       (values["subject"], values["category"], json.dumps(values["knowledge_points"], ensure_ascii=False),
-                        values["cause"], statement, values["note"], drafts._now(), draft_id))
-            db.executemany("UPDATE blocks SET text=?,note=? WHERE id=? AND draft_id=?", edits)
+            result = _patch_content(db, row, fields, block_patches, actor)
             db.commit()
         finally:
             db.close()
-    drafts._log(vault, "draft.ai_update", {"draft_id": draft_id, "actor": "agent",
-                 "conversation_id": actor["conversation_id"], "run_id": actor["run_id"],
-                 "tool_call_id": actor["tool_call_id"], "old_revision": revision,
-                 "new_revision": revision + 1, "changes": changed})
-    return {"draft": drafts.get_draft(vault, draft_id), "wrote": True, "suggestions": []}
+        if result["wrote"]:
+            drafts._log(vault, "draft.ai_update", {"draft_id": draft_id, "actor": "agent",
+                "conversation_id": actor["conversation_id"], "run_id": actor["run_id"],
+                "tool_call_id": actor["tool_call_id"], "old_revision": revision,
+                "new_revision": revision + 1, "changes": result["changes"]})
+        return {"draft": drafts.get_draft(vault, draft_id), "wrote": result["wrote"], "suggestions": result["suggestions"]}
+
+
+def patch_mcp_draft(vault, draft_id, revision, fields, block_patches, key_id, request_id,
+                    cause_statement="", authorize=lambda: None):
+    """MCP 独立授权入口；原来源不变，补丁和回执同事务提交。"""
+    from .mcp.common import request_identity, RequestError
+    _validate_patch(fields, block_patches)
+    if len(block_patches) > 40 or any(isinstance(v, str) and len(v) > 20000 for v in fields.values()):
+        raise drafts.DraftError("草稿补丁超过大小限制")
+    if any(isinstance(fields.get(k), str) and len(fields[k]) > 200 for k in ('subject', 'category')):
+        raise drafts.DraftError('科目和分类不能超过 200 字符')
+    if isinstance(fields.get('knowledge_points'), list) and any(isinstance(v, str) and len(v) > 200 for v in fields['knowledge_points']):
+        raise drafts.DraftError('知识点不能超过 200 字符')
+    if len(json.dumps([fields, block_patches], ensure_ascii=False)) > 500000:
+        raise drafts.DraftError('草稿补丁文字总量超过限制')
+    if len(cause_statement) > 20000 or any(len(v) > 20000 for p in block_patches if isinstance(p, dict)
+                                          for v in p.values() if isinstance(v, str)):
+        raise drafts.DraftError("草稿补丁超过大小限制")
+    if "cause" in fields and fields['cause'] and not cause_statement.strip():
+        raise drafts.DraftError("MCP 修改错因必须提供 cause_statement")
+    identity, digest = request_identity(key_id, 'update_draft', request_id,
+        {'draft_id': draft_id, 'expected_revision': revision, 'fields': fields, 'block_patches': block_patches,
+         'cause_statement': cause_statement})
+    actor = {'source_channel': 'mcp', 'key_id': key_id, 'request_id': request_id,
+             'cause_statement': cause_statement.strip()}
+    with locking.write_lock(), drafts._LOCK:
+        authorize()
+        db = drafts.connect(vault)
+        try:
+            db.execute('BEGIN IMMEDIATE')
+            receipt = db.execute('SELECT * FROM mcp_patch_requests WHERE identity=?', (identity,)).fetchone()
+            if receipt:
+                if receipt['digest'] != digest:
+                    raise RequestError('request_conflict', '同一 request_id 的内容不同')
+                authorize()
+                return {**json.loads(receipt['result_json']), 'reused': True}
+            row = _row(db, draft_id)
+            _revision(row, revision)
+            _editable(row)
+            if db.execute('SELECT 1 FROM commit_operations WHERE draft_id=?', (draft_id,)).fetchone():
+                raise drafts.DraftError('草稿正在入库，请先恢复入库结果', 409, 'operation_pending')
+            authorize()
+            result = _patch_content(db, row, fields, block_patches, actor)
+            result = {'draft_id': draft_id, 'revision': revision + int(result['wrote']),
+                      'wrote': result['wrote'], 'suggestions': result['suggestions'], 'reused': False}
+            db.execute('INSERT INTO mcp_patch_requests(identity,digest,draft_id,actor_json,result_json,created_at) VALUES(?,?,?,?,?,?)',
+                       (identity, digest, draft_id, json.dumps(actor), json.dumps(result, ensure_ascii=False), drafts._now()))
+            authorize()
+            db.commit()
+        finally:
+            db.close()
+        drafts._log(vault, 'draft.mcp_update', {**actor, 'draft_id': draft_id, 'old_revision': revision,
+                                              'new_revision': result['revision'], 'wrote': result['wrote']})
+        authorize()
+        return result
 
 
 def discard_draft(vault, draft_id, revision):

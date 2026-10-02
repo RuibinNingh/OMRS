@@ -192,6 +192,10 @@ CREATE TABLE IF NOT EXISTS cleanup_candidates (image_sha TEXT PRIMARY KEY,marked
 CREATE TABLE IF NOT EXISTS draft_manual_edits (
   draft_id TEXT NOT NULL, target TEXT NOT NULL, PRIMARY KEY(draft_id,target)
 );
+CREATE TABLE IF NOT EXISTS mcp_patch_requests (
+  identity TEXT PRIMARY KEY, digest TEXT NOT NULL, draft_id TEXT NOT NULL,
+  actor_json TEXT NOT NULL, result_json TEXT NOT NULL, created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS mcp_requests (
   source_key_id TEXT NOT NULL, request_id TEXT NOT NULL, content_hash TEXT NOT NULL,
   stable_hash TEXT, draft_id TEXT NOT NULL, created_at TEXT NOT NULL,
@@ -231,6 +235,7 @@ def _initialize(vault, db):
         ("source_request_id", "TEXT"),
         ("cause_verification", "TEXT"),
         ("source_client_name", "TEXT"),
+        ("last_mcp_edit_json", "TEXT"),
     ):
         if name not in cols:
             db.execute(f"ALTER TABLE drafts ADD COLUMN {name} {definition}")
@@ -622,6 +627,7 @@ def _row_draft(row, blocks):
         "source_request_id": row["source_request_id"] if "source_request_id" in row.keys() else None,
         "cause_verification": row["cause_verification"] if "cause_verification" in row.keys() else None,
         "source_client_name": row["source_client_name"] if "source_client_name" in row.keys() else None,
+        "last_mcp_edit": _loads(row["last_mcp_edit_json"], None) if "last_mcp_edit_json" in row.keys() else None,
     }
 
 

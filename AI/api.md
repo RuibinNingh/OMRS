@@ -1036,3 +1036,7 @@ POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 
 ## MCP 分析与报告扩展
 
 独立 MCP get_analytics 的科目/分类过滤发生在聚合前，日期只筛选练习；同名分类按科目分别统计。list_reports/get_report 查询元数据与分页 HTML 源码；create_report(name, html, request_id) 新建，需 report:create，2 MiB 上限，同编号内容冲突返回 request_conflict。回执和恢复见 AI/mcp.md；Web 报告仍在原沙箱预览。
+
+## MCP 草稿修订
+
+update_draft(draft_id, expected_revision, request_id, fields?, block_patches?, cause_statement?) 同时需要 omrs:read/draft:update；返回 draft_id/revision/wrote/suggestions/reused。人工保护整次不写；重复请求返回原回执，版本/状态冲突有稳定错误码。只修订待审核草稿，不改变 Web 审核或内置助手的归属规则。

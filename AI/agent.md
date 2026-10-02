@@ -62,7 +62,7 @@
 
 `create_category`（confirm）只在独立创建永久分类时使用；确认后由 `omrs/taxonomy.py` 建分类目录、锚点与科目索引，零题分类进入统一词表。重复创建不覆写锚点；若补上缺失索引仍算实际写入。无题目 Ledger commit，不能按运行自动撤销。
 
-外部 MCP 不复用这套 Agent Runtime 或工具注册表：它固定提供十八个只读查询和 `create_draft` 待审核草稿和 `create_report` 报告保存，不能修改、提交或丢弃已有草稿。七个学习查询继续调用本文件所述的 read 工具语义；get_question_image 按共享题目图片列表下标返回原生完整图片，仅在 MCP 注册；MCP Key 与 Agent 的 Web 会话、PIN 和模型密钥相互独立。
+外部 MCP 不复用这套 Agent Runtime 或工具注册表：它固定提供十八个只读查询和 `create_draft` 待审核草稿和 `create_report` 报告保存，允许获授权 MCP 修订各来源待审核草稿，不能提交或丢弃已有草稿。七个学习查询继续调用本文件所述的 read 工具语义；get_question_image 按共享题目图片列表下标返回原生完整图片，仅在 MCP 注册；MCP Key 与 Agent 的 Web 会话、PIN 和模型密钥相互独立。
 
 助手建草稿允许题目图文混排：各文字块必须能完整转述，局部图片块须能独立准确框出，按原题阅读顺序排列；同一来源图确有多个独立局部时可重复引用。题干、图表和小问相互依赖，或无法确定拆开后信息完整时，提示词要求把整道题目保留为一个图片块，覆盖题干、必要图表和全部小问。答案有独立的块边界规则：没有图片时所有文字、公式、步骤和段落必须是一个文字块；只有图片夹在答案文字中间时才在图片处分块，图片开头或结尾时合并相邻文字。`create_draft` 工具会合并模型连续生成的答案文字块，确保块边界只由图片造成。
 
@@ -107,3 +107,5 @@ POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软
 create_draft 在 draft_crop_mode=auto 时为新草稿登记一次全来源 detect 作业。Hooks.execute 持锁期间只入队，模型由后台线程调用；启动失败仍返回已建草稿，避免重复建题。模型只收到无 SHA/路径的状态与数量摘要。ask/manual 不自动调用检测，草稿确认权限不受框选模式影响。
 
 外部 MCP 与助手共用 `omrs/draft_prepare.py` 的相邻答案文字合并规则；外部错因仅标为待人工核对，不改变助手从真实本地用户消息核验原话的规则。
+
+MCP 修订使用独立授权入口，内置助手 patch_draft 的本对话限制和用户原话核对保持；共享校验拒绝人工保护目标，详情见 AI/drafts.md。

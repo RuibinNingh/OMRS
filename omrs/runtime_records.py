@@ -26,8 +26,13 @@ TITLES = {
     "get_learning_history": "读取学习时间线",
     "get_analytics": "读取详细分析", "list_reports": "读取报告列表",
     "get_report": "读取报告源码", "create_report": "保存分析报告",
+    "update_draft": "修订待审核草稿",
 }
 ERRORS = {
+    "revision_conflict": "目标版本已变化，请重新读取。",
+    "state_conflict": "目标已结束，不能执行此操作。",
+    "operation_pending": "目标存在未恢复的操作。",
+    "invalid": "补丁格式不合法。",
     "request_conflict": "同一请求编号的内容不同，请使用新编号。",
     "not_found": "目标不存在或不可读取。", "content_conflict": "正文已变化，请重新读取。",
     "forbidden": "所用密钥缺少权限，或在处理期间已失效。",

@@ -37,7 +37,7 @@ from ..agent.tools import read as read_tools
 from ..question_images import read_question_image, validate_original_image
 from .keys import verify_key, key_for_id
 from .common import RequestError
-from . import queries, analysis_reports
+from . import queries, analysis_reports, draft_edit
 
 MAX_IMAGES = 6
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -60,6 +60,7 @@ TOOL_SCOPES = {
 
 TOOL_SCOPES.update(queries.SCOPES)
 TOOL_SCOPES.update(analysis_reports.SCOPES)
+TOOL_SCOPES.update(draft_edit.SCOPES)
 
 
 class MCPFile(BaseModel):
@@ -112,7 +113,7 @@ class RestrictedMCP(FastMCP):
         scopes = set(row["scopes"])
         tools = await super().list_tools()
         # 仅过滤当前请求的描述；全局注册表与 SDK 定义缓存不承担授权。
-        return [tool for tool in tools if TOOL_SCOPES.get(tool.name) in scopes]
+        return [tool for tool in tools if _allowed(scopes, TOOL_SCOPES.get(tool.name))]
 
     async def call_tool(self, name, arguments):
         token = get_access_token()
@@ -160,6 +161,8 @@ class RestrictedMCP(FastMCP):
                 raise ToolError("forbidden: MCP Key 无权执行此能力或已失效") from None
             if isinstance(cause, locking.WriteLockTimeout):
                 raise ToolError("write_busy: 写入繁忙，请稍后重试") from None
+            if isinstance(cause, drafts.DraftError):
+                raise ToolError(f"{cause.code}: {cause}") from None
             if isinstance(cause, RequestError):
                 raise ToolError(f"{cause.code}: {cause}") from None
             if isinstance(cause, ValueError):
@@ -190,9 +193,13 @@ def _verified_key(vault):
     return token, row
 
 
+def _allowed(scopes, required):
+    return bool(required) and set((required,) if isinstance(required, str) else required).issubset(scopes)
+
+
 def _require(vault, scope):
     token, row = _verified_key(vault)
-    if scope not in set(row["scopes"] or []):
+    if not _allowed(set(row["scopes"] or []), scope):
         raise PermissionError("MCP Key 没有执行此操作的权限")
     return token
 
@@ -371,7 +378,8 @@ def _draft_view(draft):
             "cause": draft.get("cause") or "", "cause_verification": draft.get("cause_verification"),
             "source_channel": draft.get("source_channel") or "agent", "source_images": source_out,
             "blocks": blocks, "created_at": draft.get("created_at"),
-            "updated_at": draft.get("updated_at"), "reused": bool(draft.get("reused"))}
+            "updated_at": draft.get("updated_at"), "note": draft.get("note") or "",
+            "last_mcp_edit": draft.get("last_mcp_edit"), "reused": bool(draft.get("reused"))}
 
 
 def _create_result(vault, draft):
@@ -603,6 +611,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
                                                 openWorldHint=True), meta={"openai/fileParams": ["images"]})
     queries.register(server, vault, _require, _threaded)
     analysis_reports.register(server, vault, _require, _threaded)
+    draft_edit.register(server, vault, _require, _threaded)
     # FastMCP 默认会忽略函数参数模型中的未知字段；MCP 是权限边界，必须
     # 把拼写错误或试图注入的顶层参数显式拒绝。
     for tool in server._tool_manager.list_tools():

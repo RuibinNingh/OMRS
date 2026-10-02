@@ -304,7 +304,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 - AI 识别：只有调用 `/api/ai-recognize` 时才访问用户配置的 OpenAI 兼容服务。
 - AI 报告：核心 HTML 可自包含；报告提示词允许按需引用 HTTPS 字体/图表/图标资源，并要求失败时正文仍可读。
 - 数据：纯文件（Markdown + SQLite/CSV），无外部数据库。
-- 外部 MCP：可选 `mcp` SDK、`uvicorn` 和 Pillow 原图校验，固定十八读二写，API Key 与 Web PIN 分离；工具发现只显示所选权限允许的接口，创建及重试会复查当前 Key。使用 `serve --mcp-port` 启用。
+- 外部 MCP：可选 `mcp` SDK、`uvicorn` 和 Pillow 原图校验，固定十八读三写，API Key 与 Web PIN 分离；工具发现只显示所选权限允许的接口，创建及重试会复查当前 Key。使用 `serve --mcp-port` 启用。
 - MCP 密钥在「设置 → 访问与安全」管理：点击创建打开权限与到期时间窗口，成功后复制一次性明文；可用密钥与折叠的失效记录分开显示，时间按设备本地时区展示。
 - 外部 AI 需要题图时，先读取题目 images 列表，再用 get_question_image(uid, image_index) 按下标取一张完整原图；返回 MCP 原生图片内容，支持 PNG/JPEG/GIF，单张不超过 8 MiB。
 - 助手与 MCP 的科目概况共用统计入口，题量、待复习、顽固题、击杀和平均熟练度均按所选科目汇总。
@@ -325,3 +325,5 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 独立训练面板：从「录入题目 → AI 训练 → 打开训练面板」查看本地训练进度、曲线、模型与模板的整图评估、数据和历史；可上传图片实时测试，并选择积累到待校正标注集。CPU 训练／固定 ONNX 服务的本地安装与命令见 [框选训练工具](tools/boxdetect/README.md)，训练依赖独立于主程序，生产接入由部署者登记后，可直接在面板启停/重启检测服务、选择模型并确认应用，失败自动回退，也可恢复上一模型。
 
 训练面板 `/train` 可查看 DeepSeek 评测记录，对照原图与实际裁图，并保存“同意／误判／不确定”及修正结论；原判和历次复核均保留。付费评测由维护者命令启动，使用与预算见 `tools/boxdetect/README.md`。
+
+外部 AI 可在单独授予权限后保存分析报告和修订待审核草稿；人工修改有保护，正式入库仍由网页审核。

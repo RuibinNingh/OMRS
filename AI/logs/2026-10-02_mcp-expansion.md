@@ -27,3 +27,9 @@ AI/plans/mcp-integration 的总纲、进度、扩展执行说明和本日志；�
 新增 4 工具；共享 analytics 在科目/分类筛选后聚合，同名分类拆桶，日期仅筛选练习行为，当前薄弱项和预测保留完整有效反馈口径。报告使用独立 SQLite 预留稳定编号，原子 HTML 和可恢复索引；已删除报告不因技术重试复活。Key 可用权限扩展，但默认保持原两项。
 
 影响 analytics.py、reports.py、mcp/analysis_reports.py、keys.py、server.py、runtime_records.py 及相关回归/文档。实跑 MCP 专项 78/78，无 SKIP。报告文件使用 pytest 函数，unittest 专项收集为 0 后改跑 pytest：7/7；报告浏览器 24/24；docs 0 问题及 git diff --check 通过。全量门禁留 P7。
+
+## P3 草稿修订
+
+共享补丁校验，MCP 单独授权各来源待审核草稿、保留原来源和训练，人工保护整次不写；原助手继续限制本对话。补丁与回执同事务，错因 client_asserted，编辑身份单独记录。影响 draft_write.py/drafts.py、MCP 注册和修订模块、运行错误及测试/文档。
+
+实跑 MCP 82/82、助手草稿 16/16、草稿写入 14/14，无 SKIP；既有 SQLite ResourceWarning 不影响通过。草稿浏览器 75/75；docs 82 文档、0 问题、4 条大文件提醒（data 本批达到 40KB）；git diff --check 通过。
