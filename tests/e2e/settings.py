@@ -47,6 +47,75 @@ def guarded(results, label, action):
         results.append((label + "：执行出错", False, repr(error)[:350]))
 
 
+def run_tuning(page, results):
+    def check(label, ok):
+        results.append((label, bool(ok), ''))
+
+    check('学习参数从服务端有效配置读取', wait(page, "() => !document.querySelector('#st-tuning-save')?.disabled")
+          and page.locator('#st-tuning-card input[type=number]').count() == 19)
+    page.fill('#st-tuning-high_score_threshold', '8')
+    pending = []
+    page.route('**/api/config', lambda route: pending.append(route) if route.request.method == 'POST' else route.continue_())
+    page.click('#st-tuning-save')
+    check('调参等待完整历史重算并锁定表单', wait(page, "() => document.querySelector('#st-tuning-status')?.textContent.includes('重算全部历史')")
+          and page.locator('#st-tuning-save').is_disabled()
+          and page.locator('#st-tuning-high_score_threshold').is_disabled())
+    route = pending.pop()
+    payload = route.request.post_data_json
+    check('调参提交完整合法参数', len(payload['tuning']) == 19 and payload['tuning']['high_score_threshold'] == 8)
+    response = route.fetch()
+    data = response.json()
+    route.fulfill(response=response)
+    check('真实重算回执显示数量耗时和发布版本', wait(page, "() => document.querySelector('#st-tuning-status')?.textContent.includes('历史重算完成')")
+          and data['recalculation']['status'] == 'complete'
+          and str(data['recalculation']['questions']) + ' 题' in page.locator('#st-tuning-status').inner_text()
+          and '秒；配置版本' in page.locator('#st-tuning-status').inner_text())
+    check('调参保存后立即使用新参数', page.evaluate("async () => (await (await fetch('/api/config')).json()).tuning_effective.high_score_threshold === 8"))
+    page.unroute('**/api/config')
+
+    page.fill('#st-tuning-high_score_threshold', '9')
+    page.route('**/api/config', lambda route: route.fulfill(status=409, content_type='application/json', body='{"msg":"配置发生变化"}')
+               if route.request.method == 'POST' else route.continue_())
+    page.click('#st-tuning-save')
+    check('调参请求拒绝后保留输入和旧参数', wait(page, "() => document.querySelector('#st-tuning-status')?.textContent.includes('输入已保留')")
+          and page.locator('#st-tuning-high_score_threshold').input_value() == '9'
+          and page.evaluate("async () => (await (await fetch('/api/config')).json()).tuning_effective.high_score_threshold === 8"))
+    page.unroute('**/api/config')
+
+    def mirror_pending(route):
+        if route.request.method != 'POST':
+            route.continue_()
+            return
+        response = route.fetch()
+        data = response.json()
+        route.fulfill(status=response.status, content_type='application/json', body=json.dumps({**data, 'mirror_pending': True}))
+    page.route('**/api/config', mirror_pending)
+    page.click('#st-tuning-save')
+    check('重算已发布但镜像待同步时不误报失败', wait(page, "() => document.querySelector('#st-tuning-status')?.textContent.includes('配置镜像待同步')")
+          and page.locator('#st-tuning-status').get_attribute('data-tone') == 'warning'
+          and page.evaluate("async () => (await (await fetch('/api/config')).json()).tuning_effective.high_score_threshold === 9"))
+    page.unroute('**/api/config')
+
+    page.fill('#st-tuning-high_score_threshold', '10')
+    page.route('**/api/config', lambda route: route.abort('failed') if route.request.method == 'POST' else route.continue_())
+    page.click('#st-tuning-save')
+    check('网络中断未确认时明确待确认且输入保留', wait(page, "() => document.querySelector('#st-tuning-status')?.textContent.includes('结果待确认')")
+          and page.locator('#st-tuning-high_score_threshold').input_value() == '10')
+    page.unroute('**/api/config')
+
+    def committed_then_disconnected(route):
+        if route.request.method == 'POST':
+            route.fetch()
+            route.abort('failed')
+        else:
+            route.continue_()
+    page.route('**/api/config', committed_then_disconnected)
+    page.click('#st-tuning-save')
+    check('回包中断后核验服务端实际重算成功', wait(page, "() => document.querySelector('#st-tuning-status')?.textContent.includes('已核验：历史重算完成')")
+          and page.evaluate("async () => (await (await fetch('/api/config')).json()).tuning_effective.high_score_threshold === 10"))
+    page.unroute('**/api/config')
+
+
 def run_main(page, base, results):
     def check(label, ok, detail=""):
         results.append((label, bool(ok), str(detail)))
@@ -127,6 +196,7 @@ def run_main(page, base, results):
 
     page.click('[data-action="settings.section"][data-arg="data"]')
     check('存储摘要真实加载', wait(page, "() => document.querySelector('#opt-total')?.textContent !== '—'"))
+    run_tuning(page, results)
     with page.expect_download() as backup:
         page.click('#svc-a-export')
     check('备份可下载 ZIP', backup.value.suggested_filename.endswith('.zip'))
@@ -210,6 +280,8 @@ def audit_sections(browser, base, results):
             wait(page, "() => !!document.querySelector('#st-app .st-layout')")
             for name in ('appearance', 'access', 'ai', 'assistant', 'data', 'service'):
                 page.click(f'[data-action="settings.section"][data-arg="{name}"]')
+                if name == 'data':
+                    page.locator('.st-tuning-advanced').evaluate('(el) => { el.open = true; }')
                 result = page.evaluate(AUDIT, 40 if mobile else 28)
                 ok = len(result['sizes']) <= 6 and min(result['sizes']) >= 12 and not any(
                     result[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))

@@ -1,3 +1,4 @@
+import { questionRefs } from '../question/ref.js';
 /**
  * 选板浮层（P7 第 4 轮起原生，原 assets/board_picker.js）：所有「加入展示板」入口的唯一实现——题目库、题目弹窗、数据复盘、
  * 反馈录入、收件箱、展示板页都经 domain/board/index.js 的 boardQuickAdd / boardChooseAndAdd 或过渡桥挂回的同名全局打开它。
@@ -131,7 +132,7 @@ async function commit(board, additive) {
   if (plan.kind === 'undo') {
     p.added.delete(board.id);
     try {
-      await need(postBoard('/api/board/items/remove', { id: board.id, uids: plan.uids }));
+      await need(postBoard('/api/board/items/remove', { id: board.id, question_refs: plan.uids.map(question_id => ({ question_id })) }));
       await refresh();
     } catch (error) {
       p.added.set(board.id, plan.uids);
@@ -142,17 +143,17 @@ async function commit(board, additive) {
   }
   p.touched = true;
   if (plan.additive) {
-    const result = await src.add(board.id, plan.uids, { silent: true });
-    if (result?.added_uids?.length) p.added.set(board.id, result.added_uids);
+    const result = await src.add(board.id, plan.uids.map(id => p.references.get(id)), { silent: true });
+    if (result?.added_question_ids?.length) p.added.set(board.id, result.added_question_ids);
     await refresh();
     return;
   }
   const from = p.moveFrom ? (src.boards().find(item => item.id === p.moveFrom)?.name || '') : '';
   boardPickerClose();
-  const result = await src.add(board.id, plan.uids, { moveFromName: from });
+  const result = await src.add(board.id, plan.uids.map(id => p.references.get(id)), { moveFromName: from });
   if (result && p.moveFrom && p.moveFrom !== board.id) {
     try {
-      await need(postBoard('/api/board/items/remove', { id: p.moveFrom, uids: p.uids }));
+      await need(postBoard('/api/board/items/remove', { id: p.moveFrom, question_refs: [...p.references.values()] }));
       await src.reload();
     } catch (error) { fail('已加入目标板，原板移除失败', error); }
   }
@@ -161,7 +162,7 @@ async function commit(board, additive) {
 async function createBoard(name, uids, folderId) {
   const src = deps.source;
   try {
-    const body = { name, uids };
+    const body = { name, question_refs: uids };
     if (folderId !== undefined) body.folder_id = folderId;
     const created = await need(postBoard('/api/board/create', body));
     src.remember(created.board.id);
@@ -175,7 +176,7 @@ async function createBoard(name, uids, folderId) {
 async function newBoard() {
   const p = current;
   if (!p) return;
-  const uids = [...p.uids];
+  const uids = [...p.references.values()];
   const folders = p.folders;
   const hint = p.folderHint;
   const seed = p.query.trim();
@@ -206,10 +207,10 @@ async function addDirect(uids) {
   if (!target) return false;
   const board = await src.add(target.id, uids, { silent: true });
   if (!board) return true;
-  const added = board.added_uids || [];
+  const added = (board.added_question_ids || []).map(question_id => ({ question_id }));
   const undo = async () => {
     try {
-      await need(postBoard('/api/board/items/remove', { id: board.id, uids: added }));
+      await need(postBoard('/api/board/items/remove', { id: board.id, question_refs: added }));
       await src.reload();
       say('已撤销加入');
     } catch (error) { fail('撤销失败', error); }
@@ -223,14 +224,15 @@ async function addDirect(uids) {
   return true;
 }
 
-function mount(uids, boards, options) {
+function mount(refs, boards, options) {
+  const uids = refs.map(ref => ref.question_id);
   const doc = options.document || document;
   const win = doc.defaultView;
   const src = deps.source;
   const label = options.moveFrom ? '移动到' : '加入展示板';
   const node = toElement(html`<div class="bpicker" role="dialog" aria-label="${label}"></div>`, doc);
   const p = {
-    node, uids, boards, folders: src.folders(), title: options.moveFrom ? '移动到…' : '加入展示板',
+    node, uids, references: new Map(refs.map(ref => [ref.question_id, ref])), boards, folders: src.folders(), title: options.moveFrom ? '移动到…' : '加入展示板',
     exclude: options.exclude || '', moveFrom: options.moveFrom || '',
     folderHint: src.boards().find(board => board.id === src.lastId())?.folder_id || '',
     added: new Map(), query: '', items: [], rows: [], active: -1, touched: false, foldAnchor: '',
@@ -315,7 +317,9 @@ export function boardPickerClose() {
  * 已经开着时再调用 = 关闭（切换）。
  */
 export async function boardPickerOpen(uids, options = {}) {
-  const clean = boardUniqueUids(Array.isArray(uids) ? uids : [uids]);
+  let clean;
+  try { clean = questionRefs(Array.isArray(uids) ? uids : [uids]); }
+  catch (error) { fail('无法加入展示板', error); return; }
   if (!clean.length) return;
   if (current) { boardPickerClose(); return; }
   const src = deps.source;

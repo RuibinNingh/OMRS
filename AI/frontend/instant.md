@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：即时练习页（推荐题或聊天练习卡的固定题序、翻答案、判定打分、提交反馈），第一个迁到新架构的页面
 > - 入口：`assets/app/features/instant/`（`index.js` 页面契约）、地址 `#/instant` 或 `#/instant?practice=<card_id>`
-> - 不变量：不写 `sessions.csv`（`session_id` 为 `IMM-*`）；判定、打分、切队列不重建题面；已提交的题锁定；只经 `assets/app/domain/` 碰旧全局
+> - 不变量：不创建常规 Session（普通轮次 `session_id` 为 `IMM-*`）；判定、打分、切队列不重建题面；已提交的题锁定；共享数据与操作由 `assets/app/domain/` 管理
 > - 必跑测试：`tests/app/instant.test.mjs`、`tests/e2e/instant.py`、`tests/check_ui.py`
 > - 相关：`AI/frontend/review.md`（复习调度与临时 / 常规 Session）、`AI/frontend/architecture.md`（页面契约）、`AI/frontend/qview.md`
 
@@ -21,12 +21,12 @@
 ## 流程
 
 1. 「加载推荐」调 `GET /api/recommend`：`due_count` 与 `prof_count` 都等于题数（1–50），可带 `subject` / `category` / `knowledge_tag` 与多个 `label`。两份列表再经 `domain/items.js` 转调全站筛选语义 `filterItems()`（排除停用题，不排序）。
-2. 到期列表在前、熟练度列表在后，按 uid 去重，截到题数，成为队列。不调用 `/api/confirm-schedule`，不写 `sessions.csv`。
+2. 到期列表在前、熟练度列表在后，按题目身份去重，截到题数，成为队列。不调用 `/api/confirm-schedule`，不生成 Session CSV。
 3. 题面由 qview 渲染（经 `domain/question/index.js::mountQuestion`，`showMeta:false`；工具按钮：编辑 Markdown、加入展示板、编辑标记）。先只显示题面，点「显示答案」或按空格翻开答案与备注。
 4. 判对或错：默认分对 8、错 4，手动打过的分不被覆盖；主观分 0–10。
 5. 「提交」把已判定未提交的题发给 `POST /api/feedback`：`session_id` 为 `IMM-YYYYMMDDHHMMSS`，每题 `source` 为 `due` 或 `proficiency`，`note` 为「即时练习」；只写历史与 mastery，不建调度 Session。
 
-即时练习复用 `process_feedback()` 的熟练度、EF、SM-2 更新逻辑。提交成功后这些题锁定：不能再改判，也不会被下一次提交重复发送；右栏列出本次结果（熟练度前 → 后），随后 `reloadData()`，并让这些题的 qview 失效重绘。有已判定未提交的题时重新取题，会先弹确认。
+即时练习复用 `process_feedback()` 的熟练度、EF、SM-2 更新逻辑。提交成功后这些题锁定：不能再改判，也不会被下一次提交重复发送；右栏列出本次结果（熟练度前 → 后），随后 `reloadData()`，并让这些题的 qview 失效重绘。每条反馈发送 `question_id`；失败项保留。每轮带独立版本，旧轮迟到的提交只刷新所属领域，不能锁定新轮同 UID 的题。有已判定未提交的题时重新取题，会先弹确认。
 
 聊天练习卡走 `#/instant?practice=<card_id>`：页面从服务端取固定题序及有效题目，移动题目使用当前 UID，删除或停用项说明原因并跳过；不重新调用推荐算法。默认续最近 attempt，刷新恢复判定、位置和 Ledger 已提交项。重新练习显式签发新 attempt，`sessionStorage` 留住请求标识供响应丢失后重试；URL 可带 `attempt` 指向指定轮次。卡片反馈使用 `IMM-PA-*` 和稳定题目身份，逐题成功才锁定；失败项保留重试。创建、打开、切题与保存界面进度均不增加 Attempts，实际反馈才增加；仍不建立正式 Session。
 
@@ -51,9 +51,10 @@
 
 ## 旧入口（过渡桥，P8 删除）
 
-- 仪表盘行动推荐调 `actions.js::actionGoInstant(preset)`：`switchTab('instant')` 后调过渡桥的 `instLoadPractice(preset)`。预设键沿用旧元素 id（`inst-subject` / `inst-category` / `inst-ktag` / `inst-count`），新页面先清空科目、分类、知识点再套用，然后取题。
-- 旧代码改了标记定义（`labels.js::renderLabelFilterOptions()`）后经 bus 发 `labels`，新页面重画标记筛选。
-- 标记芯片与标记筛选来自 `domain/labels/index.js`（`labelChip(s)`、`listLabels()`；P5 第 4 轮起 `domain/labels.js` 扩成目录，芯片颜色写 `data-lbl-c`，不写 `style=`）。
-- `INSTANT_QUEUE` 是只读兼容属性，给旧冒烟测试用。
+仪表盘先切换路由，再发送 `instant:load` 和科目 / 分类等预设。预设沿用 `inst-subject`、`inst-category`、`inst-ktag`、`inst-count`，取题前清空前三项再应用新值。标记定义更新通过 `labels` 总线重绘筛选芯片，芯片与定义来自 `domain/labels/`。
+
+练习卡切普通推荐时先清掉卡片和 attempt，再读取一次推荐；普通路由挂载时不沿用残留卡片上下文。每次读取带请求序号和取消信号，卸载、换卡或换请求后旧读取无效；详情预载与统计刷新等每个异步边界也检查身份。实际控制器的排序、切换、迟到读取与提交行为由 `tests/app/audit-controllers.test.mjs` 验证。
+
+旧 `INSTANT_QUEUE` 与 `instLoadPractice` 仅由 `tests/e2e/p8_test_modules.js` 注入给旧 E2E 断言，生产页面不提供这些全局。
 
 熟练度百分比用 `core/format.js` 的 `formatPercent`（空值按 0% 显示）。E2E 只经 DOM、`window.__omrs` 与真实模块断言；审计前先等入场动画结束，缩放中的按钮会被量小。

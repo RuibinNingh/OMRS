@@ -161,6 +161,8 @@ def main():
             if not os.environ.get('OMRS_TEST_CDP_URL'):
                 browser.close()
     except Exception as exc:
+        import traceback
+        traceback.print_exception(exc)
         checks.append(('主路径中断：'+str(exc)[:350], False))
     finally:
         server.stop()

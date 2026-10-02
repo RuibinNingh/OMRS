@@ -139,10 +139,10 @@ class AnalyticsReportTests(unittest.TestCase):
         second = create_question(self.vault, '物理', '同名', 5, question_text='物理题')['uid']
         process_feedback(self.vault, [{'uid': first, 'sub_score': 3, 'is_correct': False, 'source': 'manual'}], '')
         process_feedback(self.vault, [{'uid': second, 'sub_score': 10, 'is_correct': True, 'source': 'manual'}], '')
-        rows = load_csv(history_path(self.vault), HISTORY_HEADERS)
-        rows[0]['Date'] = '2026-01-01 00:00'
-        rows[1]['Date'] = '2026-01-02 00:00'
-        save_csv(history_path(self.vault), HISTORY_HEADERS, rows)
+        with ledger.connect(self.vault) as db:
+            ids = [row[0] for row in db.execute("SELECT log_id FROM history_projection ORDER BY rowid")]
+            db.execute("UPDATE history_projection SET date='2026-01-01 00:00',review_date='2026-01-01' WHERE log_id=?", (ids[0],))
+            db.execute("UPDATE history_projection SET date='2026-01-02 00:00',review_date='2026-01-02' WHERE log_id=?", (ids[1],))
         all_data = get_analytics(self.vault)
         self.assertEqual({(r['subject'], r['category']) for r in all_data['categories']}, {('数学', '同名'), ('物理', '同名')})
         chosen = get_analytics(self.vault, category='同名', since='2026-01-02', until='2026-01-02')

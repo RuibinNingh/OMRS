@@ -1,9 +1,13 @@
+import { imageValue } from '../../core/uploads.js';
+import { refRenderer, syncAssistantNav } from './references.js';
+export { syncAssistantNav } from './references.js';
+import { createAssistantHistory } from './history.js';
 /**
  * AI 助手页（#/assistant）：对话列表、运行轨迹、确认与撤销、检查器。
  * 数据：/api/agent/*（AI/api.md）。发消息后长轮询 /api/agent/events 取增量事件，state.js 归约，view.js 渲染，
  * 各区域分别 morph。写入后经 domain 层刷新题目数据、Session 与题目缓存。见 AI/frontend/assistant.md。
  */
-import { html, escape } from '../../core/html.js';
+import { html } from '../../core/html.js';
 import { morph, toElement } from '../../core/dom.js';
 import { get, post } from '../../core/api.js';
 import { icon } from '../../ui/icon.js';
@@ -11,12 +15,12 @@ import { toast } from '../../ui/toast.js';
 import { dialog } from '../../ui/dialog.js';
 import { openModal } from '../../ui/overlay.js';
 import { openImageViewer } from '../../ui/image-viewer.js';
-import { itemsNow, reloadData } from '../../domain/data.js';
+import { reloadData } from '../../domain/data.js';
 import { copyText, refreshSessions } from '../../domain/sessions.js';
 import { invalidateQuestions, viewQ } from '../../domain/question/index.js';
 import { openDraft as navigateToDraft, publishDraftChange, setDraftActivity } from '../../domain/drafts.js';
 import { loadTaxonomy } from '../../domain/taxonomy.js';
-import { applyEvent, mmss, newRun, runFrom, runNow } from './state.js';
+import { applyEvent, mmss, newRun, runNow, historyItems } from './state.js';
 import { confirmOf, setRefRenderer, toolTitle } from './tools-view.js';
 import { SUGS, dockView, headView, railView, streamView } from './view.js';
 import { inspView } from './insp-view.js';
@@ -25,31 +29,11 @@ import { createDraftCards } from './draft-cards.js';
 import { bindAssistantInteractions } from './interactions.js';
 import { bindAssistantViewport } from './mobile-layout.js';
 let C = null;
-const today = () => new Date().toISOString().slice(0, 10);
-function refRenderer(code) {
-  const item = itemsNow().find(i => i.uid === code);
-  if (item) {
-    const tone = item.suspended ? 'off' : item.is_leech ? 'leech' : item.due_date && item.due_date <= today() ? 'due' : 'ok';
-    return `<button type="button" class="ast-ref" data-action="assistant.openQ" data-arg="${escape(code)}"><i class="ast-ref__dot is-${tone}"></i>${escape(code)}</button>`;
-  }
-  if (/^(EXP|SES|FIXTURE)-[\w-]+$/.test(code)) return `<button type="button" class="ast-ref" data-action="assistant.openSession" data-arg="${escape(code)}">${escape(code)}</button>`;
-  if (/^CMT-\d{6}$/.test(code)) return `<span class="ast-ref ast-ref--commit">${escape(code)}</span>`;
-  return `<code>${escape(code)}</code>`;
-}
-/** 侧栏入口：未启用时隐藏；运行中显示活动点，等确认时显示角标。main.js 启动时调用一次。 */
-export async function syncAssistantNav(doc = document, status) {
-  const st = status || (await get('/api/agent/status')).data;
-  const tab = doc.querySelector('.tab[data-tab="assistant"]');
-  if (!tab || !st) return;
-  tab.hidden = !st.enabled;
-  const active = (st.active || [])[0];
-  tab.classList.toggle('is-live', !!active);
-  tab.classList.toggle('is-waiting', active?.status === 'waiting');
-}
 function createController(root, { router }) {
   const S = { status: null, convs: [], convId: null, items: [], msgs: 0, attachments: [], imageNo: 1, open: new Set(), closed: new Set(), runSel: null,
     liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false,
     uiVer: 0, draftVer: 0, draftCropMode: 'manual', drafts: {}, sugs: SUGS, alive: true, convRequest: 0,
+    listCursor: '', listMore: false, listBusy: false, historyCursor: '', historyMore: false, historyBusy: false, listRequest: 0,
     attachmentGeneration: 0, pendingFiles: 0, longOpen: new Set(), traceClosed: new Set(), inputValue: '', inputActive: false, composing: false };
   morph(root, html`<div class="ast" data-rail="closed" data-insp="closed">
     <div class="ast-scrim" data-action="assistant.closeDrawers"></div>
@@ -107,12 +91,9 @@ function createController(root, { router }) {
     if (S.liveRun) ticker = setInterval(schedule, 250);
     syncAssistantNav(document, { ...S.status, active: S.liveRun ? [{ status: S.liveRun.status }] : [] });
   }
-  async function loadList() {
-    const [st, cv] = await Promise.all([get('/api/agent/status'), get('/api/agent/conversations')]);
-    if (st.ok) S.status = st.data;
-    if (cv.ok) S.convs = cv.data.conversations || [];
-    return st.data;
-  }
+
+  const { loadList, loadHistory, loadRunEvents } = createAssistantHistory(S, { schedule, paint, scroller });
+
   async function load() {
     const [st] = await Promise.all([loadList(), draftCards.loadMode()]);
     const active = st?.active?.[0];
@@ -125,7 +106,7 @@ function createController(root, { router }) {
     S.pendingFiles = 0;
     S.longOpen.clear();
     schedule();
-    const res = await get(`/api/agent/conversation?id=${encodeURIComponent(id)}`);
+    const res = await get(`/api/agent/conversation?id=${encodeURIComponent(id)}&limit=20`);
     if (!S.alive || request !== S.convRequest) return;
     if (!res.ok) { toast(res.error?.message || '打开对话失败', { kind: 'error' }); return; }
     S.attachmentGeneration += 1;
@@ -133,7 +114,8 @@ function createController(root, { router }) {
     S.attachments = [];
     S.convId = id; S.railOpen = false; S.runSel = null; S.popOpen = false; S.stick = true;
     S.msgs = res.data.msgs;
-    S.items = res.data.items.map(it => (it.type === 'user' ? it : { type: 'run', run: runFrom(it.run, it.events), live: it.live }));
+    S.items = historyItems(res.data.items);
+    S.historyMore = !!res.data.has_more; S.historyCursor = res.data.next_cursor || ''; S.historyBusy = false;
     S.imageNo = 1 + S.items.flatMap(it => it.type === 'user' ? (it.images || []) : []).reduce((n, image) => Math.max(n, Number(String(image.ref || '').replace('IMG-', '')) || 0), 0);
     const runs = S.items.filter(i => i.run).map(i => i.run);
     S.lastRun = runs[runs.length - 1] || null;
@@ -143,11 +125,12 @@ function createController(root, { router }) {
     schedule();
     refreshDrafts();
   }
+
   async function follow(run) {
     if (run.following) return;
     run.following = true;
     while (S.alive && run.status !== 'done') {
-      const res = await get(`/api/agent/events?run=${encodeURIComponent(run.id)}&after=${run.next}&wait=20`, { timeout: 28000 });
+      const res = await get(`/api/agent/events?run=${encodeURIComponent(run.id)}&after=${run.next}&limit=200&wait=20`, { timeout: 28000 });
       if (!S.alive) return;
       if (!res.ok) { await new Promise(r => setTimeout(r, 1500)); continue; }
       for (const ev of res.data.events) {
@@ -159,6 +142,7 @@ function createController(root, { router }) {
           if (step?.name === 'create_category') void loadTaxonomy();
         }
       }
+      run.next = res.data.next ?? run.next; run.eventsMore = !!res.data.has_more;
       if (res.data.compacted && run.status !== 'done') applyEvent(run, { type: 'run.end', t: run.clock.t, data: { reason: 'interrupted' } });
       schedule();
     }
@@ -167,7 +151,7 @@ function createController(root, { router }) {
     await finish(run);
   }
   async function finish(run) {
-    const displayed = () => S.alive && S.convId === run.conversation_id;
+    const displayed = () => S.alive && S.convId === run.conv;
     if (displayed() && S.liveRun?.id === run.id) setLive(null);
     if (displayed()) S.lastRun = run;
     await loadList();
@@ -226,7 +210,11 @@ function createController(root, { router }) {
       S.convId = res.data.conversation.id; S.items = []; S.msgs = 0;
     }
     const body = { conversation_id: S.convId, text };
-    if (attachments.length) body.images = attachments.map(image => image.dataUrl);
+    if (attachments.length) {
+      try { body.images = await Promise.all(attachments.map(image => imageValue(image.dataUrl, 'assistant'))); }
+      catch (error) { toast(error.message || '图片上传失败', { kind: 'error' }); return false; }
+      if (!S.alive || generation !== S.attachmentGeneration || S.convId !== body.conversation_id) return false;
+    }
     const res = await post('/api/agent/message', body);
     if (!S.alive || generation !== S.attachmentGeneration || S.convId !== body.conversation_id) return false;
     if (!res.ok) { toast(res.error?.message || '发送失败', { kind: 'error' }); return false; }
@@ -237,8 +225,8 @@ function createController(root, { router }) {
     S.attachments = [];
     if (res.data.steered) return true;
     const run = newRun({ id: res.data.run_id, conversation_id: S.convId, model: S.status?.model });
-    const sent = { type: 'user', text, images: attachments.map((image, i) => ({ ...image, ref: `IMG-${S.imageNo + i}` })), at: new Date().toISOString() };
-    S.items.push(sent, { type: 'run', run });
+    const sent = { type: 'user', item_key: `user:${run.id}`, text, images: attachments.map((image, i) => ({ ...image, ref: `IMG-${S.imageNo + i}` })), at: new Date().toISOString() };
+    S.items.push(sent, { type: 'run', item_key: `run:${run.id}`, run });
     S.imageNo += attachments.length;
     S.msgs += 1;
     setLive(run);
@@ -250,6 +238,7 @@ function createController(root, { router }) {
       if (!S.alive || !detail.ok || S.convId !== run.conv) return;
       const at = (detail.data.items || []).findIndex((it, i, all) => it.type === 'run' && it.run?.id === run.id && all[i - 1]?.type === 'user');
       if (at > 0) {
+        sent.item_key = detail.data.items[at - 1].item_key || sent.item_key;
         sent.images = detail.data.items[at - 1].images || sent.images;
         S.imageNo = Math.max(S.imageNo, 1 + sent.images.reduce((n, image) => Math.max(n, Number(String(image.ref || '').replace('IMG-', '')) || 0), 0));
         schedule();
@@ -320,7 +309,7 @@ function createController(root, { router }) {
   const onDoc = event => { if (S.popOpen && !event.target.closest('.ast-pop, .ast-meter')) { S.popOpen = false; schedule(); } };
   document.addEventListener('click', onDoc);
   return {
-    S, load, schedule, bump, openConv, send, gate, undo,
+    S, load, schedule, bump, openConv, send, gate, undo, loadHistory, loadRunEvents, moreConversations: () => loadList(true),
     async newConv() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); const res = await post('/api/agent/conversation/create', {}); if (res.ok && S.alive) { S.convs.unshift({ ...res.data.conversation, msgs: 0, writes: 0, snippet: '' }); await openConv(res.data.conversation.id); $('ast-input')?.focus(); } },
     toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.kind === 'think' || ['create_draft', 'update_draft', 'create_category', 'create_practice_card'].includes(st?.name) && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
     deny(arg) { const { run, st } = findStep(arg); if (run && st?.status === 'waiting') decide(run, st, 'deny'); },
@@ -334,11 +323,11 @@ function createController(root, { router }) {
     openPractice(id) { if (/^PC-[0-9a-f]{24}$/.test(String(id))) router?.go?.(`instant?practice=${encodeURIComponent(id)}`); },
     removeImage(index) { S.attachments.splice(Number(index), 1); schedule(); },
     clearImages() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); },
-    toggleLong(index) { const n = Number(index); if (S.longOpen.has(n)) S.longOpen.delete(n); else S.longOpen.add(n); schedule(); },
+    toggleLong(index) { const n = String(index); if (S.longOpen.has(n)) S.longOpen.delete(n); else S.longOpen.add(n); schedule(); },
     toggleTrace(id) { if (S.traceClosed.has(id)) S.traceClosed.delete(id); else S.traceClosed.add(id); bump(); },
     pickImages({ event }) { if (event?.type === 'click') { $('ast-image-picker')?.click(); return; } addFiles(event?.target?.files); if (event?.target) event.target.value = ''; },
     openImage({ arg }) { openImageViewer(S.attachments.map((image, i) => ({ src: image.dataUrl, label: `待发送图片 ${i + 1}` })), Number(arg)); },
-    openSentImage(arg) { const [message, index] = String(arg).split('|').map(Number); const images = S.items[message]?.images || []; openImageViewer(images.map((image, i) => ({ src: imageSrc(image), label: image.ref || `图片 ${i + 1}` })), index); },
+    openSentImage(arg) { const [key, index] = String(arg).split('|'); const images = (S.items.find(item => item.item_key === key) || S.items[Number(key)])?.images || []; openImageViewer(images.map((image, i) => ({ src: imageSrc(image), label: image.ref || `图片 ${i + 1}` })), index); },
     refreshDrafts,
     detectDraft,
     loadDraftMode: () => draftCards.loadMode(),
@@ -362,6 +351,9 @@ export const page = {
     return () => { off?.(); offDrafts?.(); offConfig?.(); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', focus); C?.dispose(); C = null; };
   },
   actions: {
+    moreConversations: () => C?.moreConversations(),
+    loadHistory: () => C?.loadHistory(),
+    loadRunEvents: ({ arg }) => C?.loadRunEvents(arg),
     newConv: () => C?.newConv(),
     openConv: ({ arg }) => C?.openConv(arg),
     send: () => C?.send(document.getElementById('ast-input')?.value),

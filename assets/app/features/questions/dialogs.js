@@ -1,3 +1,4 @@
+import { questionRefs } from '../../domain/question/ref.js';
 /**
  * 题库页的对话框（全部基于 ui/dialog：焦点陷阱、Esc、关闭后焦点回触发元素）：
  * - 批量打标记：勾选添加 / 移除，另可当场新建一个标记并添加（取代旧弹层里的「＋ 新建标记」按钮 + 二次输入框）。
@@ -12,6 +13,7 @@ import { labelChip, listLabels, createLabel, batchLabels } from '../../domain/la
 import { batchLabelPlan, describeView } from './state.js';
 
 export async function openBatchLabels(uids) {
+  const refs = questionRefs(uids);
   const names = listLabels().map(label => label.name);
   const options = prefix => (names.length
     ? names.map((name, i) => html`<label class="qlb-lblopt"><input type="checkbox" id="${prefix}-${i}">${labelChip(name)}</label>`)
@@ -31,7 +33,7 @@ export async function openBatchLabels(uids) {
   if (!plan.add.length && !plan.remove.length) return false;
   try {
     if (plan.create) await createLabel(plan.create);
-    const result = await batchLabels(uids, plan.add, plan.remove);
+    const result = await batchLabels(refs, plan.add, plan.remove);
     const failed = result?.failed?.length || 0;
     toast(`已更新 ${result?.changed ?? uids.length} 道题的标记${failed ? `，${failed} 道失败` : ''}`, { kind: failed ? 'warn' : 'ok' });
     return true;

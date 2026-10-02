@@ -9,6 +9,7 @@
 """
 
 from __future__ import annotations
+from .vault_lifecycle import storage, open_sqlite, lease, task, generation
 
 import copy
 import contextvars
@@ -19,8 +20,9 @@ import json
 import os
 import uuid
 
-from .common import MASTERY_HEADERS, load_csv, mastery_path, omrs_data_dir, questions_root, split_sections
+from .common import omrs_data_dir, questions_root, split_sections
 from .ledger import connect
+from .data_repository import mastery_rows, resolve_question
 from . import locking
 
 
@@ -54,10 +56,12 @@ EMPTY_PRINTED = {
 }
 
 
+@storage
 def boards_path(vault: str) -> str:
     return os.path.join(omrs_data_dir(vault), BOARDS_FILENAME)
 
 
+@storage
 def printed_history_path(vault: str) -> str:
     return os.path.join(omrs_data_dir(vault), PRINTED_HISTORY_FILENAME)
 
@@ -166,6 +170,7 @@ def _normalize_segments(raw) -> list:
     return segments
 
 
+@storage
 def _safe_question_path(vault: str, file_path: str):
     """把投影 / CSV 中的题目路径限制在错题目录内。"""
     root = os.path.abspath(questions_root(vault))
@@ -321,6 +326,7 @@ def _normalized(data):
             'mcp_receipts': copy.deepcopy(data.get('mcp_receipts') or {})}
 
 
+@storage
 def load_boards(vault: str) -> dict:
     staged = _STAGED.get()
     if staged and staged['vault'] == os.path.realpath(vault):
@@ -374,6 +380,7 @@ def _prepare(data, previous):
     return normalized
 
 
+@storage
 def _persist(vault, normalized):
     path = boards_path(vault)
     if os.path.islink(path):
@@ -391,8 +398,9 @@ def _persist(vault, normalized):
             os.unlink(tmp)
 
 
+@storage
 def save_boards(vault: str, data: dict) -> dict:
-    with locking.write_lock():
+    with lease(vault), locking.write_lock():
         staged = _STAGED.get()
         if staged and staged['vault'] == os.path.realpath(vault):
             normalized = _prepare(data, staged['original'])
@@ -424,16 +432,17 @@ def _mutation(fn):
     def wrapped(vault, *args, **kwargs):
         expected = kwargs.pop('expected_revision', None)
         catalog = kwargs.pop('expected_catalog_revision', None)
-        with locking.write_lock():
+        with lease(vault), locking.write_lock():
             check_versions(load_boards(vault), args[0] if args else kwargs.get('board_id'), expected, catalog)
             return fn(vault, *args, **kwargs)
     return wrapped
 
 
+@storage
 def transaction(vault, fn, identity='', digest='', authorize=lambda: None, preview=False, protect_paper=False):
     """领域暂存：预览不写盘；变更和回执只进行一次原子替换。"""
     from .mcp.common import RequestError
-    with locking.write_lock():
+    with lease(vault), locking.write_lock():
         authorize()
         previous = load_boards(vault)
         receipt = previous['mcp_receipts'].get(identity) if identity else None
@@ -463,8 +472,9 @@ def transaction(vault, fn, identity='', digest='', authorize=lambda: None, previ
         return result
 
 
+@storage
 def catalog(vault):
-    with locking.write_lock():
+    with lease(vault), locking.write_lock():
         data = load_boards(vault)
         return {'boards': list_boards(vault), 'folders': copy.deepcopy(data['folders']),
                 'catalog_revision': data['catalog_revision']}
@@ -487,7 +497,7 @@ def print_hash_for_content(content: str) -> str:
 
 
 class _Resolver:
-    """一次性读取投影与 CSV，避免逐题反复打开文件。"""
+    """一次性读取题目与熟练度 SQL 投影，稳定身份缺失不得回退。"""
 
     def __init__(self, vault: str):
         self.vault = vault
@@ -502,7 +512,7 @@ class _Resolver:
             pass
         self.rows_by_uid = {}
         self.rows_by_id = {}
-        for row in load_csv(mastery_path(vault), MASTERY_HEADERS):
+        for row in mastery_rows(vault):
             uid = row.get("UID", "")
             if not uid:
                 continue
@@ -523,8 +533,9 @@ class _Resolver:
         self._hash_cache = {}
 
     def record(self, item: dict):
-        record = self.by_id.get(item.get("question_id")) if item.get("question_id") else None
-        return record or self.by_uid.get(item.get("uid"))
+        if item.get("question_id"):
+            return self.by_id.get(item["question_id"])
+        return self.by_uid.get(item.get("uid"))
 
     def print_hash(self, record: dict) -> str:
         file_path = str((record or {}).get("file_path") or "")
@@ -616,6 +627,7 @@ def _printed_summary(board: dict, details: list) -> dict:
     }
 
 
+@storage
 def list_boards(vault: str) -> list:
     data = load_boards(vault)
     resolver = _Resolver(vault)
@@ -633,6 +645,7 @@ def list_boards(vault: str) -> list:
             "count": len(details),
             # 选板浮层要在点之前就显示「已有 1/3」，靠这份 uid 集合本地算，避免逐板再请求
             "uids": [detail["uid"] for detail in details if detail["uid"]],
+            "question_ids": [detail["question_id"] for detail in details if detail["question_id"]],
             "updated_at": board["updated_at"],
             "created_at": board["created_at"],
             "print": board["print"],
@@ -643,6 +656,7 @@ def list_boards(vault: str) -> list:
     return result
 
 
+@storage
 def get_board(vault: str, board_id: str):
     data = load_boards(vault)
     board = next((board for board in data["boards"] if board["id"] == str(board_id or "").strip()), None)
@@ -685,10 +699,12 @@ def _group(data: dict, folder_id: str) -> list:
 
 # ────────────────────────── 文件夹 ──────────────────────────
 
+@storage
 def list_folders(vault: str) -> list:
     return [dict(folder) for folder in load_boards(vault)["folders"]]
 
 
+@storage
 @_mutation
 def create_folder(vault: str, name: str) -> dict:
     data = load_boards(vault)
@@ -705,6 +721,7 @@ def create_folder(vault: str, name: str) -> dict:
     return next(item for item in load_boards(vault)["folders"] if item["id"] == folder["id"])
 
 
+@storage
 @_mutation
 def update_folder(vault: str, folder_id: str, **changes) -> dict:
     data = load_boards(vault)
@@ -725,6 +742,7 @@ def update_folder(vault: str, folder_id: str, **changes) -> dict:
     return next(item for item in load_boards(vault)["folders"] if item["id"] == folder["id"])
 
 
+@storage
 @_mutation
 def delete_folder(vault: str, folder_id: str, keep_boards: bool = True) -> dict:
     """删除文件夹。keep_boards 时把组内板移到未归档，否则连板一起删。"""
@@ -747,6 +765,7 @@ def delete_folder(vault: str, folder_id: str, keep_boards: bool = True) -> dict:
             "boards_deleted": 0 if keep_boards else len(affected)}
 
 
+@storage
 @_mutation
 def move_board(vault: str, board_id: str, folder_id=None, index=None) -> dict:
     """把板移到某个文件夹，并可指定它在该组内的位置。"""
@@ -763,6 +782,7 @@ def move_board(vault: str, board_id: str, folder_id=None, index=None) -> dict:
     return get_board(vault, board_id)
 
 
+@storage
 @_mutation
 def create_board(vault: str, name: str, uids=None, label: str = "", folder_id: str = "") -> dict:
     data = load_boards(vault)
@@ -770,7 +790,9 @@ def create_board(vault: str, name: str, uids=None, label: str = "", folder_id: s
     now = _now()
     items, seen = [], set()
     for uid in uids or []:
-        record = resolver.by_uid.get(str(uid or "").strip())
+        record = resolver.record(uid) if isinstance(uid, dict) else resolver.by_uid.get(str(uid or "").strip())
+        if isinstance(uid, dict):
+            resolve_question(vault, question_id=uid.get("question_id", ""), uid=uid.get("uid", ""))
         if not record:
             continue
         key = record.get("question_id") or f"uid:{record['uid']}"
@@ -795,6 +817,7 @@ def create_board(vault: str, name: str, uids=None, label: str = "", folder_id: s
     return get_board(vault, board["id"])
 
 
+@storage
 @_mutation
 def update_board(vault: str, board_id: str, **changes) -> dict:
     data = load_boards(vault)
@@ -864,17 +887,21 @@ def update_board(vault: str, board_id: str, **changes) -> dict:
     return get_board(vault, board_id)
 
 
+@storage
 @_mutation
 def add_items(vault: str, board_id: str, uids, position=None) -> dict:
     data = load_boards(vault)
     board = _find(data, board_id)
     resolver = _Resolver(vault)
     existing_ids = {item.get("question_id") for item in board["items"] if item.get("question_id")}
-    existing_uids = {item.get("uid") for item in board["items"] if item.get("uid")}
+    existing_uids = {item.get("uid") for item in board["items"]
+                     if item.get("uid") and not item.get("question_id")}
     added = []
     for raw_uid in uids or []:
-        uid = str(raw_uid or "").strip()
-        record = resolver.by_uid.get(uid)
+        record = resolver.record(raw_uid) if isinstance(raw_uid, dict) else resolver.by_uid.get(str(raw_uid or "").strip())
+        if isinstance(raw_uid, dict):
+            resolve_question(vault, question_id=raw_uid.get("question_id", ""), uid=raw_uid.get("uid", ""))
+        uid = record.get("uid", "") if record else ""
         if not record:
             continue
         question_id = record.get("question_id") or ""
@@ -882,7 +909,8 @@ def add_items(vault: str, board_id: str, uids, position=None) -> dict:
             continue
         if question_id:
             existing_ids.add(question_id)
-        existing_uids.add(uid)
+        if not question_id:
+            existing_uids.add(uid)
         added.append({"question_id": question_id, "uid": uid, "added_at": _now()})
     at = len(board["items"]) if position in (None, "") else _int(position, len(board["items"]), 0, len(board["items"]))
     board["items"][at:at] = added
@@ -892,24 +920,44 @@ def add_items(vault: str, board_id: str, uids, position=None) -> dict:
     result = get_board(vault, board_id)
     result["added"] = len(added)
     result["added_uids"] = [item["uid"] for item in added]
+    result["added_question_ids"] = [item["question_id"] for item in added]
     return result
 
 
+@storage
 @_mutation
 def remove_items(vault: str, board_id: str, uids) -> dict:
     data = load_boards(vault)
     board = _find(data, board_id)
-    remove = {str(uid or "").strip() for uid in uids or []}
-    board["items"] = [
-        item for item in board["items"]
-        if item.get("uid") not in remove and item.get("question_id") not in remove
-    ]
+    resolver = _Resolver(vault)
+    remove_ids, remove_uids = set(), set()
+    for raw in uids or []:
+        if isinstance(raw, dict):
+            if raw.get("question_id"):
+                remove_ids.add(str(raw["question_id"]))
+            elif raw.get("uid"):
+                remove_uids.add(str(raw["uid"]))
+        else:
+            value = str(raw or "").strip()
+            if value in resolver.by_id or any(item.get("question_id") == value for item in board["items"]):
+                remove_ids.add(value)
+            else:
+                remove_uids.add(value)
+    def keep(item):
+        if item.get("question_id") in remove_ids:
+            return False
+        record = resolver.record(item)
+        # 旧 UID 请求仍按板内当前身份匹配，持久的旧 UID 不会删除复用者。
+        current_uid = record.get("uid") if record else item.get("uid")
+        return current_uid not in remove_uids
+    board["items"] = [item for item in board["items"] if keep(item)]
     # 移出引用不能擦掉纸上的旧占位；同一稳定 ID 再加入仍算已打印。
     board["updated_at"] = _now()
     save_boards(vault, data)
     return get_board(vault, board_id)
 
 
+@storage
 @_mutation
 def duplicate_board(vault: str, board_id: str, name: str) -> dict:
     """复制板：复制题目引用与版面设置；纸面记录不复制（新板对应新纸）。"""
@@ -939,6 +987,7 @@ def duplicate_board(vault: str, board_id: str, name: str) -> dict:
     return get_board(vault, clone["id"])
 
 
+@storage
 @_mutation
 def delete_board(vault: str, board_id: str) -> bool:
     data = load_boards(vault)
@@ -952,6 +1001,7 @@ def delete_board(vault: str, board_id: str) -> bool:
 
 # ────────────────────────── 纸面记录历史（追加式） ──────────────────────────
 
+@storage
 def _append_printed_history(vault: str, board: dict, event: str, mode: str = "") -> bool:
     """把即将被替换的纸面记录的摘要追加进 jsonl，一行一条，只增不改。
 
@@ -993,6 +1043,7 @@ def _append_printed_history(vault: str, board: dict, event: str, mode: str = "")
         return False
 
 
+@storage
 def read_printed_history(vault: str, board_id: str = "", limit: int = 20) -> list:
     """按时间倒序读回纸面历史；``board_id`` 为空时不过滤。坏行跳过，不报错。"""
     path = printed_history_path(vault)
@@ -1023,6 +1074,7 @@ def read_printed_history(vault: str, board_id: str = "", limit: int = 20) -> lis
 
 # ────────────────────────── 导出与纸面记录 ──────────────────────────
 
+@storage
 def board_items_for_export(vault: str, board_id: str, mode: str = "all"):
     """返回 (board, 可导出的 items)。
 
@@ -1044,6 +1096,7 @@ def board_items_for_export(vault: str, board_id: str, mode: str = "all"):
     return board, items
 
 
+@storage
 @_mutation
 def record_printed(vault: str, board_id: str, mode: str, layout: dict) -> dict:
     """把浏览器测得的版面写入纸面记录。
@@ -1125,7 +1178,7 @@ def record_printed(vault: str, board_id: str, mode: str, layout: dict) -> dict:
             raise ValueError("版面题目缺少位置，无法记录")
         expected = board_items_by_id.get(canonical_id) or previous_by_id.get(canonical_id) or {}
         expected_uid = str(expected.get("uid") or "").strip()
-        if uid and expected_uid and uid != expected_uid:
+        if not record and uid and expected_uid and uid != expected_uid:
             raise ValueError("版面题目 ID 与 UID 不匹配，未记录纸面")
         if not record and canonical_id in previous_by_id:
             previous_uid = str(previous_by_id[canonical_id].get("uid") or "").strip()
@@ -1166,6 +1219,7 @@ def record_printed(vault: str, board_id: str, mode: str, layout: dict) -> dict:
     return get_board(vault, board_id)
 
 
+@storage
 @_mutation
 def reset_printed(vault: str, board_id: str) -> dict:
     data = load_boards(vault)

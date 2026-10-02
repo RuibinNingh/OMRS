@@ -150,9 +150,9 @@ test('createBoard：冲刷失败就放弃；取消对话框不发请求；成功
   assert.equal(await B.createBoard(null, 'F1'), null);
   assert.equal(calls.posts.length, 0);
   calls = fakes({ answers: ['新板'] });
-  const board = await B.createBoard(['u1'], 'F1');
+  const board = await B.createBoard([{ question_id: 'q-u1' }], 'F1');
   assert.equal(board.id, 'NEW');
-  assert.deepEqual(calls.posts, [['/api/board/create', { name: '新板', uids: ['u1'], folder_id: 'F1' }]]);
+  assert.deepEqual(calls.posts, [['/api/board/create', { name: '新板', question_refs: [{ question_id: 'q-u1' }], folder_id: 'F1' }]]);
   assert.equal(B.boardCurrentId(), 'NEW');
   assert.equal(calls.reloads, 1);
   assert.equal(calls.toasts[0][0], '已新建《新板》，加入 0 题');

@@ -13,6 +13,7 @@
 
 本模块只实现存储与只读查询（P1-1）；`/api/drafts/*` 的写接口在 P2 加。
 """
+from .vault_lifecycle import storage, open_sqlite, lease, task, generation
 
 import base64
 import contextlib
@@ -94,12 +95,14 @@ class DraftError(ValueError):
 
 # ────────────────────────── 路径 / 时间 / 工具 ──────────────────────────
 
+@storage
 def drafts_dir(vault):
     path = os.path.join(omrs_data_dir(vault), DRAFTS_DIR)
     os.makedirs(path, exist_ok=True)
     return path
 
 
+@storage
 def images_dir(vault):
     path = os.path.join(drafts_dir(vault), "images")
     os.makedirs(path, exist_ok=True)
@@ -124,6 +127,7 @@ def _loads(text, default):
         return default
 
 
+@storage
 def _log(vault, event, payload):
     """append-only 事件流。"""
     record = {"ts": _now(), "event": event, **payload}
@@ -205,11 +209,12 @@ CREATE INDEX IF NOT EXISTS mcp_requests_draft ON mcp_requests(draft_id);
 """
 
 
+@storage
 def connect(vault):
     # 首次连接与旧库迁移也会写入；所有入口共用同一锁顺序。
     with locking.write_lock(), _LOCK:
         path = os.path.join(drafts_dir(vault), "drafts.db")
-        db = sqlite3.connect(path, timeout=10, check_same_thread=False)
+        db = open_sqlite(vault, path, timeout=10, check_same_thread=False)
         try:
             db.row_factory = sqlite3.Row
             _initialize(vault, db)
@@ -219,6 +224,7 @@ def connect(vault):
     return db
 
 
+@storage
 def _initialize(vault, db):
     db.executescript(_SCHEMA)
     cols = {r["name"] for r in db.execute("PRAGMA table_info(drafts)")}
@@ -301,6 +307,7 @@ def _decode_image_data_url(data_url):
     return mime, width, height, data
 
 
+@storage
 def add_image(vault, data_url, conversation_id, run_id):
     """存一张聊天贴的图，按对话编号 IMG-n；同对话内同一张图（同 sha256）沿用旧编号。"""
     if not conversation_id:
@@ -345,6 +352,7 @@ def add_image(vault, data_url, conversation_id, run_id):
             "bytes": len(data)}
 
 
+@storage
 def add_mcp_image(vault, data, conversation_id, run_id, ordinal=0):
     """保存 MCP 实际收到的原始图片字节，不做 JPEG 整理或重编码。"""
     if not isinstance(data, (bytes, bytearray)) or not data:
@@ -504,6 +512,7 @@ def _mcp_write_images(db, vault, entries, conversation_id, run_id):
         raise
 
 
+@storage
 def resolve_image(vault, conversation_id, ref):
     """`"IMG-3"` → 本对话里那张图的信息；找不到抛 ValueError。"""
     match = _IMG_REF_RE.match(str(ref or "").strip())
@@ -524,6 +533,7 @@ def resolve_image(vault, conversation_id, ref):
             "width": row["width"], "height": row["height"], "bytes": row["bytes"], "run_id": row["run_id"]}
 
 
+@storage
 def conversation_refs(vault, conversation_id):
     """本对话里全部图片的 {sha256: "IMG-n"}（同一张图只有一个编号）。"""
     db = connect(vault)
@@ -534,6 +544,7 @@ def conversation_refs(vault, conversation_id):
         db.close()
     return {row["sha256"]: f"IMG-{row['n']}" for row in rows}
 
+@storage
 def image_path(vault, sha):
     """图片原件的磁盘路径；sha 未知或文件缺失时抛 ValueError。"""
     db = connect(vault)
@@ -549,6 +560,7 @@ def image_path(vault, sha):
     return path
 
 
+@storage
 def image_data_url(vault, sha):
     db = connect(vault)
     try:
@@ -569,6 +581,7 @@ def image_data_url(vault, sha):
     return f"data:{row['mime']};base64," + base64.b64encode(data).decode("ascii")
 
 
+@storage
 def get_transcript(vault, sha, model):
     """按 sha256 + 模型名取缓存的转述；没有缓存或模型不一致返回 None。"""
     db = connect(vault)
@@ -581,6 +594,7 @@ def get_transcript(vault, sha, model):
     return _loads(row["transcript"], None)
 
 
+@storage
 def set_transcript(vault, sha, model, transcript):
     """写入转述缓存（单槽：新模型覆盖旧的）。"""
     with locking.write_lock(), _LOCK:
@@ -631,6 +645,7 @@ def _row_draft(row, blocks):
     }
 
 
+@storage
 def _question_available(vault, row):
     if row["status"] != "done" or not row["question_id"]:
         return None
@@ -650,6 +665,7 @@ def _draft_blocks(db, draft_id):
         "SELECT * FROM blocks WHERE draft_id=? ORDER BY ord", (draft_id,))]
 
 
+@storage
 def _source_view(vault, db, row, blocks, persist=True):
     """旧草稿只从精确工具调用或图片块恢复来源，绝不猜整个对话。"""
     conv = row["conversation_id"]
@@ -714,6 +730,7 @@ def _source_view(vault, db, row, blocks, persist=True):
     return sources, complete, conversation
 
 
+@storage
 def create_draft(vault, data, origin=None, _db=None):
     """建一份草稿。`data`：subject/category/knowledge_points/blocks/cause/cause_statement；
     `origin`：conversation_id/run_id/tool_call_id。校验失败抛 ValueError（中文），不建行。"""
@@ -877,6 +894,7 @@ def create_draft(vault, data, origin=None, _db=None):
     return result
 
 
+@storage
 def create_mcp_draft(vault, data, origin, images=None):
     """原子创建 MCP 草稿及其原图。
 
@@ -973,6 +991,7 @@ def create_mcp_draft(vault, data, origin, images=None):
             db.close()
 
 
+@storage
 def get_draft(vault, draft_id, readonly=False):
     from .draft_jobs import recover_orphan_jobs
     with locking.write_lock(), _LOCK:
@@ -997,6 +1016,7 @@ def get_draft(vault, draft_id, readonly=False):
             "training_tasks": training_tasks, "jobs": jobs}
 
 
+@storage
 def list_drafts(vault, status=None, conversation_id=None, limit=50, readonly=False, source_channel=None):
     """默认排除 discarded（含 done）；按 created_at 倒序。"""
     try:
@@ -1033,6 +1053,7 @@ def list_drafts(vault, status=None, conversation_id=None, limit=50, readonly=Fal
             db.close()
 
 
+@storage
 def counts(vault):
     db = connect(vault)
     try:
@@ -1046,6 +1067,7 @@ def counts(vault):
     return result
 
 
+@storage
 def mcp_request(vault, source_key_id, request_id=None, stable_hash=None):
     """返回 MCP 幂等记录，不触发草稿恢复或其他修复副作用。
 
@@ -1066,21 +1088,25 @@ def mcp_request(vault, source_key_id, request_id=None, stable_hash=None):
         db.close()
 
 
+@storage
 def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
     from .draft_write import update_draft as run
     return run(vault, draft_id, revision, fields, blocks, source_images)
 
 
+@storage
 def patch_draft(vault, draft_id, revision, fields, block_patches, actor):
     from .draft_write import patch_draft as run
     return run(vault, draft_id, revision, fields, block_patches, actor)
 
 
+@storage
 def discard_draft(vault, draft_id, revision):
     from .draft_write import discard_draft as run
     return run(vault, draft_id, revision)
 
 
+@storage
 def commit_draft(vault, draft_id, revision, crops=None, actor="api"):
     from .draft_write import commit_draft as run
     result = run(vault, draft_id, revision, crops, actor)
@@ -1094,31 +1120,37 @@ def commit_draft(vault, draft_id, revision, crops=None, actor="api"):
     return result
 
 
+@storage
 def set_boxes(vault, draft_id, revision, blocks=None, training_boxes=None):
     from .draft_write import set_boxes as run
     return run(vault, draft_id, revision, blocks, training_boxes)
 
 
+@storage
 def start_extract(vault, draft_id, revision, block_ids, crops=None):
     from .draft_jobs import start_extract as run
     return run(vault, draft_id, revision, block_ids, crops)
 
 
+@storage
 def start_detect(vault, draft_id, revision, sha=None):
     from .draft_detect import start_detect as run
     return run(vault, draft_id, revision, sha)
 
 
+@storage
 def set_image_training(vault, draft_id, revision, sha, enabled):
     from .draft_training import set_image_training as run
     return run(vault, draft_id, revision, sha, enabled)
 
 
+@storage
 def get_job(vault, job_id):
     from .draft_jobs import get_job as run
     return run(vault, job_id)
 
 
+@storage
 def cleanup(vault):
     from .draft_training import cleanup as run
     return run(vault)

@@ -4,7 +4,7 @@
 > - 职责：本机免 PIN、远端 PIN 会话、来源校验、报告隔离与题目路径边界
 > - 入口：`omrs/security.py`、`omrs/server.py`、`omrs/path_safety.py`
 > - 不变量：免 PIN 只看 TCP 对端地址，代理请求一律须 PIN；会话只保存在进程内存中
-> - 必跑测试：`tests/test_security.py`、`tests/app/settings.test.mjs`
+> - 必跑测试：`tests/test_http_boundaries.py`、`tests/test_security.py`、`tests/app/settings.test.mjs`
 > - 相关：`AI/api.md`、`AI/frontend/settings.md`
 
 > 对应源文件：`omrs/security.py`、`omrs/server.py`、`omrs/path_safety.py`。
@@ -17,7 +17,7 @@
 
 ## 2. PIN 与会话
 
-PIN 的随机盐和 PBKDF2-SHA256 哈希存于 `错题/.omrs/auth.json`，不通过配置 API 返回。登录每个客户端 IP 在 15 分钟内最多失败 5 次。设置页远端修改 PIN 或空闲时间时校验的当前 PIN 与登录共用同一失败计数。成功后服务端持有随机会话令牌的哈希，浏览器仅保存 `HttpOnly; SameSite=Strict; Path=/` Cookie；HTTPS 时追加 `Secure`。重启、退出、更换或停用 PIN 会使会话失效；只改空闲时间不注销会话，新上限在下一次请求时生效。尚未设置 PIN 时，免 PIN 网段设备可直接设置首个 PIN，已设置后远端修改一律须验证当前 PIN。登录页的 `next` 参数按 `new URL()` 解析，只接受同源地址，其余回到 `/`。
+PIN 的随机盐和 PBKDF2-SHA256 哈希存于 `错题/.omrs/auth.json`，不通过配置 API 返回。登录每个 Vault/客户端 IP 在15分钟内最多失败5次；同一键串行校验，等待校验最多2秒后返回503，其它IP不等此客户端的PBKDF2。失败次数在同一个原子校验段内更新，计数和闲置校验锁及时释放。设置页远端修改 PIN 或空闲时间时校验的当前 PIN 与登录共用同一失败计数。成功后服务端持有随机会话令牌的哈希，浏览器仅保存 `HttpOnly; SameSite=Strict; Path=/` Cookie；HTTPS 时追加 `Secure`。重启、恢复题库、退出、更换或停用 PIN 会使会话失效；只改空闲时间不注销会话，新上限在下一次请求时生效。尚未设置 PIN 时，免 PIN 网段设备可直接设置首个 PIN，已设置后远端修改一律须验证当前 PIN。登录页的 `next` 参数按 `new URL()` 解析，只接受同源地址，其余回到 `/`。
 
 默认空闲时间为 30 分钟，可在设置页选择 5–240 分钟；绝对最长时间为 12 小时。后台轮询不续期，桌面和手机页只在点击、键盘、触摸、滚轮或滚动时按分钟节流调用 `POST /api/auth/activity`；监听挂在 `document` 的捕获阶段，页面内部滚动容器里的滚动同样计入。手机页 `/m` 遇到 401 时跳转 `/login?next=/m`，并停止处理剩余上传。框选标注页 `/annotate` 与主页同样经 `_authorize`（未登录的远端跳 `/login?next=/annotate`），页内请求 401 时由 `core/api` 跳登录页。远端 HTTP 登录成功后提示传输风险，同一会话确认一次；使用 HTTPS 不提示。停用 PIN 仅可在关闭 `allow_external` 后由本机操作。
 
@@ -72,3 +72,9 @@ get_question_image 只接受 UID 与图片下标，按共享 get_question.images
 确认/拒绝只从已授权 Web 会话进入，MCP 没有确认工具或 Web 借道权限。确认保存稳定 key_id 不保存明文；重新读取磁盘有效状态和当前 scope。快照变化、降权、吊销或到期拒绝应用；原子领域回执已证明合法提交的中断操作则只恢复终态。完整请求存于独立 0600 的确认库，系统运行库只保存脱敏摘要。新增权限不默认授予旧 Key。
 
 MCP导出图片复用受限question_images入口，不调用旧_find_image路径回退。快照下载只认稳定服务端编号、受Web授权保护，并校验普通文件身份、大小与SHA；导出目录和文件拒绝链接。导出HTML只用现有转义模板，快照不会回写纸面记录。
+
+## 7. HTTP 文件与方法边界
+
+HEAD 沿普通 GET 授权和路由，不调用标准库的当前目录文件回退。图片、报告图片授权和 HTML 导出共用 `question_images.attachment_path/read_attachment_image`：只接收附件内安全路径或唯一文件名，拒绝绝对路径、穿越、链接和重复解码。读取使用安全文件描述符或目录/文件身份检查，期间替换即失败；Web 读取已有大图不套用外部 MCP 单图8MiB限制。
+
+暂存上传的操作者、用途、Vault世代、期限和内容哈希在消费时再次验证。认证文件写入按租约→写锁→安全模块锁顺序，使用唯一0600临时文件原子替换。恢复调用 `invalidate_vault` 清当前Vault会话/失败窗口；正在等待的PIN校验锁保留到最后一位使用者退出。

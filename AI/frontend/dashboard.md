@@ -38,6 +38,8 @@
 
 ## 行动推荐规则（`plan.js` 的 `buildPlan()`）
 
+今日与逾期判定统一使用 `core/date.js` 的上海业务日期；日期差按整数历日计算，跨午夜和浏览器时区不会改变同一快照的建议。非法日期使用规则的缺省天数，不把无效日期自动滚动成另一日。
+
 纯函数，输入 `{ items, data, sessions, dueDays, today }`，node 单测全覆盖。每条建议 `{ key, level, icon, metric, title, detail, actions }`，按级别排序（紧急 → 建议 → 可选 → 状态良好）。只看未停用、未击杀的题。
 
 | key | 级别 | 条件 | 动作 |

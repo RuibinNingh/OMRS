@@ -19,15 +19,15 @@ export { openEditor, closeEditor, editorOpen } from './editor.js';
 
 
 /** 即时练习的题面：题面 | 答案双栏；reveal=false 时只给「显示答案」按钮，点它回调 onReveal。题头由页面自己显示。 */
-export function mountQuestion(el, uid, { reveal = false, onReveal } = {}) {
+export function mountQuestion(el, uid, { reveal = false, onReveal, question_id } = {}) {
   if (!el) return Promise.resolve(null);
-  return qvRender(el, uid, { layout: 'split', reveal, showMeta: false, showHistory: false, actions: ['edit', 'board', 'labels'], onReveal });
+  return qvRender(el, uid, { layout: 'split', reveal, showMeta: false, showHistory: false, actions: ['edit', 'board', 'labels'], onReveal, question_id });
 }
 
 /** 反馈录入的题面：完整题头，工具按钮多给「停用」「打开」。 */
-export function mountQuestionStage(el, uid) {
+export function mountQuestionStage(el, uid, question_id) {
   if (!el) return Promise.resolve(null);
-  return qvRender(el, uid, { layout: 'split', actions: ['edit', 'board', 'labels', 'suspend', 'open'] });
+  return qvRender(el, uid, { layout: 'split', actions: ['edit', 'board', 'labels', 'suspend', 'open'], question_id });
 }
 
 /** 反馈 / 练习提交后题目的记录变了：清缓存并重绘挂着它们的视图。 */

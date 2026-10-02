@@ -75,22 +75,20 @@ def questions(vault, uids, detail=False):
 def question_history(vault, uid, view='reviews', offset=0, limit=50):
     if view == 'content_versions':
         try:
-            result = content_history.content_versions(vault, uid=uid)
+            result = content_history.content_versions(vault, uid=uid, offset=offset, limit=limit, reverse=True)
         except RuntimeError:
             raise RequestError('not_found', '题目不存在') from None
         versions = result.pop('versions')
-        return {**result, 'view': view, **page(list(reversed(versions)), offset, limit)}
+        return {**result, 'view': view, 'items': versions}
     if not content_history.projection_row(vault, uid=uid):
         raise RequestError('not_found', '题目不存在')
-    return {'uid': uid, 'view': view, **page(list(reversed(stats.get_question_records(vault, uid))), offset, limit)}
+    return {'uid': uid, 'view': view, **stats.get_question_records_page(vault, uid, offset, limit)}
 
 
 def learning_history(vault, subject='', uid='', since='', until='', before_seq=None, limit=50):
-    """从完整链计算修正状态，然后筛选；批量节点仅返回匹配的题目摘要。"""
+    """SQL 游标按筛选和 seq 读取事实页，修正状态使用当前有界读模型。"""
     bounds = date_bounds(since, until)
-    commits = ledger.read_commits(vault, ascending=True)
-    by_id = {c['commit_id']: c for c in commits}
-    state = projections._project_state(vault, commits)
+    state = projections.rebuild_projection(vault)
     wanted_qid = state['uid_to_question_id'].get(uid) if uid else None
     if uid and not wanted_qid:
         return {'items': [], 'next_before_seq': None}
@@ -98,51 +96,73 @@ def learning_history(vault, subject='', uid='', since='', until='', before_seq=N
         qid = value.get('question_id') or state['uid_to_question_id'].get(value.get('uid_at_that_time') or value.get('uid'))
         q = state['questions'].get(qid, {})
         return (not uid or qid == wanted_qid) and (not subject or (value.get('subject') or q.get('subject')) == subject)
+    clauses, arguments = [], []
+    if before_seq is not None:
+        clauses.append("c.seq<?")
+        arguments.append(before_seq)
+    for operator, bound in ((">=", bounds[0]), ("<", bounds[1])):
+        if bound:
+            clauses.append(f"julianday(c.created_at){operator}julianday(?)")
+            arguments.append(bound.isoformat())
+    effective_json = "COALESCE(t.payload_json,c.payload_json)"
+    if uid:
+        clauses.append(f"(EXISTS(SELECT 1 FROM json_tree({effective_json}) j WHERE j.key='question_id' AND j.value=?) OR EXISTS(SELECT 1 FROM session_projection sp,json_tree(sp.items_json) j WHERE sp.session_id=json_extract(c.payload_json,'$.session_id') AND j.key='question_id' AND j.value=?))")
+        arguments.extend((wanted_qid, wanted_qid))
+    if subject:
+        clauses.append(f"(EXISTS(SELECT 1 FROM json_tree({effective_json}) j WHERE j.key IN ('subject','Subject','科目') AND j.value=?) OR EXISTS(SELECT 1 FROM json_tree({effective_json}) j JOIN question_projection qp ON qp.question_id=j.value WHERE j.key='question_id' AND qp.subject=?) OR EXISTS(SELECT 1 FROM session_projection sp,json_tree(sp.items_json) j JOIN question_projection qp ON qp.question_id=j.value WHERE sp.session_id=json_extract(c.payload_json,'$.session_id') AND j.key='question_id' AND qp.subject=?))")
+        arguments.extend((subject, subject, subject))
+    query = "SELECT c.* FROM commits c LEFT JOIN commits t ON t.commit_id=json_extract(c.payload_json,'$.target_commit_id')"
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    query += " ORDER BY c.seq DESC"
     items = []
-    for c in reversed(commits):
-        if before_seq is not None and c['seq'] >= before_seq:
-            continue
-        if not within_date(c['created_at'], bounds):
-            continue
-        payload = c['payload'] or {}
-        target = by_id.get(payload.get('target_commit_id'))
-        effective_payload = (target or c)['payload'] or {}
-        ctype = (target or c)['commit_type']
-        summaries = projections._history_payload_summary(payload, c['commit_type'])
-        if ctype == 'review.batch_submit':
-            feedbacks = effective_payload.get('feedbacks') or effective_payload.get('reviews') or []
-            if target and 'target_review_index' in payload:
-                feedbacks = [(payload['target_review_index'], feedbacks[payload['target_review_index']])] if 0 <= payload['target_review_index'] < len(feedbacks) else []
-            else:
-                feedbacks = list(enumerate(feedbacks))
-            selected = []
-            for index, fb in feedbacks:
-                effective = projections._effective_review(state, (target or c)['commit_id'], index, fb)
-                if not matches(effective or fb):
+    with ledger.connect(vault) as db:
+        for raw in db.execute(query, arguments):
+            c = ledger._row_to_commit(raw)
+            if before_seq is not None and c['seq'] >= before_seq:
+                continue
+            if not within_date(c['created_at'], bounds):
+                continue
+            payload = c['payload'] or {}
+            target_row = db.execute('SELECT * FROM commits WHERE commit_id=?', (payload.get('target_commit_id'),)).fetchone() if payload.get('target_commit_id') else None
+            target = ledger._row_to_commit(target_row) if target_row else None
+            effective_payload = (target or c)['payload'] or {}
+            ctype = (target or c)['commit_type']
+            summaries = projections._history_payload_summary(payload, c['commit_type'])
+            if ctype == 'review.batch_submit':
+                feedbacks = effective_payload.get('feedbacks') or effective_payload.get('reviews') or []
+                if target and 'target_review_index' in payload:
+                    feedbacks = [(payload['target_review_index'], feedbacks[payload['target_review_index']])] if 0 <= payload['target_review_index'] < len(feedbacks) else []
+                else:
+                    feedbacks = list(enumerate(feedbacks))
+                selected = []
+                for index, fb in feedbacks:
+                    effective = projections._effective_review(state, (target or c)['commit_id'], index, fb)
+                    if not matches(effective or fb):
+                        continue
+                    key = f"{(target or c)['commit_id']}:{index}"
+                    selected.append({**{k: (effective or fb).get(k) for k in ('question_id', 'uid_at_that_time', 'subject', 'question_summary', 'is_correct', 'sub_score')},
+                                     'review_index': index, 'retracted': effective is None,
+                                     'replaced': key in state['review_replacements'],
+                                     'session_retracted': (effective_payload.get('session_id') or fb.get('session_id')) in state['retracted_sessions']})
+                if not selected:
                     continue
-                key = f"{(target or c)['commit_id']}:{index}"
-                selected.append({**{k: (effective or fb).get(k) for k in ('question_id', 'uid_at_that_time', 'subject', 'question_summary', 'is_correct', 'sub_score')},
-                                 'review_index': index, 'retracted': effective is None,
-                                 'replaced': key in state['review_replacements'],
-                                 'session_retracted': (effective_payload.get('session_id') or fb.get('session_id')) in state['retracted_sessions']})
-            if not selected:
-                continue
-            summaries['feedbacks'] = selected
-        elif subject or uid:
-            values = [effective_payload, effective_payload.get('question') or {}, effective_payload.get('before') or {}, effective_payload.get('after') or {}]
-            values += effective_payload.get('questions') or effective_payload.get('items') or []
-            sid = effective_payload.get('session_id') or (effective_payload.get('session') or {}).get('session_id')
-            if sid and sid in state['sessions']:
-                import json
-                values += [u if isinstance(u, dict) else {'uid': u} for u in json.loads(state['sessions'][sid].get('UIDs') or '[]')]
-            if not any(matches(v) for v in values if isinstance(v, dict)):
-                continue
-        items.append({'seq': c['seq'], 'commit_id': c['commit_id'], 'created_at': c['created_at'],
-                      'source': c['source'], 'commit_type': c['commit_type'],
-                      'summary': projections._commit_summary(c), 'payload': summaries,
-                      'session_retracted': payload.get('session_id') in state['retracted_sessions']})
-        if len(items) > limit:
-            break
+                summaries['feedbacks'] = selected
+            elif subject or uid:
+                values = [effective_payload, effective_payload.get('question') or {}, effective_payload.get('before') or {}, effective_payload.get('after') or {}]
+                values += effective_payload.get('questions') or effective_payload.get('items') or []
+                sid = effective_payload.get('session_id') or (effective_payload.get('session') or {}).get('session_id')
+                if sid and sid in state['sessions']:
+                    import json
+                    values += [u if isinstance(u, dict) else {'uid': u} for u in json.loads(state['sessions'][sid].get('UIDs') or '[]')]
+                if not any(matches(v) for v in values if isinstance(v, dict)):
+                    continue
+            items.append({'seq': c['seq'], 'commit_id': c['commit_id'], 'created_at': c['created_at'],
+                          'source': c['source'], 'commit_type': c['commit_type'],
+                          'summary': projections._commit_summary(c), 'payload': summaries,
+                          'session_retracted': payload.get('session_id') in state['retracted_sessions']})
+            if len(items) > limit:
+                break
     more = len(items) > limit
     items = items[:limit]
     return {'items': items, 'next_before_seq': items[-1]['seq'] if items and more else None}

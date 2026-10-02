@@ -1,3 +1,4 @@
+from .vault_lifecycle import storage, open_sqlite
 import os
 import re
 import uuid
@@ -9,6 +10,7 @@ from .workspace_sync import content_hash, metadata_hash, scan_workspace, update_
 from .path_safety import safe_question_directory, safe_question_path
 
 
+@storage
 def get_question_raw(vault: str, uid: str):
     row = _projection_by_uid(vault, uid)
     if not row:
@@ -23,6 +25,7 @@ def get_question_raw(vault: str, uid: str):
         }
 
 
+@storage
 def save_question_markdown(vault: str, uid: str, markdown: str, expected_content_hash: str = ""):
     from .content_history import refresh_projection, write_question
     row = _projection_by_uid(vault, uid)
@@ -43,6 +46,7 @@ def save_question_markdown(vault: str, uid: str, markdown: str, expected_content
             "content_hash": content_hash(markdown)}
 
 
+@storage
 def set_question_labels(vault: str, uid: str, labels, scan=True):
     """覆盖题目的 YAML ``标记`` 字段。
 
@@ -72,6 +76,7 @@ def set_question_labels(vault: str, uid: str, labels, scan=True):
     return {"uid": uid, "labels": clean, "changed": updated != content}
 
 
+@storage
 def move_question(vault: str, uid: str, target_subject: str, target_category: str):
     from .content_history import ensure_content_deletable
     row = _projection_by_uid(vault, uid)
@@ -151,6 +156,7 @@ def move_question(vault: str, uid: str, target_subject: str, target_category: st
     return {"uid": target_uid, "old_uid": uid, "file_path": rel}
 
 
+@storage
 def suspend_question(vault: str, uid: str, reason: str = ""):
     row = _projection_by_uid(vault, uid)
     if not row:
@@ -167,6 +173,7 @@ def suspend_question(vault: str, uid: str, reason: str = ""):
     return {"uid": uid, "suspended": True}
 
 
+@storage
 def resume_question(vault: str, uid: str, reason: str = ""):
     with connect(vault) as db:
         row = db.execute(
@@ -188,6 +195,7 @@ def resume_question(vault: str, uid: str, reason: str = ""):
     return {"uid": uid, "suspended": False}
 
 
+@storage
 def delete_question(vault: str, uid: str):
     """Delete one question's Markdown file and append an immutable archive event."""
     row = _projection_by_uid(vault, uid)
@@ -230,6 +238,7 @@ def delete_question(vault: str, uid: str):
     return {"uid": uid, "file_path": row["file_path"], "archived": True}
 
 
+@storage
 def _projection_by_uid(vault, uid):
     with connect(vault) as db:
         row = db.execute(
@@ -239,6 +248,7 @@ def _projection_by_uid(vault, uid):
     return dict(row) if row else None
 
 
+@storage
 def _question_file_path(vault, row):
     path = os.path.abspath(os.path.join(vault, row["file_path"]))
     return safe_question_path(vault, path)

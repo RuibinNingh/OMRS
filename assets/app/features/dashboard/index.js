@@ -7,6 +7,7 @@
  *   复习调度 → 'schedule:view'（打开「安排复习」）。页面之间不互相 import。
  */
 import { morph } from '../../core/dom.js';
+import { businessToday } from '../../core/date.js';
 import { itemsOf, dueDays } from '../../domain/items.js';
 import { listSessions } from '../../domain/sessions.js';
 import { reloadData, lastError } from '../../domain/data.js';
@@ -26,7 +27,7 @@ function createController(root, ctx) {
   function env() {
     const data = ctx.store.get().data;
     const items = itemsOf(data);
-    const now = new Date();
+    const now = businessToday();
     const base = { items, data: data || {}, sessions: listSessions(), dueDays, today: now };
     s.plan = buildPlan(base);
     today = S.todaySummary(base);

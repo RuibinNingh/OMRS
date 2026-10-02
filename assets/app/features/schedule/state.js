@@ -3,7 +3,7 @@
  * 工作区 view：'arrange'（安排复习，旧 recommend_v2.js）| 'plans'（已有计划，本页原生）| 'export'（全题库导出，旧 export.js）。
  * 进入「全题库导出」时记住来处，「返回」回到它（原 SCH_EXPORT_RETURN）。
  */
-import { sessionProgress } from '../../domain/sessions.js';
+import { sessionProgress, sessionEntries } from '../../domain/sessions.js';
 
 export const state = {
   view: 'arrange', exportReturn: 'arrange', filter: 'active', search: '',
@@ -45,19 +45,27 @@ export function planCard(s) {
 export const activeCount = list => (list || []).filter(s => (s.status || 'active') === 'active').length;
 
 export function detailModel(d) {
+  const availabilityText = { archived: '题目已归档，历史条目保留', suspended: '题目已停用', unresolved: '题目身份待确认，请手动绑定' };
+  const legacy = !Array.isArray(d.entries);
   const recorded = new Set(d.feedback_uids || []);
-  const questions = (d.items || []).map((item, i) => {
-    const uid = item.UID || item.uid;
-    return { n: i + 1, uid, missing: !!item._missing, recorded: recorded.has(uid),
-      meta: item._missing ? '题目已缺失，无法预览' : `${item.Subject || item.subject || ''} · ${item.Category || item.category || ''}` };
+  const questions = (legacy ? (d.items || []) : sessionEntries(d)).map((entry, i) => {
+    const item = legacy ? entry : (d.items || []).find(item => item.question_id === entry.question_id) || {};
+    const uid = legacy ? item.UID || item.uid : entry.uid || entry.uid_at_creation || '未知题目';
+    const unavailable = legacy ? !!item._missing : entry.availability !== 'active';
+    return { n: i + 1, uid, question_id: entry.question_id || '', entry_id: entry.entry_id || '',
+      preview_key: legacy ? uid : entry.question_id || '',
+      availability: entry.availability || (unavailable ? 'unresolved' : 'active'), missing: unavailable,
+      recorded: legacy ? recorded.has(uid) : !!entry.feedback_submitted,
+      meta: unavailable ? availabilityText[entry.availability] || '题目已缺失，无法预览' : `${item.Subject || item.subject || ''} · ${item.Category || item.category || ''}` };
   });
   const pending = Number(d.pending_count) || 0;
   const done = d.status === 'completed';
   return {
     id: d.session_id, title: `${d.subject_filter || '多科'}复习计划`, when: when(d.created_at), done, status: done ? '已完成' : '待完成',
     recorded: Number(d.feedback_count) || 0, total: Number(d.count) || questions.length, pending,
-    hint: pending ? `还有 ${pending} 题待录入` : '本次复习已全部录入', canFeedback: pending > 0 && !done,
-    questions, previewable: questions.filter(q => !q.missing).map(q => q.uid),
+    hint: pending ? `还有 ${pending} 题待录入` : '本次复习已全部录入', canFeedback: pending > 0 && !done && questions.some(q => !q.missing && !q.recorded),
+    canExport: questions.length > 0 && questions.every(q => !q.missing),
+    questions, previewable: questions.filter(q => !q.missing && q.preview_key).map(q => q.preview_key),
   };
 }
 

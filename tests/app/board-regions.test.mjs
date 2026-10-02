@@ -63,7 +63,15 @@ test('关联标记按板保存在本机，待同步数排除停用及已有题',
   assert.equal(S.linkedLabel('b', store), '概念不清');
   S.setLinkedLabel('a', '', store);
   assert.equal(S.linkedLabel('a', store), '');
-  assert.match(PAGE, /!item\.suspended && \(item\.labels \|\| \[\]\)\.includes\(label\) && !inBoard\.has\(item\.uid\)/);
+  const rows = [
+    { question_id: 'old', uid: '复用1', labels: ['重点'] },
+    { question_id: 'new', uid: '复用1', labels: ['重点'] },
+    { question_id: 'off', uid: '停用1', labels: ['重点'], suspended: true },
+    { question_id: 'other', uid: '其它1', labels: [] },
+  ];
+  assert.equal(S.linkedPending([rows[0]], rows, '重点'), 1, '相同UID的新身份仍需同步');
+  assert.equal(S.linkedPending([rows[0], rows[1]], rows, '重点'), 0);
+  assert.equal(S.linkedPending([], rows, ''), 0);
 });
 
 test('版式和纸面记录由工具条打开浮层，题目详情可返回及前后导航', () => {

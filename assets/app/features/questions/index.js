@@ -1,3 +1,4 @@
+import { questionKey, questionItem } from '../../domain/question/ref.js';
 /**
  * 题目库（features 页面，页面契约见 AI/frontend/architecture.md §3；页面说明见 AI/frontend/library.md）。
  * - 契约：page = { id, title, workbench, mount(root, ctx) → unmount, actions, keys }；动作命名空间与快捷键作用域都是 'questions'。
@@ -46,8 +47,8 @@ function createController(root, ctx) {
     const views = S.readViews(storage());
     const names = Object.keys(views);
     return {
-      rows, uids, total: all.length, prefs: s.prefs, columns: S.columnList(s.prefs.columns), selected: s.selected, cursor: s.cursor,
-      sel: S.selectionOf(s.selected, uids), counts: S.countsOf(all, dueDays), active: S.activeFilters(itemFilters),
+      rows, uids, keys: rows.map(questionKey), total: all.length, prefs: s.prefs, columns: S.columnList(s.prefs.columns), selected: s.selected, cursor: s.cursor,
+      sel: S.selectionOf(s.selected, rows.map(questionKey)), counts: S.countsOf(all, dueDays), active: S.activeFilters(itemFilters),
       filterCount: S.filterCount(itemFilters), liveFilters, liveCount, facets: facets(all), labels: listLabels(),
       views: names, viewName: names.length ? S.currentViewName(views, s.filters) : '', mdMode: mdLineBreakMode(),
       dueDays, detailOf: cachedDetail,
@@ -149,10 +150,10 @@ function createController(root, ctx) {
     select(uid, on) {
       const next = new Set(s.selected);
       if (on) next.add(uid); else next.delete(uid);
-      s.selected = next; s.cursor = uid;
+      s.selected = next; s.cursor = questionItem(uid)?.uid || s.cursor;
       paint();
     },
-    selectAll(on) { s.selected = S.toggleAll(s.selected, last?.uids || [], on); paint(); },
+    selectAll(on) { s.selected = S.toggleAll(s.selected, last?.keys || [], on); paint(); },
     clearSelection() { if (!s.selected.size) return false; s.selected = new Set(); paint(); return true; },
     open(uid) { if (!uid) return false; s.cursor = uid; paint(); viewQ(uid, 'q', { returnFocus: api.focusRow }); return true; },
     // 题目弹窗关闭后：游标移到最后看的那一题（翻过页就是翻到的那题），焦点交给它的行（页面已卸载则交回弹窗自己的默认）
@@ -170,20 +171,22 @@ function createController(root, ctx) {
       api.open(row.dataset.qRow);
     },
     async more(uid, anchor) {
-      const value = await openMenu(anchor, S.rowMenuItems(itemOf(uid)), { label: `${uid} 的操作` });
+      const item = { ...itemOf(uid) };
+      const value = await openMenu(anchor, S.rowMenuItems(item), { label: `${uid} 的操作` });
       // 等这次点击冒泡完再执行：标记选择器（旧 labels.js）与选板浮层（domain/board/picker.js）在 document 上监听点击关闭，同一次点击里打开会被立刻关掉
-      if (value) setTimeout(() => { if (ctl) api.rowAction(value, uid, anchor); }, 0);
+      if (value) setTimeout(() => { if (ctl) api.rowAction(value, item, anchor); }, 0);
     },
-    rowAction(kind, uid, anchor) {
+    rowAction(kind, item, anchor) {
+      const uid = item.uid;
       const run = {
         view: () => api.open(uid),
-        board: () => boardQuickAdd(uid, { anchor }),
-        labels: () => openLabelPicker(uid, anchor),
-        edit: () => editQuestion(uid),
-        move: () => moveQuestion(uid),
-        suspend: () => suspendQuestion(uid),
-        resume: () => resumeQuestion(uid),
-        delete: () => deleteQuestion(uid),
+        board: () => boardQuickAdd(item, { anchor }),
+        labels: () => openLabelPicker(item, anchor),
+        edit: () => editQuestion(item),
+        move: () => moveQuestion(item),
+        suspend: () => suspendQuestion(item),
+        resume: () => resumeQuestion(item),
+        delete: () => deleteQuestion(item),
       }[kind];
       if (run) run();
     },
@@ -225,7 +228,7 @@ function createController(root, ctx) {
       root.querySelector('[data-cursor="1"]')?.scrollIntoView?.({ block: 'nearest' });
       return true;
     },
-    cursorToggle() { const uid = cursorUid(); if (!uid) return false; api.select(uid, !s.selected.has(uid)); return true; },
+    cursorToggle() { const uid = cursorUid(); if (!uid) return false; api.select(questionKey(itemOf(uid)), !s.selected.has(questionKey(itemOf(uid)))); return true; },
     cursorOpen: () => api.open(cursorUid()),
     focusSearch() { const el = root.querySelector('#qlb-search'); if (!el) return false; el.focus(); el.select(); return true; },
     escape(event) {

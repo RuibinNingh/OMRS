@@ -243,10 +243,10 @@ class BoardSDKTests(unittest.TestCase):
     def test_full_workflow_and_exact_discovery_permissions(self):
         import urllib.request
         import urllib.error
-        from omrs.common import mastery_path
+        from omrs.data_repository import mastery_rows
         uid = create_question(self.server.vault, '数学', 'SDK推荐', 5, question_text='SDK推荐题')['uid']
         learning_before = ledger.read_commits(self.server.vault)
-        mastery_before = Path(mastery_path(self.server.vault)).read_bytes()
+        mastery_before = mastery_rows(self.server.vault)
         async def run():
             async with _session(self.server.mcp_port, self.key['secret']) as session:
                 async def call(tool, args):
@@ -312,7 +312,7 @@ class BoardSDKTests(unittest.TestCase):
                 self.assertEqual(pending_folder['status'],'pending_confirmation')
                 self.assertEqual(urllib.request.urlopen(report['download_url']).read(),payload)
                 self.assertEqual(ledger.read_commits(self.server.vault), learning_before)
-                self.assertEqual(Path(mastery_path(self.server.vault)).read_bytes(), mastery_before)
+                self.assertEqual(mastery_rows(self.server.vault), mastery_before)
             for scopes, count in ((['omrs:read'],22), (['draft:create'],1), (['board:write'],0), (['omrs:read','draft:update'],23)):
                 key = create_key(self.server.vault, '发现', scopes)
                 async with _session(self.server.mcp_port, key['secret']) as session:

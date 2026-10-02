@@ -1,3 +1,4 @@
+import contextlib
 import base64
 import io
 import json
@@ -126,7 +127,7 @@ class InboxFlowTests(unittest.TestCase):
             committed = inbox.commit_item(vault, item["id"], card=1,
                                           form={"subject": "数学", "category": "集合", "difficulty": 6, "tags": "集合相等, 判别式"})
             self.assertEqual(committed["uid"], "集合1")
-            self.assertEqual(committed["answer_images"], [f"集合1-{committed['question_id'][-4:]}-a-1.png"])
+            self.assertEqual(committed["answer_images"], [f"集合1-{committed['question_id'].split('-')[-1]}-a-1.png"])
             with open(os.path.join(vault, committed["file_path"]), encoding="utf-8") as file:
                 raw_md = file.read()
             self.assertIn("题目 $x^2$", str(raw_md))
@@ -156,7 +157,8 @@ class InboxFlowTests(unittest.TestCase):
                 yolo = zf.read(f"labels/{item['sha256']}.txt").decode("utf-8").splitlines()
                 self.assertEqual(yolo[0].split()[0], "0")
 
-            events = [json.loads(l) for l in open(os.path.join(vault, "错题", ".omrs", "inbox", "annotations.jsonl"), encoding="utf-8")]
+            with open(os.path.join(vault, "错题", ".omrs", "inbox", "annotations.jsonl"), encoding="utf-8") as stream:
+                events = [json.loads(l) for l in stream]
             self.assertEqual([e["event"] for e in events][:2], ["item.upload", "item.upload"])
             self.assertIn("item.commit", [e["event"] for e in events])
 
@@ -403,7 +405,7 @@ class RevisionContractTests(unittest.TestCase):
     def test_old_database_migrates_once_and_rejects_stale_writes(self):
         with tempfile.TemporaryDirectory() as vault:
             path = os.path.join(inbox.inbox_dir(vault), "inbox.db")
-            with sqlite3.connect(path) as legacy:
+            with contextlib.closing(sqlite3.connect(path)) as legacy, legacy:
                 legacy.executescript(inbox._SCHEMA)
             with inbox.connect(vault) as db:
                 self.assertIn("revision", {row[1] for row in db.execute("PRAGMA table_info(items)")})
@@ -469,7 +471,8 @@ class ProviderPolicyTests(unittest.TestCase):
             fake = FakeAI()
             with self.assertRaisesRegex(ValueError, "提供方"):
                 inbox._run_detect(vault, fake, {"item_id": item["id"], "provider": "template"})
-            write_config(vault, inbox_detect_provider="template")
+            with self.assertRaisesRegex(ValueError, "提供方"):
+                write_config(vault, inbox_detect_provider="template")
             self.assertEqual(inbox.detect_provider(vault), "vlm")
             # local_http：走配置里的地址，宽高随条带传给服务
             write_config(vault, inbox_detect_provider="local_http", inbox_local_detect_url="http://127.0.0.1:1/detect")
@@ -477,7 +480,8 @@ class ProviderPolicyTests(unittest.TestCase):
             self.assertEqual(res["provider"], "local_http")
             self.assertEqual(fake.local_calls[0][0], "http://127.0.0.1:1/detect")
             self.assertEqual(fake.local_calls[0][2], 20)
-            events = [json.loads(l) for l in open(os.path.join(vault, "错题", ".omrs", "inbox", "annotations.jsonl"), encoding="utf-8")]
+            with open(os.path.join(vault, "错题", ".omrs", "inbox", "annotations.jsonl"), encoding="utf-8") as stream:
+                events = [json.loads(l) for l in stream]
             detects = [e for e in events if e["event"] == "ai.detect"]
             self.assertEqual([e["provider"] for e in detects], ["local_http"])
 
@@ -499,7 +503,8 @@ class ProviderPolicyTests(unittest.TestCase):
                        {"card": 1, "role": "answer", "x": 0.05, "y": 0.55, "w": 0.9, "h": 0.35, "convert": "image"}]
             inbox.update_item(vault, items[1]["id"], {"regions": regions})
             inbox.update_item(vault, items[1]["id"], {"status": "ready"})
-            events = [json.loads(l) for l in open(os.path.join(vault, "错题", ".omrs", "inbox", "annotations.jsonl"), encoding="utf-8")]
+            with open(os.path.join(vault, "错题", ".omrs", "inbox", "annotations.jsonl"), encoding="utf-8") as stream:
+                events = [json.loads(l) for l in stream]
             ready = [e for e in events if e["event"] == "item.ready"][0]
             self.assertTrue(ready["blind"]); self.assertEqual(len(ready["ai_boxes"]), 2)
             self.assertEqual(ready["blind_eval"]["matched"], 2)

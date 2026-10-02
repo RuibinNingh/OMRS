@@ -4,6 +4,7 @@
  * 写操作成功后：清详情缓存 → reloadData() → 失效重绘挂着该题的 qview → 通知历史动态刷新。
  * 「编辑」打开 editor.js 的 Markdown 编辑器（ui/dialog）。
  */
+import { questionRef, questionRefs, questionItem } from './ref.js';
 import { html } from '../../core/html.js';
 import { post } from '../../core/api.js';
 import { toast } from '../../ui/toast.js';
@@ -13,7 +14,7 @@ import { notifyHistoryChanged } from '../history.js';
 import { qvInvalidate, dropDetail } from './mount.js';
 import { closeModal } from './modal.js';
 import { openEditor } from './editor.js';
-import { allItems, itemOf } from '../items.js';
+import { allItems } from '../items.js';
 import { downloadResponse } from '../../core/download.js';
 
 const zh = (a, b) => a.localeCompare(b, 'zh-CN');
@@ -27,31 +28,40 @@ async function afterWrite(uids, { invalidate = true } = {}) {
 
 export function editQuestion(uid) { return uid ? openEditor(uid) : Promise.resolve(false); }
 
-export async function suspendQuestion(uid) {
+export async function suspendQuestion(value) {
+  const item = questionItem(value);
+  const ref = questionRef(item);
+  const uid = item.uid;
   const ok = await confirm(`停用题目「${uid}」？`, { hint: '停用后不会进入复习调度、统计或数据分析；题目正文和历史记录会保留，可随时恢复。', okText: '停用' });
   if (!ok) return false;
-  const res = await post('/api/question/suspend', { uid });
+  const res = await post('/api/question/suspend', { ...ref });
   if (!res.ok) { toast(`停用失败：${res.error.message}`, { kind: 'error' }); return false; }
   await afterWrite([uid]);
   toast(`${uid} 已停用`, { kind: 'ok' });
   return true;
 }
 
-export async function resumeQuestion(uid) {
-  const res = await post('/api/question/resume', { uid });
+export async function resumeQuestion(value) {
+  const item = questionItem(value);
+  const ref = questionRef(item);
+  const uid = item.uid;
+  const res = await post('/api/question/resume', { ...ref });
   if (!res.ok) { toast(`恢复失败：${res.error.message}`, { kind: 'error' }); return false; }
   await afterWrite([uid]);
   toast(`${uid} 已恢复`, { kind: 'ok' });
   return true;
 }
 
-export async function deleteQuestion(uid) {
+export async function deleteQuestion(value) {
+  const item = questionItem(value);
+  const ref = questionRef(item);
+  const uid = item.uid;
   const ok = await confirm(`删除题目「${uid}」？`, {
     hint: '这会删除题目的 Markdown 正文，并在 Ledger 中追加归档记录。历史反馈仍会保留，但题目正文无法通过 Ledger 恢复；附件图片不会删除。',
     okText: '删除', danger: true,
   });
   if (!ok) return false;
-  const res = await post('/api/question/delete', { uid });
+  const res = await post('/api/question/delete', { ...ref });
   if (!res.ok) { toast(`删除失败：${res.error.message}`, { kind: 'error' }); return false; }
   dropDetail(uid);
   closeModal();
@@ -60,8 +70,10 @@ export async function deleteQuestion(uid) {
   return true;
 }
 
-export async function moveQuestion(uid) {
-  const item = itemOf(uid);
+export async function moveQuestion(value) {
+  const item = questionItem(value);
+  const ref = questionRef(item);
+  const uid = item.uid;
   const all = allItems();
   const subjects = uniq(all.map(i => i.subject));
   const categories = uniq(all.map(i => i.category));
@@ -82,7 +94,7 @@ export async function moveQuestion(uid) {
   const category = String(res.values['qop-mv-category'] || '').trim();
   if (!category) { toast('目标分类不能为空', { kind: 'warn' }); return false; }
   if (subject === item.subject && category === item.category) return false;
-  const out = await post('/api/question/move', { uid, subject, category });
+  const out = await post('/api/question/move', { ...ref, subject, category });
   if (!out.ok) { toast(`迁移失败：${out.error.message}`, { kind: 'error' }); return false; }
   dropDetail(uid);
   await afterWrite([], { invalidate: false });
@@ -92,14 +104,15 @@ export async function moveQuestion(uid) {
 
 /** 批量停用 / 恢复：已停用的恢复，其余停用；逐题调用，失败计数。返回是否执行。 */
 export async function batchSuspend(uids) {
-  const list = uids.map(itemOf).filter(item => item.uid);
+  const list = uids.map(value => questionItem(value)).filter(item => item?.uid);
+  const refs = questionRefs(list);
   if (!list.length) return false;
   const toSuspend = list.filter(item => !item.suspended).length;
   const ok = await confirm(`停用 ${toSuspend} 道 / 恢复 ${list.length - toSuspend} 道题？`, { hint: '停用后不进入调度与统计，可随时恢复；正文与历史都保留。', okText: '执行' });
   if (!ok) return false;
   let failed = 0;
-  for (const item of list) {
-    const res = await post(item.suspended ? '/api/question/resume' : '/api/question/suspend', { uid: item.uid });
+  for (const [index, item] of list.entries()) {
+    const res = await post(item.suspended ? '/api/question/resume' : '/api/question/suspend', refs[index]);
     if (!res.ok) failed += 1;
   }
   await afterWrite(list.map(item => item.uid));
@@ -111,7 +124,8 @@ export async function batchSuspend(uids) {
 export async function exportA4(uids) {
   if (!uids.length) return false;
   try {
-    const response = await fetch('/api/export', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ uids, format: 'a4', include_answers: false }) });
+    const question_refs = questionRefs(uids);
+    const response = await fetch('/api/export', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question_refs, format: 'a4', include_answers: false }) });
     if (!response.ok) {
       let message = '导出失败';
       try { message = (await response.json()).msg || message; } catch (error) { /* 非 JSON 错误页 */ }

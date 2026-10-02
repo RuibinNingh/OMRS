@@ -6,6 +6,8 @@
  *   go:'feedback' 带 Session；go:'page' 切到某页。
  */
 import { formatPercent } from '../../core/format.js';
+import { daysBetween, dayKey } from '../../core/date.js';
+export { dayKey };
 export const LEVELS = {
   urgent: { label: '紧急', rank: 0, tone: 'danger' },
   warn: { label: '建议', rank: 1, tone: 'warning' },
@@ -16,18 +18,10 @@ export const LEVELS = {
 const num = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
 const pct = formatPercent;
 
-export function dayKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
 /** 'YYYY-MM-DD' 或 'YYYY/MM/DD' → 距 today 的整天数（不小于 0）；无法解析时给 fallback。与旧 daysSinceReview 一致。 */
 export function daysSince(value, today, fallback = 30) {
-  const parts = String(value || '').trim().split(/[-/]/).map(Number);
-  if (parts.length !== 3 || !parts.every(Number.isInteger)) return fallback;
-  const [y, m, d] = parts;
-  const date = new Date(y, m - 1, d);
-  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return fallback;
-  const diff = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()) - Date.UTC(y, m - 1, d);
-  return Math.max(0, Math.floor(diff / 86400000));
+  const diff = daysBetween(value, today);
+  return diff === null ? fallback : Math.max(0, diff);
 }
 export const isKilled = item => num(item.mastery) >= 1 || String(item.tag || '').includes('已击杀');
 export const activeItems = items => (items || []).filter(item => !item.suspended && !isKilled(item));

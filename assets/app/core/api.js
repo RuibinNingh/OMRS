@@ -12,7 +12,9 @@ export async function request(path, options = {}) {
   const { method = 'GET', body, headers = {}, signal, timeout = 30000, redirectOn401 = true, fetchImpl = globalThis.fetch } = options;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
-  if (signal) signal.addEventListener('abort', () => controller.abort(), { once: true });
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
   const init = { method, headers: { ...headers }, signal: controller.signal, credentials: 'same-origin' };
   if (body !== undefined) {
     if (isRaw(body)) init.body = body;
@@ -36,6 +38,7 @@ export async function request(path, options = {}) {
     return { ok: false, status: 0, data: null, error: { status: 0, code: aborted ? 'timeout' : 'network', message: aborted ? '请求超时或已取消' : '网络连接失败' } };
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
   }
 }
 

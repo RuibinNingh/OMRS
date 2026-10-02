@@ -102,7 +102,11 @@ class PracticeCardTests(unittest.TestCase):
         self.assertTrue(get_practice(self.vault, card["card_id"])["progress"]["results"][qid]["correct"])
         self.assertEqual([x["question_id"] for x in opened["unavailable"]], [card["items"][1]["question_id"]])
         forged_uid = {"question_id": qid, "entry_id": qid, "uid": self.ids[2], "source": "proficiency", "is_correct": True, "sub_score": 8}
-        result = process_feedback(self.vault, [forged_uid], opened["session_id"], attempt_id=opened["attempt_id"])
+        from omrs.data_repository import IdentityConflict
+        with self.assertRaises(IdentityConflict):
+            process_feedback(self.vault, [forged_uid], opened["session_id"], attempt_id=opened["attempt_id"])
+        valid = {**forged_uid, "uid": opened["items"][0]["uid"]}
+        result = process_feedback(self.vault, [valid], opened["session_id"], attempt_id=opened["attempt_id"])
         self.assertEqual(result[0]["question_id"], qid)
         self.assertEqual(result[0]["source"], "due", "排期来源以卡片服务端快照为准")
         self.assertEqual(self.attempts(card["items"][2]["question_id"]), 0, "伪造 UID 不能把反馈记到另一题")
@@ -110,6 +114,7 @@ class PracticeCardTests(unittest.TestCase):
         self.assertEqual(len(get_practice(self.vault, card["card_id"])["unavailable"]), 2)
         deleted = {"question_id": card["items"][2]["question_id"], "entry_id": card["items"][2]["question_id"],
                    "uid": self.ids[0], "is_correct": True, "sub_score": 8}
+        deleted.pop("uid", None)
         result = process_feedback(self.vault, [deleted], opened["session_id"], attempt_id=opened["attempt_id"])
         self.assertEqual(result[0]["status"], "error")
 

@@ -1,3 +1,4 @@
+import { questionRefs, questionRef, questionKey } from '../../domain/question/ref.js';
 /**
  * 展示板「板详情」的控制器（P7 第 6 轮起；原 assets/board.js 的 BOARD_DETAIL / BOARD_PRINT_MODE / BOARD_SELECTED_UID、
  * 数据加载与详情上的全部操作，旧文件已删）。
@@ -8,14 +9,13 @@
  *   接到 domain/board/detail-port.js 的端口与窗口级监听在 runtime.js。请求沿用旧 api() 的语义（成功返回数据、失败抛 Error）。
  * - 板列表归 domain/board/boards.js（adoptBoards、boardRemember 等），这里只在重读 / 加载时采纳与记住当前板。
  */
-import { boardUniqueUids } from '../../domain/board/model.js';
 import { adoptBoards, boardRemember, boardPreferredId, boardCurrentId, boardFind } from '../../domain/board/boards.js';
 import { boardStatusModel, boardMoveItems, boardItemsPayload, boardItemsSignature, boardGapMap, boardSortItems, boardPaperSummary as paperSummary } from './model.js';
 import { boardWritePayload, adoptBoardVersions } from '../../domain/board/boards.js';
 import { createBoardSaveQueue } from './save.js';
 import { createBoardPrint } from './print.js';
 import { createBoardSettings } from './settings.js';
-import { syncBody } from './view.js';
+import { createBoardLabelSync } from './sync-label.js';
 
 export const BOARD_VIEW_KEY = 'omrs-board-view';
 const clamp = (value, lo, hi, fallback) => (value === '' || value == null || !Number.isFinite(Number(value)) ? fallback : Math.max(lo, Math.min(hi, Number(value))));
@@ -30,7 +30,7 @@ export function createBoardDetail(initialDeps = {}) {
   let previewBound = false;
 
   const items = () => st.detail?.items || [];
-  const itemOf = uid => items().find(item => item.uid === uid || item.question_id === uid) || null;
+  const itemOf = key => items().find(item => item.question_id === key) || items().find(item => item.uid === key && !item.missing) || items().find(item => item.uid === key) || null;
   const hasPaper = board => paperSummary(board || st.detail).pages > 0;
   const toast = (text, options) => deps.toast(text, options);
 
@@ -206,7 +206,7 @@ export function createBoardDetail(initialDeps = {}) {
       if (token !== st.seq) return;
       st.detail = result.board || null;
       boardRemember(id);
-      if (!items().some(item => item.uid === st.selected)) st.selected = '';
+      if (!items().some(item => questionKey(item) === st.selected || item.uid === st.selected)) st.selected = '';
       if (st.mode === 'new' && !hasPaper()) st.mode = 'all';
       if (repaint) render();
     } catch (error) {
@@ -217,20 +217,21 @@ export function createBoardDetail(initialDeps = {}) {
 
   // ---------- 加题（六处入口统一走这里） ----------
   async function addToBoard(boardId, uids, options = {}) {
-    const clean = boardUniqueUids(uids);
+    const clean = questionRefs(uids);
     if (!clean.length || !boardId) return null;
     if (!(await flush())) return null;
     try {
-      const result = await postBoard('/api/board/items/add', { id: boardId, uids: clean }, boardFind(boardId));
+      const result = await postBoard('/api/board/items/add', { id: boardId, question_refs: clean }, boardFind(boardId));
       const board = result.board;
       boardRemember(board.id);
       if (boardCurrentId() === board.id) st.detail = board;
       await reloadData();
       if (options.goto) deps.gotoBoard();
       const addedUids = board.added_uids || [];
+      const addedRefs = (board.items || []).filter(item => (board.added_question_ids || []).includes(item.question_id)).map(item => questionRef(item));
       const added = Number(board.added ?? addedUids.length);
       const actions = [];
-      if (addedUids.length) actions.push({ label: '撤销', onClick: () => postBoard('/api/board/items/remove', { id: board.id, uids: addedUids }).then(reloadData).then(() => toast('已撤销加入')) });
+      if (addedUids.length) actions.push({ label: '撤销', onClick: () => postBoard('/api/board/items/remove', { id: board.id, question_refs: addedRefs }).then(reloadData).then(() => toast('已撤销加入')) });
       if (boardCurrentId() !== board.id || !deps.pageActive()) {
         actions.push({ label: '打开展示板', onClick: () => { deps.gotoBoard(); load(board.id); } });
       }
@@ -245,14 +246,16 @@ export function createBoardDetail(initialDeps = {}) {
   // ---------- 条目操作 ----------
   async function removeItem(uid) {
     if (!st.detail) return;
-    if (!(await flush())) return;
     const item = itemOf(uid);
+    if (!item?.question_id) { toast('题目身份不可确认，请重新读取展示板', { kind: 'error' }); return; }
+    const ref = questionRef(item);
+    if (!(await flush())) return;
     try {
       const boardId = st.detail.id;
-      const result = await postBoard('/api/board/items/remove', { id: boardId, uids: [uid] });
+      const result = await postBoard('/api/board/items/remove', { id: boardId, question_refs: [ref] });
       st.detail = result.board;
       await reloadData();
-      toast(`已移除 ${uid}${item?.printed ? '（纸上仍有这道题，纸面记录保留其占位）' : ''}`, { actions: [{ label: '撤销', onClick: () => addToBoard(boardId, [uid], { silent: true }) }] });
+      toast(`已移除 ${item.uid || uid}${item?.printed ? '（纸上仍有这道题，纸面记录保留其占位）' : ''}`, { actions: [{ label: '撤销', onClick: () => addToBoard(boardId, [ref], { silent: true }) }] });
     } catch (error) { toast(`移除失败：${error.message}`, { kind: 'error' }); }
   }
   async function persistItems(list, message = '') {
@@ -287,38 +290,12 @@ export function createBoardDetail(initialDeps = {}) {
     if (!ok) return;
     await persistItems([], '展示板已清空');
   }
-  async function syncLabel(preferred = '') {
-    if (!st.detail) return;
-    // 加题同步会在服务端追加引用；先落盘本地待保存的 items，避免随后重读用旧快照覆盖新题。
-    if (!(await flush())) return;
-    const defs = deps.labels();
-    if (!defs.length) { toast('还没有标记，先在题目上打一个「考前必看」之类的标记', { kind: 'warn' }); return; }
-    let label = preferred && defs.some(item => item.name === preferred) ? preferred : '';
-    if (!label) {
-      const current = st.detail.source_labels?.[0] || '';
-      const res = await deps.dialog({
-        title: '按标记同步', okText: '同步到展示板', focus: '[data-dialog-ok]',
-        hint: '把带有该标记、且还不在板里的题目追加到末尾；之后新打的标记不会自动进板，需要时再同步一次。',
-        body: syncBody(defs, current),
-      });
-      if (!res.ok) return;
-      label = defs.find((item, index) => res.values[`bd-sync-${index}`] === true)?.name;
-    }
-    if (!label) return;
-    if (!(await flush())) return;   // 对话框关闭后再查一次：同步追加前没有新的脏字段或在途保存
-    const uids = deps.items().filter(item => !item.suspended && (item.labels || []).includes(label)).map(item => item.uid);
-    try {
-      const result = uids.length ? await postBoard('/api/board/items/add', { id: st.detail.id, uids }) : { board: { added: 0 } };
-      if (!preferred) await postBoard('/api/board/update', { id: st.detail.id, source_labels: [label] });
-      await reloadData();
-      toast(result.board.added ? `已同步 ${result.board.added} 道「${label}」题目` : `没有带「${label}」的新题目`);
-    } catch (error) { toast(`同步标记失败：${error.message}`, { kind: 'error' }); }
-  }
+  const syncLabel = createBoardLabelSync({ detail: () => st.detail, flush, deps: { labels: () => deps.labels(), items: () => deps.items(), dialog: options => deps.dialog(options) }, postBoard, reloadData, toast });
 
   // ---------- 选中、打印范围、留白 ----------
   /** 选中的唯一入口：纸面点击、列表 / 画廊点击、键盘上下都走它，三处选中态才不会各说各话。 */
   function select(uid) {
-    st.selected = uid || '';
+    st.selected = questionKey(itemOf(uid)) || '';
     changed();
   }
   /** 打印范围：换了范围，上一次「等待记录」作废，状态、主按钮文案与纸面当场按新范围变化。 */

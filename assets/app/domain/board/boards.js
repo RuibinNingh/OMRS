@@ -1,3 +1,4 @@
+import { questionRefs } from '../question/ref.js';
 /**
  * 展示板列表的数据所有者（P7 第 5 轮起）：板列表、文件夹、当前板、上次用的板、文件夹折叠状态，以及板 / 文件夹的写操作。
  * 取代旧 assets/board.js 的 BOARD_DATA / BOARD_FOLDERS / BOARD_CURRENT、boardLastId / boardRemember / boardFolderCollapsed /
@@ -111,6 +112,7 @@ const fail = (what, error) => deps.toast(`${what}：${error.message}`, { kind: '
 const byId = id => boardFind(id) || (deps.hooks.detail()?.id === id ? deps.hooks.detail() : null);
 
 export async function createBoard(initialUids = null, folderId = '') {
+  const question_refs = questionRefs(initialUids || []);
   if (!(await deps.hooks.flush())) return null;
   const folder = folderOf(folderId);
   const name = await deps.prompt('新建展示板', '', {
@@ -119,7 +121,7 @@ export async function createBoard(initialUids = null, folderId = '') {
   });
   if (!name) return null;
   try {
-    const result = await send('/api/board/create', { name, uids: initialUids || [], folder_id: folderId || '' });
+    const result = await send('/api/board/create', { name, question_refs, folder_id: folderId || '' });
     boardRemember(result.board.id);
     await deps.hooks.reload();
     deps.toast(`已新建《${name}》${initialUids?.length ? `，加入 ${result.board.items.length} 题` : ''}`);

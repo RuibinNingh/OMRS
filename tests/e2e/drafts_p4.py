@@ -110,6 +110,10 @@ def main():
             if page.locator('.drf-source-trigger').get_attribute('aria-expanded') == 'false':
                 page.locator('.drf-source-trigger').click()
             page.locator('#drf-stage-src').wait_for()
+        def save(page):
+            page.locator('[data-action="create.draftSave"]').click()
+            if not support.wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存') && !document.querySelector('.drf-detail [aria-busy=true]')", 15000):
+                raise RuntimeError('草稿保存未完成：' + page.locator('.drf-message').inner_text())
         def mode(value):
             Path(vault, 'detect-mode').write_text(value)
         try:
@@ -164,7 +168,7 @@ def main():
                             'box': page.locator('#drf-stage-img .crp-box').get_attribute('x'),
                             'heading': page.locator('.drf-detail h2').inner_text(),
                             'detect': page.locator('[data-action="create.draftDetect"]').count()}))
-                    page.locator('[data-action="create.draftSave"]').click()
+                    save(page)
                     adjusted = item('applied')['blocks'][0]
                     check('人工移动 AI 框保留 ai_box 与 ai_edited', adjusted['box_origin'] == 'ai_edited' and adjusted['ai_box'] == original)
                     page.locator('[data-action="create.draftDetect"]').click()
@@ -179,7 +183,7 @@ def main():
                     check('歧义候选以虚线建议展示且不改正文', support.wait(page, "() => document.querySelectorAll('.drf-suggestion').length === 2", 15000)
                           and item('ambiguous')['blocks'][0]['box'] is None)
                     page.locator('[data-action="create.draftAcceptCandidate"]').first.click()
-                    page.locator('[data-action="create.draftSave"]').click()
+                    save(page)
                     check('明确点击候选后才保存 AI 来源框', item('ambiguous')['blocks'][0]['box_origin'] == 'ai')
                     open_draft(page, 'failure'); mode('error')
                     page.locator('[data-action="create.draftDetect"]').click()
@@ -214,7 +218,7 @@ def main():
                     stage = page.locator('#drf-stage-img'); stage.scroll_into_view_if_needed(); bounds = stage.bounding_box()
                     page.mouse.move(bounds['x'] + bounds['width'] * .15, bounds['y'] + bounds['height'] * .2)
                     page.mouse.down(); page.mouse.move(bounds['x'] + bounds['width'] * .72, bounds['y'] + bounds['height'] * .68, steps=6); page.mouse.up()
-                    page.locator('[data-action="create.draftSave"]').click()
+                    save(page)
                     check('训练关闭仍可保存强制框且不登记', item('force')['training_tasks'][0]['status'] == 'ready'
                           and support.api(base, '/api/inbox/dataset/stats')['chat']['images'] == 0)
                     page.locator('[data-action="create.draftTrainToggle"]').click()
@@ -251,7 +255,7 @@ def main():
                             'id': 1, 'x': x0 + (x1-x0)*step/6, 'y': y0 + (y1-y0)*step/6}]})
                     session.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
                     drawn = support.wait(touch_page, "() => document.querySelectorAll('#drf-stage-img .crp-box').length === 1")
-                    if drawn: touch_page.locator('[data-action="create.draftSave"]').click()
+                    if drawn: save(touch_page)
                     check('已入库全文字草稿手机触摸补标', drawn and len(item('touch')['training_tasks'][0]['boxes']) == 1)
                     touch_page.screenshot(path=os.path.join(SHOTS, 'touch-mobile.png'), full_page=True)
                 except Exception as error:

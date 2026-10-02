@@ -38,7 +38,7 @@ export function railView(S) {
     <button type="button" class="ui-btn ui-btn--sm" data-action="assistant.newConv">${icon('plus')}新对话</button></header>
     <div class="ast-rail__list">${S.convs.length ? each([...groups], ([g]) => g, ([g, list]) => html`<section class="ast-group" data-key="${g}"><h3>${g}</h3><ul>${each(list, c => c.id, item)}</ul></section>`)
       : html`<p class="ast-rail__empty">还没有对话。</p>`}</div>
-    <footer class="ast-rail__foot">对话存在 agent.db，随备份导出；不进 Ledger。</footer>`;
+    ${S.listMore ? html`<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.moreConversations"${S.listBusy ? html` disabled` : ''}>${S.listBusy ? '读取中…' : '更多对话'}</button>` : ''}<footer class="ast-rail__foot">对话存在 agent.db，随备份导出；不进 Ledger。</footer>`;
 }
 
 /* ── 头部 ── */
@@ -137,6 +137,7 @@ export function turnView(S, run, perfNow) {
       <span class="ast-process__label" role="status">${label}</span><span class="ast-process__meta">${detail}</span>${icon(collapsed ? 'chevron-right' : 'chevron-down')}</button>
       ${collapsed ? '' : html`<div class="ast-trace" id="process-${run.id}" data-key="process-body">${each(process, st => st.id, st => stepView(S, run, st, now))}</div>`}</section>
     <div class="ast-result" data-key="result">${each(outside, st => st.id, st => stepView(S, run, st, now))}</div>
+    ${run.eventsMore ? html`<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.loadRunEvents" data-arg="${run.id}"${run.eventsBusy || run.following ? html` disabled` : ''}>${run.eventsBusy ? '读取中…' : '继续读取运行记录'}</button><p class="ast-note">这次运行的记录尚未全部读取。</p>` : ''}
     ${live ? '' : footView(run)}`;
   return html`<article class="${cls('ast-turn', live && 'is-live', run.reverted && 'is-undone', S.runSel === run.id && 'is-selected')}" data-key="run-${run.id}" ${live ? '' : raw(`data-hash="${run.id}:${run.ver}:${S.uiVer}:${S.draftVer || 0}:${S.runSel === run.id ? 1 : 0}"`)}>${body}</article>`;
 }
@@ -144,7 +145,7 @@ export function turnView(S, run, perfNow) {
 export function userView(item, i, S = {}) {
   const images = item.images || [];
   const long = item.text?.length > 360;
-  const expanded = S.longOpen?.has(i);
+  const expanded = S.longOpen?.has(String(i));
   return html`<div class="ast-user" data-key="u-${i}" data-hash="u${i}:${item.text?.length || 0}:${images.map(image => image.sha || image.ref).join(',')}:${expanded ? 1 : 0}"><span class="ast-user__m">你 · ${hhmm(item.at)}</span>
     ${images.length ? html`<div class="ast-user__images">${images.map((image, n) => html`<button type="button" class="ast-image" data-action="assistant.openSentImage" data-arg="${i}|${n}" aria-label="预览 ${image.ref || `IMG-${n + 1}`}"><img src="${imageSrc(image)}" alt="${image.ref || `IMG-${n + 1}`}" loading="lazy"><span>${image.ref || `IMG-${n + 1}`}</span></button>`)}</div>` : ''}
     ${item.text ? html`<div class="ast-user__b${long && !expanded ? ' is-clamped' : ''}">${item.text}</div>${long ? html`<button type="button" class="ast-user__expand" data-action="assistant.toggleLong" data-arg="${i}" aria-expanded="${expanded ? 'true' : 'false'}">${expanded ? '收起' : '展开全文'}</button>` : ''}` : ''}</div>`;
@@ -153,8 +154,8 @@ export function userView(item, i, S = {}) {
 export function streamView(S, perfNow) {
   if (!S.status?.enabled) return offView(S);
   if (!S.items.length) return emptyView(S);
-  return each(S.items, (it, i) => (it.type === 'user' ? `u-${i}` : `run-${it.run.id}`),
-    (it, i) => (it.type === 'user' ? userView(it, i, S) : turnView(S, it.run, perfNow)));
+  return html`${S.historyMore ? html`<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.loadHistory"${S.historyBusy ? html` disabled` : ''}>${S.historyBusy ? '读取中…' : '加载更早的消息'}</button>` : ''}${each(S.items, (it, i) => it.item_key || (it.type === 'user' ? `u-${i}` : `run-${it.run.id}`),
+    (it, i) => (it.type === 'user' ? userView(it, it.item_key || i, S) : turnView(S, it.run, perfNow)))}`;
 }
 
 function offView(S) {

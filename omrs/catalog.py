@@ -3,16 +3,14 @@
 只读模块。不写 Ledger、不写投影、不改任何文件；`GET /api/tree` 每次直接走一遍磁盘。
 题目的熟练度等结构化状态仍以投影为准，这里只负责「工作区里有哪些文件夹和文件」。
 """
+from .data_repository import mastery_rows
 
 import os
 
 from .common import (
     FILE_PATTERN,
-    MASTERY_HEADERS,
     OMRS_DIR,
     QUESTIONS_DIR,
-    load_csv,
-    mastery_path,
     questions_root,
 )
 
@@ -119,7 +117,7 @@ def build_tree(vault: str) -> dict:
     """
     qroot = questions_root(vault)
     uid_map = {}
-    for row in load_csv(mastery_path(vault), MASTERY_HEADERS):
+    for row in mastery_rows(vault):
         uid = (row.get("UID") or "").strip()
         if uid:
             uid_map[uid] = row

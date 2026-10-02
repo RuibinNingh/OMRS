@@ -1,3 +1,4 @@
+import { questionKey } from '../../domain/question/ref.js';
 /**
  * 复习调度 ·「全题库导出」视图（原 omrs_dashboard.html 的 #export-panel 与 export.js 的渲染）。
  * 保留旧 id（#export-panel、#pick-*、#export-summary、#export-view-*、#export-include-answers、#export-question-gap、#export-status），
@@ -54,7 +55,7 @@ function selection(x, env) {
   <p class="schd-xsel__head"><strong>已选导出：${x.selection.length} 题</strong>${x.variant === 'screen' ? html`<span class="schd-meta">屏幕版始终附带答案</span>` : ''}</p>
   ${rows.length ? html`<ol class="schd-xlist">${each(rows, it => it.uid, (it, i) => html`<li class="schd-xrow">
     <div class="schd-xrow__main"><strong>${i + 1}. ${it.uid}</strong><span class="schd-meta">${it.subject || ''} · ${it.category || ''} · 难度 ${it.difficulty} · 熟练度 ${pct(it.mastery)}</span><span class="schd-xrow__tags">${labelChips(it.labels || [])}${ktags(it)}</span></div>
-    <span class="schd-acts">${button({ label: '预览', size: 'sm', action: 'schedule.xpreview', arg: `export-selection|${it.uid}` })}${button({ label: '移除', size: 'sm', variant: 'ghost', action: 'schedule.xtoggle', arg: it.uid })}</span>
+    <span class="schd-acts">${button({ label: '预览', size: 'sm', action: 'schedule.xpreview', arg: `export-selection|${it.uid}` })}${button({ label: '移除', size: 'sm', variant: 'ghost', action: 'schedule.xtoggle', arg: questionKey(it) })}</span>
   </li>`)}</ol>` : html`<p class="schd-meta">还没有加入导出的题目。在下面勾选，或用「选择当前筛选」。</p>`}
 </section>`;
 }
@@ -62,17 +63,17 @@ function selection(x, env) {
 function picker(x, env) {
   if (!env.filtered.length) return html`<div class="schd-xpick" data-key="xpick">${empty({ icon: 'filter', title: '没有符合当前筛选条件的题目', hint: '放宽筛选条件再试。', compact: true })}</div>`;
   const chosen = new Set(x.selection);
-  const toggle = it => button({ label: chosen.has(it.uid) ? '移除' : '加入', size: 'sm', variant: chosen.has(it.uid) ? 'ghost' : 'default', action: 'schedule.xtoggle', arg: it.uid });
+  const toggle = it => button({ label: chosen.has(questionKey(it)) ? '移除' : '加入', size: 'sm', variant: chosen.has(questionKey(it)) ? 'ghost' : 'default', action: 'schedule.xtoggle', arg: questionKey(it) });
   const head = it => { const st = statusTag(it); return html`${st.label ? tag({ label: st.label, tone: st.tone }) : ''}${labelChips(it.labels || [])}${ktags(it)}`; };
   if (x.view === 'gallery') {
-    return html`<div class="schd-xpick schd-xgrid" data-key="xpick">${each(env.filtered, it => it.uid, it => html`<article class="${cls('schd-xcard', chosen.has(it.uid) && 'is-selected')}">
+    return html`<div class="schd-xpick schd-xgrid" data-key="xpick">${each(env.filtered, it => it.uid, it => html`<article class="${cls('schd-xcard', chosen.has(questionKey(it)) && 'is-selected')}">
       <div class="schd-xcard__head"><div><strong>${it.uid}</strong><p class="schd-meta">${it.subject || ''} · ${it.category || ''} · 难度 ${it.difficulty} · 熟练度 ${pct(it.mastery)}</p></div>${toggle(it)}</div>
       <p class="schd-xrow__tags">${head(it)}</p>
       <div class="schd-xcard__preview" data-xpreview-uid="${it.uid}" data-key="xp-${it.uid}" data-morph="skip"></div>
       <div class="schd-xcard__foot">${button({ label: '完整查看', size: 'sm', variant: 'ghost', action: 'schedule.xpreview', arg: `export|${it.uid}` })}</div>
     </article>`)}</div>`;
   }
-  return html`<ol class="schd-xpick schd-xlist" data-key="xpick">${each(env.filtered, it => it.uid, it => html`<li class="${cls('schd-xrow', chosen.has(it.uid) && 'is-selected')}">
+  return html`<ol class="schd-xpick schd-xlist" data-key="xpick">${each(env.filtered, it => it.uid, it => html`<li class="${cls('schd-xrow', chosen.has(questionKey(it)) && 'is-selected')}">
     <div class="schd-xrow__main"><strong>${it.uid}</strong><span class="schd-meta">${it.subject || ''} · ${it.category || ''} · 难度 ${it.difficulty} · 熟练度 ${pct(it.mastery)} · 上次复习 ${it.last_review || '—'}</span><span class="schd-xrow__tags">${head(it)}</span></div>
     <span class="schd-acts">${button({ label: '预览', size: 'sm', action: 'schedule.xpreview', arg: `export|${it.uid}` })}${toggle(it)}</span>
   </li>`)}</ol>`;

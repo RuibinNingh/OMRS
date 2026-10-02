@@ -1,3 +1,5 @@
+import { pickQuestion } from '../../domain/question/picker.js';
+import { bindSessionEntry } from '../../domain/sessions.js';
 /**
  * 复习调度页（P6 第 3 轮起的 features 页面；原 assets/schedule.js 的页面部分）。
  * - 契约：page = { id: 'schedule', title, mount(root, ctx) → unmount, actions, keys }；动作命名空间 'schedule'。
@@ -110,6 +112,18 @@ function createController(root, ctx) {
 
   return {
     paint, show, open, remove, arr, exp,
+    async bind(entryId) {
+      const id = s.selected;
+      const entry = s.detail?.entries?.find(entry => entry.entry_id === entryId && entry.availability === 'unresolved');
+      if (!id || !entry) return;
+      const ref = await pickQuestion({ title: `绑定第 ${s.detail.entries.indexOf(entry) + 1} 题`, hint: `旧 UID：${entry.uid_at_creation || '未知'}。系统无法证明原身份，请核对题目后明确确认。` });
+      if (!ref) return;
+      const result = await bindSessionEntry(id, entryId, ref.question_id);
+      if (!result.ok) { toast(`绑定失败：${result.error?.message || '未知错误'}`, { kind: 'error' }); return; }
+      await refreshSessions();
+      if (s.selected === id) await open(id, { focus: false });
+      toast('已绑定题目，原历史记录保留', { kind: 'ok' });
+    },
     async exportPlan(variant) {
       const id = s.selected;
       if (!id || s.exporting) return;
@@ -170,6 +184,7 @@ export const page = {
     feedback: ({ el }) => { if (!s.selected) return; el?.blur?.(); globalThis.__omrs?.router.go('feedback'); globalThis.__omrs?.emit('feedback:session', s.selected); },
     export: ({ arg }) => ctl?.exportPlan(arg),
     remove: () => ctl?.remove(),
+    bind: ({ arg }) => ctl?.bind(arg),
     preview: ({ arg }) => viewQ(arg, 'schedule-plan'),
     answers: ({ el }) => { s.answers = !!el.checked; },
     // <details> 的展开状态存进页面状态：重绘（morph 按模板同步属性）后不会自己收起

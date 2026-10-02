@@ -1,20 +1,11 @@
+from .common import business_today
+from .vault_lifecycle import storage
 import datetime
 import math
 
-from .common import (
-    DEFAULT_TUNING,
-    MASTERY_HEADERS,
-    SM2_EF_MAX,
-    SM2_EF_MIN,
-    is_due,
-    is_suspended_row,
-    load_csv,
-    load_tuning,
-    mastery_path,
-    parse_date,
-    resolve_sm2_fields,
-)
+from .common import DEFAULT_TUNING, SM2_EF_MAX, SM2_EF_MIN, is_due, is_suspended_row, load_tuning, parse_date, resolve_sm2_fields
 from .log_utils import log_schedule
+from .data_repository import mastery_rows, history_rows
 
 
 def time_decay(mastery: float, days_since: int, factor: float = None, base: float = None) -> float:
@@ -49,7 +40,10 @@ def revive_dormant_days(kill_count, mastery=1.0, tuning=None) -> int:
     tier = max(0, _safe_int(kill_count, 1) - 1)
 
     base_days = (mastery * t["decay_mastery_factor"] + t["decay_base"]) * math.log(1.0 / threshold)
-    return max(1, int(round(base_days * (multiplier ** tier))))
+    maximum = (datetime.date.max - datetime.date.min).days
+    if base_days >= maximum or (multiplier > 1 and tier * math.log(multiplier) >= math.log(maximum / max(base_days, 1))):
+        return maximum
+    return min(maximum, max(1, int(round(base_days * (multiplier ** tier)))))
 
 
 def is_revive_eligible(mastery, tag, last_review, kill_count=0, today=None, tuning=None) -> bool:
@@ -152,7 +146,7 @@ def compute_priority(decayed_mastery, ef, days, tag, mastery,
 
 
 def days_since_review(value: str, today=None, default=30):
-    today = today or datetime.date.today()
+    today = today or business_today()
     parsed = parse_date(value)
     return max(0, (today - parsed).days) if parsed else default
 
@@ -162,7 +156,8 @@ def _next_revive_date(last_review: str, dormant_days: int) -> str:
     parsed = parse_date(last_review or "")
     if not parsed:
         return ""
-    return (parsed + datetime.timedelta(days=max(0, _safe_int(dormant_days, 0)))).isoformat()
+    days = min((datetime.date.max - parsed).days, max(0, _safe_int(dormant_days, 0)))
+    return (parsed + datetime.timedelta(days=days)).isoformat()
 
 
 def compute_mastery_update(old_m, ef, sub_score, is_correct, attempts,
@@ -213,11 +208,40 @@ def compute_mastery_update(old_m, ef, sub_score, is_correct, attempts,
     }
 
 
+def transition_review(question, mastery, review, tuning):
+    """唯一反馈转换：网页响应、增量应用和完整重放共用，不读取磁盘。"""
+    from .common import calc_sm2_interval, compute_due_date
+    old_m = _safe_float(mastery.get("mastery"), 0)
+    correct = bool(review.get("is_correct"))
+    attempts = _safe_int(mastery.get("attempts"), 0) + 1
+    update = compute_mastery_update(old_m, mastery.get("ef", 2.5), review.get("sub_score", 0),
+                                   correct, attempts, mastery.get("high_correct_streak", 0), tuning)
+    demote = not correct and is_killed_state(old_m, question.get("current_tag", ""))
+    new_m = min(update["mastery"], old_m * tuning["kill_demote_factor"]) if demote else update["mastery"]
+    repetition = _safe_int(mastery.get("repetition"), 0) + 1 if correct else 0
+    interval = calc_sm2_interval(_safe_int(mastery.get("interval_days"), 0), repetition, update["ef"],
+                                source=review.get("source", "due"),
+                                proficiency_factor=tuning["proficiency_factor"]) if correct else 1
+    day = str(review.get("review_date") or review.get("occurred_at") or review.get("recorded_at") or "")[:10]
+    if not day:
+        raise ValueError("反馈缺少业务日期")
+    interval = min(interval, (datetime.date.max - datetime.date.fromisoformat(day)).days)
+    tag = "#状态/已击杀" if update["tag_action"] == "kill" else "#状态/待攻克" if demote else question.get("current_tag", "")
+    result = {"mastery": round(new_m, 4), "ef": update["ef"], "attempts": attempts,
+              "high_correct_streak": _safe_int(update["high_correct_streak"], 0), "repetition": repetition,
+              "interval_days": interval, "due_date": compute_due_date(day, interval), "last_review_at": day,
+              "kill_count": _safe_int(mastery.get("kill_count"), 0) + update["kill_count_delta"]}
+    display = {"label": update["label"], "old_mastery": old_m, "new_mastery": result["mastery"],
+               "tag": tag, "new_interval": interval, "new_due_date": result["due_date"]}
+    return result, tag, display
+
+
+@storage
 def schedule_questions(vault, count=10, subject=None, exclude_uids=None):
     """原有优先级调度（保留兼容，Phase 2 后由 recommend 替代）。"""
-    rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
+    rows = mastery_rows(vault)
     tuning = load_tuning(vault)
-    today = datetime.date.today()
+    today = business_today()
     scored = []
     count = max(0, _safe_int(count, 10))
     excluded = set(_normalize_uid_list(exclude_uids))
@@ -270,6 +294,7 @@ def schedule_questions(vault, count=10, subject=None, exclude_uids=None):
     return result
 
 
+@storage
 def generate_recommendations(vault, due_count=10, prof_count=10,
                              subject=None, category=None, knowledge_tag=None,
                              label=None, exclude_uids=None):
@@ -278,7 +303,7 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
     返回:
       {"due": [...], "proficiency": [...]}
     """
-    from .common import HISTORY_HEADERS, history_path
+
 
     # Treat malformed and negative limits as zero.  In particular, a
     # negative Python slice would otherwise return almost the entire list
@@ -286,8 +311,8 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
     due_count = max(0, _safe_int(due_count, 0))
     prof_count = max(0, _safe_int(prof_count, 0))
 
-    rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
-    history = load_csv(history_path(vault), HISTORY_HEADERS)
+    rows = mastery_rows(vault)
+    history = history_rows(vault)
     from .ledger import connect
     with connect(vault) as db:
         uid_by_qid = {
@@ -304,7 +329,7 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
     requested_labels = [label] if isinstance(label, str) else [
         str(value).strip() for value in (label or []) if str(value).strip()
     ]
-    today = datetime.date.today()
+    today = business_today()
     excluded = set(_normalize_uid_list(exclude_uids))
 
     due_candidates = []
@@ -450,7 +475,7 @@ def _safe_float(value, default=0.0):
 
 
 def _row_to_item(row, today=None, fail_count=0, tuning=None, wrong_streak=0):
-    today = today or datetime.date.today()
+    today = today or business_today()
     t = tuning or DEFAULT_TUNING
     row = resolve_sm2_fields(row)
     mastery = _safe_float(row.get("Mastery", 0))
@@ -461,6 +486,7 @@ def _row_to_item(row, today=None, fail_count=0, tuning=None, wrong_streak=0):
     dormant_days = revive_dormant_days(kill_count, mastery, t)
     is_revived = is_revive_eligible(mastery, tag, last_review, kill_count, today, t)
     return {
+        "question_id": row.get("question_id", ""),
         "uid": row.get("UID", ""),
         "path": row.get("File_Path", ""),
         "subject": row.get("Subject", ""),
@@ -499,9 +525,10 @@ def _row_labels(row):
     return [label.strip() for label in str(row.get("Labels", "") or "").split("|") if label.strip()]
 
 
+@storage
 def get_items_by_uids(vault, uids):
     clean_uids = _normalize_uid_list(uids)
-    rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
+    rows = mastery_rows(vault)
     row_map = {row["UID"]: row for row in rows}
     missing = [uid for uid in clean_uids if uid not in row_map]
     if missing:
@@ -509,5 +536,5 @@ def get_items_by_uids(vault, uids):
     suspended = [uid for uid in clean_uids if is_suspended_row(row_map[uid])]
     if suspended:
         raise RuntimeError("以下 UID 已停用，不能加入复习: " + ", ".join(suspended))
-    today = datetime.date.today()
+    today = business_today()
     return [_row_to_item(row_map[uid], today) for uid in clean_uids]

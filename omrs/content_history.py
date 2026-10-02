@@ -14,7 +14,9 @@ from pathlib import Path
 
 from .common import (extract_category, extract_knowledge_tags, extract_labels, extract_tag,
                      parse_yaml_frontmatter)
-from .ledger import append_commit, blob_hash, connect, get_blob, has_blob, read_commits, store_blob
+from .ledger import append_commit, append_commit_in_db, blob_hash, connect, get_blob, has_blob, store_blob
+from .data_repository import storage_write
+from .vault_lifecycle import storage, open_sqlite
 from .path_safety import safe_question_path
 
 
@@ -22,6 +24,7 @@ class ContentConflict(RuntimeError):
     """写入方给的 expected_content_hash 与文件当前正文对不上（HTTP 409）。"""
 
 
+@storage
 def projection_row(vault, uid=None, question_id=None, include_archived=False):
     with connect(vault) as db:
         if question_id:
@@ -38,6 +41,7 @@ def question_file(vault, row):
     return safe_question_path(vault, os.path.abspath(os.path.join(vault, row["file_path"])))
 
 
+@storage
 def read_question_file(vault, row):
     with open(question_file(vault, row), "r", encoding="utf-8") as file:
         return file.read()
@@ -72,6 +76,7 @@ def question_payload(row, content):
     }
 
 
+@storage_write
 def ensure_content_recorded(vault, row, content):
     """文件当前正文与投影记录的哈希不同时，先把这个未入账的版本记一笔（self_check）。"""
     check_content_reconcile(vault, row, content)
@@ -104,6 +109,7 @@ def check_content_reconcile(vault, row, content):
         raise ContentConflict("投影正文 blob 校验失败，已暂停该题写入；请先核对备份")
 
 
+@storage_write
 def ensure_content_deletable(vault, row, content, record_change=True):
     """删除前保存并核对文件的实际正文；调用方仍须持有写锁。"""
     question_id = parse_yaml_frontmatter(content).get("_omrs_id")
@@ -118,6 +124,7 @@ def ensure_content_deletable(vault, row, content, record_change=True):
     return current
 
 
+@storage_write
 def record_file_change(vault, row, before, after, message, source="api", extra=None):
     from .workspace_sync import metadata_hash
     from .projections import _content_change_summary
@@ -135,6 +142,7 @@ def record_file_change(vault, row, before, after, message, source="api", extra=N
     return append_commit(vault, source, "question.content_update", message, payload, blobs=[before, after])
 
 
+@storage_write
 def write_question(vault, row, new_content, message, expected_hash=None, source="api", extra=None):
     """写前对齐 → 校验 expected_hash → 原子写文件 → 入账。调用方负责之后刷新投影（refresh_projection）。"""
     before = read_question_file(vault, row)
@@ -151,6 +159,7 @@ def write_question(vault, row, new_content, message, expected_hash=None, source=
         raise
 
 
+@storage_write
 def refresh_projection(vault):
     from .projections import rebuild_projection
     from .workspace_sync import update_fingerprints
@@ -162,22 +171,18 @@ def refresh_projection(vault):
     return state
 
 
+@storage_write
 def backfill_missing_content(vault):
     """只补当前活动题缺失的 blob；冲突文件跳过，重复执行不写入。"""
-    from .locking import write_lock
-    with write_lock():
-        with connect(vault) as db:
-            rows = [dict(r) for r in db.execute(
-                "SELECT * FROM question_projection WHERE archived = 0").fetchall()]
-            existing = {r["hash"]: r["content"] for r in db.execute("SELECT hash, content FROM blobs")}
-        items, blobs, conflicts = [], [], []
-        for row in rows:
+    count, items, blobs, conflicts = 0, [], [], []
+    with connect(vault) as db:
+        for raw in db.execute("SELECT * FROM question_projection WHERE archived=0"):
+            row = dict(raw)
             expected = row.get("content_hash") or ""
-            if expected in existing and blob_hash(existing[expected]) == expected:
-                continue
-            if expected in existing:
-                conflicts.append({"question_id": row["question_id"], "uid": row["uid"],
-                                  "reason": "已有 blob 内容与哈希不一致"})
+            found = db.execute("SELECT content FROM blobs WHERE hash=?", (expected,)).fetchone()
+            if found:
+                if blob_hash(found[0]) != expected:
+                    conflicts.append({"question_id": row["question_id"], "uid": row["uid"], "reason": "已有 blob 内容与哈希不一致"})
                 continue
             try:
                 content = read_question_file(vault, row)
@@ -189,10 +194,14 @@ def backfill_missing_content(vault):
                 continue
             blobs.append(content)
             items.append({"question_id": row["question_id"], "uid": row["uid"], "content_hash": expected})
-        if items:
-            append_commit(vault, "migration", "question.content_backfill", f"补齐 {len(items)} 道题的正文",
-                          {"items": items}, blobs=blobs)
-        return {"status": "conflict" if conflicts else "ok", "count": len(items), "conflicts": conflicts}
+            if len(items) >= 100:
+                append_commit_in_db(db, "migration", "question.content_backfill", f"补齐 {len(items)} 道题的正文", {"items": items}, blobs=blobs)
+                count += len(items)
+                items, blobs = [], []
+    if items:
+        append_commit(vault, "migration", "question.content_backfill", f"补齐 {len(items)} 道题的正文", {"items": items}, blobs=blobs)
+        count += len(items)
+    return {"status": "conflict" if conflicts else "ok", "count": count, "conflicts": conflicts}
 
 
 def ensure_content_snapshot(vault):
@@ -200,21 +209,24 @@ def ensure_content_snapshot(vault):
     return backfill_missing_content(vault)
 
 
+@storage
 def audit_content_coverage(vault):
     """只读盘点当前文件、投影与 blob；不会初始化或迁移 Ledger。"""
     from .ledger import ledger_path
     path = ledger_path(vault)
     if not os.path.isfile(path):
         raise FileNotFoundError(path)
-    db = sqlite3.connect(f"{Path(path).absolute().as_uri()}?mode=ro", uri=True)
+    db = open_sqlite(vault, f"{Path(path).absolute().as_uri()}?mode=ro", uri=True)
     db.row_factory = sqlite3.Row
     try:
         db.execute("PRAGMA query_only=ON")
         db.execute("BEGIN")
         rows = [dict(r) for r in db.execute("SELECT question_id, uid, file_path, content_hash, archived FROM question_projection")]
-        blobs = {r["hash"]: r["content"] for r in db.execute("SELECT hash, content FROM blobs")}
-        commits = [(r["seq"], r["commit_type"], json.loads(r["payload_json"] or "{}"))
-                   for r in db.execute("SELECT seq, commit_type, payload_json FROM commits ORDER BY seq")]
+        blob_hashes, available_hashes = set(), set()
+        for blob in db.execute("SELECT hash,content FROM blobs"):
+            blob_hashes.add(blob["hash"])
+            if blob_hash(blob["content"]) == blob["hash"]:
+                available_hashes.add(blob["hash"])
     finally:
         db.close()
     active = [r for r in rows if not r["archived"]]
@@ -232,33 +244,36 @@ def audit_content_coverage(vault):
         except (OSError, ValueError) as exc:
             matches = False
             conflicts.append({"question_id": row["question_id"], "uid": row["uid"], "reason": str(exc)})
-        if h and h not in blobs:
+        if h and h not in blob_hashes:
             missing.append({"question_id": row["question_id"], "uid": row["uid"], "hash": h,
                             "recoverable_from_current_file": matches})
-        elif h and blob_hash(blobs[h]) != h:
+        elif h and h not in available_hashes:
             conflicts.append({"question_id": row["question_id"], "uid": row["uid"],
                               "reason": "已有 blob 内容与哈希不一致"})
-    snapshot_seq = next((seq for seq, typ, _ in commits if typ == "question.content_snapshot"), None)
-    available_hashes = {h for h, content in blobs.items() if blob_hash(content) == h}
+    with connect(vault) as connection:
+        found = connection.execute("SELECT MIN(seq) FROM commits WHERE commit_type='question.content_snapshot'").fetchone()
+        snapshot_seq = found[0]
     historical = {}
-    for seq, typ, payload in commits:
-        if typ == "legacy.bootstrap":
-            pairs = [(x.get("question_id"), x.get("content_hash")) for x in payload.get("questions", [])]
-        elif typ in ("question.content_snapshot", "question.content_backfill"):
-            pairs = [(x.get("question_id"), x.get("content_hash")) for x in payload.get("items", [])]
-        else:
-            question = payload.get("question") or {}
-            qid = payload.get("question_id") or question.get("question_id")
-            refs = [payload.get("before_hash"), payload.get("after_hash"), payload.get("content_hash"),
-                    question.get("content_hash"), (payload.get("before") or {}).get("content_hash"),
-                    (payload.get("after") or {}).get("content_hash")]
-            pairs = [(qid, h) for h in refs]
-        for qid, h in pairs:
-            if qid and h and h not in available_hashes:
-                historical.setdefault((qid, h), seq)
+    with connect(vault) as connection:
+        for raw in connection.execute("SELECT seq,commit_type,payload_json FROM commits WHERE commit_type NOT LIKE 'review.%' ORDER BY seq"):
+            seq, typ, payload = raw["seq"], raw["commit_type"], json.loads(raw["payload_json"] or "{}")
+            if typ == "legacy.bootstrap":
+                pairs = [(x.get("question_id"), x.get("content_hash")) for x in payload.get("questions", [])]
+            elif typ in ("question.content_snapshot", "question.content_backfill"):
+                pairs = [(x.get("question_id"), x.get("content_hash")) for x in payload.get("items", [])]
+            else:
+                question = payload.get("question") or {}
+                qid = payload.get("question_id") or question.get("question_id")
+                refs = [payload.get("before_hash"), payload.get("after_hash"), payload.get("content_hash"),
+                        question.get("content_hash"), (payload.get("before") or {}).get("content_hash"),
+                        (payload.get("after") or {}).get("content_hash")]
+                pairs = [(qid, h) for h in refs]
+            for qid, h in pairs:
+                if qid and h and h not in available_hashes:
+                    historical.setdefault((qid, h), seq)
     current_pairs = {(r["question_id"], r["content_hash"]) for r in active}
     historical_gaps = [{"question_id": qid, "hash": h, "first_referenced_seq": seq,
-                        "reason": "blob 缺失" if h not in blobs else "blob 内容与哈希不一致",
+                        "reason": "blob 缺失" if h not in blob_hashes else "blob 内容与哈希不一致",
                         "before_first_snapshot": bool(snapshot_seq and seq < snapshot_seq)}
                        for (qid, h), seq in historical.items() if (qid, h) not in current_pairs]
     old = sum(gap["before_first_snapshot"] for gap in historical_gaps)
@@ -268,23 +283,9 @@ def audit_content_coverage(vault):
             "historical_pre_snapshot_missing": old, "snapshot_seq": snapshot_seq}
 
 
-def _hashes_in(commit, question_id):
-    payload, ctype = commit["payload"] or {}, commit["commit_type"]
-    if ctype == "legacy.bootstrap":
-        return [q.get("content_hash") for q in payload.get("questions", []) if q.get("question_id") == question_id]
-    if ctype in ("question.create", "question.create_external"):
-        q = payload.get("question") or payload
-        return [q.get("content_hash")] if q.get("question_id") == question_id else []
-    if ctype in ("question.content_snapshot", "question.content_backfill"):
-        return [i.get("content_hash") for i in payload.get("items", []) if i.get("question_id") == question_id]
-    if payload.get("question_id") != question_id:
-        return []
-    return [payload.get("before_hash"), payload.get("after_hash"),
-            (payload.get("before") or {}).get("content_hash"),
-            (payload.get("after") or {}).get("content_hash"), payload.get("content_hash")]
 
-
-def content_versions(vault, uid=None, question_id=None):
+@storage
+def content_versions(vault, uid=None, question_id=None, offset=None, limit=None, reverse=False):
     row = projection_row(vault, uid=uid, question_id=question_id, include_archived=True)
     if row is None and uid:
         with connect(vault) as db:
@@ -294,21 +295,32 @@ def content_versions(vault, uid=None, question_id=None):
     if row is None:
         raise RuntimeError(f"题目不存在：{uid or question_id}")
     qid = row["question_id"]
-    versions, seen = [], set()
-    for commit in read_commits(vault, ascending=True):
-        for h in _hashes_in(commit, qid):
-            if not h or h in seen:
-                continue
-            seen.add(h)
-            content = get_blob(vault, h)
-            versions.append({"seq": commit["seq"], "commit_id": commit["commit_id"], "created_at": commit["created_at"],
-                             "source": commit["source"], "commit_type": commit["commit_type"], "hash": h,
-                             "available": content is not None and blob_hash(content) == h
-                             and parse_yaml_frontmatter(content).get("_omrs_id") == qid})
-    return {"question_id": qid, "uid": row["uid"], "archived": bool(row["archived"]),
-            "current_hash": row.get("content_hash") or "", "versions": versions}
+    versions = []
+    with connect(vault) as db:
+        total = db.execute("SELECT COUNT(*) FROM content_version_refs WHERE question_id=?", (qid,)).fetchone()[0]
+        query = """SELECT r.content_hash,c.seq,c.commit_id,c.created_at,c.source,c.commit_type,b.content
+            FROM content_version_refs r JOIN commits c ON c.seq=r.first_seq
+            LEFT JOIN blobs b ON b.hash=r.content_hash WHERE r.question_id=? ORDER BY r.first_seq """ + ("DESC" if reverse else "ASC") + ",r.rowid " + ("DESC" if reverse else "ASC")
+        args = [qid]
+        if offset is not None:
+            if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 100:
+                raise ValueError("正文版本分页范围不合法")
+            query += " LIMIT ? OFFSET ?"
+            args.extend((limit, offset))
+        for raw in db.execute(query, args):
+            h, content = raw["content_hash"], raw["content"]
+            versions.append({"seq": raw["seq"], "commit_id": raw["commit_id"], "created_at": raw["created_at"],
+                "source": raw["source"], "commit_type": raw["commit_type"], "hash": h,
+                "available": content is not None and blob_hash(content) == h
+                and parse_yaml_frontmatter(content).get("_omrs_id") == qid})
+    result = {"question_id": qid, "uid": row["uid"], "archived": bool(row["archived"]),
+              "current_hash": row.get("content_hash") or "", "versions": versions}
+    if offset is not None:
+        result.update(total=total, offset=offset, next_offset=offset + limit if offset + limit < total else None)
+    return result
 
 
+@storage_write
 def restore_content(vault, uid, content_hash, expected_hash=None):
     row = projection_row(vault, uid=uid)
     if row is None:

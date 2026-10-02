@@ -1,3 +1,4 @@
+import { questionKey } from '../../domain/question/ref.js';
 /**
  * 展示板页的模块单例与纯函数：板头、左栏树、纸面工具条、题目列表、滑入详情与浮层的视图模型。
  * 输入都是普通数据（板详情快照、板列表、预览版面）；
@@ -44,6 +45,10 @@ const LINK_KEY = 'omrs-board-linked-labels';
 /** 关联标记只存本机浏览器；板的服务端格式不因此改变。 */
 export function linkedLabel(id, storage = globalThis.localStorage) {
   try { return JSON.parse(storage?.getItem(LINK_KEY) || '{}')[id] || ''; } catch (error) { return ''; }
+}
+export function linkedPending(boardItems, libraryItems, label) {
+  const inBoard = new Set((boardItems || []).map(questionKey));
+  return label ? (libraryItems || []).filter(item => !item.suspended && (item.labels || []).includes(label) && !inBoard.has(questionKey(item))).length : 0;
 }
 export function setLinkedLabel(id, name, storage = globalThis.localStorage) {
   try {
@@ -226,8 +231,8 @@ export function contentView(snap, { dueDays = () => null } = {}) {
   if (!detail) return { kind: 'none', rows: [] };
   const hasPaper = paperOf(detail).pages > 0;
   const rows = (detail.items || []).map((item, index) => ({
-    uid: item.uid || '', no: index + 1, index, name: item.uid || item.question_id || '未知题目',
-    missing: !!item.missing, suspended: !!item.suspended, selected: !!snap.selected && snap.selected === item.uid,
+    uid: item.uid || '', key: questionKey(item), question_id: item.question_id || '', no: index + 1, index, name: item.uid || item.question_id || '未知题目',
+    missing: !!item.missing, suspended: !!item.suspended, selected: !!snap.selected && (snap.selected === questionKey(item) || !item.question_id && snap.selected === item.uid),
     flags: itemFlags(item, hasPaper), labels: item.labels || [],
     subject: item.subject || '', category: item.category || '',
     difficulty: item.difficulty != null && item.difficulty !== '' ? String(item.difficulty) : '',
@@ -246,11 +251,11 @@ export function inspectorView(snap) {
   const locked = !!print.locked;
   const hasPaper = paperOf(detail).pages > 0;
   const list = detail.items || [];
-  const index = snap.selected ? list.findIndex(item => item.uid === snap.selected) : -1;
+  const index = snap.selected ? list.findIndex(item => questionKey(item) === snap.selected || item.uid === snap.selected) : -1;
   const it = index >= 0 ? list[index] : null;
   const inherited = Math.max(0, Math.min(48, num(print.gap_lines, 2)));
   const item = it && {
-    uid: it.uid, no: index + 1, index, total: list.length, name: it.uid || it.question_id || '未知题目', missing: !!it.missing, printed: !!it.printed,
+    uid: it.uid, key: questionKey(it), question_id: it.question_id || '', no: index + 1, index, total: list.length, name: it.uid || it.question_id || '未知题目', missing: !!it.missing, printed: !!it.printed,
     flags: itemFlags(it, hasPaper),
     meta: [it.subject, it.category].filter(Boolean).join(' · ') + (it.difficulty != null && it.difficulty !== '' ? `${it.subject || it.category ? ' · ' : ''}难度 ${it.difficulty}` : ''),
     metaBits: [[it.subject, it.category].filter(Boolean).join(' / '), it.difficulty != null && it.difficulty !== '' ? `难度 ${it.difficulty}` : '',
@@ -313,7 +318,7 @@ export function addFilters(f = ADD_DEFAULTS) {
 /** 对话框的行：已在板里的标灰并跳过；selected 是勾选集合（唯一真相，切视图不丢）。 */
 export function addRows(visible, existing, selected) {
   return (visible || []).map(item => ({
-    uid: item.uid, in: existing.has(item.uid), on: existing.has(item.uid) || selected.has(item.uid),
+    uid: item.uid, key: questionKey(item), in: existing.has(questionKey(item)), on: existing.has(questionKey(item)) || selected.has(questionKey(item)),
     subject: item.subject || '', category: item.category || '', difficulty: item.difficulty ?? '', mastery: pct(item.mastery), labels: item.labels || [],
   }));
 }
@@ -321,6 +326,6 @@ export function addRows(visible, existing, selected) {
 /** 「全选筛选结果」：只加还不在板里的。返回新集合。 */
 export function addSelectAll(visible, existing, selected) {
   const next = new Set(selected);
-  (visible || []).forEach(item => { if (!existing.has(item.uid)) next.add(item.uid); });
+  (visible || []).forEach(item => { if (!existing.has(questionKey(item))) next.add(questionKey(item)); });
   return next;
 }

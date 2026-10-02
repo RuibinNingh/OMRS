@@ -176,10 +176,11 @@ test('格式化与分组', () => {
   assert.equal(fmtS(820), '0.82s');
   assert.equal(fmtS(61000), '1m01s');
   assert.ok(tokOf('周期') > tokOf('ab'));
-  const now = new Date('2026-09-28T12:00:00');
-  assert.equal(dayGroup('2026-09-28T01:00:00', now), '今天');
-  assert.equal(dayGroup('2026-09-27T23:00:00', now), '昨天');
-  assert.equal(dayGroup('2026-09-20T23:00:00', now), '更早');
+  const now = new Date('2026-09-28T12:00:00+08:00');
+  assert.equal(dayGroup('2026-09-28T01:00:00+08:00', now), '今天');
+  assert.equal(dayGroup('2026-09-27T23:00:00+08:00', now), '昨天');
+  assert.equal(dayGroup('2026-09-20T23:00:00+08:00', now), '更早');
+  assert.equal(dayGroup('无效日期', now), '更早');
 });
 
 test('聊天 Markdown：引用芯片、表格、列表、转义与光标', () => {

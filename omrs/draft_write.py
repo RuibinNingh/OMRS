@@ -1,4 +1,5 @@
 """草稿内容写入与一次性入库；所有公开入口经 drafts.py 转发。"""
+from .vault_lifecycle import storage, open_sqlite, lease, task, generation
 import json
 import hashlib
 import math
@@ -10,7 +11,7 @@ from . import locking
 from . import drafts
 from . import creation
 from .common import questions_root, load_config
-from .ledger import read_commits, reserve_operation_id
+from .ledger import reserve_operation_id
 from .projections import rebuild_projection
 from .path_safety import safe_question_directory
 
@@ -122,6 +123,7 @@ def _blocks(db, row, supplied, source_shas):
     return prepared
 
 
+@storage
 def _prepared_before_change(vault, db, row):
     op = db.execute("SELECT * FROM commit_operations WHERE draft_id=?", (row["id"],)).fetchone()
     if op is None:
@@ -156,6 +158,7 @@ def _prepared_before_change(vault, db, row):
     db.execute("DELETE FROM commit_operations WHERE draft_id=?", (row["id"],))
 
 
+@storage
 def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
     with locking.write_lock(), drafts._LOCK:
         db = drafts.connect(vault)
@@ -296,6 +299,7 @@ def _patch_content(db, row, fields, block_patches, actor):
     return {"wrote": True, "suggestions": [], "changes": changed}
 
 
+@storage
 def patch_draft(vault, draft_id, revision, fields, block_patches, actor):
     """内置助手仍只允许修改有完整运行身份的本对话草稿。"""
     _validate_patch(fields, block_patches)
@@ -323,6 +327,7 @@ def patch_draft(vault, draft_id, revision, fields, block_patches, actor):
         return {"draft": drafts.get_draft(vault, draft_id), "wrote": result["wrote"], "suggestions": result["suggestions"]}
 
 
+@storage
 def patch_mcp_draft(vault, draft_id, revision, fields, block_patches, key_id, request_id,
                     cause_statement="", authorize=lambda: None):
     """MCP 独立授权入口；原来源不变，补丁和回执同事务提交。"""
@@ -378,6 +383,7 @@ def patch_mcp_draft(vault, draft_id, revision, fields, block_patches, key_id, re
         return result
 
 
+@storage
 def discard_draft(vault, draft_id, revision):
     with locking.write_lock(), drafts._LOCK:
         db = drafts.connect(vault)
@@ -397,6 +403,7 @@ def discard_draft(vault, draft_id, revision):
     return drafts.get_draft(vault, draft_id)
 
 
+@storage
 def set_boxes(vault, draft_id, revision, blocks=None, training_boxes=None):
     if blocks is None and training_boxes is None:
         raise drafts.DraftError("至少提交一种框选改动")
@@ -462,15 +469,18 @@ def set_boxes(vault, draft_id, revision, blocks=None, training_boxes=None):
     return drafts.get_draft(vault, draft_id)
 
 
+@storage
 def _ledger_result(vault, draft_id):
-    for commit in read_commits(vault, ascending=False):
-        if commit["commit_type"] != "question.create" or commit["payload"].get("_draft", {}).get("draft_id") != draft_id:
-            continue
-        q = commit["payload"]["question"]
+    from .ledger import connect
+    with connect(vault) as db:
+        row = db.execute("SELECT payload_json FROM commits WHERE commit_type='question.create' AND json_extract(payload_json,'$._draft.draft_id')=? ORDER BY seq DESC LIMIT 1", (draft_id,)).fetchone()
+    if row:
+        q = json.loads(row[0])["question"]
         return {"uid": q["uid"], "question_id": q["question_id"], "file_path": q["file_path"]}
     return None
 
 
+@storage
 def _render_blocks(vault, blocks, crops):
     rendered = []
     if crops is None:
@@ -508,6 +518,7 @@ def _render_blocks(vault, blocks, crops):
     return rendered
 
 
+@storage
 def commit_draft(vault, draft_id, revision, crops=None, actor="api"):
     with locking.write_lock(), drafts._LOCK:
         db = drafts.connect(vault)

@@ -55,6 +55,7 @@ def main():
     sub = parser.add_subparsers(dest="command")
 
     sub.add_parser("scan", help="扫描并重建错题索引")
+    sub.add_parser("export-csv", help="按需导出当前 SQL 题库、反馈和计划为兼容 CSV")
 
     audit_parser = sub.add_parser("content-audit", help="只读盘点题目正文、投影与 Ledger blob")
     audit_parser.add_argument("--json", action="store_true", help="输出 JSON，不包含正文")
@@ -114,6 +115,17 @@ def main():
         if args.mcp_public_url and args.mcp_port is None:
             parser.error("--mcp-public-url 需要同时指定 --mcp-port")
 
+    # 目录交换恢复必须早于任何配置读取、建库和扫描；只读盘点拒绝待恢复状态。
+    from .backup_store import recover_restore
+    recover_restore(vault, allow_recovery=args.command != "content-audit")
+    if args.command != "content-audit":
+        from .config_repository import initialize
+        initialize(vault)
+        from .inbox_commit import recover_pending
+        pending_inbox = recover_pending(vault)
+        if pending_inbox["awaiting_images"]:
+            print(f"有 {len(pending_inbox['awaiting_images'])} 个入库预留等待原图片重试，未重复创建")
+
     if args.command == "mcp-key":
         from .mcp.keys import create_key, list_keys, revoke_key, update_scopes
         if args.action == "create":
@@ -150,6 +162,11 @@ def main():
         except RuntimeError as exc:
             print(str(exc))
             raise SystemExit(1)
+
+    elif args.command == "export-csv":
+        from .projections import export_legacy_csv
+        export_legacy_csv(vault)
+        print("已导出 mastery_data.csv、history_log.csv、sessions.csv 到错题/.omrs/")
 
     elif args.command == "schedule":
         items = schedule_questions(vault, args.count, args.subject)

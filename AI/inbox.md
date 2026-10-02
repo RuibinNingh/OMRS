@@ -1,4 +1,4 @@
-# 收件箱录入流程（inbox，v1.12.0；v1.13.0 加提供方 / 盲标 / 自动策略 / 清理）
+# 收件箱录入流程
 
 > **速查**
 > - 职责：收件箱「上传 → 框选 → 转换 → 提交」暂存流程、后台 job、框选提供方与训练数据集
@@ -13,7 +13,7 @@
 
 收件箱流程为 **上传 → 处理 → 录入** 三步：手机把整张作业帮长截图投进收件箱，电脑端在网页上框「题目 / 答案」，点击「一键提取」由 AI 一次输出完整文本或不可提取原因，后者保留裁图，之后人工审核并可调整保存方式，最后复用 `create_question` 写题库。所有人工动作（框位、AI 原框、采纳方式、转换决策、结果）留作训练数据。
 
-**边界**：收件箱是暂存层，**不进 Ledger**。只有 `commit` 走 `creation.create_question`，写 Ledger 的路径与旧录入完全一致。原图即使题目已转文本也留在收件箱；已丢弃原图会按 `inbox_discard_keep_days`（默认 7 天）在上传时自动清理，也可由数据集页调用 `/api/inbox/cleanup` 手动清理，记录和标注事件会保留。
+**边界**：收件箱图片、题卡和任务保存在独立库；只有提交创建题目时写 Ledger。创建事实与操作回执同事务提交，独立收件箱状态失败可补齐。原图即使题目已转文本也留在收件箱；已丢弃原图会按 `inbox_discard_keep_days`（默认 7 天）在上传时自动清理，也可由数据集页调用 `/api/inbox/cleanup` 手动清理，记录和标注事件会保留。
 
 ## 2. 存储 `错题/.omrs/inbox/`
 
@@ -51,7 +51,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 | POST | `/api/inbox/jobs` | `{type: detect\|extract\|classify\|auto, …}` → `{job}`；后台线程逐单元执行，单元失败进 `errors` 不中断 |
 | GET | `/api/inbox/job?id=` | `{status, processed, total, result[], errors[], done}` |
 | POST | `/api/inbox/crops` | `{crops:{region_id: dataURL}}` 只缓存裁图 |
-| POST | `/api/inbox/commit` | `{id, card, expected_revision, reset_epoch, form{subject,category,difficulty,tags,cause,page}, crops{region_id:dataURL}}` → 持图片锁核版本并调 `create_question` → `{uid, question_id, file_path, images…, item_id, card}`；成功后版本递增，该图全部题卡都建完后 item→done |
+| POST | `/api/inbox/commit` | `{id, card, expected_revision, reset_epoch, form{subject,category,difficulty,tags,labels,cause,page}, crops{region_id:dataURL}}` → 按逐卡幂等键核版本、预留身份并调 `create_question` → `{uid, question_id, file_path, images…, item_id, card}`；成功后版本递增，该图全部题卡都建完后 item→done |
 | GET | `/api/inbox/dataset/stats` | 张数、框数按角色、版式分布、AI 建议/采纳/微调/拒绝（拒绝数来自 `meta`，老库首次从 annotations 回填一次）、微调平均 IoU、转文本决策与判断一致率、`blind`（盲标评估集：张数 / 已评估 / 隐藏 AI 框数 / IoU≥0.5 命中 / 平均 IoU）、`storage`（raw / crops 字节数、待清理的已丢弃张数） |
 | GET | `/api/inbox/dataset/export?format=omrs_jsonl\|yolo&raw=1` | zip：`labels.jsonl`（每图一行，归一化 regions）、`images/`、`annotations.jsonl`；yolo 另含 `labels/*.txt` + `classes.txt` |
 | POST | `/api/inbox/cleanup` | `{discarded_days?, crops?}`：删除丢弃超过 N 天（缺省 `inbox_discard_keep_days`）的原图（行保留、`file` 置空），`crops=true` 清空裁剪缓存；上传时也自动跑一次 |
@@ -130,3 +130,14 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 同 SHA 已存在普通条目时，保持它的状态、版式、来源与原框，聊天框另存 chat_training_boxes；数据集按图合并，labels.jsonl 保留聊天标注来源，YOLO 同样包含这些框。用户主动上传已有训练专用图时将其提升为普通待处理项，保留独立聊天标注。普通清理跳过仍有聊天训练关联的原图。
 
 数据集统计另有 chat:{images,boxes}：按图片 SHA 去重计算含聊天标注的图片数与聊天框数；普通收件箱同图也计入聊天来源统计，不改它原有 source。总图数不因一图多个草稿或两种来源重复累计。
+
+
+## 逐卡创建与重试
+
+`omrs/inbox_commit.py` 使用 `(item_id, reset_epoch, card)` 唯一幂等键。创建前在 `commit_operations` 保存身份、规范化内容摘要与冻结图片；创建题目与 Ledger 的 `op_results` 回执同事务提交。文件、投影、收件箱回执或响应中断后，相同内容重试返回原身份，只补未完成状态；不同内容返回 409。已存在预留的代次不能重置，避免丢掉已提交但尚未显示的创建事实。
+
+`labels` 省略保留、`[]` 清空，单字段题卡保存也保留其它字段。标记覆盖保存、重读、AI 补全及最终 Markdown。预留附件采用完整操作身份命名，图片摘要按原始字节计算，重新上传同一图片不改变幂等内容摘要。图片引用必须属于当前 Vault、会话、世代和 inbox 用途，读取时核验 SHA256。
+
+启动先补齐有 Ledger 回执的题卡；预留原图尚未冻结且无创建事实时保留预留，返回 `awaiting_images` 供原内容重传，扫描跳过这些预留身份。身份、正文或已有产物矛盾时停止，禁止猜测和覆盖。旧题卡只保存 UID 而无法证明稳定身份时返回 `identity_unresolved`，不会按可能被复用的 UID 打开另一题，也不会重复创建。
+
+回归命令：`python3 -m unittest tests.test_inbox_atomic_commit tests.test_inbox -q`。并发重试、每个持久化步骤故障、丢响应、提交后进程中断、reset 防护、标记保留与清空均调用真实模块和临时存储。全库一致性与后台世代见 `AI/backup.md`。

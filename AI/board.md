@@ -34,7 +34,7 @@
 ## 2. 数据文件 `boards.json`
 
 路径：`错题/.omrs/boards.json`，当前 `version: 4`。写入先把已有文件滚动为 `.bak.1/2/3`，再通过临时文件、
-`fsync` 和 `os.replace` 原子替换（`save_boards`）。字段全表见 `AI/data.md` §14，这里只记与纸面相关的要点。
+`fsync` 和 `os.replace` 原子替换（`save_boards`）。字段全表见 `AI/data/storage.md` §4，这里只记与纸面相关的要点。
 
 ```json
 {
@@ -91,13 +91,13 @@
 - `items[].gap_lines` 是**这道题之后留白的绝对行数**（0–48，每行 18px）；`null` = 继承板的
   全局 `print.gap_lines`。v2 的 `extra_gap_lines`（「在全局之上再加几行」）读取时按
   `全局 + 额外` 折算成等值的绝对行数，**迁移前后纸面像素完全一致**，折算后该字段恒为 0，
-  因此重复归一化是空操作。详见 `AI/data.md` §14.2。
+  因此重复归一化是空操作。详见 `AI/data/storage.md` §4.2。
 - `printed.pages == 0` 表示没有纸面记录；旧文件里的 `last_printed_page` 字段直接忽略。
 - 整体覆盖 `items` 时（`update_board(items=…)`）会保留同一题原有的 `added_at`。
 - 同一请求同时给 `items` 与 `print` 时，`print` 先生效，v2 折算用的是**本次请求之后**的全局留白。
 
 覆盖旧纸面记录（`record_printed` / `reset_printed`）之前，会把被替换记录的摘要追加进
-`错题/.omrs/boards_printed_history.jsonl`（只增不改，见 `AI/data.md` §14.4）。
+`错题/.omrs/boards_printed_history.jsonl`（只增不改，见 `AI/data/storage.md` §4.4）。
 摘要没有逐题 `items/segments/hash`，不能直接恢复完整纸面；完整记录需从 `boards.json` 或其备份核验。
 **这份历史目前没有 UI，也没有 HTTP 端点。**
 
@@ -358,3 +358,8 @@ MCP 在 mcp_board.py 严格校验后复用领域暂存事务。元数据只改 n
 删文件夹默认保留板移到未归档；复制不带纸面；移出题目只移引用。预览和应用运行相同校验，预览不落盘。MCP 会保守保护已有纸面：即使解除锁定，实际版式或已印题留白变化仍触发确认。高风险详情及生命周期见 AI/mcp.md、AI/runtime.md。
 
 MCP导出仅生成独立不可变HTML快照，不改变printed、打印历史或引用版本。仅新增沿用已有纸面几何与占位；无纸面或没有新增题时明确拒绝。导出生命周期见AI/export.md。
+
+
+## 审计修复契约
+
+展示板有稳定 question_id 时不回退 UID；移动、删除和 UID 复用后仍引用原题，缺失题只读且不参与导出。新的 create/add/remove 请求接受 question_refs，ID与UID同时给出必须一致；摘要返回 question_ids，加题回执返回 added_question_ids，撤销及换板按实际新增身份执行。旧 UID remove 按当前解析结果匹配，纸面记录接受原题的当前 UID。回归为 `tests/test_board_identity.py`；全库生命周期见 `AI/backup.md`。

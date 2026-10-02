@@ -1,3 +1,4 @@
+import { questionKey } from '../../domain/question/ref.js';
 /**
  * 题库页列表模板：表格与画廊（只产出 html``，由 index.js 用 morph 差量写入）。
  * - 行 / 卡带 data-key=uid 与 data-q-row=uid：morph 按 uid 对齐；整行点击由 index.js 在根上委托（跳过勾选框、按钮、标记格）。
@@ -31,7 +32,7 @@ const moreButton = item => html`<button type="button" class="ui-btn ui-btn--ghos
 const checkBox = (uid, on) => html`<label class="qlb-check" title="选择"><input type="checkbox" data-change="questions.select" data-arg="${uid}" aria-label="选择 ${uid}"${on ? html` checked` : ''}></label>`;
 
 const CELLS = {
-  select: (item, env) => checkBox(item.uid, env.selected.has(item.uid)),
+  select: (item, env) => checkBox(questionKey(item), env.selected.has(questionKey(item))),
   main: item => html`<strong class="qlb-uid">${item.uid}</strong><span class="qlb-meta">${item.subject || ''} · ${item.category || ''}${item.is_leech ? html`<span class="qlb-leech">顽固</span>` : ''}</span>`,
   labels: item => html`<span class="q-label-cell qlb-labels" data-lbl-target="${item.uid}">${labelChips(item.labels || [], { add: true, max: 4 })}</span>`,
   mastery: item => masteryCell(item),
@@ -60,7 +61,7 @@ export function tableView(rows, env) {
     return html`<th scope="col" data-col="${key}">${COLUMN_LABELS[key]}</th>`;
   });
   const body = rows.length
-    ? each(rows, item => item.uid, item => html`<tr data-key="${item.uid}" data-q-row="${item.uid}" tabindex="-1" class="${cls('qlb-row', item.suspended && 'is-suspended')}" aria-selected="${env.selected.has(item.uid) ? 'true' : 'false'}"${env.cursor === item.uid ? html` data-cursor="1"` : ''} title="点击查看题目">${cols.map(key => html`<td data-col="${key}" data-label="${COLUMN_LABELS[key]}">${CELLS[key](item, env)}</td>`)}</tr>`)
+    ? each(rows, item => item.uid, item => html`<tr data-key="${item.uid}" data-q-row="${item.uid}" tabindex="-1" class="${cls('qlb-row', item.suspended && 'is-suspended')}" aria-selected="${env.selected.has(questionKey(item)) ? 'true' : 'false'}"${env.cursor === item.uid ? html` data-cursor="1"` : ''} title="点击查看题目">${cols.map(key => html`<td data-col="${key}" data-label="${COLUMN_LABELS[key]}">${CELLS[key](item, env)}</td>`)}</tr>`)
     : html`<tr class="qlb-empty" data-key="__empty"><td colspan="${cols.length}">${emptyState(env)}</td></tr>`;
   return html`<div class="qlb-table-wrap" data-key="table" tabindex="-1"><table class="qlb-table" data-density="${env.prefs.density}"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
@@ -81,8 +82,8 @@ function galleryCard(item, env) {
   const ktags = (item.knowledge_tags || []).filter(tag => tag && tag !== item.category);
   const opts = galleryCardOpts(prefs);
   const foot = streakFoot(item, env.detailOf(item.uid), prefs.streak);
-  return html`<article class="${cls('qlb-gcard', item.suspended && 'is-suspended')}" data-key="${item.uid}" data-q-row="${item.uid}" tabindex="-1" aria-selected="${env.selected.has(item.uid) ? 'true' : 'false'}"${env.cursor === item.uid ? html` data-cursor="1"` : ''}>
-  <header class="qlb-gcard__head">${checkBox(item.uid, env.selected.has(item.uid))}<span class="qlb-gcard__id">${raw(qvGalleryIdHtml(item.uid, item.category))}</span>
+  return html`<article class="${cls('qlb-gcard', item.suspended && 'is-suspended')}" data-key="${item.uid}" data-q-row="${item.uid}" tabindex="-1" aria-selected="${env.selected.has(questionKey(item)) ? 'true' : 'false'}"${env.cursor === item.uid ? html` data-cursor="1"` : ''}>
+  <header class="qlb-gcard__head">${checkBox(questionKey(item), env.selected.has(questionKey(item)))}<span class="qlb-gcard__id">${raw(qvGalleryIdHtml(item.uid, item.category))}</span>
     <span class="qlb-gcard__flags">${flags.map(f => html`<span class="qlb-flag" data-tone="${f.tone}"${f.title ? html` title="${f.title}"` : ''}>${f.text}</span>`)}</span>${moreButton(item)}</header>
   ${prefs.galleryDetail ? html`<p class="qlb-gcard__meta" data-key="meta">${item.subject || ''} · 上次复习 ${item.last_review || '—'} · 衰减后 ${Math.round(num(item.decayed_mastery) * 100)}%${ktags.length ? ` · ${ktags.join(' / ')}` : ''}</p>` : ''}
   <div class="qlb-gcard__preview" data-key="pv:${item.uid}:${opts.clamp}" data-morph="skip" data-qv-host data-uid="${item.uid}"></div>

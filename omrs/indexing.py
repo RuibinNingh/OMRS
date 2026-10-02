@@ -1,21 +1,8 @@
+from .data_repository import mastery_rows
 import datetime
 import os
 
-from .common import (
-    FILE_PATTERN,
-    MASTERY_HEADERS,
-    extract_category,
-    extract_knowledge_tags,
-    extract_tag,
-    load_csv,
-    mastery_path,
-    omrs_data_dir,
-    parse_history_lines,
-    parse_yaml_frontmatter,
-    questions_root,
-    save_csv,
-    split_sections,
-)
+from .common import FILE_PATTERN, omrs_data_dir, parse_history_lines, parse_yaml_frontmatter, questions_root, split_sections
 from .log_utils import log_index
 
 
@@ -61,7 +48,7 @@ def scan_vault(vault: str) -> list:
     return results
 
 
-def build_index(vault: str) -> list:
+def build_index(vault: str, return_scan=False):
     omrs_data_dir(vault)
     from .migration import ensure_ledger_bootstrap
     from .projections import rebuild_projection
@@ -71,7 +58,7 @@ def build_index(vault: str) -> list:
     scan = scan_workspace(vault)
     if scan.get("status") == "conflict":
         raise RuntimeError("工作区自检发现冲突：\n" + "\n".join(scan.get("conflicts", [])))
-    state = rebuild_projection(vault)
-    rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
+    rebuild_projection(vault)
+    rows = mastery_rows(vault)
     log_index(vault, added=0, updated=len(rows), total=len(rows))
-    return rows
+    return (rows, scan) if return_scan else rows

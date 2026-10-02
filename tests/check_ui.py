@@ -9,6 +9,7 @@ assignments, inline styles, literal colors and untokenized font sizes.
 """
 import json
 import os
+from pathlib import Path
 import re
 import sys
 
@@ -57,7 +58,7 @@ def css_values(text):
 
 
 def legacy_counts(path):
-    text = open(path, encoding="utf-8").read()
+    text = Path(path).read_text(encoding="utf-8")
     ext = os.path.splitext(path)[1]
     if ext == ".css":
         values = css_values(text)
@@ -169,7 +170,7 @@ def check_app(root):
     if not os.path.isdir(base):
         return []
     problems = []
-    agents = open(os.path.join(root, "AGENTS.md"), encoding="utf-8").read() if os.path.isfile(os.path.join(root, "AGENTS.md")) else ""
+    agents = Path(root, "AGENTS.md").read_text(encoding="utf-8") if os.path.isfile(os.path.join(root, "AGENTS.md")) else ""
     feat_dir = os.path.join(base, "features")
     if os.path.isdir(feat_dir):
         for page in sorted(os.listdir(feat_dir)):
@@ -183,7 +184,7 @@ def check_app(root):
             ext = os.path.splitext(fname)[1]
             if ext not in (".js", ".mjs", ".css", ".html"):
                 continue
-            text = open(path, encoding="utf-8").read()
+            text = Path(path).read_text(encoding="utf-8")
             limit = MAX_LINES.get(ext)
             if limit and text.count("\n") > limit:
                 problems.append(f"R8 {name}：{text.count(chr(10))} 行，超过 {limit}")

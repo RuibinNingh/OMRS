@@ -1,3 +1,4 @@
+from omrs.data_repository import mastery_rows, history_rows, session_rows
 import csv
 import os
 import tempfile
@@ -70,7 +71,7 @@ class LabelTests(unittest.TestCase):
     def test_legacy_csv_without_labels_column_is_compatible(self):
         with tempfile.TemporaryDirectory() as vault:
             create_question(vault, subject="数学", category="代数", difficulty=5)
-            rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
+            rows = mastery_rows(vault)
             headers = [header for header in MASTERY_HEADERS if header != "Labels"]
             with open(mastery_path(vault), "w", encoding="utf-8", newline="") as file:
                 writer = csv.DictWriter(file, fieldnames=headers)

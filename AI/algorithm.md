@@ -3,13 +3,13 @@
 > **速查**
 > - 职责：记忆衰减、熟练度状态机、统一调度优先级、SM-2、双列表推荐与 Leech 检测
 > - 入口：`omrs/scheduling.py`、`omrs/common.py`（`DEFAULT_TUNING`）
-> - 不变量：反馈先写 Ledger，再由投影重放出熟练度；tuning 缺省值与历史硬编码一致，不改配置行为不变
-> - 必跑测试：`tests/test_recommendations.py`、`tests/test_leech_streak.py`、`tests/test_revive_cycle.py`、`tests/test_schedule_workbench.py`
+> - 不变量：反馈先写 Ledger，再由投影重放出熟练度；反馈响应、增量投影、历史重放与助手预览共用纯转换；调参立即按当前参数重算全部历史
+> - 必跑测试：`tests/test_recommendations.py`、`tests/test_leech_streak.py`、`tests/test_revive_cycle.py`、`tests/test_schedule_workbench.py`、`tests/test_data_runtime.py`
 > - 相关：`AI/ledger.md`、`AI/data.md`
 
 > 对应源文件：`omrs/scheduling.py`
 
-> v1.1.0 起，反馈事件先写入 Ledger，再由 `omrs/projections.py` 重放为 `mastery_projection` 和兼容 `mastery_data.csv`。核心算法函数保持不变，事实来源从 CSV 快照升级为可重放事件流。
+> 反馈事件先写 Ledger，再通过 `scheduling.transition_review()` 更新 SQL 熟练度、EF、状态标签和 SM-2。CSV 只按需导出；统计、推荐和 Session 读取 SQL。
 
 ---
 
@@ -22,7 +22,7 @@ decayed = mastery × e^( -days / (mastery×factor + base) )
 - **衰减常数**随熟练度升高而增大，熟练度越高衰减越慢。
 - `mastery = 0` 时直接返回 `0.0`。
 - 按默认 `factor=30`、`base=5`：mastery=0.9 时 30 天后约为 0.352；mastery=0.3 时 30 天后约为 0.035。
-- `factor`/`base` 默认 `30`/`5`，可经 `config.json` 的 `tuning`（`decay_mastery_factor`/`decay_base`）覆盖，见 §9。
+- `factor`/`base` 默认 `30`/`5`，可经活动配置的 `tuning`（`decay_mastery_factor`/`decay_base`）覆盖，见 §9。
 
 ---
 
@@ -106,14 +106,14 @@ EF 越低 = 越不稳定 = 越难 = 权重越高。EF=3.0→难度 1，EF=1.3→
 - 常规调度会跳过 `#状态/已击杀` 或 `Mastery = 1.0` 的题目，但**不是永久跳过**：休眠达到复燃周期（§11）后会重新进入调度。复燃题答错则降级回 `#状态/待攻克`（§4），立即回到推荐前面。
 - **停用题目**（兼容投影 `Suspended = 1`）不会进入常规调度、双列表推荐、行动计划或反馈录入；恢复后沿用原有熟练度与 Due_Date 重新参与。手动按 UID 确认调度遇到停用题也会被后端拒绝；已有活动 Session 的停用题会从待反馈接口中隐藏，原始 Session 仍保留供审计。
 - 新建 Session 和 `/api/recommend` 推荐时都会排除仍处于 `active` 状态的旧 Session 题目，避免连续创建或确认重复调度同一批题。
-- `count < 0` 会按 `0` 处理；CSV 中异常数值会回退到安全默认值，避免整次调度失败。
+- `count < 0` 会按 `0` 处理；旧迁移输入中的异常数值会回退到安全默认值，避免整次调度失败。
 - 日期解析使用 `parse_date()`（见 `common.py`），兼容 `YYYY-MM-DD` 和 `YYYY/M/D`；解析失败按 30 天处理。
 
 ---
 
 ## 4. 已击杀状态回退规则
 
-已击杀题目答错后，投影器 `projections.py::_apply_single_review()` 会把该题的 `current_tag` 从 `#状态/已击杀` 降级为 `#状态/待攻克`（高分答对并达成击杀条件时置为 `#状态/已击杀`），并反映到 `mastery_data.csv` 的 `Current_Tag`。
+已击杀题目答错后，投影器 `projections.py::_apply_single_review()` 会把该题的 `current_tag` 从 `#状态/已击杀` 降级为 `#状态/待攻克`（高分答对并达成击杀条件时置为 `#状态/已击杀`），并反映到 SQL 读模型；按需 CSV 导出保留 `Current_Tag`。
 
 熟练度同步骤降：`mastery = min(状态机结果, 复燃前 mastery × kill_demote_factor)`（默认 0.3）。取 `min` 而非直接连乘，是因为状态机对低分答错本身已降过一档（`old_m × 0.3`），连乘会掉到 0.09，降级幅度随系数平方漂移；取小值保证降级只可能更深，系数调大也不会把熟练度抬回去。间隔一并重置（`repetition = 0`、`interval = 1`），让降级题立刻排进近期复习——否则熟练度停在 1.0，答对一次就会再次击杀，等于没降级。累计击杀次数 `kill_count` **不**重置，下次复燃周期因此更长（§11）。
 
@@ -125,7 +125,7 @@ v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `fe
 
 ## 5. `_row_to_item()` — 题库条目转换
 
-从 CSV 行转为统一的题目对象，供 `/api/stats` 和临时调度使用。
+从 SQL 兼容列行转为统一的题目对象，供 `/api/stats` 和临时调度使用。
 
 - `decayed_mastery`：以当日为基准计算衰减值。
 - `interval`、`due_date`、`repetition`：SM-2 排期字段。
@@ -211,11 +211,12 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 > 对应源文件：`omrs/feedback.py`、`omrs/projections.py`
 
 反馈提交后：
-1. `POST /api/feedback` 解析并校验反馈。
-2. 追加 `review.batch_submit` commit，记录 `question_id`、当时 UID、来源、分数、对错、备注和时间。
-3. `rebuild_projection()` 按有效事件流重放 `compute_mastery_update()` 与 `calc_sm2_interval()`。
-4. 导出 `mastery_data.csv` / `history_log.csv` 兼容投影。
-5. 撤销 Session、撤销/替换/恢复旧反馈时，不写逆向补丁，而是从有效事件流重新计算相关算法状态。
+1. `POST /api/feedback` 解析并校验反馈，在 SQLite 写事务内重新核对链头、投影检查点和当前算法参数；其它进程已经更新时先重建再重试。
+2. 在同一事务追加 `review.batch_submit` 并增量发布 SQL 读模型，记录 `question_id`、当时 UID、来源、分数、对错、备注和时间；发布失败整体回滚，并废止已修改的进程缓存。
+3. 投影与助手预览共用纯 `transition_review()`，同批同题按顺序转换；反馈响应直接采用本次已发布投影的结果，避免另算一套状态。
+4. 不逐次生成 CSV；持久化 Session 的完成检查在反馈事务提交后执行。
+5. UTC 时间戳保留时区，反馈、统计和排期通过 `common.business_time()`／`business_today()` 按 Asia/Shanghai 业务日期一致计算。使用系统 IANA 时区规则；缺少数据库时，仅上海 1992 年起的时间使用有名 UTC+08 固定偏移，无需额外安装依赖。更早历史或其它缺失时区明确报告无法可靠转换，历史投影保留原时间，不猜夏令时。长期连续正确的间隔以日期可表示上限夹紧，最晚到期和复燃日期为 `9999-12-31`，完整重放不因日期溢出失败。
+6. 撤销 Session、撤销/替换/恢复旧反馈时，不写逆向补丁，而是从有效事件流重新计算相关算法状态。
 
 临时/即时练习可传 `source=instant|manual|due|proficiency`；持久化 Session 反馈优先采用 Session 中保存的来源。
 
@@ -225,7 +226,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 > 对应源文件：`omrs/common.py` → `DEFAULT_TUNING` / `load_tuning()`
 
-此前散落在代码里的「魔法数字」已集中为一份默认表，可在 `错题/.omrs/config.json` 的 `"tuning"` 键下覆盖（只列要改的项即可，其余取默认）。通过 `POST /api/config` / `save_config()` 保存时会立即失效该 vault 的进程内缓存，后续请求直接使用新值，无需重启；若绕过程序直接编辑文件，则需重启或显式调用 `reset_tuning_cache()`。
+默认参数集中在 `DEFAULT_TUNING`，活动配置的 `tuning` 只需列出覆盖项。`save_config()` 验证完整候选，在同一 SQLite 事务内重算全部有效历史并发布投影、policy hash、revision 与配置；成功返回时新算法状态立即可见。调参不冻结旧反馈参数，后续修正和 `state.restore` 同样使用当前参数。`config.json` 是镜像，手改须在下次启动通过同一发布路径导入；运行时不靠文件缓存决定算法。
 
 | 键 | 默认 | 含义 |
 |---|---|---|
@@ -253,7 +254,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 }
 ```
 
-校验：仅接受 `DEFAULT_TUNING` 中已知的键、且值为数字，其余忽略，防止脏配置污染算法。
+校验：拒绝未知键、布尔冒充数字、NaN/Infinity、错误整数类型、负值与危险分母/系数范围。提交前重放失败时活动配置和学习状态保持旧值；镜像失败时新状态已生效并返回 `mirror_pending:true`。
 
 ---
 

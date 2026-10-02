@@ -3,15 +3,18 @@ confirm 级（界面点「允许」才执行）：改正文一节、改知识点
 全部在 runtime 的写锁与 agent_actor 上下文里执行：commit 来源为 agent，payload 带运行身份；可被按运行撤销。
 录题改走草稿（tools/drafts.py 的 create_draft），这里不再有录题工具。
 """
+
 import re
 
-from ...common import (MASTERY_HEADERS, extract_knowledge_tags, extract_labels, load_csv, load_tuning, mastery_path,
-                       parse_yaml_frontmatter, resolve_sm2_fields)
+from ...common import extract_knowledge_tags, extract_labels, parse_yaml_frontmatter
 from ...content_history import projection_row, read_question_file, refresh_projection, write_question
 from ...feedback import process_feedback
 from ...labels import list_label_defs
 from ...question_ops import (_replace_frontmatter_list_field, move_question, resume_question, suspend_question)
-from ...scheduling import _safe_float, _safe_int, compute_mastery_update
+from ...scheduling import transition_review
+from ...projections import rebuild_projection
+from ...data_repository import resolve_question, storage_write
+from ...common import business_today
 from ...sessions import create_session_from_selection, get_session
 from .common import SECTIONS, image_names, sections_of
 
@@ -175,20 +178,27 @@ def resume_tool(ctx, args):
 
 
 # ── confirm：反馈 ──
-def predict_feedback(vault, items):
-    rows = {r["UID"]: resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)}
-    tuning = load_tuning(vault)
-    out = []
+@storage_write
+def predict_feedback(vault, items, session_id=""):
+    state = rebuild_projection(vault)
+    session = get_session(vault, session_id) if session_id else None
+    sources = {e["question_id"]: e["source"] for e in session["entries"]} if session else {}
+    out, local = [], {}
     for item in items:
-        row = rows.get(item["uid"].strip())
+        row = resolve_question(vault, uid=item.get("uid", "").strip(), question_id=item.get("question_id", ""))
         if not row:
-            raise ValueError(f"题目不存在：{item['uid']}")
-        old = _safe_float(row.get("Mastery", 0))
-        upd = compute_mastery_update(old, _safe_float(row.get("EF", 2.5), 2.5), int(item["sub_score"]),
-                                     bool(item["is_correct"]), _safe_int(row.get("Attempts", 0)) + 1,
-                                     _safe_int(row.get("High_Correct_Streak", 0)), tuning)
-        out.append({"uid": item["uid"].strip(), "is_correct": bool(item["is_correct"]), "sub_score": int(item["sub_score"]),
-                    "mastery_before": round(old, 3), "mastery_after": round(upd["mastery"], 3), "state": upd["label"]})
+            raise ValueError(f"题目不存在：{item.get('uid', '')}")
+        qid = row["question_id"]
+        question = dict(state["questions"][qid])
+        mastery = local.get(qid, state["mastery"][qid])
+        if qid in local:
+            question["current_tag"] = local[qid]["_tag"]
+        updated, tag, display = transition_review(question, mastery, {
+            "sub_score": int(item["sub_score"]), "is_correct": bool(item["is_correct"]),
+            "source": sources.get(qid, item.get("source") or "due"), "review_date": business_today().isoformat()}, state["_tuning"])
+        local[qid] = {**updated, "_tag": tag}
+        out.append({"uid": row["uid"], "question_id": qid, "is_correct": bool(item["is_correct"]), "sub_score": int(item["sub_score"]),
+                    "mastery_before": round(display["old_mastery"], 3), "mastery_after": round(updated["mastery"], 3), "state": display["label"]})
     return out
 
 
@@ -209,7 +219,7 @@ def feedback_preview(ctx, args):
     sid, s = _check_session(ctx["vault"], args)
     left = len(s.get("pending_uids", [])) - len(args["items"]) if s else None
     return {"user_statement": args["user_statement"], "session_id": sid, "session_left": left,
-            "items": predict_feedback(ctx["vault"], args["items"])}
+            "items": predict_feedback(ctx["vault"], args["items"], sid)}
 
 
 def record_feedback(ctx, args):

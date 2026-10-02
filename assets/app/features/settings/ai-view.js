@@ -19,7 +19,7 @@ export const aiView = () => html`<section class="st-section" id="st-sec-ai" role
                   <button class="ui-btn ui-btn--sm" type="button" data-action="settings.clearKey">清除</button>
                 </div>
                 <div class="hint" id="st-ai-key-state"></div>
-                <div class="hint">只保存在本机 <code>错题/.omrs/config.json</code>，由本地后端转发请求，不会回显到页面。</div>
+                <div class="hint">只保存在本机配置库及镜像文件，由本地后端转发请求，不会回显到页面。</div>
               </div>
             </div>
           </div>

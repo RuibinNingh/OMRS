@@ -12,25 +12,26 @@
   （Qwen-VL 等模型推荐不设 System Message，见阿里云百炼文档）。
 - 图片以 data URL 通过 `{"type":"image_url","image_url":{"url": ...}}` 传入。
 
-配置读取自 错题/.omrs/config.json（见 common.load_config）：
+配置读取自 SQLite 活动配置（见 common.load_config；config.json 为兼容镜像）：
 - ai_base_url  形如 https://api.openai.com/v1 或
               https://dashscope.aliyuncs.com/compatible-mode/v1（末尾可带或不带 /）
 - ai_api_key   Bearer 密钥
 - ai_model     形如 gpt-4o、qwen-vl-max（需支持图片输入）
 """
+from .data_repository import mastery_rows
 
 import json
 import re
 import urllib.error
 import urllib.request
 
-from .common import MASTERY_HEADERS, load_config, load_csv, mastery_path
+from .common import load_config
 from .taxonomy import directory_categories
 
 
 def collect_taxonomy(vault: str) -> dict:
-    """从 mastery_data.csv 汇总当前的科目/分类/知识点（去重、排序）。"""
-    rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
+    """从 SQL 活动题投影汇总当前的科目/分类/知识点（去重、排序）。"""
+    rows = mastery_rows(vault)
     subjects, categories, ktags = set(), set(), set()
     categories_by_subject = {}
     for row in rows:

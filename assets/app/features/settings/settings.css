@@ -1,4 +1,4 @@
-/* 设置页：五个分区、运行状态与存储任务。 */
+/* 设置页：六个分区、运行状态与存储任务。 */
 #st-app [hidden] { display: none !important; }
 #st-app .hint { font-size: var(--text-xs); }
 #st-app .form-group .hint { font-size: var(--text-xs); }
@@ -30,6 +30,8 @@ label.st-row-label { cursor: pointer; }
 .st-switch:checked { background: var(--accent); border-color: var(--accent); }
 .st-switch:checked::after { left: 22px; background: var(--on-accent); }
 .st-fields { max-width: 620px; }
+.st-tuning-advanced { margin-bottom: var(--sp-3); }
+.st-tuning-advanced summary { display: list-item; min-height: var(--ctl-lg); color: var(--fg-1); font-size: var(--text-sm); line-height: var(--ctl-lg); cursor: pointer; }
 .st-inline, .st-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
 .st-inline .ui-input { flex: 1; min-width: 0; }
 .st-inline .st-num { flex: 0 0 96px; }

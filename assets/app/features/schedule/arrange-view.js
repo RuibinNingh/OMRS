@@ -1,3 +1,4 @@
+import { questionKey } from '../../domain/question/ref.js';
 /**
  * 复习调度 ·「安排复习」视图（原 omrs_dashboard.html 的 #recommend-panel-v2 与 recommend_v2.js 的渲染）。
  * 保留旧 id（#recommend-panel-v2、#rec-*），冒烟测试与旧入口按 id 找；表单控件的值全部来自页面状态（morph 会把未聚焦控件同步回模板值）。
@@ -50,10 +51,10 @@ function setup(a, env) {
 }
 
 function candidate(item, i, a, env) {
-  const sel = a.selected.has(item.uid);
+  const sel = a.selected.has(questionKey(item));
   const rv = revive(item);
   return html`<div class="${cls('schd-cand', sel && 'is-selected')}" data-key="${item.uid}">
-  <input type="checkbox" class="schd-cand__check" aria-label="选择 ${item.uid}"${sel ? ' checked' : ''} data-change="schedule.toggle" data-arg="${item.uid}">
+  <input type="checkbox" class="schd-cand__check" aria-label="选择 ${item.uid}"${sel ? ' checked' : ''} data-change="schedule.toggle" data-arg="${questionKey(item)}">
   <span class="schd-cand__n">${i + 1}</span>
   <div class="schd-cand__main"><p class="schd-cand__title"><strong class="schd-cand__uid">${item.uid}</strong>${rv ? tag({ label: rv.label, tone: 'warning', title: rv.title }) : ''}</p>
     <p class="schd-meta">${item.subject} · ${item.category} · 难度 ${item.difficulty}${labelChips(item.labels || [])}</p></div>

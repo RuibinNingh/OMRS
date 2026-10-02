@@ -68,7 +68,7 @@
 删除 Markdown 正文、只保留 Ledger 归档与历史反馈、附件图片不删）、批量停用 / 恢复、批量导出 A4。确认与输入走 `ui/dialog`，结果走
 `ui/toast`；成功后清详情缓存 → `reloadData()` → 失效重绘挂着该题的 qview → 刷新历史动态。题库页、题目弹窗与各处 qview 的工具按钮共用。
 
-**Markdown 编辑器**在 `assets/app/domain/question/editor.js`（`ui/dialog`，P5 第 3 轮起；打开、保存与焦点规则见 `AI/frontend/qview.md` §4.2）：`GET /api/question/raw` 打开纯文本，保存 `POST /api/question/markdown`；只改正文时后端只更新 fingerprint，改 YAML 结构化字段写 metadata update commit。`questions.js` 只剩 `masteryBarHtml()`（board.js，P7 迁走）与 `reviveChipHtml()`（recommend_v2.js，P6 迁走）。
+**Markdown 编辑器**在 `assets/app/domain/question/editor.js`（`ui/dialog`，P5 第 3 轮起；打开、保存与焦点规则见 `AI/frontend/qview.md` §4.2）：`GET /api/question/raw` 打开纯文本，保存 `POST /api/question/markdown`；只改正文时后端只更新 fingerprint，改 YAML 结构化字段写 metadata update commit。
 
 ### 通用 Markdown / LaTeX 渲染
 - `renderMdContent()` 只允许三类受控 HTML：图片 `<img>`、KaTeX 输出、降级公式 `<span class="math">`；普通文本始终先转义。默认 `full` 保留每一处普通换行，空行仍按 Markdown 段落处理；只有用户在显示设置中选「简略」时才合并单个换行。
@@ -84,7 +84,7 @@
 
 全局筛选，题库页（`state.js::toItemFilters()` 翻译条件）、调度页和即时练习页共用：
 
-到期天数由 `domain/items.js::dueDays(item, today)` 计算，`today` 只接受有效的 `Date`；未传或被 `map` / `filter` 传入数组下标时按当前本地日期计算，非法日期返回 `null`。
+到期天数由 `domain/items.js::dueDays(item, today)` 计算，`today` 只接受有效的 `Date`；未传或被 `map` / `filter` 传入数组下标时按当前上海业务日期计算，非法日期返回 `null`。
 
 | 控件 | 对应字段 |
 |---|---|
@@ -93,7 +93,7 @@
 | 分类 | `category` |
 | 状态标签 | `tag` |
 | 知识标签 | `knowledge_tags` |
-| 难度上下限 | `difficulty` |
+| 难度上下限 | `difficulty`；未指定时使用 0–10 |
 | 熟练度上下限 | `mastery` |
 | 排序 | 多种排序方式 |
 
@@ -113,3 +113,11 @@
 `boardQuickAdd()` / `boardChooseAndAdd()` 是它的薄封装，调用点函数名不变；题目库经 `assets/app/domain/board/index.js` 调用它们。
 
 直接进入题库 hash 路由时，页面先挂载，再收到初始统计快照；挂载订阅 data 事件重绘列表，确保初始加板入口可用。
+
+## 稳定选择与写入
+
+批量勾选以 `question_id` 为键，当前 UID 只作为行游标和展示。停用／恢复、删除、移动、Markdown、单题／批量标记、导出与加入展示板均在打开菜单或确认框前冻结稳定引用；新写入只发 ID，批量使用有序 `question_refs`。题目移动后操作仍指向原题，归档或未知身份明确失败，不根据复用的 UID 改写新题。
+
+批量标记请求完成后，本地列表也按请求冻结的 ID 找回当前题目再更新标记；等待期间发生移动或快照重载时，不使用请求前的 UID 修改复用编号的新题。
+
+日期解析及天差统一由 `core/date.js` 提供，业务「今天」为 Asia/Shanghai；推荐的 `sort:none` 保留服务端顺序，不执行熟练度兜底排序。

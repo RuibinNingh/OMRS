@@ -1,4 +1,5 @@
 """草稿来源图的异步自动框选；检测调用不占用全局写锁。"""
+from .vault_lifecycle import storage, open_sqlite, lease, task, generation
 import base64
 import io
 import json
@@ -155,11 +156,12 @@ def _active_duplicate(db, draft_id, revision, shas):
     return None
 
 
+@storage
 def start_detect(vault, draft_id, revision, sha=None):
     if sha is not None and (not isinstance(sha, str) or len(sha) != 64 or
                             any(ch not in "0123456789abcdef" for ch in sha)):
         raise drafts.DraftError("sha 必须是来源图的 SHA256")
-    with locking.write_lock(), drafts._LOCK:
+    with lease(vault), locking.write_lock(), drafts._LOCK:
         db = drafts.connect(vault)
         try:
             row = _row(db, draft_id)
@@ -200,7 +202,7 @@ def start_detect(vault, draft_id, revision, sha=None):
         finally:
             db.close()
     if snapshots:
-        thread = threading.Thread(target=_run_detect, args=(vault, job_id, draft_id, revision, snapshots), daemon=True)
+        thread = threading.Thread(target=_run_detect, args=(vault, job_id, draft_id, revision, snapshots, generation(vault)), daemon=True)
         try:
             thread.start()
         except Exception:
@@ -211,12 +213,17 @@ def start_detect(vault, draft_id, revision, sha=None):
     return draft_jobs.get_job(vault, job_id)
 
 
-def _run_detect(vault, job_id, draft_id, revision, snapshots):
+def _run_detect(vault, job_id, draft_id, revision, snapshots, expected_generation=None):
+    with task(vault, expected_generation):
+        return _run_detect_current(vault, job_id, draft_id, revision, snapshots)
+
+
+def _run_detect_current(vault, job_id, draft_id, revision, snapshots):
     proposals, errors = [], []
     try:
         draft_jobs._update(vault, job_id, status="running")
         for snap in snapshots:
-            with locking.write_lock(), drafts._LOCK:
+            with lease(vault), locking.write_lock(), drafts._LOCK:
                 db = drafts.connect(vault)
                 try:
                     row = _row(db, draft_id)
@@ -242,7 +249,7 @@ def _run_detect(vault, job_id, draft_id, revision, snapshots):
                                              str(exc), task_id=snap["task_id"]))
             draft_jobs._update(vault, job_id, processed=len(proposals), errors=errors)
         applied, conflicts = False, any(item["status"] == "conflict" for item in proposals)
-        with locking.write_lock(), drafts._LOCK:
+        with lease(vault), locking.write_lock(), drafts._LOCK:
             db = drafts.connect(vault)
             try:
                 row = _row(db, draft_id)

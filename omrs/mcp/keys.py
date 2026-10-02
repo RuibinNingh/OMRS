@@ -4,6 +4,7 @@
 摘要和非秘密元数据；每次调用都会重新读取并校验状态，所以吊销会立即
 使已有 MCP 会话失效。
 """
+from ..vault_lifecycle import storage, open_sqlite, lease, task, generation
 
 import datetime
 import contextlib
@@ -23,6 +24,7 @@ _SCOPES = ("omrs:read", "draft:create", "draft:update", "report:create", "board:
 _DEFAULT_SCOPES = ("omrs:read", "draft:create")
 
 
+@storage
 @contextlib.contextmanager
 def _key_lock(vault):
     """串行化 Web 与本机 CLI 的 Key 生命周期，避免吊销被使用时间覆盖。"""
@@ -49,6 +51,7 @@ def _key_lock(vault):
             os.close(descriptor)
 
 
+@storage
 def _path(vault):
     return os.path.join(omrs_data_dir(vault), _FILENAME)
 
@@ -57,6 +60,7 @@ def _now():
     return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat()
 
 
+@storage
 def _load(vault):
     try:
         with open(_path(vault), encoding="utf-8") as stream:
@@ -70,6 +74,7 @@ def _load(vault):
         return {"keys": []}
 
 
+@storage
 def _save(vault, data):
     path = _path(vault)
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -109,6 +114,7 @@ def _public(row):
     )}
 
 
+@storage
 def create_key(vault, name="", scopes=None, expires_at=None):
     """创建密钥并返回一次性明文 ``secret``。"""
     name = str(name or "").strip()
@@ -138,11 +144,13 @@ def create_key(vault, name="", scopes=None, expires_at=None):
     return {**_public(row), "secret": secret}
 
 
+@storage
 def list_keys(vault):
     with _key_lock(vault):
         return [_public(row) for row in _load(vault)["keys"] if isinstance(row, dict)]
 
 
+@storage
 def revoke_key(vault, key_id):
     key_id = str(key_id or "").strip()
     with _key_lock(vault):
@@ -156,6 +164,7 @@ def revoke_key(vault, key_id):
     raise ValueError("MCP Key 不存在")
 
 
+@storage
 def verify_key(vault, secret):
     """校验密钥并返回公开身份；失败统一返回 ``None``。"""
     if not isinstance(secret, str) or not secret or len(secret) > 512:
@@ -197,6 +206,7 @@ def verify_key(vault, secret):
     return None
 
 
+@storage
 def key_for_id(vault, key_id):
     with _key_lock(vault):
         for row in _load(vault)["keys"]:
@@ -205,6 +215,7 @@ def key_for_id(vault, key_id):
     return None
 
 
+@storage
 def active_key(vault, key_id):
     """网页确认只凭稳定编号重新鉴权，不存储或恢复明文凭据。"""
     return _active(key_for_id(vault, key_id))
@@ -227,6 +238,7 @@ def _active(row):
     return row
 
 
+@storage
 def update_scopes(vault, key_id, scopes):
     """只编辑有效密钥的权限，吊销和到期均不可复活。"""
     scopes = _scopes(scopes)

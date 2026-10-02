@@ -1,3 +1,4 @@
+import { imageValue } from '../../core/uploads.js';
 /** 收件箱的批量与 AI 操作：网格批量条、处理区与题卡共用。长图先切条带再交给 detect；提取只同步本次提取的区域。 */
 import { get } from '../../core/api.js';
 import { inbox, notify } from './inbox.js';
@@ -11,7 +12,7 @@ async function strips(item) {
   if (!result.ok) throw new Error(`切片失败：${result.error?.message || '未知错误'}`);
   const out = [];
   for (const strip of result.data?.strips || []) {
-    out.push({ y0: strip.y0, y1: strip.y1, data: await cropDataUrl(item, { x: 0, y: strip.y0, w: 1, h: strip.y1 - strip.y0 }, 'image/jpeg', 0.85) });
+    out.push({ y0: strip.y0, y1: strip.y1, data: await imageValue(await cropDataUrl(item, { x: 0, y: strip.y0, w: 1, h: strip.y1 - strip.y0 }, 'image/jpeg', 0.85), 'inbox') });
   }
   return out;
 }
@@ -94,7 +95,7 @@ export async function extractRegions(item, regionIds) {
   inbox.changed();
   try {
     const crops = [];
-    for (const region of regions) crops.push({ region_id: region.id, crop: await cropDataUrl(item, region) });
+    for (const region of regions) crops.push({ region_id: region.id, crop: await imageValue(await cropDataUrl(item, region), 'inbox') });
     if (inbox.item(item.id)?.reset_epoch !== epoch) return;
     if (!await inbox.save(item, { regions: item.regions, status: 'boxed' })) throw new Error('区域未保存');
     if (inbox.item(item.id)?.reset_epoch !== epoch) return;
@@ -112,7 +113,7 @@ export async function classifyCards(entries) {
   const cards = [];
   for (const { item, card } of entries) {
     const question = item.regions.find(region => Number(region.card) === card && region.role === 'question');
-    if (question) cards.push({ item_id: item.id, reset_epoch: item.reset_epoch, card, crop: await cropDataUrl(item, question) });
+    if (question) cards.push({ item_id: item.id, reset_epoch: item.reset_epoch, card, crop: await imageValue(await cropDataUrl(item, question), 'inbox') });
   }
   if (!cards.length) { notify('没有可识别的题卡', 'warn'); return; }
   notify(`AI 识别 ${cards.length} 张题卡的科目 / 分类 / 难度 / 知识点…`);

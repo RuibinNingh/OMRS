@@ -1,9 +1,9 @@
+import { questionItem, questionRef } from '../question/ref.js';
 /** Shared label picker used in question views and create forms. */
 import { escape as escapeHtml, escape as escapeAttr, raw as asHtml } from '../../core/html.js';
 import { render as renderHtml } from '../../core/dom.js';
 import { hostGuest, releaseGuest } from '../../ui/overlay.js';
 import { toast } from '../../ui/toast.js';
-import { itemOf } from '../items.js';
 import { chipHtml } from './chips.js';
 import { pickerOptions as labelPickerOptions } from './model.js';
 import { allLabels, quickLabels, createLabel, saveQuestionLabels } from './state.js';
@@ -24,11 +24,16 @@ export function closeLabelPicker() {
   labelReleaseLayer(node);
 }
 // openLabelPicker(uid, anchorEl, {get: () => names, onSave: names => Promise, title})
-export function openLabelPicker(uid, anchor, config = {}) {
+export function openLabelPicker(value, anchor, config = {}) {
+  const item = questionItem(value);
+  const uid = item?.uid || String(value || '');
+  let ref;
+  try { ref = typeof config.onSave === 'function' ? null : questionRef(item); }
+  catch (error) { toast(error.message, { kind: 'error' }); return; }
   if (LABEL_PICKER && LABEL_PICKER.dataset.uid === String(uid)) { closeLabelPicker(); return; }
   closeLabelPicker();
-  const readLabels = typeof config.get === 'function' ? config.get : () => (itemOf(uid)?.labels || []);
-  const saveLabels = typeof config.onSave === 'function' ? config.onSave : labels => saveQuestionLabels(uid, labels);
+  const readLabels = typeof config.get === 'function' ? config.get : () => (item?.labels || []);
+  const saveLabels = typeof config.onSave === 'function' ? config.onSave : labels => saveQuestionLabels(ref, labels);
   const initial = [...(readLabels() || [])];
   const current = new Set(initial);
   const box = document.createElement('div');

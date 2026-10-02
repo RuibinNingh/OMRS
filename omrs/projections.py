@@ -3,23 +3,9 @@ import datetime
 import json
 import os
 
-from .common import (
-    HISTORY_HEADERS,
-    MASTERY_HEADERS,
-    SESSIONS_HEADERS,
-    append_csv,
-    calc_sm2_interval,
-    compute_due_date,
-    extract_labels,
-    history_path,
-    is_suspended_row,
-    load_tuning,
-    mastery_path,
-    save_csv,
-    sessions_path,
-)
-from .ledger import PROJECTOR_VERSION, canonical_json, connect, read_commits
-from .scheduling import _safe_float, _safe_int, compute_mastery_update
+from .common import HISTORY_HEADERS, MASTERY_HEADERS, SESSIONS_HEADERS, business_time, history_path, is_suspended_row, load_tuning, mastery_path, save_csv, sessions_path
+from .ledger import canonical_json, connect
+from .scheduling import _safe_float, _safe_int, transition_review
 
 
 DEFAULT_MASTERY = {
@@ -36,11 +22,9 @@ DEFAULT_MASTERY = {
 }
 
 
-def rebuild_projection(vault: str, export_csv=True):
-    commits = read_commits(vault, ascending=True)
-    state = _project_state(vault, commits)
-    with connect(vault) as db:
-        _write_projection_tables(db, state)
+def rebuild_projection(vault: str, export_csv=False, force=False):
+    from .projection_runtime import project
+    state = project(vault, force=force)
     if export_csv:
         export_legacy_csv(vault, state)
     return state
@@ -87,7 +71,7 @@ def _empty_state():
 
 def _project_state(vault: str, commits, target_seq=None):
     state = _empty_state()
-    snapshots = {}
+    state["_tuning"] = load_tuning(vault)
     for commit in commits:
         seq = int(commit["seq"])
         if target_seq is not None and seq > target_seq:
@@ -96,22 +80,57 @@ def _project_state(vault: str, commits, target_seq=None):
             restore_to = _safe_int(commit["payload"].get("target_seq"), 0)
             if restore_to <= 0 or restore_to >= seq:
                 continue
-            base = snapshots.get(restore_to)
-            if base is None:
-                base = _project_state(vault, commits, restore_to)
+            base = _project_state(vault, commits, restore_to)
             state = copy.deepcopy(base)
         else:
             apply_commit(vault, state, commit)
         state["last_seq"] = seq
-        if seq % 100 == 0 or commit["commit_type"] == "state.restore":
-            snapshots[seq] = copy.deepcopy(state)
     return state
+
+
+def _metadata_update(question, after, payload=None):
+    """未改变的 Markdown 状态字段不能覆盖反馈产生的投影状态。"""
+    from .common import extract_tag
+    normalized = _normalize_question_fields(after, question)
+    previous_meta, next_meta = question.get("metadata") or {}, after.get("metadata") or {}
+    fields = (payload or {}).get("changed_fields")
+    if fields is not None:
+        tag_changed = "current_tag" in fields or "tags" in fields
+    elif previous_meta and next_meta:
+        tag_changed = extract_tag(previous_meta) != extract_tag(next_meta)
+    else:
+        tag_changed = "current_tag" in after and after["current_tag"] != (payload or {}).get("before", {}).get("current_tag", question.get("current_tag"))
+    if not tag_changed:
+        normalized["current_tag"] = question.get("current_tag", "#状态/待攻克")
+    return normalized
+
+
+def _bind_session_items(state, raw, session_id, legacy=False):
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (TypeError, ValueError):
+            raw = []
+    result = []
+    for index, item in enumerate(raw or []):
+        item = {"uid": item} if isinstance(item, str) else dict(item)
+        uid = item.get("uid_at_creation") or item.get("uid", "")
+        qid = item.get("question_id") or ""
+        if not qid and not legacy:
+            candidates = [q["question_id"] for q in state["questions"].values() if q.get("uid") == uid and not q.get("archived")]
+            qid = candidates[0] if len(candidates) == 1 else ""
+        result.append({"entry_id": item.get("entry_id") or f"{session_id}:{index}",
+                       "question_id": qid, "uid_at_creation": uid, "uid": uid,
+                       "source": item.get("source", "due")})
+    return result
 
 
 def apply_commit(vault: str, state: dict, commit: dict):
     payload = commit["payload"] or {}
     ctype = commit["commit_type"]
     seq = int(commit["seq"])
+    if state.get("_corrections_precomputed") and ctype in {"review.retract", "review.restore", "review.replace"}:
+        return
     if ctype == "legacy.bootstrap":
         _apply_legacy_bootstrap(state, payload, seq)
     elif ctype in {"question.create", "question.create_external"}:
@@ -130,7 +149,7 @@ def apply_commit(vault: str, state: dict, commit: dict):
             question["file_path"] = payload.get("to_path", question.get("file_path", ""))
             question["category"] = payload.get("to_category", question.get("category", ""))
             if payload.get("after"):
-                question.update(_normalize_question_fields(payload["after"], question))
+                question.update(_metadata_update(question, payload["after"], payload))
             question["archived"] = False
             question["updated_seq"] = seq
             state["uid_to_question_id"][question["uid"]] = question_id
@@ -140,7 +159,7 @@ def apply_commit(vault: str, state: dict, commit: dict):
         question = state["questions"].get(question_id)
         if question:
             after = payload.get("after", {})
-            question.update(_normalize_question_fields(after, question))
+            question.update(_metadata_update(question, after, payload))
             question["updated_seq"] = seq
             state["uid_to_question_id"][question["uid"]] = question_id
             _remember_question_tag_baseline(state, question_id)
@@ -155,11 +174,14 @@ def apply_commit(vault: str, state: dict, commit: dict):
         question = state["questions"].get(payload.get("question_id"))
         if question:
             question["archived"] = True
+            if state["uid_to_question_id"].get(question.get("uid")) == question.get("question_id"):
+                state["uid_to_question_id"].pop(question.get("uid"), None)
             question["updated_seq"] = seq
     elif ctype == "question.restore":
         question = state["questions"].get(payload.get("question_id"))
         if question:
             question["archived"] = False
+            state["uid_to_question_id"][question["uid"]] = question["question_id"]
             question["updated_seq"] = seq
     elif ctype == "question.suspend":
         question = state["questions"].get(payload.get("question_id"))
@@ -180,7 +202,7 @@ def apply_commit(vault: str, state: dict, commit: dict):
                 "Created_At": session.get("created_at", commit["created_at"]),
                 "Subject_Filter": session.get("subject_filter", ""),
                 "Count": str(session.get("count", len(session.get("items", [])))),
-                "UIDs": canonical_json(session.get("items", session.get("uids", []))),
+                "UIDs": canonical_json(_bind_session_items(state, session.get("entries", session.get("items", session.get("uids", []))), sid)),
                 "Status": session.get("status", "active"),
                 "Completed_At": session.get("completed_at", ""),
                 "_updated_seq": seq,
@@ -192,40 +214,56 @@ def apply_commit(vault: str, state: dict, commit: dict):
             session["Status"] = "completed"
             session["Completed_At"] = payload.get("completed_at", commit["created_at"])
             session["_updated_seq"] = seq
+    elif ctype == "session.items_bind":
+        session = state["sessions"].get(payload.get("session_id"))
+        if session:
+            items = json.loads(session["UIDs"])
+            for item in items:
+                if item.get("entry_id") == payload.get("entry_id"):
+                    item["question_id"] = payload["question_id"]
+            session["UIDs"] = canonical_json(items)
+            session["_updated_seq"] = seq
     elif ctype == "session.retract":
         sid = payload.get("session_id")
-        state["retracted_sessions"].add(sid)
+        if not state.get("_corrections_precomputed"):
+            state["retracted_sessions"].add(sid)
         session = state["sessions"].get(sid)
         if session:
             session["_retracted"] = True
             session["Status"] = "retracted"
             session["_updated_seq"] = seq
-        _recompute_mastery_from_history(vault, state, seq)
+        if not state.get("_corrections_precomputed"):
+            _recompute_mastery_from_history(vault, state, seq)
     elif ctype == "session.restore":
         sid = payload.get("session_id")
-        state["retracted_sessions"].discard(sid)
+        if not state.get("_corrections_precomputed"):
+            state["retracted_sessions"].discard(sid)
         session = state["sessions"].get(sid)
         if session:
             session["_retracted"] = False
             session["Status"] = "active"
             session["_updated_seq"] = seq
-        _recompute_mastery_from_history(vault, state, seq)
+        if not state.get("_corrections_precomputed"):
+            _recompute_mastery_from_history(vault, state, seq)
     elif ctype == "review.batch_submit":
         _apply_review_batch(vault, state, commit)
     elif ctype == "review.retract":
         key = _review_key(payload.get("target_commit_id"), payload.get("target_review_index"))
         state["retracted_reviews"].add(key)
         state["restored_reviews"].discard(key)
-        _recompute_mastery_from_history(vault, state, seq)
+        if not state.get("_corrections_precomputed"):
+            _recompute_mastery_from_history(vault, state, seq)
     elif ctype == "review.restore":
         key = _review_key(payload.get("target_commit_id"), payload.get("target_review_index"))
         state["restored_reviews"].add(key)
         state["retracted_reviews"].discard(key)
-        _recompute_mastery_from_history(vault, state, seq)
+        if not state.get("_corrections_precomputed"):
+            _recompute_mastery_from_history(vault, state, seq)
     elif ctype == "review.replace":
         key = _review_key(payload.get("target_commit_id"), payload.get("target_review_index"))
         state["review_replacements"][key] = payload.get("replacement", {})
-        _recompute_mastery_from_history(vault, state, seq)
+        if not state.get("_corrections_precomputed"):
+            _recompute_mastery_from_history(vault, state, seq)
 
 
 def _apply_legacy_bootstrap(state, payload, seq):
@@ -262,6 +300,7 @@ def _apply_legacy_bootstrap(state, payload, seq):
         sid = session.get("Session_ID")
         if sid:
             session = dict(session)
+            session["UIDs"] = canonical_json(_bind_session_items(state, session.get("UIDs", "[]"), sid, legacy=True))
             session["_updated_seq"] = seq
             session["_retracted"] = False
             state["sessions"][sid] = session
@@ -294,7 +333,7 @@ def _upsert_question(state, question, seq):
         "suspended": bool(question.get("suspended", old.get("suspended", False))),
     }
     state["questions"][question_id] = merged
-    if merged.get("uid"):
+    if merged.get("uid") and not merged.get("archived"):
         state["uid_to_question_id"][merged["uid"]] = question_id
     state["mastery"].setdefault(question_id, {**DEFAULT_MASTERY, "updated_seq": seq})
     state["mastery_baseline"].setdefault(question_id, dict(state["mastery"][question_id]))
@@ -349,7 +388,7 @@ def _apply_review_batch(vault, state, commit, record=True):
     payload = commit["payload"] or {}
     reviews = payload.get("feedbacks") or payload.get("reviews") or []
     session_id = payload.get("session_id", "")
-    if record:
+    if record and not state.get("_corrections_precomputed"):
         state["review_commits"].append(copy.deepcopy(commit))
     for idx, review in enumerate(reviews):
         effective = _effective_review(state, commit["commit_id"], idx, review)
@@ -361,12 +400,19 @@ def _apply_review_batch(vault, state, commit, record=True):
         effective_session_id = session_id or effective.get("session_id", "")
         if not qid or effective_session_id in state["retracted_sessions"]:
             continue
-        _apply_single_review(vault, state, qid, effective, commit["seq"])
-        state["history"].append(_history_row(commit, idx, qid, effective, effective_session_id))
+        history_row = _history_row(commit, idx, qid, effective, effective_session_id)
+        # 旧提交没有显式业务日期时，使用自身时间戳，不能用重放当天。
+        effective = {**effective, "review_date": history_row["review_date"]}
+        display = _apply_single_review(vault, state, qid, effective, commit["seq"])
+        state.setdefault("_review_results", []).append({"question_id": qid, **display})
+        state["history"].append(history_row)
 
 
 def _effective_review(state, commit_id, idx, review):
     key = _review_key(commit_id, idx)
+    replacements = state["review_replacements"]
+    if hasattr(replacements, "effective"):
+        return replacements.effective(key, review)
     if key in state["retracted_reviews"] and key not in state["restored_reviews"]:
         return None
     if key in state["review_replacements"]:
@@ -379,89 +425,38 @@ def _review_key(commit_id, idx):
 
 
 def _apply_single_review(vault, state, question_id, review, seq):
-    tuning = load_tuning(vault)
-    mastery = dict(state["mastery"].get(question_id, DEFAULT_MASTERY))
-    is_correct = bool(review.get("is_correct"))
-    sub_score = _safe_int(review.get("sub_score"), 0)
-    new_attempts = _safe_int(mastery.get("attempts"), 0) + 1
-    update = compute_mastery_update(
-        mastery.get("mastery", 0.0),
-        mastery.get("ef", 2.5),
-        sub_score,
-        is_correct,
-        new_attempts,
-        mastery.get("high_correct_streak", 0),
-        tuning,
-    )
-    old_interval = _safe_int(mastery.get("interval_days"), 0)
-    old_repetition = _safe_int(mastery.get("repetition"), 0)
-    # 击杀次数：每次 kill 累加，答错降级时不重置（复燃周期据此分级变长）
-    kill_count = _safe_int(mastery.get("kill_count"), 0) + _safe_int(
-        update.get("kill_count_delta"), 0
-    )
-    new_mastery = update["mastery"]
-    source = review.get("source") or "legacy_unknown"
-    question = state["questions"].get(question_id)
-    is_demote = bool(
-        not is_correct and "已击杀" in (question or {}).get("current_tag", "")
-    )
-    if is_demote:
-        # 复燃后答错：熟练度按降级系数从「复燃前的熟练度」重算（1.0 × 0.3 = 0.3）。
-        # 不能直接在 update["mastery"] 上再乘一次——状态机对低分答错已经降过
-        # 0.3，连乘会掉到 0.09，降级幅度随系数平方漂移。取两者较小值，保证
-        # 降级只可能更深：系数调大也不会把熟练度抬回去。
-        demoted = max(
-            0.0, _safe_float(mastery.get("mastery"), 0.0)
-            * _safe_float(tuning.get("kill_demote_factor"), 0.3)
-        )
-        new_mastery = round(min(new_mastery, demoted), 4)
-    if is_correct:
-        repetition = old_repetition + 1
-        interval = calc_sm2_interval(
-            old_interval,
-            repetition,
-            update["ef"],
-            source=source,
-            proficiency_factor=tuning["proficiency_factor"],
-        )
-    else:
-        repetition = 0
-        interval = 1
-    occurred = (review.get("occurred_at") or review.get("recorded_at") or "")[:10]
-    if not occurred:
-        occurred = datetime.date.today().isoformat()
-    state["mastery"][question_id] = {
-        "mastery": new_mastery,
-        "ef": update["ef"],
-        "attempts": new_attempts,
-        "high_correct_streak": _safe_int(update["high_correct_streak"], 0),
-        "repetition": repetition,
-        "interval_days": interval,
-        "due_date": compute_due_date(occurred, interval),
-        "last_review_at": occurred,
-        "kill_count": kill_count,
-        "updated_seq": seq,
-    }
-    if not question:
-        return
-    if update["tag_action"] == "kill":
-        question["current_tag"] = "#状态/已击杀"
-    elif is_demote:
-        # 复燃后答错：标签降级回待攻克（熟练度降级见上），kill_count 不重置
-        question["current_tag"] = "#状态/待攻克"
+    tuning = state.get("_tuning") or load_tuning(vault)
+    question = state["questions"].get(question_id, {})
+    mastery = state["mastery"].get(question_id, DEFAULT_MASTERY)
+    updated, tag, display = transition_review(question, mastery, review, tuning)
+    state["mastery"][question_id] = {**updated, "updated_seq": seq}
+    if question:
+        question["current_tag"] = tag
+    return display
 
 
 def _history_row(commit, idx, question_id, review, session_id):
     recorded = review.get("recorded_at") or commit["created_at"]
     try:
         dt = datetime.datetime.fromisoformat(recorded.replace("Z", "+00:00"))
-        date_text = dt.strftime("%Y-%m-%d %H:%M")
+        original_time = False
+        if dt.tzinfo is not None:
+            from zoneinfo import ZoneInfoNotFoundError
+            try:
+                dt = business_time(dt, review.get("review_timezone") or "Asia/Shanghai")
+            except ZoneInfoNotFoundError:
+                # 旧历史／其它时区缺规则时保留原时间，不伪造夏令时转换。
+                original_time = True
+        business_day = dt.date().isoformat() if original_time else str(review.get("review_date") or review.get("occurred_at") or dt.date().isoformat())[:10]
+        date_text = business_day + (dt.strftime(" %H:%M") if len(str(recorded).strip()) > 10 else "")
     except Exception:
         date_text = str(recorded)[:16]
     return {
         "Log_ID": f"{commit['commit_id']}-{idx + 1:03d}",
         "UID": review.get("uid_at_that_time") or review.get("uid", ""),
         "Date": date_text,
+        "recorded_at": recorded,
+        "review_date": str(review.get("review_date") or review.get("occurred_at") or date_text)[:10],
         "Action": "Feedback",
         "Sub_Score": str(review.get("sub_score", "")),
         "Is_Correct": "1" if review.get("is_correct") else "0",
@@ -498,7 +493,7 @@ def _write_projection_tables(db, state):
     for qid, question in state["questions"].items():
         db.execute(
             """
-            INSERT OR REPLACE INTO question_projection
+            INSERT INTO question_projection
             (question_id, uid, file_path, subject, category, difficulty, current_tag,
              metadata_json, metadata_hash, content_hash, created_at, archived, suspended, updated_seq)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -574,74 +569,43 @@ def _write_projection_tables(db, state):
                 _safe_int(session.get("_updated_seq"), 0),
             ),
         )
-    db.commit()
-
-
 def export_legacy_csv(vault: str, state=None):
-    state = state or _project_state(vault, read_commits(vault, ascending=True))
-    rows = []
-    for qid, question in state["questions"].items():
-        if question.get("archived"):
-            continue
-        mastery = state["mastery"].get(qid, DEFAULT_MASTERY)
-        rows.append({
-            "UID": question.get("uid", ""),
-            "File_Path": question.get("file_path", ""),
-            "Subject": question.get("subject", ""),
-            "Category": question.get("category", ""),
-            "Difficulty": str(question.get("difficulty", 5)),
-            "Mastery": str(mastery.get("mastery", 0.0)),
-            "EF": str(mastery.get("ef", 2.5)),
-            "Attempts": str(mastery.get("attempts", 0)),
-            "High_Correct_Streak": str(mastery.get("high_correct_streak", 0)),
-            "Last_Review": mastery.get("last_review_at", ""),
-            "Interval": str(mastery.get("interval_days", 0)),
-            "Due_Date": mastery.get("due_date", ""),
-            "Repetition": str(mastery.get("repetition", 0)),
-            "Kill_Count": str(mastery.get("kill_count", 0)),
-            "Current_Tag": question.get("current_tag", "#状态/待攻克"),
-            "Entry_Date": question.get("metadata", {}).get("录入日期", ""),
-            "Knowledge_Tags": "|".join(question.get("knowledge_tags", [])),
-            "Labels": "|".join(question.get("labels", [])),
-            "Suspended": "1" if question.get("suspended") else "0",
-        })
-    rows.sort(key=lambda item: (item["Subject"], item["Category"], item["UID"]))
-    save_csv(mastery_path(vault), MASTERY_HEADERS, rows, backup=True)
-
-    history_rows = []
-    for row in state["history"]:
-        history_rows.append({key: row.get(key, "") for key in HISTORY_HEADERS})
-    save_csv(history_path(vault), HISTORY_HEADERS, history_rows, backup=True)
-
-    session_rows = []
-    for session in state["sessions"].values():
-        if session.get("_retracted"):
-            continue
-        session_rows.append({key: session.get(key, "") for key in SESSIONS_HEADERS})
-    save_csv(sessions_path(vault), SESSIONS_HEADERS, session_rows, backup=True)
+    """显式导出当前 SQL 读模型；历史逐行写出，不累积反馈载荷。"""
+    from .data_repository import iter_mastery_rows, iter_history_rows, iter_session_rows
+    from .vault_lifecycle import lease
+    from .locking import write_lock
+    with lease(vault), write_lock():
+        if state is None:
+            rebuild_projection(vault)
+        with connect(vault) as db:
+            save_csv(mastery_path(vault), MASTERY_HEADERS,
+                     ({key: row.get(key, "") for key in MASTERY_HEADERS} for row in iter_mastery_rows(db)), backup=True)
+            save_csv(history_path(vault), HISTORY_HEADERS,
+                     ({key: row.get(key, "") for key in HISTORY_HEADERS} for row in iter_history_rows(db)), backup=True)
+            save_csv(sessions_path(vault), SESSIONS_HEADERS, iter_session_rows(db), backup=True)
 
 
 def ledger_history(vault: str, before_seq=None, limit=100, summary_only=False, q="", since="", until=""):
-    filtered = bool(q or since or until)
-    commits = read_commits(vault, before_seq=before_seq, limit=None if filtered else limit, ascending=False)
-    if filtered:
-        selected = []
-        for commit in commits:
-            if since or until:
-                try:
-                    date = datetime.datetime.fromisoformat(commit["created_at"].replace("Z", "+00:00"))
-                    date = date.replace(tzinfo=datetime.timezone.utc) if date.tzinfo is None else date
-                    if (since and date < datetime.datetime.fromisoformat(since)) or (until and date >= datetime.datetime.fromisoformat(until)):
-                        continue
-                except ValueError:
-                    continue
+    from .ledger import _row_to_commit
+    clauses, args = [], []
+    if before_seq is not None:
+        clauses.append("seq<?")
+        args.append(before_seq)
+    for operator, bound in ((">=", since), ("<", until)):
+        if bound:
+            clauses.append(f"julianday(created_at){operator}julianday(?)")
+            args.append(bound)
+    sql = "SELECT * FROM commits" + (" WHERE " + " AND ".join(clauses) if clauses else "") + " ORDER BY seq DESC"
+    commits = []
+    with connect(vault) as db:
+        for raw in db.execute(sql, args):
+            commit = _row_to_commit(raw)
             searchable = json.dumps(_history_payload_summary(commit["payload"], commit["commit_type"]), ensure_ascii=False)
             if q and q.casefold() not in (commit["message"] + _commit_summary(commit) + searchable).casefold():
                 continue
-            selected.append(commit)
-            if limit is not None and len(selected) >= limit:
+            commits.append(commit)
+            if limit is not None and len(commits) >= limit:
                 break
-        commits = selected
     items = []
     for commit in reversed(commits):
         payload = commit["payload"]
@@ -763,7 +727,7 @@ def _content_change_summary(before, after):
 
 
 def ledger_retraction_state(vault: str):
-    state = _project_state(vault, read_commits(vault, ascending=True))
+    state = rebuild_projection(vault)
     return {
         "retracted_sessions": sorted(sid for sid in state["retracted_sessions"] if sid),
         "retracted_reviews": sorted(state["retracted_reviews"]),

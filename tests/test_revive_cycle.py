@@ -1,3 +1,4 @@
+from omrs.common import business_today
 import datetime
 import tempfile
 import unittest
@@ -5,6 +6,8 @@ import unittest
 from omrs import exporting
 from omrs.common import load_csv, mastery_path, MASTERY_HEADERS, save_csv
 from omrs.creation import create_question
+from omrs.data_repository import mastery_rows
+from omrs.ledger import connect
 from omrs.feedback import process_feedback
 from omrs.projections import rebuild_projection
 from omrs.scheduling import (
@@ -15,7 +18,7 @@ from omrs.scheduling import (
 
 
 def _rows(vault):
-    return load_csv(mastery_path(vault), MASTERY_HEADERS)
+    return mastery_rows(vault)
 
 
 def _set_last_review(vault, uid, days_ago):
@@ -25,13 +28,9 @@ def _set_last_review(vault, uid, days_ago):
     等价于「那次击杀发生在 N 天前」。Due_Date 一并回拨，否则击杀时的
     SM-2 间隔会把它留在未来，题会落进熟练度列表而不是到期列表。
     """
-    rows = _rows(vault)
-    target = (datetime.date.today() - datetime.timedelta(days=days_ago)).isoformat()
-    for row in rows:
-        if row["UID"] == uid:
-            row["Last_Review"] = target
-            row["Due_Date"] = target
-    save_csv(mastery_path(vault), MASTERY_HEADERS, rows)
+    target = (business_today() - datetime.timedelta(days=days_ago)).isoformat()
+    with connect(vault) as db:
+        db.execute("UPDATE mastery_projection SET last_review_at=?,due_date=? WHERE question_id=(SELECT question_id FROM question_projection WHERE uid=? AND archived=0)", (target, target, uid))
 
 
 def _kill(vault, uid):
@@ -148,7 +147,7 @@ class ReviveCycleTests(unittest.TestCase):
             rows = _rows(vault)
             for row in rows:
                 row.pop("Kill_Count", None)
-            save_csv(mastery_path(vault), MASTERY_HEADERS, rows)
+            save_csv(mastery_path(vault), MASTERY_HEADERS, [{key: row.get(key, "") for key in MASTERY_HEADERS} for row in rows])
 
             state = rebuild_projection(vault)
             # 老 vault 无该字段：重放不报错，并按第 1 次击杀处理

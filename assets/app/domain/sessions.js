@@ -70,18 +70,26 @@ export async function deleteSession(id) {
 }
 
 // ── 进度（纯函数；反馈录入页经 features/feedback/state.js 再导出为 fbSessionProgress）──
-export function sessionUniqueUids(session) {
+export function sessionEntries(session) {
+  if (Array.isArray(session?.entries)) return session.entries;
   const seen = new Set();
-  return (session?.uids || []).map(uid => String(uid || '').trim()).filter(uid => uid && !seen.has(uid) && seen.add(uid));
+  const recorded = new Set(session?.feedback_uids || []);
+  return (session?.uids || []).map(uid => String(uid || '').trim()).filter(uid => uid && !seen.has(uid) && seen.add(uid))
+    .map(uid => ({ uid, uid_at_creation: uid, availability: 'active', feedback_submitted: recorded.has(uid) }));
 }
+export const sessionEntryKey = entry => entry?.entry_id || entry?.question_id || entry?.uid || '';
+export function sessionUniqueUids(session) { return sessionEntries(session).map(entry => entry.uid || entry.uid_at_creation || ''); }
 export function sessionProgress(session) {
-  const all = sessionUniqueUids(session);
-  const available = new Set((session?.feedback_uids || []).map(uid => String(uid || '').trim()));
-  const feedback_uids = all.filter(uid => available.has(uid));
-  const pending_uids = all.filter(uid => !available.has(uid));
-  return { total: all.length, feedback_uids, pending_uids, feedback_count: feedback_uids.length, pending_count: pending_uids.length,
-    complete: all.length > 0 && pending_uids.length === 0 };
+  const all = sessionEntries(session);
+  const feedback_entries = all.filter(entry => entry.feedback_submitted);
+  const pending_entries = all.filter(entry => !entry.feedback_submitted);
+  return { total: all.length, ...(Array.isArray(session?.entries) ? { feedback_entries, pending_entries } : {}),
+    feedback_uids: feedback_entries.map(entry => entry.uid || entry.uid_at_creation || ''),
+    pending_uids: pending_entries.map(entry => entry.uid || entry.uid_at_creation || ''),
+    feedback_count: feedback_entries.length, pending_count: pending_entries.length,
+    complete: all.length > 0 && pending_entries.length === 0 };
 }
+export const bindSessionEntry = (session_id, entry_id, question_id) => post('/api/session/bind', { session_id, entry_id, question_id }, opts());
 
 // ── 反馈录入页用的旧全局转调（原有）──
 export const activeSessionId = () => selectedSessionId;

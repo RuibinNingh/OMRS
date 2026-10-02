@@ -5,7 +5,7 @@
 > - 入口：`assets/app/annotate.html`（由 `/annotate` 提供）、`assets/app/features/annotate/`（`index.js` 入口，`store.js` 数据所有者，`state.js` 纯函数，`canvas.js` 画布，`view.js` 模板，`folder.js` 批量入口）；后端 `omrs/annotate.py`
 > - 不变量：不写收件箱、Ledger、题目；框只有 question / answer 两种角色、坐标 0–1；导出默认只含「已完成」的图；YOLO 类别号与收件箱导出相同（0=题目，1=答案）
 > - 必跑测试：`tests/test_annotate.py`、`tests/app/annotate.test.mjs`、`tests/e2e/annotate.py`
-> - 相关：`AI/api.md`（框选标注集端点）、`AI/data.md` §16、`AI/frontend/create.md`（AI 训练页入口）、`AI/inbox.md`（收件箱数据集，格式一致）
+> - 相关：`AI/api.md`（框选标注集端点）、`AI/data/storage.md` §6、`AI/frontend/create.md`（AI 训练页入口）、`AI/inbox.md`（收件箱数据集，格式一致）
 
 ## 页面与入口
 
@@ -44,3 +44,7 @@
 ## 样式
 
 全部在 `features/annotate/annotate.css`，类名前缀 `an-`，只用 token。本页键帽放大到 `--text-xs`（全站最小字号 12px）。十字准线只在指针位于画布上时显示。
+
+## 原图分块传输
+
+文件选择、拖放和粘贴统一通过 `core/uploads.js` 上传原始 Blob，逐图 start／16MiB chunk／complete，再向 `/api/annotate/upload-refs` 提交引用与名称。保留文件字节和 MIME，传输失败保留失败提示，不把未完成的引用交给标注库。

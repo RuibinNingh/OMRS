@@ -118,12 +118,12 @@ def run(page, base, results):
     check('上传区粘贴图片走同一暂存入口，重复图自动合并',
           wait(page, "() => document.querySelector('#ib-up-status')?.textContent.includes('已合并')")
           and page.locator('.crw-inbox__grid [data-action="create.gridOpen"]').count() == 1)
-    page.route('**/api/inbox/upload', lambda route: route.fulfill(status=503, content_type='application/json', body='{"msg":"上传服务暂不可用"}'))
+    page.route('**/api/inbox/upload-refs', lambda route: route.fulfill(status=503, content_type='application/json', body='{"msg":"上传服务暂不可用"}'))
     page.locator('#ib-file').set_input_files({'name': '另一张.png', 'mimeType': 'image/png', 'buffer': png()})
     check('上传失败保留已有收件箱并在控件旁显示原因',
           wait(page, "() => document.querySelector('#ib-up-status')?.textContent.includes('上传服务暂不可用')")
           and page.locator('.crw-inbox__grid [data-action="create.gridOpen"]').count() == 1)
-    page.unroute('**/api/inbox/upload')
+    page.unroute('**/api/inbox/upload-refs')
     page.locator('[data-action="create.gridFilter"][data-arg="boxed"]').click()
     check('收件箱状态筛选显示空态', page.locator('.crw-inbox__empty').count() == 1)
     page.locator('[data-action="create.gridFilter"][data-arg="all"]').click()
@@ -343,7 +343,7 @@ def run(page, base, results):
           and page.locator('#cr-answer').input_value() == '答案：全体实数'
           and [call['mode'] for call in calls] == ['classify', 'question_text', 'answer']
           and all(call.get('scope') == 'quick' for call in calls)
-          and all(call.get('image', call.get('question_image', '')).startswith('data:image/png;base64,') for call in calls))
+          and all(isinstance(call.get('image', call.get('question_image')), dict) and call.get('image', call.get('question_image')).get('upload_ref') for call in calls))
     page.click('[data-action="create.submit"]')
     check('含图提交后上下文仍保留、图片已清空且可加入展示板',
           wait(page, "() => !!document.querySelector('#cr-result .crw-result.is-success') && document.querySelectorAll('#cr-q-images img, #cr-a-images img').length === 0")
@@ -575,8 +575,7 @@ def main():
                         audit_page = audit_context.new_page()
                         audit_page.goto(f'http://127.0.0.1:{port}/#/create', wait_until='networkidle')
                         wait(audit_page, "() => !!document.querySelector('#create-grid .crw-inbox__filters') && !!document.querySelector('#create-upload .ui-filedrop') && document.querySelector('#panel-create')?.classList.contains('active') && document.querySelector('#ib-stage-upload')?.classList.contains('on')")
-                        audit_page.locator('#ib-file').set_input_files({'name': f'审计-{theme}-{label}.png', 'mimeType': 'image/png', 'buffer': png(180 + len(results) % 60)})
-                        wait(audit_page, "() => document.querySelectorAll('.crw-inbox__grid .crw-grid-item').length > 0")
+                        upload(audit_page, f'审计-{theme}-{label}.png', 180 + len(results) % 60)
                         upload_audit = audit_page.evaluate(AUDIT_UPLOAD, target)
                         upload_ok = upload_audit['shown'] >= 50 and len(upload_audit['sizes']) <= 6 and min(upload_audit['sizes']) >= 12 and not any(
                             upload_audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))

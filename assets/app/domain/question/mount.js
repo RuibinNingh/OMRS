@@ -1,3 +1,4 @@
+import { questionItem } from './ref.js';
 /**
  * qview 的挂载与交互（从旧 assets/qview.js、questions.js 迁入）：题目详情缓存、挂载 / 失效重绘、工具按钮委托、题图缺失降级。
  *
@@ -28,36 +29,43 @@ export const pendingDetailsObject = () => pending;
 const mounts = new Map();     // 挂载点元素 → { uid, opts }
 const contexts = {};          // 上下文名 → uid 序列，供弹窗翻页
 
-export const cachedDetail = uid => detailCache()[uid] || null;
+export const cachedDetail = uid => {
+  const detail = detailCache()[uid];
+  const item = questionItem(uid);
+  if (detail?.question_id && item?.question_id && detail.question_id !== item.question_id) { delete detailCache()[uid]; return null; }
+  return detail || null;
+};
 /** 题目被删除 / 迁移 / 改正文后丢掉旧详情，下次挂载重新拉取。 */
 export function dropDetail(uid) { delete detailCache()[String(uid || '').trim()]; }
 
 /** 拉详情（去重、缓存）。失败时缓存一份带 _fallback 的降级副本，qview 据此显示「无法加载 + 重试」。 */
-export function ensureDetail(uid) {
+export function ensureDetail(uid, questionId = '') {
   const key = String(uid || '').trim();
   if (!key) return Promise.resolve(null);
-  const cache = detailCache();
-  const pending = pendingCache();
-  if (cache[key]) return Promise.resolve(cache[key]);
-  if (pending[key]) return pending[key];
-  pending[key] = (async () => {
+  const identity = questionId || questionItem(key)?.question_id || '';
+  const existing = cachedDetail(key);
+  if (existing && (!identity || existing.question_id === identity)) return Promise.resolve(existing);
+  const pendingKey = `${key}|${identity}`;
+  if (pending[pendingKey]) return pending[pendingKey];
+  pending[pendingKey] = (async () => {
+    let detail;
     try {
-      const res = await get(`/api/question?uid=${encodeURIComponent(key)}`);
+      const query = identity ? `question_id=${encodeURIComponent(identity)}` : `uid=${encodeURIComponent(key)}`;
+      const res = await get(`/api/question?${query}`);
       if (!res.ok || !res.data || res.data.error) throw new Error(res.error?.message || res.data?.error || '题目详情读取失败');
-      cache[key] = res.data;
+      if (identity && res.data.question_id !== identity) throw new Error('题目身份已变化，请刷新后重试');
+      detail = res.data;
     } catch (error) {
-      const item = itemOf(key);
-      cache[key] = {
-        uid: key, subject: item.subject || '', category: item.category || '', difficulty: item.difficulty || '',
+      const item = questionItem(identity || key) || {};
+      detail = { uid: key, question_id: identity, subject: item.subject || '', category: item.category || '', difficulty: item.difficulty || '',
         question: '（无法加载题目预览）', notes: '', answer: '', history: '', tag: item.tag || '',
-        knowledge_tags: item.knowledge_tags || [], _fallback: true,
-      };
-    } finally {
-      delete pending[key];
-    }
-    return cache[key];
+        knowledge_tags: item.knowledge_tags || [], _fallback: true };
+    } finally { delete pending[pendingKey]; }
+    const current = questionItem(key);
+    if (!identity || !current?.question_id || current.question_id === identity) cache[key] = detail;
+    return detail;
   })();
-  return pending[key];
+  return pending[pendingKey];
 }
 
 export function qvSetContext(name, uids) {
@@ -73,12 +81,15 @@ export async function qvRender(target, uid, opts) {
   const key = String(uid || '').trim();
   if (!key) { mounts.delete(mount); render(mount, raw('')); return null; }
   mount.dataset.qvMount = '1';
-  mounts.set(mount, { uid: key, opts: qvOptions(opts) });
+  const question_id = opts?.question_id || questionItem(key)?.question_id || '';
+  const request = { uid: key, question_id, opts: qvOptions({ ...opts, question_id }) };
+  mounts.set(mount, request);
   if (!detailCache()[key]) render(mount, raw('<div class="qv-loading">正在加载题目…</div>'));
-  const detail = await ensureDetail(key);
+  const detail = await ensureDetail(key, question_id);
   const current = mounts.get(mount);
-  if (!current || current.uid !== key) return null;
-  render(mount, raw(qvHtml(detail, itemOf(key), current.opts)));
+  if (current !== request) return null;
+  current.detail = detail;
+  render(mount, raw(qvHtml(detail, questionItem(question_id || key) || {}, current.opts)));
   return detail;
 }
 
@@ -112,8 +123,8 @@ export async function qvInvalidateMany(uids) {
 /** 纯重绘（不动缓存）：换行模式等显示设置变化后把已挂载的视图按新设置画一遍。 */
 export function qvRerenderAll() {
   pruned().forEach(([mount, s]) => {
-    const detail = detailCache()[s.uid];
-    if (detail) render(mount, raw(qvHtml(detail, itemOf(s.uid), s.opts)));
+    const detail = s.detail || cachedDetail(s.uid);
+    if (detail) render(mount, raw(qvHtml(detail, questionItem(s.question_id || s.uid) || {}, s.opts)));
   });
 }
 
@@ -142,7 +153,7 @@ function onClick(event) {
   const action = button.dataset.qvAct;
   if (action === 'reveal') { state?.opts?.onReveal?.(state.uid || uid); return; }
   if (action === 'retry') { qvInvalidate(state?.uid || uid); return; }
-  if (uid && ACTIONS[action]) ACTIONS[action](uid, button, event);
+  if (uid && ACTIONS[action]) ACTIONS[action](action === 'open' ? uid : { uid, question_id: state?.question_id || state?.detail?.question_id || '' }, button, event);
 }
 
 /** 题图加载失败时就地换成文件名提示（旧 questions.js 的 document 级 error 捕获，改成类名而不是行内样式）。 */

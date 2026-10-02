@@ -4,6 +4,7 @@
  */
 import { html } from '../../core/html.js';
 import { render, morph } from '../../core/dom.js';
+import { uploadFiles as uploadImageFiles } from '../../core/uploads.js';
 import { get, post, request } from '../../core/api.js';
 import { bindKeys, registerKeys, setScope } from '../../core/keys.js';
 import { startActivityTracking } from '../../core/activity.js';
@@ -17,11 +18,7 @@ import { emptyView, footView, headerView, helpView, listView, numbering, rowSign
 
 const KIND = { ok: 'ok', warn: 'warn', error: 'error', info: 'info' };
 
-const uploadFiles = files => {
-  const form = new FormData();
-  files.forEach(file => form.append('files', file, file.name || 'image.png'));
-  return request('/api/annotate/upload', { method: 'POST', body: form, timeout: 120000 });
-};
+const uploadFiles = files => uploadImageFiles(files, 'annotate', '/api/annotate/upload-refs');
 
 function skeleton() {
   return html`<header class="an-head" id="an-head"></header>

@@ -19,16 +19,16 @@ import colorsys
 
 from .common import (
     ATTACHMENTS_DIR,
-    MASTERY_HEADERS,
-    load_csv,
     is_suspended_row,
-    mastery_path,
     questions_root,
     split_sections,
     extract_category,
     parse_yaml_frontmatter,
 )
 from .sessions import get_session
+from .data_repository import mastery_rows, resolve_question
+from .vault_lifecycle import lease
+from .locking import write_lock
 
 
 QUESTION_SECTION = "题目"
@@ -100,30 +100,11 @@ def _read_image_info(path):
 
 
 def _find_image(vault, name):
-    if not name:
-        return None
-    name = name.strip()
+    from .question_images import attachment_path
     try:
-        name = urllib.parse.unquote(name)
-    except Exception:
-        pass
-
-    if os.path.isabs(name) and os.path.isfile(name):
-        return name
-    direct = os.path.join(questions_root(vault), ATTACHMENTS_DIR, name)
-    if os.path.isfile(direct):
-        return direct
-    rel = os.path.join(vault, name)
-    if os.path.isfile(rel):
-        return rel
-
-    attachment_root = os.path.join(questions_root(vault), ATTACHMENTS_DIR)
-    basename = os.path.basename(name)
-    if os.path.isdir(attachment_root):
-        for root, _, files in os.walk(attachment_root):
-            if basename in files:
-                return os.path.join(root, basename)
-    return None
+        return attachment_path(vault, name)
+    except (ValueError, OSError, TypeError):
+        return None
 
 
 def _extract_embeds(line):
@@ -191,15 +172,28 @@ def _normalize_export_request(session_id, uids):
     return session_id, clean_uids
 
 
-def _load_export_questions(vault, uids=None, session_id=""):
+def _load_export_questions(vault, uids=None, session_id="", question_refs=None):
+    if question_refs is not None:
+        if not isinstance(question_refs, list) or not all(isinstance(ref, dict) for ref in question_refs):
+            raise ValueError("question_refs 必须是题目引用数组")
+        uids = []
+        for reference in question_refs:
+            row = resolve_question(vault, reference.get("uid", ""), reference.get("question_id", ""))
+            if row is None:
+                raise ValueError("导出题目不存在或已归档")
+            uids.append(row["uid"])
     session = get_session(vault, session_id) if session_id else None
     if session:
+        unavailable = [entry for entry in session.get("entries", [])
+                       if entry.get("availability") in ("unresolved", "archived")]
+        if unavailable:
+            raise ValueError("计划含未绑定或已归档题目，请先在计划详情处理后导出")
         uids = [item["UID"] for item in session["items"]]
     session_id, uids = _normalize_export_request(session_id, uids)
     if not uids:
         raise RuntimeError("export: 既没有有效的 session_id 也没有 uids")
 
-    rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
+    rows = mastery_rows(vault)
     row_map = {row["UID"]: row for row in rows}
 
     questions = []
@@ -247,7 +241,10 @@ def _img_payload(vault, name):
     if not path:
         return None
     try:
-        data, width, height, _ext, content_type = _read_image_info(path)
+        from .question_images import read_attachment_image
+        from .inbox import image_size
+        data, content_type = read_attachment_image(vault, name)
+        _mime, width, height = image_size(data)
     except Exception:
         return None
     b64 = base64.b64encode(data).decode("ascii")
@@ -595,14 +592,15 @@ def _build_html(data, variant):
 # --------------------------------------------------------------------------
 # 对外入口
 # --------------------------------------------------------------------------
-def export_schedule_html(vault, uids=None, session_id="", include_answers=False, variant="a4", question_gap_lines=0, a4_two_columns=True):
-    session_id, questions = _load_export_questions(vault, uids, session_id)
-    data = _build_export_data(vault, session_id, questions, include_answers, question_gap_lines, a4_two_columns)
+def export_schedule_html(vault, uids=None, session_id="", include_answers=False, variant="a4", question_gap_lines=0, a4_two_columns=True, question_refs=None):
+    with lease(vault), write_lock():
+        session_id, questions = _load_export_questions(vault, uids, session_id, question_refs)
+        data = _build_export_data(vault, session_id, questions, include_answers, question_gap_lines, a4_two_columns)
     html_text = _build_html(data, variant)
     return html_text.encode("utf-8"), session_id
 
 
-def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True):
+def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True, question_refs=None):
     """导出错题清单为自包含 HTML。
 
     export_format: 'a4'（打印版，默认）/ 'screen'（屏幕阅读版）。
@@ -611,7 +609,7 @@ def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4"
     """
     fmt = (export_format or "a4").strip().lower()
     variant = "screen" if fmt == "screen" else "a4"
-    data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant, question_gap_lines, a4_two_columns)
+    data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant, question_gap_lines, a4_two_columns, question_refs)
     filename = f"OMRS-{session_id}-{variant}.html"
     return data, session_id, filename, "text/html; charset=utf-8"
 
@@ -870,7 +868,8 @@ def _build_board_html(data):
 
 def export_board_html(vault, board_id, mode="all", include_answers=None, overrides=None):
     """导出展示板为自包含 HTML（bytes）。分页、切片、纸面续排均由浏览器完成。"""
-    data = build_board_export_data(vault, board_id, mode=mode, include_answers=include_answers, overrides=overrides)
+    with lease(vault), write_lock():
+        data = build_board_export_data(vault, board_id, mode=mode, include_answers=include_answers, overrides=overrides)
     return _build_board_html(data).encode("utf-8")
 
 

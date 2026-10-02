@@ -34,7 +34,7 @@ export function boardFolderTree(boards, folders, options = {}) {
 /** 行状态：全新 / 部分已在板中 / 全部已在板中。pending 是这次点击真正会加进去的那些题。 */
 export function boardPickerRowState(board, uids) {
   const wanted = boardUniqueUids(uids);
-  const owned = new Set(board?.uids || []);
+  const owned = new Set(board?.question_ids || board?.uids || []);
   const pending = wanted.filter(uid => !owned.has(uid));
   const have = wanted.length - pending.length;
   if (!wanted.length) return { kind: 'new', have: 0, total: 0, pending: [] };

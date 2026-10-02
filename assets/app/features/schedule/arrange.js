@@ -1,3 +1,4 @@
+import { questionKey } from '../../domain/question/ref.js';
 /**
  * 复习调度 ·「安排复习」工作区的状态与纯函数（原 assets/recommend_v2.js，规则与文案原样），node 单测全覆盖。
  * - 候选来自 /api/recommend（到期 due + 熟练度 proficiency，带 _source）；筛选语义与题库、导出共用（domain/items 的 filterAll，
@@ -76,7 +77,7 @@ export function filterCandidates(items, f, filterAll) {
 /** /api/recommend 的响应 → 带来源的候选；已选里不再可安排的去掉，其余换成新对象。 */
 export function mergeLoaded(raw, selected) {
   const data = [...(raw?.due || []).map(i => ({ ...i, _source: 'due' })), ...(raw?.proficiency || []).map(i => ({ ...i, _source: 'proficiency' }))];
-  const available = new Map(data.map(i => [i.uid, i]));
+  const available = new Map(data.map(i => [questionKey(i), i]));
   const next = new Map();
   let removed = 0;
   for (const uid of selected.keys()) {
@@ -120,10 +121,10 @@ export const resetFilters = f => ({ ...emptyFilters(), mode: f.mode });
 export function smartPick(filtered, n) {
   const k = Number(n);
   if (!Number.isInteger(k) || k < 1) return null;
-  return new Map(filtered.slice(0, k).map(i => [i.uid, i]));
+  return new Map(filtered.slice(0, k).map(i => [questionKey(i), i]));
 }
 export const estimateMinutes = items => items.reduce((sum, i) => sum + Math.max(3, Math.round((Number(i.difficulty) || 5) * 1.5)), 0);
-export const hiddenSelected = (selected, filtered) => { const shown = new Set(filtered.map(i => i.uid)); return [...selected.keys()].filter(uid => !shown.has(uid)).length; };
+export const hiddenSelected = (selected, filtered) => { const shown = new Set(filtered.map(questionKey)); return [...selected.keys()].filter(uid => !shown.has(uid)).length; };
 
 /** 候选区为空时的提示与主操作（'plans' 查看已有计划 / 'reset' 清除筛选 / null）。 */
 export function emptyState(a, problem, activePlans) {

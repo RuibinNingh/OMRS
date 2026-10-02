@@ -1,3 +1,4 @@
+import { imageValue } from '../../core/uploads.js';
 /** 草稿审核控制器：一次只写一份草稿，失败时保留本地编辑。 */
 import { get, post } from '../../core/api.js';
 import { morph } from '../../core/dom.js';
@@ -347,7 +348,7 @@ export function createDrafts(root, ctx) {
         if (row.kind !== 'image' || !row.box) continue;
         const { x, y, w, h } = row.box;
         if (x === 0 && y === 0 && w === 1 && h === 1) continue;
-        crops[row.id] = await cropDataUrl({ id: row.image_sha }, row.box, 'image/png', .92, imageUrl(row.image_sha));
+        crops[row.id] = await imageValue(await cropDataUrl({ id: row.image_sha }, row.box, 'image/png', .92, imageUrl(row.image_sha)), 'draft');
       }
       const payload = { id, revision: state.draft.revision, crops };
       let result = await post('/api/drafts/commit', payload);

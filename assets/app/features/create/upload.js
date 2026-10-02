@@ -1,6 +1,6 @@
 /** 上传只负责把原图送进暂存收件箱；列表仍由旧控制器维护。 */
 import { render } from '../../core/dom.js';
-import { post } from '../../core/api.js';
+import { uploadFiles } from '../../core/uploads.js';
 import { bindFileDrop } from '../../ui/filedrop.js';
 import { toast } from '../../ui/toast.js';
 import { uploadView } from './upload-view.js';
@@ -32,9 +32,7 @@ export function createUpload(root, bus) {
     clipboard.disabled = true;
     zone.classList.add('is-disabled');
     message(`上传 ${list.length} 张…`);
-    const form = new FormData();
-    list.forEach(file => form.append('file', file, file.name || 'image.png'));
-    const result = await post('/api/inbox/upload', form);
+    const result = await uploadFiles(list, 'inbox', '/api/inbox/upload-refs');
     if (result.ok) {
       const count = result.data?.items?.length || 0;
       const duplicates = result.data?.duplicates?.length || 0;

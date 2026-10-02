@@ -1,6 +1,7 @@
 """旧 Vault 升级时的页码、备注及备份恢复边界。"""
 
 import csv
+from contextlib import closing
 import hashlib
 import os
 from pathlib import Path
@@ -41,18 +42,18 @@ class MigrationCompatibilityTests(unittest.TestCase):
                              "Note": "反馈 note 不等于页码"})
         self.draft_db = data_dir / "drafts" / "drafts.db"
         self.draft_db.parent.mkdir()
-        with sqlite3.connect(self.draft_db) as db:
+        with closing(sqlite3.connect(self.draft_db)) as db, db:
             db.execute("CREATE TABLE legacy_note (body TEXT)")
             db.execute("INSERT INTO legacy_note VALUES (?)", ("草稿 note 不等于页码",))
         self.agent_db = data_dir / "agent.db"
-        with sqlite3.connect(self.agent_db) as db:
+        with closing(sqlite3.connect(self.agent_db)) as db, db:
             db.execute("CREATE TABLE conversation (body TEXT)")
             db.execute("INSERT INTO conversation VALUES (?)", ("聊天数据",))
         self.inbox_db = data_dir / "inbox" / "inbox.db"
         self.annotate_db = data_dir / "annotate" / "annotate.db"
         for path in (self.inbox_db, self.annotate_db):
             path.parent.mkdir()
-            with sqlite3.connect(path) as db:
+            with closing(sqlite3.connect(path)) as db, db:
                 db.execute("CREATE TABLE legacy_note (body TEXT)")
                 db.execute("INSERT INTO legacy_note VALUES (?)", ("不同存储的备注",))
         self.config = data_dir / "config.json"
@@ -105,7 +106,7 @@ class MigrationCompatibilityTests(unittest.TestCase):
         self.assertEqual(parse_yaml_frontmatter(self.with_page.read_text(encoding="utf-8"))["页码"], "p.23")
         self.assertNotIn("页码:", self.without_page.read_text(encoding="utf-8"))
         self.assertIn("反馈 note 不等于页码", (self.vault / "错题/.omrs/history_log.csv").read_text(encoding="utf-8"))
-        with sqlite3.connect(self.draft_db) as db:
+        with closing(sqlite3.connect(self.draft_db)) as db, db:
             self.assertEqual(db.execute("SELECT body FROM legacy_note").fetchone()[0], "草稿 note 不等于页码")
 
     def test_tracked_scan_entry_is_repeatable(self):
@@ -131,7 +132,18 @@ class MigrationCompatibilityTests(unittest.TestCase):
         self.assertEqual(result["question_count"], 2)
         self.assertTrue(verify_ledger(str(restored))["valid"])
         for relative, expected in original.items():
+            if relative.suffix == '.db' or str(relative) == '.omrs/config.json':
+                continue
             self.assertEqual(digest(restored / "错题" / relative), expected)
+        for relative in ('.omrs/drafts/drafts.db', '.omrs/inbox/inbox.db', '.omrs/annotate/annotate.db'):
+            with closing(sqlite3.connect(restored / '错题' / relative)) as db, db:
+                self.assertEqual(db.execute('SELECT body FROM legacy_note').fetchone()[0],
+                                 '草稿 note 不等于页码' if 'drafts' in relative else '不同存储的备注')
+        with closing(sqlite3.connect(restored / '错题/.omrs/agent.db')) as db, db:
+            self.assertEqual(db.execute('SELECT body FROM conversation').fetchone()[0], '聊天数据')
+        from omrs.common import load_config
+        self.assertTrue(load_config(str(restored))['agent_enabled'])
+        os.unlink(payload)
 
 
 if __name__ == "__main__":

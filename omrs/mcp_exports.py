@@ -1,4 +1,5 @@
 """不可变 MCP 展示板快照：受限原图、原子文件、持久幂等与登录下载。"""
+from .vault_lifecycle import storage, open_sqlite, transaction
 import base64
 import datetime
 import hashlib
@@ -22,6 +23,7 @@ MAX_BYTES = 64 * 1024 * 1024
 TTL = 24 * 60 * 60
 
 
+@storage
 def _directory(vault):
     path = os.path.join(omrs_data_dir(vault), 'mcp_exports')
     if os.path.lexists(path) and (os.path.islink(path) or not os.path.isdir(path)):
@@ -30,6 +32,7 @@ def _directory(vault):
     return path
 
 
+@storage
 def _connect(vault):
     path = os.path.join(omrs_data_dir(vault), 'mcp_exports.db')
     if os.path.islink(path):
@@ -37,7 +40,7 @@ def _connect(vault):
     descriptor = os.open(path, os.O_CREAT | os.O_WRONLY, 0o600)
     os.close(descriptor)
     os.chmod(path, 0o600)
-    db = sqlite3.connect(path, timeout=5)
+    db = open_sqlite(vault, path, timeout=5)
     try:
         db.execute('PRAGMA journal_mode=WAL')
         db.execute('''CREATE TABLE IF NOT EXISTS exports (
@@ -66,6 +69,7 @@ def _result(row, web_url, reused=False):
             'download_url': web_origin(web_url)+'/api/mcp/exports/download?export_id='+row['export_id'], 'reused': reused}
 
 
+@storage
 def _file(vault, export_id):
     if not isinstance(export_id, str) or not re.fullmatch('ex_[0-9a-f]{32}', export_id):
         raise RequestError('not_found', '导出快照不存在')
@@ -93,13 +97,14 @@ def _read_file(path, row):
         raise RequestError('not_found', '导出快照不存在或已清理') from None
 
 
+@storage
 def cleanup(vault, db):
     # 回执保留，过期请求不能换成当前板重新导出。
     for row in db.execute('SELECT export_id FROM exports WHERE expires_at<=?', (time.time(),)):
         path = _file(vault, row['export_id'])
         if os.path.lexists(path):
             os.unlink(path)
-    with db:
+    with transaction(db):
         db.execute('DELETE FROM contents WHERE export_id IN (SELECT export_id FROM exports WHERE expires_at<=?)', (time.time(),))
     directory = _directory(vault)
     # 崩溃可能发生在文件原子替换与索引登记之间；只清理超过保留期的孤儿。
@@ -110,6 +115,7 @@ def cleanup(vault, db):
                 os.unlink(path)
 
 
+@storage
 def create(vault, board_id, mode, request_id, key_id, web_url, authorize=lambda: None, expected_revision=None):
     if mode not in ('all', 'new'):
         raise ValueError('mode 必须是 all 或 new')
@@ -190,7 +196,7 @@ def create(vault, board_id, mode, request_id, key_id, web_url, authorize=lambda:
                'size_bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest(),
                'filename': re.sub(r'[\\/:*?"<>|\x00-\x1f\x7f]', '_', exporting.board_export_filename(board, mode))}
         authorize()
-        with db:
+        with transaction(db):
             db.execute('INSERT INTO exports VALUES(?,?,?,?,?,?,?,?,?,?,?,?)', tuple(row.values()))
             db.execute('INSERT INTO contents VALUES(?,?)', (export_id, raw))
         _materialize(vault, row, raw)
@@ -198,6 +204,7 @@ def create(vault, board_id, mode, request_id, key_id, web_url, authorize=lambda:
         return _result(row, web_url)
 
 
+@storage
 def _materialize(vault, row, raw):
     path = _file(vault, row['export_id'])
     if os.path.lexists(path):
@@ -216,6 +223,7 @@ def _materialize(vault, row, raw):
             os.unlink(temp)
 
 
+@storage
 def download(vault, export_id):
     _file(vault, export_id)
     with locking.write_lock(), closing(_connect(vault)) as db:
@@ -229,6 +237,7 @@ def download(vault, export_id):
         return _read_file(_file(vault, export_id), row), row['filename']
 
 
+@storage
 def _recover_file(vault, db, row):
     path = _file(vault, row['export_id'])
     if not os.path.lexists(path):

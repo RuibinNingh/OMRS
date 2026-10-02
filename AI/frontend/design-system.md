@@ -7,6 +7,8 @@
 > - 必跑测试：`tests/check_ui.py`、`tests/check_contrast.py`、`tests/test_ui_gates.py`
 > - 相关：`AI/frontend/shell.md`、`AI/environment.md`（截图对比与 fixture 配方）
 
+UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关闭文件；纪律、分层与行数阈值保持上述契约，规则回归同时检查真实仓库。
+
 ## 1. 目录与分层
 
 前端全部在 `assets/app/`（原生 ES Module，无构建）：`styles/`（token、分层总入口、base、组件汇总、外壳）、`core/`、`ui/`（共享组件）、`domain/`、`features/`，入口 `main.js`、`shell.js`；`assets/` 根目录只剩手机上传页 `inbox_mobile.html`。按钮与输入框只有 `ui-btn` / `ui-input` / `ui-select` / `ui-textarea` 一套；科目、分类和知识点建议复用 `ui/combobox`。架构见 `AI/frontend/architecture.md`、组件见 `AI/frontend/components.md`。

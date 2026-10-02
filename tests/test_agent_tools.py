@@ -41,7 +41,8 @@ class OverviewScopeTests(unittest.TestCase):
         for name, subject, mastery, attempts, due, suspended, wrong in specs:
             question = create_question(self.vault, subject, "概况" + subject, 5, question_text=name)
             self.ids[name] = question
-        rows = load_csv(mastery_path(self.vault), MASTERY_HEADERS)
+        from omrs.data_repository import mastery_rows
+        rows = mastery_rows(self.vault)
         by_uid = {self.ids[spec[0]]["uid"]: spec for spec in specs}
         history = []
         with connect(self.vault) as db:
@@ -55,9 +56,13 @@ class OverviewScopeTests(unittest.TestCase):
                     # 稳定身份优先：历史 UID 可与当前名称不同。
                     history.append({"UID": "旧名称", "Question_ID": self.ids[name]["question_id"],
                                     "Date": "2026-09-19", "Is_Correct": "0", "Log_ID": f"{name}-{n}"})
-        save_csv(mastery_path(self.vault), MASTERY_HEADERS, rows)
-        save_csv(history_path(self.vault), HISTORY_HEADERS, history)
-        clock = patch("omrs.stats.datetime.date", OverviewDate)
+        with connect(self.vault) as db:
+            for row in rows:
+                db.execute("UPDATE mastery_projection SET mastery=?,attempts=?,due_date=?,last_review_at=? WHERE question_id=?", (float(row["Mastery"]), int(row["Attempts"]), row["Due_Date"], row["Last_Review"], row["question_id"]))
+                db.execute("UPDATE question_projection SET current_tag=? WHERE question_id=?", (row["Current_Tag"], row["question_id"]))
+            for row in history:
+                db.execute("INSERT INTO history_projection(log_id,question_id,uid,date,review_date,is_correct,sub_score) VALUES(?,?,?,?,?,?,0)", (row["Log_ID"], row["Question_ID"], row["UID"], row["Date"], row["Date"], int(row["Is_Correct"])))
+        clock = patch("omrs.stats.business_today", OverviewDate.today)
         clock.start()
         self.addCleanup(clock.stop)
 

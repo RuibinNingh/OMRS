@@ -1,5 +1,6 @@
 """快照导出的真实原图、边界、响应丢失与崩溃恢复回归。"""
 import base64
+from contextlib import closing
 import json
 import os
 from pathlib import Path
@@ -61,7 +62,7 @@ class ExportSnapshotTests(unittest.TestCase):
         self.image.unlink(); self.image.symlink_to(outside)
         with self.assertRaises(ValueError):
             self.create('linked')
-        with sqlite3.connect(Path(self.vault)/'错题/.omrs/mcp_exports.db') as db:
+        with closing(sqlite3.connect(Path(self.vault)/'错题/.omrs/mcp_exports.db')) as db, db:
             self.assertEqual(db.execute('SELECT COUNT(*) FROM exports').fetchone()[0], 1)
 
     def test_new_scope_uses_existing_paper_without_recording_it(self):
@@ -85,7 +86,7 @@ class ExportSnapshotTests(unittest.TestCase):
             with self.assertRaises(RequestError):
                 self.create()
         self.assertFalse(Path(exports._file(self.vault, result['export_id'])).exists())
-        with sqlite3.connect(Path(self.vault)/'错题/.omrs/mcp_exports.db') as db:
+        with closing(sqlite3.connect(Path(self.vault)/'错题/.omrs/mcp_exports.db')) as db, db:
             self.assertEqual(db.execute('SELECT COUNT(*) FROM contents').fetchone()[0], 0)
             self.assertEqual(db.execute('SELECT COUNT(*) FROM exports').fetchone()[0], 1)
 

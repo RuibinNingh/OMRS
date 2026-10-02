@@ -1,3 +1,4 @@
+import { sessionEntries } from '../../domain/sessions.js';
 /**
  * 反馈录入的「导入」：一段文本（剪贴板 / 粘贴 / 文本框）→ 解析 → 分流 → 算出新的行与状态报告。
  * 纯函数，不碰 DOM 与旧全局：Session 通过参数传入，结果由 index.js 的控制器落到 state 上。
@@ -49,7 +50,7 @@ export function planOmr(data, session) {
   if (!session) return { ok: false, tone: 'warn', html: '请先在上面选中这张答题卡对应的 Session：答题卡上只有题号，要靠 Session 的题目顺序才能对上 UID。' };
   const sessionUids = sessionUniqueUids(session);
   const rows = fbRowsForSession(session);
-  const report = omrApplyToRows(rows, sheet.questions, sessionUids, new Set(fbSessionProgress(session).feedback_uids));
+  const report = omrApplyToRows(rows, sheet.questions, sessionEntries(session), new Set(fbSessionProgress(session).feedback_uids));
   return { ok: true, tone: report.filled ? 'ok' : 'warn', html: omrReportHtml(sheet, report, sessionUids.length), rows, report };
 }
 
@@ -61,7 +62,11 @@ export function planFeedback(data, findSession) {
   let skippedRecorded = 0;
   if (matched) {
     const pending = new Set(fbSessionProgress(matched).pending_uids);
-    finalRows = rows.filter(row => pending.has(row.uid));
+    finalRows = rows.map(row => {
+      const matches = sessionEntries(matched).filter(entry => row.question_id ? entry.question_id === row.question_id : [entry.uid, entry.uid_at_creation].includes(row.uid));
+      const entry = matches.length === 1 ? matches[0] : null;
+      return entry && !entry.feedback_submitted ? { ...row, ...entry, uid: entry.uid || entry.uid_at_creation || '' } : null;
+    }).filter(Boolean);
     skippedRecorded = rows.length - finalRows.length;
   }
   if (!finalRows.length) return { ok: false, tone: 'warn', html: skippedRecorded ? '导入内容中的题目已全部录入，无需重复提交。' : '没有可导入的作答条目（需要 items: [{uid, is_correct, sub_score}]）' };

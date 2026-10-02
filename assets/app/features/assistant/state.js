@@ -1,3 +1,4 @@
+import { businessToday, daysBetween } from '../../core/date.js';
 /**
  * 助手页的纯函数：把服务端事件流归约成「一次运行」的视图模型（步骤、时间线、用量、写入），以及格式化与对话分组。
  * 事件协议见 AI/agent.md「事件」；node 单测覆盖（tests/app/assistant.test.mjs）。
@@ -241,10 +242,13 @@ export function applyEvent(run, ev) {
   return run;
 }
 
-export function runFrom(meta, events) {
+export function runFrom(meta, events, { hasMore = false, next } = {}) {
   const run = newRun(meta);
   for (const ev of events || []) applyEvent(run, ev);
-  if (meta.status === 'done' && run.status !== 'done') applyEvent(run, { type: 'run.end', t: run.clock.t, data: { reason: meta.reason || 'interrupted', error: meta.error } });
+  if (!hasMore && meta.status === 'done' && run.status !== 'done') applyEvent(run, { type: 'run.end', t: run.clock.t, data: { reason: meta.reason || 'interrupted', error: meta.error } });
+  if (hasMore && meta.status === 'done') run.status = 'done';
+  run.eventsMore = hasMore; run.eventsBusy = false;
+  if (next != null) run.next = next;
   return run;
 }
 
@@ -259,9 +263,22 @@ export function ctxUsed(run) {
 
 export function dayGroup(iso, now = new Date()) {
   const d = new Date(iso);
-  const day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (Number.isNaN(d.getTime())) return '更早';
+  const diff = daysBetween(businessToday(d), businessToday(now));
   return diff <= 0 ? '今天' : diff === 1 ? '昨天' : '更早';
 }
 
 export const REASON = { completed: '完成', aborted: '已中止', error: '出错', budget: '预算用完', max_rounds: '轮数到上限', interrupted: '服务重启中断' };
+
+/** 历史页保留稳定 DOM 键；事件尚未读完时不提前合成终止事件。 */
+export function historyItems(items = []) {
+  return items.map((item, index) => {
+    const item_key = item.item_key || (item.type === 'user' ? `user:${items[index + 1]?.run?.id || item.at || index}` : `run:${item.run.id}`);
+    return item.type === 'user' ? { ...item, item_key } : { ...item, item_key,
+      run: runFrom(item.run, item.events, { hasMore: !!item.events_has_more, next: item.events_next }) };
+  });
+}
+export function mergeHistoryItems(older, current) {
+  const existing = new Set(current.map(item => item.item_key));
+  return [...older.filter(item => !existing.has(item.item_key)), ...current];
+}

@@ -89,17 +89,17 @@ class CreationMetadataTests(unittest.TestCase):
         args = {"labels": ["考前", "易错"], "label_match": "all", "created_from": "2026-01-01", "created_to": "2026-01-03",
                 "sort": [{"field": "difficulty", "direction": "asc"}, {"field": "created_at", "direction": "desc"}],
                 "page_size": 1, "page": 1}
-        with mock.patch.object(read, "_items", return_value=items), mock.patch.object(read, "_content", return_value=(None, cached)):
-            result = read.search_questions({"vault": "unused"}, args)["result"]
+        with tempfile.TemporaryDirectory() as vault, mock.patch.object(read, "_items", return_value=items), mock.patch.object(read, "_content", return_value=(None, cached)):
+            result = read.search_questions({"vault": vault}, args)["result"]
         self.assertEqual(result["total"], 2)
         self.assertEqual(result["items"][0]["uid"], "C")
         self.assertEqual(result["pages"], 2)
 
     def test_search_rejects_bad_dates_and_duplicate_sort_fields(self):
-        with self.assertRaises(ValueError):
-            read.search_questions({"vault": "unused"}, {"created_from": "not-a-date"})
-        with self.assertRaises(ValueError):
-            read.search_questions({"vault": "unused"}, {"sort": [{"field": "uid"}, {"field": "uid"}]})
+        with tempfile.TemporaryDirectory() as vault, self.assertRaises(ValueError):
+            read.search_questions({"vault": vault}, {"created_from": "not-a-date"})
+        with tempfile.TemporaryDirectory() as vault, self.assertRaises(ValueError):
+            read.search_questions({"vault": vault}, {"sort": [{"field": "uid"}, {"field": "uid"}]})
 
 
 if __name__ == "__main__":

@@ -115,14 +115,14 @@ function fakes(list = boards) {
   const source = {
     boards: () => data.boards, folders: () => data.folders, adopt: next => { calls.push(['adopt']); Object.assign(data, next); },
     lastId: () => 'b2', remember: id => calls.push(['remember', id]), collapsed: () => new Set(), toggleFolder: () => {},
-    add: async (id, uids, options) => { calls.push(['add', id, uids, options]); return { id, name: '数列', items: [{}, {}], added_uids: uids }; },
+    add: async (id, uids, options) => { calls.push(['add', id, uids, options]); return { id, name: '数列', items: [{}, {}], added_question_ids: uids.map(ref => ref.question_id) }; },
     reload: async () => calls.push(['reload']), open: async id => calls.push(['open', id]), adoptDetail: board => calls.push(['detail', board.id]),
   };
   const toasts = [];
   picker.configureBoardPicker({
     source,
     get: async () => ({ ok: true, data }),
-    post: async (path, body) => { calls.push(['post', path, body]); return { ok: true, data: { board: { id: 'new', items: body.uids || [] } } }; },
+    post: async (path, body) => { calls.push(['post', path, body]); return { ok: true, data: { board: { id: 'new', items: body.question_refs || [] } } }; },
     toast: (text, options) => toasts.push([text, options]),
     prompt: async () => '新板',
     dialog: async () => ({ ok: false }),
@@ -132,12 +132,12 @@ function fakes(list = boards) {
 
 test('picker 控制器：Shift 直接加入上次的板，toast 给出撤销与换个板', async () => {
   const { calls, toasts } = fakes();
-  await picker.boardPickerOpen(['Q7', 'Q7', ' '], { direct: true });
-  assert.deepEqual(calls.find(call => call[0] === 'add'), ['add', 'b2', ['Q7'], { silent: true }]);
+  await picker.boardPickerOpen([{ question_id: 'q7' }, { question_id: 'q7' }], { direct: true });
+  assert.deepEqual(calls.find(call => call[0] === 'add'), ['add', 'b2', [{ question_id: 'q7' }], { silent: true }]);
   assert.equal(toasts[0][0], '已直接加入《数列》（现共 2 题）');
   assert.deepEqual(toasts[0][1].actions.map(action => action.label), ['撤销', '换个板…']);
   await toasts[0][1].actions[0].onClick();
-  assert.deepEqual(calls.find(call => call[0] === 'post'), ['post', '/api/board/items/remove', { id: 'b2', uids: ['Q7'] }]);
+  assert.deepEqual(calls.find(call => call[0] === 'post'), ['post', '/api/board/items/remove', { id: 'b2', question_refs: [{ question_id: 'q7' }] }]);
   assert.equal(toasts.at(-1)[0], '已撤销加入');
   assert.equal(picker.boardPickerIsOpen(), false);
   picker.configureBoardPicker(null);
@@ -145,8 +145,8 @@ test('picker 控制器：Shift 直接加入上次的板，toast 给出撤销与�
 
 test('picker 控制器：一个板都没有时直接弹「新建」，建好后记住并刷新', async () => {
   const { calls, toasts } = fakes([]);
-  await picker.boardPickerOpen('Q1');
-  assert.deepEqual(calls.find(call => call[0] === 'post'), ['post', '/api/board/create', { name: '新板', uids: ['Q1'] }]);
+  await picker.boardPickerOpen({ question_id: 'q1' });
+  assert.deepEqual(calls.find(call => call[0] === 'post'), ['post', '/api/board/create', { name: '新板', question_refs: [{ question_id: 'q1' }] }]);
   assert.ok(calls.some(call => call[0] === 'remember' && call[1] === 'new'));
   assert.ok(calls.some(call => call[0] === 'reload'));
   assert.equal(toasts.at(-1)[0], '已新建《新板》，加入 1 题');

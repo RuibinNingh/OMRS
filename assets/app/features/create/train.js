@@ -1,3 +1,4 @@
+import { configSavedStatus } from '../../core/config-status.js';
 /** AI 训练工作区：进入时读数据集统计与框选策略；策略直接读写 /api/config 的 inbox_* 键（与「设置」共用）。 */
 import { morph } from '../../core/dom.js';
 import { get, post } from '../../core/api.js';
@@ -68,7 +69,7 @@ export function createTrain(root) {
     const result = await post('/api/config', policyPayload(view.policy));
     view.saving = false;
     if (!alive) return;
-    view.message = result.ok ? { ok: true, text: '已保存，立即生效' } : { ok: false, text: result.error?.message || '保存失败' };
+    view.message = result.ok ? { ok: true, text: configSavedStatus(result.data).text } : { ok: false, text: result.error?.message || '保存失败' };
     paint();
   }
 

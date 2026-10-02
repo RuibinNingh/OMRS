@@ -1,3 +1,4 @@
+import { businessToday } from '../../assets/app/core/date.js';
 // 复习调度 ·「安排复习」的纯函数（features/schedule/arrange.js）。原 tests/test_recommend_v2_filters.js 的用例迁来：
 // 共享筛选契约（停用、文本、知识点）、本地日期的「今日 / 未到期」、标记任一 / 全部与 0% 熟练度、均衡轮选与排序、重拉时保留仍可安排的已选题。
 // 共享筛选就是旧 core.js 的 filterItems（题库、导出、即时练习共用）：这里把 core.js 载入本进程当作 filterAll。
@@ -21,7 +22,7 @@ test('local dates: today and future across Shanghai and negative UTC offsets', (
   const before = process.env.TZ;
   for (const zone of ['Asia/Shanghai', 'America/Los_Angeles']) {
     process.env.TZ = zone;
-    const now = new Date();
+    const now = businessToday();
     const date = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`;
     const t = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
     const items = [{ uid: 'today', due_date: date, difficulty: 5 }, { uid: 'slash', due_date: date.replaceAll('-', '/'), difficulty: 5 },

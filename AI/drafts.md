@@ -108,3 +108,8 @@ get_draft_image 使用只读来源视图，按 source_images 下标返回原生 
 独立 patch_mcp_draft 授权各来源待审核草稿，共用 AI 白名单/稳定块/人工保护校验，不触发作业恢复或训练。修订与 mcp_patch_requests 回执同 SQLite 事务；原来源不变，last_mcp_edit_json 保存编辑身份，错因标 client_asserted。MCP 同时要求读和修订权限。内置助手仍限制本对话草稿。
 
 MCP 请求中的目标只要有人工保护，整次不写入，即使该目标的新旧内容相同，也返回保护建议；其它字段不能趁同一请求写入。错因清空和修改均需 cause_statement，实际改变保留 client_asserted 标记。回执及恢复字段见 `AI/mcp-storage.md`。
+
+
+## 审计修复契约
+
+草稿磁盘入口参与 Vault 生命周期租约，连接关闭即释放，锁顺序为生命周期租约、业务写锁、草稿锁、事务。检测和提取网络调用只传播任务世代，迟到结果在短磁盘段复核；目录恢复后的旧任务不写新库。创建来源回执按 SQL 索引查询，不把全链载荷加载进内存。完整目录恢复见 `AI/backup.md`。

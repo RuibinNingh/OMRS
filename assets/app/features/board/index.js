@@ -12,6 +12,7 @@ import { morph, render } from '../../core/dom.js';
 import { raw } from '../../core/html.js';
 import { openMenu } from '../../ui/menu.js';
 import { qvRender, ensureDetail, qRecordsFromDetail, qHistoryStats, qStreakHtml } from '../../domain/question/index.js';
+import { questionKey } from '../../domain/question/ref.js';
 import { dueDays, allItems } from '../../domain/items.js';
 import { pickerOpen, listLabels } from '../../domain/labels/index.js';
 import * as B from '../../domain/board/boards.js';
@@ -46,13 +47,12 @@ async function pick(anchor, items, label) {
 function createController(root) {
   const snap = () => D.snapshot();
   const items = () => D.detail()?.items || [];
-  const selectedIndex = () => { const uid = D.selected(); return items().findIndex(item => item.uid === uid); };
+  const selectedIndex = () => { const uid = D.selected(); return items().findIndex(item => questionKey(item) === uid); };
 
   function paint() {
     const sn = snap();
     const label = sn.detail ? S.linkedLabel(sn.detail.id) : '';
-    const inBoard = new Set((sn.detail?.items || []).map(item => item.uid));
-    const pending = label ? allItems().filter(item => !item.suspended && (item.labels || []).includes(label) && !inBoard.has(item.uid)).length : 0;
+    const pending = S.linkedPending(sn.detail?.items, allItems(), label);
     if (s.panel === 'detail' && !sn.selected) s.panel = 'list';
     morph(root, view({
       status: S.statusView(sn, B.boardFolders(), D.saveQueue().busy()), renaming: s.renaming && !!sn.detail,
@@ -73,13 +73,13 @@ function createController(root) {
     const el = root.querySelector('#bd-inspector [data-qv-host]');
     if (el && el.dataset.qvFor !== el.dataset.key) {
       el.dataset.qvFor = el.dataset.key;
-      qvRender(el, el.dataset.uid, detailOpts(el.dataset.reveal === '1', uid => { s.revealUid = uid; paint(); }));
+      qvRender(el, el.dataset.uid, { ...detailOpts(el.dataset.reveal === '1', () => { s.revealUid = D.selected(); paint(); }), question_id: el.dataset.questionId });
     }
     const rec = root.querySelector('#bd-inspector [data-board-rec]');
     if (!rec || rec.dataset.recFor === rec.dataset.key) return;
     rec.dataset.recFor = rec.dataset.key;
     const uid = rec.dataset.uid;
-    ensureDetail(uid).then(detail => {
+    ensureDetail(uid, rec.dataset.questionId).then(detail => {
       if (!rec.isConnected || rec.dataset.uid !== uid) return;
       const records = qRecordsFromDetail(detail || {});
       render(rec, recordSummary(S.recordSummaryView(qHistoryStats(records)), raw(qStreakHtml(records, 12))));
@@ -180,11 +180,11 @@ function createController(root) {
     showPop(kind) { s.pop = s.pop === kind ? '' : kind; paint(); },
     closePop() { s.pop = ''; paint(); },
     openDetail(uid) { if (!uid) return; D.select(uid); s.panel = 'detail'; paint(); },
-    back() { s.panel = 'list'; paint(); root.querySelector(`[data-board-row="${CSS.escape(D.selected())}"]`)?.focus({ preventScroll: true }); },
+    back() { s.panel = 'list'; paint(); root.querySelector(`[data-board-key="${CSS.escape(D.selected())}"]`)?.focus({ preventScroll: true }); },
     detailStep(delta) {
       const index = selectedIndex();
       const next = items()[index + delta];
-      if (next) { D.select(next.uid); boardPreviewGoto(next.uid); }
+      if (next) { D.select(questionKey(next)); boardPreviewGoto(next.uid); }
     },
     gapStep(raw) {
       const split = raw.lastIndexOf(':');
@@ -218,10 +218,10 @@ function createController(root) {
       const sn = snap();
       const list = items();
       if (!list.length) return false;
-      const uid = list[boardKeySelectTarget(selectedIndex(), key, list.length)].uid;
-      D.select(uid);
-      boardPreviewGoto(uid);
-      root.querySelector(`[data-board-row="${CSS.escape(uid)}"]`)?.scrollIntoView?.({ block: 'nearest' });
+      const item = list[boardKeySelectTarget(selectedIndex(), key, list.length)];
+      D.select(questionKey(item));
+      boardPreviewGoto(item.uid);
+      root.querySelector(`[data-board-key="${CSS.escape(questionKey(item))}"]`)?.scrollIntoView?.({ block: 'nearest' });
       return true;
     },
     reorder(key) {
@@ -237,7 +237,7 @@ function createController(root) {
       if (event.target?.closest?.('input, textarea, select, button, a[href], [contenteditable], [role="button"]')) return false;
       const current = items()[selectedIndex()];
       if (!current || current.missing) return false;
-      D.openItem(current.uid);
+      D.openItem(questionKey(current));
       return true;
     },
     escape(event) {
@@ -251,12 +251,12 @@ function createController(root) {
     locate(uid) {
       if (!uid) return;
       D.select(uid);
-      boardPreviewGoto(uid);
+      boardPreviewGoto(D.itemOf(uid)?.uid || uid);
     },
     removeSelected() {
       const current = items()[selectedIndex()];
       if (!current) return false;
-      D.removeItem(current.uid);
+      D.removeItem(questionKey(current));
       return true;
     },
   };
@@ -277,12 +277,12 @@ export const page = {
     const onDbl = event => {
       if (event.target.closest?.('[data-board-rename-target]')) { current.startRename(); return; }
       const row = event.target.closest?.('[data-board-row]');
-      if (row && !event.target.closest('input, button, label, a, [data-lbl-target]')) D.openItem(row.dataset.boardRow);
+      if (row && !event.target.closest('input, button, label, a, [data-lbl-target]')) D.openItem(row.dataset.boardKey || row.dataset.boardRow);
     };
     // 点条目 = 选中（按钮、复选框、标记芯片各有自己的动作）
     const onClick = event => {
       const row = event.target.closest?.('[data-board-row]');
-      if (row && !event.target.closest('input, button, label, a, [data-lbl-target]')) current.openDetail(row.dataset.boardRow);
+      if (row && !event.target.closest('input, button, label, a, [data-lbl-target]')) current.openDetail(row.dataset.boardKey || row.dataset.boardRow);
     };
     const onBlur = event => { if (current.renameInput(event.target)) current.finishRename(true); };
     root.addEventListener('dblclick', onDbl);

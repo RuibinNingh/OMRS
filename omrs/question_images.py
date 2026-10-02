@@ -101,18 +101,18 @@ def _open_image(name, parent=None, expected=None):
         raise
 
 
-def _read_bytes(descriptor):
+def _read_bytes(descriptor, maximum=MAX_IMAGE_BYTES):
     before = os.fstat(descriptor)
-    if before.st_size > MAX_IMAGE_BYTES:
+    if maximum is not None and before.st_size > maximum:
         raise ValueError("题图超过 MCP 单次图片返回限制（8 MiB）")
     chunks, size = [], 0
-    while size <= MAX_IMAGE_BYTES:
-        chunk = os.read(descriptor, min(64 * 1024, MAX_IMAGE_BYTES + 1 - size))
+    while maximum is None or size <= maximum:
+        chunk = os.read(descriptor, 64 * 1024 if maximum is None else min(64 * 1024, maximum + 1 - size))
         if not chunk:
             break
         chunks.append(chunk)
         size += len(chunk)
-    if size > MAX_IMAGE_BYTES:
+    if maximum is not None and size > maximum:
         raise ValueError("题图超过 MCP 单次图片返回限制（8 MiB）")
     after = os.fstat(descriptor)
     if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
@@ -121,7 +121,7 @@ def _read_bytes(descriptor):
     return b"".join(chunks)
 
 
-def _read_from_directory_fds(vault, name):
+def _read_from_directory_fds(vault, name, maximum=MAX_IMAGE_BYTES):
     found = None
 
     def visit(parent):
@@ -143,13 +143,13 @@ def _read_from_directory_fds(vault, name):
                     visit(attachments)
                     if found is None:
                         raise ValueError("题目引用的图片不存在")
-                    return _read_bytes(found)
+                    return _read_bytes(found, maximum)
     finally:
         if found is not None:
             os.close(found)
 
 
-def _read_from_paths(vault, name):
+def _read_from_paths(vault, name, maximum=MAX_IMAGE_BYTES):
     """无目录 FD 的平台：拒绝重解析点，并比对目录与文件身份。"""
     roots = [os.path.join(vault, QUESTIONS_DIR)]
     roots.append(os.path.join(roots[0], ATTACHMENTS_DIR))
@@ -187,7 +187,7 @@ def _read_from_paths(vault, name):
         check_directory(directory)
     with_descriptor = _open_image(path, expected=expected)
     try:
-        raw = _read_bytes(with_descriptor)
+        raw = _read_bytes(with_descriptor, maximum)
         for directory in list(directories):
             check_directory(directory)
         if _identity(os.lstat(path)) != _identity(expected) or _linked(os.lstat(path)):
@@ -195,6 +195,90 @@ def _read_from_paths(vault, name):
         return raw
     finally:
         os.close(with_descriptor)
+
+
+def _attachment_parts(name):
+    """逻辑附件名只在 HTTP 层解码一次，不接受磁盘绝对路径。"""
+    if not isinstance(name, str) or not name or os.path.isabs(name) or "\\" in name:
+        raise ValueError("附件名称不安全")
+    parts = name.split("/")
+    for part in parts:
+        safe_component(part, "附件名称")
+        if part != part.strip() or any(ord(char) < 32 for char in part):
+            raise ValueError("附件名称不安全")
+    return parts
+
+
+def attachment_path(vault, name):
+    """兼容导出查找；仅在附件树内唯一定位，逐层拒绝链接。"""
+    parts = _attachment_parts(name)
+    root = os.path.join(os.path.abspath(vault), QUESTIONS_DIR, ATTACHMENTS_DIR)
+    for directory in (os.path.abspath(vault), os.path.dirname(root), root):
+        info = os.lstat(directory)
+        if _linked(info) or not stat.S_ISDIR(info.st_mode):
+            raise ValueError("附件目录不安全")
+    if len(parts) > 1:
+        current = root
+        for part in parts[:-1]:
+            current = os.path.join(current, part)
+            info = os.lstat(current)
+            if _linked(info) or not stat.S_ISDIR(info.st_mode):
+                raise ValueError("附件目录不安全")
+        candidates = [os.path.join(current, parts[-1])]
+    else:
+        candidates = []
+        for current, dirs, files in os.walk(root, followlinks=False):
+            dirs[:] = [part for part in dirs if not _linked(os.lstat(os.path.join(current, part)))]
+            if parts[0] in files:
+                candidates.append(os.path.join(current, parts[0]))
+    if len(candidates) != 1:
+        raise ValueError("附件不存在或文件名不唯一")
+    info = os.lstat(candidates[0])
+    if _linked(info) or not stat.S_ISREG(info.st_mode):
+        raise ValueError("附件不是安全的普通文件")
+    return candidates[0]
+
+
+def read_attachment_image(vault, name):
+    """Web/报告共用受限读取；保留已有大图，不套 MCP 的 8 MiB 返回限制。"""
+    from .inbox import image_size
+    parts = _attachment_parts(name)
+    base = os.path.abspath(vault)
+    if len(parts) == 1:
+        raw = (_read_from_directory_fds(base, parts[0], None) if _DIRECTORY_FDS
+               else _read_from_paths(base, parts[0], None))
+    elif _DIRECTORY_FDS:
+        from contextlib import ExitStack
+        with ExitStack() as stack:
+            parent = stack.enter_context(_directory(base))
+            for part in (QUESTIONS_DIR, ATTACHMENTS_DIR, *parts[:-1]):
+                parent = stack.enter_context(_directory(part, parent))
+            descriptor = _open_image(parts[-1], parent)
+            try:
+                raw = _read_bytes(descriptor, None)
+            finally:
+                os.close(descriptor)
+    else:
+        path = attachment_path(base, name)
+        directories = [base, os.path.join(base, QUESTIONS_DIR), os.path.join(base, QUESTIONS_DIR, ATTACHMENTS_DIR)]
+        for part in parts[:-1]:
+            directories.append(os.path.join(directories[-1], part))
+        identities = {directory: _identity(os.lstat(directory)) for directory in directories}
+        expected = os.lstat(path)
+        descriptor = _open_image(path, expected=expected)
+        try:
+            raw = _read_bytes(descriptor, None)
+            for directory, identity in identities.items():
+                actual = os.lstat(directory)
+                if _linked(actual) or _identity(actual) != identity:
+                    raise ValueError("附件目录在读取期间发生变化")
+            actual = os.lstat(path)
+            if _linked(actual) or _identity(actual) != _identity(expected):
+                raise ValueError("附件文件在读取期间发生变化")
+        finally:
+            os.close(descriptor)
+    mime, _width, _height = image_size(raw)
+    return raw, mime
 
 
 def read_question_image(vault, uid, image_index):

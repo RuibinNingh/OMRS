@@ -7,6 +7,7 @@
 坐标一律归一化 0–1（相对原图宽高），与收件箱导出一致；YOLO 类别号也与收件箱相同
 （question=0、answer=1），两份数据集可以直接合并训练。
 """
+from .vault_lifecycle import storage, open_sqlite, lease, task, generation
 
 import datetime
 import hashlib
@@ -39,12 +40,14 @@ class RevisionConflict(ValueError):
         self.current_revision = revision
 
 
+@storage
 def annotate_dir(vault):
     path = os.path.join(omrs_data_dir(vault), ANNOTATE_DIR)
     os.makedirs(path, exist_ok=True)
     return path
 
 
+@storage
 def images_dir(vault):
     path = os.path.join(annotate_dir(vault), "images")
     os.makedirs(path, exist_ok=True)
@@ -59,8 +62,9 @@ def _new_id():
     return f"AN-{datetime.datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6]}"
 
 
+@storage
 def connect(vault):
-    db = sqlite3.connect(os.path.join(annotate_dir(vault), "annotate.db"), timeout=10)
+    db = open_sqlite(vault, os.path.join(annotate_dir(vault), "annotate.db"), timeout=10)
     db.row_factory = sqlite3.Row
     db.execute(
         "CREATE TABLE IF NOT EXISTS images (id TEXT PRIMARY KEY, sha256 TEXT UNIQUE NOT NULL, file TEXT, "
@@ -74,6 +78,7 @@ def connect(vault):
     return db
 
 
+@storage
 def _image_path(vault, sha256, mime):
     return os.path.join(images_dir(vault), f"{sha256}.{_MIME_EXT.get(mime, 'png')}")
 
@@ -130,17 +135,23 @@ def clean_boxes(raw):
 
 # ────────────────────────── 上传 / 查询 / 保存 / 删除 ──────────────────────────
 
+@storage
 def upload(vault, files):
     """files: [(filename, bytes)] → {images:[新建], duplicates:[{file, id}]}；非图片直接报错，整批不写。"""
     parsed = []
     for filename, data in files:
         if not data:
             continue
+        original = data
+        if isinstance(data, dict) and data.get("upload_ref"):
+            from .uploads import read, resolve
+            resolve(vault, data, purpose="annotate")
+            data = read(vault, data)
         try:
             mime, width, height = image_size(data)
         except ValueError as exc:
             raise ValueError(f"{os.path.basename(filename or 'image')}：{exc}")
-        parsed.append((os.path.basename(filename or "image"), data, mime, width, height))
+        parsed.append((os.path.basename(filename or "image"), original, mime, width, height))
     if not parsed:
         raise ValueError("没有收到图片")
     created, duplicates = [], []
@@ -148,6 +159,9 @@ def upload(vault, files):
         db = connect(vault)
         try:
             for name, data, mime, width, height in parsed:
+                if isinstance(data, dict):
+                    from .uploads import read
+                    data = read(vault, data)
                 sha = hashlib.sha256(data).hexdigest()
                 existing = db.execute("SELECT id FROM images WHERE sha256=?", (sha,)).fetchone()
                 if existing:
@@ -170,6 +184,7 @@ def upload(vault, files):
     return {"images": images, "duplicates": duplicates}
 
 
+@storage
 def list_images(vault):
     db = connect(vault)
     try:
@@ -186,6 +201,7 @@ def _fetch(db, image_id):
     return row
 
 
+@storage
 def raw_file(vault, image_id):
     db = connect(vault)
     try:
@@ -206,6 +222,7 @@ def _check_revision(row, expected_revision):
         raise RevisionConflict(row["revision"])
 
 
+@storage
 def save(vault, image_id, boxes, status=None, expected_revision=None):
     """整体覆盖一张图的框；status 为 None 时保留原状态。"""
     cleaned = clean_boxes(boxes)
@@ -224,6 +241,7 @@ def save(vault, image_id, boxes, status=None, expected_revision=None):
             db.close()
 
 
+@storage
 def delete(vault, image_id, expected_revision=None):
     with _LOCK:
         db = connect(vault)
@@ -240,6 +258,7 @@ def delete(vault, image_id, expected_revision=None):
     return {"id": row["id"]}
 
 
+@storage
 def stats(vault):
     images = list_images(vault)
     boxes = {role: 0 for role in ROLES}
@@ -252,6 +271,7 @@ def stats(vault):
 
 # ────────────────────────── 导出 ──────────────────────────
 
+@storage
 def export(vault, fmt="omrs_jsonl", include_todo=False, fileobj=None):
     """打包已完成（include_todo 时含未完成）的图片与框。fmt: omrs_jsonl | yolo。
 

@@ -10,6 +10,7 @@
   GET  /api/report/view?id=  → get_report_html(id)
   POST /api/report/delete    → delete_report(id)
 """
+from .vault_lifecycle import storage, open_sqlite, lease, task, generation
 
 import datetime
 import json
@@ -24,16 +25,19 @@ REPORT_DIR = "report"
 _INDEX = "index.json"
 
 
+@storage
 def reports_dir(vault: str) -> str:
     path = os.path.join(questions_root(vault), REPORT_DIR)
     os.makedirs(path, exist_ok=True)
     return path
 
 
+@storage
 def _index_path(vault: str) -> str:
     return os.path.join(reports_dir(vault), _INDEX)
 
 
+@storage
 def _load_index(vault: str) -> list:
     path = _index_path(vault)
     if not os.path.exists(path):
@@ -46,6 +50,7 @@ def _load_index(vault: str) -> list:
         return []
 
 
+@storage
 def _save_index(vault: str, items: list) -> None:
     tmp = _index_path(vault) + ".tmp"
     with open(tmp, "w", encoding="utf-8") as file:
@@ -55,6 +60,7 @@ def _save_index(vault: str, items: list) -> None:
     os.replace(tmp, _index_path(vault))
 
 
+@storage
 def list_reports(vault: str) -> list:
     """按创建时间倒序返回元数据列表（过滤掉文件已丢失的条目）。"""
     items = _load_index(vault)
@@ -64,6 +70,7 @@ def list_reports(vault: str) -> list:
     return alive
 
 
+@storage
 def create_report(vault: str, name: str, html: str) -> dict:
     name = (name or "").strip()
     if not name:
@@ -102,6 +109,7 @@ def create_report(vault: str, name: str, html: str) -> dict:
     return meta
 
 
+@storage
 def get_report_html(vault: str, report_id: str) -> bytes:
     items = _load_index(vault)
     meta = next((it for it in items if it.get("id") == report_id), None)
@@ -145,6 +153,7 @@ def signed_report_images(payload: bytes, signer) -> bytes:
     return image_tag.sub(rewrite_tag, source).encode("utf-8")
 
 
+@storage
 def delete_report(vault: str, report_id: str) -> bool:
     items = _load_index(vault)
     meta = next((it for it in items if it.get("id") == report_id), None)
@@ -160,6 +169,7 @@ def delete_report(vault: str, report_id: str) -> bool:
     return True
 
 
+@storage
 def create_mcp_report(vault, name, html, key_id, request_id, authorize=lambda: None):
     """预留稳定编号→原子文件→索引→回执；重试可修复中断的索引登记。"""
     import hashlib

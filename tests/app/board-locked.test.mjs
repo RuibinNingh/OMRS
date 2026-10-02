@@ -46,10 +46,10 @@ function harness({ paper = true, locked = true, confirm = false, extra = {} } = 
 test('统一加题入口：锁定板无需破坏性确认，新增打印范围保持 new', async () => {
   const h = harness();
   const before = h.detail().printed;
-  const result = await h.d.addToBoard('BD-test', ['new', 'new']);
+  const result = await h.d.addToBoard('BD-test', [{ question_id: 'q-new' }, { question_id: 'q-new' }]);
   assert.equal(h.confirms.length, 0);
   assert.ok(result);
-  assert.deepEqual(clone(h.posts), [{ url: '/api/board/items/add', payload: { id: 'BD-test', uids: ['new'] } }]);
+  assert.deepEqual(clone(h.posts), [{ url: '/api/board/items/add', payload: { id: 'BD-test', question_refs: [{ question_id: 'q-new' }] } }]);
   assert.deepEqual(h.detail().printed, before);
   assert.equal(boardStatusModel(h.d.detail(), 'new', null).scope, 'new');
   assert.equal(h.d.settings().granted(), false, '安全操作不应授予下一次破坏性修改权限');
@@ -127,7 +127,7 @@ test('关闭切割线时修改未生效的线标签无需确认', async () => {
 test('按标记同步先等待本地 items 保存，避免覆盖刚追加的题目', async () => {
   const h = harness({ extra: {
     labels: () => [{ name: '重点', archived: false, count: 1 }],
-    items: () => [{ uid: 'new', labels: ['重点'], suspended: false }],
+    items: () => [{ uid: 'new', question_id: 'OP-000002', labels: ['重点'], suspended: false }],
     dialog: async () => ({ ok: true, values: { 'bd-sync-0': true } }),
   } });
   h.d.saveQueue().mark('items');
@@ -250,7 +250,7 @@ test('视图只存本地；选中的题随快照给页面，换板后不在板�
   h.d.setView('bogus');
   assert.equal(h.d.view(), 'paper');
   h.d.select('new');
-  assert.equal(h.d.snapshot().selected, 'new');
+  assert.equal(h.d.snapshot().selected, 'OP-000002');
   h.d.detail().items = h.d.detail().items.filter(item => item.uid !== 'new');
   await h.d.load('BD-test');
   assert.equal(h.d.selected(), '');

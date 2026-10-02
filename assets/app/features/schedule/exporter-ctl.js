@@ -1,3 +1,4 @@
+import { questionKey, questionRefs } from '../../domain/question/ref.js';
 /**
  * 复习调度 ·「全题库导出」与「已有计划」导出的控制器：筛选与已选、画廊题面懒加载、A4 单双栏确认、调 domain/exporting 下载。
  * 状态在 exporter.js 的模块单例里（离开页面再回来，筛选与已选都还在，与旧页一致）。
@@ -19,10 +20,10 @@ export function createExporter({ ctx, root, paint }) {
   function env() {
     const items = itemsOf(ctx.store.get().data);
     x.selection = X.pruneSelection(x.selection, items);
-    const byUid = new Map(items.map(i => [i.uid, i]));
+    const byUid = new Map(items.map(i => [questionKey(i), i]));
     const filtered = X.filterExport(items, x.filters, filterAll);
     qvSetContext('export', filtered.map(i => i.uid));
-    qvSetContext('export-selection', x.selection);
+    qvSetContext('export-selection', x.selection.map(id => byUid.get(id)?.uid).filter(Boolean));
     return { facets: facets(items), labels: listLabels(), filtered, selected: x.selection.map(uid => byUid.get(uid)).filter(Boolean), summary: X.summary(filtered, x.selection) };
   }
 
@@ -37,8 +38,9 @@ export function createExporter({ ctx, root, paint }) {
 
   /** 真正的导出：A4 先问单 / 双栏（关掉对话框按单栏，与旧版一致）。返回 { ok, text }。 */
   async function run({ uids, sessionId, variant, answers, gap }) {
+    const question_refs = sessionId ? undefined : questionRefs(uids);
     const twoColumns = variant === 'a4' ? await askColumns() : true;
-    const res = await requestExport(X.exportPayload({ uids, sessionId, variant, answers, gap, twoColumns }), X.exportFileName({ sessionId, variant }));
+    const res = await requestExport(X.exportPayload({ question_refs, sessionId, variant, answers, gap, twoColumns }), X.exportFileName({ sessionId, variant }));
     return res.ok ? { ok: true, text: `已导出 ${res.name}` } : { ok: false, text: `导出失败：${res.error}` };
   }
 

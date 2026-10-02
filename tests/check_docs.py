@@ -12,7 +12,7 @@
 4. 文档里引用的 `assets/`、`omrs/`、`tests/`、`AI/` 等路径必须真实存在。
 5. 模块文档以「速查」头开头，含职责、入口、不变量、必跑测试、相关五项。
 6. 模块文档不链接 `AI/logs/`：日志不随脱敏源码包导出，历史写进 changelog。
-7. `AI/routes.md` 与 `omrs/server.py` 的路由一致，且每条路由至少在一份文档里有说明。
+7. `AI/routes.md` 与 `omrs/http/registry.py` 的路由一致，且每条路由至少在一份文档里有说明。
 8. 存在 `AI/logs/log.md` 时，它必须与日志文件同步（由 --write-log-index 生成）。
 9. 计划文件夹 `AI/plans/<计划>/` 必须同时有 plan.md 与 progress.md；progress.md 前 15 行有 `> **状态**`
    块，含目标、阶段、基线、下一步、更新五项。计划文档不是模块文档（不要速查头），引用的路径可以是未来的文件。
@@ -38,11 +38,6 @@ PATH_RE = re.compile(
     r"`((?:assets|omrs|tests|Skills|deploy)/[\w./-]+\.(?:js|py|css|html|md|json|service)"
     r"|AI/(?!logs/)[\w./-]+\.md)`")
 LOG_LINK_RE = re.compile(r"AI/logs/\d|`logs/\d{4}-")
-ROUTE_METHODS = {"do_GET": "GET", "_inbox_get": "GET", "_drafts_get": "GET", "_drafts_post": "POST", "do_POST": "POST",
-                 "_do_post_routes": "POST", "_inbox_post": "POST", "_annotate_get": "GET", "_annotate_post": "POST",
-                 "_auth_post": "POST", "_trainpanel_get": "GET", "_trainpanel_post": "POST",
-                 "handle_agent_get": "GET", "agent_post_routes": "POST", "_mcp_get": "GET", "_mcp_post": "POST"}
-ROUTE_SOURCES = (("omrs", "server.py"), ("omrs", "agent", "http.py"))
 
 
 def rel(path):
@@ -51,9 +46,10 @@ def rel(path):
 
 def doc_targets():
     docs = [os.path.join(AI_DIR, f) for f in sorted(os.listdir(AI_DIR)) if f.endswith(".md")]
-    front = os.path.join(AI_DIR, "frontend")
-    if os.path.isdir(front):
-        docs += [os.path.join(front, f) for f in sorted(os.listdir(front)) if f.endswith(".md")]
+    for directory in ("frontend", "api"):
+        front = os.path.join(AI_DIR, directory)
+        if os.path.isdir(front):
+            docs += [os.path.join(front, f) for f in sorted(os.listdir(front)) if f.endswith(".md")]
     return docs + plan_docs() + [os.path.join(ROOT, "README.md")]
 
 
@@ -134,24 +130,17 @@ def check_file(path):
 # ---------- 路由总表 ----------
 
 def extract_routes():
-    """Return {path: set(methods)} for exact routes and {prefix: set(methods)} for prefix dispatch."""
+    """方法和路径来自实际运行注册表，不再从分散的 if 文本推断。"""
+    import importlib.util
+    path = os.path.join(ROOT, "omrs", "http", "registry.py")
+    spec = importlib.util.spec_from_file_location("omrs_http_registry", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
     exact, prefix = {}, {}
-    lines = []
-    for parts in ROUTE_SOURCES:
-        source = os.path.join(ROOT, *parts)
-        if os.path.exists(source):
-            lines += open(source, encoding="utf-8").read().split("\n") + [""]
-    method = None
-    for line in lines:
-        m = re.match(r"(?:    )?def (\w+)\(", line)
-        if m:
-            method = ROUTE_METHODS.get(m.group(1))
-        if not method:
-            continue
-        for path in re.findall(r'path == "(/[^"]*)"', line) + re.findall(r'^\s+"(/api/[^"]+)": lambda', line):
-            exact.setdefault(path, set()).add(method)
-        for path in re.findall(r'path\.startswith\("(/[^"]*)"\)', line):
-            prefix.setdefault(path, set()).add(method)
+    for (method, route), target in module.ROUTES.items():
+        exact.setdefault(route, set()).add(method)
+    for (method, route), target in module.PREFIXES.items():
+        prefix.setdefault(route, set()).add(method)
     return exact, prefix
 
 
@@ -170,7 +159,7 @@ def route_docs(path):
 def render_routes():
     exact, prefix = extract_routes()
     out = ["# 路由总表（自动生成）", "",
-           "> 由 `python3 tests/check_docs.py --write-routes` 从 `omrs/server.py` 生成，勿手改。",
+           "> 由 `python3 tests/check_docs.py --write-routes` 从 `omrs/http/registry.py` 生成，勿手改。",
            "> 请求体、响应字段与错误语义见「说明」列的文档；`AI/api.md` 为主。", "",
            "| 方法 | 路径 | 说明 |", "|---|---|---|"]
     for path in sorted(exact):
@@ -193,7 +182,7 @@ def check_routes():
     target = os.path.join(AI_DIR, "routes.md")
     current = open(target, encoding="utf-8").read() if os.path.exists(target) else ""
     if current != render_routes():
-        problems.append("AI/routes.md 与 omrs/server.py 不同步：运行 python3 tests/check_docs.py --write-routes")
+        problems.append("AI/routes.md 与 omrs/http/registry.py 不同步：运行 python3 tests/check_docs.py --write-routes")
     return problems
 
 

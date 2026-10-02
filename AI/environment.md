@@ -126,7 +126,7 @@ P4 分类和草稿修订路径使用独立的 `tests/fixtures/agent_p4_faux.json
 - **Playwright 独立 Chromium 在本机可能崩溃。** `chromium.launch()` 打开 OMRS 页面可能返回 `TargetClosedError: Page crashed`，而 Hermes Browser Use 的 Chrome/CDP 可正常访问；不要仅凭此判为 OMRS 服务故障。若环境变量 `OMRS_TEST_CDP_URL=http://127.0.0.1:9222` 指向受信任的本机 CDP，测试可复用共享 Chrome，但每项测试必须只关闭自己创建的 BrowserContext，不能调用 `Browser.close()` 关闭共享实例。CDP 只绑定本机可信端点，不要暴露公网；独立 Chromium 崩溃原因未确认。
 - **测试实例会重启生产服务。** `/api/restart` 只要在进程环境里看到 `OMRS_SYSTEMD_SERVICE`，就执行 `systemctl restart <该服务>`（见 `omrs/server.py`）。完整模式下启动任何测试实例之前，都先 `unset OMRS_SYSTEMD_SERVICE`；设置页相关的 E2E 用 `page.route` 拦截 `/api/restart`。
 - **Playwright 的 `text=` 是子串匹配。** 它会点中含同样字样的说明文字。按钮一律用 `get_by_role("button", name=..., exact=True)`。
-- **刷新后立即操作会失败。** 页面刷新后要等 `typeof switchTab === 'function' && document.readyState === 'complete'` 成立才能操作，否则点击发生在脚本加载之前。
+- **刷新后立即操作会失败。** 普通应用页可用 `tests/browser_runtime.py::open_app` 明确设置入口参数并等待 `window.__omrs`、当前路由与活动面板就绪；入口与 PIN 专项直接访问 `/`，否则点击发生在脚本加载之前。
 - **截图时机。** 面板淡入 0.3s、开关过渡 0.15s，切换后至少等 0.9s 再截图，否则画面发灰或开关状态看起来不对。
 - **HTTP 风险提示。** 远端 HTTP 登录会弹一次 `alert`，需要注册 `page.on("dialog", ...)` 自动确认。
 - **中文输出。** `cut -c` 按字节截断会切坏中文，导致整条输出被拒收。要截断时用 Python 按字符处理。
@@ -199,3 +199,24 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 展示板夹具写入先读取 /api/boards 的目录和板版本，按当前 CAS 契约建板；并发验证独立保留旧版本以实测 409，不使用夹具 helper 自动刷新来掩盖冲突。视觉比较可用 --pages board 限定四组主题/屏幕组合。
 
 MCP 扩展闭环由 tests/e2e/mcp_expansion.py 启动真实临时 Web/MCP 服务并用 SDK 与浏览器验证；tests/test_mcp_board.py 覆盖确认幂等/崩溃/纸面边界。所有实例清除生产控制环境变量。路由生成器同时枚举 _mcp_get/_mcp_post。
+
+## 8. 审计修复回归入口
+
+`tests/browser_runtime.py` 的 `app_url`／`open_app` 为普通页面提供明确主应用地址和就绪等待；不会替代 PIN 认证。`tests/e2e/shell_router.py` 保留入口点击与 PIN 路径，普通刷新／跳页使用该入口；`tests/e2e/instant.py` 展开仪表盘建议后验证跨页预设，不依赖被折叠按钮可见。
+
+前端审计行为测试为 `tests/app/audit-controllers.test.mjs` 和 `tests/app/audit-identity-uploads.test.mjs`，直接导入当前模块与控制器，覆盖并发裁图、反馈部分失败、旧响应、稳定身份、分块原始字节、业务午夜和历史分页。全部数据合成，浏览器服务只用临时 Vault 和随机高端口，清除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`。
+
+
+统一入口为 `python3 tests/run_gates.py --ref 17d6d84`，显式包含 unittest、pytest 风格报告导出、Node、组件浏览器、打印冒烟、全部不依赖外部模型材料的原始 E2E、升级/回退演练、视觉及文档门禁。`--only` 按门禁 ID 重跑失败项，JSON 结果与每条日志保存在临时目录。真实 ONNX `boxdetect` 需要外部冻结数据与模型，只有传 `--dataset` 才加入，并明确记录缺失原因。
+
+容量验证使用 `tests/bench_data_runtime.py` 生成合法合成 Ledger、真实 Markdown 和 blob；`tests/bench_backup_runtime.py` 实测磁盘 ZIP、目录交换和真实 HTTP 启动。所有实例清除生产控制环境变量，固定种子、随机高端口和临时 Vault。RSS 在 Linux 取独立进程 `VmHWM`，不用继承的父进程峰值假定内存；计时、样本数、P50/P95与冻结时间随结果交付。HTTP 就绪用快速认证状态端点，统计接口另给完整请求期限，避免容量报告把一秒探测超时误认为启动失败。
+
+发布兼容演练为 `python3 tests/check_upgrade_compat.py --ref 17d6d84`，需要 Git 旧提交；脚本将旧代码归档到仓库外空目录，新旧进程仅访问合成 Vault，逐项校验事实不变、归档身份、旧缓存失效和当前备份恢复。退出 0 不表示可直接降级：工具主动记录旧代码的 UID-only Session 错归属风险，发布采用保留当前事实的前向修复策略。
+
+核心业务日期转换不强制依赖外部 `tzdata`：系统没有 IANA 数据库时，上海 1992 年起的时间使用 UTC+08 固定偏移；更早历史与其它缺失时区不猜夏令时。`tests/test_data_runtime.py` 模拟 `ZoneInfoNotFoundError`，通过真实反馈、上海午夜历史与完整重放验证该路径；这项模拟不代替 Windows 文件锁或目录恢复的平台实测。
+
+配置发布回归为 `python3 -m unittest tests.test_config_publication -q`，以真实独立 Python 进程与持久 SQLite 事务覆盖镜像写入、旧发布者、响应窗口、WAL 读取快照和投影策略读取；另验证审计失败时回滚配置／投影／重算回执、空库迁移以及待同步镜像第三方冲突。屏障只控制时机，配置、文件与提交均实际执行，不访问真实题库。
+
+`tests/e2e/audit_identity.py` 在真实临时服务验证旧计划人工绑定、归档与新题同 UID 的板内身份隔离、超过 16MiB 原图字节保持，以及 66 对话／45 运行／411 事件的全部历史可读；翻早页核对长消息展开态和 DOM 保留，同 UID 不同身份的迟到题面响应不覆盖新挂载。
+
+容量工具默认`--samples 5`，每条路径每个样本复制同一合成基线；参数重算不因前一次参数相同被跳过，十万修正不叠加为五十万。普通反馈内部50次计分单独统计。P95使用最近秩，5样本P95为最大值，不能理解为长期流量分布。直接`--action`只接受本工具带合成标记的`/tmp/omrs-data-capacity-*`、无符号链接库，入口先清生产控制变量。升级工具`python3 tests/check_upgrade_compat.py --ref 17d6d84`使用Git归档和合成Vault，结果明确旧码直接回退不安全，按发布材料前向修复而不覆盖新增。

@@ -6,6 +6,8 @@
 """
 
 from __future__ import annotations
+from .vault_lifecycle import storage, open_sqlite
+from .data_repository import mastery_rows
 
 import datetime
 import json
@@ -13,7 +15,7 @@ import os
 import re
 import uuid
 
-from .common import extract_labels, load_csv, mastery_path, omrs_data_dir, MASTERY_HEADERS, parse_yaml_frontmatter
+from .common import extract_labels, omrs_data_dir, parse_yaml_frontmatter
 from .question_ops import set_question_labels
 from .workspace_sync import scan_workspace
 
@@ -26,6 +28,7 @@ COLORS = {
 }
 
 
+@storage
 def labels_path(vault: str) -> str:
     return os.path.join(omrs_data_dir(vault), LABELS_FILENAME)
 
@@ -75,6 +78,7 @@ def _normalize_label(raw, index=0) -> dict:
     }
 
 
+@storage
 def load_labels(vault: str) -> dict:
     path = labels_path(vault)
     if not os.path.isfile(path):
@@ -97,6 +101,7 @@ def load_labels(vault: str) -> dict:
     return {"version": LABELS_VERSION, "labels": labels}
 
 
+@storage
 def save_labels(vault: str, data: dict) -> dict:
     path = labels_path(vault)
     labels = []
@@ -126,9 +131,10 @@ def _resolve(label_defs, value) -> dict | None:
                  if item["id"] == needle or item["name"] == needle), None)
 
 
+@storage
 def _label_counts(vault: str) -> dict:
     counts = {}
-    for row in load_csv(mastery_path(vault), MASTERY_HEADERS):
+    for row in mastery_rows(vault):
         for name in str(row.get("Labels", "") or "").split("|"):
             name = name.strip()
             if name:
@@ -136,12 +142,14 @@ def _label_counts(vault: str) -> dict:
     return counts
 
 
+@storage
 def list_label_defs(vault: str) -> list[dict]:
     counts = _label_counts(vault)
     return [{**item, "count": counts.get(item["name"], 0)}
             for item in load_labels(vault)["labels"] if not item.get("archived")]
 
 
+@storage
 def save_label(vault: str, value=None, name=None, color=None,
                priority_bonus=None, order=None) -> dict:
     data = load_labels(vault)
@@ -179,6 +187,7 @@ def save_label(vault: str, value=None, name=None, color=None,
     return {**label, "count": 0, "affected": 0}
 
 
+@storage
 def _rename_references(vault: str, old_name: str, new_name: str) -> int:
     """批量改名，返回实际含旧名称的题目数。"""
     if old_name == new_name:
@@ -215,6 +224,7 @@ def _rename_references(vault: str, old_name: str, new_name: str) -> int:
     return changed
 
 
+@storage
 def delete_label(vault: str, value, detach=True) -> dict:
     data = load_labels(vault)
     label = _resolve(data["labels"], value)
@@ -228,6 +238,7 @@ def delete_label(vault: str, value, detach=True) -> dict:
     return {"deleted": True, "name": label["name"], "affected": affected}
 
 
+@storage
 def _remove_reference(vault: str, name: str) -> int:
     from .ledger import connect
     with connect(vault) as db:
@@ -253,6 +264,7 @@ def _remove_reference(vault: str, name: str) -> int:
     return changed
 
 
+@storage
 def merge_labels(vault: str, from_value, into_value) -> dict:
     data = load_labels(vault)
     source = _resolve(data["labels"], from_value)
@@ -290,6 +302,7 @@ def merge_labels(vault: str, from_value, into_value) -> dict:
     return {"merged": True, "from": source["name"], "into": target["name"], "affected": len(source_uids)}
 
 
+@storage
 def label_priority_map(vault: str) -> dict[str, float]:
     return {item["name"]: _clean_bonus(item.get("priority_bonus"))
             for item in load_labels(vault)["labels"] if not item.get("archived")}

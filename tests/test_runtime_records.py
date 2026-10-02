@@ -2,6 +2,7 @@
 import asyncio
 import base64
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
 import json
 import sqlite3
 import tempfile
@@ -66,7 +67,7 @@ class RuntimeRecordsTests(unittest.TestCase):
         detail = records.detail(self.vault, seq)
         self.assertEqual(detail["arguments"]["images_count"], 1)
         self.assertTrue(detail["result"]["reused"])
-        with sqlite3.connect(records.path(self.vault)) as db:
+        with closing(sqlite3.connect(records.path(self.vault))) as db, db:
             stored = str(db.execute("SELECT * FROM records").fetchall())
         for value in (secret, url, text, "PRIVATE_IMAGE", "private-token", "signature=private"):
             self.assertNotIn(value, stored)
@@ -186,7 +187,7 @@ class MCPRuntimeTests(unittest.TestCase):
         detail = records.detail(self.vault, latest["seq"])
         self.assertEqual(detail["arguments"], {"uid": uid, "image_index": 0})
         self.assertEqual(detail["result"], {})
-        with sqlite3.connect(records.path(self.vault)) as db:
+        with closing(sqlite3.connect(records.path(self.vault))) as db, db:
             stored = str(db.execute("SELECT * FROM records").fetchall())
         for private in (encoded, "PRIVATE-MCP-IMAGE-TAIL", self.key["secret"]):
             self.assertNotIn(private, stored)

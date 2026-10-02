@@ -1,5 +1,6 @@
 /** 数据与存储：备份、占用、图片扫描与压缩任务。 */
 import { get, post } from '../../core/api.js';
+import { uploadImage } from '../../core/uploads.js';
 import { downloadResponse } from '../../core/download.js';
 import { reloadData } from '../../domain/data.js';
 import { confirm } from '../../ui/dialog.js';
@@ -120,9 +121,9 @@ export function createStorage(root) {
       hint: '会先校验，随后可选择恢复并覆盖当前错题目录。', okText: '继续导入',
     }) || !alive) return;
     note('svc-backup-status', '正在上传并校验备份…', 'busy');
-    const form = new FormData();
-    form.append('file', file, file.name);
-    const prepared = await post('/api/backup/import', form);
+    const reference = await uploadImage(file, { purpose: 'backup', filename: file.name });
+    if (!alive) return;
+    const prepared = await post('/api/backup/import', reference);
     if (!alive) return;
     if (!prepared.ok) { note('svc-backup-status', `校验失败：${prepared.error?.message || '未知错误'}`, 'danger'); return; }
     const preview = prepared.data?.preview || {};
@@ -140,7 +141,8 @@ export function createStorage(root) {
     s.scan = null; lastScan = null;
     s.backupToken = ''; lastBackupToken = '';
     await load();
-    } finally { backupBusy = false; }
+    } catch (error) { note('svc-backup-status', `导入失败：${error.message || '未知错误'}`, 'danger'); }
+    finally { backupBusy = false; }
   }
 
   function schedulePoll(delay = 500) {

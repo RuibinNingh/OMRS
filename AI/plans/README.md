@@ -41,3 +41,5 @@ AI/plans/<计划名>/
 | `v2.0.0/` | P0–P1 完成，P2 进行中 | 审核优先、快速录入、AI 助手、练习卡、历史与用量的 P0–P7 升级 |
 | `mcp-integration/` | 全量扩展P0–P7完成并部署v2.1.0 | 97e0927 的38工具、受保护草稿修订、报告、展示板管理/网页确认/安全导出已上线；公网只读99/99，实际验收见 `mcp-integration/progress.md` |
 | `history-redesign/` | 已部署 v2.1.0，随 ba6501b 发布 | 学习与变更 / 系统运行分区时间线、真实 MCP 调用与草稿入库双向关联，见 `history-redesign/progress.md` |
+
+| `omrs-audit-repair/` | 实施与终验中 | 全部19项缺陷、SQL投影、容量与维护性治理；执行者Codex完整模式，不部署生产 |

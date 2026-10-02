@@ -1,10 +1,11 @@
-"""GET /api/question 的 records[]：正式练习记录来自 Ledger 投影（history_log.csv），不是 Markdown # 历史。"""
+"""GET /api/question 的 records[]：正式练习记录来自 Ledger SQL 投影，不是 Markdown # 历史。"""
 import os
 import tempfile
 import unittest
 
 from omrs.common import HISTORY_HEADERS, MASTERY_HEADERS, history_path, mastery_path, save_csv
-from omrs.ledger import connect
+from omrs.ledger import connect, append_commit
+from omrs.projections import rebuild_projection
 from omrs.stats import get_question_content, get_question_records
 
 
@@ -29,14 +30,6 @@ class QuestionRecordsTests(unittest.TestCase):
             "---\n科目: 数学\n难度: 6\n---\n\n# 题目\n求最值\n\n# 答案\n2\n\n# 历史\n2020-01-01 主观:1, 错, 备注:这是早已废弃的旧行\n",
         )
         save_csv(mastery_path(tmp), MASTERY_HEADERS, [_mastery_row("三角函数7", "错题/数学/三角函数/三角函数7.md", 2)])
-        with connect(tmp) as db:
-            db.execute(
-                "INSERT INTO question_projection(question_id, uid, file_path, subject, category, difficulty, current_tag,"
-                " metadata_json, metadata_hash, content_hash, archived, suspended, updated_seq)"
-                " VALUES ('OP-000001','三角函数7','错题/数学/三角函数/三角函数7.md','数学','三角函数',6,'',"
-                "'{}','','',0,0,1)"
-            )
-            db.commit()
         save_csv(
             history_path(tmp),
             HISTORY_HEADERS,
@@ -50,6 +43,10 @@ class QuestionRecordsTests(unittest.TestCase):
             ],
         )
 
+        from omrs.common import load_csv
+        append_commit(tmp, "test", "legacy.bootstrap", "迁移夹具", {"questions": [{"question_id": "OP-000001", "uid": "三角函数7", "file_path": "错题/数学/三角函数/三角函数7.md", "subject": "数学", "category": "三角函数", "difficulty": 6}], "mastery_rows": load_csv(mastery_path(tmp)), "history_rows": load_csv(history_path(tmp))})
+        rebuild_projection(tmp)
+
     def test_records_come_from_ledger_projection_not_markdown(self):
         with tempfile.TemporaryDirectory() as tmp:
             self._vault(tmp)
@@ -59,7 +56,7 @@ class QuestionRecordsTests(unittest.TestCase):
         self.assertEqual([r["log_id"] for r in records], ["legacy-1", "C2-001"])
         self.assertEqual(records[0], {
             "log_id": "legacy-1", "date": "2026-04-02", "time": "", "score": 3, "correct": False,
-            "note": "辅助角公式方向记反", "session_id": "S1",
+            "note": "辅助角公式方向记反", "session_id": "S1", "recorded_at": "",
         })
         self.assertEqual(records[1]["date"], "2026-04-09")
         self.assertEqual(records[1]["time"], "20:11")
@@ -72,7 +69,8 @@ class QuestionRecordsTests(unittest.TestCase):
     def test_no_history_gives_empty_list_not_missing_key(self):
         with tempfile.TemporaryDirectory() as tmp:
             self._vault(tmp)
-            save_csv(history_path(tmp), HISTORY_HEADERS, [])
+            with connect(tmp) as db:
+                db.execute("DELETE FROM history_projection")
             detail = get_question_content(tmp, "三角函数7")
         self.assertEqual(detail["records"], [])
         self.assertEqual(get_question_records(tmp, ""), [])

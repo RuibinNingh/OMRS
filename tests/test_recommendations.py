@@ -1,9 +1,11 @@
+from omrs.common import business_today
 import datetime
 import tempfile
 import unittest
 
 from omrs.common import MASTERY_HEADERS, load_csv, mastery_path, save_csv
 from omrs.creation import create_question
+from omrs.ledger import connect
 from omrs.scheduling import generate_recommendations
 from omrs.server import OMRSHandler
 from omrs.sessions import create_session_from_selection
@@ -14,11 +16,9 @@ class RecommendationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as vault:
             due = create_question(vault, "数学", "代数", 5)
             future = create_question(vault, "数学", "几何", 5)
-            rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
-            next(row for row in rows if row["UID"] == future["uid"])["Due_Date"] = (
-                datetime.date.today() + datetime.timedelta(days=7)
-            ).isoformat()
-            save_csv(mastery_path(vault), MASTERY_HEADERS, rows)
+            with connect(vault) as db:
+                db.execute("UPDATE mastery_projection SET due_date=? WHERE question_id=?", (
+                    (business_today() + datetime.timedelta(days=7)).isoformat(), future["question_id"]))
 
             result = generate_recommendations(vault, due_count=-1, prof_count=-1)
 

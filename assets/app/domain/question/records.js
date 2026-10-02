@@ -4,21 +4,13 @@
  * 输出是字符串，旧代码（题库画廊、展示板画廊）直接拼接；战绩带的高度用 data-h 档位 + 样式表，不写 style=。
  */
 import { escape } from '../../core/html.js';
+import { parseDay, daysBetween } from '../../core/date.js';
+export { parseDay };
 
 const num = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
 const clampScore = value => Math.max(0, Math.min(10, num(value, 0)));
 
 /** 'YYYY-MM-DD' / 'YYYY/MM/DD' 按本地日期解析；不合法返回 null（与旧 core.js::parseReviewDate 一致）。 */
-export function parseDay(value) {
-  if (!value) return null;
-  const text = String(value).trim();
-  const parts = text.includes('/') ? text.split('/') : text.split('-');
-  if (parts.length !== 3) return null;
-  const [y, m, d] = parts.map(Number);
-  if (![y, m, d].every(Number.isInteger)) return null;
-  const date = new Date(y, m - 1, d);
-  return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d ? date : null;
-}
 
 const HISTORY_LINE_RE = /^(\d{4}-\d{2}-\d{2})\s+主观:(\d+),\s*(对|错)(?:,\s*备注:(.*))?$/;
 
@@ -59,7 +51,7 @@ export function qHistoryStats(records) {
   for (let i = 1; i < count; i += 1) {
     const prev = parseDay(list[i - 1].date);
     const cur = parseDay(list[i].date);
-    if (prev && cur) gaps.push(Math.round((cur - prev) / 86400000));
+    if (prev && cur) gaps.push(daysBetween(prev, cur));
   }
   return {
     count, correct, wrong: count - correct, rate: Math.round((correct / count) * 100),

@@ -9,13 +9,13 @@
 
 ## 1. 组成与数据流
 
-一条消息的路径：`POST /api/agent/message` → `AgentRuntime.post_message` 建运行（run）、存用户消息、起后台线程并立即返回 `run_id` → 线程里 `AgentLoop.run` 反复请求模型、执行工具 → 每一步经 `Run.emit` 追加事件 → 浏览器用 `GET /api/agent/events?run=&after=N&wait=20` 长轮询取增量。运行结束时事件合并后写进 `agent.db`，之后打开对话从库里重放。
+一条消息的路径：`POST /api/agent/message` → `AgentRuntime.post_message` 建运行（run）、存用户消息、起后台线程并立即返回 `run_id` → 线程里 `AgentLoop.run` 反复请求模型、执行工具 → 每一步经 `Run.emit` 追加事件 → 浏览器用 `GET /api/agent/events?run=&after=N&wait=20` 长轮询取增量。每条事件发出前写入 `agent.db.run_events`，运行结束后落盘回执并移出内存，之后打开对话分页从库里重放；序号在活动、完成与重启之间不改变。
 
 分层：`omrs/llm/` 只管协议（与 OMRS 无关）；`omrs/agent/loop.py` 是通用循环，只依赖「客户端、工具注册表、钩子、事件发射器」四个接口；`omrs/agent/runtime.py` 的 `Hooks` 把 OMRS 的权限、写锁、写入来源接进钩子；`omrs/agent/tools/` 把领域函数包成工具。同一 Vault 一个运行时单例（`get_runtime`），服务启动时把上次遗留的运行标为中断（`reason=interrupted`）。
 
 ### 附图（`omrs/agent/images.py`）
 
-`POST /api/agent/message` 可带 `images`（图片 data URL 数组，≤6 张，PNG / JPEG / GIF，单张解码后 ≤8MB）。图片经 `drafts.add_image` 存进 `错题/.omrs/drafts/images/`，本对话内编号 IMG-n（同一张图沿用旧编号）；JPEG 入库时按主图标记清除相册尾数据或补结束标记，保留编码像素；旧图送模型前也临时整理。用户消息存为 `{"role":"user","content":text,"_images":["IMG-1",…]}`，`agent.db` 里不存图片本体。任何一张不合格，整条消息 400，不建运行；运行中带图插话 409。
+`POST /api/agent/message` 可带 `images`（图片 data URL 或 upload_ref 数组，≤6 张，PNG / JPEG / GIF，单张解码后 ≤8MB）。图片经 `drafts.add_image` 存进 `错题/.omrs/drafts/images/`，本对话内编号 IMG-n（同一张图沿用旧编号）；JPEG 入库时按主图标记清除相册尾数据或补结束标记，保留编码像素；旧图送模型前也临时整理。用户消息存为 `{"role":"user","content":text,"_images":["IMG-1",…]}`，`agent.db` 里不存图片本体。任何一张不合格，整条消息 400，不建运行；运行中带图插话 409。
 
 运行开始（`run.start` 之后、进入循环之前）由 `expand_images` 按 `agent_vision` 把附图展开到送给模型的副本里：
 - **开**：从最新往前数，最近 4 张（`MAX_VISION_IMAGES`）以 `image_url` 内容块发给主模型，用户消息 `content` 变成内容块数组；更早的换成「[IMG-n 已省略，需要时调 describe_image]」。
@@ -82,7 +82,7 @@
 
 ## 7. 接口（`omrs/agent/http.py`）
 
-GET：`/api/agent/status`（开关、是否配置好与缺什么、是否假模型、模型、兼容、上下文窗口、预算、消息上限、确认时限、工具级别表、进行中的运行）；`/api/agent/conversations`；`/api/agent/conversation?id=`（按运行排的条目：发起消息（附图时带 `images:[{ref, sha, width, height}]`，缩略图走 `/api/drafts/image?sha=`）+ 运行元数据与事件，进行中的运行带 `live`）；`/api/agent/events?run=&after=&wait=`（最多等 25 秒；已结束的运行从库里取，带 `compacted`）。
+GET：`/api/agent/status`（开关、是否配置好与缺什么、是否假模型、模型、兼容、上下文窗口、预算、消息上限、确认时限、工具级别表、进行中的运行）；`/api/agent/conversations`；`/api/agent/conversation?id=`（按运行排的条目：发起消息（附图时带 `images:[{ref, sha, width, height}]`，缩略图走 `/api/drafts/image?sha=`）+ 运行元数据与事件，进行中的运行带 `live`）；`/api/agent/events?run=&after=&wait=`（最多等25秒；活动及结束都从持久事件表读取，`compacted:false`）。
 
 POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软删除，运行中 409）、`/api/agent/message`（`{conversation_id, text, images?}` → `{run_id, steered}`；未启用 403、未配置或图片不合格 400、并发、消息上限或运行中带图插话 409）、`/api/agent/confirm`（`{run_id, call_id, token, decision}`；码不符 400、没有等待中的调用 409）、`/api/agent/abort`、`/api/agent/test`（用已保存配置发一次带 `ping` 工具的非流式请求，返回耗时与是否调用了工具；`agent_vision` 开时再发一张 8×8 白图，多返回 `vision_ok` 与 `vision_error`）、`/api/agent/run/revert`（`{run_id, dry_run}`，见 §9）。除 `run/revert` 在应用撤销时自取写锁外，这些 POST 都不进进程写锁（理由见 `omrs/locking.py` 的豁免清单）。
 
@@ -113,3 +113,11 @@ MCP 修订使用独立授权入口，内置助手 patch_draft 的本对话限制
 MCP 展示板管理使用独立 mcp_board 授权入口，不加入内置助手工具注册；对话归属限制和原助手补丁边界保持。
 
 MCP导出复用现有只读图片列表和受限原图读取，内置助手不增加导出/文件读取工具。
+
+## 11. 分页与有界运行缓存
+
+`GET /api/agent/conversations?limit=30&cursor=` 返回 conversations/has_more/next_cursor，limit上限100。列表SQL只读当前页元数据及计数/摘要，不全读各对话消息和运行事件。`GET /api/agent/conversation?id=&limit=20&cursor=` 以运行组翻更早页，上限50；当前页items按时间升序，user/run均有稳定item_key。run项附前200事件、events_next和events_has_more；msgs为SQL计数。游标是不透明的时间/ID键，不使用offset全历史扫描。
+
+`GET /api/agent/events?run=&after=0&limit=200&wait=20` 按持久seq返回events/next/has_more/done/status，上限500。next为最后事件seq+1，耗尽且运行完成时done才为true。活动尾缓存按UTF-8序列化大小最多1MiB且最多1000事件；不足一页或尾已淘汰仍从数据库补齐，不删历史。已完成Run回执可靠写入后即从运行时字典移除，尾/统计缓存同时释放。旧events_json在SQLite内迁移为事件行并清兼容数组，不回写Ledger。
+
+模型网络期间仅通过task传播题库世代；短存储段先租约再模块锁，工具写入再取业务写锁。恢复后的旧运行不能写新世代。分页、尾淘汰、1300事件跨完成/重启及1000运行组由 `tests/test_agent_pagination.py` 验证。

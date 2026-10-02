@@ -1,3 +1,4 @@
+import { questionItem } from '../../domain/question/ref.js';
 /**
  * 反馈录入工作台（features 页面，页面契约见 AI/frontend/architecture.md §3）。
  * - 契约：page = { id, title, workbench, mount(root, ctx) → unmount, actions, keys }；actions / keys 命名空间与作用域都是 'feedback'。
@@ -25,17 +26,21 @@ import { view, resultBody } from './view.js';
 const s = S.state;
 let ctl = null;
 
-function createController(root, ctx) {
+export function createFeedbackController(root, ctx, services = {}) {
+  const s = services.state || S.state;
+  const io = { post, toast, listSessions, activeSessionId, setActiveSessionId, findSession,
+    domItems, refreshSessions, reloadData, invalidateQuestions, openResultsDialog, ...services };
+  let alive = true;
   let inflight = null;
   function env() {
-    const sessions = listSessions();
-    const activeId = activeSessionId();
-    const session = findSession(activeId);
+    const sessions = io.listSessions();
+    const activeId = io.activeSessionId();
+    const session = io.findSession(activeId);
     const rows = s.rows;
     const entries = S.fbRailEntries(session, rows);
     s.cursor = S.clampCursor(entries, s.cursor);
     const { ready, pending } = S.fbRowsForSubmit(rows);
-    return { sessions, activeId, session, rows, entries, items: domItems(), counts: { ready: ready.length, pending: pending.length } };
+    return { sessions, activeId, session, rows, entries, items: io.domItems(), counts: { ready: ready.length, pending: pending.length } };
   }
 
   function hydrate() {
@@ -43,13 +48,13 @@ function createController(root, ctx) {
       if (el.dataset.qvFor === el.dataset.key) return;
       el.dataset.qvFor = el.dataset.key;
       s.stageUid = el.dataset.uid;
-      mountQuestionStage(el, el.dataset.uid);
+      mountQuestionStage(el, el.dataset.uid, entriesNow()[s.cursor]?.question_id);
     });
   }
 
-  function paint() { morph(root, view(s, env())); hydrate(); }
+  function paint() { if (!alive) return; if (services.paint) { services.paint(s); return; } morph(root, view(s, env())); hydrate(); }
 
-  const entriesNow = () => S.fbRailEntries(findSession(activeSessionId()), s.rows);
+  const entriesNow = () => S.fbRailEntries(io.findSession(io.activeSessionId()), s.rows);
   const contextNow = () => S.currentContext(entriesNow(), s.rows, s.cursor);
 
   // ── 光标定位到第一道未判定（换 Session / 导入后调）──
@@ -72,7 +77,7 @@ function createController(root, ctx) {
       if (inflight) return inflight;
       s.sessionsLoading = true; s.sessionsError = ''; paint();
       inflight = (async () => {
-        const res = await refreshSessions(); // 不抛出；失败时保留旧列表并给原因
+        const res = await io.refreshSessions(); // 不抛出；失败时保留旧列表并给原因
         if (!res.ok && !res.stale) s.sessionsError = res.error || '读取失败';
         s.sessionsLoading = false; inflight = null;
         if (ctl) paint();
@@ -80,17 +85,21 @@ function createController(root, ctx) {
       return inflight;
     },
     selectSession(id) {
-      setActiveSessionId(id || '');
-      rebuildRows(findSession(id));
+      if (s.submitting) return;
+      s.formGeneration += 1;
+      io.setActiveSessionId(id || '');
+      rebuildRows(io.findSession(id));
       s.status = null; s.lastResult = null;
       paint();
     },
     async openSession(id) {
       await api.refresh();
-      if (!findSession(id)) { toast('暂时无法读取该计划，请刷新后重试。', { kind: 'error' }); return; }
+      if (!alive) return;
+      if (!io.findSession(id)) { toast('暂时无法读取该计划，请刷新后重试。', { kind: 'error' }); return; }
       api.selectSession(id);
     },
     addRow() {
+      if (s.submitting) return;
       s.rows.push({ id: Date.now() + Math.random(), uid: '', score: 5, correct: null, note: '', scoreTouched: false });
       const entries = entriesNow();
       const at = entries.findIndex(entry => entry.index === s.rows.length - 1);
@@ -107,47 +116,52 @@ function createController(root, ctx) {
       const at = S.nextOpenIndex(entriesNow(), s.rows, s.cursor);
       if (at >= 0) api.go(at);
     },
-    verdict(correct) { const c = contextNow(); if (c && S.setVerdict(c.row, correct)) paint(); },
-    score(value) { const c = contextNow(); if (c && S.setScore(c.row, value)) paint(); },
+    verdict(correct) { if (s.submitting) return; const c = contextNow(); if (c && S.setVerdict(c.row, correct)) paint(); },
+    score(value) { if (s.submitting) return; const c = contextNow(); if (c && S.setScore(c.row, value)) paint(); },
     scoreKey(n) { const c = contextNow(); if (!c || c.row.correct == null) return false; api.score(n); return undefined; },
-    note(value) { const c = contextNow(); if (c) c.row.note = value; },
+    note(value) { if (s.submitting) return; const c = contextNow(); if (c) c.row.note = value; },
     setUid(value) {
+      if (s.submitting) return;
       const entry = entriesNow()[s.cursor];
       if (!entry || entry.index < 0) return;
       const row = s.rows[entry.index];
       if (!row) return;
+      if (io.findSession(io.activeSessionId()) && !entry.extra) return;
       row.uid = String(value || '').trim();
+      row.question_id = io.domItems().find(item => item.uid === row.uid)?.question_id || '';
       s.stageUid = '';
       paint();
     },
-    drop() { const c = contextNow(); if (!c) return; s.rows.splice(c.index, 1); s.stageUid = ''; paint(); },
+    drop() { if (s.submitting) return; const c = contextNow(); if (!c) return; s.rows.splice(c.index, 1); s.stageUid = ''; paint(); },
     async toggleLabel(name) {
       const c = contextNow();
-      const item = c && c.row.uid ? itemByUid(c.row.uid) : null;
+      const item = c && c.row.uid ? questionItem(c.row.question_id || c.row.uid, io.domItems()) : null;
       if (!item || !name) return;
       const labels = new Set(item.labels || []);
       labels.has(name) ? labels.delete(name) : labels.add(name);
-      await saveLabels(item.uid, [...labels]);
+      await saveLabels(item, [...labels]);
       paint();
     },
     openLabels(el) {
       const c = contextNow();
-      const item = c && c.row.uid ? itemByUid(c.row.uid) : null;
-      if (item) openLabelPicker(item.uid, el);
+      const item = c && c.row.uid ? questionItem(c.row.question_id || c.row.uid, io.domItems()) : null;
+      if (item) openLabelPicker(item, el);
     },
     board(el, shift) {
       const c = contextNow();
-      if (c?.row?.uid) boardQuickAdd(c.row.uid, { anchor: el, direct: !!shift });
+      if (c?.row?.uid) boardQuickAdd(c.row, { anchor: el, direct: !!shift });
     },
-    edit() { const c = contextNow(); if (c?.row?.uid) editQuestion(c.row.uid); },
+    edit() { const c = contextNow(); if (c?.row?.uid) editQuestion(c.row); },
     toggleImport() { s.importOpen = !s.importOpen; paint(); },
     // ── 导入：三个入口一套解析（importer.js 纯函数算计划，这里落到 state）──
     importText(text, options = {}) {
+      if (s.submitting) return false;
       const plan = planImportText(text, { session: findSession(activeSessionId()), findSession, from: options.from });
       s.importStatus = { tone: plan.tone, html: plan.html };
       if (plan.ok) {
+        s.formGeneration += 1;
         if (plan.activeId !== undefined) setActiveSessionId(plan.activeId);
-        s.rows = plan.rows; s.stageUid = ''; s.cursor = 0; s.status = null; s.lastResult = null;
+        s.rows = plan.rows.map(row => row.question_id || plan.activeId ? row : { ...row, question_id: io.domItems().find(item => item.uid === row.uid)?.question_id || '' }); s.stageUid = ''; s.cursor = 0; s.status = null; s.lastResult = null;
         focusFirstOpen();
         if (options.clearBox) s.importText = '';
       }
@@ -186,6 +200,8 @@ function createController(root, ctx) {
     reopenResults() { if (s.lastResult) openResultsDialog(s.lastResult); },
     clearResults() { s.lastResult = null; if (ctl) paint(); },
     resetForm() {
+      if (s.submitting) return;
+      s.formGeneration += 1;
       setActiveSessionId('');
       s.rows = []; s.cursor = 0; s.stageUid = ''; s.status = null; s.lastResult = null;
       if (ctl) paint();
@@ -194,41 +210,49 @@ function createController(root, ctx) {
       if (s.submitting) return;
       const rows = s.rows;
       if (!rows.length) { toast(activeSessionId() ? '当前 Session 已没有待录入题目' : '请先添加反馈条目', { kind: 'warn' }); return; }
-      const { ready, pending } = S.fbRowsForSubmit(rows);
+      const { ready } = S.fbRowsForSubmit(rows);
       if (!ready.length) { toast(rows.length ? '当前批次还没有完成判定，请至少点选一道题的「对」或「错」。' : '请先添加反馈条目', { kind: 'warn' }); return; }
       const seen = new Set();
-      const dup = ready.find(row => { const uid = (row.uid || '').trim(); if (!uid || seen.has(uid)) return true; seen.add(uid); return false; });
+      const dup = ready.find(row => { const identity = row.question_id || (row.uid || '').trim(); if (!identity || seen.has(identity)) return true; seen.add(identity); return false; });
       if (dup) { toast(`UID「${dup.uid || '空白'}」重复或为空，请检查后再提交。`, { kind: 'warn' }); return; }
-      const activeId = activeSessionId();
-      const session = findSession(activeId);
-      const submitted = new Set(session?.feedback_uids || []);
-      const repeat = ready.find(row => submitted.has((row.uid || '').trim()));
+      const activeId = io.activeSessionId();
+      const session = io.findSession(activeId);
+      const submitted = new Set(S.fbRailEntries(session, []).filter(entry => entry.recorded).map(entry => entry.question_id || entry.uid));
+      const repeat = ready.find(row => submitted.has(row.question_id || (row.uid || '').trim()));
       if (repeat) { toast(`题目「${repeat.uid}」已经录入过反馈，请不要重复提交。若要修正，请到「历史记录」中操作。`, { kind: 'warn' }); return; }
-      const feedbacks = ready.map(row => ({ uid: row.uid, sub_score: row.score, is_correct: row.correct, note: row.note }));
+      const unavailable = ready.find(row => row.availability && row.availability !== 'active');
+      if (unavailable) { io.toast('该题已归档、停用或身份未确认，请先在计划详情处理。', { kind: 'warn' }); return; }
+      const feedbacks = S.submitPayload(ready);
+      const generation = s.formGeneration;
       s.submitting = true; s.status = null; paint();
-      const res = await post('/api/feedback', { feedbacks, session_id: activeId || '' });
-      s.submitting = false;
-      if (!res.ok) { s.status = { tone: 'danger', text: `提交失败：${res.error?.message || '未知错误'}` }; paint(); return; }
+      const res = await io.post('/api/feedback', { feedbacks, session_id: activeId || '' });
+      if (s.formGeneration !== generation) { if (res.ok) await io.reloadData(); return; }
+      if (!res.ok) { s.submitting = false; s.status = { tone: 'danger', text: `提交失败：${res.error?.message || '未知错误'}` }; paint(); return; }
       const results = Array.isArray(res.data?.results) ? res.data.results : [];
       const okCount = results.filter(row => row.status === 'ok').length;
       s.lastResult = { rows: results, okCount, total: feedbacks.length, sessionId: activeId, at: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) };
-      openResultsDialog(s.lastResult);
-      await reloadData();
-      await invalidateQuestions(feedbacks.map(row => row.uid));
-      try { await refreshSessions(); } catch (error) { /* 列表刷新失败不挡提交结果 */ }
+      const retained = S.remainingFeedbackRows(rows, results);
+      s.rows = retained;
+      if (alive) io.openResultsDialog(s.lastResult);
+      await io.reloadData();
+      await io.invalidateQuestions(ready.map(row => row.uid));
+      let refreshed = { ok: false };
+      try { refreshed = await io.refreshSessions(); } catch (error) { /* 列表刷新失败不挡提交结果 */ }
+      if (s.formGeneration !== generation) return;
+      const tone = okCount === feedbacks.length ? 'ok' : okCount ? 'warn' : 'danger';
       if (activeId) {
-        const updated = findSession(activeId);
-        const remaining = updated ? S.fbSessionProgress(updated).pending_count : 0;
-        s.status = { tone: 'ok', text: `本次已提交 ${okCount}/${feedbacks.length} 条，${remaining ? `还剩 ${remaining} 题待录入` : '本 Session 已全部录入'}` };
-        rebuildRows(updated);
+        const updated = refreshed.ok ? io.findSession(activeId) : null;
+        s.rows = updated ? S.mergeSessionRows(updated, retained) : retained;
+        const remaining = updated ? S.fbSessionProgress(updated).pending_count : null;
+        s.status = { tone, text: `本次已提交 ${okCount}/${feedbacks.length} 条，${remaining === null ? 'Session 进度刷新失败；未成功条目已保留' : remaining ? `还剩 ${remaining} 题待录入` : '本 Session 已全部录入'}` };
       } else {
-        s.rows = pending; s.cursor = 0; s.stageUid = '';
-        s.status = { tone: 'ok', text: `本次已提交 ${okCount}/${feedbacks.length} 条${pending.length ? `，${pending.length} 道未判定题已保留` : ''}` };
-        focusFirstOpen();
+        s.status = { tone, text: `本次已提交 ${okCount}/${feedbacks.length} 条${retained.length ? `，${retained.length} 道未成功或未判定题已保留` : ''}` };
       }
+      s.submitting = false; s.cursor = 0; s.stageUid = ''; focusFirstOpen();
       paint();
     },
   };
+  api.dispose = () => { alive = false; };
   return api;
 }
 
@@ -264,7 +288,7 @@ export const page = {
   title: '反馈录入',
   workbench: true,
   mount(root, ctx) {
-    ctl = createController(root, ctx);
+    ctl = createFeedbackController(root, ctx);
     const onPaste = event => ctl?.onPaste(event);
     document.addEventListener('paste', onPaste);
     const offs = [
@@ -278,7 +302,7 @@ export const page = {
     ];
     ctl.paint();
     ctl.refresh(); // 进入即拉最新 Session 进度（取代旧 enter 钩子 refreshSessions）
-    return () => { offs.forEach(off => off()); ctl = null; };
+    return () => { offs.forEach(off => off()); ctl?.dispose(); ctl = null; };
   },
   actions: {
     // data-change 挂在 select 的外层（ui/select 不收 action），值从事件目标读

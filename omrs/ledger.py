@@ -6,32 +6,36 @@ import sqlite3
 
 from .common import omrs_data_dir
 from .version import __version__
+from .vault_lifecycle import lease, generation, open_sqlite
 
 
-SCHEMA_VERSION = 1
-PROJECTOR_VERSION = "ledger-v1"
+SCHEMA_VERSION = 2
+PROJECTOR_VERSION = "ledger-v3"
 
 
 def ledger_path(vault: str) -> str:
     return os.path.join(omrs_data_dir(vault), "ledger.db")
 
 
-class ClosingConnection(sqlite3.Connection):
-    def __exit__(self, exc_type, exc, tb):
-        result = super().__exit__(exc_type, exc, tb)
-        self.close()
-        return result
-
-
 BUSY_TIMEOUT_MS = 5000
+_INITIALIZED = set()
 
 
 def connect(vault: str):
-    db = sqlite3.connect(ledger_path(vault), factory=ClosingConnection, timeout=BUSY_TIMEOUT_MS / 1000)
+    with lease(vault):
+        path = ledger_path(vault)
+    db = open_sqlite(vault, path, timeout=BUSY_TIMEOUT_MS / 1000)
     db.row_factory = sqlite3.Row
     db.execute(f"PRAGMA busy_timeout = {BUSY_TIMEOUT_MS}")
     db.execute("PRAGMA foreign_keys = ON")
-    init_db(db)
+    try:
+        identity = (os.path.realpath(vault), generation(vault), os.stat(path).st_ino)
+        if identity not in _INITIALIZED:
+            init_db(db)
+            _INITIALIZED.add(identity)
+    except BaseException:
+        db.close()
+        raise
     return db
 
 
@@ -70,8 +74,8 @@ def init_db(db):
 
         CREATE TABLE IF NOT EXISTS question_projection (
             question_id   TEXT PRIMARY KEY,
-            uid           TEXT NOT NULL UNIQUE,
-            file_path     TEXT NOT NULL UNIQUE,
+            uid           TEXT NOT NULL,
+            file_path     TEXT NOT NULL,
             subject       TEXT NOT NULL,
             category      TEXT NOT NULL,
             difficulty    INTEGER,
@@ -130,6 +134,41 @@ def init_db(db):
             created_at        TEXT NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS history_projection (
+            log_id TEXT PRIMARY KEY, question_id TEXT, uid TEXT, date TEXT,
+            recorded_at TEXT, review_date TEXT, sub_score INTEGER,
+            is_correct INTEGER, session_id TEXT, note TEXT,
+            commit_id TEXT, review_index INTEGER, legacy INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS history_question ON history_projection(question_id);
+        CREATE INDEX IF NOT EXISTS history_session ON history_projection(session_id, question_id);
+        CREATE INDEX IF NOT EXISTS history_date ON history_projection(review_date);
+        CREATE TABLE IF NOT EXISTS projection_meta (
+            id INTEGER PRIMARY KEY CHECK(id=1), last_seq INTEGER NOT NULL,
+            head_hash TEXT NOT NULL, policy_hash TEXT NOT NULL,
+            projector_version TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS active_config (
+            id INTEGER PRIMARY KEY CHECK(id=1), revision INTEGER NOT NULL,
+            config_json TEXT NOT NULL, mirror_hash TEXT NOT NULL,
+            mirror_pending INTEGER NOT NULL DEFAULT 0, previous_mirror_hash TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS projection_review_corrections (
+            review_key TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT '', replacement_json TEXT
+        );
+        CREATE TABLE IF NOT EXISTS projection_session_corrections (
+            session_id TEXT PRIMARY KEY, retracted INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS commits_draft_id
+            ON commits(json_extract(payload_json,'$._draft.draft_id'),seq DESC)
+            WHERE json_extract(payload_json,'$._draft.draft_id') IS NOT NULL;
+        CREATE TABLE IF NOT EXISTS content_version_refs (
+            question_id TEXT NOT NULL, content_hash TEXT NOT NULL, first_seq INTEGER NOT NULL,
+            PRIMARY KEY(question_id,content_hash)
+        );
+        CREATE INDEX IF NOT EXISTS content_versions_question_seq ON content_version_refs(question_id,first_seq);
+        CREATE TABLE IF NOT EXISTS storage_meta (key TEXT PRIMARY KEY,value TEXT NOT NULL);
+
         CREATE TABLE IF NOT EXISTS workspace_fingerprint (
             file_path     TEXT PRIMARY KEY,
             question_id   TEXT,
@@ -170,6 +209,27 @@ def init_db(db):
         db.execute(
             "ALTER TABLE question_projection ADD COLUMN created_at TEXT"
         )
+    schema = db.execute("SELECT sql FROM sqlite_master WHERE name='question_projection'").fetchone()[0]
+    if "NOT NULL UNIQUE" in schema:
+        # 投影是缓存；保留现有行后由完整 Ledger 重建被旧 REPLACE 挤掉的归档身份。
+        db.execute("ALTER TABLE question_projection RENAME TO question_projection_old")
+        db.execute(schema.replace("question_projection", "question_projection_new", 1).replace("NOT NULL UNIQUE", "NOT NULL"))
+        db.execute("INSERT INTO question_projection_new SELECT * FROM question_projection_old")
+        db.execute("DROP TABLE question_projection_old")
+        db.execute("ALTER TABLE question_projection_new RENAME TO question_projection")
+        db.execute("DELETE FROM projection_meta")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS active_question_uid ON question_projection(uid) WHERE archived=0")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS active_question_path ON question_projection(file_path) WHERE archived=0")
+    # 旧代码全量重写投影时不会更新新检查点。删除缓存行必须同时废止检查点，
+    # 否则再次升级会复用同一链头的快照，却把旧 SQL 缓存当成已发布状态。
+    for table in ("question_projection", "mastery_projection", "session_projection"):
+        trigger = f"{table}_invalidate_checkpoint"
+        if not db.execute("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?", (trigger,)).fetchone():
+            db.execute("DELETE FROM projection_meta")
+        db.execute(f"""CREATE TRIGGER IF NOT EXISTS {trigger}
+            AFTER DELETE ON {table}
+            WHEN EXISTS(SELECT 1 FROM projection_meta WHERE id=1)
+            BEGIN DELETE FROM projection_meta WHERE id=1; END""")
     mastery_columns = {
         row["name"] for row in db.execute("PRAGMA table_info(mastery_projection)").fetchall()
     }
@@ -181,7 +241,30 @@ def init_db(db):
         "INSERT OR IGNORE INTO workspace_scan_status "
         "(id, change_count, conflict_count, conflicts_json) VALUES (1, 0, 0, '[]')"
     )
+    if not db.execute("SELECT 1 FROM storage_meta WHERE key='content_refs_version' AND value='1'").fetchone():
+        for row in db.execute("SELECT seq,commit_type,payload_json FROM commits WHERE commit_type LIKE 'question.%' OR commit_type='legacy.bootstrap'"):
+            _record_content_refs(db, row["seq"], row["commit_type"], json.loads(row["payload_json"]))
+        db.execute("INSERT OR REPLACE INTO storage_meta VALUES('content_refs_version','1')")
     db.commit()
+
+
+def _record_content_refs(db, seq, kind, payload):
+    """正文引用是可重建索引；历史正文和提交内容保持不可变。"""
+    if kind == "legacy.bootstrap":
+        pairs = ((q.get("question_id"), q.get("content_hash")) for q in payload.get("questions", []))
+    elif kind in ("question.content_snapshot", "question.content_backfill"):
+        pairs = ((q.get("question_id"), q.get("content_hash")) for q in payload.get("items", []))
+    elif kind.startswith("question."):
+        question = payload.get("question") or payload
+        qid = payload.get("question_id") or question.get("question_id")
+        hashes = (payload.get("before_hash"), payload.get("after_hash"), payload.get("content_hash"),
+                  question.get("content_hash"), (payload.get("before") or {}).get("content_hash"),
+                  (payload.get("after") or {}).get("content_hash"))
+        pairs = ((qid, h) for h in hashes)
+    else:
+        return
+    db.executemany("INSERT OR IGNORE INTO content_version_refs VALUES(?,?,?)",
+                   ((qid, h, seq) for qid, h in pairs if qid and h))
 
 
 def canonical_json(value) -> str:
@@ -301,6 +384,7 @@ def append_commit_in_db(db, source: str, commit_type: str, message: str, payload
         commit_id = "GENESIS" if commit_type == "system.genesis" and seq == 1 else f"CMT-{seq:06d}"
         db.execute("UPDATE commits SET commit_id = ? WHERE seq = ?", (commit_id, seq))
         _store_blobs(db, blobs, created_at)
+        _record_content_refs(db, seq, commit_type, payload)
         if owned:
             db.commit()
     except BaseException:
@@ -388,40 +472,41 @@ def verify_ledger(vault: str) -> dict:
     head = None
     prev_hash = None
     expected_seq = None
+    count = 0
     with connect(vault) as db:
-        rows = db.execute("SELECT * FROM commits ORDER BY seq ASC").fetchall()
-    for row in rows:
-        if expected_seq is None:
+        for row in db.execute("SELECT * FROM commits ORDER BY seq ASC"):
+            count += 1
+            if expected_seq is None:
+                expected_seq = int(row["seq"])
+            elif int(row["seq"]) != expected_seq + 1:
+                errors.append(f"seq 不连续: {expected_seq} -> {row['seq']}")
             expected_seq = int(row["seq"])
-        elif int(row["seq"]) != expected_seq + 1:
-            errors.append(f"seq 不连续: {expected_seq} -> {row['seq']}")
-        expected_seq = int(row["seq"])
-        try:
-            payload = json.loads(row["payload_json"] or "{}")
-        except json.JSONDecodeError:
-            errors.append(f"{row['commit_id']} payload_json 无法解析")
-            payload = {}
-        if row["prev_hash"] != prev_hash:
-            errors.append(f"{row['commit_id']} prev_hash 不匹配")
-        expected_hash = compute_commit_hash(
-            row["prev_hash"],
-            row["created_at"],
-            row["source"],
-            row["commit_type"],
-            payload,
-        )
-        if row["commit_hash"] != expected_hash:
-            errors.append(f"{row['commit_id']} commit_hash 不匹配")
-        prev_hash = row["commit_hash"]
-        head = row
+            try:
+                payload = json.loads(row["payload_json"] or "{}")
+            except json.JSONDecodeError:
+                errors.append(f"{row['commit_id']} payload_json 无法解析")
+                payload = {}
+            if row["prev_hash"] != prev_hash:
+                errors.append(f"{row['commit_id']} prev_hash 不匹配")
+            expected_hash = compute_commit_hash(
+                row["prev_hash"],
+                row["created_at"],
+                row["source"],
+                row["commit_type"],
+                payload,
+            )
+            if row["commit_hash"] != expected_hash:
+                errors.append(f"{row['commit_id']} commit_hash 不匹配")
+            prev_hash = row["commit_hash"]
+            head = row
     with connect(vault) as db:
-        bad = [r["hash"] for r in db.execute("SELECT hash, content FROM blobs").fetchall()
+        bad = [r["hash"] for r in db.execute("SELECT hash, content FROM blobs")
                if blob_hash(r["content"]) != r["hash"]]
     errors += [f"blob {h[:12]} 内容与哈希不符" for h in bad]
     return {
         "status": "ok",
         "valid": not errors,
-        "commits": len(rows),
+        "commits": count,
         "head_commit_id": head["commit_id"] if head else "",
         "errors": errors,
     }

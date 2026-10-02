@@ -17,6 +17,8 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 from omrs import security
+sys.path.insert(0, os.path.join(ROOT, "tests"))
+from browser_runtime import open_app
 _spec = importlib.util.spec_from_file_location("visual_run", os.path.join(ROOT, "tests", "visual", "run.py"))
 visual = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(visual)
@@ -63,12 +65,12 @@ def run_checks(page, base, vault, results):
           and ev("!!document.querySelector('#panel-dashboard [data-dash-ready]')"))
     bad = []
     for pid, (title, workbench) in PAGES.items():
-        page.goto(f"{base}/#/{pid}", wait_until="networkidle")
+        open_app(page, base, pid)
         st = ev(STATE)
         if not (st["panel"] == f"panel-{pid}" and st["title"] == title and st["current"] == pid and st["workbench"] == workbench):
             bad.append(f"{pid}:{st}")
     check("12 个页面都能按地址直接进入（刷新停留）", not bad, "; ".join(bad[:2]))
-    page.goto(f"{base}/#/dashboard", wait_until="networkidle")
+    open_app(page, base)
     page.click('a.tab[data-tab="questions"]')
     check("点侧栏链接同步切页", ev(STATE)["panel"] == "panel-questions" and ev("location.hash") == "#/questions")
     page.click('a.tab[data-tab="board"]')
@@ -149,7 +151,7 @@ def run_mobile(browser, base, results):
     page = context.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
-    page.goto(f"{base}/#/questions", wait_until="networkidle")
+    open_app(page, base, "questions")
     title = page.evaluate("(() => { const t = document.getElementById('topbar-title'); return [t.textContent, t.clientWidth >= t.scrollWidth, Math.round(t.getBoundingClientRect().width)]; })()")
     buttons = page.evaluate("[...document.querySelectorAll('.topbar-action')].map(b => [Math.round(b.getBoundingClientRect().width), Math.round(b.getBoundingClientRect().height)])")
     results.append(("手机：标题完整不被按钮挤压", title[0] == "题目库" and title[1] and title[2] >= 120, str(title)))

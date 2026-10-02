@@ -245,7 +245,7 @@ class TryTests(unittest.TestCase):
             response = conn.getresponse(); response.read(); self.assertEqual(response.status,expected); conn.close()
         conn = http.client.HTTPConnection('127.0.0.1',port)
         conn.request('POST','/api/trainpanel/try',b'',{'Content-Length':str(20*1024*1024),'Content-Type':'multipart/form-data; boundary=test'})
-        response = conn.getresponse(); response.read(); self.assertEqual(response.status,400); conn.close()
+        response = conn.getresponse(); response.read(); self.assertEqual(response.status,413); conn.close()
 
     def test_detection_outside_write_lock_collection_inside(self):
         from unittest.mock import patch

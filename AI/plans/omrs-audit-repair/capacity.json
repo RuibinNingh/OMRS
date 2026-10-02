@@ -1,0 +1,1331 @@
+{
+  "data": {
+    "metadata": {
+      "vault": "/tmp/omrs-data-capacity-9vo3c3ep",
+      "build_seconds": 4.139056355226785,
+      "python": "3.13.5",
+      "platform": "Linux-6.12.86+deb13-amd64-x86_64-with-glibc2.41",
+      "cpu": "12th Gen Intel(R) Core(TM) i5-12400",
+      "questions": 10000,
+      "reviews": 100000,
+      "samples_per_action": 5,
+      "percentile_method": "nearest_rank"
+    },
+    "summaries": [
+      {
+        "kind": "summary",
+        "action": "cold",
+        "samples": 5,
+        "p50_seconds": 0.0859311823733151,
+        "p95_seconds": 0.09193022223189473,
+        "rss_p50_mib": 75.265625,
+        "rss_p95_mib": 75.3515625,
+        "rss_max_mib": 75.3515625,
+        "questions": 10000,
+        "reviews": 100000,
+        "corrections": 0
+      },
+      {
+        "kind": "summary",
+        "action": "startup",
+        "samples": 5,
+        "p50_seconds": 3.6663085659965873,
+        "p95_seconds": 3.720748064108193,
+        "rss_p50_mib": 115.140625,
+        "rss_p95_mib": 115.23828125,
+        "rss_max_mib": 115.23828125,
+        "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+        "questions": 10000,
+        "reviews": 100000,
+        "corrections": 0
+      },
+      {
+        "kind": "summary",
+        "action": "full",
+        "samples": 5,
+        "p50_seconds": 2.647396412678063,
+        "p95_seconds": 2.757438980974257,
+        "rss_p50_mib": 107.66796875,
+        "rss_p95_mib": 107.84765625,
+        "rss_max_mib": 107.84765625,
+        "questions": 10000,
+        "reviews": 100000,
+        "corrections": 0
+      },
+      {
+        "kind": "summary",
+        "action": "tuning",
+        "samples": 5,
+        "p50_seconds": 2.645393097307533,
+        "p95_seconds": 2.665360343642533,
+        "rss_p50_mib": 111.265625,
+        "rss_p95_mib": 111.375,
+        "rss_max_mib": 111.375,
+        "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+        "questions": 10000,
+        "reviews": 100000,
+        "corrections": 0
+      },
+      {
+        "kind": "summary",
+        "action": "correction",
+        "samples": 5,
+        "p50_seconds": 2.8415759094059467,
+        "p95_seconds": 2.896549711935222,
+        "rss_p50_mib": 118.19921875,
+        "rss_p95_mib": 119.08984375,
+        "rss_max_mib": 119.08984375,
+        "questions": 10000,
+        "reviews": 100000,
+        "corrections": 1
+      },
+      {
+        "kind": "summary",
+        "action": "correction-heavy",
+        "samples": 5,
+        "p50_seconds": 6.476541857235134,
+        "p95_seconds": 6.7220801478251815,
+        "rss_p50_mib": 117.4765625,
+        "rss_p95_mib": 118.34375,
+        "rss_max_mib": 118.34375,
+        "questions": 10000,
+        "reviews": 100000,
+        "corrections": 100000
+      },
+      {
+        "kind": "summary",
+        "action": "restore",
+        "samples": 5,
+        "p50_seconds": 2.7576662502251565,
+        "p95_seconds": 2.7864514379762113,
+        "rss_p50_mib": 119.33203125,
+        "rss_p95_mib": 119.5078125,
+        "rss_max_mib": 119.5078125,
+        "questions": 10000,
+        "reviews": 100000,
+        "corrections": 0
+      },
+      {
+        "kind": "summary",
+        "action": "read-models",
+        "samples": 5,
+        "p50_seconds": 1.6609649984166026,
+        "p95_seconds": 2.1908547189086676,
+        "rss_p50_mib": 191.13671875,
+        "rss_p95_mib": 191.28125,
+        "rss_max_mib": 191.28125,
+        "questions": 10000,
+        "reviews": 100000,
+        "corrections": 0
+      },
+      {
+        "kind": "summary",
+        "action": "csv",
+        "samples": 5,
+        "p50_seconds": 0.9484003786928952,
+        "p95_seconds": 1.0151861440390348,
+        "rss_p50_mib": 75.2890625,
+        "rss_p95_mib": 75.41796875,
+        "rss_max_mib": 75.41796875,
+        "questions": 10000,
+        "reviews": 100000,
+        "corrections": 0
+      }
+    ],
+    "feedback": {
+      "samples": 50,
+      "p50_ms": 1.5445307362824678,
+      "p95_ms": 2.498788759112358,
+      "questions": 10000,
+      "reviews": 100050,
+      "corrections": 0,
+      "action": "feedback",
+      "seconds": 0.1803093571215868,
+      "rss_mib": 74.4453125,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-ij0tym5e",
+        "--action",
+        "feedback"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 1
+    },
+    "max_rss_mib": 191.28125
+  },
+  "data_samples": [
+    {
+      "vault": "/tmp/omrs-data-capacity-9vo3c3ep",
+      "build_seconds": 4.139056355226785,
+      "python": "3.13.5",
+      "platform": "Linux-6.12.86+deb13-amd64-x86_64-with-glibc2.41",
+      "cpu": "12th Gen Intel(R) Core(TM) i5-12400",
+      "questions": 10000,
+      "reviews": 100000,
+      "samples_per_action": 5,
+      "percentile_method": "nearest_rank"
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "cold",
+      "seconds": 0.08480511885136366,
+      "rss_mib": 75.265625,
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "cold",
+      "seconds": 0.0859311823733151,
+      "rss_mib": 75.3515625,
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "cold",
+      "seconds": 0.09193022223189473,
+      "rss_mib": 75.3046875,
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "cold",
+      "seconds": 0.08553162822499871,
+      "rss_mib": 75.2578125,
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "cold",
+      "seconds": 0.08623309526592493,
+      "rss_mib": 75.1640625,
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "cold",
+      "samples": 5,
+      "p50_seconds": 0.0859311823733151,
+      "p95_seconds": 0.09193022223189473,
+      "rss_p50_mib": 75.265625,
+      "rss_p95_mib": 75.3515625,
+      "rss_max_mib": 75.3515625,
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "startup",
+      "seconds": 3.6616018400527537,
+      "rss_mib": 115.15234375,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-hlet0pv2",
+        "--action",
+        "startup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "startup",
+      "seconds": 3.6480860798619688,
+      "rss_mib": 114.98828125,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-io78c_1t",
+        "--action",
+        "startup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "startup",
+      "seconds": 3.684007320087403,
+      "rss_mib": 115.23828125,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-s1yna4pq",
+        "--action",
+        "startup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "startup",
+      "seconds": 3.720748064108193,
+      "rss_mib": 115.140625,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-d3ft7a7o",
+        "--action",
+        "startup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "startup",
+      "seconds": 3.6663085659965873,
+      "rss_mib": 115.0546875,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-anfx50zq",
+        "--action",
+        "startup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "startup",
+      "samples": 5,
+      "p50_seconds": 3.6663085659965873,
+      "p95_seconds": 3.720748064108193,
+      "rss_p50_mib": 115.140625,
+      "rss_p95_mib": 115.23828125,
+      "rss_max_mib": 115.23828125,
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "full",
+      "seconds": 2.6496211662888527,
+      "rss_mib": 107.64453125,
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "full",
+      "seconds": 2.647396412678063,
+      "rss_mib": 107.65234375,
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "full",
+      "seconds": 2.594828170724213,
+      "rss_mib": 107.66796875,
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "full",
+      "seconds": 2.757438980974257,
+      "rss_mib": 107.84765625,
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "full",
+      "seconds": 2.610787384212017,
+      "rss_mib": 107.72265625,
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "full",
+      "samples": 5,
+      "p50_seconds": 2.647396412678063,
+      "p95_seconds": 2.757438980974257,
+      "rss_p50_mib": 107.66796875,
+      "rss_p95_mib": 107.84765625,
+      "rss_max_mib": 107.84765625,
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0
+    },
+    {
+      "config_revision": 2,
+      "recalculation": {
+        "feedbacks": 100000,
+        "policy_hash": "5e3b58d48058851624d657f957dbd2e958208d736ca54d2ba7deb0a9d9243ae7",
+        "projection_version": "ledger-v3",
+        "questions": 10000,
+        "revision": 2,
+        "seconds": 2.449721,
+        "status": "complete"
+      },
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "tuning",
+      "seconds": 2.5953193828463554,
+      "rss_mib": 111.3359375,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-5bdogdw0",
+        "--action",
+        "tuning"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "config_revision": 2,
+      "recalculation": {
+        "feedbacks": 100000,
+        "policy_hash": "5e3b58d48058851624d657f957dbd2e958208d736ca54d2ba7deb0a9d9243ae7",
+        "projection_version": "ledger-v3",
+        "questions": 10000,
+        "revision": 2,
+        "seconds": 2.504302,
+        "status": "complete"
+      },
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "tuning",
+      "seconds": 2.665360343642533,
+      "rss_mib": 111.1796875,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-p7gewo_x",
+        "--action",
+        "tuning"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "config_revision": 2,
+      "recalculation": {
+        "feedbacks": 100000,
+        "policy_hash": "5e3b58d48058851624d657f957dbd2e958208d736ca54d2ba7deb0a9d9243ae7",
+        "projection_version": "ledger-v3",
+        "questions": 10000,
+        "revision": 2,
+        "seconds": 2.491359,
+        "status": "complete"
+      },
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "tuning",
+      "seconds": 2.645393097307533,
+      "rss_mib": 111.375,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-uub4xy8t",
+        "--action",
+        "tuning"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "config_revision": 2,
+      "recalculation": {
+        "feedbacks": 100000,
+        "policy_hash": "5e3b58d48058851624d657f957dbd2e958208d736ca54d2ba7deb0a9d9243ae7",
+        "projection_version": "ledger-v3",
+        "questions": 10000,
+        "revision": 2,
+        "seconds": 2.464177,
+        "status": "complete"
+      },
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "tuning",
+      "seconds": 2.616091770119965,
+      "rss_mib": 111.1328125,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-hj74f00e",
+        "--action",
+        "tuning"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "config_revision": 2,
+      "recalculation": {
+        "feedbacks": 100000,
+        "policy_hash": "5e3b58d48058851624d657f957dbd2e958208d736ca54d2ba7deb0a9d9243ae7",
+        "projection_version": "ledger-v3",
+        "questions": 10000,
+        "revision": 2,
+        "seconds": 2.505164,
+        "status": "complete"
+      },
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "tuning",
+      "seconds": 2.6566054429858923,
+      "rss_mib": 111.265625,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-_af_r9fp",
+        "--action",
+        "tuning"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "tuning",
+      "samples": 5,
+      "p50_seconds": 2.645393097307533,
+      "p95_seconds": 2.665360343642533,
+      "rss_p50_mib": 111.265625,
+      "rss_p95_mib": 111.375,
+      "rss_max_mib": 111.375,
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 1,
+      "action": "correction",
+      "seconds": 2.896549711935222,
+      "rss_mib": 119.08984375,
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 1,
+      "action": "correction",
+      "seconds": 2.8415759094059467,
+      "rss_mib": 118.10546875,
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 1,
+      "action": "correction",
+      "seconds": 2.8335197479464114,
+      "rss_mib": 118.19921875,
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 1,
+      "action": "correction",
+      "seconds": 2.6367579442448914,
+      "rss_mib": 119.02734375,
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 1,
+      "action": "correction",
+      "seconds": 2.8667028062045574,
+      "rss_mib": 118.0703125,
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "correction",
+      "samples": 5,
+      "p50_seconds": 2.8415759094059467,
+      "p95_seconds": 2.896549711935222,
+      "rss_p50_mib": 118.19921875,
+      "rss_p95_mib": 119.08984375,
+      "rss_max_mib": 119.08984375,
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 1
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 100000,
+      "action": "correction-heavy",
+      "seconds": 6.429187526926398,
+      "rss_mib": 117.0234375,
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 100000,
+      "action": "correction-heavy",
+      "seconds": 6.476541857235134,
+      "rss_mib": 118.1171875,
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 100000,
+      "action": "correction-heavy",
+      "seconds": 6.370869921986014,
+      "rss_mib": 117.171875,
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 100000,
+      "action": "correction-heavy",
+      "seconds": 6.56742198811844,
+      "rss_mib": 117.4765625,
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 100000,
+      "action": "correction-heavy",
+      "seconds": 6.7220801478251815,
+      "rss_mib": 118.34375,
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "correction-heavy",
+      "samples": 5,
+      "p50_seconds": 6.476541857235134,
+      "p95_seconds": 6.7220801478251815,
+      "rss_p50_mib": 117.4765625,
+      "rss_p95_mib": 118.34375,
+      "rss_max_mib": 118.34375,
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 100000
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "restore",
+      "seconds": 2.7864514379762113,
+      "rss_mib": 119.33203125,
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "restore",
+      "seconds": 2.7576662502251565,
+      "rss_mib": 119.5078125,
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "restore",
+      "seconds": 2.6791234822012484,
+      "rss_mib": 119.3984375,
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "restore",
+      "seconds": 2.762874542735517,
+      "rss_mib": 119.15625,
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "restore",
+      "seconds": 2.6696816692128778,
+      "rss_mib": 119.22265625,
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "restore",
+      "samples": 5,
+      "p50_seconds": 2.7576662502251565,
+      "p95_seconds": 2.7864514379762113,
+      "rss_p50_mib": 119.33203125,
+      "rss_p95_mib": 119.5078125,
+      "rss_max_mib": 119.5078125,
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0
+    },
+    {
+      "samples": 50,
+      "p50_ms": 1.5445307362824678,
+      "p95_ms": 2.498788759112358,
+      "questions": 10000,
+      "reviews": 100050,
+      "corrections": 0,
+      "action": "feedback",
+      "seconds": 0.1803093571215868,
+      "rss_mib": 74.4453125,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_data_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-ij0tym5e",
+        "--action",
+        "feedback"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "read-models",
+      "seconds": 1.6609649984166026,
+      "rss_mib": 191.2421875,
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "read-models",
+      "seconds": 1.5766602871008217,
+      "rss_mib": 191.13671875,
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "read-models",
+      "seconds": 1.522781951352954,
+      "rss_mib": 191.28125,
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "read-models",
+      "seconds": 1.6651397231034935,
+      "rss_mib": 191.07421875,
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "read-models",
+      "seconds": 2.1908547189086676,
+      "rss_mib": 191.00390625,
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "read-models",
+      "samples": 5,
+      "p50_seconds": 1.6609649984166026,
+      "p95_seconds": 2.1908547189086676,
+      "rss_p50_mib": 191.13671875,
+      "rss_p95_mib": 191.28125,
+      "rss_max_mib": 191.28125,
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "csv",
+      "seconds": 1.0151861440390348,
+      "rss_mib": 75.33203125,
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "csv",
+      "seconds": 0.9484003786928952,
+      "rss_mib": 75.2421875,
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "csv",
+      "seconds": 0.9460239917971194,
+      "rss_mib": 75.41796875,
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "csv",
+      "seconds": 0.977286749985069,
+      "rss_mib": 75.2890625,
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0,
+      "action": "csv",
+      "seconds": 0.6768558160401881,
+      "rss_mib": 75.26953125,
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "csv",
+      "samples": 5,
+      "p50_seconds": 0.9484003786928952,
+      "p95_seconds": 1.0151861440390348,
+      "rss_p50_mib": 75.2890625,
+      "rss_p95_mib": 75.41796875,
+      "rss_max_mib": 75.41796875,
+      "questions": 10000,
+      "reviews": 100000,
+      "corrections": 0
+    }
+  ],
+  "backup_restore_server_samples": [
+    {
+      "frozen_seconds": 1.611409603152424,
+      "archive_bytes": 16025309,
+      "action": "backup",
+      "seconds": 2.770916515029967,
+      "rss_mib": 77.20703125,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-0jbzrl0i",
+        "--action",
+        "backup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "frozen_seconds": 1.616961954627186,
+      "archive_bytes": 16025308,
+      "action": "backup",
+      "seconds": 2.7787076579406857,
+      "rss_mib": 77.23046875,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-4soqytyy",
+        "--action",
+        "backup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "frozen_seconds": 1.6190500548109412,
+      "archive_bytes": 16025307,
+      "action": "backup",
+      "seconds": 2.7807904141955078,
+      "rss_mib": 77.22265625,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-uv_2s83h",
+        "--action",
+        "backup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "frozen_seconds": 1.6324854977428913,
+      "archive_bytes": 16025309,
+      "action": "backup",
+      "seconds": 2.7937217890284956,
+      "rss_mib": 77.15234375,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-8_bch8me",
+        "--action",
+        "backup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "frozen_seconds": 1.6119455778971314,
+      "archive_bytes": 16025309,
+      "action": "backup",
+      "seconds": 2.774459126405418,
+      "rss_mib": 77.2578125,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-l9n17pv7",
+        "--action",
+        "backup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "backup",
+      "samples": 5,
+      "p50_seconds": 2.7787076579406857,
+      "p95_seconds": 2.7937217890284956,
+      "rss_p50_mib": 77.22265625,
+      "rss_p95_mib": 77.2578125,
+      "rss_max_mib": 77.2578125,
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "peak_rss_mib": 77.2578125,
+      "freeze_p50_seconds": 1.616961954627186,
+      "freeze_p95_seconds": 1.6324854977428913
+    },
+    {
+      "prepare_seconds": 5.652874486055225,
+      "restore_seconds": 2.748762896284461,
+      "questions": 10000,
+      "action": "restore",
+      "seconds": 11.221824591979384,
+      "rss_mib": 186.31640625,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-i2j7km27",
+        "--action",
+        "restore"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "prepare_seconds": 5.675363728776574,
+      "restore_seconds": 2.828595379833132,
+      "questions": 10000,
+      "action": "restore",
+      "seconds": 11.353071697987616,
+      "rss_mib": 185.91796875,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-_a0y17nz",
+        "--action",
+        "restore"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "prepare_seconds": 5.684256038162857,
+      "restore_seconds": 2.748412505723536,
+      "questions": 10000,
+      "action": "restore",
+      "seconds": 11.292239773087204,
+      "rss_mib": 186.171875,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-s425cyz2",
+        "--action",
+        "restore"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "prepare_seconds": 5.630868820939213,
+      "restore_seconds": 2.7423914670944214,
+      "questions": 10000,
+      "action": "restore",
+      "seconds": 11.157963091973215,
+      "rss_mib": 186.41796875,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-g1qhh_n1",
+        "--action",
+        "restore"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "prepare_seconds": 5.532905841711909,
+      "restore_seconds": 2.7214721855707467,
+      "questions": 10000,
+      "action": "restore",
+      "seconds": 11.062029759865254,
+      "rss_mib": 186.51171875,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-cm07o8v8",
+        "--action",
+        "restore"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "restore",
+      "samples": 5,
+      "p50_seconds": 11.221824591979384,
+      "p95_seconds": 11.353071697987616,
+      "rss_p50_mib": 186.31640625,
+      "rss_p95_mib": 186.51171875,
+      "rss_max_mib": 186.51171875,
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "peak_rss_mib": 186.51171875,
+      "freeze_p50_seconds": null
+    },
+    {
+      "server_rss_mib": 275.578125,
+      "startup_seconds": 3.780932008754462,
+      "stats_seconds": 1.4824734306894243,
+      "items": 10000,
+      "action": "startup",
+      "seconds": 5.2787792650051415,
+      "rss_mib": 63.58203125,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-ltnkb7zj",
+        "--action",
+        "startup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 1
+    },
+    {
+      "server_rss_mib": 275.546875,
+      "startup_seconds": 3.730292793828994,
+      "stats_seconds": 1.5608524498529732,
+      "items": 10000,
+      "action": "startup",
+      "seconds": 5.3065225048922,
+      "rss_mib": 63.484375,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-r7txofq0",
+        "--action",
+        "startup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 2
+    },
+    {
+      "server_rss_mib": 275.27734375,
+      "startup_seconds": 3.8314542500302196,
+      "stats_seconds": 1.5446832128800452,
+      "items": 10000,
+      "action": "startup",
+      "seconds": 5.391647391952574,
+      "rss_mib": 63.46875,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-gnw0i47o",
+        "--action",
+        "startup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 3
+    },
+    {
+      "server_rss_mib": 275.44140625,
+      "startup_seconds": 3.780691751744598,
+      "stats_seconds": 1.530273474752903,
+      "items": 10000,
+      "action": "startup",
+      "seconds": 5.326377633959055,
+      "rss_mib": 63.52734375,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-31fihbfh",
+        "--action",
+        "startup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 4
+    },
+    {
+      "server_rss_mib": 275.3515625,
+      "startup_seconds": 3.731398183852434,
+      "stats_seconds": 1.6012557079084218,
+      "items": 10000,
+      "action": "startup",
+      "seconds": 5.348104922100902,
+      "rss_mib": 63.4296875,
+      "command": [
+        "/usr/bin/python3",
+        "/root/workspace/apps/OMRS/tests/bench_backup_runtime.py",
+        "--vault",
+        "/tmp/omrs-data-capacity-sample-qyzcyd6e",
+        "--action",
+        "startup"
+      ],
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "kind": "sample",
+      "sample": 5
+    },
+    {
+      "kind": "summary",
+      "action": "startup",
+      "samples": 5,
+      "p50_seconds": 5.326377633959055,
+      "p95_seconds": 5.391647391952574,
+      "rss_p50_mib": 275.44140625,
+      "rss_p95_mib": 275.578125,
+      "rss_max_mib": 275.578125,
+      "measurement_source": "最终配置事务、增量反馈事务与不写CSV启动冻结后复测",
+      "peak_rss_mib": 275.578125,
+      "freeze_p50_seconds": null
+    }
+  ],
+  "backup_restore_server_phase_summaries": {
+    "backup": {
+      "frozen_seconds": {
+        "samples": 5,
+        "p50_seconds": 1.616961954627186,
+        "p95_seconds": 1.6324854977428913
+      }
+    },
+    "restore": {
+      "prepare_seconds": {
+        "samples": 5,
+        "p50_seconds": 5.652874486055225,
+        "p95_seconds": 5.684256038162857
+      },
+      "restore_seconds": {
+        "samples": 5,
+        "p50_seconds": 2.748412505723536,
+        "p95_seconds": 2.828595379833132
+      }
+    },
+    "startup": {
+      "startup_seconds": {
+        "samples": 5,
+        "p50_seconds": 3.780691751744598,
+        "p95_seconds": 3.8314542500302196
+      },
+      "stats_seconds": {
+        "samples": 5,
+        "p50_seconds": 1.5446832128800452,
+        "p95_seconds": 1.6012557079084218
+      }
+    }
+  },
+  "remeasurement_provenance": {
+    "reason": "最终配置同事务发布摘要、增量反馈事务与不写CSV启动冻结后复测；仅替换受影响路径",
+    "metadata": {
+      "vault": "/tmp/omrs-data-capacity-final-config-r6etnckl",
+      "build_seconds": 3.9840433560311794,
+      "python": "3.13.5",
+      "platform": "Linux-6.12.86+deb13-amd64-x86_64-with-glibc2.41",
+      "cpu": "12th Gen Intel(R) Core(TM) i5-12400",
+      "questions": 10000,
+      "reviews": 100000,
+      "samples_per_action": 5,
+      "percentile_method": "nearest_rank",
+      "measured_at": "2026-10-02T17:34:29.429064+00:00",
+      "source_hashes": {
+        "omrs/config_repository.py": "9f1a9e7d115698fd7ad85ba05d833e3389b2217c04d6c72d9d922d2d6e300d85",
+        "omrs/feedback.py": "eefafaf38ce0dc11f2ee37b0a1d029f0dd29cd8ce7bf30e9deb88fef0845c638",
+        "omrs/projection_runtime.py": "400f68e89bd0c7ff546af85438538556330ca8e22bcd6a6ef20ea5cd0d8afb60",
+        "omrs/indexing.py": "34a30ae815629217e1a64ee50c269607b74c1e6ef1e3216a75fe35ea999e4f87",
+        "omrs/cli.py": "b5f50334eb27b92eaf78479529554e278061cdb247d12ac6ef5ceee61728e793",
+        "omrs/server.py": "4516f0748d38a347f533b115dfa41d2447ec3ac59357773ac2d7e9659a4ca615",
+        "omrs/http_io.py": "4abcba6f7a44c5e7b5e96ca34434eecda6673f65d6df96a2a788c5a3bfbf309f",
+        "omrs/common.py": "44d6e5ab80c4d6eeaeb342a08f3be40712d036c03151e08d711a067edf9a134a",
+        "omrs/ledger.py": "9ea2f4fa3419fd7f1bb5908b5472df802222201f54551a40b6073e7170ff008a",
+        "omrs/projections.py": "49f073a01d52da08ab453a207cd31789a271d0f72867688d746bf9615e54326e",
+        "omrs/backup_store.py": "00d851684a4eb8f0b36a34e95bf56e316ee1f77ee52969c0908270fb5179b6dc",
+        "omrs/uploads.py": "c8ed7cb38a82421dc4b6648670d6d2fb66219b971609f5e99aa213033be93d4f",
+        "omrs/http/core.py": "4b730e89475fbbcb36e730ff8fd7c6c8450c6debc552df89b97d781b3640ce97",
+        "omrs/http/media.py": "41f1bf35254b8680ad6442e4d9f30dbf8711456af0e86082622732cae6fdec97",
+        "tests/bench_data_runtime.py": "935381337014229a794c5c705044ec6e29bedc460228b83bb5f68bdeae6f66c8",
+        "tests/bench_backup_runtime.py": "585b253f16e42a6e0d1d39ab2f20d934e472f8c94fb5fe4ba0509b2c1f477dff"
+      }
+    },
+    "completed_at": "2026-10-02T17:42:26.025149+00:00",
+    "source_hashes_verified_before_and_after": true,
+    "baseline_removed": true,
+    "replaced_data_actions": [
+      "tuning",
+      "startup",
+      "feedback"
+    ],
+    "retained_data_actions": [
+      "cold",
+      "full",
+      "correction",
+      "correction-heavy",
+      "restore",
+      "read-models",
+      "csv"
+    ],
+    "replaced_backup_restore_server_actions": [
+      "backup",
+      "restore",
+      "startup"
+    ],
+    "raw_results": {
+      "/tmp/omrs-data-capacity-config-final.jsonl": "e1755aff238ef6b87699af018d74dc94e4ecc9303d97bd9986f07888f771fa39",
+      "/tmp/omrs-backup-capacity-config-final.jsonl": "f96482ec7cef6fd3255fc44123bf78646e37293e816d41d64c3fca7d86a3074e",
+      "/tmp/omrs-capacity-config-final-provenance.json": "1023f07658baf0c17fbcff1fd7e061027443844df65b04aab484f9d128435a2c"
+    },
+    "measurement_notes": [
+      "26个独立clone来自同一10000题／100000反馈基线；5条路径各测5个样本，反馈在另一个独立clone内部测50次。",
+      "每样本复制与夹具构建不计入路径耗时，独立进程VmHWM记录RSS；5样本P95为最近秩最大值。",
+      "restore总耗时包含创建备份、预检和实际交换／初始化；各子阶段单列。",
+      "HTTP startup总耗时包含等待就绪、一次统计请求及停止进程；就绪与统计请求单列。",
+      "普通反馈测试禁止full_project；调参摘要必须与同次配置revision、实际题数和反馈数一致。",
+      "保留路径来自原容量轮次，未伪装为最终配置轮次的新结果。"
+    ]
+  }
+}

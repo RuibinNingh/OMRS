@@ -30,6 +30,7 @@ export function createState() {
     submitError: '',
     lastSubmit: [], // /api/feedback 的 results
     cardId: '', attemptId: '', cardTitle: '', unavailable: [], chatDeleted: false, progressSeq: 0,
+    roundVersion: 0,
   };
 }
 
@@ -139,8 +140,8 @@ export function submitRows(s) {
   }).map(item => {
     const row = s.results[item.uid];
     return {
-      uid: item.uid,
-      ...(s.attemptId ? { question_id: item.question_id, entry_id: item.question_id } : {}),
+      ...(item.question_id ? { question_id: item.question_id } : { uid: item.uid }),
+      ...(s.attemptId ? { entry_id: item.question_id } : {}),
       sub_score: row.score == null ? defaultScore(row.correct) : row.score,
       is_correct: row.correct,
       source: item._source || 'due',
@@ -152,13 +153,15 @@ export function submitRows(s) {
 export function markSubmitted(s, rows) {
   rows.forEach(row => {
     if (row.status && row.status !== 'ok') return;
-    const item = s.queue.find(i => s.attemptId && i.question_id === row.question_id) || s.queue.find(i => i.uid === row.uid);
+    const item = s.queue.find(i => row.question_id && i.question_id === row.question_id) || s.queue.find(i => i.uid === row.uid);
     if (item) resultOf(s, item.uid).submitted = true;
   });
 }
 
 /** 开始一轮新的练习（载入新队列）。 */
 export function startRound(s, queue, now = new Date()) {
+  s.roundVersion = (s.roundVersion || 0) + 1;
+  s.submitting = false;
   s.queue = queue;
   s.index = 0;
   s.results = {};

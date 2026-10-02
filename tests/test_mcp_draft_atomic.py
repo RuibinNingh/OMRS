@@ -85,7 +85,7 @@ class MCPAtomicDraftTests(unittest.TestCase):
                 role = threading.local()
                 real_connect, real_lock = sqlite3.connect, locking.write_lock
 
-                class PausedConnection(sqlite3.Connection):
+                class PausedConnection(__import__("omrs.vault_lifecycle", fromlist=["_Connection"])._Connection):
                     def execute(self, sql, *args, **kwargs):
                         cursor = super().execute(sql, *args, **kwargs)
                         if sql == "PRAGMA table_info(drafts)" and getattr(role, "name", "") == "first":
@@ -111,7 +111,7 @@ class MCPAtomicDraftTests(unittest.TestCase):
                             # 未修复入口没有取锁，第二连接完成迁移后再释放首连接。
                             checkpoint.set()
 
-                with mock.patch.object(drafts.sqlite3, "connect", side_effect=lambda *a, **kw: real_connect(*a, **kw, factory=PausedConnection)), \
+                with mock.patch.object(drafts.sqlite3, "connect", side_effect=lambda *a, **kw: real_connect(*a, **{**kw, "factory": PausedConnection})), \
                         mock.patch.object(locking, "write_lock", side_effect=observed_lock), \
                         ThreadPoolExecutor(max_workers=2) as pool:
                     first = pool.submit(query, "first")
@@ -140,7 +140,7 @@ class MCPAtomicDraftTests(unittest.TestCase):
             closed = threading.Event()
             real_connect = sqlite3.connect
 
-            class BrokenConnection(sqlite3.Connection):
+            class BrokenConnection(__import__("omrs.vault_lifecycle", fromlist=["_Connection"])._Connection):
                 def executescript(self, *_args):
                     raise sqlite3.OperationalError("测试迁移中断")
 
@@ -148,7 +148,7 @@ class MCPAtomicDraftTests(unittest.TestCase):
                     closed.set()
                     super().close()
 
-            with mock.patch.object(drafts.sqlite3, "connect", side_effect=lambda *a, **kw: real_connect(*a, **kw, factory=BrokenConnection)):
+            with mock.patch.object(drafts.sqlite3, "connect", side_effect=lambda *a, **kw: real_connect(*a, **{**kw, "factory": BrokenConnection})):
                 with self.assertRaisesRegex(sqlite3.OperationalError, "迁移中断"):
                     drafts.connect(vault)
             self.assertTrue(closed.is_set())

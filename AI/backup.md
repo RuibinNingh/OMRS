@@ -1,0 +1,46 @@
+# 全库备份与恢复
+
+> **速查**
+> - 职责：独立数据库一致捕获、备份预检、可恢复目录交换与启动恢复
+> - 入口：`omrs/backup_store.py`、`omrs/vault_lifecycle.py`、`omrs/optimization.py`、`omrs/cli.py`
+> - 不变量：提交标记前保留旧库，标记后保留新库；维护 journal 位于被交换目录之外；数据库采用 SQLite 在线快照
+> - 必跑测试：`tests/test_backup_recovery.py`、`tests/test_migration_compat.py`、`tests/bench_backup_runtime.py`
+> - 相关：`AI/api.md`、`AI/data.md`、`AI/security.md`、`AI/ledger.md`
+
+## 屏障与锁顺序
+
+所有 Vault 磁盘入口先取得生命周期租约，再取得业务写锁、模块锁及数据库事务。`open_sqlite` 把租约保持到连接关闭；嵌套租约引用计数允许连接按任意顺序关闭。线程共享／独占屏障与跨进程文件锁共同保护目录交换。维护从没有普通租约的入口开始，禁止共享锁升级。模型请求、压缩计算、轮询和下载发送不持业务写锁；后台任务捕获 Vault 世代，每次短磁盘操作重新核对。
+
+维护目录位于 Vault 根的 `.omrs-maintenance/`，不随 `错题/` 被恢复。`generation.json`、`storage.lock`、恢复预检和 `restore-journal.json` 在这里；维护目录、交换目录与备份文件不接受符号链接。恢复增加世代，旧后台扫描、草稿提取、收件箱任务和助手运行无法将迟到结果写到新库。恢复废止 Web 会话、上传引用、确认和相关缓存，客户端重新读取题库；受管检测操作进行中拒绝目录恢复。
+
+## 创建备份
+
+在独占屏障和业务写锁内更新按需 CSV、捕获普通文件清单，并对所有可识别 SQLite 文件调用 `Connection.backup()`，包含 Ledger、助手、草稿、收件箱、标注、运行记录与 MCP 技术库。备份不直接打包活动 WAL／SHM。数据库快照执行完整性检查；清单记录每个文件的路径、大小、SHA256、数据库版本和快照编号。
+
+普通文件逐块复制到 staging。复制前后核对文件身份、修改时间及内容；数据库通过持久只读连接的 `data_version` 检测外部并发改动。外部编辑器不受租约约束，检测到变化最多重试两次，仍不稳定时明确失败。屏障释放后从磁盘 staging 压缩成临时 ZIP，HTTP 按块发送并删除临时 ZIP，不累计整个归档到内存。冻结时间单独记录。
+
+## 导入预检
+
+导入接受旧 ZIP、multipart 或完成的分块上传引用。ZIP 只接受 `错题/` 顶层，不允许路径穿越、重复大小写或 Unicode 归一化冲突、链接和特殊文件；展开上限 32 GiB／20 万条目（含目录），同时核对可用磁盘空间。逐文件解压校验 CRC，新格式另核对哈希清单和文件集合。
+
+上传引用必须属于当前操作者且用途为backup；安全打开普通非链接原件，锁外分块复制并核对完成时SHA256和长度，复制结束再用短租约复查世代、期限和身份。同长度篡改也拒绝预检；临时副本无论成功或失败均清理。正式恢复只接受JSON布尔 `confirm:true`，字符串或数值不能代替确认。
+
+复制发现源文件持续增长时，在写入下一块前按已完成的声明字节数拒绝，不能超量暂存。JSON引用元数据受普通JSON限额约束，raw ZIP/multipart使用独立备份传输限额。
+
+预检在目标 Vault 同一文件系统 staging 内归一化数据库，验证 Ledger 链，初始化配置并补齐未完成逐卡回执，再扫描题目。完成后刷盘并固定 staging 内容摘要及目录身份。正式恢复前再次核对。预检 ID 有效期一小时；同一世代之外的预检不得恢复。
+
+旧 ZIP 仍能导入，但缺失的 WAL 或历史文件若没有可信清单，无法凭一个可打开的数据库证明完整；接口通过 `manifest_verified:false` 区分，不能称为已验证的完整历史快照。
+
+## 目录交换与中断恢复
+
+journal 使用原子替换与文件、目录刷盘，顺序为 `prepared → old_moved → new_installed → committed`。旧目录保存在同文件系统操作目录中，新目录安装后在可回退阶段初始化运行库、配置与当前参数投影，通过后才写提交标记。
+
+提交标记前任何异常回旧目录；进程在 rename 与下次 journal 写入之间中断，也按目录身份恢复。提交后保留新目录；旧目录清理失败返回 `cleanup_pending`，journal 保留到下次启动重试。无法证明目录身份、存在目录冲突或损坏 journal 时拒绝启动，保留所有材料，不创建空题库掩盖问题。
+
+CLI 在读取配置、初始化数据库、补齐回执和扫描之前调用启动恢复。只读正文盘点遇到待恢复 journal 拒绝执行。Schema 迁移后不能只回退源码；本次发布的升级与回滚演练及后续新增数据保留方式见计划目录中的发布材料。
+
+## 验证
+
+`tests/test_backup_recovery.py` 验证独立库 WAL 已提交行、嵌套连接与跨进程屏障、旧任务世代、所有 journal 阶段、rename／fsync 故障、交换间隙进程中断、预检篡改、提交后清理失败与重试。`tests/test_inbox_atomic_commit.py` 验证入库事实和回执故障补齐。
+
+容量命令：`python3 tests/bench_backup_runtime.py --vault <临时合成题库> --samples 5`。题库由 `tests/bench_data_runtime.py --keep` 生成，必须含真实 Markdown 与正文 blob。报告实际样本数、P50／P95、峰值 RSS 与冻结时间；禁止连接真实 Vault。

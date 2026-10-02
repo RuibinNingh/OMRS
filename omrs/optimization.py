@@ -1,5 +1,6 @@
+from .vault_lifecycle import storage, open_sqlite, lease, task, generation
 import datetime
-import io
+import hashlib
 import json
 import os
 import shutil
@@ -9,7 +10,6 @@ import tempfile
 import threading
 import time
 import uuid
-import zipfile
 
 from .common import ATTACHMENTS_DIR, OMRS_DIR, omrs_data_dir, questions_root
 
@@ -18,7 +18,6 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 _SCANS = {}
 _JOBS = {}
 _BACKUP_TOKENS = {}
-_RESTORES = {}
 _LOCK = threading.Lock()
 
 
@@ -100,6 +99,7 @@ def _image_files(vault):
     ]
 
 
+@storage
 def _append_audit(vault, action, detail):
     record = {"time": _now(), "action": action, **detail}
     path = os.path.join(omrs_data_dir(vault), "optimization_log.jsonl")
@@ -181,6 +181,7 @@ def _public_job(job):
     return public
 
 
+@storage
 def storage_summary(vault):
     data_files = _active_omrs_files(vault)
     question_files = _question_non_image_files(vault)
@@ -271,6 +272,7 @@ def _candidate_for_file(path, root):
             pass
 
 
+@storage
 def scan_compression(vault):
     root = questions_root(vault)
     files = _image_files(vault)
@@ -289,12 +291,17 @@ def scan_compression(vault):
     }
     with _LOCK:
         _JOBS[job_id] = job
-    thread = threading.Thread(target=_run_quick_scan_job, args=(vault, job_id, files), daemon=True)
+    thread = threading.Thread(target=_run_quick_scan_job, args=(vault, job_id, files, generation(vault)), daemon=True)
     thread.start()
     return {"status": "ok", "job": job}
 
 
-def _run_quick_scan_job(vault, job_id, files):
+def _run_quick_scan_job(vault, job_id, files, expected_generation=None):
+    with task(vault, expected_generation):
+        return _run_quick_scan_job_current(vault, job_id, files)
+
+
+def _run_quick_scan_job_current(vault, job_id, files):
     root = questions_root(vault)
     started = time.time()
     deps = dependency_status()
@@ -353,7 +360,7 @@ def _run_quick_scan_job(vault, job_id, files):
         "ext_counts": ext_counts,
         "errors": [],
     }
-    with _LOCK:
+    with lease(vault), _LOCK:
         _SCANS[scan_id] = {**result, "files_full": potential, "expires_at": time.time() + 3600}
     _set_job(job_id, status="completed", done=True, completed_at=_now(), current_file="", result=result)
     _append_audit(vault, "quick_scan", {
@@ -366,129 +373,25 @@ def _run_quick_scan_job(vault, job_id, files):
 
 
 def create_backup_export(vault):
-    root = questions_root(vault)
-    if not os.path.isdir(root):
-        raise ValueError(f"错题目录不存在: {root}")
-    stamp = _stamp()
-    filename = f"OMRS-backup-{stamp}.zip"
-    token = "backup-" + uuid.uuid4().hex
-    buffer = io.BytesIO()
-    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        for current, dirs, files in os.walk(root):
-            dirs[:] = [name for name in dirs if name != "__pycache__"]
-            for name in files:
-                path = os.path.join(current, name)
-                arcname = os.path.join(os.path.basename(root), os.path.relpath(path, root)).replace("\\", "/")
-                archive.write(path, arcname)
-    payload = buffer.getvalue()
+    from .backup_store import create_backup
+    path, filename, token, frozen = create_backup(vault)
+    size = os.path.getsize(path)
     with _LOCK:
-        _BACKUP_TOKENS[token] = {"created_at": time.time(), "filename": filename, "bytes": len(payload)}
-    _append_audit(vault, "backup.export", {"filename": filename, "bytes": len(payload), "token": token[-8:]})
-    return payload, filename, token
-
-
-def _valid_zip_name(name):
-    normalized = name.replace("\\", "/")
-    if normalized.startswith("/") or normalized.startswith("../") or "/../" in normalized:
-        return False
-    if ":" in normalized.split("/")[0]:
-        return False
-    return True
+        _BACKUP_TOKENS[token] = {"created_at": time.time(), "filename": filename, "bytes": size,
+                                 "frozen_seconds": frozen, "vault": os.path.realpath(vault)}
+    _append_audit(vault, "backup.export", {"filename": filename, "bytes": size,
+                                           "frozen_seconds": frozen, "token": token[-8:]})
+    return path, filename, token
 
 
 def prepare_backup_import(vault, payload, filename="backup.zip"):
-    if not payload:
-        raise ValueError("备份文件为空")
-    try:
-        archive = zipfile.ZipFile(io.BytesIO(payload), "r")
-    except zipfile.BadZipFile as exc:
-        raise ValueError("不是有效的 zip 备份文件") from exc
-    with archive:
-        infos = [info for info in archive.infolist() if not info.is_dir()]
-        if not infos:
-            raise ValueError("备份 zip 内没有文件")
-        for info in infos:
-            if not _valid_zip_name(info.filename):
-                raise ValueError(f"备份包含不安全路径: {info.filename}")
-        names = [info.filename.replace("\\", "/") for info in infos]
-        if not all(name == "错题" or name.startswith("错题/") for name in names):
-            raise ValueError("备份 zip 必须以“错题/”为顶层目录")
-        if not any(name.startswith("错题/.omrs/") for name in names):
-            raise ValueError("备份缺少 错题/.omrs/ 数据目录")
-        preview = {
-            "filename": filename,
-            "files": len(infos),
-            "bytes": sum(info.file_size for info in infos),
-            "md_files": sum(1 for name in names if name.lower().endswith(".md")),
-            "image_files": sum(1 for name in names if os.path.splitext(name)[1].lower() in IMAGE_EXTS),
-            "has_attachments": any(name.startswith(f"错题/{ATTACHMENTS_DIR}/") for name in names),
-        }
-    restore_id = "restore-" + uuid.uuid4().hex[:12]
-    fd, temp_path = tempfile.mkstemp(suffix=".zip")
-    with os.fdopen(fd, "wb") as file:
-        file.write(payload)
-    with _LOCK:
-        _RESTORES[restore_id] = {
-            "path": temp_path,
-            "preview": preview,
-            "created_at": time.time(),
-            "expires_at": time.time() + 3600,
-        }
-    _append_audit(vault, "backup.import.prepare", {"restore_id": restore_id, **preview})
-    return {"status": "ok", "restore_id": restore_id, "preview": preview}
+    from .backup_store import prepare_import
+    return prepare_import(vault, payload, filename)
 
 
 def restore_backup(vault, restore_id, confirm=False):
-    if not confirm:
-        raise ValueError("恢复备份需要 confirm=true")
-    with _LOCK:
-        restore = _RESTORES.get(restore_id)
-    if not restore:
-        raise ValueError("restore_id 不存在或已过期")
-    zip_path = restore["path"]
-    if not os.path.isfile(zip_path):
-        raise ValueError("临时备份文件不存在，请重新导入")
-    vault_abs = os.path.abspath(vault)
-    target = questions_root(vault_abs)
-    if not _is_inside(target, vault_abs):
-        raise ValueError("目标错题目录不在 vault 内，拒绝恢复")
-    extract_dir = tempfile.mkdtemp(prefix="omrs-restore-")
-    rollback = os.path.join(vault_abs, f"错题.restore-old-{_stamp()}")
-    try:
-        with zipfile.ZipFile(zip_path, "r") as archive:
-            for info in archive.infolist():
-                if info.is_dir():
-                    continue
-                if not _valid_zip_name(info.filename):
-                    raise ValueError(f"备份包含不安全路径: {info.filename}")
-            archive.extractall(extract_dir)
-        restored_root = os.path.join(extract_dir, "错题")
-        if not os.path.isdir(restored_root):
-            raise ValueError("备份中未找到顶层“错题”目录")
-        try:
-            from .indexing import build_index
-            count = len(build_index(extract_dir))
-        except Exception as exc:
-            raise ValueError(f"备份校验失败，无法重建索引：{exc}") from exc
-        if os.path.exists(target):
-            os.replace(target, rollback)
-        shutil.move(restored_root, target)
-        if os.path.exists(rollback):
-            shutil.rmtree(rollback)
-        with _LOCK:
-            _RESTORES.pop(restore_id, None)
-        _append_audit(vault, "backup.restore", {
-            "restore_id": restore_id,
-            "files": restore["preview"].get("files", 0),
-            "question_count": count,
-        })
-        return {"status": "ok", "restored": True, "question_count": count}
-    finally:
-        shutil.rmtree(extract_dir, ignore_errors=True)
-        try:
-            os.remove(zip_path)
-        except OSError:
-            pass
+    from .backup_store import restore
+    return restore(vault, restore_id, confirm)
 
 
 def _valid_backup_token(token):
@@ -497,6 +400,7 @@ def _valid_backup_token(token):
     return bool(data and time.time() - data["created_at"] < 4 * 3600)
 
 
+@storage
 def start_compression(vault, scan_id, backup_token, confirm=False):
     if not confirm:
         raise ValueError("压缩图片需要 confirm=true")
@@ -529,9 +433,50 @@ def start_compression(vault, scan_id, backup_token, confirm=False):
     }
     with _LOCK:
         _JOBS[job_id] = job
-    thread = threading.Thread(target=_run_compression_job, args=(vault, job_id, files), daemon=True)
+    thread = threading.Thread(target=_run_compression_job, args=(vault, job_id, files, generation(vault)), daemon=True)
     thread.start()
     return {"status": "ok", "job": job}
+
+
+def _compress_one(vault, path, ext):
+    # 复制只占短租约；压缩计算在题库外进行，旧任务不能在恢复后写新目录。
+    from .locking import write_lock
+    directory = tempfile.mkdtemp(prefix="omrs-image-opt-")
+    try:
+        source, result = os.path.join(directory, "source" + ext), os.path.join(directory, "result" + ext)
+        with lease(vault):
+            shutil.copyfile(path, source)
+            before = hashlib.sha256(open_bytes(source)).hexdigest()
+            old_size = os.path.getsize(source)
+        if ext == ".png":
+            _png_optimized_copy(source, result)
+        elif ext in (".jpg", ".jpeg"):
+            _jpeg_optimized_copy(source, result)
+        else:
+            raise ValueError(f"暂不支持 {ext} 的无损压缩")
+        new_size = os.path.getsize(result)
+        if new_size >= old_size:
+            return old_size, new_size, False
+        with lease(vault), write_lock():
+            if hashlib.sha256(open_bytes(path)).hexdigest() != before:
+                raise ValueError("压缩期间图片已变化，未覆盖")
+            temporary = path + "." + uuid.uuid4().hex + ".omrs-opt.tmp"
+            try:
+                shutil.copyfile(result, temporary)
+                with open(temporary, "rb") as file:
+                    os.fsync(file.fileno())
+                os.replace(temporary, path)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
+        return old_size, new_size, True
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+
+
+def open_bytes(path):
+    with open(path, "rb") as file:
+        return file.read()
 
 
 def _set_job(job_id, **updates):
@@ -542,7 +487,12 @@ def _set_job(job_id, **updates):
         job.update(updates)
 
 
-def _run_compression_job(vault, job_id, files):
+def _run_compression_job(vault, job_id, files, expected_generation=None):
+    with task(vault, expected_generation):
+        return _run_compression_job_current(vault, job_id, files)
+
+
+def _run_compression_job_current(vault, job_id, files):
     _set_job(job_id, status="running", started_at=_now())
     root = questions_root(vault)
     saved_total = 0
@@ -559,32 +509,16 @@ def _run_compression_job(vault, job_id, files):
             _set_job(job_id, processed=index, errors=errors[-20:])
             continue
         ext = os.path.splitext(path)[1].lower()
-        temp_path = os.path.join(os.path.dirname(path), f".{os.path.basename(path)}.omrs-opt.tmp")
         try:
-            old_size = os.path.getsize(path)
-            if ext == ".png":
-                _png_optimized_copy(path, temp_path)
-            elif ext in (".jpg", ".jpeg"):
-                _jpeg_optimized_copy(path, temp_path)
-            else:
-                raise ValueError(f"暂不支持 {ext} 的无损压缩")
-            new_size = os.path.getsize(temp_path)
+            old_size, new_size, replaced = _compress_one(vault, path, ext)
             checked_bytes += old_size
-            if new_size < old_size:
-                from .locking import write_lock
-                with write_lock():  # 逐文件写回在写锁内，不与请求写入交错
-                    os.replace(temp_path, path)
+            if replaced:
                 candidate_count += 1
                 saved_total += old_size - new_size
             else:
                 skipped["已是较优体积"] = skipped.get("已是较优体积", 0) + 1
-                os.remove(temp_path)
         except Exception as exc:
             errors.append(f"{rel_path}: {exc}")
-            try:
-                os.remove(temp_path)
-            except OSError:
-                pass
         _set_job(
             job_id,
             processed=index,

@@ -1,4 +1,4 @@
-"""P8 browser integration: CSS layers, native UI, label manager, and 12 page mounts."""
+"""浏览器集成：样式层、原生组件、标记管理与全部页面挂载。"""
 import importlib.util
 import os
 import shutil
@@ -25,7 +25,8 @@ def main():
             page = browser.new_page(viewport={"width": 1440, "height": 900})
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
-            page.goto(f"http://127.0.0.1:{port}/", wait_until="networkidle")
+            page.goto(f"http://127.0.0.1:{port}/?unlocked=1#/dashboard", wait_until="networkidle")
+            page.wait_for_function("() => Boolean(window.__omrs?.router)")
             layers = page.evaluate("""() => [...document.styleSheets].filter(s => (s.href || '').includes('/app/styles/index.css')).flatMap(s => [...s.cssRules].filter(r => r.layerName).map(r => r.layerName)).filter((v,i,a) => a.indexOf(v) === i)""")
             results.append(("样式层", layers == ['vendor', 'base', 'ui', 'shell', 'domain', 'features']))
             page.evaluate("""async () => { const { toast } = await import('/assets/app/ui/toast.js'); toast('本机集成提示'); }""")

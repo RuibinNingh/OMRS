@@ -5,7 +5,7 @@
 > - 入口：`assets/app/trainpanel.html`、`assets/app/features/trainpanel/`；后端 `omrs/trainpanel.py`
 > - 不变量：网页不启动或停止训练；实时测试经 local_http；积累默认关，开启后仅写 todo 标注
 > - 必跑测试：`tests/test_trainpanel.py`、`tests/app/trainpanel.test.mjs`、`tests/e2e/trainpanel.py`、UI／对比度与组件浏览器门禁
-> - 相关：`AI/api.md`、`AI/data.md` §18、`AI/training/README.md`、`AI/frontend/create.md`
+> - 相关：`AI/api.md`、`AI/data/storage.md` §8、`AI/training/README.md`、`AI/frontend/create.md`
 
 ## 入口与页面
 
@@ -27,7 +27,7 @@ charts.js 使用 SVG：损失四线（训练／验证 box、cls），验证 mAP5
 
 选择、拖入或粘贴一张 PNG/JPEG/GIF，≤15 MB。测试中按钮加载并拒绝重复提交，服务器限制每进程同时一张、解码不超过 4000 万像素。结果区显示原图与 SVG 叠加框、角色、置信度、条带数和耗时；题目用 info、答案用 success。服务未配置时提示到 AI 训练工作区填写地址，断连时给出启动命令，按钮恢复可用。
 
-积累开关通过 `/api/config` 即时保存，刷新保持；关闭时整个检测流程不写 Vault。开启时写到标注集 todo，并预填模型框；只有人工校正并标完成后才进默认导出与训练。重复 SHA 不新增、不覆盖框，提示「标注集里已有这张」；积累失败不丢检测结果。校正链接打开现有标注页，不在训练面板中编辑框。
+积累开关通过 `/api/config` 原子保存，刷新保持；保存回执为 `mirror_pending` 时开关仍按已生效状态显示，并提示配置镜像待同步。关闭时整个检测流程不写 Vault。开启时写到标注集 todo，并预填模型框；只有人工校正并标完成后才进默认导出与训练。重复 SHA 不新增、不覆盖框，提示「标注集里已有这张」；积累失败不丢检测结果。校正链接打开现有标注页，不在训练面板中编辑框。
 
 ## 验证
 

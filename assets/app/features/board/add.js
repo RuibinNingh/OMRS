@@ -1,3 +1,4 @@
+import { questionKey, questionRefs } from '../../domain/question/ref.js';
 /**
  * 「添加题目」对话框（P7 第 6 轮起；原 assets/board.js 的 boardAddPrompt，旧 .modal-overlay 弹层 Esc 关不掉）。
  * - 外壳是 ui/dialog（Esc、点遮罩、焦点陷阱与焦点归还由 ui/overlay 负责）；内容节点 morph 重绘，搜索框聚焦时不丢输入。
@@ -48,7 +49,7 @@ function body(m) {
 }
 
 function box(r) {
-  return html`<input type="checkbox" data-bdadd-uid="${r.uid}" aria-label="选择 ${r.uid}"${r.on ? html` checked` : ''}${r.in ? html` disabled` : ''}>`;
+  return html`<input type="checkbox" data-bdadd-uid="${r.uid}" data-bdadd-key="${r.key}" aria-label="选择 ${r.uid}"${r.on ? html` checked` : ''}${r.in ? html` disabled` : ''}>`;
 }
 function list(m) {
   if (!m.rows.length) return html`<p class="brd-add__none" data-key="none">没有匹配的题目。</p>`;
@@ -72,7 +73,7 @@ export async function openBoardAdd(detail, add, deps = {}) {
   if (!detail) return null;
   const d = { items: allItems, labels: () => listLabels().map(label => label.name), dialog, storage: () => globalThis.localStorage, ...deps };
   const all = d.items().filter(item => !item.suspended);
-  const existing = new Set((detail.items || []).map(item => item.uid));
+  const existing = new Set((detail.items || []).map(questionKey));
   const state = { f: { ...S.ADD_DEFAULTS, labels: [] }, view: readView(d.storage()), selected: new Set() };
   const meta = { facets: facets(all), labels: d.labels() };
   let visible = [];
@@ -97,7 +98,7 @@ export async function openBoardAdd(detail, add, deps = {}) {
   node.addEventListener('change', event => {
     const t = event.target;
     if (FIELDS[t.id]) { state.f = { ...state.f, [FIELDS[t.id]]: t.value }; paint(); return; }
-    const uid = t.dataset?.bdaddUid;
+    const uid = t.dataset?.bdaddKey;
     if (!uid || t.disabled) return;
     if (t.checked) state.selected.add(uid); else state.selected.delete(uid);
     paint();
@@ -127,6 +128,6 @@ export async function openBoardAdd(detail, add, deps = {}) {
   });
   if (!res.ok || !state.selected.size) return null;
   const uids = [...state.selected];
-  await add(uids);
+  await add(questionRefs(uids, all));
   return uids;
 }

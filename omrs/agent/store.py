@@ -2,6 +2,7 @@
 
 每次调用新建连接；模块锁只包住单次 SQL 事务（锁顺序：写锁在外，本锁在内）。
 """
+import base64
 import datetime
 import json
 import os
@@ -10,6 +11,7 @@ import threading
 import secrets
 
 from ..common import omrs_data_dir
+from ..vault_lifecycle import lease, open_sqlite, storage
 
 _LOCK = threading.Lock()
 
@@ -39,7 +41,11 @@ class AgentStore:
                 error TEXT, model TEXT, started_at TEXT NOT NULL, ended_at TEXT,
                 stats_json TEXT NOT NULL DEFAULT '{}', events_json TEXT NOT NULL DEFAULT '[]',
                 reverted_json TEXT);
-            CREATE INDEX IF NOT EXISTS runs_conv ON runs(conversation_id, started_at);
+            CREATE INDEX IF NOT EXISTS runs_conv ON runs(conversation_id, started_at, id);
+            CREATE TABLE IF NOT EXISTS run_events (
+                run_id TEXT NOT NULL, seq INTEGER NOT NULL, event_type TEXT NOT NULL,
+                event_json TEXT NOT NULL, PRIMARY KEY(run_id, seq));
+            CREATE INDEX IF NOT EXISTS run_event_stats ON run_events(run_id,event_type,seq);
             CREATE TABLE IF NOT EXISTS tool_calls (
                 call_id TEXT NOT NULL, run_id TEXT NOT NULL, name TEXT NOT NULL, level TEXT NOT NULL,
                 args_json TEXT NOT NULL, status TEXT NOT NULL, decision TEXT, result_json TEXT,
@@ -56,19 +62,25 @@ class AgentStore:
             CREATE UNIQUE INDEX IF NOT EXISTS practice_default_attempt
                 ON practice_attempts(card_id) WHERE is_default = 1;
             """)
+            # 旧完成事件在 SQLite 内逐项迁移，避免 Python 读取整个历史数组。
+            db.execute("""INSERT OR IGNORE INTO run_events(run_id,seq,event_type,event_json)
+                SELECT runs.id, CAST(j.key AS INTEGER), json_extract(j.value,'$.type'),
+                    json_set(j.value,'$.i',CAST(j.key AS INTEGER))
+                FROM runs, json_each(runs.events_json) AS j WHERE runs.events_json != '[]'""")
+            db.execute("UPDATE runs SET events_json='[]' WHERE events_json != '[]'")
             columns = {row["name"] for row in db.execute("PRAGMA table_info(practice_attempts)")}
             if "request_id" not in columns:
                 db.execute("ALTER TABLE practice_attempts ADD COLUMN request_id TEXT")
             db.execute("CREATE UNIQUE INDEX IF NOT EXISTS practice_restart_request ON practice_attempts(request_id)")
 
     def _db(self):
-        db = sqlite3.connect(db_path(self.vault), timeout=5)
+        db = open_sqlite(self.vault, db_path(self.vault), timeout=5)
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA busy_timeout = 5000")
         return db
 
     def _exec(self, sql, args=(), many=False):
-        with _LOCK:
+        with lease(self.vault), _LOCK:
             db = self._db()
             try:
                 cur = db.executemany(sql, args) if many else db.execute(sql, args)
@@ -78,7 +90,7 @@ class AgentStore:
                 db.close()
 
     def _all(self, sql, args=()):
-        with _LOCK:
+        with lease(self.vault), _LOCK:
             db = self._db()
             try:
                 return [dict(r) for r in db.execute(sql, args).fetchall()]
@@ -142,8 +154,9 @@ class AgentStore:
             sets.append("stats_json = ?")
             args.append(json.dumps(stats, ensure_ascii=False))
         if events is not None:
-            sets.append("events_json = ?")
-            args.append(json.dumps(events, ensure_ascii=False, default=str))
+            self._exec("INSERT OR IGNORE INTO run_events(run_id,seq,event_type,event_json) VALUES(?,?,?,?)",
+                       [(run_id, i, event["type"], json.dumps({**event, "i": i}, ensure_ascii=False, default=str))
+                        for i, event in enumerate(events)], many=True)
         if ended:
             sets.append("ended_at = ?")
             args.append(now_iso())
@@ -165,7 +178,7 @@ class AgentStore:
     def _run_row(row):
         row = dict(row)
         row["stats"] = json.loads(row.pop("stats_json") or "{}")
-        row["events"] = json.loads(row.pop("events_json") or "[]")
+        row["events"] = json.loads(row.pop("events_json", "[]") or "[]")
         row["reverted"] = json.loads(row.pop("reverted_json")) if row.get("reverted_json") else None
         return row
 
@@ -185,7 +198,7 @@ class AgentStore:
 
     # ── 聊天练习卡与尝试：只存题序和非权威界面进度，反馈事实来自 Ledger ──
     def save_practice_card(self, card, conv_id, run_id, call_id):
-        with _LOCK:
+        with lease(self.vault), _LOCK:
             with self._db() as db:
                 row = db.execute("SELECT card_json FROM practice_cards WHERE run_id=? AND call_id=?", (run_id, call_id)).fetchone()
                 if row:
@@ -202,7 +215,7 @@ class AgentStore:
         return {**json.loads(row["card_json"]), "conversation_id": row["conversation_id"], "deleted": bool(row["deleted"])}
 
     def start_practice(self, card_id, restart=False, request_id=""):
-        with _LOCK:
+        with lease(self.vault), _LOCK:
             with self._db() as db:
                 db.execute("BEGIN IMMEDIATE")
                 row = db.execute("SELECT c.deleted FROM practice_cards p JOIN conversations c ON c.id=p.conversation_id WHERE p.card_id=?", (card_id,)).fetchone()
@@ -242,7 +255,7 @@ class AgentStore:
         return {**row, "progress": json.loads(row["progress_json"] or "{}")}
 
     def save_practice_progress(self, attempt_id, progress):
-        with _LOCK:
+        with lease(self.vault), _LOCK:
             with self._db() as db:
                 db.execute("BEGIN IMMEDIATE")
                 row = db.execute("SELECT progress_json FROM practice_attempts WHERE attempt_id=?", (attempt_id,)).fetchone()
@@ -252,3 +265,76 @@ class AgentStore:
                 if int(progress.get("seq") or 0) > int(old.get("seq") or 0):
                     db.execute("UPDATE practice_attempts SET progress_json=? WHERE attempt_id=?",
                                (json.dumps(progress, ensure_ascii=False), attempt_id))
+
+
+    @staticmethod
+    def _cursor(values):
+        return base64.urlsafe_b64encode(json.dumps(values, separators=(",", ":")).encode()).decode().rstrip("=")
+
+    @staticmethod
+    def _decode_cursor(cursor):
+        if not isinstance(cursor, str) or len(cursor) > 1024:
+            raise ValueError("分页游标不合法")
+        try:
+            values = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
+        except (ValueError, UnicodeError) as exc:
+            raise ValueError("分页游标不合法") from exc
+        if not isinstance(values, list) or len(values) != 2 or not all(isinstance(v, str) for v in values):
+            raise ValueError("分页游标不合法")
+        return values
+
+    def conversation_page(self, limit=30, cursor=None):
+        limit = max(1, min(100, int(limit)))
+        extra, args = "", []
+        if cursor:
+            stamp, identity = self._decode_cursor(cursor)
+            extra = " AND (c.updated_at < ? OR (c.updated_at = ? AND c.id < ?))"
+            args.extend((stamp, stamp, identity))
+        rows = self._all("""SELECT c.*,
+            (SELECT COUNT(*) FROM messages m WHERE m.conversation_id=c.id) AS msgs,
+            (SELECT COUNT(*) FROM runs r WHERE r.conversation_id=c.id) AS runs,
+            (SELECT COALESCE(SUM(json_extract(stats_json,'$.writes')),0) FROM runs r
+              WHERE r.conversation_id=c.id AND r.reverted_json IS NULL) AS writes,
+            (SELECT substr(json_extract(message_json,'$.content'),1,120) FROM messages m
+              WHERE m.conversation_id=c.id AND m.role IN ('assistant','user')
+              AND json_extract(message_json,'$.content') != '' ORDER BY id DESC LIMIT 1) AS snippet,
+            EXISTS(SELECT 1 FROM runs r WHERE r.conversation_id=c.id AND r.reverted_json IS NOT NULL) AS reverted
+            FROM conversations c WHERE c.deleted=0""" + extra + " ORDER BY c.updated_at DESC,c.id DESC LIMIT ?",
+            (*args, limit + 1))
+        more, rows = len(rows) > limit, rows[:limit]
+        return {"conversations": rows, "has_more": more,
+                "next_cursor": self._cursor([rows[-1]["updated_at"],rows[-1]["id"]]) if more else None}
+
+    def run_page(self, conv_id, limit=20, cursor=None):
+        limit = max(1, min(50, int(limit)))
+        extra, args = "", [conv_id]
+        if cursor:
+            stamp, identity = self._decode_cursor(cursor)
+            extra = " AND (started_at < ? OR (started_at = ? AND id < ?))"
+            args.extend((stamp, stamp, identity))
+        rows = self._all("SELECT id,conversation_id,status,reason,error,model,started_at,ended_at,stats_json,reverted_json "
+            "FROM runs WHERE conversation_id=?" + extra + " ORDER BY started_at DESC,id DESC LIMIT ?", (*args, limit + 1))
+        more, rows = len(rows) > limit, rows[:limit]
+        cursor = self._cursor([rows[-1]["started_at"],rows[-1]["id"]]) if more else None
+        return {"runs": [self._run_row(row) for row in reversed(rows)], "has_more": more,"next_cursor":cursor}
+
+    def starter_message(self, run_id):
+        rows = self._all("SELECT * FROM messages WHERE run_id=? AND role='user' ORDER BY id LIMIT 1", (run_id,))
+        if not rows:
+            return None
+        row = rows[0]
+        return {**json.loads(row["message_json"]), "_run":run_id,"_at":row["created_at"],"_id":row["id"]}
+
+    def append_event(self, run_id, event):
+        self._exec("INSERT INTO run_events(run_id,seq,event_type,event_json) VALUES(?,?,?,?)",
+                   (run_id,event["i"],event["type"],json.dumps(event,ensure_ascii=False,default=str)))
+
+    def event_page(self, run_id, after=0, limit=200):
+        after, limit = int(after), max(1,min(500,int(limit)))
+        if after < 0:
+            raise ValueError("事件游标不能为负数")
+        rows = self._all("SELECT seq,event_json FROM run_events WHERE run_id=? AND seq>=? ORDER BY seq LIMIT ?",
+                         (run_id,after,limit+1))
+        more, rows = len(rows)>limit, rows[:limit]
+        events = [json.loads(row["event_json"]) for row in rows]
+        return {"events":events,"next": rows[-1]["seq"]+1 if rows else after,"has_more":more}

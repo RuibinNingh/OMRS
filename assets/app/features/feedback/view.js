@@ -46,12 +46,12 @@ function topBar(s, env) {
   return html`<section class="fbw-bar" data-key="bar" aria-label="反馈录入设置">
   <div class="fbw-bar__pick" data-key="pick" data-change="feedback.session">
     <label class="fbw-bar__cap" for="fb-session-picker">继续录入 Session</label>
-    ${select({ id: 'fb-session-picker', label: '继续录入 Session', options: sessionOptions(env.sessions, active), value: active })}
+    ${select({ id: 'fb-session-picker', label: '继续录入 Session', options: sessionOptions(env.sessions, active), value: active, disabled: s.submitting })}
   </div>
   <div class="fbw-bar__acts" data-key="acts">
     ${button({ label: '刷新', icon: 'refresh', action: 'feedback.refresh', loading: s.sessionsLoading, title: '刷新 Session 进度' })}
-    ${button({ label: '读剪贴板填写', icon: 'download', variant: 'primary', action: 'feedback.readClipboard', title: '读取剪贴板里的 OMR /result 顶层 JSON 或反馈 JSON，按题号自动填写本 Session' })}
-    ${button({ label: '添加行', icon: 'plus', action: 'feedback.addRow' })}
+    ${button({ label: '读剪贴板填写', icon: 'download', variant: 'primary', action: 'feedback.readClipboard', disabled: s.submitting, title: '读取剪贴板里的 OMR /result 顶层 JSON 或反馈 JSON，按题号自动填写本 Session' })}
+    ${button({ label: '添加行', icon: 'plus', action: 'feedback.addRow', disabled: s.submitting })}
   </div>
   <p class="fbw-bar__info" data-key="info" role="status">${sessionInfo(env.session, s, active)}</p>
   ${s.sessionsError ? html`<div class="fbw-bar__err" data-key="err">${status({ tone: 'danger', text: `Session 列表读取失败：${s.sessionsError}。点「刷新」重试。` })}</div>` : ''}
@@ -64,13 +64,13 @@ function importPanel(s) {
   <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm fbw-import__toggle" data-action="feedback.toggleImport" aria-expanded="${s.importOpen ? 'true' : 'false'}" aria-controls="fbw-import-body">${icon(s.importOpen ? 'chevron-down' : 'chevron-right')}<span class="ui-btn__label">导入反馈：答题卡扫描 / 屏幕版 / AI</span></button>
   ${s.importOpen ? html`<div class="fbw-import__body" id="fbw-import-body" data-key="body">
     <p class="fbw-import__hint">
-      <strong>答题卡：</strong>先在上面选中这张卡对应的 Session，在 OMR 识别详情页点「复制结果 JSON」（来自 <code>/api/v1/recognitions/&lt;id&gt;/result</code>，顶层含 <code>recognition_id / template_id / mode / status / questions / unresolved</code>）。回本页点「读剪贴板填写」，或在本页空白处按 ${kbd('Ctrl', 'V')}。题号按 Session 顺序对应 UID。
+      <strong>答题卡：</strong>先在上面选中这张卡对应的 Session，在 OMR 识别详情页点「复制结果 JSON」（来自 <code>/api/v1/recognitions/&lt;id&gt;/result</code>，顶层含 <code>recognition_id / template_id / mode / status / questions / unresolved</code>）。回本页点「读剪贴板填写」，或在本页空白处按 ${kbd('Ctrl', 'V')}。题号按 Session 的固定条目顺序对应题目身份。
       <strong>屏幕版：</strong>复习完后在「作答情况」抽屉点「复制作答 JSON」并粘贴。<strong>AI：</strong>先复制提示词，把纸面批改结果发给 AI，让它整理成同一份反馈 JSON 后粘贴。
     </p>
-    <p class="fbw-import__warn">${icon('alert-triangle')}<span>只接受上述 <code>/result</code> 顶层协议；旧的原始识别记录 <code>items</code>、裸数组和包装层会明确拒绝。<code>unresolved</code> 涉及的题不会自动猜测，字段与状态会写进备注留给人工。导出答题卡后又停用过题目的话，纸面题号会整体前移——提交前请对着中栏题面核一遍。</span></p>
+    <p class="fbw-import__warn">${icon('alert-triangle')}<span>只接受上述 <code>/result</code> 顶层协议；旧的原始识别记录 <code>items</code>、裸数组和包装层会明确拒绝。<code>unresolved</code> 涉及的题不会自动猜测，字段与状态会写进备注留给人工。已归档、停用或身份未确认的条目保留原序号，但不能自动录入。提交前请对着中栏题面核一遍。</span></p>
     <div class="fbw-import__row">${button({ label: '复制 AI 反馈提示词', icon: 'copy', size: 'sm', action: 'feedback.copyPrompt' })}${s.promptStatus ? status({ tone: TONE[s.promptStatus.tone] || 'neutral', text: s.promptStatus.text }) : ''}</div>
-    <textarea class="fbw-import__box ui-input" id="fb-json" rows="5" data-input="feedback.draft" placeholder='粘贴 OMR /result 顶层 JSON，或反馈 JSON（{"type":"omrs-feedback","session_id":"EXP-…","items":[{"uid":"…","is_correct":true,"sub_score":9}]}）'>${s.importText || ''}</textarea>
-    <div class="fbw-import__row">${button({ label: '导入 JSON', icon: 'check', variant: 'primary', size: 'sm', action: 'feedback.importBox' })}${s.importStatus ? html`<span class="fbw-import__status ${cls(`is-${s.importStatus.tone}`)}">${raw(s.importStatus.html)}</span>` : ''}</div>
+    <textarea class="fbw-import__box ui-input" id="fb-json" rows="5" data-input="feedback.draft"${s.submitting ? html` disabled` : ''} placeholder='粘贴 OMR /result 顶层 JSON，或反馈 JSON（{"type":"omrs-feedback","session_id":"EXP-…","items":[{"uid":"…","is_correct":true,"sub_score":9}]}）'>${s.importText || ''}</textarea>
+    <div class="fbw-import__row">${button({ label: '导入 JSON', icon: 'check', variant: 'primary', size: 'sm', action: 'feedback.importBox', disabled: s.submitting })}${s.importStatus ? html`<span class="fbw-import__status ${cls(`is-${s.importStatus.tone}`)}">${raw(s.importStatus.html)}</span>` : ''}</div>
   </div>` : ''}
 </section>`;
 }
@@ -109,7 +109,9 @@ function rail(s, env) {
 // ── stage：题面（qview 挂载点，morph 不碰）───────────────────────────────────────
 function stage(s, env) {
   const entries = env.entries;
-  const uid = entries[s.cursor]?.uid || '';
+  const entry = entries[s.cursor];
+  if (entry?.availability && entry.availability !== 'active') return html`<div class="fbw-stage" data-key="stage">${empty({ icon: 'alert-triangle', title: '此题暂不可反馈', hint: entry.availability === 'unresolved' ? '题目身份无法自动确认，请在复习调度的计划详情手动绑定。' : '题目已归档或停用，历史条目保留。', bordered: true })}</div>`;
+  const uid = entry?.uid || '';
   if (!uid) {
     return html`<div class="fbw-stage" data-key="stage">${empty({ icon: 'file', title: entries.length ? '先填写这一行的 UID' : '这里显示题面与答案', hint: entries.length ? '填好 UID 后，这里显示题面、答案与做题记录。' : '选择一个 Session 或添加一行后，这里显示题目。', bordered: true })}</div>`;
   }
@@ -156,6 +158,7 @@ function panel(s, env) {
   const head = entry ? html`<header class="fbw-panel__head" data-key="head"><h3 class="fbw-panel__title">第 ${entry.number || s.cursor + 1} 题</h3><span class="fbw-panel__uid">${entry.uid || '待填 UID'}</span></header>` : html`<header class="fbw-panel__head" data-key="head"><h3 class="fbw-panel__title">判定</h3></header>`;
   let bodyBlock;
   if (!entry) bodyBlock = html`<div class="fbw-panel__empty" data-key="body">${empty({ icon: 'edit', title: '没有待判定的题目', hint: '选择一个 Session 或点「添加行」。', compact: true })}</div>`;
+  else if (entry.availability && entry.availability !== 'active') bodyBlock = html`<div class="fbw-readonly" data-key="body">${icon('lock')}${entry.availability === 'unresolved' ? '身份待确认，请到计划详情绑定题目。' : '题目已归档或停用，暂不能录入反馈。'}</div>`;
   else if (entry.recorded) bodyBlock = html`<div class="fbw-readonly" data-key="body">${icon('lock')}本题已录入反馈。如需修正请到「数据复盘 → 历史记录」操作，不要重复提交。</div>`;
   else {
     const row = entry.index >= 0 ? env.rows[entry.index] : null;
@@ -163,16 +166,16 @@ function panel(s, env) {
     else {
       const showUid = !env.session || entry.extra || !entry.uid;
       const score = row.score == null ? 5 : row.score;
-      const verdict = (value, label, ico, key) => html`<button type="button" class="${cls('ui-btn', 'fbw-verdict__btn', `fbw-verdict__btn--${value ? 'ok' : 'no'}`)}" data-action="feedback.verdict" data-arg="${value ? '1' : '0'}" aria-pressed="${row.correct === value ? 'true' : 'false'}">${icon(ico)}<span>${label}</span>${kbd(key)}</button>`;
+      const verdict = (value, label, ico, key) => html`<button type="button" class="${cls('ui-btn', 'fbw-verdict__btn', `fbw-verdict__btn--${value ? 'ok' : 'no'}`)}" data-action="feedback.verdict" data-arg="${value ? '1' : '0'}" aria-pressed="${row.correct === value ? 'true' : 'false'}"${s.submitting ? html` disabled` : ''}>${icon(ico)}<span>${label}</span>${kbd(key)}</button>`;
       bodyBlock = html`<div class="fbw-form" data-key="body">
-        ${showUid ? html`<label class="fbw-field" data-key="uid"><span class="fbw-field__label">UID</span><input class="ui-input" list="uid-list" value="${row.uid || ''}" data-change="feedback.uid" placeholder="输入或选择 UID"></label>` : ''}
+        ${showUid ? html`<label class="fbw-field" data-key="uid"><span class="fbw-field__label">UID</span><input class="ui-input" list="uid-list" value="${row.uid || ''}" data-change="feedback.uid"${s.submitting ? html` disabled` : ''} placeholder="输入或选择 UID"></label>` : ''}
         <div class="fbw-verdict" role="group" aria-label="判定对错" data-key="verdict">${verdict(true, '对', 'check', '1')}${verdict(false, '错', 'x', '2')}</div>
-        <label class="fbw-score" data-key="score"><span class="fbw-score__label">主观分</span><input class="fbw-score__input" type="range" min="0" max="10" step="1" value="${score}" data-input="feedback.score" aria-valuetext="${score} 分"><output class="fbw-score__value">${score}</output></label>
-        <label class="fbw-field" data-key="note"><span class="fbw-field__label">备注</span><input class="ui-input" value="${row.note || ''}" data-input="feedback.note" placeholder="页码 / 错因（可选）"></label>
+        <label class="fbw-score" data-key="score"><span class="fbw-score__label">主观分</span><input class="fbw-score__input" type="range" min="0" max="10" step="1" value="${score}" data-input="feedback.score"${s.submitting ? html` disabled` : ''} aria-valuetext="${score} 分"><output class="fbw-score__value">${score}</output></label>
+        <label class="fbw-field" data-key="note"><span class="fbw-field__label">备注</span><input class="ui-input" value="${row.note || ''}" data-input="feedback.note"${s.submitting ? html` disabled` : ''} placeholder="页码 / 错因（可选）"></label>
         ${labelControls(row, env)}
         <div class="fbw-form__acts" data-key="acts">
           ${row.correct === false && row.uid ? button({ label: '加入展示板', icon: 'bookmark', size: 'sm', action: 'feedback.board' }) : ''}
-          ${button({ label: '移除此行', icon: 'trash', variant: 'ghost', size: 'sm', action: 'feedback.drop' })}
+          ${button({ label: '移除此行', icon: 'trash', variant: 'ghost', size: 'sm', action: 'feedback.drop', disabled: s.submitting })}
         </div>
       </div>`;
     }

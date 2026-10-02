@@ -2,12 +2,12 @@
 
 > **速查**
 > - 职责：不可变提交链、投影缓存、历史修正与迁移边界
-> - 入口：`omrs/ledger.py`、`omrs/projections.py`
+> - 入口：`omrs/ledger.py`、`omrs/projection_runtime.py`、`omrs/projections.py`、`omrs/data_repository.py`
 > - 不变量：提交只追加不改写，修正以新的 commit 表达；追加在 `BEGIN IMMEDIATE` 事务里；已入账的题目 Markdown 版本存进 blobs，commit 只引用哈希
-> - 必跑测试：`tests/test_history_projection.py`、`tests/test_sessions_feedback.py`、`tests/test_ledger_concurrency.py`、`tests/test_content_integrity.py`、`tests/test_agent_tools.py`
+> - 必跑测试：`tests/test_history_projection.py`、`tests/test_sessions_feedback.py`、`tests/test_ledger_concurrency.py`、`tests/test_content_integrity.py`、`tests/test_agent_tools.py`、`tests/test_data_runtime.py`
 > - 相关：`AI/data.md`、`AI/frontend/records.md`、`AI/agent.md`
 
-> 题目结构化元数据、反馈、熟练度与 Session 以 `错题/.omrs/ledger.db` 为事实源；兼容 CSV 由投影器生成，也可作旧数据迁移输入和调试查看。展示板、助手对话、草稿、收件箱和标注集使用独立存储，不由 Ledger 重放，见 `AI/data.md`。
+> 题目结构化元数据、反馈、熟练度与 Session 以 `错题/.omrs/ledger.db` 为事实源；运行时读 SQL；兼容 CSV 仅按需导出或备份时生成，启动与扫描不生成，也可作首次迁移输入。展示板、助手对话、草稿、收件箱和标注集使用独立存储，不由 Ledger 重放，见 `AI/data.md`。
 
 ---
 
@@ -67,19 +67,17 @@ tags:
 - `workspace_fingerprint`
 - `snapshots`
 
-其中数据库 `snapshots` 表目前只是预留结构，投影器尚未持久化或读取它。`_project_state()` 会在单次重放内对每 100 个 seq 和 `state.restore` 节点保存内存快照；跨请求的 `rebuild_projection()` 仍从完整链重放，这也是 `optimization.md` 记录的性能债。
+`projection_runtime.project()` 校验世代、已发布 seq/head hash、policy hash 与 projector version（`ledger-v3`）。普通追加仅更新受影响的题目、熟练度、Session 和新增历史行；不全链重放或全表删除。跨请求保留最多 2 个 Vault 的当前状态缓存，不保留历史反馈载荷。`snapshots` 保存当前状态及策略/链头校验值，保留最近 2 个；修正索引和反馈明细留 SQL，不重复装入快照。缺失、不匹配或世代变化时流式重建。
 
-投影可删除重建；`rebuild_projection()` 会从 Ledger 重新导出兼容 CSV：
+题目、熟练度或 Session 投影的删除会在同一事务内废止 `projection_meta`。完整重建在最后重新发布检查点；旧代码全量重写 SQL 后，即使链头未变化，再次启动当前代码也必须重建，不能将旧缓存与当前快照混用。此机制只保护再次升级的派生缓存，不赋予旧代码当前身份与配置契约。
 
-- `mastery_data.csv`
-- `history_log.csv`
-- `sessions.csv`
+SQL 读模型还包含 `history_projection`、`projection_meta`、`active_config` 和两张修正索引表。历史按题目、Session 和业务日期索引；内部消费者通过 `data_repository` 读取。`export_legacy_csv()` 逐行导出 `mastery_data.csv`、`history_log.csv`、`sessions.csv`，默认 `rebuild_projection()` 不写 CSV。
 
-现有统计、推荐和前端大部分接口仍读取这些兼容 CSV，因此外部响应结构尽量保持稳定。
+题目 UID 和路径只对 `archived=0` 建部分唯一索引；旧表的全表 UNIQUE 会自动迁移，从不可变 Ledger 重建被旧缓存遗漏的归档身份。更新按 `question_id` 冲突处理，不通过 REPLACE 删除另一身份。
 
 `created_at` 只在首次 `question.create` 或 `question.create_external` 重放时写入对应 Ledger 提交的 UTC 时间；移动、元数据修改、停用和恢复不会改变它。`legacy.bootstrap` 题目没有可核验的精确时间，保持空值。旧库启动时 `ledger.init_db()` 会自动补列。外部扫描题的时间含义是首次纳入 Ledger，而不是文件系统创建时间。
 
-v1.14.0 的用户标记不另建一条事实链：标记定义保存在
+用户标记不另建一条事实链：标记定义保存在
 `错题/.omrs/labels.json`，题目归属保存在 Markdown YAML 的 `标记:` 字段。
 工作区扫描或网页标记修改产生 `question.metadata_update_external` /
 `question.metadata_update`，投影器从提交 payload 的题目元数据重建
@@ -90,7 +88,7 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 
 ## 5. 反馈与历史修正
 
-`POST /api/feedback` 不再直接修改 CSV，而是追加 `review.batch_submit` commit，再重建投影。每条反馈包含：
+`POST /api/feedback` 在同一 `BEGIN IMMEDIATE` 事务中追加 `review.batch_submit` 并增量发布 SQL 投影。拿到写事务后再次核对链头、检查点与活动算法参数，跨进程更新导致缓存过期时重建后重试；事实或投影发布失败整体回滚，并废止已修改的进程缓存。响应采用实际投影结果，持久化 Session 的完成检查在提交后执行；已撤销计划拒绝新增反馈。每条反馈包含：
 
 - `question_id`
 - `uid_at_that_time`
@@ -100,10 +98,13 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 - `sub_score`
 - `note`
 - `occurred_at`
-- `recorded_at`
-- `subject` 与 `question_summary`：新反馈提交时从当时的题目 CSV 与安全的 Markdown 路径固定科目、题面短句；读取旧反馈不从当前题目反推这两个字段。
+- `recorded_at`：带原时区的精确时间戳
+- `review_date` / `review_timezone`：业务日期与 `Asia/Shanghai` 日界线
+- `subject` 与 `question_summary`：新反馈提交时从当时的 SQL 题目与安全的 Markdown 路径固定科目、题面短句；读取旧反馈不从当前题目反推这两个字段。
 
-聊天练习卡的反馈另带 `attempt_id` 和稳定 `entry_id`（当前为 `question_id`）。服务端在进程写锁内先从 Ledger 重建投影，再在同一 `BEGIN IMMEDIATE` 事务中检查该 attempt 已提交条目并追加新 `review.batch_submit`；同一题重试直接返回已成功，不再次增加 Attempts。Ledger 提交后即使投影或卡片进度写回失败，下次从 Ledger 恢复；`agent.db` 的进度不能代替提交事实。此边界保护同进程多请求与投影重建的串行性。
+历史时间转换共用 `common.business_time()`。缺 IANA 数据库时只对上海 1992 年起的时间使用 UTC+08 固定偏移；更早历史或其它缺失时区保留原时间和 `recorded_at`，不补造历史夏令时规则。只有日期的旧记录仍不生成精确时分。
+
+聊天练习卡的反馈另带 `attempt_id` 和稳定 `entry_id`（当前为 `question_id`）。服务端在上述反馈事务中检查该 attempt 已提交条目；同一题重试直接返回已成功，不再次增加 Attempts。事务提交后卡片进度写回失败，下次从 Ledger 恢复；`agent.db` 的进度不能代替提交事实。卡片读取在 Ledger 写事务之前完成，避免模块锁与数据库写锁反向嵌套。
 
 反馈**不会**向题目 Markdown 的 `# 历史` 小节追加行。该小节仍由新题骨架保留，且旧格式解析器仍在兼容旧手工文本，但它不属于结构化复习记录，不能用于推断练习次数、正确率或累计答错次数。
 
@@ -128,21 +129,17 @@ v1.14.0 的用户标记不另建一条事实链：标记定义保存在
 
 ### 修正投影如何重放
 
-修正 commit 不直接写“反向熟练度补丁”。`_project_state()` 保存题目初始 `mastery_baseline` / `question_tag_baseline` 和原始 `review_commits`，并维护：
+修正 commit 只追加事实，不写逆向熟练度补丁。完整重放先在 `projection_review_corrections` / `projection_session_corrections` 中建立最终有效修正索引，再逐提交应用；反馈明细直接落 SQL。被撤销反馈或 Session 的反馈跳过；恢复采用原记录；替换把 replacement 合并到原记录。算法状态、状态标签、累计击杀次数和正式历史一起重算，修正数量增长不会扩张 Python 全量集合或载荷字典。
 
-- `retracted_sessions`
-- `retracted_reviews` / `restored_reviews`
-- `review_replacements`
+`kill_count` 只在转换结果 `tag_action == "kill"` 时累加，答错降级不重置；旧表缺列自动补 `NOT NULL DEFAULT 0`，旧 CSV 缺列也按 0。元数据变更按前后 Markdown 元数据差量判断：未改的状态字段不会覆盖反馈产生的投影状态。
 
-遇到 `review.retract`、`review.restore`、`review.replace`、`session.retract` 或 `session.restore` 后，投影器从 baseline 重新播放全部有效 review：被撤销的反馈跳过，恢复后重新采用原反馈，替换则把 replacement 合并到原记录；被撤销 Session 的反馈整体跳过。这样恢复操作会真正重新计算 Mastery、EF、SM-2、标签、累计击杀次数（`kill_count`）和兼容 history，而不是只改变 UI 状态。
+`state.restore` 按有效目标前缀及恢复后的后缀组成迭代区间，流式重放，避免递归复制累计全状态。恢复、修正和调参统一采用当前活动参数；旧快照必须匹配 policy hash 才可用。`ledger_retraction_state()` 使用当前 SQL 修正索引供历史接口读取。
 
-`mastery_projection` 的 `kill_count` 是 2026-09 新增列（`NOT NULL DEFAULT 0`），只在 `tag_action == "kill"` 时累加、答错降级时**不**重置，`scheduling.revive_dormant_days()` 据它决定这题下次休眠多久（`algorithm.md` §11）。老库缺列时 `ledger.py::_ensure_schema()` 用 `PRAGMA table_info` 探到缺失后执行 `ALTER TABLE mastery_projection ADD COLUMN kill_count INTEGER NOT NULL DEFAULT 0` 补齐（与 `question_projection.suspended` 同一套做法），所以从旧库直接启动不会报错；老数据一律按「还没击杀过」处理，首次击杀即第 1 次。老 CSV 缺 `Kill_Count` 列同理按 0 读，重放不失败。
+Session 创建时绑定稳定 `question_id`；普通旧 `session.create` 以创建提交当时的映射解析。首次 bootstrap 的 UID-only 条目没有可靠身份时保留 `unresolved`。详情的权威 `entries` 含 `entry_id`、`question_id`、`uid_at_creation`、当前 UID、source、availability 和 feedback_submitted；人工 `/api/session/bind` 追加 `session.items_bind`，不重写旧提交。已有 Session 的 UID-only 反馈只在其绑定条目内解析，不能查询全局当前 UID 代替身份。
 
-`state.restore` 会取目标 `target_seq` 的内存快照；若没有快照，则递归重放到该 seq，再继续处理还原 commit 之后的新提交。`ledger_retraction_state()` 把有效的 Session/反馈撤销集合提供给 `/api/history` 和前端。
+历史列表的摘要模式只读取本批提交载荷并裁剪字段，修正状态由 SQL 索引提供；前端按 `before_seq` 分批请求。单条详情再读取完整提交；正文更新只取该提交引用的前后 blob。新网页正文编辑把节级短差异固定在 `change_summary`，旧版本或缺失 blob 不补写、不取当前正文冒充旧值。题目移动新提交固定 `from_category` 与 `to_category`，旧提交缺值时保持缺失。
 
-历史列表的摘要模式只读取本批提交载荷并裁剪字段，完整链的撤销集合仍由投影器计算；前端按 `before_seq` 分批请求。单条详情再读取完整提交；正文更新只取该提交引用的前后 blob。新网页正文编辑把节级短差异固定在 `change_summary`，旧版本或缺失 blob 不补写、不取当前正文冒充旧值。题目移动新提交固定 `from_category` 与 `to_category`，旧提交缺值时保持缺失。
-
-`server.py::_history_commit()` 在追加前校验目标：反馈修正必须指向存在的 `review.batch_submit` 和合法 `target_review_index`，Session 修正必须指向链上出现过的 Session，`state.restore` 的 seq 必须存在。无效请求返回 400，不写脏 commit。对应回归测试在 `tests/test_history_projection.py`。
+历史领域入口 在追加前校验目标：反馈修正必须指向存在的 `review.batch_submit` 和合法 `target_review_index`，Session 修正必须指向链上出现过的 Session，`state.restore` 的 seq 必须存在。无效请求返回 400，不写脏 commit。对应回归测试在 `tests/test_history_projection.py`。
 
 ---
 
@@ -214,3 +211,9 @@ Markdown 正文另按 §10 入账：
 草稿通过调用创建题目入口时，question.create 的 payload 顶层加入 `_draft:{draft_id,conversation_id}` 后再追加与计算哈希；人工入口为 api，agent_actor 内转换为 agent 并保留 `_agent`。建草稿、编辑和丢弃不追加 Ledger。创建提交是入库恢复的事实依据：草稿状态写回或投影重建失败后，重试先找到原提交，不重复建题，且不删除已被 Ledger 引用的文件。
 
 历史摘要将 `_draft.draft_id` 投影为 `payload.source_draft_id`；单条详情附创建时间、消息、学习摘要和最近来源调用，供列表范围之外的节点独立显示。运行记录详情以同一标识关联 `question.create`，不新增或改写学习 commit。MCP 工具调用的独立 `runtime.db` 不参与修正或状态还原；来源关联读取失败不影响原学习详情。历史的搜索与日期筛选先于游标分页，撤销状态仍基于完整链，见 `AI/api.md`。
+
+## 11. 活动配置与容量验证
+
+配置与投影的事务发布见 `AI/data.md` §8。`config.tuning_update` 保存规范化算法参数、变更键名和脱敏重算摘要，`config.update` 只存变更键名与 revision；均不保存密钥。配置镜像失败不会回退已生效数据库，返回 `mirror_pending`；监听前处理恢复或冲突。
+
+容量门禁：`python3 tests/bench_data_runtime.py`。固定种子生成 10,000 个合法题目 Markdown、blob 和 100,000 条反馈，分别在独立进程测快照读取、启动磁盘流程、全量重放、调参、修正、state.restore、普通反馈及 CSV 导出；Linux 记录 VmHWM，每条路径限制 768MiB。普通反馈额外把全量重放替换为失败断言。耗时与 P50/P95 是环境测量结果，写入任务日志，不作为模块文档的固定性能承诺。

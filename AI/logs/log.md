@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-10-02_omrs-audit-repair](2026-10-02_omrs-audit-repair.md)：OMRS 审计修复与治理
 - [2026-10-02_mcp-question-image-read](2026-10-02_mcp-question-image-read.md)：MCP 题图按需读取
 - [2026-10-02_mcp-question-image-production](2026-10-02_mcp-question-image-production.md)：MCP 题图与运行记录推送及生产发布
 - [2026-10-02_mcp-expansion](2026-10-02_mcp-expansion.md)：MCP 全量扩展

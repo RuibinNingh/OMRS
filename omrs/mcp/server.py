@@ -119,6 +119,16 @@ class RestrictedMCP(FastMCP):
         return [tool for tool in tools if _allowed(scopes, TOOL_SCOPES.get(tool.name))]
 
     async def call_tool(self, name, arguments):
+        from ..vault_lifecycle import task, lease, VaultBusy, VaultChanged
+        try:
+            with task(self.vault):
+                result = await self._call_tool_current(name, arguments)
+                with lease(self.vault):
+                    return result
+        except (VaultBusy, VaultChanged) as exc:
+            raise ToolError(f"{exc.code}: 题库正在维护或已恢复，请重新调用") from None
+
+    async def _call_tool_current(self, name, arguments):
         token = get_access_token()
         identity = await asyncio.to_thread(runtime_records.safely, key_for_id, self.vault, token.client_id) if token else None
         seq = await asyncio.to_thread(runtime_records.safely, runtime_records.begin, self.vault, name, arguments, identity)
@@ -137,8 +147,13 @@ class RestrictedMCP(FastMCP):
             raise
         finally:
             if seq is not None:
-                await asyncio.shield(asyncio.to_thread(runtime_records.safely, runtime_records.finish,
-                    self.vault, seq, round((time.monotonic() - started) * 1000), result, code))
+                from ..vault_lifecycle import VaultBusy, VaultChanged
+                try:
+                    await asyncio.shield(asyncio.to_thread(runtime_records.safely, runtime_records.finish,
+                        self.vault, seq, round((time.monotonic() - started) * 1000), result, code))
+                except (VaultBusy, VaultChanged):
+                    # 旧运行记录随恢复失效，不能追写新库，也不能覆盖原工具异常。
+                    pass
 
     async def _execute_tool(self, name, arguments):
         tool = self._tool_manager.get_tool(name)
@@ -164,6 +179,9 @@ class RestrictedMCP(FastMCP):
                 raise ToolError("forbidden: MCP Key 无权执行此能力或已失效") from None
             if isinstance(cause, locking.WriteLockTimeout):
                 raise ToolError("write_busy: 写入繁忙，请稍后重试") from None
+            from ..vault_lifecycle import VaultBusy, VaultChanged
+            if isinstance(cause, (VaultBusy, VaultChanged)):
+                raise cause
             if isinstance(cause, drafts.DraftError):
                 raise ToolError(f"{cause.code}: {cause}") from None
             if isinstance(cause, RequestError):

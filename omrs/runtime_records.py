@@ -1,4 +1,5 @@
 """系统运行记录：独立于学习 Ledger 的 MCP 调用生命周期与脱敏摘要。"""
+from .vault_lifecycle import storage, open_sqlite, lease, task, generation
 import datetime
 import json
 import logging
@@ -57,6 +58,7 @@ _NUMBER_FIELDS = {"count", "limit", "page", "page_size", "mastery_min", "mastery
 _PRIVATE = re.compile(r"omrs_mcp_\S+|\bbearer\s+\S+|https?://\S+|data:\S+", re.I)
 
 
+@storage
 def path(vault):
     return os.path.join(omrs_data_dir(vault), "runtime.db")
 
@@ -123,6 +125,7 @@ def result_summary(result):
     return result
 
 
+@storage
 def _connect(vault, write=False):
     target = path(vault)
     if os.path.islink(target):
@@ -131,7 +134,7 @@ def _connect(vault, write=False):
         os.makedirs(os.path.dirname(target), exist_ok=True)
         descriptor = os.open(target, os.O_CREAT | os.O_WRONLY, 0o600)
         os.close(descriptor)
-        db = sqlite3.connect(target, timeout=5)
+        db = open_sqlite(vault, target, timeout=5)
         try:
             db.execute("PRAGMA journal_mode=WAL")
             db.executescript("""
@@ -151,11 +154,12 @@ def _connect(vault, write=False):
             db.close()
             raise
     else:
-        db = sqlite3.connect(Path(target).as_uri() + "?mode=ro", uri=True, timeout=5)
+        db = open_sqlite(vault, Path(target).as_uri() + "?mode=ro", uri=True, timeout=5)
     db.row_factory = sqlite3.Row
     return db
 
 
+@storage
 def begin(vault, tool, arguments, identity=None):
     identity = identity or {}
     tool = tool if tool in TITLES else "unknown_tool"
@@ -169,6 +173,7 @@ def begin(vault, tool, arguments, identity=None):
         return row.lastrowid
 
 
+@storage
 def finish(vault, seq, duration_ms, result=None, error_code=""):
     summary = result_summary(result) if not error_code else {}
     status = "interrupted" if error_code == "interrupted" else "failure" if error_code else "success"
@@ -194,6 +199,7 @@ OPERATION_LABELS = {'pending_confirmation': '等待网页确认，尚未变更',
                     'expired': '确认已到期，未应用', 'conflict': '确认条件已变化，未应用'}
 
 
+@storage
 def operation_status(vault, operation_id, status, error_code=''):
     if not os.path.exists(path(vault)):
         return
@@ -213,6 +219,7 @@ def safely(fn, *args, **kwargs):
         return None
 
 
+@storage
 def recover_interrupted(vault):
     if not os.path.isfile(path(vault)):
         return 0
@@ -294,6 +301,7 @@ def _row(row, detail=False):
     return item
 
 
+@storage
 def list_records(vault, params):
     from . import mcp_operations
     mcp_operations.refresh(vault)
@@ -326,6 +334,7 @@ def list_records(vault, params):
             "has_more": more, "next_before_seq": rows[limit-1]["seq"] if more else None}
 
 
+@storage
 def calls_for_draft(vault, draft_id):
     if not draft_id or not os.path.isfile(path(vault)):
         return []
@@ -333,6 +342,7 @@ def calls_for_draft(vault, draft_id):
         return [_row(row) for row in db.execute("SELECT * FROM records WHERE draft_id=? ORDER BY seq DESC LIMIT 20", (draft_id,))]
 
 
+@storage
 def detail(vault, seq):
     from . import mcp_operations
     mcp_operations.refresh(vault)
@@ -360,7 +370,7 @@ def detail(vault, seq):
     from .ledger import ledger_path
     target = ledger_path(vault)
     if os.path.isfile(target):
-        with closing(sqlite3.connect(Path(target).as_uri() + "?mode=ro", uri=True)) as db:
+        with closing(open_sqlite(vault, Path(target).as_uri() + "?mode=ro", uri=True)) as db:
             for seq, commit_id, created_at, payload in db.execute(
                     "SELECT seq,commit_id,created_at,payload_json FROM commits WHERE commit_type='question.create' "
                     "AND json_extract(payload_json,'$._draft.draft_id')=? ORDER BY seq DESC", (item["draft_id"],)):

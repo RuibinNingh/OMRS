@@ -1,3 +1,4 @@
+from omrs.data_repository import mastery_rows, history_rows, session_rows
 import csv
 import os
 import tempfile
@@ -41,7 +42,7 @@ class QuestionSuspendTests(unittest.TestCase):
                 ).fetchone()
             self.assertEqual(row["suspended"], 1)
             self.assertEqual(row["archived"], 0)
-            csv_row = next(r for r in load_csv(mastery_path(vault.name), MASTERY_HEADERS) if r["UID"] == target["uid"])
+            csv_row = next(r for r in mastery_rows(vault.name) if r["UID"] == target["uid"])
             self.assertEqual(csv_row["Suspended"], "1")
             commits = read_commits(vault.name, ascending=True)
             self.assertEqual(commits[-1]["commit_type"], "question.suspend")
@@ -69,11 +70,11 @@ class QuestionSuspendTests(unittest.TestCase):
         with vault:
             target = questions[0]
             suspend_question(vault.name, target["uid"])
-            before_sessions = load_csv(sessions_path(vault.name), [])
+            before_sessions = session_rows(vault.name)
             before_commits = len(read_commits(vault.name, ascending=True))
-            with self.assertRaisesRegex(RuntimeError, "已停用"):
+            with self.assertRaisesRegex(ValueError, "已停用"):
                 create_session_from_selection(vault.name, [{"uid": target["uid"], "source": "due"}])
-            self.assertEqual(load_csv(sessions_path(vault.name), []), before_sessions)
+            self.assertEqual(session_rows(vault.name), before_sessions)
             self.assertEqual(len(read_commits(vault.name, ascending=True)), before_commits)
 
     def test_active_session_hides_questions_suspended_after_session_creation(self):
@@ -142,12 +143,12 @@ class QuestionSuspendTests(unittest.TestCase):
             self.assertEqual(result[0]["status"], "error")
             self.assertIn("停用", result[0]["msg"])
             self.assertEqual(len(read_commits(vault.name, ascending=True)), before)
-            self.assertEqual(load_csv(history_path(vault.name), HISTORY_HEADERS), [])
+            self.assertEqual(history_rows(vault.name), [])
 
     def test_legacy_csv_without_suspended_column_is_compatible(self):
         vault, questions = self.make_vault()
         with vault:
-            rows = load_csv(mastery_path(vault.name), MASTERY_HEADERS)
+            rows = mastery_rows(vault.name)
             with open(mastery_path(vault.name), "w", encoding="utf-8", newline="") as file:
                 writer = csv.DictWriter(file, fieldnames=MASTERY_HEADERS[:-1])
                 writer.writeheader()

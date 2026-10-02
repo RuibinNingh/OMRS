@@ -71,7 +71,7 @@ export function createBoardSettings(deps) {
     /** 单题题后留白：value 为 null / undefined 表示继承板设置。返回写入后的题，被拒或找不到题时返回 null。 */
     async setItemGap(uid, value, options = {}) {
       const board = detail();
-      const item = (board?.items || []).find(current => current.uid === uid || current.question_id === uid);
+      const item = (board?.items || []).find(current => current.question_id === uid) || (board?.items || []).find(current => current.uid === uid);
       if (!item || !board) return null;
       const gap = value == null ? null : clamp(value, 0, 48, 0);
       const items = board.items.map(current => (current === item ? { ...item, gap_lines: gap } : current));

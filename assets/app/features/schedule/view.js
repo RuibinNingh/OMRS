@@ -44,7 +44,7 @@ function detail(env) {
   return html`<div class="schd-detail" id="sch-plan-detail">${back}
   <div class="schd-detail__head"><div><h3 class="schd-detail__title">${d.title}</h3><p class="schd-meta" data-sid="${d.id}">${d.when} · ${d.id}</p></div>${tag({ label: d.status, tone: d.done ? 'success' : 'warning' })}</div>
   <p class="schd-detail__sum"><strong>已录入 ${d.recorded} / 共 ${d.total} 题</strong><span class="schd-meta">${d.hint}</span></p>
-  <div class="schd-acts">${button({ label: '录入结果', variant: 'primary', action: 'schedule.feedback', disabled: !d.canFeedback })}${button({ label: '导出打印版', icon: 'print', action: 'schedule.export', arg: 'a4', loading: s.exporting === 'a4' })}${button({ label: '导出屏幕版', icon: 'download', action: 'schedule.export', arg: 'screen', loading: s.exporting === 'screen' })}${button({ label: '删除调度', variant: 'danger', icon: 'trash', action: 'schedule.remove', loading: s.deleting.has(d.id) })}</div>
+  <div class="schd-acts">${button({ label: '录入结果', variant: 'primary', action: 'schedule.feedback', disabled: !d.canFeedback })}${button({ label: '导出打印版', icon: 'print', action: 'schedule.export', arg: 'a4', loading: s.exporting === 'a4', disabled: !d.canExport })}${button({ label: '导出屏幕版', icon: 'download', action: 'schedule.export', arg: 'screen', loading: s.exporting === 'screen', disabled: !d.canExport })}${button({ label: '删除调度', variant: 'danger', icon: 'trash', action: 'schedule.remove', loading: s.deleting.has(d.id) })}</div>
   <details class="schd-options"${s.options ? ' open' : ''}><summary data-action="schedule.options">打印选项</summary><div class="schd-options__row">
     <label class="schd-check"><input type="checkbox" id="sch-include-answers" data-change="schedule.answers"${s.answers ? ' checked' : ''}> 附带答案</label>
     <label class="schd-gap">题间留白 <input id="sch-question-gap" class="schd-num" type="number" min="0" max="20" value="${s.gap}" data-input="schedule.gap"> 行</label>
@@ -52,7 +52,7 @@ function detail(env) {
   <div id="sch-status" role="status">${s.exportStatus ? status({ tone: s.exportStatus.ok ? 'success' : 'danger', text: s.exportStatus.text }) : ''}</div>
   <ol class="schd-questions">${each(d.questions, q => `${q.n}:${q.uid}`, q => html`<li class="schd-q">
     <span class="schd-q__n">${q.n}</span><div class="schd-q__main"><strong>${q.uid}</strong><span class="schd-meta">${q.meta}</span></div>
-    ${tag({ label: q.recorded ? '已录入' : '待录入', tone: q.recorded ? 'success' : 'neutral' })}${button({ label: '预览', size: 'sm', action: 'schedule.preview', arg: q.uid, disabled: q.missing })}
+    ${tag({ label: q.recorded ? '已录入' : '待录入', tone: q.recorded ? 'success' : 'neutral' })}${q.availability === 'unresolved' ? button({ label: '绑定题目', size: 'sm', action: 'schedule.bind', arg: q.entry_id }) : button({ label: '预览', size: 'sm', action: 'schedule.preview', arg: q.preview_key, disabled: q.missing || !q.preview_key })}
   </li>`)}</ol>
 </div>`;
 }

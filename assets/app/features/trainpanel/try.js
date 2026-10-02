@@ -1,3 +1,4 @@
+import { configSavedStatus } from '../../core/config-status.js';
 /** 图片实时测试：独立于轮询区，原图预览不随进度更新重建。 */
 import { html } from '../../core/html.js';
 import { render, morph } from '../../core/dom.js';
@@ -54,7 +55,7 @@ export function mountTry(root, api) {
     saving = true; paint();
     const response = await api.post('/api/config', { train_try_collect: value });
     saving = false;
-    if (response.ok) collect = value;
+    if (response.ok) { collect = value; if (response.data?.mirror_pending) error = configSavedStatus(response.data).text; }
     else error = response.error?.message || '保存积累开关失败';
     paint();
   });

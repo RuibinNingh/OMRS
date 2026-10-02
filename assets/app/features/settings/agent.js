@@ -1,3 +1,4 @@
+import { configSavedStatus } from '../../core/config-status.js';
 /** AI 助手配置：agent_* 键；密钥只提交、不回显；预算只能调小（服务端再夹一次）。保存后经 bus 通知侧栏入口刷新。 */
 import { get, post } from '../../core/api.js';
 import { confirm } from '../../ui/dialog.js';
@@ -78,7 +79,8 @@ export function createAgent(root, bus) {
     if (!result.ok) { status(`保存失败：${result.error?.message || '未知错误'}`, 'danger'); return false; }
     await load();
     bus?.emit?.('agent:config');
-    if (!quiet) status('助手配置已保存（立即生效，无需重启）', 'success');
+    const saved = configSavedStatus(result.data, '助手配置已保存（立即生效，无需重启）');
+    if (!quiet || result.data?.mirror_pending) status(saved.text, saved.tone);
     return true;
   }
 
@@ -109,7 +111,8 @@ export function createAgent(root, bus) {
     if (!alive) return;
     if (!result.ok) { status(`清除失败：${result.error?.message || '未知错误'}`, 'danger'); return; }
     await load();
-    status('助手密钥已清除', 'success');
+    const saved = configSavedStatus(result.data, '助手密钥已清除');
+    status(saved.text, saved.tone);
   }
 
   return { load, save, test, toggleKey, clearKey, dispose() { alive = false; } };

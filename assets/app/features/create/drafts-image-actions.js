@@ -1,5 +1,6 @@
 /** 草稿来源图操作：训练开关、AI 框选建议与按块转文字。 */
 import { post } from '../../core/api.js';
+import { imageValue } from '../../core/uploads.js';
 import { publishDraftChange } from '../../domain/drafts.js';
 import { cropDataUrl } from './crop.js';
 import { imageSha, imageUrl, latestDetectResult } from './drafts-state.js';
@@ -37,7 +38,7 @@ export function createDraftImageActions(state, { isAlive, save, setDraft, showEr
       const crops = {};
       const { x, y, w, h } = row.box;
       if (!(x === 0 && y === 0 && w === 1 && h === 1)) {
-        crops[key] = await cropDataUrl({ id: row.image_sha }, row.box, 'image/png', .92, imageUrl(row.image_sha));
+        crops[key] = await imageValue(await cropDataUrl({ id: row.image_sha }, row.box, 'image/png', .92, imageUrl(row.image_sha)), 'draft');
       }
       const result = await post('/api/drafts/extract', { id: state.draft.id, revision: state.draft.revision,
         block_ids: [key], crops });

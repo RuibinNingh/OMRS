@@ -1,4 +1,5 @@
 /** Label definitions, writes and redraw notifications shared by every page. */
+import { questionRef, questionRefs, questionItem } from '../question/ref.js';
 import { get, post } from '../../core/api.js';
 import { itemsNow, reloadData } from '../data.js';
 import { qvInvalidate } from '../question/index.js';
@@ -53,13 +54,15 @@ export function refreshLabelViews(uids = []) {
   emit('feedback:render');
   emit('board:reload');
 }
-export async function saveQuestionLabels(uid, labels) {
-  const item = itemsNow().find(row => row.uid === uid);
+export async function saveQuestionLabels(value, labels) {
+  const item = questionItem(value);
+  const ref = questionRef(item);
+  const uid = item.uid;
   const before = item ? [...(item.labels || [])] : [];
   if (item) item.labels = [...labels];
   refreshLabelViews([uid]);
   try {
-    await request('/api/question/labels', { uid, labels });
+    await request('/api/question/labels', { ...ref, labels });
     touchLabels(labels);
     await loadLabels();
     toast(labels.length ? `已保存标记：${labels.join('、')}` : '已清空标记', { kind: 'ok' });
@@ -69,10 +72,14 @@ export async function saveQuestionLabels(uid, labels) {
     toast(`保存标记失败：${error.message}`, { kind: 'error' });
   }
 }
-export async function batchLabels(uids, add = [], remove = []) {
-  const result = await request('/api/questions/labels', { uids, add, remove });
-  const next = applyBatch(itemsNow(), uids, add, remove);
-  itemsNow().forEach(item => { if (next[item.uid]) item.labels = next[item.uid]; });
+export async function batchLabels(values, add = [], remove = []) {
+  const question_refs = questionRefs(values);
+  const selectedIds = new Set(question_refs.map(ref => ref.question_id));
+  const result = await request('/api/questions/labels', { question_refs, add, remove });
+  const current = itemsNow().filter(item => selectedIds.has(item.question_id));
+  const uids = current.map(item => item.uid);
+  const next = applyBatch(current, uids, add, remove);
+  current.forEach(item => { if (next[item.uid]) item.labels = next[item.uid]; });
   touchLabels(add);
   await loadLabels();
   refreshLabelViews(uids);

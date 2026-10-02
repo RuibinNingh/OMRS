@@ -20,11 +20,13 @@ def test_review_export_without_images_stays_markdown(monkeypatch, tmp_path):
 
 
 def test_review_export_with_images_packages_only_referenced_files(monkeypatch, tmp_path):
-    first = tmp_path / "first.png"
-    second = tmp_path / "second.jpg"
-    first.write_bytes(b"png-data")
-    second.write_bytes(b"jpg-data")
-    paths = {first.name: str(first), second.name: str(second)}
+    from PIL import Image
+    attachments = tmp_path / "错题" / "附件"
+    attachments.mkdir(parents=True)
+    first = attachments / "first.png"
+    second = attachments / "second.jpg"
+    Image.new("RGB", (4, 4), "red").save(first)
+    Image.new("RGB", (4, 4), "blue").save(second)
 
     monkeypatch.setattr(
         analytics,
@@ -41,7 +43,6 @@ def test_review_export_with_images_packages_only_referenced_files(monkeypatch, t
             ]
         },
     )
-    monkeypatch.setattr(exporting, "_find_image", lambda vault, name: paths.get(name))
 
     payload, filename, content_type = analytics.build_review_export(str(tmp_path), True)
 
@@ -53,13 +54,13 @@ def test_review_export_with_images_packages_only_referenced_files(monkeypatch, t
             "images/first.png",
             "images/second.jpg",
         ]
-        assert archive.read("images/first.png") == b"png-data"
-        assert archive.read("images/second.jpg") == b"jpg-data"
+        assert archive.read("images/first.png") == first.read_bytes()
+        assert archive.read("images/second.jpg") == second.read_bytes()
 
 
-def test_markdown_table_becomes_a_structured_export_block():
+def test_markdown_table_becomes_a_structured_export_block(tmp_path):
     blocks = exporting._text_to_blocks(
-        "unused",
+        str(tmp_path),
         "| 选项 | 离子方程式 | 化学方程式 |\n"
         "| --- | --- | --- |\n"
         "| A | $H^+ + OH^-$ | $CH_3COOH + NaOH$ |",
@@ -72,7 +73,7 @@ def test_markdown_table_becomes_a_structured_export_block():
     }]
 
 
-def test_multiline_display_math_stays_one_export_text_block():
+def test_multiline_display_math_stays_one_export_text_block(tmp_path):
     source = r"""前文
 $$
 \begin{cases}
@@ -81,7 +82,7 @@ f(2) < 0
 \end{cases}
 $$
 后文"""
-    blocks = exporting._text_to_blocks("unused", source)
+    blocks = exporting._text_to_blocks(str(tmp_path), source)
 
     assert blocks == [
         {"t": "txt", "text": "前文"},
@@ -98,8 +99,8 @@ $$""",
     ]
 
 
-def test_plain_newlines_remain_separate_export_text_blocks():
-    blocks = exporting._text_to_blocks("unused", "题干\nA. 甲\nB. 乙")
+def test_plain_newlines_remain_separate_export_text_blocks(tmp_path):
+    blocks = exporting._text_to_blocks(str(tmp_path), "题干\nA. 甲\nB. 乙")
 
     assert blocks == [
         {"t": "txt", "text": "题干"},
@@ -108,9 +109,9 @@ def test_plain_newlines_remain_separate_export_text_blocks():
     ]
 
 
-def test_export_data_keeps_a4_question_gap_line_count():
+def test_export_data_keeps_a4_question_gap_line_count(tmp_path):
     data = exporting._build_export_data(
-        "unused",
+        str(tmp_path),
         "EXP-test",
         [{"uid": "q-1", "question": "题目", "answer": "", "subject": "数学"}],
         False,

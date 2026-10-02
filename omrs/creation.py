@@ -1,6 +1,7 @@
 import base64
 import datetime
 import hashlib
+import functools
 import json
 import os
 import re
@@ -8,12 +9,23 @@ import sqlite3
 
 from .common import ATTACHMENTS_DIR, questions_root
 from .common import extract_labels
-from .ledger import append_commit, reserve_operation_id
+from .ledger import append_commit, append_commit_in_db, connect, reserve_operation_id
+from .creation_operation import CreationOperation
+from .vault_lifecycle import storage
+from .locking import write_lock
 from .migration import ensure_ledger_bootstrap
 from .projections import rebuild_projection
 from .workspace_sync import content_hash, metadata_hash, update_fingerprints
 from .path_safety import safe_question_path
 from .taxonomy import category_path, create_category
+
+
+def _serialized(fn):
+    @functools.wraps(fn)
+    def wrapped(*args, **kwargs):
+        with write_lock():
+            return fn(*args, **kwargs)
+    return wrapped
 
 
 def _next_uid(qroot, category):
@@ -25,11 +37,15 @@ def _next_uid(qroot, category):
             match = pattern.match(fname)
             if match:
                 used.add(int(match.group(1)))
-    drafts_db = os.path.join(qroot, ".omrs", "drafts", "drafts.db")
-    if os.path.isfile(drafts_db):
-        db = sqlite3.connect(f"file:{drafts_db}?mode=ro", uri=True)
+    for folder, filename in (("drafts", "drafts.db"), ("inbox", "inbox.db")):
+        reserved_db = os.path.join(qroot, ".omrs", folder, filename)
+        if not os.path.isfile(reserved_db):
+            continue
+        db = sqlite3.connect(f"file:{reserved_db}?mode=ro", uri=True)
         try:
-            for (uid,) in db.execute("SELECT uid FROM commit_operations"):
+            sql = "SELECT uid FROM commit_operations" if folder == "drafts" else "SELECT identity_json FROM commit_operations WHERE phase != 'cancelled'"
+            for (raw,) in db.execute(sql):
+                uid = raw if folder == "drafts" else json.loads(raw)["uid"]
                 match = re.fullmatch(rf"{re.escape(category)}(\d+)", uid)
                 if match:
                     used.add(int(match.group(1)))
@@ -75,6 +91,13 @@ def _save_pasted_images(vault, uid, question_id, images, suffix, strict=False, r
     index = start_index
     for image in images:
         data_url = image.get("data") if isinstance(image, dict) else image
+        if isinstance(image, dict) and image.get("upload_ref"):
+            from .uploads import image_data_url
+            data_url = image_data_url(vault, image["upload_ref"], purpose="create")
+        if isinstance(data_url, bytes):
+            from .inbox import image_size
+            mime, _, _ = image_size(data_url)
+            data_url = "data:" + mime + ";base64," + base64.b64encode(data_url).decode("ascii")
         if not data_url or not isinstance(data_url, str):
             if strict:
                 raise ValueError("图片数据缺失")
@@ -184,12 +207,19 @@ tags:
 """
 
 
+@storage
+@_serialized
 def create_question(vault, subject, category, difficulty, related_tags=None,
                     question_text="", answer_text="", cause="",
                     question_images=None, answer_images=None, labels=None,
-                    ordered_blocks=None, draft_origin=None, reserved_identity=None, actor="api"):
+                    ordered_blocks=None, draft_origin=None, reserved_identity=None, actor="api", operation=None):
     category_dir, subject, category = category_path(vault, subject, category)
-    if reserved_identity:
+    if operation is not None:
+        if not isinstance(operation, CreationOperation):
+            raise ValueError("创建预留不是可信领域操作")
+        operation.validate(vault)
+        reserved_identity = operation.identity
+    if reserved_identity and operation is None:
         draft_id = (draft_origin or {}).get("draft_id")
         db_path = os.path.join(questions_root(vault), ".omrs", "drafts", "drafts.db")
         op_db = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
@@ -228,8 +258,8 @@ def create_question(vault, subject, category, difficulty, related_tags=None,
             (q_paths if suffix == "q" else a_paths).extend(paths)
             rendered_blocks.append({**block, "image_name": names[0]})
     else:
-        q_names, q_paths = _save_pasted_images(vault, uid, question_id, question_images, "q")
-        a_names, a_paths = _save_pasted_images(vault, uid, question_id, answer_images, "a")
+        q_names, q_paths = _save_pasted_images(vault, uid, question_id, question_images, "q", strict=bool(operation), reusable=bool(operation))
+        a_names, a_paths = _save_pasted_images(vault, uid, question_id, answer_images, "a", strict=bool(operation), reusable=bool(operation))
         rendered_blocks = None
 
     content = _build_markdown(
@@ -244,13 +274,16 @@ def create_question(vault, subject, category, difficulty, related_tags=None,
             with open(path, "rb") as file:
                 artifact_hashes[os.path.relpath(path, vault)] = hashlib.sha256(file.read()).hexdigest()
         artifact_hashes[os.path.relpath(filepath, vault)] = hashlib.sha256(content.encode("utf-8")).hexdigest()
-        op_db = sqlite3.connect(db_path)
-        try:
-            op_db.execute("UPDATE commit_operations SET artifacts_json=? WHERE draft_id=? AND question_id=?",
-                          (json.dumps(artifact_hashes, ensure_ascii=False), draft_id, question_id))
-            op_db.commit()
-        finally:
-            op_db.close()
+        if operation:
+            operation.save_artifacts(vault, artifact_hashes)
+        else:
+            op_db = sqlite3.connect(db_path)
+            try:
+                op_db.execute("UPDATE commit_operations SET artifacts_json=? WHERE draft_id=? AND question_id=?",
+                              (json.dumps(artifact_hashes, ensure_ascii=False), draft_id, question_id))
+                op_db.commit()
+            finally:
+                op_db.close()
 
     if reserved_identity and os.path.exists(filepath):
         with open(filepath, "r", encoding="utf-8") as file:
@@ -296,7 +329,23 @@ def create_question(vault, subject, category, difficulty, related_tags=None,
         payload = {"question": question}
         if draft_origin:
             payload["_draft"] = dict(draft_origin)
-        append_commit(vault, actor, "question.create", f"创建题目 {uid}", payload, blobs=[content])
+        if operation:
+            payload["_inbox"] = operation.stamp()
+            receipt = {"digest": operation.digest, "uid": uid, "question_id": question_id,
+                       "file_path": relpath, "images": q_names + a_names,
+                       "question_images": q_names, "answer_images": a_names,
+                       "content_hash": content_hash(content), "message": f"已创建 {uid}"}
+            with connect(vault) as db:
+                db.execute("BEGIN IMMEDIATE")
+                existing = db.execute("SELECT result_json FROM op_results WHERE op_id=?", (operation.operation_id,)).fetchone()
+                if existing:
+                    raise ValueError("创建操作已经提交，必须读取原回执")
+                commit = append_commit_in_db(db, actor, "question.create", f"创建题目 {uid}", payload, blobs=[content])
+                receipt["commit_id"] = commit["commit_id"]
+                db.execute("INSERT INTO op_results(op_id,result_json,created_at) VALUES(?,?,?)",
+                           (operation.operation_id, json.dumps(receipt, ensure_ascii=False), commit["created_at"]))
+        else:
+            append_commit(vault, actor, "question.create", f"创建题目 {uid}", payload, blobs=[content])
         state = rebuild_projection(vault)
         update_fingerprints(vault, [
             {

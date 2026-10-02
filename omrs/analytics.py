@@ -1,4 +1,4 @@
-"""数据复盘分析：从 mastery_data.csv + history_log.csv 派生尽可能丰富的统计，
+"""数据复盘分析：从 SQL 题目及反馈读模型派生尽可能丰富的统计，
 供前端「数据」页展示，并生成可导出的复盘报告（程序生成的复盘数据 + 给 AI 分析的原始数据）。
 
 对应 API：
@@ -6,26 +6,17 @@
   GET /api/export-review   → build_review_markdown()
 """
 
+from .common import business_today
+from .data_repository import mastery_rows, history_rows
+from .vault_lifecycle import storage
 import datetime
 import io
 import json
 import os
 import zipfile
+import tempfile
 
-from .common import (
-    HISTORY_HEADERS,
-    MASTERY_HEADERS,
-    extract_images,
-    extract_labels,
-    history_path,
-    is_suspended_row,
-    load_csv,
-    load_tuning,
-    mastery_path,
-    parse_date,
-    resolve_sm2_fields,
-    split_sections,
-)
+from .common import extract_images, is_suspended_row, load_tuning, parse_date, resolve_sm2_fields, split_sections
 from .ledger import connect
 from .scheduling import (
     _safe_float,
@@ -92,7 +83,7 @@ def _streaks(dates):
         else:
             run = 1
     # 当前连续：从最后一个复习日往前数；若最后复习日不是今天/昨天则当前连续仍以最后一段计
-    today = datetime.date.today()
+    today = business_today()
     last = uniq[-1]
     if (today - last).days > 1:
         current = 0
@@ -113,10 +104,11 @@ def _bucket_label(value, edges, labels):
     return labels[-1]
 
 
+@storage
 def get_analytics(vault, subject="", category="", since="", until=""):
     from .mcp.common import date_bounds, within_date
     bounds = date_bounds(since, until)
-    all_rows = [resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)]
+    all_rows = [resolve_sm2_fields(r) for r in mastery_rows(vault)]
     all_rows = [r for r in all_rows if (not subject or r.get("Subject") == subject)
                 and (not category or r.get("Category") == category)]
     scoped_uids = {r.get("UID") for r in all_rows}
@@ -138,7 +130,7 @@ def get_analytics(vault, subject="", category="", since="", until=""):
         if not row["archived"] and not row["suspended"] and row["uid"] in scoped_uids
     }
     rows = [row for row in all_rows if row.get("UID", "") in active_uids]
-    all_history = load_csv(history_path(vault), HISTORY_HEADERS)
+    all_history = history_rows(vault)
     current_history = [
         row for row in all_history
         if (
@@ -151,7 +143,7 @@ def get_analytics(vault, subject="", category="", since="", until=""):
     fail_counts = build_fail_counts(current_history, uid_by_qid)
     wrong_streaks = build_wrong_streaks(current_history, uid_by_qid)
     history = [row for row in current_history if within_date(row.get("Date", ""), bounds)]
-    today = datetime.date.today()
+    today = business_today()
 
     total = len(rows)
 
@@ -515,6 +507,7 @@ def _pct(value):
     return "—" if value is None else f"{value*100:.0f}%"
 
 
+@storage
 def build_review_markdown(vault):
     """生成复盘报告 Markdown：上半部分为程序生成的复盘数据，
     下半部分为给 AI 分析的原始历史 + 机器可读 JSON。
@@ -525,14 +518,14 @@ def build_review_markdown(vault):
     active_uids = {item.get("uid", "") for item in a.get("items", [])}
     active_qids = {item.get("question_id", "") for item in a.get("items", []) if item.get("question_id")}
     history = [
-        row for row in load_csv(history_path(vault), HISTORY_HEADERS)
+        row for row in history_rows(vault)
         if (
             row.get("Question_ID") in active_qids
             if row.get("Question_ID")
             else row.get("UID", "") in active_uids
         )
     ]
-    today = datetime.date.today().isoformat()
+    today = business_today().isoformat()
     ov = a["overview"]
 
     L = []
@@ -676,39 +669,56 @@ def build_review_markdown(vault):
     return md.encode("utf-8"), filename
 
 
-def build_review_export(vault, include_images=False):
+def build_review_export(vault, include_images=False, file_artifact=False):
     """生成供 AI 分析的下载材料。
 
     默认返回轻量 Markdown；需要图片时返回 ZIP，内含同一份 Markdown 和题面实际
     引用的图片。图片文件名保持不变，以便 AI 生成报告时按 `/api/image?name=` 规则
     引用，而不是写入只能在 ZIP 内使用的相对路径。
 
-    返回 (bytes, filename, content_type)。
+    返回 (bytes, filename, content_type)；file_artifact=True 的 ZIP 返回临时路径，由发送方清理。
     """
-    payload, markdown_name = build_review_markdown(vault)
-    if not include_images:
-        return payload, markdown_name, "text/markdown; charset=utf-8"
-
-    # 延迟导入，避免 analytics 与导出模板模块形成不必要的启动依赖。
-    from .exporting import _find_image
-
-    analytics = get_analytics(vault)
-    image_names = []
-    seen = set()
-    for item in analytics.get("items", []):
-        for raw_name in item.get("images", []):
-            name = os.path.basename(str(raw_name or "").replace("\\", "/"))
-            if name and name not in seen:
-                seen.add(name)
-                image_names.append(name)
-
-    output = io.BytesIO()
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr(markdown_name, payload)
-        for name in image_names:
-            path = _find_image(vault, name)
-            if path and os.path.isfile(path):
-                archive.write(path, f"images/{name}")
-
-    today = datetime.date.today().isoformat()
-    return output.getvalue(), f"OMRS-AI数据-{today}-含图片.zip", "application/zip"
+    from .question_images import read_attachment_image
+    from .vault_lifecycle import lease
+    with tempfile.TemporaryDirectory(prefix="omrs-review-export-") as staging:
+        captured = []
+        with lease(vault):
+            payload, markdown_name = build_review_markdown(vault)
+            if not include_images:
+                return payload, markdown_name, "text/markdown; charset=utf-8"
+            analytics = get_analytics(vault)
+            seen = set()
+            for item in analytics.get("items", []):
+                for raw_name in item.get("images", []):
+                    name = os.path.basename(str(raw_name or "").replace("\\", "/"))
+                    if not name or name in seen:
+                        continue
+                    seen.add(name)
+                    try:
+                        raw, _mime = read_attachment_image(vault, name)
+                    except FileNotFoundError:
+                        continue
+                    except ValueError as exc:
+                        if str(exc) == "题目引用的图片不存在":
+                            continue
+                        raise
+                    path = os.path.join(staging, str(len(captured)))
+                    with open(path, "wb") as file:
+                        file.write(raw)
+                    captured.append((name, path))
+        if file_artifact:
+            descriptor, output = tempfile.mkstemp(prefix="omrs-review-", suffix=".zip")
+            os.close(descriptor)
+        else:
+            output = io.BytesIO()
+        try:
+            with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.writestr(markdown_name, payload)
+                for name, path in captured:
+                    archive.write(path, f"images/{name}")
+        except BaseException:
+            if file_artifact:
+                os.unlink(output)
+            raise
+        today = business_today().isoformat()
+        return output if file_artifact else output.getvalue(), f"OMRS-AI数据-{today}-含图片.zip", "application/zip"

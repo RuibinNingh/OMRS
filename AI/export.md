@@ -18,7 +18,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 ## 后端职责（`omrs/exporting.py`）
 
 只做四件事，全部纯标准库：
-1. **读题**：`_load_export_questions()` 从 mastery CSV + 题目 `.md` 取题（与旧实现一致，停用标记为 `1` 的题目在此处跳过）；展示板导出与纸面指纹读取都把文件路径限制在 `错题/` 目录内，越界或损坏路径按缺失处理。
+1. **读题**：`_load_export_questions()` 从 SQL repository + 题目 `.md` 取题（停用标记为 `1` 的题目在此处跳过）；展示板导出与纸面指纹读取都把文件路径限制在 `错题/` 目录内，越界或损坏路径按缺失处理。
 2. **解析**：`_text_to_blocks()` 把正文转成三种块——非空文字行→`{t:'txt'}`，`![[名]]` / `![](路径)`→`{t:'img'}`，Markdown 表头 + 分隔行 + 数据行→`{t:'table', headers, rows}`。普通换行按文字块顺序保留，模板的题面、答案和备注使用 `white-space: pre-wrap`，不会把 AI 的逐行文本合并；空行不生成无内容块。表格支持 `\|` 转义；对齐冒号会被识别但当前不保留对齐语义，行宽按表头补空或截断。跨行 `$$...$$` 会先合并为单个文字块，不能按行拆散。
 3. **取图**：`_img_payload()` 用 `_find_image()` 定位、`_read_image_info()`（纯 `struct` 解析 PNG/JPEG/GIF 尺寸，无 Pillow）读出宽高，base64 成 data-uri。
 4. **组装**：`_build_export_data()` 产出 `{meta, questions, answers}`。`questions[i].notes` 只带 `关联`，`answers[i].notes` 只带 `错因`——错因会提示解法，不能出现在题面区；`include_answers=false` 时 `answers[i].blocks` 为空数组但 `notes` 照旧，反馈区因此仍能只列错因。`meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联（`_read_katex_bundle()`）。数据 JSON 会做 `</` 转义防提前闭合脚本，最终仍是单个自包含 HTML。
@@ -239,3 +239,11 @@ export_board 按 all/new 调用现有展示板模板，附件回调绑定当前�
 快照由 mcp_exports.py 保存：同request_id复用原板版本的字节；独立SQLite先原子登记稳定编号与完整HTML恢复副本，再原子落0600 HTML文件。崩溃重试/下载从恢复副本重建同一快照，不重新读取已变板。24小时后访问或下一次导出清理文件及恢复副本，保留幂等墓碑防止旧请求重新生成。
 
 响应只含export_id、板版本、范围、大小、SHA、期限及主Web下载链接。GET /api/mcp/exports/download?export_id=编号 需Web登录（沿用本机免PIN），MCP凭据拒绝；下载禁止缓存，HTML可离线排版，PDF通过浏览器打印。
+
+## 安全路径与计划身份
+
+题图只从 `错题/附件/` 中按安全相对路径或唯一文件名读取，不接受绝对路径、链接、穿越或第二次URL解码；图片读取和 `/api/image` 使用同一受限读取器。按Session导出先检查绑定条目；unresolved/archived必须由用户在详情处理，稳定身份不存在时不按UID重用回退。停用题仍按原导出规则跳过。
+
+导出在短租约与写锁内捕获题目、图片及版面数据；HTML模板渲染与下载发送在捕获段之外。按稳定question_refs导出在同一捕获段解析身份，避免移动期间先解析UID再取到新题。源码包导出只读项目源码，不取得题库生命周期租约。
+
+复盘含图导出通过安全附件读取捕获到临时staging，释放租约后再压缩。HTTP使用 `build_review_export(...,file_artifact=True)` 返回临时ZIP路径并分块发送，下载完成或失败均清理临时件；默认调用保留原字节回执兼容。

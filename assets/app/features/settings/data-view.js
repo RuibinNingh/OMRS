@@ -1,8 +1,10 @@
 /** 设置页「data」分区结构。 */
 import { html } from '../../core/html.js';
+import { tuningView } from './tuning-view.js';
 
 export const dataView = () => html`<section class="st-section" id="st-sec-data" role="tabpanel" aria-labelledby="st-tab-data">
-          <header class="st-head"><h2>数据与存储</h2><p>备份整个「错题」目录，查看存储占用并无损压缩题图。压缩前建议先导出一份备份。</p></header>
+          <header class="st-head"><h2>数据与存储</h2><p>调整学习算法、重算历史，备份整个「错题」目录，查看占用并无损压缩题图。</p></header>
+          ${tuningView()}
           <div class="card st-card">
             <div class="card-title">备份与恢复</div>
             <p class="hint st-lead">把「错题」目录打包成 .zip 下载留存。导入会先校验并预览，确认后才覆盖恢复。</p>

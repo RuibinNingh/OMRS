@@ -9,6 +9,7 @@ import { createAgent } from './agent.js';
 import { createStorage } from './storage.js';
 import { createService } from './service.js';
 import { createMcpKeys } from './mcp-keys.js';
+import { createTuning } from './tuning.js';
 import { SECTIONS, SECTION_KEY, sectionOf } from './state.js';
 
 let root = null;
@@ -21,6 +22,7 @@ let agent = null;
 let storage = null;
 let service = null;
 let mcpKeys = null;
+let tuning = null;
 let current = 'appearance';
 
 function openSection(value, { focus = false } = {}) {
@@ -59,6 +61,7 @@ export const page = {
     ai = createAi(root);
     agent = createAgent(root, ctx.bus);
     storage = createStorage(root);
+    tuning = createTuning(root);
     let saved = '';
     try { saved = localStorage.getItem(SECTION_KEY) || ''; } catch { /* 使用默认分区。 */ }
     openSection(saved);
@@ -76,12 +79,13 @@ export const page = {
     ai.load();
     agent.load();
     storage.load();
+    tuning.load();
     service.load();
     mcpKeys.load();
     return () => {
       root?.removeEventListener('keydown', onKeys);
-      access?.dispose(); ai?.dispose(); agent?.dispose(); storage?.dispose(); service?.dispose(); mcpKeys?.dispose(); entryBackground?.dispose();
-      root = null; onKeys = null; appearance = null; entryBackground = null; access = null; ai = null; agent = null; storage = null; service = null; mcpKeys = null;
+      access?.dispose(); ai?.dispose(); agent?.dispose(); storage?.dispose(); tuning?.dispose(); service?.dispose(); mcpKeys?.dispose(); entryBackground?.dispose();
+      root = null; onKeys = null; appearance = null; entryBackground = null; access = null; ai = null; agent = null; storage = null; tuning = null; service = null; mcpKeys = null;
     };
   },
   actions: {
@@ -108,6 +112,8 @@ export const page = {
     agentToggleKey: () => agent?.toggleKey(),
     agentClearKey: () => agent?.clearKey(),
     backupExport: () => storage?.backupExport(),
+    saveTuning: () => tuning?.save(),
+    checkTuning: () => tuning?.check(),
     backupPick: () => root?.querySelector('#opt-import-file')?.click(),
     backupImport: ({ event }) => storage?.backupImport(event),
     scanImages: () => storage?.scanImages(),

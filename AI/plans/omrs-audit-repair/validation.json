@@ -1,0 +1,701 @@
+{
+  "e2e": {
+    "ref": "17d6d84",
+    "results": [
+      {
+        "id": "e2e-annotate",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/annotate.py"
+        ],
+        "exit_code": 0,
+        "seconds": 10.507,
+        "log": "/tmp/omrs-repair-release-e2e-root/e2e-annotate.log",
+        "assertions_passed": 34
+      },
+      {
+        "id": "e2e-assistant",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/assistant.py"
+        ],
+        "exit_code": 0,
+        "seconds": 47.769,
+        "log": "/tmp/omrs-repair-release-e2e-data/e2e-assistant.log",
+        "assertions_passed": 58
+      },
+      {
+        "id": "e2e-assistant_p3",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/assistant_p3.py"
+        ],
+        "exit_code": 0,
+        "seconds": 15.048,
+        "log": "/tmp/omrs-repair-release-e2e-data/e2e-assistant_p3.log",
+        "assertions_passed": 23
+      },
+      {
+        "id": "e2e-assistant_race",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/assistant_race.py"
+        ],
+        "exit_code": 0,
+        "seconds": 7.354,
+        "log": "/tmp/omrs-repair-release-e2e-data/e2e-assistant_race.log",
+        "assertions_passed": 2
+      },
+      {
+        "id": "e2e-assistant_usage",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/assistant_usage.py"
+        ],
+        "exit_code": 0,
+        "seconds": 6.441,
+        "log": "/tmp/omrs-repair-release-e2e-data/e2e-assistant_usage.log",
+        "assertions_passed": 7
+      },
+      {
+        "id": "e2e-audit_identity",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/audit_identity.py"
+        ],
+        "exit_code": 0,
+        "seconds": 8.394,
+        "log": "/tmp/omrs-repair-release-e2e-frontend/e2e-audit_identity.log",
+        "assertions_passed": 15
+      },
+      {
+        "id": "e2e-board",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/board.py"
+        ],
+        "exit_code": 0,
+        "seconds": 16.675,
+        "log": "/tmp/omrs-repair-release-e2e-frontend/e2e-board.log",
+        "assertions_passed": 30
+      },
+      {
+        "id": "e2e-board_picker",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/board_picker.py"
+        ],
+        "exit_code": 0,
+        "seconds": 15.217,
+        "log": "/tmp/omrs-repair-release-e2e-frontend/e2e-board_picker.log",
+        "assertions_passed": 31
+      },
+      {
+        "id": "e2e-catalog",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/catalog.py"
+        ],
+        "exit_code": 0,
+        "seconds": 10.086,
+        "log": "/tmp/omrs-repair-release-e2e-frontend/e2e-catalog.log",
+        "assertions_passed": 26
+      },
+      {
+        "id": "e2e-create",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/create.py"
+        ],
+        "exit_code": 0,
+        "seconds": 49.745,
+        "log": "/tmp/omrs-repair-release-e2e-root/e2e-create.log",
+        "assertions_passed": 114
+      },
+      {
+        "id": "e2e-dashboard",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/dashboard.py"
+        ],
+        "exit_code": 0,
+        "seconds": 16.585,
+        "log": "/tmp/omrs-repair-release-e2e-frontend/e2e-dashboard.log",
+        "assertions_passed": 26
+      },
+      {
+        "id": "e2e-data",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/data.py"
+        ],
+        "exit_code": 0,
+        "seconds": 16.187,
+        "log": "/tmp/omrs-repair-release-e2e-frontend/e2e-data.log",
+        "assertions_passed": 21
+      },
+      {
+        "id": "e2e-drafts",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/drafts.py"
+        ],
+        "exit_code": 0,
+        "seconds": 67.448,
+        "log": "/tmp/omrs-repair-release-e2e-data/e2e-drafts.log",
+        "assertions_passed": 75
+      },
+      {
+        "id": "e2e-drafts_blocks",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/drafts_blocks.py"
+        ],
+        "exit_code": 0,
+        "seconds": 26.062,
+        "log": "/tmp/omrs-repair-release-e2e-data/e2e-drafts_blocks.log",
+        "assertions_passed": 59
+      },
+      {
+        "id": "e2e-drafts_p4",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/drafts_p4.py"
+        ],
+        "exit_code": 0,
+        "seconds": 19.777,
+        "log": "/tmp/omrs-repair-release-e2e-data/e2e-drafts_p4.log",
+        "assertions_passed": 24
+      },
+      {
+        "id": "e2e-entry_background",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/entry_background.py"
+        ],
+        "exit_code": 0,
+        "seconds": 12.477,
+        "log": "/tmp/omrs-repair-release-e2e-data/e2e-entry_background.log",
+        "assertions_passed": 5
+      },
+      {
+        "id": "e2e-feedback",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/feedback.py"
+        ],
+        "exit_code": 0,
+        "seconds": 14.641,
+        "log": "/tmp/omrs-repair-release-e2e-frontend/e2e-feedback.log",
+        "assertions_passed": 31
+      },
+      {
+        "id": "e2e-history",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/history.py"
+        ],
+        "exit_code": 0,
+        "seconds": 16.137,
+        "log": "/tmp/omrs-repair-release-e2e-data/e2e-history.log",
+        "assertions_passed": 29
+      },
+      {
+        "id": "e2e-instant",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/instant.py"
+        ],
+        "exit_code": 0,
+        "seconds": 11.648,
+        "log": "/tmp/omrs-repair-release-e2e-frontend/e2e-instant.log",
+        "assertions_passed": 23
+      },
+      {
+        "id": "e2e-mcp",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/mcp.py"
+        ],
+        "exit_code": 0,
+        "seconds": 13.626,
+        "log": "/tmp/omrs-repair-release-e2e-root/e2e-mcp.log",
+        "assertions_passed": 39
+      },
+      {
+        "id": "e2e-mcp_expansion",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/mcp_expansion.py"
+        ],
+        "exit_code": 0,
+        "seconds": 16.375,
+        "log": "/tmp/omrs-repair-release-e2e-root/e2e-mcp_expansion.log",
+        "assertions_passed": 17
+      },
+      {
+        "id": "e2e-p4_tools",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/p4_tools.py"
+        ],
+        "exit_code": 0,
+        "seconds": 9.999,
+        "log": "/tmp/omrs-repair-release-e2e-data/e2e-p4_tools.log",
+        "assertions_passed": 11
+      },
+      {
+        "id": "e2e-practice",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/practice.py"
+        ],
+        "exit_code": 0,
+        "seconds": 10.78,
+        "log": "/tmp/omrs-repair-release-e2e-frontend/e2e-practice.log",
+        "assertions_passed": 17
+      },
+      {
+        "id": "e2e-questions",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/questions.py"
+        ],
+        "exit_code": 0,
+        "seconds": 27.065,
+        "log": "/tmp/omrs-repair-release-e2e-frontend/e2e-questions.log",
+        "assertions_passed": 104
+      },
+      {
+        "id": "e2e-reports",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/reports.py"
+        ],
+        "exit_code": 0,
+        "seconds": 9.758,
+        "log": "/tmp/omrs-repair-release-e2e-data/e2e-reports.log",
+        "assertions_passed": 24
+      },
+      {
+        "id": "e2e-runtime_history",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/runtime_history.py"
+        ],
+        "exit_code": 0,
+        "seconds": 16.707,
+        "log": "/tmp/omrs-repair-release-e2e-root/e2e-runtime_history.log",
+        "assertions_passed": 34
+      },
+      {
+        "id": "e2e-schedule",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/schedule.py"
+        ],
+        "exit_code": 0,
+        "seconds": 31.674,
+        "log": "/tmp/omrs-repair-release-e2e-frontend/e2e-schedule.log",
+        "assertions_passed": 45
+      },
+      {
+        "id": "e2e-settings",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/settings.py"
+        ],
+        "exit_code": 0,
+        "seconds": 14.025,
+        "log": "/tmp/omrs-repair-release-e2e-root/e2e-settings.log",
+        "assertions_passed": 71
+      },
+      {
+        "id": "e2e-shell_router",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/shell_router.py"
+        ],
+        "exit_code": 0,
+        "seconds": 33.82,
+        "log": "/tmp/omrs-repair-release-shell-retry/e2e-shell_router.log",
+        "assertions_passed": 24
+      },
+      {
+        "id": "e2e-traincontrol",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/traincontrol.py"
+        ],
+        "exit_code": 0,
+        "seconds": 19.242,
+        "log": "/tmp/omrs-repair-release-e2e-root/e2e-traincontrol.log",
+        "assertions_passed": 32
+      },
+      {
+        "id": "e2e-trainpanel",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/trainpanel.py"
+        ],
+        "exit_code": 0,
+        "seconds": 23.298,
+        "log": "/tmp/omrs-repair-release-e2e-root/e2e-trainpanel.log",
+        "assertions_passed": 32
+      },
+      {
+        "id": "e2e-ui_bridge",
+        "command": [
+          "/usr/bin/python3",
+          "tests/e2e/ui_bridge.py"
+        ],
+        "exit_code": 0,
+        "seconds": 3.248,
+        "log": "/tmp/omrs-repair-release-e2e-root/e2e-ui_bridge.log",
+        "assertions_passed": 6
+      }
+    ],
+    "assertions_total": 1089,
+    "not_run": [
+      {
+        "id": "e2e-boxdetect",
+        "reason": "依赖外部冻结模型和数据；本轮未改模型，不访问真实训练材料"
+      }
+    ]
+  },
+  "gates_initial_final": {
+    "ref": "17d6d84",
+    "results": [
+      {
+        "id": "unittest",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py",
+          "-q"
+        ],
+        "exit_code": 0,
+        "seconds": 105.866,
+        "log": "/tmp/omrs-repair-final-gates/unittest.log"
+      },
+      {
+        "id": "pytest-export",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "pytest",
+          "tests/test_report_export.py",
+          "-q"
+        ],
+        "exit_code": 0,
+        "seconds": 0.211,
+        "log": "/tmp/omrs-repair-final-gates/pytest-export.log"
+      },
+      {
+        "id": "node",
+        "command": [
+          "node",
+          "--test",
+          "tests/app/analytics.test.mjs",
+          "tests/app/annotate.test.mjs",
+          "tests/app/arrange.test.mjs",
+          "tests/app/assistant.test.mjs",
+          "tests/app/audit-controllers.test.mjs",
+          "tests/app/audit-identity-uploads.test.mjs",
+          "tests/app/board-drag.test.mjs",
+          "tests/app/board-locked.test.mjs",
+          "tests/app/board-page.test.mjs",
+          "tests/app/board-picker.test.mjs",
+          "tests/app/board-preview.test.mjs",
+          "tests/app/board-print.test.mjs",
+          "tests/app/board-regions.test.mjs",
+          "tests/app/board-save.test.mjs",
+          "tests/app/board-settings.test.mjs",
+          "tests/app/board.test.mjs",
+          "tests/app/catalog.test.mjs",
+          "tests/app/core.test.mjs",
+          "tests/app/create-drafts.test.mjs",
+          "tests/app/create-inbox.test.mjs",
+          "tests/app/create-process.test.mjs",
+          "tests/app/create.test.mjs",
+          "tests/app/dashboard.test.mjs",
+          "tests/app/data.test.mjs",
+          "tests/app/draft-navigation.test.mjs",
+          "tests/app/exporter.test.mjs",
+          "tests/app/feedback.test.mjs",
+          "tests/app/history.test.mjs",
+          "tests/app/html.test.mjs",
+          "tests/app/instant.test.mjs",
+          "tests/app/items.test.mjs",
+          "tests/app/labels.test.mjs",
+          "tests/app/question.test.mjs",
+          "tests/app/questions.test.mjs",
+          "tests/app/reports.test.mjs",
+          "tests/app/runtime-history.test.mjs",
+          "tests/app/schedule.test.mjs",
+          "tests/app/settings.test.mjs",
+          "tests/app/trainaudit.test.mjs",
+          "tests/app/traincontrol.test.mjs",
+          "tests/app/trainpanel.test.mjs"
+        ],
+        "exit_code": 0,
+        "seconds": 0.431,
+        "log": "/tmp/omrs-repair-final-gates/node.log"
+      },
+      {
+        "id": "components",
+        "command": [
+          "/usr/bin/python3",
+          "tests/app/run_browser.py"
+        ],
+        "exit_code": 0,
+        "seconds": 3.213,
+        "log": "/tmp/omrs-repair-final-gates/components.log"
+      },
+      {
+        "id": "print",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "tests.smoke_board_print",
+          "-q"
+        ],
+        "exit_code": 0,
+        "seconds": 4.962,
+        "log": "/tmp/omrs-repair-final-gates/print.log"
+      },
+      {
+        "id": "discipline",
+        "command": [
+          "/usr/bin/python3",
+          "tests/check_ui.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.124,
+        "log": "/tmp/omrs-repair-final-gates/discipline.log"
+      },
+      {
+        "id": "contrast",
+        "command": [
+          "/usr/bin/python3",
+          "tests/check_contrast.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.015,
+        "log": "/tmp/omrs-repair-final-gates/contrast.log"
+      },
+      {
+        "id": "visual",
+        "command": [
+          "/usr/bin/python3",
+          "tests/visual/run.py",
+          "--ref",
+          "17d6d84",
+          "--out",
+          "/tmp/omrs-repair-final-gates/visual"
+        ],
+        "exit_code": 0,
+        "seconds": 72.647,
+        "log": "/tmp/omrs-repair-final-gates/visual.log"
+      }
+    ],
+    "not_run": [
+      {
+        "id": "e2e-boxdetect",
+        "reason": "依赖外部冻结模型和数据集；本次未改模型，不访问真实训练材料"
+      }
+    ]
+  },
+  "latest_release_gates": {
+    "ref": "17d6d84",
+    "results": [
+      {
+        "id": "unittest",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py",
+          "-q"
+        ],
+        "exit_code": 0,
+        "seconds": 114.477,
+        "log": "/tmp/omrs-repair-release-unit/unittest.log"
+      },
+      {
+        "id": "pytest-export",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "pytest",
+          "tests/test_report_export.py",
+          "-q"
+        ],
+        "exit_code": 0,
+        "seconds": 0.306,
+        "log": "/tmp/omrs-repair-release-unit/pytest-export.log"
+      },
+      {
+        "id": "node",
+        "command": [
+          "node",
+          "--test",
+          "tests/app/analytics.test.mjs",
+          "tests/app/annotate.test.mjs",
+          "tests/app/arrange.test.mjs",
+          "tests/app/assistant.test.mjs",
+          "tests/app/audit-controllers.test.mjs",
+          "tests/app/audit-identity-uploads.test.mjs",
+          "tests/app/board-drag.test.mjs",
+          "tests/app/board-locked.test.mjs",
+          "tests/app/board-page.test.mjs",
+          "tests/app/board-picker.test.mjs",
+          "tests/app/board-preview.test.mjs",
+          "tests/app/board-print.test.mjs",
+          "tests/app/board-regions.test.mjs",
+          "tests/app/board-save.test.mjs",
+          "tests/app/board-settings.test.mjs",
+          "tests/app/board.test.mjs",
+          "tests/app/catalog.test.mjs",
+          "tests/app/core.test.mjs",
+          "tests/app/create-drafts.test.mjs",
+          "tests/app/create-inbox.test.mjs",
+          "tests/app/create-process.test.mjs",
+          "tests/app/create.test.mjs",
+          "tests/app/dashboard.test.mjs",
+          "tests/app/data.test.mjs",
+          "tests/app/draft-navigation.test.mjs",
+          "tests/app/exporter.test.mjs",
+          "tests/app/feedback.test.mjs",
+          "tests/app/history.test.mjs",
+          "tests/app/html.test.mjs",
+          "tests/app/instant.test.mjs",
+          "tests/app/items.test.mjs",
+          "tests/app/labels.test.mjs",
+          "tests/app/question.test.mjs",
+          "tests/app/questions.test.mjs",
+          "tests/app/reports.test.mjs",
+          "tests/app/runtime-history.test.mjs",
+          "tests/app/schedule.test.mjs",
+          "tests/app/settings-tuning.test.mjs",
+          "tests/app/settings.test.mjs",
+          "tests/app/trainaudit.test.mjs",
+          "tests/app/traincontrol.test.mjs",
+          "tests/app/trainpanel.test.mjs"
+        ],
+        "exit_code": 0,
+        "seconds": 0.462,
+        "log": "/tmp/omrs-repair-final-freeze/node.log"
+      },
+      {
+        "id": "components",
+        "command": [
+          "/usr/bin/python3",
+          "tests/app/run_browser.py"
+        ],
+        "exit_code": 0,
+        "seconds": 3.355,
+        "log": "/tmp/omrs-repair-final-freeze/components.log"
+      },
+      {
+        "id": "print",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "tests.smoke_board_print",
+          "-q"
+        ],
+        "exit_code": 0,
+        "seconds": 4.957,
+        "log": "/tmp/omrs-repair-final-freeze/print.log"
+      },
+      {
+        "id": "discipline",
+        "command": [
+          "/usr/bin/python3",
+          "tests/check_ui.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.124,
+        "log": "/tmp/omrs-repair-final-freeze/discipline.log"
+      },
+      {
+        "id": "contrast",
+        "command": [
+          "/usr/bin/python3",
+          "tests/check_contrast.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.016,
+        "log": "/tmp/omrs-repair-final-freeze/contrast.log"
+      },
+      {
+        "id": "upgrade-compat",
+        "command": [
+          "/usr/bin/python3",
+          "tests/check_upgrade_compat.py",
+          "--ref",
+          "17d6d84"
+        ],
+        "exit_code": 0,
+        "seconds": 0.543,
+        "log": "/tmp/omrs-repair-final-freeze/upgrade-compat.log"
+      },
+      {
+        "id": "docs",
+        "command": [
+          "/usr/bin/python3",
+          "tests/check_docs.py",
+          "--diff",
+          "17d6d84"
+        ],
+        "exit_code": 0,
+        "seconds": 2.522,
+        "log": "/tmp/omrs-repair-release-docs/docs.log"
+      }
+    ]
+  },
+  "earlier_failed_runs": [
+    {
+      "id": "unittest",
+      "log": "/tmp/omrs-repair-final-freeze/unittest.log",
+      "reason": "648项中旧MCP展示板fixture直接读启动CSV失败；改为比较SQL后模块13项及最终整仓648项通过"
+    },
+    {
+      "id": "e2e-shell_router",
+      "log": "/tmp/omrs-repair-release-e2e-root/e2e-shell_router.log",
+      "reason": "并行运行时配置PIN解锁的点击隐式导航等待8秒超时；不改脚本/断言/时限，直接单独重跑24/24通过"
+    }
+  ],
+  "summary": {
+    "unittest": 648,
+    "pytest": 7,
+    "node": 436,
+    "components": 34,
+    "print": 7,
+    "contrast": 58,
+    "e2e_scripts": 32,
+    "e2e_assertions": 1089,
+    "visual_default_groups": 48,
+    "visual_settings_data_groups": 4,
+    "docs_problems": 0,
+    "docs_documents": 94,
+    "docs_existing_size_reminders": 2
+  },
+  "visual": {
+    "default": "/tmp/omrs-repair-final-gates/visual/report.html",
+    "settings_data": "/tmp/omrs-settings-tuning-final-visual/report.html",
+    "explanation": "AI/plans/omrs-audit-repair/visual.md"
+  }
+}

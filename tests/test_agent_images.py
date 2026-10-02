@@ -143,10 +143,12 @@ class PostMessageTest(unittest.TestCase):
         shutil.rmtree(self.vault, ignore_errors=True)
 
     def wait(self, run_id):
-        self.rt.events(run_id, 0, 5)
-        run = self.rt.runs[run_id]
-        with run.cond:
-            run.cond.wait_for(lambda: run.done, timeout=5)
+        import time
+        deadline = time.monotonic() + 5
+        while self.rt.store.run(run_id)["status"] != "done" and time.monotonic() < deadline:
+            self.rt.events(run_id, 0, 0.1)
+            time.sleep(0.01)
+        self.assertEqual(self.rt.store.run(run_id)["status"], "done")
 
     def test_text_only_message_format_unchanged(self):
         out = self.rt.post_message(self.conv, "你好")
@@ -217,17 +219,19 @@ class FauxDraftTest(unittest.TestCase):
         conv = self.rt.create_conversation("")["id"]
         before = len(read_commits(self.vault))
         run_id = self.rt.post_message(conv, "录一下这张截图", [png(1)])["run_id"]
-        run = self.rt.runs[run_id]
-        with run.cond:
-            run.cond.wait_for(lambda: run.done, timeout=30)
-        end = next(e for e in run.events if e["type"] == "tool.end")
+        import time
+        deadline = time.monotonic() + 30
+        while self.rt.store.run(run_id)["status"] != "done" and time.monotonic() < deadline:
+            time.sleep(0.02)
+        events = self.rt.store.event_page(run_id, limit=500)["events"]
+        end = next(e for e in events if e["type"] == "tool.end")
         self.assertEqual(end["data"]["status"], "done", end)
         self.assertTrue(end["data"]["wrote"])
         draft = drafts.get_draft(self.vault, end["data"]["result"]["draft_id"])
         self.assertEqual(draft["status"], "cropping")
         self.assertEqual(draft["conversation_id"], conv)
         self.assertEqual(len(read_commits(self.vault)), before)
-        self.assertEqual(run.events[-1]["data"]["stats"]["writes"], 1)
+        self.assertEqual(events[-1]["data"]["stats"]["writes"], 1)
 
 
 if __name__ == "__main__":

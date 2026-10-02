@@ -1,4 +1,5 @@
 """高风险 MCP 操作独立确认库；完整参数不进入脱敏系统运行库。"""
+from .vault_lifecycle import storage, open_sqlite, lease, task, generation
 import datetime
 import json
 import os
@@ -30,10 +31,12 @@ def web_origin(value):
     return value.rstrip('/')
 
 
+@storage
 def path(vault):
     return os.path.join(omrs_data_dir(vault), 'mcp_operations.db')
 
 
+@storage
 def _connect(vault, write=False):
     target = path(vault)
     if os.path.islink(target):
@@ -42,7 +45,7 @@ def _connect(vault, write=False):
         descriptor = os.open(target, os.O_CREAT | os.O_WRONLY, 0o600)
         os.close(descriptor)
         os.chmod(target, 0o600)
-        db = sqlite3.connect(target, timeout=5)
+        db = open_sqlite(vault, target, timeout=5)
         try:
             db.execute('PRAGMA journal_mode=WAL')
             db.executescript('''
@@ -58,7 +61,7 @@ def _connect(vault, write=False):
             db.close()
             raise
     else:
-        db = sqlite3.connect(Path(target).as_uri() + '?mode=ro', uri=True, timeout=5)
+        db = open_sqlite(vault, Path(target).as_uri() + '?mode=ro', uri=True, timeout=5)
     db.row_factory = sqlite3.Row
     return db
 
@@ -72,6 +75,7 @@ def _decode(row):
     return row
 
 
+@storage
 def _read(vault, field, value):
     if not os.path.exists(path(vault)):
         return None
@@ -79,6 +83,7 @@ def _read(vault, field, value):
         return _decode(db.execute(f'SELECT * FROM operations WHERE {field}=?', (value,)).fetchone())
 
 
+@storage
 def by_identity(vault, identity):
     return _read(vault, 'identity', identity)
 
@@ -92,6 +97,7 @@ def _public(row, web_url=''):
     return value
 
 
+@storage
 def _save_state(vault, row, status, result=None, error_code=''):
     with closing(_connect(vault, True)) as db:
         db.execute('UPDATE operations SET status=?, result_json=?, error_code=? WHERE operation_id=?',
@@ -103,6 +109,7 @@ def _save_state(vault, row, status, result=None, error_code=''):
     return row
 
 
+@storage
 def create(vault, key_id, tool, identity, digest, payload, impact, snapshot, web_url):
     now = time.time()
     row = {'operation_id': 'op_' + uuid.uuid4().hex, 'identity': identity, 'digest': digest,
@@ -117,6 +124,7 @@ def create(vault, key_id, tool, identity, digest, payload, impact, snapshot, web
     return _public(row, web_url)
 
 
+@storage
 def _recover(vault, row):
     from . import mcp_board
     # 已合法提交的领域回执优先，重启/响应丢失后不因随后吊销而误报未执行。
@@ -134,6 +142,7 @@ def _recover(vault, row):
     return row
 
 
+@storage
 def get(vault, operation_id, key_id=None, web_url=''):
     if not isinstance(operation_id, str) or not re.fullmatch(r'op_[0-9a-f]{32}', operation_id):
         raise RequestError('not_found', '确认操作不存在')
@@ -144,6 +153,7 @@ def get(vault, operation_id, key_id=None, web_url=''):
         return _public(_recover(vault, row), web_url)
 
 
+@storage
 def _apply(vault, row):
     from . import mcp_board
     auth = lambda: mcp_board.authorize(vault, row['key_id'], row['tool'])
@@ -165,6 +175,7 @@ def _apply(vault, row):
         return _save_state(vault, row, 'conflict', error_code=code)
 
 
+@storage
 def decide(vault, operation_id, decision):
     if not isinstance(operation_id, str) or not re.fullmatch(r'op_[0-9a-f]{32}', operation_id):
         raise RequestError('not_found', '确认操作不存在')
@@ -182,6 +193,7 @@ def decide(vault, operation_id, decision):
         return _public(_apply(vault, row))
 
 
+@storage
 def refresh(vault):
     """网页读运行列表时收束到期和上次已确认的中断执行。"""
     if not os.path.exists(path(vault)):

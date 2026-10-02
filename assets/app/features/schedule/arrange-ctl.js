@@ -1,3 +1,4 @@
+import { questionKey, questionRefs } from '../../domain/question/ref.js';
 /**
  * 复习调度 ·「安排复习」的控制器：拉推荐（后发先至只认最新）、筛选与选择、生成计划、画廊题面懒加载。
  * 由 index.js 在页面挂载时创建；状态在 arrange.js 的模块单例里（离开页面再回来，筛选与选择都还在，与旧页一致）。
@@ -22,7 +23,7 @@ export function createArrange({ ctx, root, paint, openPlan }) {
     const all = (a.data || []).filter(Boolean);
     const filtered = A.filterCandidates(all, a.filters, filterAll);
     const problem = A.filterError(A.sharedFilters(a.filters));
-    const shown = a.onlySelected ? filtered.filter(i => a.selected.has(i.uid)) : filtered;
+    const shown = a.onlySelected ? filtered.filter(i => a.selected.has(questionKey(i))) : filtered;
     qvSetContext('schedule-pick', shown.map(i => i.uid));
     const items = itemsOf(ctx.store.get().data).filter(i => !i.suspended);
     return {
@@ -70,7 +71,7 @@ export function createArrange({ ctx, root, paint, openPlan }) {
     paint();
     const values = [...a.selected.values()];
     const subjects = new Set(values.map(i => i.subject));
-    const res = await post('/api/confirm-schedule', { selected: values.map(i => ({ uid: i.uid, source: i._source })), persist: true, subject: subjects.size === 1 ? [...subjects][0] : null });
+    const res = await post('/api/confirm-schedule', { selected: values.map(i => ({ ...questionRefs([i])[0], source: i._source })), persist: true, subject: subjects.size === 1 ? [...subjects][0] : null });
     if (res.ok) {
       a.selected = new Map();
       a.onlySelected = false;
@@ -96,8 +97,8 @@ export function createArrange({ ctx, root, paint, openPlan }) {
     more: () => set(() => { a.more = !a.more; }),
     target: value => { a.target = String(value ?? ''); },
     smart: () => set(() => { const picked = A.smartPick(env().filtered, a.target); if (picked) { a.selected = picked; a.onlySelected = false; } }),
-    toggle: uid => set(() => { if (a.selected.has(uid)) a.selected.delete(uid); else { const item = (a.data || []).find(i => i.uid === uid); if (item) a.selected.set(uid, item); } }),
-    selectAll: () => set(() => { if (a.loading || a.error) return; env().filtered.forEach(i => a.selected.set(i.uid, i)); }),
+    toggle: uid => set(() => { if (a.selected.has(uid)) a.selected.delete(uid); else { const item = (a.data || []).find(i => questionKey(i) === uid); if (item) a.selected.set(uid, item); } }),
+    selectAll: () => set(() => { if (a.loading || a.error) return; env().filtered.forEach(i => a.selected.set(questionKey(i), i)); }),
     clearSelection: () => set(() => { a.selected = new Map(); a.onlySelected = false; }),
     onlySelected: () => set(() => { a.onlySelected = !a.onlySelected; }),
     view: v => set(() => { a.view = v === 'gallery' ? 'gallery' : 'list'; A.writeView(storage(), a.view); }),

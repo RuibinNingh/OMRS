@@ -13,7 +13,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 - 一个 **HTML/CSS/JS 单页前端**（`omrs_dashboard.html` + `assets/`）负责录入、即时练习、复习 Session、反馈、数据复盘与导出。
 - 没有构建步骤，题库、算法、Ledger、复习和导出均可离线使用；界面字体随 `assets/vendor/fonts/` 本地提供，AI 图片识别以及报告中用户选择的 HTTPS 外部资源属于可选联网能力。
 
-当前版本：**v2.1.0**。
+当前版本：**v2.2.0**。
 
 入口锁屏页支持在「设置 → 外观与显示 → 入口背景」中选择黑洞 WebGL 预设，或上传一张图片 / 视频作为当前 Vault 共享的背景。自定义背景支持 0–32px 高斯模糊；视频会静音、循环、自动播放，文件上限 200MB。
 
@@ -25,17 +25,13 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 
 ---
 
-## 已知技术债
+## 维护与验证
 
-完整清单见 [`AI/optimization.md`](AI/optimization.md)。目前最值得优先处理的是：
+普通反馈和录入增量更新 SQLite 投影，调参、历史修正及恢复使用完整重放；CSV 仅按需导出。HTTP 使用按领域注册表，共用请求解析、限额与错误语义。备份包含各独立数据库的在线快照，恢复通过持久化日志处理故障和中断。
 
-| 优先级 | 技术债 | 影响 | 建议方向 |
-|---|---|---|---|
-| 中高 | Ledger 每次全量重放 | 历史提交增长后，反馈/录入后的重建耗时线性增加 | 引入按 seq 的持久化快照和增量重放 |
-| 中 | 后端 `server.py` 路由分支过长 | 请求解析和错误处理重复，维护成本高 | 改为路由表 + 统一请求体解析 |
-| 中 | 测试框架与覆盖不完整 | 当前 `unittest` 与 pytest 风格测试混用，核心算法边界覆盖仍不足 | 统一测试入口，补齐算法、Ledger 集成、异常输入和浏览器回归 |
+启动与扫描不生成或轮转 CSV。需要兼容文件时运行 `python3 omrs_engine.py --vault <Vault路径> export-csv`，把当前 SQL 题库、反馈及计划流式导出到 `错题/.omrs/`；全库备份也按需生成这些文件。
 
-这些项目是已知的维护与扩展成本，不影响当前核心功能运行；增量投影涉及架构边界，实施前应单独设计和验证。当前 HTTP 服务已线程化，常规写入由进程级写锁串行处理。远端 PIN、来源校验及报告隔离的当前行为见 [`AI/security.md`](AI/security.md)。
+统一验证入口：`python3 tests/run_gates.py --ref 17d6d84`，覆盖后端、pytest 报告导出、前端、组件、打印和原始 E2E。容量实测及发布边界见 [`AI/plans/omrs-audit-repair/`](AI/plans/omrs-audit-repair/plan.md)，剩余优化见 [`AI/optimization.md`](AI/optimization.md)。
 
 ---
 
@@ -79,7 +75,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 | **报告托管** | 上传/浏览/删除复盘报告，浏览器内直接查看 |
 | **源码协助** | 设置页按源码目录和文件类型下载当前工作区的脱敏 ZIP，包含未提交源码且不依赖 Git；排除个人题库、附件、运行数据、日志、缓存和生成导出文件 |
 | **外观** | 深色（首次打开默认，**暖石墨 Warm Graphite**）/ 浅色（编辑式暖色）切换；v1.15.0 增加**界面密度**（紧凑 / 舒适，默认紧凑）——设置页「外观」切换，收紧全站内边距、圆角、行高与控件高度；v1.7.0 重配深色对比度（三级文字与语义色达标、卡片改实色分层）；Ledger 时间线可按浏览器或设置页所选时区显示 |
-| **数据可信** | 不可变 **Ledger 提交链** 是题目身份、学习反馈和 Session 等核心状态的事实源；CSV 仅作兼容投影，这些状态可重放还原 |
+| **数据可信** | 不可变 **Ledger 提交链** 是题目身份、学习反馈和 Session 等核心状态的事实源；内部读取 SQLite，CSV 按需导出，这些状态可重放还原 |
 
 ---
 
@@ -155,9 +151,11 @@ pack_for_ai.bat
 ├── omrs_dashboard.html     ← 前端 HTML（仅结构）
 ├── omrs/                   ← 后端 Python 包（核心路径仅标准库）
 │   ├── cli.py              ← 命令行入口 + HTTP 服务
-│   ├── server.py           ← HTTP 路由
+│   ├── server.py / http/   ← HTTP 外壳与领域路由注册表
 │   ├── ledger.py           ← 不可变提交链（SQLite）
-│   ├── projections.py      ← 重放 Ledger 导出 CSV / 内存投影
+│   ├── projections.py / projection_runtime.py ← 流式重放与增量 SQL 投影
+│   ├── data_repository.py  ← 内部 SQL 查询
+│   ├── backup_store.py / vault_lifecycle.py ← 一致性快照与故障恢复
 │   ├── runtime_records.py   ← 独立 MCP 调用记录（SQLite，脱敏摘要）
 │   ├── scheduling.py       ← 记忆算法（衰减/状态机/SM-2/优先级/Leech）
 │   ├── ai_assist.py        ← AI 识别（外部大模型调用；含框选 detect 与可转性判断）
@@ -189,9 +187,8 @@ pack_for_ai.bat
 ├── 错题/                   ← 题库（Markdown + Obsidian 双链）
 │   ├── .omrs/              ← 结构化数据目录（Ledger / 投影 / 备份）
 │   │   ├── ledger.db       ← 题目、学习与 Session 核心状态的事实源
-│   │   ├── mastery_data.csv
-│   │   ├── history_log.csv
-│   │   ├── sessions.csv
+│   │   ├── config.json       ← SQL 活动配置的兼容镜像
+│   │   ├── agent.db / drafts.db / inbox.db ← 独立工作流存储
 │   │   ├── labels.json       ← 用户标记定义
 │   │   └── boards.json       ← 展示板引用与打印设置
 │   └── report/             ← 托管的 AI HTML 报告与 index.json
@@ -210,10 +207,10 @@ pack_for_ai.bat
 OMRS 的题目身份、学习反馈、熟练度与 Session 等核心结构化状态以 `错题/.omrs/ledger.db` 为**唯一可信来源**——一个不可变的全局提交链。
 
 - 每次学习反馈、历史修正和题目入库都生成一条 `commit`（`prev_hash` + `commit_hash` 哈希链接）。
-- 旧 CSV（`mastery_data.csv` / `history_log.csv`）由 `omrs/projections.py` **重放 Ledger 导出**，仅作兼容、调试和迁移输入。
+- 内部读取 SQL 投影；旧 CSV（`mastery_data.csv` / `history_log.csv` / `sessions.csv`）作为迁移输入或显式导出，不参与普通写入与内部查询。
 - 题目身份有两层：**UID**（Markdown 文件名，可改名/迁移）与 **`_omrs_id`**（隐藏稳定身份 `OP-000001`，写入 YAML）。历史反馈引用 `_omrs_id`，改名不会断链。
 - Ledger 可重放结构化运行状态，支持历史修正与还原；题目 Markdown 全文按哈希存入 Ledger 的 `blobs`，可查询已入账的正文版本，并将仍在题库中的题目还原到身份和哈希均匹配的已有版本。启动时只增量补齐当前文件与投影一致的缺失 blob，冲突跳过；删除题目之前确认当前正文可从 blob 取回。旧版本缺口不会用当前正文代填。图片文件本身不存入 `blobs`，正文引用的图片仍需单独保留。
-- 其他工作流各自持久化：展示板在 `错题/.omrs/boards.json`，配置和标记定义分别在 `config.json`、`labels.json`，AI 对话、草稿、收件箱和标注分别使用 `agent.db`、`drafts.db`、`inbox.db`、`annotate.db`，报告在 `错题/report/`；这些数据不由 Ledger 重放。草稿或收件箱提交为正式题目后，题目入库事件才写入 Ledger。
+- 其他工作流各自持久化：展示板在 `错题/.omrs/boards.json`，活动配置在 SQLite，`config.json` 为兼容镜像；标记定义在 `labels.json`，AI 对话、草稿、收件箱和标注分别使用 `agent.db`、`drafts.db`、`inbox.db`、`annotate.db`，报告在 `错题/report/`；这些数据不由 Ledger 重放。草稿或收件箱提交为正式题目后，题目入库事件才写入 Ledger。
 
 详细见 [`AI/ledger.md`](AI/ledger.md)。
 
@@ -317,7 +314,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ## 版本
 
-当前版本 **v2.1.0**。各版本改了什么见 [`AI/changelog.md`](AI/changelog.md)（倒序）。
+当前版本 **v2.2.0**。各版本改了什么见 [`AI/changelog.md`](AI/changelog.md)（倒序）。
 
 ---
 

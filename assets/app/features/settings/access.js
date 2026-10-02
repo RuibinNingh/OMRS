@@ -1,3 +1,4 @@
+import { configSavedStatus } from '../../core/config-status.js';
 /** 访问与安全：访问概览、局域网范围、PIN 和远程登出。 */
 import { get, post } from '../../core/api.js';
 import { confirm } from '../../ui/dialog.js';
@@ -87,7 +88,8 @@ export function createAccess(root, restart) {
       await restart('st-net-status');
       return;
     }
-    note('st-net-status', '已保存，立即生效。', 'success');
+    const saved = configSavedStatus(result.data, '已保存，立即生效。');
+    note('st-net-status', saved.text, saved.tone);
     await load();
   }
 

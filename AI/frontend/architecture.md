@@ -55,6 +55,9 @@ assets/app/
 | `core/bus.js` | `createBus()` → `on / once / off / emit` | 单个监听出错不影响其余监听 |
 | `core/router.js` | `createRouter({ win, fallback, onEnter })`、`parseHash()` | 见 §3 |
 | `core/api.js` | `request(path, o)`、`get`、`post` → `{ ok, status, data, error }` | 永不抛出；错误取服务端 `msg` / `error`；网络失败 `network`、超时 `timeout`；远端 401 跳登录页 |
+| `core/date.js` | `parseDay`、`daysBetween`、`businessToday`、`dayKey` | 严格日历日期；日序号天差；业务今天 Asia/Shanghai |
+| `core/uploads.js` | `uploadImage`、`uploadFiles`、`imageValue` | 原始字节以最多 16MiB 分块，失败不提交领域写入 |
+| `core/config-status.js` | `configSavedStatus` | 已发布但镜像待同步或第三方冲突显示警示回执，明确参数生效及冲突文件保留 |
 | `core/format.js` | `formatDate`、`relativeDays`、`formatPercent`、`formatNumber`、`formatDuration` | 空值与非法值显示「—」；`YYYY-MM-DD` 按本地日期解析 |
 | `core/download.js` | `downloadResponse(response, fallbackName)`、`fileNameOf` | 把 fetch 响应存成文件；文件名优先取 `Content-Disposition`（含 `filename*=UTF-8''`）；不写页面状态 |
 
@@ -134,3 +137,9 @@ MCP 确认 hash 在 core/api.js 的401跳转和 PIN 登录 destination 中保留
 扩展验收通过tests/e2e/mcp_expansion.py在真实服务上的下载并离线打开HTML；历史关联仍走domain端口和Web下载，无新增全局或直接HTML注入。
 
 扩展浏览器另重启自身测试服务：待确认操作与原密钥继续有效；移除本测试导出文件后，下载按 SQLite 恢复副本重建原字节。实例仍用临时 Vault/随机高端口并清除生产控制环境变量。
+
+## 领域身份与异步验证
+
+`domain/question/ref.js` 是客户端稳定引用入口；新写操作、批量选择和导出以 `question_id` 为准，UID 只展示与兼容。菜单、确认框、Markdown 编辑器和选板浮层均在首个 await 前冻结 ID；qview 挂载及缓存检查对应身份。`domain/sessions.js::sessionEntries` 读取权威固定条目，unresolved 的人工绑定复用共享单题选择器。
+
+即时练习控制器带卸载状态、请求序号、取消信号与轮次版本，反馈控制器保留失败输入并按身份合并；晚到读取不能覆盖新挂载，晚到写入只刷新所属领域。`tests/app/audit-controllers.test.mjs` 直接实例化实际控制器，`tests/app/audit-identity-uploads.test.mjs` 验证 UID 重用、固定条目序号、分块字节、上海午夜与分页归约。

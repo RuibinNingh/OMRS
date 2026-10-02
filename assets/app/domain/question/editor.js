@@ -6,6 +6,7 @@
  * - 有未保存的修改时 Esc / 点遮罩不关（dismissible 为函数），状态行提示；「取消」与关闭按钮照常关闭（显式放弃）。
  * - 关闭后焦点回到「编辑」按钮；保存后 qview 重绘换掉了原按钮时，交给同一挂载点里新的「编辑」按钮。
  */
+import { questionRef, questionItem } from './ref.js';
 import { html } from '../../core/html.js';
 import { get, post } from '../../core/api.js';
 import { toast } from '../../ui/toast.js';
@@ -20,11 +21,13 @@ export const editorOpen = () => !!byId()?.open;
 export function closeEditor() { closeDialog(byId()); }
 
 export async function openEditor(uid) {
-  const key = String(uid || '').trim();
+  const item = questionItem(uid);
+  const key = item?.uid || '';
+  const ref = questionRef(item);
   if (!key || editorOpen()) return false;
   const opener = document.activeElement;
   const mount = opener?.closest?.('[data-qv-mount]') || null;
-  const res = await get(`/api/question/raw?uid=${encodeURIComponent(key)}`);
+  const res = await get(`/api/question/raw?question_id=${encodeURIComponent(ref.question_id)}`);
   if (!res.ok || !res.data || res.data.error) {
     toast(`无法打开 Markdown：${res.error?.message || res.data?.error || '读取失败'}`, { kind: 'error' });
     return false;
@@ -60,7 +63,7 @@ export async function openEditor(uid) {
     async onOk(values) {
       if (!dirty) return true;
       say('保存中…');
-      const out = await post('/api/question/markdown', { uid: target, markdown: String(values['md-edit-text'] ?? '') });
+      const out = await post('/api/question/markdown', { ...ref, markdown: String(values['md-edit-text'] ?? '') });
       if (!out.ok) { say(`保存失败：${out.error.message}`, 'error'); return false; }
       dirty = false;
       dropDetail(target);

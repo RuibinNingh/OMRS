@@ -3,6 +3,8 @@
 一条消息：POST /api/agent/message → 建 run、起后台线程、立即返回 run_id；浏览器 GET /api/agent/events?after=N
 取增量事件。写锁只在单次工具执行期间持有；模型思考与网络等待期间不持锁。
 """
+import collections
+import contextlib
 import datetime
 import json
 import os
@@ -16,6 +18,7 @@ from ..actor import agent_actor
 from ..ai_assist import collect_taxonomy
 from ..labels import list_label_defs
 from ..locking import write_lock
+from ..vault_lifecycle import generation, lease, task, storage, VaultChanged
 from ..llm.openai_compat import estimate_tokens
 from .images import expand_images
 from .config import CONFIRM_TTL_SECONDS, MSG_CAP, RESULT_CHAR_CAP, make_client, settings
@@ -38,7 +41,7 @@ class AgentError(Exception):
 
 def get_runtime(vault):
     key = os.path.abspath(vault)
-    with _RT_LOCK:
+    with lease(vault), _RT_LOCK:
         if key not in _RUNTIMES:
             _RUNTIMES[key] = AgentRuntime(key)
         return _RUNTIMES[key]
@@ -90,34 +93,35 @@ def model_messages(stored):
     return out
 
 
-def compact_events(events):
-    """持久化前把连续的同类增量合并成一条，时间取最后一段。"""
-    out = []
-    for ev in events:
-        last = out[-1] if out else None
-        if (last and ev["type"] == "delta" and last["type"] == "delta" and last["data"]["kind"] == ev["data"]["kind"]
-                and last["data"]["n"] == ev["data"]["n"] and last["data"].get("index") == ev["data"].get("index")):
-            last["data"] = {**last["data"], "text": last["data"]["text"] + ev["data"]["text"]}
-            last["t1"] = ev["t"]
-            continue
-        out.append(dict(ev))
-    for i, ev in enumerate(out):
-        ev["i"] = i
-    return out
-
-
 class Run:
-    def __init__(self, run_id, conv_id, model):
-        self.id, self.conv_id, self.model = run_id, conv_id, model
-        self.events, self.cond = [], threading.Condition()
+    def __init__(self, run_id, conv_id, model, store=None):
+        self.id, self.conv_id, self.model, self.store = run_id, conv_id, model, store
+        self.events, self.cond = collections.deque(), threading.Condition()
+        self.event_count, self.tail_bytes, self.statistics = 0, 0, []
+        self.generation = generation(store.vault) if store else None
         self.abort, self.steer, self.pending = threading.Event(), [], {}
         self.status, self.done, self.t0, self.client = "running", False, time.monotonic(), None
-        self.closing = False  # 收尾中：不再接插话，新消息开新运行
+        self.closing = False
 
     def emit(self, type_, data):
-        with self.cond:
-            self.events.append({"i": len(self.events), "t": int((time.monotonic() - self.t0) * 1000),
-                                "type": type_, "data": data})
+        manager = lease(self.store.vault, self.generation) if self.store else contextlib.nullcontext()
+        with manager, self.cond:
+            event = {"i": self.event_count, "t": int((time.monotonic() - self.t0) * 1000),
+                     "type": type_, "data": data}
+            if self.store:
+                self.store.append_event(self.id, event)
+            self.event_count += 1
+            size = len(json.dumps(event, ensure_ascii=False, default=str).encode())
+            if size <= 1024 * 1024:
+                self.events.append(event)
+                self.tail_bytes += size
+            while len(self.events) > 1000 or self.tail_bytes > 1024 * 1024:
+                removed = self.events.popleft()
+                self.tail_bytes -= len(json.dumps(removed, ensure_ascii=False, default=str).encode())
+            if type_ in ("round.end", "usage.aux", "tool.call", "tool.end"):
+                fields = {key: value for key, value in data.items() if key in (
+                    "request_id", "n", "usage", "ttft_ms", "gen_ms", "commits", "wrote")}
+                self.statistics.append({**event, "data": fields})
             self.cond.notify_all()
 
 
@@ -176,7 +180,7 @@ class Hooks:
         if tool.level == "read":
             out = tool.run(ctx, call["args"])
             return {**out, "commits": []}
-        with write_lock():
+        with lease(self.rt.vault), write_lock():
             with agent_actor(self.run.conv_id, self.run.id, call["id"]) as actor:
                 out = tool.run(ctx, call["args"])
         return {**out, "commits": list(actor.commits)}
@@ -220,11 +224,12 @@ class AgentRuntime:
         self.vault = vault
         self.store = AgentStore(vault)
         self.store.interrupt_leftovers()
-        self.runs, self.lock = {}, threading.Lock()
+        self.runs, self.lock = {}, threading.RLock()
 
     # ── 状态与对话 ──
     def active_runs(self):
-        return [r for r in self.runs.values() if not r.done and not r.closing]
+        with self.lock:
+            return [r for r in self.runs.values() if not r.done and not r.closing]
 
     def status(self):
         s = settings(self.vault)
@@ -247,41 +252,37 @@ class AgentRuntime:
         self.store.delete_conversation(conv_id)
         return {"deleted": True}
 
-    def list_conversations(self):
-        live = {r.conv_id: r for r in self.active_runs()}
-        out = []
-        for c in self.store.conversations():
-            runs = self.store.runs(c["id"])
-            msgs = self.store.messages(c["id"])
-            last = next((m for m in reversed(msgs) if m["role"] in ("assistant", "user") and m.get("content")), None)
-            writes = sum(r["stats"].get("writes", 0) for r in runs if not r["reverted"])
-            r = live.get(c["id"])
-            out.append({"id": c["id"], "title": c["title"], "created_at": c["created_at"], "updated_at": c["updated_at"],
-                        "msgs": c["msgs"], "runs": len(runs), "writes": writes, "snippet": (last or {}).get("content", "")[:120],
-                        "reverted": any(x["reverted"] for x in runs), "live": r.status if r else ""})
-        return out
+    def list_conversations(self, limit=30, cursor=None):
+        live = {run.conv_id: run for run in self.active_runs()}
+        page = self.store.conversation_page(limit, cursor)
+        for row in page["conversations"]:
+            row["live"] = live[row["id"]].status if row["id"] in live else ""
+            row["reverted"] = bool(row["reverted"])
+            row["snippet"] = row["snippet"] or ""
+        return page
 
-    def conversation(self, conv_id):
+    def conversation(self, conv_id, limit=20, cursor=None):
         conv = self.store.conversation(conv_id)
         if not conv:
             raise AgentError(404, "对话不存在")
-        msgs = self.store.messages(conv_id)
+        page = self.store.run_page(conv_id, limit, cursor)
         items = []
-        for run in self.store.runs(conv_id):
-            starter = next((m for m in msgs if m["_run"] == run["id"] and m["role"] == "user"), None)
+        for run in page["runs"]:
+            starter = self.store.starter_message(run["id"])
             if starter:
-                items.append({"type": "user", "text": starter.get("content", ""), "at": starter["_at"],
+                items.append({"type": "user", "item_key": "user:" + str(starter["_id"]),
+                              "text": starter.get("content", ""), "at": starter["_at"],
                               "images": self._image_refs(conv_id, starter.get("_images"))})
             live = self.runs.get(run["id"])
-            if live and not live.done:
-                with live.cond:
-                    events = list(live.events)
+            if live:
                 run = {**run, "status": live.status}
-            else:
-                events = run["events"]
-            items.append({"type": "run", "run": {k: v for k, v in run.items() if k != "events"}, "events": events,
-                          "live": bool(live and not live.done)})
-        return {"conversation": conv, "items": items, "msgs": len(msgs)}
+            events = self.store.event_page(run["id"])
+            items.append({"type": "run", "item_key": "run:" + run["id"],
+                          "run": {key:value for key,value in run.items() if key != "events"},
+                          "events": events["events"], "events_next": events["next"],
+                          "events_has_more": events["has_more"], "live": bool(live and not live.done)})
+        return {"conversation": conv, "items": items, "msgs": self.store.message_count(conv_id),
+                "has_more": page["has_more"], "next_cursor": page["next_cursor"]}
 
     def _image_refs(self, conv_id, refs):
         out = []
@@ -295,6 +296,7 @@ class AgentRuntime:
         return out
 
     # ── 发消息、插话、事件 ──
+    @storage
     def post_message(self, conv_id, text, images=None):
         text = (text or "").strip()
         images = images or []
@@ -333,7 +335,7 @@ class AgentRuntime:
                     refs.append(drafts.add_image(self.vault, data_url, conv_id, run_id)["ref"])
                 except ValueError as exc:
                     raise AgentError(400, f"第 {index + 1} 张图片：{exc}")
-            run = Run(run_id, conv_id, s["model"])
+            run = Run(run_id, conv_id, s["model"], self.store)
             self.runs[run.id] = run
             self.store.create_run(run.id, conv_id, s["model"])
             message = {"role": "user", "content": text}
@@ -347,6 +349,19 @@ class AgentRuntime:
         return {"run_id": run.id, "steered": False}
 
     def _execute(self, run, s):
+        try:
+            with task(self.vault, run.generation):
+                self._execute_current(run, s)
+        except VaultChanged:
+            # 恢复前的网络结果不落入新世代；原库运行随备份保留。
+            run.abort.set()
+            with run.cond:
+                run.done, run.status = True, "done"
+                run.cond.notify_all()
+            with self.lock:
+                self.runs.pop(run.id, None)
+
+    def _execute_current(self, run, s):
         out = {"reason": "error", "error": ""}
         try:
             registry = build_registry(s)
@@ -377,30 +392,36 @@ class AgentRuntime:
         for item in late:  # 运行收尾时才到的插话：留在对话里，作为下一次运行的上下文
             self.store.add_message(run.conv_id, run.id, {"role": "user", "content": item["text"]})
             run.emit("steer.late", {"id": item["id"]})
-        stats = run_stats(run.events)
+        stats = run_stats(run.statistics)
         run.emit("run.end", {"reason": out["reason"], "error": out.get("error", ""), "stats": stats})
         self.store.save_run(run.id, status="done", reason=out["reason"], error=out.get("error", ""), stats=stats,
-                            events=compact_events(run.events), ended=True)
+                            ended=True)
         self.store.touch(run.conv_id)
         with run.cond:
             run.done, run.status = True, "done"
             run.cond.notify_all()
+        with self.lock:
+            self.runs.pop(run.id, None)
+        run.events.clear()
+        run.tail_bytes = 0
+        run.statistics.clear()
 
-    def events(self, run_id, after=0, wait=0.0):
+    def events(self, run_id, after=0, wait=0.0, limit=200):
+        after, limit = int(after), max(1, min(500, int(limit)))
+        if after < 0:
+            raise AgentError(400, "事件游标不能为负数")
         run = self.runs.get(run_id)
-        if run is None:
-            stored = self.store.run(run_id)
-            if not stored:
-                raise AgentError(404, "运行不存在")
-            evs = stored["events"]
-            return {"events": evs[after:], "next": len(evs), "done": True, "status": "done", "compacted": True}
-        deadline = time.monotonic() + max(0.0, min(25.0, wait))
-        with run.cond:
-            while len(run.events) <= after and not run.done and time.monotonic() < deadline:
-                run.cond.wait(timeout=max(0.01, deadline - time.monotonic()))
-            evs = run.events[after:]
-            return {"events": evs, "next": after + len(evs), "done": run.done and after + len(evs) >= len(run.events),
-                    "status": run.status}
+        if run is not None:
+            deadline = time.monotonic() + max(0.0,min(25.0,wait))
+            with run.cond:
+                while run.event_count <= after and not run.done and time.monotonic() < deadline:
+                    run.cond.wait(timeout=max(0.01,deadline-time.monotonic()))
+        stored = self.store.run(run_id)
+        if stored is None:
+            raise AgentError(404, "运行不存在")
+        page = self.store.event_page(run_id,after,limit)
+        done = stored["status"] == "done"
+        return {**page,"done":done and not page["has_more"],"status":run.status if run else stored["status"],"compacted":False}
 
     def confirm(self, run_id, call_id, token, decision):
         run = self.runs.get(run_id)
@@ -454,7 +475,7 @@ class AgentRuntime:
             raise AgentError(404, "运行不存在")
         if dry_run:
             return plan_revert(self.vault, run_id)
-        with write_lock():
+        with lease(self.vault), write_lock():
             result = apply_revert(self.vault, run_id)
         if not result["ok"]:
             raise AgentError(409, result.get("msg") or "有冲突，这次运行不能整体撤销", result)

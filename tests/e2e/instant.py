@@ -14,6 +14,8 @@ import sys
 import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(ROOT, 'tests'))
+from browser_runtime import open_app
 _spec = importlib.util.spec_from_file_location("visual_run", os.path.join(ROOT, "tests", "visual", "run.py"))
 visual = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(visual)
@@ -75,7 +77,7 @@ def run_desktop(page, base, results):
     def check(name, ok, detail=""):
         results.append((name, bool(ok), str(detail)))
     ev = page.evaluate
-    page.goto(f"{base}/#/instant", wait_until="networkidle")
+    open_app(page, base, "instant")
     wait(page, READY)
     check("首次进入是空状态，全页只有一个「加载推荐」",
           ev("!!document.querySelector('#panel-instant .ui-empty')") and page.get_by_role("button", name="加载推荐", exact=True).count() == 1)
@@ -147,9 +149,12 @@ def run_legacy_entries(page, base, results):
     def check(name, ok, detail=""):
         results.append((name, bool(ok), str(detail)))
     ev = page.evaluate
-    page.goto(f"{base}/?fresh=1#/dashboard", wait_until="networkidle")   # 整页重载：从干净的页面状态开始
-    wait(page, READY)
-    btn = page.locator('#panel-dashboard button', has_text="专练").first
+    open_app(page, base + "?fresh=1", "dashboard")   # 整页重载：从干净的页面状态开始
+    page.wait_for_selector('#panel-dashboard [data-action="dashboard.run"]')
+    more = page.locator('#panel-dashboard [data-action="dashboard.more"]')
+    if more.count():
+        more.click()
+    btn = page.locator('#panel-dashboard [data-action="dashboard.run"]', has_text="专练").first
     subject = (btn.text_content() or "").replace("专练", "").strip()
     btn.click()
     wait(page, CARD)
@@ -188,7 +193,7 @@ def run_mobile(browser, base, results):
     page = ctx.new_page()
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
-    page.goto(f"{base}/#/instant", wait_until="networkidle")
+    open_app(page, base, "instant")
     wait(page, READY)
     load(page)
     page.keyboard.press("Space")
@@ -236,7 +241,7 @@ def main():
                     c.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
                     c.add_init_script(f"try{{localStorage.setItem('omrs-theme','{theme}')}}catch(e){{}}")
                     pg = c.new_page()
-                    pg.goto(f"{base}/", wait_until="networkidle")
+                    open_app(pg, base, "instant")
                     audit_states(pg, f"审计 {label} · {'浅色' if theme == 'light' else '深色'}", results)
                     c.close()
             if not os.environ.get("OMRS_TEST_CDP_URL"):

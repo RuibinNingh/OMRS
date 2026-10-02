@@ -2,6 +2,7 @@
 import contextlib
 import io
 import os
+from pathlib import Path
 import sys
 import tempfile
 import unittest
@@ -129,7 +130,7 @@ class RepositoryGatesTest(unittest.TestCase):
         self.assertEqual(quiet(check_ui.main, [], root=ROOT), 0, "运行 python3 tests/check_ui.py 查看问题")
 
     def test_repository_tokens_meet_contrast(self):
-        rows = check_contrast.evaluate(open(check_contrast.TOKENS, encoding="utf-8").read())
+        rows = check_contrast.evaluate(Path(check_contrast.TOKENS).read_text(encoding="utf-8"))
         self.assertEqual([r for r in rows if not r[5]], [])
 
 

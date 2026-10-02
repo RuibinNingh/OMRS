@@ -1,3 +1,4 @@
+import { uploadImage } from '../../core/uploads.js';
 /** 快速录入：图片暂存、AI 识别、题目创建和提交后的上下文保留。 */
 import { html } from '../../core/html.js';
 import { render, morph } from '../../core/dom.js';
@@ -84,7 +85,7 @@ export function createQuick(root, ctx) {
     try {
       const urls = await Promise.all(images.map(readDataUrl));
       if (!alive || state !== targetState) return;
-      urls.forEach(dataUrl => imageList(kind).push({ id: ++state.nextImageId, dataUrl }));
+      urls.forEach((dataUrl, i) => imageList(kind).push({ id: ++state.nextImageId, dataUrl, file: images[i] }));
       state.candidates = {};
       if (kind === 'a') { state.answerOpen = true; host.querySelector('#cr-a-paste').open = true; }
       paintImages(kind);
@@ -159,12 +160,18 @@ export function createQuick(root, ctx) {
     aiBusy[kind] = true;
     paintImages(kind);
     status(kind, '识别中…');
-    const question = state.images.q[0]?.dataUrl;
-    const answer = state.images.a[0]?.dataUrl;
+    const questionImage = state.images.q[0];
+    const answerImage = state.images.a[0];
     const requestState = state;
     const requestSource = sourceKey(state);
     const baseline = { ...state.form };
     const manual = { ...state.manual };
+    let question, answer;
+    try {
+      question = questionImage ? await uploadImage(questionImage.file || questionImage.dataUrl) : undefined;
+      answer = answerImage ? await uploadImage(answerImage.file || answerImage.dataUrl) : undefined;
+    } catch (error) { aiBusy[kind] = false; paintImages(kind); status(kind, error.message, true); return; }
+    if (!alive || state !== requestState || sourceKey(state) !== requestSource) { aiBusy[kind] = false; paintImages(kind); return; }
     const payload = mode === 'classify'
       ? { scope: 'quick', question_image: question, answer_image: answer || undefined, mode, subject: baseline.subject.trim(), category: baseline.category.trim() }
       : { scope: 'quick', image: kind === 'q' ? question : answer, mode };
@@ -219,7 +226,14 @@ export function createQuick(root, ctx) {
     const control = host.querySelector('[data-action="create.submit"]');
     control.disabled = true;
     control.setAttribute('aria-busy', 'true');
-    const result = await post('/api/create', payload.data);
+    let result;
+    try {
+      payload.data.question_images = []; payload.data.answer_images = [];
+      for (const [kind, field] of [['q', 'question_images'], ['a', 'answer_images']]) {
+        for (const image of submittedState.images[kind]) payload.data[field].push(await uploadImage(image.file || image.dataUrl, { purpose: 'create' }));
+      }
+      result = await post('/api/create', payload.data);
+    } catch (error) { result = { ok: false, error: { message: error.message } }; }
     busy = false;
     if (!alive) return;
     if (!result.ok) {
@@ -230,7 +244,7 @@ export function createQuick(root, ctx) {
       const data = result.data || {};
       if (state === submittedState && editKey(state) === submittedKey) {
         state = afterCreate(state);
-        state.result = { uid: data.uid, filePath: data.file_path, imageCount: data.images?.length || 0 };
+        state.result = { uid: data.uid, question_id: data.question_id, filePath: data.file_path, imageCount: data.images?.length || 0 };
         paint();
       } else toast(`先前题目 ${data.uid} 已创建；当前草稿已保留`, { kind: 'ok' });
       notifyHistoryChanged('create');
@@ -278,7 +292,7 @@ export function createQuick(root, ctx) {
     },
     reset() { state = newQuickState(); paint(); },
     submit,
-    boardAdd(el, direct) { if (state.result?.uid) boardQuickAdd(state.result.uid, { anchor: el, direct }); },
+    boardAdd(el, direct) { if (state.result?.uid) boardQuickAdd(state.result, { anchor: el, direct }); },
     dispose() { alive = false; combobox.dispose(); stopLabels(); host.removeEventListener('input', onInput); document.removeEventListener('paste', onPaste, true); },
   };
 }

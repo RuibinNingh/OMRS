@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 import re
+import shutil
 
 
 QUESTIONS_DIR = "错题"
@@ -131,27 +132,13 @@ def validate_draft_config(data):
 
 
 def load_config(vault: str) -> dict:
-    path = config_path(vault)
-    if not os.path.exists(path):
-        return dict(CONFIG_DEFAULTS)
-    try:
-        with open(path, "r", encoding="utf-8") as file:
-            return {**CONFIG_DEFAULTS, **json.load(file)}
-    except Exception:
-        return dict(CONFIG_DEFAULTS)
+    from .config_repository import read
+    return read(vault)
 
 
-def save_config(vault: str, config: dict) -> None:
-    path = config_path(vault)
-    existing = load_config(vault)
-    existing.update(config)
-    tmp = f"{path}.{os.getpid()}.tmp"
-    with open(tmp, "w", encoding="utf-8") as file:
-        json.dump(existing, file, ensure_ascii=False, indent=2)
-        file.flush()
-        os.fsync(file.fileno())
-    os.replace(tmp, path)
-    reset_tuning_cache(vault)
+def save_config(vault: str, config: dict) -> dict:
+    from .config_repository import save
+    return save(vault, config)
 
 
 def parse_yaml_frontmatter(content: str) -> dict:
@@ -297,6 +284,28 @@ def extract_images(text: str) -> list:
     return names
 
 
+def business_time(now=None, zone="Asia/Shanghai"):
+    """业务时间转换；缺 IANA 数据时仅对上海 1992 年起使用已知 UTC+08。"""
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    stamp = now or datetime.datetime.now(datetime.timezone.utc)
+    if stamp.tzinfo is None:
+        raise ValueError("业务日期转换需要带时区的时间戳")
+    try:
+        return stamp.astimezone(ZoneInfo(zone))
+    except ZoneInfoNotFoundError as exc:
+        # 上海最后一次夏令时在 1991 年；不能把固定偏移冒充更早历史规则。
+        if zone == "Asia/Shanghai":
+            fixed = stamp.astimezone(datetime.timezone(datetime.timedelta(hours=8), "Asia/Shanghai (UTC+08:00)"))
+            if fixed.year >= 1992:
+                return fixed
+        raise ZoneInfoNotFoundError(f"缺少时区数据库，无法可靠转换 {zone} 的该时间") from exc
+
+
+def business_today(now=None):
+    """统计、反馈与排期统一按上海日界线；时间戳仍保持原时区。"""
+    return business_time(now).date()
+
+
 def parse_date(value: str):
     """兼容 YYYY-MM-DD 和 YYYY/M/D 两种格式，解析失败返回 None。"""
     if not value:
@@ -337,7 +346,7 @@ def _rotate_backups(filepath, keep=BACKUP_KEEP):
     # 当前文件复制为 .bak.1（复制而非移动，避免主文件短暂缺失）
     try:
         with open(filepath, "rb") as fsrc, open(f"{filepath}.bak.1", "wb") as fdst:
-            fdst.write(fsrc.read())
+            shutil.copyfileobj(fsrc, fdst, length=1024 * 1024)
     except OSError:
         pass
 
@@ -358,24 +367,6 @@ def save_csv(filepath, headers, rows, backup=False):
         os.fsync(file.fileno())
     os.replace(tmp, filepath)
 
-
-def append_csv(filepath, headers, rows):
-    """追加写：只把新行 append 到文件末尾（崩溃不会截断已有数据）。
-
-    文件不存在或为空时先写表头。用于只增不改的 history_log.csv。
-    """
-    if not rows:
-        return
-    need_header = (not os.path.exists(filepath)) or os.path.getsize(filepath) == 0
-    # 已存在文件用普通 utf-8 追加（BOM 只在文件开头出现一次）
-    encoding = "utf-8-sig" if need_header else "utf-8"
-    with open(filepath, "a", encoding=encoding, newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=headers)
-        if need_header:
-            writer.writeheader()
-        writer.writerows(rows)
-        file.flush()
-        os.fsync(file.fileno())
 
 
 # ── SM-2 排期核心 ──
@@ -420,31 +411,16 @@ DEFAULT_TUNING = {
     "kill_demote_factor": 0.3,       # 复燃后答错时的熟练度降级系数
 }
 
-_TUNING_CACHE = {}
-
-
 def load_tuning(vault: str) -> dict:
-    """读取合并后的可调参数（带进程内缓存）。config 改动后由 save_config 失效缓存。"""
-    key = os.path.abspath(vault)
-    cached = _TUNING_CACHE.get(key)
-    if cached is not None:
-        return cached
-    merged = dict(DEFAULT_TUNING)
-    cfg = load_config(vault)
-    user = cfg.get("tuning")
-    if isinstance(user, dict):
-        for k, v in user.items():
-            if k in merged and isinstance(v, (int, float)):
-                merged[k] = v
-    _TUNING_CACHE[key] = merged
-    return merged
+    """活动配置是唯一运行时事实，调参后所有重放使用新参数。"""
+    from .config_repository import normalized_tuning
+    return normalized_tuning(load_config(vault))
 
 
 def reset_tuning_cache(vault: str = None) -> None:
-    if vault is None:
-        _TUNING_CACHE.clear()
-    else:
-        _TUNING_CACHE.pop(os.path.abspath(vault), None)
+    """兼容缓存失效入口；活动配置直读 SQL，只需废止派生状态缓存。"""
+    from .projection_runtime import invalidate
+    invalidate(vault)
 
 
 def calc_sm2_interval(old_interval: int, repetition: int, ef: float,
@@ -459,7 +435,10 @@ def calc_sm2_interval(old_interval: int, repetition: int, ef: float,
     elif repetition == 1:
         new_interval = SM2_INTERVAL_AFTER_FIRST
     else:
-        new_interval = round(old_interval * max(SM2_EF_MIN, min(SM2_EF_MAX, ef)))
+        # 长期连续正确不能突破日期/SQLite 可表示范围。
+        maximum = (datetime.date.max - datetime.date.min).days
+        bounded_old = max(0, min(maximum, old_interval))
+        new_interval = min(maximum, round(bounded_old * max(SM2_EF_MIN, min(SM2_EF_MAX, ef))))
 
     if source == "proficiency":
         factor = SM2_PROFICIENCY_CORRECT_FACTOR if proficiency_factor is None else proficiency_factor
@@ -471,18 +450,19 @@ def calc_sm2_interval(old_interval: int, repetition: int, ef: float,
 def compute_due_date(last_review, interval: int):
     """根据上次复习日期和间隔计算到期日。"""
     if not last_review:
-        return datetime.date.today().isoformat()
+        return business_today().isoformat()
     dt = parse_date(last_review)
     if not dt:
-        return datetime.date.today().isoformat()
-    return (dt + datetime.timedelta(days=interval)).isoformat()
+        return business_today().isoformat()
+    bounded = max(0, min((datetime.date.max - dt).days, interval))
+    return (dt + datetime.timedelta(days=bounded)).isoformat()
 
 
 def is_due(due_date: str, today=None) -> bool:
     """判断题目是否到期（Due_Date ≤ 今天）。"""
     if not due_date:
         return True
-    today = today or datetime.date.today()
+    today = today or business_today()
     dt = parse_date(due_date)
     if not dt:
         return True
@@ -498,7 +478,7 @@ def resolve_sm2_fields(row: dict) -> dict:
         if last:
             row["Due_Date"] = last
         else:
-            row["Due_Date"] = datetime.date.today().isoformat()
+            row["Due_Date"] = business_today().isoformat()
     if "Repetition" not in row or not row.get("Repetition"):
         row["Repetition"] = "0"
     return row

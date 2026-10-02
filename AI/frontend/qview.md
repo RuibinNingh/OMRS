@@ -95,3 +95,11 @@
 | 复习调度「安排复习」画廊（`features/schedule/arrange-ctl.js`） | `qvRender(节点, uid, {...QV_CARD_OPTS, clamp:8})` |
 
 画廊缩略预览容器 `.gallery-preview` 带 `white-space:pre-wrap`，而 qview 输出是多行模板，标签之间的空白文本节点在 pre-wrap 下不会折叠；旧 `styles.css` 用 `.gallery-preview .qv{white-space:normal}` 关掉，正文 `.qv .q-md` 自己声明 `pre-wrap` 保留题目里的换行。P5 第 4 轮起 qview 的全部外观都在 `qview.css` 并换成 token：题面 / 答案 `--text-lg` + `--leading-read`（设计系统的阅读正文），缩略卡（`bare`）`--text-sm`；题面块底色 `--surface-sunken`，答案块 `--success-subtle` / `--success-line`，战绩带 `--streak-ok` / `--streak-bad`。题头是 `<header>`，旧全局 `header{}` 在 legacy 层仍生效，所以内外边距、边框、对齐都显式写。旧页面容器（`.gallery-preview`、`.gallery-card`、`.sch-gallery-preview`）对 qview 的覆盖也在该文件末尾，随各页迁移删除。
+
+## 稳定身份与缓存
+
+`domain/question/ref.js` 冻结 `{question_id}`，共享写操作、标签选择器与 Markdown 编辑器在首个异步等待前保存它。详情读取可传 ID；缓存仍按显示 UID 提供兼容入口，但发现缓存 ID 与当前题目 ID 不同即失效。挂载状态保存固定 ID，旧 UID 被复用时不会加载新题正文，题面工具按钮沿用该挂载的身份。
+
+`domain/question/picker.js` 是共享单题选择器；对候选快照搜索并显式确认稳定身份，目前由 Session 详情绑定入口使用。日期解析和战绩间隔共用 `core/date.js`，天差按日序号计算，夏令时不改变天数。
+
+同一挂载点每次渲染以请求对象判定有效性，不能只比较 UID；同 UID 不同身份的迟到响应也会丢弃。`tests/e2e/audit_identity.py` 通过延迟旧身份详情、先完成新身份渲染复现并验证这个边界。

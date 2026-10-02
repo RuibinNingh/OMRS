@@ -1,25 +1,11 @@
+from .common import business_today
+from .data_repository import mastery_rows, history_rows, resolve_question
+from .vault_lifecycle import storage
 import datetime
 import os
 import re
 
-from .common import (
-    HISTORY_HEADERS,
-    MASTERY_HEADERS,
-    extract_category,
-    extract_images,
-    extract_labels,
-    extract_knowledge_tags,
-    extract_tag,
-    history_path,
-    is_suspended_row,
-    load_csv,
-    load_tuning,
-    mastery_path,
-    parse_date,
-    parse_yaml_frontmatter,
-    resolve_sm2_fields,
-    split_sections,
-)
+from .common import extract_category, extract_images, extract_labels, extract_knowledge_tags, extract_tag, is_suspended_row, load_tuning, parse_date, parse_yaml_frontmatter, resolve_sm2_fields, split_sections
 from .ledger import connect
 from .scheduling import (
     _row_to_item,
@@ -35,9 +21,10 @@ from .scheduling import (
 )
 
 
+@storage
 def get_stats(vault, subject=None):
-    rows = [resolve_sm2_fields(r) for r in load_csv(mastery_path(vault), MASTERY_HEADERS)]
-    history = load_csv(history_path(vault), HISTORY_HEADERS)
+    rows = [resolve_sm2_fields(r) for r in mastery_rows(vault)]
+    history = history_rows(vault)
     with connect(vault) as db:
         projection_rows = db.execute(
             "SELECT * FROM question_projection"
@@ -80,7 +67,7 @@ def get_stats(vault, subject=None):
     all_fail_counts = build_fail_counts(history, uid_by_qid)
     active_wrong_streaks = build_wrong_streaks(active_history, uid_by_qid)
     all_wrong_streaks = build_wrong_streaks(history, uid_by_qid)
-    today = datetime.date.today()
+    today = business_today()
 
     total = len(active_rows)
     killed = sum(
@@ -254,8 +241,14 @@ def get_stats(vault, subject=None):
     }
 
 
-def get_question_content(vault, uid):
-    rows = load_csv(mastery_path(vault), MASTERY_HEADERS)
+@storage
+def get_question_content(vault, uid="", question_id=""):
+    if question_id:
+        projection = resolve_question(vault, uid=uid, question_id=question_id)
+        if not projection:
+            return {"error": "题目不存在"}
+        uid = projection["uid"]
+    rows = mastery_rows(vault)
     row = next((item for item in rows if item["UID"] == uid), None)
     if not row:
         return {"error": "UID not found"}
@@ -277,6 +270,7 @@ def get_question_content(vault, uid):
         created_at = projection["created_at"] or ""
     return {
         "uid": uid,
+        "question_id": (resolve_question(vault, uid=uid) or {}).get("question_id", ""),
         "subject": meta.get("科目", ""),
         "category": extract_category(meta),
         "difficulty": meta.get("难度", "5"),
@@ -286,7 +280,7 @@ def get_question_content(vault, uid):
         "history": sections.get("历史", ""),
         # 正式练习记录：来自 Ledger 投影（history_log.csv），不是上面那段 Markdown 遗留文本。
         "records": get_question_records(vault, uid),
-        "tag": extract_tag(meta),
+        "tag": row.get("Current_Tag") or extract_tag(meta),
         "suspended": is_suspended_row(row),
         "knowledge_tags": extract_knowledge_tags(meta),
         "labels": extract_labels(meta),
@@ -305,10 +299,11 @@ def _split_history_date(value):
     return match.group(1), match.group(2) or ""
 
 
+@storage
 def get_question_records(vault, uid):
     """返回一道题的正式练习记录（按 Ledger 提交顺序，旧到新）。
 
-    数据源是 Ledger 重放出来的 ``history_log.csv`` 兼容投影；题目 Markdown 里的
+    数据源是 Ledger 的 SQL ``history_projection``；题目 Markdown 里的
     ``# 历史`` 只是早期遗留文本，反馈流程早已不再写它，所以这里不看它。
     优先按隐藏稳定身份 ``Question_ID`` 匹配（改名不断链），老行没有 Question_ID 时退回按 UID 匹配。
     """
@@ -327,7 +322,7 @@ def get_question_records(vault, uid):
     except Exception:
         question_id = ""
     records = []
-    for row in load_csv(history_path(vault), HISTORY_HEADERS):
+    for row in history_rows(vault, question_id=question_id or None):
         row_qid = (row.get("Question_ID") or "").strip()
         row_uid = (row.get("UID") or "").strip()
         if question_id and row_qid:
@@ -345,5 +340,29 @@ def get_question_records(vault, uid):
             "correct": str(row.get("Is_Correct", "")).strip() == "1",
             "note": row.get("Note", "") or "",
             "session_id": row.get("Session_ID", "") or "",
+            "recorded_at": row.get("recorded_at", ""),
         })
     return records
+
+
+@storage
+def get_question_records_page(vault, uid, offset=0, limit=50):
+    """单题正式历史按 SQL 分页，避免 MCP 后续页先载入全部反馈。"""
+    if type(offset) is not int or offset < 0 or type(limit) is not int or not 1 <= limit <= 100:
+        raise ValueError("历史分页范围不合法")
+    row = resolve_question(vault, uid=uid)
+    if not row:
+        return {"items": [], "total": 0, "offset": offset, "next_offset": None}
+    with connect(vault) as db:
+        total = db.execute("SELECT COUNT(*) FROM history_projection WHERE question_id=?", (row["question_id"],)).fetchone()[0]
+        raw = db.execute("SELECT * FROM history_projection WHERE question_id=? ORDER BY rowid DESC LIMIT ? OFFSET ?",
+                         (row["question_id"], limit, offset))
+        items = []
+        for record in raw:
+            day, clock = _split_history_date(record["date"])
+            items.append({"log_id": record["log_id"], "date": day, "time": clock,
+                          "score": record["sub_score"], "correct": bool(record["is_correct"]),
+                          "note": record["note"] or "", "session_id": record["session_id"] or "",
+                          "recorded_at": record["recorded_at"] or ""})
+    return {"items": items, "total": total, "offset": offset,
+            "next_offset": offset + limit if offset + limit < total else None}

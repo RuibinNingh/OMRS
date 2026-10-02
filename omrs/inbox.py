@@ -28,6 +28,7 @@ import uuid
 import zipfile
 
 from .common import load_config, omrs_data_dir
+from .vault_lifecycle import storage, open_sqlite, task, generation
 from .creation import create_question
 
 INBOX_DIR = "inbox"
@@ -235,9 +236,10 @@ def _check_write(row, expected_revision=None, reset_epoch=None, require_version=
         raise InboxConflict("图片已在其他位置修改，请核对后重新保存", "revision_conflict", row["revision"])
 
 
+@storage
 def connect(vault):
     path = os.path.join(inbox_dir(vault), "inbox.db")
-    db = sqlite3.connect(path, timeout=10, check_same_thread=False)
+    db = open_sqlite(vault, path, timeout=10, check_same_thread=False)
     db.row_factory = sqlite3.Row
     db.executescript(_SCHEMA)
     existing = {row[1] for row in db.execute("PRAGMA table_info(items)")}
@@ -248,6 +250,17 @@ def connect(vault):
     for column in ("manual_fields", "field_sources"):
         if column not in card_columns:
             db.execute(f"ALTER TABLE cards ADD COLUMN {column} TEXT NOT NULL DEFAULT '{{}}'")
+    if "labels" not in card_columns:
+        db.execute("ALTER TABLE cards ADD COLUMN labels TEXT NOT NULL DEFAULT '[]'")
+    db.executescript("""
+        CREATE TABLE IF NOT EXISTS commit_operations (
+            operation_id TEXT PRIMARY KEY, item_id TEXT NOT NULL, reset_epoch INTEGER NOT NULL,
+            card INTEGER NOT NULL, revision INTEGER NOT NULL, digest TEXT NOT NULL,
+            identity_json TEXT NOT NULL, payload_json TEXT NOT NULL,
+            artifacts_json TEXT NOT NULL DEFAULT '{}', phase TEXT NOT NULL DEFAULT 'prepared',
+            result_json TEXT, UNIQUE(item_id, reset_epoch, card)
+        );
+    """)
     db.commit()
     return db
 
@@ -268,6 +281,7 @@ def _meta_incr(db, key, delta=1):
     return value
 
 
+@storage
 def _log(vault, event, payload):
     """append-only 标注事件流。"""
     record = {"ts": _now(), "event": event, **payload}
@@ -291,8 +305,9 @@ def _row_card(row):
     return {
         "card": row["card"], "subject": row["subject"] or "", "category": row["category"] or "",
         "difficulty": row["difficulty"] if row["difficulty"] is not None else 5,
-        "tags": _loads(row["tags"], []), "cause": row["cause"] or "",
+        "tags": _loads(row["tags"], []), "labels": _loads(row["labels"], []), "cause": row["cause"] or "",
         "classified": bool(row["classified"]), "created_uid": row["created_uid"] or "",
+        "created_question_id": row["created_question_id"] or "",
         "manual_fields": _loads(row["manual_fields"], {}),
         "field_sources": _loads(row["field_sources"], {}),
     }
@@ -329,6 +344,7 @@ def _raw_path(vault, sha256, mime):
 
 # ────────────────────────── 上传 / 查询 / 更新 ──────────────────────────
 
+@storage
 def upload_images(vault, files, source="desktop"):
     """files: [(filename, bytes)]。返回 {items:[...新建或已存在...], duplicates:[...]}。"""
     created, duplicates = [], []
@@ -336,6 +352,10 @@ def upload_images(vault, files, source="desktop"):
         db = connect(vault)
         try:
             for filename, data in files:
+                if isinstance(data, dict) and data.get("upload_ref"):
+                    from .uploads import resolve, read
+                    resolve(vault, data["upload_ref"], purpose="inbox")
+                    data = read(vault, data["upload_ref"])
                 if not data:
                     continue
                 mime, width, height = image_size(data)
@@ -382,6 +402,7 @@ def upload_images(vault, files, source="desktop"):
     return result
 
 
+@storage
 def list_items(vault, status=None, with_children=True):
     db = connect(vault)
     try:
@@ -394,6 +415,7 @@ def list_items(vault, status=None, with_children=True):
         db.close()
 
 
+@storage
 def get_item(vault, item_id):
     db = connect(vault)
     try:
@@ -405,6 +427,7 @@ def get_item(vault, item_id):
         db.close()
 
 
+@storage
 def raw_file(vault, item_id):
     item = get_item(vault, item_id)
     path = _raw_path(vault, item["sha256"], item["mime"])
@@ -433,10 +456,19 @@ def _write_cards(db, item_id, cards, ai=False):
             card = int(key)
         except (TypeError, ValueError):
             continue
+        previous = db.execute("SELECT * FROM cards WHERE item_id=? AND card=?", (item_id, card)).fetchone()
+        # 单字段保存与AI补全都保留未提交的字段，显式空数组仍用于清空。
+        if previous:
+            form = {**_row_card(previous), **form}
         tags = form.get("tags", [])
         if isinstance(tags, str):
             tags = [t.strip() for t in re.split(r"[,，]", tags) if t.strip()]
-        previous = db.execute("SELECT * FROM cards WHERE item_id=? AND card=?", (item_id, card)).fetchone()
+        labels = form.get("labels", _loads(previous["labels"], []) if previous else [])
+        if not isinstance(labels, list) or any(not isinstance(v, str) for v in labels):
+            raise ValueError("标记必须是字符串数组")
+        labels = list(dict.fromkeys(v.strip() for v in labels if v.strip()))
+        if ai and previous and "labels" not in form:
+            labels = _loads(previous["labels"], [])
         manual = dict(_loads(previous["manual_fields"], {}) if previous else {})
         manual.update(form.get("manual_fields") or {})
         sources = dict(_loads(previous["field_sources"], {}) if previous else {})
@@ -447,24 +479,26 @@ def _write_cards(db, item_id, cards, ai=False):
                 ("category", "category", form.get("category", ""), ""),
                 ("difficulty", "difficulty", int(form.get("difficulty", 5) or 5), 5),
                 ("tags", "tags", tags, []),
+                ("labels", "labels", labels, []),
                 ("cause", "cause", form.get("cause", ""), ""),
             ):
-                old = (_loads(previous[column], []) if name == "tags" else previous[column]) if previous else default
+                old = (_loads(previous[column], []) if name in {"tags", "labels"} else previous[column]) if previous else default
                 if value != old:
                     manual[name] = True
                     sources.pop(name, None)
         db.execute(
-            "INSERT INTO cards (item_id, card, subject, category, difficulty, tags, cause, page, classified, manual_fields, field_sources) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(item_id, card) DO UPDATE SET subject=excluded.subject, "
-            "category=excluded.category, difficulty=excluded.difficulty, tags=excluded.tags, cause=excluded.cause, "
+            "INSERT INTO cards (item_id, card, subject, category, difficulty, tags, labels, cause, page, classified, manual_fields, field_sources) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(item_id, card) DO UPDATE SET subject=excluded.subject, "
+            "category=excluded.category, difficulty=excluded.difficulty, tags=excluded.tags, labels=excluded.labels, cause=excluded.cause, "
             "page=excluded.page, classified=excluded.classified, manual_fields=excluded.manual_fields, field_sources=excluded.field_sources",
             (item_id, card, form.get("subject", ""), form.get("category", ""),
-             int(form.get("difficulty", 5) or 5), json.dumps(tags, ensure_ascii=False),
+             int(form.get("difficulty", 5) or 5), json.dumps(tags, ensure_ascii=False), json.dumps(labels, ensure_ascii=False),
              form.get("cause", ""), "", 1 if form.get("classified") else 0,
              json.dumps(manual, ensure_ascii=False), json.dumps(sources, ensure_ascii=False)),
         )
 
 
+@storage
 def update_item(vault, item_id, data, require_epoch=False, require_version=False, _ai=False):
     """只修改明确提交的字段；regions 明确传入时整体替换。"""
     with _LOCK:
@@ -529,6 +563,7 @@ def update_item(vault, item_id, data, require_epoch=False, require_version=False
     return after
 
 
+@storage
 def reset_item(vault, item_id, expected_revision=None, reset_epoch=None, require_version=False):
     """原子清空当前截图的处理进度；原图和上传信息保留。"""
     with _LOCK:
@@ -544,6 +579,10 @@ def reset_item(vault, item_id, expected_revision=None, reset_epoch=None, require
                                    "AND created_uid!='' LIMIT 1", (item_id,)).fetchone()
             if committed:
                 raise ValueError("这张图片已有题卡录入题库，不能重置")
+            pending = db.execute("SELECT 1 FROM commit_operations WHERE item_id=? AND reset_epoch=? AND phase!='cancelled' LIMIT 1",
+                                 (item_id, row["reset_epoch"])).fetchone()
+            if pending:
+                raise InboxConflict("此图片有入库预留，请先用原内容完成重试，不能重置", "operation_pending")
             before = _row_item(db, row)
             region_ids = [region["id"] for region in before["regions"]]
             db.execute("DELETE FROM regions WHERE item_id=?", (item_id,))
@@ -594,6 +633,7 @@ def discard_item(vault, item_id, expected_revision=None, reset_epoch=None, requi
                                   "reset_epoch": reset_epoch}], require_version=require_version)[0]
 
 
+@storage
 def discard_items(vault, entries, require_version=False):
     """批量丢弃先核对全部版本，再在一个事务内修改；冲突时整批不动。"""
     if not entries or not isinstance(entries, list):
@@ -625,7 +665,11 @@ def discard_items(vault, entries, require_version=False):
     return [{"item_id": item_id, "status": "discarded"} for item_id in checked]
 
 
+@storage
 def save_crop(vault, region_id, data_url):
+    if isinstance(data_url, dict) and data_url.get("upload_ref"):
+        from .uploads import image_data_url
+        data_url = image_data_url(vault, data_url["upload_ref"], purpose="inbox")
     mime, data = _data_url_bytes(data_url)
     if mime not in _MIME_EXT:
         raise ValueError("裁剪图仅支持 PNG / JPEG / GIF")
@@ -636,6 +680,7 @@ def save_crop(vault, region_id, data_url):
     return path
 
 
+@storage
 def _crop_data_url(vault, region_id):
     safe = re.sub(r"[^A-Za-z0-9_-]", "", region_id)
     for ext, mime in (("png", "image/png"), ("jpg", "image/jpeg"), ("gif", "image/gif")):
@@ -646,6 +691,7 @@ def _crop_data_url(vault, region_id):
     return None
 
 
+@storage
 def _pillow_crop(vault, item, region):
     """有 Pillow 时服务端裁图；没有则返回 None。"""
     try:
@@ -662,6 +708,7 @@ def _pillow_crop(vault, item, region):
     return _to_data_url("image/png", buf.getvalue())
 
 
+@storage
 def region_image(vault, item, region, supplied=None):
     """按优先级取区域图：本次请求附带的裁图 → crops/ 缓存 → Pillow 服务端裁 → 整图（框覆盖全图时）。"""
     if supplied:
@@ -747,6 +794,7 @@ def merge_strip_boxes(strips, min_iou=0.4):
 _JOBS = {}
 
 
+@storage
 def _job_update(vault, job_id, **fields):
     with _LOCK:
         job = _JOBS.setdefault(job_id, {"id": job_id})
@@ -766,6 +814,7 @@ def _job_update(vault, job_id, **fields):
         return dict(job)
 
 
+@storage
 def get_job(vault, job_id):
     with _LOCK:
         if job_id in _JOBS:
@@ -786,6 +835,7 @@ def get_job(vault, job_id):
 JOB_TYPES = ("detect", "extract", "classify", "auto")
 
 
+@storage
 def start_job(vault, job_type, payload):
     if job_type not in JOB_TYPES:
         raise ValueError(f"未知任务类型：{job_type}")
@@ -798,7 +848,7 @@ def start_job(vault, job_type, payload):
             unit.setdefault("reset_epoch", get_item(vault, unit["item_id"])["reset_epoch"])
     _job_update(vault, job_id, type=job_type, status="running", created_at=_now(), finished_at=None,
                 processed=0, total=len(units), result=[], errors=[], done=False)
-    thread = threading.Thread(target=_run_job, args=(vault, job_id, job_type, units), daemon=True)
+    thread = threading.Thread(target=_run_job, args=(vault, job_id, job_type, units, generation(vault)), daemon=True)
     thread.start()
     return get_job(vault, job_id)
 
@@ -811,7 +861,18 @@ def _job_units(job_type, payload):
     return [u for u in (payload.get("cards") or []) if isinstance(u, dict) and u.get("item_id")]
 
 
-def _run_job(vault, job_id, job_type, units):
+def _run_job(vault, job_id, job_type, units, started_generation=None):
+    try:
+        with task(vault, started_generation):
+            _run_job_current(vault, job_id, job_type, units)
+    except Exception as exc:
+        from .vault_lifecycle import VaultChanged
+        if not isinstance(exc, VaultChanged):
+            raise
+        # 恢复后旧任务不能在新库登记终态；新库恢复入口负责 interrupted。
+
+
+def _run_job_current(vault, job_id, job_type, units):
     from . import ai_assist  # 延迟导入，避免循环
     results, errors = [], []
     for index, unit in enumerate(units):
@@ -1132,88 +1193,13 @@ def _run_classify(vault, ai, unit):
 
 def commit_item(vault, item_id, card=1, form=None, crops=None,
                 expected_revision=None, reset_epoch=None, require_version=False):
-    # 建题与收件箱标记必须共用同一张图的锁；否则检查版本后，后台任务仍可能改框。
-    with _LOCK:
-        db = connect(vault)
-        try:
-            row = db.execute("SELECT * FROM items WHERE id=?", (item_id,)).fetchone()
-            if not row:
-                raise ValueError(f"收件箱里没有 {item_id}")
-            _check_write(row, expected_revision, reset_epoch, require_version)
-        finally:
-            db.close()
-        return _commit_item_checked(vault, item_id, card, form, crops)
-
-
-def _commit_item_checked(vault, item_id, card=1, form=None, crops=None):
-    """把一张题卡写成题目：文本区拼进正文，图片区裁图嵌入。成功后 item → done。"""
-    item = get_item(vault, item_id)
-    if item["training_only"]:
-        raise ValueError("训练专用图片不能创建题目")
-    if item["status"] in ("done", "discarded"):
-        raise ValueError("这张图已经结束，不能录入题库")
-    card = int(card or 1)
-    regions = [r for r in item["regions"] if r["card"] == card and r["role"] != "ignore"]
-    if not any(r["role"] == "question" for r in regions):
-        raise ValueError(f"题卡 {card} 没有题目框")
-    saved = dict(item["cards"].get(str(card), {}))
-    saved.update({k: v for k, v in (form or {}).items() if k in ("subject", "category", "difficulty", "tags", "labels", "cause")})
-    subject = str(saved.get("subject") or "").strip()
-    category = str(saved.get("category") or "").strip()
-    if not subject or not category:
-        raise ValueError("科目和分类是必填项")
-    tags = saved.get("tags") or []
-    if isinstance(tags, str):
-        tags = [t.strip() for t in re.split(r"[,，]", tags) if t.strip()]
-    labels = saved.get("labels") or []
-    if isinstance(labels, str):
-        labels = [t.strip() for t in re.split(r"[,，]", labels) if t.strip()]
-    crops = crops or {}
-
-    texts = {"question": [], "answer": []}
-    images = {"question": [], "answer": []}
-    for r in regions:
-        if r["convert"] == "auto":
-            raise ValueError(f"区域 {r['id']} 还没决定转文本还是保留图片")
-        if r["convert"] == "text":
-            if not (r["text"] or "").strip():
-                raise ValueError(f"区域 {r['id']} 选择了转文本但没有文本")
-            texts[r["role"]].append(r["text"].strip())
-        else:
-            images[r["role"]].append({"data": region_image(vault, item, r, crops.get(r["id"]))})
-
-    result = create_question(
-        vault, subject=subject, category=category,
-        difficulty=int(saved.get("difficulty", 5) or 5),
-        related_tags=tags, labels=labels, question_text="\n\n".join(texts["question"]),
-        answer_text="\n\n".join(texts["answer"]), cause=str(saved.get("cause") or ""),
-        question_images=images["question"], answer_images=images["answer"],
-    )
-
-    with _LOCK:
-        db = connect(vault)
-        try:
-            _write_cards(db, item_id, {str(card): {**saved, "tags": tags, "labels": labels, "classified": saved.get("classified", False)}})
-            db.execute("UPDATE cards SET created_uid=?, created_question_id=? WHERE item_id=? AND card=?",
-                       (result["uid"], result["question_id"], item_id, card))
-            all_cards = sorted({r["card"] for r in item["regions"] if r["role"] != "ignore"})
-            done_cards = {row["card"] for row in db.execute(
-                "SELECT card FROM cards WHERE item_id=? AND created_uid IS NOT NULL AND created_uid!=''", (item_id,))}
-            if set(all_cards) <= done_cards:
-                db.execute("UPDATE items SET status='done', link_uid=?, link_question_id=?, updated_at=? WHERE id=?",
-                           (result["uid"], result["question_id"], _now(), item_id))
-            db.execute("UPDATE items SET revision=revision+1, updated_at=? WHERE id=?", (_now(), item_id))
-            db.commit()
-        finally:
-            db.close()
-    _log(vault, "item.commit", {"item_id": item_id, "card": card, "uid": result["uid"],
-                                "question_id": result["question_id"], "layout": item["layout"],
-                                "regions": _region_summary(regions)})
-    return {**result, "item_id": item_id, "card": card}
+    from .inbox_commit import commit_item as commit
+    return commit(vault, item_id, card, form, crops, expected_revision, reset_epoch, require_version)
 
 
 # ────────────────────────── 数据集 ──────────────────────────
 
+@storage
 def register_chat_training(vault, sha, data, draft_id, boxes):
     """按图哈希登记聊天训练标注，不经过上传队列与自动 detect。"""
     if hashlib.sha256(data).hexdigest() != sha:
@@ -1279,6 +1265,7 @@ def _dataset_items(db):
         items.append(item)
     return items, {r["id"]: r for r in rows}
 
+@storage
 def dataset_stats(vault):
     db = connect(vault)
     try:
@@ -1320,6 +1307,7 @@ def dataset_stats(vault):
     }
 
 
+@storage
 def _rejected_count(vault):
     """拒绝的 AI 框数：meta 里增量维护；老库第一次从 annotations.jsonl 回填一次。"""
     with _LOCK:
@@ -1345,6 +1333,7 @@ def _rejected_count(vault):
             db.close()
 
 
+@storage
 def _blind_stats(vault):
     """盲标评估集：已就绪/已录入的盲标图，人工最终框 vs 当时隐藏的 AI 框。"""
     db = connect(vault)
@@ -1368,6 +1357,7 @@ def _blind_stats(vault):
 
 # ────────────────────────── 清理 ──────────────────────────
 
+@storage
 def storage_stats(vault):
     def _size(path):
         total = 0
@@ -1385,6 +1375,7 @@ def storage_stats(vault):
     return {"raw_bytes": _size(raw_dir(vault)), "crops_bytes": _size(crops_dir(vault)), "discarded": discarded}
 
 
+@storage
 def cleanup(vault, discarded_days=None, crops=False):
     """删除超期（默认 inbox_discard_keep_days 天）的已丢弃原图；crops=True 时清空裁剪缓存。
     丢弃项的行保留（file 置空）以便事件回溯；被未丢弃项共享的原图（同 sha256 不可能，主键唯一）无需考虑。"""
@@ -1425,6 +1416,7 @@ def cleanup(vault, discarded_days=None, crops=False):
     return {"raw": removed_raw, "raw_bytes": removed_bytes, "crops": removed_crops, "discarded_days": discarded_days}
 
 
+@storage
 def cleanup_expired(vault):
     """上传时顺手跑一次超期清理（只删原图，很便宜）；任何异常都吞掉，不影响上传。"""
     try:
@@ -1433,6 +1425,7 @@ def cleanup_expired(vault):
         return None
 
 
+@storage
 def export_dataset(vault, fmt="omrs_jsonl", include_raw=True):
     """打包 labels + 原图。fmt: omrs_jsonl | yolo。返回 zip bytes。"""
     db = connect(vault)

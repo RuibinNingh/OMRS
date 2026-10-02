@@ -15,10 +15,11 @@ from .common import (
     questions_root,
 )
 from .ledger import append_commit, canonical_json, connect, reserve_operation_id
+from .vault_lifecycle import storage
 
 
 _SCAN_LOCK = threading.Lock()
-_SCHEDULER_STOP = threading.Event()
+_SCHEDULER_LOCK = threading.RLock()
 
 
 def metadata_hash(meta: dict) -> str:
@@ -39,6 +40,7 @@ def content_hash(content: str) -> str:
     return hashlib.sha256((content or "").encode("utf-8")).hexdigest()
 
 
+@storage
 def scan_question_files(vault: str) -> list:
     qroot = questions_root(vault)
     if not os.path.isdir(qroot):
@@ -67,6 +69,7 @@ def scan_question_files(vault: str) -> list:
     return results
 
 
+@storage
 def scan_workspace(vault: str):
     from .locking import write_lock
 
@@ -85,6 +88,12 @@ def scan_workspace(vault: str):
 
 def _scan_workspace_locked(vault: str):
     files = scan_question_files(vault)
+    try:
+        from .inbox_commit import pending_question_ids
+        pending_ids = set(pending_question_ids(vault))
+    except ImportError:
+        pending_ids = set()
+    files = [item for item in files if item["meta"].get("_omrs_id") not in pending_ids]
     conflicts = _detect_conflicts(files)
     changes = []
     if conflicts:
@@ -117,7 +126,7 @@ def _scan_workspace_locked(vault: str):
             blocked_ids.add(question_id)
             conflicts.append(f"{item['uid']}：{exc}")
 
-    seen_ids = set()
+    seen_ids = set(pending_ids)
     known_ids = set(projection) | {item["meta"].get("_omrs_id") for item in files if item["meta"].get("_omrs_id")}
     for item in files:
         meta = item["meta"]
@@ -198,6 +207,7 @@ def _scan_workspace_locked(vault: str):
     return {"status": "conflict" if conflicts else "ok", "changes": len(changes), "conflicts": conflicts}
 
 
+@storage
 def update_fingerprints(vault: str, questions: list):
     now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
     with connect(vault) as db:
@@ -238,27 +248,42 @@ def get_scan_status(vault: str):
 
 
 def start_workspace_scanner(vault: str, interval_seconds=600):
-    if getattr(start_workspace_scanner, "_thread", None):
-        return
+    from .vault_lifecycle import generation, task, VaultChanged
+    with _SCHEDULER_LOCK:
+        existing = getattr(start_workspace_scanner, "_thread", None)
+        if existing and existing.is_alive():
+            return
+        stop = threading.Event()
+        epoch = generation(vault)
 
-    def _loop():
-        try:
-            scan_workspace(vault)
-        except Exception:
-            pass
-        while not _SCHEDULER_STOP.wait(interval_seconds):
+        def _loop():
             try:
-                scan_workspace(vault)
-            except Exception:
-                pass
+                with task(vault, epoch):
+                    while not stop.is_set():
+                        try:
+                            scan_workspace(vault)
+                        except VaultChanged:
+                            return
+                        except Exception:
+                            pass
+                        if stop.wait(interval_seconds):
+                            return
+            except VaultChanged:
+                return
 
-    thread = threading.Thread(target=_loop, name="omrs-workspace-scan", daemon=True)
-    start_workspace_scanner._thread = thread
-    thread.start()
+        thread = threading.Thread(target=_loop, name="omrs-workspace-scan", daemon=True)
+        start_workspace_scanner._stop = stop
+        start_workspace_scanner._thread = thread
+        thread.start()
 
 
 def stop_workspace_scanner():
-    _SCHEDULER_STOP.set()
+    # 恢复屏障内不能 join：旧线程可能正等待租约。独立 stop 和世代令其自行退出。
+    with _SCHEDULER_LOCK:
+        stop = getattr(start_workspace_scanner, "_stop", None)
+        if stop:
+            stop.set()
+        start_workspace_scanner._thread = None
 
 
 def _write_scan_status(vault, change_count, conflicts, error):

@@ -22,25 +22,25 @@ function preview(item, role, regions) {
   </section>`;
 }
 
-function formView(entry) {
+function formView(entry, locked) {
   const { key, form } = entry;
   const ai = form.classified ? html`<span class="crc-ai">AI 已填 · 可改</span>` : '';
-  const input = (field, value, { placeholder } = {}) => html`<input class="crc-input" data-input="create.cardField" data-arg="${key}|${field}" data-combobox="${field === 'tags' ? 'tags' : field}" autocomplete="off" value="${value ?? ''}"${placeholder ? html` placeholder="${placeholder}"` : ''}>`;
+  const input = (field, value, { placeholder } = {}) => html`<input class="crc-input" data-input="create.cardField" data-arg="${key}|${field}" data-combobox="${field === 'tags' ? 'tags' : field}" autocomplete="off" value="${value ?? ''}"${locked ? html` disabled` : ''}${placeholder ? html` placeholder="${placeholder}"` : ''}>`;
   return html`<div class="crc-form">
     <div class="crc-pair">
       <label>科目 *${ai}${input('subject', form.subject)}</label>
       <label>分类 *${ai}${input('category', form.category)}</label>
     </div>
-    <label>难度${ai}<span class="crc-range"><input type="range" min="1" max="10" data-input="create.cardField" data-arg="${key}|difficulty" value="${form.difficulty || 5}"><output>${form.difficulty || 5}</output></span></label>
+    <label>难度${ai}<span class="crc-range"><input type="range" min="1" max="10" data-input="create.cardField" data-arg="${key}|difficulty" value="${form.difficulty || 5}"${locked ? html` disabled` : ''}><output>${form.difficulty || 5}</output></span></label>
     <label>相关知识点${ai}${input('tags', tagText(form.tags), { placeholder: '逗号分隔，写入 YAML 为 [[双链]]' })}</label>
     <div class="crc-labels"><span>标记${ai}</span>
-      <div class="crc-labels__chips" data-card-labels="${key}">${labelChips(form.labels || [], { lg: true })}${button({ label: '添加标记', icon: 'plus', size: 'sm', action: 'create.cardLabels', arg: key })}</div>
+      <div class="crc-labels__chips" data-card-labels="${key}">${labelChips(form.labels || [], { lg: true })}${button({ label: '添加标记', icon: 'plus', size: 'sm', action: 'create.cardLabels', arg: key, disabled: locked })}</div>
     </div>
-    <label class="crc-cause">错因 · 这道题为什么错？<textarea class="crc-input" rows="2" data-input="create.cardField" data-arg="${key}|cause" placeholder="写入 # 备注 的「## 错因」，复习时先看这里">${form.cause || ''}</textarea></label>
+    <label class="crc-cause">错因 · 这道题为什么错？<textarea class="crc-input" rows="2" data-input="create.cardField" data-arg="${key}|cause" placeholder="写入 # 备注 的「## 错因」，复习时先看这里"${locked ? html` disabled` : ''}>${form.cause || ''}</textarea></label>
   </div>`;
 }
 
-function cardView(entry, index, { selected, busy, multi }) {
+function cardView(entry, index, { selected, busy, multi, batch }) {
   const { key, item, card, regions, form } = entry;
   const questions = regions.filter(region => region.role === 'question');
   const answers = regions.filter(region => region.role === 'answer');
@@ -61,14 +61,14 @@ function cardView(entry, index, { selected, busy, multi }) {
     ? `原图 ${item.width}×${item.height} 不随题保存（已全部转文本），只留在收件箱数据集里。`
     : html`保留图片的区域会裁出存入 <code>附件/</code>；原图只留在收件箱数据集里。`}</p>
       </div>
-      ${formView(entry)}
+      ${formView(entry, batch || working)}
     </div>
     <footer class="crc-card__foot">
       <span class="crc-path">${targetPath(form)}</span>
       <span class="crc-grow"></span>
-      ${button({ label: form.classified ? '重新识别题目信息' : 'AI 识别题目信息', icon: 'sparkle', size: 'sm', action: 'create.cardClassify', arg: key })}
-      ${button({ label: '退回处理', size: 'sm', action: 'create.cardBack', arg: item.id })}
-      ${button({ label: '创建题目', variant: 'primary', size: 'sm', action: 'create.cardCommit', arg: key, loading: working })}
+      ${button({ label: form.classified ? '重新识别题目信息' : 'AI 识别题目信息', icon: 'sparkle', size: 'sm', action: 'create.cardClassify', arg: key, disabled: batch || working })}
+      ${button({ label: '退回处理', size: 'sm', action: 'create.cardBack', arg: item.id, disabled: batch || busy.size > 0 })}
+      ${button({ label: '创建题目', variant: 'primary', size: 'sm', action: 'create.cardCommit', arg: key, loading: working, disabled: batch })}
     </footer>
   </article>`;
 }
@@ -88,7 +88,7 @@ export function cardsView({ cards = [], selected = new Set(), busy = new Set(), 
     </div>
     <div class="crc-list" id="ib-cards">
       ${!loaded ? html`<p class="crc-loading" role="status">正在读取收件箱…</p>`
-    : cards.length ? each(cards, entry => entry.key, (entry, index) => cardView(entry, index, { selected, busy, multi }))
+    : cards.length ? each(cards, entry => entry.key, (entry, index) => cardView(entry, index, { selected, busy, multi, batch }))
       : empty({ icon: 'inbox', title: '还没有就绪的题卡', hint: '在「处理」里把框选好的图标记就绪，题卡会出现在这里。', action: { label: '去处理', action: 'create.stage', arg: 'process' }, bordered: true })}
     </div>
   </div>`;

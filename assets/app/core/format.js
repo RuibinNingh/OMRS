@@ -2,15 +2,14 @@
  * 格式化：日期、相对天数、百分比、数字、时长。空值与非法值一律显示「—」。
  * 'YYYY-MM-DD' 字符串按本地日期解析（不按 UTC），与旧页面的日期显示一致。
  */
+import { parseDay, daysBetween } from './date.js';
 const DASH = '—';
 const pad = n => String(n).padStart(2, '0');
-const DAY = 86400000;
 
 export function toDate(value) {
   if (value instanceof Date) return value;
   if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [y, m, d] = value.split('-').map(Number);
-    return new Date(y, m - 1, d);
+    return parseDay(value) || new Date(NaN);
   }
   return new Date(value);
 }
@@ -32,8 +31,7 @@ export function relativeDays(value, now = new Date()) {
   if (value == null || value === '') return DASH;
   const d = toDate(value);
   if (!valid(d)) return DASH;
-  const start = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const days = Math.round((start(d) - start(now)) / DAY);
+  const days = daysBetween(now, d);
   if (days === 0) return '今天';
   if (days === 1) return '明天';
   if (days === -1) return '昨天';

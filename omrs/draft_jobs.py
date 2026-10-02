@@ -1,4 +1,5 @@
 """草稿异步提取作业；模型调用不持全局写锁。"""
+from .vault_lifecycle import storage, open_sqlite, lease, task, generation
 import base64
 import io
 import json
@@ -42,8 +43,9 @@ def jobs_for_draft(db, draft_id):
     return [_job_row(row) for row in rows]
 
 
+@storage
 def recover_orphan_jobs(vault, draft_id):
-    with locking.write_lock(), drafts._LOCK:
+    with lease(vault), locking.write_lock(), drafts._LOCK:
         db = drafts.connect(vault)
         try:
             rows = db.execute("SELECT * FROM draft_jobs WHERE draft_id=? AND status IN ('queued','running')",
@@ -54,8 +56,9 @@ def recover_orphan_jobs(vault, draft_id):
             db.close()
 
 
+@storage
 def get_job(vault, job_id):
-    with locking.write_lock(), drafts._LOCK:
+    with lease(vault), locking.write_lock(), drafts._LOCK:
         db = drafts.connect(vault)
         try:
             row = db.execute("SELECT * FROM draft_jobs WHERE id=?", (job_id,)).fetchone()
@@ -66,8 +69,9 @@ def get_job(vault, job_id):
             db.close()
 
 
+@storage
 def _update(vault, job_id, **fields):
-    with locking.write_lock(), drafts._LOCK:
+    with lease(vault), locking.write_lock(), drafts._LOCK:
         db = drafts.connect(vault)
         try:
             if "result" in fields:
@@ -82,6 +86,7 @@ def _update(vault, job_id, **fields):
             db.close()
 
 
+@storage
 def start_extract(vault, draft_id, revision, block_ids, crops=None):
     if not isinstance(block_ids, list) or not block_ids or any(not isinstance(v, str) for v in block_ids):
         raise drafts.DraftError("block_ids 必须是非空块 id 数组")
@@ -96,7 +101,7 @@ def start_extract(vault, draft_id, revision, block_ids, crops=None):
             drafts._decode_image_data_url(url)
         except ValueError as exc:
             raise drafts.DraftError(f"块 {block_id} 的裁图不合法：{exc}") from exc
-    with locking.write_lock(), drafts._LOCK:
+    with lease(vault), locking.write_lock(), drafts._LOCK:
         db = drafts.connect(vault)
         try:
             row = _row(db, draft_id)
@@ -141,7 +146,7 @@ def start_extract(vault, draft_id, revision, block_ids, crops=None):
             raise
         finally:
             db.close()
-    thread = threading.Thread(target=_run_extract, args=(vault, job_id, revision, snapshot, crops), daemon=True)
+    thread = threading.Thread(target=_run_extract, args=(vault, job_id, revision, snapshot, crops, generation(vault)), daemon=True)
     try:
         thread.start()
     except Exception:
@@ -152,6 +157,7 @@ def start_extract(vault, draft_id, revision, block_ids, crops=None):
     return get_job(vault, job_id)
 
 
+@storage
 def _image_for(vault, block, supplied):
     if supplied:
         return supplied
@@ -174,7 +180,12 @@ def _image_for(vault, block, supplied):
     return "data:image/png;base64," + base64.b64encode(raw).decode("ascii")
 
 
-def _run_extract(vault, job_id, revision, snapshot, crops):
+def _run_extract(vault, job_id, revision, snapshot, crops, expected_generation=None):
+    with task(vault, expected_generation):
+        return _run_extract_current(vault, job_id, revision, snapshot, crops)
+
+
+def _run_extract_current(vault, job_id, revision, snapshot, crops):
     result, errors, successful = [], [], []
     try:
         _update(vault, job_id, status="running")
@@ -191,7 +202,7 @@ def _run_extract(vault, job_id, revision, snapshot, crops):
             except Exception as exc:
                 errors.append({"block_id": block["id"], "error": str(exc)})
             _update(vault, job_id, processed=len(result) + len(errors), result=result, errors=errors)
-        with locking.write_lock(), drafts._LOCK:
+        with lease(vault), locking.write_lock(), drafts._LOCK:
             db = drafts.connect(vault)
             try:
                 row = _row(db, _job_draft_id(db, job_id))

@@ -1,4 +1,5 @@
 """草稿来源图的训练框、登记与引用安全清理。"""
+from .vault_lifecycle import storage, open_sqlite
 import datetime
 import hashlib
 import json
@@ -147,6 +148,7 @@ def replace_training_boxes(db, prepared):
     return tuple(prepared)
 
 
+@storage
 def set_image_training(vault, draft_id, revision, sha, enabled):
     if not isinstance(enabled, bool):
         raise drafts.DraftError("enabled 必须是布尔值")
@@ -192,6 +194,7 @@ def set_image_training(vault, draft_id, revision, sha, enabled):
     return {"draft": draft, "image": image}
 
 
+@storage
 def register_ready(vault, draft_id):
     """题目先入库；训练逐图独立登记，失败只标任务并供 done 重试。"""
     from . import inbox
@@ -241,6 +244,7 @@ def register_ready(vault, draft_id):
     return {"status": status, "registered": registered, "failed": failed, "pending": pending}
 
 
+@storage
 def cleanup(vault):
     """仅清理过期丢弃草稿及没有活动引用的原图。"""
     days = load_config(vault).get("draft_discard_keep_days", 7)

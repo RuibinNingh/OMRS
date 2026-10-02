@@ -12,13 +12,14 @@
 |---|---|
 | 某个页面的交互或样式 | `frontend.md`（索引）→ `frontend/` 下对应分册 |
 | 颜色、字号、间距等设计 token，前端纪律门禁 | `frontend/design-system.md` |
-| HTTP 接口 | `routes.md`（路由 → 文档）→ `api.md` 对应小节 |
+| HTTP 接口 | `routes.md`（路由 → 文档）→ `api.md` 索引及 `api/` 分册 |
 | AI 助手（Harness、工具、权限、对话存储、撤销） | `agent.md`，页面见 `frontend/assistant.md` |
 | 登录、PIN、访问控制、路径安全 | `security.md` |
 | 外部 MCP、独立 API Key、完整原图草稿 | `mcp.md`，技术回执与恢复见 `mcp-storage.md`，并看 `drafts.md` 与 `security.md` |
 | 系统运行记录、MCP 调用生命周期与追溯 | `runtime.md`，页面见 `frontend/records.md`，接口见 `api.md` |
 | 记忆算法、调度、推荐 | `algorithm.md` |
-| 数据格式、Ledger、投影 | `data.md`、`ledger.md` |
+| 数据格式、Ledger、投影与配置 | `data.md`、`data/storage.md`、`ledger.md` |
+| 全库备份、恢复、生命周期与世代 | `backup.md`、`environment.md` |
 | 导出与展示板打印 | `export.md`、`board.md` |
 | 收件箱、标记、答题卡导入 | `inbox.md`、`labels.md`、`omr-import.md` |
 | AI 草稿区（助手录题、草稿存储、审核接口） | `drafts.md` |
@@ -85,7 +86,7 @@
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v2.1.0 |
+| 当前版本 | v2.2.0 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/app/`（原生 ES Module：设计 token、UI 组件、domain 层及各页面 `features/`）+ `assets/vendor/`（本地字体与 KaTeX）|
@@ -103,15 +104,16 @@
 | `mcp.md` | 外部 MCP 的 Streamable HTTP、API Key、工具白名单、草稿与原图边界、独立调用记录 |
 | `mcp-storage.md` | MCP 报告/草稿/展示板回执、网页确认与限时导出快照的存储恢复 |
 | `runtime.md` | 独立运行库、MCP 调用生命周期、脱敏白名单与草稿入库关联 |
-| `api.md` | 端点的请求体、响应字段与错误语义 |
-| `routes.md` | 路由总表（自动生成，来源 `omrs/server.py` 与 `omrs/agent/http.py`）：方法、路径、说明文档 |
-| `data.md` | CSV 字段、Markdown 题目格式、UID、labels.json、boards.json、config.json、auth.json、报告与 runtime.db 存储 |
+| `api.md`、`api/` | 按领域分册的请求体、响应字段、错误语义与限额 |
+| `routes.md` | 路由总表（自动生成，来源 `omrs/http/registry.py` 与 `omrs/agent/http.py`）：方法、路径、说明文档 |
+| `data.md`、`data/storage.md` | Markdown、身份、SQL 投影、配置镜像及各独立库格式 |
+| `backup.md` | 全库在线快照、生命周期屏障、恢复 journal 与启动恢复 |
 | `frontend.md` | 前端索引，分册在 `frontend/`：设计系统（token 与门禁）、架构（core、路由、启动顺序）、UI 组件库、外壳与主题、仪表盘与目录、题库与标记、qview、展示板页、复习调度、反馈录入、设置、录入题目、历史 / 复盘 / 报告 |
 | `export.md` | A4、屏幕版与展示板自包含 HTML 导出 |
 | `ledger.md` | 不可变提交链、投影缓存、历史修正与迁移边界 |
 | `board.md` | 展示板引用模型、版面设置、打印与纸面记录 |
 | `inbox.md` | 收件箱「上传 → 框选 → 转换 → 提交」流程、后台 job、框选提供方 |
-| `frontend/annotate.md` | 独立框选标注页 `/annotate`：训练数据批量采集、快捷键、导出（存储见 `data.md` §16） |
+| `frontend/annotate.md` | 独立框选标注页 `/annotate`：训练数据批量采集、快捷键、导出（存储见 `data/storage.md` §6） |
 | `labels.md` | 用户标记定义、YAML、投影与可选调度加成 |
 | `omr-import.md` | 答题卡扫描 JSON 导入反馈页 |
 | `security.md` | 本机免 PIN、远端会话、来源校验、报告沙箱与安全路径 |
@@ -123,7 +125,7 @@
 
 训练工具位于 `tools/boxdetect/`；数据基线、实验与经验索引见 `training/README.md`。
 
-训练面板后端 `omrs/trainpanel.py` 读取实验文件，`omrs/traincontrol.py` 管理显式登记的固定检测服务，契约见 `api.md` 与 `data.md` §17，训练环境及门禁见 `environment.md`。
+训练面板后端 `omrs/trainpanel.py` 读取实验文件，`omrs/traincontrol.py` 管理显式登记的固定检测服务，契约见 `api.md` 与 `data/storage.md` §7，训练环境及门禁见 `environment.md`。
 
 独立训练面板前端 `/train` 见 `frontend/trainpanel.md`，从录入题目的 AI 训练工作区打开；支持实时测试与可选积累。
 

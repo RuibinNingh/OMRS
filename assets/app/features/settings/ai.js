@@ -1,3 +1,4 @@
+import { configSavedStatus } from '../../core/config-status.js';
 /** AI 识别配置：密钥只提交、不从后端回显。 */
 import { get, post } from '../../core/api.js';
 import { confirm } from '../../ui/dialog.js';
@@ -65,7 +66,8 @@ export function createAi(root) {
     if (!alive) return;
     if (!result.ok) { status(`保存失败：${result.error?.message || '未知错误'}`, 'danger'); return; }
     await load();
-    status('AI 配置已保存（立即生效，无需重启）', 'success');
+    const saved = configSavedStatus(result.data, 'AI 配置已保存（立即生效，无需重启）');
+    status(saved.text, saved.tone);
   }
 
   async function clearKey() {
@@ -76,7 +78,8 @@ export function createAi(root) {
     if (!alive) return;
     if (!result.ok) { status(`清除失败：${result.error?.message || '未知错误'}`, 'danger'); return; }
     await load();
-    status('AI 密钥已清除', 'success');
+    const saved = configSavedStatus(result.data, 'AI 密钥已清除');
+    status(saved.text, saved.tone);
   }
 
   return { load, save, clearKey, toggleKey, dispose() { alive = false; loadId += 1; } };

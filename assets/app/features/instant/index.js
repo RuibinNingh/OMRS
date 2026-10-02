@@ -28,13 +28,20 @@ export function practiceRequestId(random = globalThis.crypto) {
   return `PR-${[...bytes].map(n => n.toString(16).padStart(2, '0')).join('')}`;
 }
 
-function createController(root, ctx) {
+export function createInstantController(root, ctx, services = {}) {
+  const s = services.state || S.state;
+  const io = { get, post, confirm, toast, ensureDetail, invalidateQuestions, reloadData, ...services };
+  let alive = true;
   let loadToken = 0;
+  let slow = null;
+  let readScope = null;
+  const nextRead = () => { readScope?.abort(); readScope = new AbortController(); return ++loadToken; };
+  const validLoad = token => alive && token === loadToken;
   const persist = () => {
     if (!s.attemptId) return;
     const results = Object.fromEntries(s.queue.filter(item => item.question_id).map(item => [item.question_id, s.results[item.uid] || {}]));
     const progress = { seq: ++s.progressSeq, index: s.index, results };
-    void post('/api/agent/practice/progress', { attempt_id: s.attemptId, progress });
+    void io.post('/api/agent/practice/progress', { attempt_id: s.attemptId, progress });
   };
   const env = () => ({ facets: facets(itemsOf(ctx.store.get().data)), labels: listLabels(), dueDays });
 
@@ -42,17 +49,19 @@ function createController(root, ctx) {
     root.querySelectorAll('[data-qv-host]').forEach(el => {
       if (el.dataset.qvFor === el.dataset.key) return;
       el.dataset.qvFor = el.dataset.key;
-      mountQuestion(el, el.dataset.uid, { reveal: el.dataset.reveal === '1', onReveal: () => api.reveal() });
+      mountQuestion(el, el.dataset.uid, { question_id: current()?.question_id, reveal: el.dataset.reveal === '1', onReveal: () => api.reveal() });
     });
   }
 
   function paint() {
+    if (!alive) return;
+    if (services.paint) { services.paint(s); return; }
     morph(root, view(s, env()));
     hydrate();
   }
 
   function preload() {
-    s.queue.slice(s.index, s.index + 4).forEach(item => { ensureDetail(item.uid); });
+    s.queue.slice(s.index, s.index + 4).forEach(item => { io.ensureDetail(item.uid, item.question_id); });
   }
 
   const current = () => S.currentItem(s);
@@ -60,57 +69,67 @@ function createController(root, ctx) {
   const api = {
     paint,
     async loadPractice(cardId, attemptId = '') {
-      const token = ++loadToken;
+      const token = nextRead();
       s.phase = 'loading'; s.loading = true; paint();
       const pendingRestart = sessionStorage.getItem(`omrs-practice-restart:${cardId}`);
       if (pendingRestart) {
-        const recovered = await post('/api/agent/practice/start', { card_id: cardId, restart: true, request_id: pendingRestart });
-        if (token !== loadToken) return;
+        const recovered = await io.post('/api/agent/practice/start', { card_id: cardId, restart: true, request_id: pendingRestart });
+        if (!validLoad(token)) return;
         if (recovered.ok) {
           sessionStorage.removeItem(`omrs-practice-restart:${cardId}`);
           ctx.router.go(`instant?practice=${encodeURIComponent(cardId)}&attempt=${encodeURIComponent(recovered.data.attempt_id)}`, { replace: true });
           return;
         }
       }
-      let res = await get(`/api/agent/practice?card=${encodeURIComponent(cardId)}${attemptId ? `&attempt=${encodeURIComponent(attemptId)}` : ''}`);
-      if (token !== loadToken) return;
-      if (res.ok && !res.data?.attempt_id && !attemptId) res = await post('/api/agent/practice/start', { card_id: cardId });
-      if (token !== loadToken) return;
+      let res = await io.get(`/api/agent/practice?card=${encodeURIComponent(cardId)}${attemptId ? `&attempt=${encodeURIComponent(attemptId)}` : ''}`);
+      if (!validLoad(token)) return;
+      if (res.ok && !res.data?.attempt_id && !attemptId) res = await io.post('/api/agent/practice/start', { card_id: cardId });
+      if (!validLoad(token)) return;
       s.loading = false;
       if (!res.ok) { s.phase = 'error'; s.error = res.error?.message || '练习卡读取失败'; paint(); return; }
-      if (!ctx.store.get().data) await reloadData();
+      if (!ctx.store.get().data) await io.reloadData();
+      if (!validLoad(token)) return;
       const byUid = new Map(itemsOf(ctx.store.get().data).map(item => [item.uid, item]));
       const data = { ...res.data, items: (res.data.items || []).map(item => ({ ...byUid.get(item.uid), ...item })) };
       S.startPractice(s, data);
-      if (s.queue.length) await ensureDetail(s.queue[0].uid);
-      if (token !== loadToken) return;
+      if (s.queue.length) await io.ensureDetail(s.queue[0].uid, s.queue[0].question_id);
+      if (!validLoad(token)) return;
       paint(); preload();
     },
     async restartPractice() {
       if (!s.cardId) return;
-      const key = `omrs-practice-restart:${s.cardId}`;
+      const cardId = s.cardId;
+      const roundVersion = s.roundVersion;
+      const key = `omrs-practice-restart:${cardId}`;
       let requestId;
       try { requestId = sessionStorage.getItem(key) || practiceRequestId(); }
       catch (error) { toast(error.message, { kind: 'error' }); return; }
       sessionStorage.setItem(key, requestId);
-      const res = await post('/api/agent/practice/start', { card_id: s.cardId, restart: true, request_id: requestId });
+      const res = await io.post('/api/agent/practice/start', { card_id: cardId, restart: true, request_id: requestId });
+      if (!alive || s.roundVersion !== roundVersion || s.cardId !== cardId) return;
       if (!res.ok) { toast(res.error?.message || '不能重新练习', { kind: 'error' }); return; }
       sessionStorage.removeItem(key);
-      ctx.router.go(`instant?practice=${encodeURIComponent(s.cardId)}&attempt=${encodeURIComponent(res.data.attempt_id)}`);
+      ctx.router.go(`instant?practice=${encodeURIComponent(cardId)}&attempt=${encodeURIComponent(res.data.attempt_id)}`);
     },
     async load(preset) {
-      if (s.cardId) { ctx.router.go('instant'); return ctl?.load(preset); }
       const pending = S.counts(s).pending;
-      if (pending && !(await confirm(`还有 ${pending} 道已判定没提交`, { hint: '重新取题会丢掉这些判定。先提交的话，点「取消」后按「提交」。', okText: '丢掉并重新取题', danger: true }))) return;
+      if (pending && !(await io.confirm(`还有 ${pending} 道已判定没提交`, { hint: '重新取题会丢掉这些判定。先提交的话，点「取消」后按「提交」。', okText: '丢掉并重新取题', danger: true }))) return;
+      if (!alive) return;
+      if (s.cardId) {
+        S.startRound(s, []);
+        ctx.router.go('instant');
+        if (!alive) { ctx.bus.emit('instant:load', preset || {}); return; }
+      }
       if (preset) s.filters = S.applyPreset(s.filters, preset);
-      const token = ++loadToken;
+      const token = nextRead();
       // 按钮立即进入加载态；超过 300ms 还没回来才换成骨架屏，避免快速返回时闪一下（设计规范 §4.6）
       s.loading = true;
       paint();
-      const slow = setTimeout(() => { if (token === loadToken && s.loading) { s.phase = 'loading'; paint(); } }, 300);
-      const res = await get(`/api/recommend?${S.buildParams(s.filters)}`);
       clearTimeout(slow);
-      if (token !== loadToken) return;
+      slow = setTimeout(() => { if (validLoad(token) && s.loading) { s.phase = 'loading'; paint(); } }, 300);
+      const res = await io.get(`/api/recommend?${S.buildParams(s.filters)}`, { signal: readScope.signal });
+      clearTimeout(slow);
+      if (!validLoad(token)) return;
       s.loading = false;
       if (!res.ok) {
         s.phase = 'error';
@@ -121,8 +140,8 @@ function createController(root, ctx) {
       const due = filterPractice(res.data?.due, s.filters);
       const proficiency = filterPractice(res.data?.proficiency, s.filters);
       S.startRound(s, S.mergeRecommendations({ due, proficiency }, s.filters.count));
-      if (s.queue.length) await ensureDetail(s.queue[0].uid);
-      if (token !== loadToken) return;
+      if (s.queue.length) await io.ensureDetail(s.queue[0].uid, s.queue[0].question_id);
+      if (!validLoad(token)) return;
       paint();
       preload();
     },
@@ -171,10 +190,16 @@ function createController(root, ctx) {
       if (!rows.length) { toast('还没有待提交的判定', { kind: 'warn' }); return; }
       if (s.submitting) return;
       s.submitting = true;
+      const roundVersion = s.roundVersion;
       s.submitError = '';
       paint();
-      const res = await post('/api/feedback', { feedbacks: rows, session_id: s.sessionId || S.sessionId(),
+      const res = await io.post('/api/feedback', { feedbacks: rows, session_id: s.sessionId || S.sessionId(),
         ...(s.attemptId ? { attempt_id: s.attemptId } : {}) });
+      const successes = (res.data?.results || []).filter(row => row.status === 'ok');
+      if (s.roundVersion !== roundVersion) {
+        if (successes.length) { await io.reloadData(); await io.invalidateQuestions(successes.map(row => row.uid)); }
+        return;
+      }
       s.submitting = false;
       if (!res.ok) {
         s.submitError = res.error?.message || '未知错误';
@@ -185,10 +210,9 @@ function createController(root, ctx) {
       S.markSubmitted(s, s.lastSubmit);
       persist();
       paint();
-      const successes = s.lastSubmit.filter(row => row.status === 'ok');
-      toast(`已提交 ${successes.length} 条反馈${successes.length < rows.length ? `，${rows.length - successes.length} 条需重试` : ''}`, { kind: successes.length ? 'ok' : 'warn' });
-      if (successes.length) await reloadData();
-      await invalidateQuestions(successes.map(row => row.uid));
+      if (alive) io.toast(`已提交 ${successes.length} 条反馈${successes.length < rows.length ? `，${rows.length - successes.length} 条需重试` : ''}`, { kind: successes.length ? 'ok' : 'warn' });
+      if (successes.length) await io.reloadData();
+      await io.invalidateQuestions(successes.map(row => row.uid));
       paint();
     },
     filter(target) {
@@ -212,8 +236,9 @@ function createController(root, ctx) {
     },
     edit() {
       const item = current();
-      if (item) editQuestion(item.uid);
+      if (item) editQuestion(item);
     },
+    dispose() { readScope?.abort(); alive = false; loadToken += 1; clearTimeout(slow); },
   };
   return api;
 }
@@ -226,18 +251,19 @@ export const page = {
   title: '即时练习',
   workbench: true,
   mount(root, ctx) {
-    ctl = createController(root, ctx);
+    ctl = createInstantController(root, ctx);
     const offs = [
       ctx.store.subscribe(() => ctl?.paint(), st => st.data),
       ctx.bus.on('labels', () => ctl?.paint()),
       ctx.bus.on('instant:load', preset => ctl?.load(preset || {})),
     ];
-    ctl.paint();
     const route = /^#\/instant\?(.*)$/.exec(window.location.hash);
     const params = new URLSearchParams(route?.[1] || '');
     const cardId = params.get('practice');
+    if (!cardId && s.cardId) S.startRound(s, []);
+    ctl.paint();
     if (cardId) void ctl.loadPractice(cardId, params.get('attempt') || '');
-    return () => { offs.forEach(off => off()); ctl = null; };
+    return () => { offs.forEach(off => off()); ctl?.dispose(); ctl = null; };
   },
   actions: {
     load: () => ctl?.load(),

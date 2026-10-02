@@ -7,8 +7,10 @@ from .practice import get_practice, save_progress, start_practice
 
 
 def _body(handler):
-    raw = handler.rfile.read(int(handler.headers.get("Content-Length", 0)) or 0)
-    data = json.loads(raw or b"{}")
+    from ..http_io import json_body
+    data = json_body(handler)
+    if "images" in data and hasattr(handler, "_image_references"):
+        data["images"] = handler._image_references(data["images"], "assistant")
     if not isinstance(data, dict):
         raise AgentError(400, "请求体必须是 JSON 对象")
     return data
@@ -29,10 +31,10 @@ def handle_agent_get(handler, path, params):
     rt = get_runtime(handler.vault_path)
     routes = {
         "/api/agent/status": lambda: rt.status(),
-        "/api/agent/conversations": lambda: {"conversations": rt.list_conversations()},
-        "/api/agent/conversation": lambda: rt.conversation(params.get("id", "")),
+        "/api/agent/conversations": lambda: rt.list_conversations(params.get("limit",30), params.get("cursor")),
+        "/api/agent/conversation": lambda: rt.conversation(params.get("id", ""), params.get("limit",20), params.get("cursor")),
         "/api/agent/events": lambda: rt.events(params.get("run", ""), int(params.get("after", 0) or 0),
-                                               float(params.get("wait", 0) or 0)),
+                                               float(params.get("wait", 0) or 0), params.get("limit",200)),
         "/api/agent/practice": lambda: get_practice(handler.vault_path, params.get("card", ""), params.get("attempt", "")),
     }
     fn = routes.get(path)

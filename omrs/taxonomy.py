@@ -1,4 +1,5 @@
 """题库分类目录与锚点的唯一创建入口。"""
+from .vault_lifecycle import storage, open_sqlite
 import os
 import re
 import tempfile
@@ -8,6 +9,7 @@ from .common import questions_root
 from .path_safety import safe_question_directory, safe_question_path
 
 
+@storage
 def category_path(vault, subject, category):
     """统一名称：折叠空白并拒绝 Markdown/文件系统控制字符和保留目录。"""
     for value in (subject, category):
@@ -20,6 +22,7 @@ def category_path(vault, subject, category):
     return safe_question_directory(vault, *names)
 
 
+@storage
 def create_category(vault, subject, category):
     """创建零题分类；重复调用不改已有锚点，失败不报告成功。"""
     with locking.write_lock():
@@ -99,6 +102,7 @@ def _replace(path, content):
             os.unlink(temp)
 
 
+@storage
 def directory_categories(vault):
     """只读取题库内有锚点的分类，不跟随符号链接。"""
     root = questions_root(vault)

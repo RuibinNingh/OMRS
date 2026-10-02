@@ -240,15 +240,18 @@
 | 改动范围 | 必查/必更新文档 |
 |---|---|
 | `omrs/scheduling.py`、记忆与推荐规则 | `AI/algorithm.md` |
-| `omrs/server.py`、HTTP 请求/响应；`omrs/ai_assist.py` | `AI/api.md`，AI 配置或存储变化同时更新 `AI/data.md` |
+| `omrs/server.py`、`omrs/http/`、`omrs/http_io.py`、`omrs/uploads.py`、HTTP 请求/响应；`omrs/ai_assist.py` | `AI/api.md`，AI 配置或存储变化同时更新 `AI/data.md` |
 | `omrs/analytics.py`、`omrs/stats.py`、报告指标 | `AI/api.md`、`AI/frontend/records.md`；持久化或导出格式变化同时更新 `AI/data.md` |
 | `omrs/reports.py`、报告托管 | `AI/api.md`、`AI/data.md`、`AI/frontend/records.md` |
 | `omrs/agent/`、`omrs/llm/`、AI 助手的权限与工具 | `AI/agent.md`，接口变化同时更新 `AI/api.md`，权限边界同时更新 `AI/security.md` |
 | `omrs/trainpanel.py` | `AI/api.md`、`AI/data.md` |
 | `omrs/drafts.py`、AI 草稿区存储与只读接口 | `AI/drafts.md`，接口变化同时更新 `AI/api.md` |
 | `omrs/locking.py`、`omrs/cli.py` 的服务器线程模型 | `AI/api.md`（并发与写锁） |
-| `omrs/ledger.py`、`omrs/actor.py`、`omrs/content_history.py`、`omrs/projections.py` | `AI/ledger.md`，表结构变化同时更新 `AI/data.md` |
+| `omrs/ledger.py`、`omrs/actor.py`、`omrs/content_history.py`、`omrs/projections.py`、`omrs/projection_runtime.py`、`omrs/projection_corrections.py`、`omrs/data_repository.py` | `AI/ledger.md`，表结构变化同时更新 `AI/data.md` |
 | `omrs/security.py`、`omrs/path_safety.py`、访问控制 | `AI/security.md`，接口变化同时更新 `AI/api.md` |
+| `omrs/backup_store.py`、`omrs/vault_lifecycle.py`、全库备份与恢复 | `AI/backup.md`、`AI/environment.md`，接口变化同时更新 `AI/api.md` |
+| `omrs/config_repository.py`、活动配置与调参重算 | `AI/data.md`、`AI/ledger.md`、`AI/algorithm.md` |
+| `omrs/inbox_commit.py`、`omrs/creation_operation.py`、逐卡创建回执 | `AI/inbox.md`、`AI/data.md`，接口变化同时更新 `AI/api.md` |
 | CSV、Ledger、Markdown、配置或持久化格式 | `AI/data.md`、必要时 `AI/ledger.md` |
 | `omrs/exporting.py`、`omrs/export_templates/`、导出入口 | `AI/export.md`，接口变化同时更新 `AI/api.md` |
 | `assets/`、`omrs_dashboard.html`、前端交互 | `AI/frontend/` 下对应页面的分册（新增分册时同步 `AI/frontend.md` 索引） |
