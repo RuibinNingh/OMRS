@@ -23,7 +23,7 @@ PIN 的随机盐和 PBKDF2-SHA256 哈希存于 `错题/.omrs/auth.json`，不通
 
 ## 3. 请求与报告
 
-MCP Key 是独立凭据，不继承 PIN、Cookie 或管理员权限。密钥摘要存于 `错题/.omrs/mcp_keys.json`（0600），服务端每次协议请求重新校验吊销与到期时间。普通 Web 端口若收到 Bearer 或 `X-OMRS-MCP-Key` 会返回 403，不能借道调用正式题库、反馈、设置或草稿写接口；MCP 端点只注册固定二十一读十六写工具。外部图片下载仅接受 HTTPS，解析前拒绝回环、私网、链路本地、保留和多播地址，禁止重定向并限制 8 MiB / 4000 万像素；下载固定经公共地址校验的 IP 并保留 TLS 主机验证，禁止 DNS 重绑定。HTTP 请求有总量/超时/每 Key 限流和并发限制；Key 生命周期用跨进程文件锁，管理响应禁止缓存。密钥、完整 URL 和签名参数不写日志。
+MCP Key 是独立凭据，不继承 PIN、Cookie 或管理员权限。密钥摘要存于 `错题/.omrs/mcp_keys.json`（0600），服务端每次协议请求重新校验吊销与到期时间。普通 Web 端口若收到 Bearer 或 `X-OMRS-MCP-Key` 会返回 403，不能借道调用正式题库、反馈、设置或草稿写接口；MCP 端点只注册固定二十二读十六写工具。外部图片下载仅接受 HTTPS，解析前拒绝回环、私网、链路本地、保留和多播地址，禁止重定向并限制 8 MiB / 4000 万像素；下载固定经公共地址校验的 IP 并保留 TLS 主机验证，禁止 DNS 重绑定。HTTP 请求有总量/超时/每 Key 限流和并发限制；Key 生命周期用跨进程文件锁，管理响应禁止缓存。密钥、完整 URL 和签名参数不写日志。
 
 所有 POST 在读取请求体前检查 `Sec-Fetch-Site` 和 `Origin`；跨站浏览器请求返回 403。无这些浏览器头的本地 CLI 请求仍可使用；远端请求还需有效会话。会写投影的扫描入口是 `POST /api/scan`，GET 返回 405。`GET /api/config` 不回显 `ai_api_key`，只给出 `ai_api_key_configured`。`GET /api/auth/session` 的 `instance_id` 与 `GET /api/status` 的 `listen_external` 是公开的运行元数据，不含秘密。
 
@@ -70,3 +70,5 @@ get_question_image 只接受 UID 与图片下标，按共享 get_question.images
 ## MCP 确认边界
 
 确认/拒绝只从已授权 Web 会话进入，MCP 没有确认工具或 Web 借道权限。确认保存稳定 key_id 不保存明文；重新读取磁盘有效状态和当前 scope。快照变化、降权、吊销或到期拒绝应用；原子领域回执已证明合法提交的中断操作则只恢复终态。完整请求存于独立 0600 的确认库，系统运行库只保存脱敏摘要。新增权限不默认授予旧 Key。
+
+MCP导出图片复用受限question_images入口，不调用旧_find_image路径回退。快照下载只认稳定服务端编号、受Web授权保护，并校验普通文件身份、大小与SHA；导出目录和文件拒绝链接。导出HTML只用现有转义模板，快照不会回写纸面记录。

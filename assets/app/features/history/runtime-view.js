@@ -62,6 +62,9 @@ export function runtimePanel(s, zone) {
       <dt>耗时</dt><dd>${durationText(row)}</dd><dt>调用性质</dt><dd>${row.tool === 'unknown_tool' ? '未开放工具' : /^(create|update|delete|duplicate|add|remove|reorder|move|export)_/.test(row.tool) ? '获授权写入' : '只读查询'}</dd></dl>
     ${s.operationError ? status({ tone: 'danger', text: s.operationError }) : ''}
     ${operationView(cached?.operation, s)}
+    ${cached?.result?.board_id ? html`<section class="hvw-related"><h4>关联展示板</h4>${button({ label: '打开展示板', size: 'sm', action: 'history.openBoard', arg: cached.result.board_id })}<p class="hvw-muted">${cached.result.board_id}</p></section>` : ''}
+    ${cached?.result?.report_id ? html`<section class="hvw-related"><h4>关联报告</h4><a class="ui-btn" href="/api/report/view?id=${encodeURIComponent(cached.result.report_id)}" target="_blank" rel="noopener noreferrer">查看报告</a></section>` : ''}
+    ${cached?.result?.export_id ? html`<section class="hvw-related"><h4>关联导出快照</h4><a class="ui-btn" href="/api/mcp/exports/download?export_id=${encodeURIComponent(cached.result.export_id)}" download>下载 HTML 快照</a><p class="hvw-muted">生成后保留24小时；PDF由浏览器打印生成。</p></section>` : ''}
     ${cached?.draft ? html`<section class="hvw-related"><h4>关联草稿</h4>
       <p class="hvw-muted">${DRAFTS[cached.draft.status] || cached.draft.status}</p>
       ${button({ label: '查看草稿', size: 'sm', iconRight: 'arrow-right', action: 'history.openDraft', arg: cached.draft.id, disabled: cached.draft.status === 'missing' })}

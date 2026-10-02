@@ -304,7 +304,7 @@ def _find_display_math_end(lines, start):
     return None
 
 
-def _text_to_blocks(vault, text):
+def _text_to_blocks(vault, text, image_loader=None):
     """把一段多行正文转成块列表：每个非空文字行 -> {t:'txt'}，每个嵌入图 -> {t:'img'}。
     细粒度按行成块，既保留原排版语义，也让浏览器端在双栏里填得更紧；跨行 `$$...$$`
     会先合并为一个文字块，确保完整交给 KaTeX。"""
@@ -337,7 +337,7 @@ def _text_to_blocks(vault, text):
         if remaining:
             blocks.append({"t": "txt", "text": remaining})
         for name, _width in embeds:
-            payload = _img_payload(vault, name)
+            payload = image_loader(name) if image_loader else _img_payload(vault, name)
             if payload:
                 blocks.append({"t": "img", "img": payload})
             else:
@@ -742,7 +742,7 @@ def _board_read_question(vault, item):
     }
 
 
-def build_board_export_data(vault, board_id, mode="all", include_answers=None, overrides=None):
+def build_board_export_data(vault, board_id, mode="all", include_answers=None, overrides=None, image_loader=None, question_loader=None):
     """组装展示板导出数据（不做分页，分页在浏览器完成）。
 
     mode="all"  整板从头排版；
@@ -768,7 +768,7 @@ def build_board_export_data(vault, board_id, mode="all", include_answers=None, o
 
     questions = []
     for item in items:
-        question = _board_read_question(vault, item)
+        question = question_loader(item) if question_loader else _board_read_question(vault, item)
         if question:
             questions.append(question)
     if not questions:
@@ -811,7 +811,8 @@ def build_board_export_data(vault, board_id, mode="all", include_answers=None, o
             "category": question.get("category", ""),
             "difficulty": question.get("difficulty", ""),
             "labels": _board_label_objects(question.get("labels", []) if settings["show_labels"] else [], colors),
-            "blocks": _text_to_blocks(vault, question.get("question", "") or "(无题目内容)"),
+            "blocks": _text_to_blocks(vault, question.get("question", "") or "(无题目内容)",
+                                      (lambda name: image_loader(question['uid'], name)) if image_loader else None),
             "gap_lines": _board_gap_lines(question.get("gap_lines"), settings["gap_lines"]),
             # 题面栏只放「关联」，错因留到答案页（与 A4 / 屏幕版一致）
             "notes": {"关联": notes["关联"]} if notes.get("关联") else {},
@@ -822,7 +823,8 @@ def build_board_export_data(vault, board_id, mode="all", include_answers=None, o
             data["answers"].append({
                 "idx": start_index + offset,
                 "uid": question["uid"],
-                "blocks": _text_to_blocks(vault, question.get("answer", "").strip()),
+                "blocks": _text_to_blocks(vault, question.get("answer", "").strip(),
+                                          (lambda name: image_loader(question['uid'], name)) if image_loader else None),
                 "notes": {"错因": notes["错因"]} if notes.get("错因") else {},
             })
     return data
@@ -845,6 +847,9 @@ def _build_board_html(data):
     katex_css, katex_js = _read_katex_bundle()
     data_json = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     mode = data.get("meta", {}).get("mode", "all")
+    body = _BOARD_BODY
+    if data.get('meta', {}).get('record_paper') is False:
+        body = re.sub(r'  <button id="btnDone"[^>]*>.*?</button>\n', '', body)
     return (
         "<!DOCTYPE html>\n"
         '<html lang="zh-CN">\n<head>\n'
@@ -855,7 +860,7 @@ def _build_board_html(data):
         f"<style>\n{katex_css}\n</style>\n"
         f"<style>\n{css}\n</style>\n"
         "</head>\n<body>\n"
-        f"{_BOARD_BODY}\n"
+        f"{body}\n"
         f"<script>\n{katex_js}\n</script>\n"
         f"<script>window.OMRS_DATA = {data_json};</script>\n"
         f"<script>\n{js}\n</script>\n"

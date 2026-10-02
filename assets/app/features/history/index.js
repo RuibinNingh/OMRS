@@ -6,6 +6,7 @@ import { reloadData } from '../../domain/data.js';
 import { refreshSessions } from '../../domain/sessions.js';
 import { invalidateQuestions } from '../../domain/question/index.js';
 import { openDraft } from '../../domain/drafts.js';
+import { boardDetailPort } from '../../domain/board/detail-port.js';
 import { state as s, readPreferences, reviewPayload, dateRange, timeline } from './state.js';
 import { runtimeController } from './runtime-controller.js';
 import { view } from './view.js';
@@ -310,6 +311,7 @@ export const page = {
     runtimeRelated: ({ arg }) => ctl?.related(arg, 'system'),
     learningRelated: ({ arg }) => ctl?.related(arg, 'learning'),
     openDraft: ({ arg }) => openDraft(arg),
+    openBoard: ({ arg }) => boardDetailPort.open(arg),
     operationConfirm: ({ arg }) => ctl?.operationConfirm(arg),
     operationReject: ({ arg }) => ctl?.operationReject(arg),
     refresh: () => ctl?.refresh(),

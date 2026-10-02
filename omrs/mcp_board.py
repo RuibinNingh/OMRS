@@ -188,6 +188,8 @@ def dispatch(vault, tool, payload):
         raise RequestError('unknown_tool', '展示板工具未开放')
     if board:
         result.update(board_id=board['id'], revision=board['revision'], count=len(board['items']))
+    if result.get('folder'):
+        result['folder_id'] = result['folder']['id']
     result.update(status='applied', changes=changed, catalog_revision=boards.load_boards(vault)['catalog_revision'])
     return result
 

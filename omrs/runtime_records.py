@@ -37,6 +37,7 @@ TITLES = {
     'move_board': '移动展示板', 'get_mcp_operation': '查询网页确认状态', 'export_board': '导出展示板快照',
 }
 ERRORS = {
+    'export_expired': '导出快照已到期，请重新生成。', 'export_too_large': '导出快照超过64 MiB限制。',
     "revision_conflict": "目标版本已变化，请重新读取。",
     "state_conflict": "目标已结束，不能执行此操作。",
     "operation_pending": "目标存在未恢复的操作。",
@@ -107,7 +108,7 @@ def result_summary(result):
     if not isinstance(value, dict):
         return {}
     result = {key: _safe_text(value[key]) for key in ("draft_id", "uid", "subject", "status", "session_id",
-                                                   'operation_id', 'board_id', 'report_id', 'export_id')
+                                                   'operation_id', 'board_id', 'folder_id', 'report_id', 'export_id')
               if isinstance(value.get(key), str)}
     for key in ("total", "count", "total_questions", "page", "page_size", 'revision', 'catalog_revision', 'size_bytes'):
         if _safe_number(value.get(key)):

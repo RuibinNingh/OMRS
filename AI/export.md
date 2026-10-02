@@ -231,3 +231,11 @@ warnings}`）与 `window.OMRS_LAYOUT_TIMING`（`{total_ms, passes}`），设置
 ## 待办
 
 - Markdown 表格当前只保留结构与公式，不保留对齐语义；A4 把整张表格作为一个不可拆块，极端超长表格可能超出单页。后续扩展时应同时修改 `_text_to_blocks()`、A4 与屏幕版模板，并补两种变体的回归测试。
+
+## MCP 不可变快照
+
+export_board 按 all/new 调用现有展示板模板，附件回调绑定当前题目的 images 列表并复用受限原图读取。没有任意路径回退，PNG/JPEG/GIF 每张8 MiB及完整解码保护；图片内联仍保留原字节。Markdown题文件拒绝越界和链接。输出最多64 MiB，文件名过滤控制字符及路径符号，移除已打印按钮，不写纸面或学习Ledger。
+
+快照由 mcp_exports.py 保存：同request_id复用原板版本的字节；独立SQLite先原子登记稳定编号与完整HTML恢复副本，再原子落0600 HTML文件。崩溃重试/下载从恢复副本重建同一快照，不重新读取已变板。24小时后访问或下一次导出清理文件及恢复副本，保留幂等墓碑防止旧请求重新生成。
+
+响应只含export_id、板版本、范围、大小、SHA、期限及主Web下载链接。GET /api/mcp/exports/download?export_id=编号 需Web登录（沿用本机免PIN），MCP凭据拒绝；下载禁止缓存，HTML可离线排版，PDF通过浏览器打印。

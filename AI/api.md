@@ -1048,3 +1048,7 @@ GET /api/boards 返回 catalog_revision，各板摘要含 revision，详情亦�
 ## MCP 权限编辑与确认接口
 
 POST /api/mcp/keys/update 只接受 key_id/scopes，编辑有效密钥权限，失效不可复活。GET /api/mcp/operations/detail?operation_id=编号 返回 operation 含工具、影响、生命周期和结果；POST /api/mcp/operations/decide 只接受 operation_id/decision（confirm 或 reject）。所有端点沿用 Web 会话、来源校验、禁止缓存及 MCP 凭据拒绝；读不到返回 not_found，存储故障503。确认变化返回 operation.status=conflict 和稳定 error_code，重复决定返回现有状态。
+
+### MCP 展示板快照下载
+
+GET /api/mcp/exports/download?export_id=编号 仅Web授权可用，返回text/html附件，中文安全文件名、Cache-Control:no-store、nosniff。编号非法/不存在404，到期410及export_expired；文件损坏拒绝下载。完整HTML不出现在工具响应或运行记录中。

@@ -506,3 +506,7 @@ boards.json 增加 catalog_revision、每板 revision 和 mcp_receipts；旧文�
 ## MCP 确认库
 
 错题/.omrs/mcp_operations.db 为独立 0600/WAL SQLite，operations 保存 operation_id、唯一幂等 identity、key_id/tool、digest、payload_json/impact_json/snapshot、status、创建/过期秒数、result_json/error_code。完整待确认参数只在此库；备份随错题目录保留，不参与 Ledger 重放。状态与跨文件恢复见 AI/runtime.md。
+
+## MCP 导出快照存储
+
+错题/.omrs/mcp_exports.db 0600/WAL：exports 保存请求摘要、稳定export_id/key_id/board_id、revision、范围、创建/过期时间、大小、SHA和安全文件名；contents保存HTML恢复副本。错题/.omrs/mcp_exports/ 为0700目录，快照文件为0600。24小时后按下一次导出/下载访问清理文件和恢复副本，保留幂等墓碑；不受Ledger还原影响。

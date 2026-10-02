@@ -214,7 +214,7 @@ class BoardSDKTests(unittest.TestCase):
         async def run():
             async with _session(self.server.mcp_port, self.key['secret']) as session:
                 tools = (await session.list_tools()).tools
-                self.assertEqual(len(tools), 37)
+                self.assertEqual(len(tools), 38)
                 self.assertNotIn('confirm_mcp_operation', [t.name for t in tools])
                 listing = _json_result(await session.call_tool('list_boards', {}))
                 folder = _json_result(await session.call_tool('create_board_folder', {'name': 'SDK目录', 'expected_catalog_revision': listing['catalog_revision'], 'request_id': 'folder'}))
@@ -238,4 +238,56 @@ class BoardSDKTests(unittest.TestCase):
                 confirmed = json.load(urllib.request.urlopen(req))
                 self.assertEqual(confirmed['operation']['status'], 'applied')
                 self.assertIsNone(boards.get_board(self.server.vault, result['board_id']))
+        asyncio.run(run())
+
+    def test_full_workflow_and_exact_discovery_permissions(self):
+        uid = create_question(self.server.vault, '数学', 'SDK推荐', 5, question_text='SDK推荐题')['uid']
+        learning_before = ledger.read_commits(self.server.vault)
+        async def run():
+            async with _session(self.server.mcp_port, self.key['secret']) as session:
+                async def call(tool, args):
+                    result = await session.call_tool(tool, args)
+                    self.assertFalse(result.isError, str(result))
+                    return _json_result(result)
+                expected = {'list_taxonomy','search_questions','get_question','get_question_image','get_overview',
+                    'get_recommendations','list_sessions','get_session','list_drafts','get_draft','create_draft',
+                    'get_questions','get_question_content','get_draft_image','get_question_history','get_learning_history',
+                    'get_analytics','list_reports','get_report','create_report','update_draft','list_boards','get_board',
+                    'create_board','update_board','duplicate_board','delete_board','add_board_items','remove_board_items',
+                    'reorder_board_items','update_board_layout','update_board_item','create_board_folder',
+                    'update_board_folder','delete_board_folder','move_board','export_board','get_mcp_operation'}
+                self.assertEqual({tool.name for tool in (await session.list_tools()).tools}, expected)
+                recommendations = await call('get_recommendations', {'subject': '数学', 'count':20})
+                self.assertIn(uid, [item['uid'] for item in recommendations['selection']])
+                catalog = await call('list_boards', {})
+                folder = await call('create_board_folder', {'name':'全链路', 'expected_catalog_revision':catalog['catalog_revision'],'request_id':'full-folder'})
+                made = await call('create_board', {'name':'全链路', 'folder_id':folder['folder_id'], 'expected_catalog_revision':folder['catalog_revision'],'request_id':'full-board'})
+                made = await call('add_board_items', {'board_id':made['board_id'],'uids':[uid,'函数1','力学1'], 'expected_revision':made['revision'],'request_id':'full-add'})
+                details = await call('get_board', {'board_id':made['board_id']})
+                refs = [item['question_id'] for item in details['items']]
+                made = await call('reorder_board_items', {'board_id':made['board_id'],'item_refs':refs[::-1],'expected_revision':made['revision'],'request_id':'full-sort'})
+                made = await call('update_board_item', {'board_id':made['board_id'],'item_ref':refs[0],'patch':{'gap_lines':7,'pin':True},'expected_revision':made['revision'],'request_id':'full-gap'})
+                made = await call('update_board_layout', {'board_id':made['board_id'],'patch':{'answers':'append','note_ratio':.4},'expected_revision':made['revision'],'request_id':'full-layout'})
+                report = await call('export_board', {'board_id':made['board_id'], 'expected_revision':made['revision'], 'request_id':'full-export'})
+                self.assertEqual(report['status'],'exported')
+                self.assertLess(len(json.dumps(report)),1500)
+                import urllib.request
+                payload = urllib.request.urlopen(report['download_url']).read()
+                self.assertIn(b'<!DOCTYPE html>', payload)
+                self.assertNotIn(b'id="btnDone"', payload)
+                self.assertTrue((await call('export_board', {'board_id':made['board_id'], 'expected_revision':made['revision'], 'request_id':'full-export'}))['reused'])
+                self.assertEqual(ledger.read_commits(self.server.vault), learning_before)
+            for scopes, count in ((['omrs:read'],22), (['draft:create'],1), (['board:write'],0), (['omrs:read','draft:update'],23)):
+                key = create_key(self.server.vault, '发现', scopes)
+                async with _session(self.server.mcp_port, key['secret']) as session:
+                    self.assertEqual(len((await session.list_tools()).tools),count)
+                    if 'board:write' not in scopes or 'omrs:read' not in scopes:
+                        denied = await session.call_tool('create_board', {'name':'越权', 'expected_catalog_revision':0, 'request_id':'denied'})
+                        self.assertTrue(denied.isError)
+                        self.assertIn('forbidden', denied.content[0].text)
+                    # 同一已建立会话实时编辑权限，不能用旧 token/cache 维持增权。
+                    update_scopes(self.server.vault, key['key_id'], list(_SCOPES))
+                    self.assertEqual(len((await session.list_tools()).tools),38)
+                    update_scopes(self.server.vault, key['key_id'], ['omrs:read'])
+                    self.assertEqual(len((await session.list_tools()).tools),22)
         asyncio.run(run())

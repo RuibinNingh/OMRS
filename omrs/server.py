@@ -1404,10 +1404,14 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
             elif path == '/api/mcp/operations/detail':
                 from .mcp_operations import get
                 self._json({'status': 'ok', 'operation': get(self.vault_path, params.get('operation_id', ''))})
+            elif path == '/api/mcp/exports/download':
+                from .mcp_exports import download
+                payload, filename = download(self.vault_path, params.get('export_id', ''))
+                self._download(payload, filename, 'text/html; charset=utf-8')
             else:
                 self._json({"status": "error", "msg": "not found"}, 404)
         except RequestError as exc:
-            self._json({'status': 'error', 'error': exc.code, 'msg': str(exc)}, 404 if exc.code == 'not_found' else 409)
+            self._json({'status': 'error', 'error': exc.code, 'msg': str(exc)}, 404 if exc.code == 'not_found' else 410 if exc.code == 'export_expired' else 409)
         except (ValueError, TypeError) as exc:
             self._json({"status": "error", "msg": str(exc)}, 400)
         except (OSError, sqlite3.Error):
@@ -1973,6 +1977,9 @@ fetch("/api/auth/session",{cache:"no-store"}).then(r=>r.json()).then(show).catch
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Disposition", f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}")
         self.send_header("Content-Length", str(len(payload)))
+        if urllib.parse.urlparse(self.path).path.startswith('/api/mcp/exports/'):
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('X-Content-Type-Options', 'nosniff')
         self.end_headers()
         self.wfile.write(payload)
 

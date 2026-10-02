@@ -353,3 +353,5 @@ Web 已有板写必填 expected_revision；文件夹、创建、复制、删除�
 MCP 在 mcp_board.py 严格校验后复用领域暂存事务。元数据只改 name/note/source_labels，版式只用 DEFAULT_PRINT 字段和现有范围（note_ratio 0.30..0.55、全局 gap_lines 0..24）；单题仅 gap_lines 0..48/null 与 pin。非法值明确拒绝。批量最多100 UID，全部存在才写；已有引用跳过并返回 actual added/skipped；完整排序可用稳定 question_id 或当前 UID，不接受子集或重复。
 
 删文件夹默认保留板移到未归档；复制不带纸面；移出题目只移引用。预览和应用运行相同校验，预览不落盘。MCP 会保守保护已有纸面：即使解除锁定，实际版式或已印题留白变化仍触发确认。高风险详情及生命周期见 AI/mcp.md、AI/runtime.md。
+
+MCP导出仅生成独立不可变HTML快照，不改变printed、打印历史或引用版本。仅新增沿用已有纸面几何与占位；无纸面或没有新增题时明确拒绝。导出生命周期见AI/export.md。

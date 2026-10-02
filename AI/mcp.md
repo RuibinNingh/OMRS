@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：向获授权外部 AI 提供 OMRS 查询、受保护草稿修订、报告保存和展示板管理
 > - 入口：`omrs/mcp/server.py`、`http.py`、`keys.py`；`serve --mcp-port`
-> - 不变量：二十一读十六写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
+> - 不变量：二十二读十六写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
 > - 必跑测试：`python3 -m unittest tests.test_mcp tests.test_mcp_keys tests.test_mcp_http tests.test_mcp_protocol tests.test_mcp_draft_atomic tests.test_runtime_records -q`、`python3 tests/e2e/mcp.py`、`python3 tests/e2e/runtime_history.py`
 > - 相关：`AI/api.md`、`AI/drafts.md`、`AI/security.md`、`AI/agent.md`、`requirements-mcp.txt`
 
@@ -127,3 +127,7 @@ list_boards 默认 50/最多 100，返回分页板摘要及完整文件夹/catal
 删除板/文件夹、清空非空板、实际重置纸面记录均先返回 pending_confirmation、影响预览、operation_id 和网页链接。确认库独立保存完整请求；网页确认时重查密钥、权限、板和目录版本及影响范围。解除版式锁定不能绕过实际纸面重置确认；普通引用增删和排序保留纸面。get_mcp_operation 只查本人操作，没有模型确认工具。
 
 --web-public-url 指定主 Web HTTP/HTTPS 来源（不含路径、查询或凭据）；默认实际 Web 回环端口。确认链接指向该来源的 /#/history?operation=编号，PIN 登录保留 hash。MCP 凭据仍不可调用任何 Web 管理端点。
+
+## 展示板安全导出
+
+export_board 需要omrs:read与request_id，支持all/new，可选expected_revision防止导错板版本。原子保存不可变自包含HTML，24小时内返回Web登录下载链接，不返回HTML/Base64，不记录已打印。详细存储恢复及附件边界见AI/export.md。全授权38工具，只读22，仅创建草稿1。

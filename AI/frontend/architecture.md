@@ -128,3 +128,5 @@ assets/app/
 展示板 Web/MCP 版本冲突用真实浏览器验证：本地留白保留，服务端其它客户端备注保留，自动/关页重试停止，主动重新读取需要网页确认。
 
 MCP 确认 hash 在 core/api.js 的401跳转和 PIN 登录 destination 中保留；history 页面自行解析 operation 查询参数。所有新增动态视图继续使用 html/morph 和页面动作代理。
+
+扩展验收通过tests/e2e/mcp_expansion.py在真实服务上的下载并离线打开HTML；历史关联仍走domain端口和Web下载，无新增全局或直接HTML注入。

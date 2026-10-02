@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import sys
 import urllib.request
+import urllib.error
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 if sys.path and Path(sys.path[0]).resolve() == Path(__file__).resolve().parent:
@@ -41,6 +43,13 @@ async def prepare(server, key, name, request):
         pending = await call('delete_board', {'board_id': created['board_id'], 'expected_revision': created['revision'],
             'expected_catalog_revision': created['catalog_revision'], 'request_id': request+'delete'})
         return created, pending
+
+
+async def export_snapshot(server, key, board_id):
+    async with _session(server.mcp_port, key['secret']) as client:
+        result = await client.call_tool('export_board', {'board_id':board_id,'request_id':'web-snapshot'})
+        assert not result.isError, str(result)
+        return _json_result(result)
 
 
 def main():
@@ -81,8 +90,35 @@ def main():
             wait(page, "() => document.querySelector('[data-operation] h4')?.textContent.includes('已拒绝')")
             check('网页拒绝后板保留、详情无确认按钮', boards.get_board(server.vault, created['board_id']) is not None
                   and not page.locator('[data-action="history.operationConfirm"]').count())
+            snapshot = pool.submit(lambda: asyncio.run(export_snapshot(server, key, created['board_id']))).result(timeout=30)
+            page.goto(base+'/#/history',wait_until='networkidle')
+            if not page.locator('#history-tab-system').get_attribute('aria-selected') == 'true':
+                page.click('[data-tab="system"]')
+            seq = next(row['seq'] for row in runtime_records.list_records(server.vault,{})['records'] if row['tool']=='export_board')
+            page.click(f'#runtime-timeline [data-seq="{seq}"] .hvw-row')
+            link = page.locator('#history-system-panel a[download]')
+            link.wait_for()
+            with page.expect_download() as downloading:
+                link.click()
+            download = downloading.value
+            with tempfile.TemporaryDirectory(prefix='omrs-snapshot-preview-') as folder:
+                path=Path(folder)/'snapshot.html'; download.save_as(path)
+                check('运行详情关联导出，浏览器下载自包含HTML', path.read_bytes().startswith(b'<!DOCTYPE html>')
+                      and snapshot['export_id'] in link.get_attribute('href'))
+                preview=ctx.new_page(); preview.on('pageerror',lambda err:errors.append(str(err)))
+                preview.goto(path.as_uri(),wait_until='networkidle')
+                wait(preview,'() => !!window.OMRS_LAYOUT')
+                check('下载文件可脱离服务排版打印，且没有已打印写入入口', preview.evaluate('window.OMRS_LAYOUT.items.length')==2
+                      and not preview.locator('#btnDone').count())
+                preview.close()
             created2, pending2 = pool.submit(lambda: asyncio.run(prepare(server, key, 'PIN确认验收', 'pin-'))).result(timeout=30)
             http(server, '/api/auth/pin', {'pin': '2468', 'idle_minutes': 30})
+            for headers, expected in (({'X-Real-IP':'192.0.2.15'},401),({'Authorization':'Bearer '+key['secret']},403)):
+                try:
+                    urllib.request.urlopen(urllib.request.Request(snapshot['download_url'],headers=headers))
+                    check('导出登录/凭据边界',False)
+                except urllib.error.HTTPError as exc:
+                    check(f'导出下载拒绝未登录或MCP凭据：{expected}',exc.code==expected)
             remote = browser.new_context(extra_http_headers={'X-Real-IP':'192.0.2.15'}, viewport={'width':390,'height':844})
             rp = remote.new_page(); rp.on('pageerror', lambda err: errors.append(str(err)))
             rp.goto(pending2['confirmation_url'], wait_until='networkidle')
@@ -92,6 +128,8 @@ def main():
             wait(rp, "() => !!document.querySelector('#history-system-panel [data-action=\"history.operationConfirm\"]')")
             check('远端 PIN 登录后回到同一确认操作，手机显示详情', pending2['operation_id'] in rp.locator('#history-system-panel').inner_text()
                   and rp.locator('#history-system-panel .hvw-detail-panel').is_visible())
+            response=remote.request.get(snapshot['download_url'])
+            check('PIN网页会话可下载快照，响应禁止缓存',response.status==200 and response.headers.get('cache-control')=='no-store')
             rp.click('[data-action="history.operationConfirm"]')
             wait(rp, "() => document.querySelector('[data-operation] h4')?.textContent.includes('已应用')")
             check('网页确认实际删除，重复确认只执行一次', boards.get_board(server.vault, created2['board_id']) is None
