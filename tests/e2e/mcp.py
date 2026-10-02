@@ -1,8 +1,9 @@
-"""MCP → OMRS 草稿区真实浏览器验收。
+"""MCP 原生题图与 OMRS 草稿区真实 SDK / 浏览器验收。
 
-脚本在临时 Vault 内启动同进程 Web + MCP，先由官方 MCP SDK 创建草稿，
-再打开 OMRS 草稿区确认人工审核入口、MCP 来源和完整原图。生产服务和真实
-``错题/`` 永远不会被访问；缺少可选 SDK 或浏览器时会清楚地打印 SKIP。
+脚本在临时 Vault 内启动同进程 Web + MCP，先由官方 MCP SDK 按题目图片
+下标读取原生图片并比对原字节，再创建草稿、打开 OMRS 草稿区确认人工审核
+入口、MCP 来源和完整原图。生产服务和真实 ``错题/`` 永远不会被访问；
+缺少可选 SDK 或浏览器时会清楚地打印 SKIP，交付验收不能以 SKIP 代替通过。
 """
 
 import asyncio
@@ -26,6 +27,9 @@ except ImportError:
     PlaywrightTimeoutError = Exception
 
 from browser_runtime import launch_chromium
+from omrs.agent.tools import read as read_tools
+from omrs.creation import create_question
+from omrs.ledger import read_commits
 from omrs.mcp.keys import create_key, verify_key
 try:
     from test_mcp_protocol import MCP_AVAILABLE, MCPServerProcess, _gif, _jpeg, _json_result, _png, _session
@@ -174,6 +178,14 @@ def main():
         return 0
 
     server = MCPServerProcess()
+    question_images = [_png(80, 40) + b"QUESTION-PNG-ORIGINAL-TAIL",
+                       _jpeg() + b"QUESTION-JPEG-ORIGINAL-TAIL", _gif()]
+    question_mimes = ["image/png", "image/jpeg", "image/gif"]
+    question = create_question(server.vault, "物理", "题图闭环", 5,
+        question_text="题目与答案的图片分别按列表下标读取。",
+        question_images=["data:" + mime + ";base64," + base64.b64encode(raw).decode()
+                         for raw, mime in zip(question_images[:2], question_mimes[:2])],
+        answer_images=["data:image/gif;base64," + base64.b64encode(question_images[2]).decode()])
     try:
         server.start()
     except BaseException:
@@ -198,6 +210,26 @@ def main():
     browser = None
     checks = []
     try:
+        async def read_images():
+            before = read_commits(server.vault)
+            async with _session(server.mcp_port, server.keys["read"]["secret"]) as session:
+                tools = (await session.list_tools()).tools
+                checks.append(("SDK 读取权限发现十项且包含题图工具", len(tools) == 10
+                               and "get_question_image" in {tool.name for tool in tools}))
+                remote = _json_result(await session.call_tool("get_question", {"uid": question["uid"]}))
+                expected = read_tools.get_question({"vault": server.vault}, {"uid": question["uid"]})["result"]
+                checks.append(("SDK 题目结果与共享读取一致并保留题目/答案图片顺序",
+                               remote == expected and remote.get("images") == question["images"]))
+                for index, (raw, mime) in enumerate(zip(question_images, question_mimes)):
+                    image = await session.call_tool("get_question_image",
+                                                    {"uid": remote["uid"], "image_index": index})
+                    ok = (not image.isError and image.structuredContent is None
+                          and len(image.content) == 1 and image.content[0].type == "image"
+                          and image.content[0].mimeType == mime
+                          and base64.b64decode(image.content[0].data) == raw)
+                    checks.append(("SDK 原生题图 MIME 与原字节一致：" + mime, ok))
+            checks.append(("SDK 读取题图不新增学习 Ledger 提交", read_commits(server.vault) == before))
+        asyncio.run(read_images())
         result = asyncio.run(create())
         draft_id = result["draft_id"]
         base = f"http://127.0.0.1:{server.web_port}"
@@ -251,7 +283,7 @@ def main():
         server.stop()
     for check in checks:
         print(("PASS " if check[1] else "FAIL ") + check[0] + (f": {check[2]}" if len(check) > 2 else ""))
-    print(f"MCP 浏览器验收：{sum(item[1] for item in checks)}/{len(checks)}")
+    print(f"MCP SDK / 浏览器验收：{sum(item[1] for item in checks)}/{len(checks)}")
     return 0 if checks and all(item[1] for item in checks) else 1
 
 

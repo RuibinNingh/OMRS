@@ -186,6 +186,8 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 
 ## MCP 隔离验收
 
-`tests/test_mcp_protocol.py` 用官方可选 SDK 启动随机高端口的同进程 Web/MCP，真实读取临时 Vault 并校验原件字节、权限和正式数据不变。`tests/e2e/mcp.py` 在同实例打开草稿与 Key 管理页面；`tests/test_mcp_http.py` 和 `tests/test_mcp_keys.py` 可在无 SDK 环境验证标准库边界。所有实例移除 `OMRS_SYSTEMD_SERVICE`。视觉脚本的 `--create-stage drafts` 自动注入三份多文字块、公式和合成来源图草稿，基线与当前工作区共用同一份夹具；测试直接访问已授权的本地 `/?unlocked=1` 外壳，避免停在锁屏。
+`tests/test_mcp_protocol.py` 用官方可选 SDK 启动随机高端口的同进程 Web/MCP，真实读取临时 Vault 并校验原件字节、权限和正式数据不变。`tests/e2e/mcp.py` 先走 `get_question → images[] → get_question_image → ImageContent`，核对 PNG/JPEG/GIF 的 MIME、原始尾数据及学习 Ledger 提交不变，再在同实例打开草稿与 Key 管理页面。SDK 验收不能以 SKIP 代替通过；`tests/test_mcp_http.py` 和 `tests/test_mcp_keys.py` 可在无 SDK 环境验证标准库边界。所有实例移除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`。
+
+视觉脚本的 `--create-stage drafts` 自动注入三份多文字块、公式和合成来源图草稿，基线与当前工作区共用同一份夹具；测试直接访问已授权的本地 `/?unlocked=1` 外壳，避免停在锁屏。
 
 草稿 P4 鼠标验收在获取缩放柄坐标前等待来源图片加载，并通过 hover 等平滑滚动稳定与命中检查，随后执行真实拖动；避免布局移动让拖动落到画布外，保存和人工调整断言保持完整。
