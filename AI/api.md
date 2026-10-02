@@ -29,7 +29,9 @@ MCP 使用独立的 Streamable HTTP 端点（推荐 `serve --mcp-port 8472` 同�
 
 MCP `create_draft` 在图片处理与等锁后、实际写入前重新验证 `draft:create`；新建与两种幂等复用结果封装前也复查。处理中 Key 失效返回 `isError=true` 的稳定 `forbidden`，不返回草稿正文；已有合法提交及原图保留。相同 Key 恢复有效后可继续幂等复用，复用不额外要求读权限。
 
-`tools/list` 按实时 `omrs:read` / `draft:create` 返回九个查询工具 / 创建工具 / 两者合集；创建工具的 schema、fileParams 与 annotations 保持。`tools/call` 独立检查同一显式映射及当前 Key，不使用 SDK 的共享工具定义缓存授予权限。
+`tools/list` 按实时 `omrs:read` / `draft:create` 返回十个查询工具 / 创建工具 / 两者合集；创建工具的 schema、fileParams 与 annotations 保持。`tools/call` 独立检查同一显式映射及当前 Key，不使用 SDK 的共享工具定义缓存授予权限。
+
+get_question_image(uid, image_index) 是 MCP 的只读工具，非空 UID 最多 200 字符，下标为从 0 开始的严格整数。成功返回单个 PNG/JPEG/GIF 原生 ImageContent（无结构化图片 JSON），原字节最多 8 MiB；按共享 get_question.images 的当前顺序读取受限题目/答案附件，读取前与返回前复查 omrs:read。参数非法返回 invalid_arguments；无题、无图、越界、缺失、歧义、损坏或超限返回 invalid_request，不泄漏服务器路径。旧 get_question 与 Web 图片接口保持。
 
 ---
 

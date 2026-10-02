@@ -217,7 +217,7 @@ class MCPProtocolTests(unittest.TestCase):
             async with _session(self.server.mcp_port, self.server.keys["all"]["secret"]) as session:
                 tools = await session.list_tools()
                 self.assertEqual([tool.name for tool in tools.tools], [
-                    "list_taxonomy", "search_questions", "get_question", "get_overview",
+                    "list_taxonomy", "search_questions", "get_question", "get_question_image", "get_overview",
                     "get_recommendations", "list_sessions", "get_session", "list_drafts",
                     "get_draft", "create_draft",
                 ])
@@ -500,7 +500,7 @@ class MCPProtocolTests(unittest.TestCase):
         from omrs.mcp import keys
         full_key = create_key(self.server.vault, "discovery-all", ["omrs:read", "draft:create"])
         write_key = create_key(self.server.vault, "discovery-create", ["draft:create"])
-        reads = ["list_taxonomy", "search_questions", "get_question", "get_overview", "get_recommendations",
+        reads = ["list_taxonomy", "search_questions", "get_question", "get_question_image", "get_overview", "get_recommendations",
                  "list_sessions", "get_session", "list_drafts", "get_draft"]
         payload = {"subject": "数学", "category": "发现权限", "request_id": "discovery-only-create",
                    "blocks": [{"section": "题目", "kind": "text", "text": "待审核"}]}
@@ -864,6 +864,159 @@ class MCPReauthenticationTests(unittest.TestCase):
             self.assertTrue(discarded["reused"])
             self.assertEqual(discarded["status"], "discarded")
             self.assertEqual(discarded["draft_id"], first["draft_id"])
+
+
+@unittest.skipUnless(MCP_AVAILABLE, "可选依赖 mcp 未安装，跳过原生题图协议验收")
+class MCPQuestionImageProtocolTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        from tests.test_question_images import animated_gif
+        cls.server = MCPServerProcess()
+        cls.images = {"first.png": (_png() + b"PNG-ORIGINAL-TAIL", "image/png"),
+                      "jpeg.png": (_jpeg() + b"JPEG-ORIGINAL-TAIL", "image/jpeg"),
+                      "answer.png": (_gif(), "image/gif"),
+                      "animated.bin": (animated_gif(3), "image/gif")}
+        attachments = Path(cls.server.vault) / "错题" / "附件"
+        attachments.mkdir(parents=True, exist_ok=True)
+        for name, (raw, _) in cls.images.items():
+            (attachments / name).write_bytes(raw)
+        cls.uid = create_question(cls.server.vault, "物理", "协议题图", 5,
+            question_text="![先出现的 Markdown](animated.bin)\n![[first.png]]\n"
+                          + "长题干" * 600 + "\n![[jpeg.png]]\n![[first.png]]",
+            answer_text="![[answer.png]]")["uid"]
+        cls.bad_uid = create_question(cls.server.vault, "物理", "损坏图", 5,
+                                      question_text="![[damaged.png]]")["uid"]
+        (attachments / "damaged.png").write_bytes(_png()[:-15])
+        cls.missing_uid = create_question(cls.server.vault, "物理", "缺失图", 5,
+                                          question_text="![[missing.png]]")["uid"]
+        cls.duplicate_uid = create_question(cls.server.vault, "物理", "重名图", 5,
+                                            question_text="![[duplicate.png]]")["uid"]
+        (attachments / "duplicate.png").write_bytes(_png())
+        (attachments / "nested").mkdir()
+        (attachments / "nested" / "duplicate.png").write_bytes(_png(3, 3))
+        cls.large_uid = create_question(cls.server.vault, "物理", "大图", 5,
+                                       question_text="![[large.png]]")["uid"]
+        cls.large = _png() + b"\0" * (8 * 1024 * 1024 - len(_png()))
+        (attachments / "large.png").write_bytes(cls.large)
+        try:
+            cls.server.start()
+        except BaseException:
+            cls.server.stop()
+            raise
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.stop()
+
+    def assert_image(self, result, raw, mime):
+        self.assertFalse(result.isError)
+        self.assertIsNone(result.structuredContent)
+        self.assertEqual(len(result.content), 1)
+        self.assertEqual(result.content[0].type, "image")
+        self.assertEqual(result.content[0].mimeType, mime)
+        self.assertEqual(base64.b64decode(result.content[0].data), raw)
+
+    def test_get_question_to_native_images_preserves_order_bytes_and_business_data(self):
+        commits = read_commits(self.server.vault)
+        before = read_tools.get_question({"vault": self.server.vault}, {"uid": self.uid})["result"]
+        drafts_before = drafts.list_drafts(self.server.vault, readonly=True)
+
+        async def run():
+            async with _session(self.server.mcp_port, self.server.keys["read"]["secret"]) as session:
+                remote = _json_result(await session.call_tool("get_question", {"uid": self.uid}))
+                self.assertEqual(remote, before)
+                self.assertIn("已截断", remote["sections"]["题目"])
+                self.assertEqual(set(remote["images"]), set(self.images))
+                for index, name in enumerate(remote["images"]):
+                    result = await session.call_tool("get_question_image",
+                                                     {"uid": " " + self.uid + " ", "image_index": index})
+                    self.assert_image(result, *self.images[name])
+                self.assertEqual(_json_result(await session.call_tool("get_question", {"uid": self.uid})), before)
+        asyncio.run(run())
+        self.assertEqual(read_commits(self.server.vault), commits)
+        self.assertEqual(drafts.list_drafts(self.server.vault, readonly=True), drafts_before)
+
+    def test_three_scopes_discover_and_call_native_image_independently(self):
+        writer = create_key(self.server.vault, "仅建草稿读图拒绝", ["draft:create"])
+
+        async def run():
+            async with _session(self.server.mcp_port, self.server.keys["all"]["secret"]) as full, \
+                    _session(self.server.mcp_port, self.server.keys["read"]["secret"]) as reader, \
+                    _session(self.server.mcp_port, writer["secret"]) as write:
+                for client, count, visible in ((full, 11, True), (reader, 10, True), (write, 1, False)):
+                    tools = (await client.list_tools()).tools
+                    self.assertEqual(len(tools), count)
+                    self.assertEqual("get_question_image" in {tool.name for tool in tools}, visible)
+                # 写客户端刚做过发现，SDK 共享描述缓存不能影响读客户端调用。
+                denied = await write.call_tool("get_question_image", {"uid": self.uid, "image_index": 0})
+                self.assertTrue(denied.isError)
+                self.assertIn("forbidden:", denied.content[0].text)
+                names = _json_result(await reader.call_tool("get_question", {"uid": self.uid}))["images"]
+                result = await reader.call_tool("get_question_image", {"uid": self.uid, "image_index": 0})
+                self.assert_image(result, *self.images[names[0]])
+        asyncio.run(run())
+
+    def test_invalid_requests_are_text_errors_without_image_or_server_paths(self):
+        async def run():
+            async with _session(self.server.mcp_port, self.server.keys["read"]["secret"]) as session:
+                cases = [
+                    ({"uid": self.uid, "image_index": -1}, "invalid_arguments:", ""),
+                    ({"uid": self.uid, "image_index": True}, "invalid_arguments:", ""),
+                    ({"uid": self.uid, "image_index": 1.0}, "invalid_arguments:", ""),
+                    ({"uid": self.uid, "image_index": 0, "path": "/private/image"}, "invalid_arguments:", ""),
+                    ({"uid": " \t\n\u3000", "image_index": 0}, "invalid_arguments:", ""),
+                    ({"uid": "不存在999", "image_index": 0}, "invalid_request:", "题目不存在"),
+                    ({"uid": "函数1", "image_index": 0}, "invalid_request:", "没有引用图片"),
+                    ({"uid": self.uid, "image_index": 99}, "invalid_request:", "超出"),
+                    ({"uid": self.missing_uid, "image_index": 0}, "invalid_request:", "图片不存在"),
+                    ({"uid": self.duplicate_uid, "image_index": 0}, "invalid_request:", "文件名不唯一"),
+                    ({"uid": self.bad_uid, "image_index": 0}, "invalid_request:", "无法完整解码"),
+                ]
+                for args, prefix, message in cases:
+                    with self.subTest(args=args):
+                        result = await session.call_tool("get_question_image", args)
+                        self.assertTrue(result.isError)
+                        self.assertTrue(all(item.type == "text" for item in result.content))
+                        text = "".join(item.text for item in result.content)
+                        self.assertIn(prefix, text)
+                        self.assertIn(message, text)
+                        self.assertNotIn(self.server.vault, text)
+                        self.assertNotIn("/private/image", text)
+        asyncio.run(run())
+
+    def test_eight_mib_output_is_original_and_over_limit_returns_no_image(self):
+        target = Path(self.server.vault) / "错题" / "附件" / "large.png"
+
+        async def run():
+            async with _session(self.server.mcp_port, self.server.keys["read"]["secret"]) as session:
+                result = await session.call_tool("get_question_image", {"uid": self.large_uid, "image_index": 0})
+                self.assert_image(result, self.large, "image/png")
+                with target.open("ab") as stream:
+                    stream.write(b"x")
+                result = await session.call_tool("get_question_image", {"uid": self.large_uid, "image_index": 0})
+                self.assertTrue(result.isError)
+                self.assertTrue(all(item.type == "text" for item in result.content))
+                self.assertIn("8 MiB", result.content[0].text)
+        try:
+            asyncio.run(run())
+        finally:
+            target.write_bytes(self.large)
+
+    def test_existing_sdk_client_cannot_read_image_after_key_revocation(self):
+        key = create_key(self.server.vault, "吊销读图", ["omrs:read"])
+
+        async def run():
+            active_call_completed = False
+            # 401 也会从 SDK 的 TaskGroup 退出阶段传播，断言覆盖会话退出。
+            with self.assertRaises(Exception):
+                async with _session(self.server.mcp_port, key["secret"]) as session:
+                    first = await session.call_tool("get_question_image", {"uid": self.uid, "image_index": 0})
+                    self.assertFalse(first.isError)
+                    active_call_completed = True
+                    revoke_key(self.server.vault, key["key_id"])
+                    await session.call_tool("get_question_image", {"uid": self.uid, "image_index": 0})
+            self.assertTrue(active_call_completed)
+        asyncio.run(run())
 
 
 if __name__ == "__main__":

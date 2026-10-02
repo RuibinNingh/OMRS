@@ -1,5 +1,6 @@
 """系统运行记录：持久化、筛选分页、脱敏、并发和真实 MCP 领域边界。"""
 import asyncio
+import base64
 from concurrent.futures import ThreadPoolExecutor
 import json
 import sqlite3
@@ -167,6 +168,30 @@ class MCPRuntimeTests(unittest.TestCase):
             self.assertEqual(records.list_records(self.vault, {})["records"][0]["error_code"], code)
         self.assertEqual(records.list_records(self.vault, {})["summary"]["total"], 3)
         self.assertEqual(read_commits(self.vault), [])
+
+    def test_image_call_is_identified_without_persisting_raw_or_base64_content(self):
+        from tests.test_mcp_protocol import _png
+        raw = _png() + b"PRIVATE-MCP-IMAGE-TAIL"
+        encoded = base64.b64encode(raw).decode()
+        uid = create_question(self.vault, "物理", "图像记录", 5,
+                              question_images=["data:image/png;base64," + encoded])["uid"]
+        commits = read_commits(self.vault)
+        result = self.run_tool("get_question_image", {"uid": uid, "image_index": 0})
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].type, "image")
+        self.assertEqual(base64.b64decode(result[0].data), raw)
+        latest = records.list_records(self.vault, {})["records"][0]
+        self.assertEqual((latest["tool"], latest["title"], latest["status"]),
+                         ("get_question_image", "读取题图", "success"))
+        detail = records.detail(self.vault, latest["seq"])
+        self.assertEqual(detail["arguments"], {"uid": uid, "image_index": 0})
+        self.assertEqual(detail["result"], {})
+        with sqlite3.connect(records.path(self.vault)) as db:
+            stored = str(db.execute("SELECT * FROM records").fetchall())
+        for private in (encoded, "PRIVATE-MCP-IMAGE-TAIL", self.key["secret"]):
+            self.assertNotIn(private, stored)
+        self.assertEqual(read_commits(self.vault), commits)
+        self.assertEqual(drafts.list_drafts(self.vault, readonly=True), [])
 
     def test_read_only_key_denial_is_visible_and_cannot_create_draft(self):
         self.key = create_key(self.vault, "仅查询", ["omrs:read"])

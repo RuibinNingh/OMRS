@@ -17,6 +17,7 @@ _LOCK = threading.RLock()
 TITLES = {
     "list_taxonomy": "读取科目与分类", "search_questions": "搜索题目",
     "get_question": "读取题目", "get_overview": "读取科目概况",
+    "get_question_image": "读取题图",
     "get_recommendations": "查询复习推荐", "list_sessions": "读取练习列表",
     "get_session": "读取练习详情", "list_drafts": "读取草稿列表",
     "get_draft": "读取草稿", "create_draft": "创建待审核草稿",
@@ -29,7 +30,8 @@ ERRORS = {
     "interrupted": "调用已中断；请核对草稿队列后再决定是否重试。",
 }
 _TEXT_FIELDS = {"subject", "category", "uid", "session_id", "draft_id", "status", "source", "due_range", "match"}
-_NUMBER_FIELDS = {"count", "limit", "page", "page_size", "mastery_min", "mastery_max", "difficulty_min", "difficulty_max"}
+_NUMBER_FIELDS = {"count", "limit", "page", "page_size", "mastery_min", "mastery_max", "difficulty_min", "difficulty_max",
+                  "image_index"}
 _PRIVATE = re.compile(r"omrs_mcp_\S+|\bbearer\s+\S+|https?://\S+|data:\S+", re.I)
 
 

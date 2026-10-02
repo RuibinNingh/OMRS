@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：向获授权外部 AI 提供 OMRS 只读查询和待审核草稿创建
 > - 入口：`omrs/mcp/server.py`、`http.py`、`keys.py`；`serve --mcp-port`
-> - 不变量：九读一写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
+> - 不变量：十读一写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
 > - 必跑测试：`python3 -m unittest tests.test_mcp tests.test_mcp_keys tests.test_mcp_http tests.test_mcp_protocol tests.test_mcp_draft_atomic tests.test_runtime_records -q`、`python3 tests/e2e/mcp.py`、`python3 tests/e2e/runtime_history.py`
 > - 相关：`AI/api.md`、`AI/drafts.md`、`AI/security.md`、`AI/agent.md`、`requirements-mcp.txt`
 
@@ -22,15 +22,23 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 ## 2. 工具与权限
 
-固定开放九个查询工具：`list_taxonomy`、`search_questions`、`get_question`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。前七项直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
+固定开放十个查询工具：`list_taxonomy`、`search_questions`、`get_question`、`get_question_image`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。七个学习数据查询直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
 
-`create_draft` 是唯一业务写工具，需要 `draft:create`。它不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在正式建题、提交/修改/丢弃草稿、反馈、标记、Session、设置、文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
+`create_draft` 是唯一业务写工具，需要 `draft:create`。它不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在正式建题、提交/修改/丢弃草稿、反馈、标记、Session、设置、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
 
-每次协议请求和领域调用重新验证 Key；创建在下载及等锁之后、实际写入前复查，URL 快速复用、inline 处理后复用及新建都在结果封装前再次校验 `draft:create`。处理中吊销、到期或权限变化返回 `forbidden`，提交后失效仍保留草稿与原图。`tools/list` 按当前 Key 的实时 scope 返回九读、仅 `create_draft` 或全部十项；发现与调用共用显式工具→scope 映射。过滤只作用于当前请求的描述，完整注册表保持，SDK 共享定义缓存不承担授权；直接点名隐藏工具仍拒绝。`错题/.omrs/mcp_keys.json` 仅保存 SHA-256 摘要和非秘密元数据，0600；线程锁和操作系统文件锁共同避免本机 CLI 与 Web 的创建/吊销/最近使用时间互相覆盖。Key 管理响应禁止缓存。
+每次协议请求和领域调用重新验证 Key；创建在下载及等锁之后、实际写入前复查，URL 快速复用、inline 处理后复用及新建都在结果封装前再次校验 `draft:create`。处理中吊销、到期或权限变化返回 `forbidden`，提交后失效仍保留草稿与原图。`tools/list` 按当前 Key 的实时 scope 返回十读、仅 `create_draft` 或全部十一项；发现与调用共用显式工具→scope 映射。过滤只作用于当前请求的描述，完整注册表保持，SDK 共享定义缓存不承担授权；直接点名隐藏工具仍拒绝。`错题/.omrs/mcp_keys.json` 仅保存 SHA-256 摘要和非秘密元数据，0600；线程锁和操作系统文件锁共同避免本机 CLI 与 Web 的创建/吊销/最近使用时间互相覆盖。Key 管理响应禁止缓存。
 
 审查修复验收状态统一见 `AI/optimization.md`「MCP 修复」，实施按 `AI/plans/mcp-integration/exec-2026-10-01-mcp-fixes.md`。
 
 `get_overview(subject=...)` 的全部概况字段来自共享统计入口中的同一科目范围，未知科目返回零计数与空明细；统计口径见 `AI/api.md` 与 `AI/agent.md`。
+
+### 按需读取题图
+
+get_question_image(uid, image_index) 必须提供非空 UID（去首尾空白、最多 200 字符）和从 0 开始的严格整数下标；布尔值、小数、字符串和额外参数拒绝。先调用共享 get_question 并按其 images[] 当前顺序选图，包含题目与答案图片，不从已截断正文重新提取。每次重新定位，不缓存图片或授权。
+
+工具需要 omrs:read，在线程内完成受限附件读取与完整解码；读取前和返回前复查实时权限。成功仅返回一个原生 ImageContent，MIME 根据实际原件确认为 image/png、image/jpeg 或 image/gif；SDK 只做 Base64 封装，不返回图片 JSON、服务器路径或下载链接。读取允许的文件树、大小和像素保护见下方领域说明。
+
+注解为 readOnlyHint=true、destructiveHint=false、idempotentHint=true、openWorldHint=false，显式使用非结构化图片输出。schema/严格参数模型拒绝非法输入时返回 invalid_arguments；题目不存在、无图、越界、缺失、歧义、格式无效和容量超限返回 invalid_request 及可区分中文说明，OS 异常不回显本地路径。该工具只在 MCP 注册，不加入内置助手注册表。
 
 ## 3. 创建契约
 
@@ -74,7 +82,7 @@ ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentic
 
 `RestrictedMCP.call_tool` 在工具执行边界通过工作线程写入 `omrs/runtime_records.py`：开始时记 `running`，正常结束记 `success`，稳定工具错误记 `failure`，取消记 `interrupted`。耗时采用单调时钟，错误仅保留固定错误码与安全说明。记录含当次密钥编号和公开名称快照，不额外改变既有权限复查次数。只记录到达工具执行边界的调用；握手、工具发现、健康检查及 HTTP 层未认证 / 限流请求不生成调用记录。
 
-成功创建、幂等复用和读取草稿的结果可保存 `draft_id`；详情读取当前草稿状态及 Ledger 中 `_draft.draft_id` 对应的人工入库节点。没有旧记录时不推测或补造来源。独立运行库不进入学习 Ledger，也不参与学习修正或状态还原；格式与启动恢复见 `AI/runtime.md`，页面见 `AI/frontend/records.md`。
+题图调用登记为“读取题图”，参数摘要只保存脱敏 UID 和 image_index；原生图片结果不写入运行库。成功创建、幂等复用和读取草稿的结果可保存 `draft_id`；详情读取当前草稿状态及 Ledger 中 `_draft.draft_id` 对应的人工入库节点。没有旧记录时不推测或补造来源。独立运行库不进入学习 Ledger，也不参与学习修正或状态还原；格式与启动恢复见 `AI/runtime.md`，页面见 `AI/frontend/records.md`。
 
 记录存储故障不会改变已授权工具的结果或撤回已有合法提交，只输出固定无敏感内容的诊断。记录结束写入失败可能留下 `running`，下次 `serve` 启动会恢复为中断；中断不证明草稿未写入，重试前仍需核对草稿或使用原幂等请求。读取接口独立报告故障，学习详情的来源关联读取失败则保留学习信息并给出说明。
 

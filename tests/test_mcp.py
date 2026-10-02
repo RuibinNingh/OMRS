@@ -6,6 +6,7 @@ import hashlib
 import os
 import struct
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 import zlib
@@ -58,7 +59,7 @@ class MCPPolicyTests(unittest.TestCase):
             server = build_server(vault)
             names = [tool.name for tool in server._tool_manager.list_tools()]
             self.assertEqual(names, [
-                "list_taxonomy", "search_questions", "get_question", "get_overview",
+                "list_taxonomy", "search_questions", "get_question", "get_question_image", "get_overview",
                 "get_recommendations", "list_sessions", "get_session", "list_drafts",
                 "get_draft", "create_draft",
             ])
@@ -93,13 +94,102 @@ class MCPPolicyTests(unittest.TestCase):
                         await server.call_tool("future_tool", {})
             asyncio.run(run())
             self.assertEqual(called, [])
-            self.assertEqual(len(server._tool_manager.list_tools()), 11)
+            self.assertEqual(len(server._tool_manager.list_tools()), 12)
 
     def test_ssrf_loopback_and_non_https_are_rejected_before_download(self):
         with self.assertRaises(ValueError):
             _download("http://127.0.0.1/image.png")
         with self.assertRaises(ValueError):
             _download("https://127.0.0.1/image.png")
+
+    def test_image_tool_schema_and_readonly_annotations(self):
+        with tempfile.TemporaryDirectory() as vault:
+            image = build_server(vault)._tool_manager.get_tool("get_question_image")
+            schema = image.parameters
+            self.assertEqual(schema["required"], ["uid", "image_index"])
+            self.assertFalse(schema["additionalProperties"])
+            self.assertEqual(schema["properties"]["uid"]["maxLength"], 200)
+            self.assertEqual(schema["properties"]["uid"]["pattern"], r"\S")
+            self.assertEqual(schema["properties"]["image_index"]["type"], "integer")
+            self.assertEqual(schema["properties"]["image_index"]["minimum"], 0)
+            self.assertIsNone(image.fn_metadata.output_schema)
+            self.assertTrue(image.annotations.readOnlyHint)
+            self.assertFalse(image.annotations.destructiveHint)
+            self.assertTrue(image.annotations.idempotentHint)
+            self.assertFalse(image.annotations.openWorldHint)
+
+    def test_image_invalid_parameters_are_rejected_before_filesystem_reads(self):
+        from mcp.server.auth.provider import AccessToken
+        from mcp.server.fastmcp.exceptions import ToolError
+        with tempfile.TemporaryDirectory() as vault:
+            key = create_key(vault, "读图", ["omrs:read"])
+            token = AccessToken(token=key["secret"], client_id=key["key_id"], scopes=key["scopes"])
+            server = build_server(vault)
+            invalid = [{}, {"uid": "示例1"}, {"uid": "", "image_index": 0},
+                       {"uid": " \t\n\u3000", "image_index": 0},
+                       {"uid": "x" * 201, "image_index": 0},
+                       {"uid": "示例1", "image_index": 0, "path": "/private"},
+                       *({"uid": "示例1", "image_index": value}
+                         for value in (-1, True, False, "0", .5, 1.0, None))]
+
+            async def run():
+                with patch("omrs.mcp.server.get_access_token", return_value=token), \
+                        patch("omrs.mcp.server.read_question_image") as read:
+                    for args in invalid:
+                        with self.subTest(args=args), self.assertRaisesRegex(ToolError, "^invalid_arguments:"):
+                            await server.call_tool("get_question_image", args)
+                    read.assert_not_called()
+            asyncio.run(run())
+
+    def test_image_rechecks_live_permission_after_actual_read(self):
+        from mcp.server.auth.provider import AccessToken
+        from mcp.server.fastmcp.exceptions import ToolError
+        from omrs.creation import create_question
+        from omrs.mcp import keys, server as module
+        for mode in ("revoke", "expire", "scope"):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as vault:
+                raw = png()
+                uid = create_question(vault, "物理", "权限读图", 5,
+                    question_images=["data:image/png;base64," + base64.b64encode(raw).decode()])["uid"]
+                key = create_key(vault, "读图", ["omrs:read"])
+                token = AccessToken(token=key["secret"], client_id=key["key_id"], scopes=key["scopes"])
+                server = build_server(vault)
+                entered, release = threading.Event(), threading.Event()
+                original = module.read_question_image
+
+                def paused(*args):
+                    image = original(*args)
+                    self.assertEqual(image, (raw, "png"))
+                    entered.set()
+                    if not release.wait(5):
+                        raise AssertionError("读图鉴权窗口未释放")
+                    return image
+
+                async def run():
+                    with patch.object(module, "get_access_token", return_value=token), \
+                            patch.object(module, "read_question_image", side_effect=paused), \
+                            patch.object(module, "MCPImage") as response:
+                        task = asyncio.create_task(server.call_tool("get_question_image",
+                                                                    {"uid": uid, "image_index": 0}))
+                        try:
+                            self.assertTrue(await asyncio.to_thread(entered.wait, 5))
+                            if mode == "revoke":
+                                revoke_key(vault, key["key_id"])
+                            else:
+                                with keys._key_lock(vault):
+                                    data = keys._load(vault)
+                                    row = next(row for row in data["keys"] if row["key_id"] == key["key_id"])
+                                    if mode == "expire":
+                                        row["expires_at"] = "2020-01-01T00:00:00+00:00"
+                                    else:
+                                        row["scopes"] = ["draft:create"]
+                                    keys._save(vault, data)
+                        finally:
+                            release.set()
+                        with self.assertRaisesRegex(ToolError, "^forbidden:"):
+                            await asyncio.wait_for(task, 10)
+                        response.assert_not_called()
+                asyncio.run(run())
 
 
 class MCPDraftTests(unittest.TestCase):

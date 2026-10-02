@@ -21,20 +21,20 @@ import urllib.parse
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken
 from mcp.server.auth.settings import AuthSettings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Image as MCPImage
 from mcp.types import ToolAnnotations
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from jsonschema import Draft202012Validator
 from .http import MCPRequestGuard
 from .. import locking
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .. import drafts
 from .. import runtime_records
 from ..draft_prepare import merge_answer_text_runs
 from ..agent.tools import read as read_tools
-from ..question_images import validate_original_image
+from ..question_images import read_question_image, validate_original_image
 from .keys import verify_key, key_for_id
 
 MAX_IMAGES = 6
@@ -46,6 +46,7 @@ TOOL_SCOPES = {
     "list_taxonomy": "omrs:read",
     "search_questions": "omrs:read",
     "get_question": "omrs:read",
+    "get_question_image": "omrs:read",
     "get_overview": "omrs:read",
     "get_recommendations": "omrs:read",
     "list_sessions": "omrs:read",
@@ -140,6 +141,12 @@ class RestrictedMCP(FastMCP):
             raise ToolError("forbidden: MCP Key 无权执行此能力或已失效") from None
         if next(Draft202012Validator(tool.parameters).iter_errors(arguments), None) is not None:
             raise ToolError("invalid_arguments: 参数不符合工具 schema")
+        try:
+            # JSON Schema 的 integer 接受 1.0；SDK 严格字段还须按参数模型校验，
+            # 错误只返回固定说明，不能回显原始参数或 Pydantic 堆栈。
+            tool.fn_metadata.arg_model.model_validate(arguments)
+        except ValidationError:
+            raise ToolError("invalid_arguments: 参数不符合工具 schema") from None
         try:
             return await super().call_tool(name, arguments)
         except ToolError as exc:
@@ -418,6 +425,13 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
         _bounded_text(uid, "uid", 200)
         return _read_call(vault, read_tools.get_question, {"uid": uid})
 
+    def get_question_image(uid: Annotated[str, Field(min_length=1, max_length=200, pattern=r"\S")],
+                           image_index: Annotated[int, Field(ge=0, strict=True)]) -> MCPImage:
+        _require(vault, "omrs:read")
+        raw, image_format = read_question_image(vault, uid, image_index)
+        _require(vault, "omrs:read")
+        return MCPImage(data=raw, format=image_format)
+
     def get_overview(subject: str = ""):
         _validate_read_texts(subject=subject)
         return _read_call(vault, read_tools.get_overview, {"subject": subject})
@@ -564,6 +578,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
         (list_taxonomy, "list_taxonomy", "列出 OMRS 科目、分类、知识点和标记。"),
         (search_questions, "search_questions", "按现有助手口径筛选、排序和分页查询题目。"),
         (get_question, "get_question", "读取题目正文、练习记录、熟练度和复习状态。"),
+        (get_question_image, "get_question_image", "按 get_question.images 的从 0 开始下标读取该题一张完整原图；需要看题图时按需调用。仅返回 PNG/JPEG/GIF 原生图片内容，单张不超过 8 MiB。"),
         (get_overview, "get_overview", "读取题库概况和薄弱分类。"),
         (get_recommendations, "get_recommendations", "读取 OMRS 复习推荐，不创建 Session。"),
         (list_sessions, "list_sessions", "读取最近的复习 Session。"),
@@ -573,6 +588,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None):
     ]
     for fn, name, description in read_defs:
         server.add_tool(_threaded(fn), name=name, description=description,
+                        structured_output=False if fn is get_question_image else None,
                         annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True,
                                                     openWorldHint=False))
     server.add_tool(_threaded(create_draft), name="create_draft", description="仅在用户明确要求保存时，创建来源为 MCP 的待审核草稿；不正式入库。images 是完整原图，image 块使用从 0 开始的附件下标，request_id 用于技术重试。",
