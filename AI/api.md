@@ -29,7 +29,7 @@ MCP 使用独立的 Streamable HTTP 端点（推荐 `serve --mcp-port 8472` 同�
 
 MCP `create_draft` 在图片处理与等锁后、实际写入前重新验证 `draft:create`；新建与两种幂等复用结果封装前也复查。处理中 Key 失效返回 `isError=true` 的稳定 `forbidden`，不返回草稿正文；已有合法提交及原图保留。相同 Key 恢复有效后可继续幂等复用，复用不额外要求读权限。
 
-`tools/list` 按实时 `omrs:read` / `draft:create` 返回二十个查询工具 / 创建工具 / 两者合集；创建工具的 schema、fileParams 与 annotations 保持。`tools/call` 独立检查同一显式映射及当前 Key，不使用 SDK 的共享工具定义缓存授予权限。
+`tools/list` 按六项实时权限及依赖返回允许的工具，只读 22 个、仅创建草稿 1 个、完整授权 38 个；原工具的 schema、fileParams 与 annotations 保持。完整清单与权限定义见 `AI/mcp.md`。`tools/call` 独立检查同一显式映射及当前 Key，不使用 SDK 的共享工具定义缓存授予权限。
 
 get_question_image(uid, image_index) 是 MCP 的只读工具，非空 UID 最多 200 字符，下标为从 0 开始的严格整数。成功返回单个 PNG/JPEG/GIF 原生 ImageContent（无结构化图片 JSON），原字节最多 8 MiB；按共享 get_question.images 的当前顺序读取受限题目/答案附件，读取前与返回前复查 omrs:read。参数非法返回 invalid_arguments；无题、无图、越界、缺失、歧义、损坏或超限返回 invalid_request，不泄漏服务器路径。旧 get_question 与 Web 图片接口保持。
 
@@ -191,13 +191,13 @@ get_question_image(uid, image_index) 是 MCP 的只读工具，非空 UID 最多
 
 ### `/api/runtime/records`
 
-读取独立 MCP 运行记录，沿用 Web 授权并禁止缓存。可选 `source=mcp`、`q`、`key_id`、`status=running|success|failure|interrupted`、`since`、`until`、`before_seq` 和 `limit`（默认 60，1–200）。搜索匹配中文动作、工具名、密钥名称快照和白名单参数摘要；日期规则同历史接口。筛选先于分页，`before_seq` 排他；SQL 通配符按普通搜索文字处理。
+读取独立 MCP 运行记录，沿用 Web 授权并禁止缓存。可选 `source=mcp`、`q`、`key_id`、`status`、`since`、`until`、`before_seq` 和 `limit`（默认 60，1–200）。状态接受 running/success/failure/interrupted 及 pending_confirmation/applying/applied/rejected/expired/conflict。搜索匹配中文动作、工具名、密钥名称快照和白名单参数摘要；日期规则同历史接口。筛选先于分页，`before_seq` 排他；SQL 通配符按普通搜索文字处理。
 
-响应 `{status:"ok",records,summary,keys,has_more,next_before_seq}`。`records` 按 seq 降序，含 `seq/call_id/source/tool/title/key_id/key_name/started_at/finished_at/status/duration_ms/error_code/draft_id/scope_summary/summary`；未结束时完成时间和耗时为 null。`summary` 的 `total/success/failure/running/interrupted` 覆盖筛选全集，不受游标影响；`keys` 列出记录中出现过的公开密钥编号与最后名称快照。非法条件返回 400，存储故障返回 503 固定说明；空库返回空结果且不建库。
+响应 `{status:"ok",records,summary,keys,has_more,next_before_seq}`。`records` 按 seq 降序，含 `seq/call_id/source/tool/title/key_id/key_name/started_at/finished_at/status/duration_ms/error_code/draft_id/scope_summary/summary`；未结束时完成时间和耗时为 null。`summary` 的 total 和各状态计数覆盖筛选全集，不受游标影响；原四项计数始终存在，出现确认操作时另带相应状态计数。`keys` 列出记录中出现过的公开密钥编号与最后名称快照。非法条件返回 400，存储故障返回 503 固定说明；空库返回空结果且不建库。
 
 ### `/api/runtime/records/detail?seq=<seq>`
 
-返回 `{status:"ok",detail}`，在列表摘要上增加 `arguments`、`result` 白名单摘要及 `related_commits`。关联草稿时另有 `draft:{id,status}`，草稿缺失状态为 `missing`；`related_commits` 从原 Ledger 草稿标识读取人工入库节点的 `seq/commit_id/created_at/title/uid`。这两个字段表示当前关联状态，调用本身的状态与结果保持原记录。非法编号 400，不存在 404，存储故障 503；授权与缓存规则同列表。没有写入或撤销接口，MCP Key 不能读取这些 Web API。
+返回 `{status:"ok",detail}`，在列表摘要上增加 `arguments`、`result` 白名单摘要及 `related_commits`。关联草稿时另有 `draft:{id,status}`，草稿缺失状态为 `missing`；`related_commits` 从原 Ledger 草稿标识读取人工入库节点的 `seq/commit_id/created_at/title/uid`。确认操作另带 operation，生命周期读取独立确认库；板、报告和导出关联由结果中的稳定编号在页面构造。这些字段表示当前关联状态，不补造旧调用。非法编号 400，不存在 404，存储故障 503；授权与缓存规则同列表。运行事实没有修正/撤销入口，MCP Key 不能读取这些 Web API；确认写入使用专门 Web 端点。
 
 ### `/api/ledger/verify`
 校验不可变提交链，返回 `{status, valid, commits, head_commit_id, errors}`。
@@ -1040,6 +1040,8 @@ POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 
 ## MCP 草稿修订
 
 update_draft(draft_id, expected_revision, request_id, fields?, block_patches?, cause_statement?) 同时需要 omrs:read/draft:update；返回 draft_id/revision/wrote/suggestions/reused。人工保护整次不写；重复请求返回原回执，版本/状态冲突有稳定错误码。只修订待审核草稿，不改变 Web 审核或内置助手的归属规则。
+
+请求触及任一受保护字段/块，即使内容未变也整次拒绝写入；错因修改和清空均需 cause_statement，实际修改标 client_asserted。领域稳定错误在 `omrs/errors.py`，普通 Web/CLI 启动不加载可选 MCP SDK。
 
 ## 展示板并发契约
 

@@ -22,7 +22,7 @@ from . import traincontrol
 from . import security
 from . import locking
 from . import boards as board_mod
-from .mcp.common import RequestError
+from .errors import RequestError
 from .ai_assist import recognize_question, collect_taxonomy
 from .creation import create_question
 from .exporting import _find_image, _read_image_info, export_schedule_artifact, export_board_html, board_export_filename
@@ -970,7 +970,7 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 if not board_id:
                     raise ValueError("展示板 id 不能为空")
                 changes = {key: data[key] for key in ("name", "note", "print", "items", "source_labels", "folder_id") if key in data}
-                self._board_json({"status": "ok", "board": update_board(self.vault_path, board_id, **changes, **self._board_versions(data, board=True, catalog="folder_id" in changes))})
+                self._board_json({"status": "ok", "board": update_board(self.vault_path, board_id, **changes, **self._board_versions(data, board=True, catalog="folder_id" in changes or "name" in changes))})
             except board_mod.BoardConflict as exc:
                 self._board_json({"status": "error", "error": exc.code, "msg": str(exc)}, 409)
             except Exception as exc:

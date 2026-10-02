@@ -212,6 +212,25 @@ test('并发重读只采纳最后一次：先发后到的旧列表不覆盖新�
   assert.equal(h.d.detail().name, '新');
 });
 
+test('在途详情读取不能覆盖随后编辑且保存冲突的本地留白', async () => {
+  let release, started;
+  const gate = new Promise(resolve => { release = resolve; });
+  const reading = new Promise(resolve => { started = resolve; });
+  const h = harness({ locked: false, extra: {
+    get: async () => { started(); await gate; return { board: { id: 'BD-test', items: [{ uid: 'old', gap_lines: null }] } }; },
+    post: async () => { throw Object.assign(new Error('其它客户端已写入'), { status: 409 }); },
+  } });
+  const load = h.d.load('BD-test');
+  await reading;
+  await h.d.setItemGap('old', 6);
+  assert.equal(await h.d.flush(), false);
+  release();
+  await load;
+  assert.equal(h.d.detail().items[0].gap_lines, 6);
+  assert.equal(h.d.saveQueue().conflicted(), true);
+  assert.equal(h.d.saveQueue().takePayload(), null);
+});
+
 test('关页落盘：有脏字段时用 sendBeacon 交出同一份载荷，没有脏字段时不发', () => {
   const h = harness({ locked: false });
   h.d.beforeUnload();

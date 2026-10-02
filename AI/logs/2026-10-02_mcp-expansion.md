@@ -59,3 +59,54 @@ P5 组件浏览器34/34；相对d716157视觉8对，历史4对无差异。设置
 影响exporting/mcp_exports/board_export、MCP注册、Web下载、runtime及历史关联，新增安全导出测试与SDK工作流/浏览器下载验收。实跑MCP104/104（导出7项、真实SDK全链路及22/1/38实时发现，无SKIP）、板48/48，Node411/411；扩展SDK/网页15/15含离线HTML真实浏览器排版、未登录401、MCP凭据403、PIN会话下载。首次导出专项定位SQLite插入占位符数量错误，已修复并全部复跑通过。
 
 P6组件浏览器34/34，UI0与对比度58/58。相对d716157历史/板视觉8对零差异、无脚本错误。docs82文档0问题4条现有大文件提醒；git diff --check通过。新增文件名控制字符过滤在P7全量再验证。
+
+## P7 终检修复
+
+初次全量 Python 563 项有 1 项失败：普通 CLI 顶层导入相对 mcp.common，被无可选依赖回归拦截。稳定 RequestError 移入核心 errors.py，协议模块重新导出同一类，Web/运行模块不再顶层依赖 MCP 模块；既有无 SDK/Pillow 导入回归 17/17 通过。
+
+初次展示板浏览器为29/30，本地留白被晚到详情读取覆盖。新增受控 Node 交错先在旧代码实跑失败（null 不等于6），再以本地编辑使在途读取失效修复；确认期间详情已更换时不写旧对象。E2E 等真实页面挂载与预览就绪后操作，保留全部业务断言；修复后板30/30，选板31/31。
+
+复核契约补齐：MCP 请求触及人工保护目标，即使值相同也整次不写，纯无变化请求仍返回保护建议；清空错因也要求 cause_statement，实际修改标 client_asserted。新增回归覆盖字段/块保护、混合补丁与各来源错因清空。网页改名同时检查目录版本；真实 SDK 对网页写后持旧版本和目录变化后网页持旧目录版本均验证409。
+
+SDK 工作流覆盖全部板管理工具，包含推荐、建目录/板、批量加题、完整排序、留白/置顶、版式、导出、改名、移板、复制、移出引用、申请删目录及网页删除确认。板操作前后 Ledger 与完整 mastery_data.csv 字节保持；已导出快照不因板之后变化而改变。真实服务重启后待确认不应用；缺失导出文件按 SQLite 原字节恢复，再经 PIN 网页确认与下载。
+
+文档集中更新38工具及6权限清单，修正残留v3与旧状态筛选描述。data.md 的本批MCP技术存储拆至 mcp-storage.md，索引与引用同步，使data.md低于40KB；未做业务范围外重构。影响文件为核心错误、草稿补丁、板读取/设置/目录载荷、相关SDK/Node/浏览器回归与模块文档、README、进度和本日志。
+
+## P7 已实际执行验证
+
+全部服务为临时Vault、随机高端口，命令清除 OMRS_SYSTEMD_SERVICE 与 OMRS_BOXDETECT_CONTROL。以下计数为本批最终代码实跑结果，无SDK跳过项：
+
+| 验证 | 命令 | 结果 |
+| --- | --- | --- |
+| Python 全量 | `python3 -m unittest discover -s tests -p 'test_*.py' -q` | 564/564，无SKIP |
+| MCP 专项含真实SDK | `python3 -m unittest discover -s tests -p 'test_mcp*.py' -q` | 105/105，无SKIP |
+| Node 全仓 | `node --test tests/app/*.test.mjs` | 412/412，无SKIP |
+| 组件浏览器 | `python3 tests/app/run_browser.py` | 34/34 |
+| 既有SDK/网页 | `python3 tests/e2e/mcp.py` | 39/39 |
+| 扩展SDK/网页 | `python3 tests/e2e/mcp_expansion.py` | 17/17，含实际重启、离线排版、权限/确认/PIN/下载 |
+| 板/选板浏览器 | `python3 tests/e2e/board.py`、`python3 tests/e2e/board_picker.py` | 30/30、31/31 |
+| 草稿浏览器 | `python3 tests/e2e/drafts.py`、`python3 tests/e2e/drafts_p4.py`、`python3 tests/e2e/drafts_blocks.py` | 75/75、24/24、59/59 |
+| 报告专项/浏览器 | `python3 -m pytest tests/test_report_export.py -q`、`python3 tests/e2e/reports.py` | 7/7、24/24 |
+| 系统运行/设置浏览器 | `python3 tests/e2e/runtime_history.py`、`python3 tests/e2e/settings.py` | 34/34、62/62 |
+| UI/对比度 | `python3 tests/check_ui.py`、`python3 tests/check_contrast.py` | 0问题、58/58 |
+
+视觉实际命令：`python3 tests/visual/run.py --ref d716157 --pages board,history,settings,create,reports,questions --settings-section access --create-stage drafts --out /tmp/omrs-p7-visual`。24对中20对零差异；设置桌面浅/深0.103%/0.100%，手机浅/深4.337%/4.470%。MCP能力说明新增草稿修订、报告和板管理使手机换行、后续卡片下移；四组差异均在该区，查看了深色手机前后截图，24场景均无脚本错误、横向溢出、小目标及行内样式。报告在 /tmp/omrs-p7-visual/report.html。
+
+Python仍输出既有SQLite ResourceWarning、Pillow getdata弃用提示及客户端断连的BrokenPipeError；最终结果OK，不把这些输出计为失败或已修复。首次docs检查有3项问题（缺架构文档同步和本阶段日志），已按实际改动补齐；路由/日志索引已生成。最终 `python3 tests/check_docs.py --diff HEAD` 与 `--diff d716157` 均83文档、0问题、3条既有大文件提醒；`git diff --check` 通过。已按当前与累计 `git diff --name-status` 复核变化，不纳入其它任务路径。
+
+未执行ChatGPT账户联调与Windows实机验收；本批按授权以真实SDK/Linux隔离浏览器为终点。版本仍v2.1.0，未推送或部署。功能范围无剩余待办，外部发布须单独授权。
+
+## 本地提交
+
+| 阶段 | 提交 | 内容 |
+| --- | --- | --- |
+| P0 | 625102c | 固定全量契约、执行说明与连续进度 |
+| P1 | 54123ac | 批量/完整正文/原图/历史查询 |
+| P2 | d821a45 | 同范围分析与可恢复报告保存 |
+| P3 | 8595d64 | 跨来源受保护草稿修订 |
+| P4 | 8e5404b | 展示板v4版本、回执与网页保存冲突 |
+| P5 | 3767ec2 | 管理工具、网页确认与权限编辑 |
+| P6 | b289f1e | 安全不可变快照、下载与运行关联 |
+| P7 | 本日志所在收尾提交 | 终检边界修复、完整工具清单及全部验收收尾 |
+
+所有提交版本均保持v2.1.0。P0–P7全部完成；工作区提交终点之外的推送、发布和账户验证未执行。

@@ -52,7 +52,7 @@ export function adoptBoards({ boards, folders, catalog_revision } = {}) {
 export function boardWritePayload(path, body, current = null) {
   const result = { ...body };
   if (!path.startsWith('/api/board/')) return result;
-  const catalog = path.includes('/folder/') || ['/api/board/create', '/api/board/move', '/api/board/duplicate', '/api/board/delete'].includes(path) || 'folder_id' in body;
+  const catalog = path.includes('/folder/') || ['/api/board/create', '/api/board/move', '/api/board/duplicate', '/api/board/delete'].includes(path) || 'folder_id' in body || 'name' in body;
   const board = body.id && !path.includes('/folder/');
   const target = current?.id === body.id ? current : boardFind(body.id);
   if (board && Number.isInteger(target?.revision) && result.expected_revision === undefined) result.expected_revision = target.revision;

@@ -5,7 +5,7 @@
 > - 入口：`omrs/common.py`、`omrs/indexing.py`、`omrs/runtime_records.py`
 > - 不变量：题目结构化元数据、复习状态与 Session 以 `ledger.db` 为事实源，CSV 只是兼容投影；展示板、助手、草稿、收件箱、标注集和运行记录各有独立存储
 > - 必跑测试：`tests/test_history_projection.py`、`tests/test_question_records.py`、`tests/test_content_integrity.py`
-> - 相关：`AI/ledger.md`、`AI/security.md`
+> - 相关：`AI/ledger.md`、`AI/security.md`、`AI/mcp-storage.md`
 
 > 对应源文件：`omrs/common.py`、`omrs/indexing.py`
 
@@ -349,7 +349,7 @@ Markdown `# 历史` 不作为算法输入，也不会由反馈流程追加。`/a
 复制题目正文。文件写入会滚动 `.bak.1/2/3`，再使用临时文件、`fsync` 和
 `os.replace` 原子替换。
 
-文件顶层是 `{version, folders, boards}`。`folders[]` 是单层（不嵌套）的展示板文件夹，每项为
+文件顶层是 `{version, folders, boards, catalog_revision, mcp_receipts}`，当前为 v4；每板另有单调 `revision`。旧文件读取不落盘，实际写入才迁移，版本/回执的原子性见 `AI/mcp-storage.md`。`folders[]` 是单层（不嵌套）的展示板文件夹，每项为
 `{id, name, order, created_at, updated_at}`，id 形如 `BF-20260907-a1b2c3`。板用 `folder_id`
 指向所属文件夹，空串表示未归档；`order` 是它在组内的位置。读写时都会重新编号：文件夹按 `order`
 排 0..n-1，板在组内排 0..n-1，因此顺序字段始终连续且无重复。
@@ -491,22 +491,6 @@ reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加acti
 
 `错题/.omrs/runtime.db` 独立保存 MCP 工具调用，首次调用才建库；读接口只读，学习修正与状态还原不影响调用事实。存储字段、白名单摘要、生命周期、启动中断恢复与草稿关联统一见 `AI/runtime.md`。
 
-## MCP 报告回执
+## MCP 技术存储
 
-错题/.omrs/mcp_reports.db 保存请求身份摘要、内容摘要、预留元数据和 applied 状态，0600；不进入 Ledger。报告仍保存在错题/report/，HTML 原子写入后可恢复 index.json 登记；相同请求不能生成第二份报告。
-
-## 草稿修订回执
-
-草稿库 mcp_patch_requests 保存请求/内容摘要、draft_id、编辑身份、原结果及时间；补丁和回执同事务。drafts.last_mcp_edit_json 与原 source_channel/source_key_id 独立，MCP 修订不改原来源。
-
-## 展示板 v4 元数据
-
-boards.json 增加 catalog_revision、每板 revision 和 mcp_receipts；旧文件读取只在内存规范化，首次实际写入迁移。版本与回执由领域写锁保护；回执随板变更同次 JSON 原子保存，后续 Web 写不会清除。
-
-## MCP 确认库
-
-错题/.omrs/mcp_operations.db 为独立 0600/WAL SQLite，operations 保存 operation_id、唯一幂等 identity、key_id/tool、digest、payload_json/impact_json/snapshot、status、创建/过期秒数、result_json/error_code。完整待确认参数只在此库；备份随错题目录保留，不参与 Ledger 重放。状态与跨文件恢复见 AI/runtime.md。
-
-## MCP 导出快照存储
-
-错题/.omrs/mcp_exports.db 0600/WAL：exports 保存请求摘要、稳定export_id/key_id/board_id、revision、范围、创建/过期时间、大小、SHA和安全文件名；contents保存HTML恢复副本。错题/.omrs/mcp_exports/ 为0700目录，快照文件为0600。24小时后按下一次导出/下载访问清理文件和恢复副本，保留幂等墓碑；不受Ledger还原影响。
+报告/草稿/展示板幂等回执、独立确认库与限时导出快照的字段、权限和恢复统一见 `AI/mcp-storage.md`；它们不进入学习 Ledger。

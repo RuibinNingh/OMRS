@@ -60,6 +60,7 @@ export function createBoardSettings(deps) {
       const print = boardNormalizePrint(board.print, field, value);
       if (!print) return false;
       if (!(await settings.allow({ print }))) { printRejected(); return false; }
+      if (detail() !== board) return false;
       board.print = print;
       printApplied(field, print);
       markDirty('print');
@@ -75,6 +76,7 @@ export function createBoardSettings(deps) {
       const gap = value == null ? null : clamp(value, 0, 48, 0);
       const items = board.items.map(current => (current === item ? { ...item, gap_lines: gap } : current));
       if (!(await settings.allow({ items }))) { gapRejected(uid, item); return null; }
+      if (detail() !== board) return null;
       item.gap_lines = gap;
       relayout();
       markDirty('items');

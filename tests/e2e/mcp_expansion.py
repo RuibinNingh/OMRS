@@ -1,6 +1,7 @@
 """真实 SDK 与网页闭环：扩展权限、确认链接、PIN 回跳及重复决定。"""
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -50,6 +51,13 @@ async def export_snapshot(server, key, board_id):
         result = await client.call_tool('export_board', {'board_id':board_id,'request_id':'web-snapshot'})
         assert not result.isError, str(result)
         return _json_result(result)
+
+
+async def operation_status(server, key, operation_id):
+    async with _session(server.mcp_port, key['secret']) as client:
+        result = await client.call_tool('get_mcp_operation', {'operation_id': operation_id})
+        assert not result.isError, str(result)
+        return _json_result(result)['status']
 
 
 def main():
@@ -113,6 +121,17 @@ def main():
                 preview.close()
             created2, pending2 = pool.submit(lambda: asyncio.run(prepare(server, key, 'PIN确认验收', 'pin-'))).result(timeout=30)
             http(server, '/api/auth/pin', {'pin': '2468', 'idle_minutes': 30})
+            # 重启真实同进程服务，沿用本测试 Vault/端口/Key，不重建操作或导出。
+            server.process.terminate(); server.process.wait(timeout=10); server._log.close()
+            server.start()
+            pending_status = pool.submit(lambda: asyncio.run(operation_status(server, key, pending2['operation_id']))).result(timeout=30)
+            check('真实服务重启后仍待网页确认，板保持未删除', pending_status == 'pending_confirmation'
+                  and boards.get_board(server.vault, created2['board_id']) is not None)
+            snapshot_file = Path(server.vault)/'错题/.omrs/mcp_exports'/f'{snapshot["export_id"]}.html'
+            snapshot_file.unlink()
+            recovered = urllib.request.urlopen(snapshot['download_url']).read()
+            check('重启后丢失的导出文件按SQLite原字节恢复', snapshot_file.read_bytes() == recovered
+                  and hashlib.sha256(recovered).hexdigest() == snapshot['sha256'])
             for headers, expected in (({'X-Real-IP':'192.0.2.15'},401),({'Authorization':'Bearer '+key['secret']},403)):
                 try:
                     urllib.request.urlopen(urllib.request.Request(snapshot['download_url'],headers=headers))

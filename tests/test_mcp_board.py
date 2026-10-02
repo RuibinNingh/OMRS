@@ -241,8 +241,12 @@ class BoardSDKTests(unittest.TestCase):
         asyncio.run(run())
 
     def test_full_workflow_and_exact_discovery_permissions(self):
+        import urllib.request
+        import urllib.error
+        from omrs.common import mastery_path
         uid = create_question(self.server.vault, '数学', 'SDK推荐', 5, question_text='SDK推荐题')['uid']
         learning_before = ledger.read_commits(self.server.vault)
+        mastery_before = Path(mastery_path(self.server.vault)).read_bytes()
         async def run():
             async with _session(self.server.mcp_port, self.key['secret']) as session:
                 async def call(tool, args):
@@ -276,7 +280,39 @@ class BoardSDKTests(unittest.TestCase):
                 self.assertIn(b'<!DOCTYPE html>', payload)
                 self.assertNotIn(b'id="btnDone"', payload)
                 self.assertTrue((await call('export_board', {'board_id':made['board_id'], 'expected_revision':made['revision'], 'request_id':'full-export'}))['reused'])
+                # 真正经过 Web 修改，再用 MCP 的旧版本写入，不能丢掉网页内容。
+                web_args = {'id': made['board_id'], 'expected_revision': made['revision'], 'note': '网页已修改'}
+                web_request = urllib.request.Request(f'http://127.0.0.1:{self.server.web_port}/api/board/update',
+                    data=json.dumps(web_args).encode(), headers={'Content-Type': 'application/json'})
+                web_saved = json.load(urllib.request.urlopen(web_request))['board']
+                stale = await session.call_tool('update_board', {'board_id':made['board_id'], 'expected_revision':made['revision'],
+                    'patch':{'note':'过期覆盖'}, 'request_id':'stale-web'})
+                self.assertTrue(stale.isError)
+                self.assertIn('revision_conflict', stale.content[0].text)
+                # 网页改名也必须检查目录版本；目录先变化后，旧目录版本不能写板名。
+                changed_folder = await call('update_board_folder', {'folder_id':folder['folder_id'], 'patch':{'name':'全链路目录'},
+                    'expected_catalog_revision':made['catalog_revision'], 'request_id':'folder-rename'})
+                web_rename = urllib.request.Request(f'http://127.0.0.1:{self.server.web_port}/api/board/update',
+                    data=json.dumps({'id':made['board_id'], 'name':'过期改名', 'expected_revision':web_saved['revision'],
+                                     'expected_catalog_revision':made['catalog_revision']}).encode(), headers={'Content-Type':'application/json'})
+                with self.assertRaises(urllib.error.HTTPError) as conflict:
+                    urllib.request.urlopen(web_rename)
+                self.assertEqual(conflict.exception.code, 409)
+                made = await call('update_board', {'board_id':made['board_id'], 'expected_revision':web_saved['revision'],
+                    'expected_catalog_revision':changed_folder['catalog_revision'], 'patch':{'name':'全链路完成','note':'网页与MCP版本已核对'}, 'request_id':'full-rename'})
+                made = await call('move_board', {'board_id':made['board_id'], 'folder_id':'', 'expected_revision':made['revision'],
+                    'expected_catalog_revision':made['catalog_revision'], 'request_id':'full-move'})
+                copied = await call('duplicate_board', {'board_id':made['board_id'], 'name':'全链路副本', 'expected_revision':made['revision'],
+                    'expected_catalog_revision':made['catalog_revision'], 'request_id':'full-copy'})
+                removed = await call('remove_board_items', {'board_id':copied['board_id'], 'item_refs':refs[:1],
+                    'expected_revision':copied['revision'], 'request_id':'full-remove'})
+                self.assertEqual(removed['changes']['removed_item_refs'], refs[:1])
+                pending_folder = await call('delete_board_folder', {'folder_id':folder['folder_id'],
+                    'expected_catalog_revision':removed['catalog_revision'], 'request_id':'full-delete-folder'})
+                self.assertEqual(pending_folder['status'],'pending_confirmation')
+                self.assertEqual(urllib.request.urlopen(report['download_url']).read(),payload)
                 self.assertEqual(ledger.read_commits(self.server.vault), learning_before)
+                self.assertEqual(Path(mastery_path(self.server.vault)).read_bytes(), mastery_before)
             for scopes, count in ((['omrs:read'],22), (['draft:create'],1), (['board:write'],0), (['omrs:read','draft:update'],23)):
                 key = create_key(self.server.vault, '发现', scopes)
                 async with _session(self.server.mcp_port, key['secret']) as session:

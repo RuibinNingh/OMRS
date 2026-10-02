@@ -273,13 +273,17 @@ def _patch_content(db, row, fields, block_patches, actor):
         statement = actor.get("cause_statement") or ""
         if values["cause"] and not statement:
             raise drafts.DraftError("AI 修改错因需要用户原话证据")
-    if not changed:
-        return {"wrote": False, "suggestions": [], "changes": changed}
-    protected = [target for target in changed if db.execute(
+    targets = set(changed)
+    if actor.get("source_channel") == "mcp":
+        targets.update(f"field:{key}" for key in fields)
+        targets.update(f"block:{patch['block_id']}" for patch in block_patches)
+    protected = [target for target in sorted(targets) if db.execute(
         "SELECT 1 FROM draft_manual_edits WHERE draft_id=? AND target=?", (draft_id, target)).fetchone()]
     if protected:
         return {"wrote": False, "changes": changed,
-                "suggestions": [{"target": target, **changed[target]} for target in protected]}
+                "suggestions": [{"target": target, **changed.get(target, {})} for target in protected]}
+    if not changed:
+        return {"wrote": False, "suggestions": [], "changes": changed}
     db.execute("UPDATE drafts SET subject=?,category=?,knowledge_points=?,cause=?,cause_statement=?,note=?,revision=revision+1,updated_at=? WHERE id=?",
                (values["subject"], values["category"], json.dumps(values["knowledge_points"], ensure_ascii=False),
                 values["cause"], statement, values["note"], drafts._now(), draft_id))
@@ -288,8 +292,7 @@ def _patch_content(db, row, fields, block_patches, actor):
         identity = {key: actor.get(key) for key in ("source_channel", "key_id", "request_id")}
         db.execute("UPDATE drafts SET last_mcp_edit_json=? WHERE id=?", (json.dumps(identity), draft_id))
         if "field:cause" in changed:
-            db.execute("UPDATE drafts SET cause_verification=? WHERE id=?",
-                       ("client_asserted" if values["cause"] else "none", draft_id))
+            db.execute("UPDATE drafts SET cause_verification='client_asserted' WHERE id=?", (draft_id,))
     return {"wrote": True, "suggestions": [], "changes": changed}
 
 
@@ -336,7 +339,7 @@ def patch_mcp_draft(vault, draft_id, revision, fields, block_patches, key_id, re
     if len(cause_statement) > 20000 or any(len(v) > 20000 for p in block_patches if isinstance(p, dict)
                                           for v in p.values() if isinstance(v, str)):
         raise drafts.DraftError("草稿补丁超过大小限制")
-    if "cause" in fields and fields['cause'] and not cause_statement.strip():
+    if "cause" in fields and not cause_statement.strip():
         raise drafts.DraftError("MCP 修改错因必须提供 cause_statement")
     identity, digest = request_identity(key_id, 'update_draft', request_id,
         {'draft_id': draft_id, 'expected_revision': revision, 'fields': fields, 'block_patches': block_patches,

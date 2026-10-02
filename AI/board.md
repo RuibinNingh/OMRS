@@ -33,16 +33,19 @@
 
 ## 2. 数据文件 `boards.json`
 
-路径：`错题/.omrs/boards.json`，当前 `version: 3`。写入先把已有文件滚动为 `.bak.1/2/3`，再通过临时文件、
+路径：`错题/.omrs/boards.json`，当前 `version: 4`。写入先把已有文件滚动为 `.bak.1/2/3`，再通过临时文件、
 `fsync` 和 `os.replace` 原子替换（`save_boards`）。字段全表见 `AI/data.md` §14，这里只记与纸面相关的要点。
 
 ```json
 {
-  "version": 3,
+  "version": 4,
+  "catalog_revision": 1,
+  "mcp_receipts": {},
   "folders": [{"id": "BF-20260907-a1b2c3", "name": "高三上·期中", "order": 0,
                "created_at": "2026-09-07T10:00:00+00:00", "updated_at": "2026-09-07T10:00:00+00:00"}],
   "boards": [{
     "id": "BD-20260904-a1b2c3",
+    "revision": 1,
     "name": "考前速览·三角函数",
     "note": "月考前使用",
     "folder_id": "BF-20260907-a1b2c3",
@@ -346,7 +349,7 @@ POST /api/board/update
 
 boards.json 为 v4，读取兼容旧文件且不写迁移；首次实际写入保存 v4。每板 revision 初始 1，真实内容改变才递增；目录 catalog_revision 初始 0，在文件夹、板名、板创建/删除/位置变化时递增。读取/规范化保留 mcp_receipts；共享写锁包住版本检查和读改写。领域 transaction 支持纯暂存预览和变更/回执同次原子替换，预览不写纸面历史。
 
-Web 已有板写必填 expected_revision；文件夹、创建、复制、删除、移动及归属变化必填 expected_catalog_revision，409 revision_conflict 不覆盖服务器。可信内部调用可省略版本；HTTP/MCP 入口不能省略。
+Web 已有板写必填 expected_revision；文件夹、创建、复制、删除、移动、改名及归属变化必填 expected_catalog_revision，409 revision_conflict 不覆盖服务器。可信内部调用可省略版本；HTTP/MCP 入口不能省略。
 
 ## MCP 局部管理
 

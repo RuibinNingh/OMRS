@@ -305,7 +305,7 @@ def conflict_path(page, base, port, results):
     uid = http(port, '/api/stats')['items'][0]['uid']
     created = http(port, '/api/board/create', {'name': '并发冲突验收', 'uids': [uid]})['board']
     page.goto(base + '/#/board')
-    page.wait_for_function('() => window.__p8TestReady')
+    page.wait_for_function('() => window.__p8TestReady && !!document.querySelector("#bd-stage > iframe") && boardPreviewIsReady()')
     page.evaluate('(id) => boardLoad(id)', created['id'])
     page.evaluate("async () => configureBoardDetail({ confirm: (await import('/assets/app/ui/dialog.js')).confirm })")
     http(port, '/api/board/update', {'id': created['id'], 'note': '其它客户端已保存'})

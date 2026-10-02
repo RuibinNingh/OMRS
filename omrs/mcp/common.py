@@ -2,12 +2,7 @@
 import datetime
 import hashlib
 import json
-
-
-class RequestError(ValueError):
-    def __init__(self, code, message):
-        super().__init__(message)
-        self.code = code
+from ..errors import RequestError
 
 
 def fingerprint(payload):

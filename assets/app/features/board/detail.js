@@ -86,7 +86,8 @@ export function createBoardDetail(initialDeps = {}) {
     return save;
   }
   const flush = (options = {}) => saveQueue().flush(options);
-  const markDirty = kind => { saveQueue().mark(kind); changed(); };
+  // 编辑开始后，先前发出的详情读取失效，不能用旧快照抹掉本地改动。
+  const markDirty = kind => { ++st.seq; saveQueue().mark(kind); changed(); };
 
   function boardSettings() {
     if (!settings) settings = createBoardSettings({

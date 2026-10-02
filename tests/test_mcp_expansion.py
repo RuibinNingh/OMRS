@@ -246,9 +246,13 @@ class DraftPatchTests(unittest.TestCase):
                 self.assertEqual(saved['conversation_id'], 'other-conversation')
                 self.assertEqual(saved['cause_verification'], 'client_asserted')
                 self.assertEqual(saved['last_mcp_edit']['key_id'], 'mcp-key')
+                self.apply(saved, {'cause': ''}, request_id=f'{source}-clear', cause_statement='撤回这条错因')
+                cleared = drafts.get_draft(self.vault, d['id'], readonly=True)
+                self.assertEqual((cleared['cause'], cleared['cause_statement'], cleared['cause_verification']),
+                                 ('', '撤回这条错因', 'client_asserted'))
                 from omrs.draft_write import patch_draft
                 with self.assertRaises(drafts.DraftError):
-                    patch_draft(self.vault, d['id'], saved['revision'], {'note': '不能越权'}, [],
+                    patch_draft(self.vault, d['id'], cleared['revision'], {'note': '不能越权'}, [],
                                 {'conversation_id': 'mine', 'run_id': 'r', 'tool_call_id': 'c'})
 
     def test_manual_protection_prevents_entire_patch_and_retry_reuses_receipt(self):
@@ -264,12 +268,28 @@ class DraftPatchTests(unittest.TestCase):
         with self.assertRaises(RequestError):
             self.apply(manual, {'note': '不同'})
 
+    def test_protected_targets_block_even_same_value_or_no_effect(self):
+        d = self.make()
+        manual = drafts.update_draft(self.vault, d['id'], d['revision'], {'note': '用户备注'},
+            [{**d['blocks'][0], 'text': '人工正文'}])
+        cases = [({'note': '用户备注', 'category': '新分类'}, []),
+                 ({'note': '用户备注'}, []),
+                 ({'category': '新分类'}, [{'block_id': manual['blocks'][0]['id'], 'text': '人工正文'}])]
+        for index, (fields, patches) in enumerate(cases):
+            result = self.apply(manual, fields, patches, request_id=f'protected-{index}')
+            self.assertFalse(result['wrote'])
+            self.assertTrue(result['suggestions'])
+            saved = drafts.get_draft(self.vault, d['id'], readonly=True)
+            self.assertEqual((saved['category'], saved['revision']), ('函数', manual['revision']))
+
     def test_cas_finished_invalid_block_and_receipt_atomicity(self):
         d = self.make()
         with self.assertRaises(drafts.DraftError):
             self.apply(d, {'difficulty': 3})
         with self.assertRaises(drafts.DraftError):
             self.apply(d, {'cause': '猜测'})
+        with self.assertRaises(drafts.DraftError):
+            self.apply(d, {'cause': ''})
         with self.assertRaises(drafts.DraftError):
             self.apply(d, patches=[{'block_id': d['blocks'][0]['id'], 'box': {}}])
         calls = []

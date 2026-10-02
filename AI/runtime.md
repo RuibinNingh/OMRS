@@ -1,7 +1,7 @@
 # 系统运行记录
 
 > **速查**
-> - 职责：独立 MCP 工具调用的生命周期、脱敏摘要与草稿入库关联
+> - 职责：独立 MCP 工具调用的生命周期、脱敏摘要与草稿/板/报告/导出关联
 > - 入口：`omrs/runtime_records.py`、`omrs/mcp/server.py`、`omrs/cli.py`
 > - 不变量：只记录工具调用；运行记录不进入学习 Ledger；写入故障不改变工具结果；只保存白名单摘要
 > - 必跑测试：`tests/test_runtime_records.py`、`tests/app/runtime-history.test.mjs`、`tests/e2e/runtime_history.py`
@@ -28,6 +28,8 @@ get_question_image 的名称登记为“读取题图”，成功的 ImageContent
 分析与报告工具登记中文标题；报告 HTML 不保存到 runtime 摘要，幂等冲突使用 request_conflict。
 
 草稿修订登记中文运行标题与版本、状态、操作恢复等稳定错误码；原结果正文和建议细节不保存到运行摘要。
+
+草稿修订返回 wrote=false 时显示“草稿未修改”，避免将人工保护建议误记为完成；稳定错误由 `omrs/errors.py` 共享，运行模块的普通导入不依赖可选 MCP SDK。
 
 ## 网页确认操作
 

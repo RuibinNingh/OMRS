@@ -12,7 +12,7 @@ import uuid
 from contextlib import closing
 
 from .common import omrs_data_dir
-from .mcp.common import RequestError
+from .errors import RequestError
 
 _LOCK = threading.RLock()
 TITLES = {

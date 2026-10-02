@@ -410,7 +410,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
     server = RestrictedMCP(
         "OMRS",
         vault=vault,
-        instructions="按授权查询 OMRS；录题进入待审核草稿，报告只新建，不修改正式题目或学习状态。",
+        instructions="按授权查询 OMRS、修订待审核草稿、保存报告与管理展示板。写操作携带请求编号和读取版本；删除、清空及纸面重置在 OMRS 网页确认。导出返回限时下载链接。录题仍须人工审核，正式题目和学习状态不由 MCP 修改。",
         token_verifier=MCPTokenVerifier(vault),
         auth=AuthSettings(issuer_url="https://omrs.invalid", resource_server_url=resource_url),
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=True,
