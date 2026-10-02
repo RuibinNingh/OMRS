@@ -4,6 +4,7 @@
 
 - [2026-10-02_mcp-question-image-read](2026-10-02_mcp-question-image-read.md)：MCP 题图按需读取
 - [2026-10-02_mcp-question-image-production](2026-10-02_mcp-question-image-production.md)：MCP 题图与运行记录推送及生产发布
+- [2026-10-02_mcp-expansion](2026-10-02_mcp-expansion.md)：MCP 全量扩展
 - [2026-10-02_mcp-chatgpt-image-diagnosis](2026-10-02_mcp-chatgpt-image-diagnosis.md)：ChatGPT 题图调用诊断与环境事实订正
 - [2026-10-02_history-redesign](2026-10-02_history-redesign.md)：历史页重设计与 MCP 运行记录
 - [2026-10-01_v2.1.0-release](2026-10-01_v2.1.0-release.md)：v2.1.0 阶段总结与 GitHub 同步
