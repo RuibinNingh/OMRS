@@ -124,6 +124,8 @@
 | GET | `/api/report/view` | `AI/api.md`、`AI/data.md`、`AI/frontend/records.md` |
 | GET | `/api/reports` | `AI/api.md`、`AI/frontend/records.md` |
 | POST | `/api/restart` | `AI/api.md`、`AI/environment.md`、`AI/frontend/settings.md` |
+| GET | `/api/runtime/records` | `AI/api.md`、`AI/frontend/records.md` |
+| GET | `/api/runtime/records/detail` | `AI/api.md`、`AI/frontend/records.md` |
 | GET/POST | `/api/scan` | `AI/api.md`、`AI/security.md` |
 | POST | `/api/schedule` | `AI/api.md` |
 | GET | `/api/session` | `AI/api.md`、`AI/changelog.md`、`AI/frontend/review.md` |

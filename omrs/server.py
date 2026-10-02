@@ -240,8 +240,10 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 limit = int(params.get("limit", 100))
                 limit = max(1, min(500, limit))
                 summary_only = params.get("view") == "summary"
+                from .runtime_records import filters
+                options = filters(params)
                 commits = ledger_history(self.vault_path, before, limit + 1 if summary_only else limit,
-                                         summary_only=summary_only)
+                                         summary_only=summary_only, **{key: options[key] for key in ("q", "since", "until")})
                 has_more = summary_only and len(commits) > limit
                 if has_more:
                     commits = commits[1:]
@@ -261,9 +263,20 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
                 if detail is None:
                     self._json({"status": "error", "msg": "历史节点不存在"}, 404)
                 else:
+                    from .runtime_records import calls_for_draft
+                    try:
+                        detail["runtime_calls"] = calls_for_draft(self.vault_path,
+                            detail.get("payload", {}).get("_draft", {}).get("draft_id"))
+                    except (OSError, sqlite3.Error, ValueError):
+                        detail["runtime_calls"] = []
+                        detail["runtime_calls_error"] = "来源调用暂时无法读取，请稍后刷新。"
                     self._json({"status": "ok", "detail": detail})
             except (ValueError, TypeError) as exc:
                 self._json({"status": "error", "msg": str(exc)}, 400)
+        elif path == "/api/runtime/records":
+            self._runtime_records_get(params)
+        elif path == "/api/runtime/records/detail":
+            self._runtime_records_get(params, detail=True)
         elif path == "/api/question/content/history":
             try:
                 self._json({"status": "ok", **content_versions(
@@ -1324,6 +1337,24 @@ class OMRSHandler(http.server.SimpleHTTPRequestHandler):
         except (ValueError, TypeError) as exc:
             self._json({"status": "error", "msg": str(exc), "code": "invalid"}, 400)
 
+    # ────────────────────────── 系统运行记录 ──────────────────────────
+    def _runtime_records_get(self, params, detail=False):
+        from . import runtime_records
+        try:
+            if detail:
+                seq = int(params.get("seq", "0"))
+                if seq <= 0:
+                    raise ValueError("记录编号不正确")
+                row = runtime_records.detail(self.vault_path, seq)
+                self._json({"status": "ok", "detail": row} if row else
+                           {"status": "error", "msg": "运行记录不存在"}, 200 if row else 404)
+            else:
+                self._json({"status": "ok", **runtime_records.list_records(self.vault_path, params)})
+        except (ValueError, TypeError) as exc:
+            self._json({"status": "error", "msg": str(exc)}, 400)
+        except (OSError, sqlite3.Error):
+            self._json({"status": "error", "msg": "运行记录暂时无法读取，请检查存储后重试。"}, 503)
+
     # ────────────────────────── MCP Key 管理 ──────────────────────────
     def _mcp_get(self, path, params):
         try:
@@ -1890,7 +1921,7 @@ fetch("/api/auth/session",{cache:"no-store"}).then(r=>r.json()).then(show).catch
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        if urllib.parse.urlparse(self.path).path.startswith("/api/mcp/"):
+        if urllib.parse.urlparse(self.path).path.startswith(("/api/mcp/", "/api/runtime/")):
             self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)

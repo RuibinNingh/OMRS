@@ -4,7 +4,7 @@
 > - 职责：向获授权外部 AI 提供 OMRS 只读查询和待审核草稿创建
 > - 入口：`omrs/mcp/server.py`、`http.py`、`keys.py`；`serve --mcp-port`
 > - 不变量：九读一写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
-> - 必跑测试：`python3 -m unittest tests.test_mcp tests.test_mcp_keys tests.test_mcp_http tests.test_mcp_protocol tests.test_mcp_draft_atomic -q`、`python3 tests/e2e/mcp.py`
+> - 必跑测试：`python3 -m unittest tests.test_mcp tests.test_mcp_keys tests.test_mcp_http tests.test_mcp_protocol tests.test_mcp_draft_atomic tests.test_runtime_records -q`、`python3 tests/e2e/mcp.py`、`python3 tests/e2e/runtime_history.py`
 > - 相关：`AI/api.md`、`AI/drafts.md`、`AI/security.md`、`AI/agent.md`、`requirements-mcp.txt`
 
 ## 1. 安装与启动
@@ -63,6 +63,14 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 已使用官方 `mcp==1.28.1` ClientSession，对真实临时 Vault 的同进程服务完成 initialize、tools/list、tools/call、连续 Bearer 鉴权、查询、原图草稿、并发重试、吊销和越权拒绝，并用真实浏览器验证草稿区和 Key 管理。可运行速查头中的测试重现，无 SDK 时协议测试明确 SKIP。
 
 ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentication、Mixed Authentication。文档中的 static credentials 是 OAuth 客户端凭据，不证明直接 URL 连接支持任意 API Key 请求头。可使用 Secure MCP Tunnel 私有连接，由客户侧 Tunnel 客户端从受限文件注入 Authorization，仍由本 MCP 验证 scope；无需把公网入口改成无鉴权。直接 URL 模式若不能发送 Key，则需另行提供保持相同 scope 的 OAuth 兼容入口。当前 ChatGPT 账户尚未联调，不能把外部 SDK 或 Tunnel 健康检查当成账户已接通。
+
+## 7. 工具调用记录
+
+`RestrictedMCP.call_tool` 在工具执行边界通过工作线程写入 `omrs/runtime_records.py`：开始时记 `running`，正常结束记 `success`，稳定工具错误记 `failure`，取消记 `interrupted`。耗时采用单调时钟，错误仅保留固定错误码与安全说明。记录含当次密钥编号和公开名称快照，不额外改变既有权限复查次数。只记录到达工具执行边界的调用；握手、工具发现、健康检查及 HTTP 层未认证 / 限流请求不生成调用记录。
+
+成功创建、幂等复用和读取草稿的结果可保存 `draft_id`；详情读取当前草稿状态及 Ledger 中 `_draft.draft_id` 对应的人工入库节点。没有旧记录时不推测或补造来源。独立运行库不进入学习 Ledger，也不参与学习修正或状态还原；格式与启动恢复见 `AI/runtime.md`，页面见 `AI/frontend/records.md`。
+
+记录存储故障不会改变已授权工具的结果或撤回已有合法提交，只输出固定无敏感内容的诊断。记录结束写入失败可能留下 `running`，下次 `serve` 启动会恢复为中断；中断不证明草稿未写入，重试前仍需核对草稿或使用原幂等请求。读取接口独立报告故障，学习详情的来源关联读取失败则保留学习信息并给出说明。
 
 生产当前运行 `/root/workspace/apps/releases/omrs-477c5b2`，同进程 MCP 仅监听回环端口并经 HTTPS 反代，包含权限修复与密钥管理界面。官方 SDK 发现 9 个只读工具，`get_overview(subject="生物")` 返回 19 题、逾期 3、今日到期 16；普通 Web API 对 MCP Key 返回 403，吊销后的 Key 返回 401。生产未创建验收草稿，临时只读验收密钥已吊销；公网 PIN 入口可见且无页面脚本错误。主应用浏览器因缺少 PIN 会话未进入，完整页面闭环仍以发布目录的隔离实例结果为准。部署与数据核验见 `AI/plans/mcp-integration/progress.md`。
 

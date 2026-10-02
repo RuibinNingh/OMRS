@@ -75,22 +75,23 @@ def run_main(page, base, port, results):
     page.select_option("#history-sort", "desc")
     check("排序切换为新到旧，偏好写入本地存储", wait(page, "seq => document.querySelector('.hvw-node')?.dataset.seq === String(seq)", latest)
           and page.evaluate("localStorage.getItem('omrs-history-sort')") == "desc")
+    page.click(f'.hvw-node[data-seq="{seq}"] .hvw-row')
     page.click('[data-action="history.mode"]')
-    check("修正模式默认关闭，开启后才出现操作面板", page.locator(f'.hvw-node[data-seq="{seq}"] .hvw-ops').count() == 1
+    check("修正模式默认关闭，开启后才出现操作面板", page.locator('#history-learning-panel .hvw-detail-panel .hvw-ops').count() == 1
           and page.evaluate("localStorage.getItem('omrs-history-edit-mode')") == "1")
 
-    page.click(f'.hvw-node[data-seq="{seq}"] .hvw-ops summary')
+    page.click('#history-learning-panel .hvw-detail-panel .hvw-ops summary')
     page.route("**/api/history/review/retract", lambda route: route.fulfill(
         status=500, content_type="application/json", body='{"msg":"模拟写入失败"}'))
-    page.click(f'.hvw-node[data-seq="{seq}"] [data-action="history.review"][data-arg="{seq}:retract"]')
+    page.click(f'#history-learning-panel .hvw-detail-panel [data-action="history.review"][data-arg="{seq}:retract"]')
     page.click('dialog[open] [data-dialog-ok]')
     check("写入失败：列表保留，错误原因显示在操作位置且按钮恢复", wait(page, "() => document.querySelector('#hist-app .ui-status--danger')?.textContent.includes('模拟写入失败')")
           and page.locator(f'.hvw-node[data-seq="{seq}"]').count() == 1
-          and not page.locator(f'.hvw-node[data-seq="{seq}"] [data-action="history.review"][aria-busy]').count())
-    check("请求失败后操作面板仍展开", page.locator(f'.hvw-node[data-seq="{seq}"] .hvw-ops').evaluate("el => el.open"))
+          and not page.locator(f'#history-learning-panel .hvw-detail-panel [data-action="history.review"][aria-busy]').count())
+    check("请求失败后操作面板仍展开", page.locator('#history-learning-panel .hvw-detail-panel .hvw-ops').evaluate("el => el.open"))
     page.unroute("**/api/history/review/retract")
 
-    page.click(f'.hvw-node[data-seq="{seq}"] [data-action="history.review"][data-arg="{seq}:retract"]')
+    page.click(f'#history-learning-panel .hvw-detail-panel [data-action="history.review"][data-arg="{seq}:retract"]')
     page.click('dialog[open] [data-dialog-ok]')
     key = f"{commit_id}:0"
     check("撤销反馈追加 Ledger 节点并更新主时间线", wait(page, "() => document.querySelector('#hist-app .ui-status--success')?.textContent.includes('已追加历史节点')")
@@ -104,9 +105,11 @@ def run_main(page, base, port, results):
     check("仪表盘最近动态读取撤销后的批次统计", wait(page, "a => document.querySelector(`.dsh-recent__row[data-key='${a.id}'] .ui-tag`)?.textContent === a.chip",
                                                    {"id": commit_id, "chip": chip}), chip)
     page.evaluate("location.hash = '#/history'")
+    page.click(f'.hvw-node[data-seq="{seq}"] .hvw-row')
+    wait(page, "() => document.querySelector('#history-learning-panel .hvw-ops')")
     check("切页回来仍保留排序与修正模式", wait(page, "() => document.querySelector('#hist-app .hvw-node')")
           and page.locator("#history-sort").input_value() == "desc"
-          and page.locator(f'.hvw-node[data-seq="{seq}"] .hvw-ops').count() == 1)
+          and page.locator('#history-learning-panel .hvw-detail-panel .hvw-ops').count() == 1)
 
     page.click('[data-action="history.corrections"]')
     correction = next(row for row in reversed(http(port, "/api/history?limit=240")["commits"])
@@ -133,7 +136,8 @@ def run_main(page, base, port, results):
                    if row["commit_type"] == "session.create")
     page.click('[data-action="history.refresh"]')
     check("外部新建 Session 后刷新可见节点", wait(page, "seq => !!document.querySelector(`.hvw-node[data-seq='${seq}']`)", created["seq"]))
-    page.click(f'.hvw-node[data-seq="{created["seq"]}"] .hvw-ops summary')
+    page.click(f'.hvw-node[data-seq="{created["seq"]}"] .hvw-row')
+    page.click('#history-learning-panel .hvw-detail-panel .hvw-ops summary')
     page.click(f'[data-action="history.session"][data-arg="{created["seq"]}:retract"]')
     page.fill('dialog[open] input', '端到端撤销 Session')
     page.click('dialog[open] [data-dialog-ok]')
@@ -150,7 +154,8 @@ def run_main(page, base, port, results):
     check("Session 恢复后主节点重新出现", wait(page, "seq => !!document.querySelector(`.hvw-node[data-seq='${seq}']`)", created["seq"])
           and sid not in http(port, "/api/history?limit=240")["retraction_state"]["retracted_sessions"])
 
-    page.click(f'.hvw-node[data-seq="{created["seq"]}"] .hvw-ops summary')
+    page.click(f'.hvw-node[data-seq="{created["seq"]}"] .hvw-row')
+    page.click('#history-learning-panel .hvw-detail-panel .hvw-ops summary')
     page.click(f'[data-action="history.restoreState"][data-arg="{created["seq"]}"]')
     page.click('dialog[open] [data-dialog-ok]')
     check("结构化状态还原追加 Ledger 节点", wait(page, "() => document.querySelector('#hist-app .ui-status--success')?.textContent.includes('已追加历史节点')")
@@ -161,8 +166,9 @@ def run_main(page, base, port, results):
     page.evaluate("localStorage.setItem('omrs-ledger-time-zone', 'Asia/Shanghai'); __omrs.emit('ledger:tz')")
     shanghai = page.locator(f'.hvw-node[data-seq="{seq}"] .hvw-time').inner_text()
     check("Ledger 时区设置变化后时间重新投影", utc != shanghai, [utc, shanghai])
-    page.click(f'.hvw-node[data-seq="{seq}"] .hvw-details summary')
-    check("详情按需读取并保持展开", wait(page, "seq => { const detail = document.querySelector(`.hvw-node[data-seq='${seq}'] .hvw-details`); return detail?.open && detail.querySelector('pre')?.textContent.includes('feedbacks'); }", seq))
+    page.click(f'.hvw-node[data-seq="{seq}"] .hvw-row')
+    page.click('#history-learning-panel .hvw-detail-panel .hvw-details summary')
+    check("详情按需读取并保持展开", wait(page, "seq => { const detail = document.querySelector('#history-learning-panel .hvw-detail-panel .hvw-details'); return detail?.open && detail.querySelector('pre')?.textContent.includes('feedbacks'); }", seq))
 
 
 def run_empty_error(browser, base, results):
@@ -173,9 +179,9 @@ def run_empty_error(browser, base, results):
     page.route("**/api/history?view=summary&limit=60", lambda route: route.fulfill(
         status=503, content_type="application/json", body='{"msg":"测试离线"}'))
     page.goto(f"{base}/#/history", wait_until="networkidle")
-    shown = wait(page, "() => document.querySelector('#hist-app .ui-empty')?.textContent.includes('测试离线')")
+    shown = wait(page, "() => document.querySelector('#history-learning-panel .ui-empty')?.textContent.includes('测试离线')")
     page.unroute("**/api/history?view=summary&limit=60")
-    page.click('#hist-app .ui-empty [data-action="history.refresh"]')
+    page.click('#history-learning-panel .ui-empty [data-action="history.refresh"]')
     results.append(("首次加载失败：空态说明原因并提供重试", shown and wait(page, "() => document.querySelector('#hist-app .hvw-node')"), ""))
     results.append(("错误态无页面脚本错误", not errors, "; ".join(errors[:3])))
     ctx.close()
@@ -209,6 +215,8 @@ def run_pagination(browser, base, port, vault, results):
     failed = wait(page, "() => document.querySelector('#hist-app .ui-status--danger')?.textContent.includes('分页暂不可用')")
     results.append(("分页读取失败保留已加载节点", failed and page.locator(".hvw-node").count() == initial, ""))
     page.unroute("**/api/history?view=summary&limit=60&before_seq=*")
+    page.select_option("#history-sort", "asc")
+    page.locator('[data-action="history.more"]').scroll_into_view_if_needed()
     anchor = page.evaluate("""() => {
       const box = document.querySelector('#history-timeline');
       box.scrollTop = 100;
@@ -227,8 +235,9 @@ def run_pagination(browser, base, port, vault, results):
         page.click('[data-action="history.more"]')
         page.wait_for_load_state("networkidle")
     node = page.locator(f'.hvw-node[data-seq="{review["seq"]}"]')
+    node.locator(".hvw-row").click()
     results.append(("跨页反馈保留完整链撤销状态", node.count() == 1 and
-                    node.locator('.hvw-mark[data-result="off"]').count() == 1 and
+                    page.locator('#history-learning-panel .hvw-detail-panel .hvw-mark[data-result="off"]').count() == 1 and
                     page.locator(".hvw-node").count() > 240, ""))
     results.append(("摘要卡默认不外露技术提交 ID", node.count() == 1 and
                     review["commit_id"] not in node.inner_text(), ""))

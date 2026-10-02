@@ -24,12 +24,28 @@ export async function fetchHistory(limit = 240) {
 }
 export const fetchRecent = (limit = 40) => fetchHistory(limit);
 
-export async function fetchHistoryPage(beforeSeq = null, limit = 60) {
+export async function fetchHistoryPage(beforeSeq = null, limit = 60, filters = {}) {
   const cursor = beforeSeq == null ? '' : `&before_seq=${encodeURIComponent(beforeSeq)}`;
-  const res = await get(`/api/history?view=summary&limit=${limit}${cursor}`);
+  const res = await get(`/api/history?view=summary&limit=${limit}${cursor}${filterQuery(filters)}`);
   if (!res.ok) return { ok: false, error: res.error?.message || '未知错误' };
   return { ok: true, commits: res.data?.commits || [], retraction: res.data?.retraction_state || null,
     hasMore: !!res.data?.has_more, nextBeforeSeq: res.data?.next_before_seq || null };
+}
+
+function filterQuery(filters) {
+  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== '' && value != null));
+  return query.size ? `&${query}` : '';
+}
+
+export async function fetchRuntimePage(beforeSeq = null, filters = {}) {
+  const cursor = beforeSeq == null ? '' : `&before_seq=${encodeURIComponent(beforeSeq)}`;
+  const res = await get(`/api/runtime/records?source=mcp&limit=60${cursor}${filterQuery(filters)}`);
+  return res.ok ? { ok: true, ...res.data } : { ok: false, error: res.error?.message || '未知错误' };
+}
+
+export async function fetchRuntimeDetail(seq) {
+  const res = await get(`/api/runtime/records/detail?seq=${encodeURIComponent(seq)}`);
+  return res.ok ? { ok: true, detail: res.data?.detail } : { ok: false, error: res.error?.message || '未知错误' };
 }
 
 export async function fetchHistoryDetail(seq) {

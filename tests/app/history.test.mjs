@@ -5,7 +5,9 @@ import {
   historyReviewBatchStats, historyNodeTitle, historyNodeSubtitle, historyCommitFamily,
   formatLedgerTime, projectRecent,
 } from '../../assets/app/domain/history.js';
-import { readPreferences, reviewVisual, restoreTarget, historyPayloadPreview, reviewPayload } from '../../assets/app/features/history/state.js';
+import { readPreferences, reviewVisual, restoreTarget, historyPayloadPreview, reviewPayload,
+  timeGroups, dateRange, durationText, state } from '../../assets/app/features/history/state.js';
+import { view } from '../../assets/app/features/history/view.js';
 
 const session = { seq: 2, commit_id: 's2', commit_type: 'session.create', payload: { session_id: 'EXP-1' }, created_at: '2026-09-25T12:00:00+08:00' };
 const review = { seq: 3, commit_id: 'r3', commit_type: 'review.batch_submit', payload: {
@@ -65,4 +67,39 @@ test('修正请求钳制分数，旧迁移载荷预览摘要截断', () => {
   const legacy = historyPayloadPreview({ commit_type: 'legacy.bootstrap', payload: { questions: Array(30).fill({}) } });
   assert.match(legacy, /"questions": 30/);
   assert.doesNotMatch(legacy, /\{\}/);
+});
+
+test('日期筛选按所选时区的日界线，覆盖跨年与夏令时长短日', () => {
+  assert.deepEqual(dateRange('all', 'UTC'), {});
+  assert.deepEqual(dateRange('7d', 'Asia/Shanghai', Date.parse('2026-01-01T22:00:00Z')), {
+    since: '2025-12-26T16:00:00.000Z', until: '2026-01-02T16:00:00.000Z',
+  });
+  assert.deepEqual(dateRange('today', 'America/New_York', Date.parse('2026-03-08T16:00:00Z')), {
+    since: '2026-03-08T05:00:00.000Z', until: '2026-03-09T04:00:00.000Z',
+  });
+  assert.deepEqual(dateRange('today', 'America/New_York', Date.parse('2026-11-01T16:00:00Z')), {
+    since: '2026-11-01T04:00:00.000Z', until: '2026-11-02T05:00:00.000Z',
+  });
+});
+
+test('时间线按显示时区分日，空时间有明确分组，耗时区分未完成与未知', () => {
+  const rows = [{ started_at: '2026-10-02T01:00:00Z' }, { created_at: '2026-10-01T18:00:00Z' }, {}];
+  assert.deepEqual(timeGroups(rows, 'Asia/Shanghai').map(g => [g.date, g.rows.length]), [['2026-10-02', 2], ['初始化', 1]]);
+  assert.deepEqual(timeGroups(rows, 'UTC').map(g => g.date), ['2026-10-02', '2026-10-01', '初始化']);
+  assert.equal(durationText({ status: 'running' }), '执行中');
+  assert.equal(durationText({ status: 'interrupted' }), '—');
+  assert.equal(durationText({ duration_ms: 1234 }), '1.23 s');
+  assert.deepEqual(readPreferences({ getItem: () => null }), { sort: 'desc', edit: false });
+});
+
+test('选中态和手机详情开关能写入布尔属性，调用摘要不会注入 HTML', () => {
+  const s = { ...state, commits: [session], selectedSeq: session.seq, tab: 'learning', mobileDetail: true };
+  const learning = view(s, 'UTC').text;
+  assert.match(learning, /aria-pressed="true"/);
+  assert.match(learning, /data-mobile-detail="true"/);
+  const system = view({ ...s, tab: 'system', system: { ...state.system,
+    records: [{ seq: 1, title: '<script>隐私</script>', status: 'failure', tool: 'get_overview', key_name: '仅查询' }],
+    selectedSeq: 1 } }, 'UTC').text;
+  assert.doesNotMatch(system, /<script>/);
+  assert.match(system, /&lt;script&gt;/);
 });

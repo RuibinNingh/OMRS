@@ -212,3 +212,5 @@ Markdown 正文另按 §10 入账：
 ## 草稿创建的追溯与恢复
 
 草稿通过调用创建题目入口时，question.create 的 payload 顶层加入 `_draft:{draft_id,conversation_id}` 后再追加与计算哈希；人工入口为 api，agent_actor 内转换为 agent 并保留 `_agent`。建草稿、编辑和丢弃不追加 Ledger。创建提交是入库恢复的事实依据：草稿状态写回或投影重建失败后，重试先找到原提交，不重复建题，且不删除已被 Ledger 引用的文件。
+
+历史摘要将 `_draft.draft_id` 投影为 `payload.source_draft_id`；单条详情附创建时间、消息、学习摘要和最近来源调用，供列表范围之外的节点独立显示。运行记录详情以同一标识关联 `question.create`，不新增或改写学习 commit。MCP 工具调用的独立 `runtime.db` 不参与修正或状态还原；来源关联读取失败不影响原学习详情。历史的搜索与日期筛选先于游标分页，撤销状态仍基于完整链，见 `AI/api.md`。

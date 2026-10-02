@@ -189,6 +189,8 @@ def main():
             print(f"受管检测模型恢复未完成，需人工处理：{exc}")
         from .agent.runtime import get_runtime
         get_runtime(vault)  # 把上次遗留的 running 运行标为 interrupted
+        from . import runtime_records
+        runtime_records.safely(runtime_records.recover_interrupted, vault)
         start_workspace_scanner(vault)
         OMRSHandler._restart_cmd = [
             sys.executable,

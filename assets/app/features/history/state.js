@@ -1,21 +1,57 @@
 /** 历史页状态和可单测的视图投影。 */
-import { historyRows } from '../../domain/history.js';
+import { historyRows, formatLedgerTime } from '../../domain/history.js';
 
 export const state = {
-  commits: [], retraction: null, phase: 'idle', error: '', sort: 'asc', edit: false,
+  commits: [], retraction: null, phase: 'idle', error: '', sort: 'desc', edit: false,
   correctionsOpen: false, busy: new Set(), note: '', writeError: '',
   hasMore: false, nextBeforeSeq: null, loadingMore: false, details: new Map(), detailErrors: new Map(),
+  tab: 'learning', query: '', range: 'all', selectedSeq: null, mobileDetail: false,
+  system: { records: [], phase: 'idle', error: '', selectedSeq: null, key: '', status: '',
+    hasMore: false, nextBeforeSeq: null, loadingMore: false, details: new Map(), detailErrors: new Map(),
+    keys: [], summary: { total: 0, success: 0, failure: 0, running: 0, interrupted: 0 } },
 };
 
 export function readPreferences(storage) {
   try {
-    return { sort: storage.getItem('omrs-history-sort') === 'desc' ? 'desc' : 'asc',
+    return { sort: storage.getItem('omrs-history-sort') === 'asc' ? 'asc' : 'desc',
       edit: storage.getItem('omrs-history-edit-mode') === '1' };
-  } catch { return { sort: 'asc', edit: false }; }
+  } catch { return { sort: 'desc', edit: false }; }
 }
 
 export function timeline(s = state) {
   return historyRows(s.commits, s.retraction, s.sort);
+}
+
+export function timeGroups(rows, zone) {
+  const groups = [];
+  for (const row of rows) {
+    const date = formatLedgerTime(row.started_at || row.created_at, zone).slice(0, 10) || '初始化';
+    let group = groups[groups.length - 1];
+    if (!group || group.date !== date) { group = { date, rows: [] }; groups.push(group); }
+    group.rows.push(row);
+  }
+  return groups;
+}
+
+export function dateRange(range, zone, now = Date.now()) {
+  if (!['today', '7d', '30d'].includes(range)) return {};
+  const date = formatLedgerTime(new Date(now).toISOString(), zone).slice(0, 10);
+  const day = Date.parse(`${date}T00:00:00Z`);
+  const start = offset => {
+    const target = day + offset * 86400000;
+    let instant = target;
+    for (let i = 0; i < 3; i++) {
+      const wall = Date.parse(`${formatLedgerTime(new Date(instant).toISOString(), zone).replace(' ', 'T')}Z`);
+      instant += target - wall;
+    }
+    return new Date(instant).toISOString();
+  };
+  return { since: start(range === 'today' ? 0 : range === '7d' ? -6 : -29), until: start(1) };
+}
+
+export function durationText(row) {
+  if (row.duration_ms == null) return row.status === 'running' ? '执行中' : '—';
+  return row.duration_ms < 1000 ? `${row.duration_ms} ms` : `${(row.duration_ms / 1000).toFixed(2)} s`;
 }
 
 export function reviewVisual(row, rs) {

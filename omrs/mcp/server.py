@@ -34,9 +34,10 @@ from .. import locking
 from pydantic import BaseModel, ConfigDict, Field
 
 from .. import drafts
+from .. import runtime_records
 from ..draft_prepare import merge_answer_text_runs
 from ..agent.tools import read as read_tools
-from .keys import verify_key
+from .keys import verify_key, key_for_id
 
 MAX_IMAGES = 6
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -110,6 +111,28 @@ class RestrictedMCP(FastMCP):
         return [tool for tool in tools if TOOL_SCOPES.get(tool.name) in scopes]
 
     async def call_tool(self, name, arguments):
+        token = get_access_token()
+        identity = await asyncio.to_thread(runtime_records.safely, key_for_id, self.vault, token.client_id) if token else None
+        seq = await asyncio.to_thread(runtime_records.safely, runtime_records.begin, self.vault, name, arguments, identity)
+        started = time.monotonic()
+        result, code = None, "interrupted"
+        try:
+            result = await self._execute_tool(name, arguments)
+            code = ""
+            return result
+        except ToolError as exc:
+            prefix = str(exc).split(":", 1)[0]
+            code = prefix if prefix in runtime_records.ERRORS else "internal_error"
+            raise
+        except Exception:
+            code = "internal_error"
+            raise
+        finally:
+            if seq is not None:
+                await asyncio.shield(asyncio.to_thread(runtime_records.safely, runtime_records.finish,
+                    self.vault, seq, round((time.monotonic() - started) * 1000), result, code))
+
+    async def _execute_tool(self, name, arguments):
         tool = self._tool_manager.get_tool(name)
         if tool is None or name not in TOOL_SCOPES:
             raise ToolError("unknown_tool: 未开放此工具")

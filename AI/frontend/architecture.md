@@ -37,7 +37,7 @@ assets/app/
 - 助手页 `features/assistant/` 的图片粘贴、聊天主面板文件拖入和文件选择都由页面挂载期监听或页面动作处理，卸载时移除监听；会话切换使附件读取 generation 失效。事件归约与视图由 `tests/app/assistant.test.mjs`、`tests/e2e/assistant.py` 和 `tests/e2e/assistant_p3.py` 验证，含 JPEG 字节保持、拖放、预览、输入法与可见视口路径。共享图片预览在 `tests/app/browser_tests.js` 验证焦点和模态行为；草稿来源图在 `tests/e2e/drafts.py` 验证。
 - 助手用量归约仍是页面自身的纯逻辑，`tests/app/assistant.test.mjs` 验证请求去重、重放与缺失字段；`tests/e2e/assistant_usage.py` 用隔离 Vault 和假模型验证圆环切换、持久偏好与检查器。
 - 录入页的可搜索建议由 `ui/combobox` 绑定到原生输入框，卸载时释放 body 浮层和窗口监听；`tests/e2e/create.py` 验证建议框键盘退出、AI 结果与人工编辑及图片版本之间的隔离。
-- 历史页通过 `domain/history.js` 分批读取摘要、按需读取单条详情；`tests/e2e/history.py` 在隔离 Vault 中覆盖 240 条以上跨页加载、撤销状态与读取失败保留列表。
+- 历史页通过 `domain/history.js` 分批读取 Ledger 摘要与独立 MCP 运行记录，按需读取各区详情；`tests/e2e/history.py` 覆盖 240 条以上跨页加载、撤销状态与读取失败保留列表，`tests/e2e/runtime_history.py` 在临时 Web + MCP 服务上覆盖真实调用、筛选竞争、人工入库双向关联、轮询与手机返回。调用详情通过 `domain/drafts.js` 的 `openDraft` 复用草稿导航，页面之间不直接依赖。
 - 跨页共用的按钮走外壳登记的全局动作 `app.*`（创建、侧栏折叠、手机抽屉、重新扫描，见 `AI/frontend/shell.md`）；页面自己的动作用页面 id 作命名空间。
 - 外壳在每次进入页面时统一处理：顶栏标题、`document.title`（「页面名 · OMRS」）、侧栏 `.active` 与 `aria-current="page"`、`.panel.active`、`.content.is-workbench`、快捷键作用域、关闭手机抽屉，并在 bus 上发 `page:change`。
 
@@ -78,7 +78,7 @@ assets/app/
 - `domain/question/` 提供 Markdown / KaTeX 渲染、题目详情缓存、共享题目视图、弹窗和编辑器。渲染默认保留普通换行、空行仍按 Markdown 分段，显式「简略」偏好才合并单个换行；题库、录入预览、反馈、即时练习和展示板详情共用这条路径。题目内容或练习记录变化后，由调用方让缓存失效并重绘挂载视图。`domain/board/` 持有板列表与选板浮层，板详情经 `detail-port.js` 连接到 `features/board/runtime.js`，domain 不反向 import feature。
 - `features/create/inbox-store.js` 持有收件箱图片列表、当前图、勾选、保存队列和任务轮询；录入页的网格、处理、题卡与训练工作区共用该状态，变化时发 `inbox:changed`。`domain/drafts.js` 持有跨页草稿导航目标与角标计数，不持有草稿编辑表单。
 
-其他跨页入口包括 `domain/history.js`（历史读取、修正与通知）、`domain/exporting.js`（导出请求和下载）、`domain/scan.js`（扫描后刷新统计与 Session）。页面之间的导航与刷新由路由和 bus 协调：外壳发 `page:change`，仪表盘可发 `questions:preset`、`instant:load`、`schedule:view` 或 `feedback:session`，设置页发 `agent:config` 后由入口同步助手导航。新增跨页事件时在这里登记其来源与接收方。
+其他跨页入口包括 `domain/history.js`（学习与运行记录读取、修正与通知）、`domain/exporting.js`（导出请求和下载）、`domain/scan.js`（扫描后刷新统计与 Session）。页面之间的导航与刷新由路由和 bus 协调：外壳发 `page:change`，仪表盘可发 `questions:preset`、`instant:load`、`schedule:view` 或 `feedback:session`，设置页发 `agent:config` 后由入口同步助手导航。新增跨页事件时在这里登记其来源与接收方。
 
 ## 6. E2E 旧断言适配
 

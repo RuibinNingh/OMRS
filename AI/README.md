@@ -16,6 +16,7 @@
 | AI 助手（Harness、工具、权限、对话存储、撤销） | `agent.md`，页面见 `frontend/assistant.md` |
 | 登录、PIN、访问控制、路径安全 | `security.md` |
 | 外部 MCP、独立 API Key、完整原图草稿 | `mcp.md`，并看 `drafts.md` 与 `security.md` |
+| 系统运行记录、MCP 调用生命周期与追溯 | `runtime.md`，页面见 `frontend/records.md`，接口见 `api.md` |
 | 记忆算法、调度、推荐 | `algorithm.md` |
 | 数据格式、Ledger、投影 | `data.md`、`ledger.md` |
 | 导出与展示板打印 | `export.md`、`board.md` |
@@ -99,10 +100,11 @@
 |---|---|
 | `algorithm.md` | 时间衰减、熟练度状态机、统一优先级、SM-2、双列表推荐、Leech 检测、标记加成与 tuning |
 | `agent.md` | AI 助手后端：运行时、循环、权限、工具、事件、接口、`agent.db`、按运行撤销 |
-| `mcp.md` | 外部 MCP 的 Streamable HTTP、API Key、工具白名单、草稿与原图边界 |
+| `mcp.md` | 外部 MCP 的 Streamable HTTP、API Key、工具白名单、草稿与原图边界、独立调用记录 |
+| `runtime.md` | 独立运行库、MCP 调用生命周期、脱敏白名单与草稿入库关联 |
 | `api.md` | 端点的请求体、响应字段与错误语义 |
 | `routes.md` | 路由总表（自动生成，来源 `omrs/server.py` 与 `omrs/agent/http.py`）：方法、路径、说明文档 |
-| `data.md` | CSV 字段、Markdown 题目格式、UID、labels.json、boards.json、config.json、auth.json、报告存储 |
+| `data.md` | CSV 字段、Markdown 题目格式、UID、labels.json、boards.json、config.json、auth.json、报告与 runtime.db 存储 |
 | `frontend.md` | 前端索引，分册在 `frontend/`：设计系统（token 与门禁）、架构（core、路由、启动顺序）、UI 组件库、外壳与主题、仪表盘与目录、题库与标记、qview、展示板页、复习调度、反馈录入、设置、录入题目、历史 / 复盘 / 报告 |
 | `export.md` | A4、屏幕版与展示板自包含 HTML 导出 |
 | `ledger.md` | 不可变提交链、投影缓存、历史修正与迁移边界 |

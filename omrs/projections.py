@@ -621,8 +621,27 @@ def export_legacy_csv(vault: str, state=None):
     save_csv(sessions_path(vault), SESSIONS_HEADERS, session_rows, backup=True)
 
 
-def ledger_history(vault: str, before_seq=None, limit=100, summary_only=False):
-    commits = read_commits(vault, before_seq=before_seq, limit=limit, ascending=False)
+def ledger_history(vault: str, before_seq=None, limit=100, summary_only=False, q="", since="", until=""):
+    filtered = bool(q or since or until)
+    commits = read_commits(vault, before_seq=before_seq, limit=None if filtered else limit, ascending=False)
+    if filtered:
+        selected = []
+        for commit in commits:
+            if since or until:
+                try:
+                    date = datetime.datetime.fromisoformat(commit["created_at"].replace("Z", "+00:00"))
+                    date = date.replace(tzinfo=datetime.timezone.utc) if date.tzinfo is None else date
+                    if (since and date < datetime.datetime.fromisoformat(since)) or (until and date >= datetime.datetime.fromisoformat(until)):
+                        continue
+                except ValueError:
+                    continue
+            searchable = json.dumps(_history_payload_summary(commit["payload"], commit["commit_type"]), ensure_ascii=False)
+            if q and q.casefold() not in (commit["message"] + _commit_summary(commit) + searchable).casefold():
+                continue
+            selected.append(commit)
+            if limit is not None and len(selected) >= limit:
+                break
+        commits = selected
     items = []
     for commit in reversed(commits):
         payload = commit["payload"]
@@ -656,6 +675,8 @@ def _history_payload_summary(payload, ctype):
     if ctype in {"question.create", "question.create_external"}:
         question = payload.get("question") or payload
         result["question"] = {key: question[key] for key in ("uid", "subject", "category") if key in question}
+        if payload.get("_draft", {}).get("draft_id"):
+            result["source_draft_id"] = payload["_draft"]["draft_id"]
     if ctype == "session.create":
         session = payload.get("session") or payload
         result["session"] = {key: session[key] for key in ("session_id", "count") if key in session}
@@ -699,7 +720,8 @@ def ledger_history_detail(vault: str, seq: int):
         return None
     detail = {"seq": commit["seq"], "commit_id": commit["commit_id"],
               "commit_type": commit["commit_type"], "source": commit["source"],
-              "payload": commit["payload"]}
+              "payload": commit["payload"], "created_at": commit["created_at"],
+              "message": commit["message"], "learning": _history_learning_summary(commit)}
     payload = commit["payload"] or {}
     if commit["commit_type"] in {"question.content_update", "question.metadata_update",
                                   "question.metadata_update_external"}:

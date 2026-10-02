@@ -171,16 +171,31 @@ MCP `create_draft` 在图片处理与等锁后、实际写入前重新验证 `dr
 另含 `images` 字段：题面引用的图片文件名列表（解析 `![[名]]`/`![](路径)`），与 `/api/image?name=` 对接，供报告引图。
 
 ### `/api/history?before_seq=&limit=&view=summary`
-返回 Ledger 时间线。默认响应保留完整 payload 与最近 100 条 `history_log.csv` 兼容投影记录；Ledger 的 `commits` 是正式事实，CSV 的 `history` 仅供旧表格或调试兼容。历史页使用 `view=summary`，默认每批 60 条、最多 500 条；此模式只返回卡片和修正操作所需的载荷字段，不返回 CSV，也不逐卡读取正文 blob。
+返回 Ledger 时间线。默认响应保留完整 payload 与最近 100 条 `history_log.csv` 兼容投影记录；Ledger 的 `commits` 是正式事实，CSV 的 `history` 仅供旧表格或调试兼容。`limit` 接口默认 100、范围 1–500；历史页显式传入 60 并使用 `view=summary`，只返回摘要和修正操作所需字段，不返回 CSV，也不逐节点读取正文 blob。
+
+可选 `q`（最多 200 字符，不区分大小写的摘要搜索）、`since` / `until`（带时区的 ISO 时间，含起点、不含终点）。筛选在分页前执行，`before_seq` 是排他的 seq 游标；两端时间同时存在时开始必须早于结束。无筛选仍返回最近一批，不隐式限制日期。非法条件返回 400。
 
 **响应字段：**
-- `commits`：按时间自上而下排列的提交节点，含 `seq`、`commit_id`、`created_at`、`source`、`commit_type`、`message`、`summary`、`payload`。
+- `commits`：按 seq 升序排列的本页提交节点，含 `seq`、`commit_id`、`created_at`、`source`、`commit_type`、`message`、`summary`、`payload`；前端再按偏好排序。
 - `retraction_state`：后端基于完整 Ledger 重放出的当前撤销集合，含 `retracted_sessions` 与 `retracted_reviews`，供前端在只加载最近节点时仍能正确隐藏/恢复。
 - `history`：最近 100 条兼容 CSV 投影记录，供旧表格或调试使用；不包含题目 Markdown `# 历史` 原文。
 - `view=summary` 时另有 `has_more` 和 `next_before_seq`；下一批把该游标传给 `before_seq`。每个 commit 的 `learning` 含当时可验证的科目分布、题面短句、分类或字段变化；缺旧快照的字段保持缺失，页面显示「无可用历史摘要」。
+- 草稿入库摘要的 `payload.source_draft_id` 来自原提交 `_draft.draft_id`，供来源关联；不会改写原 Ledger 数据。
 
 ### `/api/history/detail?seq=<seq>`
-按需读取一条完整 Ledger payload，返回 `{status:"ok",detail:{seq,commit_id,commit_type,source,payload,content_change?}}`。正文更新详情仅读取该条引用的前后两个 blob；旧 blob 缺失时 `content_change` 为 `{available:false,message:"无可用历史摘要"}`，不会用当前题目补历史。不存在的 seq 返回 404，非法 seq 返回 400。
+按需读取一条完整 Ledger payload，返回 `{status:"ok",detail:{seq,commit_id,created_at,message,commit_type,source,payload,learning,runtime_calls,content_change?}}`。正文更新详情仅读取该条引用的前后两个 blob；旧 blob 缺失时 `content_change` 为 `{available:false,message:"无可用历史摘要"}`，不会用当前题目补历史。不存在的 seq 返回 404，非法 seq 返回 400。
+
+`runtime_calls` 为同一 `_draft.draft_id` 的最近 20 条调用摘要，最新在前；无记录返回空数组。运行库读取失败时仍返回学习详情与空数组，另附固定说明 `runtime_calls_error`，不输出底层异常。
+
+### `/api/runtime/records`
+
+读取独立 MCP 运行记录，沿用 Web 授权并禁止缓存。可选 `source=mcp`、`q`、`key_id`、`status=running|success|failure|interrupted`、`since`、`until`、`before_seq` 和 `limit`（默认 60，1–200）。搜索匹配中文动作、工具名、密钥名称快照和白名单参数摘要；日期规则同历史接口。筛选先于分页，`before_seq` 排他；SQL 通配符按普通搜索文字处理。
+
+响应 `{status:"ok",records,summary,keys,has_more,next_before_seq}`。`records` 按 seq 降序，含 `seq/call_id/source/tool/title/key_id/key_name/started_at/finished_at/status/duration_ms/error_code/draft_id/scope_summary/summary`；未结束时完成时间和耗时为 null。`summary` 的 `total/success/failure/running/interrupted` 覆盖筛选全集，不受游标影响；`keys` 列出记录中出现过的公开密钥编号与最后名称快照。非法条件返回 400，存储故障返回 503 固定说明；空库返回空结果且不建库。
+
+### `/api/runtime/records/detail?seq=<seq>`
+
+返回 `{status:"ok",detail}`，在列表摘要上增加 `arguments`、`result` 白名单摘要及 `related_commits`。关联草稿时另有 `draft:{id,status}`，草稿缺失状态为 `missing`；`related_commits` 从原 Ledger 草稿标识读取人工入库节点的 `seq/commit_id/created_at/title/uid`。这两个字段表示当前关联状态，调用本身的状态与结果保持原记录。非法编号 400，不存在 404，存储故障 503；授权与缓存规则同列表。没有写入或撤销接口，MCP Key 不能读取这些 Web API。
 
 ### `/api/ledger/verify`
 校验不可变提交链，返回 `{status, valid, commits, head_commit_id, errors}`。

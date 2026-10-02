@@ -1,9 +1,9 @@
 # 数据结构
 
 > **速查**
-> - 职责：CSV 字段、Markdown 题目格式、UID、配置、标记与报告存储
-> - 入口：`omrs/common.py`、`omrs/indexing.py`
-> - 不变量：题目结构化元数据、复习状态与 Session 以 `ledger.db` 为事实源，CSV 只是兼容投影；展示板、助手、草稿、收件箱和标注集各有独立存储
+> - 职责：CSV 字段、Markdown 题目格式、UID、配置、标记、报告与系统运行记录存储
+> - 入口：`omrs/common.py`、`omrs/indexing.py`、`omrs/runtime_records.py`
+> - 不变量：题目结构化元数据、复习状态与 Session 以 `ledger.db` 为事实源，CSV 只是兼容投影；展示板、助手、草稿、收件箱、标注集和运行记录各有独立存储
 > - 必跑测试：`tests/test_history_projection.py`、`tests/test_question_records.py`、`tests/test_content_integrity.py`
 > - 相关：`AI/ledger.md`、`AI/security.md`
 
@@ -486,3 +486,7 @@ reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加acti
 `<训练根>/managed/snapshots/<元数据哈希>/` 保存经过 SHA 验证的 model.onnx/model.json 副本；active 为原子替换的相对符号链接。state.json 保存 revision、current、previous、operation；operations/请求ID.json 保存幂等请求、前后模型 SHA、服务端认证方式/会话 ID/可信来源 IP、候选的独立验收状态与人工确认、时刻、运行状态、错误和回退错误，不记录 PIN/Cookie，也不把共享 PIN 会话认定为具体人。events.jsonl 追加完成或恢复事件。状态与请求快照用临时文件加原子替换写入，operation.lock 用 flock 串行化，预检/重启还与 training.lock 互斥。运行中的请求记录允许更新到终态，追加事件不会改写。
 
 受管映射不跟随models/current；初始化只由部署者执行bootstrap_control.py且拒绝覆盖已有state。只发现有export.json、identity.json、eval.json及匹配权重/ONNX哈希的实验。删除或修改实验不会改变已复制的在线模型。独立训练目录仍需单独备份，不随题库备份。
+
+## 19. 系统运行记录 `runtime.db`
+
+`错题/.omrs/runtime.db` 独立保存 MCP 工具调用，首次调用才建库；读接口只读，学习修正与状态还原不影响调用事实。存储字段、白名单摘要、生命周期、启动中断恢复与草稿关联统一见 `AI/runtime.md`。

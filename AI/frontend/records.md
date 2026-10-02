@@ -1,34 +1,36 @@
 # 前端：历史记录、数据复盘与报告
 
 > **速查**
-> - 职责：Ledger 时间线、数据复盘页、AI 报告托管页
+> - 职责：学习与变更时间线、MCP 系统运行记录、数据复盘页、AI 报告托管页
 > - 入口：`assets/app/features/history/`、`assets/app/features/data/`（数据复盘）、`assets/app/features/reports/`
-> - 不变量：历史修正只在「修正模式」下可用；报告在 sandbox 中渲染，不获得 OMRS 同源权限
-> - 必跑测试：`tests/test_history_projection.py`、`tests/app/history.test.mjs`、`tests/e2e/history.py`、`tests/test_report_export.py`、`tests/app/reports.test.mjs`、`tests/e2e/reports.py`、`tests/app/analytics.test.mjs`、`tests/e2e/data.py`
+> - 不变量：学习修正只在「修正模式」下可用；系统运行记录只读；报告在 sandbox 中渲染，不获得 OMRS 同源权限
+> - 必跑测试：`tests/test_history_projection.py`、`tests/app/history.test.mjs`、`tests/app/runtime-history.test.mjs`、`tests/e2e/history.py`、`tests/test_runtime_records.py`、`tests/e2e/runtime_history.py`、`tests/test_report_export.py`、`tests/app/reports.test.mjs`、`tests/e2e/reports.py`、`tests/app/analytics.test.mjs`、`tests/e2e/data.py`
 > - 相关：`AI/frontend.md`（索引）
 
 ## 历史记录页
 
-历史页由 `features/history/` 按页面契约挂载到 `#hist-app`，用 `/api/history?view=summary` 分批读取 Ledger 摘要，用 `/api/history/detail` 按需读取完整载荷和正文变化。`index.js` 管理加载与修正请求，`state.js` 投影视图状态，`view.js` 渲染时间线，`history.css` 提供样式。`domain/history-model.js` 持有撤销状态、节点分类、标题、时间格式与排序的纯函数；`domain/history.js` 负责读取、修正请求和跨页通知，仪表盘最近动态仍复用完整响应的同一投影。
+历史页由 `features/history/` 按页面契约挂载到 `#hist-app`，分为「学习与变更」和「系统运行」。两区按设置页的 Ledger 时区分日，列表选中记录后在右侧显示详情；≤760px 在列表与详情之间切换，返回时还焦点到原记录。标签页支持方向键、Home、End。样式沿用共享 token 和控件，深浅主题共用布局。
 
-- 视觉结构为竖线时间线：旧节点在上方，最新节点在底部，进入页面后自动滚到底部；主时间线只展示非修正、且**当前未被撤销**的节点。
-- **节点按 commit 族着色**：`historyCommitFamily(commit_type)` 决定 `data-family`，圆点和节点标题据此取语义色。`review.batch_submit` 节点额外由 `reviewVisual()` 渲染「对错配比条 + 每题色块」，不展开即可看出本批练习结果。
-- 顶部提供排序选择：`旧 → 新（最新在底部）` 或 `新 → 旧（最新在顶部）`，选择会保存在浏览器本地。
-- 顶部提供「修正模式」开关：默认关闭，主节点只读；开启后才显示 `修改 / 撤销 / 还原` 操作面板，避免日常浏览时误触危险操作。
-- 顶部提供「修正记录」按钮：`review.replace`、`review.retract`、`review.restore`、`session.retract`、`session.restore`、`state.restore` 等修正节点从主时间线移出，集中在该列表里查看。
-- **被撤销的节点从主时间线隐藏**：优先使用 `/api/history` 返回的完整链 `retraction_state`；旧响应则回退到 `historyRetractionState()` 按 seq 顺序重放 `session.retract/restore`、`review.retract/restore`。`session.create` 整个 Session 被撤销、或 `review.batch_submit` 批次内所有反馈都被撤销（或其 Session 被撤销）时，该主节点（`isNodeRetracted`）不再显示，状态栏提示「N 个已撤销已隐藏」。Ledger 底层仍保留全部 commit，不做删除。
-- 隐藏的节点可在「修正记录」面板恢复：被撤销且**当前仍处于撤销态**的 `session.retract` / `review.retract` 修正行带「恢复」按钮，点按调用对应 restore API 追加新 commit，节点随即回到主时间线。
-- 每个节点默认依次显示中文动作与题目/题组、真实对错/分数或字段变化、时间和中文来源；`commit_id`、`seq`、技术 `commit_type` 放入详情。反馈展示科目分布和提交时固定的题面短句，旧反馈缺题面快照时显示「无可用历史摘要」，不读取当前题目冒充当时内容。正文更新有提交时的节级短差异才显示，旧 blob 缺失时同样显示缺失；移动显示事件保存的前后分类。`formatLedgerTime()` 按设置页时区显示时间。
-- 首屏加载最近 60 条；「加载更早记录」按 `next_before_seq` 追加摘要，修正状态始终以服务端完整链 `retraction_state` 为准。详情展开时才请求该节点完整 payload；练习详情列出逐题结果。请求失败保留列表、已展开面板与滚动位置。
-- 节点默认只显示摘要；下方挂只读 `查看详情` 折叠块。开启修正模式后，再额外显示默认关闭的 `修改 / 撤销 / 还原` 操作折叠块。
-- 无可操作内容的节点（如 `legacy.bootstrap`、外部扫描类）**不显示**操作折叠块，只保留 `查看详情`。
-- `legacy.bootstrap` 等大 payload 会在「查看详情」里做摘要/截断，避免页面被完整迁移数据撑爆。
-- 操作折叠块内的面板：
-  - `review.batch_submit`：选择批次内某条反馈，执行修改、撤销、恢复。
-  - 含 `session_id` 的节点：撤销整次 Session 或恢复 Session。
-  - 非 genesis 节点：追加 `state.restore`，还原结构化状态到该 seq。
-- 所有按钮都调用历史修正 API 追加新 commit，不会修改旧节点。
-- 修正请求统一返回 `{ok, data, error}`。请求期间禁用全部写操作，避免不同节点并发提交；重绘时保留已展开的详情与操作面板。成功后依次清题目详情缓存、重载统计与 Session、发 `history:changed` 通知仪表盘，再重拉时间线。刷新失败时保留现有列表并显示原因；首次加载超过 300ms 才显示骨架。
+`index.js` 管理学习加载与原有修正操作，`runtime-controller.js` 管理系统分页、详情与进行中轮询；`state.js` 负责分组、时区日界线和状态，`view.js` 渲染外框，`learning-view.js` / `runtime-view.js` 渲染各区详情。`domain/history-model.js` 持有撤销状态、节点分类、标题和时间投影的纯函数；`domain/history.js` 负责两类读取、修正请求和跨页通知，仪表盘最近动态仍读取 Ledger。
+
+### 学习与变更
+
+- 默认最新在前，保留用户已有升序或降序偏好；支持搜索和全部时间、今天、最近 7 / 30 天。筛选先于服务器分页，时间区间以所选时区的本地午夜计算，覆盖夏令时。
+- `/api/history?view=summary` 首屏读取最近 60 条摘要，「加载更早记录」按游标追加。升序前插、降序追加都保留可见节点的滚动锚点。列表只显示中文动作、摘要、时分和来源，提交 ID 与类型放入详情。
+- 主时间线只展示非修正且当前未撤销的节点。修正状态优先取后端完整链 `retraction_state`，旧响应回退到按 seq 重放。整次 Session 或整批反馈被撤销后主节点隐藏，状态栏显示隐藏数量；底层 Ledger 不删除。
+- 选择记录后按需读取 `/api/history/detail`。反馈详情显示科目分布、提交时的题面短句、对错色条和色块；逐题与技术详情默认折叠。字段变化、移动分类和正文短差异取当时事件，旧快照缺失明确显示「无可用历史摘要」，不以当前题目补历史。迁移大载荷按现有摘要 / 截断规则显示。
+- 草稿人工入库节点的「来源调用」能返回对应 MCP 调用，包含首屏以外的记录；跳转时清空筛选并按编号读取详情。旧草稿没有调用记录时明确说明缺失，关联存储读取失败显示原因且不阻断学习详情。
+- 「修正记录」集中显示 `review.replace/retract/restore`、`session.retract/restore`、`state.restore` 等修正节点；仍处于撤销态的修正行在修正模式下提供「恢复」。
+- 修正模式默认关闭，偏好存于浏览器。开启后所选记录的「修改 / 撤销 / 还原」面板支持原有反馈修改、撤销和恢复，整次 Session 撤销和恢复，以及非起始节点的结构化状态还原。所有写操作只追加新 commit。
+- 请求期间禁用全部修正写操作，重绘保留展开面板。成功后清题目缓存、重载统计与 Session、发 `history:changed` 通知，再读取历史；刷新失败保留旧列表并显示原因。首次等待超过 300ms 才显示骨架，详情失败可单独重试。筛选改变立即使旧列表请求失效，卸载后迟到结果不重绘。
+
+### 系统运行
+
+- 首批只展示真实 MCP 工具调用。每行包含工具中文动作、白名单范围与结果摘要、密钥名称快照、状态和耗时；支持时间、搜索、所用密钥及成功 / 失败 / 进行中 / 已中断筛选。默认全部时间、最新在前，不补造旧调用。
+- `/api/runtime/records` 每页 60 条，筛选先于分页；顶部总次数、失败、进行中和中断统计覆盖筛选全集，底部显示实际加载条数。空记录、无匹配、首次失败和已有结果刷新失败各有明确说明。
+- 详情按需读取 `/api/runtime/records/detail`，显示状态、固定安全错误说明、时间、密钥、耗时和调用性质；参数摘要、结果摘要、技术信息默认折叠。详情与列表刷新失败保留上次成功数据，可以重试。
+- 有关联草稿时显示当前状态并通过 `domain/drafts.js` 的 `openDraft` 进入既有审核页；人工入库后显示 Ledger 关联节点，并能跳到「学习与变更」。不存在的草稿禁用查看入口；幂等复用记录显示「复用已有草稿」。系统记录全程只读。
+- 当前系统区存在进行中调用时每 2.5 秒轮询；结束后同步更新列表与所选详情。刷新覆盖已加载范围，保留已翻页记录；离开系统区或页面卸载停止轮询并使旧列表请求失效。切换筛选不会被迟到响应覆盖，搜索防抖 250ms 且保留输入焦点和光标。
 
 ## 数据页（复盘，`features/data/`，v1.25.1 起）
 
