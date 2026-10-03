@@ -223,3 +223,8 @@ Markdown 正文另按 §10 入账：
 配置与投影的事务发布见 `AI/data.md` §8。`config.tuning_update` 保存规范化算法参数、变更键名和脱敏重算摘要，`config.update` 只存变更键名与 revision；均不保存密钥。配置镜像失败不会回退已生效数据库，返回 `mirror_pending`；监听前处理恢复或冲突。
 
 容量门禁：`python3 tests/bench_data_runtime.py`。固定种子生成 10,000 个合法题目 Markdown、blob 和 100,000 条反馈，分别在独立进程测快照读取、启动磁盘流程、全量重放、调参、修正、state.restore、普通反馈及 CSV 导出；Linux 记录 VmHWM，每条路径限制 768MiB。普通反馈额外把全量重放替换为失败断言。耗时与 P50/P95 是环境测量结果，写入任务日志，不作为模块文档的固定性能承诺。
+
+
+## 外部 MCP 复习计划创建
+
+omrs/session_operations.py 在新鲜链头、活动配置和 SQL 投影检查后同事务追加 source=mcp 的 session.create、发布 Session 投影并写 op_results 技术回执。输入绑定稳定 question_id，创建不更新答题或熟练度。投影失败整体回滚，清理内存缓存；MCP 技术回执不参与学习撤销和 state.restore，详情见 AI/mcp-storage.md。Web/内置助手原有创建调用保持兼容。

@@ -37,7 +37,7 @@ from ..agent.tools import read as read_tools
 from ..question_images import read_question_image, validate_original_image
 from .keys import verify_key, key_for_id
 from .common import RequestError
-from . import queries, analysis_reports, draft_edit, board_read, board_write, board_export
+from . import queries, analysis_reports, draft_edit, board_read, board_write, board_export, session_write
 
 MAX_IMAGES = 6
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -64,6 +64,7 @@ TOOL_SCOPES.update(draft_edit.SCOPES)
 TOOL_SCOPES.update(board_read.SCOPES)
 TOOL_SCOPES.update(board_write.SCOPES)
 TOOL_SCOPES.update(board_export.SCOPES)
+TOOL_SCOPES.update(session_write.SCOPES)
 
 
 class MCPFile(BaseModel):
@@ -480,13 +481,19 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
         return _read_call(vault, read_tools.get_recommendations,
                           {"count": count, "subject": subject, "category": category, "label": label})
 
-    def list_sessions(status: Literal["", "active", "completed"] = ""):
+    def list_sessions(status: Literal["", "active", "completed"] = "",
+                      offset: Annotated[int, Field(ge=0, strict=True)] = 0,
+                      limit: Annotated[int, Field(ge=1, le=100, strict=True)] = 20):
         _validate_read_texts(status=status)
-        return _read_call(vault, read_tools.list_sessions_tool, {"status": status or None})
+        return _read_call(vault, read_tools.list_sessions_tool,
+                          {"status": status or None, "offset": offset, "limit": limit})
 
-    def get_session(session_id: str):
+    def get_session(session_id: Annotated[str, Field(min_length=1, max_length=200, pattern=r"\S")],
+                    offset: Annotated[int, Field(ge=0, strict=True)] = 0,
+                    limit: Annotated[int, Field(ge=1, le=100, strict=True)] = 100):
         _bounded_text(session_id, "session_id", 200)
-        return _read_call(vault, read_tools.get_session_tool, {"session_id": session_id})
+        return _read_call(vault, read_tools.get_session_tool,
+                          {"session_id": session_id, "offset": offset, "limit": limit})
 
     def list_drafts(status: Literal["", "pending", "cropping", "review", "done", "discarded"] = "", source: Literal["", "agent", "mcp", "legacy"] = "", limit: Annotated[int, Field(ge=1, le=500)] = 50):
         _require(vault, "omrs:read")
@@ -620,8 +627,8 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
         (get_question_image, "get_question_image", "按 get_question.images 的从 0 开始下标读取该题一张完整原图；需要看题图时按需调用。仅返回 PNG/JPEG/GIF 原生图片内容，单张不超过 8 MiB。"),
         (get_overview, "get_overview", "读取题库概况和薄弱分类。"),
         (get_recommendations, "get_recommendations", "读取 OMRS 复习推荐，不创建 Session。"),
-        (list_sessions, "list_sessions", "读取最近的复习 Session。"),
-        (get_session, "get_session", "读取一个复习 Session 的状态和题目。"),
+        (list_sessions, "list_sessions", "分页读取复习 Session、反馈进度与不可用条目计数，默认 20 项。"),
+        (get_session, "get_session", "读取一个复习 Session 的状态、完整进度及分页稳定题目条目，包含停用、归档与待绑定状态。"),
         (list_drafts, "list_drafts", "读取当前 Vault 的活动草稿；可用 source=mcp 只列本 MCP 来源。"),
         (get_draft, "get_draft", "读取草稿内容和完整来源图片的审核信息。"),
     ]
@@ -639,6 +646,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
     board_read.register(server, vault, _require, _threaded)
     board_write.register(server, vault, _require, _threaded, web_url)
     board_export.register(server, vault, _require, _threaded, web_url)
+    session_write.register(server, vault, _require, _threaded)
     # FastMCP 默认会忽略函数参数模型中的未知字段；MCP 是权限边界，必须
     # 把拼写错误或试图注入的顶层参数显式拒绝。
     for tool in server._tool_manager.list_tools():

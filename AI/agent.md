@@ -121,3 +121,8 @@ MCP导出复用现有只读图片列表和受限原图读取，内置助手不�
 `GET /api/agent/events?run=&after=0&limit=200&wait=20` 按持久seq返回events/next/has_more/done/status，上限500。next为最后事件seq+1，耗尽且运行完成时done才为true。活动尾缓存按UTF-8序列化大小最多1MiB且最多1000事件；不足一页或尾已淘汰仍从数据库补齐，不删历史。已完成Run回执可靠写入后即从运行时字典移除，尾/统计缓存同时释放。旧events_json在SQLite内迁移为事件行并清兼容数组，不回写Ledger。
 
 模型网络期间仅通过task传播题库世代；短存储段先租约再模块锁，工具写入再取业务写锁。恢复后的旧运行不能写新世代。分页、尾淘汰、1300事件跨完成/重启及1000运行组由 `tests/test_agent_pagination.py` 验证。
+
+
+## 复习调度共享读取
+
+推荐 due/proficiency/selection 带稳定 question_id 并保留 uid/source。list_sessions 查询支持 offset、limit（默认 20、最多 100），包含全部停用的 active 计划；返回分页总数、反馈进度与可用性计数。get_session 保留 pending/done/count，补时间、科目、完整进度和分页 entries（默认 100）；条目保留稳定身份与停用、归档、待绑定状态。这些读取不创建计划、不自动标完成。外部 MCP 的 create_review_session 采用独立 session:create 权限与技术回执，不调用内部 Agent 写入包装；内置助手创建契约保持。

@@ -1,10 +1,10 @@
 # OMRS MCP 接入
 
 > **速查**
-> - 职责：向获授权外部 AI 提供 OMRS 查询、受保护草稿修订、报告保存和展示板管理
+> - 职责：向获授权外部 AI 提供 OMRS 查询、复习调度创建、受保护草稿修订、报告保存和展示板管理
 > - 入口：`omrs/mcp/server.py`、`http.py`、`keys.py`；`serve --mcp-port`
-> - 不变量：二十二读十六写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
-> - 必跑测试：`python3 -m unittest discover -s tests -p 'test_mcp*.py' -q`、`python3 tests/e2e/mcp.py`、`python3 tests/e2e/mcp_expansion.py`、`python3 tests/e2e/runtime_history.py`
+> - 不变量：二十二读十七写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
+> - 必跑测试：`python3 -m unittest discover -s tests -p 'test_mcp*.py' -q`、`python3 tests/e2e/mcp.py`、`python3 tests/e2e/mcp_expansion.py`、`python3 tests/e2e/runtime_history.py`、`python3 tests/e2e/mcp_review_sessions.py`
 > - 相关：`AI/api.md`、`AI/drafts.md`、`AI/security.md`、`AI/agent.md`、`requirements-mcp.txt`
 
 ## 1. 安装与启动
@@ -18,11 +18,11 @@ python3 omrs_engine.py --vault /path/to/vault serve --port 8471 --mcp-port 18472
 
 MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外部客户端使用 HTTPS 反向代理，仅转发 `/mcp`，并在启动时指定 `--mcp-public-url https://your-host/mcp`，登记精确 Host/Origin 白名单。SDK 负责协议协商、JSON-RPC、认证 challenge 和传输安全；启动失败时主命令明确退出。没有独立读写 Vault 的 MCP 进程入口。生产 HTTPS 8472 已由 Web/Nginx 共用，不能把内部 MCP 绑定到该端口；实际发布根与参数见 `AI/environment.md`。
 
-在 OMRS 设置 → 访问与安全 → 外部 AI / MCP 点击“创建密钥”，在窗口选择下表六项权限，并可指定到期时间。查询与创建草稿默认勾选，四项新增写权限默认关闭；已有密钥不自动增权。成功后同一窗口显示一次明文，关闭后无法再次查看；有效密钥可编辑权限，失效记录默认折叠，时间按设备本地时区显示。页面行为见 `AI/frontend/settings.md`。本机 CLI 支持 `mcp-key create --name 名称`、`list`、`update --id KEY --scope SCOPE` 与 `revoke --id KEY`；`--scope` 可重复。MCP 请求使用 `Authorization: Bearer <key>` 或 `X-OMRS-MCP-Key: <key>`；密钥不得放进 URL、模型参数或日志。
+在 OMRS 设置 → 访问与安全 → 外部 AI / MCP 点击“创建密钥”，在窗口选择下表七项权限，并可指定到期时间。查询与创建草稿默认勾选，五项新增写权限默认关闭；已有密钥不自动增权。成功后同一窗口显示一次明文，关闭后无法再次查看；有效密钥可编辑权限，失效记录默认折叠，时间按设备本地时区显示。页面行为见 `AI/frontend/settings.md`。本机 CLI 支持 `mcp-key create --name 名称`、`list`、`update --id KEY --scope SCOPE` 与 `revoke --id KEY`；`--scope` 可重复。MCP 请求使用 `Authorization: Bearer <key>` 或 `X-OMRS-MCP-Key: <key>`；密钥不得放进 URL、模型参数或日志。
 
 ## 2. 工具与权限
 
-完整授权共 38 个工具（22 读、16 写），只读密钥发现 22 个，仅 `draft:create` 发现 1 个。发现与调用共用 `TOOL_SCOPES`，多权限依赖同时满足才开放。草稿创建与报告创建不强制额外授予读权限。
+完整授权共 39 个工具（22 读、17 写），只读密钥发现 22 个，仅 `draft:create` 发现 1 个。发现与调用共用 `TOOL_SCOPES`，多权限依赖同时满足才开放。草稿创建与报告创建不强制额外授予读权限。
 
 | 权限 | 能力 | 默认 |
 | --- | --- | --- |
@@ -32,6 +32,7 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 | `report:create` | 新建报告 | 关闭 |
 | `board:write` | 创建、编辑、复制、组织板和文件夹，同时需要 `omrs:read` | 关闭 |
 | `board:delete` | 删除板或文件夹，同时需要 `omrs:read` | 关闭 |
+| `session:create` | 创建正式复习计划，同时需要 `omrs:read` | 关闭 |
 
 ### 完整工具清单
 
@@ -43,8 +44,8 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 | `get_question_image` | 按题目图片下标取原生完整图片 | `omrs:read` |
 | `get_overview` | 同科目范围的概况 | `omrs:read` |
 | `get_recommendations` | 现有复习推荐 | `omrs:read` |
-| `list_sessions` | 练习 Session 列表 | `omrs:read` |
-| `get_session` | Session 详情 | `omrs:read` |
+| `list_sessions` | 分页练习 Session 列表及进度、可用性计数 | `omrs:read` |
+| `get_session` | 分页稳定题目条目与完整反馈进度 | `omrs:read` |
 | `list_drafts` | 待审核及其它状态草稿列表 | `omrs:read` |
 | `get_draft` | 草稿正文、来源与版本 | `omrs:read` |
 | `get_questions` | 最多 20 UID，保留顺序并逐项报缺失 | `omrs:read` |
@@ -62,6 +63,7 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 | `create_draft` | 原图或文字创建待审核草稿 | `draft:create` |
 | `update_draft` | 受人工保护的字段/块修订 | `omrs:read` + `draft:update` |
 | `create_report` | 幂等新建报告，不覆盖旧报告 | `report:create` |
+| `create_review_session` | 按稳定身份幂等创建正式复习计划 | `omrs:read` + `session:create` |
 | `create_board` | 新建板，可带初始题目引用 | `omrs:read` + `board:write` |
 | `update_board` | 局部修改板名、备注、来源标记 | `omrs:read` + `board:write` |
 | `duplicate_board` | 复制引用与版式，不复制纸面记录 | `omrs:read` + `board:write` |
@@ -80,7 +82,7 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 原有十个查询工具为：`list_taxonomy`、`search_questions`、`get_question`、`get_question_image`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。七个学习数据查询直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
 
-工具不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在正式建题、提交/丢弃草稿、反馈、题目标记、Session 或设置写入、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
+工具不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在正式建题、提交/丢弃草稿、反馈、题目标记、Session 删除或设置写入、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
 
 每次协议请求和领域调用重新验证 Key；草稿创建在下载及等锁之后、实际写入前复查，URL 快速复用、inline 处理后复用及新建都在结果封装前再次校验 `draft:create`。处理中吊销、到期或权限变化返回 `forbidden`，已有合法提交仍保留。`tools/list` 按当前 Key 的实时 scope 返回上表允许的工具；过滤只作用于当前请求的描述，完整注册表保持，SDK 共享定义缓存不承担授权；直接点名隐藏工具仍拒绝。`错题/.omrs/mcp_keys.json` 仅保存 SHA-256 摘要和非秘密元数据，0600；线程锁和操作系统文件锁共同避免本机 CLI 与 Web 的创建/吊销/最近使用时间互相覆盖。Key 管理响应禁止缓存。
 
@@ -146,7 +148,7 @@ ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentic
 
 工具调用通过task传播题库世代，实际存储段才取租约。恢复后旧工具结果返回 `vault_changed`，维护繁忙返回 `vault_busy`；旧世代的运行结束回执不写入新库，也不覆盖原工具错误。`tests/test_mcp_lifecycle.py` 验证该边界。
 
-生产已部署完整 38 工具，现有密钥权限保持；新增写权限须在设置页显式启用，外部客户端随后刷新工具清单。公网 SDK 已实测只读权限发现 22 工具、新增查询及所有隐藏写工具拒绝；完整授权 38 工具与写入闭环在临时实例验收。发布目录和地址见 `AI/environment.md`，部署与账户验证记录见 `AI/plans/mcp-integration/progress.md`；SDK 通过不代表 ChatGPT 账户联调完成。
+当前源码提供 39 工具，新增复习计划创建尚未由本次任务部署生产，现有密钥权限保持；新增写权限须在设置页显式启用，外部客户端随后刷新工具清单。既有生产公网 SDK 已实测只读权限发现 22 工具、原有查询及所有隐藏写工具拒绝；既有 38 工具写入闭环在临时实例验收，新增调度闭环另由本批专项验证。发布目录和地址见 `AI/environment.md`，部署与账户验证记录见 `AI/plans/mcp-integration/progress.md`；SDK 通过不代表 ChatGPT 账户联调完成。
 
 官方参考：[Developer Mode](https://developers.openai.com/api/docs/guides/developer-mode)、[Apps SDK 文件参数](https://developers.openai.com/apps-sdk/reference/)、[认证](https://developers.openai.com/apps-sdk/build/auth/)、[Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。
 
@@ -188,4 +190,15 @@ list_boards 默认 50/最多 100，返回分页板摘要及完整文件夹/catal
 
 ## 13. 展示板安全导出
 
-export_board 需要omrs:read与request_id，支持all/new，可选expected_revision防止导错板版本。原子保存不可变自包含HTML，24小时内返回Web登录下载链接，不返回HTML/Base64，不记录已打印。详细存储恢复及附件边界见AI/export.md。全授权38工具，只读22，仅创建草稿1。
+export_board 需要omrs:read与request_id，支持all/new，可选expected_revision防止导错板版本。原子保存不可变自包含HTML，24小时内返回Web登录下载链接，不返回HTML/Base64，不记录已打印。详细存储恢复及附件边界见AI/export.md。全授权39工具，只读22，仅创建草稿1。
+
+
+## 14. 正式复习调度
+
+`create_review_session(items, request_id)` 需要同时 `omrs:read` 与 `session:create`。每次 1–100 个有序条目，必填非空 `question_id` 与 `source=due|proficiency`；可选 `uid` 兼容推荐 selection 的展示快照，创建按稳定身份解析当前位置，不靠旧 UID 绑定。相同身份和来源去重并保留首次顺序，同身份来源冲突整次拒绝。单题也创建正式 `EXP-` Session，不走 `TMP-` 兼容路径。只有用户明确要求生成正式计划才调用；查询和推荐不创建计划。
+
+提交前检查当前题目身份、归档、停用和 active Session 占用；任一不合法整次拒绝。单一科目自动写 subject_filter，跨科目为空。创建事实、SQL 投影和技术回执同一 SQLite 写事务提交；不记答题、不改变熟练度、Attempts、EF 或复习日期。回执优先于占用检查：同密钥、请求和规范化条目复用原编号，内容变化为 request_conflict。计划撤销或学习状态恢复后不重新创建，返回原编号、reused=true、available=false 及 retracted 状态。来源为 mcp，回执不进入学习提交 payload。
+
+推荐 due、proficiency 与 selection 均保留 uid/source 并带 question_id。list_sessions 支持 status、offset 和 limit（默认 20、最多 100），共享工具保留 result.sessions 包装，MCP 沿用扁平 sessions 字段，增加 total、next_offset、完整反馈进度及 availability_counts；按创建时间和编号从新到旧排序，包含全部停用的 active 计划。get_session 保留 pending/done/count，增加创建与完成时间、完整进度、total_count、availability_counts 和 entries；entries 默认 100、最多 100，按 offset 翻页，entries_total 与 next_offset 指明后续页。完整进度不受条目分页影响。
+
+条目保持 entry_id、question_id、uid_at_creation、当前 uid、source、availability 和 feedback_submitted。active/completed 沿用持久化领域状态，不按时间过期，也不把待反馈为零当作完成；停用、归档与待绑定状态单独显示。创建在等锁后、提交前和返回前复查权限，提交后的吊销不撤回合法事实。技术存储见 AI/mcp-storage.md，协议回归为 tests/test_mcp_review_sessions.py，网页闭环为 tests/e2e/mcp_review_sessions.py。

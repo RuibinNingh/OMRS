@@ -56,7 +56,7 @@
 | POST | `/api/board/update` | `AI/api/boards.md`、`AI/board.md`、`AI/frontend/board-ui.md` |
 | GET | `/api/boards` | `AI/api/extensions.md`、`AI/api/queries.md`、`AI/board.md`等 |
 | GET/POST | `/api/config` | `AI/agent.md`、`AI/api/extensions.md`、`AI/api/mutations.md`等 |
-| POST | `/api/confirm-schedule` | `AI/algorithm.md`、`AI/api/boards.md`、`AI/data.md`等 |
+| POST | `/api/confirm-schedule` | `AI/algorithm.md`、`AI/api/boards.md`、`AI/api/mutations.md`等 |
 | POST | `/api/create` | `AI/api/mutations.md`、`AI/data.md`、`AI/frontend/create.md` |
 | POST | `/api/drafts/boxes` | `AI/api/extensions.md`、`AI/drafts.md` |
 | POST | `/api/drafts/cleanup` | `AI/api/extensions.md`、`AI/drafts.md` |

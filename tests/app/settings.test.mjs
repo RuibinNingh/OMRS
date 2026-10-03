@@ -13,7 +13,7 @@ import { agentView } from '../../assets/app/features/settings/agent-view.js';
 import { createAi } from '../../assets/app/features/settings/ai.js';
 import { aiView } from '../../assets/app/features/settings/ai-view.js';
 import { clampBlur, formatEntryBytes, normalizeEntryBackground, validateEntryFile } from '../../assets/app/features/settings/entry-background.js';
-import { mcpKeysView, mcpCreateView, mcpListView } from '../../assets/app/features/settings/mcp-keys-view.js';
+import { mcpKeysView, mcpCreateView, mcpEditView, mcpListView, MCP_SCOPE_INPUTS } from '../../assets/app/features/settings/mcp-keys-view.js';
 import { keyStatus, keyTime, splitKeys } from '../../assets/app/features/settings/mcp-keys-state.js';
 
 const LOCAL = { status: 'ok', remote: false, authenticated: true, lan_pin_exempt: false };
@@ -29,6 +29,15 @@ test('MCP 设置以列表为主，权限和到期时间在创建窗口配置', (
   assert.doesNotMatch(view, /st-mcp-scope-read/);
   assert.match(view, /完整密钥仅在创建时显示一次/);
   assert.doesNotMatch(view, /localStorage/);
+});
+
+test('MCP 创建复习计划权限默认关闭，编辑准确保留授权并显示中文标签', () => {
+  const input = /<input id="st-mcp-scope-session"[^>]*>/;
+  assert.equal(MCP_SCOPE_INPUTS['st-mcp-scope-session'], 'session:create');
+  assert.doesNotMatch(String(mcpCreateView()).match(input)[0], /checked/);
+  assert.doesNotMatch(String(mcpEditView(['omrs:read'])).match(input)[0], /checked/);
+  assert.match(String(mcpEditView(['omrs:read', 'session:create'])).match(input)[0], /checked/);
+  assert.match(String(mcpListView([{ key_id: 'session-key', scopes: ['session:create'] }])), /创建复习计划/);
 });
 
 test('MCP 到期瞬间归入失效记录，吊销状态优先且原列表不被修改', () => {

@@ -1,4 +1,4 @@
-"""只读工具（read 级，自动执行）：词表、搜题、看题、概况、推荐、Session。输出都控制在 6000 字符内。"""
+"""只读工具（read 级，自动执行）：词表、搜题、看题、概况、推荐、Session。正文截断，Session 条目按页返回。"""
 import datetime
 import math
 import re
@@ -429,26 +429,63 @@ def get_recommendations(ctx, args):
                                    exclude_uids=active_session_uids(vault))
     due = rec["due"][:count]
     prof = rec["proficiency"][:max(0, count - len(due))]
-    pack = lambda i, s: {"uid": i["uid"], "source": s, "why": _why(i, s), "mastery": mastery_of(i)}
+    pack = lambda i, s: {"question_id": i["question_id"], "uid": i["uid"], "source": s, "why": _why(i, s), "mastery": mastery_of(i)}
     result = {"due": [pack(i, "due") for i in due], "proficiency": [pack(i, "proficiency") for i in prof]}
-    result["selection"] = [{"uid": x["uid"], "source": x["source"]} for x in result["due"] + result["proficiency"]]
+    result["selection"] = [{"question_id": x["question_id"], "uid": x["uid"], "source": x["source"]}
+                           for x in result["due"] + result["proficiency"]]
     return {"result": result, "summary": f"到期 {len(due)} + 熟练度 {len(prof)}"}
 
 
+def _session_page(args, default_limit):
+    offset, limit = args.get("offset", 0), args.get("limit", default_limit)
+    if type(offset) is not int or offset < 0:
+        raise ValueError("offset 必须是大于等于 0 的整数")
+    if type(limit) is not int or not 1 <= limit <= 100:
+        raise ValueError("limit 必须是 1 到 100 的整数")
+    return offset, limit
+
+
+def _session_details(session):
+    entries = session.get("entries", [])
+    availability = {state: 0 for state in ("active", "suspended", "archived", "unresolved")}
+    for entry in entries:
+        availability[entry["availability"]] += 1
+    return {"created_at": session.get("created_at", ""), "completed_at": session.get("completed_at", ""),
+            "subject_filter": session.get("subject_filter", ""), "feedback_count": session.get("feedback_count", 0),
+            "pending_count": session.get("pending_count", 0), "feedback_complete": session.get("feedback_complete", False),
+            "total_count": len(entries), "availability_counts": availability}
+
+
 def list_sessions_tool(ctx, args):
-    rows = list_sessions(ctx["vault"], args.get("status") or None)[:20]
+    offset, limit = _session_page(args, 20)
+    status = args.get("status")
+    if status is not None and status not in ("active", "completed"):
+        raise ValueError("status 只能是 active 或 completed")
+    rows = list_sessions(ctx["vault"], status, include_unavailable=True)
+    rows.sort(key=lambda session: (session["created_at"], session["session_id"]), reverse=True)
+    page = rows[offset:offset + limit]
     return {"result": {"sessions": [{"session_id": s["session_id"], "status": s["status"], "count": s["count"],
-                                     "created_at": s["created_at"], "pending": s.get("pending_count", 0)} for s in rows]},
-            "summary": f"{len(rows)} 个"}
+                                     "pending": s.get("pending_count", 0), **_session_details(s)} for s in page],
+                       "total": len(rows), "offset": offset, "limit": limit,
+                       "next_offset": offset + len(page) if offset + len(page) < len(rows) else None},
+            "summary": f"{len(page)} 个，共 {len(rows)} 个"}
 
 
 def get_session_tool(ctx, args):
-    s = get_session(ctx["vault"], args["session_id"].strip())
+    offset, limit = _session_page(args, 100)
+    session_id = args.get("session_id")
+    if not isinstance(session_id, str) or not session_id.strip():
+        raise ValueError("session_id 必须是非空字符串")
+    s = get_session(ctx["vault"], session_id.strip())
     if not s:
-        raise ValueError(f"Session 不存在：{args['session_id']}")
+        raise ValueError(f"Session 不存在：{session_id}")
+    entries = s.get("entries", [])
+    page = entries[offset:offset + limit]
     return {"result": {"session_id": s["session_id"], "status": s["status"], "count": s["count"],
-                       "pending": s.get("pending_uids", []), "done": s.get("feedback_uids", [])},
-            "summary": f"待反馈 {len(s.get('pending_uids', []))}"}
+                       "pending": s.get("pending_uids", []), "done": s.get("feedback_uids", []), **_session_details(s),
+                       "entries": page, "entries_total": len(entries), "offset": offset, "limit": limit,
+                       "next_offset": offset + len(page) if offset + len(page) < len(entries) else None},
+            "summary": f"待反馈 {s.get('pending_count', 0)}，已反馈 {s.get('feedback_count', 0)}"}
 
 
 _S = {"type": "string"}
@@ -484,9 +521,13 @@ SPECS = [
     ("get_recommendations", "read", "取复习推荐：到期列表优先，数量不够再从熟练度列表补；已在进行中 Session 里的题已排除。selection 可直接交给 create_review_session。",
      {"type": "object", "properties": {"count": {"type": "integer", "minimum": 1, "maximum": 30},
                                        "subject": _S, "category": _S, "label": _S}}, get_recommendations),
-    ("list_sessions", "read", "列出复习 Session（最近 20 个）。",
-     {"type": "object", "properties": {"status": {"type": "string", "enum": ["active", "completed"]}}}, list_sessions_tool),
-    ("get_session", "read", "查一个 Session：状态、题数、待反馈与已反馈的题。",
-     {"type": "object", "required": ["session_id"], "properties": {"session_id": {"type": "string", "minLength": 1}}},
+    ("list_sessions", "read", "按创建时间从新到旧分页列出复习 Session，含反馈进度和停用、归档、待绑定条目数量。",
+     {"type": "object", "properties": {"status": {"type": "string", "enum": ["active", "completed"]},
+         "offset": {"type": "integer", "minimum": 0, "default": 0},
+         "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}}}, list_sessions_tool),
+    ("get_session", "read", "查一个 Session：完整计划进度、稳定身份和可用状态；entries 分页，pending/done 始终为完整计划。",
+     {"type": "object", "required": ["session_id"], "properties": {
+         "session_id": {"type": "string", "minLength": 1}, "offset": {"type": "integer", "minimum": 0, "default": 0},
+         "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 100}}},
      get_session_tool),
 ]

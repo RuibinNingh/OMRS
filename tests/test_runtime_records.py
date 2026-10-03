@@ -72,12 +72,27 @@ class RuntimeRecordsTests(unittest.TestCase):
         for value in (secret, url, text, "PRIVATE_IMAGE", "private-token", "signature=private"):
             self.assertNotIn(value, stored)
 
+    def test_review_session_summary_keeps_count_and_stable_session_id_only(self):
+        seq = records.begin(self.vault, "create_review_session", {
+            "request_id": "private-request", "items": [
+                {"question_id": "private-question", "source": "due"},
+                {"question_id": "another-question", "source": "proficiency"}]})
+        records.finish(self.vault, seq, 5, {"session_id": "EXP-test", "reused": True,
+            "items": [{"question_id": "private-question", "uid": "private-title"}]})
+        detail = records.detail(self.vault, seq)
+        self.assertEqual(detail["title"], "创建正式复习计划")
+        self.assertEqual(detail["arguments"], {"items_count": 2})
+        self.assertEqual(detail["result"], {"session_id": "EXP-test", "reused": True, "items_count": 1})
+        self.assertIn("复用已有结果", detail["summary"])
+        self.assertNotIn("private", json.dumps(detail))
+
     def test_restart_marks_only_unfinished_calls_interrupted(self):
         finished = self.call()
         pending = records.begin(self.vault, "create_draft", {})
         self.assertEqual(records.list_records(self.vault, {"status": "running"})["summary"]["total"], 1)
         self.assertEqual(records.recover_interrupted(self.vault), 1)
         self.assertEqual(records.detail(self.vault, pending)["status"], "interrupted")
+        self.assertIn("核对目标当前状态", records.detail(self.vault, pending)["summary"])
         self.assertEqual(records.detail(self.vault, finished)["status"], "success")
         self.assertEqual(records.recover_interrupted(self.vault), 0)
 

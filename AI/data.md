@@ -305,3 +305,8 @@ SQLite `active_config` 是完整运行时事实源，`config.json` 是镜像和�
 ## 11. 独立存储分册
 
 报告、收件箱、标记定义、展示板、助手、标注、草稿、训练目录与系统记录的现行结构见 `AI/data/storage.md`；这些存储不由学习 Ledger 重放，完整备份和恢复须覆盖全部独立数据库及文件。
+
+
+## MCP 调度技术回执
+
+正式复习计划沿用现有 Ledger Session 与 SQL 投影，未增加定时任务存储。ledger.db 的 op_results 复用 mcp:session: 命名空间保存幂等结果，与业务事实及投影同事务；回执不作为学习事实重放或撤销。格式与恢复边界见 AI/mcp-storage.md 的「复习调度回执」。

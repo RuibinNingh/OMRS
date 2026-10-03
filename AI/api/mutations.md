@@ -376,3 +376,8 @@ JSON引用元数据使用 `http_json_mib`（默认2MiB），声明超限即413�
 请求 `{session_id,entry_id,question_id}`，仅给 unresolved 条目追加绑定事实；不修改创建提交。成功返回 `{status:"ok",session}`，已绑定、无效身份或状态冲突返回409。
 
 参数更新响应含实际发布版本、完整`tuning_effective`与持久`recalculation`回执；回执status为complete时已完成历史重算。镜像失败返回mirror_pending；第三方冲突另有mirror_conflict并保留两份内容。跨进程后续保存已覆盖本次版本时返回superseded及当前完整状态，不把旧镜像覆盖回新参数。设置页调参请求期限10分钟，断连通过只读配置核验，不凭默认超时宣称失败。
+
+
+## MCP 正式计划创建
+
+外部 create_review_session 直接调用受限 Session 领域操作，不转发 Web 请求、不开放 Web PIN 权限；与现有网页计划共用 session.create 事实和反馈投影。MCP 的稳定身份、幂等和权限契约见 AI/mcp.md §14，网页 /api/schedule 与 /api/confirm-schedule 行为保持。

@@ -214,7 +214,7 @@ class BoardSDKTests(unittest.TestCase):
         async def run():
             async with _session(self.server.mcp_port, self.key['secret']) as session:
                 tools = (await session.list_tools()).tools
-                self.assertEqual(len(tools), 38)
+                self.assertEqual(len(tools), 39)
                 self.assertNotIn('confirm_mcp_operation', [t.name for t in tools])
                 listing = _json_result(await session.call_tool('list_boards', {}))
                 folder = _json_result(await session.call_tool('create_board_folder', {'name': 'SDK目录', 'expected_catalog_revision': listing['catalog_revision'], 'request_id': 'folder'}))
@@ -254,7 +254,7 @@ class BoardSDKTests(unittest.TestCase):
                     self.assertFalse(result.isError, str(result))
                     return _json_result(result)
                 expected = {'list_taxonomy','search_questions','get_question','get_question_image','get_overview',
-                    'get_recommendations','list_sessions','get_session','list_drafts','get_draft','create_draft',
+                    'get_recommendations','list_sessions','get_session','list_drafts','get_draft','create_draft','create_review_session',
                     'get_questions','get_question_content','get_draft_image','get_question_history','get_learning_history',
                     'get_analytics','list_reports','get_report','create_report','update_draft','list_boards','get_board',
                     'create_board','update_board','duplicate_board','delete_board','add_board_items','remove_board_items',
@@ -323,7 +323,7 @@ class BoardSDKTests(unittest.TestCase):
                         self.assertIn('forbidden', denied.content[0].text)
                     # 同一已建立会话实时编辑权限，不能用旧 token/cache 维持增权。
                     update_scopes(self.server.vault, key['key_id'], list(_SCOPES))
-                    self.assertEqual(len((await session.list_tools()).tools),38)
+                    self.assertEqual(len((await session.list_tools()).tools),39)
                     update_scopes(self.server.vault, key['key_id'], ['omrs:read'])
                     self.assertEqual(len((await session.list_tools()).tools),22)
         asyncio.run(run())

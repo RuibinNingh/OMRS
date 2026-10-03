@@ -21,7 +21,8 @@ TITLES = {
     "get_question": "读取题目", "get_overview": "读取科目概况",
     "get_question_image": "读取题图",
     "get_recommendations": "查询复习推荐", "list_sessions": "读取练习列表",
-    "get_session": "读取练习详情", "list_drafts": "读取草稿列表",
+    "get_session": "读取练习详情", "create_review_session": "创建正式复习计划",
+    "list_drafts": "读取草稿列表",
     "get_draft": "读取草稿", "create_draft": "创建待审核草稿",
     "get_questions": "批量读取题目", "get_question_content": "读取完整正文",
     "get_draft_image": "读取草稿原图", "get_question_history": "读取单题历史",
@@ -49,7 +50,7 @@ ERRORS = {
     "unknown_tool": "此工具未开放。", "invalid_arguments": "参数不符合工具要求。",
     "invalid_request": "请求内容不合法，请检查分类、原图或幂等请求。",
     "write_busy": "写入繁忙，请稍后重试。", "internal_error": "执行失败，请稍后重试。",
-    "interrupted": "调用已中断；请核对草稿队列后再决定是否重试。",
+    "interrupted": "调用已中断；请核对目标当前状态后再决定是否重试。",
 }
 _TEXT_FIELDS = {"subject", "category", "uid", "session_id", "draft_id", "status", "source", "due_range", "match",
                 'board_id', 'folder_id', 'operation_id', 'report_id', 'mode', 'view', 'version'}
@@ -84,7 +85,7 @@ def argument_summary(arguments):
     result = {key: _safe_text(value) for key, value in arguments.items() if key in _TEXT_FIELDS and isinstance(value, str)}
     result.update({key: value for key, value in arguments.items() if key in _NUMBER_FIELDS
                    and _safe_number(value)})
-    for field in ("images", "blocks", "keywords", "labels", "knowledge_points", 'uids', 'item_refs', 'block_patches'):
+    for field in ("images", "blocks", "keywords", "labels", "knowledge_points", 'uids', 'items', 'item_refs', 'block_patches'):
         if isinstance(arguments.get(field), list):
             result[f"{field}_count"] = len(arguments[field])
     return result

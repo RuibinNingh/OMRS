@@ -12,6 +12,27 @@ def _load_sessions(vault):
     return session_rows(vault)
 
 
+def _reserved_session_ids(vault, db=None):
+    """计划编号不可复用：已撤销或被状态恢复移除的计划仍占用原编号。"""
+    if db is None:
+        with connect(vault) as own:
+            return _reserved_session_ids(vault, own)
+    reserved = {row[0] for row in db.execute("SELECT session_id FROM session_projection")}
+    for row in db.execute("SELECT result_json FROM op_results WHERE op_id LIKE 'mcp:session:%'"):
+        session_id = json.loads(row[0]).get("session_id")
+        if session_id:
+            reserved.add(session_id)
+    for row in db.execute("SELECT commit_type,payload_json FROM commits WHERE commit_type IN ('session.create','legacy.bootstrap')"):
+        payload = json.loads(row["payload_json"])
+        if row["commit_type"] == "session.create":
+            session_id = (payload.get("session") or payload).get("session_id")
+            if session_id:
+                reserved.add(session_id)
+        else:
+            reserved.update(session["Session_ID"] for session in payload.get("session_rows", []) if session.get("Session_ID"))
+    return reserved
+
+
 def _resolve_session_id(existing_ids, base):
     if base not in existing_ids:
         return base
@@ -19,7 +40,10 @@ def _resolve_session_id(existing_ids, base):
         candidate = f"{base}-{chr(ord('A') + index)}"
         if candidate not in existing_ids:
             return candidate
-    return f"{base}-{datetime.datetime.now().microsecond}"
+    suffix = datetime.datetime.now().microsecond
+    while f"{base}-{suffix}" in existing_ids:
+        suffix += 1
+    return f"{base}-{suffix}"
 
 
 def _decode_session_items(raw):
@@ -124,7 +148,7 @@ def create_session_from_selection(vault, selected_items, subject=None):
         if qid not in seen:
             seen.add(qid)
             clean.append({"question_id": qid, "uid": row["uid"], "uid_at_creation": row["uid"], "source": source})
-    sid = _resolve_session_id({s["Session_ID"] for s in existing}, f"EXP-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}")
+    sid = _resolve_session_id(_reserved_session_ids(vault) | {s["Session_ID"] for s in existing}, f"EXP-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}")
     for index, entry in enumerate(clean):
         entry["entry_id"] = f"{sid}:{index}"
     append_commit(vault, "api", "session.create", f"创建 Session {sid}", {"session": {
@@ -159,7 +183,7 @@ def get_session(vault, session_id):
 
 
 @storage
-def list_sessions(vault, status=None):
+def list_sessions(vault, status=None, include_unavailable=False):
     result = []
     with connect(vault) as db:
         questions = {r["question_id"]: dict(r) for r in db.execute("SELECT question_id,uid,archived,suspended FROM question_projection")}
@@ -170,7 +194,7 @@ def list_sessions(vault, status=None):
         if status and session["Status"] != status:
             continue
         entries = _entries(vault, session, questions, submitted.get(session["Session_ID"], set()))
-        if session["Status"] == "active" and not any(e["availability"] != "suspended" for e in entries):
+        if not include_unavailable and session["Status"] == "active" and not any(e["availability"] != "suspended" for e in entries):
             continue
         value = {"session_id": session["Session_ID"], "created_at": session.get("Created_At", ""),
                  "subject_filter": session.get("Subject_Filter", ""), "status": session["Status"],

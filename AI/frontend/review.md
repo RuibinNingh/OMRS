@@ -81,3 +81,8 @@
 计划详情按 `entries` 展示固定编号与 `availability`：active 可以预览与反馈，archived / suspended 保留位置并说明状态，unresolved 显示「绑定题目」。绑定复用 `domain/question/picker.js`，人工确认后调用 `/api/session/bind`，保留原 Session 历史并追加绑定提交；绑定前禁止反馈或导出。存在不可用条目时导出按钮禁用，仍可反馈其余 active 项。UID-only 导入不会全库解析；身份不确定时必须先绑定。
 
 计划详情的预览按钮及 `schedule-plan` 翻页上下文按条目的稳定 `question_id` 保存。详情仍显示旧UID而全局题库已更新时，移动或复用编号不会把预览及下一题切换到新身份。
+
+
+## 外部正式计划
+
+获授权的 MCP create_review_session 生成与网页共用的正式 EXP Session，在已有计划中查看、录入反馈或撤销；网页交互契约保持。所有正式创建保留历史编号，包含已撤销及学习状态恢复排除的计划，避免技术重试查到同秒新建的另一计划。MCP 详细查询包含全部停用的 active 计划并显示可用状态，网页原有列表隐藏规则保持。

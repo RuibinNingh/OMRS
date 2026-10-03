@@ -143,3 +143,8 @@ MCP 确认 hash 在 core/api.js 的401跳转和 PIN 登录 destination 中保留
 `domain/question/ref.js` 是客户端稳定引用入口；新写操作、批量选择和导出以 `question_id` 为准，UID 只展示与兼容。菜单、确认框、Markdown 编辑器和选板浮层均在首个 await 前冻结 ID；qview 挂载及缓存检查对应身份。`domain/sessions.js::sessionEntries` 读取权威固定条目，unresolved 的人工绑定复用共享单题选择器。
 
 即时练习控制器带卸载状态、请求序号、取消信号与轮次版本，反馈控制器保留失败输入并按身份合并；晚到读取不能覆盖新挂载，晚到写入只刷新所属领域。`tests/app/audit-controllers.test.mjs` 直接实例化实际控制器，`tests/app/audit-identity-uploads.test.mjs` 验证 UID 重用、固定条目序号、分块字节、上海午夜与分页归约。
+
+
+## MCP 调度验收覆盖
+
+设置页新增默认关闭的 session:create 授权，复用既有弹窗、权限映射和组件，不引入全局入口。tests/e2e/mcp_review_sessions.py 用真实官方 SDK 与临时 Vault 验证网页授权、创建计划可见、反馈进度与撤销重试；既有 mcp_expansion.py 同步新增权限默认和编辑检查，settings.test.mjs 验证权限映射与呈现。

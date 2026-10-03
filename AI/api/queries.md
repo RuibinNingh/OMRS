@@ -317,3 +317,8 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 
 配置查询额外返回`revision`、`mirror_pending`、规范化`tuning_effective`、`policy_hash`及最后`recalculation`，版本与摘要来自同一SQL读事务。摘要同活动配置与投影原子发布，含status、seconds、questions、feedbacks、revision、policy_hash和projection_version；旧版本缺摘要返回not_recorded，不补造过去的计量。
+
+
+## MCP 调度查询与共享读模型
+
+外部 list_sessions/get_session 复用 Session 领域进度，返回字段与分页契约见 AI/mcp.md §14。领域 list_sessions 的 include_unavailable 默认 false 保持网页隐藏全停用 active 计划的行为；MCP/助手查询显式传 true，以可用性计数说明这些计划，不把它们漏作完成。网页 HTTP 列表与详情参数保持原契约。

@@ -15,7 +15,7 @@
 | HTTP 接口 | `routes.md`（路由 → 文档）→ `api.md` 索引及 `api/` 分册 |
 | AI 助手（Harness、工具、权限、对话存储、撤销） | `agent.md`，页面见 `frontend/assistant.md` |
 | 登录、PIN、访问控制、路径安全 | `security.md` |
-| 外部 MCP、独立 API Key、完整原图草稿 | `mcp.md`，技术回执与恢复见 `mcp-storage.md`，并看 `drafts.md` 与 `security.md` |
+| 外部 MCP、独立 API Key、复习调度创建、完整原图草稿 | `mcp.md`，技术回执与恢复见 `mcp-storage.md`，并看 `drafts.md` 与 `security.md` |
 | 系统运行记录、MCP 调用生命周期与追溯 | `runtime.md`，页面见 `frontend/records.md`，接口见 `api.md` |
 | 记忆算法、调度、推荐 | `algorithm.md` |
 | 数据格式、Ledger、投影与配置 | `data.md`、`data/storage.md`、`ledger.md` |
@@ -86,7 +86,7 @@
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v2.2.0 |
+| 当前版本 | v2.2.1 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/app/`（原生 ES Module：设计 token、UI 组件、domain 层及各页面 `features/`）+ `assets/vendor/`（本地字体与 KaTeX）|
@@ -101,8 +101,8 @@
 |---|---|
 | `algorithm.md` | 时间衰减、熟练度状态机、统一优先级、SM-2、双列表推荐、Leech 检测、标记加成与 tuning |
 | `agent.md` | AI 助手后端：运行时、循环、权限、工具、事件、接口、`agent.db`、按运行撤销 |
-| `mcp.md` | 外部 MCP 的 Streamable HTTP、API Key、工具白名单、草稿与原图边界、独立调用记录 |
-| `mcp-storage.md` | MCP 报告/草稿/展示板回执、网页确认与限时导出快照的存储恢复 |
+| `mcp.md` | 外部 MCP 的 Streamable HTTP、API Key、工具白名单、正式复习调度、草稿与原图边界、独立调用记录 |
+| `mcp-storage.md` | MCP 调度/报告/草稿/展示板回执、网页确认与限时导出快照的存储恢复 |
 | `runtime.md` | 独立运行库、MCP 调用生命周期、脱敏白名单与草稿入库关联 |
 | `api.md`、`api/` | 按领域分册的请求体、响应字段、错误语义与限额 |
 | `routes.md` | 路由总表（自动生成，来源 `omrs/http/registry.py` 与 `omrs/agent/http.py`）：方法、路径、说明文档 |
