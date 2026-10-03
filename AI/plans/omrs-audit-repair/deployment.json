@@ -1,0 +1,82 @@
+{
+  "date": "2026-10-03",
+  "version": "v2.2.0",
+  "source_commit": "ec1229385e1b03cd7c43ca85228ae6b50da5b9b9",
+  "production_release": "/root/workspace/apps/releases/omrs-ec12293",
+  "github_main_source_verified": "ec1229385e1b03cd7c43ca85228ae6b50da5b9b9",
+  "backup_directory": "/root/workspace/apps/releases/OMRS-v220-upgrade-20261003T003307Z",
+  "backup_sha_items": 18,
+  "archive_files_verified": 1080,
+  "production_freeze_seconds": 2.947804497089237,
+  "production_pid": 217166,
+  "active_questions": 262,
+  "archived_questions": 1,
+  "previous_facts_preserved": 720,
+  "current_facts": 721,
+  "blobs_preserved": 269,
+  "agent_events_preserved": 1203,
+  "current_content_missing": 0,
+  "content_conflicts": 0,
+  "preexisting_historical_content_gaps": 63,
+  "standalone_sqlite_integrity": "六个实际SQLite完整，另一个旧空占位文件保留",
+  "unit_tests": {
+    "production_python": 653,
+    "resource_warnings": 0,
+    "archive_related": 38,
+    "pytest_system_python": 7
+  },
+  "original_e2e": {
+    "scripts": 5,
+    "assertions": 118,
+    "passed": true
+  },
+  "upgrade_compat_stages": 6,
+  "production_readonly_checks": {
+    "ok": true,
+    "passed": 695,
+    "failed": 0,
+    "skipped": 4,
+    "duration_seconds": 14.816
+  },
+  "static_hash_files": 287,
+  "readonly_key_revoked": true,
+  "runtime_verification_records": 46,
+  "production_data_comparison_valid": true,
+  "real_backup_restore": {
+    "manifest_verified": true,
+    "preview": {
+      "filename": "backup.zip",
+      "files": 876,
+      "bytes": 300857488,
+      "md_files": 282,
+      "image_files": 541,
+      "has_attachments": true,
+      "manifest_verified": true,
+      "question_count": 262
+    },
+    "restore_status": "ok",
+    "commits": 721,
+    "active": 262,
+    "archived": 1,
+    "historical_missing_blobs": 63,
+    "frozen_seconds": 0.7245741938240826,
+    "total_seconds": 9.654266766738147,
+    "zip_bytes": 254265617,
+    "zip_sha256": "b8f2f7d79a4fa2795799c49a4366e645a7576b66dd1e999ec54b3573293f079a"
+  },
+  "synthetic_pin_checks": 707,
+  "services": {
+    "main": "active/running, NRestarts=0",
+    "tunnel": "active/running, NRestarts=0",
+    "detector": "active/running, NRestarts=0，模型及状态保持"
+  },
+  "not_executed": [
+    "生产真实PIN登录及工作台HTML（隔离完整路径已验）",
+    "生产空报告库的报告源码（隔离路径已验）",
+    "Windows LockFileEx及目标平台目录持久化",
+    "外部冻结检测模型评测",
+    "ChatGPT账户联调",
+    "两项发布兼容补修后重复整套UI/视觉及容量门禁"
+  ],
+  "rollback": "保留新事实并按v2.2存储契约前向修复，禁止只降级v2.1源码"
+}

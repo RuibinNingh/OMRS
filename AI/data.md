@@ -11,6 +11,8 @@
 
 > 题目结构化元数据、反馈、熟练度与 Session 的可信来源是 `错题/.omrs/ledger.db`；运行时通过 `data_repository` 查询 SQL，CSV 只在显式导出或备份时流式写出，启动、扫描和普通反馈不生成。无 Ledger 提交的迁移输入可读取旧 CSV；正式运行不依赖镜像。Markdown 是题目正文的工作文件，已入账版本保存在 Ledger 的 `blobs` 表。展示板、助手对话、草稿、收件箱和标注集使用各自的文件或数据库，不由 Ledger 重放；存储路径见 `AI/data/storage.md`，Ledger 边界见 `AI/ledger.md`。
 
+Vault根的`.omrs-maintenance/`保存生命周期锁、世代、恢复预检与journal，独立于可交换的`错题/`；Git与`错题/`一起忽略该维护目录，防止把暂存的个人数据或恢复材料纳入源码提交。备份与恢复边界见`AI/backup.md`。
+
 锁屏入口的 WebGL 场景只读取静态资源，不读取或写入 Vault、Ledger、配置和题目文件；PIN 会话仍由 `auth.json` 与进程内存会话管理，入口本身不产生持久化数据。
 
 ---

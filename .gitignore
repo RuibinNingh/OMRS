@@ -19,6 +19,7 @@ AI/logs/*mini-host-deploy*.md
 # Personal OMRS vault data
 错题/
 临时/
+.omrs-maintenance/
 
 # AI scratch workspace with extracted private images
 AI/omrs_work/

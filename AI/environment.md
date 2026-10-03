@@ -15,13 +15,15 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-02 实测）：服务 `omrs.service`，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；有效 systemd drop-in 从 `/root/workspace/apps/releases/omrs-97e0927` 运行 v2.1.0，提供全量 38 个 MCP 工具、受保护草稿修订、报告保存、展示板管理、网页确认及导出。`.venv` 相对链接复用保留的 `/root/workspace/apps/releases/omrs-bbf3757/.venv`（Python 3.13.5、MCP SDK 1.28.1、Pillow 12.3.0），真实 Vault 仍是 `/root/workspace/apps/OMRS`。
+生产环境事实（2026-10-03 实测）：服务 `omrs.service`，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；有效 systemd drop-in 从 `/root/workspace/apps/releases/omrs-ec12293` 运行 v2.2.0。来源为精确ec12293，1,080个归档文件逐字节校验；`.venv`相对链接复用 `/root/workspace/apps/releases/omrs-bbf3757/.venv`（Python3.13.5、MCP SDK1.28.1、Pillow12.3.0），未升级依赖，真实Vault仍是 `/root/workspace/apps/OMRS`。
 
-Web 监听 8471；同进程 MCP 仅监听 `127.0.0.1:18472`，启动参数登记 --mcp-public-url `https://home.ruibin-ningh.top:8472/mcp` 和 --web-public-url `https://home.ruibin-ningh.top:8472`。Nginx 共用 HTTPS 8472 按路径分流网页与 MCP；确认和下载使用主 Web 公网地址。PIN 已配置，浏览器主应用要求有效 PIN 会话，本机 API 免 PIN 不代表页面免登录；已有密钥不会自动获得扩展写权限。
+Web监听8471，同进程MCP只监听127.0.0.1:18472；Nginx共用HTTPS8472按路径分流。启动参数公网MCP为 `https://home.ruibin-ningh.top:8472/mcp`，公网Web为 `https://home.ruibin-ningh.top:8472`。PIN已配置；本机API免PIN不能绕过主工作台入口。38个MCP工具按Key现有权限发现，临时只读Key精确发现22工具，16隐藏写工具拒绝；既有Key不自动扩权。
 
-当前发布的代码回滚快照为 `/root/workspace/apps/releases/OMRS-mcp-expansion-rollback-20261002T135921Z/`（0700），停服 Vault 归档与八项清单哈希均已校验；旧发布目录 `omrs-ba6501b` 和共享依赖目录保留。回滚只恢复快照中的 10-release.conf.before 到 release drop-in，然后 daemon-reload、重启主服务，不用 Vault 归档覆盖上线后数据。
+最新一致升级保全位于 `/root/workspace/apps/releases/OMRS-v220-upgrade-20261003T003307Z/`（目录0700、文件0600），包含停写原始Vault/旧源码/unit/drop-in和完整核验材料；首次隔离副本保全为OMRS-v220-preflight-20261002T180201Z。当前1个归档身份、262活动题、零冲突；原720事实/269正文blob与六个独立实库的旧业务行保留，新增配置原子发布审计1条，助手1,203事件语义保留。当前正文完整；63个首次正文快照前的旧历史缺口保留，不伪造内容。
 
-独立 OMRS Tunnel 为 `tunnel-client-omrs.service`，实测 active/running、NRestarts=0；受管检测服务及模型指针保持。公网 SDK 已验收 22 个只读工具的发现、新增查询与权限边界；用户已反馈 ChatGPT 文字查询可用，扩展工具的账户发现与题图视觉处理仍待账户验证。默认分工和规划模式见 `AGENTS.md`「维护者、分工与运行模式」。
+v2.2.0存储迁移后不能仅回退v2.1.0代码，也不能用旧归档覆盖上线新增事实；保留最新数据并使用兼容当前契约的修复版本前向恢复。具体升级/失败边界及实际生产验收见 `plans/omrs-audit-repair/release.md`。旧release及依赖目录保留。
+
+主服务、OMRS Tunnel和受管检测服务均active/running、NRestarts=0。检测PID1532134、模型active指针及管理状态SHA保持；未更改模型、Nginx、端口、PIN或权限。真实公网SDK＋本机静态＋PIN浏览器入口695检查通过，287资源hash、PNG原图351546字节，临时Key已吊销，未创建生产业务对象；后台与MCP运行记录仅有可识别技术追加。ChatGPT账户联调及Windows实机仍待验证。
 
 ## 2. Claude Code Web 实测能力（2026-09-24）
 
