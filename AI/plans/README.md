@@ -42,4 +42,4 @@ AI/plans/<计划名>/
 | `mcp-integration/` | 全量扩展P0–P7完成并部署v2.1.0 | 97e0927 的38工具、受保护草稿修订、报告、展示板管理/网页确认/安全导出已上线；公网只读99/99，实际验收见 `mcp-integration/progress.md` |
 | `history-redesign/` | 已部署 v2.1.0，随 ba6501b 发布 | 学习与变更 / 系统运行分区时间线、真实 MCP 调用与草稿入库双向关联，见 `history-redesign/progress.md` |
 | `omrs-audit-repair/` | 全部完成，已部署v2.2.0并推GitHub | 十九项修复与治理、万题十万反馈容量、真实副本迁移/恢复及生产验收；执行者Codex完整模式，见progress.md |
-| `mcp-review-sessions/` | 开发验收完成，未部署 | 正式调度创建、查询增强及v2.2.1；执行者Codex完整模式，见progress.md |
+| `mcp-review-sessions/` | 已部署v2.2.1并推送GitHub | 正式调度创建、查询增强及v2.2.1；执行者Codex完整模式，见progress.md |

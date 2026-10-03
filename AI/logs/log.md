@@ -4,6 +4,7 @@
 
 - [2026-10-03_omrs-v220-production](2026-10-03_omrs-v220-production.md)：OMRS v2.2.0 生产部署与 GitHub 推送
 - [2026-10-03_mcp-review-sessions](2026-10-03_mcp-review-sessions.md)：MCP 正式复习调度
+- [2026-10-03_mcp-review-sessions-production](2026-10-03_mcp-review-sessions-production.md)：MCP 正式复习调度生产发布
 - [2026-10-03_content-history-recovery](2026-10-03_content-history-recovery.md)：历史正文缺口补回
 - [2026-10-02_omrs-audit-repair](2026-10-02_omrs-audit-repair.md)：OMRS 审计修复与治理
 - [2026-10-02_mcp-question-image-read](2026-10-02_mcp-question-image-read.md)：MCP 题图按需读取

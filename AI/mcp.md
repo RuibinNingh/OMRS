@@ -148,7 +148,7 @@ ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentic
 
 工具调用通过task传播题库世代，实际存储段才取租约。恢复后旧工具结果返回 `vault_changed`，维护繁忙返回 `vault_busy`；旧世代的运行结束回执不写入新库，也不覆盖原工具错误。`tests/test_mcp_lifecycle.py` 验证该边界。
 
-当前源码提供 39 工具，新增复习计划创建尚未由本次任务部署生产，现有密钥权限保持；新增写权限须在设置页显式启用，外部客户端随后刷新工具清单。既有生产公网 SDK 已实测只读权限发现 22 工具、原有查询及所有隐藏写工具拒绝；既有 38 工具写入闭环在临时实例验收，新增调度闭环另由本批专项验证。发布目录和地址见 `AI/environment.md`，部署与账户验证记录见 `AI/plans/mcp-integration/progress.md`；SDK 通过不代表 ChatGPT 账户联调完成。
+生产已发布 b41a65a / v2.2.1 的 39 工具，现有密钥权限保持；复习计划创建须在设置页显式启用 session:create，并保留 omrs:read，外部客户端随后刷新工具清单。本次发布按用户要求未执行生产业务或公网 SDK 验收，只确认主服务启动与本机版本。既有生产公网 SDK 已实测只读权限发现 22 工具、原有查询及所有隐藏写工具拒绝；既有 38 工具写入闭环在临时实例验收，新增调度闭环另由本批专项验证。发布目录和地址见 `AI/environment.md`，部署与账户验证记录见 `AI/plans/mcp-integration/progress.md`；SDK 通过不代表 ChatGPT 账户联调完成。
 
 官方参考：[Developer Mode](https://developers.openai.com/api/docs/guides/developer-mode)、[Apps SDK 文件参数](https://developers.openai.com/apps-sdk/reference/)、[认证](https://developers.openai.com/apps-sdk/build/auth/)、[Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。
 
