@@ -81,6 +81,10 @@ def _sqlite(path):
         header = file.read(16)
     if header == b"SQLite format 3\x00":
         return True
+    # 旧版遗留的顶层收件箱占位文件没有消费者；按原字节保留，不能当活动库初始化。
+    # 实际收件箱库位于 .omrs/inbox/inbox.db，仍须通过 SQLite 格式及完整性检查。
+    if not header and Path(path).name == "inbox.db" and Path(path).parent.name == ".omrs":
+        return False
     if path.endswith(".db"):
         raise ValueError(f"数据库文件格式不可识别：{os.path.basename(path)}")
     return False

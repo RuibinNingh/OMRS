@@ -98,6 +98,47 @@ class BackupRecoveryTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '数据库集合'):
             backup._capture_guarded(self.source, self.temp.name, {})
 
+    def test_legacy_empty_inbox_placeholder_roundtrip_keeps_real_store(self):
+        data = Path(questions_root(self.source)) / '.omrs'
+        placeholder = data / 'inbox.db'
+        placeholder.write_bytes(b'')
+        actual = data / 'inbox' / 'inbox.db'
+        actual.parent.mkdir()
+        with contextlib.closing(sqlite3.connect(actual)) as db, db:
+            db.execute('CREATE TABLE evidence(value TEXT)')
+            db.execute("INSERT INTO evidence VALUES('实际收件箱数据')")
+        archive, _, _, _ = backup.create_backup(self.source)
+        try:
+            with zipfile.ZipFile(archive) as zipped:
+                self.assertEqual(zipped.read('错题/.omrs/inbox.db'), b'')
+                manifest = json.loads(zipped.read('错题/.omrs/backup_manifest.json'))
+                files = {item['path']: item for item in manifest['files']}
+                self.assertNotIn('sqlite_snapshot', files['错题/.omrs/inbox.db'])
+                self.assertEqual(files['错题/.omrs/inbox/inbox.db']['sqlite_snapshot'], 'backup')
+            prepared = backup.prepare_import(self.vault, archive)
+            self.assertTrue(prepared['preview']['manifest_verified'])
+            backup.restore(self.vault, prepared['restore_id'], True)
+            restored = Path(questions_root(self.vault)) / '.omrs'
+            self.assertEqual((restored / 'inbox.db').read_bytes(), b'')
+            with contextlib.closing(sqlite3.connect(restored / 'inbox' / 'inbox.db')) as db:
+                self.assertEqual(db.execute('SELECT value FROM evidence').fetchone()[0], '实际收件箱数据')
+            self.assertTrue(verify_ledger(self.vault)['valid'])
+        finally:
+            os.unlink(archive)
+
+    def test_placeholder_exception_does_not_accept_broken_active_or_nonempty_database(self):
+        data = Path(questions_root(self.source)) / '.omrs'
+        for relative, content in [('inbox/inbox.db', b''), ('inbox.db', '损坏数据库'.encode())]:
+            with self.subTest(relative=relative):
+                path = data / relative
+                path.parent.mkdir(exist_ok=True)
+                path.write_bytes(content)
+                try:
+                    with self.assertRaisesRegex(ValueError, '数据库文件格式'):
+                        backup.create_backup(self.source)
+                finally:
+                    path.unlink()
+
     def test_directory_only_zip_cannot_bypass_file_limit(self):
         path = Path(self.temp.name) / 'directories.zip'
         with zipfile.ZipFile(path, 'w') as archive:
