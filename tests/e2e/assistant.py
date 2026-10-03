@@ -1,6 +1,6 @@
 """AI 助手页：隔离 Vault + 假模型（OMRS_AGENT_FAUX_SCRIPT）的真实浏览器流程与版式审计。
 
-覆盖：入口显示、空状态权限表、流式回答与引用芯片、需确认写入（对话框允许 / 内联拒绝）、停止、运行中插话、
+覆盖：入口显示、空状态权限表、流式回答与引用芯片、需确认写入（审核中心允许 / 内联拒绝）、停止、运行中插话、
 检查器、按运行撤销、窄屏抽屉；审计无行内样式（KaTeX 除外）、无横向溢出。用法：python3 tests/e2e/assistant.py
 """
 import json
@@ -40,9 +40,11 @@ def make_vault():
 def start(vault, port):
     env = dict(os.environ, OMRS_AGENT_FAUX_SCRIPT=FAUX)
     env.pop("OMRS_SYSTEMD_SERVICE", None)
-    log = tempfile.TemporaryFile(mode="w+")
-    proc = subprocess.Popen([sys.executable, os.path.join(ROOT, "omrs_engine.py"), "--vault", vault, "serve", "-p", str(port)],
+    env.pop("OMRS_BOXDETECT_CONTROL", None)
+    log = tempfile.NamedTemporaryFile(mode="w+", prefix="omrs-ast-server-", suffix=".log", delete=False)
+    proc = subprocess.Popen([sys.executable, os.path.join(ROOT, "tests", "fixtures", "serve_diagnostics.py"), "--vault", vault, "serve", "-p", str(port)],
                             env=env, stdout=log, stderr=log)
+    proc._omrs_test_log = log
     for _ in range(100):
         try:
             urllib.request.urlopen(f"http://127.0.0.1:{port}/api/auth/session", timeout=2)
@@ -73,7 +75,7 @@ def main():
             browser = launch_chromium(p)
             page = browser.new_page(viewport={"width": 1440, "height": 900})
             page.on("pageerror", lambda e: errors.append(str(e)[:300]))
-            page.on("console", lambda m: m.type == "error" and errors.append(m.text[:300]))
+            page.on("console", lambda m: m.type == "error" and errors.append((m.location.get('url', '') + ' ' + m.text)[:300]))
             page.goto(f"{base}/#/assistant", wait_until="networkidle")
             page.wait_for_selector(".ast-empty", timeout=8000)
             check("侧栏入口在启用后显示", page.is_visible('.tab[data-tab="assistant"]'))
@@ -86,6 +88,27 @@ def main():
 
             def done(n, timeout=30000):
                 page.wait_for_function(f"() => document.querySelectorAll('.ast-turn:not(.is-live)').length >= {n}", timeout=timeout)
+
+            def back_to_assistant():
+                page.click('.tab[data-tab="assistant"]')
+                page.wait_for_selector('#ast-input')
+
+            def open_waiting_review(gate):
+                # 自动写也有审核记录卡；点击必须绑定当前等待调用的真实操作。
+                button = gate.locator('[data-action="assistant.gate"]')
+                run_id, call_id = button.get_attribute('data-arg').split('|', 1)
+                events = api(base, '/api/agent/events?run=' + urllib.request.quote(run_id) + '&limit=500')['events']
+                waiting = [event['data'] for event in events if event['type'] == 'tool.waiting'
+                           and event['data'].get('call_id') == call_id]
+                assert waiting and waiting[-1].get('operation_id'), '等待卡缺少持久审核操作'
+                operation_id = waiting[-1]['operation_id']
+                button.click()
+                page.wait_for_function("""id => location.hash.startsWith('#/ai-review?') &&
+                    new URLSearchParams(location.hash.split('?')[1]).get('operation') === id""",
+                    arg=operation_id, timeout=5000)
+                operation = page.locator(f'.arv-operation[data-key="operation-{operation_id}"]')
+                operation.wait_for(timeout=5000)
+                return operation
 
             say("找一下和「周期」有关的题")
             page.wait_for_selector(".ast-turn.is-live", timeout=5000)
@@ -102,12 +125,19 @@ def main():
             check("Esc 关闭题目弹窗", page.wait_for_function("() => !document.querySelector('dialog[open]')", timeout=5000) is not None)
 
             say("帮我把今天要复习的题排出来，8 道以内。另外三角函数1的错因补一下")
-            page.wait_for_selector(".ast-gate", timeout=20000)
+            gate = page.locator('.ast-turn:last-of-type .ast-tool.is-waiting .ast-gate')
+            gate.wait_for(timeout=20000)
             check("需确认写入先停在确认卡", page.locator(".ast-tool.is-waiting").count() == 1)
-            page.click(".ast-gate [data-action='assistant.gate']")
-            page.wait_for_selector(".ast-gate-dlg", timeout=5000)
-            check("确认框展示现在 / 修改后", page.locator(".ast-gate-dlg .ast-diff__box").count() >= 2)
-            page.click(".ast-gate-dlg [data-gate='allow']")
+            operation = open_waiting_review(gate)
+            check('正式复习计划在审核中心等待允许', '复习' in operation.text_content())
+            page.click('[data-action="ai-review.approve"]')
+            back_to_assistant()
+            gate = page.locator('.ast-tool.is-waiting').filter(has_text='改错因')
+            gate.wait_for(timeout=15000)
+            open_waiting_review(gate)
+            check("审核中心展示现在 / 修改后", page.locator('.arv-diff > div').count() >= 2)
+            page.click('[data-action="ai-review.approve"]')
+            back_to_assistant()
             done(2)
             check("允许后写入两条 commit", "写入 2" in page.locator(f"{last} .ast-foot").text_content())
             md = api(base, "/api/question?uid=" + urllib.request.quote("三角函数1")).get("markdown", "")
@@ -118,8 +148,9 @@ def main():
             check("检查器画出时间线", page.locator(".ast-insp svg.ast-wf rect").count() >= 4)
 
             say("第一道做错了，自评 3 分；第二道做对了，8 分")
-            page.wait_for_selector(".ast-gate", timeout=20000)
-            page.click(".ast-gate [data-action='assistant.deny']")
+            gate = page.locator('.ast-turn:last-of-type .ast-tool.is-waiting .ast-gate')
+            gate.wait_for(timeout=20000)
+            gate.locator('[data-action="assistant.deny"]').click()
             done(3)
             check("内联拒绝后反馈没有执行", page.locator(f"{last} .ast-tool.is-denied").count() == 1)
 
@@ -216,9 +247,9 @@ def main():
             page.evaluate("async () => fetch('/api/config', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({draft_mode:'confirm'})})")
             check("确认模式动态注册草稿入库工具", api(base, '/api/agent/status')["tools"].get('commit_draft') == 'confirm')
             say("确认草稿")
-            page.wait_for_selector('.ast-turn .ast-gate', timeout=15000)
-            gate = page.locator('.ast-turn .ast-gate').last
-            check("草稿入库预览等待用户确认", '第 1 版' in gate.text_content())
+            page.wait_for_selector('.ast-tool.is-waiting .ast-gate', timeout=15000)
+            gate = page.locator('.ast-tool.is-waiting .ast-gate')
+            check("草稿入库预览等待用户确认", '待审核' in gate.text_content())
             pending = api(base, '/api/drafts/list')["drafts"][0]
             before = api(base, f'/api/drafts/item?id={pending["id"]}')["draft"]
             changed = page.evaluate("""async ({id,revision,blocks}) => {
@@ -228,21 +259,21 @@ def main():
             }""", {"id": pending["id"], "revision": before["revision"], "blocks": before["blocks"]})
             check("确认等待期间编辑产生新版本", changed["status"] == 200 and
                   changed["data"]["draft"]["revision"] == before["revision"] + 1, changed)
-            gate.locator('[data-action="assistant.gate"]').click()
-            page.wait_for_selector('dialog[open] .ast-draft-review', timeout=5000)
-            page.locator('dialog[open] [data-gate="allow"]').click()
+            open_waiting_review(gate)
+            page.click('[data-action="ai-review.approve"]')
+            back_to_assistant()
             done(1)
             after = api(base, f'/api/drafts/item?id={pending["id"]}')["draft"]
             check("旧确认不能把改过的草稿入库", after["status"] == "review" and after["uid"] is None and
-                  '草稿已经变化' in page.locator('.ast-turn').last.text_content())
+                  '未允许' in page.locator('.ast-turn').last.text_content())
 
             page.wait_for_function("async () => (await (await fetch('/api/agent/status')).json()).active.length === 0", timeout=10000)
             say("确认草稿")
-            page.wait_for_selector('.ast-turn:last-of-type .ast-gate', timeout=15000)
+            page.wait_for_selector('.ast-turn:last-of-type .ast-tool.is-waiting .ast-gate', timeout=15000)
             approved_id = page.locator('.ast-turn').last.locator('.ast-draft-card code').first.inner_text()
-            page.locator('.ast-turn').last.locator('[data-action="assistant.gate"]').click()
-            page.wait_for_selector('dialog[open] .ast-draft-review', timeout=5000)
-            page.locator('dialog[open] [data-gate="allow"]').click()
+            open_waiting_review(page.locator('.ast-turn:last-of-type .ast-tool.is-waiting .ast-gate'))
+            page.click('[data-action="ai-review.approve"]')
+            back_to_assistant()
             done(2)
             approved = api(base, f'/api/drafts/item?id={approved_id}')["draft"]
             check("确认模式允许后入库一次", approved["status"] == "done" and bool(approved["uid"]) and
@@ -356,9 +387,12 @@ def main():
     finally:
         proc.terminate()
         proc.wait(timeout=10)
+        proc._omrs_test_log.close()
         shutil.rmtree(vault, ignore_errors=True)
     check("页面没有脚本错误", not errors, errors[:3])
     failed = [r for r in results if not r[1]]
+    if failed:
+        print("服务诊断日志：" + proc._omrs_test_log.name)
     for name, ok, detail in results:
         print(f"{'PASS' if ok else 'FAIL'}  {name}{'  ' + detail if detail and not ok else ''}")
     print(f"{len(results) - len(failed)}/{len(results)} 通过")

@@ -239,19 +239,18 @@ def main():
             context = browser.new_context(viewport={"width": 1440, "height": 900}, accept_downloads=True)
             page = context.new_page()
             page.set_default_timeout(10000)
-            page.goto(base + "/#/create", wait_until="networkidle")
-            page.locator('#create-flow [data-ib-stage="drafts"]').click()
-            page.wait_for_selector(".drf-item")
-            checks.append(("pending 列表只读展示 MCP 来源", page.locator(".drf-item").count() == 1
-                           and "来源：MCP" in page.locator(".drf-item").inner_text()))
-            page.locator(f'.drf-item[data-arg="{draft_id}"]').click()
+            page.goto(base + "/#/ai-review", wait_until="networkidle")
+            page.wait_for_selector(".arv-row")
+            row = page.locator(f'.arv-row[data-arg="{draft_id}"]')
+            checks.append(("审核队列展示 MCP 来源草稿", row.count() == 1 and "MCP" in row.inner_text()))
+            row.click()
             page.wait_for_selector(".drf-detail")
             checks.append(("详情保持 review/来源 MCP", "来源：MCP" in page.locator(".drf-detail").inner_text()
                            and "浏览器验收" in page.locator(".drf-detail").inner_text()))
             page.locator(".drf-source-trigger").click()
             page.wait_for_selector(".drf-source-workspace")
             checks.append(("来源工作区显示完整原图列表", page.locator(".drf-source img").count() == len(raw_images)))
-            checks.append(("MCP 原始来源禁止取消关联", page.locator('[data-action="create.draftSourceRemove"]').count() == 0))
+            checks.append(("MCP 原始来源禁止取消关联", page.locator('[data-action="ai-review.draftSourceRemove"]').count() == 0))
             # 草稿区通过普通 Web 图片端点取原件；MCP Key 没有带到浏览器请求。
             for image in page.locator(".drf-source img").all():
                 src = image.get_attribute("src") or ""

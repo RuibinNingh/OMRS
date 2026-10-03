@@ -22,6 +22,7 @@
 | 全库备份、恢复、生命周期与世代 | `backup.md`、`environment.md` |
 | 导出与展示板打印 | `export.md`、`board.md` |
 | 收件箱、标记、答题卡导入 | `inbox.md`、`labels.md`、`omr-import.md` |
+| 统一 AI 写审核、人工修订、MCP 改题 | `ai-review.md`，页面见 `frontend/ai-review.md` |
 | AI 草稿区（助手录题、草稿存储、审核接口） | `drafts.md` |
 | 框选模型训练、数据构建与实验 | `training/README.md` |
 | 技术债与已知缺陷 | `optimization.md` |
@@ -100,6 +101,7 @@
 | 文件 | 说明 |
 |---|---|
 | `algorithm.md` | 时间衰减、熟练度状态机、统一优先级、SM-2、双列表推荐、Leech 检测、标记加成与 tuning |
+| `ai-review.md` | MCP 与助手业务写分级审核、统一审批库、历史导入与启动收束 |
 | `agent.md` | AI 助手后端：运行时、循环、权限、工具、事件、接口、`agent.db`、按运行撤销 |
 | `mcp.md` | 外部 MCP 的 Streamable HTTP、API Key、工具白名单、正式复习调度、草稿与原图边界、独立调用记录 |
 | `mcp-storage.md` | MCP 调度/报告/草稿/展示板回执、网页确认与限时导出快照的存储恢复 |

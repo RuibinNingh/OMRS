@@ -1,5 +1,4 @@
-"""写入工具。rev 级（可撤销，自动执行，计入写入预算）：建复习 Session、打标记。
-confirm 级（界面点「允许」才执行）：改正文一节、改知识点、移动 / 停用 / 恢复、记录反馈。
+"""正式题库和学习数据写入工具：全部在界面确认后执行，计入写入预算。
 全部在 runtime 的写锁与 agent_actor 上下文里执行：commit 来源为 agent，payload 带运行身份；可被按运行撤销。
 录题改走草稿（tools/drafts.py 的 create_draft），这里不再有录题工具。
 """
@@ -28,12 +27,47 @@ def _row(vault, uid):
     return row
 
 
-# ── rev ──
+# ── confirm：计划和标记 ──
+def create_review_session_preview(ctx, args):
+    from ...sessions import active_session_uids
+    occupied = active_session_uids(ctx['vault'])
+    items = []
+    for item in args["items"]:
+        row = _row(ctx["vault"], item["uid"])
+        if row.get("suspended"):
+            raise ValueError(f"题目已停用：{row['uid']}")
+        if row['uid'] in occupied:
+            raise ValueError(f"题目已在进行中的计划内：{row['uid']}")
+        items.append({"uid": row["uid"], "question_id": row["question_id"],
+                      "source": item.get("source") or "due", "subject": row["subject"],
+                      "category": row["category"]})
+    return {"items": items, "count": len(items), "message": "确认后创建正式复习调度；尚未创建或记录反馈。"}
+
+
 def create_review_session(ctx, args):
     items = [{"uid": i["uid"].strip(), "source": i.get("source") or "due"} for i in args["items"]]
     s = create_session_from_selection(ctx["vault"], items)
     return {"result": {"session_id": s["session_id"], "count": s["count"], "status": s["status"],
                        "items": [i["uid"] for i in items]}, "summary": s["session_id"]}
+
+
+def set_question_labels_preview(ctx, args):
+    known = {d["name"] for d in list_label_defs(ctx["vault"])}
+    add = [v.strip() for v in args.get("add") or [] if v.strip()]
+    remove = {v.strip() for v in args.get("remove") or [] if v.strip()}
+    if any(value not in known for value in add):
+        raise ValueError("只能添加已有标记")
+    if not add and not remove:
+        raise ValueError("add 与 remove 至少给一个")
+    details = []
+    for uid in dict.fromkeys(args["uids"]):
+        row = _row(ctx["vault"], uid)
+        content = read_question_file(ctx["vault"], row)
+        before = extract_labels(parse_yaml_frontmatter(content))
+        after = [v for v in dict.fromkeys(before + add) if v not in remove]
+        details.append({"question_id": row["question_id"], "uid": row["uid"],
+                        "before": before, "after": after})
+    return {"items": details, "count": len(details), "message": "确认后修改题目标记。"}
 
 
 def set_question_labels(ctx, args):
@@ -241,14 +275,14 @@ def record_feedback(ctx, args):
 _S = {"type": "string", "minLength": 1}
 _UID = {"type": "string", "minLength": 1}
 SPECS = [
-    ("create_review_session", "rev", "按选好的题建一个复习 Session（可撤销）。items 里 source 是 due 或 proficiency，通常直接用 get_recommendations 的 selection。",
+    ("create_review_session", "confirm", "按选好的题建一个复习 Session（可撤销），须在聊天或审核中心确认后执行。items 里 source 是 due 或 proficiency，通常直接用 get_recommendations 的 selection。",
      {"type": "object", "required": ["items"], "properties": {"items": {"type": "array", "minItems": 1, "maxItems": 30, "items": {
          "type": "object", "required": ["uid"], "properties": {"uid": _UID, "source": {"type": "string", "enum": ["due", "proficiency"]}}}}}},
-     create_review_session),
-    ("set_question_labels", "rev", "批量给题目加上或去掉标记（可撤销），单次最多 50 题。只能用已有的标记名。",
+     create_review_session, create_review_session_preview),
+    ("set_question_labels", "confirm", "批量给题目加上或去掉标记（可撤销），须确认后执行，单次最多 50 题。只能用已有的标记名。",
      {"type": "object", "required": ["uids"], "properties": {"uids": {"type": "array", "minItems": 1, "maxItems": 50, "items": _UID},
                                                           "add": {"type": "array", "items": _S}, "remove": {"type": "array", "items": _S}}},
-     set_question_labels),
+     set_question_labels, set_question_labels_preview),
     ("update_question_section", "confirm", "改一道题的「题目」「答案」或「错因」这一节（替换或追加）。需要用户在界面上点允许；原有图片会保留。",
      {"type": "object", "required": ["uid", "section", "content"], "properties": {
          "uid": _UID, "section": {"type": "string", "enum": list(SECTIONS)},

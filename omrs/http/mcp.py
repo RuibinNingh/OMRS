@@ -46,10 +46,12 @@ class McpRoutes:
                     raise ValueError('权限编辑只接受 key_id 和 scopes')
                 self._json({'status': 'ok', 'key': update_scopes(self.vault_path, data['key_id'], data['scopes'])})
             elif path == '/api/mcp/operations/decide':
-                if set(data) != {'operation_id', 'decision'}:
-                    raise ValueError('确认请求只接受 operation_id 和 decision')
+                if set(data) - {'operation_id', 'decision', 'expected_revision'} or not {'operation_id', 'decision'}.issubset(data):
+                    raise ValueError('确认请求只接受 operation_id、decision 和可选 expected_revision')
                 from ..mcp_operations import decide
-                self._json({'status': 'ok', 'operation': decide(self.vault_path, data['operation_id'], data['decision'])})
+                remote, ip, _ = self._security_context()
+                self._json({'status': 'ok', 'operation': decide(self.vault_path, data['operation_id'], data['decision'],
+                    data.get('expected_revision'), {'kind': 'web', 'access': 'session' if remote else 'direct', 'client_ip': ip})})
             else:
                 self._json({'status': 'error', 'msg': 'not found'}, 404)
         except self.services.RequestError as exc:

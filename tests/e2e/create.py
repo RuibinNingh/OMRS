@@ -12,7 +12,7 @@ import zlib
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
-from browser_runtime import launch_chromium
+from browser_runtime import launch_chromium, open_app
 
 SERVER = r'''
 import http.server, sys, time
@@ -96,7 +96,7 @@ def run(page, base, results):
     def check(name, ok):
         results.append((name, bool(ok), ''))
 
-    page.goto(base + '/#/create', wait_until='networkidle')
+    open_app(page, base, 'create')
     check('录入页由 features/create 注册并显示六个工作区',
           wait(page, "() => document.querySelectorAll('#create-flow button[data-ib-stage]').length === 6")
           and page.locator('#create-flow [aria-current="step"]').count() == 1)
@@ -399,7 +399,7 @@ def run_cards(page, base, results):
     def check(name, ok):
         results.append((name, bool(ok), ''))
 
-    page.goto(base + '/#/create', wait_until='networkidle')
+    open_app(page, base, 'create')
     page.locator('#create-flow [data-ib-stage="upload"]').click()
     upload(page, '题卡.png', 90)
     page.locator('.crw-grid-item', has_text='题卡.png').locator('[data-action="create.gridOpen"]').click()
@@ -502,7 +502,7 @@ def run_train(page, base, results):
     def check(name, ok):
         results.append((name, bool(ok), ''))
 
-    page.goto(base + '/#/create', wait_until='networkidle')
+    open_app(page, base, 'create')
     page.locator('#create-flow [data-ib-stage="train"]').click()
     check('AI 训练读取数据集统计', wait(page, "() => /^\\d+$/.test(document.querySelector('[data-stat=\"imgs\"] .ui-stat__value')?.textContent.trim() || '') && document.querySelectorAll('#ib-stage-train .crt-bar progress').length >= 2"))
     check('训练工作区没有行内样式与行内事件', page.locator('#ib-stage-train [style], #ib-stage-train [onclick], #ib-stage-train [onchange]').count() == 0)
@@ -573,7 +573,7 @@ def main():
                         audit_context = browser.new_context(viewport={'width': viewport[0], 'height': viewport[1]})
                         audit_context.add_init_script(f"localStorage.setItem('omrs-theme', '{theme}')")
                         audit_page = audit_context.new_page()
-                        audit_page.goto(f'http://127.0.0.1:{port}/#/create', wait_until='networkidle')
+                        open_app(audit_page, f'http://127.0.0.1:{port}', 'create')
                         wait(audit_page, "() => !!document.querySelector('#create-grid .crw-inbox__filters') && !!document.querySelector('#create-upload .ui-filedrop') && document.querySelector('#panel-create')?.classList.contains('active') && document.querySelector('#ib-stage-upload')?.classList.contains('on')")
                         upload(audit_page, f'审计-{theme}-{label}.png', 180 + len(results) % 60)
                         upload_audit = audit_page.evaluate(AUDIT_UPLOAD, target)
@@ -608,7 +608,7 @@ def main():
                         audit_context.close()
                 touch_context = browser.new_context(viewport={'width': 360, 'height': 800}, is_mobile=True, has_touch=True)
                 touch_page = touch_context.new_page()
-                touch_page.goto(f'http://127.0.0.1:{port}/#/create', wait_until='networkidle')
+                open_app(touch_page, f'http://127.0.0.1:{port}', 'create')
                 touch_page.locator('#create-flow [data-ib-stage="quick"]').click()
                 size = touch_page.locator('[data-action="create.submit"]').evaluate(
                     'el => { const r = el.getBoundingClientRect(); return { width: r.width, height: r.height }; }')

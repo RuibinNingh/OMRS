@@ -373,6 +373,8 @@ def patch_mcp_draft(vault, draft_id, revision, fields, block_patches, key_id, re
                       'wrote': result['wrote'], 'suggestions': result['suggestions'], 'reused': False}
             db.execute('INSERT INTO mcp_patch_requests(identity,digest,draft_id,actor_json,result_json,created_at) VALUES(?,?,?,?,?,?)',
                        (identity, digest, draft_id, json.dumps(actor), json.dumps(result, ensure_ascii=False), drafts._now()))
+            from .ai_review import save_auto_receipt
+            save_auto_receipt(db, result)
             authorize()
             db.commit()
         finally:

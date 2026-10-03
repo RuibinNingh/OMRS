@@ -120,6 +120,9 @@ def shoot(side, port, args, out, frozen_ms):
                     if name == "settings" and args.settings_section:
                         page.locator(f'[data-st-section="{args.settings_section}"]').click()
                         page.wait_for_load_state("networkidle")
+                    if name == 'ai-review':
+                        page.locator('.arv-row[data-arg^="op_"]').first.click()
+                        page.locator('.arv-operation').wait_for()
                     page.evaluate("document.fonts.ready")
                     page.wait_for_timeout(args.settle)
                     key = f"{name}-{theme}-{vp}"
@@ -229,6 +232,25 @@ def seed_drafts_fixture(vault):
         }, {'conversation_id': 'visual-drafts', 'run_id': 'visual-run', 'tool_call_id': f'visual-{index}'})
 
 
+def seed_ai_review_fixture(vault):
+    """中心审计使用真实领域提案与草稿，资料完全由测试 fixture 生成。"""
+    sys.path.insert(0, ROOT)
+    from omrs import ai_review, creation
+    from omrs.agent.tools.read import get_question
+    from omrs.mcp.keys import create_key
+    from omrs.mcp.question_write import propose
+    seed_drafts_fixture(vault)
+    question = creation.create_question(vault, '数学', '审核中心截图', 5,
+        question_text='已知 $f(x)=x^2-2x$，求 $f(3)$。', answer_text='代入得 $f(3)=3$。')
+    detail = get_question({'vault': vault}, {'uid': question['uid']})['result']
+    key = create_key(vault, '截图测试密钥', ['omrs:read', 'question:propose'])
+    propose(vault, key['key_id'], 'visual-question', question['uid'], question['question_id'], detail['content_hash'],
+            {'answer_text': '代入：$f(3)=3^2-2\\times3=3$。', 'difficulty': 6, 'knowledge_points': ['函数求值']},
+            reason='补足代入计算过程，供人工核对。')
+    row = ai_review.create(vault, 'agent', 'create_practice_card', 'visual-practice', {}, actor={'run_id': 'visual-review'})
+    ai_review.set_state(vault, row['operation_id'], 'applied', result={'title': '函数求值练习'})
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--ref", default="HEAD", help="基线提交（默认 HEAD）")
@@ -259,6 +281,8 @@ def main(argv=None):
         seed_process_fixture(fixture)
     if args.create_stage == "drafts":
         seed_drafts_fixture(fixture)
+    if 'ai-review' in args.pages:
+        seed_ai_review_fixture(fixture)
     sides = [("cur", ROOT)]
     if not args.audit_only:
         sides.insert(0, ("ref", prepare_ref(args.ref, out)))

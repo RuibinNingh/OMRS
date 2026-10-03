@@ -141,6 +141,21 @@ def save_config(vault: str, config: dict) -> dict:
     return save(vault, config)
 
 
+def _yaml_scalar(value):
+    """解码受限 YAML 字符串，保留引号与反斜杠的真实值。"""
+    value = value.strip()
+    if value.startswith('"') and value.endswith('"'):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, str):
+                return parsed
+        except ValueError:
+            pass
+    if value.startswith("'") and value.endswith("'"):
+        return value[1:-1].replace("''", "'")
+    return value.strip('"').strip("'")
+
+
 def parse_yaml_frontmatter(content: str) -> dict:
     m = re.match(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
     if not m:
@@ -149,20 +164,20 @@ def parse_yaml_frontmatter(content: str) -> dict:
     for line in m.group(1).split("\n"):
         stripped = line.strip()
         if stripped.startswith("- ") and current_key:
-            list_vals.append(stripped[2:].strip())
+            list_vals.append(_yaml_scalar(stripped[2:]))
             meta[current_key] = list_vals
             continue
         kv = re.match(r"^(\S.*?):\s*(.*)", line)
         if kv:
             current_key = kv.group(1).strip()
-            val = kv.group(2).strip().strip('"').strip("'")
+            val = _yaml_scalar(kv.group(2))
             if val:
                 if val == "[]":
                     meta[current_key] = []
                 elif val.startswith("[") and val.endswith("]") and not val.startswith("[["):
                     inner = val[1:-1].strip()
                     meta[current_key] = [
-                        item.strip().strip('"').strip("'")
+                        _yaml_scalar(item)
                         for item in inner.split(",")
                         if item.strip()
                     ] if inner else []
@@ -231,7 +246,7 @@ def extract_knowledge_tags(meta: dict) -> list:
         raw = [raw]
     if isinstance(raw, list) and raw:
         return [
-            re.sub(r"\[\[|\]\]", "", tag).strip().strip('"').strip("'")
+            re.sub(r"\[\[|\]\]", "", tag).strip()
             for tag in raw
             if isinstance(tag, str) and tag.strip()
         ]
@@ -255,7 +270,7 @@ def extract_labels(meta: dict) -> list:
     result = []
     seen = set()
     for value in raw:
-        value = str(value or "").strip().strip('"').strip("'")
+        value = str(value or "").strip()
         if value and value not in seen:
             seen.add(value)
             result.append(value)

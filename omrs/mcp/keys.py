@@ -20,7 +20,7 @@ from ..common import omrs_data_dir
 
 _LOCK = threading.RLock()
 _FILENAME = "mcp_keys.json"
-_SCOPES = ("omrs:read", "draft:create", "draft:update", "session:create", "report:create", "board:write", "board:delete")
+_SCOPES = ("omrs:read", "draft:create", "draft:update", "session:create", "report:create", "board:write", "board:delete", "question:propose")
 _DEFAULT_SCOPES = ("omrs:read", "draft:create")
 
 

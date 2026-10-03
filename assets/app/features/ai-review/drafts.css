@@ -10,7 +10,7 @@
 .drf-count, .drf-id, .drf-hint { color: var(--fg-3); font-size: var(--text-sm); }
 .drf-count { margin: var(--sp-1) 0 0; }
 .drf-eyebrow { color: var(--accent); font-size: var(--text-xs); font-weight: var(--weight-semibold); letter-spacing: .04em; }
-.drf-list-actions [data-action="create.draftToggleQueue"] { display: none; }
+.drf-list-actions [data-action="ai-review.draftToggleQueue"] { display: none; }
 .drf-add, .drf-source-add, .drf-block-actions, .drf-footer, .drf-footer-actions, .drf-list-actions, .drf-detail-actions, .drf-review-nav, .drf-image-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .drf-filters { display: block; margin: var(--sp-3) 0; }
 .drf-filters .ui-select { width: 100%; }
@@ -117,7 +117,7 @@ html[data-theme="dark"][data-invert-img="1"] #ib-stage-drafts .ib-stage-img img 
   .drf { grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); }
   .drf-list { position: static; }
   .drf-list, .drf-detail { padding: var(--sp-3); }
-  .drf-list-actions [data-action="create.draftToggleQueue"] { display: inline-flex; }
+  .drf-list-actions [data-action="ai-review.draftToggleQueue"] { display: inline-flex; }
   .drf-list:not(.is-open) .drf-filters, .drf-list:not(.is-open) .drf-list-items { display: none; }
   .drf-list-items { max-height: 40vh; }
   .drf-detail-head { align-items: flex-start; }
@@ -131,7 +131,7 @@ html[data-theme="dark"][data-invert-img="1"] #ib-stage-drafts .ib-stage-img img 
   .drf-add { padding-inline-start: calc(var(--sp-5) + var(--sp-2)); }
   .drf-footer { padding-bottom: calc(var(--sp-3) + env(safe-area-inset-bottom, 0px)); }
   .drf-footer-actions { width: 100%; }
-  .drf-footer [data-action="create.draftCommit"] { flex: 1; }
+  .drf-footer [data-action="ai-review.draftCommit"] { flex: 1; }
 }
 .drf-block-image { max-width: 520px; max-height: 360px; overflow: auto; border: 1px solid var(--border-1); border-radius: var(--r-sm); background: var(--surface-1); }
 .drf-block-image img { display: block; max-width: 100%; max-height: 350px; margin: auto; object-fit: contain; }

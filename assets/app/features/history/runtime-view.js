@@ -11,19 +11,17 @@ const LABELS = { success: '成功', failure: '失败', running: '进行中', int
 const DRAFTS = { review: '待审核', pending: '待处理', cropping: '待框选', done: '已入库', discarded: '已丢弃', missing: '草稿不可用' };
 export const runtimeLabel = row => LABELS[row.status] || '未知状态';
 
-function operationView(op, s) {
+function operationView(op) {
   if (!op) return '';
-  const pending = op.status === 'pending_confirmation';
-  return html`<section class="hvw-related" data-operation="${op.operation_id}"><h4>网页确认 · ${runtimeLabel(op)}</h4>
+  return html`<section class="hvw-related" data-operation="${op.operation_id}"><h4>关联审核 · ${runtimeLabel(op)}</h4>
     <p>${(op.impact?.reasons || []).join('、')}</p>
     <dl class="hvw-facts"><dt>操作编号</dt><dd>${op.operation_id}</dd><dt>有效期至</dt><dd>${formatLedgerTime(op.expires_at, 'local')}</dd></dl>
     ${(op.impact?.boards || []).map(board => html`<p>${board.name}：${board.deleted ? '删除展示板' : `${board.items_before} → ${board.items_after} 道题`}${board.paper_reset ? `；重置 ${board.paper_pages} 页纸面记录` : ''}</p>`)}
     ${op.impact?.folder ? html`<p>文件夹「${op.impact.folder.name}」：${op.impact.keep_boards ? '板移到未归档，保留纸面记录' : '连同板一起删除'}</p>` : ''}
     <details class="hvw-details" data-key="operation-impact"><summary>查看完整影响预览</summary><pre>${JSON.stringify(op.impact, null, 2)}</pre></details>
     ${op.error_code ? status({ tone: 'danger', text: `未应用：${op.error_code}，请重新发起操作。` }) : ''}
-    ${pending ? html`<p class="hvw-muted">尚未修改展示板。确认时会重新检查权限、版本和影响范围。</p>
-      ${button({ label: s.operationBusy ? '处理中…' : '确认执行', size: 'md', variant: 'primary', action: 'history.operationConfirm', arg: op.operation_id, disabled: s.operationBusy })}
-      ${button({ label: '拒绝', size: 'md', action: 'history.operationReject', arg: op.operation_id, disabled: s.operationBusy })}` : ''}
+    <p class="hvw-muted">调用轨迹只读；当前提案、决定与执行结果在审核中心核对。</p>
+    ${button({ label: '查看审核记录', size: 'md', action: 'history.openReview', arg: op.operation_id })}
   </section>`;
 }
 
@@ -61,7 +59,8 @@ export function runtimePanel(s, zone) {
       <dt>来源</dt><dd>MCP</dd><dt>所用密钥</dt><dd>${row.key_name || '未识别密钥'}</dd>
       <dt>耗时</dt><dd>${durationText(row)}</dd><dt>调用性质</dt><dd>${row.tool === 'unknown_tool' ? '未开放工具' : /^(create|update|delete|duplicate|add|remove|reorder|move|export)_/.test(row.tool) ? '获授权写入' : '只读查询'}</dd></dl>
     ${s.operationError ? status({ tone: 'danger', text: s.operationError }) : ''}
-    ${operationView(cached?.operation, s)}
+    ${operationView(cached?.operation)}
+    ${cached?.result?.operation_id && !cached?.operation ? button({ label: '查看审核记录', action: 'history.openReview', arg: cached.result.operation_id }) : ''}
     ${cached?.result?.board_id ? html`<section class="hvw-related"><h4>关联展示板</h4>${button({ label: '打开展示板', size: 'sm', action: 'history.openBoard', arg: cached.result.board_id })}<p class="hvw-muted">${cached.result.board_id}</p></section>` : ''}
     ${cached?.result?.report_id ? html`<section class="hvw-related"><h4>关联报告</h4><a class="ui-btn" href="/api/report/view?id=${encodeURIComponent(cached.result.report_id)}" target="_blank" rel="noopener noreferrer">查看报告</a></section>` : ''}
     ${cached?.result?.export_id ? html`<section class="hvw-related"><h4>关联导出快照</h4><a class="ui-btn" href="/api/mcp/exports/download?export_id=${encodeURIComponent(cached.result.export_id)}" download>下载 HTML 快照</a><p class="hvw-muted">生成后保留24小时；PDF由浏览器打印生成。</p></section>` : ''}

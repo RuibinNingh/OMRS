@@ -1,6 +1,11 @@
 """唯一 HTTP 注册表；文档与运行分派共用相同方法、路径和领域适配。"""
 
 ROUTES = {
+    ('GET', '/api/ai-review/items'): '_ai_review_get',
+    ('GET', '/api/ai-review/detail'): '_ai_review_get',
+    ('GET', '/api/ai-review/counts'): '_ai_review_get',
+    ('POST', '/api/ai-review/update'): '_ai_review_post',
+    ('POST', '/api/ai-review/decide'): '_ai_review_post',
     ('GET', '/'): '_core_get',
     ('GET', '/annotate'): '_annotate_get',
     ('GET', '/api/agent/conversation'): '_agent_get',

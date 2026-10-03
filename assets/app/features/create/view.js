@@ -23,7 +23,6 @@ export function createRoots() {
     <section class="ib-stage on" id="ib-stage-upload"><div id="create-upload"></div><div id="create-grid"></div></section>
     <section class="ib-stage" id="ib-stage-process"></section>
     <section class="ib-stage" id="ib-stage-create"></section>
-    <section class="ib-stage" id="ib-stage-drafts"></section>
     <section class="ib-stage" id="ib-stage-train"></section>
     <section class="ib-stage" id="ib-stage-quick"></section>
   </div>`;

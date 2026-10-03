@@ -52,8 +52,8 @@ assets/
 
 多栏工作台按页面契约启用整屏布局：
 
-1. 外壳（`assets/app/shell.js`）按页面登记表的 `workbench` 字段给 `.content` 切 `.is-workbench` 类，命中五页：
-   `questions` / `feedback` / `create` / `board` / `instant`。
+1. 外壳（`assets/app/shell.js`）按页面登记表的 `workbench` 字段给 `.content` 切 `.is-workbench` 类，由各页契约登记：
+   `questions` / `feedback` / `create` / `board` / `instant` / `assistant` / `ai-review`。
 2. `assets/app/styles/shell.css` 在大于 1160px 时让 `.content.is-workbench` 变成
    `height:100vh; overflow:hidden` 的 flex 列，`.topbar` 不收缩，`.panel.active` 拿走剩余高度。
 3. 各页把自己的滚动容器标成 `flex:1; min-height:0; overflow-y:auto`。
@@ -84,11 +84,8 @@ assets/
 
 浅色语义 token 定义在 `:root`，深色覆盖定义在 `[data-theme="dark"]`；包括表面、文字、描边、强调、状态和图表颜色。外壳与各页只引用这些 token，字号、间距和控件尺度也由 `tokens.css` 统一给出。`index.css` 的分层顺序是 `vendor < base < ui < shell < domain < features < utilities`，其中 `shell.css` 负责侧栏、顶栏及工作台布局。浅色与深色的对比度由 `tests/check_contrast.py` 校验；约束见 `AI/frontend/design-system.md`。
 
-## AI 草稿角标
+## 审核中心入口与角标
 
-录入题目侧栏入口的 `#nav-draft-count` 使用现有 ui-badge，显示 cropping + review，超过 99 显示 99+，零时隐藏。计数读取、刷新与跨页导航由 `domain/drafts.js` 统一拥有，助手关闭时仍能审核已有草稿。
+`审核中心` 导航紧邻 AI 助手且始终可见，`#nav-review-count` 显示服务端去重待审总数，包含两来源操作和原生草稿；超过 99 显示 99+，零时设 hidden，外壳的同 id CSS 强制隐藏角标盒子。角标由 `domain/ai-review.js` 拥有，助手关闭仍可审核旧草稿。录入页原「AI 草稿」工作区按钮只负责兼容跳转，侧栏不再重复草稿角标。
 
-草稿工作区手机队列默认折叠，侧栏角标仍显示全部待审核数。入库后工作区主动刷新角标和待审列表，再切到下一份草稿；跨页打开草稿仍通过 `domain/drafts.js` 的目标交接，避免在页面尚未挂载时丢失导航。
-
-
-助手页面的手机外壳使用 `100dvh` 与可见视口同步，专项浏览器回归同时检查窄屏无横向溢出。
+审核中心按 `workbench:true` 使用桌面整屏布局，手机在公共列表与详情间切换；返回列表还原焦点。入库、丢弃与跨页修改通过统一事件刷新角标，原草稿能力详见 `AI/frontend/ai-review.md`。

@@ -1,3 +1,4 @@
+import { openReview } from '../../domain/ai-review.js';
 /** Ledger 历史页：列表生命周期与修正操作。 */
 import { morph } from '../../core/dom.js';
 import { confirm, prompt } from '../../ui/dialog.js';
@@ -286,15 +287,15 @@ function createController(root, ctx) {
 export const page = {
   id: 'history', title: '历史记录',
   mount(root, ctx) {
+    const operation = new URLSearchParams(location.hash.split('?')[1] || '').get('operation');
+    if (operation) { const timer = setTimeout(() => ctx.router.go(`ai-review?operation=${encodeURIComponent(operation)}`, { replace: true }), 0); return () => clearTimeout(timer); }
     Object.assign(s, readPreferences(localStorage));
     ctl = createController(root, ctx);
     const off = [ctx.bus.on('history:changed', payload => {
       if (payload?.source !== 'history') ctl?.refresh();
     }), ctx.bus.on('ledger:tz', () => ctl?.paint())];
     ctl.paint();
-    const operation = new URLSearchParams(location.hash.split('?')[1] || '').get('operation');
-    if (operation) ctl.operation(operation);
-    else ctl.refresh();
+    ctl.refresh();
     return () => { off.forEach(stop => stop()); ctl?.dispose(); ctl = null; };
   },
   actions: {
@@ -312,8 +313,9 @@ export const page = {
     learningRelated: ({ arg }) => ctl?.related(arg, 'learning'),
     openDraft: ({ arg }) => openDraft(arg),
     openBoard: ({ arg }) => boardDetailPort.open(arg),
-    operationConfirm: ({ arg }) => ctl?.operationConfirm(arg),
-    operationReject: ({ arg }) => ctl?.operationReject(arg),
+    openReview: ({ arg }) => openReview(arg),
+    operationConfirm: ({ arg }) => openReview(arg),
+    operationReject: ({ arg }) => openReview(arg),
     refresh: () => ctl?.refresh(),
     more: () => ctl?.more(),
     detail: ({ arg }) => ctl?.detail(arg, true),

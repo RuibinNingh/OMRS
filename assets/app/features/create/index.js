@@ -1,5 +1,5 @@
 /**
- * 录入题目页契约：收件箱三步、AI 草稿、AI 训练和快速录入全部在本目录。
+ * 录入题目页契约：收件箱三步、AI 训练和快速录入；AI 草稿入口跳转审核中心。
  * 收件箱数据归 inbox.js 单例（切页返回后工作区、当前图与勾选保持）；各工作区控制器订阅 'inbox:changed' 重绘。
  * 离开本页或离开处理区时 flush 未到防抖时间的框位与题卡字段。
  */
@@ -14,7 +14,7 @@ import { processView } from './process-view.js';
 import { createProcess } from './process.js';
 import { createCards } from './cards.js';
 import { createTrain } from './train.js';
-import { createDrafts } from './drafts.js';
+import { openReview } from '../../domain/ai-review.js';
 import { consumeDraftTarget, currentDraftCounts } from '../../domain/drafts.js';
 
 const S = inbox.state;
@@ -34,7 +34,7 @@ function mountParts(root, ctx) {
     if (stage === 'process') parts.process.paint();
     if (stage === 'create') parts.cards.paint();
     if (stage === 'train') parts.train.enter();
-    if (stage === 'drafts') parts.drafts.enter();
+    if (stage === 'drafts') { S.stage = 'upload'; void openReview('', { kind: 'draft' }); return; }
     if (previous !== null) root.querySelector(`#ib-stage-${stage}`)?.scrollTo?.(0, 0);
   }
   morph(root.querySelector('#ib-stage-process'), processView());
@@ -45,19 +45,15 @@ function mountParts(root, ctx) {
     process: createProcess(root, ctx.bus),
     cards: createCards(root, ctx),
     train: createTrain(root),
-    drafts: createDrafts(root, ctx),
   };
   const stops = [
     ctx.bus.on('inbox:changed', paintStage),
     ctx.bus.on('inbox:reload', () => inbox.load()),
-    ctx.bus.on('drafts:counts', counts => { draftCounts = counts; parts.drafts.state.counts = counts;
-      paintStage(); if (S.stage === 'drafts') parts.drafts.paint(); }),
-    ctx.bus.on('drafts:open', ({ id } = {}) => { if (id) void parts.drafts.open(id); }),
-    ctx.bus.on('drafts:changed', ({ ids } = {}) => { if (S.stage === 'drafts') void parts.drafts.reload({ changedIds: ids || [] }); }),
+    ctx.bus.on('drafts:counts', counts => { draftCounts = counts; paintStage(); }),
   ];
   paintStage();
   const target = consumeDraftTarget();
-  if (target) { S.stage = 'drafts'; paintStage(); void parts.drafts.open(target); }
+  if (target) void openReview(target, { kind: 'draft' });
   return () => stops.forEach(stop => stop());
 }
 
@@ -67,11 +63,9 @@ export const page = {
     render(root, createRoots());
     const disconnect = connectInbox(ctx.bus);
     const unbind = mountParts(root, ctx);
-    const unguard = ctx.router.setLeaveGuard(() => parts?.drafts?.guard() ?? true);
     inbox.load();
     return () => {
       inbox.flush();
-      unguard();
       unbind();
       Object.values(parts || {}).forEach(part => part?.dispose());
       parts = null;
@@ -82,51 +76,9 @@ export const page = {
     stage: async ({ arg }) => {
       if (!parts) return;
       const next = stageOf(arg);
-      if (S.stage === 'drafts' && next !== 'drafts' && !await parts.drafts.guard()) return;
+      if (next === 'drafts') { await inbox.flush(); return openReview('', { kind: 'draft' }); }
       inbox.go(next);
     },
-    draftReload: () => parts?.drafts.reload(),
-    draftRetry: () => parts?.drafts.reloadDetail(),
-    draftReloadDetail: () => parts?.drafts.reloadDetail(),
-    draftFilter: ({ arg, el }) => parts?.drafts.filter(el?.value || arg),
-    draftOpen: ({ arg }) => parts?.drafts.open(arg),
-    draftNavigate: ({ arg }) => parts?.drafts.navigate(arg),
-    draftToggleQueue: () => parts?.drafts.toggleQueue(),
-    draftToggleSource: () => parts?.drafts.toggleSource(),
-    draftWorkspace: ({ arg }) => parts?.drafts.workspaceMode(arg),
-    draftEditBlock: ({ arg }) => parts?.drafts.editBlock(arg),
-    draftEditImage: ({ arg }) => parts?.drafts.editImage(arg),
-    draftBlockMenu: ({ arg, el }) => parts?.drafts.blockMenu(arg, el),
-    draftQueueMenu: ({ el }) => parts?.drafts.queueMenu(el),
-    draftLocateIssue: () => parts?.drafts.locateIssue(),
-    draftEditFields: () => parts?.drafts.editFields(),
-    draftField: ({ arg, el }) => parts?.drafts.field(arg, el.value),
-    draftLabels: ({ el }) => parts?.drafts.openLabels(el),
-    draftSourceAdd: () => parts?.drafts.sourceAdd(),
-    draftSourceRemove: ({ arg }) => parts?.drafts.sourceRemove(arg),
-    draftPreviewSource: ({ arg }) => parts?.drafts.previewSource(arg),
-    draftBlockText: ({ arg, el }) => parts?.drafts.blockField(arg, 'text', el.value),
-    draftBlockNote: ({ arg, el }) => parts?.drafts.blockField(arg, 'note', el.value),
-    draftAddText: ({ arg }) => parts?.drafts.addBlock(arg, 'text'),
-    draftAddImage: ({ arg, el }) => parts?.drafts.addImage(arg, el),
-    draftWhole: ({ arg }) => parts?.drafts.whole(arg),
-    draftCanvasImage: ({ arg }) => parts?.drafts.canvasImage(arg),
-    draftCanvasMode: ({ arg }) => parts?.drafts.canvasMode(arg),
-    draftCanvasBlock: ({ el }) => parts?.drafts.canvasBlock(el.value),
-    draftDrawSection: ({ arg }) => parts?.drafts.drawSection(arg),
-    draftClearBox: ({ arg }) => parts?.drafts.clearBox(arg),
-    draftTrainingSection: ({ arg, el }) => parts?.drafts.trainingSection(arg, el.value),
-    draftTrainingRemove: ({ arg }) => parts?.drafts.trainingRemove(arg),
-    draftTrainToggle: ({ arg }) => parts?.drafts.trainToggle(arg),
-    draftExtract: ({ arg }) => parts?.drafts.extract(arg),
-    draftDetect: ({ arg }) => parts?.drafts.detect(arg),
-    draftAcceptCandidate: ({ arg }) => parts?.drafts.acceptCandidate(arg),
-    draftRetryTraining: () => parts?.drafts.retryTraining(),
-    draftCleanup: () => parts?.drafts.cleanup(),
-    draftSave: () => parts?.drafts.save(),
-    draftCommit: () => parts?.drafts.commit(),
-    draftDiscard: () => parts?.drafts.discard(),
-    draftQuestion: () => parts?.drafts.openQuestion(),
     clipboard: () => parts?.upload.readClipboard(),
     readImage: ({ arg }) => parts?.quick.readClipboard(arg),
     removeImage: ({ arg }) => parts?.quick.removeImage(arg),

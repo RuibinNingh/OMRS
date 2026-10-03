@@ -15,7 +15,7 @@ if sys.path and Path(sys.path[0]).resolve() == Path(__file__).resolve().parent:
     sys.path.pop(0)  # 同目录 mcp.py 不得遮蔽官方 SDK。
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'tests'))
-from browser_runtime import launch_chromium
+from browser_runtime import launch_chromium, open_app
 from omrs import boards, ledger, runtime_records
 from omrs.mcp.keys import create_key, _SCOPES
 from test_mcp_protocol import MCPServerProcess, _session, _json_result
@@ -74,13 +74,13 @@ def main():
             page = ctx.new_page(); errors = []
             page.on('pageerror', lambda err: errors.append(str(err)))
             page.add_init_script("localStorage.setItem('omrs-settings-section','access')")
-            page.goto(base+'/#/settings', wait_until='networkidle')
+            open_app(page, base, 'settings')
             page.click('[data-action="settings.mcpCreate"]')
-            check('新增写权限默认不勾选，原两个权限保持默认', all(not page.locator('#'+id).is_checked() for id in ('st-mcp-scope-update','st-mcp-scope-session','st-mcp-scope-report','st-mcp-scope-board','st-mcp-scope-delete'))
+            check('新增写权限默认不勾选，原两个权限保持默认', all(not page.locator('#'+id).is_checked() for id in ('st-mcp-scope-question','st-mcp-scope-update','st-mcp-scope-session','st-mcp-scope-report','st-mcp-scope-board','st-mcp-scope-delete'))
                   and page.locator('#st-mcp-scope-read').is_checked() and page.locator('#st-mcp-scope-draft').is_checked())
             page.click('dialog[open] [data-dialog-cancel]')
             page.click(f'[data-action="settings.mcpEdit"][data-arg="{key["key_id"]}"]')
-            for id in ('st-mcp-scope-draft','st-mcp-scope-update','st-mcp-scope-session','st-mcp-scope-report','st-mcp-scope-board','st-mcp-scope-delete'):
+            for id in ('st-mcp-scope-question','st-mcp-scope-draft','st-mcp-scope-update','st-mcp-scope-session','st-mcp-scope-report','st-mcp-scope-board','st-mcp-scope-delete'):
                 page.locator('#'+id).check()
             page.click('dialog[open] [data-dialog-ok]')
             wait(page, "() => !document.querySelector('dialog[open]')")
@@ -88,18 +88,19 @@ def main():
             before_learning = ledger.read_commits(server.vault)
             created, pending = pool.submit(lambda: asyncio.run(prepare(server, key, '网页删除验收', 'web-'))).result(timeout=30)
             check('SDK 预览返回主 Web 链接且未删除板', pending['status']=='pending_confirmation'
-                  and pending['confirmation_url'].startswith(base+'/#/history?operation=')
+                  and pending['confirmation_url'].startswith(base+'/#/ai-review?operation=')
                   and boards.get_board(server.vault, created['board_id']) is not None)
             page.goto(pending['confirmation_url'], wait_until='networkidle')
-            wait(page, "() => !!document.querySelector('#history-system-panel [data-action=\"history.operationConfirm\"]')")
-            check('确认链接直接打开系统运行详情和影响预览', pending['operation_id'] in page.locator('#history-system-panel').inner_text()
-                  and '网页删除验收' in page.locator('#history-system-panel').inner_text())
-            page.click('[data-action="history.operationReject"]')
-            wait(page, "() => document.querySelector('[data-operation] h4')?.textContent.includes('已拒绝')")
+            wait(page, "() => !!document.querySelector('#panel-ai-review [data-action=\"ai-review.approve\"]')")
+            check('确认链接直接打开审核中心与影响预览', page.locator('.arv-operation').get_attribute('data-key') == 'operation-'+pending['operation_id']
+                  and '网页删除验收' in page.locator('.arv-operation').inner_text())
+            page.click('[data-action="ai-review.reject"]')
+            page.locator('dialog[open] [data-dialog-ok]').click()
+            wait(page, "() => document.querySelector('.arv-operation')?.textContent.includes('已拒绝')")
             check('网页拒绝后板保留、详情无确认按钮', boards.get_board(server.vault, created['board_id']) is not None
-                  and not page.locator('[data-action="history.operationConfirm"]').count())
+                  and not page.locator('[data-action="ai-review.approve"]').count())
             snapshot = pool.submit(lambda: asyncio.run(export_snapshot(server, key, created['board_id']))).result(timeout=30)
-            page.goto(base+'/#/history',wait_until='networkidle')
+            open_app(page, base, 'history')
             if not page.locator('#history-tab-system').get_attribute('aria-selected') == 'true':
                 page.click('[data-tab="system"]')
             seq = next(row['seq'] for row in runtime_records.list_records(server.vault,{})['records'] if row['tool']=='export_board')
@@ -144,13 +145,13 @@ def main():
             rp.wait_for_selector('#pin')
             rp.fill('#pin','2468')
             rp.locator('form button[type="submit"]').click()
-            wait(rp, "() => !!document.querySelector('#history-system-panel [data-action=\"history.operationConfirm\"]')")
-            check('远端 PIN 登录后回到同一确认操作，手机显示详情', pending2['operation_id'] in rp.locator('#history-system-panel').inner_text()
-                  and rp.locator('#history-system-panel .hvw-detail-panel').is_visible())
+            wait(rp, "() => !!document.querySelector('#panel-ai-review [data-action=\"ai-review.approve\"]')")
+            check('远端 PIN 登录后回到同一确认操作，手机显示详情', rp.locator('.arv-operation').get_attribute('data-key') == 'operation-'+pending2['operation_id']
+                  and rp.locator('.arv-operation').is_visible())
             response=remote.request.get(snapshot['download_url'])
             check('PIN网页会话可下载快照，响应禁止缓存',response.status==200 and response.headers.get('cache-control')=='no-store')
-            rp.click('[data-action="history.operationConfirm"]')
-            wait(rp, "() => document.querySelector('[data-operation] h4')?.textContent.includes('已应用')")
+            rp.click('[data-action="ai-review.approve"]')
+            wait(rp, "() => document.querySelector('.arv-operation')?.textContent.includes('已执行')")
             check('网页确认实际删除，重复确认只执行一次', boards.get_board(server.vault, created2['board_id']) is None
                   and http(server, '/api/mcp/operations/decide', {'operation_id': pending2['operation_id'], 'decision':'confirm'})['operation']['status']=='applied')
             rows = runtime_records.list_records(server.vault, {})['records']

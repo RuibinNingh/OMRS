@@ -15,7 +15,7 @@ export function createDraftBlockActions(host, state, { isAlive, block, paint, ma
     if (!editable() || !block(key)) return;
     state.editingBlock = state.editingBlock === key ? null : key;
     paint();
-    focus(state.editingBlock ? '[data-input="create.draftBlockText"], [data-input="create.draftBlockNote"]' : '[data-action="create.draftEditBlock"]', key);
+    focus(state.editingBlock ? '[data-input="ai-review.draftBlockText"], [data-input="ai-review.draftBlockNote"]' : '[data-action="ai-review.draftEditBlock"]', key);
   }
   function editImage(key) {
     const row = block(key);
@@ -37,7 +37,7 @@ export function createDraftBlockActions(host, state, { isAlive, block, paint, ma
     state.editingBlock = row._key;
     if (kind === 'image') { state.canvasSha = row.image_sha; state.canvasMode = 'body'; state.selectedBlock = row._key; canvas.refresh(); }
     markChanged();
-    focus(kind === 'text' ? '[data-input="create.draftBlockText"]' : '[data-input="create.draftBlockNote"]', row._key);
+    focus(kind === 'text' ? '[data-input="ai-review.draftBlockText"]' : '[data-input="ai-review.draftBlockNote"]', row._key);
   }
   async function addImage(section, anchor) {
     if (!editable() || !['题目', '答案'].includes(section)) return;
@@ -62,10 +62,10 @@ export function createDraftBlockActions(host, state, { isAlive, block, paint, ma
     if (state.selectedBlock === key) state.selectedBlock = null;
     canvas.refresh(); markChanged();
     const next = peers[index + 1] || peers[index - 1];
-    focus(next ? '[data-action="create.draftEditBlock"]' : '[data-action="create.draftAddText"]', next ? next.id || next._key : row.section);
+    focus(next ? '[data-action="ai-review.draftEditBlock"]' : '[data-action="ai-review.draftAddText"]', next ? next.id || next._key : row.section);
   }
   function move(key, step) {
-    if (editable() && moveBlock(state.value.blocks, key, step)) { markChanged(); focus('[data-action="create.draftBlockMenu"]', key); }
+    if (editable() && moveBlock(state.value.blocks, key, step)) { markChanged(); focus('[data-action="ai-review.draftBlockMenu"]', key); }
   }
   async function blockMenu(key, anchor) {
     const row = block(key);
@@ -85,7 +85,7 @@ export function createDraftBlockActions(host, state, { isAlive, block, paint, ma
     if (action === 'up' || action === 'down') move(key, action === 'up' ? -1 : 1);
     else if (action === 'insert') addBlock(row.section, 'text', key);
     else if (action === 'section' && moveBlockToSection(state.value.blocks, key, section)) {
-      canvas.refresh(); markChanged(); focus('[data-action="create.draftBlockMenu"]', key);
+      canvas.refresh(); markChanged(); focus('[data-action="ai-review.draftBlockMenu"]', key);
     } else if (action === 'remove') await removeBlock(key);
   }
   function locateIssue() {
@@ -93,10 +93,10 @@ export function createDraftBlockActions(host, state, { isAlive, block, paint, ma
     const issue = draftIssue(state.value);
     if (!issue) return;
     state.workspaceMode = 'review';
-    if (issue.field) { state.fieldsEditing = true; paint(); focus('[data-input="create.draftField"]', issue.field); }
+    if (issue.field) { state.fieldsEditing = true; paint(); focus('[data-input="ai-review.draftField"]', issue.field); }
     else if (issue.blockKey && block(issue.blockKey)?.kind === 'image') editImage(issue.blockKey);
     else if (issue.blockKey) { state.editingBlock = null; editBlock(issue.blockKey); }
-    else if (issue.section) { paint(); focus('[data-action="create.draftAddText"]', issue.section); }
+    else if (issue.section) { paint(); focus('[data-action="ai-review.draftAddText"]', issue.section); }
     else { state.workspaceMode = 'source'; canvas.refresh(); paint(); focus('.drf-source-trigger'); }
   }
   function remapEditing(previousValue) {

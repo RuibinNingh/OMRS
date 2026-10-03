@@ -171,7 +171,8 @@ export function applyEvent(run, ev) {
     case 'tool.waiting': {
       const st = run.byCall.get(d.call_id);
       if (st) {
-        Object.assign(st, { status: 'waiting', gateT0: t, ttl: d.ttl_ms, token: d.token, preview: d.preview || {} });
+        Object.assign(st, { status: 'waiting', gateT0: t, ttl: d.ttl_ms, token: d.token, preview: d.preview || {},
+          operationId: d.operation_id, reviewRevision: d.revision, expiresAt: d.expires_at });
         st.seg = { kind: 'tool', step: st.id, q0: st.q0, w0: t };
         run.timeline.push(st.seg);
       }

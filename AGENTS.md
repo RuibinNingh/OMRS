@@ -246,6 +246,8 @@
 | `omrs/agent/`、`omrs/llm/`、AI 助手的权限与工具 | `AI/agent.md`，接口变化同时更新 `AI/api.md`，权限边界同时更新 `AI/security.md` |
 | `omrs/trainpanel.py` | `AI/api.md`、`AI/data.md` |
 | `omrs/drafts.py`、AI 草稿区存储与只读接口 | `AI/drafts.md`，接口变化同时更新 `AI/api.md` |
+| `omrs/ai_review.py`、`omrs/http/ai_review.py`、统一 AI 业务写审批与历史 | `AI/ai-review.md`，接口变化同时更新 `AI/api.md`，存储与权限变化同时更新 `AI/data.md`、`AI/security.md` |
+| `omrs/question_update.py`、`omrs/question_update_journal.py`、`omrs/mcp/question_write.py`、审核后正式改题 | `AI/ai-review.md`、`AI/mcp.md`、`AI/ledger.md`，存储变化同时更新 `AI/data.md` |
 | `omrs/locking.py`、`omrs/cli.py` 的服务器线程模型 | `AI/api.md`（并发与写锁） |
 | `omrs/ledger.py`、`omrs/actor.py`、`omrs/content_history.py`、`omrs/projections.py`、`omrs/projection_runtime.py`、`omrs/projection_corrections.py`、`omrs/data_repository.py` | `AI/ledger.md`，表结构变化同时更新 `AI/data.md` |
 | `omrs/security.py`、`omrs/path_safety.py`、访问控制 | `AI/security.md`，接口变化同时更新 `AI/api.md` |
@@ -263,6 +265,7 @@
 | `assets/app/features/dashboard/` | `AI/frontend/dashboard.md` |
 | `assets/app/features/catalog/` | `AI/frontend/dashboard.md`（目录）|
 | `assets/app/features/reports/` | `AI/frontend/records.md`（报告）|
+| `assets/app/features/ai-review/` | `AI/frontend/ai-review.md`（审核中心）|
 | `assets/app/features/assistant/` | `AI/frontend/assistant.md`（AI 助手页）|
 | `assets/app/features/settings/` | `AI/frontend/settings.md` |
 | `assets/app/features/create/` | `AI/frontend/create.md`，流程细节同时更新 `AI/inbox.md` |

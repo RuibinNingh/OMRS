@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import traceback
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
@@ -97,21 +98,13 @@ def main():
             return support.api(base, '/api/drafts/item?id=' + records[key]['id'])['draft']
         def open_draft(page, key):
             current = item(key)
-            button = f'.drf-item[data-arg="{current["id"]}"]'
-            target_filter = 'done' if current['status'] == 'done' else 'pending'
-            if page.locator('[data-action="create.draftToggleQueue"]').is_visible() and not page.locator('[data-change="create.draftFilter"]').is_visible():
-                page.locator('[data-action="create.draftToggleQueue"]').click()
-            page.locator('[data-change="create.draftFilter"]').select_option(target_filter)
-            # 筛选会自动选中首题并折叠手机队列，先等详情就绪再展开。
-            page.wait_for_selector('.drf-detail .drf-id')
-            if page.locator('[data-action="create.draftToggleQueue"]').is_visible() and not page.locator(button).is_visible():
-                page.locator('[data-action="create.draftToggleQueue"]').click()
-            page.locator(button).click()
+            page.evaluate("id => window.__omrs.router.go('ai-review?draft=' + id)", current['id'])
+            page.wait_for_function("id => document.querySelector('.drf-id')?.textContent.includes(id)", arg=current['id'])
             if page.locator('.drf-source-trigger').get_attribute('aria-expanded') == 'false':
                 page.locator('.drf-source-trigger').click()
             page.locator('#drf-stage-src').wait_for()
         def save(page):
-            page.locator('[data-action="create.draftSave"]').click()
+            page.locator('[data-action="ai-review.draftSave"]').click()
             if not support.wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存') && !document.querySelector('.drf-detail [aria-busy=true]')", 15000):
                 raise RuntimeError('草稿保存未完成：' + page.locator('.drf-message').inner_text())
         def mode(value):
@@ -128,21 +121,21 @@ def main():
                 page = context.new_page()
                 errors = []
                 page.on('pageerror', lambda error: errors.append(error.stack or str(error)))
+                page.on('console', lambda message: errors.append(message.text)
+                        if '[events]' in message.text or '[router]' in message.text else None)
                 try:
                     page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
                     page.locator('#create-flow [data-ib-stage="drafts"]').click()
                     counts_equal = """() => {
-                      const side = document.querySelector('#nav-draft-count');
-                      const top = document.querySelector('#drf-c-pending');
-                      const left = document.querySelector('.drf-count');
-                      return side && top && left && Number(side.textContent) === Number(top.textContent)
-                        && Number(top.textContent) === Number(left.textContent.match(/\\d+/)?.[0]);
+                      const side = document.querySelector('#nav-review-count');
+                      const top = document.querySelector('[data-action="ai-review.view"][data-arg="pending"]');
+                      return side && top && top.textContent.includes(side.textContent);
                     }"""
                     check('侧栏、工作区与列表待审核数一致', support.wait(page, counts_equal))
                     open_draft(page, 'applied')
                     mode('normal')
-                    page.locator('[data-action="create.draftDetect"]').click()
-                    applied_ready = support.wait(page, "() => !!document.querySelector('#drf-stage-img .crp-box') && !!document.querySelector('[data-action=\"create.draftDetect\"]') && !document.querySelector('.drf-canvas .drf-message')", 15000)
+                    page.locator('[data-action="ai-review.draftDetect"]').click()
+                    applied_ready = support.wait(page, "() => !!document.querySelector('#drf-stage-img .crp-box') && !!document.querySelector('[data-action=\"ai-review.draftDetect\"]') && !document.querySelector('.drf-canvas .drf-message')", 15000)
                     applied_item = item('applied')
                     applied_ok = (applied_ready and applied_item['blocks'][0]['box_origin'] == 'ai'
                                   and applied_item['blocks'][0]['box'] == {'x': .1, 'y': .15, 'w': .6, 'h': .55}
@@ -162,36 +155,36 @@ def main():
                     page.mouse.move(point['x'] + point['width'] / 2, point['y'] + point['height'] / 2)
                     page.mouse.down(); page.mouse.move(point['x'] + point['width'] / 2 + 20, point['y'] + point['height'] / 2 + 10, steps=5); page.mouse.up()
                     support.wait(page, "() => document.querySelector('.drf-detail h2')?.textContent.includes('未保存')", 3000)
-                    if not page.locator('[data-action="create.draftSave"]').is_enabled():
+                    if not page.locator('[data-action="ai-review.draftSave"]').is_enabled():
                         raise AssertionError('拖动 AI 框后保存仍禁用：' + str({'job': item('applied')['jobs'][0],
                             'message': page.locator('.drf-message').all_text_contents(),
                             'box': page.locator('#drf-stage-img .crp-box').get_attribute('x'),
                             'heading': page.locator('.drf-detail h2').inner_text(),
-                            'detect': page.locator('[data-action="create.draftDetect"]').count()}))
+                            'detect': page.locator('[data-action="ai-review.draftDetect"]').count()}))
                     save(page)
                     adjusted = item('applied')['blocks'][0]
                     check('人工移动 AI 框保留 ai_box 与 ai_edited', adjusted['box_origin'] == 'ai_edited' and adjusted['ai_box'] == original)
-                    page.locator('[data-action="create.draftDetect"]').click()
+                    page.locator('[data-action="ai-review.draftDetect"]').click()
                     check('已有人工调整框被跳过', support.wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已跳过')", 15000)
                           and item('applied')['jobs'][0]['result'][0]['reason_code'] == 'manual_box')
                     open_draft(page, 'shared')
-                    page.locator('[data-action="create.draftDetect"]').click()
+                    page.locator('[data-action="ai-review.draftDetect"]').click()
                     check('共用图检测直接跳过', support.wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('共用')", 15000)
                           and item('shared')['jobs'][0]['result'][0]['reason_code'] == 'shared_image')
                     open_draft(page, 'ambiguous'); mode('ambiguous')
-                    page.locator('[data-action="create.draftDetect"]').click()
+                    page.locator('[data-action="ai-review.draftDetect"]').click()
                     check('歧义候选以虚线建议展示且不改正文', support.wait(page, "() => document.querySelectorAll('.drf-suggestion').length === 2", 15000)
                           and item('ambiguous')['blocks'][0]['box'] is None)
-                    page.locator('[data-action="create.draftAcceptCandidate"]').first.click()
+                    page.locator('[data-action="ai-review.draftAcceptCandidate"]').first.click()
                     save(page)
                     check('明确点击候选后才保存 AI 来源框', item('ambiguous')['blocks'][0]['box_origin'] == 'ai')
                     open_draft(page, 'failure'); mode('error')
-                    page.locator('[data-action="create.draftDetect"]').click()
+                    page.locator('[data-action="ai-review.draftDetect"]').click()
                     check('模型失败保留待框正文并可重试', support.wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('AI 框选失败')", 15000)
                           and item('failure')['blocks'][0]['box'] is None
-                          and page.locator('[data-action="create.draftDetect"]').count() == 1)
+                          and page.locator('[data-action="ai-review.draftDetect"]').count() == 1)
                     open_draft(page, 'conflict'); mode('hold')
-                    page.locator('[data-action="create.draftDetect"]').click()
+                    page.locator('[data-action="ai-review.draftDetect"]').click()
                     for _ in range(100):
                         if Path(vault, 'detect-entered').exists(): break
                         time.sleep(.05)
@@ -203,17 +196,18 @@ def main():
                           and item('conflict')['blocks'][0]['box'] is None)
                     open_draft(page, 'force'); mode('normal')
                     check('全文字强制任务有独立入口且未框不阻入库', item('force')['training_tasks'][0]['force_crop']
-                          and page.locator('[data-action="create.draftCommit"]').is_enabled()
-                          and page.locator('[data-action="create.draftCanvasMode"][data-arg="training"]').count() == 1)
-                    page.locator('[data-action="create.draftCommit"]').click()
-                    check('全文字先入库并进入下一题', support.wait(page, f"() => !document.querySelector('.drf-detail .drf-id')?.textContent.includes('{records['force']['id']}')", 15000)
+                          and page.locator('[data-action="ai-review.draftCommit"]').is_enabled()
+                          and page.locator('[data-action="ai-review.draftCanvasMode"][data-arg="training"]').count() == 1)
+                    page.locator('[data-action="ai-review.draftCommit"]').click()
+                    # 清空旧详情是提交中间态；等真正下一份可操作后再导航回已入库草稿。
+                    check('全文字先入库并进入下一题', support.wait(page, f"() => !!document.querySelector('.drf-detail .drf-id') && !document.querySelector('.drf-detail .drf-id').textContent.includes('{records['force']['id']}') && !document.querySelector('.drf-detail [aria-busy=true]')", 15000)
                           and item('force')['status'] == 'done')
                     open_draft(page, 'force')
                     check('已入库正文只读而训练框可画', page.locator('.drf-success').count() == 1
-                          and page.locator('[data-action="create.draftSave"]').count() == 0
-                          and page.locator('[data-action="create.draftCanvasMode"][data-arg="training"]').get_attribute('aria-pressed') == 'true')
+                          and page.locator('[data-action="ai-review.draftSave"]').count() == 0
+                          and page.locator('[data-action="ai-review.draftCanvasMode"][data-arg="training"]').get_attribute('aria-pressed') == 'true')
                     check('入库后三处待审核计数同步减少', support.wait(page, counts_equal)
-                          and int(page.locator('#drf-c-pending').inner_text()) == support.api(base, '/api/drafts/counts')['counts']['cropping']
+                          and int(page.locator('#nav-review-count').inner_text()) == support.api(base, '/api/drafts/counts')['counts']['cropping']
                           + support.api(base, '/api/drafts/counts')['counts']['review'])
                     stage = page.locator('#drf-stage-img'); stage.scroll_into_view_if_needed(); bounds = stage.bounding_box()
                     page.mouse.move(bounds['x'] + bounds['width'] * .15, bounds['y'] + bounds['height'] * .2)
@@ -221,22 +215,25 @@ def main():
                     save(page)
                     check('训练关闭仍可保存强制框且不登记', item('force')['training_tasks'][0]['status'] == 'ready'
                           and support.api(base, '/api/inbox/dataset/stats')['chat']['images'] == 0)
-                    page.locator('[data-action="create.draftTrainToggle"]').click()
+                    page.locator('[data-action="ai-review.draftTrainToggle"]').click()
                     check('开启训练后登记 chat 且正文仍只读', support.wait(page, "() => !!document.querySelector('.drf-canvas-meta span:nth-child(2)')?.textContent.includes('已登记')", 15000)
                           and item('force')['training_tasks'][0]['status'] == 'registered'
                           and item('force')['blocks'][0]['kind'] == 'text')
+                    page.evaluate("() => window.__omrs.router.go('create')")
                     page.locator('#create-flow [data-ib-stage="train"]').click()
                     check('AI 训练页显示聊天来源统计', support.wait(page, "() => document.querySelector('#ib-tr-chat')?.textContent.includes('聊天来源图 1 张')", 15000))
                     page.locator('#create-flow [data-ib-stage="drafts"]').click()
                     open_draft(page, 'old')
                     check('普通旧文字草稿不显示强制任务提示', not item('old')['training_tasks'][0]['force_crop']
                           and '独立训练框待核对' not in page.locator('.drf-sources').inner_text())
-                    page.locator('[data-action="create.draftDetect"]').click()
+                    page.locator('[data-action="ai-review.draftDetect"]').click()
                     check('旧文字来源可手动发起独立框任务', support.wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已填入')", 15000)
                           and item('old')['training_tasks'][0]['force_crop']
                           and item('old')['training_tasks'][0]['boxes'])
                 except Exception as error:
-                    checks.append(('P4 草稿主路径执行', False, repr(error)[:700]))
+                    checks.append(('P4 草稿主路径执行', False, traceback.format_exc(limit=4) + str({
+                        'url': page.url, 'selection': page.locator('.drf-id').all_text_contents(),
+                        'busy': page.locator('.drf-detail [aria-busy=true]').count(), 'messages': page.locator('.drf-message').all_text_contents()})))
                 checks.append(('P4 主路径页面脚本无错误', not errors, str(errors[:2])))
                 context.close()
                 touch_context = browser.new_context(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True)
@@ -273,7 +270,7 @@ def main():
                             audit_page.locator('#create-flow [data-ib-stage="drafts"]').click()
                             open_draft(audit_page, 'force')
                             support.wait(audit_page, counts_equal)
-                            audit_page.locator('[data-action="create.draftCanvasMode"][data-arg="training"]').click()
+                            audit_page.locator('[data-action="ai-review.draftCanvasMode"][data-arg="training"]').click()
                             shot = os.path.join(SHOTS, f'{theme}-{label}.png')
                             audit_page.screenshot(path=shot, full_page=True)
                             findings = audit_page.evaluate(support.AUDIT)

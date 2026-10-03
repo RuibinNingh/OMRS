@@ -13,6 +13,8 @@
 
 `connect` 在全局写锁、草稿模块锁的固定顺序下执行建表、增量迁移与提交；来自 Web、助手和 MCP 的首次连接都共用该入口。初始化失败关闭连接并释放锁，成功返回后不为连接整个生命周期持锁；领域事务仍独立取锁。
 
+首次 `CREATE TABLE drafts` 已声明全部当前字段，包括 revision、sources_complete、cleaned_at 和 last_mcp_edit_json；只读审核计数不会看到新表缺列。老库保留增量补列与来源核验迁移，服务监听前完成已有草稿库初始化；查询不代替迁移。
+
 images 以 sha256 去重，保存 mime / width / height / bytes、转述缓存与训练预留字段；conv_images 按 conversation_id + n 将每张图映射为 IMG-n。同一对话重复贴同图沿用编号。图片支持 PNG/JPEG/GIF，单张解码后不超过 8MB；尺寸由现有图片头解析器读取。JPEG 沿标记段跳过 EXIF 与缩略图，主图结尾后的相册数据会清除，扫描数据缺尾时补结束标记；整理后计算 hash 并保存，已有图片在生成 data URL 时临时整理，旧文件不改写。编码像素与其他格式字节保持不变；这不代表能恢复已丢失的像素。
 
 `drafts` 含 id、四态 status、conversation_id/run_id/tool_call_id、科目分类、知识点、难度、标记、错因及原话、备注、入库 uid/question_id、时间和整数 revision；老库增量加列，revision 初始 1。MCP 草稿另有 `source_channel=mcp`、`source_key_id`、`source_request_id`、`cause_verification` 和可选客户端名，来源由服务端写入且不可由普通字段覆盖。旧库仅在真实助手运行、工具调用与对话匹配时标为 agent，其余标为 legacy。`blocks` 含稳定 id、section（题目/答案）、ord、kind（text/image）、text/image_sha、归一化 box、box_origin、ai_box、note。草稿备注和图片说明是独立语义；入库时不会被映射成题目 YAML 的旧页码。
@@ -113,3 +115,9 @@ MCP 请求中的目标只要有人工保护，整次不写入，即使该目标�
 ## 审计修复契约
 
 草稿磁盘入口参与 Vault 生命周期租约，连接关闭即释放，锁顺序为生命周期租约、业务写锁、草稿锁、事务。检测和提取网络调用只传播任务世代，迟到结果在短磁盘段复核；目录恢复后的旧任务不写新库。创建来源回执按 SQL 索引查询，不把全链载荷加载进内存。完整目录恢复见 `AI/backup.md`。
+
+## 统一审核入口与自动写回执
+
+草稿的图文编辑、来源对照、暂存、丢弃与连续入库由审核中心承载，旧录入草稿链接兼容跳转。草稿本身无十分钟期限；当次助手 commit_draft 的批准仍绑定原期限、草稿版本和快照，人工变更使旧批准失效。统一队列按草稿去重，助手及 MCP 创建/修订分别保留操作记录，入库事实仍由原草稿/Ledger 负责。
+
+MCP 草稿创建与修订在原事务的 ai_review_receipts 保存 operation_id、有效提案 digest 与实际 result；登记统一意图失败禁止新写，终态保存失败通过该原生回执补记。完整原图不复制到审核库，人工保护导致未写时记录 unchanged 与原建议。

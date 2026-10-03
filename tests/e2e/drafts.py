@@ -13,7 +13,7 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
-from browser_runtime import launch_chromium
+from browser_runtime import launch_chromium, open_app
 from omrs import drafts
 
 SHOTS = '/tmp/omrs-ai-draft-p2-shots'
@@ -118,33 +118,47 @@ AUDIT = """() => {
 }"""
 
 
+
+def pending_view(page):
+    return page.locator('[data-action="ai-review.view"][data-arg="pending"]').get_attribute('aria-pressed') == 'true'
+
+
+def set_filter(page, value):
+    view = 'pending' if value == 'pending' else 'records'
+    page.locator(f'[data-action="ai-review.view"][data-arg="{view}"]').click()
+    page.locator('[data-change="ai-review.type"]').select_option('draft')
+    if view == 'records':
+        page.locator('[data-change="ai-review.status"]').select_option(value)
+    assert wait(page, "() => !document.querySelector('.arv-queue [role=status]')")
+
+
 def run(page, base, first, second, old, images, results):
     def check(name, passed, detail=''):
         results.append((name, bool(passed), detail))
 
     page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
     page.locator('#create-flow [data-ib-stage="drafts"]').click()
-    check('工作区显示四份待审核草稿', wait(page, "() => document.querySelectorAll('.drf-item').length === 4"))
-    page.locator(f'.drf-item[data-arg="{first["id"]}"]').click()
+    check('工作区显示四份待审核草稿', wait(page, "() => document.querySelectorAll('.arv-row').length === 4"))
+    page.locator(f'.arv-row[data-arg="{first["id"]}"]').click()
     check('审核首屏先显示题目且来源默认收起', wait(page, "() => !!document.querySelector('.drf-review-question') && document.querySelector('.drf-source-trigger')?.getAttribute('aria-expanded') === 'false'")
-          and page.locator('[data-input="create.draftBlockText"]').count() == 0)
+          and page.locator('[data-input="ai-review.draftBlockText"]').count() == 0)
     page.locator('.drf-source-trigger').click()
     check('来源模式显示两图和主画布', wait(page, "() => document.querySelectorAll('.drf-source img').length === 2 && !!document.querySelector('.drf-source-workspace .drf-canvas')"))
-    page.locator('[data-action="create.draftPreviewSource"]').first.click()
+    page.locator('[data-action="ai-review.draftPreviewSource"]').first.click()
     check('来源图使用站内预览且保持两图顺序', page.locator('dialog.ui-image-viewer[open] img').count() == 1
           and page.locator('dialog.ui-image-viewer[open] .ui-image-viewer__count').text_content().startswith('1 / 2'))
     page.locator('dialog.ui-image-viewer [data-image-action="next"]').click()
     check('来源图可切换下一张', page.locator('dialog.ui-image-viewer[open] .ui-image-viewer__count').text_content().startswith('2 / 2'))
     page.keyboard.press('Escape')
     page.wait_for_selector('dialog.ui-image-viewer', state='detached')
-    check('来源图关闭后回到审核页原按钮', page.locator('[data-action="create.draftPreviewSource"]').first.evaluate('e => document.activeElement === e'))
+    check('来源图关闭后回到审核页原按钮', page.locator('[data-action="ai-review.draftPreviewSource"]').first.evaluate('e => document.activeElement === e'))
     page.locator('.drf-source-trigger').click()
-    check('未框图片阻止通过', page.locator('[data-action="create.draftCommit"]').is_disabled())
-    page.locator('[data-action="create.draftEditFields"]').click()
-    page.locator('[data-input="create.draftField"][data-arg="cause"]').fill('计算时漏看平方')
-    page.locator('.drf-block [data-action="create.draftWhole"]').click()
-    check('整图框使通过可选且显示未保存', wait(page, "() => !document.querySelector('[data-action=\"create.draftCommit\"]')?.disabled && document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
-    page.locator('[data-action="create.draftSave"]').click()
+    check('未框图片阻止通过', page.locator('[data-action="ai-review.draftCommit"]').is_disabled())
+    page.locator('[data-action="ai-review.draftEditFields"]').click()
+    page.locator('[data-input="ai-review.draftField"][data-arg="cause"]').fill('计算时漏看平方')
+    page.locator('.drf-block [data-action="ai-review.draftWhole"]').click()
+    check('整图框使通过可选且显示未保存', wait(page, "() => !document.querySelector('[data-action=\"ai-review.draftCommit\"]')?.disabled && document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
+    page.locator('[data-action="ai-review.draftSave"]').click()
     check('显式保存把框和错因写入真实 API', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存')")
           and (lambda item: item['draft']['cause'] == '计算时漏看平方' and item['draft']['blocks'][1]['box'] == {'x': 0, 'y': 0, 'w': 1, 'h': 1}
                and item['draft']['status'] == 'review')(api(base, '/api/drafts/item?id=' + first['id'])))
@@ -153,77 +167,75 @@ def run(page, base, first, second, old, images, results):
         lost_responses.append(route.fetch().status)
         route.abort()
     page.route('**/api/drafts/commit', lose_commit_response, times=1)
-    page.locator('[data-action="create.draftCommit"]').click()
+    page.locator('[data-action="ai-review.draftCommit"]').click()
     check('通过只创建一次并进入下一题', wait(page, f"() => !!document.querySelector('.drf-detail .drf-id') && !document.querySelector('.drf-detail .drf-id')?.textContent.includes('{first['id']}')")
           and api(base, '/api/drafts/item?id=' + first['id'])['draft']['status'] == 'done'
-          and page.locator('[data-action="create.draftCommit"]').count() == 1)
+          and page.locator('[data-action="ai-review.draftCommit"]').count() == 1)
     check('入库响应丢失后同一操作安全重试', lost_responses == [200]
           and api(base, '/api/drafts/item?id=' + first['id'])['draft']['status'] == 'done')
-    page.locator('#create-flow [data-ib-stage="drafts"]').click()
-    page.locator('[data-change="create.draftFilter"]').select_option('pending')
-    page.locator(f'.drf-item[data-arg="{second["id"]}"]').click()
-    page.locator('[data-action="create.draftDiscard"]').click()
+    set_filter(page, 'pending')
+    page.locator(f'.arv-row[data-arg="{second["id"]}"]').click()
+    page.locator('[data-action="ai-review.draftDiscard"]').click()
     page.locator('dialog[open] [data-dialog-ok]').click()
-    check('丢弃状态持久且留在待审核队列继续下一题', wait(page, f"() => document.querySelector('.drf-id') && !document.querySelector('.drf-id').textContent.includes('{second['id']}') && document.querySelector('[data-change=\"create.draftFilter\"]')?.value === 'pending'")
+    check('丢弃状态持久且留在待审核队列继续下一题', wait(page, f"() => document.querySelector('.drf-id') && !document.querySelector('.drf-id').textContent.includes('{second['id']}') && document.querySelector('[data-action=\"ai-review.view\"][data-arg=\"pending\"]')?.getAttribute('aria-pressed') === 'true'")
           and api(base, '/api/drafts/item?id=' + second['id'])['draft']['status'] == 'discarded'
           and api(base, '/api/drafts/counts')['counts']['discarded'] == 1)
-    page.locator('[data-change="create.draftFilter"]').select_option('pending')
-    page.locator(f'.drf-item[data-arg="{old["id"]}"]').click()
+    set_filter(page, 'pending')
+    page.locator(f'.arv-row[data-arg="{old["id"]}"]').click()
     page.locator('.drf-source-trigger').click()
     check('旧来源不完整提示与可补关联图片', wait(page, "() => document.querySelector('.drf-sources .drf-hint')?.textContent.includes('来源未完整恢复') && document.querySelectorAll('#drf-source-select option').length === 5"))
     page.locator('#drf-source-select').select_option(images[1]['sha256'])
-    page.locator('[data-action="create.draftSourceAdd"]').click()
-    page.locator('[data-action="create.draftSave"]').click()
+    page.locator('[data-action="ai-review.draftSourceAdd"]').click()
+    page.locator('[data-action="ai-review.draftSave"]').click()
     check('补关联按 SHA 保存且来源完整', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存') && !document.querySelector('.drf-detail [aria-busy=true]')")
           and (lambda item: item['draft']['sources_complete'] and images[1]['sha256'] in [image['sha256'] for image in item['draft']['source_images']])
               (api(base, '/api/drafts/item?id=' + old['id'])))
     page.locator('.drf-source-trigger').click()
-    page.locator('[data-action="create.draftEditFields"]').click()
-    page.locator('[data-input="create.draftField"][data-arg="note"]').fill('未保存的临时笔记')
+    page.locator('[data-action="ai-review.draftEditFields"]').click()
+    page.locator('[data-input="ai-review.draftField"][data-arg="note"]').fill('未保存的临时笔记')
     check('编辑备注进入未保存状态', wait(page, "() => document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
-    page.locator('#create-flow [data-ib-stage="upload"]').click()
+    page.locator('[data-tab="create"]').click()
     check('离开工作区出现三动作对话框', wait(page, "() => !!document.querySelector('dialog[open]')")
           and page.locator('dialog[open] button').filter(has_text='保存并离开').count() == 1
           and page.locator('dialog[open] button').filter(has_text='放弃修改并离开').count() == 1
           and page.locator('dialog[open] button').filter(has_text='留在当前').count() == 1)
     page.locator('dialog[open] button').filter(has_text='留在当前').click()
-    check('选择留在当前保留本地修改', page.locator('#ib-stage-drafts').is_visible()
-          and page.locator('[data-input="create.draftField"][data-arg="note"]').input_value() == '未保存的临时笔记')
-    page.locator('#create-flow [data-ib-stage="upload"]').click()
+    check('选择留在当前保留本地修改', page.locator('#panel-ai-review').is_visible()
+          and page.locator('[data-input="ai-review.draftField"][data-arg="note"]').input_value() == '未保存的临时笔记')
+    page.locator('[data-tab="create"]').click()
     page.locator('dialog[open] button').filter(has_text='保存并离开').click()
     check('保存后离开且刷新仍可读取', wait(page, "() => document.querySelector('#ib-stage-upload')?.classList.contains('on')")
           and api(base, '/api/drafts/item?id=' + old['id'])['draft']['note'] == '未保存的临时笔记')
     page.reload(wait_until='networkidle')
-    page.locator('#create-flow [data-ib-stage="drafts"]').click()
     check('刷新恢复上次选中的草稿', wait(page, f"() => document.querySelector('.drf-detail .drf-id')?.textContent.includes('{old['id']}')"))
-    page.locator('[data-action="create.draftEditFields"]').click()
+    page.locator('[data-action="ai-review.draftEditFields"]').click()
     current = api(base, '/api/drafts/item?id=' + old['id'])['draft']
     fields = {name: current[name] for name in ('subject', 'category', 'difficulty', 'knowledge_points', 'labels', 'cause', 'note')}
     fields['note'] = '另一标签页已修改'
     api(base, '/api/drafts/update', {'id': old['id'], 'revision': current['revision'], 'fields': fields,
                                      'blocks': current['blocks'], 'source_images': [image['sha256'] for image in current['source_images']]})
-    page.locator('[data-input="create.draftField"][data-arg="note"]').fill('本地修改不能丢')
-    page.locator('[data-action="create.draftSave"]').click()
+    page.locator('[data-input="ai-review.draftField"][data-arg="note"]').fill('本地修改不能丢')
+    page.locator('[data-action="ai-review.draftSave"]').click()
     check('409 显示冲突并保留本地编辑', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('冲突')")
-          and page.locator('[data-input="create.draftField"][data-arg="note"]').input_value() == '本地修改不能丢')
-    page.locator('[data-action="create.draftReloadDetail"]').click()
+          and page.locator('[data-input="ai-review.draftField"][data-arg="note"]').input_value() == '本地修改不能丢')
+    page.locator('[data-action="ai-review.draftReloadDetail"]').click()
     page.locator('dialog[open] [data-dialog-ok]').click()
-    check('显式重读后采用服务端版本', wait(page, "() => document.querySelector('[data-input=\"create.draftField\"][data-arg=\"note\"]')?.value === '另一标签页已修改'"))
+    check('显式重读后采用服务端版本', wait(page, "() => document.querySelector('[data-input=\"ai-review.draftField\"][data-arg=\"note\"]')?.value === '另一标签页已修改'"))
     latest = api(base, '/api/drafts/item?id=' + old['id'])['draft']
     api(base, '/api/drafts/update', {'id': old['id'], 'revision': latest['revision'],
                                      'fields': {'note': '入库前被其他窗口修改'}, 'blocks': latest['blocks']})
-    page.locator('[data-action="create.draftCommit"]').click()
+    page.locator('[data-action="ai-review.draftCommit"]').click()
     check('入库前版本复核拦截旧草稿', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('新版本')")
           and api(base, '/api/drafts/item?id=' + old['id'])['draft']['status'] != 'done')
-    page.locator('[data-action="create.draftReloadDetail"]').click()
+    page.locator('[data-action="ai-review.draftReloadDetail"]').click()
     page.route('**/api/drafts/list?status=pending&limit=500', lambda route: route.fulfill(
         status=503, content_type='application/json', body='{"status":"error","msg":"列表暂不可用"}'))
-    page.locator('[data-action="create.draftQueueMenu"]').click()
+    page.locator('[data-action="ai-review.draftQueueMenu"]').click()
     page.get_by_role('menuitem', name='刷新列表', exact=True).click()
-    check('列表读取失败与空态区分', wait(page, "() => document.querySelector('.drf-list .drf-error')?.textContent.includes('列表暂不可用')"))
+    check('列表读取失败与空态区分', wait(page, "() => document.querySelector('.arv-detail .drf-error')?.textContent.includes('列表暂不可用')"))
     page.unroute('**/api/drafts/list?status=pending&limit=500')
-    page.locator('.drf-list .drf-error [data-action="create.draftReload"]').click()
-    check('列表失败后可重试', wait(page, "() => !document.querySelector('.drf-list .drf-error') && !!document.querySelector('.drf-item')"))
+    page.locator('.arv-detail .drf-error [data-action="ai-review.draftReload"]').click()
+    check('列表失败后可重试', wait(page, "() => !document.querySelector('.arv-detail .drf-error') && !!document.querySelector('.arv-row')"))
 
 
 def run_discard_queue(browser, base, vault, results):
@@ -242,86 +254,86 @@ def run_discard_queue(browser, base, vault, results):
         if not passed:
             raise AssertionError(name + ': ' + detail)
     def queue():
-        return page.locator('.drf-item').evaluate_all('els => els.map(el => el.dataset.arg)')
+        return page.locator('.arv-row').evaluate_all('els => els.map(el => el.dataset.arg)')
     def selected(id):
-        return wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{id}') && !document.querySelector('[data-action=\"create.draftDiscard\"]')?.disabled")
+        return wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{id}') && !document.querySelector('[data-action=\"ai-review.draftDiscard\"]')?.disabled")
     def discard():
-        page.locator('[data-action="create.draftDiscard"]').click()
+        page.locator('[data-action="ai-review.draftDiscard"]').click()
         page.locator('dialog[open] [data-dialog-ok]').click()
     def remembered():
         return page.evaluate("sessionStorage.getItem('omrs-selected-draft')")
     try:
         page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
         page.locator('#create-flow [data-ib-stage="drafts"]').click()
-        check('丢弃回归队列至少有三份', wait(page, "() => document.querySelectorAll('.drf-item').length >= 3"))
+        check('丢弃回归队列至少有三份', wait(page, "() => document.querySelectorAll('.arv-row').length >= 3"))
         ids = queue()
         current, next_id = ids[1:3]
-        page.locator(f'.drf-item[data-arg="{current}"]').click()
+        page.locator(f'.arv-row[data-arg="{current}"]').click()
         check('丢弃前可打开队列中间草稿', selected(current))
-        page.locator('[data-action="create.draftEditFields"]').click()
-        note = page.locator('[data-input="create.draftField"][data-arg="note"]')
+        page.locator('[data-action="ai-review.draftEditFields"]').click()
+        note = page.locator('[data-input="ai-review.draftField"][data-arg="note"]')
         note.fill('丢弃取消或失败时保留这段未保存备注')
-        page.locator('[data-action="create.draftDiscard"]').click()
+        page.locator('[data-action="ai-review.draftDiscard"]').click()
         page.locator('dialog[open] .ui-dialog__foot [data-dialog-cancel]').click()
         check('取消丢弃保留当前草稿、分类和未保存编辑', selected(current)
-              and page.locator('[data-change="create.draftFilter"]').input_value() == 'pending'
+              and pending_view(page)
               and note.input_value() == '丢弃取消或失败时保留这段未保存备注' and remembered() == current)
         page.route('**/api/drafts/discard', lambda route: route.fulfill(
             status=503, content_type='application/json', body='{"status":"error","msg":"丢弃暂不可用"}'))
         discard()
         check('丢弃请求失败保留当前草稿和未保存编辑', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('丢弃失败')")
               and selected(current) and remembered() == current
-              and page.locator('[data-change="create.draftFilter"]').input_value() == 'pending'
+              and pending_view(page)
               and note.input_value() == '丢弃取消或失败时保留这段未保存备注'
               and api(base, '/api/drafts/item?id=' + current)['draft']['status'] != 'discarded')
         page.unroute('**/api/drafts/discard')
         discard()
         check('丢弃中间草稿后留在待审核并选择原下一份', selected(next_id)
-              and page.locator('[data-change="create.draftFilter"]').input_value() == 'pending'
+              and pending_view(page)
               and queue() == [id for id in ids if id != current] and remembered() == next_id
-              and api(base, '/api/drafts/item?id=' + current)['draft']['status'] == 'discarded')
-        check('丢弃后计数同步且下一份没有继承本地修改', wait(page, f"() => document.querySelector('.drf-count')?.textContent.includes('{len(ids) - 1} 份待审核') && !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
+              and api(base, '/api/drafts/item?id=' + current)['draft']['status'] == 'discarded',
+              str({'before': ids, 'after': queue(), 'remembered': remembered(), 'expected': next_id, 'hash': page.url}))
+        check('丢弃后计数同步且下一份没有继承本地修改', wait(page, f"() => document.querySelector('[data-action=\"ai-review.view\"][data-arg=\"pending\"]')?.textContent.includes('待审核 {len(ids) - 1}') && !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
         ids = queue()
-        page.locator(f'.drf-item[data-arg="{ids[-1]}"]').click()
+        page.locator(f'.arv-row[data-arg="{ids[-1]}"]').click()
         check('可选择队列最后一份', selected(ids[-1]))
         discard()
         check('丢弃最后一份自动选择上一份', selected(ids[-2]) and remembered() == ids[-2]
-              and page.locator('[data-change="create.draftFilter"]').input_value() == 'pending')
+              and pending_view(page))
         failed_id = ids[-2]
         page.route('**/api/drafts/list?status=pending&limit=500', lambda route: route.fulfill(
             status=503, content_type='application/json', body='{"status":"error","msg":"列表暂不可用"}'))
         discard()
-        check('丢弃成功但列表刷新失败时留在待审核且清除旧选择', wait(page, "() => document.querySelector('.drf-list .drf-error')?.textContent.includes('列表暂不可用')")
-              and page.locator('[data-change="create.draftFilter"]').input_value() == 'pending'
+        check('丢弃成功但列表刷新失败时留在待审核且清除旧选择', wait(page, "() => document.querySelector('.arv-detail .drf-error')?.textContent.includes('列表暂不可用')")
+              and pending_view(page)
               and page.locator('.drf-id').count() == 0 and remembered() is None
               and api(base, '/api/drafts/item?id=' + failed_id)['draft']['status'] == 'discarded')
         page.unroute('**/api/drafts/list?status=pending&limit=500')
-        page.locator('.drf-list [data-action="create.draftReload"]').click()
-        check('列表刷新失败后可重试且不恢复已丢弃草稿', wait(page, "() => !document.querySelector('.drf-list .drf-error') && !!document.querySelector('.drf-item')")
+        page.locator('.arv-detail [data-action="ai-review.draftReload"]').click()
+        check('列表刷新失败后可重试且不恢复已丢弃草稿', wait(page, "() => !document.querySelector('.arv-detail .drf-error') && !!document.querySelector('.arv-row')")
               and failed_id not in queue() and remembered() is None)
         while queue():
             ids = queue()
-            page.locator(f'.drf-item[data-arg="{ids[-1]}"]').click()
+            page.locator(f'.arv-row[data-arg="{ids[-1]}"]').click()
             check(f'连续丢弃前可打开剩余 {len(ids)} 份中的最后一份', selected(ids[-1]))
             discard()
-            check(f'连续丢弃后剩余 {len(ids) - 1} 份且分类保持待审核', wait(page, f"() => document.querySelectorAll('.drf-item').length === {len(ids) - 1} && document.querySelector('[data-change=\"create.draftFilter\"]')?.value === 'pending'")
+            check(f'连续丢弃后剩余 {len(ids) - 1} 份且分类保持待审核', wait(page, f"() => document.querySelectorAll('.arv-row').length === {len(ids) - 1} && document.querySelector('[data-action=\"ai-review.view\"][data-arg=\"pending\"]')?.getAttribute('aria-pressed') === 'true'")
                   and api(base, '/api/drafts/item?id=' + ids[-1])['draft']['status'] == 'discarded')
-        check('最后一份丢弃后显示空队列并清空选中记忆', wait(page, "() => document.querySelector('.drf-list')?.textContent.includes('没有待审核草稿') && !document.querySelector('.drf-id')")
+        check('最后一份丢弃后显示空队列并清空选中记忆', wait(page, "() => document.querySelector('.arv-queue')?.textContent.includes('没有待审核操作') && !document.querySelector('.drf-id')")
               and remembered() is None and api(base, '/api/drafts/counts')['counts']['review'] == 0)
-        page.locator('#create-flow [data-ib-stage="upload"]').click()
+        page.locator('[data-tab="create"]').click()
         page.locator('#create-flow [data-ib-stage="drafts"]').click()
-        check('离开工作区后返回仍是空的待审核分类', wait(page, "() => document.querySelector('[data-change=\"create.draftFilter\"]')?.value === 'pending' && !document.querySelector('.drf-id')"))
+        check('离开工作区后返回仍是空的待审核分类', wait(page, "() => document.querySelector('[data-action=\"ai-review.view\"][data-arg=\"pending\"]')?.getAttribute('aria-pressed') === 'true' && !document.querySelector('.drf-id')"))
         page.reload(wait_until='networkidle')
-        page.locator('#create-flow [data-ib-stage="drafts"]').click()
-        check('刷新页面不会重新打开最后丢弃的草稿', wait(page, "() => document.querySelector('.drf-list')?.textContent.includes('没有待审核草稿') && document.querySelector('[data-change=\"create.draftFilter\"]')?.value === 'pending' && !document.querySelector('.drf-id')")
+        check('刷新页面不会重新打开最后丢弃的草稿', wait(page, "() => document.querySelector('.arv-queue')?.textContent.includes('没有待审核操作') && document.querySelector('[data-action=\"ai-review.view\"][data-arg=\"pending\"]')?.getAttribute('aria-pressed') === 'true' && !document.querySelector('.drf-id')")
               and remembered() is None)
-        page.locator('[data-change="create.draftFilter"]').select_option('discarded')
-        page.locator(f'.drf-item[data-arg="{current}"]').click()
+        set_filter(page, 'discarded')
+        page.locator(f'.arv-row[data-arg="{current}"]').click()
         check('手动进入已丢弃分类仍可查看只读正文', wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{current}') && document.querySelector('.drf-detail h2')?.textContent.includes('已丢弃')")
-              and page.locator('[data-action="create.draftEditBlock"], [data-action="create.draftDiscard"]').count() == 0)
-        page.locator('[data-change="create.draftFilter"]').select_option('pending')
+              and page.locator('[data-action="ai-review.draftEditBlock"], [data-action="ai-review.draftDiscard"]').count() == 0)
+        set_filter(page, 'pending')
         page.evaluate("id => import('/assets/app/domain/drafts.js').then(module => module.openDraft(id))", current)
-        check('指定草稿导航仍能自动匹配已丢弃分类', wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{current}') && document.querySelector('[data-change=\"create.draftFilter\"]')?.value === 'discarded'"))
+        check('指定草稿导航仍能自动匹配已丢弃分类', wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{current}') && document.querySelector('[data-change=\"ai-review.status\"]')?.value === 'discarded'"))
         check('丢弃队列回归没有页面脚本错误', not errors, str(errors))
     finally:
         context.close()
@@ -336,16 +348,16 @@ def run_p3(page, base, draft, images, results):
         stage.scroll_into_view_if_needed()
         bounds = stage.bounding_box()
         target_y = bounds['y'] + bounds['height'] * y1
-        page.evaluate("y => { const foot = document.querySelector('.drf-footer')?.getBoundingClientRect(); if (foot && y > foot.top - 24) document.querySelector('#ib-stage-drafts').scrollTop += y - foot.top + 110; }", target_y)
+        page.evaluate("y => { const foot = document.querySelector('.drf-footer')?.getBoundingClientRect(); if (foot && y > foot.top - 24) document.querySelector('#panel-ai-review').scrollTop += y - foot.top + 110; }", target_y)
         bounds = stage.bounding_box()
         page.mouse.move(bounds['x'] + bounds['width'] * x0, bounds['y'] + bounds['height'] * y0)
         page.mouse.down()
         page.mouse.move(bounds['x'] + bounds['width'] * x1, bounds['y'] + bounds['height'] * y1, steps=6)
         page.mouse.up()
 
-    page.locator(f'.drf-item[data-arg="{draft["id"]}"]').click()
+    page.locator(f'.arv-row[data-arg="{draft["id"]}"]').click()
     page.locator('.drf-source-trigger').click()
-    check('P3 多图草稿显示逐图画布', wait(page, "() => document.querySelectorAll('.drf-canvas-tabs [data-action=\"create.draftCanvasImage\"]').length === 2 && !!document.querySelector('#drf-stage-src')"))
+    check('P3 多图草稿显示逐图画布', wait(page, "() => document.querySelectorAll('.drf-canvas-tabs [data-action=\"ai-review.draftCanvasImage\"]').length === 2 && !!document.querySelector('#drf-stage-src')"))
     drag(.12, .18, .66, .65)
     check('手动画框使正文可保存', wait(page, "() => document.querySelectorAll('#drf-stage-img .crp-box').length === 1 && document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
     first_box = page.locator('#drf-stage-img .crp-box').bounding_box()
@@ -359,61 +371,61 @@ def run_p3(page, base, draft, images, results):
     page.mouse.move(point['x'] + point['width'] / 2, point['y'] + point['height'] / 2)
     page.mouse.down(); page.mouse.move(point['x'] + point['width'] / 2 + 20, point['y'] + point['height'] / 2 + 12, steps=5); page.mouse.up()
     check('正文框可缩放', float(page.locator('#drf-stage-img .crp-box').get_attribute('width')) > before_width)
-    page.locator('[data-action="create.draftSave"]').click()
+    page.locator('[data-action="ai-review.draftSave"]').click()
     check('首张框保存完成后才继续操作', wait(page, "() => !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')"))
     check('局部正文框通过真实 API 持久化', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存')")
           and api(base, '/api/drafts/item?id=' + draft['id'])['draft']['blocks'][1]['box'] is not None)
-    page.locator('[data-action="create.draftClearBox"]').click()
+    page.locator('[data-action="ai-review.draftClearBox"]').click()
     check('正文框可删除', wait(page, "() => !document.querySelector('#drf-stage-img .crp-box')"))
     drag(.1, .2, .55, .6)
-    redrawn = wait(page, "() => !!document.querySelector('#drf-stage-img .crp-box') && !!document.querySelector('[data-action=\"create.draftSave\"]:not([disabled])')", 3000)
+    redrawn = wait(page, "() => !!document.querySelector('#drf-stage-img .crp-box') && !!document.querySelector('[data-action=\"ai-review.draftSave\"]:not([disabled])')", 3000)
     check('删除后重画框可再次保存', redrawn, '' if redrawn else str(page.evaluate("() => { const stage = document.querySelector('#drf-stage-img'); const r = stage.getBoundingClientRect(); return {box: stage.querySelector('.crp-box')?.outerHTML, heading: document.querySelector('.drf-detail h2')?.textContent, hit: document.elementFromPoint(r.x + r.width * .1, r.y + r.height * .2)?.outerHTML.slice(0, 180), stage: r.toJSON(), footer: document.querySelector('.drf-footer')?.getBoundingClientRect().toJSON()}; }")))
     if not redrawn:
         return
-    page.locator('[data-action="create.draftSave"]').click()
+    page.locator('[data-action="ai-review.draftSave"]').click()
     wait(page, "() => !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')")
-    page.locator(f'[data-action="create.draftCanvasImage"][data-arg="{images[1]["sha256"]}"]').click()
+    page.locator(f'[data-action="ai-review.draftCanvasImage"][data-arg="{images[1]["sha256"]}"]').click()
     drag(.2, .18, .78, .7)
-    page.locator('[data-action="create.draftSave"]').click()
+    page.locator('[data-action="ai-review.draftSave"]').click()
     wait(page, "() => !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')")
     current = api(base, '/api/drafts/item?id=' + draft['id'])['draft']
     check('两张来源图的框均已保存', current['status'] == 'review'
           and all(row['box'] for row in current['blocks'] if row['kind'] == 'image'))
-    page.locator(f'[data-action="create.draftCanvasImage"][data-arg="{images[0]["sha256"]}"]').click()
-    page.locator('[data-action="create.draftTrainToggle"]').click()
-    page.locator('[data-action="create.draftCanvasMode"][data-arg="training"]').click()
+    page.locator(f'[data-action="ai-review.draftCanvasImage"][data-arg="{images[0]["sha256"]}"]').click()
+    page.locator('[data-action="ai-review.draftTrainToggle"]').click()
+    page.locator('[data-action="ai-review.draftCanvasMode"][data-arg="training"]').click()
     trained = api(base, '/api/drafts/item?id=' + draft['id'])['draft']
     check('训练开关写入来源图', next(image for image in trained['source_images'] if image['sha256'] == images[0]['sha256'])['train']
-          and page.locator('[data-action="create.draftCanvasMode"][data-arg="training"]').get_attribute('aria-pressed') == 'true')
+          and page.locator('[data-action="ai-review.draftCanvasMode"][data-arg="training"]').get_attribute('aria-pressed') == 'true')
     initial = page.locator('.drf-training-box').count()
     drag(.55, .1, .86, .35)
     check('训练框与正文框分开展示', wait(page, f"() => document.querySelectorAll('.drf-training-box').length === {initial + 1}"))
-    page.locator('.drf-training-box').last.locator('[data-action="create.draftTrainingRemove"]').click()
+    page.locator('.drf-training-box').last.locator('[data-action="ai-review.draftTrainingRemove"]').click()
     check('训练框可单独删除', page.locator('.drf-training-box').count() == initial)
     drag(.55, .1, .86, .35)
-    page.locator('[data-action="create.draftSave"]').click()
+    page.locator('[data-action="ai-review.draftSave"]').click()
     wait(page, "() => !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')")
     current = api(base, '/api/drafts/item?id=' + draft['id'])['draft']
     task = next(row for row in current['training_tasks'] if row['image_sha'] == images[0]['sha256'])
     check('训练框单独保存且不改正文', len(task['boxes']) == initial + 1 and current['blocks'][1]['kind'] == 'image')
-    page.locator('[data-action="create.draftCanvasMode"][data-arg="body"]').click()
-    page.locator('[data-action="create.draftExtract"]').click()
+    page.locator('[data-action="ai-review.draftCanvasMode"][data-arg="body"]').click()
+    page.locator('[data-action="ai-review.draftExtract"]').click()
     check('局部裁图提交真实提取任务并转文字', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('转文字完成')", 20000)
           and api(base, '/api/drafts/item?id=' + draft['id'])['draft']['blocks'][1]['kind'] == 'text')
     current = api(base, '/api/drafts/item?id=' + draft['id'])['draft']
     check('转文字后原图与训练框仍在', current['blocks'][1]['kind'] == 'text'
           and len(current['source_images']) == 2
           and next(row for row in current['training_tasks'] if row['image_sha'] == images[0]['sha256'])['boxes'])
-    page.locator(f'[data-action="create.draftCanvasImage"][data-arg="{images[1]["sha256"]}"]').click()
-    page.locator('[data-action="create.draftExtract"]').click()
+    page.locator(f'[data-action="ai-review.draftCanvasImage"][data-arg="{images[1]["sha256"]}"]').click()
+    page.locator('[data-action="ai-review.draftExtract"]').click()
     check('提取失败保留原图片块和框', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('转文字未完成')", 20000)
           and (lambda row: row['kind'] == 'image' and row['box'] is not None)(
               api(base, '/api/drafts/item?id=' + draft['id'])['draft']['blocks'][2]))
-    page.locator('[data-action="create.draftCommit"]').click()
-    check('入库后训练图登记且进入下一题', wait(page, f"() => !document.querySelector('.drf-detail .drf-id')?.textContent.includes('{draft['id']}')", 20000)
+    page.locator('[data-action="ai-review.draftCommit"]').click()
+    check('入库后训练图登记且进入下一题', wait(page, f"() => !!document.querySelector('.drf-detail .drf-id') && !document.querySelector('.drf-detail .drf-id').textContent.includes('{draft['id']}') && !document.querySelector('.drf-detail [aria-busy=true]')", 20000)
           and next(row for row in api(base, '/api/drafts/item?id=' + draft['id'])['draft']['training_tasks']
                    if row['image_sha'] == images[0]['sha256'])['status'] == 'registered')
-    page.locator('[data-action="create.draftQueueMenu"]').click()
+    page.locator('[data-action="ai-review.draftQueueMenu"]').click()
     page.get_by_role('menuitem', name='清理过期草稿', exact=True).click()
     page.locator('dialog[open] [data-dialog-ok]').click()
     check('清理接口结果按对象字段展示', wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已清理')"))
@@ -433,9 +445,9 @@ def run_touch(browser, base, vault, results):
     try:
         page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
         page.locator('#create-flow [data-ib-stage="drafts"]').click()
-        results.append(('手机队列默认收起', not page.locator('.drf-item').first.is_visible(), ''))
-        page.locator('[data-action="create.draftToggleQueue"]').click()
-        page.locator(f'.drf-item[data-arg="{draft["id"]}"]').click()
+        results.append(('手机详情自动打开且队列收起', wait(page, "() => !!document.querySelector('.drf-id') && !document.querySelector('.arv-queue')?.getClientRects().length"), ''))
+        page.locator('[data-action="ai-review.back"]').click()
+        page.locator(f'.arv-row[data-arg="{draft["id"]}"]').click()
         results.append(('手机信息与题目连续阅读', wait(page, "() => !!document.querySelector('.drf-review-question')")
                         and page.locator('.drf-review-question').is_visible()
                         and page.locator('.drf-review-info').is_visible(), ''))
@@ -443,6 +455,8 @@ def run_touch(browser, base, vault, results):
         results.append(('手机来源入口进入独立工作区', page.locator('.drf-source-workspace').is_visible(), ''))
         stage = page.locator('#drf-stage-img')
         stage.scroll_into_view_if_needed()
+        box = stage.bounding_box()
+        page.evaluate("y => { const foot = document.querySelector('.drf-footer')?.getBoundingClientRect(); if (foot && y > foot.top - 24) document.querySelector('#panel-ai-review').scrollTop += y - foot.top + 110; }", box['y'] + box['height'] * .65)
         box = stage.bounding_box()
         session = context.new_cdp_session(page)
         x0, y0 = box['x'] + box['width'] * .15, box['y'] + box['height'] * .2
@@ -454,7 +468,9 @@ def run_touch(browser, base, vault, results):
         session.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
         drawn = wait(page, "() => document.querySelectorAll('#drf-stage-img .crp-box').length === 1")
         if drawn:
-            page.locator('[data-action="create.draftSave"]').click()
+            page.locator('[data-action="ai-review.draftSave"]').click()
+        if drawn:
+            wait(page, "() => !document.querySelector('.drf-detail h2')?.textContent.includes('未保存')")
         saved = api(base, '/api/drafts/item?id=' + draft['id'])['draft']['blocks'][0]['box'] if drawn else None
         results.append(('手机触摸画框并经真实 API 保存', bool(drawn and saved and not errors), str(errors[:2])))
         page.screenshot(path=os.path.join(P3_SHOTS, 'touch-mobile.png'), full_page=True)
@@ -471,7 +487,7 @@ def main():
         subprocess.run([sys.executable, os.path.join(ROOT, 'tests/fixtures/make_vault.py'), '--out', vault, '--profile', 'empty'], check=True, stdout=subprocess.DEVNULL)
         first, second, old, images, p3, p3_images = seed(vault)
         sock = socket.socket(); sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]; sock.close()
-        env = os.environ.copy(); env.pop('OMRS_SYSTEMD_SERVICE', None)
+        env = os.environ.copy(); env.pop('OMRS_SYSTEMD_SERVICE', None); env.pop('OMRS_BOXDETECT_CONTROL', None)
         proc = subprocess.Popen([sys.executable, '-c', SERVER, vault, str(port)], cwd=ROOT,
                                 env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:
@@ -506,13 +522,13 @@ def main():
                         audit_page.on('pageerror', lambda error: audit_errors.append(str(error)))
                         audit_page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
                         audit_page.locator('#create-flow [data-ib-stage="drafts"]').click()
-                        if width < 760:
-                            audit_page.locator('[data-action="create.draftToggleQueue"]').click()
+                        if width < 760 and audit_page.locator('[data-action="ai-review.back"]').is_visible():
+                            audit_page.locator('[data-action="ai-review.back"]').click()
                         first_filter = 'done' if api(base, '/api/drafts/item?id=' + first['id'])['draft']['status'] == 'done' else 'pending'
-                        audit_page.locator('[data-change="create.draftFilter"]').select_option(first_filter)
-                        if width < 760 and not audit_page.locator(f'.drf-item[data-arg="{first["id"]}"]').is_visible():
-                            audit_page.locator('[data-action="create.draftToggleQueue"]').click()
-                        audit_page.locator(f'.drf-item[data-arg="{first["id"]}"]').click()
+                        set_filter(audit_page, first_filter)
+                        if width < 760 and not audit_page.locator(f'.arv-row[data-arg="{first["id"]}"]').is_visible():
+                            audit_page.locator('[data-action="ai-review.back"]').click()
+                        audit_page.locator(f'.arv-row[data-arg="{first["id"]}"]').click()
                         wait(audit_page, "() => !!document.querySelector('.drf-review-question')")
                         shot = os.path.join(SHOTS, f'{theme}-{label}.png')
                         audit_page.screenshot(path=shot, full_page=True)
@@ -523,12 +539,12 @@ def main():
                                         str(findings) + ' ' + shot))
                         p3_filter = 'done' if api(base, '/api/drafts/item?id=' + p3['id'])['draft']['status'] == 'done' else 'pending'
                         if p3_filter != first_filter:
-                            if width < 760 and not audit_page.locator('[data-change="create.draftFilter"]').is_visible():
-                                audit_page.locator('[data-action="create.draftToggleQueue"]').click()
-                            audit_page.locator('[data-change="create.draftFilter"]').select_option(p3_filter)
-                        if width < 760 and not audit_page.locator(f'.drf-item[data-arg="{p3["id"]}"]').is_visible():
-                            audit_page.locator('[data-action="create.draftToggleQueue"]').click()
-                        audit_page.locator(f'.drf-item[data-arg="{p3["id"]}"]').click()
+                            if width < 760 and not audit_page.locator('.arv-queue').is_visible():
+                                audit_page.locator('[data-action="ai-review.back"]').click()
+                            set_filter(audit_page, p3_filter)
+                        if width < 760 and not audit_page.locator(f'.arv-row[data-arg="{p3["id"]}"]').is_visible():
+                            audit_page.locator('[data-action="ai-review.back"]').click()
+                        audit_page.locator(f'.arv-row[data-arg="{p3["id"]}"]').click()
                         audit_page.locator('.drf-source-trigger').click()
                         wait(audit_page, "() => document.querySelectorAll('#drf-stage-img .crp-box').length === 1")
                         p3_shot = os.path.join(P3_SHOTS, f'{theme}-{label}.png')

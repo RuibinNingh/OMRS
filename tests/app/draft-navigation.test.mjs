@@ -22,7 +22,7 @@ test('草稿跳页：目标在挂载前可消费，切页后通知；失败守�
   let consumed;
   const events = [];
   h.bus.on('drafts:open', p => events.push(p.id));
-  h.router.go = () => { consumed = h.nav.consume(); h.router.current = () => 'create'; return 'create'; };
+  h.router.go = () => { consumed = h.nav.consume(); h.router.current = () => 'ai-review'; return 'ai-review'; };
   assert.equal(await h.nav.open('DR-1'), true);
   assert.equal(consumed, 'DR-1');
   assert.deepEqual(events, ['DR-1']);

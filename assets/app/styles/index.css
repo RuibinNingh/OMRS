@@ -27,10 +27,11 @@
 @import url("../features/settings/settings.css") layer(features);
 @import url("../features/settings/mcp-keys.css") layer(features);
 @import url("../features/create/create.css") layer(features);
-@import url("../features/create/drafts.css") layer(features);
+@import url("../features/ai-review/drafts.css") layer(features);
 @import url("../features/create/process.css") layer(features);
 @import url("../features/create/cards.css") layer(features);
 @import url("../features/create/train.css") layer(features);
 @import url("../features/assistant/assistant.css") layer(features);
 @import url("../features/assistant/assistant-run.css") layer(features);
 @import url("../features/assistant/assistant-side.css") layer(features);
+@import url("../features/ai-review/review.css") layer(features);

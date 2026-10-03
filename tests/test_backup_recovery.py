@@ -78,6 +78,64 @@ class BackupRecoveryTests(unittest.TestCase):
     def prepare(self):
         return backup.prepare_import(self.vault, self.archive)['restore_id']
 
+    def test_restoring_pending_approvals_invalidates_old_and_backup_operations(self):
+        from omrs import ai_review, boards, mcp_board, mcp_operations
+        from omrs.mcp.keys import create_key
+        from omrs.question_update import prepare_update
+        from omrs.content_history import projection_row, read_question_file
+        from omrs.ledger import blob_hash
+        pending = {}
+        for vault in (self.vault, self.source):
+            key = create_key(vault, scopes=['omrs:read', 'board:delete'])
+            board = boards.create_board(vault, '不可迟到删除')
+            catalog = boards.load_boards(vault)['catalog_revision']
+            operation = mcp_board.execute(vault, key['key_id'], 'delete_board', 'delete',
+                {'board_id': board['id'], 'expected_revision': board['revision'], 'expected_catalog_revision': catalog},
+                'http://localhost:9999')
+            row = mastery_rows(vault)[0]
+            question = projection_row(vault, uid=row['UID'])
+            payload, preview, snapshot = prepare_update(vault, row['UID'], question['question_id'],
+                blob_hash(read_question_file(vault, question)), {'question_text': '不得迟到写入'})
+            proposal = ai_review.create(vault, 'mcp', 'propose_question_update', 'restore-question', payload,
+                actor={'key_id': key['key_id']}, preview=preview, snapshot=snapshot, pending=True,
+                editable_fields=['question_text'])
+            pending[vault] = (operation, board, proposal)
+        os.unlink(self.archive)
+        self.archive, _, _, _ = backup.create_backup(self.source)
+        identity = self.prepare()
+        backup.restore(self.vault, identity, True)
+        operation, board, proposal = pending[self.source]
+        decision = mcp_operations.decide(self.vault, operation['operation_id'], 'confirm')
+        self.assertNotEqual(decision['status'], 'applied')
+        self.assertIsNotNone(boards.get_board(self.vault, board['id']))
+        changed = ai_review.decide(self.vault, proposal['operation_id'], proposal['revision'], 'approve')
+        self.assertEqual(changed['status'], 'interrupted')
+        self.assertEqual(changed['error_code'], 'vault_changed')
+        q = projection_row(self.vault, question_id=proposal['payload']['question_id'])
+        self.assertNotIn('不得迟到写入', read_question_file(self.vault, q))
+
+    def test_failed_restore_also_invalidates_original_pending_permission(self):
+        from omrs import boards, mcp_board, mcp_operations
+        from omrs.mcp.keys import create_key
+        key = create_key(self.vault, scopes=['omrs:read', 'board:delete'])
+        board = boards.create_board(self.vault, '失败恢复后保留')
+        operation = mcp_board.execute(self.vault, key['key_id'], 'delete_board', 'delete-original',
+            {'board_id': board['id'], 'expected_revision': board['revision'],
+             'expected_catalog_revision': boards.load_boards(self.vault)['catalog_revision']}, 'http://localhost:9999')
+        identity = self.prepare()
+        original, called = backup._invalidate, []
+        def fail_once(vault):
+            if not called:
+                called.append(True)
+                raise RuntimeError('新运行库初始化失败')
+            return original(vault)
+        with mock.patch.object(backup, '_invalidate', side_effect=fail_once):
+            with self.assertRaises(RuntimeError):
+                backup.restore(self.vault, identity, True)
+        result = mcp_operations.decide(self.vault, operation['operation_id'], 'confirm')
+        self.assertNotEqual(result['status'], 'applied')
+        self.assertIsNotNone(boards.get_board(self.vault, board['id']))
+
     def test_snapshot_target_connect_failure_closes_source(self):
         opened = []
         connect = sqlite3.connect

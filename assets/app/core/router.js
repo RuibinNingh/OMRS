@@ -51,7 +51,7 @@ export function createRouter({ win = globalThis.window, fallback = 'dashboard', 
       if (external && Number.isInteger(externalIndex)) historyIndex = externalIndex;
       setHash(to, external || replace); activate(to); return to;
     };
-    if (!current || current === to.split('?')[0] || !leaveGuard) return enter();
+    if (!current || currentRoute === to || !leaveGuard) return enter();
     const from = current;
     if (external) setHash(currentRoute, true);
     const cancel = () => {
@@ -84,6 +84,12 @@ export function createRouter({ win = globalThis.window, fallback = 'dashboard', 
     go(id, { replace = false } = {}) {
       const to = target(id);
       return navigate(to, { replace });
+    },
+    // 页面已通过自身守卫选择新目标后，同步地址而不重新挂载编辑器。
+    replaceQuery(query = '') {
+      if (!current) return;
+      currentRoute = target(`${current}${query ? '?' + query : ''}`);
+      setHash(currentRoute, true);
     },
     setLeaveGuard(fn) {
       leaveGuard = typeof fn === 'function' ? fn : null;

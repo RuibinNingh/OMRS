@@ -88,6 +88,17 @@ test('router：练习卡查询参数在启动、切页与同页换卡后保留',
   assert.deepEqual(entered, ['instant', 'instant']);
 });
 
+test('router：同页换审核目标和返回均受未保存守卫保护', () => {
+  const win = fakeWindow('#/ai-review?operation=one'), entered = [];
+  const router = createRouter({ win, onEnter: page => entered.push(page.id) });
+  router.register({ id: 'dashboard' }).register({ id: 'ai-review' }).start();
+  const stop = router.setLeaveGuard(() => false);
+  router.go('ai-review?operation=two'); assert.equal(win.location.hash, '#/ai-review?operation=one');
+  stop(); router.go('ai-review?operation=two'); assert.equal(win.location.hash, '#/ai-review?operation=two');
+  router.setLeaveGuard(() => false); win.back(); assert.equal(win.location.hash, '#/ai-review?operation=two');
+  assert.deepEqual(entered, ['ai-review', 'ai-review']);
+});
+
 test('router：start 按地址进入、无效地址改写为 fallback、go 同步切页并写历史、后退回到上一页', () => {
   const win = fakeWindow('#/questions');
   const entered = [];

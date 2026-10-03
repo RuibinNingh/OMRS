@@ -121,3 +121,7 @@ GET /api/mcp/exports/download?export_id=编号 仅Web授权可用，返回text/h
 ## 上传引用入口
 
 `POST /api/inbox/upload-refs`、`POST /api/annotate/upload-refs` 接收 `{images:[{upload_ref,filename}]}`，按所属用途验证已完成上传并逐图入库。元数据正文使用 `http_json_mib`，默认2MiB；总图片字节放在分块暂存文件，不随JSON再次传输。原 `/api/inbox/upload`、`/api/annotate/upload` 仍支持multipart及引用JSON。
+
+## AI 审核中心
+
+GET `/api/ai-review/items`、`/api/ai-review/detail`、`/api/ai-review/counts` 为受保护的只读业务视图；POST `/api/ai-review/update` 与 `/api/ai-review/decide` 使用 Web 身份和同源保护。版本、分页、状态与错误完整契约见 `AI/ai-review.md`；MCP Key 不能调用批准接口。

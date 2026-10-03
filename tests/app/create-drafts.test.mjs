@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { draftPendingCount, editValue, updatePayload, draftProblems, commitProblem, draftIssue, insertBlock, moveBlockToSection, moveBlock, latestDetectResult } from '../../assets/app/features/create/drafts-state.js';
-import { draftsView } from '../../assets/app/features/create/drafts-view.js';
+import { draftPendingCount, editValue, updatePayload, draftProblems, commitProblem, draftIssue, insertBlock, moveBlockToSection, moveBlock, latestDetectResult } from '../../assets/app/features/ai-review/drafts-state.js';
+import { draftsView } from '../../assets/app/features/ai-review/drafts-view.js';
 
 const sample = () => ({ id: 'DR-1', revision: 3, status: 'cropping', subject: '数学', category: '函数', difficulty: 5,
   knowledge_points: ['导数'], labels: [], cause: '审题不清', note: '', source_images: [{ sha256: 'a'.repeat(64), ref: 'IMG-1' }],
@@ -79,12 +79,12 @@ test('草稿视图显示原图、只读完成态及来源不完整提示，文�
   assert.match(markup, /来源未完整恢复/);
   assert.match(markup, /查看题目/);
   assert.match(markup, /&lt;script&gt;/);
-  assert.doesNotMatch(markup, /data-action="create\.draftCommit"|onclick=|style=/);
+  assert.doesNotMatch(markup, /data-action="ai-review\.draftCommit"|onclick=|style=/);
   assert.match(markup, /预览来源截图/);
   const unavailable = draftsView({ list: [draft], listLoaded: true, filter: 'done', selectedId: draft.id,
     counts: { cropping: 0, review: 0 }, draft: { ...draft, question_available: false }, value: editValue(draft), detailLoaded: true }).text;
   assert.match(unavailable, /题目当前不可用/);
-  assert.doesNotMatch(unavailable, /data-action="create\.draftQuestion"/);
+  assert.doesNotMatch(unavailable, /data-action="ai-review\.draftQuestion"/);
 });
 
 test('审核信息位于连续正文上方，局部编辑不重复显示预览，来源仍为独立模式', () => {
@@ -100,13 +100,13 @@ test('审核信息位于连续正文上方，局部编辑不重复显示预览�
   assert.doesNotMatch(reading, /drf-review-inspector|所属部分|已确认|文字 1/);
   assert.ok(reading.indexOf('drf-review-info') < reading.indexOf('drf-review-question'));
   assert.match(reading, /格式检查通过/);
-  assert.doesNotMatch(reading, /data-input="create\.draftBlockText"|data-input="create\.draftField"/);
+  assert.doesNotMatch(reading, /data-input="ai-review\.draftBlockText"|data-input="ai-review\.draftField"/);
   const editing = draftsView({ ...state, editingBlock: 'q1', fieldsEditing: true }).text;
-  assert.match(editing, /data-input="create\.draftBlockText"/);
-  assert.match(editing, /data-input="create\.draftField"/);
+  assert.match(editing, /data-input="ai-review\.draftBlockText"/);
+  assert.match(editing, /data-input="ai-review\.draftField"/);
   assert.equal((editing.match(/class="drf-md q-md"/g) || []).length, 1);
-  assert.equal((editing.match(/data-input="create\.draftBlockText"/g) || []).length, 1);
-  assert.match(editing, /data-action="create\.draftBlockMenu"/);
+  assert.equal((editing.match(/data-input="ai-review\.draftBlockText"/g) || []).length, 1);
+  assert.match(editing, /data-action="ai-review\.draftBlockMenu"/);
   const source = draftsView({ ...state, workspaceMode: 'source', reviewTab: 'source' }).text;
   assert.match(source, /class="drf-source-trigger ui-btn ui-btn--sm"[^>]*aria-expanded="true"/);
   assert.match(source, /class="drf-source-workspace"/);
@@ -146,7 +146,7 @@ test('格式缺项与暂存/入库校验一致，并定位到具体字段或块'
   assert.equal(draftIssue(value).field, 'subject');
   const draft = sample();
   const markup = draftsView({ draft, value, list: [], listLoaded: true, detailLoaded: true }).text;
-  assert.match(markup, /data-action="create\.draftLocateIssue"/);
+  assert.match(markup, /data-action="ai-review\.draftLocateIssue"/);
   assert.doesNotMatch(markup, /格式检查通过/);
 });
 
@@ -160,6 +160,6 @@ test('MCP 审核来源保留完整原图，正文仍可编辑且错因提示待�
   assert.match(markup, /来源：MCP/);
   assert.match(markup, /MCP 完整原图保留/);
   assert.match(markup, /错因由外部助手提供，待核对/);
-  assert.doesNotMatch(markup, /data-action="create.draftSourceRemove"/);
-  assert.match(markup, /data-action="create.draftCommit"/);
+  assert.doesNotMatch(markup, /data-action="ai-review.draftSourceRemove"/);
+  assert.match(markup, /data-action="ai-review.draftCommit"/);
 });

@@ -26,11 +26,13 @@ assets/app/
 
 主页面入口是 HTML 的 `type="module"` 脚本 `main.js`，无需构建。先安装图标、提示、题目 DOM 与展示板窗口监听并启动活动跟踪，再 `startShell(window,pages)` 创建 bus/store/router、登记页面契约。
 
-外壳创建后连接草稿、统计、Session、历史和标记领域服务，绑定标记选择器事件与全局 Esc。先调用 `router.start()` 安装 hash 监听并稳定当前页面，再并行加载初始标记 / 统计 / Session，随后同步助手入口；设置变更通过 `agent:config` 再同步。独立的 `/annotate`、`/train` 使用各自入口，不在主外壳的页面登记表中。
+外壳创建后连接审核中心、草稿、统计、Session、历史和标记领域服务，绑定标记选择器事件与全局 Esc。先调用 `router.start()` 安装 hash 监听并稳定当前页面，再并行加载初始标记 / 统计 / Session，随后同步助手入口；设置变更通过 `agent:config` 再同步。独立的 `/annotate`、`/train` 使用各自入口，不在主外壳的页面登记表中。
+
+助手浏览器验收点击当前等待调用的聊天卡，并按持久 `tool.waiting.operation_id` 核对审核导航地址与详情；自动写记录卡不参与待确认定位。中心使用服务器拥有的版本与状态，客户端卡片不能自行恢复批准权限。
 
 ## 3. 路由与页面契约
 
-- 地址形如 `#/questions`，也支持 `#/instant?practice=<card_id>&attempt=<attempt_id>`。路由用问号前的页面 ID 匹配页面，并保留查询串供页面挂载时读取；同一页面的查询串改变也重新挂载。`router.go(id)` 无异步守卫时同步切页并 `pushState` 一条历史；未登记的 id 落到仪表盘；地址无效时改写成 `#/dashboard`。
+- 地址形如 `#/questions`，也支持 `#/instant?practice=<card_id>&attempt=<attempt_id>`。路由用问号前的页面 ID 匹配页面，并保留查询串供页面挂载时读取；同一页面的查询串改变先经过未保存守卫，再重新挂载。`replaceQuery(query)` 供页面已通过自身选择守卫后同步当前目标地址，不重新挂载编辑器。`router.go(id)` 无异步守卫时同步切页并 `pushState` 一条历史；未登记的 id 落到仪表盘；地址无效时改写成 `#/dashboard`。
 - 地址变成非路由 hash（例如 `href="#"` 的链接）时不切页，并把地址改回当前页，保证刷新仍停在原页。
 - 侧栏导航是 `<a class="tab" data-tab="页面" href="#/页面">`：普通点击同步切页；带修饰键时交给浏览器（新标签页打开）。
 - 新页面契约（`features/<页>/index.js` 导出 `page`）：`{ id, title, workbench, mount(root, ctx) → unmount, actions, keys }`。`root` 是 `#panel-<id>`，`ctx = { bus, store, router }`；离开页面时执行 `mount` 返回的卸载函数。`actions` 与 `keys` 由外壳在登记页面时一次性注册，动作命名空间与快捷键作用域都是页面 id；处理函数只在挂载期间生效。新增一页时在 `main.js` 把页面契约并进登记表（外壳只认 `mount`）。范例：`features/instant/`（见 `AI/frontend/instant.md`）；`features/feedback/`（见 `AI/frontend/feedback.md`）另示范了挂载期的 document 级监听（paste）要在卸载函数里移除。
@@ -41,7 +43,7 @@ assets/app/
 - 跨页共用的按钮走外壳登记的全局动作 `app.*`（创建、侧栏折叠、手机抽屉、重新扫描，见 `AI/frontend/shell.md`）；页面自己的动作用页面 id 作命名空间。
 - 外壳在每次进入页面时统一处理：顶栏标题、`document.title`（「页面名 · OMRS」）、侧栏 `.active` 与 `aria-current="page"`、`.panel.active`、`.content.is-workbench`、快捷键作用域、关闭手机抽屉，并在 bus 上发 `page:change`。
 
-路由的 `setLeaveGuard(fn)` 返回注销函数。无守卫保持同步切页；守卫返回 false 或异步未获允许时，页面与地址保持在原处，连续点击合并为同一次确认。AI 草稿页用它保护显式保存前的编辑；浏览器关闭另用原生 beforeunload。
+路由的 `setLeaveGuard(fn)` 返回注销函数。无守卫保持同步切页；守卫返回 false 或异步未获允许时，页面与地址保持在原处，连续点击合并为同一次确认。审核中心用它保护正式提案与草稿的未保存编辑；浏览器关闭另用原生 beforeunload。
 
 ## 4. core 模块
 
@@ -79,7 +81,7 @@ assets/app/
 - `domain/sessions.js` 持有 Session 列表、当前反馈 Session、详情与删除入口。`refreshSessions()` 只接受最新请求的结果，加载开始和结束时发布 `sessions`；删除成功后移除本地记录并使在途旧响应失效。
 - `domain/labels/` 持有标记定义、芯片、选择器和管理弹层；写入后通过 `labels`、`questions:render`、`schedule:render`、`feedback:render`、`board:reload` 通知已挂载页面。`domain/items.js` 集中题库、练习和导出的筛选语义与到期天数。
 - `domain/question/` 提供 Markdown / KaTeX 渲染、题目详情缓存、共享题目视图、弹窗和编辑器。渲染默认保留普通换行、空行仍按 Markdown 分段，显式「简略」偏好才合并单个换行；题库、录入预览、反馈、即时练习和展示板详情共用这条路径。题目内容或练习记录变化后，由调用方让缓存失效并重绘挂载视图。`domain/board/` 持有板列表与选板浮层，板详情经 `detail-port.js` 连接到 `features/board/runtime.js`，domain 不反向 import feature。
-- `features/create/inbox-store.js` 持有收件箱图片列表、当前图、勾选、保存队列和任务轮询；录入页的网格、处理、题卡与训练工作区共用该状态，变化时发 `inbox:changed`。`domain/drafts.js` 持有跨页草稿导航目标与角标计数，不持有草稿编辑表单。
+- `features/create/inbox-store.js` 持有收件箱图片列表、当前图、勾选、保存队列和任务轮询；录入页的网格、处理、题卡与训练工作区共用该状态，变化时发 `inbox:changed`。`domain/drafts.js` 持有跨页草稿导航目标与草稿四态计数，统一审核角标由 `domain/ai-review.js` 持有，不持有草稿编辑表单。
 
 其他跨页入口包括 `domain/history.js`（学习与运行记录读取、修正与通知）、`domain/exporting.js`（导出请求和下载）、`domain/scan.js`（扫描后刷新统计与 Session）。页面之间的导航与刷新由路由和 bus 协调：外壳发 `page:change`，仪表盘可发 `questions:preset`、`instant:load`、`schedule:view` 或 `feedback:session`，设置页发 `agent:config` 后由入口同步助手导航。新增跨页事件时在这里登记其来源与接收方。
 
@@ -91,23 +93,13 @@ assets/app/
 
 `/assets/` 响应带弱 ETag（文件 mtime + 大小）与 `Last-Modified`，使用 `Cache-Control: no-cache`：浏览器每次会重新验证，文件没变时收到空的 304。模块间的 import 不带 `?v=`，由资源校验处理更新；`omrs_dashboard.html` 直接引用的样式、主模块和图标仍带各自的 `?v=`。锁屏入口的 WebGL 场景实现、公式 atlas 和降级主视觉放在 `assets/vendor/entry-*`，由入口页按需加载，不进入应用层依赖检查。
 
-## 8. 草稿与录入页状态
+## 8. 审核中心、草稿与录入页状态
 
-`domain/drafts.js` 负责草稿导航目标、sessionStorage 中的已选编号和四态计数，不持有编辑表单。`openDraft(id)` 先保存目标再切 create，挂载方用 consumeDraftTarget 消费；切页成功后发 `drafts:open {id}`。`drafts:changed {ids}` 触发重新取计数，成功发 `drafts:counts`；读取失败保留上次成功数值。首次加载、切页、聚焦重取计数；有活动运行 / 任务时每两秒轮询，隐藏时暂停，销毁后晚到结果不再更新。
+`domain/ai-review.js` 持有公共详情 / 修订 / 决定请求、跨页导航与去重待审计数，不保存编辑表单。`ai-review:changed {ids}` 刷新公共角标并通知中心和助手卡片，成功读取发 `ai-review:counts`。角标可见时每十秒及聚焦 / 切页重取，失败保留旧值。中心控制器拥有公共筛选、页码与未保存表单，后台轮询和页卸载遵循请求代次保护；详情见 `AI/frontend/ai-review.md`。
 
-`tests/app/draft-navigation.test.mjs` 覆盖目标先于挂载、离页拒绝、计数请求合并、失败保留与晚到响应；`tests/app/core.test.mjs` 覆盖同步路由和异步离页守卫。
+`domain/drafts.js` 继续拥有草稿 sessionStorage 目标和四态计数；`openDraft(id)` 进入 `ai-review?draft=id`，成功后发 `drafts:open`。`drafts:changed` 同时刷新旧草稿快照并转为 `ai-review:changed`。草稿编辑模块位于 `features/ai-review/`，页面间不直接 import；裁图、坐标和指针画布的实际共用代码放在 `domain/image-crop/`，录入页保留短导出适配器。
 
-草稿后台作业由页面 `drafts-job.js` 管理轮询和卸载，活动标记交给 `domain/drafts.js` 统一维护角标轮询；页面内容以服务端 revision 为边界，后台结果不能覆盖未保存表单。真实 HTTP 进程重启回归见 `tests/test_draft_p3_http.py`；画布复用与收件箱行为由草稿/录入 E2E 联合验证。
-
-草稿审核页把队列展开、单块编辑、字段表单与来源模式状态留在挂载控制器；跨页领域层仍只保存导航目标与计数。正文视图在 `drafts-review.js`，局部块操作在 `drafts-block-actions.js`，复用共享菜单和确认对话框。插入与跨组移动保留对象身份，暂存响应后把本地块键映射为服务端 id；取消状态下拉切换恢复原筛选值。格式提示与提交预检共用 `draftIssue`。
-
-入库动作先复核服务端 revision，保存后用相同 revision 串行提交；网络响应丢失时重试同一入库身份。`tests/app/create-drafts.test.mjs` 验证阅读结构与块身份，`tests/e2e/drafts_blocks.py` 用真实隔离服务验证逐块焦点、插入、调序、跨组移动、删除确认、保存重读、图文入库和 320 / 390 / 1024 / 1440px 布局。`tests/e2e/drafts.py` 与 `tests/e2e/drafts_p4.py` 验证冲突、响应丢失、移动端队列、框选及独立训练。
-
-丢弃成功后与入库共用待审核队列推进，详情清空时同步移除会话选中记录；画布兼容空草稿与空检测结果。`tests/e2e/drafts.py` 在真实浏览器中覆盖中间项继续下一份、末项回到上一份、连续丢弃、空队列返回与刷新、取消和请求失败保护、成功后列表读取失败重试，以及手动查看已丢弃正文。
-
-`tests/e2e/p4_tools.py` 使用假模型和临时 Vault 从助手确认分类、修订草稿，再进入快速录入与审核页；助手的无 Ledger 写入活动归约由 `tests/app/assistant.test.mjs` 固定。
-
-自动检测与提取共用草稿作业轮询，按 type 区分进度和错误。助手卡片独立读取当前作业并在活动时轮询，结束运行的缓存由 draftVer 失效；隐藏与卸载停止轮询。录入页顶部与草稿列表都复用当前计数快照，接收 counts 事件时同步更新，避免首次挂载或入库后保留旧值。Node 测试覆盖设置、卡片作业状态、候选展示与独立训练框；HTTP 回归验证检测并发和服务重启。
+草稿后台作业由原 `drafts-job.js` 拥有；中心在作业或提交忙碌时不启动竞争的详情重读，同版本刷新不清空反馈或编辑器。草稿变化以 revision 为边界，不覆盖脏输入。`tests/app/ai-review.test.mjs` 验证权威卡片、修订类型、并发决定与导航；`tests/e2e/ai_review.py` 验证真实双标签、修订 CAS、同页守卫、实际文件执行与八档审计。既有草稿 E2E 保留图文、块身份、来源、框选、独立训练和失败保护的回归。
 
 录入页端到端测试 `tests/e2e/create.py` 使用临时 Vault、随机高端口和真实后台提取任务，只替换外部模型调用；覆盖一键提取、部分失败重试、结果后改存图片／切回文本、人工审核及提取结果四档审计。
 

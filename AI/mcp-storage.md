@@ -2,7 +2,7 @@
 
 > **速查**
 > - 职责：MCP 写入幂等回执、网页确认与导出快照的持久化和恢复
-> - 入口：`omrs/reports.py`、`omrs/draft_write.py`、`omrs/boards.py`、`omrs/mcp_operations.py`、`omrs/mcp_exports.py`
+> - 入口：`omrs/ai_review.py`、`omrs/mcp_operations.py`、`omrs/question_update.py`、`omrs/reports.py`、`omrs/draft_write.py`、`omrs/boards.py`、`omrs/mcp_exports.py`
 > - 不变量：技术存储不进入学习 Ledger；回执绑定密钥、工具和请求编号；不保存密钥明文
 > - 必跑测试：`python3 -m unittest discover -s tests -p 'test_mcp*.py' -q`、`python3 tests/e2e/mcp_expansion.py`
 > - 相关：`AI/data.md`、`AI/mcp.md`、`AI/runtime.md`、`AI/export.md`
@@ -21,9 +21,11 @@
 
 ## 网页确认库
 
-`错题/.omrs/mcp_operations.db` 是独立的 0600/WAL SQLite。`operations` 保存 operation_id、唯一幂等 identity、key_id/tool、digest、payload_json/impact_json/snapshot、status、创建/过期秒数、result_json/error_code。完整待确认参数只在此库，`runtime.db` 只保存脱敏摘要。
+`错题/.omrs/ai_review.db` 是 MCP 与助手共用的 0600/WAL 审核权威，保存原始请求摘要、有效提案、影响预览、身份快照、来源、版本、期限、审核决定和结果。完整提案不进入脱敏 `runtime.db`。旧 `mcp_operations.db` 仅为兼容证据；监听前导入为只读历史，未结束的旧记录标中断，不允许重新批准。
 
-待确认有效期 10 分钟，重启后继续待确认。网页批准先保存 applying，再执行领域事务；进程中断时优先用板的原子幂等回执恢复终态，没有回执则复核当前权限和目标后恢复已批准操作。拒绝、到期和冲突不写板；详细状态见 `AI/runtime.md`。
+MCP 新待审提案有效期 10 分钟；尚未批准的提案可在普通重启后继续等待至原期限。网页批准先保存 approved/applying，再执行原生领域事务。原生板回执、Session 事务回执和正式题目回执证明已有提交时，只补记终态；无回执不重放写入。GET 只读核对原生回执和到期，不迁移旧库或更新存储。整库恢复废止全部未结束的新旧审批。统一状态与助手原运行规则见 `AI/ai-review.md`。
+
+旧 `/api/mcp/operations/decide` 兼容入口接受可选 expected_revision。未提供版本只允许第 1 版，人工修订后缺少版本或版本过时返回 revision_conflict，不能让旧页面批准未看过的提案。审核中心始终显式提交当前版本。
 
 ## 导出快照
 

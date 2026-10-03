@@ -17,6 +17,7 @@ from .errors import RequestError
 
 _LOCK = threading.RLock()
 TITLES = {
+    'propose_question_update': '提出正式题目修改',
     "list_taxonomy": "读取科目与分类", "search_questions": "搜索题目",
     "get_question": "读取题目", "get_overview": "读取科目概况",
     "get_question_image": "读取题图",
@@ -304,8 +305,6 @@ def _row(row, detail=False):
 
 @storage
 def list_records(vault, params):
-    from . import mcp_operations
-    mcp_operations.refresh(vault)
     options = filters(params)
     try:
         limit = int(params.get("limit", 60))
@@ -346,7 +345,6 @@ def calls_for_draft(vault, draft_id):
 @storage
 def detail(vault, seq):
     from . import mcp_operations
-    mcp_operations.refresh(vault)
     if not os.path.isfile(path(vault)):
         return None
     with closing(_connect(vault)) as db:

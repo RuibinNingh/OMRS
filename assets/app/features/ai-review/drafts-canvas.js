@@ -1,7 +1,7 @@
 /** 草稿画布适配：只向共用画布提供展示图、区域和回调，不进入收件箱 store。 */
-import { createCanvasController } from './process-canvas.js';
+import { createCanvasController } from '../../domain/image-crop/process-canvas.js';
 import { imageSha, imageUrl } from './drafts-state.js';
-import { loadImage, previewSize, boxKey } from './crop.js';
+import { loadImage, previewSize, boxKey } from '../../domain/image-crop/crop.js';
 
 const roleOf = section => section === '答案' ? 'answer' : 'question';
 const sectionOf = role => role === 'answer' ? '答案' : '题目';

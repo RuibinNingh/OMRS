@@ -77,11 +77,22 @@ class BoardManagementTests(unittest.TestCase):
             self.run_tool('update_board_layout', old)
         self.assertEqual(boards.get_board(self.vault, self.board['id'])['print']['gap_lines'], 2)
 
+    def test_noop_board_patch_records_unchanged_and_retry_keeps_native_fact(self):
+        from omrs import ai_review
+        payload = self.board_payload(patch={'gap_lines': 2})
+        result = self.run_tool('update_board_layout', payload, 'noop')
+        self.assertEqual(result['status'], 'unchanged')
+        self.assertFalse(result['wrote'])
+        self.assertEqual(ai_review.get(self.vault, result['operation_id'])['status'], 'unchanged')
+        retried = self.run_tool('update_board_layout', payload, 'noop')
+        self.assertTrue(retried['reused'])
+        self.assertEqual(ai_review.get(self.vault, retried['operation_id'])['status'], 'unchanged')
+
     def test_pending_confirm_repeat_and_owner_boundary(self):
         before = Path(boards.boards_path(self.vault)).read_bytes()
         pending = self.delete_pending()
         self.assertEqual(pending['status'], 'pending_confirmation')
-        self.assertTrue(pending['confirmation_url'].startswith('https://omrs.example:8443/#/history?operation='))
+        self.assertTrue(pending['confirmation_url'].startswith('https://omrs.example:8443/#/ai-review?operation='))
         self.assertEqual(Path(boards.boards_path(self.vault)).read_bytes(), before)
         self.assertEqual(self.delete_pending()['operation_id'], pending['operation_id'])
         other = create_key(self.vault, '其他', ['omrs:read'])
@@ -168,13 +179,12 @@ class BoardManagementTests(unittest.TestCase):
                 raise OSError('模拟响应前进程退出')
             return original(vault, row, status, *args, **kwargs)
         with patch.object(ops, '_save_state', side_effect=crash):
-            with self.assertRaises(OSError):
-                ops.decide(self.vault, pending['operation_id'], 'confirm')
+            self.assertEqual(ops.decide(self.vault, pending['operation_id'], 'confirm')['status'], 'applied')
         revoke_key(self.vault, self.key['key_id'])
         self.assertEqual(ops.get(self.vault, pending['operation_id'])['status'], 'applied')
         self.assertIsNone(boards.get_board(self.vault, self.board['id']))
 
-    def test_crash_before_domain_commit_recovers_once_and_pending_survives(self):
+    def test_crash_before_domain_commit_get_never_replays_approval(self):
         pending = self.delete_pending()
         self.assertEqual(ops.get(self.vault, pending['operation_id'])['status'], 'pending_confirmation')
         original = boards._persist
@@ -183,8 +193,10 @@ class BoardManagementTests(unittest.TestCase):
                 ops.decide(self.vault, pending['operation_id'], 'confirm')
         self.assertIsNotNone(boards.get_board(self.vault, self.board['id']))
         with patch.object(boards, '_persist', wraps=original) as spy:
-            self.assertEqual(ops.get(self.vault, pending['operation_id'])['status'], 'applied')
-            self.assertEqual(spy.call_count, 1)
+            self.assertEqual(ops.get(self.vault, pending['operation_id'])['status'], 'applying')
+            ops.refresh(self.vault)
+            self.assertEqual(spy.call_count, 0)
+            self.assertIsNotNone(boards.get_board(self.vault, self.board['id']))
 
     def test_runtime_keeps_summary_only_and_truthful_states(self):
         seq = runtime_records.begin(self.vault, 'delete_board', {'board_id': self.board['id'], 'patch': {'note': '机密'}}, self.key)
@@ -214,7 +226,7 @@ class BoardSDKTests(unittest.TestCase):
         async def run():
             async with _session(self.server.mcp_port, self.key['secret']) as session:
                 tools = (await session.list_tools()).tools
-                self.assertEqual(len(tools), 39)
+                self.assertEqual(len(tools), 40)
                 self.assertNotIn('confirm_mcp_operation', [t.name for t in tools])
                 listing = _json_result(await session.call_tool('list_boards', {}))
                 folder = _json_result(await session.call_tool('create_board_folder', {'name': 'SDK目录', 'expected_catalog_revision': listing['catalog_revision'], 'request_id': 'folder'}))
@@ -259,7 +271,8 @@ class BoardSDKTests(unittest.TestCase):
                     'get_analytics','list_reports','get_report','create_report','update_draft','list_boards','get_board',
                     'create_board','update_board','duplicate_board','delete_board','add_board_items','remove_board_items',
                     'reorder_board_items','update_board_layout','update_board_item','create_board_folder',
-                    'update_board_folder','delete_board_folder','move_board','export_board','get_mcp_operation'}
+                    'update_board_folder','delete_board_folder','move_board','export_board','get_mcp_operation',
+                    'propose_question_update'}
                 self.assertEqual({tool.name for tool in (await session.list_tools()).tools}, expected)
                 recommendations = await call('get_recommendations', {'subject': '数学', 'count':20})
                 self.assertIn(uid, [item['uid'] for item in recommendations['selection']])
@@ -323,7 +336,7 @@ class BoardSDKTests(unittest.TestCase):
                         self.assertIn('forbidden', denied.content[0].text)
                     # 同一已建立会话实时编辑权限，不能用旧 token/cache 维持增权。
                     update_scopes(self.server.vault, key['key_id'], list(_SCOPES))
-                    self.assertEqual(len((await session.list_tools()).tools),39)
+                    self.assertEqual(len((await session.list_tools()).tools),40)
                     update_scopes(self.server.vault, key['key_id'], ['omrs:read'])
                     self.assertEqual(len((await session.list_tools()).tools),22)
         asyncio.run(run())

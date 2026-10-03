@@ -153,9 +153,10 @@ CREATE TABLE IF NOT EXISTS drafts (
   id TEXT PRIMARY KEY, status TEXT, conversation_id TEXT, run_id TEXT, tool_call_id TEXT,
   subject TEXT, category TEXT, knowledge_points TEXT, difficulty INTEGER, labels TEXT,
   cause TEXT, cause_statement TEXT, note TEXT, uid TEXT, question_id TEXT,
-  created_at TEXT, updated_at TEXT,
+  created_at TEXT, updated_at TEXT, revision INTEGER NOT NULL DEFAULT 1,
+  sources_complete INTEGER NOT NULL DEFAULT 0, cleaned_at TEXT,
   source_channel TEXT NOT NULL DEFAULT 'agent', source_key_id TEXT,
-  source_request_id TEXT, cause_verification TEXT, source_client_name TEXT
+  source_request_id TEXT, cause_verification TEXT, source_client_name TEXT, last_mcp_edit_json TEXT
 );
 CREATE INDEX IF NOT EXISTS drafts_status ON drafts(status);
 CREATE INDEX IF NOT EXISTS drafts_conv ON drafts(conversation_id);
@@ -226,6 +227,7 @@ def connect(vault):
 
 @storage
 def _initialize(vault, db):
+    # 新表一次声明全部当前列；只读查询不会观察到建表后、旧库补列前的缺列窗口。
     db.executescript(_SCHEMA)
     cols = {r["name"] for r in db.execute("PRAGMA table_info(drafts)")}
     if "revision" not in cols:
@@ -972,6 +974,8 @@ def create_mcp_draft(vault, data, origin, images=None):
             # 兼容已有数据库上 stable_hash 的迁移，并保留首次请求实际摘要。
             db.execute("UPDATE mcp_requests SET stable_hash=? WHERE source_key_id=? AND request_id=?",
                        (origin.get("stable_hash"), origin["source_key_id"], origin["source_request_id"]))
+            from .ai_review import save_auto_receipt
+            save_auto_receipt(db, {'draft_id': result['id'], 'wrote': True})
             db.commit()
             committed = True
             _log(vault, "draft.create", result["_create_event"])

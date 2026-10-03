@@ -1,6 +1,6 @@
 /** 草稿画布控制：正文框与训练框只更新本地编辑值，保存由草稿控制器显式执行。 */
 import { createDraftCanvas, draftCanvasItem, regionSection } from './drafts-canvas.js';
-import { newRegion } from './process-state.js';
+import { newRegion } from '../../domain/image-crop/process-state.js';
 import { imageSha, latestDetectResult } from './drafts-state.js';
 
 export function createDraftCanvasControl(host, state, { markChanged, paint, block }) {

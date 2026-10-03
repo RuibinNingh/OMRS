@@ -3,7 +3,8 @@ import { imageValue } from '../../core/uploads.js';
 import { get, post } from '../../core/api.js';
 import { morph } from '../../core/dom.js';
 import { currentDraftCounts, consumeDraftTarget, publishDraftChange, selectedDraftId, selectDraftId } from '../../domain/drafts.js';
-import { notify, inbox } from './inbox.js';
+import { toast } from '../../ui/toast.js';
+const notify = (message, kind = 'info') => toast(message, { kind });
 import { csvValues, draftProblems, editTraining, editValue, imageSha, imageUrl, trainingBoxPayload, updatePayload, commitProblem } from './drafts-state.js';
 import { draftsView } from './drafts-view.js';
 import { notifyHistoryChanged } from '../../domain/history.js';
@@ -12,30 +13,30 @@ import { viewQ } from '../../domain/question/index.js';
 import { dialog, confirm } from '../../ui/dialog.js';
 import { openMenu } from '../../ui/menu.js';
 import { openCreateLabelPicker } from '../../domain/labels/index.js';
-import { cropDataUrl } from './crop.js';
+import { cropDataUrl } from '../../domain/image-crop/crop.js';
 import { paintDraftCrops } from './drafts-canvas.js';
 import { createDraftCanvasControl } from './drafts-canvas-ctl.js';
 import { createDraftJobPolling } from './drafts-job.js';
 import { createDraftImageActions } from './drafts-image-actions.js';
 import { previewDraftSource } from './drafts-preview.js';
 import { createDraftBlockActions } from './drafts-block-actions.js';
+import { confirmDraftCleanup, requestDraftCleanup } from './maintenance.js';
+import { readDraftQueue } from './queue.js';
 const responseError = result => result.error?.message || result.data?.msg || '请求失败';
-export function createDrafts(root, ctx) {
+export function createDrafts(root, ctx, options = {}) {
   const host = root.querySelector('#ib-stage-drafts');
   const state = { list: [], listLoaded: false, listError: '', filter: 'pending', selectedId: null,
     draft: null, value: null, saved: '', detailLoaded: true, detailError: '', dirty: false,
     busy: false, message: '', conflict: false, counts: currentDraftCounts(), training: {}, trainingSaved: '{}',
     canvasSha: null, canvasMode: 'body', selectedBlock: null, drawSection: '题目', job: null,
-    workspaceMode: 'review', editingBlock: null, fieldsEditing: false, queueOpen: false };
-  let alive = true;
-  let listRequest = 0;
-  let detailRequest = 0;
+    workspaceMode: 'review', editingBlock: null, fieldsEditing: false, queueOpen: false, embedded: options.embedded };
+  let alive = true, listRequest = 0, detailRequest = 0;
   const jobs = createDraftJobPolling(root, state, { isAlive: () => alive, loadDetail, paint, responseError });
   const canvas = createDraftCanvasControl(host, state, { markChanged, paint, block });
   const blocks = createDraftBlockActions(host, state, { isAlive: () => alive, block, paint, markChanged, canvas });
   const images = createDraftImageActions(state, { isAlive: () => alive, save, setDraft, showError, paint, canvas, jobs, markChanged, block });
   function paint() {
-    if (!alive || !host || inbox.state.stage !== 'drafts' || canvas.isDragging()) return;
+    if (!alive || !host || options.isActive?.() === false || canvas.isDragging()) return;
     state.counts = currentDraftCounts() || state.counts;
     morph(host, draftsView(state));
     canvas.bind();
@@ -87,14 +88,13 @@ export function createDrafts(root, ctx) {
   }
   async function loadList({ reloadDetail = false } = {}) {
     const request = ++listRequest;
-    const result = await get(`/api/drafts/list?status=${state.filter}&limit=500`);
+    const result = await readDraftQueue(state.filter, options.filterQueue);
     if (!alive || request !== listRequest) return false;
     if (!result.ok || !Array.isArray(result.data?.drafts)) {
       state.listError = responseError(result); state.listLoaded = true; paint(); return false;
     }
     state.listError = ''; state.listLoaded = true;
-    state.list = result.data.drafts.filter(draft => state.filter === 'pending'
-      ? draft.status === 'cropping' || draft.status === 'review' : draft.status === state.filter);
+    state.list = result.data.drafts;
     paint();
     if (reloadDetail && state.selectedId && !state.dirty) await loadDetail(state.selectedId);
     return true;
@@ -109,8 +109,9 @@ export function createDrafts(root, ctx) {
     if (!result.ok || !result.data?.draft) {
       state.detailLoaded = true; state.detailError = responseError(result); state.draft = null; state.value = null; paint(); return false;
     }
+    if (!force && JSON.stringify(result.data.draft) === JSON.stringify(state.draft)) { state.detailLoaded = true; paint(); return true; }
     setDraft(result.data.draft);
-    selectDraftId(id);
+    selectDraftId(id); options.onSelection?.(state.draft);
     return true;
   }
   function guard() {
@@ -145,7 +146,6 @@ export function createDrafts(root, ctx) {
     if (state.selectedId === id && state.draft && state.dirty) return true;
     if (state.selectedId === id && state.draft && !state.detailError) return true;
     if (state.selectedId && state.dirty && !await guard()) return false;
-    inbox.go('drafts');
     return loadDetail(id);
   }
   async function navigate(step) {
@@ -166,7 +166,7 @@ export function createDrafts(root, ctx) {
   function editFields() {
     if (state.busy || !state.value || ['done', 'discarded'].includes(state.draft?.status)) return;
     state.fieldsEditing = !state.fieldsEditing; paint();
-    if (state.fieldsEditing) host.querySelector('[data-input="create.draftField"]')?.focus({ preventScroll: true });
+    if (state.fieldsEditing) host.querySelector('[data-input="ai-review.draftField"]')?.focus({ preventScroll: true });
   }
   async function queueMenu(anchor) {
     if (!alive || state.busy) return;
@@ -176,17 +176,17 @@ export function createDrafts(root, ctx) {
     if (action === 'reload') await reload();
     else if (action === 'cleanup') await cleanup();
   }
-  async function enter() {
+  async function enter(id) {
     paint();
     await loadList();
-    const target = consumeDraftTarget() || selectedDraftId();
+    const target = id || consumeDraftTarget() || selectedDraftId();
     if (target) await open(target);
     else if (!state.selectedId && state.list.length) await open(state.list[0].id);
   }
   async function filter(next) {
     if (!['pending', 'done', 'discarded'].includes(next) || next === state.filter) return;
     if (state.dirty && !await guard()) {
-      const select = host.querySelector('[data-change="create.draftFilter"]'); if (select) select.value = state.filter; return;
+      const select = host.querySelector('[data-change="ai-review.draftFilter"]'); if (select) select.value = state.filter; return;
     }
     state.filter = next;
     state.selectedId = null; state.draft = null; state.value = null;
@@ -265,14 +265,11 @@ export function createDrafts(root, ctx) {
     } finally { state.busy = false; paint(); }
   }
   async function cleanup() {
-    if (state.busy || !await confirm('清理过期丢弃草稿的临时图片？', { hint: '仍被聊天、其他草稿或训练数据引用的图片会保留。', okText: '开始清理' })) return;
+    if (state.busy || !await confirmDraftCleanup()) return;
     state.busy = true; paint();
     try {
-      const result = await post('/api/drafts/cleanup', {});
+      const { result, summary } = await requestDraftCleanup();
       if (!result.ok) { showError(result, '清理'); return; }
-      const cleaned = result.data.cleaned || {};
-      const retained = result.data.retained || {};
-      const summary = `已清理 ${cleaned.drafts || 0} 份过期草稿、${cleaned.images || 0} 张无引用图片、${cleaned.crops || 0} 份裁图；保留 ${retained.images || 0} 张仍被引用的图片`;
       state.message = summary; notify(summary); paint();
     } finally { state.busy = false; paint(); }
   }
@@ -317,11 +314,13 @@ export function createDrafts(root, ctx) {
     } finally { state.busy = false; paint(); }
   }
   async function nextPending(previousIndex) {
+    options.onPendingQueue?.();
     state.filter = 'pending'; state.list = state.list.filter(row => row.id !== state.selectedId);
     state.selectedId = null; selectDraftId(null); setDraft(null);
-    if (!await loadList()) return;
+    if (!await loadList()) { options.onQueueError?.(state.listError); return; }
     const next = state.list[Math.max(0, Math.min(previousIndex, state.list.length - 1))];
     if (next) await loadDetail(next.id);
+    else options.onSelection?.(null);
   }
   async function commit() {
     if (!state.draft || state.busy || ['done', 'discarded'].includes(state.draft.status)) return false;

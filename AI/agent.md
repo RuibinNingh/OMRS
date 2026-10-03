@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：内置对话助手的 Harness、服务端权限、对话存储、OMRS 工具与按运行撤销
 > - 入口：`omrs/agent/runtime.py`（运行时与接口实现）、`omrs/agent/loop.py`（通用循环）、`omrs/agent/tools/`、`omrs/llm/`
-> - 不变量：权限规则写在服务端（`omrs/agent/policy.py`），不靠提示词；需确认的写入只认界面按钮发来的确认码；写锁只在单次工具执行期间持有
+> - 不变量：权限规则写在服务端；聊天与审核中心共用持久决定；批准仅唤醒原运行；写锁不覆盖模型思考和等待
 > - 必跑测试：`tests/test_agent_loop.py`、`tests/test_agent_tools.py`、`tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`
 > - 相关：`AI/frontend/assistant.md`、`AI/ledger.md`（写入来源、正文入账）、`AI/api.md`（并发与写锁）、`AI/security.md`、`AI/data.md`
 
@@ -38,11 +38,13 @@
 | 级别 | 工具 | 服务端行为 |
 |---|---|---|
 | read | 词表、搜题、读题、概况、推荐、Session、看图追问、查草稿 | 自动执行 |
-| rev | 建复习 Session、打标记、建草稿、按版本修订草稿 | 自动执行，计入写入预算；前两个可按运行撤销，草稿不进 Ledger、不在撤销范围 |
-| confirm | 改题目 / 答案 / 错因、改知识点、移动、停用、恢复、记录反馈、独立创建分类，以及确认模式下的草稿入库 | 发 `tool.waiting` 事件后阻塞，等界面 `POST /api/agent/confirm` |
+| rev | 建草稿、按版本修订草稿、建聊天练习卡 | 自动执行，记录业务动作并计入写入预算；不进学习 Ledger |
+| confirm | 建正式复习 Session、打标记、改题目 / 答案 / 错因、改知识点、移动、停用、恢复、记录反馈、独立创建分类，以及确认模式下的草稿入库 | 发 `tool.waiting` 后等聊天或审核中心的人类决定；正式写入可按运行撤销，独立分类除外 |
 | 不提供 | 删除、改设置和 PIN、备份恢复、重启、源码导出、标记定义 | 没有工具 |
 
-确认码 = sha256(run_id + 工具名 + 规范化参数)，参数一变就是新请求；10 分钟过期（`CONFIRM_TTL_SECONDS`），过期、拒绝、中止都作为工具结果交还模型，工具不执行。确认前先调工具的 `preview`（例如改正文前后对照、反馈的预计熟练度）；`preview` 抛错时不打扰用户，直接把错误交还模型。
+确认码绑定原 run、工具、operation_id、revision 与有效内容摘要。调用先在 `ai_review.db` 登记意图，再准备前后对照或预计影响；无效提案记失败并交还模型。待确认最长 10 分钟（`CONFIRM_TTL_SECONDS`），期间不持写锁。批准先持久化到统一库，再唤醒唯一原 `PendingConfirm`；正式执行前仍复核身份与快照。过期、拒绝、中止交还原模型，重启或恢复不能重新唤起旧模型。
+
+审核中心可以人工修订待审正文或知识点提案，只限原题目、原字段范围。原请求摘要用于重试，保持不变；有效 payload、摘要与 revision 随修订更新。旧聊天票据失效，截止时间不延长。助手执行保存的有效补丁，追加文字已在申请时转换为最终内容，执行时不再重算。审核状态和既成事实的原生回执说明见 `AI/ai-review.md`。
 
 预算（每次运行）：模型请求 25 轮、工具调用 40 次、写入 20 次（产生 commit 的工具调用算一次；不写 Ledger 的写入工具在结果里带 `wrote: true` 也算一次，`tool.end` 事件带 `wrote`），超出即结束运行，原因写进 `run.end`。对话最多 60 条消息（含工具结果），到了返回 409 请新开对话。全局同时只跑 1 个运行，别的对话发消息返回 409。
 
@@ -62,11 +64,11 @@
 
 `create_category`（confirm）只在独立创建永久分类时使用；确认后由 `omrs/taxonomy.py` 建分类目录、锚点与科目索引，零题分类进入统一词表。重复创建不覆写锚点；若补上缺失索引仍算实际写入。无题目 Ledger commit，不能按运行自动撤销。
 
-外部 MCP 不复用这套 Agent Runtime 或工具注册表：它固定提供二十二个读取工具，以及待审核草稿创建/修订、报告保存和展示板局部管理，允许获授权 MCP 修订各来源待审核草稿，不能提交或丢弃已有草稿。七个学习查询继续调用本文件所述的 read 工具语义；get_question_image 按共享题目图片列表下标返回原生完整图片，仅在 MCP 注册；MCP Key 与 Agent 的 Web 会话、PIN 和模型密钥相互独立。
+外部 MCP 使用独立工具注册和实时 Key 授权，提供读取、草稿、报告、展示板、正式 Session 与正式题目提案。它与助手共用审核权威，不能自行批准、提交或丢弃草稿。七个学习查询继续调用本文件的 read 语义；get_question_image 按共享图片列表下标返回完整图片，仅在 MCP 注册；MCP Key 与 Web 会话、PIN 和模型密钥独立。
 
 助手建草稿允许题目图文混排：各文字块必须能完整转述，局部图片块须能独立准确框出，按原题阅读顺序排列；同一来源图确有多个独立局部时可重复引用。题干、图表和小问相互依赖，或无法确定拆开后信息完整时，提示词要求把整道题目保留为一个图片块，覆盖题干、必要图表和全部小问。答案有独立的块边界规则：没有图片时所有文字、公式、步骤和段落必须是一个文字块；只有图片夹在答案文字中间时才在图片处分块，图片开头或结尾时合并相邻文字。`create_draft` 工具会合并模型连续生成的答案文字块，确保块边界只由图片造成。
 
-改文件的工具一律经 `omrs/content_history.py` 的 `write_question`：写前对齐未入账的正文，写后按「元数据变了 / 只改正文」记 `question.metadata_update` 或 `question.content_update`，前后两版正文进 blobs。工具结果 JSON 超过 6000 字符截断并注明。
+正式正文与知识点提案经 `omrs/question_update.py` 转成受限字段补丁，执行采用原生文件日志、原子替换与同事务 Ledger 回执，前后正文进 blobs。移动、停用、标记等原领域写入保持已有正文历史契约。所有助手业务写的 Ledger 提交仍带原 `_agent` 对话、run 和 tool_call_id，可以按运行撤销。工具结果 JSON 超过 6000 字符截断并注明。
 
 ## 5. 循环行为（`omrs/agent/loop.py`）
 
@@ -84,7 +86,7 @@
 
 GET：`/api/agent/status`（开关、是否配置好与缺什么、是否假模型、模型、兼容、上下文窗口、预算、消息上限、确认时限、工具级别表、进行中的运行）；`/api/agent/conversations`；`/api/agent/conversation?id=`（按运行排的条目：发起消息（附图时带 `images:[{ref, sha, width, height}]`，缩略图走 `/api/drafts/image?sha=`）+ 运行元数据与事件，进行中的运行带 `live`）；`/api/agent/events?run=&after=&wait=`（最多等25秒；活动及结束都从持久事件表读取，`compacted:false`）。
 
-POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软删除，运行中 409）、`/api/agent/message`（`{conversation_id, text, images?}` → `{run_id, steered}`；未启用 403、未配置或图片不合格 400、并发、消息上限或运行中带图插话 409）、`/api/agent/confirm`（`{run_id, call_id, token, decision}`；码不符 400、没有等待中的调用 409）、`/api/agent/abort`、`/api/agent/test`（用已保存配置发一次带 `ping` 工具的非流式请求，返回耗时与是否调用了工具；`agent_vision` 开时再发一张 8×8 白图，多返回 `vision_ok` 与 `vision_error`）、`/api/agent/run/revert`（`{run_id, dry_run}`，见 §9）。除 `run/revert` 在应用撤销时自取写锁外，这些 POST 都不进进程写锁（理由见 `omrs/locking.py` 的豁免清单）。
+POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软删除，运行中 409）、`/api/agent/message`（`{conversation_id, text, images?}` → `{run_id, steered}`；未启用 403、未配置或图片不合格 400、并发、消息上限或运行中带图插话 409）、`/api/agent/confirm`（`{run_id, call_id, token, decision}`；码不符 400、没有等待中的调用 409）、`/api/agent/abort`、`/api/agent/test`（用已保存配置发一次带 `ping` 工具的非流式请求，返回耗时与是否调用了工具；`agent_vision` 开时再发一张 8×8 白图，多返回 `vision_ok` 与 `vision_error`）、`/api/agent/run/revert`（`{run_id, dry_run}`，见 §9）。confirm 内部取得短租约、写锁、确认对象锁与审核 SQLite 事务，持久决定成功才发唤醒事件；run/revert 自取写锁应用撤销。网络和确认等待不持外层长锁，豁免理由见 `omrs/locking.py`。
 
 练习卡 GET `/api/agent/practice?card=<card_id>&attempt=<可选 attempt_id>` 返回原卡片、当前有效题序、不可用题及原因、已从 Ledger 查到的提交身份和界面进度；题目移动后返回当前 UID。POST `/api/agent/practice/start` 接受 `{card_id,restart?,request_id?}` 并返回同一详情；默认续最新 attempt，`restart:true` 必须提供稳定 `request_id`，重试同一请求不会多签发。POST `/api/agent/practice/progress` 接受 `{attempt_id,progress}`，只保存更大的 `progress.seq`，不决定真实反馈是否成功。对话删除后不能签发新 attempt；已签发的仍可读取和提交。
 
@@ -125,4 +127,4 @@ MCP导出复用现有只读图片列表和受限原图读取，内置助手不�
 
 ## 复习调度共享读取
 
-推荐 due/proficiency/selection 带稳定 question_id 并保留 uid/source。list_sessions 查询支持 offset、limit（默认 20、最多 100），包含全部停用的 active 计划；返回分页总数、反馈进度与可用性计数。get_session 保留 pending/done/count，补时间、科目、完整进度和分页 entries（默认 100）；条目保留稳定身份与停用、归档、待绑定状态。这些读取不创建计划、不自动标完成。外部 MCP 的 create_review_session 采用独立 session:create 权限与技术回执，不调用内部 Agent 写入包装；内置助手创建契约保持。
+推荐 due/proficiency/selection 带稳定 question_id 并保留 uid/source。list_sessions 查询支持 offset、limit（默认 20、最多 100），包含全部停用的 active 计划；返回分页总数、反馈进度与可用性计数。get_session 保留 pending/done/count，补时间、科目、完整进度和分页 entries（默认 100）；条目保留稳定身份与停用、归档、待绑定状态。这些读取不创建计划、不自动标完成。MCP create_review_session 使用独立 session:create 权限和原生事务回执，首次返回 pending_confirmation 而没有 session_id；网页批准后才创建。助手正式 Session 也须确认；聊天练习卡继续自动创建。

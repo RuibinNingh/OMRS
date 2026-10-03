@@ -1,3 +1,5 @@
+import { page as reviewPage } from './features/ai-review/index.js';
+import { connectReview } from './domain/ai-review.js';
 /** Browser entry: install shared services, load snapshots, then enter the hash route. */
 import { startShell, applyChrome } from './shell.js';
 import { page as instantPage } from './features/instant/index.js';
@@ -31,9 +33,10 @@ bindQuestionDom(document);
 installBoardWindow(window);
 void startActivityTracking(document);
 const pages = [dashboardPage, dataPage, schedulePage, historyPage, catalogPage, reportsPage,
-  settingsPage, createPage, boardPage, questionsPage, instantPage, feedbackPage, assistantPage];
+  reviewPage, settingsPage, createPage, boardPage, questionsPage, instantPage, feedbackPage, assistantPage];
 const { router, bus } = startShell(window, pages);
 connectDrafts({ bus, router, document, window });
+connectReview({ bus, router, document, window });
 connectData({ emit: (type, payload) => bus.emit(type, payload) });
 connectSessions({ emit: (type, payload) => bus.emit(type, payload) });
 connectHistory({ emit: (type, payload) => bus.emit(type, payload) });

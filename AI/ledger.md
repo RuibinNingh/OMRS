@@ -196,7 +196,7 @@ Markdown 正文另按 §10 入账：
 
 `append_commit_in_db` 在读链头之前执行 `BEGIN IMMEDIATE` 拿到 SQLite 写锁，读链头、插入、回填 `commit_id`、存 blobs 在同一事务里提交；`reserve_operation_id` 的计数同样如此。连接一律带 `busy_timeout=5000`，别的线程或进程在超时内等待，不会读到同一个链头而分叉。连接已处于调用方开启的事务时沿用该事务。`verify_ledger` 另外校验每个 blob 的内容与哈希一致。
 
-写入来源：`api`（用户经界面或接口）、`self_check`（工作区扫描发现的外部修改）、`migration`、`system`，以及 `agent`——`omrs/actor.py` 的 `agent_actor(...)` 上下文里，原本记为 `api` 的 commit 改记 `agent`，payload 加 `_agent: {conversation_id, run_id, tool_call_id}`（参与哈希，投影忽略）。按运行撤销产生的逆操作在 `revert_marker(...)` 上下文里，payload 加 `_revert: {run_id, commit_id}`。见 `AI/agent.md` §9。
+写入来源：`api`（用户经界面或接口）、`self_check`（工作区扫描发现的外部修改）、`migration`、`system`、`mcp`（经网页批准的外部题目修改），以及 `agent`——`omrs/actor.py` 的 `agent_actor(...)` 上下文里，原本记为 `api` 的 commit 改记 `agent`，payload 加 `_agent: {conversation_id, run_id, tool_call_id}`（参与哈希，投影忽略）。按运行撤销产生的逆操作在 `revert_marker(...)` 上下文里，payload 加 `_revert: {run_id, commit_id}`。见 `AI/agent.md` §9。
 
 ## 10. 正文入账
 
@@ -228,3 +228,13 @@ Markdown 正文另按 §10 入账：
 ## 外部 MCP 复习计划创建
 
 omrs/session_operations.py 在新鲜链头、活动配置和 SQL 投影检查后同事务追加 source=mcp 的 session.create、发布 Session 投影并写 op_results 技术回执。输入绑定稳定 question_id，创建不更新答题或熟练度。投影失败整体回滚，清理内存缓存；MCP 技术回执不参与学习撤销和 state.restore，详情见 AI/mcp-storage.md。Web/内置助手原有创建调用保持兼容。
+
+## 正式题目审核的文件与事实协议
+
+`omrs/question_update_journal.py` 在 `.omrs-maintenance/question-updates/` 原子刷盘保存基线、有效补丁摘要、前后 Markdown 哈希、稳定题目身份、路径、Vault 世代、Ledger 链头和精确文件所有权。先刷盘新正文临时文件与意图，再原子替换题目；`question.content_update` 或 `question.metadata_update`、前后正文 blobs 与 `op_results` 回执在同一 `BEGIN IMMEDIATE` 事务提交。事实的 `_ai_review` 固定操作编号、有效摘要与原来源；助手仍保留原 `_agent` 身份。无实际变化只记技术回执，不追加正文事实。
+
+首次执行与实际文件替换前均验证唯一审核库的 applying 状态、批准版本、原请求及有效摘要、来源、快照和世代；MCP 实时复查密钥权限与期限，助手复查原运行与写入者身份及中止状态。读取回执使用只读 SQLite 连接，不初始化或迁移 Ledger，也不恢复业务写权限。
+
+CLI 在扫描与监听前收束 journal。存在有效原生回执时仅清理维护意图并供审核库补终态，不重新写题目。无事实时，只有题目身份、路径、链头、当前哈希及文件 inode 都能证明仍属于本次中断，才恢复旧正文；后续事实、换文件或外部编辑使所有权不明时停止启动并保留现场。普通异常走同一收束协议；已经提交的结果不会因辅助记录失败而再次业务写入。旧世代 journal 只移到维护目录的 `.obsolete` 材料，不碰恢复后的题库。
+
+回归命令为 `python3 -m unittest tests.test_question_update`，覆盖受限补丁、YAML 往返、图片边界、身份与版本冲突、人工修订摘要、无变化、重复批准，以及真实子进程在文件替换后与 Ledger 提交后的中断。正文读取返回 `question_id`、`difficulty` 和独立补充备注；MCP 完整正文查询仍按页限制，备注另外标出总字符数与截断。

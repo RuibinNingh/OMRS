@@ -8,28 +8,28 @@ import { createAssistantHistory } from './history.js';
  * 各区域分别 morph。写入后经 domain 层刷新题目数据、Session 与题目缓存。见 AI/frontend/assistant.md。
  */
 import { html } from '../../core/html.js';
-import { morph, toElement } from '../../core/dom.js';
+import { morph } from '../../core/dom.js';
 import { get, post } from '../../core/api.js';
 import { icon } from '../../ui/icon.js';
 import { toast } from '../../ui/toast.js';
 import { dialog } from '../../ui/dialog.js';
-import { openModal } from '../../ui/overlay.js';
 import { openImageViewer } from '../../ui/image-viewer.js';
 import { reloadData } from '../../domain/data.js';
 import { copyText, refreshSessions } from '../../domain/sessions.js';
 import { invalidateQuestions, viewQ } from '../../domain/question/index.js';
 import { openDraft as navigateToDraft, publishDraftChange, setDraftActivity } from '../../domain/drafts.js';
 import { loadTaxonomy } from '../../domain/taxonomy.js';
-import { applyEvent, mmss, newRun, runNow, historyItems } from './state.js';
-import { confirmOf, setRefRenderer, toolTitle } from './tools-view.js';
+import { applyEvent, newRun, historyItems } from './state.js';
+import { setRefRenderer, toolTitle } from './tools-view.js';
 import { SUGS, dockView, headView, railView, streamView } from './view.js';
 import { inspView } from './insp-view.js';
 import { MAX_ATTACHMENTS, prepareImageFile, imageSrc } from './attachments.js';
 import { createDraftCards } from './draft-cards.js';
+import { createReviewCards } from './review-cards.js';
 import { bindAssistantInteractions } from './interactions.js';
 import { bindAssistantViewport } from './mobile-layout.js';
 let C = null;
-function createController(root, { router }) {
+function createController(root, { router, bus }) {
   const S = { status: null, convs: [], convId: null, items: [], msgs: 0, attachments: [], imageNo: 1, open: new Set(), closed: new Set(), runSel: null,
     liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false,
     uiVer: 0, draftVer: 0, draftCropMode: 'manual', drafts: {}, sugs: SUGS, alive: true, convRequest: 0,
@@ -72,6 +72,7 @@ function createController(root, { router }) {
   }
   const schedule = () => { if (!frame) frame = requestAnimationFrame(paint); };
   const draftCards = createDraftCards(S, schedule);
+  const reviewCards = createReviewCards(S, schedule, { bus });
   const refreshDrafts = ids => draftCards.refresh(ids);
   const detectDraft = id => draftCards.detect(id, message => toast(message, { kind: 'error' }));
   // 贴底跟随：只有用户自己往上滚才停止跟随；滚回底部恢复
@@ -123,7 +124,7 @@ function createController(root, { router }) {
     setLive(live ? live.run : null);
     if (live) follow(live.run);
     schedule();
-    refreshDrafts();
+    refreshDrafts(); void reviewCards.refresh();
   }
 
   async function follow(run) {
@@ -144,10 +145,10 @@ function createController(root, { router }) {
       }
       run.next = res.data.next ?? run.next; run.eventsMore = !!res.data.has_more;
       if (res.data.compacted && run.status !== 'done') applyEvent(run, { type: 'run.end', t: run.clock.t, data: { reason: 'interrupted' } });
-      schedule();
+      schedule(); void reviewCards.refresh();
     }
     run.following = false;
-    refreshDrafts();
+    refreshDrafts(); void reviewCards.refresh();
     await finish(run);
   }
   async function finish(run) {
@@ -251,35 +252,7 @@ function createController(root, { router }) {
     const run = S.items.map(i => i.run).find(r => r && r.id === runId);
     return { run, st: run && (run.byCall.get(id) || run.steps.find(s => s.id === id)) };
   };
-  async function decide(run, st, how) {
-    const res = await post('/api/agent/confirm', { run_id: run.id, call_id: st.callId, token: st.token, decision: how });
-    if (!res.ok) toast(res.error?.message || '确认没有送达', { kind: 'error' });
-  }
-  function gate(arg) {
-    const { run, st } = findStep(arg);
-    if (!run || !st || st.status !== 'waiting') return;
-    const spec = confirmOf(st);
-    const el = toElement(html`<dialog class="ui-dialog ui-dialog--lg ast-gate-dlg" aria-labelledby="ast-gate-t">
-      <div class="ui-dialog__panel"><header class="ui-dialog__head"><h2 class="ui-dialog__title" id="ast-gate-t">${spec.title}</h2>
-      <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm ui-dialog__close" data-gate="close" aria-label="稍后再说">${icon('x')}</button></header>
-      ${spec.hint ? html`<p class="ui-dialog__hint">${spec.hint}</p>` : ''}<div class="ui-dialog__body">${spec.body}</div>
-      <footer class="ui-dialog__foot"><span class="ast-gate__clock" data-gate-clock></span><button type="button" class="ui-btn" data-gate="deny">拒绝</button>
-      <button type="button" class="ui-btn ui-btn--primary" data-gate="allow">${icon('check')}${spec.ok}</button></footer></div></dialog>`);
-    const clock = el.querySelector('[data-gate-clock]');
-    const tick = () => {
-      if (st.status !== 'waiting') { entry.close(false); return; }
-      clock.textContent = `${mmss((st.ttl || 600000) - (runNow(run, performance.now()) - (st.gateT0 || 0)))} 后过期`;
-    };
-    const timer = setInterval(tick, 500);
-    const entry = openModal(el, { dismissible: true, initialFocus: '[data-gate="deny"]', onClose: () => clearInterval(timer) });
-    tick();
-    el.addEventListener('click', event => {
-      const how = event.target.closest('[data-gate]')?.dataset.gate;
-      if (!how) return;
-      entry.close(how === 'allow');
-      if (how !== 'close') decide(run, st, how);
-    });
-  }
+  function gate(arg) { const { st } = findStep(arg); if (st) void reviewCards.open(st); }
   async function undo(runId) {
     const run = S.items.map(i => i.run).find(r => r && r.id === runId);
     const res = await post('/api/agent/run/revert', { run_id: runId, dry_run: true });
@@ -312,7 +285,7 @@ function createController(root, { router }) {
     S, load, schedule, bump, openConv, send, gate, undo, loadHistory, loadRunEvents, moreConversations: () => loadList(true),
     async newConv() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); const res = await post('/api/agent/conversation/create', {}); if (res.ok && S.alive) { S.convs.unshift({ ...res.data.conversation, msgs: 0, writes: 0, snippet: '' }); await openConv(res.data.conversation.id); $('ast-input')?.focus(); } },
     toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.kind === 'think' || ['create_draft', 'update_draft', 'create_category', 'create_practice_card'].includes(st?.name) && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
-    deny(arg) { const { run, st } = findStep(arg); if (run && st?.status === 'waiting') decide(run, st, 'deny'); },
+    deny(arg) { const { st } = findStep(arg); if (st) void reviewCards.reject(st, message => toast(message, { kind: 'error' })); },
     async stop() { if (S.liveRun) { const res = await post('/api/agent/abort', { run_id: S.liveRun.id }); if (!res.ok) toast(res.error?.message || '停止失败', { kind: 'error' }); } },
     async copy(runId) { const run = S.items.map(i => i.run).find(r => r && r.id === runId); const text = run ? run.steps.filter(s => s.kind === 'text').map(s => s.src).join('\n\n') : ''; if (await copyText(text)) toast('已复制回答', { kind: 'success' }); },
     select(runId) { S.runSel = runId; S.inspOpen = true; bump(); },
@@ -329,10 +302,11 @@ function createController(root, { router }) {
     openImage({ arg }) { openImageViewer(S.attachments.map((image, i) => ({ src: image.dataUrl, label: `待发送图片 ${i + 1}` })), Number(arg)); },
     openSentImage(arg) { const [key, index] = String(arg).split('|'); const images = (S.items.find(item => item.item_key === key) || S.items[Number(key)])?.images || []; openImageViewer(images.map((image, i) => ({ src: imageSrc(image), label: image.ref || `图片 ${i + 1}` })), index); },
     refreshDrafts,
+    refreshReviews: ids => reviewCards.refresh(ids),
     detectDraft,
     loadDraftMode: () => draftCards.loadMode(),
     openDraft(id) { navigateToDraft(id); },
-    dispose() { S.alive = false; S.convRequest += 1; S.attachmentGeneration += 1; content?.classList.remove('is-assistant'); setDraftActivity('assistant', false); draftCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); viewport.dispose(); unbindInteractions();  document.removeEventListener('click', onDoc); },
+    dispose() { S.alive = false; S.convRequest += 1; S.attachmentGeneration += 1; content?.classList.remove('is-assistant'); setDraftActivity('assistant', false); draftCards.dispose(); reviewCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); viewport.dispose(); unbindInteractions();  document.removeEventListener('click', onDoc); },
     title: toolTitle,
   };
 }
@@ -345,15 +319,15 @@ export const page = {
     const off = ctx.bus?.on?.('data', () => C?.bump());
     const offDrafts = ctx.bus?.on?.('drafts:changed', payload => C?.refreshDrafts(payload?.ids));
     const offConfig = ctx.bus?.on?.('agent:config', () => C?.loadDraftMode());
-    const focus = () => { if (!document.hidden) C?.refreshDrafts(); };
+    const focus = () => { if (!document.hidden) { C?.refreshDrafts(); C?.refreshReviews(); } };
     window.addEventListener('focus', focus);
     document.addEventListener('visibilitychange', focus);
     return () => { off?.(); offDrafts?.(); offConfig?.(); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', focus); C?.dispose(); C = null; };
   },
   actions: {
     moreConversations: () => C?.moreConversations(),
-    loadHistory: () => C?.loadHistory(),
-    loadRunEvents: ({ arg }) => C?.loadRunEvents(arg),
+    loadHistory: async () => { await C?.loadHistory(); C?.refreshReviews(); },
+    loadRunEvents: async ({ arg }) => { await C?.loadRunEvents(arg); C?.refreshReviews(); },
     newConv: () => C?.newConv(),
     openConv: ({ arg }) => C?.openConv(arg),
     send: () => C?.send(document.getElementById('ast-input')?.value),
@@ -369,6 +343,7 @@ export const page = {
     openDraft: ({ arg }) => C?.openDraft(arg),
     detectDraft: ({ arg }) => C?.detectDraft(arg),
     retryDraft: ({ arg }) => C?.refreshDrafts([arg]),
+    retryReview: ({ arg }) => C?.refreshReviews([arg]),
     openSession: () => C?.openSession(),
     openPractice: ({ arg }) => C?.openPractice(arg),
     toggleRail: () => C?.toggle('railOpen'),

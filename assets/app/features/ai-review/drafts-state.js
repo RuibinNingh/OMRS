@@ -8,6 +8,8 @@ export const draftPendingCount = counts => Number(counts?.cropping || 0) + Numbe
 export const csvValues = text => [...new Set(String(text || '').split(/[,，\n]/).map(value => value.trim()).filter(Boolean))];
 export const imageSha = image => typeof image === 'string' ? image : image?.sha256;
 export const imageUrl = sha => `/api/drafts/image?sha=${encodeURIComponent(sha || '')}`;
+export const sortDraftQueue = rows => [...rows].sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0)
+  || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
 
 export function latestDetectResult(draft, activeJob, sha) {
   const jobs = [...(activeJob?.type === 'detect' ? [activeJob] : []), ...(draft?.jobs || [])];

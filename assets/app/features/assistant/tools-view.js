@@ -92,12 +92,12 @@ const T = {
     preview: r => note(`${r.subject} / ${r.category}${r.created ? ' 已创建，可在录入时选择。' : ' 已存在。'}`),
   },
   create_review_session: {
-    title: '建复习 Session', icon: 'calendar', level: 'rev',
+    title: '建复习 Session', icon: 'calendar', level: 'confirm',
     args: a => { const items = a.items || []; const due = items.filter(i => i.source !== 'proficiency').length; return `${items.length} 道，到期 ${due} + 熟练度 ${items.length - due}`; },
     preview: r => html`<div class="ast-dlg-row">${sessRef(r.session_id)}<span>${r.count} 道，状态 ${r.status}</span></div><div class="ast-chips">${(r.items || []).map(ref)}</div>`,
   },
   set_question_labels: {
-    title: '打标记', icon: 'tag', level: 'rev',
+    title: '打标记', icon: 'tag', level: 'confirm',
     args: a => `${(a.uids || []).length} 道${a.add?.length ? `，加「${a.add.join('、')}」` : ''}${a.remove?.length ? `，去「${a.remove.join('、')}」` : ''}`,
     preview: r => html`<ul class="ast-list">${r.details.map(d => html`<li class="ast-list__i">${ref(d.uid)}${labelChips(d.after)}<span class="ast-note">新加</span></li>`)}${r.skipped.map(u => html`<li class="ast-list__i">${ref(u)}<span class="ast-list__why">已有，跳过</span></li>`)}</ul>`,
   },

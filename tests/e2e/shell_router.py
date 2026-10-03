@@ -5,6 +5,7 @@ DP4：顶栏只留「录入题目」，「重新扫描」在仪表盘 / 题库 /
 
 自己生成 fixture Vault（tests/fixtures/make_vault.py），在临时端口起隔离实例，不碰真实数据。
 """
+import base64
 import importlib.util
 import os
 import shutil
@@ -17,6 +18,7 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 from omrs import security
+from omrs.common import save_config
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 from browser_runtime import open_app
 _spec = importlib.util.spec_from_file_location("visual_run", os.path.join(ROOT, "tests", "visual", "run.py"))
@@ -32,7 +34,7 @@ def launch_browser(p):
 PAGES = {"dashboard": ("仪表盘", False), "data": ("数据复盘", False), "questions": ("题目库", True),
          "board": ("展示板", True), "catalog": ("目录", False), "schedule": ("复习调度", False),
          "instant": ("即时练习", True), "feedback": ("反馈录入", True), "create": ("录入题目", True),
-         "history": ("历史记录", False), "reports": ("报告", False), "settings": ("设置", False)}
+         "ai-review": ("审核中心", True), "history": ("历史记录", False), "reports": ("报告", False), "settings": ("设置", False)}
 STATE = """() => ({ hash: location.hash, title: document.getElementById('topbar-title').textContent,
   docTitle: document.title, panel: document.querySelector('.content > .panel.active')?.id,
   current: document.querySelector('.sidebar-nav .tab[aria-current="page"]')?.dataset.tab,
@@ -53,14 +55,11 @@ def run_checks(page, base, vault, results):
         results.append((name, bool(ok), detail))
 
     ev = page.evaluate
-    page.goto(f"{base}/", wait_until="networkidle")
-    if page.locator("#enter").is_visible():
-        page.locator("#enter").click()
-        page.wait_for_load_state("networkidle")
+    open_app(page, base)
     st = ev(STATE)
     check("首次打开落到 #/dashboard", st["hash"] == "#/dashboard" and st["panel"] == "panel-dashboard", str(st))
     check("文档标题与侧栏 aria-current", st["docTitle"] == "仪表盘 · OMRS" and st["current"] == "dashboard")
-    check("没有待审核草稿时侧栏角标隐藏", ev("document.getElementById('nav-draft-count').hidden && getComputedStyle(document.getElementById('nav-draft-count')).display === 'none'"))
+    check("没有待审操作时审核中心侧栏角标隐藏", ev("document.getElementById('nav-review-count').hidden && getComputedStyle(document.getElementById('nav-review-count')).display === 'none'"))
     check("init() 由 main.js 调用，reloadData 同步到 store", ev("!!window.__omrs && !!window.__omrs.store.get().data")
           and ev("!!document.querySelector('#panel-dashboard [data-dash-ready]')"))
     bad = []
@@ -69,7 +68,7 @@ def run_checks(page, base, vault, results):
         st = ev(STATE)
         if not (st["panel"] == f"panel-{pid}" and st["title"] == title and st["current"] == pid and st["workbench"] == workbench):
             bad.append(f"{pid}:{st}")
-    check("12 个页面都能按地址直接进入（刷新停留）", not bad, "; ".join(bad[:2]))
+    check("13 个页面都能按地址直接进入（刷新停留）", not bad, "; ".join(bad[:2]))
     open_app(page, base)
     page.click('a.tab[data-tab="questions"]')
     check("点侧栏链接同步切页", ev(STATE)["panel"] == "panel-questions" and ev("location.hash") == "#/questions")
@@ -133,10 +132,11 @@ def run_checks(page, base, vault, results):
         busy = ev("document.querySelector('#panel-catalog [data-action=\"app.scan\"]').getAttribute('aria-busy')")
     done = settle(page, "!document.querySelector('[data-action=\"app.scan\"][aria-busy]') && [...document.querySelectorAll('.ui-toast')].some(t => t.textContent.includes('扫描完成'))", 8000)
     check("DP4：点「重新扫描」调用 /api/scan、期间置忙、完成后提示", scan.value.status == 200 and busy == "true" and done, f"busy={busy} done={done}")
-    # Also exercise the configured-PIN handoff.  This is the path users take
-    # from the lock-screen button after enabling remote access.
+    # PIN 专项仍走真实入口，先滚到入口操作区再填写。
     security.set_pin(vault, "2468")
     page.goto(f"{base}/", wait_until="networkidle")
+    page.locator("#entry-form:not([hidden])").wait_for()
+    page.keyboard.press("End")
     page.locator("#pin").fill("2468")
     page.locator("#submit").click()
     page.wait_for_function("location.search.includes('omrs_reload') && !!window.__omrs", timeout=15000)
@@ -188,6 +188,15 @@ def main():
     vault = os.path.join(work, "vault")
     subprocess.run([sys.executable, os.path.join(ROOT, "tests", "fixtures", "make_vault.py"), "--out", vault],
                    check=True, capture_output=True)
+    # 路由/PIN验收使用合成静态背景，入口WebGL由entry_background专项验证。
+    media_id = "0123456789abcdef0123456789abcdef"
+    media = os.path.join(vault, "错题", ".omrs", "entry-background", media_id + ".png")
+    os.makedirs(os.path.dirname(media), exist_ok=True)
+    png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwnwEIAgIBV7n3WQAAAABJRU5ErkJggg==")
+    with open(media, "wb") as image:
+        image.write(png)
+    save_config(vault, {"entry_background": {"mode": "custom", "style": "gaussian-blur", "blur_px": 0,
+        "asset": {"id": media_id, "kind": "image", "mime": "image/png", "bytes": len(png)}}})
     proc, port = visual.start_server(ROOT, vault, os.path.join(work, "server.log"))
     base = f"http://127.0.0.1:{port}"
     results = []

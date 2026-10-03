@@ -1,10 +1,14 @@
 """正式调度 MCP 协议、权限、重试与查询闭环；只用临时 Vault。"""
 import asyncio
 import unittest
+import json
+import urllib.request
 
 from omrs.creation import create_question
 from omrs.feedback import process_feedback
 from omrs.ledger import read_commits
+from omrs.ledger import blob_hash
+from omrs.question_ops import get_question_raw
 from omrs.mcp.keys import create_key, revoke_key, _SCOPES
 from omrs.sessions import delete_session
 from test_mcp_protocol import MCPServerProcess, MCP_AVAILABLE, _session, _json_result
@@ -32,6 +36,18 @@ class ReviewSessionProtocolTests(unittest.TestCase):
     def key(self, scopes=None):
         return create_key(self.server.vault, '调度协议', scopes or ['omrs:read', 'session:create'])
 
+    def approve(self, pending):
+        self.assertEqual(pending['status'], 'pending_confirmation')
+        self.assertNotIn('session_id', pending)
+        request = urllib.request.Request(
+            f'http://127.0.0.1:{self.server.web_port}/api/ai-review/decide',
+            data=json.dumps({'operation_id': pending['operation_id'], 'expected_revision': pending['revision'],
+                             'decision': 'approve'}).encode(), headers={'Content-Type': 'application/json'})
+        with urllib.request.urlopen(request) as response:
+            applied = json.load(response)['item']
+        self.assertEqual(applied['status'], 'applied')
+        return applied['result']
+
     def test_recommendation_creation_and_partial_feedback_queries(self):
         self.questions('闭环')
         key = self.key()
@@ -45,7 +61,8 @@ class ReviewSessionProtocolTests(unittest.TestCase):
                 selected = recommendations['selection']
                 self.assertEqual(len(selected), 2)
                 self.assertTrue(all(item['question_id'] for item in selected))
-                created = await call('create_review_session', {'items': selected, 'request_id': 'sdk-roundtrip'})
+                pending = await call('create_review_session', {'items': selected, 'request_id': 'sdk-roundtrip'})
+                created = self.approve(pending)
                 self.assertTrue(created['session_id'].startswith('EXP-'))
                 self.assertEqual(created['pending_count'], 2)
                 process_feedback(self.server.vault, [{'question_id': selected[0]['question_id'],
@@ -72,7 +89,7 @@ class ReviewSessionProtocolTests(unittest.TestCase):
         question = self.questions('参数', 1)[0]
         payload = {'items': [{'question_id': question['question_id'], 'source': 'due'}], 'request_id': 'schema'}
         async def run():
-            for scopes, expected in ((['omrs:read'], 22), (['session:create'], 0), (list(_SCOPES), 39)):
+            for scopes, expected in ((['omrs:read'], 22), (['session:create'], 0), (list(_SCOPES), 40)):
                 key = self.key(scopes)
                 async with _session(self.server.mcp_port, key['secret']) as client:
                     tools = (await client.list_tools()).tools
@@ -115,9 +132,11 @@ class ReviewSessionProtocolTests(unittest.TestCase):
                 results = await asyncio.gather(*(client.call_tool('create_review_session', payload) for _ in range(4)))
                 self.assertTrue(all(not result.isError for result in results), str(results))
                 values = [_json_result(result) for result in results]
-                self.assertEqual(len({v['session_id'] for v in values}), 1)
-                self.assertEqual(sum(not v['reused'] for v in values), 1)
-                return values[0]['session_id']
+                self.assertEqual(len({v['operation_id'] for v in values}), 1)
+                self.assertTrue(all(v['status'] == 'pending_confirmation' for v in values))
+                self.assertEqual(len([c for c in read_commits(self.server.vault)
+                                      if c['commit_type'] == 'session.create']), before)
+                return self.approve(values[0])['session_id']
         sid = asyncio.run(create())
         self.assertEqual(len([c for c in read_commits(self.server.vault) if c['commit_type'] == 'session.create']), before + 1)
         self.server.process.terminate()
@@ -142,6 +161,42 @@ class ReviewSessionProtocolTests(unittest.TestCase):
                 async with _session(self.server.mcp_port, key['secret']):
                     pass
         asyncio.run(denied())
+
+    def test_legacy_web_approval_cannot_approve_unseen_revised_question(self):
+        import urllib.error
+        question = self.questions('旧审批版本', 1)[0]
+        key = self.key(['omrs:read', 'question:propose'])
+        original = get_question_raw(self.server.vault, question['uid'])['markdown']
+        async def propose():
+            async with _session(self.server.mcp_port, key['secret']) as client:
+                reply = await client.call_tool('propose_question_update', {
+                    'uid': question['uid'], 'question_id': question['question_id'],
+                    'expected_content_hash': blob_hash(original), 'patch': {'answer_text': 'MCP 答案'},
+                    'request_id': 'legacy-revised', 'reason': '补充解题过程'})
+                self.assertFalse(reply.isError, str(reply))
+                return _json_result(reply)
+        pending = asyncio.run(propose())
+        def post(path, body):
+            request = urllib.request.Request(f'http://127.0.0.1:{self.server.web_port}'+path,
+                data=json.dumps(body).encode(), headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(request) as response:
+                return json.load(response)
+        revised = post('/api/ai-review/update', {'operation_id': pending['operation_id'],
+            'expected_revision': 1, 'patch': {'answer_text': '人工修订答案'}})['item']
+        self.assertEqual(revised['revision'], 2)
+        for revision in (None, 1):
+            body = {'operation_id': pending['operation_id'], 'decision': 'confirm'}
+            if revision is not None:
+                body['expected_revision'] = revision
+            with self.assertRaises(urllib.error.HTTPError) as caught:
+                post('/api/mcp/operations/decide', body)
+            self.assertEqual(caught.exception.code, 409)
+            self.assertEqual(json.load(caught.exception)['error'], 'revision_conflict')
+            self.assertEqual(get_question_raw(self.server.vault, question['uid'])['markdown'], original)
+        final = post('/api/mcp/operations/decide', {'operation_id': pending['operation_id'],
+            'expected_revision': 2, 'decision': 'confirm'})['operation']
+        self.assertEqual(final['status'], 'applied')
+        self.assertIn('人工修订答案', get_question_raw(self.server.vault, question['uid'])['markdown'])
 
 
 if __name__ == '__main__':

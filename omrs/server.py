@@ -103,12 +103,13 @@ from .http.inbox import InboxRoutes
 from .http.training import TrainingRoutes
 from .http.drafts import DraftsRoutes
 from .http.mcp import McpRoutes
+from .http.ai_review import AiReviewRoutes
 from .http.auth import AuthRoutes
 from .http.media import MediaRoutes
 from .http.history import HistoryRoutes
 
 
-class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, InboxRoutes, TrainingRoutes, DraftsRoutes, McpRoutes, AuthRoutes, MediaRoutes, HistoryRoutes, http.server.SimpleHTTPRequestHandler):
+class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, InboxRoutes, TrainingRoutes, DraftsRoutes, AiReviewRoutes, McpRoutes, AuthRoutes, MediaRoutes, HistoryRoutes, http.server.SimpleHTTPRequestHandler):
     @property
     def services(self):
         # 领域层通过此对象复用应用服务，测试替换仍只需修改 omrs.server。

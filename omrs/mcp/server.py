@@ -15,6 +15,10 @@ import json
 import socket
 import ssl
 import time
+import contextvars
+import uuid
+import logging
+import sqlite3
 from typing import Annotated, Literal
 import urllib.parse
 
@@ -30,14 +34,14 @@ from .http import MCPRequestGuard
 from .. import locking
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from .. import drafts, boards, mcp_operations
+from .. import drafts, boards, mcp_operations, ai_review
 from .. import runtime_records
 from ..draft_prepare import merge_answer_text_runs
 from ..agent.tools import read as read_tools
 from ..question_images import read_question_image, validate_original_image
 from .keys import verify_key, key_for_id
 from .common import RequestError
-from . import queries, analysis_reports, draft_edit, board_read, board_write, board_export, session_write
+from . import queries, analysis_reports, draft_edit, board_read, board_write, board_export, session_write, question_write
 
 MAX_IMAGES = 6
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -65,6 +69,65 @@ TOOL_SCOPES.update(board_read.SCOPES)
 TOOL_SCOPES.update(board_write.SCOPES)
 TOOL_SCOPES.update(board_export.SCOPES)
 TOOL_SCOPES.update(session_write.SCOPES)
+TOOL_SCOPES.update(question_write.SCOPES)
+_REVIEW_CALL = contextvars.ContextVar('mcp_review_call', default={})
+
+
+def _review_payload(arguments):
+    """保留业务提案；附件只登记摘要，不复制临时签名地址或图片字节。"""
+    payload = dict(arguments)
+    if 'images' in payload:
+        images = []
+        for raw in payload['images'] or []:
+            encoded = raw.get('data_base64', '') if isinstance(raw, dict) else ''
+            images.append({'supplied_inline': bool(encoded),
+                           'content_digest': hashlib.sha256(encoded.encode()).hexdigest() if encoded else None})
+        payload['images'] = images
+    return payload
+
+
+def _review_finish(vault, operation_id, result, code=''):
+    try:
+        summary = _review_result(result)
+        if code:
+            row = ai_review.get(vault, operation_id)
+            receipt = ai_review._auto_receipt(vault, row)
+            if receipt:
+                ai_review.reconcile(vault, operation_id, receipt)
+            else:
+                ai_review.set_state(vault, operation_id, 'interrupted' if code == 'interrupted' else 'failed', error_code=code)
+        else:
+            status = 'unchanged' if summary.get('wrote') is False or summary.get('reused') else 'applied'
+            ai_review.set_state(vault, operation_id, status, result=summary)
+    except (OSError, ValueError, sqlite3.Error):
+        logging.getLogger(__name__).error('审核结果未保存，保留原领域回执待启动核对')
+
+
+def _review_result(result):
+    """保护库保留实际应用内容和人工保护建议；SDK 文本输出同样能关联。"""
+    value = result if isinstance(result, dict) else None
+    if isinstance(result, tuple) and len(result) == 2 and isinstance(result[1], dict):
+        value = result[1]
+    if value is None and isinstance(result, (list, tuple)):
+        for item in result:
+            raw = getattr(item, 'text', None)
+            if not isinstance(raw, str) or len(raw) > 2_500_000:
+                continue
+            try:
+                candidate = json.loads(raw)
+                if isinstance(candidate, dict):
+                    value = candidate
+                    break
+            except ValueError:
+                continue
+    def clean(item):
+        if isinstance(item, dict):
+            return {key: clean(val) for key, val in item.items() if key.lower() not in
+                    ('data_base64', 'download_url', 'secret', 'token', 'pin', 'cookie', 'authorization')}
+        if isinstance(item, list):
+            return [clean(val) for val in item]
+        return item
+    return clean(value or {})
 
 
 class MCPFile(BaseModel):
@@ -133,6 +196,14 @@ class RestrictedMCP(FastMCP):
         token = get_access_token()
         identity = await asyncio.to_thread(runtime_records.safely, key_for_id, self.vault, token.client_id) if token else None
         seq = await asyncio.to_thread(runtime_records.safely, runtime_records.begin, self.vault, name, arguments, identity)
+        call_id = uuid.uuid4().hex
+        if seq is not None:
+            def saved_call():
+                from contextlib import closing
+                with closing(runtime_records._connect(self.vault)) as db:
+                    return db.execute('SELECT call_id FROM records WHERE seq=?', (seq,)).fetchone()[0]
+            call_id = await asyncio.to_thread(runtime_records.safely, saved_call) or call_id
+        audit_token = _REVIEW_CALL.set({'identity': 'mcp:call:'+call_id, 'runtime_seq': seq})
         started = time.monotonic()
         result, code = None, "interrupted"
         try:
@@ -147,6 +218,7 @@ class RestrictedMCP(FastMCP):
             code = "internal_error"
             raise
         finally:
+            _REVIEW_CALL.reset(audit_token)
             if seq is not None:
                 from ..vault_lifecycle import VaultBusy, VaultChanged
                 try:
@@ -172,10 +244,29 @@ class RestrictedMCP(FastMCP):
             tool.fn_metadata.arg_model.model_validate(arguments)
         except ValidationError:
             raise ToolError("invalid_arguments: 参数不符合工具 schema") from None
+        audit_id = None
+        if tool.annotations and not tool.annotations.readOnlyHint and name != 'export_board':
+            if ai_review.classify('mcp', name) is None:
+                raise ToolError('unknown_tool: 工具缺少业务写审核分类')
+            if name in ai_review.AUTO_MCP:
+                try:
+                    _, key = await asyncio.to_thread(_verified_key, self.vault)
+                    context = _REVIEW_CALL.get()
+                    row = await asyncio.to_thread(ai_review.create, self.vault, 'mcp', name,
+                        context.get('identity') or 'mcp:call:'+uuid.uuid4().hex, _review_payload(arguments),
+                        actor={'key_id': key['key_id'], 'key_name': key['name'], 'runtime_seq': context.get('runtime_seq')})
+                    audit_id = row['operation_id']
+                except (OSError, ValueError, sqlite3.Error):
+                    raise ToolError('internal_error: 无法登记审核意图，未执行业务写入') from None
+        audit_code, audit_result = 'interrupted', None
+        native_token = ai_review._AUTO_INTENT.set(row if audit_id else None)
         try:
-            return await super().call_tool(name, arguments)
+            audit_result = await super().call_tool(name, arguments)
+            audit_code = ''
+            return audit_result
         except ToolError as exc:
             cause = exc.__cause__
+            audit_code = getattr(cause, 'code', 'forbidden' if isinstance(cause, PermissionError) else 'internal_error')
             if isinstance(cause, PermissionError):
                 raise ToolError("forbidden: MCP Key 无权执行此能力或已失效") from None
             if isinstance(cause, locking.WriteLockTimeout):
@@ -192,6 +283,10 @@ class RestrictedMCP(FastMCP):
             if isinstance(cause, ValueError):
                 raise ToolError(f"invalid_request: {cause}") from None
             raise ToolError("internal_error: OMRS 执行失败，请稍后重试") from None
+        finally:
+            ai_review._AUTO_INTENT.reset(native_token)
+            if audit_id:
+                await asyncio.shield(asyncio.to_thread(_review_finish, self.vault, audit_id, audit_result, audit_code))
 
 
 def _threaded(fn):
@@ -429,7 +524,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
     server = RestrictedMCP(
         "OMRS",
         vault=vault,
-        instructions="按授权查询 OMRS、修订待审核草稿、保存报告与管理展示板。写操作携带请求编号和读取版本；删除、清空及纸面重置在 OMRS 网页确认。导出返回限时下载链接。录题仍须人工审核，正式题目和学习状态不由 MCP 修改。",
+        instructions="按授权查询 OMRS、修订待审核草稿、保存报告与管理展示板。业务写均记录到审核中心；正式复习计划、正式题目修改、删除、清空及纸面重置须网页批准。改题先读取稳定身份与正文哈希，再提出白名单字段补丁；不能自行批准。导出返回限时下载链接。",
         token_verifier=MCPTokenVerifier(vault),
         auth=AuthSettings(issuer_url="https://omrs.invalid", resource_server_url=resource_url),
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=True,
@@ -646,7 +741,8 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
     board_read.register(server, vault, _require, _threaded)
     board_write.register(server, vault, _require, _threaded, web_url)
     board_export.register(server, vault, _require, _threaded, web_url)
-    session_write.register(server, vault, _require, _threaded)
+    session_write.register(server, vault, _require, _threaded, web_url)
+    question_write.register(server, vault, _require, _threaded, web_url)
     # FastMCP 默认会忽略函数参数模型中的未知字段；MCP 是权限边界，必须
     # 把拼写错误或试图注入的顶层参数显式拒绝。
     for tool in server._tool_manager.list_tools():

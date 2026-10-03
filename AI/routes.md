@@ -8,7 +8,7 @@
 | GET | `/` | `AI/api.md`、`AI/README.md`、`AI/agent.md`等 |
 | GET | `/annotate` | `AI/README.md`、`AI/api/extensions.md`、`AI/frontend.md`等 |
 | POST | `/api/agent/abort` | `AI/agent.md`、`AI/frontend/assistant.md` |
-| POST | `/api/agent/confirm` | `AI/agent.md`、`AI/security.md` |
+| POST | `/api/agent/confirm` | `AI/agent.md` |
 | GET | `/api/agent/conversation` | `AI/agent.md` |
 | POST | `/api/agent/conversation/create` | `AI/agent.md` |
 | POST | `/api/agent/conversation/delete` | `AI/agent.md` |
@@ -22,6 +22,11 @@
 | GET | `/api/agent/status` | `AI/agent.md`、`AI/frontend/settings.md` |
 | POST | `/api/agent/test` | `AI/agent.md`、`AI/frontend/settings.md` |
 | POST | `/api/ai-recognize` | `AI/api/extensions.md`、`AI/api/mutations.md`、`AI/frontend/create.md`等 |
+| GET | `/api/ai-review/counts` | `AI/ai-review.md`、`AI/api/extensions.md`、`AI/frontend/ai-review.md` |
+| POST | `/api/ai-review/decide` | `AI/ai-review.md`、`AI/api/extensions.md` |
+| GET | `/api/ai-review/detail` | `AI/ai-review.md`、`AI/api/extensions.md`、`AI/frontend/assistant.md` |
+| GET | `/api/ai-review/items` | `AI/ai-review.md`、`AI/api/extensions.md` |
+| POST | `/api/ai-review/update` | `AI/ai-review.md`、`AI/api/extensions.md` |
 | GET | `/api/analytics` | `AI/algorithm.md`、`AI/api/queries.md`、`AI/changelog.md`等 |
 | POST | `/api/annotate/delete` | `AI/api/extensions.md` |
 | GET | `/api/annotate/export` | `AI/api/extensions.md` |
@@ -109,7 +114,7 @@
 | GET/POST | `/api/mcp/keys` | `AI/frontend/settings.md` |
 | POST | `/api/mcp/keys/revoke` | `AI/frontend/settings.md` |
 | POST | `/api/mcp/keys/update` | `AI/api/extensions.md`、`AI/frontend/settings.md` |
-| POST | `/api/mcp/operations/decide` | `AI/api/extensions.md` |
+| POST | `/api/mcp/operations/decide` | `AI/api/extensions.md`、`AI/mcp-storage.md` |
 | GET | `/api/mcp/operations/detail` | `AI/api/extensions.md` |
 | POST | `/api/optimize/compress` | `AI/api/mutations.md` |
 | GET | `/api/optimize/job` | `AI/api/mutations.md`、`AI/api/queries.md`、`AI/frontend/settings.md` |

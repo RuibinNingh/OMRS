@@ -2,7 +2,7 @@
 import { post } from '../../core/api.js';
 import { imageValue } from '../../core/uploads.js';
 import { publishDraftChange } from '../../domain/drafts.js';
-import { cropDataUrl } from './crop.js';
+import { cropDataUrl } from '../../domain/image-crop/crop.js';
 import { imageSha, imageUrl, latestDetectResult } from './drafts-state.js';
 
 let nextSuggestedBox = 0;

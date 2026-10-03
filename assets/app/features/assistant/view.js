@@ -8,6 +8,7 @@ import { renderMd, plainOf } from './md.js';
 import { REASON, avgTps, ctxUsed, dayGroup, fmtK, fmtN, fmtS, hhmm, mmss, runNow } from './state.js';
 import { LVL, gateOf, lvl, refOf, toolArgs, toolIcon, toolPreview, toolTitle } from './tools-view.js';
 import { imageSrc } from './attachments.js';
+import { operationId, reviewCard } from './review-cards.js';
 
 export const SUGS = {
   plan: { label: '排今天的复习，8 道以内', icon: 'calendar', text: '帮我把今天要复习的题排出来，8 道以内。' },
@@ -70,9 +71,8 @@ function gateView(run, st, now) {
   return html`<div class="ast-gate" role="group" aria-label="需要你确认">
     <p class="ast-gate__what">${lvl('confirm')}${g.what}</p><div class="ast-gate__preview">${raw(renderMd(g.preview, { refOf }))}</div>
     <div class="ast-gate__bar"><span class="ast-gate__clock">${icon('clock')}${mmss(left)} 后过期</span>
-      <button type="button" class="ui-btn ui-btn--sm" data-action="assistant.deny" data-arg="${key}">拒绝</button>
       <button type="button" class="ui-btn ui-btn--sm ui-btn--primary" data-action="assistant.gate" data-arg="${key}">${icon('eye')}查看并决定</button></div>
-    <p class="ast-gate__note">只有你在这里点「允许」才会执行；助手自己不能确认。</p></div>`;
+    <p class="ast-gate__note">这是历史确认轨迹，当前决定与执行结果请在审核中心核对。</p></div>`;
 }
 
 function toolView(S, run, st, now) {
@@ -86,7 +86,7 @@ function toolView(S, run, st, now) {
       ${icon(toolIcon(st))}<span class="ast-tool__title">${toolTitle(st)}</span><span class="ast-tool__args">${toolArgs(st)}</span>
       <span class="ast-tool__right">${st.level !== 'read' ? lvl(st.level) : ''}${st.summary ? html`<span class="ast-tool__sum">${st.summary}</span>` : ''}${decided}
       <span class="${cls('ast-tool__st', tone)}">${label}</span>${dur ? html`<span class="ast-tool__meta">${dur}</span>` : ''}${st.result || st.error ? html`<span class="ast-tool__chev">${icon(open ? 'chevron-up' : 'chevron-down')}</span>` : ''}</span></button>
-    ${st.status === 'waiting' ? gateView(run, st, now) : ''}
+    ${operationId(st) ? reviewCard(S, run, st) : st.status === 'waiting' ? gateView(run, st, now) : ''}
     ${st.error && !open ? html`<p class="ast-note is-error">${st.error}</p>` : ''}
     ${open ? html`<div class="ast-tool__body">${toolPreview(st, S.drafts?.[st.result?.draft_id], S.draftCropMode)}${st.commits?.length ? html`<p class="ast-note">写入 ${st.commits.map(c => c.commit_id).join('、')}</p>` : ''}</div>` : ''}
   </div></div>`;
@@ -139,7 +139,7 @@ export function turnView(S, run, perfNow) {
     <div class="ast-result" data-key="result">${each(outside, st => st.id, st => stepView(S, run, st, now))}</div>
     ${run.eventsMore ? html`<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.loadRunEvents" data-arg="${run.id}"${run.eventsBusy || run.following ? html` disabled` : ''}>${run.eventsBusy ? '读取中…' : '继续读取运行记录'}</button><p class="ast-note">这次运行的记录尚未全部读取。</p>` : ''}
     ${live ? '' : footView(run)}`;
-  return html`<article class="${cls('ast-turn', live && 'is-live', run.reverted && 'is-undone', S.runSel === run.id && 'is-selected')}" data-key="run-${run.id}" ${live ? '' : raw(`data-hash="${run.id}:${run.ver}:${S.uiVer}:${S.draftVer || 0}:${S.runSel === run.id ? 1 : 0}"`)}>${body}</article>`;
+  return html`<article class="${cls('ast-turn', live && 'is-live', run.reverted && 'is-undone', S.runSel === run.id && 'is-selected')}" data-key="run-${run.id}" ${live ? '' : raw(`data-hash="${run.id}:${run.ver}:${S.uiVer}:${S.draftVer || 0}:${S.reviewVer || 0}:${S.runSel === run.id ? 1 : 0}"`)}>${body}</article>`;
 }
 
 export function userView(item, i, S = {}) {
@@ -167,8 +167,8 @@ function offView(S) {
 
 const PERMS = [
   ['read', '找题、读题、看统计与复习推荐', '直接执行'],
-  ['rev', '安排复习、打标记、录入或修订 AI 草稿；草稿不进题库', '直接执行'],
-  ['confirm', '改题目、答案与错因，移动或停用题目，记反馈、建分类；草稿入库按设置确认', '你允许后执行'],
+  ['rev', '录入或修订 AI 草稿、创建聊天练习卡；草稿不进题库', '直接执行并留记录'],
+  ['confirm', '安排正式复习、改题目与标记、移动或停用题目、记反馈、建分类、草稿入库', '审核中心批准后执行'],
   ['none', '删除题目、修改设置与 PIN、备份恢复、重启服务', '不支持'],
 ];
 export function emptyView(S) {

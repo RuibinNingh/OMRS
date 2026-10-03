@@ -275,14 +275,15 @@ class DraftToolsTest(unittest.TestCase):
         execute = mock.Mock(return_value={"result": {}})
         tool = ToolDef("commit_draft", "confirm", "", {}, execute, lambda ctx, args: {})
         call = {"id": "call_x", "name": "commit_draft", "args": {"draft_id": "DR-test", "revision": 1}}
-        with mock.patch("omrs.agent.runtime.PendingConfirm") as pending:
-            pending.return_value.token = "test-token"
-            pending.return_value.expires_at = 9999999999
-            def toggle(_abort):
+        from omrs import ai_review
+        from omrs.agent.policy import PendingConfirm
+        def toggle(pending, _abort):
                 save_config(self.vault, {"draft_mode": "silent"})
                 save_config(self.vault, {"draft_mode": "confirm"})
+                ai_review.set_state(self.vault, pending.operation_id, 'approved')
                 return "allow"
-            pending.return_value.wait.side_effect = toggle
+        with mock.patch.object(PendingConfirm, 'wait', toggle), \
+                mock.patch('omrs.agent.runtime._review_snapshot', return_value={}):
             self.assertIsNone(hooks.before_tool_call(call, tool))
         with self.assertRaisesRegex(ValueError, "配置已变化"):
             hooks.execute(call, tool)

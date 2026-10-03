@@ -169,6 +169,8 @@ def create_backup(vault):
     started = time.monotonic()
     try:
         with exclusive(vault), write_lock():
+            from .question_update import recover_pending as recover_question_updates
+            recover_question_updates(vault)
             for attempt in range(3):
                 try:
                     manifest = _capture(vault, staging)
@@ -382,6 +384,8 @@ def recover_restore(vault, allow_recovery=True):
         raise ValueError("题库有未完成恢复，请先正常启动恢复，不能只读盘点")
     with exclusive(vault), write_lock():
         _recover_locked(vault, _read(path))
+        from . import mcp_operations
+        mcp_operations.invalidate(vault)
     return True
 
 
@@ -392,6 +396,8 @@ def _invalidate(vault):
     invalidate = getattr(security, "invalidate_vault", None)
     if invalidate:
         invalidate(vault)
+    from . import mcp_operations
+    mcp_operations.invalidate(vault)
     from .agent import runtime
     with runtime._RT_LOCK:
         old = runtime._RUNTIMES.pop(os.path.abspath(vault), None)
@@ -449,6 +455,9 @@ def restore(vault, identity, confirm=False):
         workspace_sync.stop_workspace_scanner()
         current = advance_generation(vault)
         with maintenance_task(vault):
+            # 旧库和备份中的未终结许可都失效，不能批准恢复前的操作。
+            from . import mcp_operations
+            mcp_operations.invalidate(vault)
             journal = {"restore_id": identity, "phase": "prepared", "generation": current,
                        "target": target, "old": old, "new": new,
                        "old_identity": _identity(target) if os.path.isdir(target) else None, "new_identity": _identity(new)}

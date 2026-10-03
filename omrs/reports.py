@@ -240,6 +240,8 @@ def create_mcp_report(vault, name, html, key_id, request_id, authorize=lambda: N
                 authorize()
                 _save_index(vault, [*items, meta])
             db.execute('UPDATE requests SET applied=1 WHERE identity=?', (identity,))
+            from .ai_review import save_auto_receipt
+            save_auto_receipt(db, {**meta, 'report_id': meta['id'], 'wrote': True})
             db.commit()
             authorize()
             return {**meta, 'report_id': meta['id'], 'reused': reused}

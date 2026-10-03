@@ -80,8 +80,8 @@ export function createDraftNavigation({ bus, router, document: doc, window: win,
       if (typeof id !== 'string' || !id) return false;
       target = id;
       select(id);
-      if (router?.current() !== 'create') await router?.go('create');
-      if (router?.current() !== 'create') { target = null; return false; }
+      await router?.go(`ai-review?draft=${encodeURIComponent(id)}`);
+      if (router?.current() !== 'ai-review') { target = null; return false; }
       bus?.emit('drafts:open', { id });
       return true;
     },

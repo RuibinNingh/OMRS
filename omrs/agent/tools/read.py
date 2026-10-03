@@ -373,7 +373,11 @@ def get_question(ctx, args):
     records = get_question_records(vault, uid)[-6:]
     due_text, days = due_info(item)
     wrong = int(item.get("wrong_streak") or 0)
-    return {"result": {"uid": uid, "path": f"{item['subject']} / {item['category']}", "sections": out,
+    from ...question_update import note_of
+    note = note_of(read_question_file(vault, row))
+    return {"result": {"uid": uid, "question_id": row['question_id'], "difficulty": int(item.get('difficulty') or 5),
+                       "note": note if len(note) <= cap else note[:cap] + f"…（共 {len(note)} 字，已截断）",
+                       "path": f"{item['subject']} / {item['category']}", "sections": out,
                        "images": image_names(secs["题目"] + "\n" + secs["答案"]),
                        "knowledge_points": item.get("knowledge_tags") or [], "labels": item.get("labels") or [],
                        "mastery": mastery_of(item), "due": due_text, "due_days": days,

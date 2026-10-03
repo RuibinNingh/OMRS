@@ -85,6 +85,8 @@ curl -s http://127.0.0.1:18471/api/auth/session
 
 **演示数据。** `tests/fixtures/make_vault.py` 生成不含真实数据的 Vault：`full` 档约 40 题，含 LaTeX、长题面、3 张示意图、标记、3 轮反馈、1 道停用题和 1 块展示板；`empty` 档是空库，专看空状态。标记、反馈等经临时实例的 HTTP API 写入，全程约数秒：
 
+路由与 PIN 的 `tests/e2e/shell_router.py` 使用合成静态入口背景；默认黑洞 WebGL、自定义背景及窄屏显示由独立 `tests/e2e/entry_background.py` 验证。普通页面验收使用 `tests/browser_runtime.py` 的 `open_app`，入口专项仍走真实锁屏与登录请求。
+
 ```bash
 python3 tests/fixtures/make_vault.py --out /tmp/fx/full
 python3 tests/fixtures/make_vault.py --out /tmp/fx/empty --profile empty
@@ -119,6 +121,8 @@ mkdir /tmp/chk && cd /tmp/chk && unzip -q /mnt/user-data/uploads/<原始导出�
 ```
 
 视觉脚本传入 `--pages assistant` 时会给隔离 fixture 开启 `agent_enabled` 并注入 `tests/fixtures/agent_faux.json`，可对助手欢迎页、输入区和处理过程做浅 / 深色桌面与手机截图；不会连接真实模型。
+
+新审核中心使用 `python3 tests/visual/run.py --audit-only --pages ai-review --out /tmp/omrs-review-audit` 独立审计；脚本在临时 Vault 创建合成草稿、正式题目、有限修改提案与自动写记录，打开真实待审详情截图，不写生产数据。中心新增前的基线没有该路由，既有录入、助手、历史与设置页仍用 `--ref <基线> --pages create,assistant,history,settings` 前后比较。320 / 390 / 1024 / 1440px 和双标签未保存保护由 `tests/e2e/ai_review.py` 实跑；样式审计按既有规则排除 KaTeX 内部的生成属性。
 
 AI 助手没有网络也能完整测试：启动服务前设环境变量 `OMRS_AGENT_FAUX_SCRIPT=tests/fixtures/agent_faux.json`，运行时改用脚本化假模型（按最近一条用户消息选场景，模板可引用之前的工具结果），再在 `config.json` 里设 `agent_enabled: true`。`tests/e2e/assistant.py` 就是这样起隔离实例的。
 
@@ -213,11 +217,13 @@ MCP 扩展闭环由 tests/e2e/mcp_expansion.py 启动真实临时 Web/MCP 服务
 前端审计行为测试为 `tests/app/audit-controllers.test.mjs` 和 `tests/app/audit-identity-uploads.test.mjs`，直接导入当前模块与控制器，覆盖并发裁图、反馈部分失败、旧响应、稳定身份、分块原始字节、业务午夜和历史分页。全部数据合成，浏览器服务只用临时 Vault 和随机高端口，清除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`。
 
 
-统一入口为 `python3 tests/run_gates.py --ref 17d6d84`，显式包含 unittest、pytest 风格报告导出、Node、组件浏览器、打印冒烟、全部不依赖外部模型材料的原始 E2E、升级/回退演练、视觉及文档门禁。`--only` 按门禁 ID 重跑失败项，JSON 结果与每条日志保存在临时目录。真实 ONNX `boxdetect` 需要外部冻结数据与模型，只有传 `--dataset` 才加入，并明确记录缺失原因。
+统一入口为 `python3 tests/run_gates.py --ref <本次改动基线>`，显式包含 unittest、pytest 风格报告导出、Node、组件浏览器、打印冒烟、全部不依赖外部模型材料的原始 E2E、升级/回退演练、视觉及文档门禁。`--ref` 只用于文档差异与视觉比较；升级演练使用独立的 `--upgrade-ref`，默认 `17d6d84`，必须保留历史旧唯一索引与 UID-only Session 语义，不能以已完成迁移的任务基线替代。结果 JSON 同时记录两种基线。`--only` 按门禁 ID 重跑失败项，结果与每条日志保存在临时目录。真实 ONNX `boxdetect` 需要外部冻结数据与模型，只有传 `--dataset` 才加入，并明确记录缺失原因。
+
+助手浏览器实例经 `tests/fixtures/serve_diagnostics.py` 启动同一 CLI，只在临时服务日志记录审核计数异常的 SQLite 类型和消息，不记录请求、正文或凭据，不改变 HTTP 错误响应。`tests/e2e/assistant.py` 的服务日志保留在临时目录 `omrs-ast-server-*.log`，失败时输出对应路径，便于定位首次建库并发错误。
 
 容量验证使用 `tests/bench_data_runtime.py` 生成合法合成 Ledger、真实 Markdown 和 blob；`tests/bench_backup_runtime.py` 实测磁盘 ZIP、目录交换和真实 HTTP 启动。所有实例清除生产控制环境变量，固定种子、随机高端口和临时 Vault。RSS 在 Linux 取独立进程 `VmHWM`，不用继承的父进程峰值假定内存；计时、样本数、P50/P95与冻结时间随结果交付。HTTP 就绪用快速认证状态端点，统计接口另给完整请求期限，避免容量报告把一秒探测超时误认为启动失败。
 
-发布兼容演练为 `python3 tests/check_upgrade_compat.py --ref 17d6d84`，需要 Git 旧提交；脚本将旧代码归档到仓库外空目录，新旧进程仅访问合成 Vault，逐项校验事实不变、归档身份、旧缓存失效和当前备份恢复。退出 0 不表示可直接降级：工具主动记录旧代码的 UID-only Session 错归属风险，发布采用保留当前事实的前向修复策略。
+发布兼容演练为 `python3 tests/check_upgrade_compat.py --ref 17d6d84`，此处 `--ref` 专指历史夹具的旧提交；脚本将旧代码归档到仓库外空目录，新旧进程仅访问合成 Vault，逐项校验事实不变、归档身份、旧缓存失效和当前备份恢复。统一门禁通过 `--upgrade-ref` 向它传参。退出 0 不表示可直接降级：工具主动记录旧代码的 UID-only Session 错归属风险，发布采用保留当前事实的前向修复策略。
 
 核心业务日期转换不强制依赖外部 `tzdata`：系统没有 IANA 数据库时，上海 1992 年起的时间使用 UTC+08 固定偏移；更早历史与其它缺失时区不猜夏令时。`tests/test_data_runtime.py` 模拟 `ZoneInfoNotFoundError`，通过真实反馈、上海午夜历史与完整重放验证该路径；这项模拟不代替 Windows 文件锁或目录恢复的平台实测。
 
@@ -226,3 +232,9 @@ MCP 扩展闭环由 tests/e2e/mcp_expansion.py 启动真实临时 Web/MCP 服务
 `tests/e2e/audit_identity.py` 在真实临时服务验证旧计划人工绑定、归档与新题同 UID 的板内身份隔离、超过 16MiB 原图字节保持，以及 66 对话／45 运行／411 事件的全部历史可读；翻早页核对长消息展开态和 DOM 保留，同 UID 不同身份的迟到题面响应不覆盖新挂载。
 
 容量工具默认`--samples 5`，每条路径每个样本复制同一合成基线；参数重算不因前一次参数相同被跳过，十万修正不叠加为五十万。普通反馈内部50次计分单独统计。P95使用最近秩，5样本P95为最大值，不能理解为长期流量分布。直接`--action`只接受本工具带合成标记的`/tmp/omrs-data-capacity-*`、无符号链接库，入口先清生产控制变量。升级工具`python3 tests/check_upgrade_compat.py --ref 17d6d84`使用Git归档和合成Vault，结果明确旧码直接回退不安全，按发布材料前向修复而不覆盖新增。
+
+## 正式题目审核恢复验证
+
+`env -u OMRS_SYSTEMD_SERVICE -u OMRS_BOXDETECT_CONTROL python3 -m unittest tests.test_question_update tests.test_backup_recovery` 全部使用临时 Vault。题目专项以真实独立 Python 进程在文件替换与 Ledger 提交窗口调用 `os._exit`，验证链头、稳定身份、精确 inode 所有权和同事务回执；没有生产服务或真实数据替身。无法证明无后续事实时正常启动拒绝继续，保留 `.omrs-maintenance/question-updates/`；只读 `content-audit` / `content-recover` 也不抢先执行恢复。
+
+正常 CLI 顺序为目录交换恢复、正式题目写入恢复、配置和逐卡回执、扫描与正文回填、统一审核初始化、助手中断恢复，最后启动工作区扫描及 HTTP 监听。全库备份在捕获前复用同一题目 journal 收束；整库恢复使当前库和备份中的未终结审核许可失效。具体文件、事实和旧世代规则见 `AI/ledger.md` 与 `AI/backup.md`。

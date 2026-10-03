@@ -50,7 +50,13 @@ def question_content(vault, uid, section='题目', version='', offset=0, limit=4
     else:
         raise ValueError('未知正文分节')
     end = offset + limit
-    return {'uid': uid, 'section': section, 'version': version or 'current',
+    from ..common import parse_yaml_frontmatter
+    from ..question_update import note_of
+    meta = parse_yaml_frontmatter(content)
+    note = note_of(content)
+    return {'uid': uid, 'question_id': meta.get('_omrs_id', ''), 'difficulty': int(meta.get('难度', 5)),
+            'note': note[:limit], 'note_total_chars': len(note), 'note_truncated': len(note) > limit,
+            'section': section, 'version': version or 'current',
             'content_hash': current_hash, 'content': text[offset:end], 'total_chars': len(text),
             'offset': offset, 'next_offset': end if end < len(text) else None}
 

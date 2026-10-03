@@ -74,9 +74,19 @@ def main():
             recommendations = sdk(call, 'get_recommendations', {'category': '网页调度', 'count': 2})['selection']
             check('推荐清单提供稳定身份', {item['question_id'] for item in recommendations} == {q['question_id'] for q in created_questions})
             request = {'items': recommendations, 'request_id': 'web-sdk-plan'}
+            before_sessions = sum(c['commit_type'] == 'session.create' for c in read_commits(server.vault))
+            pending = sdk(call, 'create_review_session', request)
+            check('SDK 提交正式计划先等待审核', pending['status'] == 'pending_confirmation' and 'session_id' not in pending)
+            check('批准前没有新增计划事实', sum(c['commit_type'] == 'session.create'
+                                                 for c in read_commits(server.vault)) == before_sessions)
+            page.goto(pending['confirmation_url'])
+            page.wait_for_selector('.arv-operation [data-action="ai-review.approve"]')
+            check('审核中心列出两题稳定身份预览', page.locator('.arv-related p').count() == 2)
+            page.click('[data-action="ai-review.approve"]')
+            page.wait_for_function("() => !document.querySelector('.arv-operation [data-action=\"ai-review.approve\"]')")
             made = sdk(call, 'create_review_session', request)
             sid = made['session_id']
-            check('SDK 创建两题正式 EXP 计划', sid.startswith('EXP-') and made['count'] == 2 and not made['reused'])
+            check('审核后创建两题正式 EXP 计划', sid.startswith('EXP-') and made['count'] == 2 and made['reused'])
             open_app(page, base, 'schedule')
             page.click('#sch-tab-plans')
             page.wait_for_selector(f'.schd-plan[data-arg="{sid}"]')

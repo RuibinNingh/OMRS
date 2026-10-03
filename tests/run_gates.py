@@ -1,6 +1,7 @@
 """统一修复门禁：保留原始脚本入口，pytest 与浏览器验收显式登记。
 
-运行 python3 tests/run_gates.py --ref 17d6d84；每条日志和实际结果写入临时目录。
+运行 python3 tests/run_gates.py --ref <本次改动基线>；每条日志和实际结果写入临时目录。
+--ref 用于文档差异和视觉比较；历史升级夹具由 --upgrade-ref 单独指定。
 真实模型 boxdetect 需要外部冻结数据，用 --dataset 显式加入；不默认碰真实题库。
 """
 import argparse
@@ -16,7 +17,7 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def gates(ref, dataset=None):
+def gates(ref, dataset=None, *, upgrade_ref='17d6d84'):
     py = sys.executable
     result = [
         ('unit','unittest',[py,'-m','unittest','discover','-s','tests','-p','test_*.py','-q']),
@@ -35,7 +36,7 @@ def gates(ref, dataset=None):
             command.extend(['--dataset',dataset])
         result.append(('e2e','e2e-'+path.stem,command))
     result.extend([
-        ('release','upgrade-compat',[py,'tests/check_upgrade_compat.py','--ref',ref]),
+        ('release','upgrade-compat',[py,'tests/check_upgrade_compat.py','--ref',upgrade_ref]),
         ('visual','visual',[py,'tests/visual/run.py','--ref',ref]),
         ('docs','docs',[py,'tests/check_docs.py','--diff',ref]),
     ])
@@ -44,7 +45,8 @@ def gates(ref, dataset=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--ref',default='17d6d84')
+    parser.add_argument('--ref',default='17d6d84',help='本次改动基线，仅用于文档差异与视觉比较')
+    parser.add_argument('--upgrade-ref',default='17d6d84',help='历史升级夹具的旧代码提交，须保留旧 UID-only Session 与唯一索引语义')
     parser.add_argument('--groups',default='unit,ui,e2e,release,visual,docs')
     parser.add_argument('--only',help='只执行逗号分隔的门禁ID，用于失败项重跑')
     parser.add_argument('--out')
@@ -53,7 +55,7 @@ def main():
     output = Path(args.out or tempfile.mkdtemp(prefix='omrs-gates-'))
     output.mkdir(parents=True,exist_ok=True)
     wanted = set(args.groups.split(',')); only = set(args.only.split(',')) if args.only else None
-    all_gates = gates(args.ref,args.dataset)
+    all_gates = gates(args.ref,args.dataset,upgrade_ref=args.upgrade_ref)
     if wanted-{'unit','ui','e2e','release','visual','docs'} or (only and only-{g[1] for g in all_gates}):
         parser.error('未知门禁组或门禁ID')
     env = dict(os.environ)
@@ -71,7 +73,7 @@ def main():
             completed = subprocess.run(command,cwd=ROOT,env=env,stdout=log,stderr=subprocess.STDOUT)
         results.append({'id':name,'command':command,'exit_code':completed.returncode,
                         'seconds':round(time.monotonic()-start,3),'log':str(output/(name+'.log'))})
-        report = {'ref':args.ref,'results':results,'not_run':([] if args.dataset else [
+        report = {'ref':args.ref,'upgrade_ref':args.upgrade_ref,'results':results,'not_run':([] if args.dataset else [
             {'id':'e2e-boxdetect','reason':'依赖外部冻结模型和数据集；本次未改模型，不访问真实训练材料'}])}
         (output/'results.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
         print(name+': '+str(completed.returncode),flush=True)

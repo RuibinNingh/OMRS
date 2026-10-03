@@ -1,6 +1,7 @@
 """MCP 展示板领域入口：严格局部操作、原子回执与真实纸面影响预览。"""
 import copy
 import math
+import uuid
 
 from . import boards, locking
 from .mcp.common import RequestError, fingerprint, request_identity
@@ -77,6 +78,7 @@ def dispatch(vault, tool, payload):
     """校验完整请求后才进入现有领域函数；只在领域暂存事务内调用。"""
     p = copy.deepcopy(payload)
     data = boards.load_boards(vault)
+    before_business = {key: copy.deepcopy(data[key]) for key in ('boards', 'folders', 'catalog_revision')}
     is_folder = tool in ('create_board_folder', 'update_board_folder', 'delete_board_folder')
     existing = tool not in ('create_board', 'create_board_folder') and not is_folder
     directory = tool in ('create_board', 'duplicate_board', 'delete_board', 'move_board') or is_folder
@@ -190,7 +192,11 @@ def dispatch(vault, tool, payload):
         result.update(board_id=board['id'], revision=board['revision'], count=len(board['items']))
     if result.get('folder'):
         result['folder_id'] = result['folder']['id']
-    result.update(status='applied', changes=changed, catalog_revision=boards.load_boards(vault)['catalog_revision'])
+    after_business = boards.load_boards(vault)
+    shape = lambda value: {key: value[key] for key in ('boards', 'folders', 'catalog_revision')}
+    wrote = shape(after_business) != before_business
+    result.update(status='applied' if wrote else 'unchanged', changes=changed,
+                  catalog_revision=after_business['catalog_revision'], wrote=wrote, no_op=not wrote)
     return result
 
 
@@ -238,6 +244,7 @@ def preview(vault, tool, payload, auth=lambda: None):
 
 def execute(vault, key_id, tool, request_id, payload, web_url):
     from . import mcp_operations as ops
+    from . import ai_review
     if tool not in SCOPES:
         raise RequestError('unknown_tool', '展示板工具未开放')
     identity, digest = request_identity(key_id, tool, request_id, payload)
@@ -253,9 +260,33 @@ def execute(vault, key_id, tool, request_id, payload, web_url):
         if receipt:
             if receipt['digest'] != digest:
                 raise RequestError('request_conflict', '同一 request_id 的内容不同')
-            return {**receipt['result'], 'reused': True}
-        _, impact, snapshot = preview(vault, tool, payload, auth)
+            audit = ai_review.create(vault, 'mcp', tool, 'board-audit:'+uuid.uuid4().hex, payload,
+                                     actor={'key_id': key_id, 'native_identity': identity})
+            ops._finish_applied(vault, audit, {**receipt['result'], 'reused': True})
+            return {**receipt['result'], 'reused': True, 'operation_id': audit['operation_id']}
+        try:
+            _, impact, snapshot = preview(vault, tool, payload, auth)
+        except Exception as exc:
+            audit = ai_review.create(vault, 'mcp', tool, 'board-audit:'+uuid.uuid4().hex, payload,
+                                     actor={'key_id': key_id, 'native_identity': identity})
+            ai_review.set_state(vault, audit['operation_id'], 'failed',
+                                error_code='forbidden' if isinstance(exc, PermissionError) else getattr(exc, 'code', 'invalid_request'))
+            raise
         auth()
         if impact['reasons']:
             return ops.create(vault, key_id, tool, identity, digest, payload, impact, snapshot, web_url)
-        return boards.transaction(vault, lambda: dispatch(vault, tool, payload), identity, digest, auth, protect_paper=True)
+        audit = ai_review.create(vault, 'mcp', tool, 'board-audit:'+uuid.uuid4().hex, payload,
+                                 actor={'key_id': key_id, 'native_identity': identity},
+                                 preview=impact, snapshot=snapshot)
+        try:
+            result = boards.transaction(vault, lambda: dispatch(vault, tool, payload), identity, digest, auth, protect_paper=True)
+        except Exception as exc:
+            receipt = boards.load_boards(vault)['mcp_receipts'].get(identity)
+            if receipt and receipt['digest'] == digest:
+                ai_review.reconcile(vault, audit['operation_id'], receipt['result'])
+            else:
+                ai_review.set_state(vault, audit['operation_id'], 'failed',
+                                    error_code='forbidden' if isinstance(exc, PermissionError) else getattr(exc, 'code', 'invalid_request'))
+            raise
+        ops._finish_applied(vault, audit, result)
+        return {**result, 'operation_id': audit['operation_id']}

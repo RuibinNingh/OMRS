@@ -2,6 +2,8 @@
 
 退出 0 表示升级、再升级和保留事实的前向恢复符合断言，不代表旧代码可直接
 读写升级后的库。该脚本会主动复现并记录旧代码 UID-only Session 串题风险。
+--ref 是此历史回归夹具的旧代码，须具备旧唯一索引与 UID-only Session 语义；
+不能用本次任务的文档差异或视觉比较基线替代。
 """
 import argparse
 import json
@@ -63,7 +65,7 @@ def _worker(stage, directory):
         with connect(vault) as db:
             count = db.execute("SELECT COUNT(*) FROM question_projection").fetchone()[0]
         # 旧版整表 UNIQUE + REPLACE 会挤掉归档行；新迁移须从事实链恢复。
-        assert count == 1
+        assert count == 1, "升级夹具的 --ref 须保留旧 UNIQUE + REPLACE 语义；不要传入已完成迁移的任务基线"
         facts.update(session_id=session["session_id"], baseline=check_chain([]))
         result = {"stage": stage, "old_projected_questions": count, "commits": len(facts["baseline"])}
     elif stage == "upgrade":
@@ -167,7 +169,7 @@ def _worker(stage, directory):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--ref", default="17d6d84", help="不可变旧代码提交")
+    parser.add_argument("--ref", default="17d6d84", help="历史回归夹具的旧代码提交，默认 17d6d84；不使用任务差异基线")
     parser.add_argument("--out", help="保存合成 Vault、旧归档及 JSON 证据的仓库外目录")
     parser.add_argument("--worker", help=argparse.SUPPRESS)
     parser.add_argument("--directory", help=argparse.SUPPRESS)

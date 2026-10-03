@@ -123,6 +123,8 @@ def main():
     # 目录交换恢复必须早于任何配置读取、建库和扫描；只读盘点拒绝待恢复状态。
     from .backup_store import recover_restore
     recover_restore(vault, allow_recovery=args.command not in {"content-audit", "content-recover"})
+    from .question_update import recover_pending as recover_question_updates
+    recover_question_updates(vault, allow_recovery=args.command not in {"content-audit", "content-recover"})
     if args.command == "content-recover":
         from .content_recovery import load_recovery_manifest, recover_content
         try:
@@ -223,6 +225,8 @@ def main():
                 print("受管检测操作仍在处理中，请核对模型状态")
         except Exception as exc:
             print(f"受管检测模型恢复未完成，需人工处理：{exc}")
+        from .ai_review import initialize as initialize_reviews
+        initialize_reviews(vault)
         from .agent.runtime import get_runtime
         get_runtime(vault)  # 把上次遗留的 running 运行标为 interrupted
         from . import runtime_records
