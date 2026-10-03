@@ -15,11 +15,13 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-03 实测）：服务 `omrs.service`，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；有效 systemd drop-in 从 `/root/workspace/apps/releases/omrs-b41a65a` 运行 v2.2.1，来自精确 b41a65a 的 Git 归档；`.venv`相对链接复用 `/root/workspace/apps/releases/omrs-bbf3757/.venv`，未升级依赖，真实Vault仍是 `/root/workspace/apps/OMRS`。Python3.13.5、MCP SDK1.28.1、Pillow12.3.0 为既有生产依赖环境记录。本轮用户要求不做验收，只确认服务启动和本机版本，未重跑依赖或生产业务测试。
+生产环境事实（2026-10-03 实测）：服务 `omrs.service`，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；有效 systemd drop-in 从 `/root/workspace/apps/releases/omrs-de10022` 运行 v2.3.0，来自精确 de10022 的 Git 归档，1,134个源码文件逐字节校验通过。`.venv`相对链接复用 `/root/workspace/apps/releases/omrs-bbf3757/.venv`，未安装或升级依赖；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0 已核对。真实Vault仍是 `/root/workspace/apps/OMRS`。
 
-Web监听8471，同进程MCP只监听127.0.0.1:18472；Nginx共用HTTPS8472按路径分流。启动参数公网MCP为 `https://home.ruibin-ningh.top:8472/mcp`，公网Web为 `https://home.ruibin-ningh.top:8472`。PIN已配置；本机API免PIN不能绕过主工作台入口。当前源码提供39个MCP工具，按Key现有权限发现；只读22工具，新增正式复习计划创建需同时授予omrs:read与session:create。既有Key不自动扩权，本轮未创建验收Key或执行公网SDK验收。
+Web监听8471，同进程MCP只监听127.0.0.1:18472；Nginx共用HTTPS8472按路径分流。启动参数公网MCP为 `https://home.ruibin-ningh.top:8472/mcp`，公网Web为 `https://home.ruibin-ningh.top:8472`。PIN已配置；本机API免PIN不能绕过主工作台入口。当前源码提供40个MCP工具，按Key现有权限发现；只读22工具。正式计划创建需omrs:read与session:create，先返回待审操作；改题提案需omrs:read与默认关闭的question:propose。既有Key不自动扩权。
 
-本次v2.2.1发布保全位于 `/root/workspace/apps/releases/OMRS-v221-release-20261003T020953Z-yd48j3uz/`（目录0700、文件0600），含停服时完整Vault归档、旧unit/drop-in、新版Git源码归档、部署脚本、状态摘要和SHA清单；旧release与依赖保留。代码切换仅替换drop-in的release路径，端口、公网URL及控制配置保持。需要代码回退时恢复该目录的10-release.conf.before，daemon-reload后重启主服务；不以旧Vault归档覆盖上线后新增事实。
+当前v2.3.0发布保全位于 `/root/workspace/apps/releases/OMRS-v230-release-20261003T092803Z-6u51wcwh/`（目录0700、文件0600），含两次停服原样归档的完整 `错题/` 与 `.omrs-maintenance/`、旧unit/drop-in、精确源码归档、部署脚本、私人对照材料和SHA清单；归档比较通过。代码切换只替换主服务drop-in的三处release路径，端口、公网URL及控制配置保持。旧b41a65a release、v2.2.1保全与依赖仍保留。
+
+v2.3.0的新权限scope、JSON/YAML编码、统一审批与正式题目journal使直接旧码写入存在契约风险。发布后恢复须保留最新数据，使用兼容当前数据的修复版本前向恢复；禁止把旧Vault归档覆盖上线后新增事实，不能仅恢复旧drop-in便当作安全降级。
 
 最新历史正文补回保全位于 `/root/workspace/apps/releases/OMRS-content-recovery-20261003T010842Z-uvv8l1w4/`（目录0700、文件0600），含一致ZIP、两次停写原库、私有正文清单、来源和逐字段核验。原升级保全OMRS-v220-upgrade-20261003T003307Z及旧release仍保留。当前1个归档身份、262活动题、零冲突；269个原正文blob与15个核验补回版本均可取回，六个实库的原业务行及1,203助手事件保留。48个首次正文快照前的历史版本仍缺原文，当前题目正文完整。
 
@@ -27,7 +29,11 @@ v2.2.0存储迁移后不能仅回退v2.1.0代码，也不能用旧归档覆盖�
 
 本机可靠副本中的历史正文可用 `content-recover --manifest <私人清单路径>` 预览，明确加 `--apply` 才补入；不通过它还原当前题目或覆盖原始流水。先取得一致备份，在隔离副本验证所有业务字段和原始事实保持，再按生产授权执行。清单格式、只补缺失、幂等与事务失败边界见 `ledger.md` §10；禁止将正文、私人路径清单或数据库提交到源码仓库。
 
-主服务、OMRS Tunnel和受管检测服务均active/running、NRestarts=0。主服务PID491135；检测PID1532134、模型active指针及管理状态SHA保持，Nginx、端口、PIN或权限保持。历史补回生产37项读取和匿名授权检查通过，Ledger链合法，原721事实逐字段保持，补回事实为CMT-000722；后续正常API新增事实同样保留。相同v2.2契约的原ec12293能读取补回正文并重建投影，Schema变化0。真实PIN授权浏览器、ChatGPT账户联调及Windows实机仍待验证。
+主服务、`tunnel-client-omrs.service` 和 `omrs-boxdetect.service` 均active/running、NRestarts=0；主服务PID1977331、Tunnel PID875442、检测PID1532134。主服务于2026-10-03 17:41:10 CST启动，最终切换约1秒；另外两个服务未重启，模型active指针及管理状态SHA、Nginx、端口、PIN和Key权限保持。
+
+精确release与既有venv的8个安全/SDK模块94项通过、无跳过，均使用临时Vault与随机端口。私人一致副本升级保持45张原业务表、827个原文件和731条Ledger事实；262活动题的当前正文缺失与冲突均为0，48个历史正文缺口为既有缺口。80条审核操作导入幂等；桌面浅色与手机深色真实PIN登录浏览器通过，测试PIN只设置在私人副本。
+
+实际生产只读核验保持45张原业务表和827个原文件，审核中心可读取108条记录（80项操作、28份原生草稿），待审0；GET列表、详情与数量不改变审批表。公网入口和会话查询返回200，匿名status、审核API与MCP均返回401。未在生产创建验收Key或执行测试业务写，未使用真实付费模型；生产PIN浏览器、ChatGPT账户联调及Windows实机仍待验证。
 
 ## 2. Claude Code Web 实测能力（2026-09-24）
 

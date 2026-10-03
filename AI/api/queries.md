@@ -68,6 +68,8 @@
 ### `/api/status`
 返回服务运行状态，用于辨别当前运行的 OMRS 版本和题库实例。
 
+沿用常规Web授权：本机直连、显式豁免局域网直连或已登录远端可读取，非豁免远端匿名访问返回401；listen_external不含秘密不代表该接口公开，MCP凭据仍不能调用Web API。
+
 **响应字段：**
 
 | 字段 | 类型 | 说明 |
@@ -173,7 +175,7 @@
 
 ### `/api/runtime/records/detail?seq=<seq>`
 
-返回 `{status:"ok",detail}`，在列表摘要上增加 `arguments`、`result` 白名单摘要及 `related_commits`。关联草稿时另有 `draft:{id,status}`，草稿缺失状态为 `missing`；`related_commits` 从原 Ledger 草稿标识读取人工入库节点的 `seq/commit_id/created_at/title/uid`。确认操作另带 operation，生命周期读取独立确认库；板、报告和导出关联由结果中的稳定编号在页面构造。这些字段表示当前关联状态，不补造旧调用。非法编号 400，不存在 404，存储故障 503；授权与缓存规则同列表。运行事实没有修正/撤销入口，MCP Key 不能读取这些 Web API；确认写入使用专门 Web 端点。
+返回 `{status:"ok",detail}`，在列表摘要上增加 `arguments`、`result` 白名单摘要及 `related_commits`。关联草稿时另有 `draft:{id,status}`，草稿缺失状态为 `missing`；`related_commits` 从原 Ledger 草稿标识读取人工入库节点的 `seq/commit_id/created_at/title/uid`。确认操作另带operation，生命周期读取统一ai_review审批与原生回执的只读视图，旧确认库仅兼容历史；GET不重放业务。板、报告和导出关联由结果中的稳定编号在页面构造。这些字段表示当前关联状态，不补造旧调用。非法编号400、不存在404、存储故障503，授权与缓存规则同列表。运行事实没有修正/撤销入口，MCP Key不能读取这些Web API；确认写入使用专门Web端点。
 
 ### `/api/ledger/verify`
 校验不可变提交链，返回 `{status, valid, commits, head_commit_id, errors}`。

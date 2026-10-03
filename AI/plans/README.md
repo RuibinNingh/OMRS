@@ -43,4 +43,4 @@ AI/plans/<计划名>/
 | `history-redesign/` | 已部署 v2.1.0，随 ba6501b 发布 | 学习与变更 / 系统运行分区时间线、真实 MCP 调用与草稿入库双向关联，见 `history-redesign/progress.md` |
 | `omrs-audit-repair/` | 全部完成，已部署v2.2.0并推GitHub | 十九项修复与治理、万题十万反馈容量、真实副本迁移/恢复及生产验收；执行者Codex完整模式，见progress.md |
 | `mcp-review-sessions/` | 已部署v2.2.1并推送GitHub | 正式调度创建、查询增强及v2.2.1；执行者Codex完整模式，见progress.md |
-| `ai-review-center/` | 本地实现与验收完成 | 统一 MCP/助手业务写审核、草稿迁入和安全正式改题；执行者Codex完整模式，见progress.md，不含部署或推送 |
+| `ai-review-center/` | 已部署v2.3.0并推送GitHub | 统一 MCP/助手业务写审核、草稿迁入和安全正式改题；执行者Codex完整模式，见progress.md |

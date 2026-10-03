@@ -154,7 +154,7 @@ ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentic
 
 工具调用通过task传播题库世代，实际存储段才取租约。恢复后旧工具结果返回 `vault_changed`，维护繁忙返回 `vault_busy`；旧世代的运行结束回执不写入新库，也不覆盖原工具错误。`tests/test_mcp_lifecycle.py` 验证该边界。
 
-生产发布目录和地址见 `AI/environment.md`，部署与账户验证状态见 `AI/plans/mcp-integration/progress.md`。本地 SDK 验收不等同于 ChatGPT 账户联调；本任务不包含生产发布。
+生产发布目录和地址见 `AI/environment.md`，当前40工具、统一审核与安全改题已部署v2.3.0，发布状态见 `AI/plans/ai-review-center/progress.md`。正式计划先待审，question:propose默认关闭。账户接入状态见 `AI/plans/mcp-integration/progress.md`；本地 SDK 验收不等同于 ChatGPT 账户联调。
 
 官方参考：[Developer Mode](https://developers.openai.com/api/docs/guides/developer-mode)、[Apps SDK 文件参数](https://developers.openai.com/apps-sdk/reference/)、[认证](https://developers.openai.com/apps-sdk/build/auth/)、[Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。
 
@@ -190,9 +190,9 @@ list_boards 默认 50/最多 100，返回分页板摘要及完整文件夹/catal
 
 写工具必须带 request_id，板写检查 expected_revision；创建、复制、移动、删除、改名和文件夹操作还检查 expected_catalog_revision。局部补丁的白名单、数值边界、完整排序和批量实际变更见 AI/board.md。变更与幂等回执同次 boards.json 原子写入。
 
-删除板/文件夹、清空非空板、实际重置纸面记录均先返回 pending_confirmation、影响预览、operation_id 和网页链接。确认库独立保存完整请求；网页确认时重查密钥、权限、板和目录版本及影响范围。解除版式锁定不能绕过实际纸面重置确认；普通引用增删和排序保留纸面。get_mcp_operation 只查本人操作，没有模型确认工具。
+删除板/文件夹、清空非空板、实际重置纸面记录均先返回 pending_confirmation、影响预览、operation_id 和网页链接。统一ai_review.db保存完整请求并作为唯一审批权威，旧MCP确认库只提供历史兼容；网页确认时重查密钥、权限、板和目录版本及影响范围。解除版式锁定不能绕过实际纸面重置确认；普通引用增删和排序保留纸面。get_mcp_operation只查本人操作，没有模型确认工具，查询不执行业务重放。
 
---web-public-url 指定主 Web HTTP/HTTPS 来源（不含路径、查询或凭据）；默认实际 Web 回环端口。确认链接指向该来源的 /#/history?operation=编号，PIN 登录保留 hash。MCP 凭据仍不可调用任何 Web 管理端点。
+--web-public-url 指定主 Web HTTP/HTTPS 来源（不含路径、查询或凭据）；默认实际 Web 回环端口。确认链接指向该来源的 /#/ai-review?operation=编号，旧history确认链接兼容跳转中心，PIN登录保留hash。MCP凭据仍不可调用任何Web管理端点。
 
 ## 13. 展示板安全导出
 
