@@ -7,6 +7,7 @@
 - [2026-10-03_mcp-review-sessions-production](2026-10-03_mcp-review-sessions-production.md)：MCP 正式复习调度生产发布
 - [2026-10-03_content-history-recovery](2026-10-03_content-history-recovery.md)：历史正文缺口补回
 - [2026-10-03_ai-review-center](2026-10-03_ai-review-center.md)：统一审核中心与 MCP 正式改题
+- [2026-10-03_ai-review-center-release](2026-10-03_ai-review-center-release.md)：审核中心 v2.3.0 本地发布
 - [2026-10-02_omrs-audit-repair](2026-10-02_omrs-audit-repair.md)：OMRS 审计修复与治理
 - [2026-10-02_mcp-question-image-read](2026-10-02_mcp-question-image-read.md)：MCP 题图按需读取
 - [2026-10-02_mcp-question-image-production](2026-10-02_mcp-question-image-production.md)：MCP 题图与运行记录推送及生产发布
