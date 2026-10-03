@@ -248,8 +248,8 @@ def init_db(db):
     db.commit()
 
 
-def _record_content_refs(db, seq, kind, payload):
-    """正文引用是可重建索引；历史正文和提交内容保持不可变。"""
+def content_ref_pairs(kind, payload):
+    """从原始提交读取正文身份与哈希，供索引、盘点和补回共同使用。"""
     if kind == "legacy.bootstrap":
         pairs = ((q.get("question_id"), q.get("content_hash")) for q in payload.get("questions", []))
     elif kind in ("question.content_snapshot", "question.content_backfill"):
@@ -262,9 +262,14 @@ def _record_content_refs(db, seq, kind, payload):
                   (payload.get("after") or {}).get("content_hash"))
         pairs = ((qid, h) for h in hashes)
     else:
-        return
+        pairs = ()
+    return ((qid, h) for qid, h in pairs if qid and h)
+
+
+def _record_content_refs(db, seq, kind, payload):
+    """正文引用是可重建索引；历史正文和提交内容保持不可变。"""
     db.executemany("INSERT OR IGNORE INTO content_version_refs VALUES(?,?,?)",
-                   ((qid, h, seq) for qid, h in pairs if qid and h))
+                   ((qid, h, seq) for qid, h in content_ref_pairs(kind, payload)))
 
 
 def canonical_json(value) -> str:

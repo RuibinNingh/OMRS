@@ -119,7 +119,7 @@ Session 中的 `source` 贯穿反馈处理：`due` 使用常规 SM-2 间隔，`p
 - `projection_meta`：已发布 seq、head hash、policy hash 和 projector version。
 - `projection_review_corrections` / `projection_session_corrections`：当前有效分支的 SQL 修正索引，不在进程内累积全量修正载荷。
 - `workspace_fingerprint`：Markdown 工作区自检指纹。
-- `blobs`：已入账题目 Markdown 全文（`hash` = 正文 sha256，`content`，`created_at`）；当前缺失版本可在启动时经身份和哈希校验增量回填，内容损坏的已有 blob 不会被静默覆盖，旧哈希不能由当前文件代填。见 `AI/ledger.md` §10。
+- `blobs`：已入账题目 Markdown 全文（`hash` = 正文 sha256，`content`，`created_at`）；当前缺失版本可在启动时经身份和哈希校验增量回填，历史缺失版本可用 `content-recover` 从核验副本显式补入。已有损坏 blob 不会被覆盖，旧哈希不能由当前文件代填。清单、原子性和恢复边界见 `AI/ledger.md` §10。
 - `op_results`：创建与 Ledger 事务中的幂等回执；收件箱跨库失败只补回执，不重新创建题目。
 - `content_version_refs`：正文版本的题目/哈希/首次提交索引，MCP 版本按 SQL 分页；索引可从不可变 Ledger 重建。
 - `snapshots`：当前状态的持久快照，不包含全量历史反馈或修正载荷。保留最近 2 个，使用前验证 policy hash、head hash 和 projector version；缺失或不匹配时流式重建。

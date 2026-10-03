@@ -2,7 +2,7 @@
 
 > **速查**
 > - 职责：不可变提交链、投影缓存、历史修正与迁移边界
-> - 入口：`omrs/ledger.py`、`omrs/projection_runtime.py`、`omrs/projections.py`、`omrs/data_repository.py`
+> - 入口：`omrs/ledger.py`、`omrs/projection_runtime.py`、`omrs/projections.py`、`omrs/data_repository.py`；本机补回为 `omrs/content_recovery.py`
 > - 不变量：提交只追加不改写，修正以新的 commit 表达；追加在 `BEGIN IMMEDIATE` 事务里；已入账的题目 Markdown 版本存进 blobs，commit 只引用哈希
 > - 必跑测试：`tests/test_history_projection.py`、`tests/test_sessions_feedback.py`、`tests/test_ledger_concurrency.py`、`tests/test_content_integrity.py`、`tests/test_agent_tools.py`、`tests/test_data_runtime.py`
 > - 相关：`AI/data.md`、`AI/frontend/records.md`、`AI/agent.md`
@@ -200,11 +200,17 @@ Markdown 正文另按 §10 入账：
 
 ## 10. 正文入账
 
-`blobs(hash, content, created_at)` 存题目 Markdown 的全文，哈希是 UTF-8 正文的 sha256；commit 只引用哈希。录入题目时，`question.create` 与当前正文 blob 在同一事务提交；若 Ledger 提交失败，已写出的 Markdown 和附件保留为可能的唯一副本，供后续核查与扫描。网页修改正文或结构化字段时，`question.content_update` / `question.metadata_update` 的前后版本随 commit 入账；工作区扫描发现外部新增、正文变化或结构化字段变化时，当前版本随对应 commit 入账。网页迁移题目先保全旧正文，再把新正文随 `question.move` 入账；删除前必须确认最后一版能从 blob 逐字取回。`question.content_backfill` 仅记录增量补齐的当前版本，投影不处理它。
+`blobs(hash, content, created_at)` 存题目 Markdown 的全文，哈希是 UTF-8 正文的 sha256；commit 只引用哈希。录入题目时，`question.create` 与当前正文 blob 在同一事务提交；若 Ledger 提交失败，已写出的 Markdown 和附件保留为可能的唯一副本，供后续核查与扫描。网页修改正文或结构化字段时，`question.content_update` / `question.metadata_update` 的前后版本随 commit 入账；工作区扫描发现外部新增、正文变化或结构化字段变化时，当前版本随对应 commit 入账。网页迁移题目先保全旧正文，再把新正文随 `question.move` 入账；删除前必须确认最后一版能从 blob 逐字取回。`question.content_backfill` 记录增量补齐的正文版本，投影不处理它；历史补回另带 `historical:true`。
 
 服务启动时在监听请求和启动工作区扫描前调用 `backfill_missing_content`：仅检查活动题当前投影哈希所指的缺失 blob；文件安全路径、`_omrs_id` 和正文哈希都与投影一致才补入。已有 blob 内容与哈希不符时不覆盖，冲突跳过并报告；已有正确 blob 或重复启动不新增回填提交。`python3 omrs_engine.py --vault /path/to/vault content-audit --json` 用同一只读 SQLite 事务盘点活动题、当前缺 blob、文件/投影冲突和历史缺口，兼容升级前的 Ledger 表结构，不初始化或迁移 Ledger，也不输出正文；缺库时不创建错题目录。生命周期租约可建立独立的维护锁文件；存在待恢复 journal 时拒绝盘点，须先由正常启动收束恢复。旧版本缺口只表示对应哈希不可从当前 `blobs` 取回；回填当前文件不会生成该旧版本。
 
 写文件前对齐：`ensure_content_recorded` 先核对 `_omrs_id` 与投影旧正文。旧 blob 缺失但文件哈希仍与投影一致时可补存；旧 blob 缺失且文件已改，或 blob 内容哈希/身份不符时拒绝该题写入。验证通过后，若文件正文有未入账的变化（例如刚在 Obsidian 里改过），以 `self_check` 补记这一版，再做本次写入；调用方给了 `expected_content_hash` 而对不上时抛 `ContentConflict`（HTTP 409）。正文版本列表的 `available` 也要求 blob 哈希及 `_omrs_id` 都正确。历史、取回与还原的接口见 `AI/api.md`。
+
+### 从本机可靠副本补回历史正文
+
+`python3 omrs_engine.py --vault /path/to/vault content-recover --manifest /private/manifest.json` 默认只核验并输出 JSON，不写数据库、不初始化配置、收件箱或旧 Schema。加 `--apply` 后，`omrs/content_recovery.py` 在生命周期租约、写锁和同一 SQLite 写事务内补入缺失 blob，并追加一条带清单哈希的 `question.content_backfill`。已有正确版本直接跳过，重复运行不新增提交；已有损坏 blob、原始提交哈希损坏、身份或引用不一致时拒绝整批。任何事务故障全部回滚。命令不会修改当前 Markdown、元数据、学习状态、Session 或旧提交；已归档题也按稳定身份补回。待恢复 journal 或缺失正文引用索引时拒绝执行，先完成正常恢复或核查。
+
+清单为 `{"version":1,"items":[{"question_id":"OP-000001","hash":"<64位小写SHA256>","first_referenced_seq":2,"file":"blobs/version.md"}]}`。原始提交必须确实引用该题的哈希，且序号与可重建索引的首次引用一致。文件以清单目录为根，接受内部相对普通文件路径，拒绝越界和符号链接。按历史文本读取规则转换 CRLF/CR 为 LF 后，正文哈希和 YAML `_omrs_id` 必须同时匹配。清单最多 2 MiB、100 个不同哈希，单批正文最多 16 MiB；大批次显式拆分。正文和原始来源路径只留本机私有材料，审计提交与 CLI 回执不包含它们。引用抽取由 `ledger.content_ref_pairs()` 供索引、盘点和补回共同使用。回归入口为 `tests/test_content_recovery.py`。
 
 ## 草稿创建的追溯与恢复
 

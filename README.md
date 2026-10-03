@@ -103,6 +103,8 @@ python3 omrs_engine.py --vault /path/to/vault content-audit --json
 
 此命令列出当前缺失的正文 blob、文件与投影冲突及历史缺口，不初始化题库，也不输出正文。
 
+有原始备份时，可用 `content-recover --manifest /path/to/manifest.json` 核验历史正文补回清单，默认只预览；加 `--apply` 才将缺失版本原子补入。它核对原始提交引用、正文 SHA256 和题目身份，保留当前题目及原始流水；清单格式、限制和恢复边界见 [`AI/ledger.md`](AI/ledger.md#10-正文入账)。
+
 ### Linux / systemd
 
 项目可部署在任意本地路径（以下以 `/opt/omrs` 为例），由 systemd 持久化运行：

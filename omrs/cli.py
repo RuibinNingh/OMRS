@@ -3,6 +3,7 @@ import json
 import os
 import socket
 import socketserver
+import sqlite3
 import sys
 import time
 
@@ -59,6 +60,10 @@ def main():
 
     audit_parser = sub.add_parser("content-audit", help="只读盘点题目正文、投影与 Ledger blob")
     audit_parser.add_argument("--json", action="store_true", help="输出 JSON，不包含正文")
+
+    recovery_parser = sub.add_parser("content-recover", help="核验清单并补回缺失历史正文，默认只预览")
+    recovery_parser.add_argument("--manifest", required=True, help="本机正文清单 JSON 路径")
+    recovery_parser.add_argument("--apply", action="store_true", help="将已核验且缺失的版本原子补入 Ledger")
 
     schedule_parser = sub.add_parser("schedule", help="生成复习调度预览")
     schedule_parser.add_argument("-n", "--count", type=int, default=10)
@@ -117,7 +122,17 @@ def main():
 
     # 目录交换恢复必须早于任何配置读取、建库和扫描；只读盘点拒绝待恢复状态。
     from .backup_store import recover_restore
-    recover_restore(vault, allow_recovery=args.command != "content-audit")
+    recover_restore(vault, allow_recovery=args.command not in {"content-audit", "content-recover"})
+    if args.command == "content-recover":
+        from .content_recovery import load_recovery_manifest, recover_content
+        try:
+            items, digest = load_recovery_manifest(args.manifest)
+            result = recover_content(vault, items, digest, apply=args.apply)
+        except (OSError, ValueError, RuntimeError, sqlite3.Error) as exc:
+            print(f"正文补回失败：{exc}", file=sys.stderr)
+            raise SystemExit(2)
+        print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        return
     if args.command != "content-audit":
         from .config_repository import initialize
         initialize(vault)

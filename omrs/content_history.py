@@ -14,7 +14,8 @@ from pathlib import Path
 
 from .common import (OMRS_DIR, extract_category, extract_knowledge_tags, extract_labels, extract_tag,
                      parse_yaml_frontmatter, questions_root)
-from .ledger import append_commit, append_commit_in_db, blob_hash, connect, get_blob, has_blob, store_blob
+from .ledger import (append_commit, append_commit_in_db, blob_hash, connect,
+                     content_ref_pairs, get_blob, has_blob, store_blob)
 from .data_repository import storage_write
 from .vault_lifecycle import storage, open_sqlite
 from .path_safety import safe_question_path
@@ -233,18 +234,7 @@ def audit_content_coverage(vault):
         historical = {}
         for raw in db.execute("SELECT seq,commit_type,payload_json FROM commits WHERE commit_type NOT LIKE 'review.%' ORDER BY seq"):
             seq, typ, payload = raw["seq"], raw["commit_type"], json.loads(raw["payload_json"] or "{}")
-            if typ == "legacy.bootstrap":
-                pairs = [(x.get("question_id"), x.get("content_hash")) for x in payload.get("questions", [])]
-            elif typ in ("question.content_snapshot", "question.content_backfill"):
-                pairs = [(x.get("question_id"), x.get("content_hash")) for x in payload.get("items", [])]
-            else:
-                question = payload.get("question") or {}
-                qid = payload.get("question_id") or question.get("question_id")
-                refs = [payload.get("before_hash"), payload.get("after_hash"), payload.get("content_hash"),
-                        question.get("content_hash"), (payload.get("before") or {}).get("content_hash"),
-                        (payload.get("after") or {}).get("content_hash")]
-                pairs = [(qid, h) for h in refs]
-            for qid, h in pairs:
+            for qid, h in content_ref_pairs(typ, payload):
                 if qid and h and h not in available_hashes:
                     historical.setdefault((qid, h), seq)
     finally:

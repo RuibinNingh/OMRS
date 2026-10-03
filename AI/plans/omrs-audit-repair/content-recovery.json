@@ -1,0 +1,43 @@
+{
+  "baseline": "f170aa1",
+  "version": "v2.2.0",
+  "phase": "verified_on_isolated_clone",
+  "source_scan": {
+    "vault_archives": 10,
+    "archive_markdown_candidates": 2820,
+    "additional_zip_archives": 21,
+    "older_vault_directories": 4,
+    "older_markdown_candidates": 690,
+    "verified_versions": 15,
+    "verified_question_identities": 15,
+    "remaining_versions": 48
+  },
+  "validation": {
+    "related_unittest": 51,
+    "full_unittest": 670,
+    "pytest": 7,
+    "original_e2e_scripts": 3,
+    "original_e2e_assertions": 62,
+    "clone_http_checks": 30,
+    "clone_business_databases_preserved": 6,
+    "clone_plain_files_preserved": 870,
+    "clone_original_facts_preserved": true,
+    "clone_original_blobs_preserved": true,
+    "clone_retry_added_facts": 0,
+    "compatible_production_code": "ec12293 / v2.2.0",
+    "compatible_code_read_and_replay_verified": true,
+    "schema_changes": 0,
+    "resource_warnings": 0,
+    "backup_freeze_seconds": 0.7393421302549541
+  },
+  "not_repeated": [
+    "Node, component browser, print, UI, contrast, visual and remaining E2E: no frontend or HTTP routing changes",
+    "capacity benchmark: no algorithm or storage schema changes"
+  ],
+  "not_verified": [
+    "Windows native environment",
+    "external frozen model dataset",
+    "ChatGPT account integration",
+    "remaining 48 missing original body versions"
+  ]
+}
