@@ -1,7 +1,7 @@
 {
   "baseline": "f170aa1",
   "version": "v2.2.0",
-  "phase": "verified_on_isolated_clone",
+  "phase": "deployed",
   "source_scan": {
     "vault_archives": 10,
     "archive_markdown_candidates": 2820,
@@ -28,16 +28,120 @@
     "compatible_code_read_and_replay_verified": true,
     "schema_changes": 0,
     "resource_warnings": 0,
-    "backup_freeze_seconds": 0.7393421302549541
+    "backup_freeze_seconds": 0.7393421302549541,
+    "exact_release_related_unittest": 51,
+    "docs_errors": 0,
+    "docs_historical_size_notices": 2,
+    "private_evidence_files_hashed_and_verified": 51,
+    "docs_checked": 94
   },
   "not_repeated": [
-    "Node, component browser, print, UI, contrast, visual and remaining E2E: no frontend or HTTP routing changes",
-    "capacity benchmark: no algorithm or storage schema changes"
+    "Node、组件浏览器、打印、UI、对比度、视觉及其余E2E：本轮没有前端或HTTP路由变化",
+    "容量测试：本轮没有算法或存储Schema变化"
   ],
   "not_verified": [
-    "Windows native environment",
-    "external frozen model dataset",
-    "ChatGPT account integration",
-    "remaining 48 missing original body versions"
-  ]
+    "Windows实机环境",
+    "外部冻结模型数据",
+    "ChatGPT账户联调",
+    "剩余48个缺失历史原文版本",
+    "真实生产PIN授权浏览器路径；完整路径已有前次合成环境验证"
+  ],
+  "implementation_commit": "066f39fc44e557ca62a02e76db314b15a2a84e2a",
+  "production": {
+    "valid": true,
+    "source_commit": "066f39fc44e557ca62a02e76db314b15a2a84e2a",
+    "release": "/root/workspace/apps/releases/omrs-066f39f",
+    "version": "v2.2.0",
+    "recovered": 15,
+    "historical_gaps_before": 63,
+    "historical_gaps_after": 48,
+    "current_missing": 0,
+    "conflicts": 0,
+    "original_facts_preserved": true,
+    "original_blobs_preserved": true,
+    "business_data_preserved": true,
+    "plain_files_preserved": 869,
+    "databases_preserved": 6,
+    "retry_added_facts": 0,
+    "final_switch_offline_seconds": 1.73540640482679,
+    "services": {
+      "omrs.service": {
+        "MainPID": "352961",
+        "NRestarts": "0",
+        "WorkingDirectory": "/root/workspace/apps/releases/omrs-066f39f",
+        "ActiveState": "active",
+        "SubState": "running"
+      },
+      "tunnel-client-omrs.service": {
+        "MainPID": "875442",
+        "NRestarts": "0",
+        "WorkingDirectory": "/root/workspace/apps/openai-tunnel-client",
+        "ActiveState": "active",
+        "SubState": "running"
+      },
+      "omrs-boxdetect.service": {
+        "MainPID": "1532134",
+        "NRestarts": "0",
+        "WorkingDirectory": "/root/workspace/releases/omrs-6437525",
+        "ActiveState": "active",
+        "SubState": "running"
+      }
+    },
+    "model_unchanged": true,
+    "body_commit_id": "CMT-000722",
+    "manifest_hash": "81be094b45e33b05060c4adc02d9c7442ae89cd30778a571c459049e207f9124",
+    "scan_changes_only_timestamps": true,
+    "first_attempt_guarded_fallback": true,
+    "finished_at": "2026-10-03T01:25:17.448655+00:00",
+    "http_validation": {
+      "valid": true,
+      "local_history_body_checks": 30,
+      "local_chain_and_status_checks": 2,
+      "public_checks": 5,
+      "total_checks": 37,
+      "ledger_commits_observed": 723,
+      "question_count": 262,
+      "original_721_facts_preserved": true,
+      "body_recovery_fact_preserved": true,
+      "post_deployment_api_facts": 1,
+      "public_results": [
+        {
+          "endpoint": "/",
+          "method": "GET",
+          "status": 200
+        },
+        {
+          "endpoint": "/entry",
+          "method": "GET",
+          "status": 200
+        },
+        {
+          "endpoint": "/api/ledger/verify",
+          "method": "GET",
+          "status": 401
+        },
+        {
+          "endpoint": "/api/ledger/verify",
+          "method": "HEAD",
+          "status": 401
+        },
+        {
+          "endpoint": "/mcp",
+          "method": "POST",
+          "status": 401
+        }
+      ],
+      "source_commit": "066f39fc44e557ca62a02e76db314b15a2a84e2a",
+      "release": "/root/workspace/apps/releases/omrs-066f39f",
+      "checked_at": "2026-10-03T01:29:05.770717+00:00"
+    },
+    "journal_error_rows": 0,
+    "private_evidence_directory": "/root/workspace/apps/releases/OMRS-content-recovery-20261003T010842Z-uvv8l1w4"
+  },
+  "github": {
+    "remote": "https://github.com/RuibinNingh/OMRS",
+    "branch": "main",
+    "implementation_commit": "066f39fc44e557ca62a02e76db314b15a2a84e2a",
+    "implementation_pushed_and_verified": true
+  }
 }
