@@ -71,7 +71,7 @@ assets/app/
 
 `tests/e2e/mcp.py` 在临时 Vault 的同进程 Web + MCP 服务上验证真实密钥创建、一次性明文、复制反馈、窗口关闭及页面卸载清理、吊销确认与取消、到期自动分组、刷新保留展开和读取失败保留列表；创建及吊销失败可原地重试。权限仅有 `omrs:read` / `draft:create`，完整密钥不写浏览器存储。脚本先通过官方 SDK 核对题目图片列表及按下标返回的原生图片、MIME 与原字节，再创建草稿、由浏览器查看来源和完整原图，并检查浅深色桌面/手机创建窗口。
 
-展示板的页面测试分三层：`tests/app/board*.test.mjs` 测视图模型与源码约束（`board-regions.test.mjs` 同时读 `view.js` 与 `view-panel.js`），`tests/app/board-preview.test.mjs` 测预览消息与「适应宽度」公式，`tests/e2e/board.py` 走主路径，含详情层独立滚动、答案折叠、「打开题目」弹窗、宽屏收起左栏后纸面自动重算缩放，以及翻页动效结束后无残留动画和位移。
+展示板的页面测试分三层：`tests/app/board*.test.mjs` 测视图模型与源码约束（`board-regions.test.mjs` 同时读 `view.js` 与 `view-panel.js`），`tests/app/board-preview.test.mjs` 测预览消息与「适应宽度」公式，`tests/e2e/board.py` 走主路径，含详情层独立滚动、答案折叠、「打开题目」弹窗、宽屏收起左栏后纸面自动重算缩放，以及翻页动效结束后无残留动画和位移。展示板E2E使用共享 `open_app` 进入主应用；另覆盖760、761、1160、1161px断点、中宽和矮浮窗连续缩放、常驻iframe保持、列表与详情滚到底，并核对切到题库或反馈后原有外壳布局恢复。
 
 ## 5. 跨页状态与总线
 
@@ -87,7 +87,7 @@ assets/app/
 
 ## 6. E2E 旧断言适配
 
-`tests/e2e/p8_test_modules.js` 只在浏览器测试中注入：它 import 当前 ES Module，把旧测试读的 `DATA`、`SESSIONS`、`QUESTION_CACHE` 等名字映射成只读 getter，并提供少量旧调用入口。主页面不加载该文件；新增断言应直接检查 DOM、`window.__omrs` 或 import 实际模块。
+`tests/e2e/p8_test_modules.js` 只在浏览器测试中注入：它 import 当前 ES Module，把旧测试读的 `DATA`、`SESSIONS`、`QUESTION_CACHE` 等名字映射成只读 getter，并提供少量旧调用入口。适配器等待文档就绪后从主模块脚本地址取得资源根路径，沿用同一内容版本，确保测试读取的领域单例就是应用实际使用的实例。主页面不加载该文件；新增断言应直接检查 DOM、`window.__omrs` 或 import 实际模块。
 
 ## 7. 静态资源缓存
 

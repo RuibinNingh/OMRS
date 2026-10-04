@@ -1,7 +1,15 @@
-// E2E-only adapter: historical browser assertions read named globals. Import the
-// actual ES modules without restoring these names to production code.
+// 仅供 E2E：历史断言读取具名全局；导入主应用实际使用的模块，不恢复生产全局。
 if (location.protocol === 'http:' || location.protocol === 'https:') {
-const m = p => import(new URL(p, location.origin).href);
+// HTML 的主模块可能带内容版本地址；沿用同一根路径，避免创建另一套领域单例。
+const moduleBase = new Promise(resolve => {
+  const discover = () => {
+    const main = document.querySelector('script[type="module"][src$="app/main.js"]');
+    resolve(main ? new URL('../', main.src) : new URL('/assets/', location.origin));
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', discover, { once: true });
+  else discover();
+});
+const m = async p => import(new URL(p.slice('/assets/'.length), await moduleBase).href);
 window.__p8TestReady = Promise.all([
   m('/assets/app/domain/data.js'),
   m('/assets/app/domain/items.js'),

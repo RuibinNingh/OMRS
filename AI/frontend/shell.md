@@ -29,7 +29,7 @@ assets/
 - 题目 Markdown 的 HTML 由 `domain/question/markdown.js` 统一生成，`domain/question/qview.css` 提供题面块与换行样式；普通换行默认逐行显示，空行仍分段。题库显示设置可显式切回简略模式，测试见 `tests/app/question.test.mjs`。
 - 后端由 `/assets/<file>` 通用静态路由提供资源（`server.py` → `_serve_asset()`，含路径穿越防护与按扩展名的 content-type）。页面样式放在对应的 `features/<页>/`；外壳样式在 `app/styles/shell.css`，组件样式在 `app/ui/`，颜色与尺度在 `app/styles/tokens.css`。
 
-服务端在 HTML 响应中将资源引用转换为内容版本地址，提前加载模块依赖并合并主样式，文本按需 gzip；源码中的相对 import 和 CSS 分层保持，缓存契约见 `AI/frontend/architecture.md` §7。侧栏底部显示当前 v2.3.1。
+服务端在 HTML 响应中将资源引用转换为内容版本地址，提前加载模块依赖并合并主样式，文本按需 gzip；源码中的相对 import 和 CSS 分层保持，缓存契约见 `AI/frontend/architecture.md` §7。侧栏底部显示当前 v2.3.2。
 
 设置页的六个分区由 `tests/e2e/settings.py` 在桌面与手机、浅色与深色下逐一审计；访问与安全分区还包含 MCP Key 的一次性明文展示与元数据列表，助手分区同时验证最大输出 Token 的输入、保存和回读。
 
@@ -57,7 +57,7 @@ assets/
 1. 外壳（`assets/app/shell.js`）按页面登记表的 `workbench` 字段给 `.content` 切 `.is-workbench` 类，由各页契约登记：
    `questions` / `feedback` / `create` / `board` / `instant` / `assistant` / `ai-review`。
 2. `assets/app/styles/shell.css` 在大于 1160px 时让 `.content.is-workbench` 变成
-   `height:100vh; overflow:hidden` 的 flex 列，`.topbar` 不收缩，`.panel.active` 拿走剩余高度。
+   `height:100dvh; overflow:hidden` 的 flex 列（保留 `100vh` 回退），`.topbar` 不收缩，`.panel.active` 拿走剩余高度。
 3. 各页把自己的滚动容器标成 `flex:1; min-height:0; overflow-y:auto`。
 
 因此高度是从 `.content` 一路分下去的，**不再出现 `calc(100vh - 魔数)`**；页头加减工具栏无需重算。
@@ -72,7 +72,7 @@ assets/
 
 配套：题库表头 `position:sticky; top:0`，列表再长表头也在；抽屉不 sticky（父级已经限高，自己滚）。
 
-**只在 ≥1161px 生效**。窄屏沿用原有响应式：反馈工作台仍走 1160 / 820 两档重排，
+**公共规则只在大于1160px生效**。展示板在自身 `board.css` 的大于760px规则中补齐外壳和活动面板的同一条高度链，适配中等宽度浮窗；该规则只在展示板活动时生效。其它页窄屏沿用原有响应式：反馈工作台仍走 1160 / 820 两档重排，
 题库抽屉 ≤1160 落到列表上方，都不受影响。
 
 改这几页时的注意点：

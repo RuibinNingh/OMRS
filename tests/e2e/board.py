@@ -14,6 +14,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 _spec = importlib.util.spec_from_file_location("visual_run", os.path.join(ROOT, "tests", "visual", "run.py"))
 visual = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(visual)
+from browser_runtime import open_app
 
 
 def http(port, path, body=None):
@@ -91,7 +92,7 @@ def add_items(page, count):
 
 def run_path(page, base, port, ids, results):
     folder, first, second = ids
-    page.goto(f"{base}/#/board")
+    open_app(page, base, "board")
     page.wait_for_function("() => window.__p8TestReady && window.__omrs && !!document.querySelector('#bd-stage > iframe')", timeout=20000)
     ready = wait(page, "() => boardPreviewIsReady() && boardPreviewLayout()?.pages > 0", 20000)
     shape = page.evaluate("""() => ({
@@ -304,7 +305,7 @@ def run_path(page, base, port, ids, results):
 def conflict_path(page, base, port, results):
     uid = http(port, '/api/stats')['items'][0]['uid']
     created = http(port, '/api/board/create', {'name': '并发冲突验收', 'uids': [uid]})['board']
-    page.goto(base + '/#/board')
+    open_app(page, base, "board")
     page.wait_for_function('() => window.__p8TestReady && !!document.querySelector("#bd-stage > iframe") && boardPreviewIsReady()')
     page.evaluate('(id) => boardLoad(id)', created['id'])
     page.evaluate("async () => configureBoardDetail({ confirm: (await import('/assets/app/ui/dialog.js')).confirm })")
@@ -323,10 +324,69 @@ def conflict_path(page, base, port, results):
     record(results, '用户主动重新读取后展示服务端版本，丢弃动作由网页确认', recovered)
 
 
+def responsive_path(page, base, results):
+    """浮窗跨断点时填满可用高度，内部滚动且保留常驻 iframe。"""
+    open_app(page, base, "board")
+    page.wait_for_function("() => window.__p8TestReady && boardPreviewIsReady()", timeout=20000)
+    board_row(page, "E2E 甲").locator(".brd-item__main").click()
+    page.wait_for_function("() => document.querySelector('.brd-title')?.textContent === 'E2E 甲'")
+    page.evaluate("() => { window.__responsiveFrame = document.querySelector('#bd-stage > iframe'); }")
+    sizes = ((1440, 900), (1161, 700), (1160, 700), (1000, 700), (761, 700),
+             (760, 700), (390, 844), (1000, 900), (1000, 480))
+    for width, height in sizes:
+        page.set_viewport_size({"width": width, "height": height})
+        page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
+        box = page.evaluate("""() => {
+          const rect = selector => document.querySelector(selector).getBoundingClientRect();
+          const board = rect('.brd'), stage = rect('#bd-stage'), questions = rect('.brd-questions');
+          return { boardBottom: board.bottom, stageBottom: stage.bottom, stageHeight: stage.height,
+            questionsTop: questions.top, questionsBottom: questions.bottom, stageTop: stage.top,
+            frameKept: document.querySelector('#bd-stage > iframe') === window.__responsiveFrame,
+            overflow: document.documentElement.scrollWidth > innerWidth + 1,
+            pageHeight: document.documentElement.scrollHeight };
+        }""")
+        if width > 760:
+            fits = (abs(box["boardBottom"] - height) <= 1
+                    and abs(box["stageBottom"] - box["boardBottom"]) <= 1
+                    and abs(box["questionsBottom"] - box["boardBottom"]) <= 1
+                    and box["stageHeight"] > height / 2 and box["pageHeight"] <= height + 1)
+        else:
+            fits = box["questionsTop"] > box["stageTop"] and box["stageHeight"] >= 374
+        record(results, f"连续缩放 {width}×{height}：高度、滚动边界与常驻 iframe",
+               fits and box["frameKept"] and not box["overflow"], box)
+
+    # 480px 高的浮窗中列表确实溢出，最后一题和详情底部仍能滚到。
+    scroll_list = page.evaluate("""() => {
+      const body = document.querySelector('#bd-content-body'); body.scrollTop = body.scrollHeight;
+      const last = body.querySelector('.brd-row:last-child').getBoundingClientRect();
+      return body.scrollTop > 0 && Math.abs(body.scrollTop + body.clientHeight - body.scrollHeight) <= 1
+        && last.bottom <= body.getBoundingClientRect().bottom + 1;
+    }""")
+    record(results, "矮浮窗：题目列表能滚到最后一题", scroll_list)
+    page.locator('.brd-row__uid').first.click()
+    page.wait_for_selector('#bd-inspector [data-qv-host] .qv')
+    scroll_detail = page.evaluate("""() => {
+      const body = document.querySelector('.brd-detail-body'); body.scrollTop = body.scrollHeight;
+      const foot = document.querySelector('.brd-detail-foot').getBoundingClientRect();
+      const questions = document.querySelector('.brd-questions').getBoundingClientRect();
+      return getComputedStyle(body).overflowY === 'auto' && body.scrollTop > 0
+        && Math.abs(body.scrollTop + body.clientHeight - body.scrollHeight) <= 1
+        && foot.height > 0 && foot.bottom <= questions.bottom + 1;
+    }""")
+    record(results, "矮浮窗：详情能滚到底且操作脚常驻", scroll_detail)
+    page.locator('[data-action="board.back"]').click()
+    page.set_viewport_size({"width": 1000, "height": 700})
+    for route in ("questions", "feedback"):
+        page.evaluate("route => window.__omrs.router.go(route)", route)
+        page.wait_for_selector(f'#panel-{route}.active')
+        record(results, f"中宽窗口切到 {route}：保留该页原有外壳布局",
+               page.evaluate("() => getComputedStyle(document.querySelector('.content')).display === 'block'"))
+
+
 def audit(page, base, theme, size, results):
     page.set_viewport_size({"width": size[0], "height": size[1]})
     page.add_init_script(f"try{{localStorage.setItem('omrs-theme','{theme}')}}catch(e){{}}")
-    page.goto(f"{base}/#/board")
+    open_app(page, base, "board")
     wait(page, "() => !!document.querySelector('#bd-stage > iframe')")
     data = page.evaluate("""() => {
       const root=document.querySelector('#panel-board .brd'), stage=root.querySelector('#bd-stage');
@@ -384,9 +444,20 @@ def main():
                 record(results, "主路径中途出错", False, str(error).splitlines()[0])
             record(results, "主路径页面脚本错误为 0", not errors, "; ".join(errors[:3]))
             ctx.close()
+            responsive = browser.new_context(viewport={"width": 1440, "height": 900})
+            responsive.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
+            responsive_page = responsive.new_page()
+            responsive_errors = []
+            responsive_page.on("pageerror", lambda error: responsive_errors.append(str(error)))
+            try:
+                responsive_path(responsive_page, base, results)
+            except Exception as error:
+                record(results, "浮窗响应式路径中途出错", False, str(error).splitlines()[0])
+            record(results, "浮窗响应式路径脚本错误为 0", not responsive_errors)
+            responsive.close()
             colors = {}
             for theme in ("light", "dark"):
-                for size in ((1440, 900), (390, 844)):
+                for size in ((1440, 900), (1000, 700), (390, 844)):
                     c = browser.new_context()
                     colors[(theme, size[0])] = audit(c.new_page(), base, theme, size, results)
                     c.close()

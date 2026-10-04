@@ -94,6 +94,9 @@
   body:has(#panel-board.active) .sidebar-nav .tab { justify-content: center; padding: 0; }
   body:has(#panel-board.active) .sidebar-nav .tab span, body:has(#panel-board.active) .sidebar-foot { display: none; }
   body:has(#panel-board.active) .content { padding: 0; }
+  /* 展示板从此断点起并排；同步补齐外壳到面板的高度，覆盖 760–1160px 浮窗。 */
+  body:has(#panel-board.active) .content.is-workbench { display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; }
+  .content.is-workbench > #panel-board.active { display: flex; flex: 1; flex-direction: column; min-height: 0; }
   body:has(#panel-board.active) .content > .topbar { display: none; }
   body:has(#panel-board.active) .brd { border: 0; border-radius: 0; }
 }

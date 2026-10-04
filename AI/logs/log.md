@@ -4,6 +4,7 @@
 
 - [2026-10-04_public-web-load](2026-10-04_public-web-load.md)：公网首屏与刷新加载优化
 - [2026-10-04_public-web-load-release](2026-10-04_public-web-load-release.md)：公网加载优化 v2.3.1 生产发布
+- [2026-10-04_board-window-height](2026-10-04_board-window-height.md)：展示板浮窗高度修复与 v2.3.2 发布
 - [2026-10-03_omrs-v220-production](2026-10-03_omrs-v220-production.md)：OMRS v2.2.0 生产部署与 GitHub 推送
 - [2026-10-03_mcp-review-sessions](2026-10-03_mcp-review-sessions.md)：MCP 正式复习调度
 - [2026-10-03_mcp-review-sessions-production](2026-10-03_mcp-review-sessions-production.md)：MCP 正式复习调度生产发布
