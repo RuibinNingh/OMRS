@@ -311,7 +311,9 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 首次访问 `/` 或 `/login` 时返回独立的锁屏入口（不加载工作台静态资源，也不读取题库数据）。入口调用公开的 `GET /api/auth/session` 判断是否显示 PIN 表单；启用 PIN 时提交 `POST /api/auth/login`，未启用 PIN 且当前来源有权限时点击进入。入口视觉资源按需加载 `assets/vendor/entry-scene.js`、公式 atlas 与降级主视觉，不改变 API 契约。入口成功后回到带当前进程 handoff token 的同源 `?unlocked=1` 地址，再由常规授权检查放行并返回 `omrs_dashboard.html`；工作台 HTML 响应带 `Cache-Control: no-store`，Hash 路由会保留。配置了 PIN 时本机的 `?unlocked=1` 也需要 PIN 会话；未登录远端返回 302 或 401。
 
 ### `/assets/<file>`
-通用静态资源路由（`_serve_asset()`），提供 `assets/` 下的样式与脚本（css/js/图片等），含路径穿越防护。content-type 按扩展名取自 `_ASSET_TYPES`：css、js 与 mjs（ES 模块要求 JavaScript 类型）、html（组件陈列页 `assets/app/gallery.html`）、svg、png、jpg、gif、ico、json、map、woff、woff2；表外扩展名按 `application/octet-stream` 返回。响应带弱 `ETag`（文件 mtime 与大小）与 `Last-Modified`，`Cache-Control: no-cache`；请求带匹配的 `If-None-Match`（弱比较，支持逗号列表与 `*`）或不早于文件修改时间的 `If-Modified-Since` 时回 304、不发正文；两者都带时以 `If-None-Match` 为准。原 `/omrs_dashboard.js` 路由已移除（脚本已拆分到 `assets/`）。
+通用静态资源路由（`_serve_asset()`），提供 `assets/` 下的样式与脚本（css/js/图片等），拒绝路径穿越和指向资源树外的符号链接。content-type 按扩展名取自 `_ASSET_TYPES`：css、js 与 mjs（ES 模块要求 JavaScript 类型）、html（组件陈列页 `assets/app/gallery.html`）、svg、png、jpg、gif、ico、json、map、woff、woff2；表外扩展名按 `application/octet-stream` 返回。原 `/assets/<路径>` 带弱 `ETag`（文件 mtime 与大小）、`Last-Modified` 与 `Cache-Control: no-cache`；匹配的 `If-None-Match`（弱比较，支持逗号列表与 `*`）或不早于修改时间的 `If-Modified-Since` 返回无正文 304，两者都有时以前者为准。
+
+主工作台和独立页面的 HTML 由 `omrs/web_assets.py` 将资源引用改为 `/assets/_v/<内容指纹>/<路径>`，浏览器相对 import 与字体地址沿用同一版本目录。版本来自完整资源树内容与生成器源码的 SHA256；HTML 每次请求复核资源内容，同大小、同时间戳的改动也产生新版本。匹配当前快照的版本资源返回 `Cache-Control: private, max-age=31536000, immutable`；未知版本、文件改变或缺失返回 404，重新加载 HTML 即取得当前地址。版本路径仍经过普通 Web 鉴权，HTML 保持 `no-store`。版本化 `app/styles/index.css` 递归合并既有 CSS import 并保留 @layer；其 ETag 使用整个资源版本，仅按入口 Last-Modified 的请求不返回 304。文本 gzip 协商见 `AI/api.md`。
 
 服务端是白名单静态路由：除 `/`、`/index.html`、`/assets/` 和明确 API 端点外，其余路径返回 404，不透传仓库文件；API 响应不主动设置跨域读取头。
 

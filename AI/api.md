@@ -4,7 +4,7 @@
 > - 职责：HTTP 安全、并发、传输及领域接口索引
 > - 入口：`omrs/server.py`、`omrs/http/registry.py`、`omrs/http/`
 > - 不变量：单一注册表分派；POST 先鉴权和读取解析，磁盘段结束后才发送响应
-> - 必跑测试：`tests/test_http_boundaries.py`、`tests/test_security.py`、`tests/test_write_lock.py`
+> - 必跑测试：`tests/test_http_boundaries.py`、`tests/test_security.py`、`tests/test_write_lock.py`、`tests/test_asset_cache.py`、`tests/test_web_assets.py`
 > - 相关：`AI/routes.md`、`AI/security.md`、`AI/agent.md`、`AI/data.md`
 
 默认启动 `python omrs_engine.py --vault <path> serve -p 8471`。普通 Web 使用标准库 HTTP；`OMRSHandler.services` 为领域适配提供服务引用，已有 handler 方法名与服务替换测试接口保持可用。
@@ -21,6 +21,8 @@
 | 内置助手、持久事件与分页 | `AI/agent.md` |
 
 `omrs/http/registry.py` 是方法、路径及领域分派的唯一清单，`tests/check_docs.py --write-routes` 从它生成 `AI/routes.md`。新增路由必须登记注册表及对应分册。HEAD 使用相同 GET 鉴权、路径和资源处理，返回相同状态及响应头但没有正文。
+
+HTML、普通 JSON 与 CSS / JavaScript / SVG 等文本在客户端接受 gzip、正文至少 1KiB 且压缩有收益时返回 `Content-Encoding: gzip`，`Content-Length` 为压缩字节数，协商响应带 `Vary: Accept-Encoding`。登录和 MCP 密钥等 `/api/auth/`、`/api/mcp/` JSON 回执不压缩，图片、字体、视频及下载附件保持原字节。压缩不新增第三方运行依赖；静态缓存和首屏加载见 `AI/frontend/architecture.md` §7 与 `AI/api/queries.md` 的 `/assets/` 条目。
 
 ## 2. 并发与写锁
 

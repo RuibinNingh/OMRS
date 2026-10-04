@@ -2,6 +2,7 @@ import base64
 import datetime
 import email.utils
 import http.server
+import gzip
 import json
 import mmap
 import sqlite3
@@ -22,7 +23,7 @@ from .reports import create_report, delete_report, get_report_html, list_reports
 from . import traincontrol
 from . import security
 from . import locking
-from . import http_io, uploads, vault_lifecycle
+from . import http_io, uploads, vault_lifecycle, web_assets
 from . import boards as board_mod
 from .errors import RequestError
 from .ai_assist import recognize_question, collect_taxonomy
@@ -551,10 +552,12 @@ let disposeScene=()=>{},media=null;function tick(){const now=new Date();clock.te
 fetch("/api/auth/session",{cache:"no-store"}).then(r=>r.json()).then(show).catch(()=>fail("无法读取访问状态，请检查服务是否运行"));enter.onclick=unlock;form.onsubmit=async event=>{event.preventDefault();submit.disabled=true;hint.className="hint";hint.textContent="正在验证…";try{const r=await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({pin:pin.value})});const data=await r.json();if(!r.ok)throw Error(data.msg||"PIN 错误");const state=await(await fetch("/api/auth/session",{cache:"no-store"})).json();if(state.warning_required){alert("当前通过 HTTP 访问，PIN 和会话可能被同一网络中的设备看到。建议使用 HTTPS。");await fetch("/api/auth/warning-ack",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"})}unlock()}catch(error){fail(error.message||"PIN 错误");pin.select();submit.disabled=false}};if(entryBackground.mode==="custom")activateCustom();else showSceneFallback();
 </script></body></html>
 '''.replace("__ENTRY_BACKGROUND__", entry_payload_json).encode("utf-8")
+        page, encoding = self._encode_text(page, "text/html")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(page)))
+        self._encoding_headers(encoding)
         self.end_headers()
         self.wfile.write(page)
 
@@ -584,13 +587,35 @@ fetch("/api/auth/session",{cache:"no-store"}).then(r=>r.json()).then(show).catch
 
     def _json(self, data, code=200):
         body = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+        path = urllib.parse.urlparse(self.path).path
+        # 登录与密钥回执保持原样，凭据不参与压缩。
+        compressible = not path.startswith(("/api/auth/", "/api/mcp/"))
+        body, encoding = self._encode_text(body, "application/json") if compressible else (body, None)
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         if urllib.parse.urlparse(self.path).path.startswith(("/api/mcp/", "/api/runtime/")):
             self.send_header("Cache-Control", "no-store")
+        if compressible:
+            self._encoding_headers(encoding)
         self.end_headers()
         self.wfile.write(body)
+
+    def _encode_text(self, body, content_type, *, cache=False):
+        """协商 gzip，小正文或压缩后反而更大的正文保持原样。"""
+        if content_type not in web_assets.TEXT_TYPES or len(body) < 1024 \
+                or not web_assets.accepts_gzip(self.headers.get("Accept-Encoding", "")):
+            return body, None
+        if cache and len(body) <= 256 * 1024:
+            packed = web_assets.compressed(body)
+        else:
+            packed = gzip.compress(body, compresslevel=6, mtime=0)
+        return (packed, "gzip") if len(packed) < len(body) else (body, None)
+
+    def _encoding_headers(self, encoding):
+        self.send_header("Vary", "Accept-Encoding")
+        if encoding:
+            self.send_header("Content-Encoding", encoding)
 
     def _serve(self, filename, content_type):
         base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -600,6 +625,9 @@ fetch("/api/auth/session",{cache:"no-store"}).then(r=>r.json()).then(show).catch
             return
         with open(file_path, "rb") as file:
             data = file.read()
+        if content_type == "text/html":
+            data = web_assets.ASSETS.document(data)
+        data, encoding = self._encode_text(data, content_type)
         self.send_response(200)
         self.send_header("Content-Type", f"{content_type}; charset=utf-8")
         # The dashboard shell embeds the module entrypoint and its import graph.
@@ -609,6 +637,7 @@ fetch("/api/auth/session",{cache:"no-store"}).then(r=>r.json()).then(show).catch
         if filename.endswith((".html", ".htm")):
             self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(data)))
+        self._encoding_headers(encoding)
         self.end_headers()
         self.wfile.write(data)
 
@@ -629,39 +658,47 @@ fetch("/api/auth/session",{cache:"no-store"}).then(r=>r.json()).then(show).catch
     }
 
     def _serve_asset(self, path):
-        """提供 assets/ 静态资源（css/js/图片等），含路径穿越防护。
-
-        带弱 ETag（mtime_ns + 大小）与 Last-Modified；请求带 If-None-Match / If-Modified-Since 且文件未变时回 304、不发正文。
-        Cache-Control 仍是 no-cache：浏览器每次都来问，但文件没变时只收到一个空的 304。
-        """
-        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        assets_dir = os.path.join(base_dir, "assets")
-        rel = urllib.parse.unquote(path.lstrip("/"))
-        target = os.path.normpath(os.path.join(base_dir, rel))
-        if not (target == assets_dir or target.startswith(assets_dir + os.sep)) \
-                or not os.path.isfile(target):
+        """原地址条件校验；内容版本地址可复用私有缓存，文本协商 gzip。"""
+        resource = web_assets.ASSETS.resolve(path)
+        if resource is None:
             self.send_error(404)
             return
+        target, name, versioned = resource
         ext = os.path.splitext(target)[1].lower()
         ctype = self._ASSET_TYPES.get(ext, "application/octet-stream")
         stat = os.stat(target)
         etag = f'W/"{stat.st_mtime_ns:x}-{stat.st_size:x}"'
+        bundled = versioned and name == "assets/app/styles/index.css"
+        if bundled:
+            etag = f'W/"{web_assets.ASSETS.version}-css"'
         last_modified = email.utils.formatdate(stat.st_mtime, usegmt=True)
-        if self._asset_not_modified(etag, int(stat.st_mtime)):
+        cache_control = "private, max-age=31536000, immutable" if versioned else "no-cache"
+        # 合并样式的更新由完整内容版本判断，不能只看入口文件的 mtime。
+        if self._asset_not_modified(etag, int(stat.st_mtime)) and (not bundled or self.headers.get("If-None-Match") is not None):
             self.send_response(304)
             self.send_header("ETag", etag)
             self.send_header("Last-Modified", last_modified)
-            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Cache-Control", cache_control)
+            self._encoding_headers(None)
             self.end_headers()
             return
-        with open(target, "rb") as file:
-            data = file.read()
+        if bundled:
+            try:
+                data = web_assets.ASSETS.stylesheet(name)
+            except FileNotFoundError:
+                self.send_error(404)
+                return
+        else:
+            with open(target, "rb") as file:
+                data = file.read()
+        data, encoding = self._encode_text(data, ctype, cache=True)
         self.send_response(200)
         self.send_header("Content-Type", f"{ctype}; charset=utf-8")
         self.send_header("Content-Length", str(len(data)))
         self.send_header("ETag", etag)
         self.send_header("Last-Modified", last_modified)
-        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Cache-Control", cache_control)
+        self._encoding_headers(encoding)
         self.end_headers()
         self.wfile.write(data)
 

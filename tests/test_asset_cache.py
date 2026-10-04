@@ -1,6 +1,8 @@
 """/assets/ 静态资源的条件请求：弱 ETag + Last-Modified，文件未变时回 304（v1.21.0 起）。"""
 import http.client
+import gzip
 import os
+import re
 import socketserver
 import tempfile
 import threading
@@ -29,9 +31,9 @@ class AssetCacheTests(unittest.TestCase):
         self.addCleanup(self.server.shutdown)
         self.addCleanup(self.thread.join, 2)
 
-    def get(self, path, headers=None):
+    def get(self, path, headers=None, method="GET"):
         conn = http.client.HTTPConnection("127.0.0.1", self.server.server_address[1])
-        conn.request("GET", path, headers=headers or {})
+        conn.request(method, path, headers=headers or {})
         response = conn.getresponse()
         result = response.status, dict(response.getheaders()), response.read()
         conn.close()
@@ -75,6 +77,63 @@ class AssetCacheTests(unittest.TestCase):
 
     def test_traversal_still_blocked(self):
         self.assertEqual(self.get("/assets/../omrs/server.py")[0], 404)
+
+    def test_gzip_negotiation_and_conditional_request(self):
+        status, headers, plain = self.get(ASSET)
+        self.assertEqual(status, 200)
+        status, packed_headers, packed = self.get(ASSET, {"Accept-Encoding": "br, gzip;q=0.8"})
+        self.assertEqual(status, 200)
+        self.assertEqual(packed_headers["Content-Encoding"], "gzip")
+        self.assertEqual(gzip.decompress(packed), plain)
+        self.assertLess(len(packed), len(plain))
+        self.assertEqual(int(packed_headers["Content-Length"]), len(packed))
+        self.assertEqual(packed_headers["Vary"], "Accept-Encoding")
+        self.assertEqual(packed_headers["ETag"], headers["ETag"])
+        status, cached_headers, body = self.get(ASSET, {"Accept-Encoding": "gzip", "If-None-Match": headers["ETag"]})
+        self.assertEqual((status, body), (304, b""))
+        self.assertEqual(cached_headers["Vary"], "Accept-Encoding")
+        for encoding in ("gzip;q=0, *;q=1", "br", "gzip;q=invalid"):
+            _, identity_headers, body = self.get(ASSET, {"Accept-Encoding": encoding})
+            self.assertNotIn("Content-Encoding", identity_headers)
+            self.assertEqual(body, plain)
+
+    def test_gzip_head_has_get_length_without_body(self):
+        headers = {"Accept-Encoding": "gzip"}
+        _, get_headers, body = self.get(ASSET, headers)
+        status, head_headers, head_body = self.get(ASSET, headers, method="HEAD")
+        self.assertEqual(status, 200)
+        self.assertEqual(head_body, b"")
+        self.assertEqual(head_headers["Content-Encoding"], "gzip")
+        self.assertEqual(int(head_headers["Content-Length"]), len(body))
+        self.assertEqual(head_headers["Content-Length"], get_headers["Content-Length"])
+
+    def test_dashboard_versioned_graph_and_combined_css(self):
+        status, headers, page = self.get("/?unlocked=1", {"Accept-Encoding": "gzip"})
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertEqual(headers["Content-Encoding"], "gzip")
+        page = gzip.decompress(page).decode("utf-8-sig")
+        main = re.search(r'src="(/assets/_v/[a-f0-9]+/app/main.js)"', page).group(1)
+        self.assertIn('rel="modulepreload"', page)
+        _, module_headers, module = self.get(main)
+        self.assertEqual(module_headers["Cache-Control"], "private, max-age=31536000, immutable")
+        self.assertEqual(module, self.get("/assets/app/main.js")[2])
+        prefix = main.removesuffix("app/main.js")
+        status, _, stylesheet = self.get(prefix + "app/styles/index.css")
+        self.assertEqual(status, 200)
+        self.assertNotIn(b"@import", stylesheet)
+        self.assertIn(b"@layer vendor {", stylesheet)
+        self.assertIn(b"@layer ui {", stylesheet)
+        font = re.search(rb'url\("(/assets/_v/[^\x22]+\.woff2)"\)', stylesheet).group(1).decode()
+        self.assertEqual(self.get(font)[0], 200)
+        self.assertEqual(self.get(prefix + "../../omrs/server.py")[0], 404)
+        self.assertEqual(self.get(main.replace("/_v/", "/_v/0", 1))[0], 404)
+
+    def test_versioned_assets_still_require_remote_authorization(self):
+        page = self.get("/?unlocked=1")[2].decode("utf-8-sig")
+        main = re.search(r'src="(/assets/_v/[a-f0-9]+/app/main.js)"', page).group(1)
+        headers = {"Host": "omrs.example", "X-Real-IP": "192.0.2.15", "X-Forwarded-Proto": "https"}
+        self.assertEqual(self.get(main, headers)[0], 401)
 
 
 if __name__ == "__main__":

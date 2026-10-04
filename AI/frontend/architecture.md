@@ -4,7 +4,7 @@
 > - 职责：`assets/app/` 的分层与依赖方向、`core/` 底座（渲染、事件、快捷键、状态、总线、路由、请求、格式化）、页面契约、启动顺序与静态资源缓存
 > - 入口：`assets/app/main.js`、`assets/app/shell.js`、各页 `features/<页>/index.js`、`assets/app/core/router.js`
 > - 不变量：`main.js` 装配外壳与领域服务后启动路由；页面之间不互相 import，联动走 bus；`innerHTML` 只在 `core/dom.js`；旧全局只由 E2E 适配器注入
-> - 必跑测试：`tests/app/core.test.mjs`、`tests/app/run_browser.py`、`tests/e2e/shell_router.py`、`tests/test_asset_cache.py`
+> - 必跑测试：`tests/app/core.test.mjs`、`tests/app/run_browser.py`、`tests/e2e/shell_router.py`、`tests/test_asset_cache.py`、`tests/test_web_assets.py`
 > - 相关：`AI/frontend/components.md`（ui 组件与 gallery）、`AI/frontend/shell.md`（外壳、加载顺序）、`AI/frontend/design-system.md`（token 与门禁）
 
 ## 1. 目录与依赖方向
@@ -91,7 +91,11 @@ assets/app/
 
 ## 7. 静态资源缓存
 
-`/assets/` 响应带弱 ETag（文件 mtime + 大小）与 `Last-Modified`，使用 `Cache-Control: no-cache`：浏览器每次会重新验证，文件没变时收到空的 304。模块间的 import 不带 `?v=`，由资源校验处理更新；`omrs_dashboard.html` 直接引用的样式、主模块和图标仍带各自的 `?v=`。锁屏入口的 WebGL 场景实现、公式 atlas 和降级主视觉放在 `assets/vendor/entry-*`，由入口页按需加载，不进入应用层依赖检查。
+源码仍是无构建的原生 ES Module。`omrs/web_assets.py` 在主工作台和独立页面 HTML 响应中将 `assets/` 的资源引用替换为 `/assets/_v/<内容指纹>/...`，相对 import 自然沿用同一目录，无需改写模块源码。HTML 保持 `no-store`，每次请求复核资源树；文件内容变化产生新指纹，当前版本的资源使用一年私有 immutable 缓存。直接访问原 `/assets/` 地址仍使用弱 ETag（文件 mtime + 大小）、`Last-Modified` 和 `no-cache` 条件校验。未知版本及版本内已改文件返回 404，刷新 HTML 取得新版本。
+
+服务端沿入口静态 import / re-export 依赖图注入 `modulepreload`，减少浏览器逐层发现模块的等待。版本化主样式 `app/styles/index.css` 在内存递归合并 import，保留原来的顺序、@layer 嵌套与字体 URL；独立样式和源码文件保持原样。HTML、静态文本和普通 JSON 按需协商 gzip；静态压缩缓存最多 128 份，每份原文最多 256KiB，用户接口正文不进入此缓存。资源版本、合并样式与模块图都随快照更新失效，入口文件未变而依赖变化也会换版本。
+
+锁屏入口的 WebGL 场景实现、公式 atlas 和降级主视觉放在 `assets/vendor/entry-*`，由入口页按需加载，不进入应用层依赖检查；公开授权仍只允许原有三个确切资源地址。锁屏 HTML 与文本资源可协商 gzip。`tests/bench_web_load.py` 用临时 Vault 和真实 Chromium 模拟网络延迟 / 带宽，分别记录冷启动及真实 reload 的就绪耗时、请求数、传输量与缓存命中；计时结果是测量数据，不设固定耗时门禁。
 
 ## 8. 审核中心、草稿与录入页状态
 
