@@ -3,6 +3,7 @@
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
 - [2026-10-04_public-web-load](2026-10-04_public-web-load.md)：公网首屏与刷新加载优化
+- [2026-10-04_public-web-load-release](2026-10-04_public-web-load-release.md)：公网加载优化 v2.3.1 生产发布
 - [2026-10-03_omrs-v220-production](2026-10-03_omrs-v220-production.md)：OMRS v2.2.0 生产部署与 GitHub 推送
 - [2026-10-03_mcp-review-sessions](2026-10-03_mcp-review-sessions.md)：MCP 正式复习调度
 - [2026-10-03_mcp-review-sessions-production](2026-10-03_mcp-review-sessions-production.md)：MCP 正式复习调度生产发布
