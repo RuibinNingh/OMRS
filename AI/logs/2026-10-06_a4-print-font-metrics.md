@@ -39,4 +39,12 @@
 
 ## 发布
 
-用户已明确授权生产部署与 GitHub 提交。待门禁完成后从精确 Git 归档创建独立 release、保全现有 Vault 与主服务 drop-in，复用既有 venv；切换后核验业务事实、资源、版本与公网权限，再推送 main。
+用户已明确授权生产部署与 GitHub 提交。代码提交 `9785fa4c474dbe9e0431c609c6fbf4e7225f0135`（v2.3.3），从该提交的精确 Git 归档创建 `/root/workspace/apps/releases/omrs-9785fa4`，1,249 个源码文件逐字节验证，复用既有 `.venv`，未升级依赖。
+
+精确 release 的既有 venv 跑资源/HTTP/安全/MCP/备份/字体85项，零跳过；同一源码的 A4 Chromium/PDF5项与复习调度真实服务E2E46项全通过。验证日志进入私人发布保全。测试清除生产控制环境变量且使用临时 Vault，不接真实题库。
+
+生产保全 `/root/workspace/apps/releases/OMRS-v233-release-20261006T143113Z-klg1pdvf/` 目录0700、文件0600，含源码 tar、停服一致 Vault/maintenance tar、旧 unit/drop-in、部署脚本、私人表/文件对照与 SHA 清单。tar 比较通过。仅原子替换主服务 drop-in 三处 release 路径并重启主服务；真实 Vault、端口、公网 URL、PIN/Key、Nginx、Tunnel、检测服务及模型指针/控制文件均保持。
+
+2026-10-06 22:33 CST 主服务就绪：v2.3.3，PID525179，active/running、NRestarts=0；切换2.723秒。48张原业务表原行/列保持，828个原文件SHA一致，题目262、待审0。生产生成固定字体 CSS 成功，版本化资源与gzip/304正确；公网入口200，未授权 status/审核/MCP/主模块均401。本次没有在生产创建验收题目、Key或执行测试业务写。
+
+GitHub main 推送在发布记录提交后执行；最终远端提交核对结果留在交付说明。旧 release 与备份保留，代码恢复使用兼容当前数据契约的版本，不能用旧 Vault 覆盖新事实。
