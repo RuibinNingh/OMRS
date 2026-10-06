@@ -29,6 +29,7 @@ from .sessions import get_session
 from .data_repository import mastery_rows, resolve_question
 from .vault_lifecycle import lease
 from .locking import write_lock
+from .export_fonts import inline_print_fonts
 
 
 QUESTION_SECTION = "题目"
@@ -565,6 +566,9 @@ def _build_html(data, variant):
     variant = "screen" if variant == "screen" else "a4"
     css = _read_template(f"{variant}.css")
     js = _read_template(f"{variant}.js")
+    if variant == "a4":
+        css = inline_print_fonts(data) + "\n" + css
+        js = _read_template("a4-layout.js") + "\n" + js
     katex_css, katex_js = _read_katex_bundle()
     body = _SCREEN_BODY if variant == "screen" else _A4_BODY
     title = "OMRS 错题本 · 屏幕版" if variant == "screen" else "OMRS 错题本 · A4 打印版"

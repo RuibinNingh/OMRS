@@ -255,7 +255,8 @@
 | `omrs/config_repository.py`、活动配置与调参重算 | `AI/data.md`、`AI/ledger.md`、`AI/algorithm.md` |
 | `omrs/inbox_commit.py`、`omrs/creation_operation.py`、逐卡创建回执 | `AI/inbox.md`、`AI/data.md`，接口变化同时更新 `AI/api.md` |
 | CSV、Ledger、Markdown、配置或持久化格式 | `AI/data.md`、必要时 `AI/ledger.md` |
-| `omrs/exporting.py`、`omrs/export_templates/`、导出入口 | `AI/export.md`，接口变化同时更新 `AI/api.md` |
+| `omrs/exporting.py`、`omrs/export_fonts.py`、`omrs/export_templates/`、导出入口 | `AI/export.md`，接口变化同时更新 `AI/api.md` |
+| `assets/vendor/fonts/` | `AI/export.md`、`AI/frontend/design-system.md`；来源与许可同时维护字体目录 README 与 manifest |
 | `assets/`、`omrs_dashboard.html`、前端交互 | `AI/frontend/` 下对应页面的分册（新增分册时同步 `AI/frontend.md` 索引） |
 | `assets/app/styles/`、设计 token、`tests/check_ui.py`、`tests/check_contrast.py` | `AI/frontend/design-system.md` |
 | `assets/app/ui/`、`assets/app/gallery.html`、`tests/app/browser_tests.js` | `AI/frontend/components.md` |

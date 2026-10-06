@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-10-06_a4-print-font-metrics](2026-10-06_a4-print-font-metrics.md)：A4 打印字体与栏底复核
 - [2026-10-04_public-web-load](2026-10-04_public-web-load.md)：公网首屏与刷新加载优化
 - [2026-10-04_public-web-load-release](2026-10-04_public-web-load-release.md)：公网加载优化 v2.3.1 生产发布
 - [2026-10-04_board-window-height](2026-10-04_board-window-height.md)：展示板浮窗高度修复与 v2.3.2 发布

@@ -23,6 +23,8 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 - `features` 层包含题库、即时练习、反馈、仪表盘、数据复盘、复习调度、展示板、历史、目录、报告、设置、录入、助手与审核中心页面样式。展示板拆成外框、目录树、题目面板、浮层和对话框；录入页拆成工作区、处理、题卡与训练样式；草稿样式和新的公共队列 / 对照样式均位于 `features/ai-review/`。设置页的 MCP 区域单独放在 `features/settings/mcp-keys.css`，在通用设置样式后以 `layer(features)` 导入；窗口复用共享对话框，按钮、输入和图标沿用现有组件与 token，有效状态使用成功语义色，失效记录使用中性色。审核中心前后对照使用既有 surface / success 语义 token，移动端改上下阅读；各页使用语义色与控件尺度，数据图表用 `data-tone` 映射状态 token。
 - 同一行的控件使用同一档高度（§3 的 `--ctl-*`）。仪表盘的「今天」数字用 `--text-display`；热力格四档颜色由 `color-mix` 基于 `--success` 与 `--surface-1` 派生。
 
+主工作台继续通过 `assets/vendor/fonts/fonts.css` 加载 Noto Sans SC 与 JetBrains Mono。新增 `noto-serif-sc.css` 仅供 A4 导出由 `omrs/export_fonts.py` 按内容内嵌，不加入工作台样式入口；打印字体、固定行高及重排契约见 `AI/export.md`。字体目录维护上游分片、SIL OFL 许可和来源 SHA256 清单。
+
 ## 2. 语义 token
 
 浅色写在 `:root`，深色写在 `[data-theme="dark"]`，两者名字一致。`data-theme` 与 `data-density` 都挂在 `<html>` 上。

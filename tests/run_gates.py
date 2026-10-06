@@ -25,6 +25,7 @@ def gates(ref, dataset=None, *, upgrade_ref='17d6d84'):
         ('ui','node',['node','--test',*[str(p.relative_to(ROOT)) for p in sorted((ROOT/'tests/app').glob('*.test.mjs'))]]),
         ('ui','components',[py,'tests/app/run_browser.py']),
         ('ui','print',[py,'-m','unittest','tests.smoke_board_print','-q']),
+        ('ui','print-a4',[py,'-m','unittest','tests.smoke_a4_print','-q']),
         ('ui','discipline',[py,'tests/check_ui.py']),
         ('ui','contrast',[py,'tests/check_contrast.py']),
     ]

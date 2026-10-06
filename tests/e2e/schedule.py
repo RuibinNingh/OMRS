@@ -10,6 +10,7 @@
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -279,6 +280,22 @@ def run_export(page, base, port, results):
         page.click('[data-action="schedule.xexport"]')
         page.click("dialog[open] [data-dialog-cancel]:not(.ui-dialog__close)")
     check("A4：先问单 / 双栏（选单栏也导出），文件名带 a4", "a4" in info.value.suggested_filename, info.value.suggested_filename)
+    with tempfile.TemporaryDirectory(prefix="omrs-schedule-a4-") as output:
+        path = os.path.join(output, "a4.html")
+        info.value.save_as(path)
+        printed = page.context.new_page()
+        try:
+            printed.goto("file://" + path)
+            printed.wait_for_function("window.__OMRS_RESULT?.errors?.length || !document.getElementById('btnPrint').disabled")
+            layout = printed.evaluate("window.__OMRS_RESULT")
+            overflow = printed.evaluate("""() => [...document.querySelectorAll('.col')].some(col =>
+                [...col.children].some(node => node.getBoundingClientRect().bottom > col.getBoundingClientRect().bottom + .03))""")
+            pdf = printed.pdf(prefer_css_page_size=True)
+            check("下载的 A4 离线打开：字体就绪、无栏底溢出、PDF 页数一致",
+                  not layout["errors"] and not overflow and not printed.locator("#btnPrint").is_disabled()
+                  and len(re.findall(rb"/Type /Page\b", pdf)) == layout["pages"], layout)
+        finally:
+            printed.close()
     page.route("**/api/export", lambda r: r.fulfill(status=400, content_type="application/json", body='{"msg":"题目不存在"}'))
     page.click("#export-variant-screen")
     page.click('[data-action="schedule.xexport"]')

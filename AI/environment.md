@@ -37,6 +37,8 @@ v2.2.0存储迁移后不能仅回退v2.1.0代码，也不能用旧归档覆盖�
 
 实际生产只读核验确认版本化模块返回私有immutable缓存、gzip字节解压后与release一致，主样式合并且条件请求304保持。公网入口与公开场景脚本实际gzip返回200，未登录的status、审核API、MCP和版本化工作台模块均返回401。未在生产创建验收Key或执行测试业务写，未使用真实付费模型；完整公网工作台计时、生产PIN浏览器、ChatGPT账户联调及Windows实机仍待验证。
 
+A4 固定字体与打印复核的隔离门禁为 `python3 -m unittest tests.test_export_fonts tests.smoke_a4_print -q`；统一门禁新增 `print-a4`。浏览器用合成题目验证单/双栏、离线 PDF、打印媒体行高变化、resize、超高公式与提前打印；`tests/e2e/schedule.py` 另走真实服务下载并打开 A4。临时实例移除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`；Windows Edge 实机须另验。
+
 ## 2. Claude Code Web 实测能力（2026-09-24）
 
 - **系统**：Ubuntu 24.04.4，1 核 CPU、4GB 内存；Python 3.12.3，Node 22.22.2 / npm 10.9.7，git 2.43.0。

@@ -2,9 +2,9 @@
 
 > **速查**
 > - 职责：A4、屏幕版与展示板的自包含 HTML 导出
-> - 入口：`omrs/exporting.py`、`omrs/export_templates/`
+> - 入口：`omrs/exporting.py`、`omrs/export_fonts.py`、`omrs/export_templates/`
 > - 不变量：导出为单文件自包含 HTML；后端只产结构化数据与模板，版面、切片与公式渲染交给浏览器
-> - 必跑测试：`tests/test_board_export.py`、`tests/test_report_export.py`、`tests/smoke_board_print.py`
+> - 必跑测试：`tests/test_board_export.py`、`tests/test_report_export.py`、`tests/test_export_fonts.py`、`tests/smoke_a4_print.py`、`tests/smoke_board_print.py`
 > - 相关：`AI/board.md`、`AI/api.md`
 
 错题清单导出为**自包含 HTML**（图片、KaTeX 资源均内联，单文件可拷给任何带浏览器的设备）。三种入口为：**A4 打印版**、**展示板打印版**（左题右空）与**屏幕版**（手机/平板上的全屏卡片复习 App，可判对错、打分、记录进度）。复习调度工作台的已有计划详情可以直接按 Session 导出，并保留原有 A4/屏幕版选择；全题库导出从调度页独立进入。后端只产结构化文字/图片/表格数据与内联模板，**版面、长图切片、公式和表格渲染、作答交互全部交给浏览器**。
@@ -13,7 +13,7 @@
 
 旧 docx 导出长期受两个问题困扰：超长题图被截断、双栏栏底大片留白。根因是 **Word/OOXML 是封闭的版面引擎**——你无法在生成时查询「这一栏还剩多少高度」，于是只能盲切盲排；再加上 **LibreOffice 与 WPS 渲染存在保真度差**，本地预览正常、用户机器上却跑偏。
 
-HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用户最终查看/打印的引擎**——所见即所打印，没有跨渲染器保真度差。长图切片用「读像素找白缝 + overflow 裁切同一张内嵌图」，在浏览器里完成（没有 WPS 那个 `srcRect` 白底涂白 bug，且图只存一份）。**附带收益：基础导出不再依赖 Pillow；Pillow / `jpegtran` 只用于可选图片优化。**
+HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打印**。屏幕缩放、系统字体和打印媒体仍可能改变文字度量，所以 A4 内嵌固定字体并在打印媒体下重新测量，不能假设屏幕与打印天然等高。长图切片用「读像素找白缝 + overflow 裁切同一张内嵌图」，在浏览器里完成（没有 WPS 那个 `srcRect` 白底涂白 bug，且图只存一份）。**附带收益：基础导出不再依赖 Pillow；Pillow / `jpegtran` 只用于可选图片优化。**
 
 ## 后端职责（`omrs/exporting.py`）
 
@@ -21,7 +21,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 1. **读题**：`_load_export_questions()` 从 SQL repository + 题目 `.md` 取题（停用标记为 `1` 的题目在此处跳过）；展示板导出与纸面指纹读取都把文件路径限制在 `错题/` 目录内，越界或损坏路径按缺失处理。
 2. **解析**：`_text_to_blocks()` 把正文转成三种块——非空文字行→`{t:'txt'}`，`![[名]]` / `![](路径)`→`{t:'img'}`，Markdown 表头 + 分隔行 + 数据行→`{t:'table', headers, rows}`。普通换行按文字块顺序保留，模板的题面、答案和备注使用 `white-space: pre-wrap`，不会把 AI 的逐行文本合并；空行不生成无内容块。表格支持 `\|` 转义；对齐冒号会被识别但当前不保留对齐语义，行宽按表头补空或截断。跨行 `$$...$$` 会先合并为单个文字块，不能按行拆散。
 3. **取图**：`_img_payload()` 用 `_find_image()` 定位、`_read_image_info()`（纯 `struct` 解析 PNG/JPEG/GIF 尺寸，无 Pillow）读出宽高，base64 成 data-uri。
-4. **组装**：`_build_export_data()` 产出 `{meta, questions, answers}`。`questions[i].notes` 只带 `关联`，`answers[i].notes` 只带 `错因`——错因会提示解法，不能出现在题面区；`include_answers=false` 时 `answers[i].blocks` 为空数组但 `notes` 照旧，反馈区因此仍能只列错因。`meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联（`_read_katex_bundle()`）。数据 JSON 会做 `</` 转义防提前闭合脚本，最终仍是单个自包含 HTML。
+4. **组装**：`_build_export_data()` 产出 `{meta, questions, answers}`。`questions[i].notes` 只带 `关联`，`answers[i].notes` 只带 `错因`——错因会提示解法，不能出现在题面区；`include_answers=false` 时 `answers[i].blocks` 为空数组但 `notes` 照旧，反馈区因此仍能只列错因。`meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联（`_read_katex_bundle()`）。数据 JSON 会做 `</` 转义防提前闭合脚本，A4 另由 `export_fonts.inline_print_fonts()` 按导出文字选择本地中文字体分片并内联，最终仍是单个自包含 HTML。
 
 对外入口 `export_schedule_artifact(vault, uids, session_id, export_format, include_answers, question_gap_lines=0, a4_two_columns=True)`：
 - `export_format`：`'a4'`（默认）/ `'screen'`；为兼容旧调用，`'docx'`/`'word'`/`'html'`/空 一律按 `a4`。
@@ -33,7 +33,7 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 
 | 文件 | 作用 |
 |---|---|
-| `a4.css` / `a4.js` | A4 打印版样式 + 排版引擎（引擎与应用层合并） |
+| `a4.css` / `a4-layout.js` / `a4.js` | A4 样式、分页引擎、题面构造与打印生命周期（按此顺序内联） |
 | `board.css` / `board.js` | 展示板 A4 左题右空样式、分页与答案附页 |
 | `screen.css` / `screen.js` | 屏幕版样式 + 复习 App 逻辑（卡片/判分/进度/持久化） |
 
@@ -50,13 +50,17 @@ HTML 把这两个问题一起消掉：**浏览器既是排版引擎、又是用�
 - 前端：复习调度「全题库导出」与「已有计划」导出分别用 `#export-question-gap` / `#sch-question-gap` 输入留白行数；`assets/app/features/schedule/exporter.js` 的 `clampGap()` 在发送前做同样的 `0–20` 归一化，请求由 `assets/app/domain/exporting.js` 的 `requestExport()` 发出并下载（v1.25.4 起；屏幕版始终附带答案，A4 先问单 / 双栏）。
 - CLI：`python omrs_engine.py export ... --question-gap-lines N`；默认 `0`。
 
-## A4 排版引擎（`a4.js`，浏览器端）
+## A4 排版引擎（`a4-layout.js` / `a4.js`，浏览器端）
 
-默认几何沿用旧 docx 的 A4、上下 0.5in、左右 0.25in、双栏、栏距 0.5in，栏宽约 `348.85px`（9.23cm）。2026-07-14 起页底另扣 `FOOTER_SAFE = 8.5mm`，有效栏高约 `994.39px`（26.31cm），页码底距为 `32px`，避免浏览器或打印机裁切。维护时必须同步 `a4.js::FOOTER_SAFE/COL_H` 与 `a4.css --col-h`。
+默认几何沿用旧 docx 的 A4、上下 0.5in、左右 0.25in、双栏、栏距 0.5in，栏宽约 `348.85px`（9.23cm）。2026-07-14 起页底另扣 `FOOTER_SAFE = 8.5mm`，有效栏高约 `994.39px`（26.31cm），页码底距为 `32px`，避免浏览器或打印机裁切。CSS 是实际几何来源；`a4-layout.js` 在挂载新页后读取 `.col` 的真实宽高，常量仅用于初始测量容器。
 
 1. **选择栏模式**：`meta.a4_two_columns` 默认为 `true`（双栏），设为 `false` 时**整份** A4 导出切为单栏；前端每次导出 A4 都弹出确认，遇到表格或长公式时提示用户选单栏。引擎不会自行检测表格改变栏模式。表格单元格仍使用 `mathText()` 渲染公式。
 2. **测真实高度、块级防截断与公式续栏**：每个文字、表格和图片块按当前栏宽 `colW` 塞进离屏测量容器，读 `getBoundingClientRect().height`。排版器不把整道题包成不可拆的大块，也不额外预留整题空白；题头、小问、关联等仍按原有内容块顺序尽量填满当前栏。某个块放不下时只把该块完整移到下一栏/页，避免落入固定栏高的裁剪区。若一段含 `$...$` / `$$...$$` 的文字放不进当前栏，排版器会从靠后的公式边界拆开：前缀留在当前栏，公式及后文从下一栏/下一页顶部继续；无公式文字仍整段换栏。
-3. **稳定排版与二次校验**：初次排版等待图片和已有字体，生成含 KaTeX 的 DOM 后再等待 `document.fonts.ready` 与两帧浏览器布局稳定，并用最终数学字体重新排版一次；否则首轮可能用 fallback 字体测量，打印时 KaTeX 字体完成会把栏底内容挤出裁剪区。排版完成后不在 `beforeprint` 或打印媒体变化时重新分页，浏览器预览和打印直接复用同一批固定 A4 页面 DOM，避免两者出现不同版面。屏幕态与打印态只允许改变工具栏、页间距和阴影，不改变 `.page`、`.page-inner`、`.col` 及其内容的尺寸与分页。页面创建后立即挂到 `#stage`，因此测量到的是浏览器真实盒模型高度而非未挂载节点的零高度；每次实际插入后都以元素底边复核是否仍在 `COL_H` 内，放不下就撤回并把当前块移到下一栏/页。`keepNext`（题头/小标题）若落在栏底 `ORPHAN`（56px）内则整体推到下一栏/页。`question-gap` 是普通定高块，仅插在题目之间。
+3. **稳定字体与打印复核**：A4 正文使用内嵌 `OMRS Print Serif`（Noto Serif SC），元信息使用 `OMRS Print Sans`（Noto Sans SC）；标题、题头、元信息和标签均有显式行高。`omrs/export_fonts.py` 保留上游 Unicode 分片，按数据与固定文案选择所需分片，跳过图片 data URI；资源读缓存按文件时间戳和大小失效，只用标准库，不联网或依赖系统 `local()`。WOFF2 与 SIL OFL 许可随 HTML 内嵌，源文件与 SHA256 分别在 `assets/vendor/fonts/PRINT_SOURCES.json` 和既有 `SOURCES.json`。导出件会变大，大小取决于字符覆盖；新增字体仅用于 A4，屏幕版与展示板沿用既有模板。
+
+   初次排版先等待图片和已有字体，生成中文与 KaTeX DOM 后再次等待 `document.fonts.ready` 和两帧，再按最终字体重排。页面先挂到 `#stage`，测量宽度和可用栏高来自当前 DOM；每次插入后用元素底边复核，放不下就撤回换栏。`beforeprint`、打印媒体变化、`afterprint` 均同步重排；窗口 resize 去抖 80ms 后复核，涵盖浏览器缩放。打印媒体与屏幕字体度量不同时允许改变分页，以完整内容为准。`keepNext` 若落在栏底 56px 内则换栏；题间留白仍为普通定高块。
+
+   整份排版最后再查所有栏底。单个公式、表格或文字块超过整栏时，显示排版失败、禁用打印并从打印结果移除纸页，建议改用单栏或调整过高内容；不静默截断。字体失败同样明确报错。字体尚未就绪时用 Ctrl+P，会打印等待提示而非未校验的题面；排版完成后再打印。运行结果 `window.__OMRS_RESULT` 为 `{pages, warnings, errors}`。修复仅进入新生成的 HTML，历史下载件须重新导出。
 4. **长图切片**（核心）：
    - 整张能进当前栏剩余 → 不切。
    - **PACK**（图能进一整栏但进不了当前栏剩余）：仅当能找到干净白缝时，切一片把当前栏填满、余下顺到下一栏；**找不到干净缝就整段顺到下一栏，绝不为填栏切穿内容**。
