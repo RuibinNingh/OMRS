@@ -66,6 +66,8 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 
 主题由 `<html data-theme>` 选择，密度由 `<html data-density>` 选择。改调色板时在 `tokens.css` 维护两套主题值，并运行 §6 的对比度门禁；`tests/check_ui.py --report` 可只读查看页面五项计数。
 
+基础层 `.panel.active` 只控制主面板显隐，整页刷新与路由切换不使用入场动画；弹窗、菜单、提示等组件按自身契约使用共享动效 token。
+
 ## 5. 纪律门禁（`tests/check_ui.py`）
 
 `assets/app/**` 零容忍，规则编号与脚本文件头一致：

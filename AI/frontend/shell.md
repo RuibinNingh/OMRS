@@ -25,7 +25,7 @@ assets/
 
 **加载约定：**
 - `<head>` 先运行 `assets/app/theme-boot.js` 读取主题、密度、侧栏与图片反色偏好；随后加载本地字体、`tokens.css`、`index.css` 和 KaTeX 脚本。`index.css` 用 `@layer` 引入 KaTeX 样式、基础样式、组件、领域与页面样式。
-- 页面底部仅以 `<script type="module">` 加载 `assets/app/main.js`。它安装共享组件，创建外壳和页面路由，连接领域服务，并在初始标签、统计、Session 数据加载后进入当前 hash 页面；详见 `AI/frontend/architecture.md` §2。
+- 页面底部仅以 `<script type="module">` 加载 `assets/app/main.js`。它安装共享组件，创建外壳和页面路由，连接领域服务，先进入当前 hash 页面，再并行读取初始标签、统计与 Session；详见 `AI/frontend/architecture.md` §2。
 - 题目 Markdown 的 HTML 由 `domain/question/markdown.js` 统一生成，`domain/question/qview.css` 提供题面块与换行样式；普通换行默认逐行显示，空行仍分段。题库显示设置可显式切回简略模式，测试见 `tests/app/question.test.mjs`。
 - 后端由 `/assets/<file>` 通用静态路由提供资源（`server.py` → `_serve_asset()`，含路径穿越防护与按扩展名的 content-type）。页面样式放在对应的 `features/<页>/`；外壳样式在 `app/styles/shell.css`，组件样式在 `app/ui/`，颜色与尺度在 `app/styles/tokens.css`。
 
@@ -40,6 +40,7 @@ assets/
 ## 侧栏、顶栏与路由（`assets/app/styles/shell.css`、`assets/app/shell.js`）
 
 - 地址形如 `#/questions`：刷新停在原页，浏览器前进后退可用，页面可以直接用链接打开。路由与页面契约见 `AI/frontend/architecture.md` §3。
+- 主面板显示和浏览器刷新直接呈现内容，不播放整页淡入、位移或缩放；页面自身的加载状态由对应控制器负责。
 - 页面 `<head>` 注册 `assets/app/omrs-favicon.svg` 作为 16–32px 标签页图标，注册 `assets/app/omrs-icon.svg` 作为 48px 以上与触控主屏图标；侧栏左上角 32px 品牌位使用小尺寸图标，旁边保留 OMRS 名称与中文副标题。
 - 侧栏宽 232px，导航项是 `<a class="tab" href="#/页面">`（键盘可达）。当前页：强调浅底、半粗、左侧 3px 指示条，并带 `aria-current="page"`。
 - 侧栏页脚在 `omrs_dashboard.html` 声明当前版本号，与 `omrs/version.py`、根 `README.md` 和 `AI/README.md` 保持同步；运行中 `/api/status` 返回同一版本。发布验证同时核对接口版本与实际页面页脚，版本变更摘要只写在 `AI/changelog.md`。
