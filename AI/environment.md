@@ -15,31 +15,21 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-06 实测）：服务 `omrs.service`，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；有效 systemd drop-in 从 `/root/workspace/apps/releases/omrs-9785fa4` 运行 v2.3.3，来自精确 `9785fa4c474dbe9e0431c609c6fbf4e7225f0135` 的 Git 归档，1,249 个源码文件逐字节校验通过。`.venv` 相对链接继续复用 `/root/workspace/apps/releases/omrs-bbf3757/.venv`，没有安装或升级依赖；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0。真实 Vault 仍是 `/root/workspace/apps/OMRS`。
+生产环境事实（2026-10-08 实测）：主服务 `omrs.service`，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；有效 systemd drop-in 从 `/root/workspace/apps/releases/omrs-b4d0e9c` 运行 v2.3.5，来自精确提交 `b4d0e9c3bbad5450ccbe72ff27eab14b96c8f5bc` 的 Git 归档，1,253 个源码文件逐字节核验。`.venv` 相对链接复用既有生产依赖，没有安装或升级依赖；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0。真实 Vault 仍为 `/root/workspace/apps/OMRS`。
 
-Web监听8471，同进程MCP只监听127.0.0.1:18472；Nginx共用HTTPS8472按路径分流。启动参数公网MCP为 `https://home.ruibin-ningh.top:8472/mcp`，公网Web为 `https://home.ruibin-ningh.top:8472`。PIN已配置；本机API免PIN不能绕过主工作台入口。当前源码提供40个MCP工具，按Key现有权限发现；只读22工具。正式计划创建需omrs:read与session:create，先返回待审操作；改题提案需omrs:read与默认关闭的question:propose。既有Key不自动扩权。
+Web监听8471，同进程MCP仅监听127.0.0.1:18472；Nginx共用HTTPS8472按路径分流。公网MCP为 `https://home.ruibin-ningh.top:8472/mcp`，公网Web为 `https://home.ruibin-ningh.top:8472`。PIN已配置；本机API免PIN不能绕过工作台入口。完整权限发现40个MCP工具，只读22个；Key现有权限决定实际发现范围，正式调度、改题和草稿继续遵守审核契约，既有Key不自动扩权。
 
-当前 v2.3.3 发布保全位于 `/root/workspace/apps/releases/OMRS-v233-release-20261006T143113Z-klg1pdvf/`（目录0700、文件0600），包括精确源码 tar、停服原样归档的完整 `错题/` 与 `.omrs-maintenance/`、旧 unit/drop-in、部署脚本、私人业务表/文件对照、验证日志和 SHA256 清单。tar 比较通过；只替换主服务 drop-in 的三处 release 路径，端口、公网 URL、Vault 与控制配置保留。原 de1e62d release、依赖和既有保全均保留，不用旧 Vault 归档覆盖当前新增事实。
+最新发布保全在 `/root/workspace/apps/releases/OMRS-v235-release-20261007T155900Z-eifhp9ji/`（目录0700、文件0600）：精确新旧源码tar、旧unit/drop-in及控制配置、一致Vault/maintenance tar、私人表/文件摘要、校验清单及验证证据。停服备份与原目录比较通过，891个解包文件逐字节一致，副本SQLite完整性通过。49张业务表和838个内容/关键配置文件在切换后及后续只读核验中保持；当前266题、0冲突、待审0。
 
-v2.3.2历史发布保全位于 `/root/workspace/apps/releases/OMRS-v232-release-20261004T085918Z-mazifnus/`（目录0700、文件0600），含停服原样归档的完整 `错题/` 与 `.omrs-maintenance/`、旧unit/drop-in、精确源码归档、部署脚本、私人业务表/文件对照和SHA清单；tar比较通过。代码切换只替换主服务drop-in的三处release路径，端口、公网URL及控制配置保持。旧b466c58 / de10022 / b41a65a release、既有保全与共享依赖仍保留。
+只替换主服务drop-in的三处release路径。主服务PID154637、active/running、NRestarts=0；2026-10-08 00:00 CST切换和核验4.406秒。Tunnel PID875442、检测服务PID1532134及Nginx状态保持，端口、公网URL、Vault、PIN、Key、模型与控制配置保持。旧 `omrs-4f21255`、早期release、依赖和既有保全保留；恢复只处理源码，不用旧Vault覆盖上线后的新增事实。
 
-v2.3.0保全仍位于 `/root/workspace/apps/releases/OMRS-v230-release-20261003T092803Z-6u51wcwh/`。当前v2.3.3沿用其数据库契约，不新增schema迁移；恢复仍须保全当前数据，不以旧Vault归档覆盖上线新增事实。
+精确release及既有venv的资源/HTTP/安全/MCP下载专项35项与刷新浏览器56项通过，无跳过；开发候选另通过Node449项、组件34项、外壳24项、草稿块59项、训练草稿24项、UI纪律与58组对比度。三页双主题双宽度的12组视觉比较仅桌面侧栏版本文字有0.001%–0.002%差异，手机无差异。刷新动态过程由保留正文/裁图节点、滚动、焦点、失败重试与未保存输入的真实浏览器回归验证，临时实例不访问真实题库。
 
-v2.3.0的新权限scope、JSON/YAML编码、统一审批与正式题目journal使直接旧码写入存在契约风险。发布后恢复须保留最新数据，使用兼容当前数据的修复版本前向恢复；禁止把旧Vault归档覆盖上线后新增事实，不能仅恢复旧drop-in便当作安全降级。
+生产本机接口实际返回v2.3.5，三项修复资源gzip读取200且包含新逻辑；基础CSS响应与release源码逐字节一致。公网入口与授权摘要200，匿名status/MCP401，回环MCP无Key401；主服务错误级journal无记录。没有在生产执行测试业务写、创建验收Key或真实付费模型调用。生产PIN后的浏览器页面、ChatGPT账户、Windows和实体手机未验收；本批界面主路径在隔离Chromium的桌面与手机视口验证。
 
-最新历史正文补回保全位于 `/root/workspace/apps/releases/OMRS-content-recovery-20261003T010842Z-uvv8l1w4/`（目录0700、文件0600），含一致ZIP、两次停写原库、私有正文清单、来源和逐字段核验。原升级保全OMRS-v220-upgrade-20261003T003307Z及旧release仍保留。当前1个归档身份、262活动题、零冲突；269个原正文blob与15个核验补回版本均可取回，六个实库的原业务行及1,203助手事件保留。48个首次正文快照前的历史版本仍缺原文，当前题目正文完整。
+当前v2.3.5不改变数据库结构或持久化契约。正式题目journal与统一审批恢复继续保持最新数据；跨旧存储版本不能只恢复旧drop-in或旧Vault。原正文恢复保全及私人清单仍保留，当前正文可用性与历史缺口的规范见 `ledger.md` §10；禁止提交正文、私人路径清单和数据库。
 
-v2.2.0存储迁移后不能仅回退v2.1.0代码，也不能用旧归档覆盖上线新增事实；保留最新数据并使用兼容当前契约的修复版本前向恢复。具体升级/失败边界及实际生产验收见 `plans/omrs-audit-repair/release.md`。旧release及依赖目录保留。
-
-本机可靠副本中的历史正文可用 `content-recover --manifest <私人清单路径>` 预览，明确加 `--apply` 才补入；不通过它还原当前题目或覆盖原始流水。先取得一致备份，在隔离副本验证所有业务字段和原始事实保持，再按生产授权执行。清单格式、只补缺失、幂等与事务失败边界见 `ledger.md` §10；禁止将正文、私人路径清单或数据库提交到源码仓库。
-
-主服务、`tunnel-client-omrs.service` 和 `omrs-boxdetect.service` 均 active/running、NRestarts=0；主服务 PID525179，Tunnel PID875442，检测 PID1532134。主服务于2026-10-06 22:33 CST完成切换，停服保全至版本就绪为2.723秒；其余服务及 Nginx 未重启，模型 active 指针、管理状态与控制文件 SHA、Nginx 配置、端口、PIN 和 Key 权限均保持。
-
-精确 release 与既有 venv 的资源/HTTP/安全/MCP/备份/字体模块85项通过、无跳过；同一归档的 A4 真实 Chromium/PDF 门禁5项与复习调度 E2E46项通过，全部使用临时 Vault、随机端口或合成离线文件。开发轮813项 Python、7项 pytest、449项 Node、34项浏览器组件、既有展示板打印及 UI/对比度门禁均通过。发布无数据库迁移，停服前后48张业务表全部原行/列和828个原文件SHA一致，活动题262、待审0。调度页4组前后截图仅桌面侧栏版本字样各0.001%差异；A4 附件修复版在80%–200%真实浏览器缩放下9次PDF均保留栏底选项，32个纯文字块逐一核验，PDF肉眼检查通过。
-
-实际生产只读核验确认版本化模块返回私有immutable缓存、gzip字节解压后与release一致，主样式合并且条件请求304保持。公网入口与公开场景脚本实际gzip返回200，未登录的status、审核API、MCP和版本化工作台模块均返回401。未在生产创建验收Key或执行测试业务写，未使用真实付费模型；完整公网工作台计时、生产PIN浏览器、ChatGPT账户联调及Windows实机仍待验证。
-
-A4 固定字体与打印复核的隔离门禁为 `python3 -m unittest tests.test_export_fonts tests.smoke_a4_print -q`；统一门禁新增 `print-a4`。浏览器用合成题目验证单/双栏、离线 PDF、打印媒体行高变化、resize、超高公式与提前打印；`tests/e2e/schedule.py` 另走真实服务下载并打开 A4。临时实例移除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`；Windows Edge 实机须另验。
+A4固定字体与打印门禁为 `python3 -m unittest tests.test_export_fonts tests.smoke_a4_print -q`；统一门禁包含 `print-a4`，下载路径另由 `tests/e2e/schedule.py` 验证。刷新不闪动的隔离门禁为 `python3 tests/e2e/ai_review_refresh.py`。所有测试实例须清除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`，Windows Edge与实体手机须另验。
 
 ## 2. Claude Code Web 实测能力（2026-09-24）
 
@@ -151,7 +141,7 @@ P4 分类和草稿修订路径使用独立的 `tests/fixtures/agent_p4_faux.json
 - **测试实例会重启生产服务。** `/api/restart` 只要在进程环境里看到 `OMRS_SYSTEMD_SERVICE`，就执行 `systemctl restart <该服务>`（见 `omrs/server.py`）。完整模式下启动任何测试实例之前，都先 `unset OMRS_SYSTEMD_SERVICE`；设置页相关的 E2E 用 `page.route` 拦截 `/api/restart`。
 - **Playwright 的 `text=` 是子串匹配。** 它会点中含同样字样的说明文字。按钮一律用 `get_by_role("button", name=..., exact=True)`。
 - **刷新后立即操作会失败。** 普通应用页可用 `tests/browser_runtime.py::open_app` 明确设置入口参数并等待 `window.__omrs`、当前路由与活动面板就绪；入口与 PIN 专项直接访问 `/`，否则点击发生在脚本加载之前。
-- **截图时机。** 面板淡入 0.3s、开关过渡 0.15s，切换后至少等 0.9s 再截图，否则画面发灰或开关状态看起来不对。
+- **截图时机。** 主面板不播放入场动画，仍须等目标数据与字体就绪再截图；开关、菜单和弹窗的局部过渡按组件契约等待，不能用固定延迟代替页面就绪判断。
 - **HTTP 风险提示。** 远端 HTTP 登录会弹一次 `alert`，需要注册 `page.on("dialog", ...)` 自动确认。
 - **中文输出。** `cut -c` 按字节截断会切坏中文，导致整条输出被拒收。要截断时用 Python 按字符处理。
 - **`pkill -f` 会杀掉自己。** 模式串出现在本条命令里时，`pkill -f` 会连同执行它的 shell 一起结束，工具调用返回 -1。按端口查进程时写成 `pgrep -f "[s]erve -p 18471"`，或在启动时记下 PID。

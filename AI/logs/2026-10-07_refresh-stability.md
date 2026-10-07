@@ -25,8 +25,12 @@
 
 ## 发布
 
-文档检查102份、0问题（两条已有超40KB提醒），`git diff --check`通过。发布预检确认模型运行、收件箱、草稿作业、MCP调用及审批均无未终结任务。从本批提交的精确 Git 归档建立 release，复用既有 venv，停主服务做一致保全后只替换主服务源码路径。保全与失败恢复保留当前业务事实，不恢复旧 Vault。上线与 GitHub SHA 结果在完成后补记。
+文档检查102份、0问题（两条已有超40KB提醒），`git diff --check`通过。发布预检确认模型运行、收件箱、草稿作业、MCP调用及审批均无未终结任务。从本批提交的精确 Git 归档建立 release，复用既有 venv，停主服务做一致保全后只替换主服务源码路径。保全与失败恢复保留当前业务事实，不恢复旧 Vault。精确源码提交 `b4d0e9c3bbad5450ccbe72ff27eab14b96c8f5bc` / v2.3.5，release为 `/root/workspace/apps/releases/omrs-b4d0e9c`，1,253文件逐字节一致；既有生产venv的35项专项和56项刷新浏览器再次通过。
+
+2026-10-08 00:00 CST上线，切换与核验4.406秒；一致保全位于 `/root/workspace/apps/releases/OMRS-v235-release-20261007T155900Z-eifhp9ji/`，891解包文件逐字节相等，SQLite副本完整性通过。只替换主服务三处源码路径；主服务PID154637、active/running、NRestarts=0，Tunnel/检测/Nginx状态及控制文件保持。49张原业务表、838个内容和关键配置文件保持，当前266题、0冲突、待审0。
+
+生产只读核验：接口v2.3.5；三项修改资源gzip读取200并包含新逻辑，基础CSS与release源文件相等。公网入口及授权摘要200、匿名status/MCP401，回环MCP无Key401；错误级journal无记录。后续重复核验仍保持49张业务表和838个文件。源码已推送GitHub main，`git ls-remote origin refs/heads/main` 实际返回 `b4d0e9c3bbad5450ccbe72ff27eab14b96c8f5bc`。本日志和环境当前事实随独立文档提交同步，发布运行源码保持该精确提交。
 
 ## 未执行
 
-未使用真实付费模型、未在生产执行题目/草稿写入测试；Windows 与实体手机验收未运行，本批使用真实 Chromium 的手机视口。
+未使用真实付费模型、未在生产执行题目/草稿写入测试。没有真实PIN，未进入生产PIN后的工作台跑浏览器操作；生产验收为接口、资源、数据与服务只读核验。Windows 与实体手机验收未运行，本批使用真实 Chromium 的手机视口。
