@@ -8,6 +8,7 @@ from ..data_repository import storage_write
 from ..errors import RequestError
 from ..question_update import prepare_update, apply_update, validate_patch
 from .common import request_identity
+from .tool_docs import TOOL_DESCRIPTIONS
 
 SCOPES = {'propose_question_update': ('omrs:read', 'question:propose')}
 
@@ -62,5 +63,5 @@ def register(server, vault, require, threaded, web_url):
         return propose(vault, token.client_id, request_id, uid, question_id, expected_content_hash, patch,
                        web_url, lambda: require(vault, SCOPES['propose_question_update']), reason=reason)
     server.add_tool(threaded(propose_question_update), name='propose_question_update',
-                    description='提出正式题目修改，必须先读题取得 question_id 与完整 content_hash；只改题干、答案、错因、补充备注、知识点、难度或已有标记。返回审核中心链接，批准前不写题库。',
+                    description=TOOL_DESCRIPTIONS['propose_question_update'],
                     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False))

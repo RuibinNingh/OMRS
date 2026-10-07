@@ -110,7 +110,7 @@ def run_main(page, base, server, checks):
     page.locator(PANEL + ' [data-action="history.select"]').click()
     check('详情重试清除错误', wait(page, "() => !document.querySelector('#history-system-panel .ui-status--danger')"))
     page.locator(PANEL + ' [data-action="history.openDraft"]').click()
-    page.wait_for_selector('.drf-detail')
+    page.wait_for_selector('.drf-detail [data-action="ai-review.draftCommit"]')
     check('查看草稿跨页定位对应 MCP 草稿', '运行关联验收' in page.locator('.drf-detail').inner_text()
           and '来源：MCP' in page.locator('.drf-detail').inner_text())
     page.click('[data-action="ai-review.draftCommit"]')

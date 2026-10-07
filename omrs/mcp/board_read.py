@@ -4,6 +4,7 @@ from pydantic import Field
 from mcp.types import ToolAnnotations
 from .. import boards, locking
 from .common import RequestError, page
+from .tool_docs import TOOL_DESCRIPTIONS
 
 SCOPES = {'list_boards': 'omrs:read', 'get_board': 'omrs:read'}
 
@@ -23,7 +24,6 @@ def register(server, vault, require, threaded):
             return {**{k: board[k] for k in ('id', 'name', 'note', 'folder_id', 'order', 'revision', 'catalog_revision',
                                             'print', 'printed_summary', 'source_labels', 'created_at', 'updated_at')},
                     **page(board['items'], offset, limit)}
-    for fn, description in ((list_boards, '分页列出展示板，同时返回文件夹和目录版本。'),
-                            (get_board, '分页读取板内题目引用、版式、纸面摘要、板版本及目录版本。')):
-        server.add_tool(threaded(fn), name=fn.__name__, description=description,
+    for fn in (list_boards, get_board):
+        server.add_tool(threaded(fn), name=fn.__name__, description=TOOL_DESCRIPTIONS[fn.__name__],
                         annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))

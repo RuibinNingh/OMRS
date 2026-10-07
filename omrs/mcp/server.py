@@ -41,6 +41,7 @@ from ..agent.tools import read as read_tools
 from ..question_images import read_question_image, validate_original_image
 from .keys import verify_key, key_for_id
 from .common import RequestError
+from .tool_docs import SERVER_INSTRUCTIONS, TOOL_DESCRIPTIONS, apply_parameter_docs
 from . import queries, analysis_reports, draft_edit, board_read, board_write, board_export, session_write, question_write
 
 MAX_IMAGES = 6
@@ -524,7 +525,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
     server = RestrictedMCP(
         "OMRS",
         vault=vault,
-        instructions="按授权查询 OMRS、修订待审核草稿、保存报告与管理展示板。业务写均记录到审核中心；正式复习计划、正式题目修改、删除、清空及纸面重置须网页批准。改题先读取稳定身份与正文哈希，再提出白名单字段补丁；不能自行批准。导出返回限时下载链接。",
+        instructions=SERVER_INSTRUCTIONS,
         token_verifier=MCPTokenVerifier(vault),
         auth=AuthSettings(issuer_url="https://omrs.invalid", resource_server_url=resource_url),
         transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=True,
@@ -715,24 +716,13 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
                 [item["data"] for item in prepared_images])
             return _create_result(vault, draft)
 
-    read_defs = [
-        (list_taxonomy, "list_taxonomy", "列出 OMRS 科目、分类、知识点和标记。"),
-        (search_questions, "search_questions", "按现有助手口径筛选、排序和分页查询题目。"),
-        (get_question, "get_question", "读取题目正文、练习记录、熟练度和复习状态。"),
-        (get_question_image, "get_question_image", "按 get_question.images 的从 0 开始下标读取该题一张完整原图；需要看题图时按需调用。仅返回 PNG/JPEG/GIF 原生图片内容，单张不超过 8 MiB。"),
-        (get_overview, "get_overview", "读取题库概况和薄弱分类。"),
-        (get_recommendations, "get_recommendations", "读取 OMRS 复习推荐，不创建 Session。"),
-        (list_sessions, "list_sessions", "分页读取复习 Session、反馈进度与不可用条目计数，默认 20 项。"),
-        (get_session, "get_session", "读取一个复习 Session 的状态、完整进度及分页稳定题目条目，包含停用、归档与待绑定状态。"),
-        (list_drafts, "list_drafts", "读取当前 Vault 的活动草稿；可用 source=mcp 只列本 MCP 来源。"),
-        (get_draft, "get_draft", "读取草稿内容和完整来源图片的审核信息。"),
-    ]
-    for fn, name, description in read_defs:
-        server.add_tool(_threaded(fn), name=name, description=description,
+    for fn in (list_taxonomy, search_questions, get_question, get_question_image, get_overview,
+               get_recommendations, list_sessions, get_session, list_drafts, get_draft):
+        server.add_tool(_threaded(fn), name=fn.__name__, description=TOOL_DESCRIPTIONS[fn.__name__],
                         structured_output=False if fn is get_question_image else None,
                         annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True,
                                                     openWorldHint=False))
-    server.add_tool(_threaded(create_draft), name="create_draft", description="仅在用户明确要求保存时，创建来源为 MCP 的待审核草稿；不正式入库。images 是完整原图，image 块使用从 0 开始的附件下标，request_id 用于技术重试。",
+    server.add_tool(_threaded(create_draft), name="create_draft", description=TOOL_DESCRIPTIONS['create_draft'],
                     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True,
                                                 openWorldHint=True), meta={"openai/fileParams": ["images"]})
     queries.register(server, vault, _require, _threaded)
@@ -767,6 +757,9 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
             for schema in tool.parameters["properties"].values():
                 if schema.get("type") == "string":
                     schema["maxLength"] = 200
+        apply_parameter_docs(tool)
+        scopes = TOOL_SCOPES[tool.name]
+        tool.description += ' 需要权限：' + ' + '.join((scopes,) if isinstance(scopes, str) else scopes) + '。'
     return server
 
 

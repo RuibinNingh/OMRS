@@ -273,6 +273,72 @@ class MCPProtocolTests(unittest.TestCase):
             self.assertTrue(active_call_completed)
         asyncio.run(run())
 
+    def test_documented_entry_examples_roundtrip_without_losing_sources(self):
+        """真实发现说明，再用公开示例录题；验证原图、重试和草稿生命周期。"""
+        from copy import deepcopy
+        from contextlib import AsyncExitStack
+        from jsonschema import Draft202012Validator
+        from omrs.mcp.keys import _SCOPES
+        key = create_key(self.server.vault, '工具说明验收', list(_SCOPES))
+        before = len(read_commits(self.server.vault))
+        raw = _png(7, 5)
+
+        async def run():
+            async with AsyncExitStack() as stack:
+                client = await stack.enter_async_context(httpx.AsyncClient(
+                    headers={'Authorization': f"Bearer {key['secret']}"}, timeout=15, follow_redirects=False))
+                read, write, _ = await stack.enter_async_context(streamable_http_client(
+                    f'http://127.0.0.1:{self.server.mcp_port}/mcp', http_client=client))
+                session = await stack.enter_async_context(ClientSession(read, write))
+                initialized = await session.initialize()
+                self.assertIn('cause_statement', initialized.instructions)
+                self.assertIn('完整原图', initialized.instructions)
+                listing = await session.list_tools()
+                from omrs.mcp.server import TOOL_SCOPES
+                self.assertEqual({tool.name for tool in listing.tools}, set(TOOL_SCOPES))
+                for tool in listing.tools:
+                    Draft202012Validator.check_schema(tool.inputSchema)
+                    for prop in tool.inputSchema['properties'].values():
+                        self.assertTrue(prop.get('description'), tool.name)
+                    for definition in tool.inputSchema.get('$defs', {}).values():
+                        for prop in definition.get('properties', {}).values():
+                            self.assertTrue(prop.get('description'), tool.name)
+                schema = next(t.inputSchema for t in listing.tools if t.name == 'create_draft')
+                examples = deepcopy(schema['examples'])
+                # 完全文字的转述也需要保留原图来源，不能只靠图片块关联。
+                examples.append({**deepcopy(examples[0]), 'request_id': 'entry-source-text-001',
+                                 'images': deepcopy(examples[1]['images']),
+                                 'cause': '移项时漏改符号', 'cause_statement': '我移项时漏改了符号。'})
+                for payload in examples:
+                    for attachment in payload.get('images', []):
+                        attachment['data_base64'] = base64.b64encode(raw).decode()
+                    Draft202012Validator(schema).validate(payload)
+                    result = await session.call_tool('create_draft', payload)
+                    self.assertFalse(result.isError, str(result))
+                    created = _json_result(result)
+                    self.assertEqual(created['status'], 'review')
+                    self.assertEqual(created['difficulty'], 5)
+                    self.assertEqual(created['source_channel'], 'mcp')
+                    self.assertEqual(len(created['source_images']), len(payload.get('images', [])))
+                    self.assertEqual(created['cause_verification'],
+                                     'client_asserted' if payload.get('cause') else 'none')
+                    detail = _json_result(await session.call_tool('get_draft', {'draft_id': created['draft_id']}))
+                    self.assertEqual(detail['blocks'], created['blocks'])
+                    for block in detail['blocks']:
+                        if block['kind'] == 'image':
+                            self.assertEqual(block['box'], {'x': 0.0, 'y': 0.0, 'w': 1.0, 'h': 1.0})
+                            self.assertEqual(block['box_origin'], 'original')
+                    if payload.get('images'):
+                        image = await session.call_tool('get_draft_image',
+                                                        {'draft_id': created['draft_id'], 'image_index': 0})
+                        self.assertFalse(image.isError)
+                        self.assertEqual(base64.b64decode(image.content[0].data), raw)
+                    repeated = _json_result(await session.call_tool('create_draft', payload))
+                    self.assertTrue(repeated['reused'])
+                    self.assertEqual(repeated['draft_id'], created['draft_id'])
+        asyncio.run(run())
+        self.assertEqual(len(read_commits(self.server.vault)), before)
+
     def test_extra_parameters_and_invalid_draft_do_not_write(self):
         raw = _png(4, 3)
         encoded = {"data_base64": base64.b64encode(raw).decode(), "file_id": "invalid-file",

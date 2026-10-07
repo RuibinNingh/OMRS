@@ -20,6 +20,8 @@
 | 全库备份、恢复协议与回退 | `AI/backup.md` |
 | 内置助手、持久事件与分页 | `AI/agent.md` |
 
+外部 MCP 的调用说明随工具发现返回，集中来源为 `omrs/mcp/tool_docs.py`；包括用途、参数来源、分页单位、版本与技术重试、录题示例和网页审核状态。元数据不改变领域校验和 HTTP 路由。录题的原图、块与错因规范见 `AI/mcp.md`，草稿修订协议见 `AI/api/extensions.md`。
+
 `omrs/http/registry.py` 是方法、路径及领域分派的唯一清单，`tests/check_docs.py --write-routes` 从它生成 `AI/routes.md`。新增路由必须登记注册表及对应分册。HEAD 使用相同 GET 鉴权、路径和资源处理，返回相同状态及响应头但没有正文。
 
 HTML、普通 JSON 与 CSS / JavaScript / SVG 等文本在客户端接受 gzip、正文至少 1KiB 且压缩有收益时返回 `Content-Encoding: gzip`，`Content-Length` 为压缩字节数，协商响应带 `Vary: Accept-Encoding`。登录和 MCP 密钥等 `/api/auth/`、`/api/mcp/` JSON 回执不压缩，图片、字体、视频及下载附件保持原字节。压缩不新增第三方运行依赖；静态缓存和首屏加载见 `AI/frontend/architecture.md` §7 与 `AI/api/queries.md` 的 `/assets/` 条目。

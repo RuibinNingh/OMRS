@@ -3,6 +3,7 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field
 from mcp.types import ToolAnnotations
 from ..draft_write import patch_mcp_draft
+from .tool_docs import TOOL_DESCRIPTIONS
 
 SCOPES = {'update_draft': ('omrs:read', 'draft:update')}
 
@@ -25,5 +26,5 @@ def register(server, vault, require, threaded):
         return patch_mcp_draft(vault, draft_id.strip(), expected_revision, fields, patches, token.client_id,
                                request_id, cause_statement, lambda: require(vault, SCOPES['update_draft']))
     server.add_tool(threaded(update_draft), name='update_draft',
-                    description='修订任意来源待审核草稿；只改字段及现有块文字/说明，任一人工保护则整次不写。必须携带版本和请求编号；错因需 cause_statement。',
+                    description=TOOL_DESCRIPTIONS['update_draft'],
                     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False))

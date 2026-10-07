@@ -10,6 +10,7 @@ from ..agent.tools.common import sections_of, snippet
 from ..common import split_sections
 from ..question_images import read_draft_image
 from .common import RequestError, date_bounds, page, within_date
+from .tool_docs import TOOL_DESCRIPTIONS
 
 SCOPES = {name: 'omrs:read' for name in ('get_questions', 'get_question_content',
           'get_draft_image', 'get_question_history', 'get_learning_history')}
@@ -202,11 +203,7 @@ def register(server, vault, require, threaded):
         if any(len(v) > 200 for v in (subject, uid, since, until)):
             raise ValueError('筛选值过长')
         return learning_history(vault, subject, uid, since, until, before_seq, limit)
-    for fn, title in ((get_questions, '按输入顺序批量读取最多 20 题；默认摘要，可选 detail。'),
-                      (get_question_content, '分页读取完整当前正文或已登记历史版本；当前后续页必须携带 expected_hash。'),
-                      (get_draft_image, '按 get_draft.source_images 下标读取一张原生完整草稿图，不裁剪或转码。'),
-                      (get_question_history, '分页读取有效练习记录或已登记正文版本，只查询不恢复。'),
-                      (get_learning_history, '按科目、UID、日期和 before_seq 查询 Ledger 学习及变更时间线，含当前修正状态。')):
-        server.add_tool(threaded(fn), name=fn.__name__, description=title,
+    for fn in (get_questions, get_question_content, get_draft_image, get_question_history, get_learning_history):
+        server.add_tool(threaded(fn), name=fn.__name__, description=TOOL_DESCRIPTIONS[fn.__name__],
                         structured_output=False if fn is get_draft_image else None,
                         annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))

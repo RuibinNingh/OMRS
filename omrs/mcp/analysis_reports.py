@@ -5,6 +5,7 @@ from pydantic import Field
 from mcp.types import ToolAnnotations
 from .. import analytics, reports
 from .common import RequestError, page
+from .tool_docs import TOOL_DESCRIPTIONS
 
 SCOPES = {'get_analytics': 'omrs:read', 'list_reports': 'omrs:read',
           'get_report': 'omrs:read', 'create_report': 'report:create'}
@@ -43,10 +44,7 @@ def register(server, vault, require, threaded):
         token = require(vault, 'report:create')
         return reports.create_mcp_report(vault, name, html, token.client_id, request_id,
                                         lambda: require(vault, 'report:create'))
-    for fn, title in ((get_analytics, '同口径分析：先筛选科目/分类再聚合，日期仅影响练习行为指标。'),
-                      (list_reports, '分页读取已保存报告元数据。'),
-                      (get_report, '分页读取报告 HTML 源码字符串；不执行脚本。'),
-                      (create_report, '新建报告（HTML 不超过 2 MiB），不覆盖已有报告；request_id 保证技术重试。')):
-        server.add_tool(threaded(fn), name=fn.__name__, description=title,
+    for fn in (get_analytics, list_reports, get_report, create_report):
+        server.add_tool(threaded(fn), name=fn.__name__, description=TOOL_DESCRIPTIONS[fn.__name__],
                         annotations=ToolAnnotations(readOnlyHint=fn is not create_report, destructiveHint=False,
                                                     idempotentHint=True, openWorldHint=False))

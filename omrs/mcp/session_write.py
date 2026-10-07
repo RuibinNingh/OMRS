@@ -5,6 +5,7 @@ from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..mcp_operations import create_session
+from .tool_docs import TOOL_DESCRIPTIONS
 
 
 SCOPES = {'create_review_session': ('omrs:read', 'session:create')}
@@ -29,6 +30,6 @@ def register(server, vault, require, threaded, web_url=''):
                               lambda: require(vault, SCOPES['create_review_session']))
 
     server.add_tool(threaded(create_review_session), name='create_review_session',
-                    description='仅在用户要求创建正式复习计划时调用；先返回网页审核链接，确认后才按稳定题目身份创建 1–100 题的 EXP Session。待审核结果没有session_id；request_id用于技术重试。',
+                    description=TOOL_DESCRIPTIONS['create_review_session'],
                     annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False,
                                                 idempotentHint=True, openWorldHint=False))
