@@ -136,11 +136,11 @@ read_question_image 按共享 get_question.images 的当前下标读取题目/�
 
 有效 Key 每分钟最多 120 个请求、最多 4 个并发请求。请求体上限 72 MiB，声明长度及分块流都计数，总读取期限 30 秒；错误为 400/408/413/429。查询字符串、工具参数和异常响应不包含认证凭据，生产适配器关闭访问日志。
 
-图片只从 HTTPS 443 下载，不带用户信息或 fragment；禁止重定向。DNS 全部地址必须是公共地址，随后固定已校验 IP 并保留 TLS 主机证书验证，阻止 DNS 重绑定、私网、回环和元数据访问。连接读取超时 10 秒，流式下载总期限 30 秒，URL 不超过 8192 字符，响应超过 8 MiB 立即失败。下载从不转发 MCP Key。
+图片只从 HTTPS 443 下载，不带用户信息或 fragment；禁止重定向。DNS 全部地址必须是公共地址，随后固定已校验 IP 建连；TLS SNI 与证书校验使用 `HTTPSConnection.host` 中的原主机名，而不是固定 IP，阻止 DNS 重绑定、私网、回环和元数据访问。连接读取超时 10 秒，流式下载总期限 30 秒，URL 不超过 8192 字符，响应超过 8 MiB 立即失败。下载从不转发 MCP Key。
 
 ## 6. 客户端兼容性与验收
 
-使用官方 `mcp==1.28.1` ClientSession 和临时 Vault 重现 initialize、tools/list、tools/call、连续 Bearer 鉴权、全部权限发现、查询与写入工作流。真实浏览器覆盖草稿审核、Key 权限、报告、展示板保存冲突、网页确认和快照下载。完整验收必须安装依赖并真正执行 SDK 用例；缺 SDK 时的 SKIP 不能作为通过。
+使用官方 `mcp==1.28.1` ClientSession 和临时 Vault 重现 initialize、tools/list、tools/call、连续 Bearer 鉴权、全部权限发现、查询与写入工作流。`tests/test_mcp_download_connection.py` 只替换 DNS 与底层 socket/TLS I/O，保留真实 HTTPS 连接方法、HTTP 解析和原图草稿保存，验证固定公共 IP、原主机名 SNI、证书拒绝与原字节相等；该受控回归不等同于 ChatGPT 原生附件联调。真实浏览器覆盖草稿审核、Key 权限、报告、展示板保存冲突、网页确认和快照下载。完整验收必须安装依赖并真正执行 SDK 用例；缺 SDK 时的 SKIP 不能作为通过。
 
 ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentication、Mixed Authentication。文档中的 static credentials 是 OAuth 客户端凭据，不证明直接 URL 连接支持任意 API Key 请求头。可使用 Secure MCP Tunnel 私有连接，由客户侧 Tunnel 客户端从受限文件注入 Authorization，仍由本 MCP 验证 scope；无需把公网入口改成无鉴权。直接 URL 模式若不能发送 Key，则需另行提供保持相同 scope 的 OAuth 兼容入口。当前 ChatGPT 账户尚未联调，不能把外部 SDK 或 Tunnel 健康检查当成账户已接通。
 

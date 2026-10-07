@@ -29,7 +29,7 @@ assets/
 - 题目 Markdown 的 HTML 由 `domain/question/markdown.js` 统一生成，`domain/question/qview.css` 提供题面块与换行样式；普通换行默认逐行显示，空行仍分段。题库显示设置可显式切回简略模式，测试见 `tests/app/question.test.mjs`。
 - 后端由 `/assets/<file>` 通用静态路由提供资源（`server.py` → `_serve_asset()`，含路径穿越防护与按扩展名的 content-type）。页面样式放在对应的 `features/<页>/`；外壳样式在 `app/styles/shell.css`，组件样式在 `app/ui/`，颜色与尺度在 `app/styles/tokens.css`。
 
-服务端在 HTML 响应中将资源引用转换为内容版本地址，提前加载模块依赖并合并主样式，文本按需 gzip；源码中的相对 import 和 CSS 分层保持，缓存契约见 `AI/frontend/architecture.md` §7。侧栏底部显示当前 v2.3.2。
+服务端在 HTML 响应中将资源引用转换为内容版本地址，提前加载模块依赖并合并主样式，文本按需 gzip；源码中的相对 import 和 CSS 分层保持，缓存契约见 `AI/frontend/architecture.md` §7。侧栏版本由页面页脚声明，发布时与 `omrs/version.py` 同步，不在本分册另存版本号。
 
 设置页的六个分区由 `tests/e2e/settings.py` 在桌面与手机、浅色与深色下逐一审计；访问与安全分区还包含 MCP Key 的一次性明文展示与元数据列表，助手分区同时验证最大输出 Token 的输入、保存和回读。
 

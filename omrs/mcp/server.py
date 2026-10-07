@@ -385,7 +385,7 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
 
     def connect(self):
         sock = socket.create_connection((self._pinned_address, 443), self.timeout)
-        self.sock = self._context.wrap_socket(sock, server_hostname=self._host)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
 
 
 def _download(url):
