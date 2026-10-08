@@ -226,7 +226,7 @@ class BoardSDKTests(unittest.TestCase):
         async def run():
             async with _session(self.server.mcp_port, self.key['secret']) as session:
                 tools = (await session.list_tools()).tools
-                self.assertEqual(len(tools), 40)
+                self.assertEqual(len(tools), 44)
                 self.assertNotIn('confirm_mcp_operation', [t.name for t in tools])
                 listing = _json_result(await session.call_tool('list_boards', {}))
                 folder = _json_result(await session.call_tool('create_board_folder', {'name': 'SDK目录', 'expected_catalog_revision': listing['catalog_revision'], 'request_id': 'folder'}))
@@ -273,7 +273,7 @@ class BoardSDKTests(unittest.TestCase):
                     'reorder_board_items','update_board_layout','update_board_item','create_board_folder',
                     'update_board_folder','delete_board_folder','move_board','export_board','get_mcp_operation',
                     'propose_question_update'}
-                self.assertEqual({tool.name for tool in (await session.list_tools()).tools}, expected)
+                self.assertEqual({tool.name for tool in (await session.list_tools()).tools}, expected | {'list_labels', 'get_labeling_candidates', 'stage_label_plan', 'propose_label_plan'})
                 recommendations = await call('get_recommendations', {'subject': '数学', 'count':20})
                 self.assertIn(uid, [item['uid'] for item in recommendations['selection']])
                 catalog = await call('list_boards', {})
@@ -326,7 +326,7 @@ class BoardSDKTests(unittest.TestCase):
                 self.assertEqual(urllib.request.urlopen(report['download_url']).read(),payload)
                 self.assertEqual(ledger.read_commits(self.server.vault), learning_before)
                 self.assertEqual(mastery_rows(self.server.vault), mastery_before)
-            for scopes, count in ((['omrs:read'],22), (['draft:create'],1), (['board:write'],0), (['omrs:read','draft:update'],23)):
+            for scopes, count in ((['omrs:read'],24), (['draft:create'],1), (['board:write'],0), (['omrs:read','draft:update'],25)):
                 key = create_key(self.server.vault, '发现', scopes)
                 async with _session(self.server.mcp_port, key['secret']) as session:
                     self.assertEqual(len((await session.list_tools()).tools),count)
@@ -336,7 +336,7 @@ class BoardSDKTests(unittest.TestCase):
                         self.assertIn('forbidden', denied.content[0].text)
                     # 同一已建立会话实时编辑权限，不能用旧 token/cache 维持增权。
                     update_scopes(self.server.vault, key['key_id'], list(_SCOPES))
-                    self.assertEqual(len((await session.list_tools()).tools),40)
+                    self.assertEqual(len((await session.list_tools()).tools),44)
                     update_scopes(self.server.vault, key['key_id'], ['omrs:read'])
-                    self.assertEqual(len((await session.list_tools()).tools),22)
+                    self.assertEqual(len((await session.list_tools()).tools),24)
         asyncio.run(run())

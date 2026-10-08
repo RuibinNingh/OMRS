@@ -152,3 +152,7 @@ MCP 确认 hash 在 core/api.js 的401跳转和 PIN 登录 destination 中保留
 设置页新增默认关闭的 session:create 授权，复用既有弹窗、权限映射和组件，不引入全局入口。tests/e2e/mcp_review_sessions.py 用真实官方 SDK 与临时 Vault 验证网页授权、创建计划可见、反馈进度与撤销重试；既有 mcp_expansion.py 同步新增权限默认和编辑检查，settings.test.mjs 验证权限映射与呈现。
 
 浏览器测试需要直接调用领域模块时，从 performance resource 记录取得页面实际加载的版本化模块 URL；不得用未版本化路径导入另一个未连接服务的模块实例。对话内审批回归见 `tests/e2e/assistant_review.py`，覆盖实际变更数量、草稿保存失败、未保存保护、单份入库和双主题多宽度。
+
+## 标记整理工具
+
+标签与题面查询在 HTTP、助手和 MCP 的磁盘段共用一致性锁，防止整批文件替换期间出现半批结果；等待审批与网络传输不持锁。

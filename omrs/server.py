@@ -206,7 +206,13 @@ class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, Inb
             "/api/trainpanel/service", "/api/trainpanel/manager"))
         try:
             with self._response_capture(protected):
-                self._dispatch_get()
+                if path in ('/api/labels', '/api/stats', '/api/taxonomy', '/api/tree', '/api/recommend', '/api/question', '/api/question/raw'):
+                    with locking.write_lock():
+                        from .label_plan_journal import assert_readable
+                        assert_readable(self.vault_path)
+                        self._dispatch_get()
+                else:
+                    self._dispatch_get()
         except (vault_lifecycle.VaultBusy, vault_lifecycle.VaultChanged) as exc:
             self._error(exc)
         except Exception as exc:

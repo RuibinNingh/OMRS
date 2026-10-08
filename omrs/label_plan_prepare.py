@@ -54,6 +54,8 @@ def stage(vault, source, owner, fragment_id, payload, plan_id='', expected_versi
     if not isinstance(payload, dict) or len(payload.get('question_changes') or []) > 50:
         raise ValueError('每个准备分片最多五十道显式题目')
     fragment_digest = digest(payload)
+    from .label_plan_review import authorize_source
+    authorize_source(vault, source, owner, payload)
     binding = _owner(vault, source, owner)
     _prune()
     new = not plan_id
@@ -89,6 +91,7 @@ def stage(vault, source, owner, fragment_id, payload, plan_id='', expected_versi
     if new: combined['scope'] = clean['scope']
     combined['label_changes'].extend(clean['label_changes']); combined['question_changes'].extend(clean['question_changes'])
     combined = normalize(combined, trusted=True)
+    authorize_source(vault, source, owner, combined)
     size = len(json.dumps(combined,ensure_ascii=False).encode())
     total = sum(len(json.dumps(d['payload'],ensure_ascii=False).encode()) for key,d in _DRAFTS.items() if key != plan_id)
     if size + total > MAX_BYTES:
@@ -109,7 +112,7 @@ def prepared_payload(vault, source, owner, plan_id, expected_version):
 
 
 @storage_read
-def list_labels(vault, cursor='', limit=50):
+def list_labels(vault, cursor='', limit=10):
     if type(limit) is not int or not 1 <= limit <= 100:
         raise ValueError('每页标记数量为 1 到 100')
     data, raw = catalog(vault)

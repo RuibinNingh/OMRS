@@ -87,6 +87,10 @@ def _review_snapshot(vault, tool, args):
 
 
 def _verify_review_snapshot(vault, row):
+    if row['tool'] == 'propose_label_plan':
+        from ..label_plan_review import verify_snapshot
+        verify_snapshot(vault, row)
+        return
     if row['tool'] in ('update_question_section', 'set_knowledge_points'):
         from ..question_update import prepare_update
         _, _, snapshot = prepare_update(vault, **row['payload'])
@@ -144,14 +148,19 @@ def review_update(vault, row, patch, expected_revision):
     if not pc:
         ai_review.set_state(vault, row['operation_id'], 'interrupted', error_code='interrupted')
         raise ai_review.ReviewError('state_conflict', '原运行已结束，不能修订提案', 409)
-    from ..question_update import prepare_update
-    payload = row['payload']
-    payload, preview, snapshot = prepare_update(vault, payload['uid'], payload['question_id'],
-        payload['expected_content_hash'], {**payload['patch'], **patch})
-    preview = {**row['preview'], **preview}
-    preview['after'] = preview['changes'][0]['after']
+    if row['tool'] == 'propose_label_plan':
+        from ..label_plan_review import prepare_revision
+        prepared = prepare_revision(vault, row, patch)
+        payload, preview, snapshot = (prepared[key] for key in ('payload', 'preview', 'snapshot'))
+    else:
+        from ..question_update import prepare_update
+        payload = row['payload']
+        payload, preview, snapshot = prepare_update(vault, payload['uid'], payload['question_id'],
+            payload['expected_content_hash'], {**payload['patch'], **patch})
+        preview = {**row['preview'], **preview}
+        preview['after'] = preview['changes'][0]['after']
     if snapshot != row['snapshot']:
-        raise ai_review.ReviewError('content_conflict', '题目已变化，请重新申请审核', 409)
+        raise ai_review.ReviewError('content_conflict', '目标已变化，请重新申请审核', 409)
     with pc.lock:
         if pc.event.is_set() or time.time() >= pc.expires_at:
             raise ai_review.ReviewError('state_conflict', '确认已处理或过期', 409)
@@ -277,7 +286,7 @@ class Hooks:
                 "chat": int(chat), "res": int(res), "msgs": len(messages)}
 
     def before_tool_call(self, call, tool):
-        if tool.level == 'read':
+        if tool.level in ('read', 'prepare'):
             return None
         with lease(self.rt.vault), write_lock():
             row = ai_review.create(self.rt.vault, 'agent', tool.name, _review_identity(self.run.id, call['id']),
@@ -290,7 +299,12 @@ class Hooks:
                 return None
             try:
                 mark = self._draft_config_mark() if tool.name == 'commit_draft' else None
-                if tool.name in ('update_question_section', 'set_knowledge_points'):
+                if tool.name == 'propose_label_plan':
+                    from ..label_plan_review import prepare_proposal, EDITABLE
+                    prepared = prepare_proposal(self.rt.vault, 'agent', self.run.conv_id, **call['args'])
+                    payload, preview, snapshot = (prepared[key] for key in ('payload', 'preview', 'snapshot'))
+                    editable_fields = EDITABLE
+                elif tool.name in ('update_question_section', 'set_knowledge_points'):
                     from ..question_update import prepare_agent
                     prepared = prepare_agent(self.rt.vault, tool.name, call['args'])
                     payload, preview, snapshot = (prepared[key] for key in ('payload', 'preview', 'snapshot'))
@@ -337,9 +351,12 @@ class Hooks:
 
     def execute(self, call, tool):
         ctx = {**self.ctx, "tool_call_id": call["id"], "emit_usage": lambda data: self.run.emit("usage.aux", data)}
-        if tool.level == "read":
-            out = tool.run(ctx, call["args"])
-            return {**out, "commits": []}
+        if tool.level in ("read", "prepare"):
+            with lease(self.rt.vault), write_lock():
+                from ..label_plan_journal import assert_readable
+                assert_readable(self.rt.vault)
+                out = tool.run(ctx, call["args"])
+                return {**out, "commits": []}
         with lease(self.rt.vault), write_lock():
             if self.run.abort.is_set():
                 operation_id = self._review_ids.get(call['id'])
@@ -372,7 +389,11 @@ class Hooks:
                 try:
                     if tool.level == 'confirm':
                         _review_deadline(row)
-                    if tool.name in ('update_question_section', 'set_knowledge_points'):
+                    if tool.name == 'propose_label_plan':
+                        from ..label_plan_review import apply_review
+                        result = apply_review(self.rt.vault, row)
+                        out = {'result': result, 'summary': f"已整批整理 {result['counts']['changed']} 道题", 'wrote': result['wrote']}
+                    elif tool.name in ('update_question_section', 'set_knowledge_points'):
                         from ..question_update import apply_agent
                         out = apply_agent(self.rt.vault, row, ctx)
                     else:
@@ -389,7 +410,7 @@ class Hooks:
     def after_tool_call(self, call, tool, out):
         self.rt.store.save_tool_call(self.run.id, call["id"], call["name"], tool.level, call["args"], "done",
                                      result=out["result"], commits=out["commits"])
-        if tool.level != 'read':
+        if tool.level not in ('read', 'prepare'):
             result = out['result']
             status = 'partial' if result.get('failed') else 'applied' if out['commits'] or out.get('wrote') else 'unchanged'
             try:

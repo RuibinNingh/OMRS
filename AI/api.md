@@ -67,3 +67,7 @@ MIME主类型按大小写无关识别，multipart boundary保持原文。普通�
 ## 标记整理审批
 
 `GET /api/label-plan/revert-preview?operation_id=...` 只读返回 `ok`、`inverse_digest`、逐题变化和冲突。`POST /api/label-plan/revert` 接收 `operation_id`、`inverse_digest`、`request_id`；只有摘要与当前预览一致才执行整批逆操作，重复请求复用回执。普通 Web 登录与同源规则适用，MCP 密钥不能调用。
+
+## 标记整理工具
+
+助手注册分片准备与整批提案能力；准备自动执行，最终整批提案的批准、修订沿用 `/api/ai-review/update` 与 `/api/ai-review/decide`，助手原对话等待对象收到新版本票据与有效方案。

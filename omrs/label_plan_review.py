@@ -13,7 +13,7 @@ EDITABLE = ['label_changes', 'question_changes', 'excluded_question_ids']
 
 def required_scopes(payload):
     result={'omrs:read','label:write'}
-    if any(op['action'] in ('merge','delete') for op in payload.get('label_changes',[])):
+    if any(isinstance(op,dict) and op.get('action') in ('merge','delete') for op in payload.get('label_changes',[])):
         result.add('label:delete')
     return result
 

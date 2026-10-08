@@ -89,7 +89,7 @@ class ReviewSessionProtocolTests(unittest.TestCase):
         question = self.questions('参数', 1)[0]
         payload = {'items': [{'question_id': question['question_id'], 'source': 'due'}], 'request_id': 'schema'}
         async def run():
-            for scopes, expected in ((['omrs:read'], 22), (['session:create'], 0), (list(_SCOPES), 40)):
+            for scopes, expected in ((['omrs:read'], 24), (['session:create'], 0), (list(_SCOPES), 44)):
                 key = self.key(scopes)
                 async with _session(self.server.mcp_port, key['secret']) as client:
                     tools = (await client.list_tools()).tools

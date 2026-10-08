@@ -15,7 +15,7 @@ export const mcpKeysView = () => html`<section class="st-mcp-card" aria-label="�
       <div>${icon('edit')}<div><strong>创建待审核草稿</strong><p>由你审核后，再进入正式题库</p></div></div>
       <div>${icon('book')}<div><strong>提交复习计划</strong><p>经你审核后生成，查询计划与反馈进度</p></div></div>
     </div>
-    <div class="st-mcp-boundary">${icon('lock')}<span>MCP 密钥独立于 Web PIN 和模型 API Key，题目修改须经审核中心批准，密钥不能自行批准。</span></div>
+    <div class="st-mcp-boundary">${icon('lock')}<span>MCP 密钥独立于 Web PIN 和模型 API Key，题目修改与标记整理须经审核中心批准，密钥不能自行批准。</span></div>
   </div>
   <div class="card st-card st-mcp-manager">
     <div class="st-mcp-list-head"><div><h3>密钥管理</h3><span class="st-mcp-count" id="st-mcp-count">—</span></div>
@@ -46,9 +46,12 @@ export const mcpCreateView = () => html`<div class="st-mcp-form">
 
 export const MCP_SCOPE_INPUTS = Object.freeze({ 'st-mcp-scope-read': 'omrs:read', 'st-mcp-scope-draft': 'draft:create',
   'st-mcp-scope-update': 'draft:update', 'st-mcp-scope-question': 'question:propose', 'st-mcp-scope-session': 'session:create', 'st-mcp-scope-report': 'report:create',
+  'st-mcp-scope-label-write': 'label:write', 'st-mcp-scope-label-delete': 'label:delete',
   'st-mcp-scope-board': 'board:write', 'st-mcp-scope-delete': 'board:delete' });
 
 const advanced = [
+  ['st-mcp-scope-label-write', '整理标记与题目归类', '需查询；创建、编辑与归类方案统一审核后执行'],
+  ['st-mcp-scope-label-delete', '合并与删除标记', '需查询和整理权限；级联影响完整预览后确认'],
   ['st-mcp-scope-question', '提交题目修改提案', '需同时授予查询；由你在审核中心修订、批准后应用'],
   ['st-mcp-scope-update', '修订待审核草稿', '需同时授予查询；人工修改受保护'],
   ['st-mcp-scope-session', '创建正式复习计划', '需同时授予查询；提交审核，批准后生成正式计划'],
@@ -73,7 +76,7 @@ export const mcpSecretView = secret => html`<div id="st-mcp-secret">
 </div>`;
 
 const scopeLabel = scope => ({ 'omrs:read': '查询', 'draft:create': '创建草稿', 'draft:update': '修订草稿',
-  'question:propose': '题目修改提案', 'session:create': '创建复习计划', 'report:create': '保存报告', 'board:write': '管理展示板', 'board:delete': '删除板' })[scope] || scope;
+  'label:write': '整理标记', 'label:delete': '合并删除标记', 'question:propose': '题目修改提案', 'session:create': '创建复习计划', 'report:create': '保存报告', 'board:write': '管理展示板', 'board:delete': '删除板' })[scope] || scope;
 const statusLabel = status => ({ active: '有效', revoked: '已吊销', expired: '已到期' })[status];
 
 function detailsView(key, openKeys) {

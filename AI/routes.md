@@ -23,10 +23,10 @@
 | POST | `/api/agent/test` | `AI/agent.md`、`AI/frontend/settings.md` |
 | POST | `/api/ai-recognize` | `AI/api/extensions.md`、`AI/api/mutations.md`、`AI/frontend/create.md`等 |
 | GET | `/api/ai-review/counts` | `AI/ai-review.md`、`AI/api/extensions.md`、`AI/frontend/ai-review.md` |
-| POST | `/api/ai-review/decide` | `AI/ai-review.md`、`AI/api/extensions.md` |
+| POST | `/api/ai-review/decide` | `AI/api.md`、`AI/ai-review.md`、`AI/api/extensions.md` |
 | GET | `/api/ai-review/detail` | `AI/ai-review.md`、`AI/api/extensions.md`、`AI/frontend/assistant.md` |
 | GET | `/api/ai-review/items` | `AI/ai-review.md`、`AI/api/extensions.md` |
-| POST | `/api/ai-review/update` | `AI/ai-review.md`、`AI/api/extensions.md` |
+| POST | `/api/ai-review/update` | `AI/api.md`、`AI/ai-review.md`、`AI/api/extensions.md` |
 | GET | `/api/analytics` | `AI/algorithm.md`、`AI/api/queries.md`、`AI/changelog.md`等 |
 | POST | `/api/annotate/delete` | `AI/api/extensions.md` |
 | GET | `/api/annotate/export` | `AI/api/extensions.md` |

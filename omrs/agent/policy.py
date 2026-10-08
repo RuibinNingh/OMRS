@@ -9,7 +9,7 @@ import json
 import threading
 import time
 
-LEVELS = ("read", "rev", "confirm")
+LEVELS = ("read", "prepare", "rev", "confirm")
 
 
 def canonical_args(args) -> str:

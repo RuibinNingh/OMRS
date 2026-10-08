@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：向获授权外部 AI 提供 OMRS 查询、复习调度创建、受保护草稿修订、报告保存和展示板管理
 > - 入口：`omrs/mcp/server.py`、`http.py`、`keys.py`；`serve --mcp-port`
-> - 不变量：二十二读十八写；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
+> - 不变量：二十四读十九业务写和一个技术准备；Key 与 Web 权限分离；共享主进程写锁；完整原图进入既有审核队列
 > - 必跑测试：`python3 -m unittest discover -s tests -p 'test_mcp*.py' -q`、`python3 tests/e2e/mcp.py`、`python3 tests/e2e/mcp_expansion.py`、`python3 tests/e2e/runtime_history.py`、`python3 tests/e2e/mcp_review_sessions.py`
 > - 相关：`AI/api.md`、`AI/drafts.md`、`AI/security.md`、`AI/agent.md`、`requirements-mcp.txt`
 
@@ -22,9 +22,9 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 ## 2. 工具与权限
 
-完整授权共 40 个工具（22 读、18 写），只读密钥发现 22 个，仅 `draft:create` 发现 1 个。发现与调用共用 `TOOL_SCOPES`，多权限依赖同时满足才开放。草稿创建与报告创建不强制额外授予读权限。
+完整授权共 44 个工具（24 读、19 业务写、1 技术准备），只读密钥发现 24 个，仅 `draft:create` 发现 1 个。发现与调用共用 `TOOL_SCOPES`，多权限依赖同时满足才开放。草稿创建与报告创建不强制额外授予读权限。
 
-对客户端的工具描述、录题规范、逐参数说明与示例集中维护在 `omrs/mcp/tool_docs.py`。注册入口复用同一份描述，先生成既有参数 schema，再补说明元数据；自由对象的字段说明不增加新的校验约束。完整授权的 40 个工具、162 个顶层参数及附件/块等嵌套字段均有中文说明，权限名称从 `TOOL_SCOPES` 附加。新增参数须同时补说明。真实 SDK 验证见 `tests/test_mcp_protocol.py`，校验契约保持见 `tests/test_mcp_tool_docs.py`。
+对客户端的工具描述、录题规范、逐参数说明与示例集中维护在 `omrs/mcp/tool_docs.py`。注册入口复用同一份描述，先生成既有参数 schema，再补说明元数据；自由对象的字段说明不增加新的校验约束。完整授权的 44 个工具的顶层参数及附件/块等嵌套字段均有中文说明，权限名称从 `TOOL_SCOPES` 附加。新增参数须同时补说明。真实 SDK 验证见 `tests/test_mcp_protocol.py`，校验契约保持见 `tests/test_mcp_tool_docs.py`。
 
 MCP 学习查询的业务响应直接返回字段，不带内置助手的 `result` 包装。例如推荐读取 `selection`，读题读取 `images`、`question_id` 和 `content_hash`；审核操作自身的 `result` 字段仍是应用结果。SDK 可以通过 structuredContent 或文本 JSON 封装传递这些字段。客户端须刷新工具清单及服务端 instructions 才能加载更新后的说明。
 
@@ -237,7 +237,7 @@ list_boards 默认 50/最多 100，返回分页板摘要及完整文件夹/catal
 
 ## 13. 展示板安全导出
 
-export_board 需要omrs:read与request_id，支持all/new，可选expected_revision防止导错板版本。原子保存不可变自包含HTML，24小时内返回Web登录下载链接，不返回HTML/Base64，不记录已打印。详细存储恢复及附件边界见AI/export.md。全授权40工具，只读22，仅创建草稿1。
+export_board 需要omrs:read与request_id，支持all/new，可选expected_revision防止导错板版本。原子保存不可变自包含HTML，24小时内返回Web登录下载链接，不返回HTML/Base64，不记录已打印。详细存储恢复及附件边界见AI/export.md。全授权44工具，只读24，仅创建草稿1。
 
 
 ## 14. 正式复习调度
@@ -261,3 +261,7 @@ note 管理 `# 备注` 下的 `## 补充备注`，保留旧裸文本、未知子
 ## 标记整理审批
 
 标记整理的领域提案由网页审核中心确认，来源密钥贯穿准备、提交与执行。正式提案保存完整归类方案，模型没有批准入口；已提交原生回执优先于随后权限变化。
+
+## 标记整理工具
+
+四个工具：`list_labels`、`get_labeling_candidates` 查询；`stage_label_plan` 技术准备；`propose_label_plan` 整批业务待审。准备与提案需 `omrs:read` 加 `label:write`，含合并/删除另需 `label:delete`。实时校验发现、调用与执行；新权限默认关闭，旧密钥不自动授权。

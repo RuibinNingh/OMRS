@@ -42,7 +42,7 @@ from ..question_images import read_question_image, validate_original_image
 from .keys import verify_key, key_for_id
 from .common import RequestError
 from .tool_docs import SERVER_INSTRUCTIONS, TOOL_DESCRIPTIONS, apply_parameter_docs
-from . import queries, analysis_reports, draft_edit, board_read, board_write, board_export, session_write, question_write
+from . import queries, analysis_reports, draft_edit, board_read, board_write, board_export, session_write, question_write, labeling
 
 MAX_IMAGES = 6
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -71,6 +71,7 @@ TOOL_SCOPES.update(board_write.SCOPES)
 TOOL_SCOPES.update(board_export.SCOPES)
 TOOL_SCOPES.update(session_write.SCOPES)
 TOOL_SCOPES.update(question_write.SCOPES)
+TOOL_SCOPES.update(labeling.SCOPES)
 _REVIEW_CALL = contextvars.ContextVar('mcp_review_call', default={})
 
 
@@ -246,7 +247,7 @@ class RestrictedMCP(FastMCP):
         except ValidationError:
             raise ToolError("invalid_arguments: 参数不符合工具 schema") from None
         audit_id = None
-        if tool.annotations and not tool.annotations.readOnlyHint and name != 'export_board':
+        if tool.annotations and not tool.annotations.readOnlyHint and name != 'export_board' and name not in labeling.PREPARE_TOOLS:
             if ai_review.classify('mcp', name) is None:
                 raise ToolError('unknown_tool: 工具缺少业务写审核分类')
             if name in ai_review.AUTO_MCP:
@@ -294,7 +295,18 @@ def _threaded(fn):
     """一个完整同步领域操作留在同一工作线程，不在事件循环持 RLock。"""
     @functools.wraps(fn)
     async def run(**kwargs):
-        return await asyncio.to_thread(fn, **kwargs)
+        def invoke():
+            if TOOL_SCOPES.get(fn.__name__) == 'omrs:read':
+                import inspect
+                from ..vault_lifecycle import lease
+                from ..label_plan_journal import assert_readable
+                vault = inspect.getclosurevars(fn).nonlocals.get('vault')
+                if vault:
+                    with lease(vault), locking.write_lock():
+                        assert_readable(vault)
+                        return fn(**kwargs)
+            return fn(**kwargs)
+        return await asyncio.to_thread(invoke)
     return run
 
 
@@ -733,6 +745,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
     board_export.register(server, vault, _require, _threaded, web_url)
     session_write.register(server, vault, _require, _threaded, web_url)
     question_write.register(server, vault, _require, _threaded, web_url)
+    labeling.register(server, vault, _require, _threaded, web_url)
     # FastMCP 默认会忽略函数参数模型中的未知字段；MCP 是权限边界，必须
     # 把拼写错误或试图注入的顶层参数显式拒绝。
     for tool in server._tool_manager.list_tools():

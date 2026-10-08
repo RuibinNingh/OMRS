@@ -179,7 +179,7 @@ class AgentLoop:
             self.emit("tool.end", {"call_id": call["id"], "status": "error", "error": text, "summary": ""})
             return ToolOutcome("budget", json.dumps({"ok": False, "error": text}, ensure_ascii=False), error=text)
         self.budget.calls += 1
-        if tool.level != "read" and self.budget.writes >= self.budget.limits["writes"]:
+        if tool.level not in ("read", "prepare") and self.budget.writes >= self.budget.limits["writes"]:
             text = f"写入次数达到本次运行上限 {self.budget.limits['writes']}，运行结束"
             self.emit("tool.end", {"call_id": call["id"], "status": "error", "error": text, "summary": ""})
             return ToolOutcome("budget", json.dumps({"ok": False, "error": text}, ensure_ascii=False), error=text)
@@ -201,7 +201,7 @@ class AgentLoop:
         wrote = bool(out["commits"] or out.get("wrote"))  # 不写 Ledger 的写入工具（建草稿）自己声明算一次写入
         if wrote:
             self.budget.writes += 1
-        content, chars = result_content(out["result"], self.result_cap)
+        content, chars = result_content(out["result"], getattr(tool, "result_cap", None) or self.result_cap)
         self.hooks.after_tool_call(call, tool, out)
         self.emit("tool.end", {"call_id": call["id"], "status": "done", "summary": out.get("summary", ""),
                                "result": out["result"] if chars <= 20000 else None, "result_chars": chars,

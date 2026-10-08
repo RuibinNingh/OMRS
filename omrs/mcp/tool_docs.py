@@ -183,6 +183,25 @@ CREATE_DRAFT_EXAMPLES = [
 ]
 
 
+TOOL_DESCRIPTIONS.update({
+    'list_labels': '分页返回稳定标记 ID、名称、颜色、排序、加成、引用题数和定义摘要；先查询并复用已有标记。',
+    'get_labeling_candidates': '按科目、分类、标记 ID 或题目身份分页读取归类候选；最多20题且JSON完整。返回 content_hash、摘要、图片引用、截断与游标；信息不足继续读完整题目或图片，不猜测错因。',
+    'stage_label_plan': '创建或追加准备分片，每片最多50道显式题目，仅保存30分钟内存技术进度，不改正式数据、不产生待审。新标记key在同批归类可引用；首片省略plan_id，后续沿用编号和版本。创建/编辑/归类需label:write，合并/删除额外需label:delete。',
+    'propose_label_plan': '全部分片准备完成后提交一份整批标记整理方案，最多100定义和1000实际受影响题。返回operation_id及网页确认链接，跨范围级联默认关闭；用户人工修订、一次批准后执行。模型没有批准接口。',
+})
+PARAMETERS.update({
+    'list_labels': {'cursor':'上一页返回的next_cursor，首个请求留空。','limit':'每页1–20个标记，默认10。'},
+    'get_labeling_candidates': {'scope':'可含subject、category或最多1000个question_ids，范围取交集；省略为全部未归档题（含停用）。',
+        'label_ids':'已有标记稳定ID数组，要求题目具有全部指定标记。','cursor':'原筛选响应的next_cursor，首个请求留空，不能换筛选后沿用。','limit':'每页1–20题，默认20。'},
+    'stage_label_plan': {'fragment_id':'本准备方案唯一分片编号；相同内容重试复用，不同内容冲突。',
+        'payload':'含scope、reason、label_changes、question_changes。定义action为create/update/merge/delete；create用key/name/color/order，其他用label_id，merge另用into目标ID或新key。题目用question_id、expected_content_hash、add/remove标记ID或新key、reason；信息不足用uncertain_reason且不打标。不能提交priority_bonus、内部ID或审批状态。',
+        'plan_id':'首片省略；后续使用返回lp_编号，仅当前来源可继续。','expected_version':'首片0，后续使用上一片返回version，旧版本不能覆盖新进度。'},
+    'propose_label_plan': {'plan_id':'当前来源的准备方案lp_编号。','expected_version':'已完成全部分片的准备version，须与当前进度一致。'},
+})
+SERVER_INSTRUCTIONS += ('整理标签先list_labels，再get_labeling_candidates分批分析；按每题内容、答案、知识点和已有错因归类。'
+    'stage_label_plan分片最多50题，全部准备好后只调用一次propose_label_plan统一审核；不得逐题申请批准。'
+    '粗心或概念不清等错因必须有记录或用户陈述支持；纯图片未读到充分内容列为待判断。')
+
 def apply_parameter_docs(tool):
     """补充描述与示例；嵌套自由对象也只加说明，不增加校验约束。"""
     schema = tool.parameters

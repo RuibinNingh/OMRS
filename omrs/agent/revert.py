@@ -23,6 +23,8 @@ def _keys(commit):
     for qid in (p.get("question_id"), (p.get("question") or {}).get("question_id")):
         if qid:
             keys.add("q:" + qid)
+    for qid in p.get('question_ids') or []:
+        keys.add('q:' + qid)
     for sid in (p.get("session_id"), (p.get("session") or {}).get("session_id")):
         if sid:
             keys.add("s:" + sid)
@@ -34,7 +36,7 @@ def _keys(commit):
 
 def _run_commits(commits, run_id):
     mine = [c for c in commits if (c["payload"].get("_agent") or {}).get("run_id") == run_id
-            and not c["payload"].get("_revert")]
+            and not c["payload"].get("_revert") and not c["payload"].get("_label_plan")]
     reverted = {}
     for c in commits:
         marker = c["payload"].get("_revert") or {}
@@ -56,6 +58,7 @@ def _undo_text(c):
     t, p = c["commit_type"], c["payload"]
     uid = p.get("uid_at_that_time") or (p.get("question") or {}).get("uid") or p.get("from_uid") or ""
     return {
+        "labels.plan_apply": "整批恢复标记定义与全部题目归属",
         "question.metadata_update": f"把 {uid} 的标记 / 知识点改回之前的版本",
         "question.content_update": f"把 {uid} 的正文还原为之前的版本",
         "question.create": f"归档 {uid}（正文仍可从 Ledger 取回）",
@@ -96,6 +99,13 @@ def plan_revert(vault, run_id):
         if c["commit_type"] == "review.batch_submit":
             item["pending_review_indices"] = [i for i in range(len(c["payload"].get("feedbacks") or []))
                                               if i not in done_indices]
+        if c["commit_type"] == "labels.plan_apply":
+            from ..label_plan_revert import revert_preview
+            preview = revert_preview(vault, c["payload"]["operation_id"])
+            if not preview["ok"]:
+                if preview.get("code") == "already_reverted": continue
+                conflicts.extend({"commit_id": c["commit_id"], "label": "整批标记", "by_desc": message} for message in preview["conflicts"])
+            item["operation_id"] = c["payload"]["operation_id"]
         items.append(item)
         for o in commits:
             if (o["seq"] <= c["seq"] or o["seq"] in seqs or o["commit_type"] in SKIP_KEYS
@@ -233,7 +243,12 @@ def _head(vault):
 def _inverse(vault, c, run_id, pending_review_indices=None):
     t, p = c["commit_type"], c["payload"]
     reason = f"撤销 AI 运行 {run_id}"
-    if t in ("question.metadata_update", "question.content_update"):
+    if t == "labels.plan_apply":
+        from ..label_plan_revert import revert, revert_preview
+        preview = revert_preview(vault, p["operation_id"])
+        if not preview["ok"]: raise RuntimeError("；".join(preview["conflicts"]))
+        revert(vault, p["operation_id"], preview["inverse_digest"], "run-" + run_id + "-" + c["commit_id"])
+    elif t in ("question.metadata_update", "question.content_update"):
         row = projection_row(vault, question_id=p["question_id"])
         before = get_blob(vault, p["before_hash"])
         if row is None or before is None or blob_hash(before) != p["before_hash"] or parse_yaml_frontmatter(before).get("_omrs_id") != row["question_id"]:

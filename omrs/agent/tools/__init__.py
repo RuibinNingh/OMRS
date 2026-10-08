@@ -1,12 +1,12 @@
 """OMRS 工具注册表。权限级别见 omrs/agent/policy.py；不注册的能力模型无从调用。"""
-from . import drafts, read, taxonomy, write
+from . import drafts, read, taxonomy, write, labeling
 from .. import practice
 
 
 class ToolDef:
-    def __init__(self, name, level, description, schema, run, preview=None):
+    def __init__(self, name, level, description, schema, run, preview=None, result_cap=None):
         self.name, self.level, self.description, self.schema = name, level, description, schema
-        self.run, self.preview = run, preview
+        self.run, self.preview, self.result_cap = run, preview, result_cap
 
     def openai_schema(self):
         return {"type": "function", "function": {"name": self.name, "description": self.description,
@@ -31,7 +31,7 @@ class Registry:
 
 
 def build_registry(settings=None):
-    specs = read.SPECS + drafts.SPECS + taxonomy.SPECS + write.SPECS + practice.SPECS
+    specs = read.SPECS + drafts.SPECS + taxonomy.SPECS + write.SPECS + practice.SPECS + labeling.SPECS
     if (settings or {}).get("draft_mode") != "confirm":
         specs = [spec for spec in specs if spec[0] != "commit_draft"]
     tools = [ToolDef(*spec) for spec in specs]

@@ -128,3 +128,7 @@ MCP导出复用现有只读图片列表和受限原图读取，内置助手不�
 ## 复习调度共享读取
 
 推荐 due/proficiency/selection 带稳定 question_id 并保留 uid/source。list_sessions 查询支持 offset、limit（默认 20、最多 100），包含全部停用的 active 计划；返回分页总数、反馈进度与可用性计数。get_session 保留 pending/done/count，补时间、科目、完整进度和分页 entries（默认 100）；条目保留稳定身份与停用、归档、待绑定状态。这些读取不创建计划、不自动标完成。MCP create_review_session 使用独立 session:create 权限和原生事务回执，首次返回 pending_confirmation 而没有 session_id；网页批准后才创建。助手正式 Session 也须确认；聊天练习卡继续自动创建。
+
+## 标记整理工具
+
+新增 `prepare` 工具级别，仅 `stage_label_plan` 使用：自动执行、计调用预算、不计业务写预算，不建业务审核。`get_labeling_candidates` 单独使用 24000 字符结果上限并完整分页，其余仍 6000。最后 `propose_label_plan` 通过原对话批准并应用保存的人工有效方案，按运行撤销识别整批审计事实，题目与定义同时撤销。

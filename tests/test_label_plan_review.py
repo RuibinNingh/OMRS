@@ -3,7 +3,7 @@ import copy
 import json
 from unittest.mock import patch
 
-from tests.test_label_plan import LabelPlanTests
+from tests import test_label_plan as support
 from omrs import ai_review
 from omrs.label_plan_prepare import candidates, list_labels, stage, prepared_payload, _DRAFTS
 from omrs.label_plan_review import propose_mcp
@@ -12,9 +12,11 @@ from omrs.question_ops import set_question_labels
 from omrs.ledger import read_commits
 
 
-class LabelPreparationTests(LabelPlanTests):
+class LabelPreparationTests(__import__("unittest").TestCase):
+    change = support.LabelPlanTests.change
+    apply = support.LabelPlanTests.apply
     def setUp(self):
-        super().setUp()
+        support.LabelPlanTests.setUp(self)
         self.key=patch('omrs.mcp.keys.active_key',return_value={'scopes':['omrs:read','label:write','label:delete']})
         self.key.start();self.addCleanup(self.key.stop)
 
