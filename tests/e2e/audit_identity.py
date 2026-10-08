@@ -109,7 +109,7 @@ def main():
                         "question_text": f"计划原身份题面{index}", "answer_text": "答案"}) for index in range(2)]
                     preview_plan = api(base, '/api/confirm-schedule', {"persist": True, "selected": [
                         {"question_id": item["question_id"], "source": "due"} for item in preview_questions]})
-                    page.evaluate("async () => { const d = await import('/assets/app/domain/data.js'); await d.reloadData(); }")
+                    page.evaluate("async () => { const d = await import(new URL('domain/data.js', document.querySelector('script[type=\"module\"][src*=\"/app/main.js\"]').src).href); await d.reloadData(); }")
                     page.locator('[data-action="schedule.refresh"]').click()
                     preview_open = page.locator(f'[data-action="schedule.open"][data-arg="{preview_plan["session_id"]}"]')
                     preview_open.wait_for()
@@ -119,7 +119,7 @@ def main():
                         api(base, '/api/question/move', {"question_id": item["question_id"], "subject": "数学", "category": f"预览迁移{index}"})
                     replacements = [api(base, '/api/create', {"subject": "数学", "category": "预览原位", "difficulty": 5,
                         "question_text": f"复用编号替代题面{index}"}) for index in range(2)]
-                    page.evaluate("async () => { const d = await import('/assets/app/domain/data.js'); await d.reloadData(); }")
+                    page.evaluate("async () => { const d = await import(new URL('domain/data.js', document.querySelector('script[type=\"module\"][src*=\"/app/main.js\"]').src).href); await d.reloadData(); }")
                     check("计划旧UID快照保持但当前题库已复用编号", [item['uid'] for item in preview_questions] == [item['uid'] for item in replacements]
                           and page.locator('.schd-q__main strong').all_text_contents() == [item['uid'] for item in preview_questions])
                     with page.expect_response(lambda response: '/api/question?question_id=' + preview_questions[0]['question_id'] in response.url) as first_preview:
@@ -160,7 +160,7 @@ def main():
                     pattern = '**/api/question?question_id=' + question["question_id"]
                     page.route(pattern, lambda route: held.append(route))
                     page.evaluate("""async ([uid, oldId, newId]) => {
-                        const { qvRender } = await import('/assets/app/domain/question/index.js');
+                        const { qvRender } = await import(new URL('domain/question/index.js', document.querySelector('script[type=\"module\"][src*=\"/app/main.js\"]').src).href);
                         const target = document.createElement('div'); target.id = 'audit-qv-race';
                         document.body.append(target);
                         window.__auditOldRead = qvRender(target, uid, { question_id: oldId });

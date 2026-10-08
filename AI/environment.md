@@ -253,3 +253,5 @@ MCP 扩展闭环由 tests/e2e/mcp_expansion.py 启动真实临时 Web/MCP 服务
 ## 整批标记归类
 
 新增 `tests/e2e/label_plans.py`：三百合成题、假模型与真实 MCP SDK 走分片准备、同页修订、跨科目选择、一次批准、结果和整批撤销。浅深主题与桌面/390px 布局截图在临时目录；真实进程故障覆盖见 `tests/test_label_plan_recovery.py`。
+
+标记整理回归包含真实进程故障、三百题双入口与真实 SDK、原位审批和撤销；由 `tests/e2e/label_plans.py` 自动加入全门禁。E2E 直接导入应用模块时，从主模块脚本地址解析相对路径，沿用页面内容版本；禁止导入未版本化路径形成另一份未连接的领域单例。界面集成的 CSS 层断言读取 `CSSLayerBlockRule.name`；历史首屏按六十条分页校验，MCP 权限回归含默认关闭的两个标记权限。

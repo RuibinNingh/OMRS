@@ -41,3 +41,46 @@ class AgentLabelPlanTests(unittest.TestCase):
         self.assertTrue(apply_revert(self.vault,self.run.id)['ok'])
         self.assertEqual(load_labels(self.vault)['labels'],[])
         self.assertTrue(plan_revert(self.vault,self.run.id)['already'])
+        self.assertTrue(ai_review.detail(self.vault,review['operation_id'])['result']['reverted_by'])
+
+    def test_prepare_budget_and_candidate_result_cap(self):
+        import json
+        from omrs.agent.loop import AgentLoop
+        tool=self.registry.get('stage_label_plan')
+        call={'id':'budget','name':tool.name,'parse_error':'','args':{'fragment_id':'budget','payload':{'label_changes':[{'action':'create','key':'b','name':'预算'}]}}}
+        loop=AgentLoop(None,self.registry,self.hooks,lambda *args:None,{'rounds':1,'calls':1,'writes':0})
+        outcome=loop._execute(call)
+        self.assertEqual(outcome.status,'done');self.assertFalse(outcome.commits)
+        self.assertEqual(loop.budget.writes,0);self.assertEqual(loop.budget.calls,1)
+        self.assertEqual(self.registry.get('get_labeling_candidates').result_cap,24000)
+        self.assertIsNone(self.registry.get('list_labels').result_cap)
+
+    def test_abort_after_staging_rolls_back_and_preserves_original_data(self):
+        from unittest.mock import patch
+        from omrs import label_plan_journal
+        draft=stage(self.vault,'agent',self.conv,'abort',{'label_changes':[{'action':'create','key':'n','name':'中止标记'}]})
+        row=self.start('propose_label_plan',{'plan_id':draft['plan_id'],'expected_version':1},execute=False)
+        ai_review.decide(self.vault,row['operation_id'],1,'approve');self.finish()
+        before=len(read_commits(self.vault));original_stage=label_plan_journal._stage
+        def abort(*args):
+            result=original_stage(*args);self.run.abort.set();return result
+        with patch('omrs.label_plan_journal._stage',side_effect=abort),self.assertRaises(ValueError):self.hooks.execute(self.call,self.tool)
+        self.assertEqual(load_labels(self.vault)['labels'],[])
+        self.assertEqual(len(read_commits(self.vault)),before)
+
+    def test_native_receipt_recovers_before_tool_result_and_review_end_are_saved(self):
+        draft=stage(self.vault,'agent',self.conv,'receipt',{'label_changes':[{'action':'create','key':'n','name':'恢复标记'}]})
+        row=self.start('propose_label_plan',{'plan_id':draft['plan_id'],'expected_version':1},execute=False)
+        ai_review.decide(self.vault,row['operation_id'],1,'approve');self.finish()
+        actual=self.hooks.execute(self.call,self.tool)
+        # 模拟业务事务已提交，但 after_tool_call 和审核结果尚未落盘就中断。
+        self.assertEqual(ai_review.get(self.vault,row['operation_id'])['status'],'applying')
+        before=len(read_commits(self.vault))
+        self.assertEqual(ai_review.detail(self.vault,row['operation_id'])['status'],'applied')
+        ai_review.initialize(self.vault)
+        recovered=ai_review.get(self.vault,row['operation_id'])
+        self.assertEqual(recovered['status'],'applied')
+        self.assertFalse(recovered['result'].get('failed'))
+        self.assertEqual(recovered['result']['label_changes'],actual['result']['label_changes'])
+        self.assertEqual(len(read_commits(self.vault)),before)
+        self.assertEqual(load_labels(self.vault)['labels'][0]['name'],'恢复标记')

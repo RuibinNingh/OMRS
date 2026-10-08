@@ -80,3 +80,42 @@ class LabelPreparationTests(__import__("unittest").TestCase):
         d=stage(self.vault,'mcp','key','f',{'question_changes':[self.change(uncertain_reason='待判断')]})
         _DRAFTS[d['plan_id']]['updated']-=1801
         with self.assertRaises(ValueError):prepared_payload(self.vault,'mcp','key',d['plan_id'],1)
+
+    def test_response_lost_detail_uses_effective_native_digest(self):
+        row=self.proposal()
+        original_set=ai_review.set_state
+        def save(*args,**kwargs):
+            if len(args)>2 and args[2]=='applied':raise OSError('终态响应故障')
+            return original_set(*args,**kwargs)
+        with patch('omrs.ai_review.set_state',side_effect=save):
+            result=ai_review.decide(self.vault,row['operation_id'],1,'approve')
+        self.assertEqual(result['status'],'applied')
+        self.assertEqual(ai_review.get(self.vault,row['operation_id'])['status'],'applying')
+        count=len(read_commits(self.vault))
+        detail=ai_review.detail(self.vault,row['operation_id'])
+        self.assertEqual(detail['status'],'applied')
+        self.assertNotIn('_undo',detail['result'])
+        self.assertEqual(len(read_commits(self.vault)),count)
+        ai_review.initialize(self.vault)
+        self.assertEqual(ai_review.get(self.vault,row['operation_id'])['status'],'applied')
+
+    def test_cancel_creation_and_exclude_question(self):
+        row=self.proposal()
+        edited=ai_review.update(self.vault,row['operation_id'],1,{'label_changes':[{'change_id':'first:1','enabled':False}]})
+        self.assertEqual(edited['preview']['counts']['changed'],0)
+        self.assertFalse(edited['payload']['question_changes'][0]['enabled'])
+        result=ai_review.decide(self.vault,row['operation_id'],2,'approve')
+        self.assertEqual(result['status'],'unchanged')
+        self.assertEqual(load_labels(self.vault)['labels'],[])
+
+    def test_new_cascade_reference_rejects_approval(self):
+        from omrs.creation import create_question
+        old=save_label(self.vault,name='old')
+        set_question_labels(self.vault,self.q['uid'],['old'])
+        draft=stage(self.vault,'mcp','key','cascade',{'label_changes':[{'action':'delete','label_id':old['id']}]})
+        row=propose_mcp(self.vault,'key','cascade',draft['plan_id'],1)
+        another=create_question(self.vault,'数学','代数',5)
+        set_question_labels(self.vault,another['uid'],['old'])
+        result=ai_review.decide(self.vault,row['operation_id'],1,'approve')
+        self.assertEqual(result['status'],'conflict')
+        self.assertEqual(load_labels(self.vault)['labels'][0]['name'],'old')

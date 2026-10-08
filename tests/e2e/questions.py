@@ -58,7 +58,7 @@ DIALOG_AUDIT = """() => {
 COLS = "sel => { const el = document.querySelector(sel); return el ? getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length : 0; }"
 WIDE = "$$" + " + ".join(f"\\frac{{a_{{{i}}}^2+b_{{{i}}}^2}}{{c_{{{i}}}}}" for i in range(1, 26)) + "$$"
 PROBE = """async ([uid, question]) => {
-  const mount = await import('/assets/app/domain/question/mount.js');
+  const mount = await import(new URL('domain/question/mount.js', document.querySelector('script[type=\"module\"][src*=\"/app/main.js\"]').src).href);
   mount.detailCacheObject()[uid] = { uid, subject: '数学', category: '测试', difficulty: 5, question, answer: '答案', notes: '', records: [] };
   let box = document.getElementById('qv-probe');
   if (!box) { box = document.createElement('div'); box.id = 'qv-probe'; document.body.appendChild(box); }
@@ -378,7 +378,7 @@ def run_layers(page, base, results):
     page.keyboard.press("Enter")
     wait(page, "() => [...document.querySelectorAll('.label-picker-pop .label-picker-option.selected')].some(o => o.textContent.includes('弹窗里新建'))")
     page.click(".label-picker-pop [data-lbl-save]")
-    check("选择器里新建并保存标记（真实点击，不被 inert）", wait(page, "async uid => ((await import('/assets/app/domain/data.js')).itemsNow().find(i => i.uid === uid)?.labels || []).includes('弹窗里新建')", arg=uid, timeout=8000))
+    check("选择器里新建并保存标记（真实点击，不被 inert）", wait(page, "async uid => ((await import(new URL('domain/data.js', document.querySelector('script[type=\"module\"][src*=\"/app/main.js\"]').src).href)).itemsNow().find(i => i.uid === uid)?.labels || []).includes('弹窗里新建')", arg=uid, timeout=8000))
     check("保存后弹窗仍开着，芯片重绘", wait(page, "() => !!document.querySelector('dialog#modal[open] #modal-stage .lbl[data-lbl-name=\"弹窗里新建\"]')"))
     chip = page.evaluate("""() => { const c = document.querySelector('#modal-stage .lbl[data-lbl-name="弹窗里新建"]');
       return c ? { key: c.dataset.lblC || '', css: getComputedStyle(c).getPropertyValue('--lbl-c').trim(), styled: document.querySelectorAll('.lbl[style], .sw[style], .label-swatch[style]').length } : null; }""")

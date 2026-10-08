@@ -70,7 +70,7 @@ def run_main(page, base, port, results):
     commit_id, seq = review["commit_id"], review["seq"]
     latest = max(row["seq"] for row in before["commits"])
     check("首屏：Ledger 主时间线已渲染且无旧全局", open_history(page, base)
-          and page.locator(".hvw-node").count() == len(before["commits"])
+          and page.locator(".hvw-node").count() == min(60, len(before["commits"]))
           and page.evaluate("typeof loadHist === 'undefined' && typeof renderLedgerTimeline === 'undefined'"))
     page.select_option("#history-sort", "desc")
     check("排序切换为新到旧，偏好写入本地存储", wait(page, "seq => document.querySelector('.hvw-node')?.dataset.seq === String(seq)", latest)

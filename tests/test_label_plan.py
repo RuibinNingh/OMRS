@@ -41,6 +41,8 @@ class LabelPlanTests(unittest.TestCase):
         self.assertEqual(load_labels(self.vault)['labels'][0]['priority_bonus'], 0)
         self.assertNotIn('_undo', public_result(result))
         preview = revert_preview(self.vault, result['operation_id']); self.assertTrue(preview['ok'])
+        self.assertEqual(preview['label_changes'][0]['before']['name'],'配方法')
+        self.assertIsNone(preview['label_changes'][0]['after'])
         inverse = revert(self.vault, result['operation_id'], preview['inverse_digest'], 'r1')
         self.assertTrue(inverse['wrote'])
         self.assertEqual(read_question_file(self.vault, projection_row(self.vault, question_id=self.q['question_id'])), content)
@@ -137,3 +139,70 @@ class LabelPlanTests(unittest.TestCase):
         with self.assertRaises(ValueError):revert(self.vault,result['operation_id'],preview['inverse_digest'],'r')
         save_label(self.vault,value=load_labels(self.vault)['labels'][0]['id'],name='改名')
         self.assertFalse(revert_preview(self.vault,result['operation_id'])['ok'])
+
+    def test_reads_wait_for_complete_batch_not_half_replacement(self):
+        import threading
+        from omrs.labels import list_label_defs
+        ready,release=threading.Event(),threading.Event()
+        seen,errors=[],[]
+        real=os.replace
+        def replace(source,target):
+            real(source,target)
+            if target.endswith('.md') and '.omrs-label-' in source:
+                ready.set();release.wait(3)
+        def writer():
+            try:self.apply({'label_changes':[{'action':'create','key':'n','name':'完整'}], 'question_changes':[self.change(add=['n'])]})
+            except Exception as exc:errors.append(exc)
+        def reader():
+            try:seen.extend(list_label_defs(self.vault))
+            except Exception as exc:errors.append(exc)
+        with patch('omrs.label_plan_journal.os.replace',side_effect=replace):
+            w=threading.Thread(target=writer);w.start();self.assertTrue(ready.wait(3))
+            r=threading.Thread(target=reader);r.start()
+            try:
+                r.join(.05);self.assertTrue(r.is_alive());self.assertEqual(seen,[])
+            finally:release.set();w.join(3);r.join(3)
+        self.assertFalse(errors,errors);self.assertEqual(seen[0]['count'],1)
+
+    def test_suspended_cascade_and_affected_limit(self):
+        from omrs.question_ops import suspend_question
+        label=save_label(self.vault,name='旧')
+        set_question_labels(self.vault,self.q['uid'],['旧'])
+        suspend_question(self.vault,self.q['uid'])
+        payload={'label_changes':[{'action':'delete','label_id':label['id']}]}
+        with patch('omrs.label_plan.MAX_QUESTIONS',0),self.assertRaisesRegex(ValueError,'实际受影响'):
+            compile_plan(self.vault,payload)
+        prepared=compile_plan(self.vault,payload)
+        self.assertEqual(prepared['preview']['counts']['changed'],1)
+        result=execute(self.vault,prepared,'suspended',digest(prepared['payload']))
+        row=projection_row(self.vault,question_id=self.q['question_id']);self.assertTrue(row['suspended'])
+        self.assertEqual(extract_labels(parse_yaml_frontmatter(read_question_file(self.vault,row))),[])
+
+    def test_unscanned_new_reference_and_tampered_undo_refused(self):
+        label=save_label(self.vault,name='原')
+        folder=os.path.dirname(os.path.join(self.vault,self.q['file_path']))
+        with open(os.path.join(folder,'代数999.md'),'w') as file:file.write('---\n科目: 数学\n标记: [原]\n---\n新外部题目')
+        with self.assertRaisesRegex(ValueError,'未扫描的新'):compile_plan(self.vault,{'label_changes':[{'action':'delete','label_id':label['id']}]})
+        os.unlink(os.path.join(folder,'代数999.md'))
+        result=self.apply({'label_changes':[{'action':'create','key':'n','name':'新的'}]})
+        from omrs.ledger import connect,canonical_json
+        saved=receipt(self.vault,result['operation_id']);saved['_undo']['catalog_before']='{}'
+        with connect(self.vault) as db:
+            db.execute('UPDATE op_results SET result_json=? WHERE op_id=?',(canonical_json(saved),'label-plan:'+result['operation_id']))
+        with self.assertRaisesRegex(ValueError,'批次事实'):receipt(self.vault,result['operation_id'])
+
+    def test_undo_unscanned_new_reference_refuses_before_any_write(self):
+        result=self.apply({'label_changes':[{'action':'create','key':'n','name':'新定义'}]})
+        preview=revert_preview(self.vault,result['operation_id'])
+        folder=os.path.dirname(os.path.join(self.vault,self.q['file_path']))
+        external=os.path.join(folder,'代数999.md')
+        content='---\n科目: 数学\n标记: [新定义]\n---\n外部新题目'
+        with open(external,'w') as file:file.write(content)
+        before=len(read_commits(self.vault))
+        conflict=revert_preview(self.vault,result['operation_id'])
+        self.assertFalse(conflict['ok']);self.assertIn('未扫描的新标记引用',conflict['conflicts'][0])
+        with self.assertRaisesRegex(ValueError,'未扫描的新标记引用'):
+            revert(self.vault,result['operation_id'],preview['inverse_digest'],'unscanned')
+        self.assertEqual(len(read_commits(self.vault)),before)
+        self.assertEqual(load_labels(self.vault)['labels'][0]['name'],'新定义')
+        with open(external) as file:self.assertEqual(file.read(),content)

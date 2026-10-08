@@ -332,7 +332,7 @@ def run_discard_queue(browser, base, vault, results):
         check('手动进入已丢弃分类仍可查看只读正文', wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{current}') && document.querySelector('.drf-detail h2')?.textContent.includes('已丢弃')")
               and page.locator('[data-action="ai-review.draftEditBlock"], [data-action="ai-review.draftDiscard"]').count() == 0)
         set_filter(page, 'pending')
-        page.evaluate("id => import('/assets/app/domain/drafts.js').then(module => module.openDraft(id))", current)
+        page.evaluate("id => import(new URL('domain/drafts.js', document.querySelector('script[type=\"module\"][src*=\"/app/main.js\"]').src).href).then(module => module.openDraft(id))", current)
         check('指定草稿导航仍能自动匹配已丢弃分类', wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{current}') && document.querySelector('[data-change=\"ai-review.status\"]')?.value === 'discarded'"))
         check('丢弃队列回归没有页面脚本错误', not errors, str(errors))
     finally:

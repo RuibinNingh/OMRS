@@ -66,7 +66,7 @@ MIME主类型按大小写无关识别，multipart boundary保持原文。普通�
 
 ## 标记整理审批
 
-`GET /api/label-plan/revert-preview?operation_id=...` 只读返回 `ok`、`inverse_digest`、逐题变化和冲突。`POST /api/label-plan/revert` 接收 `operation_id`、`inverse_digest`、`request_id`；只有摘要与当前预览一致才执行整批逆操作，重复请求复用回执。普通 Web 登录与同源规则适用，MCP 密钥不能调用。
+`GET /api/label-plan/revert-preview?operation_id=...` 只读返回 `ok`、`inverse_digest`、`label_changes`（定义前后值）、逐题变化和冲突。`POST /api/label-plan/revert` 接收 `operation_id`、`inverse_digest`、`request_id`；只有摘要与当前预览一致才执行整批逆操作，重复请求复用回执。普通 Web 登录与同源规则适用，MCP 密钥不能调用。
 
 ## 标记整理工具
 

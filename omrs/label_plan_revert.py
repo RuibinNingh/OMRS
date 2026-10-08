@@ -53,7 +53,14 @@ def prepare_revert(vault, operation_id):
     for ids in undo.get('snapshot', {}).get('references', {}).values():
         allowed_refs.update(ids)
     with connect(vault) as db:
-        active = [dict(r) for r in db.execute('SELECT * FROM question_projection WHERE archived=0')]
+        all_rows = [dict(r) for r in db.execute('SELECT * FROM question_projection')]
+        active = [row for row in all_rows if not row['archived']]
+    if affected_names:
+        from .workspace_sync import scan_question_files
+        known_paths = {row['file_path'] for row in all_rows}
+        for file in scan_question_files(vault):
+            if file['file_path'] not in known_paths and affected_names.intersection(extract_labels(file['meta'])):
+                _conflict('发现未扫描的新标记引用，请先扫描再撤销')
     for row in active:
         content, _ = _read(vault, row)
         if affected_names.intersection(extract_labels(parse_yaml_frontmatter(content))) and row['question_id'] not in allowed_refs:
@@ -95,7 +102,9 @@ def prepare_revert(vault, operation_id):
     inverse_digest = digest({'operation_id': operation_id, 'snapshot': snapshot, 'catalog_after': output_raw,
                              'items': items})
     return {'catalog_before': raw, 'catalog_after': output_raw, 'files': files, 'snapshot': snapshot,
-            'preview': {'title': '撤销整批标记整理', 'items': items, 'counts': {'definitions': len(changed), 'changed': len(files)}},
+            'preview': {'title': '撤销整批标记整理', 'items': items,
+                        'label_changes': [{'label_id': key, 'before': now.get(key), 'after': restored.get(key)} for key in sorted(changed)],
+                        'counts': {'definitions': len(changed), 'changed': len(files)}},
             'inverse_digest': inverse_digest}
 
 

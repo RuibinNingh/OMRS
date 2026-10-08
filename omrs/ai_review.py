@@ -471,7 +471,7 @@ def _options(options):
 
 def _mcp_receipt_view(vault, row):
     """只用精确原生回执展示已提交事实，底层审批状态与权限保持原值。"""
-    if row['source'] != 'mcp' or row['status'] not in ('running', 'approved', 'applying', 'failed', 'interrupted', 'partial'):
+    if (row['source'] != 'mcp' and row['tool'] != 'propose_label_plan') or row['status'] not in ('running', 'approved', 'applying', 'failed', 'interrupted', 'partial'):
         return row
     result = None
     if row['tool'] in AUTO_MCP:
@@ -480,7 +480,7 @@ def _mcp_receipt_view(vault, row):
         from .mcp_operations import _receipt
         receipt = _receipt(vault, row)
         if receipt:
-            expected = row['effective_digest'] if row['tool'] == 'propose_question_update' else row['digest']
+            expected = row['effective_digest'] if row['tool'] in ('propose_question_update', 'propose_label_plan') else row['digest']
             if receipt['digest'] != expected:
                 return {**row, 'status': 'conflict', 'error_code': 'request_conflict'}
             result = receipt['result']
@@ -628,6 +628,10 @@ def detail(vault, item_id):
         with closing(_connect(vault)) as db:
             initial = db.execute('SELECT payload_json FROM revisions WHERE operation_id=? ORDER BY revision LIMIT 1', (item_id,)).fetchone()
             decision = db.execute('SELECT * FROM decisions WHERE operation_id=?', (item_id,)).fetchone()
+        if row['tool'] == 'propose_label_plan':
+            from .label_plan_journal import reverted_by
+            inverse = reverted_by(vault, item_id)
+            if inverse: out['result'] = {**out['result'], 'reverted_by': inverse}
         out['original_payload'] = json.loads(initial[0]) if initial else row['payload']
         out['decision'] = {**dict(decision), 'actor': json.loads(decision['actor_json'])} if decision else None
         if out['decision']:
@@ -733,9 +737,10 @@ def _import_agent(vault):
                 existing = by_identity(vault, identity)
                 result, commits, status, incomplete = _agent_evidence(db, row, ledger)
                 actor = {'run_id': row['run_id'], 'tool_call_id': row['call_id'], 'conversation_id': row['conversation_id']}
-                native = _agent_native(vault, {'actor': actor, 'tool': row['name']}, ledger) if not commits else None
+                native = _agent_native(vault, {'actor': actor, 'tool': row['name']}, ledger) if not commits or row['name'] == 'propose_label_plan' else None
                 if native:
-                    result = {**result, **native}
+                    # 整理回执覆盖缺失工具结果的推断，不能留下「历史信息不完整」失败项。
+                    result = native if row['name'] == 'propose_label_plan' else {**result, **native}
                     status = 'partial' if native.get('failed') else 'applied'
                     incomplete = bool(native.get('history_incomplete'))
                 if existing:
@@ -844,6 +849,13 @@ def initialize(vault):
 
 def _agent_native(vault, row, ledger=None):
     actor, tool = row['actor'], row['tool']
+    if tool == 'propose_label_plan':
+        original = row if row.get('operation_id') else by_identity(vault, 'agent:' + fingerprint([actor.get('run_id'), actor.get('tool_call_id')]))
+        if original:
+            from .label_plan_journal import receipt, public_result
+            saved = receipt(vault, original['operation_id'], original['effective_digest'])
+            return public_result(saved) if saved else None
+        return None
     if tool == 'create_draft' and os.path.exists(_draft_path(vault)):
         with closing(_readonly(vault, _draft_path(vault))) as db:
             draft = db.execute('SELECT id FROM drafts WHERE run_id=? AND tool_call_id=?',

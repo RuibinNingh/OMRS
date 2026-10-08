@@ -27,7 +27,7 @@ def main():
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(f"http://127.0.0.1:{port}/?unlocked=1#/dashboard", wait_until="networkidle")
             page.wait_for_function("() => Boolean(window.__omrs?.router)")
-            layers = page.evaluate("""() => [...document.styleSheets].filter(s => (s.href || '').includes('/app/styles/index.css')).flatMap(s => [...s.cssRules].filter(r => r.layerName).map(r => r.layerName)).filter((v,i,a) => a.indexOf(v) === i)""")
+            layers = page.evaluate("""() => [...document.styleSheets].filter(s => (s.href || '').includes('/app/styles/index.css')).flatMap(s => [...s.cssRules].filter(r => r instanceof CSSLayerBlockRule).map(r => r.name)).filter((v,i,a) => a.indexOf(v) === i)""")
             results.append(("样式层", layers == ['vendor', 'base', 'ui', 'shell', 'domain', 'features']))
             page.evaluate("""async () => { const { toast } = await import('/assets/app/ui/toast.js'); toast('本机集成提示'); }""")
             results.append(("原生提示", page.locator('.ui-toast').filter(has_text='本机集成提示').count() == 1))

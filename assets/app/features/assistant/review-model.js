@@ -12,6 +12,7 @@ const same = row => JSON.stringify(row.before) === JSON.stringify(row.after);
 export function reviewSummary(item) {
   const p = item?.preview || {}, r = item?.result || {};
   if (item?.tool === 'propose_label_plan') {
+    if (r.reverted_by) return '本批已整批撤销，原始变更记录保留。';
     const counts = ['applied', 'unchanged'].includes(item.status) ? r.counts : p.counts;
     if (counts) return `${['applied', 'unchanged'].includes(item.status) ? '已整理' : '将整理'} ${counts.changed} 道题 · ${counts.definitions} 项定义操作 · ${counts.uncertain || 0} 题待判断`;
   }

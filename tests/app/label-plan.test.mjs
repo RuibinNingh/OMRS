@@ -28,3 +28,16 @@ test('方案渲染转义标记和理由，提供人工排除及统一确认所�
   assert.ok(view.includes('排除此题'));
   assert.ok(!view.includes('<危险>'));
 });
+test('撤销预览显示定义逆变更；已撤销结果不再提供撤销入口', () => {
+  const applied = { ...item, status: 'applied', result: { wrote: true, label_changes: [], details: [], counts: {} } };
+  const s = { item: applied, edited: {}, revertPreview: { ok: true, counts: { definitions: 1, changed: 0 }, items: [],
+    label_changes: [{ before: { name: '<新>', color: '#123456', order: 2 }, after: { name: '原名称', color: '#654321', order: 1 } }] } };
+  const preview = String(labelPlanView(s));
+  assert.ok(preview.includes('&lt;新&gt; · #123456 · 排序 2'));
+  assert.ok(preview.includes('原名称 · #654321 · 排序 1'));
+  assert.ok(preview.includes('ai-review.labelRevertConfirm'));
+  applied.result.reverted_by = 'undo_complete';
+  const completed = String(labelPlanView({ ...s, revertPreview: null }));
+  assert.ok(completed.includes('本批已整批撤销'));
+  assert.ok(!completed.includes('data-action="ai-review.labelRevert"'));
+});

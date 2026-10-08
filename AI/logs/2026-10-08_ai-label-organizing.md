@@ -41,3 +41,25 @@
 实际运行三百题双入口 E2E：18 项通过；Node 全仓 454 项、浏览器组件 34 项、UI 纪律和对比度通过。四页（助手、审核中心、设置、题库）×浅深主题×桌面手机视觉比较 16 张无差异：这些既有页面的默认状态布局保持；新方案内容另由 E2E 截图和真实交互验证。已检查手机深色预览截图，无横向溢出。
 
 全 Python 初跑 839 项有 1 项失败：一般写锁占用时统计 GET 被新增锁阻塞。已改用批次专用一致性屏障，普通统计仍可读取，替换/恢复期间共用屏障；相关 14 项回归通过。最终全门禁尚待重跑。新增真实进程故障 8 项通过；故障现场身份冲突保留、已提交回执不回滚、旧世代不写新库。
+
+## 阶段 5：完整验收与收尾
+
+补齐完整原生回执的只读详情与启动补记：匹配有效提案摘要，助手即使丢失工具结果也以完整批次事实为准，不误记部分成功或重放业务。原记录只读展示撤销指针，已撤销的结果隐藏重复撤销入口。撤销预览显示定义名称、颜色、排序与逐题归属的逆变更；相关未扫描新引用整批拒绝，保留文件、定义与 Ledger。
+
+新增回归覆盖 prepare 零业务写预算、批准后中止、取消新定义依赖、级联新引用竞争、停用题、实际影响上限、并发读取等完整批次、未扫描引用、撤销材料篡改和完整原生回执恢复。真实子进程退出测试覆盖准备、替换、提交、恢复冲突与世代变化。
+
+完整首跑命令：`env -u OMRS_SYSTEMD_SERVICE -u OMRS_BOXDETECT_CONTROL python3 tests/run_gates.py --ref f61277f --groups unit,ui,e2e,release,visual,docs --out /tmp/omrs-ai-label-gates`。48 项门禁首跑有六个 E2E 失败，其余通过；保留原结果，不将首跑描述为全绿。
+
+六项原因与修正：audit_identity、drafts、instant 导入未版本化模块，形成未连接页面服务的另一份领域单例，改为从主模块地址解析当前内容版本；history 夹具因可靠定义写新增审计事实而超过首屏六十条，按真实分页上限校验；mcp_expansion 的“全部权限”断言补上默认关闭的 label:write、label:delete；ui_bridge 按标准 CSSLayerBlockRule.name 读取层名。questions 的直接模块探针也沿用页面实际版本，避免同类失真。未修改这些页面的业务行为。
+
+修复后使用 run_gates.py --only 定向复跑，记录分别在 `/tmp/omrs-label-e2e-recheck`、`/tmp/omrs-label-final-recheck`、`/tmp/omrs-label-last-check`。合并最新结果为 `/tmp/omrs-ai-label-gates/final-results.json`：48/48 通过，包含 37 个 E2E 脚本；这是完整首跑与定向复跑的最终结果，不是再次完整首跑。
+
+已实际验证：Python 全量 868 项通过（包含当时工作区另一任务的回归）；最新整理领域、准备审批、助手和进程故障组合 36 项通过；Node 全仓 455 项通过；真实浏览器组件 34 项通过；UI 零违规；58 组对比度全通过；三百题假模型与真实 SDK 双入口 E2E 18 项通过；历史升级兼容通过。完整视觉报告 `/tmp/omrs-ai-label-gates/visual/report.html`：48 张浅深主题/桌面手机比较均无差异、无脚本错误；这些是页面默认状态，新方案通过专项 E2E 四张实际截图和交互验证，已检查手机深色布局。
+
+未执行付费真实模型、外部冻结检测模型与真实训练数据、实体手机、公网或生产验证：本轮使用假模型、合成题、临时 Vault、随机高端口与 Chromium；不把未执行项计入通过数。不推送、部署或修改生产服务。
+
+收尾复核实际差异并同步标签、审核、助手、Ledger、API、前端两分册和环境文档，运行文档生成与差异门禁。版本保持 v2.3.7，按阶段本地提交。阶段 5 过程中另一任务修改 ai_assist、收件箱提取测试与文档；这些改动及其日志索引保留，不纳入本任务提交，共享 AI/api.md 只提交本任务的撤销响应说明。
+
+阶段 5 实际影响文件：`omrs/ai_review.py`、`omrs/label_plan_journal.py`、`omrs/label_plan_revert.py`（回执与逆操作）；共用 label-plan-view、助手 review-cards/review-model（已撤销状态与定义逆预览）；整理的 Python/Node 回归及上述七份 E2E（真实验证入口与兼容断言）；对应 AI 模块文档、本日志和 progress。未纳入并行任务的 ai_assist、create E2E、公式提取单测及其文档。
+
+最终 `git diff --check` 通过；`python3 tests/check_docs.py --diff f61277f` 与 `--diff HEAD` 均退出 0：105 份文档、0 问题。两条提示仅为既有大计划文件超过推荐尺寸，不属于本任务范围。

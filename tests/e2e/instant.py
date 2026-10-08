@@ -174,7 +174,7 @@ def run_legacy_entries(page, base, results):
           ev(f"document.querySelector('.inst-lblf[data-arg=\"{name}\"]').getAttribute('aria-pressed')") == "true"
           and (lambda got: len(got) > 0 and all(name in (it.get("labels") or []) for it in got))((rec_resp.value.json().get("due") or []) + (rec_resp.value.json().get("proficiency") or [])), name)
     page.evaluate("""async () => { await fetch('/api/label/save', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'E2E新标记', color: '#2f6fde' }) }); await (await import('/assets/app/domain/labels/index.js')).loadLabels(); return 0; }""")
+      body: JSON.stringify({ name: 'E2E新标记', color: '#2f6fde' }) }); await (await import(new URL('domain/labels/index.js', document.querySelector('script[type=\"module\"][src*=\"/app/main.js\"]').src).href)).loadLabels(); return 0; }""")
     check("标记定义变了：经 bus 的 labels 事件重绘筛选芯片", wait(page, "() => !!document.querySelector('.inst-lblf[data-arg=\"E2E新标记\"]')"))
     page.route("**/api/recommend*", lambda route: route.fulfill(status=500, content_type="application/json", body='{"status":"error","msg":"模拟故障"}'))
     with page.expect_response(lambda response: '/api/recommend?' in response.url):

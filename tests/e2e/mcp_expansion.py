@@ -76,11 +76,11 @@ def main():
             page.add_init_script("localStorage.setItem('omrs-settings-section','access')")
             open_app(page, base, 'settings')
             page.click('[data-action="settings.mcpCreate"]')
-            check('新增写权限默认不勾选，原两个权限保持默认', all(not page.locator('#'+id).is_checked() for id in ('st-mcp-scope-question','st-mcp-scope-update','st-mcp-scope-session','st-mcp-scope-report','st-mcp-scope-board','st-mcp-scope-delete'))
+            check('新增写权限默认不勾选，原两个权限保持默认', all(not page.locator('#'+id).is_checked() for id in ('st-mcp-scope-question','st-mcp-scope-update','st-mcp-scope-session','st-mcp-scope-report','st-mcp-scope-board','st-mcp-scope-delete','st-mcp-scope-label-write','st-mcp-scope-label-delete'))
                   and page.locator('#st-mcp-scope-read').is_checked() and page.locator('#st-mcp-scope-draft').is_checked())
             page.click('dialog[open] [data-dialog-cancel]')
             page.click(f'[data-action="settings.mcpEdit"][data-arg="{key["key_id"]}"]')
-            for id in ('st-mcp-scope-question','st-mcp-scope-draft','st-mcp-scope-update','st-mcp-scope-session','st-mcp-scope-report','st-mcp-scope-board','st-mcp-scope-delete'):
+            for id in ('st-mcp-scope-question','st-mcp-scope-draft','st-mcp-scope-update','st-mcp-scope-session','st-mcp-scope-report','st-mcp-scope-board','st-mcp-scope-delete','st-mcp-scope-label-write','st-mcp-scope-label-delete'):
                 page.locator('#'+id).check()
             page.click('dialog[open] [data-dialog-ok]')
             wait(page, "() => !document.querySelector('dialog[open]')")

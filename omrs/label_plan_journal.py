@@ -345,3 +345,15 @@ def assert_readable(vault):
     path = os.path.join(os.path.realpath(vault), '.omrs-maintenance', 'label-plans')
     if os.path.isdir(path) and any(re.fullmatch(r'[0-9a-f]{64}\.json', name) for name in os.listdir(path)):
         raise RequestError('operation_pending', '标记整理尚待恢复，请正常启动后重试')
+
+
+@storage
+def reverted_by(vault, operation_id):
+    """只读撤销指针，历史结果仍保留原事实。"""
+    from .ledger import ledger_path
+    path = ledger_path(vault)
+    if not os.path.isfile(path) or os.path.islink(path):
+        return ''
+    with closing(open_sqlite(vault, Path(path).as_uri() + '?mode=ro', uri=True, timeout=5)) as db:
+        raw = db.execute('SELECT result_json FROM op_results WHERE op_id=?', ('label-plan-reverted:' + operation_id,)).fetchone()
+    return json.loads(raw[0]).get('operation_id', '') if raw else ''

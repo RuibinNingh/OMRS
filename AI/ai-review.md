@@ -18,6 +18,7 @@
 | 创建正式复习计划 | 执行前人工批准 |
 | 助手正文/知识点/标记/移动/停用/恢复/反馈/分类/草稿入库 | 执行前人工批准 |
 | MCP 正式题目修改 | 执行前人工批准，可修订原提案字段 |
+| MCP 与助手整批标记整理 | 执行前一次人工批准，可修订与排除原范围内的操作 |
 | MCP 删除展示板/文件夹、清空非空板、重置纸面历史 | 执行前人工批准 |
 
 待审核列表同时展示长期待审草稿与限时确认操作；正在请求入库的草稿以对应操作代替同一草稿行，待办按稳定草稿身份去重。记录页展示调用结果和原生草稿的当前状态；它们是不同对象，调用成功不代表草稿已经正式入库。
@@ -54,7 +55,7 @@ MCP 在业务提交后丢失审核结果时，详情可以通过精确操作身�
 | POST `/api/ai-review/update` | id 或 operation_id、expected_revision、非空 patch；返回修订后的 item |
 | POST `/api/ai-review/decide` | id 或 operation_id、expected_revision、decision=approve/reject；返回真实状态的 item |
 
-type 是 draft/question/session/feedback/board/report/category/practice。错误返回 status=error、msg、code；旧版本为 revision_conflict/409，旧状态为 state_conflict/409，缺目标为 not_found/404。过期视图在读取时计算，不因 GET 更新领域。
+type 是 draft/question/session/feedback/board/report/category/practice/label_plan。错误返回 status=error、msg、code；旧版本为 revision_conflict/409，旧状态为 state_conflict/409，缺目标为 not_found/404。过期视图在读取时计算，不因 GET 更新领域。
 
 ## 5. 启动、恢复与历史
 
@@ -68,4 +69,6 @@ type 是 draft/question/session/feedback/board/report/category/practice。错误
 
 ## 标记整理审批
 
-新增 `propose_label_plan` 的标记整理类型，复用十分钟期限、唯一审批、版本与人工决定。人工修订只允许原定义名称/颜色/排序、原操作或题目开关和原集合内归属；排除级联题目会关闭对应定义操作，取消新标记会取消依赖归类。每次修订换票据，不延长期限。
+`propose_label_plan` 的标记整理类型，复用十分钟期限、唯一审批、版本与人工决定。人工修订只允许原定义名称/颜色/排序、原操作或题目开关和原集合内归属；排除级联题目会关闭对应定义操作，取消新标记会取消依赖归类。每次修订换票据，不延长期限。
+
+标记整理详情同时为两种来源核对有效提案摘要与完整原生回执。助手在业务提交后丢失工具结果或终态时，启动使用完整批次回执覆盖不完整历史推断，不误记部分成功、不重放业务。已撤销指针只读展示在原记录，原批次结果和决定保留。
