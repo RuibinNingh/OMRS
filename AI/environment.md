@@ -15,19 +15,19 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-08 22:11 CST 实测）：主服务 `omrs.service`，Type=simple、Restart=on-failure、RestartSec=3s；有效 drop-in 从 `/root/workspace/apps/releases/omrs-f61277f` 运行 v2.3.7，来自精确提交 `f61277fddb2fb7fa3e6998d783f47b5f0a508cf9` 的 Git 归档，1,264 个源码文件逐字节核验。`.venv` 相对链接复用既有生产依赖，没有安装或升级依赖；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0。真实 Vault 仍为 `/root/workspace/apps/OMRS`；main 已推送 GitHub，部署文档提交与运行源码 pin 分开。
+生产环境事实（2026-10-08 23:50 CST 实测）：主服务 `omrs.service`，Type=simple、Restart=on-failure、RestartSec=3s；有效 drop-in 从 `/root/workspace/apps/releases/omrs-ee366f1` 运行 v2.3.8，来自精确提交 `ee366f1c8d7a9db0027c9a4139578b7186f8ae49` 的 Git 归档，1,287 个源码文件逐字节核验。`.venv` 相对链接复用既有生产依赖，没有安装或升级依赖；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0。真实 Vault 仍为 `/root/workspace/apps/OMRS`；源码 main 已推送 GitHub，部署文档提交与运行源码 pin 分开。
 
-Web监听8471，同进程MCP仅监听127.0.0.1:18472；Nginx共用HTTPS8472按路径分流。公网MCP为 `https://home.ruibin-ningh.top:8472/mcp`，公网Web为 `https://home.ruibin-ningh.top:8472`。PIN已配置；本机API免PIN不能绕过工作台入口。完整权限发现40个MCP工具，只读22个；Key现有权限决定实际发现范围，正式调度、改题和草稿继续遵守审核契约，既有Key不自动扩权。
+Web监听8471，同进程MCP仅监听127.0.0.1:18472；Nginx共用HTTPS8472按路径分流。公网MCP为 `https://home.ruibin-ningh.top:8472/mcp`，公网Web为 `https://home.ruibin-ningh.top:8472`。PIN已配置；本机API免PIN不能绕过工作台入口。当前代码完整授权注册44个MCP工具（24读、19业务写、1技术准备），隔离真实SDK验证通过；Key现有权限决定实际发现范围，正式调度、改题、标记整理和草稿继续遵守审核契约，既有Key不自动扩权。
 
-最新发布保全在 `/root/workspace/apps/releases/OMRS-v237-release-20261008T140957Z-3c9le11w/`（目录0700、文件0600）：精确新旧源码tar、旧unit/drop-in及控制配置、一致Vault/maintenance tar、私人表/文件摘要、校验清单及验证证据。停服备份与原目录比较通过，933个解包文件逐字节一致，副本SQLite完整性通过。切换及后续只读核验保持49张业务表、877个内容/关键配置文件；切换前后277题、0冲突、待审0。本轮没有调用MCP业务工具或修改Key。
+最新发布保全在 `/root/workspace/apps/releases/OMRS-v238-release-20261008T154924Z-ft9vnb8z/`（目录0700、文件0600）：精确新旧源码tar、旧unit/drop-in及控制配置、一致Vault/maintenance tar、私人表/文件摘要、校验清单及验证证据。停服备份与原目录比较通过，943个解包文件逐字节一致，副本SQLite完整性通过。切换及后续只读核验保持49张业务表、887个内容/关键配置文件；切换前后277题、0冲突、待审0。本轮没有调用MCP业务工具或修改Key。
 
-只替换主服务drop-in的三处release路径。主服务PID3456500、active/running、NRestarts=0；2026-10-08 22:11:40 CST成功切换和核验3.762秒。Tunnel PID875442、检测服务PID1532134及Nginx状态保持；85个实际控制文件/模型指针指纹一致，包含宝塔Nginx的真实配置树。端口、公网URL、Vault、PIN、Key权限与模型保持，Tunnel/检测/Nginx未重启。旧 `omrs-479f1b9`、早期release、依赖及既有保全仍保留；恢复只处理兼容源码，不用旧Vault覆盖上线后的新增事实。
+只替换主服务drop-in的三处release路径。主服务PID3891862、active/running、NRestarts=0；2026-10-08 23:50:57 CST成功切换和核验3.918秒。Tunnel PID875442、检测服务PID1532134及Nginx状态保持；85个实际控制文件/模型指针指纹一致，包含宝塔Nginx的真实配置树。端口、公网URL、Vault、PIN、Key权限与模型保持，Tunnel/检测/Nginx未重启。旧 `omrs-f61277f`、早期release、依赖及既有保全仍保留；恢复只处理兼容源码，不用旧Vault覆盖上线后的新增事实。
 
-本轮候选Python全量820项通过，无跳过；Node451项、组件34项、UI纪律和58组对比度通过。精确release及既有venv另实跑后端64项、对话内审核浏览器28项、刷新浏览器56项，均通过。候选聊天59项、中心47项、草稿块59项及分类/草稿修订11项通过。四页双主题双宽度16组视觉比较中，助手欢迎说明和桌面版本文字产生预期差异，其他手机页无差异。业务测试全部使用临时Vault、随机端口和假模型。
+本轮候选统一门禁48/48通过，包括Python全量869项、pytest导出7项、Node455项、组件34项、37个原始E2E、打印、UI纪律、58组对比度与历史升级演练。精确release及既有venv另实跑后端111项、录入浏览器116项、三百题标记整理18项、对话内审核28项、刷新56项，均通过。12页双主题双宽度48组视觉比较中，20组桌面差异仅为版本脚注数字7→8，其余28组无差异；全部无脚本错误或页面横溢。业务测试使用临时Vault、随机端口和假模型；区域提取解析器、SDK与Chromium使用真实实现。
 
-生产本机接口实际返回v2.3.7；16项修改资源与合并样式实际HTTP 200，gzip解压与release字节一致，缓存含immutable，条件请求304。公网这16项工作台资源匿名401，鉴权正常。公网入口/授权摘要200，匿名status/MCP401，回环MCP无Key401；主服务错误级journal无记录。Tunnel的healthz、readyz、health/mcp均200。真实本机和公网浏览器验证PIN入口、标题及390px无横溢 / 无脚本错误；没有保存登录凭据或尝试进入生产工作台。PIN后的页面、真实模型、Windows和实体手机未验收；界面主路径在隔离Chromium验证。
+生产本机接口实际返回v2.3.8；14项修改资源与合并样式实际HTTP 200，gzip解压与release字节一致，缓存含immutable，条件请求304。公网这14项工作台资源匿名401，鉴权正常。公网入口/授权摘要200，匿名status/MCP401，回环MCP无Key401；主服务错误级journal无记录。Tunnel的healthz、readyz、health/mcp均200。真实本机和公网浏览器验证PIN入口、标题及390px无横溢 / 无脚本错误；没有保存登录凭据或尝试进入生产工作台。PIN后的页面、本轮真实模型调用、Windows和实体手机未验收；界面主路径在隔离Chromium验证。
 
-当前v2.3.7不改变数据库结构或持久化契约。正式题目journal与统一审批恢复继续保持最新数据；跨旧存储版本不能只恢复旧drop-in或旧Vault。原正文恢复保全及私人清单仍保留，当前正文可用性与历史缺口的规范见 `ledger.md` §10；禁止提交正文、私人路径清单和数据库。
+正式题目、标记整理journal与统一审批恢复保持最新数据；存在未完成恢复或整批写入意图时停止发布，不能靠切换旧源码跳过恢复。跨旧存储版本不能只恢复旧drop-in或旧Vault。原正文恢复保全及私人清单仍保留，当前正文可用性与历史缺口的规范见 `ledger.md` §10；禁止提交正文、私人路径清单和数据库。
 
 A4固定字体与打印门禁为 `python3 -m unittest tests.test_export_fonts tests.smoke_a4_print -q`；统一门禁包含 `print-a4`，下载路径另由 `tests/e2e/schedule.py` 验证。刷新不闪动的隔离门禁为 `python3 tests/e2e/ai_review_refresh.py`。所有测试实例须清除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`，Windows Edge与实体手机须另验。
 
