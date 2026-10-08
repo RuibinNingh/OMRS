@@ -318,3 +318,7 @@ SQLite `active_config` 是完整运行时事实源，`config.json` 是镜像和�
 `note` 只读写 `# 备注` 下的 `## 补充备注`；旧裸备注、`## 错因`、`## 关联` 和陌生子节保留。题干、答案拒绝一级标题注入，错因与补充备注同时拒绝一、二级标题注入；已有重复系统节拒绝修改。原 Obsidian 和标准 Markdown 图片的字面引用、重复次数、顺序和所属节保留，省略原图片时自动附回；新增图片、外链、HTML 或 data URL 图片不接受。
 
 知识点与标记拒绝换行和控制字符，使用 JSON 双引号字符串编码 YAML 列表；受限 frontmatter 解析器解码引号和反斜杠，投影保存真实值。审核库 `错题/.omrs/ai_review.db` 保存待审与已处理操作；全文、来源和修订历史不进入脱敏系统运行库，完整备份覆盖该数据库。实际正文、Ledger 与跨文件 journal 的原子边界见 `AI/ledger.md`。
+
+## 标记整理批次
+
+标记整理不改变 labels.json 与题目 YAML 的格式；受限 journal 在 `.omrs-maintenance/label-plans/` 保存替换前后内容、哈希、文件身份与世代。回执私有撤销材料仅在 Ledger，公共结果不含该字段。

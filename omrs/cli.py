@@ -125,6 +125,8 @@ def main():
     recover_restore(vault, allow_recovery=args.command not in {"content-audit", "content-recover"})
     from .question_update import recover_pending as recover_question_updates
     recover_question_updates(vault, allow_recovery=args.command not in {"content-audit", "content-recover"})
+    from .label_plan_journal import recover_pending as recover_label_plans
+    recover_label_plans(vault, allow_recovery=args.command not in {"content-audit", "content-recover"})
     if args.command == "content-recover":
         from .content_recovery import load_recovery_manifest, recover_content
         try:

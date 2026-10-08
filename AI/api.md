@@ -59,3 +59,7 @@ MIME主类型按大小写无关识别，multipart boundary保持原文。普通�
 3. `POST /api/uploads/complete`：JSON `{upload_id,sha256?}`；核对完整长度及可选 SHA-256，返回 `{upload_ref,bytes,mime,sha256,filename,expires_at}`。
 
 暂存放在系统临时目录、权限为目录0700/文件0600，有效期1小时；引用绑定 Web 会话（直连免 PIN 时按客户端 IP）、Vault 世代和用途。恢复后旧引用失效。图片完成时识别 PNG/JPEG/GIF，备份用途仅供 ZIP 导入，不得用于图片。文件是普通非链接原件，完成核对分块累计长度、读取校验哈希；启动和每块空间准入均保留64MiB。引用不会写入学习 Ledger，原业务入库才产生事实。
+
+## 标记整理批次
+
+人工标记 API 保持请求与响应契约，底层改用整批可靠写入；标签与题面聚合读共用一致性锁，待恢复时读取拒绝而不执行恢复。

@@ -48,3 +48,7 @@ CLI 在读取配置、初始化数据库、补齐回执和扫描之前调用目�
 `tests/test_backup_recovery.py` 验证独立库 WAL 已提交行、嵌套连接与跨进程屏障、旧任务世代、所有 journal 阶段、rename／fsync 故障、交换间隙进程中断、预检篡改、提交后清理失败与重试，以及恢复成功/失败后的旧审批失效。`tests/test_inbox_atomic_commit.py` 验证入库事实和回执故障补齐；`tests/test_question_update.py` 验证题目中断写入的事实、文件所有权与旧世代边界。
 
 容量命令：`python3 tests/bench_backup_runtime.py --vault <临时合成题库> --samples 5`。题库由 `tests/bench_data_runtime.py --keep` 生成，必须含真实 Markdown 与正文 blob。报告实际样本数、P50／P95、峰值 RSS 与冻结时间；禁止连接真实 Vault。
+
+## 标记整理批次
+
+备份冻结前先恢复标记整理 journal；已提交回执只清理材料，未提交且身份一致才回滚，冲突保留现场。恢复后的旧世代意图不能写新库。

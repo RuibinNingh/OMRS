@@ -1,3 +1,4 @@
+from .data_repository import storage_read
 from .common import business_today
 from .data_repository import mastery_rows, history_rows, resolve_question
 from .vault_lifecycle import storage
@@ -21,7 +22,7 @@ from .scheduling import (
 )
 
 
-@storage
+@storage_read
 def get_stats(vault, subject=None):
     rows = [resolve_sm2_fields(r) for r in mastery_rows(vault)]
     history = history_rows(vault)
@@ -241,7 +242,7 @@ def get_stats(vault, subject=None):
     }
 
 
-@storage
+@storage_read
 def get_question_content(vault, uid="", question_id=""):
     if question_id:
         projection = resolve_question(vault, uid=uid, question_id=question_id)

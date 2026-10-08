@@ -1,13 +1,13 @@
 """用户标记定义、题目 YAML 标记级联和查询。
 
 标记定义存于 ``错题/.omrs/labels.json``；题目 Markdown 只保存标记名称，
-因此 Obsidian 中仍然可以直接查看和编辑。题目归属的写入统一经过
-``scan_workspace``，由既有 metadata_update_external 机制生成 Ledger 记录。
+因此 Obsidian 中仍然可以直接查看和编辑。人工级联与 AI 整理共用可靠批次，
+定义与题目文件整体替换，逐题 Ledger 事实保持可重建投影。
 """
 
 from __future__ import annotations
 from .vault_lifecycle import storage, open_sqlite
-from .data_repository import mastery_rows
+from .data_repository import mastery_rows, storage_read
 
 import datetime
 import json
@@ -78,7 +78,7 @@ def _normalize_label(raw, index=0) -> dict:
     }
 
 
-@storage
+@storage_read
 def load_labels(vault: str) -> dict:
     path = labels_path(vault)
     if not os.path.isfile(path):
@@ -142,7 +142,7 @@ def _label_counts(vault: str) -> dict:
     return counts
 
 
-@storage
+@storage_read
 def list_label_defs(vault: str) -> list[dict]:
     counts = _label_counts(vault)
     return [{**item, "count": counts.get(item["name"], 0)}
@@ -152,154 +152,51 @@ def list_label_defs(vault: str) -> list[dict]:
 @storage
 def save_label(vault: str, value=None, name=None, color=None,
                priority_bonus=None, order=None) -> dict:
-    data = load_labels(vault)
-    old = _resolve(data["labels"], value) if value else None
-    clean = _clean_name(name if name is not None else (old["name"] if old else ""))
-    duplicate = next((item for item in data["labels"]
-                      if item["name"] == clean and item is not old), None)
-    if duplicate:
-        raise ValueError(f"标记已存在: {clean}")
-    if old:
-        old_name = old["name"]
-        old["name"] = clean
+    from .label_plan import apply_web, catalog
+    from .locking import write_lock
+    with write_lock():
+        data, _ = catalog(vault)
+        old = _resolve(data["labels"], value) if value else None
+        change = {"action": "update" if old else "create",
+                  **({"label_id": old["id"]} if old else {"key": "web-create"}),
+                  "name": _clean_name(name if name is not None else (old["name"] if old else ""))}
         if color is not None:
-            old["color"] = _clean_color(color)
+            change["color"] = _clean_color(color)
         if priority_bonus is not None:
-            old["priority_bonus"] = _clean_bonus(priority_bonus)
+            change["priority_bonus"] = _clean_bonus(priority_bonus)
         if order is not None:
-            old["order"] = max(1, int(order))
-        old["archived"] = False
-        affected = _rename_references(vault, old_name, clean) if old_name != clean else 0
-        save_labels(vault, data)
-        return {**old, "count": _label_counts(vault).get(clean, 0), "affected": affected}
-    label = {
-        "id": f"LB-{datetime.datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6]}",
-        "name": clean,
-        "color": _clean_color(color),
-        "order": max([item["order"] for item in data["labels"]] or [0]) + 1
-            if order is None else max(1, int(order)),
-        "priority_bonus": _clean_bonus(priority_bonus),
-        "archived": False,
-        "created_at": _now(),
-    }
-    data["labels"].append(label)
-    save_labels(vault, data)
-    return {**label, "count": 0, "affected": 0}
-
-
-@storage
-def _rename_references(vault: str, old_name: str, new_name: str) -> int:
-    """批量改名，返回实际含旧名称的题目数。"""
-    if old_name == new_name:
-        return 0
-    from .ledger import connect
-    with connect(vault) as db:
-        rows = [dict(row) for row in db.execute(
-            "SELECT uid FROM question_projection WHERE archived = 0"
-        ).fetchall()]
-    changed = 0
-    for row in rows:
-        try:
-            with connect(vault) as db:
-                record = db.execute(
-                    "SELECT file_path FROM question_projection WHERE uid = ? AND archived = 0",
-                    (row["uid"],),
-                ).fetchone()
-            if not record:
-                continue
-            path = os.path.join(vault, str(record["file_path"]).replace("\\", os.sep))
-            with open(path, "r", encoding="utf-8") as file:
-                content = file.read()
-            labels = extract_labels(parse_yaml_frontmatter(content))
-            if old_name not in labels:
-                continue
-            labels = [new_name if item == old_name else item for item in labels]
-            if set(labels) != set(extract_labels(parse_yaml_frontmatter(content))):
-                set_question_labels(vault, row["uid"], labels, scan=False)
-                changed += 1
-        except (OSError, RuntimeError):
-            continue
-    if changed:
-        scan_workspace(vault)
-    return changed
+            change["order"] = max(1, int(order))
+        prepared, result = apply_web(vault, [change])
+        label_id = prepared["payload"]["label_changes"][0]["label_id"]
+        label = next(d for d in load_labels(vault)["labels"] if d["id"] == label_id)
+        return {**label, "count": _label_counts(vault).get(label["name"], 0),
+                "affected": result["counts"]["changed"]}
 
 
 @storage
 def delete_label(vault: str, value, detach=True) -> dict:
-    data = load_labels(vault)
-    label = _resolve(data["labels"], value)
-    if not label:
-        raise ValueError("标记不存在")
-    affected = 0
-    if detach:
-        affected = _remove_reference(vault, label["name"])
-    data["labels"] = [item for item in data["labels"] if item["id"] != label["id"]]
-    save_labels(vault, data)
-    return {"deleted": True, "name": label["name"], "affected": affected}
-
-
-@storage
-def _remove_reference(vault: str, name: str) -> int:
-    from .ledger import connect
-    with connect(vault) as db:
-        rows = [dict(row) for row in db.execute(
-            "SELECT uid, file_path FROM question_projection WHERE archived = 0"
-        ).fetchall()]
-    changed = 0
-    for row in rows:
-        try:
-            path = os.path.join(vault, str(row["file_path"]).replace("\\", os.sep))
-            with open(path, "r", encoding="utf-8") as file:
-                content = file.read()
-            from .common import parse_yaml_frontmatter
-            labels = extract_labels(parse_yaml_frontmatter(content))
-            if name not in labels:
-                continue
-            set_question_labels(vault, row["uid"], [item for item in labels if item != name], scan=False)
-            changed += 1
-        except (OSError, RuntimeError):
-            continue
-    if changed:
-        scan_workspace(vault)
-    return changed
+    from .label_plan import apply_web, catalog
+    from .locking import write_lock
+    with write_lock():
+        data, _ = catalog(vault)
+        label = _resolve(data["labels"], value)
+        if not label:
+            raise ValueError("标记不存在")
+        _, result = apply_web(vault, [{"action": "delete", "label_id": label["id"], "detach": bool(detach)}])
+        return {"deleted": True, "name": label["name"], "affected": result["counts"]["changed"]}
 
 
 @storage
 def merge_labels(vault: str, from_value, into_value) -> dict:
-    data = load_labels(vault)
-    source = _resolve(data["labels"], from_value)
-    target = _resolve(data["labels"], into_value)
-    if not source or not target:
-        raise ValueError("合并标记不存在")
-    if source["id"] == target["id"]:
-        raise ValueError("不能把标记合并到自身")
-    # Capture references before changing any Markdown so the merge preserves
-    # other labels on each affected question.
-    from .ledger import connect
-    with connect(vault) as db:
-        rows = [dict(row) for row in db.execute(
-            "SELECT uid, file_path FROM question_projection WHERE archived = 0"
-        ).fetchall()]
-    affected_rows = []
-    for row in rows:
-        try:
-            path = os.path.join(vault, str(row["file_path"]).replace("\\", os.sep))
-            with open(path, "r", encoding="utf-8") as file:
-                labels = extract_labels(parse_yaml_frontmatter(file.read()))
-            if source["name"] in labels:
-                affected_rows.append((row, labels))
-        except OSError:
-            continue
-    source_uids = {row["uid"] for row, _ in affected_rows}
-    for row, labels in affected_rows:
-        merged = [target["name"] if name == source["name"] else name for name in labels]
-        merged = list(dict.fromkeys(merged))
-        set_question_labels(vault, row["uid"], merged, scan=False)
-    if source_uids:
-        scan_workspace(vault)
-    data["labels"] = [item for item in data["labels"] if item["id"] != source["id"]]
-    save_labels(vault, data)
-    return {"merged": True, "from": source["name"], "into": target["name"], "affected": len(source_uids)}
+    from .label_plan import apply_web, catalog
+    from .locking import write_lock
+    with write_lock():
+        data, _ = catalog(vault)
+        source, target = _resolve(data["labels"], from_value), _resolve(data["labels"], into_value)
+        if not source or not target:
+            raise ValueError("合并标记不存在")
+        _, result = apply_web(vault, [{"action": "merge", "label_id": source["id"], "into": target["id"]}])
+        return {"merged": True, "from": source["name"], "into": target["name"], "affected": result["counts"]["changed"]}
 
 
 @storage

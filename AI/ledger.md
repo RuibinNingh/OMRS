@@ -238,3 +238,7 @@ omrs/session_operations.py 在新鲜链头、活动配置和 SQL 投影检查后
 CLI 在扫描与监听前收束 journal。存在有效原生回执时仅清理维护意图并供审核库补终态，不重新写题目。无事实时，只有题目身份、路径、链头、当前哈希及文件 inode 都能证明仍属于本次中断，才恢复旧正文；后续事实、换文件或外部编辑使所有权不明时停止启动并保留现场。普通异常走同一收束协议；已经提交的结果不会因辅助记录失败而再次业务写入。旧世代 journal 只移到维护目录的 `.obsolete` 材料，不碰恢复后的题库。
 
 回归命令为 `python3 -m unittest tests.test_question_update`，覆盖受限补丁、YAML 往返、图片边界、身份与版本冲突、人工修订摘要、无变化、重复批准，以及真实子进程在文件替换后与 Ledger 提交后的中断。正文读取返回 `question_id`、`difficulty` 和独立补充备注；MCP 完整正文查询仍按页限制，备注另外标出总字符数与截断。
+
+## 标记整理批次
+
+标记整理逐题追加 `question.metadata_update`，批次追加 `labels.plan_apply` 或 `labels.plan_revert`；同一事务存 `label-plan:<operation_id>` 回执。审计事实不改变学习状态；撤销保存独立逆事实，不删原历史。

@@ -148,3 +148,16 @@ def session_row(vault, session_id):
         if db.execute("SELECT 1 FROM commits LIMIT 1").fetchone():
             return _session_item(row) if row else None
     return next((r for r in (_legacy(vault, "sessions.csv") or []) if r["Session_ID"] == session_id), None)
+
+
+def storage_read(fn):
+    """标签及题面聚合读与整批替换共用一致性保护，不在读取时恢复。"""
+    @functools.wraps(fn)
+    def wrapped(vault, *args, **kwargs):
+        from .vault_lifecycle import lease
+        from .locking import write_lock
+        from .label_plan_journal import assert_readable
+        with lease(vault), write_lock():
+            assert_readable(vault)
+            return fn(vault, *args, **kwargs)
+    return wrapped

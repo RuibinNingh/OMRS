@@ -1,3 +1,4 @@
+from .data_repository import storage_read
 """正文入账：题目 Markdown 的历史版本存进 Ledger 的 blobs 表，commit 只引用哈希。
 
 - record_file_change：写文件后按「元数据变了 → question.metadata_update，只改正文 → question.content_update」
@@ -42,7 +43,7 @@ def question_file(vault, row):
     return safe_question_path(vault, os.path.abspath(os.path.join(vault, row["file_path"])))
 
 
-@storage
+@storage_read
 def read_question_file(vault, row):
     with open(question_file(vault, row), "r", encoding="utf-8") as file:
         return file.read()

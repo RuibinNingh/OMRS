@@ -75,6 +75,8 @@ def scan_workspace(vault: str):
 
     # 锁顺序：写锁在外，_SCAN_LOCK 在内（_SCAN_LOCK 只防扫描重入，不排队重复扫描）
     with write_lock():
+        from .label_plan_journal import recover_pending
+        recover_pending(vault)
         if not _SCAN_LOCK.acquire(blocking=False):
             return {"status": "busy", "changes": 0, "conflicts": []}
         try:
