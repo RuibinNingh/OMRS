@@ -150,7 +150,8 @@ function sourceWorkspace(state, readonly) {
 
 function detailView(state) {
   const { draft, value, detailLoaded, detailError, dirty, busy, message, conflict } = state;
-  if (detailError) return html`<main class="drf-detail"><div class="drf-error" role="alert">读取草稿失败：${detailError}${button({ label: '重试', action: 'ai-review.draftRetry' })}</div></main>`;
+  const error = detailError ? html`<div class="drf-error" role="alert">读取草稿失败：${detailError}${draft && value ? '；当前内容保留。' : ''}${button({ label: '重试', action: 'ai-review.draftRetry' })}</div>` : '';
+  if (detailError && (!draft || !value)) return html`<main class="drf-detail">${error}</main>`;
   if (!detailLoaded) return html`<main class="drf-detail"><p role="status">正在读取草稿…</p></main>`;
   if (!draft || !value) return html`<main class="drf-detail">${empty({ icon: 'inbox', title: '选择一份草稿', hint: '在左侧列表选择，核对后保存或通过。', bordered: true })}</main>`;
   const readonly = draft.status === 'done' || draft.status === 'discarded';
@@ -160,7 +161,7 @@ function detailView(state) {
   return html`<main class="drf-detail" data-workspace-mode="${mode}"><div class="drf-detail-head"><div class="drf-detail-title"><span class="drf-eyebrow">AI 草稿审核${draft.source_channel === 'mcp' ? ' · 来源：MCP' : ''}</span>
     ${draft.cause_verification === 'client_asserted' ? html`<p class="hint">错因由外部助手提供，待核对。${draft.cause_statement || ''}</p>` : ''}
       <p class="drf-id">${position >= 0 ? `第 ${position + 1}/${total} 题 · ` : ''}${draft.id}</p>
-      <h2 title="草稿版本 ${draft.revision ?? '?'}">${draftStatusLabel(draft.status)} ${dirty ? '· 未保存' : ''}</h2></div>
+      <h2 title="草稿版本 ${draft.revision ?? '?'}">${draftStatusLabel(draft.status)} ${dirty ? '· 未保存' : ''}</h2>${error}</div>
       <div class="drf-detail-actions"><div class="drf-review-nav">${button({ label: '上一题', size: 'sm', action: 'ai-review.draftNavigate', arg: '-1', disabled: busy || position <= 0 })}
         ${button({ label: '下一题', size: 'sm', action: 'ai-review.draftNavigate', arg: '1', disabled: busy || position < 0 || position >= total - 1 })}</div>
         <button type="button" class="drf-source-trigger ui-btn ui-btn--sm" data-action="ai-review.draftToggleSource" aria-expanded="${mode === 'source' ? 'true' : 'false'}">${mode === 'source' ? '返回内容审核' : '来源对照 / 框选'}<span class="ui-btn__label"> · ${value.source_images.length} 张图</span></button></div></div>

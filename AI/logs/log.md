@@ -2,7 +2,10 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-10-08_merge-mcp-v2.3.6](2026-10-08_merge-mcp-v2.3.6.md)：合并 MCP 说明与生产稳定性修复，准备 v2.3.6
 - [2026-10-08_mcp-tool-docs](2026-10-08_mcp-tool-docs.md)：MCP 工具说明与录题规范补齐
+- [2026-10-08_mcp-e2e-readiness](2026-10-08_mcp-e2e-readiness.md)：修正 MCP 浏览器业务就绪等待并复核 v2.3.6
+- [2026-10-07_refresh-stability](2026-10-07_refresh-stability.md)：刷新闪动修复与 v2.3.5 发布
 - [2026-10-07_mcp-https-original-image](2026-10-07_mcp-https-original-image.md)：MCP HTTPS 原图下载修复
 - [2026-10-06_a4-print-font-metrics](2026-10-06_a4-print-font-metrics.md)：A4 打印字体与栏底复核
 - [2026-10-04_public-web-load](2026-10-04_public-web-load.md)：公网首屏与刷新加载优化

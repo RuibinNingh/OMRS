@@ -11,7 +11,7 @@ button, input, select, textarea { font-family: inherit; }
 ::-webkit-scrollbar-track { background: var(--surface-0); }
 ::-webkit-scrollbar-thumb { background: var(--surface-3); border-radius: var(--r-xs); }
 .panel { display: none; }
-.panel.active { display: block; animation: ui-pop-in var(--dur-3) var(--ease-out); }
+.panel.active { display: block; }
 .hint { color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-ui); }
 .grow { flex: 1; }
 .form-group { margin-bottom: var(--sp-4); }

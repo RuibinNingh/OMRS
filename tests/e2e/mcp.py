@@ -12,6 +12,7 @@ import datetime
 import json
 import os
 import sys
+import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # 脚本也叫 mcp.py；移除自身目录，避免它遮蔽官方 mcp SDK 包。
@@ -27,6 +28,9 @@ except ImportError:
     PlaywrightTimeoutError = Exception
 
 from browser_runtime import launch_chromium
+
+# 截图是合成验收产物，使用遵守 TMPDIR 的唯一目录，不覆盖共享 /tmp 文件。
+_SCREENSHOT_DIR = tempfile.mkdtemp(prefix="omrs-mcp-e2e-")
 from omrs.agent.tools import read as read_tools
 from omrs.creation import create_question
 from omrs.ledger import read_commits
@@ -134,7 +138,7 @@ def run_key_ui(page, base, server, checks):
     check("到期时自动移入失效记录并移除吊销按钮", page.locator(f'.st-mcp-active [data-key="{expiring["key_id"]}"]').count() == 0
           and verify_key(server.vault, expiring['secret']) is None)
     page.locator('#st-mcp-history > summary').click()
-    page.locator('.st-mcp-card').screenshot(path='/tmp/omrs-mcp-ui-desktop.png')
+    page.locator('.st-mcp-card').screenshot(path=os.path.join(_SCREENSHOT_DIR, 'ui-desktop.png'))
 
     page.click('.st-mcp-intro [data-action="settings.mcpCreate"]')
     page.fill('#st-mcp-name', '离开页面验收')
@@ -164,7 +168,7 @@ def run_key_ui(page, base, server, checks):
             page.keyboard.press('Escape')
             page.wait_for_selector('#st-mcp-dialog', state='detached')
             if width == 390 and theme == 'light':
-                page.locator('.st-mcp-card').screenshot(path='/tmp/omrs-mcp-ui-mobile.png')
+                page.locator('.st-mcp-card').screenshot(path=os.path.join(_SCREENSHOT_DIR, 'ui-mobile.png'))
 
 
 def main():
@@ -244,7 +248,8 @@ def main():
             row = page.locator(f'.arv-row[data-arg="{draft_id}"]')
             checks.append(("审核队列展示 MCP 来源草稿", row.count() == 1 and "MCP" in row.inner_text()))
             row.click()
-            page.wait_for_selector(".drf-detail")
+            # .drf-detail 也用于加载占位；业务控件出现后才检查来源与正文。
+            page.wait_for_selector('.drf-detail [data-action="ai-review.draftCommit"]')
             checks.append(("详情保持 review/来源 MCP", "来源：MCP" in page.locator(".drf-detail").inner_text()
                            and "浏览器验收" in page.locator(".drf-detail").inner_text()))
             page.locator(".drf-source-trigger").click()
@@ -259,14 +264,14 @@ def main():
                     body = response.body()
                     checks.append(("原图下载字节完全相等", body in raw_images
                                    and response.status == 200))
-            screenshot = "/tmp/omrs-mcp-e2e.png"
+            screenshot = os.path.join(_SCREENSHOT_DIR, "draft-desktop.png")
             page.screenshot(path=screenshot, full_page=True)
             print(f"截图：{screenshot}")
             page.set_viewport_size({"width": 390, "height": 844})
             page.wait_for_timeout(250)
             checks.append(("手机草稿区来源可见且无横向溢出", page.locator(".drf-source img").count() == len(raw_images)
                            and page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1")))
-            page.screenshot(path="/tmp/omrs-mcp-e2e-mobile.png", full_page=True)
+            page.screenshot(path=os.path.join(_SCREENSHOT_DIR, "draft-mobile.png"), full_page=True)
             page.set_viewport_size({"width": 1440, "height": 900})
 
             run_key_ui(page, base, server, checks)

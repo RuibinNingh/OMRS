@@ -102,12 +102,13 @@ export function createDrafts(root, ctx, options = {}) {
   async function loadDetail(id, { force = false } = {}) {
     if (!id) { state.selectedId = null; setDraft(null); return false; }
     if (!force && state.selectedId === id && state.draft && state.dirty) return true;
-    const request = ++detailRequest;
-    state.selectedId = id; state.detailLoaded = false; state.detailError = ''; paint();
+    const request = ++detailRequest, refreshing = state.draft?.id === id && Boolean(state.value);
+    state.selectedId = id; state.detailLoaded = refreshing; state.detailError = ''; paint();
     const result = await get(`/api/drafts/item?id=${encodeURIComponent(id)}`);
     if (!alive || request !== detailRequest || state.selectedId !== id || (state.dirty && !force)) return false;
     if (!result.ok || !result.data?.draft) {
-      state.detailLoaded = true; state.detailError = responseError(result); state.draft = null; state.value = null; paint(); return false;
+      if (!refreshing) { state.draft = null; state.value = null; }
+      state.detailLoaded = true; state.detailError = responseError(result); paint(); return false;
     }
     if (!force && JSON.stringify(result.data.draft) === JSON.stringify(state.draft)) { state.detailLoaded = true; paint(); return true; }
     setDraft(result.data.draft);
