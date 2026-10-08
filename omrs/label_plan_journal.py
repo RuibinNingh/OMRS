@@ -1,5 +1,6 @@
 """定义 JSON 与多题 Markdown 的整批原生回执和崩溃恢复。"""
 import json
+import functools
 import os
 import re
 import stat
@@ -15,6 +16,15 @@ from .ledger import append_commit_in_db, blob_hash, canonical_json, connect
 from .label_plan import digest
 from .path_safety import safe_question_path
 from .vault_lifecycle import atomic_json, fsync_dir, generation, maintenance_dir, open_sqlite, storage
+
+
+def batch_guard(fn):
+    @functools.wraps(fn)
+    def guarded(vault, *args, **kwargs):
+        from .locking import label_read_lock
+        with label_read_lock():
+            return fn(vault, *args, **kwargs)
+    return guarded
 
 
 def directory(vault):
@@ -78,7 +88,8 @@ def _receipt(db, operation_id, expected_digest=None):
         row = db.execute('SELECT commit_type,payload_json FROM commits WHERE commit_id=?', (result.get('batch_commit_id'),)).fetchone()
         fact = json.loads(row['payload_json']) if row else {}
         if (not row or row['commit_type'] not in ('labels.plan_apply', 'labels.plan_revert') or
-                fact.get('operation_id') != operation_id or fact.get('digest') != result.get('digest')):
+                fact.get('operation_id') != operation_id or fact.get('digest') != result.get('digest') or
+                fact.get('undo_digest') != digest(result.get('_undo'))):
             raise RequestError('operation_pending', '标记整理回执缺少对应批次事实')
     return result
 
@@ -195,6 +206,7 @@ def _recover(vault, path, intent):
 
 
 @storage_write
+@batch_guard
 def recover_pending(vault, allow_recovery=True):
     path = os.path.join(os.path.realpath(vault), '.omrs-maintenance', 'label-plans')
     counts = {key: 0 for key in ('committed', 'rolled_back', 'not_written', 'obsolete')}
@@ -218,6 +230,7 @@ def recover_pending(vault, allow_recovery=True):
 
 
 @storage_write
+@batch_guard
 def execute(vault, prepared, operation_id, effective_digest, *, source='api', authorize=None, revert_of=''):
     recover_pending(vault)
     existing = receipt(vault, operation_id, effective_digest)
@@ -281,11 +294,15 @@ def execute(vault, prepared, operation_id, effective_digest, *, source='api', au
                     fact['_label_plan']['revert_of'] = revert_of
                 commit = append_commit_in_db(db, source, 'question.metadata_update', f"整理 {row['uid']} 的标记", fact, blobs=[before, after])
                 commits.append({**commit, 'commit_type': 'question.metadata_update'})
+            undo = {'generation': generation(vault), 'snapshot': prepared.get('snapshot', {}),
+                    'catalog_before': prepared['catalog_before'], 'catalog_after': prepared['catalog_after'],
+                    'questions': [{'question_id': f['row']['question_id'], 'file_path': f['row']['file_path'],
+                                   'before_hash': blob_hash(f['before']), 'after_hash': blob_hash(f['after'])} for f in prepared['files']]}
             batch = None
             if entries:
                 kind = 'labels.plan_revert' if revert_of else 'labels.plan_apply'
                 batch = append_commit_in_db(db, source, kind, '撤销整批标记整理' if revert_of else '整批整理题目标记',
-                    {'operation_id': operation_id, 'digest': effective_digest, 'revert_of': revert_of,
+                    {'operation_id': operation_id, 'digest': effective_digest, 'revert_of': revert_of, 'undo_digest': digest(undo),
                      'question_ids': [f['row']['question_id'] for f in prepared['files']],
                      'definition_count': prepared['preview']['counts'].get('definitions', 0)})
                 commits.append({**batch, 'commit_type': kind})
@@ -294,9 +311,7 @@ def execute(vault, prepared, operation_id, effective_digest, *, source='api', au
                       'counts': prepared['preview']['counts'], 'details': prepared['preview'].get('items', []),
                       'label_changes': prepared['preview'].get('label_changes', []), 'commits': commits,
                       'batch_commit_id': batch['commit_id'] if batch else '', 'revert_of': revert_of,
-                      '_undo': {'generation': generation(vault), 'snapshot': prepared.get('snapshot', {}), 'catalog_before': prepared['catalog_before'], 'catalog_after': prepared['catalog_after'],
-                                'questions': [{'question_id': f['row']['question_id'], 'file_path': f['row']['file_path'],
-                                               'before_hash': blob_hash(f['before']), 'after_hash': blob_hash(f['after'])} for f in prepared['files']]}}
+                      '_undo': undo}
             db.execute('INSERT INTO op_results(op_id,result_json,created_at) VALUES(?,?,datetime(\'now\'))',
                        ('label-plan:' + operation_id, canonical_json(result)))
             if revert_of:

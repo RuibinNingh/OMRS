@@ -7,11 +7,11 @@ import uuid
 
 from . import labels
 from .common import extract_labels, parse_yaml_frontmatter
-from .content_history import check_content_reconcile
-from .data_repository import resolve_question, storage_write
+from .content_history import check_content_reconcile, ContentConflict
+from .data_repository import storage_write
 from .errors import RequestError
 from .ledger import blob_hash, canonical_json, connect
-from .question_update import _read, _replace_yaml, editable_values
+from .question_update import _read, _replace_yaml
 from .vault_lifecycle import generation
 
 MAX_QUESTIONS = 1000
@@ -158,6 +158,8 @@ def in_scope(row, scope):
 
 @storage_write
 def compile_plan(vault, payload, *, trusted=False, allow_cross=False):
+    from .label_plan_journal import assert_readable
+    assert_readable(vault)
     payload = normalize(payload, trusted)
     before_catalog, raw_catalog = catalog(vault)
     originals = {d['id']: copy.deepcopy(d) for d in before_catalog['labels']}
@@ -197,7 +199,14 @@ def compile_plan(vault, payload, *, trusted=False, allow_cross=False):
     qchanges = {q['question_id']: q for q in payload['question_changes']}
     rows, contents, references = {}, {}, {op['label_id']: [] for op in ops if op['action'] != 'create'}
     with connect(vault) as db:
-        candidates = [dict(r) for r in db.execute('SELECT * FROM question_projection WHERE archived=0 ORDER BY question_id')]
+        all_rows = [dict(r) for r in db.execute('SELECT * FROM question_projection ORDER BY question_id')]
+        candidates = [r for r in all_rows if not r['archived']]
+    if source_names:
+        from .workspace_sync import scan_question_files
+        known_paths = {r['file_path'] for r in all_rows}
+        for file in scan_question_files(vault):
+            if file['file_path'] not in known_paths and source_names.intersection(extract_labels(file['meta'])):
+                raise RequestError('content_conflict', '发现未扫描的新标记引用，请先扫描再整理')
     for row in candidates:
         qid = row['question_id']
         if not source_names and qid not in qchanges:
@@ -208,7 +217,10 @@ def compile_plan(vault, payload, *, trusted=False, allow_cross=False):
         if not relevant:
             continue
         rows[qid], contents[qid] = row, (content, owner, names)
-        check_content_reconcile(vault, row, content)
+        try:
+            check_content_reconcile(vault, row, content)
+        except ContentConflict as exc:
+            raise RequestError("content_conflict", str(exc)) from exc
         if blob_hash(content) != row.get("content_hash"):
             raise RequestError("content_conflict", "题目含未扫描的修改，请先重新扫描再整理")
         for op in ops:
@@ -247,6 +259,11 @@ def compile_plan(vault, payload, *, trusted=False, allow_cross=False):
                          'affected_count': len(affected), 'affected_question_ids': affected,
                          'affected_subjects': sorted({rows[qid]['subject'] for qid in affected}),
                          'target_id': op.get('into', '')})
+    cancelled = {op['label_id'] for op in ops if op['action'] == 'create' and not op['enabled']}
+    for op in ops:
+        if op['action'] == 'merge' and op['into'] in cancelled:
+            op['enabled'] = False
+            next(p for p in previews if p['change_id'] == op['change_id'])['enabled'] = False
     enabled_merges = {op['label_id']: op['into'] for op in ops if op['action'] == 'merge' and op['enabled']}
     enabled_deleted = {op['label_id'] for op in ops if op['action'] == 'delete' and op['enabled']}
     def target(key):
@@ -262,6 +279,16 @@ def compile_plan(vault, payload, *, trusted=False, allow_cross=False):
     names = [d['name'] for d in final_definitions.values()]
     if len(names) != len(set(names)):
         raise ValueError('最终标记名称重复，请复用已有标记或先合并')
+    intended_defs = copy.deepcopy(originals)
+    for preview in previews:
+        if preview['action'] in ('create', 'update'):
+            intended_defs[preview['label_id']] = preview['after']
+        if preview.get('target_id') in intended_defs:
+            preview['target_name'] = intended_defs[preview['target_id']]['name']
+        preview['affected_subject_counts'] = {subject: sum(rows[qid]['subject'] == subject for qid in preview['affected_question_ids']) for subject in preview['affected_subjects']}
+    def intended_target(key):
+        while key in merges: key = merges[key]
+        return key
     items, files = [], []
     for qid, row in rows.items():
         content, owner, before = contents[qid]
@@ -289,7 +316,17 @@ def compile_plan(vault, payload, *, trusted=False, allow_cross=False):
                 after.extend(final_definitions[k]['name'] for k in add)
         after = list(dict.fromkeys(after))
         updated = _replace_yaml(content, '标记', after) if before != after else content
-        item = {'question_id': qid, 'uid': row['uid'], 'subject': row['subject'], 'category': row['category'],
+        proposed = []
+        for name in before:
+            key = name_ids.get(name)
+            if key in deleted: continue
+            root = intended_target(key)
+            proposed.append(intended_defs[root]['name'] if root in intended_defs else name)
+        if q and not q['uncertain_reason']:
+            removing = {intended_defs[ref(value)]['name'] for value in q['remove'] if ref(value) in intended_defs}
+            proposed = [name for name in proposed if name not in removing]
+            proposed.extend(intended_defs[ref(value)]['name'] for value in q['add'] if ref(value) in intended_defs)
+        item = {'proposed_after': list(dict.fromkeys(proposed)), 'question_id': qid, 'uid': row['uid'], 'subject': row['subject'], 'category': row['category'],
                 'before': before, 'after': after, 'reason': q.get('reason', '') if q else '标记定义级联变更',
                 'uncertain_reason': q.get('uncertain_reason', '') if q else '', 'enabled': q.get('enabled', True) if q else True,
                 'explicit': q is not None, 'cross_scope': not in_scope(row, payload['scope']), 'changed': updated != content}
@@ -307,7 +344,7 @@ def compile_plan(vault, payload, *, trusted=False, allow_cross=False):
                 'references': references}
     return {'payload': payload, 'snapshot': snapshot,
             'preview': {'title': '整批整理标记', 'summary': f"{summary['definitions']} 项定义操作 · {summary['changed']} 道题变更", 'scope': payload['scope'],
-                        'reason': payload['reason'], 'counts': summary, 'label_changes': previews, 'items': items},
+                        'reason': payload['reason'], 'allowed_labels': [{'ref': ref_id, 'label_id': key, 'name': intended_defs[key]['name']} for ref_id, key in refs.items() if key in intended_defs], 'counts': summary, 'label_changes': previews, 'items': items},
             'catalog_before': raw_catalog,
             'catalog_after': json.dumps(after_catalog, ensure_ascii=False, indent=2) if before_catalog != after_catalog else raw_catalog,
             'files': files}

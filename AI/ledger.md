@@ -242,3 +242,7 @@ CLI 在扫描与监听前收束 journal。存在有效原生回执时仅清理�
 ## 标记整理批次
 
 标记整理逐题追加 `question.metadata_update`，批次追加 `labels.plan_apply` 或 `labels.plan_revert`；同一事务存 `label-plan:<operation_id>` 回执。审计事实不改变学习状态；撤销保存独立逆事实，不删原历史。
+
+## 整批标记归类
+
+批次审计事实同时保存撤销材料摘要，读取原生回执核对摘要与批次事实；撤销依赖的旧正文 blob 也核对题目稳定身份。

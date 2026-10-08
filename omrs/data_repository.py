@@ -155,9 +155,9 @@ def storage_read(fn):
     @functools.wraps(fn)
     def wrapped(vault, *args, **kwargs):
         from .vault_lifecycle import lease
-        from .locking import write_lock
+        from .locking import label_read_lock
         from .label_plan_journal import assert_readable
-        with lease(vault), write_lock():
+        with lease(vault), label_read_lock():
             assert_readable(vault)
             return fn(vault, *args, **kwargs)
     return wrapped

@@ -11,6 +11,10 @@ export const reviewTone = item => isPending(item) || item?.status === 'partial' 
 const same = row => JSON.stringify(row.before) === JSON.stringify(row.after);
 export function reviewSummary(item) {
   const p = item?.preview || {}, r = item?.result || {};
+  if (item?.tool === 'propose_label_plan') {
+    const counts = ['applied', 'unchanged'].includes(item.status) ? r.counts : p.counts;
+    if (counts) return `${['applied', 'unchanged'].includes(item.status) ? '已整理' : '将整理'} ${counts.changed} 道题 · ${counts.definitions} 项定义操作 · ${counts.uncertain || 0} 题待判断`;
+  }
   if (item?.tool === 'set_question_labels') {
     if (['applied', 'unchanged', 'partial'].includes(item.status) && Array.isArray(r.changed) && Array.isArray(r.skipped)) {
       return `已修改 ${r.changed.length} 道 · ${r.skipped.length} 道无需变更${r.failed?.length ? ` · ${r.failed.length} 道未完成` : ''}`;

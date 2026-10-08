@@ -76,10 +76,11 @@ def prepare_revision(vault,row,patch):
         allowed={'change_id','enabled'}|({'name','color','order'} if op['action'] in ('create','update') else set())
         if set(edit)-allowed:raise RequestError('forbidden','不能修改原标记目标或操作类型')
         op.update({k:v for k,v in edit.items() if k!='change_id'})
+    initial = ai_review.detail(vault, row['operation_id'])['original_payload']
     allowed_refs={op['label_id'] for op in payload['label_changes']}|{op['key'] for op in payload['label_changes'] if op['action']=='create'}
     for op in payload['label_changes']:
         if op.get('into'):allowed_refs.add(op['into'])
-    for q in questions.values():allowed_refs.update(q['add']+q['remove'])
+    for q in initial['question_changes']:allowed_refs.update(q['add']+q['remove'])
     seen=set()
     for edit in patch.get('question_changes',[]):
         if not isinstance(edit,dict) or edit.get('question_id') not in questions or edit['question_id'] in seen or set(edit)-{'question_id','enabled','add','remove'}:

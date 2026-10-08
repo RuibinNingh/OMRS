@@ -1,4 +1,3 @@
-from .data_repository import storage_read
 """正文入账：题目 Markdown 的历史版本存进 Ledger 的 blobs 表，commit 只引用哈希。
 
 - record_file_change：写文件后按「元数据变了 → question.metadata_update，只改正文 → question.content_update」
@@ -8,6 +7,8 @@ from .data_repository import storage_read
 - content_versions / restore_content：列出、取回、还原某题的正文版本（含已删除题目）。
 见 AI/ledger.md「正文入账」、AI/data.md。
 """
+from .data_repository import storage_read
+
 import json
 import os
 import sqlite3

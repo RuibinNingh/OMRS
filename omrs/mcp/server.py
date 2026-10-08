@@ -302,7 +302,7 @@ def _threaded(fn):
                 from ..label_plan_journal import assert_readable
                 vault = inspect.getclosurevars(fn).nonlocals.get('vault')
                 if vault:
-                    with lease(vault), locking.write_lock():
+                    with lease(vault), locking.label_read_lock():
                         assert_readable(vault)
                         return fn(**kwargs)
             return fn(**kwargs)

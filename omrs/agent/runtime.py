@@ -351,8 +351,13 @@ class Hooks:
 
     def execute(self, call, tool):
         ctx = {**self.ctx, "tool_call_id": call["id"], "emit_usage": lambda data: self.run.emit("usage.aux", data)}
-        if tool.level in ("read", "prepare"):
-            with lease(self.rt.vault), write_lock():
+        if tool.level == "prepare":
+            with lease(self.rt.vault):
+                out = tool.run(ctx, call["args"])
+                return {**out, "commits": []}
+        if tool.level == "read":
+            from ..locking import label_read_lock
+            with lease(self.rt.vault), label_read_lock():
                 from ..label_plan_journal import assert_readable
                 assert_readable(self.rt.vault)
                 out = tool.run(ctx, call["args"])

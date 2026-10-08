@@ -38,6 +38,7 @@ export function reviewCard(S, run, step) {
       ${pending ? button({ label: '拒绝', size: 'sm', action: 'assistant.deny', arg: key, disabled: current.busy || !!current.error }) : ''}
       ${pending ? button({ label: simple ? '完整预览与修订' : '查看详情并确认', variant: simple ? 'ghost' : 'primary', size: 'sm', action: 'assistant.gate', arg: key, disabled: current.busy })
         : item ? html`${button({ label: expanded ? '收起变更' : '查看变更', size: 'sm', variant: 'ghost', action: 'assistant.toggleReview', arg: key })}${button({ label: '操作详情', size: 'sm', variant: 'ghost', action: 'assistant.gate', arg: key })}` : ''}
+      ${item?.tool === 'propose_label_plan' && item.status === 'applied' ? button({ label: '预览整批撤销', size: 'sm', action: 'assistant.gate', arg: key }) : ''}
       ${current?.error ? button({ label: '重试状态', size: 'sm', action: 'assistant.retryReview', arg: id }) : ''}
       ${pending && item.expires_at ? html`<span class="ast-op__muted ast-op__expiry">有效期至 ${new Date(item.expires_at).toLocaleTimeString('zh-CN')}</span>` : ''}
     </div></section>`;

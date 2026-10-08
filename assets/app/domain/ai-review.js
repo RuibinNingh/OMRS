@@ -89,3 +89,10 @@ export const currentReviewCounts = () => service?.counts();
 let panelFactory = null;
 export const connectReviewPanel = factory => { panelFactory = factory; };
 export const createReviewPanel = ctx => panelFactory(ctx);
+
+export const labelRevertPreview = async id => result(await get(`/api/label-plan/revert-preview?operation_id=${encodeURIComponent(id)}`));
+export const revertLabelPlan = async (id, inverseDigest, requestId) => {
+  const out = result(await post('/api/label-plan/revert', { operation_id: id, inverse_digest: inverseDigest, request_id: requestId }));
+  if (out.ok) publishReviewChange([id]);
+  return out;
+};

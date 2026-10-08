@@ -207,7 +207,7 @@ class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, Inb
         try:
             with self._response_capture(protected):
                 if path in ('/api/labels', '/api/stats', '/api/taxonomy', '/api/tree', '/api/recommend', '/api/question', '/api/question/raw'):
-                    with locking.write_lock():
+                    with locking.label_read_lock():
                         from .label_plan_journal import assert_readable
                         assert_readable(self.vault_path)
                         self._dispatch_get()

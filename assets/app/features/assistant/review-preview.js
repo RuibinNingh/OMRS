@@ -6,6 +6,10 @@ import { isPending } from './review-model.js';
 const labels = values => (values || []).length ? values.map(value => html`<span class="ast-op__tag">${value}</span>`) : html`<span class="ast-op__muted">无标记</span>`;
 export function inlinePreview(item, step) {
   const p = item.preview || {}, r = item.result || {};
+  if (item.tool === 'propose_label_plan') {
+    const rows = isPending(item) ? p.items || [] : r.details || [];
+    return html`<div class="ast-op__rows"><p>范围：${p.scope?.subject || '全部科目'} · ${p.counts?.cross_scope || 0} 项跨范围操作 · ${p.counts?.uncertain || 0} 题待判断</p>${rows.slice(0, 5).map(row => html`<div class="ast-op__row">${ref(row.uid)}<span>${(row.before || []).join('、') || '无标记'} → ${(row.after || []).join('、') || '无标记'} · ${row.uncertain_reason || row.reason}</span></div>`)}${rows.length > 5 ? html`<p class="ast-op__muted">完整 ${rows.length} 题请打开原位详情。</p>` : ''}</div>`;
+  }
   if (item.tool === 'set_question_labels') {
     const rows = isPending(item) ? p.items || [] : r.details || [];
     return html`<div class="ast-op__rows" aria-label="逐题标记变更">${rows.map(row => html`<div class="ast-op__row"><div>${ref(row.uid || row.question_id)}</div>

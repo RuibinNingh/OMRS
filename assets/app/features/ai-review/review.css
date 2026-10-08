@@ -58,3 +58,17 @@
   .arv-decision > div .ui-btn { flex: 1; }
   .arv-toolbar > select { flex: 1 1 calc(50% - var(--sp-2)); min-width: 0; }
 }
+/* 整批方案沿用审核页的文本、边界与控件 token。 */
+.arv-label-plan { display: grid; gap: var(--sp-4); min-width: 0; }
+.arv-label-plan h3, .arv-label-plan p { margin: 0; }
+.arv-label-plan h3 { font-size: var(--text-md); }
+.arv-label-definition, .arv-label-question, .arv-label-revert { display: grid; gap: var(--sp-2); padding: var(--sp-3); margin-block: var(--sp-2); border: 1px solid var(--border-1); border-radius: var(--r-md); overflow-wrap: anywhere; }
+.arv-label-heading, .arv-label-check, .arv-label-pager { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
+.arv-label-heading { justify-content: space-between; }
+.arv-label-check { min-height: var(--ctl-md); cursor: pointer; }
+.arv-label-check input { accent-color: var(--accent); }
+.arv-label-fields { display: grid; grid-template-columns: minmax(0, 2fr) minmax(80px, 1fr) minmax(80px, 1fr); gap: var(--sp-3); }
+.arv-label-options { display: grid; gap: var(--sp-1); }
+.arv-label-options > div { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
+.arv-label-pager { justify-content: space-between; }
+@media (max-width: 760px) { .arv-label-fields { grid-template-columns: minmax(0, 1fr); } }

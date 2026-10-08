@@ -11,7 +11,8 @@ import time
 
 
 class WriteLockTimeout(RuntimeError):
-    pass
+    status = 503
+    code = "write_busy"
 
 
 _LOCK = threading.RLock()
@@ -60,3 +61,17 @@ def write_lock(timeout: float = None):
 def acquire_for_shutdown(timeout: float = 30.0) -> bool:
     """重启前调用：等进行中的写入完成（最多 timeout 秒）。取到后不释放，进程随后退出。"""
     return _LOCK.acquire(timeout=timeout)
+
+
+_LABEL_READ_LOCK = threading.RLock()
+
+
+@contextlib.contextmanager
+def label_read_lock():
+    """仅标记批次替换/恢复与题面读取共用；普通业务写锁不阻塞只读查询。"""
+    if not _LABEL_READ_LOCK.acquire(timeout=DEFAULT_TIMEOUT):
+        raise WriteLockTimeout('标记整理正在完成，请稍后重试')
+    try:
+        yield
+    finally:
+        _LABEL_READ_LOCK.release()

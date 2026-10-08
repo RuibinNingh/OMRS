@@ -249,3 +249,7 @@ MCP 扩展闭环由 tests/e2e/mcp_expansion.py 启动真实临时 Web/MCP 服务
 ## 标记整理批次
 
 启动和扫描前检查标记整理 journal；只读盘点拒绝待恢复状态。隔离回归使用临时 Vault，不连接真实题库。
+
+## 整批标记归类
+
+新增 `tests/e2e/label_plans.py`：三百合成题、假模型与真实 MCP SDK 走分片准备、同页修订、跨科目选择、一次批准、结果和整批撤销。浅深主题与桌面/390px 布局截图在临时目录；真实进程故障覆盖见 `tests/test_label_plan_recovery.py`。

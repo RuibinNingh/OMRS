@@ -1,7 +1,6 @@
 """整批撤销标记整理；只恢复本批字段，保留无关的后续改动。"""
 import copy
 import json
-import uuid
 
 from .common import extract_labels, parse_yaml_frontmatter
 from .data_repository import resolve_question, storage_write
@@ -19,6 +18,8 @@ def _conflict(message):
 
 @storage_write
 def prepare_revert(vault, operation_id):
+    from .label_plan_journal import assert_readable
+    assert_readable(vault)
     original = receipt(vault, operation_id)
     if not original or original.get('no_op') or original.get('revert_of'):
         raise RequestError('not_found', '没有可撤销的完整标记整理批次')
@@ -66,6 +67,8 @@ def prepare_revert(vault, operation_id):
         before_text, after_text = get_blob(vault, q['before_hash']), get_blob(vault, q['after_hash'])
         if before_text is None or after_text is None or blob_hash(before_text) != q['before_hash'] or blob_hash(after_text) != q['after_hash']:
             _conflict('撤销依赖的题目历史不完整')
+        if any(parse_yaml_frontmatter(value).get('_omrs_id') != row['question_id'] for value in (before_text, after_text)):
+            _conflict('撤销历史题目身份不一致')
         previous_labels = extract_labels(parse_yaml_frontmatter(before_text))
         applied_labels = extract_labels(parse_yaml_frontmatter(after_text))
         current_labels = extract_labels(parse_yaml_frontmatter(content))

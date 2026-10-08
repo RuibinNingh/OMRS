@@ -13,6 +13,8 @@ import { boardDetailPort } from '../../domain/board/detail-port.js';
 import { createDrafts } from './drafts.js';
 import { draftActions } from './draft-actions.js';
 import { editableValues, editedValue, changedPatch, changesOf, mergePage, isPending } from './state.js';
+import { editLabelPlan, isLabelPlan } from './label-plan-state.js';
+import { labelRevertPreview, revertLabelPlan } from '../../domain/ai-review.js';
 import { reviewView } from './view.js';
 import { confirmDraftCleanup, requestDraftCleanup } from './maintenance.js';
 import { reviewFilters, pendingDraftQueue } from './queue.js';
@@ -23,11 +25,12 @@ export function createReviewController(root, ctx, options = {}) {
   const s = { view: 'pending', source: '', type: query.get('type') || '', status: '', range: '', items: [], loaded: false,
     listError: '', hasMore: false, nextOffset: 0, loadingMore: false, selectedId: null, item: null,
     detailLoading: false, detailError: '', counts: currentReviewCounts(), original: {}, edited: {},
-    editing: false, dirty: false, busy: false, error: '', note: '', mobileDetail: false, embedded: !!options.embedded };
+    labelPage: 0, revertPreview: null, revertRequest: null, editing: false, dirty: false, busy: false, error: '', note: '', mobileDetail: false, embedded: !!options.embedded };
   let alive = true, listRequest = 0, detailRequest = 0, poll = null, draft = null;
   const paint = () => { if (alive) morph(root, reviewView(s)); };
   const syncTarget = () => { if (!options.embedded) ctx.router.replaceQuery?.(s.selectedId ? `${s.item?.kind === 'draft' ? 'draft' : 'operation'}=${encodeURIComponent(s.selectedId)}` : s.type === 'draft' ? 'type=draft' : ''); };
   function setItem(item) {
+    if (s.item?.id !== item.id) { s.labelPage = 0; s.revertPreview = null; s.revertRequest = null; }
     s.item = item; s.original = editableValues(item); s.edited = structuredClone(s.original);
     s.dirty = false; s.error = ''; s.note = ''; s.detailError = ''; s.detailLoading = false; paint();
   }
@@ -146,6 +149,39 @@ export function createReviewController(root, ctx, options = {}) {
     s.edited[key] = editedValue(s.original[key], value, kind);
     s.dirty = Object.keys(changedPatch(s.original, s.edited)).length > 0; s.error = ''; s.note = ''; paint();
   }
+  function labelField(kind, id, field, value) {
+    if (!isPending(s.item) || !isLabelPlan(s.item) || s.busy) return;
+    s.edited = editLabelPlan(s.edited, kind, id, field, value);
+    s.dirty = Object.keys(changedPatch(s.original, s.edited)).length > 0; s.error = ''; paint();
+  }
+  async function labelCross(id, enabled) {
+    if (s.dirty || s.busy) return;
+    labelField('definition', id, 'enabled', enabled);
+    await save();
+  }
+  async function labelRevert() {
+    if (s.busy || !isLabelPlan(s.item)) return;
+    s.busy = true; s.error = ''; paint();
+    const out = await labelRevertPreview(s.item.id);
+    if (!alive) return;
+    s.busy = false;
+    if (out.conflicts) { s.revertPreview = out; s.revertRequest = crypto.randomUUID(); }
+    else s.error = out.error || '撤销预览读取失败';
+    paint();
+  }
+  async function labelRevertConfirm() {
+    if (s.busy || !s.revertPreview?.ok) return;
+    s.busy = true; s.error = ''; paint();
+    const out = await revertLabelPlan(s.item.id, s.revertPreview.inverse_digest, s.revertRequest);
+    if (!alive) return;
+    s.busy = false;
+    if (out.ok) {
+      s.revertPreview = { ok: false, conflicts: ['本批已整批撤销；原始历史保留。'] };
+      s.note = '整批撤销已完成。';
+      await reloadData(); invalidateQuestions(); notifyHistoryChanged('label-plan'); ctx.bus.emit('catalog:refresh');
+    } else s.error = `撤销未执行：${out.error}。请重新预览。`;
+    paint();
+  }
   async function save() {
     if (!s.item || s.busy || !isPending(s.item)) return false;
     if (!s.dirty) return true;
@@ -182,6 +218,7 @@ export function createReviewController(root, ctx, options = {}) {
   void load().then(() => { const id = options.id || query.get('draft') || query.get('operation'); if (id) void select(id); else if (s.type === 'draft' && s.items.length) void select(s.items.find(row => row.id === selectedDraftId())?.id || s.items[0].id); });
   schedule();
   return { state: s, openPage: route => ctx.router.go(route), openDraft: id => options.embedded ? select(id) : openReview(id, { kind: 'draft' }), editor: () => draft, guard, select, filter, field, save, decide, maintenance,
+    labelField, labelCross, labelRevert, labelRevertConfirm, labelPage(page) { s.labelPage = Math.max(0, Number(page) || 0); paint(); },
     refresh: async () => { await load(); await refreshReviewCounts(); if (draft) await draft.reload(); else if (s.selectedId && !s.dirty) await readDetail(s.selectedId, { refresh: true }); },
     retry: () => { if (!s.dirty) void readDetail(s.selectedId, { refresh: Boolean(s.item) }); }, more: () => load(true),
     back() { s.mobileDetail = false; paint(); root.querySelector(`.arv-row[data-arg="${CSS.escape(s.selectedId || '')}"]`)?.focus(); },
@@ -198,6 +235,10 @@ export function reviewActions(current) {
     type: ({ value }) => current()?.filter('type', value), status: ({ value }) => current()?.filter('status', value), range: ({ value }) => current()?.filter('range', value),
     more: () => current()?.more(), back: () => current()?.back(), edit: () => current()?.edit(),
     editField: ({ arg, value }) => current()?.field(arg, value), save: () => current()?.save(),
+    labelField: ({ arg, el, value }) => { const [kind, id, field] = JSON.parse(arg); current()?.labelField(kind, id, field, el.type === 'checkbox' ? el.checked : value); },
+    labelChoice: ({ arg, el }) => { const [id, field, ref] = JSON.parse(arg); current()?.labelField('question', id, field, [ref, el.checked]); },
+    labelCross: ({ arg, el }) => current()?.labelCross(arg, el.checked),
+    labelPage: ({ arg }) => current()?.labelPage(arg), labelRevert: () => current()?.labelRevert(), labelRevertConfirm: () => current()?.labelRevertConfirm(),
     approve: () => current()?.decide('approve'), reject: () => current()?.decide('reject'),
     openDraft: ({ arg }) => current()?.openDraft(arg),
     openBoard: ({ arg }) => boardDetailPort.open(arg),

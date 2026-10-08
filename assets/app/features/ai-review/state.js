@@ -1,3 +1,4 @@
+import { isLabelPlan, labelPlanValues } from './label-plan-state.js';
 /** 审核列表与人工修订的纯投影；读取工具不由前端名称猜测。 */
 export const STATUS_LABELS = Object.freeze({ pending_confirmation: '待审核', pending: '待审核',
   review: '待审核', cropping: '待框选', applying: '执行中', running: '执行中',
@@ -17,6 +18,7 @@ export const FIELD_LABELS = Object.freeze({ question: '题目', answer: '答案�
   question_text: '题目', answer_text: '答案解析', content: '修改内容', knowledge_points: '知识点', points: '知识点',
   labels: '人工标记', subject: '科目', category: '分类', difficulty: '难度', title: '标题', reason: '原因' });
 export function editableValues(item) {
+  if (isLabelPlan(item)) return labelPlanValues(item);
   const fields = Array.isArray(item?.editable_fields) ? item.editable_fields : [];
   const payload = item?.payload?.patch || item?.payload?.arguments || item?.payload?.args || item?.payload || {};
   return Object.fromEntries(fields.map(field => [field, payload[field] ?? changesOf(item).find(row => row.field === field)?.after ?? ''])

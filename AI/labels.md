@@ -4,10 +4,10 @@
 > - 职责：用户标记定义、题目 YAML `标记:`、投影与可选调度加成
 > - 入口：`omrs/labels.py`、`omrs/question_ops.py`、`assets/app/domain/labels/index.js`
 > - 不变量：标记定义存 `labels.json`，题目只通过 YAML 引用标记值
-> - 必跑测试：`tests/test_labels.py`、`tests/app/labels.test.mjs`
+> - 必跑测试：`tests/test_labels.py`、`tests/test_label_plan.py`、`tests/test_label_plan_recovery.py`、`tests/e2e/label_plans.py`、`tests/app/labels.test.mjs`
 > - 相关：`AI/frontend/library.md`、`AI/algorithm.md`
 
-> v1.14.0 新增。对应源文件：`omrs/labels.py`、`omrs/question_ops.py`、`omrs/projections.py`、`assets/app/domain/labels/index.js`。
+> 对应源文件：`omrs/labels.py`、`omrs/question_ops.py`、`omrs/projections.py`、`assets/app/domain/labels/index.js`。
 
 ## 1. 概念边界
 
@@ -17,7 +17,7 @@ OMRS 里有三种容易混淆的题目标签：
 |---|---|---|---|---|
 | 状态 | `Current_Tag` / `tag` | 状态 | 反馈状态机 | 是 |
 | 知识点 | `Knowledge_Tags` / `knowledge_tags` | 知识点 | 人工或 AI | 否，供筛选和统计 |
-| 用户标记 | `Labels` / `labels` | 标记 | 用户 | 默认否，可配置优先级加成 |
+| 用户标记 | `Labels` / `labels` | 标记 | 用户或经批准的 AI | 默认否，可配置优先级加成 |
 
 标记用于横切组织题目，例如「考前必看」「计算失误」「压轴」。它不替换
 `Current_Tag`，也不改变状态机。
@@ -70,8 +70,7 @@ Markdown 标记:
                  └─ mastery_data.csv 的 Labels 列
 ```
 
-网页上的单题修改先原子重写 Markdown，再触发扫描；内容没有变化时不产生重复
-metadata commit。批量操作会逐题写入，完成后统一扫描投影。
+网页上的单题修改记录原生元数据事实；内容没有变化时不产生重复提交。定义级联与 AI 整理在同一 Ledger 事务中记录逐题事实和批次审计，再发布投影。Obsidian 外部编辑仍由扫描入账。
 
 `ledger.db` 的 `question_labels(question_id, label)` 是查询投影，不是另一份事实源；
 删除并重建投影时会从题目元数据重新生成。`mastery_data.csv` 的 `Labels` 使用 `|`
@@ -142,10 +141,9 @@ metadata commit。批量操作会逐题写入，完成后统一扫描投影。
 ## 7. 维护边界
 
 - 标记名字写入 YAML 是为了让 Obsidian 可读、可编辑；因此改名必须级联写 N 个文件。
-- 标记定义不进入 Ledger；题目标记变化通过题目 metadata update 进入 Ledger。
+- 标记定义仍以 JSON 为当前读取格式；整批写入在 Ledger 保存审计事实和定义前后撤销材料，题目标记变化以原生 metadata update 入账。
 - `labels.json` 与题目 Markdown 一起属于 `.omrs`/题库数据，备份会随 `错题/` 打包。
-- 批量改名、删除和合并在当前单线程文件写入模型下可能阻塞请求，风险记录在
-  `optimization.md`。
+- 批次替换和恢复期间标签与题面读取经过一致性屏障；其它业务的写锁占用不阻塞普通统计读取。
 
 
 ## 审计修复契约
@@ -155,3 +153,7 @@ metadata commit。批量操作会逐题写入，完成后统一扫描投影。
 ## 标记整理批次
 
 标记创建、编辑、合并与删除使用 `omrs/label_plan.py` 编译和 `omrs/label_plan_journal.py` 整批写入。定义与全部活动题目（含停用）的引用一起替换；故障提交前整体回滚，提交后以 Ledger 原生回执为准。未扫描的外部题目修改会拒绝，要求先扫描。
+
+## 整批标记归类
+
+预览列出全部级联题目与各科目题数，跨范围操作默认不执行。发现有相关标记引用的未扫描新文件或未扫描题目修改时拒绝，先扫描再提案，避免遗漏新增引用。

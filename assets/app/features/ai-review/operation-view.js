@@ -5,6 +5,8 @@ import { status } from '../../ui/status.js';
 import { renderMd } from '../../domain/question/index.js';
 import { itemLabel, itemSummary, sourceLabel, reviewStatus, isPending, changesOf, FIELD_LABELS, editInput } from './state.js';
 import { draftSnapshot, relatedPreview } from './preview-view.js';
+import { labelPlanView } from './label-plan-view.js';
+import { isLabelPlan } from './label-plan-state.js';
 import { resultView } from './result-view.js';
 
 const readable = (value, kind) => kind === 'list' || Array.isArray(value)
@@ -50,12 +52,12 @@ export function operationView(s) {
     ${item.decision ? html`<p class="arv-muted">${item.decision.decision === 'approve' ? '已批准' : '已拒绝'} · ${time(typeof item.decision.decided_at === 'number' ? item.decision.decided_at * 1000 : item.decision.decided_at)}</p>` : ''}
     ${s.error ? status({ tone: 'danger', text: s.error }) : ''}${unread ? button({ label: '重试详情', action: 'ai-review.retry', disabled: s.busy }) : ''}${s.note ? status({ tone: 'success', text: s.note }) : ''}
     ${item.error_code ? status({ tone: 'danger', text: `未应用：${item.error_code}` }) : ''}
-    ${s.editing ? editForm(s) : html`${item.tool === 'commit_draft' ? draftSnapshot(preview) : ''}${relatedPreview(item)}${changes.length ? html`<section class="arv-changes" aria-label="修改前后对照">${changes.map(change => html`<section class="arv-change"><h3>${change.label || FIELD_LABELS[change.field] || change.field}</h3>
+    ${isLabelPlan(item) ? labelPlanView(s) : s.editing ? editForm(s) : html`${item.tool === 'commit_draft' ? draftSnapshot(preview) : ''}${relatedPreview(item)}${changes.length ? html`<section class="arv-changes" aria-label="修改前后对照">${changes.map(change => html`<section class="arv-change"><h3>${change.label || FIELD_LABELS[change.field] || change.field}</h3>
       <div class="arv-diff"><div><h4>当前内容</h4>${readable(change.before, change.kind)}</div><div class="arv-after"><h4>修改后</h4>${readable(change.after, change.kind)}</div></div></section>`)}</section>` : impactView(preview)}
       ${preview.question || preview.answer ? html`<details class="ui-disclosure arv-context"><summary>对照完整题目与答案</summary><h3>题目</h3>${readable(preview.question)}<h3>答案解析</h3>${readable(preview.answer)}</details>` : ''}
       `}
     ${item.original_payload && item.revision > 1 ? html`<details class="arv-context"><summary>查看原始提案</summary><pre>${JSON.stringify(item.original_payload, null, 2)}</pre></details>` : ''}
-    ${resultView(item)}${pending ? html`<footer class="arv-decision"><p class="arv-muted">${s.dirty ? '有未保存的人工修订，请先保存。' : '确认前会重新核对权限、题目版本与影响范围。'}</p><div>
+    ${isLabelPlan(item) ? html`<p class="arv-muted">本批提交 ${item.commits?.length || 0} 条原生事实，原历史保留。</p>` : resultView(item)}${pending ? html`<footer class="arv-decision"><p class="arv-muted">${s.dirty ? '有未保存的人工修订，请先保存。' : '确认前会重新核对权限、题目版本与影响范围。'}</p><div>
       ${button({ label: '拒绝', action: 'ai-review.reject', disabled: s.busy || unread })}
       ${s.editing ? button({ label: '保存修订', action: 'ai-review.save', loading: s.busy, disabled: !s.dirty }) : ''}
       ${button({ label: '确认执行', variant: 'primary', action: 'ai-review.approve', loading: s.busy, disabled: s.dirty || unread })}</div></footer>`

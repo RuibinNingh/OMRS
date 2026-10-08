@@ -27,7 +27,7 @@ const streak = recs => raw(`<svg class="ast-streak" viewBox="0 0 ${Math.max(1, r
   return `<rect class="${r.correct ? 'ok' : ''}" x="${i * 5}" y="${14 - h}" width="3" height="${h}"/>`;
 }).join('')}</svg>`);
 
-export const LVL = { read: ['只读', 'eye'], rev: ['可撤销', 'undo'], confirm: ['需确认', 'lock'], none: ['不提供', 'x'] };
+export const LVL = { read: ['只读', 'eye'], prepare: ['准备', 'tag'], rev: ['可撤销', 'undo'], confirm: ['需确认', 'lock'], none: ['不提供', 'x'] };
 export const lvl = (k, text) => html`<span class="ast-lvl ast-lvl--${k}">${icon(LVL[k][1])}${text || LVL[k][0]}</span>`;
 const ovCell = (k, v, s) => html`<div class="ast-ov__c"><div class="ast-ov__k">${k}</div><div class="ast-ov__v">${v}${s ? html`<small>${s}</small>` : ''}</div></div>`;
 const liRec = x => html`<li class="ast-list__i">${ref(x.uid)}<span class="ast-list__why">${x.why}</span>${mBar(x.mastery)}</li>`;
@@ -96,6 +96,10 @@ const T = {
     args: a => { const items = a.items || []; const due = items.filter(i => i.source !== 'proficiency').length; return `${items.length} 道，到期 ${due} + 熟练度 ${items.length - due}`; },
     preview: r => html`<div class="ast-dlg-row">${sessRef(r.session_id)}<span>${r.count} 道，状态 ${r.status}</span></div><div class="ast-chips">${(r.items || []).map(ref)}</div>`,
   },
+  list_labels: { title: '读取标记', icon: 'tag', args: () => '现有定义与引用题数' },
+  get_labeling_candidates: { title: '分析归类候选', icon: 'book', args: a => a.scope?.subject || '全部科目', preview: r => note(`已读取 ${r.items?.length || 0} / ${r.total || 0} 题`) },
+  stage_label_plan: { title: '准备归类方案', icon: 'tag', level: 'prepare', args: a => a.fragment_id, preview: r => note(`已准备 ${r.staged_questions || 0} 题 · ${r.staged_definitions || 0} 项定义`) },
+  propose_label_plan: { title: '整批整理标记', icon: 'tag', level: 'confirm', args: () => '完整预览后一次确认' },
   set_question_labels: {
     title: '打标记', icon: 'tag', level: 'confirm',
     args: a => `${(a.uids || []).length} 道${a.add?.length ? `，加「${a.add.join('、')}」` : ''}${a.remove?.length ? `，去「${a.remove.join('、')}」` : ''}`,
