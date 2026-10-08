@@ -15,21 +15,19 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-08 实测）：主服务 `omrs.service`，`Type=simple`、`Restart=on-failure`、`RestartSec=3s`；有效 systemd drop-in 从 `/root/workspace/apps/releases/omrs-479f1b9` 运行 v2.3.6，来自精确两父合并提交 `479f1b9fff62e400006bc6b4ca84d39ab51615ec` 的 Git 归档，1,258 个源码文件逐字节核验。合并保留 `b5a2614` 的 MCP 说明与 `64646d6` 的刷新修复和发布记录。`.venv` 相对链接复用既有生产依赖，没有安装或升级依赖；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0。真实 Vault 仍为 `/root/workspace/apps/OMRS`；main 已 fast-forward 对齐，部署文档提交与运行源码 pin 分开。
+生产环境事实（2026-10-08 22:11 CST 实测）：主服务 `omrs.service`，Type=simple、Restart=on-failure、RestartSec=3s；有效 drop-in 从 `/root/workspace/apps/releases/omrs-f61277f` 运行 v2.3.7，来自精确提交 `f61277fddb2fb7fa3e6998d783f47b5f0a508cf9` 的 Git 归档，1,264 个源码文件逐字节核验。`.venv` 相对链接复用既有生产依赖，没有安装或升级依赖；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0。真实 Vault 仍为 `/root/workspace/apps/OMRS`；main 已推送 GitHub，部署文档提交与运行源码 pin 分开。
 
 Web监听8471，同进程MCP仅监听127.0.0.1:18472；Nginx共用HTTPS8472按路径分流。公网MCP为 `https://home.ruibin-ningh.top:8472/mcp`，公网Web为 `https://home.ruibin-ningh.top:8472`。PIN已配置；本机API免PIN不能绕过工作台入口。完整权限发现40个MCP工具，只读22个；Key现有权限决定实际发现范围，正式调度、改题和草稿继续遵守审核契约，既有Key不自动扩权。
 
-最新发布保全在 `/root/workspace/apps/releases/OMRS-v236-release-retry-20261008T060541Z-7m2_10g9/`（目录0700、文件0600）：精确新旧源码tar、旧unit/drop-in及控制配置、一致Vault/maintenance tar、私人表/文件摘要、校验清单及验证证据。停服备份与原目录比较通过，934个解包文件逐字节一致，副本SQLite完整性通过。第二次切换及后续只读核验保持49张业务表、878个内容/关键配置文件；278题、0冲突、待审0。MCP发现只更新既有Key的last_used_at，数量、身份、scope、有效期与吊销状态保持。
+最新发布保全在 `/root/workspace/apps/releases/OMRS-v237-release-20261008T140957Z-3c9le11w/`（目录0700、文件0600）：精确新旧源码tar、旧unit/drop-in及控制配置、一致Vault/maintenance tar、私人表/文件摘要、校验清单及验证证据。停服备份与原目录比较通过，933个解包文件逐字节一致，副本SQLite完整性通过。切换及后续只读核验保持49张业务表、877个内容/关键配置文件；切换前后277题、0冲突、待审0。本轮没有调用MCP业务工具或修改Key。
 
-只替换主服务drop-in的三处release路径。主服务PID2238041、active/running、NRestarts=0；2026-10-08 14:05 CST成功切换和核验3.69秒。Tunnel PID875442、检测服务PID1532134及Nginx状态保持；85个实际控制文件/模型指针指纹一致，包含宝塔Nginx的真实配置树。端口、公网URL、Vault、PIN、Key权限与模型保持，Tunnel/检测/Nginx未重启。旧 `omrs-b4d0e9c`、早期release、依赖及v2.3.5保全仍保留；恢复只处理兼容源码，不用旧Vault覆盖上线后的新增事实。
+只替换主服务drop-in的三处release路径。主服务PID3456500、active/running、NRestarts=0；2026-10-08 22:11:40 CST成功切换和核验3.762秒。Tunnel PID875442、检测服务PID1532134及Nginx状态保持；85个实际控制文件/模型指针指纹一致，包含宝塔Nginx的真实配置树。端口、公网URL、Vault、PIN、Key权限与模型保持，Tunnel/检测/Nginx未重启。旧 `omrs-479f1b9`、早期release、依赖及既有保全仍保留；恢复只处理兼容源码，不用旧Vault覆盖上线后的新增事实。
 
-首轮v2.3.6保全在 `/root/workspace/apps/releases/OMRS-v236-release-20261008T055920Z-3cs41q8h/`。首轮严格表摘要门禁发现审核operations从96条增到99条，自动只回退代码；没有覆盖数据库或题库。隔离冻结副本分别运行旧/新 `ai_review.initialize`，均只补入同样3条先前MCP失败调用的历史只读记录，原96条及其它业务表/文件逐字节保持，第二次初始化幂等；实际新增行也完全一致。首轮不可变Vault保留，第二轮重新冻结当前99条后通过原严格门禁，不扩大排除项。
+本轮候选Python全量820项通过，无跳过；Node451项、组件34项、UI纪律和58组对比度通过。精确release及既有venv另实跑后端64项、对话内审核浏览器28项、刷新浏览器56项，均通过。候选聊天59项、中心47项、草稿块59项及分类/草稿修订11项通过。四页双主题双宽度16组视觉比较中，助手欢迎说明和桌面版本文字产生预期差异，其他手机页无差异。业务测试全部使用临时Vault、随机端口和假模型。
 
-本轮候选原生入口Python全量820项通过，无跳过；Node449项、组件34项、UI纪律和58组对比度通过。精确release及既有venv另实跑MCP128项、核心49项、刷新浏览器56项、SDK/浏览器39项，均通过。原MCP详情等待竞争的失败保留，正式测试改为等待真实业务控件且不弱化来源/正文/原图断言，正式重跑及复跑均39/39。三页双主题双宽度的12组视觉比较仅桌面版本文字有0.001%差异，手机无差异。刷新回归覆盖正文/裁图节点、滚动、焦点、失败重试与未保存输入，全部使用临时Vault；不把历史全部E2E/打印结果算成本轮重跑。
+生产本机接口实际返回v2.3.7；16项修改资源与合并样式实际HTTP 200，gzip解压与release字节一致，缓存含immutable，条件请求304。公网这16项工作台资源匿名401，鉴权正常。公网入口/授权摘要200，匿名status/MCP401，回环MCP无Key401；主服务错误级journal无记录。Tunnel的healthz、readyz、health/mcp均200。真实本机和公网浏览器验证PIN入口、标题及390px无横溢 / 无脚本错误；没有保存登录凭据或尝试进入生产工作台。PIN后的页面、真实模型、Windows和实体手机未验收；界面主路径在隔离Chromium验证。
 
-生产本机接口实际返回v2.3.6，三项修复资源gzip读取200，解压与release字节一致，缓存含immutable。本机与实际公网MCP用既有Key的SDK完成initialize/tools/list：40工具、162顶层参数说明齐全，instructions与运行源码完全一致且含先查分类规范；没有业务tools/call、创建Key或付费模型调用。公网入口/授权摘要200，匿名status/MCP401，回环MCP无Key401；主服务错误级journal无记录。真实公网浏览器验证PIN入口、标题及390px无横溢；没有保存登录凭据，未尝试进入生产工作台。PIN后的页面、ChatGPT账户、Windows和实体手机未验收；界面主路径在隔离Chromium验证。
-
-当前v2.3.6不改变数据库结构或持久化契约。正式题目journal与统一审批恢复继续保持最新数据；跨旧存储版本不能只恢复旧drop-in或旧Vault。原正文恢复保全及私人清单仍保留，当前正文可用性与历史缺口的规范见 `ledger.md` §10；禁止提交正文、私人路径清单和数据库。
+当前v2.3.7不改变数据库结构或持久化契约。正式题目journal与统一审批恢复继续保持最新数据；跨旧存储版本不能只恢复旧drop-in或旧Vault。原正文恢复保全及私人清单仍保留，当前正文可用性与历史缺口的规范见 `ledger.md` §10；禁止提交正文、私人路径清单和数据库。
 
 A4固定字体与打印门禁为 `python3 -m unittest tests.test_export_fonts tests.smoke_a4_print -q`；统一门禁包含 `print-a4`，下载路径另由 `tests/e2e/schedule.py` 验证。刷新不闪动的隔离门禁为 `python3 tests/e2e/ai_review_refresh.py`。所有测试实例须清除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`，Windows Edge与实体手机须另验。
 
