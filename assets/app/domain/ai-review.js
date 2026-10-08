@@ -84,3 +84,8 @@ export const openReview = (id, options) => service?.open(id, options) || Promise
 export const publishReviewChange = ids => service?.changed(ids);
 export const refreshReviewCounts = () => service?.refresh();
 export const currentReviewCounts = () => service?.counts();
+
+// 完整详情由审核功能拥有；聊天通过此端口创建原位面板，domain 不依赖 features。
+let panelFactory = null;
+export const connectReviewPanel = factory => { panelFactory = factory; };
+export const createReviewPanel = ctx => panelFactory(ctx);

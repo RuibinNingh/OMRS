@@ -132,6 +132,8 @@ mkdir /tmp/chk && cd /tmp/chk && unzip -q /mnt/user-data/uploads/<原始导出�
 
 AI 助手没有网络也能完整测试：启动服务前设环境变量 `OMRS_AGENT_FAUX_SCRIPT=tests/fixtures/agent_faux.json`，运行时改用脚本化假模型（按最近一条用户消息选场景，模板可引用之前的工具结果），再在 `config.json` 里设 `agent_enabled: true`。`tests/e2e/assistant.py` 就是这样起隔离实例的。
 
+对话内审批门禁为 `python3 tests/e2e/assistant_review.py`，使用三个合成目标验证两道真实修改和一道无需变更，覆盖原位详情、焦点 / 输入保留、保存失败、关闭保护与单份入库。截图保存到 `/tmp/omrs-chat-review-shots`，可用 OMRS_REVIEW_SHOTS 指定临时目录；与全部浏览器门禁一样不连接生产数据或真实模型。
+
 P4 分类和草稿修订路径使用独立的 `tests/fixtures/agent_p4_faux.json` 与 `tests/e2e/p4_tools.py`；脚本自己创建临时 Vault、随机端口并清除 `OMRS_SYSTEMD_SERVICE`，在 Chromium 中确认分类、审核修订卡和零题候选。
 
 聊天练习卡场景写在 `tests/fixtures/agent_faux.json`，`tests/e2e/practice.py` 使用临时 Vault、随机端口与真实 Chromium，覆盖从聊天卡进入即时练习、刷新续练、反馈丢响应后重试、部分成功及重练请求恢复；该脚本不接真实模型或生产数据。

@@ -76,6 +76,7 @@ function gateView(run, st, now) {
 }
 
 function toolView(S, run, st, now) {
+  if (operationId(st)) return html`<div class="ast-node ast-node--tool" data-key="${st.id}">${reviewCard(S, run, st)}</div>`;
   const key = `${run.id}|${st.id}`;
   const open = S.open.has(key) || (['create_draft', 'update_draft', 'create_category', 'create_practice_card'].includes(st.name) && st.status === 'done' && !S.closed.has(key));
   const [label, tone] = STATUS[st.status] || STATUS.queued;
@@ -86,7 +87,7 @@ function toolView(S, run, st, now) {
       ${icon(toolIcon(st))}<span class="ast-tool__title">${toolTitle(st)}</span><span class="ast-tool__args">${toolArgs(st)}</span>
       <span class="ast-tool__right">${st.level !== 'read' ? lvl(st.level) : ''}${st.summary ? html`<span class="ast-tool__sum">${st.summary}</span>` : ''}${decided}
       <span class="${cls('ast-tool__st', tone)}">${label}</span>${dur ? html`<span class="ast-tool__meta">${dur}</span>` : ''}${st.result || st.error ? html`<span class="ast-tool__chev">${icon(open ? 'chevron-up' : 'chevron-down')}</span>` : ''}</span></button>
-    ${operationId(st) ? reviewCard(S, run, st) : st.status === 'waiting' ? gateView(run, st, now) : ''}
+    ${st.status === 'waiting' ? gateView(run, st, now) : ''}
     ${st.error && !open ? html`<p class="ast-note is-error">${st.error}</p>` : ''}
     ${open ? html`<div class="ast-tool__body">${toolPreview(st, S.drafts?.[st.result?.draft_id], S.draftCropMode)}${st.commits?.length ? html`<p class="ast-note">写入 ${st.commits.map(c => c.commit_id).join('、')}</p>` : ''}</div>` : ''}
   </div></div>`;
@@ -168,7 +169,7 @@ function offView(S) {
 const PERMS = [
   ['read', '找题、读题、看统计与复习推荐', '直接执行'],
   ['rev', '录入或修订 AI 草稿、创建聊天练习卡；草稿不进题库', '直接执行并留记录'],
-  ['confirm', '安排正式复习、改题目与标记、移动或停用题目、记反馈、建分类、草稿入库', '审核中心批准后执行'],
+  ['confirm', '安排正式复习、改题目与标记、移动或停用题目、记反馈、建分类、草稿入库', '对话中确认后执行'],
   ['none', '删除题目、修改设置与 PIN、备份恢复、重启服务', '不支持'],
 ];
 export function emptyView(S) {

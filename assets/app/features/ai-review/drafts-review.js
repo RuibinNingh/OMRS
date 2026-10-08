@@ -70,7 +70,8 @@ function blocksView(value, readonly, editingBlock, busy) {
     })}</div>`;
 }
 
-export function reviewActions({ draft, value, dirty, busy }) {
+export function reviewActions(state) {
+  const { draft, value, dirty, busy } = state;
   const readonly = ['done', 'discarded'].includes(draft.status);
   if (readonly) return html`<footer class="drf-footer" data-key="draft-actions"><p class="drf-hint">此草稿的正文已锁定。${draft.status === 'done' && (draft.training_tasks || []).some(task => task.status === 'error') ? '训练登记失败，可重试。' : ''}</p>
     ${draft.status === 'done' && dirty ? button({ label: '保存训练框', variant: 'primary', action: 'ai-review.draftSave', loading: busy }) : ''}
@@ -81,7 +82,7 @@ export function reviewActions({ draft, value, dirty, busy }) {
     : html`<span>✓ 格式检查通过</span>`}</div><div class="drf-footer-actions">
       ${button({ label: '丢弃', variant: 'ghost', action: 'ai-review.draftDiscard', disabled: busy })}
       ${button({ label: '暂存', action: 'ai-review.draftSave', loading: busy, disabled: !dirty })}
-      ${button({ label: '入库并下一题', variant: 'primary', action: 'ai-review.draftCommit', loading: busy, disabled: Boolean(problem) })}
+      ${button({ label: state.single ? '确认入库' : '入库并下一题', variant: 'primary', action: 'ai-review.draftCommit', loading: busy, disabled: Boolean(problem) })}
     </div></footer>`;
 }
 

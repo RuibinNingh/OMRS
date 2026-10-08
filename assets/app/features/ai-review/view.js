@@ -8,6 +8,7 @@ import { operationView } from './operation-view.js';
 
 const options = (values, current) => values.map(([value, label]) => html`<option value="${value}"${value === current ? html` selected` : ''}>${label}</option>`);
 export function reviewView(s) {
+  if (s.embedded) return html`<section class="arv arv-embedded" aria-label="对话内审核详情">${detailView(s)}</section>`;
   return html`<section class="arv" data-mobile-detail="${String(s.mobileDetail)}"><header class="arv-header"><div><h2>审核中心</h2><p class="arv-muted">核对 AI 写入，查看已经执行的修改。</p></div><div class="arv-tabs">${button({ label: '草稿维护', action: 'ai-review.draftQueueMenu', disabled: s.busy })}${button({ label: '刷新', icon: 'refresh', action: 'ai-review.refresh' })}</div></header>
     <div class="arv-toolbar"><div class="arv-tabs" role="group" aria-label="审核视图">${button({ label: `待审核${s.counts ? ` ${s.counts.pending}` : ''}`, action: 'ai-review.view', arg: 'pending', pressed: s.view === 'pending', variant: s.view === 'pending' ? 'primary' : 'default' })}
       ${button({ label: '操作记录', action: 'ai-review.view', arg: 'records', pressed: s.view === 'records', variant: s.view === 'records' ? 'primary' : 'default' })}</div>
@@ -22,8 +23,11 @@ export function reviewView(s) {
         : empty({ icon: 'check-circle', title: s.view === 'pending' ? '没有待审核操作' : '没有匹配的写操作', hint: s.view === 'pending' ? 'MCP 和 AI 助手提交的写入提案会出现在这里。' : '调整来源、类型或状态筛选。', bordered: true })}
       ${s.hasMore ? button({ label: s.loadingMore ? '加载中…' : '加载更多', action: 'ai-review.more', disabled: s.loadingMore }) : ''}</aside>
       <section class="arv-detail" aria-label="审核详情"><div class="arv-mobile-back">${button({ label: '返回列表', icon: 'arrow-left', variant: 'ghost', action: 'ai-review.back' })}</div>
-      ${s.detailLoading ? html`<p role="status">正在读取详情…</p>` : s.detailError ? html`${status({ tone: 'danger', text: `详情读取失败：${s.detailError}` })}${button({ label: '重试详情', action: 'ai-review.retry' })}`
-        : s.item?.kind === 'draft' ? html`<div id="ib-stage-drafts" data-key="review-draft-editor" data-morph="skip"></div>`
-          : s.item ? operationView(s) : empty({ icon: 'edit', title: '选择一项操作', hint: '核对修改内容和影响范围，再决定是否执行。', bordered: true })}</section></div>
+      ${detailView(s)}</section></div>
   </section>`;
+}
+function detailView(s) {
+  return s.detailLoading ? html`<p role="status">正在读取详情…</p>` : s.detailError ? html`${status({ tone: 'danger', text: `详情读取失败：${s.detailError}` })}${button({ label: '重试详情', action: 'ai-review.retry' })}`
+    : s.item?.kind === 'draft' ? html`<div id="ib-stage-drafts" data-key="review-draft-editor" data-morph="skip"></div>`
+      : s.item ? operationView(s) : empty({ icon: 'edit', title: s.embedded ? '正在准备详情' : '选择一项操作', hint: '核对修改内容和影响范围，再决定是否执行。', bordered: true });
 }

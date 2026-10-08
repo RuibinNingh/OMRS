@@ -29,7 +29,7 @@ export function createDrafts(root, ctx, options = {}) {
     draft: null, value: null, saved: '', detailLoaded: true, detailError: '', dirty: false,
     busy: false, message: '', conflict: false, counts: currentDraftCounts(), training: {}, trainingSaved: '{}',
     canvasSha: null, canvasMode: 'body', selectedBlock: null, drawSection: '题目', job: null,
-    workspaceMode: 'review', editingBlock: null, fieldsEditing: false, queueOpen: false, embedded: options.embedded };
+    workspaceMode: 'review', editingBlock: null, fieldsEditing: false, queueOpen: false, embedded: options.embedded, single: options.single };
   let alive = true, listRequest = 0, detailRequest = 0;
   const jobs = createDraftJobPolling(root, state, { isAlive: () => alive, loadDetail, paint, responseError });
   const canvas = createDraftCanvasControl(host, state, { markChanged, paint, block });
@@ -314,7 +314,7 @@ export function createDrafts(root, ctx, options = {}) {
       return true;
     } finally { state.busy = false; paint(); }
   }
-  async function nextPending(previousIndex) {
+  async function nextPending(previousIndex) { if (options.single) { await loadDetail(state.selectedId); return; }
     options.onPendingQueue?.();
     state.filter = 'pending'; state.list = state.list.filter(row => row.id !== state.selectedId);
     state.selectedId = null; selectDraftId(null); setDraft(null);

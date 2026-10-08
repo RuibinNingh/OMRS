@@ -121,3 +121,32 @@
 .ast-draft-review__block strong, .ast-draft-review__block small { display: block; }
 .ast-draft-review__block p { white-space: pre-wrap; }
 .ast-draft-review__block img { display: block; max-width: 100%; max-height: 160px; object-fit: contain; }
+
+/* 对话内操作只保留一层表面，当前状态和实际变更直接可见。 */
+.ast-op { display: grid; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); overflow-wrap: anywhere; }
+.ast-op.is-waiting { border-color: var(--border-1); }
+.ast-op__head, .ast-op__title, .ast-op__state, .ast-op__actions, .ast-op__labels { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
+.ast-op__head { justify-content: space-between; }
+.ast-op__title { color: var(--fg-1); font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.ast-op__title > .ui-icon { color: var(--fg-3); }
+.ast-op__state { color: var(--fg-2); font-size: var(--text-xs); }
+.ast-op__state.is-success { color: var(--success); }
+.ast-op__state.is-warning { color: var(--warning); }
+.ast-op__state.is-danger { color: var(--danger); }
+.ast-op__summary, .ast-op__muted { margin: 0; color: var(--fg-2); font-size: var(--text-xs); }
+.ast-op__preview { min-width: 0; font-size: var(--text-sm); }
+.ast-op__rows { display: grid; }
+.ast-op__row { display: grid; gap: var(--sp-1_5); padding: var(--sp-3) 0; border-top: 1px solid var(--border-1); }
+.ast-op__row.is-error { color: var(--danger); }
+.ast-op__tag { padding: var(--sp-0_5) var(--sp-1_5); color: var(--fg-1); background: var(--surface-2); border-radius: var(--r-xs); font-size: var(--text-xs); }
+.ast-op__actions { gap: var(--sp-1_5); }
+.ast-op__expiry { margin-left: auto; }
+.ast-review-panel .ui-drawer__panel { width: min(860px, 100%); }
+.ast-review-panel .arv-embedded { height: auto; }
+.ast-review-panel .drf-detail { min-width: 0; }
+@media (max-width: 760px) {
+  .ast-op__expiry { width: 100%; margin-left: 0; }
+  .ast-review-panel[open] { align-items: stretch; }
+  .ast-review-panel .ui-drawer__panel { height: 100%; max-height: 100dvh; border-radius: 0; }
+  .ast-review-panel .ui-drawer__body { padding: var(--sp-3); }
+}

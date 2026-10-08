@@ -50,7 +50,7 @@ assets/app/
 | 表格 | `table({columns, rows, rowKey, selected, empty, stack})` | 表头固定；悬停 / 选中 / 行内操作三态；stack 在 ≤760px 变卡片列表（D4），表头只留给读屏（1px 裁剪、表头行无内边距，不算作溢出） |
 | 对话框 | `dialog(spec)`、`confirm(title, o)`、`prompt(title, value, o)` | 见 §4 |
 | 图片预览 | `openImageViewer(images, initial)` | 站内模态预览、缩放、切图、下载、新标签次级操作；Esc / 浏览器返回键关闭并恢复焦点 |
-| 抽屉 | `openDrawer({title, body, content, footer, side, onClose})` | 与对话框共用模态底座；窄屏变底部面板 |
+| 抽屉 | `openDrawer({title, body, content, footer, side, dismissible, returnFocus, onClose})` | 与对话框共用模态底座；窄屏变底部面板 |
 | 菜单 | `openMenu(anchor, items)` → value 或 null | ↑/↓ 跳过禁用项、Esc 还焦点、点外面关闭；锚点在对话框里时挂进对话框 |
 | 通知 | `toast(text, {kind, actions, duration})` | kind：info / ok / warn / error；最多 3 条、同文同类合并、悬停或聚焦时暂停 |
 | 空状态 | `empty({icon, title, hint, action, compact, bordered})` | 说明为什么是空的、下一步做什么，并给一个主操作（D5） |
@@ -85,3 +85,5 @@ assets/app/
 - `python3 tests/app/run_browser.py`：自带静态服务器，用 playwright 跑 `tests/app/browser_tests.js` 的组件单测（对话框焦点与 Esc、toast 队列、菜单键盘、拖放、D2 / D3 高度等）；`--shots DIR` 另存 gallery 五张整页截图（浅 / 深 × 舒适 / 紧凑，外加 390 宽手机）。没有 playwright 时退出码 2，`tests/test_app_browser.py` 据此跳过。
 - `node --test tests/app/html.test.mjs`：覆盖 `html``` 的转义规则。
 - `python3 tests/e2e/ui_bridge.py`：用隔离 Vault 和真实浏览器验证样式层、原生提示与对话框、控件高度及 13 页切换无脚本错误。
+
+抽屉的 dismissible 可为每次关闭时求值的函数，关闭按钮、Esc 与遮罩均检查它；returnFocus 返回关闭后应聚焦的现存元素，用于宿主内容刷新后的入口恢复。调用 close() 用于已通过宿主守卫的关闭及卸载清理。

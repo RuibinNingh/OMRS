@@ -4,7 +4,7 @@
 > - 职责：统一 MCP 与内置助手业务写入审核、操作记录、人工修订与完整 AI 草稿编辑
 > - 入口：`assets/app/features/ai-review/`；导航与当前状态服务 `assets/app/domain/ai-review.js`
 > - 不变量：状态由服务端拥有；只审批当前 revision；未保存输入不被刷新覆盖；只显示业务写；历史项只读
-> - 必跑测试：`tests/app/ai-review.test.mjs`、`tests/e2e/ai_review.py`、`tests/e2e/drafts.py`、`tests/e2e/drafts_blocks.py`、`tests/e2e/drafts_p4.py`、前端纪律与浏览器门禁
+> - 必跑测试：`tests/app/ai-review.test.mjs`、`tests/e2e/ai_review.py`、`tests/e2e/assistant_review.py`、`tests/e2e/drafts.py`、`tests/e2e/drafts_blocks.py`、`tests/e2e/drafts_p4.py`、前端纪律与浏览器门禁
 > - 相关：`AI/ai-review.md`、`AI/drafts.md`、`AI/frontend/assistant.md`、`AI/frontend/records.md`
 
 ## 页面与公共队列
@@ -22,6 +22,12 @@
 切换目标、筛选、页面、同页查询参数和浏览器前后退均经过未保存保护，支持保存并离开、放弃或留下；关闭浏览器用 beforeunload。中心可见时每 2.5 秒刷新，草稿作业交给原作业轮询器，忙碌或脏草稿不被覆盖。同一草稿在手动刷新与轮询期间保留正文、编辑框、已绘制裁图与滚动位置；读取失败显示可重试提示并保留当前内容，相同数据不重建编辑器。首次读取或切换草稿仍显示加载状态。自动切下一份后使用 `router.replaceQuery` 同步当前目标，不重新挂载表单。
 
 `tests/e2e/ai_review_refresh.py` 用临时 Vault、随机端口与真实浏览器，在浅色 / 深色及桌面 / 手机下验证刷新无整页动画、慢请求不清空正文、失败重试、新版本更新和未保存保护。
+
+## 对话内详情
+
+`detail-panel.js` 通过 domain/ai-review 面板端口由 main.js 组装。`createReviewController(...,{embedded:true,id})` 只加载指定详情，复用人工修订、CAS 决定与草稿编辑器；不读公共队列、不改路由查询参数。抽屉局部派发 ai-review 点击 / 输入 / 选择动作，避免调用未挂载的中心页面实例。
+
+共享抽屉用 dismissible 检查执行中与未保存状态，关闭按钮、Esc 和遮罩走同一保护；离页使用路由守卫，关闭后恢复聊天入口焦点。读取当前提案失败保留内容并禁用决定，支持重试详情。草稿单份模式使用「确认入库」，完成后留在当前回执；集中审核仍自动推进下一份。
 
 ## 完整草稿编辑
 

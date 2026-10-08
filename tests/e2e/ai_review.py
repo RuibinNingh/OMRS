@@ -178,7 +178,10 @@ def main():
                 check('轮询刷新不丢已加载页', page.locator('.arv-row').count() == loaded)
                 page.locator('[data-change="ai-review.source"]').select_option('agent')
                 check('来源筛选只显示助手写操作', support.wait(page, "() => [...document.querySelectorAll('.arv-row')].every(el => el.textContent.includes('AI 助手'))"))
-                page.evaluate("id => import('/assets/app/domain/drafts.js').then(module => module.openDraft(id))", draft['id'])
+                page.evaluate("""id => {
+                    const url = performance.getEntriesByType('resource').find(row => new URL(row.name).pathname.endsWith('/app/domain/drafts.js')).name;
+                    return import(url).then(module => module.openDraft(id));
+                }""", draft['id'])
                 page.locator('.drf-id').wait_for()
                 check('草稿跨页入口进入中心并保留完整编辑器', '#/ai-review?draft=' in page.url
                       and page.locator('[data-action="ai-review.draftEditBlock"]').count() == 1)

@@ -28,7 +28,7 @@ assets/app/
 
 外壳创建后连接审核中心、草稿、统计、Session、历史和标记领域服务，绑定标记选择器事件与全局 Esc。先调用 `router.start()` 安装 hash 监听并稳定当前页面，再并行加载初始标记 / 统计 / Session，随后同步助手入口；设置变更通过 `agent:config` 再同步。独立的 `/annotate`、`/train` 使用各自入口，不在主外壳的页面登记表中。
 
-助手浏览器验收点击当前等待调用的聊天卡，并按持久 `tool.waiting.operation_id` 核对审核导航地址与详情；自动写记录卡不参与待确认定位。中心使用服务器拥有的版本与状态，客户端卡片不能自行恢复批准权限。
+助手浏览器验收点击当前等待调用的聊天卡，并按持久 `tool.waiting.operation_id` 核对原位详情与聊天地址不变；自动写记录卡不参与待确认定位。中心使用服务器拥有的版本与状态，客户端卡片不能自行恢复批准权限。
 
 ## 3. 路由与页面契约
 
@@ -103,7 +103,7 @@ assets/app/
 
 ## 8. 审核中心、草稿与录入页状态
 
-`domain/ai-review.js` 持有公共详情 / 修订 / 决定请求、跨页导航与去重待审计数，不保存编辑表单。`ai-review:changed {ids}` 刷新公共角标并通知中心和助手卡片，成功读取发 `ai-review:counts`。角标可见时每十秒及聚焦 / 切页重取，失败保留旧值。中心控制器拥有公共筛选、页码与未保存表单，后台轮询和页卸载遵循请求代次保护；详情见 `AI/frontend/ai-review.md`。
+`domain/ai-review.js` 持有公共详情 / 修订 / 决定请求、跨页导航、原位详情面板端口与去重待审计数，不保存编辑表单。main.js 连接审核功能的面板工厂，助手只调用领域端口，不跨 feature 导入。原位抽屉在自己的控制器上派发审核动作，卸载时清理监听和守卫。`ai-review:changed {ids}` 刷新公共角标并通知中心和助手卡片，成功读取发 `ai-review:counts`。角标可见时每十秒及聚焦 / 切页重取，失败保留旧值。中心控制器拥有公共筛选、页码与未保存表单，后台轮询和页卸载遵循请求代次保护；详情见 `AI/frontend/ai-review.md`。
 
 `domain/drafts.js` 继续拥有草稿 sessionStorage 目标和四态计数；`openDraft(id)` 进入 `ai-review?draft=id`，成功后发 `drafts:open`。`drafts:changed` 同时刷新旧草稿快照并转为 `ai-review:changed`。草稿编辑模块位于 `features/ai-review/`，页面间不直接 import；裁图、坐标和指针画布的实际共用代码放在 `domain/image-crop/`，录入页保留短导出适配器。
 
@@ -150,3 +150,5 @@ MCP 确认 hash 在 core/api.js 的401跳转和 PIN 登录 destination 中保留
 ## MCP 调度验收覆盖
 
 设置页新增默认关闭的 session:create 授权，复用既有弹窗、权限映射和组件，不引入全局入口。tests/e2e/mcp_review_sessions.py 用真实官方 SDK 与临时 Vault 验证网页授权、创建计划可见、反馈进度与撤销重试；既有 mcp_expansion.py 同步新增权限默认和编辑检查，settings.test.mjs 验证权限映射与呈现。
+
+浏览器测试需要直接调用领域模块时，从 performance resource 记录取得页面实际加载的版本化模块 URL；不得用未版本化路径导入另一个未连接服务的模块实例。对话内审批回归见 `tests/e2e/assistant_review.py`，覆盖实际变更数量、草稿保存失败、未保存保护、单份入库和双主题多宽度。

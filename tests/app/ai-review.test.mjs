@@ -11,6 +11,33 @@ import { pendingDraftQueue, readDraftQueue, reviewFilters } from '../../assets/a
 import { operationView } from '../../assets/app/features/ai-review/operation-view.js';
 
 const timers = () => ({ setTimeout: () => 1, clearTimeout() {} });
+test('内联批准绑定已展示版本；后台新版本到达时不能代替用户确认', async () => {
+  const step = { name: 'set_question_labels', args: {}, operationId: 'op_1' };
+  const S = { alive: true, items: [{ run: { steps: [step] } }] }, sent = [], notices = [];
+  let revision = 1, state = 'pending_confirmation';
+  const cards = createReviewCards(S, () => {}, { timers: timers(), request: async () => ({ ok: true,
+    item: { tool: step.name, revision, status: state, preview: { items: [] } } }),
+    decide: async (...args) => { sent.push(args); state = 'approved'; return { ok: true }; } });
+  await cards.refresh(); revision = 2;
+  await cards.approve(step, message => notices.push(message), 1);
+  assert.equal(sent.length, 0); assert.match(notices[0], /提案已变化/);
+  await cards.approve(step, () => {}, 2);
+  assert.deepEqual(sent, [['op_1', 2, 'approve']]);
+  assert.match(String(reviewCard(S, { id: 'run' }, step)), /等待执行/);
+  assert.doesNotMatch(String(reviewCard(S, { id: 'run' }, step)), /已完成/);
+  cards.dispose();
+});
+
+test('标记回执解释变更和跳过数量，成功卡片不保留待确认文案；历史不能再批准', () => {
+  const step = { name: 'set_question_labels', args: {}, operationId: 'op_1' }, run = { id: 'run' };
+  const S = { reviews: { op_1: { item: { tool: step.name, status: 'applied',
+    result: { changed: ['A', 'B'], skipped: ['C'], details: [] } } } } };
+  const view = String(reviewCard(S, run, step));
+  assert.match(view, /已修改 2 道 · 1 道无需变更/);
+  assert.doesNotMatch(view, /需确认|你已允许|assistant.approve/);
+  S.reviews.op_1.item = { tool: step.name, status: 'pending_confirmation', history_readonly: true };
+  assert.doesNotMatch(String(reviewCard(S, run, step)), /assistant.approve|assistant.deny/);
+});
 test('统一导航与角标：草稿去重总数、失败保留、同页目标和修改通知', async () => {
   const bus = createBus(), badge = { hidden: true, setAttribute() {} }, seen = [];
   let count = 3, route = 'assistant';

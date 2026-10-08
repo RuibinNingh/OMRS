@@ -1,5 +1,6 @@
 import { page as reviewPage } from './features/ai-review/index.js';
-import { connectReview } from './domain/ai-review.js';
+import { connectReview, connectReviewPanel } from './domain/ai-review.js';
+import { createReviewPanel } from './features/ai-review/detail-panel.js';
 /** Browser entry: install shared services, load snapshots, then enter the hash route. */
 import { startShell, applyChrome } from './shell.js';
 import { page as instantPage } from './features/instant/index.js';
@@ -37,6 +38,7 @@ const pages = [dashboardPage, dataPage, schedulePage, historyPage, catalogPage, 
 const { router, bus } = startShell(window, pages);
 connectDrafts({ bus, router, document, window });
 connectReview({ bus, router, document, window });
+connectReviewPanel(createReviewPanel);
 connectData({ emit: (type, payload) => bus.emit(type, payload) });
 connectSessions({ emit: (type, payload) => bus.emit(type, payload) });
 connectHistory({ emit: (type, payload) => bus.emit(type, payload) });

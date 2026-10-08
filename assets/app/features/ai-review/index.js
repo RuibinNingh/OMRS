@@ -18,15 +18,15 @@ import { confirmDraftCleanup, requestDraftCleanup } from './maintenance.js';
 import { reviewFilters, pendingDraftQueue } from './queue.js';
 
 let controller = null;
-export function createReviewController(root, ctx) {
-  const query = new URLSearchParams(location.hash.split('?')[1] || '');
+export function createReviewController(root, ctx, options = {}) {
+  const query = new URLSearchParams(options.embedded ? '' : location.hash.split('?')[1] || '');
   const s = { view: 'pending', source: '', type: query.get('type') || '', status: '', range: '', items: [], loaded: false,
     listError: '', hasMore: false, nextOffset: 0, loadingMore: false, selectedId: null, item: null,
     detailLoading: false, detailError: '', counts: currentReviewCounts(), original: {}, edited: {},
-    editing: false, dirty: false, busy: false, error: '', note: '', mobileDetail: false };
+    editing: false, dirty: false, busy: false, error: '', note: '', mobileDetail: false, embedded: !!options.embedded };
   let alive = true, listRequest = 0, detailRequest = 0, poll = null, draft = null;
   const paint = () => { if (alive) morph(root, reviewView(s)); };
-  const syncTarget = () => ctx.router.replaceQuery?.(s.selectedId ? `${s.item?.kind === 'draft' ? 'draft' : 'operation'}=${encodeURIComponent(s.selectedId)}` : s.type === 'draft' ? 'type=draft' : '');
+  const syncTarget = () => { if (!options.embedded) ctx.router.replaceQuery?.(s.selectedId ? `${s.item?.kind === 'draft' ? 'draft' : 'operation'}=${encodeURIComponent(s.selectedId)}` : s.type === 'draft' ? 'type=draft' : ''); };
   function setItem(item) {
     s.item = item; s.original = editableValues(item); s.edited = structuredClone(s.original);
     s.dirty = false; s.error = ''; s.note = ''; s.detailError = ''; s.detailLoading = false; paint();
@@ -61,6 +61,7 @@ export function createReviewController(root, ctx) {
     return out.ok;
   }
   async function load(more = false) {
+    if (options.embedded) return true;
     if (more && (!s.hasMore || s.loadingMore)) return false;
     if (!more && s.loadingMore) return false;
     const mine = ++listRequest; s.loadingMore = more;
@@ -94,7 +95,7 @@ export function createReviewController(root, ctx) {
     }
     setItem(out.item);
     if (out.item?.kind === 'draft' && !draft) {
-      draft = createDrafts(root, ctx, { embedded: true, isActive: () => alive,
+      draft = createDrafts(root, ctx, { embedded: true, single: options.embedded, isActive: () => alive,
         filterQueue: () => pendingDraftQueue(reviewFilters(s)),
         onPendingQueue() { if (s.view !== 'pending') { s.view = 'pending'; s.status = ''; void load(); } },
         onQueueError() { s.selectedId = null; s.item = { kind: 'draft', id: null }; syncTarget(); paint(); },
@@ -111,14 +112,14 @@ export function createReviewController(root, ctx) {
     if (!id) return;
     if (id === s.selectedId) {
       s.mobileDetail = true; paint();
-      if (matchMedia('(max-width: 760px)').matches) root.querySelector('.arv-mobile-back button')?.focus({ preventScroll: true });
+      if (!options.embedded && matchMedia('(max-width: 760px)').matches) root.querySelector('.arv-mobile-back button')?.focus({ preventScroll: true });
       return;
     }
     if (!await guard()) return;
     stopDraft(); s.selectedId = id; s.item = null; s.editing = false; s.mobileDetail = true;
     await readDetail(id);
     syncTarget();
-    if (matchMedia('(max-width: 760px)').matches) root.querySelector('.arv-mobile-back button')?.focus({ preventScroll: true });
+    if (!options.embedded && matchMedia('(max-width: 760px)').matches) root.querySelector('.arv-mobile-back button')?.focus({ preventScroll: true });
   }
   async function maintenance(anchor) {
     if (draft) return draft.queueMenu(anchor);
@@ -157,7 +158,7 @@ export function createReviewController(root, ctx) {
     paint(); return out.ok;
   }
   async function decide(decision) {
-    if (!isPending(s.item) || s.busy) return;
+    if (!isPending(s.item) || s.busy || s.detailError || s.error.startsWith('详情刷新失败')) return;
     if (s.dirty) { s.error = '请先保存人工修订，再核对影响预览。'; paint(); return; }
     if (decision === 'reject' && !await confirm('拒绝这项写入提案？', { okText: '拒绝', danger: true })) return;
     s.busy = true; s.error = ''; paint(); const id = s.item.id;
@@ -178,9 +179,9 @@ export function createReviewController(root, ctx) {
   function focus() { if (!document.hidden) { void load(); schedule(); } else if (poll) clearTimeout(poll); }
   window.addEventListener('focus', focus); document.addEventListener('visibilitychange', focus); window.addEventListener('beforeunload', beforeUnload);
   paint();
-  void load().then(() => { const id = query.get('draft') || query.get('operation'); if (id) void select(id); else if (s.type === 'draft' && s.items.length) void select(s.items.find(row => row.id === selectedDraftId())?.id || s.items[0].id); });
+  void load().then(() => { const id = options.id || query.get('draft') || query.get('operation'); if (id) void select(id); else if (s.type === 'draft' && s.items.length) void select(s.items.find(row => row.id === selectedDraftId())?.id || s.items[0].id); });
   schedule();
-  return { state: s, openPage: route => ctx.router.go(route), editor: () => draft, guard, select, filter, field, save, decide, maintenance,
+  return { state: s, openPage: route => ctx.router.go(route), openDraft: id => options.embedded ? select(id) : openReview(id, { kind: 'draft' }), editor: () => draft, guard, select, filter, field, save, decide, maintenance,
     refresh: async () => { await load(); await refreshReviewCounts(); if (draft) await draft.reload(); else if (s.selectedId && !s.dirty) await readDetail(s.selectedId, { refresh: true }); },
     retry: () => { if (!s.dirty) void readDetail(s.selectedId, { refresh: Boolean(s.item) }); }, more: () => load(true),
     back() { s.mobileDetail = false; paint(); root.querySelector(`.arv-row[data-arg="${CSS.escape(s.selectedId || '')}"]`)?.focus(); },
@@ -189,20 +190,23 @@ export function createReviewController(root, ctx) {
       window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', focus); window.removeEventListener('beforeunload', beforeUnload); },
   };
 }
+export function reviewActions(current) {
+  return { ...draftActions(() => current()?.editor()),
+    draftQueueMenu: ({ el }) => current()?.maintenance(el),
+    refresh: () => current()?.refresh(), retry: () => current()?.retry(), open: ({ arg }) => current()?.select(arg),
+    view: ({ arg }) => current()?.filter('view', arg), source: ({ value }) => current()?.filter('source', value),
+    type: ({ value }) => current()?.filter('type', value), status: ({ value }) => current()?.filter('status', value), range: ({ value }) => current()?.filter('range', value),
+    more: () => current()?.more(), back: () => current()?.back(), edit: () => current()?.edit(),
+    editField: ({ arg, value }) => current()?.field(arg, value), save: () => current()?.save(),
+    approve: () => current()?.decide('approve'), reject: () => current()?.decide('reject'),
+    openDraft: ({ arg }) => current()?.openDraft(arg),
+    openBoard: ({ arg }) => boardDetailPort.open(arg),
+    openSession: () => current()?.openPage('schedule'),
+    openPractice: ({ arg }) => current()?.openPage(`instant?practice=${encodeURIComponent(arg)}`),
+  };
+}
 export const page = {
   id: 'ai-review', title: '审核中心', workbench: true,
   mount(root, ctx) { controller = createReviewController(root, ctx); return () => { controller?.dispose(); controller = null; }; },
-  actions: { ...draftActions(() => controller?.editor()),
-    draftQueueMenu: ({ el }) => controller?.maintenance(el),
-    refresh: () => controller?.refresh(), retry: () => controller?.retry(), open: ({ arg }) => controller?.select(arg),
-    view: ({ arg }) => controller?.filter('view', arg), source: ({ value }) => controller?.filter('source', value),
-    type: ({ value }) => controller?.filter('type', value), status: ({ value }) => controller?.filter('status', value), range: ({ value }) => controller?.filter('range', value),
-    more: () => controller?.more(), back: () => controller?.back(), edit: () => controller?.edit(),
-    editField: ({ arg, value }) => controller?.field(arg, value), save: () => controller?.save(),
-    approve: () => controller?.decide('approve'), reject: () => controller?.decide('reject'),
-    openDraft: ({ arg }) => openReview(arg, { kind: 'draft' }),
-    openBoard: ({ arg }) => boardDetailPort.open(arg),
-    openSession: () => controller?.openPage('schedule'),
-    openPractice: ({ arg }) => controller?.openPage(`instant?practice=${encodeURIComponent(arg)}`),
-  },
+  actions: reviewActions(() => controller),
 };

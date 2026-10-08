@@ -1,5 +1,5 @@
 /**
- * 抽屉：openDrawer({title, body, content, footer, side:'right'|'left', onClose}) → {el, body, close}。
+ * 抽屉：openDrawer({title, body, content, footer, side:'right'|'left', dismissible, returnFocus, onClose}) → {el, body, close}。
  * 与 dialog 共用 overlay.js（焦点陷阱、Esc、遮罩关闭、滚动锁定）；窄屏（≤760px）自动变成底部面板。
  */
 import { html } from '../core/html.js';
@@ -21,7 +21,8 @@ ${spec.footer ? html`<footer class="ui-drawer__foot">${spec.footer}</footer>` : 
 </div></dialog>`);
   const body = el.querySelector('.ui-drawer__body');
   if (spec.content instanceof Node) body.append(spec.content);
-  const entry = openModal(el, { initialFocus: spec.focus || '[data-drawer-close]', onClose: result => spec.onClose?.(result) });
-  el.addEventListener('click', event => { if (event.target.closest('[data-drawer-close]')) entry.close(false); });
+  const entry = openModal(el, { initialFocus: spec.focus || '[data-drawer-close]', dismissible: spec.dismissible ?? true,
+    returnFocus: spec.returnFocus, onClose: result => spec.onClose?.(result) });
+  el.addEventListener('click', event => { if (event.target.closest('[data-drawer-close]') && entry.canDismiss()) entry.close(false); });
   return { el, body, close: result => entry.close(result) };
 }

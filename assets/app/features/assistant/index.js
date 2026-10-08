@@ -17,7 +17,7 @@ import { openImageViewer } from '../../ui/image-viewer.js';
 import { reloadData } from '../../domain/data.js';
 import { copyText, refreshSessions } from '../../domain/sessions.js';
 import { invalidateQuestions, viewQ } from '../../domain/question/index.js';
-import { openDraft as navigateToDraft, publishDraftChange, setDraftActivity } from '../../domain/drafts.js';
+import { publishDraftChange, setDraftActivity } from '../../domain/drafts.js';
 import { loadTaxonomy } from '../../domain/taxonomy.js';
 import { applyEvent, newRun, historyItems } from './state.js';
 import { setRefRenderer, toolTitle } from './tools-view.js';
@@ -26,6 +26,7 @@ import { inspView } from './insp-view.js';
 import { MAX_ATTACHMENTS, prepareImageFile, imageSrc } from './attachments.js';
 import { createDraftCards } from './draft-cards.js';
 import { createReviewCards } from './review-cards.js';
+import { createReviewPanel } from '../../domain/ai-review.js';
 import { bindAssistantInteractions } from './interactions.js';
 import { bindAssistantViewport } from './mobile-layout.js';
 let C = null;
@@ -72,7 +73,8 @@ function createController(root, { router, bus }) {
   }
   const schedule = () => { if (!frame) frame = requestAnimationFrame(paint); };
   const draftCards = createDraftCards(S, schedule);
-  const reviewCards = createReviewCards(S, schedule, { bus });
+  const reviewPanel = createReviewPanel({ router, bus, onClose: () => { if (S.alive) { void reviewCards.refresh(); refreshDrafts(); } } });
+  const reviewCards = createReviewCards(S, schedule, { bus, open: reviewPanel.open });
   const refreshDrafts = ids => draftCards.refresh(ids);
   const detectDraft = id => draftCards.detect(id, message => toast(message, { kind: 'error' }));
   // 贴底跟随：只有用户自己往上滚才停止跟随；滚回底部恢复
@@ -252,7 +254,8 @@ function createController(root, { router, bus }) {
     const run = S.items.map(i => i.run).find(r => r && r.id === runId);
     return { run, st: run && (run.byCall.get(id) || run.steps.find(s => s.id === id)) };
   };
-  function gate(arg) { const { st } = findStep(arg); if (st) void reviewCards.open(st); }
+  function gate(arg) { const { st } = findStep(arg); if (st) void reviewCards.open(st,
+    () => root.querySelector(`[data-action="assistant.gate"][data-arg="${CSS.escape(arg)}"]`)); }
   async function undo(runId) {
     const run = S.items.map(i => i.run).find(r => r && r.id === runId);
     const res = await post('/api/agent/run/revert', { run_id: runId, dry_run: true });
@@ -286,6 +289,8 @@ function createController(root, { router, bus }) {
     async newConv() { S.attachmentGeneration += 1; S.pendingFiles = 0; S.attachments = []; schedule(); const res = await post('/api/agent/conversation/create', {}); if (res.ok && S.alive) { S.convs.unshift({ ...res.data.conversation, msgs: 0, writes: 0, snippet: '' }); await openConv(res.data.conversation.id); $('ast-input')?.focus(); } },
     toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.kind === 'think' || ['create_draft', 'update_draft', 'create_category', 'create_practice_card'].includes(st?.name) && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
     deny(arg) { const { st } = findStep(arg); if (st) void reviewCards.reject(st, message => toast(message, { kind: 'error' })); },
+    approve(arg) { const { st } = findStep(arg); if (st) void reviewCards.approve(st, message => toast(message, { kind: 'error' }), Number(String(arg).split('|')[2])); },
+    toggleReview(arg) { const { st } = findStep(arg); if (st) reviewCards.toggle(st); },
     async stop() { if (S.liveRun) { const res = await post('/api/agent/abort', { run_id: S.liveRun.id }); if (!res.ok) toast(res.error?.message || '停止失败', { kind: 'error' }); } },
     async copy(runId) { const run = S.items.map(i => i.run).find(r => r && r.id === runId); const text = run ? run.steps.filter(s => s.kind === 'text').map(s => s.src).join('\n\n') : ''; if (await copyText(text)) toast('已复制回答', { kind: 'success' }); },
     select(runId) { S.runSel = runId; S.inspOpen = true; bump(); },
@@ -305,8 +310,8 @@ function createController(root, { router, bus }) {
     refreshReviews: ids => reviewCards.refresh(ids),
     detectDraft,
     loadDraftMode: () => draftCards.loadMode(),
-    openDraft(id) { navigateToDraft(id); },
-    dispose() { S.alive = false; S.convRequest += 1; S.attachmentGeneration += 1; content?.classList.remove('is-assistant'); setDraftActivity('assistant', false); draftCards.dispose(); reviewCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); viewport.dispose(); unbindInteractions();  document.removeEventListener('click', onDoc); },
+    openDraft(id) { void reviewPanel.open(id, () => root.querySelector(`[data-action="assistant.openDraft"][data-arg="${CSS.escape(id)}"]`)); },
+    dispose() { S.alive = false; S.convRequest += 1; S.attachmentGeneration += 1; content?.classList.remove('is-assistant'); setDraftActivity('assistant', false); draftCards.dispose(); reviewPanel.dispose(); reviewCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); viewport.dispose(); unbindInteractions();  document.removeEventListener('click', onDoc); },
     title: toolTitle,
   };
 }
@@ -336,6 +341,8 @@ export const page = {
     toggleStep: ({ arg }) => C?.toggleStep(arg),
     gate: ({ arg }) => C?.gate(arg),
     deny: ({ arg }) => C?.deny(arg),
+    approve: ({ arg }) => C?.approve(arg),
+    toggleReview: ({ arg }) => C?.toggleReview(arg),
     undo: ({ arg }) => C?.undo(arg),
     copy: ({ arg }) => C?.copy(arg),
     selectRun: ({ arg }) => C?.select(arg),

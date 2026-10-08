@@ -32,6 +32,7 @@ function editForm(s) {
 export function operationView(s) {
   const item = s.item, preview = item.preview || {}, changes = changesOf(item);
   const pending = isPending(item);
+  const unread = !!s.detailError || !!s.error?.startsWith('详情刷新失败');
   const reviewer = item.decision?.actor || {};
   return html`<article class="arv-operation" data-key="operation-${item.id}">
     <header class="arv-detail-head"><div><p class="arv-muted">${sourceLabel(item)} · ${reviewStatus(item)}</p><h2>${itemLabel(item)}</h2><p>${itemSummary(item)}</p></div>
@@ -47,7 +48,7 @@ export function operationView(s) {
     ${item.history_incomplete ? status({ tone: 'warning', text: '历史信息不完整；只显示可以验证的记录。' }) : ''}
     ${item.revision > 1 ? html`<p class="arv-muted">提案已人工修订，以下展示当前版本。</p>` : ''}
     ${item.decision ? html`<p class="arv-muted">${item.decision.decision === 'approve' ? '已批准' : '已拒绝'} · ${time(typeof item.decision.decided_at === 'number' ? item.decision.decided_at * 1000 : item.decision.decided_at)}</p>` : ''}
-    ${s.error ? status({ tone: 'danger', text: s.error }) : ''}${s.note ? status({ tone: 'success', text: s.note }) : ''}
+    ${s.error ? status({ tone: 'danger', text: s.error }) : ''}${unread ? button({ label: '重试详情', action: 'ai-review.retry', disabled: s.busy }) : ''}${s.note ? status({ tone: 'success', text: s.note }) : ''}
     ${item.error_code ? status({ tone: 'danger', text: `未应用：${item.error_code}` }) : ''}
     ${s.editing ? editForm(s) : html`${item.tool === 'commit_draft' ? draftSnapshot(preview) : ''}${relatedPreview(item)}${changes.length ? html`<section class="arv-changes" aria-label="修改前后对照">${changes.map(change => html`<section class="arv-change"><h3>${change.label || FIELD_LABELS[change.field] || change.field}</h3>
       <div class="arv-diff"><div><h4>当前内容</h4>${readable(change.before, change.kind)}</div><div class="arv-after"><h4>修改后</h4>${readable(change.after, change.kind)}</div></div></section>`)}</section>` : impactView(preview)}
@@ -55,9 +56,9 @@ export function operationView(s) {
       `}
     ${item.original_payload && item.revision > 1 ? html`<details class="arv-context"><summary>查看原始提案</summary><pre>${JSON.stringify(item.original_payload, null, 2)}</pre></details>` : ''}
     ${resultView(item)}${pending ? html`<footer class="arv-decision"><p class="arv-muted">${s.dirty ? '有未保存的人工修订，请先保存。' : '确认前会重新核对权限、题目版本与影响范围。'}</p><div>
-      ${button({ label: '拒绝', action: 'ai-review.reject', disabled: s.busy })}
+      ${button({ label: '拒绝', action: 'ai-review.reject', disabled: s.busy || unread })}
       ${s.editing ? button({ label: '保存修订', action: 'ai-review.save', loading: s.busy, disabled: !s.dirty }) : ''}
-      ${button({ label: '确认执行', variant: 'primary', action: 'ai-review.approve', loading: s.busy, disabled: s.dirty })}</div></footer>`
+      ${button({ label: '确认执行', variant: 'primary', action: 'ai-review.approve', loading: s.busy, disabled: s.dirty || unread })}</div></footer>`
       : html`<p class="arv-muted" role="status">当前状态：${reviewStatus(item)}。${['approved', 'applying', 'running'].includes(item.status) ? '等待实际执行结果。' : '详情只读。'}</p>`}
   </article>`;
 }
