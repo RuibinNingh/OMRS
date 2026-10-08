@@ -153,7 +153,7 @@ def _recover(vault, row, persist=False):
     # 已合法提交的领域回执优先，重启/响应丢失后不因随后吊销而误报未执行。
     receipt = _receipt(vault, row) if row['status'] in ('approved', 'applying', 'failed', 'interrupted', 'partial') else None
     if receipt:
-        expected = row['effective_digest'] if row['tool'] == 'propose_question_update' else row['digest']
+        expected = row['effective_digest'] if row['tool'] in ('propose_question_update', 'propose_label_plan') else row['digest']
         if receipt['digest'] != expected:
             return {**row, 'status': 'conflict', 'error_code': 'request_conflict'}
         if persist:
@@ -173,6 +173,10 @@ def _recover(vault, row, persist=False):
 
 
 def _receipt(vault, row):
+    if row['tool'] == 'propose_label_plan':
+        from .label_plan_journal import receipt, public_result
+        saved = receipt(vault, row['operation_id'], row['effective_digest'])
+        return {'digest': row['effective_digest'], 'result': public_result(saved)} if saved else None
     if row['tool'] == 'propose_question_update':
         from .question_update import recover_receipt
         result = recover_receipt(vault, row)
@@ -323,6 +327,20 @@ def review_decide(vault, row, decision):
     if decision == 'reject':
         return _save_state(vault, row, 'rejected')
     key_id = (row.get('actor') or {}).get('key_id', '')
+    if row['tool'] == 'propose_label_plan':
+        from .label_plan_review import apply_review, verify_snapshot, authorize_source
+        try:
+            _deadline(row)
+            authorize_source(vault, 'mcp', key_id, row['payload'])
+            verify_snapshot(vault, row)
+            row = _save_state(vault, row, 'approved')
+            row = _save_state(vault, row, 'applying')
+            return _finish_applied(vault, row, apply_review(vault, row))
+        except (ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
+            saved = _receipt(vault, row)
+            if saved: return _finish_applied(vault, row, saved['result'])
+            code = getattr(exc, 'code', 'internal_error')
+            return _save_state(vault, row, 'expired' if code == 'expired' else 'conflict', error_code=code)
     if row['tool'] == 'propose_question_update':
         from .mcp.question_write import apply_review, prepare_review
         from .mcp.keys import active_key

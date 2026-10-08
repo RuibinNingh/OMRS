@@ -25,13 +25,14 @@ TERMINAL = ('applied', 'rejected', 'expired', 'conflict', 'interrupted', 'failed
 AUTO_AGENT = {'create_draft', 'update_draft', 'create_practice_card'}
 CONFIRM_AGENT = {'create_review_session', 'set_question_labels', 'update_question_section',
                  'set_knowledge_points', 'move_question', 'suspend_question', 'resume_question',
-                 'record_feedback', 'commit_draft', 'create_category'}
+                 'record_feedback', 'commit_draft', 'create_category', 'propose_label_plan'}
 BOARD_TOOLS = {'create_board', 'update_board', 'duplicate_board', 'delete_board', 'add_board_items',
                'remove_board_items', 'reorder_board_items', 'update_board_layout', 'update_board_item',
                'create_board_folder', 'update_board_folder', 'delete_board_folder', 'move_board'}
 AUTO_MCP = {'create_draft', 'update_draft', 'create_report'}
-WRITE_MCP = AUTO_MCP | BOARD_TOOLS | {'create_review_session', 'propose_question_update'}
+WRITE_MCP = AUTO_MCP | BOARD_TOOLS | {'create_review_session', 'propose_question_update', 'propose_label_plan'}
 LABELS = {
+    'propose_label_plan': '整批整理标记',
     'create_draft': '创建待审核草稿', 'update_draft': '修订待审核草稿',
     'create_practice_card': '创建聊天练习卡', 'create_review_session': '创建正式复习计划',
     'set_question_labels': '修改题目标记', 'update_question_section': '修改题目正文',
@@ -49,7 +50,7 @@ LABELS = {
 _JSON_FIELDS = ('payload', 'actor', 'preview', 'snapshot', 'editable_fields', 'result', 'commits')
 _DECIDER = contextvars.ContextVar('ai_review_decider', default={})
 _AUTO_INTENT = contextvars.ContextVar('ai_review_auto_intent', default=None)
-TYPES = {**{tool: 'board' for tool in BOARD_TOOLS},
+TYPES = {'propose_label_plan': 'label_plan', **{tool: 'board' for tool in BOARD_TOOLS},
          **{tool: 'draft' for tool in ('create_draft', 'update_draft', 'commit_draft')},
          **{tool: 'question' for tool in ('propose_question_update', 'set_question_labels',
             'update_question_section', 'set_knowledge_points', 'move_question', 'suspend_question', 'resume_question')},
@@ -197,12 +198,15 @@ def verify_question_write(vault, review):
         raise ReviewError('content_conflict', '题库世代已变化，旧批准不能写入', 409)
     if row.get('expires_at') is None or time.time() >= row['expires_at']:
         raise ReviewError('expired', '题目修改确认已过期，未执行写入', 409)
-    if row['source'] == 'mcp' and row['tool'] == 'propose_question_update':
+    if row['source'] == 'mcp' and row['tool'] == 'propose_label_plan':
+        from .label_plan_review import authorize_source
+        authorize_source(vault, 'mcp', row['key_id'], row['payload'])
+    elif row['source'] == 'mcp' and row['tool'] == 'propose_question_update':
         from .mcp.keys import active_key
         key = active_key(vault, row['actor'].get('key_id', ''))
         if not key or not {'omrs:read', 'question:propose'}.issubset(key['scopes']):
             raise ReviewError('forbidden', 'MCP 密钥已失效或缺少题目提案权限', 403)
-    elif row['source'] == 'agent' and row['tool'] in ('update_question_section', 'set_knowledge_points'):
+    elif row['source'] == 'agent' and row['tool'] in ('update_question_section', 'set_knowledge_points', 'propose_label_plan'):
         from .actor import current_agent
         from .agent.runtime import _RUNTIMES
         rt = _RUNTIMES.get(os.path.abspath(vault))
@@ -383,6 +387,10 @@ def update(vault, operation_id, expected_revision, patch):
         if row['source'] == 'agent':
             from .agent import runtime
             return runtime.review_update(vault, row, patch, expected_revision)
+        if row['tool'] == 'propose_label_plan':
+            from .label_plan_review import prepare_revision
+            prepared = prepare_revision(vault, row, patch)
+            return revise(vault, operation_id, expected_revision, prepared['payload'], prepared['preview'])
         if row['tool'] != 'propose_question_update':
             raise ReviewError('forbidden', '此操作只允许批准或拒绝', 403)
         from .mcp import question_write
@@ -814,7 +822,11 @@ def initialize(vault):
             for raw in rows:
                 row = _decode(raw)
                 result = None
-                if row['tool'] in ('propose_question_update', 'update_question_section', 'set_knowledge_points'):
+                if row['tool'] == 'propose_label_plan':
+                    from .label_plan_journal import receipt, public_result
+                    saved = receipt(vault, row['operation_id'], row['effective_digest'])
+                    result = public_result(saved) if saved else None
+                elif row['tool'] in ('propose_question_update', 'update_question_section', 'set_knowledge_points'):
                     from .question_update import recover_receipt
                     result = recover_receipt(vault, row)
                 elif row['source'] == 'mcp' and row['tool'] in AUTO_MCP:

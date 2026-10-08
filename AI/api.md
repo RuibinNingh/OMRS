@@ -63,3 +63,7 @@ MIME主类型按大小写无关识别，multipart boundary保持原文。普通�
 ## 标记整理批次
 
 人工标记 API 保持请求与响应契约，底层改用整批可靠写入；标签与题面聚合读共用一致性锁，待恢复时读取拒绝而不执行恢复。
+
+## 标记整理审批
+
+`GET /api/label-plan/revert-preview?operation_id=...` 只读返回 `ok`、`inverse_digest`、逐题变化和冲突。`POST /api/label-plan/revert` 接收 `operation_id`、`inverse_digest`、`request_id`；只有摘要与当前预览一致才执行整批逆操作，重复请求复用回执。普通 Web 登录与同源规则适用，MCP 密钥不能调用。

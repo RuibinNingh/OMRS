@@ -21,3 +21,9 @@
 新增整批编译、定义与题目 journal、原生回执和整批撤销；既有网页标记操作复用此层。启动、扫描和备份前恢复；题面与标签聚合读取使用一致性锁，读取不恢复。撤销保留无关后续标记与正文，相关定义或新增引用冲突整批拒绝。
 
 实际运行 `python3 -m unittest tests.test_labels tests.test_label_plan -q`：15 项通过，含替换与事务故障回滚、提交后恢复、跨科目默认关闭和撤销冲突。SDK、浏览器及全门禁尚未执行。
+
+## 阶段 2：准备审批
+
+新增来源绑定内存分片、候选分页、正式提案、受限人工修订、最终批准执行与原生回执恢复；新增整批撤销预览与执行网页接口。准备不产生业务待审；正式提案不依赖内存草稿。
+
+实际运行 `python3 -m unittest tests.test_label_plan_review tests.test_ai_review tests.test_mcp_question_update -q`：55 项通过。工具注册、SDK 与浏览器仍待后续阶段。

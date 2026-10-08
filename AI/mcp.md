@@ -257,3 +257,7 @@ export_board 需要omrs:read与request_id，支持all/new，可选expected_revis
 note 管理 `# 备注` 下的 `## 补充备注`，保留旧裸文本、未知子节、错因和关联；不迁移旧备注。章节编辑拒绝系统章节结构注入，知识点/标记规范编码并拒绝控制字符。Obsidian 与普通 Markdown 图片引用的 token、数量、顺序和所属章节保持；不能经正文补丁新增、移动或移除附件。
 
 正式复习计划 create_review_session 先返回 pending_confirmation、operation_id 和中心链接；批准前不创建 Session，不返回新 session_id。成功旧请求重试复用原计划；拒绝或到期后需新 request_id，不能复活撤销的计划。审批撤权、内容换版、目标移动或过期均不继续写。
+
+## 标记整理审批
+
+标记整理的领域提案由网页审核中心确认，来源密钥贯穿准备、提交与执行。正式提案保存完整归类方案，模型没有批准入口；已提交原生回执优先于随后权限变化。

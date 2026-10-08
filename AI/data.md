@@ -322,3 +322,7 @@ SQLite `active_config` 是完整运行时事实源，`config.json` 是镜像和�
 ## 标记整理批次
 
 标记整理不改变 labels.json 与题目 YAML 的格式；受限 journal 在 `.omrs-maintenance/label-plans/` 保存替换前后内容、哈希、文件身份与世代。回执私有撤销材料仅在 Ledger，公共结果不含该字段。
+
+## 标记整理审批
+
+分片准备草稿只在内存，绑定来源、对话或密钥与 Vault 世代，闲置三十分钟清理；最多六十四份、总量十六 MiB。正式标记提案保存到 ai_review.db，完整内容不依赖草稿存在。

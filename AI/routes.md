@@ -105,6 +105,8 @@
 | GET | `/api/inbox/slice-plan` | `AI/inbox.md` |
 | POST | `/api/inbox/upload` | `AI/api/extensions.md`、`AI/inbox.md` |
 | POST | `/api/inbox/upload-refs` | `AI/api/extensions.md`、`AI/frontend/create.md` |
+| POST | `/api/label-plan/revert` | `AI/api.md` |
+| GET | `/api/label-plan/revert-preview` | `AI/api.md` |
 | POST | `/api/label/delete` | `AI/api/mutations.md`、`AI/labels.md` |
 | POST | `/api/label/merge` | `AI/api/mutations.md`、`AI/labels.md` |
 | POST | `/api/label/save` | `AI/api/mutations.md`、`AI/labels.md` |

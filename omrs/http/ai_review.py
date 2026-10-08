@@ -5,7 +5,10 @@ from .. import ai_review
 class AiReviewRoutes:
     def _ai_review_get(self, path, params):
         try:
-            if path == '/api/ai-review/items':
+            if path == '/api/label-plan/revert-preview':
+                from ..label_plan_revert import revert_preview
+                self._json({'status': 'ok', **revert_preview(self.vault_path, params.get('operation_id', ''))})
+            elif path == '/api/ai-review/items':
                 self._json({'status': 'ok', **ai_review.items(self.vault_path, params)})
             elif path == '/api/ai-review/counts':
                 self._json({'status': 'ok', 'counts': ai_review.counts(self.vault_path)})
@@ -41,3 +44,14 @@ class AiReviewRoutes:
             self._json({'status': 'error', 'msg': str(exc), 'code': getattr(exc, 'code', 'invalid_request')}, 400)
         except (OSError, self.services.sqlite3.Error):
             self._json({'status': 'error', 'msg': '审核决定暂时无法保存，请核对当前状态后重试'}, 503)
+
+    def _label_plan_revert(self, path):
+        try:
+            body = b'' if hasattr(self, '_prepared_json') else self.rfile.read(self.services.http_io.content_length(self))
+            data = self.services.http_io.json_body(self, body)
+            if not isinstance(data, dict) or set(data) != {'operation_id', 'inverse_digest', 'request_id'}:
+                raise ValueError('撤销请求必须包含操作编号、逆操作摘要和幂等请求编号')
+            from ..label_plan_revert import revert
+            self._json({'status': 'ok', 'result': revert(self.vault_path, **data)})
+        except (ValueError, RuntimeError) as exc:
+            self._json({'status': 'error', 'code': getattr(exc, 'code', 'invalid_request'), 'msg': str(exc)}, 409)

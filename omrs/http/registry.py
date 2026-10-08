@@ -1,6 +1,8 @@
 """唯一 HTTP 注册表；文档与运行分派共用相同方法、路径和领域适配。"""
 
 ROUTES = {
+    ('GET', '/api/label-plan/revert-preview'): '_ai_review_get',
+    ('POST', '/api/label-plan/revert'): '_label_plan_revert',
     ('GET', '/api/ai-review/items'): '_ai_review_get',
     ('GET', '/api/ai-review/detail'): '_ai_review_get',
     ('GET', '/api/ai-review/counts'): '_ai_review_get',

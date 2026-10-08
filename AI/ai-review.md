@@ -65,3 +65,7 @@ type 是 draft/question/session/feedback/board/report/category/practice。错误
 整库恢复显式废止导入库中新旧全部未终结审批；恢复权限不能只比较数字世代。旧历史未终结记录迁入为只读中断，不恢复批准入口。匹配领域回执只证明已发生事实，不赋予未来写权限。
 
 历史导入按稳定源身份去重：助手运行/调用身份，MCP call_id，以及旧审批 operation_id。SQLite 游标有界读取 tool_calls/run_events，结合 Ledger 的 _agent 身份与原生草稿/练习卡证据；旧 done 确认记录不能当实际成功。证据不足标 history_incomplete，历史操作禁止再批准，不制造审核人。重复启动不增加同源记录。
+
+## 标记整理审批
+
+新增 `propose_label_plan` 的标记整理类型，复用十分钟期限、唯一审批、版本与人工决定。人工修订只允许原定义名称/颜色/排序、原操作或题目开关和原集合内归属；排除级联题目会关闭对应定义操作，取消新标记会取消依赖归类。每次修订换票据，不延长期限。
