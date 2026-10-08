@@ -18,7 +18,7 @@ python3 omrs_engine.py --vault /path/to/vault serve --port 8471 --mcp-port 18472
 
 MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外部客户端使用 HTTPS 反向代理，仅转发 `/mcp`，并在启动时指定 `--mcp-public-url https://your-host/mcp`，登记精确 Host/Origin 白名单。SDK 负责协议协商、JSON-RPC、认证 challenge 和传输安全；启动失败时主命令明确退出。没有独立读写 Vault 的 MCP 进程入口。生产 HTTPS 8472 已由 Web/Nginx 共用，不能把内部 MCP 绑定到该端口；实际发布根与参数见 `AI/environment.md`。
 
-在 OMRS 设置 → 访问与安全 → 外部 AI / MCP 点击“创建密钥”，在窗口选择下表八项权限，并可指定到期时间。查询与创建草稿默认勾选，六项新增写权限默认关闭；已有密钥不自动增权。成功后同一窗口显示一次明文，关闭后无法再次查看；有效密钥可编辑权限，失效记录默认折叠，时间按设备本地时区显示。页面行为见 `AI/frontend/settings.md`。本机 CLI 支持 `mcp-key create --name 名称`、`list`、`update --id KEY --scope SCOPE` 与 `revoke --id KEY`；`--scope` 可重复。MCP 请求使用 `Authorization: Bearer <key>` 或 `X-OMRS-MCP-Key: <key>`；密钥不得放进 URL、模型参数或日志。
+在 OMRS 设置 → 访问与安全 → 外部 AI / MCP 点击“创建密钥”，在窗口选择下表十项权限，并可指定到期时间。查询与创建草稿默认勾选，其余八项写权限默认关闭；已有密钥不自动增权。成功后同一窗口显示一次明文，关闭后无法再次查看；有效密钥可编辑权限，失效记录默认折叠，时间按设备本地时区显示。页面行为见 `AI/frontend/settings.md`。本机 CLI 支持 `mcp-key create --name 名称`、`list`、`update --id KEY --scope SCOPE` 与 `revoke --id KEY`；`--scope` 可重复。MCP 请求使用 `Authorization: Bearer <key>` 或 `X-OMRS-MCP-Key: <key>`；密钥不得放进 URL、模型参数或日志。
 
 ## 2. 工具与权限
 
@@ -38,6 +38,8 @@ MCP 学习查询的业务响应直接返回字段，不带内置助手的 `resul
 | `board:delete` | 删除板或文件夹，同时需要 `omrs:read` | 关闭 |
 | `session:create` | 提交正式复习计划审核，同时需要 `omrs:read` | 关闭 |
 | `question:propose` | 提交正式题目修改审核，同时需要 `omrs:read` | 关闭 |
+| `label:write` | 准备与提交整批标记整理，同时需要 `omrs:read` | 关闭 |
+| `label:delete` | 允许方案中的合并和删除，同时需要 `omrs:read` 与 `label:write` | 关闭 |
 
 题目写权限只开放提案；MCP 没有人工批准接口。正式计划与改题先返回待确认状态及中心链接，批准后通过 get_mcp_operation 查询领域结果。
 
@@ -55,6 +57,8 @@ MCP 学习查询的业务响应直接返回字段，不带内置助手的 `resul
 | `get_session` | 分页稳定题目条目与完整反馈进度 | `omrs:read` |
 | `list_drafts` | 待审核及其它状态草稿列表 | `omrs:read` |
 | `get_draft` | 草稿正文、来源与版本 | `omrs:read` |
+| `list_labels` | 标记定义与引用统计 | `omrs:read` |
+| `get_labeling_candidates` | 分页读取待归类题目与版本指纹 | `omrs:read` |
 | `get_questions` | 最多 20 UID，保留顺序并逐项报缺失 | `omrs:read` |
 | `get_question_content` | 当前或已登记版本的完整分节正文分页 | `omrs:read` |
 | `get_draft_image` | 按来源图片下标取原生完整图片 | `omrs:read` |
@@ -71,6 +75,8 @@ MCP 学习查询的业务响应直接返回字段，不带内置助手的 `resul
 | `update_draft` | 受人工保护的字段/块修订 | `omrs:read` + `draft:update` |
 | `create_report` | 幂等新建报告，不覆盖旧报告 | `report:create` |
 | `propose_question_update` | 白名单正式题目修改提案，待人工修订/批准 | `omrs:read` + `question:propose` |
+| `stage_label_plan` | 分片准备完整标记方案，不写正式题库 | `omrs:read` + `label:write`；含合并/删除另需 `label:delete` |
+| `propose_label_plan` | 提交整批标记整理审核，由网页一次批准 | `omrs:read` + `label:write`；含合并/删除另需 `label:delete` |
 | `create_review_session` | 按稳定身份幂等创建正式复习计划 | `omrs:read` + `session:create` |
 | `create_board` | 新建板，可带初始题目引用 | `omrs:read` + `board:write` |
 | `update_board` | 局部修改板名、备注、来源标记 | `omrs:read` + `board:write` |

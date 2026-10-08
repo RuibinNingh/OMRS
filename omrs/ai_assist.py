@@ -166,29 +166,39 @@ def _strip_fences(text: str) -> str:
     return cleaned
 
 
-def _extract_json(text: str) -> dict:
+def _escape_math_delimiters(text: str) -> str:
+    """只补齐数学定界符前奇数个反斜杠；已合法转义的内容不动。"""
+    return re.sub(r"(\\+)([()\[\]])",
+                  lambda m: m[1] + ("\\" if len(m[1]) % 2 else "") + m[2], text)
+
+
+def _extract_json(text: str, *, repair_math_delimiters: bool = False) -> dict:
     """从模型回复里稳健地抽出 JSON 对象。
 
     依次尝试：去围栏直接解析 → 截取首个 { 到末个 } 解析 → 失败返回 {}。
+    区域提取可在严格解析失败后，仅补齐数学定界符的 JSON 转义。
     """
     cleaned = _strip_fences(text)
     if not cleaned:
         return {}
-    try:
-        obj = json.loads(cleaned)
-        if isinstance(obj, dict):
-            return obj
-    except Exception:
-        pass
+    candidates = [cleaned]
     start = cleaned.find("{")
     end = cleaned.rfind("}")
     if start != -1 and end != -1 and end > start:
+        candidates.append(cleaned[start:end + 1])
+    for candidate in candidates:
         try:
-            obj = json.loads(cleaned[start:end + 1])
+            obj = json.loads(candidate)
             if isinstance(obj, dict):
                 return obj
-        except Exception:
-            pass
+        except (ValueError, TypeError):
+            if repair_math_delimiters:
+                try:
+                    obj = json.loads(_escape_math_delimiters(candidate))
+                    if isinstance(obj, dict):
+                        return obj
+                except (ValueError, TypeError):
+                    pass
     return {}
 
 
@@ -385,7 +395,7 @@ QUICK_CLASSIFY_TEMPLATE = """你是快速录入的题目字段识别助手。根
 {"subject":"","category":"","difficulty":5,"knowledge_tags":[],"cause_candidate":null}"""
 
 
-ANSWER_PROMPT = """请忠实转录图片中这道题所有可见的【答案和解析】。这是内容提取任务，不是解题、总结或改写任务。
+_ANSWER_TRANSCRIPTION_RULES = """请忠实转录图片中这道题所有可见的【答案和解析】。这是内容提取任务，不是解题、总结或改写任务。
 
 要求：
 1. 完整提取最终答案，以及图片中已有的解析、详解、推导、计算步骤、选项说明和结论。
@@ -393,16 +403,19 @@ ANSWER_PROMPT = """请忠实转录图片中这道题所有可见的【答案和�
 3. 按图片中的原有顺序和层次输出，保留分点、段落与必要换行；数学公式可整理为 $...$ 或 $$...$$。
 4. 如果图片最开头带有对应题目的题号（如 `11.`、`11、`、`11．`、`（11）`），只去掉这个开头题号，不要输出它；答案或解析正文内部的步骤编号、分点编号和选项编号必须保留。
 5. 不要自行补充图片中没有的推理。若图片中确实只有答案而没有解析，才只输出答案。
-6. 不要单独复述题目正文，但解析中原本引用的题目条件应照常保留。
-7. 只输出提取到的答案与解析正文，不要添加评价、说明或 Markdown 代码块。"""
+6. 不要单独复述题目正文，但解析中原本引用的题目条件应照常保留。"""
+
+ANSWER_PROMPT = _ANSWER_TRANSCRIPTION_RULES + "\n7. 只输出提取到的答案与解析正文，不要添加评价、说明或 Markdown 代码块。"
 
 
-QUESTION_TEXT_PROMPT = (
+_QUESTION_TRANSCRIPTION_RULES = (
     "请提取图片中这道题的【题目正文】，整理为清晰的纯文本。"
     "保留必要的题干、条件、选项、图表说明与换行；数学公式可用 $...$ 或 $$...$$ 表示。"
     "如果图片最开头有题号（如 11.、11、或（11）），只去掉这个开头题号，不要输出它；题目正文、选项编号和正文内部编号必须保留。"
-    "只输出题目内容本身，不要解题，不要补充答案、解析、分类建议或多余说明，也不要使用 Markdown 代码块。"
+    "不要解题，不要补充答案、解析、分类建议或多余说明。"
 )
+
+QUESTION_TEXT_PROMPT = _QUESTION_TRANSCRIPTION_RULES + "只输出题目内容本身，也不要使用 Markdown 代码块。"
 
 
 _LEADING_QUESTION_NUMBER_RE = re.compile(
@@ -582,13 +595,23 @@ _LAYOUT_HINT = {
     "other": "来源未知",
 }
 
-JUDGE_SUFFIX = """
+JUDGE_SUFFIX = r"""
 
 先判断是否必须保留这张裁图，再决定能否转录。判定标准：删掉裁图后，读者只看输出的文本和 LaTeX，是否仍能获得解题或理解原解析所需的全部信息？只有答案明确为「是」时才返回 convertible=true 和完整正文。
 如果题干或解析依赖图中的形状、位置与连接关系、坐标或曲线走势、图表数据、标记、图片内容，且这些信息不能逐项准确写成文本与 LaTeX，就返回 convertible=false、简短原因和空 text。无法辨认的手写、不能保留阅读顺序的复杂版式，以及拿不准是否遗漏关键信息时也返回 false。
 特别注意：「如图」「根据图像」「见表」等题目即使题干文字全都识别出来，只要作答仍需看图或表，就必须返回 false。能口头描述或猜出图意、认为图形「仅作辅助」，均不等于可无损转录；不要把图表说明当作图片的替代品，也不要只输出部分正文。纯装饰图和软件界面控件不影响判断；纯文字、公式，以及能完整保留每个单元格和行列关系的简单表格可以返回 true。
-最终只输出一个 JSON 对象，不要 Markdown 代码块：
-{"convertible": true, "reason": "一句话说明依据（如：纯文字+公式 / 含几何图形）", "text": "转录后的正文；不可转时可为空字符串"}"""
+最终只输出一个合法 JSON 对象，正文放在 text 字段中，不要在对象之外输出正文或 Markdown 代码块：
+{"convertible": true, "reason": "一句话说明依据（如：纯文字+公式 / 含几何图形）", "text": "转录后的正文；不可转时可为空字符串"}
+convertible 必须是 JSON 布尔值 true 或 false，不要写成字符串。
+数学公式统一使用 $...$ 或 $$...$$，不要使用 \(...\) 或 \[...\] 定界符。
+所有字符串必须遵守 JSON 转义：正文里的每个 LaTeX 反斜杠在 JSON 中双写，换行写成 \n，双引号写成 \"。
+例如公式与换行的合法写法：{"convertible":true,"reason":"纯公式","text":"求 $\\frac{1}{a}+\\sqrt{b}$。\n下一行正文。"}"""
+
+
+def _normalize_region_math(text: str) -> str:
+    """把成对的 LaTeX 定界符转为页面支持的美元符号，不改公式命令。"""
+    text = re.sub(r"(?<!\\)\\\[([\s\S]*?)(?<!\\)\\\]", lambda m: "$$" + m[1] + "$$", text)
+    return re.sub(r"(?<!\\)\\\(([\s\S]*?)(?<!\\)\\\)", lambda m: "$" + m[1] + "$", text)
 
 
 def parse_detect_output(text: str, image_width: int = 0, image_height: int = 0) -> list:
@@ -656,15 +679,15 @@ def extract_region(vault: str, image_data_url: str, role: str = "question", judg
     """读一个裁剪区域，转录文本；judge=True 时同时判断能否转文本。
 
     返回 {convertible, reason, text}。判断模式必须返回布尔判断和有效文本，否则报错供重试。"""
-    base_prompt = ANSWER_PROMPT if role == "answer" else QUESTION_TEXT_PROMPT
     if judge:
+        base_prompt = _ANSWER_TRANSCRIPTION_RULES if role == "answer" else _QUESTION_TRANSCRIPTION_RULES
         prompt = base_prompt + JUDGE_SUFFIX
     else:
-        prompt = base_prompt
+        prompt = ANSWER_PROMPT if role == "answer" else QUESTION_TEXT_PROMPT
     content = _call_model(vault, prompt, image_data_url, max_tokens=4000, timeout=timeout, purpose="extract")
     if not judge:
         return {"convertible": True, "reason": "", "text": _clean_extracted_text(content, role)}
-    parsed = _extract_json(content)
+    parsed = _extract_json(content, repair_math_delimiters=True)
     if not isinstance(parsed, dict) or not isinstance(parsed.get("convertible"), bool):
         raise ValueError("模型未返回有效的可提取判断，请重试")
     if parsed["convertible"] and (not isinstance(parsed.get("text"), str) or not parsed["text"].strip()):
@@ -672,7 +695,7 @@ def extract_region(vault: str, image_data_url: str, role: str = "question", judg
     return {
         "convertible": parsed["convertible"],
         "reason": str(parsed.get("reason") or ""),
-        "text": _clean_extracted_text(str(parsed.get("text") or ""), role),
+        "text": _normalize_region_math(_clean_extracted_text(str(parsed.get("text") or ""), role)),
     }
 
 

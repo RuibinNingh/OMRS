@@ -69,7 +69,7 @@ assets/app/
 
 纯逻辑的单测在 `tests/app/core.test.mjs`（node），依赖 DOM 的 morph、事件委托、快捷键在 `tests/app/core_tests.js`（由 `tests/app/run_browser.py` 在浏览器里跑）。浏览器测试（`tests/app/run_browser.py`、`tests/e2e/`）在设了 `OMRS_TEST_CDP_URL` 时连接已开着的 Chromium（本机直接启动会崩溃的环境用），否则自行启动；等待一律等条件成立（`wait_for_function`），不写固定延时。历史、目录、报告的回归脚本覆盖操作区重绘、目录展开状态和删除防重；`tests/e2e/create.py` 覆盖快速录入的图片分区、AI 固定响应、创建后上下文，并在 360px 触摸浏览器核对主按钮尺寸和横向布局。独立框选标注页不挂在外壳上：纯逻辑与数据所有者在 `tests/app/annotate.test.mjs`，`tests/e2e/annotate.py` 直接打开 `/annotate` 走主路径（沿用 `create.py` 的审计脚本）。
 
-录入页的数据所有者在 `tests/app/create-inbox.test.mjs` 用替身接口验证保存队列、字段补丁、revision 冲突、load 与保存交错、旧模板配置兼容及截图重置时旧请求的处理；`tests/app/create-process.test.mjs` 检查框选和批量栏不出现模板与沿用框位入口，并固定录入成功状态块；`tests/e2e/create.py` 用隔离服务和真实浏览器验证提取中重置、旧任务结束后进度保持清空、保存失败不入库、继续画框，以及标记就绪成功反馈留在工作区内而不再弹同文 toast。`tests/app/annotate.test.mjs`、`board-locked.test.mjs` 与 `tests/e2e/assistant_race.py` 分别固定标注版本冲突、换板读取失败和迟到对话响应不覆盖当前状态。
+录入页的数据所有者在 `tests/app/create-inbox.test.mjs` 用替身接口验证保存队列、字段补丁、revision 冲突、load 与保存交错、旧模板配置兼容及截图重置时旧请求的处理；`tests/app/create-process.test.mjs` 检查框选和批量栏不出现模板与沿用框位入口，并固定录入成功状态块；`tests/e2e/create.py` 用隔离服务和真实浏览器验证提取中重置、旧任务结束后进度保持清空、保存失败不入库、继续画框，以及标记就绪成功反馈留在工作区内而不再弹同文 toast。公式漏转义回归只替换外部模型，真实解析器处理响应后核对框位不变与 KaTeX 渲染。`tests/app/annotate.test.mjs`、`board-locked.test.mjs` 与 `tests/e2e/assistant_race.py` 分别固定标注版本冲突、换板读取失败和迟到对话响应不覆盖当前状态。
 
 设置页的配置读写在 `tests/app/settings.test.mjs` 用替身接口验证；MCP 密钥元数据投影同时覆盖到期边界、吊销优先、本地时间与名称转义。`tests/e2e/settings.py` 用隔离服务和真实浏览器验证「AI 识别」思考开关、助手最大输出 Token 的默认状态、保存与回读，并复核四档页面布局。
 

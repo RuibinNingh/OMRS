@@ -69,7 +69,9 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 - `_ai_config(vault, purpose)`：按 `ai_model_detect / ai_model_extract / ai_model_classify` 选模型，留空回退 `ai_model`（`common.CONFIG_DEFAULTS` 已加三键；设置页有三个输入框）。
 - `detect_regions_local(url, image, layout, width, height)`（v1.13.0）：`local_http` 提供方，`POST url` JSON `{image, layout, width, height}`，响应数组或 `{boxes:[…]}`，同样经 `parse_detect_output` 归一化（传了宽高所以像素坐标也能解析）。若地址属于登记的受管服务，请求前后核对模型指针和健康身份；不符时拒绝把返回框写进收件箱或草稿。
 - `detect_regions(vault, image, layout)`：`DETECT_PROMPT` 要求输出 `[{label, card, bbox_2d:[x1,y1,x2,y2], confidence}]`，坐标 **0–1000 相对**（Qwen3-VL 约定）。`parse_detect_output()` 兼容三种坐标：≤1 视为小数；>1000 且给了尺寸视为绝对像素（Qwen2.5-VL 风格）；否则 /1000。`label` 以 answer/答案/解析 开头 → answer，其余 → question。
-- `extract_region(vault, image, role, judge)`：复用 `ANSWER_PROMPT` / `QUESTION_TEXT_PROMPT`，`judge=True` 时追加 `JUDGE_SUFFIX` 要求返回 `{convertible, reason, text}`；判断模式要求 JSON 中 convertible 为布尔值，可提取时 text 为非空字符串，否则报错供重试；不可提取不要求正文。题目文本会去掉整段开头题号；答案仅在开头为“题号+答案/解析标题”时去掉题号，解析内部步骤编号保留。`max_tokens=4000`；思考行为读取 `ai_thinking`，见 `AI/frontend/settings.md`。
+- `extract_region(vault, image, role, judge)`：复用题目与答案转录规则；`judge=True` 时只采用 JSON 输出要求，追加 `JUDGE_SUFFIX` 返回 `{convertible, reason, text}`，要求公式用 `$…$` / `$$…$$` 并明确 JSON 转义。判断模式要求 convertible 为布尔值，可提取时 text 为非空字符串，否则报错供重试；不可提取不要求正文。题目文本会去掉整段开头题号；答案仅在开头为“题号+答案/解析标题”时去掉题号，解析内部步骤编号保留。`max_tokens=4000`；思考行为读取 `ai_thinking`，见 `AI/frontend/settings.md`。
+
+区域提取先严格解析 JSON。失败后仅在本地补齐 `\(`、`\)`、`\[`、`\]` 定界符前缺失的 JSON 转义，已经正确转义的反斜杠、公式命令、换行和引号保持原样；修复后仍必须通过完整 JSON、布尔判断和非空正文校验。成对的 `\(…\)` / `\[…\]` 转为页面支持的 `$…$` / `$$…$$`。其它非法转义、结构错误或截断结果继续报错；不增加模型请求，不改变裁图与框位。该兼容仅用于 `extract_region`，分类等其它 JSON 消费者仍严格解析。
 
 `JUDGE_SUFFIX` 以删去裁图后能否仅靠文本和 LaTeX 保留解题或理解原解析所需信息为判断标准。题干依赖图形、曲线、位置关系或表格内容时，不能因文字识别完整、能概述图意或认为图形只是辅助就判为可转；拿不准时要求留图。纯装饰图及软件控件不影响判断，能完整转录行列关系的简单表格可转。服务端只验证返回类型和非空正文，实际内容仍由用户审核。
 
@@ -93,6 +95,8 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 ## 6. 测试
 
 `tests/test_inbox.py`：覆盖图片头解析、长图切片计划、跨条带框合并、detect 三种坐标解析、上传去重 → 画框 → 就绪校验 → commit（文本 + 整图图片区）→ done → 统计 → YOLO 导出 → annotations 事件、丢弃、provider 分派、重置代次、盲标、自动策略、上传即 auto job 与清理。测试用 `FakeAI` 替身，不联网。运行：`python3 -m unittest tests.test_inbox`。
+
+`tests/test_ai_region_extraction.py` 覆盖公式定界符漏转义、合法 JSON 不被二次转义、公式命令与换行保真、无效结果拒收，以及不挪框即可写回提取结果。`tests/e2e/create.py` 仅替换外部模型响应，使用真实提取解析器、隔离服务和浏览器核对公式渲染与框位不变。
 
 ## 7. 已知边界 / 待办
 

@@ -16,11 +16,13 @@ from browser_runtime import launch_chromium, open_app
 
 SERVER = r'''
 import http.server, sys, time
+from unittest.mock import patch
 from omrs import ai_assist, inbox
 from omrs.server import OMRSHandler
 vault, port = sys.argv[1:]
 answers = 0
 extracts = 0
+extract_region = ai_assist.extract_region
 def extract(*args, **kwargs):
     global answers, extracts
     extracts += 1
@@ -37,7 +39,10 @@ def extract(*args, **kwargs):
         if answers == 1:
             raise TimeoutError('模拟模型超时')
         return {'convertible': False, 'reason': '含无法转写的图形', 'text': ''}
-    return {'convertible': True, 'reason': '文字与公式', 'text': '已知 $f(x)=x^2$，求 $f(2)$。'}
+    # 只替换外部模型；真实解析器处理漏转义的数学定界符。
+    reply = r'{"convertible":true,"reason":"文字与公式","text":"已知 \(f(x)=x^2\)，求 \(f(2)\)。"}'
+    with patch.object(ai_assist, '_call_model', return_value=reply):
+        return extract_region(*args, **kwargs)
 ai_assist.extract_region = extract
 class Handler(OMRSHandler):
     vault_path = vault
@@ -175,6 +180,11 @@ def run(page, base, results):
     check('新框只显示一键提取引导', page.locator('#ib-ps-body [data-action="create.processConvert"]').count() == 0)
     page.get_by_role('button', name='一键提取', exact=True).click()
     check('部分失败不会阻止题目文本回填', wait(page, "() => !!document.querySelector('#ib-ps-body textarea') && [...document.querySelectorAll('#ib-ps-body .ib-judge')].some(e => e.textContent.includes('提取失败'))"))
+    question = page.evaluate(INBOX_JS, '题图.png')['regions'][0]
+    check('公式漏转义仍能提取且框位保持不变', question['text'] == '已知 $f(x)=x^2$，求 $f(2)$。'
+          and question['text_status'] == 'done'
+          and all(abs(question[key] - value) < .01 for key, value in {'x': .08, 'y': .12, 'w': .32, 'h': .30}.items()))
+    check('修复后的公式在结果预览中实际渲染', page.locator('#ib-ps-body .ib-rg').nth(0).locator('.katex').count() == 2)
     check('失败区域不能更改保存方式', page.locator('#ib-ps-body .ib-rg').nth(1).locator('[data-action="create.processConvert"]').count() == 0)
     page.locator('#ib-ps-body .ib-rg').nth(1).get_by_role('button', name='重新提取', exact=True).click()
     page.locator('#create-flow [data-ib-stage="upload"]').click()
