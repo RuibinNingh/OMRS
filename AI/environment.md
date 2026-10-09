@@ -15,17 +15,19 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-09 13:11 CST 实测）：主服务 `omrs.service`，Type=simple、Restart=on-failure、RestartSec=3s；有效 drop-in 从 `/root/workspace/apps/releases/omrs-9b29d49` 运行 v2.3.9，来自精确提交 `9b29d495d726a5d7daa9c9948c915b36b917df54` 的 Git 归档，1,288 个源码文件逐字节核验。`.venv` 相对链接复用既有生产依赖，没有安装或升级依赖；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0。真实 Vault 仍为 `/root/workspace/apps/OMRS`；源码 main 已推送 GitHub，部署文档提交与运行源码 pin 分开。
+生产环境事实（2026-10-09 23:37 CST 实测）：主服务 `omrs.service`，Type=simple、Restart=on-failure、RestartSec=3s；当前运行 v2.3.9 的 MCP 人工裁框修复，精确提交 `716426fb688f2426ec75c48704fa17626846e07d` 的 Git 归档在 `/root/workspace/apps/releases/omrs-716426f`，1,289 个源码文件逐字节核验。`.venv` 相对链接复用既有生产依赖，没有安装或升级依赖；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0。真实 Vault 仍为 `/root/workspace/apps/OMRS`；源码 main 已推送 GitHub，部署文档提交与运行源码 pin 分开。
+
+当前执行环境中 `/etc` 为只读挂载，提升执行权限也不能修改 drop-in。服务配置仍引用 `/root/workspace/apps/releases/omrs-9b29d49`，该路径现在是指向 `omrs-716426f` 的持久相对符号链接；进程实际 cwd 已核对为精确新目录。原源码保留在同级 `omrs-9b29d49-before-mcp-crop-20261009T153658Z`，依赖相对链接仍有效。后续发布先确认配置可写性及该别名的真实目标，不把别名名称当作实际源码提交；无需为部署改动根文件系统挂载。
 
 Web监听8471，同进程MCP仅监听127.0.0.1:18472；Nginx共用HTTPS8472按路径分流。公网MCP为 `https://home.ruibin-ningh.top:8472/mcp`，公网Web为 `https://home.ruibin-ningh.top:8472`。PIN已配置；本机API免PIN不能绕过工作台入口。当前代码完整授权注册44个MCP工具（24读、19业务写、1技术准备），既有隔离SDK验证通过；Key现有权限决定实际发现范围，正式调度、改题、标记整理和草稿继续遵守审核契约，既有Key不自动扩权。
 
-最新发布保全在 `/root/workspace/apps/releases/OMRS-v239-release-20261009T051105Z-ctmbt1bv/`（目录0700、文件0600）：精确新旧源码tar、旧unit/drop-in及控制配置、一致Vault/maintenance tar、私人表/文件摘要和验证证据。停服备份与原目录比较通过，978个解包文件逐字节一致，副本SQLite完整性通过。最终切换及只读核验保持49张业务表、921个内容/关键配置文件；切换前后290题、0冲突、待审0。没有执行生产MCP工具或修改Key；切换前已保留并发产生的草稿和运行记录。
+最新发布保全在 `/root/workspace/apps/releases/OMRS-mcp-crop-pointer-20261009T153658Z-b4k5sxau/`（目录0700、文件0600）：精确新旧源码tar、旧unit/drop-in及控制配置、一致Vault/maintenance tar、私人表/文件摘要和验证证据。停服备份与原目录比较通过，985个解包文件逐字节一致，副本SQLite完整性通过。最终切换及只读核验保持49张业务表、928个内容/关键配置文件；切换前后296题、0冲突、待审2。没有执行生产MCP工具或修改Key，保留既有待审草稿；受只读配置阻挡的尝试保全另在 `OMRS-mcp-crop-release-20261009T152842Z-on1kq5f8`。
 
-只替换主服务drop-in的三处release路径。主服务PID1650618、active/running、NRestarts=0；2026-10-09 13:11:10 CST最终成功切换和核验3.818秒。Tunnel PID875442、检测服务PID1532134及Nginx状态保持；85个实际控制文件/模型指针指纹一致，包含宝塔Nginx的真实配置树。端口、公网URL、Vault、PIN、Key权限与模型保持，Tunnel/检测/Nginx未重启。旧 `omrs-ee366f1`、早期release及全部保全仍保留；回退只处理兼容源码，不用旧Vault覆盖新增事实。
+本次只切换主服务使用的发布目录指针并重启主服务，drop-in 字节保持。主服务PID3187802、active/running、NRestarts=0；2026-10-09 23:37:19 CST最终成功切换和核验2.957秒。Tunnel PID875442、检测服务PID1532134及Nginx状态保持；85个实际控制文件/模型指针指纹一致，包含宝塔Nginx的真实配置树。端口、公网URL、Vault、PIN、Key权限与模型保持，Tunnel/检测/Nginx未重启。旧源码与全部保全仍保留；回退只恢复兼容源码指针，不用旧Vault覆盖新增事实。
 
-本轮前端与发布专项门禁通过：Node455项、组件34项、录入真实浏览器124项、资源缓存／迁移兼容后端21项；UI纪律0问题、58组对比度通过、文档105份0问题。精确release与既有venv另实跑7组，全部通过且无跳过。处理区双主题双宽度4组视觉比较中，2组桌面差异各0.002%，仅为版本脚注数字8→9；两组手机无差异，全部无脚本错误或页面横溢。成功状态和按钮无遮挡由录入E2E截图及审计覆盖；测试使用临时Vault、随机端口与假模型。
+本轮精确release与既有venv实跑8/8组：Node455项、组件34项、草稿真实浏览器82项、AI框选24项、后端与资源缓存／迁移兼容69项；UI纪律0问题、58组对比度通过、文档105份0问题，全部无跳过。审核中心双主题双宽度4组视觉比较无差异、无脚本错误；新增MCP场景实际拖动原图框，验证暂存、重读、移动、裁图入库、附件尺寸及原件保留。业务测试使用临时Vault、随机端口与假模型。
 
-生产本机返回v2.3.9；两项提取模块实际HTTP200，gzip解压与release字节一致，资源指纹已更新，immutable缓存与条件请求304通过；公网匿名访问这两项资源401。公网入口/授权摘要200，匿名status/MCP401，回环MCP无Key401；主服务错误级journal无记录。本机和公网真实浏览器390px PIN入口无横溢、无脚本错误；没有输入PIN或进入生产工作台。PIN后的页面、真实模型调用、Windows和实体手机未验收；功能主路径在精确release的隔离Chromium验证。
+生产本机返回v2.3.9；修复后的 `assets/app/features/ai-review/drafts-canvas.js` 实际HTTP200，gzip解压与release字节一致，资源指纹已更新，immutable缓存与条件请求304通过；公网匿名资源401。公网入口/授权摘要200，匿名status/MCP401，回环MCP无Key401；主服务错误级journal无记录。本机和公网真实浏览器390px PIN入口无横溢、无脚本错误；没有输入PIN或进入生产工作台。PIN后的页面、真实模型调用、Windows和实体手机未验收；功能主路径在精确release的隔离Chromium验证。
 
 正式题目、标记整理journal与统一审批恢复保持最新数据；存在未完成恢复或整批写入意图时停止发布，不能靠切换旧源码跳过恢复。跨旧存储版本不能只恢复旧drop-in或旧Vault。原正文恢复保全及私人清单仍保留，当前正文可用性与历史缺口的规范见 `ledger.md` §10；禁止提交正文、私人路径清单和数据库。
 
