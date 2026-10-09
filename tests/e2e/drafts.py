@@ -1,8 +1,10 @@
 """AI 草稿工作区 E2E：真实临时 Vault 与 HTTP API，审核、保存、通过、丢弃及四档页面审计。"""
 import base64
+import hashlib
 import io
 import json
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -478,6 +480,90 @@ def run_touch(browser, base, vault, results):
         context.close()
 
 
+def run_mcp_crop(page, base, vault, results):
+    """从 MCP 全幅正文框真实拖动，经保存、刷新与入库验证人工裁图。"""
+    raw = png(170)
+    sha = hashlib.sha256(raw).hexdigest()
+    draft = drafts.create_mcp_draft(vault, {
+        'subject': '数学', 'category': '人工裁图',
+        'blocks': [{'section': '题目', 'kind': 'image', 'image_sha': sha}],
+    }, {'conversation_id': 'mcp-crop-e2e', 'source_key_id': 'test-key',
+        'source_request_id': 'crop-e2e'}, [raw])
+
+    def current():
+        return api(base, '/api/drafts/item?id=' + draft['id'])['draft']
+
+    def check(name, passed):
+        results.append((name, bool(passed), ''))
+
+    def open_source():
+        open_app(page, base, 'ai-review?draft=' + draft['id'])
+        page.wait_for_function("id => document.querySelector('.drf-id')?.textContent.includes(id) && !!document.querySelector('[data-action=\"ai-review.draftSave\"]')", arg=draft['id'])
+        if page.locator('.drf-source-trigger').get_attribute('aria-expanded') == 'false':
+            page.locator('.drf-source-trigger').click()
+        page.wait_for_function("() => { const img = document.querySelector('#drf-stage-src'); return img?.complete && img.naturalWidth > 0; }")
+
+    def save():
+        with page.expect_response('**/api/drafts/update') as response:
+            page.locator('[data-action="ai-review.draftSave"]').click()
+        result = response.value
+        if result.status != 200:
+            raise AssertionError('MCP 人工裁图保存失败：' + result.text())
+        assert wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存') && !document.querySelector('.drf-detail [aria-busy=true]')")
+
+    open_source()
+    page.locator('#drf-stage-img .crp-box').click()
+    check('MCP 仅选中全幅框不产生修改并保持 original',
+          page.locator('[data-action="ai-review.draftSave"]').is_disabled()
+          and current()['blocks'][0]['box_origin'] == 'original')
+    handle = page.locator('#drf-stage-img .crp-handle[data-h="se"]')
+    point = handle.bounding_box()
+    # 全幅框的角柄中心位于 SVG 边界；从仍可见的内侧命中，避免容器截获。
+    handle.hover(position={'x': point['width'] / 2 - 2, 'y': point['height'] / 2 - 2})
+    point = handle.bounding_box()
+    x, y = point['x'] + point['width'] / 2 - 2, point['y'] + point['height'] / 2 - 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x - 80, y - 50, steps=5)
+    page.mouse.up()
+    save()
+    resized = current()['blocks'][0]
+    check('MCP 缩小全幅框后可暂存为人工局部框', resized['box_origin'] == 'manual'
+          and resized['box']['w'] < 1 and resized['box']['h'] < 1 and resized['ai_box'] is None)
+    open_source()
+    shown = page.locator('#drf-stage-img .crp-box')
+    check('MCP 人工局部框刷新后仍显示保存范围',
+          abs(float(shown.get_attribute('width')) / 560 - resized['box']['w']) < .0001
+          and abs(float(shown.get_attribute('height')) / 330 - resized['box']['h']) < .0001)
+    shown.hover()
+    point = shown.bounding_box()
+    x, y = point['x'] + point['width'] / 2, point['y'] + point['height'] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + 20, y + 15, steps=5)
+    page.mouse.up()
+    save()
+    moved = current()['blocks'][0]
+    check('MCP 人工框可继续移动并暂存', moved['box_origin'] == 'manual'
+          and moved['box']['x'] > resized['box']['x'] and moved['box']['y'] > resized['box']['y'])
+    with page.expect_response('**/api/drafts/commit') as response:
+        page.locator('[data-action="ai-review.draftCommit"]').click()
+    assert response.value.status == 200, response.value.text()
+    check('MCP 人工局部框可经浏览器裁图并正式入库', current()['status'] == 'done'
+          and current()['blocks'][0]['box'] == moved['box'])
+    from PIL import Image
+    question_path = os.path.join(vault, response.value.json()['result']['file_path'])
+    with open(question_path, encoding='utf-8') as file:
+        attachments = re.findall(r'!\[\[([^\]]+)\]\]', file.read())
+    with Image.open(os.path.join(vault, '错题', '附件', attachments[0])) as image:
+        check('MCP 入库附件尺寸与人工裁框相符', image.size == (
+            int(moved['box']['w'] * 560 + .5), int(moved['box']['h'] * 330 + .5)))
+    with urllib.request.urlopen(base + '/api/drafts/image?sha=' + sha, timeout=15) as response:
+        kept = response.read()
+    check('MCP 人工裁图后完整来源原件与训练隔离保持', kept == raw
+          and current()['source_images'][0]['sha256'] == sha and not current()['training_tasks'])
+
+
 def main():
     from playwright.sync_api import sync_playwright
     results = []
@@ -509,6 +595,7 @@ def main():
                     run_p3(page, base, p3, p3_images, results)
                     run_touch(browser, base, vault, results)
                     run_discard_queue(browser, base, vault, results)
+                    run_mcp_crop(page, base, vault, results)
                 except Exception as error:
                     results.append(('草稿主路径执行', False, repr(error)[:500]))
                 results.append(('主路径页面脚本无错误', not errors, str(errors[:3])))

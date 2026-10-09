@@ -46,7 +46,11 @@ export function createDraftCanvas(root, canvasState, { afterEdit, createRegion, 
     stageSelector: '#drf-stage-img', zoomSelector: '#drf-canvas-zoom', filenameSelector: '#drf-canvas-file',
     imageId: 'drf-stage-src', maskId: 'drf-cut-mask', imageUrl: item => imageUrl(item.id),
     current: data => data.item, createRegion, canEdit, onSelect,
-    onFinish({ item }) {
+    onFinish({ item, region }) {
+      // MCP 全幅原图经人工改为局部框后，来源应随范围改为人工框选。
+      if (region?.origin === 'original' && (region.x !== 0 || region.y !== 0 || region.w !== 1 || region.h !== 1)) {
+        region.origin = 'manual';
+      }
       // 重画同一块时保留最后完成的新框；画得过小则旧框仍在。
       const seen = new Set();
       item.regions = [...item.regions].reverse().filter(row => {

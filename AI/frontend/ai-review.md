@@ -45,7 +45,7 @@
 
 切换草稿、工作区、页面时保护未保存内容，页面切换使用 router.setLeaveGuard，浏览器关闭使用原生 beforeunload。跨页目标由 domain/drafts 先保存后切页；进入工作区消费目标，避免助手卡片事件早于挂载丢失。侧栏与公共队列使用 `domain/ai-review.js` 的去重计数；草稿任务计数仍接收 drafts:counts。
 
-草稿画布由 drafts-canvas.js / drafts-canvas-ctl.js 适配共享 `domain/image-crop/process-canvas.js`，传入来源图 URL、DOM 标识、数据和编辑回调；旧收件箱调用保留默认值。每次只编辑选中的来源图，正文框绑定稳定块 id，独立训练框绑定 task_id；拖动期间不重建整份表单，松手后记录未保存状态。原 AI 框 ai_box 保留，调整后标记 ai_edited。
+草稿画布由 drafts-canvas.js / drafts-canvas-ctl.js 适配共享 `domain/image-crop/process-canvas.js`，传入来源图 URL、DOM 标识、数据和编辑回调；旧收件箱调用保留默认值。每次只编辑选中的来源图，正文框绑定稳定块 id，独立训练框绑定 task_id；拖动期间不重建整份表单，松手后记录未保存状态。原 AI 框 ai_box 保留，调整后标记 ai_edited。MCP 全幅正文框缩放为局部范围后标记 manual，暂存、刷新和入库沿用人工范围；仅选中全幅框保持 original，完整来源原件始终保留。
 
 图片块可提交异步转文字；drafts-job.js 负责轮询并在卸载时清理，隐藏页面暂停。重进页面从详情 jobs 恢复活动任务；结果只在没有本地编辑时重新读取，冲突或失败提示核对而不覆盖表单。每图训练开关会同步影响关联草稿，已登记后只读；登记失败可重试。清理按钮调用草稿专用入口并报告保留引用图的数量。
 
