@@ -111,6 +111,8 @@ assets/app/
 
 录入页端到端测试 `tests/e2e/create.py` 使用临时 Vault、随机高端口和真实后台提取任务，只替换外部模型调用；覆盖一键提取、部分失败重试、结果后改存图片／切回文本、人工审核及提取结果四档审计。
 
+录入处理区的提取成功反馈由 `inbox-ops.js` 的完成回调交给 `process.js`，绑定控制器生命周期、图片 ID 与重置代次；只显示在当前处理区的局部状态块。失败仍由收件箱全局通知报告，页面卸载后后台任务照常同步数据。录入 E2E 验证成功、重复点击、失败警告和重置／离页后的旧结果。
+
 ## 9. 独立训练面板
 
 独立训练面板 `/train` 由 `features/trainpanel/store.js` 持有实验快照、选择状态与指标；按块 morph 保留实时测试原图和滚动。纯模型与增量读取测试见 `tests/app/trainpanel.test.mjs`；`tests/e2e/trainpanel.py` 用假实验目录审计四档状态，`tests/e2e/boxdetect.py` 使用外部真实模型和临时 Vault 复核收件箱及面板。

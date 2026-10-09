@@ -23,6 +23,7 @@ export function createProcess(root, bus) {
   let alive = true;
   let scheduled = false;
   let statusMessage = '';
+  let statusItemId = null;
   let statusTimer = null;
   const busy = () => inbox.current()?.regions.some(row => row.text_status === 'running');
   const canvas = createCanvasController(host, () => S, () => afterEdit(), { canEdit: () => !busy() });
@@ -30,13 +31,14 @@ export function createProcess(root, bus) {
   function paintStatus() {
     const statusHost = host.querySelector('#ib-ps-status');
     if (!statusHost) return;
-    statusHost.hidden = !statusMessage;
+    statusHost.hidden = !statusMessage || !!(statusItemId && statusItemId !== S.cur);
     const text = statusHost.querySelector('.ui-status__text');
     if (text) text.textContent = statusMessage;
   }
 
-  function showStatus(message) {
+  function showStatus(message, itemId = null) {
     statusMessage = String(message || '');
+    statusItemId = itemId;
     clearTimeout(statusTimer);
     statusTimer = statusMessage ? setTimeout(() => {
       statusMessage = '';
@@ -202,10 +204,19 @@ export function createProcess(root, bus) {
     } else return false;
     return true;
   }
-  function extractAll() {
+  function extract(regionIds) {
     const item = inbox.current();
     if (!item) return;
-    extractRegions(item, item.regions.filter(row => row.role !== 'ignore' && !hasExtraction(row) && row.text_status !== 'running').map(row => row.id));
+    const epoch = item.reset_epoch;
+    showStatus('');
+    return extractRegions(item, regionIds, message => {
+      // 离页、切图或重置后的旧任务只同步数据，不把成功反馈显示到其它图片上。
+      if (active() && S.cur === item.id && inbox.item(item.id)?.reset_epoch === epoch) showStatus(message, item.id);
+    });
+  }
+  function extractAll() {
+    const item = inbox.current();
+    if (item) return extract(item.regions.filter(row => row.role !== 'ignore' && !hasExtraction(row) && row.text_status !== 'running').map(row => row.id));
   }
 
   return {
@@ -226,7 +237,7 @@ export function createProcess(root, bus) {
     },
     drawCard(card) { S.drawCard = Number(card) || 1; notify(`接下来画的框归入题卡 ${S.drawCard}`); },
     convert: setConvert, text: editText,
-    extract(id) { extractRegions(inbox.current(), [id]); },
+    extract(id) { return extract([id]); },
     detectCurrent() { if (S.cur && !busy()) detect([S.cur]); },
     detectSelected,
     dispose() { alive = false; clearTimeout(statusTimer); statusTimer = null; stop(); window.removeEventListener('resize', onResize); canvas.dispose(); },

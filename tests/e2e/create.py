@@ -171,6 +171,9 @@ def run(page, base, results):
           and page.locator('#ib-stage-src').get_attribute('src') is not None)
     page.wait_for_timeout(650)
     check('旧提取任务结束后不恢复已清空区域', page.evaluate(INBOX_JS, '题图.png')['regions'] == [])
+    check('重置后旧任务不显示提取成功反馈',
+          page.locator('#ib-ps-status').is_hidden()
+          and not page.locator('.ui-toast').filter(has_text='提取完成，请审核').count())
     draw(.08, .12, .40, .42)
     page.keyboard.press('Escape')
     page.locator('[data-action="create.processRole"][data-arg="answer"]').click()
@@ -180,21 +183,35 @@ def run(page, base, results):
     check('新框只显示一键提取引导', page.locator('#ib-ps-body [data-action="create.processConvert"]').count() == 0)
     page.get_by_role('button', name='一键提取', exact=True).click()
     check('部分失败不会阻止题目文本回填', wait(page, "() => !!document.querySelector('#ib-ps-body textarea') && [...document.querySelectorAll('#ib-ps-body .ib-judge')].some(e => e.textContent.includes('提取失败'))"))
+    check('部分提取失败仍显示全局警告', wait(page, "() => [...document.querySelectorAll('.ui-toast--warn')].some(e => e.textContent.includes('部分区域提取失败'))"))
     question = page.evaluate(INBOX_JS, '题图.png')['regions'][0]
     check('公式漏转义仍能提取且框位保持不变', question['text'] == '已知 $f(x)=x^2$，求 $f(2)$。'
           and question['text_status'] == 'done'
           and all(abs(question[key] - value) < .01 for key, value in {'x': .08, 'y': .12, 'w': .32, 'h': .30}.items()))
     check('修复后的公式在结果预览中实际渲染', page.locator('#ib-ps-body .ib-rg').nth(0).locator('.katex').count() == 2)
     check('失败区域不能更改保存方式', page.locator('#ib-ps-body .ib-rg').nth(1).locator('[data-action="create.processConvert"]').count() == 0)
+    quiet(page)
     page.locator('#ib-ps-body .ib-rg').nth(1).get_by_role('button', name='重新提取', exact=True).click()
     page.locator('#create-flow [data-ib-stage="upload"]').click()
     page.locator('#create-flow [data-ib-stage="process"]').click()
     check('离开再返回能收到不可提取结果和裁图', wait(page, "() => [...document.querySelectorAll('#ib-ps-body .ib-judge')].some(e => e.textContent.includes('无法完整提取')) && !!document.querySelector('#ib-ps-body canvas[data-painted]')"))
+    check('提取成功只在工作区显示，不弹全局提示', wait(page, """() => {
+      const status = document.querySelector('#ib-ps-status');
+      return status && !status.hidden && status.textContent.includes('提取完成，请审核')
+        && ![...document.querySelectorAll('.ui-toast')].some(e => e.textContent.includes('提取完成，请审核'));
+    }"""))
+    page.get_by_role('button', name='一键提取', exact=True).click()
+    check('重复提取的已完成提示也在工作区内显示', wait(page, """() => {
+      const status = document.querySelector('#ib-ps-status');
+      return status && !status.hidden && status.textContent.includes('各区域已提取')
+        && ![...document.querySelectorAll('.ui-toast')].some(e => e.textContent.includes('各区域已提取'));
+    }"""))
     check('AI 处理结束仍未自动就绪', page.evaluate(INBOX_JS, '题图.png')['status'] == 'boxed')
     page.locator('#ib-ps-body .ib-rg').nth(1).get_by_role('button', name='改用文本', exact=True).click()
     page.locator('#ib-ps-body .ib-rg').nth(1).locator('textarea').fill('人工补录答案')
     page.locator('#ib-ps-body .ib-rg').nth(1).get_by_role('button', name='保存为图片', exact=True).click()
     check('不可提取后仍可人工补录并保留文本', wait(page, "async () => (await (await fetch('/api/inbox/items')).json()).items.find(i => i.file === '题图.png')?.regions[1].text === '人工补录答案'"))
+    page.get_by_role('button', name='一键提取', exact=True).click()
     for theme in ('light', 'dark'):
         for label, width, height in (('desktop', 1440, 900), ('mobile', 390, 844)):
             page.set_viewport_size({'width': width, 'height': height})
@@ -202,8 +219,27 @@ def run(page, base, results):
             page.screenshot(path=f'/tmp/omrs-extract-shots/{theme}-{label}.png', full_page=True)
             audit = page.evaluate(AUDIT_PROCESS, 40 if width == 390 else 28)
             check(f'提取结果审计 {label}·{theme}', not any(audit[k] for k in ('small', 'inline', 'handlers', 'over', 'overflow', 'tiny')))
+    check('局部成功提示会自动隐藏', wait(page, "() => document.querySelector('#ib-ps-status')?.hidden", 5000))
     page.set_viewport_size({'width': 1280, 'height': 720})
     page.evaluate("document.documentElement.dataset.theme = 'light'")
+    held = []
+    page.route('**/api/inbox/job?*', lambda route: held.append(route))
+    page.locator('#ib-ps-body .ib-rg').nth(0).get_by_role('button', name='重新提取', exact=True).click()
+    deadline = time.monotonic() + 5
+    while not held and time.monotonic() < deadline:
+        page.wait_for_timeout(50)
+    check('离页回归已捕获提取任务的轮询响应', bool(held))
+    page.evaluate("window.__omrs.router.go('settings')")
+    for route in held:
+        route.continue_()
+    page.unroute('**/api/inbox/job?*')
+    page.wait_for_timeout(1600)
+    check('离页后提取完成不弹全局成功提示',
+          not page.locator('.ui-toast').filter(has_text='提取完成，请审核').count())
+    page.evaluate("window.__omrs.router.go('create')")
+    check('返回后同步提取结果，不显示已卸载控制器的旧提示',
+          wait(page, "() => !!document.querySelector('#ib-ps-body textarea') && !document.querySelector('#ib-ps-body .ib-judge.busy')")
+          and page.locator('#ib-ps-status').is_hidden())
     page.locator('#ib-ps-body .ib-rg').nth(1).locator('.ib-rg-top').click()
     page.keyboard.press('Delete')
     check('处理工作区 Delete 只删除当前选中框',

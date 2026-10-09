@@ -73,11 +73,11 @@ export async function wholeSelected() {
 }
 
 /** 一次提交当前图的待提取区域；已完成的人工决定不会被批量操作覆盖。 */
-export async function extractRegions(item, regionIds) {
+export async function extractRegions(item, regionIds, showSuccess = () => {}) {
   if (!item || item.regions.some(row => row.text_status === 'running')) return;
   const epoch = item.reset_epoch;
   const regions = item.regions.filter(row => regionIds.includes(row.id) && row.role !== 'ignore');
-  if (!regions.length) { notify('各区域已提取，请审核结果后标记就绪'); return; }
+  if (!regions.length) { showSuccess('各区域已提取，请审核结果后标记就绪'); return; }
   const extracted = new Set(regions.map(row => row.id));
   const fail = async error => {
     const local = inbox.item(item.id);
@@ -103,7 +103,8 @@ export async function extractRegions(item, regionIds) {
       const failed = new Set((job.errors || []).map(row => row.unit?.region_id));
       if (!await inbox.load()) throw new Error('读取提取结果失败');
       inbox.changed();
-      notify(failed.size ? '部分区域提取失败，请重试；成功结果已保留' : '提取完成，请审核文本或图片后标记就绪', failed.size ? 'warn' : undefined);
+      if (failed.size) notify('部分区域提取失败，请重试；成功结果已保留', 'warn');
+      else showSuccess('提取完成，请审核文本或图片后标记就绪');
     }, fail);
   } catch (error) { await fail(error); }
 }
