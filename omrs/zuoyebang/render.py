@@ -7,6 +7,7 @@ from pathlib import Path
 from .store import ZybError
 
 ASSETS = Path(__file__).resolve().parents[2] / 'assets' / 'vendor'
+TRUSTED = Path(__file__).with_name('mathjax.js')
 WIDTH = 1080
 PIXEL_BUDGET = 100_000_000  # 物理内存预算，超限报错，绝不缩放、截断或分页。
 
@@ -16,8 +17,8 @@ def document(body, role):
     return '''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline' https://omrs-render.invalid; font-src https://omrs-render.invalid; script-src https://omrs-render.invalid">
 <link rel="stylesheet" href="https://omrs-render.invalid/vendor/fonts/fonts.css">
-<link rel="stylesheet" href="https://omrs-render.invalid/vendor/katex/katex.min.css">
-<script src="https://omrs-render.invalid/vendor/katex/katex.min.js"></script>
+<script src="https://omrs-render.invalid/renderer/mathjax.js"></script>
+<script src="https://omrs-render.invalid/vendor/mathjax/tex-chtml-full.js"></script>
 <style>''' + css + '</style></head><body><main id="paper" data-role="' + role + '">' + body + '</main></body></html>'
 
 
@@ -39,8 +40,13 @@ def render_documents(documents, directory):
             def route(request):
                 url = request.request.url
                 prefix = 'https://omrs-render.invalid/vendor/'
-                file = (ASSETS / url[len(prefix):]).resolve() if url.startswith(prefix) else None
-                if file is None or not file.is_relative_to(ASSETS.resolve()) or not file.is_file():
+                if url == 'https://omrs-render.invalid/renderer/mathjax.js':
+                    file = TRUSTED
+                elif url.startswith(prefix + 'fonts/') or url.startswith(prefix + 'mathjax/'):
+                    file = (ASSETS / url[len(prefix):]).resolve()
+                else:
+                    file = None
+                if file is None or (file != TRUSTED and not file.is_relative_to(ASSETS.resolve())) or not file.is_file():
                     errors.append('resource')
                     request.abort()
                     return
@@ -54,29 +60,11 @@ def render_documents(documents, directory):
                 page.set_default_timeout(45000)
                 page.on('pageerror', lambda _error: errors.append('script'))
                 page.set_content(document(body, role), wait_until='load')
-                page.wait_for_function('() => typeof katex === "object"')
+                page.wait_for_function('() => typeof MathJax?.typesetPromise === "function"')
                 dimensions = page.evaluate(r'''async () => {
                   const paper = document.querySelector('#paper');
-                  const walker = document.createTreeWalker(paper, NodeFilter.SHOW_TEXT);
-                  const nodes = [];
-                  while (walker.nextNode()) nodes.push(walker.currentNode);
-                  const pattern = /(\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|(?<!\\)\$(?!\$)[^$]+?(?<!\\)\$|\\\([\s\S]+?\\\))/g;
-                  for (const node of nodes) {
-                    const source = node.textContent, fragment = document.createDocumentFragment();
-                    let offset = 0, found = false;
-                    for (const match of source.matchAll(pattern)) {
-                      found = true;
-                      fragment.append(document.createTextNode(source.slice(offset, match.index)));
-                      const marker = match[0], display = marker.startsWith('$$') || marker.startsWith('\\[');
-                      const paired = marker.startsWith('\\') || marker.startsWith('$$');
-                      const span = document.createElement('span');
-                      katex.render(marker.slice(paired ? 2 : 1, paired ? -2 : -1), span,
-                        {displayMode:display,throwOnError:true,trust:false,strict:'ignore',output:'html'});
-                      fragment.append(span);
-                      offset = match.index + marker.length;
-                    }
-                    if (found) { fragment.append(document.createTextNode(source.slice(offset))); node.replaceWith(fragment); }
-                  }
+                  await MathJax.startup.promise;
+                  await MathJax.typesetPromise([paper]);
                   await document.fonts.ready;
                   await Promise.all([...paper.querySelectorAll('img')].map(async img => {
                     await img.decode();
@@ -86,13 +74,18 @@ def render_documents(documents, directory):
                   paper.style.minHeight = Math.ceil(paper.getBoundingClientRect().height) + 'px';
                   return {width:paper.getBoundingClientRect().width,height:paper.getBoundingClientRect().height,
                     scroll:Math.max(document.body.scrollWidth,paper.scrollWidth),
+                    outside:[...paper.querySelectorAll('*')].some(el => {
+                      const box=el.getBoundingClientRect();
+                      return box.width && (box.left < -1 || box.right > 1081);
+                    }),
                     fonts:[...document.fonts].every(font => font.status !== 'error'),
-                    math:paper.querySelectorAll('.katex-error').length,images:paper.querySelectorAll('img').length};
+                    math:paper.querySelectorAll('mjx-merror').length,formulas:paper.querySelectorAll('mjx-container').length,
+                    images:paper.querySelectorAll('img').length};
                 }''')
                 height = math.ceil(dimensions['height'])
                 if errors or not dimensions['fonts'] or dimensions['math']:
                     raise ZybError('字体、公式或附图未完整加载，原内容已保留', 'render_incomplete', 422)
-                if dimensions['width'] != WIDTH or dimensions['scroll'] > WIDTH + 1:
+                if dimensions['width'] != WIDTH or dimensions['scroll'] > WIDTH + 1 or dimensions['outside']:
                     raise ZybError('正文排版超出1080像素，不能截断，请检查原内容', 'render_overflow', 422)
                 if WIDTH * height > PIXEL_BUDGET:
                     raise ZybError('完整长图超过后端物理像素预算，原内容已保留', 'render_resource', 422)
@@ -102,14 +95,16 @@ def render_documents(documents, directory):
                     if image.size != (WIDTH, height):
                         raise ZybError('完整长图尺寸校验失败，原内容已保留', 'render_incomplete', 422)
                 result[role] = {'width': WIDTH, 'height': height, 'images': dimensions['images'],
+                                'formulas': dimensions['formulas'],
                                 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
                                 'html': re.sub(r'data:image/[^;]+;base64,[A-Za-z0-9+/=]+', '[已本地化的原始图片]', body)}
                 page.close()
             result['browser'] = browser.version
+            result['engine'] = 'MathJax 3.2.2'
             return result
         except ZybError:
             raise
         except Exception as exc:
-            raise ZybError('后端渲染失败，原内容已保留；请检查图片或重试', 'render_failed', 422) from exc
+            raise ZybError('后端渲染失败，原内容已保留；请检查图片、公式或重试', 'render_failed', 422) from exc
         finally:
             browser.close()

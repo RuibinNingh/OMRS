@@ -126,7 +126,7 @@ def render(vault, payload):
                     if not metadata.get('empty'):
                         metadata['url'] = f'/api/zuoyebang/image?id={record["id"]}&role={role}'
                 record.update(status='ready', images={role: output[role] for role in ('question', 'answer')},
-                              browser=output['browser'], source_images=count, completed_at=time.time())
+                              browser=output['browser'], engine=output['engine'], source_images=count, completed_at=time.time())
                 store.save(vault, record['id'], record)
     except Exception as exc:
         record.update(status='failed', error=str(exc) if isinstance(exc, store.ZybError) else '渲染失败，原内容已保留')

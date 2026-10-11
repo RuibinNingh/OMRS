@@ -4,7 +4,7 @@
 > - 职责：设备会话、扫码账号、搜题候选、后端完整长图、AI 保真提取与幂等创建
 > - 入口：`omrs/zuoyebang/`、`omrs/http/zuoyebang.py`；页面见 `AI/frontend/create.md`
 > - 不变量：题干答案按候选绑定；题目/答案各一张1080像素完整图；失败保留来源；凭据不进入响应或日志
-> - 必跑测试：`tests/test_zuoyebang.py`、`tests/app/create-zyb.test.mjs`、`tests/e2e/zuoyebang.py`
+> - 必跑测试：`tests/test_zuoyebang.py`、`tests/test_zuoyebang_render.py`、`tests/app/create-zyb.test.mjs`、`tests/e2e/zuoyebang.py`
 > - 相关：`AI/api.md`、`AI/security.md`、`AI/data/storage.md`、`AI/inbox.md`
 
 ## 1. 设备与账号
@@ -19,11 +19,15 @@
 
 图片以 zuoyebang 用途的既有分块上传引用发送，不重编码原件；仅 JPG/PNG/WebP、不超过8MiB且不超过4000万像素，完成上传时用 Pillow 验证完整解码。用途不能借用于普通题目创建；旧上传用途仍仅支持 PNG/JPEG/GIF。解码后的结果按照片位置和显式候选保存，不合并相似题树；题干和对应答案一起选择。接口返回摘要，原始上游内容留在独立记录。
 
-HTMLParser 白名单保留文字、列表、表格、上下标和图片，移除可执行内容与任意 CSS。附图只允许作业帮/百度 CDN 域族，每次跳转复核域名和公网 IP，实际连接固定已校验 IP，下载不携带账号 Cookie。图片验证后内联原字节；Chromium 拦截器只读取 OMRS 本地字体和 KaTeX，不访问外网、Vault或任意文件。正文中的局部数学定界符由 KaTeX 转换；跨 HTML 节点拆开的定界符不自动合并。
+HTMLParser 白名单保留文字、列表、表格、上下标和图片，移除可执行内容、事件和任意 CSS。题库类名单保留tkspec上下标/填空/文字强调/对齐、tk-md2html正文、tB表格及旧HTML公式的math/fM/fI/pA/pR/pS；必要的数值尺寸、定位、字体比例、单色分数线和有限display值经严格筛选。样式由可信paper.css定义，不加载上游CSS。旧公式使用本地MathJax字体；波浪线用CSS绘制，1080px纸面统一字体、字号及边距，不能据此声称与手机原页面像素完全一致。
+
+附图URL或picList[].pid依原App规则转换；支持tk_、zyb_、zyb数字_、qa10_和qa数字_域映射，zuoyebang.cc属于允许域族。正文和附图列表去重，题干答案共用原字节下载缓存；只允许作业帮/百度CDN域族，每次跳转复核域名和公网IP，实际连接固定已校验IP，下载不携带账号Cookie。图片验证后内联原字节。
+
+Chromium拦截器只读取OMRS本地字体、MathJax3及可信渲染配置，不访问外网、Vault或任意文件。传统题库正文用官方MathJax3.2.2 tex-chtml-full与typesetPromise；支持美元和反斜杠数学定界符，无定界符的裸命令兼容原App预处理。禁用动态TeX扩展、菜单和外部公式URL/样式。全部23份CHTML字体、许可与SHA256清单位于assets/vendor/mathjax；其它OMRS页面仍用KaTeX。跨HTML节点拆开的定界符不强行拼接；公式错误整体失败。
 
 SVG、MathML、canvas和音视频等不能按当前白名单保真渲染的视觉内容会明确报错并保留来源，不静默删除必要图形。搜题响应结构或解码格式异常记 protocol，不当作账号或签名过期。
 
-真实 Chromium deviceScaleFactor=1，题干与答案各一张宽1080的 PNG，高度按全文。答案不分块、分页或裁断。等待字体、公式和所有图片 decode，校验 PNG 尺寸与 SHA256。缺图、公式错误、横向超出1080均整体失败并保留原候选。单附图12MiB、附图总量80MiB、单输出1亿像素是物理资源预算，超限报错，不缩放或截断。纸面固定白底，前端主题只改变外框；HTML 预览用文本显示，内联图片字节以提示替代。
+真实 Chromium deviceScaleFactor=1，题干与答案各一张宽1080的 PNG，高度按全文。答案不分块、分页或裁断。等待字体、公式和所有图片 decode，校验 PNG 尺寸与 SHA256；记录引擎版本及每区公式数。缺图、公式错误、横向超出1080均整体失败并保留原候选。单附图12MiB、附图总量80MiB、单输出1亿像素是物理资源预算，超限报错，不缩放或截断。纸面固定白底，前端主题只改变外框；HTML 预览用文本显示，内联图片字节以提示替代。
 
 ## 3. 后台作业与 AI
 

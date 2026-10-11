@@ -1,7 +1,7 @@
 /** 作业帮题卡状态及迟到 AI 结果的合并规则；不保存账号凭据。 */
 export const ROLES = ['question', 'answer'];
 export function newZybState() {
-  return { session: null, sessionError: '', camera: { on: false, pending: false, message: '摄像头未开启' },
+  return { session: null, sessionError: '', accountPanel: '', camera: { on: false, pending: false, message: '摄像头未开启' },
     file: null, fileUrl: '', search: null, selected: 0, render: null, role: 'question', zoom: 'fit', showHtml: false,
     sections: { question: { mode: 'image', text: '', reason: '尚未识别，按完整图片保存' }, answer: { mode: 'image', text: '', reason: '尚未识别，按完整图片保存' } },
     versions: { question: 0, answer: 0 }, form: { subject: '', category: '', difficulty: '5', related: '', cause: '' },

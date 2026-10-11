@@ -32,6 +32,8 @@ assets/app/
 
 ## 3. 路由与页面契约
 
+录入页的作业帮账号浮层由features/create/zyb-account.js负责挂载期监听与离页清理，通过页面actions委托切换菜单/记录；页面不加载后端MathJax引擎。tests/e2e/zuoyebang.py在隔离实例验证来源、渲染、识别、刷新、核对创建和账号焦点，并检查工作区占满可用宽度、右预览440px及左侧弹性布局；前端流程见create.md。
+
 - 地址形如 `#/questions`，也支持 `#/instant?practice=<card_id>&attempt=<attempt_id>`。路由用问号前的页面 ID 匹配页面，并保留查询串供页面挂载时读取；同一页面的查询串改变先经过未保存守卫，再重新挂载。`replaceQuery(query)` 供页面已通过自身选择守卫后同步当前目标地址，不重新挂载编辑器。`router.go(id)` 无异步守卫时同步切页并 `pushState` 一条历史；未登记的 id 落到仪表盘；地址无效时改写成 `#/dashboard`。
 - 地址变成非路由 hash（例如 `href="#"` 的链接）时不切页，并把地址改回当前页，保证刷新仍停在原页。
 - 侧栏导航是 `<a class="tab" data-tab="页面" href="#/页面">`：普通点击同步切页；带修饰键时交给浏览器（新标签页打开）。

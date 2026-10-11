@@ -9,20 +9,22 @@ export const timeLabel = value => value ? new Date(value * 1000).toLocaleString(
 
 export function roots() {
   return html`<div class="zyb-workspace">
+    <header class="zyb-workspace-head"><h2>作业帮搜题</h2><div id="zyb-account"></div></header>
     <div class="zyb-source">
-      <section class="zyb-pane"><div id="zyb-account"></div></section>
+      <div class="zyb-capture">
       <section class="zyb-pane"><h3>摄像头 <small>后置优先</small></h3>
         <div class="zyb-camera" data-morph="skip"><video id="zyb-video" autoplay playsinline muted hidden aria-label="实时摄像头画面"></video><span id="zyb-camera-placeholder">摄像头未开启</span></div>
-        <div id="zyb-camera-controls"></div><p class="zyb-help">当前支持打开、实时预览和关闭。搜题请从下方选择图片。</p>
+        <div id="zyb-camera-controls"></div><p class="zyb-help">打开后可实时预览，搜题请先选择图片。</p>
       </section>
-      <section class="zyb-pane"><h3>搜题图片</h3><div id="zyb-upload"></div><div id="zyb-candidates"></div></section>
+      <section class="zyb-pane"><h3>搜题图片</h3><div id="zyb-upload"></div></section>
+      </div>
+      <section class="zyb-pane"><div id="zyb-candidates"></div></section>
       <details class="zyb-pane ui-disclosure"><summary>最近渲染记录</summary><div id="zyb-history"></div></details>
     </div>
-    <div class="zyb-content"><section class="zyb-pane zyb-renderer"><div id="zyb-preview"></div></section>
-      <div id="zyb-status" class="zyb-status" role="status" aria-live="polite"></div>
-      <section class="zyb-pane" id="zyb-editor"></section>
-      <div id="zyb-result"></div>
-    </div>
+    <section class="zyb-pane zyb-renderer"><div id="zyb-preview"></div></section>
+    <div id="zyb-status" class="zyb-status" role="status" aria-live="polite"></div>
+    <section class="zyb-pane" id="zyb-editor"></section>
+    <div id="zyb-result"></div>
   </div>`;
 }
 export function accountView(s) {
@@ -32,16 +34,24 @@ export function accountView(s) {
   const account = observations.account || {}, signing = observations.signing || {};
   const busy = s.busy === 'account';
   const label = !data ? '读取会话中…' : !ready ? '尚未配置设备会话' : signing.state === 'invalid' ? '签名会话已失效' : account.state === 'invalid' ? '请重新扫码登录' : account.state === 'valid' ? '账号最近核对有效' : '账号待在线核对';
-  return html`<h3>作业帮账号 <small>${label}</small></h3>
-    ${s.sessionError ? html`<p class="zyb-error" role="alert">${s.sessionError}</p>` : ''}
-    ${!ready ? html`<p class="zyb-help">首次使用需导入已验收的设备会话文件，然后扫码登录。</p>` : ''}
-    <div class="zyb-actions">${action('扫码登录', 'Login', { disabled: !ready || !!s.busy })}${action('检查账号', 'Account', { arg: 'verify', disabled: !ready || !!s.busy })}${action('刷新账号', 'Account', { arg: 'refresh', disabled: !ready || !!s.busy })}</div>
-    <label class="zyb-profile ui-btn">导入设备会话<input type="file" id="zyb-profile" accept=".json,application/json"${busy ? html` disabled` : ''}></label>
-    <details class="ui-disclosure zyb-observations"><summary>会话有效期记录</summary>
+  const short = !data ? '读取中' : !ready ? '未配置' : signing.state === 'invalid' ? '签名失效' : account.state === 'invalid' ? '待登录' : account.state === 'valid' ? '已登录' : '待核对';
+  return html`<button type="button" class="ui-btn zyb-account-trigger" data-action="create.zybMenu" data-arg="toggle" aria-expanded="${!!s.accountPanel}" aria-controls="zyb-account-panel" aria-label="作业帮账号 · ${short}"><span>账号 · ${short}</span><span aria-hidden="true">⌄</span></button>
+    ${s.accountPanel ? html`<section id="zyb-account-panel" class="zyb-account-panel zyb-pane" aria-label="作业帮账号菜单">
+      ${s.accountPanel === 'records' ? html`<div class="zyb-head">${action('返回账号菜单', 'Menu', { arg: 'main', variant: 'ghost' })}<h3>会话有效期记录</h3></div>${observationsView(observations)}` : html`
+      <h3>作业帮账号</h3><p class="zyb-help">${label}</p>
+      ${s.sessionError ? html`<p class="zyb-error" role="alert">${s.sessionError}</p>` : ''}
+      ${!ready ? html`<p class="zyb-help">首次使用需导入已验收的设备会话文件，然后扫码登录。</p>` : ''}
+      <div class="zyb-account-actions">${action('扫码登录', 'Login', { disabled: !ready || !!s.busy })}${action('检查账号', 'Account', { arg: 'verify', disabled: !ready || !!s.busy })}${action('刷新账号', 'Account', { arg: 'refresh', disabled: !ready || !!s.busy })}
+        <label class="zyb-profile ui-btn">导入设备会话<input type="file" id="zyb-profile" aria-label="导入设备会话" accept=".json,application/json"${busy ? html` disabled` : ''}></label>
+        ${action('会话有效期记录', 'Menu', { arg: 'records' })}</div>`}
+    </section>` : ''}`;
+}
+function observationsView(observations) {
+  return html`<div class="zyb-observations">
       <p class="zyb-help">未取得官方有效期；失效时间只能确定在最后成功与首次确认失效之间。</p>
       ${['account', 'signing'].map(name => { const part = observations[name] || {}; return html`<dl><dt>${name === 'account' ? '账号' : '签名'}最后成功</dt><dd>${timeLabel(part.last_success_at)}</dd><dt>首次确认失效</dt><dd>${timeLabel(part.first_invalid_at)}</dd></dl>`; })}
       <ul>${(observations.events || []).slice(-8).reverse().map(row => html`<li>${timeLabel(row.at)} · ${{ profile_import: '导入设备会话', login: '扫码登录', refresh: '刷新账号', verify: '检查账号', search: '搜题', qr_start: '创建二维码', qr_cancel: '取消扫码' }[row.event] || row.event} · ${{ ok: '成功', network: '网络故障', signing_session: '签名失效', login_required: '账号失效', protocol: '响应异常', upstream: '上游错误' }[row.kind] || row.kind}</li>`)}</ul>
-    </details>`;
+    </div>`;
 }
 export function cameraView(s) {
   return html`<div class="zyb-actions">${action(s.camera.on || s.camera.pending ? '关闭摄像头' : '打开摄像头', 'Camera', { icon: 'eye', disabled: !s.session?.has_account_credential })}</div><p class="zyb-help" role="status">${s.camera.message}</p>`;
@@ -68,14 +78,14 @@ export function previewView(s) {
       ${s.showHtml && image ? html`<pre class="zyb-code">${image.html || '无答案正文'}</pre>` : image?.url ? html`<img id="zyb-rendered-image" src="${image.url}" width="${image.width}" height="${image.height}" alt="后端生成的完整${s.role === 'question' ? '题目' : '答案'}渲染图">` : html`<div class="zyb-empty"><strong>${image?.empty ? '这道题没有答案内容' : '选好题目后，在这里查看真实渲染图'}</strong><p>附图、图片公式和字体完整加载后才生成预览。</p></div>`}
     </div>
     <div class="zyb-render-footer"><span>${record ? '字体、公式和附图已完整加载' : '保留原题内容与阅读顺序'}</span><div class="zyb-actions" role="group" aria-label="预览比例">${action('适应宽度', 'Zoom', { arg: 'fit', pressed: s.zoom === 'fit' })}${action('100%', 'Zoom', { arg: 'actual', pressed: s.zoom === 'actual' })}</div></div>
-    ${record ? html`<details class="ui-disclosure zyb-render-log"><summary>本次渲染记录</summary><dl><dt>生成时间</dt><dd>${timeLabel(record.completed_at)}</dd><dt>渲染器</dt><dd>Chromium ${record.browser}</dd><dt>原始附图</dt><dd>${record.source_images} 张，已本地化</dd><dt>图片指纹</dt><dd>${image?.sha256 || '无答案图片'}</dd></dl></details>` : ''}`;
+    ${record ? html`<details class="ui-disclosure zyb-render-log"><summary>本次渲染记录</summary><dl><dt>生成时间</dt><dd>${timeLabel(record.completed_at)}</dd><dt>渲染器</dt><dd>Chromium ${record.browser} · ${record.engine || '既有记录'}</dd><dt>原始附图</dt><dd>${record.source_images} 张，已本地化</dd><dt>图片指纹</dt><dd>${image?.sha256 || '无答案图片'}</dd></dl></details>` : ''}`;
 }
 export function editorView(s) {
   if (!s.render) return html`<h3>识别与录入</h3><p class="zyb-help">完成渲染后可识别文字、公式并核对题卡。</p>`;
   const f = s.form, submitted = !!s.result, locked = submitted || s.busy === 'commit';
   return html`<div class="zyb-head"><h3>识别与录入</h3>${action('AI 识别题目与答案', 'Extract', { icon: 'sparkle', disabled: !!s.busy || submitted, loading: s.busy === 'extract' })}</div><p class="zyb-help">忠实转录原文；需要图形或无法完整转录时保留整图。识别失败可重试，也可直接按完整图片保存。</p>
-    ${ROLES.map(role => { const section = s.sections[role]; return html`<div class="zyb-section" data-key="section-${role}"><div class="zyb-head"><strong>${role === 'question' ? '题目' : '答案与解析'}</strong><div class="zyb-actions">${section.mode !== 'none' ? [action('保留图片', 'Mode', { arg: `${role}:image`, pressed: section.mode === 'image', disabled: locked }), action('使用文本', 'Mode', { arg: `${role}:text`, pressed: section.mode === 'text', disabled: locked })] : '无答案'}</div></div><p class="zyb-help">${section.reason}</p>
-      ${section.mode === 'text' ? html`<label class="zyb-field">${role === 'question' ? '题目正文' : '完整答案正文'}<textarea class="ui-textarea" rows="5" data-zyb-text="${role}"${locked ? html` disabled` : ''}>${section.text}</textarea></label>` : ''}</div>`; })}
+    <div class="zyb-editor-sections">${ROLES.map(role => { const section = s.sections[role]; return html`<div class="zyb-section" data-key="section-${role}"><div class="zyb-head"><strong>${role === 'question' ? '题目' : '答案与解析'}</strong><div class="zyb-actions">${section.mode !== 'none' ? [action('保留图片', 'Mode', { arg: `${role}:image`, pressed: section.mode === 'image', disabled: locked }), action('使用文本', 'Mode', { arg: `${role}:text`, pressed: section.mode === 'text', disabled: locked })] : '无答案'}</div></div><p class="zyb-help">${section.reason}</p>
+      ${section.mode === 'text' ? html`<label class="zyb-field">${role === 'question' ? '题目正文' : '完整答案正文'}<textarea class="ui-textarea" rows="5" data-zyb-text="${role}"${locked ? html` disabled` : ''}>${section.text}</textarea></label>` : ''}</div>`; })}</div>
     <div class="zyb-fields"><label class="zyb-field">科目 *<input class="ui-input" data-zyb-field="subject" data-combobox="subject" value="${f.subject}" autocomplete="off"${locked ? html` disabled` : ''}></label><label class="zyb-field">分类 *<input class="ui-input" data-zyb-field="category" data-combobox="category" value="${f.category}" autocomplete="off"${locked ? html` disabled` : ''}></label>
       <label class="zyb-field">难度（1–10）<input class="ui-input" type="number" min="1" max="10" data-zyb-field="difficulty" value="${f.difficulty}"${locked ? html` disabled` : ''}></label><label class="zyb-field">相关知识点<input class="ui-input" data-zyb-field="related" data-combobox="tags" value="${f.related}" placeholder="逗号分隔"${locked ? html` disabled` : ''}></label></div>
     <label class="zyb-field">错因 · 可选<textarea class="ui-textarea" rows="2" data-zyb-field="cause"${locked ? html` disabled` : ''}>${f.cause}</textarea></label><div class="zyb-actions">${labelChips(s.labels)}${action('添加标记', 'Labels', { icon: 'plus', disabled: locked })}</div>

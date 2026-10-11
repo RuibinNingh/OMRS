@@ -1,0 +1,44 @@
+[
+  {
+    "location_index": 0,
+    "question": {
+      "content": "<p>下列过程必须加入氧化剂才能实现的是(  )</p><p>A.${H}_{2}S{O}_{4}\\to {H}_{2}$</p><p>B.$S{O}_{2}\\to S{O}_{4}^{2-}$</p><p>C.$KMn{O}_{4}\\to {O}_{2}$</p><p>D.$N{H}_{3}\\to N{H}_{4}^{+}$</p>",
+      "picList": []
+    },
+    "answer": [
+      {
+        "content": "<div class=\"tk-md2html-content\"><p>B</p></div>",
+        "type": 0,
+        "picList": []
+      }
+    ]
+  },
+  {
+    "location_index": 1,
+    "question": {
+      "content": "<p>元素及其化合物转化关系是化学学习的重要内容之一,下列各组物质的转化关系,不全部是通过一步反应完成的是(  )</p><p>A.$C\\to C{O}_{2}\\to NaC{O}_{3}\\to NaOH$</p><p>B.$Mg\\to MgC{l}_{2}\\to Mg(OH{)}_{2}\\to MgS{O}_{4}$</p><p>C.$Cu\\to CuO\\to Cu(OH{)}_{2}\\to CuS{O}_{4}$</p><p>D.$Fe\\to F{e}_{2}{O}_{3}\\to FeC{l}_{3}\\to Fe(OH{)}_{3}$</p>",
+      "picList": []
+    },
+    "answer": [
+      {
+        "content": "<div class=\"tk-md2html-content\"><p>C</p></div>",
+        "type": 0,
+        "picList": []
+      }
+    ]
+  },
+  {
+    "location_index": 2,
+    "question": {
+      "content": "<p>已知氯酸钠($NaCl{O}_{3}$)与浓盐酸反应的化学方程式为$NaCl{O}_{3}+6HCl\\left(浓\\right)=\\!=\\!=NaCl+3C{l}_{2}+3{H}_{2}O$。下列说法正确的是<span class=\"tkspec-embed-text tkspec-fill-blank-brackets\"><span contenteditable=\"false\">（&nbsp;&nbsp;&nbsp;）</span></span></p><p>A.该反应每生成3分子$C{l}_{2}$，转移6个电子</p><p>B.$NaCl{O}_{3}$被还原，发生还原反应</p><p>C.还原性：$C{l}_{2}\\gt HCl$</p><p>D.参与还原反应和氧化反应的氧化剂与还原剂的化学计量数之比为1∶6</p>",
+      "picList": []
+    },
+    "answer": [
+      {
+        "content": "B",
+        "type": 0,
+        "picList": []
+      }
+    ]
+  }
+]

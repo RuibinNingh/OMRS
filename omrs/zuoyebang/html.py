@@ -12,11 +12,82 @@ from html.parser import HTMLParser
 from .store import ZybError
 
 ALLOWED = {'p', 'br', 'div', 'span', 'b', 'strong', 'i', 'em', 'u', 's', 'sub', 'sup',
-           'img', 'table', 'tbody', 'thead', 'tfoot', 'tr', 'td', 'th', 'ol', 'ul', 'li', 'blockquote'}
+           'img', 'table', 'tbody', 'thead', 'tfoot', 'tr', 'td', 'th', 'ol', 'ul', 'li', 'blockquote', 'nobr', 'bdo'}
 DROP = {'script', 'style', 'iframe', 'video', 'audio', 'object', 'embed', 'form', 'input', 'button', 'link', 'meta', 'svg', 'math'}
 VISUAL = {'svg', 'math', 'canvas', 'object', 'embed', 'video', 'audio'}
-HOSTS = ('zuoyebang.com', 'zybang.com', 'qbimg.com', 'bdimg.com', 'baidu.com')
+HOSTS = ('zuoyebang.com', 'zuoyebang.cc', 'zybang.com', 'qbimg.com', 'bdimg.com', 'baidu.com')
 IMAGE_BYTES = 12 * 1024 * 1024
+CLASSES = frozenset('''tkspec-embed-text tkspec-dotted-normal tkspec-underline-normal
+    tkspec-strike-normal tkspec-underline-wavy tkspec-italic-normal tkspec-text-indent-normal
+    tkspec-bold-normal tkspec-script-sub tkspec-script-super tkspec-align-center tkspec-align-left
+    tkspec-align-right tkspec-align-justify tkspec-paragraph-bottom-space-normal
+    tkspec-table-diagonal-normal tkspec-fill-blank-underline tkspec-fill-blank-brackets
+    yikespec-underline yikespec-line-through yikespec-line-wave yikespec-wavy yikespec-italic
+    tk-md2html-content p-h1 p-h2 p-h3 math fM fI pA pR pS tB
+    mathjye-aligncenter mathjye-alignright mathjye-alignleft mathjye-underline
+    mathjye-underpoint mathjye-underwavy mathjye-underpoint2'''.split())
+
+
+def picture_url(value):
+    """复用原App fd53 的pid映射；URL随后仍须通过域/IP校验。"""
+    value = str(value or '').strip()
+    if not value:
+        return ''
+    if value.startswith('//'):
+        value = 'https:' + value
+    if re.search(r'^(?:https?://|//|data:)|\.(?:jpe?g|png|gif|bmp)$', value, re.I):
+        return value
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,512}', value):
+        raise ZybError('附图ID格式不合法，原内容已保留', 'image_address')
+    prefix = 'https://img.zuoyebang.cc/tk_'
+    if value.startswith('zyb_'):
+        prefix = 'https://img.zuoyebang.cc/'
+    elif value.startswith('qa10_'):
+        prefix = 'https://img10.zuoyebang.cc/'
+    elif re.match(r'^qa(?:\d+)?_', value):
+        prefix = 'https://testimg.zuoyebang.cc/'
+    elif match := re.match(r'^zyb(\d*?)_', value):
+        prefix = 'https://img' + match[1] + '.zuoyebang.cc/'
+    return prefix + value + '.jpg'
+
+
+def layout_style(source, legacy=False):
+    """只保留数值排版声明；旧公式定位由可信class赋予，不接受任意CSS。"""
+    allowed = {'width', 'height', 'min-width', 'max-width', 'vertical-align'}
+    if legacy:
+        allowed |= {'top', 'bottom', 'left', 'right', 'font-size', 'margin-left', 'margin-right',
+                    'margin-top', 'margin-bottom', 'padding-left', 'padding-right', 'padding-top', 'padding-bottom'}
+    result = []
+    for declaration in (source or '').split(';'):
+        name, separator, value = declaration.partition(':')
+        name, value = name.strip().lower(), value.strip().lower()
+        if legacy and name == 'display' and value in ('inline', 'inline-block', 'block', 'table-cell'):
+            result.append(name + ':' + value)
+            continue
+        if legacy and name in ('border-top', 'border-bottom', 'border-left', 'border-right'):
+            if re.fullmatch(r'(?:\d+(?:\.\d+)?|\.\d+)(?:px|em) (?:solid|dashed|dotted) (?:#000(?:000)?|black|currentcolor)', value):
+                result.append(name + ':' + value)
+            continue
+        if not separator or name not in allowed:
+            continue
+        match = re.fullmatch(r'(-?(?:\d+(?:\.\d+)?|\.\d+))(px|em|rem|%)?', value)
+        if not match:
+            continue
+        number, unit = float(match[1]), match[2] or ''
+        if (not unit and number != 0) or abs(number) > (1080 if unit == 'px' else 100):
+            continue
+        if name in {'width', 'height', 'min-width', 'max-width', 'font-size'} and number < 0:
+            continue
+        result.append(name + ':' + value)
+    return ';'.join(result)
+
+
+def normalize_content(content):
+    """原App补裸LaTeX命令；已有定界符时保留原数学表达式。"""
+    source = str(content or '')
+    if '\\' in source and not any(marker in source for marker in ('$', r'\(', r'\[')):
+        source = re.sub(r'\\[a-zA-Z]+(?:\*?\{[^{}]*\})*', lambda m: '$' + m[0] + '$', source)
+    return source
 
 
 def valid_remote(url):
@@ -118,8 +189,9 @@ class Cleaner(HTMLParser):
             return
         attrs = dict(attributes)
         clean = ''
+        classes = [name for name in (attrs.get('class') or '').split() if name in CLASSES]
         if tag == 'img':
-            src = attrs.get('src') or ''
+            src = picture_url(attrs.get('src'))
             if not src:
                 raise ZybError('题面存在缺少地址的附图，不能继续渲染', 'image_missing')
             localized = self.localize(src)
@@ -133,9 +205,23 @@ class Cleaner(HTMLParser):
             for name in ('colspan', 'rowspan'):
                 if re.fullmatch(r'[1-9]\d?', attrs.get(name) or ''):
                     clean += f' {name}="{attrs[name]}"'
+        if tag == 'ol' and attrs.get('type') in ('1', 'a', 'A', 'i', 'I'):
+            clean += ' type="' + attrs['type'] + '"'
+        if tag in ('ol', 'li'):
+            name = 'start' if tag == 'ol' else 'value'
+            if re.fullmatch(r'[1-9]\d{0,3}', attrs.get(name) or ''):
+                clean += f' {name}="{attrs[name]}"'
         align = re.search(r'(?:^|;)\s*text-align\s*:\s*(left|center|right)\s*(?:;|$)', attrs.get('style') or '')
         if align:
-            clean += ' class="align-' + align.group(1) + '"'
+            classes.append('align-' + align.group(1))
+        if classes:
+            clean += ' class="' + ' '.join(dict.fromkeys(classes)) + '"'
+        legacy = any(name in ('math', 'pA', 'pR', 'pS', 'fM', 'fI') for name in classes)
+        style = layout_style(attrs.get('style'), legacy)
+        if style and tag != 'img':
+            clean += ' style="' + style + '"'
+        if tag == 'bdo' and attrs.get('dir') in ('ltr', 'rtl'):
+            clean += ' dir="' + attrs['dir'] + '"'
         self.parts.append('<' + tag + clean + '>')
         if tag not in ('img', 'br'):
             self.stack.append(tag)
@@ -167,10 +253,11 @@ class Cleaner(HTMLParser):
 
 def sanitize(content, pictures=None, localize=None):
     cleaner = Cleaner(localize or (lambda url: image_url(url)[0]))
-    cleaner.feed(str(content or ''))
+    cleaner.feed(normalize_content(content))
     body = cleaner.output()
     for picture in pictures or []:
-        url = picture if isinstance(picture, str) else next((picture.get(key) for key in ('url', 'src', 'picUrl', 'pic_url') if picture.get(key)), '') if isinstance(picture, dict) else ''
+        value = picture if isinstance(picture, str) else next((picture.get(key) for key in ('url', 'src', 'picUrl', 'pic_url', 'pid') if picture.get(key)), '') if isinstance(picture, dict) else ''
+        url = picture_url(value)
         if not url:
             raise ZybError('上游附图字段无法读取，原内容已保留', 'image_missing')
         if url not in cleaner.seen:

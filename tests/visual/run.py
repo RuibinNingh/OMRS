@@ -260,7 +260,7 @@ def main(argv=None):
     ap.add_argument("--pages", default=",".join(PAGES))
     ap.add_argument("--themes", default="light,dark")
     ap.add_argument("--viewports", default="desktop,mobile")
-    ap.add_argument("--create-stage", choices=["upload", "process", "create", "train", "quick", "drafts"], help="录入页截图时切到指定工作区")
+    ap.add_argument("--create-stage", choices=["upload", "process", "create", "train", "quick", "drafts", "zuoyebang"], help="录入页截图时切到指定工作区")
     ap.add_argument("--settings-section", choices=["appearance", "access", "ai", "assistant", "data", "service"], help="设置页截图时切到指定分区")
     ap.add_argument("--settle", type=int, default=500, help="每页切换后额外等待毫秒数")
     args = ap.parse_args(argv)

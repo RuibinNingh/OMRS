@@ -17,6 +17,7 @@ import { itemsOf } from '../../domain/items.js';
 import { suggestions } from './cards-state.js';
 import { mergeClassification } from './state.js';
 import { createCamera } from './zyb-camera.js';
+import { createAccountMenu } from './zyb-account.js';
 import { newZybState, bindRender, extractionSnapshot, mergeExtraction, commitPayload } from './zyb-state.js';
 import * as view from './zyb-view.js';
 
@@ -31,6 +32,8 @@ export function createZuoyebang(root, ctx) {
   let alive = true, entered = false, entryEpoch = 0, timer = null, qrTimer = null, qrDialog = null, qrAbort = null;
   const drops = new WeakSet();
   render(host, view.roots());
+  S.accountPanel = '';
+  const accountMenu = createAccountMenu(host, S, paint);
   const camera = createCamera({ video: host.querySelector('#zyb-video'), changed: state => {
     S.camera = state;
     if (!alive) return;
@@ -174,6 +177,7 @@ export function createZuoyebang(root, ctx) {
   }
   async function login() {
     if (S.busy) return;
+    accountMenu.close(true);
     const entry = entryEpoch;
     S.busy = 'account'; status('正在创建登录二维码…');
     try {
@@ -253,10 +257,11 @@ export function createZuoyebang(root, ctx) {
     }
     paint(); if (S.job) { S.busy = S.job.type; void poll(); }
   }
-  function leave() { entered = false; entryEpoch += 1; camera.stop(); clearTimeout(timer); stopQr(); if (qrDialog) closeDialog(qrDialog); combobox.close(); remember(); }
+  function leave() { entered = false; entryEpoch += 1; accountMenu.close(); camera.stop(); clearTimeout(timer); stopQr(); if (qrDialog) closeDialog(qrDialog); combobox.close(); remember(); }
   function resume() { if (alive && entered) { paint(); void refresh(); if (S.job) void poll(); } }
   resumeActive = resume;
   return { enter, leave, search, select, render: renderSelected, extract, account, login, commit, history: openHistory,
+    menu: page => accountMenu.show(page),
     camera: () => camera.toggle(),
     role: role => { if (['question', 'answer'].includes(role)) { S.role = role; paint(); } },
     zoom: zoom => { S.zoom = zoom === 'actual' ? 'actual' : 'fit'; paint(); },
@@ -266,6 +271,6 @@ export function createZuoyebang(root, ctx) {
     labels: el => openCreateLabelPicker(el, S.labels, labels => { S.labels = labels; S.dirty = true; remember(); paint(); }),
     board: (el, fast) => { if (S.result) boardQuickAdd([S.result.uid], el, { fast }); },
     open: () => { if (S.result) viewQ(S.result.uid); },
-    dispose() { alive = false; if (resumeActive === resume) resumeActive = null; leave(); host.removeEventListener('input', onInput); host.removeEventListener('change', onChange); combobox.dispose(); if (S.fileUrl) URL.revokeObjectURL(S.fileUrl); S.fileUrl = ''; },
+    dispose() { accountMenu.dispose(); alive = false; if (resumeActive === resume) resumeActive = null; leave(); host.removeEventListener('input', onInput); host.removeEventListener('change', onChange); combobox.dispose(); if (S.fileUrl) URL.revokeObjectURL(S.fileUrl); S.fileUrl = ''; },
   };
 }

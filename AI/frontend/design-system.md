@@ -25,7 +25,7 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 
 主工作台继续通过 `assets/vendor/fonts/fonts.css` 加载 Noto Sans SC 与 JetBrains Mono。新增 `noto-serif-sc.css` 仅供 A4 导出由 `omrs/export_fonts.py` 按内容内嵌，不加入工作台样式入口；打印字体、固定行高及重排契约见 `AI/export.md`。字体目录维护上游分片、SIL OFL 许可和来源 SHA256 清单。
 
-作业帮样式 `features/create/zyb.css` 由总入口以 layer(features) 引入，来源栏和核对控件沿用语义 token；1080后端白纸图片本身不随主题变色。桌面两栏、窄屏上下排列，100%预览仅在内框滚动，不使整页横向溢出；页面审计覆盖320/390/1024/1440px与浅深主题。
+作业帮样式 `features/create/zyb.css` 由总入口以 layer(features) 引入，来源栏和核对控件沿用语义 token；1080后端白纸图片本身不随主题变色。账号入口一行收起，操作与记录在有最大高度的浮层中；桌面工作区占满可用宽度，右侧预览440px、左侧弹性分配其余空间给来源与识别核对；摄像头/上传并排，右预览保持可见，窄屏上下排列。100%预览仅在内框滚动，不使整页横向溢出；页面与账号浮层审计覆盖320/390/1024/1440px与浅深主题。后端MathJax资源独立于工作台的KaTeX，来源与许可见assets/vendor/mathjax/README.md。
 
 ## 2. 语义 token
 

@@ -218,4 +218,4 @@ reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加acti
 
 `search-<id>/record.json` 保存配对候选与原始来源，`render-<id>/record.json` 保存来源、PNG尺寸/SHA、HTML预览、提取与分类结果，`question.png` 和 `answer.png` 各一张完整图；无答案不产生答案图。`job-<id>/record.json` 保存后台状态，重启后的在途任务只读显示中断。搜题上传原件使用系统临时上传引用，1小时有效，与来源记录分开。
 
-渲染记录的 commit 保存首次规范化表单/保存方式摘要、操作ID、UID/question_id/路径/日期、产物哈希与回执。创建事实和 op_results 在 Ledger 同事务写入，独立状态可在原记录重试补齐；Ledger 不重放会话、候选与渲染目录。全库备份包含该目录，整库恢复变更世代，旧后台任务和上传引用不能写入恢复后的库。详见 `AI/zuoyebang.md`。
+渲染记录含browser/engine与每区formulas数；旧记录缺engine时仍可读取原图，展示为既有记录，不重新生成。commit 保存首次规范化表单/保存方式摘要、操作ID、UID/question_id/路径/日期、产物哈希与回执。创建事实和 op_results 在 Ledger 同事务写入，独立状态可在原记录重试补齐；Ledger 不重放会话、候选与渲染目录。全库备份包含该目录，整库恢复变更世代，旧后台任务和上传引用不能写入恢复后的库。详见 `AI/zuoyebang.md`。

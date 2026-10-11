@@ -139,6 +139,7 @@ export const page = {
     trainSave: () => parts?.train.save(),
     trainCleanup: ({ arg }) => parts?.train.cleanup(arg === 'crops'),
     zybCamera: () => parts?.zuoyebang.camera(),
+    zybMenu: ({ arg }) => parts?.zuoyebang.menu(arg),
     zybLogin: () => parts?.zuoyebang.login(),
     zybAccount: ({ arg }) => parts?.zuoyebang.account(arg),
     zybSearch: () => parts?.zuoyebang.search(),
