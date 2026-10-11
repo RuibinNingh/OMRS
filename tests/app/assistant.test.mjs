@@ -195,6 +195,24 @@ test('聊天 Markdown：引用芯片、表格、列表、转义与光标', () =>
   assert.equal(plainOf('| a |\n周期是 $\\pi$，**好**'), '周期是 pi，好');
 });
 
+test('Markdown 标题保留层级、转义、引用与流式光标，摘要去掉井号', () => {
+  const out = renderMd('# 一级\n## **二级** ###\n### `函数1`\n#### 四级\n##### 五级\n###### <script>', { live: true });
+  assert.match(out, /<h1>一级<\/h1>/);
+  assert.match(out, /<h2><strong>二级<\/strong><\/h2>/);
+  assert.match(out, /<h3><code>函数1<\/code><\/h3>/);
+  assert.match(out, /<h4>四级<\/h4><h5>五级<\/h5>/);
+  assert.match(out, /<h6>&lt;script&gt;<span class="ast-caret"/);
+  assert.equal(renderMd('  ## 标题\r\n正文'), '<h2>标题</h2><p>正文</p>');
+  assert.equal(renderMd('标题\n===\n\n二级\n---'), '<h1>标题</h1><h2>二级</h2>');
+  assert.equal(plainOf('## **标题** ###\n正文'), '标题');
+  for (const text of ['#无空格', '####### 七个井号', '    # 缩进', '\\# 转义']) assert.doesNotMatch(renderMd(text), /<h[1-6]>/);
+});
+
+test('围栏代码中的井号、HTML 和引用保持源码', () => {
+  assert.equal(renderMd('```md\n# <script>\n`函数1`\n```\n\n## 正文'), '<pre><code># &lt;script&gt;\n&#96;函数1&#96;</code></pre><h2>正文</h2>');
+  assert.equal(renderMd('~~~\n## 未闭合'), '<pre><code>## 未闭合</code></pre>');
+});
+
 test('转述事件先于模型轮次，完成和失败状态可重放', () => {
   const events = [ev(0, 0, 'run.start'), ev(1, 10, 'image.transcribe', { ref: 'IMG-1', sha: 'a' }),
     ev(2, 110, 'image.transcribed', { ref: 'IMG-1', ok: true, ms: 100 }),

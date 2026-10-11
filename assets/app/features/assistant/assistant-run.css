@@ -83,6 +83,13 @@
 .ast-md > :first-child { margin-top: 0; }
 .ast-md > :last-child { margin-bottom: 0; }
 .ast-md p { margin: 0 0 var(--sp-2); }
+.ast-md h1, .ast-md h2, .ast-md h3, .ast-md h4, .ast-md h5, .ast-md h6 { margin: var(--sp-4) 0 var(--sp-2); font-weight: var(--weight-semibold); line-height: var(--leading-ui); }
+.ast-md h1 { font-size: var(--text-xl); }
+.ast-md h2 { font-size: var(--text-lg); }
+.ast-md h3 { font-size: var(--text-md); }
+.ast-md h4, .ast-md h5, .ast-md h6 { font-size: var(--text-sm); }
+.ast-md pre { max-width: 100%; margin: 0 0 var(--sp-2); padding: var(--sp-3); overflow-x: auto; background: var(--surface-2); border-radius: var(--r-sm); font-size: var(--text-xs); }
+.ast-md pre code { padding: 0; color: inherit; background: transparent; font-size: inherit; }
 .ast-md ul, .ast-md ol { margin: 0 0 var(--sp-2); padding-left: var(--sp-5); }
 .ast-md li + li { margin-top: var(--sp-0_5); }
 .ast-md strong { font-weight: var(--weight-semibold); }

@@ -4,7 +4,7 @@
 > - 职责：`#/assistant` 页面——对话列表、附图消息、运行轨迹、草稿卡片、确认与撤销、检查器、上下文用量
 > - 入口：`assets/app/features/assistant/index.js`（页面契约与控制器）、`attachments.js`（图片校验与缩放）、`interactions.js`（输入和拖放）、`mobile-layout.js`（可见视口）、`state.js`（事件归约）、`view.js` / `insp-view.js` / `tools-view.js`（视图）
 > - 不变量：模板不写 `style=`，条形、瀑布、火花线、用量环一律 SVG 属性；已结束的运行带 `data-hash` 整棵跳过 morph；批准只由用户点按钮发出，绑定已展示的提案版本
-> - 必跑测试：`tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_p3.py`、`tests/e2e/assistant_race.py`、`tests/e2e/assistant_review.py`
+> - 必跑测试：`tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_responses.py`、`tests/e2e/assistant_p3.py`、`tests/e2e/assistant_race.py`、`tests/e2e/assistant_review.py`
 > - 相关：`AI/agent.md`（接口、事件、权限）、`AI/frontend/settings.md`（AI 助手分区）、`AI/frontend/design-system.md`
 
 ## 结构
@@ -17,7 +17,7 @@
 
 `state.js` 把事件归约成运行视图模型：步骤（转述图片、思考、正文、工具、插话）、时间线段（模型轮次的等首 token / 生成、工具的等确认 / 执行）、用量、首 token、速度窗口、写入列表。`image.transcribe` 与 `image.transcribed` 在首轮模型请求之前生成「转述 IMG-n」步骤，显示进行中、完成或失败与耗时。持久化时合并过的增量与逐片增量归约结果一致（有单测）。
 
-聊天正文按 Markdown 段落渲染；工具结果卡里的题目摘要、题面差异和草稿预览使用同一套内联转义，并把普通换行输出为 `<br>`，避免 AI 逐行文本在这些辅助卡片里合并。
+聊天正文支持 Markdown 段落、`#` 至 `######` 标题、下划线式一级/二级标题、列表、表格、公式和围栏代码块。标题保留语义层级，使用现有字号与间距 token；行内粗体、公式、代码引用仍可用于标题，流式光标附在最后一个块。围栏内的标题符号与 HTML 按源码转义显示；对话摘要去掉标题井号。工具结果卡里的题目摘要、题面差异和草稿预览使用同一套内联转义，并把普通换行输出为 `<br>`。
 
 OpenAI（Responses）的文字、拒答和工具增量由服务端归一成同一套事件；思考步骤显示供应商返回的推理摘要或文本。加密推理项只作为服务端后续请求的上下文保存，不作为聊天正文。设置的协议选择不改变前端确认、撤销与历史重放方式。
 

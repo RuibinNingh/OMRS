@@ -220,10 +220,10 @@ def build_system_prompt(vault, limits, draft_mode="silent"):
 
 
 def model_messages(stored):
-    """把存下的消息还原成模型上下文：去掉内部字段；缺结果的工具调用补「已中止」，保证前后一致。"""
+    """去掉运行元数据，保留 Responses 原生上下文；缺结果的工具调用补「已中止」。"""
     out, answered = [], {m.get("tool_call_id") for m in stored if m.get("role") == "tool"}
     for msg in stored:
-        clean = {k: v for k, v in msg.items() if not k.startswith("_")}
+        clean = {k: v for k, v in msg.items() if not k.startswith("_") or k == "_response_items"}
         out.append(clean)
         for call in clean.get("tool_calls") or []:
             if call["id"] not in answered:
@@ -601,7 +601,7 @@ class AgentRuntime:
         out = {"reason": "error", "error": ""}
         try:
             registry = build_registry(s)
-            client = run.client = make_client(self.vault, s)
+            client = run.client = make_client(self.vault, s, conversation_id=run.conv_id)
             system = build_system_prompt(self.vault, s["limits"], s["draft_mode"])
             run.emit("run.start", {"run_id": run.id, "model": s["model"], "limits": s["limits"], "started_at": now_iso(),
                                    "context_window": s["compat"]["context_window"], "vision": s["vision"]})

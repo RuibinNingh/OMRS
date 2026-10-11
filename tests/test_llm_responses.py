@@ -9,6 +9,7 @@ import urllib.error
 from unittest import mock
 
 from omrs.agent.config import make_client
+from omrs.agent.runtime import model_messages
 from omrs.agent.store import AgentStore
 from omrs.llm.compat import resolve_compat
 from omrs.llm.openai_compat import OpenAICompatClient
@@ -68,6 +69,35 @@ class ResponsesTests(unittest.TestCase):
                 client = ResponsesClient("http://example.invalid/v1" + suffix, "", "", resolve_compat("openai"))
                 self.assertEqual(client.endpoint, "http://example.invalid/v1/responses")
 
+    def test_summary_opt_in_keeps_non_reasoning_models_compatible(self):
+        for model in ("gpt-6.1-sol", "gpt-5", "o3", "provider-reasoning-alias"):
+            with self.subTest(model=model):
+                client = ResponsesClient("http://example.invalid", "", model, resolve_compat("openai"))
+                self.assertEqual(client.build_payload([], None, True, 100)["reasoning"], {"summary": "auto"})
+        for model in ("gpt-4.1", "gpt-4o-mini", "chatgpt-4o-latest", "gpt-5-chat-latest"):
+            with self.subTest(model=model):
+                client = ResponsesClient("http://example.invalid", "", model, resolve_compat("openai"))
+                self.assertNotIn("reasoning", client.build_payload([], None, True, 100))
+        client = ResponsesClient("http://example.invalid", "", "alias", resolve_compat(
+            "openai", {"responses_reasoning_summary": False}))
+        self.assertNotIn("reasoning", client.build_payload([], None, True, 100))
+
+    def test_cache_key_is_stable_per_vault_conversation_and_model(self):
+        settings = {"faux": False, "debug_log": False, "_base": "http://example.invalid/v1", "_key": "secret",
+                    "model": "gpt-6.1-sol", "compat": resolve_compat("openai")}
+        with tempfile.TemporaryDirectory() as vault:
+            def payload(conv="conv", root=vault, model="gpt-6.1-sol"):
+                return make_client(root, {**settings, "model": model}, conversation_id=conv).build_payload([], None, True, 100)
+            key = payload()["prompt_cache_key"]
+            self.assertEqual(key, payload(root=vault + "/.")["prompt_cache_key"])
+            self.assertEqual(key, payload()["prompt_cache_key"])
+            self.assertNotIn(key, [payload(conv="other")["prompt_cache_key"], payload(root=vault + "/other")["prompt_cache_key"],
+                                   payload(model="gpt-5")["prompt_cache_key"]])
+            self.assertLessEqual(len(key), 64)
+            self.assertNotIn("secret", key)
+            self.assertNotIn(vault, key)
+            self.assertNotIn("prompt_cache_key", payload(conv=None))
+
     def test_request_translates_images_tools_and_legacy_history(self):
         messages = [{"role": "system", "content": "规则"}, {"role": "user", "content": [
             {"type": "text", "text": "看图"}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA==", "detail": "high"}}]},
@@ -126,6 +156,63 @@ class ResponsesTests(unittest.TestCase):
                 self.assertEqual(result["content"], "回答")
                 self.assertEqual([text for kind, text, _ in deltas if kind == "text"], ["回答"])
 
+    def test_empty_or_missing_terminal_output_restores_done_tools(self):
+        for output in ([], None):
+            with self.subTest(output=output):
+                calls = [tool_call(call_id="call_a"), tool_call(arguments='{"x":2}', call_id="call_b")]
+                data = response()
+                if output is None:
+                    data.pop("output")
+                events = []
+                for index, call in enumerate(calls):
+                    events.extend([{"type": "response.output_item.added", "output_index": index, "item": {**call, "arguments": ""}},
+                                   {"type": "response.function_call_arguments.delta", "output_index": index, "delta": call["arguments"]},
+                                   {"type": "response.output_item.done", "output_index": index, "item": call}])
+                events.append(terminal(data))
+                hooks = Hooks()
+                with mock.patch("urllib.request.urlopen", side_effect=[sse(events), sse([terminal(response([message()]))])]):
+                    outcome, messages, _ = run(self.client, hooks)
+                self.assertEqual(outcome["reason"], "completed")
+                self.assertEqual(hooks.ran, ["echo", "echo"])
+                self.assertEqual(messages[1]["_response_items"], calls)
+
+    def test_empty_terminal_preserves_done_answer_and_reasoning_without_duplicate_deltas(self):
+        items = [reasoning(), message()]
+        events = [{"type": "response.reasoning_summary_text.delta", "output_index": 0, "delta": "先查询"},
+                  {"type": "response.output_text.delta", "output_index": 1, "delta": "回答"}]
+        events += [{"type": "response.output_item.done", "output_index": index, "item": item} for index, item in enumerate(items)]
+        events.append(terminal(response()))
+        deltas = []
+        with mock.patch("urllib.request.urlopen", return_value=sse(events)):
+            result = self.client.complete([], on_delta=lambda *args: deltas.append(args))
+        self.assertEqual((result["content"], result["reasoning"], result["response_items"]), ("回答", "先查询", items))
+        self.assertEqual(deltas, [("think", "先查询", None), ("text", "回答", None)])
+
+    def test_empty_terminal_never_executes_unfinished_or_mixed_tools(self):
+        unfinished = tool_call(call_id="partial")
+        cases = [[{"type": "response.output_item.added", "output_index": 0, "item": unfinished}],
+                 [{"type": "response.output_item.done", "output_index": 0, "item": {**unfinished, "status": "in_progress"}}],
+                 [{"type": "response.function_call_arguments.done", "output_index": 0, "arguments": '{"x":1}'}],
+                 [{"type": "response.output_item.done", "output_index": 0, "item": tool_call()},
+                  {"type": "response.output_item.added", "output_index": 1, "item": unfinished}],
+                 [{"type": "response.output_text.delta", "output_index": 0, "delta": "未结束正文"}]]
+        for events in cases:
+            with self.subTest(events=events), mock.patch("urllib.request.urlopen", return_value=sse(events + [terminal(response())])):
+                hooks = Hooks()
+                outcome, _, _ = run(self.client, hooks)
+            self.assertEqual(outcome["reason"], "error")
+            self.assertIn("响应不完整", outcome["error"])
+            self.assertEqual(hooks.ran, [])
+
+    def test_terminal_cannot_silently_drop_a_streamed_tool(self):
+        events = [{"type": "response.output_item.added", "output_index": 0, "item": tool_call()},
+                  terminal(response([message()]))]
+        with mock.patch("urllib.request.urlopen", return_value=sse(events)):
+            hooks = Hooks()
+            outcome, _, _ = run(self.client, hooks)
+        self.assertEqual(outcome["reason"], "error")
+        self.assertEqual(hooks.ran, [])
+
     def test_terminal_only_stream_emits_answer(self):
         deltas = []
         with mock.patch("urllib.request.urlopen", return_value=sse([terminal(response([message()]))])):
@@ -153,12 +240,24 @@ class ResponsesTests(unittest.TestCase):
             store.create_conversation("conv", "合成对话")
             for msg in messages:
                 store.add_message("conv", "run", msg)
-            loaded = AgentStore(vault).messages("conv")
+            loaded = model_messages(AgentStore(vault).messages("conv"))
             rebuilt = self.client.build_payload(loaded, None, True, 100)["input"]
             self.assertEqual(rebuilt[1:3], first)
             self.assertFalse(any("_run" in item or "_response_items" in item for item in rebuilt))
             chat = OpenAICompatClient("http://example.invalid/v1", "", "test", resolve_compat("custom"))
             self.assertNotIn("_response_items", json.dumps(chat.build_payload(loaded, None, False, 100)))
+
+    def test_reloaded_runtime_context_keeps_the_exact_input_prefix(self):
+        original = [{"role": "system", "content": "固定规则"}, {"role": "user", "content": "问题"},
+                    {"role": "assistant", "content": "", "tool_calls": [{"id": "call_test", "name": "echo", "arguments": '{"x":1}'}],
+                     "_response_items": [reasoning(), tool_call()], "_run": "old"},
+                    {"role": "tool", "tool_call_id": "call_test", "content": '{"x":1}'}]
+        previous = self.client.build_payload(original, None, True, 100)["input"]
+        loaded = model_messages(copy.deepcopy(original) + [{"role": "user", "content": "继续"}])
+        following = self.client.build_payload(loaded, None, True, 100)["input"]
+        self.assertEqual(following[:-1], previous)
+        self.assertNotIn("_run", loaded[2])
+        self.assertEqual(following[2]["encrypted_content"], "完整的加密推理")
 
     def test_incomplete_output_never_executes_tools(self):
         hooks = Hooks()

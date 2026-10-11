@@ -298,6 +298,8 @@ GET 返回 405。扫描会写投影，入口是 `POST /api/scan`。
 
 `agent_*` 键（AI 助手）的含义见 `AI/agent.md` §2：GET 不回显 `agent_api_key`，只返回 `agent_api_key_configured`；POST 可带 `clear_agent_api_key:true`；`agent_max_output_tokens` 缺省为 10240，只接受 1–65536 的整数，越界或类型不符返回 400；`agent_compat` 取值、开关类型不合法或模型名填 `faux` 时返回 400。
 
+`agent_compat_overrides.responses_reasoning_summary` 为布尔兼容开关，只控制 Responses 的摘要请求，不设置推理强度；默认开启，已知非推理模型自动略过。摘要及供应商缓存统计的请求行为见 `AI/agent.md` §2。
+
 ### `GET /api/entry-background`
 只返回当前选中的自定义媒体文件，响应为二进制流并带保存时校验过的 `Content-Type`、`ETag` 和 `X-Content-Type-Options: nosniff`。未选择自定义背景、文件缺失或配置损坏时返回 404。该端点是入口页所需的公开资源，只能读取当前配置指向的单个文件，不能用查询参数访问历史媒体或 Vault 中的其他路径。
 

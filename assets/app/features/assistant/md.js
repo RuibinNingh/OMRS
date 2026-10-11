@@ -1,5 +1,5 @@
 /**
- * 聊天正文的 Markdown：段落、粗体、行内代码（题目 UID / Session / commit 变成引用芯片）、列表、表格、$ / $$ 公式。
+ * 聊天正文的 Markdown：标题、段落、粗体、代码、列表、表格、$ / $$ 公式；行内代码可变成引用芯片。
  * 公式走 domain/question/markdown.js 的 renderLatexSegment（仓库自带 KaTeX），结果按源码缓存。
  * 输出字符串，由 view 经 raw() 嵌入；refOf(code) 由调用方注入（知道哪些 UID 在题库里）。
  */
@@ -37,6 +37,11 @@ export function renderInline(src, refOf = code => `<code>${escape(code)}</code>`
 const cellsOf = r => r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
 export const isSepRow = r => /^\s*\|?[\s:|-]+\|?\s*$/.test(r) && r.includes('-');
 
+function headingOf(line) {
+  const match = /^ {0,3}(#{1,6})(?:[\t ]+(.*)|[\t ]*)$/.exec(line);
+  return match && { level: match[1].length, text: (match[2] || '').replace(/(?:^|[\t ]+)#+[\t ]*$/, '') };
+}
+
 function tableHtml(rows, refOf) {
   let head = null;
   let body = rows;
@@ -47,13 +52,34 @@ function tableHtml(rows, refOf) {
 }
 
 export function renderMd(src, { live = false, refOf } = {}) {
-  const lines = String(src ?? '').split('\n');
+  const lines = String(src ?? '').split(/\r?\n/);
   const blocks = [];
   let para = [];
   const flush = () => { if (para.length) { blocks.push({ t: 'p', h: para.map(l => renderInline(l, refOf)).join('<br>') }); para = []; } };
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (!line.trim()) { flush(); continue; }
+    const fence = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    if (fence) {
+      flush();
+      const body = [];
+      const close = new RegExp(`^ {0,3}${fence[1][0]}{${fence[1].length},}[\\t ]*$`);
+      while (i + 1 < lines.length && !close.test(lines[i + 1])) body.push(lines[++i]);
+      if (i + 1 < lines.length) i += 1;
+      blocks.push({ t: 'code', h: escape(body.join('\n')) });
+      continue;
+    }
+    const heading = headingOf(line);
+    if (heading) {
+      flush();
+      blocks.push({ t: 'h', level: heading.level, h: renderInline(heading.text, refOf) });
+      continue;
+    }
+    if (para.length && /^ {0,3}(?:=+|-+)[\t ]*$/.test(line)) {
+      blocks.push({ t: 'h', level: line.trim()[0] === '=' ? 1 : 2, h: renderInline(para.join('\n'), refOf) });
+      para = [];
+      continue;
+    }
     if (/^\s*\|/.test(line)) {
       flush();
       const rows = [];
@@ -91,6 +117,8 @@ export function renderMd(src, { live = false, refOf } = {}) {
   const out = blocks.map((b, k) => {
     const last = live && k === blocks.length - 1;
     if (b.t === 'p') return `<p>${b.h}${last ? caret : ''}</p>`;
+    if (b.t === 'h') return `<h${b.level}>${b.h}${last ? caret : ''}</h${b.level}>`;
+    if (b.t === 'code') return `<pre><code>${b.h}${last ? caret : ''}</code></pre>`;
     if (b.t === 'ul' || b.t === 'ol') {
       return `<${b.t}>${b.items.map((x, j) => `<li>${renderInline(x, refOf)}${last && j === b.items.length - 1 ? caret : ''}</li>`).join('')}</${b.t}>`;
     }
@@ -102,6 +130,7 @@ export function renderMd(src, { live = false, refOf } = {}) {
 
 /** 纯文本摘要（对话列表的第二行）：去掉表格、公式符号与标记。 */
 export function plainOf(src) {
-  const line = String(src ?? '').split('\n').find(l => l.trim() && !/^\s*\|/.test(l)) || '';
-  return line.replace(/\$([^$]+)\$/g, (_, t) => t.replace(/\\([a-z]+)/gi, '$1').replace(/[{}\\]/g, '')).replace(/[`*]/g, '').trim();
+  const line = String(src ?? '').split(/\r?\n/).find(l => l.trim() && !/^\s*\|/.test(l)) || '';
+  const text = headingOf(line)?.text ?? line;
+  return text.replace(/\$([^$]+)\$/g, (_, t) => t.replace(/\\([a-z]+)/gi, '$1').replace(/[{}\\]/g, '')).replace(/[`*]/g, '').trim();
 }

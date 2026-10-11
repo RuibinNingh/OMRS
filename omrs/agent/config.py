@@ -1,4 +1,6 @@
 """助手配置：agent_* 键；地址与密钥留空回退 ai_*，模型不回退。密钥不回显（server.py 的 GET /api/config）。"""
+import hashlib
+import json
 import os
 
 from ..common import load_config, omrs_data_dir
@@ -70,13 +72,18 @@ def _host(url):
         return ""
 
 
-def make_client(vault, s=None):
+def make_client(vault, s=None, *, conversation_id=None):
     s = s or settings(vault)
     if s["faux"]:
         return FauxClient(faux_script_path())
     debug = os.path.join(omrs_data_dir(vault), "logs", "agent-llm.jsonl") if s["debug_log"] else None
-    client = ResponsesClient if s["compat"]["name"] == "openai" else OpenAICompatClient
-    return client(s["_base"], s["_key"], s["model"], s["compat"], timeout=120, debug_path=debug)
+    if s["compat"]["name"] == "openai":
+        # 同一对话跨运行/重启保持稳定；不把 Vault 路径、用户消息或密钥暴露给供应商。
+        scope = [os.path.realpath(vault), str(conversation_id), s["model"]]
+        cache_key = "omrs_" + hashlib.sha256(json.dumps(scope, ensure_ascii=False).encode()).hexdigest()[:48] if conversation_id else None
+        return ResponsesClient(s["_base"], s["_key"], s["model"], s["compat"], timeout=120,
+                               debug_path=debug, prompt_cache_key=cache_key)
+    return OpenAICompatClient(s["_base"], s["_key"], s["model"], s["compat"], timeout=120, debug_path=debug)
 
 
 def validate_agent_config(data: dict):

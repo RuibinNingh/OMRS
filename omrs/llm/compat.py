@@ -8,6 +8,7 @@ DEFAULTS = {
     "system_role": "system",          # system 或 developer
     "stream_usage": True,             # 是否发送 stream_options.include_usage
     "strict_tools": False,            # 工具 schema 是否带 strict
+    "responses_reasoning_summary": True,  # Responses 请求推理摘要；已知非推理模型自动略过
     "context_window": 65536,          # 上下文窗口（tokens），只用于界面上的用量计
 }
 

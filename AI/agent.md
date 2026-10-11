@@ -31,7 +31,7 @@
 
 `agent_compat=openai` 使用 `omrs/llm/responses.py` 的 Responses 客户端；`custom` / `dashscope` / `deepseek` 使用 `omrs/llm/openai_compat.py` 的 Chat Completions 客户端。两者都返回统一的模型结果，连接测试、主对话与图片直传探测按所选协议请求。AI 识别、图片转述和 `describe_image` 仍使用独立的 Chat Completions 识图配置。
 
-兼容差异写成数据（`omrs/llm/compat.py`）：Chat Completions 的思考增量字段、带工具调用的 assistant 是否回传思考、工具结果是否带 `name`、输出上限字段名、是否发 `stream_options.include_usage`；两种协议共用 system / developer 角色、工具 schema 的 `strict` 与上下文窗口估算。覆写兼容参数不会切换协议。
+兼容差异写成数据（`omrs/llm/compat.py`）：Chat Completions 的思考增量字段、带工具调用的 assistant 是否回传思考、工具结果是否带 `name`、输出上限字段名、是否发 `stream_options.include_usage`；Responses 的 `responses_reasoning_summary` 控制是否主动请求推理摘要。两种协议共用 system / developer 角色、工具 schema 的 `strict` 与上下文窗口估算。覆写兼容参数不会切换协议。
 
 ### Responses 协议
 
@@ -39,7 +39,11 @@
 
 请求固定 `store:false` 并要求 `reasoning.encrypted_content`，不依赖远端保存的会话或 `previous_response_id`。原生 output（正文、工具调用和加密推理项）随助手消息保存在 `_response_items`；下一轮和重新打开的对话原样回传，避免重复拼接正文或遗漏推理上下文。旧 Chat Completions 消息在发送时转换；切回其它选项时兼容客户端忽略此扩展字段。
 
-SSE 按 Responses 事件解析文字、拒答、推理摘要与工具参数增量；只在 completed 终态后执行完整工具调用。`max_output_tokens` 截断映射到原循环的 length 分支；供应商失败、其它不完整终态、非法事件或终态前断流都返回可读错误，不执行残缺工具。终态输出覆盖累计结果，不重复显示已发出的文本；中止复用现有连接关闭与 abort 契约。
+默认附 `reasoning:{summary:"auto"}` 请求推理摘要，不调整推理强度。已知非推理模型（`gpt-3.5`、`gpt-4`、`chatgpt-4o`、`gpt-5-chat` 前缀）略过该参数；使用非推理模型别名或不支持摘要的网关时，可在 `agent_compat_overrides` 设 `responses_reasoning_summary:false`。显示内容以供应商实际返回的摘要为准。
+
+每个对话请求带稳定的 `prompt_cache_key`，按 Vault 规范路径、对话 ID 与模型做哈希，不发送路径明文或密钥；跨工具轮次、下一次用户消息和服务重启保持一致。运行时去除存储元数据时保留 `_response_items`，由协议客户端展开，维持原生输入前缀。缓存命中仍取供应商 `input_tokens_details.cached_tokens`，键和相同前缀不保证上游命中；题库词表、模型或历史内容变化可能改变可复用前缀。连接测试没有对话缓存键。
+
+SSE 按 Responses 事件解析文字、拒答、推理摘要与工具参数增量；只在 completed 终态后执行完整工具调用。终态 output 缺失或为空时，按原顺序恢复已收到 `output_item.done` 的完整项；存在未完成项、只有参数片段，或终态遗漏已发出的工具调用时返回响应不完整错误。完整终态输出覆盖累计结果，不重复显示文本。`max_output_tokens` 截断走原循环的 length 分支；供应商失败、其它不完整终态、非法事件或终态前断流不执行残缺工具。中止复用连接关闭与 abort 契约。
 
 ### 测试用假模型
 

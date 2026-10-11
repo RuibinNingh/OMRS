@@ -33,6 +33,9 @@ class Provider(BaseHTTPRequestHandler):
             assert payload["store"] is False and "previous_response_id" not in payload, "上下文必须保存在本地"
             assert "max_output_tokens" in payload and "stream_options" not in payload, "输出上限字段错误"
             assert all("function" not in tool and tool["strict"] is False for tool in payload.get("tools", [])), "工具必须平铺且保留可选参数"
+            assert payload.get("reasoning") == {"summary": "auto"}, "必须主动请求推理摘要"
+            if payload["stream"]:
+                assert payload.get("prompt_cache_key", "").startswith("omrs_"), "对话必须有稳定缓存键"
             serial = len(self.server.requests)
             items = payload["input"]
             if not payload["stream"]:
@@ -48,7 +51,7 @@ class Provider(BaseHTTPRequestHandler):
                 assert any(item.get("type") == "function_call" and item["call_id"] == call_id for item in items), "结果必须匹配 call_id"
                 result = json.loads(items[-1]["output"])
                 assert isinstance(result, dict) and result, "应读取真实题库概况"
-                output = [message("Responses 已查询数学概况。")]
+                output = [message("## 数学概况\n\nResponses 已查询数学概况。\n\n### 下一步\n\n可以继续查看薄弱分类。")]
             else:
                 output = [reasoning(), tool_call("get_overview", '{"subject":"数学"}', f"call_overview_{serial}")]
             output = copy.deepcopy(output)
@@ -56,6 +59,11 @@ class Provider(BaseHTTPRequestHandler):
                 item["id"] = f"{item['id']}_{serial}_{index}"
             data = response(output)
             data["id"] = f"resp_{serial}"
+            prior = [body for _, body in self.server.requests[:-1] if body["stream"]]
+            # 合成供应商按收到的稳定前缀报告缓存；仅验证协议与界面，不代表生产命中。
+            cached = bool(payload["stream"] and prior and prior[-1]["prompt_cache_key"] == payload["prompt_cache_key"]
+                          and items[:len(prior[-1]["input"])] == prior[-1]["input"])
+            data["usage"]["input_tokens_details"]["cached_tokens"] = 80 if cached else 0
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream" if payload["stream"] else "application/json")
             self.end_headers()
@@ -74,7 +82,8 @@ class Provider(BaseHTTPRequestHandler):
                 else:
                     events.append({"type": "response.output_text.delta", "delta": item["content"][0]["text"]})
                 events.append({"type": "response.output_item.done", "output_index": index, "item": item})
-            events.append(terminal(data))
+            # 模拟网关终态空 output；前面的 output_item.done 才是完整原生输出。
+            events.append(terminal({**data, "output": []}))
             for event in events:
                 self.wfile.write(("event: " + event["type"] + "\ndata: " + json.dumps(event, ensure_ascii=False) + "\n\n").encode())
                 self.wfile.flush()
@@ -117,7 +126,7 @@ def main():
                     time.sleep(0.2)
             with sync_playwright() as playwright:
                 browser = launch_chromium(playwright)
-                context = browser.new_context(viewport={"width": 1440, "height": 900})
+                context = browser.new_context(viewport={"width": 1440, "height": 900}, reduced_motion="reduce")
                 page = context.new_page()
                 page.on("pageerror", lambda error: errors.append(str(error)))
                 open_app(page, base, "settings")
@@ -129,7 +138,7 @@ def main():
                 page.check("#st-agent-vision")
                 page.fill("#st-agent-base", f"http://127.0.0.1:{server.server_address[1]}/v1/chat/completions")
                 page.fill("#st-agent-key", "responses-test-key")
-                page.fill("#st-agent-model", "responses-test")
+                page.fill("#st-agent-model", "gpt-6.1-sol")
                 page.select_option("#st-agent-compat", "openai")
                 page.click('[data-action="settings.agentTest"]')
                 page.wait_for_function("() => /连接正常|连接失败/.test(document.querySelector('#st-agent-status')?.textContent || '')")
@@ -146,22 +155,42 @@ def main():
                 page.wait_for_selector(".ast-turn:not(.is-live)", timeout=30000)
                 check("Responses 工具执行后显示最终回答", "Responses 已查询数学概况。" in page.locator(".ast-turn").inner_text())
                 check("推理摘要显示在聊天轨迹", "先查询" in page.locator(".ast-turn").inner_text())
+                check("空终态仍执行完整工具且不显示已中止", page.locator(".ast-tool__st.is-done").count() == 1
+                      and page.locator(".ast-tool__st.is-aborted").count() == 0)
+                check("Markdown 标题渲染为 h2/h3", page.locator(".ast-md h2").inner_text() == "数学概况"
+                      and page.locator(".ast-md h3").inner_text() == "下一步")
+                check("缓存按供应商实际回执显示", "33%" in page.locator(".ast-meter").inner_text())
                 check("工具请求使用设置的输出上限", all(payload["max_output_tokens"] == 10240 for _, payload in server.requests if payload["stream"]))
                 page.reload(wait_until="networkidle")
                 page.wait_for_selector(".ast-turn:not(.is-live)")
                 check("刷新重放回答与用量", "Responses 已查询数学概况。" in page.locator(".ast-turn").inner_text()
-                      and "缓存" in page.locator(".ast-meter").inner_text())
+                      and "33%" in page.locator(".ast-meter").inner_text() and page.locator(".ast-md h2").count() == 1)
                 page.fill("#ast-input", "再查一次")
                 page.click('[data-action="assistant.send"]')
                 page.wait_for_function("() => document.querySelectorAll('.ast-turn:not(.is-live)').length === 2", timeout=30000)
                 check("持久上下文支持下一次用户消息", len([body for _, body in server.requests if body["stream"]]) == 4)
+                requests = [body for _, body in server.requests if body["stream"]]
+                check("同对话跨轮次和刷新复用缓存键", len({body["prompt_cache_key"] for body in requests}) == 1)
+                check("下一运行完整复用此前请求前缀", all(after["input"][:len(before["input"])] == before["input"]
+                      for before, after in zip(requests, requests[1:])))
                 store = AgentStore(vault)
                 conv_id = store.conversations()[0]["id"]
                 check("原生推理和工具项保存在 agent.db", any(item.get("encrypted_content") == "完整的加密推理"
                       for msg in store.messages(conv_id) for item in msg.get("_response_items", [])))
                 for width in (1440, 390):
                     page.set_viewport_size({"width": width, "height": 900})
+                    if width < 1160:
+                        page.wait_for_function("() => getComputedStyle(document.querySelector('.ast-rail')).visibility === 'hidden'")
+                    page.locator(".ast-md h2").last.scroll_into_view_if_needed()
                     check(f"{width}px 无横向溢出", page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"))
+                    check(f"{width}px 标题实际可见且无遮挡", page.locator(".ast-md h2").last.evaluate("el => { const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); }"))
+                    for theme in ("light", "dark"):
+                        page.evaluate("theme => document.documentElement.dataset.theme = theme", theme)
+                        check(f"{theme}/{width}px 标题层级清晰", page.locator(".ast-md").first.evaluate("el => { const h2 = getComputedStyle(el.querySelector('h2')); const h3 = getComputedStyle(el.querySelector('h3')); return parseFloat(h2.fontSize) > parseFloat(h3.fontSize); }"))
+                        output_dir = os.environ.get("OMRS_RESPONSES_SCREENSHOTS")
+                        if output_dir:
+                            os.makedirs(output_dir, exist_ok=True)
+                            page.screenshot(path=os.path.join(output_dir, f"responses-{theme}-{width}.png"))
                 context.close()
     except Exception as error:  # noqa: BLE001
         results.append((f"执行出错：{error!r}", False))

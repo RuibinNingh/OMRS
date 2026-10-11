@@ -54,6 +54,10 @@ def _call_fields(item):
 
 
 class ResponsesClient(OpenAICompatClient):
+    def __init__(self, base_url, api_key, model, compat, timeout=120, debug_path=None, *, prompt_cache_key=None):
+        super().__init__(base_url, api_key, model, compat, timeout, debug_path)
+        self.prompt_cache_key = prompt_cache_key
+
     @property
     def endpoint(self):
         base = self.base_url
@@ -86,6 +90,12 @@ class ResponsesClient(OpenAICompatClient):
                               "content": _input_content(msg.get("content"))})
         payload = {"model": self.model, "input": items, "stream": bool(stream), "store": False,
                    "include": ["reasoning.encrypted_content"]}
+        # 不改推理强度；旧非推理模型不接受 reasoning 参数，模型别名可用兼容开关关闭。
+        non_reasoning = str(self.model).lower().startswith(("gpt-3.5", "gpt-4", "chatgpt-4o", "gpt-5-chat"))
+        if self.compat.get("responses_reasoning_summary", True) and not non_reasoning:
+            payload["reasoning"] = {"summary": "auto"}
+        if self.prompt_cache_key:
+            payload["prompt_cache_key"] = self.prompt_cache_key
         if max_tokens:
             payload["max_output_tokens"] = int(max_tokens)
         if tools:
@@ -98,8 +108,16 @@ class ResponsesClient(OpenAICompatClient):
         self._mark(state)
         state["usage"] = data.get("usage")
         output = data.get("output")
-        if output is None:
-            output = [item for _, item in sorted(state.get("items", {}).items())]
+        if output is None or output == []:
+            # 部分网关终态只有状态/用量；只能恢复 output_item.done，不能执行 added 或参数拼片。
+            done = state.get("done_items", {})
+            pending = (set(state.get("items", {})) | set(state["calls"]) | state.get("delta_items", set())) - set(done)
+            if data.get("status") == "completed" and (pending or (
+                    (state["content"] or state["reasoning"]) and not done)):
+                raise RuntimeError("Responses 终态缺少完整输出项，响应不完整")
+            output = [item for _, item in sorted(done.items())]
+        if not isinstance(output, list) or any(not isinstance(item, dict) for item in output):
+            raise RuntimeError("Responses output 必须是输出项数组")
         state["response_items"] = copy.deepcopy(output)
         content, reasoning, calls = [], [], {}
         for index, item in enumerate(output):
@@ -114,6 +132,8 @@ class ResponsesClient(OpenAICompatClient):
                 reasoning.extend(part.get("text") or "" for part in item.get("summary") or [])
                 reasoning.extend(part.get("text") or "" for part in item.get("content") or [])
             elif kind == "function_call":
+                if data.get("status") == "completed" and item.get("status") not in (None, "completed"):
+                    raise RuntimeError("Responses 工具调用未完整结束，响应不完整")
                 call = _call_fields(item)
                 if not call["id"] or not call["name"]:
                     raise RuntimeError("Responses 工具调用缺少 call_id 或名称")
@@ -123,6 +143,10 @@ class ResponsesClient(OpenAICompatClient):
             if parts and not state[key] and on_delta:
                 on_delta(kind, "".join(parts), None)
             state[key] = parts
+        if data.get("status") == "completed":
+            seen = {call["id"] for call in state["calls"].values() if call["id"]}
+            if seen - {call["id"] for call in calls.values()} or (state["calls"] and not calls):
+                raise RuntimeError("Responses 终态遗漏工具调用，响应不完整")
         state["calls"] = calls
         status = data.get("status")
         if status == "completed":
@@ -140,6 +164,8 @@ class ResponsesClient(OpenAICompatClient):
 
     def _read_stream(self, resp, state, on_delta, cancel):
         state["items"] = {}
+        state["done_items"] = {}
+        state["delta_items"] = set()
         for event in _events(resp, cancel):
             kind = event.get("type")
             if kind == "error":
@@ -151,6 +177,8 @@ class ResponsesClient(OpenAICompatClient):
             if kind in ("response.output_item.added", "response.output_item.done"):
                 index, item = event["output_index"], event["item"]
                 state["items"][index] = copy.deepcopy(item)
+                if kind == "response.output_item.done":
+                    state["done_items"][index] = copy.deepcopy(item)
                 if item.get("type") == "function_call":
                     self._mark(state)
                     state["calls"][index] = call = _call_fields(item)
@@ -160,6 +188,8 @@ class ResponsesClient(OpenAICompatClient):
                           "response.reasoning_summary_text.delta", "response.reasoning_text.delta"):
                 text = event.get("delta") or ""
                 if text:
+                    if "output_index" in event:
+                        state["delta_items"].add(event["output_index"])
                     self._mark(state)
                     thinking = kind in ("response.reasoning_summary_text.delta", "response.reasoning_text.delta")
                     state["reasoning" if thinking else "content"].append(text)

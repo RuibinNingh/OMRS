@@ -20,6 +20,8 @@
 | 全库备份、恢复协议与回退 | `AI/backup.md` |
 | 内置助手、持久事件与分页 | `AI/agent.md` |
 
+助手主模型 Responses 的摘要请求、完整输出恢复及会话缓存键契约见 `AI/agent.md` §2；摘要兼容开关的配置入口见 `AI/api/queries.md`，用量仍随持久运行事件返回。
+
 外部 MCP 的调用说明随工具发现返回，集中来源为 `omrs/mcp/tool_docs.py`；包括用途、参数来源、分页单位、版本与技术重试、录题示例和网页审核状态。元数据不改变领域校验和 HTTP 路由。录题的原图、块与错因规范见 `AI/mcp.md`，草稿修订协议见 `AI/api/extensions.md`。
 
 收件箱与草稿区域提取的数学定界符转义兼容、正文格式及失败边界见 `AI/api/extensions.md`「收件箱端点」与 `AI/inbox.md` §4。
