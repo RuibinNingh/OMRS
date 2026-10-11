@@ -25,6 +25,15 @@
 - `env -u OMRS_SYSTEMD_SERVICE -u OMRS_BOXDETECT_CONTROL python3 tests/visual/run.py --ref d529689 --pages assistant --out /tmp/omrs-responses-followup-visual`：4 组截图，0 差异、无脚本错误。此夹具为助手欢迎页；实际回答标题另有前述 E2E 的 4 张双主题/宽度截图。
 - 已用 `git diff --name-status`、`git diff --stat` 和 `git diff --check` 复核实际改动；`python3 tests/check_docs.py --write-log-index` 已生成索引，`python3 tests/check_docs.py --diff HEAD` 检查 105 份文档，0 问题；2 条提醒为已有大计划文件。
 
-## 尚未执行与下一步
+## 发布及只读验收
 
-精确 release 的隔离门禁在发布前完成，结果继续写在本日志。生产模型的摘要内容、真实缓存命中及实体手机未验证；隔离测试使用合成供应商，不把合成 cached_tokens 当作生产证明。下一步：完成本地提交，建立新的生产一致备份、精确归档及隔离验证后上线，再做只读验收。
+- 实现提交：`f3b94bcfd342744c0a893adfe2f77b0bddab6507`。精确归档 `/root/workspace/apps/releases/omrs-f3b94bc`，1,296 个源码文件逐字节核验，复用既有生产 `.venv`；运行源码 pin 与部署文档提交分开，版本保持 v2.3.9，未推送远端。
+- 在精确 release 和生产依赖下运行 `/tmp/omrs-responses-followup-release-20261011/validate-release.py`，4/4 组通过、无跳过：后端 68/68（Responses、循环、附图、用量、资源缓存）；Responses 闭环 24/24；原助手 59/59；设置页 71/71。全用临时 Vault/随机端口，清除生产控制环境变量，不调用真实付费模型。
+- 本轮保全目录 `/root/workspace/apps/releases/OMRS-responses-followup-release-20261011T045621Z-0kfpba3p`（目录0700、文件0600），包括新旧源码、控制配置、停服后一致 Vault/maintenance tar、私人表/文件摘要、门禁和只读验收证据；tar 与原目录比较通过，992 个解包文件一致，副本 SQLite 完整性通过。
+- 上线前核对各后台库活跃任务与等待确认均为零，恢复/正式改题/标记意图为空。只切换持久别名 `omrs-9b29d49` 并重启主服务。2026-10-11 12:58 CST 完成，至就绪 3.195 秒；主服务 PID399122，actual cwd 指向精确 release，active/running、NRestarts=0。
+- 以本轮停服新基线核对：49 张业务表、935 个内容/关键配置文件、89 个控制文件/模型指针均保持；299 题、0 冲突、待审0。Tunnel/检测/Nginx 的 PID 和状态不变，未重启相邻服务；启动后错误级 journal 无记录。旧源码及全部既有保全继续保留；失败回退只恢复兼容源码指针，不恢复旧 Vault。
+- `/tmp/omrs-responses-followup-release-20261011/read-live.py` 在生产依赖下只读验收通过：Markdown脚本、助手运行样式和main模块HTTP200，gzip解压字节与release一致，immutable与304通过，公网匿名资源401。客户端构造静态核对摘要、对话缓存键和运行时原生上下文保留；不发送模型请求。公网入口/授权摘要200，匿名status/MCP401，回环MCP无Key401。本机及公网真实浏览器390px PIN入口无横溢、无脚本错误，未输入PIN。
+
+## 未执行与下一步
+
+生产模型的摘要内容、真实缓存命中、PIN后工作台、Windows及实体手机未验证；隔离测试使用合成供应商，生产验收只读，不把合成 cached_tokens 当作生产证明。已完成实现与发布，下一步由用户刷新页面继续生产测试，按上游真实回执核对摘要及缓存命中。
