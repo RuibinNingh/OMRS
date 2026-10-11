@@ -48,12 +48,13 @@ def seed(vault):
         store.add_message("many", run, {"role": "user", "content": text})
         events = [{"type": "round.start", "t": 0, "data": {"n": 1}}]
         if index == 44:
-            events.extend({"type": "delta", "t": i + 1, "data": {"kind": "text", "n": 1, "text": "段"}}
-                          for i in range(407))
+            events.append({"type": "delta", "t": 1, "data": {"kind": "think", "n": 1, "text": "历史思考摘要"}})
+            events.extend({"type": "delta", "t": i + 2, "data": {"kind": "text", "n": 1, "text": "段"}}
+                          for i in range(1207))
         events.extend([
-            {"type": "delta", "t": 500, "data": {"kind": "text", "n": 1, "text": f"末尾标记{index:02d}"}},
-            {"type": "round.end", "t": 501, "data": {"n": 1, "usage": {}}},
-            {"type": "run.end", "t": 502, "data": {"reason": "completed"}}])
+            {"type": "delta", "t": 1210, "data": {"kind": "text", "n": 1, "text": f"末尾标记{index:02d}"}},
+            {"type": "round.end", "t": 1211, "data": {"n": 1, "usage": {}}},
+            {"type": "run.end", "t": 1212, "data": {"reason": "completed"}}])
         store.save_run(run, status="done", reason="completed", events=events, ended=True)
     store._exec("UPDATE conversations SET updated_at='2099-01-01T00:00:00Z' WHERE id='many'")
     return question
@@ -207,12 +208,49 @@ def main():
                           and page.locator('[data-action="assistant.toggleLong"]').inner_text() == "收起")
                     check("部分轨迹明确提示尚未全部读取", page.locator('[data-action="assistant.loadRunEvents"]').count() == 1
                           and "末尾标记44" not in page.locator('[data-key="run-history_44"]').inner_text())
-                    page.locator('[data-action="assistant.loadRunEvents"]').click()
-                    page.wait_for_timeout(250)
+                    run = page.locator('[data-key="run-history_44"]')
+                    run.locator('[data-action="assistant.toggleTrace"]').click()
+                    page.wait_for_function("() => document.querySelector('[data-key=\"run-history_44\"] [data-action=\"assistant.toggleTrace\"]')?.getAttribute('aria-expanded') === 'false'")
+                    check("读取前可手动收起处理过程", run.locator('[data-action="assistant.toggleTrace"]').get_attribute('aria-expanded') == "false")
+                    event_reads = []
+                    page.on("request", lambda request: event_reads.append(request.url)
+                            if "/api/agent/events?run=history_44" in request.url else None)
                     page.locator('[data-action="assistant.loadRunEvents"]').click()
                     page.wait_for_function("() => !document.querySelector('[data-action=\"assistant.loadRunEvents\"]')")
-                    answer = page.locator('[data-key="run-history_44"] .ast-result').inner_text()
-                    check("全部411事件可续接读完并显示最终完整回答", answer.count("段") == 407 and "末尾标记44" in answer)
+                    answer = run.locator('.ast-result').inner_text()
+                    check("一次点击自动读完1212事件并显示最终完整回答", len(event_reads) == 3
+                          and answer.count("段") == 1207 and "末尾标记44" in answer
+                          and run.locator('[data-action="assistant.toggleTrace"]').get_attribute('aria-expanded') == "true"
+                          and "历史思考摘要" in run.locator('.ast-trace').inner_text()
+                          and not run.locator('.ast-note').count())
+                    shots = os.environ.get("OMRS_ASSISTANT_HISTORY_SHOTS")
+                    if shots:
+                        Path(shots).mkdir(parents=True, exist_ok=True)
+                    for width in (1440, 390):
+                        page.set_viewport_size({"width": width, "height": 900})
+                        for theme in ("light", "dark"):
+                            page.reload(wait_until="networkidle")
+                            page.evaluate("theme => document.documentElement.dataset.theme = theme", theme)
+                            if width < 1160:
+                                page.wait_for_function("() => getComputedStyle(document.querySelector('.ast-rail')).visibility === 'hidden'")
+                            run = page.locator('[data-key="run-history_44"]')
+                            run.locator('[data-action="assistant.toggleTrace"]').click()
+                            page.wait_for_function("() => document.querySelector('[data-key=\"run-history_44\"] [data-action=\"assistant.toggleTrace\"]')?.getAttribute('aria-expanded') === 'false'")
+                            button = run.locator('[data-action="assistant.loadRunEvents"]')
+                            button.scroll_into_view_if_needed()
+                            check(f"{theme}/{width}px 完整展开入口可见且无遮挡", button.evaluate("el => { const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && el.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)); }"))
+                            if shots:
+                                page.screenshot(path=str(Path(shots) / f"history-{theme}-{width}-before.png"))
+                            before_reads = len(event_reads)
+                            button.click()
+                            page.wait_for_function("() => !document.querySelector('[data-action=\"assistant.loadRunEvents\"]')")
+                            run.locator('.ast-process').scroll_into_view_if_needed()
+                            check(f"{theme}/{width}px 一次展开所有剩余页且无横溢", len(event_reads) - before_reads == 3
+                                  and run.locator('[data-action="assistant.toggleTrace"]').get_attribute('aria-expanded') == "true"
+                                  and run.locator('.ast-result').inner_text().count("段") == 1207
+                                  and page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"))
+                            if shots:
+                                page.screenshot(path=str(Path(shots) / f"history-{theme}-{width}-after.png"))
                     check("专项页面路径没有脚本错误", not errors)
                     page.close()
                     browser.close()

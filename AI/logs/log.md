@@ -5,6 +5,7 @@
 - [2026-10-11_responses-followup](2026-10-11_responses-followup.md)：Responses 测试反馈修复
 - [2026-10-11_openai-responses](2026-10-11_openai-responses.md)：AI 助手的 OpenAI 选项使用 Responses
 - [2026-10-11_openai-responses-release](2026-10-11_openai-responses-release.md)：Responses 生产部署
+- [2026-10-11_assistant-expand-history](2026-10-11_assistant-expand-history.md)：助手运行记录一次展开
 - [2026-10-09_mcp-manual-crop](2026-10-09_mcp-manual-crop.md)：MCP 草稿人工裁框保存修复
 - [2026-10-09_mcp-manual-crop-release](2026-10-09_mcp-manual-crop-release.md)：MCP 人工裁框修复生产部署与 GitHub 提交
 - [2026-10-09_extract-success-status](2026-10-09_extract-success-status.md)：提取成功提示与生产发布

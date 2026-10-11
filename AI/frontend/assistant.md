@@ -4,7 +4,7 @@
 > - 职责：`#/assistant` 页面——对话列表、附图消息、运行轨迹、草稿卡片、确认与撤销、检查器、上下文用量
 > - 入口：`assets/app/features/assistant/index.js`（页面契约与控制器）、`attachments.js`（图片校验与缩放）、`interactions.js`（输入和拖放）、`mobile-layout.js`（可见视口）、`state.js`（事件归约）、`view.js` / `insp-view.js` / `tools-view.js`（视图）
 > - 不变量：模板不写 `style=`，条形、瀑布、火花线、用量环一律 SVG 属性；已结束的运行带 `data-hash` 整棵跳过 morph；批准只由用户点按钮发出，绑定已展示的提案版本
-> - 必跑测试：`tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_responses.py`、`tests/e2e/assistant_p3.py`、`tests/e2e/assistant_race.py`、`tests/e2e/assistant_review.py`
+> - 必跑测试：`tests/app/assistant.test.mjs`、`tests/app/assistant-history.test.mjs`、`tests/e2e/audit_identity.py`、`tests/e2e/assistant.py`、`tests/e2e/assistant_responses.py`、`tests/e2e/assistant_p3.py`、`tests/e2e/assistant_race.py`、`tests/e2e/assistant_review.py`
 > - 相关：`AI/agent.md`（接口、事件、权限）、`AI/frontend/settings.md`（AI 助手分区）、`AI/frontend/design-system.md`
 
 ## 结构
@@ -53,7 +53,9 @@ OpenAI（Responses）的文字、拒答和工具增量由服务端归一成同�
 
 ## 有界历史读取
 
-对话列表默认每页 30 条，提供「更多对话」；详情按每页 20 个运行组加载最新页，提供「加载更早的消息」，向前插入后保持当前滚动位置。运行轨迹初页最多 200 条事件，有后续时明确标记未全部读取并提供「继续读取运行记录」。活动运行继续按稳定事件序号长轮询；完成／重启后的序号和历史游标由服务端持久化，历史仍可逐页访问。
+对话列表默认每页 30 条，提供「更多对话」；详情按每页 20 个运行组加载最新页，提供「加载更早的消息」，向前插入后保持当前滚动位置。运行轨迹初页最多 200 条事件，有后续时明确标记未全部读取并提供「展开完整运行记录」。点击一次自动展开处理过程，并按每次最多 500 条事件连续读到末页；读取期间显示「正在展开…」并禁止重复点击，读完后移除入口和未读完提示。单个工具步骤仍沿用自己的展开状态。失败保留已读记录和游标，再次点击从断点继续；空续页或不前进的游标会报错并停止请求。
+
+活动运行继续按稳定事件序号长轮询，历史展开不会抢占已有跟随读取；完成／重启后的序号和历史游标由服务端持久化。自动续页在发起对话切换、替换当前运行或离页后停止，迟到响应与错误提示不进入新对话。
 
 用户消息与运行使用持久 `item_key`，加载更早页不改变展开状态、图片定位或当前运行对象。分段读取未到结束事件时不合成提前终止，后续 delta 可正确续接。对话切换与卸载丢弃旧页响应；当前运行结束后刷新对应领域和最新列表。
 

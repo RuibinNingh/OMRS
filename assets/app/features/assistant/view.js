@@ -138,7 +138,7 @@ export function turnView(S, run, perfNow) {
       <span class="ast-process__label" role="status">${label}</span><span class="ast-process__meta">${detail}</span>${icon(collapsed ? 'chevron-right' : 'chevron-down')}</button>
       ${collapsed ? '' : html`<div class="ast-trace" id="process-${run.id}" data-key="process-body">${each(process, st => st.id, st => stepView(S, run, st, now))}</div>`}</section>
     <div class="ast-result" data-key="result">${each(outside, st => st.id, st => stepView(S, run, st, now))}</div>
-    ${run.eventsMore ? html`<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.loadRunEvents" data-arg="${run.id}"${run.eventsBusy || run.following ? html` disabled` : ''}>${run.eventsBusy ? '读取中…' : '继续读取运行记录'}</button><p class="ast-note">这次运行的记录尚未全部读取。</p>` : ''}
+    ${run.eventsMore ? html`<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.loadRunEvents" data-arg="${run.id}"${run.eventsBusy || run.following ? html` disabled` : ''}>${run.eventsBusy ? '正在展开…' : '展开完整运行记录'}</button><p class="ast-note">这次运行的记录尚未全部读取。</p>` : ''}
     ${live ? '' : footView(run)}`;
   return html`<article class="${cls('ast-turn', live && 'is-live', run.reverted && 'is-undone', S.runSel === run.id && 'is-selected')}" data-key="run-${run.id}" ${live ? '' : raw(`data-hash="${run.id}:${run.ver}:${S.uiVer}:${S.draftVer || 0}:${S.reviewVer || 0}:${S.runSel === run.id ? 1 : 0}"`)}>${body}</article>`;
 }
