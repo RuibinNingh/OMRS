@@ -1,0 +1,62 @@
+/* 作业帮来源、后端原图预览和人工核对，沿用全站语义 token。 */
+.zyb-workspace { display: grid; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); gap: var(--sp-4); padding-bottom: var(--sp-4); }
+.zyb-source, .zyb-content { display: grid; gap: var(--sp-4); min-width: 0; align-content: start; }
+.zyb-pane { padding: var(--sp-4); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-1); min-width: 0; display: grid; gap: var(--sp-3); }
+.zyb-pane h2, .zyb-pane h3, .zyb-pane h4 { margin: 0; color: var(--fg-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.zyb-pane h3 { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.zyb-pane h4, .zyb-pane h3 small { font-size: var(--text-sm); }
+.zyb-pane small { color: var(--fg-2); font-weight: var(--weight-regular); }
+.zyb-help { margin: 0; color: var(--fg-2); font-size: var(--text-sm); line-height: var(--leading-read); overflow-wrap: anywhere; }
+.zyb-head, .zyb-toolbar, .zyb-render-footer, .zyb-actionbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-3); min-width: 0; }
+.zyb-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
+.zyb-profile { position: relative; cursor: pointer; width: fit-content; }
+.zyb-profile input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.zyb-profile:focus-within { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.zyb-observations { margin-top: var(--sp-3); }
+.zyb-observations summary, .zyb-pane > summary, .zyb-render-log summary { min-height: var(--ctl-lg); display: flex; align-items: center; cursor: pointer; font-size: var(--text-sm); color: var(--fg-2); }
+.zyb-observations ul { padding-left: var(--sp-4); color: var(--fg-2); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.zyb-pane dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-2); margin: var(--sp-3) 0 0; font-size: var(--text-xs); }
+.zyb-pane dt { color: var(--fg-2); }
+.zyb-pane dd { margin: 0; color: var(--fg-1); overflow-wrap: anywhere; }
+.zyb-camera { background: var(--surface-sunken); border-radius: var(--r-sm); min-height: 160px; display: grid; place-items: center; overflow: hidden; }
+.zyb-camera span { padding: var(--sp-4); text-align: center; color: var(--fg-2); font-size: var(--text-sm); }
+.zyb-camera video { width: 100%; display: block; }
+.zyb-camera video[hidden], .zyb-camera span[hidden] { display: none; }
+.zyb-source-image { display: block; width: 100%; max-height: 240px; object-fit: contain; border-radius: var(--r-sm); }
+.zyb-candidates { display: grid; gap: var(--sp-2); }
+.zyb-candidate { display: grid; text-align: left; gap: var(--sp-1); padding: var(--sp-3); border: 1px solid var(--border-2); background: var(--surface-1); color: var(--fg-1); border-radius: var(--r-sm); cursor: pointer; font: inherit; min-width: 0; }
+.zyb-candidate:hover { background: var(--surface-2); }
+.zyb-candidate.on { border-color: var(--focus-ring); background: var(--accent-soft); }
+.zyb-candidate:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.zyb-candidate:disabled { opacity: .6; cursor: default; }
+.zyb-candidate strong, .zyb-candidate span { font-size: var(--text-sm); line-height: var(--leading-read); overflow-wrap: anywhere; }
+.zyb-candidate small { font-size: var(--text-xs); }
+.zyb-preview-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-2); font-size: var(--text-xs); color: var(--fg-2); }
+.zyb-viewport { min-width: 0; width: 100%; max-height: min(65vh, 720px); min-height: 220px; overflow: auto; background: var(--surface-sunken); border: 1px solid var(--border-1); border-radius: var(--r-sm); overscroll-behavior: contain; }
+.zyb-viewport img { display: block; width: 100%; height: auto; }
+.zyb-viewport.is-actual img { width: 1080px; max-width: none; }
+.zyb-code { margin: 0; padding: var(--sp-4); font-family: var(--font-mono); font-size: var(--text-sm); line-height: var(--leading-read); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--fg-1); }
+.zyb-empty { padding: var(--sp-8); text-align: center; display: grid; gap: var(--sp-3); color: var(--fg-2); font-size: var(--text-sm); }
+.zyb-empty p { margin: 0; }
+.zyb-render-footer { color: var(--fg-2); font-size: var(--text-xs); }
+.zyb-status { padding: var(--sp-3) var(--sp-4); font-size: var(--text-sm); color: var(--fg-2); border-radius: var(--r-sm); background: var(--surface-1); overflow-wrap: anywhere; }
+.zyb-status:empty { display: none; }
+.zyb-status.is-error, .zyb-error { color: var(--danger-fg); background: var(--danger-soft); }
+.zyb-error { padding: var(--sp-3); border-radius: var(--r-sm); font-size: var(--text-sm); }
+.zyb-section { display: grid; gap: var(--sp-2); padding: var(--sp-3); background: var(--surface-sunken); border-radius: var(--r-sm); }
+.zyb-section strong { font-size: var(--text-sm); font-weight: var(--weight-semibold); }
+.zyb-field { display: grid; gap: var(--sp-2); font-size: var(--text-sm); color: var(--fg-2); min-width: 0; }
+.zyb-field textarea { resize: vertical; min-height: 80px; }
+.zyb-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
+.zyb-actionbar { border-top: 1px solid var(--border-1); padding-top: var(--sp-3); }
+.zyb-result { display: grid; gap: var(--sp-2); padding: var(--sp-4); background: var(--success-soft); color: var(--success-fg); border-radius: var(--r-md); font-size: var(--text-sm); overflow-wrap: anywhere; }
+.zyb-history { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--sp-3); }
+.zyb-history li { min-width: 0; display: grid; gap: var(--sp-1); }
+.zyb-history .ui-btn { max-width: 100%; white-space: normal; text-align: left; height: auto; min-height: var(--ctl-md); }
+.zyb-history small { font-size: var(--text-xs); }
+.zyb-qr { display: grid; justify-items: center; gap: var(--sp-3); text-align: center; }
+.zyb-qr img { width: 240px; max-width: 100%; }
+.zyb-qr p { font-size: var(--text-md); margin: 0; }
+.zyb-qr small { font-size: var(--text-sm); color: var(--fg-2); }
+@media (max-width: 1160px) { .zyb-workspace { grid-template-columns: minmax(0, 1fr); } .zyb-source { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .zyb-source, .zyb-fields { grid-template-columns: minmax(0, 1fr); } .zyb-viewport { max-height: 60vh; } .zyb-actionbar > .ui-btn { min-height: 44px; } }

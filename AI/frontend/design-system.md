@@ -25,6 +25,8 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 
 主工作台继续通过 `assets/vendor/fonts/fonts.css` 加载 Noto Sans SC 与 JetBrains Mono。新增 `noto-serif-sc.css` 仅供 A4 导出由 `omrs/export_fonts.py` 按内容内嵌，不加入工作台样式入口；打印字体、固定行高及重排契约见 `AI/export.md`。字体目录维护上游分片、SIL OFL 许可和来源 SHA256 清单。
 
+作业帮样式 `features/create/zyb.css` 由总入口以 layer(features) 引入，来源栏和核对控件沿用语义 token；1080后端白纸图片本身不随主题变色。桌面两栏、窄屏上下排列，100%预览仅在内框滚动，不使整页横向溢出；页面审计覆盖320/390/1024/1440px与浅深主题。
+
 ## 2. 语义 token
 
 浅色写在 `:root`，深色写在 `[data-theme="dark"]`，两者名字一致。`data-theme` 与 `data-density` 都挂在 `<html>` 上。

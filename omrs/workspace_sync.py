@@ -95,6 +95,8 @@ def _scan_workspace_locked(vault: str):
         pending_ids = set(pending_question_ids(vault))
     except ImportError:
         pending_ids = set()
+    from .zuoyebang.commit import pending_question_ids as pending_zuoyebang_ids
+    pending_ids.update(pending_zuoyebang_ids(vault))
     files = [item for item in files if item["meta"].get("_omrs_id") not in pending_ids]
     conflicts = _detect_conflicts(files)
     changes = []

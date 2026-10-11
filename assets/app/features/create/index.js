@@ -14,6 +14,7 @@ import { processView } from './process-view.js';
 import { createProcess } from './process.js';
 import { createCards } from './cards.js';
 import { createTrain } from './train.js';
+import { createZuoyebang } from './zyb.js';
 import { openReview } from '../../domain/ai-review.js';
 import { consumeDraftTarget, currentDraftCounts } from '../../domain/drafts.js';
 
@@ -31,9 +32,11 @@ function mountParts(root, ctx) {
     if (shown === stage) return;
     const previous = shown;
     shown = stage;
+    if (previous === 'zuoyebang') parts.zuoyebang.leave();
     if (stage === 'process') parts.process.paint();
     if (stage === 'create') parts.cards.paint();
     if (stage === 'train') parts.train.enter();
+    if (stage === 'zuoyebang') void parts.zuoyebang.enter();
     if (stage === 'drafts') { S.stage = 'upload'; void openReview('', { kind: 'draft' }); return; }
     if (previous !== null) root.querySelector(`#ib-stage-${stage}`)?.scrollTo?.(0, 0);
   }
@@ -45,6 +48,7 @@ function mountParts(root, ctx) {
     process: createProcess(root, ctx.bus),
     cards: createCards(root, ctx),
     train: createTrain(root),
+    zuoyebang: createZuoyebang(root, ctx),
   };
   const stops = [
     ctx.bus.on('inbox:changed', paintStage),
@@ -134,6 +138,23 @@ export const page = {
     trainPolicy: ({ arg, event }) => parts?.train.policy(arg, event),
     trainSave: () => parts?.train.save(),
     trainCleanup: ({ arg }) => parts?.train.cleanup(arg === 'crops'),
+    zybCamera: () => parts?.zuoyebang.camera(),
+    zybLogin: () => parts?.zuoyebang.login(),
+    zybAccount: ({ arg }) => parts?.zuoyebang.account(arg),
+    zybSearch: () => parts?.zuoyebang.search(),
+    zybSelect: ({ arg }) => parts?.zuoyebang.select(arg),
+    zybRender: () => parts?.zuoyebang.render(),
+    zybExtract: () => parts?.zuoyebang.extract(),
+    zybRole: ({ arg }) => parts?.zuoyebang.role(arg),
+    zybZoom: ({ arg }) => parts?.zuoyebang.zoom(arg),
+    zybHtml: () => parts?.zuoyebang.html(),
+    zybExpand: () => parts?.zuoyebang.expand(),
+    zybMode: ({ arg }) => parts?.zuoyebang.mode(arg),
+    zybLabels: ({ el }) => parts?.zuoyebang.labels(el),
+    zybCommit: () => parts?.zuoyebang.commit(),
+    zybHistory: ({ arg }) => parts?.zuoyebang.history(arg),
+    zybBoard: ({ el, event }) => parts?.zuoyebang.board(el, event?.shiftKey),
+    zybOpen: () => parts?.zuoyebang.open(),
   },
   keys: Object.fromEntries(['q', 'a', 'x', 'delete', 'backspace', 'enter', 'mod+enter', 'escape']
     .map(name => [name, () => parts?.process.key(name) ?? false])),

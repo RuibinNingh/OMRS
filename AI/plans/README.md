@@ -44,3 +44,4 @@ AI/plans/<计划名>/
 | `omrs-audit-repair/` | 全部完成，已部署v2.2.0并推GitHub | 十九项修复与治理、万题十万反馈容量、真实副本迁移/恢复及生产验收；执行者Codex完整模式，见progress.md |
 | `mcp-review-sessions/` | 已部署v2.2.1并推送GitHub | 正式调度创建、查询增强及v2.2.1；执行者Codex完整模式，见progress.md |
 | `ai-review-center/` | 已部署v2.3.0并推送GitHub | 统一 MCP/助手业务写审核、草稿迁入和安全正式改题；执行者Codex完整模式，见progress.md |
+| `zuoyebang/` | 已完成v2.4.0，本地交付，未部署 | 作业帮账号、实时摄像头、图片搜题、1080完整后端渲染与核对入库；执行者Codex完整模式，见progress.md |

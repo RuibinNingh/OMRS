@@ -266,6 +266,9 @@ def _call_model(vault: str, user_text: str, image_data_url: str, max_tokens: int
     except Exception:
         raise ValueError(f"模型返回格式异常，无法解析：{raw[:600]}")
 
+    if purpose == "extract" and data["choices"][0].get("finish_reason") in ("length", "max_tokens"):
+        raise ValueError("模型输出已达到长度限制，不能作为完整转录；请重试或保留完整图片")
+
     # 个别供应商把 content 拆成 [{type:text,text:...}] 列表
     if isinstance(content, list):
         content = "".join(

@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：稳定题目身份、SQL 读模型、按需 CSV、Markdown 与活动配置；独立存储见分册
 > - 入口：`omrs/data_repository.py`、`omrs/config_repository.py`、`omrs/common.py`、`omrs/indexing.py`
-> - 不变量：题目结构化元数据、复习状态与 Session 以 `ledger.db` 为事实源，CSV 只作按需导出与首次迁移输入；展示板、助手、草稿、收件箱、标注集和运行记录各有独立存储
+> - 不变量：题目结构化元数据、复习状态与 Session 以 `ledger.db` 为事实源，CSV 只作按需导出与首次迁移输入；展示板、助手、草稿、收件箱、标注集、运行记录和作业帮来源各有独立存储
 > - 必跑测试：`tests/test_history_projection.py`、`tests/test_question_records.py`、`tests/test_content_integrity.py`、`tests/test_data_runtime.py`
 > - 相关：`AI/ledger.md`、`AI/security.md`、`AI/mcp-storage.md`
 
@@ -14,6 +14,8 @@
 Vault根的`.omrs-maintenance/`保存生命周期锁、世代、恢复预检与journal，独立于可交换的`错题/`；Git与`错题/`一起忽略该维护目录，防止把暂存的个人数据或恢复材料纳入源码提交。备份与恢复边界见`AI/backup.md`。
 
 锁屏入口的 WebGL 场景只读取静态资源，不读取或写入 Vault、Ledger、配置和题目文件；PIN 会话仍由 `auth.json` 与进程内存会话管理，入口本身不产生持久化数据。
+
+作业帮设备会话、搜题候选、后端渲染与 AI 结果在独立私有目录；人工核对创建时才写 question.create 和同事务 op_results 回执。预留身份及冻结内容保留到原记录重试，普通创建跳过预留 UID，工作区扫描不抢先入账。目录格式见 `AI/data/storage.md` §11，协议见 `AI/zuoyebang.md`。
 
 ---
 

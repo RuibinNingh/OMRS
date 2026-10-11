@@ -13,7 +13,7 @@ OMRS 是一个**本地优先、核心运行时零必装第三方依赖**的个�
 - 一个 **HTML/CSS/JS 单页前端**（`omrs_dashboard.html` + `assets/`）负责录入、即时练习、复习 Session、反馈、数据复盘与导出。
 - 没有构建步骤，题库、算法、Ledger、复习和导出均可离线使用；界面字体随 `assets/vendor/fonts/` 本地提供，AI 图片识别以及报告中用户选择的 HTTPS 外部资源属于可选联网能力。
 
-当前版本：**v2.3.9**。
+当前版本：**v2.4.0**。
 
 本版加入 AI 整批标记整理、修订与撤销，并修复区域提取中数学公式的 JSON 转义问题；保留刷新稳定性与对话内审核。
 
@@ -97,6 +97,19 @@ Responses 助手主动请求模型的推理摘要，实际返回后显示在思�
 ---
 
 ## 快速开始
+
+### 作业帮录入
+
+在「录入题目 → 作业帮」导入登录验收生成的设备会话文件（direct-session.json），再扫码登录或检查账号。上传 JPG、PNG 或 WebP 搜题图片，选择候选后点击渲染，就能查看后端生成的题目图和完整答案图；两张图均宽1080像素，答案不分页。继续 AI 识别、核对正文及科目分类后录入题库；必要附图可保留整图。账号和签名的有效期观察记录可在页面展开查看。
+
+摄像头目前支持打开、实时预览和关闭；搜题使用上传图片。远端调用摄像头须用 HTTPS，localhost 可直接使用。录入导航用作业帮替换 AI 草稿，草稿仍可在审核中心处理。可选后端依赖安装在运行 OMRS 的 Python 环境：
+
+```bash
+python -m pip install -r requirements-zuoyebang.txt
+python -m playwright install chromium
+```
+
+设备会话是私有文件，不随源码提供；签名会话失效时需要重新导入更新后的文件。接口与资源边界见 [AI/zuoyebang.md](AI/zuoyebang.md)。
 
 ### 运行
 
@@ -318,6 +331,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 - Python：仅用标准库（`http.server`、`sqlite3`、`csv`、`json`、`struct`、`datetime`）。
 - 可选图片优化：检测到 Pillow 时可深扫 PNG，检测到 `jpegtran` 时可无损优化 JPEG；缺失时基础功能不受影响。
+- 作业帮录入：可选 Pillow、Segno、Playwright 和 Chromium，用于图片完整性验证、本地扫码二维码与后端渲染；安装方式见上方「作业帮录入」。
 - 前端：无 npm、无 webpack；界面字体与 KaTeX 均作为本地静态资源放在 `assets/vendor/fonts/` 和 `assets/vendor/katex/`，页面不依赖 Google Fonts 外链。
 - AI 识别：只有调用 `/api/ai-recognize` 时才访问用户配置的 OpenAI 兼容服务。
 - AI 报告：核心 HTML 可自包含；报告提示词允许按需引用 HTTPS 字体/图表/图标资源，并要求失败时正文仍可读。
@@ -338,7 +352,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ## 版本
 
-当前版本 **v2.3.9**。各版本改了什么见 [`AI/changelog.md`](AI/changelog.md)（倒序）。
+当前版本 **v2.4.0**。各版本改了什么见 [`AI/changelog.md`](AI/changelog.md)（倒序）。
 
 ---
 

@@ -169,6 +169,15 @@
 | POST | `/api/uploads/complete` | `AI/api.md` |
 | POST | `/api/uploads/start` | `AI/api.md` |
 | POST | `/api/workspace/scan` | `AI/api/mutations.md`、`AI/ledger.md` |
+| POST | `/api/zuoyebang/account` | `AI/zuoyebang.md` |
+| POST | `/api/zuoyebang/commit` | `AI/zuoyebang.md` |
+| GET | `/api/zuoyebang/history` | `AI/zuoyebang.md` |
+| GET | `/api/zuoyebang/image` | `AI/zuoyebang.md` |
+| GET | `/api/zuoyebang/job` | `AI/zuoyebang.md` |
+| POST | `/api/zuoyebang/jobs` | `AI/zuoyebang.md` |
+| POST | `/api/zuoyebang/profile` | `AI/zuoyebang.md` |
+| GET | `/api/zuoyebang/record` | `AI/zuoyebang.md` |
+| GET | `/api/zuoyebang/status` | `AI/zuoyebang.md` |
 | GET | `/index.html` | `AI/api/queries.md` |
 | GET | `/login` | `AI/api/queries.md`、`AI/frontend/shell.md`、`AI/inbox.md`等 |
 | GET | `/m` | `AI/api/extensions.md`、`AI/inbox.md`、`AI/security.md` |

@@ -1,7 +1,7 @@
 # 独立存储结构
 
 > **速查**
-> - 职责：报告、收件箱、标记定义、展示板、助手、标注、草稿、训练与系统运行记录
+> - 职责：报告、收件箱、标记定义、展示板、助手、标注、草稿、训练、系统运行记录与作业帮私有来源
 > - 入口：`omrs/reports.py`、`omrs/inbox.py`、`omrs/boards.py`、`omrs/agent/store.py`
 > - 不变量：独立存储不由学习 Ledger 重放；备份屏障覆盖全部数据库与工作文件
 > - 必跑测试：`tests/test_inbox.py`、`tests/test_practice_card.py`、`tests/test_runtime_records.py`、`tests/test_migration_compat.py`
@@ -211,3 +211,11 @@ reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加acti
 ## 10. MCP 技术存储
 
 报告/草稿/展示板幂等回执、独立确认库与限时导出快照的字段、权限和恢复统一见 `AI/mcp-storage.md`；它们不进入学习 Ledger。
+
+## 11. 作业帮 `错题/.omrs/zuoyebang/`
+
+`session.json` 保存已导入设备与账号，`qr-login.json` 保存扫码生命周期，`observations.json` 保存账号/签名分开的有效区间与最近100事件，`session-events.jsonl` 只追加白名单脱敏历史。目录0700、原子 JSON 和渲染文件0600；不进入源码包或普通接口响应。
+
+`search-<id>/record.json` 保存配对候选与原始来源，`render-<id>/record.json` 保存来源、PNG尺寸/SHA、HTML预览、提取与分类结果，`question.png` 和 `answer.png` 各一张完整图；无答案不产生答案图。`job-<id>/record.json` 保存后台状态，重启后的在途任务只读显示中断。搜题上传原件使用系统临时上传引用，1小时有效，与来源记录分开。
+
+渲染记录的 commit 保存首次规范化表单/保存方式摘要、操作ID、UID/question_id/路径/日期、产物哈希与回执。创建事实和 op_results 在 Ledger 同事务写入，独立状态可在原记录重试补齐；Ledger 不重放会话、候选与渲染目录。全库备份包含该目录，整库恢复变更世代，旧后台任务和上传引用不能写入恢复后的库。详见 `AI/zuoyebang.md`。

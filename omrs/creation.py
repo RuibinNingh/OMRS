@@ -53,6 +53,17 @@ def _next_uid(qroot, category):
             pass
         finally:
             db.close()
+    # 作业帮的未终结创建也预留 UID，避免中断后被其它录入入口占用。
+    from pathlib import Path
+    for record in (Path(qroot) / ".omrs" / "zuoyebang").glob("render-*/record.json"):
+        if record.is_symlink() or record.parent.is_symlink():
+            continue
+        with open(record, encoding="utf-8") as file:
+            operation = json.load(file).get("commit") or {}
+        uid = operation.get("identity", {}).get("uid", "")
+        match = re.fullmatch(rf"{re.escape(category)}(\d+)", uid)
+        if match:
+            used.add(int(match.group(1)))
     next_num = 1
     while next_num in used:
         next_num += 1

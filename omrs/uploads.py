@@ -105,8 +105,10 @@ def _cleanup(vault):
 def start(vault, filename="image", mime="", total_bytes=None, purpose="image", owner=None):
     if total_bytes is not None and (type(total_bytes) is not int or total_bytes < 0):
         raise ValueError("total_bytes 必须是非负整数")
-    if purpose not in ("image", "create", "inbox", "annotate", "draft", "assistant", "backup"):
+    if purpose not in ("image", "create", "inbox", "annotate", "draft", "assistant", "backup", "zuoyebang"):
         raise ValueError("未知上传用途")
+    if purpose == "zuoyebang" and total_bytes is not None and total_bytes > 8 * 1024 * 1024:
+        raise ValueError("搜题图片不能超过8MB")
     with _LOCK:
         _cleanup(vault)
         root = _root(vault)
@@ -141,6 +143,8 @@ def chunk(vault, upload_id, index, data, owner=None):
             raise ValueError("上传分块顺序不正确或已经完成")
         if state["total_bytes"] is not None and state["bytes"] + len(data) > state["total_bytes"]:
             raise ValueError("上传字节超过声明的文件长度")
+        if state["purpose"] == "zuoyebang" and state["bytes"] + len(data) > 8 * 1024 * 1024:
+            raise ValueError("搜题图片不能超过8MB")
         if len(data) > max(0, shutil.disk_usage(directory).free - 64 * 1024 * 1024):
             raise ValueError("暂存空间不足，无法接收此分块")
         with _open_content(directory / "content", writing=True) as target:
@@ -173,7 +177,11 @@ def complete(vault, upload_id, sha256=None, owner=None):
         actual = digest.hexdigest()
         if sha256 is not None and sha256 != actual:
             raise ValueError("上传文件 SHA-256 不匹配")
-        if state["purpose"] != "backup":
+        if state["purpose"] == "zuoyebang":
+            from .zuoyebang.validation import validate_image
+            with _open_content(target) as source:
+                state["mime"] = validate_image(source, state["bytes"])
+        elif state["purpose"] != "backup":
             actual_mime = ("image/png" if prefix.startswith(b"\x89PNG\r\n\x1a\n") else
                            "image/jpeg" if prefix.startswith(b"\xff\xd8\xff") else
                            "image/gif" if prefix.startswith((b"GIF87a", b"GIF89a")) else None)

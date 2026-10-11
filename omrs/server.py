@@ -108,9 +108,10 @@ from .http.ai_review import AiReviewRoutes
 from .http.auth import AuthRoutes
 from .http.media import MediaRoutes
 from .http.history import HistoryRoutes
+from .http.zuoyebang import ZuoyebangRoutes
 
 
-class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, InboxRoutes, TrainingRoutes, DraftsRoutes, AiReviewRoutes, McpRoutes, AuthRoutes, MediaRoutes, HistoryRoutes, http.server.SimpleHTTPRequestHandler):
+class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, InboxRoutes, TrainingRoutes, DraftsRoutes, AiReviewRoutes, McpRoutes, AuthRoutes, MediaRoutes, HistoryRoutes, ZuoyebangRoutes, http.server.SimpleHTTPRequestHandler):
     @property
     def services(self):
         # 领域层通过此对象复用应用服务，测试替换仍只需修改 omrs.server。
@@ -294,7 +295,7 @@ class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, Inb
                     else:
                         self._prepared_json = http_io.json_body(self)
                     spool.seek(0)
-                protected = not (path.startswith(("/api/agent/", "/api/auth/", "/api/uploads/"))
+                protected = not (path.startswith(("/api/agent/", "/api/auth/", "/api/uploads/", "/api/zuoyebang/"))
                     or path in ("/api/backup/export", "/api/backup/restore", "/api/backup/import",
                                 "/api/ai-recognize", "/api/trainpanel/try", "/api/entry-background", "/api/restart", "/api/export"))
                 with self._response_capture(protected):

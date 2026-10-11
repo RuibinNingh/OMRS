@@ -164,6 +164,8 @@ Session 创建时绑定稳定 `question_id`；普通旧 `session.create` 以创�
 
 手动触发入口：`POST /api/workspace/scan`。
 
+扫描排除收件箱和作业帮尚无创建事实的预留 question_id；已写出的中间 Markdown 不作为 question.create_external 抢先入账。作业帮创建使用 CreationOperation 与同事务 op_results，来源记录含 `_inbox.zuoyebang_render_id`，actor 为 zuoyebang；回执发布中断后用户从原渲染记录重试，只恢复原身份。普通创建分配 UID 时同时跳过这类预留，协议见 `AI/zuoyebang.md` §4。
+
 ---
 
 ## 7. 旧数据迁移

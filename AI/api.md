@@ -17,6 +17,7 @@
 | 题目、反馈、配置、认证与备份写入 | `AI/api/mutations.md` |
 | 调度、导出与展示板 | `AI/api/boards.md` |
 | 收件箱、草稿、标注、训练与 MCP | `AI/api/extensions.md` |
+| 作业帮账号、搜题、完整长图与录入 | `AI/zuoyebang.md` |
 | 全库备份、恢复协议与回退 | `AI/backup.md` |
 | 内置助手、持久事件与分页 | `AI/agent.md` |
 
@@ -40,6 +41,8 @@ HTML、普通 JSON 与 CSS / JavaScript / SVG 等文本在客户端接受 gzip�
 
 auth、uploads、模型识别与重启等路由按领域取得必要的短锁；其它豁免及理由在 `omrs/locking.py`。安全模块 PIN 同 Vault/IP 串行校验，排队最多2秒；认证文件用唯一临时文件原子写回。所有数据库连接在磁盘段取得租约并显式关闭。
 
+`/api/zuoyebang/` POST 豁免外层长租约和写锁，账号网络使用临时快照，后台任务传播开始世代；记录发布和正式创建在领域层取得短租约 → 写锁，见 `AI/zuoyebang.md`。
+
 聊天 confirm 豁免外层长锁，但在内部按生命周期租约 → 业务写锁 → PendingConfirm 锁 → 审核 SQLite 事务写入决定。落盘成功才唤醒原等待；审核中心决定共用同一权威。修订也按此顺序替换版本与票据，不延长原期限。模型思考、10 分钟等待、长轮询均不持这些锁；真正业务执行在原运行另取短写锁，核对快照、期限和中止状态。普通 GET 只读历史或原生回执，业务恢复只在监听前显式执行，且不重放工具。
 
 CLI `content-recover` 在锁外读取本机清单与候选正文，核验和补入使用同一生命周期租约 → 写锁 → SQLite事务顺序，与HTTP写入及全库恢复协调。它默认只预览，`--apply` 才补缺失blob，不新增HTTP路由；具体清单与原子性见 `AI/ledger.md` §10。
@@ -58,11 +61,13 @@ MIME主类型按大小写无关识别，multipart boundary保持原文。普通�
 
 ## 4. 分块上传
 
-1. `POST /api/uploads/start`：JSON `{filename,mime,total_bytes,purpose}`。purpose 为 image/create/inbox/annotate/draft/assistant/backup；返回 `{upload_id,chunk_bytes:16777216,expires_at}`。
+1. `POST /api/uploads/start`：JSON `{filename,mime,total_bytes,purpose}`。purpose 为 image/create/inbox/annotate/draft/assistant/backup/zuoyebang；返回 `{upload_id,chunk_bytes:16777216,expires_at}`。
 2. `POST /api/uploads/chunk?upload_id=...&index=N`：原始二进制，顺序从0开始，每块1字节至16MiB。同块同内容重试返回 `reused:true`；冲突内容拒绝。
 3. `POST /api/uploads/complete`：JSON `{upload_id,sha256?}`；核对完整长度及可选 SHA-256，返回 `{upload_ref,bytes,mime,sha256,filename,expires_at}`。
 
 暂存放在系统临时目录、权限为目录0700/文件0600，有效期1小时；引用绑定 Web 会话（直连免 PIN 时按客户端 IP）、Vault 世代和用途。恢复后旧引用失效。图片完成时识别 PNG/JPEG/GIF，备份用途仅供 ZIP 导入，不得用于图片。文件是普通非链接原件，完成核对分块累计长度、读取校验哈希；启动和每块空间准入均保留64MiB。引用不会写入学习 Ledger，原业务入库才产生事实。
+
+zuoyebang 用途单独支持 PNG/JPEG/WebP，完成时验证完整解码、8MiB和4000万像素边界；原始字节与 SHA 不变。其引用不能被 create/inbox 等其它用途消费。搜题及渲染契约见 `AI/zuoyebang.md`，普通用途的格式范围保持上述约定。
 
 ## 标记整理批次
 

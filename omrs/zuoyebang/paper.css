@@ -1,0 +1,15 @@
+/* 输出纸面是固定白底，不随工作台主题变化。仅可信模板拥有这些规则。 */
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; width: 1080px; background: #fff; color: #202124; }
+#paper { width: 1080px; padding: 56px; font-family: 'Noto Sans SC', sans-serif; font-size: 26px; line-height: 1.8; overflow-wrap: anywhere; }
+p, blockquote { margin: 0 0 24px; }
+div, span { max-width: 100%; }
+img { max-width: 100%; height: auto; vertical-align: middle; }
+ul, ol { padding-left: 40px; margin: 16px 0; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; margin: 24px 0; }
+td, th { border: 1px solid #a6a8aa; padding: 10px 16px; overflow-wrap: anywhere; }
+.align-left { text-align: left; }
+.align-center { text-align: center; }
+.align-right { text-align: right; }
+.answer-part + .answer-part { margin-top: 32px; }
+.katex-display { margin: 20px 0; }

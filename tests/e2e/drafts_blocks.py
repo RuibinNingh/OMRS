@@ -52,8 +52,7 @@ def run(page, base, first, second, images, check):
     def saved():
         return support.wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存') && !document.querySelector('.drf-detail [aria-busy=true]')")
     q1, q2, q3, a1, a2 = [block['id'] for block in first['blocks']]
-    page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
-    page.locator('#create-flow [data-ib-stage="drafts"]').click()
+    page.goto(base + '/?unlocked=1#/ai-review?type=draft', wait_until='networkidle')
     page.locator(f'.arv-row[data-arg="{first["id"]}"]').click()
     page.wait_for_function("id => document.querySelector('.drf-id')?.textContent.includes(id)", arg=first['id'])
     check('默认同时阅读题目、答案和信息摘要', page.locator('.drf-review-info').is_visible()
@@ -172,8 +171,7 @@ def audit(browser, base, mobile, check):
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
             try:
-                page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
-                page.locator('#create-flow [data-ib-stage="drafts"]').click()
+                page.goto(base + '/?unlocked=1#/ai-review?type=draft', wait_until='networkidle')
                 if touch:
                     page.locator('[data-action="ai-review.back"]').tap()
                     check(f'{theme}·{width} 返回公共队列可选择草稿', page.locator('.arv-row').first.is_visible())
@@ -216,7 +214,7 @@ def main():
         first, second, mobile, images = seed(vault)
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
-        env = dict(os.environ); env.pop('OMRS_SYSTEMD_SERVICE', None)
+        env = dict(os.environ); env.pop('OMRS_SYSTEMD_SERVICE', None); env.pop('OMRS_BOXDETECT_CONTROL', None)
         proc = subprocess.Popen([sys.executable, '-c', support.SERVER, vault, str(port)], cwd=ROOT, env=env,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         try:

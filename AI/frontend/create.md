@@ -1,10 +1,10 @@
 # 前端：录入题目与收件箱工作台
 
 > **速查**
-> - 职责：录入页五个工作区（上传、处理、录入、AI 训练、快速录入）与 AI 草稿跳转入口的界面、收件箱前端数据与保存队列；后端流程见 `AI/inbox.md`
+> - 职责：录入页六个工作区（上传、处理、录入、作业帮、AI 训练、快速录入）、收件箱前端数据与保存队列；后端流程见 `AI/inbox.md`、`AI/zuoyebang.md`
 > - 入口：`assets/app/features/create/`（`index.js` 页面契约，`inbox.js` / `inbox-store.js` 收件箱数据，其余按工作区分文件）
-> - 不变量：原图先入收件箱暂存层，提交后才写题库；切页保留工作区、当前图、勾选与快速录入草稿；离开处理区或本页前写出未到防抖时间的改动；创建后保留上下文字段
-> - 必跑测试：`tests/app/create.test.mjs`、`tests/app/create-process.test.mjs`、`tests/app/create-inbox.test.mjs`、`tests/e2e/create.py`、`tests/e2e/drafts_blocks.py`、`tests/test_inbox.py`、`tests/test_ai_assist_taxonomy.py`
+> - 不变量：来源先入独立暂存层，核对提交后才写题库；切页保留工作区与人工内容；离开处理区或本页前写出未到防抖时间的改动；作业帮离页释放摄像头
+> - 必跑测试：`tests/app/create.test.mjs`、`tests/app/create-process.test.mjs`、`tests/app/create-inbox.test.mjs`、`tests/app/create-zyb.test.mjs`、`tests/e2e/create.py`、`tests/e2e/zuoyebang.py`、`tests/e2e/drafts_blocks.py`
 > - 相关：`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/design-system.md`
 
 ## 页面与工作区
@@ -45,9 +45,15 @@
 
 标记经 `domain/labels` 的录入选择器改。「AI 识别题目信息」用题卡第一个题目区域提交 classify 任务，完成后重读收件箱，服务端核对任务代次与版本，只填仍空缺的项。「退回处理」把图片改回已框选并打开处理区。创建前先预检科目、分类，再确认 `flush()` 成功；失败不录入。随后取当前图片的 revision/epoch，裁出保留图片的区域，随 `/api/inbox/commit` 提交，大裁图自动分块后传引用。单卡与批量互斥，异步裁图后再次核对代次与 revision；已创建题卡重试复用原回执，不再次创建。单张成功弹一条带「加入展示板」的提示；批量逐张提交，最后只弹一条汇总，「加入展示板（N 题）」一次加入这批新题。成功后刷新统计、历史和目录。
 
-## AI 草稿入口
+## 作业帮与兼容草稿跳转
 
-「AI 草稿」保留为兼容入口，先写出录入页待保存内容，再进入 `#/ai-review?type=draft`。草稿编辑与来源对照由审核中心完整拥有，见 `AI/frontend/ai-review.md`；录入页不持有草稿表单、画布或离页守卫。已有 sessionStorage 目标和跨页草稿链接仍由 `domain/drafts.js` 交接。
+导航第四项「作业帮」打开 `zyb.js` / `zyb-view.js` 的来源与真实后端预览工作区。「AI 草稿」不再作为导航按钮；旧 stage=drafts、sessionStorage 目标和跨页草稿链接仍经 `domain/drafts.js` 进入审核中心，见 `AI/frontend/ai-review.md`。
+
+作业帮先导入已验收设备会话，再扫码或检查/刷新账号；配置缺失、在线核对、账号和签名失效分别显示。有效期记录展示最后成功、首次确认失效和脱敏事件。摄像头由 `zyb-camera.js` 调用 getUserMedia，后置优先、audio=false，只实时预览与关闭；需要 HTTPS 或 localhost。授权拒绝、设备缺失和占用原位提示；切工作区、离页和迟到授权停止 tracks。搜题用图片文件选择/拖放，原字节经 zuoyebang 用途分块上传引用发送，不从实时画面取帧。
+
+按位置独立选择候选后主动渲染；预览可切题干/答案、HTML、适应宽度/100%、展开与渲染记录。尺寸和SHA可核对，答案只有一张完整长图，外框滚动不裁原图；HTML作为转义文本显示。历史可重新打开。AI 对两区判断保留整图或完整文本，部分失败可重试；响应绑定 render_id 与编辑版本，不覆盖旧来源或在途人工修改，分类只补未改的空缺字段，标记由人选择。
+
+核对科目分类和正文后创建，成功可看题目或加入展示板。当前来源ID、人工内容、编辑版本、任务ID及提取快照存 sessionStorage，刷新重取后端记录；凭据和二维码不存浏览器。恢复响应检查来源与页面代次，识别在途刷新也保留人工编辑。切图片/候选/历史时，有人工编辑先确认再清空，科目分类上下文保留。创建期间表单冻结；扫码签名或流程确定失效时停止轮询，暂态网络错误可重试。接口及生命周期见 `AI/zuoyebang.md`。
 
 ## AI 训练
 
@@ -69,7 +75,7 @@
 
 ## 样式
 
-样式都在 features 层：`create.css`（导航、工作区显隐与整屏工作台、上传、快速录入、网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（`crc-`）、`train.css`（`crt-`）与 `drafts.css`（草稿队列、连续正文、统一底部操作与来源模式）。只用 token；标注色取 `--info` / `--success` / `--danger`。旧 `styles.css` 里已没有录入页的规则。
+样式都在 features 层：`create.css`（导航、工作区显隐与整屏工作台、上传、快速录入、网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（`crc-`）、`train.css`（`crt-`）与 `zyb.css`（作业帮来源栏、完整长图预览、人工核对与响应布局）。草稿样式由审核中心的 `features/ai-review/` 拥有。只用 token；标注色取 `--info` / `--success` / `--danger`。旧 `styles.css` 里已没有录入页的规则。
 
 处理区的文字框与输入框用 `ui-textarea` / `ui-input`（与全站同一套控件）。
 

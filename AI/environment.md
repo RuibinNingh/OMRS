@@ -140,6 +140,12 @@ P4 分类和草稿修订路径使用独立的 `tests/fixtures/agent_p4_faux.json
 
 聊天练习卡场景写在 `tests/fixtures/agent_faux.json`，`tests/e2e/practice.py` 使用临时 Vault、随机端口与真实 Chromium，覆盖从聊天卡进入即时练习、刷新续练、反馈丢响应后重试、部分成功及重练请求恢复；该脚本不接真实模型或生产数据。
 
+## 作业帮隔离验收
+
+作业帮验收使用 `tests/test_zuoyebang.py` 和 `tests/e2e/zuoyebang.py`；可选依赖见 `requirements-zuoyebang.txt`，渲染须另安装 Playwright Chromium。专项 E2E 自建临时 Vault 和随机端口，去掉生产控制环境，仅替换作业帮及 AI 网络边界；真实执行 HTTP 上传、账号协议、本地二维码、后端 Chromium、文件创建与 Ledger。摄像头使用浏览器 fake-device 的真实 MediaStream，不能替代实体手机权限和设备验收。
+
+专项产物包含真实1080长答案及末尾、八档页面截图、创建的合成 Markdown 和 checks.json；`OMRS_ZYB_SHOTS` 可指定产物目录。既有录入页用 `tests/visual/run.py --ref <基线> --pages create` 做前后比较，新工作区用专项八档审计。多块草稿 E2E 从审核中心入口进入，保留菜单、编辑、图文创建和窄屏回归。
+
 ## 5. 已知坑
 
 - **缺模块。** 旧版导出只含 Git 已跟踪文件，未提交的模块会缺失，导致包无法 import。现行导出按目录收集并包含未提交源码；若再遇到缺失，先报告，不要在交付物里补替身。
