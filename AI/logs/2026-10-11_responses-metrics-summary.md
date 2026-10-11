@@ -21,7 +21,7 @@
 - `omrs/llm/responses.py`：完成项与摘要补齐、分段和去重、思考阶段消息、计数诊断。
 - `assets/app/features/assistant/state.js`、`view.js`、`insp-view.js`：TPS、历史耗时和迟到摘要的归约与展示。
 - `tests/test_llm_responses.py`、`tests/app/assistant.test.mjs`、`tests/e2e/assistant_responses.py`：协议边界、真实回执口径及真实浏览器重放。
-- `AI/agent.md`、`AI/frontend/assistant.md`、`AI/frontend/architecture.md`、`README.md`：同步当前行为；本日志与自动索引记录验证和发布。
+- `AI/agent.md`、`AI/frontend/assistant.md`、`AI/frontend/architecture.md`、`README.md`：同步当前行为；`AI/environment.md` 更新实际生产状态，本日志与自动索引记录验证和发布。
 
 ## 验证
 
@@ -49,4 +49,12 @@ Responses 真实合成 HTTP／Chromium 闭环覆盖分段、仅 done、终态摘
 
 ## 生产发布与遗留
 
-生产发布将在完整门禁通过后执行，先检查未终结任务与恢复意图，再一致备份、精确源码归档和原子切换。发布证据、实际状态及未执行验证将在完成后更新。上游若未返回可读摘要，本轮不能从加密内容生成；新增诊断用于区分阶段丢失。Windows、实体手机与真实生产模型摘要仍需实际使用验证。
+已提交实现 `0a65ef9f20671f98f99aac5e42add551df6b4081`，保持 v2.3.9。在精确 Git 归档 `/root/workspace/apps/releases/omrs-0a65ef9` 与既有生产 `.venv` 下实跑五组隔离门禁：后端 88、Node 474、Responses 30、长历史 24、助手 59，5/5 通过，无跳过。逐字节核对 1,299 个源码文件后，于 2026-10-11 14:02:05 CST 开始生产切换，14:02:08 就绪，实测 3.115 秒。用户已授权，未另外询问；未推送远端。
+
+发布保全在 `/root/workspace/apps/releases/OMRS-responses-metrics-release-20261011T060036Z-u1ibrbdv/`，目录 0700、文件 0600；含新旧源码、控制配置、一致 Vault/maintenance tar、私人表与文件摘要、五组门禁、入口截图和只读验收证据。停服备份与原目录比较通过，临时副本解包 992 文件逐字节一致，SQLite 完整性通过。切换前在停服前后重复核对各类后台任务与 waiting 运行均为 0，无整库恢复、改题或标记整理意图。只替换既有源码别名的相对链接，旧源码与旧保全继续保留；失败回退仅恢复代码指针，不覆盖新业务事实。
+
+主服务 PID 598393，active/running、NRestarts=0，实际 cwd 和启动参数核对为新 release。保留 49 张业务表、935 个正文/图片/关键配置文件和 89 个控制文件/模型指针；299 题、0 冲突、待审 0。Tunnel、检测服务和 Nginx 的状态及 PID 一致，unit/drop-in、端口、PIN、Key 与模型设置保持。既有生产 `agent_debug_log` 已开启，新诊断随下一次模型流式请求写入，无需改设置。
+
+生产只读验收通过：state、检查器、view、main 四个资源 HTTP200，gzip解压与精确release一致、immutable与304有效，资源指纹更新；公网匿名资源401。公网入口/授权摘要200，status/MCP401，回环无Key MCP401。实际运行代码含供应商输出TPS、摘要诊断与完整展开入口。本机及公网真实Chromium的390px PIN入口无横溢和脚本错误，未输入PIN；全部读取后再次核对业务表、文件、相邻服务和错误级journal，结果一致且无错误日志。
+
+未执行：生产付费模型请求、PIN后真实会话、Windows和实体手机；真实上游摘要和缓存命中留待实际使用验证。上游若未返回可读摘要，本轮不能从加密内容生成；新增诊断用于区分阶段丢失，不宣称恢复旧记录的缺失摘要。
