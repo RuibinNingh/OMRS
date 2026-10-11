@@ -62,6 +62,18 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(partial["source"], "estimated")
         self.assertEqual(normalize_usage(None)["source"], "missing")
 
+    def test_responses_counts_keep_unknown_zero_and_subset_rules(self):
+        row = normalize_usage({"input_tokens": 100, "output_tokens": 20,
+                               "input_tokens_details": {"cached_tokens": 0},
+                               "output_tokens_details": {"reasoning_tokens": 10}})
+        self.assertEqual((row["prompt"], row["completion"], row["cache_read"], row["reasoning"]), (100, 20, 0, 10))
+        self.assertTrue(row["known"])
+        self.assertIsNone(normalize_usage({"input_tokens": 100})["cache_read"])
+        for raw in ({"input_tokens": 3, "input_tokens_details": {"cached_tokens": 4}},
+                    {"output_tokens": 1, "output_tokens_details": {"reasoning_tokens": 2}},
+                    {"input_tokens": -1}, {"output_tokens": True}):
+            self.assertTrue(normalize_usage(raw)["invalid"])
+
     def test_run_stats_deduplicates_request_and_counts_aux_once(self):
         row = {"prompt": 1000, "completion": 500, "cached": 0, "reasoning": 50}
         events = [{"i": 1, "type": "round.end", "data": {"n": 1, "request_id": "round:1", "usage": row}},

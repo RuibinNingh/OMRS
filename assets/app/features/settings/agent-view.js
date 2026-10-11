@@ -46,7 +46,7 @@ export const agentView = () => html`<section class="st-section" id="st-sec-assis
     <div class="st-fields">
       <div class="form-group"><label for="st-agent-base">API 地址</label>
         <input id="st-agent-base" class="ui-input" placeholder="留空则沿用「AI 识别」的地址">
-        <div class="hint">OpenAI 兼容接口，填到 <code>/v1</code> 即可。</div></div>
+        <div class="hint">填到 <code>/v1</code> 即可，按下方选项自动补全接口路径。</div></div>
       <div class="form-group"><label for="st-agent-key">API Key</label>
         <div class="st-inline"><input id="st-agent-key" class="ui-input" type="password" autocomplete="off" placeholder="留空则沿用「AI 识别」的密钥">
           <button class="ui-btn ui-btn--sm" type="button" data-action="settings.agentToggleKey" id="st-agent-key-toggle">显示</button>
@@ -58,8 +58,8 @@ export const agentView = () => html`<section class="st-section" id="st-sec-assis
           <datalist id="st-agent-model-list"><option value="qwen-plus"><option value="qwen3-max"><option value="deepseek-chat"><option value="gpt-4.1"><option value="gpt-4o-mini"></datalist>
           <div class="hint">必填，不沿用「AI 识别」的视觉模型</div></div>
         <div class="form-group"><label for="st-agent-compat">厂商兼容</label>
-          <select id="st-agent-compat" class="ui-select"><option value="custom">通用</option><option value="openai">OpenAI</option><option value="dashscope">阿里云百炼</option><option value="deepseek">DeepSeek</option></select>
-          <div class="hint">决定思考内容字段、max_tokens 字段名、上下文窗口</div></div>
+          <select id="st-agent-compat" class="ui-select"><option value="custom">通用</option><option value="openai">OpenAI（Responses）</option><option value="dashscope">阿里云百炼</option><option value="deepseek">DeepSeek</option></select>
+          <div class="hint">OpenAI 使用 Responses；其余使用 Chat Completions。</div></div>
         <div class="form-group"><label for="st-agent-max-output-tokens">最大输出 Token</label>
           <input id="st-agent-max-output-tokens" class="ui-input" type="number" min="1" max="65536" step="1" value="10240">
           <div class="hint">每轮模型请求的输出上限，默认 10240；还受模型服务商自身限制</div></div>

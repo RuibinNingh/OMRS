@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-10-11_openai-responses](2026-10-11_openai-responses.md)：AI 助手的 OpenAI 选项使用 Responses
 - [2026-10-09_mcp-manual-crop](2026-10-09_mcp-manual-crop.md)：MCP 草稿人工裁框保存修复
 - [2026-10-09_mcp-manual-crop-release](2026-10-09_mcp-manual-crop-release.md)：MCP 人工裁框修复生产部署与 GitHub 提交
 - [2026-10-09_extract-success-status](2026-10-09_extract-success-status.md)：提取成功提示与生产发布

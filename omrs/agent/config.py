@@ -5,6 +5,7 @@ from ..common import load_config, omrs_data_dir
 from ..llm.compat import PROFILES, resolve_compat
 from ..llm.faux import FauxClient, faux_script_path
 from ..llm.openai_compat import OpenAICompatClient
+from ..llm.responses import ResponsesClient
 
 LIMIT_DEFAULTS = {"rounds": 25, "calls": 40, "writes": 20, "concurrent": 1}
 MSG_CAP = 60
@@ -74,7 +75,8 @@ def make_client(vault, s=None):
     if s["faux"]:
         return FauxClient(faux_script_path())
     debug = os.path.join(omrs_data_dir(vault), "logs", "agent-llm.jsonl") if s["debug_log"] else None
-    return OpenAICompatClient(s["_base"], s["_key"], s["model"], s["compat"], timeout=120, debug_path=debug)
+    client = ResponsesClient if s["compat"]["name"] == "openai" else OpenAICompatClient
+    return client(s["_base"], s["_key"], s["model"], s["compat"], timeout=120, debug_path=debug)
 
 
 def validate_agent_config(data: dict):

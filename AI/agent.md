@@ -4,7 +4,7 @@
 > - 职责：内置对话助手的 Harness、服务端权限、对话存储、OMRS 工具与按运行撤销
 > - 入口：`omrs/agent/runtime.py`（运行时与接口实现）、`omrs/agent/loop.py`（通用循环）、`omrs/agent/tools/`、`omrs/llm/`
 > - 不变量：权限规则写在服务端；聊天与审核中心共用持久决定；批准仅唤醒原运行；写锁不覆盖模型思考和等待
-> - 必跑测试：`tests/test_agent_loop.py`、`tests/test_agent_tools.py`、`tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`
+> - 必跑测试：`tests/test_agent_loop.py`、`tests/test_llm_responses.py`、`tests/test_agent_tools.py`、`tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_responses.py`
 > - 相关：`AI/frontend/assistant.md`、`AI/ledger.md`（写入来源、正文入账）、`AI/api.md`（并发与写锁）、`AI/security.md`、`AI/data.md`
 
 ## 1. 组成与数据流
@@ -18,7 +18,7 @@
 `POST /api/agent/message` 可带 `images`（图片 data URL 或 upload_ref 数组，≤6 张，PNG / JPEG / GIF，单张解码后 ≤8MB）。图片经 `drafts.add_image` 存进 `错题/.omrs/drafts/images/`，本对话内编号 IMG-n（同一张图沿用旧编号）；JPEG 入库时按主图标记清除相册尾数据或补结束标记，保留编码像素；旧图送模型前也临时整理。用户消息存为 `{"role":"user","content":text,"_images":["IMG-1",…]}`，`agent.db` 里不存图片本体。任何一张不合格，整条消息 400，不建运行；运行中带图插话 409。
 
 运行开始（`run.start` 之后、进入循环之前）由 `expand_images` 按 `agent_vision` 把附图展开到送给模型的副本里：
-- **开**：从最新往前数，最近 4 张（`MAX_VISION_IMAGES`）以 `image_url` 内容块发给主模型，用户消息 `content` 变成内容块数组；更早的换成「[IMG-n 已省略，需要时调 describe_image]」。
+- **开**：从最新往前数，最近 4 张（`MAX_VISION_IMAGES`）以图片内容块发给主模型，用户消息 `content` 变成内容块数组；通用消息为 `image_url`，Responses 客户端转换为 `input_image`。更早的换成「[IMG-n 已省略，需要时调 describe_image]」。
 - **关**：逐张调 `ai_assist.transcribe_image`（`ai_model_extract` 模型），转述按 sha256 + 模型缓存在 `drafts.db`；渲染成「[IMG-n 转述]」文本拼进用户消息，每张截断 3000 字。调用前后发 `image.transcribe` / `image.transcribed` 事件；失败不终止运行，写入「[IMG-n 转述失败：原因。可调 describe_image 再试]」。
 
 图片转述与 `describe_image` 调用 `ai_assist.py`，遵循「设置 → AI 识别」的 `ai_thinking`；这不改变主 AI 对话模型的思考行为。
@@ -29,9 +29,21 @@
 
 `config.json` 的 `agent_*` 键（`GET /api/config` 不回显密钥，只给 `agent_api_key_configured`）：`agent_enabled`（总开关，默认关）、`agent_base_url` 与 `agent_api_key`（留空回退 `ai_base_url` / `ai_api_key`）、`agent_model`（必填，不回退）、`agent_compat`（`custom` / `openai` / `dashscope` / `deepseek`）、`agent_compat_overrides`（可选，覆写单项兼容开关）、`agent_max_output_tokens`（每轮模型请求的最大输出 Token，默认 10240，范围 1–65536；新运行开始时读取，仍受服务商限制）、`agent_limits`（`rounds` / `calls` / `writes` / `concurrent`，只能调小）、`agent_debug_log`（请求与响应原文写 `错题/.omrs/logs/agent-llm.jsonl`，不含密钥）、`agent_vision`（主 AI 支持图片，见 §1「附图」）。校验在 `omrs/agent/config.py` 的 `validate_agent_config`。
 
-兼容差异写成数据（`omrs/llm/compat.py`）：思考内容从哪些增量字段读、带工具调用的 assistant 消息是否回传思考、工具结果是否带 `name`、`max_tokens` 的字段名、system 还是 developer 角色、是否发 `stream_options.include_usage`、工具 schema 是否带 `strict`、上下文窗口（只用于界面用量计）。
+`agent_compat=openai` 使用 `omrs/llm/responses.py` 的 Responses 客户端；`custom` / `dashscope` / `deepseek` 使用 `omrs/llm/openai_compat.py` 的 Chat Completions 客户端。两者都返回统一的模型结果，连接测试、主对话与图片直传探测按所选协议请求。AI 识别、图片转述和 `describe_image` 仍使用独立的 Chat Completions 识图配置。
 
-假模型：进程环境变量 `OMRS_AGENT_FAUX_SCRIPT` 指向脚本文件时，运行时一律改用 `omrs/llm/faux.py`，模型名显示为 `faux`，配置接口不能开启它。脚本格式与模板见该文件文档字符串；测试脚本在 `tests/fixtures/agent_faux.json`。
+兼容差异写成数据（`omrs/llm/compat.py`）：Chat Completions 的思考增量字段、带工具调用的 assistant 是否回传思考、工具结果是否带 `name`、输出上限字段名、是否发 `stream_options.include_usage`；两种协议共用 system / developer 角色、工具 schema 的 `strict` 与上下文窗口估算。覆写兼容参数不会切换协议。
+
+### Responses 协议
+
+基础地址自动补 `/responses`，已填完整 `/responses` 时原样使用，已填完整 `/chat/completions` 时替换末尾路径。请求使用 `input`、`max_output_tokens` 和平铺的 function 工具；显式 `strict:false` 保留现有工具可选参数语义，只有兼容覆写开启时才用 strict。附图转换为 `input_image`，工具结果转换为按 `call_id` 绑定的 `function_call_output`。
+
+请求固定 `store:false` 并要求 `reasoning.encrypted_content`，不依赖远端保存的会话或 `previous_response_id`。原生 output（正文、工具调用和加密推理项）随助手消息保存在 `_response_items`；下一轮和重新打开的对话原样回传，避免重复拼接正文或遗漏推理上下文。旧 Chat Completions 消息在发送时转换；切回其它选项时兼容客户端忽略此扩展字段。
+
+SSE 按 Responses 事件解析文字、拒答、推理摘要与工具参数增量；只在 completed 终态后执行完整工具调用。`max_output_tokens` 截断映射到原循环的 length 分支；供应商失败、其它不完整终态、非法事件或终态前断流都返回可读错误，不执行残缺工具。终态输出覆盖累计结果，不重复显示已发出的文本；中止复用现有连接关闭与 abort 契约。
+
+### 测试用假模型
+
+进程环境变量 `OMRS_AGENT_FAUX_SCRIPT` 指向脚本文件时，运行时一律改用 `omrs/llm/faux.py`，模型名显示为 `faux`，配置接口不能开启它。脚本格式与模板见该文件文档字符串；测试脚本在 `tests/fixtures/agent_faux.json`。
 
 ## 3. 权限
 
@@ -81,7 +93,7 @@
 
 每条事件 `{i, t, type, data}`，`t` 是距运行开始的毫秒数。类型：`run.start`（模型、预算、上下文窗口、`vision`）、`image.transcribe`（`ref`、`sha`）/ `image.transcribed`（`ref`、`ok`、`ms`、`error`）、`round.start`（轮次、上下文构成估算 sys/tools/chat/res）、`delta`（`kind` 为 think / text / args；args 带 `index`、`name`）、`round.end`（结束原因、稳定 `request_id`、用量、首 token 与生成耗时）、`usage.aux`（图片转述或看图工具的独立请求、`request_id` 与用量）、`tool.call`、`tool.running`、`tool.waiting`、`tool.decision`、`tool.end`、`steer.queued` / `steer.delivered` / `steer.late`、`run.aborting`、`run.end`。持久化时连续的同类 `delta` 合并为一条，前端归约结果相同。
 
-`omrs/llm/usage.py` 将供应商用量归一成 `input_total`、`output_total`、`cache_read`、`reasoning_output`、`known`、`source`、`scope` 和可选请求标识；旧 `prompt/completion/cached/reasoning` 仍随事件发送。供应商未返回字段为 `null`，明确零保留为零；缓存属于输入、思考属于输出，不重复加到总量。兼容 OpenAI `prompt_tokens_details.cached_tokens` 与 DeepSeek `prompt_cache_hit_tokens`，后者只有 hit/miss 时可推得输入。无最终用量时输出为估算，输入未知；负值、非整数、缓存超过输入等异常被标记，不当作有效缓存比例。独立草稿后台作业不属于对话运行统计。
+`omrs/llm/usage.py` 将供应商用量归一成 `input_total`、`output_total`、`cache_read`、`reasoning_output`、`known`、`source`、`scope` 和可选请求标识；旧 `prompt/completion/cached/reasoning` 仍随事件发送。供应商未返回字段为 `null`，明确零保留为零；缓存属于输入、思考属于输出，不重复加到总量。兼容 Chat Completions 的 `prompt_tokens_details.cached_tokens`、Responses 的 `input_tokens` / `output_tokens` 及各自 details，以及 DeepSeek `prompt_cache_hit_tokens`，后者只有 hit/miss 时可推得输入。无最终用量时输出为估算，输入未知；负值、非整数、缓存超过输入等异常被标记，不当作有效缓存比例。独立草稿后台作业不属于对话运行统计。
 
 ## 7. 接口（`omrs/agent/http.py`）
 
@@ -93,7 +105,7 @@ POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软
 
 ## 8. 存储
 
-`错题/.omrs/agent.db`（随备份导出，不进 Ledger）：`conversations`（id、标题、时间、软删除）、`messages`（会话消息按 OpenAI 格式存 JSON，含 assistant 的 `tool_calls` 与思考内容，用于重放上下文；缺结果的工具调用在重放时补「运行被中断」）、`runs`（状态、原因、错误、模型、起止时间、统计、合并后的事件、撤销信息）、`tool_calls`（参数、决定、结果、commit）、`practice_cards`（结构化卡片、对话与工具调用归属）、`practice_attempts`（签发身份、重练请求标识、非权威界面进度）。连接每次新建，模块锁只包单次事务。练习是否提交以 Ledger 中的 `attempt_id + entry_id` 为准，不以进度 JSON 为准；对话软删除后不能新签发 attempt，已签发 attempt 仍可提交。
+`错题/.omrs/agent.db`（随备份导出，不进 Ledger）：`conversations`（id、标题、时间、软删除）、`messages`（会话消息存 JSON，含 assistant 的 `tool_calls`、思考内容和可选 `_response_items` 原生 Responses 上下文；缺结果的工具调用在重放时补「运行被中断」）、`runs`（状态、原因、错误、模型、起止时间、统计、合并后的事件、撤销信息）、`tool_calls`（参数、决定、结果、commit）、`practice_cards`（结构化卡片、对话与工具调用归属）、`practice_attempts`（签发身份、重练请求标识、非权威界面进度）。连接每次新建，模块锁只包单次事务。练习是否提交以 Ledger 中的 `attempt_id + entry_id` 为准，不以进度 JSON 为准；对话软删除后不能新签发 attempt，已签发 attempt 仍可提交。
 
 ## 9. 按运行撤销（`omrs/agent/revert.py`）
 

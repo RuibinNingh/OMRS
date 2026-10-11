@@ -10,8 +10,12 @@ def _count(value):
 def normalize_usage(raw, *, estimated_output=None, scope="main", request_id=None, round_id=None):
     """保留旧字段；缺失和异常字段用 None 表示，绝不把未知记为零。"""
     raw = raw if isinstance(raw, dict) else {}
-    details = raw.get("prompt_tokens_details") if isinstance(raw.get("prompt_tokens_details"), dict) else {}
-    comp = raw.get("completion_tokens_details") if isinstance(raw.get("completion_tokens_details"), dict) else {}
+    responses = "input_tokens" in raw or "output_tokens" in raw
+    input_key, output_key = ("input_tokens", "output_tokens") if responses else ("prompt_tokens", "completion_tokens")
+    details = raw.get("input_tokens_details" if responses else "prompt_tokens_details")
+    comp = raw.get("output_tokens_details" if responses else "completion_tokens_details")
+    details = details if isinstance(details, dict) else {}
+    comp = comp if isinstance(comp, dict) else {}
     invalid = False
 
     def field(obj, key):
@@ -23,8 +27,8 @@ def normalize_usage(raw, *, estimated_output=None, scope="main", request_id=None
             invalid = True
         return value
 
-    input_total = field(raw, "prompt_tokens")
-    output_total = field(raw, "completion_tokens")
+    input_total = field(raw, input_key)
+    output_total = field(raw, output_key)
     if "cached_tokens" in details:
         cache_read = field(details, "cached_tokens")
     else:

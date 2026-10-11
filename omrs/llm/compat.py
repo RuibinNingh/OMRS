@@ -4,7 +4,7 @@ DEFAULTS = {
     "reasoning_fields": ["reasoning_content", "reasoning", "reasoning_text"],  # 从哪些增量字段读思考内容
     "send_reasoning_back": False,     # 带工具调用的 assistant 消息是否回传思考内容
     "tool_result_name": False,        # 工具结果消息是否必须带 name
-    "max_tokens_field": "max_tokens",  # max_tokens 或 max_completion_tokens
+    "max_tokens_field": "max_tokens",  # Chat Completions 的字段；Responses 固定用 max_output_tokens
     "system_role": "system",          # system 或 developer
     "stream_usage": True,             # 是否发送 stream_options.include_usage
     "strict_tools": False,            # 工具 schema 是否带 strict
@@ -12,7 +12,7 @@ DEFAULTS = {
 }
 
 PROFILES = {
-    "openai": {"max_tokens_field": "max_completion_tokens", "context_window": 128000},
+    "openai": {"max_tokens_field": "max_output_tokens", "context_window": 128000},
     "dashscope": {"reasoning_fields": ["reasoning_content"], "context_window": 131072},
     "deepseek": {"reasoning_fields": ["reasoning_content"], "send_reasoning_back": True, "context_window": 65536},
     "custom": {},

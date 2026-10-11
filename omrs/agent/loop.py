@@ -110,10 +110,12 @@ class AgentLoop:
             assistant = {"role": "assistant", "content": res["content"] or ""}
             if res["reasoning"]:
                 assistant["reasoning"] = res["reasoning"]
+            if res.get("response_items"):
+                assistant["_response_items"] = res["response_items"]
             calls = res["tool_calls"]
             if calls:
                 assistant["tool_calls"] = [{"id": c["id"], "name": c["name"], "arguments": c["arguments"]} for c in calls]
-            if res["content"] or calls or res["reasoning"]:
+            if res["content"] or calls or res["reasoning"] or res.get("response_items"):
                 messages.append(assistant)
                 on_message(assistant)
             if res["finish_reason"] == "aborted" or abort.is_set():

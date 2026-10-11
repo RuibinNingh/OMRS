@@ -31,7 +31,8 @@ def estimate_tokens(text) -> float:
 
 class ChatResult(dict):
     """{content, reasoning, tool_calls:[{id,name,arguments,args,parse_error}], finish_reason,
-        error, usage:{prompt,completion,cached,reasoning}, ttft_ms, duration_ms, gen_ms}"""
+        error, usage:{prompt,completion,cached,reasoning}, ttft_ms, duration_ms, gen_ms}。
+        Responses 客户端另带 response_items，供后续轮次原样回传。"""
 
 
 def parse_tool_calls(calls):
@@ -178,6 +179,8 @@ class OpenAICompatClient:
         result = ChatResult(content=content, reasoning=reasoning, tool_calls=calls, finish_reason=finish, error=error,
                             usage=usage, ttft_ms=int(((first or now) - started) * 1000),
                             duration_ms=int((now - started) * 1000), gen_ms=int((now - (first or now)) * 1000))
+        if state.get("response_items"):
+            result["response_items"] = state["response_items"]
         self._debug("response", {k: v for k, v in result.items()})
         return result
 
