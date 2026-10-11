@@ -39,7 +39,7 @@ assets/app/
 - 助手页 `features/assistant/` 的图片粘贴、聊天主面板文件拖入和文件选择都由页面挂载期监听或页面动作处理，卸载时移除监听；会话切换使附件读取 generation 失效。事件归约与视图由 `tests/app/assistant.test.mjs`、`tests/e2e/assistant.py` 和 `tests/e2e/assistant_p3.py` 验证，含 JPEG 字节保持、拖放、预览、输入法与可见视口路径。共享图片预览在 `tests/app/browser_tests.js` 验证焦点和模态行为；草稿来源图在 `tests/e2e/drafts.py` 验证。
 - 助手用量归约仍是页面自身的纯逻辑，`tests/app/assistant.test.mjs` 验证请求去重、重放与缺失字段；`tests/e2e/assistant_usage.py` 用隔离 Vault 和假模型验证圆环切换、持久偏好与检查器。
 - 助手历史的单次展开由 `tests/app/assistant-history.test.mjs` 验证跨页自动续读、重复点击、失败断点重试及切换/卸载失效；`tests/e2e/audit_identity.py` 在临时 Vault、随机端口与真实浏览器上一次点击读完 1212 条事件，并覆盖浅/深色、1440/390px 的入口遮挡与横溢。可设 `OMRS_ASSISTANT_HISTORY_SHOTS` 保存展开前后截图；该路径不接真实模型或生产题库。
-- `tests/e2e/assistant_responses.py` 用临时 Vault、随机端口和真实合成 HTTP 模型服务，从设置保存 OpenAI（Responses），验证连接测试、图片输入、摘要 opt-in、空终态工具续轮、Markdown 标题、刷新重放、稳定缓存键与原生输入前缀。合成供应商按前缀回报缓存，断言界面统计；此结果不代表生产模型缓存命中。不使用 FauxClient 或真实模型密钥；设 `OMRS_RESPONSES_SCREENSHOTS` 可输出双主题、桌面/手机截图。
+- `tests/e2e/assistant_responses.py` 用临时 Vault、随机端口和真实合成 HTTP 模型服务，从设置保存 OpenAI（Responses），验证连接测试、图片输入、摘要 opt-in、空终态工具续轮、终态清空摘要时保留完成项、分段补齐与去重、Markdown 标题、刷新重放、稳定缓存键与原生输入前缀。检查器 TPS 按真实输出回执及生成区间核对，新增诊断每轮仅一条且不含正文、密钥或加密内容。合成供应商按前缀回报缓存，断言界面统计；此结果不代表生产模型缓存命中。不使用 FauxClient 或真实模型密钥；设 `OMRS_RESPONSES_SCREENSHOTS` 可输出双主题、桌面/手机截图。
 - 录入页的可搜索建议由 `ui/combobox` 绑定到原生输入框，卸载时释放 body 浮层和窗口监听；`tests/e2e/create.py` 验证建议框键盘退出、AI 结果与人工编辑及图片版本之间的隔离。
 - 历史页通过 `domain/history.js` 分批读取 Ledger 摘要与独立 MCP 运行记录，按需读取各区详情；`tests/e2e/history.py` 覆盖 240 条以上跨页加载、撤销状态与读取失败保留列表，`tests/e2e/runtime_history.py` 在临时 Web + MCP 服务上覆盖真实调用、筛选竞争、人工入库双向关联、轮询与手机返回。调用详情通过 `domain/drafts.js` 的 `openDraft` 复用草稿导航，页面之间不直接依赖。
 - 跨页共用的按钮走外壳登记的全局动作 `app.*`（创建、侧栏折叠、手机抽屉、重新扫描，见 `AI/frontend/shell.md`）；页面自己的动作用页面 id 作命名空间。

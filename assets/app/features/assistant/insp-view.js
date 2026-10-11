@@ -1,7 +1,7 @@
 /** 检查器：选中运行的用量、瀑布时间线（SVG）、预算与写入记录。 */
 import { html, raw } from '../../core/html.js';
 import { icon } from '../../ui/icon.js';
-import { REASON, avgTps, fmtK, fmtN, fmtS, hms, liveTps, runNow } from './state.js';
+import { REASON, avgTps, fmtK, fmtN, fmtS, fmtTps, hms, liveTps, runNow } from './state.js';
 import { lvl, toolTitle } from './tools-view.js';
 import { bar } from './tools-view.js';
 
@@ -64,7 +64,8 @@ export function inspView(S, perfNow) {
       ${usage('主对话输入', fmtN(main.uncached ?? main.input), `${main.count} 次请求 · ${main.cacheComplete ? '未缓存' : '含未拆分缓存'}`)}${usage('主对话输出', fmtN(main.output), u.think ? `含思考 ${fmtK(u.think)}` : '')}
       ${usage('图片辅助', aux.count ? fmtN(aux.total) : '无调用', aux.count ? `${aux.count} 次 · ${fmtN(aux.input)} 入 / ${fmtN(aux.output)} 出` : '')}
       ${usage('主对话缓存', cache.ratio == null ? '未知/未返回' : `${Math.round(cache.ratio * 100)}%`, `${cache.covered} / ${cache.total} 次可统计${cache.complete ? '' : ' · 部分调用可统计'}`)}
-      ${usage('首 token', fmtS(ttft), `${run.ttfts.length} 轮平均`)}${usage('速度', `${Math.round(live ? liveTps(run, now) : avgTps(run))} tok/s`, run.peak ? `峰值 ${Math.round(run.peak)}` : '')}</div>
+      ${usage('首 token', fmtS(ttft), `${run.ttfts.length} 轮平均`)}${usage('输出速度', fmtTps(live ? liveTps(run, now) : avgTps(run), live || run.genEstimated),
+        live ? '最近 1 秒 · 估算' : run.eventsMore ? '展开完整记录后统计' : `不含首 token 等待${run.peak ? ` · 峰值 ${Math.round(run.peak)}` : ''}`)}</div>
       ${live ? spark(run, now) : ''}</section>
     <section class="ast-sec"><h3 class="ast-sec__h">时间线 <small>${fmtS(now)}</small></h3>${waterfall(run, now)}
       <ul class="ast-wf__legend"><li><i class="ast-wf__wait"></i>等首 token</li><li><i class="ast-wf__gen"></i>生成</li><li><i class="ast-wf__tool"></i>工具</li><li><i class="ast-wf__user"></i>等你确认</li></ul></section>

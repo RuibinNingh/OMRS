@@ -55,6 +55,14 @@ class ResponsesTests(unittest.TestCase):
         with mock.patch("urllib.request.urlopen", return_value=io.BytesIO(json.dumps(data).encode())):
             return self.client.complete([{"role": "user", "content": "问"}], stream=False)
 
+    def complete_stream(self, events):
+        deltas = []
+        with mock.patch("urllib.request.urlopen", return_value=sse(events)), mock.patch.object(self.client, "_debug") as debug:
+            result = self.client.complete([], on_delta=lambda *args: deltas.append(args))
+        diagnostic = [call.args[1] for call in debug.call_args_list if call.args[0] == "responses.stream"]
+        self.assertEqual(len(diagnostic), 1)
+        return result, deltas, diagnostic[0]
+
     def test_profile_selects_protocol_and_keeps_other_vendors_on_chat(self):
         for name in ("openai", "custom", "deepseek", "dashscope"):
             with self.subTest(name=name):
@@ -155,6 +163,91 @@ class ResponsesTests(unittest.TestCase):
                     result = self.client.complete([], on_delta=lambda *args: deltas.append(args))
                 self.assertEqual(result["content"], "回答")
                 self.assertEqual([text for kind, text, _ in deltas if kind == "text"], ["回答"])
+
+    def test_summary_parts_done_and_empty_final_summary_keep_complete_items_once(self):
+        thought = reasoning()
+        thought["summary"].append({"type": "summary_text", "text": "核对结果"})
+        events = [{"type": "response.reasoning_summary_text.delta", "output_index": 0, "summary_index": 0, "delta": "先查"},
+                  {"type": "response.reasoning_summary_text.done", "output_index": 0, "summary_index": 0, "text": "先查询"},
+                  {"type": "response.reasoning_summary_part.done", "output_index": 0, "summary_index": 0, "part": thought["summary"][0]},
+                  {"type": "response.reasoning_summary_text.delta", "output_index": 0, "summary_index": 1, "delta": "核对"},
+                  {"type": "response.output_item.done", "output_index": 0, "item": thought},
+                  terminal(response([{**thought, "summary": [], "encrypted_content": None}, message()]))]
+        result, deltas, diagnostic = self.complete_stream(events)
+        self.assertEqual(result["finish_reason"], "stop")
+        self.assertEqual(result["reasoning"], "先查询\n\n核对结果")
+        self.assertEqual("".join(text for kind, text, _ in deltas if kind == "think"), result["reasoning"])
+        self.assertEqual(result["response_items"][0], thought)
+        self.assertEqual(diagnostic["terminal_reasoning_chars"], 0)
+        self.assertEqual(diagnostic["done_reasoning_chars"], 7)
+        self.assertEqual(diagnostic["retained_reasoning_chars"], 9)
+        self.assertEqual(diagnostic["reasoning_mismatches"], 0)
+        self.assertNotIn("先查询", json.dumps(diagnostic, ensure_ascii=False))
+        self.assertNotIn("完整的加密推理", json.dumps(diagnostic, ensure_ascii=False))
+
+    def test_done_only_summary_is_visible_without_a_delta_or_item_done(self):
+        thought = {**reasoning(), "summary": []}
+        for kind in ("response.reasoning_summary_text.done", "response.reasoning_summary_part.done"):
+            with self.subTest(kind=kind):
+                event = {"type": kind, "output_index": 0, "summary_index": 0, "text": "先查询",
+                         "part": {"type": "summary_text", "text": "先查询"}}
+                result, deltas, diagnostic = self.complete_stream([event, event, terminal(response([thought, message()]))])
+                self.assertEqual(result["reasoning"], "先查询")
+                self.assertEqual([text for typ, text, _ in deltas if typ == "think"], ["先查询"])
+                self.assertEqual(diagnostic["summary_delta_chars"], 0)
+                self.assertEqual(diagnostic["events"][kind], 2)
+
+    def test_completed_reasoning_missing_from_terminal_is_replayed_before_answer(self):
+        thought = reasoning()
+        result, deltas, _ = self.complete_stream([
+            {"type": "response.output_item.done", "output_index": 0, "item": thought},
+            terminal(response([message()]))])
+        self.assertEqual(result["response_items"], [thought, message()])
+        self.assertEqual([text for typ, text, _ in deltas if typ == "think"], ["先查询"])
+
+    def test_summary_index_is_preserved_when_terminal_output_positions_change(self):
+        thought = reasoning()
+        result, deltas, _ = self.complete_stream([
+            {"type": "response.reasoning_summary_text.delta", "output_index": 1, "summary_index": 0, "delta": "先查询"},
+            {"type": "response.output_item.done", "output_index": 1, "item": thought},
+            terminal(response([{**thought, "summary": []}, message()]))])
+        self.assertEqual(result["reasoning"], "先查询")
+        self.assertEqual([text for typ, text, _ in deltas if typ == "think"], ["先查询"])
+
+    def test_encrypted_reasoning_without_summary_is_not_fabricated(self):
+        result, deltas, diagnostic = self.complete_stream([terminal(response([{**reasoning(), "summary": []}, message()]))])
+        self.assertEqual(result["reasoning"], "")
+        self.assertFalse(any(kind == "think" for kind, *_ in deltas))
+        self.assertEqual(diagnostic["reasoning_tokens"], 10)
+        self.assertEqual(diagnostic["retained_reasoning_chars"], 0)
+
+    def test_stream_diagnostic_survives_truncation_and_marks_summary_conflicts(self):
+        result, _, diagnostic = self.complete_stream([
+            {"type": "response.reasoning_summary_text.delta", "output_index": 0, "delta": "先查询"},
+            {"type": "response.reasoning_summary_text.done", "output_index": 0, "text": "不同摘要"}])
+        self.assertEqual(result["finish_reason"], "error")
+        self.assertFalse(diagnostic["terminal_received"])
+        self.assertEqual(diagnostic["reasoning_mismatches"], 1)
+        self.assertEqual(diagnostic["retained_reasoning_chars"], 3)
+
+    def test_nonstandard_reasoning_text_field_falls_back_without_duplicate_content(self):
+        data = response([{**reasoning(), "summary": [], "text": "先查询"}, message()])
+        self.assertEqual(self.complete_json(data)["reasoning"], "先查询")
+        data["output"][0]["summary"] = [{"type": "summary_text", "text": "摘要优先"}]
+        data["output"][0]["content"] = [{"type": "reasoning_text", "text": "重复推理"}]
+        self.assertEqual(self.complete_json(data)["reasoning"], "摘要优先")
+
+    def test_analysis_and_commentary_messages_use_reasoning_channel_like_hermes(self):
+        for phase in ("analysis", "commentary"):
+            with self.subTest(phase=phase):
+                interim = {**message("先查询"), "phase": phase}
+                result, deltas, _ = self.complete_stream([
+                    {"type": "response.output_item.added", "output_index": 0, "item": interim},
+                    {"type": "response.output_text.delta", "output_index": 0, "delta": "先查询"},
+                    {"type": "response.output_item.done", "output_index": 0, "item": interim},
+                    terminal(response([interim, message("正式回答")]))])
+                self.assertEqual((result["reasoning"], result["content"]), ("先查询", "正式回答"))
+                self.assertEqual(deltas, [("think", "先查询", None), ("text", "正式回答", None)])
 
     def test_empty_or_missing_terminal_output_restores_done_tools(self):
         for output in ([], None):

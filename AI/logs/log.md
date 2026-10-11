@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-10-11_responses-metrics-summary](2026-10-11_responses-metrics-summary.md)：Responses 输出速度、推理摘要与诊断
 - [2026-10-11_responses-followup](2026-10-11_responses-followup.md)：Responses 测试反馈修复
 - [2026-10-11_openai-responses](2026-10-11_openai-responses.md)：AI 助手的 OpenAI 选项使用 Responses
 - [2026-10-11_openai-responses-release](2026-10-11_openai-responses-release.md)：Responses 生产部署

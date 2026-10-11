@@ -7,6 +7,7 @@ import copy
 import json
 
 from .openai_compat import OpenAICompatClient
+from .usage import normalize_usage
 
 
 def _input_content(content):
@@ -51,6 +52,44 @@ def _call_fields(item):
     if not all(isinstance(value, str) for value in call.values()):
         raise RuntimeError("Responses 工具调用的 call_id、名称和参数必须是文本")
     return call
+
+
+def _reasoning_parts(item):
+    """优先读取可展示摘要；兼容供应商的正文推理与 text 字段。"""
+    summary = [(i, part.get("text") or "") for i, part in enumerate(item.get("summary") or [])]
+    if any(text for _, text in summary):
+        return "summary", summary
+    content = [(i, part.get("text") or "") for i, part in enumerate(item.get("content") or [])]
+    return "text", content or [(0, item.get("text") or "")]
+
+
+def _reasoning_chars(items):
+    try:
+        return sum(len(text) for item in items if item.get("type") == "reasoning"
+                   for _, text in _reasoning_parts(item)[1])
+    except (AttributeError, TypeError):
+        # 诊断不能遮盖随后解析阶段的协议错误。
+        return None
+
+
+def _completed_reasoning(output, done):
+    """流式完成项保留摘要与加密上下文；终态瘦身不能抹掉它们。"""
+    output = copy.deepcopy(output)
+    for index, item in sorted(done.items()):
+        if item.get("type") != "reasoning":
+            continue
+        target = next((i for i, entry in enumerate(output) if entry.get("type") == "reasoning"
+                       and item.get("id") and entry.get("id") == item["id"]), None)
+        if target is None and index < len(output) and output[index].get("type") == "reasoning":
+            target = index
+        if target is None:
+            output.insert(min(index, len(output)), copy.deepcopy(item))
+        else:
+            merged = output[target]
+            for key in ("id", "summary", "content", "text", "encrypted_content"):
+                if item.get(key):
+                    merged[key] = copy.deepcopy(item[key])
+    return output
 
 
 class ResponsesClient(OpenAICompatClient):
@@ -118,19 +157,25 @@ class ResponsesClient(OpenAICompatClient):
             output = [item for _, item in sorted(done.items())]
         if not isinstance(output, list) or any(not isinstance(item, dict) for item in output):
             raise RuntimeError("Responses output 必须是输出项数组")
+        output = _completed_reasoning(output, state.get("done_items", {}))
         state["response_items"] = copy.deepcopy(output)
-        content, reasoning, calls = [], [], {}
+        content, calls = [], {}
         for index, item in enumerate(output):
             kind = item.get("type")
+            source_index = next((i for i, done in state.get("done_items", {}).items()
+                                 if item.get("id") and done.get("id") == item["id"]), index)
             if kind == "message":
-                for part in item.get("content") or []:
+                for part_index, part in enumerate(item.get("content") or []):
                     if part.get("type") == "output_text":
-                        content.append(part.get("text") or "")
+                        text = part.get("text") or ""
+                        if item.get("phase") in ("analysis", "commentary"):
+                            self._read_reasoning_part(source_index, part_index, "message", text, state, on_delta)
+                        else:
+                            content.append(text)
                     elif part.get("type") == "refusal":
                         content.append(part.get("refusal") or "")
             elif kind == "reasoning":
-                reasoning.extend(part.get("text") or "" for part in item.get("summary") or [])
-                reasoning.extend(part.get("text") or "" for part in item.get("content") or [])
+                self._read_reasoning_item(item, source_index, state, on_delta)
             elif kind == "function_call":
                 if data.get("status") == "completed" and item.get("status") not in (None, "completed"):
                     raise RuntimeError("Responses 工具调用未完整结束，响应不完整")
@@ -138,11 +183,10 @@ class ResponsesClient(OpenAICompatClient):
                 if not call["id"] or not call["name"]:
                     raise RuntimeError("Responses 工具调用缺少 call_id 或名称")
                 calls[index] = call
-        # 终态是权威内容；供应商只发终态时仍补发文本，已收到增量的不重复显示。
-        for key, parts, kind in (("content", content, "text"), ("reasoning", reasoning, "think")):
-            if parts and not state[key] and on_delta:
-                on_delta(kind, "".join(parts), None)
-            state[key] = parts
+        # 正文仍以终态为准；推理摘要由逐项完成事件补齐，空终态不覆盖已有摘要。
+        if content and not state["content"] and on_delta:
+            on_delta("text", "".join(content), None)
+        state["content"] = content
         if data.get("status") == "completed":
             seen = {call["id"] for call in state["calls"].values() if call["id"]}
             if seen - {call["id"] for call in calls.values()} or (state["calls"] and not calls):
@@ -162,23 +206,84 @@ class ResponsesClient(OpenAICompatClient):
     def _read_whole(self, resp, state):
         self._read_response(json.loads(resp.read().decode("utf-8", "replace")), state)
 
+    def _read_reasoning_part(self, index, part_index, channel, text, state, on_delta, *, delta=False):
+        if not text:
+            return
+        if not isinstance(text, str):
+            raise RuntimeError("Responses 推理摘要必须是文本")
+        key = (index, channel, part_index)
+        parts = state.setdefault("reasoning_parts", {})
+        chunks = parts.setdefault(key, [])
+        if not delta:
+            prior = "".join(chunks)
+            if not text.startswith(prior):
+                # 展示过的文本不能靠追加改写；保留增量并在诊断中标记供应商差异。
+                state["reasoning_mismatches"] = state.get("reasoning_mismatches", 0) + 1
+                return
+            text = text[len(prior):]
+        if not text:
+            return
+        self._mark(state)
+        separator = "\n\n" if not chunks and state["reasoning"] else ""
+        chunks.append(text)
+        state["reasoning"].append(separator + text)
+        if on_delta:
+            on_delta("think", separator + text, None)
+
+    def _read_reasoning_item(self, item, index, state, on_delta):
+        channel, parts = _reasoning_parts(item)
+        for part_index, text in parts:
+            self._read_reasoning_part(index, part_index, channel, text, state, on_delta)
+
     def _read_stream(self, resp, state, on_delta, cancel):
         state["items"] = {}
         state["done_items"] = {}
         state["delta_items"] = set()
+        diagnostics = {"events": {}, "summary_delta_chars": 0, "terminal_received": False}
+        state["stream_diagnostics"] = diagnostics
+        try:
+            self._consume_stream(resp, state, on_delta, cancel)
+        finally:
+            # 每个请求只追加一条计数日志，不记录摘要正文、工具参数或加密内容。
+            self._debug("responses.stream", {**diagnostics,
+                "done_reasoning_chars": _reasoning_chars(state["done_items"].values()),
+                "retained_reasoning_chars": sum(map(len, state["reasoning"])),
+                "reasoning_mismatches": state.get("reasoning_mismatches", 0),
+                "cancelled": bool(cancel is not None and cancel.is_set())})
+
+    def _consume_stream(self, resp, state, on_delta, cancel):
+        diagnostics = state["stream_diagnostics"]
         for event in _events(resp, cancel):
             kind = event.get("type")
+            # 类型白名单防止非标准帧把单条诊断扩成无界数据。
+            label = kind if kind in _STREAM_TYPES else "other"
+            diagnostics["events"][label] = diagnostics["events"].get(label, 0) + 1
             if kind == "error":
                 error = event.get("error") or event
                 raise RuntimeError(error.get("message") or "Responses 流式请求失败")
             if kind in ("response.completed", "response.incomplete", "response.failed"):
-                self._read_response(event.get("response") or {}, state, on_delta)
+                data = event.get("response") or {}
+                usage = normalize_usage(data.get("usage"))
+                diagnostics.update({"terminal_received": True, "terminal_type": kind,
+                    "response_id": str(data.get("id") or "")[:128],
+                    "terminal_reasoning_chars": _reasoning_chars(data.get("output") or []),
+                    "output_tokens": usage["output_total"], "reasoning_tokens": usage["reasoning_output"]})
+                self._read_response(data, state, on_delta)
                 return
             if kind in ("response.output_item.added", "response.output_item.done"):
                 index, item = event["output_index"], event["item"]
                 state["items"][index] = copy.deepcopy(item)
+                if kind == "response.output_item.added":
+                    state["active_output_index"] = index
+                    state["active_message_phase"] = item.get("phase") if item.get("type") == "message" else None
                 if kind == "response.output_item.done":
                     state["done_items"][index] = copy.deepcopy(item)
+                    if item.get("type") == "reasoning":
+                        self._read_reasoning_item(item, index, state, on_delta)
+                    elif item.get("type") == "message" and item.get("phase") in ("analysis", "commentary"):
+                        for part_index, part in enumerate(item.get("content") or []):
+                            if part.get("type") == "output_text":
+                                self._read_reasoning_part(index, part_index, "message", part.get("text"), state, on_delta)
                 if item.get("type") == "function_call":
                     self._mark(state)
                     state["calls"][index] = call = _call_fields(item)
@@ -191,10 +296,25 @@ class ResponsesClient(OpenAICompatClient):
                     if "output_index" in event:
                         state["delta_items"].add(event["output_index"])
                     self._mark(state)
-                    thinking = kind in ("response.reasoning_summary_text.delta", "response.reasoning_text.delta")
-                    state["reasoning" if thinking else "content"].append(text)
-                    if on_delta:
-                        on_delta("think" if thinking else "text", text, None)
+                    index = event.get("output_index", state.get("active_output_index", 0))
+                    phase = (state["items"].get(index) or {}).get("phase", state.get("active_message_phase"))
+                    thinking = kind in ("response.reasoning_summary_text.delta", "response.reasoning_text.delta") or (
+                        kind == "response.output_text.delta" and phase in ("analysis", "commentary"))
+                    if thinking:
+                        channel = "summary" if "summary" in kind else "message" if "output_text" in kind else "text"
+                        part_index = event.get("summary_index" if channel == "summary" else "content_index", 0)
+                        self._read_reasoning_part(index, part_index, channel,
+                                                  text, state, on_delta, delta=True)
+                        if channel == "summary":
+                            diagnostics["summary_delta_chars"] += len(text)
+                    else:
+                        state["content"].append(text)
+                        if on_delta:
+                            on_delta("text", text, None)
+            elif kind in ("response.reasoning_summary_text.done", "response.reasoning_summary_part.done"):
+                text = event.get("text") if kind.endswith("text.done") else (event.get("part") or {}).get("text")
+                self._read_reasoning_part(event.get("output_index", state.get("active_output_index", 0)), event.get("summary_index", 0),
+                                          "summary", text, state, on_delta)
             elif kind in ("response.function_call_arguments.delta", "response.function_call_arguments.done"):
                 index = event["output_index"]
                 call = state["calls"].setdefault(index, {"id": "", "name": "", "arguments": ""})
@@ -212,3 +332,11 @@ class ResponsesClient(OpenAICompatClient):
                     state["items"][index]["arguments"] = call["arguments"]
         if cancel is None or not cancel.is_set():
             raise RuntimeError("Responses 流在终态事件前结束，响应不完整")
+
+
+_STREAM_TYPES = frozenset({"error", "response.created", "response.in_progress", "response.completed",
+    "response.incomplete", "response.failed", "response.output_item.added", "response.output_item.done",
+    "response.output_text.delta", "response.refusal.delta", "response.reasoning_text.delta",
+    "response.reasoning_summary_text.delta", "response.reasoning_summary_text.done",
+    "response.reasoning_summary_part.added", "response.reasoning_summary_part.done",
+    "response.function_call_arguments.delta", "response.function_call_arguments.done"})

@@ -26,9 +26,9 @@ export function newRun(meta = {}) {
     reason: meta.reason || null, error: meta.error || '', startedAt: meta.started_at || new Date().toISOString(),
     reverted: meta.reverted || null, steps: [], timeline: [], byCall: new Map(), rounds: 0, calls: 0, writes: 0, commits: [],
     usage: { prompt: 0, cached: 0, out: 0, think: 0 }, usageRequests: new Map(), usageTotals: usageTotals(new Map()),
-    seenEvents: new Set(), ttfts: [], genMs: 0, genTok: 0, peak: 0, win: [], spark: [],
+    seenEvents: new Set(), ttfts: [], rateRounds: new Map(), genMs: 0, genTok: 0, genEstimated: false, peak: 0, win: [], spark: [],
     ctx: { sys: 0, tools: 0, chat: 0, res: 0, msgs: 0 }, roundOut: 0, limits: null, dur: 0, next: 0, clock: { t: 0, at: 0 },
-    aborting: false, ver: 0, seg: null, round: null,
+    aborting: false, ended: false, ver: 0, seg: null, round: null,
   };
 }
 
@@ -52,7 +52,7 @@ function argsStep(run, index, name, t) {
   return st;
 }
 function countTok(run, t, tok, isThink) {
-  run.genTok += tok; run.roundOut += tok;
+  run.roundOut += tok;
   const key = `round:${run.rounds}`;
   const prior = run.usageRequests.get(key) || { input: null, output: 0, cache: null, reasoning: null,
     scope: 'main', source: 'estimated', estimated: true, invalid: false };
@@ -77,7 +77,20 @@ export function liveTps(run, now) {
   for (const [t, k] of run.win) if (t > now - win) tok += k;
   return tok / (win / 1000);
 }
-export const avgTps = run => (run && run.genMs ? run.genTok / (run.genMs / 1000) : 0);
+export function avgTps(run, now = run?.clock.t || 0) {
+  if (!run) return 0;
+  if (run.status === 'done' && run.eventsMore) return null;
+  if ([...run.rateRounds.values()].some(rate => rate.output > 0 && rate.ms <= 0)) return null;
+  let output = run.genTok, ms = run.genMs;
+  const seg = run.seg;
+  // 活动轮次的估算输出和同一轮已经流逝的生成时间一起加入。
+  if (run.status !== 'done' && seg?.tf != null && seg.t1 == null && now > seg.tf) {
+    output += run.roundOut; ms += now - seg.tf;
+  }
+  return ms > 0 ? output / (ms / 1000) : output ? null : 0;
+}
+export const rateEstimated = run => !!(run?.genEstimated || (run?.status !== 'done' && run?.seg?.tf != null && run.seg.t1 == null));
+export const fmtTps = (value, estimated = false) => value == null ? '—' : `${estimated ? '≈' : ''}${Math.round(value)} tok/s`;
 
 /** 归约一条事件。返回 run（就地修改）。 */
 export function applyEvent(run, ev) {
@@ -113,8 +126,17 @@ export function applyEvent(run, ev) {
       if (run.seg && run.seg.tf == null) { run.seg.tf = t; run.ttfts.push(t - run.seg.t0); }
       const tok = tokOf(d.text);
       if (d.kind === 'think') {
-        const th = think(run);
-        if (th) { th.phase = 'live'; th.tStart = th.tStart ?? t; th.src += d.text; }
+        let th = think(run);
+        if (!th) {
+          // 有些供应商在工具参数之后才发完整摘要，仍放回该轮思考位置。
+          th = { kind: 'think', id: `r${run.rounds}-think`, phase: 'wait', src: '', t0: run.seg?.t0 ?? t, open: false };
+          run.round.think = th;
+          const before = run.steps.indexOf(run.round.order[0] || run.round.text);
+          if (before >= 0) run.steps.splice(before, 0, th); else run.steps.push(th);
+        }
+        th.phase = run.round.order.length || run.round.text ? 'done' : 'live';
+        th.tStart = th.tStart ?? t; th.src += d.text;
+        if (th.phase === 'done') th.t1 = t;
         countTok(run, t, tok, true);
       } else if (d.kind === 'text') {
         closeThink(run, t);
@@ -135,6 +157,7 @@ export function applyEvent(run, ev) {
       const u = d.usage || {};
       const key = d.request_id || `round:${d.n}`;
       const row = usageRecord(u);
+      const output = row.output;
       const prior = run.usageRequests.get(key);
       if (row.input === null && prior?.input != null) row.input = prior.input;
       if (row.output === null && prior) row.output = prior.output;
@@ -143,8 +166,14 @@ export function applyEvent(run, ev) {
       if (prior?.estimated && (u.input_total == null && u.prompt == null || u.output_total == null && u.completion == null)) row.estimated = true;
       run.usageRequests.set(key, row);
       refreshUsage(run);
-      run.genMs += d.gen_ms || 0;
-      if (d.gen_ms > 400) run.peak = Math.max(run.peak, run.roundOut / (d.gen_ms / 1000));
+      const ms = Number.isFinite(d.gen_ms) && d.gen_ms >= 0 ? d.gen_ms : Math.max(0, t - (run.seg?.tf ?? t));
+      run.rateRounds.set(`round:${d.n}`, { output: output ?? run.roundOut, ms,
+        estimated: output === null || !!u.estimated || row.invalid });
+      const rates = [...run.rateRounds.values()];
+      run.genTok = rates.reduce((sum, rate) => sum + rate.output, 0);
+      run.genMs = rates.reduce((sum, rate) => sum + rate.ms, 0);
+      run.genEstimated = rates.some(rate => rate.estimated);
+      run.peak = Math.max(0, ...rates.filter(rate => rate.ms > 400).map(rate => rate.output / (rate.ms / 1000)));
       if (row.input !== null) run.ctx = { ...run.ctx, prompt: row.input };
       break;
     }
@@ -227,7 +256,7 @@ export function applyEvent(run, ev) {
     }
     case 'run.aborting': run.aborting = true; break;
     case 'run.end':
-      run.status = 'done'; run.reason = d.reason; run.error = d.error || ''; run.dur = t;
+      run.status = 'done'; run.ended = true; run.reason = d.reason; run.error = d.error || ''; run.dur = t;
       for (const s of run.steps) {
         if (s.kind === 'think' && (s.phase === 'wait' || s.phase === 'live')) { s.phase = s.src ? 'cut' : 'gone'; s.t1 = t; }
         if (s.kind === 'text' && s.live) { s.live = false; s.cut = d.reason === 'aborted'; }
@@ -246,8 +275,12 @@ export function applyEvent(run, ev) {
 export function runFrom(meta, events, { hasMore = false, next } = {}) {
   const run = newRun(meta);
   for (const ev of events || []) applyEvent(run, ev);
-  if (!hasMore && meta.status === 'done' && run.status !== 'done') applyEvent(run, { type: 'run.end', t: run.clock.t, data: { reason: meta.reason || 'interrupted', error: meta.error } });
-  if (hasMore && meta.status === 'done') run.status = 'done';
+  if (meta.status === 'done' && !run.ended) {
+    const duration = Date.parse(meta.ended_at) - Date.parse(meta.started_at);
+    const t = Number.isFinite(duration) && duration >= 0 ? duration : run.clock.t;
+    if (!hasMore) applyEvent(run, { type: 'run.end', t, data: { reason: meta.reason || 'interrupted', error: meta.error } });
+    else { run.status = 'done'; run.dur = t; }
+  }
   run.eventsMore = hasMore; run.eventsBusy = false;
   if (next != null) run.next = next;
   return run;

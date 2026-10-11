@@ -1,7 +1,7 @@
 // AI 助手页（features/assistant）的纯函数：事件归约成运行视图模型、持久化后合并过的事件重放、聊天 Markdown。
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { applyEvent, newRun, runFrom, ctxUsed, dayGroup, tokOf, fmtS, REASON } from '../../assets/app/features/assistant/state.js';
+import { applyEvent, newRun, runFrom, ctxUsed, dayGroup, tokOf, fmtS, avgTps, fmtTps, rateEstimated, runNow, REASON } from '../../assets/app/features/assistant/state.js';
 import { renderMd, renderInline, plainOf } from '../../assets/app/features/assistant/md.js';
 import { dockView, userView, turnView } from '../../assets/app/features/assistant/view.js';
 import { inspView } from '../../assets/app/features/assistant/insp-view.js';
@@ -29,6 +29,83 @@ test('两轮缓存按输入加权，显式零和缺失分开，总量不重复�
   applyEvent(run, { ...events[3], i: 4 });
   assert.equal(run.usageTotals.main.total, 10500);
   assert.equal(runFrom({ id: 'replay' }, events).usageTotals.cache.ratio, 0.9);
+});
+
+test('平均 TPS 使用供应商输出，思考不重复加，辅助与输入不计，活动轮次的分子分母同步', () => {
+  const run = newRun({ id: 'rate' });
+  const add = (i, t, type, data) => applyEvent(run, { i, t, type, data });
+  add(0, 0, 'round.start', { n: 1 });
+  add(1, 100, 'delta', { kind: 'text', text: '短回答' });
+  add(2, 1100, 'round.end', { n: 1, gen_ms: 1000,
+    usage: { input_total: 10000, output_total: 100, reasoning_output: 20, cache_read: 9000 } });
+  assert.equal(avgTps(run), 100);
+  assert.equal(run.genTok, 100);
+  add(3, 1500, 'usage.aux', { request_id: 'image', usage: { input_total: 5000, output_total: 1000 } });
+  assert.equal(avgTps(run), 100);
+  add(4, 2000, 'round.start', { n: 2 });
+  add(5, 2100, 'delta', { kind: 'text', text: '答'.repeat(135) });
+  assert.equal(avgTps(run), 100);
+  assert.equal(avgTps(run, 2600), 200 / 1.5);
+  assert.equal(rateEstimated(run), true);
+  add(6, 3100, 'round.end', { n: 2, gen_ms: 1000,
+    usage: { input_total: 20000, output_total: 200, reasoning_output: 40 } });
+  assert.equal(avgTps(run), 150);
+  assert.equal(run.genTok, 300);
+  assert.equal(run.genMs, 2000);
+  assert.equal(run.peak, 200);
+  assert.equal(rateEstimated(run), false);
+  add(7, 3100, 'round.end', { n: 2, gen_ms: 1000, usage: { input_total: 20000, output_total: 200 } });
+  assert.equal(avgTps(run), 150);
+  assert.equal(run.genMs, 2000);
+});
+
+test('输出零覆盖估算，缺失输出保留估算标签，短轮次或缺耗时不产生无穷速度', () => {
+  const events = [ev(0, 0, 'round.start', { n: 1 }), ev(1, 100, 'delta', { kind: 'text', text: '答'.repeat(135) })];
+  const zero = runFrom({}, events);
+  applyEvent(zero, ev(2, 1100, 'round.end', { n: 1, gen_ms: 1000, usage: { prompt: 10000, completion: 0 } }));
+  assert.equal(avgTps(zero), 0);
+  assert.equal(zero.genTok, 0);
+  const missing = runFrom({}, events);
+  applyEvent(missing, ev(2, 1100, 'round.end', { n: 1, gen_ms: 1000, usage: { input_total: 10000 } }));
+  assert.equal(avgTps(missing), 100);
+  assert.equal(fmtTps(avgTps(missing), rateEstimated(missing)), '≈100 tok/s');
+  const instant = runFrom({}, [ev(0, 0, 'round.start', { n: 1 }),
+    ev(1, 100, 'round.end', { n: 1, gen_ms: 0, usage: { prompt: 10000, completion: 10 } })]);
+  assert.equal(avgTps(instant), null);
+  assert.equal(fmtTps(avgTps(instant)), '—');
+});
+
+test('历史未读完时用真实起止时间显示耗时，平均 TPS 等完整记录后再统计', () => {
+  const meta = { id: 'partial-rate', status: 'done', reason: 'completed',
+    started_at: '2026-10-11T05:09:21.024Z', ended_at: '2026-10-11T05:09:57.311Z' };
+  const prefix = [ev(0, 0, 'round.start', { n: 1 }), ev(1, 100, 'delta', { kind: 'text', text: '答' }),
+    ev(2, 1100, 'round.end', { n: 1, gen_ms: 1000, usage: { prompt: 10000, completion: 100 } })];
+  const run = runFrom(meta, prefix, { hasMore: true, next: 3 });
+  assert.equal(run.dur, 36287);
+  assert.equal(runNow(run, 999999), 36287);
+  assert.equal(avgTps(run), null);
+  const detail = String(inspView({ items: [{ run }], runSel: run.id, status: {} }, 0));
+  assert.match(detail, /输出速度/);
+  assert.match(detail, /展开完整记录后统计/);
+  assert.doesNotMatch(detail, /100 tok\/s/);
+  applyEvent(run, ev(3, 36283, 'run.end', { reason: 'completed' }));
+  run.eventsMore = false;
+  assert.equal(avgTps(run), 100);
+  assert.equal(run.dur, 36283);
+  const noEndEvent = runFrom(meta, prefix);
+  assert.equal(noEndEvent.dur, 36287);
+  assert.equal(noEndEvent.ended, true);
+});
+
+test('供应商在工具参数后补发摘要时，思考步骤仍展示且放在工具之前', () => {
+  const run = runFrom({ status: 'done', reason: 'completed' }, [ev(0, 0, 'round.start', { n: 1 }),
+    ev(1, 100, 'delta', { kind: 'args', text: '{"x":1}', index: 1, name: 'echo' }),
+    ev(2, 200, 'delta', { kind: 'think', text: '完整摘要' }),
+    ev(3, 300, 'round.end', { n: 1, gen_ms: 200, usage: { prompt: 100, completion: 20 } }),
+    ev(4, 350, 'run.end', { reason: 'completed' })]);
+  assert.deepEqual(run.steps.map(step => step.kind), ['think', 'tool']);
+  assert.equal(run.steps[0].src, '完整摘要');
+  assert.match(String(turnView({ open: new Set(), closed: new Set(), traceClosed: new Set() }, run, 0)), /完整摘要/);
 });
 
 test('缺缓存、中断、completion=0 和辅助请求保留统计边界', () => {

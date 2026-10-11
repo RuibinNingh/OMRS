@@ -5,7 +5,7 @@
 import { html, raw, each, cls } from '../../core/html.js';
 import { icon } from '../../ui/icon.js';
 import { renderMd, plainOf } from './md.js';
-import { REASON, avgTps, ctxUsed, dayGroup, fmtK, fmtN, fmtS, hhmm, mmss, runNow } from './state.js';
+import { REASON, avgTps, ctxUsed, dayGroup, fmtK, fmtN, fmtS, fmtTps, hhmm, mmss, rateEstimated, runNow } from './state.js';
 import { LVL, gateOf, lvl, refOf, toolArgs, toolIcon, toolPreview, toolTitle } from './tools-view.js';
 import { imageSrc } from './attachments.js';
 import { operationId, reviewCard } from './review-cards.js';
@@ -204,7 +204,7 @@ export function dockView(S, perfNow) {
         <button type="button" class="ast-meter" data-action="assistant.pop" aria-expanded="${S.popOpen ? 'true' : 'false'}" aria-label="${meterLabel}">
           <svg class="${cls('ast-ring', ratio > 0.8 && 'is-warn')}" viewBox="0 0 24 24" aria-hidden="true"><circle class="t" cx="12" cy="12" r="9"/><circle class="v" cx="12" cy="12" r="9" stroke-dasharray="${(circ * ratio).toFixed(1)} ${circ.toFixed(1)}" transform="rotate(-90 12 12)"/></svg>
           <span class="ast-meter__context">${fmtK(used)} / ${fmtK(win)}</span><span class="ast-meter__cache">${cacheLabel}</span></button>
-        <span class="ast-cbar__sp">${busy ? html`<span class="ast-model">${fmtS(runNow(run, perfNow))} · ${Math.round(avgTps(run))} tok/s</span>` : `${S.msgs} / ${st.msg_cap || 60} 条消息`}</span>
+        <span class="ast-cbar__sp">${busy ? html`<span class="ast-model">${fmtS(runNow(run, perfNow))} · ${fmtTps(avgTps(run, runNow(run, perfNow)), rateEstimated(run))}</span>` : `${S.msgs} / ${st.msg_cap || 60} 条消息`}</span>
         ${busy ? html`<button type="button" class="ui-btn ui-btn--sm ast-stop" data-action="assistant.stop">${icon('stop')}停止</button>` : ''}
         <button type="button" class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon ast-send" data-action="assistant.send" aria-label="${busy ? '插话' : '发送'}" ${disabled || S.pendingFiles ? 'disabled' : ''}>${icon('arrow-up')}</button>
       </div>
