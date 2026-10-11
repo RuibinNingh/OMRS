@@ -15,19 +15,19 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-11 12:58 CST 实测）：主服务 `omrs.service`，Type=simple、Restart=on-failure、RestartSec=3s；当前运行 v2.3.9，AI 助手的「OpenAI（Responses）」使用 Responses 协议，主动请求摘要、保留原生上下文并发送稳定对话缓存键。精确提交 `f3b94bcfd342744c0a893adfe2f77b0bddab6507` 的 Git 归档在 `/root/workspace/apps/releases/omrs-f3b94bc`，1,296 个源码文件逐字节核验。`.venv` 相对链接复用既有生产依赖；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0。真实 Vault 为 `/root/workspace/apps/OMRS`；运行源码 pin 与本地部署文档提交分开，本次未推送。
+生产环境事实（2026-10-11 13:14 CST 实测）：主服务 `omrs.service`，Type=simple、Restart=on-failure、RestartSec=3s；当前运行 v2.3.9，AI 助手长运行记录可点击一次「展开完整运行记录」自动读到末页并展开处理过程。「OpenAI（Responses）」仍使用 Responses 协议，主动请求摘要、保留原生上下文并发送稳定对话缓存键。精确提交 `448e5994c890fc66eadbb3e26b35bce535472454` 的 Git 归档在 `/root/workspace/apps/releases/omrs-448e599`，1,298 个源码文件逐字节核验。`.venv` 相对链接复用既有生产依赖；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0。真实 Vault 为 `/root/workspace/apps/OMRS`；运行源码 pin 与本地部署文档提交分开，本次未推送。
 
-当前执行环境中 `/etc` 所在根挂载为 rw。服务配置引用 `/root/workspace/apps/releases/omrs-9b29d49`，该路径是指向 `omrs-f3b94bc` 的持久相对符号链接；进程实际 cwd 已核对为精确目录。发布沿用同盘临时链接、`os.replace` 原子替换和目录 fsync；unit/drop-in 字节保持。旧源码 `omrs-1c74521`、既有更旧目录与依赖仍保留。后续发布先确认配置可写性及别名的真实目标，不把别名名称当作实际源码提交。
+当前执行环境中 `/etc` 所在根挂载为 rw。服务配置引用 `/root/workspace/apps/releases/omrs-9b29d49`，该路径是指向 `omrs-448e599` 的持久相对符号链接；进程实际 cwd 已核对为精确目录。发布沿用同盘临时链接、`os.replace` 原子替换和目录 fsync；unit/drop-in 字节保持。旧源码 `omrs-f3b94bc`、既有更旧目录与依赖仍保留。后续发布先确认配置可写性及别名的真实目标，不把别名名称当作实际源码提交。
 
 Web监听8471，同进程MCP仅监听127.0.0.1:18472；Nginx共用HTTPS8472按路径分流。公网MCP为 `https://home.ruibin-ningh.top:8472/mcp`，公网Web为 `https://home.ruibin-ningh.top:8472`。PIN已配置；本机API免PIN不能绕过工作台入口。当前代码完整授权注册44个MCP工具（24读、19业务写、1技术准备），既有隔离SDK验证通过；Key现有权限决定实际发现范围，正式调度、改题、标记整理和草稿继续遵守审核契约，既有Key不自动扩权。
 
-最新发布保全在 `/root/workspace/apps/releases/OMRS-responses-followup-release-20261011T045621Z-0kfpba3p/`（目录0700、文件0600）：精确新旧源码tar、unit/drop-in及实际控制配置、一致Vault/maintenance tar、私人表/文件摘要和验证证据。停服备份与原目录比较通过，992个解包文件逐字节一致，副本SQLite完整性通过。切换及只读核验保持49张业务表、935个内容/关键配置文件；299题、0冲突、待审0。基线取自本轮停服前后的真实状态，既有发布保全继续保留。
+最新发布保全在 `/root/workspace/apps/releases/OMRS-assistant-expand-history-release-20261011T051232Z-ddx9nc2b/`（目录0700、文件0600）：精确新旧源码tar、unit/drop-in及实际控制配置、一致Vault/maintenance tar、私人表/文件摘要和验证证据。停服备份与原目录比较通过，992个解包文件逐字节一致，副本SQLite完整性通过。切换及只读核验保持49张业务表、935个内容/关键配置文件；299题、0冲突、待审0。任务及恢复意图重新检查为空，数据基线取自本轮停服前后的真实状态，既有发布保全继续保留。
 
-主服务PID399122、active/running、NRestarts=0；切换至就绪3.195秒。Tunnel、检测服务及Nginx状态和PID保持；89个实际控制文件/模型指针指纹一致，包含unit/drop-in和宝塔Nginx配置树。端口、公网URL、Vault、PIN、Key权限与模型配置保持，Tunnel/检测/Nginx未重启。回退只恢复兼容源码指针，不用旧Vault覆盖新增事实。
+主服务PID454158、active/running、NRestarts=0；切换至就绪3.107秒。Tunnel、检测服务及Nginx状态和PID保持；89个实际控制文件/模型指针指纹一致，包含unit/drop-in和宝塔Nginx配置树。端口、公网URL、Vault、PIN、Key权限与模型配置保持，Tunnel/检测/Nginx未重启。回退只恢复兼容源码指针，不用旧Vault覆盖新增事实。
 
-当前精确release与既有venv实跑4/4组：Responses、助手循环、附图、用量与资源缓存后端68项；Responses真实HTTP/浏览器闭环24项；原助手59项；设置页71项，全部无跳过。业务测试使用临时Vault、随机端口；Responses闭环接合成HTTP供应商，验证摘要请求、空终态工具续轮、原生前缀、稳定缓存键和标题；原助手使用脚本化假模型。实现提交另跑Python专项51项、Node457项、组件34项、UI纪律0问题及58组对比度；助手欢迎页4组视觉比较无差异，回答标题有双主题/宽度截图。
+当前精确release与既有venv实跑4/4组：助手分页与资源缓存后端21项、Node470项、长历史真实页面24项、原助手59项，全部无跳过。业务测试使用临时Vault、随机端口；一次点击读完1212事件，覆盖浅/深色与1440/390px。实现提交另跑Responses合成HTTP/浏览器闭环24项、助手图片和手机23项、会话竞争两条路径、聊天审核28项、组件34项、UI纪律0问题及58组对比度。助手欢迎页4组基线视觉比较无差异；长运行展开前后有双主题/宽度8张截图。
 
-生产本机返回v2.3.9；`assets/app/features/assistant/md.js`、`assets/app/features/assistant/assistant-run.css` 与 `assets/app/main.js` 实际HTTP200，gzip解压与release字节一致，资源指纹已更新，immutable缓存与条件请求304通过；公网匿名资源401。精确源码构造核对ResponsesClient、摘要请求、缓存键及运行时原生上下文保留，不发送模型请求。公网入口/授权摘要200，匿名status/MCP401，回环MCP无Key401；主服务错误级journal无记录。本机和公网真实浏览器390px PIN入口无横溢、无脚本错误；未输入PIN。生产PIN后的页面、真实摘要/缓存命中、Windows和实体手机留待用户验收；功能主路径在精确release的隔离Chromium验证。
+生产本机返回v2.3.9；`assets/app/features/assistant/history.js`、`assets/app/features/assistant/view.js` 与 `assets/app/main.js` 实际HTTP200，gzip解压与release字节一致，资源指纹已更新，immutable缓存与条件请求304通过；公网匿名资源401。实际运行源码包含完整展开入口，旧逐页按钮文案已移除。公网入口/授权摘要200，匿名status/MCP401，回环MCP无Key401；主服务错误级journal无记录。本机和公网真实浏览器390px PIN入口无横溢、无脚本错误；未输入PIN。生产PIN后的实际长历史、真实摘要/缓存命中、Windows和实体手机留待用户验收；功能主路径在精确release的隔离Chromium验证。
 
 启动会按稳定源身份将既有MCP运行记录导入为只读审核历史，不再次执行业务；契约见 `ai-review.md` §5。发布核对原有审批行和已存在的来源证据，区分历史追加与原业务改写；不能只因整表摘要变化而忽略具体差异。未终结任务或恢复意图仍阻止切换，合法历史追加也不允许覆盖旧Vault。
 

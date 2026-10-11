@@ -46,4 +46,18 @@
 
 ## 未执行的验证与遗留
 
-未运行无关后端全仓门禁，也未代用户发送真实付费模型请求。Windows、实体手机和生产 PIN 后的实际历史由用户验收；当前主路径已在真实 Chromium、临时题库中验证。生产切换前须重新检查任务与恢复意图、采集本轮数据基线，并保留一致备份；不采用上一轮数量作为本轮证明。
+未运行无关后端全仓门禁，也未代用户发送真实付费模型请求。Windows、实体手机和生产 PIN 后的实际历史由用户验收；当前主路径已在真实 Chromium、临时题库中验证。生产任务与恢复意图检查、本轮基线采集和一致备份已经完成，结果见下节。
+
+## 提交与生产发布
+
+实现提交 `448e5994c890fc66eadbb3e26b35bce535472454`，v2.3.9。本轮独立发布脚本在 `/tmp/omrs-assistant-expand-history-release-20261011/`；已检查并适配上一轮发布脚本的精确提交、旧目标与保全命名，没有覆盖上一轮证据。精确归档 `/root/workspace/apps/releases/omrs-448e599` 的 1298 个源码文件与提交逐字节一致，复用既有生产 venv。
+
+精确 release 与生产依赖实跑 4/4 组无跳过：`tests.test_agent_pagination`、`tests.test_asset_cache`、`tests.test_web_assets` 共 21 项；Node 全部 470 项；长历史 E2E 24 项；原助手 E2E 59 项。全部使用临时 Vault 和随机端口，清除生产控制环境变量。结果和完整命令在保全目录的 `validation/` 与 `deployment.json`，未代用户调用真实模型。
+
+13:13 CST 已完成切换，13:14 CST 完成生产只读核验。停服前及停服后重新检查未终结任务、等待确认和恢复意图，全部为空；一致 Vault/maintenance tar 与原目录比较通过，解包 992 个文件逐字节一致，副本 SQLite 完整性通过。基线、备份与私人摘要在 `/root/workspace/apps/releases/OMRS-assistant-expand-history-release-20261011T051232Z-ddx9nc2b/`（目录0700，文件0600），既有保全与旧源码保留。
+
+仅停止并启动主服务，将持久别名 `omrs-9b29d49` 原子指向 `omrs-448e599`；切换至就绪 3.107 秒，PID454158、active/running、NRestarts=0，实际 cwd 和源码入口均核对。49 张业务表、935 个内容/关键配置文件与本轮停服基线保持；299 题、0 冲突、待审 0。89 个控制文件/模型指针一致，unit/drop-in 保持，Tunnel、检测与 Nginx 状态和 PID 保持。
+
+生产实际返回 `history.js`、`view.js` 和 `main.js` 的精确新版本：HTTP200、gzip 解压字节一致、资源指纹更新、immutable 与条件请求304通过。公网入口及授权摘要200，匿名status/MCP和资源401，回环MCP无Key401。390px 本机与公网真实浏览器 PIN 入口无脚本错误、无横溢；未输入 PIN。两次数据/配置回读一致，主服务错误级 journal 无记录。只读核验报告在保全目录 `production-read-live.json`；发布文档与运行源码 pin 分开提交，不推送远端。
+
+生产事实同步 `AI/environment.md` 后，`python3 tests/check_docs.py --diff HEAD` 与 `--diff 574aed6` 都检查 105 个文档、0 问题，两条既有计划大小提醒；日志索引已重新生成，`git diff --check` 通过。
