@@ -158,14 +158,19 @@ def main():
                 panel.fill('#admin-password', (temp / 'gateway' / 'admin-secret.txt').read_text().strip())
                 panel.click('#login-submit')
                 panel.wait_for_selector('#dashboard', state='visible')
+                check('概览服务地址保留实际入口前缀',
+                      panel.input_value('#service-address') == gateway_base)
                 if args.with_prefix:
                     check('前缀面板登录Cookie限制到服务路径',
                           any(cookie['name'] == 'zyb_admin' and cookie['path'] == '/zuoyebang/'
                               for cookie in context.cookies()))
+                panel.click('#hero-action')
+                panel.click('#profile-paste summary')
                 panel.fill('#profile-json', json.dumps(profile()))
                 panel.click('#import-profile')
                 panel.wait_for_function("() => document.querySelector('#notice').textContent.includes('已导入')")
                 panel.click('[data-tab="keys"]')
+                panel.click('#open-key')
                 panel.fill('#key-name', 'SYNTHETIC 双项目验收')
                 panel.click('#create-key')
                 panel.wait_for_selector('#new-key', state='visible')
@@ -223,7 +228,11 @@ def main():
                       and b'name="gradeId"\r\n\r\n0' in captured[0]
                       and b'name="sign"' in captured[0]
                       and b'synthetic-signing-seed' not in captured[0])
-                page.get_by_role('button', name='渲染所选题目', exact=True).click()
+                page.locator('.zyb-candidate').first.click()
+                # 兼容显式渲染与选中自动渲染，始终等待真实后端生成图。
+                render_button = page.locator('[data-action="create.zybRender"]')
+                if render_button.is_visible() and render_button.is_enabled():
+                    render_button.click()
                 page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalWidth === 1080", timeout=60000)
                 page.get_by_role('button', name='答案与解析', exact=True).click()
                 page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalHeight > 3000")
@@ -248,11 +257,13 @@ def main():
                 panel.wait_for_function("() => document.querySelector('#history-rows').textContent.includes('/api/v1/search')")
                 check('实际面板可追溯搜题来源与IP', '本机 / local' in panel.inner_text('#history-rows')
                       and '127.0.0.1' in panel.inner_text('#history-rows'))
+                panel.bring_to_front()
                 panel.screenshot(path=str(args.out / 'gateway-history.png'), full_page=True)
+                page.bring_to_front()
                 page.screenshot(path=str(args.out / 'omrs-created.png'), full_page=True)
                 panel.click('[data-tab="keys"]')
-                panel.once('dialog', lambda dialog: dialog.accept())
                 panel.locator('[data-revoke]').click()
+                panel.click('#confirm-submit')
                 panel.wait_for_function("() => document.querySelector('#notice').textContent.includes('已吊销')")
                 reply = context.request.post(omrs_base + '/api/zuoyebang/service/test',
                                              headers={'Origin': omrs_base}, data={})

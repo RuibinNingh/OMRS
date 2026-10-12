@@ -1,13 +1,107 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>作业帮网关 · 管理面板</title><link rel="stylesheet" href="assets/panel.css"><script src="assets/panel.js" defer></script></head>
-<body><main class="shell">
-<header class="masthead"><div class="brand"><span class="brand-icon" aria-hidden="true">作</span><div><h1>作业帮网关</h1><p>独立会话 · 原图搜题 · 请求审计</p></div></div><div class="header-actions"><span id="access-state" class="badge">安全默认 · 仅本机</span><button id="logout" hidden>退出登录</button></div></header>
-<div id="notice" role="status" aria-live="polite" hidden></div>
-<section id="login-view" class="login-card card"><span class="eyebrow">ADMIN / 管理员</span><h2>登录管理面板</h2><p>调用密钥不能管理服务。首次管理员密码位于启动时提示的受限文件，仅服务器所有者可读取。</p><form id="login-form"><label for="admin-password">管理员密码</label><input id="admin-password" type="password" autocomplete="current-password" required maxlength="256"><button id="login-submit" class="primary" type="submit">登录</button></form><p class="muted small">默认仅允许本机访问。外部部署必须使用 HTTPS 和可信反向代理。</p></section>
-<div id="dashboard" hidden><nav class="tabs" aria-label="管理功能"><button data-tab="account" class="active">账户与会话</button><button data-tab="keys">调用密钥</button><button data-tab="history">请求历史</button><button data-tab="settings">访问设置</button></nav>
-<section id="tab-account" class="tab-panel"><div class="section-heading"><div><h2>账户与设备会话</h2><p>状态读取不联网；导入不等于官方验证成功。</p></div><span id="account-state" class="badge">未配置</span></div><div class="two-columns"><article class="card"><h3>设备会话导入</h3><p>导入已登记设备的 direct-session.json。不能从空账号生成设备，也不会读取 OMRS 的旧凭据。</p><label for="profile-file">选择 JSON 文件（最多 256 KiB）</label><input id="profile-file" type="file" accept="application/json,.json"><label for="profile-json">或粘贴设备会话 JSON</label><textarea id="profile-json" rows="6" spellcheck="false" autocomplete="off" placeholder="完整 fields / headers / session_token；不会回显已保存会话"></textarea><button id="import-profile" class="primary">导入设备会话</button><hr><label for="account-credential">导入账号凭据（需要先配置设备）</label><input id="account-credential" type="password" autocomplete="off" maxlength="8192" placeholder="仅输入新凭据，不回显旧值"><button id="import-credential">保存账号凭据</button></article>
-<article class="card"><h3>官方登录与核对</h3><div class="button-row"><button id="verify-account">检查账号</button><button id="refresh-account">刷新账号</button><button id="start-qr">创建登录二维码</button></div><p class="small muted">仅按钮操作联系官方。签名种子无法自助更新，失效后需重新导入。二维码 5 分钟期限不是账号 TTL。</p><div id="qr-box" hidden><img id="qr-image" alt="请使用作业帮 App 扫码" hidden><p id="qr-state"></p><p id="qr-expiry" class="small muted"></p><div class="button-row"><button id="poll-qr">检查扫码结果</button><button id="cancel-qr">取消扫码</button></div></div><h3>脱敏有效期观察</h3><div id="observations" class="observations"></div><p class="small muted">没有官方 TTL：仅记录最后成功到首次确认失效的区间；网络错误不等于账号失效。</p></article></div></section>
-<section id="tab-keys" class="tab-panel" hidden><div class="section-heading"><div><h2>调用密钥</h2><p>本机与外部使用同一 Bearer 鉴权。数据库仅保存密钥摘要。</p></div></div><article class="card"><div class="inline-form"><div><label for="key-name">密钥名称</label><input id="key-name" maxlength="80" placeholder="例如 OMRS 本地客户端"></div><button id="create-key" class="primary">生成密钥</button></div><div id="new-key" class="secret-box" hidden><strong>只显示这一次，请立即复制保存</strong><input id="new-key-secret" readonly autocomplete="off" aria-label="新调用密钥"><div class="button-row"><button id="copy-key">复制密钥</button><button id="dismiss-key">我已保存，关闭</button></div></div></article><div id="key-list" class="key-list"></div></section>
-<section id="tab-history" class="tab-panel" hidden><div class="section-heading"><div><h2>请求历史</h2><p>仅元数据：不记录正文、图片、Cookie、Key 或官方原文。</p></div></div><article class="card"><form id="history-form" class="filters"><div><label for="history-source">请求性质</label><select id="history-source"><option value="">全部来源</option><option value="local">本机 / local</option><option value="external">外部 / external</option></select></div><div><label for="history-result">结果</label><select id="history-result"><option value="">全部结果</option><option value="ok">成功</option><option value="error">错误</option><option value="key_invalid">无效密钥</option><option value="external_disabled">外部拒绝</option><option value="rate_limited">限流</option></select></div><div><label for="history-key">调用密钥</label><select id="history-key"><option value="">全部密钥</option></select></div><button id="history-filter" type="submit">筛选 / 刷新</button></form><div class="table-scroll"><table><thead><tr><th>时间 / 操作</th><th>来源 / IP</th><th>密钥 / 请求</th><th>结果 / 耗时</th></tr></thead><tbody id="history-rows"></tbody></table></div><div class="pagination"><button id="previous-page">上一页</button><span id="history-page"></span><button id="next-page">下一页</button></div></article></section>
-<section id="tab-settings" class="tab-panel" hidden><div class="section-heading"><div><h2>访问设置</h2><p>应用开关不修改防火墙、反向代理或实际监听地址。</p></div></div><article class="card settings-card"><label class="check-label"><input id="allow-external" type="checkbox">允许外部访问</label><p>关闭时，即使误监听 0.0.0.0，非 loopback 的 API 与管理请求仍被拒绝。开启后仍须调用密钥或独立管理员会话。</p><p class="warning">外部部署必须使用 HTTPS、Secure cookie、可信 Host 和明确配置的反向代理。X-Forwarded-For 默认不可信，不能伪装本机。</p><button id="save-settings" class="primary">保存访问设置</button><h3>资源预算</h3><div id="limits"></div></article></section>
-</div><footer>作业帮网关 1.0.0 · 管理会话与调用权限隔离 · 原图片不重编码</footer></main></body></html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>作业帮网关 · 管理面板</title>
+  <link rel="stylesheet" href="assets/panel.css">
+  <script src="assets/panel.js" defer></script>
+</head>
+<body class="locked">
+<svg class="icon-defs" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="9" r="5"/><path d="m12 13 8 8m-4-4 3-3m-6 0 3-3"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6z"/><path d="m8 12 3 3 5-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6 6a8 8 0 0 1 13 3M5 15a8 8 0 0 0 13 3"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+  <symbol id="i-device" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+</svg>
+<div class="app-shell">
+  <aside class="sidebar" aria-label="服务管理">
+    <div class="brand"><span class="brand-icon" aria-hidden="true">作</span><div><strong>作业帮服务</strong><span>OMRS · 服务管理</span></div></div>
+    <nav id="management-nav" class="navigation" aria-label="管理功能" hidden>
+      <span class="nav-label">工作台</span>
+      <button data-tab="overview" aria-controls="tab-overview" aria-current="page" class="active"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg>服务概览</button>
+      <button data-tab="account" aria-controls="tab-account"><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg>账号与会话</button>
+      <button data-tab="keys" aria-controls="tab-keys"><svg class="icon" aria-hidden="true"><use href="#i-key"/></svg>调用密钥</button>
+      <button data-tab="history" aria-controls="tab-history"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>请求记录</button>
+      <button data-tab="settings" aria-controls="tab-settings"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>访问设置</button>
+    </nav>
+    <div id="admin-footer" class="sidebar-footer" hidden>
+      <span class="nav-label">访问范围</span><span id="access-state" class="scope">正在读取…</span>
+      <div class="administrator"><span class="avatar" aria-hidden="true">管</span><div><strong>管理员</strong><span>独立管理会话</span></div><button id="logout" class="quiet">退出</button></div>
+    </div>
+  </aside>
+  <main class="workspace">
+    <header id="topbar" class="topbar" hidden><div class="breadcrumb">服务管理<span aria-hidden="true">/</span><strong id="breadcrumb-page">服务概览</strong></div><button id="reload-state" class="quiet"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>刷新状态</button></header>
+    <div class="content">
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+      <section id="login-view" class="login-card card" aria-labelledby="login-title">
+        <span class="eyebrow">服务管理</span><h1 id="login-title">登录作业帮服务</h1><p>使用管理员密码查看服务状态、管理账号与调用权限。</p>
+        <form id="login-form"><label for="admin-password">管理员密码</label><input id="admin-password" type="password" autocomplete="current-password" required maxlength="256"><button id="login-submit" class="primary" type="submit">登录管理面板<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></form>
+        <p class="small muted">首次密码位于服务启动时提示的受限文件。调用密钥用于客户端请求，不能登录此面板。</p>
+      </section>
+      <div id="dashboard" hidden>
+        <div class="page-heading"><div><span class="eyebrow">作业帮服务</span><h1 id="page-title">服务概览</h1><p id="page-description">先看服务状态，再处理需要关注的事项。</p></div><span id="last-read" class="small muted">正在读取状态…</span></div>
+        <section id="tab-overview" class="tab-panel" aria-labelledby="page-title">
+          <article id="status-hero" class="hero" data-state="unknown">
+            <div class="hero-copy"><span class="health-icon" aria-hidden="true"><svg class="icon"><use href="#i-shield"/></svg></span><div><span id="hero-label" class="eyebrow">服务状态</span><h2 id="hero-title">正在读取服务状态</h2><p id="hero-description">状态读取只访问本地服务。</p></div></div><button id="hero-action" class="primary" disabled>正在读取…</button>
+          </article>
+          <div class="status-grid">
+            <article class="card status-card"><div class="card-heading"><span class="status-label"><svg class="icon" aria-hidden="true"><use href="#i-device"/></svg>设备会话</span><span id="device-badge" class="badge">读取中</span></div><h3 id="device-value">—</h3><p id="device-detail">设备与签名信息保存在服务端。</p><button data-command="profile" class="text-button">管理设备会话<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></article>
+            <article class="card status-card"><div class="card-heading"><span class="status-label"><svg class="icon" aria-hidden="true"><use href="#i-user"/></svg>官方账号</span><span id="account-badge" class="badge">读取中</span></div><h3 id="account-value">—</h3><p id="account-detail">导入凭据后，需要主动核对。</p><button data-command="account" class="text-button">查看账号状态<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></article>
+            <article class="card status-card"><div class="card-heading"><span class="status-label"><svg class="icon" aria-hidden="true"><use href="#i-shield"/></svg>签名会话</span><span id="signing-badge" class="badge">读取中</span></div><h3 id="signing-value">—</h3><p id="signing-detail">有效性以最近的官方响应为依据。</p><button data-command="account" class="text-button">查看有效期观察<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></article>
+          </div>
+          <div class="two-columns overview-columns">
+            <article class="card"><div class="card-heading"><h2>账号与会话</h2><button data-command="account" class="text-button">管理<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div><dl class="detail-list"><div><dt>设备配置</dt><dd id="summary-device">—</dd></div><div><dt>账号凭据</dt><dd id="summary-credential">—</dd></div><div><dt>最近成功核对</dt><dd id="summary-verified">—</dd></div><div><dt>官方有效期</dt><dd>未知 · 仅记录观察区间</dd></div></dl><div class="button-row"><button data-command="qr" class="primary">扫码登录</button><button data-command="verify">核对账号</button><button data-command="refresh">刷新账号</button></div></article>
+            <article class="card"><div class="card-heading"><h2>连接到 OMRS</h2><span class="badge" id="connection-badge">读取中</span></div><p>在 OMRS 的作业帮服务设置中填写此地址和调用密钥。</p><label class="small" for="service-address">服务地址</label><div class="address-row"><input id="service-address" readonly autocomplete="off"><button id="copy-address">复制</button></div><dl class="detail-list"><div><dt>有效调用密钥</dt><dd id="active-key-summary">—</dd></div><div><dt>最近使用</dt><dd id="key-last-used">—</dd></div></dl><div class="button-row"><button data-command="new-key">生成调用密钥</button><button data-command="keys" class="text-button">管理密钥<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div></article>
+          </div>
+          <article class="card activity-card"><div class="card-heading"><h2>最近活动</h2><button data-command="history" class="text-button">全部请求记录<svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div><ul id="recent-activity" class="activity-list"><li class="empty-state">正在读取观察记录…</li></ul></article>
+          <p class="footnote">本页按需读取状态。核对、刷新与扫码操作才会联系官方；最近成功不代表永久有效。</p>
+        </section>
+        <section id="tab-account" class="tab-panel" hidden aria-labelledby="page-title">
+          <div class="two-columns">
+            <article class="card"><div class="card-heading"><h2>设备会话</h2><span id="account-state" class="badge">读取中</span></div><p>使用已登记设备的 direct-session.json 配置搜题所需的设备与签名信息。</p><dl class="detail-list"><div><dt>设备配置</dt><dd id="account-device-detail">—</dd></div><div><dt>账号凭据</dt><dd id="account-credential-detail">—</dd></div></dl><div class="button-row"><button id="open-profile" data-command="profile" class="primary">导入设备会话</button><button id="open-credential" data-command="credential">导入账号凭据</button></div><p class="small muted">会话不会回显。签名失效时需导入更新后的设备会话。</p></article>
+            <article class="card"><h2>官方账号</h2><p>按需核对账号，或使用作业帮 App 扫码重新登录。</p><div class="button-row"><button id="start-qr" data-command="qr" class="primary">扫码登录</button><button id="verify-account" data-command="verify">核对账号</button><button id="refresh-account" data-command="refresh">刷新账号</button></div><p class="small muted">扫码状态需手动检查，不会在后台反复请求官方。</p></article>
+          </div>
+          <article class="card observation-card"><div class="card-heading"><h2>有效期观察</h2><span class="badge">官方 TTL 未知</span></div><div id="observations" class="observations">正在读取…</div><p class="small muted">仅记录最后成功到首次确认失效的区间。网络与协议错误会保留此前结果；账号与签名分别判断。</p></article>
+        </section>
+        <section id="tab-keys" class="tab-panel" hidden aria-labelledby="page-title">
+          <article class="card key-intro"><div><h2>客户端调用权限</h2><p>调用密钥用于 OMRS 等客户端。完整值只在生成时显示一次，请复制保存。</p></div><button id="open-key" data-command="new-key" class="primary">生成调用密钥</button></article><div id="key-list" class="key-list" aria-live="polite"></div>
+        </section>
+        <section id="tab-history" class="tab-panel" hidden aria-labelledby="page-title">
+          <article class="card"><form id="history-form" class="filters"><div><label for="history-source">请求来源</label><select id="history-source"><option value="">全部来源</option><option value="local">本机 / local</option><option value="external">外部 / external</option></select></div><div><label for="history-result">结果</label><select id="history-result"><option value="">全部结果</option><option value="ok">成功</option><option value="error">错误</option><option value="key_invalid">无效密钥</option><option value="external_disabled">外部拒绝</option><option value="rate_limited">限流</option></select></div><div><label for="history-key">调用密钥</label><select id="history-key"><option value="">全部密钥</option></select></div><button id="history-filter" type="submit">筛选 / 刷新</button></form><p id="history-error" class="inline-error" role="status" hidden></p><div class="table-scroll"><table class="history-table"><caption class="sr-only">请求元数据，包括客户端与对端 IP</caption><thead><tr><th scope="col">时间 / 操作</th><th scope="col">来源 / IP</th><th scope="col">密钥 / 请求</th><th scope="col">结果 / 耗时</th></tr></thead><tbody id="history-rows"></tbody></table></div><div class="pagination"><button id="previous-page" disabled>上一页</button><span id="history-page">正在读取…</span><button id="next-page" disabled>下一页</button></div></article><p class="footnote">只展示请求元数据，不记录正文、图片、Cookie、密钥或官方原文。</p>
+        </section>
+        <section id="tab-settings" class="tab-panel" hidden aria-labelledby="page-title">
+          <article class="card settings-card"><div class="card-heading"><h2>外部访问</h2><span class="badge" id="settings-badge">读取中</span></div><label class="check-label"><input id="allow-external" type="checkbox" disabled><span>允许外部访问</span></label><p>关闭时，非本机的 API 与管理请求会被拒绝。开启后，调用密钥和管理员登录仍然必需。</p><div class="callout warning">外部部署需单独配置 HTTPS、Secure cookie、可信 Host 与反向代理。此开关只调整应用访问策略。</div><button id="save-settings" class="primary" disabled>保存访问设置</button></article>
+          <article class="card budget-card"><h2>资源预算</h2><p>服务当前的只读限额。</p><div id="limits" class="budget-grid">正在读取…</div></article>
+        </section>
+      </div>
+      <footer>作业帮网关 1.0.0 · 管理会话与调用权限隔离</footer>
+    </div>
+  </main>
+</div>
+<dialog id="profile-dialog" aria-labelledby="profile-title">
+  <div class="dialog-heading"><div><span class="eyebrow">设备配置</span><h2 id="profile-title">导入设备会话</h2></div><button data-close="profile-dialog" class="icon-button" aria-label="关闭设备导入"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+  <p>选择已登记设备的 direct-session.json。导入后显示“待核对”，请主动检查有效性。</p>
+  <form id="profile-form"><label for="profile-file">选择 JSON 文件</label><input id="profile-file" type="file" accept="application/json,.json"><p id="profile-file-note" class="small muted">最多 256 KiB，包含 fields、headers 与 session_token。</p><details id="profile-paste"><summary>或粘贴会话 JSON</summary><label class="sr-only" for="profile-json">设备会话 JSON</label><textarea id="profile-json" rows="7" spellcheck="false" autocomplete="off" placeholder="粘贴完整设备会话；已保存的内容不会回显"></textarea></details><div class="callout">导入将替换当前设备会话并结束现有扫码流程。服务不会读取 OMRS 的旧凭据。</div><div class="dialog-actions"><button type="button" data-close="profile-dialog">取消</button><button id="import-profile" type="submit" class="primary">导入设备会话</button></div></form>
+</dialog>
+<dialog id="credential-dialog" aria-labelledby="credential-title">
+  <div class="dialog-heading"><h2 id="credential-title">导入账号凭据</h2><button data-close="credential-dialog" class="icon-button" aria-label="关闭凭据导入"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><p>用于已配置的设备。保存后需要重新核对，旧凭据不会回显。</p><form id="credential-form"><label for="account-credential">新账号凭据</label><input id="account-credential" type="password" autocomplete="off" maxlength="8192" required><div class="dialog-actions"><button type="button" data-close="credential-dialog">取消</button><button id="import-credential" type="submit" class="primary">保存凭据</button></div></form>
+</dialog>
+<dialog id="qr-dialog" class="qr-dialog" aria-labelledby="qr-title">
+  <div class="dialog-heading"><h2 id="qr-title">扫码登录官方账号</h2><button data-close="qr-dialog" class="icon-button" aria-label="关闭扫码登录"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><p>使用作业帮 App 扫码并确认，然后检查扫码结果。</p><div id="qr-box"><img id="qr-image" alt="使用作业帮 App 扫描此登录二维码" hidden><p id="qr-state" role="status" aria-live="polite">正在创建二维码…</p><p id="qr-expiry" class="small muted"></p></div><p class="small muted">二维码仅用于本次登录流程，5 分钟后到期。这不是账号有效期。</p><div class="dialog-actions"><button id="cancel-qr" disabled>取消扫码</button><button id="poll-qr" class="primary" disabled>检查扫码结果</button></div><button id="restart-qr" data-command="qr" hidden>重新创建二维码</button>
+</dialog>
+<dialog id="key-dialog" aria-labelledby="key-title">
+  <div class="dialog-heading"><div><span class="eyebrow">调用权限</span><h2 id="key-title">生成调用密钥</h2></div><button data-close="key-dialog" class="icon-button" aria-label="关闭密钥窗口"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><form id="key-form"><p>为 OMRS 或其他客户端创建独立的调用密钥。</p><label for="key-name">密钥名称</label><input id="key-name" maxlength="80" placeholder="例如 OMRS 本地客户端" required><div class="dialog-actions"><button type="button" data-close="key-dialog">取消</button><button id="create-key" type="submit" class="primary">生成密钥</button></div></form><div id="new-key" class="secret-box" hidden><p class="callout warning"><strong>完整密钥只显示这一次</strong><br>请复制到 OMRS 设置或安全保存。关闭窗口后无法找回。</p><label for="new-key-secret">新调用密钥</label><input id="new-key-secret" readonly autocomplete="off" spellcheck="false"><div class="dialog-actions"><button id="dismiss-key">我已保存，关闭</button><button id="copy-key" class="primary">复制密钥</button></div></div>
+</dialog>
+<dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-description">
+  <div class="dialog-heading"><h2 id="confirm-title">确认操作</h2><button data-close="confirm-dialog" class="icon-button" aria-label="关闭确认窗口"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div><p id="confirm-description"></p><div class="dialog-actions"><button id="confirm-cancel">取消</button><button id="confirm-submit" class="primary">确认</button></div>
+</dialog>
+</body>
+</html>

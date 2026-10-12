@@ -35,6 +35,8 @@
 
 网关面板使用相对资源和管理请求，支持反代剥离前缀。Nginx模板见 `services/zuoyebang/deploy/zuoyebang.nginx.example`：覆盖XFF、不新增公网端口、把管理Cookie限制到/zuoyebang/。网关须配置公开Origin、Secure cookie及精确信任的回环代理；不能用反代头绕过管理员／调用Key鉴权。
 
+面板默认进入服务概览，分别展示设备配置、账号和签名观察，再按真实状态给出导入、登录、核对或密钥配置入口。设备导入、手动凭据、扫码与一次性密钥使用弹窗；关闭及管理会话失效清空敏感内容，迟到回执不恢复窗口。页面按需读取，资源、焦点、双主题与异步生命周期见 `AI/frontend/zyb-panel.md`。
+
 ## 4. 双项目验收
 
 `tests/e2e/zuoyebang_service.py`使用真实HTTP合成网关验收配置及错误边界。`tests/e2e/zuoyebang_gateway_integration.py`默认读取同仓services/zuoyebang，也可通过 `--gateway-source` 指定其它源码；`--with-prefix`增加真实HTTP前缀反代边界。启动两个实际服务及合成官方边界，验证面板生成／吊销Key、OMRS本地／可信内网模式、原图传输、实际签名解码、1080完整渲染、人工创建、刷新回执、请求来源IP及前缀Cookie。网关与OMRS分别使用临时私有数据和随机高端口；真实官方账号／网络及付费模型不在该验收范围。
