@@ -15,21 +15,21 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-12 12:41 CST发布并核验）：当前v2.5.0，运行源码为Git提交 `08dce8bf8d306b97a3cf7159705b3e04321223b5` 的精确归档 `/root/workspace/apps/releases/omrs-08dce8b`，1434个源码文件逐字节核验。作业帮网关在同一仓库的services/zuoyebang，独立进程持有设备／账号／Key／审计；OMRS保留原图、完整后端渲染、人工核对及幂等入库。
+生产环境事实（2026-10-12 23:09 CST发布并核验）：当前v2.6.0，运行源码为Git提交 `6b5cdbb2fca41b541c64291bb6e3bf7bb0f625f0` 的精确归档 `/root/workspace/apps/releases/omrs-6b5cdbb`，1441个源码文件与已验收工作区及Git归档逐字节一致。作业帮网关在同一仓库的services/zuoyebang，独立进程持有设备／账号／Key／审计；面板提供状态概览和管理弹窗，OMRS支持拍照／上传／粘贴取图、候选自动预览及原人工核对入库。
 
-主服务omrs.service沿用原unit/drop-in，Type=simple、Restart=on-failure、RestartSec=3s；持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 原子指向omrs-08dce8b。网关omrs-zuoyebang.service共用该别名和Python依赖，cwd为release/services/zuoyebang，运行数据在 `/var/lib/omrs-zuoyebang`（0700、文件0600），独立管理员初始密码在该目录的admin-secret.txt，不提交或输出。两进程真实cwd已核验，自动重启计数均为0。旧release、依赖和发布保全保留；回退恢复源码与控制配置，不倒退Vault。
+主服务omrs.service沿用原unit/drop-in，Type=simple、Restart=on-failure、RestartSec=3s；持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 原子指向omrs-6b5cdbb。网关omrs-zuoyebang.service共用该别名和Python依赖，cwd为release/services/zuoyebang，运行数据在 `/var/lib/omrs-zuoyebang`（0700、文件0600），独立管理员初始密码在该目录的admin-secret.txt，不提交或输出。两进程真实cwd已核验，自动重启计数均为0。旧release、依赖和发布保全保留；回退恢复源码指针并保留最新Vault。
 
 Python依赖仍为 `/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv`，Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；当前浏览器缓存/root/.cache/ms-playwright包含对应1234版Chromium。共享CDP9222仅供可信本机隔离context，不关闭共享浏览器；完整摄像头流程使用独立Chromium的模拟媒体参数。发布验证TMPDIR须使用浏览器可访问目录，不能把候选1228缓存用于生产Playwright1.62。
 
-Web8471、回环MCP18472、HTTPS8472和公开URL `https://home.ruibin-ningh.top:8472` 保持。Nginx同一server块新增 `/zuoyebang/` 转发至回环8745，不新增公网端口；覆盖XFF，网关明确信任127.0.0.1/32，公开Origin固定为上述HTTPS源，管理Cookie为Secure/HttpOnly/Strict并限制到/zuoyebang/。OMRS已以外部HTTPS模式配置同机公开前缀及独立调用Key；本地／外部模式都需要Key。PIN、原MCP密钥与权限保持，匿名Web数据、MCP、网关调用和管理会话接口仍401。
+Web8471、回环MCP18472、HTTPS8472和公开URL `https://home.ruibin-ningh.top:8472` 保持。Nginx同一server块的 `/zuoyebang/` 转发至回环8745，不新增公网端口；覆盖XFF，网关明确信任127.0.0.1/32，公开Origin固定为上述HTTPS源，管理Cookie为Secure/HttpOnly/Strict并限制到/zuoyebang/。OMRS已以外部HTTPS模式配置同机公开前缀及独立调用Key；本地／外部模式都需要Key。PIN、原MCP密钥与权限保持，匿名Web数据、MCP、网关调用和管理会话接口仍401。
 
-生产切换前无后台任务、恢复意图或未终结作业；停服保全在 `/root/workspace/apps/releases/OMRS-v250-zyb-release-85epz6pq/`（0700、文件0600），包含精确新旧源码、控制配置、Vault/maintenance、私人一致性摘要与发布状态。tar实际比较、解包逐字节及SQLite完整性通过。切换保留49张业务表、937个正文／图片／关键配置文件、300题、0冲突、待审0；Nginx只增加网关路径，Tunnel／检测服务未重启，模型指针、主unit、PIN和原Key保持。
+生产切换前有效后台任务、审批及恢复意图均为0。当前停服保全在 `/root/workspace/apps/releases/OMRS-v260-release-retry-4zau6dy0/`（0700、文件0600），包含精确新旧源码、控制配置、Vault/maintenance、网关私有数据及一致性摘要。两份数据归档实际比较、解包1024个文件及8个SQLite库完整性通过。切换保留49张业务表、945个正文／图片／关键配置文件、301题、0冲突、待审0；网关设备、账号、密钥及设置保持。unit、Nginx、Tunnel、检测服务和模型配置保持。
 
-精确release及生产依赖下12/12组通过：后端64、Node491、网关52／1真实面板、前缀双进程17、设置75、原录入124、服务26、作业帮49、组件34、UI0问题、58组对比度全部通过，无跳过。工作区另外全量Python961和文档112份0问题（2条既有大计划提醒）、settings/create八档视觉通过；测试均使用临时Vault与合成官方／模型边界。
+已验收工作区在同一生产依赖下14/14组通过：后端68、Node496、网关52／4真实面板、前缀双进程18、设置75、原录入124、服务27、作业帮63、外壳24、组件34、UI0问题、58组对比度及8档前后视觉全部通过，无跳过。文档115份0问题（2条既有大计划提醒）；全部使用临时Vault及合成上游。发布归档与已验收源码逐文件核验，不把工作区运行冒称为归档目录重跑。
 
-真实生产27项通过：资源与release字节一致、公网未登录资源保护、HTTPS网关状态连接、匿名鉴权、私有文件拒绝、XFF注入拒绝、390px面板登录／Key元数据／来源IP／登出、Cookie属性、OMRS PIN入口与无横溢／脚本错误，两服务稳定且启动后无错误级journal。网关没有导入设备或账号，不自动联系官方；真实官方搜题、签名期限、付费模型与实体手机摄像头仍需用户凭据后验收。Windows打包本机只检查脚本，未实际运行。
+真实生产43项通过：源码及运行资源字节、公网未登录保护、HTTPS连接、匿名鉴权、私有文件及XFF拒绝、面板登录／概览／弹窗／Key元数据／来源IP／登出、Cookie属性、浅深色桌面与390px布局、OMRS PIN入口及未解锁直达保护，两服务稳定且无错误级journal。既有设备及账号配置保持，不自动联系官方；真实官方搜题、签名期限、付费模型及实体手机摄像头须另验。生产PIN后的录入操作未自动验证；配置PIN时须实际解锁并携带当前进程handoff，不能以直接访问unlocked参数代替。Windows打包未在本机运行。
 
-启动会按稳定源身份将既有MCP运行记录导入为只读审核历史，不再次执行业务；契约见 `ai-review.md` §5。发布核对原有审批行和已存在的来源证据，区分历史追加与原业务改写；不能只因整表摘要变化而忽略具体差异。未终结任务或恢复意图仍阻止切换，合法历史追加也不允许覆盖旧Vault。
+启动会按稳定源身份将既有MCP运行记录导入为只读审核历史，并收束旧进程的审批，不再次执行业务；契约见 `ai-review.md` §5。发布预检按有效状态区分过期审批与有效未终结任务。原表摘要变化时须逐行核验来源、过期时间、正文、修订和结果；启动收束仅改变状态／时间／错误码的记录单独登记，不能忽略整表差异。原题目或审批业务事实变化、有效未终结任务或恢复意图仍阻止切换；历史追加和技术收束均不允许用旧Vault覆盖当前数据。
 
 正式题目、标记整理journal与统一审批恢复保持最新数据；存在未完成恢复或整批写入意图时停止发布，不能靠切换旧源码跳过恢复。跨旧存储版本不能只恢复旧drop-in或旧Vault。原正文恢复保全及私人清单仍保留，当前正文可用性与历史缺口的规范见 `ledger.md` §10；禁止提交正文、私人路径清单和数据库。
 
