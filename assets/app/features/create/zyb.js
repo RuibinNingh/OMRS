@@ -2,10 +2,10 @@
 import { get, post } from '../../core/api.js';
 import { uploadImage } from '../../core/uploads.js';
 import { render, morph } from '../../core/dom.js';
-import { html } from '../../core/html.js';
+
 import { bindFileDrop } from '../../ui/filedrop.js';
 import { createCombobox } from '../../ui/combobox.js';
-import { dialog, confirm, closeDialog } from '../../ui/dialog.js';
+import { confirm } from '../../ui/dialog.js';
 import { openImageViewer } from '../../ui/image-viewer.js';
 import { openCreateLabelPicker } from '../../domain/labels/index.js';
 import { boardQuickAdd } from '../../domain/board/index.js';
@@ -18,6 +18,7 @@ import { suggestions } from './cards-state.js';
 import { mergeClassification } from './state.js';
 import { createCamera } from './zyb-camera.js';
 import { createAccountMenu } from './zyb-account.js';
+import { sameService } from '../../domain/zuoyebang-service.js';
 import { newZybState, bindRender, extractionSnapshot, mergeExtraction, commitPayload } from './zyb-state.js';
 import * as view from './zyb-view.js';
 
@@ -29,7 +30,7 @@ const need = result => { if (!result.ok) throw new Error(result.error?.message |
 
 export function createZuoyebang(root, ctx) {
   const host = root.querySelector('#ib-stage-zuoyebang');
-  let alive = true, entered = false, entryEpoch = 0, timer = null, qrTimer = null, qrDialog = null, qrAbort = null;
+  let alive = true, entered = false, entryEpoch = 0, timer = null;
   const drops = new WeakSet();
   render(host, view.roots());
   S.accountPanel = '';
@@ -63,8 +64,12 @@ export function createZuoyebang(root, ctx) {
   }
   async function refresh() {
     const token = revision;
-    const [account, records] = await Promise.all([get('/api/zuoyebang/status'), get('/api/zuoyebang/history')]);
+    const [account, records, config] = await Promise.all([get('/api/zuoyebang/status'), get('/api/zuoyebang/history'), get('/api/zuoyebang/service')]);
     if (!alive || token !== revision) return;
+    // 状态响应自带冻结配置，避免并行读取的新旧配置与账号观察混配。
+    const service = account.ok ? account.data.service : config.ok ? config.data.service : S.service;
+    if (!sameService(S.service, service)) S.session = null;
+    S.service = service;
     if (account.ok) { S.session = account.data; S.sessionError = ''; }
     else S.sessionError = account.error.message;
     if (records.ok) S.history = records.data.records;
@@ -140,60 +145,8 @@ export function createZuoyebang(root, ctx) {
     jobContext = { extraction: extractionSnapshot(S), form: { ...S.form } };
     await startJob('extract', { render_id: S.render.id });
   }
-  async function account(operation) {
-    if (S.busy) return;
-    S.busy = 'account'; status(operation === 'verify' ? '正在检查作业帮账号…' : '正在刷新作业帮账号…');
-    try { need(await post('/api/zuoyebang/account', { operation }, { timeout: 120000 })); status('作业帮账号已在线核对'); }
-    catch (error) { status(error.message, true); }
-    finally { S.busy = ''; await refresh(); paint(); }
-  }
-  async function importProfile(file) {
-    if (S.busy || !file) return;
-    if (file.size > 256 * 1024) { status('设备会话文件不能超过256KB', true); return; }
-    S.busy = 'account'; paint();
-    try { const profile = JSON.parse(await file.text()); need(await post('/api/zuoyebang/profile', { profile })); status('设备会话已导入，请检查账号或扫码登录'); }
-    catch (error) { status(error instanceof SyntaxError ? '设备会话不是有效 JSON 文件' : error.message, true); }
-    finally { S.busy = ''; await refresh(); paint(); }
-  }
-  function stopQr() {
-    clearTimeout(qrTimer); qrAbort?.abort(); qrAbort = null;
-    const flow = S.qr; S.qr = null;
-    if (flow && flow.state === 'pending') void post('/api/zuoyebang/account', { operation: 'qr_cancel', flow_id: flow.flow_id }, { timeout: 45000 });
-  }
-  async function pollQr() {
-    if (!alive || !entered || !S.qr || !qrDialog?.open) return;
-    const flow = S.qr, abort = new AbortController(); qrAbort = abort;
-    const response = await post('/api/zuoyebang/account', { operation: 'qr_poll', flow_id: flow.flow_id }, { timeout: 90000, signal: abort.signal });
-    if (!alive || S.qr !== flow || !qrDialog?.open) return;
-    const code = response.data?.code || response.error?.code;
-    const terminalError = !response.ok && ['signing_session', 'session_changed', 'qr_missing', 'profile_missing', 'protocol'].includes(code);
-    const result = response.ok ? response.data.account : { message: response.error.message, state: 'pending' };
-    qrDialog.querySelector('[data-zyb-qr-status]').textContent = result.message || '等待作业帮 App 确认登录…';
-    flow.state = result.state;
-    if (result.state === 'authenticated') { status('登录成功，可以上传图片搜题'); void refresh(); return; }
-    if (terminalError) { void refresh(); return; }
-    if (['expired', 'cancelled', 'session_changed', 'replaced', 'missing'].includes(result.state)) return;
-    qrTimer = setTimeout(pollQr, (Number(result.retry_after) || 2) * 1000);
-  }
-  async function login() {
-    if (S.busy) return;
-    accountMenu.close(true);
-    const entry = entryEpoch;
-    S.busy = 'account'; status('正在创建登录二维码…');
-    try {
-      const result = need(await post('/api/zuoyebang/account', { operation: 'qr_start' }, { timeout: 45000 }));
-      if (!alive || !entered || entry !== entryEpoch) {
-        void post('/api/zuoyebang/account', { operation: 'qr_cancel', flow_id: result.account.flow_id }, { timeout: 45000 });
-        return;
-      }
-      S.qr = result.account;
-      void dialog({ title: '登录作业帮', hint: '请用已登录的作业帮 App 扫码，并在官方页面确认。', okText: '关闭', hideCancel: true,
-        body: html`<div class="zyb-qr"><img src="${S.qr.qr_image}" alt="作业帮登录二维码"><p data-zyb-qr-status role="status">等待扫码确认…</p><small>二维码约5分钟有效，关闭会取消当前登录流程。</small></div>`,
-        onOpen(el) { qrDialog = el; qrTimer = setTimeout(pollQr, 2000); },
-      }).then(() => { stopQr(); qrDialog = null; });
-    } catch (error) { status(error.message, true); }
-    finally { S.busy = ''; paint(); }
-  }
+  function openSettings() { accountMenu.close(); ctx.router.go('settings?section=zuoyebang'); }
+  const account = openSettings, login = openSettings; // 旧 action 入口不再操作账号。
   async function commit() {
     if (S.busy || S.result) return;
     let payload;
@@ -220,9 +173,9 @@ export function createZuoyebang(root, ctx) {
     else return;
     S.dirty = true; remember();
   }
-  function onChange(event) { if (event.target.id === 'zyb-profile') { void importProfile(event.target.files?.[0]); event.target.value = ''; } }
+
   const combobox = createCombobox(host, { options(kind) { const data = mergeTaxonomy(suggestions(itemsOf(ctx.store.get().data))); return kind === 'category' ? data.categoriesBySubject[S.form.subject] || [] : kind === 'tags' ? data.tags : data.subjects; }, onSelect: input => onInput({ target: input }) });
-  host.addEventListener('input', onInput); host.addEventListener('change', onChange);
+  host.addEventListener('input', onInput);
   paint();
   async function enter() {
     entered = true;
@@ -257,10 +210,10 @@ export function createZuoyebang(root, ctx) {
     }
     paint(); if (S.job) { S.busy = S.job.type; void poll(); }
   }
-  function leave() { entered = false; entryEpoch += 1; accountMenu.close(); camera.stop(); clearTimeout(timer); stopQr(); if (qrDialog) closeDialog(qrDialog); combobox.close(); remember(); }
+  function leave() { entered = false; entryEpoch += 1; accountMenu.close(); camera.stop(); clearTimeout(timer); combobox.close(); remember(); }
   function resume() { if (alive && entered) { paint(); void refresh(); if (S.job) void poll(); } }
   resumeActive = resume;
-  return { enter, leave, search, select, render: renderSelected, extract, account, login, commit, history: openHistory,
+  return { enter, leave, search, select, render: renderSelected, extract, account, login, settings: openSettings, commit, history: openHistory,
     menu: page => accountMenu.show(page),
     camera: () => camera.toggle(),
     role: role => { if (['question', 'answer'].includes(role)) { S.role = role; paint(); } },
@@ -271,6 +224,6 @@ export function createZuoyebang(root, ctx) {
     labels: el => openCreateLabelPicker(el, S.labels, labels => { S.labels = labels; S.dirty = true; remember(); paint(); }),
     board: (el, fast) => { if (S.result) boardQuickAdd([S.result.uid], el, { fast }); },
     open: () => { if (S.result) viewQ(S.result.uid); },
-    dispose() { accountMenu.dispose(); alive = false; if (resumeActive === resume) resumeActive = null; leave(); host.removeEventListener('input', onInput); host.removeEventListener('change', onChange); combobox.dispose(); if (S.fileUrl) URL.revokeObjectURL(S.fileUrl); S.fileUrl = ''; },
+    dispose() { accountMenu.dispose(); alive = false; if (resumeActive === resume) resumeActive = null; leave(); host.removeEventListener('input', onInput); combobox.dispose(); if (S.fileUrl) URL.revokeObjectURL(S.fileUrl); S.fileUrl = ''; },
   };
 }

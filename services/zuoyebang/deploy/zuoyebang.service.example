@@ -1,0 +1,21 @@
+# 未安装模板：只能在明确生产部署授权后由运维者调整路径/用户并安装。
+[Unit]
+Description=作业帮独立网关
+After=network.target
+
+[Service]
+Type=simple
+User=zuoyebang
+Group=zuoyebang
+WorkingDirectory=/opt/zuoyebang-service
+ExecStart=/opt/zuoyebang-service/.venv/bin/python -m zyb_gateway serve --data-dir /var/lib/zuoyebang-service --bind 127.0.0.1 --port 8745
+Restart=on-failure
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/zuoyebang-service
+
+[Install]
+WantedBy=multi-user.target

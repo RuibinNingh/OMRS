@@ -9,3 +9,6 @@
 *.md text eol=lf
 *.json text eol=lf
 *.service text eol=lf
+
+# Windows 打包脚本保留 CRLF，补丁检查忽略行尾回车。
+pack_for_ai.bat whitespace=cr-at-eol

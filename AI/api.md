@@ -17,7 +17,7 @@
 | 题目、反馈、配置、认证与备份写入 | `AI/api/mutations.md` |
 | 调度、导出与展示板 | `AI/api/boards.md` |
 | 收件箱、草稿、标注、训练与 MCP | `AI/api/extensions.md` |
-| 作业帮账号、搜题、完整长图与录入 | `AI/zuoyebang.md` |
+| 作业帮网关配置、搜题、完整长图与录入 | `AI/zuoyebang.md`、`AI/zuoyebang-service.md` |
 | 全库备份、恢复协议与回退 | `AI/backup.md` |
 | 内置助手、持久事件与分页 | `AI/agent.md` |
 
@@ -41,7 +41,7 @@ HTML、普通 JSON 与 CSS / JavaScript / SVG 等文本在客户端接受 gzip�
 
 auth、uploads、模型识别与重启等路由按领域取得必要的短锁；其它豁免及理由在 `omrs/locking.py`。安全模块 PIN 同 Vault/IP 串行校验，排队最多2秒；认证文件用唯一临时文件原子写回。所有数据库连接在磁盘段取得租约并显式关闭。
 
-`/api/zuoyebang/` POST 豁免外层长租约和写锁，账号网络使用临时快照，后台任务传播开始世代；记录发布和正式创建在领域层取得短租约 → 写锁，见 `AI/zuoyebang.md`。
+`/api/zuoyebang/` POST及GET状态查询豁免外层长租约；POST亦豁免外层写锁。网关网络使用冻结连接配置，后台任务传播开始世代；配置保存、记录发布和正式创建在领域层取得短租约 → 写锁。成功发布复查世代及服务配置；切换后的失败只记原世代原来源且不带成功result，恢复后任何旧发布均禁止，见 `AI/zuoyebang.md`、`AI/zuoyebang-service.md`。
 
 聊天 confirm 豁免外层长锁，但在内部按生命周期租约 → 业务写锁 → PendingConfirm 锁 → 审核 SQLite 事务写入决定。落盘成功才唤醒原等待；审核中心决定共用同一权威。修订也按此顺序替换版本与票据，不延长原期限。模型思考、10 分钟等待、长轮询均不持这些锁；真正业务执行在原运行另取短写锁，核对快照、期限和中止状态。普通 GET 只读历史或原生回执，业务恢复只在监听前显式执行，且不重放工具。
 

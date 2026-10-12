@@ -22,20 +22,12 @@ import http.server,json,sys,time
 from unittest.mock import patch
 from omrs import ai_assist
 from omrs.server import OMRSHandler
-from omrs.zuoyebang.direct import DirectClient
-from omrs.zuoyebang.account import AccountClient
-from tests.zuoyebang_fixtures import candidates
+from omrs.zuoyebang import service_config
+from tests.zuoyebang_gateway import SyntheticGateway, KEY
 vault,port=sys.argv[1:]
-def search(*args,**kwargs):
-    time.sleep(.15)
-    return {'data':{'answers':{'mainPageInfo':[json.dumps(candidates())]}}}
-def account(operation,profile,*args,**kwargs):
-    if operation=='qr_create': return {'errNo':0,'data':{'uuid':'synthetic-qr'}}
-    if operation=='qr_check': return {'errNo':0,'data':{'zybuss':'synthetic-qr-account'}}
-    if operation=='userinfo': return {'errNo':0,'data':{'user':{'uid':123}}}
-    if operation=='relogin': return {'errNo':0,'data':{'zybuss':'synthetic-refreshed-account'}}
-DirectClient.search=search
-AccountClient.request=staticmethod(account)
+gateway = SyntheticGateway().__enter__()
+gateway.account['observations']['events'] = [{'event':'login','kind':'ok','at':time.time()}]
+service_config.save(vault, {'base_url':gateway.url, 'api_key':KEY})
 original=ai_assist.extract_region
 answer_attempts=0
 def extract(vault,image,role='question',judge=True,**kwargs):
@@ -67,7 +59,7 @@ AUDIT = '''() => {
 
 def main():
     from playwright.sync_api import sync_playwright
-    output = Path(os.environ.get('OMRS_ZYB_SHOTS', '/tmp/omrs-zuoyebang-e2e'))
+    output = Path(os.environ.get('OMRS_ZYB_SHOTS', Path(os.environ.get('TMPDIR', str(ROOT / '.venv'))) / 'omrs-zuoyebang-e2e'))
     output.mkdir(parents=True, exist_ok=True)
     results = []
     def check(name, condition):
@@ -78,7 +70,7 @@ def main():
         vault = Path(temporary) / 'vault'; vault.mkdir()
         photo = Path(temporary) / 'photo.webp'
         with Image.open(io.BytesIO(png())) as image: image.save(photo, 'WEBP')
-        private = Path(temporary) / 'synthetic-session.json'; private.write_text(json.dumps(profile()))
+
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
         base = f'http://127.0.0.1:{port}'
@@ -98,30 +90,21 @@ def main():
                 if errors: raise AssertionError(errors)
                 page.wait_for_selector('#create-flow [data-stage]', timeout=5000)
                 page.locator('[data-action="create.stage"][data-arg="zuoyebang"]').click()
-                page.get_by_role('button', name='作业帮账号 · 未配置', exact=True).wait_for()
+                page.get_by_role('button', name='作业帮服务 · 已连接', exact=True).wait_for()
                 check('导航新增作业帮并移除AI草稿按钮', page.locator('#create-flow [data-stage="drafts"]').count() == 0)
-                check('账号初始收为单行入口', page.locator('#zyb-account-panel').count() == 0 and page.locator('#zyb-account').evaluate('(el)=>el.getBoundingClientRect().height') <= 40)
-                page.get_by_role('button', name='作业帮账号 · 未配置', exact=True).click()
-                check('缺会话时真实显示配置状态', page.locator('#zyb-account').inner_text().find('首次使用') >= 0)
-                page.locator('#zyb-profile').set_input_files(str(private))
-                page.wait_for_function("() => !document.querySelector('[data-action=\"create.zybLogin\"]').disabled")
-                page.get_by_role('button', name='扫码登录', exact=True).click()
-                page.locator('dialog[open] .zyb-qr img').wait_for()
-                check('真实扫码协议在页面显示本地生成的二维码', page.locator('.zyb-qr img').get_attribute('src').startswith('data:image/png'))
-                page.wait_for_function("() => document.querySelector('[data-zyb-qr-status]').textContent.includes('登录成功')", timeout=15000)
-                page.locator('dialog[open] [data-dialog-ok]').click()
-                page.get_by_role('button', name='作业帮账号 · 已登录', exact=True).wait_for()
-                page.get_by_role('button', name='作业帮账号 · 已登录', exact=True).click()
-                check('扫码确认后账号状态有效', '账号最近核对有效' in page.locator('#zyb-account').inner_text())
+                check('服务初始收为单行入口', page.locator('#zyb-account-panel').count() == 0 and page.locator('#zyb-account').evaluate('(el)=>el.getBoundingClientRect().height') <= 40)
+                page.get_by_role('button', name='作业帮服务 · 已连接', exact=True).click()
+                check('网关状态显示有效账号签名且不再导入扫码', '账号：有效；签名：有效' in page.locator('#zyb-account').inner_text() and page.locator('#zyb-profile, [data-action="create.zybLogin"]').count() == 0)
+                check('独立管理面板链接无token且开启新tab', page.get_by_role('link', name='打开独立管理面板').get_attribute('target') == '_blank' and 'token=' not in page.get_by_role('link', name='打开独立管理面板').get_attribute('href'))
                 page.get_by_role('button', name='会话有效期记录', exact=True).click()
-                check('有效期记录子页显示登录观察并获得焦点', '扫码登录' in page.locator('#zyb-account-panel').inner_text() and page.get_by_role('button', name='返回账号菜单', exact=True).evaluate('(el)=>el===document.activeElement'))
-                page.get_by_role('button', name='返回账号菜单', exact=True).click()
+                check('有效期记录子页显示网关观察并获得焦点', '扫码登录' in page.locator('#zyb-account-panel').inner_text() and page.get_by_role('button', name='返回服务菜单', exact=True).evaluate('(el)=>el===document.activeElement'))
+                page.get_by_role('button', name='返回服务菜单', exact=True).click()
                 check('返回菜单恢复记录入口焦点', page.get_by_role('button', name='会话有效期记录', exact=True).evaluate('(el)=>el===document.activeElement'))
                 page.keyboard.press('Escape')
-                check('Escape关闭账号菜单并恢复焦点', page.locator('#zyb-account-panel').count() == 0 and page.get_by_role('button', name='作业帮账号 · 已登录', exact=True).evaluate('(el)=>el===document.activeElement'))
-                page.get_by_role('button', name='作业帮账号 · 已登录', exact=True).click()
+                check('Escape关闭服务菜单并恢复焦点', page.locator('#zyb-account-panel').count() == 0 and page.get_by_role('button', name='作业帮服务 · 已连接', exact=True).evaluate('(el)=>el===document.activeElement'))
+                page.get_by_role('button', name='作业帮服务 · 已连接', exact=True).click()
                 page.get_by_role('heading', name='摄像头', exact=False).click()
-                check('点击外部关闭账号菜单', page.locator('#zyb-account-panel').count() == 0)
+                check('点击外部关闭服务菜单', page.locator('#zyb-account-panel').count() == 0)
                 page.get_by_role('button', name='打开摄像头', exact=True).click()
                 page.wait_for_function("() => document.querySelector('#zyb-video').srcObject?.active")
                 page.evaluate("() => window.zybTestTrack=document.querySelector('#zyb-video').srcObject.getVideoTracks()[0]")
@@ -202,7 +185,7 @@ def main():
                         page.locator('#zyb-account').scroll_into_view_if_needed()
                         audit = page.evaluate(AUDIT)
                         check(f'{theme}/{width}无横溢、行内样式和过小目标', not audit['overflow'] and not audit['inline'] and not audit['handlers'] and not audit['small'])
-                        page.get_by_role('button', name='作业帮账号 · 已登录', exact=True).click()
+                        page.get_by_role('button', name='作业帮服务 · 已连接', exact=True).click()
                         page.get_by_role('button', name='会话有效期记录', exact=True).click()
                         panel = page.locator('#zyb-account-panel').bounding_box()
                         check(f'{theme}/{width}账号记录菜单在视口内', panel['x'] >= 0 and panel['x'] + panel['width'] <= width + 1 and not page.evaluate(AUDIT)['overflow'])
@@ -231,11 +214,13 @@ def main():
                 page.wait_for_selector('#panel-ai-review.active')
                 check('审核中心草稿仍可访问', page.locator('#panel-ai-review.active').count() == 1)
                 check('浏览器没有脚本错误', not errors)
-                log_text = (vault / '错题' / '.omrs' / 'zuoyebang' / 'session-events.jsonl').read_text()
-                check('会话日志不含凭据及Cookie', 'synthetic-account' not in log_text and 'synthetic-qr-account' not in log_text and 'Cookie' not in log_text)
+                log_text = '\n'.join(path.read_text() for path in (vault / '错题' / '.omrs' / 'zuoyebang').rglob('record.json'))
+                check('来源任务与渲染记录不含凭据及Cookie', 'synthetic-account' not in log_text and 'synthetic-gateway-call-key' not in log_text and 'Cookie' not in log_text)
+                check('不迁移或生成OMRS旧账号会话', not (vault / '错题' / '.omrs' / 'zuoyebang' / 'session.json').exists())
                 response = context.request.post(base + '/api/zuoyebang/profile', headers={'Origin': 'https://evil.example'}, data={'profile': profile()})
                 check('新写接口继承OMRS来源校验', response.status == 403)
-                context.close(); browser.close()
+                context.close()
+                if not os.environ.get('OMRS_TEST_CDP_URL'): browser.close()
             (output / 'checks.json').write_text(json.dumps(results, ensure_ascii=False, indent=2))
             print(f'{len(results)}/{len(results)} 项通过；产物 {output}', flush=True)
         finally:

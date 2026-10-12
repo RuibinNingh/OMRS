@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zuoyebang-gateway"
+version = "1.0.0"
+description = "独立作业帮网关与中文管理面板"
+requires-python = ">=3.10"
+dependencies = ["Pillow>=10.4,<13", "segno>=1.6,<2"]
+
+[project.scripts]
+zuoyebang-gateway = "zyb_gateway.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["zyb_gateway*"]
+
+[tool.setuptools.package-data]
+zyb_gateway = ["assets/*.html", "assets/*.css", "assets/*.js"]

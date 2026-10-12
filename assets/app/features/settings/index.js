@@ -1,4 +1,4 @@
-/** 设置页契约：六分区装配、局部导航与页面生命周期。 */
+/** 设置页契约：七分区装配、局部导航与页面生命周期。 */
 import { morph } from '../../core/dom.js';
 import { view } from './view.js';
 import { createAppearance } from './appearance.js';
@@ -10,6 +10,7 @@ import { createStorage } from './storage.js';
 import { createService } from './service.js';
 import { createMcpKeys } from './mcp-keys.js';
 import { createTuning } from './tuning.js';
+import { createZuoyebangService } from './zuoyebang.js';
 import { SECTIONS, SECTION_KEY, sectionOf } from './state.js';
 
 let root = null;
@@ -23,6 +24,7 @@ let storage = null;
 let service = null;
 let mcpKeys = null;
 let tuning = null;
+let zuoyebang = null;
 let current = 'appearance';
 
 function openSection(value, { focus = false } = {}) {
@@ -62,9 +64,10 @@ export const page = {
     agent = createAgent(root, ctx.bus);
     storage = createStorage(root);
     tuning = createTuning(root);
+    zuoyebang = createZuoyebangService(root, { bus: ctx.bus });
     let saved = '';
     try { saved = localStorage.getItem(SECTION_KEY) || ''; } catch { /* 使用默认分区。 */ }
-    openSection(saved);
+    openSection(new URLSearchParams(window.location.hash.split('?')[1] || '').get('section') || saved);
     appearance.sync();
     onKeys = event => {
       if (event.target.closest('.st-nav')) navKey(event);
@@ -82,13 +85,21 @@ export const page = {
     tuning.load();
     service.load();
     mcpKeys.load();
+    zuoyebang.load();
     return () => {
       root?.removeEventListener('keydown', onKeys);
+      zuoyebang?.dispose(); zuoyebang = null;
       access?.dispose(); ai?.dispose(); agent?.dispose(); storage?.dispose(); tuning?.dispose(); service?.dispose(); mcpKeys?.dispose(); entryBackground?.dispose();
       root = null; onKeys = null; appearance = null; entryBackground = null; access = null; ai = null; agent = null; storage = null; tuning = null; service = null; mcpKeys = null;
     };
   },
   actions: {
+    zybLoad: () => zuoyebang?.load(),
+    zybSave: () => zuoyebang?.save(),
+    zybTest: () => zuoyebang?.test(),
+    zybClearKey: () => zuoyebang?.clearKey(),
+    zybMode: () => zuoyebang?.modeChanged(),
+    zybChanged: () => zuoyebang?.changed(),
     section: ({ arg }) => openSection(arg),
     theme: ({ arg }) => appearance?.theme(arg),
     density: ({ arg }) => appearance?.density(arg),

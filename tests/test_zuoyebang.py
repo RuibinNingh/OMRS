@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PIL import Image
 from omrs import ai_assist, locking, vault_lifecycle as lifecycle, creation, uploads, workspace_sync
-from omrs.zuoyebang import jobs, session, store
+from omrs.zuoyebang import jobs, session, store, service_config
 from omrs.zuoyebang.account import AccountClient
 from omrs.zuoyebang.direct import DirectClient, decode_response, rc4, UpstreamError, NoRedirect
 from omrs.zuoyebang.normalize import normalize_questions
@@ -21,6 +21,7 @@ from omrs.zuoyebang.render import render_documents
 from omrs.zuoyebang.commit import commit
 from omrs.zuoyebang.validation import validate_image
 from tests.zuoyebang_fixtures import profile, png, candidates
+from tests.zuoyebang_gateway import SyntheticGateway, KEY
 
 
 class Workspace(unittest.TestCase):
@@ -90,18 +91,15 @@ class Workspace(unittest.TestCase):
             self.assertEqual(uploads.read(self.vault, done), raw)
             with self.assertRaises(ValueError):
                 uploads.resolve(self.vault, done, purpose='create')
-            session.import_profile(self.vault, profile())
-            seen = []
-            def search(_client, image, _grade):
-                seen.append(image)
-                return {'data': {'answers': {'mainPageInfo': [json.dumps(candidates())]}}}
-            with patch.object(DirectClient, 'search', search):
+            with SyntheticGateway() as gateway:
+                service_config.save(self.vault, {'base_url': gateway.url, 'api_key': KEY})
                 job = jobs.start_job(self.vault, 'search', {'image': done})
                 for _ in range(100):
                     result = jobs.get_job(self.vault, job['id'])
                     if result['status'] != 'running': break
                     time.sleep(.02)
                 self.assertEqual(result['status'], 'done')
+                seen = [base64.b64decode(call['body']['image_base64']) for call in gateway.calls if call['path'] == '/api/v1/search']
                 self.assertEqual(seen, [raw])
 
     def test_search_upload_rejects_incomplete_unsupported_and_oversize_images(self):

@@ -142,6 +142,7 @@ export const page = {
     zybMenu: ({ arg }) => parts?.zuoyebang.menu(arg),
     zybLogin: () => parts?.zuoyebang.login(),
     zybAccount: ({ arg }) => parts?.zuoyebang.account(arg),
+    zybSettings: () => parts?.zuoyebang.settings(),
     zybSearch: () => parts?.zuoyebang.search(),
     zybSelect: ({ arg }) => parts?.zuoyebang.select(arg),
     zybRender: () => parts?.zuoyebang.render(),

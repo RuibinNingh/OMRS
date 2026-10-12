@@ -76,6 +76,33 @@ class SourceExportTests(unittest.TestCase):
                     "OMRS/omrs/real.py", "OMRS/SOURCE_EXPORT_MANIFEST.txt",
                 })
 
+    def test_same_repository_gateway_sources_and_dependencies_exclude_private_runtime(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sources = {
+                'requirements-zuoyebang.txt': 'Pillow>=10.4\n',
+                'services/zuoyebang/zyb_gateway/server.py': '# 公开源码\n',
+                'services/zuoyebang/pyproject.toml': '[project]\n',
+                'services/zuoyebang/requirements.txt': 'segno>=1.6\n',
+                'services/zuoyebang/vendor-manifest.json': '{}\n',
+                'services/zuoyebang/.gitignore': '.state/\n',
+                'services/zuoyebang/deploy/zuoyebang.service.example': '[Unit]\n',
+            }
+            private = ('services/zuoyebang/.state/account.py',
+                       'services/zuoyebang/docs/private/secret.md',
+                       'services/zuoyebang/docs/tmp-export/secret.py',
+                       'services/zuoyebang/admin-secret.txt',
+                       'services/other/private.py')
+            for name, content in {**sources, **{name: 'secret\n' for name in private}}.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content)
+            payload, _, _ = create_source_export(tmp)
+            with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                self.assertEqual(set(archive.namelist()),
+                                 {'OMRS/' + name for name in sources} | {'OMRS/SOURCE_EXPORT_MANIFEST.txt'})
+                self.assertNotIn(b'secret', b''.join(archive.read('OMRS/' + name) for name in sources))
+
     def test_no_source_files_raises(self):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError, "没有可导出的源码文件"):

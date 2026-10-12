@@ -11,8 +11,9 @@ import uuid
 from pathlib import Path
 from .. import uploads, vault_lifecycle as lifecycle
 from ..locking import write_lock
-from . import store, session
-from .direct import DirectClient, UpstreamError
+from . import store, service_config
+from .gateway import GatewayClient
+from .direct import UpstreamError
 from .normalize import normalize_questions
 from .html import candidate_html
 from .render import render_documents
@@ -31,7 +32,7 @@ def summary(candidate, index):
 
 def public_record(record):
     if record['kind'] == 'search':
-        return {key: record[key] for key in ('id', 'kind', 'created_at', 'candidates')}
+        return {key: record[key] for key in ('id', 'kind', 'created_at', 'candidates', 'service') if key in record}
     return {key: value for key, value in record.items() if key not in ('source',)}
 
 
@@ -76,39 +77,39 @@ def image(vault, identity, role):
 
 
 def search(vault, payload):
-    with lifecycle.lease(vault):
-        profile = store.profile_bytes(vault)
-    with tempfile.TemporaryDirectory(prefix='omrs-zyb-search-') as temp:
-        path = Path(temp) / 'session.json'
-        path.write_bytes(profile)
-        os.chmod(path, 0o600)
-        try:
-            candidates = normalize_questions(DirectClient(path).search(payload['image'], payload['grade']))
-        except UpstreamError as exc:
-            with lifecycle.lease(vault), write_lock():
-                if store.fingerprint(store.profile_bytes(vault)) == store.fingerprint(profile):
-                    store.observe(vault, 'search', exc.kind, exc.code)
-            raise store.ZybError(str(exc), exc.kind, 502) from exc
+    config = payload.get('service_snapshot') or service_config.snapshot(vault)
+    try:
+        candidates = normalize_questions(GatewayClient(config).search(payload['image'], payload['grade']))
+    except UpstreamError as exc:
+        raise store.ZybError('服务返回的题目无法读取，请在网关面板核对账号或签名状态', exc.kind, 502) from None
     record = {'id': 'search-' + uuid.uuid4().hex, 'kind': 'search', 'created_at': time.time(),
-              'source': candidates, 'candidates': [summary(candidate, i) for i, candidate in enumerate(candidates)]}
-    with lifecycle.lease(vault), write_lock():
-        if store.fingerprint(store.profile_bytes(vault)) != store.fingerprint(profile):
-            raise store.ZybError('设备会话已更新，请重新搜题', 'session_changed', 409)
-        store.observe(vault, 'search')
+              'source': candidates, 'candidates': [summary(candidate, i) for i, candidate in enumerate(candidates)],
+              'service': service_config.project(config)}
+    with lifecycle.lease(vault, config.generation), write_lock():
+        service_config.assert_current(vault, config)
         store.save(vault, record['id'], record)
     return public_record(record)
 
 
+def _publish(vault, identity, record, config):
+    with lifecycle.lease(vault, config.generation), write_lock():
+        service_config.assert_current(vault, config)
+        store.save(vault, identity, record)
+
+
 def render(vault, payload):
+    config = payload.get('service_snapshot') or service_config.snapshot(vault)
     record = {'id': 'render-' + uuid.uuid4().hex, 'kind': 'render', 'status': 'rendering',
               'created_at': time.time(), 'search_id': payload['search_id'], 'candidate': payload['candidate'],
-              'source': payload['source'], 'extraction': {}, 'images': {}}
-    store.save(vault, record['id'], record)
+              'source': payload['source'], 'extraction': {}, 'images': {},
+              'service': payload.get('source_service') or service_config.project(config)}
+    _publish(vault, record['id'], record, config)
     try:
         bodies, count = candidate_html(payload['source'])
         with tempfile.TemporaryDirectory(prefix='omrs-zyb-render-') as temp:
             output = render_documents(bodies, temp)
-            with lifecycle.lease(vault), write_lock():
+            with lifecycle.lease(vault, config.generation), write_lock():
+                service_config.assert_current(vault, config)
                 directory = store.location(vault, record['id'])
                 for role in ('question', 'answer'):
                     if not output[role].get('empty'):
@@ -130,13 +131,19 @@ def render(vault, payload):
                 store.save(vault, record['id'], record)
     except Exception as exc:
         record.update(status='failed', error=str(exc) if isinstance(exc, store.ZybError) else '渲染失败，原内容已保留')
-        store.save(vault, record['id'], record)
+        try:
+            # 配置切换仍保留原来源的失败状态；整库恢复后不能覆盖新世代记录。
+            with lifecycle.lease(vault, config.generation), write_lock():
+                store.save(vault, record['id'], record)
+        except (lifecycle.VaultChanged, lifecycle.VaultBusy):
+            pass
         raise
     return public_record(record)
 
 
 def extract(vault, payload):
     from ..ai_assist import extract_region, recognize_question
+    config = payload.get('service_snapshot') or service_config.snapshot(vault)
     record = store.read(vault, payload['render_id'])
     if record.get('status') != 'ready':
         raise store.ZybError('请先完成后端渲染')
@@ -154,22 +161,23 @@ def extract(vault, payload):
         except Exception as exc:
             record['extraction'][role] = {'status': 'failed', 'mode': 'image', 'text': '',
                                           'reason': str(exc), 'error': '提取失败，完整图片已保留，可重试'}
-        store.save(vault, record['id'], record)
+        _publish(vault, record['id'], record, config)
     if not record.get('classification'):
         try:
             encoded = 'data:image/png;base64,' + base64.b64encode(image(vault, record['id'], 'question')).decode('ascii')
             record['classification'] = recognize_question(vault, encoded, mode='classify', allow_labels=False)
         except Exception:
             record['classification_error'] = '分类识别失败，请手动填写科目和分类'
-        store.save(vault, record['id'], record)
+        _publish(vault, record['id'], record, config)
     return public_record(record)
 
 
 def start_job(vault, kind, data):
     with lifecycle.lease(vault) as generation:
+        config = service_config.snapshot(vault)
         if kind == 'search':
-            session.status(vault)
-            store.profile_bytes(vault)
+            if not config.api_key:
+                raise store.ZybError('请先在设置中配置作业帮网关调用密钥', 'gateway_unconfigured', 503)
             reference = data.get('image')
             if isinstance(reference, dict):
                 uploaded = uploads.resolve(vault, reference, purpose='zuoyebang')
@@ -184,14 +192,15 @@ def start_job(vault, kind, data):
             grade = data.get('grade', 0)
             if type(grade) is not int or not 0 <= grade <= 12:
                 raise store.ZybError('年级参数不合法')
-            payload = {'image': raw, 'grade': grade}
-            key = ('search',)
+            payload = {'image': raw, 'grade': grade, 'service_snapshot': config}
+            key = ('search', config.revision)
         elif kind == 'render':
             source = store.read(vault, data.get('search_id'))
             index = data.get('candidate_index')
             if source['kind'] != 'search' or type(index) is not int or not 0 <= index < len(source['source']):
                 raise store.ZybError('请选择有效的搜题候选')
-            payload = {'search_id': source['id'], 'source': source['source'][index], 'candidate': source['candidates'][index]}
+            payload = {'search_id': source['id'], 'source': source['source'][index], 'candidate': source['candidates'][index],
+                       'source_service': source.get('service')}
             key = ('render', source['id'], index)
         elif kind == 'extract':
             record = store.read(vault, data.get('render_id'))
@@ -201,6 +210,8 @@ def start_job(vault, kind, data):
             key = ('extract', record['id'])
         else:
             raise store.ZybError('后台任务类型不合法')
+        payload['service_snapshot'] = config
+        key = (*key, config.revision)
     vault_key = os.path.realpath(vault)
     with _LOCK:
         active = _ACTIVE.setdefault(vault_key, {})
@@ -211,9 +222,10 @@ def start_job(vault, kind, data):
         identity = 'job-' + uuid.uuid4().hex
         active[key] = identity
     job = {'id': identity, 'kind': 'job', 'type': kind, 'status': 'running', 'created_at': time.time(), 'instance': INSTANCE,
-           'generation': generation}
+           'generation': generation, 'service': service_config.project(config)}
     try:
-        with lifecycle.lease(vault, generation):
+        with lifecycle.lease(vault, generation), write_lock():
+            service_config.assert_current(vault, config)
             store.save(vault, identity, job)
     except BaseException:
         with _LOCK:
@@ -224,8 +236,9 @@ def start_job(vault, kind, data):
             with lifecycle.task(vault, generation):
                 result = {'search': search, 'render': render, 'extract': extract}[kind](vault, payload)
                 job.update(status='done', result=result, completed_at=time.time())
-                store.save(vault, identity, job)
+                _publish(vault, identity, job, config)
         except Exception as exc:
+            job.pop('result', None)
             job.update(status='failed', error=str(exc) if isinstance(exc, (ValueError, lifecycle.VaultBusy, lifecycle.VaultChanged)) else '作业帮任务失败，请重试',
                        code=getattr(exc, 'code', 'zuoyebang'), completed_at=time.time())
             try:

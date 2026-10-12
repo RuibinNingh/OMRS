@@ -1,0 +1,4 @@
+{
+  "command": "node --check zyb_gateway/assets/panel.js",
+  "exit_code": 0
+}

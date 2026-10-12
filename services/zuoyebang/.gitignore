@@ -1,0 +1,9 @@
+.venv/
+.pip-cache/
+.state/
+*.egg-info/
+build/
+dist/
+__pycache__/
+*.py[cod]
+docs/isolated-test-*/

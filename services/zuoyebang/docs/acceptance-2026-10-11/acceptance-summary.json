@@ -1,0 +1,31 @@
+{
+  "date": "2026-10-11",
+  "service_directory": "/root/workspace/apps/zuoyebang-service",
+  "python_tests": 52,
+  "acceptance_tests": 4,
+  "browser_tests": 1,
+  "package_http_assertions": 4,
+  "node_check_exit_code": 0,
+  "defects_fixed": [
+    "账号检查/刷新不恢复旧二维码",
+    "HTTP并发拒绝的审计失败稳定503",
+    "官方socket断开稳定502/network且不重试",
+    "二维码终态按钮保持禁用",
+    "可信代理空/重复XFF不能降级本机"
+  ],
+  "test_harness_fix": "CLI select/readline缓冲竞争，改按fd完整字节行读取",
+  "official_boundary": "SYNTHETIC only",
+  "real_credentials_read": false,
+  "production_changed": false,
+  "shared_browser_closed": false,
+  "committed_or_pushed": false,
+  "evidence_directory": "/root/.hermes/cache/scratch/zyb-service-20261011/codex-acceptance/gateway",
+  "project_verification": "docs/verification.md",
+  "project_task_log": "docs/2026-10-11_codex-acceptance.md",
+  "unverified": [
+    "真实官方账号/扫码/签名兼容性",
+    "生产HTTPS反代与公网部署",
+    "OMRS接入主路径由父任务独立验证"
+  ],
+  "preexisting_private_directory_preserved": "docs/tmpsretf1_c/private/"
+}

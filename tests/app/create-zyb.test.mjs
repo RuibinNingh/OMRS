@@ -3,6 +3,25 @@ import assert from 'node:assert/strict';
 import { createCamera } from '../../assets/app/features/create/zyb-camera.js';
 import { newZybState, bindRender, extractionSnapshot, mergeExtraction, commitPayload } from '../../assets/app/features/create/zyb-state.js';
 import { STAGES, stageOf } from '../../assets/app/features/create/state.js';
+import { accountView, candidatesView } from '../../assets/app/features/create/zyb-view.js';
+
+ test('录入服务菜单只打开设置与独立面板，不管理账号或迁移会话', () => {
+  const s = { ...newZybState(), accountPanel: 'main', service: { base_url: 'http://127.0.0.1:8745', mode: 'local' }, session: { connected: true, local_session_ready: true, observations: { account: { state: 'valid' }, signing: { state: 'valid' } }, panel_url: 'https://evil.example/?token=secret' } };
+  const output = String(accountView(s));
+  assert.match(output, /打开服务设置/);
+  assert.match(output, /aria-expanded="true"/);
+  assert.match(output, /href="http:\/\/127\.0\.0\.1:8745\/"[^>]*target="_blank"[^>]*rel="noopener noreferrer"/);
+  assert.doesNotMatch(output, /zyb-profile|zybLogin|扫码登录|create\.zybAccount|evil\.example|token=/);
+  s.sessionError = '连接失败';
+  assert.match(String(accountView(s)), /连接失败/);
+  assert.match(String(accountView(s)), /账号：有效/);
+  assert.doesNotMatch(String(accountView(s)), /账号.*已过期/);
+ });
+ test('候选保留来源网关与模式的非敏感投影', () => {
+  const s = newZybState();
+  s.search = { id: 'search-test', service: { mode: 'external', base_url: 'https://gateway.example.org' }, candidates: [{ index: 0, title: '原题', location: 0 }] };
+  assert.match(String(candidatesView(s)), /来源.*外部.*https:\/\/gateway\.example\.org/);
+ });
 
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { resolve, promise }; };
 const record = id => ({ id, status: 'ready', images: { question: { url: 'q' }, answer: { url: 'a' } }, extraction: {} });

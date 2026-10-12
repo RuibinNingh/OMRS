@@ -28,8 +28,8 @@ echo.
 
 rem Keep AI\logs in the package: it is part of the AI collaboration context.
 robocopy "%ROOT%" "%STAGE%" /E /R:1 /W:1 ^
-  /XD ".git" ".git-history-backup*" ".playwright-mcp" "__pycache__" ".pytest_cache" "omrs_work" "_ai_packages" ^
-  /XF "*.pyc" "*.pyo" "*.pyd" "*.log" "*.tmp" "*.zip" "Thumbs.db" "desktop.ini" >nul
+  /XD ".git" ".git-history-backup*" ".playwright-mcp" "__pycache__" ".pytest_cache" "omrs_work" "_ai_packages" ".venv" ".state" "private" "isolated-test-*" "tmp*" ^
+  /XF "*.pyc" "*.pyo" "*.pyd" "*.log" "*.tmp" "*.zip" "admin-secret.txt" "*.sqlite3" "*.db" "Thumbs.db" "desktop.ini" >nul
 
 if errorlevel 8 (
   echo.

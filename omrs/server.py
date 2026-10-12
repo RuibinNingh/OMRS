@@ -203,6 +203,7 @@ class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, Inb
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
         protected = not (path.startswith("/api/agent/") or path in (
+            "/api/zuoyebang/status",
             "/api/annotate/export", "/api/source/export", "/api/export-review",
             "/api/trainpanel/service", "/api/trainpanel/manager"))
         try:

@@ -21,7 +21,9 @@
 
 ## 作业帮端点 `/api/zuoyebang/*`
 
-设备导入、扫码及账号核对、搜题/渲染/提取后台作业、记录/图片/历史与人工核对创建统一见 `AI/zuoyebang.md` §5。它复用保真 extract_region 和可靠创建协议，来源存于独立目录，不经过收件箱框选或训练积累。全部继承 Web 授权与 POST 同源检查；第三方凭据不返回。
+独立网关连接配置与测试、搜题/渲染/提取后台作业、记录/图片/历史与人工核对创建统一见 `AI/zuoyebang.md` §5及 `AI/zuoyebang-service.md`。设备导入、扫码及账号核对在独立管理面板执行，旧OMRS管理端点返回409。它复用保真 extract_region 和可靠创建协议，来源存于独立目录，不经过收件箱框选或训练积累。全部继承 Web 授权与 POST 同源检查；第三方凭据不返回。
+
+base_url支持安全反代前缀，panel_url保留前缀并补尾斜杠；网关 `/api/v1/status` 与 `/api/v1/search` 追加在此前缀。`/api/source/export` 包含同仓services/zuoyebang源码、安装与vendor清单，排除服务私有运行目录及管理员秘密。
 
 ---
 

@@ -15,7 +15,7 @@ Vault根的`.omrs-maintenance/`保存生命周期锁、世代、恢复预检与j
 
 锁屏入口的 WebGL 场景只读取静态资源，不读取或写入 Vault、Ledger、配置和题目文件；PIN 会话仍由 `auth.json` 与进程内存会话管理，入口本身不产生持久化数据。
 
-作业帮设备会话、搜题候选、后端渲染与 AI 结果在独立私有目录；人工核对创建时才写 question.create 和同事务 op_results 回执。预留身份及冻结内容保留到原记录重试，普通创建跳过预留 UID，工作区扫描不抢先入账。目录格式见 `AI/data/storage.md` §11，协议见 `AI/zuoyebang.md`。
+作业帮网关连接配置、搜题候选、后端渲染与 AI 结果在独立私有目录；设备与账号会话由独立网关持有，OMRS不迁移旧凭据；人工核对创建时才写 question.create 和同事务 op_results 回执。预留身份及冻结内容保留到原记录重试，普通创建跳过预留 UID，工作区扫描不抢先入账。目录格式见 `AI/data/storage.md` §11，协议见 `AI/zuoyebang.md`。
 
 ---
 

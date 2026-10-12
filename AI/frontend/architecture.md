@@ -32,7 +32,7 @@ assets/app/
 
 ## 3. 路由与页面契约
 
-录入页的作业帮账号浮层由features/create/zyb-account.js负责挂载期监听与离页清理，通过页面actions委托切换菜单/记录；页面不加载后端MathJax引擎。tests/e2e/zuoyebang.py在隔离实例验证来源、渲染、识别、刷新、核对创建和账号焦点，并检查工作区占满可用宽度、右预览440px及左侧弹性布局；前端流程见create.md。
+录入页的作业帮账号浮层由features/create/zyb-account.js负责挂载期监听与离页清理，通过页面actions委托切换菜单/记录；页面不加载后端MathJax引擎。tests/e2e/zuoyebang.py在隔离实例验证来源、渲染、识别、刷新、核对创建和账号焦点，并检查工作区占满可用宽度、右预览440px及左侧弹性布局；前端流程见create.md。独立网关设置与录入状态共用domain/zuoyebang-service.js的非敏感服务身份比较；设置保存经zuoyebang:service-changed总线通知，面板链接不携带Key。真实双项目验收脚本为 `tests/e2e/zuoyebang_gateway_integration.py`，它只替换官方网络边界，验证实际网关面板密钥、OMRS上传/渲染/核对创建与吊销。
 
 - 地址形如 `#/questions`，也支持 `#/instant?practice=<card_id>&attempt=<attempt_id>`。路由用问号前的页面 ID 匹配页面，并保留查询串供页面挂载时读取；同一页面的查询串改变先经过未保存守卫，再重新挂载。`replaceQuery(query)` 供页面已通过自身选择守卫后同步当前目标地址，不重新挂载编辑器。`router.go(id)` 无异步守卫时同步切页并 `pushState` 一条历史；未登记的 id 落到仪表盘；地址无效时改写成 `#/dashboard`。
 - 地址变成非路由 hash（例如 `href="#"` 的链接）时不切页，并把地址改回当前页，保证刷新仍停在原页。
@@ -54,6 +54,8 @@ assets/app/
 复习调度的导出验收由 `tests/e2e/schedule.py` 走真实页面与下载接口；A4 下载后另开离线页面，等待字体和排版就绪，核对栏底与实际 PDF 页数。模板内部单栏/双栏、打印媒体与缩放回归另由 `tests/smoke_a4_print.py` 验证，契约见 `AI/export.md`。
 
 ## 4. core 模块
+
+共享 `domain/zuoyebang-service.js` 负责服务身份、脱敏状态和面板链接；管理URL保留已保存的安全路径前缀，拒绝查询、凭据、编码与穿越。设置与录入复用该契约，连接和反代约束见 `AI/zuoyebang-service.md`。
 
 | 模块 | 接口 | 要点 |
 |---|---|---|

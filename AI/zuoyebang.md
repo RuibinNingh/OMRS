@@ -1,19 +1,19 @@
 # 作业帮搜题与保真录入
 
 > **速查**
-> - 职责：设备会话、扫码账号、搜题候选、后端完整长图、AI 保真提取与幂等创建
+> - 职责：独立网关搜题、候选、后端完整长图、AI 保真提取与幂等创建
 > - 入口：`omrs/zuoyebang/`、`omrs/http/zuoyebang.py`；页面见 `AI/frontend/create.md`
 > - 不变量：题干答案按候选绑定；题目/答案各一张1080像素完整图；失败保留来源；凭据不进入响应或日志
 > - 必跑测试：`tests/test_zuoyebang.py`、`tests/test_zuoyebang_render.py`、`tests/app/create-zyb.test.mjs`、`tests/e2e/zuoyebang.py`
 > - 相关：`AI/api.md`、`AI/security.md`、`AI/data/storage.md`、`AI/inbox.md`
 
-## 1. 设备与账号
+## 1. 服务与账号
 
-首次使用在「录入题目 → 作业帮」导入已验收的 direct-session.json，提供已登记设备字段、固定搜题地址和签名种子；源码包不含该私有文件，不能从空账号伪造设备身份。导入限制256KiB，校验后原子保存，不视为在线核对成功。扫码确认使用官方账号接口，二维码由本地 Segno 生成；5分钟仅为本地二维码流程期限，不代表账号 TTL。同一 Vault 共用一份账号。
+「设置 → 作业帮服务」配置本地或外部独立网关。本地默认 `http://127.0.0.1:8745`，允许改为其它回环端口；两种模式都必须提供网关调用密钥。网关负责设备会话、扫码、账号、签名与解码，OMRS负责上传原图、选择候选、渲染、识别及核对创建。配置、地址策略与网络预算见 `AI/zuoyebang-service.md`。
 
-检查账号调用 userinfo；刷新账号调用 relogin 并重新核对。网络操作只使用临时私有快照，发布时核对 Vault 世代、会话指纹和扫码流程，迟到授权不能覆盖新会话或已取消流程。普通搜题和账号请求不依赖 ADB、APK 或原生库；没有设备初始化/签名种子自助刷新入口，签名失效时重新导入已更新的设备会话。
+账号菜单提供服务设置、独立管理面板和脱敏有效期记录。设备会话导入、扫码、检查与刷新只在独立面板执行，OMRS不读取或迁移旧账号凭据；缺少已登记设备时不能伪造设备身份。旧导入及账号管理HTTP端点返回409，指导用户进入独立面板。状态读取与连接测试只查询网关本地状态，不联系官方；网络错误不改变账号或签名观察。
 
-`observations.json` 分别保存 account/signing 的最后成功、首次确认失效、有效时间区间、恢复结果和最近100事件；`session-events.jsonl` 追加全部脱敏观察。登录提醒或无有效用户记账号失效，errNo=6 只记签名失效，网络故障不改变有效状态。没有官方 TTL，只能确定最后成功到首次确认失效的区间。日志白名单仅含操作、类别、整数错误码、时刻和恢复标志，不包含凭据、Cookie、签名或上游原文。
+网关分别记录account/signing的最后成功、首次确认失效、有效时间区间与恢复结果；OMRS只接收白名单摘要和最近100条脱敏事件，没有官方TTL时只展示观察区间。`omrs/zuoyebang/direct.py`、`account.py`、`session.py`保留为协议来源与回归实现，正常搜题通过配置的网关执行。
 
 ## 2. 搜题与后端渲染
 
@@ -31,7 +31,7 @@ SVG、MathML、canvas和音视频等不能按当前白名单保真渲染的视�
 
 ## 3. 后台作业与 AI
 
-search/render/extract 在守护线程执行，每个 Vault 最多同时两个任务，同一来源去重。开始捕获世代，网络与浏览器期间不持磁盘租约或业务写锁，快照读写与发布取短租约/写锁。作业状态持久化，并保存内部开始世代；重启或同进程整库恢复后，旧 running 记录只读显示中断，不永远等待，也不自动重放网络调用。
+search/render/extract 在守护线程执行，每个 Vault 最多同时两个任务，同一来源去重。开始捕获世代与服务配置，网络与浏览器期间不持磁盘租约或业务写锁，快照读写与发布取短租约/写锁。切换服务或密钥后，旧任务不发布成功结果，可在带原service身份的记录中保存failed；失败不得替代新服务状态。整库恢复后，旧成功／失败均不能写回新世代。作业状态持久化，并保存内部开始世代；重启或同进程整库恢复后，旧 running 记录只读显示中断，不永远等待，也不自动重放网络调用。
 
 AI 复用 extract_region、judge=True 和现有识别配置；每个角色一次读取完整图。完整转录文字/公式时保存文本，否则保留整图，不补写解答。两区独立保存，重试只处理失败项；分类只补科目、分类、难度和知识点，不写标记。模型 finish_reason=length/max_tokens 时拒绝当作完整转录。供应商自身的图像和输出限额仍适用，失败可按整图入库。
 
@@ -49,9 +49,12 @@ AI 复用 extract_region、judge=True 和现有识别配置；每个角色一次
 
 | 方法与路径 | 请求与响应 |
 |---|---|
-| `GET /api/zuoyebang/status` | 配置/账号凭据是否存在、脱敏观察；不主动联网 |
-| `POST /api/zuoyebang/profile` | `{profile}`；导入并使旧二维码失效，返回状态摘要 |
-| `POST /api/zuoyebang/account` | `{operation,flow_id?}`；verify/refresh/qr_start/qr_poll/qr_cancel，返回 account 摘要；qr_start 另含本地二维码 |
+| `GET /api/zuoyebang/service` | 私有连接配置的脱敏投影；不返回密钥 |
+| `POST /api/zuoyebang/service` | 保存mode/base_url/api_key/allow_private_targets；空Key保留，clear_api_key明确清除 |
+| `POST /api/zuoyebang/service/test` | 空请求体，查询已保存网关状态；不搜题或刷新账号 |
+| `GET /api/zuoyebang/status` | 查询网关账号脱敏观察及冻结服务配置；不联系官方 |
+| `POST /api/zuoyebang/profile` | 409 gateway_management，设备会话在独立面板导入 |
+| `POST /api/zuoyebang/account` | 409 gateway_management，账号管理在独立面板执行 |
 | `POST /api/zuoyebang/jobs` | `{type:"search",image:{upload_ref},grade?:0..12}` / `{type:"render",search_id,candidate_index}` / `{type:"extract",render_id,force?:boolean}`，返回 job |
 | `GET /api/zuoyebang/job` | `?id=job-…`；running/done/failed，含 result 或 error/code |
 | `GET /api/zuoyebang/record` | `?id=search-…或render-…`；候选摘要或渲染/images/extraction/创建预留和回执，不返回 source |

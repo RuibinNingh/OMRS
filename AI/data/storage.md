@@ -214,7 +214,9 @@ reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加acti
 
 ## 11. 作业帮 `错题/.omrs/zuoyebang/`
 
-`session.json` 保存已导入设备与账号，`qr-login.json` 保存扫码生命周期，`observations.json` 保存账号/签名分开的有效区间与最近100事件，`session-events.jsonl` 只追加白名单脱敏历史。目录0700、原子 JSON 和渲染文件0600；不进入源码包或普通接口响应。
+`service.json` 保存mode/base_url/api_key/allow_private_targets/revision，目录0700、原子JSON文件0600；密钥最多4096个可见ASCII字符，空字符串保存表示保留，显式clear_api_key清除。revision每次成功保存更新，GET仅返回已配置状态与12位SHA256指纹，不返回密钥；它与通用config.json隔离。新服务的设备、账号、扫码、观察及HTTP审计由独立网关持有，不迁移旧session.json/qr-login.json/observations.json/session-events.jsonl，也不将它们用于正常搜题。私有配置及来源不进入源码包或普通响应，详见 `AI/zuoyebang-service.md`。
+
+base_url可带安全反代路径前缀，磁盘字段与原契约兼容。网关源码在services/zuoyebang，生产私有目录在仓库外；它的数据库与设备文件不由OMRS整库备份或Ledger重放，备份网关需停其进程并保全完整私有目录。
 
 `search-<id>/record.json` 保存配对候选与原始来源，`render-<id>/record.json` 保存来源、PNG尺寸/SHA、HTML预览、提取与分类结果，`question.png` 和 `answer.png` 各一张完整图；无答案不产生答案图。`job-<id>/record.json` 保存后台状态，重启后的在途任务只读显示中断。搜题上传原件使用系统临时上传引用，1小时有效，与来源记录分开。
 

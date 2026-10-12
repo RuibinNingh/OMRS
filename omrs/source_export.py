@@ -19,9 +19,10 @@ _ROOT_FILES = {
     "omrs_engine.py",
     "pack_for_ai.bat",
     "requirements-mcp.txt",
+    "requirements-zuoyebang.txt",
     "run.bat",
 }
-_SOURCE_DIRS = {"AI", "Skills", "assets", "deploy", "omrs", "tests", "web"}
+_SOURCE_DIRS = {"AI", "Skills", "assets", "deploy", "omrs", "services", "tests", "web"}
 _SOURCE_SUFFIXES = {
     ".bat", ".cjs", ".css", ".html", ".js", ".md", ".mjs",
     ".otf", ".py", ".service", ".sh", ".svg", ".ts", ".tsx",
@@ -31,12 +32,21 @@ _EXCLUDED_DIRS = {
     "__pycache__", ".git", ".mypy_cache", ".playwright-mcp",
     ".pytest_cache", ".ruff_cache", ".vite", "dist", "node_modules",
 }
-_EXCLUDED_NAMES = {"DEPLOYMENT_SOURCE.json", "config.json"}
+_EXCLUDED_NAMES = {"DEPLOYMENT_SOURCE.json", "config.json", "admin-secret.txt"}
+_GATEWAY_FILES = {
+    "services/zuoyebang/.gitignore", "services/zuoyebang/pyproject.toml",
+    "services/zuoyebang/requirements.txt", "services/zuoyebang/requirements-dev.txt",
+    "services/zuoyebang/vendor-manifest.json",
+    "services/zuoyebang/deploy/zuoyebang.service.example",
+    "services/zuoyebang/deploy/zuoyebang.nginx.example",
+}
 
 
 def _is_source_file(relative: str) -> bool:
     parts = relative.split("/")
     name = parts[-1]
+    if relative in _GATEWAY_FILES:
+        return True
     if name in _EXCLUDED_NAMES or name.startswith("OMRS-EXP-"):
         return False
     if (name.startswith(".") or ".bak." in name
@@ -45,6 +55,8 @@ def _is_source_file(relative: str) -> bool:
     if len(parts) == 1:
         return name in _ROOT_FILES
     if parts[0] not in _SOURCE_DIRS or any(part.startswith(".") for part in parts[1:-1]):
+        return False
+    if parts[0] == "services" and (len(parts) < 3 or parts[1] != "zuoyebang"):
         return False
     if relative.startswith(("AI/logs/", "AI/omrs_work/")):
         return False
@@ -75,6 +87,9 @@ def _source_files(root: str) -> tuple[list[str], int]:
             for name in sorted(dirs):
                 relative = os.path.relpath(os.path.join(current, name), root).replace(os.sep, "/")
                 if (name in _EXCLUDED_DIRS or name.startswith(".")
+                        or (relative.startswith("services/") and
+                            (name == "private" or name.startswith(("tmp", "isolated-test"))))
+                        or (current == directory and top == "services" and name != "zuoyebang")
                         or relative in {"AI/logs", "AI/omrs_work"}
                         or os.path.islink(os.path.join(current, name))):
                     excluded += 1
@@ -105,9 +120,9 @@ def create_source_export(vault: str) -> tuple[bytes, str, dict]:
         "OMRS 脱敏源码包",
         "",
         "按源码目录和文件类型从当前工作区收集文件，包括未提交的源码；不依赖 Git。",
-        "仅扫描根目录项目文件及 AI/、Skills/、assets/、deploy/、omrs/、tests/、web/。",
+        "仅扫描根目录项目文件及 AI/、Skills/、assets/、deploy/、omrs/、services/zuoyebang/、tests/、web/。",
         "不扫描错题/、临时/、Task/、tool/、unused/、logs/ 等个人或工作目录；",
-        "排除 AI/logs/、AI/omrs_work/、缓存、构建产物、符号链接和生成的导出文件。",
+        "排除 AI/logs/、AI/omrs_work/、服务私有目录及管理员密码、缓存、构建产物、符号链接和生成的导出文件。",
         "请在分享前检查文件清单与源码内容，避免代码或文档中包含本地秘密。",
         "",
         f"导出时间（UTC）：{stamp}",

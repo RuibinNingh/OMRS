@@ -148,7 +148,7 @@
 | POST | `/api/session/bind` | `AI/api/mutations.md`、`AI/data.md`、`AI/frontend/review.md`等 |
 | POST | `/api/session/delete` | `AI/api/mutations.md`、`AI/ledger.md` |
 | GET | `/api/sessions` | `AI/api/queries.md`、`AI/changelog.md` |
-| GET | `/api/source/export` | `AI/api/queries.md`、`AI/changelog.md`、`AI/frontend/settings.md` |
+| GET | `/api/source/export` | `AI/api/extensions.md`、`AI/api/queries.md`、`AI/changelog.md`等 |
 | GET | `/api/stats` | `AI/algorithm.md`、`AI/api/queries.md`、`AI/changelog.md`等 |
 | GET | `/api/status` | `AI/api/queries.md`、`AI/frontend/settings.md`、`AI/frontend/shell.md`等 |
 | GET | `/api/taxonomy` | `AI/api/queries.md`、`AI/frontend/create.md` |
@@ -177,7 +177,9 @@
 | POST | `/api/zuoyebang/jobs` | `AI/zuoyebang.md` |
 | POST | `/api/zuoyebang/profile` | `AI/zuoyebang.md` |
 | GET | `/api/zuoyebang/record` | `AI/zuoyebang.md` |
-| GET | `/api/zuoyebang/status` | `AI/zuoyebang.md` |
+| GET/POST | `/api/zuoyebang/service` | `AI/frontend/settings.md`、`AI/zuoyebang-service.md`、`AI/zuoyebang.md` |
+| POST | `/api/zuoyebang/service/test` | `AI/frontend/settings.md`、`AI/zuoyebang-service.md`、`AI/zuoyebang.md` |
+| GET | `/api/zuoyebang/status` | `AI/zuoyebang-service.md`、`AI/zuoyebang.md` |
 | GET | `/index.html` | `AI/api/queries.md` |
 | GET | `/login` | `AI/api/queries.md`、`AI/frontend/shell.md`、`AI/inbox.md`等 |
 | GET | `/m` | `AI/api/extensions.md`、`AI/inbox.md`、`AI/security.md` |

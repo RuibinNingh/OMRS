@@ -4,6 +4,7 @@ import { button } from '../../ui/button.js';
 import { filedrop } from '../../ui/filedrop.js';
 import { labelChips } from '../../domain/labels/index.js';
 import { ROLES } from './zyb-state.js';
+import { panelUrl, serviceStatus } from '../../domain/zuoyebang-service.js';
 const action = (label, name, options = {}) => button({ label, action: `create.zyb${name}`, ...options });
 export const timeLabel = value => value ? new Date(value * 1000).toLocaleString('zh-CN', { hour12: false }) : '暂无记录';
 
@@ -28,22 +29,16 @@ export function roots() {
   </div>`;
 }
 export function accountView(s) {
-  const data = s.session;
-  const ready = data?.local_session_ready;
-  const observations = data?.observations || {};
-  const account = observations.account || {}, signing = observations.signing || {};
-  const busy = s.busy === 'account';
-  const label = !data ? '读取会话中…' : !ready ? '尚未配置设备会话' : signing.state === 'invalid' ? '签名会话已失效' : account.state === 'invalid' ? '请重新扫码登录' : account.state === 'valid' ? '账号最近核对有效' : '账号待在线核对';
-  const short = !data ? '读取中' : !ready ? '未配置' : signing.state === 'invalid' ? '签名失效' : account.state === 'invalid' ? '待登录' : account.state === 'valid' ? '已登录' : '待核对';
-  return html`<button type="button" class="ui-btn zyb-account-trigger" data-action="create.zybMenu" data-arg="toggle" aria-expanded="${!!s.accountPanel}" aria-controls="zyb-account-panel" aria-label="作业帮账号 · ${short}"><span>账号 · ${short}</span><span aria-hidden="true">⌄</span></button>
-    ${s.accountPanel ? html`<section id="zyb-account-panel" class="zyb-account-panel zyb-pane" aria-label="作业帮账号菜单">
-      ${s.accountPanel === 'records' ? html`<div class="zyb-head">${action('返回账号菜单', 'Menu', { arg: 'main', variant: 'ghost' })}<h3>会话有效期记录</h3></div>${observationsView(observations)}` : html`
-      <h3>作业帮账号</h3><p class="zyb-help">${label}</p>
-      ${s.sessionError ? html`<p class="zyb-error" role="alert">${s.sessionError}</p>` : ''}
-      ${!ready ? html`<p class="zyb-help">首次使用需导入已验收的设备会话文件，然后扫码登录。</p>` : ''}
-      <div class="zyb-account-actions">${action('扫码登录', 'Login', { disabled: !ready || !!s.busy })}${action('检查账号', 'Account', { arg: 'verify', disabled: !ready || !!s.busy })}${action('刷新账号', 'Account', { arg: 'refresh', disabled: !ready || !!s.busy })}
-        <label class="zyb-profile ui-btn">导入设备会话<input type="file" id="zyb-profile" aria-label="导入设备会话" accept=".json,application/json"${busy ? html` disabled` : ''}></label>
-        ${action('会话有效期记录', 'Menu', { arg: 'records' })}</div>`}
+  const observations = s.session?.observations || {};
+  const short = s.sessionError ? '连接失败' : s.session?.connected ? '已连接' : s.service?.api_key_configured === false ? '未配置' : '待连接';
+  const panel = panelUrl(s.service);
+  return html`<button type="button" class="ui-btn zyb-account-trigger" data-action="create.zybMenu" data-arg="toggle" aria-expanded="${String(!!s.accountPanel)}" aria-controls="zyb-account-panel" aria-label="作业帮服务 · ${short}"><span>服务 · ${short}</span><span aria-hidden="true">⌄</span></button>
+    ${s.accountPanel ? html`<section id="zyb-account-panel" class="zyb-account-panel zyb-pane" aria-label="作业帮服务菜单">
+      ${s.accountPanel === 'records' ? html`<div class="zyb-head">${action('返回服务菜单', 'Menu', { arg: 'main', variant: 'ghost' })}<h3>会话有效期记录</h3></div>${observationsView(observations)}` : html`
+      <h3>独立作业帮服务</h3><p class="zyb-help">${s.service?.mode === 'external' ? '外部网关' : '本地独立网关'} · ${s.service?.base_url || '请在设置中配置'}</p>
+      ${s.sessionError ? html`<p class="zyb-error" role="alert">${s.sessionError}；连接失败不代表账号过期。${s.session ? '下面保留当前配置最近一次观察。' : '尚未取得当前配置的账号观察。'}</p>` : ''}
+      <p class="zyb-help">${serviceStatus(s.session)}</p><p class="zyb-help">账号导入、扫码、刷新与密钥管理只在独立服务面板操作。</p>
+      <div class="zyb-account-actions">${action('打开服务设置', 'Settings')}${panel ? html`<a class="ui-btn" href="${panel}" target="_blank" rel="noopener noreferrer">打开独立管理面板</a>` : ''}${action('会话有效期记录', 'Menu', { arg: 'records' })}</div>`}
     </section>` : ''}`;
 }
 function observationsView(observations) {
@@ -63,7 +58,7 @@ export function uploadView(s) {
 }
 export function candidatesView(s) {
   if (!s.search) return html`<p class="zyb-help">搜题结果将在这里按位置、候选分别显示。</p>`;
-  return html`<h4>搜题候选 <small>${s.search.candidates.length} 个</small></h4><div class="zyb-candidates">
+  return html`<h4>搜题候选 <small>${s.search.candidates.length} 个</small></h4>${s.search.service ? html`<p class="zyb-help">来源：${s.search.service.mode === 'external' ? '外部' : '本地独立'}网关 · ${s.search.service.base_url}</p>` : ''}<div class="zyb-candidates">
     ${each(s.search.candidates, candidate => candidate.index, candidate => html`<button class="zyb-candidate${candidate.index === s.selected ? ' on' : ''}" type="button" data-action="create.zybSelect" data-arg="${candidate.index}" aria-pressed="${candidate.index === s.selected}"${s.busy ? html` disabled` : ''}>
       <strong>位置 ${Number(candidate.location) + 1} · 候选 ${candidate.index + 1}</strong><span>${candidate.title}</span><small>请与搜题原图核对</small></button>`)}
     </div><div class="zyb-actions">${action(s.render ? '重新渲染所选题目' : '渲染所选题目', 'Render', { disabled: !!s.busy, loading: s.busy === 'render' })}</div>`;

@@ -1,0 +1,25 @@
+[Unit]
+Description=OMRS 作业帮网关
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 与主应用共用源码和依赖，运行数据放在仓库外。
+User=omrs
+Group=omrs
+WorkingDirectory=/opt/omrs/services/zuoyebang
+ExecStart=/opt/omrs/.venv/bin/python -m zyb_gateway serve --data-dir /var/lib/omrs-zuoyebang --bind 127.0.0.1 --port 8745
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/omrs-zuoyebang
+
+[Install]
+WantedBy=multi-user.target

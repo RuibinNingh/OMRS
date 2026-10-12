@@ -1,0 +1,13 @@
+{
+  "installed_package_smoke": "ok",
+  "assertions": [
+    "installed_health_exact",
+    "installed_panel_html",
+    "installed_static_assets",
+    "installed_api_requires_key"
+  ],
+  "own_process_pid": 2133928,
+  "own_process_stopped": true,
+  "returncode": 0,
+  "real_credentials_used": false
+}

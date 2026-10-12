@@ -1,6 +1,9 @@
 """唯一 HTTP 注册表；文档与运行分派共用相同方法、路径和领域适配。"""
 
 ROUTES = {
+    ('GET', '/api/zuoyebang/service'): '_zuoyebang_get',
+    ('POST', '/api/zuoyebang/service'): '_zuoyebang_post',
+    ('POST', '/api/zuoyebang/service/test'): '_zuoyebang_post',
     ('GET', '/api/zuoyebang/status'): '_zuoyebang_get',
     ('GET', '/api/zuoyebang/job'): '_zuoyebang_get',
     ('GET', '/api/zuoyebang/record'): '_zuoyebang_get',

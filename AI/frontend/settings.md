@@ -1,7 +1,7 @@
 # 前端：设置页
 
 > **速查**
-> - 职责：外观、访问与安全、AI 识别、AI 助手、数据与存储、服务与运行六分区
+> - 职责：外观、访问与安全、AI 识别、AI 助手、作业帮服务、数据与存储、服务与运行七分区
 > - 入口：`assets/app/features/settings/index.js`，挂载根 `omrs_dashboard.html` 的 `#st-app`
 > - 不变量：重启只认新的 `instance_id`；只改免 PIN 网段不重启；AI Key 不回显；外观键名保持兼容
 > - 必跑测试：`tests/app/settings.test.mjs`、`tests/e2e/settings.py`、`tests/e2e/mcp.py`、`tests/test_source_export.py`
@@ -9,7 +9,7 @@
 
 ## 页面结构与生命周期
 
-`main.js` 注册 `settings` 页面契约；`index.js` 在 `#st-app` 渲染六个静态分区，使用页面动作代理分发按钮、输入和变更事件。`appearance.js`、`access.js`、`ai.js`、`agent.js`、`storage.js`、`service.js` 各管理一个分区；`tuning.js` 管理数据分区的算法表单，`tuning-state.js` 保存参数范围与回执投影。进入时各区读取当前服务状态；离开时撤销事件监听和图片任务轮询，未保存的输入按原行为丢弃，不拦截切页。
+`main.js` 注册 `settings` 页面契约；`index.js` 在 `#st-app` 渲染七个静态分区，使用页面动作代理分发按钮、输入和变更事件。`appearance.js`、`access.js`、`ai.js`、`agent.js`、`storage.js`、`service.js` 各管理一个分区；`zuoyebang.js` 管理独立网关分区；`tuning.js` 管理数据分区的算法表单，`tuning-state.js` 保存参数范围与回执投影。进入时各区读取当前服务状态；离开时撤销事件监听和图片任务轮询，未保存的输入按原行为丢弃，不拦截切页。
 
 左侧导航是 `tablist`，支持方向键、Home、End、焦点移动及 `aria-selected`；上次分区保存在 `localStorage('omrs-settings-section')`，非法值回退到外观。手机端导航横向滚动，分区正文单列。通用样式在 `settings.css`，MCP 区域与其弹窗样式在 `mcp-keys.css`，均使用设计 token。除仍被测试或外部调用的标识外，旧设置 DOM 的 ID 不作为兼容契约。
 
@@ -43,6 +43,12 @@ AI 地址、模型、三种用途模型、思考与知识点限制开关经 `/ap
 
 「AI 录题方式」可选静默草稿或确认入库，默认 silent；保存 draft_mode 后工具注册表随配置更新。该设置不改变模型或密钥配置，也不把静默录题解释为自动写题库。
 
+## 作业帮服务
+
+`zuoyebang.js` / `zuoyebang-view.js`提供本地／外部独立网关、地址、调用Key、显式信任私网、保存、重新读取、测试已保存连接与打开面板。地址可含安全反代前缀，管理链接保留前缀且不带Key。调用 `GET/POST /api/zuoyebang/service`、`POST /api/zuoyebang/service/test`；本地为OMRS服务器的回环网关，默认8745端口，连接与地址安全契约见 `AI/zuoyebang-service.md`。
+
+输入为密码框，留空保存保留Key；成功后清空，清除须二次确认，离页清空输入及使在途回调失效。面板在新标签页打开，链接不带Key且使用noopener。请求失败保留编辑；运行中禁重复写入。账号观察绑定非敏感服务身份，切换或重新读取其它配置时清空旧观察，同一配置的暂态连接失败可保留最近观察。保存／清除成功发 `zuoyebang:service-changed`，录入页通过domain模块读取设置目标，不跨feature导入。
+
 ## 数据与存储
 
 `storage.js` 从 `/api/optimize/summary` 读取数据链、题目文件和图片占用，`storage-state.js` 投影比例与候选大小。Pillow 不可用时禁用扫描与压缩。扫描、压缩均经 `/api/optimize/job?id=` 轮询；任务中显示进度并防重复启动，离开页面暂停本页轮询，再进入时继续查询仍有效的任务。压缩开始前须二次确认，已导出备份的 token 可随请求提供。
@@ -54,6 +60,8 @@ AI 地址、模型、三种用途模型、思考与知识点限制开关经 `/ap
 运行状态取自 `/api/status`。重启前读取 `/api/auth/session` 的 `instance_id`；读不到则不请求重启。发出 `/api/restart` 后每 500ms 探测新实例，最长 90 秒；旧实例仍响应、连接暂断或探测超时都不会刷新。只有读到不同的 `instance_id` 才刷新页面。E2E 用 `page.route` 拦截重启请求，隔离实例移除 `OMRS_SYSTEMD_SERVICE`。
 
 脱敏源码下载直接调用 `/api/source/export`，完成后由 `core/download.js` 下载 ZIP。测试实例的 Vault 是临时空目录，E2E 用固定 ZIP 响应核对前端下载路径；服务端真实打包契约由 `tests/test_source_export.py` 验证，源码包包含可选 `requirements-mcp.txt`，排除 Vault 中的 MCP Key 摘要与明文。
+
+源码包也包含requirements-zuoyebang.txt和services/zuoyebang的运行源码、测试、安装与vendor清单，不扫描其它services目录；排除网关私有目录、临时目录、数据库与管理员密码。Windows打包脚本保留AI/logs，但同样排除服务运行数据；入口与限制见根README。
 
 助手设置提供「图片框选方式」与「默认用于训练数据」：询问模式在聊天草稿卡片给出 AI 框/我来框；自动模式为新草稿排检测任务；手动模式从草稿区处理。另有「全文字也要框」开关，只影响之后新建且有来源图的全文字草稿，训练任务不阻止入库。训练默认开关只影响新图的初值，已有图仍按图设置，关闭不撤销已经登记的数据。
 

@@ -1,0 +1,22 @@
+{
+  "tests": 1,
+  "assertions": [
+    "独立管理员登录/登出",
+    "Key一次展示/复制/刷新无回显/吊销",
+    "XSS名称转义",
+    "设备导入/检查/刷新",
+    "官方扫码合成确认/取消及终态按钮禁用",
+    "外部开关真实非loopback",
+    "历史来源过滤",
+    "390px无横溢出",
+    "零pageerror"
+  ],
+  "screenshots": [
+    "browser-login.png",
+    "browser-desktop.png",
+    "browser-mobile.png"
+  ],
+  "shared_browser_closed": false,
+  "own_context_closed": true,
+  "official_boundary": "SYNTHETIC only"
+}

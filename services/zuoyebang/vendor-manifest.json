@@ -1,0 +1,30 @@
+{
+  "description": "仅源码字节来源及交付哈希，不包含会话或凭据",
+  "source_repository": "OMRS",
+  "files": [
+    {
+      "source_path": "omrs/zuoyebang/direct.py",
+      "source_commit": "e614f3a6f625f8385714aac4171870459a537c15",
+      "source_sha256": "03135909b846e228e23623500baf22a8c004fe2278ffc6ba545fd7c165c647b6",
+      "vendor_path": "zyb_gateway/vendor/direct.py",
+      "vendor_sha256": "1b42e1bccb295c8ad902ad81e825e6ad924741f7b0de0a7392683c9d7ffe8859",
+      "modified": true
+    },
+    {
+      "source_path": "omrs/zuoyebang/account.py",
+      "source_commit": "e614f3a6f625f8385714aac4171870459a537c15",
+      "source_sha256": "5be947ae1163a2a1b5d6519108d1b77bb2e6adf675117365c1cff9ef19c60dc3",
+      "vendor_path": "zyb_gateway/vendor/account.py",
+      "vendor_sha256": "852aea2c996ad51816bec7b12353e57bda978be80adece2b38202d6c4fb629eb",
+      "modified": true
+    },
+    {
+      "source_path": "omrs/zuoyebang/qr.py",
+      "source_commit": "e614f3a6f625f8385714aac4171870459a537c15",
+      "source_sha256": "fd37a727584b32a17f2ded77d47c3b16ef353e7aaa00df89104f018141fce642",
+      "vendor_path": "zyb_gateway/vendor/qr.py",
+      "vendor_sha256": "fd37a727584b32a17f2ded77d47c3b16ef353e7aaa00df89104f018141fce642",
+      "modified": false
+    }
+  ]
+}
