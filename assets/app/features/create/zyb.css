@@ -32,11 +32,20 @@
 .zyb-camera { background: var(--surface-sunken); border-radius: var(--r-sm); min-height: 160px; display: grid; place-items: center; overflow: hidden; }
 .zyb-camera span { padding: var(--sp-4); text-align: center; color: var(--fg-2); font-size: var(--text-sm); }
 .zyb-camera video { width: 100%; display: block; }
-.zyb-camera video[hidden], .zyb-camera span[hidden] { display: none; }
+.zyb-camera[hidden], .zyb-camera video[hidden], .zyb-camera span[hidden], #zyb-upload[hidden], #zyb-source-preview[hidden] { display: none; }
+.zyb-input, .zyb-candidate-pane { align-content: start; }
+#zyb-upload, #zyb-camera-controls, #zyb-source-preview, #zyb-candidates { display: grid; gap: var(--sp-3); min-width: 0; }
+#zyb-source-preview:empty { display: none; }
+#zyb-source-modes > .ui-btn { flex: 1; }
+.zyb-input.has-image #zyb-upload .ui-filedrop { padding: var(--sp-3); min-height: var(--ctl-lg); }
+.zyb-input.has-image #zyb-upload .ui-filedrop__icon { display: none; }
+#zyb-camera-controls .ui-btn--primary { flex: 1; }
 .zyb-source-image { display: block; width: 100%; max-height: 240px; object-fit: contain; border-radius: var(--r-sm); }
-.zyb-candidates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+.zyb-candidates { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); max-height: 480px; overflow: auto; overscroll-behavior: contain; }
 .zyb-candidate { display: grid; text-align: left; gap: var(--sp-1); padding: var(--sp-3); border: 1px solid var(--border-2); background: var(--surface-1); color: var(--fg-1); border-radius: var(--r-sm); cursor: pointer; font: inherit; min-width: 0; }
-.zyb-candidate:hover { background: var(--surface-2); }
+.zyb-candidate { touch-action: manipulation; }
+.zyb-candidate:active { background: var(--surface-2); }
+@media (hover: hover) and (pointer: fine) { .zyb-candidate:hover { background: var(--surface-2); } }
 .zyb-candidate.on { border-color: var(--focus-ring); background: var(--accent-soft); }
 .zyb-candidate:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .zyb-candidate:disabled { opacity: .6; cursor: default; }
@@ -72,3 +81,4 @@
 .zyb-qr small { font-size: var(--text-sm); color: var(--fg-2); }
 @media (max-width: 1160px) { .zyb-workspace { grid-template-columns: minmax(0, 1fr); } .zyb-renderer { grid-column: 1; grid-row: auto; max-width: none; position: static; } }
 @media (max-width: 760px) { .zyb-capture, .zyb-fields, .zyb-editor-sections, .zyb-candidates { grid-template-columns: minmax(0, 1fr); } .zyb-viewport { max-height: 60vh; } .zyb-actionbar > .ui-btn { min-height: 44px; } .zyb-workspace-head { align-items: start; } }
+@media (pointer: coarse) { .zyb-input .ui-btn, .zyb-candidate { min-height: 44px; } }

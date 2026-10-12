@@ -46,3 +46,4 @@ AI/plans/<计划名>/
 | `ai-review-center/` | 已部署v2.3.0并推送GitHub | 统一 MCP/助手业务写审核、草稿迁入和安全正式改题；执行者Codex完整模式，见progress.md |
 | `zuoyebang/` | 已完成v2.4.1并部署 | 作业帮账号、实时摄像头、图片搜题、1080完整后端渲染与核对入库；执行者Codex完整模式，见progress.md |
 | `zuoyebang-service/` | 已同仓部署v2.5.0并推GitHub | 同仓网关、Key与来源IP审计及OMRS本地／外部连接；执行者Codex完整模式，见progress.md |
+| `zuoyebang-search-ui/` | 已实现并通过本地验收 | 合并取图搜题、拍照/上传/粘贴与候选自动预览；执行者Codex完整模式，见progress.md |

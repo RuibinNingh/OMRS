@@ -114,7 +114,7 @@ def main():
                 page.keyboard.press('Escape')
                 check('Escape关闭服务菜单并恢复焦点', page.locator('#zyb-account-panel').count() == 0 and page.get_by_role('button', name='作业帮服务 · 已连接', exact=True).evaluate('(el)=>el===document.activeElement'))
                 page.get_by_role('button', name='作业帮服务 · 已连接', exact=True).click()
-                page.get_by_role('heading', name='摄像头', exact=False).click()
+                page.get_by_role('heading', name='取图搜题', exact=True).click()
                 check('点击外部关闭服务菜单', page.locator('#zyb-account-panel').count() == 0)
                 page.get_by_role('button', name='打开摄像头', exact=True).click()
                 page.wait_for_function("() => document.querySelector('#zyb-video').srcObject?.active")
@@ -122,6 +122,42 @@ def main():
                 page.locator('[data-action="create.stage"][data-arg="quick"]').click()
                 check('切工作区关闭真实MediaStream', page.evaluate("() => window.zybTestTrack.readyState==='ended'"))
                 page.locator('[data-action="create.stage"][data-arg="zuoyebang"]').click()
+                page.get_by_role('button', name='打开摄像头', exact=True).click()
+                page.wait_for_function("() => document.querySelector('#zyb-video').readyState>=2 && document.querySelector('#zyb-video').videoWidth>0")
+                dimensions = page.locator('#zyb-video').evaluate('(el)=>[el.videoWidth,el.videoHeight]')
+                page.evaluate("() => window.zybTestTrack=document.querySelector('#zyb-video').srcObject.getVideoTracks()[0]")
+                page.get_by_role('button', name='拍照搜题', exact=True).click()
+                page.locator('.zyb-candidate').first.wait_for()
+                page.wait_for_function("() => document.querySelector('.zyb-source-image')?.naturalWidth>0")
+                check('拍照直接搜题并保留原始分辨率照片', page.locator('.zyb-source-image').evaluate('(el)=>[el.naturalWidth,el.naturalHeight]') == dimensions)
+                check('拍照后关闭摄像头且不预选候选', page.evaluate("() => window.zybTestTrack.readyState==='ended'") and page.locator('.zyb-candidate.on').count() == 0)
+                page.get_by_role('button', name='重拍', exact=True).click()
+                page.wait_for_function("() => document.querySelector('#zyb-video').srcObject?.active")
+                page.evaluate("() => window.zybTestTrack=document.querySelector('#zyb-video').srcObject.getVideoTracks()[0]")
+                page.get_by_role('button', name='上传图片', exact=True).click()
+                check('切上传模式释放摄像头并保留已拍原图', page.evaluate("() => window.zybTestTrack.readyState==='ended'") and page.locator('.zyb-source-image').is_visible() and page.locator('#zyb-camera-source').is_hidden())
+                page.evaluate('''data => {
+                  window.zybClipboardFile = new File([new Uint8Array(data)], 'pasted.png', {type:'image/png'});
+                  const transfer = new DataTransfer(); transfer.items.add(window.zybClipboardFile);
+                  document.querySelector('[data-action="create.zybPaste"]').dispatchEvent(new ClipboardEvent('paste', {clipboardData:transfer,bubbles:true,cancelable:true}));
+                }''', list(png()))
+                page.wait_for_function("() => document.querySelector('#zyb-source-preview').textContent.includes('pasted.png')")
+                check('粘贴图片共用上传模式并清除旧候选', page.locator('[data-action="create.zybSource"][data-arg="upload"]').get_attribute('aria-pressed') == 'true' and page.locator('.zyb-candidate').count() == 0)
+                page.evaluate("() => Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>{throw new Error('denied')}}})")
+                page.get_by_role('button', name='粘贴图片', exact=True).click()
+                page.wait_for_function("() => document.querySelector('#zyb-status').textContent.includes('Ctrl / ⌘ + V')")
+                check('剪贴板拒绝时保留图片并提供键盘粘贴', 'pasted.png' in page.locator('#zyb-source-preview').inner_text())
+                page.evaluate("() => Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:()=>new Promise(resolve=>window.zybClipboardResolve=resolve)}})")
+                page.get_by_role('button', name='粘贴图片', exact=True).click()
+                page.get_by_role('button', name='摄像头', exact=True).click()
+                page.evaluate("() => window.zybClipboardResolve([{types:['image/png'],getType:async()=>window.zybClipboardFile}])")
+                page.wait_for_timeout(100)
+                check('迟到剪贴板不切回已离开的来源模式', page.locator('[data-action="create.zybSource"][data-arg="camera"]').get_attribute('aria-pressed') == 'true')
+                page.evaluate("() => Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>[{types:['image/png'],getType:async()=>window.zybClipboardFile}]}})")
+                page.get_by_role('button', name='粘贴图片', exact=True).click()
+                page.wait_for_function("() => document.querySelector('[data-action=\"create.zybSource\"][data-arg=\"upload\"]').getAttribute('aria-pressed')==='true'")
+                check('粘贴按钮读取图片后自动切上传模式', 'clipboard-' in page.locator('#zyb-source-preview').inner_text())
+                page.evaluate("() => delete navigator.clipboard")
                 page.locator('#zyb-image').set_input_files(str(photo))
                 page.evaluate('''() => {
                   const original = window.fetch;
@@ -144,9 +180,11 @@ def main():
                 check('任务创建响应迟到新挂载仍恢复后台搜题', page.locator('#zyb-status').inner_text().startswith('找到'))
                 check('WebP原图通过专用分块上传完成搜题', page.locator('#zyb-status').inner_text().startswith('找到'))
                 check('候选按位置独立返回并保留题干答案对应', page.locator('.zyb-candidate').count() == 3)
-                page.get_by_role('button', name='渲染所选题目', exact=True).click()
+                check('返回候选后不自动选择第一条', page.locator('.zyb-candidate.on').count() == 0)
+                page.locator('.zyb-candidate').first.click()
                 page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalWidth===1080", timeout=60000)
                 check('预览图片来自真实后端1080渲染', page.locator('#zyb-rendered-image').get_attribute('src').startswith('/api/zuoyebang/image'))
+                check('点选候选自动生成预览且没有额外渲染按钮', page.get_by_role('button', name='渲染所选题目', exact=True).count() == 0)
                 render_id = page.evaluate("() => JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace')).render_id")
                 record = context.request.get(base + '/api/zuoyebang/record?id=' + render_id).json()['record']
                 check('任意域名的题目与答案附图均经本地化并完整渲染', record['source_images'] == 2 and all(record['images'][role]['images'] == 1 for role in ('question', 'answer')))
@@ -174,6 +212,25 @@ def main():
                 page.get_by_role('button', name='展开', exact=True).click()
                 check('展开完整长图复用已生成图片', page.locator('.ui-image-viewer img').get_attribute('src') == image_url)
                 page.get_by_role('button', name='关闭预览', exact=True).click()
+                page.evaluate('''() => {
+                  const original = window.fetch; window.zybRenderRequests = [];
+                  window.fetch = async (...args) => {
+                    const payload = args[1]?.body ? JSON.parse(args[1].body) : {};
+                    const tracked = new URL(args[0],location.href).pathname === '/api/zuoyebang/jobs' && payload.type === 'render';
+                    if (tracked) window.zybRenderRequests.push(payload.candidate_index);
+                    const response = await original(...args);
+                    if (tracked && payload.candidate_index === 1) await new Promise(resolve=>setTimeout(resolve,700));
+                    return response;
+                  };
+                }''')
+                page.locator('[data-action="create.zybSelect"][data-arg="1"]').click()
+                page.locator('[data-action="create.zybSelect"][data-arg="2"]').click()
+                page.locator('[data-action="create.zybSelect"][data-arg="0"]').click()
+                page.wait_for_function("() => {const s=JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace'));return s.selected===0 && s.render_id && !s.job}", timeout=60000)
+                check('快速切换串行处理且只渲染最后选择', page.evaluate('() => window.zybRenderRequests') == [1, 0] and page.locator('.zyb-candidate.on').get_attribute('data-arg') == '0')
+                latest_id = page.evaluate("() => JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace')).render_id")
+                latest = context.request.get(base + '/api/zuoyebang/record?id=' + latest_id).json()['record']
+                check('快速切换最终恢复正确题目预览', latest['candidate']['index'] == 0 and latest['source_images'] == 2)
                 page.get_by_role('button', name='AI 识别题目与答案', exact=True).click()
                 page.wait_for_function("() => document.querySelector('#zyb-status').textContent.includes('项提取失败')")
                 check('部分失败保留题图与完整答案图片并允许重试', page.locator('[data-arg="question:image"]').get_attribute('aria-pressed') == 'true' and page.locator('[data-arg="answer:image"]').get_attribute('aria-pressed') == 'true')
@@ -219,11 +276,22 @@ def main():
                 check('刷新恢复渲染、首次提交内容和已入库回执', page.get_by_role('button', name='已录入题库', exact=True).is_disabled())
                 page.locator('[data-action="create.zybSelect"][data-arg="1"]').click()
                 check('切候选清空上一题渲染结果', page.locator('#zyb-rendered-image').count() == 0 and page.locator('.zyb-result').count() == 0)
-                page.get_by_role('button', name='渲染所选题目', exact=True).click()
                 page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalWidth===1080", timeout=60000)
                 page.get_by_role('button', name='答案与解析', exact=True).click()
                 page.get_by_role('button', name='HTML', exact=True).click()
                 check('新候选答案没有混入上一题解析', '候选二答案' in page.locator('.zyb-code').inner_text() and '三角形' not in page.locator('.zyb-code').inner_text())
+                def fail_render(route):
+                    if route.request.post_data_json.get('type') == 'render':
+                        route.fulfill(status=503, json={'error': '模拟渲染暂不可用'})
+                    else: route.continue_()
+                page.route('**/api/zuoyebang/jobs', fail_render)
+                page.locator('[data-action="create.zybSelect"][data-arg="2"]').click()
+                page.get_by_role('button', name='重试渲染', exact=True).wait_for()
+                check('渲染失败保留候选并清空旧题预览', page.locator('.zyb-candidate').count() == 3 and page.locator('#zyb-rendered-image').count() == 0 and page.locator('.zyb-candidate.on').get_attribute('data-arg') == '2')
+                page.unroute('**/api/zuoyebang/jobs', fail_render)
+                page.get_by_role('button', name='重试渲染', exact=True).click()
+                page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalWidth===1080", timeout=60000)
+                check('失败可重试所选候选并恢复自动预览', page.locator('.zyb-candidate.on').get_attribute('data-arg') == '2')
                 page.evaluate("() => window.__omrs.router.go('ai-review?type=draft')")
                 page.wait_for_selector('#panel-ai-review.active')
                 check('审核中心草稿仍可访问', page.locator('#panel-ai-review.active').count() == 1)

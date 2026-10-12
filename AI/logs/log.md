@@ -3,6 +3,7 @@
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
 - [2026-10-12_zuoyebang-status-panel](2026-10-12_zuoyebang-status-panel.md)：作业帮服务面板状态优先重设计
+- [2026-10-12_zuoyebang-search-ui](2026-10-12_zuoyebang-search-ui.md)：作业帮取图搜题与自动预览
 - [2026-10-12_zuoyebang-public-images](2026-10-12_zuoyebang-public-images.md)：作业帮附图支持任意公网域名
 - [2026-10-12_zuoyebang-monorepo-release](2026-10-12_zuoyebang-monorepo-release.md)：作业帮同仓合入与生产发布
 - [2026-10-11_zuoyebang](2026-10-11_zuoyebang.md)：作业帮搜题、后端完整渲染与核对入库

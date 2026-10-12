@@ -2,7 +2,7 @@
 export const ROLES = ['question', 'answer'];
 export function newZybState() {
   return { session: null, sessionError: '', accountPanel: '', camera: { on: false, pending: false, message: '摄像头未开启' },
-    file: null, fileUrl: '', search: null, selected: 0, render: null, role: 'question', zoom: 'fit', showHtml: false,
+    sourceMode: 'camera', file: null, fileUrl: '', search: null, selected: null, render: null, role: 'question', zoom: 'fit', showHtml: false,
     sections: { question: { mode: 'image', text: '', reason: '尚未识别，按完整图片保存' }, answer: { mode: 'image', text: '', reason: '尚未识别，按完整图片保存' } },
     versions: { question: 0, answer: 0 }, form: { subject: '', category: '', difficulty: '5', related: '', cause: '' },
     labels: [], busy: '', job: null, message: '', error: false, history: [], result: null, qr: null, dirty: false };
