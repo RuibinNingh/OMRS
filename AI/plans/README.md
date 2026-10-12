@@ -45,4 +45,4 @@ AI/plans/<计划名>/
 | `mcp-review-sessions/` | 已部署v2.2.1并推送GitHub | 正式调度创建、查询增强及v2.2.1；执行者Codex完整模式，见progress.md |
 | `ai-review-center/` | 已部署v2.3.0并推送GitHub | 统一 MCP/助手业务写审核、草稿迁入和安全正式改题；执行者Codex完整模式，见progress.md |
 | `zuoyebang/` | 已完成v2.4.1并部署 | 作业帮账号、实时摄像头、图片搜题、1080完整后端渲染与核对入库；执行者Codex完整模式，见progress.md |
-| `zuoyebang-service/` | 源码已验收，同仓生产发布中 | 同仓网关、Key与来源IP审计及OMRS本地／外部连接；执行者Codex完整模式，见progress.md |
+| `zuoyebang-service/` | 已同仓部署v2.5.0并推GitHub | 同仓网关、Key与来源IP审计及OMRS本地／外部连接；执行者Codex完整模式，见progress.md |

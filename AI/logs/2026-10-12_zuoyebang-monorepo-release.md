@@ -25,3 +25,23 @@ settings/create浅／深×桌面／手机8组前后比较，无页面脚本错�
 ## 未验证项
 
 未导入或迁移真实设备凭据，未验证真实官方登录、签名期限、搜题及付费模型。Windows打包只能检查脚本，本机没有Windows执行环境。
+
+## 提交与精确发布
+
+功能提交08dce8bf8d306b97a3cf7159705b3e04321223b5（v2.5.0）已推送RuibinNingh/OMRS的main，包含本次110个代码／测试／文档文件。既有11个未推送提交随main快进发布，没有强推或另建仓库。运行源码为/root/workspace/apps/releases/omrs-08dce8b的Git归档，1434个文件逐字节一致，生产依赖复用omrs-zyb-deps-20261011。
+
+精确release隔离门禁12/12组全通过：后端64、Node491、网关52及1真实面板、前缀双进程17、设置75、原录入124、服务26、作业帮49、组件34、UI0问题及58组对比度通过，无跳过。命令与stdout在本轮证据目录release-gates.json、release-validation/，未把工作区全量961冒充精确release全量。发布记录另行提交，不改变运行源码pin。
+
+## 生产部署与保全
+
+2026-10-12 12:41:43至12:41:49 CST切换，约5.596秒。停服前再次确认无任务／恢复意图，停服后备份Vault及maintenance，tar比较、解包文件字节和SQLite完整性通过。保全目录/root/workspace/apps/releases/OMRS-v250-zyb-release-85epz6pq，目录0700／文件0600。失败路径预设恢复源码别名与新增控制配置，保留最新Vault；本次没有触发回退。
+
+持久源码别名omrs-9b29d49原子指向omrs-08dce8b；主unit/drop-in保持。安装omrs-zuoyebang.service，共用源码／依赖并监听127.0.0.1:8745，私有数据/var/lib/omrs-zuoyebang。在既有HTTPS8472入口增加/zuoyebang/，覆盖XFF并将Secure管理Cookie限制到服务路径；Nginx语法与unit校验通过，仅reload授权Nginx。Tunnel／检测服务与模型控制配置保持。
+
+在服务器内使用初始管理员秘密登录HTTPS面板，生成OMRS生产调用Key，通过主服务真实Web接口保存连接并测试；秘密仅在内存传递，没有输出或提交。OMRS配置为external，地址https://home.ruibin-ningh.top:8472/zuoyebang，明确不信任私网目标；同仓同机仍走鉴权。网关未导入设备或账号，无真实官方调用。允许外部访问只在初始化设置，unit不强制每次重启重新开启，后续面板关闭会保留。
+
+生产读回：49张业务表、937个正文／图片／关键配置文件保持，300题、0冲突、待审0；PIN、原MCP Key与模型保持。两服务active/running、NRestarts=0，实际cwd为同一release的主目录／services/zuoyebang。真实生产27/27检查通过，含资源字节、匿名鉴权、私有文件拒绝、伪造XFF拒绝、HTTPS连接、390px面板登录／Key元数据／来源IP／登出、Cookie属性、OMRS PIN入口与无横溢／脚本错误，两个unit启动后无错误级journal。记录在production-checks.json与read-live.log。
+
+## 下一步
+
+用户在管理面板导入已登记设备凭据，再核对真实账号及搜题。运维保留受限发布保全与源码回退指针；初始管理员密码由服务器所有者读取/var/lib/omrs-zuoyebang/admin-secret.txt，不写聊天或GitHub。

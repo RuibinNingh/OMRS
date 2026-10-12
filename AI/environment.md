@@ -15,19 +15,19 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-11 17:47 CST发布、17:51 CST核验）：主服务 `omrs.service`，Type=simple、Restart=on-failure、RestartSec=3s；当前运行v2.4.1。作业帮录入支持设备会话导入、扫码/账号观察、图片搜题、1080px完整后端渲染和人工核对入库；传统正文采用本地MathJax3.2.2、题库样式及pid附图。工作区铺满可用宽度，右预览440px、左列使用剩余宽度，账号操作收进菜单。精确提交 `d1f22bb9bc6b00d1165305e7913d3821531a77c3` 的Git归档在 `/root/workspace/apps/releases/omrs-d1f22bb`，1,360个源码文件逐字节核验。`.venv`相对链接指向独立复制的生产依赖 `/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv`；Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6。真实Vault为 `/root/workspace/apps/OMRS`；运行源码pin与部署文档提交分开，未推送。
+生产环境事实（2026-10-12 12:41 CST发布并核验）：当前v2.5.0，运行源码为Git提交 `08dce8bf8d306b97a3cf7159705b3e04321223b5` 的精确归档 `/root/workspace/apps/releases/omrs-08dce8b`，1434个源码文件逐字节核验。作业帮网关在同一仓库的services/zuoyebang，独立进程持有设备／账号／Key／审计；OMRS保留原图、完整后端渲染、人工核对及幂等入库。
 
-当前执行环境中 `/etc`所在根挂载为rw。服务配置引用 `/root/workspace/apps/releases/omrs-9b29d49`，此持久相对符号链接当前指向 `omrs-d1f22bb`；进程实际cwd已核对为精确目录。发布用同盘临时链接、os.replace原子替换和目录fsync；unit/drop-in字节保持。旧源码omrs-0a65ef9及更旧目录、原依赖均保留。后续发布先确认配置可写性及别名真实目标，不把别名名称当作实际源码提交。
+主服务omrs.service沿用原unit/drop-in，Type=simple、Restart=on-failure、RestartSec=3s；持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 原子指向omrs-08dce8b。网关omrs-zuoyebang.service共用该别名和Python依赖，cwd为release/services/zuoyebang，运行数据在 `/var/lib/omrs-zuoyebang`（0700、文件0600），独立管理员初始密码在该目录的admin-secret.txt，不提交或输出。两进程真实cwd已核验，自动重启计数均为0。旧release、依赖和发布保全保留；回退恢复源码与控制配置，不倒退Vault。
 
-Web监听8471，同进程MCP仅监听127.0.0.1:18472；Nginx共用HTTPS8472按路径分流。公网MCP为 `https://home.ruibin-ningh.top:8472/mcp`，公网Web为 `https://home.ruibin-ningh.top:8472`。PIN已配置；本机API免PIN不能绕过工作台入口。当前代码完整授权注册44个MCP工具（24读、19业务写、1技术准备），既有隔离SDK验证通过；Key现有权限决定实际发现范围，正式调度、改题、标记整理和草稿继续遵守审核契约，既有Key不自动扩权。
+Python依赖仍为 `/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv`，Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；当前浏览器缓存/root/.cache/ms-playwright包含对应1234版Chromium。共享CDP9222仅供可信本机隔离context，不关闭共享浏览器；完整摄像头流程使用独立Chromium的模拟媒体参数。发布验证TMPDIR须使用浏览器可访问目录，不能把候选1228缓存用于生产Playwright1.62。
 
-最新发布保全在 `/root/workspace/apps/releases/OMRS-zuoyebang-release-20261011T094605Z-bteruxo0/`（目录0700、文件0600）：精确新旧源码tar、unit/drop-in及实际控制配置、一致Vault/maintenance tar、私人表/文件摘要和验证证据。停服备份与原目录比较通过，992个解包文件逐字节一致，副本SQLite完整性通过。切换及只读核验保持49张业务表、935个内容/关键配置文件；299题、0冲突、待审0。任务及恢复意图复查为空，数据基线取自本轮停服前后真实状态，既有发布保全继续保留。
+Web8471、回环MCP18472、HTTPS8472和公开URL `https://home.ruibin-ningh.top:8472` 保持。Nginx同一server块新增 `/zuoyebang/` 转发至回环8745，不新增公网端口；覆盖XFF，网关明确信任127.0.0.1/32，公开Origin固定为上述HTTPS源，管理Cookie为Secure/HttpOnly/Strict并限制到/zuoyebang/。OMRS已以外部HTTPS模式配置同机公开前缀及独立调用Key；本地／外部模式都需要Key。PIN、原MCP密钥与权限保持，匿名Web数据、MCP、网关调用和管理会话接口仍401。
 
-主服务PID1208061、active/running、NRestarts=0；切换至就绪3.391秒。Tunnel、检测服务及Nginx状态/PID保持；89个实际控制文件/模型指针指纹一致，包含unit/drop-in和宝塔Nginx配置树。端口、公网URL、Vault、PIN、Key权限与模型配置保持；相邻服务未重启。回退只恢复兼容源码指针，不用旧Vault覆盖新增事实。
+生产切换前无后台任务、恢复意图或未终结作业；停服保全在 `/root/workspace/apps/releases/OMRS-v250-zyb-release-85epz6pq/`（0700、文件0600），包含精确新旧源码、控制配置、Vault/maintenance、私人一致性摘要与发布状态。tar实际比较、解包逐字节及SQLite完整性通过。切换保留49张业务表、937个正文／图片／关键配置文件、300题、0冲突、待审0；Nginx只增加网关路径，Tunnel／检测服务未重启，模型指针、主unit、PIN和原Key保持。
 
-当前精确release和独立生产venv隔离实跑8/8组：相关后端150项、Node482项、作业帮真实页面49项、原录入124项、草稿59项、组件34项，UI0问题及58组对比度全过，均无跳过。使用临时Vault、随机高端口、合成账号/模型边界，真实执行Chromium渲染、HTTP上传、二维码、MediaStream、人工核对创建、刷新恢复与八档布局检查。工作树另通过文档108份0问题及作业帮4档前后视觉比较；附件三道真实化学题正文已离线渲染，pid附图与旧公式以合成内容覆盖。
+精确release及生产依赖下12/12组通过：后端64、Node491、网关52／1真实面板、前缀双进程17、设置75、原录入124、服务26、作业帮49、组件34、UI0问题、58组对比度全部通过，无跳过。工作区另外全量Python961和文档112份0问题（2条既有大计划提醒）、settings/create八档视觉通过；测试均使用临时Vault与合成官方／模型边界。
 
-生产本机返回v2.4.1；作业帮控制器、视图、账号菜单、CSS及main.js实际HTTP200，gzip解压与release字节一致，资源指纹更新、immutable缓存与条件304通过；公网匿名资源401。公网入口/授权摘要200，匿名status、作业帮status及MCP401，回环MCP无Key401；错误级journal无记录。本机和公网真实浏览器390px PIN入口无横溢或脚本错误，未输入PIN；登录后的工作区、菜单与完整渲染主路径在同份精确release的隔离Chromium验收，不能把本机API豁免当作工作台已解锁。生产作业帮设备会话尚未导入，真实搜题、付费模型及实体手机摄像头留待用户验收。
+真实生产27项通过：资源与release字节一致、公网未登录资源保护、HTTPS网关状态连接、匿名鉴权、私有文件拒绝、XFF注入拒绝、390px面板登录／Key元数据／来源IP／登出、Cookie属性、OMRS PIN入口与无横溢／脚本错误，两服务稳定且启动后无错误级journal。网关没有导入设备或账号，不自动联系官方；真实官方搜题、签名期限、付费模型与实体手机摄像头仍需用户凭据后验收。Windows打包本机只检查脚本，未实际运行。
 
 启动会按稳定源身份将既有MCP运行记录导入为只读审核历史，不再次执行业务；契约见 `ai-review.md` §5。发布核对原有审批行和已存在的来源证据，区分历史追加与原业务改写；不能只因整表摘要变化而忽略具体差异。未终结任务或恢复意图仍阻止切换，合法历史追加也不允许覆盖旧Vault。
 
