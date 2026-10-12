@@ -40,3 +40,13 @@
 运行node --test tests/app/*.test.mjs、python3 tests/app/run_browser.py、python3 tests/check_ui.py、python3 tests/check_contrast.py、python3 tests/e2e/zuoyebang.py、python3 tests/e2e/create.py。页面前后比较用python3 tests/visual/run.py --ref 9509251 --pages create --create-stage zuoyebang。测试一律移除OMRS_SYSTEMD_SERVICE与OMRS_BOXDETECT_CONTROL，用临时Vault及随机高端口；摄像头专项使用独立Chromium模拟媒体，不能代替实体设备验收。
 
 收尾生成日志索引并运行python3 tests/check_docs.py --diff HEAD。仅在无法判断的用户改动冲突、目标冲突或不可逆决定缺少授权时停止，其余连续完成。中断先读progress.md、git status和最近提交恢复。中文交付列本地提交、实际验证、未执行项、遗留及下一步；不推送或部署。
+
+## 合并与发布续轮
+
+执行者：Codex；运行模式：完整。用户新增明确要求原话：“合并,版本更新0.1.0,更新GitHub和生产环境”。本节扩展前述源码阶段的版本及发布边界，发布版本由v2.5.0升至v2.6.0。
+
+合入0bf977c服务面板、6d3b317取图搜题及其共同基线9509251的公网附图修复，同步版本与变更记录。使用现有生产依赖运行相关后端、Node、组件、网关面板、真实前缀双进程及录入浏览器门禁；页面前后对比复用原功能证据，并补本轮版本差异。
+
+版本与记录作为一个发布准备提交，main只快进合并并正常推送同一GitHub仓库；精确Git归档与已验收源码逐文件核验。停服前按代码的有效状态核对作业及审批，过期审批和只读历史不作为进行中任务；不删除或改写其记录。停服保全Vault、maintenance及网关私有数据，核验归档和SQLite，再原子切换既有源码别名并启动主服务与网关。沿用Nginx、unit、依赖与账号配置。
+
+生产验收核对v2.6.0、实际进程cwd、资源字节、公网PIN／Key保护、面板和业务数据保持；结果另作记录提交并推送main。出现有效未终结任务、恢复意图、无法判断的冲突或业务数据变化时停止切换；失败恢复源码指针并保留最新Vault。真实官方搜题、付费模型和实体手机不作为自动发布步骤。

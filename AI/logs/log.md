@@ -6,6 +6,7 @@
 - [2026-10-12_zuoyebang-search-ui](2026-10-12_zuoyebang-search-ui.md)：作业帮取图搜题与自动预览
 - [2026-10-12_zuoyebang-public-images](2026-10-12_zuoyebang-public-images.md)：作业帮附图支持任意公网域名
 - [2026-10-12_zuoyebang-monorepo-release](2026-10-12_zuoyebang-monorepo-release.md)：作业帮同仓合入与生产发布
+- [2026-10-12_v260-release](2026-10-12_v260-release.md)：并行作业帮改动合并与v2.6.0发布
 - [2026-10-11_zuoyebang](2026-10-11_zuoyebang.md)：作业帮搜题、后端完整渲染与核对入库
 - [2026-10-11_zuoyebang-service-resume](2026-10-11_zuoyebang-service-resume.md)：作业帮独立服务中断后验收与续作
 - [2026-10-11_zuoyebang-render-compat](2026-10-11_zuoyebang-render-compat.md)：作业帮正文兼容、紧凑布局与发布

@@ -13,6 +13,7 @@ from omrs.server import OMRSHandler
 from omrs.zuoyebang import service_config, store
 from tests.browser_runtime import launch_chromium, open_app
 from tests.zuoyebang_gateway import SyntheticGateway, KEY
+from tests.zuoyebang_fixtures import png
 
 
 def main():
@@ -118,7 +119,12 @@ def main():
                 page.get_by_role('button', name='作业帮服务 · 连接失败', exact=True).wait_for(timeout=8000)
                 page.get_by_role('button', name='作业帮服务 · 连接失败', exact=True).click()
                 check('切换服务配置后连接失败不沿用旧网关账号观察', '账号：未知；签名：未知' in page.locator('#zyb-account-panel').inner_text())
-                check('切换配置后旧账号就绪状态不启用摄像头', page.get_by_role('button', name='打开摄像头', exact=True).is_disabled())
+                check('切换配置后连接失败仍可独立本地取图', page.get_by_role('button', name='打开摄像头', exact=True).is_enabled())
+                page.get_by_role('button', name='上传图片', exact=True).click()
+                calls_before = len(gateway.calls)
+                page.locator('#zyb-image').set_input_files({'name': 'synthetic-source.png', 'mimeType': 'image/png', 'buffer': png()})
+                page.locator('#zyb-source-preview img').wait_for()
+                check('连接失败保留原图但不能沿用旧网关观察搜题', page.get_by_role('button', name='开始搜题', exact=True).is_disabled() and len(gateway.calls) == calls_before)
                 page.screenshot(path=str(output / 'service-switched-error.png'), full_page=True, animations='disabled')
                 check('无浏览器脚本错误', not errors)
                 context.close(); context = None
