@@ -172,7 +172,7 @@ class Workspace(unittest.TestCase):
     def test_sanitizer_preserves_content_and_rejects_unsafe_image(self):
         clean = sanitize('<script>evil()</script><p onclick="evil()">文字<a href="javascript:evil()">保留</a><span style="display:none">完整</span></p>')
         self.assertEqual(clean, '<p>文字保留<span>完整</span></p>')
-        for src in ('file:///etc/passwd', 'http://127.0.0.1/a.png', 'https://qbimg.com.evil/a', 'https://u:p@qbimg.com/a'):
+        for src in ('file:///etc/passwd', 'http://127.0.0.1/a.png', 'https://qbimg.com:444/a', 'https://u:p@qbimg.com/a'):
             with self.assertRaises(store.ZybError): sanitize('<img src="' + src + '">')
         for content in ('<svg><text>必要图形</text></svg>', '<math><mi>x</mi></math>', '<canvas>附图</canvas>'):
             with self.assertRaises(store.ZybError) as caught:

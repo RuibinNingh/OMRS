@@ -40,21 +40,81 @@ class BodyCompatibility(unittest.TestCase):
         import base64
         self.assertIn(base64.b64encode(raw).decode(), body['question'])
 
-    def test_new_domain_still_rejects_spoofed_hosts_redirects_and_private_ips(self):
-        for value in ('https://img.zuoyebang.cc.evil.example/a.jpg', 'https://u:p@img.zuoyebang.cc/a',
-                      'https://img.zuoyebang.cc:444/a', 'https://evil.example/a.jpg', '../private', 'file:///etc/passwd'):
+    def test_arbitrary_image_domains_keep_question_answer_and_original_bytes(self):
+        question_url = 'https://img.cdnjtzy.com/synthetic-question.jpg'
+        answer_url = 'https://new-images.example/synthetic-answer.png'
+        raw = png()
+        calls = []
+        def download(url):
+            calls.append(url)
+            return raw
+        candidate = {'question': {'content': '<img src="' + question_url + '">',
+                                 'picList': [{'url': question_url}]},
+                     'answer': [{'content': '<img src="//new-images.example/synthetic-answer.png">'}]}
+        body, count = candidate_html(candidate, download)
+        self.assertEqual(calls, [question_url, answer_url])
+        self.assertEqual(count, 2)
+        import base64
+        for role in ('question', 'answer'):
+            self.assertEqual(body[role].count('<img'), 1)
+            self.assertIn(base64.b64encode(raw).decode(), body[role])
+        self.assertEqual(valid_remote('http://another-cdn.example:80/a').hostname, 'another-cdn.example')
+
+    def test_image_addresses_reject_credentials_nonstandard_ports_and_invalid_urls(self):
+        for value in ('https://u:p@images.example/a', 'https://@images.example/a',
+                      'https://images.example:444/a', 'https://images.example:bad/a',
+                      'https://images.example:65536/a', 'https:///a.jpg', 'https://[invalid]/a',
+                      '../private.jpg', 'file:///etc/passwd', 'ftp://images.example/a.jpg'):
             with self.subTest(value=value), self.assertRaises(ZybError):
-                valid_remote(picture_url(value))
-        with patch('socket.getaddrinfo', return_value=[(None, None, None, None, ('127.0.0.1', 443))]):
-            with self.assertRaises(ZybError): fetch_image('https://img.zuoyebang.cc/a.jpg')
-        connection = Mock()
-        connection.getresponse.return_value.status = 302
-        connection.getresponse.return_value.getheader.return_value = 'https://evil.example/a.jpg'
-        with patch('socket.getaddrinfo', return_value=[(None, None, None, None, ('8.8.8.8', 80))]), \
-                patch('http.client.HTTPConnection', return_value=connection):
-            with self.assertRaises(ZybError): fetch_image('http://img.zuoyebang.cc/a.jpg')
-        self.assertEqual(connection.request.call_count, 1)
-        self.assertNotIn('Cookie', connection.request.call_args.kwargs['headers'])
+                valid_remote(value)
+
+    def test_arbitrary_domains_still_reject_nonpublic_multicast_and_mixed_dns(self):
+        for ips in ([], ['127.0.0.1'], ['10.0.0.1'], ['169.254.169.254'], ['::1'], ['fd00::1'],
+                    ['fe80::1'], ['224.0.0.1'], ['ff02::1'], ['8.8.8.8', '192.168.1.1']):
+            addresses = [(None, None, None, None, (ip, 80)) for ip in ips]
+            with self.subTest(ips=ips), patch('socket.getaddrinfo', return_value=addresses), \
+                    patch('http.client.HTTPConnection') as connect:
+                with self.assertRaises(ZybError) as caught:
+                    fetch_image('http://new-images.example/a.jpg')
+                self.assertEqual(caught.exception.code, 'image_address')
+                connect.assert_not_called()
+
+    def test_public_cross_domain_redirects_pin_each_connection_and_send_no_credentials(self):
+        original, redirected = Mock(), Mock()
+        original.getresponse.return_value.status = 302
+        original.getresponse.return_value.getheader.return_value = 'http://another-cdn.example/a.jpg'
+        redirected.getresponse.return_value.status = 200
+        redirected.getresponse.return_value.read.return_value = png()
+        addresses = [[(None, None, None, None, ('8.8.8.8', 80))],
+                     [(None, None, None, None, ('1.1.1.1', 80))]]
+        with patch('socket.getaddrinfo', side_effect=addresses) as lookup, \
+                patch('http.client.HTTPConnection', side_effect=[original, redirected]) as connect:
+            self.assertEqual(fetch_image('http://img.cdnjtzy.com/a.jpg'), png())
+        self.assertEqual([call.args[:2] for call in lookup.call_args_list],
+                         [('img.cdnjtzy.com', 80), ('another-cdn.example', 80)])
+        self.assertEqual([call.args for call in connect.call_args_list], [('8.8.8.8', 80), ('1.1.1.1', 80)])
+        for connection, host in ((original, 'img.cdnjtzy.com'), (redirected, 'another-cdn.example')):
+            headers = connection.request.call_args.kwargs['headers']
+            self.assertEqual(headers['Host'], host)
+            self.assertNotIn('Cookie', headers)
+            self.assertNotIn('Authorization', headers)
+            connection.close.assert_called_once()
+
+    def test_public_image_redirect_cannot_reach_private_targets_or_other_protocols(self):
+        for target in ('http://127.0.0.1/a.jpg', 'http://private-images.example/a.jpg', 'file:///etc/passwd'):
+            connection = Mock()
+            connection.getresponse.return_value.status = 302
+            connection.getresponse.return_value.getheader.return_value = target
+            addresses = [[(None, None, None, None, ('8.8.8.8', 80))],
+                         [(None, None, None, None, ('127.0.0.1', 80))]]
+            with self.subTest(target=target), patch('socket.getaddrinfo', side_effect=addresses), \
+                    patch('http.client.HTTPConnection', return_value=connection) as connect:
+                with self.assertRaises(ZybError) as caught:
+                    fetch_image('http://new-images.example/a.jpg')
+                self.assertEqual(caught.exception.code, 'image_address')
+            self.assertEqual(connect.call_count, 1)
+            self.assertEqual(connection.request.call_count, 1)
+            connection.close.assert_called_once()
 
     def test_styles_preserve_semantics_without_executable_attributes(self):
         body = sanitize('<script>evil()</script><span class="tkspec-script-sub evil" onclick="evil()" style="background:url(https://evil.example);display:none">2</span>'

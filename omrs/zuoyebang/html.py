@@ -15,7 +15,6 @@ ALLOWED = {'p', 'br', 'div', 'span', 'b', 'strong', 'i', 'em', 'u', 's', 'sub', 
            'img', 'table', 'tbody', 'thead', 'tfoot', 'tr', 'td', 'th', 'ol', 'ul', 'li', 'blockquote', 'nobr', 'bdo'}
 DROP = {'script', 'style', 'iframe', 'video', 'audio', 'object', 'embed', 'form', 'input', 'button', 'link', 'meta', 'svg', 'math'}
 VISUAL = {'svg', 'math', 'canvas', 'object', 'embed', 'video', 'audio'}
-HOSTS = ('zuoyebang.com', 'zuoyebang.cc', 'zybang.com', 'qbimg.com', 'bdimg.com', 'baidu.com')
 IMAGE_BYTES = 12 * 1024 * 1024
 CLASSES = frozenset('''tkspec-embed-text tkspec-dotted-normal tkspec-underline-normal
     tkspec-strike-normal tkspec-underline-wavy tkspec-italic-normal tkspec-text-indent-normal
@@ -29,7 +28,7 @@ CLASSES = frozenset('''tkspec-embed-text tkspec-dotted-normal tkspec-underline-n
 
 
 def picture_url(value):
-    """复用原App fd53 的pid映射；URL随后仍须通过域/IP校验。"""
+    """复用原App fd53 的pid映射；URL随后仍须通过地址/IP校验。"""
     value = str(value or '').strip()
     if not value:
         return ''
@@ -91,24 +90,29 @@ def normalize_content(content):
 
 
 def valid_remote(url):
+    """接受任意域名；仅允许无凭据、标准端口的 HTTP/HTTPS 地址。"""
     if url.startswith('//'):
         url = 'https:' + url
-    parsed = urllib.parse.urlsplit(url)
-    host = (parsed.hostname or '').lower()
-    if (parsed.scheme not in ('https', 'http') or parsed.username or parsed.password or
-            parsed.port not in (None, 80 if parsed.scheme == 'http' else 443) or
-            not any(host == domain or host.endswith('.' + domain) for domain in HOSTS)):
-        raise ZybError('附图地址不属于允许的作业帮图片服务', 'image_address')
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        valid = (parsed.scheme in ('https', 'http') and parsed.hostname and
+                 parsed.username is None and parsed.password is None and
+                 parsed.port in (None, 80 if parsed.scheme == 'http' else 443))
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ZybError('附图地址不合法，请使用不带用户名或密码的标准 HTTP/HTTPS 地址', 'image_address')
     return parsed
 
 
 def fetch_image(url):
-    """每次跳转校验域名和实际连接 IP；固定已校验 IP，防止 DNS 重绑定。"""
+    """每次跳转校验地址和公网单播 IP；固定已校验 IP，防止 DNS 重绑定。"""
     for _ in range(5):
         parsed = valid_remote(url)
         port = 80 if parsed.scheme == 'http' else 443
         addresses = {entry[4][0] for entry in socket.getaddrinfo(parsed.hostname, port, type=socket.SOCK_STREAM)}
-        if not addresses or any(not ipaddress.ip_address(ip).is_global for ip in addresses):
+        if not addresses or any(not address.is_global or address.is_multicast
+                                for address in map(ipaddress.ip_address, addresses)):
             raise ZybError('附图服务解析到非公网地址', 'image_address')
         ip = sorted(addresses)[0]
         class PinnedTLS(http.client.HTTPSConnection):

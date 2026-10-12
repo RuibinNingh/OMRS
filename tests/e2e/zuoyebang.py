@@ -22,11 +22,22 @@ import http.server,json,sys,time
 from unittest.mock import patch
 from omrs import ai_assist
 from omrs.server import OMRSHandler
-from omrs.zuoyebang import service_config
+from omrs.zuoyebang import service_config,jobs
+from omrs.zuoyebang.html import candidate_html
 from tests.zuoyebang_gateway import SyntheticGateway, KEY
+from tests.zuoyebang_fixtures import candidates,data_url,png
 vault,port=sys.argv[1:]
 gateway = SyntheticGateway().__enter__()
 gateway.account['observations']['events'] = [{'event':'login','kind':'ok','at':time.time()}]
+source=candidates()
+question_url='https://img.cdnjtzy.com/synthetic-question.png'
+answer_url='https://new-answer-images.example/synthetic-answer.png'
+source[0]['question']['content']=source[0]['question']['content'].replace(data_url(),question_url)
+source[0]['answer'][0]['content']=source[0]['answer'][0]['content'].replace(data_url('formula'),answer_url)
+gateway.responses['/api/v1/search']=(200,{'status':'ok','result':{'data':{'answers':{'mainPageInfo':[json.dumps(source)]}}}}, {})
+image_sources={question_url:png(),answer_url:png('formula')}
+# 仅替代远程附图下载；地址校验、本地化和真实 Chromium 渲染照常执行。
+jobs.candidate_html=lambda candidate:candidate_html(candidate,fetcher=image_sources.__getitem__)
 service_config.save(vault, {'base_url':gateway.url, 'api_key':KEY})
 original=ai_assist.extract_region
 answer_attempts=0
@@ -136,6 +147,9 @@ def main():
                 page.get_by_role('button', name='渲染所选题目', exact=True).click()
                 page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalWidth===1080", timeout=60000)
                 check('预览图片来自真实后端1080渲染', page.locator('#zyb-rendered-image').get_attribute('src').startswith('/api/zuoyebang/image'))
+                render_id = page.evaluate("() => JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace')).render_id")
+                record = context.request.get(base + '/api/zuoyebang/record?id=' + render_id).json()['record']
+                check('任意域名的题目与答案附图均经本地化并完整渲染', record['source_images'] == 2 and all(record['images'][role]['images'] == 1 for role in ('question', 'answer')))
                 layout = page.evaluate('''() => {
                   const width = selector => document.querySelector(selector).getBoundingClientRect().width;
                   return {workspace:width('.zyb-workspace'),host:width('#ib-stage-zuoyebang'),left:width('.zyb-source'),right:width('.zyb-renderer'),editor:width('#zyb-editor')};

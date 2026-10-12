@@ -21,7 +21,7 @@
 
 HTMLParser 白名单保留文字、列表、表格、上下标和图片，移除可执行内容、事件和任意 CSS。题库类名单保留tkspec上下标/填空/文字强调/对齐、tk-md2html正文、tB表格及旧HTML公式的math/fM/fI/pA/pR/pS；必要的数值尺寸、定位、字体比例、单色分数线和有限display值经严格筛选。样式由可信paper.css定义，不加载上游CSS。旧公式使用本地MathJax字体；波浪线用CSS绘制，1080px纸面统一字体、字号及边距，不能据此声称与手机原页面像素完全一致。
 
-附图URL或picList[].pid依原App规则转换；支持tk_、zyb_、zyb数字_、qa10_和qa数字_域映射，zuoyebang.cc属于允许域族。正文和附图列表去重，题干答案共用原字节下载缓存；只允许作业帮/百度CDN域族，每次跳转复核域名和公网IP，实际连接固定已校验IP，下载不携带账号Cookie。图片验证后内联原字节。
+附图URL或picList[].pid依原App规则转换；支持tk_、zyb_、zyb数字_、qa10_和qa数字_域映射。正文和附图列表去重，题干答案共用原字节下载缓存；远程附图接受任意域名的标准端口HTTP/HTTPS地址，不设域名白名单。每次请求及跳转复核地址格式和全部DNS结果，只连接公网单播IP，实际连接固定已校验IP，TLS按原域名验证；拒绝凭据URL、其它协议、异常端口和非公网／组播目标。下载不携带账号Cookie，图片验证后内联原字节。
 
 Chromium拦截器只读取OMRS本地字体、MathJax3及可信渲染配置，不访问外网、Vault或任意文件。传统题库正文用官方MathJax3.2.2 tex-chtml-full与typesetPromise；支持美元和反斜杠数学定界符，无定界符的裸命令兼容原App预处理。禁用动态TeX扩展、菜单和外部公式URL/样式。全部23份CHTML字体、许可与SHA256清单位于assets/vendor/mathjax；其它OMRS页面仍用KaTeX。跨HTML节点拆开的定界符不强行拼接；公式错误整体失败。
 
