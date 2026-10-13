@@ -137,12 +137,24 @@ class AgentReviewTests(unittest.TestCase):
         self.finish()
         self.assertEqual(self.results[0]['decision'], 'deny')
 
-    def test_restart_never_resumes_old_model_wait(self):
+    def test_restart_transfers_wait_without_resuming_model(self):
         row = self.start(execute=False)
+        runtime.AgentRuntime(self.vault)
+        saved = ai_review.get(self.vault, row['operation_id'])
+        self.assertEqual(saved['status'], 'pending_confirmation')
+        self.assertEqual(saved['permission']['channel'], 'center')
+        self.assertIsNone(saved['expires_at'])
+        self.assertFalse(self.pc.event.is_set())
+
+    def test_legacy_wait_still_expires_on_restart(self):
+        row = self.start(execute=False)
+        from contextlib import closing
+        with closing(ai_review._connect(self.vault, True)) as db:
+            db.execute("UPDATE operations SET permission_json='{}' WHERE operation_id=?", (row['operation_id'],))
+            db.commit()
         runtime.AgentRuntime(self.vault)
         self.assertEqual(ai_review.get(self.vault, row['operation_id'])['status'], 'interrupted')
         self.assertEqual(ai_review.decide(self.vault, row['operation_id'], 1, 'approve')['status'], 'interrupted')
-        self.assertFalse(self.pc.event.is_set())
 
     def test_learning_tools_now_require_confirmation(self):
         levels = self.registry.levels()

@@ -9,6 +9,7 @@ import { REASON, avgTps, ctxUsed, dayGroup, fmtK, fmtN, fmtS, fmtTps, hhmm, mmss
 import { LVL, gateOf, lvl, refOf, toolArgs, toolIcon, toolPreview, toolTitle } from './tools-view.js';
 import { imageSrc } from './attachments.js';
 import { operationId, reviewCard } from './review-cards.js';
+import { modeControl, modeNote } from './permissions.js';
 
 export const SUGS = {
   plan: { label: '排今天的复习，8 道以内', icon: 'calendar', text: '帮我把今天要复习的题排出来，8 道以内。' },
@@ -169,7 +170,7 @@ function offView(S) {
 const PERMS = [
   ['read', '找题、读题、看统计与复习推荐', '直接执行'],
   ['rev', '录入或修订 AI 草稿、创建聊天练习卡；草稿不进题库', '直接执行并留记录'],
-  ['confirm', '安排正式复习、改题目与标记、移动或停用题目、记反馈、建分类、草稿入库', '对话中确认后执行'],
+  ['confirm', '安排正式复习、改题目与标记、移动或停用题目、记反馈、建分类、草稿入库', '按所选权限模式处理'],
   ['none', '删除题目、修改设置与 PIN、备份恢复、重启服务', '不支持'],
 ];
 export function emptyView(S) {
@@ -199,6 +200,7 @@ export function dockView(S, perfNow) {
       ${S.attachments.length || S.pendingFiles ? html`<div class="ast-attachments" aria-label="待发送图片">${S.attachments.map((image, i) => html`<div class="ast-attachment" data-key="attachment-${i}"><button type="button" class="ast-attachment__preview" data-action="assistant.openImage" data-arg="${i}" aria-label="查看待发送图片 ${i + 1} 大图"><img src="${image.dataUrl}" alt="待发送图片 ${i + 1}"></button><span>图片 ${i + 1}</span><button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm ast-attachment__remove" data-action="assistant.removeImage" data-arg="${i}" aria-label="删除图片 ${i + 1}">${icon('x')}</button></div>`)}${S.pendingFiles ? html`<span class="ast-attachment__pending" role="status">正在处理 ${S.pendingFiles} 张图片…</span>` : ''}<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="assistant.clearImages">清空</button></div>` : ''}
       <textarea id="ast-input" class="ast-input" rows="1" maxlength="4000" placeholder="${busy ? '插话：下一轮模型请求前送达' : '问点什么'}" aria-label="给助手的消息" ${disabled ? 'disabled' : ''}></textarea>
       <div class="ast-cbar">
+        ${modeControl(S, !st.enabled)}
         <input id="ast-image-picker" type="file" accept="image/png,image/jpeg,image/gif" multiple hidden data-change="assistant.pickImages">
         <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm" data-action="assistant.pickImages" aria-label="添加图片" title="添加图片" ${disabled ? 'disabled' : ''}>${icon('paperclip')}</button>
         <button type="button" class="ast-meter" data-action="assistant.pop" aria-expanded="${S.popOpen ? 'true' : 'false'}" aria-label="${meterLabel}">
@@ -206,10 +208,10 @@ export function dockView(S, perfNow) {
           <span class="ast-meter__context">${fmtK(used)} / ${fmtK(win)}</span><span class="ast-meter__cache">${cacheLabel}</span></button>
         <span class="ast-cbar__sp">${busy ? html`<span class="ast-model">${fmtS(runNow(run, perfNow))} · ${fmtTps(avgTps(run, runNow(run, perfNow)), rateEstimated(run))}</span>` : `${S.msgs} / ${st.msg_cap || 60} 条消息`}</span>
         ${busy ? html`<button type="button" class="ui-btn ui-btn--sm ast-stop" data-action="assistant.stop">${icon('stop')}停止</button>` : ''}
-        <button type="button" class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon ast-send" data-action="assistant.send" aria-label="${busy ? '插话' : '发送'}" ${disabled || S.pendingFiles ? 'disabled' : ''}>${icon('arrow-up')}</button>
+        <button type="button" class="ui-btn ui-btn--primary ui-btn--sm ui-btn--icon ast-send" data-action="assistant.send" aria-label="${busy ? '插话' : '发送'}" ${disabled || S.pendingFiles || S.permissionBusy ? 'disabled' : ''}>${icon('arrow-up')}</button>
       </div>
       ${S.popOpen ? popView(S, run || S.lastRun, used, win) : ''}
-    </div>`;
+    </div>${modeNote(S)}`;
 }
 
 function popView(S, run, used, win) {

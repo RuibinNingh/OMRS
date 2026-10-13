@@ -234,7 +234,7 @@ def main():
 
             page.wait_for_function("async () => (await (await fetch('/api/agent/status')).json()).active.length === 0", timeout=10000)
             old_conv = page.evaluate("() => document.querySelector('.ast-conv.is-active')?.closest('[data-key]')?.dataset.key")
-            page.click('[data-action="assistant.newConv"]')
+            page.click('#ast-head [data-action="assistant.newConv"]')
             page.wait_for_function("old => document.querySelector('.ast-conv.is-active')?.closest('[data-key]')?.dataset.key !== old && !!document.querySelector('.ast-empty')", arg=old_conv, timeout=5000)
             page.set_input_files('#ast-image-picker', {"name": "text-source.png", "mimeType": "image/png", "buffer": make_png(12, 12)})
             say("文字截图草稿")
@@ -247,7 +247,7 @@ def main():
 
             page.wait_for_function("async () => (await (await fetch('/api/agent/status')).json()).active.length === 0", timeout=10000)
             old_conv = page.evaluate("() => document.querySelector('.ast-conv.is-active')?.closest('[data-key]')?.dataset.key")
-            page.click('[data-action="assistant.newConv"]')
+            page.click('#ast-head [data-action="assistant.newConv"]')
             page.wait_for_function("old => document.querySelector('.ast-conv.is-active')?.closest('[data-key]')?.dataset.key !== old && !!document.querySelector('.ast-empty')", arg=old_conv, timeout=5000)
             page.evaluate("async () => fetch('/api/config', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({draft_mode:'confirm'})})")
             check("确认模式动态注册草稿入库工具", api(base, '/api/agent/status')["tools"].get('commit_draft') == 'confirm')
@@ -322,6 +322,7 @@ def main():
             cfg = api(base, '/api/config')
             check("手动框选与训练默认开关已持久化", cfg['draft_crop_mode'] == 'manual' and cfg['draft_train_default'] is True)
             page.goto(f"{base}/#/assistant", wait_until='networkidle')
+            page.click('[data-action="assistant.toggleRail"]')
             page.click(f'[data-action="assistant.openConv"][data-arg="{crop_conv}"]')
             page.wait_for_function("() => document.querySelector('.ast-draft-card')?.textContent.includes('待框选')", timeout=8000)
             check("手动模式不在聊天卡片显示我来框", '我来框' not in page.locator('.ast-draft-card').first.text_content())
@@ -335,7 +336,7 @@ def main():
             cfg = api(base, '/api/config')
             check("自动框选与全文字训练设置已持久化", cfg['draft_crop_mode'] == 'auto' and cfg['draft_force_crop'] is True)
             page.goto(f"{base}/#/assistant", wait_until='networkidle')
-            page.click('[data-action="assistant.newConv"]')
+            page.click('#ast-head [data-action="assistant.newConv"]')
             page.wait_for_selector('.ast-empty', timeout=5000)
             page.set_input_files('#ast-image-picker', {"name": "force-source.png", "mimeType": "image/png",
                                                         "buffer": make_png(12, 12, (0, 120, 0))})
@@ -358,7 +359,7 @@ def main():
             mobile.wait_for_timeout(400)
             check("390px：对话列表从左侧抽屉打开", mobile.evaluate("() => document.querySelector('.ast').dataset.rail === 'open' && document.querySelector('.ast-rail').getBoundingClientRect().left >= 0"))
             mobile.wait_for_function("async () => (await (await fetch('/api/agent/status')).json()).active.length === 0", timeout=10000)
-            mobile.click('[data-action="assistant.newConv"]')
+            mobile.click('#ast-rail [data-action="assistant.newConv"]')
             mobile.wait_for_selector('.ast-empty', timeout=5000)
             jpeg = base64.b64decode(mobile.evaluate("""() => {
               const canvas = document.createElement('canvas');

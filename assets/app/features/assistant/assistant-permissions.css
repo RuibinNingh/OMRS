@@ -1,0 +1,24 @@
+/* 对话权限：常驻输入框入口、模式说明与送审卡，沿用共享菜单和语义 token。 */
+.ast-mode { flex: none; gap: var(--sp-1); background: var(--surface-2); }
+.ast-mode.is-danger { color: var(--danger-fg); background: var(--danger-soft); }
+.ast-mode:disabled { cursor: wait; }
+.ast-mode-note { width: 100%; max-width: var(--ast-stream-w); margin: 0 auto; color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-ui); }
+.ast-mode-note.is-danger { color: var(--danger-fg); }
+.ast-op__automatic { display: flex; align-items: center; gap: var(--sp-1); margin: 0; color: var(--danger-fg); font-size: var(--text-xs); }
+.ui-menu[aria-label="选择权限模式"] { width: min(24rem, calc(100vw - var(--sp-4))); }
+.ui-menu[aria-label="选择权限模式"] .ui-menu__item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-1) var(--sp-2); padding: var(--sp-3); }
+.ui-menu[aria-label="选择权限模式"] .ui-menu__item > .ui-icon { grid-row: span 2; align-self: start; }
+.ui-menu[aria-label="选择权限模式"] .ui-menu__label { font-weight: var(--weight-medium); }
+.ui-menu[aria-label="选择权限模式"] .ui-menu__hint { grid-column: 2; margin: 0; white-space: normal; font-size: var(--text-xs); line-height: var(--leading-ui); }
+.ui-menu[aria-label="选择权限模式"] .is-danger .ui-menu__hint { color: var(--danger-fg); }
+.ast-cbar { flex-wrap: wrap; }
+@media (max-width: 760px) {
+  .ast-cbar { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; }
+  .ast-mode { padding: 0 var(--sp-2); font-size: var(--text-xs); }
+  .ast-mode > .ui-icon:last-child { display: none; }
+  .ast-meter { justify-self: start; padding: 0; }
+  .ast-meter__context, .ast-meter__cache { display: none; }
+  .ast-mode-note { padding: 0 var(--sp-1); font-size: var(--text-2xs); }
+  .ast-cbar .ast-send { grid-column: 5; }
+  .ast-cbar .ast-stop { grid-column: 4; grid-row: 1; padding: 0 var(--sp-1); }
+}

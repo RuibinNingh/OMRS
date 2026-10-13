@@ -2,7 +2,7 @@
 import json
 
 from ..locking import WriteLockTimeout
-from .runtime import AgentError, get_runtime
+from .runtime import AgentError, get_runtime, runtime_status
 from .practice import get_practice, save_progress, start_practice
 
 
@@ -28,10 +28,13 @@ def _reply(handler, fn):
 
 
 def handle_agent_get(handler, path, params):
+    if path == '/api/agent/status':
+        _reply(handler, lambda: runtime_status(handler.vault_path))
+        return
     rt = get_runtime(handler.vault_path)
     routes = {
-        "/api/agent/status": lambda: rt.status(),
         "/api/agent/conversations": lambda: rt.list_conversations(params.get("limit",30), params.get("cursor")),
+        '/api/agent/permission-mode': lambda: rt.conversation_permission(params.get('id', '')),
         "/api/agent/conversation": lambda: rt.conversation(params.get("id", ""), params.get("limit",20), params.get("cursor")),
         "/api/agent/events": lambda: rt.events(params.get("run", ""), int(params.get("after", 0) or 0),
                                                float(params.get("wait", 0) or 0), params.get("limit",200)),
@@ -46,10 +49,16 @@ def handle_agent_get(handler, path, params):
 
 def handle_agent_post(handler, path):
     rt = get_runtime(handler.vault_path)
-    _reply(handler, lambda: agent_post_routes(rt, path, _body(handler)))
+    remote, ip, _ = handler._security_context()
+    reviewer = {'kind': 'web', 'access': 'session' if remote else 'direct', 'client_ip': ip}
+    _reply(handler, lambda: agent_post_routes(rt, path, _body(handler), reviewer))
 
 
-def agent_post_routes(rt, path, data):
+def agent_post_routes(rt, path, data, reviewer=None):
+    if path == '/api/agent/permission-mode':
+        return rt.set_permission_mode(data.get('conversation_id', ''), data.get('mode', ''), reviewer)
+    if path == '/api/agent/review/defer':
+        return rt.defer_review(data.get('operation_id', ''), data.get('expected_revision'))
     if path == "/api/agent/conversation/create":
         return {"conversation": rt.create_conversation(data.get("title", ""))}
     if path == "/api/agent/conversation/delete":
@@ -57,7 +66,7 @@ def agent_post_routes(rt, path, data):
     if path == "/api/agent/message":
         return rt.post_message(data.get("conversation_id", ""), data.get("text", ""), data.get("images"))
     if path == "/api/agent/confirm":
-        return rt.confirm(data.get("run_id", ""), data.get("call_id", ""), data.get("token", ""), data.get("decision", ""))
+        return rt.confirm(data.get("run_id", ""), data.get("call_id", ""), data.get("token", ""), data.get("decision", ""), reviewer)
     if path == "/api/agent/abort":
         return rt.abort(data.get("run_id", ""))
     if path == "/api/agent/test":

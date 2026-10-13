@@ -2,9 +2,12 @@
 .ast {
   --ast-rail-w: 264px; --ast-insp-w: 328px; --ast-chrome: 7.5rem; --ast-ref-pad: .42em; --ast-ref-gap: .3em; --ast-dot: 6px;
   --ast-stream-w: 780px; --ast-trace-pad: calc(var(--sp-6) + var(--sp-0_5)); --ast-rail-line: calc(var(--sp-2) + var(--sp-0_5));
-  display: grid; flex: 1; grid-template-columns: var(--ast-rail-w) minmax(0, 1fr); gap: var(--sp-3); height: 100%; min-height: 0;
+  display: grid; flex: 1; grid-template-columns: minmax(0, 1fr); gap: var(--sp-3); height: 100%; min-height: 0;
 }
-.ast[data-insp="open"] { grid-template-columns: var(--ast-rail-w) minmax(0, 1fr) var(--ast-insp-w); }
+.ast[data-rail="open"] { grid-template-columns: var(--ast-rail-w) minmax(0, 1fr); }
+.ast[data-insp="open"] { grid-template-columns: minmax(0, 1fr) var(--ast-insp-w); }
+.ast .ast-rail { display: none; }
+.ast[data-rail="open"] .ast-rail { display: flex; }
 .ast-card { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; background: var(--surface-1); border: 1px solid var(--border-1); border-radius: var(--r-lg); }
 .ast-insp { display: none; }
 .ast[data-insp="open"] .ast-insp { display: flex; }
@@ -38,7 +41,7 @@
 .ast-head__title { margin: 0; overflow: hidden; font-size: var(--text-md); font-weight: var(--weight-semibold); white-space: nowrap; text-overflow: ellipsis; }
 .ast-head__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin: 0; color: var(--fg-3); font-size: var(--text-xs); }
 .ast-model { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--fg-2); font-family: var(--font-mono); font-size: var(--text-xs); }
-.ast-rail-toggle { display: none; }
+.ast-rail-toggle { display: inline-flex; }
 
 /* ── 对话流 ── */
 .ast-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scroll-behavior: auto; scroll-padding-bottom: var(--sp-6); }
@@ -97,7 +100,7 @@
 
 /* ── 窄屏：对话列表与检查器变抽屉 ── */
 @media (max-width: 1160px) {
-  .ast, .ast[data-insp="open"] { grid-template-columns: minmax(0, 1fr); height: var(--ast-available-height, calc(100dvh - var(--ast-chrome))); }
+  .ast, .ast[data-insp="open"], .ast[data-rail="open"] { grid-template-columns: minmax(0, 1fr); height: var(--ast-available-height, calc(100dvh - var(--ast-chrome))); }
   .ast-rail, .ast-insp, .ast[data-insp="open"] .ast-insp { position: fixed; top: var(--sp-2); bottom: var(--sp-2); z-index: var(--z-drawer); display: flex; width: min(var(--ast-insp-w), 88vw); box-shadow: var(--elev-3); visibility: hidden; transition: transform var(--dur-3) var(--ease-out), visibility var(--dur-3); }
   .ast-rail { left: var(--sp-2); transform: translateX(calc(-100% - var(--sp-4))); }
   .ast-insp, .ast[data-insp="open"] .ast-insp { right: var(--sp-2); transform: translateX(calc(100% + var(--sp-4))); }

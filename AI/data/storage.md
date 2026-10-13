@@ -159,9 +159,11 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 
 ## 5. 对话库 `agent.db`
 
-路径：`错题/.omrs/agent.db`（SQLite，随备份导出，不进 Ledger）。表：`conversations`（对话，软删除）、`messages`（会话 JSON，用于重放模型上下文；Responses 助手消息可带 `_response_items` 原生 output，包含加密推理与工具项，不新增表列）、`runs`（每次运行的状态、结束原因、统计、合并后的事件、撤销信息）、`tool_calls`（参数、用户决定、结果、产生的 commit）、`practice_cards`（按工具调用保存结构化卡片和稳定题序）、`practice_attempts`（签发的 attempt、唯一重练请求标识及界面进度）。后两表不保存正式 Session 或反馈事实，反馈仍在 Ledger；字段与读写规则见 `AI/agent.md` §8。模型请求日志（开关打开时）在 `错题/.omrs/logs/agent-llm.jsonl`，含题目内容，不含密钥。
+路径：`错题/.omrs/agent.db`（SQLite，随备份导出，不进 Ledger）。表：`conversations`（对话、软删除、permission_mode 默认 manual、permission_actor_json 保存模式设置来源）、`messages`（会话 JSON，用于重放模型上下文；Responses 助手消息可带 `_response_items` 原生 output，包含加密推理与工具项，不新增表列）、`runs`（每次运行的状态、结束原因、统计、合并后的事件、撤销信息）、`tool_calls`（参数、用户决定、结果、产生的 commit）、`practice_cards`（按工具调用保存结构化卡片和稳定题序）、`practice_attempts`（签发的 attempt、唯一重练请求标识及界面进度）。后两表不保存正式 Session 或反馈事实，反馈仍在 Ledger；字段与读写规则见 `AI/agent.md` §8。模型请求日志（开关打开时）在 `错题/.omrs/logs/agent-llm.jsonl`，含题目内容，不含密钥。
 
 `run_events(run_id, seq, event_type, event_json)` 按运行与序号持久保存事件，分页读取保持跨完成与重启稳定。旧 `runs.events_json` 在迁移到事件表后置为 `[]`；活动尾缓存有界，完成运行落盘后移出内存。`round.end` 和 `usage.aux` 保留原归属及归一化用量，新增用量字段保留 `null` 表示供应商未返回；页面以事件按请求重放为准。
+
+中心处理追加 tool.reviewed，并更新原 runs.stats_json 和 tool_calls 的真实结果；不改写旧事件或模型消息。独立审批库 ai_review.db 的 operations.permission_json 保存助手模式与送审上下文，送审 expires_at 为 NULL；revisions/decisions 与原来源仍归同一操作。详见 `AI/ai-review.md`。
 
 ## 6. 框选标注集 `错题/.omrs/annotate/`
 

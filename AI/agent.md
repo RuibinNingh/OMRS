@@ -3,8 +3,8 @@
 > **速查**
 > - 职责：内置对话助手的 Harness、服务端权限、对话存储、OMRS 工具与按运行撤销
 > - 入口：`omrs/agent/runtime.py`（运行时与接口实现）、`omrs/agent/loop.py`（通用循环）、`omrs/agent/tools/`、`omrs/llm/`
-> - 不变量：权限规则写在服务端；聊天与审核中心共用持久决定；批准仅唤醒原运行；写锁不覆盖模型思考和等待
-> - 必跑测试：`tests/test_agent_loop.py`、`tests/test_llm_responses.py`、`tests/test_agent_tools.py`、`tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_responses.py`
+> - 不变量：权限规则写在服务端；聊天与审核中心共用持久决定；手动/滞留/危险共用审批；送审可脱离模型运行执行；写锁不覆盖模型思考和等待
+> - 必跑测试：`tests/test_agent_permissions.py`、`tests/e2e/assistant_permissions.py`、`tests/test_agent_loop.py`、`tests/test_llm_responses.py`、`tests/test_agent_tools.py`、`tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_responses.py`
 > - 相关：`AI/frontend/assistant.md`、`AI/ledger.md`（写入来源、正文入账）、`AI/api.md`（并发与写锁）、`AI/security.md`、`AI/data.md`
 
 ## 1. 组成与数据流
@@ -12,6 +12,8 @@
 一条消息的路径：`POST /api/agent/message` → `AgentRuntime.post_message` 建运行（run）、存用户消息、起后台线程并立即返回 `run_id` → 线程里 `AgentLoop.run` 反复请求模型、执行工具 → 每一步经 `Run.emit` 追加事件 → 浏览器用 `GET /api/agent/events?run=&after=N&wait=20` 长轮询取增量。每条事件发出前写入 `agent.db.run_events`，运行结束后落盘回执并移出内存，之后打开对话分页从库里重放；序号在活动、完成与重启之间不改变。
 
 分层：`omrs/llm/` 只管协议（与 OMRS 无关）；`omrs/agent/loop.py` 是通用循环，只依赖「客户端、工具注册表、钩子、事件发射器」四个接口；`omrs/agent/runtime.py` 的 `Hooks` 把 OMRS 的权限、写锁、写入来源接进钩子；`omrs/agent/tools/` 把领域函数包成工具。同一 Vault 一个运行时单例（`get_runtime`），服务启动时把上次遗留的运行标为中断（`reason=interrupted`）。
+
+首次取得运行时按生命周期租约 → 业务写锁 → 单例锁初始化，已有实例直接读取，避免中心首次批准与初始化反向等待。`GET /api/agent/status` 只读配置及已有实例的活动摘要，不创建数据库或初始化运行时，写锁繁忙时仍可读取状态。
 
 ### 附图（`omrs/agent/images.py`）
 
@@ -60,12 +62,24 @@ SSE 按 Responses 事件解析文字、拒答、推理摘要与工具参数增�
 | read | 词表、搜题、读题、概况、推荐、Session、看图追问、查草稿 | 自动执行 |
 | prepare | 分片准备标记整理 | 自动执行、计调用预算，不产生业务待审或业务写预算 |
 | rev | 建草稿、按版本修订草稿、建聊天练习卡 | 自动执行，记录业务动作并计入写入预算；不进学习 Ledger |
-| confirm | 建正式复习 Session、打标记、改题目 / 答案 / 错因、改知识点、移动、停用、恢复、记录反馈、独立创建分类，以及确认模式下的草稿入库、整批标记定义管理与归类 | 发 `tool.waiting` 后等聊天或审核中心的人类决定；正式写入可按运行撤销，独立分类除外 |
+| confirm | 建正式复习 Session、打标记、改题目 / 答案 / 错因、改知识点、移动、停用、恢复、记录反馈、独立创建分类，以及确认模式下的草稿入库、整批标记定义管理与归类 | 按对话权限模式等待人工决定、送审或自动批准；正式写入可按运行撤销，独立分类除外 |
 | 不提供 | 删除题目、改设置和 PIN、备份恢复、重启、源码导出 | 没有工具 |
 
-确认码绑定原 run、工具、operation_id、revision 与有效内容摘要。调用先在 `ai_review.db` 登记意图，再准备前后对照或预计影响；无效提案记失败并交还模型。待确认最长 10 分钟（`CONFIRM_TTL_SECONDS`），期间不持写锁。批准先持久化到统一库，再唤醒唯一原 `PendingConfirm`；正式执行前仍复核身份与快照。过期、拒绝、中止交还原模型，重启或恢复不能重新唤起旧模型。
+确认码绑定原 run、工具、operation_id、revision 与有效内容摘要。调用先在 `ai_review.db` 登记意图，再准备前后对照或预计影响；无效提案记失败并交还模型。手动等待 10 分钟（`CONFIRM_TTL_SECONDS`），期间不持写锁。批准先持久化到统一库，再唤醒唯一原 `PendingConfirm`；正式执行前仍复核身份与快照。手动超时移交审核中心，拒绝或中止交还原模型；普通重启保留长期提案，不重新唤起旧模型。整库恢复仍废止全部未终结审批。
 
-审核中心可以人工修订待审正文或知识点提案，只限原题目、原字段范围。原请求摘要用于重试，保持不变；有效 payload、摘要与 revision 随修订更新。旧聊天票据失效，截止时间不延长。助手执行保存的有效补丁，追加文字已在申请时转换为最终内容，执行时不再重算。审核状态和既成事实的原生回执说明见 `AI/ai-review.md`。
+审核中心可以人工修订待审正文或知识点提案，只限原题目、原字段范围。原请求摘要用于重试，保持不变；有效 payload、摘要与 revision 随修订更新。旧聊天票据失效；仍在聊天等待时不延长截止时间，已送审提案保持长期待审。助手执行保存的有效补丁，追加文字已在申请时转换为最终内容，执行时不再重算。审核状态和既成事实的原生回执说明见 `AI/ai-review.md`。
+
+权限模式由 `omrs/agent/permissions.py` 管理，只能通过已授权 Web 页面设置，模型工具没有切换模式能力。每个对话保存 `permission_mode`，新对话和旧库迁移默认 manual，刷新恢复所选模式。
+
+| 模式 | 确认级请求 |
+| --- | --- |
+| manual（手动） | 聊天确认/拒绝；也可主动送审；等待 10 分钟后自动送审 |
+| hold（滞留） | 原提案直接移到审核中心，聊天继续 |
+| danger（危险） | 服务端自动批准全部确认级请求，再走原执行链；决定标记 permission_mode/danger 和模式设置来源 |
+
+切到滞留会移交本对话尚未决定的请求；切到危险会批准本对话尚未决定的请求。已完成决定不改写，切回手动不把中心提案拉回聊天。送审保持同一 operation_id、revision、摘要、actor、snapshot 和 generation，expires_at 置空。送审初始回执返回 pending_review=true、executed=false，不执行业务也不宣称完成；每项送审预占一次写预算。若中心在聊天收尾前已处理，返回实际审核状态与回执，迟到超时收尾不覆盖已执行记录；停止先于移交时取消聊天请求。
+
+中心批准在写锁内核对助手启用、工具仍可用、原对话/运行归属与撤销状态、世代及快照，复用 Hooks.execute 和原 agent_actor，不建立模型运行。正式题目落盘另要求绑定操作、版本、摘要、世代和来源的内部 ContextVar 许可，applying 字段本身不授予写权限。普通重启将新模式的聊天等待移交中心；旧无模式的限时等待仍失效。
 
 预算（每次运行）：模型请求 25 轮、工具调用 40 次、写入 20 次（产生 commit 的工具调用算一次；不写 Ledger 的写入工具在结果里带 `wrote: true` 也算一次，`tool.end` 事件带 `wrote`），超出即结束运行，原因写进 `run.end`。对话最多 60 条消息（含工具结果），到了返回 409 请新开对话。全局同时只跑 1 个运行，别的对话发消息返回 409。
 
@@ -99,9 +113,11 @@ SSE 按 Responses 事件解析文字、拒答、推理摘要与工具参数增�
 
 ## 6. 事件
 
-每条事件 `{i, t, type, data}`，`t` 是距运行开始的毫秒数。类型：`run.start`（模型、预算、上下文窗口、`vision`）、`image.transcribe`（`ref`、`sha`）/ `image.transcribed`（`ref`、`ok`、`ms`、`error`）、`round.start`（轮次、上下文构成估算 sys/tools/chat/res）、`delta`（`kind` 为 think / text / args；args 带 `index`、`name`）、`round.end`（结束原因、稳定 `request_id`、用量、首 token 与生成耗时）、`usage.aux`（图片转述或看图工具的独立请求、`request_id` 与用量）、`tool.call`、`tool.running`、`tool.waiting`、`tool.decision`、`tool.end`、`steer.queued` / `steer.delivered` / `steer.late`、`run.aborting`、`run.end`。持久化时连续的同类 `delta` 合并为一条，前端归约结果相同。
+每条事件 `{i, t, type, data}`，`t` 是距运行开始的毫秒数。类型：`run.start`（模型、预算、上下文窗口、`vision`）、`image.transcribe`（`ref`、`sha`）/ `image.transcribed`（`ref`、`ok`、`ms`、`error`）、`round.start`（轮次、上下文构成估算 sys/tools/chat/res）、`delta`（`kind` 为 think / text / args；args 带 `index`、`name`）、`round.end`（结束原因、稳定 `request_id`、用量、首 token 与生成耗时）、`usage.aux`（图片转述或看图工具的独立请求、`request_id` 与用量）、`tool.call`、`tool.running`、`tool.waiting`、`tool.decision`、`tool.end`、`tool.reviewed`、`steer.queued` / `steer.delivered` / `steer.late`、`run.aborting`、`run.end`。持久化时连续的同类 `delta` 合并为一条，前端归约结果相同。
 
 `omrs/llm/usage.py` 将供应商用量归一成 `input_total`、`output_total`、`cache_read`、`reasoning_output`、`known`、`source`、`scope` 和可选请求标识；旧 `prompt/completion/cached/reasoning` 仍随事件发送。供应商未返回字段为 `null`，明确零保留为零；缓存属于输入、思考属于输出，不重复加到总量。兼容 Chat Completions 的 `prompt_tokens_details.cached_tokens`、Responses 的 `input_tokens` / `output_tokens` 及各自 details，以及 DeepSeek `prompt_cache_hit_tokens`，后者只有 hit/miss 时可推得输入。无最终用量时输出为估算，输入未知；负值、非整数、缓存超过输入等异常被标记，不当作有效缓存比例。独立草稿后台作业不属于对话运行统计。
+
+tool.waiting 附 permission、operation_id、revision 与 expires_at；移交后 tool.decision.how=defer，tool.end.status=deferred，wrote=false。中心后续处理追加 tool.reviewed（原 call_id、真实状态/result/commits/wrote），更新原运行统计，不覆盖模型消息、旧事件或 run.end。实际写入仍归原运行，可按原运行撤销。
 
 ## 7. 接口（`omrs/agent/http.py`）
 
@@ -109,11 +125,13 @@ GET：`/api/agent/status`（开关、是否配置好与缺什么、是否假模�
 
 POST：`/api/agent/conversation/create`、`/api/agent/conversation/delete`（软删除，运行中 409）、`/api/agent/message`（`{conversation_id, text, images?}` → `{run_id, steered}`；未启用 403、未配置或图片不合格 400、并发、消息上限或运行中带图插话 409）、`/api/agent/confirm`（`{run_id, call_id, token, decision}`；码不符 400、没有等待中的调用 409）、`/api/agent/abort`、`/api/agent/test`（用已保存配置发一次带 `ping` 工具的非流式请求，返回耗时与是否调用了工具；`agent_vision` 开时再发一张 8×8 白图，多返回 `vision_ok` 与 `vision_error`）、`/api/agent/run/revert`（`{run_id, dry_run}`，见 §9）。confirm 内部取得短租约、写锁、确认对象锁与审核 SQLite 事务，持久决定成功才发唤醒事件；run/revert 自取写锁应用撤销。网络和确认等待不持外层长锁，豁免理由见 `omrs/locking.py`。
 
+权限 GET `/api/agent/permission-mode?id=<conversation_id>` 返回 conversation 的 id/permission_mode；POST 同路径接受 `{conversation_id,mode}`，mode 为 manual/hold/danger，返回 conversation 与处理的待审数量 handled。POST `/api/agent/review/defer` 接受 `{operation_id,expected_revision}`，返回公共 item；重复移交不产生新提案。以上写接口沿用 Web 身份和同源校验，模式设置来源及自动决定身份由服务器推导。
+
 练习卡 GET `/api/agent/practice?card=<card_id>&attempt=<可选 attempt_id>` 返回原卡片、当前有效题序、不可用题及原因、已从 Ledger 查到的提交身份和界面进度；题目移动后返回当前 UID。POST `/api/agent/practice/start` 接受 `{card_id,restart?,request_id?}` 并返回同一详情；默认续最新 attempt，`restart:true` 必须提供稳定 `request_id`，重试同一请求不会多签发。POST `/api/agent/practice/progress` 接受 `{attempt_id,progress}`，只保存更大的 `progress.seq`，不决定真实反馈是否成功。对话删除后不能签发新 attempt；已签发的仍可读取和提交。
 
 ## 8. 存储
 
-`错题/.omrs/agent.db`（随备份导出，不进 Ledger）：`conversations`（id、标题、时间、软删除）、`messages`（会话消息存 JSON，含 assistant 的 `tool_calls`、思考内容和可选 `_response_items` 原生 Responses 上下文；缺结果的工具调用在重放时补「运行被中断」）、`runs`（状态、原因、错误、模型、起止时间、统计、合并后的事件、撤销信息）、`tool_calls`（参数、决定、结果、commit）、`practice_cards`（结构化卡片、对话与工具调用归属）、`practice_attempts`（签发身份、重练请求标识、非权威界面进度）。连接每次新建，模块锁只包单次事务。练习是否提交以 Ledger 中的 `attempt_id + entry_id` 为准，不以进度 JSON 为准；对话软删除后不能新签发 attempt，已签发 attempt 仍可提交。
+`错题/.omrs/agent.db`（随备份导出，不进 Ledger）：`conversations`（id、标题、时间、软删除、permission_mode、permission_actor_json）、`messages`（会话消息存 JSON，含 assistant 的 `tool_calls`、思考内容和可选 `_response_items` 原生 Responses 上下文；缺结果的工具调用在重放时补「运行被中断」）、`runs`（状态、原因、错误、模型、起止时间、统计、合并后的事件、撤销信息）、`tool_calls`（参数、决定、结果、commit）、`practice_cards`（结构化卡片、对话与工具调用归属）、`practice_attempts`（签发身份、重练请求标识、非权威界面进度）。连接每次新建，模块锁只包单次事务。练习是否提交以 Ledger 中的 `attempt_id + entry_id` 为准，不以进度 JSON 为准；对话软删除后不能新签发 attempt，已签发 attempt 仍可提交。
 
 ## 9. 按运行撤销（`omrs/agent/revert.py`）
 
@@ -148,7 +166,7 @@ MCP导出复用现有只读图片列表和受限原图读取，内置助手不�
 
 ## 复习调度共享读取
 
-推荐 due/proficiency/selection 带稳定 question_id 并保留 uid/source。list_sessions 查询支持 offset、limit（默认 20、最多 100），包含全部停用的 active 计划；返回分页总数、反馈进度与可用性计数。get_session 保留 pending/done/count，补时间、科目、完整进度和分页 entries（默认 100）；条目保留稳定身份与停用、归档、待绑定状态。这些读取不创建计划、不自动标完成。MCP create_review_session 使用独立 session:create 权限和原生事务回执，首次返回 pending_confirmation 而没有 session_id；网页批准后才创建。助手正式 Session 也须确认；聊天练习卡继续自动创建。
+推荐 due/proficiency/selection 带稳定 question_id 并保留 uid/source。list_sessions 查询支持 offset、limit（默认 20、最多 100），包含全部停用的 active 计划；返回分页总数、反馈进度与可用性计数。get_session 保留 pending/done/count，补时间、科目、完整进度和分页 entries（默认 100）；条目保留稳定身份与停用、归档、待绑定状态。这些读取不创建计划、不自动标完成。MCP create_review_session 使用独立 session:create 权限和原生事务回执，首次返回 pending_confirmation 而没有 session_id；网页批准后才创建。助手正式 Session 也按对话权限模式批准；聊天练习卡继续自动创建。
 
 ## 标记整理工具
 

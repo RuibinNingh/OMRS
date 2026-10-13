@@ -5,6 +5,7 @@
 - [2026-10-13_zuoyebang-search-history](2026-10-13_zuoyebang-search-history.md)：作业帮搜题记录原图与返回详情
 - [2026-10-13_boxdetect-service](2026-10-13_boxdetect-service.md)：框选检测服务源码迁移
 - [2026-10-13_boxdetect-service-plan](2026-10-13_boxdetect-service-plan.md)：框选检测服务迁移方案
+- [2026-10-13_assistant-permissions](2026-10-13_assistant-permissions.md)：AI 助手权限模式与对话优先界面
 - [2026-10-12_zuoyebang-status-panel](2026-10-12_zuoyebang-status-panel.md)：作业帮服务面板状态优先重设计
 - [2026-10-12_zuoyebang-search-ui](2026-10-12_zuoyebang-search-ui.md)：作业帮取图搜题与自动预览
 - [2026-10-12_zuoyebang-public-images](2026-10-12_zuoyebang-public-images.md)：作业帮附图支持任意公网域名

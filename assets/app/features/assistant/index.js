@@ -29,10 +29,11 @@ import { createReviewCards } from './review-cards.js';
 import { createReviewPanel } from '../../domain/ai-review.js';
 import { bindAssistantInteractions } from './interactions.js';
 import { bindAssistantViewport } from './mobile-layout.js';
+import { createPermissions } from './permissions.js';
 let C = null;
 function createController(root, { router, bus }) {
   const S = { status: null, convs: [], convId: null, items: [], msgs: 0, attachments: [], imageNo: 1, open: new Set(), closed: new Set(), runSel: null,
-    liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false,
+    liveRun: null, lastRun: null, popOpen: false, stick: true, inspOpen: false, railOpen: false, permissionMode: 'manual', permissionBusy: false,
     uiVer: 0, draftVer: 0, draftCropMode: 'manual', drafts: {}, sugs: SUGS, alive: true, convRequest: 0,
     listCursor: '', listMore: false, listBusy: false, historyCursor: '', historyMore: false, historyBusy: false, listRequest: 0,
     attachmentGeneration: 0, pendingFiles: 0, longOpen: new Set(), traceClosed: new Set(), inputValue: '', inputActive: false, composing: false };
@@ -74,7 +75,10 @@ function createController(root, { router, bus }) {
   const schedule = () => { if (!frame) frame = requestAnimationFrame(paint); };
   const draftCards = createDraftCards(S, schedule);
   const reviewPanel = createReviewPanel({ router, bus, onClose: () => { if (S.alive) { void reviewCards.refresh(); refreshDrafts(); } } });
-  const reviewCards = createReviewCards(S, schedule, { bus, open: reviewPanel.open });
+  const reviewCards = createReviewCards(S, schedule, { bus, open: reviewPanel.open, onApplied: async () => {
+    invalidateQuestions(); await Promise.all([reloadData(), refreshSessions(), loadList()]);
+  } });
+  const permissions = createPermissions(S, { schedule, notify: message => toast(message, { kind: 'error' }), refresh: () => reviewCards.refresh() });
   const refreshDrafts = ids => draftCards.refresh(ids);
   const detectDraft = id => draftCards.detect(id, message => toast(message, { kind: 'error' }));
   // 贴底跟随：只有用户自己往上滚才停止跟随；滚回底部恢复
@@ -116,6 +120,7 @@ function createController(root, { router, bus }) {
     S.pendingFiles = 0;
     S.attachments = [];
     S.convId = id; S.railOpen = false; S.runSel = null; S.popOpen = false; S.stick = true;
+    permissions.adopt(res.data.conversation);
     S.msgs = res.data.msgs;
     S.items = historyItems(res.data.items);
     S.historyMore = !!res.data.has_more; S.historyCursor = res.data.next_cursor || ''; S.historyBusy = false;
@@ -190,6 +195,7 @@ function createController(root, { router, bus }) {
     schedule();
   }
   async function send(text) {
+    if (S.permissionBusy) return false;
     if (S.pendingFiles) { notifyAttachment('请等图片处理完成后发送'); return false; }
     text = String(text || '').trim();
     if (!text && !S.attachments.length) return;
@@ -211,6 +217,7 @@ function createController(root, { router, bus }) {
       if (!S.alive || generation !== S.attachmentGeneration || conversation !== S.convId) return false;
       if (!res.ok) { toast(res.error?.message || '新建对话失败', { kind: 'error' }); return; }
       S.convId = res.data.conversation.id; S.items = []; S.msgs = 0;
+      permissions.adopt(res.data.conversation);
     }
     const body = { conversation_id: S.convId, text };
     if (attachments.length) {
@@ -290,6 +297,9 @@ function createController(root, { router, bus }) {
     toggleStep(arg) { const k = String(arg); const { st } = findStep(k); const open = S.open.has(k) || ((st?.kind === 'think' || ['create_draft', 'update_draft', 'create_category', 'create_practice_card'].includes(st?.name) && st.status === 'done') && !S.closed.has(k)); if (open) { S.open.delete(k); S.closed.add(k); } else { S.open.add(k); S.closed.delete(k); } bump(); },
     deny(arg) { const { st } = findStep(arg); if (st) void reviewCards.reject(st, message => toast(message, { kind: 'error' })); },
     approve(arg) { const { st } = findStep(arg); if (st) void reviewCards.approve(st, message => toast(message, { kind: 'error' }), Number(String(arg).split('|')[2])); },
+    defer(arg) { const { st } = findStep(arg); if (st) void reviewCards.defer(st, message => toast(message, { kind: 'error' })); },
+    chooseMode(anchor) { void permissions.choose(anchor); },
+    syncMode: permissions.sync,
     toggleReview(arg) { const { st } = findStep(arg); if (st) reviewCards.toggle(st); },
     async stop() { if (S.liveRun) { const res = await post('/api/agent/abort', { run_id: S.liveRun.id }); if (!res.ok) toast(res.error?.message || '停止失败', { kind: 'error' }); } },
     async copy(runId) { const run = S.items.map(i => i.run).find(r => r && r.id === runId); const text = run ? run.steps.filter(s => s.kind === 'text').map(s => s.src).join('\n\n') : ''; if (await copyText(text)) toast('已复制回答', { kind: 'success' }); },
@@ -311,7 +321,7 @@ function createController(root, { router, bus }) {
     detectDraft,
     loadDraftMode: () => draftCards.loadMode(),
     openDraft(id) { void reviewPanel.open(id, () => root.querySelector(`[data-action="assistant.openDraft"][data-arg="${CSS.escape(id)}"]`)); },
-    dispose() { S.alive = false; S.convRequest += 1; S.attachmentGeneration += 1; content?.classList.remove('is-assistant'); setDraftActivity('assistant', false); draftCards.dispose(); reviewPanel.dispose(); reviewCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); viewport.dispose(); unbindInteractions();  document.removeEventListener('click', onDoc); },
+    dispose() { S.alive = false; S.convRequest += 1; S.attachmentGeneration += 1; content?.classList.remove('is-assistant'); setDraftActivity('assistant', false); permissions.dispose(); draftCards.dispose(); reviewPanel.dispose(); reviewCards.dispose(); clearInterval(ticker); cancelAnimationFrame(frame); viewport.dispose(); unbindInteractions();  document.removeEventListener('click', onDoc); },
     title: toolTitle,
   };
 }
@@ -324,7 +334,7 @@ export const page = {
     const off = ctx.bus?.on?.('data', () => C?.bump());
     const offDrafts = ctx.bus?.on?.('drafts:changed', payload => C?.refreshDrafts(payload?.ids));
     const offConfig = ctx.bus?.on?.('agent:config', () => C?.loadDraftMode());
-    const focus = () => { if (!document.hidden) { C?.refreshDrafts(); C?.refreshReviews(); } };
+    const focus = () => { if (!document.hidden) { C?.refreshDrafts(); C?.refreshReviews(); C?.syncMode(); } };
     window.addEventListener('focus', focus);
     document.addEventListener('visibilitychange', focus);
     return () => { off?.(); offDrafts?.(); offConfig?.(); window.removeEventListener('focus', focus); document.removeEventListener('visibilitychange', focus); C?.dispose(); C = null; };
@@ -342,6 +352,8 @@ export const page = {
     gate: ({ arg }) => C?.gate(arg),
     deny: ({ arg }) => C?.deny(arg),
     approve: ({ arg }) => C?.approve(arg),
+    defer: ({ arg }) => C?.defer(arg),
+    chooseMode: ({ event }) => C?.chooseMode(event.target.closest('[data-action="assistant.chooseMode"]')),
     toggleReview: ({ arg }) => C?.toggleReview(arg),
     undo: ({ arg }) => C?.undo(arg),
     copy: ({ arg }) => C?.copy(arg),

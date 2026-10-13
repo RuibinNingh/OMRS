@@ -28,6 +28,7 @@ from .loop import AgentLoop
 from .policy import PendingConfirm
 from .store import AgentStore, now_iso
 from .tools import build_registry
+from . import permissions
 
 MAX_MESSAGE_IMAGES = 6
 PROMPT_PATH = os.path.join(os.path.dirname(__file__), "prompts", "system.md")
@@ -96,6 +97,8 @@ def _verify_review_snapshot(vault, row):
         _, _, snapshot = prepare_update(vault, **row['payload'])
     else:
         snapshot = _review_snapshot(vault, row['tool'], row['payload'])
+        if row['tool'] == 'commit_draft' and 'draft_config_mark' in row['snapshot']:
+            snapshot['draft_config_mark'] = row['snapshot']['draft_config_mark']
     if snapshot != row['snapshot']:
         raise ai_review.ReviewError('content_conflict', '确认后目标已变化，请重新申请审核', 409)
 
@@ -114,6 +117,20 @@ def _live_review(vault, row):
 def review_decide(vault, row, decision):
     """持久批准成功后才唤醒唯一等待对象；聊天和中心共用同一状态机。"""
     run, pc = _live_review(vault, row)
+    rt = _RUNTIMES.get(os.path.abspath(vault))
+    original = rt.runs.get(row['actor'].get('run_id')) if rt else None
+    if row['permission'].get('channel') == 'chat' and original and original.abort.is_set():
+        return ai_review.set_state(vault, row['operation_id'], 'cancelled', error_code='interrupted',
+                                   expected_status='pending_confirmation')
+    if row['permission'] and not pc and row['permission'].get('channel') != 'center':
+        row = permissions.transfer(vault, row, 'restart')
+    if (row['permission'].get('channel') == 'chat' and row['permission'].get('mode') == 'manual' and
+            row.get('expires_at') is not None and time.time() >= row['expires_at']):
+        row = permissions.transfer(vault, row, 'timeout')
+        if pc:
+            pc.close('defer')
+    if row['permission'].get('channel') == 'center':
+        return permissions.decide_center(vault, row, decision)
     if not pc:
         return ai_review.set_state(vault, row['operation_id'], 'interrupted', error_code='interrupted')
     with pc.lock:
@@ -145,7 +162,16 @@ def review_decide(vault, row, decision):
 
 def review_update(vault, row, patch, expected_revision):
     run, pc = _live_review(vault, row)
-    if not pc:
+    rt = _RUNTIMES.get(os.path.abspath(vault))
+    original = rt.runs.get(row['actor'].get('run_id')) if rt else None
+    if row['permission'].get('channel') == 'chat' and original and original.abort.is_set():
+        raise ai_review.ReviewError('interrupted', '运行已停止，不能修订聊天请求', 409)
+    if row['permission'] and (not pc or (row.get('expires_at') is not None and time.time() >= row['expires_at'])):
+        row = permissions.transfer(vault, row, 'timeout' if pc else 'restart')
+        if pc:
+            pc.close('defer')
+    center = row['permission'].get('channel') == 'center'
+    if not pc and not center:
         ai_review.set_state(vault, row['operation_id'], 'interrupted', error_code='interrupted')
         raise ai_review.ReviewError('state_conflict', '原运行已结束，不能修订提案', 409)
     if row['tool'] == 'propose_label_plan':
@@ -161,6 +187,8 @@ def review_update(vault, row, patch, expected_revision):
         preview['after'] = preview['changes'][0]['after']
     if snapshot != row['snapshot']:
         raise ai_review.ReviewError('content_conflict', '目标已变化，请重新申请审核', 409)
+    if center:
+        return ai_review.revise(vault, row['operation_id'], expected_revision, payload, preview)
     with pc.lock:
         if pc.event.is_set() or time.time() >= pc.expires_at:
             raise ai_review.ReviewError('state_conflict', '确认已处理或过期', 409)
@@ -180,10 +208,31 @@ class AgentError(Exception):
 
 def get_runtime(vault):
     key = os.path.abspath(vault)
-    with lease(vault), _RT_LOCK:
-        if key not in _RUNTIMES:
-            _RUNTIMES[key] = AgentRuntime(key)
-        return _RUNTIMES[key]
+    with lease(vault):
+        existing = _RUNTIMES.get(key)
+        if existing:
+            return existing
+        # 中心首次批准也会初始化运行时：写锁必须在单例锁之前，避免反向等待。
+        with write_lock(), _RT_LOCK:
+            if key not in _RUNTIMES:
+                _RUNTIMES[key] = AgentRuntime(key)
+            return _RUNTIMES[key]
+
+
+def _status(vault, live):
+    s = settings(vault)
+    return {"enabled": s["enabled"], "configured": s["configured"], "missing": s["missing"], "faux": s["faux"],
+            "model": s["model"], "compat": s["compat"]["name"], "base_host": s["base_host"],
+            "context_window": s["compat"]["context_window"], "limits": s["limits"], "msg_cap": MSG_CAP,
+            "confirm_ttl_ms": CONFIRM_TTL_SECONDS * 1000, "tools": build_registry(s).levels(),
+            "active": [{"run_id": r.id, "conversation_id": r.conv_id, "status": r.status} for r in live]}
+
+
+def runtime_status(vault):
+    # 状态查询不创建数据库或初始化运行时，写锁繁忙时仍可读取。
+    with lease(vault):
+        rt = _RUNTIMES.get(os.path.abspath(vault))
+        return _status(vault, rt.active_runs() if rt else ())
 
 
 def _probe_png():
@@ -211,7 +260,7 @@ def build_system_prompt(vault, limits, draft_mode="silent"):
     with open(PROMPT_PATH, "r", encoding="utf-8") as file:
         tpl = file.read()
     draft_rule = ("当前是请求确认后入库：只有本对话的待审核草稿，才可先 get_draft 读取 revision，"
-                  "再用 commit_draft 请求用户确认；拒绝、过期或草稿变化后不要沿用旧许可。" if
+                  "再用 commit_draft 按用户所选权限模式请求入库；拒绝、失效或草稿变化后不要沿用旧许可。" if
                   draft_mode == "confirm" else
                   "当前只建草稿。告诉用户去审核中心核对并入库，不请求助手直接提交。")
     return (tpl.replace("{today}", datetime.date.today().isoformat()).replace("{taxonomy}", text)
@@ -257,7 +306,7 @@ class Run:
             while len(self.events) > 1000 or self.tail_bytes > 1024 * 1024:
                 removed = self.events.popleft()
                 self.tail_bytes -= len(json.dumps(removed, ensure_ascii=False, default=str).encode())
-            if type_ in ("round.end", "usage.aux", "tool.call", "tool.end"):
+            if type_ in ("round.end", "usage.aux", "tool.call", "tool.end", 'tool.reviewed'):
                 fields = {key: value for key, value in data.items() if key in (
                     "request_id", "n", "usage", "ttft_ms", "gen_ms", "commits", "wrote")}
                 self.statistics.append({**event, "data": fields})
@@ -318,8 +367,12 @@ class Hooks:
                     if mark != self._draft_config_mark():
                         raise ValueError('助手配置在预览时已变化，请重新申请确认')
                     self._draft_config_marks[call['id']] = mark
+                    snapshot['draft_config_mark'] = list(mark) if mark else None
+                conv = self.rt.store.conversation(self.run.conv_id)
+                mode = conv['permission_mode'] if conv else 'manual'
                 row = ai_review.prepare(self.rt.vault, row['operation_id'], payload, preview, snapshot,
-                                        editable_fields=editable_fields)
+                                        editable_fields=editable_fields, expires_at=time.time() + CONFIRM_TTL_SECONDS,
+                                        permission={'mode': mode, 'channel': 'chat', 'automatic': mode == 'danger'})
             except Exception as exc:  # noqa: BLE001 - 无效提案记录失败，不进入用户等待
                 ai_review.set_state(self.rt.vault, row['operation_id'], 'failed',
                                     error_code=getattr(exc, 'code', 'invalid_request'))
@@ -328,20 +381,37 @@ class Hooks:
                 operation_id=row['operation_id'], revision=row['revision'], effective_digest=row['effective_digest'])
             pc.expires_at = row['expires_at']
             self.run.pending[call["id"]] = pc
+            if mode == 'hold':
+                row = permissions.transfer(self.rt.vault, row, 'hold')
+                pc.close('defer')
+            elif mode == 'danger':
+                ai_review.decide(self.rt.vault, row['operation_id'], row['revision'], 'approve', permissions.auto_reviewer(conv))
         self.run.status = "waiting"
         self.run.emit("tool.waiting", {"call_id": call["id"], "token": pc.token, "ttl_ms": CONFIRM_TTL_SECONDS * 1000,
                                        "expires_at": pc.expires_at, "preview": preview,
-                                       "operation_id": row['operation_id'], 'revision': row['revision']})
+                                       "operation_id": row['operation_id'], 'revision': row['revision'], 'permission': row['permission']})
         how = pc.wait(self.run.abort)
-        self.run.pending.pop(call["id"], None)
-        self.run.status = "running"
         with lease(self.rt.vault), write_lock():
             row = ai_review.get(self.rt.vault, pc.operation_id)
+            if how == 'expire' and row['permission'].get('mode') == 'manual' and row['status'] == 'pending_confirmation':
+                row = permissions.transfer(self.rt.vault, row, 'timeout')
+                how = 'defer'
+            if how == 'expire' and row['permission'].get('channel') == 'center':
+                # 中心可能在超时线程收尾前已决定；迟到收尾不能覆盖真实执行回执。
+                how = 'defer'
             if how != 'allow' and row['status'] == 'pending_confirmation':
-                ai_review.set_state(self.rt.vault, pc.operation_id,
+                if how != 'defer':
+                    ai_review.set_state(self.rt.vault, pc.operation_id,
                     {'deny': 'rejected', 'expire': 'expired', 'abort': 'cancelled'}[how],
                     error_code='interrupted' if how == 'abort' else '')
+            if how == 'defer' and row['status'] == 'pending_confirmation':
+                self.rt.store.save_tool_call(self.run.id, call['id'], call['name'], tool.level, call['args'],
+                                             'deferred', decision='defer', result=permissions.deferred_result(row)['result'])
+            self.run.pending.pop(call['id'], None)
+            self.run.status = 'running'
         self.run.emit("tool.decision", {"call_id": call["id"], "how": how})
+        if how == 'defer':
+            return permissions.deferred_result(row)
         self.rt.store.save_tool_call(self.run.id, call["id"], call["name"], tool.level, call["args"],
                                      "done" if how == "allow" else "denied", decision=how)
         if how == "allow":
@@ -349,7 +419,7 @@ class Hooks:
         errors = {"deny": "用户未允许，没有执行", "expire": "确认已过期，没有执行", "abort": "运行已中止，没有执行"}
         return {"status": "aborted" if how == "abort" else "denied", "error": errors[how], "decision": how}
 
-    def execute(self, call, tool):
+    def execute(self, call, tool, from_center=False):
         ctx = {**self.ctx, "tool_call_id": call["id"], "emit_usage": lambda data: self.run.emit("usage.aux", data)}
         if tool.level == "prepare":
             with lease(self.rt.vault):
@@ -390,7 +460,8 @@ class Hooks:
                 self._review_ids[call['id']] = row['operation_id']
                 if row['status'] != 'running':
                     raise ValueError('这次调用已经处理，不能再次执行')
-            with agent_actor(self.run.conv_id, self.run.id, call["id"]) as actor:
+            permit = permissions.center_permit(self.rt.vault, row) if from_center else contextlib.nullcontext()
+            with agent_actor(self.run.conv_id, self.run.id, call["id"]) as actor, permit:
                 try:
                     if tool.level == 'confirm':
                         _review_deadline(row)
@@ -440,7 +511,7 @@ def run_stats(events):
             requests[d.get("request_id") or f"aux:{ev.get('i')}"] = d.get("usage") or {}
         elif ev["type"] == "tool.call":
             s["calls"] += 1
-        elif ev["type"] == "tool.end" and (d.get("commits") or d.get("wrote")):
+        elif ev["type"] in ("tool.end", 'tool.reviewed') and (d.get("commits") or d.get("wrote")):
             s["writes"] += 1
             s["commits"] += d.get("commits") or []
     s["rounds"] = len(rounds)
@@ -459,7 +530,7 @@ class AgentRuntime:
         self.vault = vault
         self.store = AgentStore(vault)
         self.store.interrupt_leftovers()
-        ai_review.invalidate(vault, reason='interrupted', source='agent')
+        ai_review.invalidate(vault, reason='interrupted', source='agent', preserve_center=True)
         self.runs, self.lock = {}, threading.RLock()
 
     # ── 状态与对话 ──
@@ -468,17 +539,27 @@ class AgentRuntime:
             return [r for r in self.runs.values() if not r.done and not r.closing]
 
     def status(self):
-        s = settings(self.vault)
-        live = self.active_runs()
-        return {"enabled": s["enabled"], "configured": s["configured"], "missing": s["missing"], "faux": s["faux"],
-                "model": s["model"], "compat": s["compat"]["name"], "base_host": s["base_host"],
-                "context_window": s["compat"]["context_window"], "limits": s["limits"], "msg_cap": MSG_CAP,
-                "confirm_ttl_ms": CONFIRM_TTL_SECONDS * 1000, "tools": build_registry(s).levels(),
-                "active": [{"run_id": r.id, "conversation_id": r.conv_id, "status": r.status} for r in live]}
+        return _status(self.vault, self.active_runs())
 
     def create_conversation(self, title=""):
         conv_id = "c_" + secrets.token_hex(4)
         return self.store.create_conversation(conv_id, (title or "新对话").strip()[:40])
+
+    def set_permission_mode(self, conv_id, mode, reviewer=None):
+        return permissions.change_mode(self, conv_id, mode, reviewer)
+
+    def conversation_permission(self, conv_id):
+        conv = self.store.conversation(conv_id)
+        if not conv:
+            raise AgentError(404, '对话不存在')
+        return {'conversation': {key: conv[key] for key in ('id', 'permission_mode')}}
+
+    def defer_review(self, operation_id, revision):
+        try:
+            row = permissions.defer(self, operation_id, revision)
+            return {'item': ai_review.public(row)}
+        except ai_review.ReviewError as exc:
+            raise AgentError(exc.status, str(exc)) from exc
 
     def delete_conversation(self, conv_id):
         if any(r.conv_id == conv_id for r in self.active_runs()):
@@ -628,12 +709,12 @@ class AgentRuntime:
         for item in late:  # 运行收尾时才到的插话：留在对话里，作为下一次运行的上下文
             self.store.add_message(run.conv_id, run.id, {"role": "user", "content": item["text"]})
             run.emit("steer.late", {"id": item["id"]})
-        stats = run_stats(run.statistics)
-        run.emit("run.end", {"reason": out["reason"], "error": out.get("error", ""), "stats": stats})
-        self.store.save_run(run.id, status="done", reason=out["reason"], error=out.get("error", ""), stats=stats,
-                            ended=True)
-        self.store.touch(run.conv_id)
         with run.cond:
+            stats = run_stats(run.statistics)
+            run.emit("run.end", {"reason": out["reason"], "error": out.get("error", ""), "stats": stats})
+            self.store.save_run(run.id, status="done", reason=out["reason"], error=out.get("error", ""), stats=stats,
+                                ended=True)
+            self.store.touch(run.conv_id)
             run.done, run.status = True, "done"
             run.cond.notify_all()
         with self.lock:

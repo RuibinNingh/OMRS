@@ -181,12 +181,21 @@ class AgentLoop:
             self.emit("tool.end", {"call_id": call["id"], "status": "error", "error": text, "summary": ""})
             return ToolOutcome("budget", json.dumps({"ok": False, "error": text}, ensure_ascii=False), error=text)
         self.budget.calls += 1
-        if tool.level not in ("read", "prepare") and self.budget.writes >= self.budget.limits["writes"]:
+        if tool.level not in ("read", "prepare") and self.budget.writes + self.budget.deferred >= self.budget.limits["writes"]:
             text = f"写入次数达到本次运行上限 {self.budget.limits['writes']}，运行结束"
             self.emit("tool.end", {"call_id": call["id"], "status": "error", "error": text, "summary": ""})
             return ToolOutcome("budget", json.dumps({"ok": False, "error": text}, ensure_ascii=False), error=text)
         verdict = self.hooks.before_tool_call(call, tool)
         if verdict is not None:
+            if verdict['status'] == 'deferred':
+                self.budget.deferred += 1
+                result = verdict['result']
+                content, chars = result_content(result, self.result_cap)
+                summary = '已由审核中心处理' if result.get('pending_review') is False else '已送到审核中心，尚未执行'
+                self.emit('tool.end', {'call_id': call['id'], 'status': 'deferred', 'summary': summary,
+                                      'result': result, 'result_chars': chars, 'commits': [], 'wrote': False,
+                                      'budget': self.budget.snapshot()})
+                return ToolOutcome('deferred', content, result)
             self.emit("tool.end", {"call_id": call["id"], "status": verdict["status"], "error": verdict["error"],
                                    "summary": "", "decision": verdict.get("decision")})
             return ToolOutcome(verdict["status"], json.dumps({"ok": False, "error": verdict["error"]}, ensure_ascii=False),

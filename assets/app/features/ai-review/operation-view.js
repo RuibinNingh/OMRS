@@ -44,7 +44,10 @@ export function operationView(s) {
       ${item.actor?.request_id ? html`<div><dt>来源请求</dt><dd>${item.actor.request_id}</dd></div>` : ''}
       ${item.actor?.run_id ? html`<div><dt>来源运行</dt><dd>${item.actor.run_id}</dd></div>` : ''}
       ${item.actor?.tool_call_id || item.actor?.runtime_seq ? html`<div><dt>来源调用</dt><dd>${item.actor.tool_call_id || item.actor.runtime_seq}</dd></div>` : ''}
-      ${reviewer.kind || reviewer.access ? html`<div><dt>审核身份</dt><dd>${reviewer.kind === 'web' ? 'Web' : reviewer.kind || ''}${reviewer.access ? ` · ${({ direct: '本机访问', session: '登录会话' })[reviewer.access] || reviewer.access}` : ''}</dd></div>` : ''}
+      ${item.permission?.mode ? html`<div><dt>权限模式</dt><dd>${({ manual: '手动模式', hold: '滞留模式', danger: '危险模式' })[item.permission.mode]}</dd></div>` : ''}
+      ${item.permission?.channel === 'center' ? html`<div><dt>送审原因</dt><dd>${({ hold: '滞留模式直接送审', manual: '手动送审', timeout: '10 分钟未处理', mode_change: '切换滞留模式', restart: '服务重启后保留' })[item.permission.reason] || '已移交审核中心'} · 长期待审</dd></div>` : ''}
+      ${reviewer.kind || reviewer.access ? html`<div><dt>审核身份</dt><dd>${reviewer.kind === 'permission_mode' ? '危险模式 · 自动同意' : reviewer.kind === 'web' ? 'Web' : reviewer.kind || ''}${reviewer.access ? ` · ${({ direct: '本机访问', session: '登录会话' })[reviewer.access] || reviewer.access}` : ''}</dd></div>` : ''}
+      ${reviewer.selected_by ? html`<div><dt>模式设置来源</dt><dd>${reviewer.selected_by.access === 'session' ? '登录会话' : '本机访问'}${reviewer.selected_by.client_ip ? ` · ${reviewer.selected_by.client_ip}` : ''}</dd></div>` : ''}
       ${reviewer.client_ip ? html`<div><dt>审核来源 IP</dt><dd>${reviewer.client_ip}</dd></div>` : ''}
       ${item.expires_at ? html`<div><dt>有效期至</dt><dd>${time(item.expires_at)}</dd></div>` : ''}</dl>
     ${item.history_incomplete ? status({ tone: 'warning', text: '历史信息不完整；只显示可以验证的记录。' }) : ''}

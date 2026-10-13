@@ -271,7 +271,9 @@ class DraftToolsTest(unittest.TestCase):
     def test_mode_switched_away_and_back_invalidates_old_confirmation(self):
         save_config(self.vault, {"draft_mode": "confirm"})
         run = Run("run_x", self.conv, "faux")
-        hooks = Hooks(mock.Mock(vault=self.vault), run, None)
+        rt = mock.Mock(vault=self.vault)
+        rt.store.conversation.return_value = {'permission_mode': 'manual'}
+        hooks = Hooks(rt, run, None)
         execute = mock.Mock(return_value={"result": {}})
         tool = ToolDef("commit_draft", "confirm", "", {}, execute, lambda ctx, args: {})
         call = {"id": "call_x", "name": "commit_draft", "args": {"draft_id": "DR-test", "revision": 1}}

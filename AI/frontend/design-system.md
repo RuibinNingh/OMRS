@@ -105,3 +105,5 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 草稿框选复用 process-canvas 的 SVG 框、遮罩和控制点；适配器只替换图片地址、元素标识与数据回调。草稿画布布局位于 drafts.css，沿用现有 token 与响应式断点，不创建独立配色或行内样式。
 
 对话内操作卡的 ast-op 样式位于 assistant-run.css，沿用 surface、border、语义状态色、字号和间距 token；只保留一层表面，状态与操作按钮分层。审核详情复用共享 drawer，桌面最大宽860px，手机铺满可见视口；正文内部滚动，不向 DOM 写行内样式。
+
+助手权限入口和菜单沿用共享 ui-btn/ui-menu，样式在 assistant-permissions.css。危险使用 danger-fg/danger-soft；手机入口至少44px，菜单在可见视口内布局，模式说明不向 DOM 写行内样式。

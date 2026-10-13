@@ -202,6 +202,7 @@ export function applyEvent(run, ev) {
       if (st) {
         Object.assign(st, { status: 'waiting', gateT0: t, ttl: d.ttl_ms, token: d.token, preview: d.preview || {},
           operationId: d.operation_id, reviewRevision: d.revision, expiresAt: d.expires_at });
+        st.permission = d.permission || {};
         st.seg = { kind: 'tool', step: st.id, q0: st.q0, w0: t };
         run.timeline.push(st.seg);
       }
@@ -214,16 +215,19 @@ export function applyEvent(run, ev) {
       run.status = 'running';
       break;
     }
-    case 'tool.end': {
+    case 'tool.end': case 'tool.reviewed': {
       const st = run.byCall.get(d.call_id);
       if (!st) break;
+      if (ev.type === 'tool.end' && st.reviewed) break;
+      if (ev.type === 'tool.reviewed') st.reviewed = true;
       st.status = d.status === 'done' ? 'done' : d.status;
       st.summary = d.summary || ''; st.error = d.error || ''; st.result = d.result ?? (d.error ? { ok: false, error: d.error } : null);
       st.resultChars = d.result_chars || 0; st.dur = d.dur_ms || 0; st.extra = d.extra || null; st.t1 = t;
+      const alreadyWrote = st.wrote;
       st.wrote = Boolean(d.wrote || d.commits?.length);
       if (d.decision && !st.decision) st.decision = { how: d.decision, t };
       if (st.seg) st.seg.t1 = t;
-      if (st.wrote) {
+      if (st.wrote && !alreadyWrote) {
         run.writes += 1;
         st.commits = d.commits || [];
         st.commits.forEach(c => run.commits.push({ ...c, level: st.level, callId: st.callId }));

@@ -72,6 +72,11 @@ class AgentStore:
             if "request_id" not in columns:
                 db.execute("ALTER TABLE practice_attempts ADD COLUMN request_id TEXT")
             db.execute("CREATE UNIQUE INDEX IF NOT EXISTS practice_restart_request ON practice_attempts(request_id)")
+            columns = {row['name'] for row in db.execute('PRAGMA table_info(conversations)')}
+            if 'permission_mode' not in columns:
+                db.execute("ALTER TABLE conversations ADD COLUMN permission_mode TEXT NOT NULL DEFAULT 'manual'")
+            if 'permission_actor_json' not in columns:
+                db.execute("ALTER TABLE conversations ADD COLUMN permission_actor_json TEXT NOT NULL DEFAULT '{}'")
 
     def _db(self):
         db = open_sqlite(self.vault, db_path(self.vault), timeout=5)
@@ -107,6 +112,11 @@ class AgentStore:
     def conversation(self, conv_id):
         rows = self._all("SELECT * FROM conversations WHERE id = ? AND deleted = 0", (conv_id,))
         return rows[0] if rows else None
+
+    def set_permission_mode(self, conv_id, mode, actor):
+        self._exec('UPDATE conversations SET permission_mode=?,permission_actor_json=?,updated_at=? WHERE id=? AND deleted=0',
+                   (mode, json.dumps(actor, ensure_ascii=False), now_iso(), conv_id))
+        return self.conversation(conv_id)
 
     def touch(self, conv_id, title=None):
         if title:
@@ -190,11 +200,31 @@ class AgentStore:
     def save_tool_call(self, run_id, call_id, name, level, args, status, decision=None, result=None, commits=None):
         self._exec("""INSERT INTO tool_calls(call_id, run_id, name, level, args_json, status, decision, result_json,
                       commits_json, started_at, ended_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                      ON CONFLICT(run_id, call_id) DO UPDATE SET status = excluded.status, decision = excluded.decision,
+                      ON CONFLICT(run_id, call_id) DO UPDATE SET status = excluded.status, decision = COALESCE(excluded.decision,tool_calls.decision),
                       result_json = excluded.result_json, commits_json = excluded.commits_json, ended_at = excluded.ended_at""",
                    (call_id, run_id, name, level, json.dumps(args, ensure_ascii=False), status, decision,
                     json.dumps(result, ensure_ascii=False, default=str) if result is not None else None,
                     json.dumps(commits or [], ensure_ascii=False), now_iso(), now_iso()))
+
+    def append_review_event(self, run_id, data):
+        """结束后追加审核回执与统计；原事件、模型消息和运行终点保持不变。"""
+        with lease(self.vault), _LOCK, self._db() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT stats_json FROM runs WHERE id=?', (run_id,)).fetchone()
+            if not row:
+                raise ValueError('原助手运行不存在')
+            seq = db.execute('SELECT COALESCE(MAX(seq)+1,0) FROM run_events WHERE run_id=?', (run_id,)).fetchone()[0]
+            stamp = db.execute('SELECT COALESCE(MAX(json_extract(event_json,\'$.t\')),0) FROM run_events WHERE run_id=?', (run_id,)).fetchone()[0]
+            event = {'i': seq, 't': stamp, 'type': 'tool.reviewed', 'data': data}
+            db.execute('INSERT INTO run_events VALUES(?,?,?,?)', (run_id, seq, event['type'], json.dumps(event, ensure_ascii=False)))
+            stats = json.loads(row[0])
+            if data.get('commits') or data.get('wrote'):
+                stats['writes'] = stats.get('writes', 0) + 1
+                commits = list(stats.get('commits', []))
+                commits.extend(commit for commit in data.get('commits', []) if commit not in commits)
+                stats['commits'] = commits
+            db.execute('UPDATE runs SET stats_json=? WHERE id=?', (json.dumps(stats, ensure_ascii=False), run_id))
+            return event
 
     # ── 聊天练习卡与尝试：只存题序和非权威界面进度，反馈事实来自 Ledger ──
     def save_practice_card(self, card, conv_id, run_id, call_id):

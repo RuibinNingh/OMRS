@@ -35,4 +35,5 @@
 @import url("../features/assistant/assistant.css") layer(features);
 @import url("../features/assistant/assistant-run.css") layer(features);
 @import url("../features/assistant/assistant-side.css") layer(features);
+@import url("../features/assistant/assistant-permissions.css") layer(features);
 @import url("../features/ai-review/review.css") layer(features);

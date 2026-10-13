@@ -1,8 +1,8 @@
 """服务端权限：级别、确认令牌、预算。规则写死在这里，不写在提示词里。
 
-- read 自动执行；rev 自动执行并记录业务动作；confirm 由聊天或审核中心的人类决定共用同一持久权威。
+- read 自动执行；rev 自动执行并记录业务动作；confirm 按对话模式决定，共用同一持久审批权威。
   不注册的能力（删除、设置、PIN、备份恢复、重启、源码导出……）根本没有工具。
-- 确认令牌绑定原运行、工具、operation_id、revision 和有效内容摘要；10 分钟到期，不因修订延长。
+- 确认令牌绑定原运行、工具、operation_id、revision 和有效内容摘要；手动等待 10 分钟后移交中心。
 """
 import hashlib
 import json
@@ -64,7 +64,7 @@ class PendingConfirm:
             return self.decision or "abort"
 
     def wait(self, abort: threading.Event) -> str:
-        """阻塞到用户点击、过期或运行中止。返回 allow / deny / expire / abort。"""
+        """阻塞到决定、移交、超时或中止。返回 allow / deny / defer / expire / abort。"""
         while True:
             left = self.expires_at - time.time()
             if left <= 0:
@@ -78,8 +78,8 @@ class PendingConfirm:
 class Budget:
     def __init__(self, limits):
         self.limits = limits
-        self.rounds = self.calls = self.writes = 0
+        self.rounds = self.calls = self.writes = self.deferred = 0
 
     def snapshot(self):
-        return {"rounds": self.rounds, "calls": self.calls, "writes": self.writes,
+        return {"rounds": self.rounds, "calls": self.calls, "writes": self.writes, 'deferred': self.deferred,
                 "max_rounds": self.limits["rounds"], "max_calls": self.limits["calls"], "max_writes": self.limits["writes"]}

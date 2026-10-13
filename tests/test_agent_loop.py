@@ -78,6 +78,21 @@ def run(stub, hooks=None, steer=None, abort=None, limits=LIMITS, max_output_toke
 
 
 class LoopTest(unittest.TestCase):
+    def test_deferred_requests_reserve_write_budget_without_claiming_execution(self):
+        hooks = Hooks(lambda call, tool: {'status': 'deferred', 'result': {
+            'ok': True, 'pending_review': True, 'executed': False, 'operation_id': 'op_pending'}})
+        stub = Stub([reply(calls=[('write', {}), ('write', {})])])
+        out, messages, events = run(stub, hooks=hooks, limits={**LIMITS, 'writes': 1})
+        self.assertEqual(out['reason'], 'budget')
+        self.assertFalse(hooks.ran)
+        result = json.loads(next(message['content'] for message in messages if message['role'] == 'tool'))
+        self.assertTrue(result['pending_review'])
+        self.assertFalse(result['executed'])
+        endings = [data for kind, data in events if kind == 'tool.end']
+        self.assertEqual([data['status'] for data in endings], ['deferred', 'error'])
+        self.assertEqual(endings[0]['budget']['writes'], 0)
+        self.assertEqual(endings[0]['budget']['deferred'], 1)
+
     def test_each_round_uses_configured_output_limit(self):
         stub = Stub([reply(calls=[("echo", {"x": 1})]), reply("好")])
         out, _, _ = run(stub, max_output_tokens=16384)

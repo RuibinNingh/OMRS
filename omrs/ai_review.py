@@ -47,7 +47,7 @@ LABELS = {
     'update_board_folder': '编辑展示板文件夹', 'delete_board_folder': '删除展示板文件夹',
     'move_board': '移动展示板',
 }
-_JSON_FIELDS = ('payload', 'actor', 'preview', 'snapshot', 'editable_fields', 'result', 'commits')
+_JSON_FIELDS = ('payload', 'actor', 'preview', 'snapshot', 'editable_fields', 'result', 'commits', 'permission')
 _DECIDER = contextvars.ContextVar('ai_review_decider', default={})
 _AUTO_INTENT = contextvars.ContextVar('ai_review_auto_intent', default=None)
 TYPES = {'propose_label_plan': 'label_plan', **{tool: 'board' for tool in BOARD_TOOLS},
@@ -137,6 +137,9 @@ def _connect(vault, write=False):
                     decided_at REAL NOT NULL, actor_json TEXT NOT NULL
                 );
             ''')
+            columns = {row[1] for row in db.execute('PRAGMA table_info(operations)')}
+            if 'permission_json' not in columns:
+                db.execute("ALTER TABLE operations ADD COLUMN permission_json TEXT NOT NULL DEFAULT '{}'")
         except BaseException:
             db.close()
             raise
@@ -149,14 +152,16 @@ def _decode(row):
         return None
     row = dict(row)
     for field in _JSON_FIELDS:
-        row[field] = json.loads(row.pop(field + '_json'))
+        row[field] = json.loads(row.pop(field + '_json', '{}'))
     row['history_incomplete'] = bool(row['history_incomplete'])
     row['history_readonly'] = bool(row['history_readonly'])
     return row
 
 
 def _effective(row):
-    if row and row['status'] == 'pending_confirmation' and row.get('expires_at') is not None and time.time() >= row['expires_at']:
+    # 新手动请求到时移交中心，不能先把它变成不可批准的过期终态。
+    manual = row and row['source'] == 'agent' and row.get('permission', {}).get('mode') == 'manual'
+    if row and not manual and row['status'] == 'pending_confirmation' and row.get('expires_at') is not None and time.time() >= row['expires_at']:
         return {**row, 'status': 'expired'}
     return row
 
@@ -189,14 +194,16 @@ def verify_question_write(vault, review):
     if row['history_readonly'] or row['status'] != 'applying':
         raise ReviewError('state_conflict', '这次题目修改没有可执行的批准', 409)
     for field in ('identity', 'source', 'tool', 'key_id', 'actor', 'revision', 'digest', 'effective_digest',
-                  'payload', 'snapshot', 'editable_fields', 'generation', 'expires_at'):
+                  'payload', 'snapshot', 'editable_fields', 'generation', 'expires_at', 'permission'):
         if row.get(field) != review.get(field):
             raise ReviewError('revision_conflict', '批准的题目提案或来源已变化', 409)
     if row['effective_digest'] != fingerprint(row['payload']):
         raise ReviewError('revision_conflict', '批准的有效题目摘要不匹配', 409)
     if row['generation'] != generation(vault):
         raise ReviewError('content_conflict', '题库世代已变化，旧批准不能写入', 409)
-    if row.get('expires_at') is None or time.time() >= row['expires_at']:
+    from .agent.permissions import has_center_permit
+    center = has_center_permit(vault, row)
+    if not center and (row.get('expires_at') is None or time.time() >= row['expires_at']):
         raise ReviewError('expired', '题目修改确认已过期，未执行写入', 409)
     if row['source'] == 'mcp' and row['tool'] == 'propose_label_plan':
         from .label_plan_review import authorize_source
@@ -212,10 +219,10 @@ def verify_question_write(vault, review):
         rt = _RUNTIMES.get(os.path.abspath(vault))
         run = rt.runs.get(row['actor'].get('run_id')) if rt else None
         actor = current_agent()
-        if (not run or run.done or run.closing or run.abort.is_set() or
+        if (not center and (not run or run.done or run.closing or run.abort.is_set() or
                 run.conv_id != row['actor'].get('conversation_id') or not actor or
                 any(actor.stamp().get(key) != row['actor'].get(key)
-                    for key in ('conversation_id', 'run_id', 'tool_call_id'))):
+                    for key in ('conversation_id', 'run_id', 'tool_call_id')))):
             raise ReviewError('interrupted', '原助手运行已结束或中止，未执行写入', 409)
     else:
         raise ReviewError('forbidden', '这次操作没有正式题目写权限', 403)
@@ -256,7 +263,7 @@ def create(vault, source, tool, identity, payload, actor=None, preview=None, sna
 
 @storage
 def prepare(vault, operation_id, payload=None, preview=None, snapshot=None, pending=True,
-            editable_fields=None, expires_at=None):
+            editable_fields=None, expires_at=None, permission=None):
     """把领域的预登记意图变成待审核；不会重新打开已处理操作。"""
     with locking.write_lock(), closing(_connect(vault, True)) as db:
         row = _decode(db.execute('SELECT * FROM operations WHERE operation_id=?', (operation_id,)).fetchone())
@@ -266,13 +273,13 @@ def prepare(vault, operation_id, payload=None, preview=None, snapshot=None, pend
             return _effective(row)
         effective = row['payload'] if payload is None else payload
         db.execute('UPDATE operations SET payload_json=?,effective_digest=?,preview_json=?,snapshot_json=?,'
-                   'editable_fields_json=?,status=?,expires_at=?,updated_at=? WHERE operation_id=? AND status=?',
+                   'editable_fields_json=?,status=?,expires_at=?,updated_at=?,permission_json=? WHERE operation_id=? AND status=?',
                    (_json(effective), fingerprint(effective), _json(row['preview'] if preview is None else preview),
                     _json(row['snapshot'] if snapshot is None else snapshot),
                     _json(row['editable_fields'] if editable_fields is None else editable_fields),
                     'pending_confirmation' if pending else 'running',
                     expires_at if expires_at is not None else time.time() + TTL if pending else row['expires_at'],
-                    time.time(), operation_id, 'running'))
+                    time.time(), _json(permission or row['permission']), operation_id, 'running'))
         db.commit()
     return get(vault, operation_id)
 
@@ -330,6 +337,7 @@ def public(row, web_url=''):
     value = {key: row[key] for key in ('operation_id', 'source', 'tool', 'key_id', 'status', 'revision',
              'payload', 'actor', 'preview', 'editable_fields', 'result', 'error_code', 'commits',
              'history_incomplete', 'history_readonly')}
+    value['permission'] = row.get('permission', {})
     value.update(id=row['operation_id'], kind='operation', type=TYPES.get(row['tool'], ''),
                  label=LABELS.get(row['tool'], row['tool']), impact=row['preview'])
     for key in ('created_at', 'updated_at', 'expires_at'):
@@ -401,7 +409,7 @@ def update(vault, operation_id, expected_revision, patch):
 
 
 @storage
-def invalidate(vault, reason='vault_changed', source=None):
+def invalidate(vault, reason='vault_changed', source=None, preserve_center=False):
     """恢复与普通重启分别调用；这里只废止审批，不执行任何业务补偿。"""
     if not os.path.exists(path(vault)):
         return 0
@@ -411,6 +419,19 @@ def invalidate(vault, reason='vault_changed', source=None):
         where += ' AND source=?'
         args.append(source)
     with locking.write_lock(), closing(_connect(vault, True)) as db:
+        if preserve_center:
+            # 普通重启把新模式的聊天等待交给中心；旧限时许可仍按旧规则失效。
+            pending = db.execute("SELECT * FROM operations WHERE source='agent' AND status='pending_confirmation'").fetchall()
+            for raw in pending:
+                row = _decode(raw)
+                if row['permission'] and row['generation'] == generation(vault):
+                    permission = row['permission']
+                    if permission.get('channel') != 'center':
+                        permission = {**permission, 'channel': 'center', 'reason': 'restart', 'deferred_at': time.time()}
+                    db.execute('UPDATE operations SET permission_json=?,expires_at=NULL,updated_at=? WHERE operation_id=?',
+                               (_json(permission), time.time(), row['operation_id']))
+            where += " AND NOT (source='agent' AND status='pending_confirmation' AND COALESCE(json_extract(permission_json,'$.channel'),'')='center' AND generation=?)"
+            args.append(generation(vault))
         cursor = db.execute('UPDATE operations SET status=\'interrupted\',error_code=?,updated_at=? WHERE '+where, args)
         db.commit()
         return cursor.rowcount
@@ -544,20 +565,27 @@ def _operation_summaries(vault, options, limit, offset):
             if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchone():
                 raise sqlite3.DatabaseError('审核库架构不完整，缺少 operations 表')
             return [], 0, set()
+        columns = {row['name'] for row in db.execute('PRAGMA table_info(operations)')}
+        permission = 'permission_json' if 'permission_json' in columns else "'{}'"
+        manual = f"(source='agent' AND COALESCE(json_extract({permission},'$.mode'),'')='manual')"
+        # 兼容旧库的只读查询；手动超时等待由运行线程移交，不先从待办列表消失。
+        where = where.replace('expires_at IS NULL OR expires_at>?', 'expires_at IS NULL OR expires_at>? OR '+manual)
+        where = where.replace("expires_at<=? THEN 'expired'", "expires_at<=? AND NOT "+manual+" THEN 'expired'")
         views = _mcp_active_views(vault, db) if options.get('view', 'pending') == 'records' else {}
         db.execute('CREATE TEMP TABLE review_view_states(operation_id TEXT PRIMARY KEY,status TEXT NOT NULL)')
         db.executemany('INSERT INTO review_view_states VALUES(?,?)', views.items())
         count = db.execute('SELECT COUNT(*) FROM operations WHERE '+where, args).fetchone()[0]
         # 不向列表暴露完整提案，只在受保护的详情接口取正文。
         rows = db.execute('SELECT operation_id,source,tool,key_id,status,revision,created_at,updated_at,expires_at,'
-                          'history_incomplete,history_readonly FROM operations WHERE '+where+
+                          'history_incomplete,history_readonly,'+permission+' AS permission_json FROM operations WHERE '+where+
                           ' ORDER BY created_at DESC,operation_id DESC LIMIT ?', (*args, limit+offset)).fetchall()
         represented = {r[0] for r in db.execute("SELECT json_extract(payload_json,'$.draft_id') FROM operations "
                        "WHERE tool='commit_draft' AND status='pending_confirmation' AND history_readonly=0 "
-                       "AND (expires_at IS NULL OR expires_at>?)", (now,)) if r[0]}
+                       "AND (expires_at IS NULL OR expires_at>? OR "+manual+")", (now,)) if r[0]}
     summaries = []
     for row in rows:
         item = dict(row)
+        item['permission'] = json.loads(item.pop('permission_json'))
         item['status'] = views.get(item['operation_id'], item['status'])
         item = _effective(item)
         item.update(id=item['operation_id'], kind='operation', type=TYPES.get(item['tool'], ''), label=LABELS[item['tool']])
@@ -668,7 +696,10 @@ def _historical(vault, *, identity, source, tool, payload, actor, result, status
               _stamp(updated_at) or stamp or 0, generation(vault), _json(result or {}), '', _json(commits or []),
               int(incomplete or stamp is None), 1)
     with closing(_connect(vault, True)) as db:
-        db.execute('INSERT OR IGNORE INTO operations VALUES('+','.join('?' for _ in values)+')', values)
+        columns = ('operation_id,identity,source,tool,key_id,digest,effective_digest,payload_json,actor_json,'
+                   'preview_json,snapshot_json,editable_fields_json,status,revision,created_at,expires_at,'
+                   'updated_at,generation,result_json,error_code,commits_json,history_incomplete,history_readonly')
+        db.execute('INSERT OR IGNORE INTO operations('+columns+') VALUES('+','.join('?' for _ in values)+')', values)
         db.commit()
 
 
@@ -690,11 +721,14 @@ def _agent_evidence(db, row, ledger):
         facts = ledger.execute('SELECT commit_id FROM agent_history WHERE run_id=? AND call_id=? ORDER BY seq',
                                (row['run_id'], row['call_id']))
         commits = [fact[0] for fact in facts]
-    event = db.execute("SELECT event_json FROM run_events WHERE run_id=? AND event_type='tool.end' "
+    event = db.execute("SELECT event_json FROM run_events WHERE run_id=? AND event_type IN ('tool.end','tool.reviewed') "
                        "AND json_extract(event_json,'$.data.call_id')=? ORDER BY seq DESC LIMIT 1", (row['run_id'], row['call_id'])).fetchone()
     data = json.loads(event[0]).get('data', {}) if event else {}
     if not isinstance(result, dict):
         result = data.get('result') if isinstance(data.get('result'), dict) else {}
+    if not commits and (row['status'] == 'deferred' or result.get('pending_review') and result.get('executed') is False):
+        # 送审回执不是执行证据；普通启动不能据此把长期待审误记为无变更完成。
+        return {}, [], 'interrupted', True
     incomplete = not bool(result or event or commits)
     if commits and not result and data.get('wrote') is not True:
         # 只能证明其中有提交；没有逐项结果不能推断完整批量成功。
@@ -845,6 +879,7 @@ def initialize(vault):
         finally:
             if ledger:
                 ledger.close()
+        invalidate(vault, reason='interrupted', source='agent', preserve_center=True)
 
 
 def _agent_native(vault, row, ledger=None):
