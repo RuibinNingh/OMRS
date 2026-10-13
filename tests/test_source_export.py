@@ -1,4 +1,7 @@
 import io
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -8,6 +11,69 @@ from omrs.source_export import create_source_export
 
 
 class SourceExportTests(unittest.TestCase):
+    def test_boxdetect_public_sources_exclude_generated_and_unknown_paths(self):
+        with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as outside:
+            root = Path(tmp)
+            sources = {
+                'services/boxdetect/README.md': '# 服务\n',
+                'services/boxdetect/pyproject.toml': '[project]\n',
+                'services/boxdetect/requirements.txt': 'numpy==2.5.2\n',
+                'services/boxdetect/.gitignore': '.state/\n',
+                'services/boxdetect/boxdetect_service/server.py': '# 服务源码\n',
+                'services/boxdetect/tests/package_smoke.py': '# 安装包检查\n',
+                'tools/boxdetect/_service.py': '# 兼容\n',
+                'tools/boxdetect/train.py': '# 离线训练\n',
+                'tools/boxdetect/requirements-serve.txt': '-r ../../services/boxdetect/requirements.txt\n',
+                'tools/boxdetect/crop-prompt-v2.txt': '固定提示词\n',
+            }
+            private = [
+                'services/boxdetect/model.onnx', 'services/boxdetect/model.json',
+                'services/boxdetect/.state/secret.py', 'services/boxdetect/private/secret.py',
+                'services/boxdetect/boxdetect_service/private/secret.py',
+                'services/boxdetect/tests/data/private.py', 'services/boxdetect/token.txt',
+                'tools/boxdetect/unregistered.py', 'tools/boxdetect/secret.txt',
+                'tools/boxdetect/models/private.py', 'tools/boxdetect/datasets/private.py',
+                'tools/boxdetect/managed/state.json', 'tools/other/private.py',
+                'services/other/private.py',
+            ]
+            for name, content in {**sources, **{name: 'secret\n' for name in private}}.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(content)
+            secret = Path(outside) / 'external.py'
+            secret.write_text('secret\n')
+            (root / 'services/boxdetect/boxdetect_service/linked.py').symlink_to(secret)
+            payload, _, _ = create_source_export(tmp)
+            with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                self.assertEqual(set(archive.namelist()),
+                                 {'OMRS/' + name for name in sources} | {'OMRS/SOURCE_EXPORT_MANIFEST.txt'})
+
+    def test_actual_export_has_a_closed_import_graph_for_legacy_and_standalone_service(self):
+        source = Path(__file__).resolve().parents[1]
+        payload, _, _ = create_source_export(str(source))
+        with tempfile.TemporaryDirectory() as temp:
+            with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                archive.extractall(temp)
+            root = Path(temp) / 'OMRS'
+            for name in ['services/boxdetect/pyproject.toml', 'services/boxdetect/requirements.txt',
+                         'tools/boxdetect/requirements-serve.txt', 'tools/boxdetect/requirements-train.txt',
+                         'tools/boxdetect/crop-prompt-v2.txt']:
+                self.assertTrue((root / name).is_file(), name)
+            script = """import sys
+from pathlib import Path
+root = Path(sys.argv[1]); sys.path.insert(0, str(root))
+from tools.boxdetect import inference, evaluate, train
+from omrs import traincontrol
+import boxdetect_service.inference as standalone
+assert Path(standalone.__file__).is_relative_to(root)
+assert inference.Detector is standalone.Detector
+assert train.memory_available is __import__('omrs.system_resources', fromlist=['memory_available']).memory_available
+"""
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ('PYTHONPATH', 'OMRS_SYSTEMD_SERVICE', 'OMRS_BOXDETECT_CONTROL')}
+            run = subprocess.run([sys.executable, '-I', '-c', script, str(root)], cwd=temp, env=env, capture_output=True, text=True)
+            self.assertEqual(run.returncode, 0, run.stderr)
+
     def test_uncommitted_source_exports_without_git_but_private_data_does_not(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

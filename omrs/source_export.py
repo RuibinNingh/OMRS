@@ -22,7 +22,7 @@ _ROOT_FILES = {
     "requirements-zuoyebang.txt",
     "run.bat",
 }
-_SOURCE_DIRS = {"AI", "Skills", "assets", "deploy", "omrs", "services", "tests", "web"}
+_SOURCE_DIRS = {"AI", "Skills", "assets", "deploy", "omrs", "services", "tests", "tools", "web"}
 _SOURCE_SUFFIXES = {
     ".bat", ".cjs", ".css", ".html", ".js", ".md", ".mjs",
     ".otf", ".py", ".service", ".sh", ".svg", ".ts", ".tsx",
@@ -40,12 +40,23 @@ _GATEWAY_FILES = {
     "services/zuoyebang/deploy/zuoyebang.service.example",
     "services/zuoyebang/deploy/zuoyebang.nginx.example",
 }
+_BOXDETECT_FILES = {
+    'services/boxdetect/.gitignore', 'services/boxdetect/README.md',
+    'services/boxdetect/pyproject.toml', 'services/boxdetect/requirements.txt',
+}
+_BOXDETECT_DIRS = {'services/boxdetect/boxdetect_service', 'services/boxdetect/tests'}
+_TRAINING_FILES = {'tools/boxdetect/' + name for name in (
+    'README.md', '_service.py', 'audit.py', 'bootstrap_control.py', 'build_dataset.py',
+    'common.py', 'decision.py', 'evaluate.py', 'inference.py', 'probe.py', 'publish.py',
+    'reweight.py', 'serve.py', 'train.py', 'requirements-serve.txt',
+    'requirements-train.txt', 'crop-prompt-v2.txt',
+)}
 
 
 def _is_source_file(relative: str) -> bool:
     parts = relative.split("/")
     name = parts[-1]
-    if relative in _GATEWAY_FILES:
+    if relative in _GATEWAY_FILES or relative in _BOXDETECT_FILES or relative in _TRAINING_FILES:
         return True
     if name in _EXCLUDED_NAMES or name.startswith("OMRS-EXP-"):
         return False
@@ -56,8 +67,14 @@ def _is_source_file(relative: str) -> bool:
         return name in _ROOT_FILES
     if parts[0] not in _SOURCE_DIRS or any(part.startswith(".") for part in parts[1:-1]):
         return False
-    if parts[0] == "services" and (len(parts) < 3 or parts[1] != "zuoyebang"):
-        return False
+    if parts[0] == 'tools':
+        return False  # 工具只收上方明确登记的训练源码，未知文件不导出。
+    if parts[0] == 'services':
+        if len(parts) < 3 or parts[1] not in ('zuoyebang', 'boxdetect'):
+            return False
+        if parts[1] == 'boxdetect':
+            return (len(parts) == 4 and '/'.join(parts[:3]) in _BOXDETECT_DIRS
+                    and name.endswith('.py'))
     if relative.startswith(("AI/logs/", "AI/omrs_work/")):
         return False
     suffix = os.path.splitext(name)[1].lower()
@@ -89,7 +106,10 @@ def _source_files(root: str) -> tuple[list[str], int]:
                 if (name in _EXCLUDED_DIRS or name.startswith(".")
                         or (relative.startswith("services/") and
                             (name == "private" or name.startswith(("tmp", "isolated-test"))))
-                        or (current == directory and top == "services" and name != "zuoyebang")
+                        or (current == directory and top == "services" and name not in {"zuoyebang", "boxdetect"})
+                        or (current == directory and top == 'tools' and name != 'boxdetect')
+                        or relative.startswith('tools/boxdetect/')
+                        or (relative.startswith('services/boxdetect/') and relative not in _BOXDETECT_DIRS)
                         or relative in {"AI/logs", "AI/omrs_work"}
                         or os.path.islink(os.path.join(current, name))):
                     excluded += 1
@@ -120,7 +140,7 @@ def create_source_export(vault: str) -> tuple[bytes, str, dict]:
         "OMRS 脱敏源码包",
         "",
         "按源码目录和文件类型从当前工作区收集文件，包括未提交的源码；不依赖 Git。",
-        "仅扫描根目录项目文件及 AI/、Skills/、assets/、deploy/、omrs/、services/zuoyebang/、tests/、web/。",
+        "仅扫描根目录项目文件及 AI/、Skills/、assets/、deploy/、omrs/、services/zuoyebang/、services/boxdetect/、tests/、tools/boxdetect/、web/。",
         "不扫描错题/、临时/、Task/、tool/、unused/、logs/ 等个人或工作目录；",
         "排除 AI/logs/、AI/omrs_work/、服务私有目录及管理员密码、缓存、构建产物、符号链接和生成的导出文件。",
         "请在分享前检查文件清单与源码内容，避免代码或文档中包含本地秘密。",

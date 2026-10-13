@@ -178,6 +178,8 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 
 `config.json` 的 `train_dir` 默认空串（读取 `~/omrs-train`）；`train_try_collect` 默认 false（实时测试成功后是否积累到标注集）。训练数据、权重和运行日志放在 Vault 外，不随题库备份，不进 Git。主程序仅以标准库读文件，不导入训练框架。
 
+独立服务的安装目录 services/boxdetect 仅含源码／依赖，不能代替训练根目录。models/current 与受管 managed/active 的职责分开，服务入口迁移保持两者文件、指针与控制登记 schema；候选预检不写这些状态。主程序内存保护来自标准库 system_resources，不依赖训练脚本。
+
 - datasets/版本/manifest.json：classes、counts（train/val/test/quarantine）、strip_counts、samples、excluded、groups、splits；图片 ID 带 annotate/inbox 前缀，samples 保存 SHA-256、原始框与条带信息。测试图清单冻结到 test_ids.txt，重建沿用。
 - runs/实验/status.json：state（running/done/failed）、epoch、epochs、started_at、updated_at、epoch_seconds、pid、dataset、可选 error；训练每轮临时文件加 os.replace 原子写入。进程消失或更新超时由面板派生 interrupted。
 - runs/实验/metrics.jsonl：每轮一行，epoch、epoch_seconds、train/box_loss、train/cls_loss、val/box_loss、val/cls_loss、metrics/mAP50(B)、metrics/mAP50-95(B)；忽略最后未写完的一行，按轮次去重排序。

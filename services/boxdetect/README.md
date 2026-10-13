@@ -32,6 +32,8 @@ python3 -m venv .venv
 
 生产服务使用部署者显式指定的 managed/active，而手动 CLI 默认 models/current；两者可能为不同模型。不要用默认参数替换生产 unit。固定 unit、控制登记、操作历史、training.lock 与模型应用／回退继续由 OMRS 管理；控制 API 和页面见仓库 AI 文档。源码安装不会更新生产服务或模型。
 
+同仓部署模板为 [deploy/boxdetect.service](../../deploy/boxdetect.service)，修改示例路径使之与实际发布归档和控制登记一致。既有生产迁移应保留原解释器、模型、端口及资源参数，只替换 WorkingDirectory 与 ExecStart；授权切换前先保全旧 unit／源码指针并做隔离预检，失败恢复入口和原服务状态，不能覆盖最新 Vault 或受管历史。
+
 ## 验证
 
 ```bash

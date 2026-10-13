@@ -287,6 +287,8 @@
 | `tests/check_docs.py`、`AGENTS.md`、维护环境 | `AI/README.md`、`AI/environment.md` |
 | `tools/boxdetect/` | `AI/training/README.md` |
 | `services/boxdetect/`、`tests/boxdetect_compare.py` | `AI/training/README.md`、`AI/environment.md`，安装与目录同时更新根 `README.md` |
+| `omrs/system_resources.py` | `AI/environment.md`、`AI/training/README.md`；控制调用同时复核 `AI/api.md` |
+| `omrs/source_export.py` | `AI/api.md`、`AI/api/extensions.md`、根 `README.md`，服务源码范围同时复核 `AI/environment.md` |
 | 测试、工具或协作规则 | 相关模块文档；任何持久化改动仍须写本次任务日志 |
 | 任何版本号变更 | `omrs/version.py`、`omrs_dashboard.html` 侧栏、根 `README.md`、`AI/README.md`，并在 `AI/changelog.md` 顶部加一段 |
 

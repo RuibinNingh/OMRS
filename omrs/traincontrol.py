@@ -68,14 +68,15 @@ class SystemdBackend:
         except (OSError, ValueError): return None
 
     def preflight(self, folder):
-        from tools.boxdetect.train import memory_available
+        from .system_resources import memory_available
         if memory_available() < 2 * 1024**3: raise ValueError('可用内存不足2GiB，暂不预检或切换模型')
         unit = 'omrs-boxdetect-check-' + uuid.uuid4().hex
-        script = Path(__file__).resolve().parents[1] / 'tools/boxdetect/probe.py'
+        service_dir = Path(__file__).resolve().parents[1] / 'services/boxdetect'
         args = ['/usr/bin/systemd-run','--quiet','--wait','--pipe','--collect','--unit='+unit,
                 '-p','MemoryMax=768M','-p','CPUQuota=200%','-p','RuntimeMaxSec=30',
                 '-p','TasksMax=64','-p','Nice=10','-p','NoNewPrivileges=yes',
-                self.config['python'], str(script), '--model-dir', str(folder)]
+                '-p','WorkingDirectory='+str(service_dir),
+                self.config['python'], '-m', 'boxdetect_service', 'probe', '--model-dir', str(folder)]
         try:
             subprocess.run(args, check=True, capture_output=True, timeout=40)
         finally:

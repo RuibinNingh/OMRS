@@ -119,7 +119,8 @@ def commands(root, latest=None, dataset=None, vault=None):
     new_run = shlex.quote(unused('runs'))
     run_path = shlex.quote(str(root / 'runs' / latest)) if latest else new_run
     vault_path = shlex.quote(str(vault or '<Vault目录>'))
-    serve = f'{py} tools/boxdetect/serve.py --model-dir {shlex.quote(str(root / "models/current"))} --port 18765'
+    service_dir = shlex.quote(str(Path(__file__).resolve().parents[1] / 'services/boxdetect'))
+    serve = f'cd {service_dir} && {py} -m boxdetect_service serve --model-dir {shlex.quote(str(root / "models/current"))} --port 18765'
     if vault:
         from . import traincontrol
         try:

@@ -375,4 +375,6 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 训练面板 `/train` 可查看 DeepSeek 评测记录，对照原图与实际裁图，并保存“同意／误判／不确定”及修正结论；原判和历次复核均保留。付费评测由维护者命令启动，使用与预算见 `tools/boxdetect/README.md`。
 
-Windows的 `pack_for_ai.bat` 会包含同仓服务源码与AI/logs，排除服务私有目录、管理员密码、数据库、虚拟环境和缓存。设置页的脱敏导出另外排除AI/logs，只收指定服务的源码／依赖／vendor清单；分享前检查源码中没有手工写入的秘密。
+Windows的 `pack_for_ai.bat` 会包含同仓服务源码与AI/logs，排除服务私有目录、管理员密码、数据库、虚拟环境和缓存。设置页的脱敏导出另外排除AI/logs，包含指定作业帮／框选服务的公开源码及安装清单、明确登记的框选训练工具；不包含模型、数据集与控制状态，也不扫描任意 services／tools 子目录。分享前检查源码中没有手工写入的秘密。
+
+框选检测的 systemd 示例见 [deploy/boxdetect.service](deploy/boxdetect.service)。部署时明确使用同仓发布目录与受管 managed/active，保留既有模型、解释器、端口及限额；源码更新不会自动重启或切换生产服务。

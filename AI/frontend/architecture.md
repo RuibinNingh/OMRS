@@ -103,6 +103,8 @@ assets/app/
 
 `tests/e2e/p8_test_modules.js` 只在浏览器测试中注入：它 import 当前 ES Module，把旧测试读的 `DATA`、`SESSIONS`、`QUESTION_CACHE` 等名字映射成只读 getter，并提供少量旧调用入口。适配器等待文档就绪后从主模块脚本地址取得资源根路径，沿用同一内容版本，确保测试读取的领域单例就是应用实际使用的实例。主页面不加载该文件；新增断言应直接检查 DOM、`window.__omrs` 或 import 实际模块。
 
+框选的 `tests/e2e/boxdetect.py` 用独立服务模块及明确 cwd 启动真实 ONNX，临时 Vault 从冻结快照取样，并通过 open_app 进入主工作台；切换实验后先等待实验身份更新，再核对答案评分。训练面板／控制浏览器测试验证新启动提示和既有积累／切换／回退。所有子进程同时清除两项生产控制环境，服务随机端口；原工具兼容与输出等价另由 `tests/boxdetect_compare.py` 验证。
+
 ## 7. 静态资源缓存
 
 源码仍是无构建的原生 ES Module。`omrs/web_assets.py` 在主工作台和独立页面 HTML 响应中将 `assets/` 的资源引用替换为 `/assets/_v/<内容指纹>/...`，相对 import 自然沿用同一目录，无需改写模块源码。HTML 保持 `no-store`，每次请求复核资源树；文件内容变化产生新指纹，当前版本的资源使用一年私有 immutable 缓存。直接访问原 `/assets/` 地址仍使用弱 ETag（文件 mtime + 大小）、`Last-Modified` 和 `no-cache` 条件校验。未知版本及版本内已改文件返回 404，刷新 HTML 取得新版本。

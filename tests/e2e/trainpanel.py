@@ -83,7 +83,7 @@ def main():
         detector=fake_service()
         save_config(str(vault),{'train_dir':str(root),'inbox_local_detect_url':f'http://127.0.0.1:{detector.server_port}/detect'})
         sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1];sock.close()
-        env=os.environ.copy();env.pop('OMRS_SYSTEMD_SERVICE',None)
+        env=os.environ.copy();env.pop('OMRS_SYSTEMD_SERVICE',None);env.pop('OMRS_BOXDETECT_CONTROL',None)
         proc=subprocess.Popen([sys.executable,str(ROOT/'omrs_engine.py'),'--vault',str(vault),'serve','--port',str(port)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
         base=f'http://127.0.0.1:{port}'
         def api(path):
@@ -156,7 +156,7 @@ def main():
                 panel.locator('#tp-file').set_input_files({'name':'try.png','mimeType':'image/png','buffer':png()})
                 panel.get_by_role('button',name='测试',exact=True).click()
                 panel.get_by_role('alert').filter(has_text='检测服务未启动').wait_for(timeout=10000)
-                check('服务停掉提示启动命令且按钮恢复可操作',not panel.get_by_role('button',name='测试',exact=True).is_disabled() and 'serve.py' in panel.locator('#tp-try-result').inner_text())
+                check('服务停掉提示启动命令且按钮恢复可操作',not panel.get_by_role('button',name='测试',exact=True).is_disabled() and 'boxdetect_service serve' in panel.locator('#tp-try-result').inner_text())
                 panel.close();page.close();ctx.close()
                 # 四档审计 × 浅深主题 × 桌面手机，加载档由拦截返回延迟复现。
                 for mode in ('normal','empty','error','loading'):

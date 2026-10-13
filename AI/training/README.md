@@ -41,6 +41,8 @@
 
 常驻检测与预检的实现位于 `services/boxdetect/boxdetect_service/`，可独立安装运行，不依赖 omrs 或 tools；安装／协议见 `services/boxdetect/README.md`。旧 serve.py、inference.py、probe.py 是兼容入口，训练和评估复用同一推理实现。IoU 在服务内按既有算法计算，整图切片／合并仍复用 OMRS。最小服务依赖固定在服务 requirements.txt，旧 requirements-serve.txt 引用该清单。
 
+内存看护函数由标准库 `omrs/system_resources.py` 提供，训练脚本保留原导入接口，主服务控制器不再导入训练工具。脱敏源码包包含独立服务与明确公开的离线工具／依赖／提示词，排除模型、数据集与运行状态；安装包及新旧真实输出对照的验证入口见服务 README 与 `tests/boxdetect_compare.py`。
+
 ## 训练与评估
 
 `train.py` 在独立环境中运行 YOLOv8n CPU 微调，最多 6 线程、单次 4 小时，独立看护每 0.5 秒检查可用内存与进程树 RSS。`evaluate.py` 先算模板，再只在验证集选阈值，最后在冻结测试集复用 OMRS 切片与合并计算整图 IoU。`publish.py` 显式导出和发布固定 ONNX 文件，旧当前模型保留。回环 local_http 服务与独立面板已实现并通过隔离端到端验证。命令见工具 README。

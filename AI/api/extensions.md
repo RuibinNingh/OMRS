@@ -70,6 +70,10 @@ base_url支持安全反代前缀，panel_url保留前缀并补尾斜杠；网关
 
 `omrs/trainpanel.py` 只读配置 `train_dir` 指向的外部训练目录（空值为 `~/omrs-train`），不加载 torch／onnxruntime、不启动或停止训练。`/train` 为独立训练面板入口，前端说明见 `AI/frontend/trainpanel.md`。以下 GET 沿用登录授权：
 
+未受管本机服务的 commands.serve 给出明确 cwd 的 `boxdetect_service serve` 命令，沿用已配置的本机端口；受管模式仍给固定 unit 启动命令。候选预检使用登记解释器与服务 cwd 的独立 probe 子进程，限额／幂等／回退契约保持。内存检查由标准库 `omrs/system_resources.py` 提供，主进程不再依赖训练工具。
+
+`/api/source/export` 包含 services/boxdetect 的包、独立测试、安装清单和 tools/boxdetect 的明确公开文件；不开放其他服务／工具或扫描模型、数据集及受管运行目录。脱敏包中的旧入口能定位同包服务源码；服务三项依赖仍与主程序分开安装。
+
 | 方法 | 路径 | 响应 |
 |---|---|---|
 | GET | `/api/trainpanel/overview` | 训练目录 `training_model`（兼容 `model`）、实际服务 `online_state` / `online_model`、最新 dataset 摘要、latest、runs（各含 `current` 训练目录标记与 `online` 在线身份标记）、live 完成图计数／新增图数、commands、collect、独立 errors |

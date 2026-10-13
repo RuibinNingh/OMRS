@@ -133,6 +133,8 @@
 
 训练面板后端 `omrs/trainpanel.py` 读取实验文件，`omrs/traincontrol.py` 管理显式登记的固定检测服务，契约见 `api.md` 与 `data/storage.md` §8，训练环境及门禁见 `environment.md`。
 
+候选预检通过登记解释器在服务目录执行独立 probe，主程序与训练脚本复用标准库 `omrs/system_resources.py` 的内存保护。脱敏源码导出精确包含框选服务及公开训练工具，模型与运行数据仍留在仓库外。
+
 独立训练面板前端 `/train` 见 `frontend/trainpanel.md`，从录入题目的 AI 训练工作区打开；支持实时测试与可选积累。
 
 路由索引生成器覆盖 MCP 管理 GET/POST 分派；完整确认参数与脱敏运行记录分别保存在独立库，相关规范见 mcp.md/runtime.md。

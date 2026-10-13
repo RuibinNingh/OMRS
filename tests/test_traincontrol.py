@@ -10,6 +10,7 @@ from unittest.mock import patch
 from omrs import traincontrol as c
 from omrs.common import save_config
 from tools.boxdetect.bootstrap_control import bootstrap
+from omrs import system_resources
 
 
 class FakeBackend:
@@ -29,6 +30,30 @@ class FakeBackend:
     def preflight(self, folder):
         if self.state['gate']:self.state['gate'].wait(5)
         if self.state['fail']:raise ValueError('候选预检失败')
+
+
+class PreflightTests(unittest.TestCase):
+    def test_standalone_module_and_working_directory_keep_limits_and_literal_paths(self):
+        backend = c.SystemdBackend({'python': '/tmp/interpreter with spaces/python'})
+        folder = Path('/tmp/model with spaces')
+        with patch.object(system_resources, 'memory_available', return_value=3 * 1024**3), \
+                patch.object(c.subprocess, 'run') as run:
+            backend.preflight(folder)
+        args = run.call_args_list[0].args[0]
+        self.assertEqual(args[0], '/usr/bin/systemd-run')
+        self.assertIn('WorkingDirectory=' + str(Path(c.__file__).resolve().parents[1] / 'services/boxdetect'), args)
+        for limit in ['MemoryMax=768M', 'CPUQuota=200%', 'RuntimeMaxSec=30', 'TasksMax=64', 'NoNewPrivileges=yes']:
+            self.assertIn(limit, args)
+        self.assertEqual(args[-6:], [backend.config['python'], '-m', 'boxdetect_service', 'probe', '--model-dir', str(folder)])
+        self.assertEqual(run.call_args_list[0].kwargs['timeout'], 40)
+        self.assertEqual(run.call_args_list[1].args[0][:2], ['/usr/bin/systemctl', 'stop'])
+
+    def test_low_memory_does_not_launch_a_unit(self):
+        with patch.object(system_resources, 'memory_available', return_value=1024**3), \
+                patch.object(c.subprocess, 'run') as run:
+            with self.assertRaisesRegex(ValueError, '不足2GiB'):
+                c.SystemdBackend({'python': 'python3'}).preflight(Path('/unused'))
+        run.assert_not_called()
 
 
 class ControlTests(unittest.TestCase):

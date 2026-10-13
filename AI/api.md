@@ -27,6 +27,8 @@
 
 收件箱与草稿区域提取的数学定界符转义兼容、正文格式及失败边界见 `AI/api/extensions.md`「收件箱端点」与 `AI/inbox.md` §4。
 
+训练面板的服务预检通过独立 `boxdetect_service probe` 子进程执行，采用明确服务工作目录和原有 systemd 限额；主进程不导入 tools 或推理框架。训练／控制接口与模型状态格式保持，启动命令与源码导出范围见 `AI/api/extensions.md`。
+
 `omrs/http/registry.py` 是方法、路径及领域分派的唯一清单，`tests/check_docs.py --write-routes` 从它生成 `AI/routes.md`。新增路由必须登记注册表及对应分册。HEAD 使用相同 GET 鉴权、路径和资源处理，返回相同状态及响应头但没有正文。
 
 HTML、普通 JSON 与 CSS / JavaScript / SVG 等文本在客户端接受 gzip、正文至少 1KiB 且压缩有收益时返回 `Content-Encoding: gzip`，`Content-Length` 为压缩字节数，协商响应带 `Vary: Accept-Encoding`。登录和 MCP 密钥等 `/api/auth/`、`/api/mcp/` JSON 回执不压缩，图片、字体、视频及下载附件保持原字节。压缩不新增第三方运行依赖；静态缓存和首屏加载见 `AI/frontend/architecture.md` §7 与 `AI/api/queries.md` 的 `/assets/` 条目。

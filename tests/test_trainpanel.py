@@ -3,6 +3,7 @@ import datetime
 import http.client
 import json
 import os
+import shlex
 from pathlib import Path
 import tempfile
 import threading
@@ -16,6 +17,17 @@ from omrs.server import OMRSHandler
 
 
 class PanelTests(unittest.TestCase):
+    def test_manual_service_command_sets_source_cwd_and_preserves_port_and_quoted_paths(self):
+        root = Path('/tmp/train with spaces')
+        with tempfile.TemporaryDirectory() as temp:
+            vault = Path(temp) / 'vault'
+            save_config(str(vault), {'train_dir': str(root), 'inbox_local_detect_url': 'http://127.0.0.1:19099/detect'})
+            command = trainpanel.commands(root, vault=str(vault))['serve']
+        args = shlex.split(command)
+        self.assertEqual(args[:3], ['cd', str(Path(trainpanel.__file__).resolve().parents[1] / 'services/boxdetect'), '&&'])
+        self.assertEqual(args[3:], [str(root / '.venv/bin/python'), '-m', 'boxdetect_service', 'serve',
+                                   '--model-dir', str(root / 'models/current'), '--port', '19099'])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='omrs-trainpanel-')
         self.addCleanup(self.temp.cleanup)
