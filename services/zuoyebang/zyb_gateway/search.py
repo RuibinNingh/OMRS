@@ -3,13 +3,14 @@ import base64
 import binascii
 import io
 import json
+import hashlib
 import warnings
 from .errors import ApiError
 from .accounts import safe_upstream
 from .vendor.direct import UpstreamError
 
 
-def validate_image(body,config):
+def validate_image(body,config,detail=None):
     encoded=body.get('image_base64')
     grade=body.get('grade')
     if type(grade) is not int or not 0<=grade<=12 or set(body)!={'image_base64','grade'}:
@@ -35,13 +36,16 @@ def validate_image(body,config):
                 opened.verify()
             with Image.open(io.BytesIO(image)) as opened:
                 opened.load()
+                image_meta = {'content_type':Image.MIME[opened.format], 'width':opened.width, 'height':opened.height, 'bytes':len(image), 'sha256':hashlib.sha256(image).hexdigest()}
     except (OSError,ValueError,SyntaxError,Image.DecompressionBombError,Image.DecompressionBombWarning):
         raise ApiError('image_invalid','只支持完整单帧 PNG/JPEG/WebP，最多 4000 万像素')
+    if detail is not None:
+        detail.update(image=image, image_meta=image_meta, grade=grade)
     return image,grade
 
 
-def search(server,body,key_id):
-    image,grade=validate_image(body,server.config)
+def search(server,body,key_id,detail=None):
+    image,grade=validate_image(body,server.config,detail)
     if not server.search_slots.acquire(blocking=False):
         raise ApiError('concurrency_limited','当前搜题并发预算已用完',429)
     try:

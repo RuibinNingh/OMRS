@@ -17,6 +17,10 @@ from tests.support import HttpCase
 from tests.test_accounts import SYNTHETIC_PROFILE
 from zyb_gateway.vendor.account import AccountClient
 from zyb_gateway.vendor.direct import UpstreamError
+from zyb_gateway.vendor.direct import DirectClient
+from tests.test_search import image_bytes
+import base64
+import hashlib
 
 
 # 按真实文字与祖先背景计算 WCAG 对比度；禁用控件不参与。
@@ -119,6 +123,150 @@ class BrowserAcceptance(HttpCase):
         key = page.input_value('#new-key-secret')
         self.assertTrue(key.startswith('zyb_'))
         return key
+
+    def seed_search_history(self):
+        self.login()
+        self.admin('POST', '/api/admin/profile', {'profile':SYNTHETIC_PROFILE})
+        key, _ = self.make_key()
+        original = image_bytes('JPEG')
+        payload = {'image_base64':base64.b64encode(original).decode(), 'grade':4}
+        returned = {'ok':True,'data':{'answers':{'mainPageInfo':[json.dumps({'questionData':{'tidInfo':[{'question':{'content':'<p>SYNTHETIC 搜题题干</p><img src="https://synthetic.invalid/tracker"><script>window.PWNED=1</script>'},'answer':[{'content':'<p>SYNTHETIC 答案与解析</p>'}]}]}}, ensure_ascii=False)]}}}
+        with patch.object(DirectClient, 'search', return_value=returned):
+            self.assertEqual(self.request('POST', '/api/v1/search', payload, {'Authorization':'Bearer ' + key})[0], 200)
+        success = self.server.store.history({'action':['search']})['items'][0]['id']
+        with patch.object(DirectClient, 'search', side_effect=UpstreamError('SYNTHETIC-PRIVATE-ERROR', kind='network')):
+            self.assertEqual(self.request('POST', '/api/v1/search', payload, {'Authorization':'Bearer ' + key})[0], 502)
+        failure = self.server.store.history({'action':['search']})['items'][0]['id']
+        return success, failure, original, {'status':'ok','result':returned}
+
+    def show_search_history(self, page):
+        page.click('[data-tab="history"]')
+        page.wait_for_function("() => !document.querySelector('#history-filter').disabled")
+        page.select_option('#history-action', 'search')
+        page.click('#history-filter')
+        page.wait_for_function("() => !document.querySelector('#history-filter').disabled")
+
+    def test_search_details_original_results_refresh_layout_and_expiry(self):
+        success, failure, original, returned = self.seed_search_history()
+        with self.panel() as (context, page):
+            outgoing = []
+            page.on('request', lambda request: outgoing.append(request.url))
+            self.login_panel(page)
+            self.show_search_history(page)
+            self.assertEqual(page.locator('[data-history-id]').count(), 2)
+            page.click('[data-history-id="' + str(success) + '"]')
+            page.wait_for_function("() => document.querySelector('#history-detail-image').naturalWidth === 7")
+            self.assertIn('搜题成功', page.inner_text('#history-detail-state'))
+            self.assertIn('4 年级', page.inner_text('#history-detail-meta'))
+            self.assertIn('SYNTHETIC 搜题题干', page.inner_text('#history-detail-results'))
+            self.assertIn('SYNTHETIC 答案与解析', page.inner_text('#history-detail-results'))
+            self.assertIsNone(page.evaluate('window.PWNED'))
+            self.assertFalse(any('synthetic.invalid' in url for url in outgoing), outgoing)
+            digest = page.evaluate("async id => { const buffer = await (await fetch('api/admin/history/' + id + '/image')).arrayBuffer(); return [...new Uint8Array(await crypto.subtle.digest('SHA-256',buffer))].map(v=>v.toString(16).padStart(2,'0')).join(''); }", success)
+            self.assertEqual(digest, hashlib.sha256(original).hexdigest())
+            page.click('#history-detail-raw summary')
+            page.wait_for_function("() => document.querySelector('#history-detail-response').textContent.startsWith('{')")
+            self.assertEqual(json.loads(page.inner_text('#history-detail-response')), returned)
+            layouts = []
+            for theme in ('light','dark'):
+                page.emulate_media(color_scheme=theme)
+                for width in (1280,780,390,320):
+                    page.set_viewport_size({'width':width, 'height':900 if width > 780 else 844})
+                    self.assertTrue(page.evaluate('document.documentElement.scrollWidth <= innerWidth'))
+                    self.assertTrue(page.evaluate("() => { const el=document.querySelector('#history-dialog'); return el.scrollWidth <= el.clientWidth; }"))
+                    contrast = page.evaluate(CONTRAST)
+                    self.assertEqual(contrast['failures'], [], (theme, width, contrast))
+                    layouts.append({'theme':theme,'width':width,'contrast':contrast})
+                    page.screenshot(path=str(EVIDENCE / f'history-detail-{theme}-{width}.png'), full_page=True)
+            (EVIDENCE / 'history-detail-layout.json').write_text(json.dumps(layouts, ensure_ascii=False, indent=2))
+            page.press('#history-dialog', 'Escape')
+            self.assertEqual(page.evaluate('document.activeElement.dataset.historyId'), str(success))
+            self.assertIsNone(page.locator('#history-detail-image').get_attribute('src'))
+            self.assertEqual(page.inner_text('#history-detail-response'), '')
+            page.set_viewport_size({'width':1280,'height':900})
+            page.click('[data-history-id="' + str(failure) + '"]')
+            page.wait_for_function("() => document.querySelector('#history-detail-image').naturalWidth === 7")
+            self.assertIn('搜题未成功', page.inner_text('#history-detail-state'))
+            self.assertNotIn('PRIVATE-ERROR', page.inner_text('#history-dialog'))
+            page.press('#history-dialog', 'Escape')
+            page.reload(wait_until='networkidle')
+            page.wait_for_function("() => !document.querySelector('#reload-state').disabled")
+            self.show_search_history(page)
+            page.click('[data-history-id="' + str(success) + '"]')
+            page.wait_for_function("() => document.querySelector('#history-detail-image').naturalWidth === 7")
+            self.assertIn('SYNTHETIC 答案与解析', page.inner_text('#history-detail-results'))
+            page.press('#history-dialog', 'Escape')
+
+            def expired_image(route):
+                route.fulfill(status=401, json={'status':'error','msg':'管理会话已过期'})
+            page.route('**/api/admin/history/' + str(success) + '/image', expired_image)
+            page.click('[data-history-id="' + str(success) + '"]')
+            page.locator('#login-view').wait_for(state='visible')
+            self.assertFalse(page.locator('#history-dialog').is_visible())
+            self.assertEqual(page.inner_text('#history-detail-results'), '')
+            self.assertIsNone(page.locator('#history-detail-image').get_attribute('src'))
+            self.assertEqual(page.evaluate('Object.keys(localStorage).length + Object.keys(sessionStorage).length'), 0)
+
+    def test_search_details_retries_legacy_close_races_and_logout(self):
+        success, failure, original, returned = self.seed_search_history()
+        with self.panel() as (context, page):
+            self.login_panel(page)
+            self.show_search_history(page)
+            pending = []
+            def hold_detail(route):
+                pending.append((route, route.fetch()))
+                page.evaluate('window.__heldHistory = true')
+            page.route('**/api/admin/history/' + str(success), hold_detail)
+            page.click('[data-history-id="' + str(success) + '"]')
+            page.wait_for_function('() => window.__heldHistory === true')
+            page.press('#history-dialog', 'Escape')
+            page.click('[data-history-id="' + str(failure) + '"]')
+            page.wait_for_function("() => document.querySelector('#history-detail-image').naturalWidth === 7")
+            route, response = pending.pop()
+            route.fulfill(response=response)
+            page.wait_for_function('id => !document.querySelector(`[data-history-id="${id}"]`).disabled', arg=success)
+            self.assertIn('搜题未成功', page.inner_text('#history-detail-state'))
+            self.assertNotIn('SYNTHETIC 搜题题干', page.inner_text('#history-detail-results'))
+            page.press('#history-dialog', 'Escape')
+            page.unroute('**/api/admin/history/' + str(success), hold_detail)
+
+            def unavailable(route):
+                route.fulfill(status=503, json={'status':'error','msg':'SYNTHETIC 详情暂不可用'})
+            page.route('**/api/admin/history/' + str(success), unavailable)
+            page.click('[data-history-id="' + str(success) + '"]')
+            page.locator('#history-detail-retry').wait_for(state='visible')
+            self.assertIn('读取失败', page.inner_text('#history-detail-state'))
+            page.unroute('**/api/admin/history/' + str(success), unavailable)
+            page.click('#history-detail-retry')
+            page.wait_for_function("() => document.querySelector('#history-detail-image').naturalWidth === 7")
+            self.assertIn('搜题成功', page.inner_text('#history-detail-state'))
+            page.press('#history-dialog', 'Escape')
+
+            def hold_image(route):
+                pending.append((route, route.fetch()))
+                page.evaluate('window.__heldImage = true')
+            page.route('**/api/admin/history/' + str(success) + '/image', hold_image)
+            page.click('[data-history-id="' + str(success) + '"]')
+            page.wait_for_function('() => window.__heldImage === true')
+            page.evaluate("document.querySelector('#logout').click()")
+            page.locator('#login-view').wait_for(state='visible')
+            route, response = pending.pop()
+            route.fulfill(response=response)
+            page.wait_for_load_state('networkidle')
+            self.assertFalse(page.locator('#history-dialog').is_visible())
+            self.assertIsNone(page.locator('#history-detail-image').get_attribute('src'))
+            self.assertEqual(page.inner_text('#history-detail-results'), '')
+            page.unroute('**/api/admin/history/' + str(success) + '/image', hold_image)
+
+            # 历史元数据仍可读，不能伪造早期未留存的图片或结果。
+            with self.server.store.connect() as db:
+                db.execute('DELETE FROM search_details WHERE history_id=?', (success,))
+            self.login_panel(page)
+            self.show_search_history(page)
+            page.click('[data-history-id="' + str(success) + '"]')
+            page.wait_for_function("() => document.querySelector('#history-detail-state').textContent.includes('未留存')")
+            self.assertFalse(page.locator('#history-detail-content').is_visible())
+            self.assertIsNone(page.locator('#history-detail-image').get_attribute('src'))
 
     def test_real_workflow_states_keys_qr_access_and_history(self):
         with self.panel() as (context, page):

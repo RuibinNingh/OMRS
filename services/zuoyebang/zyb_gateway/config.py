@@ -29,6 +29,7 @@ class Config:
     max_response_bytes: int = 24 * 1024 * 1024
     history_limit: int = 10000
     history_days: int = 30
+    history_detail_bytes: int = 256 * 1024 * 1024
 
     def __post_init__(self):
         self.data_dir=Path(self.data_dir).absolute()
@@ -38,6 +39,8 @@ class Config:
             value=getattr(self,name)
             if type(value) is not int or not minimum<=value<=maximum:
                 raise ValueError('资源预算参数不合法：'+name)
+        if type(self.history_detail_bytes) is not int or not 1 <= self.history_detail_bytes <= 2 * 1024 * 1024 * 1024:
+            raise ValueError('搜题详情容量不合法')
         for name in ('read_timeout','upstream_timeout'):
             value=getattr(self,name)
             if type(value) not in (float,int) or not 0.05<=value<=60:

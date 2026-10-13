@@ -15,14 +15,15 @@ const pageLabels = {
   overview: ['服务概览', '先看服务状态，再处理需要关注的事项。'],
   account: ['账号与会话', '管理设备配置、官方登录与有效期观察。'],
   keys: ['调用密钥', '为客户端分配独立权限，按需生成或吊销。'],
-  history: ['请求记录', '查看调用来源、结果与耗时。'],
+  history: ['请求记录', '查看调用来源与耗时，打开搜题详情回看原图和返回内容。'],
   settings: ['访问设置', '管理访问范围，查看服务资源预算。']
 };
 let csrf = '', epoch = 0, flow = '', pageNumber = 1, visiblePage = 1, hasMore = false, readAt = 0, logoutPending = false;
 let model = emptyModel(), confirmResolve = null, pendingFocus = null;
+let historyId = null, historyImageUrl = '', historyResponse = null;
 const busy = new Set(), controllers = new Set();
 const reads = {account: 0, keys: 0, settings: 0, history: 0};
-const dialogVersions = { 'profile-dialog': 0, 'credential-dialog': 0, 'qr-dialog': 0, 'key-dialog': 0 };
+const dialogVersions = { 'profile-dialog': 0, 'credential-dialog': 0, 'qr-dialog': 0, 'key-dialog': 0, 'history-dialog': 0 };
 const dialogOpeners = new Map();
 class StaleRequest extends Error {}
 function emptyModel() { return {account: null, keys: null, settings: null, accountError: '', keysError: '', settingsError: ''}; }
@@ -38,7 +39,7 @@ function notice(message, error = false) {
     local.textContent = message; local.dataset.error = String(error); local.hidden = false;
   }
 }
-async function api(path, body, surviveLock = false) {
+async function api(path, body, surviveLock = false, binary = false) {
   const started = epoch, controller = new AbortController();
   if (!surviveLock) controllers.add(controller);
   const options = {credentials: 'same-origin', headers: {Accept: 'application/json'}, cache: 'no-store', signal: controller.signal};
@@ -51,9 +52,9 @@ async function api(path, body, surviveLock = false) {
     try { response = await fetch('api/admin/' + path, options); }
     catch (error) { if (ignored(error)) throw error; throw new Error('无法连接服务，请稍后手动重试'); }
     let data;
-    try { data = await response.json(); } catch (error) { throw new Error('服务响应无法读取，请稍后重试'); }
+    try { data = binary && response.ok ? await response.blob() : await response.json(); } catch (error) { throw new Error('服务响应无法读取，请稍后重试'); }
     if (!surviveLock && started !== epoch) throw new StaleRequest();
-    if (!response.ok || data.status !== 'ok') {
+    if (!response.ok || (!binary && data.status !== 'ok')) {
       if (response.status === 401 && path !== 'login' && !surviveLock) { lock(); throw new StaleRequest(); }
       throw new Error(data.msg || '请求失败，请稍后重试');
     }
@@ -258,6 +259,8 @@ function renderSettings() {
     for (const [value, label] of [[limits.api_per_minute, 'API / 分钟 / 密钥'], [limits.search_per_minute, '搜题 / 分钟 / 密钥'], [limits.search_daily_budget, '搜题 / UTC 日 / 全服务'], [limits.search_concurrency, '搜题并发']]) {
       const item = text('div', '', 'budget-item'); item.append(text('strong', value), text('span', label)); $('limits').append(item);
     }
+    const retention = settings.history_retention;
+    if (retention) $('history-retention').textContent = '搜题原图与返回内容仅管理员可查看。记录最多保留 ' + retention.days + ' 天 / ' + retention.limit + ' 条，详情总容量 ' + fileSize(retention.detail_bytes) + '；达到上限时优先清理较早的内容。';
   }
   updateDisabled();
 }
@@ -269,7 +272,7 @@ async function loadSettings() {
 async function loadHistory() {
   const request = ++reads.history;
   const query = new URLSearchParams({page: String(pageNumber), page_size: '20'});
-  for (const [id, key] of [['history-source', 'source'], ['history-result', 'result'], ['history-key', 'key_id']]) if ($(id).value) query.set(key, $(id).value);
+  for (const [id, key] of [['history-action', 'action'], ['history-source', 'source'], ['history-result', 'result'], ['history-key', 'key_id']]) if ($(id).value) query.set(key, $(id).value);
   try {
     const data = await api('history?' + query); if (request !== reads.history) return;
     visiblePage = pageNumber = data.page; hasMore = data.has_more; $('history-error').hidden = true; $('history-rows').replaceChildren();
@@ -277,6 +280,13 @@ async function loadHistory() {
       const tr = document.createElement('tr');
       const values = [[when(row.time), eventNames[row.action] || row.action], [row.source === 'local' ? '本机 / local' : '外部 / external', '客户端 ' + row.client_ip, '对端 ' + row.peer_ip], [row.key_id || '—', row.method + ' ' + row.path], [row.result + ' / ' + row.http_status, Number(row.latency_ms).toFixed(1) + ' ms']];
       for (const lines of values) { const td = document.createElement('td'); for (const line of lines) td.append(text('div', line)); tr.append(td); }
+      if (row.action === 'search') {
+        const button = text('button', '查看详情', 'text-button history-detail-button'); button.dataset.historyId = row.id;
+        button.setAttribute('aria-label', '查看搜题记录 ' + row.id + ' 的详情');
+        button.addEventListener('click', () => run(button, () => openHistoryDetail(row.id, button)));
+        tr.lastChild.append(button);
+        if (!row.has_detail) tr.lastChild.append(text('div', '详情未留存', 'muted'));
+      }
       $('history-rows').append(tr);
     }
     if (!data.items.length) { const tr = document.createElement('tr'), td = text('td', '没有匹配的请求记录', 'empty-state'); td.colSpan = 4; tr.append(td); $('history-rows').append(tr); }
@@ -284,6 +294,87 @@ async function loadHistory() {
   } catch (error) {
     if (!ignored(error) && request === reads.history) { pageNumber = visiblePage; $('history-error').textContent = '记录读取失败，请重试。此前列表保留。'; $('history-error').hidden = false; }
     throw error;
+  }
+}
+function fileSize(value) {
+  return value >= 1024 * 1024 ? (value / (1024 * 1024)).toFixed(1) + ' MiB' : value >= 1024 ? (value / 1024).toFixed(1) + ' KiB' : value + ' 字节';
+}
+function clearHistoryDetail() {
+  if (historyImageUrl) URL.revokeObjectURL(historyImageUrl);
+  historyId = null; historyImageUrl = ''; historyResponse = null;
+  $('history-detail-image').removeAttribute('src'); $('history-detail-image').hidden = true;
+  $('history-detail-meta').replaceChildren(); $('history-detail-results').replaceChildren();
+  $('history-detail-image-meta').textContent = ''; $('history-detail-response').textContent = '';
+  $('history-detail-raw').open = false; $('history-detail-content').hidden = true;
+  $('history-detail-state').textContent = ''; $('history-detail-retry').hidden = true;
+}
+function contentText(value) {
+  // template 的内容保持惰性；只取文字，绝不挂载官方 HTML、脚本或远程图片。
+  const template = document.createElement('template'); template.innerHTML = String(value || '');
+  for (const node of template.content.querySelectorAll('script,style,iframe,object,embed,link')) node.remove();
+  for (const node of template.content.querySelectorAll('br,p,div,li,tr')) node.append(document.createTextNode('\n'));
+  for (const node of template.content.querySelectorAll('img')) node.replaceWith(document.createTextNode('〔附图〕'));
+  return template.content.textContent.trim();
+}
+function resultCandidates(response) {
+  const data = response.result?.data, found = [];
+  const decode = value => { if (typeof value !== 'string') return value; try { return JSON.parse(value); } catch { return value; } };
+  function collect(value, depth = 0) {
+    if (depth > 12 || found.length >= 100) return;
+    value = decode(value);
+    if (Array.isArray(value)) { for (const item of value) collect(item, depth + 1); return; }
+    if (!value || typeof value !== 'object') {
+      if (typeof value === 'string' && value) found.push({question: value, answer: []});
+      return;
+    }
+    if (value.questionData !== undefined) { collect(value.questionData, depth + 1); return; }
+    if (value.tidInfo !== undefined) { collect(value.tidInfo, depth + 1); return; }
+    if (value.question !== undefined) { found.push(value); return; }
+    for (const key of ['data', 'pageData', 'pageDate', 'result']) if (value[key] !== undefined) collect(value[key], depth + 1);
+  }
+  collect(data?.answers?.mainPageInfo || data);
+  return found;
+}
+function renderHistoryDetail(data) {
+  const row = data.item, detail = data.detail;
+  $('history-detail-state').textContent = detail ? row.http_status < 400 ? '搜题成功' : '搜题未成功：' + (detail.response.msg || row.result) : '该记录未留存图片与返回内容，可能为早期记录、鉴权前的拒绝或内容已按保留上限清理。';
+  for (const [label, value] of [['请求时间', when(row.time)], ['结果', row.result + ' / HTTP ' + row.http_status], ['来源', row.source === 'local' ? '本机' : '外部'], ['耗时', Number(row.latency_ms).toFixed(1) + ' ms'], ['客户端 IP', row.client_ip], ['对端 IP', row.peer_ip], ['调用密钥 ID', row.key_id || '—'], ['年级', detail?.grade == null ? '未留存' : detail.grade === 0 ? '未指定' : detail.grade + ' 年级']]) {
+    const entry = text('div', ''); entry.append(text('dt', label), text('dd', value)); $('history-detail-meta').append(entry);
+  }
+  if (!detail) return;
+  $('history-detail-content').hidden = false;
+  $('history-detail-image-meta').textContent = detail.image ? detail.image.width + ' × ' + detail.image.height + ' · ' + fileSize(detail.image.bytes) : '原图未通过校验，未保存图片。';
+  historyResponse = detail.response;
+  const candidates = resultCandidates(detail.response);
+  for (const [index, candidate] of candidates.entries()) {
+    const card = text('article', '', 'history-result'); card.append(text('h3', '结果 ' + (index + 1)));
+    const question = candidate.question, answers = Array.isArray(candidate.answer) ? candidate.answer : candidate.answer == null ? [] : [candidate.answer];
+    card.append(text('h4', '题干'), text('pre', contentText(typeof question === 'string' ? question : question?.content) || '题干以附图提供，见完整返回数据。'));
+    if (answers.length) card.append(text('h4', '答案 / 解析'));
+    for (const answer of answers) card.append(text('pre', contentText(typeof answer === 'string' ? answer : answer?.content) || '答案以附图提供，见完整返回数据。'));
+    $('history-detail-results').append(card);
+  }
+  if (!candidates.length) $('history-detail-results').append(text('p', row.http_status < 400 ? '未解析出题干与答案，可展开完整返回数据查看。' : detail.response.msg || '请求失败，完整返回数据保留如下。'));
+  if (candidates.length === 100) $('history-detail-results').append(text('p', '返回内容较多，此处展示前 100 项；所有内容保留在完整返回数据中。'));
+}
+async function openHistoryDetail(id, opener) {
+  if (!csrf) return;
+  clearHistoryDetail(); historyId = id;
+  showDialog('history-dialog', opener);
+  const version = dialogVersions['history-dialog'];
+  const current = () => !!csrf && $('history-dialog').open && version === dialogVersions['history-dialog'];
+  $('history-detail-state').textContent = '正在读取搜题详情…';
+  try {
+    const data = await api('history/' + id);
+    if (!current()) return;
+    renderHistoryDetail(data);
+    if (data.detail?.image) {
+      const image = await api('history/' + id + '/image', undefined, false, true);
+      if (!current()) return;
+      historyImageUrl = URL.createObjectURL(image); $('history-detail-image').src = historyImageUrl; $('history-detail-image').hidden = false;
+    }
+  } catch (error) {
+    if (current() && !ignored(error)) { $('history-detail-state').textContent = '详情读取失败：' + error.message; $('history-detail-retry').hidden = false; }
   }
 }
 async function refreshAll() {
@@ -300,6 +391,7 @@ function cleanupDialog(id) {
   if (id === 'profile-dialog') { $('profile-file').value = ''; $('profile-json').value = ''; $('profile-paste').open = false; $('profile-file-note').textContent = '最多 256 KiB，包含 fields、headers 与 session_token。'; }
   if (id === 'credential-dialog') $('account-credential').value = '';
   if (id === 'key-dialog') clearKey();
+  if (id === 'history-dialog') clearHistoryDetail();
   if (id === 'qr-dialog') {
     const closingFlow = flow; clearQr(); $('qr-state').textContent = ''; $('restart-qr').hidden = true;
     if (closingFlow && csrf) cancelClosedFlow(closingFlow);
@@ -478,6 +570,8 @@ $('confirm-submit').addEventListener('click', () => { const resolve = confirmRes
 $('history-form').addEventListener('submit', event => { event.preventDefault(); pageNumber = 1; run($('history-filter'), loadHistory, 'history'); });
 $('previous-page').addEventListener('click', () => { if (pageNumber > 1) { pageNumber--; run($('previous-page'), loadHistory, 'history'); } });
 $('next-page').addEventListener('click', () => { if (hasMore) { pageNumber++; run($('next-page'), loadHistory, 'history'); } });
+$('history-detail-retry').addEventListener('click', () => { if (historyId != null) run($('history-detail-retry'), () => openHistoryDetail(historyId)); });
+$('history-detail-raw').addEventListener('toggle', () => { $('history-detail-response').textContent = $('history-detail-raw').open && historyResponse ? JSON.stringify(historyResponse, null, 2) : ''; });
 $('save-settings').addEventListener('click', () => run($('save-settings'), async () => {
   const allow_external = $('allow-external').checked;
   if (allow_external && !model.settings.allow_external) {

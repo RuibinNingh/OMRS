@@ -35,6 +35,8 @@
 
 网关面板使用相对资源和管理请求，支持反代剥离前缀。Nginx模板见 `services/zuoyebang/deploy/zuoyebang.nginx.example`：覆盖XFF、不新增公网端口、把管理Cookie限制到/zuoyebang/。网关须配置公开Origin、Secure cookie及精确信任的回环代理；不能用反代头绕过管理员／调用Key鉴权。
 
+网关请求记录可按搜题筛选，管理员通过 `GET /api/admin/history/<id>` 查看该次请求的年级、原图元数据和完整已解码回执，通过 `GET /api/admin/history/<id>/image` 读取原图片字节；这些是网关端点，不是OMRS端点。成功与安全失败回执和请求元数据在同一个SQLite事务写入。已经校验的原图即使搜题失败也保留，未发布的旧会话结果不保存为成功。详情仅在网关私有库中，默认30天／10000条及256MiB内容预算，原有无详情的记录仍可读；接口、清理和容量选项见 `services/zuoyebang/docs/api.md`、`services/zuoyebang/README.md`。
+
 面板默认进入服务概览，分别展示设备配置、账号和签名观察，再按真实状态给出导入、登录、核对或密钥配置入口。设备导入、手动凭据、扫码与一次性密钥使用弹窗；关闭及管理会话失效清空敏感内容，迟到回执不恢复窗口。页面按需读取，资源、焦点、双主题与异步生命周期见 `AI/frontend/zyb-panel.md`。
 
 ## 4. 双项目验收

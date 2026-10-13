@@ -64,17 +64,29 @@
 | GET `/api/admin/keys` | `{status,keys:[metadata...]}`；绝无原 Key 或密钥摘要 |
 | POST `/api/admin/keys` | `{name}`，1..80 字符；返回 `{status,key,metadata}`，**只此响应一次显示完整 Key** |
 | POST `/api/admin/keys/revoke` | `{id}`；立即吊销，幂等，不泄漏 Key |
-| GET `/api/admin/settings` | `{status,allow_external,limits}`；预算来自 CLI，只读 |
+| GET `/api/admin/settings` | `{status,allow_external,limits,history_retention}`；预算与记录保留上限来自 CLI，只读 |
 | POST `/api/admin/settings` | **只允许** `{allow_external:boolean}`；持久化，不更改监听/主机网络 |
-| GET `/api/admin/history` | page/page_size/source/result/key_id；返回 status/items/total/page/page_size/has_more |
+| GET `/api/admin/history` | page/page_size/source/result/key_id/action；返回 status/items/total/page/page_size/has_more |
+| GET `/api/admin/history/<id>` | 管理员会话；返回 `{status,item,detail}`，详情未留存时detail=null |
+| GET `/api/admin/history/<id>/image` | 管理员会话；返回已校验的PNG/JPEG/WebP上传原字节，未留存／清理后404 |
 
 `qr_start` 的 result 含 flow_id/state/expires_at/poll_interval/message 与官方挑战对应的 qr_url/qr_image；二维码由本地 Segno 生成，仅管理员创建响应含挑战。终态不返回挑战或令牌，面板禁用继续检查与取消按钮。轮询有至少 2 秒间隔与本地 300 秒有效期；需用户点击检查，不后台无限轮询。检查/刷新不返回官方用户对象，不修改并发取消或替换后的二维码流程。
 
 密钥 metadata：`id,name,prefix,fingerprint,created_at,last_used_at,revoked_at,state`（active/revoked）。ID 为 16 个小写 hex；prefix 是很短的原 Key 前缀，fingerprint 为 SHA-256 前 12 位，不能恢复完整 Key。最近使用指有效 Key 通过认证的时间（包括后续输入失败）。
 
-历史分页从 1 开始，默认 page_size=30、上限 100。最多 20 个查询字段，重复或未知参数 400；source 为 local/external；result=ok 为成功、error 为所有 HTTP>=400，也可指定稳定错误 code；key_id 必须是 16 位小写 hex。排序按记录 ID 倒序。读取历史自身也审计，所以没有 key_id 筛选时，下一次读取总数可能增加。
+历史分页从 1 开始，默认 page_size=30、上限 100。最多 20 个查询字段，重复或未知参数 400；source 为 local/external；result=ok 为成功、error 为所有 HTTP>=400，也可指定稳定错误 code；key_id 必须是 16 位小写 hex；action只接受空值或search。排序按记录 ID 倒序。读取历史自身也审计，所以没有 key_id或action 筛选时，下一次读取总数可能增加。
 
-审计 row 字段：`id,time,method,action,path,source,client_ip,peer_ip,key_id,result,http_status,latency_ms`。尚未认证/先被外部开关拒绝时 key_id=null。path 不含 query，未知 path 固定 `/[unknown]`，HTTP 总并发拒绝为 `/[overload]`。不保存任意请求正文或官方结果。
+审计 row 字段：`id,time,method,action,path,source,client_ip,peer_ip,key_id,result,http_status,latency_ms,has_detail`。尚未认证/先被外部开关拒绝时 key_id=null。列表不包含图片或搜题正文。path 不含 query，未知 path 固定 `/[unknown]`，HTTP 总并发拒绝为 `/[overload]`，详情／原图读取归并为 `/api/admin/history/{id}`／`/api/admin/history/{id}/image`，action分别为history_detail／history_image。
+
+### 搜题详情与保留
+
+详情的item是对应审计row；detail为 `{grade,image,response}`。grade在原图通过校验后保存，未通过校验时null；image为 `{content_type,width,height,bytes,sha256}`，没有有效图片时null。response精确保留本次客户端收到的已解码成功信封或固定安全错误信封，不保存官方错误原文、认证头、Cookie、账号／设备信息。详情不另返回上传原图的base64字段，原回执中的内联附图仍完整保留；上传原图通过独立管理员接口按原字节读取，不重编码。图片与JSON都返回 `Cache-Control: no-store`、`X-Content-Type-Options: nosniff`。
+
+搜题通过调用鉴权与API限流后开始捕获安全回执；只有完整通过PNG/JPEG/WebP及像素／大小校验的原件才保存。此后的设备缺失、并发／每日预算、网络或官方错误仍保留原图。错误输入只保存安全错误；鉴权、来源策略或API限流阶段拒绝不会保存请求正文。会话更换导致的409只保存实际错误，不能保存未发布的旧成功内容。审计元数据与详情在同一SQLite事务中提交，写入失败返回503/audit_unavailable，不自动重试官方请求。
+
+id为正十进制SQLite整数，详情接口不接受查询参数；记录不存在或已过期返回404。既有无详情的记录、未开始捕获的拒绝或被容量清理的记录仍返回item，detail=null。完整Key即使有效也不能读取详情或图片；必须使用独立管理员Cookie，附带Authorization头仍拒绝。
+
+默认记录保留30天／10000条，详情内容总预算256MiB；CLI `--history-days`、`--history-limit`、`--history-detail-bytes`可调整，字节预算为1..2147483648。`history_retention`返回 `{days,limit,detail_bytes}`。审计写入、列表和详情／原图读取均执行清理：过期／超条数的历史级联删除图片与返回数据，字节超预算优先删除较早详情而保留元数据；单条详情超过总字节预算则不留存，不挤掉已有详情。预算计原图、原图元数据和响应JSON的UTF-8内容字节，不是SQLite物理文件大小；删除复用空闲页，不每次VACUUM。
 
 ## 稳定错误
 

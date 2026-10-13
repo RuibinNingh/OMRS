@@ -25,6 +25,8 @@
 
 base_url支持安全反代前缀，panel_url保留前缀并补尾斜杠；网关 `/api/v1/status` 与 `/api/v1/search` 追加在此前缀。`/api/source/export` 包含同仓services/zuoyebang源码、安装与vendor清单，排除服务私有运行目录及管理员秘密。
 
+独立网关管理接口 `GET /api/admin/history` 可用 `action=search` 筛选搜题，列表仅包含元数据与has_detail。管理员读取 `GET /api/admin/history/<id>` 获得完整回执与原图元数据，`GET /api/admin/history/<id>/image` 返回上传原字节；旧记录详情为null，清理或缺失的原图返回404。调用Key不能访问这些接口，OMRS客户端搜题协议保持；完整契约见 `services/zuoyebang/docs/api.md`。
+
 ---
 
 ## 框选标注集端点 `/api/annotate/*` 与 `/annotate`

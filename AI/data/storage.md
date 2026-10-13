@@ -218,6 +218,8 @@ reviews.sqlite3 的 reviews 表以(audit,case_id,revision)为主键，追加acti
 
 base_url可带安全反代路径前缀，磁盘字段与原契约兼容。网关源码在services/zuoyebang，生产私有目录在仓库外；它的数据库与设备文件不由OMRS整库备份或Ledger重放，备份网关需停其进程并保全完整私有目录。
 
+网关私有 `gateway.sqlite3` 的 `search_details` 以 `history_id` 外键关联请求记录，保存已校验的上传原字节BLOB、年级、原图类型／尺寸／字节数／SHA256和客户端实际返回的完整已解码JSON回执；不保存请求认证头、设备会话、账号凭据或异常原文。新表自动创建，既有历史行不补造详情。请求与详情原子写入，历史删除级联清理图片与结果；默认历史最多30天／10000条，详情内容合计256MiB，容量超限只移除较早详情并保留元数据。读取和审计写入都执行清理，SQLite逻辑删除复用空闲页，不承诺立即缩小文件。完整契约见 `AI/zuoyebang-service.md`。
+
 `search-<id>/record.json` 保存配对候选与原始来源，`render-<id>/record.json` 保存来源、PNG尺寸/SHA、HTML预览、提取与分类结果，`question.png` 和 `answer.png` 各一张完整图；无答案不产生答案图。`job-<id>/record.json` 保存后台状态，重启后的在途任务只读显示中断。搜题上传原件使用系统临时上传引用，1小时有效，与来源记录分开。
 
 渲染记录含browser/engine与每区formulas数；旧记录缺engine时仍可读取原图，展示为既有记录，不重新生成。commit 保存首次规范化表单/保存方式摘要、操作ID、UID/question_id/路径/日期、产物哈希与回执。创建事实和 op_results 在 Ledger 同事务写入，独立状态可在原记录重试补齐；Ledger 不重放会话、候选与渲染目录。全库备份包含该目录，整库恢复变更世代，旧后台任务和上传引用不能写入恢复后的库。详见 `AI/zuoyebang.md`。

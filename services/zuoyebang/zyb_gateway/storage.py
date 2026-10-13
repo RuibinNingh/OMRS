@@ -55,6 +55,7 @@ class Store:
             db.execute('CREATE TABLE IF NOT EXISTS api_keys (id TEXT PRIMARY KEY, name TEXT NOT NULL, digest TEXT UNIQUE NOT NULL, prefix TEXT NOT NULL, fingerprint TEXT NOT NULL, created_at REAL NOT NULL, last_used_at REAL, revoked_at REAL)')
             db.execute('CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, time REAL NOT NULL, method TEXT NOT NULL, action TEXT NOT NULL, path TEXT NOT NULL, source TEXT NOT NULL, client_ip TEXT NOT NULL, peer_ip TEXT NOT NULL, key_id TEXT, result TEXT NOT NULL, http_status INTEGER NOT NULL, latency_ms REAL NOT NULL)')
             db.execute('CREATE INDEX IF NOT EXISTS history_filters ON history (key_id, source, result, id)')
+            db.execute('CREATE TABLE IF NOT EXISTS search_details (history_id INTEGER PRIMARY KEY REFERENCES history(id) ON DELETE CASCADE, grade INTEGER, image BLOB, image_meta TEXT, response_json TEXT NOT NULL, stored_bytes INTEGER NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS rate_events (scope TEXT NOT NULL, identity TEXT NOT NULL, time REAL NOT NULL)')
             db.execute('CREATE INDEX IF NOT EXISTS rate_lookup ON rate_events (scope,identity,time)')
             if db.execute("SELECT 1 FROM settings WHERE name='admin_hash'").fetchone() is None:
@@ -71,6 +72,7 @@ class Store:
     def connect(self):
         db = sqlite3.connect(self.path, timeout=10)
         db.row_factory = sqlite3.Row
+        db.execute('PRAGMA foreign_keys=ON')
         try:
             with db:
                 yield db
@@ -86,15 +88,35 @@ class Store:
         with self.lock, self.connect() as db:
             db.execute('INSERT INTO settings VALUES (?,?) ON CONFLICT(name) DO UPDATE SET value=excluded.value', (name,json.dumps(value,ensure_ascii=False)))
 
-    def audit(self, row):
+    def prune_history(self, db):
+        db.execute('DELETE FROM history WHERE time < ?', (time.time()-self.config.history_days*86400,))
+        db.execute('DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT ?)', (self.config.history_limit,))
+        total = db.execute('SELECT COALESCE(SUM(stored_bytes),0) FROM search_details').fetchone()[0]
+        if total > self.config.history_detail_bytes:
+            # 只清理最早的详情，仍保留未到期的请求元数据。
+            removing = []
+            for detail in db.execute('SELECT history_id,stored_bytes FROM search_details ORDER BY history_id'):
+                removing.append((detail['history_id'],))
+                total -= detail['stored_bytes']
+                if total <= self.config.history_detail_bytes:
+                    break
+            db.executemany('DELETE FROM search_details WHERE history_id=?', removing)
+
+    def audit(self, row, search_detail=None):
         fields = ('time','method','action','path','source','client_ip','peer_ip','key_id','result','http_status','latency_ms')
         with self.lock, self.connect() as db:
-            db.execute('INSERT INTO history (time,method,action,path,source,client_ip,peer_ip,key_id,result,http_status,latency_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?)', tuple(row[k] for k in fields))
-            db.execute('DELETE FROM history WHERE time < ?', (time.time()-self.config.history_days*86400,))
-            db.execute('DELETE FROM history WHERE id NOT IN (SELECT id FROM history ORDER BY id DESC LIMIT ?)', (self.config.history_limit,))
+            inserted = db.execute('INSERT INTO history (time,method,action,path,source,client_ip,peer_ip,key_id,result,http_status,latency_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?)', tuple(row[k] for k in fields))
+            if search_detail is not None:
+                response = json.dumps(search_detail['response'], ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+                image = search_detail.get('image')
+                image_meta = json.dumps(search_detail.get('image_meta'), ensure_ascii=False, separators=(',', ':'))
+                size = len(image or b'') + len(response.encode()) + len(image_meta.encode())
+                if size <= self.config.history_detail_bytes:
+                    db.execute('INSERT INTO search_details VALUES (?,?,?,?,?,?)', (inserted.lastrowid, search_detail.get('grade'), image, image_meta, response, size))
+            self.prune_history(db)
 
     def history(self, query):
-        allowed = {'page','page_size','source','result','key_id'}
+        allowed = {'page','page_size','source','result','key_id','action'}
         if set(query)-allowed or any(len(v)!=1 for v in query.values()):
             raise ApiError('filter_invalid','历史筛选参数不合法')
         def value(name, default=''):
@@ -106,11 +128,14 @@ class Store:
         if not 1<=page<=100000 or not 1<=size<=100:
             raise ApiError('filter_invalid','页码或分页数量超过预算')
         source, result, kid = value('source'), value('result'), value('key_id')
+        action = value('action')
+        if action not in ('', 'search'):
+            raise ApiError('filter_invalid', '记录类型不合法')
         if source not in ('','local','external') or (result and not re.fullmatch(r'[a-z_]{2,40}',result)) or (result and result not in {'ok','error','key_invalid','external_disabled','origin_forbidden','csrf_forbidden','host_forbidden','admin_required','admin_invalid','login_limited','rate_limited','profile_missing','profile_invalid','invalid_name','invalid_key_id','key_missing','filter_invalid','settings_invalid','body_invalid','body_budget','json_invalid','json_required','not_found','request_timeout','internal_error','management_key_forbidden','proxy_invalid','network','protocol','signing_session','login_required','session_changed','upstream','dependency_missing','concurrency_limited','budget_exceeded','response_budget','image_invalid','operation_invalid','credential_invalid','flow_invalid','audit_unavailable','http_invalid','path_invalid'}) or (kid and not re.fullmatch(r'[0-9a-f]{16}',kid)):
             raise ApiError('filter_invalid','来源、结果或密钥筛选不合法')
         # 列名只来自固定白名单，值通过 SQLite 参数绑定。
         clauses=[]; params=[]
-        for name,val in [('source',source),('result',result),('key_id',kid)]:
+        for name,val in [('source',source),('result',result),('key_id',kid),('action',action)]:
             if val:
                 if name=='result' and val=='error':
                     clauses.append('http_status>=400')
@@ -118,9 +143,28 @@ class Store:
                     clauses.append(name+'=?'); params.append(val)
         where=' WHERE '+' AND '.join(clauses) if clauses else ''
         with self.lock, self.connect() as db:
+            self.prune_history(db)
             total=db.execute('SELECT COUNT(*) FROM history'+where,params).fetchone()[0]
-            rows=db.execute('SELECT * FROM history'+where+' ORDER BY id DESC LIMIT ? OFFSET ?',[*params,size,(page-1)*size]).fetchall()
-        return {'items':[dict(row) for row in rows], 'total':total, 'page':page, 'page_size':size, 'has_more':page*size<total}
+            rows=db.execute('SELECT *,EXISTS(SELECT 1 FROM search_details WHERE history_id=history.id) AS has_detail FROM history'+where+' ORDER BY id DESC LIMIT ? OFFSET ?',[*params,size,(page-1)*size]).fetchall()
+        return {'items':[{**dict(row), 'has_detail':bool(row['has_detail'])} for row in rows], 'total':total, 'page':page, 'page_size':size, 'has_more':page*size<total}
+
+    def history_detail(self, history_id):
+        with self.lock, self.connect() as db:
+            self.prune_history(db)
+            row = db.execute('SELECT * FROM history WHERE id=?', (history_id,)).fetchone()
+            if row is None:
+                raise ApiError('not_found', '该请求记录不存在或已过期', 404)
+            detail = db.execute('SELECT grade,image_meta,response_json FROM search_details WHERE history_id=?', (history_id,)).fetchone()
+            saved = {'grade':detail['grade'], 'image':json.loads(detail['image_meta']), 'response':json.loads(detail['response_json'])} if detail else None
+        return {'item':{**dict(row), 'has_detail':detail is not None}, 'detail':saved}
+
+    def history_image(self, history_id):
+        with self.lock, self.connect() as db:
+            self.prune_history(db)
+            detail = db.execute('SELECT image,image_meta FROM search_details WHERE history_id=?', (history_id,)).fetchone()
+            if detail is None or detail['image'] is None:
+                raise ApiError('not_found', '该搜题原图未留存或已清理', 404)
+        return bytes(detail['image']), json.loads(detail['image_meta'])['content_type']
 
     def search_budget(self,key_id):
         now=time.time()

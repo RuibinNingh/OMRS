@@ -253,12 +253,36 @@ def main():
                       and len(list((temp / 'vault' / '错题' / '数学').rglob('双服务验收[0-9]*.md'))) == 1)
 
                 panel.click('[data-tab="history"]')
+                panel.wait_for_function("() => !document.querySelector('#history-filter').disabled")
+                panel.select_option('#history-action', 'search')
                 panel.click('#history-filter')
                 panel.wait_for_function("() => document.querySelector('#history-rows').textContent.includes('/api/v1/search')")
                 check('实际面板可追溯搜题来源与IP', '本机 / local' in panel.inner_text('#history-rows')
                       and '127.0.0.1' in panel.inner_text('#history-rows'))
                 panel.bring_to_front()
                 panel.screenshot(path=str(args.out / 'gateway-history.png'), full_page=True)
+                detail_button = panel.locator('[data-history-id]').first
+                history_id = detail_button.get_attribute('data-history-id')
+                detail_button.click()
+                panel.wait_for_function("() => document.querySelector('#history-detail-image').naturalWidth > 0")
+                check('真实面板详情显示搜题年级及题干答案',
+                      '未指定' in panel.inner_text('#history-detail-meta')
+                      and '等腰三角形' in panel.inner_text('#history-detail-results')
+                      and '答案 / 解析' in panel.inner_text('#history-detail-results'))
+                raw_reply = context.request.get(gateway_base + '/api/admin/history/' + history_id + '/image')
+                check('管理员详情原图逐字节等于OMRS上传原件',
+                      raw_reply.status == 200 and raw_reply.body() == original
+                      and raw_reply.headers.get('cache-control') == 'no-store')
+                panel.click('#history-detail-raw summary')
+                panel.wait_for_function("() => document.querySelector('#history-detail-response').textContent.startsWith('{')")
+                saved_response = json.loads(panel.inner_text('#history-detail-response'))
+                check('详情完整保留真实签名解码返回的三条候选',
+                      json.loads(saved_response['result']['data']['answers']['mainPageInfo'][0]) == candidates())
+                panel.screenshot(path=str(args.out / 'gateway-search-detail.png'), full_page=True)
+                panel.press('#history-dialog', 'Escape')
+                check('关闭详情清除图片与返回内容',
+                      panel.locator('#history-detail-image').get_attribute('src') is None
+                      and not panel.inner_text('#history-detail-response'))
                 page.bring_to_front()
                 page.screenshot(path=str(args.out / 'omrs-created.png'), full_page=True)
                 panel.click('[data-tab="keys"]')
@@ -273,7 +297,9 @@ def main():
                     check('面板资源、管理、状态与原图搜题均保留反代前缀',
                           all('/zuoyebang/' + suffix in proxy_calls for suffix in (
                               'assets/panel.js', 'assets/panel.css', 'api/admin/login',
-                              'api/v1/status', 'api/v1/search')))
+                              'api/v1/status', 'api/v1/search',
+                              'api/admin/history/' + history_id,
+                              'api/admin/history/' + history_id + '/image')))
                 check('完整路径无浏览器脚本错误', not errors)
                 print(f'{len(checks)}/{len(checks)} 项通过', flush=True)
         finally:

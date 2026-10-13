@@ -6,6 +6,7 @@ import socket
 import threading
 import time
 import ipaddress
+import re
 from pathlib import Path
 from urllib.parse import urlsplit, parse_qs
 from . import __version__
@@ -17,8 +18,17 @@ from .search import search
 
 EMPTY_ACCOUNT = {'local_session_ready':False, 'has_account_credential':False, 'observations':{'account':{},'signing':{},'events':[]}}
 ASSETS={'/':('index.html','text/html; charset=utf-8'),'/assets/panel.js':('panel.js','text/javascript; charset=utf-8'),'/assets/panel.css':('panel.css','text/css; charset=utf-8')}
-ROUTES = {*(('GET',p) for p in ASSETS),('POST','/api/admin/credential'),('POST','/api/v1/search'),('GET','/healthz'), ('GET','/api/v1/status'), ('POST','/api/admin/login'), ('POST','/api/admin/logout'), ('GET','/api/admin/session'), ('GET','/api/admin/keys'), ('POST','/api/admin/keys'), ('POST','/api/admin/keys/revoke'), ('POST','/api/admin/profile'), ('GET','/api/admin/history'), ('GET','/api/admin/settings'), ('POST','/api/admin/settings'), ('GET','/api/admin/account'), ('POST','/api/admin/account')}
-ACTIONS = {'/api/v1/search':'search','/api/v1/status':'status','/healthz':'health','/api/admin/login':'admin_login','/api/admin/logout':'admin_logout','/api/admin/session':'admin_session','/api/admin/keys':'key_create','/api/admin/keys/revoke':'key_revoke','/api/admin/settings':'settings','/api/admin/history':'history','/api/admin/profile':'profile_import','/api/admin/account':'account','/api/admin/credential':'credential_import'}
+ROUTES = {*(('GET',p) for p in ASSETS),('POST','/api/admin/credential'),('POST','/api/v1/search'),('GET','/healthz'), ('GET','/api/v1/status'), ('POST','/api/admin/login'), ('POST','/api/admin/logout'), ('GET','/api/admin/session'), ('GET','/api/admin/keys'), ('POST','/api/admin/keys'), ('POST','/api/admin/keys/revoke'), ('POST','/api/admin/profile'), ('GET','/api/admin/history'), ('GET','/api/admin/history/{id}'), ('GET','/api/admin/history/{id}/image'), ('GET','/api/admin/settings'), ('POST','/api/admin/settings'), ('GET','/api/admin/account'), ('POST','/api/admin/account')}
+ACTIONS = {'/api/v1/search':'search','/api/v1/status':'status','/healthz':'health','/api/admin/login':'admin_login','/api/admin/logout':'admin_logout','/api/admin/session':'admin_session','/api/admin/keys':'key_create','/api/admin/keys/revoke':'key_revoke','/api/admin/settings':'settings','/api/admin/history':'history','/api/admin/history/{id}':'history_detail','/api/admin/history/{id}/image':'history_image','/api/admin/profile':'profile_import','/api/admin/account':'account','/api/admin/credential':'credential_import'}
+
+def route_path(path):
+    match = re.fullmatch(r'/api/admin/history/([1-9][0-9]{0,18})(/image)?', path)
+    if match and int(match[1]) <= 9223372036854775807:
+        return '/api/admin/history/{id}' + (match[2] or '')
+    if path in ('/api/admin/history/{id}', '/api/admin/history/{id}/image'):
+        return '/[unknown]'
+    return path
+
 def unique_object(pairs):
     result={}
     for key,value in pairs:
@@ -29,7 +39,7 @@ def unique_object(pairs):
 
 SECURITY_HEADERS = {
     'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff', 'X-Frame-Options':'DENY',
-    'Referrer-Policy':'no-referrer', 'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+    'Referrer-Policy':'no-referrer', 'Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 }
 
 class Handler(BaseHTTPRequestHandler):
@@ -123,11 +133,12 @@ class Handler(BaseHTTPRequestHandler):
         self.check_host()
         self.source, self.client_ip, self.peer_ip = request_identity(self.client_address[0], self.headers, self.server.config.trusted_proxies)
         path = self.target_path()
+        route = route_path(path)
         if path != '/healthz' and self.source=='external' and not self.server.store.get('allow_external',False):
             raise ApiError('external_disabled','外部访问尚未开启',403)
         if path != '/healthz':
             self.server.store.rate('peer',self.peer_ip,240,60)
-        if (self.command,path) not in ROUTES:
+        if (self.command,route) not in ROUTES:
             raise ApiError('not_found','接口不存在',404)
         if path in ASSETS:
             name,mime=ASSETS[path]
@@ -157,13 +168,21 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/admin/keys' and self.command == 'GET':
                 return {'status':'ok','keys':auth.list_keys()}, {}
             if path == '/api/admin/settings' and self.command == 'GET':
-                return {'status':'ok','allow_external':self.server.store.get('allow_external',False),'limits':{'api_per_minute':self.server.config.api_per_minute,'search_per_minute':self.server.config.search_per_minute,'search_daily_budget':self.server.config.search_daily_budget,'search_concurrency':self.server.config.search_concurrency}}, {}
+                return {'status':'ok','allow_external':self.server.store.get('allow_external',False),'limits':{'api_per_minute':self.server.config.api_per_minute,'search_per_minute':self.server.config.search_per_minute,'search_daily_budget':self.server.config.search_daily_budget,'search_concurrency':self.server.config.search_concurrency},'history_retention':{'days':self.server.config.history_days,'limit':self.server.config.history_limit,'detail_bytes':self.server.config.history_detail_bytes}}, {}
             if path == '/api/admin/account' and self.command=='GET':
                 return {'status':'ok','account':self.server.accounts.status()}, {}
             if path == '/api/admin/history':
                 try:query=parse_qs(urlsplit(self.path).query,keep_blank_values=True,max_num_fields=20)
                 except ValueError:raise ApiError('filter_invalid','历史筛选超过参数预算')
                 return {'status':'ok',**self.server.store.history(query)}, {}
+            if route in ('/api/admin/history/{id}', '/api/admin/history/{id}/image'):
+                if urlsplit(self.path).query:
+                    raise ApiError('filter_invalid', '记录详情不接受查询参数')
+                history_id = int(path.split('/')[4])
+                if route.endswith('/image'):
+                    image, mime = self.server.store.history_image(history_id)
+                    return image, {'Content-Type':mime}
+                return {'status':'ok', **self.server.store.history_detail(history_id)}, {}
             body = self.read_json()
             if path == '/api/admin/settings':
                 if type(body.get('allow_external')) is not bool or set(body)!={'allow_external'}:
@@ -191,9 +210,10 @@ class Handler(BaseHTTPRequestHandler):
         self.key_id = auth.api_key(self.headers.get('Authorization'))
         self.server.store.rate('api',self.key_id,self.server.config.api_per_minute,60)
         if path=='/api/v1/search':
+            self.search_detail = {}
             limit=((self.server.config.max_image_bytes+2)//3)*4+1024
             body=self.read_json(limit)
-            return {'status':'ok','result':search(self.server,body,self.key_id)}, {}
+            return {'status':'ok','result':search(self.server,body,self.key_id,self.search_detail)}, {}
         return {'status':'ok','account':self.server.accounts.status(),'panel_url':'/'}, {}
 
     def handle_api(self):
@@ -202,6 +222,7 @@ class Handler(BaseHTTPRequestHandler):
         self.peer_ip=self.client_address[0]; self.client_ip=self.peer_ip
         self.source='local' if ipaddress.ip_address(self.peer_ip).is_loopback else 'external'
         self.key_id=None
+        self.search_detail=None
         heads={}; status=200; outcome='ok'
         try:
             result, heads = self.dispatch()
@@ -216,12 +237,15 @@ class Handler(BaseHTTPRequestHandler):
             result={'status':'error','msg':'服务内部错误','code':outcome}
         try:path=self.target_path()
         except ApiError:path=''
-        safe_path=path if any(path==route[1] for route in ROUTES) else '/[unknown]'
-        action=ACTIONS.get(path,'unknown')
+        route=route_path(path)
+        safe_path=route if any(route==known[1] for known in ROUTES) else '/[unknown]'
+        action=ACTIONS.get(route,'unknown')
         if path=='/api/admin/keys' and self.command=='GET':
             action='key_list'
         try:
-            self.server.store.audit({'time':now,'method':self.command,'action':action,'path':safe_path,'source':self.source,'client_ip':self.client_ip,'peer_ip':self.peer_ip,'key_id':self.key_id,'result':outcome,'http_status':status,'latency_ms':round((time.monotonic()-start)*1000,3)})
+            if self.search_detail is not None:
+                self.search_detail['response'] = result
+            self.server.store.audit({'time':now,'method':self.command,'action':action,'path':safe_path,'source':self.source,'client_ip':self.client_ip,'peer_ip':self.peer_ip,'key_id':self.key_id,'result':outcome,'http_status':status,'latency_ms':round((time.monotonic()-start)*1000,3)}, self.search_detail)
         except Exception:
             # 审计写入失败不得静默宣告成功。
             status=503
