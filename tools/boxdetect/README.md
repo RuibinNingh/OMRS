@@ -12,7 +12,7 @@ mkdir -p ~/omrs-train/pretrained
 curl -fL https://github.com/ultralytics/assets/releases/download/v8.4.0/yolov8n.pt -o ~/omrs-train/pretrained/yolov8n.pt
 ```
 
-仅运行固定模型服务的环境安装 requirements-serve.txt 即可（onnxruntime、numpy、Pillow）。CPU wheel 不可用时可改 Python 3.12 建环境。
+仅运行固定模型服务的环境安装 requirements-serve.txt 即可（它引用 services/boxdetect/requirements.txt：onnxruntime、numpy、Pillow）。独立服务实现、模块命令与安装包验证见 `services/boxdetect/README.md`；旧 serve.py、inference.py、probe.py 保留兼容，数据／训练／评测工具仍位于本目录。CPU wheel 不可用时可改 Python 3.12 建环境。
 
 ## 四步重训与验证
 

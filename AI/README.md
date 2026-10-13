@@ -26,6 +26,7 @@
 | 统一 AI 写审核、人工修订、MCP 改题 | `ai-review.md`，页面见 `frontend/ai-review.md` |
 | AI 草稿区（助手录题、草稿存储、审核接口） | `drafts.md` |
 | 框选模型训练、数据构建与实验 | `training/README.md` |
+| 框选检测服务的目录拆分与独立运行迁移 | `training/README.md`、`plans/boxdetect-service/progress.md` |
 | 技术债与已知缺陷 | `optimization.md` |
 | 维护者环境、生产发布目录、可用工具、协作配方 | `environment.md` |
 | 某版本改了什么 | `changelog.md` |
@@ -128,9 +129,9 @@
 | `plans/` | 计划文件夹：每个计划一个子目录，`plan.md` 总纲 + `exec-*.md` 执行说明 + `progress.md` 进度（约定见 `plans/README.md`） |
 | `logs/log.md` | 任务日志索引（自动生成；不随脱敏源码包导出） |
 
-训练工具位于 `tools/boxdetect/`；数据基线、实验与经验索引见 `training/README.md`。
+训练工具位于 `tools/boxdetect/`；常驻检测与预检实现位于 `services/boxdetect/`，旧工具入口保留兼容。数据基线、实验与经验索引见 `training/README.md`。
 
-训练面板后端 `omrs/trainpanel.py` 读取实验文件，`omrs/traincontrol.py` 管理显式登记的固定检测服务，契约见 `api.md` 与 `data/storage.md` §7，训练环境及门禁见 `environment.md`。
+训练面板后端 `omrs/trainpanel.py` 读取实验文件，`omrs/traincontrol.py` 管理显式登记的固定检测服务，契约见 `api.md` 与 `data/storage.md` §8，训练环境及门禁见 `environment.md`。
 
 独立训练面板前端 `/train` 见 `frontend/trainpanel.md`，从录入题目的 AI 训练工作区打开；支持实时测试与可选积累。
 

@@ -2,6 +2,8 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-10-13_boxdetect-service](2026-10-13_boxdetect-service.md)：框选检测服务源码迁移
+- [2026-10-13_boxdetect-service-plan](2026-10-13_boxdetect-service-plan.md)：框选检测服务迁移方案
 - [2026-10-12_zuoyebang-status-panel](2026-10-12_zuoyebang-status-panel.md)：作业帮服务面板状态优先重设计
 - [2026-10-12_zuoyebang-search-ui](2026-10-12_zuoyebang-search-ui.md)：作业帮取图搜题与自动预览
 - [2026-10-12_zuoyebang-public-images](2026-10-12_zuoyebang-public-images.md)：作业帮附图支持任意公网域名

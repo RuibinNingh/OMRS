@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omrs-boxdetect-service"
+version = "1.0.0"
+description = "独立题目与答案 ONNX 框选检测服务"
+requires-python = ">=3.11"
+dependencies = ["onnxruntime==1.30.0", "numpy==2.5.2", "Pillow==12.3.0"]
+
+[project.scripts]
+omrs-boxdetect = "boxdetect_service.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["boxdetect_service*"]

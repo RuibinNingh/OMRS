@@ -286,6 +286,7 @@
 | `pack_for_ai.bat` | 确保根 `AGENTS.md`、全部 `AI/*.md` 和 `AI/logs/` 被打包，并同步根 `README.md` 的打包说明 |
 | `tests/check_docs.py`、`AGENTS.md`、维护环境 | `AI/README.md`、`AI/environment.md` |
 | `tools/boxdetect/` | `AI/training/README.md` |
+| `services/boxdetect/`、`tests/boxdetect_compare.py` | `AI/training/README.md`、`AI/environment.md`，安装与目录同时更新根 `README.md` |
 | 测试、工具或协作规则 | 相关模块文档；任何持久化改动仍须写本次任务日志 |
 | 任何版本号变更 | `omrs/version.py`、`omrs_dashboard.html` 侧栏、根 `README.md`、`AI/README.md`，并在 `AI/changelog.md` 顶部加一段 |
 

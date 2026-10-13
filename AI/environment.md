@@ -178,6 +178,8 @@ P4 分类和草稿修订路径使用独立的 `tests/fixtures/agent_p4_faux.json
 
 ## 7. 本地框选训练环境
 
+当前仓库的独立检测服务位于 `services/boxdetect/`，从该目录执行 `python -m boxdetect_service serve` 或 probe；支持安装后从仓库外运行。三项推理依赖与安装包验收见 `services/boxdetect/README.md`，旧工具入口仍可用。源码迁移不修改下文所记生产 unit 与模型入口。
+
 CPU 训练使用仓库外 `~/omrs-train/.venv/`，精确依赖在 `tools/boxdetect/requirements-train.txt`，服务依赖另列 `requirements-serve.txt`。数据只读原 Vault，产物写外部目录。训练以 nice 19 限制优先级，线程数最多 6，并监控可用内存；可用内存不足 2 GiB 时停止训练。数据构建与系统 Python 单测不加载 torch／onnxruntime。
 
 训练面板文件与 HTTP 门禁：`python3 -m unittest tests.test_trainpanel -q`，使用临时 Vault、假训练目录与随机本机高端口；路由提取已登记 `_trainpanel_get` / `_trainpanel_post`。

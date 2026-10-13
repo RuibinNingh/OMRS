@@ -39,6 +39,8 @@
 
 `tools/boxdetect/build_dataset.py` 构建外部数据快照；离线 `evaluate.py` 保留已完成实验的模板基线复算，与线上框选提供方无关；命令、精确依赖与冻结规则见 `tools/boxdetect/README.md`。数据筛选会严格解码原图，排除未编辑 AI 框、缺类、损坏、尺寸或哈希不符。dHash 分组阈值 4；同组不跨集合，测试集至少 15 张。重新构建时沿用最早 manifest；测试图或标签变化会拒绝构建，与测试图近似的新增图隔离。
 
+常驻检测与预检的实现位于 `services/boxdetect/boxdetect_service/`，可独立安装运行，不依赖 omrs 或 tools；安装／协议见 `services/boxdetect/README.md`。旧 serve.py、inference.py、probe.py 是兼容入口，训练和评估复用同一推理实现。IoU 在服务内按既有算法计算，整图切片／合并仍复用 OMRS。最小服务依赖固定在服务 requirements.txt，旧 requirements-serve.txt 引用该清单。
+
 ## 训练与评估
 
 `train.py` 在独立环境中运行 YOLOv8n CPU 微调，最多 6 线程、单次 4 小时，独立看护每 0.5 秒检查可用内存与进程树 RSS。`evaluate.py` 先算模板，再只在验证集选阈值，最后在冻结测试集复用 OMRS 切片与合并计算整图 IoU。`publish.py` 显式导出和发布固定 ONNX 文件，旧当前模型保留。回环 local_http 服务与独立面板已实现并通过隔离端到端验证。命令见工具 README。
