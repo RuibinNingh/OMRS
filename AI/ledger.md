@@ -233,6 +233,8 @@ omrs/session_operations.py 在新鲜链头、活动配置和 SQL 投影检查后
 
 ## 正式题目审核的文件与事实协议
 
+MCP 正式改题提案与人工修订中的成对公式定界符在生成有效补丁前转为美元符号，公式命令保持原样。审批的有效摘要、前后 Markdown 哈希和新 blob 都对应最终转换后的正文；原请求摘要继续用于重试定位，已有正文与历史 blob 不因兼容预览或导出而改变。
+
 `omrs/question_update_journal.py` 在 `.omrs-maintenance/question-updates/` 原子刷盘保存基线、有效补丁摘要、前后 Markdown 哈希、稳定题目身份、路径、Vault 世代、Ledger 链头和精确文件所有权。先刷盘新正文临时文件与意图，再原子替换题目；`question.content_update` 或 `question.metadata_update`、前后正文 blobs 与 `op_results` 回执在同一 `BEGIN IMMEDIATE` 事务提交。事实的 `_ai_review` 固定操作编号、有效摘要与原来源；助手仍保留原 `_agent` 身份。无实际变化只记技术回执，不追加正文事实。
 
 首次执行与实际文件替换前均验证唯一审核库的 applying 状态、批准版本、原请求及有效摘要、来源、快照和世代；MCP 实时复查密钥权限与期限，助手复查原运行与写入者身份及中止状态。读取回执使用只读 SQLite 连接，不初始化或迁移 Ledger，也不恢复业务写权限。

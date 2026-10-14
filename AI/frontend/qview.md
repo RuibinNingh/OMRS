@@ -12,6 +12,7 @@
 | 文件 | 内容 |
 |---|---|
 | `markdown.js` | `renderMd(text, mode)`（带缓存）、`renderMdUncached`、`renderMdInline`、表格、图片、KaTeX、`mdLineBreakMode()` |
+| `math-text.js` | `normalizeMathDelimiters(text)`：成对 LaTeX 定界符转美元符号，与后端共用回归夹具 |
 | `records.js` | `parseQHistory`、`qRecordsFromDetail`、`qHistoryStats`、`qStreakHtml`、`parseDay` |
 | `view.js` | 纯函数：`qvHtml(detail, item, opts)`、`qvChips`、`qvToolsHtml`、`qvRecordHtml`、`qvCreationHtml`、`qvGalleryCard`、`qvGalleryIdHtml`、`QV_DEFAULTS`、`QV_CARD_OPTS` |
 | `mount.js` | `ensureDetail`、`qvRender`、`qvInvalidate(Many)`、`qvRerenderAll`、`qvSetContext`、`bindQuestionDom()`（工具按钮委托、题图降级，并登记弹窗 ←/→） |
@@ -28,8 +29,8 @@
 - 逐行渲染：普通文本默认保留每一处换行（`full`），输出为同一段中的 `<br>`；空行分段为 `<p class="md-p">`（连续空行只算一段），所以 Markdown 段落和 AI 的普通逐行文本都能直接显示。`lean` 是显式兼容选项，把单个换行当软换行接续；行尾两个空格在两种模式下都是硬换行。换行偏好归本模块：`mdLineBreakMode()` / `setMdLineBreakMode()`，存 `localStorage('omrs-qb-md-mode')`（键名沿用旧版；没有旧偏好时迁移到 `full`）；题库页「显示设置」切换后调 `qvRerenderAll()`。题库、录入预览、草稿审核、反馈、即时练习和展示板详情都复用这条渲染路径。
 - 表格：表头 + 分隔行（`:?-{3,}:?`），`\|` 是单元格内竖线，输出 `.md-table-wrap > table.md-table`。
 - 图片：`![[名.png|300]]` 与 `![说明](路径)`，只取文件名，输出 `<img class="md-img" data-omrs-image=… width=…>`；宽度上限 600，不写行内样式。加载失败时由 `bindQuestionDom` 的捕获监听换成 `.md-img-missing` 文件名提示。
-- 公式：`$…$`、`$$…$$`（可跨行）走 KaTeX；KaTeX 不可用时降级为 `<span class="math">` 源码。普通文本一律先转义，只放行图片、KaTeX 输出和降级公式三类 HTML。
-- 缓存键是「换行模式 | 长度 | FNV-1a 哈希」，上限 600 条，最近使用的留下。KaTeX 还没加载时含 `$` 的结果不进缓存，免得降级结果粘住。`mdCacheStats()` 看命中，`clearMdCache()` 清空。
+- 公式：渲染前把同一行成对的 `\(...\)` 转为 `$…$`，把可跨行的 `\[...\]` 转为 `$$…$$`，不改变公式命令与正文换行；代码、已有美元公式、转义或未配对的定界符保留。`$…$`、`$$…$$`（可跨行）走 KaTeX；KaTeX 不可用时降级为 `<span class="math">` 源码。普通文本一律先转义，只放行图片、KaTeX 输出和降级公式三类 HTML；兼容渲染不回写旧题目文件。
+- 缓存键是规范化后的「换行模式 | 长度 | FNV-1a 哈希」，上限 600 条，最近使用的留下。KaTeX 还没加载时含公式的结果不进缓存，包括从反斜杠定界符转换的公式，免得降级结果粘住。`mdCacheStats()` 看命中，`clearMdCache()` 清空。`tests/app/math-delimiters.test.mjs` 验证转换、完整答案及延迟加载。
 
 ## 3. qview
 

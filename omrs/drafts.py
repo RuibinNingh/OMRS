@@ -30,6 +30,7 @@ import uuid
 from .common import omrs_data_dir, load_config
 from . import locking
 from .inbox import image_size
+from .math_text import normalize_math_delimiters
 
 DRAFTS_DIR = "drafts"
 _LOCK = threading.RLock()
@@ -953,8 +954,14 @@ def create_mcp_draft(vault, data, origin, images=None):
                 raise ValueError(f"第 {index + 1} 个图片块未引用本次提供的原图")
             item["image_sha"] = ref
             item.pop("image", None)
+        for field in ("text", "note"):
+            if isinstance(item.get(field), str):
+                item[field] = normalize_math_delimiters(item[field])
         clean_blocks.append(item)
     data["blocks"] = clean_blocks
+    for field in ("cause", "note"):
+        if isinstance(data.get(field), str):
+            data[field] = normalize_math_delimiters(data[field])
     data["source_images"] = list(dict.fromkeys(shas))
 
     created_files = []

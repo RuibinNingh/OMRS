@@ -5,6 +5,7 @@
  */
 import { escape } from '../../core/html.js';
 import { renderLatexSegment } from '../../domain/question/markdown.js';
+import { normalizeMathDelimiters } from '../../domain/question/math-text.js';
 
 const TEX = new Map();
 export function tex(src, display) {
@@ -23,7 +24,7 @@ export function renderInline(src, refOf = code => `<code>${escape(code)}</code>`
   let out = '';
   let last = 0;
   let m;
-  const text = String(src ?? '');
+  const text = normalizeMathDelimiters(src);
   while ((m = re.exec(text))) {
     out += plain(text.slice(last, m.index));
     if (m[1]) out += tex(m[1].slice(1, -1), false);
@@ -52,7 +53,7 @@ function tableHtml(rows, refOf) {
 }
 
 export function renderMd(src, { live = false, refOf } = {}) {
-  const lines = String(src ?? '').split(/\r?\n/);
+  const lines = normalizeMathDelimiters(src).split(/\r?\n/);
   const blocks = [];
   let para = [];
   const flush = () => { if (para.length) { blocks.push({ t: 'p', h: para.map(l => renderInline(l, refOf)).join('<br>') }); para = []; } };
@@ -130,7 +131,7 @@ export function renderMd(src, { live = false, refOf } = {}) {
 
 /** 纯文本摘要（对话列表的第二行）：去掉表格、公式符号与标记。 */
 export function plainOf(src) {
-  const line = String(src ?? '').split(/\r?\n/).find(l => l.trim() && !/^\s*\|/.test(l)) || '';
+  const line = normalizeMathDelimiters(src).split(/\r?\n/).find(l => l.trim() && !/^\s*\|/.test(l)) || '';
   const text = headingOf(line)?.text ?? line;
   return text.replace(/\$([^$]+)\$/g, (_, t) => t.replace(/\\([a-z]+)/gi, '$1').replace(/[{}\\]/g, '')).replace(/[`*]/g, '').trim();
 }

@@ -7,7 +7,7 @@ from ..agent.tools.read import SORT_FIELDS
 ENTRY_RULES = (
     '一道完整题目建一份草稿，同一题的相关小问放在一起；多道独立题分别调用并使用不同 request_id。'
     '忠实保留题干、条件、选项、单位、图表和小问，按阅读顺序组织 blocks，不猜测看不清的内容。'
-    '能完整转述的内容用 text，公式用 $LaTeX$ 或 $$LaTeX$$，换行保留步骤；无法完整转述的内容保留原图，note 标明待核对处。'
+    '能完整转述的内容用 text，公式用 $LaTeX$ 或 $$LaTeX$$，换行保留步骤；成对的 \\(...\\) 与 \\[...\\] 会自动转为美元符号，公式命令不变。无法完整转述的内容保留原图，note 标明待核对处。'
     '题目和答案分别组织；没有图片的答案只能有一个 text 块，图片之间的相邻答案文字也合并，答案未知可省略。'
     '用户要求补充解答时，生成内容须标明为补充解答待核对，不能冒充原答案。'
     'images 关联本题全部来源原图，即使正文全部转成文字也保留来源；图片块用从 0 开始的 images 下标。'
@@ -57,8 +57,8 @@ TOOL_DESCRIPTIONS = {
     'get_mcp_operation': '按写工具返回的 operation_id 查询当前密钥发起的网页审核操作。返回 status、confirmation_url、result 及错误原因；pending 不代表已执行，网页批准后从 result 取得领域结果。只能查询，不能批准；拒绝、到期或冲突时告知用户，不自动重建申请。',
     'export_board': '导出不可变、自包含的展示板 HTML 快照，mode=all 全部或 new 仅尚未打印范围。最多 64 MiB、保留 24 小时；返回需主 Web 登录的下载链接，MCP Key 不可替代登录，PDF 用浏览器打印。导出不登记已打印；同 request_id 重试沿用原快照，想导出更新后的板须使用新编号。',
     'create_draft': '仅在用户明确要求录题或保存时，创建来源为 MCP、status=review 的待审核草稿，不正式入库。' + ENTRY_RULES + '先对齐科目和分类名称，知识点最多 8 项；创建难度固定 5，不传 difficulty/labels。最多 40 块、6 张 PNG/JPEG/GIF 原图，每张 8 MiB；文字或说明每字段最多 20000 字符。附件不可获取或超限时说明缺失，不静默删图重试。返回 draft_id/revision/status/source_images；用户在审核中心核对后入库，不能报告已进入正式题库。',
-    'update_draft': '修订任意来源待审核草稿，不正式入库。先 get_draft 取得 revision 和 blocks[].id，只改 fields 白名单或已有文字/说明；不能新增、删除、调序块或改变图片、框、状态、来源。省略字段保留，知识点 [] 清空；修改或清空 cause 均须用户原话 cause_statement。目标只要有人工保护，整次不写，返回 wrote=false 和 suggestions；不得拆请求绕过保护。版本冲突先重读核对。',
-    'propose_question_update': '用户要求修改已有正式题目时，先 get_question 取得 uid/question_id/content_hash，长正文先完整读取，再提交非空白名单字段替换补丁和 reason。不能从截断正文覆盖全文，不改变原图片引用、所属分节和顺序，也不写学习状态、路径或附件。返回待审 operation_id/confirmation_url，批准前不改题；用户处理后用 get_mcp_operation 查 result。',
+    'update_draft': '修订任意来源待审核草稿，不正式入库。正文成对公式定界符自动转美元符号，cause_statement 原话不变。先 get_draft 取得 revision 和 blocks[].id，只改 fields 白名单或已有文字/说明；不能新增、删除、调序块或改变图片、框、状态、来源。省略字段保留，知识点 [] 清空；修改或清空 cause 均须用户原话 cause_statement。目标只要有人工保护，整次不写，返回 wrote=false 和 suggestions；不得拆请求绕过保护。版本冲突先重读核对。',
+    'propose_question_update': '正文成对公式定界符自动转美元符号，保留公式命令并展示于送审预览。用户要求修改已有正式题目时，先 get_question 取得 uid/question_id/content_hash，长正文先完整读取，再提交非空白名单字段替换补丁和 reason。不能从截断正文覆盖全文，不改变原图片引用、所属分节和顺序，也不写学习状态、路径或附件。返回待审 operation_id/confirmation_url，批准前不改题；用户处理后用 get_mcp_operation 查 result。',
     'create_review_session': '仅在用户要求创建正式复习计划时调用。先 get_recommendations，把 selection 的 1–100 个稳定 question_id/source 传入 items；单题也创建正式计划。先返回待审核 operation_id/confirmation_url，待审核没有 session_id；用户网页批准后用 get_mcp_operation 查 result。已创建请求重试沿用回执，原计划撤销后不会自动重建。',
     'create_board': '按 list_boards 的 catalog_revision 新建展示板，可带最多 100 个当前 UID，folder_id 为空表示未归档。返回 board_id/revision/catalog_revision 和实际加题结果；不创建新题、不复制正文、不改变学习状态。',
     'update_board': '先 get_board，再按板版本局部修改 name/note/source_labels，省略字段保持。改名还须最新 catalog_revision；source_labels 是展示板来源说明，不是给题目标记。返回实际写入或 unchanged 及版本，不修改正式题目。',

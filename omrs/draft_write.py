@@ -14,6 +14,7 @@ from .common import questions_root, load_config
 from .ledger import reserve_operation_id
 from .projections import rebuild_projection
 from .path_safety import safe_question_directory
+from .math_text import normalize_math_delimiters
 
 _FIELDS = {"subject", "category", "difficulty", "knowledge_points", "labels", "cause", "note"}
 _BOX_KEYS = {"x", "y", "w", "h"}
@@ -245,6 +246,10 @@ def _patch_content(db, row, fields, block_patches, actor):
     """共享补丁校验与写 SQL；调用方负责授权、CAS 和原子事务。"""
     draft_id = row["id"]
     values = _fields(row, fields)
+    if actor.get("source_channel") == "mcp":
+        for key in ("cause", "note"):
+            if key in fields:
+                values[key] = normalize_math_delimiters(values[key])
     blocks = {b["id"]: b for b in drafts._draft_blocks(db, draft_id)}
     edits, changed, seen = [], {}, set()
     for index, patch in enumerate(block_patches):
@@ -263,6 +268,11 @@ def _patch_content(db, row, fields, block_patches, actor):
             raise drafts.DraftError("图片说明必须是文字")
         new_text = patch["text"].strip() if "text" in patch else old["text"]
         new_note = patch["note"].strip() if "note" in patch else old["note"]
+        if actor.get("source_channel") == "mcp":
+            if "text" in patch:
+                new_text = normalize_math_delimiters(new_text)
+            if "note" in patch:
+                new_note = normalize_math_delimiters(new_note)
         if new_text != old["text"] or new_note != old["note"]:
             edits.append((new_text, new_note, block_id, draft_id))
             changed[f"block:{block_id}"] = {"before": {"text": old["text"], "note": old["note"]},

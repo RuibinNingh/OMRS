@@ -3,6 +3,7 @@ import asyncio
 import unittest
 
 from omrs import ai_review, content_history, ledger
+from omrs.creation import create_question
 from omrs.mcp.keys import create_key, revoke_key
 from tests.test_mcp_protocol import MCPServerProcess, _session, _json_result
 
@@ -71,6 +72,33 @@ class MCPQuestionUpdateSDKTests(unittest.TestCase):
                 self.assertEqual(again['status'], 'applied')
                 self.assertEqual(len(ledger.read_commits(self.server.vault)), count)
                 self.assertTrue(ledger.verify_ledger(self.server.vault)['valid'])
+        asyncio.run(run())
+
+    def test_math_proposal_normalizes_review_and_keeps_retry_identity(self):
+        uid = create_question(self.server.vault, '物理', '定界符', 5,
+                              question_text='求落地时间差。', answer_text='待核对')['uid']
+        key = create_key(self.server.vault, scopes=['omrs:read', 'question:propose'])
+
+        async def run():
+            async with _session(self.server.mcp_port, key['secret']) as session:
+                read = _json_result(await session.call_tool('get_question', {'uid': uid}))
+                args = {'uid': uid, 'question_id': read['question_id'], 'expected_content_hash': read['content_hash'],
+                        'patch': {'answer_text': r'\[\Delta t=\boxed{\frac{v_0}{g}}\]'},
+                        'request_id': 'sdk-math-proposal', 'reason': '保留公式并统一格式'}
+                operation = _json_result(await session.call_tool('propose_question_update', args))
+                self.assertEqual(operation['payload']['patch']['answer_text'], r'$$\Delta t=\boxed{\frac{v_0}{g}}$$')
+                row = content_history.projection_row(self.server.vault, uid=uid)
+                self.assertIn('待核对', content_history.read_question_file(self.server.vault, row))
+                retry = _json_result(await session.call_tool('propose_question_update', args))
+                self.assertTrue(retry['reused'])
+                revised = ai_review.update(self.server.vault, operation['operation_id'], 1,
+                                            {'answer_text': r'\(t\) 的结果为 \[\frac{v_0}{g}\]'})
+                self.assertEqual(revised['payload']['patch']['answer_text'], r'$t$ 的结果为 $$\frac{v_0}{g}$$')
+                approved = ai_review.decide(self.server.vault, operation['operation_id'], 2, 'approve')
+                self.assertEqual(approved['status'], 'applied')
+                self.assertIn(r'$t$ 的结果为 $$\frac{v_0}{g}$$', content_history.read_question_file(self.server.vault, row))
+                self.assertTrue(_json_result(await session.call_tool('propose_question_update', args))['reused'])
+
         asyncio.run(run())
 
     def test_revoke_before_approval_and_unsafe_patch_leave_official_question_unchanged(self):

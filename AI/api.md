@@ -27,6 +27,8 @@
 
 外部 MCP 的调用说明随工具发现返回，集中来源为 `omrs/mcp/tool_docs.py`；包括用途、参数来源、分页单位、版本与技术重试、录题示例和网页审核状态。元数据不改变领域校验和 HTTP 路由。录题的原图、块与错因规范见 `AI/mcp.md`，草稿修订协议见 `AI/api/extensions.md`。
 
+MCP 草稿正文和正式改题提案兼容成对 LaTeX 反斜杠定界符，自动转为美元公式；原请求摘要及错因原话保留，详见 `AI/mcp.md` 与 `AI/api/extensions.md`。
+
 收件箱与草稿区域提取的数学定界符转义兼容、正文格式及失败边界见 `AI/api/extensions.md`「收件箱端点」与 `AI/inbox.md` §4。
 
 训练面板的服务预检通过独立 `boxdetect_service probe` 子进程执行，采用明确服务工作目录和原有 systemd 限额；主进程不导入 tools 或推理框架。训练／控制接口与模型状态格式保持，启动命令与源码导出范围见 `AI/api/extensions.md`。

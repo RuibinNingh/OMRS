@@ -30,6 +30,7 @@ from .data_repository import mastery_rows, resolve_question
 from .vault_lifecycle import lease
 from .locking import write_lock
 from .export_fonts import inline_print_fonts
+from .math_text import normalize_math_delimiters
 
 
 QUESTION_SECTION = "题目"
@@ -151,7 +152,7 @@ def _parse_notes_subsections(notes_text):
     if not notes_text:
         return {}
     result = {}
-    parts = re.split(r"^##\s+", notes_text, flags=re.MULTILINE)
+    parts = re.split(r"^##\s+", normalize_math_delimiters(notes_text), flags=re.MULTILINE)
     for part in parts[1:]:
         lines = part.split("\n", 1)
         key = lines[0].strip()
@@ -307,7 +308,7 @@ def _text_to_blocks(vault, text, image_loader=None):
     细粒度按行成块，既保留原排版语义，也让浏览器端在双栏里填得更紧；跨行 `$$...$$`
     会先合并为一个文字块，确保完整交给 KaTeX。"""
     blocks = []
-    lines = (text or "").split("\n")
+    lines = normalize_math_delimiters(text or "").split("\n")
     index = 0
     while index < len(lines):
         if index + 1 < len(lines) and "|" in lines[index] and _is_markdown_table_separator(lines[index + 1]):

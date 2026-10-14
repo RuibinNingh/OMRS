@@ -118,6 +118,8 @@ POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 
 
 ## MCP 草稿修订
 
+MCP 创建与修订草稿的文字 / 说明和错因 / 备注会规范化公式定界符：同一行 `\(...\)` 转 `$…$`，可跨行 `\[...\]` 转 `$$…$$`。公式命令、代码及错因原话不改写。`propose_question_update` 的正文、答案、错因和备注在送审前执行同样转换，人工修订也转换；批准才写正式题目。重试仍校验原请求摘要，字段白名单、身份和版本要求不变。
+
 update_draft(draft_id, expected_revision, request_id, fields?, block_patches?, cause_statement?) 同时需要 omrs:read/draft:update；返回 draft_id/revision/wrote/suggestions/reused。人工保护整次不写；重复请求返回原回执，版本/状态冲突有稳定错误码。只修订待审核草稿，不改变 Web 审核或内置助手的归属规则。
 
 请求触及任一受保护字段/块，即使内容未变也整次拒绝写入；错因修改和清空均需 cause_statement，实际修改标 client_asserted。领域稳定错误在 `omrs/errors.py`，普通 Web/CLI 启动不加载可选 MCP SDK。

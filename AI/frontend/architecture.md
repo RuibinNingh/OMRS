@@ -173,6 +173,10 @@ MCP 确认 hash 在 core/api.js 的401跳转和 PIN 登录 destination 中保留
 
 浏览器测试需要直接调用领域模块时，从 performance resource 记录取得页面实际加载的版本化模块 URL；不得用未版本化路径导入另一个未连接服务的模块实例。对话内审批回归见 `tests/e2e/assistant_review.py`，覆盖实际变更数量、草稿保存失败、未保存保护、单份入库和双主题多宽度。
 
+## 公式定界符兼容
+
+题目与聊天的公式定界符转换由 `domain/question/math-text.js` 共享；`tests/app/math-delimiters.test.mjs` 与后端读取同一份合成夹具，验证代码保护和缓存。`tests/e2e/math_delimiters.py` 通过真实 MCP、审核页面、题库详情和离线导出验证完整答案，使用临时 Vault 与随机端口。
+
 ## 标记整理工具
 
 标签与题面查询在 HTTP、助手和 MCP 的磁盘段共用一致性锁，防止整批文件替换期间出现半批结果；等待审批与网络传输不持锁。

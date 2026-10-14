@@ -7,10 +7,16 @@ from .. import ai_review
 from ..data_repository import storage_write
 from ..errors import RequestError
 from ..question_update import prepare_update, apply_update, validate_patch
+from ..math_text import normalize_math_delimiters
 from .common import request_identity
 from .tool_docs import TOOL_DESCRIPTIONS
 
 SCOPES = {'propose_question_update': ('omrs:read', 'question:propose')}
+
+
+def _normalize_patch(patch):
+    return {key: normalize_math_delimiters(value) if isinstance(value, str) and key in {'question_text', 'answer_text', 'cause', 'note'}
+            else value for key, value in patch.items()}
 
 
 @storage_write
@@ -28,6 +34,8 @@ def propose(vault, key_id, request_id, uid, question_id, expected_content_hash, 
         if previous['digest'] != digest:
             raise RequestError('request_conflict', '相同 request_id 的题目修改内容不同')
         return {**ai_review.public(previous, web_url), 'reused': True}
+    # 重试摘要沿用原请求；规范化只影响送审与最终写入的正文。
+    requested['patch'] = _normalize_patch(clean)
     payload, preview, snapshot = prepare_update(vault, **requested)
     if authorize:
         authorize()
@@ -45,7 +53,7 @@ def prepare_review(vault, row, patch):
         raise RequestError('forbidden', '不能扩大原提案的编辑字段')
     payload = row['payload']
     return prepare_update(vault, payload['uid'], payload['question_id'], payload['expected_content_hash'],
-                          {**payload['patch'], **patch}, reason=payload.get('reason', ''))
+                          _normalize_patch({**payload['patch'], **patch}), reason=payload.get('reason', ''))
 
 
 def apply_review(vault, row):

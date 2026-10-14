@@ -5,6 +5,7 @@
  * 输出是字符串（旧代码直接拼进 innerHTML）；新代码经 raw() 嵌入模板。图片宽度用 width 属性，不写 style=（check_ui R6）。
  */
 import { escape } from '../../core/html.js';
+import { normalizeMathDelimiters } from './math-text.js';
 
 const g = globalThis;
 const CACHE_LIMIT = 600;
@@ -66,7 +67,10 @@ export function renderLatexSegment(source, display) {
 const TOKEN_RE = /(!\[\[[^\]]+?\]\]|!\[[^\]]*\]\([^)]+\)|\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/g;
 
 export function renderMdInline(text = '') {
-  const source = String(text ?? '');
+  return renderMdInlineNormalized(normalizeMathDelimiters(text));
+}
+
+function renderMdInlineNormalized(source) {
   const re = new RegExp(TOKEN_RE.source, 'g');
   let out = '';
   let last = 0;
@@ -133,7 +137,7 @@ function findDisplayMathEnd(lines, start) {
 /** 逐行渲染（不查缓存）。空行 = 分段（`<p class="md-p">`，间距由样式表决定），连续空行只算一段。 */
 export function renderMdUncached(text = '', mode) {
   const soft = (mode || mdLineBreakMode()) !== 'full';
-  const lines = String(text ?? '').split(/\r?\n/);
+  const lines = normalizeMathDelimiters(text).split(/\r?\n/);
   const blocks = [];
   let para = '';
   let pendingSoftJoin = false;
@@ -169,7 +173,7 @@ export function renderMdUncached(text = '', mode) {
     const hardBreak = / {2,}$/.test(source);
     if (hardBreak) source = source.replace(/ +$/, '');
     if (pendingSoftJoin) para += ' ';
-    para += renderMdInline(source);
+    para += renderMdInlineNormalized(source);
     pendingSoftJoin = false;
     if (end < lines.length - 1) {
       if (hardBreak || !soft) para += '<br>';
@@ -183,7 +187,7 @@ export function renderMdUncached(text = '', mode) {
 
 /** 带缓存的入口（旧名 renderMdContent 经过渡桥指向这里）。 */
 export function renderMd(text = '', mode) {
-  const source = String(text ?? '');
+  const source = normalizeMathDelimiters(text);
   const resolved = (mode || mdLineBreakMode()) === 'full' ? 'full' : 'lean';
   if (!source) return '';
   const key = `${resolved}|${source.length}|${hashText(source)}`;
