@@ -24,6 +24,7 @@ assets/
 首次打开 `/` 或 `/login` 时，服务端先返回独立的锁屏入口。入口沿用 Gravity Journey 的全屏布局：固定视口中的 Three.js/WebGL 黑洞、金白色吸积环、公式曲面与星尘，顶部 `( Deploy ) / ( Preview ) / ( Ship )` 网格和底部工作区标识保持同一排版；滚动推进镜头，指针扰动场景，点击产生脉冲。入口背景可在「设置 → 外观与显示」切换为黑洞预设或当前 Vault 的自定义图片 / 视频；自定义媒体通过公开的当前资源端点读取，使用 `cover` 裁切、固定暗色遮罩和 0–32px 高斯模糊。视频自动静音循环播放，`prefers-reduced-motion` 下暂停视频并关闭黑洞动画。启用 PIN 时在右下入口栏输入 4–12 位数字解锁，未启用 PIN 且当前来源有访问权限时点击「进入 OMRS」。解锁后通过带当前进程 handoff token 的 `/?unlocked=1` 地址回到原有单页外壳，Hash 路由继续保留；工作台 HTML 响应为 `no-store`，避免重启或部署后复用旧页面壳。入口页只加载场景 vendor 资源和当前背景，不读取题库数据；媒体加载失败、配置损坏或 WebGL 不可用时回退黑洞参考主视觉。
 
 **加载约定：**
+- 锁屏入口内联既有 OMRS SVG favicon，避免浏览器额外请求不存在的默认图标；工作台继续复用原图标文件。
 - `<head>` 先运行 `assets/app/theme-boot.js` 读取主题、密度、侧栏与图片反色偏好；随后加载本地字体、`tokens.css`、`index.css` 和 KaTeX 脚本。`index.css` 用 `@layer` 引入 KaTeX 样式、基础样式、组件、领域与页面样式。
 - 页面底部仅以 `<script type="module">` 加载 `assets/app/main.js`。它安装共享组件，创建外壳和页面路由，连接领域服务，先进入当前 hash 页面，再并行读取初始标签、统计与 Session；详见 `AI/frontend/architecture.md` §2。
 - 题目 Markdown 的 HTML 由 `domain/question/markdown.js` 统一生成，`domain/question/qview.css` 提供题面块与换行样式；普通换行默认逐行显示，空行仍分段。题库显示设置可显式切回简略模式，测试见 `tests/app/question.test.mjs`。
@@ -45,7 +46,7 @@ assets/
 - 主面板显示和浏览器刷新直接呈现内容，不播放整页淡入、位移或缩放；页面自身的加载状态由对应控制器负责。
 - 页面 `<head>` 注册 `assets/app/omrs-favicon.svg` 作为 16–32px 标签页图标，注册 `assets/app/omrs-icon.svg` 作为 48px 以上与触控主屏图标；侧栏左上角 32px 品牌位使用小尺寸图标，旁边保留 OMRS 名称与中文副标题。
 - 侧栏宽 232px，导航项是 `<a class="tab" href="#/页面">`（键盘可达）。当前页：强调浅底、半粗、左侧 3px 指示条，并带 `aria-current="page"`。
-- 侧栏页脚在 `omrs_dashboard.html` 声明当前版本号，与 `omrs/version.py`、根 `README.md` 和 `AI/README.md` 保持同步；运行中 `/api/status` 返回同一版本。发布验证同时核对接口版本、实际页面页脚和生产资源与发布归档的字节一致性，版本变更摘要只写在 `AI/changelog.md`。
+- 侧栏页脚在 `omrs_dashboard.html` 声明当前版本号，与 `omrs/version.py`、根 `README.md` 和 `AI/README.md` 保持同步；运行中 `/api/status` 返回同一版本。发布验证同时核对接口版本、实际页面页脚和生产资源与发布归档的字节一致性；助手权限菜单等新增模块也须核验其运行资源，版本变更摘要只写在 `AI/changelog.md`。
 - 侧栏、折叠按钮和手机汉堡按钮的图标都引用页面内的 `#i-*` SVG sprite；`.nav-ico` 统一设置 `currentColor` 描边、无填充、圆角线帽和 18px 盒子，避免 symbol 缺少外观规则时退回浏览器默认填充。
 - 折叠：侧栏按钮的 `data-action="app.collapse"` 更新 `<html data-sidebar>` 和 localStorage，侧栏收成 58px 图标栏；折叠时外壳给导航项挂 `data-tooltip`，悬停显示页面名。
 - 顶栏：标题是 `<h1 id="topbar-title">`，由外壳按页面登记写入，同时写 `document.title`。顶栏的全局「录入题目」按钮走 `app.create`。各页的「重新扫描」按钮走 `app.scan`：外壳调用 `domain/scan.js::scanVault()`，期间相关按钮置忙；在目录页扫描成功时发 `catalog:refresh`，使目录控制器重读磁盘树。

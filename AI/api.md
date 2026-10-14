@@ -9,6 +9,8 @@
 
 默认启动 `python omrs_engine.py --vault <path> serve -p 8471`。普通 Web 使用标准库 HTTP；`OMRSHandler.services` 为领域适配提供服务引用，已有 handler 方法名与服务替换测试接口保持可用。
 
+锁屏入口将既有 OMRS SVG 图标内联为 favicon，不另请求图标路径；入口资源与工作台鉴权的契约见 `AI/api/queries.md`。
+
 ## 1. 接口分册
 
 | 范围 | 文档 |
