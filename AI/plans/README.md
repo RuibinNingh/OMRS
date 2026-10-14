@@ -38,7 +38,7 @@ AI/plans/<计划名>/
 | `frontend-rearch/` | 进行中 | 前端重构：架构 + 设计系统 + UI 精致化，P0–P8 + 终检 + 部署；2026-09-26 起由 Codex 按 `exec-2026-09-26-codex.md` 执行；2026-09-27 起 P7 由 CCW 按轮并行推进 |
 | `ai-draft/` | P1–P4 已完成并部署 v1.30.0 | 主 AI 聊天录题、草稿审核入库、框选与独立训练任务；执行结果与发布状态见 `ai-draft/progress.md` |
 | `box-detect/` | 已完成并部署v1.32.0 | 训练、内容评测、复核面板及服务启停／模型显式应用与回退已交付，见progress.md |
-| `boxdetect-service/` | 源码已完成，生产发布准备中 | 源码 00b44d8、4cef0fe 已在 main；用户已授权随 v2.7.0 切换与推送，执行者 Codex · 完整模式 |
+| `boxdetect-service/` | 已完成并部署 v2.7.0 | 源码 00b44d8、4cef0fe，发布 6f38c87 已推main；三服务同仓、原模型保持，18组隔离和49项生产检查通过 |
 | `v2.0.0/` | P0–P1 完成，P2 进行中 | 审核优先、快速录入、AI 助手、练习卡、历史与用量的 P0–P7 升级 |
 | `mcp-integration/` | 全量扩展P0–P7完成并部署v2.1.0 | 97e0927 的38工具、受保护草稿修订、报告、展示板管理/网页确认/安全导出已上线；公网只读99/99，实际验收见 `mcp-integration/progress.md` |
 | `history-redesign/` | 已部署 v2.1.0，随 ba6501b 发布 | 学习与变更 / 系统运行分区时间线、真实 MCP 调用与草稿入库双向关联，见 `history-redesign/progress.md` |

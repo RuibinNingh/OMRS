@@ -41,6 +41,8 @@
 
 常驻检测与预检的实现位于 `services/boxdetect/boxdetect_service/`，可独立安装运行，不依赖 omrs 或 tools；安装／协议见 `services/boxdetect/README.md`。旧 serve.py、inference.py、probe.py 是兼容入口，训练和评估复用同一推理实现。IoU 在服务内按既有算法计算，整图切片／合并仍复用 OMRS。最小服务依赖固定在服务 requirements.txt，旧 requirements-serve.txt 引用该清单。
 
+生产检测 unit 从与主服务及网关相同的精确归档 services/boxdetect 启动 `-m boxdetect_service serve`，仍使用登记的训练解释器、managed/active、原端口和资源限制；源码目录迁移不应用训练 current 或重写受管 revision。实际运行与回退边界见 `AI/environment.md`。
+
 内存看护函数由标准库 `omrs/system_resources.py` 提供，训练脚本保留原导入接口，主服务控制器不再导入训练工具。脱敏源码包包含独立服务与明确公开的离线工具／依赖／提示词，排除模型、数据集与运行状态；安装包及新旧真实输出对照的验证入口见服务 README 与 `tests/boxdetect_compare.py`。
 
 ## 训练与评估

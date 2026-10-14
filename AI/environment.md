@@ -15,23 +15,21 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-12 23:09 CST发布并核验）：当前v2.6.0，运行源码为Git提交 `6b5cdbb2fca41b541c64291bb6e3bf7bb0f625f0` 的精确归档 `/root/workspace/apps/releases/omrs-6b5cdbb`，1441个源码文件与已验收工作区及Git归档逐字节一致。作业帮网关在同一仓库的services/zuoyebang，独立进程持有设备／账号／Key／审计；面板提供状态概览和管理弹窗，OMRS支持拍照／上传／粘贴取图、候选自动预览及原人工核对入库。
+生产环境事实（2026-10-14 22:19:47 CST发布并核验）：当前 v2.7.0，运行源码为 Git 提交 `6f38c873b1b20d9c8d009459f0168047b48cfaf6` 的精确归档 `/root/workspace/apps/releases/omrs-6f38c87`，1475 个源码文件逐字节一致。助手支持按对话保存三种权限模式及长期送审；作业帮网关保留新搜题的原图与完整返回详情；框选检测和预检使用同仓独立服务。
 
-主服务omrs.service沿用原unit/drop-in，Type=simple、Restart=on-failure、RestartSec=3s；持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 原子指向omrs-6b5cdbb。网关omrs-zuoyebang.service共用该别名和Python依赖，cwd为release/services/zuoyebang，运行数据在 `/var/lib/omrs-zuoyebang`（0700、文件0600），独立管理员初始密码在该目录的admin-secret.txt，不提交或输出。两进程真实cwd已核验，自动重启计数均为0。旧release、依赖和发布保全保留；回退恢复源码指针并保留最新Vault。
+主服务 omrs.service 和网关 omrs-zuoyebang.service 沿用原 unit/drop-in。持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 原子指向 omrs-6f38c87；检测 omrs-boxdetect.service 的 cwd 为同一归档 services/boxdetect，使用原训练解释器执行新模块 CLI。三个真实进程目录已核验，均 active/running、NRestarts=0；网关私有数据在 `/var/lib/omrs-zuoyebang`，目录0700、文件0600，管理员秘密不输出或提交。
 
-Python依赖仍为 `/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv`，Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；当前浏览器缓存/root/.cache/ms-playwright包含对应1234版Chromium。共享CDP9222仅供可信本机隔离context，不关闭共享浏览器；完整摄像头流程使用独立Chromium的模拟媒体参数。发布验证TMPDIR须使用浏览器可访问目录，不能把候选1228缓存用于生产Playwright1.62。
+Python依赖沿用 `/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv`，Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；浏览器缓存包含对应1234版Chromium。检测使用 `/root/omrs-train/.venv/bin/python`，推理依赖未升级。共享 CDP9222 仅供可信本机隔离 context，验证不关闭共享浏览器；发布 TMPDIR 使用浏览器可访问目录。
 
-Web8471、回环MCP18472、HTTPS8472和公开URL `https://home.ruibin-ningh.top:8472` 保持。Nginx同一server块的 `/zuoyebang/` 转发至回环8745，不新增公网端口；覆盖XFF，网关明确信任127.0.0.1/32，公开Origin固定为上述HTTPS源，管理Cookie为Secure/HttpOnly/Strict并限制到/zuoyebang/。OMRS已以外部HTTPS模式配置同机公开前缀及独立调用Key；本地／外部模式都需要Key。PIN、原MCP密钥与权限保持，匿名Web数据、MCP、网关调用和管理会话接口仍401。
+Web8471、回环MCP18472、HTTPS8472及公开URL `https://home.ruibin-ningh.top:8472` 保持。Nginx的 `/zuoyebang/` 反代至回环8745，不新增公网端口；管理Cookie为Secure/HttpOnly/Strict并限制服务路径。原网关连接、账号／设备、PIN、MCP及调用Key保持，匿名数据、MCP、网关调用与详情仍需鉴权；锁屏入口内联既有SVG图标。
 
-生产切换前有效后台任务、审批及恢复意图均为0。当前停服保全在 `/root/workspace/apps/releases/OMRS-v260-release-retry-4zau6dy0/`（0700、文件0600），包含精确新旧源码、控制配置、Vault/maintenance、网关私有数据及一致性摘要。两份数据归档实际比较、解包1024个文件及8个SQLite库完整性通过。切换保留49张业务表、945个正文／图片／关键配置文件、301题、0冲突、待审0；网关设备、账号、密钥及设置保持。unit、Nginx、Tunnel、检测服务和模型配置保持。
+当前停服保全为 `/root/workspace/apps/releases/OMRS-v270-release-3_6lthn2`，目录0700、文件0600，包含新旧源码、unit、检测控制及模型快照、Vault/maintenance与网关私有数据。两份数据归档比较、解包 1063 个文件和 8 个SQLite库完整性通过。303题、0冲突、0待审、49张原业务表的全部原列与963个内容／关键配置文件保持；新增权限列按默认手动／空来源迁移，详情表为空，不补造旧原图。模型指针、revision与控制文件保持，源码回退保留最新数据。
 
-已验收工作区在同一生产依赖下14/14组通过：后端68、Node496、网关52／4真实面板、前缀双进程18、设置75、原录入124、服务27、作业帮63、外壳24、组件34、UI0问题、58组对比度及8档前后视觉全部通过，无跳过。文档115份0问题（2条既有大计划提醒）；全部使用临时Vault及合成上游。发布归档与已验收源码逐文件核验，不把工作区运行冒称为归档目录重跑。
+发布候选在现有依赖下18/18组隔离门禁通过：全仓Python994、Node502、网关63／6真实页面、独立服务10、双进程22、权限27、助手59／聊天审核28／中心47、训练面板32／受管控制32／真实模型7、外壳24、组件34、UI零问题、58组对比度及8组视觉通过。入口favicon小修复后另有37项定向回归；994项在该修复前执行。1475文件归档与候选逐字节核验；归档中的限额probe及新／旧／兼容三入口三样例完整推理对照通过，不宣称所有工作区门禁均在归档目录重跑。
 
-真实生产43项通过：源码及运行资源字节、公网未登录保护、HTTPS连接、匿名鉴权、私有文件及XFF拒绝、面板登录／概览／弹窗／Key元数据／来源IP／登出、Cookie属性、浅深色桌面与390px布局、OMRS PIN入口及未解锁直达保护，两服务稳定且无错误级journal。既有设备及账号配置保持，不自动联系官方；真实官方搜题、签名期限、付费模型及实体手机摄像头须另验。生产PIN后的录入操作未自动验证；配置PIN时须实际解锁并携带当前进程handoff，不能以直接访问unlocked参数代替。Windows打包未在本机运行。
+真实生产49/49检查通过，覆盖版本、助手权限及搜题详情资源、匿名鉴权、私有文件及XFF保护、HTTPS连接、管理员登录／Cookie／搜题筛选／旧详情／关闭清理／登出、双主题390／1440px、PIN入口及直达保护、三服务目录与稳定性、模型身份和数据保持。切换用时5.327秒；Nginx、隧道及依赖未改。生产PIN后的助手写入、真实官方搜题／付费模型和实体手机尚未验证；权限写入及新原图详情已在隔离真实浏览器完整验证。
 
-启动会按稳定源身份将既有MCP运行记录导入为只读审核历史，并收束旧进程的审批，不再次执行业务；契约见 `ai-review.md` §5。发布预检按有效状态区分过期审批与有效未终结任务。原表摘要变化时须逐行核验来源、过期时间、正文、修订和结果；启动收束仅改变状态／时间／错误码的记录单独登记，不能忽略整表差异。原题目或审批业务事实变化、有效未终结任务或恢复意图仍阻止切换；历史追加和技术收束均不允许用旧Vault覆盖当前数据。
-
-正式题目、标记整理journal与统一审批恢复保持最新数据；存在未完成恢复或整批写入意图时停止发布，不能靠切换旧源码跳过恢复。跨旧存储版本不能只恢复旧drop-in或旧Vault。原正文恢复保全及私人清单仍保留，当前正文可用性与历史缺口的规范见 `ledger.md` §10；禁止提交正文、私人路径清单和数据库。
+启动按稳定身份导入只读审核历史并收束旧进程，不能重放业务。发布预检核对有效未终结任务、恢复意图、训练锁及受管操作。数据库迁移后仍投影全部原列逐表比较；新增列单独核对默认值，不忽略审批库差异。存在未完成题目／整批标记或恢复意图时停止；回退只恢复源码别名与本次检测unit，保留最新Vault、受管历史、revision及锁，不用旧备份覆盖新增事实。
 
 A4固定字体与打印门禁为 `python3 -m unittest tests.test_export_fonts tests.smoke_a4_print -q`；统一门禁包含 `print-a4`，下载路径另由 `tests/e2e/schedule.py` 验证。刷新不闪动的隔离门禁为 `python3 tests/e2e/ai_review_refresh.py`。所有测试实例须清除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`，Windows Edge与实体手机须另验。
 
@@ -178,7 +176,7 @@ P4 分类和草稿修订路径使用独立的 `tests/fixtures/agent_p4_faux.json
 
 ## 7. 本地框选训练环境
 
-当前仓库的独立检测服务位于 `services/boxdetect/`，从该目录执行 `python -m boxdetect_service serve` 或 probe；支持安装后从仓库外运行。三项推理依赖与安装包验收见 `services/boxdetect/README.md`，旧工具入口仍可用。源码迁移不修改下文所记生产 unit 与模型入口。
+当前仓库的独立检测服务位于 `services/boxdetect/`，从该目录执行 `python -m boxdetect_service serve` 或 probe；支持安装后从仓库外运行。三项推理依赖与安装包验收见 `services/boxdetect/README.md`，旧工具入口仍可用。生产从同仓服务目录启动，模型入口仍为原 managed/active。
 
 控制器的候选预检使用登记解释器、服务目录 WorkingDirectory 与新 probe CLI；内存保护由 `omrs/system_resources.py` 提供，训练脚本复用同一函数。部署模板为 `deploy/boxdetect.service`，示例路径须替换为实际同仓发布归档／登记解释器／训练根，生产迁移只调整源码入口和 cwd，保留 managed/active 与资源限额。
 
@@ -203,11 +201,11 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 
 ## 本机检测生产服务
 
-`omrs-boxdetect.service` 与主服务分开，开机自启、失败 3 秒后重启，使用训练 venv 的 onnxruntime 执行固定发布目录的 serve.py；只监听 127.0.0.1:18766。受管模型入口为 `/root/omrs-train/managed/active`；当前实际在线 `v2-20260929-b`，SHA-256 为 `f62581b7c28353d5d7799973018a6986e706cd7dcf4fb43ccd10972be4a4c7c3`，输入 640、置信度 0.1，独立内容验收状态为 missing。服务启动加载一次，不热加载训练目录的 current；主服务本次发布没有切换此模型。
+`omrs-boxdetect.service` 与主服务分开，开机自启、失败 3 秒后重启，使用训练 venv 的 onnxruntime，在同仓发布别名的 services/boxdetect 执行 `-m boxdetect_service serve`；只监听 127.0.0.1:18766。受管模型入口为 `/root/omrs-train/managed/active`；当前实际在线 `v2-20260929-b`，SHA-256 为 `f62581b7c28353d5d7799973018a6986e706cd7dcf4fb43ccd10972be4a4c7c3`，输入 640、置信度 0.1，独立内容验收状态为 missing。服务启动加载一次，不热加载训练目录的 current；主服务本次发布没有切换此模型。
 
 资源限制：ORT内部3线程、systemd CPUQuota=200%、MemoryHigh=512M、MemoryMax=1G、Nice=10，启动内存约60MiB。`systemctl status omrs-boxdetect.service`查状态，`journalctl -u omrs-boxdetect.service`查错误；`systemctl start/stop/restart omrs-boxdetect.service`会影响线上框选，仅在获得授权后操作。主应用配置local_http及http://127.0.0.1:18766/detect，浏览器不直接访问检测端口，不需Nginx增加路由。
 
-主服务代码回退只恢复本次备份的主服务 drop-in，执行 daemon-reload 后重启；检测服务和受管模型独立运行，不随主服务代码回退自动切换。当前提供方与 URL 未改变，无需回写配置。真实 Vault 备份只供专项恢复，不用旧归档覆盖上线后新增题目；候选的内容验收状态仍须在服务操作历史中核对。
+三服务代码回退恢复本次源码别名及检测 unit，执行 daemon-reload 后按原服务状态启动；受管模型指针独立保持，不随代码回退切换。当前提供方与 URL 未改变，无需回写配置。真实 Vault 备份只供专项恢复，不用旧归档覆盖上线后新增题目；候选的内容验收状态仍须在服务操作历史中核对。
 
 ## 受管检测服务安装与验证
 
