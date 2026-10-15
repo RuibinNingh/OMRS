@@ -104,12 +104,17 @@ class BoardManagementTests(unittest.TestCase):
         self.assertEqual(Path(boards.boards_path(self.vault)).read_bytes(), receipt_bytes)
         self.assertEqual(ledger.read_commits(self.vault), self.before_ledger)
 
-    def test_reject_expire_revision_revocation_and_permission_changes(self):
+    def test_pending_board_can_be_approved_after_long_wait(self):
+        pending = self.delete_pending('long-wait')
+        self.assertIsNone(pending['expires_at'])
+        with patch('omrs.ai_review.time.time', return_value=time.time()+365*86400):
+            self.assertEqual(ops.get(self.vault, pending['operation_id'])['status'], 'pending_confirmation')
+            self.assertEqual(ops.decide(self.vault, pending['operation_id'], 'confirm')['status'], 'applied')
+        self.assertIsNone(boards.get_board(self.vault, self.board['id']))
+
+    def test_reject_revision_revocation_and_permission_changes(self):
         pending = self.delete_pending('reject')
         self.assertEqual(ops.decide(self.vault, pending['operation_id'], 'reject')['status'], 'rejected')
-        expired = self.delete_pending('expire')
-        with patch('omrs.mcp_operations.time.time', return_value=time.time()+601):
-            self.assertEqual(ops.decide(self.vault, expired['operation_id'], 'confirm')['status'], 'expired')
         changed = self.delete_pending('changed')
         boards.update_board(self.vault, self.board['id'], note='改变')
         self.assertEqual(ops.decide(self.vault, changed['operation_id'], 'confirm')['error_code'], 'revision_conflict')

@@ -21,7 +21,7 @@
 | MCP 与助手整批标记整理 | 共用整批审批；MCP 人工批准，助手按对话权限模式处理；可修订与排除原范围内操作 |
 | MCP 删除展示板/文件夹、清空非空板、重置纸面历史 | 执行前人工批准 |
 
-待审核列表同时展示长期待审草稿、助手移交的长期提案与限时确认操作；正在请求入库的草稿以对应操作代替同一草稿行，待办按稳定草稿身份去重。记录页展示调用结果和原生草稿的当前状态；它们是不同对象，调用成功不代表草稿已经正式入库。
+待审核列表统一长期保留草稿、助手送审提案与 MCP 确认操作，不按等待时间过期；正在请求入库的草稿以对应操作代替同一草稿行，待办按稳定草稿身份去重。记录页展示调用结果和原生草稿的当前状态；它们是不同对象，调用成功不代表草稿已经正式入库。
 
 ## 2. 唯一审批存储
 
@@ -35,7 +35,7 @@
 
 MCP 正式改题提案的题目、答案、错因和备注在生成预览与有效补丁时统一公式定界符；同一行 `\(...\)` 转 `$…$`，可跨行 `\[...\]` 转 `$$…$$`，人工修订沿用同一转换。原请求摘要保持原输入，保证重试仍指向已修订或已批准的同一操作；只有网页批准的有效正文才进入正式题目与 Ledger。
 
-状态包括 running、pending_confirmation、approved、applying、applied、rejected、expired、conflict、interrupted、failed、partial、unchanged、cancelled。批准、执行中与已执行有不同含义；失败和部分成功保留原生逐项结果与提交编号。没有回执不能推断成功，也不能由查询重新执行批准操作。
+状态包括 running、pending_confirmation、approved、applying、applied、rejected、expired、conflict、interrupted、failed、partial、unchanged、cancelled。expired 保留兼容旧限时许可及历史；MCP 与已送审助手待办的 expires_at 为 null，旧 MCP 待审中保存的期限也不再限制查询、修订或批准，普通重启继续保留待审。已结束或只读历史不重新激活。批准、执行中与已执行有不同含义；失败和部分成功保留原生逐项结果与提交编号。没有回执不能推断成功，也不能由查询重新执行批准操作。
 
 MCP 在业务提交后丢失审核结果时，详情可以通过精确操作身份及摘要匹配的原生回执展示既成事实；记录列表对未终结的 running/approved/applying 意图采用同一只读视图，状态筛选、总数和详情保持一致。无变更回执显示 unchanged，摘要不匹配显示 conflict。查询只在当前连接建立临时状态索引，不修改审批状态或领域库，也不恢复写入许可；持久终态由启动收束补齐。
 
@@ -59,7 +59,7 @@ MCP 在业务提交后丢失审核结果时，详情可以通过精确操作身�
 | POST `/api/ai-review/update` | id 或 operation_id、expected_revision、非空 patch；返回修订后的 item |
 | POST `/api/ai-review/decide` | id 或 operation_id、expected_revision、decision=approve/reject；返回真实状态的 item |
 
-type 是 draft/question/session/feedback/board/report/category/practice/label_plan。错误返回 status=error、msg、code；旧版本为 revision_conflict/409，旧状态为 state_conflict/409，缺目标为 not_found/404。过期视图在读取时计算，不因 GET 更新领域。
+type 是 draft/question/session/feedback/board/report/category/practice/label_plan。错误返回 status=error、msg、code；旧版本为 revision_conflict/409，旧状态为 state_conflict/409，缺目标为 not_found/404。旧聊天许可的过期视图在读取时计算，中心待办不因时间消失，GET 不更新领域。
 
 ## 5. 启动、恢复与历史
 
@@ -73,6 +73,6 @@ type 是 draft/question/session/feedback/board/report/category/practice/label_pl
 
 ## 标记整理审批
 
-`propose_label_plan` 的标记整理类型，复用唯一审批与版本；MCP 使用十分钟人工确认，助手按对话模式确认、长期送审或自动批准。人工修订只允许原定义名称/颜色/排序、原操作或题目开关和原集合内归属；排除级联题目会关闭对应定义操作，取消新标记会取消依赖归类。聊天等待中的修订换票据且不延长期限；已送审助手提案保持长期待审。
+`propose_label_plan` 的标记整理类型，复用唯一审批与版本；MCP 人工确认长期待审，助手按对话模式确认、长期送审或自动批准。人工修订只允许原定义名称/颜色/排序、原操作或题目开关和原集合内归属；排除级联题目会关闭对应定义操作，取消新标记会取消依赖归类。聊天等待中的修订换票据且不延长线程等待；中心提案保持长期待审。
 
 标记整理详情同时为两种来源核对有效提案摘要与完整原生回执。助手在业务提交后丢失工具结果或终态时，启动使用完整批次回执覆盖不完整历史推断，不误记部分成功、不重放业务。已撤销指针只读展示在原记录，原批次结果和决定保留。

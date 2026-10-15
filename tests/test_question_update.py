@@ -258,9 +258,24 @@ class QuestionUpdateTests(unittest.TestCase):
         self.assertEqual(list((Path(maintenance_dir(self.vault)) / 'question-updates').glob('*.json')), [])
         self.assertEqual(list(self.path.parent.glob('*.omrs-update-*')), [])
 
-    def test_expiry_after_staging_blocks_file_replace(self):
+    def test_mcp_long_wait_during_staging_does_not_block_file_replace(self):
         from omrs import question_update_journal as journal
-        row = self.row({'question_text': '到期后不可写'})
+        row = self.row({'question_text': '长期待审后仍可写'})
+        self.assertIsNone(row['expires_at'])
+        stage = journal._stage
+        clock = [time.time()]
+        def wait(*args):
+            staged = stage(*args)
+            clock[0] += 365*86400
+            return staged
+        with mock.patch.object(journal, '_stage', side_effect=wait), mock.patch('omrs.ai_review.time.time', side_effect=lambda: clock[0]):
+            result = update.apply_update(self.vault, row)
+        self.assertIn('长期待审后仍可写', self.content())
+        self.assertEqual(update.recover_receipt(self.vault, row)['commit_id'], result['commit_id'])
+
+    def test_chat_expiry_after_staging_blocks_file_replace(self):
+        from omrs import question_update_journal as journal
+        row = self.row({'question_text': '聊天等待到期后不可写'}, source='agent')
         stage = journal._stage
         clock = [time.time()]
         def expire(*args):
@@ -268,7 +283,7 @@ class QuestionUpdateTests(unittest.TestCase):
             clock[0] = row['expires_at'] + 1
             return staged
         before = self.content()
-        with mock.patch.object(journal, '_stage', side_effect=expire), mock.patch('omrs.ai_review.time.time', side_effect=lambda: clock[0]):
+        with agent_actor('cv', 'run', 'call'), mock.patch.object(journal, '_stage', side_effect=expire), mock.patch('omrs.ai_review.time.time', side_effect=lambda: clock[0]):
             with self.assertRaises(ai_review.ReviewError) as error:
                 update.apply_update(self.vault, row)
         self.assertEqual(error.exception.code, 'expired')

@@ -30,6 +30,8 @@ assets/app/
 
 助手浏览器验收点击当前等待调用的聊天卡，并按持久 `tool.waiting.operation_id` 核对原位详情与聊天地址不变；自动写记录卡不参与待确认定位。中心使用服务器拥有的版本与状态，客户端卡片不能自行恢复批准权限。
 
+`tests/e2e/ai_review.py` 在隔离服务启动前预置一个月前带旧期限的 MCP 待审提案，验证启动后仍在队列、无有效期提示、可人工修订及批准；长期待审由服务端决定，浏览器不续期或重建申请。
+
 ## 3. 路由与页面契约
 
 录入页的作业帮账号浮层由features/create/zyb-account.js负责挂载期监听与离页清理，通过页面actions委托切换菜单/记录；页面不加载后端MathJax引擎。tests/e2e/zuoyebang.py在隔离实例验证来源、渲染、识别、刷新、核对创建和账号焦点，并检查工作区占满可用宽度、右预览440px及左侧弹性布局；前端流程见create.md。独立网关设置与录入状态共用domain/zuoyebang-service.js的非敏感服务身份比较；设置保存经zuoyebang:service-changed总线通知，面板链接不携带Key。真实双项目验收脚本为 `tests/e2e/zuoyebang_gateway_integration.py`，它只替换官方网络边界，验证实际网关面板密钥、OMRS上传/渲染/核对创建与吊销。

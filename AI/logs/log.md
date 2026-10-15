@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-10-15_review-no-expiry](2026-10-15_review-no-expiry.md)：审核中心取消待审过期
 - [2026-10-14_v271-github](2026-10-14_v271-github.md)：v2.7.1 版本同步与 GitHub 提交
 - [2026-10-14_v271-deploy](2026-10-14_v271-deploy.md)：v2.7.1 生产部署
 - [2026-10-14_v270-release](2026-10-14_v270-release.md)：助手权限、搜题详情与框选服务 v2.7.0 发布

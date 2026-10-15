@@ -93,6 +93,66 @@ class AiReviewTests(unittest.TestCase):
         with self.assertRaises(review.ReviewError):
             review.revise(self.vault, row['operation_id'], 1, {}, {})
 
+    def test_mcp_pending_has_no_deadline_and_prepare_keeps_it_unlimited(self):
+        row = self.operation('propose_question_update', 'mcp')
+        self.assertIsNone(row['expires_at'])
+        intent = self.operation('propose_question_update', 'mcp', pending=False)
+        prepared = review.prepare(self.vault, intent['operation_id'], expires_at=time.time()-1)
+        self.assertIsNone(prepared['expires_at'])
+        with mock.patch('omrs.ai_review.time.time', return_value=time.time()+365*86400):
+            self.assertEqual(review.counts(self.vault)['pending'], 2)
+            self.assertEqual(review.get(self.vault, row['operation_id'])['status'], 'pending_confirmation')
+
+    def test_old_mcp_deadline_is_ignored_in_read_filters_revision_and_restart(self):
+        row = self.operation('propose_question_update', 'mcp', editable_fields=['note'])
+        with closing(review._connect(self.vault, True)) as db:
+            db.execute('UPDATE operations SET expires_at=? WHERE operation_id=?',
+                       (time.time()-30*86400, row['operation_id']))
+            db.commit()
+        before = Path(review.path(self.vault)).read_bytes()
+        detail = review.detail(self.vault, row['operation_id'])
+        self.assertEqual(detail['status'], 'pending_confirmation')
+        self.assertIsNone(detail['expires_at'])
+        self.assertEqual(review.counts(self.vault)['pending'], 1)
+        for options in ({}, {'source': 'mcp'}, {'view': 'records', 'status': 'pending_confirmation'}):
+            page = review.items(self.vault, options)
+            self.assertEqual(page['total'], 1)
+            self.assertEqual(page['items'][0]['status'], 'pending_confirmation')
+            self.assertIsNone(page['items'][0]['expires_at'])
+        self.assertEqual(review.items(self.vault, {'view': 'records', 'status': 'expired'})['total'], 0)
+        self.assertEqual(Path(review.path(self.vault)).read_bytes(), before)
+        revised = review.revise(self.vault, row['operation_id'], 1, {'note': '长期修订'}, {})
+        self.assertIsNone(revised['expires_at'])
+        review.initialize(self.vault)
+        self.assertEqual(review.get(self.vault, row['operation_id'])['status'], 'pending_confirmation')
+        self.assertEqual(review.decide(self.vault, row['operation_id'], 2, 'reject')['status'], 'rejected')
+        self.assertIsNone(review.detail(self.vault, row['operation_id'])['expires_at'])
+
+    def test_removing_deadline_does_not_reopen_terminal_or_readonly_history(self):
+        for status in review.TERMINAL:
+            with self.subTest(status=status):
+                row = self.operation('propose_question_update', 'mcp')
+                review.set_state(self.vault, row['operation_id'], status)
+                self.assertEqual(review.decide(self.vault, row['operation_id'], 1, 'approve')['status'], status)
+        row = self.operation('propose_question_update', 'mcp')
+        with closing(review._connect(self.vault, True)) as db:
+            db.execute('UPDATE operations SET history_readonly=1 WHERE operation_id=?', (row['operation_id'],))
+            db.commit()
+        with self.assertRaises(review.ReviewError):
+            review.decide(self.vault, row['operation_id'], 1, 'approve')
+        self.assertEqual(review.counts(self.vault)['pending'], 0)
+
+    def test_formal_session_can_be_approved_after_long_wait(self):
+        from omrs import mcp_operations
+        key = create_key(self.vault, scopes=['omrs:read', 'session:create'])
+        row = mcp_operations.create_session(self.vault,
+            [{'question_id': self.q['question_id'], 'source': 'due'}], key['key_id'], 'long-session', '', lambda: None)
+        self.assertIsNone(row['expires_at'])
+        with mock.patch('omrs.ai_review.time.time', return_value=time.time()+365*86400):
+            applied = review.decide(self.vault, row['operation_id'], 1, 'approve')
+        self.assertEqual(applied['status'], 'applied')
+        self.assertTrue(applied['result']['session_id'].startswith('EXP-'))
+
     def test_cursor_matches_offset_and_rejects_invalid_or_conflicting_position(self):
         for _ in range(5):
             self.operation()

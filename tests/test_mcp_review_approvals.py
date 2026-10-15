@@ -47,19 +47,33 @@ class McpReviewApprovalTests(unittest.TestCase):
         self.assertEqual(ops.decide(self.vault, pending['operation_id'], 'confirm')['error_code'], 'forbidden')
         self.assertFalse(any(c['commit_type'] == 'session.create' for c in read_commits(self.vault)))
 
-    def test_deadline_crossed_during_approval_preview_stops_actual_session_write(self):
+    def test_long_wait_during_approval_preview_still_creates_session_once(self):
         pending = self.propose()
         row = ai_review.get(self.vault, pending['operation_id'])
+        self.assertIsNone(row['expires_at'])
         current = [time.time()]
         original = ops.session_preview
         def slow_preview(*args, **kwargs):
             result = original(*args, **kwargs)
-            current[0] = row['expires_at']+1
+            current[0] += 365*86400
             return result
-        with patch('omrs.mcp_operations.time.time', side_effect=lambda: current[0]), \
+        with patch('omrs.ai_review.time.time', side_effect=lambda: current[0]), \
                 patch.object(ops, 'session_preview', side_effect=slow_preview):
             result = ops.decide(self.vault, pending['operation_id'], 'confirm')
-        self.assertEqual(result['status'], 'expired')
+        self.assertEqual(result['status'], 'applied')
+        self.assertEqual(ops.decide(self.vault, pending['operation_id'], 'confirm')['result'], result['result'])
+        self.assertEqual(sum(c['commit_type'] == 'session.create' for c in read_commits(self.vault)), 1)
+
+    def test_revocation_during_approval_preview_stops_actual_session_write(self):
+        pending = self.propose()
+        original = ops.session_preview
+        def revoke(*args, **kwargs):
+            result = original(*args, **kwargs)
+            revoke_key(self.vault, self.key['key_id'])
+            return result
+        with patch.object(ops, 'session_preview', side_effect=revoke):
+            result = ops.decide(self.vault, pending['operation_id'], 'confirm')
+        self.assertEqual(result['error_code'], 'forbidden')
         self.assertFalse(any(c['commit_type'] == 'session.create' for c in read_commits(self.vault)))
 
     def test_get_uses_native_receipt_without_writing_state_or_replaying(self):

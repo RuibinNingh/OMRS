@@ -26,7 +26,7 @@ SERVER_INSTRUCTIONS = (
     '读题先 get_question；长正文用 get_question_content，图片引用须另用 get_question_image 读取，不能凭文件名判断图内容。'
     '正式计划先 get_recommendations，再把 selection 交 create_review_session；正式改题先读稳定身份和完整正文哈希。'
     '正式计划、改题、删除、清空和纸面重置先返回网页审核操作；提供 confirmation_url，未批准前不能报告已完成，不能代替用户批准。'
-    '用户在网页处理后用 get_mcp_operation 查询状态和 result；拒绝或到期不自动新建申请。'
+    '审核中心待审申请长期保留，不按时间过期。用户在网页处理后用 get_mcp_operation 查询状态和 result；拒绝或冲突不自动新建申请。'
     '所有带 request_id 的操作，相同内容的技术重试沿用原编号，新的业务操作或修改后的内容使用新编号。'
     'revision_conflict/content_conflict 时先重新读取并核对差异，不直接提高版本重试；request_conflict 时核对原请求，不能换编号掩盖未知提交结果。'
     '导出只返回需主 Web 登录的限时下载链接，不代表已打印；MCP Key 不能用于 Web 登录。'
@@ -54,7 +54,7 @@ TOOL_DESCRIPTIONS = {
     'create_report': '仅在用户要求保存报告时新建 HTML 报告，UTF-8 内容最多 2 MiB，不覆盖已有报告。返回已保存报告身份；分析应先查询来源数据，不能把缺失数据编造成实测。相同请求编号和内容重试复用结果。',
     'list_boards': '分页查询展示板目录，返回 items/total/next_offset、完整 folders 及 catalog_revision。新建、改名、移动或组织目录前读取版本与真实 ID；板详情和板 revision 用 get_board。',
     'get_board': '分页读取一块展示板，返回 revision、catalog_revision、print 版式、printed_summary 及 items/next_offset。items 是正式题目引用，不复制题目正文；条目操作优先使用稳定 question_id，需要题目正文另调用读题工具。修改前必须读取最新板版本。',
-    'get_mcp_operation': '按写工具返回的 operation_id 查询当前密钥发起的网页审核操作。返回 status、confirmation_url、result 及错误原因；pending 不代表已执行，网页批准后从 result 取得领域结果。只能查询，不能批准；拒绝、到期或冲突时告知用户，不自动重建申请。',
+    'get_mcp_operation': '按写工具返回的 operation_id 查询当前密钥发起的网页审核操作。返回 status、confirmation_url、result 及错误原因；pending 不代表已执行，待审申请长期保留且不按时间过期，网页批准后从 result 取得领域结果。只能查询，不能批准；拒绝或冲突时告知用户，不自动重建申请。',
     'export_board': '导出不可变、自包含的展示板 HTML 快照，mode=all 全部或 new 仅尚未打印范围。最多 64 MiB、保留 24 小时；返回需主 Web 登录的下载链接，MCP Key 不可替代登录，PDF 用浏览器打印。导出不登记已打印；同 request_id 重试沿用原快照，想导出更新后的板须使用新编号。',
     'create_draft': '仅在用户明确要求录题或保存时，创建来源为 MCP、status=review 的待审核草稿，不正式入库。' + ENTRY_RULES + '先对齐科目和分类名称，知识点最多 8 项；创建难度固定 5，不传 difficulty/labels。最多 40 块、6 张 PNG/JPEG/GIF 原图，每张 8 MiB；文字或说明每字段最多 20000 字符。附件不可获取或超限时说明缺失，不静默删图重试。返回 draft_id/revision/status/source_images；用户在审核中心核对后入库，不能报告已进入正式题库。',
     'update_draft': '修订任意来源待审核草稿，不正式入库。正文成对公式定界符自动转美元符号，cause_statement 原话不变。先 get_draft 取得 revision 和 blocks[].id，只改 fields 白名单或已有文字/说明；不能新增、删除、调序块或改变图片、框、状态、来源。省略字段保留，知识点 [] 清空；修改或清空 cause 均须用户原话 cause_statement。目标只要有人工保护，整次不写，返回 wrote=false 和 suggestions；不得拆请求绕过保护。版本冲突先重读核对。',

@@ -5,7 +5,6 @@ import json
 import os
 import re
 import sqlite3
-import time
 import uuid
 import logging
 from contextlib import closing
@@ -16,7 +15,6 @@ from . import boards, locking
 from .common import omrs_data_dir
 from .mcp.common import RequestError
 
-TTL = 600
 TERMINAL = ('applied', 'rejected', 'expired', 'conflict')
 
 
@@ -112,8 +110,7 @@ def _save_state(vault, row, status, result=None, error_code=''):
 def create(vault, key_id, tool, identity, digest, payload, impact, snapshot, web_url):
     from . import ai_review
     row = ai_review.create(vault, 'mcp', tool, identity, payload, actor={'key_id': key_id},
-                           preview=impact, snapshot=snapshot, pending=True, digest=digest,
-                           expires_at=time.time()+TTL)
+                           preview=impact, snapshot=snapshot, pending=True, digest=digest)
     return _public(row, web_url)
 
 
@@ -164,10 +161,6 @@ def _recover(vault, row, persist=False):
                 return _save_state(vault, row, 'applied', receipt['result'])
         status = 'unchanged' if receipt['result'].get('no_op') or receipt['result'].get('wrote') is False else 'applied'
         return {**row, 'status': status, 'result': receipt['result'], 'error_code': ''}
-    if row['status'] == 'pending_confirmation' and row.get('expires_at') and time.time() >= row['expires_at']:
-        if persist:
-            return _save_state(vault, row, 'expired')
-        return {**row, 'status': 'expired'}
     # 查询只能核实已有回执，不能执行已批准但无提交证明的操作。
     return row
 
@@ -243,18 +236,11 @@ def _session_auth(vault, key_id):
         raise PermissionError('MCP 密钥已失效或缺少调度创建权限')
 
 
-def _deadline(row):
-    if row.get('expires_at') is not None and time.time() >= row['expires_at']:
-        from .ai_review import ReviewError
-        raise ReviewError('expired', '提案已过期，未执行写入', 409)
-
-
 def _apply_session(vault, row):
     from .session_operations import create_mcp_session
     key_id = row['actor']['key_id']
     def auth():
         _session_auth(vault, key_id)
-        _deadline(row)
     try:
         auth()
         _, _, snapshot = session_preview(vault, row['payload']['items'])
@@ -297,7 +283,7 @@ def create_session(vault, items, key_id, request_id, web_url, authorize):
         authorize()
         row = ai_review.create(vault, 'mcp', 'create_review_session', identity, {'items': normalized},
             actor={'key_id': key_id, 'request_id': request_id}, preview=preview, snapshot=snapshot,
-            pending=True, digest=digest, expires_at=time.time()+TTL)
+            pending=True, digest=digest)
         authorize()
         return _public(row, web_url)
 
@@ -330,7 +316,6 @@ def review_decide(vault, row, decision):
     if row['tool'] == 'propose_label_plan':
         from .label_plan_review import apply_review, verify_snapshot, authorize_source
         try:
-            _deadline(row)
             authorize_source(vault, 'mcp', key_id, row['payload'])
             verify_snapshot(vault, row)
             row = _save_state(vault, row, 'approved')
@@ -345,7 +330,6 @@ def review_decide(vault, row, decision):
         from .mcp.question_write import apply_review, prepare_review
         from .mcp.keys import active_key
         try:
-            _deadline(row)
             key = active_key(vault, key_id)
             if not key or not {'omrs:read', 'question:propose'}.issubset(key['scopes']):
                 raise PermissionError('MCP 密钥已失效或缺少题目提案权限')
@@ -354,7 +338,6 @@ def review_decide(vault, row, decision):
                 return _save_state(vault, row, 'conflict', error_code='content_conflict')
             row = _save_state(vault, row, 'approved')
             row = _save_state(vault, row, 'applying')
-            _deadline(row)
             result = apply_review(vault, row)
             return _finish_applied(vault, row, result)
         except (PermissionError, RequestError, ValueError, RuntimeError, OSError, sqlite3.Error) as exc:
@@ -369,7 +352,6 @@ def review_decide(vault, row, decision):
         raise ai_review.ReviewError('unknown_tool', '审核操作类型不支持')
     def auth():
         mcp_board.authorize(vault, key_id, row['tool'])
-        _deadline(row)
     try:
         auth()
         _, _, snapshot = mcp_board.preview(vault, row['tool'], row['payload'], auth)

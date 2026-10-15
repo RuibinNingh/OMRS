@@ -1,5 +1,6 @@
 """官方 SDK 与真实隔离 MCP 服务验证改题提案、权限及人工有效补丁。"""
 import asyncio
+import time
 import unittest
 
 from omrs import ai_review, content_history, ledger
@@ -52,9 +53,18 @@ class MCPQuestionUpdateSDKTests(unittest.TestCase):
                 self.assertFalse(first.isError)
                 operation = _json_result(first)
                 self.assertEqual(operation['status'], 'pending_confirmation')
+                self.assertIsNone(operation['expires_at'])
                 self.assertIn('/#/ai-review?operation=', operation['confirmation_url'])
                 self.assertEqual(content_history.read_question_file(self.server.vault, row), before)
                 self.assertEqual(len(ledger.read_commits(self.server.vault)), count)
+                # 模拟升级前已等待一个月的 MCP 提案；SDK 查询与网页审批仍处理原操作。
+                with ai_review._connect(self.server.vault, True) as db:
+                    db.execute('UPDATE operations SET created_at=?,expires_at=? WHERE operation_id=?',
+                               (time.time()-30*86400, time.time()-30*86400+600, operation['operation_id']))
+                    db.commit()
+                waiting = _json_result(await session.call_tool('get_mcp_operation', {'operation_id': operation['operation_id']}))
+                self.assertEqual(waiting['status'], 'pending_confirmation')
+                self.assertIsNone(waiting['expires_at'])
                 revised = ai_review.update(self.server.vault, operation['operation_id'], 1, {'answer_text': '人工修订答案'})
                 self.assertEqual(revised['revision'], 2)
                 retry = _json_result(await session.call_tool('propose_question_update', args))

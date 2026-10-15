@@ -142,4 +142,4 @@ GET /api/mcp/exports/download?export_id=编号 仅Web授权可用，返回text/h
 
 ## AI 审核中心
 
-GET `/api/ai-review/items`、`/api/ai-review/detail`、`/api/ai-review/counts` 为受保护的只读业务视图；POST `/api/ai-review/update` 与 `/api/ai-review/decide` 使用 Web 身份和同源保护。助手操作返回 permission 上下文（模式、送审渠道/原因、自动批准标记）；长期中心提案 expires_at=null，批准会独立执行保存内容。版本、分页、状态与错误完整契约见 `AI/ai-review.md`；MCP Key 不能调用批准接口。
+GET `/api/ai-review/items`、`/api/ai-review/detail`、`/api/ai-review/counts` 为受保护的只读业务视图；POST `/api/ai-review/update` 与 `/api/ai-review/decide` 使用 Web 身份和同源保护。MCP 与已送审助手提案长期保留，expires_at=null；旧 MCP 待审期限也不影响列表、修订或决定，已结束历史保持。助手操作返回 permission 上下文（模式、送审渠道/原因、自动批准标记），批准会独立执行保存内容。版本、分页、状态与错误完整契约见 `AI/ai-review.md`；MCP Key 不能调用批准接口。

@@ -19,7 +19,7 @@ from .common import omrs_data_dir
 from . import locking
 from .vault_lifecycle import storage, open_sqlite, generation
 
-TTL = 600
+CHAT_TTL = 600  # 旧聊天许可的缺省等待期限；中心待办不使用。
 ACTIVE = ('running', 'pending_confirmation', 'approved', 'applying')
 TERMINAL = ('applied', 'rejected', 'expired', 'conflict', 'interrupted', 'failed', 'partial', 'unchanged', 'cancelled')
 AUTO_AGENT = {'create_draft', 'update_draft', 'create_practice_card'}
@@ -159,6 +159,10 @@ def _decode(row):
 
 
 def _effective(row):
+    # MCP 与已送审助手提案长期保留；旧库中的期限也不再限制中心审批。
+    if row and not row.get('history_readonly') and (row['source'] == 'mcp' or
+            row.get('permission', {}).get('channel') == 'center'):
+        return {**row, 'expires_at': None}
     # 新手动请求到时移交中心，不能先把它变成不可批准的过期终态。
     manual = row and row['source'] == 'agent' and row.get('permission', {}).get('mode') == 'manual'
     if row and not manual and row['status'] == 'pending_confirmation' and row.get('expires_at') is not None and time.time() >= row['expires_at']:
@@ -203,7 +207,7 @@ def verify_question_write(vault, review):
         raise ReviewError('content_conflict', '题库世代已变化，旧批准不能写入', 409)
     from .agent.permissions import has_center_permit
     center = has_center_permit(vault, row)
-    if not center and (row.get('expires_at') is None or time.time() >= row['expires_at']):
+    if row['source'] == 'agent' and not center and (row.get('expires_at') is None or time.time() >= row['expires_at']):
         raise ReviewError('expired', '题目修改确认已过期，未执行写入', 409)
     if row['source'] == 'mcp' and row['tool'] == 'propose_label_plan':
         from .label_plan_review import authorize_source
@@ -249,10 +253,14 @@ def create(vault, source, tool, identity, payload, actor=None, preview=None, sna
             if previous['digest'] != digest:
                 raise ReviewError('request_conflict', '同一请求编号的内容不同', 409)
             return _effective(previous)
+        if pending and source == 'mcp':
+            expires_at = None
+        elif pending and expires_at is None:
+            expires_at = now + CHAT_TTL
         values = (operation_id, identity, source, tool, actor.get('key_id', ''), digest, fingerprint(payload),
                   _json(payload), _json(actor), _json(preview or {}), _json(snapshot or {}),
                   _json(editable_fields or []), 'pending_confirmation' if pending else 'running', 1, now,
-                  (now + TTL if expires_at is None else expires_at) if pending else expires_at,
+                  expires_at,
                   now, generation(vault))
         db.execute('INSERT INTO operations(operation_id,identity,source,tool,key_id,digest,effective_digest,'
                    'payload_json,actor_json,preview_json,snapshot_json,editable_fields_json,status,revision,'
@@ -272,13 +280,16 @@ def prepare(vault, operation_id, payload=None, preview=None, snapshot=None, pend
         if row['status'] != 'running':
             return _effective(row)
         effective = row['payload'] if payload is None else payload
+        deadline = expires_at if expires_at is not None else time.time() + CHAT_TTL
+        if row['source'] == 'mcp':
+            deadline = None
         db.execute('UPDATE operations SET payload_json=?,effective_digest=?,preview_json=?,snapshot_json=?,'
                    'editable_fields_json=?,status=?,expires_at=?,updated_at=?,permission_json=? WHERE operation_id=? AND status=?',
                    (_json(effective), fingerprint(effective), _json(row['preview'] if preview is None else preview),
                     _json(row['snapshot'] if snapshot is None else snapshot),
                     _json(row['editable_fields'] if editable_fields is None else editable_fields),
                     'pending_confirmation' if pending else 'running',
-                    expires_at if expires_at is not None else time.time() + TTL if pending else row['expires_at'],
+                    deadline if pending else row['expires_at'],
                     time.time(), _json(permission or row['permission']), operation_id, 'running'))
         db.commit()
     return get(vault, operation_id)
@@ -530,17 +541,17 @@ def _operation_summaries(vault, options, limit, offset):
         return [], 0, set()
     now = time.time()
     clauses, args = [], []
-    # 查询只计算过期视图；不改审批、更不执行业务恢复。
+    # 只有旧聊天许可仍有限时视图；中心待办不受期限影响。
     effective = ("COALESCE((SELECT status FROM review_view_states WHERE operation_id=operations.operation_id),"
-                 "CASE WHEN status='pending_confirmation' AND expires_at IS NOT NULL AND expires_at<=? THEN 'expired' ELSE status END)")
+                 "CASE WHEN status='pending_confirmation' AND expires_at IS NOT NULL AND expires_at<=? AND NOT durable THEN 'expired' ELSE status END)")
     if options.get('view', 'pending') == 'pending':
-        clauses.append("status='pending_confirmation' AND history_readonly=0 AND (expires_at IS NULL OR expires_at>?)")
+        clauses.append("status='pending_confirmation' AND history_readonly=0 AND (expires_at IS NULL OR expires_at>? OR durable)")
         args.append(now)
         # 同一草稿只产生一份待办；记录视图仍保存每次真实调用。
         clauses.append("(tool!='commit_draft' OR json_extract(payload_json,'$.draft_id') IS NULL OR NOT EXISTS("
                        "SELECT 1 FROM operations newer WHERE newer.tool='commit_draft' "
                        "AND newer.status='pending_confirmation' AND newer.history_readonly=0 "
-                       "AND (newer.expires_at IS NULL OR newer.expires_at>?) "
+                       "AND (newer.expires_at IS NULL OR newer.expires_at>? OR newer_durable) "
                        "AND json_extract(newer.payload_json,'$.draft_id')=json_extract(operations.payload_json,'$.draft_id') "
                        "AND (newer.created_at>operations.created_at OR newer.created_at=operations.created_at "
                        "AND newer.operation_id>operations.operation_id)))")
@@ -567,10 +578,13 @@ def _operation_summaries(vault, options, limit, offset):
             return [], 0, set()
         columns = {row['name'] for row in db.execute('PRAGMA table_info(operations)')}
         permission = 'permission_json' if 'permission_json' in columns else "'{}'"
-        manual = f"(source='agent' AND COALESCE(json_extract({permission},'$.mode'),'')='manual')"
-        # 兼容旧库的只读查询；手动超时等待由运行线程移交，不先从待办列表消失。
-        where = where.replace('expires_at IS NULL OR expires_at>?', 'expires_at IS NULL OR expires_at>? OR '+manual)
-        where = where.replace("expires_at<=? THEN 'expired'", "expires_at<=? AND NOT "+manual+" THEN 'expired'")
+        def durable(alias=''):
+            field = alias + permission if 'permission_json' in columns else permission
+            return (f"({alias}source='mcp' OR ({alias}source='agent' AND ("
+                    f"COALESCE(json_extract({field},'$.mode'),'')='manual' OR "
+                    f"COALESCE(json_extract({field},'$.channel'),'')='center')))")
+        # 新手动聊天超时由原线程移交，中心与已有 MCP 期限共用同一只读口径。
+        where = where.replace('newer_durable', durable('newer.')).replace('durable', durable())
         views = _mcp_active_views(vault, db) if options.get('view', 'pending') == 'records' else {}
         db.execute('CREATE TEMP TABLE review_view_states(operation_id TEXT PRIMARY KEY,status TEXT NOT NULL)')
         db.executemany('INSERT INTO review_view_states VALUES(?,?)', views.items())
@@ -581,7 +595,7 @@ def _operation_summaries(vault, options, limit, offset):
                           ' ORDER BY created_at DESC,operation_id DESC LIMIT ?', (*args, limit+offset)).fetchall()
         represented = {r[0] for r in db.execute("SELECT json_extract(payload_json,'$.draft_id') FROM operations "
                        "WHERE tool='commit_draft' AND status='pending_confirmation' AND history_readonly=0 "
-                       "AND (expires_at IS NULL OR expires_at>? OR "+manual+")", (now,)) if r[0]}
+                       "AND (expires_at IS NULL OR expires_at>? OR "+durable()+")", (now,)) if r[0]}
     summaries = []
     for row in rows:
         item = dict(row)

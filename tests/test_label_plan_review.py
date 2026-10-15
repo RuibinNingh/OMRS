@@ -1,6 +1,7 @@
 """技术准备、单次审批、人工修订与版本竞争。"""
 import copy
 import json
+import time
 from unittest.mock import patch
 
 from tests import test_label_plan as support
@@ -62,7 +63,17 @@ class LabelPreparationTests(__import__("unittest").TestCase):
         self.assertEqual(applied['status'],'conflict')
         self.assertEqual([d['name'] for d in load_labels(self.vault)['labels']],['后来'])
 
-    def test_expiry_and_permission_revocation(self):
+    def test_long_wait_allows_revision_and_approval(self):
+        row = self.proposal()
+        self.assertIsNone(row['expires_at'])
+        with patch('omrs.ai_review.time.time', return_value=time.time()+365*86400):
+            revised = ai_review.update(self.vault, row['operation_id'], 1,
+                                       {'label_changes': [{'change_id': 'first:1', 'name': '长期待审'}]})
+            applied = ai_review.decide(self.vault, row['operation_id'], revised['revision'], 'approve')
+        self.assertEqual(applied['status'], 'applied')
+        self.assertEqual(load_labels(self.vault)['labels'][0]['name'], '长期待审')
+
+    def test_permission_revocation(self):
         row=self.proposal()
         with patch('omrs.mcp.keys.active_key',return_value=None):
             applied=ai_review.decide(self.vault,row['operation_id'],1,'approve')

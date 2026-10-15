@@ -41,7 +41,7 @@ MCP 学习查询的业务响应直接返回字段，不带内置助手的 `resul
 | `label:write` | 准备与提交整批标记整理，同时需要 `omrs:read` | 关闭 |
 | `label:delete` | 允许方案中的合并和删除，同时需要 `omrs:read` 与 `label:write` | 关闭 |
 
-题目写权限只开放提案；MCP 没有人工批准接口。正式计划与改题先返回待确认状态及中心链接，批准后通过 get_mcp_operation 查询领域结果。
+题目写权限只开放提案；MCP 没有人工批准接口。正式计划与改题先返回待确认状态及中心链接，批准后通过 get_mcp_operation 查询领域结果。所有进入审核中心的 MCP 待审申请长期保留，不按时间过期；普通重启保留，批准时复查当前权限、内容快照与题库世代。
 
 ### 完整工具清单
 
@@ -264,7 +264,7 @@ export_board 需要omrs:read与request_id，支持all/new，可选expected_revis
 
 note 管理 `# 备注` 下的 `## 补充备注`，保留旧裸文本、未知子节、错因和关联；不迁移旧备注。章节编辑拒绝系统章节结构注入，知识点/标记规范编码并拒绝控制字符。Obsidian 与普通 Markdown 图片引用的 token、数量、顺序和所属章节保持；不能经正文补丁新增、移动或移除附件。
 
-正式复习计划 create_review_session 先返回 pending_confirmation、operation_id 和中心链接；批准前不创建 Session，不返回新 session_id。成功旧请求重试复用原计划；拒绝或到期后需新 request_id，不能复活撤销的计划。审批撤权、内容换版、目标移动或过期均不继续写。
+正式复习计划 create_review_session 先返回 pending_confirmation、operation_id 和中心链接；批准前不创建 Session，不返回新 session_id。成功旧请求重试复用原计划；拒绝或冲突后需重新核对并提交新 request_id，不能复活撤销的计划。待审申请没有时间期限，审批撤权、内容换版、目标移动或题库世代变化均不继续写。
 
 ## 标记整理审批
 

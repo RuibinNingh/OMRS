@@ -38,6 +38,12 @@ def seed(vault):
                     hashlib.sha256(original.encode()).hexdigest(), {'question_text': 'AI 建议：求 $f(3)$。', 'note': 'AI 备注', 'difficulty': 6}, reason='浏览器审核测试')
     second = propose(vault, key['key_id'], 'browser-second', question['uid'], question['question_id'],
                      hashlib.sha256(original.encode()).hexdigest(), {'note': '另一项待审备注'}, reason='浏览器拒绝测试')
+    # 保留旧库期限，实际服务启动后也必须允许继续修订与批准这份长期待审提案。
+    with ai_review._connect(vault, True) as db:
+        created = time.time()-30*86400
+        db.execute('UPDATE operations SET created_at=?,expires_at=? WHERE operation_id=?',
+                   (created, created+600, first['operation_id']))
+        db.commit()
     draft = drafts.create_draft(vault, {'subject': '数学', 'category': '中心草稿',
         'blocks': [{'section': '题目', 'kind': 'text', 'text': '迁入审核中心的草稿 $1+1$。'}]},
         {'conversation_id': 'browser-review', 'run_id': 'browser-run', 'tool_call_id': 'draft'})
@@ -136,6 +142,10 @@ def main():
                       and support.api(base, '/api/ai-review/counts')['counts']['pending'] == 3)
                 check('未批准文件不变并显示题干前后对照与公式', path.read_text() == original
                       and page.locator('.arv-change').count() == 3 and page.locator('.arv-diff .katex').count() > 0)
+                detail = support.api(base, '/api/ai-review/detail?id=' + first['id'])['item']
+                check('旧库一个月前的提案启动后仍可审且不显示有效期', detail['status'] == 'pending_confirmation'
+                      and detail['expires_at'] is None and not page.get_by_text('有效期至', exact=True).count()
+                      and page.locator('[data-action="ai-review.approve"]').is_visible())
                 check('来源追溯显示已有MCP密钥编号和请求编号', page.get_by_text('MCP 密钥编号', exact=True).is_visible()
                       and page.get_by_text('browser-first', exact=True).is_visible())
                 for tab in (page, other):
