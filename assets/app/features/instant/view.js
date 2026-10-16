@@ -76,12 +76,13 @@ function cardHead(s, item, env) {
   </header>`;
 }
 
-function grading(row) {
-  const verdict = (value, label, ico, key) => html`<button type="button" class="${cls('ui-btn', 'inst-verdict__btn', `inst-verdict__btn--${value ? 'ok' : 'no'}`)}" data-action="instant.verdict" data-arg="${value ? '1' : '0'}" aria-pressed="${row.correct === value ? 'true' : 'false'}"${row.submitted ? html` disabled` : ''}>${icon(ico)}<span>${label}</span>${kbd(key)}</button>`;
+function grading(row, submitting) {
+  const locked = row.submitted || submitting;
+  const verdict = (value, label, ico, key) => html`<button type="button" class="${cls('ui-btn', 'inst-verdict__btn', `inst-verdict__btn--${value ? 'ok' : 'no'}`)}" data-action="instant.verdict" data-arg="${value ? '1' : '0'}" aria-pressed="${row.correct === value ? 'true' : 'false'}"${locked ? html` disabled` : ''}>${icon(ico)}<span>${label}</span>${kbd(key)}</button>`;
   const score = row.score == null ? 5 : row.score;
   return html`<section class="inst-grade" data-key="grade" aria-label="判定">
     <div class="inst-verdict" role="group" aria-label="判定对错">${verdict(true, '对', 'check', '1')}${verdict(false, '错', 'x', '2')}</div>
-    <label class="inst-score"><span class="inst-score__label">主观分</span><input class="inst-score__input" type="range" min="0" max="10" step="1" value="${score}" data-input="instant.score" aria-valuetext="${score} 分"${row.submitted ? html` disabled` : ''}><output class="inst-score__value">${score}</output></label>
+    <label class="inst-score"><span class="inst-score__label">主观分</span><input class="inst-score__input" type="range" min="0" max="10" step="1" value="${score}" data-input="instant.score" aria-valuetext="${score} 分"${locked ? html` disabled` : ''}><output class="inst-score__value">${score}</output></label>
     ${row.submitted ? html`<p class="inst-grade__note">${icon('lock')}这题已提交，判定不能再改。</p>` : ''}
   </section>`;
 }
@@ -97,7 +98,7 @@ function card(s, env) {
     ${cardHead(s, item, env)}
     ${labels.length || ktags.length ? html`<div class="inst-card__tags" data-key="tags">${labelChips(labels)}${ktags.map(t => tag({ label: t, tone: 'accent' }))}</div>` : ''}
     <div class="inst-card__qv" data-key="qv:${item.uid}:${reveal}" data-morph="skip" data-qv-host data-uid="${item.uid}" data-reveal="${reveal}"></div>
-    ${row.revealed ? grading(row) : ''}
+    ${row.revealed ? grading(row, s.submitting) : ''}
     <nav class="inst-card__nav" data-key="nav" aria-label="切题">
       ${button({ label: '上一题', icon: 'arrow-left', action: 'instant.prev', disabled: s.index <= 0 })}
       ${button({ label: '下一道未判定', action: 'instant.nextOpen', disabled: nextOpenIndex(s.queue, s.results, s.index) < 0 })}

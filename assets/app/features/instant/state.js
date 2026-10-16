@@ -116,6 +116,7 @@ export function reveal(s, uid) { resultOf(s, uid).revealed = true; }
 
 /** 判对错：顺带翻开答案；用户还没打过分时，对给 8 分、错给 4 分。已提交的题不改，返回 false。 */
 export function setVerdict(s, uid, correct) {
+  if (s.submitting) return false;
   const row = resultOf(s, uid);
   if (row.submitted) return false;
   row.revealed = true;
@@ -125,6 +126,7 @@ export function setVerdict(s, uid, correct) {
 }
 
 export function setScore(s, uid, value) {
+  if (s.submitting) return false;
   const row = resultOf(s, uid);
   if (row.submitted) return false;
   const n = Math.round(Number(value));

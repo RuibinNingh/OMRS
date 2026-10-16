@@ -188,3 +188,7 @@ MCP 确认 hash 在 core/api.js 的401跳转和 PIN 登录 destination 中保留
 标记批次的一致性屏障为独立可重入读锁：批次持全局写锁后再取一致性锁，替换、投影发布、回滚或恢复期间持有；普通查询只取一致性锁。一般业务写锁占用仍允许统计读取，保持原查询行为。
 
 助手三模式回归由 `tests/app/assistant-permissions.test.mjs` 与 `tests/e2e/assistant_permissions.py` 验证：移交/回执重放、默认手动、切换、普通重启、中心后续批准/拒绝、原运行撤销入口和五档双主题菜单布局。浏览器超时场景只在隔离服务中缩短等待，正式时限保持600秒。
+
+## 共享请求ID与回归入口
+
+core/request-id.js统一练习、训练控制和标记撤销的安全随机请求ID；统一使用getRandomValues生成16字节、32个十六进制字符的ID；练习请求另加PR-前缀。详情失效同时隔离pending请求。测试的草稿／助手真实导航帮助函数放在tests/e2e_navigation.py，不向生产页面注入状态。

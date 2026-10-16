@@ -1,0 +1,14 @@
+--- a/assets/app/features/zuoyebang/zyb.js
++++ b/assets/app/features/zuoyebang/zyb.js
+@@ -349,2 +349,2 @@
+-    labels: el => openCreateLabelPicker(el, S.labels, labels => { S.labels = labels; S.dirty = true; remember(); paint(); }),
+-    board: (el, fast) => { if (S.result) boardQuickAdd([S.result.uid], el, { fast }); },
++    labels: el => openCreateLabelPicker(el, { get: () => S.labels, onSave: labels => { S.labels = labels; S.dirty = true; remember(); paint(); } }),
++    board: (el, direct) => { if (S.result) boardQuickAdd(S.result, { anchor: el, direct }); },
+--- a/AI/frontend/zuoyebang.md
++++ b/AI/frontend/zuoyebang.md
+@@ -42,0 +43,4 @@
++
++## 共享选择器契约
++
++新题标记使用openCreateLabelPicker(anchor,{get,onSave})读取和保存当前表单标签，改动保留在草稿及正式入库内容中。快捷加板使用boardQuickAdd(uid,{anchor,direct})；普通点击以触发按钮定位选择器，Shift点击按最近使用板直接加入。

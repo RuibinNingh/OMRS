@@ -8,6 +8,7 @@
  */
 import { morph } from '../../core/dom.js';
 import { get, post } from '../../core/api.js';
+import { requestId } from '../../core/request-id.js';
 import { confirm } from '../../ui/dialog.js';
 import { toast } from '../../ui/toast.js';
 import { itemsOf, filterPractice, facets, dueDays } from '../../domain/items.js';
@@ -22,10 +23,7 @@ let ctl = null;
 
 /** getRandomValues 在 HTTP 局域网非安全上下文可用；随机值只作重试身份。 */
 export function practiceRequestId(random = globalThis.crypto) {
-  if (!random?.getRandomValues) throw new Error('浏览器无法生成练习请求标识');
-  const bytes = new Uint8Array(16);
-  random.getRandomValues(bytes);
-  return `PR-${[...bytes].map(n => n.toString(16).padStart(2, '0')).join('')}`;
+  return `PR-${requestId(random)}`;
 }
 
 export function createInstantController(root, ctx, services = {}) {
@@ -169,7 +167,7 @@ export function createInstantController(root, ctx, services = {}) {
     verdict(correct) {
       const item = current();
       if (!item) return;
-      if (!S.setVerdict(s, item.uid, correct)) { toast('这题已提交，判定不能再改', { kind: 'warn' }); return; }
+      if (!S.setVerdict(s, item.uid, correct)) { io.toast(s.submitting ? '正在提交，判定暂不能修改' : '这题已提交，判定不能再改', { kind: 'warn' }); return; }
       persist();
       paint();
     },

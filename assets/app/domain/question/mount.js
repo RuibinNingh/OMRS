@@ -20,6 +20,7 @@ import { openLabelPicker } from '../labels/index.js';
 
 const cache = {};
 const pending = {};
+const pendingTokens = new Map();
 const detailCache = () => cache;
 const pendingCache = () => pending;
 /** 过渡桥用：旧代码读的 QUESTION_CACHE / QUESTION_PENDING（只读全局）。 */
@@ -36,7 +37,15 @@ export const cachedDetail = uid => {
   return detail || null;
 };
 /** 题目被删除 / 迁移 / 改正文后丢掉旧详情，下次挂载重新拉取。 */
-export function dropDetail(uid) { delete detailCache()[String(uid || '').trim()]; }
+export function dropDetail(uid) {
+  const key = String(uid || '').trim();
+  delete detailCache()[key];
+  for (const [pendingKey, token] of pendingTokens) {
+    if (token.uid !== key) continue;
+    pendingTokens.delete(pendingKey);
+    delete pending[pendingKey];
+  }
+}
 
 /** 拉详情（去重、缓存）。失败时缓存一份带 _fallback 的降级副本，qview 据此显示「无法加载 + 重试」。 */
 export function ensureDetail(uid, questionId = '') {
@@ -47,6 +56,8 @@ export function ensureDetail(uid, questionId = '') {
   if (existing && (!identity || existing.question_id === identity)) return Promise.resolve(existing);
   const pendingKey = `${key}|${identity}`;
   if (pending[pendingKey]) return pending[pendingKey];
+  const token = { uid: key };
+  pendingTokens.set(pendingKey, token);
   pending[pendingKey] = (async () => {
     let detail;
     try {
@@ -60,11 +71,17 @@ export function ensureDetail(uid, questionId = '') {
       detail = { uid: key, question_id: identity, subject: item.subject || '', category: item.category || '', difficulty: item.difficulty || '',
         question: '（无法加载题目预览）', notes: '', answer: '', history: '', tag: item.tag || '',
         knowledge_tags: item.knowledge_tags || [], _fallback: true };
-    } finally { delete pending[pendingKey]; }
+    }
+    // 内容失效后的旧响应只能等待当前请求，不能回填旧缓存或覆盖新挂载。
+    if (pendingTokens.get(pendingKey) !== token) return ensureDetail(key, identity);
     const current = questionItem(key);
     if (!identity || !current?.question_id || current.question_id === identity) cache[key] = detail;
     return detail;
-  })();
+  })().finally(() => {
+    if (pendingTokens.get(pendingKey) !== token) return;
+    pendingTokens.delete(pendingKey);
+    delete pending[pendingKey];
+  });
   return pending[pendingKey];
 }
 
@@ -105,7 +122,7 @@ function pruned() {
 export async function qvInvalidate(uid) {
   const key = String(uid || '').trim();
   if (!key) return;
-  delete detailCache()[key];
+  dropDetail(key);
   await Promise.all(pruned().filter(([, s]) => s.uid === key).map(([mount, s]) => qvRender(mount, key, s.opts)));
 }
 
@@ -115,8 +132,8 @@ export async function qvInvalidateMany(uids) {
     await Promise.all([...new Set(uids.map(uid => String(uid || '').trim()).filter(Boolean))].map(qvInvalidate));
     return;
   }
-  const cache = detailCache();
-  Object.keys(cache).forEach(key => { delete cache[key]; });
+  const keys = new Set([...Object.keys(detailCache()), ...[...pendingTokens.values()].map(token => token.uid)]);
+  keys.forEach(dropDetail);
   await Promise.all(pruned().map(([mount, s]) => qvRender(mount, s.uid, s.opts)));
 }
 

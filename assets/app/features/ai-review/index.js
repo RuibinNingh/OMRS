@@ -1,5 +1,6 @@
 /** 审核中心控制器：服务器拥有操作状态，本地表单独立保存并保护未提交修改。 */
 import { morph } from '../../core/dom.js';
+import { requestId } from '../../core/request-id.js';
 import { confirm, dialog } from '../../ui/dialog.js';
 import { openMenu } from '../../ui/menu.js';
 import { toast } from '../../ui/toast.js';
@@ -165,7 +166,7 @@ export function createReviewController(root, ctx, options = {}) {
     const out = await labelRevertPreview(s.item.id);
     if (!alive) return;
     s.busy = false;
-    if (out.conflicts) { s.revertPreview = out; s.revertRequest = crypto.randomUUID(); }
+    if (out.conflicts) { s.revertPreview = out; s.revertRequest = requestId(); }
     else s.error = out.error || '撤销预览读取失败';
     paint();
   }

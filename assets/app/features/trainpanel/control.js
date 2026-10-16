@@ -1,6 +1,7 @@
 /** 受管检测服务；查看实验不改变在线模型，控制请求携带版本与唯一ID。 */
 import { html } from '../../core/html.js';
 import { morph } from '../../core/dom.js';
+import { requestId } from '../../core/request-id.js';
 import { button } from '../../ui/button.js';
 import { dialog } from '../../ui/dialog.js';
 
@@ -70,7 +71,7 @@ export function mountControl(root, api, changed) {
     const action=target.dataset.arg, model=data.models.find(m=>m.id===selected);
     const unverified=action==='activate' && !model.independent_passed;
     const answer=await dialog({title:names[action],size:'md',okText:unverified?'确认应用未通过验收模型':'确认'+names[action],body:html`<p>此操作影响收件箱和聊天草稿的自动框选。</p>${action==='activate'?html`<p>将应用 ${model.name}。${modelScores(model)}</p>${unverified?html`<p><strong>${auditLabels[model.independent_status] || '独立内容验收状态未知'}。确认后仍会切换在线框选，操作历史将记录本次确认。</strong></p>`:''}<p>先预检模型，再切换服务；失败自动恢复原模型。不会启动训练或付费评测。</p>`:html`<p>${action==='stop'?'停止后自动框选暂不可用。':action==='rollback'?'恢复最近一次切换前的模型。':'服务启动后会核验实际加载的模型。'}</p>`}`});
-    if(answer.ok && !disposed) await send(controlPayload(data,action,model,crypto.randomUUID().replaceAll('-',''),unverified));
+    if(answer.ok && !disposed) await send(controlPayload(data,action,model,requestId(),unverified));
   }
   root.addEventListener('click',click);
   root.addEventListener('change',event=>{if(event.target.id==='tc-model'){selected=event.target.value;paint();}});
