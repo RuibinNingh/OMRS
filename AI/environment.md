@@ -15,15 +15,17 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-16 发布前只读核验）：当前 v2.8.0，源码为 Git 提交 `f05eda0d9659aa5b9a89694676ff787e12aafee2` 的精确归档 `/root/workspace/apps/releases/omrs-f05eda0`，原发布已核对1494个源码文件。当前工作区是开发源码，不是在线运行目录；生产 Vault 仍为 `/root/workspace/apps/OMRS`，隔离测试不能读取其真实错题数据。
+生产环境事实（2026-10-16 发布并只读核验）：当前 v2.8.1，源码为 Git 提交 `d83567772aa5bc640fb045f65e2e7ca83ae97ae2` 的精确归档 `/root/workspace/apps/releases/omrs-d835677`，1527个源码文件逐字节一致。当前工作区是开发源码，不是在线运行目录；生产 Vault 仍为 `/root/workspace/apps/OMRS`，隔离测试不能读取其真实错题数据。
 
-三个服务沿用原 unit/drop-in。持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 指向 omrs-f05eda0；主服务、网关、检测的真实 cwd 分别为同一归档根、services/zuoyebang、services/boxdetect。检测使用原训练解释器执行模块 CLI。三个服务均 active/running、NRestarts=0；网关私有数据在 `/var/lib/omrs-zuoyebang`，目录0700、文件0600，管理员秘密不输出或提交。
+三个服务沿用原 unit/drop-in。持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 指向 omrs-d835677；主服务、网关、检测的真实 cwd 分别为同一归档根、services/zuoyebang、services/boxdetect。检测使用原训练解释器执行模块 CLI。三个服务均 active/running、NRestarts=0；网关私有数据在 `/var/lib/omrs-zuoyebang`，目录0700、文件0600，管理员秘密不输出或提交。
 
 Python依赖沿用 `/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv`，Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；浏览器缓存包含对应1234版Chromium。检测使用 `/root/omrs-train/.venv/bin/python`，推理依赖未升级。共享 CDP9222 仅供可信本机隔离 context，验证不关闭共享浏览器；发布 TMPDIR 使用浏览器可访问目录。
 
 Web8471、回环MCP18472、HTTPS8472及公开URL `https://home.ruibin-ningh.top:8472` 保持。Nginx的 `/zuoyebang/` 反代至回环8745，不新增公网端口；管理Cookie为Secure/HttpOnly/Strict并限制服务路径。原网关连接、账号／设备、PIN、MCP及调用Key保持，匿名数据、MCP、网关调用与详情仍需鉴权；锁屏入口内联既有SVG图标。
 
-当前停服保全为 `/root/workspace/apps/releases/OMRS-v280-release-un_x7z8z`，目录0700、文件0600，含源码、unit、Vault/maintenance与网关私有数据。原发布解包核验1125个文件及8个SQLite库；49张原业务表与1014个原内容／关键配置文件已校验，停服切换5.423秒。后续正常业务写入需根据其原生回执核对，不能用旧题数或旧文件数量推断当前业务状态。
+当前停服保全为 `/root/workspace/apps/releases/OMRS-v281-release-m0e8sy5o`，目录0700、文件0600，含新旧源码、unit、Vault/maintenance与网关私有数据。解包核验1148个文件及8个SQLite库；49张原业务表的全部原列／原行和1035个原内容／关键配置文件保持，停服切换5.721秒。长期待审不依据旧期限作废；后续正常业务写入需根据原生回执核对，不能用旧题数推断当前状态。
+
+生产只读检查58/58通过，覆盖版本化资源字节与缓存、PIN及匿名鉴权、MCP、网关、三服务真实目录与日志、模型身份及数据保持。浏览器从在线服务加载真实模块，在脱离文档的DOM中渲染合成草稿，验证并排视图、顶部队列、缩略图选中与未框入库保护；没有提交真实草稿。精确归档另用临时库通过Python94、Node529、UI／58组对比度及录入24、草稿82项浏览器验证。
 
 上线后的正常入库继续追加业务事实，核验时以保全中的原记录为比较前缀，不将题目总数固定为发布时的值。模型指针、revision与控制文件保持；源码回退保留最新数据，不用旧归档覆盖后续业务事实。
 
