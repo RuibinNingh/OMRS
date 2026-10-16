@@ -35,6 +35,12 @@ AI/plans/<计划名>/
 
 | 计划 | 状态 | 说明 |
 |---|---|---|
+| `ai-agent/` | A–H 已合入并部署 v1.28.1；外部验收待核实 | 真实模型五类对话及生产 Ledger 前后校验未见完成记录；B2、F3 后续；见 `ai-agent/progress.md` |
+| `ai-label-organizing/` | 阶段 0–5 已完成并随 v2.3.8 发布 | 整批标记归类、审核与撤销；见 `ai-label-organizing/progress.md` |
+| `board-motion/` | 实现与门禁已完成；提交／汇报按 progress 核实 | 展示板翻页和切板过渡；题库选择器基线问题另记；见 `board-motion/progress.md` |
+| `board-redesign/` | UI 打磨已部署并验收 | 展示板布局、保存与预览；实体出纸按使用验收；见 `board-redesign/progress.md` |
+| `entry-background/` | 已完成 | 入口图片／视频背景配置及隔离验证；见 `entry-background/progress.md` |
+| `omrs-stabilization/` | v1.35.0 实现、部署、正文回填与推送已完成 | 数据完整性与并发巩固；历史不可取回缺口不伪造恢复；见 `omrs-stabilization/progress.md` |
 | `frontend-rearch/` | P0–P8、终检及部署已完成 | 前端架构、设计系统与 UI；后续清理已在 v1.28.1 完成，详见 `frontend-rearch/progress.md` |
 | `ai-draft/` | P1–P4 已完成并部署 v1.30.0 | 主 AI 聊天录题、草稿审核入库、框选与独立训练任务；执行结果与发布状态见 `ai-draft/progress.md` |
 | `box-detect/` | 已完成并部署v1.32.0 | 训练、内容评测、复核面板及服务启停／模型显式应用与回退已交付，见progress.md |

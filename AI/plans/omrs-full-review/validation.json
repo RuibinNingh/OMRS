@@ -1,0 +1,1474 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-10-16T04:59:40.378421+00:00",
+  "state": "in_progress",
+  "scope": "当前含既有修改工作区；只读业务核查及文档事实订正，未修复已知业务缺陷",
+  "baseline": {
+    "root": "/root/workspace/apps/OMRS",
+    "out": "/tmp/omrs-full-review-20261016-_lotdof0",
+    "head": "98ca91f7f5011cab4e9e8b7e450cbfb7cc8072df",
+    "snapshot_sha256": "b43a44b44783eb0d32784a1806426d734a14fa37843445732bc844581bbb8372",
+    "paths": 1505,
+    "started_at": "2026-10-16T04:37:18.640491+00:00"
+  },
+  "python": "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+  "first_core_invocation": {
+    "ref": "98ca91f7f5011cab4e9e8b7e450cbfb7cc8072df",
+    "upgrade_ref": "17d6d84",
+    "results": [
+      {
+        "id": "unittest",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "discover",
+          "-s",
+          "tests",
+          "-p",
+          "test_*.py",
+          "-q"
+        ],
+        "exit_code": 1,
+        "seconds": 160.254,
+        "log": "/tmp/omrs-full-review-20261016-_lotdof0/core/unittest.log"
+      },
+      {
+        "id": "pytest-export",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "pytest",
+          "tests/test_report_export.py",
+          "-q"
+        ],
+        "exit_code": 0,
+        "seconds": 0.359,
+        "log": "/tmp/omrs-full-review-20261016-_lotdof0/core/pytest-export.log"
+      },
+      {
+        "id": "node",
+        "command": [
+          "node",
+          "--test",
+          "tests/app/ai-review.test.mjs",
+          "tests/app/analytics.test.mjs",
+          "tests/app/annotate.test.mjs",
+          "tests/app/arrange.test.mjs",
+          "tests/app/assistant-history.test.mjs",
+          "tests/app/assistant-permissions.test.mjs",
+          "tests/app/assistant.test.mjs",
+          "tests/app/audit-controllers.test.mjs",
+          "tests/app/audit-identity-uploads.test.mjs",
+          "tests/app/board-drag.test.mjs",
+          "tests/app/board-locked.test.mjs",
+          "tests/app/board-page.test.mjs",
+          "tests/app/board-picker.test.mjs",
+          "tests/app/board-preview.test.mjs",
+          "tests/app/board-print.test.mjs",
+          "tests/app/board-regions.test.mjs",
+          "tests/app/board-save.test.mjs",
+          "tests/app/board-settings.test.mjs",
+          "tests/app/board.test.mjs",
+          "tests/app/catalog.test.mjs",
+          "tests/app/core.test.mjs",
+          "tests/app/create-drafts.test.mjs",
+          "tests/app/create-inbox.test.mjs",
+          "tests/app/create-process.test.mjs",
+          "tests/app/create-zyb.test.mjs",
+          "tests/app/create.test.mjs",
+          "tests/app/dashboard.test.mjs",
+          "tests/app/data.test.mjs",
+          "tests/app/draft-navigation.test.mjs",
+          "tests/app/exporter.test.mjs",
+          "tests/app/feedback.test.mjs",
+          "tests/app/history.test.mjs",
+          "tests/app/html.test.mjs",
+          "tests/app/instant.test.mjs",
+          "tests/app/items.test.mjs",
+          "tests/app/label-plan.test.mjs",
+          "tests/app/labels.test.mjs",
+          "tests/app/math-delimiters.test.mjs",
+          "tests/app/question.test.mjs",
+          "tests/app/questions.test.mjs",
+          "tests/app/reports.test.mjs",
+          "tests/app/runtime-history.test.mjs",
+          "tests/app/schedule.test.mjs",
+          "tests/app/settings-tuning.test.mjs",
+          "tests/app/settings-zuoyebang.test.mjs",
+          "tests/app/settings.test.mjs",
+          "tests/app/trainaudit.test.mjs",
+          "tests/app/traincontrol.test.mjs",
+          "tests/app/trainpanel.test.mjs"
+        ],
+        "exit_code": 0,
+        "seconds": 0.487,
+        "log": "/tmp/omrs-full-review-20261016-_lotdof0/core/node.log"
+      },
+      {
+        "id": "components",
+        "command": [
+          "/usr/bin/python3",
+          "tests/app/run_browser.py"
+        ],
+        "exit_code": 0,
+        "seconds": 3.339,
+        "log": "/tmp/omrs-full-review-20261016-_lotdof0/core/components.log"
+      },
+      {
+        "id": "print",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "tests.smoke_board_print",
+          "-q"
+        ],
+        "exit_code": 0,
+        "seconds": 4.887,
+        "log": "/tmp/omrs-full-review-20261016-_lotdof0/core/print.log"
+      },
+      {
+        "id": "print-a4",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "unittest",
+          "tests.smoke_a4_print",
+          "-q"
+        ],
+        "exit_code": 0,
+        "seconds": 3.43,
+        "log": "/tmp/omrs-full-review-20261016-_lotdof0/core/print-a4.log"
+      },
+      {
+        "id": "discipline",
+        "command": [
+          "/usr/bin/python3",
+          "tests/check_ui.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.133,
+        "log": "/tmp/omrs-full-review-20261016-_lotdof0/core/discipline.log"
+      },
+      {
+        "id": "contrast",
+        "command": [
+          "/usr/bin/python3",
+          "tests/check_contrast.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.015,
+        "log": "/tmp/omrs-full-review-20261016-_lotdof0/core/contrast.log"
+      },
+      {
+        "id": "upgrade-compat",
+        "command": [
+          "/usr/bin/python3",
+          "tests/check_upgrade_compat.py",
+          "--ref",
+          "17d6d84"
+        ],
+        "exit_code": 0,
+        "seconds": 0.621,
+        "log": "/tmp/omrs-full-review-20261016-_lotdof0/core/upgrade-compat.log"
+      }
+    ],
+    "not_run": [
+      {
+        "id": "e2e-boxdetect",
+        "reason": "依赖外部冻结模型和数据集；本次未改模型，不访问真实训练材料"
+      }
+    ]
+  },
+  "records": [
+    {
+      "id": "backend-independent-repeat",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/agent-b/reproduce.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:50:54.936553+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/backend-independent-repeat.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 951666,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:50:55.150648+00:00",
+      "seconds": 0.214,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "0851623a35969e4e92d314b93fe4f9e772cb1c4865c14a3ae1aee2a6d7527496",
+      "skip_lines": []
+    },
+    {
+      "id": "cli-session-independent",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/cli_session_repeat.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:56:32.393198+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/cli-session-independent.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 980908,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:56:32.557431+00:00",
+      "seconds": 0.164,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "a1458ac0adb8c3563011210cca9c9f29271c76d0aed195ac7513a40719ddf0ac",
+      "skip_lines": []
+    },
+    {
+      "id": "core-gates",
+      "command": [
+        "python3",
+        "tests/run_gates.py",
+        "--ref",
+        "98ca91f7f5011cab4e9e8b7e450cbfb7cc8072df",
+        "--upgrade-ref",
+        "17d6d84",
+        "--groups",
+        "unit,ui,release",
+        "--out",
+        "/tmp/omrs-full-review-20261016-_lotdof0/core"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:40:17.347154+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/core-gates.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 904119,
+      "exit_code": 1,
+      "ended_at": "2026-10-16T04:43:10.939457+00:00",
+      "seconds": 173.592,
+      "kind": "gate_or_probe",
+      "status": "failed",
+      "log_sha256": "a92e378a660aefea0d8dd0f61e1c79822d8c5ce4cb5f9195103bb53a74a6a659",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-ai_review",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/run_redirected.py",
+        "/root/workspace/apps/OMRS/tests/e2e/ai_review.py",
+        "/tmp/omrs-full-review-20261016-_lotdof0/redirected-e2e/ai_review.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:44:49.726732+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-ai_review.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 917131,
+      "exit_code": 1,
+      "ended_at": "2026-10-16T04:45:00.064747+00:00",
+      "seconds": 10.338,
+      "kind": "e2e",
+      "status": "failed",
+      "log_sha256": "6d5f3963c0222e2ec9b6271e958c3869d849d5d9d584045d714b09070d2a97fb",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-ai_review_refresh",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/ai_review_refresh.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:45:00.089143+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-ai_review_refresh.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 918209,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:45:51.927889+00:00",
+      "seconds": 51.839,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "53bd6b4a13eb69b35e5236fcf94ca6015447fa2a57af3816b213b5872fcaf0da",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-annotate",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/annotate.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:45:51.953723+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-annotate.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 923218,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:46:03.994838+00:00",
+      "seconds": 12.041,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "166b870e2e128d64b0d8ff5f7980d00294c3bc5f14e91231fc72d0e9c0c5d2a5",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-assistant",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/assistant.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:46:04.021048+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-assistant.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 924548,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:47:03.390344+00:00",
+      "seconds": 59.369,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "206601415f9535384139ed4efde4e61f20bfff9470cb86ea319a0f16032b8d55",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-assistant_p3",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/assistant_p3.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:47:03.421891+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-assistant_p3.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 930238,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:47:20.479262+00:00",
+      "seconds": 17.057,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "55174f4bfac05b2edb7c5a927030899c333a7a8c6fc7e4eaa5933148e1a1bd09",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-assistant_permissions",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/run_redirected.py",
+        "/root/workspace/apps/OMRS/tests/e2e/assistant_permissions.py",
+        "/tmp/omrs-full-review-20261016-_lotdof0/redirected-e2e/assistant_permissions.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:47:20.516479+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-assistant_permissions.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 932446,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:47:41.624819+00:00",
+      "seconds": 21.108,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "c3b5b1ea6cdd9b072cffe82025e857d81aa8d378bfe1d64205d1e0bae78d9d44",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-assistant_race",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/assistant_race.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:47:41.650439+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-assistant_race.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 934149,
+      "exit_code": 1,
+      "ended_at": "2026-10-16T04:48:15.390450+00:00",
+      "seconds": 33.74,
+      "kind": "e2e",
+      "status": "failed",
+      "log_sha256": "a0b0aacc7abe1fe68e8ae113490380b4c00cbac9b20fc7f2410505567ea721a7",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-assistant_responses",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/assistant_responses.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:48:15.432879+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-assistant_responses.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 937062,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:48:22.210679+00:00",
+      "seconds": 6.778,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "610e187a7a94ddcf60532babc61a21878367ae9f946efb3cbd9c3ac542858d44",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-assistant_review",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/run_redirected.py",
+        "/root/workspace/apps/OMRS/tests/e2e/assistant_review.py",
+        "/tmp/omrs-full-review-20261016-_lotdof0/redirected-e2e/assistant_review.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:48:22.248361+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-assistant_review.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 937855,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:48:36.594454+00:00",
+      "seconds": 14.346,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "6379954ce717ff5831cbc1551eeab6ad7eac0efce231144990cfae0ad49d4f5f",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-assistant_usage",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/assistant_usage.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:48:36.628012+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-assistant_usage.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 938806,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:48:44.309765+00:00",
+      "seconds": 7.682,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "294ee8360d3b5e8a0cad3e91b9b0d10c225de7971a17574971207cfbd54f86bb",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-audit_identity",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/audit_identity.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:48:44.345391+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-audit_identity.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 939511,
+      "exit_code": 1,
+      "ended_at": "2026-10-16T04:49:22.008868+00:00",
+      "seconds": 37.663,
+      "kind": "e2e",
+      "status": "failed",
+      "log_sha256": "f1134e770edf1548ea8038051ed55a4a510d9bb66458616c85b123f9ac8d9e34",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-board",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/board.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:49:22.040031+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-board.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 941260,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:49:45.413462+00:00",
+      "seconds": 23.373,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "ad3b10583ff1a62f1ff7f07a199842c887c17570353df9284fe7f8b9e4c673ed",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-board_picker",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/board_picker.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:49:45.460606+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-board_picker.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 944459,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:50:05.787655+00:00",
+      "seconds": 20.327,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "549fa30f12388064e8fbfc59d40de84fad1650c97329711cf2f300a673ed2e2e",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-catalog",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/catalog.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:50:05.836690+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-catalog.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 947726,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:50:22.510348+00:00",
+      "seconds": 16.674,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "5a657758b9ee56e56a07544646f52f604ed34a3ac196d0fe3525632b4d317a5d",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-create",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/run_redirected.py",
+        "/root/workspace/apps/OMRS/tests/e2e/create.py",
+        "/tmp/omrs-full-review-20261016-_lotdof0/redirected-e2e/create.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:50:22.536170+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-create.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 950211,
+      "exit_code": 1,
+      "ended_at": "2026-10-16T04:51:22.738335+00:00",
+      "seconds": 60.202,
+      "kind": "e2e",
+      "status": "failed",
+      "log_sha256": "4549063a42aaa195ff017ac8ebe924c6f3c87bd97cf73ad221d2f6d1d2fbd5d1",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-dashboard",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/dashboard.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:51:22.786181+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-dashboard.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 954417,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:51:54.106159+00:00",
+      "seconds": 31.32,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "0f41434f26289108e651cadad5ad6650af9fcf3d16e0a59d4bff5995aa3245a0",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-data",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/data.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:51:54.132669+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-data.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 959001,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:52:18.726023+00:00",
+      "seconds": 24.593,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "42dbefc8add3208ae6d1e3fe7b0b0f12ea074ec1e6d03c4ddc46c7661f5b8876",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-drafts",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/run_redirected.py",
+        "/root/workspace/apps/OMRS/tests/e2e/drafts.py",
+        "/tmp/omrs-full-review-20261016-_lotdof0/redirected-e2e/drafts.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:52:18.750488+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-drafts.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 963143,
+      "exit_code": 1,
+      "ended_at": "2026-10-16T04:53:21.742751+00:00",
+      "seconds": 62.992,
+      "kind": "e2e",
+      "status": "failed",
+      "log_sha256": "c0c3dfea5e491977c1e7c5ca63beb1d5309bb9caf036cc9e08bcd20a8cd9b847",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-drafts_blocks",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/run_redirected.py",
+        "/root/workspace/apps/OMRS/tests/e2e/drafts_blocks.py",
+        "/tmp/omrs-full-review-20261016-_lotdof0/redirected-e2e/drafts_blocks.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:53:21.776928+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-drafts_blocks.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 965824,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:53:41.985553+00:00",
+      "seconds": 20.209,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "96ff324a350a02c91ae8e92950e4eb641078ca6dadf1666596820ebaa83a1a3c",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-drafts_p4",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/run_redirected.py",
+        "/root/workspace/apps/OMRS/tests/e2e/drafts_p4.py",
+        "/tmp/omrs-full-review-20261016-_lotdof0/redirected-e2e/drafts_p4.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:53:42.016607+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-drafts_p4.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 969083,
+      "exit_code": 1,
+      "ended_at": "2026-10-16T04:56:48.833626+00:00",
+      "seconds": 186.817,
+      "kind": "e2e",
+      "status": "failed",
+      "log_sha256": "802d4e341e3e4e7ea1f5c85e65188ac92e16c2645008a697babe665ac0a17767",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-entry_background",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/entry_background.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:56:48.878152+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-entry_background.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 981532,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:57:00.310019+00:00",
+      "seconds": 11.432,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "9d0b709f1f104fd0173ff55f1550b422099d66cbaaa892bfb83789b6d8cc63e2",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-feedback",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/feedback.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:57:00.340537+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-feedback.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 981935,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:57:21.319808+00:00",
+      "seconds": 20.979,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "483eabaaba93065cece2e63b269f2531b8d45b0f4bc0074e44cd6114016ca873",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-history",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/history.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:57:21.361595+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-history.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 985735,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:57:44.394701+00:00",
+      "seconds": 23.033,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "74f5f5fedfb984dedee28544bf2b5f30143a0851e3f2b5c50a5c5ae3147133bb",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-instant",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/instant.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:57:44.425980+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-instant.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 988368,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:57:56.062638+00:00",
+      "seconds": 11.637,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "d43dced46162d58778da402071c44f6cf952eba5a369ed9f483b861e9f531ef4",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-label_plans",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/run_redirected.py",
+        "/root/workspace/apps/OMRS/tests/e2e/label_plans.py",
+        "/tmp/omrs-full-review-20261016-_lotdof0/redirected-e2e/label_plans.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:57:56.087867+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-label_plans.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 990711,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:58:22.406410+00:00",
+      "seconds": 26.318,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "bddff629baf15617e6c45e183747f0ba2ce51a4e05d51f0892be68f832beee4e",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-math_delimiters",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/math_delimiters.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:58:22.447396+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-math_delimiters.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 993929,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:58:28.173914+00:00",
+      "seconds": 5.726,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "34d28b5b71fa1ba491b94779ab45c61063f9add5f35a2226475378b0a84be26a",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-mcp",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/mcp.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:58:28.211381+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-mcp.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 994468,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:58:42.565932+00:00",
+      "seconds": 14.354,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "423c74c81d591adf0325e71d2048c0968e4d0ba88899531d2522256db0eb1dc7",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-mcp_expansion",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/mcp_expansion.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:58:42.594407+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-mcp_expansion.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 995490,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:58:57.683555+00:00",
+      "seconds": 15.089,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "1fc7b448a8f5c09df2458ad8ebe8c22dfdfda7949e03bedbc596638f0afd18ff",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-mcp_review_sessions",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/mcp_review_sessions.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:58:57.718131+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-mcp_review_sessions.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 996678,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:59:04.646866+00:00",
+      "seconds": 6.929,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "35597151bb7ca00290dcd5ea5cd644c8f81ae1438c74c5f4eb5da3c3f144e828",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-orchestration",
+      "command": [
+        "python3",
+        "/tmp/omrs-full-review-20261016-_lotdof0/orchestrate_e2e.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:44:49.687389+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-orchestration.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 917126,
+      "kind": "orchestration",
+      "status": "running",
+      "log_sha256": "c0ba4d8bc4021c67058ce3aa6c54a0db2d22857d35000925b535757da5e4d65f",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-p4_tools",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/p4_tools.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:59:04.678085+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-p4_tools.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 997227,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:59:15.268529+00:00",
+      "seconds": 10.59,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "5b06cc228b6fe8cb2b0287e4ea7329e8899234ccedb2470c2373f435ab94ffe3",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-practice",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/practice.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:59:15.305661+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-practice.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 998408,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:59:25.541926+00:00",
+      "seconds": 10.236,
+      "kind": "e2e",
+      "status": "passed",
+      "log_sha256": "b9b5afb13fdd4a99140dcd60f121edde805097268fc41e6905c6db2aac19ffe5",
+      "skip_lines": []
+    },
+    {
+      "id": "e2e-questions",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/root/workspace/apps/OMRS/tests/e2e/questions.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:59:25.576894+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/e2e-questions.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 999547,
+      "kind": "e2e",
+      "status": "running",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "skip_lines": []
+    },
+    {
+      "id": "frontend-cache-independent-repeat",
+      "command": [
+        "node",
+        "/tmp/omrs-full-review-20261016-_lotdof0/agent-c/question-cache-race.mjs"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:51:17.903072+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/frontend-cache-independent-repeat.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 953136,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:51:17.966979+00:00",
+      "seconds": 0.064,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "25823c96e8e081a9d3f83fad81bd4cc19f67a961682c4bfdb27bb262f49d0014",
+      "skip_lines": []
+    },
+    {
+      "id": "frontend-logic-independent-repeat",
+      "command": [
+        "node",
+        "/tmp/omrs-full-review-20261016-_lotdof0/agent-c/instant-submit-race.mjs"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:51:17.773925+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/frontend-logic-independent-repeat.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 953018,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:51:17.839771+00:00",
+      "seconds": 0.066,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "56b8af689fdebba5e0654938f9d6b5dcf0792e95b7159fc0102a593c1496a5a0",
+      "skip_lines": []
+    },
+    {
+      "id": "gateway-package-smoke-complete-deps",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/package_probe.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:52:11.471891+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/gateway-package-smoke-complete-deps.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 961441,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:52:15.247526+00:00",
+      "seconds": 3.776,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "b47171cbc807f7f3a4436c4f10bd200e1a86bfa332687cffd9d9aa446f2a24b1",
+      "skip_lines": []
+    },
+    {
+      "id": "gateway-package-smoke",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/package_probe.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:51:18.034102+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/gateway-package-smoke.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 953228,
+      "exit_code": 1,
+      "ended_at": "2026-10-16T04:51:19.851488+00:00",
+      "seconds": 1.817,
+      "kind": "gate_or_probe",
+      "status": "failed",
+      "log_sha256": "02a231ee2f59cd8cca8ec14ad1afed9eff9455d2e7762de2acb56df7d2c2c9ab",
+      "skip_lines": []
+    },
+    {
+      "id": "gateway-unit-complete-deps",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-t",
+        ".",
+        "-q"
+      ],
+      "cwd": "/root/workspace/apps/OMRS/services/zuoyebang",
+      "started_at": "2026-10-16T04:45:27.830087+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/gateway-unit-complete-deps.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 920917,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:46:09.898886+00:00",
+      "seconds": 42.069,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "dadbc2e05908b7b5a1b67185c20f9cd8adb95950c81a33b540eca3b38805cc60",
+      "skip_lines": []
+    },
+    {
+      "id": "isolated-dependencies",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "-m",
+        "pip",
+        "install",
+        "--disable-pip-version-check",
+        "segno==1.6.6",
+        "setuptools>=68"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:43:46.665650+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/isolated-dependencies.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 915213,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:43:50.238727+00:00",
+      "seconds": 3.573,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "af2f6809a5a9f1b6171de8ef89db8f3786ab43d2be5e232969e46288af70b989",
+      "skip_lines": []
+    },
+    {
+      "id": "isolated-runtime-create",
+      "command": [
+        "python3",
+        "-m",
+        "venv",
+        "--system-site-packages",
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:43:02.415214+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/isolated-runtime-create.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 913175,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:43:03.881427+00:00",
+      "seconds": 1.466,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "skip_lines": []
+    },
+    {
+      "id": "post-e2e-orchestration",
+      "command": [
+        "python3",
+        "/tmp/omrs-full-review-20261016-_lotdof0/post_e2e.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:51:40.748042+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/post-e2e-orchestration.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 956131,
+      "kind": "orchestration",
+      "status": "running",
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "skip_lines": []
+    },
+    {
+      "id": "root-http-crossreview-correct-path",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/root_http.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:51:16.631989+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/root-http-crossreview-correct-path.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 952654,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:51:18.348746+00:00",
+      "seconds": 1.717,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "806e4f1f7b4b40c61193aecd1390677f95a695677df23323ae2351d868f879a4",
+      "skip_lines": []
+    },
+    {
+      "id": "root-http-crossreview",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/root_http.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:50:53.779155+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/root-http-crossreview.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 951569,
+      "exit_code": 1,
+      "ended_at": "2026-10-16T04:50:54.995309+00:00",
+      "seconds": 1.216,
+      "kind": "gate_or_probe",
+      "status": "failed",
+      "log_sha256": "30bdf4e3e38b5121e426d78a05eafad6d6dbdb33e83c8e9f3aeca851d2b80f9f",
+      "skip_lines": []
+    },
+    {
+      "id": "root-unittest-complete-deps",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-p",
+        "test_*.py",
+        "-q"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:45:26.654307+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/root-unittest-complete-deps.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 920886,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:48:09.462623+00:00",
+      "seconds": 162.808,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "144399e70099cb476be31684e1861d318115e675db83b4c8eec5502e8ece445a",
+      "skip_lines": []
+    },
+    {
+      "id": "service-boxdetect-unit",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-t",
+        ".",
+        "-q"
+      ],
+      "cwd": "/root/workspace/apps/OMRS/services/boxdetect",
+      "started_at": "2026-10-16T04:40:19.685940+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/service-boxdetect-unit.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 904156,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:40:20.000627+00:00",
+      "seconds": 0.315,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "d0db5bfcec525e00194e9a13bf6203bebf5e6bee66642c725149308a37c31020",
+      "skip_lines": []
+    },
+    {
+      "id": "service-zuoyebang-unit",
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tests",
+        "-t",
+        ".",
+        "-q"
+      ],
+      "cwd": "/root/workspace/apps/OMRS/services/zuoyebang",
+      "started_at": "2026-10-16T04:40:18.512258+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/service-zuoyebang-unit.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 904132,
+      "exit_code": 1,
+      "ended_at": "2026-10-16T04:40:59.623679+00:00",
+      "seconds": 41.111,
+      "kind": "gate_or_probe",
+      "status": "failed",
+      "log_sha256": "1a91f5d3bd38effcff05ab35f0bb250726ca460e541c7eb29f1dcc335850e895",
+      "skip_lines": []
+    },
+    {
+      "id": "synthetic-performance",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "/tmp/omrs-full-review-20261016-_lotdof0/performance_probe.py"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T04:54:54.393493+00:00",
+      "log": "/tmp/omrs-full-review-20261016-_lotdof0/records/synthetic-performance.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-full-review-20261016-_lotdof0"
+      },
+      "pid": 972780,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T04:54:54.658361+00:00",
+      "seconds": 0.265,
+      "kind": "gate_or_probe",
+      "status": "passed",
+      "log_sha256": "e756e6e1f633ba2d47286bd282f10eef1f3543988805c7ba6a771ff1da319351",
+      "skip_lines": []
+    }
+  ],
+  "evidence": [
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/baseline-manifest.json",
+      "bytes": 251828,
+      "sha256": "b43a44b44783eb0d32784a1806426d734a14fa37843445732bc844581bbb8372"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/baseline-status.txt",
+      "bytes": 1656,
+      "sha256": "1bca0bac3c60d489cd26e6518f9e42161acee8270d47842f3f24ecc42c36de2e"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/baseline-diff.patch",
+      "bytes": 173874,
+      "sha256": "4c6bd5ddc92165fdd8a1e71254e47f5ce9ed39eae3cd120aa98230715e722db6"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/test-entry-inventory.json",
+      "bytes": 8239,
+      "sha256": "754afefaaffaccf097bd466f36bbe61d854566c61bce80c00cb3458b776eb068"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/output-redirections.json",
+      "bytes": 4706,
+      "sha256": "cb4a46a697e0fb99898d0dbc8e10cd8bee1254b0fe07723eaaab9613085a3b2e"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/root-http-result.json",
+      "bytes": 2570,
+      "sha256": "91f3472bb9f871c468bf684cd38bf05cf80970837e0b1dfcec5cffb1868e2981"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/performance.json",
+      "bytes": 482,
+      "sha256": "22bd508fc259d5c3c2a2ac53305922e6321f83c5e34e08597ef6e72e2442d98c"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/cli-session-independent.json",
+      "bytes": 1824,
+      "sha256": "7728d6389645c1d2c6095061c1e91feadf4a5f45c84a8e1e0659491bc0f977b2"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-a/findings.json",
+      "bytes": 14667,
+      "sha256": "345e721a60faeae186ba0e15bb7e2a2e4b83446b9879aaea8bea39fb99519a39"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-a/coverage.json",
+      "bytes": 4925,
+      "sha256": "74397e01b2a058aa2b0efa31704bbd259f2bdc3700a654d2b26be75820ab2081"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-a/document-errata.json",
+      "bytes": 29364,
+      "sha256": "35ab9256dee53f2060eaeaf5f75152a64915a64ab3e4f651542b7ca40d282caf"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-a/cli/validation.json",
+      "bytes": 41728,
+      "sha256": "39fe245df5c92dda80401ba04d34dac58245d24a3e1dd29be0a703cd5e83085a"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-b/findings.json",
+      "bytes": 11148,
+      "sha256": "6f0f03fdfdc70f3670a29a6ac5b53d70639ca4b301fefd22cdf89d2762c28526"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-b/coverage.json",
+      "bytes": 247811,
+      "sha256": "4b2db5c177a020a06a93ed8ee536a5dbc7fe7735829904a633bde4a7b11a6f39"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-b/cross-review-c.json",
+      "bytes": 4095,
+      "sha256": "50f35b4c583a14f8c0987a6e40b19131e19fafefee45b379f8dd17d37307fa42"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-b/repro-repeat.json",
+      "bytes": 6514,
+      "sha256": "1065c9f79b448646cf574b5a1b239683f6af787d956af32e6cde3af3b819ec34"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-c/findings.json",
+      "bytes": 10620,
+      "sha256": "82373531f8523ca6d37297fbd32352cb0cbec49879bdb9d549cc0a5181796840"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-c/coverage.json",
+      "bytes": 13023,
+      "sha256": "9fbe58c44bca7d8bcfefcf705f2a6768c13c4f7d1909dce4fb2632b94f83b7c0"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-c/browser/validation-summary.json",
+      "bytes": 2841,
+      "sha256": "6086e449c8f201f17f2218e73ac8bb5cc7106acdc8859d73ca85b181ae252740"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-c/browser/results.json",
+      "bytes": 5898,
+      "sha256": "5a3afe4a49140735deeae9490df53aab9b146bcc54a9994e9aed3ac478daabd0"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-c/browser/results-retry.json",
+      "bytes": 3417,
+      "sha256": "9d869a14e40005cb5c150dd60231a41bccd94e5bc07d43ac6e59dce08bb8e41e"
+    },
+    {
+      "path": "/tmp/omrs-full-review-20261016-_lotdof0/agent-c/browser/empty-layout/results.json",
+      "bytes": 44453,
+      "sha256": "61179b3513648daa1148bb0c6454e55e71265a1d7277fa442bcdbc9ee7d64df7"
+    }
+  ],
+  "interpretation": [
+    "orchestration 的退出0仅表示队列跑完，必须看其子项。",
+    "缺陷复现探针的退出0表示成功复现，不能视为该功能正确。",
+    "首轮缺依赖和审计脚本前提错误保留；后续定向重跑有独立ID。",
+    "原始E2E失败与补充用户导航后的执行分别记录，不能合并成原测试通过。",
+    "断言、测试用例、命令、截图状态不可直接相加。"
+  ],
+  "not_run": [
+    {
+      "id": "e2e-boxdetect",
+      "reason": "未提供冻结模型与外部数据集，禁止读取在线模型或真实训练目录"
+    },
+    {
+      "id": "boxdetect-package-real-inference",
+      "reason": "无冻结模型，未执行安装包真实推理"
+    },
+    {
+      "id": "windows-native",
+      "reason": "当前Linux环境；仅静态核对Windows打包"
+    },
+    {
+      "id": "real-provider-device-proxy",
+      "reason": "未授权真实账号/付费模型/生产；无实体手机、真实Nginx目标环境"
+    }
+  ]
+}

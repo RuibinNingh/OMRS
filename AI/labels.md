@@ -84,36 +84,22 @@ Markdown 标记:
 | POST | `/api/label/save` | `{id?, name, color?, priority_bonus?, order?}`；无 `id` 新建，有 `id` 更新，改名级联重写题目 YAML |
 | POST | `/api/label/delete` | `{id, detach?: true}`；默认先从题目 YAML 移除引用，再删除定义 |
 | POST | `/api/label/merge` | `{from, into}`；把源标记并入目标、去重引用并删除源定义 |
-| POST | `/api/question/labels` | `{uid, labels: [...]}`，覆盖单题标记 |
-| POST | `/api/questions/labels` | `{uids: [...], add: [...], remove: [...]}`，批量添加/移除 |
+| POST | `/api/question/labels` | 优先 `{question_id, labels: [...]}`，覆盖单题标记；旧 `uid` 兼容 |
+| POST | `/api/questions/labels` | 优先 `{question_refs: [{question_id}], add: [...], remove: [...]}`，批量添加／移除；旧 `uids` 兼容 |
 
 `/api/stats`、`/api/question`、`/api/analytics` 和推荐/导出相关数据都提供题目的
 `labels`。`/api/recommend` 接受可重复的 `label=` 参数，多个参数按 OR 过滤。
 
 ## 5. 前端组件
 
-`assets/app/domain/labels/index.js`（排在 `core.js` 之后、`questions.js` 之前）提供：
+`assets/app/domain/labels/index.js` 是原生 ES Module 聚合入口；芯片、颜色、状态、选择器和管理对话框分别由同目录子模块实现。
 
-- `lblChip(labelOrName, {variant, lg, dim})` / `lblChips(names, {add, max, uid, lg, variant})`（`assets/app/domain/labels/chips.js`，旧代码经过渡桥的同名全局；颜色写 `data-lbl-c` 加运行时样式表，不写 `style=`）：
-  `<=>` 双尖形芯片。三种变体：默认 **soft**（原色 16%/24% 淡底 + 同色相钳亮度文字，列表 /
-  抽屉 / 反馈用）、**solid**（原色实底 + 按相对亮度选黑白文字，管理弹层用）、**print**（15px，
-  导出用）。尺寸 18px / `lg` 20px / `print` 15px。`add:true` 追加「＋ 标记」入口，`max` 折叠为
-  「+N」，`uid` 时外包 `<span class="lbl-row" data-lbl-target=uid>` 交给委托打开 picker。
-- `lblInk(hex, theme)`（`assets/app/domain/labels/color.js`）：按主题只钳同色相的亮度，保证淡底上的小字达到 WCAG AA；`labelFg()`
-  给 solid 变体选文字色。用户保存的 `color` 永远不变。
-- `openLabelPicker(uid, anchor, {get, onSave, title})`：搜索 / ↑↓ / Space·Enter 切换 / 输入新名回车
-  创建并选中 / 最近标记快速加 / Esc 关闭；点「完成」才保存（乐观更新 + 失败回滚 + toast）。
-  题库 / Modal / 反馈 / 录入 / 收件箱 / 展示板共用，点任意带 `data-lbl-target` 的芯片区都能打开。
-- `openLabelManager()`：管理弹层——行内编辑（名称 / 10 色预设 + 自定义色 / 调度加成）、合并到
-  另一标记、删除（从题目 YAML 摘除）、新建；改名 / 合并后 `reloadData()` 刷新全站。
-- 标记筛选 chips：`renderLabelFilterOptions(prefix)` 渲染到 `#<prefix>-label-filter-list`，选中
-  状态存在隐藏 `#<prefix>-filter-labels`（`|` 分隔），`q / rec / pick / inst` 四处共用，
-  `q-label-mode` 决定 any / all。
-- 录入表单的标记字段（`renderCreateLabels` / `selectedCreateLabels`）、单题覆盖保存
-  `saveQuestionLabels`、批量 `batchAddRemoveLabels`。
-
-题库的筛选状态仍由 `getFilterState()` 统一读取；标记名称也参与全文搜索。
-标记管理中的改名、删除和合并属于真实的批量 Markdown 编辑，前端会提示影响范围。
+- `labelChip(labelOrName, options)` / `labelChips(names, options)` 把 `chipHtml()` / `chipsHtml()` 字符串模板包装为 `raw()` 片段。芯片为 `<=>` 双尖形，支持 soft / solid / print；高度分别为默认 20px、`lg` 24px、`print` 18px。`add`、`max`、`uid` 选项控制添加入口、折叠与委托目标。颜色写 `data-lbl-c`，由 `sheet.js` 登记样式规则。
+- `lblInk(hex, theme)` 按主题钳同色相亮度，`labelFg()` 为 solid 选择文字色；用户保存的 `color` 不变。
+- `openLabelPicker(uid, anchor)` 为已有题打开选择器；`openCreateLabelPicker(anchor, {get, onSave})` 为录入表单复用选择器。底层 `picker.js` 还接收自定义 `get` / `onSave` / `title`。支持搜索、键盘切换、创建、最近标记与 Esc；点「完成」才保存，失败回滚并提示。
+- `openLabelManager()` 管理名称、颜色、调度加成、合并、删除与新建；改名、删除和合并提示影响范围，并重载全站数据。
+- 筛选状态由各页面的 controller / state 持有，条件交给 `domain/items.js` 的 `filterItems()`；名称也参与全文搜索。
+- `state.js` 的 `saveQuestionLabels()` 与 `batchLabels()` 负责单题和批量写入；`refreshLabelViews()` 失效题面缓存，并通知标记、题库、调度、反馈和展示板重绘。
 
 ## 6. 统计与调度
 

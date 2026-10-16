@@ -39,7 +39,7 @@ MCP 录题和改题会自动把行内 `\(...\)`、行间 `\[...\]` 公式转为 
 
 启动与扫描不生成或轮转 CSV。需要兼容文件时运行 `python3 omrs_engine.py --vault <Vault路径> export-csv`，把当前 SQL 题库、反馈及计划流式导出到 `错题/.omrs/`；全库备份也按需生成这些文件。
 
-统一验证入口：`python3 tests/run_gates.py --ref <本次改动基线>`，覆盖后端、pytest 报告导出、前端、组件、打印和原始 E2E。文档与视觉使用本次改动基线，历史升级演练另用 `--upgrade-ref`（默认 `17d6d84`）。容量实测及发布边界见 [`AI/plans/omrs-audit-repair/`](AI/plans/omrs-audit-repair/plan.md)，剩余优化见 [`AI/optimization.md`](AI/optimization.md)。
+统一验证入口：`python3 tests/run_gates.py --ref <本次改动基线>`，覆盖后端、pytest 报告导出、前端、组件、打印和原始 E2E；特殊参数 E2E 与两个独立服务仍需按模块说明显式执行。文档与视觉使用本次改动基线，历史升级演练另用 `--upgrade-ref`（默认 `17d6d84`）。容量实测及发布边界见 [`AI/plans/omrs-audit-repair/`](AI/plans/omrs-audit-repair/plan.md)，剩余优化见 [`AI/optimization.md`](AI/optimization.md)。
 
 ---
 

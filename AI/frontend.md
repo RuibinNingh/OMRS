@@ -26,7 +26,7 @@
 | [`frontend/review.md`](frontend/review.md) | **复习调度**：复习调度工作台、临时调度与常规 Session 的区别 |
 | [`frontend/instant.md`](frontend/instant.md) | **即时练习**（`assets/app/features/instant/`）：取题、判定、提交、渲染不变量与快捷键 |
 | [`frontend/feedback.md`](frontend/feedback.md) | **反馈录入工作台**：反馈录入工作台布局、渲染分层、快捷键与提交结果弹窗（答题卡导入见 `AI/omr-import.md`） |
-| [`frontend/settings.md`](frontend/settings.md) | **设置页**：设置页六个分区：外观、访问与安全、AI 识别、AI 助手、数据与存储、服务与运行 |
+| [`frontend/settings.md`](frontend/settings.md) | **设置页**：设置页七个分区：外观、访问与安全、AI 识别、AI 助手、作业帮服务、数据与存储、服务与运行 |
 | [`frontend/ai-review.md`](frontend/ai-review.md) | **审核中心**：统一 AI 业务写、人工修订、操作回执和完整草稿审核 |
 | [`frontend/assistant.md`](frontend/assistant.md) | **AI 助手页**：对话列表、运行轨迹、确认与撤销、检查器（后端见 `AI/agent.md`） |
 | [`frontend/annotate.md`](frontend/annotate.md) | **框选标注页**（`/annotate`，`assets/app/features/annotate/`）：独立于题库的训练数据采集页，批量上传、只标题目 / 答案框、快捷键、导出 |

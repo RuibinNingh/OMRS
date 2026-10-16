@@ -1,7 +1,7 @@
 # 答题卡扫描 JSON 导入（OMR → 反馈页）
 
 > **速查**
-> - 职责：答题卡扫描 JSON 导入反馈页：协议、题号到 UID 的对应、逐题判定
+> - 职责：答题卡扫描 JSON 导入反馈页：协议、题号到 Session 条目的对应、逐题判定
 > - 入口：`assets/app/features/feedback/state.js`（`omrReadSheet` / `omrApplyToRows`）、`importer.js`（`planImportText`）
 > - 不变量：全部在前端完成，`/api/feedback` 契约不变
 > - 必跑测试：`tests/app/feedback.test.mjs`、`tests/e2e/feedback.py`
@@ -11,13 +11,13 @@
 
 纸面复习的闭环原本断在「批改结果怎么回到 OMRS」：要么手工逐题点，要么把结果口述给 AI 让它拼反馈 JSON。v1.11.0 接上答题卡扫描项目（OMR）的正式结果输出——扫完卡在识别详情页复制 `/api/v1/recognitions/{id}/result` JSON，回本页读剪贴板，逐题自动落到判定面板上。
 
-**全部在前端完成**，`/api/feedback` 与提交体 `{uid, sub_score, is_correct, note}` 零改动。
+**全部在前端完成**。正式 Session 的反馈优先提交 `{question_id, entry_id, sub_score, is_correct, note}`；只有缺少稳定身份的兼容行才提交 `uid`。
 
-## 题号 → UID 的对应关系
+## 题号 → Session 条目的对应关系
 
-答题卡上只有题号，没有 UID。唯一的对应依据是**当前 Session 的题目顺序**：OMR 的 `seq N` ↔ `sessionUniqueUids(session)[N-1]`，与 `omrs/exporting.py` 打印「第 N 题 [UID]」时用的 `enumerate(questions, 1)` 是同一个口径。因此**没选 Session 就直接拒绝导入**，不做任何猜测。
+答题卡上只有题号；对应依据是**当前 Session 保存的原始条目顺序**：OMR 的 `seq N` ↔ `sessionEntries(session)[N-1]`。没有选择 Session 时直接拒绝导入，不猜测身份。
 
-已知边界：导出答题卡之后再停用某道题，`list_sessions` 会把它从 `uids` 里滤掉，其后所有题号整体前移，纸面与 Session 不再对齐。UI 与导入面板都写明了这一点，中栏题面就是核对手段。
+`list_sessions` 返回保留停用、归档与待绑定条目的 `entries`，前端优先使用这些条目；兼容 `uids` 可能过滤停用题，不作为正式 OMR 序号来源。停用或归档条目保留原位置并转人工核对，后续题号不会前移。
 
 ## 唯一接受的 OMR JSON 形态（`omrReadSheet`）
 
