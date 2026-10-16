@@ -17,6 +17,24 @@ def open_drafts(page):
     kind.select_option('draft')
 
 
+def select_review_item(page, item_id):
+    """通过可见队列或顶部选择器切题，保留实际未保存保护交互。"""
+    page.locator('dialog[open]').wait_for(state='detached')
+    row = page.locator(f'.arv-row[data-arg="{item_id}"]')
+    row.wait_for(state='attached')
+    selector = page.locator('#arv-entry-select')
+    if selector.is_visible() and selector.locator(f'option[value="{item_id}"]').count():
+        selector.select_option(item_id)
+        return
+    if not row.is_visible():
+        back = page.locator('[data-action="ai-review.back"]')
+        if back.is_visible():
+            back.click()
+        else:
+            page.locator('[data-action="ai-review.toggleQueue"]').click()
+    row.click()
+
+
 def ensure_assistant_rail(page, selector):
     from playwright.sync_api import TimeoutError as BrowserTimeout
     page.wait_for_selector(selector, state='attached')

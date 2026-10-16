@@ -15,25 +15,23 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-14 23:35:03 CST 发布并核验）：当前 v2.7.1，运行源码为 Git 提交 `f38ad146956f838c2a184dddc5237d4e9da738ed` 的精确归档 `/root/workspace/apps/releases/omrs-f38ad14`，1483 个源码文件逐字节一致。MCP 草稿与改题、题目与聊天预览、三种离线导出支持反斜杠公式定界符转美元符号；既有正文与历史不批量重写。助手权限模式、搜题详情和独立框选服务保持可用。
+生产环境事实（2026-10-16 发布前只读核验）：当前 v2.8.0，源码为 Git 提交 `f05eda0d9659aa5b9a89694676ff787e12aafee2` 的精确归档 `/root/workspace/apps/releases/omrs-f05eda0`，原发布已核对1494个源码文件。当前工作区是开发源码，不是在线运行目录；生产 Vault 仍为 `/root/workspace/apps/OMRS`，隔离测试不能读取其真实错题数据。
 
-三个服务沿用原 unit/drop-in。持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 原子指向 omrs-f38ad14；主服务、网关、检测的真实 cwd 分别为同一归档根、services/zuoyebang、services/boxdetect。检测使用原训练解释器执行模块 CLI。三个服务均 active/running、NRestarts=0；网关私有数据在 `/var/lib/omrs-zuoyebang`，目录0700、文件0600，管理员秘密不输出或提交。
+三个服务沿用原 unit/drop-in。持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 指向 omrs-f05eda0；主服务、网关、检测的真实 cwd 分别为同一归档根、services/zuoyebang、services/boxdetect。检测使用原训练解释器执行模块 CLI。三个服务均 active/running、NRestarts=0；网关私有数据在 `/var/lib/omrs-zuoyebang`，目录0700、文件0600，管理员秘密不输出或提交。
 
 Python依赖沿用 `/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv`，Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；浏览器缓存包含对应1234版Chromium。检测使用 `/root/omrs-train/.venv/bin/python`，推理依赖未升级。共享 CDP9222 仅供可信本机隔离 context，验证不关闭共享浏览器；发布 TMPDIR 使用浏览器可访问目录。
 
 Web8471、回环MCP18472、HTTPS8472及公开URL `https://home.ruibin-ningh.top:8472` 保持。Nginx的 `/zuoyebang/` 反代至回环8745，不新增公网端口；管理Cookie为Secure/HttpOnly/Strict并限制服务路径。原网关连接、账号／设备、PIN、MCP及调用Key保持，匿名数据、MCP、网关调用与详情仍需鉴权；锁屏入口内联既有SVG图标。
 
-当前停服保全为 `/root/workspace/apps/releases/OMRS-v271-release-n5v_x1j9`，目录0700、文件0600，包含新旧源码、unit、Vault/maintenance与网关私有数据，部署状态保存模型和控制文件哈希。两份数据归档比较、解包 1108 个文件和 8 个 SQLite 库完整性通过。49 张原业务表逐行校验全部原列；一条已过期 MCP 提案及关联运行记录的生命周期字段由原生启动流程收束，其余原业务列保持。997 个原内容／关键配置文件字节一致，待审草稿保留。
+当前停服保全为 `/root/workspace/apps/releases/OMRS-v280-release-un_x7z8z`，目录0700、文件0600，含源码、unit、Vault/maintenance与网关私有数据。原发布解包核验1125个文件及8个SQLite库；49张原业务表与1014个原内容／关键配置文件已校验，停服切换5.423秒。后续正常业务写入需根据其原生回执核对，不能用旧题数或旧文件数量推断当前业务状态。
 
 上线后的正常入库继续追加业务事实，核验时以保全中的原记录为比较前缀，不将题目总数固定为发布时的值。模型指针、revision与控制文件保持；源码回退保留最新数据，不用旧归档覆盖后续业务事实。
 
-精确发布归档在现有生产依赖下通过 25 项 Python 定向测试、17 项前端公式测试和 19/19 项真实 MCP／浏览器流程；包含请求重试、草稿修订、网页批准、新旧题详情与 A4／屏幕／展示板离线导出。隔离测试只用临时 Vault 和随机端口，清除生产控制环境变量。实现与版本提交的更广回归结果沿用其已完成验收，本次没有重复全仓门禁或真实模型推理。
-
-真实生产 41/41 项检查通过，覆盖版本、公式资源字节与缓存、匿名鉴权、公网 PIN 入口与题库直达保护、三服务真实目录与稳定性、模型身份和数据保持。独立浏览器 context 使用实际生产题目和聊天模块渲染合成完整答案，两者均呈现 16 个公式和 7 个行间公式；不向生产写入合成数据。切换用时 4.638 秒；Nginx、隧道、unit、依赖及模型控制保持。生产 PIN 后业务写入、真实官方搜题／付费模型和实体手机尚未验证。
+生产部署使用 Git 精确归档，沿用当前依赖，不打包未提交的开发改动。发布前从归档启动临时 Vault 和随机端口验证；实际切换前检查运行任务与恢复意图，持训练锁停服保全并校验归档，再原子切换源码别名。上线后核对三服务真实目录、版本化资源、鉴权、模型身份、原数据库全部业务列及原正文／配置哈希；回退保留最新数据。
 
 启动按稳定身份导入只读审核历史并收束旧进程，不能重放业务。发布预检核对有效未终结任务、恢复意图、训练锁及受管操作；已结束的运行记录须结合关联审批的真实状态判断，MCP 与已送审助手提案、待审草稿长期保留，不能因旧期限或调用线程结束而废止。数据库迁移后仍投影全部原列逐表比较；新增列和生命周期变化单独核对，不忽略审批库差异。存在未完成题目／整批标记写入或恢复意图时停止；回退只恢复源码别名和必要的 unit，保留最新 Vault、受管历史、revision及锁。
 
-A4固定字体与打印门禁为 `python3 -m unittest tests.test_export_fonts tests.smoke_a4_print -q`；统一门禁包含 `print-a4`，下载路径另由 `tests/e2e/schedule.py` 验证。刷新不闪动的隔离门禁为 `python3 tests/e2e/ai_review_refresh.py`。所有测试实例须清除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`，Windows Edge与实体手机须另验。
+A4固定字体与打印门禁为 `python3 -m unittest tests.test_export_fonts tests.smoke_a4_print -q`；统一门禁包含 `print-a4`，下载路径另由 `tests/e2e/schedule.py` 验证。刷新不闪动的隔离门禁为 `python3 tests/e2e/ai_review_refresh.py`。并排录入用 `python3 tests/e2e/ai_review_entry.py`，覆盖缩略图切换、实时框选、暂存／刷新与真实入库；其后台作业回归应逐个运行浏览器脚本，避免其它上下文抢占前台使 document.hidden 暂停轮询。所有测试实例须清除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`，Windows Edge与实体手机须另验。
 
 审核中心长期待审用 `python3 tests/e2e/ai_review.py` 验证：临时 Vault 在实际服务启动前预置一个月前带旧期限的 MCP 提案，浏览器核对队列、详情无有效期、人工修订与批准；服务启动不能按旧期限结束该请求。时钟前移一年的领域回归使用进程内替换时间，不等待真实期限，也不读取生产题库。
 
@@ -102,7 +100,7 @@ python3 tests/fixtures/make_vault.py --out /tmp/fx/empty --profile empty
 
 **公网加载实测。** `python3 tests/bench_web_load.py --out /tmp/omrs-web-load.json` 自建演示 Vault、随机端口和浏览器上下文，默认模拟 100ms 延迟、5Mbps 下载，每次分别测冷启动和真实刷新。可用 `--tree <基线源码目录>` 比较同一命令下的版本，`--runs` 调整次数；`OMRS_TEST_CDP_URL` 沿用受信任本机 CDP 配方。结果包含仪表盘数据就绪时间、CSS / JS 请求数、传输字节、缓存与脚本错误，不接生产端口或真实数据，不把偶发时间波动作为功能门禁。
 
-**前后截图对比。** `tests/visual/run.py` 用 `git worktree` 检出基线，与当前工作区各起一个实例、各喂同一份 fixture 副本，按 12 页 × 浅/深 × 桌面 1440 / 手机 390 截图并做像素差分。产物是 `report.html`、`audit.json`（每页字号种数、最小字号、小于 28px 的可点目标、行内样式数、横向溢出），仓库里不存金标图。审计只计非空 `style` 属性，字号和行内样式均排除 KaTeX 内部。页面内冻结 `Date`、注入样式关闭动效；服务端实时内容在脚本的 `MASKS` 里登记后截图时遮住。约 1–2 分钟，放后台轮询：
+**前后截图对比。** `tests/visual/run.py` 用 `git worktree` 检出基线，与当前工作区各起一个实例、各喂同一份 fixture 副本，按 12 页 × 浅/深 × 桌面 1440 / 手机 390 截图并做像素差分。产物是 `report.html`、`audit.json`（每页字号种数、最小字号、小于 28px 的可点目标、行内样式数、横向溢出），仓库里不存金标图。审计只计非空 `style` 属性，字号和行内样式均排除 KaTeX 内部。页面内冻结 `Date`、注入样式关闭动效；`--pages ai-review --review-kind draft` 对比真实草稿并排工作区，默认审核类型仍为 operation；服务端实时内容在脚本的 `MASKS` 里登记后截图时遮住。约 1–2 分钟，放后台轮询：
 
 ```bash
 (timeout 600 python3 -u tests/visual/run.py --ref <基线提交> --out /tmp/vis > /tmp/vis.log 2>&1 &); sleep 100; cat /tmp/vis.log

@@ -31,7 +31,9 @@ function fieldsView(value, readonly, editing, busy) {
 function imageView(block, value, readonly, editing, busy) {
   const key = block.id || block._key;
   const attached = value.source_images.includes(block.image_sha);
-  return html`<div class="drf-block-image">${attached ? block.box && (block.box.x !== 0 || block.box.y !== 0 || block.box.w !== 1 || block.box.h !== 1)
+  return html`<div class="drf-block-image">${attached ? !block.box
+    ? html`<button type="button" class="drf-image-pending" data-action="ai-review.draftEditImage" data-arg="${key}"${readonly || busy ? html` disabled` : ''}>${block.section}配图待框选<span>选择右侧来源图，画框后在这里预览</span></button>`
+    : block.box.x !== 0 || block.box.y !== 0 || block.box.w !== 1 || block.box.h !== 1
     ? html`<canvas data-draft-crop="${key}" data-morph="skip" aria-label="${block.section}裁图预览"></canvas>`
     : html`<img loading="lazy" src="${imageUrl(block.image_sha)}" alt="${block.section}图片区">`
     : html`<p class="drf-error">来源图片已取消关联</p>`}</div>
@@ -86,8 +88,8 @@ export function reviewActions(state) {
     </div></footer>`;
 }
 
-export function reviewWorkspace(state, readonly) {
-  return html`<div class="drf-review-workspace"><section class="drf-review-content" aria-label="内容审核">
+export function reviewWorkspace(state, readonly, source = '') {
+  return html`<div class="drf-review-workspace"><div class="${source ? 'drf-entry-grid' : 'drf-entry-text'}"><section class="drf-review-content" aria-label="内容审核">
     ${fieldsView(state.value, readonly, state.fieldsEditing, state.busy)}
-    ${blocksView(state.value, readonly, state.editingBlock, state.busy)}</section>${reviewActions(state)}</div>`;
+    ${blocksView(state.value, readonly, state.editingBlock, state.busy)}</section>${source}</div>${reviewActions(state)}</div>`;
 }

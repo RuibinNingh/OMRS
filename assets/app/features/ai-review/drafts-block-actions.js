@@ -20,7 +20,7 @@ export function createDraftBlockActions(host, state, { isAlive, block, paint, ma
   function editImage(key) {
     const row = block(key);
     if (!editable() || row?.kind !== 'image') return;
-    state.workspaceMode = 'source'; state.canvasSha = row.image_sha;
+    state.canvasSha = row.image_sha;
     state.canvasMode = 'body'; state.selectedBlock = key;
     canvas.refresh(); paint();
     focus('#drf-canvas-block');

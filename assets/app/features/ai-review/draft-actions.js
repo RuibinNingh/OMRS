@@ -12,6 +12,7 @@ export function draftActions(editor) {
     draftPreviewSource: ({ arg }) => call('previewSource', arg), draftBlockText: ({ arg, el }) => call('blockField', arg, 'text', el.value),
     draftBlockNote: ({ arg, el }) => call('blockField', arg, 'note', el.value), draftAddText: ({ arg }) => call('addBlock', arg, 'text'),
     draftAddImage: ({ arg, el }) => call('addImage', arg, el), draftWhole: ({ arg }) => call('whole', arg),
+    draftAddSourceImage: ({ arg }) => call('addBlock', arg, 'image', null, editor()?.state.canvasSha),
     draftCanvasImage: ({ arg }) => call('canvasImage', arg), draftCanvasMode: ({ arg }) => call('canvasMode', arg),
     draftCanvasBlock: ({ el }) => call('canvasBlock', el.value), draftDrawSection: ({ arg }) => call('drawSection', arg),
     draftClearBox: ({ arg }) => call('clearBox', arg), draftTrainingSection: ({ arg, el }) => call('trainingSection', arg, el.value),

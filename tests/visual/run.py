@@ -126,8 +126,14 @@ def shoot(side, port, args, out, frozen_ms):
                         page.locator(f'[data-st-section="{args.settings_section}"]').click()
                         page.wait_for_load_state("networkidle")
                     if name == 'ai-review':
-                        page.locator('.arv-row[data-arg^="op_"]').first.click()
-                        page.locator('.arv-operation').wait_for()
+                        if args.review_kind == 'draft':
+                            page.locator('.arv-row[data-arg^="DR-"]').first.click()
+                            page.locator('.drf-review-question').wait_for()
+                            if page.locator('#drf-stage-src').count():
+                                page.wait_for_function("document.querySelector('#drf-stage-src')?.complete")
+                        else:
+                            page.locator('.arv-row[data-arg^="op_"]').first.click()
+                            page.locator('.arv-operation').wait_for()
                     page.evaluate("document.fonts.ready")
                     page.wait_for_timeout(args.settle)
                     key = f"{name}-{theme}-{vp}"
@@ -136,7 +142,8 @@ def shoot(side, port, args, out, frozen_ms):
                     results[key] = page.evaluate(AUDIT_JS)
                 results[f"_errors-{theme}-{vp}"] = errors
                 ctx.close()
-        browser.close()
+        if not os.environ.get('OMRS_TEST_CDP_URL'):
+            browser.close()
     return results
 
 
@@ -268,6 +275,7 @@ def main(argv=None):
     ap.add_argument("--create-stage", choices=["upload", "process", "create", "train", "quick", "drafts", "zuoyebang"], help="录入页截图时切到指定工作区")
     ap.add_argument("--settings-section", choices=["appearance", "access", "ai", "assistant", "data", "service"], help="设置页截图时切到指定分区")
     ap.add_argument("--settle", type=int, default=500, help="每页切换后额外等待毫秒数")
+    ap.add_argument("--review-kind", choices=['operation', 'draft'], default='operation', help="审核中心截图详情类型")
     args = ap.parse_args(argv)
     args.pages, args.themes, args.viewports = (v.split(",") for v in (args.pages, args.themes, args.viewports))
     out = os.path.abspath(args.out)

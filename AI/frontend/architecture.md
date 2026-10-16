@@ -121,7 +121,7 @@ assets/app/
 
 `domain/drafts.js` 继续拥有草稿 sessionStorage 目标和四态计数；`openDraft(id)` 进入 `ai-review?draft=id`，成功后发 `drafts:open`。`drafts:changed` 同时刷新旧草稿快照并转为 `ai-review:changed`。草稿编辑模块位于 `features/ai-review/`，页面间不直接 import；裁图、坐标和指针画布的实际共用代码放在 `domain/image-crop/`，录入页保留短导出适配器。
 
-草稿后台作业由原 `drafts-job.js` 拥有；中心在作业或提交忙碌时不启动竞争的详情重读，同版本刷新不清空反馈或编辑器。草稿变化以 revision 为边界，不覆盖脏输入。`tests/app/ai-review.test.mjs` 验证权威卡片、修订类型、并发决定与导航；`tests/e2e/ai_review.py` 验证真实双标签、修订 CAS、同页守卫、实际文件执行与八档审计。既有草稿 E2E 保留图文、块身份、来源、框选、独立训练和失败保护的回归。
+草稿后台作业由原 `drafts-job.js` 拥有；中心在作业或提交忙碌时不启动竞争的详情重读，同版本刷新不清空反馈或编辑器。草稿变化以 revision 为边界，不覆盖脏输入。`tests/app/ai-review.test.mjs` 验证权威卡片、修订类型、并发决定与导航；`tests/e2e/ai_review.py` 验证真实双标签、修订 CAS、同页守卫、实际文件执行与八档审计。既有草稿 E2E 保留图文、块身份、来源、框选、独立训练和失败保护的回归。drafts-sources.js 独立渲染来源选择、框选及关联管理，drafts-review.js 通过来源插槽组成并排视图。顶部选择器仍调用中心 select/guard，取消切换恢复控件原值；新块以本地稳定键绑定来源图，保存后映射为服务端身份。tests/e2e/ai_review_entry.py 验证完整并排录入与真实裁图入库。
 
 录入页端到端测试 `tests/e2e/create.py` 使用临时 Vault、随机高端口和真实后台提取任务，只替换外部模型调用；覆盖一键提取、部分失败重试、结果后改存图片／切回文本、人工审核及提取结果四档审计。
 

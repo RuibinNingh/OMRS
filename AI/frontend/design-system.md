@@ -102,7 +102,7 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 
 草稿样式在 `features/ai-review/drafts.css`，由 styles/index.css 以 features 层导入；表单与操作复用 ui-input、ui-select、ui-textarea、ui-btn，侧栏计数复用 ui-badge。草稿跨页状态不向 DOM 写行内样式。
 
-草稿框选复用 process-canvas 的 SVG 框、遮罩和控制点；适配器只替换图片地址、元素标识与数据回调。草稿画布布局位于 drafts.css，沿用现有 token 与响应式断点，不创建独立配色或行内样式。
+草稿框选复用 process-canvas 的 SVG 框、遮罩和控制点；适配器只替换图片地址、元素标识与数据回调。草稿画布布局位于 drafts.css，沿用现有 token，不创建独立配色或行内样式。正文与来源图按等宽两栏排列，详情使用 inline-size 容器查询，≤760px 上下排列，适配中心与聊天抽屉。缩略图选中使用 accent 描边与 accent-soft 表面，未框配图显示占位；底部共用暂存／入库操作。队列选择器和可展开列表在 review.css 定义。
 
 对话内操作卡的 ast-op 样式位于 assistant-run.css，沿用 surface、border、语义状态色、字号和间距 token；只保留一层表面，状态与操作按钮分层。审核详情复用共享 drawer，桌面最大宽860px，手机铺满可见视口；正文内部滚动，不向 DOM 写行内样式。
 

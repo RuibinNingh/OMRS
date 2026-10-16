@@ -1,4 +1,4 @@
-/* AI 草稿：窄队列、连续分块正文与按需来源工作区。 */
+/* AI 草稿：连续分块正文、并排来源框选与放大工作区。 */
 #ib-stage-drafts { min-width: 0; scroll-padding-block: var(--sp-6); }
 .drf { display: grid; grid-template-columns: minmax(180px, 220px) minmax(0, 1fr); gap: var(--sp-4); min-width: 0; color: var(--fg-1); }
 .drf-list, .drf-detail { min-width: 0; border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); }
@@ -50,7 +50,7 @@
 .drf-source figcaption small { color: var(--warning-fg); font-size: var(--text-xs); }
 .drf-source-add { padding: var(--sp-3); border: 1px dashed var(--border-2); border-radius: var(--r-md); }
 .drf-source-add label { font-size: var(--text-sm); }
-.drf-source-workspace .drf-canvas { display: grid; gap: var(--sp-3); }
+.drf-canvas { display: grid; gap: var(--sp-3); min-width: 0; }
 .drf-canvas-tabs, .drf-canvas-tools, .drf-canvas-meta, .drf-training-box { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .drf-canvas-meta { justify-content: space-between; font-size: var(--text-sm); color: var(--fg-2); }
 .drf-canvas-meta small, .drf-canvas-tools small { flex-basis: 100%; font-size: var(--text-sm); color: var(--fg-3); }
@@ -136,3 +136,35 @@ html[data-theme="dark"][data-invert-img="1"] #ib-stage-drafts .ib-stage-img img 
 .drf-block-image { max-width: 520px; max-height: 360px; overflow: auto; border: 1px solid var(--border-1); border-radius: var(--r-sm); background: var(--surface-1); }
 .drf-block-image img { display: block; max-width: 100%; max-height: 350px; margin: auto; object-fit: contain; }
 .drf-block-image canvas { display: block; max-width: 100%; height: auto; margin: auto; }
+/* 正文与来源同屏；容器断点同时适配聊天抽屉与主工作台。 */
+.drf-detail { container-type: inline-size; }
+.drf-entry-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-6); align-items: start; min-width: 0; }
+.drf-entry-source { min-width: 0; display: grid; gap: var(--sp-4); padding-inline-start: var(--sp-5); border-inline-start: 1px solid var(--border-1); }
+.drf-source-maintenance { min-width: 0; color: var(--fg-2); font-size: var(--text-sm); }
+.drf-source-maintenance > summary { min-height: var(--ctl-md); padding-block: var(--sp-1); cursor: pointer; }
+.drf-source-maintenance .drf-sources { margin-top: var(--sp-3); }
+.drf-source-maintenance .drf-image-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.drf-canvas-tabs[aria-label="来源图"] { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); }
+.drf-canvas-image { min-width: 0; display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2); border: 1px solid var(--border-1); border-radius: var(--r-sm); background: var(--surface-1); color: var(--fg-1); text-align: left; cursor: pointer; }
+.drf-canvas-image img { width: 38px; height: 48px; object-fit: contain; border: 1px solid var(--border-1); border-radius: var(--r-xs); }
+.drf-canvas-image > span { min-width: 0; display: grid; gap: var(--sp-1); }
+.drf-canvas-image strong { overflow-wrap: anywhere; font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.drf-canvas-image small { color: var(--fg-3); font-size: var(--text-xs); }
+.drf-canvas-image[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.drf-canvas-image:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.drf-canvas-add { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.drf-canvas-sync { margin: 0; color: var(--fg-2); font-size: var(--text-xs); }
+.drf-image-pending { display: grid; place-content: center; gap: var(--sp-2); width: 100%; min-height: 120px; padding: var(--sp-4); border: 0; background: var(--accent-soft); color: var(--fg-1); font: inherit; font-size: var(--text-sm); cursor: pointer; }
+.drf-image-pending > span { color: var(--fg-2); font-size: var(--text-xs); }
+.drf-image-pending:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.drf-entry-source .drf-canvas-wrap { max-height: 560px; }
+.drf-entry-grid .drf-block { grid-template-columns: var(--sp-5) minmax(0, 1fr); gap: var(--sp-2); }
+.drf-entry-grid .drf-block-actions { grid-column: 2; justify-content: flex-end; }
+.drf-entry-grid .drf-info-summary { grid-template-columns: minmax(0, 1fr); }
+@container (max-width: 760px) {
+  .drf-entry-grid { grid-template-columns: minmax(0, 1fr); }
+  .drf-entry-source { padding-inline-start: 0; border-inline-start: 0; border-top: 1px solid var(--border-1); padding-top: var(--sp-4); }
+}
+@media (hover: hover) and (pointer: fine) {
+  .drf-canvas-image:hover { border-color: var(--accent); }
+}

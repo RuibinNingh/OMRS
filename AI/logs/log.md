@@ -7,6 +7,7 @@
 - [2026-10-16_omrs-maintenance-scope](2026-10-16_omrs-maintenance-scope.md)：维护验收范围确认
 - [2026-10-16_omrs-full-review-plan](2026-10-16_omrs-full-review-plan.md)：OMRS 全面实现检查计划
 - [2026-10-16_omrs-full-review-audit](2026-10-16_omrs-full-review-audit.md)：OMRS 全面实现检查执行
+- [2026-10-16_ai-review-entry](2026-10-16_ai-review-entry.md)：审核中心并排录入与生产发布
 - [2026-10-15_zuoyebang-page](2026-10-15_zuoyebang-page.md)：作业帮独立整卷页面与生产发布
 - [2026-10-15_review-no-expiry](2026-10-15_review-no-expiry.md)：审核中心取消待审过期
 - [2026-10-14_v271-github](2026-10-14_v271-github.md)：v2.7.1 版本同步与 GitHub 提交

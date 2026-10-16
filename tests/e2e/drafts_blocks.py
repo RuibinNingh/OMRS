@@ -11,6 +11,7 @@ import time
 ROOT = str(Path(__file__).resolve().parents[2])
 sys.path.insert(0, ROOT)
 sys.path.insert(0, str(Path(ROOT, 'tests')))
+from e2e_navigation import select_review_item
 from browser_runtime import launch_chromium
 from omrs import drafts as store
 import drafts as support
@@ -53,12 +54,13 @@ def run(page, base, first, second, images, check):
         return support.wait(page, "() => document.querySelector('.drf-message')?.textContent.includes('已保存') && !document.querySelector('.drf-detail [aria-busy=true]')")
     q1, q2, q3, a1, a2 = [block['id'] for block in first['blocks']]
     page.goto(base + '/?unlocked=1#/ai-review?type=draft', wait_until='networkidle')
-    page.locator(f'.arv-row[data-arg="{first["id"]}"]').click()
+    select_review_item(page, first["id"])
     page.wait_for_function("id => document.querySelector('.drf-id')?.textContent.includes(id)", arg=first['id'])
     check('默认同时阅读题目、答案和信息摘要', page.locator('.drf-review-info').is_visible()
           and page.locator('.drf-review-answer').is_visible() and page.locator('[data-input="ai-review.draftBlockText"]').count() == 0)
     width = page.locator('.drf-review-content').bounding_box()['width']
-    check('1440 桌面正文宽于 700 像素', width > 700, str(width))
+    check('1440 桌面正文与原图各占一栏，正文宽于 400 像素', width > 400
+          and page.locator('.drf-entry-source').bounding_box()['x'] > page.locator('.drf-review-content').bounding_box()['x'], str(width))
     row(q1).locator('[data-action="ai-review.draftEditBlock"]').click()
     editor = page.locator('[data-input="ai-review.draftBlockText"]')
     editor.fill('已知函数 $f(x)=x^2$，请分别回答。')
@@ -102,11 +104,11 @@ def run(page, base, first, second, images, check):
     page.locator('dialog[open] .ui-dialog__foot [data-dialog-cancel]').click()
     check('取消筛选切换恢复下拉值和本地内容', page.locator('[data-action="ai-review.view"][data-arg="pending"]').get_attribute('aria-pressed') == 'true'
           and '保存后再切题' in editor.input_value())
-    page.locator(f'.arv-row[data-arg="{second["id"]}"]').click()
+    select_review_item(page, second["id"])
     page.get_by_role('button', name='保存并离开', exact=True).click()
     check('切题保存保护真实写入后才离开', support.wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{second['id']}')")
           and '保存后再切题' in item()['blocks'][-1]['text'])
-    page.locator(f'.arv-row[data-arg="{first["id"]}"]').click()
+    select_review_item(page, first["id"])
     check('重新读取恢复多块并回到阅读模式', support.wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{first['id']}')")
           and keys('answer') == [a1, a2, new_id] and editor.count() == 0)
     page.locator('[data-action="ai-review.draftEditFields"]').click()
@@ -131,9 +133,8 @@ def run(page, base, first, second, images, check):
     menu(image_key, '移到答案')
     check('图片跨组移动保留预览与说明', keys('answer')[-1] == image_key and note.input_value() == '补充题图')
     page.locator('[data-action="ai-review.draftLocateIssue"]').click()
-    check('未框图片定位到对应来源和图片区块', page.locator('.drf-source-workspace').is_visible()
+    check('未框图片在并排视图定位到对应来源和图片区块', page.locator('.drf-entry-source').is_visible()
           and page.locator('#drf-canvas-block').input_value() == image_key)
-    page.locator('.drf-source-trigger').click()
     row(image_key).locator('[data-action="ai-review.draftWhole"]').click()
     page.locator('[data-action="ai-review.draftSave"]').click()
     check('图文混排暂存保留 SHA、整图框和说明', saved() and (lambda block: block['kind'] == 'image'
@@ -143,11 +144,11 @@ def run(page, base, first, second, images, check):
     check('图文草稿入库后进入下一题', support.wait(page, f"() => document.querySelector('.drf-id') && !document.querySelector('.drf-id').textContent.includes('{first['id']}')")
           and item()['status'] == 'done' and bool(item()['uid']), str({'status': item()['status'], 'messages': page.locator('.drf-message').all_text_contents(), 'ids': page.locator('.drf-id').all_text_contents()}))
     page.locator('[data-action="ai-review.view"][data-arg="records"]').click()
-    page.locator(f'.arv-row[data-arg="{first["id"]}"]').click()
+    select_review_item(page, first["id"])
     check('已入库正文只读且来源原图仍保留', page.locator('[data-action="ai-review.draftBlockMenu"], [data-action="ai-review.draftEditBlock"], [data-action="ai-review.draftAddText"]').count() == 0
           and len(item()['source_images']) == 2)
     page.locator('[data-action="ai-review.view"][data-arg="pending"]').click()
-    page.locator(f'.arv-row[data-arg="{second["id"]}"]').click()
+    select_review_item(page, second["id"])
     page.locator('[data-action="ai-review.draftDiscard"]').click()
     page.locator('dialog[open] .ui-dialog__foot [data-dialog-cancel]').click()
     check('取消丢弃仍可继续审核', page.locator('[data-action="ai-review.draftCommit"]').is_enabled())
@@ -156,7 +157,7 @@ def run(page, base, first, second, images, check):
     check('丢弃后留在待审核并进入下一份草稿', support.wait(page, f"() => document.querySelector('.drf-id') && !document.querySelector('.drf-id').textContent.includes('{second['id']}') && document.querySelector('[data-action=\"ai-review.view\"][data-arg=\"pending\"]')?.getAttribute('aria-pressed') === 'true'"))
     page.locator('[data-action="ai-review.view"][data-arg="records"]').click()
     page.locator('[data-change="ai-review.status"]').select_option('discarded')
-    page.locator(f'.arv-row[data-arg="{second["id"]}"]').click()
+    select_review_item(page, second["id"])
     check('手动查看已丢弃草稿时正文只读', support.wait(page, "() => document.querySelector('.drf-detail h2')?.textContent.includes('已丢弃')")
           and page.locator('[data-action="ai-review.draftEditBlock"]').count() == 0)
 
@@ -175,7 +176,7 @@ def audit(browser, base, mobile, check):
                 if touch:
                     page.locator('[data-action="ai-review.back"]').tap()
                     check(f'{theme}·{width} 返回公共队列可选择草稿', page.locator('.arv-row').first.is_visible())
-                page.locator(f'.arv-row[data-arg="{mobile["id"]}"]').click()
+                select_review_item(page, mobile["id"])
                 support.wait(page, f"() => document.querySelector('.drf-id')?.textContent.includes('{mobile['id']}')")
                 page.evaluate('document.fonts.ready')
                 page.screenshot(path=str(SHOTS / f'{theme}-{width}.png'), full_page=True)

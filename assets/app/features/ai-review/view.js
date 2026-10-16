@@ -9,7 +9,8 @@ import { operationView } from './operation-view.js';
 const options = (values, current) => values.map(([value, label]) => html`<option value="${value}"${value === current ? html` selected` : ''}>${label}</option>`);
 export function reviewView(s) {
   if (s.embedded) return html`<section class="arv arv-embedded" aria-label="对话内审核详情">${detailView(s)}</section>`;
-  return html`<section class="arv" data-mobile-detail="${String(s.mobileDetail)}"><header class="arv-header"><div><h2>审核中心</h2><p class="arv-muted">核对 AI 写入，查看已经执行的修改。</p></div><div class="arv-tabs">${button({ label: '草稿维护', action: 'ai-review.draftQueueMenu', disabled: s.busy })}${button({ label: '刷新', icon: 'refresh', action: 'ai-review.refresh' })}</div></header>
+  const entry = s.item?.kind === 'draft';
+  return html`<section class="arv" data-entry="${String(entry)}" data-queue-open="${String(Boolean(s.queueOpen))}" data-mobile-detail="${String(s.mobileDetail)}"><header class="arv-header"><div><h2>审核中心</h2><p class="arv-muted">核对 AI 写入，查看已经执行的修改。</p></div><div class="arv-tabs">${button({ label: '草稿维护', action: 'ai-review.draftQueueMenu', disabled: s.busy })}${button({ label: '刷新', icon: 'refresh', action: 'ai-review.refresh' })}</div></header>
     <div class="arv-toolbar"><div class="arv-tabs" role="group" aria-label="审核视图">${button({ label: `待审核${s.counts ? ` ${s.counts.pending}` : ''}`, action: 'ai-review.view', arg: 'pending', pressed: s.view === 'pending', variant: s.view === 'pending' ? 'primary' : 'default' })}
       ${button({ label: '操作记录', action: 'ai-review.view', arg: 'records', pressed: s.view === 'records', variant: s.view === 'records' ? 'primary' : 'default' })}</div>
       <select class="ui-select" aria-label="筛选来源" data-change="ai-review.source">${options([['', '全部来源'], ['mcp', 'MCP'], ['agent', 'AI 助手'], ['legacy', '旧草稿']], s.source)}</select>
@@ -17,6 +18,11 @@ export function reviewView(s) {
       <select class="ui-select" aria-label="筛选提交时间" data-change="ai-review.range">${options([['', '全部时间'], ['1', '今天'], ['7', '最近 7 天'], ['30', '最近 30 天']], s.range)}</select>
       ${s.view === 'records' ? html`<select class="ui-select" aria-label="筛选操作状态" data-change="ai-review.status">${options([['', '全部状态'], ['applied', '已执行'], ['done', '草稿已入库'], ['discarded', '草稿已丢弃'], ['approved', '已批准，待执行'], ['partial', '部分成功'], ['unchanged', '无变更'], ['rejected', '已拒绝'], ['failed', '失败'], ['expired', '已过期'], ['conflict', '有冲突'], ['cancelled', '已中止'], ['interrupted', '已中断']], s.status)}</select>` : ''}</div>
     ${s.listError ? status({ tone: 'danger', text: `读取队列失败：${s.listError}；保留已有结果。` }) : ''}
+    ${entry ? html`<nav class="arv-entry-nav" aria-label="草稿审核队列"><label for="arv-entry-select">${s.view === 'pending' ? '待审核' : '操作记录'} · ${s.items.length}${s.hasMore ? '+' : ''}</label>
+      <select id="arv-entry-select" class="ui-select" data-change="ai-review.choose" aria-label="选择审核项"${s.busy ? html` disabled` : ''}>
+        ${!s.items.some(item => item.id === s.selectedId) ? html`<option value="${s.selectedId}">当前草稿</option>` : ''}
+        ${s.items.map((item, index) => html`<option value="${item.id}"${item.id === s.selectedId ? html` selected` : ''}>${index + 1}. ${itemLabel(item)} · ${itemSummary(item).slice(0, 80) || sourceLabel(item)} · ${reviewStatus(item)}</option>`)}</select>
+      ${button({ label: s.queueOpen ? '收起完整队列' : '展开完整队列', size: 'sm', variant: 'ghost', action: 'ai-review.toggleQueue', pressed: Boolean(s.queueOpen) })}</nav>` : ''}
     <div class="arv-workspace"><aside class="arv-queue" aria-label="AI 写操作队列">${!s.loaded ? html`<p role="status">正在读取…</p>`
       : s.items.length ? html`<div class="arv-items">${each(s.items, item => `${item.kind}:${item.id}`, item => html`<button class="arv-row" type="button" data-action="ai-review.open" data-arg="${item.id}" aria-current="${s.selectedId === item.id ? 'true' : 'false'}">
       <strong>${itemLabel(item)}</strong><span>${itemSummary(item)}</span><small>${sourceLabel(item)} · ${reviewStatus(item)}</small></button>`)}</div>`

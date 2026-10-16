@@ -45,7 +45,7 @@ export function createDraftCanvasControl(host, state, { markChanged, paint, bloc
     }
     const candidates = state.value.blocks.filter(row => row.kind === 'image' && row.image_sha === state.canvasSha);
     const target = candidates.find(row => (row.id || row._key) === state.selectedBlock) || candidates.find(row => !row.box);
-    if (!target) { state.message = '先在下方添加图片区块，再选择它画框。'; queueMicrotask(paint); return null; }
+    if (!target) { state.message = '请先添加题目或答案图片，再选择要框选的图片区块。'; queueMicrotask(paint); return null; }
     state.selectedBlock = target.id || target._key;
     return newRegion(1, target.section === '答案' ? 'answer' : 'question', start.x, start.y, 0, 0,
       { id: state.selectedBlock, origin: target.box_origin === 'ai' ? 'ai_edited' : target.box_origin === 'original' ? 'manual' : target.box_origin || 'manual',
@@ -71,8 +71,9 @@ export function createDraftCanvasControl(host, state, { markChanged, paint, bloc
   function image(sha) {
     if (!state.value?.source_images.includes(sha)) return;
     state.canvasSha = sha;
-    state.selectedBlock = state.value.blocks.find(row => row.kind === 'image' && row.image_sha === sha && !row.box)?.id
-      || state.value.blocks.find(row => row.kind === 'image' && row.image_sha === sha)?.id || null;
+    const target = state.value.blocks.find(row => row.kind === 'image' && row.image_sha === sha && !row.box)
+      || state.value.blocks.find(row => row.kind === 'image' && row.image_sha === sha);
+    state.selectedBlock = target?.id || target?._key || null;
     refresh(); paint();
   }
   function mode(value) {

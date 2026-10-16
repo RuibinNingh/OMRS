@@ -26,7 +26,7 @@ export function createReviewController(root, ctx, options = {}) {
   const s = { view: 'pending', source: '', type: query.get('type') || '', status: '', range: '', items: [], loaded: false,
     listError: '', hasMore: false, nextOffset: 0, loadingMore: false, selectedId: null, item: null,
     detailLoading: false, detailError: '', counts: currentReviewCounts(), original: {}, edited: {},
-    labelPage: 0, revertPreview: null, revertRequest: null, editing: false, dirty: false, busy: false, error: '', note: '', mobileDetail: false, embedded: !!options.embedded };
+    labelPage: 0, revertPreview: null, revertRequest: null, editing: false, dirty: false, busy: false, error: '', note: '', mobileDetail: false, queueOpen: false, embedded: !!options.embedded };
   let alive = true, listRequest = 0, detailRequest = 0, poll = null, draft = null;
   const paint = () => { if (alive) morph(root, reviewView(s)); };
   const syncTarget = () => { if (!options.embedded) ctx.router.replaceQuery?.(s.selectedId ? `${s.item?.kind === 'draft' ? 'draft' : 'operation'}=${encodeURIComponent(s.selectedId)}` : s.type === 'draft' ? 'type=draft' : ''); };
@@ -119,7 +119,7 @@ export function createReviewController(root, ctx, options = {}) {
       if (!options.embedded && matchMedia('(max-width: 760px)').matches) root.querySelector('.arv-mobile-back button')?.focus({ preventScroll: true });
       return;
     }
-    if (!await guard()) return;
+    if (!await guard()) { paint(); return; }
     stopDraft(); s.selectedId = id; s.item = null; s.editing = false; s.mobileDetail = true;
     await readDetail(id);
     syncTarget();
@@ -218,7 +218,7 @@ export function createReviewController(root, ctx, options = {}) {
   paint();
   void load().then(() => { const id = options.id || query.get('draft') || query.get('operation'); if (id) void select(id); else if (s.type === 'draft' && s.items.length) void select(s.items.find(row => row.id === selectedDraftId())?.id || s.items[0].id); });
   schedule();
-  return { state: s, openPage: route => ctx.router.go(route), openDraft: id => options.embedded ? select(id) : openReview(id, { kind: 'draft' }), editor: () => draft, guard, select, filter, field, save, decide, maintenance,
+  return { state: s, toggleQueue() { s.queueOpen = !s.queueOpen; paint(); }, openPage: route => ctx.router.go(route), openDraft: id => options.embedded ? select(id) : openReview(id, { kind: 'draft' }), editor: () => draft, guard, select, filter, field, save, decide, maintenance,
     labelField, labelCross, labelRevert, labelRevertConfirm, labelPage(page) { s.labelPage = Math.max(0, Number(page) || 0); paint(); },
     refresh: async () => { await load(); await refreshReviewCounts(); if (draft) await draft.reload(); else if (s.selectedId && !s.dirty) await readDetail(s.selectedId, { refresh: true }); },
     retry: () => { if (!s.dirty) void readDetail(s.selectedId, { refresh: Boolean(s.item) }); }, more: () => load(true),
@@ -232,6 +232,7 @@ export function reviewActions(current) {
   return { ...draftActions(() => current()?.editor()),
     draftQueueMenu: ({ el }) => current()?.maintenance(el),
     refresh: () => current()?.refresh(), retry: () => current()?.retry(), open: ({ arg }) => current()?.select(arg),
+    choose: async ({ el }) => { await current()?.select(el.value); if (current()) el.value = current().state.selectedId || ''; }, toggleQueue: () => current()?.toggleQueue(),
     view: ({ arg }) => current()?.filter('view', arg), source: ({ value }) => current()?.filter('source', value),
     type: ({ value }) => current()?.filter('type', value), status: ({ value }) => current()?.filter('status', value), range: ({ value }) => current()?.filter('range', value),
     more: () => current()?.more(), back: () => current()?.back(), edit: () => current()?.edit(),

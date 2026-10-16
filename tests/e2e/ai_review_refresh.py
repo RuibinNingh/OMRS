@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if sys.path and Path(sys.path[0]).resolve() == Path(__file__).resolve().parent:
     sys.path.pop(0)
 sys.path[:0] = [str(ROOT), str(ROOT / 'tests')]
+from e2e_navigation import select_review_item
 from browser_runtime import launch_chromium, open_app
 from omrs import drafts
 
@@ -122,7 +123,7 @@ def run(ctx, base, vault, check):
     control['check_switch'] = True
     if page.viewport_size['width'] <= 760:
         page.locator('[data-action="ai-review.back"]').click()
-    page.locator(f'.arv-row[data-arg="{second["id"]}"]').click()
+    select_review_item(page, second["id"])
     page.wait_for_function("id => document.querySelector('.drf-id')?.textContent.includes(id)", arg=second['id'])
     check('切换草稿仍显示加载状态且只展示新身份', control['switch_loading'] and second['id'] in page.locator('.drf-id').inner_text())
     control['fail'] = True
@@ -170,7 +171,8 @@ def main():
                     ctx.add_init_script(f"localStorage.setItem('omrs-theme', '{theme}')")
                     run(ctx, base, vault, check)
                     ctx.close()
-                browser.close()
+                if not os.environ.get('OMRS_TEST_CDP_URL'):
+                    browser.close()
         finally:
             proc.terminate()
             proc.wait(timeout=10)
