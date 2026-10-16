@@ -6,13 +6,14 @@ from functools import cmp_to_key
 
 from ...ai_assist import collect_taxonomy
 from ...content_history import projection_row, read_question_file
+from ...ledger import blob_hash, get_blob
 from ...labels import list_label_defs
 from ...scheduling import generate_recommendations, is_killed_state
 from ...sessions import active_session_uids, get_session, list_sessions
 from ...stats import get_question_records, get_stats
 from .common import due_info, image_names, mastery_of, norm, sections_of, snippet, text_only
 
-_TEXT_CACHE = {}  # content_hash -> (sections, normalized) ；按内容哈希缓存，重复计算结果相同（无锁可接受）
+_TEXT_CACHE = {}  # content_hash -> (sections, normalized, note)；缓存只保存同一可信版本。
 
 
 def _items(vault):
@@ -26,12 +27,18 @@ def _content(vault, uid):
     key = row.get("content_hash") or ""
     cached = _TEXT_CACHE.get(key) if key else None
     if cached is None:
+        # 投影与工作文件可能处于不同扫描世代；缓存只能保存这个哈希对应的正文。
+        content = get_blob(vault, key) if key else None
         try:
-            content = read_question_file(vault, row)
-        except OSError:
+            if content is None:
+                content = read_question_file(vault, row)
+        except (OSError, ValueError):
             return row, None
+        if key and blob_hash(content) != key:
+            return row, None
+        from ...question_update import note_of
         secs = sections_of(content)
-        cached = (secs, {k: norm(text_only(v)) for k, v in secs.items()})
+        cached = (secs, {k: norm(text_only(v)) for k, v in secs.items()}, note_of(content))
         if key:
             _TEXT_CACHE[key] = cached
     return row, cached
@@ -317,7 +324,7 @@ def search_questions(ctx, args):
         row, cached = _content(vault, uid)
         if cached is None:
             continue
-        secs, normed = cached
+        secs, normed = cached[:2]
         if not normed["题目"]:
             image_only += 1
         field, first = "题目", ""
@@ -373,8 +380,7 @@ def get_question(ctx, args):
     records = get_question_records(vault, uid)[-6:]
     due_text, days = due_info(item)
     wrong = int(item.get("wrong_streak") or 0)
-    from ...question_update import note_of
-    note = note_of(read_question_file(vault, row))
+    note = cached[2]
     return {"result": {"uid": uid, "question_id": row['question_id'], "difficulty": int(item.get('difficulty') or 5),
                        "note": note if len(note) <= cap else note[:cap] + f"…（共 {len(note)} 字，已截断）",
                        "path": f"{item['subject']} / {item['category']}", "sections": out,

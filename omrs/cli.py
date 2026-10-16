@@ -308,8 +308,7 @@ def main():
 
     elif args.command == "export":
         if args.session and args.uids:
-            print("--session 和 --uids 只能二选一")
-            return
+            parser.error("--session 和 --uids 只能二选一")
         if args.session:
             payload, session_id, default_name, _ = export_schedule_artifact(
                 vault,
@@ -358,12 +357,10 @@ def main():
                 )
         elif args.action == "show":
             if not args.id:
-                print("需要 --id")
-                return
+                parser.error("需要 --id")
             session = get_session(vault, args.id)
             if not session:
-                print(f"未找到 {args.id}")
-                return
+                parser.exit(1, f"未找到 {args.id}\n")
             print(f"Session: {session['session_id']}  状态: {session['status']}  创建: {session['created_at']}")
             print(f"科目筛选: {session['subject_filter'] or '全部'}  题数: {session['count']}")
             for index, item in enumerate(session["items"], 1):
@@ -374,14 +371,15 @@ def main():
                 )
         elif args.action == "delete":
             if not args.id:
-                print("需要 --id")
-                return
-            print("已删除" if delete_session(vault, args.id) else f"未找到 {args.id}")
+                parser.error("需要 --id")
+            if not delete_session(vault, args.id):
+                parser.exit(1, f"未找到 {args.id}\n")
+            print("已删除")
         elif args.action == "new":
             session = create_session(vault, args.count, args.subject)
             print(f"已创建 {session['session_id']} ({session['count']} 题)")
             for index, item in enumerate(session["items"], 1):
-                print(f"  {index}. [{item['UID']}] M={float(item.get('Mastery', 0)):.2f}")
+                print(f"  {index}. [{item['uid']}] M={float(item.get('mastery', 0)):.2f}")
 
     else:
         parser.print_help()

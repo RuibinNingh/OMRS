@@ -93,14 +93,16 @@ def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, atte
         raise ValueError("复习计划已撤销，不能提交反馈")
     session = state["sessions"].get(session_id) if session_id and not attempt_id else None
     # 授权只需当前事务已校验的绑定快照，不在写事务内调用详情读模型。
-    entries = [{**item, "uid": state["questions"].get(item.get("question_id"), {}).get("uid", item.get("uid", ""))}
-               for item in json.loads(session["UIDs"])] if session else []
+    entries = [{**item, "entry_id": item.get("entry_id") or f"{session_id}:{index}",
+                "uid": state["questions"].get(item.get("question_id"), {}).get("uid", item.get("uid", ""))}
+               for index, item in enumerate(json.loads(session["UIDs"]))] if session else []
+    submitted = _formal_submitted_questions(ledger_db, session_id) if session else set()
     allowed = {item["question_id"]: item for item in card["items"]} if card else {}
     now = datetime.datetime.now(datetime.timezone.utc)
     day = business_today(now).isoformat()
     if not session_id:
         session_id = "EXP-" + now.strftime("%Y%m%d%H%M%S")
-    results, commit_feedbacks = [], []
+    results, commit_feedbacks, receipts, duplicates = [], [], {}, []
     for feedback in feedbacks:
         if not isinstance(feedback, dict):
             results.append({"status": "error", "msg": "反馈条目必须是对象"})
@@ -116,6 +118,28 @@ def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, atte
                 continue
             bound = matches[0]
             qid = bound["question_id"]
+            if feedback.get("question_id") and uid:
+                # 明确同时提供的两种身份仍须一致，回执不能绕过旧的冲突合同。
+                resolve_question(vault, question_id=qid, uid=uid, include_archived=True, db=ledger_db)
+            if entry_id and entry_id != bound["entry_id"]:
+                results.append({"uid": uid, "question_id": qid, "entry_id": entry_id,
+                                "status": "error", "msg": "反馈条目与复习计划不匹配"})
+                continue
+            entry_id = bound["entry_id"]
+            receipt_key = "feedback:session:" + json.dumps([session_id, qid, entry_id], ensure_ascii=False)
+            if receipt_key in receipts:
+                reused = {**receipts[receipt_key], "reused": True}
+                results.append(reused)
+                duplicates.append((reused, receipts[receipt_key]))
+                continue
+            saved = ledger_db.execute("SELECT result_json FROM op_results WHERE op_id=?", (receipt_key,)).fetchone()
+            if saved or qid in submitted:
+                # 老反馈没有持久回执时仍按不可变提交确认；历史修正不等于重开作答。
+                previous = json.loads(saved[0]) if saved else {
+                    "uid": bound["uid"], "question_id": qid, "entry_id": entry_id,
+                    "status": "ok", "source": bound["source"]}
+                results.append({**previous, "reused": True})
+                continue
             row = resolve_question(vault, question_id=qid, uid=uid if feedback.get("question_id") else "", db=ledger_db)
         else:
             row = resolve_question(vault, uid=uid, question_id=qid, db=ledger_db)
@@ -141,11 +165,15 @@ def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, atte
                   "session_id": session_id, "source": source, "is_correct": correct, "sub_score": score,
                   "note": feedback.get("note", ""), "occurred_at": day, "review_date": day,
                   "review_timezone": "Asia/Shanghai", "recorded_at": now.isoformat(timespec="seconds")}
-        if attempt_id:
+        if attempt_id or session:
             review.update({"attempt_id": attempt_id, "entry_id": entry_id})
+        if attempt_id:
             seen.add(entry_id)
         commit_feedbacks.append(review)
-        results.append({"uid": uid, "question_id": qid, "entry_id": entry_id, "status": "ok", "source": source})
+        result = {"uid": uid, "question_id": qid, "entry_id": entry_id, "status": "ok", "source": source}
+        results.append(result)
+        if session:
+            receipts[receipt_key] = result
     if commit_feedbacks:
         payload = {"session_id": session_id, "feedbacks": commit_feedbacks}
         info = append_commit_in_db(ledger_db, "api", "review.batch_submit", f"提交 {len(commit_feedbacks)} 条练习反馈", payload)
@@ -159,7 +187,23 @@ def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, atte
                     raise RuntimeError("反馈投影结果与提交身份不一致")
                 result.update({key: published[key] for key in (
                     "label", "old_mastery", "new_mastery", "tag", "new_interval", "new_due_date")})
+    for reused, original in duplicates:
+        reused.update(original, reused=True)
+    for receipt_key, result in receipts.items():
+        ledger_db.execute("INSERT INTO op_results(op_id,result_json,created_at) VALUES(?,?,?)",
+                         (receipt_key, json.dumps(result, ensure_ascii=False), now.isoformat(timespec="seconds")))
     return results
+
+
+def _formal_submitted_questions(db, session_id):
+    """兼容升级前反馈；已撤销的历史也保留原条目的幂等身份。"""
+    submitted = {row[0] for row in db.execute(
+        "SELECT question_id FROM history_projection WHERE session_id=?", (session_id,))}
+    for row in db.execute("""SELECT DISTINCT c.payload_json FROM projection_review_corrections r
+        JOIN commits c ON c.commit_id=substr(r.review_key,1,instr(r.review_key,':')-1)
+        WHERE c.commit_type='review.batch_submit' AND json_extract(c.payload_json,'$.session_id')=?""", (session_id,)):
+        submitted.update(item.get("question_id") for item in json.loads(row[0]).get("feedbacks", []))
+    return submitted
 
 
 def _parse_sub_score(value):

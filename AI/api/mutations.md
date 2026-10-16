@@ -381,3 +381,9 @@ JSON引用元数据使用 `http_json_mib`（默认2MiB），声明超限即413�
 ## MCP 正式计划创建
 
 外部 create_review_session 直接调用受限 Session 领域操作，不转发 Web 请求、不开放 Web PIN 权限；与现有网页计划共用 session.create 事实和反馈投影。MCP 的稳定身份、幂等和权限契约见 AI/mcp.md §14，网页 /api/schedule 与 /api/confirm-schedule 行为保持。
+
+## 正式反馈与移动约束
+
+正式Session按服务端绑定的session_id、question_id和entry_id去重。首次反馈、增量投影及完整响应回执在同一SQL事务提交；批内重复、并发或响应丢失重试返回首次结果及reused:true，不再增加Attempts。旧无回执反馈通过历史及修正索引识别；撤销或替换历史不重新开放该条目。独立即时练习仍允许重复作答。
+
+题目移动与创建共用分类校验、业务写锁及UID分配；科目／分类不能以点开头，控制字符和保留符号在落盘前拒绝。新UID跳过草稿、收件箱和作业帮已预留值，失败入库重试不会被移动抢占。

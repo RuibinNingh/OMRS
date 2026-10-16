@@ -17,7 +17,7 @@ def category_path(vault, subject, category):
             raise ValueError("分类名称包含控制字符")
     names = [" ".join(value.split()) if isinstance(value, str) else value for value in (subject, category)]
     for value in names:
-        if isinstance(value, str) and (value == ".omrs" or re.search(r'[\[\]<>:"?*|\x00-\x1f]', value)):
+        if isinstance(value, str) and (value.startswith(".") or re.search(r'[\[\]<>:"?*|\x00-\x1f]', value)):
             raise ValueError("分类名称包含保留字或非法符号")
     return safe_question_directory(vault, *names)
 

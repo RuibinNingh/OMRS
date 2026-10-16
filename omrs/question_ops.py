@@ -7,7 +7,8 @@ from .common import extract_category, extract_knowledge_tags, extract_tag, extra
 from .ledger import append_commit, connect
 from .projections import rebuild_projection
 from .workspace_sync import content_hash, metadata_hash, scan_workspace, update_fingerprints
-from .path_safety import safe_question_directory, safe_question_path
+from .path_safety import safe_question_path
+from .data_repository import storage_write
 
 
 @storage
@@ -76,14 +77,16 @@ def set_question_labels(vault: str, uid: str, labels, scan=True):
     return {"uid": uid, "labels": clean, "changed": updated != content}
 
 
-@storage
+@storage_write
 def move_question(vault: str, uid: str, target_subject: str, target_category: str):
     from .content_history import ensure_content_deletable
+    from .creation import _next_uid
+    from .taxonomy import category_path
     row = _projection_by_uid(vault, uid)
     if not row:
         raise RuntimeError(f"UID 不存在: {uid}")
     qroot = questions_root(vault)
-    target_dir, target_subject, target_category = safe_question_directory(
+    target_dir, target_subject, target_category = category_path(
         vault, target_subject or row["subject"], target_category)
     source_path = _question_file_path(vault, row)
     os.makedirs(target_dir, exist_ok=True)
@@ -252,21 +255,6 @@ def _projection_by_uid(vault, uid):
 def _question_file_path(vault, row):
     path = os.path.abspath(os.path.join(vault, row["file_path"]))
     return safe_question_path(vault, path)
-
-
-def _next_uid(qroot, category):
-    pattern = re.compile(rf"^{re.escape(category)}(\d+)\.md$")
-    used = set()
-    for root, dirs, files in os.walk(qroot):
-        dirs[:] = [directory for directory in dirs if not directory.startswith(".")]
-        for fname in files:
-            match = pattern.match(fname)
-            if match:
-                used.add(int(match.group(1)))
-    idx = 1
-    while idx in used:
-        idx += 1
-    return f"{category}{idx}"
 
 
 def _replace_frontmatter_field(content, key, value):
