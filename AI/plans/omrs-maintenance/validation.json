@@ -1,0 +1,2977 @@
+{
+  "schema": 1,
+  "updated_at": "2026-10-16T14:46:34.602682+00:00",
+  "task": "全面检查后维护R01–R17",
+  "executor": "Codex主代理及三个子代理；完整模式",
+  "baseline": "580294454610dd63e78155c0f48624da6bf730e7＋开工原WIP",
+  "version": "未变更；保留原有v2.8.0工作区改动，提交基线版本为v2.7.1",
+  "status": "本地维护完成；16项闭合，R14部分完成",
+  "closed_findings": [
+    "R01",
+    "R02",
+    "R03",
+    "R04",
+    "R05",
+    "R06",
+    "R07",
+    "R08",
+    "R09",
+    "R10",
+    "R11",
+    "R12",
+    "R13",
+    "R15",
+    "R16",
+    "R17"
+  ],
+  "remaining": {
+    "R14": "KaTeX62文件与Three组件许可已核实；Gravity独立场景／atlas／fallback来源及授权仍需可信材料，未编造许可或修改运行资源字节"
+  },
+  "local_commits": [
+    "160eb35",
+    "07e2cbe",
+    "工具／文档／证据为本文件所属提交"
+  ],
+  "delegation": [
+    {
+      "agent": "maintenance_backend",
+      "scope": "R01–R04、R16/R17",
+      "result": "120项定向单测；独立HTTP14；跨审前端7项Node；后端及原WIP保全只读复核"
+    },
+    {
+      "agent": "maintenance_frontend",
+      "scope": "R05–R09",
+      "result": "Node98；真实浏览器4场景28条assert；64当前状态视觉复核及稳定复拍"
+    },
+    {
+      "agent": "maintenance_tooling",
+      "scope": "R10/R11/R13–R15，协助R12",
+      "result": "工具14项；九脚本190断言保全；最终入口6项单测"
+    }
+  ],
+  "test_counts": {
+    "root_unittest": {
+      "passed": 1039,
+      "note": "运行时入口回归为2项；随后新增4项，仅定向重跑6项，不把增量计作全套重跑"
+    },
+    "pytest_export": {
+      "passed": 7
+    },
+    "node_all": {
+      "passed": 529
+    },
+    "components_browser": {
+      "passed": 34
+    },
+    "board_print": {
+      "passed": 7
+    },
+    "a4_print": {
+      "passed": 5
+    },
+    "gateway_unittest": {
+      "passed": 63
+    },
+    "boxdetect_service_unittest": {
+      "passed": 10
+    },
+    "gateway_browser": {
+      "passed": 6
+    },
+    "upgrade": {
+      "stages": 6,
+      "state": "passed"
+    },
+    "ui_and_contrast": "passed",
+    "targeted_backend": {
+      "passed": 120,
+      "new_regressions": 15
+    },
+    "targeted_frontend_node": {
+      "passed": 98
+    },
+    "targeted_tooling": {
+      "passed": 14
+    },
+    "final_runner_unit": {
+      "passed": 6
+    },
+    "independent_http": {
+      "passed": 14
+    },
+    "frontend_browser": {
+      "cases": 4,
+      "assert_statements": 28
+    },
+    "note": "计数存在交叠，不能相加当作独立用例总数"
+  },
+  "executed_commands": [
+    {
+      "id": "affected-e2e",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "tests/run_gates.py",
+        "--ref",
+        "5802944",
+        "--groups",
+        "e2e",
+        "--only",
+        "e2e-ai_review,e2e-assistant_race,e2e-audit_identity,e2e-create,e2e-drafts,e2e-drafts_p4,e2e-feedback,e2e-instant,e2e-ui_bridge,e2e-zuoyebang,e2e-traincontrol,e2e-trainpanel,e2e-mcp_review_sessions,e2e-schedule,e2e-zuoyebang_gateway_integration,e2e-zuoyebang_gateway_prefix",
+        "--out",
+        "/tmp/omrs-maintenance-20261016/e2e"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T14:29:47.231796+00:00",
+      "log": "/tmp/omrs-maintenance-20261016/records/affected-e2e.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-maintenance-20261016"
+      },
+      "pid": 2052293,
+      "exit_code": 1,
+      "ended_at": "2026-10-16T14:37:13.828211+00:00",
+      "seconds": 446.596
+    },
+    {
+      "id": "docs-final",
+      "command": [
+        "python3",
+        "tests/check_docs.py",
+        "--diff",
+        "5802944"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T14:44:59.975209+00:00",
+      "log": "/tmp/omrs-maintenance-20261016/records/docs-final.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-maintenance-20261016"
+      },
+      "pid": 2115728,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T14:45:03.946982+00:00",
+      "seconds": 3.972
+    },
+    {
+      "id": "docs-first",
+      "command": [
+        "python3",
+        "tests/check_docs.py",
+        "--diff",
+        "5802944"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T14:29:46.076362+00:00",
+      "log": "/tmp/omrs-maintenance-20261016/records/docs-first.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-maintenance-20261016"
+      },
+      "pid": 2052253,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T14:29:50.248783+00:00",
+      "seconds": 4.172
+    },
+    {
+      "id": "ui-release-services",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "tests/run_gates.py",
+        "--ref",
+        "5802944",
+        "--groups",
+        "ui,release,services",
+        "--out",
+        "/tmp/omrs-maintenance-20261016/ui-release-services"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T14:27:40.375847+00:00",
+      "log": "/tmp/omrs-maintenance-20261016/records/ui-release-services.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-maintenance-20261016"
+      },
+      "pid": 2043709,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T14:29:05.579978+00:00",
+      "seconds": 85.204
+    },
+    {
+      "id": "unit-gates",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "tests/run_gates.py",
+        "--ref",
+        "5802944",
+        "--groups",
+        "unit",
+        "--out",
+        "/tmp/omrs-maintenance-20261016/unit"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T14:25:46.896563+00:00",
+      "log": "/tmp/omrs-maintenance-20261016/records/unit-gates.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-maintenance-20261016"
+      },
+      "pid": 2039013,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T14:28:30.536495+00:00",
+      "seconds": 163.64
+    },
+    {
+      "id": "visual-board-stability",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "tests/visual/run.py",
+        "--ref",
+        "5802944",
+        "--pages",
+        "board",
+        "--themes",
+        "dark",
+        "--viewports",
+        "mobile",
+        "--settle",
+        "2000",
+        "--out",
+        "/tmp/omrs-maintenance-20261016/visual-board-stability"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T14:42:13.170049+00:00",
+      "log": "/tmp/omrs-maintenance-20261016/records/visual-board-stability.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-maintenance-20261016"
+      },
+      "pid": 2109923,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T14:42:22.406083+00:00",
+      "seconds": 9.236
+    },
+    {
+      "id": "visual-default",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "tests/visual/run.py",
+        "--ref",
+        "5802944",
+        "--out",
+        "/tmp/omrs-maintenance-20261016/visual-default"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T14:38:12.482113+00:00",
+      "log": "/tmp/omrs-maintenance-20261016/records/visual-default.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-maintenance-20261016"
+      },
+      "pid": 2095780,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T14:39:30.233469+00:00",
+      "seconds": 77.751
+    },
+    {
+      "id": "visual-extra",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "tests/visual/run.py",
+        "--audit-only",
+        "--pages",
+        "zuoyebang,trainpanel,ai-review,assistant",
+        "--out",
+        "/tmp/omrs-maintenance-20261016/visual-extra"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T14:40:11.675374+00:00",
+      "log": "/tmp/omrs-maintenance-20261016/records/visual-extra.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-maintenance-20261016"
+      },
+      "pid": 2103168,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T14:40:34.241231+00:00",
+      "seconds": 22.566
+    },
+    {
+      "id": "zuoyebang-final-gate",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "tests/run_gates.py",
+        "--ref",
+        "5802944",
+        "--groups",
+        "e2e",
+        "--only",
+        "e2e-zuoyebang",
+        "--out",
+        "/tmp/omrs-maintenance-20261016/zyb-final"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T14:40:56.460897+00:00",
+      "log": "/tmp/omrs-maintenance-20261016/records/zuoyebang-final-gate.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-maintenance-20261016"
+      },
+      "pid": 2106234,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T14:41:22.029878+00:00",
+      "seconds": 25.569
+    },
+    {
+      "id": "zuoyebang-retry-own-chromium",
+      "command": [
+        "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+        "tests/run_gates.py",
+        "--ref",
+        "5802944",
+        "--groups",
+        "e2e",
+        "--only",
+        "e2e-zuoyebang",
+        "--out",
+        "/tmp/omrs-maintenance-20261016/zyb-retry"
+      ],
+      "cwd": "/root/workspace/apps/OMRS",
+      "started_at": "2026-10-16T14:37:26.105823+00:00",
+      "log": "/tmp/omrs-maintenance-20261016/records/zuoyebang-retry-own-chromium.log",
+      "environment": {
+        "production_controls_removed": true,
+        "temporary_root": "/tmp/omrs-maintenance-20261016"
+      },
+      "pid": 2093175,
+      "exit_code": 0,
+      "ended_at": "2026-10-16T14:37:50.677440+00:00",
+      "seconds": 24.572
+    }
+  ],
+  "gate_reports": {
+    "unit": {
+      "ref": "5802944",
+      "upgrade_ref": "17d6d84",
+      "results": [
+        {
+          "id": "unittest",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-p",
+            "test_*.py",
+            "-q"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "seconds": 163.238,
+          "log": "/tmp/omrs-maintenance-20261016/unit/unittest.log"
+        },
+        {
+          "id": "pytest-export",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "-m",
+            "pytest",
+            "tests/test_report_export.py",
+            "-q"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "seconds": 0.354,
+          "log": "/tmp/omrs-maintenance-20261016/unit/pytest-export.log"
+        }
+      ],
+      "not_run": [
+        {
+          "id": "e2e-boxdetect",
+          "reason": "依赖外部冻结模型和数据集；本次未改模型，不访问真实训练材料"
+        }
+      ]
+    },
+    "ui-release-services": {
+      "ref": "5802944",
+      "upgrade_ref": "17d6d84",
+      "results": [
+        {
+          "id": "node",
+          "command": [
+            "node",
+            "--test",
+            "tests/app/ai-review.test.mjs",
+            "tests/app/analytics.test.mjs",
+            "tests/app/annotate.test.mjs",
+            "tests/app/arrange.test.mjs",
+            "tests/app/assistant-history.test.mjs",
+            "tests/app/assistant-permissions.test.mjs",
+            "tests/app/assistant.test.mjs",
+            "tests/app/audit-controllers.test.mjs",
+            "tests/app/audit-identity-uploads.test.mjs",
+            "tests/app/board-drag.test.mjs",
+            "tests/app/board-locked.test.mjs",
+            "tests/app/board-page.test.mjs",
+            "tests/app/board-picker.test.mjs",
+            "tests/app/board-preview.test.mjs",
+            "tests/app/board-print.test.mjs",
+            "tests/app/board-regions.test.mjs",
+            "tests/app/board-save.test.mjs",
+            "tests/app/board-settings.test.mjs",
+            "tests/app/board.test.mjs",
+            "tests/app/catalog.test.mjs",
+            "tests/app/core.test.mjs",
+            "tests/app/create-drafts.test.mjs",
+            "tests/app/create-inbox.test.mjs",
+            "tests/app/create-process.test.mjs",
+            "tests/app/create-zyb.test.mjs",
+            "tests/app/create.test.mjs",
+            "tests/app/dashboard.test.mjs",
+            "tests/app/data.test.mjs",
+            "tests/app/draft-navigation.test.mjs",
+            "tests/app/exporter.test.mjs",
+            "tests/app/feedback.test.mjs",
+            "tests/app/history.test.mjs",
+            "tests/app/html.test.mjs",
+            "tests/app/instant-submission.test.mjs",
+            "tests/app/instant.test.mjs",
+            "tests/app/items.test.mjs",
+            "tests/app/label-plan.test.mjs",
+            "tests/app/labels.test.mjs",
+            "tests/app/math-delimiters.test.mjs",
+            "tests/app/question-cache.test.mjs",
+            "tests/app/question.test.mjs",
+            "tests/app/questions.test.mjs",
+            "tests/app/reports.test.mjs",
+            "tests/app/request-id.test.mjs",
+            "tests/app/runtime-history.test.mjs",
+            "tests/app/schedule.test.mjs",
+            "tests/app/settings-tuning.test.mjs",
+            "tests/app/settings-zuoyebang.test.mjs",
+            "tests/app/settings.test.mjs",
+            "tests/app/trainaudit.test.mjs",
+            "tests/app/traincontrol.test.mjs",
+            "tests/app/trainpanel.test.mjs"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "seconds": 0.579,
+          "log": "/tmp/omrs-maintenance-20261016/ui-release-services/node.log"
+        },
+        {
+          "id": "components",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/app/run_browser.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "seconds": 3.453,
+          "log": "/tmp/omrs-maintenance-20261016/ui-release-services/components.log"
+        },
+        {
+          "id": "print",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "-m",
+            "unittest",
+            "tests.smoke_board_print",
+            "-q"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "seconds": 5.985,
+          "log": "/tmp/omrs-maintenance-20261016/ui-release-services/print.log"
+        },
+        {
+          "id": "print-a4",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "-m",
+            "unittest",
+            "tests.smoke_a4_print",
+            "-q"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "seconds": 3.754,
+          "log": "/tmp/omrs-maintenance-20261016/ui-release-services/print-a4.log"
+        },
+        {
+          "id": "discipline",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/check_ui.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "seconds": 0.136,
+          "log": "/tmp/omrs-maintenance-20261016/ui-release-services/discipline.log"
+        },
+        {
+          "id": "contrast",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/check_contrast.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "seconds": 0.016,
+          "log": "/tmp/omrs-maintenance-20261016/ui-release-services/contrast.log"
+        },
+        {
+          "id": "gateway-unit",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-t",
+            ".",
+            "-q"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS/services/zuoyebang",
+          "seconds": 43.261,
+          "log": "/tmp/omrs-maintenance-20261016/ui-release-services/gateway-unit.log"
+        },
+        {
+          "id": "boxdetect-unit",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tests",
+            "-t",
+            ".",
+            "-q"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS/services/boxdetect",
+          "seconds": 0.285,
+          "log": "/tmp/omrs-maintenance-20261016/ui-release-services/boxdetect-unit.log"
+        },
+        {
+          "id": "gateway-browser",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/browser_acceptance.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS/services/zuoyebang",
+          "seconds": 27.122,
+          "log": "/tmp/omrs-maintenance-20261016/ui-release-services/gateway-browser.log"
+        },
+        {
+          "id": "upgrade-compat",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/check_upgrade_compat.py",
+            "--ref",
+            "17d6d84"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "seconds": 0.573,
+          "log": "/tmp/omrs-maintenance-20261016/ui-release-services/upgrade-compat.log"
+        }
+      ],
+      "not_run": [
+        {
+          "id": "e2e-boxdetect",
+          "reason": "依赖外部冻结模型和数据集；本次未改模型，不访问真实训练材料"
+        }
+      ]
+    }
+  },
+  "e2e": {
+    "first_run": {
+      "ref": "5802944",
+      "upgrade_ref": "17d6d84",
+      "results": [
+        {
+          "id": "e2e-ai_review",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/ai_review.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:29:47.257295+00:00",
+          "ended_at": "2026-10-16T14:30:35.183033+00:00",
+          "seconds": 47.926,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-ai_review.log"
+        },
+        {
+          "id": "e2e-assistant_race",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/assistant_race.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:30:35.183188+00:00",
+          "ended_at": "2026-10-16T14:30:44.609178+00:00",
+          "seconds": 9.426,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-assistant_race.log"
+        },
+        {
+          "id": "e2e-audit_identity",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/audit_identity.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:30:44.609302+00:00",
+          "ended_at": "2026-10-16T14:31:04.100348+00:00",
+          "seconds": 19.491,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-audit_identity.log"
+        },
+        {
+          "id": "e2e-create",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/create.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:31:04.100472+00:00",
+          "ended_at": "2026-10-16T14:31:57.708335+00:00",
+          "seconds": 53.608,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-create.log"
+        },
+        {
+          "id": "e2e-drafts",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/drafts.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:31:57.708475+00:00",
+          "ended_at": "2026-10-16T14:33:11.269519+00:00",
+          "seconds": 73.561,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-drafts.log"
+        },
+        {
+          "id": "e2e-drafts_p4",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/drafts_p4.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:33:11.269805+00:00",
+          "ended_at": "2026-10-16T14:33:33.397348+00:00",
+          "seconds": 22.128,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-drafts_p4.log"
+        },
+        {
+          "id": "e2e-feedback",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/feedback.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:33:33.397479+00:00",
+          "ended_at": "2026-10-16T14:33:54.950079+00:00",
+          "seconds": 21.553,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-feedback.log"
+        },
+        {
+          "id": "e2e-instant",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/instant.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:33:54.950215+00:00",
+          "ended_at": "2026-10-16T14:34:07.736224+00:00",
+          "seconds": 12.786,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-instant.log"
+        },
+        {
+          "id": "e2e-mcp_review_sessions",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/mcp_review_sessions.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:34:07.736396+00:00",
+          "ended_at": "2026-10-16T14:34:14.784029+00:00",
+          "seconds": 7.048,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-mcp_review_sessions.log"
+        },
+        {
+          "id": "e2e-schedule",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/schedule.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:34:14.784231+00:00",
+          "ended_at": "2026-10-16T14:34:55.598133+00:00",
+          "seconds": 40.814,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-schedule.log"
+        },
+        {
+          "id": "e2e-traincontrol",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/traincontrol.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:34:55.598286+00:00",
+          "ended_at": "2026-10-16T14:35:16.530131+00:00",
+          "seconds": 20.932,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-traincontrol.log"
+        },
+        {
+          "id": "e2e-trainpanel",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/trainpanel.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:35:16.530275+00:00",
+          "ended_at": "2026-10-16T14:35:42.962870+00:00",
+          "seconds": 26.433,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-trainpanel.log"
+        },
+        {
+          "id": "e2e-ui_bridge",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/ui_bridge.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:35:42.963065+00:00",
+          "ended_at": "2026-10-16T14:35:46.407038+00:00",
+          "seconds": 3.444,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-ui_bridge.log"
+        },
+        {
+          "id": "e2e-zuoyebang",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/zuoyebang.py"
+          ],
+          "exit_code": 1,
+          "status": "failed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:35:46.407214+00:00",
+          "ended_at": "2026-10-16T14:36:18.811599+00:00",
+          "seconds": 32.404,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-zuoyebang.log"
+        },
+        {
+          "id": "e2e-zuoyebang_gateway_prefix",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/zuoyebang_gateway_integration.py",
+            "--out",
+            "/tmp/omrs-maintenance-20261016/e2e/integration-prefix",
+            "--with-prefix"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:36:18.811774+00:00",
+          "ended_at": "2026-10-16T14:36:47.088145+00:00",
+          "seconds": 28.276,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-zuoyebang_gateway_prefix.log"
+        },
+        {
+          "id": "e2e-zuoyebang_gateway_integration",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/zuoyebang_gateway_integration.py",
+            "--out",
+            "/tmp/omrs-maintenance-20261016/e2e/integration-direct"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:36:47.088323+00:00",
+          "ended_at": "2026-10-16T14:37:13.776944+00:00",
+          "seconds": 26.689,
+          "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-zuoyebang_gateway_integration.log"
+        }
+      ],
+      "not_run": [
+        {
+          "id": "e2e-boxdetect",
+          "reason": "依赖外部冻结模型和数据集；本次未改模型，不访问真实训练材料"
+        }
+      ]
+    },
+    "retry_own_chromium": {
+      "ref": "5802944",
+      "upgrade_ref": "17d6d84",
+      "results": [
+        {
+          "id": "e2e-zuoyebang",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/zuoyebang.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:37:26.131366+00:00",
+          "ended_at": "2026-10-16T14:37:50.642982+00:00",
+          "seconds": 24.512,
+          "log": "/tmp/omrs-maintenance-20261016/zyb-retry/e2e-zuoyebang.log"
+        }
+      ],
+      "not_run": [
+        {
+          "id": "e2e-boxdetect",
+          "reason": "依赖外部冻结模型和数据集；本次未改模型，不访问真实训练材料"
+        }
+      ]
+    },
+    "final_camera_gate": {
+      "ref": "5802944",
+      "upgrade_ref": "17d6d84",
+      "results": [
+        {
+          "id": "e2e-zuoyebang",
+          "command": [
+            "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+            "tests/e2e/zuoyebang.py"
+          ],
+          "exit_code": 0,
+          "status": "passed",
+          "skip_reasons": [],
+          "cwd": "/root/workspace/apps/OMRS",
+          "started_at": "2026-10-16T14:40:56.485884+00:00",
+          "ended_at": "2026-10-16T14:41:21.993107+00:00",
+          "seconds": 25.507,
+          "log": "/tmp/omrs-maintenance-20261016/zyb-final/e2e-zuoyebang.log"
+        }
+      ],
+      "not_run": [
+        {
+          "id": "e2e-boxdetect",
+          "reason": "依赖外部冻结模型和数据集；本次未改模型，不访问真实训练材料"
+        }
+      ]
+    },
+    "effective_results": [
+      {
+        "id": "e2e-ai_review",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/ai_review.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:29:47.257295+00:00",
+        "ended_at": "2026-10-16T14:30:35.183033+00:00",
+        "seconds": 47.926,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-ai_review.log"
+      },
+      {
+        "id": "e2e-assistant_race",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/assistant_race.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:30:35.183188+00:00",
+        "ended_at": "2026-10-16T14:30:44.609178+00:00",
+        "seconds": 9.426,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-assistant_race.log"
+      },
+      {
+        "id": "e2e-audit_identity",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/audit_identity.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:30:44.609302+00:00",
+        "ended_at": "2026-10-16T14:31:04.100348+00:00",
+        "seconds": 19.491,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-audit_identity.log"
+      },
+      {
+        "id": "e2e-create",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/create.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:31:04.100472+00:00",
+        "ended_at": "2026-10-16T14:31:57.708335+00:00",
+        "seconds": 53.608,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-create.log"
+      },
+      {
+        "id": "e2e-drafts",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/drafts.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:31:57.708475+00:00",
+        "ended_at": "2026-10-16T14:33:11.269519+00:00",
+        "seconds": 73.561,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-drafts.log"
+      },
+      {
+        "id": "e2e-drafts_p4",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/drafts_p4.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:33:11.269805+00:00",
+        "ended_at": "2026-10-16T14:33:33.397348+00:00",
+        "seconds": 22.128,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-drafts_p4.log"
+      },
+      {
+        "id": "e2e-feedback",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/feedback.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:33:33.397479+00:00",
+        "ended_at": "2026-10-16T14:33:54.950079+00:00",
+        "seconds": 21.553,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-feedback.log"
+      },
+      {
+        "id": "e2e-instant",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/instant.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:33:54.950215+00:00",
+        "ended_at": "2026-10-16T14:34:07.736224+00:00",
+        "seconds": 12.786,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-instant.log"
+      },
+      {
+        "id": "e2e-mcp_review_sessions",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/mcp_review_sessions.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:34:07.736396+00:00",
+        "ended_at": "2026-10-16T14:34:14.784029+00:00",
+        "seconds": 7.048,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-mcp_review_sessions.log"
+      },
+      {
+        "id": "e2e-schedule",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/schedule.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:34:14.784231+00:00",
+        "ended_at": "2026-10-16T14:34:55.598133+00:00",
+        "seconds": 40.814,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-schedule.log"
+      },
+      {
+        "id": "e2e-traincontrol",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/traincontrol.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:34:55.598286+00:00",
+        "ended_at": "2026-10-16T14:35:16.530131+00:00",
+        "seconds": 20.932,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-traincontrol.log"
+      },
+      {
+        "id": "e2e-trainpanel",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/trainpanel.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:35:16.530275+00:00",
+        "ended_at": "2026-10-16T14:35:42.962870+00:00",
+        "seconds": 26.433,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-trainpanel.log"
+      },
+      {
+        "id": "e2e-ui_bridge",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/ui_bridge.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:35:42.963065+00:00",
+        "ended_at": "2026-10-16T14:35:46.407038+00:00",
+        "seconds": 3.444,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-ui_bridge.log"
+      },
+      {
+        "id": "e2e-zuoyebang",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/zuoyebang.py"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:40:56.485884+00:00",
+        "ended_at": "2026-10-16T14:41:21.993107+00:00",
+        "seconds": 25.507,
+        "log": "/tmp/omrs-maintenance-20261016/zyb-final/e2e-zuoyebang.log"
+      },
+      {
+        "id": "e2e-zuoyebang_gateway_prefix",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/zuoyebang_gateway_integration.py",
+          "--out",
+          "/tmp/omrs-maintenance-20261016/e2e/integration-prefix",
+          "--with-prefix"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:36:18.811774+00:00",
+        "ended_at": "2026-10-16T14:36:47.088145+00:00",
+        "seconds": 28.276,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-zuoyebang_gateway_prefix.log"
+      },
+      {
+        "id": "e2e-zuoyebang_gateway_integration",
+        "command": [
+          "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python",
+          "tests/e2e/zuoyebang_gateway_integration.py",
+          "--out",
+          "/tmp/omrs-maintenance-20261016/e2e/integration-direct"
+        ],
+        "exit_code": 0,
+        "status": "passed",
+        "skip_reasons": [],
+        "cwd": "/root/workspace/apps/OMRS",
+        "started_at": "2026-10-16T14:36:47.088323+00:00",
+        "ended_at": "2026-10-16T14:37:13.776944+00:00",
+        "seconds": 26.689,
+        "log": "/tmp/omrs-maintenance-20261016/e2e/e2e-zuoyebang_gateway_integration.log"
+      }
+    ],
+    "passed_scripts": 16,
+    "first_failure": "共享CDP缺少fake媒体启动参数，摄像头等待超时；首次失败保留。门禁仅为摄像头专项清除共享CDP变量，修复后带CDP环境重跑78/78。"
+  },
+  "visual": {
+    "default_pairs": 48,
+    "extra_current_states": 16,
+    "unique_current_states": 64,
+    "stability_repeat_pairs": 1,
+    "page_errors": 0,
+    "page_overflow_x": 0,
+    "default_diffs": {
+      "dashboard-light-desktop": [
+        0.088,
+        false
+      ],
+      "data-light-desktop": [
+        0.031,
+        false
+      ],
+      "questions-light-desktop": [
+        0.13,
+        false
+      ],
+      "board-light-desktop": [
+        0.034,
+        false
+      ],
+      "catalog-light-desktop": [
+        0.084,
+        false
+      ],
+      "schedule-light-desktop": [
+        0.038,
+        false
+      ],
+      "instant-light-desktop": [
+        0.13,
+        false
+      ],
+      "feedback-light-desktop": [
+        0.13,
+        false
+      ],
+      "create-light-desktop": [
+        0.462,
+        false
+      ],
+      "history-light-desktop": [
+        0.137,
+        false
+      ],
+      "reports-light-desktop": [
+        0.145,
+        false
+      ],
+      "settings-light-desktop": [
+        0.108,
+        false
+      ],
+      "dashboard-light-mobile": [
+        0.0,
+        false
+      ],
+      "data-light-mobile": [
+        0.0,
+        false
+      ],
+      "questions-light-mobile": [
+        0.0,
+        false
+      ],
+      "board-light-mobile": [
+        0.0,
+        false
+      ],
+      "catalog-light-mobile": [
+        0.0,
+        false
+      ],
+      "schedule-light-mobile": [
+        0.0,
+        false
+      ],
+      "instant-light-mobile": [
+        0.0,
+        false
+      ],
+      "feedback-light-mobile": [
+        0.0,
+        false
+      ],
+      "create-light-mobile": [
+        16.12,
+        true
+      ],
+      "history-light-mobile": [
+        0.0,
+        false
+      ],
+      "reports-light-mobile": [
+        0.0,
+        false
+      ],
+      "settings-light-mobile": [
+        0.0,
+        false
+      ],
+      "dashboard-dark-desktop": [
+        0.084,
+        false
+      ],
+      "data-dark-desktop": [
+        0.029,
+        false
+      ],
+      "questions-dark-desktop": [
+        0.124,
+        false
+      ],
+      "board-dark-desktop": [
+        0.029,
+        false
+      ],
+      "catalog-dark-desktop": [
+        0.078,
+        false
+      ],
+      "schedule-dark-desktop": [
+        0.036,
+        false
+      ],
+      "instant-dark-desktop": [
+        0.124,
+        false
+      ],
+      "feedback-dark-desktop": [
+        0.124,
+        false
+      ],
+      "create-dark-desktop": [
+        0.494,
+        false
+      ],
+      "history-dark-desktop": [
+        0.133,
+        false
+      ],
+      "reports-dark-desktop": [
+        0.142,
+        false
+      ],
+      "settings-dark-desktop": [
+        0.103,
+        false
+      ],
+      "dashboard-dark-mobile": [
+        0.0,
+        false
+      ],
+      "data-dark-mobile": [
+        0.0,
+        false
+      ],
+      "questions-dark-mobile": [
+        0.0,
+        false
+      ],
+      "board-dark-mobile": [
+        2.18,
+        false
+      ],
+      "catalog-dark-mobile": [
+        0.0,
+        false
+      ],
+      "schedule-dark-mobile": [
+        0.0,
+        false
+      ],
+      "instant-dark-mobile": [
+        0.0,
+        false
+      ],
+      "feedback-dark-mobile": [
+        0.0,
+        false
+      ],
+      "create-dark-mobile": [
+        16.82,
+        true
+      ],
+      "history-dark-mobile": [
+        0.0,
+        false
+      ],
+      "reports-dark-mobile": [
+        0.0,
+        false
+      ],
+      "settings-dark-mobile": [
+        0.0,
+        false
+      ]
+    },
+    "stability_diffs": {
+      "board-dark-mobile": [
+        0.0,
+        false
+      ]
+    },
+    "review": {
+      "reviewed_at": "2026-10-16T14:45:27.098946+00:00",
+      "state": "review_complete",
+      "input": "/tmp/omrs-maintenance-20261016/visual-default/audit.json",
+      "input_sha256": "f4e674cfa5dfab00f93505512175279ddd2fd7fd6cd332796b4dda7870b5022d",
+      "reference": "5802944（已提交审计文档；任务前业务WIP未纳入该提交）",
+      "pairs": 48,
+      "changed_pairs": 27,
+      "zero_pairs": 21,
+      "current_audit": {
+        "states": 48,
+        "page_errors": 0,
+        "small_targets": 0,
+        "inline_styled": 0,
+        "visible_overflow_x": 0,
+        "page_overflow_x": 0,
+        "font_size_count_range": [
+          1,
+          5
+        ],
+        "min_font_px": 11,
+        "min_font_note": "11px同样存在于基线，沿用既有text-2xs，不是本次新增。"
+      },
+      "attribution": {
+        "maintenance_R05": "默认instant为空闲态，提交锁只在submitting期间生效，默认截图主体未变化；交互由定向真实浏览器另验。",
+        "maintenance_R06": "缓存请求token不改变默认外观；真实保存及迟到GET已另验。",
+        "maintenance_R07_R08_R09": "作业帮新页面及训练／审核入口已由定向浏览器验证交互，并由主代理追加16个当前视觉状态，未发现页面异常。",
+        "prior_WIP": "作业帮独立页导航与录入六→五工作区来自任务前WIP，不归因于维护。"
+      },
+      "unresolved": [],
+      "inspected_images": [
+        "visual-inspection/create-light-desktop.png",
+        "visual-inspection/create-light-mobile.png",
+        "visual-inspection/create-dark-mobile.png",
+        "visual-inspection/instant-light-desktop.png",
+        "visual-inspection/instant-light-mobile.png",
+        "visual-inspection/questions-dark-desktop.png",
+        "visual-inspection/questions-dark-mobile.png",
+        "visual-inspection/questions-dark-mobile-top.png",
+        "visual-inspection/board-dark-mobile.png",
+        "visual-inspection/history-dark-desktop.png",
+        "/tmp/omrs-maintenance-20261016/visual-board-stability/shots/ref-board-dark-mobile.png",
+        "/tmp/omrs-maintenance-20261016/visual-board-stability/shots/cur-board-dark-mobile.png",
+        "/tmp/omrs-maintenance-20261016/visual-extra/shots/cur-zuoyebang-light-mobile.png",
+        "/tmp/omrs-maintenance-20261016/visual-extra/shots/cur-ai-review-dark-mobile.png",
+        "/tmp/omrs-maintenance-20261016/visual-extra/shots/cur-trainpanel-light-mobile.png"
+      ],
+      "pairs_detail": [
+        {
+          "key": "dashboard-light-desktop",
+          "percent": 0.088,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            1332
+          ],
+          "cur_size": [
+            1434,
+            1332
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1682,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "data-light-desktop",
+          "percent": 0.031,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            3827
+          ],
+          "cur_size": [
+            1434,
+            3827
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1682,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "questions-light-desktop",
+          "percent": 0.13,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1682,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "board-light-desktop",
+          "percent": 0.034,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            22,
+            418,
+            36,
+            546
+          ],
+          "changed_pixels": 442,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "catalog-light-desktop",
+          "percent": 0.084,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            1395
+          ],
+          "cur_size": [
+            1434,
+            1395
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1682,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "schedule-light-desktop",
+          "percent": 0.038,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            3071
+          ],
+          "cur_size": [
+            1434,
+            3071
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1682,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "instant-light-desktop",
+          "percent": 0.13,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1682,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "feedback-light-desktop",
+          "percent": 0.13,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1682,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "create-light-desktop",
+          "percent": 0.462,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            8,
+            68,
+            1154,
+            880
+          ],
+          "changed_pixels": 5993,
+          "changed_x_ge_232": 4131,
+          "category": "原有作业帮拆页WIP",
+          "assessment": "可接受",
+          "explanation": "作业帮入口移至侧栏，录入工作区由6项变5项；桌面重新分配水平空间，手机减少一行52px。未遮挡或丢失上传、处理、录入、AI训练、快速录入及其余正文。"
+        },
+        {
+          "key": "history-light-desktop",
+          "percent": 0.137,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            999
+          ],
+          "cur_size": [
+            1434,
+            999
+          ],
+          "bounds": [
+            8,
+            384,
+            1248,
+            880
+          ],
+          "changed_pixels": 1957,
+          "changed_x_ge_232": 64,
+          "category": "原WIP侧栏＋合成夹具后端时间戳",
+          "assessment": "可接受",
+          "explanation": "侧栏入口及版本变化之外，主区仅x1235..1247/y384..392的时间文本差异；配置事件时间从22:38:13到22:38:50，未冻结服务端时钟。"
+        },
+        {
+          "key": "reports-light-desktop",
+          "percent": 0.145,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            8,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1873,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "settings-light-desktop",
+          "percent": 0.108,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            1086
+          ],
+          "cur_size": [
+            1434,
+            1086
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1682,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "dashboard-light-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            2305
+          ],
+          "cur_size": [
+            384,
+            2305
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "data-light-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            9420
+          ],
+          "cur_size": [
+            384,
+            9420
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "questions-light-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            6944
+          ],
+          "cur_size": [
+            384,
+            6944
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "board-light-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            1501
+          ],
+          "cur_size": [
+            384,
+            1501
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "catalog-light-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            1539
+          ],
+          "cur_size": [
+            384,
+            1539
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "schedule-light-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            5065
+          ],
+          "cur_size": [
+            384,
+            5065
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "instant-light-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            390,
+            844
+          ],
+          "cur_size": [
+            390,
+            844
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "feedback-light-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            1088
+          ],
+          "cur_size": [
+            384,
+            1088
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "create-light-mobile",
+          "percent": 16.12,
+          "size_changed": true,
+          "ref_size": [
+            384,
+            1073
+          ],
+          "cur_size": [
+            384,
+            1021
+          ],
+          "bounds": [
+            0,
+            132,
+            384,
+            1073
+          ],
+          "changed_pixels": 66418,
+          "changed_x_ge_232": 20179,
+          "category": "原有作业帮拆页WIP",
+          "assessment": "可接受",
+          "explanation": "作业帮入口移至侧栏，录入工作区由6项变5项；桌面重新分配水平空间，手机减少一行52px。未遮挡或丢失上传、处理、录入、AI训练、快速录入及其余正文。"
+        },
+        {
+          "key": "history-light-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            6365
+          ],
+          "cur_size": [
+            384,
+            6365
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "reports-light-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            986
+          ],
+          "cur_size": [
+            384,
+            986
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "settings-light-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            1628
+          ],
+          "cur_size": [
+            384,
+            1628
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "dashboard-dark-desktop",
+          "percent": 0.084,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            1332
+          ],
+          "cur_size": [
+            1434,
+            1332
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1601,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "data-dark-desktop",
+          "percent": 0.029,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            3827
+          ],
+          "cur_size": [
+            1434,
+            3827
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1601,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "questions-dark-desktop",
+          "percent": 0.124,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1601,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "board-dark-desktop",
+          "percent": 0.029,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            22,
+            418,
+            36,
+            546
+          ],
+          "changed_pixels": 373,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "catalog-dark-desktop",
+          "percent": 0.078,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            1436
+          ],
+          "cur_size": [
+            1434,
+            1436
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1601,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "schedule-dark-desktop",
+          "percent": 0.036,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            3071
+          ],
+          "cur_size": [
+            1434,
+            3071
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1601,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "instant-dark-desktop",
+          "percent": 0.124,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1601,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "feedback-dark-desktop",
+          "percent": 0.124,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1601,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "create-dark-desktop",
+          "percent": 0.494,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            8,
+            68,
+            1154,
+            880
+          ],
+          "changed_pixels": 6396,
+          "changed_x_ge_232": 4579,
+          "category": "原有作业帮拆页WIP",
+          "assessment": "可接受",
+          "explanation": "作业帮入口移至侧栏，录入工作区由6项变5项；桌面重新分配水平空间，手机减少一行52px。未遮挡或丢失上传、处理、录入、AI训练、快速录入及其余正文。"
+        },
+        {
+          "key": "history-dark-desktop",
+          "percent": 0.133,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            999
+          ],
+          "cur_size": [
+            1434,
+            999
+          ],
+          "bounds": [
+            8,
+            384,
+            1248,
+            880
+          ],
+          "changed_pixels": 1904,
+          "changed_x_ge_232": 59,
+          "category": "原WIP侧栏＋合成夹具后端时间戳",
+          "assessment": "可接受",
+          "explanation": "侧栏入口及版本变化之外，主区仅x1235..1247/y384..392的时间文本差异；配置事件时间从22:38:13到22:38:50，未冻结服务端时钟。"
+        },
+        {
+          "key": "reports-dark-desktop",
+          "percent": 0.142,
+          "size_changed": false,
+          "ref_size": [
+            1440,
+            900
+          ],
+          "cur_size": [
+            1440,
+            900
+          ],
+          "bounds": [
+            8,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1845,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "settings-dark-desktop",
+          "percent": 0.103,
+          "size_changed": false,
+          "ref_size": [
+            1434,
+            1086
+          ],
+          "cur_size": [
+            1434,
+            1086
+          ],
+          "bounds": [
+            22,
+            418,
+            97,
+            880
+          ],
+          "changed_pixels": 1601,
+          "changed_x_ge_232": 0,
+          "category": "原有作业帮拆页WIP侧栏",
+          "assessment": "可接受",
+          "explanation": "所有差异像素均在x<232侧栏，主体像素完全一致。新增作业帮导航后后续导航行下移，底部v2.7.1→v2.8.0为任务前已有WIP。"
+        },
+        {
+          "key": "dashboard-dark-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            2305
+          ],
+          "cur_size": [
+            384,
+            2305
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "data-dark-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            9420
+          ],
+          "cur_size": [
+            384,
+            9420
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "questions-dark-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            6944
+          ],
+          "cur_size": [
+            384,
+            6944
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "board-dark-mobile",
+          "percent": 2.18,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            1501
+          ],
+          "cur_size": [
+            384,
+            1501
+          ],
+          "bounds": [
+            49,
+            241,
+            342,
+            656
+          ],
+          "changed_pixels": 12565,
+          "changed_x_ge_232": 2863,
+          "category": "纸张预览缩放捕获差异",
+          "assessment": "初次捕获未稳定；延长settle重拍0%，可接受",
+          "explanation": "初次全部12565个差异像素位于x49..341/y241..655纸张区域；同一六题与顺序，纸张约286×404变294×416，符合scale0.36→0.37。保留初次2.18%及原边界记录；主代理将settle延长为2000ms定向重拍后差异0%，前后纸张视觉相同且六题完整，所有异常指标为0。相关preview源码相对5802944字节相同且board／导出模板没有维护改动，判为初次捕获未稳定。"
+        },
+        {
+          "key": "catalog-dark-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            1539
+          ],
+          "cur_size": [
+            384,
+            1539
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "schedule-dark-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            5065
+          ],
+          "cur_size": [
+            384,
+            5065
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "instant-dark-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            390,
+            844
+          ],
+          "cur_size": [
+            390,
+            844
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "feedback-dark-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            1088
+          ],
+          "cur_size": [
+            384,
+            1088
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "create-dark-mobile",
+          "percent": 16.82,
+          "size_changed": true,
+          "ref_size": [
+            384,
+            1073
+          ],
+          "cur_size": [
+            384,
+            1021
+          ],
+          "bounds": [
+            0,
+            132,
+            384,
+            1073
+          ],
+          "changed_pixels": 69302,
+          "changed_x_ge_232": 20973,
+          "category": "原有作业帮拆页WIP",
+          "assessment": "可接受",
+          "explanation": "作业帮入口移至侧栏，录入工作区由6项变5项；桌面重新分配水平空间，手机减少一行52px。未遮挡或丢失上传、处理、录入、AI训练、快速录入及其余正文。"
+        },
+        {
+          "key": "history-dark-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            6365
+          ],
+          "cur_size": [
+            384,
+            6365
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "reports-dark-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            986
+          ],
+          "cur_size": [
+            384,
+            986
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        },
+        {
+          "key": "settings-dark-mobile",
+          "percent": 0.0,
+          "size_changed": false,
+          "ref_size": [
+            384,
+            1628
+          ],
+          "cur_size": [
+            384,
+            1628
+          ],
+          "bounds": null,
+          "changed_pixels": 0,
+          "changed_x_ge_232": 0,
+          "category": "无超过24通道阈值的像素差异",
+          "assessment": "可接受",
+          "explanation": "默认布局与基线一致。"
+        }
+      ],
+      "repository_modified": false,
+      "browser_run_by_reviewer": false,
+      "initial_board_finding": {
+        "key": "board-dark-mobile",
+        "percent": 2.18,
+        "recommendation": "仅补拍board/dark/mobile；等待boardPreviewIsReady及稳定view.scale，延长settle，再检查同六题纸张。不得静默忽略初次2.18%。",
+        "source_check": "features/board/preview.js相对5802944字节相同（SHA256 1ac3a5b5b1d85dd4982b8ce571e6ce14c178f5eb7c788500439251413cd33985）；当前board目录和导出模板无维护改动。",
+        "inference": "适应宽度先除793.7再四舍五入两位，DOM ResizeObserver/iframe消息或滚动条时序可造成0.01缩放差；仅推断，未运行浏览器复现。"
+      },
+      "stability_recheck": {
+        "input": "/tmp/omrs-maintenance-20261016/visual-board-stability/audit.json",
+        "input_sha256": "e5e035c413f3099b1ef035934f70c7190b5bec72095af18194740ff83eae7c96",
+        "key": "board-dark-mobile",
+        "initial_percent": 2.18,
+        "settle_ms": 2000,
+        "percent": 0.0,
+        "size_changed": false,
+        "page_errors": 0,
+        "metrics": {
+          "small_targets": 0,
+          "inline_styled": 0,
+          "visible_overflow_x": 0,
+          "page_overflow_x": false
+        },
+        "command": "/tmp/omrs-full-review-20261016-_lotdof0/runtime/bin/python tests/visual/run.py --ref 5802944 --pages board --themes dark --viewports mobile --settle 2000 --out /tmp/omrs-maintenance-20261016/visual-board-stability",
+        "executed_by": "主代理，退出码0",
+        "image_inspection": "已查看ref与cur手机图，视觉相同；同六题纸张完整，无遮挡或裁切。",
+        "assessment": "初次捕获未稳定；延长settle重拍0%，可接受。未覆盖初次audit或差异记录。"
+      },
+      "extra_audit": {
+        "input": "/tmp/omrs-maintenance-20261016/visual-extra/audit.json",
+        "input_sha256": "076324589bb1e1f09a1e55c362fb349e27a15b406520e8d74db8d161e4bdff8e",
+        "mode": "audit-only，仅当前审计，没有前后截图差异比较",
+        "states": 16,
+        "pages": [
+          "zuoyebang",
+          "trainpanel",
+          "ai-review",
+          "assistant"
+        ],
+        "themes": [
+          "light",
+          "dark"
+        ],
+        "viewports": [
+          "desktop",
+          "mobile"
+        ],
+        "metrics": {
+          "small_targets": 0,
+          "inline_styled": 0,
+          "visible_overflow_x": 0,
+          "page_overflow_x": 0,
+          "page_errors": 0
+        },
+        "font_size_count_range": [
+          3,
+          4
+        ],
+        "min_font_px": 11,
+        "image_inspection": [
+          "zuoyebang-light-mobile：上传空态、服务连接失败提示、候选预览及识别区完整，没有遮挡横溢。",
+          "ai-review-dark-mobile：合成待审提案详情的前后值、返回列表、拒绝／确认按钮完整，未遮挡。",
+          "trainpanel-light-mobile：隔离临时训练目录的空态；训练、曲线、效果、数据及历史记录区完整，长命令正常换行，未横溢。"
+        ],
+        "executed_by": "主代理；本复核只读现有audit与截图。"
+      },
+      "coverage": {
+        "unique_current_states": 64,
+        "default_current_states": 48,
+        "extra_current_states": 16,
+        "repeated_stability_current_states": 1,
+        "comparison_pairs": 49,
+        "initial_comparison_pairs": 48,
+        "stability_comparison_pairs": 1
+      }
+    },
+    "reports": [
+      "/tmp/omrs-maintenance-20261016/visual-default/report.html",
+      "/tmp/omrs-maintenance-20261016/visual-extra/report.html",
+      "/tmp/omrs-maintenance-20261016/visual-board-stability/report.html"
+    ]
+  },
+  "documentation": {
+    "command": "python3 tests/check_docs.py --diff 5802944",
+    "exit_code": 0,
+    "documents": 146,
+    "issues": 0,
+    "preexisting_size_warnings": 3,
+    "route_and_log_indexes": "由check_docs生成；提交索引仅包含维护新日志行，原用户新日志行保持工作区"
+  },
+  "wip_preservation": {
+    "method": "原WIP副本仅应用5802944到当前索引的维护补丁及两项未跟踪最小补丁，再与工作区逐字节比较；相邻自动日志索引按生成器排序重建",
+    "reconstruction": "/tmp/omrs-maintenance-20261016/reconstructed-wip-xb9dtes0",
+    "checks": [
+      {
+        "path": "AGENTS.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/README.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/api.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/api/extensions.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/changelog.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/data.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/data/storage.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/environment.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/frontend.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/frontend/architecture.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/frontend/create.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/frontend/design-system.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/frontend/zuoyebang.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/inbox.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/logs/2026-10-15_zuoyebang-page.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/logs/log.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/zuoyebang-service.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "AI/zuoyebang.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "README.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/domain/create-form.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/create/cards-state.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/create/index.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/create/state.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/create/view.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/create/zyb-account.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/create/zyb-camera.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/create/zyb-state.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/create/zyb-view.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/create/zyb.css",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/create/zyb.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/zuoyebang/index.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/zuoyebang/zyb-account.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/zuoyebang/zyb-camera.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/zuoyebang/zyb-paper.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/zuoyebang/zyb-restore.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/zuoyebang/zyb-state.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/zuoyebang/zyb-view.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/zuoyebang/zyb.css",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/features/zuoyebang/zyb.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/main.js",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "assets/app/styles/index.css",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "omrs/http/zuoyebang.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "omrs/version.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "omrs/zuoyebang/direct.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "omrs/zuoyebang/geometry.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "omrs/zuoyebang/jobs.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "omrs/zuoyebang/normalize.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "omrs/zuoyebang/source.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "omrs_dashboard.html",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "services/zuoyebang/docs/api.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "services/zuoyebang/docs/vendor.md",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "services/zuoyebang/vendor-manifest.json",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "services/zuoyebang/zyb_gateway/vendor/direct.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "tests/app/create-zyb.test.mjs",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "tests/e2e/zuoyebang.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "tests/e2e/zuoyebang_gateway_integration.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "tests/e2e/zuoyebang_paper.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "tests/e2e/zuoyebang_service.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "tests/test_zuoyebang_geometry.py",
+        "preserved_with_only_maintenance_delta": true
+      },
+      {
+        "path": "tests/visual/run.py",
+        "preserved_with_only_maintenance_delta": true
+      }
+    ],
+    "all_preserved": true
+  },
+  "generated_files": {
+    "files": [
+      "OMRS-EXP-20260709232146-a4-fixed.html",
+      "SOURCE_EXPORT_MANIFEST.txt"
+    ],
+    "metadata_before": {
+      "OMRS-EXP-20260709232146-a4-fixed.html": [
+        1758269,
+        1790522395000000000,
+        10379176
+      ],
+      "SOURCE_EXPORT_MANIFEST.txt": [
+        16261,
+        1790522395000000000,
+        10415506
+      ]
+    },
+    "metadata_after": {
+      "OMRS-EXP-20260709232146-a4-fixed.html": [
+        1758269,
+        1790522395000000000,
+        10379176
+      ],
+      "SOURCE_EXPORT_MANIFEST.txt": [
+        16261,
+        1790522395000000000,
+        10415506
+      ]
+    },
+    "disk_unchanged": true,
+    "operation": "git rm --cached，仅移除索引，不读取正文或删除磁盘文件"
+  },
+  "untracked_wip_patch": {
+    "path": "AI/plans/omrs-maintenance/preserved-wip.patch",
+    "sha256": "01a2519cec24bb68a235c90f38b3a9123de87aa4239752d078e7fdabb67f4119",
+    "already_applied": true,
+    "check": "git apply --unidiff-zero --check <patch>，仅在相同开工WIP副本使用；当前工作区不能重复应用",
+    "scope": "zyb.js两行＋模块文档追加；原文件不整份提交"
+  },
+  "evidence": [
+    {
+      "path": "/tmp/omrs-maintenance-20261016/backend/cross-review.json",
+      "sha256": "614581df8c18f9477f11105cfa852643debafdc8073b97b1e64cdeb3069d584d"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/backend/http-maintenance.json",
+      "sha256": "dbd3202032003081154b84535f777b305be89c54a6a0096b2a61f5ff2eda7fcd"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/frontend/validation.json",
+      "sha256": "58f994049bccaecd03870d645a6eb15f5f042f78a0942bf83d82e74b6e24d215"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/frontend/visual-review.json",
+      "sha256": "f3d1b20a890fdef4922a5f9d40ed8b436e8e526b836889cfe853178f6109853f"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/tooling/handoff.json",
+      "sha256": "1aacf4d4e3698e3177dbb376a329f4442b15a06c224479e2f54171456c4d749f"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/tooling/targeted-tests.json",
+      "sha256": "784a418238163a65be9fdf8e7e846f1295cca33ad7dad89eb314d26480e2f0c7"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/tooling/upstream-verification.json",
+      "sha256": "520c2fe60d8f778ca0725987f2e05ae7d19085f263cba0cd3d483556c06244d6"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/tooling/e2e-output/verification.json",
+      "sha256": "83d8d4eb224e0cdc05b1c92426ff531ca444d2a4dc764bde8ac6a532b4a6d2d8"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/tooling/e2e-output/path-expression-checks.json",
+      "sha256": "9a812d4870aa7956e8bb32805d7ca047f8195a7fce9931ad032f6f1c655051b5"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/tooling/camera-gate-isolation/validation.json",
+      "sha256": "189615b895911635481bbfbde6f628535f656125b84fa0c704cb6c4597ebb208"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/wip-preservation.json",
+      "sha256": "0228245a268a0c25dcedc355d88961a7980730ec5199f499256ada8c058dbd6f"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/generated-files-preserved.json",
+      "sha256": "eecff9f816d1cd9b5a101356959ea8f73acf042f6bdc04b75738262d4d2b9d12"
+    },
+    {
+      "path": "/tmp/omrs-maintenance-20261016/existing-screenshot-metadata.json",
+      "sha256": "0f8d7ddd4f95cff4484d2560ba671374f1cd2422980b1338839d3093bf473dda"
+    }
+  ],
+  "maintenance_source_sha256": {
+    ".gitignore": "9c859f7f17b9298bbff78f584ecc5edc5e2ff1f1cf36e8659e0235a8cb0d9b5f",
+    "assets/app/core/request-id.js": "993d0c8a2a87a7e85d800f62c29c7191d6ceacf716e84ded66f6ce7ba78bac6f",
+    "assets/app/domain/question/mount.js": "4e224620e992625661e2ef0c5db16fb27c5b4c1b58b6f73980ef1b6b048a0cde",
+    "assets/app/features/ai-review/index.js": "7692e932beb9bc7b242f6cb5261bf4015d0d30522d91766c69820534fb6a9d66",
+    "assets/app/features/instant/index.js": "2796ce341b9da136f6aa841b05276365c5ba59abf8f7b19b5f961da4a8983dd5",
+    "assets/app/features/instant/state.js": "9ba7bc31f5815882bb2c0ee3aaca2e2f0abb7085dfe5fdea623dcce9bb5a44f1",
+    "assets/app/features/instant/view.js": "24409a2f1cab53e5a2a67aeea724b5e30ab7c0f0b493f2a43c08b9ce0f219447",
+    "assets/app/features/trainpanel/control.js": "f6cd3f91f6cd3b5a6a5df6b5510a756e981ff48bf61bf4380056b7e9fd821cc6",
+    "assets/vendor/entry-scene-THREE-LICENSE": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc",
+    "assets/vendor/entry-scene.NOTICE.md": "e8dcc2779db06fca01471258a95307a8dabf453d449097decc5a10119c3171be",
+    "assets/vendor/entry-scene.manifest.json": "3b6a3572495721bc57251b704df8eb28885279562f0db950b95965dd22b17a4c",
+    "assets/vendor/katex/LICENSE": "766ccc1f306c885aa45542a9846bbd0a505b27a0374f146778171c2254ce18e3",
+    "assets/vendor/katex/README.md": "ab2e060acf29aeba78fa3bd5c81e07a8f7a5409f950bfc9ccf9ffec94ceb7fa0",
+    "assets/vendor/katex/manifest.json": "1a054d8d58becc9f36fe5bb6d17c399bd3d6c62bc6ddfc6dadc02225bfaf09c2",
+    "omrs/agent/tools/read.py": "5c6646dac2a38b8906f37496ac3147f69965fd071158016a65d40a41fbfaa65d",
+    "omrs/cli.py": "cd78bd5a839cc740b536d98804d2378a1841126e8e05a4bf0552c42062e0b94d",
+    "omrs/feedback.py": "58144c954998626c59d9340ed224c0aa48c6d21f5c0613401a71545194f90dd5",
+    "omrs/question_ops.py": "768f514afa90272773322294bcb2c38fb8b65512b51fa310332f15de9e0c7423",
+    "omrs/source_export.py": "aa4d54d0476ddff9f275e84b19f6047716b6a81c0d1ceef807ad5c86c5eb9d7c",
+    "omrs/taxonomy.py": "f3c69ac47f88f17cc19f30017c689465165727acc92250105583ac200222bf7f",
+    "pack_for_ai.bat": "4f78092bc76f825e854fabf442e08f9342711c75adf2832244850f756cae7fdb",
+    "tests/app/instant-submission.test.mjs": "26cef79d00b8fdb1e1af7f78bbfcbfebe3ea122c9eb674ca4478c2bb00e76553",
+    "tests/app/question-cache.test.mjs": "4618cbeb87cca76f24b766cd5d2a42975ba64fdaf1036cd2a51ce5c7b6015596",
+    "tests/app/request-id.test.mjs": "602e620183024d4a30cdc8f0ceb1f5b6f87c15a42f0f5674c1cd7dfc9571db13",
+    "tests/check_docs.py": "bda003a5b4337c262cfeda8a6e13fb37222042e4a39a455b2a99b53c0356432b",
+    "tests/e2e/ai_review.py": "b352fad91b809ddbd9c5e627a6264eb2dfd3a2802fbc0d4fe6ecc4d1c626397e",
+    "tests/e2e/assistant_permissions.py": "551168c07da7c42f6945fd9ba2803791b0778db84d3dbdf463f9f45e8fbc10fe",
+    "tests/e2e/assistant_race.py": "56a0fb8691f53b068e3847714b4f0a58438f3def0c372502c5ca6818d3da7025",
+    "tests/e2e/assistant_review.py": "bac89bb14ead53c8c13f5af6d852a2a9a88d8925a35fd62d11c1ad198cb9dcca",
+    "tests/e2e/audit_identity.py": "c025fd9ce99f3e470928ef476a9fb27d231c1cbabaa969d8f357c048976ae694",
+    "tests/e2e/boxdetect.py": "8fb41b9a8476c1d2ee32c6eca052fe8c329f5fc12eef782a5d66da25e3656b06",
+    "tests/e2e/create.py": "bac78ec16bf424370be47ddbb632bf2961bb378c576aaa0ad051b4248602514e",
+    "tests/e2e/drafts.py": "ed020fee650de6fd39acc7cdcc2f126d0bcea37abc9eff9652ae146f2c94c47e",
+    "tests/e2e/drafts_blocks.py": "21947232dea79cf0875d9f10fa8af949f2b6d3f9fd6581a60e4a4ed060227806",
+    "tests/e2e/drafts_p4.py": "8b570f741a0aaef469cff96925985527520323970157f708093cece938972d11",
+    "tests/e2e/label_plans.py": "e0ad555f85cc9ae23a5ff92af7a26254f2eb45faa57a5f206b84b217d4c951d8",
+    "tests/e2e/traincontrol.py": "d9e0fc09dd89deece32f2360ffc0cf1ee34f5b74e51ca42eb20604ca84a0222c",
+    "tests/e2e/trainpanel.py": "8d0dddd5c1ccf3f59a5bf7a0dfccc4e2bf4f0cc376e815ad754dd3a3ff4ad10e",
+    "tests/e2e/ui_bridge.py": "ccc28006524bd9b6be939ed6541007edef47a3ff86d9ab20522bc03d2c9b372e",
+    "tests/e2e/zuoyebang.py": "34ca3b626541f537bfed78671392f443f638757f4f25c1810183b13b2e2991fc",
+    "tests/e2e/zuoyebang_service.py": "b4f9ae6592dbc68bf7ad9f3cab5fe14e8af308ddf78eff28cf55c5f633075890",
+    "tests/e2e_navigation.py": "310493cfdf37b56b77869b0d702f046afdbd7b715cf23435527ce140cb2fac7f",
+    "tests/fixtures/make_vault.py": "960520585a1c6c8fb82023018f353a814d4abcc635e37c29e9b34a282e768615",
+    "tests/run_gates.py": "6e91013a121c577b23c0187361bc8f9f4d311e9a5054ac6692807ec40707110c",
+    "tests/test_docs_gate.py": "e0c97aa115c4e7aa34a219c1980bbf1a239a52893a893aeab039b4e6c3f9e433",
+    "tests/test_gate_execution.py": "561817cd9c9fbfa0797c5171a53280645b4b939fe41aaf1ed11acdb0f05d0959",
+    "tests/test_maintenance_backend.py": "fb3775241cdea0797b05f92922cac4af584bcead1187e43bb9db48901baad8c9",
+    "tests/test_pack_for_ai.py": "9d49f402ce1e0a053de524b99e4966252f36c4f4eb7654f172ab6b62eadc32a2",
+    "tests/test_source_export.py": "02b54a0de618cafc97c50d45a83526fc9af9e950c8c16bdf2fb165f24f4f46ad",
+    "tests/test_vendor_metadata.py": "8ac3c710085f8c95f0ee872e045653e4ee6dd669df11aa6f2b27fd47bc64982c",
+    "tests/visual/run.py": "b1e34dcdb06251c675d619bb006f14d68856747e2deeb1dc0330690ff47d8a88"
+  },
+  "not_executed": [
+    "Windows批处理与Windows文件锁",
+    "实体手机摄像头／权限",
+    "真实供应商账号／扫码／搜题",
+    "付费模型",
+    "外部冻结检测模型与数据集推理",
+    "全体E2E（仅16项受影响脚本重跑）",
+    "生产部署、重启、推送"
+  ],
+  "environment": "合成Vault、显式空训练目录、随机高端口；清除生产控制变量，所有产物保存在仓库外。",
+  "next_step": "R14需可信来源／授权材料；如需发布另行授权。"
+}

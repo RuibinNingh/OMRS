@@ -15,11 +15,12 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
+from e2e_navigation import open_drafts
 from browser_runtime import launch_chromium, open_app
 from omrs import drafts
 
-SHOTS = '/tmp/omrs-ai-draft-p2-shots'
-P3_SHOTS = '/tmp/omrs-ai-draft-p3-shots'
+SHOTS = os.environ.get('OMRS_E2E_SHOTS', tempfile.mkdtemp(prefix='omrs-ai-draft-p2-'))
+P3_SHOTS = os.path.join(SHOTS, 'p3')
 SERVER = r'''
 import http.server, sys
 from omrs import ai_assist
@@ -139,7 +140,7 @@ def run(page, base, first, second, old, images, results):
         results.append((name, bool(passed), detail))
 
     page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
-    page.locator('#create-flow [data-ib-stage="drafts"]').click()
+    open_drafts(page)
     check('工作区显示四份待审核草稿', wait(page, "() => document.querySelectorAll('.arv-row').length === 4"))
     page.locator(f'.arv-row[data-arg="{first["id"]}"]').click()
     check('审核首屏先显示题目且来源默认收起', wait(page, "() => !!document.querySelector('.drf-review-question') && document.querySelector('.drf-source-trigger')?.getAttribute('aria-expanded') === 'false'")
@@ -266,7 +267,7 @@ def run_discard_queue(browser, base, vault, results):
         return page.evaluate("sessionStorage.getItem('omrs-selected-draft')")
     try:
         page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
-        page.locator('#create-flow [data-ib-stage="drafts"]').click()
+        open_drafts(page)
         check('丢弃回归队列至少有三份', wait(page, "() => document.querySelectorAll('.arv-row').length >= 3"))
         ids = queue()
         current, next_id = ids[1:3]
@@ -324,7 +325,7 @@ def run_discard_queue(browser, base, vault, results):
         check('最后一份丢弃后显示空队列并清空选中记忆', wait(page, "() => document.querySelector('.arv-queue')?.textContent.includes('没有待审核操作') && !document.querySelector('.drf-id')")
               and remembered() is None and api(base, '/api/drafts/counts')['counts']['review'] == 0)
         page.locator('[data-tab="create"]').click()
-        page.locator('#create-flow [data-ib-stage="drafts"]').click()
+        open_drafts(page)
         check('离开工作区后返回仍是空的待审核分类', wait(page, "() => document.querySelector('[data-action=\"ai-review.view\"][data-arg=\"pending\"]')?.getAttribute('aria-pressed') === 'true' && !document.querySelector('.drf-id')"))
         page.reload(wait_until='networkidle')
         check('刷新页面不会重新打开最后丢弃的草稿', wait(page, "() => document.querySelector('.arv-queue')?.textContent.includes('没有待审核操作') && document.querySelector('[data-action=\"ai-review.view\"][data-arg=\"pending\"]')?.getAttribute('aria-pressed') === 'true' && !document.querySelector('.drf-id')")
@@ -446,8 +447,9 @@ def run_touch(browser, base, vault, results):
     page.on('pageerror', lambda error: errors.append(error.stack or str(error)))
     try:
         page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
-        page.locator('#create-flow [data-ib-stage="drafts"]').click()
-        results.append(('手机详情自动打开且队列收起', wait(page, "() => !!document.querySelector('.drf-id') && !document.querySelector('.arv-queue')?.getClientRects().length"), ''))
+        open_drafts(page)
+        page.locator('.arv-row').first.click()
+        results.append(('手机选题后详情打开且队列收起', wait(page, "() => !!document.querySelector('.drf-id') && !document.querySelector('.arv-queue')?.getClientRects().length"), ''))
         page.locator('[data-action="ai-review.back"]').click()
         page.locator(f'.arv-row[data-arg="{draft["id"]}"]').click()
         results.append(('手机信息与题目连续阅读', wait(page, "() => !!document.querySelector('.drf-review-question')")
@@ -608,7 +610,7 @@ def main():
                         audit_errors = []
                         audit_page.on('pageerror', lambda error: audit_errors.append(str(error)))
                         audit_page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
-                        audit_page.locator('#create-flow [data-ib-stage="drafts"]').click()
+                        open_drafts(audit_page)
                         if width < 760 and audit_page.locator('[data-action="ai-review.back"]').is_visible():
                             audit_page.locator('[data-action="ai-review.back"]').click()
                         first_filter = 'done' if api(base, '/api/drafts/item?id=' + first['id'])['draft']['status'] == 'done' else 'pending'

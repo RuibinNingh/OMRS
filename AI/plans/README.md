@@ -54,4 +54,5 @@ AI/plans/<计划名>/
 | `zuoyebang/` | 已完成v2.4.1并部署 | 作业帮账号、实时摄像头、图片搜题、1080完整后端渲染与核对入库；执行者Codex完整模式，见progress.md |
 | `zuoyebang-service/` | 已同仓部署v2.5.0并推GitHub | 同仓网关、Key与来源IP审计及OMRS本地／外部连接；执行者Codex完整模式，见progress.md |
 | `zuoyebang-search-ui/` | 已合入main、部署v2.6.0并推GitHub | 取图搜题／候选自动预览与状态服务面板合并；14组隔离及43项生产检查通过，执行者Codex完整模式，见progress.md |
-| `omrs-full-review/` | 计划已制定，全面检查待执行 | 文档、仓库卫生、适度安全与全功能链路；Codex 主代理及三个子代理，完整模式；见 `omrs-full-review/progress.md` |
+| `omrs-full-review/` | 检查完成，17项发现已登记 | 文档、仓库卫生、适度安全与全功能链路；原始失败及补验均保留，见 `omrs-full-review/progress.md` |
+| `omrs-maintenance/` | 本地维护完成，来源限制保留 | 承接全面检查R01–R17；Codex主代理及三个子代理，完整模式；见 `omrs-maintenance/progress.md` |

@@ -52,11 +52,22 @@ _TRAINING_FILES = {'tools/boxdetect/' + name for name in (
     'requirements-train.txt', 'crop-prompt-v2.txt',
 )}
 
+# 精确登记运行必需的二进制资源和第三方来源／许可；不扩大 JSON／TXT 通配范围。
+_PUBLIC_ASSET_FILES = {
+    "assets/vendor/entry-fallback.webp",
+    "assets/vendor/entry-scene.manifest.json",
+    "assets/vendor/entry-scene-THREE-LICENSE",
+    "assets/vendor/katex/LICENSE", "assets/vendor/katex/manifest.json",
+    "assets/vendor/mathjax/LICENSE", "assets/vendor/mathjax/manifest.json",
+    "assets/vendor/fonts/SOURCES.json", "assets/vendor/fonts/PRINT_SOURCES.json",
+}
+
 
 def _is_source_file(relative: str) -> bool:
     parts = relative.split("/")
     name = parts[-1]
-    if relative in _GATEWAY_FILES or relative in _BOXDETECT_FILES or relative in _TRAINING_FILES:
+    if (relative in _GATEWAY_FILES or relative in _BOXDETECT_FILES
+            or relative in _TRAINING_FILES or relative in _PUBLIC_ASSET_FILES):
         return True
     if name in _EXCLUDED_NAMES or name.startswith("OMRS-EXP-"):
         return False

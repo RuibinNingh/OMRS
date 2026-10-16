@@ -18,7 +18,8 @@ from tests.zuoyebang_fixtures import png
 
 def main():
     from playwright.sync_api import sync_playwright
-    output = Path(os.environ.get('OMRS_ZYB_SHOTS', Path(os.environ.get('TMPDIR', str(ROOT / '.venv'))) / 'omrs-service-e2e'))
+    output = Path(os.environ.get('OMRS_E2E_SHOTS') or os.environ.get('OMRS_ZYB_SHOTS')
+                  or tempfile.mkdtemp(prefix='omrs-service-e2e-shots-'))
     output.mkdir(parents=True, exist_ok=True)
     checks = []
     def check(name, valid):

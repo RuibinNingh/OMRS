@@ -9,7 +9,8 @@
 1. 模块文档不写 `> **v1.x …**` 式版本流水账；行内版本号每份最多 MAX_VERSION_TAGS 处。
 2. 单段不超过 MAX_PARA 字符。
 3. 同一文件里的编号标题不重复。
-4. 文档里引用的 `assets/`、`omrs/`、`tests/`、`AI/` 等路径必须真实存在。
+4. 文档里引用的仓库路径必须真实存在；`file::symbol` 检查文件部分，不校验符号。
+   AI 分册递归扫描（不含日志、归档计划和私有工作区），同时检查公开服务／工具和 vendor 文档。
 5. 模块文档以「速查」头开头，含职责、入口、不变量、必跑测试、相关五项。
 6. 模块文档不链接 `AI/logs/`：日志不随脱敏源码包导出，历史写进 changelog。
 7. `AI/routes.md` 与 `omrs/http/registry.py` 的路由一致，且每条路由至少在一份文档里有说明。
@@ -35,8 +36,8 @@ SOFT_MAX_BYTES = 40 * 1024
 NOT_MODULE = {"README.md", "changelog.md", "routes.md"}  # 索引、流水账、生成文件
 HEADER_KEYS = ("职责", "入口", "不变量", "必跑测试", "相关")
 PATH_RE = re.compile(
-    r"`((?:assets|omrs|tests|Skills|deploy)/[\w./-]+\.(?:js|py|css|html|md|json|service)"
-    r"|AI/(?!logs/)[\w./-]+\.md)`")
+    r"`((?:assets|omrs|tests|Skills|deploy|services|tools|web)/[\w./-]+\.(?:js|py|css|html|md|json|service)"
+    r"|AI/(?!logs/)[\w./-]+\.md)(?:::[^`\n]+)?`")
 LOG_LINK_RE = re.compile(r"AI/logs/\d|`logs/\d{4}-")
 
 
@@ -44,13 +45,28 @@ def rel(path):
     return os.path.relpath(path, ROOT).replace(os.sep, "/")
 
 
+def _public_docs(directory, excluded=()):
+    """只遍历公开文档目录，跳过私有目录和符号链接。"""
+    if not os.path.isdir(directory) or os.path.islink(directory):
+        return []
+    docs = []
+    ignored = {"private", "node_modules", "__pycache__", *excluded}
+    for current, dirs, files in os.walk(directory, followlinks=False):
+        dirs[:] = sorted(name for name in dirs
+                         if name not in ignored and not name.startswith((".", "tmp", "isolated-test"))
+                         and not os.path.islink(os.path.join(current, name)))
+        docs.extend(os.path.join(current, name) for name in sorted(files)
+                    if name.endswith(".md") and not name.startswith(".")
+                    and not os.path.islink(os.path.join(current, name)))
+    return docs
+
+
 def doc_targets():
-    docs = [os.path.join(AI_DIR, f) for f in sorted(os.listdir(AI_DIR)) if f.endswith(".md")]
-    for directory in ("frontend", "api"):
-        front = os.path.join(AI_DIR, directory)
-        if os.path.isdir(front):
-            docs += [os.path.join(front, f) for f in sorted(os.listdir(front)) if f.endswith(".md")]
-    return docs + plan_docs() + [os.path.join(ROOT, "README.md")]
+    docs = _public_docs(AI_DIR, ("logs", "plans", "omrs_work"))
+    for directory in ("services/zuoyebang", "services/boxdetect", "tools/boxdetect",
+                      "assets/vendor", "Skills"):
+        docs += _public_docs(os.path.join(ROOT, directory))
+    return sorted(set(docs + plan_docs() + [os.path.join(ROOT, "README.md")]))
 
 
 def plan_dirs():
@@ -92,7 +108,8 @@ def check_plans():
 def check_file(path):
     problems, warnings = [], []
     name = rel(path)
-    text = open(path, encoding="utf-8").read()
+    with open(path, encoding="utf-8") as source:
+        text = source.read()
     lines = text.split("\n")
     module = is_module_doc(path)
     for i, line in enumerate(lines, 1):
@@ -109,8 +126,12 @@ def check_file(path):
                 problems.append(f"{name}:{i} 标题编号 {m.group(2)} 与第 {seen[key]} 行重复")
             seen[key] = i
     for m in ([] if is_plan_doc(path) else PATH_RE.finditer(text)):
-        if not os.path.exists(os.path.join(ROOT, m.group(1))):
-            problems.append(f"{name}: 引用了不存在的文件 `{m.group(1)}`")
+        reference = m.group(1)
+        roots = [ROOT]
+        if name.startswith("services/"):
+            roots.insert(0, os.path.join(ROOT, *name.split("/")[:2]))
+        if not any(os.path.exists(os.path.join(root, reference)) for root in roots):
+            problems.append(f"{name}: 引用了不存在的文件 `{reference}`")
     if module:
         head = "\n".join(lines[:15])
         if "> **速查**" not in head or any(f"> - {key}：" not in head for key in HEADER_KEYS):

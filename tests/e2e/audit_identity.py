@@ -12,6 +12,7 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
+from e2e_navigation import ensure_assistant_rail
 from browser_runtime import launch_chromium, open_app
 from fixtures.make_vault import free_port
 from tests.e2e.create import png
@@ -192,8 +193,10 @@ def main():
                     open_app(page, base, "assistant")
                     page.locator('.ast-user').first.wait_for()
                     check("助手首屏有界读取最新20个运行组", page.locator('.ast-user').count() == 20 and page.locator('.ast-turn').count() == 20)
+                    ensure_assistant_rail(page, '[data-action="assistant.moreConversations"]')
                     page.locator('[data-action="assistant.moreConversations"]').click()
                     page.wait_for_function("() => document.querySelectorAll('.ast-conv').length === 60")
+                    ensure_assistant_rail(page, '[data-action="assistant.moreConversations"]')
                     page.locator('[data-action="assistant.moreConversations"]').click()
                     page.wait_for_function("() => document.querySelectorAll('.ast-conv').length === 66")
                     check("更多对话可读完全部66条且无重复", page.locator('.ast-conv').evaluate_all("rows => new Set(rows.map(row => row.dataset.arg)).size") == 66)

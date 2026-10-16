@@ -170,6 +170,8 @@ def main(argv=None):
     if os.path.isdir(vault):
         shutil.rmtree(vault)
     os.makedirs(os.path.join(vault, "错题"))
+    from omrs.common import save_config
+    save_config(vault, {"train_dir": os.path.join(vault, ".omrs-test-training"), "inbox_local_detect_url": ""})
     if args.profile == "full":
         uids = build_full(vault, args.seed)
         print(f"已生成 full Vault：{vault}（{len(uids)} 题）")

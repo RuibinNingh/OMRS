@@ -1,4 +1,5 @@
 import io
+import hashlib
 import os
 import subprocess
 import sys
@@ -11,6 +12,77 @@ from omrs.source_export import create_source_export
 
 
 class SourceExportTests(unittest.TestCase):
+    def test_required_binary_and_vendor_metadata_are_exactly_allowlisted(self):
+        sources = {
+            'assets/vendor/entry-fallback.webp': b'RIFF-synthetic-image',
+            'assets/vendor/entry-scene.manifest.json': b'{"files":{}}\n',
+            'assets/vendor/entry-scene-THREE-LICENSE': b'The MIT License\n',
+            'assets/vendor/katex/LICENSE': b'The MIT License\n',
+            'assets/vendor/katex/manifest.json': b'{}\n',
+            'assets/vendor/mathjax/LICENSE': b'Apache License\n',
+            'assets/vendor/mathjax/manifest.json': b'{}\n',
+            'assets/vendor/fonts/SOURCES.json': b'{}\n',
+            'assets/vendor/fonts/PRINT_SOURCES.json': b'{}\n',
+        }
+        private = ['assets/vendor/private.webp', 'assets/vendor/mathjax/state.json',
+                   'assets/vendor/katex/account.json', 'assets/vendor/fonts/personal.json',
+                   'assets/vendor/token.txt', 'assets/vendor/LICENSE-private']
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            for name, content in {**sources, **{name: b'private' for name in private}}.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(content)
+            payload, _, _ = create_source_export(temp)
+            with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+                self.assertEqual(set(archive.namelist()),
+                                 {'OMRS/' + name for name in sources} | {'OMRS/SOURCE_EXPORT_MANIFEST.txt'})
+                for name, content in sources.items():
+                    self.assertEqual(archive.read('OMRS/' + name), content)
+
+    def test_actual_export_retains_fallback_and_complete_resource_metadata(self):
+        root = Path(__file__).resolve().parents[1]
+        required = ['assets/vendor/entry-fallback.webp', 'assets/vendor/entry-scene.NOTICE.md',
+                    'assets/vendor/entry-scene.manifest.json', 'assets/vendor/entry-scene-THREE-LICENSE',
+                    'assets/vendor/katex/LICENSE', 'assets/vendor/katex/manifest.json',
+                    'assets/vendor/mathjax/LICENSE', 'assets/vendor/mathjax/manifest.json',
+                    'assets/vendor/fonts/SOURCES.json', 'assets/vendor/fonts/PRINT_SOURCES.json']
+        payload, _, _ = create_source_export(str(root))
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            for name in required:
+                self.assertEqual(hashlib.sha256(archive.read('OMRS/' + name)).digest(),
+                                 hashlib.sha256((root / name).read_bytes()).digest(), name)
+            with tempfile.TemporaryDirectory() as temp:
+                archive.extractall(temp)
+                script = """import hashlib, http.client, os, socketserver, sys, tempfile, threading
+from pathlib import Path
+root = Path(sys.argv[1]); sys.path.insert(0, str(root))
+from omrs.common import save_config
+from omrs.server import OMRSHandler
+class Quiet(OMRSHandler):
+    def log_message(self, *args): pass
+with tempfile.TemporaryDirectory() as vault:
+    train = Path(vault) / 'empty-training'; train.mkdir()
+    save_config(vault, {'train_dir': str(train), 'inbox_local_detect_url': ''})
+    Quiet.vault_path = vault
+    with socketserver.TCPServer(('127.0.0.1', 0), Quiet) as server:
+        thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
+        try:
+            conn = http.client.HTTPConnection('127.0.0.1', server.server_address[1], timeout=5)
+            conn.request('GET', '/assets/vendor/entry-fallback.webp', headers={'Host':'synthetic.invalid'})
+            response = conn.getresponse(); body = response.read(); conn.close()
+            assert response.status == 200, response.status
+            assert hashlib.sha256(body).digest() == hashlib.sha256((root / 'assets/vendor/entry-fallback.webp').read_bytes()).digest()
+            print('解包后的匿名入口降级资源 HTTP 200，字节哈希一致')
+        finally:
+            server.shutdown(); thread.join(2)
+"""
+                env = {key: value for key, value in os.environ.items()
+                       if key not in ('PYTHONPATH', 'OMRS_SYSTEMD_SERVICE', 'OMRS_BOXDETECT_CONTROL')}
+                run = subprocess.run([sys.executable, '-I', '-c', script, str(Path(temp) / 'OMRS')],
+                                     cwd=temp, env=env, capture_output=True, text=True, timeout=15)
+                self.assertEqual(run.returncode, 0, run.stderr)
+
     def test_boxdetect_public_sources_exclude_generated_and_unknown_paths(self):
         with tempfile.TemporaryDirectory() as tmp, tempfile.TemporaryDirectory() as outside:
             root = Path(tmp)

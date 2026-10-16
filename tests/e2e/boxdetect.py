@@ -33,10 +33,10 @@ def main():
     from playwright.sync_api import expect, sync_playwright
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dataset',required=True)
-    parser.add_argument('--train-dir',default=str(Path.home()/'omrs-train'))
-    parser.add_argument('--shots',default='/tmp/omrs-box-detect-real-shots')
+    parser.add_argument('--train-dir',required=True,help='冻结模型与训练材料副本，不读取本机默认目录')
+    parser.add_argument('--shots',default=os.environ.get('OMRS_E2E_SHOTS'))
     args=parser.parse_args()
-    dataset=Path(args.dataset);root=Path(args.train_dir);shots=Path(args.shots);shots.mkdir(parents=True,exist_ok=True)
+    dataset=Path(args.dataset);root=Path(args.train_dir);shots=Path(args.shots or tempfile.mkdtemp(prefix='omrs-box-detect-real-shots-'));shots.mkdir(parents=True,exist_ok=True)
     model=json.loads((root/'models/current/model.json').read_text())
     evaluation=json.loads((root/'runs'/model['run']/'eval.json').read_text())
     manifest=json.loads((dataset/'manifest.json').read_text())

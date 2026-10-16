@@ -14,6 +14,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
 from browser_runtime import launch_chromium, open_app
 
+SHOTS = os.environ.get('OMRS_E2E_SHOTS', tempfile.mkdtemp(prefix='omrs-extract-'))
+
 SERVER = r'''
 import http.server, sys, time
 from unittest.mock import patch
@@ -102,12 +104,12 @@ def run(page, base, results):
         results.append((name, bool(ok), ''))
 
     open_app(page, base, 'create')
-    check('录入页由 features/create 注册并显示六个工作区',
-          wait(page, "() => document.querySelectorAll('#create-flow button[data-ib-stage]').length === 6")
+    check('录入页由 features/create 注册并显示五个工作区',
+          wait(page, "() => document.querySelectorAll('#create-flow button[data-ib-stage]').length === 5")
           and page.locator('#create-flow [aria-current="step"]').count() == 1)
     check('工作区导航与上传区没有行内事件和样式',
           page.locator('#create-flow [onclick]').count() == 0
-          and page.locator('#create-flow button svg').count() == 3
+          and page.locator('#create-flow button svg').count() == 2
           and page.locator('#create-upload [onclick], #create-upload [style]').count() == 0)
     page.locator('#ib-file').set_input_files({'name': '说明.txt', 'mimeType': 'text/plain', 'buffer': b'not an image'})
     check('非图片文件在上传区就地提示', wait(page, "() => document.querySelector('#ib-up-status')?.textContent.includes('请选择图片文件')"))
@@ -216,7 +218,7 @@ def run(page, base, results):
         for label, width, height in (('desktop', 1440, 900), ('mobile', 390, 844)):
             page.set_viewport_size({'width': width, 'height': height})
             page.evaluate("theme => document.documentElement.dataset.theme = theme", theme)
-            page.screenshot(path=f'/tmp/omrs-extract-shots/{theme}-{label}.png', full_page=True)
+            page.screenshot(path=os.path.join(SHOTS, f'{theme}-{label}.png'), full_page=True)
             audit = page.evaluate(AUDIT_PROCESS, 40 if width == 390 else 28)
             check(f'提取结果审计 {label}·{theme}', not any(audit[k] for k in ('small', 'inline', 'handlers', 'over', 'overflow', 'tiny')))
     check('局部成功提示会自动隐藏', wait(page, "() => document.querySelector('#ib-ps-status')?.hidden", 5000))
@@ -563,14 +565,14 @@ def run_train(page, base, results):
     check('服务端拒绝重新启用模板提供方', rejected == 400)
     page.locator('#ib-pl-provider').select_option('local_http')
     check('选本地检测服务后显示地址输入', page.locator('#ib-pl-local-row').is_visible())
-    page.locator('#ib-pl-local').fill('http://127.0.0.1:8600/detect')
+    page.locator('#ib-pl-local').fill(base + '/detect')
     page.locator('#ib-pl-blind').fill('3')
     page.locator('#ib-pl-conf').fill('1.5')
     page.locator('label.ui-switch:has(#ib-pl-upload)').click()
     page.locator('[data-action="create.trainSave"]').click()
     check('保存策略就地提示成功', wait(page, "() => document.querySelector('#ib-pl-status')?.textContent.includes('已保存')"))
     config = page.evaluate("async () => (await fetch('/api/config')).json()")
-    check('策略写入配置并夹取阈值', config.get('inbox_detect_provider') == 'local_http' and config.get('inbox_local_detect_url') == 'http://127.0.0.1:8600/detect'
+    check('策略写入配置并夹取阈值', config.get('inbox_detect_provider') == 'local_http' and config.get('inbox_local_detect_url') == base + '/detect'
           and config.get('inbox_blind_every') == 3 and config.get('inbox_auto_ready_conf') == 1 and config.get('inbox_auto_on_upload') is True)
     page.evaluate("window.__omrs.router.go('settings'); window.__omrs.router.go('create')")
     check('返回训练工作区重读策略', wait(page, "() => document.querySelector('#ib-pl-provider')?.value === 'local_http' && document.querySelector('#ib-pl-blind')?.value === '3'"))

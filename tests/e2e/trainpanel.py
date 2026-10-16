@@ -66,7 +66,7 @@ def fake_service():
 def main():
     from playwright.sync_api import sync_playwright
     results=[]
-    shots=Path(os.environ.get('OMRS_SHOTS','/tmp/omrs-box-detect-panel-shots')); shots.mkdir(parents=True,exist_ok=True)
+    shots=Path(os.environ.get('OMRS_E2E_SHOTS') or os.environ.get('OMRS_SHOTS') or tempfile.mkdtemp(prefix='omrs-box-detect-panel-shots-')); shots.mkdir(parents=True,exist_ok=True)
     def check(name, ok, detail=''):
         results.append((name,bool(ok),detail)); print(('PASS ' if ok else 'FAIL ')+name,flush=True)
     with tempfile.TemporaryDirectory(prefix='omrs-trainpanel-e2e-') as temp:

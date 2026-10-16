@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import threading
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -19,7 +20,7 @@ def main():
         vault_path=vault
         def log_message(self,*args):pass
     server=OMRSTCPServer(('127.0.0.1',0),Handler);threading.Thread(target=server.serve_forever,daemon=True).start()
-    base=f'http://127.0.0.1:{server.server_address[1]}';shots=Path('/tmp/omrs-control-e2e');shots.mkdir(exist_ok=True)
+    base=f'http://127.0.0.1:{server.server_address[1]}';shots=Path(os.environ.get('OMRS_E2E_SHOTS') or tempfile.mkdtemp(prefix='omrs-control-e2e-'));shots.mkdir(parents=True,exist_ok=True)
     checks=[]
     try:
         with sync_playwright() as p:

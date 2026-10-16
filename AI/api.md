@@ -94,3 +94,7 @@ zuoyebang 用途单独支持 PNG/JPEG/WebP，完成时验证完整解码、8MiB�
 标记整理预览含定义操作的跨范围科目题数、目标名称及逐题实际 `after` 与未纳入的 `proposed_after`，供用户核对默认关闭的级联建议。查询与批次替换共用独立一致性锁，普通业务写锁仍不阻塞统计 GET。
 
 助手每对话权限通过 GET/POST `/api/agent/permission-mode` 查询与设置，手动移交通道为 POST `/api/agent/review/defer`；输入、响应及三模式执行规则见 `AI/agent.md` §3、§7，中心独立审批见 `AI/ai-review.md`。
+
+## 反馈与移动一致性
+
+正式Session反馈的事务回执、重复请求及历史修正边界见AI/api/mutations.md；移动复用分类校验和统一UID预留。请求拒绝不创建目标目录，不改变原题身份。

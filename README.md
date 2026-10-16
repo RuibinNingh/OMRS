@@ -380,3 +380,9 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 Windows的 `pack_for_ai.bat` 会包含同仓服务源码与AI/logs，排除服务私有目录、管理员密码、数据库、虚拟环境和缓存。设置页的脱敏导出另外排除AI/logs，包含指定作业帮／框选服务的公开源码及安装清单、明确登记的框选训练工具；不包含模型、数据集与控制状态，也不扫描任意 services／tools 子目录。分享前检查源码中没有手工写入的秘密。
 
 框选检测的 systemd 示例见 [deploy/boxdetect.service](deploy/boxdetect.service)。部署时明确使用同仓发布目录与受管 managed/active，保留既有模型、解释器、端口及限额；源码更新不会自动重启或切换生产服务。
+
+## 维护与脚本约定
+
+正式复习计划的同一条反馈重试只计分一次；即时练习提交期间暂锁判定和分数，失败后可继续修改重试。科目与分类不接受点开头的隐藏目录。CLI的sessions new按当前UID输出，参数错误、目标不存在或未执行导出返回非零码，正常操作返回0。
+
+生成的根OMRS-EXP-*.html和SOURCE_EXPORT_MANIFEST.txt不作为源码维护；忽略规则不删除本机已有文件。Windows AI包排除明确的私人／运行／生成物目录并保留AI/logs；脱敏源码包包含必要降级资产和可核实许可／来源元数据。

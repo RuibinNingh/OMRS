@@ -23,7 +23,7 @@
 
 ## 影响文件
 
-- 业务代码：`zyb_gateway/accounts.py`、`server.py`、`security.py`、`vendor/direct.py`、`vendor/account.py`、`assets/panel.js`。
+- 业务代码：`zyb_gateway/accounts.py`、`server.py`、`security.py`、`vendor/direct.py`、`vendor/account.py`、`zyb_gateway/assets/panel.js`。
 - 测试：新增 `tests/test_acceptance.py`；更新 `tests/browser_acceptance.py` 的终态断言与可配置证据目录，更新 `tests/test_cli.py` 的子进程读取。
 - 文档与来源：README、安全/API/vendor 文档、本文、`verification.md`、`vendor-manifest.json`；同步本轮截图、脱敏浏览器元数据和 `acceptance-2026-10-11/` 验证输出。
 
@@ -36,3 +36,6 @@
 真实官方账号/扫码、生产 HTTPS 反代及部署没有执行；未触碰 OMRS 真实题库或凭据。独立服务可供 OMRS 候选继续联调；OMRS 接入端需独立完成保存配置、连接测试、原图搜题、候选渲染、识别/核对和临时题库入库的浏览器主路径。未提交、推送或合入生产。
 
 开工前 `docs/tmpsretf1_c/private/` 已存在遗留私有文件，本轮未读取/删除。交付源码包必须排除 `.venv/`、缓存、build/dist、所有临时测试目录、`.state/` 与任何私有数据；不能直接无过滤打包整目录。此次新测试自己的临时数据均已删除。
+
+
+路径勘误（2026-10-16）：页面脚本的服务根相对路径为zyb_gateway/assets/panel.js；本勘误仅订正路径，不更改原验收结果。

@@ -58,7 +58,7 @@
 | POST | `/api/board/items/add` | `AI/api/boards.md`、`AI/board.md` |
 | POST | `/api/board/items/remove` | `AI/api/boards.md`、`AI/board.md` |
 | POST | `/api/board/move` | `AI/api/boards.md`、`AI/board.md`、`AI/changelog.md` |
-| POST | `/api/board/printed` | `AI/api/boards.md`、`AI/board.md`、`AI/export.md`等 |
+| POST | `/api/board/printed` | `AI/api/boards.md`、`AI/board.md`、`AI/data/storage.md`等 |
 | POST | `/api/board/printed/reset` | `AI/api/boards.md`、`AI/board.md` |
 | POST | `/api/board/update` | `AI/api/boards.md`、`AI/board.md`、`AI/frontend/board-ui.md` |
 | GET | `/api/boards` | `AI/api/extensions.md`、`AI/api/queries.md`、`AI/board.md`等 |
@@ -90,7 +90,7 @@
 | POST | `/api/history/session/restore` | `AI/api/mutations.md`、`AI/ledger.md` |
 | POST | `/api/history/session/retract` | `AI/api/mutations.md`、`AI/ledger.md` |
 | POST | `/api/history/state/restore` | `AI/api/mutations.md`、`AI/ledger.md` |
-| GET | `/api/image` | `AI/api/queries.md`、`AI/export.md`、`AI/frontend/library.md`等 |
+| GET | `/api/image` | `AI/api/queries.md`、`AI/data/storage.md`、`AI/export.md`等 |
 | POST | `/api/inbox/cleanup` | `AI/inbox.md` |
 | POST | `/api/inbox/commit` | `AI/frontend/create.md`、`AI/inbox.md` |
 | POST | `/api/inbox/crops` | `AI/inbox.md` |
@@ -139,7 +139,7 @@
 | GET | `/api/recommend` | `AI/algorithm.md`、`AI/api/queries.md`、`AI/changelog.md`等 |
 | POST | `/api/report/create` | `AI/api/boards.md`、`AI/frontend/records.md` |
 | POST | `/api/report/delete` | `AI/api/boards.md`、`AI/frontend/records.md` |
-| GET | `/api/report/view` | `AI/api/queries.md`、`AI/frontend/records.md` |
+| GET | `/api/report/view` | `AI/api/queries.md`、`AI/data/storage.md`、`AI/frontend/records.md` |
 | GET | `/api/reports` | `AI/api/queries.md`、`AI/frontend/records.md` |
 | POST | `/api/restart` | `AI/api/mutations.md`、`AI/environment.md`、`AI/frontend/settings.md` |
 | GET | `/api/runtime/records` | `AI/api/queries.md`、`AI/frontend/records.md` |
@@ -165,7 +165,7 @@
 | GET | `/api/trainpanel/reviews` | `AI/api/extensions.md` |
 | GET | `/api/trainpanel/run` | `AI/api/extensions.md` |
 | GET | `/api/trainpanel/service` | `AI/api/extensions.md` |
-| POST | `/api/trainpanel/try` | `AI/api/extensions.md` |
+| POST | `/api/trainpanel/try` | `AI/api/extensions.md`、`AI/training/README.md` |
 | GET | `/api/tree` | `AI/api/queries.md`、`AI/changelog.md`、`AI/frontend/dashboard.md` |
 | POST | `/api/uploads/chunk` | `AI/api.md` |
 | POST | `/api/uploads/complete` | `AI/api.md` |

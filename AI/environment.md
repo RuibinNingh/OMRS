@@ -275,3 +275,9 @@ MCP 扩展闭环由 tests/e2e/mcp_expansion.py 启动真实临时 Web/MCP 服务
 ## 公式定界符隔离验证
 
 公式定界符回归使用 `tests/fixtures/math_delimiters.json` 的合成答案与边界案例，前后端共用。`env -u OMRS_SYSTEMD_SERVICE -u OMRS_BOXDETECT_CONTROL python3 tests/e2e/math_delimiters.py` 自建临时 Vault 与随机 Web/MCP 端口，实际走官方 SDK、审核入库、题库旧正文兼容及三种离线导出；浅深色桌面 / 手机截图与 HTML、checks.json 保存在唯一临时目录，不接生产或真实模型。
+
+## 门禁入口与隔离
+
+tests/run_gates.py显式包含services组（两服务单测和网关浏览器），E2E跳过纸面辅助模块，网关联调分别传独立--out并执行直连／前缀。退出0但打印SKIP或有跳过用例时状态为skipped，整组不能计通过；空筛选直接退出2，不生成成功报告。摄像头专项单独启动Chromium，不继承共享CDP地址，其余子进程保留浏览器配置。安装包真实推理和冻结检测材料仍需显式提供；--dataset必须同时传--train-dir，检测入口也拒绝默认训练目录。
+
+合成Vault夹具及视觉每一侧显式设置空train_dir并清空既有检测地址；录入策略测试只指向自身随机端口，不能探测8600等固定服务。草稿／录入／审核截图使用独立目录或OMRS_E2E_SHOTS；统一门禁为每项设置独立产物目录。门禁递归扫描AI分册及服务／工具文档，file::symbol引用先检查真实文件。

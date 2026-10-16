@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 
@@ -32,7 +33,7 @@ def main():
         if not ok:raise AssertionError(name)
         checks.append(name)
     server=MCPServerProcess()
-    shots=Path('/tmp/omrs-label-plan-shots');shots.mkdir(exist_ok=True)
+    shots=Path(os.environ.get('OMRS_E2E_SHOTS') or tempfile.mkdtemp(prefix='omrs-label-plan-shots-'));shots.mkdir(parents=True,exist_ok=True)
     try:
         qs=[create_question(server.vault,'数学','整理',5,question_text=f'第{i+1}题：用配方法解 $x^2-2x=0$。',answer_text='配方得 $(x-1)^2=1$。') for i in range(300)]
         labels={name:save_label(server.vault,name=name) for name in ['旧方法','目标方法','移除标记','重命名']}

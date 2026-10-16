@@ -21,6 +21,7 @@ import time
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "tests"))
 from browser_runtime import launch_chromium
 
@@ -292,6 +293,8 @@ def main(argv=None):
         for side, tree in sides:
             vault = os.path.join(out, f"vault-{side}")
             shutil.copytree(fixture, vault)
+            from omrs.common import save_config
+            save_config(vault, {"train_dir": os.path.join(vault, ".omrs-test-training"), "inbox_local_detect_url": ""})
             proc, port = start_server(tree, vault, os.path.join(out, "logs", f"{side}.log"))
             procs.append(proc)
             audit[side] = shoot(side, port, args, out, frozen_ms)

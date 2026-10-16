@@ -23,7 +23,7 @@ from omrs.mcp.question_write import propose
 spec = importlib.util.spec_from_file_location('review_support', ROOT / 'tests/e2e/drafts.py')
 support = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(support)
-SHOTS = Path('/tmp/omrs-ai-review-shots')
+SHOTS = Path(os.environ.get('OMRS_E2E_SHOTS') or tempfile.mkdtemp(prefix='omrs-ai-review-'))
 
 
 def seed(vault):
@@ -213,7 +213,7 @@ def main():
                 maintenance_page.locator('dialog[open] [data-dialog-ok]').click()
                 check('空待审队列仍可执行草稿资源清理', support.wait(maintenance_page, "() => [...document.querySelectorAll('.ui-toast')].some(el => el.textContent.includes('已清理'))"))
                 maintenance_page.close()
-                SHOTS.mkdir(exist_ok=True)
+                SHOTS.mkdir(parents=True, exist_ok=True)
                 for theme in ('light', 'dark'):
                     for width in (320, 390, 1024, 1440):
                         audit_ctx = browser.new_context(viewport={'width': width, 'height': 844 if width < 760 else 900})

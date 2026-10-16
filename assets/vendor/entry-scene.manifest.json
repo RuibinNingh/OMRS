@@ -1,0 +1,27 @@
+{
+  "files": {
+    "entry-scene.js": "574b1ea9eab0559672e0a66c4b8711893ca6ae446d155cdad61c78c333ccdb1f",
+    "entry-math-atlas.svg": "b0b91e68186c0d2c86d42295682f2e48f19695ca4a4a6aac93abf261e4405382",
+    "entry-fallback.webp": "0fc0a390d99a27d4108a52fa4826b6062444e3f5c3ecc296f68ed26acf80779f",
+    "entry-scene-THREE-LICENSE": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
+  },
+  "repository_origin": {
+    "commit": "1f88c781ddf71eb85fe7048d622da83de559a2a0",
+    "date": "2026-09-30",
+    "recorded_description": "Gravity Journey 参考站场景；历史提交及任务记录未给出可核实的上游URL与独立场景许可。"
+  },
+  "third_party_components": [
+    {
+      "name": "three",
+      "version": "0.184.0",
+      "evidence": "entry-scene.js 内嵌 __THREE_DEVTOOLS__ register revision:184",
+      "source": "https://registry.npmjs.org/three/-/three-0.184.0.tgz",
+      "source_sha256": "5c8c75278504ff31cedcd736e043b06c18f2cbf220ad7f85fbfaa1a08d3b3626",
+      "license": "MIT",
+      "license_file": "entry-scene-THREE-LICENSE",
+      "verification": "完整许可来自固定官方npm包；只核实内嵌版本标记，未声明整个混合压缩bundle与上游源码逐字节一致。"
+    }
+  ],
+  "reference_scene_authorization": "unconfirmed",
+  "scope_note": "Three.js MIT 许可不自动覆盖独立场景代码、公式atlas或降级图片；这些参考站资源的确切来源和授权尚未确认。"
+}

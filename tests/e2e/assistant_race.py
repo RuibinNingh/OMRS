@@ -4,6 +4,7 @@ import shutil
 import urllib.request
 
 from assistant import api, make_vault, start
+from e2e_navigation import ensure_assistant_rail
 from browser_runtime import launch_chromium
 from fixtures.make_vault import free_port
 
@@ -28,6 +29,7 @@ def main():
             browser = launch_chromium(playwright)
             page = browser.new_page()
             page.goto(base + '/#/assistant', wait_until='networkidle')
+            ensure_assistant_rail(page, f'.ast-conv[data-arg="{second}"].is-active')
             page.wait_for_selector(f'.ast-conv[data-arg="{second}"].is-active')
             page.evaluate("""first => {
               const original = window.fetch.bind(window);
@@ -44,9 +46,12 @@ def main():
                 return response;
               };
             }""", first)
+            ensure_assistant_rail(page, f'.ast-conv[data-arg="{first}"]')
             page.click(f'.ast-conv[data-arg="{first}"]')
             page.wait_for_function('window.__conversationHeld')
+            ensure_assistant_rail(page, f'.ast-conv[data-arg="{second}"]')
             page.click(f'.ast-conv[data-arg="{second}"]')
+            ensure_assistant_rail(page, f'.ast-conv[data-arg="{second}"].is-active')
             page.wait_for_selector(f'.ast-conv[data-arg="{second}"].is-active')
             page.evaluate('window.__releaseConversation()')
             page.wait_for_timeout(100)
@@ -73,14 +78,18 @@ def main():
                 return response;
               };
             }""")
+            ensure_assistant_rail(page, f'.ast-conv[data-arg="{first}"]')
             page.click(f'.ast-conv[data-arg="{first}"]')
+            ensure_assistant_rail(page, f'.ast-conv[data-arg="{first}"].is-active')
             page.wait_for_selector(f'.ast-conv[data-arg="{first}"].is-active')
             page.fill('#ast-input', '最近哪块最弱？')
             page.press('#ast-input', 'Enter')
             page.wait_for_function('window.__heldRuns.length >= 1')
             page.wait_for_function("async () => (await (await fetch('/api/agent/status')).json()).active.length === 0",
                                    timeout=30000)
+            ensure_assistant_rail(page, f'.ast-conv[data-arg="{second}"]')
             page.click(f'.ast-conv[data-arg="{second}"]')
+            ensure_assistant_rail(page, f'.ast-conv[data-arg="{second}"].is-active')
             page.wait_for_selector(f'.ast-conv[data-arg="{second}"].is-active')
             page.fill('#ast-input', '找一下和周期有关的题')
             for _ in range(30):

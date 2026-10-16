@@ -48,7 +48,8 @@ def main():
     support.FAUX = str(faux)
     proc = support.start(vault, port)
     base = f'http://127.0.0.1:{port}'
-    shots = Path(os.environ.get('OMRS_REVIEW_SHOTS', '/tmp/omrs-chat-review-shots'))
+    shots = Path(os.environ.get('OMRS_E2E_SHOTS') or os.environ.get('OMRS_REVIEW_SHOTS')
+                 or tempfile.mkdtemp(prefix='omrs-chat-review-shots-'))
     shots.mkdir(parents=True, exist_ok=True)
     try:
         with sync_playwright() as playwright:

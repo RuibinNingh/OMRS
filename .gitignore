@@ -35,3 +35,10 @@ desktop.ini
 #我的工作任务文件夹
 /Task/
 /tool/
+
+# 根目录题目导出与源码包生成清单（保留现有磁盘文件）
+/OMRS-EXP-*.html
+/SOURCE_EXPORT_MANIFEST.txt
+
+# 旧服务浏览器产物；不是可删除的 Python 环境
+/.venv/omrs-service-e2e/

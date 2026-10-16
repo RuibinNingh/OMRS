@@ -74,7 +74,8 @@ main()
         print(('PASS ' if passed else 'FAIL ')+name+(f'：{detail}' if detail else ''), flush=True)
         if not passed:
             raise AssertionError(name)
-    shots = Path(os.environ.get('OMRS_PERMISSION_SHOTS', '/tmp/omrs-permission-shots'))
+    shots = Path(os.environ.get('OMRS_E2E_SHOTS') or os.environ.get('OMRS_PERMISSION_SHOTS')
+                 or tempfile.mkdtemp(prefix='omrs-permission-shots-'))
     shots.mkdir(parents=True, exist_ok=True)
     try:
         with sync_playwright() as playwright:

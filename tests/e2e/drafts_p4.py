@@ -12,12 +12,13 @@ import traceback
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, 'tests'))
+from e2e_navigation import open_drafts
 from browser_runtime import launch_chromium
 from omrs import drafts as store
 from omrs.common import save_config
 import drafts as support
 
-SHOTS = '/tmp/omrs-ai-draft-p4-shots'
+SHOTS = os.environ.get('OMRS_E2E_SHOTS', tempfile.mkdtemp(prefix='omrs-ai-draft-p4-'))
 SERVER = r'''
 import http.server, sys, time
 from pathlib import Path
@@ -62,7 +63,7 @@ def seed(vault):
             'source_images': [source['sha256']], 'blocks': [block]},
             {'conversation_id': conv, 'run_id': 'p4-run', 'tool_call_id': f'tool-{name}'})
     save_config(vault, {'draft_force_crop': False, 'inbox_detect_provider': 'local_http',
-                        'inbox_local_detect_url': 'http://127.0.0.1:9/detect'})
+                        'inbox_local_detect_url': ''})
     old = create('旧文字', image(111), 'text')
     save_config(vault, {'draft_force_crop': True})
     applied = create('自动填框', image(112))
@@ -88,6 +89,7 @@ def main():
                        check=True, stdout=subprocess.DEVNULL)
         records = seed(vault)
         sock = socket.socket(); sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]; sock.close()
+        save_config(vault, {'inbox_local_detect_url': f'http://127.0.0.1:{port}/detect'})
         env = os.environ.copy(); env.pop('OMRS_SYSTEMD_SERVICE', None)
         proc = subprocess.Popen([sys.executable, '-c', SERVER, vault, str(port)], cwd=ROOT, env=env,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -125,7 +127,7 @@ def main():
                         if '[events]' in message.text or '[router]' in message.text else None)
                 try:
                     page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
-                    page.locator('#create-flow [data-ib-stage="drafts"]').click()
+                    open_drafts(page)
                     counts_equal = """() => {
                       const side = document.querySelector('#nav-review-count');
                       const top = document.querySelector('[data-action="ai-review.view"][data-arg="pending"]');
@@ -222,7 +224,7 @@ def main():
                     page.evaluate("() => window.__omrs.router.go('create')")
                     page.locator('#create-flow [data-ib-stage="train"]').click()
                     check('AI 训练页显示聊天来源统计', support.wait(page, "() => document.querySelector('#ib-tr-chat')?.textContent.includes('聊天来源图 1 张')", 15000))
-                    page.locator('#create-flow [data-ib-stage="drafts"]').click()
+                    open_drafts(page)
                     open_draft(page, 'old')
                     check('普通旧文字草稿不显示强制任务提示', not item('old')['training_tasks'][0]['force_crop']
                           and '独立训练框待核对' not in page.locator('.drf-sources').inner_text())
@@ -240,7 +242,7 @@ def main():
                 touch_page = touch_context.new_page()
                 try:
                     touch_page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
-                    touch_page.locator('#create-flow [data-ib-stage="drafts"]').click()
+                    open_drafts(touch_page)
                     open_draft(touch_page, 'touch')
                     stage = touch_page.locator('#drf-stage-img'); stage.scroll_into_view_if_needed(); bounds = stage.bounding_box()
                     x0, y0 = bounds['x'] + bounds['width'] * .15, bounds['y'] + bounds['height'] * .2
@@ -267,7 +269,7 @@ def main():
                         audit_page.on('pageerror', lambda error: audit_errors.append(str(error)))
                         try:
                             audit_page.goto(base + '/?unlocked=1#/create', wait_until='networkidle')
-                            audit_page.locator('#create-flow [data-ib-stage="drafts"]').click()
+                            open_drafts(audit_page)
                             open_draft(audit_page, 'force')
                             support.wait(audit_page, counts_equal)
                             audit_page.locator('[data-action="ai-review.draftCanvasMode"][data-arg="training"]').click()

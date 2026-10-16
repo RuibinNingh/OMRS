@@ -15,7 +15,7 @@ from browser_runtime import launch_chromium
 from omrs import drafts as store
 import drafts as support
 
-SHOTS = Path('/tmp/omrs-ai-draft-blocks-shots')
+SHOTS = Path(os.environ.get('OMRS_E2E_SHOTS') or tempfile.mkdtemp(prefix='omrs-ai-draft-blocks-shots-'))
 
 
 def seed(vault):
@@ -203,7 +203,7 @@ def audit(browser, base, mobile, check):
 def main():
     from playwright.sync_api import sync_playwright
     results = []
-    SHOTS.mkdir(exist_ok=True)
+    SHOTS.mkdir(parents=True, exist_ok=True)
     def check(name, passed, detail=''):
         results.append((name, bool(passed), detail))
         if not passed:

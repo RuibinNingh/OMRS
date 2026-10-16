@@ -28,8 +28,9 @@ echo.
 
 rem Keep AI\logs in the package: it is part of the AI collaboration context.
 robocopy "%ROOT%" "%STAGE%" /E /R:1 /W:1 ^
-  /XD ".git" ".git-history-backup*" ".playwright-mcp" "__pycache__" ".pytest_cache" "omrs_work" "_ai_packages" ".venv" ".state" "private" "isolated-test-*" "tmp*" ^
-  /XF "*.pyc" "*.pyo" "*.pyd" "*.log" "*.tmp" "*.zip" "admin-secret.txt" "*.sqlite3" "*.db" "Thumbs.db" "desktop.ini" >nul
+  /XD ".git" ".git-history-backup*" ".playwright-mcp" "__pycache__" ".pytest_cache" "omrs_work" "_ai_packages" ".venv" ".state" "private" "isolated-test-*" "tmp*" ".omrs-maintenance" ".omrs" ^
+  "%ROOT%\错题" "%ROOT%\临时" "%ROOT%\Task" "%ROOT%\tool" "%ROOT%\unused" "%ROOT%\logs" ^
+  /XF "*.pyc" "*.pyo" "*.pyd" "*.log" "*.tmp" "*.zip" "admin-secret.txt" "*.sqlite3" "*.db" "Thumbs.db" "desktop.ini" "OMRS-EXP-*.html" "SOURCE_EXPORT_MANIFEST.txt" >nul
 
 if errorlevel 8 (
   echo.
@@ -37,9 +38,6 @@ if errorlevel 8 (
   rmdir /s /q "%STAGE%" >nul 2>nul
   exit /b 1
 )
-
-rem Remove excluded folders from staging
-if exist "%STAGE%\错题" rmdir /s /q "%STAGE%\错题"
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
   "$stage = $env:STAGE; $zip = $env:ZIP_FILE; Add-Type -AssemblyName System.IO.Compression.FileSystem; if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory($stage, $zip, [System.IO.Compression.CompressionLevel]::Optimal, $false)"

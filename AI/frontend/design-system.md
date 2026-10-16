@@ -107,3 +107,7 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 对话内操作卡的 ast-op 样式位于 assistant-run.css，沿用 surface、border、语义状态色、字号和间距 token；只保留一层表面，状态与操作按钮分层。审核详情复用共享 drawer，桌面最大宽860px，手机铺满可见视口；正文内部滚动，不向 DOM 写行内样式。
 
 助手权限入口和菜单沿用共享 ui-btn/ui-menu，样式在 assistant-permissions.css。危险使用 danger-fg/danger-soft；手机入口至少44px，菜单在可见视口内布局，模式说明不向 DOM 写行内样式。
+
+## 本地资源元数据
+
+KaTeX固定版本的来源、62项哈希与完整MIT见assets/vendor/katex/manifest.json及LICENSE；入口场景内嵌Three的可核实许可独立保留。场景、公式图集和降级图的独立来源／授权未确认部分见assets/vendor/entry-scene.NOTICE.md，不以Three许可推定整体授权，运行资源字节保持。
