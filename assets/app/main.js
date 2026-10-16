@@ -13,6 +13,7 @@ import { page as historyPage } from './features/history/index.js';
 import { page as catalogPage } from './features/catalog/index.js';
 import { page as reportsPage } from './features/reports/index.js';
 import { page as settingsPage } from './features/settings/index.js';
+import { page as zuoyebangPage } from './features/zuoyebang/index.js';
 import { page as createPage } from './features/create/index.js';
 import { page as boardPage } from './features/board/index.js';
 import { page as assistantPage, syncAssistantNav } from './features/assistant/index.js';
@@ -34,7 +35,7 @@ bindQuestionDom(document);
 installBoardWindow(window);
 void startActivityTracking(document);
 const pages = [dashboardPage, dataPage, schedulePage, historyPage, catalogPage, reportsPage,
-  reviewPage, settingsPage, createPage, boardPage, questionsPage, instantPage, feedbackPage, assistantPage];
+  reviewPage, settingsPage, createPage, zuoyebangPage, boardPage, questionsPage, instantPage, feedbackPage, assistantPage];
 const { router, bus } = startShell(window, pages);
 connectDrafts({ bus, router, document, window });
 connectReview({ bus, router, document, window });

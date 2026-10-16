@@ -144,9 +144,13 @@ P4 分类和草稿修订路径使用独立的 `tests/fixtures/agent_p4_faux.json
 
 ## 作业帮隔离验收
 
-作业帮验收使用 `tests/test_zuoyebang.py`、`tests/test_zuoyebang_render.py` 和 `tests/e2e/zuoyebang.py`；可选依赖见 `requirements-zuoyebang.txt`，渲染须另安装 Playwright Chromium。正文夹具来自附件三道化学题的题干/答案，独立回归覆盖pid、域/IP限制、旧公式及MathJax3。专项E2E自建临时Vault和随机端口，去掉生产控制环境，仅替换作业帮及AI网络边界；真实执行HTTP上传、账号协议、本地二维码、后端Chromium、文件创建与Ledger，并覆盖账号菜单与440px预览/左侧弹性布局。摄像头使用浏览器fake-device的真实MediaStream，不能替代实体手机权限和设备验收。视觉比较可用 `python3 tests/visual/run.py --ref HEAD --pages create --create-stage zuoyebang`；有生成题图的八档截图由专项E2E保存。
+作业帮隔离门禁包括 `tests/test_zuoyebang.py`、`tests/test_zuoyebang_render.py`、`tests/test_zuoyebang_geometry.py` 与服务测试。使用安装了requirements-zuoyebang.txt的解释器，另安装Playwright Chromium；本机通用python可能缺少Segno，需选现有完整依赖环境。网关测试在services/zuoyebang运行 `python -m unittest discover -s tests -t . -q`，不能省略包根-t。
 
-专项产物包含真实1080长答案及末尾、八档页面截图、创建的合成 Markdown 和 checks.json；`OMRS_ZYB_SHOTS` 可指定产物目录。既有录入页用 `tests/visual/run.py --ref <基线> --pages create` 做前后比较，新工作区用专项八档审计。多块草稿 E2E 从审核中心入口进入，保留菜单、编辑、图文创建和窄屏回归。
+`tests/e2e/zuoyebang.py`自建临时Vault、随机端口，清除生产控制环境，只替换作业帮／AI网络边界；真实执行HTTP、上传、Chromium、图片及合成题目创建。`zuoyebang_paper.py`是其题框专项：原图字节、分组、选框、移动／缩放、刷新、缓存离页、裁图入库及重复回执。摄像头使用fake-device的真实MediaStream，不能替代实体手机验收；专项应使用独立Chromium，不沿用缺少模拟媒体参数的共享CDP。
+
+`OMRS_ZYB_SHOTS`指定截图与checks.json目录，包含1080长答案、八档320/390/1024/1440px浅深主题、裁图入库页及合成Markdown。视觉比较用 `python3 tests/visual/run.py --ref <基线> --pages create --create-stage zuoyebang`，脚本对旧源码进入原工作区，对新源码进入独立路由；普通录入页另用 `--pages create` 比较。页面缺少有效题框时保留候选，不用生成的框代替真实接口证据。
+
+两进程验收用 `tests/e2e/zuoyebang_gateway_integration.py --with-prefix --out <临时目录>`，验证实际网关签名／坐标解码、反代前缀和原图传输；`tests/e2e/zuoyebang_service.py`验证服务切换与失败后的观察归属。均使用临时私有数据，无真实官方搜题和付费模型调用。
 
 ## 5. 已知坑
 

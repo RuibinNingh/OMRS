@@ -38,7 +38,7 @@ R01–R17来源于2026-10-16全面检查，原始复现与覆盖范围见`AI/pla
 - [x] **R04｜移动避让预留UID。** 移动持storage_write锁并复用creation统一分配，保留草稿操作预留，失败重试不再被移动抢占。
 - [x] **R05｜提交中的练习值锁定。** UI控件与状态入口同时拒绝编辑，失败解锁；真实浏览器慢请求及失败重试确认页面与历史一致。
 - [x] **R06｜旧详情响应隔离。** 失效使pending token失效，旧响应不回填且旧finally不删除新请求；Node竞争回归及真实Markdown保存／重挂载通过。
-- [x] **R07｜作业帮标记契约修正。** 使用`openCreateLabelPicker(anchor,{get,onSave})`，浏览器验证选择、刷新恢复及正式入库标记；原有未跟踪源码只保留最小维护补丁。
+- [x] **R07｜作业帮标记契约修正。** 使用`openCreateLabelPicker(anchor,{get,onSave})`，浏览器验证选择、刷新恢复及正式入库标记；两行维护修复随作业帮完整源码维护，历史最小补丁保留作恢复材料。
 - [x] **R08｜选板锚点与快捷参数修正。** 使用`boardQuickAdd(uid,{anchor,direct})`，普通浮层定位与Shift最近使用板均经浏览器验证。
 - [x] **R09｜局域网HTTP安全随机ID。** 共用getRandomValues生成16字节ID，练习、训练控制与标签撤销复用；非localhost普通HTTP经PIN登录后两分支均发送请求，控制POST仅用合成回执。
 - [x] **R10｜Windows打包边界。** robocopy复制前排除私有目录、维护目录与生成导出，保留AI/logs。合成标记规则测试通过；未在Windows执行批处理。

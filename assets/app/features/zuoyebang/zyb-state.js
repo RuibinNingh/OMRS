@@ -2,10 +2,43 @@
 export const ROLES = ['question', 'answer'];
 export function newZybState() {
   return { session: null, sessionError: '', accountPanel: '', camera: { on: false, pending: false, message: '摄像头未开启' },
-    sourceMode: 'camera', file: null, fileUrl: '', search: null, selected: null, render: null, role: 'question', zoom: 'fit', showHtml: false,
+    sourceMode: 'upload', file: null, fileUrl: '', search: null, selected: null, region: null, render: null, role: 'question', zoom: 'fit', showHtml: false,
+    boxes: {}, showBoxes: true, adjusting: false, drafts: {}, renderIds: {}, savedLocations: {},
     sections: { question: { mode: 'image', text: '', reason: '尚未识别，按完整图片保存' }, answer: { mode: 'image', text: '', reason: '尚未识别，按完整图片保存' } },
     versions: { question: 0, answer: 0 }, form: { subject: '', category: '', difficulty: '5', related: '', cause: '' },
     labels: [], busy: '', job: null, message: '', error: false, history: [], result: null, qr: null, dirty: false };
+}
+export function searchRegions(state) {
+  if (state.search?.regions?.length) return state.search.regions;
+  const groups = new Map();
+  for (const candidate of state.search?.candidates || []) {
+    const index = Number(candidate.location) || 0;
+    if (!groups.has(index)) groups.set(index, { index, candidate_indices: [] });
+    groups.get(index).candidate_indices.push(candidate.index);
+  }
+  return [...groups.values()];
+}
+export const regionBounds = (state, index = state.region) => state.boxes[index] || searchRegions(state).find(row => row.index === index)?.bounds;
+export const candidateKey = (state, index = state.selected) => `${state.search?.id}:${index == null ? `source-${state.region}` : index}`;
+export function stashCard(state) {
+  if (!state.render) return;
+  state.drafts[state.render.id] = structuredClone({ form: state.form, labels: state.labels, sections: state.sections, versions: state.versions, dirty: state.dirty });
+}
+export function bindCard(state, record) {
+  bindRender(state, record);
+  const saved = state.drafts[record.id];
+  if (saved && !state.result) Object.assign(state, structuredClone(saved));
+  if (state.search?.id === record.search_id) {
+    state.renderIds[candidateKey(state, record.candidate?.index)] = record.id;
+    if (state.result && Number.isInteger(record.candidate?.location)) state.savedLocations[record.candidate.location] = state.result.uid;
+  }
+}
+export function bindSearch(state, record) {
+  const same = record && state.search?.id === record.id;
+  state.search = record; state.region = searchRegions(state)[0]?.index ?? null;
+  state.selected = null; state.render = null; state.result = null; state.dirty = false;
+  if (!same) { state.boxes = {}; state.renderIds = {}; state.savedLocations = {}; state.drafts = {}; }
+  state.adjusting = false;
 }
 export function bindRender(state, record) {
   state.render = record;

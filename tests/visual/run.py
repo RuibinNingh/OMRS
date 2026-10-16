@@ -68,6 +68,7 @@ def start_server(tree, vault, log_path):
     log = open(log_path, "w")
     env = dict(os.environ)
     env.pop("OMRS_SYSTEMD_SERVICE", None)
+    env.pop("OMRS_BOXDETECT_CONTROL", None)
     env["OMRS_AGENT_FAUX_SCRIPT"] = os.path.join(tree, "tests", "fixtures", "agent_faux.json")
     proc = subprocess.Popen([sys.executable, os.path.join(tree, "omrs_engine.py"), "--vault", vault, "serve", "-p", str(port)],
                             cwd=tree, env=env, stdin=subprocess.DEVNULL, stdout=log, stderr=log)
@@ -116,7 +117,10 @@ def shoot(side, port, args, out, frozen_ms):
                         page.evaluate("n => window.__omrs.router.go(n)", name)
                     page.wait_for_load_state("networkidle")
                     if name == "create" and args.create_stage:
-                        page.locator(f'#create-flow [data-ib-stage="{args.create_stage}"]').click()
+                        if args.create_stage == 'zuoyebang' and page.locator('#panel-zuoyebang').count():
+                            page.evaluate("() => window.__omrs.router.go('zuoyebang')")
+                        else:
+                            page.locator(f'#create-flow [data-ib-stage="{args.create_stage}"]').click()
                         page.wait_for_load_state("networkidle")
                     if name == "settings" and args.settings_section:
                         page.locator(f'[data-st-section="{args.settings_section}"]').click()

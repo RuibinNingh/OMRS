@@ -19,7 +19,7 @@
 | 题目、反馈、配置、认证与备份写入 | `AI/api/mutations.md` |
 | 调度、导出与展示板 | `AI/api/boards.md` |
 | 收件箱、草稿、标注、训练与 MCP | `AI/api/extensions.md` |
-| 作业帮网关配置、搜题、完整长图与录入 | `AI/zuoyebang.md`、`AI/zuoyebang-service.md` |
+| 作业帮网关配置、原图／题框、搜题、完整长图与录入 | `AI/zuoyebang.md`、`AI/zuoyebang-service.md` |
 | 全库备份、恢复协议与回退 | `AI/backup.md` |
 | 内置助手、持久事件与分页 | `AI/agent.md` |
 

@@ -95,8 +95,7 @@ def main():
                         page.screenshot(path=str(output / f'service-{theme}-{width}.png'), full_page=True, animations='disabled')
                 page.set_viewport_size({'width': 1440, 'height': 1000})
                 page.locator('#st-tab-appearance').click()
-                page.evaluate('window.__omrs.router.go("create")')
-                page.locator('[data-action="create.stage"][data-arg="zuoyebang"]').click()
+                page.evaluate('window.__omrs.router.go("zuoyebang")')
                 try:
                     page.get_by_role('button', name='作业帮服务 · 已连接', exact=True).wait_for(timeout=8000)
                 except Exception:
@@ -104,9 +103,9 @@ def main():
                           'status', context.request.get(base + '/api/zuoyebang/status').json(), flush=True)
                     raise
                 page.get_by_role('button', name='作业帮服务 · 已连接', exact=True).click()
-                check('录入服务菜单不再导入/扫码管理账号', page.locator('#zyb-profile, [data-action="create.zybLogin"]').count() == 0)
+                check('录入服务菜单不再导入/扫码管理账号', page.locator('#zyb-profile, [data-action="zuoyebang.zybLogin"]').count() == 0)
                 gateway.responses['/api/v1/status'] = 401, {'status': 'error', 'msg': KEY}, {}
-                page.evaluate('window.__omrs.router.go("questions"); window.__omrs.router.go("create")')
+                page.evaluate('window.__omrs.router.go("questions"); window.__omrs.router.go("zuoyebang")')
                 page.get_by_role('button', name='作业帮服务 · 连接失败', exact=True).wait_for(timeout=8000)
                 page.get_by_role('button', name='作业帮服务 · 连接失败', exact=True).click()
                 check('同一配置连接失败保留此前观察且不宣称账号过期', '账号：有效；签名：有效' in page.locator('#zyb-account-panel').inner_text() and '账号：已过期' not in page.locator('#zyb-account-panel').inner_text())
@@ -116,10 +115,11 @@ def main():
                 check('录入入口直达作业帮设置分区', page.locator('#st-tab-zuoyebang').get_attribute('aria-selected') == 'true')
                 page.fill('#st-zyb-key', 'synthetic-replacement-key')
                 page.locator('[data-action="settings.zybSave"]').click(); wait(page, '已保存')
-                page.evaluate('window.__omrs.router.go("create")')
+                page.evaluate('window.__omrs.router.go("zuoyebang")')
                 page.get_by_role('button', name='作业帮服务 · 连接失败', exact=True).wait_for(timeout=8000)
                 page.get_by_role('button', name='作业帮服务 · 连接失败', exact=True).click()
                 check('切换服务配置后连接失败不沿用旧网关账号观察', '账号：未知；签名：未知' in page.locator('#zyb-account-panel').inner_text())
+                page.get_by_role('button', name='摄像头', exact=True).click()
                 check('切换配置后连接失败仍可独立本地取图', page.get_by_role('button', name='打开摄像头', exact=True).is_enabled())
                 page.get_by_role('button', name='上传图片', exact=True).click()
                 calls_before = len(gateway.calls)

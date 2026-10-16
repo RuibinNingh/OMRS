@@ -34,7 +34,7 @@ assets/app/
 
 ## 3. 路由与页面契约
 
-录入页的作业帮账号浮层由features/create/zyb-account.js负责挂载期监听与离页清理，通过页面actions委托切换菜单/记录；页面不加载后端MathJax引擎。tests/e2e/zuoyebang.py在隔离实例验证来源、渲染、识别、刷新、核对创建和账号焦点，并检查工作区占满可用宽度、右预览440px及左侧弹性布局；前端流程见create.md。独立网关设置与录入状态共用domain/zuoyebang-service.js的非敏感服务身份比较；设置保存经zuoyebang:service-changed总线通知，面板链接不携带Key。真实双项目验收脚本为 `tests/e2e/zuoyebang_gateway_integration.py`，它只替换官方网络边界，验证实际网关面板密钥、OMRS上传/渲染/核对创建与吊销。
+独立作业帮页由 `features/zuoyebang/index.js` 注册 `zuoyebang` 路由，状态、服务菜单和摄像头在同一feature挂载／清理；页面不加载后端MathJax。原图画布复用 `domain/image-crop/`，分类建议与合并复用 `domain/create-form.js`，禁止跨feature导入。真实浏览器验证左右工作台、题框交互、完整渲染与恢复，流程见 `AI/frontend/zuoyebang.md`。双项目验收 `tests/e2e/zuoyebang_gateway_integration.py` 仅替换官方网络边界，验证实际网关密钥、签名解码、原图传输、题框、核对创建与吊销。
 
 - 地址形如 `#/questions`，也支持 `#/instant?practice=<card_id>&attempt=<attempt_id>`。路由用问号前的页面 ID 匹配页面，并保留查询串供页面挂载时读取；同一页面的查询串改变先经过未保存守卫，再重新挂载。`replaceQuery(query)` 供页面已通过自身选择守卫后同步当前目标地址，不重新挂载编辑器。`router.go(id)` 无异步守卫时同步切页并 `pushState` 一条历史；未登记的 id 落到仪表盘；地址无效时改写成 `#/dashboard`。
 - 地址变成非路由 hash（例如 `href="#"` 的链接）时不切页，并把地址改回当前页，保证刷新仍停在原页。
@@ -61,7 +61,7 @@ assets/app/
 
 ## 4. core 模块
 
-共享 `domain/zuoyebang-service.js` 负责服务身份、脱敏状态和面板链接；管理URL保留已保存的安全路径前缀，拒绝查询、凭据、编码与穿越。设置与录入复用该契约，连接和反代约束见 `AI/zuoyebang-service.md`。
+共享 `domain/zuoyebang-service.js` 负责服务身份、脱敏状态和面板链接；管理URL保留已保存的安全路径前缀，拒绝查询、凭据、编码与穿越。设置与独立作业帮页复用该契约，连接和反代约束见 `AI/zuoyebang-service.md`。
 
 | 模块 | 接口 | 要点 |
 |---|---|---|
@@ -127,9 +127,9 @@ assets/app/
 
 录入处理区的提取成功反馈由 `inbox-ops.js` 的完成回调交给 `process.js`，绑定控制器生命周期、图片 ID 与重置代次；只显示在当前处理区的局部状态块。失败仍由收件箱全局通知报告，页面卸载后后台任务照常同步数据。录入 E2E 验证成功、重复点击、失败警告和重置／离页后的旧结果。
 
-作业帮工作区由本页 `zyb.js` 装配状态、视图和摄像头模块，不跨 feature 导入；页面actions委托拍照、切来源、剪贴板读取与候选选择。拍照、粘贴、选择/拖放共用图片来源，文档级paste监听只在当前工作区接管图片，卸载移除。摄像头切上传模式或离页立即释放，取帧和剪贴板读取校验页面/输入代次。真实渲染图片通过同源受鉴权URL显示。
+作业帮控制器 `features/zuoyebang/zyb.js` 独立拥有取图、题框与核对生命周期。页面actions使用zuoyebang命名空间；文档级paste只在本页接管图片，卸载移除。摄像头切上传或离页立即释放，取帧和剪贴板校验页面／输入代次。`zyb-paper.js` 在skip子树渲染原图SVG题框，通过共享控制器移动／缩放，原始尺寸与同源受鉴权图片URL来自搜索记录。
 
-来源模式、候选、人工正文、编辑版本、任务ID和提取时快照存在sessionStorage，账号凭据和原图字节不存浏览器。自动渲染保留当前任务的冻结候选，连续点击只排队最后一个候选，前一任务成功或失败后再处理新选择；旧结果不覆盖新选择。恢复读取校验页面/来源代次，迟到提取按render_id与编辑版本合并。`tests/e2e/zuoyebang.py`在真实HTTP/Chromium中验证拍照搜题、粘贴、连续切候选、失败重试、任意公网附图本地化、在途刷新、幂等创建与八档审计；网络替身边界见 `AI/environment.md`。
+来源模式、搜题ID、逐题草稿、渲染引用、题框修订、编辑版本、任务及提取快照保存到sessionStorage；原图由后端私有归档恢复，字节和凭据不存浏览器。`zyb-restore.js` 校验挂载代次；串行渲染只继续最后选择，缓存读取离页后可由新挂载恢复。AI结果按render_id／编辑版本合并。题框缺失保留候选，有框无匹配可创建原像素裁图，随后复用识别和幂等入库。真实HTTP／Chromium路径与八档审计见 `tests/e2e/zuoyebang.py` 和 `AI/environment.md`。
 
 `tests/app/create-zyb.test.mjs`覆盖视频原始尺寸取帧、无可用帧、空编码结果、编码期间取消及摄像头权限边界。摄像头开启和本地拍摄不以网关在线为前提；图片在网关就绪后才提交搜索。
 

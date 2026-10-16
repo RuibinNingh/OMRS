@@ -10,7 +10,7 @@ def as_json(value):
             return None
     return value
 
-def normalize_questions(value):
+def normalize_questions(value, *, allow_empty=False):
     """逐位置读取已解码候选，不递归合并相似题或错配题干与答案。"""
     value = as_json(value)
     if isinstance(value, dict) and 'body' in value:
@@ -73,7 +73,8 @@ def normalize_questions(value):
 
     for index, page in enumerate(pages):
         collect(page, index)
-    if not questions:
+    empty_shape = isinstance(value, list) or (isinstance(value, dict) and isinstance(value.get('answers'), dict))
+    if not questions and not (allow_empty and empty_shape):
         raise UpstreamError('作业帮未返回可读取的题目。请拍清楚题干，或缩小到一道题重试。', kind='protocol')
     reject_login_notice(questions)
     return questions

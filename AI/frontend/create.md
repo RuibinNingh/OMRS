@@ -1,17 +1,17 @@
 # 前端：录入题目与收件箱工作台
 
 > **速查**
-> - 职责：录入页六个工作区（上传、处理、录入、作业帮、AI 训练、快速录入）、收件箱前端数据与保存队列；后端流程见 `AI/inbox.md`、`AI/zuoyebang.md`
+> - 职责：录入页五个工作区（上传、处理、录入、AI 训练、快速录入）、收件箱前端数据与保存队列；后端流程见 `AI/inbox.md`、`AI/zuoyebang.md`
 > - 入口：`assets/app/features/create/`（`index.js` 页面契约，`inbox.js` / `inbox-store.js` 收件箱数据，其余按工作区分文件）
-> - 不变量：来源先入独立暂存层，核对提交后才写题库；切页保留工作区与人工内容；离开处理区或本页前写出未到防抖时间的改动；作业帮离页释放摄像头
-> - 必跑测试：`tests/app/create.test.mjs`、`tests/app/create-process.test.mjs`、`tests/app/create-inbox.test.mjs`、`tests/app/create-zyb.test.mjs`、`tests/e2e/create.py`、`tests/e2e/zuoyebang.py`、`tests/e2e/drafts_blocks.py`
+> - 不变量：来源先入独立暂存层，核对提交后才写题库；切页保留工作区与人工内容；离开处理区或本页前写出未到防抖时间的改动
+> - 必跑测试：`tests/app/create.test.mjs`、`tests/app/create-process.test.mjs`、`tests/app/create-inbox.test.mjs`、`tests/e2e/create.py`、`tests/e2e/drafts_blocks.py`
 > - 相关：`AI/inbox.md`、`AI/frontend/architecture.md`、`AI/frontend/design-system.md`
 
-作业帮管理链接由共享domain契约校验配置地址，保留安全反代前缀并补尾斜杠；同仓网关与部署入口见 `AI/zuoyebang-service.md`，录入页不读取设备或管理员凭据。
+科目分类建议与AI分类合并由共享 `domain/create-form.js` 提供，收件箱、快速录入及独立作业帮页共用；create层保留既有导出路径。
 
 ## 页面与工作区
 
-`#panel-create` 在 HTML 里只有导航 `#create-flow` 和工作区容器，内容全部由 `features/create/index.js` 挂载。导航由 `state.js` / `view.js` 渲染六个按钮（`data-action="create.stage"`），前三项按流程编号并显示待处理、已框选、待创建三个计数。当前工作区存在收件箱单例的 `stage` 里，切到其它页面后返回仍停在原处；进入 AI 训练时重读统计与策略。
+`#panel-create` 在 HTML 里只有导航 `#create-flow` 和工作区容器，内容全部由 `features/create/index.js` 挂载。导航由 `state.js` / `view.js` 渲染五个按钮（`data-action="create.stage"`），前三项按流程编号并显示待处理、已框选、待创建三个计数。当前工作区存在收件箱单例的 `stage` 里，切到其它页面后返回仍停在原处；进入 AI 训练时重读统计与策略。
 
 录入页的快捷键登记在页面契约的 `keys` 里，只在处理区生效：`Q` / `A` / `X` 切画框角色、`Delete` / `Backspace` 删除选中框、`Enter` 下一张、`⌘/Ctrl + Enter` 一键提取、`Esc` 取消选中框。
 
@@ -47,23 +47,11 @@
 
 标记经 `domain/labels` 的录入选择器改。「AI 识别题目信息」用题卡第一个题目区域提交 classify 任务，完成后重读收件箱，服务端核对任务代次与版本，只填仍空缺的项。「退回处理」把图片改回已框选并打开处理区。创建前先预检科目、分类，再确认 `flush()` 成功；失败不录入。随后取当前图片的 revision/epoch，裁出保留图片的区域，随 `/api/inbox/commit` 提交，大裁图自动分块后传引用。单卡与批量互斥，异步裁图后再次核对代次与 revision；已创建题卡重试复用原回执，不再次创建。单张成功弹一条带「加入展示板」的提示；批量逐张提交，最后只弹一条汇总，「加入展示板（N 题）」一次加入这批新题。成功后刷新统计、历史和目录。
 
-## 作业帮与兼容草稿跳转
+## 独立作业帮与兼容草稿跳转
 
-导航第四项「作业帮」打开 `zyb.js` / `zyb-view.js` 的来源与真实后端预览工作区。「AI 草稿」不再作为导航按钮；旧 stage=drafts、sessionStorage 目标和跨页草稿链接仍经 `domain/drafts.js` 进入审核中心，见 `AI/frontend/ai-review.md`。
+侧栏「作业帮」进入 `#/zuoyebang` 独立整卷工作台，原图、题框、候选和核对流程见 `AI/frontend/zuoyebang.md`。显式旧 create.stage=zuoyebang 动作转入新页；不再挂载作业帮控制器或摄像头。
 
-搜题返回的远程附图支持任意公网域名的标准端口 HTTP/HTTPS 地址；地址格式、全部 DNS 结果和跳转目标由后端检查，具体边界见 `AI/zuoyebang.md`。失败时保留原候选，在工作区显示原因，用户可重新渲染。
-
-作业帮服务由标题旁的一行状态按钮展开，服务设置、独立管理面板和有效期记录收进菜单；扫码、检查/刷新及导入设备会话在独立面板操作。`zyb-account.js`管理外部点击、Escape、键盘移动、离页关闭与焦点恢复；记录子页可返回账号菜单，展示最后成功、首次确认失效和脱敏事件。配置缺失、连接失败、账号和签名失效分别显示，凭据不持久化到前端。账号观察只归属返回时的冻结服务身份，切换配置后清空旧观察；同配置暂态失败保留最近观察，不能把旧账号状态用于新地址或Key。
-
-「取图搜题」内切换摄像头与上传模式，两者共用原图和搜题入口。`zyb-camera.js` 调用 getUserMedia，后置优先、audio=false，期望1920×1440，实际按视频原始尺寸取帧为JPEG（质量0.95），不按预览尺寸缩图。「拍照搜题」保留照片、关闭摄像头并立即搜索；服务未就绪时仍可拍照，保留照片等待连接。重拍前仍保留上一张原图；确认取得新图后清除旧候选、预览与提取结果。摄像头需要HTTPS或localhost；拒绝授权、设备缺失、占用和无可用帧均原位提示。切上传模式、切工作区、离页和迟到授权释放tracks，离页后的编码结果不进入搜题。
-
-上传模式支持选择、拖放JPG/PNG/WebP，两个模式都显示「粘贴图片」并支持Ctrl/⌘+V。图片经同一入口校验8MiB上限，上传/粘贴保持原文件字节，通过zuoyebang用途分块上传引用发送。图片粘贴只在当前作业帮工作区接管，不拦截表单输入框的粘贴；剪贴板权限失败提示键盘替代方式。异步读取绑定页面、来源和输入代次，切模式、换图或离页后的旧读取不能覆盖新操作。
-
-搜题返回后不预选首项；按位置独立选择候选即自动生成题目与完整答案预览，不再额外点击渲染。渲染期间可继续切候选，前端串行处理且只继续最后一次选择，旧任务结果不绑定到新候选；任务上下文随sessionStorage保存。失败保留原图和候选，可重试渲染；没有匹配题目时提示重拍或换图。选中未变且已生成/正在生成时不重复发起。
-
-工作区铺满可用宽度，桌面右侧预览440px并随左列滚动保持可见，左侧「取图搜题」与「搜题候选」并排，题卡使用左列全宽。窄屏按取图、候选、预览、核对上下排列；100%只在内框滚动，显示宽度不影响1080px后端PNG。预览可切题干/答案、HTML、适应宽度/100%、展开与渲染记录；引擎、尺寸和SHA可核对，答案只有一张完整长图，外框滚动不裁原图；HTML作为转义文本显示。历史可重新打开。AI 对两区判断保留整图或完整文本，部分失败可重试；响应绑定render_id与编辑版本，不覆盖旧来源或在途人工修改，分类只补未改的空缺字段，标记由人选择。
-
-核对科目分类和正文后创建，成功可看题目或加入展示板。当前来源ID、人工内容、编辑版本、任务ID及提取快照存 sessionStorage，刷新重取后端记录；凭据和二维码不存浏览器。恢复响应检查来源与页面代次，识别在途刷新也保留人工编辑。切图片/候选/历史时，有人工编辑先确认再清空，科目分类上下文保留。创建期间表单冻结；暂态网络错误可重试，账号扫码生命周期由独立面板管理。接口及生命周期见 `AI/zuoyebang.md`。
+「AI 草稿」不作为录入导航按钮；旧 stage=drafts、sessionStorage 目标和跨页草稿链接仍经 `domain/drafts.js` 进入审核中心，见 `AI/frontend/ai-review.md`。
 
 ## AI 训练
 
@@ -85,7 +73,7 @@
 
 ## 样式
 
-样式都在 features 层：`create.css`（导航、工作区显隐与整屏工作台、上传、快速录入、网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（`crc-`）、`train.css`（`crt-`）与 `zyb.css`（作业帮来源栏、完整长图预览、人工核对与响应布局）。草稿样式由审核中心的 `features/ai-review/` 拥有。只用 token；标注色取 `--info` / `--success` / `--danger`。旧 `styles.css` 里已没有录入页的规则。
+样式都在 features 层：`create.css`（导航、工作区显隐与整屏工作台、上传、快速录入、网格）、`process.css`（处理区，作用域 `#ib-stage-process`）、`cards.css`（`crc-`）与 `train.css`（`crt-`）。草稿样式由审核中心的 `features/ai-review/` 拥有。只用 token；标注色取 `--info` / `--success` / `--danger`。旧 `styles.css` 里已没有录入页的规则。
 
 处理区的文字框与输入框用 `ui-textarea` / `ui-input`（与全站同一套控件）。
 

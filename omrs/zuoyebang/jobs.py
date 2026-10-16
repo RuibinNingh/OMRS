@@ -11,10 +11,11 @@ import uuid
 from pathlib import Path
 from .. import uploads, vault_lifecycle as lifecycle
 from ..locking import write_lock
-from . import store, service_config
+from . import store, service_config, source as source_image
 from .gateway import GatewayClient
 from .direct import UpstreamError
 from .normalize import normalize_questions
+from .geometry import regions, crop_bounds
 from .html import candidate_html
 from .render import render_documents
 from .validation import validate_image, MAX_BYTES
@@ -32,7 +33,7 @@ def summary(candidate, index):
 
 def public_record(record):
     if record['kind'] == 'search':
-        return {key: record[key] for key in ('id', 'kind', 'created_at', 'candidates', 'service') if key in record}
+        return {key: record[key] for key in ('id', 'kind', 'created_at', 'candidates', 'service', 'image', 'regions', 'rotation') if key in record}
     return {key: value for key, value in record.items() if key not in ('source',)}
 
 
@@ -52,11 +53,15 @@ def get_job(vault, identity):
 def history(vault):
     with lifecycle.lease(vault):
         rows = []
-        for path in store.root(vault).glob('render-*/record.json'):
+        paths = list(store.root(vault).glob('search-*/record.json')) + list(store.root(vault).glob('render-*/record.json'))
+        for path in paths:
             if path.parent.is_symlink():
                 continue
             row = store.read_json(path)
-            rows.append({key: row.get(key) for key in ('id', 'status', 'created_at', 'candidate', 'images', 'error')})
+            item = {key: row.get(key) for key in ('id', 'kind', 'status', 'created_at', 'candidate', 'images', 'error', 'search_id')}
+            if row['kind'] == 'search':
+                item.update(status='ready', region_count=len(row.get('regions', [])), candidate_count=len(row.get('candidates', [])))
+            rows.append(item)
         return sorted(rows, key=lambda row: row['created_at'], reverse=True)[:30]
 
 
@@ -79,14 +84,25 @@ def image(vault, identity, role):
 def search(vault, payload):
     config = payload.get('service_snapshot') or service_config.snapshot(vault)
     try:
-        candidates = normalize_questions(GatewayClient(config).search(payload['image'], payload['grade']))
+        response = GatewayClient(config).search(payload['image'], payload['grade'])
+        candidates = normalize_questions(response, allow_empty=True)
     except UpstreamError as exc:
         raise store.ZybError('服务返回的题目无法读取，请在网关面板核对账号或签名状态', exc.kind, 502) from None
+    info = source_image.metadata(payload['image'])
+    display = None
+    if info['orientation'] != 1:
+        display, _metadata = source_image.crop(payload['image'], {'x': 0, 'y': 0, 'width': info['width'], 'height': info['height']})
+        info['preview'] = {'mime': 'image/png', 'sha256': store.fingerprint(display)}
+    boxes, rotation = regions(response, candidates, info['width'], info['height'])
     record = {'id': 'search-' + uuid.uuid4().hex, 'kind': 'search', 'created_at': time.time(),
               'source': candidates, 'candidates': [summary(candidate, i) for i, candidate in enumerate(candidates)],
-              'service': service_config.project(config)}
+              'service': service_config.project(config), 'image': info, 'regions': boxes, 'rotation': rotation}
+    info['url'] = f'/api/zuoyebang/image?id={record["id"]}&role=source'
     with lifecycle.lease(vault, config.generation), write_lock():
         service_config.assert_current(vault, config)
+        source_image.write_asset(vault, record['id'], 'source.bin', payload['image'])
+        if display is not None:
+            source_image.write_asset(vault, record['id'], 'source-preview.png', display)
         store.save(vault, record['id'], record)
     return public_record(record)
 
@@ -95,6 +111,26 @@ def _publish(vault, identity, record, config):
     with lifecycle.lease(vault, config.generation), write_lock():
         service_config.assert_current(vault, config)
         store.save(vault, identity, record)
+
+
+def render_source(vault, payload):
+    """把人工核对过的原图范围转为既有渲染记录，复用审核与幂等创建。"""
+    config = payload['service_snapshot']
+    with lifecycle.lease(vault, config.generation):
+        record = store.read(vault, payload['search_id'])
+        raw, _mime = source_image.read(vault, record)
+    cropped, metadata = source_image.crop(raw, payload['bounds'])
+    identity = 'render-' + uuid.uuid4().hex
+    metadata['url'] = f'/api/zuoyebang/image?id={identity}&role=question'
+    result = {'id': identity, 'kind': 'render', 'status': 'ready', 'created_at': time.time(), 'completed_at': time.time(),
+              'search_id': record['id'], 'candidate': {'index': None, 'location': payload.get('region_index'), 'title': '原题图片'},
+              'source_kind': 'crop', 'bounds': payload['bounds'], 'service': record.get('service'), 'extraction': {},
+              'images': {'question': metadata, 'answer': {'empty': True}}, 'source_images': 1, 'engine': '原图裁切', 'browser': ''}
+    with lifecycle.lease(vault, config.generation), write_lock():
+        service_config.assert_current(vault, config)
+        source_image.write_asset(vault, identity, 'question.png', cropped)
+        store.save(vault, identity, result)
+    return public_record(result)
 
 
 def render(vault, payload):
@@ -202,6 +238,18 @@ def start_job(vault, kind, data):
             payload = {'search_id': source['id'], 'source': source['source'][index], 'candidate': source['candidates'][index],
                        'source_service': source.get('service')}
             key = ('render', source['id'], index)
+        elif kind == 'source':
+            record = store.read(vault, data.get('search_id'))
+            if record.get('kind') != 'search' or not record.get('image'):
+                raise store.ZybError('这份记录没有保存原图，请重新上传')
+            index = data.get('region_index')
+            region = next((r for r in record.get('regions', []) if type(index) is int and r['index'] == index), None)
+            if index is not None and region is None:
+                raise store.ZybError('请选择有效的题目范围')
+            bounds = data.get('bounds') or (region or {}).get('bounds')
+            crop_bounds(bounds, record['image']['width'], record['image']['height'])
+            payload = {'search_id': record['id'], 'region_index': index, 'bounds': bounds}
+            key = ('source', record['id'], index, json.dumps(bounds, sort_keys=True))
         elif kind == 'extract':
             record = store.read(vault, data.get('render_id'))
             if record.get('status') != 'ready':
@@ -234,7 +282,7 @@ def start_job(vault, kind, data):
     def worker():
         try:
             with lifecycle.task(vault, generation):
-                result = {'search': search, 'render': render, 'extract': extract}[kind](vault, payload)
+                result = {'search': search, 'render': render, 'source': render_source, 'extract': extract}[kind](vault, payload)
                 job.update(status='done', result=result, completed_at=time.time())
                 _publish(vault, identity, job, config)
         except Exception as exc:

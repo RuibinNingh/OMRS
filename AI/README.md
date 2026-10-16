@@ -22,7 +22,7 @@
 | 全库备份、恢复、生命周期与世代 | `backup.md`、`environment.md` |
 | 导出与展示板打印 | `export.md`、`board.md` |
 | 收件箱、标记、答题卡导入 | `inbox.md`、`labels.md`、`omr-import.md` |
-| 作业帮独立网关、连接设置、后端长图与核对入库 | `zuoyebang-service.md`、`zuoyebang.md`、`frontend/settings.md`、`frontend/create.md` |
+| 作业帮独立页、题框、网关连接、后端长图与核对入库 | `zuoyebang-service.md`、`zuoyebang.md`、`frontend/settings.md`、`frontend/zuoyebang.md` |
 | 统一 AI 写审核、人工修订、MCP 改题 | `ai-review.md`，页面见 `frontend/ai-review.md` |
 | AI 草稿区（助手录题、草稿存储、审核接口） | `drafts.md` |
 | 框选模型训练、数据构建与实验 | `training/README.md` |
@@ -90,7 +90,7 @@
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v2.7.1 |
+| 当前版本 | v2.8.0 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/app/`（原生 ES Module：设计 token、UI 组件、domain 层及各页面 `features/`）+ `assets/vendor/`（本地字体与 KaTeX）|
@@ -118,8 +118,9 @@
 | `ledger.md` | 不可变提交链、投影缓存、历史修正与迁移边界 |
 | `board.md` | 展示板引用模型、版面设置、打印与纸面记录 |
 | `inbox.md` | 收件箱「上传 → 框选 → 转换 → 提交」流程、后台 job、框选提供方 |
-| `zuoyebang.md` | 作业帮网关搜题、账号观察摘要、1080完整后端渲染、保真提取与幂等入库 |
+| `zuoyebang.md` | 作业帮网关搜题、原图题框、1080完整后端渲染／原像素裁图、保真提取与幂等入库 |
 | `zuoyebang-service.md` | 同仓独立网关、配置与地址安全、网络预算、反代及两进程联调 |
+| `frontend/zuoyebang.md` | 独立整卷工作台：原图、题框、逐题候选、预览、刷新与核对入库 |
 | `frontend/annotate.md` | 独立框选标注页 `/annotate`：训练数据批量采集、快捷键、导出（存储见 `data/storage.md` §6） |
 | `labels.md` | 用户标记定义、YAML、投影与可选调度加成 |
 | `omr-import.md` | 答题卡扫描 JSON 导入反馈页 |

@@ -9,7 +9,7 @@
 
 ## 1. 职责与配置
 
-独立网关拥有设备会话、扫码账号、签名、官方搜题／解码、调用密钥和HTTP审计。OMRS保留原图上传、候选、1080px完整渲染、AI识别、人工核对及幂等创建。正常搜题不绕过网关；设备和账号凭据不迁移。网关面板使用独立管理员会话，调用Key不能获得管理权限。
+独立网关拥有设备会话、扫码账号、签名、官方搜题／解码、调用密钥和HTTP审计。OMRS保留原图上传／保存、原坐标题框、候选、1080px完整渲染与原像素裁图、AI识别、人工核对及幂等创建。正常搜题不绕过网关；设备和账号凭据不迁移。网关面板使用独立管理员会话，调用Key不能获得管理权限。
 
 网关与OMRS源码同仓，入口 `services/zuoyebang/zyb_gateway/__main__.py`，安装和管理见 `services/zuoyebang/README.md`。两进程可共用精确Git发布目录和Python依赖，私有数据分别存储。systemd模板见 `deploy/zuoyebang.service`；网关运行目录不能作为静态资源或源码导出目录。
 
@@ -27,11 +27,13 @@
 
 网关调用使用Bearer Key，本机同样鉴权。状态仅投影账号／签名布尔值、有限枚举、时间与最近100条白名单观察；忽略上游额外字段。错误Key、外部拒绝、限流、响应超限、协议与网络故障使用固定中文错误，不将Key或官方响应原文带到页面。
 
+网关已解码回执保留answers.locs和angles，按主Key、非gzip独立解码；正文tid解码规则不用于几何字段。OMRS将rotateAngle还原为原像素题框并按locIndex关联候选，详见 `AI/zuoyebang.md`。旧网关未解码的无效坐标会降级为无题框候选。
+
 ## 3. 生命周期与页面状态
 
 状态查询和后台任务开始时捕获服务快照及Vault世代；网络／浏览器期间不持业务写锁或长期磁盘租约。发布前在短租约和写锁内复查配置，切换地址、模式或Key使旧结果失效。渲染失败写回也核对世代，整库恢复后的记录不能被旧失败覆盖。旧渲染／人工内容仍可只读查看和核对，不重放网络。
 
-设置成功保存／清除发zuoyebang:service-changed；录入菜单通过domain模块进入设置。账号观察绑定mode/base_url/私网开关/revision/Key指纹等非敏感身份；切换后清空旧观察，同配置的暂态失败可保留最近观察。管理链接保留地址前缀并补尾斜杠，新标签页使用noopener，不带Key。
+设置成功保存／清除发zuoyebang:service-changed；独立作业帮菜单通过domain模块进入设置。账号观察绑定mode/base_url/私网开关/revision/Key指纹等非敏感身份；切换后清空旧观察，同配置的暂态失败可保留最近观察。管理链接保留地址前缀并补尾斜杠，新标签页使用noopener，不带Key。
 
 网关面板使用相对资源和管理请求，支持反代剥离前缀。Nginx模板见 `services/zuoyebang/deploy/zuoyebang.nginx.example`：覆盖XFF、不新增公网端口、把管理Cookie限制到/zuoyebang/。网关须配置公开Origin、Secure cookie及精确信任的回环代理；不能用反代头绕过管理员／调用Key鉴权。
 

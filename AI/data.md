@@ -17,7 +17,7 @@ Vault根的`.omrs-maintenance/`保存生命周期锁、世代、恢复预检与j
 
 框选检测服务源码位于 services/boxdetect；训练与受管数据仍在 Vault 外的训练根目录，格式见 `AI/data/storage.md` §8。源码拆分不迁移模型、managed 指针、revision、操作历史或锁；独立服务只读取调用者显式指定的模型目录，控制写仍由 OMRS 执行。
 
-作业帮网关连接配置、搜题候选、后端渲染与 AI 结果在独立私有目录；设备与账号会话由独立网关持有，OMRS不迁移旧凭据；人工核对创建时才写 question.create 和同事务 op_results 回执。预留身份及冻结内容保留到原记录重试，普通创建跳过预留 UID，工作区扫描不抢先入账。目录格式见 `AI/data/storage.md` §11，协议见 `AI/zuoyebang.md`。
+作业帮网关连接配置、搜题原图、原像素题框、候选、后端渲染与 AI 结果在独立私有目录；设备与账号会话由独立网关持有，OMRS不迁移旧凭据；人工核对创建时才写 question.create 和同事务 op_results 回执。预留身份及冻结内容保留到原记录重试，普通创建跳过预留 UID，工作区扫描不抢先入账。目录格式见 `AI/data/storage.md` §11，协议见 `AI/zuoyebang.md`。
 
 ---
 

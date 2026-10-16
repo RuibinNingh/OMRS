@@ -14,9 +14,16 @@ class ZuoyebangRoutes:
             elif path == '/api/zuoyebang/history':
                 result = {'records': jobs.history(self.vault_path)}
             elif path == '/api/zuoyebang/image':
-                raw = jobs.image(self.vault_path, params.get('id', ''), params.get('role', ''))
+                if params.get('role') == 'source':
+                    from ..zuoyebang import source, store
+                    from ..vault_lifecycle import lease
+                    with lease(self.vault_path):
+                        raw, mime = source.read(self.vault_path, store.read(self.vault_path, params.get('id', '')), preview=True)
+                else:
+                    raw = jobs.image(self.vault_path, params.get('id', ''), params.get('role', ''))
+                    mime = 'image/png'
                 self.send_response(200)
-                self.send_header('Content-Type', 'image/png')
+                self.send_header('Content-Type', mime)
                 self.send_header('Content-Length', str(len(raw)))
                 self.send_header('Cache-Control', 'private, no-store')
                 self.send_header('X-Content-Type-Options', 'nosniff')

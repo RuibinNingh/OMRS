@@ -64,8 +64,9 @@ def main():
         def do_POST(self):
             captured.append(self.rfile.read(int(self.headers['Content-Length'])))
             payload = base64.b64encode(json.dumps(candidates(), ensure_ascii=False).encode()).decode()
+            locations = [base64.b64encode(value.encode()).decode() for value in ('5@5@5@115@410@115@410@5', '5@125@5@235@410@235@410@125')]
             raw = json.dumps({'errNo': 0, 'data': {'encode': 1, 'answers': {
-                'gzip': 0, 'mainPageInfo': [payload]}}}).encode()
+                'gzip': 0, 'mainPageInfo': [payload], 'locs': locations}}}).encode()
             self.send_response(200)
             self.send_header('Content-Length', str(len(raw)))
             self.end_headers()
@@ -208,8 +209,7 @@ def main():
                 page.wait_for_function("() => document.querySelector('#st-zyb-status').textContent.includes('已连接')")
                 check('外部可信内网模式复用实际网关协议',
                       service_config.snapshot(str(temp / 'vault')).mode == 'external')
-                page.evaluate("window.__omrs.router.go('create')")
-                page.click('[data-action="create.stage"][data-arg="zuoyebang"]')
+                page.evaluate("window.__omrs.router.go('zuoyebang')")
                 try:
                     page.get_by_role('button', name='作业帮服务 · 已连接', exact=True).wait_for(timeout=10000)
                 except Exception:
@@ -221,7 +221,8 @@ def main():
                     'name': 'SYNTHETIC-original.png', 'mimeType': 'image/png', 'buffer': original})
                 page.get_by_role('button', name='开始搜题', exact=True).click()
                 page.locator('.zyb-candidate').first.wait_for(timeout=20000)
-                check('上传经实际网关签名解码返回3个候选', page.locator('.zyb-candidate').count() == 3)
+                check('实际网关返回3个候选并按2个位置分组', page.locator('.zyb-candidate').count() == 2 and page.locator('[data-action="zuoyebang.zybRegion"]').count() == 2)
+                check('网关解码坐标经OMRS归一化后显示两个题框', page.locator('#zyb-paper rect.crp-box').count() == 2)
                 check('官方边界只调用一次且保留原图字节', len(captured) == 1 and original in captured[0])
                 check('实际请求包含原图摘要、年级及签名而不传签名种子',
                       hashlib.md5(original).hexdigest().encode() in captured[0]
@@ -230,7 +231,7 @@ def main():
                       and b'synthetic-signing-seed' not in captured[0])
                 page.locator('.zyb-candidate').first.click()
                 # 兼容显式渲染与选中自动渲染，始终等待真实后端生成图。
-                render_button = page.locator('[data-action="create.zybRender"]')
+                render_button = page.locator('[data-action="zuoyebang.zybRender"]')
                 if render_button.is_visible() and render_button.is_enabled():
                     render_button.click()
                 page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalWidth === 1080", timeout=60000)
@@ -245,8 +246,7 @@ def main():
                 page.locator('.zyb-result').wait_for(timeout=20000)
                 questions = list((temp / 'vault' / '错题' / '数学').rglob('双服务验收[0-9]*.md'))
                 check('人工核对入库只创建一题', len(questions) == 1)
-                open_app(page, omrs_base, 'create')
-                page.click('[data-action="create.stage"][data-arg="zuoyebang"]')
+                open_app(page, omrs_base, 'zuoyebang')
                 page.get_by_role('button', name='已录入题库', exact=True).wait_for()
                 check('刷新恢复回执并防重复创建',
                       page.get_by_role('button', name='已录入题库', exact=True).is_disabled()

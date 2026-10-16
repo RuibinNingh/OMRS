@@ -7,7 +7,7 @@
 > - 必跑测试：`tests/test_inbox.py`、`tests/app/settings.test.mjs`、`tests/app/create-inbox.test.mjs`、`tests/e2e/create.py`
 > - 相关：`AI/frontend/create.md`、`AI/api.md`
 
-> 对应源文件：`omrs/inbox.py`（存储 / 任务 / 提交 / 数据集）、`omrs/ai_assist.py`（`detect_regions` / `extract_region` / `parse_detect_output` / 按用途选模型）、`omrs/server.py`（`_inbox_get` / `_inbox_post` / `_multipart_files`）、`assets/app/features/create/`（录入页六个工作区与收件箱前端数据，见 `AI/frontend/create.md`）、`assets/inbox_mobile.html`。
+> 对应源文件：`omrs/inbox.py`（存储 / 任务 / 提交 / 数据集）、`omrs/ai_assist.py`（`detect_regions` / `extract_region` / `parse_detect_output` / 按用途选模型）、`omrs/server.py`（`_inbox_get` / `_inbox_post` / `_multipart_files`）、`assets/app/features/create/`（录入页五个工作区与收件箱前端数据，见 `AI/frontend/create.md`）、`assets/inbox_mobile.html`。
 
 ## 1. 它解决什么
 
@@ -73,7 +73,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 
 区域提取先严格解析 JSON。失败后仅在本地补齐 `\(`、`\)`、`\[`、`\]` 定界符前缺失的 JSON 转义，已经正确转义的反斜杠、公式命令、换行和引号保持原样；修复后仍必须通过完整 JSON、布尔判断和非空正文校验。成对的 `\(…\)` / `\[…\]` 转为页面支持的 `$…$` / `$$…$$`。其它非法转义、结构错误或截断结果继续报错；不增加模型请求，不改变裁图与框位。该兼容仅用于 `extract_region`，分类等其它 JSON 消费者仍严格解析。
 
-extract 用途先检查模型 finish_reason；length/max_tokens 表示长度截断，即便正文 JSON 完整闭合也报错并保留图片。作业帮复用这一保真提取入口，对题干和全文答案各识别一张后端渲染图；来源与任务由独立模块拥有，不添加收件箱条目或训练框，见 `AI/zuoyebang.md`。
+extract 用途先检查模型 finish_reason；length/max_tokens 表示长度截断，即便正文 JSON 完整闭合也报错并保留图片。作业帮复用这一保真提取入口，对题干和全文答案各识别一张后端渲染图，也可识别原图题框的保真裁图；来源与任务由独立模块拥有，不添加收件箱条目或训练框，见 `AI/zuoyebang.md`。
 
 `JUDGE_SUFFIX` 以删去裁图后能否仅靠文本和 LaTeX 保留解题或理解原解析所需信息为判断标准。题干依赖图形、曲线、位置关系或表格内容时，不能因文字识别完整、能概述图意或认为图形只是辅助就判为可转；拿不准时要求留图。纯装饰图及软件控件不影响判断，能完整转录行列关系的简单表格可转。服务端只验证返回类型和非空正文，实际内容仍由用户审核。
 

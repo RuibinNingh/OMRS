@@ -54,20 +54,7 @@ export const allText = regions => regions.every(region => region.role === 'ignor
 export const missingRequired = form => !String(form.subject || '').trim() || !String(form.category || '').trim();
 
 /** 已有题目里的科目、分类与知识点，供表单 datalist 提示（快速录入与题卡共用）。 */
-export function suggestions(items = []) {
-  const unique = values => [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
-  const categoriesBySubject = {};
-  for (const item of items) {
-    if (item.subject && item.category) (categoriesBySubject[item.subject] ||= []).push(item.category);
-  }
-  for (const subject of Object.keys(categoriesBySubject)) categoriesBySubject[subject] = unique(categoriesBySubject[subject]);
-  return {
-    subjects: unique(items.map(item => item.subject)),
-    categories: unique(items.map(item => item.category)),
-    tags: unique(items.flatMap(item => [item.category, ...(item.knowledge_tags || [])])),
-    categoriesBySubject,
-  };
-}
+export { suggestions } from '../../domain/create-form.js';
 
 export function commitSummary(created, failed) {
   return `已创建 ${created} 道题目${failed ? `，${failed} 张失败` : ''}；原图与框位已存入数据集`;

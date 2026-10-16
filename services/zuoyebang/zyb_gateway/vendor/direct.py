@@ -111,6 +111,21 @@ def decode_response(body, key):
             raise UpstreamError('累计解码正文超过内存预算。', kind='protocol')
         return raw.decode('utf-8')
 
+    # locs / angles 使用主密钥，不随正文 gzip，也不使用逐题 tid 密钥。
+    for field in ('locs', 'angles'):
+        if field in answers:
+            values = answers[field]
+            if not isinstance(values, list) or len(values) > 200:
+                raise UpstreamError('题目坐标数量不符合协议。', kind='protocol')
+            decoded = []
+            for value in values:
+                try:
+                    decoded.append(decode(value, gz=False))
+                except (ValueError, TypeError, UnicodeError):
+                    # 坐标不可读时保留候选，OMRS 明确显示无有效题框。
+                    decoded.append('')
+            answers[field] = decoded
+
     pages = answers.get('mainPageInfo') or []
     if plain:
         answers['mainPageInfo'] = [decode(p) for p in pages]

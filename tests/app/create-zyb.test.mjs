@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createCamera } from '../../assets/app/features/create/zyb-camera.js';
-import { newZybState, bindRender, extractionSnapshot, mergeExtraction, commitPayload } from '../../assets/app/features/create/zyb-state.js';
+import { createCamera } from '../../assets/app/features/zuoyebang/zyb-camera.js';
+import { newZybState, bindRender, bindSearch, bindCard, stashCard, searchRegions, extractionSnapshot, mergeExtraction, commitPayload } from '../../assets/app/features/zuoyebang/zyb-state.js';
 import { STAGES, stageOf } from '../../assets/app/features/create/state.js';
-import { accountView, cameraView, candidatesView } from '../../assets/app/features/create/zyb-view.js';
+import { accountView, cameraView, candidatesView } from '../../assets/app/features/zuoyebang/zyb-view.js';
 
  test('录入服务菜单只打开设置与独立面板，不管理账号或迁移会话', () => {
   const s = { ...newZybState(), accountPanel: 'main', service: { base_url: 'http://127.0.0.1:8745', mode: 'local' }, session: { connected: true, local_session_ready: true, observations: { account: { state: 'valid' }, signing: { state: 'valid' } }, panel_url: 'https://evil.example/?token=secret' } };
@@ -19,15 +19,15 @@ import { accountView, cameraView, candidatesView } from '../../assets/app/featur
  });
  test('候选保留来源网关与模式的非敏感投影', () => {
   const s = newZybState();
-  s.search = { id: 'search-test', service: { mode: 'external', base_url: 'https://gateway.example.org' }, candidates: [{ index: 0, title: '原题', location: 0 }] };
-  assert.match(String(candidatesView(s)), /来源.*外部.*https:\/\/gateway\.example\.org/);
+  s.region = 0; s.search = { id: 'search-test', service: { mode: 'external', base_url: 'https://gateway.example.org' }, candidates: [{ index: 0, title: '原题', location: 0 }] };
+  assert.match(String(candidatesView(s)), /外部.*https:\/\/gateway\.example\.org/);
  });
 
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { resolve, promise }; };
 const record = id => ({ id, status: 'ready', images: { question: { url: 'q' }, answer: { url: 'a' } }, extraction: {} });
 
 test('导航替换草稿按钮而旧草稿地址仍可交接', () => {
-  assert.ok(STAGES.some(stage => stage.id === 'zuoyebang'));
+  assert.ok(!STAGES.some(stage => stage.id === 'zuoyebang'));
   assert.ok(!STAGES.some(stage => stage.id === 'drafts'));
   assert.equal(stageOf('drafts'), 'drafts');
 });
@@ -76,7 +76,7 @@ test('尚无视频帧时不能生成空白照片', async () => {
   await camera.open(); await assert.rejects(camera.capture(), /尚未就绪/); camera.stop();
 });
 test('摄像头开启后提供拍照按钮，不因网关未连接禁止本地取图', () => {
-  const s = newZybState(); s.camera.on = true;
+  const s = newZybState(); s.sourceMode = 'camera'; s.camera.on = true;
   const output = String(cameraView(s));
   assert.match(output, /拍照搜题/); assert.match(output, /关闭摄像头/);
   assert.doesNotMatch(output, /disabled/);
@@ -121,4 +121,21 @@ test('刷新后的预留题卡恢复首次提交内容与回执', () => {
   const s = newZybState();
   bindRender(s, { ...record('r'), commit: { result: { uid: '几何1' }, payload: { subject: '数学', category: '几何', difficulty: 5, related_tags: [], labels: [], cause: '', sections: { question: { mode: 'image', text: '' }, answer: { mode: 'text', text: '首次提交正文' } } } } });
   assert.equal(s.result.uid, '几何1'); assert.equal(s.sections.answer.text, '首次提交正文');
+});
+
+test('按位置展示候选，异常坐标仍保留题号且人工草稿互不串题', () => {
+  const s = newZybState();
+  const search = { id: 'search-one', candidates: [{ index: 0, location: 0, title: '甲' }, { index: 1, location: 1, title: '乙' }] };
+  bindSearch(s, search);
+  assert.deepEqual(searchRegions(s).map(row => row.candidate_indices), [[0], [1]]);
+  assert.match(String(candidatesView(s)), /甲/); assert.doesNotMatch(String(candidatesView(s)), /乙/);
+  const first = { ...record('first'), search_id: search.id, candidate: { index: 0, location: 0 } };
+  const second = { ...record('second'), search_id: search.id, candidate: { index: 1, location: 1 } };
+  s.selected = 0; bindCard(s, first); s.sections.question = { mode: 'text', text: '甲人工核对' }; s.dirty = true; stashCard(s);
+  s.region = 1; s.selected = 1; bindCard(s, second);
+  assert.equal(s.sections.question.text, '');
+  s.region = 0; s.selected = 0; bindCard(s, first);
+  assert.equal(s.sections.question.text, '甲人工核对'); assert.equal(s.dirty, true);
+  bindSearch(s, search); assert.equal(s.renderIds['search-one:0'], 'first');
+  bindSearch(s, { ...search, id: 'search-two' }); assert.deepEqual(s.renderIds, {});
 });

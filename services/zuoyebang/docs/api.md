@@ -46,6 +46,8 @@
 {"status":"ok","result":{"ok":true,"data":{"answers":{}}}}
 ```
 
+result中的answers.locs与angles逐项解base64／主Key RC4，不使用正文gzip或tidKey；未能解码的项为空字符串，可读候选仍返回。locs最多200项并计入累计解码预算，rotateAngle保留；坐标转换及题框分组由调用方执行。
+
 示例仅示意结构，`result` 来自真实 DirectClient；服务不生成伪造题目。搜题每次只调用一次官方，不自动重试。会话更换期间的迟到结果返回 409，不能发布到新账号。响应/解码预算见安全文档。
 
 ## 管理认证

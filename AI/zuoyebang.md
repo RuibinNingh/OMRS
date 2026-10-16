@@ -2,9 +2,9 @@
 
 > **速查**
 > - 职责：独立网关搜题、候选、后端完整长图、AI 保真提取与幂等创建
-> - 入口：`omrs/zuoyebang/`、`omrs/http/zuoyebang.py`；页面见 `AI/frontend/create.md`
-> - 不变量：题干答案按候选绑定；题目/答案各一张1080像素完整图；失败保留来源；凭据不进入响应或日志
-> - 必跑测试：`tests/test_zuoyebang.py`、`tests/test_zuoyebang_render.py`、`tests/app/create-zyb.test.mjs`、`tests/e2e/zuoyebang.py`
+> - 入口：`omrs/zuoyebang/`、`omrs/http/zuoyebang.py`；页面见 `AI/frontend/zuoyebang.md`
+> - 不变量：题干答案按候选绑定；候选题目/答案各一张1080像素完整图，原图裁切保持实际像素；失败保留来源；凭据不进入响应或日志
+> - 必跑测试：`tests/test_zuoyebang.py`、`tests/test_zuoyebang_render.py`、`tests/test_zuoyebang_geometry.py`、`tests/app/create-zyb.test.mjs`、`tests/e2e/zuoyebang.py`
 > - 相关：`AI/api.md`、`AI/security.md`、`AI/data/storage.md`、`AI/inbox.md`
 
 ## 1. 服务与账号
@@ -17,7 +17,7 @@
 
 ## 2. 搜题与后端渲染
 
-前端「取图搜题」合并摄像头和上传模式；拍照按实际视频尺寸生成JPEG后立即搜题，上传/拖放/粘贴保留原图片文件。搜题候选初始未选，点击即自动渲染题干与答案；快速切换时只继续最后选择，失败保留来源并可重试。相机、剪贴板、人工编辑保护与响应式布局见 `AI/frontend/create.md`。
+侧栏「作业帮」打开独立整卷工作台。摄像头、上传、拖放和粘贴共用原图，左侧查看试卷与题框，右侧按位置选择候选、完整预览与核对。候选初始未选，点击即自动生成题干与答案；快速切换只继续最后选择，失败保留来源并可重试。交互与刷新恢复见 `AI/frontend/zuoyebang.md`。
 
 图片以 zuoyebang 用途的既有分块上传引用发送，不重编码原件；仅 JPG/PNG/WebP、不超过8MiB且不超过4000万像素，完成上传时用 Pillow 验证完整解码。用途不能借用于普通题目创建；旧上传用途仍仅支持 PNG/JPEG/GIF。解码后的结果按照片位置和显式候选保存，不合并相似题树；题干和对应答案一起选择。接口返回摘要，原始上游内容留在独立记录。
 
@@ -31,9 +31,19 @@ SVG、MathML、canvas和音视频等不能按当前白名单保真渲染的视�
 
 真实 Chromium deviceScaleFactor=1，题干与答案各一张宽1080的 PNG，高度按全文。答案不分块、分页或裁断。等待字体、公式和所有图片 decode，校验 PNG 尺寸与 SHA256；记录引擎版本及每区公式数。缺图、公式错误、横向超出1080均整体失败并保留原候选。单附图12MiB、附图总量80MiB、单输出1亿像素是物理资源预算，超限报错，不缩放或截断。纸面固定白底，前端主题只改变外框；HTML 预览用文本显示，内联图片字节以提示替代。
 
+### 题目坐标与原图
+
+网关和保留的协议实现解码 answers.locs / angles：逐项base64后按主解码Key执行RC4，不用正文的gzip或tid候选Key；明文encode模式只解base64。解码失败的单项留空，不丢弃可读候选。网关几何字段计入累计24MiB解码预算，最多200项。
+
+`geometry.py` 按 queryInfo.locIndex（归一化后的location_index）将候选关联到题目位置。loc为8个以@分隔的有限数值，组成四点；rotateAngle允许0/90/180/270。原图宽高W/H，工作平面的(x,y)还原分别为(x,y)、(y,H-x)、(W-x,H-y)、(W-y,x)。返回原像素polygon与轴对齐bounds{x,y,width,height}，附可用angle；越界、退化或格式异常不返回bounds。候选和无匹配的有效位置仍保留，不能据此保证整卷每题都有框。
+
+成功搜索将原始上传字节保存到私有source.bin，并返回image的尺寸、MIME、SHA、字节数、orientation和受鉴权URL。EXIF方向不为1时额外生成不转置像素、移除EXIF的PNG预览，让浏览器画布与坐标处于同一像素平面；上游与归档原件不重编码。读取验证SHA及路径边界。旧记录无原图时明确404，不追溯补造。
+
+用户可核对／调整题框后保留原题图片；source作业按原图范围裁成PNG，向外取整并限制原图边界，输出保持实际像素尺寸。生成标准render记录，source_kind=crop、bounds、候选index=null、location为位置索引、答案empty；复用保真提取与人工幂等创建，不使用Chromium或补写答案。
+
 ## 3. 后台作业与 AI
 
-search/render/extract 在守护线程执行，每个 Vault 最多同时两个任务，同一来源去重。开始捕获世代与服务配置，网络与浏览器期间不持磁盘租约或业务写锁，快照读写与发布取短租约/写锁。切换服务或密钥后，旧任务不发布成功结果，可在带原service身份的记录中保存failed；失败不得替代新服务状态。整库恢复后，旧成功／失败均不能写回新世代。作业状态持久化，并保存内部开始世代；重启或同进程整库恢复后，旧 running 记录只读显示中断，不永远等待，也不自动重放网络调用。
+search/render/source/extract 在守护线程执行，每个 Vault 最多同时两个任务，同一来源去重。开始捕获世代与服务配置，网络与浏览器期间不持磁盘租约或业务写锁，快照读写与发布取短租约/写锁。切换服务或密钥后，旧任务不发布成功结果，可在带原service身份的记录中保存failed；失败不得替代新服务状态。整库恢复后，旧成功／失败均不能写回新世代。作业状态持久化，并保存内部开始世代；重启或同进程整库恢复后，旧 running 记录只读显示中断，不永远等待，也不自动重放网络调用。
 
 AI 复用 extract_region、judge=True 和现有识别配置；每个角色一次读取完整图。完整转录文字/公式时保存文本，否则保留整图，不补写解答。两区独立保存，重试只处理失败项；分类只补科目、分类、难度和知识点，不写标记。模型 finish_reason=length/max_tokens 时拒绝当作完整转录。供应商自身的图像和输出限额仍适用，失败可按整图入库。
 
@@ -57,11 +67,13 @@ AI 复用 extract_region、judge=True 和现有识别配置；每个角色一次
 | `GET /api/zuoyebang/status` | 查询网关账号脱敏观察及冻结服务配置；不联系官方 |
 | `POST /api/zuoyebang/profile` | 409 gateway_management，设备会话在独立面板导入 |
 | `POST /api/zuoyebang/account` | 409 gateway_management，账号管理在独立面板执行 |
-| `POST /api/zuoyebang/jobs` | `{type:"search",image:{upload_ref},grade?:0..12}` / `{type:"render",search_id,candidate_index}` / `{type:"extract",render_id,force?:boolean}`，返回 job |
+| `POST /api/zuoyebang/jobs` | `{type:"search",image:{upload_ref},grade?:0..12}` / `{type:"render",search_id,candidate_index}` / `{type:"source",search_id,region_index:int或null,bounds?:{x,y,width,height}}` / `{type:"extract",render_id,force?:boolean}`，返回 job |
 | `GET /api/zuoyebang/job` | `?id=job-…`；running/done/failed，含 result 或 error/code |
-| `GET /api/zuoyebang/record` | `?id=search-…或render-…`；候选摘要或渲染/images/extraction/创建预留和回执，不返回 source |
-| `GET /api/zuoyebang/history` | 最近30份渲染的状态、尺寸、摘要与时间 |
-| `GET /api/zuoyebang/image` | `?id=render-…&role=question或answer`；核对SHA后返回 PNG，private/no-store |
+| `GET /api/zuoyebang/record` | `?id=search-…或render-…`；候选摘要、image/regions/rotation或渲染/images/extraction/创建预留和回执，不返回 source |
+| `GET /api/zuoyebang/history` | 最近30份搜索及渲染的状态、尺寸、摘要与时间 |
+| `GET /api/zuoyebang/image` | `?id=render-…&role=question或answer` 返回PNG；`?id=search-…&role=source`返回原图或无EXIF方向预览，实际MIME；均核对SHA、private/no-store |
 | `POST /api/zuoyebang/commit` | `{render_id,form:{subject,category,difficulty,related_tags,labels,cause},sections:{question:{mode,text},answer:{mode,text}}}`；返回身份、图片名、commit_id、reused |
+
+source的region_index须存在于搜索记录，null允许显式整图范围；省略bounds时使用该位置的有效bounds，未取得有效范围返回400。坐标字段必须有限数值且在原图内。
 
 非法输入400；会话/流程/预留过时409；并发预算429；依赖缺失503；上游故障502。后台渲染和识别错误经 job 报告，轮询HTTP本身仍200，原内容保留。

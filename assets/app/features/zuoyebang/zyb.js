@@ -14,22 +14,22 @@ import { notifyHistoryChanged } from '../../domain/history.js';
 import { viewQ } from '../../domain/question/index.js';
 import { loadTaxonomy, mergeTaxonomy } from '../../domain/taxonomy.js';
 import { itemsOf } from '../../domain/items.js';
-import { suggestions } from './cards-state.js';
-import { mergeClassification } from './state.js';
+import { suggestions, mergeClassification } from '../../domain/create-form.js';
 import { createCamera } from './zyb-camera.js';
 import { createAccountMenu } from './zyb-account.js';
 import { sameService } from '../../domain/zuoyebang-service.js';
-import { newZybState, bindRender, extractionSnapshot, mergeExtraction, commitPayload } from './zyb-state.js';
+import { newZybState, bindCard, bindSearch, stashCard, searchRegions, regionBounds, candidateKey, extractionSnapshot, mergeExtraction, commitPayload } from './zyb-state.js';
 import * as view from './zyb-view.js';
 
-const KEY = 'omrs-zuoyebang-workspace';
+import { createPaper } from './zyb-paper.js';
+import { restoreWorkspace, WORKSPACE_KEY as KEY } from './zyb-restore.js';
 const S = newZybState();
 let jobContext = null;
 let revision = 0, resumeActive = null;
 const need = result => { if (!result.ok) throw new Error(result.error?.message || '请求失败'); return result.data; };
 
 export function createZuoyebang(root, ctx) {
-  const host = root.querySelector('#ib-stage-zuoyebang');
+  const host = root;
   let alive = true, entered = false, entryEpoch = 0, timer = null, inputRequest = 0, selectionRequest = 0;
   const drops = new WeakSet();
   render(host, view.roots());
@@ -43,9 +43,11 @@ export function createZuoyebang(root, ctx) {
     placeholder.textContent = state.message;
     paint();
   } });
+  const paper = createPaper(host, S, { select: region, changed: () => { remember(); paint(); } });
   function remember() {
+    stashCard(S);
     try { sessionStorage.setItem(KEY, JSON.stringify({ render_id: S.render?.id, search_id: S.search?.id, selected: S.selected, sourceMode: S.sourceMode,
-      form: S.form, labels: S.labels, sections: S.sections, versions: S.versions, dirty: S.dirty, job: S.job, jobContext })); }
+      region: S.region, boxes: S.boxes, drafts: S.drafts, renderIds: S.renderIds, savedLocations: S.savedLocations, form: S.form, labels: S.labels, sections: S.sections, versions: S.versions, dirty: S.dirty, job: S.job, jobContext })); }
     catch (_error) { /* 存储不可用时仍保留当前会话的工作区。 */ }
   }
   function status(message, error = false) { S.message = message; S.error = error; paint(); }
@@ -53,7 +55,7 @@ export function createZuoyebang(root, ctx) {
     if (!alive) { resumeActive?.(); return; }
     for (const [id, renderView] of [['account', view.accountView], ['camera-controls', view.cameraView], ['upload', view.uploadView],
       ['source-modes', view.sourceModesView], ['source-preview', view.sourcePreviewView], ['paste', view.pasteView],
-      ['candidates', view.candidatesView], ['preview', view.previewView], ['editor', view.editorView], ['history', view.historyView], ['result', view.resultView]]) {
+      ['paper-tools', view.paperToolsView], ['queue', view.queueView], ['candidates', view.candidatesView], ['preview', view.previewView], ['editor', view.editorView], ['history', view.historyView], ['result', view.resultView]]) {
       morph(host.querySelector(`#zyb-${id}`), renderView(S));
     }
     const node = host.querySelector('#zyb-status');
@@ -64,7 +66,9 @@ export function createZuoyebang(root, ctx) {
     host.querySelector('#zyb-camera-source').hidden = S.sourceMode !== 'camera' || (!!S.file && !cameraActive);
     host.querySelector('#zyb-upload').hidden = S.sourceMode !== 'upload';
     host.querySelector('#zyb-source-preview').hidden = S.sourceMode === 'camera' && cameraActive;
-    host.querySelector('.zyb-input').classList.toggle('has-image', !!S.file);
+    host.querySelector('.zyb-input').classList.toggle('has-image', !!S.file || !!S.search?.image);
+    host.querySelector('#zyb-paper').hidden = !S.search?.image || cameraActive;
+    paper.paint();
     const zone = host.querySelector('#zyb-upload [data-filedrop]');
     if (zone && !drops.has(zone)) { drops.add(zone); bindFileDrop(zone, files => pick(files[0]), () => status('请选择 JPG、PNG 或 WebP 图片', true)); }
   }
@@ -91,7 +95,7 @@ export function createZuoyebang(root, ctx) {
     revision += 1;
     if (S.fileUrl) URL.revokeObjectURL(S.fileUrl);
     S.file = file; S.fileUrl = URL.createObjectURL(file); S.sourceMode = mode;
-    S.search = null; S.render = null; S.result = null; S.selected = null; S.dirty = false; S.role = 'question'; S.showHtml = false;
+    bindSearch(S, null); S.region = null; S.selected = null; S.dirty = false; S.role = 'question'; S.showHtml = false;
     camera.stop();
     remember(); status('图片已选择，可以开始搜题');
   }
@@ -149,7 +153,7 @@ export function createZuoyebang(root, ctx) {
   const renderChanged = () => jobContext?.render && (jobContext.render.search_id !== S.search?.id || jobContext.render.candidate_index !== S.selected);
   async function startJob(type, payload) {
     const token = revision;
-    S.busy = type; remember(); status({ search: '作业帮正在搜题…', render: '正在生成题目与完整答案预览…', extract: 'AI 正在识别题目与完整答案…' }[type]);
+    S.busy = type; remember(); status({ search: '作业帮正在搜题…', render: '正在生成题目与完整答案预览…', extract: 'AI 正在识别题目与完整答案…', source: '正在保留原题图片…' }[type]);
     try {
       const result = need(await post('/api/zuoyebang/jobs', { type, ...payload }));
       if (token !== revision) return;
@@ -175,8 +179,8 @@ export function createZuoyebang(root, ctx) {
     if (job.type === 'render' && renderChanged()) { jobContext = null; await renderSelected(); return; }
     if (job.status === 'failed') { jobContext = null; remember(); status(job.error, true); void refresh(); return; }
     const record = job.result;
-    if (job.type === 'search') { S.search = record; S.selected = null; S.render = null; S.result = null; S.dirty = false; status(record.candidates.length ? `找到 ${record.candidates.length} 个候选，点击题目即可预览` : '未找到匹配题目，请重拍或更换图片'); }
-    else if (job.type === 'render') { bindRender(S, record); status('后端渲染完成，可检查题目与完整答案长图'); }
+    if (job.type === 'search') { bindSearch(S, record); status(record.candidates.length ? `找到 ${searchRegions(S).length} 个题目位置，点击题框或候选开始核对` : '未找到匹配题目，可保留原图继续录入'); }
+    else if (job.type === 'render' || job.type === 'source') { bindCard(S, record); status('预览已生成，请核对题目与答案'); }
     else if (job.type === 'extract') {
       const snapshot = jobContext?.extraction || extractionSnapshot(S);
       if (mergeExtraction(S, record, snapshot)) {
@@ -192,7 +196,7 @@ export function createZuoyebang(root, ctx) {
     const before = revision;
     if (!await discardEdits() || !alive || !entered || before !== revision || S.busy || S.job) return;
     const file = S.file, token = ++revision;
-    S.search = null; S.selected = null; S.render = null; S.result = null; S.dirty = false; S.role = 'question'; S.showHtml = false;
+    bindSearch(S, null); S.role = 'question'; S.showHtml = false;
     jobContext = null; remember();
     S.busy = 'search'; status('正在上传搜题图片…');
     try {
@@ -206,7 +210,9 @@ export function createZuoyebang(root, ctx) {
     if ((S.busy && S.busy !== 'render') || (S.job && S.job.type !== 'render') || !S.search?.candidates.some(candidate => candidate.index === index)) return;
     if (index === S.selected && (S.render || S.busy || S.job)) return;
     const token = revision, request = ++selectionRequest, entry = entryEpoch;
-    if (!await discardEdits() || !alive || !entered || token !== revision || request !== selectionRequest || entry !== entryEpoch) return;
+    stashCard(S);
+    if (!alive || !entered || token !== revision || request !== selectionRequest || entry !== entryEpoch) return;
+    S.region = Number(S.search.candidates.find(candidate => candidate.index === index).location);
     S.selected = index; S.render = null; S.result = null; S.dirty = false; S.role = 'question'; S.showHtml = false;
     if (S.busy === 'render' || S.job?.type === 'render') {
       const retryPoll = !S.busy;
@@ -216,11 +222,49 @@ export function createZuoyebang(root, ctx) {
     }
     await renderSelected();
   }
+  async function cachedCard(bounds = null) {
+    const token = revision, key = candidateKey(S), cached = S.renderIds[key];
+    if (cached) {
+      S.busy = 'render'; paint();
+      const response = await get(`/api/zuoyebang/record?id=${encodeURIComponent(cached)}`);
+      if (token !== revision) return true;
+      S.busy = '';
+      if (candidateKey(S) !== key) { if (alive && entered) await renderSelected(); else resumeActive?.(); return true; }
+      if (response.ok && (!bounds || Object.keys(bounds).every(k => response.data.record.bounds?.[k] === bounds[k]))) {
+        bindCard(S, response.data.record); remember(); paint(); return true;
+      }
+      delete S.renderIds[key];
+    }
+    return false;
+  }
   async function renderSelected() {
     if (S.busy || S.job || !S.search || !Number.isInteger(S.selected)) return;
     revision += 1;
+    if (await cachedCard()) return;
+    if (!alive || !entered) { resumeActive?.(); return; }
     jobContext = { render: { search_id: S.search.id, candidate_index: S.selected } };
     await startJob('render', { search_id: S.search.id, candidate_index: S.selected });
+  }
+  async function region(index) {
+    index = Number(index);
+    if ((S.busy && S.busy !== 'render') || (S.job && S.job.type !== 'render')) return;
+    const row = searchRegions(S).find(item => item.index === index);
+    if (!row) return;
+    stashCard(S); S.adjusting = false; S.region = index;
+    if (row.candidate_indices.length) return select(row.candidate_indices[0]);
+    S.selected = null; S.render = null; S.result = null; S.dirty = false;
+    if (!S.busy && !S.job) { revision += 1; await cachedCard(regionBounds(S)); }
+    remember(); paint();
+  }
+  async function keep() {
+    if (S.busy || S.job || !S.search?.image) return;
+    const image = S.search.image, bounds = regionBounds(S) || (S.region == null ? { x: 0, y: 0, width: image.width, height: image.height } : null);
+    if (!bounds) return;
+    stashCard(S); S.adjusting = false; S.selected = null; S.render = null; S.result = null; S.dirty = false;
+    revision += 1;
+    if (await cachedCard(bounds)) return;
+    if (!alive || !entered) return;
+    await startJob('source', { search_id: S.search.id, region_index: S.region, bounds });
   }
   async function extract() {
     if (S.busy || !S.render || S.result) return;
@@ -236,16 +280,28 @@ export function createZuoyebang(root, ctx) {
     S.busy = 'commit'; paint();
     try {
       const result = need(await post('/api/zuoyebang/commit', payload, { timeout: 120000 }));
-      S.result = result; S.dirty = false; remember(); status(`${result.uid} 已录入 OMRS`);
+      S.result = result; S.dirty = false; if (S.search && S.region != null) S.savedLocations[S.region] = result.uid; remember(); status(`${result.uid} 已录入 OMRS`);
       notifyHistoryChanged(); void reloadData(); ctx.bus.emit('catalog:reload');
     } catch (error) { status(`${error.message}；原题与当前编辑已保留，可重试`, true); }
     finally { S.busy = ''; paint(); }
   }
   async function openHistory(identity) {
-    if (S.busy || !await discardEdits()) return;
+    if (S.busy || S.job || !await discardEdits()) return;
     const token = ++revision;
     try { const result = need(await get(`/api/zuoyebang/record?id=${encodeURIComponent(identity)}`)); if (!alive || token !== revision) return;
-      bindRender(S, result.record); S.search = null; S.role = 'question'; remember(); status('已打开保存的后端渲染记录');
+      stashCard(S);
+      camera.stop();
+      if (S.fileUrl) URL.revokeObjectURL(S.fileUrl);
+      S.file = null; S.fileUrl = '';
+      if (result.record.kind === 'search') bindSearch(S, result.record);
+      else {
+        const parent = result.record.search_id ? await get(`/api/zuoyebang/record?id=${encodeURIComponent(result.record.search_id)}`) : null;
+        if (!alive || token !== revision) return;
+        if (parent?.ok) bindSearch(S, parent.data.record); else S.search = null;
+        S.region = Number.isInteger(result.record.candidate?.location) ? result.record.candidate.location : null;
+        S.selected = result.record.candidate?.index ?? null; bindCard(S, result.record);
+      }
+      S.role = 'question'; remember(); status('已恢复保存的来源与核对记录');
     } catch (error) { status(error.message, true); }
   }
   function onInput(event) {
@@ -268,37 +324,21 @@ export function createZuoyebang(root, ctx) {
     await refresh(); void loadTaxonomy();
     if (!current()) return;
     if (!S.render && !S.search) {
-      let saved;
-      try { saved = JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch (_error) { /* 不恢复损坏的浏览器草稿。 */ }
-      if (saved) {
-        try {
-          let searchRecord = null, renderRecord = null;
-          if (saved.search_id) {
-            searchRecord = need(await get(`/api/zuoyebang/record?id=${encodeURIComponent(saved.search_id)}`)).record;
-            if (!current()) return;
-          }
-          if (saved.render_id) {
-            renderRecord = need(await get(`/api/zuoyebang/record?id=${encodeURIComponent(saved.render_id)}`)).record;
-            if (!current()) return;
-          }
-          S.search = searchRecord;
-          if (renderRecord) {
-            bindRender(S, renderRecord);
-            if (!S.result && saved.sections) { S.sections = saved.sections; S.form = saved.form; S.labels = saved.labels || []; S.dirty = !!saved.dirty; if (saved.versions) S.versions = saved.versions; }
-          }
-          S.selected = Number.isInteger(saved.selected) ? saved.selected : null;
-          S.sourceMode = saved.sourceMode === 'upload' ? 'upload' : 'camera';
-          if (saved.job?.id) { S.job = saved.job; S.busy = saved.job.type; jobContext = saved.jobContext || null; }
-          if (S.job?.type === 'render' && !jobContext?.render) jobContext = { render: { search_id: S.search?.id, candidate_index: S.selected } };
-        } catch (error) { if (current()) status(`保存的来源无法读取：${error.message}`, true); }
-      }
+      try { jobContext = await restoreWorkspace(S, { current, read: async id => need(await get(`/api/zuoyebang/record?id=${encodeURIComponent(id)}`)).record }); }
+      catch (error) { if (current()) status(`保存的来源无法读取：${error.message}`, true); }
     }
+    if (!current()) return;
     paint(); if (S.job) { S.busy = S.job.type; void poll(); }
+    else if (!S.render) void renderSelected();
   }
   function leave() { entered = false; entryEpoch += 1; inputRequest += 1; if (S.busy === 'capture') S.busy = ''; accountMenu.close(); camera.stop(); clearTimeout(timer); combobox.close(); remember(); }
-  function resume() { if (alive && entered) { paint(); void refresh(); if (S.job) void poll(); } }
+  function resume() { if (alive && entered) { paint(); void refresh(); if (S.job) void poll(); else if (!S.render) void renderSelected(); } }
   resumeActive = resume;
-  return { enter, leave, search, select, capture, source, paste, render: renderSelected, extract, account, login, settings: openSettings, commit, history: openHistory,
+  return { enter, leave, search, select, region, keep,
+    next: () => { const rows = searchRegions(S), at = rows.findIndex(row => row.index === S.region); if (rows.length) void region(rows[(at + 1) % rows.length].index); },
+    boxes: value => { S.showBoxes = value; remember(); paint(); },
+    adjust: () => { if (!S.busy && !S.job && regionBounds(S)) { S.adjusting = !S.adjusting; S.showBoxes = true; paint(); } },
+    capture, source, paste, render: renderSelected, extract, account, login, settings: openSettings, commit, history: openHistory,
     menu: page => accountMenu.show(page),
     camera: () => camera.toggle(),
     role: role => { if (['question', 'answer'].includes(role)) { S.role = role; paint(); } },
@@ -306,9 +346,9 @@ export function createZuoyebang(root, ctx) {
     html: () => { S.showHtml = !S.showHtml; paint(); },
     expand: () => { const images = ['question', 'answer'].filter(role => S.render?.images[role]?.url); openImageViewer(images.map(role => ({ src: S.render.images[role].url, label: role === 'question' ? '完整题目渲染图' : '完整答案渲染图' })), images.indexOf(S.role)); },
     mode: arg => { const [role, mode] = arg.split(':'); if (!S.result && S.sections[role]?.mode !== 'none' && ['image', 'text'].includes(mode)) { S.sections[role].mode = mode; S.versions[role] += 1; S.dirty = true; remember(); paint(); } },
-    labels: el => openCreateLabelPicker(el, S.labels, labels => { S.labels = labels; S.dirty = true; remember(); paint(); }),
-    board: (el, fast) => { if (S.result) boardQuickAdd([S.result.uid], el, { fast }); },
+    labels: el => openCreateLabelPicker(el, { get: () => S.labels, onSave: labels => { S.labels = labels; S.dirty = true; remember(); paint(); } }),
+    board: (el, direct) => { if (S.result) boardQuickAdd(S.result, { anchor: el, direct }); },
     open: () => { if (S.result) viewQ(S.result.uid); },
-    dispose() { accountMenu.dispose(); alive = false; if (resumeActive === resume) resumeActive = null; leave(); host.removeEventListener('input', onInput); document.removeEventListener('paste', onPaste, true); combobox.dispose(); if (S.fileUrl) URL.revokeObjectURL(S.fileUrl); S.fileUrl = ''; },
+    dispose() { paper.dispose(); accountMenu.dispose(); alive = false; if (resumeActive === resume) resumeActive = null; leave(); host.removeEventListener('input', onInput); document.removeEventListener('paste', onPaste, true); combobox.dispose(); if (S.fileUrl) URL.revokeObjectURL(S.fileUrl); S.fileUrl = ''; },
   };
 }
