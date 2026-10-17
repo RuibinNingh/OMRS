@@ -23,6 +23,7 @@ import * as view from './zyb-view.js';
 
 import { createPaper } from './zyb-paper.js';
 import { restoreWorkspace, WORKSPACE_KEY as KEY } from './zyb-restore.js';
+import { editSource, toggleTextView } from './zyb-text.js';
 const S = newZybState();
 let jobContext = null;
 let revision = 0, resumeActive = null;
@@ -316,8 +317,9 @@ export function createZuoyebang(root, ctx) {
     } catch (error) { status(error.message, true); }
   }
   function onInput(event) {
+    if (S.result || S.busy === 'commit') return;
     const { target } = event, role = target.dataset.zybText, field = target.dataset.zybField;
-    if (role && S.sections[role]) { S.sections[role].text = target.value; S.versions[role] += 1; }
+    if (role && S.sections[role]) { if (!editSource(S.sections[role], target.value)) return; S.versions[role] += 1; }
     else if (field && Object.hasOwn(S.form, field)) S.form[field] = target.value;
     else return;
     S.dirty = true; remember();
@@ -355,8 +357,9 @@ export function createZuoyebang(root, ctx) {
     role: role => { if (['question', 'answer'].includes(role)) { S.role = role; paint(); } },
     zoom: zoom => { S.zoom = zoom === 'actual' ? 'actual' : 'fit'; paint(); },
     html: () => { S.showHtml = !S.showHtml; paint(); },
+    textView: role => { if (S.render && toggleTextView(S.sections[role])) { remember(); paint(); } },
     expand: () => { const images = ['question', 'answer'].filter(role => S.render?.images[role]?.url); openImageViewer(images.map(role => ({ src: S.render.images[role].url, label: role === 'question' ? '完整题目渲染图' : '完整答案渲染图' })), images.indexOf(S.role)); },
-    mode: arg => { const [role, mode] = arg.split(':'); if (!S.result && S.sections[role]?.mode !== 'none' && ['image', 'text'].includes(mode)) { S.sections[role].mode = mode; S.versions[role] += 1; S.dirty = true; remember(); paint(); } },
+    mode: arg => { const [role, mode] = arg.split(':'); if (!S.result && S.busy !== 'commit' && S.sections[role]?.mode !== 'none' && ['image', 'text'].includes(mode)) { S.sections[role].mode = mode; S.versions[role] += 1; S.dirty = true; remember(); paint(); } },
     labels: el => openCreateLabelPicker(el, { get: () => S.labels, onSave: labels => { S.labels = labels; S.dirty = true; remember(); paint(); } }),
     board: (el, direct) => { if (S.result) boardQuickAdd(S.result, { anchor: el, direct }); },
     open: () => { if (S.result) viewQ(S.result.uid); },

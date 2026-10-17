@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-10-17_zuoyebang-text-preview](2026-10-17_zuoyebang-text-preview.md)：作业帮正文预览与源码切换
 - [2026-10-17_zuoyebang-scroll](2026-10-17_zuoyebang-scroll.md)：作业帮工作区滚动修复
 - [2026-10-17_zuoyebang-scroll-deploy](2026-10-17_zuoyebang-scroll-deploy.md)：作业帮滚动修复快速生产发布
 - [2026-10-17_zuoyebang-mobile-layout](2026-10-17_zuoyebang-mobile-layout.md)：作业帮手机宽度题图

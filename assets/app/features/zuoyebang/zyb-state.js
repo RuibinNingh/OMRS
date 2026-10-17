@@ -29,6 +29,7 @@ export function bindCard(state, record) {
   bindRender(state, record);
   const saved = state.drafts[record.id];
   if (saved && !state.result) Object.assign(state, structuredClone(saved));
+  else if (saved) ROLES.forEach(role => { state.sections[role].view = saved.sections?.[role]?.view === 'source' ? 'source' : 'preview'; });
   if (state.search?.id === record.search_id) {
     state.renderIds[candidateKey(state, record.candidate?.index)] = record.id;
     if (state.result && Number.isInteger(record.candidate?.location)) state.savedLocations[record.candidate.location] = state.result.uid;

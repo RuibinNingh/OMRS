@@ -5,6 +5,7 @@ import { filedrop } from '../../ui/filedrop.js';
 import { labelChips } from '../../domain/labels/index.js';
 import { ROLES, searchRegions, regionBounds, canRegenerate } from './zyb-state.js';
 import { panelUrl, serviceStatus } from '../../domain/zuoyebang-service.js';
+import { textView } from './zyb-text.js';
 const action = (label, name, options = {}) => button({ label, action: `zuoyebang.zyb${name}`, ...options });
 export const timeLabel = value => value ? new Date(value * 1000).toLocaleString('zh-CN', { hour12: false }) : '暂无记录';
 
@@ -114,7 +115,7 @@ export function editorView(s) {
   const f = s.form, submitted = !!s.result, locked = submitted || s.busy === 'commit';
   return html`<div class="zyb-head"><h3>识别与录入</h3>${action('AI 识别题目与答案', 'Extract', { icon: 'sparkle', disabled: !!s.busy || submitted, loading: s.busy === 'extract' })}</div><p class="zyb-help">忠实转录原文；需要图形或无法完整转录时保留整图。识别失败可重试，也可直接按完整图片保存。</p>
     <div class="zyb-editor-sections">${ROLES.map(role => { const section = s.sections[role]; return html`<div class="zyb-section" data-key="section-${role}"><div class="zyb-head"><strong>${role === 'question' ? '题目' : '答案与解析'}</strong><div class="zyb-actions">${section.mode !== 'none' ? [action('保留图片', 'Mode', { arg: `${role}:image`, pressed: section.mode === 'image', disabled: locked }), action('使用文本', 'Mode', { arg: `${role}:text`, pressed: section.mode === 'text', disabled: locked })] : '无答案'}</div></div><p class="zyb-help">${section.reason}</p>
-      ${section.mode === 'text' ? html`<label class="zyb-field">${role === 'question' ? '题目正文' : '完整答案正文'}<textarea class="ui-textarea" rows="5" data-zyb-text="${role}"${locked ? html` disabled` : ''}>${section.text}</textarea></label>` : ''}</div>`; })}</div>
+      ${section.mode === 'text' ? textView(section, role, locked) : ''}</div>`; })}</div>
     <div class="zyb-fields"><label class="zyb-field">科目 *<input class="ui-input" data-zyb-field="subject" data-combobox="subject" value="${f.subject}" autocomplete="off"${locked ? html` disabled` : ''}></label><label class="zyb-field">分类 *<input class="ui-input" data-zyb-field="category" data-combobox="category" value="${f.category}" autocomplete="off"${locked ? html` disabled` : ''}></label>
       <label class="zyb-field">难度（1–10）<input class="ui-input" type="number" min="1" max="10" data-zyb-field="difficulty" value="${f.difficulty}"${locked ? html` disabled` : ''}></label><label class="zyb-field">相关知识点<input class="ui-input" data-zyb-field="related" data-combobox="tags" value="${f.related}" placeholder="逗号分隔"${locked ? html` disabled` : ''}></label></div>
     <label class="zyb-field">错因 · 可选<textarea class="ui-textarea" rows="2" data-zyb-field="cause"${locked ? html` disabled` : ''}>${f.cause}</textarea></label><div class="zyb-actions">${labelChips(s.labels)}${action('添加标记', 'Labels', { icon: 'plus', disabled: locked })}</div>

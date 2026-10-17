@@ -30,6 +30,7 @@ def verify_mobile(page, context, base, vault, output, check):
     page.locator('[data-zyb-field="subject"]').fill('数学')
     page.locator('[data-zyb-field="category"]').fill('手机排版核对')
     page.locator('[data-action="zuoyebang.zybMode"][data-arg="answer:text"]').click()
+    page.locator('[data-key="section-answer"]').get_by_role('button', name='源码', exact=True).click()
     page.locator('[data-zyb-text="answer"]').fill('重新生成前核对的答案：5。')
     page.locator('[data-zyb-field="cause"]').fill('保留人工错因')
     requests = []

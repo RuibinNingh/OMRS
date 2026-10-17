@@ -53,6 +53,8 @@ AI 复用 extract_region、judge=True 和现有识别配置；每个角色一次
 
 用户核对后主动创建；客户端提交 render_id、人工表单和两区 mode/text。图片由后端读取不可变 PNG，不接受外部 HTML/路径。空答案使用 none，非空答案不可隐式丢弃，文本要求非空。
 
+核对正文支持各区独立的预览／源码切换，预览复用现有Markdown与KaTeX。两种显示将正文中的图片引用缩写为编号占位符，编辑时保留占位符会还原真实原文；切换显示不改变mode或编辑版本。前端草稿只持久化真实text和显示偏好view，提交仍只含mode/text，服务器契约不增加字段。正式内容不从显示占位符生成，已入库源码只读；交互与恢复规则见 `AI/frontend/zuoyebang.md`。
+
 首次提交冻结内容摘要、UID/question_id/路径和日期，复用 CreationOperation 产物校验与 Ledger op_results 回执；其它录入入口跳过作业帮预留 UID。中断重试用同一身份，已有回执直接复用；不同内容重试返回409并保留首次内容，浏览器可从记录恢复。正式提交为 question.create，actor=zuoyebang，内部来源 _inbox.zuoyebang_render_id 关联渲染。
 
 工作区扫描跳过尚未入账的作业帮预留身份，避免已写出的中间文件被当作外部新增题目。恢复由用户从原渲染记录重试，不在启动时重放网络或自动创建。全库备份包含这份私有目录，恢复世代使在途任务及旧上传引用失效。

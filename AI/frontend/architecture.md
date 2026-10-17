@@ -139,6 +139,8 @@ assets/app/
 
 `tests/app/create-zyb.test.mjs`覆盖视频原始尺寸取帧、无可用帧、空编码结果、编码期间取消及摄像头权限边界。摄像头开启和本地拍摄不以网关在线为前提；图片在网关就绪后才提交搜索。
 
+作业帮 `zyb-text.js` 复用题目领域Markdown／KaTeX渲染，独立管理正文显示和图片占位符映射；映射用WeakMap绑定当前section，刷新或切题从真实正文重新生成。section.view随逐题草稿保存，但不增加编辑版本，不参与提交。`tests/app/zyb-text.test.mjs` 与主E2E调用的 `tests/e2e/zuoyebang_text.py` 验证编辑、恢复和完整正文提交；已入库草稿仅恢复显示偏好，不能覆盖正式正文。
+
 ## 9. 独立训练面板
 
 独立训练面板 `/train` 由 `features/trainpanel/store.js` 持有实验快照、选择状态与指标；按块 morph 保留实时测试原图和滚动。纯模型与增量读取测试见 `tests/app/trainpanel.test.mjs`；`tests/e2e/trainpanel.py` 用假实验目录审计四档状态，`tests/e2e/boxdetect.py` 使用外部真实模型和临时 Vault 复核收件箱及面板。

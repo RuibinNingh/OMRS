@@ -18,6 +18,7 @@ from browser_runtime import launch_chromium, open_app
 from tests.zuoyebang_fixtures import profile, png
 from zuoyebang_paper import verify_paper
 from zuoyebang_mobile import verify_mobile
+from zuoyebang_text import verify_text, verify_submitted_text
 
 SERVER = r'''
 import http.server,json,sys,time
@@ -66,7 +67,7 @@ http.server.ThreadingHTTPServer(('127.0.0.1',int(port)),Handler).serve_forever()
 AUDIT = '''() => {
  const root=document.querySelector('#panel-zuoyebang');
  const shown=[...root.querySelectorAll('*')].filter(el=>el.offsetParent);
- return {inline:shown.filter(el=>(el.getAttribute('style')||'').trim()).length,
+ return {inline:shown.filter(el=>!el.closest('.katex')&&(el.getAttribute('style')||'').trim()).length,
  handlers:shown.filter(el=>[...el.attributes].some(a=>/^on/i.test(a.name))).length,
  overflow:document.documentElement.scrollWidth>innerWidth+1,
  small:shown.filter(el=>el.matches('button,summary')).filter(el=>el.getBoundingClientRect().height<28).map(el=>el.textContent)};
@@ -269,6 +270,7 @@ def main():
                 check('部分失败保留题图与完整答案图片并允许重试', page.locator('[data-arg="question:image"]').get_attribute('aria-pressed') == 'true' and page.locator('[data-arg="answer:image"]').get_attribute('aria-pressed') == 'true')
                 page.get_by_role('button', name='AI 识别题目与答案', exact=True).click()
                 page.locator('[data-arg="answer:text"]').click()
+                page.locator('[data-key="section-answer"]').get_by_role('button', name='源码', exact=True).click()
                 page.locator('[data-zyb-text="answer"]').fill('人工在识别期间核对的完整答案 $AD=4$，面积12。')
                 job_id = page.evaluate("() => JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace')).job.id")
                 check('刷新前AI任务确实仍在运行', context.request.get(base + '/api/zuoyebang/job?id=' + job_id).json()['job']['status'] == 'running')
@@ -277,6 +279,7 @@ def main():
                 page.wait_for_function("() => document.querySelector('#zyb-status').textContent.includes('识别完成')")
                 check('识别在途刷新后AI完成仍不覆盖人工正文', page.locator('[data-zyb-text="answer"]').input_value().startswith('人工在识别期间'))
                 check('科目分类复用AI补空流程', page.locator('[data-zyb-field="subject"]').input_value() == '数学' and page.locator('[data-zyb-field="category"]').input_value() == '平面几何')
+                expected_answer = verify_text(page, output, check)
                 page.get_by_role('button', name='题目', exact=True).click()
                 page.locator('.zyb-viewport').evaluate('(el)=>el.scrollTop=0')
                 for theme in ('light', 'dark'):
@@ -296,7 +299,9 @@ def main():
                         page.keyboard.press('Escape')
                         page.screenshot(path=str(output / f'{theme}-{width}.png'), full_page=True)
                 page.set_viewport_size({'width': 1440, 'height': 1000})
-                page.get_by_role('button', name='录入 OMRS', exact=True).click()
+                with page.expect_request('**/api/zuoyebang/commit') as committed:
+                    page.get_by_role('button', name='录入 OMRS', exact=True).click()
+                check('提交发送完整图片原文而非显示占位符', committed.value.post_data_json['sections']['answer']['text'] == expected_answer)
                 page.locator('.zyb-result').wait_for()
                 markdown = next((vault / '错题' / '数学').rglob('平面几何[0-9]*.md')).read_text()
                 (output / 'created-synthetic.md').write_text(markdown)
@@ -305,6 +310,7 @@ def main():
                 open_app(page, base, 'zuoyebang')
                 page.locator('.zyb-result').wait_for()
                 check('刷新恢复渲染、首次提交内容和已入库回执', page.get_by_role('button', name='已录入题库', exact=True).is_disabled())
+                verify_submitted_text(page, expected_answer, check)
                 page.locator('[data-action="zuoyebang.zybSelect"][data-arg="1"]').click()
                 check('切候选清空上一题渲染结果', page.locator('#zyb-rendered-image').count() == 0 and page.locator('.zyb-result').count() == 0)
                 page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalWidth===1080", timeout=60000)

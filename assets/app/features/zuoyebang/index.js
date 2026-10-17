@@ -32,6 +32,7 @@ export const page = {
     zybHtml: () => workspace?.html(),
     zybExpand: () => workspace?.expand(),
     zybMode: ({ arg }) => workspace?.mode(arg),
+    zybTextView: ({ arg }) => workspace?.textView(arg),
     zybLabels: ({ el }) => workspace?.labels(el),
     zybCommit: () => workspace?.commit(),
     zybHistory: ({ arg }) => workspace?.history(arg),

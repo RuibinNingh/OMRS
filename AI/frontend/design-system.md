@@ -27,6 +27,8 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 
 作业帮样式 `features/zuoyebang/zyb.css` 由总入口以 layer(features) 引入，沿用语义token。桌面左右两栏：原图／题框与候选／完整预览／核对表单，760px以下上下排列；可用宽度随工作台伸缩。候选选中取accent-soft与focus-ring，hover仅对精细指针启用，触摸取图按钮和候选至少44px。SVG题框复用共享裁图画布，调整模式才显示控制点。100%预览只在内框滚动；白底原图与后端图不随主题变色。服务入口单行收起，浮层限制高度。页面与浮层审计覆盖320/390/1024/1440px及浅深主题，后端MathJax资源说明见assets/vendor/mathjax/README.md。
 
+核对正文的`.zyb-text-preview`取surface-1与fg-1，预览及等宽源码均取text-lg；单按钮使用共享ui-btn切换显示。预览限制高度并可键盘聚焦滚动，块级公式在自身范围横向滚动；section和正文容器设置min-width:0，长公式与图片占位符不撑宽页面。两种显示沿用同一组语义token适配浅深主题。
+
 ## 2. 语义 token
 
 浅色写在 `:root`，深色写在 `[data-theme="dark"]`，两者名字一致。`data-theme` 与 `data-density` 都挂在 `<html>` 上。
