@@ -28,3 +28,9 @@
 `python3 tests/check_docs.py --write-log-index`已生成索引，`python3 tests/check_docs.py --diff HEAD`通过：146份、0问题、3条既有体积提醒；git diff --check通过。生产修复发布仍在进行，结果随后追加。不把前一轮滚动修复的86项结果计为本次重跑。
 
 未执行全量OMRS后端、Node及视觉对照：本次仅改网关Python及相关测试，未改前端代码。实体设备和付费模型也不在本次验证范围；真实官方仅针对已失败图片做故障复核。
+
+## 生产发布与故障复核
+
+本地提交b7225bb，精确归档 `/root/workspace/apps/releases/omrs-b7225bb`，1530个文件逐字节一致。2026-10-17 21:42:36（北京时间）完成原子切换，耗时3.334秒；三服务active/running并确认实际cwd。切换前实际任务与恢复意图均0；停服保全 `/root/workspace/apps/releases/OMRS-v281-release-0doj620t`，解包校验1159个文件及8个SQLite库。unit、依赖、账号及设备配置不变，版本保持v2.8.1，未推送远端。
+
+发布后将先前失败的原始PNG（未在客户端转码）单次提交真实生产网关，返回200/ok、8组mainPageInfo，历史242保留PNG原字节，与失败原件逐字节相等。这是本次故障定向复核，不代表全量生产验收；未执行浏览器或公网生产验收，亦未创建或修改真实题目。用户刷新页面后重新开始搜题即可。
