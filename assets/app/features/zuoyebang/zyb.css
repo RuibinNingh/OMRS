@@ -96,7 +96,7 @@
 .zyb-field textarea { resize: vertical; min-height: 80px; }
 .zyb-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
 .zyb-actionbar { border-top: 1px solid var(--border-1); padding-top: var(--sp-3); }
-.zyb-recognition .ui-dialog__panel { width: min(1240px, 100%); padding: 0; gap: 0; overflow: hidden; }
+.zyb-recognition .ui-dialog__panel { position: relative; width: min(1240px, 100%); padding: 0; gap: 0; overflow: hidden; }
 .zyb-recognition .ui-dialog__head { padding: var(--sp-6) var(--sp-6) var(--sp-4); align-items: center; }
 .zyb-dialog-heading { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
 .zyb-dialog-heading .ui-dialog__title { font-size: var(--text-xl); }
@@ -110,6 +110,12 @@
 .zyb-dialog-steps .is-active > span { background: var(--accent); color: var(--on-accent); }
 .zyb-dialog-steps[data-complete="true"] li { color: var(--success); }
 .zyb-recognition .ui-dialog__body { padding: var(--sp-5) var(--sp-6) var(--sp-6); display: grid; gap: var(--sp-6); background: var(--surface-0); overscroll-behavior: contain; }
+#zyb-dialog-status:empty, #zyb-dialog-loading:empty { display: none; }
+.zyb-dialog-loading { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: var(--z-sticky); display: grid; justify-items: center; gap: var(--sp-3); width: min(320px, calc(100% - var(--sp-8))); padding: var(--sp-6); border: 1px solid var(--accent); border-radius: var(--r-lg); background: var(--surface-1); color: var(--fg-1); box-shadow: var(--elev-3); text-align: center; pointer-events: none; }
+.zyb-dialog-loading strong { font-size: var(--text-2xl); font-weight: var(--weight-semibold); line-height: var(--leading-tight); }
+.zyb-dialog-loading p { margin: 0; color: var(--fg-2); font-size: var(--text-sm); line-height: var(--leading-read); }
+.zyb-dialog-loading-spinner { width: var(--sp-8); height: var(--sp-8); border: 3px solid var(--accent-soft); border-top-color: var(--accent); border-radius: var(--r-pill); animation: ui-spin calc(var(--dur-3) * 3) linear infinite; }
+@media (prefers-reduced-motion: reduce) { .zyb-dialog-loading-spinner { animation: none; } }
 .zyb-dialog-notice { display: flex; align-items: start; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-1); color: var(--fg-2); font-size: var(--text-sm); }
 .zyb-dialog-notice > .ui-icon { flex-shrink: 0; margin-top: var(--sp-0_5); }
 .zyb-dialog-notice strong { color: var(--fg-1); font-weight: var(--weight-medium); }

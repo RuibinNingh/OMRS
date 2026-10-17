@@ -29,6 +29,8 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 
 核对正文的`.zyb-text-preview`取surface-1与fg-1，预览及等宽源码均取text-lg；单按钮使用共享ui-btn切换显示。预览限制高度并可键盘聚焦滚动，块级公式在自身范围横向滚动；section和正文容器设置min-width:0，长公式与图片占位符不撑宽页面。两种显示沿用同一组语义token适配浅深主题。
 
+识别工作窗的居中状态卡取surface-1、fg-1／fg-2、accent边框及elev-3阴影，大字取text-2xl，宽度限制在窗口内部。等待指示复用ui-spin，减少动效时停转；状态以role=status礼貌播报，装饰转圈对读屏隐藏，pointer-events:none保证下方表单仍能操作。
+
 ## 2. 语义 token
 
 浅色写在 `:root`，深色写在 `[data-theme="dark"]`，两者名字一致。`data-theme` 与 `data-density` 都挂在 `<html>` 上。
