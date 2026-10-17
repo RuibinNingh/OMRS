@@ -2,6 +2,8 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-10-17_zuoyebang-scroll](2026-10-17_zuoyebang-scroll.md)：作业帮工作区滚动修复
+- [2026-10-17_zuoyebang-scroll-deploy](2026-10-17_zuoyebang-scroll-deploy.md)：作业帮滚动修复快速生产发布
 - [2026-10-16_zuoyebang-integration](2026-10-16_zuoyebang-integration.md)：作业帮整卷改造与维护修复合入
 - [2026-10-16_omrs-maintenance](2026-10-16_omrs-maintenance.md)：全面检查后维护
 - [2026-10-16_omrs-maintenance-scope](2026-10-16_omrs-maintenance-scope.md)：维护验收范围确认

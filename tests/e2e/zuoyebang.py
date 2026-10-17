@@ -72,7 +72,7 @@ AUDIT = '''() => {
 }'''
 
 def main():
-    from playwright.sync_api import sync_playwright
+    from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
     output = Path(os.environ.get('OMRS_E2E_SHOTS') or os.environ.get('OMRS_ZYB_SHOTS')
                   or tempfile.mkdtemp(prefix='omrs-zuoyebang-e2e-shots-'))
     output.mkdir(parents=True, exist_ok=True)
@@ -198,6 +198,34 @@ def main():
                 }''')
                 check('整卷原图与核对区并列且右侧核对内容位于右栏', layout['left'] > layout['right'] and layout['editor'] < layout['right'])
                 check('工作区铺满可用宽度不留整体右侧空白', abs(layout['workspace'] - layout['host']) < 1)
+                # 独立标签页避免跨断点的滚动恢复干扰真实滚轮验收。
+                snapshot = page.evaluate("() => sessionStorage.getItem('omrs-zuoyebang-workspace')")
+                for width in (1440, 1161, 1160, 390):
+                    scroll_page = context.new_page()
+                    scroll_page.set_viewport_size({'width': width, 'height': 900})
+                    scroll_page.add_init_script("sessionStorage.setItem('omrs-zuoyebang-workspace', " + json.dumps(snapshot) + ");")
+                    open_app(scroll_page, base, 'zuoyebang')
+                    scroll_page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalWidth===1080")
+                    workspace = scroll_page.locator('.zyb-workspace').bounding_box()
+                    scroll_page.mouse.move(workspace['x'] + 2, 450)
+                    scroll_page.mouse.wheel(0, 600)
+                    try:
+                        scroll_page.wait_for_function('''() => document.scrollingElement.scrollTop > 20
+                          || document.querySelector('.zyb-workspace').scrollTop > 20''', timeout=3000)
+                        scrolled = True
+                    except PlaywrightTimeoutError:
+                        scroll_page.screenshot(path=str(output / f'scroll-failed-{width}.png'))
+                        scrolled = False
+                    check(f'{width}px真实滚轮可以向下浏览工作区', scrolled)
+                    scroll_page.mouse.wheel(0, 20000)
+                    scroll_page.wait_for_function('''() => {
+                      const r = document.querySelector('[data-action="zuoyebang.zybCommit"]').getBoundingClientRect();
+                      return r.top >= 0 && r.bottom <= innerHeight;
+                    }''')
+                    check(f'{width}px滚到底部可见录入按钮', True)
+                    scroll_page.screenshot(path=str(output / f'scroll-bottom-{width}.png'))
+                    scroll_page.close()
+                page.bring_to_front()
                 page.get_by_role('button', name='答案与解析', exact=True).click()
                 page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalHeight>3000")
                 image_url = page.locator('#zyb-rendered-image').get_attribute('src')

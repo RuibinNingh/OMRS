@@ -74,6 +74,7 @@ assets/
 | 录入题目 | `#create-app` → `.ib-stage.on`；处理页额外 `#ib-stage-process.on` → `.ib-proc` | 上传、处理、录入与 AI 训练各工作区按自身布局滚动；处理区的成功状态写在右侧标题下，不占用全局 toast 层 |
 | 展示板 | `.brd` → `.brd-main` → `.brd-work` | 板列表、纸面桌面、题目面板各自滚动 |
 | 即时练习 | `.inst-work`（`features/instant/instant.css`） | `.inst-main` / `.inst-queue__list` |
+| 作业帮 | `.zyb-workspace`（`features/zuoyebang/zyb.css`） | 大于1160px时整卷工作区统一纵向滚动；窄屏使用文档滚动 |
 
 配套：题库表头 `position:sticky; top:0`，列表再长表头也在；抽屉不 sticky（父级已经限高，自己滚）。
 

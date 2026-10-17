@@ -1,5 +1,9 @@
 /* 作业帮来源、后端原图预览和人工核对，沿用全站语义 token。 */
 .zyb-workspace { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); width: 100%; gap: var(--sp-4); padding-bottom: var(--sp-4); align-items: start; }
+/* 桌面外壳固定高度，整卷内容须在剩余空间内滚动；窄屏沿用文档滚动。 */
+@media (min-width: 1161px) {
+  .zyb-workspace { flex: 1; min-height: 0; overflow-y: auto; align-content: start; }
+}
 .zyb-source { display: grid; gap: var(--sp-4); min-width: 0; align-content: start; }
 .zyb-capture, .zyb-editor-sections { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); }
 .zyb-workspace-head { grid-column: 1 / -1; }
