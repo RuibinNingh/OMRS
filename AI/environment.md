@@ -15,17 +15,17 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-17 快速发布）：当前 v2.8.1，源码为 Git 提交 `b7225bb216660e0415b3548b4c246964bf667af5` 的精确归档 `/root/workspace/apps/releases/omrs-b7225bb`，1530个源码文件逐字节一致。当前工作区是开发源码，不是在线运行目录；生产 Vault 仍为 `/root/workspace/apps/OMRS`，隔离测试不能读取其真实错题数据。
+生产环境事实（2026-10-17 快速发布）：当前 v2.8.1，源码为 Git 提交 `4aff445b253e930375dedb14904a3608e10aedc2` 的精确归档 `/root/workspace/apps/releases/omrs-4aff445`，1533个源码文件逐字节一致。当前工作区是开发源码，不是在线运行目录；生产 Vault 仍为 `/root/workspace/apps/OMRS`，隔离测试不能读取其真实错题数据。
 
-三个服务沿用原 unit/drop-in。持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 指向 omrs-b7225bb；主服务、网关、检测的真实 cwd 分别为同一归档根、services/zuoyebang、services/boxdetect。检测使用原训练解释器执行模块 CLI。三个服务均 active/running；网关私有数据在 `/var/lib/omrs-zuoyebang`，目录0700、文件0600，管理员秘密不输出或提交。
+三个服务沿用原 unit/drop-in。持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 指向 omrs-4aff445；主服务、网关、检测的真实 cwd 分别为同一归档根、services/zuoyebang、services/boxdetect。检测使用原训练解释器执行模块 CLI。三个服务均 active/running；网关私有数据在 `/var/lib/omrs-zuoyebang`，目录0700、文件0600，管理员秘密不输出或提交。
 
 Python依赖沿用 `/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv`，Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；浏览器缓存包含对应1234版Chromium。检测使用 `/root/omrs-train/.venv/bin/python`，推理依赖未升级。共享 CDP9222 仅供可信本机隔离 context，验证不关闭共享浏览器；发布 TMPDIR 使用浏览器可访问目录。
 
 Web8471、回环MCP18472、HTTPS8472及公开URL `https://home.ruibin-ningh.top:8472` 保持。Nginx的 `/zuoyebang/` 反代至回环8745，不新增公网端口；管理Cookie为Secure/HttpOnly/Strict并限制服务路径。原网关连接、账号／设备、PIN、MCP及调用Key保持，匿名数据、MCP、网关调用与详情仍需鉴权；锁屏入口内联既有SVG图标。
 
-当前停服保全为 `/root/workspace/apps/releases/OMRS-v281-release-0doj620t`，目录0700、文件0600，含新旧源码、unit、Vault/maintenance与网关私有数据。切换前任务与恢复意图检查通过，备份解包校验1159个文件及8个SQLite库后原子切换，耗时3.334秒。长期待审不依据旧期限作废；后续正常业务写入需根据原生回执核对，不能用旧题数推断当前状态。
+当前停服保全为 `/root/workspace/apps/releases/OMRS-v281-release-uu6f2777`，目录0700、文件0600，含新旧源码、unit、Vault/maintenance与网关私有数据。切换前任务与恢复意图检查通过，备份解包校验1182个文件及8个SQLite库后原子切换，耗时3.324秒。长期待审不依据旧期限作废；后续正常业务写入需根据原生回执核对，不能用旧题数推断当前状态。
 
-当前包含工作区滚动与PNG/WebP官方请求副本兼容修复。按用户要求跳过全量生产验收；仅确认服务就绪及实际目录，并将已失败PNG单次提交生产网关做故障复核，返回200及8组结果，原图字节保持。图片修复本地网关64项和前缀双服务浏览器23项通过；不能以本地或单张图片结果代替全量上线验收。
+当前包含工作区滚动、PNG/WebP官方请求副本兼容与手机题图排版。候选按360 CSS px宽、17px正文、3倍输出，旧预览可主动重新生成；原像素裁图保持独立路径。按用户要求跳过全量生产验收，仅确认服务就绪及实际目录；切换前从精确归档独立渲染合成长公式，确认手机layout、1080输出与局部适配。该预检和先前本地96项浏览器、67项相关后端结果均不代表全量生产验收。
 
 上线后的正常入库继续追加业务事实，核验时以保全中的原记录为比较前缀，不将题目总数固定为发布时的值。模型指针、revision与控制文件保持；源码回退保留最新数据，不用旧归档覆盖后续业务事实。
 
