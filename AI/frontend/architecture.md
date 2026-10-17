@@ -11,6 +11,8 @@
 
 工作台页面的浏览器验收须检查实际滚动可达性；Playwright点击时自动滚入元素不能替代滚轮验证。`tests/e2e/zuoyebang.py` 覆盖桌面限高与窄屏文档滚动，并检查底部录入按钮进入视口。
 
+作业帮双服务联调用 `tests/e2e/zuoyebang_gateway_integration.py` 验证PNG原图上传、官方JPEG副本及其摘要、原坐标题框和历史原件；合成官方边界拒绝PNG，避免仅验证本地网关成功就宣称官方兼容。
+
 ```
 assets/app/
 ├── main.js            启动入口（见 §2）

@@ -1,6 +1,9 @@
 """搜题真实 HTTP；仅官方边界由本地 HTTP 上游或合成异常替代。"""
 import base64
 import copy
+from email.parser import BytesParser
+from email.policy import default
+import hashlib
 import io
 import json
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
@@ -26,7 +29,7 @@ class SearchTests(HttpCase):
     def search(self,raw=None,grade=3,extra=None):
         return self.request('POST','/api/v1/search',{'image_base64':base64.b64encode(raw or image_bytes()).decode(),'grade':grade,**(extra or {})},{'Authorization':'Bearer '+self.key})
 
-    def test_real_http_multipart_original_bytes_and_decoded_result(self):
+    def test_real_http_jpeg_request_original_history_and_decoded_result(self):
         self.setup_profile_key()
         self.assertNotEqual(self.search(extra={'grade':True})[0],404,'搜题端点尚未实现')
         captured=[]
@@ -34,8 +37,15 @@ class SearchTests(HttpCase):
             def log_message(self,*_args):pass
             def do_POST(self):
                 raw=self.rfile.read(int(self.headers['Content-Length']))
-                captured.append((raw,self.headers['Content-Type']))
-                body=json.dumps({'errNo':0,'data':{'encode':1,'answers':{'gzip':0,'mainPageInfo':[base64.b64encode(b'<p>SYNTHETIC-question</p>').decode()]}}}).encode()
+                message=BytesParser(policy=default).parsebytes(('Content-Type: '+self.headers['Content-Type']+'\r\n\r\n').encode()+raw)
+                parts={part.get_param('name',header='content-disposition'):part for part in message.iter_parts()}
+                image=parts['image'].get_payload(decode=True)
+                captured.append((parts,image))
+                # 复现官方拒绝直接上传PNG/WebP；错误不能靠自动重试掩盖。
+                reply={'errNo':4000}
+                if image.startswith(b'\xff\xd8'):
+                    reply={'errNo':0,'data':{'encode':1,'answers':{'gzip':0,'mainPageInfo':[base64.b64encode(b'<p>SYNTHETIC-question</p>').decode()]}}}
+                body=json.dumps(reply).encode()
                 self.send_response(200);self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body)
         upstream=ThreadingHTTPServer(('127.0.0.1',0),OfficialBoundary)
         worker=threading.Thread(target=upstream.serve_forever,daemon=True);worker.start()
@@ -55,13 +65,41 @@ class SearchTests(HttpCase):
                     self.assertEqual(code,200,data)
                     self.assertEqual(data,{'status':'ok','result':{'ok':True,'data':{'encode':1,'answers':{'gzip':0,'mainPageInfo':['<p>SYNTHETIC-question</p>']}}}})
                 self.assertEqual(len(captured),3)
-                for (body,ctype),raw in zip(captured,originals):
-                    self.assertIn(raw,body)
-                    self.assertIn(b'name="gradeId"\r\n\r\n4',body)
-                    self.assertTrue(ctype.startswith('multipart/form-data'))
+                for (parts,sent),raw in zip(captured,originals):
+                    self.assertEqual(parts['image'].get_content_type(),'image/jpeg')
+                    self.assertEqual(parts['image'].get_filename(),'question.jpg')
+                    self.assertEqual(parts['picMD5'].get_payload(decode=True).decode(),hashlib.md5(sent).hexdigest())
+                    self.assertEqual(parts['gradeId'].get_payload(decode=True),b'4')
+                    with Image.open(io.BytesIO(sent)) as image:
+                        self.assertEqual(image.format,'JPEG')
+                        self.assertEqual(image.size,(7,5))
+                    if raw.startswith(b'\xff\xd8'):
+                        self.assertEqual(sent,raw)
+                    else:
+                        self.assertNotEqual(sent,raw)
+                rows=self.admin('GET','/api/admin/history?action=search')[1]['items']
+                for row,raw in zip(rows, reversed(originals)):
+                    self.assertEqual(self.server.store.history_image(row['id'])[0],raw)
         finally:
             upstream.shutdown();upstream.server_close();worker.join()
         self.assertNotIn('SYNTHETIC-question',str(self.admin('GET','/api/admin/history')[1]))
+
+    def test_official_image_transparency_and_conversion_budget(self):
+        from zyb_gateway.search import prepare_official_image
+        for mode,format in (('RGBA','PNG'),('RGBA','WEBP'),('P','PNG')):
+            with self.subTest(mode=mode,format=format):
+                source=Image.new(mode,(12,10))
+                if mode=='P':source.info['transparency']=0
+                output=io.BytesIO();source.save(output,format)
+                raw=output.getvalue()
+                converted=prepare_official_image(raw,8*1024*1024)
+                with Image.open(io.BytesIO(converted)) as image:
+                    self.assertEqual(image.size,(12,10))
+                    self.assertEqual(image.getpixel((0,0)),(255,255,255))
+        from zyb_gateway.errors import ApiError
+        with self.assertRaises(ApiError) as caught:
+            prepare_official_image(image_bytes(),1)
+        self.assertEqual(caught.exception.code,'image_invalid')
 
     def test_requires_key_session_and_strict_base64_grade_image(self):
         self.login();self.key,self.kid=self.make_key()

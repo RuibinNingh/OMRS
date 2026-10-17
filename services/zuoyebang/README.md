@@ -34,6 +34,8 @@ Ctrl+C / SIGTERM 正常停止。可更改本机端口 `--port 8746`；`--port 0`
 
 请求记录默认最多30天／10000条，搜题原图与返回数据的内容总预算256MiB；达到上限优先清理较早内容，容量裁剪后仍可查看未过期的请求元数据。启动参数 `--history-days`、`--history-limit`、`--history-detail-bytes`可调整，例如 `--history-detail-bytes 536870912`设为512MiB。单条内容超过容量不留存，SQLite逻辑删除复用空闲页。原图和详情只允许管理员查看，不保存调用Key、Cookie或设备凭据到详情，不执行返回HTML或加载远程附图。
 
+上传支持PNG/JPEG/WebP，历史保留原字节。发送官方搜题时，PNG/WebP使用同尺寸JPEG副本（质量95、透明处白底），JPEG直接发送；不裁切或缩放，副本超过8MiB时提示裁切，不自动重试官方请求。
+
 本机调用也必须使用 Bearer Key。API 文档见 [docs/api.md](docs/api.md)，安全与默认预算见 [docs/security.md](docs/security.md)。
 
 ## 外部访问与反向代理

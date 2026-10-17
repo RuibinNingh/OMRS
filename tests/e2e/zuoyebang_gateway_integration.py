@@ -1,6 +1,8 @@
 """独立网关与 OMRS 真正联调；只替换官方网络，数据全为合成。"""
 import argparse
 import base64
+from email.parser import BytesParser
+from email.policy import default
 import io
 import http.client
 import hashlib
@@ -37,7 +39,7 @@ def main():
     from zyb_gateway.server import create_server
 
     args.out.mkdir(parents=True, exist_ok=True)
-    checks, captured = [], []
+    checks, captured, sent_images = [], [], []
     context = browser = None
 
     def check(name, condition):
@@ -62,11 +64,17 @@ def main():
             pass
 
         def do_POST(self):
-            captured.append(self.rfile.read(int(self.headers['Content-Length'])))
+            body=self.rfile.read(int(self.headers['Content-Length']))
+            captured.append(body)
+            message=BytesParser(policy=default).parsebytes(('Content-Type: '+self.headers['Content-Type']+'\r\n\r\n').encode()+body)
+            parts={part.get_param('name',header='content-disposition'):part for part in message.iter_parts()}
+            sent_images.append(parts['image'].get_payload(decode=True))
             payload = base64.b64encode(json.dumps(candidates(), ensure_ascii=False).encode()).decode()
             locations = [base64.b64encode(value.encode()).decode() for value in ('5@5@5@115@410@115@410@5', '5@125@5@235@410@235@410@125')]
             raw = json.dumps({'errNo': 0, 'data': {'encode': 1, 'answers': {
                 'gzip': 0, 'mainPageInfo': [payload], 'locs': locations}}}).encode()
+            if not sent_images[-1].startswith(b'\xff\xd8'):
+                raw=json.dumps({'errNo':4000}).encode()
             self.send_response(200)
             self.send_header('Content-Length', str(len(raw)))
             self.end_headers()
@@ -223,9 +231,11 @@ def main():
                 page.locator('.zyb-candidate').first.wait_for(timeout=20000)
                 check('实际网关返回3个候选并按2个位置分组', page.locator('.zyb-candidate').count() == 2 and page.locator('[data-action="zuoyebang.zybRegion"]').count() == 2)
                 check('网关解码坐标经OMRS归一化后显示两个题框', page.locator('#zyb-paper rect.crp-box').count() == 2)
-                check('官方边界只调用一次且保留原图字节', len(captured) == 1 and original in captured[0])
-                check('实际请求包含原图摘要、年级及签名而不传签名种子',
-                      hashlib.md5(original).hexdigest().encode() in captured[0]
+                with Image.open(io.BytesIO(sent_images[0])) as sent:
+                    check('官方边界只调用一次并发送同尺寸JPEG副本',
+                          len(captured) == 1 and sent.format == 'JPEG' and sent.size == (420,240) and original not in captured[0])
+                check('实际请求包含副本摘要、年级及签名而不传签名种子',
+                      hashlib.md5(sent_images[0]).hexdigest().encode() in captured[0]
                       and b'name="gradeId"\r\n\r\n0' in captured[0]
                       and b'name="sign"' in captured[0]
                       and b'synthetic-signing-seed' not in captured[0])

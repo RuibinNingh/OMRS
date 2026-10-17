@@ -38,7 +38,7 @@
 {"image_base64":"原图片字节的标准base64，不含data前缀","grade":0}
 ```
 
-`grade` 严格整数 0..12（不能 bool、字符串、浮点数）。原图片单帧 PNG/JPEG/WebP，最多 8 MiB、4000 万像素；完整验证解码后仍使用**上传原字节**构造官方 multipart，不重编码。必须唯一 Content-Length，不接受 chunked、重复 JSON 字段、非对象、NaN/Infinity；总请求 JSON 预算为原图标准 base64 长度加 1024 字节信封。
+`grade` 严格整数 0..12（不能 bool、字符串、浮点数）。原图片单帧 PNG/JPEG/WebP，最多 8 MiB、4000 万像素；完整验证后原字节留存在历史中。官方 multipart 使用JPEG：JPEG原样发送，PNG/WebP生成同尺寸、质量95的JPEG副本，透明处合成白底，不转置、不缩放；picMD5及签名依实际发送字节计算。副本超过8MiB返回image_invalid，不自动压缩降质或重试。必须唯一 Content-Length，不接受 chunked、重复 JSON 字段、非对象、NaN/Infinity；总请求 JSON 预算为原图标准 base64 长度加 1024 字节信封。
 
 成功精确封装 DirectClient.search 已解码对象，不执行候选归一化、渲染或入库：
 

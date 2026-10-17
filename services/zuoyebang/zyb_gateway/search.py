@@ -1,4 +1,4 @@
-"""原图片校验与单次搜题；不重编码、重试或持网络业务锁。"""
+"""保存原图片，生成官方兼容副本并单次搜题；不重试或持网络业务锁。"""
 import base64
 import binascii
 import io
@@ -50,10 +50,11 @@ def search(server,body,key_id,detail=None):
         raise ApiError('concurrency_limited','当前搜题并发预算已用完',429)
     try:
         with server.accounts.snapshot() as (client,raw,generation,_flow):
+            official_image = prepare_official_image(image, server.config.max_image_bytes)
             server.store.search_budget(key_id)
             client.client.timeout=server.config.upstream_timeout
             try:
-                result=client.client.search(image,grade_id=grade)
+                result=client.client.search(official_image,grade_id=grade)
                 if not isinstance(result,dict) or result.get('ok') is not True or not isinstance(result.get('data'),dict):
                     raise ApiError('protocol','官方搜题响应不合法',502)
                 encoded=json.dumps({'status':'ok','result':result},ensure_ascii=False,separators=(',',':'),allow_nan=False).encode()
@@ -72,3 +73,24 @@ def search(server,body,key_id,detail=None):
             return result
     finally:
         server.search_slots.release()
+
+
+def prepare_official_image(image, max_bytes):
+    """部分PNG/WebP被官方以4000拒绝；只转换请求副本，不改尺寸、坐标或留存原件。"""
+    if image.startswith(b'\xff\xd8'):
+        return image
+    from PIL import Image
+    with Image.open(io.BytesIO(image)) as source:
+        if 'A' in source.getbands() or 'transparency' in source.info:
+            with source.convert('RGBA') as rgba, Image.new('RGB', source.size, 'white') as rgb:
+                rgb.paste(rgba, mask=rgba.getchannel('A'))
+                output = io.BytesIO()
+                rgb.save(output, 'JPEG', quality=95)
+        else:
+            with source.convert('RGB') as rgb:
+                output = io.BytesIO()
+                rgb.save(output, 'JPEG', quality=95)
+    encoded = output.getvalue()
+    if len(encoded) > max_bytes:
+        raise ApiError('image_invalid', '搜题副本超过8MiB，请裁切图片后重试')
+    return encoded

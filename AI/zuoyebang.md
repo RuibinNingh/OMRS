@@ -37,7 +37,7 @@ SVG、MathML、canvas和音视频等不能按当前白名单保真渲染的视�
 
 `geometry.py` 按 queryInfo.locIndex（归一化后的location_index）将候选关联到题目位置。loc为8个以@分隔的有限数值，组成四点；rotateAngle允许0/90/180/270。原图宽高W/H，工作平面的(x,y)还原分别为(x,y)、(y,H-x)、(W-x,H-y)、(W-y,x)。返回原像素polygon与轴对齐bounds{x,y,width,height}，附可用angle；越界、退化或格式异常不返回bounds。候选和无匹配的有效位置仍保留，不能据此保证整卷每题都有框。
 
-成功搜索将原始上传字节保存到私有source.bin，并返回image的尺寸、MIME、SHA、字节数、orientation和受鉴权URL。EXIF方向不为1时额外生成不转置像素、移除EXIF的PNG预览，让浏览器画布与坐标处于同一像素平面；上游与归档原件不重编码。读取验证SHA及路径边界。旧记录无原图时明确404，不追溯补造。
+成功搜索将原始上传字节保存到私有source.bin，并返回image的尺寸、MIME、SHA、字节数、orientation和受鉴权URL。EXIF方向不为1时额外生成不转置像素、移除EXIF的PNG预览，让浏览器画布与坐标处于同一像素平面；归档原件不重编码，网关仅对官方请求的PNG/WebP生成同尺寸JPEG副本，不转置像素。读取验证SHA及路径边界。旧记录无原图时明确404，不追溯补造。
 
 用户可核对／调整题框后保留原题图片；source作业按原图范围裁成PNG，向外取整并限制原图边界，输出保持实际像素尺寸。生成标准render记录，source_kind=crop、bounds、候选index=null、location为位置索引、答案empty；复用保真提取与人工幂等创建，不使用Chromium或补写答案。
 
