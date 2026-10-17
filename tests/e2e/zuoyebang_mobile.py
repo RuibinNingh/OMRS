@@ -1,5 +1,6 @@
 """手机题图与旧预览升级回归；仅在调用方的临时Vault修改合成记录。"""
 from omrs.zuoyebang import store
+from zuoyebang_dialog import open_review, close_review
 
 
 def verify_mobile(page, context, base, vault, output, check):
@@ -15,8 +16,6 @@ def verify_mobile(page, context, base, vault, output, check):
     # 无layout字段是已保存旧记录的兼容形态；PNG和原搜索正文保留原样。
     record.pop('layout')
     store.save(vault, identity, record)
-    original_record = (store.location(vault, identity) / 'record.json').read_bytes()
-    original_png = (store.location(vault, identity) / 'question.png').read_bytes()
     page.reload(wait_until='networkidle')
     upgrade = page.get_by_role('button', name='重新生成手机版', exact=True)
     upgrade.wait_for()
@@ -27,12 +26,17 @@ def verify_mobile(page, context, base, vault, output, check):
         check(f'{width}px旧预览升级入口无横向溢出', not page.evaluate('document.documentElement.scrollWidth > innerWidth + 1'))
         page.screenshot(path=str(output / f'legacy-mobile-entry-{width}.png'), full_page=True)
     page.set_viewport_size({'width': 1440, 'height': 1000})
+    open_review(page)
     page.locator('[data-zyb-field="subject"]').fill('数学')
     page.locator('[data-zyb-field="category"]').fill('手机排版核对')
     page.locator('[data-action="zuoyebang.zybMode"][data-arg="answer:text"]').click()
     page.locator('[data-key="section-answer"]').get_by_role('button', name='源码', exact=True).click()
     page.locator('[data-zyb-text="answer"]').fill('重新生成前核对的答案：5。')
     page.locator('[data-zyb-field="cause"]').fill('保留人工错因')
+    close_review(page)
+    # 首次确认会按新流程识别并保存提取结果；升级保全基线取人工核对之后。
+    original_record = (store.location(vault, identity) / 'record.json').read_bytes()
+    original_png = (store.location(vault, identity) / 'question.png').read_bytes()
     requests = []
     def track(request):
         if request.url.endswith('/api/zuoyebang/jobs') and request.method == 'POST':
@@ -51,6 +55,8 @@ def verify_mobile(page, context, base, vault, output, check):
     page.route('**/api/zuoyebang/job?*', hold_once)
     upgrade.click()
     page.wait_for_function("() => JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace')).job?.type==='render'")
+    page.locator('[data-action="zuoyebang.zybReview"]').click()
+    page.locator('.zyb-recognition[open]').wait_for()
     page.locator('[data-zyb-text="answer"]').fill('重新生成期间补写的完整答案：5。')
     page.unroute('**/api/zuoyebang/job?*', hold_once)
     page.reload(wait_until='networkidle')
@@ -64,5 +70,6 @@ def verify_mobile(page, context, base, vault, output, check):
     check('旧预览记录和图片未被替换', (store.location(vault, identity) / 'record.json').read_bytes() == original_record and (store.location(vault, identity) / 'question.png').read_bytes() == original_png)
     for role in ('question', 'answer'):
         (output / f'mobile-{role}.png').write_bytes(context.request.get(base + current['images'][role]['url']).body())
+    close_review(page)
     page.locator('#zyb-preview').screenshot(path=str(output / 'mobile-preview.png'))
     page.remove_listener('request', track)

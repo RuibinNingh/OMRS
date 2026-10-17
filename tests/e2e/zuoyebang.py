@@ -19,6 +19,7 @@ from tests.zuoyebang_fixtures import profile, png
 from zuoyebang_paper import verify_paper
 from zuoyebang_mobile import verify_mobile
 from zuoyebang_text import verify_text, verify_submitted_text
+from zuoyebang_dialog import open_review, close_review, verify_wide_preview, verify_review_dialog
 
 SERVER = r'''
 import http.server,json,sys,time
@@ -196,10 +197,11 @@ def main():
                 check('任意域名的题目与答案附图均经本地化并完整渲染', record['source_images'] == 2 and all(record['images'][role]['images'] == 1 for role in ('question', 'answer')))
                 layout = page.evaluate('''() => {
                   const width = selector => document.querySelector(selector).getBoundingClientRect().width;
-                  return {workspace:width('.zyb-workspace'),host:width('#panel-zuoyebang'),left:width('.zyb-source'),right:width('.zyb-review'),editor:width('#zyb-editor')};
+                  return {workspace:width('.zyb-workspace'),host:width('#panel-zuoyebang'),left:width('.zyb-source'),right:width('.zyb-review'),editor:width('#zyb-confirm')};
                 }''')
                 check('整卷原图与核对区并列且右侧核对内容位于右栏', layout['left'] > layout['right'] and layout['editor'] < layout['right'])
                 check('工作区铺满可用宽度不留整体右侧空白', abs(layout['workspace'] - layout['host']) < 1)
+                verify_wide_preview(page, output, check)
                 # 独立标签页避免跨断点的滚动恢复干扰真实滚轮验收。
                 snapshot = page.evaluate("() => sessionStorage.getItem('omrs-zuoyebang-workspace')")
                 for width in (1440, 1161, 1160, 390):
@@ -221,10 +223,10 @@ def main():
                     check(f'{width}px真实滚轮可以向下浏览工作区', scrolled)
                     scroll_page.mouse.wheel(0, 20000)
                     scroll_page.wait_for_function('''() => {
-                      const r = document.querySelector('[data-action="zuoyebang.zybCommit"]').getBoundingClientRect();
+                      const r = document.querySelector('[data-action="zuoyebang.zybReview"]').getBoundingClientRect();
                       return r.top >= 0 && r.bottom <= innerHeight;
                     }''')
-                    check(f'{width}px滚到底部可见录入按钮', True)
+                    check(f'{width}px滚到底部可见确认识别按钮', True)
                     scroll_page.screenshot(path=str(output / f'scroll-bottom-{width}.png'))
                     scroll_page.close()
                 page.bring_to_front()
@@ -241,7 +243,7 @@ def main():
                 page.get_by_role('button', name='HTML', exact=True).click()
                 check('HTML含原答案末尾且图片已本地化', '解析末尾' in page.locator('.zyb-code').inner_text() and '[已本地化' in page.locator('.zyb-code').inner_text())
                 page.get_by_role('button', name='HTML', exact=True).click()
-                page.locator('.zyb-viewport').evaluate('(el)=>el.scrollTop=el.scrollHeight')
+                page.locator('.zyb-preview-card.is-current .zyb-viewport').evaluate('(el)=>el.scrollTop=el.scrollHeight')
                 page.locator('#zyb-preview').screenshot(path=str(output / 'answer-tail.png'))
                 page.get_by_role('button', name='展开', exact=True).click()
                 check('展开完整长图复用已生成图片', page.locator('.ui-image-viewer img').get_attribute('src') == image_url)
@@ -265,10 +267,11 @@ def main():
                 latest_id = page.evaluate("() => JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace')).render_id")
                 latest = context.request.get(base + '/api/zuoyebang/record?id=' + latest_id).json()['record']
                 check('快速切换最终恢复正确题目预览', latest['candidate']['index'] == 0 and latest['source_images'] == 2)
-                page.get_by_role('button', name='AI 识别题目与答案', exact=True).click()
+                open_review(page)
                 page.wait_for_function("() => document.querySelector('#zyb-status').textContent.includes('项提取失败')")
                 check('部分失败保留题图与完整答案图片并允许重试', page.locator('[data-arg="question:image"]').get_attribute('aria-pressed') == 'true' and page.locator('[data-arg="answer:image"]').get_attribute('aria-pressed') == 'true')
-                page.get_by_role('button', name='AI 识别题目与答案', exact=True).click()
+                verify_review_dialog(page, output, check)
+                page.get_by_role('button', name='重试失败项', exact=True).click()
                 page.locator('[data-arg="answer:text"]').click()
                 page.locator('[data-key="section-answer"]').get_by_role('button', name='源码', exact=True).click()
                 page.locator('[data-zyb-text="answer"]').fill('人工在识别期间核对的完整答案 $AD=4$，面积12。')
@@ -280,8 +283,9 @@ def main():
                 check('识别在途刷新后AI完成仍不覆盖人工正文', page.locator('[data-zyb-text="answer"]').input_value().startswith('人工在识别期间'))
                 check('科目分类复用AI补空流程', page.locator('[data-zyb-field="subject"]').input_value() == '数学' and page.locator('[data-zyb-field="category"]').input_value() == '平面几何')
                 expected_answer = verify_text(page, output, check)
+                close_review(page)
                 page.get_by_role('button', name='题目', exact=True).click()
-                page.locator('.zyb-viewport').evaluate('(el)=>el.scrollTop=0')
+                page.locator('.zyb-preview-card.is-current .zyb-viewport').evaluate('(el)=>el.scrollTop=0')
                 for theme in ('light', 'dark'):
                     for width in (1440, 1024, 390, 320):
                         page.evaluate('(theme)=>document.documentElement.dataset.theme=theme', theme)
@@ -299,6 +303,7 @@ def main():
                         page.keyboard.press('Escape')
                         page.screenshot(path=str(output / f'{theme}-{width}.png'), full_page=True)
                 page.set_viewport_size({'width': 1440, 'height': 1000})
+                open_review(page)
                 with page.expect_request('**/api/zuoyebang/commit') as committed:
                     page.get_by_role('button', name='录入 OMRS', exact=True).click()
                 check('提交发送完整图片原文而非显示占位符', committed.value.post_data_json['sections']['answer']['text'] == expected_answer)
@@ -311,8 +316,10 @@ def main():
                 page.locator('.zyb-result').wait_for()
                 check('刷新恢复渲染、首次提交内容和已入库回执', page.get_by_role('button', name='已录入题库', exact=True).is_disabled())
                 verify_submitted_text(page, expected_answer, check)
+                close_review(page)
                 page.locator('[data-action="zuoyebang.zybSelect"][data-arg="1"]').click()
-                check('切候选清空上一题渲染结果', page.locator('#zyb-rendered-image').count() == 0 and page.locator('.zyb-result').count() == 0)
+                page.wait_for_function("() => JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace')).selected===1")
+                check('切候选清空上一题入库回执并绑定新选择', page.locator('.zyb-candidate.on').get_attribute('data-arg') == '1' and page.locator('.zyb-result').count() == 0)
                 page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalWidth===1080", timeout=60000)
                 page.get_by_role('button', name='答案与解析', exact=True).click()
                 page.get_by_role('button', name='HTML', exact=True).click()

@@ -1,5 +1,6 @@
 """正文预览／源码与图片占位符：真实编辑、切题、刷新和提交回归。"""
 from urllib.parse import urlsplit
+from zuoyebang_dialog import open_review, close_review
 
 
 SAVED = "() => JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace'))"
@@ -45,9 +46,12 @@ def verify_text(page, output, check):
     page.reload(wait_until='networkidle')
     source.wait_for()
     check('刷新恢复源码显示和完整图片原文', source.input_value().endswith('人工补充核对。') and page.evaluate(SAVED)['sections']['answer']['text'] == expected)
+    close_review(page)
     page.locator('[data-action="zuoyebang.zybSelect"][data-arg="1"]').click()
     page.wait_for_function("() => {const s=JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace'));return s.selected===1 && s.render_id && !s.job}", timeout=60000)
     page.locator('[data-action="zuoyebang.zybSelect"][data-arg="0"]').click()
+    page.wait_for_function("() => JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace')).selected===0 && document.querySelector('#zyb-rendered-image')")
+    open_review(page)
     source.wait_for()
     check('切题返回独立恢复两区正文和显示方式', page.evaluate(SAVED)['sections']['question']['text'] == QUESTION and page.evaluate(SAVED)['sections']['answer']['text'] == expected and question.locator('textarea').count() == 1)
     question.get_by_role('button', name='预览', exact=True).click()

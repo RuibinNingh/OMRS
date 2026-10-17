@@ -10,7 +10,7 @@
 .zyb-source { grid-column: 1; }
 #zyb-status { grid-column: 1 / -1; }
 .zyb-review { grid-column: 2; align-content: start; }
-#zyb-editor { display: grid; gap: var(--sp-3); border-top: 1px solid var(--border-1); padding-top: var(--sp-4); }
+#zyb-editor { display: grid; gap: var(--sp-4); }
 .zyb-workspace-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-3); min-width: 0; }
 .zyb-workspace-head h2 { margin: 0; color: var(--fg-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); }
 #zyb-account { position: relative; }
@@ -59,6 +59,20 @@
 .zyb-candidate strong, .zyb-candidate span { font-size: var(--text-sm); line-height: var(--leading-read); overflow-wrap: anywhere; }
 .zyb-candidate small { font-size: var(--text-xs); }
 .zyb-preview-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-2); font-size: var(--text-xs); color: var(--fg-2); }
+.zyb-preview-pair { display: grid; min-width: 0; gap: var(--sp-4); }
+.zyb-preview-card { display: none; min-width: 0; gap: var(--sp-2); align-content: start; }
+.zyb-preview-card.is-current { display: grid; }
+.zyb-preview-card h4 { margin: 0; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--fg-1); }
+.zyb-confirm-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); border-top: 1px solid var(--border-1); padding-top: var(--sp-4); }
+.zyb-confirm-bar strong { font-size: var(--text-md); color: var(--fg-1); }
+#zyb-confirm:empty { display: none; }
+#zyb-confirm { position: sticky; bottom: 0; z-index: var(--z-sticky); background: var(--surface-1); padding-bottom: var(--sp-1); }
+@media (min-width: 1501px) {
+  .zyb-workspace { grid-template-columns: minmax(0, .9fr) minmax(0, 1.8fr); }
+  .zyb-preview-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .zyb-preview-card { display: grid; }
+  .zyb-preview-tabs { display: none; }
+}
 .zyb-renderer { width: 100%; max-width: 440px; grid-column: 2; grid-row: 2 / span 4; position: sticky; top: var(--sp-4); }
 .zyb-viewport { min-width: 0; width: 100%; max-height: min(65vh, 720px); min-height: 220px; overflow: auto; background: var(--surface-sunken); border: 1px solid var(--border-1); border-radius: var(--r-sm); overscroll-behavior: contain; }
 .zyb-viewport img { display: block; width: 100%; height: auto; }
@@ -82,6 +96,40 @@
 .zyb-field textarea { resize: vertical; min-height: 80px; }
 .zyb-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
 .zyb-actionbar { border-top: 1px solid var(--border-1); padding-top: var(--sp-3); }
+.zyb-recognition .ui-dialog__panel { width: min(1240px, 100%); padding: 0; gap: 0; overflow: hidden; }
+.zyb-recognition .ui-dialog__head { padding: var(--sp-6) var(--sp-6) var(--sp-4); align-items: center; }
+.zyb-dialog-heading { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.zyb-dialog-heading .ui-dialog__title { font-size: var(--text-xl); }
+.zyb-dialog-emblem { display: grid; place-items: center; flex-shrink: 0; width: var(--sp-12); height: var(--sp-12); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--accent-soft); color: var(--accent); }
+.zyb-dialog-emblem .ui-icon { width: var(--sp-6); height: var(--sp-6); }
+.zyb-dialog-steps { display: flex; flex-wrap: wrap; list-style: none; gap: var(--sp-6); margin: 0; padding: 0 var(--sp-6) var(--sp-5); border-bottom: 1px solid var(--border-1); }
+.zyb-dialog-steps li { display: flex; align-items: center; gap: var(--sp-2); color: var(--fg-2); font-size: var(--text-sm); }
+.zyb-dialog-steps li > span, .zyb-dialog-steps .ui-icon { display: grid; place-items: center; width: var(--sp-6); height: var(--sp-6); border-radius: var(--r-pill); background: var(--surface-2); font-size: var(--text-xs); font-family: var(--font-mono); }
+.zyb-dialog-steps .is-done { color: var(--success); }
+.zyb-dialog-steps .is-active { color: var(--fg-1); font-weight: var(--weight-semibold); }
+.zyb-dialog-steps .is-active > span { background: var(--accent); color: var(--on-accent); }
+.zyb-dialog-steps[data-complete="true"] li { color: var(--success); }
+.zyb-recognition .ui-dialog__body { padding: var(--sp-5) var(--sp-6) var(--sp-6); display: grid; gap: var(--sp-6); background: var(--surface-0); overscroll-behavior: contain; }
+.zyb-dialog-notice { display: flex; align-items: start; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-1); color: var(--fg-2); font-size: var(--text-sm); }
+.zyb-dialog-notice > .ui-icon { flex-shrink: 0; margin-top: var(--sp-0_5); }
+.zyb-dialog-notice strong { color: var(--fg-1); font-weight: var(--weight-medium); }
+.zyb-dialog-notice p { margin: var(--sp-1) 0 0; line-height: var(--leading-read); }
+.zyb-dialog-notice.is-error { background: var(--danger-soft); color: var(--danger-fg); }
+.zyb-dialog-notice.is-success { background: var(--success-soft); color: var(--success-fg); }
+.zyb-editor-intro h3 { margin: 0; color: var(--fg-1); font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.zyb-editor-intro:not(:first-child) { padding-top: var(--sp-2); }
+.zyb-recognition .zyb-editor-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+.zyb-recognition .zyb-section { border: 1px solid var(--border-1); background: var(--surface-1); padding: var(--sp-4); border-radius: var(--r-md); gap: var(--sp-3); }
+.zyb-recognition .zyb-section > .ui-btn { justify-self: start; }
+.zyb-recognition .zyb-section .zyb-head { align-items: start; }
+.zyb-section-image { max-height: 240px; overflow: auto; background: var(--surface-sunken); border: 1px solid var(--border-1); border-radius: var(--r-sm); }
+.zyb-section-image img { display: block; width: 100%; height: auto; }
+.zyb-recognition .zyb-text-preview { max-height: 320px; }
+.zyb-recognition .zyb-text-source { max-height: 320px; }
+.zyb-recognition .zyb-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.zyb-recognition .ui-dialog__foot { padding: var(--sp-4) var(--sp-6); border-top: 1px solid var(--border-1); justify-content: space-between; align-items: center; background: var(--surface-1); }
+.zyb-dialog-summary { display: grid; gap: var(--sp-1); font-size: var(--text-xs); color: var(--fg-2); }
+.zyb-dialog-summary strong { color: var(--fg-1); font-size: var(--text-sm); font-weight: var(--weight-medium); }
 .zyb-result { display: grid; gap: var(--sp-2); padding: var(--sp-4); background: var(--success-soft); color: var(--success-fg); border-radius: var(--r-md); font-size: var(--text-sm); overflow-wrap: anywhere; }
 .zyb-history { list-style: none; padding: 0; margin: 0; display: grid; gap: var(--sp-3); }
 .zyb-history li { min-width: 0; display: grid; gap: var(--sp-1); }
@@ -94,6 +142,20 @@
 @media (max-width: 1160px) { .zyb-pane { padding: var(--sp-3); } }
 @media (max-width: 760px) { .zyb-workspace { grid-template-columns: minmax(0, 1fr); } .zyb-source, .zyb-review { grid-column: 1; } .zyb-capture, .zyb-fields, .zyb-editor-sections, .zyb-candidates { grid-template-columns: minmax(0, 1fr); } .zyb-viewport { max-height: 60vh; } .zyb-actionbar > .ui-btn { min-height: 44px; } .zyb-workspace-head { align-items: start; } }
 @media (pointer: coarse) { .zyb-input .ui-btn, .zyb-candidate { min-height: 44px; } }
+@media (max-width: 760px) {
+  .zyb-confirm-bar > .ui-btn { width: 100%; }
+  .zyb-recognition { padding: var(--sp-2); }
+  .zyb-recognition .ui-dialog__panel { max-height: calc(100dvh - var(--sp-4)); }
+  .zyb-recognition .ui-dialog__head { padding: var(--sp-4); }
+  .zyb-dialog-emblem { display: none; }
+  .zyb-dialog-steps { gap: var(--sp-3); padding: 0 var(--sp-4) var(--sp-4); }
+  .zyb-dialog-steps li { font-size: var(--text-xs); gap: var(--sp-1); }
+  .zyb-recognition .ui-dialog__body { padding: var(--sp-4); gap: var(--sp-4); }
+  .zyb-recognition .zyb-editor-sections, .zyb-recognition .zyb-fields { grid-template-columns: minmax(0, 1fr); }
+  .zyb-recognition .ui-dialog__foot { padding: var(--sp-3) var(--sp-4); }
+  .zyb-recognition .ui-dialog__foot > .zyb-actions { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .zyb-recognition .ui-dialog__foot .ui-btn--primary { grid-column: 1 / -1; }
+}
 
 .zyb-paper { position: relative; width: 100%; user-select: none; background: var(--surface-sunken); border: 1px solid var(--border-1); }
 .zyb-paper img { display: block; width: 100%; height: auto; max-height: none; pointer-events: none; image-orientation: none; }

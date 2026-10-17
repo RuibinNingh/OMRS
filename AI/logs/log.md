@@ -5,9 +5,11 @@
 - [2026-10-17_zuoyebang-text-preview](2026-10-17_zuoyebang-text-preview.md)：作业帮正文预览与源码切换
 - [2026-10-17_zuoyebang-scroll](2026-10-17_zuoyebang-scroll.md)：作业帮工作区滚动修复
 - [2026-10-17_zuoyebang-scroll-deploy](2026-10-17_zuoyebang-scroll-deploy.md)：作业帮滚动修复快速生产发布
+- [2026-10-17_zuoyebang-review-dialog](2026-10-17_zuoyebang-review-dialog.md)：作业帮并排预览与识别工作窗草稿
 - [2026-10-17_zuoyebang-mobile-layout](2026-10-17_zuoyebang-mobile-layout.md)：作业帮手机宽度题图
 - [2026-10-17_zuoyebang-mobile-deploy](2026-10-17_zuoyebang-mobile-deploy.md)：作业帮手机题图快速生产发布
 - [2026-10-17_zuoyebang-image-compat](2026-10-17_zuoyebang-image-compat.md)：作业帮PNG搜题兼容修复
+- [2026-10-17_zuoyebang-dialog-release](2026-10-17_zuoyebang-dialog-release.md)：作业帮并排预览与识别工作窗生产发布
 - [2026-10-17_v282-release](2026-10-17_v282-release.md)：v2.8.2 GitHub与快速生产发布
 - [2026-10-16_zuoyebang-integration](2026-10-16_zuoyebang-integration.md)：作业帮整卷改造与维护修复合入
 - [2026-10-16_omrs-maintenance](2026-10-16_omrs-maintenance.md)：全面检查后维护

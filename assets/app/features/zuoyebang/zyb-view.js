@@ -24,7 +24,7 @@ export function roots() {
     </section>
     <section class="zyb-review zyb-pane">
       <div id="zyb-candidates"></div><div id="zyb-preview"></div>
-      <section id="zyb-editor"></section><div id="zyb-result"></div>
+      <section id="zyb-confirm"></section><div id="zyb-result"></div>
     </section>
   </div>`;
 }
@@ -100,26 +100,39 @@ export function previewView(s) {
   const record = s.render, image = record?.images?.[s.role];
   const failed = s.error && Number.isInteger(s.selected) && !record && !s.busy;
   return html`<div class="zyb-head"><div><h3>题目与答案</h3></div><span class="ui-badge" role="status">${s.busy === 'render' ? '正在生成' : record?.status === 'ready' ? '已生成' : failed ? '预览未完成' : '等待选择'}</span></div>
-    <div class="zyb-toolbar"><div class="zyb-actions" role="group" aria-label="渲染内容">${action('题目', 'Role', { arg: 'question', pressed: s.role === 'question', disabled: !record })}${action('答案与解析', 'Role', { arg: 'answer', pressed: s.role === 'answer', disabled: !record })}</div>
-      <div class="zyb-actions">${action('HTML', 'Html', { pressed: s.showHtml, disabled: !record })}${action('展开', 'Expand', { icon: 'external', disabled: !image?.url })}</div></div>
-    <div class="zyb-preview-meta"><span>${s.role === 'question' ? '题目' : '答案与解析'} · PNG</span><span>${image?.width ? `${image.width} × ${image.height} px` : image?.empty ? '上游未返回答案' : '尚未生成'}</span></div>
+    <div class="zyb-preview-tabs zyb-actions" role="group" aria-label="渲染内容">${action('题目', 'Role', { arg: 'question', pressed: s.role === 'question', disabled: !record })}${action('答案与解析', 'Role', { arg: 'answer', pressed: s.role === 'answer', disabled: !record })}</div>
     ${canRegenerate(s) ? html`<div class="zyb-actions">${action('重新生成手机版', 'Regenerate', { disabled: !!s.busy || !!s.job })}<span class="zyb-help">保留人工编辑，无需重新搜题。</span></div>` : ''}
-    <div class="zyb-viewport${s.zoom === 'actual' ? ' is-actual' : ''}">
-      ${s.showHtml && image ? html`<pre class="zyb-code">${image.html || '无答案正文'}</pre>` : image?.url ? html`<img id="zyb-rendered-image" src="${image.url}" width="${image.width}" height="${image.height}" alt="后端生成的完整${s.role === 'question' ? '题目' : '答案'}渲染图">` : html`<div class="zyb-empty"><strong>${s.busy === 'render' ? '正在生成所选题目的预览…' : failed ? '预览未完成，可在候选区重试' : image?.empty ? '这道题没有答案内容' : '选择候选，自动预览'}</strong><p>题目与完整答案会显示在这里。</p></div>`}
-    </div>
+    <div class="zyb-preview-pair">${ROLES.map(role => previewSection(s, role, failed))}</div>
     <div class="zyb-render-footer"><span>${record?.source_kind === 'crop' ? '按原图像素保存' : record?.layout ? '手机宽度排版 · 高清完整长图' : record ? '保留完整题干、公式与附图' : '保留原题内容与阅读顺序'}</span><div class="zyb-actions" role="group" aria-label="预览比例">${action('适应宽度', 'Zoom', { arg: 'fit', pressed: s.zoom === 'fit' })}${action('100%', 'Zoom', { arg: 'actual', pressed: s.zoom === 'actual' })}</div></div>
     ${record ? html`<details class="ui-disclosure zyb-render-log"><summary>本次渲染记录</summary><dl><dt>生成时间</dt><dd>${timeLabel(record.completed_at)}</dd><dt>渲染器</dt><dd>Chromium ${record.browser || ''} · ${record.engine || '既有记录'}</dd><dt>原始附图</dt><dd>${record.source_images} 张，已本地化</dd><dt>图片指纹</dt><dd>${image?.sha256 || '无答案图片'}</dd></dl></details>` : ''}`;
 }
+function previewSection(s, role, failed) {
+  const image = s.render?.images?.[role], current = s.role === role, title = role === 'question' ? '题目' : '答案与解析';
+  return html`<section class="zyb-preview-card${current ? ' is-current' : ''}" data-preview-role="${role}" aria-label="${title}预览">
+    <div class="zyb-head"><h4>${title}</h4><div class="zyb-actions">${action('HTML', 'Html', { arg: role, pressed: s.showHtml && current, disabled: !s.render, size: 'sm' })}${action('展开', 'Expand', { arg: role, icon: 'external', disabled: !image?.url, size: 'sm' })}</div></div>
+    <div class="zyb-preview-meta"><span>完整长图</span><span>${image?.width ? `${image.width} × ${image.height} px` : image?.empty ? '上游未返回答案' : '尚未生成'}</span></div>
+    <div class="zyb-viewport${s.zoom === 'actual' ? ' is-actual' : ''}" tabindex="0" aria-label="${title}长图">
+      ${s.showHtml && current && image ? html`<pre class="zyb-code">${image.html || '无答案正文'}</pre>` : image?.url ? html`<img id="${current ? 'zyb-rendered-image' : `zyb-rendered-${role}`}" src="${image.url}" width="${image.width}" height="${image.height}" alt="后端生成的完整${title}渲染图">` : html`<div class="zyb-empty"><strong>${s.busy === 'render' ? '正在生成预览…' : failed ? '预览未完成，可在候选区重试' : image?.empty ? '这道题没有答案内容' : '选择候选，自动预览'}</strong><p>${title}会完整显示在这里。</p></div>`}
+    </div></section>`;
+}
+export function confirmView(s) {
+  if (!s.render) return html``;
+  const started = s.dirty || Object.keys(s.render.extraction || {}).length || s.busy === 'extract';
+  return html`<div class="zyb-confirm-bar"><div><strong>${s.result ? '这道题已录入题库' : '确认与原题一致？'}</strong><p class="zyb-help">${s.result ? '可查看本次识别结果与入库内容。' : '下一步识别文字与公式，再核对入库。'}</p></div>
+    ${action(s.result ? '查看已录入题目' : started ? '继续识别与录入' : '确认题目，开始识别', 'Review', { icon: s.result ? 'check' : 'sparkle', iconRight: 'arrow-right', variant: 'primary', size: 'lg', disabled: !!s.busy && !['extract', 'render'].includes(s.busy) })}</div>`;
+}
 export function editorView(s) {
-  if (!s.render) return html`<h3>识别与录入</h3><p class="zyb-help">完成渲染后可识别文字、公式并核对题卡。</p>`;
+  if (!s.render) return html``;
   const f = s.form, submitted = !!s.result, locked = submitted || s.busy === 'commit';
-  return html`<div class="zyb-head"><h3>识别与录入</h3>${action('AI 识别题目与答案', 'Extract', { icon: 'sparkle', disabled: !!s.busy || submitted, loading: s.busy === 'extract' })}</div><p class="zyb-help">忠实转录原文；需要图形或无法完整转录时保留整图。识别失败可重试，也可直接按完整图片保存。</p>
+  return html`<div class="zyb-editor-intro"><h3>核对识别内容</h3><p class="zyb-help">文字与公式可修订，需要图形的内容保留原图。</p></div>
     <div class="zyb-editor-sections">${ROLES.map(role => { const section = s.sections[role]; return html`<div class="zyb-section" data-key="section-${role}"><div class="zyb-head"><strong>${role === 'question' ? '题目' : '答案与解析'}</strong><div class="zyb-actions">${section.mode !== 'none' ? [action('保留图片', 'Mode', { arg: `${role}:image`, pressed: section.mode === 'image', disabled: locked }), action('使用文本', 'Mode', { arg: `${role}:text`, pressed: section.mode === 'text', disabled: locked })] : '无答案'}</div></div><p class="zyb-help">${section.reason}</p>
-      ${section.mode === 'text' ? textView(section, role, locked) : ''}</div>`; })}</div>
+      ${section.mode === 'text' ? textView(section, role, locked) : s.render.images[role]?.url ? html`<div class="zyb-section-image"><img src="${s.render.images[role].url}" alt="${role === 'question' ? '题目' : '答案'}原图" width="${s.render.images[role].width}" height="${s.render.images[role].height}"></div>` : ''}
+      ${s.render.images[role]?.url ? action('对照原图', 'Expand', { arg: role, icon: 'external', variant: 'ghost', size: 'sm' }) : ''}</div>`; })}</div>
+    <div class="zyb-editor-intro"><h3>题目信息</h3><p class="zyb-help">识别会补充分类，已有填写会保留。</p></div>
     <div class="zyb-fields"><label class="zyb-field">科目 *<input class="ui-input" data-zyb-field="subject" data-combobox="subject" value="${f.subject}" autocomplete="off"${locked ? html` disabled` : ''}></label><label class="zyb-field">分类 *<input class="ui-input" data-zyb-field="category" data-combobox="category" value="${f.category}" autocomplete="off"${locked ? html` disabled` : ''}></label>
       <label class="zyb-field">难度（1–10）<input class="ui-input" type="number" min="1" max="10" data-zyb-field="difficulty" value="${f.difficulty}"${locked ? html` disabled` : ''}></label><label class="zyb-field">相关知识点<input class="ui-input" data-zyb-field="related" data-combobox="tags" value="${f.related}" placeholder="逗号分隔"${locked ? html` disabled` : ''}></label></div>
     <label class="zyb-field">错因 · 可选<textarea class="ui-textarea" rows="2" data-zyb-field="cause"${locked ? html` disabled` : ''}>${f.cause}</textarea></label><div class="zyb-actions">${labelChips(s.labels)}${action('添加标记', 'Labels', { icon: 'plus', disabled: locked })}</div>
-    <div class="zyb-actionbar"><p class="zyb-help">核对无误后写入题库，图片随题干、答案分别保存。</p>${action(submitted ? '已录入题库' : '录入 OMRS', 'Commit', { variant: 'primary', disabled: !!s.busy || submitted, loading: s.busy === 'commit' })}</div>`;
+    `;
 }
 export function historyView(s) {
   if (!s.history.length) return html`<p class="zyb-help">暂无渲染记录</p>`;

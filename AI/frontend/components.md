@@ -40,7 +40,7 @@ assets/app/
 | 图标 | `icon(name, {label, size})`、`installIcons()` | 自绘 61 个，24 网格、1.5 描边；sprite `#ui-icon-sprite`，symbol 名 `ic-<name>`；未知名字抛错 |
 | 字段 / 输入 | `field({label, id, hint, error, required, control})`、`input()`、`textarea()` | 统一 label、提示、错误的位置；错误 role=alert |
 | 选择框 | `select({id, options, value, size})` | 原生 select 统一外观；上下内边距为 0，文字不裁切（D3） |
-| 可搜索建议 | `createCombobox(host, {options,onSelect})` | 原生 input + body 浮层；分类按科目给候选，输入法组合期间不选，方向键 / Enter / Esc / Tab 可用；手机建议层贴实际可视区域底部 |
+| 可搜索建议 | `createCombobox(host, {options,onSelect})` | 原生 input + 客人浮层；打开时挂到最上层模态内，无模态时挂body；分类按科目给候选，输入法组合期间不选，方向键 / Enter / Esc / Tab 可用；手机建议层贴实际可视区域底部 |
 | 折叠区域 | 原生 `<details class="ui-disclosure">` | 统一摘要箭头、悬停、聚焦与展开状态；保留原生键盘语义 |
 | 开关 | `switchControl({id, label, checked})` | 原生 checkbox + role=switch |
 | 分段 | `segmented({name, label, options, value, size})` | 原生 radio 组 |
@@ -71,7 +71,7 @@ assets/app/
 - Esc 在 document 捕获阶段拦下并 `stopPropagation`，避免同一次按键继续作用到下层弹层。危险确认默认聚焦「取消」。
 - `dialog(spec)` 返回 `{ok, values}`，values 按 id 收集对话框内的 input / select / textarea（复选与单选取 checked）。`body` 可以是 `html``` 结果；传字符串时会原样插入，调用方必须先转义不可信内容；`content` 可以是 DOM 节点。
 - `dialog(spec)` 另收（P5 第 3 轮起）：`size:'xl'`（1180，题目弹窗与 Markdown 编辑器）、`id`、`onOpen(el)`、`onOk(values, el)`（异步；等待时确定按钮 `aria-busy` 并禁用，返回 false 或抛错则留在对话框，用于保存失败）、`dismissible` 为函数（每次 Esc / 点遮罩时再问，如「有未保存修改」）、`returnFocus()`（关闭后优先把焦点交给它返回的元素）；`closeDialog(el)` 按元素关闭。多行文本里的 Enter 不确认，Ctrl / ⌘ + Enter 在任何位置都确认。
-- **客人浮层**：标记选择器和选板浮层通过 `overlay.js` 的 `hostGuest(node, {close, escape})` / `releaseGuest(node)` 挂到最上层模态对话框中；没有对话框时放进 body。登记后 Esc 与 Enter 先让给客人（`escape:true` 的由 overlay 代为关闭），宿主关闭时先关客人；客人自行关闭时调用 `releaseGuest`，必要时把焦点还给触发元素。`topModal()`、`guestOpen()` 供快捷键判断。
+- **客人浮层**：标记选择器、选板浮层和combobox建议通过 `overlay.js` 的 `hostGuest(node, {close, escape})` / `releaseGuest(node)` 挂到最上层模态对话框中；没有对话框时放进 body。登记后 Esc 与 Enter 先让给客人（`escape:true` 的由 overlay 代为关闭），宿主关闭时先关客人；客人自行关闭时调用 `releaseGuest`，必要时把焦点还给触发元素。`topModal()`、`guestOpen()` 供快捷键判断。组件浏览器回归验证建议可点击、Escape只关闭建议以及Enter选中不提交宿主。
 - 关闭中的对话框带 `.is-closing`，退场动画期间仍是 `[open]`：「有对话框打开」的守卫写成 `dialog[open]:not(.is-closing)`（`core/keys.js`、反馈页 paste 守卫）。
 - toast 容器是 aria-live 区域。支持 popover 的浏览器把 toast 容器、菜单、提示放进顶层，每来一条 toast 重新置顶；模态对话框开着时，它外面的 toast 只能看、不能点。
 

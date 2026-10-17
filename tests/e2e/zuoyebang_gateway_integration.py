@@ -250,6 +250,8 @@ def main():
                 raw = context.request.get(omrs_base + page.locator('#zyb-rendered-image').get_attribute('src')).body()
                 with Image.open(io.BytesIO(raw)) as image:
                     check('两服务联调仍生成1080宽完整答案长图', image.width == 1080 and image.height > 3000)
+                page.locator('[data-action="zuoyebang.zybReview"]').click()
+                page.wait_for_function("() => !JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace')).job && !document.querySelector('#zyb-dialog-foot [aria-busy=true]')")
                 page.locator('[data-zyb-field="subject"]').fill('数学')
                 page.locator('[data-zyb-field="category"]').fill('双服务验收')
                 page.get_by_role('button', name='录入 OMRS', exact=True).click()

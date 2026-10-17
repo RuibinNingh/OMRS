@@ -24,6 +24,7 @@ import * as view from './zyb-view.js';
 import { createPaper } from './zyb-paper.js';
 import { restoreWorkspace, WORKSPACE_KEY as KEY } from './zyb-restore.js';
 import { editSource, toggleTextView } from './zyb-text.js';
+import { createRecognitionDialog } from './zyb-dialog.js';
 const S = newZybState();
 let jobContext = null;
 let revision = 0, resumeActive = null;
@@ -56,7 +57,7 @@ export function createZuoyebang(root, ctx) {
     if (!alive) { resumeActive?.(); return; }
     for (const [id, renderView] of [['account', view.accountView], ['camera-controls', view.cameraView], ['upload', view.uploadView],
       ['source-modes', view.sourceModesView], ['source-preview', view.sourcePreviewView], ['paste', view.pasteView],
-      ['paper-tools', view.paperToolsView], ['queue', view.queueView], ['candidates', view.candidatesView], ['preview', view.previewView], ['editor', view.editorView], ['history', view.historyView], ['result', view.resultView]]) {
+      ['paper-tools', view.paperToolsView], ['queue', view.queueView], ['candidates', view.candidatesView], ['preview', view.previewView], ['confirm', view.confirmView], ['history', view.historyView], ['result', view.resultView]]) {
       morph(host.querySelector(`#zyb-${id}`), renderView(S));
     }
     const node = host.querySelector('#zyb-status');
@@ -70,6 +71,7 @@ export function createZuoyebang(root, ctx) {
     host.querySelector('.zyb-input').classList.toggle('has-image', !!S.file || !!S.search?.image);
     host.querySelector('#zyb-paper').hidden = !S.search?.image || cameraActive;
     paper.paint();
+    recognition.paint();
     const zone = host.querySelector('#zyb-upload [data-filedrop]');
     if (zone && !drops.has(zone)) { drops.add(zone); bindFileDrop(zone, files => pick(files[0]), () => status('请选择 JPG、PNG 或 WebP 图片', true)); }
   }
@@ -326,6 +328,7 @@ export function createZuoyebang(root, ctx) {
   }
 
   const combobox = createCombobox(host, { options(kind) { const data = mergeTaxonomy(suggestions(itemsOf(ctx.store.get().data))); return kind === 'category' ? data.categoriesBySubject[S.form.subject] || [] : kind === 'tags' ? data.tags : data.subjects; }, onSelect: input => onInput({ target: input }) });
+  const recognition = createRecognitionDialog(host, S, { extract, commit, remember, closeSuggestions: () => combobox.close() });
   host.addEventListener('input', onInput);
   document.addEventListener('paste', onPaste, true);
   paint();
@@ -341,10 +344,10 @@ export function createZuoyebang(root, ctx) {
       catch (error) { if (current()) status(`保存的来源无法读取：${error.message}`, true); }
     }
     if (!current()) return;
-    paint(); if (S.job) { S.busy = S.job.type; void poll(); }
+    paint(); recognition.restore(); if (S.job) { S.busy = S.job.type; void poll(); }
     else if (!S.render) void renderSelected();
   }
-  function leave() { entered = false; entryEpoch += 1; inputRequest += 1; if (S.busy === 'capture') S.busy = ''; accountMenu.close(); camera.stop(); clearTimeout(timer); combobox.close(); remember(); }
+  function leave() { recognition.close(true); entered = false; entryEpoch += 1; inputRequest += 1; if (S.busy === 'capture') S.busy = ''; accountMenu.close(); camera.stop(); clearTimeout(timer); combobox.close(); remember(); }
   function resume() { if (alive && entered) { paint(); void refresh(); if (S.job) void poll(); else if (!S.render) void renderSelected(); } }
   resumeActive = resume;
   return { enter, leave, search, select, region, keep,
@@ -352,13 +355,14 @@ export function createZuoyebang(root, ctx) {
     boxes: value => { S.showBoxes = value; remember(); paint(); },
     adjust: () => { if (!S.busy && !S.job && regionBounds(S)) { S.adjusting = !S.adjusting; S.showBoxes = true; paint(); } },
     capture, source, paste, render: renderSelected, regenerate, extract, account, login, settings: openSettings, commit, history: openHistory,
+    review: () => recognition.open(), closeReview: () => { if (S.busy !== 'commit') recognition.close(); },
     menu: page => accountMenu.show(page),
     camera: () => camera.toggle(),
     role: role => { if (['question', 'answer'].includes(role)) { S.role = role; paint(); } },
     zoom: zoom => { S.zoom = zoom === 'actual' ? 'actual' : 'fit'; paint(); },
-    html: () => { S.showHtml = !S.showHtml; paint(); },
+    html: role => { S.showHtml = S.role === role ? !S.showHtml : true; S.role = role; paint(); },
     textView: role => { if (S.render && toggleTextView(S.sections[role])) { remember(); paint(); } },
-    expand: () => { const images = ['question', 'answer'].filter(role => S.render?.images[role]?.url); openImageViewer(images.map(role => ({ src: S.render.images[role].url, label: role === 'question' ? '完整题目渲染图' : '完整答案渲染图' })), images.indexOf(S.role)); },
+    expand: role => { const images = ['question', 'answer'].filter(role => S.render?.images[role]?.url); openImageViewer(images.map(role => ({ src: S.render.images[role].url, label: role === 'question' ? '完整题目渲染图' : '完整答案渲染图' })), images.indexOf(role || S.role)); },
     mode: arg => { const [role, mode] = arg.split(':'); if (!S.result && S.busy !== 'commit' && S.sections[role]?.mode !== 'none' && ['image', 'text'].includes(mode)) { S.sections[role].mode = mode; S.versions[role] += 1; S.dirty = true; remember(); paint(); } },
     labels: el => openCreateLabelPicker(el, { get: () => S.labels, onSave: labels => { S.labels = labels; S.dirty = true; remember(); paint(); } }),
     board: (el, direct) => { if (S.result) boardQuickAdd(S.result, { anchor: el, direct }); },

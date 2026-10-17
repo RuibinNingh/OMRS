@@ -25,7 +25,7 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 
 主工作台继续通过 `assets/vendor/fonts/fonts.css` 加载 Noto Sans SC 与 JetBrains Mono。新增 `noto-serif-sc.css` 仅供 A4 导出由 `omrs/export_fonts.py` 按内容内嵌，不加入工作台样式入口；打印字体、固定行高及重排契约见 `AI/export.md`。字体目录维护上游分片、SIL OFL 许可和来源 SHA256 清单。
 
-作业帮样式 `features/zuoyebang/zyb.css` 由总入口以 layer(features) 引入，沿用语义token。桌面左右两栏：原图／题框与候选／完整预览／核对表单，760px以下上下排列；可用宽度随工作台伸缩。候选选中取accent-soft与focus-ring，hover仅对精细指针启用，触摸取图按钮和候选至少44px。SVG题框复用共享裁图画布，调整模式才显示控制点。100%预览只在内框滚动；白底原图与后端图不随主题变色。服务入口单行收起，浮层限制高度。页面与浮层审计覆盖320/390/1024/1440px及浅深主题，后端MathJax资源说明见assets/vendor/mathjax/README.md。
+作业帮样式 `features/zuoyebang/zyb.css` 由总入口以 layer(features) 引入，沿用语义token。桌面左右两栏为原图／题框与候选／完整预览，760px以下上下排列；大于1500px时题目和答案并排，确认识别入口吸附预览区底部。识别工作窗最大宽1240px，复用ui-dialog与overlay，正文独立滚动、操作区固定，题目与答案在760px以下改单列。候选选中取accent-soft与focus-ring，hover仅对精细指针启用，触摸取图按钮和候选至少44px。SVG题框复用共享裁图画布，调整模式才显示控制点。100%预览只在内框滚动；白底原图与后端图不随主题变色。服务入口单行收起，浮层限制高度。页面与工作窗检查320至2550px及浅深主题，后端MathJax资源说明见assets/vendor/mathjax/README.md。
 
 核对正文的`.zyb-text-preview`取surface-1与fg-1，预览及等宽源码均取text-lg；单按钮使用共享ui-btn切换显示。预览限制高度并可键盘聚焦滚动，块级公式在自身范围横向滚动；section和正文容器设置min-width:0，长公式与图片占位符不撑宽页面。两种显示沿用同一组语义token适配浅深主题。
 

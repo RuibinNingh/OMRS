@@ -2,6 +2,7 @@
 import io
 from PIL import Image
 from omrs.zuoyebang.geometry import crop_bounds
+from zuoyebang_dialog import open_review, close_review
 
 
 def verify_paper(page, context, base, photo, output, check, cached_id):
@@ -35,12 +36,17 @@ def verify_paper(page, context, base, photo, output, check, cached_id):
     page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalWidth===1080")
     check('点击第二题框只显示该位置候选', page.locator('.zyb-candidate').count() == 1 and page.locator('.zyb-candidate').get_attribute('data-arg') == '3')
     second_id = page.evaluate(saved)['render_id']
+    open_review(page)
     page.locator('[data-zyb-field="cause"]').fill('第二题人工核对内容')
+    close_review(page)
     page.locator('[data-action="zuoyebang.zybRegion"][data-arg="0"]').click()
     page.locator('.zyb-result').wait_for()
     page.locator('[data-action="zuoyebang.zybRegion"][data-arg="1"]').click()
+    page.wait_for_function("() => document.querySelector('#zyb-rendered-image')?.naturalWidth===1080")
+    open_review(page)
     page.wait_for_function("() => document.querySelector('[data-zyb-field=cause]')?.value==='第二题人工核对内容'")
     check('逐题返回复用预览并恢复该题人工编辑', page.evaluate(saved)['render_id'] == second_id)
+    close_review(page)
     page.locator('#zyb-paper rect.crp-box[data-rid="2"]').click()
     check('无匹配题框保留原图入口且不沿用上一题', page.locator('.zyb-candidate').count() == 0 and page.locator('#zyb-rendered-image').count() == 0 and page.get_by_role('button', name='保留原题图片', exact=True).is_enabled())
     page.get_by_label('显示题框', exact=True).uncheck()
@@ -69,13 +75,15 @@ def verify_paper(page, context, base, photo, output, check, cached_id):
     with Image.open(io.BytesIO(cropped)) as actual, Image.open(photo) as original:
         expected = original.crop(crop_bounds(bounds, original.width, original.height)).convert('RGB')
         check('保留原题按调整后的原始像素裁切且无虚构答案', actual.tobytes() == expected.tobytes() and record['images']['answer']['empty'])
+    open_review(page)
     page.locator('[data-zyb-field="subject"]').fill('数学')
     page.locator('[data-zyb-field="category"]').fill('原图核对')
     page.get_by_role('button', name='录入 OMRS', exact=True).click()
     page.locator('.zyb-result').wait_for()
+    close_review(page)
     page.get_by_role('button', name='保留原题图片', exact=True).click()
     page.locator('.zyb-result').wait_for()
-    check('重复保留相同范围复用已入库回执', page.evaluate(saved)['render_id'] == identity and page.get_by_role('button', name='已录入题库', exact=True).is_disabled())
+    check('重复保留相同范围复用已入库回执', page.evaluate(saved)['render_id'] == identity and page.get_by_role('button', name='查看已录入题目', exact=True).count() == 1)
     page.locator('[data-action="zuoyebang.zybRegion"][data-arg="0"]').click()
     page.locator('.zyb-result').wait_for()
     page.locator('[data-action="zuoyebang.zybRegion"][data-arg="2"]').click()

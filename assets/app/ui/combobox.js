@@ -1,4 +1,5 @@
-/** 可输入的共享建议框：保留原生 input 与输入法行为，建议层挂到 body 避开裁剪容器。 */
+/** 可输入的共享建议框：保留原生输入与输入法行为，建议层复用模态客人托管。 */
+import { hostGuest, releaseGuest } from './overlay.js';
 let nextMenuId = 0;
 export function createCombobox(host, { options, onSelect } = {}) {
   const menu = document.createElement('div');
@@ -17,6 +18,7 @@ export function createCombobox(host, { options, onSelect } = {}) {
     active = null;
     menu.hidden = true;
     menu.replaceChildren();
+    releaseGuest(menu);
   };
   const position = () => {
     if (!active || menu.hidden) return;
@@ -84,6 +86,7 @@ export function createCombobox(host, { options, onSelect } = {}) {
     });
     selected = 0;
     highlight();
+    if (menu.hidden) hostGuest(menu, { close, escape: true });
     menu.hidden = false;
     input.setAttribute('role', 'combobox');
     input.setAttribute('aria-autocomplete', 'list');

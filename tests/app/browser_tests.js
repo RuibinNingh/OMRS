@@ -4,6 +4,7 @@ import { html, raw } from '/assets/app/core/html.js';
 import { render } from '/assets/app/core/dom.js';
 import { icon, installIcons, ICON_NAMES } from '/assets/app/ui/icon.js';
 import { button } from '/assets/app/ui/button.js';
+import { createCombobox } from '/assets/app/ui/combobox.js';
 import { input } from '/assets/app/ui/field.js';
 import { select } from '/assets/app/ui/select.js';
 import { dialog, confirm, prompt } from '/assets/app/ui/dialog.js';
@@ -241,6 +242,32 @@ test('dialog：onOk 返回 false 时留在对话框、确定按钮忙碌；dismi
   ok.click();
   settle(true);
   eq((await pending).ok, true);
+});
+
+test('combobox：模态内建议可点击，Escape先关建议，Enter选中不提交', async () => {
+  let submitted = 0;
+  const pending = dialog({ title: '选择科目', body: html`<input class="ui-input" data-combobox="subject">`,
+    onOk: () => { submitted++; return false; } });
+  const el = document.querySelector('dialog[open]');
+  const combo = createCombobox(el, { options: () => ['数学', '物理'] });
+  const input = el.querySelector('input');
+  const type = value => { input.value = value; input.dispatchEvent(new Event('input', { bubbles: true })); };
+  type('数');
+  assert(guestOpen() && el.querySelector('.ui-combobox-menu:not([hidden])'), '建议必须在模态顶层内');
+  el.querySelector('[role=option]').click();
+  eq(input.value, '数学');
+  assert(!guestOpen(), '选择后释放客人');
+  type('物');
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  assert(el.open && !guestOpen(), 'Escape不关闭宿主');
+  type('数');
+  input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  eq(input.value, '数学');
+  eq(submitted, 0, '选择建议不能触发提交');
+  combo.dispose();
+  el.querySelector('[data-dialog-cancel]').click();
+  await pending;
+  await sleep(350);
 });
 
 test('dialog：returnFocus 返回的元素优先于打开前的焦点', async () => {
