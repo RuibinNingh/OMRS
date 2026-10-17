@@ -29,7 +29,7 @@ from omrs.server import OMRSHandler
 from omrs.zuoyebang import service_config,jobs
 from omrs.zuoyebang.html import candidate_html
 from tests.zuoyebang_gateway import SyntheticGateway, KEY
-from tests.zuoyebang_fixtures import candidates,data_url,png
+from tests.zuoyebang_fixtures import candidates,data_url,png,svg
 vault,port=sys.argv[1:]
 gateway = SyntheticGateway().__enter__()
 gateway.account['observations']['events'] = [{'event':'login','kind':'ok','at':time.time()}]
@@ -37,11 +37,11 @@ source=candidates()
 source.append(dict(source[2],location_index=1))
 source[2]['location_index']=0
 question_url='https://img.cdnjtzy.com/synthetic-question.png'
-answer_url='https://new-answer-images.example/synthetic-answer.png'
+answer_url='https://new-answer-images.example/synthetic-answer.svg'
 source[0]['question']['content']=source[0]['question']['content'].replace(data_url(),question_url)
 source[0]['answer'][0]['content']=source[0]['answer'][0]['content'].replace(data_url('formula'),answer_url)
 gateway.responses['/api/v1/search']=(200,{'status':'ok','result':{'data':{'answers':{'mainPageInfo':[json.dumps(source)],'locs':['5@5@5@75@410@75@410@5','5@85@5@155@410@155@410@85','5@165@5@235@410@235@410@165']}}}}, {})
-image_sources={question_url:png(),answer_url:png('formula')}
+image_sources={question_url:png(),answer_url:svg()}
 # 仅替代远程附图下载；地址校验、本地化和真实 Chromium 渲染照常执行。
 jobs.candidate_html=lambda candidate:candidate_html(candidate,fetcher=image_sources.__getitem__)
 service_config.save(vault, {'base_url':gateway.url, 'api_key':KEY})
@@ -195,6 +195,10 @@ def main():
                 render_id = page.evaluate("() => JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace')).render_id")
                 record = context.request.get(base + '/api/zuoyebang/record?id=' + render_id).json()['record']
                 check('任意域名的题目与答案附图均经本地化并完整渲染', record['source_images'] == 2 and all(record['images'][role]['images'] == 1 for role in ('question', 'answer')))
+                answer_png = context.request.get(base + record['images']['answer']['url']).body()
+                with Image.open(io.BytesIO(answer_png)) as image:
+                    red = sum(1 for r, g, b in image.convert('RGB').getdata() if r > 120 and g < 80 and b < 80)
+                check('SVG公式附图实际绘入后端长图并经鉴权图片接口显示', red > 100)
                 layout = page.evaluate('''() => {
                   const width = selector => document.querySelector(selector).getBoundingClientRect().width;
                   return {workspace:width('.zyb-workspace'),host:width('#panel-zuoyebang'),left:width('.zyb-source'),right:width('.zyb-review'),editor:width('#zyb-confirm')};

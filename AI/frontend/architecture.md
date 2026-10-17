@@ -13,6 +13,8 @@
 
 作业帮手机题图回归由该脚本调用zuoyebang_mobile.py，真实恢复没有layout字段的合成预览，验证重新生成期间编辑／刷新、草稿移交和旧资产保全；版本与兼容规则见 `AI/frontend/zuoyebang.md`。
 
+作业帮主E2E同时验证PNG题图和SVG答案附图：只替换远程下载边界，实际执行后端验证／Chromium长图生成，并从受鉴权图片接口核对SVG着色路径确实绘入PNG，再继续识别、核对与合成题目创建。SVG安全边界与原字节保全另由 `tests/test_zuoyebang_svg.py` 验证。
+
 作业帮双服务联调用 `tests/e2e/zuoyebang_gateway_integration.py` 验证PNG原图上传、官方JPEG副本及其摘要、原坐标题框和历史原件；合成官方边界拒绝PNG，避免仅验证本地网关成功就宣称官方兼容。
 
 ```

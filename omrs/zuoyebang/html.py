@@ -10,6 +10,7 @@ import ssl
 import urllib.parse
 from html.parser import HTMLParser
 from .store import ZybError
+from .svg import validate as validate_svg
 
 ALLOWED = {'p', 'br', 'div', 'span', 'b', 'strong', 'i', 'em', 'u', 's', 'sub', 'sup',
            'img', 'table', 'tbody', 'thead', 'tfoot', 'tr', 'td', 'th', 'ol', 'ul', 'li', 'blockquote', 'nobr', 'bdo'}
@@ -142,11 +143,11 @@ def fetch_image(url):
 
 def image_url(url, fetcher=fetch_image):
     try:
-        from PIL import Image
+        from PIL import Image, UnidentifiedImageError
     except ImportError as exc:
         raise ZybError('后端渲染需要安装 requirements-zuoyebang.txt 中的依赖', 'render_dependency', 503) from exc
     if url.startswith('data:'):
-        match = re.fullmatch(r'data:image/(?:png|jpeg|gif|webp);base64,([A-Za-z0-9+/=\s]+)', url)
+        match = re.fullmatch(r'data:image/(?:png|jpeg|gif|webp|svg\+xml);base64,([A-Za-z0-9+/=\s]+)', url)
         if not match or len(url) > IMAGE_BYTES * 4 / 3 + 100:
             raise ZybError('附图数据格式或大小不合法', 'image_invalid')
         try:
@@ -156,14 +157,22 @@ def image_url(url, fetcher=fetch_image):
     else:
         valid_remote(url)
         raw = fetcher(url)
+    if len(raw) > IMAGE_BYTES:
+        raise ZybError('附图超过渲染资源预算，已保留原内容', 'render_resource', 422)
     try:
-        with Image.open(io.BytesIO(raw)) as image:
-            if image.width * image.height > 40_000_000 or image.format not in ('PNG', 'JPEG', 'GIF', 'WEBP'):
-                raise ZybError('附图超过像素预算或格式不受支持', 'image_invalid')
-            mime = Image.MIME[image.format]
-            if getattr(image, 'is_animated', False):
-                raise ZybError('附图为动画，不能无损生成静态题面', 'image_invalid')
-            image.verify()
+        try:
+            image = Image.open(io.BytesIO(raw))
+        except UnidentifiedImageError:
+            validate_svg(raw)
+            mime = 'image/svg+xml'
+        else:
+            with image:
+                if image.width * image.height > 40_000_000 or image.format not in ('PNG', 'JPEG', 'GIF', 'WEBP'):
+                    raise ZybError('附图超过像素预算或格式不受支持', 'image_invalid')
+                mime = Image.MIME[image.format]
+                if getattr(image, 'is_animated', False):
+                    raise ZybError('附图为动画，不能无损生成静态题面', 'image_invalid')
+                image.verify()
     except ZybError:
         raise
     except Exception as exc:
