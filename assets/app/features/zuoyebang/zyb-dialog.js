@@ -11,6 +11,13 @@ const KEY = 'omrs-zuoyebang-review';
 const action = (label, name, options = {}) => button({ label, action: `zuoyebang.zyb${name}`, ...options });
 const stored = () => { try { return sessionStorage.getItem(KEY); } catch (_) { return null; } };
 const store = id => { try { if (id) sessionStorage.setItem(KEY, id); else sessionStorage.removeItem(KEY); } catch (_) { /* 草稿仍保存在内存。 */ } };
+const recognizing = s => !s.result && (s.busy === 'extract' || s.job?.type === 'extract');
+
+function loading(s) {
+  return recognizing(s) ? html`<div class="zyb-dialog-loading" role="status" aria-live="polite" aria-atomic="true">
+    <span class="zyb-dialog-loading-spinner" aria-hidden="true"></span><strong>识别中</strong>
+    <p>正在识别题目与答案<br>可继续填写信息，或暂存返回</p></div>` : html``;
+}
 
 function footer(s) {
   const failed = Object.values(s.render.extraction || {}).some(part => part.status === 'failed');
@@ -20,6 +27,7 @@ function footer(s) {
       ${action(s.result ? '已录入题库' : '录入 OMRS', 'Commit', { icon: 'check', variant: 'primary', disabled: !!s.busy || !!s.job || !!s.result, loading: s.busy === 'commit' })}</div>`;
 }
 function progress(s) {
+  if (recognizing(s) && !s.error) return html``;
   return html`<div class="zyb-dialog-notice${s.error ? ' is-error' : s.result ? ' is-success' : ''}" role="${s.error ? 'alert' : 'status'}" aria-live="polite">
     ${icon(s.error ? 'alert-circle' : s.result ? 'check-circle' : s.busy === 'extract' ? 'sparkle' : 'info')}
     <div><strong>${s.busy === 'extract' ? '正在识别题目与答案' : s.result ? '已保存到题库' : s.error ? '需要核对' : '识别结果由你确认'}</strong><p>${s.busy === 'extract' ? '可以先填写题目信息；暂存返回后，识别会继续。' : s.message || '无法完整转录的内容会保留原图，也可直接按图片录入。'}</p></div></div>`;
@@ -32,6 +40,7 @@ export function createRecognitionDialog(host, s, { extract, commit, remember, cl
     if (!s.render || candidateKey(s) !== card) { close(); return; }
     if (s.render.id !== identity) { identity = s.render.id; store(identity); }
     morph(element.querySelector('#zyb-dialog-status'), progress(s));
+    morph(element.querySelector('#zyb-dialog-loading'), loading(s));
     morph(element.querySelector('#zyb-editor'), editorView(s));
     morph(element.querySelector('#zyb-dialog-foot'), footer(s));
     element.querySelector('[data-action="zuoyebang.zybCloseReview"]').disabled = s.busy === 'commit';
@@ -48,6 +57,7 @@ export function createRecognitionDialog(host, s, { extract, commit, remember, cl
           ${action('关闭识别窗口', 'CloseReview', { icon: 'x', iconOnly: true, variant: 'ghost' })}</header>
         <ol class="zyb-dialog-steps" aria-label="录题进度"><li class="is-done">${icon('check')}原题已确认</li><li class="is-active"><span>02</span>识别与修订</li><li><span>03</span>录入题库</li></ol>
         <div class="ui-dialog__body"><div id="zyb-dialog-status"></div><section id="zyb-editor"></section></div>
+        <div id="zyb-dialog-loading"></div>
         <footer id="zyb-dialog-foot" class="ui-dialog__foot"></footer>
       </div></dialog>`);
     host.append(element);

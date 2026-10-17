@@ -29,6 +29,8 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 
 核对正文的`.zyb-text-preview`取surface-1与fg-1，预览及等宽源码均取text-lg；单按钮使用共享ui-btn切换显示。预览限制高度并可键盘聚焦滚动，块级公式在自身范围横向滚动；section和正文容器设置min-width:0，长公式与图片占位符不撑宽页面。两种显示沿用同一组语义token适配浅深主题。
 
+识别工作窗的居中状态卡取surface-1、fg-1／fg-2、accent边框及elev-3阴影，大字取text-2xl，宽度限制在窗口内部。等待指示复用ui-spin，减少动效时停转；状态以role=status礼貌播报，装饰转圈对读屏隐藏，pointer-events:none保证下方表单仍能操作。
+
 ## 2. 语义 token
 
 设置页的日志选择样式位于`features/settings/logs.css`，由样式总入口按features层引入。窗口复用共享dialog，筛选使用ui-input／ui-select，列表整行标签提供勾选目标，滚动保持在列表内部；窄屏日期控件单列并保持16px文字，时间移到第二行，原生控件的color-scheme随主题切换。按钮、选择色、文字和间距均复用既有token。

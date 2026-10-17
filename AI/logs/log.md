@@ -6,6 +6,7 @@
 - [2026-10-17_zuoyebang-scroll](2026-10-17_zuoyebang-scroll.md)：作业帮工作区滚动修复
 - [2026-10-17_zuoyebang-scroll-deploy](2026-10-17_zuoyebang-scroll-deploy.md)：作业帮滚动修复快速生产发布
 - [2026-10-17_zuoyebang-review-dialog](2026-10-17_zuoyebang-review-dialog.md)：作业帮并排预览与识别工作窗草稿
+- [2026-10-17_zuoyebang-recognizing](2026-10-17_zuoyebang-recognizing.md)：作业帮识别中的居中提示
 - [2026-10-17_zuoyebang-mobile-layout](2026-10-17_zuoyebang-mobile-layout.md)：作业帮手机宽度题图
 - [2026-10-17_zuoyebang-mobile-deploy](2026-10-17_zuoyebang-mobile-deploy.md)：作业帮手机题图快速生产发布
 - [2026-10-17_zuoyebang-image-compat](2026-10-17_zuoyebang-image-compat.md)：作业帮PNG搜题兼容修复
