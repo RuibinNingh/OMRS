@@ -8,6 +8,7 @@
 - [2026-10-17_zuoyebang-mobile-layout](2026-10-17_zuoyebang-mobile-layout.md)：作业帮手机宽度题图
 - [2026-10-17_zuoyebang-mobile-deploy](2026-10-17_zuoyebang-mobile-deploy.md)：作业帮手机题图快速生产发布
 - [2026-10-17_zuoyebang-image-compat](2026-10-17_zuoyebang-image-compat.md)：作业帮PNG搜题兼容修复
+- [2026-10-17_v282-release](2026-10-17_v282-release.md)：v2.8.2 GitHub与快速生产发布
 - [2026-10-16_zuoyebang-integration](2026-10-16_zuoyebang-integration.md)：作业帮整卷改造与维护修复合入
 - [2026-10-16_omrs-maintenance](2026-10-16_omrs-maintenance.md)：全面检查后维护
 - [2026-10-16_omrs-maintenance-scope](2026-10-16_omrs-maintenance-scope.md)：维护验收范围确认
