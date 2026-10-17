@@ -2,7 +2,7 @@
 import { html } from '../../core/html.js';
 
 export const serviceView = () => html`<section class="st-section" id="st-sec-service" role="tabpanel" aria-labelledby="st-tab-service">
-          <header class="st-head"><h2>服务与运行</h2><p>查看服务状态、重启服务，或下载脱敏源码包用于协助排查。</p></header>
+          <header class="st-head"><h2>服务与运行</h2><p>查看服务状态、重启服务，或导出日志与脱敏源码用于协助排查。</p></header>
           <div class="card st-card">
             <div class="card-title">运行状态</div>
             <div class="status-grid st-runtime" id="st-runtime">
@@ -24,6 +24,12 @@ export const serviceView = () => html`<section class="st-section" id="st-sec-ser
             </div>
             <div class="hint">重启期间页面会短暂无响应；确认新服务就绪后自动刷新，最长等待 90 秒。远端登录会在重启后失效。</div>
             <div id="st-status" class="st-status" role="status"></div>
+          </div>
+          <div class="card st-card">
+            <div class="card-title">日志导出</div>
+            <p class="hint st-lead">选择运行日志或 AI 请求日志，按类型、更新日期和文件名筛选后打包下载。</p>
+            <button class="ui-btn" type="button" data-action="settings.logExport">导出日志</button>
+            <div id="svc-log-status" class="st-status" role="status"></div>
           </div>
           <div class="card st-card">
             <div class="card-title">源码协助</div>

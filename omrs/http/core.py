@@ -41,6 +41,9 @@ class CoreRoutes:
                 self.wfile.write(payload)
             except Exception as exc:
                 self._error(exc)
+        elif path == '/api/logs':
+            from ..log_export import list_logs
+            self._json({'status': 'ok', **list_logs(self.vault_path)})
         elif path == '/api/export-review':
             artifact = None
             try:
@@ -296,6 +299,18 @@ class CoreRoutes:
                         self.services.os.unlink(payload)
             except Exception as exc:
                 self._error(exc)
+        elif path == '/api/logs/export':
+            from ..log_export import create_log_export
+            artifact = None
+            try:
+                data = self.services.http_io.json_body(self, body)
+                artifact, filename = create_log_export(self.vault_path, data.get('files'))
+                self._download_file(artifact, filename, 'application/zip', {'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff'})
+            except Exception as exc:
+                self._error(exc)
+            finally:
+                if artifact is not None:
+                    self.services.os.unlink(artifact)
         elif path == '/api/backup/restore':
             try:
                 data = self.services.http_io.json_body(self, body)

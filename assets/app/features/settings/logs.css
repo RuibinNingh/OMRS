@@ -1,0 +1,31 @@
+/* 日志选择窗口沿用共享对话框；长列表独立滚动，页脚始终可用。 */
+#st-log-dialog { color-scheme: light; }
+html[data-theme="dark"] #st-log-dialog { color-scheme: dark; }
+.st-log-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-3); }
+.st-log-fields label { display: grid; min-width: 0; gap: var(--sp-1); color: var(--fg-2); font-size: var(--text-sm); }
+.st-log-fields input, .st-log-fields select { box-sizing: border-box; width: 100%; min-width: 0; }
+.st-log-hint { margin: var(--sp-3) 0; color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-read); }
+.st-log-toolbar, .st-log-summary { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
+.st-log-toolbar { margin-bottom: var(--sp-2); }
+.st-log-check { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--ctl-lg); margin-right: auto; color: var(--fg-2); font-size: var(--text-sm); cursor: pointer; }
+.st-log-check input, .st-log-row > input { flex: none; width: var(--sp-4); height: var(--sp-4); margin: 0; accent-color: var(--accent); }
+.st-log-list { max-height: 40vh; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--border-1); border-radius: var(--r-md); }
+.st-log-row { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--ctl-lg); padding: var(--sp-3); cursor: pointer; }
+.st-log-row + .st-log-row { border-top: 1px solid var(--border-1); }
+.st-log-row:has(:checked) { background: var(--accent-soft); }
+.st-log-row:focus-within { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
+.st-log-file { display: grid; flex: 1; min-width: 0; gap: var(--sp-1); }
+.st-log-file strong { color: var(--fg-1); font-size: var(--text-sm); font-weight: var(--weight-medium); overflow-wrap: anywhere; }
+.st-log-file > span, .st-log-row time { color: var(--fg-3); font-size: var(--text-xs); }
+.st-log-row time { flex: none; font-variant-numeric: tabular-nums; }
+.st-log-empty { margin: 0; padding: var(--sp-6) var(--sp-4); color: var(--fg-2); font-size: var(--text-sm); line-height: var(--leading-read); text-align: center; }
+.st-log-summary { justify-content: space-between; margin-top: var(--sp-2); color: var(--fg-2); font-size: var(--text-sm); }
+#st-log-dialog .st-status { margin-top: var(--sp-2); }
+@media (hover: hover) and (pointer: fine) { .st-log-row:hover { background: var(--surface-2); } }
+@media (max-width: 760px) {
+  .st-log-date { grid-column: 1 / -1; }
+  .st-log-fields input, .st-log-fields select { font-size: var(--text-lg); }
+  .st-log-row { flex-wrap: wrap; }
+  .st-log-row time { width: calc(100% - var(--sp-4) - var(--sp-3)); margin-left: calc(var(--sp-4) + var(--sp-3)); }
+  .st-log-toolbar .ui-btn, .st-log-summary .ui-btn { min-height: var(--ctl-lg); }
+}

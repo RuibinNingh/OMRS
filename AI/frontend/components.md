@@ -70,6 +70,8 @@ assets/app/
 - `dialog` / `drawer` 用 `<dialog>.showModal()` 进入浏览器顶层，背景自动 inert。`dialog` 面板是可收缩的 flex 列，受限高度时由正文区承担滚动；`overlay.js` 管理 Esc 与遮罩关闭（按下和松开都落在遮罩上才算）、Enter 确认（textarea、按钮、链接里的 Enter 除外）、关闭动画、焦点还给触发元素、`html.ui-scroll-lock` 锁定背景滚动、嵌套时只关闭最上层。
 - Esc 在 document 捕获阶段拦下并 `stopPropagation`，避免同一次按键继续作用到下层弹层。危险确认默认聚焦「取消」。
 - `dialog(spec)` 返回 `{ok, values}`，values 按 id 收集对话框内的 input / select / textarea（复选与单选取 checked）。`body` 可以是 `html``` 结果；传字符串时会原样插入，调用方必须先转义不可信内容；`content` 可以是 DOM 节点。
+
+- 对话框确认按钮被业务禁用时，Enter及Ctrl／⌘+Enter同样不执行确认回调，避免空选择或超限表单绕过按钮状态。设置页日志导出由`tests/e2e/settings_logs.py`验证空选择回车保持禁用。
 - `dialog(spec)` 另收（P5 第 3 轮起）：`size:'xl'`（1180，题目弹窗与 Markdown 编辑器）、`id`、`onOpen(el)`、`onOk(values, el)`（异步；等待时确定按钮 `aria-busy` 并禁用，返回 false 或抛错则留在对话框，用于保存失败）、`dismissible` 为函数（每次 Esc / 点遮罩时再问，如「有未保存修改」）、`returnFocus()`（关闭后优先把焦点交给它返回的元素）；`closeDialog(el)` 按元素关闭。多行文本里的 Enter 不确认，Ctrl / ⌘ + Enter 在任何位置都确认。
 - **客人浮层**：标记选择器、选板浮层和combobox建议通过 `overlay.js` 的 `hostGuest(node, {close, escape})` / `releaseGuest(node)` 挂到最上层模态对话框中；没有对话框时放进 body。登记后 Esc 与 Enter 先让给客人（`escape:true` 的由 overlay 代为关闭），宿主关闭时先关客人；客人自行关闭时调用 `releaseGuest`，必要时把焦点还给触发元素。`topModal()`、`guestOpen()` 供快捷键判断。组件浏览器回归验证建议可点击、Escape只关闭建议以及Enter选中不提交宿主。
 - 关闭中的对话框带 `.is-closing`，退场动画期间仍是 `[open]`：「有对话框打开」的守卫写成 `dialog[open]:not(.is-closing)`（`core/keys.js`、反馈页 paste 守卫）。

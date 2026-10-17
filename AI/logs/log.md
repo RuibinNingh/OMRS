@@ -11,6 +11,7 @@
 - [2026-10-17_zuoyebang-image-compat](2026-10-17_zuoyebang-image-compat.md)：作业帮PNG搜题兼容修复
 - [2026-10-17_zuoyebang-dialog-release](2026-10-17_zuoyebang-dialog-release.md)：作业帮并排预览与识别工作窗生产发布
 - [2026-10-17_v282-release](2026-10-17_v282-release.md)：v2.8.2 GitHub与快速生产发布
+- [2026-10-17_settings-log-export](2026-10-17_settings-log-export.md)：设置页选择并导出日志
 - [2026-10-16_zuoyebang-integration](2026-10-16_zuoyebang-integration.md)：作业帮整卷改造与维护修复合入
 - [2026-10-16_omrs-maintenance](2026-10-16_omrs-maintenance.md)：全面检查后维护
 - [2026-10-16_omrs-maintenance-scope](2026-10-16_omrs-maintenance-scope.md)：维护验收范围确认

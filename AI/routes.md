@@ -114,6 +114,8 @@
 | POST | `/api/label/save` | `AI/api/mutations.md`、`AI/labels.md` |
 | GET | `/api/labels` | `AI/api/queries.md`、`AI/labels.md` |
 | GET | `/api/ledger/verify` | `AI/api/queries.md`、`AI/ledger.md` |
+| GET | `/api/logs` | `AI/api/mutations.md`、`AI/api/queries.md`、`AI/frontend/settings.md`等 |
+| POST | `/api/logs/export` | `AI/api.md`、`AI/api/mutations.md`、`AI/frontend/settings.md`等 |
 | GET | `/api/mcp/exports/download` | `AI/api/extensions.md`、`AI/export.md` |
 | GET/POST | `/api/mcp/keys` | `AI/frontend/settings.md` |
 | POST | `/api/mcp/keys/revoke` | `AI/frontend/settings.md` |

@@ -67,6 +67,8 @@ assets/app/
 
 ## 4. core 模块
 
+设置页日志导出控制器`features/settings/logs.js`随页面挂载和释放，独立拥有窗口、文件选择及请求代次；筛选视图位于`logs-view.js`。窗口读取失败不覆盖已成功的列表，关闭或离页后旧回包失效；导出复用`core/download.js`，不跨feature引用。`tests/e2e/settings_logs.py`在临时Vault和随机端口验证真实ZIP、重试、筛选外勾选、关闭竞争及双主题320／390／1440px布局。
+
 共享 `domain/zuoyebang-service.js` 负责服务身份、脱敏状态和面板链接；管理URL保留已保存的安全路径前缀，拒绝查询、凭据、编码与穿越。设置与独立作业帮页复用该契约，连接和反代约束见 `AI/zuoyebang-service.md`。
 
 | 模块 | 接口 | 要点 |

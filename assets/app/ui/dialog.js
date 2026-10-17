@@ -44,7 +44,7 @@ ${spec.hint ? html`<p class="ui-dialog__hint" id="${id}-h">${spec.hint}</p>` : '
     const okButton = el.querySelector('.ui-dialog__foot [data-dialog-ok]');
     let busy = false;
     async function accept() {
-      if (busy) return;
+      if (busy || okButton.disabled) return;
       if (typeof spec.onOk !== 'function') { entry.close(true); return; }
       busy = true;
       okButton.disabled = true;

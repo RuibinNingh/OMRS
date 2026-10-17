@@ -8,6 +8,7 @@ import { createAi } from './ai.js';
 import { createAgent } from './agent.js';
 import { createStorage } from './storage.js';
 import { createService } from './service.js';
+import { createLogExport } from './logs.js';
 import { createMcpKeys } from './mcp-keys.js';
 import { createTuning } from './tuning.js';
 import { createZuoyebangService } from './zuoyebang.js';
@@ -22,6 +23,7 @@ let ai = null;
 let agent = null;
 let storage = null;
 let service = null;
+let logExport = null;
 let mcpKeys = null;
 let tuning = null;
 let zuoyebang = null;
@@ -58,6 +60,7 @@ export const page = {
     appearance = createAppearance(root, ctx.bus);
     entryBackground = createEntryBackground(root);
     service = createService(root);
+    logExport = createLogExport(root);
     mcpKeys = createMcpKeys(root);
     access = createAccess(root, id => service?.restart(id));
     ai = createAi(root);
@@ -89,6 +92,7 @@ export const page = {
     return () => {
       root?.removeEventListener('keydown', onKeys);
       zuoyebang?.dispose(); zuoyebang = null;
+      logExport?.dispose(); logExport = null;
       access?.dispose(); ai?.dispose(); agent?.dispose(); storage?.dispose(); tuning?.dispose(); service?.dispose(); mcpKeys?.dispose(); entryBackground?.dispose();
       root = null; onKeys = null; appearance = null; entryBackground = null; access = null; ai = null; agent = null; storage = null; tuning = null; service = null; mcpKeys = null;
     };
@@ -132,6 +136,7 @@ export const page = {
     refreshStatus: () => service?.load(),
     restart: () => service?.restart(),
     sourceExport: () => service?.sourceExport(),
+    logExport: () => logExport?.open(),
     mcpCreate: () => mcpKeys?.create(),
     mcpRefresh: () => mcpKeys?.load(),
     mcpRevoke: ({ arg }) => mcpKeys?.revoke(arg),

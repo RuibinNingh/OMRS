@@ -4,7 +4,7 @@
 > - 职责：外观、访问与安全、AI 识别、AI 助手、作业帮服务、数据与存储、服务与运行七分区
 > - 入口：`assets/app/features/settings/index.js`，挂载根 `omrs_dashboard.html` 的 `#st-app`
 > - 不变量：重启只认新的 `instance_id`；只改免 PIN 网段不重启；AI Key 不回显；外观键名保持兼容
-> - 必跑测试：`tests/app/settings.test.mjs`、`tests/e2e/settings.py`、`tests/e2e/mcp.py`、`tests/test_source_export.py`
+> - 必跑测试：`tests/app/settings.test.mjs`、`tests/app/settings-logs.test.mjs`、`tests/e2e/settings.py`、`tests/e2e/settings_logs.py`、`tests/e2e/mcp.py`、`tests/test_source_export.py`、`tests/test_log_export.py`
 > - 相关：`AI/frontend/shell.md`、`AI/security.md`、`AI/api.md`、`AI/frontend/design-system.md`
 
 ## 页面结构与生命周期
@@ -60,6 +60,10 @@ AI 地址、模型、三种用途模型、思考与知识点限制开关经 `/ap
 运行状态取自 `/api/status`。重启前读取 `/api/auth/session` 的 `instance_id`；读不到则不请求重启。发出 `/api/restart` 后每 500ms 探测新实例，最长 90 秒；旧实例仍响应、连接暂断或探测超时都不会刷新。只有读到不同的 `instance_id` 才刷新页面。E2E 用 `page.route` 拦截重启请求，隔离实例移除 `OMRS_SYSTEMD_SERVICE`。
 
 脱敏源码下载直接调用 `/api/source/export`，完成后由 `core/download.js` 下载 ZIP。测试实例的 Vault 是临时空目录，E2E 用固定 ZIP 响应核对前端下载路径；服务端真实打包契约由 `tests/test_source_export.py` 验证，源码包包含可选 `requirements-mcp.txt`，排除 Vault 中的 MCP Key 摘要与明文。
+
+「日志导出」由 `logs.js`、`logs-view.js` 和 `logs.css` 管理。点击「导出日志」打开共享对话框，从 `/api/logs` 读取运行日志与 AI 请求日志的文件名、大小及更新时间。按文件名、类型和北京时间的更新日期组合筛选；日期区间包含首尾日，导出始终保留完整文件。列表初始不选，支持逐项勾选、全选／取消当前筛选结果、重置筛选和清空选择。筛选保留已有勾选，并明确显示筛选外的已选数。
+
+导出将全部勾选的稳定文件标识交给 `POST /api/logs/export`，通过 `core/download.js` 下载 ZIP；服务端限制单次1000份、原始总量256MiB，窗口按清单限额提前禁用超限下载。读取失败可原地重试，刷新失败保留上次列表；刷新发现所选文件缺失时移除并提示。打包失败保留勾选；导出进行中禁重复提交和关闭，离页释放弹窗、取消在途下载并使旧回调失效。关闭后再次打开使用新列表与空选择，不保存浏览器偏好。日志包含现有原文，AI 请求内容的记录开关仍在助手分区；AI维护任务文档不进入此列表。端点及文件范围见 `AI/api/queries.md` 和 `AI/api/mutations.md`。
 
 源码包也包含requirements-zuoyebang.txt和services/zuoyebang的运行源码、测试、安装与vendor清单，不扫描其它services目录；排除网关私有目录、临时目录、数据库与管理员密码。Windows打包脚本保留AI/logs，但同样排除服务运行数据；入口与限制见根README。
 

@@ -21,6 +21,7 @@ DEFAULT_TIMEOUT = 60.0
 
 # 经逐条读代码确认不写持久状态（或只写自带锁的独立存储）的 POST
 POST_LOCK_EXEMPT = {
+    "/api/logs/export": "只读固定日志目录并生成临时 ZIP，不改业务数据；磁盘读取仍受生命周期租约保护",
     "/api/trainpanel/try": "检测只在内存中进行；积累时由 trainpanel 单独取写锁",
     "/api/auth/login": "只写内存会话（security._LOCK）",
     "/api/ai-recognize": "只调用外部模型，不写 Vault",

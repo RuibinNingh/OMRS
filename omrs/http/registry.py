@@ -74,6 +74,8 @@ ROUTES = {
     ('GET', '/api/session'): '_core_get',
     ('GET', '/api/sessions'): '_core_get',
     ('GET', '/api/source/export'): '_core_get',
+    ('GET', '/api/logs'): '_core_get',
+    ('POST', '/api/logs/export'): '_do_post_routes',
     ('GET', '/api/stats'): '_core_get',
     ('GET', '/api/status'): '_core_get',
     ('GET', '/api/taxonomy'): '_core_get',

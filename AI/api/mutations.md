@@ -329,6 +329,12 @@
 
 **响应：** `{ "status": "ok", "msg": "正在重启..." }`
 
+### `POST /api/logs/export`
+
+接收`{files:["runtime:omrs_2026-10-17.log","ai:agent-llm.jsonl"]}`，从`GET /api/logs`列出的固定目录读取选中文件，返回`application/zip`附件`OMRS-logs-YYYYMMDD-HHMMSS.zip`（北京时间），响应含`Cache-Control: no-store`和`X-Content-Type-Options: nosniff`。ZIP按`运行日志/`、`AI请求日志/`分组，保留原文件名、更新时间和原始字节；内容不另行脱敏，维护任务文档不导出。重复标识去重，单次最多1000份、原始总量256MiB；空选择、非法标识或超限400，文件消失、不可读或读取时缩短409，整次失败且不返回部分ZIP。持续追加的文件只读取打开时长度。
+
+实现位于`omrs/log_export.py`，逐级拒绝链接，支持目录描述符的平台使用固定句柄与`O_NOFOLLOW`打开文件。ZIP写入权限受限的系统临时件，下载完成或失败后删除。只读导出不取业务写锁，磁盘段仍受Vault生命周期租约保护；慢下载在响应捕获后发送。普通Web鉴权与POST同源检查适用，MCP凭据不能调用，不新增日志记录开关或持久配置。
+
 ### `POST /api/backup/export`
 打包整个 `错题/` 目录并以 zip 下载，文件名 `OMRS-backup-YYYYMMDD-HHMMSS.zip`。响应头仍返回 `X-OMRS-Backup-Token` 供审计与兼容，但图片压缩不再强制要求先备份；备份 zip 不写入数据目录，由浏览器下载给用户保存。
 

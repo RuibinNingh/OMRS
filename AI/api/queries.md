@@ -104,6 +104,12 @@
 | `weak_spots` | `leeches`/`struggling`/`traps`/`recently_killed` 列表 |
 | `items` | 全量题目快照（含 `eff_difficulty`/`fail_count` 累计答错/`wrong_streak` 最近连错/`is_leech`/`is_killed`/复燃字段 `is_revived`、`kill_count`、`dormant_days`、`next_revive_date`/`images` 等） |
 
+### `/api/logs`
+
+返回 `{status:"ok",files:[{id,kind,name,size_bytes,modified_at,modified_day}],max_bytes:268435456,max_files:1000}`，按更新时间倒序、同时间按标识倒序排列。`kind`为`runtime`或`ai`，稳定标识为`类型:文件名`；`modified_at`为带UTC偏移的时间，`modified_day`为北京时间日期。空目录返回空列表，不创建日志目录或业务库。
+
+仅列出当前Vault根`logs/`和`错题/.omrs/logs/`的直接子文件，允许`.log`、`.jsonl`及它们的数字轮换／`.gz`后缀；不递归、不跟随目录或文件链接，不列出隐藏文件、子目录、配置、数据库及`AI/logs/`维护文档。清单仅读取元数据，文件名在前端转义。接口沿用普通Web鉴权并返回`Cache-Control: no-store`，MCP凭据不能访问。文件级筛选与选择由设置页完成；导出见`AI/api/mutations.md`。
+
 ### `/api/source/export`
 本机直连或已登录远端可下载源码包；未登录远端返回 401。
 生成并下载脱敏源码 ZIP。按当前工作区的固定项目文件，以及 `AI/`、`Skills/`、`assets/`、`deploy/`、`omrs/`、`tests/`、`web/` 中允许的源码和资源类型收集文件；未提交文件也会收录，不要求 Git 仓库。个人题库、临时目录、根目录运行日志、`AI/logs/`、`AI/omrs_work/`、缓存、构建产物、`tests/` 以外的 JSON（配置与运行数据）、符号链接和生成导出文件不进入 ZIP；`tests/` 下的 JSON 是测试基线（如 UI 基线文件），`assets/app/package.json` 声明 ES 模块，二者随包导出。ZIP 根目录为 `OMRS/`，`SOURCE_EXPORT_MANIFEST.txt` 列出实际包含文件，并提示分享前检查源码内容。没有可导出的源码文件时返回 400。
