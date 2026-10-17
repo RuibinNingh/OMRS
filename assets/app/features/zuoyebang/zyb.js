@@ -18,7 +18,7 @@ import { suggestions, mergeClassification } from '../../domain/create-form.js';
 import { createCamera } from './zyb-camera.js';
 import { createAccountMenu } from './zyb-account.js';
 import { sameService } from '../../domain/zuoyebang-service.js';
-import { newZybState, bindCard, bindSearch, stashCard, searchRegions, regionBounds, candidateKey, extractionSnapshot, mergeExtraction, commitPayload } from './zyb-state.js';
+import { newZybState, bindCard, bindSearch, stashCard, canRegenerate, bindRegeneratedCard, searchRegions, regionBounds, candidateKey, extractionSnapshot, mergeExtraction, commitPayload } from './zyb-state.js';
 import * as view from './zyb-view.js';
 
 import { createPaper } from './zyb-paper.js';
@@ -180,7 +180,11 @@ export function createZuoyebang(root, ctx) {
     if (job.status === 'failed') { jobContext = null; remember(); status(job.error, true); void refresh(); return; }
     const record = job.result;
     if (job.type === 'search') { bindSearch(S, record); status(record.candidates.length ? `找到 ${searchRegions(S).length} 个题目位置，点击题框或候选开始核对` : '未找到匹配题目，可保留原图继续录入'); }
-    else if (job.type === 'render' || job.type === 'source') { bindCard(S, record); status('预览已生成，请核对题目与答案'); }
+    else if (job.type === 'render' || job.type === 'source') {
+      if (jobContext?.regenerate) {
+        if (bindRegeneratedCard(S, record, jobContext.regenerate)) status('手机预览已生成，人工编辑已保留，请核对题目与答案');
+      } else { bindCard(S, record); status('预览已生成，请核对题目与答案'); }
+    }
     else if (job.type === 'extract') {
       const snapshot = jobContext?.extraction || extractionSnapshot(S);
       if (mergeExtraction(S, record, snapshot)) {
@@ -243,6 +247,13 @@ export function createZuoyebang(root, ctx) {
     if (await cachedCard()) return;
     if (!alive || !entered) { resumeActive?.(); return; }
     jobContext = { render: { search_id: S.search.id, candidate_index: S.selected } };
+    await startJob('render', { search_id: S.search.id, candidate_index: S.selected });
+  }
+  async function regenerate() {
+    if (S.busy || S.job || !canRegenerate(S)) return;
+    revision += 1;
+    stashCard(S);
+    jobContext = { render: { search_id: S.search.id, candidate_index: S.selected }, regenerate: S.render.id };
     await startJob('render', { search_id: S.search.id, candidate_index: S.selected });
   }
   async function region(index) {
@@ -338,7 +349,7 @@ export function createZuoyebang(root, ctx) {
     next: () => { const rows = searchRegions(S), at = rows.findIndex(row => row.index === S.region); if (rows.length) void region(rows[(at + 1) % rows.length].index); },
     boxes: value => { S.showBoxes = value; remember(); paint(); },
     adjust: () => { if (!S.busy && !S.job && regionBounds(S)) { S.adjusting = !S.adjusting; S.showBoxes = true; paint(); } },
-    capture, source, paste, render: renderSelected, extract, account, login, settings: openSettings, commit, history: openHistory,
+    capture, source, paste, render: renderSelected, regenerate, extract, account, login, settings: openSettings, commit, history: openHistory,
     menu: page => accountMenu.show(page),
     camera: () => camera.toggle(),
     role: role => { if (['question', 'answer'].includes(role)) { S.role = role; paint(); } },

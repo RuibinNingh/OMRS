@@ -21,7 +21,7 @@
 
 图片以 zuoyebang 用途的既有分块上传引用发送，不重编码原件；仅 JPG/PNG/WebP、不超过8MiB且不超过4000万像素，完成上传时用 Pillow 验证完整解码。用途不能借用于普通题目创建；旧上传用途仍仅支持 PNG/JPEG/GIF。解码后的结果按照片位置和显式候选保存，不合并相似题树；题干和对应答案一起选择。接口返回摘要，原始上游内容留在独立记录。
 
-HTMLParser 白名单保留文字、列表、表格、上下标和图片，移除可执行内容、事件和任意 CSS。题库类名单保留tkspec上下标/填空/文字强调/对齐、tk-md2html正文、tB表格及旧HTML公式的math/fM/fI/pA/pR/pS；必要的数值尺寸、定位、字体比例、单色分数线和有限display值经严格筛选。样式由可信paper.css定义，不加载上游CSS。旧公式使用本地MathJax字体；波浪线用CSS绘制，1080px纸面统一字体、字号及边距，不能据此声称与手机原页面像素完全一致。
+HTMLParser 白名单保留文字、列表、表格、上下标和图片，移除可执行内容、事件和任意 CSS。题库类名单保留tkspec上下标/填空/文字强调/对齐、tk-md2html正文、tB表格及旧HTML公式的math/fM/fI/pA/pR/pS；必要的数值尺寸、定位、字体比例、单色分数线和有限display值经严格筛选。样式由可信paper.css定义，不加载上游CSS。旧公式使用本地MathJax字体；波浪线用CSS绘制。纸面按360 CSS px宽、17px正文、16px边距、1.65行距排版，不能据此声称与手机原页面像素完全一致。
 
 附图URL或picList[].pid依原App规则转换；支持tk_、zyb_、zyb数字_、qa10_和qa数字_域映射。正文和附图列表去重，题干答案共用原字节下载缓存；远程附图接受任意域名的标准端口HTTP/HTTPS地址，不设域名白名单。每次请求及跳转复核地址格式和全部DNS结果，只连接公网单播IP，实际连接固定已校验IP，TLS按原域名验证；拒绝凭据URL、其它协议、异常端口和非公网／组播目标。下载不携带账号Cookie，图片验证后内联原字节。
 
@@ -29,7 +29,9 @@ Chromium拦截器只读取OMRS本地字体、MathJax3及可信渲染配置，不
 
 SVG、MathML、canvas和音视频等不能按当前白名单保真渲染的视觉内容会明确报错并保留来源，不静默删除必要图形。搜题响应结构或解码格式异常记 protocol，不当作账号或签名过期。
 
-真实 Chromium deviceScaleFactor=1，题干与答案各一张宽1080的 PNG，高度按全文。答案不分块、分页或裁断。等待字体、公式和所有图片 decode，校验 PNG 尺寸与 SHA256；记录引擎版本及每区公式数。缺图、公式错误、横向超出1080均整体失败并保留原候选。单附图12MiB、附图总量80MiB、单输出1亿像素是物理资源预算，超限报错，不缩放或截断。纸面固定白底，前端主题只改变外框；HTML 预览用文本显示，内联图片字节以提示替代。
+真实 Chromium 按360 CSS px视口、deviceScaleFactor=3生成题干与答案，各一张宽1080的 PNG，高度为完整CSS高度的3倍。答案不分块、分页或裁断。等待字体、公式和所有图片 decode后，可信layout.js测量宽公式、旧nobr公式的实际文字及宽表格，仅对超宽对象局部缩放并保留文档流高度；表内公式随整表适配，正文不整体缩小。附图保留本地化原字节，显示时适应正文宽度；附图内部小字仍受原图质量限制。
+
+输出校验PNG尺寸与SHA256；记录引擎版本、每区公式数及局部适配数量。layout保存version=mobile-360-v1、css_width=360、device_scale_factor=3；images中的width/height始终为物理输出像素。缺图、公式错误或适配后仍横向超出360 CSS px均整体失败并保留原候选。单附图12MiB、附图总量80MiB、单输出1亿物理像素为资源预算，超限报错，不整体缩放或截断。纸面固定白底，前端主题只改变外框；HTML预览用文本显示，内联图片字节以提示替代。
 
 ### 题目坐标与原图
 
@@ -75,5 +77,7 @@ AI 复用 extract_region、judge=True 和现有识别配置；每个角色一次
 | `POST /api/zuoyebang/commit` | `{render_id,form:{subject,category,difficulty,related_tags,labels,cause},sections:{question:{mode,text},answer:{mode,text}}}`；返回身份、图片名、commit_id、reused |
 
 source的region_index须存在于搜索记录，null允许显式整图范围；省略bounds时使用该位置的有效bounds，未取得有效范围返回400。坐标字段必须有限数值且在原图内。
+
+候选render结果及record返回layout排版版本、CSS宽度与输出倍率；图片元数据的fitted_formulas/fitted_tables为局部适配数量。无layout的记录仍可读取。用原search_id/candidate_index再次提交render即可从已保存正文生成新记录，不重新搜题、不替换旧PNG或正式题目。
 
 非法输入400；会话/流程/预留过时409；并发预算429；依赖缺失503；上游故障502。后台渲染和识别错误经 job 报告，轮询HTTP本身仍200，原内容保留。

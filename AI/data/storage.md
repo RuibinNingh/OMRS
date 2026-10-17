@@ -228,4 +228,6 @@ base_url可带安全反代路径前缀，磁盘字段与原契约兼容。网关
 
 `render-<id>/record.json` 保存来源、PNG尺寸/SHA、HTML预览、提取与分类结果；question.png和answer.png各一张完整图，无答案不产生答案图。source作业复用此目录，source_kind=crop并记录原图bounds，题图保持实际像素，答案empty；候选index=null，location关联原题框。job记录保存search/render/source/extract后台状态，重启后的在途任务只读显示中断。
 
+候选render的layout为{version:"mobile-360-v1",css_width:360,device_scale_factor:3}，题目和答案的width/height仍为输出PNG的物理像素；每区另记fitted_formulas/fitted_tables局部适配计数。旧记录允许没有layout，原像素裁图不写手机layout。主动重新生成使用独立render_id，旧记录、图片与commit预留均不修改。
+
 渲染记录含browser/engine与每区formulas数；旧记录缺engine时仍可读取原图，展示为既有记录，不重新生成。commit 保存首次规范化表单/保存方式摘要、操作ID、UID/question_id/路径/日期、产物哈希与回执。创建事实和 op_results 在 Ledger 同事务写入，独立状态可在原记录重试补齐；Ledger 不重放会话、候选与渲染目录。全库备份包含该目录，整库恢复变更世代，旧后台任务和上传引用不能写入恢复后的库。详见 `AI/zuoyebang.md`。

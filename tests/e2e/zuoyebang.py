@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / 'tests'))
 from browser_runtime import launch_chromium, open_app
 from tests.zuoyebang_fixtures import profile, png
 from zuoyebang_paper import verify_paper
+from zuoyebang_mobile import verify_mobile
 
 SERVER = r'''
 import http.server,json,sys,time
@@ -324,6 +325,7 @@ def main():
                 check('失败可重试所选候选并恢复自动预览', page.locator('.zyb-candidate.on').get_attribute('data-arg') == '2')
                 verify_paper(page, context, base, photo, output, check, latest_id)
                 check('未匹配题目只创建一份正式题目', len(list((vault / '错题').rglob('原图核对[0-9]*.md'))) == 1)
+                verify_mobile(page, context, base, vault, output, check)
                 page.evaluate("() => window.__omrs.router.go('ai-review?type=draft')")
                 page.wait_for_selector('#panel-ai-review.active')
                 check('审核中心草稿仍可访问', page.locator('#panel-ai-review.active').count() == 1)

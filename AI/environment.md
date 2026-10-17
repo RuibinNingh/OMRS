@@ -150,6 +150,8 @@ P4 分类和草稿修订路径使用独立的 `tests/fixtures/agent_p4_faux.json
 
 `OMRS_ZYB_SHOTS`指定截图与checks.json目录，包含1080长答案、八档320/390/1024/1440px浅深主题、裁图入库页及合成Markdown。视觉比较用 `python3 tests/visual/run.py --ref <基线> --pages create --create-stage zuoyebang`，脚本对旧源码进入原工作区，对新源码进入独立路由；普通录入页另用 `--pages create` 比较。页面缺少有效题框时保留候选，不用生成的框代替真实接口证据。
 
+作业帮E2E内的zuoyebang_mobile.py只在该次临时Vault移除合成记录的layout字段以模拟旧预览，核对主动升级、在途刷新与编辑保留，并比较旧record.json和PNG原字节；产物含legacy-mobile-entry-320/390及mobile-preview截图。手机题图仍输出1080物理像素，CSS排版宽度为360、DPR为3。
+
 两进程验收用 `tests/e2e/zuoyebang_gateway_integration.py --with-prefix --out <临时目录>`，验证实际网关签名／坐标解码、反代前缀和原图传输；`tests/e2e/zuoyebang_service.py`验证服务切换与失败后的观察归属。均使用临时私有数据，无真实官方搜题和付费模型调用。
 
 ## 5. 已知坑

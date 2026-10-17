@@ -141,6 +141,36 @@ class BodyCompatibility(unittest.TestCase):
                 self.assertIn(('B', 'C', 'B')[index], result['answer']['html'])
                 if index == 2: self.assertIn('tkspec-fill-blank-brackets', result['question']['html'])
 
+    def test_mobile_text_stays_readable_and_budget_counts_threefold_height(self):
+        from PIL import Image
+        content = '<p>手机排版正文</p>'
+        with tempfile.TemporaryDirectory() as work:
+            result = render_documents({'question': content}, work)
+            with Image.open(Path(work) / 'question.png') as image:
+                ink = image.convert('L').point(lambda value: 255 if value < 128 else 0).getbbox()
+                self.assertEqual(image.size, (1080, result['question']['height']))
+                # 17 CSS px以3倍输出，中文字符应接近51物理像素高。
+                self.assertGreater(ink[3] - ink[1], 40)
+            self.assertEqual(result['layout']['css_width'], 360)
+            self.assertEqual(result['layout']['device_scale_factor'], 3)
+            self.assertEqual(result['question']['height'] % 3, 0)
+            pixels = 1080 * result['question']['height']
+            with patch('omrs.zuoyebang.render.PIXEL_BUDGET', pixels // 2), self.assertRaises(ZybError) as caught:
+                render_documents({'question': content}, work)
+            self.assertEqual(caught.exception.code, 'render_resource')
+
+    def test_long_equations_legacy_formula_and_wide_table_fit_locally(self):
+        content = r'<p>长公式前的正文。</p><p>$$a_1+a_2+a_3+a_4+a_5+a_6+a_7+a_8+a_9+a_{10}=100$$</p>'
+        content += '<p><span class="math"><nobr><span class="pR" style="display:inline-block;width:900px">' + 'x＋1＋' * 25 + '</span></nobr></span></p>'
+        content += r'<table style="width:900px"><tr><td colspan="2">表格标题</td></tr><tr><td>甲</td><td>$x^2+y^2=z^2$</td></tr></table><p>表格后的完整正文。</p>'
+        with tempfile.TemporaryDirectory() as work:
+            result = render_documents({'question': sanitize(content)}, work)['question']
+            self.assertEqual(result['width'], 1080)
+            self.assertEqual(result['formulas'], 2)
+            self.assertEqual(result['fitted_formulas'], 2)
+            self.assertEqual(result['fitted_tables'], 1)
+            self.assertIn('表格后的完整正文', result['html'])
+
     def test_delimiters_bare_commands_and_chemistry(self):
         content = r'<p><span>$x+y$</span> \(\frac{1}{2}\) $$z^2$$ \[\sqrt{4}\] $\ce{H2O}$</p>'
         with tempfile.TemporaryDirectory() as work:

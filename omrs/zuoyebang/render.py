@@ -1,4 +1,4 @@
-"""真实 Chromium 生成1080像素完整 PNG；每次调用在工作线程拥有独立浏览器。"""
+"""真实 Chromium 按手机宽度排版，生成1080像素完整 PNG。"""
 import hashlib
 import math
 import mimetypes
@@ -8,17 +8,23 @@ from .store import ZybError
 
 ASSETS = Path(__file__).resolve().parents[2] / 'assets' / 'vendor'
 TRUSTED = Path(__file__).with_name('mathjax.js')
-WIDTH = 1080
-PIXEL_BUDGET = 100_000_000  # 物理内存预算，超限报错，绝不缩放、截断或分页。
+LAYOUT_SCRIPT = Path(__file__).with_name('layout.js')
+LAYOUT_VERSION = 'mobile-360-v1'
+CSS_WIDTH = 360
+SCALE = 3
+WIDTH = CSS_WIDTH * SCALE
+PIXEL_BUDGET = 100_000_000  # 按输出像素计量；超限报错，不整体缩放、截断或分页。
 
 
 def document(body, role):
     css = Path(__file__).with_name('paper.css').read_text('utf-8')
     return '''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline' https://omrs-render.invalid; font-src https://omrs-render.invalid; script-src https://omrs-render.invalid">
 <link rel="stylesheet" href="https://omrs-render.invalid/vendor/fonts/fonts.css">
 <script src="https://omrs-render.invalid/renderer/mathjax.js"></script>
 <script src="https://omrs-render.invalid/vendor/mathjax/tex-chtml-full.js"></script>
+<script src="https://omrs-render.invalid/renderer/layout.js"></script>
 <style>''' + css + '</style></head><body><main id="paper" data-role="' + role + '">' + body + '</main></body></html>'
 
 
@@ -35,18 +41,20 @@ def render_documents(documents, directory):
         except Exception as exc:
             raise ZybError('后端 Chromium 无法启动，请检查渲染依赖', 'render_dependency', 503) from exc
         try:
-            context = browser.new_context(viewport={'width': WIDTH, 'height': 800}, device_scale_factor=1, locale='zh-CN')
+            context = browser.new_context(viewport={'width': CSS_WIDTH, 'height': 800}, device_scale_factor=SCALE, locale='zh-CN')
             errors = []
             def route(request):
                 url = request.request.url
                 prefix = 'https://omrs-render.invalid/vendor/'
                 if url == 'https://omrs-render.invalid/renderer/mathjax.js':
                     file = TRUSTED
+                elif url == 'https://omrs-render.invalid/renderer/layout.js':
+                    file = LAYOUT_SCRIPT
                 elif url.startswith(prefix + 'fonts/') or url.startswith(prefix + 'mathjax/'):
                     file = (ASSETS / url[len(prefix):]).resolve()
                 else:
                     file = None
-                if file is None or (file != TRUSTED and not file.is_relative_to(ASSETS.resolve())) or not file.is_file():
+                if file is None or (file not in (TRUSTED, LAYOUT_SCRIPT) and not file.is_relative_to(ASSETS.resolve())) or not file.is_file():
                     errors.append('resource')
                     request.abort()
                     return
@@ -71,22 +79,26 @@ def render_documents(documents, directory):
                     if (!img.naturalWidth || !img.naturalHeight) throw new Error('图片未加载');
                   }));
                   await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                  const fitted = window.omrsFitPaper(paper);
+                  await document.fonts.ready;
+                  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
                   paper.style.minHeight = Math.ceil(paper.getBoundingClientRect().height) + 'px';
+                  const edge = paper.getBoundingClientRect();
                   return {width:paper.getBoundingClientRect().width,height:paper.getBoundingClientRect().height,
                     scroll:Math.max(document.body.scrollWidth,paper.scrollWidth),
                     outside:[...paper.querySelectorAll('*')].some(el => {
                       const box=el.getBoundingClientRect();
-                      return box.width && (box.left < -1 || box.right > 1081);
+                      return box.width && (box.left < edge.left - 1 || box.right > edge.right + 1);
                     }),
                     fonts:[...document.fonts].every(font => font.status !== 'error'),
                     math:paper.querySelectorAll('mjx-merror').length,formulas:paper.querySelectorAll('mjx-container').length,
-                    images:paper.querySelectorAll('img').length};
+                    images:paper.querySelectorAll('img').length, ...fitted};
                 }''')
-                height = math.ceil(dimensions['height'])
+                height = math.ceil(dimensions['height']) * SCALE
                 if errors or not dimensions['fonts'] or dimensions['math']:
                     raise ZybError('字体、公式或附图未完整加载，原内容已保留', 'render_incomplete', 422)
-                if dimensions['width'] != WIDTH or dimensions['scroll'] > WIDTH + 1 or dimensions['outside']:
-                    raise ZybError('正文排版超出1080像素，不能截断，请检查原内容', 'render_overflow', 422)
+                if dimensions['width'] != CSS_WIDTH or dimensions['scroll'] > CSS_WIDTH + 1 or dimensions['outside']:
+                    raise ZybError('正文排版超出手机宽度，不能截断，请检查原内容', 'render_overflow', 422)
                 if WIDTH * height > PIXEL_BUDGET:
                     raise ZybError('完整长图超过后端物理像素预算，原内容已保留', 'render_resource', 422)
                 path = Path(directory) / (role + '.png')
@@ -96,11 +108,13 @@ def render_documents(documents, directory):
                         raise ZybError('完整长图尺寸校验失败，原内容已保留', 'render_incomplete', 422)
                 result[role] = {'width': WIDTH, 'height': height, 'images': dimensions['images'],
                                 'formulas': dimensions['formulas'],
+                                'fitted_formulas': dimensions['fitted_formulas'], 'fitted_tables': dimensions['fitted_tables'],
                                 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(),
                                 'html': re.sub(r'data:image/[^;]+;base64,[A-Za-z0-9+/=]+', '[已本地化的原始图片]', body)}
                 page.close()
             result['browser'] = browser.version
             result['engine'] = 'MathJax 3.2.2'
+            result['layout'] = {'version': LAYOUT_VERSION, 'css_width': CSS_WIDTH, 'device_scale_factor': SCALE}
             return result
         except ZybError:
             raise

@@ -3,7 +3,7 @@ import { html, each } from '../../core/html.js';
 import { button } from '../../ui/button.js';
 import { filedrop } from '../../ui/filedrop.js';
 import { labelChips } from '../../domain/labels/index.js';
-import { ROLES, searchRegions, regionBounds } from './zyb-state.js';
+import { ROLES, searchRegions, regionBounds, canRegenerate } from './zyb-state.js';
 import { panelUrl, serviceStatus } from '../../domain/zuoyebang-service.js';
 const action = (label, name, options = {}) => button({ label, action: `zuoyebang.zyb${name}`, ...options });
 export const timeLabel = value => value ? new Date(value * 1000).toLocaleString('zh-CN', { hour12: false }) : '暂无记录';
@@ -102,10 +102,11 @@ export function previewView(s) {
     <div class="zyb-toolbar"><div class="zyb-actions" role="group" aria-label="渲染内容">${action('题目', 'Role', { arg: 'question', pressed: s.role === 'question', disabled: !record })}${action('答案与解析', 'Role', { arg: 'answer', pressed: s.role === 'answer', disabled: !record })}</div>
       <div class="zyb-actions">${action('HTML', 'Html', { pressed: s.showHtml, disabled: !record })}${action('展开', 'Expand', { icon: 'external', disabled: !image?.url })}</div></div>
     <div class="zyb-preview-meta"><span>${s.role === 'question' ? '题目' : '答案与解析'} · PNG</span><span>${image?.width ? `${image.width} × ${image.height} px` : image?.empty ? '上游未返回答案' : '尚未生成'}</span></div>
+    ${canRegenerate(s) ? html`<div class="zyb-actions">${action('重新生成手机版', 'Regenerate', { disabled: !!s.busy || !!s.job })}<span class="zyb-help">保留人工编辑，无需重新搜题。</span></div>` : ''}
     <div class="zyb-viewport${s.zoom === 'actual' ? ' is-actual' : ''}">
       ${s.showHtml && image ? html`<pre class="zyb-code">${image.html || '无答案正文'}</pre>` : image?.url ? html`<img id="zyb-rendered-image" src="${image.url}" width="${image.width}" height="${image.height}" alt="后端生成的完整${s.role === 'question' ? '题目' : '答案'}渲染图">` : html`<div class="zyb-empty"><strong>${s.busy === 'render' ? '正在生成所选题目的预览…' : failed ? '预览未完成，可在候选区重试' : image?.empty ? '这道题没有答案内容' : '选择候选，自动预览'}</strong><p>题目与完整答案会显示在这里。</p></div>`}
     </div>
-    <div class="zyb-render-footer"><span>${record?.source_kind === 'crop' ? '按原图像素保存' : record ? '保留完整题干、公式与附图' : '保留原题内容与阅读顺序'}</span><div class="zyb-actions" role="group" aria-label="预览比例">${action('适应宽度', 'Zoom', { arg: 'fit', pressed: s.zoom === 'fit' })}${action('100%', 'Zoom', { arg: 'actual', pressed: s.zoom === 'actual' })}</div></div>
+    <div class="zyb-render-footer"><span>${record?.source_kind === 'crop' ? '按原图像素保存' : record?.layout ? '手机宽度排版 · 高清完整长图' : record ? '保留完整题干、公式与附图' : '保留原题内容与阅读顺序'}</span><div class="zyb-actions" role="group" aria-label="预览比例">${action('适应宽度', 'Zoom', { arg: 'fit', pressed: s.zoom === 'fit' })}${action('100%', 'Zoom', { arg: 'actual', pressed: s.zoom === 'actual' })}</div></div>
     ${record ? html`<details class="ui-disclosure zyb-render-log"><summary>本次渲染记录</summary><dl><dt>生成时间</dt><dd>${timeLabel(record.completed_at)}</dd><dt>渲染器</dt><dd>Chromium ${record.browser || ''} · ${record.engine || '既有记录'}</dd><dt>原始附图</dt><dd>${record.source_images} 张，已本地化</dd><dt>图片指纹</dt><dd>${image?.sha256 || '无答案图片'}</dd></dl></details>` : ''}`;
 }
 export function editorView(s) {

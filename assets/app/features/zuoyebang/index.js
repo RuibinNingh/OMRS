@@ -25,6 +25,7 @@ export const page = {
     zybSearch: () => workspace?.search(),
     zybSelect: ({ arg }) => workspace?.select(arg),
     zybRender: () => workspace?.render(),
+    zybRegenerate: () => workspace?.regenerate(),
     zybExtract: () => workspace?.extract(),
     zybRole: ({ arg }) => workspace?.role(arg),
     zybZoom: ({ arg }) => workspace?.zoom(arg),

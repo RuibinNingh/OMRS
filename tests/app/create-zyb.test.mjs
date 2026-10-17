@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createCamera } from '../../assets/app/features/zuoyebang/zyb-camera.js';
-import { newZybState, bindRender, bindSearch, bindCard, stashCard, searchRegions, extractionSnapshot, mergeExtraction, commitPayload } from '../../assets/app/features/zuoyebang/zyb-state.js';
+import { newZybState, bindRender, bindSearch, bindCard, stashCard, canRegenerate, bindRegeneratedCard, MOBILE_LAYOUT_VERSION, searchRegions, extractionSnapshot, mergeExtraction, commitPayload } from '../../assets/app/features/zuoyebang/zyb-state.js';
 import { STAGES, stageOf } from '../../assets/app/features/create/state.js';
-import { accountView, cameraView, candidatesView } from '../../assets/app/features/zuoyebang/zyb-view.js';
+import { accountView, cameraView, candidatesView, previewView } from '../../assets/app/features/zuoyebang/zyb-view.js';
 
  test('录入服务菜单只打开设置与独立面板，不管理账号或迁移会话', () => {
   const s = { ...newZybState(), accountPanel: 'main', service: { base_url: 'http://127.0.0.1:8745', mode: 'local' }, session: { connected: true, local_session_ready: true, observations: { account: { state: 'valid' }, signing: { state: 'valid' } }, panel_url: 'https://evil.example/?token=secret' } };
@@ -138,4 +138,39 @@ test('按位置展示候选，异常坐标仍保留题号且人工草稿互不�
   assert.equal(s.sections.question.text, '甲人工核对'); assert.equal(s.dirty, true);
   bindSearch(s, search); assert.equal(s.renderIds['search-one:0'], 'first');
   bindSearch(s, { ...search, id: 'search-two' }); assert.deepEqual(s.renderIds, {});
+});
+
+test('旧预览可主动生成手机版，原图裁切与已有创建预留保持原样', () => {
+  const s = newZybState();
+  s.search = { id: 'search-one' }; s.selected = 0;
+  const old = { ...record('old'), search_id: s.search.id, candidate: { index: 0 } };
+  bindCard(s, old);
+  assert.equal(canRegenerate(s), true);
+  assert.match(String(previewView(s)), /重新生成手机版/);
+  for (const change of [{ source_kind: 'crop' }, { commit: {} }, { layout: { version: MOBILE_LAYOUT_VERSION } }]) {
+    bindCard(s, { ...old, ...change });
+    assert.equal(canRegenerate(s), false);
+    assert.doesNotMatch(String(previewView(s)), /重新生成手机版/);
+  }
+});
+
+test('新版题图接管当前候选并保留最新人工编辑和旧题草稿', () => {
+  const s = newZybState(); s.search = { id: 'search-one' }; s.selected = 0;
+  const old = { ...record('old'), search_id: s.search.id, candidate: { index: 0 } };
+  bindCard(s, old); stashCard(s);
+  s.form = { ...s.form, subject: '化学', category: '氧化还原', cause: '生成期间补写' };
+  s.labels = ['需复习']; s.sections.answer = { mode: 'text', text: '保留人工完整解析' };
+  s.versions.answer++; s.dirty = true;
+  const edited = structuredClone({ form: s.form, labels: s.labels, sections: s.sections, versions: s.versions });
+  const mobile = { ...old, id: 'mobile', layout: { version: MOBILE_LAYOUT_VERSION } };
+  assert.equal(bindRegeneratedCard(s, mobile, old.id), true);
+  assert.equal(s.renderIds['search-one:0'], mobile.id);
+  assert.deepEqual({ form: s.form, labels: s.labels, sections: s.sections, versions: s.versions }, edited);
+  assert.equal(s.dirty, true);
+  assert.equal(s.drafts.old.sections.answer.text, edited.sections.answer.text);
+  assert.equal(s.drafts.mobile.sections.answer.text, edited.sections.answer.text);
+  bindCard(s, mobile);
+  assert.equal(s.sections.answer.text, edited.sections.answer.text);
+  assert.equal(bindRegeneratedCard(s, { ...mobile, id: 'late' }, old.id), false);
+  assert.equal(s.render.id, mobile.id);
 });

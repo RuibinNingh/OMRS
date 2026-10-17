@@ -1,5 +1,6 @@
 /** 作业帮题卡状态及迟到 AI 结果的合并规则；不保存账号凭据。 */
 export const ROLES = ['question', 'answer'];
+export const MOBILE_LAYOUT_VERSION = 'mobile-360-v1';
 export function newZybState() {
   return { session: null, sessionError: '', accountPanel: '', camera: { on: false, pending: false, message: '摄像头未开启' },
     sourceMode: 'upload', file: null, fileUrl: '', search: null, selected: null, region: null, render: null, role: 'question', zoom: 'fit', showHtml: false,
@@ -32,6 +33,23 @@ export function bindCard(state, record) {
     state.renderIds[candidateKey(state, record.candidate?.index)] = record.id;
     if (state.result && Number.isInteger(record.candidate?.location)) state.savedLocations[record.candidate.location] = state.result.uid;
   }
+}
+export function canRegenerate(state) {
+  const record = state.render;
+  return record?.status === 'ready' && record.source_kind !== 'crop' && !record.commit &&
+    record.layout?.version !== MOBILE_LAYOUT_VERSION && state.search?.id === record.search_id &&
+    Number.isInteger(state.selected) && record.candidate?.index === state.selected;
+}
+export function bindRegeneratedCard(state, record, previousId) {
+  if (state.render?.id !== previousId || state.render.commit || record.search_id !== state.search?.id ||
+      record.candidate?.index !== state.selected) return false;
+  // 完成时取最新人工内容，连重新生成期间的编辑一起保留；旧题卡仍可从历史恢复。
+  stashCard(state);
+  const draft = state.drafts[previousId];
+  bindCard(state, record);
+  Object.assign(state, structuredClone(draft));
+  stashCard(state);
+  return true;
 }
 export function bindSearch(state, record) {
   const same = record && state.search?.id === record.id;

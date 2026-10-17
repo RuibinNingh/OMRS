@@ -23,6 +23,8 @@
 
 独立网关连接配置与测试、搜题/渲染/原图裁切/提取后台作业、记录/图片/历史与人工核对创建统一见 `AI/zuoyebang.md` §5及 `AI/zuoyebang-service.md`。设备导入、扫码及账号核对在独立管理面板执行，旧OMRS管理端点返回409。它复用保真 extract_region 和可靠创建协议，原图、原像素题框和来源存于独立目录，不经过收件箱框选或训练积累；source作业生成可核对的原像素图片题卡。全部继承 Web 授权与 POST 同源检查；第三方凭据不返回。
 
+候选渲染响应提供layout排版版本、360 CSS px宽度和3倍输出倍率；images尺寸仍为物理像素。重复提交原搜题候选的render作业生成新手机版记录，不重新请求搜题或覆盖旧资产；无layout的旧记录兼容读取。
+
 base_url支持安全反代前缀，panel_url保留前缀并补尾斜杠；网关 `/api/v1/status` 与 `/api/v1/search` 追加在此前缀。`/api/source/export` 包含同仓services/zuoyebang源码、安装与vendor清单，排除服务私有运行目录及管理员秘密。
 
 独立网关管理接口 `GET /api/admin/history` 可用 `action=search` 筛选搜题，列表仅包含元数据与has_detail。管理员读取 `GET /api/admin/history/<id>` 获得完整回执与原图元数据，`GET /api/admin/history/<id>/image` 返回上传原字节；旧记录详情为null，清理或缺失的原图返回404。调用Key不能访问这些接口，OMRS客户端搜题协议保持；完整契约见 `services/zuoyebang/docs/api.md`。
