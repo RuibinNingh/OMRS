@@ -15,19 +15,21 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-18 发布）：当前 v2.8.2，源码为 Git 提交 `0e9ba1835244e11f7e692d146f72ad93fb2541bf` 的精确归档 `/root/workspace/apps/releases/omrs-0e9ba18`，1558个源码文件逐字节一致，发布提交已推送GitHub main。当前工作区是开发源码，不是在线运行目录；生产 Vault 仍为 `/root/workspace/apps/OMRS`，隔离测试不能读取其真实错题数据。
+生产环境事实（2026-10-18 发布）：当前 v2.8.3，源码为 Git 提交 `baae15f0e6bfb90139aedb0b19e8d2e208102a20` 的精确归档 `/root/workspace/apps/releases/omrs-baae15f`，1567个源码文件逐字节一致，发布提交已推送GitHub main。当前工作区是开发源码，不是在线运行目录；生产 Vault 仍为 `/root/workspace/apps/OMRS`，隔离测试不能读取其真实错题数据。
 
-三个服务沿用原 unit/drop-in。持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 指向 omrs-0e9ba18；主服务、网关、检测的真实 cwd 分别为同一归档根、services/zuoyebang、services/boxdetect。检测使用原训练解释器执行模块 CLI。三个服务均 active/running；网关私有数据在 `/var/lib/omrs-zuoyebang`，目录0700、文件0600，管理员秘密不输出或提交。
+三个服务沿用原 unit/drop-in。持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 指向 omrs-baae15f；主服务、网关、检测的真实 cwd 分别为同一归档根、services/zuoyebang、services/boxdetect。检测使用原训练解释器执行模块 CLI。三个服务均 active/running、NRestarts为0；网关私有数据在 `/var/lib/omrs-zuoyebang`，目录0700、文件0600，管理员秘密不输出或提交。
 
 Python依赖沿用 `/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv`，Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；浏览器缓存包含对应1234版Chromium。检测使用 `/root/omrs-train/.venv/bin/python`，推理依赖未升级。共享 CDP9222 仅供可信本机隔离 context，验证不关闭共享浏览器；发布 TMPDIR 使用浏览器可访问目录。
 
 Web8471、回环MCP18472、HTTPS8472及公开URL `https://home.ruibin-ningh.top:8472` 保持。Nginx的 `/zuoyebang/` 反代至回环8745，不新增公网端口；管理Cookie为Secure/HttpOnly/Strict并限制服务路径。原网关连接、账号／设备、PIN、MCP及调用Key保持，匿名数据、MCP、网关调用与详情仍需鉴权；锁屏入口内联既有SVG图标。
 
-当前停服保全为 `/root/workspace/apps/releases/OMRS-windows-image-backup-a473nbs1`，目录0700、文件0600，含新旧源码、unit、Vault/maintenance与网关私有数据。切换前任务与恢复意图检查通过，备份解包校验1248个文件及8个SQLite库后原子切换，切换与主要验收共4.577秒。49张原业务表的全部原列／原行及1079个原正文、图片和关键配置文件保持；长期待审不依据旧期限作废。
+当前停服保全为 `/root/workspace/apps/releases/OMRS-v283-backup-hcou3lvi`，目录0700、文件0600，含新旧源码、unit、Vault/maintenance与网关私有数据。切换前八类活动任务均为0、恢复与写入意图检查通过，持训练锁停服；备份解包校验1250个文件及8个SQLite库后原子切换，切换与主要验收共5.080秒。49张原业务表的全部原列／原行及1081个原正文、图片和关键配置文件保持；长期待审不依据旧期限作废。
 
 作业帮工作台在超过1500 CSS px时并排显示题目与答案，小屏保留切换；确认按钮打开识别工作窗，期间显示居中提示，暂存、刷新和重开保留草稿。候选按360 CSS px宽、17px正文、3倍输出，静态SVG附图经校验生成PNG，旧预览可主动重生成；正文切换预览／源码，已入库源码只读。设置支持筛选、勾选运行／AI日志并下载ZIP。题图无目录FD分支使用独立lstat核对文件身份，兼容Windows目录扫描中的零身份字段；run.bat和依赖保持。生产不执行真实搜题、模型调用或测试入库。
 
-当前发布定向回归75项、导出7项通过；归档与已验证源码／测试等1051个文件哈希相同。真实隔离浏览器模拟Windows零身份，8项覆盖旧实现HTTP404、修复后原图200及1440／390px题库与即时练习；原生Windows未验收。生产只读验收核对3张真实题图原字节、HEAD和公网匿名401，1440／390px公网PIN入口无脚本错误或横溢，回环MCP无Key401；10份版本化资源原字节、immutable及304正常。验收后49张原业务表与1079个原文件保持，三服务无错误级日志；该检查不代替登录后真实账号与付费模型验收。
+当前发布从精确归档执行10组门禁：Node550项、后端定向60项、浏览器组件35项、入口分档30项、背景5项、外壳路由24项、设置75项均通过；UI零违规，对比度58组通过，146份文档零问题。版本数字的4组前后截图无脚本错误或横溢，桌面浅深差异各0.002%、手机均0。入口支持自动／轻量／完整／静态，按设备信号和运行帧率调整，系统减少动态效果优先。
+
+生产只读验收核对9份版本化资源原字节、immutable与回环304，以及6份公开入口资源原字节、no-cache与回环304；现有公网代理对这6份资源的条件请求均返回完整200，正文仍与归档一致。业务API、main/settings脚本、MCP与网关匿名访问均401。独立Chromium完成1440／390px自动、静态及390px减少动态共5场景：自动选轻量，静态不请求场景，PIN可输入，无脚本错误或横溢；零写请求。验收后原业务表、文件、网关凭据与控制配置保持，三服务无错误级日志；实体设备功耗与登录后真实业务未验收。
 
 上线后的正常入库继续追加业务事实，核验时以保全中的原记录为比较前缀，不将题目总数固定为发布时的值。模型指针、revision与控制文件保持；源码回退保留最新数据，不用旧归档覆盖后续业务事实。
 
