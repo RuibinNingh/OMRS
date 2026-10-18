@@ -1,4 +1,4 @@
-"""设置页：七分区、保存契约、备份与任务轮询、重启拦截和四档审计。"""
+"""设置页：八分区、保存契约、备份与任务轮询、重启拦截和四档审计。"""
 import importlib.util
 import io
 import json
@@ -121,8 +121,8 @@ def run_main(page, base, results):
         results.append((label, bool(ok), str(detail)))
 
     page.goto(base + '/#/settings', wait_until='networkidle')
-    check('七分区首屏渲染且旧入口不在路由表', wait(page, "() => !!document.querySelector('#st-app .st-layout')")
-          and page.locator('.st-nav-item').count() == 7)
+    check('八分区首屏渲染且旧入口不在路由表', wait(page, "() => !!document.querySelector('#st-app .st-layout')")
+          and page.locator('.st-nav-item').count() == 8)
     check('运行状态从真实隔离实例读取', wait(page, "() => document.querySelector('#st-runtime-state')?.textContent === '运行中'"))
     page.click('[data-action="settings.section"][data-arg="appearance"]')
     page.click('[data-action="settings.theme"][data-arg="light"]')
@@ -278,7 +278,7 @@ def audit_sections(browser, base, results):
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto(base + '/#/settings', wait_until='networkidle')
             wait(page, "() => !!document.querySelector('#st-app .st-layout')")
-            for name in ('appearance', 'access', 'ai', 'assistant', 'zuoyebang', 'data', 'service'):
+            for name in ('appearance', 'access', 'ai', 'assistant', 'boxdetect', 'zuoyebang', 'data', 'service'):
                 page.click(f'[data-action="settings.section"][data-arg="{name}"]')
                 if name == 'data':
                     page.locator('.st-tuning-advanced').evaluate('(el) => { el.open = true; }')

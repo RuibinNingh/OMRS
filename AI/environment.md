@@ -209,7 +209,7 @@ CPU 训练使用仓库外 `~/omrs-train/.venv/`，精确依赖在 `tools/boxdete
 AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临时 Vault 与随机高端口启动。`tests/check_docs.py` 的路由发现清单包含 `_drafts_get` 与 `_drafts_post`，新增草稿路由后由 `--write-routes` 更新总表。文档索引必须在完整模式按实际日志文件生成。
 
 
-训练面板浏览器验证：`python3 tests/e2e/trainpanel.py` 用临时 Vault、假实验与假检测服务，覆盖进度／曲线刷新、积累及四档状态审计。真实模型链路：`python3 tests/e2e/boxdetect.py --dataset ~/omrs-train/datasets/20260929-1 --shots /tmp/omrs-box-detect-real`，从外部数据快照取测试图，临时启动回环检测服务与隔离 OMRS，不写真实 Vault。截图不进 Git。
+训练面板浏览器验证：`python3 tests/e2e/trainpanel.py` 用临时 Vault、假实验与假检测服务，覆盖进度／曲线刷新、人工复核、训练与服务分工及四档状态审计。真实模型链路：`python3 tests/e2e/boxdetect.py --dataset /path/to/frozen-dataset --train-dir /path/to/frozen-training-copy --shots /tmp/omrs-box-detect-real`，从外部数据快照取测试图，临时启动回环检测服务与隔离 OMRS，不写真实 Vault。截图不进 Git。
 
 视觉比较可加 `--create-stage train` 切到录入页 AI 训练工作区，例如 `python3 tests/visual/run.py --ref e40e6b8 --pages create --create-stage train --out /tmp/omrs-box-detect-visual`；不传该选项时保持默认工作区。运行测试前仍须去掉 OMRS_SYSTEMD_SERVICE。
 
@@ -233,7 +233,7 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 
 隔离门禁：`env -u OMRS_SYSTEMD_SERVICE python3 -m unittest tests.test_traincontrol -q`；`env -u OMRS_SYSTEMD_SERVICE python3 tests/e2e/traincontrol.py`。浏览器脚本只注入测试后端，不操作生产unit。正式服务仍限1GiB，登记精确绑定真实Vault，避免隔离实例继承环境误操作。
 
-主服务已通过 `OMRS_BOXDETECT_CONTROL=/etc/omrs-boxdetect-control.json` 登记固定 unit、Vault 与端口；`/train` 可以管理服务、显式应用完整导出候选并回退。受管 revision 当前为 1，实际在线 `v2-20260929-b` 且与配置指针一致；主服务与检测服务均开机自启。
+部署登记使用 `OMRS_BOXDETECT_CONTROL=/etc/omrs-boxdetect-control.json`精确绑定固定unit、Vault与端口；源码中的当前`/train`只提供实验和内容复核，设置保留固定进程启停，新版独立面板拥有模型状态。新版连接启用后旧控制停用；实际生产切换须另行授权，不能把工作区源码行为视为已部署状态。
 
 框选流程视觉对比使用 `python3 tests/visual/run.py --ref <基线> --pages create --create-stage process`，会在临时 fixture 中放入一张合成题图与题目／答案两个待提取框，基线和当前使用完全相同的数据；提取结果态由录入 E2E 的四档截图及审计覆盖。
 
@@ -297,3 +297,7 @@ MCP 扩展闭环由 tests/e2e/mcp_expansion.py 启动真实临时 Web/MCP 服务
 tests/run_gates.py显式包含services组（两服务单测和网关浏览器），E2E跳过纸面辅助模块，网关联调分别传独立--out并执行直连／前缀。退出0但打印SKIP或有跳过用例时状态为skipped，整组不能计通过；空筛选直接退出2，不生成成功报告。摄像头专项单独启动Chromium，不继承共享CDP地址，其余子进程保留浏览器配置。安装包真实推理和冻结检测材料仍需显式提供；--dataset必须同时传--train-dir，检测入口也拒绝默认训练目录。
 
 合成Vault夹具及视觉每一侧显式设置空train_dir并清空既有检测地址；录入策略测试只指向自身随机端口，不能探测8600等固定服务。草稿／录入／审核截图使用独立目录或OMRS_E2E_SHOTS；统一门禁为每项设置独立产物目录。门禁递归扫描AI分册及服务／工具文档，file::symbol引用先检查真实文件。
+
+## AI 框选服务面板隔离验证
+
+同端口接入、迁移和门禁见 `AI/boxdetect.md`；测试用临时数据，去掉生产控制环境变量。

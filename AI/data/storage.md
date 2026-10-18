@@ -190,9 +190,9 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 
 面板只读目录为空时返回空状态，各文件解析错误各自报告。配置保存继续使用 `/api/config`；不提供网页训练控制。续训命令从原实验 identity.json 取参数，恢复前训练脚本检查数据清单和参数指纹。
 
-实时测试默认只在内存中运行。积累开启后调用现有 annotate 模块写原图与模型框，status 保持 todo；重复 SHA 只提示已有，不更新框。完成标注前不进入默认导出和训练数据集，不增加任何数据表或来源字段。单图 15 MB／4000 万像素与每进程单并发限制用于约束内存。
+兼容测试接口在旧协议下默认只在内存运行，新版独立服务另外保存请求历史；当前训练页不展示测试积累。兼容接口积累开启后调用现有 annotate 模块写原图与模型框，status 保持 todo；重复 SHA 只提示已有，不更新框。完成标注前不进入默认导出和训练数据集，不增加任何数据表或来源字段。单图 15 MB／4000 万像素与每进程单并发限制用于约束内存。
 
-面板生成的构建与开始训练命令采用未占用的新版本／实验目录；续训沿用旧目录和 identity 参数。评估命令只评估，导出与发布各自显式执行，网页只展示训练命令；受管服务切换使用下述独立映射。
+面板生成的构建与开始训练命令采用未占用的新版本／实验目录；续训沿用旧目录和 identity 参数。评估命令只评估，导出与发布各自显式执行，网页只展示训练命令；旧部署受管切换使用下述映射，新版服务使用自己的私有模型选择。
 
 ### 内容评测产物与复核存储
 
@@ -231,3 +231,13 @@ base_url可带安全反代路径前缀，磁盘字段与原契约兼容。网关
 候选render的layout为{version:"mobile-360-v1",css_width:360,device_scale_factor:3}，题目和答案的width/height仍为输出PNG的物理像素；每区另记fitted_formulas/fitted_tables局部适配计数。旧记录允许没有layout，原像素裁图不写手机layout。主动重新生成使用独立render_id，旧记录、图片与commit预留均不修改。
 
 渲染记录含browser/engine与每区formulas数；旧记录缺engine时仍可读取原图，展示为既有记录，不重新生成。commit 保存首次规范化表单/保存方式摘要、操作ID、UID/question_id/路径/日期、产物哈希与回执。创建事实和 op_results 在 Ledger 同事务写入，独立状态可在原记录重试补齐；Ledger 不重放会话、候选与渲染目录。全库备份包含该目录，整库恢复变更世代，旧后台任务和上传引用不能写入恢复后的库。详见 `AI/zuoyebang.md`。
+
+## 12. AI 框选连接与独立服务
+
+OMRS `错题/.omrs/boxdetect/service.json`保存mode/base_url/api_key/allow_private_targets/revision，目录0700、文件0600、原子替换；拒绝符号链接及非普通／多硬链接文件。GET仅投影Key已配置状态和12位SHA256指纹。空Key保留，clear_api_key明确清除。该文件纳入题库备份，恢复世代变化后旧检测不得写回；通用config只保留提供方与旧兼容URL。文件缺失时只读投影旧URL，不隐式建文件或迁移。
+
+独立服务的 `--data-dir` 在仓库／Vault外，默认 `~/.local/share/omrs-boxdetect`，目录0700、文件0600；包含初始admin-secret.txt和boxdetect.sqlite3。SQLite保存settings、sessions、login_failures、api_keys、rate_events、requests、details、operations。Key仅摘要，requests以(key_id,request_id)唯一并记录输入摘要、来源/IP、状态、实际模型和回执；details保存原图BLOB及格式／尺寸／SHA；operations保存模型请求摘要、前后模型和结果。
+
+默认请求保留30天／10000条，原图详情容量256MiB；容量超限仅清较早图片，回执仍按记录期限保留。启动把running请求／模型操作标interrupted。成功模型选择包含current/previous/revision，与操作回执同事务提交；启动从选择加载，不改旧managed/active。SQLite逻辑清理复用空闲页，不承诺立即缩小文件。服务库与模型不随OMRS题库备份，须单独保全完整私有目录和模型。
+
+本机启停继续在登记训练根的managed/operation.lock串行，`managed/service-operations/编号.json`保存发起者、动作、开始／结束和结果，不改模型指针；旧未完成操作阻止保存新版连接。独立连接启用后旧模型控制及启动恢复禁用，避免双控制器。完整边界见 `AI/boxdetect.md`。

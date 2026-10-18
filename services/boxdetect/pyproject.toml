@@ -14,3 +14,6 @@ omrs-boxdetect = "boxdetect_service.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["boxdetect_service*"]
+
+[tool.setuptools.package-data]
+boxdetect_service = ["assets/*.html", "assets/*.js", "assets/*.css"]

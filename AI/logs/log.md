@@ -8,6 +8,7 @@
 - [2026-10-18_v283-release](2026-10-18_v283-release.md)：v2.8.3 入口动画生产发布
 - [2026-10-18_latest-production](2026-10-18_latest-production.md)：最新提交合并与生产发布
 - [2026-10-18_entry-motion](2026-10-18_entry-motion.md)：入口动画资源分档与实测报告
+- [2026-10-18_boxdetect-panel](2026-10-18_boxdetect-panel.md)：AI 框选独立管理面板与同端口接入
 - [2026-10-17_zuoyebang-text-preview](2026-10-17_zuoyebang-text-preview.md)：作业帮正文预览与源码切换
 - [2026-10-17_zuoyebang-scroll](2026-10-17_zuoyebang-scroll.md)：作业帮工作区滚动修复
 - [2026-10-17_zuoyebang-scroll-deploy](2026-10-17_zuoyebang-scroll-deploy.md)：作业帮滚动修复快速生产发布

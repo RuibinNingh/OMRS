@@ -27,6 +27,8 @@ def policy(path, content_type="", legacy_mib=128, json_mib=2):
         return 4096, READ_DEADLINE
     if path.startswith("/api/mcp/"):
         return 16 * 1024, READ_DEADLINE
+    if path.startswith("/boxdetect/"):
+        return 22 * MIB, UPLOAD_DEADLINE
     if path == "/api/trainpanel/control":
         return 4096, READ_DEADLINE
     if path == "/api/trainpanel/try":

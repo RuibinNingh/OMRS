@@ -58,8 +58,6 @@ export function policyForm(config = {}) {
 /** 表单 → POST /api/config 的 inbox_* 键；数值夹到合法范围（与旧 ibSavePolicy 相同）。 */
 export function policyPayload(form) {
   return {
-    inbox_detect_provider: PROVIDERS.some(row => row.value === form.provider) ? form.provider : 'vlm',
-    inbox_local_detect_url: String(form.local || '').trim(),
     inbox_blind_every: Math.max(0, parseInt(form.blind, 10) || 0),
     inbox_auto_ready_conf: Math.max(0, Math.min(1, parseFloat(form.conf) || 0)),
     inbox_auto_on_upload: !!form.upload,

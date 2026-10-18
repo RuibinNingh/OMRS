@@ -79,6 +79,25 @@ class ControlTests(unittest.TestCase):
         model=self.root/'models'/name;model.mkdir(parents=True);(model/'model.onnx').write_bytes(name.encode());c.write(model/'model.json',meta)
         return meta
 
+    def test_modern_connection_excludes_legacy_controller_and_audits_process_control(self):
+        from omrs.boxdetect import config
+        with patch.object(c,'registration',return_value=self.config):
+            config.save(str(self.vault),{'mode':'local','base_url':'http://127.0.0.1:18991','api_key':'box_test'})
+            with self.assertRaisesRegex(ValueError,'独立管理'):
+                c.submit(str(self.vault),self.request('restart'))
+            self.assertEqual(c.recover_pending(str(self.vault))['state'],'none')
+            before=self.control.pointer()
+            c.service_command(str(self.vault),'restart')
+            self.assertEqual(self.control.pointer(),before)
+            records=list((self.root/'managed/service-operations').glob('*.json'))
+            self.assertEqual(len(records),1)
+            self.assertEqual(json.loads(records[0].read_text())['state'],'done')
+            handle=self.control.acquire()
+            try:
+                with self.assertRaises(c.Conflict):c.service_command(str(self.vault),'stop')
+                with self.assertRaisesRegex(ValueError,'操作进行中'):config.save(str(self.vault),{'api_key':'box_new'})
+            finally:handle.close()
+
     def request(self,action='activate',**kwargs):
         return {'action':action,'revision':self.control.state()['revision'],'request_id':os.urandom(16).hex(),
                 'model_id':'new','conf':.55,'imgsz':640,'sha256':c.digest(self.root/'runs/new/model.onnx'),

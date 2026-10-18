@@ -39,7 +39,7 @@
 
 `tools/boxdetect/build_dataset.py` 构建外部数据快照；离线 `evaluate.py` 保留已完成实验的模板基线复算，与线上框选提供方无关；命令、精确依赖与冻结规则见 `tools/boxdetect/README.md`。数据筛选会严格解码原图，排除未编辑 AI 框、缺类、损坏、尺寸或哈希不符。dHash 分组阈值 4；同组不跨集合，测试集至少 15 张。重新构建时沿用最早 manifest；测试图或标签变化会拒绝构建，与测试图近似的新增图隔离。
 
-常驻检测与预检的实现位于 `services/boxdetect/boxdetect_service/`，可独立安装运行，不依赖 omrs 或 tools；安装／协议见 `services/boxdetect/README.md`。旧 serve.py、inference.py、probe.py 是兼容入口，训练和评估复用同一推理实现。IoU 在服务内按既有算法计算，整图切片／合并仍复用 OMRS。最小服务依赖固定在服务 requirements.txt，旧 requirements-serve.txt 引用该清单。
+常驻检测与预检的实现位于 `services/boxdetect/boxdetect_service/`，可独立安装运行，不依赖 omrs 或 tools；安装／协议见 `services/boxdetect/README.md`。旧 serve.py、inference.py、probe.py 是兼容入口，训练和评估复用同一推理实现。IoU沿用既有算法；新版整图协议在独立服务内切片／合并，离线评估与旧协议继续复用OMRS规则。最小服务依赖固定在服务 requirements.txt，旧 requirements-serve.txt 引用该清单。
 
 生产检测 unit 从与主服务及网关相同的精确归档 services/boxdetect 启动 `-m boxdetect_service serve`，仍使用登记的训练解释器、managed/active、原端口和资源限制；源码目录迁移不应用训练 current 或重写受管 revision。实际运行与回退边界见 `AI/environment.md`。
 
@@ -53,9 +53,9 @@
 
 实验文件可由 `omrs/trainpanel.py` 只读查询，HTTP 契约见 `AI/api.md`「训练面板」，外部文件格式见 `AI/data/storage.md` §8。进度、中断判断、实验列表与模板／模型评估相互独立，损坏文件只影响对应字段。
 
-实时测试接口 `/api/trainpanel/try` 通过现有 local_http 检测，不在主程序加载模型；积累开关默认关闭。开启后原图与预填框进标注集 todo，须人工校正并标完成；不会直接把模型预测变成训练标签。
+框选测试、Key和原图历史在同端口独立面板 `/boxdetect/`，测试不自动进入训练。兼容接口 `/api/trainpanel/try`仍可供旧调用方使用，显式积累才写todo，须人工校正并标完成；当前训练页不挂载该表单。
 
-检测服务只绑定 127.0.0.1，启动时核对固定 ONNX 的 SHA、类别与输入尺寸；GET /health 返回模型身份，POST 使用既有 local_http 协议。其浏览器脚本使用临时 Vault 与随机端口，详情和停止位置见 `AI/plans/box-detect/progress.md`，不能把当前工作树准备代码视为生产可用版本。
+检测服务默认回环，面板与API共用既有监听，可通过主站 `/boxdetect/`分享；新版Key整图协议、模型状态、外部开关及旧回环兼容见 `AI/boxdetect.md`。部署与训练产物均不由源码更新自动变更。
 
 ## 内容验收与复核
 
@@ -71,6 +71,6 @@ CLI见 tools/boxdetect/README.md；面板复核接口见 AI/api.md。DeepSeek原
 
 ## 服务与模型操作
 
-/train 的检测服务区可启停固定服务，查看候选的内容评测后显式应用，或恢复上一模型；需要部署者登记，安装步骤见 `tools/boxdetect/README.md`。实际在线 SHA 与训练目录当前模型分列；独立内容验收需有完整复核且整图通过至少 80% 才标记通过。验收缺失、未完成或未通过时，应用候选须在确认框明确确认，操作记录保存验收状态。应用前限额预检，失败回退；主服务监听前同步恢复中断操作，普通管理查询只读。选择实验、训练完成或导出模型都不会自动改变生产；网页仍不启动训练或付费评测。
+`/train`查看实验曲线、几何评估与内容复核；设置 → AI框选服务管理连接和已登记的本机进程启停，独立 `/boxdetect/`管理Key、整图测试、历史与模型。候选由服务维护者通过models-dir登记，应用前加载／SHA／尺寸／白图预检，失败保留原模型；预检不等于内容质量通过。实验内容验收仍按上文规则核对，训练完成、查看或导出不自动发布。
 
-未完成整图评估的冒烟或运行中实验不进入可应用模型列表；完整候选的文件损坏或哈希不一致会单独报告。
+旧未迁移部署保留OMRS受管控制API、独立内容验收确认和限额子进程预检；保存新版连接后禁用旧模型控制和启动恢复。迁移须先收束旧操作、保全managed/active与实际模型，并保持原端口和资源配置；源码不自动迁移或重启生产，详见 `AI/boxdetect.md`、`AI/environment.md`。

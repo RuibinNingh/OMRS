@@ -59,7 +59,7 @@ annotations.jsonl    append-only 事件：item.upload / regions.update / item.re
 
 **job 单元格式**
 - 用户更新、重置、丢弃和录入缺少有效 `expected_revision` / `reset_epoch`，或它们与当前项不符时，返回 409 `{status:"error",code,msg,current_revision}`，不修改 `inbox.db`。同一图的后台结果只在代次、状态及相应版本/区域仍有效时写回；过期结果进入作业错误，不覆盖人工编辑。
-- `detect`：`items:[{item_id, strips?:[{y0,y1,data}], replace?, provider?, blind?}]`。`provider` 缺省取配置 `inbox_detect_provider`（见 §8）；仅支持 `vlm` 与 `local_http`；旧配置 `template` 自动回退到 `vlm`，显式请求 `template` 会被拒绝。前端按 slice-plan 切条带并附 JPEG data URL；不附 strips 时有 Pillow 就在服务端按同一 slice_plan 切，否则整图送模型（长图会被模型端压缩，精度下降）。结果 `{item_id, provider, blind, boxes, hidden?, regions, auto?}`。结果经 `inbox.merge_strip_boxes()` 映射回整图并合并跨条带的同角色框（同一条带内的框永不合并）。已有框时默认**追加**（`replace=false`）。
+- `detect`：`items:[{item_id, strips?:[{y0,y1,data}], replace?, provider?, blind?}]`。`provider` 缺省取配置 `inbox_detect_provider`（见 §8）；仅支持 `vlm` 与 `local_http`；旧配置 `template` 自动回退到 `vlm`，显式请求 `template` 会被拒绝。新版独立服务连接上传原图，由框选服务切片并合框，客户端strips不再重复使用；VLM和未迁移旧协议继续按slice-plan处理，未附strips时有Pillow在OMRS切片，否则整图送提供方。结果 `{item_id, provider, blind, boxes, hidden?, regions, auto?}`。结果经 `inbox.merge_strip_boxes()` 映射回整图并合并跨条带的同角色框（同一条带内的框永不合并）。已有框时默认**追加**（`replace=false`）。
 - `extract`：`regions:[{region_id, crop?}]`。裁图优先级：请求附带 → `crops/` 缓存 → Pillow 服务端裁 → 框覆盖全图时用原图；都没有则该单元报错。所有保存方式都以 judge=True 在同一次模型调用中返回判断和文本；可提取写 text，不可提取写 image，始终退回 boxed 等人工审核。无效响应或空正文报错，不当作留图成功；重提取的失败保留旧正文。模型调用不占写锁，写回只合并目标区域并核对框位、角色及内容未改变；过期结果拒绝写入。
 - `classify`：`cards:[{item_id, card, crop?, reset_epoch?}]`，取该题卡第一个题目框，调 `classify_question`（带已填科目/分类 hint）；返回后重读当前图并核对版本和题目框，只填仍空缺的项，人工新值不被覆盖。
 - `auto`：`items:[{item_id, provider?, reset_epoch?}]`，无人值守：服务端切片 → detect → §8 自动策略，代次贯穿自动提取。`inbox_auto_on_upload` 打开时 `upload_images` 会自动排一个（响应多一个 `job` 字段）。
@@ -91,7 +91,7 @@ extract 用途先检查模型 finish_reason；length/max_tokens 表示长度截�
 - 文本提取完成时，前端重读收件箱；正在保存、待保存或拖动的图片保留本地对象和编辑，安全字段才与服务端状态合并。读取失败时保留当前列表和编辑并提示，不以空列表替换。
 - ③ 录入：`ready` 的每张题卡一行——左预览（文本 Markdown 或裁图 canvas）右表单；字段去抖 600ms 存到 `cards`；「AI 识别题目信息」走 classify job；「创建题目」先确认待存改动已全部写出，失败则中止，再用最新 revision/epoch 连同裁图提交。单张创建弹一条带「加入展示板」的提示（停留 8 秒）；批量逐张提交、最后只弹一条汇总，「加入展示板（N 题）」一次加入这批新题。
 - AI 草稿在审核中心处理：正文块显式暂存，发送 revision 与完整有序块数组；插入与跨组移动不新增收件箱条目。来源框选和训练仍使用草稿专用接口，入库成功后进入下一份待审草稿；界面见 `AI/frontend/ai-review.md`，存储与接口见 `AI/drafts.md`。
-- AI 训练：`dataset/stats` 四张指标卡 + 版式 / 转换决策条 + 盲标评估集与存储概览 + 导出（JSONL / YOLO）+ 清理按钮 +「框选提供方与自动策略」表单（直接读写 `/api/config` 的 `inbox_*` 键）。
+- AI 训练：`dataset/stats` 四张指标卡 + 版式 / 转换决策条 + 盲标评估集与存储概览 + 导出（JSONL / YOLO）+ 清理按钮 +「自动框选策略」表单（仅写策略键）；提供方与独立连接统一在设置 → AI 框选服务。
 - 裁图（`crop.js`）：PNG 裁图超过 150 万像素（整张长截图的答案区）自动改 JPEG 0.9（白底），避免 commit 请求带几 MB base64。
 
 ## 6. 测试
@@ -106,7 +106,7 @@ extract 用途先检查模型 finish_reason；length/max_tokens 表示长度截�
 - detect 效果取决于模型：Qwen3-VL 系列支持 0–1000 定位；不支持定位的模型返回 `[]`，前端提示「0 框」。长截图必须切片（前端已做；无前端在环时需 Pillow 才能服务端切）。
 - 服务端裁图需要 Pillow（可选）；自动策略 / 无人值守流水线在没有 Pillow 时只对覆盖全图的框（整图即题目）有效，其余会以「自动转文本失败」中止并停在 boxed。
 - `local_http`与真实YOLOv8n ONNX服务已通过隔离浏览器链路验证；本机生产服务配置见AI/environment.md。检测能返回框不代表内容质量达标，使用时可人工校正。
-- 同仓检测实现与预检位于 `services/boxdetect/`，旧 tools/boxdetect 入口兼容；收件箱仍负责长图切片、归一化与合并，服务只做单图推理。源码迁移不修改检测 URL、提供方或受管模型指针。
+- 同仓检测实现与预检位于 `services/boxdetect/`，旧 tools/boxdetect 入口兼容；新版连接使用整图协议，由独立服务切片、推理和合框，保留一条原图历史；旧VLM／旧协议继续在OMRS切片。连接配置变化与Vault恢复后旧结果不发布，协议见 `AI/boxdetect.md`。
 - 待办：手机页作为 PWA share target（需 HTTPS）；`_blind_stats` 每次全量读盲标行（盲标样本通常很少，暂不优化）。
 
 ## 8. 提供方与自动策略（v1.13.0）
@@ -115,8 +115,8 @@ extract 用途先检查模型 finish_reason；length/max_tokens 表示长度截�
 
 | 键 | 默认 | 说明 |
 |---|---|---|
-| `inbox_detect_provider` | `vlm` | `vlm`：设置页的多模态模型（联网）；`local_http`：本地检测服务 |
-| `inbox_local_detect_url` | `""` | `local_http` 的 POST 地址，协议见 §4 `detect_regions_local` |
+| `inbox_detect_provider` | `vlm` | `vlm`：设置页的多模态模型（联网）；`local_http`：本机或外部独立检测服务 |
+| `inbox_local_detect_url` | `""` | 旧协议POST地址；新版优先使用私有框选连接，见 `AI/boxdetect.md` |
 | `inbox_blind_every` | `0` | 每 N 张盲标；0 关闭 |
 | `inbox_auto_ready_conf` | `0` | AI 框全部 ≥ 阈值时自动提取并判断，仍待人工审核；0 关闭，配置键名保留兼容 |
 | `inbox_auto_on_upload` | `false` | 上传即排 `auto` job |

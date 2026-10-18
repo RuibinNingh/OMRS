@@ -1,4 +1,4 @@
-"""训练面板真实浏览器：入口、增量轮询、测试积累、错误与四档审计。"""
+"""训练面板真实浏览器：入口、增量轮询、独立服务分工、错误与四档审计。"""
 import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import io
@@ -132,31 +132,8 @@ def main():
                 fixture(root,epoch=2,pid=999999999)
                 panel.get_by_text('已中断',exact=True).first.wait_for(timeout=10000)
                 check('进程消失显示已中断与续训命令',panel.get_by_role('button',name='复制续训命令',exact=True).count()==1)
-                panel.locator('#tp-file').set_input_files({'name':'try.png','mimeType':'image/png','buffer':png()})
-                # 初始化标注库后记录整个临时 Vault 的文件内容。
-                api('/api/annotate/images')
-                before={str(p.relative_to(vault)):p.read_bytes() for p in vault.rglob('*') if p.is_file()}
-                panel.get_by_role('button',name='测试',exact=True).click()
-                panel.wait_for_selector('.tp-box-answer')
-                after={str(p.relative_to(vault)):p.read_bytes() for p in vault.rglob('*') if p.is_file()}
-                check('实时测试出两类框、置信度与耗时，积累关闭无文件改动',before==after and panel.locator('.tp-box-question').count()>0 and 'ms' in panel.locator('#tp-try-result').inner_text())
-                panel.locator('label.ui-switch',has_text='积累到标注集').click()
-                panel.wait_for_function("() => !document.querySelector('#tp-collect').disabled && document.querySelector('#tp-collect').checked")
-                panel.get_by_role('button',name='测试',exact=True).click()
-                panel.get_by_text('已加入标注集（待校正）',exact=True).wait_for()
-                images=api('/api/annotate/images')['images']; boxes=images[0]['boxes']
-                check('积累后只有一张 todo 且含模型框',len(images)==1 and images[0]['status']=='todo' and len(boxes)>0)
-                panel.get_by_role('button',name='测试',exact=True).click()
-                panel.get_by_text('标注集里已有这张',exact=True).wait_for()
-                check('重复测试不新增、不覆盖已有框',len(api('/api/annotate/images')['images'])==1 and api('/api/annotate/images')['images'][0]['boxes']==boxes)
-                panel.reload(wait_until='networkidle')
-                panel.wait_for_function("() => document.querySelector('#tp-collect')?.checked")
-                check('刷新后积累开关仍开启',panel.locator('#tp-collect').is_checked())
-                detector.shutdown();detector.server_close()
-                panel.locator('#tp-file').set_input_files({'name':'try.png','mimeType':'image/png','buffer':png()})
-                panel.get_by_role('button',name='测试',exact=True).click()
-                panel.get_by_role('alert').filter(has_text='检测服务未启动').wait_for(timeout=10000)
-                check('服务停掉提示启动命令且按钮恢复可操作',not panel.get_by_role('button',name='测试',exact=True).is_disabled() and 'boxdetect_service serve' in panel.locator('#tp-try-result').inner_text())
+                check('训练实验与服务管理入口分离',panel.locator('#tp-control,#tp-try,#tp-file').count()==0
+                      and panel.get_by_role('link',name='AI 框选管理面板').get_attribute('href')=='/boxdetect/')
                 panel.close();page.close();ctx.close()
                 # 四档审计 × 浅深主题 × 桌面手机，加载档由拦截返回延迟复现。
                 for mode in ('normal','empty','error','loading'):

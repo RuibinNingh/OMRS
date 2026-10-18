@@ -1,7 +1,7 @@
 # 前端：设置页
 
 > **速查**
-> - 职责：外观、访问与安全、AI 识别、AI 助手、作业帮服务、数据与存储、服务与运行七分区
+> - 职责：外观、访问与安全、AI 识别、AI 助手、AI 框选服务、作业帮服务、数据与存储、服务与运行八分区
 > - 入口：`assets/app/features/settings/index.js`，挂载根 `omrs_dashboard.html` 的 `#st-app`
 > - 不变量：重启只认新的 `instance_id`；只改免 PIN 网段不重启；AI Key 不回显；外观键名保持兼容
 > - 必跑测试：`tests/app/settings.test.mjs`、`tests/app/entry-quality.test.mjs`、`tests/app/settings-logs.test.mjs`、`tests/e2e/settings.py`、`tests/e2e/entry_quality.py`、`tests/e2e/settings_logs.py`、`tests/e2e/mcp.py`、`tests/test_source_export.py`、`tests/test_log_export.py`
@@ -9,7 +9,7 @@
 
 ## 页面结构与生命周期
 
-`main.js` 注册 `settings` 页面契约；`index.js` 在 `#st-app` 渲染七个静态分区，使用页面动作代理分发按钮、输入和变更事件。`appearance.js`、`access.js`、`ai.js`、`agent.js`、`storage.js`、`service.js` 各管理一个分区；`zuoyebang.js` 管理独立网关分区；`tuning.js` 管理数据分区的算法表单，`tuning-state.js` 保存参数范围与回执投影。进入时各区读取当前服务状态；离开时撤销事件监听和图片任务轮询，未保存的输入按原行为丢弃，不拦截切页。
+`main.js` 注册 `settings` 页面契约；`index.js` 在 `#st-app` 渲染八个静态分区，使用页面动作代理分发按钮、输入和变更事件。`appearance.js`、`access.js`、`ai.js`、`agent.js`、`storage.js`、`service.js` 各管理一个分区；`boxdetect.js` 管理框选连接分区，`zuoyebang.js` 管理独立网关分区；`tuning.js` 管理数据分区的算法表单，`tuning-state.js` 保存参数范围与回执投影。进入时各区读取当前服务状态；离开时撤销事件监听和图片任务轮询，未保存的输入按原行为丢弃，不拦截切页。
 
 左侧导航是 `tablist`，支持方向键、Home、End、焦点移动及 `aria-selected`；上次分区保存在 `localStorage('omrs-settings-section')`，非法值回退到外观。手机端导航横向滚动，分区正文单列。通用样式在 `settings.css`，MCP 区域与其弹窗样式在 `mcp-keys.css`，均使用设计 token。除仍被测试或外部调用的标识外，旧设置 DOM 的 ID 不作为兼容契约。
 
@@ -44,6 +44,12 @@ AI 地址、模型、三种用途模型、思考与知识点限制开关经 `/ap
 `agent.js` 并行读取 `/api/config` 与 `/api/agent/status`：开关、地址、模型、厂商兼容、最大输出 Token（默认 10240，留空恢复默认，允许 1–65536）、三项预算（留空用默认，输入会被夹到默认上限以内）、请求日志开关，以及「主 AI 支持图片」`agent_vision`。输出上限用于助手每轮模型请求，不控制 AI 识别或连接测试；非整数与越界值在页面原地拒绝。开时图片直接发给主模型；关时先用「AI 识别」的转录模型转文字。助手密钥同样只提交不回显，状态行说明是单独配置还是沿用「AI 识别」的密钥；清除提交 `clear_agent_api_key:true`。启用时模型名必填（进程用假模型时除外，此时分区顶部有提示）。保存后发总线事件 `agent:config`，侧栏入口随之显示或隐藏。「测试连接」先保存，再请求 `/api/agent/test`，显示耗时、工具调用结果与图片直传探测的 `vision_ok`（视觉开时）。
 
 「AI 录题方式」可选静默草稿或确认入库，默认 silent；保存 draft_mode 后工具注册表随配置更新。该设置不改变模型或密钥配置，也不把静默录题解释为自动写题库。
+
+## AI 框选服务
+
+`boxdetect.js` / `boxdetect-view.js`管理本机／外部服务、地址、调用Key和私网信任；默认框选提供方单独保存。保存连接不覆盖提供方，空Key保留、显式清除；成功后输入清空，离页清空凭据并使在途回调失效。测试只读取已保存连接，显示真实模型及历史保留说明。
+
+管理链接固定为主站 `/boxdetect/`，面板与检测API共用已有端口；管理员密码在独立面板输入。仅精确登记的本机固定服务显示启动／停止／重启，均需确认；模型切换、Key和历史在面板管理，训练实验另在 `/train`。完整接口与权限见 `AI/boxdetect.md`，浏览器回归为 `tests/e2e/boxdetect_panel.py`、`tests/e2e/traincontrol.py`。
 
 ## 作业帮服务
 

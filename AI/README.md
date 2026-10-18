@@ -25,6 +25,7 @@
 | 作业帮独立页、题框、网关连接、后端长图与核对入库 | `zuoyebang-service.md`、`zuoyebang.md`、`frontend/settings.md`、`frontend/zuoyebang.md` |
 | 统一 AI 写审核、人工修订、MCP 改题 | `ai-review.md`，页面见 `frontend/ai-review.md` |
 | AI 草稿区（助手录题、草稿存储、审核接口） | `drafts.md` |
+| AI 框选连接、Key、历史与同端口管理 | `boxdetect.md`、`frontend/box-panel.md`、`frontend/settings.md` |
 | 框选模型训练、数据构建与实验 | `training/README.md` |
 | 框选检测服务的目录拆分与独立运行迁移 | `training/README.md`、`plans/boxdetect-service/progress.md` |
 | 技术债与已知缺陷 | `optimization.md` |
@@ -119,6 +120,7 @@
 | `board.md` | 展示板引用模型、版面设置、打印与纸面记录 |
 | `inbox.md` | 收件箱「上传 → 框选 → 转换 → 提交」流程、后台 job、框选提供方 |
 | `zuoyebang.md` | 作业帮网关搜题、原图题框、1080完整后端渲染／原像素裁图、保真提取与幂等入库 |
+| `boxdetect.md` | 独立AI框选服务、Key、整图历史、模型选择与主站同端口入口 |
 | `zuoyebang-service.md` | 同仓独立网关、配置与地址安全、网络预算、反代及两进程联调 |
 | `frontend/zuoyebang.md` | 独立整卷工作台：原图、题框、逐题候选、预览、刷新与核对入库 |
 | `frontend/annotate.md` | 独立框选标注页 `/annotate`：训练数据批量采集、快捷键、导出（存储见 `data/storage.md` §6） |
@@ -133,11 +135,11 @@
 
 训练工具位于 `tools/boxdetect/`；常驻检测与预检实现位于 `services/boxdetect/`，旧工具入口保留兼容。数据基线、实验与经验索引见 `training/README.md`。
 
-训练面板后端 `omrs/trainpanel.py` 读取实验文件，`omrs/traincontrol.py` 管理显式登记的固定检测服务，契约见 `api.md` 与 `data/storage.md` §8，训练环境及门禁见 `environment.md`。
+训练面板后端 `omrs/trainpanel.py` 读取实验文件，`omrs/traincontrol.py` 管理显式登记的固定进程启停与旧部署兼容控制，契约见 `api.md` 与 `data/storage.md` §8，训练环境及门禁见 `environment.md`。
 
 候选预检通过登记解释器在服务目录执行独立 probe，主程序与训练脚本复用标准库 `omrs/system_resources.py` 的内存保护。脱敏源码导出精确包含框选服务及公开训练工具，模型与运行数据仍留在仓库外。
 
-独立训练面板前端 `/train` 见 `frontend/trainpanel.md`，从录入题目的 AI 训练工作区打开；支持实时测试与可选积累。
+独立训练面板前端 `/train` 见 `frontend/trainpanel.md`，从录入题目的 AI 训练工作区打开；服务测试、Key、历史与在线模型管理在同源 `/boxdetect/`，见 `boxdetect.md`。
 
 路由索引生成器覆盖 MCP 管理 GET/POST 分派；完整确认参数与脱敏运行记录分别保存在独立库，相关规范见 mcp.md/runtime.md。
 

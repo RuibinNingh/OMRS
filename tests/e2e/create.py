@@ -557,25 +557,23 @@ def run_train(page, base, results):
     check('导出链接默认 OMRS JSONL', page.locator('#ib-tr-export').get_attribute('href').endswith('format=omrs_jsonl'))
     page.locator('#ib-tr-fmt').select_option('yolo')
     check('切换导出格式更新链接', page.locator('#ib-tr-export').get_attribute('href').endswith('format=yolo'))
-    check('默认提供方隐藏本地检测地址', wait(page, "() => !!document.querySelector('#ib-pl-provider')") and page.locator('#ib-pl-local-row').is_hidden())
-    check('训练策略只提供模型和本地服务',
-          page.locator('#ib-pl-provider option').evaluate_all("options => options.map(option => option.value)") == ['vlm', 'local_http'])
+    check('训练策略提供设置与独立管理入口',page.locator('#ib-pl-provider,#ib-pl-local').count()==0
+          and page.get_by_role('link',name='独立面板',exact=True).get_attribute('href')=='/boxdetect/'
+          and page.locator('a[href="#/settings?section=boxdetect"]').count()==1)
     rejected = page.evaluate("""async () => (await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({inbox_detect_provider:'template'})})).status""")
     check('服务端拒绝重新启用模板提供方', rejected == 400)
-    page.locator('#ib-pl-provider').select_option('local_http')
-    check('选本地检测服务后显示地址输入', page.locator('#ib-pl-local-row').is_visible())
-    page.locator('#ib-pl-local').fill(base + '/detect')
+    before_provider=page.evaluate("async () => (await fetch('/api/config')).json()")
     page.locator('#ib-pl-blind').fill('3')
     page.locator('#ib-pl-conf').fill('1.5')
     page.locator('label.ui-switch:has(#ib-pl-upload)').click()
     page.locator('[data-action="create.trainSave"]').click()
     check('保存策略就地提示成功', wait(page, "() => document.querySelector('#ib-pl-status')?.textContent.includes('已保存')"))
     config = page.evaluate("async () => (await fetch('/api/config')).json()")
-    check('策略写入配置并夹取阈值', config.get('inbox_detect_provider') == 'local_http' and config.get('inbox_local_detect_url') == base + '/detect'
+    check('策略写入配置并夹取阈值', config.get('inbox_detect_provider') == before_provider.get('inbox_detect_provider') and config.get('inbox_local_detect_url') == before_provider.get('inbox_local_detect_url')
           and config.get('inbox_blind_every') == 3 and config.get('inbox_auto_ready_conf') == 1 and config.get('inbox_auto_on_upload') is True)
     page.evaluate("window.__omrs.router.go('settings'); window.__omrs.router.go('create')")
-    check('返回训练工作区重读策略', wait(page, "() => document.querySelector('#ib-pl-provider')?.value === 'local_http' && document.querySelector('#ib-pl-blind')?.value === '3'"))
+    check('返回训练工作区重读策略', wait(page, "() => document.querySelector('#ib-pl-blind')?.value === '3'"))
     page.locator('[data-action="create.trainCleanup"][data-arg="crops"]').click()
     page.locator('dialog[open] [data-dialog-cancel]').last.click()
     page.locator('[data-action="create.trainCleanup"][data-arg="crops"]').click()
@@ -643,7 +641,7 @@ def main():
                             cards_audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))
                         results.append((f'题卡工作区审计 {label}·{theme}', cards_ok, str(cards_audit)))
                         audit_page.locator('#create-flow [data-ib-stage="train"]').click()
-                        wait(audit_page, "() => !!document.querySelector('#ib-pl-provider') && !document.querySelector('#ib-stage-train [aria-busy=\"true\"]')")
+                        wait(audit_page, "() => !!document.querySelector('#ib-pl-blind') && !document.querySelector('#ib-stage-train [aria-busy=\"true\"]')")
                         train_audit = audit_page.evaluate(AUDIT_TRAIN, target)
                         train_ok = train_audit['shown'] >= 50 and len(train_audit['sizes']) <= 6 and min(train_audit['sizes']) >= 12 and not any(
                             train_audit[key] for key in ('small', 'inline', 'handlers', 'over', 'overflow'))

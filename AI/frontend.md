@@ -26,13 +26,14 @@
 | [`frontend/review.md`](frontend/review.md) | **复习调度**：复习调度工作台、临时调度与常规 Session 的区别 |
 | [`frontend/instant.md`](frontend/instant.md) | **即时练习**（`assets/app/features/instant/`）：取题、判定、提交、渲染不变量与快捷键 |
 | [`frontend/feedback.md`](frontend/feedback.md) | **反馈录入工作台**：反馈录入工作台布局、渲染分层、快捷键与提交结果弹窗（答题卡导入见 `AI/omr-import.md`） |
-| [`frontend/settings.md`](frontend/settings.md) | **设置页**：设置页七个分区：外观、访问与安全、AI 识别、AI 助手、作业帮服务、数据与存储、服务与运行 |
+| [`frontend/settings.md`](frontend/settings.md) | **设置页**：设置页八个分区：外观、访问与安全、AI 识别、AI 助手、AI 框选服务、作业帮服务、数据与存储、服务与运行 |
 | [`frontend/ai-review.md`](frontend/ai-review.md) | **审核中心**：统一 AI 业务写、人工修订、操作回执和完整草稿审核 |
 | [`frontend/assistant.md`](frontend/assistant.md) | **AI 助手页**：对话列表、运行轨迹、确认与撤销、检查器（后端见 `AI/agent.md`） |
 | [`frontend/annotate.md`](frontend/annotate.md) | **框选标注页**（`/annotate`，`assets/app/features/annotate/`）：独立于题库的训练数据采集页，批量上传、只标题目 / 答案框、快捷键、导出 |
 | [`frontend/create.md`](frontend/create.md) | **录入题目与收件箱入口**：录入题目页表单、AI 识别入口、提交后表单状态，以及收件箱在前端的入口（流程细节见 `AI/inbox.md`） |
 | [`frontend/zuoyebang.md`](frontend/zuoyebang.md) | **作业帮整卷工作台**：独立页原图、题框、逐题候选、完整预览与核对入库 |
+| [`frontend/box-panel.md`](frontend/box-panel.md) | **AI 框选服务面板**：同端口独立管理、Key、整图测试与历史、模型及访问设置 |
 | [`frontend/zyb-panel.md`](frontend/zyb-panel.md) | **作业帮服务面板**：独立网关状态概览、导入与扫码弹窗、一次性调用密钥、请求审计和访问设置 |
 | [`frontend/records.md`](frontend/records.md) | **历史记录、数据复盘与报告**：学习与变更 / MCP 系统运行时间线、数据复盘页、AI 报告托管页 |
 
-独立训练面板 `/train` 的入口、图表、实时测试与可选积累见 `AI/frontend/trainpanel.md`。
+独立训练面板 `/train` 的入口、图表、实验与内容复核见 `AI/frontend/trainpanel.md`。

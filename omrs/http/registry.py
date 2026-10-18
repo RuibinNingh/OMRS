@@ -1,6 +1,12 @@
 """唯一 HTTP 注册表；文档与运行分派共用相同方法、路径和领域适配。"""
 
 ROUTES = {
+    ('GET', '/boxdetect'): '_boxdetect_get',
+    ('GET', '/api/boxdetect/service'): '_boxdetect_get',
+    ('GET', '/api/boxdetect/status'): '_boxdetect_get',
+    ('POST', '/api/boxdetect/service'): '_boxdetect_post',
+    ('POST', '/api/boxdetect/control'): '_boxdetect_post',
+    ('POST', '/api/boxdetect/service/test'): '_boxdetect_post',
     ('GET', '/api/zuoyebang/service'): '_zuoyebang_get',
     ('POST', '/api/zuoyebang/service'): '_zuoyebang_post',
     ('POST', '/api/zuoyebang/service/test'): '_zuoyebang_post',
@@ -191,7 +197,7 @@ ROUTES = {
     ('POST', '/api/uploads/start'): '_uploads_post',
     ('POST', '/api/workspace/scan'): '_do_post_routes',
 }
-PREFIXES = {("GET", "/assets/"): "_core_get"}
+PREFIXES = {("GET", "/assets/"): "_core_get", ("GET", "/boxdetect/"): "_boxdetect_get", ("POST", "/boxdetect/"): "_boxdetect_post"}
 
 
 def target(method, path):

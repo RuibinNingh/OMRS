@@ -75,6 +75,12 @@ def _data_url(mime, data):
 
 def _detect_candidates(vault, snap):
     provider = inbox.detect_provider(vault)
+    if provider == "local_http":
+        from .boxdetect import client as box_client
+        with open(drafts.image_path(vault, snap["sha"]), "rb") as stream:
+            whole = box_client.detect(vault, stream.read(), snap["mime"], source="draft")
+        if whole is not None:
+            return _clean_candidates(whole["boxes"])
     plan = inbox.slice_plan(snap["width"], snap["height"])
     path = drafts.image_path(vault, snap["sha"])
     strips = []
@@ -221,6 +227,8 @@ def _run_detect(vault, job_id, draft_id, revision, snapshots, expected_generatio
 def _run_detect_current(vault, job_id, draft_id, revision, snapshots):
     proposals, errors = [], []
     try:
+        from .boxdetect import config as box_config
+        connection = box_config.snapshot(vault) if inbox.detect_provider(vault) == 'local_http' else None
         draft_jobs._update(vault, job_id, status="running")
         for snap in snapshots:
             with lease(vault), locking.write_lock(), drafts._LOCK:
@@ -238,6 +246,8 @@ def _run_detect_current(vault, job_id, draft_id, revision, snapshots):
                                          code, reason, task_id=snap["task_id"]))
             else:
                 try:
+                    if connection is not None:
+                        box_config.assert_current(vault, connection)
                     candidates = _detect_candidates(vault, snap)
                     mapping, reason = _mapping(snap, candidates)
                     proposals.append(_result(snap["sha"], "applied" if mapping else "suggested",
@@ -250,6 +260,8 @@ def _run_detect_current(vault, job_id, draft_id, revision, snapshots):
             draft_jobs._update(vault, job_id, processed=len(proposals), errors=errors)
         applied, conflicts = False, any(item["status"] == "conflict" for item in proposals)
         with lease(vault), locking.write_lock(), drafts._LOCK:
+            if connection is not None:
+                box_config.assert_current(vault, connection)
             db = drafts.connect(vault)
             try:
                 row = _row(db, draft_id)

@@ -38,7 +38,7 @@ class ContractTests(unittest.TestCase):
 
     def start(self):
         with patch.object(server, 'Detector', FakeDetector):
-            self.http = server.make_server(self.folder, 0)
+            self.http = server.make_server(self.folder, 0, data_dir=self.folder / 'state', legacy=True)
         self.addCleanup(self.http.server_close)
         thread = threading.Thread(target=lambda: self.http.serve_forever(poll_interval=.02), daemon=True)
         thread.start()
@@ -48,7 +48,7 @@ class ContractTests(unittest.TestCase):
     def request(self, method, path, body=None, headers=None):
         connection = http.client.HTTPConnection(*self.http.server_address, timeout=2)
         try:
-            connection.request(method, path, body=body, headers=headers or {})
+            connection.request(method, path, body=body, headers={'Content-Type':'application/json', **(headers or {})})
             response = connection.getresponse()
             return response.status, json.loads(response.read())
         finally:
@@ -74,6 +74,11 @@ class ContractTests(unittest.TestCase):
         status, result = self.request('POST', '/detect', json.dumps(payload))
         self.assertEqual(status, 200)
         self.assertEqual(result, {'boxes': [{'label': 'answer', 'bbox_2d': [.25, .4, 1., 1.], 'confidence': .9}]})
+        predictions=[{'role':'answer','x':.1,'y':.7,'w':.2,'h':.2,'conf':.95},
+                     {'role':'question','x':.1,'y':.1,'w':.2,'h':.2,'conf':.8}]
+        with patch.object(FakeDetector,'__call__',return_value=predictions):
+            response=self.request('POST','/detect',json.dumps(payload))[1]
+        self.assertEqual([b['label'] for b in response['boxes']],['answer','question'])
 
     def test_empty_predictions_are_successful(self):
         self.start()
@@ -102,7 +107,7 @@ class ContractTests(unittest.TestCase):
                 self.meta.update(changes)
                 self.save_meta()
                 with patch.object(server, 'Detector', FakeDetector), self.assertRaises(ValueError):
-                    server.make_server(self.folder, 0)
+                    server.make_server(self.folder, 0, data_dir=self.folder / 'state', legacy=True)
                 self.meta = original
 
     def test_probe_metadata_validation_rejects_invalid_models(self):

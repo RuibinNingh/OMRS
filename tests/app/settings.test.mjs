@@ -192,8 +192,8 @@ test('助手最大输出 Token 默认值、保存和输入校验', async () => {
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test('分区名称非法时回到外观，七个分区次序稳定', () => {
-  assert.deepEqual(SECTIONS, ['appearance', 'access', 'ai', 'assistant', 'zuoyebang', 'data', 'service']);
+test('分区名称非法时回到外观，八个分区次序稳定', () => {
+  assert.deepEqual(SECTIONS, ['appearance', 'access', 'ai', 'assistant', 'boxdetect', 'zuoyebang', 'data', 'service']);
   assert.equal(sectionOf('data'), 'data');
   assert.equal(sectionOf('unknown'), 'appearance');
 });

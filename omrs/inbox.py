@@ -28,7 +28,8 @@ import uuid
 import zipfile
 
 from .common import load_config, omrs_data_dir
-from .vault_lifecycle import storage, open_sqlite, task, generation
+from . import locking
+from .vault_lifecycle import storage, open_sqlite, task, generation, lease
 from .creation import create_question
 
 INBOX_DIR = "inbox"
@@ -926,6 +927,12 @@ def _pillow_strips(vault, item):
 
 def _detect_with_provider(vault, ai, item, unit, provider):
     """按提供方取框。返回 (boxes, strips_count)。boxes 为整图归一化坐标。"""
+    if provider == "local_http":
+        from .boxdetect import client as box_client
+        mime, data = raw_file(vault, item["id"])
+        whole = box_client.detect(vault, data, mime, source="inbox")
+        if whole is not None:
+            return whole["boxes"], whole["strips"]
     strips = unit.get("strips")
     if not strips:
         strips = _pillow_strips(vault, item)
@@ -988,12 +995,16 @@ def _run_detect(vault, ai, unit):
     if item["status"] in ("done", "discarded"):
         raise ValueError("已结束的图片不再框选")
     provider = detect_provider(vault, unit.get("provider"))
+    from .boxdetect import config as box_config
+    connection = box_config.snapshot(vault) if provider == "local_http" else None
     boxes, strips_n = _detect_with_provider(vault, ai, item, unit, provider)
     summary = [{k: b[k] for k in ("role", "card", "x", "y", "w", "h", "conf")} for b in boxes]
     blind = _should_blind(vault, unit)
     if blind:
         # 不展示 AI 框：只存到 blind_boxes，等人工画完、标记就绪时成对写进 item.ready 事件
-        with _LOCK:
+        with lease(vault), locking.write_lock(), _LOCK:
+            if connection is not None:
+                box_config.assert_current(vault, connection)
             db = connect(vault)
             try:
                 fresh = db.execute("SELECT reset_epoch, revision, status FROM items WHERE id=?", (item["id"],)).fetchone()
@@ -1016,7 +1027,9 @@ def _run_detect(vault, ai, unit):
          "ai_box": {"x": b["x"], "y": b["y"], "w": b["w"], "h": b["h"]}, "convert": "auto"}
         for b in boxes
     ]
-    with _LOCK:
+    with lease(vault), locking.write_lock(), _LOCK:
+        if connection is not None:
+            box_config.assert_current(vault, connection)
         fresh = get_item(vault, item["id"])
         if fresh["reset_epoch"] != epoch or fresh["status"] not in ("pending", "boxed"):
             raise ValueError("图片已重置或结束，旧框选任务已失效")

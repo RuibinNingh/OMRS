@@ -52,7 +52,7 @@ def main():
         subprocess.run([sys.executable,str(ROOT/'tests/fixtures/make_vault.py'),'--out',str(vault),'--profile','empty'],check=True,stdout=subprocess.DEVNULL)
         detect_port=free_port();port=free_port()
         service_log=(shots/'serve.log').open('w')
-        detector=subprocess.Popen([str(root/'.venv/bin/python'),'-m','boxdetect_service','serve','--model-dir',str(root/'models/current'),'--port',str(detect_port)],cwd=ROOT/'services/boxdetect',env=env,stdout=service_log,stderr=service_log)
+        detector=subprocess.Popen([str(root/'.venv/bin/python'),'-m','boxdetect_service','serve','--model-dir',str(root/'models/current'),'--port',str(detect_port),'--data-dir',str(Path(temp)/'service-state'),'--legacy-loopback'],cwd=ROOT/'services/boxdetect',env=env,stdout=service_log,stderr=service_log)
         proc=None
         try:
             health=wait_api(f'http://127.0.0.1:{detect_port}','/health')
@@ -89,17 +89,21 @@ def main():
                     page.screenshot(path=str(shots/f'panel-real-{theme}.png'),full_page=True)
                 sample=max([s for s in manifest['samples'] if s['split']=='test'],key=lambda s:s['height'])
                 before={str(p.relative_to(vault)):p.read_bytes() for p in vault.rglob('*') if p.is_file()}
-                page.locator('#tp-file').set_input_files({'name':'实时长图.jpg','mimeType':'image/jpeg','buffer':(dataset/sample['file']).read_bytes()})
-                with page.expect_response('**/api/trainpanel/try') as response:
-                    page.get_by_role('button',name='测试',exact=True).click()
+                page.goto(base+'/boxdetect/',wait_until='networkidle')
+                page.locator('#password').fill((Path(temp)/'service-state/admin-secret.txt').read_text().strip())
+                page.locator('#login-form button[type=submit]').click();page.locator('.stats').wait_for()
+                page.locator('[data-page="test"]').first.click()
+                page.locator('#test-file').set_input_files({'name':'实时长图.jpg','mimeType':'image/jpeg','buffer':(dataset/sample['file']).read_bytes()})
+                with page.expect_response('**/boxdetect/api/admin/try') as response:
+                    page.locator('[data-action="detect"]').click()
                 result=response.value.json()
                 assert response.value.status==200,result
-                page.wait_for_selector('.tp-box')
+                page.wait_for_selector('#result-preview svg rect')
                 after={str(p.relative_to(vault)):p.read_bytes() for p in vault.rglob('*') if p.is_file()}
-                assert before==after,'未开启积累却修改了 Vault'
+                assert before==after,'独立测试不应修改 Vault'
                 (shots/'real-try-summary.json').write_text(json.dumps({k:result[k] for k in ['width','height','strips','elapsed_ms']},indent=2))
                 page.screenshot(path=str(shots/'panel-real-try.png'))
-                checks.append(f'实时测试高 {sample["height"]}，{result["strips"]} 条带，{result["elapsed_ms"]} ms；Vault 未修改')
+                checks.append(f'独立面板测试高 {sample["height"]}，{result["strips"]} 条带；Vault 未修改')
                 detector.terminate();detector.wait(timeout=10)
                 open_app(page, base, 'create')
                 page.locator('#create-flow [data-ib-stage="process"]').click()

@@ -44,7 +44,7 @@ _BOXDETECT_FILES = {
     'services/boxdetect/.gitignore', 'services/boxdetect/README.md',
     'services/boxdetect/pyproject.toml', 'services/boxdetect/requirements.txt',
 }
-_BOXDETECT_DIRS = {'services/boxdetect/boxdetect_service', 'services/boxdetect/tests'}
+_BOXDETECT_DIRS = {'services/boxdetect/boxdetect_service', 'services/boxdetect/tests', 'services/boxdetect/boxdetect_service/assets'}
 _TRAINING_FILES = {'tools/boxdetect/' + name for name in (
     'README.md', '_service.py', 'audit.py', 'bootstrap_control.py', 'build_dataset.py',
     'common.py', 'decision.py', 'evaluate.py', 'inference.py', 'probe.py', 'publish.py',
@@ -84,8 +84,8 @@ def _is_source_file(relative: str) -> bool:
         if len(parts) < 3 or parts[1] not in ('zuoyebang', 'boxdetect'):
             return False
         if parts[1] == 'boxdetect':
-            return (len(parts) == 4 and '/'.join(parts[:3]) in _BOXDETECT_DIRS
-                    and name.endswith('.py'))
+            return ((len(parts) == 4 and '/'.join(parts[:3]) in _BOXDETECT_DIRS and name.endswith('.py'))
+                    or (relative.startswith('services/boxdetect/boxdetect_service/assets/') and len(parts)==5 and name in ('index.html','panel.js','panel.css')))
     if relative.startswith(("AI/logs/", "AI/omrs_work/")):
         return False
     suffix = os.path.splitext(name)[1].lower()

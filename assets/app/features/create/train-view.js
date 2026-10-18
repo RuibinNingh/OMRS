@@ -1,4 +1,4 @@
-/** AI 训练工作区模板：数据集指标、构成条形、导出与清理、框选提供方与自动策略表单。 */
+/** AI 训练工作区模板：数据集指标、导出清理与自动策略；连接设置使用独立入口。 */
 import { html, each } from '../../core/html.js';
 import { button } from '../../ui/button.js';
 import { icon } from '../../ui/icon.js';
@@ -59,10 +59,7 @@ function policyView(form, { saving, message }) {
   if (!form) return html`<p class="crt-muted" role="status">正在读取策略配置…</p>`;
   const numberInput = (id, key, attrs) => html`<span class="crt-num" data-input="create.trainPolicy" data-arg="${key}">${input({ id, type: 'number', value: form[key], placeholder: attrs.placeholder })}</span>`;
   return html`<div class="crt-policy">
-    ${field({ label: '框选提供方', id: 'ib-pl-provider', control: html`<span data-change="create.trainPolicy" data-arg="provider">${select({ id: 'ib-pl-provider', options: PROVIDERS, value: form.provider })}</span>` })}
-    <div class="crt-local" id="ib-pl-local-row"${form.provider === 'local_http' ? '' : html` hidden`}>
-      ${field({ label: '本地检测服务地址', id: 'ib-pl-local', control: html`<span data-input="create.trainPolicy" data-arg="local">${input({ id: 'ib-pl-local', value: form.local, placeholder: 'http://127.0.0.1:8600/detect' })}</span>` })}
-    </div>
+    <p class="crt-muted">框选方式与服务连接统一在<a href="#/settings?section=boxdetect">设置 → AI 框选服务</a>管理；服务测试和请求历史在<a href="/boxdetect/" target="_blank" rel="noopener">独立面板</a>查看。</p>
     ${field({ label: '每 N 张盲标（0 = 关闭）', id: 'ib-pl-blind', hint: '盲标的图不展示 AI 框，人工画完后成对留痕，作干净评估集，避免标注被模型带偏', control: numberInput('ib-pl-blind', 'blind', { placeholder: '0' }) })}
     ${field({ label: '自动提取的置信度阈值（0 = 关闭）', id: 'ib-pl-conf', hint: 'AI 框全部 ≥ 阈值时自动提取并判断是否留图，完成后仍需人工审核；服务端裁图需 Pillow', control: numberInput('ib-pl-conf', 'conf', { placeholder: '0' }) })}
     <div class="crt-switch" data-change="create.trainPolicy" data-arg="upload">
@@ -114,8 +111,8 @@ export function trainView({ model, loading = false, error = '', format = 'omrs_j
     ${trainpanelView(trainpanel)}
     ${datasetView(model, format)}
     <section class="crt-panel" aria-labelledby="crt-policy-title">
-      <h3 id="crt-policy-title">框选提供方与自动策略</h3>
-      <p class="crt-muted">「AI 框选」按钮使用这里选的提供方。本地检测服务协议：<code>POST {image, layout, width, height}</code> → <code>[{label, card, bbox_2d:[x1,y1,x2,y2], confidence}]</code>（坐标 0–1000 / 0–1 / 像素均可）。</p>
+      <h3 id="crt-policy-title">自动框选策略</h3>
+      <p class="crt-muted">设置上传后自动框选、人工抽检频率与自动就绪阈值。</p>
       ${policyError ? html`<div class="crt-error">${status({ tone: 'danger', text: policyError })}${button({ label: '重试', size: 'sm', action: 'create.trainRefresh' })}</div>` : policyView(policy, { saving, message })}
     </section>
   </div>`;

@@ -31,6 +31,12 @@ base_url支持安全反代前缀，panel_url保留前缀并补尾斜杠；网关
 
 ---
 
+## AI 框选服务与同源面板
+
+`GET/POST /api/boxdetect/service`读取／保存独立连接，`GET /api/boxdetect/status`和`POST /api/boxdetect/service/test`测试已保存Key，`POST /api/boxdetect/control`仅控制明确登记的本机固定unit。`GET /boxdetect`跳转`/boxdetect/`，GET/POST `/boxdetect/`前缀只分派白名单路径；独立管理页、Key、原图历史与模型契约统一见 `AI/boxdetect.md`。
+
+同源页面资产从本仓库加载，服务端仅代理JSON和受限PNG/JPEG/GIF原图，不执行外部服务代码。管理保留OMRS授权并使用独立会话；仅`/boxdetect/healthz`、`/boxdetect/api/v1/status`、`/boxdetect/api/v1/detect`使用框选服务鉴权，后两者要求独立Bearer Key，不授予普通OMRS接口访问权。JSON请求／代理响应各限22MiB，网络不持业务写锁。
+
 ## 框选标注集端点 `/api/annotate/*` 与 `/annotate`
 
 独立于收件箱的训练数据标注集，存储见 `AI/data/storage.md` §6，页面见 `AI/frontend/annotate.md`。访问控制与其他端点相同（`_authorize`；POST 走同源校验并在进程级写锁内处理，模块自带 `annotate._LOCK`）。保存和删除以持久 `revision` 做条件写入；版本冲突返回 409 `{status:"error",code:"revision_conflict",msg,current_revision}`，其他非法输入返回 400。
@@ -74,21 +80,21 @@ base_url支持安全反代前缀，panel_url保留前缀并补尾斜杠；网关
 
 未受管本机服务的 commands.serve 给出明确 cwd 的 `boxdetect_service serve` 命令，沿用已配置的本机端口；受管模式仍给固定 unit 启动命令。候选预检使用登记解释器与服务 cwd 的独立 probe 子进程，限额／幂等／回退契约保持。内存检查由标准库 `omrs/system_resources.py` 提供，主进程不再依赖训练工具。
 
-`/api/source/export` 包含 services/boxdetect 的包、独立测试、安装清单和 tools/boxdetect 的明确公开文件；不开放其他服务／工具或扫描模型、数据集及受管运行目录。脱敏包中的旧入口能定位同包服务源码；服务三项依赖仍与主程序分开安装。
+`/api/source/export` 包含 services/boxdetect 的包、三项面板资产、独立测试、安装清单和 tools/boxdetect 的明确公开文件；不开放其他服务／工具或扫描模型、数据集及受管运行目录。脱敏包中的旧入口能定位同包服务源码；服务三项依赖仍与主程序分开安装。
 
 | 方法 | 路径 | 响应 |
 |---|---|---|
 | GET | `/api/trainpanel/overview` | 训练目录 `training_model`（兼容 `model`）、实际服务 `online_state` / `online_model`、最新 dataset 摘要、latest、runs（各含 `current` 训练目录标记与 `online` 在线身份标记）、live 完成图计数／新增图数、commands、collect、独立 errors |
 | GET | `/api/trainpanel/run?name=` | 指定实验 status、metrics、evaluation 与各字段 errors；JSONL 最后未写完的一行留待下次 |
 | GET | `/api/trainpanel/overlay?run=&name=` | 仅返回该实验 eval.json 登记的 JPG／PNG 叠加图，private/no-store |
-| GET | `/api/trainpanel/service` | 对配置检测地址的同源 `/health` 做 2 秒探测，state 为 online/offline/unconfigured；离线附启动命令 |
+| GET | `/api/trainpanel/service` | 新版通过独立Key探测`/api/v1/status`；旧地址对同源`/health`做2秒探测，state 为 online/offline/unconfigured；离线附启动命令 |
 
 `status.json` 的 running 状态在 pid 不存在或更新时间超过 max(3×每轮秒数, 600 秒) 时只在响应中改为 interrupted，不写回文件。文件缺失是空状态；损坏文件仅在对应字段返回读取失败，不影响其他实验／指标。路径参数拒绝穿越及符号链接越界；不提供任意文件读取。新增完成图数按来源 ID 对照 manifest 中已纳入与已排除记录，不把旧排除图误算成新增训练数据。配置格式见 `AI/data/storage.md` §8。
 
 
 ### 实时测试 `/api/trainpanel/try`
 
-POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 万像素（长图可超过 10000 高）；原图与条带都在内存，不开积累时不创建文件或库。复用 slice_plan → JPEG 85 → detect_regions_local → merge_strip_boxes，返回 `{status:"ok", boxes, width, height, strips, elapsed_ms, collected?}`，框置信度为 conf。每进程最多同时测试一图，繁忙、非法文件、超限、服务未配置／离线／非法响应均返回 400 与中文 msg，离线附启动命令；继续沿用来源与登录校验。
+POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 万像素（长图可超过 10000 高）；OMRS内存处理原图与条带，关闭积累不写Vault；新版独立服务另写原图历史。新版上传整图由服务切片／合框，旧协议复用 slice_plan → JPEG85 → detect_regions_local → merge_strip_boxes，返回 `{status:"ok", boxes, width, height, strips, elapsed_ms, collected?}`，框置信度为 conf。每进程最多同时测试一图，繁忙、非法文件、超限、服务未配置／离线／非法响应均返回 400 与中文 msg，离线附启动命令；继续沿用来源与登录校验。
 
 配置 train_try_collect 为 true 时，仅积累阶段取得进程写锁，调用 annotate.upload 并以模型框 annotate.save(status=None)，保持 todo；返回 collected `{id, duplicate:false, status:"todo"}`。重复 SHA 返回 `{id, duplicate:true}`，不覆盖旧框或完成状态。积累失败仍返回检测结果，并带 collect_error。`POST /api/config` 保存开关，默认 false；推理不持有写锁，等待锁后重查开关，已关闭时不写。
 
@@ -104,7 +110,9 @@ POST multipart 单文件 PNG／JPEG／GIF，文件 ≤15 MB、解码后 ≤4000 
 
 评测整图通过统计要求调用状态为done/cached；调用错误即使被人工标记内容可用也仍计失败。复核内容与调用状态分别保留。
 
-### 受管检测服务
+### 旧受管检测服务兼容
+
+当前`/train`不挂载服务控制表单；启用新版独立连接后，旧control拒绝提交、manager说明迁移到独立面板，旧启动恢复亦停用。连接保存与旧操作锁互斥，未完成／待恢复操作先收束再迁移。以下契约仅适用于未迁移部署。
 
 `GET /api/trainpanel/manager` 返回 supported、revision、operation、实际 online 健康身份、selected 配置身份、matches、previous、models（至多100个完整导出实验及匹配阈值的内容评测摘要）、errors、最近20次 history。候选含 `independent_reviewed`、`independent_passed`、`independent_status`（passed/failed/incomplete/missing）；未登记实例返回 supported=false 与说明。此 GET 只读，不触发中断操作恢复；主服务在监听前同步调用恢复，失败时其他页面仍可使用。
 

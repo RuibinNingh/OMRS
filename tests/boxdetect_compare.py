@@ -52,7 +52,8 @@ def main():
                 sock.bind(('127.0.0.1', 0))
                 port = sock.getsockname()[1]
             with (Path(temp) / (label + '.log')).open('w') as log:
-                proc = subprocess.Popen([args.python, *entry, '--model-dir', str(model), '--port', str(port)],
+                compatibility=[] if label=='before' else ['--data-dir',str(Path(temp)/('state-'+label)),'--legacy-loopback']
+                proc = subprocess.Popen([args.python, *entry, '--model-dir', str(model), '--port', str(port),*compatibility],
                                         cwd=cwd, env=env, stdout=log, stderr=log)
                 try:
                     base = f'http://127.0.0.1:{port}'

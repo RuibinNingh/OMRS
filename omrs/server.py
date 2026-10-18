@@ -109,9 +109,10 @@ from .http.auth import AuthRoutes
 from .http.media import MediaRoutes
 from .http.history import HistoryRoutes
 from .http.zuoyebang import ZuoyebangRoutes
+from .http.boxdetect import BoxdetectRoutes, public_api as boxdetect_public_api
 
 
-class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, InboxRoutes, TrainingRoutes, DraftsRoutes, AiReviewRoutes, McpRoutes, AuthRoutes, MediaRoutes, HistoryRoutes, ZuoyebangRoutes, http.server.SimpleHTTPRequestHandler):
+class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, InboxRoutes, TrainingRoutes, DraftsRoutes, AiReviewRoutes, McpRoutes, AuthRoutes, MediaRoutes, HistoryRoutes, ZuoyebangRoutes, BoxdetectRoutes, http.server.SimpleHTTPRequestHandler):
     @property
     def services(self):
         # 领域层通过此对象复用应用服务，测试替换仍只需修改 omrs.server。
@@ -202,7 +203,7 @@ class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, Inb
 
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
-        protected = not (path.startswith("/api/agent/") or path in (
+        protected = not (path.startswith(("/api/agent/", "/boxdetect/", "/api/boxdetect/")) or path in (
             "/api/zuoyebang/status",
             "/api/annotate/export", "/api/source/export", "/api/export-review",
             "/api/trainpanel/service", "/api/trainpanel/manager"))
@@ -228,7 +229,7 @@ class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, Inb
 
         # 先拒绝 MCP 凭据，再处理普通端口的公开页面和登录状态接口，避免
         # 通过 /api/auth/login 等路径借道建立 Web 会话。
-        if self._mcp_credential_present():
+        if self._mcp_credential_present() and not boxdetect_public_api(path):
             self._json({"status": "error", "code": "mcp_boundary", "msg": "MCP Key 不能调用普通 OMRS 接口"}, 403)
             return
 
@@ -247,7 +248,7 @@ class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, Inb
         if path in ("/", "/index.html") and params.get("unlocked") != "1":
             self._serve_entry()
             return
-        if not self._authorize(path, params):
+        if not boxdetect_public_api(path) and not self._authorize(path, params):
             return
 
         from .http.registry import dispatch
@@ -262,12 +263,12 @@ class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, Inb
 
     def _post_current(self):
         path = urllib.parse.urlparse(self.path).path
-        if self._mcp_credential_present():
+        if self._mcp_credential_present() and not boxdetect_public_api(path):
             self._json({"status": "error", "code": "mcp_boundary", "msg": "MCP Key 不能调用普通 OMRS 接口"}, 403)
             return
         if not self._check_write_origin():
             return
-        if path != "/api/auth/login" and not self._authorize(path, {}):
+        if path != "/api/auth/login" and not boxdetect_public_api(path) and not self._authorize(path, {}):
             return
         original = self.rfile
         spool = None
@@ -296,7 +297,7 @@ class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, Inb
                     else:
                         self._prepared_json = http_io.json_body(self)
                     spool.seek(0)
-                protected = not (path.startswith(("/api/agent/", "/api/auth/", "/api/uploads/", "/api/zuoyebang/"))
+                protected = not (path.startswith(("/api/agent/", "/api/auth/", "/api/uploads/", "/api/zuoyebang/", "/api/boxdetect/", "/boxdetect/"))
                     or path in ("/api/backup/export", "/api/backup/restore", "/api/backup/import",
                                 "/api/ai-recognize", "/api/trainpanel/try", "/api/entry-background", "/api/restart", "/api/export"))
                 with self._response_capture(protected):

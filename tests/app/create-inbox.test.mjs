@@ -404,9 +404,10 @@ test('框选策略表单与提交体：默认值、数值夹取、导出与清�
   const form = policyForm({ inbox_detect_provider: 'local_http', inbox_local_detect_url: 'http://x', inbox_blind_every: 3 });
   assert.deepEqual(form, { provider: 'local_http', local: 'http://x', blind: '3', conf: '0', upload: false, days: '7' });
   assert.equal(policyForm({ inbox_detect_provider: 'template' }).provider, 'vlm');
-  assert.equal(policyPayload({ provider: 'template' }).inbox_detect_provider, 'vlm');
+  assert.equal('inbox_detect_provider' in policyPayload({ provider: 'template' }), false);
+  assert.equal('inbox_local_detect_url' in policyPayload({ local: 'http://old' }), false);
   assert.deepEqual(policyPayload({ provider: 'vlm', local: ' http://y ', blind: '-2', conf: '1.7', upload: true, days: 'abc' }), {
-    inbox_detect_provider: 'vlm', inbox_local_detect_url: 'http://y', inbox_blind_every: 0,
+    inbox_blind_every: 0,
     inbox_auto_ready_conf: 1, inbox_auto_on_upload: true, inbox_discard_keep_days: 0,
   });
   assert.equal(exportHref('yolo'), '/api/inbox/dataset/export?format=yolo');

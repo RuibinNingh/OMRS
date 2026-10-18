@@ -65,7 +65,9 @@ for prefix in ['omrs', 'tools', 'torch', 'ultralytics']:
     assert importlib.util.find_spec(prefix) is None, prefix
     assert not any(n == prefix or n.startswith(prefix + '.') for n in sys.modules), prefix
 buf = io.BytesIO(); image.save(buf, 'PNG')
+long_buf = io.BytesIO(); Image.new('RGB', (320, 1600), 'white').save(long_buf, 'PNG')
 print(json.dumps({'image':'data:image/png;base64,'+base64.b64encode(buf.getvalue()).decode(),
+                 'long_image':'data:image/png;base64,'+base64.b64encode(long_buf.getvalue()).decode(),
                  'versions':{n:importlib.metadata.version(n) for n in ['onnxruntime','numpy','Pillow']}}))
 """
         audit_result = json.loads(run([str(python), '-I', '-c', audit, str(model / 'model.onnx'), str(meta['conf'])], outside, env))
@@ -75,7 +77,7 @@ print(json.dumps({'image':'data:image/png;base64,'+base64.b64encode(buf.getvalue
             sock.bind(('127.0.0.1', 0))
             port = sock.getsockname()[1]
         with (root / 'server.log').open('w') as log:
-            proc = subprocess.Popen([str(python), '-I', '-m', 'boxdetect_service', 'serve', '--model-dir', str(model), '--port', str(port)],
+            proc = subprocess.Popen([str(python), '-I', '-m', 'boxdetect_service', 'serve', '--model-dir', str(model), '--port', str(port), '--data-dir', str(root/'state'), '--legacy-loopback'],
                                     cwd=outside, env=env, stdout=log, stderr=log)
             try:
                 base = f'http://127.0.0.1:{port}'
@@ -101,11 +103,26 @@ print(json.dumps({'image':'data:image/png;base64,'+base64.b64encode(buf.getvalue
                     assert set(box) == {'label', 'bbox_2d', 'confidence'}
                     assert box['label'] in ['question', 'answer'] and len(box['bbox_2d']) == 4
                     assert all(0 <= value <= 1 for value in box['bbox_2d'])
+                def api(path,body=None,headers=None):
+                    req=urllib.request.Request(base+path,data=json.dumps(body).encode() if body is not None else None,
+                                               headers={'Content-Type':'application/json','Origin':base,**(headers or {})})
+                    with opener.open(req,timeout=30) as response:
+                        return json.load(response),dict(response.headers)
+                login,heads=api('/api/admin/login',{'password':(root/'state/admin-secret.txt').read_text().strip()})
+                admin={'Cookie':heads['Set-Cookie'].split(';')[0],'X-CSRF-Token':login['csrf_token']}
+                created,_=api('/api/admin/keys',{'name':'独立安装包验收'},admin)
+                whole,_=api('/api/v1/detect',{'image':audit_result['long_image'],'request_id':'e'*32},
+                            {'Authorization':'Bearer '+created['key']})
+                assert whole['strips']>1 and whole['model']['sha256']==meta['sha256']
+                history,_=api('/api/admin/history',headers=admin)
+                assert len([r for r in history['items'] if r['request_id']=='e'*32])==1
+                for path in ('/','/assets/panel.js','/assets/panel.css'):
+                    with opener.open(base+path,timeout=5) as response:assert len(response.read())>100
             finally:
                 proc.terminate()
                 proc.wait(timeout=5)
-        report = {'checks': 7, 'health': health, 'versions': audit_result['versions'],
-                  'forbidden_modules': [], 'http_boxes': len(predictions['boxes'])}
+        report = {'checks': 11, 'health': health, 'versions': audit_result['versions'],
+                  'forbidden_modules': [], 'http_boxes': len(predictions['boxes']),'whole_image_strips':whole['strips'],'panel_assets':3}
         if args.out:
             Path(args.out).write_text(json.dumps(report, ensure_ascii=False, indent=2))
         print(json.dumps(report, ensure_ascii=False))

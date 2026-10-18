@@ -4,6 +4,7 @@ try:
 except ImportError:  # Windows主程序仍可运行，只禁用本机systemd控制。
     fcntl = None
 import hashlib
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
@@ -261,6 +262,9 @@ class Controller:
             return op
         handle = self.acquire()
         try:
+            from .boxdetect import config as box_config
+            if box_config.snapshot(self.config['vault']).configured:
+                raise ValueError('框选服务已改由独立面板管理，请刷新后操作')
             state = self.state()
             if state.get('operation',{}).get('state')=='running': raise Conflict('上次操作待恢复，请刷新')
             if state['revision'] != data['revision']: raise Conflict('服务状态已被修改，请刷新后重试')
@@ -303,6 +307,9 @@ class Controller:
 
 
 def overview(vault):
+    from .boxdetect import config as box_config
+    if box_config.snapshot(vault).configured:
+        return {'supported':False,'message':'框选服务已改由独立面板管理模型；本机启停在设置中。'}
     config = registration(vault)
     if not config: return {'supported':False,'message':'此实例未登记受管检测服务，请由部署者配置；仍可使用已有检测地址。'}
     return Controller(config).overview()
@@ -310,6 +317,9 @@ def overview(vault):
 
 def recover_pending(vault):
     """服务器开始监听前同步回退中断操作；普通状态查询不触发服务变更。"""
+    from .boxdetect import config as box_config
+    if box_config.snapshot(vault).configured:
+        return {'supported':False,'state':'none'}
     config = registration(vault)
     if not config: return {'supported':False,'state':'none'}
     controller = Controller(config)
@@ -351,7 +361,62 @@ def managed_identity(url):
 
 
 def submit(vault, data, *, actor=None):
+    from .boxdetect import config as box_config
+    if box_config.snapshot(vault).configured:
+        raise ValueError('服务已启用独立管理，请在AI框选面板管理模型，在设置使用本机部署控制')
     config = registration(vault)
     if not config: raise ValueError('此实例未登记受管检测服务')
     if not isinstance(data,dict): raise ValueError('请求必须是对象')
     return Controller(config).submit(data, actor=actor)
+
+
+@contextmanager
+def connection_guard(vault):
+    """旧控制操作结束后才允许切换连接，避免两个模型控制器交叉发布。"""
+    registered=registration(vault)
+    if not registered:
+        yield;return
+    control=Controller(registered)
+    if not control.home.exists():
+        yield;return
+    handle=control.acquire()
+    try:
+        if control.state().get('operation',{}).get('state')=='running':
+            raise Conflict('旧模型操作尚未完成或待恢复，请先完成旧操作再保存连接')
+        yield
+    finally:handle.close()
+
+
+def service_command(vault, action, *, actor=None):
+    """新面板只保留显式登记的固定进程启停，不再修改模型指针。"""
+    from .boxdetect import config as box_config
+    if action not in ('start','stop','restart'):
+        raise ValueError('只支持启动、停止和重启固定检测服务')
+    registered=registration(vault)
+    if not registered:
+        raise ValueError('此实例未登记本机框选部署')
+    snapshot=box_config.snapshot(vault)
+    expected=f"http://127.0.0.1:{registered['port']}"
+    if snapshot.mode!='local' or snapshot.base_url.rstrip('/')!=expected:
+        raise ValueError('当前连接不是已登记的本机服务')
+    control=Controller(registered)
+    control.home.mkdir(parents=True,exist_ok=True)
+    handle=control.acquire()
+    ident=uuid.uuid4().hex
+    record={'request_id':ident,'action':action,'state':'running','started_at':time.time(),
+            'actor':actor or {'auth_mode':'local','session_id':'','client_ip':'127.0.0.1'}}
+    path=control.home/'service-operations'/(ident+'.json')
+    try:
+        box_config.assert_current(vault,snapshot)
+        write(path,record)
+        backend=control.backend
+        backend.command(action)
+        record.update(state='done',active=backend.active())
+        return {'action':action,'active':record['active'],'request_id':ident}
+    except Exception:
+        record.update(state='failed',error='本机服务操作失败，请测试连接核对状态')
+        raise ValueError(record['error']) from None
+    finally:
+        try:
+            record['finished_at']=time.time();write(path,record)
+        finally: handle.close()

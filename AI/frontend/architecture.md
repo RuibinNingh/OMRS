@@ -9,6 +9,8 @@
 
 ## 1. 目录与依赖方向
 
+框选设置由settings内的boxdetect控制器拥有，训练表单仅写训练策略；`/train`与独立服务面板 `/boxdetect/`职责分开。服务面板资产位于services/boxdetect，不引入主站feature依赖；同源入口使用本仓库资产，外部服务仅提供数据。`tests/e2e/boxdetect_panel.py`覆盖设置、Key、检测与历史链路；原settings/create/trainpanel/traincontrol浏览器门禁分别维护页面回归。
+
 工作台页面的浏览器验收须检查实际滚动可达性；Playwright点击时自动滚入元素不能替代滚轮验证。`tests/e2e/zuoyebang.py` 覆盖桌面限高与窄屏文档滚动，并检查确认识别按钮进入视口。其`zuoyebang_dialog.py`专项验证并排预览、识别工作窗、模态分类建议和底部录入操作；窗口保持在页面宿主内，复用既有事件委托和表单监听，离页关闭模态并保留恢复标记。
 
 作业帮手机题图回归由该脚本调用zuoyebang_mobile.py，真实恢复没有layout字段的合成预览，验证重新生成期间编辑／刷新、草稿移交和旧资产保全；版本与兼容规则见 `AI/frontend/zuoyebang.md`。

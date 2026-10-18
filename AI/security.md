@@ -77,7 +77,17 @@ get_question_image 只接受 UID 与图片下标，按共享 get_question.images
 
 评测读取与图片端点沿用登录授权，图片按登记ID读取且校验根目录边界。复核POST沿用同源和全局写锁，SQLite事务检查revision后追加，不能覆盖历史或修改训练标签。付费评测仅在独立CLI中启动，读取助手渠道配置，密钥不写入产物或响应。正文里的指令视为待检查图片内容，不改变裁判规则。
 
-## 受管检测服务边界
+## 独立 AI 框选服务边界
+
+面板与检测API共用既有监听，OMRS通过 `/boxdetect/` 同源入口接入。主站管理授权与独立管理员会话叠加；框选Key仅能调用versioned状态／检测，不能管理服务、读取原图或访问其它OMRS API。管理员登录使用scrypt摘要、失败限流与1小时会话，写操作严格Origin/CSRF；Key只显示一次、库内只存摘要，吊销在执行前后检查，推理期间吊销记录失败。公网调用另需服务对外开关。
+
+代理不转发OMRS Cookie或保存的框选Key到管理接口。管理员Cookie另命名、HttpOnly、SameSite=Strict、限`/boxdetect/`，绑定目标和连接revision；换服务不把旧令牌发给新目标。面板代码只用本仓库资产，上游只能返回JSON或签名／类型匹配的PNG/JPEG/GIF，固定CSP且禁缓存，不能把外部服务脚本放到OMRS同源。动态文字及属性转义，详情blob退出／关闭时释放。
+
+地址严格解析、校验全部DNS结果后固定IP连接，公网HTTPS、私网显式信任，拒绝危险路径、凭据、重定向和环境代理；网络并发、总期限、正文和响应均有界。配置Key独立0600文件，服务私有目录0700／文件0600，原图仅管理员读取；保留与备份边界见 `AI/boxdetect.md`。默认不开放匿名旧协议，只有显式legacy-loopback且真实回环来源才例外，可信代理的远端IP不能绕过对外开关。
+
+## 旧受管检测服务边界
+
+新版连接启用后旧模型控制与启动恢复禁用，保存连接与旧操作锁互斥；设置保留固定unit进程启停，动作和发起者记入独立service-operations，不改模型。下述旧模型切换契约仅用于未迁移部署。
 
 控制能力必须由进程环境OMRS_BOXDETECT_CONTROL指向部署者登记文件，精确绑定Vault、训练根、回环URL/端口及固定omrs-boxdetect.service；页面配置不能授予systemd能力，临时Vault即使继承环境也不能操作生产。后端只接受固定action列表，以argv调用固定systemctl，不接受网页传入命令、unit、任意模型路径或端口。候选以实验ID、权重与ONNX哈希校验，active限制在managed/snapshots内。
 

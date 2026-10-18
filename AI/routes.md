@@ -62,6 +62,10 @@
 | POST | `/api/board/printed/reset` | `AI/api/boards.md`、`AI/board.md` |
 | POST | `/api/board/update` | `AI/api/boards.md`、`AI/board.md`、`AI/frontend/board-ui.md` |
 | GET | `/api/boards` | `AI/api/extensions.md`、`AI/api/queries.md`、`AI/board.md`等 |
+| POST | `/api/boxdetect/control` | `AI/api/extensions.md`、`AI/boxdetect.md` |
+| GET/POST | `/api/boxdetect/service` | `AI/api/extensions.md`、`AI/boxdetect.md` |
+| POST | `/api/boxdetect/service/test` | `AI/api/extensions.md`、`AI/boxdetect.md` |
+| GET | `/api/boxdetect/status` | `AI/api/extensions.md`、`AI/boxdetect.md` |
 | GET/POST | `/api/config` | `AI/agent.md`、`AI/api/extensions.md`、`AI/api/mutations.md`等 |
 | POST | `/api/confirm-schedule` | `AI/algorithm.md`、`AI/api/boards.md`、`AI/api/mutations.md`等 |
 | POST | `/api/create` | `AI/api/mutations.md`、`AI/data.md`、`AI/frontend/create.md` |
@@ -167,7 +171,7 @@
 | GET | `/api/trainpanel/reviews` | `AI/api/extensions.md` |
 | GET | `/api/trainpanel/run` | `AI/api/extensions.md` |
 | GET | `/api/trainpanel/service` | `AI/api/extensions.md` |
-| POST | `/api/trainpanel/try` | `AI/api/extensions.md`、`AI/training/README.md` |
+| POST | `/api/trainpanel/try` | `AI/api/extensions.md`、`AI/frontend/trainpanel.md`、`AI/training/README.md` |
 | GET | `/api/tree` | `AI/api/queries.md`、`AI/changelog.md`、`AI/frontend/dashboard.md` |
 | POST | `/api/uploads/chunk` | `AI/api.md` |
 | POST | `/api/uploads/complete` | `AI/api.md` |
@@ -184,6 +188,7 @@
 | GET/POST | `/api/zuoyebang/service` | `AI/frontend/settings.md`、`AI/zuoyebang-service.md`、`AI/zuoyebang.md` |
 | POST | `/api/zuoyebang/service/test` | `AI/frontend/settings.md`、`AI/zuoyebang-service.md`、`AI/zuoyebang.md` |
 | GET | `/api/zuoyebang/status` | `AI/zuoyebang-service.md`、`AI/zuoyebang.md` |
+| GET | `/boxdetect` | `AI/api/extensions.md`、`AI/boxdetect.md` |
 | GET | `/index.html` | `AI/api/queries.md` |
 | GET | `/login` | `AI/api/queries.md`、`AI/frontend/shell.md`、`AI/inbox.md`等 |
 | GET | `/m` | `AI/api/extensions.md`、`AI/inbox.md`、`AI/security.md` |
@@ -192,3 +197,4 @@
 按前缀分派（具体子路由见上表或对应文档）：
 
 - GET `/assets/…`
+- GET/POST `/boxdetect/…`

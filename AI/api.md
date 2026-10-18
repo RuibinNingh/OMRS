@@ -21,6 +21,7 @@
 | 题目、反馈、配置、认证与备份写入 | `AI/api/mutations.md` |
 | 调度、导出与展示板 | `AI/api/boards.md` |
 | 收件箱、草稿、标注、训练与 MCP | `AI/api/extensions.md` |
+| AI框选配置、Key、同源面板、整图检测与历史 | `AI/boxdetect.md` |
 | 作业帮网关配置、原图／题框、搜题、完整长图与录入 | `AI/zuoyebang.md`、`AI/zuoyebang-service.md` |
 | 全库备份、恢复协议与回退 | `AI/backup.md` |
 | 运行／AI 请求日志清单与选中文件 ZIP | `AI/api/queries.md`、`AI/api/mutations.md` |
@@ -36,7 +37,7 @@ MCP 草稿正文和正式改题提案兼容成对 LaTeX 反斜杠定界符，自
 
 收件箱与草稿区域提取的数学定界符转义兼容、正文格式及失败边界见 `AI/api/extensions.md`「收件箱端点」与 `AI/inbox.md` §4。
 
-训练面板的服务预检通过独立 `boxdetect_service probe` 子进程执行，采用明确服务工作目录和原有 systemd 限额；主进程不导入 tools 或推理框架。训练／控制接口与模型状态格式保持，启动命令与源码导出范围见 `AI/api/extensions.md`。
+训练面板的服务预检通过独立 `boxdetect_service probe` 子进程执行，采用明确服务工作目录和原有 systemd 限额；主进程不导入 tools 或推理框架。新版服务接管在线模型状态，旧控制仅作未迁移部署兼容，启动命令与源码导出范围见 `AI/api/extensions.md`。
 
 `omrs/http/registry.py` 是方法、路径及领域分派的唯一清单，`tests/check_docs.py --write-routes` 从它生成 `AI/routes.md`。新增路由必须登记注册表及对应分册。HEAD 使用相同 GET 鉴权、路径和资源处理，返回相同状态及响应头但没有正文。
 
@@ -61,6 +62,8 @@ auth、uploads、模型识别与重启等路由按领域取得必要的短锁；
 CLI `content-recover` 在锁外读取本机清单与候选正文，核验和补入使用同一生命周期租约 → 写锁 → SQLite事务顺序，与HTTP写入及全库恢复协调。它默认只预览，`--apply` 才补缺失blob，不新增HTTP路由；具体清单与原子性见 `AI/ledger.md` §10。
 
 `POST /api/logs/export` 只读固定日志目录，豁免业务写锁；读取与临时ZIP生成保持生命周期租约，响应捕获完成后才向客户端发送。临时件在成功及失败时清理，不在Vault新增导出文件。日志清单与下载都禁止缓存，鉴权与同源规则沿用普通Web接口。
+
+框选 `/api/boxdetect/`、`/boxdetect/` 的网络代理不持外层业务写锁或长租约；连接保存自行取短租约及写锁，本机进程操作用登记文件锁串行，旧模型操作与连接切换互斥。独立服务数据库有自己的锁；原图代理响应限22MiB，外部内容不得作为OMRS同源脚本或HTML。检测写入前复查配置与Vault世代，详见 `AI/boxdetect.md`。
 
 ## 3. 请求边界与错误
 

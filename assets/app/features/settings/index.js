@@ -1,4 +1,4 @@
-/** 设置页契约：七分区装配、局部导航与页面生命周期。 */
+/** 设置页契约：八分区装配、局部导航与页面生命周期。 */
 import { morph } from '../../core/dom.js';
 import { view } from './view.js';
 import { createAppearance } from './appearance.js';
@@ -11,6 +11,7 @@ import { createService } from './service.js';
 import { createLogExport } from './logs.js';
 import { createMcpKeys } from './mcp-keys.js';
 import { createTuning } from './tuning.js';
+import { createBoxdetect } from './boxdetect.js';
 import { createZuoyebangService } from './zuoyebang.js';
 import { SECTIONS, SECTION_KEY, sectionOf } from './state.js';
 
@@ -27,6 +28,7 @@ let logExport = null;
 let mcpKeys = null;
 let tuning = null;
 let zuoyebang = null;
+let boxdetect = null;
 let current = 'appearance';
 
 function openSection(value, { focus = false } = {}) {
@@ -67,6 +69,7 @@ export const page = {
     agent = createAgent(root, ctx.bus);
     storage = createStorage(root);
     tuning = createTuning(root);
+    boxdetect = createBoxdetect(root, { bus: ctx.bus });
     zuoyebang = createZuoyebangService(root, { bus: ctx.bus });
     let saved = '';
     try { saved = localStorage.getItem(SECTION_KEY) || ''; } catch { /* 使用默认分区。 */ }
@@ -89,8 +92,10 @@ export const page = {
     service.load();
     mcpKeys.load();
     zuoyebang.load();
+    boxdetect.load();
     return () => {
       root?.removeEventListener('keydown', onKeys);
+      boxdetect?.dispose(); boxdetect = null;
       zuoyebang?.dispose(); zuoyebang = null;
       logExport?.dispose(); logExport = null;
       access?.dispose(); ai?.dispose(); agent?.dispose(); storage?.dispose(); tuning?.dispose(); service?.dispose(); mcpKeys?.dispose(); entryBackground?.dispose();
@@ -98,6 +103,13 @@ export const page = {
     };
   },
   actions: {
+    boxLoad: () => boxdetect?.load(),
+    boxSave: () => boxdetect?.save(),
+    boxTest: () => boxdetect?.test(),
+    boxProvider: () => boxdetect?.provider(),
+    boxClearKey: () => boxdetect?.clearKey(),
+    boxControl: ({ arg }) => boxdetect?.control(arg),
+    boxChanged: () => boxdetect?.changed(),
     zybLoad: () => zuoyebang?.load(),
     zybSave: () => zuoyebang?.save(),
     zybTest: () => zuoyebang?.test(),
