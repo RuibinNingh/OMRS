@@ -149,8 +149,8 @@ class BodyCompatibility(unittest.TestCase):
             with Image.open(Path(work) / 'question.png') as image:
                 ink = image.convert('L').point(lambda value: 255 if value < 128 else 0).getbbox()
                 self.assertEqual(image.size, (1080, result['question']['height']))
-                # 17 CSS px以3倍输出，中文字符应接近51物理像素高。
-                self.assertGreater(ink[3] - ink[1], 40)
+                # 15 CSS px以3倍输出，中文笔画仍须保留足够的物理像素。
+                self.assertGreater(ink[3] - ink[1], 36)
             self.assertEqual(result['layout']['css_width'], 360)
             self.assertEqual(result['layout']['device_scale_factor'], 3)
             self.assertEqual(result['question']['height'] % 3, 0)

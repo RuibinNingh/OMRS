@@ -140,13 +140,15 @@ test('按位置展示候选，异常坐标仍保留题号且人工草稿互不�
   bindSearch(s, { ...search, id: 'search-two' }); assert.deepEqual(s.renderIds, {});
 });
 
-test('旧预览可主动生成手机版，原图裁切与已有创建预留保持原样', () => {
+test('旧版手机版和无版本预览可主动重新生成，原图裁切与已有创建预留保持原样', () => {
   const s = newZybState();
   s.search = { id: 'search-one' }; s.selected = 0;
   const old = { ...record('old'), search_id: s.search.id, candidate: { index: 0 } };
-  bindCard(s, old);
-  assert.equal(canRegenerate(s), true);
-  assert.match(String(previewView(s)), /重新生成手机版/);
+  for (const layout of [undefined, { version: 'mobile-360-v1' }]) {
+    bindCard(s, { ...old, layout });
+    assert.equal(canRegenerate(s), true);
+    assert.match(String(previewView(s)), /重新生成手机版/);
+  }
   for (const change of [{ source_kind: 'crop' }, { commit: {} }, { layout: { version: MOBILE_LAYOUT_VERSION } }]) {
     bindCard(s, { ...old, ...change });
     assert.equal(canRegenerate(s), false);

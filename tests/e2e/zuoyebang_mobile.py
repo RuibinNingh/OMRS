@@ -12,9 +12,9 @@ def verify_mobile(page, context, base, vault, output, check):
     page.wait_for_function("() => {const s=JSON.parse(sessionStorage.getItem('omrs-zuoyebang-workspace'));return s.selected===1 && s.render_id && !s.job}")
     identity = page.evaluate(saved)['render_id']
     record = store.read(vault, identity)
-    check('新候选记录保存手机排版和高清倍率', record['layout'] == {'version': 'mobile-360-v1', 'css_width': 360, 'device_scale_factor': 3})
-    # 无layout字段是已保存旧记录的兼容形态；PNG和原搜索正文保留原样。
-    record.pop('layout')
+    check('新候选记录保存手机排版和高清倍率', record['layout'] == {'version': 'mobile-360-v2', 'css_width': 360, 'device_scale_factor': 3})
+    # 旧版手机版仍可读取并主动重新生成；PNG和原搜索正文保留原样。
+    record['layout']['version'] = 'mobile-360-v1'
     store.save(vault, identity, record)
     page.reload(wait_until='networkidle')
     upgrade = page.get_by_role('button', name='重新生成手机版', exact=True)
@@ -66,7 +66,7 @@ def verify_mobile(page, context, base, vault, output, check):
     check('升级复用已有搜题正文且只启动一次渲染', requests == ['render'])
     current_id = page.evaluate(saved)['render_id']
     current = context.request.get(base + '/api/zuoyebang/record?id=' + current_id).json()['record']
-    check('新版记录包含排版版本且不再提示升级', current['layout']['version'] == 'mobile-360-v1' and upgrade.count() == 0)
+    check('新版记录包含排版版本且不再提示升级', current['layout']['version'] == 'mobile-360-v2' and upgrade.count() == 0)
     check('旧预览记录和图片未被替换', (store.location(vault, identity) / 'record.json').read_bytes() == original_record and (store.location(vault, identity) / 'question.png').read_bytes() == original_png)
     for role in ('question', 'answer'):
         (output / f'mobile-{role}.png').write_bytes(context.request.get(base + current['images'][role]['url']).body())

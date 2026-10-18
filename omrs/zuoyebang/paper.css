@@ -1,7 +1,7 @@
 /* 输出纸面是固定白底，不随工作台主题变化。仅可信模板拥有这些规则。 */
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; width: 360px; background: #fff; color: #202124; }
-#paper { width: 360px; padding: 16px; font-family: 'Noto Sans SC', sans-serif; font-size: 17px; line-height: 1.65; overflow-wrap: anywhere; }
+#paper { width: 360px; padding: 16px; font-family: 'Noto Sans SC', sans-serif; font-size: 15px; line-height: 1.5; overflow-wrap: anywhere; }
 p, blockquote { margin: 0 0 12px; }
 div, span { max-width: 100%; }
 img { max-width: 100%; height: auto; vertical-align: middle; }
@@ -33,7 +33,7 @@ td, th { border: 1px solid #a6a8aa; padding: 4px 6px; overflow-wrap: anywhere; }
 .tkspec-align-justify { display: block; text-align: justify; }
 td[class*="tkspec-align"], th[class*="tkspec-align"] { display: table-cell; }
 td.tkspec-table-diagonal-normal { background: linear-gradient(to top right, transparent calc(50% - .8px), #323233 50%, transparent calc(50% + .8px)); white-space: pre-wrap; }
-.tk-md2html-content { font-size: 1em; line-height: 1.6; }
+.tk-md2html-content { font-size: 1em; line-height: 1.5; }
 .tk-md2html-content p { margin: 0; }
 .tk-md2html-content p + p, .tk-md2html-content li + li { margin-top: .53em; }
 .tk-md2html-content .p-h1, .tk-md2html-content .p-h2, .tk-md2html-content .p-h3 { font-weight: 600; margin-bottom: .8em; }

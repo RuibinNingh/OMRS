@@ -1,6 +1,6 @@
 /** 作业帮题卡状态及迟到 AI 结果的合并规则；不保存账号凭据。 */
 export const ROLES = ['question', 'answer'];
-export const MOBILE_LAYOUT_VERSION = 'mobile-360-v1';
+export const MOBILE_LAYOUT_VERSION = 'mobile-360-v2';
 export function newZybState() {
   return { session: null, sessionError: '', accountPanel: '', camera: { on: false, pending: false, message: '摄像头未开启' },
     sourceMode: 'upload', file: null, fileUrl: '', search: null, selected: null, region: null, render: null, role: 'question', zoom: 'fit', showHtml: false,

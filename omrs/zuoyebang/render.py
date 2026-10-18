@@ -9,7 +9,7 @@ from .store import ZybError
 ASSETS = Path(__file__).resolve().parents[2] / 'assets' / 'vendor'
 TRUSTED = Path(__file__).with_name('mathjax.js')
 LAYOUT_SCRIPT = Path(__file__).with_name('layout.js')
-LAYOUT_VERSION = 'mobile-360-v1'
+LAYOUT_VERSION = 'mobile-360-v2'
 CSS_WIDTH = 360
 SCALE = 3
 WIDTH = CSS_WIDTH * SCALE
