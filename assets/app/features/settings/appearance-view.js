@@ -39,6 +39,12 @@ export const appearanceView = () => html`<section class="st-section" id="st-sec-
           <div class="card st-card st-entry-background-card">
             <div class="card-title">入口背景</div>
             <p class="hint st-lead">只作用于入口锁屏页，工作台页面背景、主题和布局保持不变。当前自定义背景会显示给能够访问入口页的设备。</p>
+            <div class="st-row">
+              <div class="st-row-text"><label class="st-row-label" for="st-entry-quality">入口动画强度</label><div class="hint">只保存在当前浏览器。自动从轻量开始，设备资源有限或持续卡顿时显示静态背景；系统减少动态效果优先。静态模式的视频和 GIF 使用黑洞静态背景。</div></div>
+              <select id="st-entry-quality" class="ui-select st-select" data-change="settings.entryQuality">
+                <option value="auto">自动（推荐）</option><option value="light">轻量</option><option value="full">完整</option><option value="static">静态</option>
+              </select>
+            </div>
             <div class="st-entry-background-presets" role="group" aria-label="入口背景预设">
               <button class="st-entry-preset active" type="button" id="st-entry-background-black-hole" data-action="settings.entryBackgroundMode" data-arg="black-hole" aria-pressed="true">
                 <span class="st-entry-preset-visual st-entry-hole-thumb" aria-hidden="true"></span><strong>黑洞</strong><small>现有 WebGL 入口视觉</small>

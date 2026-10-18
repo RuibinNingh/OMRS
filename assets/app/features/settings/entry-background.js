@@ -1,5 +1,6 @@
 /** 入口背景的纯规则与设置卡片控制器。入口页和设置页共用模式、样式与模糊参数语义。 */
 import { get, post } from '../../core/api.js';
+import { chooseEntryQuality, readEntryFallback, readEntryQuality } from '../../core/entry-quality.js';
 
 export const ENTRY_BACKGROUND_MODES = ['black-hole', 'custom'];
 export const ENTRY_BACKGROUND_STYLE = 'gaussian-blur';
@@ -71,9 +72,15 @@ export function createEntryBackground(root) {
     previewUrl = '';
   }
 
+  function stopPreview() {
+    const video = el('st-entry-background-preview')?.querySelector?.('video');
+    if (video) { video.pause(); video.removeAttribute('src'); video.load(); }
+  }
+
   function renderPreview() {
     const host = el('st-entry-background-preview');
     if (!host || typeof document === 'undefined') return;
+    stopPreview();
     host.replaceChildren();
     host.dataset.mode = state.mode;
     host.dataset.blur = String(state.blur_px);
@@ -98,6 +105,17 @@ export function createEntryBackground(root) {
       empty.className = 'st-entry-preview-empty';
       empty.textContent = '上传图片或视频后在这里预览';
       host.append(empty);
+      return;
+    }
+    const quality = chooseEntryQuality({ preference: readEntryQuality(),
+      reduced: globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+      cores: globalThis.navigator?.hardwareConcurrency, memory: globalThis.navigator?.deviceMemory,
+      saveData: globalThis.navigator?.connection?.saveData, fallback: readEntryFallback() }).quality;
+    const mime = file?.type || asset?.mime;
+    if (quality === 'static' && (kind === 'video' || mime === 'image/gif')) {
+      const still = document.createElement('img');
+      still.src = '/assets/vendor/entry-poster.webp'; still.alt = '静态模式的黑洞背景';
+      host.append(still);
       return;
     }
     const media = document.createElement(kind === 'video' ? 'video' : 'img');
@@ -191,5 +209,5 @@ export function createEntryBackground(root) {
   }
 
   return { load, mode, blur, choose, save, render, state: () => state,
-    dispose() { alive = false; pendingFile = null; revokePreview(); } };
+    dispose() { alive = false; pendingFile = null; stopPreview(); revokePreview(); } };
 }

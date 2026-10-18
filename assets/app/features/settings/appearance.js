@@ -1,5 +1,6 @@
 /** 外观与显示：偏好只保存在当前浏览器。 */
 import { ledgerTimeZone } from '../../domain/history.js';
+import { readEntryQuality, writeEntryQuality } from '../../core/entry-quality.js';
 
 const put = (key, value) => { try { localStorage.setItem(key, value); } catch { /* 本次设置仍可生效。 */ } };
 
@@ -14,9 +15,12 @@ export function createAppearance(root, bus) {
     if (invert) invert.checked = html.dataset.invertImg === '1';
     const zone = root.querySelector('#st-ledger-time-zone');
     if (zone) zone.value = ledgerTimeZone();
+    const quality = root.querySelector('#st-entry-quality');
+    if (quality) quality.value = readEntryQuality();
   };
   return {
     sync,
+    entryQuality(value) { writeEntryQuality(value); sync(); },
     theme(mode) { const value = mode === 'dark' ? 'dark' : 'light'; put('omrs-theme', value); document.documentElement.dataset.theme = value; sync(); },
     density(mode) { const value = mode === 'comfortable' ? 'comfortable' : 'compact'; put('omrs-density', value); document.documentElement.dataset.density = value; sync(); },
     invert(on) { const value = on ? '1' : '0'; put('omrs-invert-img', value); document.documentElement.dataset.invertImg = value; sync(); },

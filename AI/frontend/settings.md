@@ -4,7 +4,7 @@
 > - 职责：外观、访问与安全、AI 识别、AI 助手、作业帮服务、数据与存储、服务与运行七分区
 > - 入口：`assets/app/features/settings/index.js`，挂载根 `omrs_dashboard.html` 的 `#st-app`
 > - 不变量：重启只认新的 `instance_id`；只改免 PIN 网段不重启；AI Key 不回显；外观键名保持兼容
-> - 必跑测试：`tests/app/settings.test.mjs`、`tests/app/settings-logs.test.mjs`、`tests/e2e/settings.py`、`tests/e2e/settings_logs.py`、`tests/e2e/mcp.py`、`tests/test_source_export.py`、`tests/test_log_export.py`
+> - 必跑测试：`tests/app/settings.test.mjs`、`tests/app/entry-quality.test.mjs`、`tests/app/settings-logs.test.mjs`、`tests/e2e/settings.py`、`tests/e2e/entry_quality.py`、`tests/e2e/settings_logs.py`、`tests/e2e/mcp.py`、`tests/test_source_export.py`、`tests/test_log_export.py`
 > - 相关：`AI/frontend/shell.md`、`AI/security.md`、`AI/api.md`、`AI/frontend/design-system.md`
 
 ## 页面结构与生命周期
@@ -17,7 +17,9 @@
 
 主题、密度与深色题图反相分别使用原有 `omrs-theme`、`omrs-density`、`omrs-invert-img` 本地键；修改后立刻更新 `<html>` 对应属性。首次主题沿用首帧脚本的深色默认值。Ledger 时区使用 `omrs-ledger-time-zone`，修改时发 `ledger:tz` 总线事件，历史记录与仪表盘最近动态按新时区显示；带时区偏移的时间戳才转换，旧的无偏移时间保留原墙上时间。
 
-同一分区的「入口背景」卡片写入当前 Vault 的 `entry_background`：默认黑洞 WebGL 预设，也可切换到自定义并上传图片或视频。浏览器先本地预览，保存时才通过 `multipart/form-data` 上传；支持的文件由服务端再次校验，单文件上限 200MB。自定义模式首版提供「高斯模糊」，滑杆为 0–32px，预览与入口页使用同一套夹取规则。切回黑洞不会删除已保存媒体，卡片会显示当前文件类型和大小，并提示入口访问设备都能看到自定义背景。
+同一分区的「入口背景」卡片写入当前 Vault 的 `entry_background`：默认黑洞 WebGL 预设，也可切换到自定义并上传图片或视频。浏览器先本地预览，保存时才通过 `multipart/form-data` 上传；支持的文件由服务端再次校验，单文件上限 200MB。自定义模式首版提供「高斯模糊」，滑杆为 0–32px，保存值按0–32px夹取，完整档按保存值显示，其他入口档位最多8px。切回黑洞不会删除已保存媒体，卡片会显示当前文件类型和大小，并提示入口访问设备都能看到自定义背景。
+
+入口动画强度提供自动、轻量、完整、静态，使用 `omrs-entry-quality` 浏览器本地键，修改立即保存，无需点击「保存入口背景」。设置页与入口使用同一纯规则，系统减少动态效果优先；手动重选清除短期自动降级记录。背景内容仍保存到Vault，不同设备的动画强度独立。静态模式下视频和GIF的设置预览显示压缩黑洞静态图，不启动媒体播放；切换强度时预览重绘并暂停旧视频。黑洞预算、自动降级阈值与生命周期见 `AI/frontend/shell.md`。
 
 ## 访问与安全
 

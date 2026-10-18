@@ -1,9 +1,10 @@
 {
   "files": {
-    "entry-scene.js": "574b1ea9eab0559672e0a66c4b8711893ca6ae446d155cdad61c78c333ccdb1f",
+    "entry-scene.js": "b14fde4a8ea3303f90819bdc13cdbdaa2c092e915c79d261498d264fff1a12d2",
     "entry-math-atlas.svg": "b0b91e68186c0d2c86d42295682f2e48f19695ca4a4a6aac93abf261e4405382",
     "entry-fallback.webp": "0fc0a390d99a27d4108a52fa4826b6062444e3f5c3ecc296f68ed26acf80779f",
-    "entry-scene-THREE-LICENSE": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc"
+    "entry-scene-THREE-LICENSE": "8b378ebe60e2fe500158cb0ac71cb5e8b7d92953c2abcc63a0eb90499653b5bc",
+    "entry-poster.webp": "97bbb913d3898081023ebe95e4b9a91a58c7ba79f4418614ef1410a1f94dac92"
   },
   "repository_origin": {
     "commit": "1f88c781ddf71eb85fe7048d622da83de559a2a0",

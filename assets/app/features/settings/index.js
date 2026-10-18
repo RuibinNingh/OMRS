@@ -109,6 +109,7 @@ export const page = {
     density: ({ arg }) => appearance?.density(arg),
     invert: ({ el }) => appearance?.invert(el.checked),
     timeZone: ({ value }) => appearance?.timeZone(value),
+    entryQuality: ({ value }) => { appearance?.entryQuality(value); entryBackground?.render(); },
     entryBackgroundMode: ({ arg }) => entryBackground?.mode(arg),
     entryBackgroundStyle: () => entryBackground?.render(),
     entryBackgroundBlur: ({ value }) => entryBackground?.blur(value),

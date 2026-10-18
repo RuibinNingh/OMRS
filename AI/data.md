@@ -13,7 +13,7 @@
 
 Vault根的`.omrs-maintenance/`保存生命周期锁、世代、恢复预检与journal，独立于可交换的`错题/`；Git与`错题/`一起忽略该维护目录，防止把暂存的个人数据或恢复材料纳入源码提交。备份与恢复边界见`AI/backup.md`。
 
-锁屏入口的 WebGL 场景只读取静态资源，不读取或写入 Vault、Ledger、配置和题目文件；PIN 会话仍由 `auth.json` 与进程内存会话管理，入口本身不产生持久化数据。
+锁屏入口的 WebGL 场景只读取静态资源，不写入 Vault、Ledger、配置和题目文件；PIN 会话仍由 `auth.json` 与进程内存会话管理。动画强度和短期降档记录只保存在当前浏览器，键名与有效期见 `AI/frontend/shell.md`；自定义背景继续读取既有入口背景配置。
 
 框选检测服务源码位于 services/boxdetect；训练与受管数据仍在 Vault 外的训练根目录，格式见 `AI/data/storage.md` §8。源码拆分不迁移模型、managed 指针、revision、操作历史或锁；独立服务只读取调用者显式指定的模型目录，控制写仍由 OMRS 执行。
 

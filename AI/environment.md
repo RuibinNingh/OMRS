@@ -102,7 +102,13 @@ python3 tests/fixtures/make_vault.py --out /tmp/fx/full
 python3 tests/fixtures/make_vault.py --out /tmp/fx/empty --profile empty
 ```
 
-**公网加载实测。** `python3 tests/bench_web_load.py --out /tmp/omrs-web-load.json` 自建演示 Vault、随机端口和浏览器上下文，默认模拟 100ms 延迟、5Mbps 下载，每次分别测冷启动和真实刷新。可用 `--tree <基线源码目录>` 比较同一命令下的版本，`--runs` 调整次数；`OMRS_TEST_CDP_URL` 沿用受信任本机 CDP 配方。结果包含仪表盘数据就绪时间、CSS / JS 请求数、传输字节、缓存与脚本错误，不接生产端口或真实数据，不把偶发时间波动作为功能门禁。
+**模拟网络下的工作台加载实测。** `python3 tests/bench_web_load.py --out /tmp/omrs-web-load.json` 自建演示 Vault、随机端口和浏览器上下文，默认模拟 100ms 延迟、5Mbps 下载，每次分别测冷启动和真实刷新。可用 `--tree <基线源码目录>` 比较同一命令下的版本，`--runs` 调整次数；`OMRS_TEST_CDP_URL` 沿用受信任本机 CDP 配方。结果包含仪表盘数据就绪时间、CSS / JS 请求数、传输字节、缓存与脚本错误，不接生产端口或真实数据，不把偶发时间波动作为功能门禁。
+
+**入口分档实测。** `python3 tests/bench_entry_load.py --ref HEAD --runs 3 --seconds 10 --out /tmp/omrs-entry-bench.json` 从Git归档基线和当前树分别启动临时PIN Vault、随机端口，直接访问真实锁屏。默认100ms延迟、5Mbps，桌面1440×900／DPR1、手机390×844／DPR3、大屏2560×1440／DPR2；可用 `--scenarios desktop,mobile`、`--profiles auto,light,static,full`、`--cpu-rate 4` 调整。复用浏览器进程、每次新建冷HTTP缓存上下文，不清空进程级着色器与系统缓存。结果含首屏绘制、PIN可用、背景就绪、输入往返／事件排队、绘制FPS、浏览器进程CPU时间、渲染像素、贴图像素、JS堆和传输字节；CPU100%表示一个逻辑核，不是整机百分比，JS堆不含GPU显存。软件WebGL与CPU节流不能当实体设备功耗验证。
+
+`python3 tests/e2e/entry_quality.py` 是入口强度功能门禁：真实WebGL、PIN登录、设置回读、异步取消与资源释放；低核／省流量、持续低帧率、标签页隐藏和闲置时钟分别模拟。视频使用内嵌合成VP9样本，不依赖ffmpeg；静态视频／GIF必须无媒体请求。`OMRS_ENTRY_SHOTS` 指定截图目录。普通图片／背景配置仍由 `tests/e2e/entry_background.py` 验证，组件和工作台的门禁不代替入口测量。
+
+CPU节流结果需要空白页对照：当前Linux Chromium在4倍CDP节流下，空白页也产生约77%的单核CPU计量，而不节流约0.8%；节流档CPU不能直接当页面自身开销。节流不等同低端GPU，正式CPU对比优先使用未节流的重复样本，并同时保留渲染器名称和单次原始数据。
 
 **前后截图对比。** `tests/visual/run.py` 用 `git worktree` 检出基线，与当前工作区各起一个实例、各喂同一份 fixture 副本，按 12 页 × 浅/深 × 桌面 1440 / 手机 390 截图并做像素差分。产物是 `report.html`、`audit.json`（每页字号种数、最小字号、小于 28px 的可点目标、行内样式数、横向溢出），仓库里不存金标图。审计只计非空 `style` 属性，字号和行内样式均排除 KaTeX 内部。页面内冻结 `Date`、注入样式关闭动效；`--pages ai-review --review-kind draft` 对比真实草稿并排工作区，默认审核类型仍为 operation；服务端实时内容在脚本的 `MASKS` 里登记后截图时遮住。约 1–2 分钟，放后台轮询：
 

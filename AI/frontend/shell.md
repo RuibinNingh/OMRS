@@ -2,9 +2,9 @@
 
 > **速查**
 > - 职责：页面外壳：`assets/` 文件划分与加载顺序、侧栏与顶栏、hash 路由的外壳一侧、整屏工作台布局、主题 token 与深色对比度
-> - 入口：`omrs_dashboard.html`、`assets/app/theme-boot.js`、`assets/app/main.js`、`assets/app/shell.js`、`assets/app/styles/shell.css`、`assets/app/styles/tokens.css`、`assets/app/styles/index.css`
+> - 入口：`omrs_dashboard.html`、`assets/app/entry-background.js`、`assets/app/theme-boot.js`、`assets/app/main.js`、`assets/app/shell.js`、`assets/app/styles/shell.css`、`assets/app/styles/tokens.css`、`assets/app/styles/index.css`
 > - 不变量：`main.js` 装配页面契约与领域服务后启动路由；外壳负责面板生命周期、侧栏和顶栏状态；颜色一律走 token，不在规则里写死浅色值
-> - 必跑测试：`tests/e2e/shell_router.py`、`tests/e2e/catalog.py`、`tests/app/settings.test.mjs`、`tests/e2e/settings.py`
+> - 必跑测试：`tests/e2e/shell_router.py`、`tests/e2e/entry_quality.py`、`tests/e2e/catalog.py`、`tests/app/entry-quality.test.mjs`、`tests/app/settings.test.mjs`、`tests/e2e/settings.py`
 > - 相关：`AI/frontend.md`（索引）
 
 ## 文件组织（assets/）
@@ -21,7 +21,15 @@ assets/
 └── vendor/           ← 本地字体与 KaTeX
 ```
 
-首次打开 `/` 或 `/login` 时，服务端先返回独立的锁屏入口。入口沿用 Gravity Journey 的全屏布局：固定视口中的 Three.js/WebGL 黑洞、金白色吸积环、公式曲面与星尘，顶部 `( Deploy ) / ( Preview ) / ( Ship )` 网格和底部工作区标识保持同一排版；滚动推进镜头，指针扰动场景，点击产生脉冲。入口背景可在「设置 → 外观与显示」切换为黑洞预设或当前 Vault 的自定义图片 / 视频；自定义媒体通过公开的当前资源端点读取，使用 `cover` 裁切、固定暗色遮罩和 0–32px 高斯模糊。视频自动静音循环播放，`prefers-reduced-motion` 下暂停视频并关闭黑洞动画。启用 PIN 时在右下入口栏输入 4–12 位数字解锁，未启用 PIN 且当前来源有访问权限时点击「进入 OMRS」。解锁后通过带当前进程 handoff token 的 `/?unlocked=1` 地址回到原有单页外壳，Hash 路由继续保留；工作台 HTML 响应为 `no-store`，避免重启或部署后复用旧页面壳。入口页只加载场景 vendor 资源和当前背景，不读取题库数据；媒体加载失败、配置损坏或 WebGL 不可用时回退黑洞参考主视觉。
+首次打开 `/` 或 `/login` 时，服务端返回独立锁屏入口，先显示黑洞静态背景与访问区域。背景控制器等待会话检查完成，再按浏览器偏好延后启动装饰背景；PIN 输入、解锁与工作台跳转独立于动画。启用 PIN 时输入 4–12 位数字，未启用且来源有权限时点击「进入 OMRS」；解锁交接地址带当前进程 token，Hash 路由保留。工作台 HTML 为 `no-store`。入口只读取会话状态和当前背景，不读取题库。
+
+入口和「设置 → 外观与显示」都提供自动、轻量、完整、静态四个选择，保存到当前浏览器的 `omrs-entry-quality`。系统减少动态效果始终使用静态；自动模式遇到省流量、可见逻辑核数不超过2或近似内存不超过2GB时静态，其余从轻量开始，信息缺失也从轻量开始。手动轻量／完整覆盖这些设备初选线索，WebGL失败仍回退静态。入口保留既有黑洞、吸积环、公式与星尘排版，动态档支持滚动镜头、指针与点击交互。
+
+轻量黑洞目标30 FPS，像素比不超过1、总渲染像素不超过100万、长边不超过2048，公式贴图1024×768；关闭泛光，减少粒子和几何。完整档上限60 FPS、像素比1.5、总像素300万、长边2560，贴图2048×1536，保留泛光；GPU偏好分别为 `low-power` 与 `default`，只是浏览器提示。限帧保留时间余量，避免40／75／144Hz等刷新率造成不必要的整倍数降帧。
+
+自动黑洞按实际渲染帧采样：预热2秒后，每3秒一窗口，连续两窗口低于目标的80%才切静态；本次不自动升级。后台、闲置与恢复重置采样；前台极慢长帧仍算掉帧。降级时间保存在 `omrs-entry-quality-fallback`，30分钟内自动静态，过期重新初选；手动重选清除记录。动效闲置15秒暂停，键盘、指针或滚动恢复；切后台暂停，切静态与离开时销毁上下文、纹理、媒体和监听。异步导入或资源准备完成时核对代次，防止迟到场景复活。
+
+入口背景内容仍按当前 Vault 配置为黑洞或自定义图片／视频，静态强度不改 Vault。静态档不加载WebGL；视频与GIF不赋媒体地址，显示1024×768、约61KB的黑洞静态背景。其他自定义图片只取一帧绘入不超过100万像素的画布，读取和解码仍使用原文件。视频动态档静音循环，后台／闲置暂停；媒体失败回退静态。完整档按保存的0–32px模糊值显示，其他档位最多8px。动态视频按原编码播放，不在浏览器转码或保证30 FPS；持续帧率降级目前用于黑洞。静态布局无长滚动旅程，窄屏访问区可独立滚动，隐藏装饰页脚以免覆盖入口控件。
 
 **加载约定：**
 - 锁屏入口内联既有 OMRS SVG favicon，避免浏览器额外请求不存在的默认图标；工作台继续复用原图标文件。

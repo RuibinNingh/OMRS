@@ -31,6 +31,8 @@
 
 服务端从 TCP 连接取得地址；只有代理的连接地址在 `OMRS_TRUSTED_PROXIES` 中，才读取其覆写的 `X-Real-IP` 和 `X-Forwarded-Proto`。默认可信代理地址为 `127.0.0.1,::1`，可用逗号分隔的环境变量覆盖。代理必须覆写 `Host`、客户端 IP 和协议头；缺少有效代理头时，非本机 Host 按远端处理。免 PIN 网段只允许 RFC1918 IPv4 与 IPv6 ULA，拒绝公网与不规范 CIDR。Nginx 配置见根 `README.md`。
 
+匿名静态资源白名单精确包含 `/assets/app/entry-background.js`、`/assets/app/core/entry-quality.js` 与 `/assets/vendor/` 下的 `entry-scene.js`、`entry-math-atlas.svg`、`entry-fallback.webp`、`entry-poster.webp`，不使用目录前缀豁免。背景控制器不读取业务API；设备线索和强度偏好只在浏览器内处理，不能代替服务端PIN或会话授权。静态／动画下载挂起或失败时，访问状态检查与登录仍可独立完成。
+
 ## 2. PIN 与会话
 
 PIN 的随机盐和 PBKDF2-SHA256 哈希存于 `错题/.omrs/auth.json`，不通过配置 API 返回。登录每个 Vault/客户端 IP 在15分钟内最多失败5次；同一键串行校验，等待校验最多2秒后返回503，其它IP不等此客户端的PBKDF2。失败次数在同一个原子校验段内更新，计数和闲置校验锁及时释放。设置页远端修改 PIN 或空闲时间时校验的当前 PIN 与登录共用同一失败计数。成功后服务端持有随机会话令牌的哈希，浏览器仅保存 `HttpOnly; SameSite=Strict; Path=/` Cookie；HTTPS 时追加 `Secure`。重启、恢复题库、退出、更换或停用 PIN 会使会话失效；只改空闲时间不注销会话，新上限在下一次请求时生效。尚未设置 PIN 时，免 PIN 网段设备可直接设置首个 PIN，已设置后远端修改一律须验证当前 PIN。登录页的 `next` 参数按 `new URL()` 解析，只接受同源地址，其余回到 `/`。

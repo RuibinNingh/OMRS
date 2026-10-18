@@ -123,7 +123,9 @@ assets/app/
 
 服务端沿入口静态 import / re-export 依赖图注入 `modulepreload`，减少浏览器逐层发现模块的等待。版本化主样式 `app/styles/index.css` 在内存递归合并 import，保留原来的顺序、@layer 嵌套与字体 URL；独立样式和源码文件保持原样。HTML、静态文本和普通 JSON 按需协商 gzip；静态压缩缓存最多 128 份，每份原文最多 256KiB，用户接口正文不进入此缓存。资源版本、合并样式与模块图都随快照更新失效，入口文件未变而依赖变化也会换版本。
 
-锁屏入口的 WebGL 场景实现、公式 atlas 和降级主视觉放在 `assets/vendor/entry-*`，由入口页按需加载，不进入应用层依赖检查；公开授权仍只允许原有三个确切资源地址。锁屏 HTML 与文本资源可协商 gzip。`tests/bench_web_load.py` 用临时 Vault 和真实 Chromium 模拟网络延迟 / 带宽，分别记录冷启动及真实 reload 的就绪耗时、请求数、传输量与缓存命中；计时结果是测量数据，不设固定耗时门禁。
+锁屏入口的 `assets/app/entry-background.js` 独立管理背景生命周期，纯分档与采样规则在 `core/entry-quality.js`，由设置页复用；不进入工作台启动链。会话检查、PIN和交接仍由入口HTML拥有，控制器只接收背景配置和会话检查Promise。静态优先，导入场景前后与媒体回调核对代次；切静态或离页释放已创建及初始化中途遗留的上下文，后台和闲置暂停。
+
+WebGL场景、公式atlas、原参考图与压缩静态图放在 `assets/vendor/entry-*`，按需加载；第三方Three.js代码不进入应用分层门禁。匿名仅允许四份确切vendor资源及上述两份入口JS，其他应用模块仍鉴权。锁屏HTML与文本可协商gzip。`tests/bench_web_load.py` 测工作台，`tests/bench_entry_load.py` 单独测入口；两者均用临时Vault和真实Chromium模拟网络，耗时不设固定门禁。入口专项同时记录真实PIN输入、浏览器进程CPU、实际绘制帧、像素和贴图预算；软件WebGL不能推导实体设备耗电。
 
 ## 8. 审核中心、草稿与录入页状态
 

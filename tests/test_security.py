@@ -128,6 +128,14 @@ class SecurityTests(unittest.TestCase):
         self.assertEqual(status, 302)
         self.assertIn("/login?next=", headers.get("Location", ""))
 
+    def test_entry_quality_public_modules_do_not_expose_the_app(self):
+        for path in ('/assets/app/entry-background.js', '/assets/app/core/entry-quality.js'):
+            status, _, body = self.request('GET', path, self.remote_headers())
+            self.assertEqual(status, 200, path)
+            self.assertTrue(body)
+        for path in ('/assets/app/main.js', '/assets/app/core/api.js', '/assets/app/entry-background.js/other'):
+            self.assertEqual(self.request('GET', path, self.remote_headers())[0], 401, path)
+
     def test_path_components_and_symlink(self):
         for subject, category in (("../outside", "x"), ("x", "/tmp/outside"), ("x", ".."),
                                   ("x\\y", "z")):
