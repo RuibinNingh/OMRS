@@ -4,7 +4,7 @@
 > - 职责：独立网关搜题、候选、后端完整长图、AI 保真提取与幂等创建
 > - 入口：`omrs/zuoyebang/`、`omrs/http/zuoyebang.py`；页面见 `AI/frontend/zuoyebang.md`
 > - 不变量：题干答案按候选绑定；候选题目/答案各一张1080像素完整图，原图裁切保持实际像素；失败保留来源；凭据不进入响应或日志
-> - 必跑测试：`tests/test_zuoyebang.py`、`tests/test_zuoyebang_render.py`、`tests/test_zuoyebang_geometry.py`、`tests/app/create-zyb.test.mjs`、`tests/e2e/zuoyebang.py`
+> - 必跑测试：`tests/test_zuoyebang.py`、`tests/test_zuoyebang_render.py`、`tests/test_zuoyebang_svg.py`、`tests/test_zuoyebang_geometry.py`、`tests/app/create-zyb.test.mjs`、`tests/e2e/zuoyebang.py`
 > - 相关：`AI/api.md`、`AI/security.md`、`AI/data/storage.md`、`AI/inbox.md`
 
 ## 1. 服务与账号
@@ -27,7 +27,9 @@ HTMLParser 白名单保留文字、列表、表格、上下标和图片，移除
 
 Chromium拦截器只读取OMRS本地字体、MathJax3及可信渲染配置，不访问外网、Vault或任意文件。传统题库正文用官方MathJax3.2.2 tex-chtml-full与typesetPromise；支持美元和反斜杠数学定界符，无定界符的裸命令兼容原App预处理。禁用动态TeX扩展、菜单和外部公式URL/样式。全部23份CHTML字体、许可与SHA256清单位于assets/vendor/mathjax；其它OMRS页面仍用KaTeX。跨HTML节点拆开的定界符不强行拼接；公式错误整体失败。
 
-SVG、MathML、canvas和音视频等不能按当前白名单保真渲染的视觉内容会明确报错并保留来源，不静默删除必要图形。搜题响应结构或解码格式异常记 protocol，不当作账号或签名过期。
+远程及base64内联的静态SVG附图按真实内容识别，支持路径、基本形状、文字、渐变和图片内部引用；由 `omrs/zuoyebang/svg.py` 校验后保留原字节，以 `data:image/svg+xml` 图片交给Chromium。根尺寸须为正的绝对长度或有效viewBox，沿用4000万像素和附图字节预算；结构最多1万个节点、64层，展开内部引用后最多5万个节点。脚本、事件、动画、外部资源、DTD／实体声明、处理指令、外来命名空间、循环／缺失引用及不支持的元素或样式整体拒绝，保留来源。
+
+HTML正文直接嵌入的SVG、MathML、canvas和音视频等仍明确报错，不静默删除必要图形；SVG仅在经过校验的图片上下文加载。搜题响应结构或解码格式异常记 protocol，不当作账号或签名过期。
 
 真实 Chromium 按360 CSS px视口、deviceScaleFactor=3生成题干与答案，各一张宽1080的 PNG，高度为完整CSS高度的3倍。答案不分块、分页或裁断。等待字体、公式和所有图片 decode后，可信layout.js测量宽公式、旧nobr公式的实际文字及宽表格，仅对超宽对象局部缩放并保留文档流高度；表内公式随整表适配，正文不整体缩小。附图保留本地化原字节，显示时适应正文宽度；附图内部小字仍受原图质量限制。
 

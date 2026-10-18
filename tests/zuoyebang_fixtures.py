@@ -30,6 +30,21 @@ def data_url(kind='triangle'):
     return 'data:image/png;base64,' + base64.b64encode(png(kind)).decode()
 
 
+def svg():
+    """合成的路径公式，覆盖旧题库声明与图片内部的字形引用。"""
+    return b'''<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+        width="60" height="14" viewBox="0 0 60 14" version="1.0"
+        contentScriptType="text/ecmascript" contentStyleType="text/css" zoomAndPan="magnify"
+        font-family="Dialog" font-size="12" fill-opacity="1" stroke-dasharray="none"
+        shape-rendering="auto" color-rendering="auto" image-rendering="auto"
+        color-interpolation="auto" text-rendering="auto" preserveAspectRatio="xMidYMid meet">
+        <defs id="genericDefs"><path id="minus" d="M0 0H8V2H0Z"/></defs>
+        <g transform="translate(2,6)" fill="#cc0000" stroke="none">
+            <use xlink:href="#minus"/><use href="#minus" x="14"/>
+            <path d="M28 -4H36V6H28ZM42 -4H50V6H42Z"/>
+        </g></svg>'''
+
+
 def candidates():
     answer = '<p>第1步：等腰三角形顶角的角平分线也是底边上的高和中线。</p>'
     answer += r'<p>因为 $AB=AC=5$，$BC=6$，所以 $BD=DC=3$。</p>'

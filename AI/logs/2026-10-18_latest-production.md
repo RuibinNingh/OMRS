@@ -1,0 +1,40 @@
+# 2026-10-18 最新提交合并与生产发布
+
+## 背景与授权
+
+用户原话：「合并最新的提交,部署生产」。执行者Codex，完整模式。本轮开工分支codex/ai-review-entry为447ea2a，远端main为98fdeba；生产仍为c312872精确归档、v2.8.2。合并设置日志导出、识别中提示和静态SVG附图修复，沿用版本号、依赖及现有部署方式。
+
+开工已有AI/plans/omrs-maintenance/validation.json未提交修改，SHA256为3d3cdbd203731931981a4db6d940cae48878e1069d55c1c2008c361aa58be9f9。已将原文件和补丁保存在仓库外，本轮不覆盖、暂存或归档该工作区修改。
+
+## 合并范围
+
+git fetch origin后核对两侧提交。远端5d2abb8是本地447ea2a识别提示的独立发布副本，业务文件逐字节相同；本地另有cfd2727日志导出，远端另有98fdeba附图修复。三方合并自动成功，无代码冲突，双方文档、测试和历史日志均保留。
+
+已用git diff --cached --stat、git diff --cached --check及识别提示业务文件对比复核实际变化。发布源码固定为合并后的Git提交，不使用带未提交修改的开发目录运行生产。
+
+## 已实际执行的验证
+
+验证使用既有完整依赖解释器omrs-zyb-deps-20261011/.venv/bin/python；启动前清除生产控制及共享CDP变量，所有功能服务均使用临时Vault、随机端口和独立Chromium。原生产题库只用于部署前只读预检，不作为测试数据。
+
+- node --test tests/app/*.test.mjs：542项通过，0失败或跳过。
+- python -m unittest tests.test_log_export tests.test_http_boundaries tests.test_security tests.test_source_export tests.test_write_lock tests.test_web_assets tests.test_asset_cache tests.test_zuoyebang_svg tests.test_zuoyebang tests.test_zuoyebang_render tests.test_zuoyebang_geometry -q：128项通过。写锁回归中的预期503与Pillow弃用提醒不代表失败。
+- python tests/app/run_browser.py：35项通过，0失败或脚本错误。
+- python tests/e2e/settings_logs.py：29/29通过，包含真实ZIP、筛选、重试、生命周期与浅深主题320／390／1440px。
+- python tests/e2e/settings.py：75/75通过，原设置分区路径保持。
+- python tests/e2e/zuoyebang.py：157/157通过，包含SVG着色路径绘入PNG、识别提示、失败重试、人工核对、幂等入库和刷新恢复，无脚本错误。
+- python tests/check_ui.py：全仓0问题；python tests/check_contrast.py：58组通过。
+- python tests/visual/run.py --ref c3128729dc523b964fbaf45030904f5f332bd6d8 --pages settings,zuoyebang --settings-section service：8组前后截图完成，无脚本错误、横溢、行内样式和过小目标。
+
+python3 tests/check_docs.py --write-log-index已生成索引；--diff HEAD与--diff c312872均检查146份文档、0问题、3条既有体积提醒。git diff --check通过。精确归档核对和生产切换结果在完成后追加到本日志，不把尚未完成的步骤记为通过。
+
+## 视觉差异
+
+设置页浅／深桌面分别为1.040%／1.027%，浅／深手机为4.254%／4.194%；新增日志导出说明、卡片与按钮使源码协助区域下移，临时Vault路径不同亦影响路径行。作业帮四组静态页面均0差异；识别期间提示由真实流程回归覆盖。已查看深色手机设置页及320px日志窗口截图，日期、长文件名和固定页脚完整。
+
+## 发布保护与未执行边界
+
+生产预检未发现有效在途任务、恢复journal、正式写入意图、扫码或检测受管操作，训练锁可获取。正式切换前再次复核，持锁停服后保全Vault、maintenance和网关私有数据，校验解包与SQLite完整性，再原子切换源码别名；异常只回退源码并保留最新业务数据。
+
+不执行真实官方搜题、付费模型调用或生产测试入库；实体手机、Safari与Windows浏览器未验收。原有计划的真实环境验收取舍与R14来源限制不属于本次发布范围。
+
+验证日志、截图、已验证源码哈希与发布驱动位于/root/workspace/apps/releases/OMRS-latest-release-dbypl3ni，权限受限；不提交私有备份或凭据。
