@@ -53,18 +53,19 @@ function createController(root) {
     const sn = snap();
     const label = sn.detail ? S.linkedLabel(sn.detail.id) : '';
     const pending = S.linkedPending(sn.detail?.items, allItems(), label);
+    const paper = S.stageView(sn, { layout: boardPreviewLayout(), view: boardPreviewView(), zoom: s.zoom });
     if (s.panel === 'detail' && !sn.selected) s.panel = 'list';
     morph(root, view({
       status: S.statusView(sn, B.boardFolders(), D.saveQueue().busy()), renaming: s.renaming && !!sn.detail,
       tree: S.treeView({ boards: B.boardList(), folders: B.boardFolders(), current: B.boardCurrentId(), collapsed: B.boardFolderCollapsed(), query: s.query }),
-      stage: S.stageView(sn, { layout: boardPreviewLayout(), view: boardPreviewView(), zoom: s.zoom }),
+      stage: paper,
       content: S.contentView(sn, { dueDays }), inspector: S.inspectorView(sn),
       linked: { name: label, pending }, panel: s.panel, pop: s.pop, boardsOpen: s.boardsOpen, listHidden: s.listHidden,
       reveal: !!sn.selected && s.revealUid === sn.selected,
     }));
     // 舞台是 skip 节点：只更改容器显隐，不移动 iframe。
     const stage = root.querySelector('#bd-stage');
-    if (stage) { stage.hidden = !sn.detail; if (sn.detail) boardPreviewMount(stage); }
+    if (stage) { stage.hidden = !sn.detail || !!paper.emptyMessage; if (sn.detail) boardPreviewMount(stage); }
     hydrate();
   }
 

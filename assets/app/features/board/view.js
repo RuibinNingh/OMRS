@@ -19,7 +19,7 @@ export function view(m) {
       <div class="brd-work" data-key="work">
         <section class="brd-paper-col" aria-label="纸面预览" data-key="paper">
           <div class="brd-head" data-key="head">${stageHead({ ...m.stage, motionOpen: m.pop === 'motion' })}</div>
-          <div class="brd-desk" data-key="desk"><div class="brd-stage" id="bd-stage" data-morph="skip" data-key="stage"></div></div>
+          <div class="brd-desk" data-key="desk"><div class="brd-stage" id="bd-stage" data-morph="skip" data-key="stage"></div><p class="brd-desk-empty" data-key="empty"${!m.stage.emptyMessage ? html` hidden` : ''}>${m.stage.emptyMessage || ''}</p></div>
           <div class="brd-pop-host" data-key="pop"${!m.pop ? html` hidden` : ''}>${popover(m.pop, m.inspector)}</div>
         </section>
         ${questionPanel(m)}
@@ -44,7 +44,7 @@ function statusBar(s, renaming) {
         ${s.locked ? html`<span class="brd-locked">${icon('lock')}版式已锁定</span>` : ''}</p>
     </div>
     <div class="brd-header-acts">
-      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.export" aria-label="下载 HTML" title="下载自包含 HTML">${icon('download')}</button>
+      <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.export" aria-label="下载 HTML" title="下载自包含 HTML"${off(!s.printable)}>${icon('download')}</button>
       ${s.canNew ? html`<div class="brd-seg" role="group" aria-label="打印范围" data-board-modes>
         <button type="button" class="brd-seg__btn" data-board-mode="new" data-action="board.mode" data-arg="new" aria-pressed="${pressed(s.scope === 'new')}">只印新增</button>
         <button type="button" class="brd-seg__btn" data-board-mode="all" data-action="board.mode" data-arg="all" aria-pressed="${pressed(s.scope === 'all')}">全部重印</button></div>` : ''}
@@ -96,7 +96,7 @@ function stageHead(s) {
     ${p.error ? html`<span class="brd-preview-err" title="${p.error}">预览生成失败</span>` : ''}
     <span class="brd-grow"></span><div class="brd-pager" data-board-pager>
       <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.page" data-arg="prev" aria-label="上一页" title="上一页（←）"${off(!p.multi)}>${icon('chevron-up')}</button>
-      <label>第<input class="ui-input brd-jump__input" type="number" min="1" value="${p.page}" data-board-page-input data-input="board.jump" aria-label="页码">/ ${p.pages || '—'} 页</label>
+      <label>第<input class="ui-input brd-jump__input" type="number" min="1" value="${p.pages ? p.page : ''}" placeholder="—" data-board-page-input data-input="board.jump" aria-label="页码"${off(!p.pages)}>/ ${p.pages || '—'} 页</label>
       <button type="button" class="ui-btn ui-btn--ghost ui-btn--sm ui-btn--icon" data-action="board.page" data-arg="next" aria-label="下一页" title="下一页（→）"${off(!p.multi)}>${icon('chevron-down')}</button></div>
     <span class="brd-tsep" aria-hidden="true"></span>
     <div class="brd-seg brd-zoom" role="group" aria-label="缩放"><button type="button" class="brd-seg__btn" data-action="board.zoom" data-arg="fit" aria-pressed="${pressed(p.zoom === 'fit')}">适应宽度</button><button type="button" class="brd-seg__btn" data-action="board.zoom" data-arg="1" aria-pressed="${pressed(p.zoom !== 'fit')}">100%</button></div>

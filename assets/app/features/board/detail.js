@@ -10,7 +10,7 @@ import { questionRefs, questionRef, questionKey } from '../../domain/question/re
  * - 板列表归 domain/board/boards.js（adoptBoards、boardRemember 等），这里只在重读 / 加载时采纳与记住当前板。
  */
 import { adoptBoards, boardRemember, boardPreferredId, boardCurrentId, boardFind } from '../../domain/board/boards.js';
-import { boardStatusModel, boardMoveItems, boardItemsPayload, boardItemsSignature, boardGapMap, boardSortItems, boardPaperSummary as paperSummary } from './model.js';
+import { boardStatusModel, boardExportItems, boardMoveItems, boardItemsPayload, boardItemsSignature, boardGapMap, boardSortItems, boardPaperSummary as paperSummary } from './model.js';
 import { boardWritePayload, adoptBoardVersions } from '../../domain/board/boards.js';
 import { createBoardSaveQueue } from './save.js';
 import { createBoardPrint } from './print.js';
@@ -28,6 +28,7 @@ export function createBoardDetail(initialDeps = {}) {
   let print = null;
   let settings = null;
   let previewBound = false;
+  let previewRun = null;
 
   const items = () => st.detail?.items || [];
   const itemOf = key => items().find(item => item.question_id === key) || items().find(item => item.uid === key && !item.missing) || items().find(item => item.uid === key) || null;
@@ -136,19 +137,34 @@ export function createBoardDetail(initialDeps = {}) {
       onGap: message => applyGapDrag(message.uid, message.lines),
     });
   }
+  const previewKey = () => JSON.stringify([st.detail?.id, effectiveMode(), boardItemsSignature(st.detail?.items),
+    st.detail?.print?.answers, st.detail?.print?.show_labels, paperSummary(st.detail).at || '']);
   function syncPreview(options = {}) {
     if (typeof deps.preview.boardPreviewSetBoard !== 'function') return;
+    if (!st.detail || !boardExportItems(st.detail, effectiveMode()).length) {
+      previewRun = null;
+      deps.preview.boardPreviewClear?.();
+      if (st.previewError) { st.previewError = ''; changed(); }
+      return;
+    }
     if (saveQueue().busy()) return;
-    if (!st.detail || view() !== 'paper' || !deps.pageActive()) return;
+    if (view() !== 'paper' || !deps.pageActive()) return;
     bindPreview();
+    const key = previewKey();
+    if (previewRun?.key === key && !options.force) return;
+    const run = previewRun = { key };
+    if (st.previewError) { st.previewError = ''; changed(); }
     const fingerprint = {
       signature: [boardItemsSignature(st.detail.items), st.detail.print?.answers, st.detail.print?.show_labels].join('|'),
       printedAt: paperSummary(st.detail).at || '',
       force: !!options.force,
     };
     deps.preview.boardPreviewSetBoard(st.detail.id, effectiveMode(), fingerprint).then(() => {
+      if (previewRun !== run || previewKey() !== key) return;
       if (st.previewError) { st.previewError = ''; changed(); }
     }, error => {
+      if (previewRun !== run || previewKey() !== key) return;
+      previewRun = null;
       st.previewError = error?.message || String(error);   // 翻页条显示原因；下一次同步成功后清掉
       changed();
     });
@@ -162,7 +178,7 @@ export function createBoardDetail(initialDeps = {}) {
   async function regen() {
     if (!st.detail) return;
     if (!(await flush())) return;
-    deps.preview.boardPreviewInvalidate?.();
+    previewRun = null; deps.preview.boardPreviewInvalidate?.();
     syncPreview({ force: true });
     toast('正在按最新正文重新生成纸面…');
   }
@@ -171,7 +187,7 @@ export function createBoardDetail(initialDeps = {}) {
   // 收件箱录完题会同时触发全局 reloadData() 和「加入展示板」，两条链都会重读展示板；序号保证先发后到的旧响应不盖新数据。
   async function reloadData() {
     if (!(await flush())) return;
-    deps.preview.boardPreviewInvalidate?.();
+    previewRun = null; deps.preview.boardPreviewInvalidate?.();
     const seq = ++st.seq;
     try {
       const result = await deps.get('/api/boards');
@@ -254,6 +270,7 @@ export function createBoardDetail(initialDeps = {}) {
       const boardId = st.detail.id;
       const result = await postBoard('/api/board/items/remove', { id: boardId, question_refs: [ref] });
       st.detail = result.board;
+      if (!boardExportItems(st.detail, effectiveMode()).length) render();
       await reloadData();
       toast(`已移除 ${item.uid || uid}${item?.printed ? '（纸上仍有这道题，纸面记录保留其占位）' : ''}`, { actions: [{ label: '撤销', onClick: () => addToBoard(boardId, [ref], { silent: true }) }] });
     } catch (error) { toast(`移除失败：${error.message}`, { kind: 'error' }); }
@@ -266,6 +283,7 @@ export function createBoardDetail(initialDeps = {}) {
     try {
       const result = await postBoard('/api/board/update', { id: st.detail.id, items: boardItemsPayload(list) });
       st.detail = result.board;
+      if (!boardExportItems(st.detail, effectiveMode()).length) render();
       await reloadData();
       if (message) toast(message);
     } catch (error) { toast(`保存展示板失败：${error.message}`, { kind: 'error' }); }

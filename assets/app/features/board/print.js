@@ -4,6 +4,7 @@
  * 独立打印窗口回传的版面只更新它自己的任务；重置纸面、切打印范围让旧任务作废（「仅补印新增」靠纸面记录续排）。
  * 模块不读旧全局：当前板、保存、请求、提示与确认都由调用方注入；旧 board.js 经 boardPrint() 懒创建唯一实例。
  */
+import { boardExportItems, boardEmptyMessage } from './model.js';
 const clone = value => JSON.parse(JSON.stringify(value));
 const paperOf = board => (board && board.printed_summary) || { pages: 0, count: 0, new_count: 0, changed_count: 0 };
 
@@ -86,6 +87,7 @@ export function createBoardPrint(deps) {
       const boardId = board.id, boardName = board.name;
       const printMode = mode();
       if (printMode === 'new' && !paperOf(board).new_count) { toast('没有新增题目需要打印', { kind: 'warn' }); return; }
+      if (!boardExportItems(board, printMode).length) { toast(boardEmptyMessage(board, printMode), { kind: 'warn' }); return; }
       // 必须在 await 之前同步开窗：浏览器只允许在用户手势的同步调用栈里 window.open，
       // 等导出 HTML 回来时手势已过期，弹窗会被拦截（板子越大越容易触发）。
       let preview = null;

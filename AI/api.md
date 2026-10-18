@@ -9,6 +9,8 @@
 
 默认启动 `python omrs_engine.py --vault <path> serve -p 8471`。普通 Web 使用标准库 HTTP；`OMRSHandler.services` 为领域适配提供服务引用，已有 handler 方法名与服务替换测试接口保持可用。
 
+展示板导出没有可打印内容、没有新增题目或缺少续印所需纸面记录时，使用携带 `status=400` 的专用业务异常；未知异常仍返回 500。请求与错误体不变，详见 `AI/api/boards.md`。
+
 锁屏入口将既有 OMRS SVG 图标内联为 favicon，不另请求图标路径；入口资源与工作台鉴权的契约见 `AI/api/queries.md`。
 
 入口锁屏先返回静态背景和独立访问区域；动画强度在浏览器本地决定，不新增配置API或持久化字段。匿名入口可加载两份确切控制模块及四份vendor资源，其他应用资源仍需按原规则鉴权，边界见 `AI/security.md`；媒体读取与上传接口保持原契约。

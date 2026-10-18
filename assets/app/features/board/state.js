@@ -5,7 +5,7 @@ import { questionKey } from '../../domain/question/ref.js';
  * 渲染在 view.js，控制器在 index.js，板详情的所有者是 detail.js。
  * 打印状态机 boardStatusModel、留白与几何换算在 model.js；文件夹分组 boardFolderTree 在 domain/board/model.js。
  */
-import { boardStatusModel, boardFormatTime, boardEffectiveGap, boardGapCm, boardColumnWidth, CUT_LINES } from './model.js';
+import { boardStatusModel, boardExportItems, boardEmptyMessage, boardFormatTime, boardEffectiveGap, boardGapCm, boardColumnWidth, CUT_LINES } from './model.js';
 import { boardFolderTree } from '../../domain/board/model.js';
 
 /** 页面自己的 UI 状态：纸面缩放、就地改名、左栏（窄屏抽屉 boardsOpen / 宽屏收起 listHidden）、题目详情、
@@ -84,7 +84,7 @@ export function statusView(snap, folders = [], saving = false) {
   const paper = paperOf(detail);
   const status = boardStatusModel(detail, snap.mode, snap.awaiting);
   const folder = folders.find(entry => entry.id === detail.folder_id);
-  const printable = items.filter(item => !item.missing && !item.suspended).length;
+  const printable = boardExportItems(detail, status.scope).length;
   const actionLabel = snap.awaiting ? '重新打开打印' : status.scope === 'new' ? `补印新增 ${num(paper.new_count)} 题`
     : paper.pages ? `重印全部 ${printable} 题` : `打印 ${printable} 题`;
   return {
@@ -142,16 +142,19 @@ export function stageView(snap, { layout = null, view = null, zoom = 'fit' } = {
   const items = detail.items || [];
   const paper = paperOf(detail);
   const scope = boardStatusModel(detail, snap.mode, null).scope;   // 与导出同一个判断（detail.js 的 effectiveMode）
+  const printable = boardExportItems(detail, scope).length;
+  if (!printable || layout?.board_id !== detail.id || layout?.mode !== scope) { layout = null; view = null; }
   const numbers = layout?.page_numbers || [];
   return {
     empty: false, view: 'paper', count: items.length,
+    emptyMessage: printable ? '' : boardEmptyMessage(detail, scope),
     paperCount: num(paper.count), paperPages: num(paper.pages), newCount: num(paper.new_count), changedCount: num(paper.changed_count),
     changedUid: items.find(item => item.changed && !item.missing && !item.suspended)?.uid || '',
     missing: items.filter(item => item.missing).length,
     suspended: items.filter(item => item.suspended && !item.missing).length,
     pager: {
       multi: numbers.length > 1, page: num(view?.page, 0) || numbers[0] || 1, pages: num(layout?.pages),
-      jumpNew: !!paper.new_count, estimate: estimateView(layout, scope), error: snap.previewError || '',
+      jumpNew: !!paper.new_count, estimate: estimateView(layout, scope), error: printable ? snap.previewError || '' : '',
       zoom: zoom === 'fit' ? 'fit' : '1',
       motion: { ...state.motion },
     },

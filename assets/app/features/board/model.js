@@ -8,6 +8,16 @@ const num = (value, fallback = 0) => { const n = Number(value); return Number.is
 const clamp = (value, min, max, fallback = 0) => Math.max(min, Math.min(max, num(value, fallback)));
 const paperOf = board => (board && board.printed_summary) || { pages: 0, count: 0, new_count: 0, changed_count: 0 };
 
+/** 当前打印范围内真正上纸的题；与服务端 board_items_for_export 的过滤一致。 */
+export function boardExportItems(board, mode = 'all') {
+  return (board?.items || []).filter(item => !item.missing && !item.suspended && (mode !== 'new' || !item.printed));
+}
+
+export function boardEmptyMessage(board, mode = 'all') {
+  if (!board?.items?.length) return '板里还没有题，添加题目后可预览';
+  return mode === 'new' ? '没有新增题目需要打印' : '当前没有可打印的题目';
+}
+
 /** 切割线样式，与 omrs/boards.py::CUT_LINES 同步。 */
 export const CUT_LINES = ['none', 'dash', 'solid'];
 /**

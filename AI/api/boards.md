@@ -78,6 +78,8 @@
 - `overrides` 只覆盖本次导出的版面设置，不回写 `boards.json`。停用题和缺失题保留在板内
   显示，但导出时跳过。
 
+空板、全部停用／缺失而无可导出题目、没有新增题目，以及未记录纸面却请求续印，均返回 HTTP 400，错误体保持 `{status:"error", msg:"…"}`。底层业务异常为 `BoardExportUnavailable(RuntimeError)`，显式携带 `status=400`；未知生成异常仍返回 500。端点不生成空白 HTML、不写入纸面记录。
+
 响应仍是 `text/html; charset=utf-8` 的文件流；文件名 `OMRS-BD-<板名>[-新增]-错题集.html`，
 `Content-Disposition` 同时带 ASCII 兜底与 `filename*=UTF-8''…`。HTML 自包含 `board.css` /
 `board.js` 与题图数据，分页在浏览器完成，页眉固定「错题集」，页脚为板内绝对页码；排版完成后

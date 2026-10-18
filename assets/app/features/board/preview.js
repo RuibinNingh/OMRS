@@ -167,10 +167,24 @@ export function boardPreviewScale(mode) {
 }
 export function boardPreviewView() { return { ...BP_VIEW }; }
 
+/** 空板撤下旧纸面，但保留同一个 iframe；晚到的请求和消息不能重新填回内容。 */
+export function boardPreviewClear() {
+  cancelBoardSwap();
+  clearTimeout(BP_REFRESH_TIMER);
+  clearTimeout(BP_RELAYOUT_TIMER);
+  if (BP_FETCH) { try { BP_FETCH.controller.abort(); } catch (error) {} BP_FETCH = null; }
+  BP_PENDING = null;
+  BP_HTML_CACHE = new Map();
+  BP_STATE = { boardId: '', mode: 'all', key: '', token: String(++BP_GENERATION), ready: false, loading: false };
+  BP_LAYOUT = null;
+  BP_VIEW.page = 1;
+  if (BP_FRAME?.srcdoc) BP_FRAME.srcdoc = '';
+}
+
 // ---------- 换板 / 换内容（走网络，带指纹缓存） ----------
 export async function boardPreviewSetBoard(boardId, mode, options = {}) {
   const key = boardPreviewKey(boardId, mode, options.signature, options.printedAt);
-  if (!boardId) { cancelBoardSwap(); BP_STATE = { boardId: '', mode: 'all', key: '', ready: false, loading: false }; BP_LAYOUT = null; return null; }
+  if (!boardId) { boardPreviewClear(); return null; }
   // 同一份内容已经排好、或正在路上，就别再拉一次：导出 HTML 将近 1MB，
   // 初次进板时 boardInit 与随后的 render 会连着 sync 两次，没有这道闸就白拉一遍。
   if (key === BP_STATE.key && (BP_STATE.ready || BP_STATE.loading) && !options.force) return BP_STATE.ready ? BP_LAYOUT : null;
@@ -197,6 +211,7 @@ export async function boardPreviewSetBoard(boardId, mode, options = {}) {
       BP_STATE.loading = false;
       BP_STATE.key = '';                                 // 失败不占坑，下次 sync 会重试
       if (BP_SWAP?.token === token) { cancelBoardSwap(); }
+      if (BP_FRAME) BP_FRAME.srcdoc = '';
       throw error;
     } finally {
       if (BP_FETCH?.token === token) BP_FETCH = null;
@@ -220,6 +235,9 @@ export function boardPreviewScheduleRefresh(boardId, mode, options = {}) {
 }
 export function boardPreviewInvalidate() {
   cancelBoardSwap();
+  clearTimeout(BP_REFRESH_TIMER);
+  clearTimeout(BP_RELAYOUT_TIMER);
+  BP_PENDING = null;
   BP_HTML_CACHE = new Map();
   if (BP_FETCH) { try { BP_FETCH.controller.abort(); } catch (error) {} BP_FETCH = null; }
   BP_STATE = { ...BP_STATE, key: '', token: String(++BP_GENERATION), loading: false, ready: false };

@@ -60,6 +60,30 @@ class HTTPBoundaryTests(unittest.TestCase):
             with self.subTest(route=identity):
                 self.assertTrue(callable(getattr(OMRSHandler, target, None)), target)
 
+    def test_board_export_empty_states_are_400_and_unexpected_failure_is_500(self):
+        from omrs.boards import create_board, record_printed
+        from omrs.creation import create_question
+        from omrs.question_ops import suspend_question, delete_question
+        empty = create_board(self.vault, "空板")
+        question = create_question(self.vault, subject="数学", category="函数", difficulty=5, question_text="计算 $1+1$。")
+        board = create_board(self.vault, "有题板", [question["uid"]])
+        def export(entry, mode="all"):
+            return self.post("/api/export", {"board_id": entry["id"], "format": "board", "mode": mode})
+        for entry, mode, message in [(empty, "all", "展示板没有可导出的题目"),
+                                     (board, "new", "这个展示板还没有纸面记录，请先「打印全部」并标记为已打印")]:
+            with self.subTest(mode=mode, message=message):
+                self.assertEqual(export(entry, mode), (400, {"status": "error", "msg": message}))
+        item = board["items"][0]
+        record_printed(self.vault, board["id"], "all", {"pages": 1, "cursor": {"page": 1, "y": 100},
+            "items": [{"question_id": item["question_id"], "uid": item["uid"], "segments": [{"page": 1, "top": 0, "height": 80}]}]})
+        self.assertEqual(export(board, "new"), (400, {"status": "error", "msg": "没有新增题目需要打印"}))
+        with patch("omrs.server.export_board_html", side_effect=RuntimeError("测试生成错误")):
+            self.assertEqual(export(board), (500, {"status": "error", "msg": "测试生成错误"}))
+        suspend_question(self.vault, question["uid"], True)
+        self.assertEqual(export(board)[0], 400)
+        delete_question(self.vault, question["uid"])
+        self.assertEqual(export(board)[0], 400)
+
     def test_head_uses_get_auth_and_resource_allowlist(self):
         remote = {"Host": "omrs.test", "X-Real-IP": "198.51.100.77", "X-Forwarded-Proto": "https"}
         status, headers, body = self.request("HEAD", "/api/config", headers=remote)

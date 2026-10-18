@@ -191,3 +191,53 @@ test('a late response from a same-key refresh cannot replace a newer document', 
   await slow;
   assert.equal(FRAME.srcdoc, newest);
 });
+
+test('空板撤下旧文档并取消在途请求，旧响应和消息不能恢复纸面', async () => {
+  await bp.boardPreviewSetBoard('B1', 'all', { signature: 'before-empty', force: true });
+  emitLayout(LAYOUT);
+  const previousToken = token();
+  bp.boardPreviewGoto(3);
+  const original = global.fetch;
+  let finish, signal;
+  global.fetch = (url, options) => { signal = options.signal; return new Promise(resolve => { finish = resolve; }); };
+  try {
+    const slow = bp.boardPreviewSetBoard('B1', 'all', { signature: 'slow-empty', force: true });
+    await bp.boardPreviewSetBoard('', 'all');
+    assert.equal(signal.aborted, true);
+    assert.equal(bp.boardPreviewFrame(), FRAME);
+    assert.equal(FRAME.srcdoc, '');
+    assert.equal(bp.boardPreviewIsReady(), false);
+    assert.deepEqual(bp.boardPreviewPages(), []);
+    assert.equal(bp.boardPreviewView().page, 1);
+    finish({ ok: true, text: async () => '<head></head><body>旧板</body>' });
+    await slow;
+    MESSAGE_HANDLER({ source: FRAME.contentWindow, data: { type: 'omrs-board-layout', boardId: 'B1', mode: 'all', previewToken: previousToken, layout: LAYOUT } });
+    assert.equal(FRAME.srcdoc, '');
+    assert.equal(bp.boardPreviewLayout(), null);
+  } finally { global.fetch = original; }
+});
+
+test('清空预览取消延迟导出和几何消息，之后同一 iframe 可重新加载', async () => {
+  FETCHED.length = 0; POSTED.length = 0;
+  bp.boardPreviewScheduleRefresh('B1', 'all', { signature: 'cancelled-timer' });
+  bp.boardPreviewRelayout({ gap_lines: 8 }, {});
+  bp.boardPreviewClear();
+  await sleep(550);
+  assert.equal(FETCHED.length, 0);
+  assert.equal(POSTED.length, 0);
+  await bp.boardPreviewSetBoard('B1', 'all', { signature: 'after-empty' });
+  emitLayout(LAYOUT);
+  assert.equal(bp.boardPreviewIsReady(), true);
+  assert.equal(bp.boardPreviewFrame(), FRAME);
+});
+
+test('真实生成失败保留具体原因，并撤下不能代表当前请求的旧纸面', async () => {
+  const original = global.fetch;
+  global.fetch = async () => ({ ok: false, json: async () => ({ msg: '测试生成错误' }) });
+  try {
+    await assert.rejects(bp.boardPreviewSetBoard('B2', 'all', { signature: 'failure', force: true }), /测试生成错误/);
+    assert.equal(FRAME.srcdoc, '');
+    assert.equal(bp.boardPreviewIsReady(), false);
+    assert.equal(bp.boardPreviewLayout(), null);
+  } finally { global.fetch = original; }
+});

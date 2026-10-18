@@ -74,14 +74,14 @@ test('boardMetaBits：题数、已印页数与未印题数分别呈现，缺失�
 test('stageView / estimateView：视图、警告计数、翻页条读数；仅新增的读数按导出范围', () => {
   assert.deepEqual(S.stageView({ detail: null }), { empty: true });
   const items = [{ uid: 'a' }, { uid: 'b', missing: true }, { uid: 'c', suspended: true }, { uid: 'd', suspended: true, missing: true }];
-  const s = S.stageView({ detail: detail({ items }), view: 'weird', mode: 'all' }, { layout: { pages: 3, page_numbers: [1, 2, 3], warnings: [1] }, view: { page: 2 }, zoom: 1 });
+  const s = S.stageView({ detail: detail({ items }), view: 'weird', mode: 'all' }, { layout: { board_id: 'B1', mode: 'all', pages: 3, page_numbers: [1, 2, 3], warnings: [1] }, view: { page: 2 }, zoom: 1 });
   assert.equal(s.view, 'paper');
   assert.deepEqual([s.missing, s.suspended, s.count], [2, 1, 4]);
   assert.deepEqual([s.pager.multi, s.pager.page, s.pager.pages, s.pager.zoom], [true, 2, 3, '1']);
   assert.deepEqual(s.pager.estimate, { scope: 'all', pages: 3, rendered: 0, range: '第 1–3 页', partial: 0, warnings: 1 });
   assert.equal(S.stageView({ detail: detail(), view: 'list' }).pager.estimate, null, '版面还没回来时是「正在排版」');
   // mode 是 new 但没有纸面：导出与读数都按「全部」（旧 boardEffectiveMode）
-  assert.equal(S.stageView({ detail: detail(), mode: 'new' }, { layout: { pages: 1 } }).pager.estimate.scope, 'all');
+  assert.equal(S.stageView({ detail: detail(), mode: 'new' }, { layout: { board_id: 'B1', mode: 'all', pages: 1 } }).pager.estimate.scope, 'all');
   assert.equal(S.estimateView({ pages: 4, rendered_pages: 1, page_numbers: [4], partial_page: 3 }, 'new').range, '第 4 页');
   assert.equal(S.firstNewUid([{ uid: 'x', printed: true }, { uid: 'y', missing: true }, { uid: 'z' }]), 'z');
   assert.deepEqual(s.pager.motion, { kind: 'fade', duration: 280 });

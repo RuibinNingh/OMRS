@@ -15,6 +15,7 @@ _spec = importlib.util.spec_from_file_location("visual_run", os.path.join(ROOT, 
 visual = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(visual)
 from browser_runtime import open_app
+from board_empty import run_empty_paths
 
 
 def http(port, path, body=None):
@@ -455,6 +456,7 @@ def main():
                 record(results, "浮窗响应式路径中途出错", False, str(error).splitlines()[0])
             record(results, "浮窗响应式路径脚本错误为 0", not responsive_errors)
             responsive.close()
+            run_empty_paths(browser, base, port, results, http, record)
             colors = {}
             for theme in ("light", "dark"):
                 for size in ((1440, 900), (1000, 700), (390, 844)):

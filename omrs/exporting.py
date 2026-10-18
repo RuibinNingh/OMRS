@@ -745,6 +745,12 @@ def _board_read_question(vault, item):
     }
 
 
+class BoardExportUnavailable(RuntimeError):
+    """展示板当前没有可导出的内容，HTTP 层按业务输入错误返回。"""
+
+    status = 400
+
+
 def build_board_export_data(vault, board_id, mode="all", include_answers=None, overrides=None, image_loader=None, question_loader=None):
     """组装展示板导出数据（不做分页，分页在浏览器完成）。
 
@@ -759,7 +765,7 @@ def build_board_export_data(vault, board_id, mode="all", include_answers=None, o
     printed = board.get("printed") or {}
     has_paper = int(printed.get("pages", 0) or 0) > 0
     if mode == "new" and not has_paper:
-        raise RuntimeError("这个展示板还没有纸面记录，请先「打印全部」并标记为已打印")
+        raise BoardExportUnavailable("这个展示板还没有纸面记录，请先「打印全部」并标记为已打印")
     settings = normalize_print({**board.get("print", {}), **(overrides or {})})
     if mode == "new" and has_paper:
         # 纸面几何以已打印的纸为准（栏宽、题间距），其余显示项跟随当前设置
@@ -776,8 +782,8 @@ def build_board_export_data(vault, board_id, mode="all", include_answers=None, o
             questions.append(question)
     if not questions:
         if mode == "new":
-            raise RuntimeError("没有新增题目需要打印")
-        raise RuntimeError("展示板没有可导出的题目")
+            raise BoardExportUnavailable("没有新增题目需要打印")
+        raise BoardExportUnavailable("展示板没有可导出的题目")
 
     colors = _label_color_map(vault)
     start_index = (len(printed.get("items") or []) + 1) if mode == "new" else 1
