@@ -9,7 +9,7 @@ User=omrs
 Group=omrs
 # 与 OMRS 使用同一精确发布归档；解释器和训练目录须与部署登记一致。
 WorkingDirectory=/opt/omrs/services/boxdetect
-ExecStart=/var/lib/omrs-train/.venv/bin/python -m boxdetect_service serve --model-dir /var/lib/omrs-train/managed/active --port 18766
+ExecStart=/var/lib/omrs-train/.venv/bin/python -m boxdetect_service serve --model-dir /var/lib/omrs-train/managed/active --port 18766 --data-dir /var/lib/omrs-boxdetect --models-dir /var/lib/omrs-train/managed/snapshots
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=15
@@ -26,6 +26,9 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
+StateDirectory=omrs-boxdetect
+StateDirectoryMode=0700
+ReadWritePaths=/var/lib/omrs-boxdetect
 
 [Install]
 WantedBy=multi-user.target

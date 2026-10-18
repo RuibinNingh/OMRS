@@ -138,6 +138,8 @@ python -m playwright install chromium
 
 管理面板与API沿用既有检测监听，OMRS入口为主站同端口的 `/boxdetect/`，无需再开面板端口。长图在服务切片，一次上传保留一条可回看的原图历史，测试不自动进入训练集；记录默认保留30天，可在面板调整。服务管理员能查看提交到该服务的图片，连接前请核对服务器。安装、初始管理员密码与旧部署过渡见 [独立框选服务](services/boxdetect/README.md)。
 
+使用 systemd 模板时，框选状态保存在 `/var/lib/omrs-boxdetect`，初始管理员密码为该目录的 `admin-secret.txt`；模板只开放这个私有目录的写权限。部署者应按实际路径修改解释器和模型目录，保持已有检测端口。
+
 ### 运行
 
 ```bat

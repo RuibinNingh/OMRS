@@ -15,23 +15,21 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-18 发布）：当前 v2.8.3，源码为 Git 提交 `baae15f0e6bfb90139aedb0b19e8d2e208102a20` 的精确归档 `/root/workspace/apps/releases/omrs-baae15f`，1567个源码文件逐字节一致，发布提交已推送GitHub main。当前工作区是开发源码，不是在线运行目录；生产 Vault 仍为 `/root/workspace/apps/OMRS`，隔离测试不能读取其真实错题数据。
+生产环境事实（2026-10-18 框选服务发布）：当前 v2.8.3，源码为 Git 提交 `107989b70a7cf2ebcc4a83c6c46da1f996b6c15e` 的精确归档 `/root/workspace/apps/releases/omrs-107989b`，1593个源码文件逐字节一致。本次仅本地提交与部署，未推送GitHub。当前工作区是开发源码，不是在线运行目录；生产 Vault 仍为 `/root/workspace/apps/OMRS`，隔离测试不能读取其真实错题数据。
 
-三个服务沿用原 unit/drop-in。持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 指向 omrs-baae15f；主服务、网关、检测的真实 cwd 分别为同一归档根、services/zuoyebang、services/boxdetect。检测使用原训练解释器执行模块 CLI。三个服务均 active/running、NRestarts为0；网关私有数据在 `/var/lib/omrs-zuoyebang`，目录0700、文件0600，管理员秘密不输出或提交。
+持久别名 `/root/workspace/apps/releases/omrs-9b29d49` 指向 omrs-107989b；主服务、网关、检测的真实cwd分别为同一归档根、services/zuoyebang、services/boxdetect。三个服务均active/running、NRestarts为0；网关私有数据仍在 `/var/lib/omrs-zuoyebang`。检测目录和unit限制见下文「本机检测生产服务」。
+
+框选状态在 `/var/lib/omrs-boxdetect`（0700），boxdetect.sqlite3和初始密码admin-secret.txt均0600。主站专用Key在真实Vault的 `错题/.omrs/boxdetect/service.json`（0600），不在通用配置或页面回显。密码和Key不输出或提交。
 
 Python依赖沿用 `/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv`，Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；浏览器缓存包含对应1234版Chromium。检测使用 `/root/omrs-train/.venv/bin/python`，推理依赖未升级。共享 CDP9222 仅供可信本机隔离 context，验证不关闭共享浏览器；发布 TMPDIR 使用浏览器可访问目录。
 
-Web8471、回环MCP18472、HTTPS8472及公开URL `https://home.ruibin-ningh.top:8472` 保持。Nginx的 `/zuoyebang/` 反代至回环8745，不新增公网端口；管理Cookie为Secure/HttpOnly/Strict并限制服务路径。原网关连接、账号／设备、PIN、MCP及调用Key保持，匿名数据、MCP、网关调用与详情仍需鉴权；锁屏入口内联既有SVG图标。
+Web8471、回环MCP18472、HTTPS8472及公开URL `https://home.ruibin-ningh.top:8472` 保持。Nginx的 `/zuoyebang/` 仍反代回环8745，`/boxdetect/` 经既有主站路由转到8471，再由主站连接原回环18766；没有修改Nginx或增加监听。框选面板和API共用原端口，外部调用已开启但仍须框选Key；healthz仅供存活检查，管理页另外要求主站PIN和独立管理员会话。HTTPS管理Cookie为Secure/HttpOnly/Strict并限制服务路径。
 
-当前停服保全为 `/root/workspace/apps/releases/OMRS-v283-backup-hcou3lvi`，目录0700、文件0600，含新旧源码、unit、Vault/maintenance与网关私有数据。切换前八类活动任务均为0、恢复与写入意图检查通过，持训练锁停服；备份解包校验1250个文件及8个SQLite库后原子切换，切换与主要验收共5.080秒。49张原业务表的全部原列／原行及1081个原正文、图片和关键配置文件保持；长期待审不依据旧期限作废。
+当前保全和验收证据为 `/root/workspace/apps/releases/OMRS-boxdetect-deploy-3ub051ln`，私有目录0700、敏感文件0600，含新旧源码、unit、Vault/maintenance、网关私有数据及managed模型与控制历史。停服备份解包校验1251个文件和8个SQLite库；上线后另以SQLite备份API保全新框选状态、初始密码和主站连接。八类活动任务均为0，恢复与写入意图检查通过，切换持训练锁；49张原业务表的全部原列／原行及1081个原正文、图片和关键配置文件保持。
 
-作业帮工作台在超过1500 CSS px时并排显示题目与答案，小屏保留切换；确认按钮打开识别工作窗，期间显示居中提示，暂存、刷新和重开保留草稿。候选按360 CSS px宽、17px正文、3倍输出，静态SVG附图经校验生成PNG，旧预览可主动重生成；正文切换预览／源码，已入库源码只读。设置支持筛选、勾选运行／AI日志并下载ZIP。题图无目录FD分支使用独立lstat核对文件身份，兼容Windows目录扫描中的零身份字段；run.bat和依赖保持。生产不执行真实搜题、模型调用或测试入库。
+当前归档实测四组发布门禁：主程序相关后端83项、独立框选服务21项、隔离面板浏览器111项和真实ONNX模型预检均通过。生产81项检查覆盖现有HTTPS上的Key调用、吊销、请求编号复用、三条带整图历史、浏览器原图回看及固定unit重启后的持久化；桌面1440／手机390px浅深色页面无横溢或未捕获脚本错误。合成长图只证明推理链路可用，不作为真实题图准确率评测。
 
-当前发布从精确归档执行10组门禁：Node550项、后端定向60项、浏览器组件35项、入口分档30项、背景5项、外壳路由24项、设置75项均通过；UI零违规，对比度58组通过，146份文档零问题。版本数字的4组前后截图无脚本错误或横溢，桌面浅深差异各0.002%、手机均0。入口支持自动／轻量／完整／静态，按设备信号和运行帧率调整，系统减少动态效果优先。
-
-生产只读验收核对9份版本化资源原字节、immutable与回环304，以及6份公开入口资源原字节、no-cache与回环304；现有公网代理对这6份资源的条件请求均返回完整200，正文仍与归档一致。业务API、main/settings脚本、MCP与网关匿名访问均401。独立Chromium完成1440／390px自动、静态及390px减少动态共5场景：自动选轻量，静态不请求场景，PIN可输入，无脚本错误或横溢；零写请求。验收后原业务表、文件、网关凭据与控制配置保持，三服务无错误级日志；实体设备功耗与登录后真实业务未验收。
-
-上线后的正常入库继续追加业务事实，核验时以保全中的原记录为比较前缀，不将题目总数固定为发布时的值。模型指针、revision与控制文件保持；源码回退保留最新数据，不用旧归档覆盖后续业务事实。
+生产面板三份资产与三份主站设置／训练脚本逐字节匹配归档；匿名业务、MCP、网关及框选调用被拒绝，未登录的框选管理路径跳转PIN入口。主站设置用本机API验证脱敏连接、模型查询与固定进程重启，不猜测、重设PIN或注入主站会话。主站专用Key保持有效，临时验收Key已吊销；两条合成图片记录仅在独立服务历史。验收后原业务事实、网关凭据、控制登记和模型保持，三服务无错误级日志；实体设备及登录后的真实题库写操作未验收。
 
 生产部署使用 Git 精确归档，沿用当前依赖，不打包未提交的开发改动。功能验证使用临时 Vault 和随机端口；发布前按改动范围从归档执行相关检查。实际切换前检查运行任务与恢复意图，持训练锁停服保全并校验归档，再原子切换源码别名。上线后至少核对三服务真实目录、版本、资源及就绪；完整验收另核对鉴权、原数据库全部业务列及原正文／配置哈希，快速发布按用户指定范围执行。回退保留最新数据。
 
@@ -223,9 +221,11 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 
 `omrs-boxdetect.service` 与主服务分开，开机自启、失败 3 秒后重启，使用训练 venv 的 onnxruntime，在同仓发布别名的 services/boxdetect 执行 `-m boxdetect_service serve`；只监听 127.0.0.1:18766。受管模型入口为 `/root/omrs-train/managed/active`；当前实际在线 `v2-20260929-b`，SHA-256 为 `f62581b7c28353d5d7799973018a6986e706cd7dcf4fb43ccd10972be4a4c7c3`，输入 640、置信度 0.1，独立内容验收状态为 missing。服务启动加载一次，不热加载训练目录的 current；主服务本次发布没有切换此模型。
 
-资源限制：ORT内部3线程、systemd CPUQuota=200%、MemoryHigh=512M、MemoryMax=1G、Nice=10，启动内存约60MiB。`systemctl status omrs-boxdetect.service`查状态，`journalctl -u omrs-boxdetect.service`查错误；`systemctl start/stop/restart omrs-boxdetect.service`会影响线上框选，仅在获得授权后操作。主应用配置local_http及http://127.0.0.1:18766/detect，浏览器不直接访问检测端口，不需Nginx增加路由。
+资源限制：ORT内部3线程、systemd CPUQuota=200%、MemoryHigh=512M、MemoryMax=1G、Nice=10。`systemctl status omrs-boxdetect.service`查状态，`journalctl -u omrs-boxdetect.service`查错误；`systemctl start/stop/restart omrs-boxdetect.service`会影响线上框选，仅在获得授权后操作。主应用提供方保持local_http，独立连接为http://127.0.0.1:18766并保存主站Key，旧URL配置保持但不再用于新协议；浏览器仅连接主站 `/boxdetect/`，不需Nginx增加路由。
 
-三服务代码回退恢复本次源码别名及检测 unit，执行 daemon-reload 后按原服务状态启动；受管模型指针独立保持，不随代码回退切换。当前提供方与 URL 未改变，无需回写配置。真实 Vault 备份只供专项恢复，不用旧归档覆盖上线后新增题目；候选的内容验收状态仍须在服务操作历史中核对。
+检测unit额外传入 `--data-dir /var/lib/omrs-boxdetect --models-dir /root/omrs-train/managed/snapshots`，StateDirectoryMode=0700、ReadWritePaths仅该私有目录；没有启用legacy-loopback，旧匿名接口返回401。允许外部调用的开关持久化在框选库，unit不强制覆盖；通过既有HTTPS调用仍需Key，内部监听保持127.0.0.1。仓库 `deploy/boxdetect.service` 同样要求显式私有目录，避免ProtectSystem/ProtectHome使默认家目录状态不可写。
+
+三服务代码回退恢复本次源码别名及必要检测unit，执行daemon-reload后按原服务状态启动；受管模型指针独立保持，不随代码回退切换。保留最新Vault、框选私有库、Key与独立连接，不能用旧备份覆盖新增题目或历史；候选的内容验收状态仍须在服务操作历史中核对。
 
 ## 受管检测服务安装与验证
 
@@ -233,7 +233,7 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 
 隔离门禁：`env -u OMRS_SYSTEMD_SERVICE python3 -m unittest tests.test_traincontrol -q`；`env -u OMRS_SYSTEMD_SERVICE python3 tests/e2e/traincontrol.py`。浏览器脚本只注入测试后端，不操作生产unit。正式服务仍限1GiB，登记精确绑定真实Vault，避免隔离实例继承环境误操作。
 
-部署登记使用 `OMRS_BOXDETECT_CONTROL=/etc/omrs-boxdetect-control.json`精确绑定固定unit、Vault与端口；源码中的当前`/train`只提供实验和内容复核，设置保留固定进程启停，新版独立面板拥有模型状态。新版连接启用后旧控制停用；实际生产切换须另行授权，不能把工作区源码行为视为已部署状态。
+部署登记使用 `OMRS_BOXDETECT_CONTROL=/etc/omrs-boxdetect-control.json`精确绑定固定unit、Vault与端口；当前生产 `/train`只提供实验和内容复核，设置保留固定进程启停，独立面板拥有模型状态。新版连接已启用，旧模型控制器停用；原managed/active、state.json及其revision保持，不由新的进程重启控制修改。后续生产变更仍须用户授权。
 
 框选流程视觉对比使用 `python3 tests/visual/run.py --ref <基线> --pages create --create-stage process`，会在临时 fixture 中放入一张合成题图与题目／答案两个待提取框，基线和当前使用完全相同的数据；提取结果态由录入 E2E 的四档截图及审计覆盖。
 
