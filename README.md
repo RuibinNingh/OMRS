@@ -144,6 +144,8 @@ python -m pip install -r requirements-mcp.txt
 python omrs_engine.py --vault /path/to/vault serve --mcp-port 8472
 ```
 
+Windows 本地运行时，题库与即时练习可读取附件中的题图；读取会核对真实文件身份并保留原始图片字节。
+
 启动后访问 <http://localhost:8471/>。首次进入会先显示 OMRS 锁屏入口；启用 PIN 时直接在入口输入 PIN 解锁，未启用 PIN 时点击「进入 OMRS」。已有题库可先只读盘点正文版本覆盖情况：
 
 ```bash

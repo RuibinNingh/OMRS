@@ -1,6 +1,7 @@
 """题图原件：共享图片列表、安全目录读取、原字节及解码资源边界。"""
 
 import importlib.util
+from contextlib import contextmanager
 import io
 import os
 from pathlib import Path
@@ -114,6 +115,35 @@ class QuestionImageTests(unittest.TestCase):
                 self.assertEqual(self.read(uid), (original, "png"))
         self.assertEqual(read_commits(str(self.vault)), commits)
 
+    def test_path_reader_does_not_use_scandir_file_identity(self):
+        """Windows 的 DirEntry.stat 身份为零时，Web 与 MCP 仍读原件。"""
+        uid = self.question()
+        original = _png() + b"PNG-ORIGINAL-TAIL"
+        self.write(raw=original)
+        real_scandir = os.scandir
+
+        class EntryWithoutIdentity:
+            def __init__(self, entry):
+                self.entry = entry
+
+            def __getattr__(self, name):
+                return getattr(self.entry, name)
+
+            def stat(self, *, follow_symlinks=True):
+                info = self.entry.stat(follow_symlinks=follow_symlinks)
+                return SimpleNamespace(st_mode=info.st_mode, st_dev=0, st_ino=0)
+
+        @contextmanager
+        def scan_without_identity(path):
+            with real_scandir(path) as entries:
+                yield (EntryWithoutIdentity(entry) for entry in entries)
+
+        with patch.object(question_images, "_DIRECTORY_FDS", False), \
+                patch.object(question_images.os, "scandir", side_effect=scan_without_identity):
+            self.assertEqual(question_images.read_attachment_image(str(self.vault), "figure.png"),
+                             (original, "image/png"))
+            self.assertEqual(self.read(uid), (original, "png"))
+
     def test_absent_question_no_images_out_of_range_and_invalid_inputs(self):
         uid = self.question()
         self.write()
@@ -127,6 +157,25 @@ class QuestionImageTests(unittest.TestCase):
             with self.subTest(args=args):
                 with self.assertRaisesRegex(ValueError, message):
                     self.read(*args)
+
+    def test_path_reader_rejects_regular_file_swap_before_open(self):
+        """无需符号链接权限，也必须拒绝 stat 与 open 之间的普通文件替换。"""
+        uid = self.question()
+        target = self.write()
+        replacement = self.write("replacement.png", _png(3, 3))
+        real_open = os.open
+
+        def replace(name, *args, **kwargs):
+            if os.fspath(name) == str(target):
+                os.replace(replacement, target)
+            return real_open(name, *args, **kwargs)
+
+        with patch.object(question_images, "_DIRECTORY_FDS", False), \
+                patch.object(question_images.os, "open", side_effect=replace), \
+                patch.object(question_images, "_read_bytes") as read:
+            with self.assertRaisesRegex(ValueError, "发生变化"):
+                self.read(uid)
+            read.assert_not_called()
 
     def test_missing_image_has_no_path_and_no_vault_root_fallback(self):
         uid = self.question("![[private.png]]")

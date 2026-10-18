@@ -97,6 +97,8 @@ MCP导出图片复用受限question_images入口，不调用旧_find_image路径
 
 HEAD 沿普通 GET 授权和路由，不调用标准库的当前目录文件回退。图片、报告图片授权和 HTML 导出共用 `question_images.attachment_path/read_attachment_image`：只接收附件内安全路径或唯一文件名，拒绝绝对路径、穿越、链接和重复解码。读取使用安全文件描述符或目录/文件身份检查，期间替换即失败；Web 读取已有大图不套用外部 MCP 单图8MiB限制。
 
+无目录 FD 的路径读取分支使用独立 `os.lstat(entry.path)` 获取候选文件身份，再与打开后的 `os.fstat()` 比较；不能用 Windows 上可能返回零值 `st_dev/st_ino` 的 `DirEntry.stat()` 代替。目录／文件身份比较、重解析点与符号链接拒绝、读取期间属性变化检查仍然保留，不以跳过身份检查换取兼容性。
+
 暂存上传的操作者、用途、Vault世代、期限和内容哈希在消费时再次验证。认证文件写入按租约→写锁→安全模块锁顺序，使用唯一0600临时文件原子替换。恢复调用 `invalidate_vault` 清当前Vault会话/失败窗口；正在等待的PIN校验锁保留到最后一位使用者退出。
 
 ## 标记整理审批

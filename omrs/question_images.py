@@ -172,7 +172,9 @@ def _read_from_paths(vault, name, maximum=MAX_IMAGE_BYTES):
                 if os.path.normcase(entry.name) == os.path.normcase(name):
                     if candidate is not None:
                         raise ValueError("题目引用的图片文件名不唯一，无法确定原图")
-                    candidate = entry.path, entry.stat(follow_symlinks=False)
+                    # Windows 的 DirEntry.stat() 不提供真实 st_dev/st_ino；
+                    # 独立 lstat 才能与打开后的 fstat 做同一文件身份校验。
+                    candidate = entry.path, os.lstat(entry.path)
                 elif entry.is_dir(follow_symlinks=False):
                     visit(entry.path)
         check_directory(path)
