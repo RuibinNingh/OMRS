@@ -54,7 +54,7 @@ assets/
 - 主面板显示和浏览器刷新直接呈现内容，不播放整页淡入、位移或缩放；页面自身的加载状态由对应控制器负责。
 - 页面 `<head>` 注册 `assets/app/omrs-favicon.svg` 作为 16–32px 标签页图标，注册 `assets/app/omrs-icon.svg` 作为 48px 以上与触控主屏图标；侧栏左上角 32px 品牌位使用小尺寸图标，旁边保留 OMRS 名称与中文副标题。
 - 侧栏宽 232px，导航项是 `<a class="tab" href="#/页面">`（键盘可达）。当前页：强调浅底、半粗、左侧 3px 指示条，并带 `aria-current="page"`。
-- 侧栏页脚在 `omrs_dashboard.html` 声明当前版本号，与 `omrs/version.py`、根 `README.md` 和 `AI/README.md` 保持同步；运行中 `/api/status` 返回同一版本。发布验证同时核对接口版本、实际页面页脚和生产资源与发布归档的字节一致性；助手权限菜单等新增模块也须核验其运行资源，版本变更摘要只写在 `AI/changelog.md`。
+- 侧栏页脚在 `omrs_dashboard.html` 声明当前版本号，与 `omrs/version.py`、根 `README.md` 和 `AI/README.md` 保持同步；运行中 `/api/status` 返回同一版本。纯版本更新的截图差异应限于页脚数字，手机抽屉关闭时页脚不可见。发布验证同时核对接口版本、实际页面页脚和生产资源与发布归档的字节一致性；助手权限菜单等新增模块也须核验其运行资源，版本变更摘要只写在 `AI/changelog.md`。
 - 源码发布在隔离实例核对页脚，并以 GitHub main 分支头核对提交；生产使用同一提交的精确归档，版本号、工作区未提交内容与在线运行目录分别核对，发布结果单独记录。
 - 侧栏、折叠按钮和手机汉堡按钮的图标都引用页面内的 `#i-*` SVG sprite；`.nav-ico` 统一设置 `currentColor` 描边、无填充、圆角线帽和 18px 盒子，避免 symbol 缺少外观规则时退回浏览器默认填充。
 - 折叠：侧栏按钮的 `data-action="app.collapse"` 更新 `<html data-sidebar>` 和 localStorage，侧栏收成 58px 图标栏；折叠时外壳给导航项挂 `data-tooltip`，悬停显示页面名。
