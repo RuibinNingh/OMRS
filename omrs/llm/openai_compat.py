@@ -4,13 +4,13 @@
 complete() 永不抛出网络/协议错误：finish_reason 为 'error' 时 error 字段是可读原因。
 """
 import json
-import os
 import socket
 import threading
 import time
 import urllib.error
 import urllib.request
 from .usage import normalize_usage
+from .. import log_utils
 
 FINISH_MAP = {"stop": "stop", "tool_calls": "tool_calls", "function_call": "tool_calls", "length": "length",
               "content_filter": "error", "end_turn": "stop"}
@@ -122,12 +122,14 @@ class OpenAICompatClient:
     def _debug(self, kind, data):
         if not self.debug_path:
             return
-        try:
-            os.makedirs(os.path.dirname(self.debug_path), exist_ok=True)
-            with open(self.debug_path, "a", encoding="utf-8") as file:
-                file.write(json.dumps({"t": time.time(), "kind": kind, "data": data}, ensure_ascii=False) + "\n")
-        except OSError:
-            pass
+        record = {"t": time.time(), "kind": kind, "data": data}
+        entry = json.dumps(record, ensure_ascii=False) + "\n"
+        size = len(entry.encode("utf-8", "replace"))
+        if size > log_utils.MAX_LOG_BYTES:
+            # 保持 JSONL 可解析，也不能为记录整图请求突破磁盘上限。
+            record.update(data={"omitted": "单条内容超过日志大小上限"}, truncated=True, original_bytes=size)
+            entry = json.dumps(record, ensure_ascii=False) + "\n"
+        log_utils.append_log(self.debug_path, entry)
 
     def complete(self, messages, tools=None, *, stream=True, max_tokens=4096, on_delta=None, cancel=None):
         started = time.monotonic()

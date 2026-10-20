@@ -4,7 +4,7 @@
 > - 职责：稳定题目身份、SQL 读模型、按需 CSV、Markdown 与活动配置；独立存储见分册
 > - 入口：`omrs/data_repository.py`、`omrs/config_repository.py`、`omrs/common.py`、`omrs/indexing.py`
 > - 不变量：题目结构化元数据、复习状态与 Session 以 `ledger.db` 为事实源，CSV 只作按需导出与首次迁移输入；展示板、助手、草稿、收件箱、标注集、运行记录和作业帮来源各有独立存储
-> - 必跑测试：`tests/test_history_projection.py`、`tests/test_question_records.py`、`tests/test_content_integrity.py`、`tests/test_data_runtime.py`
+> - 必跑测试：`tests/test_history_projection.py`、`tests/test_question_records.py`、`tests/test_content_integrity.py`、`tests/test_data_runtime.py`、`tests/test_logging.py`
 > - 相关：`AI/ledger.md`、`AI/security.md`、`AI/mcp-storage.md`
 
 > 对应源文件：`omrs/common.py`、`omrs/indexing.py`
@@ -226,13 +226,19 @@ Markdown `# 历史` 不作为算法输入，也不会由反馈流程追加。`/a
 
 路径：`<vault>/logs/omrs_YYYY-MM-DD.log`（位于 vault 根目录下的 `logs/`；标准启动 `python omrs_engine.py serve` 时 vault=仓库根目录，即 `logs/omrs_YYYY-MM-DD.log`）
 
-每日一个文件，记录以下事件：
+按北京时间分日，时间戳带 `+08:00`，由 `omrs/log_utils.py` 记录以下事件：
 
 | 事件类型 | 触发时机 |
 |---|---|
-| `FEEDBACK` | 每条反馈处理后 |
+| `FEEDBACK` | 反馈数据库事务提交成功后，逐条记录本次新增反馈；无效、幂等复用及回滚条目不记录 |
 | `SCHEDULE` | 每次调度执行后 |
 | `INDEX` | 每次重建索引后 |
+
+反馈诊断含UID、稳定question_id、Session、Ledger commit_id、分数及熟练度变化，不含题面与笔记。诊断是尽力留痕，不构成业务事实源或崩溃时的恰好一次保证；正式反馈与幂等回执仍由Ledger事务决定。
+
+运行日志及AI请求日志每个文件最多8MiB，按完整记录轮换为`.1`、`.2`、`.3`；新文件权限0600，目录锁串行化线程和跨进程写入。运行目录仅清理符合OMRS日期命名的普通文件，保留含当天在内30天，受管文件合计最多64MiB，超限先清理较早记录；自定义日志、无效日期文件及链接不参与删除。清理在下一次写入触发，不启动后台服务，也不清理`AI/logs/`或数据库。
+
+旧超限文件在下一次写入时清理；AI请求单条超过8MiB时用含`truncated:true`和`original_bytes`的JSON说明代替正文，仍保持JSONL完整。写入、轮换、目录锁或清理失败只向标准日志输出固定中文警告，全进程每60秒至多一次，不回显路径、原始异常或记录正文，不把已完成业务变为失败。AI请求开关与内容范围见`AI/agent.md`；导出仍读取所选文件的原始字节。
 
 ### optimization_log.jsonl
 

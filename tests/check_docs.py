@@ -1,4 +1,4 @@
-"""AI 文档体检与生成器：只查「形式」和「是否同步」，不判断内容对错。
+"""AI 文档体检与生成器：检查形式、同步及任务日志生命周期，不判断业务事实对错。
 
     python3 tests/check_docs.py                    # 形式检查；有问题退出码 1
     python3 tests/check_docs.py --diff [BASE]      # 另查本次改动：改了源码却没改对应文档、没写任务日志
@@ -15,10 +15,12 @@
 6. 模块文档不链接 `AI/logs/`：日志不随脱敏源码包导出，历史写进 changelog。
 7. `AI/routes.md` 与 `omrs/http/registry.py` 的路由一致，且每条路由至少在一份文档里有说明。
 8. 存在 `AI/logs/log.md` 时，它必须与日志文件同步（由 --write-log-index 生成）。
+   --diff 另查变更任务日志的状态、非空章节及历史勘误；不追溯套用新模板到未改动的旧日志。
 9. 计划文件夹 `AI/plans/<计划>/` 必须同时有 plan.md 与 progress.md；progress.md 前 15 行有 `> **状态**`
    块，含目标、阶段、基线、下一步、更新五项。计划文档不是模块文档（不要速查头），引用的路径可以是未来的文件。
 提醒（不失败）：单个文档超过 SOFT_MAX_BYTES 时建议拆分册，先例是 `AI/frontend/`。
 """
+import datetime
 import os
 import re
 import subprocess
@@ -39,6 +41,8 @@ PATH_RE = re.compile(
     r"`((?:assets|omrs|tests|Skills|deploy|services|tools|web)/[\w./-]+\.(?:js|py|css|html|md|json|service)"
     r"|AI/(?!logs/)[\w./-]+\.md)(?:::[^`\n]+)?`")
 LOG_LINK_RE = re.compile(r"AI/logs/\d|`logs/\d{4}-")
+TASK_LOG_RE = re.compile(r"AI/logs/(\d{4}-\d{2}-\d{2})_([a-z0-9]+(?:-[a-z0-9]+)*)\.md$")
+TASK_SECTIONS = ("背景", "行为变化", "影响文件", "已执行验证", "未执行验证")
 
 
 def rel(path):
@@ -66,7 +70,9 @@ def doc_targets():
     for directory in ("services/zuoyebang", "services/boxdetect", "tools/boxdetect",
                       "assets/vendor", "Skills"):
         docs += _public_docs(os.path.join(ROOT, directory))
-    return sorted(set(docs + plan_docs() + [os.path.join(ROOT, "README.md")]))
+    roots = [os.path.join(ROOT, name) for name in ("README.md", "AGENTS.md")
+             if os.path.isfile(os.path.join(ROOT, name))]
+    return sorted(set(docs + plan_docs() + roots))
 
 
 def plan_dirs():
@@ -248,9 +254,11 @@ def check_log_index():
 # ---------- --diff：改了源码却没改文档 ----------
 
 def doc_map():
-    """Parse the 「代码到文档的对应关系」 table in AGENTS.md: [(source patterns, doc patterns)]."""
+    """解析映射表的必更文档；分号、逗号及括号后的条件由维护者按实际契约复核。"""
     rows, in_table = [], False
-    for line in open(os.path.join(ROOT, "AGENTS.md"), encoding="utf-8"):
+    with open(os.path.join(ROOT, "AGENTS.md"), encoding="utf-8") as stream:
+        lines = stream.readlines()
+    for line in lines:
         if line.startswith("| 改动范围"):
             in_table = True
             continue
@@ -261,7 +269,9 @@ def doc_map():
             if len(cells) < 2 or set(cells[0]) <= {"-", " "}:
                 continue
             sources = re.findall(r"`([^`]+)`", cells[0])
-            docs = [d for d in re.findall(r"`([^`]+)`", cells[1]) if d.startswith("AI/") or d.endswith(".md")]
+            required = re.split(r"[；，]", cells[1], maxsplit=1)[0]
+            required = re.sub(r"（[^）]*）", "", required)
+            docs = [d for d in re.findall(r"`([^`]+)`", required) if d.startswith("AI/") or d.endswith(".md")]
             if sources and docs:
                 rows.append((sources, docs))
     return rows
@@ -272,11 +282,79 @@ def matches(path, pattern):
 
 
 def changed_files(base):
-    tracked = subprocess.run(["git", "-C", ROOT, "diff", "--name-only", base], check=True,
-                             capture_output=True, text=True).stdout.split()
-    untracked = subprocess.run(["git", "-C", ROOT, "ls-files", "--others", "--exclude-standard"],
-                               check=True, capture_output=True, text=True).stdout.split()
-    return sorted(set(tracked + untracked))
+    tracked = subprocess.run(["git", "-C", ROOT, "diff", "--no-renames", "--name-only", "-z", base, "--"], check=True,
+                             capture_output=True, text=True).stdout.rstrip("\0").split("\0")
+    untracked = subprocess.run(["git", "-C", ROOT, "ls-files", "--others", "--exclude-standard", "-z"],
+                               check=True, capture_output=True, text=True).stdout.rstrip("\0").split("\0")
+    return sorted(set(tracked + untracked) - {""})
+
+
+def _base_text(base, path):
+    result = subprocess.run(["git", "-C", ROOT, "show", f"{base}:{path}"], capture_output=True, text=True)
+    return result.stdout if result.returncode == 0 else None
+
+
+def task_state(text):
+    head = "\n".join(text.splitlines()[:15])
+    match = re.search(r"^> - 状态：(进行中|已交付)\s*$", head, re.MULTILINE)
+    return match[1] if "> **任务**" in head and match else None
+
+
+def check_task_log(path, text):
+    problems = []
+    match = TASK_LOG_RE.fullmatch(path)
+    if not match:
+        return [f"{path}: 任务日志名必须为 YYYY-MM-DD_<英文小写主题>.md"]
+    try:
+        datetime.date.fromisoformat(match[1])
+    except ValueError:
+        problems.append(f"{path}: 文件名日期无效")
+    if not re.search(r"^# " + re.escape(match[1]) + r" .+", text, re.MULTILINE):
+        problems.append(f"{path}: 标题须以文件名日期开头")
+    head = "\n".join(text.splitlines()[:15])
+    if task_state(text) is None or f"> - 标识：{match[2]}" not in head.splitlines():
+        problems.append(f"{path}: 前15行须有任务块、与文件名主题一致的标识和状态（进行中/已交付）")
+    sections = re.findall(r"^## ([^\n]+)\n(.*?)(?=^## |\Z)", text, re.MULTILINE | re.DOTALL)
+    for title in TASK_SECTIONS:
+        bodies = [body.strip() for heading, body in sections if heading.strip() == title]
+        if len(bodies) != 1 or not bodies[0]:
+            problems.append(f"{path}: 须有且仅有一个非空「{title}」章节")
+    return problems
+
+
+def check_task_changes(base, changed):
+    """只让新日志或基线中仍进行的任务满足留痕；已交付记录只接受追加勘误。"""
+    problems, active = [], []
+    historical = False
+    for path in changed:
+        if not path.startswith("AI/logs/") or path == "AI/logs/log.md" or not path.endswith(".md"):
+            continue
+        target = os.path.join(ROOT, path)
+        if os.path.islink(target) or not os.path.isfile(target):
+            problems.append(f"{path}: 任务日志不得删除、改名或替换为链接")
+            continue
+        with open(target, encoding="utf-8") as stream:
+            text = stream.read()
+        previous = _base_text(base, path)
+        if previous is None or task_state(previous) == "进行中":
+            issues = check_task_log(path, text)
+            problems.extend(issues)
+            if not issues:
+                active.append(path)
+        else:
+            historical = True
+            appended = text[len(previous):] if text.startswith(previous) else ""
+            correction = re.fullmatch(r"\s*## 勘误（(\d{4}-\d{2}-\d{2})）\n\s*\S[\s\S]*", appended)
+            try:
+                valid_date = correction is not None and bool(datetime.date.fromisoformat(correction[1]))
+            except ValueError:
+                valid_date = False
+            if not valid_date:
+                problems.append(f"{path}: 历史日志只能保留原文后追加「## 勘误（YYYY-MM-DD）」；新任务请新建日志")
+    substantive = any(not path.startswith("AI/logs/") for path in changed)
+    if (substantive or historical) and not active:
+        problems.append("有持久化改动但没有合格的新任务日志或进行中任务日志；修改已交付历史不能代替本次留痕")
+    return problems
 
 
 def check_diff(base):
@@ -287,13 +365,12 @@ def check_diff(base):
     problems = []
     for sources, docs in doc_map():
         hit = [p for p in changed if any(matches(p, s) for s in sources)]
-        if hit and not any(any(matches(p, d) or (d.endswith(".md") and p.startswith(d[:-3] + "/")) for d in docs)
-                           for p in changed):
-            problems.append(f"改了 {', '.join(hit[:3])}{' 等' if len(hit) > 3 else ''}，但 {' / '.join(docs)} 都没更新")
-    substantive = [p for p in changed if not p.startswith("AI/logs/")]
-    if substantive and not any(re.match(r"AI/logs/\d{4}-\d{2}-\d{2}_.+\.md$", p) for p in changed):
-        problems.append("有持久化改动但没有新增或更新 AI/logs/YYYY-MM-DD_<topic>.md 任务日志")
-    return problems
+        missing = [d for d in docs if not any(
+            os.path.isfile(os.path.join(ROOT, p)) and not os.path.islink(os.path.join(ROOT, p))
+            and (matches(p, d) or (d.endswith(".md") and p.startswith(d[:-3] + "/"))) for p in changed)] if hit else []
+        if missing:
+            problems.append(f"改了 {', '.join(hit[:3])}{' 等' if len(hit) > 3 else ''}，但必更文档 {' / '.join(missing)} 未更新")
+    return problems + check_task_changes(base, changed)
 
 
 def main(argv):

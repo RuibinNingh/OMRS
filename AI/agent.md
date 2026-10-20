@@ -51,6 +51,8 @@ SSE 按 Responses 事件解析文字、拒答、推理摘要与工具参数增�
 
 开启 `agent_debug_log` 后，每次 Responses 流式请求在既有日志中额外追加一条 `kind=responses.stream` 诊断。只记录白名单事件类型计数、摘要增量／完成项／终态／最终保留内容的字符数、终态标识、输出与推理 token、文本差异次数及中止状态；不额外记录正文、工具参数或加密内容。正常完成、断流和中止都会收尾记录，可用各阶段长度判断摘要缺失的位置；诊断不改变模型请求参数或生产配置。
 
+请求日志默认关闭。开启后经 `omrs/log_utils.py` 完整追加JSONL，单文件8MiB、最多3份轮换备份，新文件0600；超限的单条请求或响应用`truncated:true`、`original_bytes`与省略说明代替正文，不截断JSON或修改发往模型的内容。目录锁串行化线程及独立进程；写入、轮换或清理失败只发节流的固定中文警告，不改变模型调用结果。容量规则与边界见`AI/data.md`「日志文件」，回归用`tests/test_logging.py`。
+
 ### 测试用假模型
 
 进程环境变量 `OMRS_AGENT_FAUX_SCRIPT` 指向脚本文件时，运行时一律改用 `omrs/llm/faux.py`，模型名显示为 `faux`，配置接口不能开启它。脚本格式与模板见该文件文档字符串；测试脚本在 `tests/fixtures/agent_faux.json`。

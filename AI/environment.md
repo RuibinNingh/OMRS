@@ -39,6 +39,10 @@ A4固定字体与打印门禁为 `python3 -m unittest tests.test_export_fonts te
 
 审核中心长期待审用 `python3 tests/e2e/ai_review.py` 验证：临时 Vault 在实际服务启动前预置一个月前带旧期限的 MCP 提案，浏览器核对队列、详情无有效期、人工修订与批准；服务启动不能按旧期限结束该请求。时钟前移一年的领域回归使用进程内替换时间，不等待真实期限，也不读取生产题库。
 
+## 维护门禁与诊断日志
+
+协作底线见`AGENTS.md`，规划模板按需读`AI/plans/README.md`，任务日志状态、正文与逐项文档同步规则见`AI/README.md`。`python3 -m unittest tests.test_docs_gate -q`在临时Git仓库验证新增、续作、历史勘误及删除／改名。诊断容量见`AI/data.md`；`tests/test_logging.py`使用临时Vault验证反馈提交后留痕、故障、轮换和跨进程锁，`tests/test_log_export.py`验证只读导出。目录锁最多等待2秒，不参与导出；存储故障从进程标准日志查看。
+
 ## 2. Claude Code Web 实测能力（2026-09-24）
 
 - **系统**：Ubuntu 24.04.4，1 核 CPU、4GB 内存；Python 3.12.3，Node 22.22.2 / npm 10.9.7，git 2.43.0。

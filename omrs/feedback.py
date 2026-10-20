@@ -12,6 +12,7 @@ from .projections import rebuild_projection
 from .data_repository import resolve_question, storage_write
 from .sessions import get_session, mark_session_completed
 from .path_safety import safe_question_path
+from .log_utils import log_feedback
 
 
 def _question_summary_at_feedback(vault, row):
@@ -44,10 +45,14 @@ def process_feedback(vault, feedbacks, session_id="", attempt_id=""):
             raise ValueError("练习卡不存在")
     else:
         card = None
+    diagnostics = []
     with _feedback_transaction(vault) as (state, db):
         seen = submitted_entries_in_db(db, attempt_id) if attempt_id else None
         results = _process_feedback(vault, feedbacks, session_id, attempt_id=attempt_id,
-                                    card=card, ledger_db=db, seen=seen, state=state)
+                                    card=card, ledger_db=db, seen=seen, state=state, diagnostics=diagnostics)
+    # 只在事务成功后追加诊断；幂等复用、无效条目与回滚不产生成功记录。
+    for detail in diagnostics:
+        log_feedback(vault, **detail)
     # 完成标记在反馈事务之后读取已发布历史，不在持有SQL写事务时另开写连接。
     if session_id and not attempt_id:
         session = get_session(vault, session_id)
@@ -87,7 +92,8 @@ def _feedback_transaction(vault):
             raise
 
 
-def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, attempt_id="", card=None, seen=None):
+def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, attempt_id="", card=None, seen=None,
+                      diagnostics=None):
     tuning = state["_tuning"]
     if session_id and ledger_db.execute("SELECT 1 FROM projection_session_corrections WHERE session_id=? AND retracted=1", (session_id,)).fetchone():
         raise ValueError("复习计划已撤销，不能提交反馈")
@@ -180,13 +186,20 @@ def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, atte
         from .projection_runtime import apply_incremental
         apply_incremental(vault, ledger_db, state, tuning, info["seq"], info["seq"])
         actual = iter(state["_review_results"])
+        reviews = iter(commit_feedbacks)
         for result in results:
             if result["status"] == "ok" and not result.get("reused"):
                 published = next(actual)
+                review = next(reviews)
                 if published["question_id"] != result["question_id"]:
                     raise RuntimeError("反馈投影结果与提交身份不一致")
                 result.update({key: published[key] for key in (
                     "label", "old_mastery", "new_mastery", "tag", "new_interval", "new_due_date")})
+                if diagnostics is not None:
+                    diagnostics.append({"uid": result["uid"], "question_id": result["question_id"],
+                        "session_id": session_id, "commit_id": info["commit_id"],
+                        "sub_score": review["sub_score"], "is_correct": review["is_correct"],
+                        **{key: published[key] for key in ("old_mastery", "new_mastery", "label")}})
     for reused, original in duplicates:
         reused.update(original, reused=True)
     for receipt_key, result in receipts.items():
