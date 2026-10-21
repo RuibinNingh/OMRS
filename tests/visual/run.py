@@ -217,7 +217,7 @@ def seed_process_fixture(vault):
     ]})
 
 
-def seed_drafts_fixture(vault):
+def seed_drafts_fixture(vault, *, include_sources=True):
     """草稿前后对比共用多文字块、公式与来源图，不连接真实草稿区。"""
     import base64
     import io
@@ -234,7 +234,7 @@ def seed_drafts_fixture(vault):
             'subject': '数学', 'category': '函数与导数', 'difficulty': 5,
             'knowledge_points': ['导数', '单调性'], 'cause': '求导后未检查区间端点，遗漏最小值。',
             'cause_statement': '求导后未检查区间端点，遗漏最小值。',
-            'source_images': [source['sha256']], 'blocks': [
+            'source_images': [source['sha256']] if include_sources else [], 'blocks': [
                 {'section': '题目', 'kind': 'text', 'text': f'第 {index + 1} 题：已知函数 $f(x)=x^2-2x$，定义域为 $[0,3]$。'},
                 {'section': '题目', 'kind': 'text', 'text': '（1）求函数的单调区间。'},
                 {'section': '题目', 'kind': 'text', 'text': '（2）求函数在给定区间上的最小值，并说明理由。'},
@@ -244,14 +244,14 @@ def seed_drafts_fixture(vault):
         }, {'conversation_id': 'visual-drafts', 'run_id': 'visual-run', 'tool_call_id': f'visual-{index}'})
 
 
-def seed_ai_review_fixture(vault):
+def seed_ai_review_fixture(vault, *, draft_sources=True):
     """中心审计使用真实领域提案与草稿，资料完全由测试 fixture 生成。"""
     sys.path.insert(0, ROOT)
     from omrs import ai_review, creation
     from omrs.agent.tools.read import get_question
     from omrs.mcp.keys import create_key
     from omrs.mcp.question_write import propose
-    seed_drafts_fixture(vault)
+    seed_drafts_fixture(vault, include_sources=draft_sources)
     question = creation.create_question(vault, '数学', '审核中心截图', 5,
         question_text='已知 $f(x)=x^2-2x$，求 $f(3)$。', answer_text='代入得 $f(3)=3$。')
     detail = get_question({'vault': vault}, {'uid': question['uid']})['result']
@@ -276,6 +276,7 @@ def main(argv=None):
     ap.add_argument("--settings-section", choices=["appearance", "access", "ai", "assistant", "data", "service"], help="设置页截图时切到指定分区")
     ap.add_argument("--settle", type=int, default=500, help="每页切换后额外等待毫秒数")
     ap.add_argument("--review-kind", choices=['operation', 'draft'], default='operation', help="审核中心截图详情类型")
+    ap.add_argument("--draft-sources", choices=['image', 'none'], default='image', help="审核草稿保留来源图或使用纯文字夹具")
     args = ap.parse_args(argv)
     args.pages, args.themes, args.viewports = (v.split(",") for v in (args.pages, args.themes, args.viewports))
     out = os.path.abspath(args.out)
@@ -295,7 +296,7 @@ def main(argv=None):
     if args.create_stage == "drafts":
         seed_drafts_fixture(fixture)
     if 'ai-review' in args.pages:
-        seed_ai_review_fixture(fixture)
+        seed_ai_review_fixture(fixture, draft_sources=args.draft_sources == 'image')
     sides = [("cur", ROOT)]
     if not args.audit_only:
         sides.insert(0, ("ref", prepare_ref(args.ref, out)))

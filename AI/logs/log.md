@@ -3,6 +3,7 @@
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
 - [2026-10-21_mcp-answer-scope](2026-10-21_mcp-answer-scope.md)：MCP 答案内容边界
+- [2026-10-21_ai-review-columns](2026-10-21_ai-review-columns.md)：审核中心题目与答案自适应双栏
 - [2026-10-20_logging-governance](2026-10-20_logging-governance.md)：诊断日志与协作门禁优化
 - [2026-10-18_zuoyebang-svg-images](2026-10-18_zuoyebang-svg-images.md)：作业帮静态SVG附图兼容
 - [2026-10-18_zuoyebang-recognizing-github](2026-10-18_zuoyebang-recognizing-github.md)：作业帮识别提示提交 GitHub

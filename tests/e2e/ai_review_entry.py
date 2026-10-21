@@ -1,4 +1,4 @@
-"""审核录入并排工作台：真实服务、原图切换、本地新块、裁图暂存及入库。"""
+"""审核录入工作台：原图框选、题答自适应双栏、暂存、入库与窄抽屉。"""
 import json
 import os
 from pathlib import Path
@@ -14,6 +14,120 @@ sys.path.insert(0, str(ROOT / 'tests'))
 sys.path.insert(0, str(ROOT / 'tests/e2e'))
 from browser_runtime import launch_chromium, open_app
 import drafts as support
+
+
+def verify_columns(page, base, first, second, shots, check):
+    """在真实草稿上核对容器断点、编辑不中断、公式滚动及共享抽屉。"""
+    def layout(root=page):
+        return root.locator('.drf-blocks').evaluate("""el =>
+          ['.drf-review-question', '.drf-review-answer'].map(selector => {
+            const { x, y, width, height } = el.querySelector(selector).getBoundingClientRect();
+            return { x, y, width, height };
+          })""")
+
+    def side_by_side(root=page):
+        question, answer = layout(root)
+        return (abs(question['y'] - answer['y']) < 1
+                and question['x'] + question['width'] <= answer['x'] + 1
+                and abs(question['width'] - answer['width']) <= 1)
+
+    def stacked(root=page):
+        question, answer = layout(root)
+        return abs(question['x'] - answer['x']) < 1 and question['y'] + question['height'] <= answer['y'] + 1
+
+    def content_width(width):
+        actual = page.locator('.drf-review-content').bounding_box()['width']
+        page.set_viewport_size({'width': round(page.viewport_size['width'] + width - actual), 'height': 1000})
+        page.wait_for_function("width => Math.abs(document.querySelector('.drf-review-content').getBoundingClientRect().width - width) < .1", arg=width)
+
+    page.set_viewport_size({'width': 1440, 'height': 1000})
+    open_app(page, base, 'ai-review?draft=' + second['id'])
+    page.locator('.drf-review-question .drf-md').wait_for()
+    content_width(999)
+    check('正文999px时题答上下排列', stacked())
+    content_width(1000)
+    check('正文1000px时题答等宽并排且顶部对齐', side_by_side())
+    check('空答案保留提示和新增入口', page.locator('.drf-review-answer').get_by_text('可以没有答案。').is_visible()
+          and page.locator('.drf-review-answer [data-action="ai-review.draftAddText"]').is_visible())
+    info = page.locator('.drf-review-info').bounding_box()
+    question, answer = layout()
+    check('题目信息位于两栏上方且占满正文', info['y'] + info['height'] <= question['y']
+          and abs(info['width'] - question['width'] - answer['width']) < 1)
+
+    long_formula = '$$' + r' + '.join(r'\frac{x_{%d}^{2}+1}{\sqrt{x_{%d}+2}}' % (index, index) for index in range(16)) + '$$'
+    long_answer = '【答案】2。\n\n' + long_formula + '\n\n' + '\n\n'.join(f'第{index + 1}步：保留题目条件并核对计算过程。' for index in range(12))
+    page.locator('[data-action="ai-review.draftAddText"][data-arg="答案"]').click()
+    page.locator('.drf-review-answer textarea').fill(long_answer)
+    page.locator('.drf-review-answer [data-action="ai-review.draftEditBlock"]').click()
+    formula = page.locator('.drf-review-answer .katex-display')
+    formula.wait_for()
+    check('长公式在答案栏内局部横向滚动', formula.evaluate("el => el.scrollWidth > el.clientWidth && getComputedStyle(el).overflowX === 'auto'")
+          and not page.evaluate('document.documentElement.scrollWidth > innerWidth'))
+
+    page.locator('[data-action="ai-review.draftAddText"][data-arg="题目"]').click()
+    editor = page.locator('.drf-review-question textarea')
+    editor.fill('补充条件 $x>0$，窗口缩放后保留正在编辑的内容。')
+    editor.evaluate('el => { window.__columnEditor = el; el.setSelectionRange(3, 7); }')
+    for width in (999, 1000):
+        content_width(width)
+        check(f'编辑中缩放至{width}px保留节点、焦点、选区和未保存输入', editor.evaluate("el => el === window.__columnEditor && el === document.activeElement && el.selectionStart === 3 && el.selectionEnd === 7")
+              and editor.input_value() == '补充条件 $x>0$，窗口缩放后保留正在编辑的内容。'
+              and '未保存' in page.locator('.drf-detail h2').inner_text())
+    body = page.locator('.drf-block.is-editing .drf-block-body').bounding_box()
+    actions = page.locator('.drf-block.is-editing .drf-block-actions').bounding_box()
+    check('双栏块操作位于内容下方', actions['y'] >= body['y'] + body['height'] - 1)
+    page.locator('.drf-block.is-editing [data-action="ai-review.draftEditBlock"]').click()
+    with page.expect_response('**/api/drafts/update') as response:
+        page.locator('[data-action="ai-review.draftSave"]').click()
+    saved = support.api(base, '/api/drafts/item?id=' + second['id'])['draft']
+    check('双栏编辑通过真实接口保留全部题答块', response.value.ok and len(saved['blocks']) == 3
+          and saved['blocks'][-1]['text'] == long_answer)
+    check('长解析共用详情滚动且仅有一个底部操作栏', page.evaluate("""() => {
+      const parent = element => {
+        for (let node = element; node; node = node.parentElement)
+          if (/auto|scroll/.test(getComputedStyle(node).overflowY) && node.scrollHeight > node.clientHeight) return node;
+      };
+      const question = document.querySelector('.drf-review-question'), answer = document.querySelector('.drf-review-answer');
+      const scroll = parent(question);
+      return scroll?.matches('.arv-detail') && scroll === parent(answer)
+        && document.querySelectorAll('.drf-footer').length === 1;
+    }"""))
+    for theme in ('light', 'dark'):
+        page.evaluate('theme => document.documentElement.dataset.theme = theme', theme)
+        for width in (320, 390, 1024, 1440):
+            page.set_viewport_size({'width': width, 'height': 1000})
+            audit = page.evaluate(support.AUDIT)
+            check(f'{theme}/{width}长题答无横溢并自适应排列', not audit['overflow'] and not audit['tiny']
+                  and (side_by_side() if width == 1440 else stacked()))
+            page.screenshot(path=str(shots / f'columns-{theme}-{width}.png'), full_page=True)
+
+    page.set_viewport_size({'width': 1440, 'height': 1000})
+    open_app(page, base, 'ai-review?draft=' + first['id'])
+    page.locator('canvas[data-draft-crop]').first.wait_for()
+    check('保留原图后按剩余正文空间上下排列', stacked() and page.locator('.drf-entry-source').is_visible())
+    page.set_viewport_size({'width': 2560, 'height': 1440})
+    check('带原图的超宽正文仍按自身空间并排', side_by_side() and page.locator('.drf-entry-source').is_visible())
+    check('已入库只读配图不超栏宽且没有编辑操作', page.locator('canvas[data-draft-crop]').evaluate_all("nodes => nodes.length === 2 && nodes.every(el => el.getBoundingClientRect().right <= el.closest('.drf-section').getBoundingClientRect().right + 1)")
+          and page.locator('[data-action="ai-review.draftEditBlock"]').count() == 0)
+    page.screenshot(path=str(shots / 'columns-source-wide-readonly.png'), full_page=True)
+
+    open_app(page, base, 'dashboard')
+    await_panel = """async id => {
+      const entry = document.querySelector('script[type="module"][src*="app/main.js"]');
+      const { createReviewPanel } = await import(new URL('./domain/ai-review.js', entry.src));
+      window.__columnReviewPanel = createReviewPanel(window.__omrs);
+      await window.__columnReviewPanel.open(id);
+    }"""
+    page.evaluate(await_panel, second['id'])
+    drawer = page.locator('.ast-review-panel[open]')
+    drawer.locator('.drf-review-answer .katex-display').wait_for()
+    drawer.evaluate("el => Promise.all(el.getAnimations({subtree: true}).map(animation => animation.finished))")
+    check('超宽屏中的窄抽屉仍使用上下排列', stacked(drawer)
+          and drawer.locator('.drf-review-content').bounding_box()['width'] < 1000
+          and drawer.evaluate('el => el.scrollWidth <= el.clientWidth'))
+    page.screenshot(path=str(shots / 'columns-drawer.png'), full_page=True)
+    drawer.locator('[data-drawer-close]').click()
+    drawer.wait_for(state='detached')
 
 
 def main():
@@ -146,6 +260,7 @@ def main():
                         ready()
                         check('已入库正文只读且不能新增配图', page.locator('[data-action="ai-review.draftAddSourceImage"]').count() == 0
                               and page.locator('[data-action="ai-review.draftCommit"]').count() == 0)
+                        verify_columns(page, base, first, second, shots, check)
                         check('真实页面没有脚本错误', not errors)
                     finally:
                         page.screenshot(path=str(shots / 'final.png'), full_page=True)

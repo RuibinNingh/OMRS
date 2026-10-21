@@ -114,7 +114,7 @@ python3 tests/fixtures/make_vault.py --out /tmp/fx/empty --profile empty
 
 CPU节流结果需要空白页对照：当前Linux Chromium在4倍CDP节流下，空白页也产生约77%的单核CPU计量，而不节流约0.8%；节流档CPU不能直接当页面自身开销。节流不等同低端GPU，正式CPU对比优先使用未节流的重复样本，并同时保留渲染器名称和单次原始数据。
 
-**前后截图对比。** `tests/visual/run.py` 用 `git worktree` 检出基线，与当前工作区各起一个实例、各喂同一份 fixture 副本，按 12 页 × 浅/深 × 桌面 1440 / 手机 390 截图并做像素差分。产物是 `report.html`、`audit.json`（每页字号种数、最小字号、小于 28px 的可点目标、行内样式数、横向溢出），仓库里不存金标图。审计只计非空 `style` 属性，字号和行内样式均排除 KaTeX 内部。页面内冻结 `Date`、注入样式关闭动效；`--pages ai-review --review-kind draft` 对比真实草稿并排工作区，默认审核类型仍为 operation；服务端实时内容在脚本的 `MASKS` 里登记后截图时遮住。约 1–2 分钟，放后台轮询：
+**前后截图对比。** `tests/visual/run.py` 用 `git worktree` 检出基线，与当前工作区各起一个实例、各喂同一份 fixture 副本，按 12 页 × 浅/深 × 桌面 1440 / 手机 390 截图并做像素差分。产物是 `report.html`、`audit.json`（每页字号种数、最小字号、小于 28px 的可点目标、行内样式数、横向溢出），仓库里不存金标图。审计只计非空 `style` 属性，字号和行内样式均排除 KaTeX 内部。页面内冻结 `Date`、注入样式关闭动效；`--pages ai-review --review-kind draft` 对比草稿，追加`--draft-sources none`对比无原图双栏，默认类型仍为operation；服务端实时内容在脚本的 `MASKS` 里登记后截图时遮住。约 1–2 分钟，放后台轮询：
 
 ```bash
 (timeout 600 python3 -u tests/visual/run.py --ref <基线提交> --out /tmp/vis > /tmp/vis.log 2>&1 &); sleep 100; cat /tmp/vis.log
