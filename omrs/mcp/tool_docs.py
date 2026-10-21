@@ -4,7 +4,15 @@ from copy import deepcopy
 from ..agent.tools.read import SORT_FIELDS
 
 
-ENTRY_RULES = (
+ANSWER_CONTENT_RULES = (
+    '答案默认只保存本题结论与必要解析，保留必要步骤和全部小问。'
+    '不要主动追加练习、变式题、独立概念讲解、方法总结、易错提醒或学习建议；聊天中讲过不等于用户要求保存。'
+    '解题必需的概念与注意点简要写入对应解析，已解释的内容不再另附提醒。'
+    '额外内容只有用户明确要求保存时才按指定范围纳入，未要求保存的补充内容也不转存到 note 或其它字段。'
+    '修订已有内容只处理用户要求的范围，不据此批量清理旧题。'
+)
+
+ENTRY_RULES = ANSWER_CONTENT_RULES + (
     '一道完整题目建一份草稿，同一题的相关小问放在一起；多道独立题分别调用并使用不同 request_id。'
     '忠实保留题干、条件、选项、单位、图表和小问，按阅读顺序组织 blocks，不猜测看不清的内容。'
     '能完整转述的内容用 text，公式用 $LaTeX$ 或 $$LaTeX$$，换行保留步骤；成对的 \\(...\\) 与 \\[...\\] 会自动转为美元符号，公式命令不变。无法完整转述的内容保留原图，note 标明待核对处。'
@@ -57,8 +65,8 @@ TOOL_DESCRIPTIONS = {
     'get_mcp_operation': '按写工具返回的 operation_id 查询当前密钥发起的网页审核操作。返回 status、confirmation_url、result 及错误原因；pending 不代表已执行，待审申请长期保留且不按时间过期，网页批准后从 result 取得领域结果。只能查询，不能批准；拒绝或冲突时告知用户，不自动重建申请。',
     'export_board': '导出不可变、自包含的展示板 HTML 快照，mode=all 全部或 new 仅尚未打印范围。最多 64 MiB、保留 24 小时；返回需主 Web 登录的下载链接，MCP Key 不可替代登录，PDF 用浏览器打印。导出不登记已打印；同 request_id 重试沿用原快照，想导出更新后的板须使用新编号。',
     'create_draft': '仅在用户明确要求录题或保存时，创建来源为 MCP、status=review 的待审核草稿，不正式入库。' + ENTRY_RULES + '先对齐科目和分类名称，知识点最多 8 项；创建难度固定 5，不传 difficulty/labels。最多 40 块、6 张 PNG/JPEG/GIF 原图，每张 8 MiB；文字或说明每字段最多 20000 字符。附件不可获取或超限时说明缺失，不静默删图重试。返回 draft_id/revision/status/source_images；用户在审核中心核对后入库，不能报告已进入正式题库。',
-    'update_draft': '修订任意来源待审核草稿，不正式入库。正文成对公式定界符自动转美元符号，cause_statement 原话不变。先 get_draft 取得 revision 和 blocks[].id，只改 fields 白名单或已有文字/说明；不能新增、删除、调序块或改变图片、框、状态、来源。省略字段保留，知识点 [] 清空；修改或清空 cause 均须用户原话 cause_statement。目标只要有人工保护，整次不写，返回 wrote=false 和 suggestions；不得拆请求绕过保护。版本冲突先重读核对。',
-    'propose_question_update': '正文成对公式定界符自动转美元符号，保留公式命令并展示于送审预览。用户要求修改已有正式题目时，先 get_question 取得 uid/question_id/content_hash，长正文先完整读取，再提交非空白名单字段替换补丁和 reason。不能从截断正文覆盖全文，不改变原图片引用、所属分节和顺序，也不写学习状态、路径或附件。返回待审 operation_id/confirmation_url，批准前不改题；用户处理后用 get_mcp_operation 查 result。',
+    'update_draft': '修订任意来源待审核草稿，不正式入库。' + ANSWER_CONTENT_RULES + '正文成对公式定界符自动转美元符号，cause_statement 原话不变。先 get_draft 取得 revision 和 blocks[].id，只改 fields 白名单或已有文字/说明；不能新增、删除、调序块或改变图片、框、状态、来源。省略字段保留，知识点 [] 清空；修改或清空 cause 均须用户原话 cause_statement。目标只要有人工保护，整次不写，返回 wrote=false 和 suggestions；不得拆请求绕过保护。版本冲突先重读核对。',
+    'propose_question_update': ANSWER_CONTENT_RULES + '正文成对公式定界符自动转美元符号，保留公式命令并展示于送审预览。用户要求修改已有正式题目时，先 get_question 取得 uid/question_id/content_hash，长正文先完整读取，再提交非空白名单字段替换补丁和 reason。不能从截断正文覆盖全文，不改变原图片引用、所属分节和顺序，也不写学习状态、路径或附件。返回待审 operation_id/confirmation_url，批准前不改题；用户处理后用 get_mcp_operation 查 result。',
     'create_review_session': '仅在用户要求创建正式复习计划时调用。先 get_recommendations，把 selection 的 1–100 个稳定 question_id/source 传入 items；单题也创建正式计划。先返回待审核 operation_id/confirmation_url，待审核没有 session_id；用户网页批准后用 get_mcp_operation 查 result。已创建请求重试沿用回执，原计划撤销后不会自动重建。',
     'create_board': '按 list_boards 的 catalog_revision 新建展示板，可带最多 100 个当前 UID，folder_id 为空表示未归档。返回 board_id/revision/catalog_revision 和实际加题结果；不创建新题、不复制正文、不改变学习状态。',
     'update_board': '先 get_board，再按板版本局部修改 name/note/source_labels，省略字段保持。改名还须最新 catalog_revision；source_labels 是展示板来源说明，不是给题目标记。返回实际写入或 unchanged 及版本，不修改正式题目。',
@@ -153,15 +161,15 @@ PARAMETERS = {
 }
 
 NESTED_PARAMETERS = {
-    'MCPBlock': {'section': '题目或答案；按各节阅读顺序排列，至少有一个题目块。', 'kind': 'text 写完整文字/公式；image 引用一张完整原图。', 'text': 'kind=text 时必填非空文字，最多 20000 字符；公式用 LaTeX，答案步骤和段落用换行。', 'image': 'kind=image 时必填 images 的从 0 开始整数下标；不是 file_id、IMG-n 或 blocks 下标。不支持坐标和裁剪。', 'note': '可选本块说明，最多 20000 字符；可注明题号、范围或待核对内容，不改变图片显示范围。'},
+    'MCPBlock': {'section': '题目或答案；按各节阅读顺序排列，至少有一个题目块。', 'kind': 'text 写完整文字/公式；image 引用一张完整原图。', 'text': 'kind=text 时必填非空文字，最多 20000 字符；公式用 LaTeX，答案步骤和段落用换行。' + ANSWER_CONTENT_RULES, 'image': 'kind=image 时必填 images 的从 0 开始整数下标；不是 file_id、IMG-n 或 blocks 下标。不支持坐标和裁剪。', 'note': '可选本块说明，最多 20000 字符；可注明题号、范围或待核对内容，不改变图片显示范围。'},
     'MCPFile': {'download_url': '平台提供的原附件 HTTPS 下载地址，必填；不自行拼接、不含 MCP 密钥、不使用本地路径。SDK 内联传输时仍保留此字段。', 'file_id': '平台提供的稳定附件 ID，必填；签名 URL 更新时保持同一文件身份，不用 URL 当编号。', 'mime_type': '可选 MIME 提示：image/png、image/jpeg 或 image/gif；实际格式按文件字节验证。', 'file_name': '可选原附件显示名，不是服务器文件路径。', 'data_base64': '自定义 SDK 可选提供完整原图字节的 Base64，此时不下载 URL；不含 data: 前缀，不压缩、裁剪或重新编码图像。平台上传通常不需填写。'},
-    'BlockPatch': {'block_id': 'get_draft.blocks[].id 的稳定块 ID，不是数组下标，不能重复。', 'text': '仅已有文字块可改，非空字符串，最多 20000 字符；省略保留，不能用 null 清空。', 'note': '已有块的说明字符串，最多 20000 字符；空串清空，省略保留，不能用 null 清空。'},
+    'BlockPatch': {'block_id': 'get_draft.blocks[].id 的稳定块 ID，不是数组下标，不能重复。', 'text': '仅已有文字块可改，非空字符串，最多 20000 字符；省略保留，不能用 null 清空。' + ANSWER_CONTENT_RULES, 'note': '已有块的说明字符串，最多 20000 字符；空串清空，省略保留，不能用 null 清空。'},
     'ReviewSessionItem': {'question_id': '推荐 selection 的稳定 question_id，1–200 字符，不用 UID 代替。', 'source': '原推荐来源 due 或 proficiency，直接沿用 selection，不自行猜测。', 'uid': '可选推荐中的 UID 展示快照；最终按稳定 question_id 绑定当前位置。'},
 }
 
 OBJECT_PARAMETERS = {
     'update_draft': {'subject': '非空科目字符串，最多 200 字符。', 'category': '非空分类字符串，最多 200 字符。', 'knowledge_points': '字符串数组，最多 8 项，每项最多 200 字符；[] 清空。', 'cause': '用户明确表达的错因字符串，最多 20000 字符；空串清空，也必须提供 cause_statement。', 'note': '草稿备注字符串，最多 20000 字符；空串清空。'},
-    'propose_question_update': {'question_text': '题目节完整替换文字，最多 500000 字符；保留全部条件和原图片，不能注入一级系统标题。', 'answer_text': '答案节完整替换文字，最多 500000 字符；保留原图片，不能注入一级系统标题。', 'cause': '用户明确表达的错因文字，最多 500000 字符；空串清空，不注入一级或二级系统标题。', 'note': '补充备注文字，最多 500000 字符；空串清空，不包含错因或系统标题。', 'knowledge_points': '最多 64 个非空知识点名称，每项最多 200 字符；[] 清空。', 'difficulty': '1–10 的严格整数难度，不接受布尔值或小数。', 'labels': '最多 64 个已有标记名称，每项最多 200 字符；[] 清空，不创建标记。'},
+    'propose_question_update': {'question_text': '题目节完整替换文字，最多 500000 字符；保留全部条件和原图片，不能注入一级系统标题。', 'answer_text': '答案节完整替换文字，最多 500000 字符；保留原图片，不能注入一级系统标题。' + ANSWER_CONTENT_RULES, 'cause': '用户明确表达的错因文字，最多 500000 字符；空串清空，不注入一级或二级系统标题。', 'note': '补充备注文字，最多 500000 字符；空串清空，不包含错因或系统标题。', 'knowledge_points': '最多 64 个非空知识点名称，每项最多 200 字符；[] 清空。', 'difficulty': '1–10 的严格整数难度，不接受布尔值或小数。', 'labels': '最多 64 个已有标记名称，每项最多 200 字符；[] 清空，不创建标记。'},
     'update_board': {'name': '板名字符串，1–120 字符；改名还需 expected_catalog_revision。', 'note': '板备注字符串，最多 20000 字符；空串清空。', 'source_labels': '最多 100 个来源说明字符串，每项最多 200 字符；[] 清空，不改题目标记。'},
     'update_board_folder': {'name': '文件夹名字符串，1–60 字符。', 'order': '从 0 开始的严格整数位置，最大为当前文件夹数减 1。'},
     'update_board_item': {'gap_lines': '严格整数 0–48，或 null 恢复继承全局留白。', 'pin': '布尔值，是否置顶该条目。'},
@@ -171,7 +179,7 @@ OBJECT_PARAMETERS = {
 CREATE_DRAFT_EXAMPLES = [
     {'subject': '数学', 'category': '方程', 'request_id': 'entry-text-001', 'knowledge_points': ['一元一次方程'],
      'blocks': [{'section': '题目', 'kind': 'text', 'text': '解方程 $2x+1=5$。'},
-                {'section': '答案', 'kind': 'text', 'text': '$2x=4$。\n因此 $x=2$。'}]},
+                {'section': '答案', 'kind': 'text', 'text': '【答案】$x=2$。\n\n【解析】由 $2x+1=5$ 得 $2x=4$，两边同除以 $2$，得 $x=2$。'}]},
     {'subject': '物理', 'category': '力学', 'request_id': 'entry-original-001',
      'images': [{'download_url': 'https://files.example.org/question.png', 'file_id': 'file-question-1'}],
      'blocks': [{'section': '题目', 'kind': 'image', 'image': 0, 'note': '保留完整题干、图表和全部小问，待人工核对。'}]},
