@@ -120,7 +120,8 @@ def get_session_uid_sources(vault, session_id):
 def create_session(vault, count=10, subject=None):
     rows = schedule_questions(vault, count, subject, active_session_uids(vault))
     if not rows:
-        return {"session_id": "", "count": 0, "items": [], "entries": []}
+        return {"session_id": "", "count": 0, "items": [], "entries": [], "uids": [], "feedback_uids": [],
+                "created_at": "", "subject_filter": subject or "", "status": "empty", "completed_at": ""}
     return create_session_from_selection(vault, [{"question_id": row.get("question_id"), "uid": row["UID"], "source": "due"} for row in rows], subject)
 
 

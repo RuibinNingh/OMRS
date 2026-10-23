@@ -72,6 +72,8 @@ Markdown 标记:
 
 网页上的单题修改先原子重写 Markdown，再立即扫描入账；内容没有变化时不产生重复提交。定义级联与 AI 整理在同一 Ledger 事务中记录逐题原生事实和批次审计，再发布投影。Obsidian 外部编辑仍由扫描入账。
 
+创建与列表改写使用JSON字符串编码生成YAML双引号值，完整转义反斜杠、引号和控制字符；知识点双链同样处理。定义、Markdown重读、扫描投影及标记计数保留同一原始名称，回归见 `tests/test_labels.py`。
+
 `ledger.db` 的 `question_labels(question_id, label)` 是查询投影，不是另一份事实源；
 删除并重建投影时会从题目元数据重新生成。`mastery_data.csv` 的 `Labels` 使用 `|`
 分隔，旧 CSV 缺列时按空标记兼容。

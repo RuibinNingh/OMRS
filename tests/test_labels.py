@@ -21,6 +21,26 @@ from omrs.stats import get_stats
 
 
 class LabelTests(unittest.TestCase):
+    def test_yaml_escaping_survives_create_edit_and_rescan(self):
+        from omrs.common import extract_knowledge_tags, extract_labels, parse_yaml_frontmatter
+        from omrs.labels import list_label_defs
+        from omrs.workspace_sync import scan_workspace
+        from pathlib import Path
+        values = [r'公式\beta', r'路径\test', '带"引号', '尾部\\']
+        with tempfile.TemporaryDirectory() as vault:
+            for value in values:
+                save_label(vault, name=value)
+            first = create_question(vault, "数学", "合成", 5, labels=values, related_tags=values)
+            second = create_question(vault, "数学", "合成", 5)
+            set_question_labels(vault, second["uid"], values)
+            scan_workspace(vault)
+            for question in (first, second):
+                metadata = parse_yaml_frontmatter(Path(vault, question["file_path"]).read_text())
+                self.assertEqual(extract_labels(metadata), values)
+            self.assertEqual(extract_knowledge_tags(parse_yaml_frontmatter(Path(vault, first["file_path"]).read_text())), values)
+            self.assertEqual({row["name"]: row["count"] for row in list_label_defs(vault)}, dict.fromkeys(values, 2))
+            self.assertTrue(all(item["labels"] == values for item in get_stats(vault)["items"]))
+
     def test_labels_json_yaml_projection_and_idempotent_clear(self):
         with tempfile.TemporaryDirectory() as vault:
             question = create_question(

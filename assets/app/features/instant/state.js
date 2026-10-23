@@ -25,7 +25,7 @@ export function createState() {
     queue: [], // 推荐条目 + _source（'due' | 'proficiency'）
     index: 0,
     results: {}, // uid → { revealed, correct: true | false | null, score: 0–10 | null, submitted }
-    sessionId: '',
+    sessionId: '', practiceRoundId: '',
     submitting: false,
     submitError: '',
     lastSubmit: [], // /api/feedback 的 results
@@ -48,6 +48,7 @@ export function buildParams(filters) {
   if (filters.category) params.set('category', filters.category);
   if (filters.ktag) params.set('knowledge_tag', filters.ktag);
   (filters.labels || []).forEach(label => params.append('label', label));
+  params.set('label_mode', filters.labelMode === 'all' ? 'all' : 'any');
   return params;
 }
 
@@ -156,7 +157,12 @@ export function markSubmitted(s, rows) {
   rows.forEach(row => {
     if (row.status && row.status !== 'ok') return;
     const item = s.queue.find(i => row.question_id && i.question_id === row.question_id) || s.queue.find(i => i.uid === row.uid);
-    if (item) resultOf(s, item.uid).submitted = true;
+    if (item) {
+      const accepted = resultOf(s, item.uid);
+      accepted.submitted = true;
+      if (typeof row.is_correct === 'boolean') accepted.correct = row.is_correct;
+      if (Number.isFinite(row.sub_score)) accepted.score = row.sub_score;
+    }
   });
 }
 
@@ -168,6 +174,7 @@ export function startRound(s, queue, now = new Date()) {
   s.index = 0;
   s.results = {};
   s.sessionId = sessionId(now);
+  s.practiceRoundId = '';
   s.cardId = ''; s.attemptId = ''; s.cardTitle = ''; s.unavailable = []; s.chatDeleted = false;
   s.submitError = '';
   s.lastSubmit = [];

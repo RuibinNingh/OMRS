@@ -29,9 +29,13 @@ def _question_summary_at_feedback(vault, row):
 
 
 @storage_write
-def process_feedback(vault, feedbacks, session_id="", attempt_id=""):
+def process_feedback(vault, feedbacks, session_id="", attempt_id="", practice_round_id=""):
     if not isinstance(feedbacks, list):
         raise ValueError("反馈必须是列表")
+    if not isinstance(practice_round_id, str) or (practice_round_id and not re.fullmatch(r"PR-[0-9a-f]{32}", practice_round_id)):
+        raise ValueError("即时练习轮次标识无效")
+    if practice_round_id and (attempt_id or not str(session_id).startswith("IMM-")):
+        raise ValueError("轮次标识只用于普通即时练习")
     if str(session_id).startswith("IMM-PA-") and not attempt_id:
         raise ValueError("聊天练习反馈必须提供已签发的 attempt_id")
     if attempt_id:
@@ -49,7 +53,8 @@ def process_feedback(vault, feedbacks, session_id="", attempt_id=""):
     with _feedback_transaction(vault) as (state, db):
         seen = submitted_entries_in_db(db, attempt_id) if attempt_id else None
         results = _process_feedback(vault, feedbacks, session_id, attempt_id=attempt_id,
-                                    card=card, ledger_db=db, seen=seen, state=state, diagnostics=diagnostics)
+                                    card=card, ledger_db=db, seen=seen, state=state, diagnostics=diagnostics,
+                                    practice_round_id=practice_round_id)
     # 只在事务成功后追加诊断；幂等复用、无效条目与回滚不产生成功记录。
     for detail in diagnostics:
         log_feedback(vault, **detail)
@@ -93,11 +98,13 @@ def _feedback_transaction(vault):
 
 
 def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, attempt_id="", card=None, seen=None,
-                      diagnostics=None):
+                      diagnostics=None, practice_round_id=""):
     tuning = state["_tuning"]
     if session_id and ledger_db.execute("SELECT 1 FROM projection_session_corrections WHERE session_id=? AND retracted=1", (session_id,)).fetchone():
         raise ValueError("复习计划已撤销，不能提交反馈")
     session = state["sessions"].get(session_id) if session_id and not attempt_id else None
+    if session and practice_round_id:
+        raise ValueError("正式复习计划不能使用即时练习轮次标识")
     # 授权只需当前事务已校验的绑定快照，不在写事务内调用详情读模型。
     entries = [{**item, "entry_id": item.get("entry_id") or f"{session_id}:{index}",
                 "uid": state["questions"].get(item.get("question_id"), {}).get("uid", item.get("uid", ""))}
@@ -117,6 +124,7 @@ def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, atte
         qid = str(feedback.get("question_id") or "").strip()
         entry_id = str(feedback.get("entry_id") or "")
         bound = None
+        receipt_key = None
         if session:
             matches = [e for e in entries if (e["question_id"] == qid if qid else uid in (e["uid"], e["uid_at_creation"]))]
             if len(matches) != 1 or not matches[0]["question_id"]:
@@ -148,8 +156,23 @@ def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, atte
                 continue
             row = resolve_question(vault, question_id=qid, uid=uid if feedback.get("question_id") else "", db=ledger_db)
         else:
-            row = resolve_question(vault, uid=uid, question_id=qid, db=ledger_db)
-        if not row or row.get("suspended"):
+            if practice_round_id and not qid:
+                results.append({"uid": uid, "status": "error", "msg": "即时练习重试必须提供 question_id"})
+                continue
+            row = resolve_question(vault, uid=uid, question_id=qid, db=ledger_db,
+                                   include_archived=bool(practice_round_id))
+            if practice_round_id and row:
+                receipt_key = "feedback:instant:" + json.dumps([practice_round_id, row["question_id"]])
+                if receipt_key in receipts:
+                    reused = {**receipts[receipt_key], "reused": True}
+                    results.append(reused)
+                    duplicates.append((reused, receipts[receipt_key]))
+                    continue
+                saved = ledger_db.execute("SELECT result_json FROM op_results WHERE op_id=?", (receipt_key,)).fetchone()
+                if saved:
+                    results.append({**json.loads(saved[0]), "reused": True})
+                    continue
+        if not row or row.get("suspended") or row.get("archived"):
             results.append({"uid": uid, "question_id": qid, "status": "error", "msg": "题目已删除或停用，不能提交反馈"})
             continue
         qid, uid = row["question_id"], row["uid"]
@@ -173,12 +196,16 @@ def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, atte
                   "review_timezone": "Asia/Shanghai", "recorded_at": now.isoformat(timespec="seconds")}
         if attempt_id or session:
             review.update({"attempt_id": attempt_id, "entry_id": entry_id})
+        if practice_round_id:
+            review["practice_round_id"] = practice_round_id
         if attempt_id:
             seen.add(entry_id)
         commit_feedbacks.append(review)
         result = {"uid": uid, "question_id": qid, "entry_id": entry_id, "status": "ok", "source": source}
+        if practice_round_id:
+            result.update({"sub_score": score, "is_correct": correct})
         results.append(result)
-        if session:
+        if receipt_key:
             receipts[receipt_key] = result
     if commit_feedbacks:
         payload = {"session_id": session_id, "feedbacks": commit_feedbacks}

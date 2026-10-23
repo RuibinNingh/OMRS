@@ -60,6 +60,43 @@ class HTTPBoundaryTests(unittest.TestCase):
             with self.subTest(route=identity):
                 self.assertTrue(callable(getattr(OMRSHandler, target, None)), target)
 
+    def test_empty_schedule_returns_complete_empty_result_without_persisting(self):
+        from omrs.creation import create_question
+        from omrs.sessions import create_session_from_selection, list_sessions
+        expected = {"status": "ok", "session_id": "", "created_at": "", "subject_filter": "数学",
+                    "count": 0, "session_status": "empty", "completed_at": "", "items": [],
+                    "entries": [], "uids": [], "feedback_uids": []}
+        self.assertEqual(self.post("/api/schedule", {"count": 10, "subject": "数学"}), (200, expected))
+        self.assertEqual(list_sessions(self.vault), [])
+        question = create_question(self.vault, "数学", "合成", 5)
+        session = create_session_from_selection(self.vault, [{"question_id": question["question_id"]}])
+        self.assertEqual(self.post("/api/schedule", {"count": 10, "subject": "数学"}), (200, expected))
+        self.assertEqual(len(list_sessions(self.vault)), 1)
+        self.assertTrue(session["session_id"])
+
+    def test_recommendation_all_labels_filters_before_limit(self):
+        from omrs.creation import create_question
+        from urllib.parse import urlencode
+        first = create_question(self.vault, "数学", "合成", 5, labels=["A"])
+        second = create_question(self.vault, "数学", "合成", 5, labels=["A", "B"])
+        query = urlencode([("due_count", 1), ("prof_count", 1), ("label", "A"), ("label", "B")])
+        for mode, uid in (("any", first["uid"]), ("all", second["uid"])):
+            status, _, body = self.request("GET", "/api/recommend?" + query + "&label_mode=" + mode)
+            self.assertEqual(status, 200)
+            self.assertEqual([row["uid"] for row in json.loads(body)["due"]], [uid])
+        self.assertEqual(self.request("GET", "/api/recommend?" + query + "&label_mode=invalid")[0], 400)
+
+    def test_feedback_http_forwards_round_identity_and_returns_reused_receipt(self):
+        from omrs.creation import create_question
+        question = create_question(self.vault, "数学", "合成", 5)
+        payload = {"session_id": "IMM-20261024000000", "practice_round_id": "PR-" + "ab" * 16,
+                   "feedbacks": [{"question_id": question["question_id"], "sub_score": 8, "is_correct": True}]}
+        status, first = self.post("/api/feedback", payload)
+        self.assertEqual(status, 200)
+        status, second = self.post("/api/feedback", payload)
+        self.assertEqual(status, 200)
+        self.assertEqual(second["results"], [{**first["results"][0], "reused": True}])
+
     def test_board_export_empty_states_are_400_and_unexpected_failure_is_500(self):
         from omrs.boards import create_board, record_printed
         from omrs.creation import create_question

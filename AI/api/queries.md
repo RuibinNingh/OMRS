@@ -258,7 +258,8 @@ Windows 路径分支以独立 `lstat` 的真实文件身份与打开后的 `fsta
 | `subject` | 科目精确匹配 |
 | `category` | 分类精确匹配 |
 | `knowledge_tag` | 相关知识点精确匹配（命中 `Knowledge_Tags` 中任一项） |
-| `label` | 用户标记精确匹配；可重复传递，多个标记按 OR 过滤 |
+| `label` | 用户标记精确匹配；可重复传递 |
+| `label_mode` | any（默认，任一命中）或all（全部命中）；在排序和题数截断前过滤，非法值返回400 |
 
 **响应字段：**
 

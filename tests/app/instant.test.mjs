@@ -21,6 +21,8 @@ test('buildParams：题数夹在 1–50；科目 / 分类 / 知识点 / 多个�
   assert.equal(p.has('category'), false);
   assert.equal(p.get('knowledge_tag'), '三角');
   assert.deepEqual(p.getAll('label'), ['易错', '必考']);
+  assert.equal(p.get('label_mode'), 'any');
+  assert.equal(S.buildParams({ count: 1, labels: ['A', 'B'], labelMode: 'all' }).get('label_mode'), 'all');
   assert.equal(S.clampCount('abc'), 10);
   assert.equal(S.clampCount(0), 1);
 });

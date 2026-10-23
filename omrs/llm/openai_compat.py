@@ -71,13 +71,13 @@ class OpenAICompatClient:
         return self.base_url if self.base_url.endswith("/chat/completions") else self.base_url + "/chat/completions"
 
     def cancel(self):
-        """从别的线程中止正在进行的请求：关闭响应，阻塞中的读取随即返回。"""
+        """中断底层连接以唤醒读取；响应由请求线程关闭，避免争用缓冲读取锁。"""
         with self._lock:
             resp = self._resp
         if resp is not None:
             try:
-                resp.close()
-            except Exception:
+                resp.fp.raw._sock.shutdown(socket.SHUT_RDWR)
+            except (AttributeError, OSError):
                 pass
 
     def build_payload(self, messages, tools, stream, max_tokens):
@@ -192,6 +192,7 @@ class OpenAICompatClient:
 
     def _read_stream(self, resp, state, on_delta, cancel):
         fields = self.compat["reasoning_fields"]
+        done = False
         for raw in resp:
             if cancel is not None and cancel.is_set():
                 return
@@ -200,11 +201,12 @@ class OpenAICompatClient:
                 continue
             data = line[5:].strip()
             if data == "[DONE]":
-                return
+                done = True
+                break
             try:
                 obj = json.loads(data)
-            except json.JSONDecodeError:
-                continue
+            except json.JSONDecodeError as exc:
+                raise ValueError("模型流包含无效 JSON") from exc
             if obj.get("error"):
                 raise RuntimeError(str(obj["error"].get("message") if isinstance(obj["error"], dict) else obj["error"]))
             if obj.get("usage"):
@@ -234,6 +236,12 @@ class OpenAICompatClient:
                     on_delta and on_delta("args", fn.get("arguments") or "", {"index": idx, "name": call["name"]})
                 if choice.get("finish_reason"):
                     state["finish"] = choice["finish_reason"]
+        if cancel is not None and cancel.is_set():
+            return
+        if not done and not state["finish"]:
+            raise ValueError("模型响应在结束标识之前中断")
+        if state["finish"] and state["finish"] not in FINISH_MAP:
+            raise ValueError("模型返回未知结束原因")
 
     def _read_whole(self, resp, state):
         data = json.loads(resp.read().decode("utf-8", "replace"))

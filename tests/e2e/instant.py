@@ -208,6 +208,73 @@ def run_mobile(browser, base, results):
     ctx.close()
 
 
+def run_retry_and_label_match(browser, base, vault, results):
+    """经真实推荐与反馈接口验证截断前筛选、响应丢失及新一轮作答。"""
+    from omrs.ledger import connect
+    ctx = browser.new_context(viewport={"width": 1440, "height": 900})
+    page = ctx.new_page()
+    try:
+        for name in ("回归A", "回归B"):
+            assert page.request.post(base + "/api/label/save", data={"name": name}).ok
+        questions = []
+        for labels in (["回归A"], ["回归A", "回归B"]):
+            response = page.request.post(base + "/api/create", data={"subject": "回归科目", "category": "回归",
+                "difficulty": 5, "question_text": "合成重试题目", "answer_text": "合成答案", "labels": labels})
+            assert response.ok, response.text()
+            questions.append(response.json())
+        open_app(page, base, "instant")
+        page.locator('[data-action="instant.label"][data-arg="回归A"]').wait_for()
+        page.select_option("#instant-subject", "回归科目")
+        page.fill("#instant-count", "1")
+        page.dispatch_event("#instant-count", "change")
+        for name in ("回归A", "回归B"):
+            page.locator(f'[data-action="instant.label"][data-arg="{name}"]').click()
+        page.select_option("#instant-label-mode", "all")
+        page.locator('.inst-bar [data-action="instant.load"]').click()
+        page.locator('[data-qv-host] [data-qv-uid]').wait_for()
+        actual = page.locator('[data-qv-host]').get_attribute("data-uid")
+        results.append(("全部标记在题数截断前匹配：取到排序靠后的A+B题", actual == questions[1]["uid"], actual))
+        for name in ("回归A", "回归B"):
+            page.locator(f'[data-action="instant.label"][data-arg="{name}"]').click()
+        page.locator('.inst-bar [data-action="instant.load"]').click()
+        page.wait_for_function("uid => document.querySelector('[data-qv-host]')?.dataset.uid === uid", arg=questions[0]["uid"])
+        page.locator(".inst-card__title").click()
+        page.keyboard.press("Space")
+        page.locator(".inst-verdict__btn--ok").click()
+        committed = []
+        def lose_response(route):
+            accepted = route.fetch()
+            committed.append((route.request.post_data_json, accepted.json()))
+            route.abort("connectionfailed")
+        page.route("**/api/feedback", lose_response)
+        page.locator('[data-action="instant.submit"]').click()
+        page.get_by_text("提交失败：", exact=False).wait_for()
+        page.unroute("**/api/feedback", lose_response)
+        page.locator(".inst-verdict__btn--no").click()
+        page.locator(".inst-card__title").click()
+        page.keyboard.press("0")
+        with page.expect_response(lambda response: response.url.endswith("/api/feedback")) as retry:
+            page.locator('[data-action="instant.submit"]').click()
+        page.locator(".inst-q.is-submitted").wait_for()
+        result = retry.value.json()["results"][0]
+        with connect(vault) as db:
+            row = db.execute("SELECT attempts,mastery FROM mastery_projection WHERE question_id=?", (result["question_id"],)).fetchone()
+        results.append(("丢响应后重试复用原回执，Attempts仅一次且未误击杀", bool(result.get("reused")) and tuple(row) == (1, .4), str(dict(row))))
+        results.append(("重试后页面恢复服务端原判定和8分", page.locator(".inst-verdict__btn--ok").get_attribute("aria-pressed") == "true" and page.locator(".inst-score__value").inner_text() == "8", ""))
+        first_round = committed[0][0]["practice_round_id"]
+        page.locator('.inst-bar [data-action="instant.load"]').click()
+        page.wait_for_function("() => !!document.querySelector('[data-qv-host]') && !document.querySelector('.inst-q.is-submitted')")
+        page.locator(".inst-card__title").click()
+        page.keyboard.press("Space")
+        page.locator(".inst-verdict__btn--ok").click()
+        with page.expect_request(lambda request: request.url.endswith("/api/feedback")) as next_request:
+            page.locator('[data-action="instant.submit"]').click()
+        page.locator(".inst-q.is-submitted").wait_for()
+        results.append(("重新取题产生独立轮次，可以提交新作答", next_request.value.post_data_json["practice_round_id"] != first_round, ""))
+    finally:
+        ctx.close()
+
+
 def main():
     try:
         from playwright.sync_api import sync_playwright
@@ -244,6 +311,7 @@ def main():
                     open_app(pg, base, "instant")
                     audit_states(pg, f"审计 {label} · {'浅色' if theme == 'light' else '深色'}", results)
                     c.close()
+            run_retry_and_label_match(browser, base, vault, results)
             if not os.environ.get("OMRS_TEST_CDP_URL"):
                 browser.close()
     finally:

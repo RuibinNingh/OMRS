@@ -1,5 +1,6 @@
 from .vault_lifecycle import storage, open_sqlite
 import os
+import json
 import re
 import uuid
 
@@ -280,7 +281,7 @@ def _replace_frontmatter_list_field(content, key, values):
                   if re.match(rf"^{re.escape(key)}\s*:", line)), None)
     replacement = [f"{key}: []"] if not values else [
         f"{key}:",
-        *[f'  - "{str(value).replace(chr(34), chr(92) + chr(34))}"' for value in values],
+        *[f'  - {json.dumps(str(value), ensure_ascii=False)}' for value in values],
     ]
     if start is None:
         lines.extend(replacement)

@@ -168,7 +168,7 @@ def _build_markdown(question_id, subject, category, difficulty, today, related_t
                     ordered_blocks=None):
     related_lines = ["相关知识点: []"]
     if related_tags:
-        lines = [f'  - "[[{tag.strip()}]]"' for tag in related_tags if str(tag).strip()]
+        lines = [f'  - {json.dumps("[[" + str(tag).strip() + "]]", ensure_ascii=False)}' for tag in related_tags if str(tag).strip()]
         if lines:
             related_lines = ["相关知识点:"] + lines
     related_section = "\n".join(related_lines)
@@ -176,7 +176,7 @@ def _build_markdown(question_id, subject, category, difficulty, today, related_t
     label_section = "标记: []"
     if label_values:
         label_section = "标记:\n" + "\n".join(
-            f'  - "{label.replace(chr(34), chr(92) + chr(34))}"' for label in label_values
+            f'  - {json.dumps(label, ensure_ascii=False)}' for label in label_values
         )
 
     if ordered_blocks is None:

@@ -297,7 +297,7 @@ def schedule_questions(vault, count=10, subject=None, exclude_uids=None):
 @storage
 def generate_recommendations(vault, due_count=10, prof_count=10,
                              subject=None, category=None, knowledge_tag=None,
-                             label=None, exclude_uids=None):
+                             label=None, exclude_uids=None, label_mode="any"):
     """生成双列表推荐：到期列表 + 熟练度列表，互斥分配。
 
     返回:
@@ -329,6 +329,8 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
     requested_labels = [label] if isinstance(label, str) else [
         str(value).strip() for value in (label or []) if str(value).strip()
     ]
+    if label_mode not in ("any", "all"):
+        raise ValueError("标记匹配方式只能为 any 或 all")
     today = business_today()
     excluded = set(_normalize_uid_list(exclude_uids))
 
@@ -361,7 +363,7 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
 
         if knowledge_tag and knowledge_tag not in _knowledge_tags(row):
             continue
-        if requested_labels and not any(
+        if requested_labels and not (all if label_mode == "all" else any)(
             value in _row_labels(row) for value in requested_labels
         ):
             continue

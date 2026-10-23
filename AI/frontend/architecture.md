@@ -9,6 +9,8 @@
 
 展示板空状态由当前有效打印范围派生，常驻 iframe 留在原舞台，提示为固定同级节点。详情控制器合并同内容的在途同步并校验回调归属，空内容会取消预览及定时任务。`tests/e2e/board.py` 调用同目录 `board_empty.py`，实际验证空板加题／清空、停用／缺失、菜单／快捷键、慢请求取消和真实失败；`OMRS_BOARD_EMPTY_SHOTS` 指定四档状态截图目录。
 
+即时练习故障回归由 `tests/app/instant-submission.test.mjs` 与 `tests/e2e/instant.py`覆盖：安全随机轮次身份、同轮重试与新轮分离、持久回执回填原判定和分数，以及推荐全部标记匹配先于截断。浏览器通过真实接口创建合成题目，并在服务器处理反馈后丢弃响应，不用单纯模拟请求失败代替已提交故障。
+
 ## 1. 目录与依赖方向
 
 框选设置由settings内的boxdetect控制器拥有，训练表单仅写训练策略；`/train`与独立服务面板 `/boxdetect/`职责分开。服务面板资产位于services/boxdetect，不引入主站feature依赖；同源入口使用本仓库资产，外部服务仅提供数据。`tests/e2e/boxdetect_panel.py`覆盖设置、Key、检测与历史链路；原settings/create/trainpanel/traincontrol浏览器门禁分别维护页面回归。

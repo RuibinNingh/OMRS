@@ -175,12 +175,14 @@ v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `fe
 ```
 1. 遍历所有非已击杀题目
 2. 先按可选筛选项裁剪：科目 `subject`、分类 `category`、知识点 `knowledge_tag`、
-   用户标记 `label`（可重复，OR）
+   用户标记 `label`（可重复；label_mode=any为任一命中，all为全部命中）
 3. Due_Date ≤ 今天 → 到期列表
 4. Due_Date > 今天 → 熟练度列表
 ```
 
 两道列表天然不重复。
+
+标记匹配在排序及due_count／prof_count截断前完成，防止先截断的任一命中候选挤掉真正全部命中的题；label_mode默认any，非法值拒绝。
 
 active Session 的排除集合只依据持久化记录的 `Status == "active"`；Session 不会因为创建时间超过固定天数而被隐式视为过期，必须通过正常反馈完成或显式撤销改变状态。
 

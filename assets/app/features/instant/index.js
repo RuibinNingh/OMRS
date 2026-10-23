@@ -187,12 +187,16 @@ export function createInstantController(root, ctx, services = {}) {
       const rows = S.submitRows(s);
       if (!rows.length) { toast('还没有待提交的判定', { kind: 'warn' }); return; }
       if (s.submitting) return;
+      if (!s.attemptId && !s.practiceRoundId) {
+        try { s.practiceRoundId = practiceRequestId(); }
+        catch (error) { io.toast(error.message, { kind: 'error' }); return; }
+      }
       s.submitting = true;
       const roundVersion = s.roundVersion;
       s.submitError = '';
       paint();
       const res = await io.post('/api/feedback', { feedbacks: rows, session_id: s.sessionId || S.sessionId(),
-        ...(s.attemptId ? { attempt_id: s.attemptId } : {}) });
+        ...(s.attemptId ? { attempt_id: s.attemptId } : { practice_round_id: s.practiceRoundId }) });
       const successes = (res.data?.results || []).filter(row => row.status === 'ok');
       if (s.roundVersion !== roundVersion) {
         if (successes.length) { await io.reloadData(); await io.invalidateQuestions(successes.map(row => row.uid)); }

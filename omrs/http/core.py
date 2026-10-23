@@ -179,7 +179,7 @@ class CoreRoutes:
                 knowledge_tag = params.get('knowledge_tag') or None
                 requested_labels = [value for key, value in query_pairs if key == 'label' and value]
                 label = requested_labels if requested_labels else params.get('label') or None
-                rec = self.services.generate_recommendations(self.vault_path, due_count=due_count, prof_count=prof_count, subject=subject, category=category, knowledge_tag=knowledge_tag, label=label, exclude_uids=self.services.active_session_uids(self.vault_path))
+                rec = self.services.generate_recommendations(self.vault_path, due_count=due_count, prof_count=prof_count, subject=subject, category=category, knowledge_tag=knowledge_tag, label=label, exclude_uids=self.services.active_session_uids(self.vault_path), label_mode=params.get('label_mode', 'any'))
                 self._json({'status': 'ok', **rec})
             except Exception as exc:
                 self._error(exc)

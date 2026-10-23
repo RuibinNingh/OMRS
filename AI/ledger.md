@@ -253,6 +253,8 @@ CLI 在扫描与监听前收束 journal。存在有效原生回执时仅清理�
 
 撤销同事务保存 `label-plan-reverted:<原操作编号>` 指针，原批次回执与审计事实保留；详情只读该指针，不修改原批准记录或重放业务。
 
-## 正式反馈回执
+## 反馈回执
 
-正式Session的反馈、投影及feedback:session:前缀的op_results回执在同一SQL事务提交，键包含Session／question_id／entry_id。重试复用首次完整结果，不追加反馈事实；旧反馈通过历史与修正索引识别，撤销／替换不重新开放原条目。回执复用既有表，不改变schema；独立即时练习保持原重复作答语义。
+正式Session的反馈、投影及feedback:session:前缀的op_results回执在同一SQL事务提交，键包含Session／question_id／entry_id。重试复用首次完整结果，不追加反馈事实；旧反馈通过历史与修正索引识别，撤销／替换不重新开放原条目。回执复用既有表，不改变schema。
+
+普通即时练习带practice_round_id时，用feedback:instant:前缀及轮次／question_id保存首次完整回执，包含服务端接纳的is_correct与sub_score；同轮批内、并发和网络重试不重复计分。失败不消耗条目，事务回滚同时撤销事实与回执；新随机轮次允许再次作答。未带该字段的旧独立反馈保持原语义。回归见 `tests/test_instant_feedback.py`。

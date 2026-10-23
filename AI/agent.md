@@ -35,6 +35,8 @@
 
 兼容差异写成数据（`omrs/llm/compat.py`）：Chat Completions 的思考增量字段、带工具调用的 assistant 是否回传思考、工具结果是否带 `name`、输出上限字段名、是否发 `stream_options.include_usage`；Responses 的 `responses_reasoning_summary` 控制是否主动请求推理摘要。两种协议共用 system / developer 角色、工具 schema 的 `strict` 与上下文窗口估算。覆写兼容参数不会切换协议。
 
+Chat Completions流必须收到已知finish_reason或显式[DONE]才视为结束；提前EOF、非法JSON和未知结束原因返回error，原AgentLoop不执行该轮工具，length仍按截断处理。两种客户端中止时对已建立响应的底层socket执行shutdown，唤醒阻塞读取，响应由请求线程最终关闭；停止接口不争用BufferedReader读取锁。`tests/test_llm_chat.py`使用本机慢SSE服务验证两协议在服务继续等待时即可中止，无外部模型调用。
+
 ### Responses 协议
 
 基础地址自动补 `/responses`，已填完整 `/responses` 时原样使用，已填完整 `/chat/completions` 时替换末尾路径。请求使用 `input`、`max_output_tokens` 和平铺的 function 工具；显式 `strict:false` 保留现有工具可选参数语义，只有兼容覆写开启时才用 strict。附图转换为 `input_image`，工具结果转换为按 `call_id` 绑定的 `function_call_output`。

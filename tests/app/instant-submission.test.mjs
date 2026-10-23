@@ -45,10 +45,32 @@ test('请求失败解除判定锁；重新修改后重试发送新值', async t 
   assert.equal(state.results['练习1'].submitted, false);
   ctl.verdict(true); ctl.score(10);
   const retry = ctl.submit();
+  assert.match(requests[0].body.practice_round_id, /^PR-[0-9a-f]{32}$/);
+  assert.equal(requests[1].body.practice_round_id, requests[0].body.practice_round_id);
   assert.deepEqual([requests[1].body.feedbacks[0].is_correct, requests[1].body.feedbacks[0].sub_score], [true, 10]);
   requests[1].resolve({ ok: true, data: { results: [{ uid: '练习1', question_id: 'Q1', status: 'ok' }] } });
   await retry;
   assert.equal(state.results['练习1'].submitted, true);
+});
+
+test('丢响应后改判仍采用服务端已接纳的原作答；同秒新一轮有独立身份', async t => {
+  const { state, requests, ctl } = setup(t);
+  ctl.verdict(false); ctl.score(0);
+  const first = ctl.submit();
+  requests[0].resolve({ ok: false, error: { message: '响应丢失' } });
+  await first;
+  ctl.verdict(true); ctl.score(10);
+  const retry = ctl.submit();
+  requests[1].resolve({ ok: true, data: { results: [{ uid: '练习1', question_id: 'Q1', status: 'ok', reused: true, is_correct: false, sub_score: 0 }] } });
+  await retry;
+  assert.deepEqual([state.results['练习1'].correct, state.results['练习1'].score], [false, 0]);
+  const previous = requests[0].body.practice_round_id;
+  S.startRound(state, [{ uid: '练习1', question_id: 'Q1' }]);
+  ctl.verdict(true);
+  const next = ctl.submit();
+  assert.notEqual(requests[2].body.practice_round_id, previous);
+  requests[2].resolve({ ok: true, data: { results: [] } });
+  await next;
 });
 
 test('部分成功仅锁成功题，失败题可改判重试；旧轮响应不能锁新轮', async t => {

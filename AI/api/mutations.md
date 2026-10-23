@@ -26,7 +26,7 @@
 `pin` 接受 `{pin, current_pin?, idle_minutes}`，新 PIN 为 4–12 位数字；只调空闲时间可省略 `pin`（尚未设置 PIN 时返回「请先设置 PIN」）。已设置 PIN 时，远端（含免 PIN 网段直连）修改须给正确的 `current_pin`，校验与登录共用每 IP 15 分钟 5 次的失败上限；尚未设置 PIN 时，免 PIN 网段设备可直接设置首个 PIN。更换 PIN 使全部远端会话失效；只改空闲时间不注销会话，新的空闲上限立即生效。停用 PIN 仅限本机且 `allow_external=false`。HTTP 提醒确认只记在当前会话。
 
 ### `POST /api/schedule`
-创建常规 Session：追加 `session.create` Ledger commit，再重建并导出兼容投影 `sessions.csv`。
+创建常规 Session：追加 `session.create` Ledger commit并发布SQL投影；CSV仅按需导出。
 
 **请求体：**
 ```json
@@ -35,6 +35,8 @@
 `subject` 可省略（全科）。
 
 **响应：** Session 信息 + 题目列表。
+
+没有可调度题（空库、指定科目无题或有效题已占用）时返回HTTP200，session_id、created_at、completed_at为空，subject_filter为请求科目或空串，count为0，session_status为empty，items、entries、uids、feedback_uids均为空数组；不创建Session或反馈事实。
 
 ---
 
@@ -69,6 +71,8 @@
 响应状态来自本次实际投影结果。服务端在写事务内核对活动参数及链头；其它进程已调参或追加事实时重建后重试，避免使用旧参数响应。投影发布失败时反馈事实一并回滚；已撤销的持久化 Session 拒绝新反馈。
 
 聊天练习卡提交时，`session_id` 必须为服务端签发的 `IMM-<attempt_id>`，请求顶层另带 `attempt_id`，每条反馈带卡片的 `question_id` 与相同的 `entry_id`。服务端按稳定题目身份解析当前 UID、核对卡片及来源；`IMM-PA-*` 缺少 attempt 身份会拒绝。返回的 `results` 逐条标 `status:ok/error`，已落账重试返回 `ok`、`reused:true`，失败项不锁定。创建或打开卡片不写反馈；只有首次成功提交才增加 Attempts。
+
+普通即时练习使用IMM-前缀session_id，顶层可带practice_round_id（PR-加32位小写十六进制安全随机串），每条必须提供question_id。相同轮次／题目的成功回执与反馈同事务保存；批内重复、并发、丢响应重试复用首次完整结果，并返回首次is_correct、sub_score。失败项可修正后重试，新轮使用新随机标识。此字段不能与attempt_id或正式Session混用；省略时保留旧独立反馈语义，不根据秒级时间戳猜测重复。
 
 ---
 

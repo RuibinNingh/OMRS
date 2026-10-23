@@ -20,11 +20,11 @@
 
 ## 流程
 
-1. 「加载推荐」调 `GET /api/recommend`：`due_count` 与 `prof_count` 都等于题数（1–50），可带 `subject` / `category` / `knowledge_tag` 与多个 `label`。两份列表再经 `domain/items.js` 转调全站筛选语义 `filterItems()`（排除停用题，不排序）。
+1. 「加载推荐」调 `GET /api/recommend`：`due_count` 与 `prof_count` 都等于题数（1–50），可带 `subject` / `category` / `knowledge_tag` 与多个 `label`，label_mode同步任一／全部匹配，在后端截断前筛选。两份列表再经 `domain/items.js` 转调全站筛选语义 `filterItems()`（排除停用题，不排序）。
 2. 到期列表在前、熟练度列表在后，按题目身份去重，截到题数，成为队列。不调用 `/api/confirm-schedule`，不生成 Session CSV。
 3. 题面由 qview 渲染（经 `domain/question/index.js::mountQuestion`，`showMeta:false`；工具按钮：编辑 Markdown、加入展示板、编辑标记）。先只显示题面，点「显示答案」或按空格翻开答案与备注。
 4. 判对或错：默认分对 8、错 4，手动打过的分不被覆盖；主观分 0–10。
-5. 「提交」把已判定未提交的题发给 `POST /api/feedback`：`session_id` 为 `IMM-YYYYMMDDHHMMSS`，每题 `source` 为 `due` 或 `proficiency`，`note` 为「即时练习」；只写历史与 mastery，不建调度 Session。
+5. 「提交」把已判定未提交的题发给 `POST /api/feedback`：`session_id` 为 `IMM-YYYYMMDDHHMMSS`，普通轮次首次提交生成practice_round_id（PR-加16字节安全随机值），同轮部分提交和失败重试复用。每题 `source` 为 `due` 或 `proficiency`，`note` 为「即时练习」；只写历史与 mastery，不建调度 Session。
 
 即时练习复用 `process_feedback()` 的熟练度、EF、SM-2 更新逻辑。提交成功后这些题锁定：不能再改判，也不会被下一次提交重复发送；右栏列出本次结果（熟练度前 → 后），随后 `reloadData()`，并让这些题的 qview 失效重绘。每条反馈发送 `question_id`；失败项保留。每轮带独立版本，旧轮迟到的提交只刷新所属领域，不能锁定新轮同 UID 的题。有已判定未提交的题时重新取题，会先弹确认。
 
@@ -62,3 +62,5 @@
 ## 提交期间状态
 
 提交期间判定、主观分及相关状态写入口同时锁定，显示和成功锁定使用提交快照；迟到交互不能改变已发出的作答。失败后解除提交锁并保留原值以便重试；只有服务端确认成功的条目锁为已提交。
+
+同轮／题目已被服务端接纳时重试采用原持久回执，并将首次is_correct、sub_score同步回页面；丢响应后即使人工改判也不会将未接纳的新值显示为成功。重新取题清除轮次标识，即使秒级session_id相同也可再次作答。真实HTTP与浏览器回归覆盖截断前全部匹配、提交成功但响应丢失、重试回显原判定和新一轮提交。

@@ -29,7 +29,7 @@ class LearningRoutes:
         elif path == '/api/feedback':
             try:
                 data = self.services.http_io.json_body(self, body)
-                results = self.services.process_feedback(self.vault_path, data.get('feedbacks', []), data.get('session_id', ''), attempt_id=data.get('attempt_id', ''))
+                results = self.services.process_feedback(self.vault_path, data.get('feedbacks', []), data.get('session_id', ''), attempt_id=data.get('attempt_id', ''), practice_round_id=data.get('practice_round_id', ''))
                 self._json({'status': 'ok', 'results': results})
             except Exception as exc:
                 self._error(exc)

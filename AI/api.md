@@ -9,6 +9,8 @@
 
 默认启动 `python omrs_engine.py --vault <path> serve -p 8471`。普通 Web 使用标准库 HTTP；`OMRSHandler.services` 为领域适配提供服务引用，已有 handler 方法名与服务替换测试接口保持可用。
 
+普通即时练习可带practice_round_id获得逐题持久回执，推荐支持label_mode在截断前匹配全部标记，无可调度题返回HTTP200空结果；请求字段与兼容边界见 `AI/api/mutations.md` 和 `AI/api/queries.md`。
+
 展示板导出没有可打印内容、没有新增题目或缺少续印所需纸面记录时，使用携带 `status=400` 的专用业务异常；未知异常仍返回 500。请求与错误体不变，详见 `AI/api/boards.md`。
 
 锁屏入口将既有 OMRS SVG 图标内联为 favicon，不另请求图标路径；入口资源与工作台鉴权的契约见 `AI/api/queries.md`。
