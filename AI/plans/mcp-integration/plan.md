@@ -98,3 +98,9 @@ P0 规范落库、P1 查询、P2 分析和报告、P3 草稿修订、P4 展示�
 执行者 Codex，完整模式；基线 87f813e / v2.8.5。用户原话：「ChatGPT Chat能用 Codex就不行」，后续提供联调报告：「OMRS 可以用下面的写法兼容两种校验方式，同时保留现有的空格处理行为」，并给出 `^[\s\S]*\S[\s\S]*$`。统一 get_question_image.uid、get_session.session_id、create_review_session.request_id 与 items[].question_id 的非空白规则，不改变各字段长度、空白处理、领域权限及人工审核契约。
 
 按一个本地修复切片交付：先用普通匹配和整串匹配重现四处 schema 对多字符编号的差异，再统一规则，覆盖中文、内部及首尾空白、换行、长度边界和非法类型；临时 Vault 与随机高端口实跑 MCP 专项，包括原生图片返回及正式计划 SDK 闭环。同步文档、日志、进度并通过文档差异门禁后提交。生产发布及客户端刷新后的实际 Codex 调用单独验收，版本保持。
+
+## Codex 参数校验兼容生产发布
+
+执行者 Codex，完整模式；2026-10-26 用户原话：「上线一下生产」「然后我尝试刷新工具」。发布本地实现 a7b9a1b 的精确归档；实际生产基线为 6a6c744 / v2.8.5，运行代码差异仅 omrs/mcp/common.py、server.py 与 session_write.py，版本保持。已有未提交 maintenance/validation.json 不纳入归档；不包含 GitHub 推送、Key 扩权或生产业务测试写入。
+
+复用既有依赖，在候选归档以临时 Vault、随机高端口完成 MCP 专项、真实 SDK schema 及题图／Session／复习计划闭环、文档门禁。复查活动任务和恢复意图，持训练锁停服保全 Vault、maintenance、网关与框选私有数据并校验，再原子切换稳定源码别名；失败只回退源码并保留最新数据。上线核对三服务目录、版本、鉴权、原业务列与内容哈希，使用既有凭据仅 initialize/tools/list 核对回环和公网四处新规则。完成后由用户刷新工具并验证实际 Codex 调用。
