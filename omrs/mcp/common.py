@@ -5,6 +5,10 @@ import json
 from ..errors import RequestError
 
 
+# 显式覆盖完整字符串，兼容客户端按搜索或整串匹配解释 pattern；保留空白处理。
+NONBLANK_PATTERN = r"^[\s\S]*\S[\s\S]*$"
+
+
 def fingerprint(payload):
     return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True,
                                     separators=(',', ':'), allow_nan=False).encode()).hexdigest()

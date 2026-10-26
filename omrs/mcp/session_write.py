@@ -5,6 +5,7 @@ from mcp.types import ToolAnnotations
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..mcp_operations import create_session
+from .common import NONBLANK_PATTERN
 from .tool_docs import TOOL_DESCRIPTIONS
 
 
@@ -13,7 +14,7 @@ SCOPES = {'create_review_session': ('omrs:read', 'session:create')}
 
 class ReviewSessionItem(BaseModel):
     model_config = ConfigDict(extra='forbid')
-    question_id: Annotated[str, Field(min_length=1, max_length=200, pattern=r'\S')]
+    question_id: Annotated[str, Field(min_length=1, max_length=200, pattern=NONBLANK_PATTERN)]
     source: Literal['due', 'proficiency']
     # 推荐中的 UID 是展示快照；创建始终按稳定 question_id 绑定当前位置。
     uid: Annotated[str, Field(max_length=200)] = ''
@@ -22,7 +23,7 @@ class ReviewSessionItem(BaseModel):
 def register(server, vault, require, threaded, web_url=''):
     def create_review_session(
         items: Annotated[list[ReviewSessionItem], Field(min_length=1, max_length=100)],
-        request_id: Annotated[str, Field(min_length=1, max_length=128, pattern=r'\S')],
+        request_id: Annotated[str, Field(min_length=1, max_length=128, pattern=NONBLANK_PATTERN)],
     ):
         token = require(vault, SCOPES['create_review_session'])
         return create_session(vault, [item.model_dump() for item in items],

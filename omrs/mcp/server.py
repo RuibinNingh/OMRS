@@ -40,7 +40,7 @@ from ..draft_prepare import merge_answer_text_runs
 from ..agent.tools import read as read_tools
 from ..question_images import read_question_image, validate_original_image
 from .keys import verify_key, key_for_id
-from .common import RequestError
+from .common import NONBLANK_PATTERN, RequestError
 from .tool_docs import SERVER_INSTRUCTIONS, TOOL_DESCRIPTIONS, apply_parameter_docs
 from . import queries, analysis_reports, draft_edit, board_read, board_write, board_export, session_write, question_write, labeling
 
@@ -573,7 +573,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
         _bounded_text(uid, "uid", 200)
         return _read_call(vault, read_tools.get_question, {"uid": uid})
 
-    def get_question_image(uid: Annotated[str, Field(min_length=1, max_length=200, pattern=r"\S")],
+    def get_question_image(uid: Annotated[str, Field(min_length=1, max_length=200, pattern=NONBLANK_PATTERN)],
                            image_index: Annotated[int, Field(ge=0, strict=True)]) -> MCPImage:
         _require(vault, "omrs:read")
         raw, image_format = read_question_image(vault, uid, image_index)
@@ -596,7 +596,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
         return _read_call(vault, read_tools.list_sessions_tool,
                           {"status": status or None, "offset": offset, "limit": limit})
 
-    def get_session(session_id: Annotated[str, Field(min_length=1, max_length=200, pattern=r"\S")],
+    def get_session(session_id: Annotated[str, Field(min_length=1, max_length=200, pattern=NONBLANK_PATTERN)],
                     offset: Annotated[int, Field(ge=0, strict=True)] = 0,
                     limit: Annotated[int, Field(ge=1, le=100, strict=True)] = 100):
         _bounded_text(session_id, "session_id", 200)

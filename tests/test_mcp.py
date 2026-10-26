@@ -4,6 +4,7 @@ import asyncio
 import base64
 import hashlib
 import os
+import re
 import struct
 import tempfile
 import threading
@@ -108,7 +109,6 @@ class MCPPolicyTests(unittest.TestCase):
             self.assertEqual(schema["required"], ["uid", "image_index"])
             self.assertFalse(schema["additionalProperties"])
             self.assertEqual(schema["properties"]["uid"]["maxLength"], 200)
-            self.assertEqual(schema["properties"]["uid"]["pattern"], r"\S")
             self.assertEqual(schema["properties"]["image_index"]["type"], "integer")
             self.assertEqual(schema["properties"]["image_index"]["minimum"], 0)
             self.assertIsNone(image.fn_metadata.output_schema)
@@ -116,6 +116,45 @@ class MCPPolicyTests(unittest.TestCase):
             self.assertFalse(image.annotations.destructiveHint)
             self.assertTrue(image.annotations.idempotentHint)
             self.assertFalse(image.annotations.openWorldHint)
+
+    def test_nonblank_id_schemas_support_search_and_fullmatch_clients(self):
+        """客户端按整串匹配时仍接受正常编号，长度与空白边界保持。"""
+        from jsonschema import Draft202012Validator
+        from pydantic import ValidationError
+
+        with tempfile.TemporaryDirectory() as vault:
+            server = build_server(vault)
+            cases = [
+                ("get_question_image", "uid", {"uid": "x", "image_index": 0}, 200),
+                ("get_session", "session_id", {"session_id": "x"}, 200),
+                ("create_review_session", "request_id", {
+                    "items": [{"question_id": "qid-1", "source": "due"}], "request_id": "x"}, 128),
+                ("create_review_session", "question_id", {
+                    "items": [{"question_id": "x", "source": "due"}], "request_id": "request-1"}, 200),
+            ]
+            for name, field, arguments, maximum in cases:
+                with self.subTest(tool=name, field=field):
+                    tool = server._tool_manager.get_tool(name)
+                    schema = tool.parameters
+                    properties = (schema["$defs"]["ReviewSessionItem"]["properties"]
+                                  if field == "question_id" else schema["properties"])
+                    pattern = properties[field]["pattern"]
+                    validator = Draft202012Validator(schema)
+                    target = arguments["items"][0] if field == "question_id" else arguments
+                    for value in ("x", "xx", "钠和氯15", " \t钠和氯15\u3000", "a b", "a\nb", "x" * maximum):
+                        target[field] = value
+                        self.assertIsNotNone(re.search(pattern, value), repr(value))
+                        self.assertIsNotNone(re.fullmatch(pattern, value), repr(value))
+                        validator.validate(arguments)
+                        tool.fn_metadata.arg_model.model_validate(arguments)
+                    for value in ("", " ", "\t\r\n", "\u00a0\u3000"):
+                        self.assertIsNone(re.search(pattern, value), repr(value))
+                        self.assertIsNone(re.fullmatch(pattern, value), repr(value))
+                    for value in ("", " \t\n\u3000", "x" * (maximum + 1), 1, True, None):
+                        target[field] = value
+                        self.assertFalse(validator.is_valid(arguments), repr(value))
+                        with self.assertRaises(ValidationError):
+                            tool.fn_metadata.arg_model.model_validate(arguments)
 
     def test_image_invalid_parameters_are_rejected_before_filesystem_reads(self):
         from mcp.server.auth.provider import AccessToken

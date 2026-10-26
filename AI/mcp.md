@@ -28,6 +28,8 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 MCP 学习查询的业务响应直接返回字段，不带内置助手的 `result` 包装。例如推荐读取 `selection`，读题读取 `images`、`question_id` 和 `content_hash`；审核操作自身的 `result` 字段仍是应用结果。SDK 可以通过 structuredContent 或文本 JSON 封装传递这些字段。客户端须刷新工具清单及服务端 instructions 才能加载更新后的说明。
 
+get_question_image.uid、get_session.session_id、create_review_session.request_id 及 items[].question_id 共用显式完整字符串规则 `^[\s\S]*\S[\s\S]*$`，至少包含一个非空白字符，兼容按搜索或整串匹配校验 pattern 的客户端。各字段原有长度上限、首尾空白处理及领域校验保持；空串和纯空白仍拒绝。服务端更新后须刷新连接器工具定义，实际客户端调用需单独验证。
+
 | 权限 | 能力 | 默认 |
 | --- | --- | --- |
 | `omrs:read` | 下表全部查询、原图与导出 | 勾选 |
