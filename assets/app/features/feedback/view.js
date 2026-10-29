@@ -16,6 +16,7 @@ import {
   clampCursor, nextOpenIndex, currentContext,
 } from './state.js';
 import { formatPercent } from '../../core/format.js';
+import { sessionEntryKey } from '../../domain/sessions.js';
 
 const TONE = { ok: 'success', warn: 'warning', danger: 'danger' };
 
@@ -84,8 +85,8 @@ function railMark(entry, rows) {
   return html`<span class="fbw-mk is-up" aria-label="未判定"></span>`;
 }
 
-// 唯一 key：有对应行的用行下标（行下标唯一），只读的已录入题用 uid（Session 内 uid 已去重）
-const railKey = entry => `${entry.index}|${entry.index >= 0 ? '' : entry.uid}`;
+// 可编辑行用行下标；只读条目用固定身份，避免归档题与新题同 UID 时冲突。
+const railKey = entry => `${entry.index}|${entry.index >= 0 ? '' : sessionEntryKey(entry)}`;
 
 function railItem(entry, at, s, env) {
   const row = entry.index >= 0 ? env.rows[entry.index] : null;

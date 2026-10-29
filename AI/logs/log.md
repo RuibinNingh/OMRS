@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-10-29_feedback-session-render](2026-10-29_feedback-session-render.md)：反馈录入同 UID 历史条目导致空白
 - [2026-10-26_mcp-integration-codex-regex](2026-10-26_mcp-integration-codex-regex.md)：MCP 编号正则的 Codex 兼容修复
 - [2026-10-26_mcp-integration-codex-regex-deploy](2026-10-26_mcp-integration-codex-regex-deploy.md)：MCP 编号正则兼容修复生产发布
 - [2026-10-24_review-fixes](2026-10-24_review-fixes.md)：全面审查问题修复与发布

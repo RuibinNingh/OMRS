@@ -6,6 +6,7 @@
 选 Session → 粘贴 OMR /result 自动填写 → 判定不重建题面（挂载点与 KaTeX 节点复用、焦点与滚动保留）→ 滑杆 / 备注 → 纯键盘
 → ⌘/Ctrl+Enter 提交、结果弹窗（ui/dialog）与重开 → 已录入只读；手动行、导入框、提交失败；旧入口（复习调度「录入结果」、
 标记重绘、删除计划清表单）；离开再回来；手机单栏（题面单栏、题目列表横条）；桌面 / 手机 × 浅 / 深审计。
+同 UID 的已录历史条目使用合成 Session 响应，覆盖 31/40 已录、9 道待录与四档截图。
 """
 import importlib.util
 import json
@@ -286,6 +287,57 @@ def audit_states(page, base, sid2, tag, results):
     results.append((f"{tag}：三种状态字号 ≤6、小目标 0、无横向溢出", not bad, "; ".join(bad[:2])))
 
 
+def run_reused_uids(browser, base, items, results):
+    """仅替换合成 Session 列表；页面、题面与交互仍使用真实隔离服务。"""
+    assert len(items) >= 40, '同 UID 回归需要 40 道合成题'
+    sid = 'EXP-REUSED-UID'
+    entries = [{"entry_id": f"{sid}:{i}", "question_id": item["question_id"],
+                "uid": item["uid"], "uid_at_creation": item["uid"], "source": "due",
+                "availability": "archived" if i == 6 else "active", "feedback_submitted": i < 31}
+               for i, item in enumerate(items[:40])]
+    entries[6]["uid"] = entries[6]["uid_at_creation"] = entries[30]["uid"]
+    session = {"session_id": sid, "status": "active", "entries": entries}
+    shots = os.environ.get('OMRS_FEEDBACK_SHOTS') or tempfile.mkdtemp(prefix='omrs-feedback-reused-uid-')
+    os.makedirs(shots, exist_ok=True)
+    for theme in ('light', 'dark'):
+        for label, size in (('desktop', (1440, 900)), ('mobile', (390, 844))):
+            ctx = browser.new_context(viewport={"width": size[0], "height": size[1]})
+            ctx.add_init_script(f"localStorage.setItem('omrs-theme', '{theme}')")
+            page = ctx.new_page()
+            errors = []
+            page.on('pageerror', lambda error: errors.append(str(error)))
+            page.route('**/api/sessions', lambda route: route.fulfill(
+                json={"sessions": [session]}))
+            tag = f'同 UID · {theme} · {label}'
+            try:
+                page.goto(f'{base}/?unlocked=1#/feedback', wait_until='networkidle')
+                page.locator(f'#fb-session-picker option[value="{sid}"]').wait_for(state='attached')
+                page.select_option('#fb-session-picker', sid)
+                loaded = wait(page, "() => document.querySelectorAll('.fbw-q').length === 40")
+                page.screenshot(path=os.path.join(shots, f'{theme}-{label}.png'), full_page=True)
+                counts = page.evaluate("""() => ({total: document.querySelectorAll('.fbw-q').length,
+                    done: document.querySelectorAll('.fbw-q.is-done').length,
+                    info: document.querySelector('.fbw-bar__info').textContent})""")
+                results.append((f'{tag}：显示 40 题、31 已录和 9 待录',
+                                loaded and counts['done'] == 31 and '31/40' in counts['info'] and '9' in counts['info'], str(counts)))
+                if loaded:
+                    page.locator('.fbw-q').nth(6).click()
+                    archived = page.locator('.fbw-stage').inner_text()
+                    page.locator('.fbw-q').nth(30).click()
+                    readonly = page.locator('.fbw-panel').inner_text()
+                    page.locator('.fbw-q').nth(31).click()
+                    question_loaded = wait(page, QV)
+                    page.locator('.fbw-verdict__btn--ok').click()
+                    keys = page.locator('.fbw-q-item').evaluate_all('(els) => els.map(el => el.dataset.key)')
+                    results.append((f'{tag}：历史只读、待录题面和判定可用、重绘身份唯一',
+                                    '此题暂不可反馈' in archived and '已录入' in readonly and question_loaded
+                                    and page.locator('.fbw-q.is-ok').count() == 1 and len(set(keys)) == 40, ''))
+                results.append((f'{tag}：页面脚本错误为 0', not errors, '; '.join(errors)))
+            finally:
+                ctx.close()
+    print(f'同 UID 回归截图：{shots}', flush=True)
+
+
 def guarded(results, name, fn, *args):
     """某一段中途抛错时记一条失败并继续后面的段落，免得一处超时吞掉全部结果。"""
     try:
@@ -309,11 +361,13 @@ def main():
     base = f"http://127.0.0.1:{port}"
     results = []
     try:
-        uids = [item["uid"] for item in http(port, "/api/stats")["items"]]
+        items = http(port, "/api/stats")["items"]
+        uids = [item["uid"] for item in items]
         sid = make_session(port, uids[:6])
         sid2 = make_session(port, uids[6:9])
         with sync_playwright() as p:
             browser = launch_browser(p)
+            guarded(results, '同 UID 历史条目', run_reused_uids, browser, base, items, results)
             ctx = browser.new_context(viewport={"width": 1440, "height": 900})
             ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
             page = ctx.new_page()

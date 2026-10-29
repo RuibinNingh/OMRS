@@ -30,7 +30,7 @@ Session 列表与当前反馈 Session 归 `domain/sessions.js`。`entries` 是�
 
 ## 渲染与不变量
 
-- 每次状态变化 `morph(#panel-feedback, view(state))`；会出现或消失的块都带 `data-key`。rail 条目的 key 是「行下标 | 只读条目身份」，保证唯一（`each()` 遇重复 key 直接报错）。
+- 每次状态变化 `morph(#panel-feedback, view(state))`；会出现或消失的块都带 `data-key`。rail 条目的 key 是「行下标 | 只读条目身份」：可编辑行使用行下标，只读条目经 `sessionEntryKey()` 优先取 `entry_id`，其次 `question_id`，旧计划才回退 UID。归档题与新题同 UID 时仍分别显示（`each()` 遇重复 key 直接报错）。
 - 题面挂载点带 `data-morph="skip"`、key 为 `qv:<uid>`：只有换题时换新挂载点；判定、打分、写备注都不碰题面，KaTeX、图片与滚动保留，聚焦的按钮与滑杆保留焦点。题面经 `domain/question/index.js::mountQuestionStage()`，显示完整题头，工具按钮多给「停用」「打开」。
 - rail 显示 Session 全部题目：序号沿用 Session 固定条目顺序；归档、停用和 unresolved 条目保留编号并只读，无法确认的身份需在计划详情显式绑定；已录入的题 `is-done` 只读（判定面板显示只读提示）；不属于本 Session 的导入 / 手动行追加在末尾，面板给出可编辑的 UID 字段。
 - 状态是模块单例：离开页面再回来，Session 选择、判定、导入的行都还在；整页刷新后清空。导入文本框的草稿也记在状态里，重绘不丢。
@@ -60,5 +60,7 @@ Session 列表与当前反馈 Session 归 `domain/sessions.js`。`entries` 是�
 复习调度先切 `feedback` 路由，再发送 `feedback:session`；反馈页刷新列表后选中计划。列表改变发 `sessions`，删除计划发 `feedback:reset` / `feedback:clear-results`，标记更新发 `feedback:render`。生产不注入旧全局，旧 E2E 兼容断言仅由测试适配器提供。
 
 进度由 `domain/sessions.js::sessionProgress` 按权威条目计算，`state.js` 再导出原名。Session UID-only 导入只在该计划的已绑定条目内解析；多个条目都匹配同一个 UID 时不会猜测。OMR 与同 UID 的归档／新题不会互串，行为回归见 `tests/app/audit-identity-uploads.test.mjs`。
+
+`tests/app/feedback.test.mjs` 覆盖同 UID 的已录条目、空 UID 的固定身份与旧计划兼容；`tests/e2e/feedback.py` 用合成 Session 列表验证 40 题中 31 已录、9 待录的真实页面，核对历史只读、题面及判定。浅深色桌面／手机截图保存在独立临时目录，可用 `OMRS_FEEDBACK_SHOTS` 指定位置。
 
 提交结果里的熟练度变化用 `core/format.js` 的 `formatPercent`。关闭题目 Markdown 编辑器走 Esc（对话框不把 Esc 外泄给页面）。

@@ -6,6 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as S from '../../assets/app/features/feedback/state.js';
 import { planImportText, parseLooseJson, escapeHtml } from '../../assets/app/features/feedback/importer.js';
+import { view } from '../../assets/app/features/feedback/view.js';
 
 const { fbSessionProgress, fbRowsForSession, fbRowsForSubmit, omrReadSheet, omrApplyToRows, fbPayloadKind } = S;
 
@@ -247,6 +248,46 @@ test('fbRailEntries：选中 Session 时列全部题目（已录入只读），�
   assert.deepEqual(entries.map(e => [e.uid, e.number, e.recorded, e.index, !!e.extra]),
     [['A', 1, false, 0, false], ['B', 2, true, -1, false], ['C', 3, false, 1, false], ['Z', 4, false, 2, true]]);
   assert.deepEqual(S.fbRailEntries(null, [{ uid: 'Q' }, { uid: '' }]).map(e => [e.uid, e.number, e.index]), [['Q', 1, 0], ['', 2, 1]]);
+});
+
+test('反馈视图：31/40 已录计划里的同 UID 历史条目各自显示，9 道待录题仍可编辑', () => {
+  const entries = Array.from({ length: 40 }, (_, i) => ({
+    entry_id: `entry-${i + 1}`, question_id: `question-${i + 1}`, uid: `题目-${i + 1}`,
+    availability: i === 6 ? 'archived' : 'active', feedback_submitted: i < 31,
+  }));
+  entries[6].uid = entries[30].uid;
+  const session = { session_id: 'EXP-REUSED-UID', entries };
+  const s = S.createState();
+  s.rows = fbRowsForSession(session);
+  const rail = S.fbRailEntries(session, s.rows);
+  s.cursor = S.firstOpenIndex(rail, s.rows);
+  const markup = view(s, { sessions: [session], activeId: session.session_id, session,
+    rows: s.rows, entries: rail, items: [], counts: { ready: 0, pending: 9 } }).text;
+  const keys = [...markup.matchAll(/<li class="fbw-q-item" data-key="([^"]+)"/g)].map(match => match[1]);
+  assert.equal(keys.length, 40);
+  assert.equal(new Set(keys).size, 40, '同 UID 的已录条目必须各有唯一渲染身份');
+  assert.notEqual(keys[6], keys[30]);
+  assert.equal(rail.filter(entry => entry.recorded).length, 31);
+  assert.equal(s.rows.length, 9);
+  assert.equal(S.currentContext(rail, s.rows, s.cursor).row.question_id, 'question-32');
+  assert.match(markup, /data-action="feedback.verdict"/);
+});
+
+test('反馈视图：没有 entry_id 的条目用 question_id 区分同名或空 UID，只含 UID 的旧计划仍可显示', () => {
+  for (const uids of [['同名题', '同名题'], ['', '']]) {
+    const session = { session_id: 'EXP-QUESTION-IDS', entries: uids.map((uid, i) => ({
+      question_id: `question-${i}`, uid, availability: 'active', feedback_submitted: true,
+    })) };
+    const s = S.createState();
+    const markup = view(s, { sessions: [session], activeId: session.session_id, session,
+      rows: [], entries: S.fbRailEntries(session, []), items: [], counts: { ready: 0, pending: 0 } }).text;
+    const keys = [...markup.matchAll(/<li class="fbw-q-item" data-key="([^"]+)"/g)].map(match => match[1]);
+    assert.equal(keys.length, 2);
+    assert.equal(new Set(keys).size, 2);
+  }
+  const session = { session_id: 'EXP-LEGACY', uids: ['旧题甲', '旧题乙'], feedback_uids: ['旧题甲', '旧题乙'] };
+  assert.doesNotThrow(() => view(S.createState(), { sessions: [session], activeId: session.session_id, session,
+    rows: [], entries: S.fbRailEntries(session, []), items: [], counts: { ready: 0, pending: 0 } }));
 });
 
 test('光标：clampCursor 夹紧；firstOpenIndex / nextOpenIndex 跳过已录入与已判定并循环', () => {
