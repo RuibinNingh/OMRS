@@ -4,6 +4,7 @@
 
 - [2026-10-29_feedback-session-render](2026-10-29_feedback-session-render.md)：反馈录入同 UID 历史条目导致空白
 - [2026-10-29_feedback-session-render-deploy](2026-10-29_feedback-session-render-deploy.md)：反馈录入空白修复生产发布
+- [2026-10-29_feedback-deploy-docs-check](2026-10-29_feedback-deploy-docs-check.md)：反馈发布文档检查记录纠正
 - [2026-10-26_mcp-integration-codex-regex](2026-10-26_mcp-integration-codex-regex.md)：MCP 编号正则的 Codex 兼容修复
 - [2026-10-26_mcp-integration-codex-regex-deploy](2026-10-26_mcp-integration-codex-regex-deploy.md)：MCP 编号正则兼容修复生产发布
 - [2026-10-24_review-fixes](2026-10-24_review-fixes.md)：全面审查问题修复与发布
