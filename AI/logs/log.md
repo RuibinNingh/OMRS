@@ -3,6 +3,7 @@
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
 - [2026-11-02_review-algorithm](2026-11-02_review-algorithm.md)：复习算法一次击杀与分档复核
+- [2026-11-02_review-algorithm-deploy](2026-11-02_review-algorithm-deploy.md)：复习算法生产部署与推送
 - [2026-10-29_feedback-session-render](2026-10-29_feedback-session-render.md)：反馈录入同 UID 历史条目导致空白
 - [2026-10-29_feedback-session-render-deploy](2026-10-29_feedback-session-render-deploy.md)：反馈录入空白修复生产发布
 - [2026-10-29_feedback-deploy-docs-check](2026-10-29_feedback-deploy-docs-check.md)：反馈发布文档检查记录纠正

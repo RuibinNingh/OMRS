@@ -15,21 +15,19 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-10-29反馈录入修复发布）：当前v2.8.5，源码为提交0ed224d733e1310a5ee1297f32f33998e3a4e462的精确归档/root/workspace/apps/releases/omrs-0ed224d，1614个文件逐字节一致，修复提交已推送GitHub main。工作区用于开发，生产Vault仍为/root/workspace/apps/OMRS，隔离测试不能读取真实错题数据。
+生产环境事实（2026-11-02）：当前v2.9.0，源码提交84c7efaaa65ed6f68a95f20b04e562915ac9bc7a已推送main。精确归档/root/workspace/apps/releases/omrs-84c7efa的1621个文件逐字节一致。生产Vault为/root/workspace/apps/OMRS，隔离功能测试不能访问真实题库。
 
-持久别名/root/workspace/apps/releases/omrs-9b29d49指向omrs-0ed224d；主服务、网关、检测的真实cwd分别为归档根、services/zuoyebang、services/boxdetect。三个服务均active/running、NRestarts为0；网关私有数据仍在/var/lib/omrs-zuoyebang。检测目录和unit限制见下文「本机检测生产服务」。
+稳定别名/root/workspace/apps/releases/omrs-9b29d49指向omrs-84c7efa。主站、网关、检测真实cwd分别为归档根、services/zuoyebang、services/boxdetect；均active/running、NRestarts0。网关私有数据/var/lib/omrs-zuoyebang；框选/var/lib/omrs-boxdetect为0700，数据库及admin-secret.txt为0600，主站Key在Vault错题/.omrs/boxdetect/service.json（0600），不得输出凭据。
 
-框选状态在/var/lib/omrs-boxdetect（0700），boxdetect.sqlite3和admin-secret.txt均0600。主站专用Key在真实Vault的错题/.omrs/boxdetect/service.json（0600），不在通用配置或页面回显。密码和Key不输出或提交。
+依赖沿用/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv：Python3.13.5、MCP1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6及Chromium1234。检测解释器/root/omrs-train/.venv/bin/python；发布验证使用独立Chromium，共享CDP9222仅供可信本机隔离context。
 
-Python依赖沿用/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv，Python3.13.5、MCP SDK1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；浏览器缓存含对应1234版Chromium。检测使用/root/omrs-train/.venv/bin/python，推理依赖保持。共享CDP9222仅供可信本机隔离context；发布验证使用独立Chromium。
+Web8471、回环MCP18472、HTTPS8472及公开URL https://home.ruibin-ningh.top:8472。Nginx的/zuoyebang/代理回环8745，/boxdetect/经主站连接18766。业务API须Key，healthz只检查存活；管理页另须主站PIN及管理员会话，Cookie为Secure/HttpOnly/Strict并限制服务路径。检测unit限制见下文。
 
-Web8471、回环MCP18472、HTTPS8472及公开URL https://home.ruibin-ningh.top:8472保持。Nginx的/zuoyebang/反代回环8745，/boxdetect/经主站连接回环18766；没有新增监听。框选面板和API共用原端口，外部调用仍须Key；/healthz仅供存活检查，/health和/api/v1/status须调用Key。管理页另外要求主站PIN和独立管理员会话，Cookie保持Secure/HttpOnly/Strict及服务路径限制。
+当前发布证据在/root/workspace/apps/releases/OMRS-review-policy-release-9hree7k4（0700，私有备份0600）。Vault及网关1402文件、9库，框选2文件、1库已解包逐字节和完整性校验；45张非算法变更业务表、1211个原正文/图片/关键配置保持。配置镜像与活动配置一致，凭据、模型和控制配置保持。
 
-当前发布证据在/root/workspace/apps/releases/OMRS-feedback-render-release-ccv71xda，目录0700、私有备份0600，含新旧源码、原unit、Vault、maintenance、网关及框选私有数据。停服备份1357个文件解包比较、10库完整性通过；51张原业务表全部原列原行及1168个原正文、图片和关键配置已核验，业务表无新增行。网关凭据、框选历史、主站Key、模型及控制配置保持。
+ledger-v4真实重算完成：374个题目投影含归档、371条有效反馈，与备份副本离线重放的题目/熟练度/历史/档位/排期一致。原始888条提交完整保留，另有2条重算审计，最终890条哈希链有效。投影第1档67题、第2档40题，其余267题档位0。371道可见题、0冲突，106已击杀中75到期、31休眠；默认推荐11题含6道到期复核，休眠题排除。
 
-候选归档前端Node564/564、组件浏览器35/35、反馈E2E43/43、资源缓存17/17通过，UI五类计数全0、58组对比度全通过，文档155份零问题。生产五个版本化资源与归档逐字节一致，immutable及ETag304通过。题图为15px正文、1.5行高、360 CSS px及3倍输出，layout为mobile-360-v2，见AI/zuoyebang.md及AI/frontend/zuoyebang.md。
-
-当前355题、0冲突；公网首页、鉴权及Tunnel /readyz通过，错误级日志0，切换核验5.809秒。EXP-20261016130309四档浏览器均显示40题、31已录、9待录，历史只读、题面与渲染身份正常、脚本错误0。文档来自精确归档，资源和只读GET来自本机生产，写请求0。真实PIN登录、实体设备及模型业务调用未验收。
+归档Node568、组件35、反馈E2E43、复核闭环22、设置79和后端相关83项通过；UI零违例、对比度58组通过、文档零问题。线上5个版本化模块与归档一致，immutable及ETag304通过。仪表盘、题库、调度、复盘、设置共20档只读浏览器通过，写请求/脚本错误/溢出0。文档响应来自归档，资源和业务GET来自生产；真实PIN登录、实体设备和模型业务调用未验收。公网及鉴权8项通过，三服务错误日志0，最终停服至核验5.143秒。
 
 生产部署使用 Git 精确归档，沿用当前依赖，不打包未提交的开发改动。功能验证使用临时 Vault 和随机端口；发布前按改动范围从归档执行相关检查。实际切换前检查运行任务与恢复意图，持训练锁停服保全并校验归档，再原子切换源码别名。上线后至少核对三服务真实目录、版本、资源及就绪；完整验收另核对鉴权、原数据库全部业务列及原正文／配置哈希，快速发布按用户指定范围执行。回退保留最新数据。
 
