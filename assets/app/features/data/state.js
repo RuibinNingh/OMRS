@@ -1,9 +1,10 @@
 /**
  * 数据复盘：模块状态 + 纯函数（把 /api/analytics 与统计快照整理成视图要的行），node 单测全覆盖。
- * 语义与原 assets/data.js 一致：分档配色、表格列、Top 15、24 小时热力、到期预测、预警、顽固题与屡练不熟。
+ * 提供攻克概览、分档配色、Top 15、24 小时热力、到期预测、预警、顽固题与屡练不熟。
  * 颜色一律用语气名（success / warning / danger / info / accent / muted），由 CSS 映射到 token，不写行内样式。
  */
-export const state = { phase: 'idle', analytics: null, error: '', exporting: false, exportError: '' };
+export const state = { phase: 'idle', analytics: null, error: '', exporting: false, exportError: '',
+  filter: 'killed', subject: '', query: '', page: 1 };
 
 const num = (value, fallback = 0) => { const n = Number(value); return Number.isFinite(n) ? n : fallback; };
 export const pct = value => (value === null || value === undefined ? '—' : `${(num(value) * 100).toFixed(0)}%`);
@@ -14,6 +15,10 @@ export const masteryTone = i => (i < 3 ? 'danger' : i < 6 ? 'warning' : i < 8 ? 
 
 export function kpis(ov = {}) {
   return [
+    { key: 'total', label: '参与复盘的题目', value: String(num(ov.total)), hint: `另有停用 ${num(ov.suspended_count)} 题` },
+    { key: 'killed', label: '已击杀', value: String(num(ov.killed)), hint: `击杀率 ${ov.total ? pct(ov.killed / ov.total) : '—'}` },
+    { key: 'attacking', label: '待攻克', value: String(num(ov.attacking)), hint: '尚未达到击杀状态' },
+    { key: 'coverage', label: '练习覆盖率', value: ov.total ? pct((ov.total - num(ov.never_reviewed)) / ov.total) : '—', hint: `从未复习 ${num(ov.never_reviewed)} 题` },
     { key: 'reviews', label: '总复习次数', value: String(num(ov.total_reviews)), hint: `答对 ${num(ov.total_correct)} / 答错 ${num(ov.total_wrong)}` },
     { key: 'accuracy', label: '总体正确率', value: pct(ov.accuracy) },
     { key: 'streak', label: '当前连续', value: `${num(ov.current_streak)} 天`, hint: `最长 ${num(ov.longest_streak)} 天` },
@@ -54,7 +59,8 @@ export function barSets(a) {
     score: bars(keysOf(bs).filter(s => bs[s].count).map(s => ({ key: s, label: `${s}分`, value: Math.round(num(bs[s].accuracy) * 100),
       display: `${pct(bs[s].accuracy)} (${bs[s].count})`, tone: accTone(bs[s].accuracy) }))),
     weekday: bars(keysOf(wd).map(k => ({ key: k, label: k, value: wd[k], tone: 'accent' }))),
-    forecast: bars([{ key: '0', label: '今日', value: fc['0'], tone: 'warning' },
+    forecast: bars([{ key: 'overdue', label: '已逾期', value: fc.overdue, tone: 'danger' },
+      { key: '0', label: '今日', value: fc['0'], tone: 'warning' },
       ...[1, 2, 3, 4, 5, 6, 7].map(i => ({ key: String(i), label: `+${i}天`, value: fc[String(i)], tone: 'info' })),
       { key: '7+', label: '7天+', value: fc['7+'], tone: 'success' }]),
   };

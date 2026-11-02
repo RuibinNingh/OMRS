@@ -1,6 +1,6 @@
 /**
  * 数据复盘：视图模板（只产出 html``，由 index.js 用 morph 写入 #panel-data）。
- * 版式：说明与动作 → 八格概览 → 自动成两栏的图表卡（宽内容整行）。表格用 ui/table（手机降级为卡片），
+ * 版式：说明与动作 → 十二格概览 → 状态明细与图表卡（宽内容整行）。表格用 ui/table（手机降级为卡片），
  * 横条用原生 <progress>，SVG 图见 charts.js。卡片标题不再带 emoji（D7）；模板不写 style=（D11）。
  */
 import { html, each, cls } from '../../core/html.js';
@@ -13,6 +13,7 @@ import { skeleton } from '../../ui/skeleton.js';
 import { labelChip } from '../../domain/labels/index.js';
 import { pct, accTone } from './state.js';
 import { trendSvg, radarSvg, scatterSvg } from './charts.js';
+import { questionsView } from './questions-view.js';
 
 const tone = (value, text = pct(value)) => html`<span class="dat-tone" data-tone="${accTone(value)}">${text}</span>`;
 const none = (title, hint) => empty({ icon: 'chart', title, hint, compact: true });
@@ -34,7 +35,7 @@ function head(s) {
     : s.exportError ? status({ tone: 'danger', text: `导出失败：${s.exportError}` })
       : s.analytics ? html`数据基准时间 ${s.analytics.generated_at || '—'}` : '';
   return html`<section class="dat-head" data-key="head">
-  <p class="dat-head__note">全面复盘数据。导出为 Markdown：上半部分是程序生成的复盘统计，下半部分是原始历史与 JSON，可以直接发给 AI 做个性化分析。</p>
+  <p class="dat-head__note">查看攻克进度、复核排期与练习表现。导出复盘报告可获取统计、原始历史与 JSON，供 AI 分析。</p>
   <div class="dat-head__acts">${button({ label: '刷新', icon: 'refresh', variant: 'ghost', action: 'data.refresh', loading: s.phase === 'loading' && !!s.analytics })}${button({ label: '导出复盘报告', icon: 'download', variant: 'primary', action: 'data.export', loading: s.exporting })}</div>
   <div class="dat-head__meta" id="data-status" role="status">${meta}</div>
 </section>`;
@@ -52,6 +53,9 @@ function charts(env) {
   const b = env.bars;
   const subjects = env.subjects;
   return html`<div class="dat-grid" data-key="grid">
+  ${card('question-status', '题目状态明细', questionsView(env.s, env.questions), { wide: true, sub: '默认查看已击杀题目，复燃待复核优先' })}
+  ${card('cycles', '击杀成绩与复核', html`<dl class="dat-mini"><div><dt>休眠中</dt><dd>${env.progress.dormant}</dd></div><div><dt>复燃待复核</dt><dd>${env.progress.revived}</dd></div><div><dt>累计击杀次数</dt><dd>${env.progress.killCount}</dd></div><div><dt>曾击杀题数</dt><dd>${env.progress.everKilled}</dd></div></dl>
+    ${barList(env.progress.stages)}<p class="dat-card__sub">档位按当前已击杀题统计；累计击杀为逐题成绩之和，曾击杀题数按累计成绩大于零计，均包含后来回到待攻克的题目。</p>`)}
   ${card('trend', '每日练习趋势（近 30 天）', env.trend.points.length
     ? html`<dl class="dat-mini"><div><dt>近 30 天</dt><dd>${env.trend.total}</dd></div><div><dt>最近一天</dt><dd>${env.trend.last}</dd></div><div><dt>单日最高</dt><dd>${env.trend.max}</dd></div></dl>${trendSvg(env.trend)}`
     : none('还没有练习记录', '提交第一批反馈后，这里画出每天的练习次数。'))}

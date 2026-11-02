@@ -5,7 +5,7 @@ import * as S from '../../assets/app/features/data/state.js';
 import { trendSvg, radarSvg, scatterSvg, smoothPath } from '../../assets/app/features/data/charts.js';
 
 const A = {
-  overview: { total_reviews: 42, total_correct: 26, total_wrong: 16, accuracy: 0.619, current_streak: 1, longest_streak: 3, leech: 2, never_reviewed: 10,
+  overview: { total: 40, killed: 12, attacking: 28, suspended_count: 1, total_reviews: 42, total_correct: 26, total_wrong: 16, accuracy: 0.619, current_streak: 1, longest_streak: 3, leech: 2, never_reviewed: 10,
     avg_mastery: 0.16, avg_decayed_mastery: 0.12, avg_ef: 2.5, avg_attempts: 1.08, active_days: 4, first_review: '2026-09-01', reviews_last_30: 40, reviews_last_7: 12 },
   distributions: {
     mastery_histogram: { '0-10': 20, '10-20': 7, '20-30': 1, '30-40': 3, '40-50': 7, '50-60': 0, '60-70': 0, '70-80': 0, '80-90': 0, '90-100': 1 },
@@ -14,7 +14,7 @@ const A = {
   },
   accuracy: { by_score: { 0: { count: 0, accuracy: null }, 2: { count: 3, accuracy: 1 }, 6: { count: 6, accuracy: 0.333 } } },
   behavior: { by_weekday: { 周一: 0, 周五: 42 }, by_hour: { 11: 42, 9: 10, '23': 1 } },
-  forecast: { 0: 10, 1: 11, 6: 14, '7+': 3 },
+  forecast: { overdue: 2, 0: 10, 1: 11, 6: 14, '7+': 3 },
   review_alert: { overdue: 2, due_today: 10, due_next_3_days: 11, due_next_7_days: 25, low_mastery_not_due: 28, leech: 0 },
 };
 
@@ -24,11 +24,13 @@ test('pct and tones', () => {
   assert.deepEqual([0, 2, 3, 5, 6, 7, 8, 9].map(S.masteryTone), ['danger', 'danger', 'warning', 'warning', 'info', 'info', 'success', 'success']);
 });
 
-test('kpis: eight cells with legacy labels and hints', () => {
+test('概览区分题数、击杀率、练习覆盖率和复习次数，空库比例不冒充零', () => {
   const k = S.kpis(A.overview);
-  assert.deepEqual(k.map(r => r.value), ['42', '62%', '1 天', '2', '16%', '2.5', '4', '40']);
-  assert.deepEqual(k.map(r => r.hint || ''), ['答对 26 / 答错 16', '', '最长 3 天', '从未复习 10', '衰减后 12%', '平均复习 1.08 次', '自 2026-09-01', '近 7 天 12']);
+  assert.deepEqual(k.map(r => r.value), ['40', '12', '28', '75%', '42', '62%', '1 天', '2', '16%', '2.5', '4', '40']);
+  assert.deepEqual(k.slice(0, 4).map(r => r.hint), ['另有停用 1 题', '击杀率 30%', '尚未达到击杀状态', '从未复习 10 题']);
+  assert.deepEqual(k.slice(4).map(r => r.hint || ''), ['答对 26 / 答错 16', '', '最长 3 天', '从未复习 10', '衰减后 12%', '平均复习 1.08 次', '自 2026-09-01', '近 7 天 12']);
   assert.equal(S.kpis({}).find(r => r.key === 'active').hint, '');
+  assert.equal(S.kpis({}).find(r => r.key === 'coverage').value, '—');
 });
 
 test('barSets: bands, tones, relative width, score filter and forecast order', () => {
@@ -40,7 +42,7 @@ test('barSets: bands, tones, relative width, score filter and forecast order', (
   assert.deepEqual(b.difficulty.map(r => [r.label, r.tone]), [['Lv.1', 'success'], ['Lv.3', 'success'], ['Lv.5', 'info'], ['Lv.7', 'accent'], ['Lv.9', 'danger']]);
   assert.deepEqual(b.interval.map(r => r.label), ['0-1天', '2-6天', '7-15天', '16-30天', '31-60天', '60+天']);
   assert.deepEqual(b.score.map(r => [r.label, r.value, r.display, r.tone]), [['2分', 100, '100% (3)', 'success'], ['6分', 33, '33% (6)', 'danger']]);
-  assert.deepEqual(b.forecast.map(r => [r.label, r.value]), [['今日', 10], ['+1天', 11], ['+2天', 0], ['+3天', 0], ['+4天', 0], ['+5天', 0], ['+6天', 14], ['+7天', 0], ['7天+', 3]]);
+  assert.deepEqual(b.forecast.map(r => [r.label, r.value]), [['已逾期', 2], ['今日', 10], ['+1天', 11], ['+2天', 0], ['+3天', 0], ['+4天', 0], ['+5天', 0], ['+6天', 14], ['+7天', 0], ['7天+', 3]]);
   assert.deepEqual(S.bars([]), []);
   assert.equal(S.barSets({}).mastery.length, 0);
 });

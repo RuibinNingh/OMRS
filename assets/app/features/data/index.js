@@ -2,7 +2,7 @@
  * 数据复盘页（P6 第 2 轮起的 features 页面；原 assets/data.js）。
  * - 契约：page = { id: 'data', title, mount(root, ctx) → unmount, actions }；动作命名空间 'data'。
  * - 数据：/api/analytics 每次进入页面、点「刷新」、以及统计快照变化（store.data，写操作之后）时重拉；
- *   「每日练习趋势」「标记分布」直接取统计快照。首次加载超过 300ms 才出骨架；失败时显示原因与「重试」，已有数据时保留旧数据只在顶部报错。
+ *   所有图表与明细共用 analytics 响应。首次加载超过 300ms 才出骨架；失败时显示原因与「重试」，已有数据时保留旧数据只在顶部报错。
  * - 导出：GET /api/export-review 存成文件（core/download）。顽固题与屡练不熟的「查看」「加入展示板」经 domain。
  */
 import { morph } from '../../core/dom.js';
@@ -13,20 +13,23 @@ import { viewQ, qvSetContext } from '../../domain/question/index.js';
 import { boardQuickAdd } from '../../domain/board/index.js';
 import * as S from './state.js';
 import { view } from './view.js';
+import { progressSummary, questionRows } from './progress.js';
 
 const s = S.state;
 let ctl = null;
 
-function createController(root, ctx) {
+function createController(root) {
   let token = 0;
   let slow = 0;
 
   function env() {
     const a = s.analytics || {};
-    const data = ctx.store.get().data || {};
+    const questions = questionRows(a.items, s);
+    qvSetContext('data-progress', questions.uids);
     return {
       s, a, kpis: S.kpis(a.overview), bars: S.barSets(a), subjects: S.subjectsSorted(a.subjects), scatter: S.scatterBins(a.items),
-      hours: S.hours(a.behavior?.by_hour), alerts: S.alerts(a.review_alert), trend: S.trend(data.daily_trend), labels: S.labelCounts(data.items),
+      hours: S.hours(a.behavior?.by_hour), alerts: S.alerts(a.review_alert), trend: S.trend(a.behavior?.daily_trend), labels: S.labelCounts(a.items),
+      progress: progressSummary(a.items), questions,
     };
   }
   const paint = () => morph(root, view(env()));
@@ -74,26 +77,34 @@ function createController(root, ctx) {
     }
   }
 
-  return { paint, load, exportReview, dispose() { clearTimeout(slow); token += 1; } };
+  return { paint, load, exportReview,
+    filter(key, value) { s[key] = value; if (key !== 'page') s.page = 1; paint(); },
+    dispose() { clearTimeout(slow); token += 1; } };
 }
 
 export const page = {
   id: 'data',
   title: '数据复盘',
   mount(root, ctx) {
-    ctl = createController(root, ctx);
+    ctl = createController(root);
+    const change = event => { if (event.target.id === 'dat-subject') ctl?.filter('subject', event.target.value); };
+    root.addEventListener('change', change);
     const offs = [
       ctx.store.subscribe(() => { ctl?.paint(); ctl?.load(); }, st => st.data),
       ctx.bus.on('labels', () => ctl?.paint()),
     ];
     ctl.paint();
     ctl.load();
-    return () => { offs.forEach(off => off()); ctl?.dispose(); ctl = null; };
+    return () => { root.removeEventListener('change', change); offs.forEach(off => off()); ctl?.dispose(); ctl = null; };
   },
   actions: {
     refresh: () => ctl?.load(),
     export: () => ctl?.exportReview(),
     view: ({ arg }) => viewQ(arg, 'leech'),
+    detail: ({ arg }) => viewQ(arg, 'data-progress'),
+    filter: ({ arg }) => ctl?.filter('filter', arg),
+    search: ({ value }) => ctl?.filter('query', value),
+    page: ({ arg }) => ctl?.filter('page', Number(arg)),
     board: ({ el, arg }) => boardQuickAdd(arg, { anchor: el }),
   },
 };

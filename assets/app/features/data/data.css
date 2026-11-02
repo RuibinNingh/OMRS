@@ -15,7 +15,7 @@
 .dat-state { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-3); }
 
 /* ── 概览 ── */
-.dat-kpis { box-sizing: border-box; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-4); padding: var(--sp-4) var(--sp-5); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--elev-1); }
+.dat .dat-kpis { box-sizing: border-box; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-4); padding: var(--sp-4) var(--sp-5); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--elev-1); }
 .dat-kpi { display: flex; flex-direction: column; gap: var(--sp-0_5); min-width: 0; }
 .dat-kpi dt, .dat-kpi__hint { color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-ui); }
 .dat-kpi dd { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-1_5); }
@@ -35,6 +35,11 @@
 .dat-tone[data-tone="muted"] { color: var(--fg-3); font-weight: var(--weight-regular); }
 .dat-uid { font-family: var(--font-mono); font-weight: var(--weight-semibold); }
 .dat-acts { display: inline-flex; flex-wrap: wrap; gap: var(--sp-1_5); }
+.dat-filters { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.dat-tools { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.dat-tools .ui-input { flex: 1 1 16em; min-width: 0; }
+.dat-question__meta { display: block; color: var(--fg-3); font-size: var(--text-xs); overflow-wrap: anywhere; }
+.dat-pager { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--sp-2); }
 
 /* ── 横条 ── */
 .dat-bars { display: flex; flex-direction: column; gap: var(--sp-2); }
@@ -95,7 +100,7 @@
 @media (max-width: 760px) {
   .dat-head { grid-template-columns: minmax(0, 1fr); grid-template-areas: "note" "acts" "meta"; }
   .dat-head__acts .ui-btn { flex: 1 1 auto; }
-  .dat-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: var(--sp-4); }
+  .dat .dat-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: var(--sp-4); }
   .dat-card { padding: var(--sp-4); }
   .dat-heat__grid { grid-template-columns: repeat(12, minmax(0, 1fr)); }
   .dat-alerts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
