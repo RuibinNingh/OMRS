@@ -1,7 +1,7 @@
 /** 学习参数表单的范围与重算回执。数值由服务端有效配置提供。 */
 export const TUNING_FIELDS = [
   { key: 'high_score_threshold', label: '高分阈值', min: 0, max: 10, step: 1, hint: '主观分达到此值视为高分' },
-  { key: 'kill_streak', label: '击杀连对次数', min: 1, step: 1, hint: '连续高分答对后标记已击杀' },
+  { key: 'revive_intervals_days', label: '五档复核间隔（天）', kind: 'intervals', hint: '用逗号分隔五个递增正整数，如 7,21,60,120,180；一次高分答对即可击杀' },
   { key: 'ef_cold_attempts', label: '冷启动复习次数', min: 0, step: 1, hint: '达到此次数前保持难度系数' },
   { key: 'leech_fail_threshold', label: '顽固题连错次数', min: 1, step: 1, hint: '连续答错达到此次数视为顽固题' },
   { key: 'decay_mastery_factor', label: '熟练度衰减系数', min: 0, exclusiveMin: true, step: 'any' },
@@ -15,8 +15,6 @@ export const TUNING_FIELDS = [
   { key: 'proficiency_factor', label: '熟练答对折中系数', min: 0, exclusiveMin: true, max: 1, step: 'any' },
   { key: 'leech_priority_bonus', label: '顽固题优先级加成', min: 0, step: 'any' },
   { key: 'label_bonus_cap', label: '标记优先级加成上限', min: 0, step: 'any' },
-  { key: 'revive_decay_threshold', label: '复燃衰减阈值', min: 0, exclusiveMin: true, max: 1, step: 'any' },
-  { key: 'revive_tier_multiplier', label: '多次击杀休眠倍率', min: 1, step: 'any' },
   { key: 'revive_priority_bonus', label: '复燃题优先级加成', min: 0, step: 'any' },
   { key: 'kill_demote_factor', label: '复燃答错降级系数', min: 0, max: 1, step: 'any' },
 ];
@@ -25,6 +23,12 @@ export function readTuning(valueOf) {
   const tuning = {};
   for (const field of TUNING_FIELDS) {
     const raw = String(valueOf(field.key) ?? '').trim();
+    if (field.kind === 'intervals') {
+      const values = raw.split(/[,，]/).map(part => part.trim() ? Number(part) : NaN);
+      if (!validIntervals(values)) throw new Error('复核间隔必须是五个严格递增的正整数');
+      tuning[field.key] = values;
+      continue;
+    }
     const value = Number(raw);
     if (!raw || !Number.isFinite(value)) throw new Error(`${field.label}必须是有效数字`);
     if (field.step === 1 && !Number.isInteger(value)) throw new Error(`${field.label}必须是整数`);
@@ -35,8 +39,12 @@ export function readTuning(valueOf) {
   return tuning;
 }
 
-export const tuningMatches = (effective, requested) => TUNING_FIELDS.every(field =>
-  typeof effective?.[field.key] === 'number' && effective[field.key] === requested[field.key]);
+export const validIntervals = values => Array.isArray(values) && values.length === 5 && values.every((value, index) =>
+  Number.isSafeInteger(value) && value > 0 && (!index || value > values[index - 1]));
+
+export const tuningMatches = (effective, requested) => TUNING_FIELDS.every(field => field.kind === 'intervals'
+  ? validIntervals(effective?.[field.key]) && validIntervals(requested?.[field.key]) && effective[field.key].every((value, i) => value === requested[field.key][i])
+  : typeof effective?.[field.key] === 'number' && effective[field.key] === requested?.[field.key]);
 
 export function recalculationText(data) {
   const result = data?.recalculation;

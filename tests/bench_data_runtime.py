@@ -109,7 +109,7 @@ def measure(vault, action):
     elif action == "full":
         rebuild_projection(vault, force=True)
     elif action == "tuning":
-        publication = save_config(vault, {"tuning": {"kill_streak": 3}})
+        publication = save_config(vault, {"tuning": {"high_score_threshold": 10}})
         result.update(config_revision=publication["revision"], recalculation=publication["recalculation"])
     elif action == "correction":
         with connect(vault) as db:

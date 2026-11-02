@@ -63,7 +63,7 @@ export { parseReviewDate };
 /** 距到期天数（负数=逾期）。today 只认 Date：被当作 map / filter 回调时第二个参数是下标，一律退回今天。 */
 export function dueDays(item, today) {
   const due = parseReviewDate(item?.due_date);
-  if (!due) return null;
+  if (!due) return item?.is_revived ? 0 : null;
   if (!(today instanceof Date) || Number.isNaN(today.getTime())) today = businessToday();
   return daysBetween(today, due);
 }

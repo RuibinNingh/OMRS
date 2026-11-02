@@ -24,9 +24,10 @@ export function todaySummary({ items = [], data = {}, sessions = [], dueDays, to
       actions: [{ label: '去录入题目', primary: true, go: 'page', page: 'create' }] };
   }
   const active = activeItems(items);
-  const overdueDays = active.map(item => dueDays(item)).filter(d => d !== null && d < 0);
+  const due = item => item.is_revived && !item.due_date ? 0 : dueDays(item);
+  const overdueDays = active.map(item => due(item)).filter(d => d !== null && d < 0);
   const overdue = overdueDays.length;
-  const dueToday = active.filter(item => dueDays(item) === 0).length;
+  const dueToday = active.filter(item => due(item) === 0).length;
   const waiting = overdue + dueToday;
   const pendingQ = openSessions(sessions).reduce((sum, s) => sum + num(s.pending_count, num(s.count)), 0);
   const done = num((data?.daily_trend || {})[dayKey(today)]);

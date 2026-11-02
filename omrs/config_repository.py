@@ -10,6 +10,8 @@ from .ledger import connect, canonical_json, append_commit_in_db
 from .locking import write_lock
 from .vault_lifecycle import lease, fsync_dir, atomic_json
 
+DEPRECATED_TUNING = {"kill_streak", "revive_decay_threshold", "revive_tier_multiplier"}
+
 
 class ConfigMirrorConflict(RuntimeError):
     status = 409
@@ -37,28 +39,37 @@ def normalized_tuning(config):
     values = config.get("tuning", {})
     if not isinstance(values, dict):
         raise ValueError("tuning 必须是对象")
-    merged = dict(DEFAULT_TUNING)
+    merged = {key: value[:] if isinstance(value, list) else value for key, value in DEFAULT_TUNING.items()}
     for key, value in values.items():
+        if key in DEPRECATED_TUNING:
+            continue
         if key not in merged:
             raise ValueError(f"未知算法参数：{key}")
+        if key == "revive_intervals_days":
+            if (not isinstance(value, list) or len(value) != 5
+                    or any(type(day) is not int or day <= 0 for day in value)
+                    or any(a >= b for a, b in zip(value, value[1:]))):
+                raise ValueError("复核间隔必须是五个严格递增的正整数")
+            merged[key] = value[:]
+            continue
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             raise ValueError(f"算法参数 {key} 必须是有限数字")
         merged[key] = value
-    integers = {"high_score_threshold", "kill_streak", "ef_cold_attempts", "leech_fail_threshold"}
+    integers = {"high_score_threshold", "ef_cold_attempts", "leech_fail_threshold"}
     for key in integers:
         if type(merged[key]) is not int:
             raise ValueError(f"算法参数 {key} 必须是整数")
-    for key in ("decay_mastery_factor", "decay_base", "priority_days_divisor", "kill_streak", "leech_fail_threshold"):
+    for key in ("decay_mastery_factor", "decay_base", "priority_days_divisor", "leech_fail_threshold"):
         if merged[key] <= 0:
             raise ValueError(f"算法参数 {key} 必须大于零")
     if not 0 <= merged["high_score_threshold"] <= 10 or merged["ef_cold_attempts"] < 0:
         raise ValueError("分数阈值或冷启动次数超出范围")
-    for key in ("proficiency_factor", "revive_decay_threshold"):
+    for key in ("proficiency_factor",):
         if not 0 < merged[key] <= 1:
             raise ValueError(f"算法参数 {key} 必须在 (0,1] 范围")
-    if not 0 <= merged["kill_demote_factor"] <= 1 or merged["revive_tier_multiplier"] < 1:
-        raise ValueError("降级系数或复燃倍率超出范围")
-    for key in merged:
+    if not 0 <= merged["kill_demote_factor"] <= 1:
+        raise ValueError("降级系数超出范围")
+    for key in merged.keys() - {"revive_intervals_days"}:
         if merged[key] < 0:
             raise ValueError(f"算法参数 {key} 不能为负")
     return merged
@@ -210,9 +221,14 @@ def save(vault, patch, replace=False):
             previous = json.loads(active["config_json"]) if active else _file_config(vault)
             candidate = {**CONFIG_DEFAULTS, **patch} if replace else {**previous, **patch}
             validate(candidate)
+            if "tuning" in candidate:
+                candidate["tuning"] = {key: value for key, value in candidate["tuning"].items() if key not in DEPRECATED_TUNING}
             tuning, old_tuning = normalized_tuning(candidate), normalized_tuning(previous)
+            from .ledger import PROJECTOR_VERSION
+            meta = db.execute("SELECT * FROM projection_meta WHERE id=1").fetchone()
+            rebuild_required = not meta or meta["projector_version"] != PROJECTOR_VERSION or meta["policy_hash"] != policy_hash(tuning)
             revision = active["revision"] if active else 0
-            if active and candidate == previous:
+            if active and candidate == previous and not rebuild_required:
                 db.commit()
                 mirror = _finish_mirror(vault, candidate, revision) if active["mirror_pending"] else {"revision": revision, "mirror_pending": False}
                 return _publication_status(vault, mirror)
@@ -221,7 +237,7 @@ def save(vault, patch, replace=False):
             changed_keys = sorted(k for k in candidate if candidate.get(k) != previous.get(k))
             tuning_changed = tuning != old_tuning
             state = None
-            if not active or tuning_changed:
+            if not active or tuning_changed or rebuild_required:
                 started = time.perf_counter()
                 state = full_project(vault, db, tuning)
                 from .ledger import PROJECTOR_VERSION
@@ -264,15 +280,15 @@ def initialize(vault):
             result = _finish_mirror(vault, current, active["revision"])
             if result["mirror_pending"]:
                 raise RuntimeError("配置镜像无法恢复，尚未启动服务")
-            return result
+            return save(vault, {})
         if active["mirror_pending"]:
             result = _finish_mirror(vault, current, active["revision"])
             if result.get("mirror_conflict"):
                 raise ConfigMirrorConflict("配置手改与待同步镜像冲突；已保留文件和活动配置，请核对后再启动")
             if result["mirror_pending"]:
                 raise RuntimeError("配置镜像无法恢复，尚未启动服务")
-            return result
+            return save(vault, {})
         actual = _hash(_file_config(vault))
         if actual != active["mirror_hash"]:
             return save(vault, _file_config(vault), replace=True)
-        return {"revision": active["revision"], "mirror_pending": False}
+        return save(vault, {})

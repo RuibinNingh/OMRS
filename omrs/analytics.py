@@ -16,7 +16,7 @@ import os
 import zipfile
 import tempfile
 
-from .common import extract_images, is_suspended_row, load_tuning, parse_date, resolve_sm2_fields, split_sections
+from .common import extract_images, is_suspended_row, load_tuning, parse_date, split_sections
 from .ledger import connect
 from .scheduling import (
     _safe_float,
@@ -26,6 +26,8 @@ from .scheduling import (
     days_since_review,
     ef_to_difficulty,
     is_killed_state,
+    resolve_review_fields,
+    _row_to_item,
     is_leech,
     time_decay,
 )
@@ -108,7 +110,8 @@ def _bucket_label(value, edges, labels):
 def get_analytics(vault, subject="", category="", since="", until=""):
     from .mcp.common import date_bounds, within_date
     bounds = date_bounds(since, until)
-    all_rows = [resolve_sm2_fields(r) for r in mastery_rows(vault)]
+    tuning = load_tuning(vault)
+    all_rows = [resolve_review_fields(r, tuning) for r in mastery_rows(vault)]
     all_rows = [r for r in all_rows if (not subject or r.get("Subject") == subject)
                 and (not category or r.get("Category") == category)]
     scoped_uids = {r.get("UID") for r in all_rows}
@@ -139,7 +142,6 @@ def get_analytics(vault, subject="", category="", since="", until=""):
             else row.get("UID", "") in active_uids
         )
     ]
-    tuning = load_tuning(vault)
     fail_counts = build_fail_counts(current_history, uid_by_qid)
     wrong_streaks = build_wrong_streaks(current_history, uid_by_qid)
     history = [row for row in current_history if within_date(row.get("Date", ""), bounds)]
@@ -174,6 +176,7 @@ def get_analytics(vault, subject="", category="", since="", until=""):
         sum_ef += ef
         sum_attempts += attempts
         items.append({
+            **_row_to_item(row, today, fc, tuning, wrong_streak),
             "uid": uid,
             "question_id": qid_by_uid.get(uid, ""),
             "subject": row.get("Subject", ""),
@@ -395,10 +398,11 @@ def get_analytics(vault, subject="", category="", since="", until=""):
     urgent = warning = cold = total_due = 0
     due_next_3_days = due_next_7_days = low_mastery_not_due = 0
     for it in items:
-        if it["is_killed"]:
-            continue
         dd = parse_date(it["due_date"])
-        delta = None
+        delta = 0 if it["is_revived"] and not dd else None
+        if it["is_revived"] and not dd:
+            due_today += 1
+            forecast["0"] += 1
         if dd:
             delta = (dd - today).days
             if delta < 0:
@@ -415,6 +419,8 @@ def get_analytics(vault, subject="", category="", since="", until=""):
                 due_next_3_days += 1
             if 1 <= delta <= 7:
                 due_next_7_days += 1
+        if it["is_killed"] and not it["is_revived"]:
+            continue
         days = it["days_since_review"] if it["days_since_review"] else days_since_review(it["last_review"], today, 30)
         dm = it["decayed_mastery"]
         if delta is not None and delta > 0 and dm < 0.5:

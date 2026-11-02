@@ -205,7 +205,7 @@ export function resultBody(result) {
     <p class="fbw-result__meta">${result.okCount}/${result.total} 条写入成功${result.total - result.okCount > 0 ? html` · ${result.total - result.okCount} 条失败` : ''}${result.sessionId ? html` · Session ${result.sessionId}` : ''}${result.at ? html` · ${result.at}` : ''}</p>
     <ul class="fbw-result__list">${each(result.rows, (r, i) => `${r.uid}:${i}`, r => {
       const ok = r.status === 'ok';
-      const detail = ok ? `${pct(r.old_mastery)} → ${pct(r.new_mastery)}${r.new_interval != null ? ` · ${r.new_interval}d · ${r.new_due_date || '?'}` : ''}${r.source ? ` [${r.source === 'due' ? '到期' : '熟练度'}]` : ''}` : (r.msg || '失败');
+      const detail = ok ? `${pct(r.old_mastery)} → ${pct(r.new_mastery)}${r.revive_stage ? ` · 复核第 ${r.revive_stage} 档` : ''}${r.new_due_date ? ` · 下次复习 ${r.new_due_date}` : ''}` : (r.msg || '失败');
       return html`<li class="${cls('fbw-result__row', ok ? 'is-ok' : 'is-err')}"><span class="fbw-result__uid">${r.uid}</span>${r.label ? html`<span class="fbw-result__label">${r.label}</span>` : ''}<span class="fbw-result__delta">${detail}</span></li>`;
     })}</ul>
   </div>`;

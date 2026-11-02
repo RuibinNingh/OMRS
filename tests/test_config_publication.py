@@ -50,7 +50,7 @@ else:
     marker()
     if mode == 'wait-save':
         wait()
-    candidate = {'tuning': {'kill_streak': int(value)}} if mode == 'wait-save' else {'ai_model': value}
+    candidate = {'tuning': {'high_score_threshold': int(value)}} if mode == 'wait-save' else {'ai_model': value}
     result = repository.save(vault, candidate)
 (directory / (job + '-result.json')).write_text(json.dumps(result))
 (directory / (job + '-done')).write_text('1')
@@ -154,7 +154,7 @@ class ConfigPublicationTests(unittest.TestCase):
         self._seed_feedback()
         first = self._start("A", "pause-publication", "第一配置")
         self._wait("A-ready")
-        second = self._start("B", "wait-save", 3)
+        second = self._start("B", "wait-save", 10)
         self._wait("B-ready")
         (self.directory / "B-resume").write_text("1")
         newest = self._result(second, "B")
@@ -174,7 +174,7 @@ class ConfigPublicationTests(unittest.TestCase):
                   "commits": read_commits(self.vault)}
         with patch.object(repository, "append_commit_in_db", side_effect=RuntimeError("审计提交故障")):
             with self.assertRaisesRegex(RuntimeError, "审计提交故障"):
-                save_config(self.vault, {"tuning": {"kill_streak": 3}, "ai_api_key": "合成秘密"})
+                save_config(self.vault, {"tuning": {"high_score_threshold": 10}, "ai_api_key": "合成秘密"})
         after = {"config": load_config(self.vault), "status": repository.public_status(self.vault),
                  "mastery": mastery_rows(self.vault), "history": history_rows(self.vault),
                  "commits": read_commits(self.vault)}
@@ -183,7 +183,7 @@ class ConfigPublicationTests(unittest.TestCase):
 
     def test_successful_receipt_is_persistent_matches_audit_and_hides_secrets(self):
         self._seed_feedback()
-        result = save_config(self.vault, {"tuning": {"kill_streak": 3}, "ai_api_key": "合成秘密"})
+        result = save_config(self.vault, {"tuning": {"high_score_threshold": 10}, "ai_api_key": "合成秘密"})
         summary = result["recalculation"]
         self.assertEqual((summary["status"], summary["questions"], summary["feedbacks"]), ("complete", 1, 2))
         self.assertEqual(summary["revision"], result["revision"])
@@ -263,7 +263,7 @@ class ConfigPublicationTests(unittest.TestCase):
         from omrs import projection_runtime
         from omrs.common import load_tuning
         self._seed_feedback()
-        writer = self._start("B", "wait-save", 3)
+        writer = self._start("B", "wait-save", 10)
         self._wait("B-ready")
         original_connect = projection_runtime.connect
         called = False
@@ -288,7 +288,7 @@ class ConfigPublicationTests(unittest.TestCase):
         from omrs import feedback as feedback_module
         self._seed_feedback(1)
         prefix = read_commits(self.vault)
-        writer = self._start("B", "wait-save", 3)
+        writer = self._start("B", "wait-save", 10)
         self._wait("B-ready")
         original_connect = feedback_module.connect
         called = False
@@ -303,7 +303,7 @@ class ConfigPublicationTests(unittest.TestCase):
             result = process_feedback(self.vault, [{"question_id": "Q1", "sub_score": 9, "is_correct": True}])[0]
         self._result(writer, "B")
         row = mastery_rows(self.vault)[0]
-        self.assertEqual(result["new_mastery"], .9)
+        self.assertEqual(result["new_mastery"], .6)
         self.assertEqual(result["new_mastery"], float(row["Mastery"]))
         self.assertEqual(result["tag"], row["Current_Tag"])
         self.assertEqual(result["new_interval"], int(row["Interval"]))
@@ -337,11 +337,11 @@ class ConfigPublicationTests(unittest.TestCase):
 
     def test_public_status_reads_one_snapshot_during_another_process_recalculation(self):
         self._seed_feedback()
-        save_config(self.vault, {"tuning": {"kill_streak": 3}})
+        save_config(self.vault, {"tuning": {"high_score_threshold": 10}})
         before = repository.public_status(self.vault)
         with connect(self.vault) as db:
             db.execute("PRAGMA journal_mode=WAL")
-        writer = self._start("B", "wait-save", 4)
+        writer = self._start("B", "wait-save", 8)
         self._wait("B-ready")
         original_connect = repository.connect
         test = self

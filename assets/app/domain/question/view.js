@@ -1,3 +1,4 @@
+import { reviewCycle } from './review-cycle.js';
 /**
  * 共享题目视图 qview 的纯函数部分（从旧 assets/qview.js 迁入）：题目详情 + 投影条目 → HTML 字符串，node 下可单测。
  * 挂载、失效重绘、题目弹窗在 mount.js。工具按钮只带 data-qv-act，由 mount.js 的委托处理器分发，HTML 里不拼函数名。
@@ -49,8 +50,8 @@ export function qvChips(detail, item) {
     else push(`${days} 天后到期`);
   }
   if (item.suspended) push('已停用', 'muted');
-  // 复燃题的 Due_Date 是击杀时的旧值，只有「逾期 N 天」会读成没做完的旧账
-  if (item.is_revived) push(`复燃 · 已休眠 ${num(item.dormant_days, 0)} 天`, 'warn');
+  const cycle = reviewCycle(item);
+  if (cycle) push(`${cycle.label} · ${item.next_revive_date ? `下次复核 ${item.next_revive_date}` : '待复核'}`, item.is_revived ? 'warn' : '');
   const uid = detail.uid || item.uid || '';
   // 标记以题目列表为准：打标记是乐观更新列表后立刻重绘，这时重新拉到的详情可能还是保存前的（请求先于保存到达服务端）
   const labels = chipsHtml(Array.isArray(item.labels) ? item.labels : (detail.labels || []), { lg: true, add: true, uid });

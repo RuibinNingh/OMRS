@@ -258,8 +258,8 @@ def run_retry_and_label_match(browser, base, vault, results):
         page.locator(".inst-q.is-submitted").wait_for()
         result = retry.value.json()["results"][0]
         with connect(vault) as db:
-            row = db.execute("SELECT attempts,mastery FROM mastery_projection WHERE question_id=?", (result["question_id"],)).fetchone()
-        results.append(("丢响应后重试复用原回执，Attempts仅一次且未误击杀", bool(result.get("reused")) and tuple(row) == (1, .4), str(dict(row))))
+            row = db.execute("SELECT attempts,mastery,kill_count,revive_stage FROM mastery_projection WHERE question_id=?", (result["question_id"],)).fetchone()
+        results.append(("丢响应后重试复用原回执，Attempts仅一次且只击杀一次", bool(result.get("reused")) and tuple(row) == (1, 1.0, 1, 1), str(dict(row))))
         results.append(("重试后页面恢复服务端原判定和8分", page.locator(".inst-verdict__btn--ok").get_attribute("aria-pressed") == "true" and page.locator(".inst-score__value").inner_text() == "8", ""))
         first_round = committed[0][0]["practice_round_id"]
         page.locator('.inst-bar [data-action="instant.load"]').click()

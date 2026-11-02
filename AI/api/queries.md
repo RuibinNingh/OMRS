@@ -34,9 +34,11 @@
 | `daily_trend` | object | 近30天每日练习趋势 |
 | `scatter_data` | array | 每题的散点数据 |
 | `review_alert` | object | 到期与风险统计：`overdue`、`due_today`、`due_next_3_days`（明天起 3 天）、`due_next_7_days`（明天起 7 天）、`due_within_3_days`、`due_within_7_days`、`low_mastery_not_due`；兼容保留 `urgent`/`warning`/`cold`/`total_due`/`leech` |
-| `items` | array | 所有未归档题目条目（含停用题），每条含 `entry_date`（Markdown 录入日期）与 `created_at`（首次 `question.create` / `question.create_external` 的 Ledger UTC 时间，旧迁移题为空），以及 `suspended`、`fail_count`（累计答错次数）、`wrong_streak`（最近连续答错次数）、`is_leech`（未击杀且连错达到阈值，默认 3 次）与复燃字段 `is_revived` / `kill_count` / `dormant_days` / `next_revive_date`（algorithm.md §11）；停用题只用于题库管理，不参与统计/调度；该端点不返回 `images`，需要图片名时使用 `/api/question` 或 `/api/analytics` |
+| `items` | array | 所有未归档题目条目（含停用题），每条含 `entry_date`（Markdown 录入日期）与 `created_at`（首次 `question.create` / `question.create_external` 的 Ledger UTC 时间，旧迁移题为空），以及 `suspended`、`fail_count`（累计答错次数）、`wrong_streak`（最近连续答错次数）、`is_leech`（未击杀且连错达到阈值，默认 3 次）与复燃字段 `is_revived` / `kill_count` / `revive_stage` / `revive_anchor_at` / `dormant_days` / `next_revive_date`（algorithm.md §11）；停用题只用于题库管理，不参与统计/调度；该端点不返回 `images`，需要图片名时使用 `/api/question` 或 `/api/analytics` |
 
 ---
+
+复核字段中，`revive_stage` 为普通题0、击杀题1–5；`revive_anchor_at` 为周期起始业务日期。`due_date` 与击杀题的 `next_revive_date` 均为实际排期，提前练习不改；`dormant_days` 为当前档配置间隔。旧击杀快照没有可靠日期时日期为空、`is_revived=true`，表示待复核。`kill_count` 只表示累计成绩。到期/逾期提醒包含复燃题，未来预测包含休眠复核题，停用题排除。
 
 ### `/api/labels`
 返回未归档的用户标记定义。每项包含 `id`、`name`、`color`、`order`、
@@ -102,7 +104,7 @@
 | `forecast` | 未来 7 天到期预测（键 `"0"`..`"7"`）+ `"7+"`（7 天以上）+ `overdue` |
 | `review_alert` | `overdue`、`due_today`、`due_next_3_days`、`due_next_7_days`、`due_within_3_days`、`due_within_7_days`、`low_mastery_not_due`、`leech`；兼容保留 `urgent`/`warning`/`cold`/`total_due` |
 | `weak_spots` | `leeches`/`struggling`/`traps`/`recently_killed` 列表 |
-| `items` | 全量题目快照（含 `eff_difficulty`/`fail_count` 累计答错/`wrong_streak` 最近连错/`is_leech`/`is_killed`/复燃字段 `is_revived`、`kill_count`、`dormant_days`、`next_revive_date`/`images` 等） |
+| `items` | 全量题目快照（含 `eff_difficulty`/`fail_count` 累计答错/`wrong_streak` 最近连错/`is_leech`/`is_killed`/复核字段 `is_revived`、`kill_count`、`revive_stage`、`revive_anchor_at`、`dormant_days`、`next_revive_date`/`images` 等） |
 
 ### `/api/logs`
 
@@ -268,7 +270,7 @@ Windows 路径分支以独立 `lstat` 的真实文件身份与打开后的 `fsta
 | `due` | array | 到期题目列表（Due_Date ≤ 今天），按逾期优先+EF升序排列 |
 | `proficiency` | array | 熟练度题目列表（Due_Date > 今天），按薄弱程度降序排列 |
 
-每条题目含 `_source`（`due`/`proficiency`）、`_overdue_days`、`fail_count`（累计答错）、`wrong_streak`（最近连错）、`is_leech` 等元数据。leech 题（algorithm.md §10）在熟练度列表会获得优先级加成。休眠够久的已击杀题会带 `is_revived`、`kill_count`、`dormant_days` 重新入列（algorithm.md §11），并获 `revive_priority_bonus`。
+每条题目含 `_source`（`due`/`proficiency`）、`_overdue_days`、`fail_count`（累计答错）、`wrong_streak`（最近连错）、`is_leech` 等元数据。leech 题（algorithm.md §10）在熟练度列表会获得优先级加成。到实际复核日的已击杀题带 `is_revived`、`revive_stage`、`revive_anchor_at`、`kill_count`、`dormant_days`、`next_revive_date` 重新入列（algorithm.md §11），并获 `revive_priority_bonus`。
 
 复习调度工作台以 `due_count=1000&prof_count=1000` 请求完整候选集，再在浏览器按后端顺序筛选与按科目轮选；请求期间的旧响应不会覆盖较新的推荐结果。
 

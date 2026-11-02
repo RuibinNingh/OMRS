@@ -127,6 +127,7 @@ AI/plans/<计划名>/
 
 | 计划 | 状态 | 说明 |
 |---|---|---|
+| `review-algorithm/` | 本地实现与验证完成 | 一次高分击杀、五档复核及历史重放；执行者Codex，完整模式，见progress.md |
 | `ai-review-columns/` | 本地实现与验证完成 | 题答按正文1000px自适应双栏；执行者Codex，完整模式，未部署，见progress.md |
 | `board-empty-preview/` | 已完成，本地 v2.8.4 | 空板预览、请求归属与空导出 400 全部通过验证；执行者 Codex，完整模式；未部署 |
 | `ai-agent/` | A–H 已合入并部署 v1.28.1；外部验收待核实 | 真实模型五类对话及生产 Ledger 前后校验未见完成记录；B2、F3 后续；见 `ai-agent/progress.md` |

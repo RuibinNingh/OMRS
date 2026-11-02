@@ -31,11 +31,16 @@ class InstantFeedbackTests(unittest.TestCase):
             return db.execute("SELECT attempts FROM mastery_projection WHERE question_id=?",
                               (self.question["question_id"],)).fetchone()[0]
 
-    def test_retry_reuses_accepted_values_and_does_not_kill_question(self):
+    def test_retry_reuses_accepted_values_and_does_not_advance_review_cycle(self):
         first = self.submit()[0]
         second = self.submit([self.payload(sub_score=0, is_correct=False)])[0]
         self.assertEqual(second, {**first, "reused": True})
-        self.assertEqual((second["is_correct"], second["sub_score"], second["new_mastery"]), (True, 8, .4))
+        self.assertEqual((second["is_correct"], second["sub_score"], second["new_mastery"]), (True, 8, 1))
+        self.assertEqual((second["revive_stage"], second["new_interval"]), (1, 7))
+        with connect(self.vault) as db:
+            row = db.execute("SELECT kill_count,revive_stage FROM mastery_projection WHERE question_id=?",
+                             (self.question["question_id"],)).fetchone()
+            self.assertEqual(tuple(row), (1, 1))
         self.assertEqual(self.attempts(), 1)
         self.assertEqual(len(history_rows(self.vault)), 1)
 

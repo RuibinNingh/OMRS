@@ -24,7 +24,7 @@ export function daysSince(value, today, fallback = 30) {
   return diff === null ? fallback : Math.max(0, diff);
 }
 export const isKilled = item => num(item.mastery) >= 1 || String(item.tag || '').includes('已击杀');
-export const activeItems = items => (items || []).filter(item => !item.suspended && !isKilled(item));
+export const activeItems = items => (items || []).filter(item => !item.suspended && (!isKilled(item) || item.is_revived));
 export const openSessions = sessions => (sessions || []).filter(session => (session.status || 'active') === 'active');
 
 export function recentReviewCount(trend, today, days) {
@@ -55,7 +55,7 @@ export function weakestGroup(items, field, minCount) {
 /** 今天建议练几题：到期（含逾期）+ 最多 3 道顽固题，封顶 20。 */
 export function todayTarget({ items, dueDays }) {
   const active = activeItems(items);
-  const due = active.filter(item => { const d = dueDays(item); return d !== null && d <= 0; }).length;
+  const due = active.filter(item => { const d = item.is_revived && !item.due_date ? 0 : dueDays(item); return d !== null && d <= 0; }).length;
   return Math.min(20, due + Math.min(3, active.filter(item => item.is_leech).length));
 }
 
@@ -67,7 +67,7 @@ export function buildPlan({ items = [], data = {}, sessions = [], dueDays, today
   const active = activeItems(items);
   const trend = data?.daily_trend || {};
   const plan = [];
-  const due = item => dueDays(item);
+  const due = item => item.is_revived && !item.due_date ? 0 : dueDays(item);
 
   const overdue = active.filter(item => { const d = due(item); return d !== null && d < 0; });
   if (overdue.length) {
@@ -80,7 +80,7 @@ export function buildPlan({ items = [], data = {}, sessions = [], dueDays, today
   const dueToday = active.filter(item => due(item) === 0);
   if (dueToday.length) {
     plan.push({ key: 'due_today', level: 'warn', icon: 'clock', metric: String(dueToday.length), title: `今天有 ${dueToday.length} 道题到期`,
-      detail: '按 SM-2 排的今日份，今天做完就能把间隔顺延到下一档。',
+      detail: '普通复习和击杀后的到期复核，按反馈结果安排下一次复习。',
       actions: [{ label: '开始常规复习', primary: true, go: 'review' },
         { label: '查看清单', go: 'questions', preset: { 'q-filter-due': 'today', 'q-sort': 'mastery-asc' } }] });
   }

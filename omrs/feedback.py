@@ -221,7 +221,7 @@ def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, atte
                 if published["question_id"] != result["question_id"]:
                     raise RuntimeError("反馈投影结果与提交身份不一致")
                 result.update({key: published[key] for key in (
-                    "label", "old_mastery", "new_mastery", "tag", "new_interval", "new_due_date")})
+                    "label", "old_mastery", "new_mastery", "tag", "new_interval", "new_due_date", "revive_stage")})
                 if diagnostics is not None:
                     diagnostics.append({"uid": result["uid"], "question_id": result["question_id"],
                         "session_id": session_id, "commit_id": info["commit_id"],

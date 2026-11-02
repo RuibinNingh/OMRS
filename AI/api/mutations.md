@@ -66,7 +66,7 @@
 `sub_score` 范围 0–10，越大越熟练。
 `source` 可选，取值 `due` / `proficiency` / `instant` / `manual` / `legacy_unknown`。若 `session_id` 对应持久化 Session，则优先使用 Session 中保存的来源；无 Session 的即时练习可逐题传 `source` 以保留 SM-2 策略差异。
 
-**响应：** 每条反馈的 `label`、`old_mastery`、`new_mastery`、`tag`、`source`、`new_interval`、`new_due_date`。
+**响应：** 每条反馈的 `label`、`old_mastery`、`new_mastery`、`tag`、`source`、`new_interval`、`new_due_date`、`revive_stage`（普通题0、击杀题1–5）。一次高分答对立即击杀；提前高分练习保留档位与原日期；已击杀题低分答对3天后巩固，答错1天后重练，均清零复核档位。请求格式不变。
 
 响应状态来自本次实际投影结果。服务端在写事务内核对活动参数及链头；其它进程已调参或追加事实时重建后重试，避免使用旧参数响应。投影发布失败时反馈事实一并回滚；已撤销的持久化 Session 拒绝新反馈。
 
@@ -306,7 +306,7 @@
 
 ### `POST /api/config`
 
-活动配置来自 SQLite；保存可携 `expected_revision`，过期版本返回409。成功回执含 `revision` 与 `mirror_pending`，镜像失败不能冒充数据库回滚。tuning 变化在事务内重算历史并发布新投影。
+活动配置来自 SQLite；保存可携 `expected_revision`，过期版本返回409。成功回执含 `revision` 与 `mirror_pending`，镜像失败不能冒充数据库回滚。tuning变化或投影版本过期时在事务内重算有效历史并发布新投影。`tuning.revive_intervals_days` 默认 `[7,21,60,120,180]`，要求恰有五个严格递增的正整数；非法数组返回400，活动状态不变。旧 `kill_streak`、`revive_decay_threshold`、`revive_tier_multiplier` 兼容读取但无效，保存时清理；回执 `tuning_effective` 不包含废弃参数。
 更新服务配置。`save_config` 按键合并，故可单独提交任意子集。
 
 `http_json_mib` 控制普通JSON及上传引用元数据，缺省2，接受1–8192的整数；`http_legacy_upload_mib` 控制旧图片JSON/multipart，缺省128，接受2–8192的整数。提交 `{ "http_json_mib": 3 }` 后后续普通正文采用3MiB上限；专用auth/MCP/训练/分块上限不受影响。候选配置统一校验，非法类型或越界返回400，活动配置保持原值。

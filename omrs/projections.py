@@ -5,7 +5,7 @@ import os
 
 from .common import HISTORY_HEADERS, MASTERY_HEADERS, SESSIONS_HEADERS, business_time, history_path, is_suspended_row, load_tuning, mastery_path, save_csv, sessions_path
 from .ledger import canonical_json, connect
-from .scheduling import _safe_float, _safe_int, transition_review
+from .scheduling import _safe_float, _safe_int, transition_review, review_cycle, is_killed_state
 
 
 DEFAULT_MASTERY = {
@@ -17,8 +17,10 @@ DEFAULT_MASTERY = {
     "interval_days": 0,
     "due_date": "",
     "last_review_at": "",
-    # 击杀次数：复燃周期按次数分级（见 scheduling.revive_dormant_days）
+    # 累计成绩不决定复核周期
     "kill_count": 0,
+    "revive_stage": 0,
+    "revive_anchor_at": "",
 }
 
 
@@ -290,12 +292,21 @@ def _apply_legacy_bootstrap(state, payload, seq):
             "last_review_at": row.get("Last_Review", ""),
             # 老 CSV 无 Kill_Count 列，缺失按 0 处理
             "kill_count": _safe_int(row.get("Kill_Count"), 0),
+            "revive_stage": _safe_int(row.get("Revive_Stage"), 0),
+            "revive_anchor_at": row.get("Revive_Anchor", ""),
             "updated_seq": seq,
         }
-        state["mastery_baseline"][question_id] = dict(state["mastery"][question_id])
+        mastery = state["mastery"][question_id]
+        tag = question.get("current_tag", "") if question else ""
+        mastery.update(review_cycle(mastery, tag, state.get("_tuning")))
+        if not is_killed_state(mastery["mastery"], tag):
+            mastery["mastery"] = min(0.95, mastery["mastery"])
+        state["mastery_baseline"][question_id] = dict(mastery)
     for question_id in state["questions"]:
         state["mastery"].setdefault(question_id, {**DEFAULT_MASTERY, "updated_seq": seq})
-        state["mastery_baseline"].setdefault(question_id, dict(state["mastery"][question_id]))
+        mastery = state["mastery"][question_id]
+        mastery.update(review_cycle(mastery, state["questions"][question_id].get("current_tag", ""), state.get("_tuning")))
+        state["mastery_baseline"][question_id] = dict(mastery)
     for session in payload.get("session_rows", []):
         sid = session.get("Session_ID")
         if sid:
@@ -532,8 +543,8 @@ def _write_projection_tables(db, state):
             """
             INSERT OR REPLACE INTO mastery_projection
             (question_id, mastery, ef, attempts, high_correct_streak, repetition,
-             interval_days, due_date, last_review_at, kill_count, updated_seq)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             interval_days, due_date, last_review_at, kill_count, revive_stage, revive_anchor_at, updated_seq)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 qid,
@@ -546,6 +557,8 @@ def _write_projection_tables(db, state):
                 mastery.get("due_date", ""),
                 mastery.get("last_review_at", ""),
                 _safe_int(mastery.get("kill_count"), 0),
+                _safe_int(mastery.get("revive_stage"), 0),
+                mastery.get("revive_anchor_at", ""),
                 _safe_int(mastery.get("updated_seq"), 0),
             ),
         )

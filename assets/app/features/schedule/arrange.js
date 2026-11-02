@@ -89,18 +89,13 @@ export function mergeLoaded(raw, selected) {
 
 /** 选题理由：复燃 → 熟练度来源 → 到期天数。 */
 export function reason(item, days) {
-  if (item.is_revived) return `复燃 · 已休眠 ${Number(item.dormant_days) || 0} 天`;
+  if (item.is_revived) return item.next_revive_date ? `复燃 · 第 ${Number(item.revive_stage) || 1} 档复核到期` : '复燃 · 待复核';
   if (item._source === 'proficiency') return `提前巩固${days == null ? '' : ` · ${days} 天后到期`}`;
   if (days == null) return '待安排复习';
   return days < 0 ? `已逾期 ${-days} 天` : days === 0 ? '今日到期' : `${days} 天后到期`;
 }
-/** 复燃标识：停用题不算复燃；第几次击杀大于 1 时带 ×N。 */
-export function revive(item) {
-  if (!item?.is_revived || item.suspended) return null;
-  const count = Number(item.kill_count) || 0;
-  const dormant = Number(item.dormant_days) || 0;
-  return { label: `复燃${count > 1 ? ` ×${count}` : ''}`, title: `第 ${count || 1} 次击杀后休眠 ${dormant} 天复燃${item.next_revive_date ? ` · 原定 ${item.next_revive_date}` : ''}` };
-}
+/** 复核文案共用题目领域的格式化器。 */
+export { reviewCycle as revive } from '../../domain/question/review-cycle.js';
 
 /** 已生效的筛选 → 可单独移除的 chip。 */
 export function chips(f) {

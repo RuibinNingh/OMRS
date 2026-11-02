@@ -4,7 +4,9 @@ import { TUNING_FIELDS } from './tuning-state.js';
 
 const fieldView = field => html`<div class="form-group">
   <label for="st-tuning-${field.key}">${field.label}</label>
-  <input class="ui-input" type="number" inputmode="decimal" id="st-tuning-${field.key}" min="${field.min}" max="${field.max ?? ''}" step="${field.step}" disabled>
+  ${field.kind === 'intervals'
+    ? html`<input class="ui-input" type="text" id="st-tuning-${field.key}" disabled>`
+    : html`<input class="ui-input" type="number" inputmode="decimal" id="st-tuning-${field.key}" min="${field.min}" max="${field.max ?? ''}" step="${field.step}" disabled>`}
   ${field.hint ? html`<p class="hint">${field.hint}</p>` : ''}
 </div>`;
 
@@ -12,7 +14,7 @@ export const tuningView = () => html`<div class="card st-card" id="st-tuning-car
   <div class="card-title">学习算法参数</div>
   <p class="hint st-lead">保存后立即按新参数重算全部历史，再同步统计与复习计划；数据较多时请等待完成。</p>
   <div class="st-fields st-grid3">${TUNING_FIELDS.slice(0, 4).map(fieldView)}</div>
-  <details class="st-tuning-advanced"><summary>高级参数（15 项）</summary>
+  <details class="st-tuning-advanced"><summary>高级参数（${TUNING_FIELDS.length - 4} 项）</summary>
     <div class="st-fields st-grid3">${TUNING_FIELDS.slice(4).map(fieldView)}</div>
   </details>
   <div class="st-actions">

@@ -193,10 +193,10 @@ test('due, status, revive, flags and menu items read the item the way the list s
   assert.equal(S.statusOf({ tag: '易错坑' }).kind, 'trap');
   assert.deepEqual(S.statusOf({ suspended: true, tag: '已击杀' }), { label: '停用', kind: 'suspended' });
   assert.equal(S.statusOf({}).label, '待攻克');
-  assert.deepEqual(S.reviveOf({ is_revived: true, kill_count: 2, dormant_days: 45, next_revive_date: '2026-09-01' }), { label: '复燃 ×2', title: '第 2 次击杀后休眠 45 天复燃 · 原定 2026-09-01' });
+  assert.deepEqual(S.reviveOf({ is_revived: true, kill_count: 2, dormant_days: 45, next_revive_date: '2026-09-01' }), { label: '复燃 · 第 1 档', title: '复核第 1 档 · 间隔 45 天 · 下次复核 2026-09-01 · 累计击杀 2 次' });
   assert.equal(S.reviveOf({ is_revived: true, suspended: true }), null);
   assert.deepEqual(S.galleryFlags({ is_leech: true }, -2, false).map(f => f.text), ['逾期 2 天', '顽固']);
-  assert.deepEqual(S.galleryFlags({ is_revived: true }, -30, false).map(f => f.text), ['复燃']);
+  assert.deepEqual(S.galleryFlags({ is_revived: true }, -30, false).map(f => f.text), ['复燃 · 第 1 档']);
   assert.deepEqual(S.galleryFlags({}, 4, false), []);
   assert.deepEqual(S.galleryFlags({}, 4, true).map(f => f.text), ['4 天后']);
   assert.deepEqual([S.masteryTone(90), S.masteryTone(50), S.masteryTone(10)], ['success', 'warning', 'danger']);
@@ -243,4 +243,11 @@ test('gallery preview hosts are morph-skipped and keyed by uid + clamp, so densi
   assert.ok(compact.includes('data-key="pv:数列3:3"'));
   assert.ok(!/\sstyle=/.test(comfy));
   assert.ok(comfy.includes('data-cols="auto"'));
+});
+
+test('复核文案显示实际档位，累计击杀次数不冒充档位，休眠中也可看到复核信息', () => {
+  const cycle = S.reviveOf({ mastery: 1, revive_stage: 2, kill_count: 99, dormant_days: 21, next_revive_date: '2026-11-30' });
+  assert.equal(cycle.label, '复核第 2 档');
+  assert.match(cycle.title, /下次复核 2026-11-30/);
+  assert.match(cycle.title, /累计击杀 99 次/);
 });

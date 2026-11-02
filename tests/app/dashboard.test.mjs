@@ -155,3 +155,22 @@ test('kpis, heatmap, weakSubjects, visiblePlan', () => {
   assert.deepEqual([visiblePlan(plan, false).rows.length, visiblePlan(plan, false).hidden, visiblePlan(plan, true).collapsible], [4, 2, true]);
   assert.equal(visiblePlan(plan.slice(0, 3), true).collapsible, false);
 });
+
+test('击杀后的到期复核计入今日和逾期，休眠与停用不进入待复习', () => {
+  const items = [
+    item({ uid: 'sleep', mastery: 1, is_revived: false, due_date: ago(-3) }),
+    item({ uid: 'due', mastery: 1, is_revived: true, due_date: ago(0) }),
+    item({ uid: 'overdue', mastery: 1, is_revived: true, due_date: ago(2) }),
+    item({ uid: 'unknown', mastery: 1, is_revived: true, due_date: '' }),
+    item({ uid: 'paused', mastery: 1, is_revived: true, suspended: true, due_date: ago(0) }),
+  ];
+  assert.deepEqual(activeItems(items).map(row => row.uid), ['due', 'overdue', 'unknown']);
+  const summary = todaySummary(env({ items }));
+  assert.equal(summary.waiting, 3);
+  assert.equal(summary.dueToday, 2);
+  assert.equal(summary.overdue, 1);
+  assert.equal(todayTarget(env({ items })), 3);
+  const plan = buildPlan(env({ items }));
+  assert.equal(plan.find(row => row.key === 'due_today').metric, '2');
+  assert.equal(plan.find(row => row.key === 'overdue').metric, '1');
+});

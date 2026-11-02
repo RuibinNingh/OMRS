@@ -159,8 +159,10 @@ def create_session_from_selection(vault, selected_items, subject=None):
     result = get_session(vault, sid)
     # 创建响应兼容原小写 items，详情仍保留旧大写字段。
     from .scheduling import _row_to_item
+    from .common import load_tuning
     by_id = {r.get("question_id"): r for r in mastery_rows(vault)}
-    result["items"] = [{**_row_to_item(by_id[e["question_id"]]), "_source": e["source"]} for e in clean]
+    tuning = load_tuning(vault)
+    result["items"] = [{**_row_to_item(by_id[e["question_id"]], tuning=tuning), "_source": e["source"]} for e in clean]
     return result
 
 

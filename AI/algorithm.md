@@ -1,7 +1,7 @@
 # 记忆算法
 
 > **速查**
-> - 职责：记忆衰减、熟练度状态机、统一调度优先级、SM-2、双列表推荐与 Leech 检测
+> - 职责：记忆衰减、熟练度状态机、统一调度优先级、SM-2、五档复核、双列表推荐与 Leech 检测
 > - 入口：`omrs/scheduling.py`、`omrs/common.py`（`DEFAULT_TUNING`）
 > - 不变量：反馈先写 Ledger，再由投影重放出熟练度；反馈响应、增量投影、历史重放与助手预览共用纯转换；调参立即按当前参数重算全部历史
 > - 必跑测试：`tests/test_recommendations.py`、`tests/test_leech_streak.py`、`tests/test_revive_cycle.py`、`tests/test_schedule_workbench.py`、`tests/test_data_runtime.py`
@@ -36,16 +36,14 @@ decayed = mastery × e^( -days / (mastery×factor + base) )
 
 | 条件 | 标签 | 新熟练度 | tag_action |
 |---|---|---|---|
-| 高分 AND 答对 AND 已达 `kill_streak-1` 次连续高分答对 | 已击杀 | 1.0 | `kill` |
-| 高分 AND 答对 AND 尚未连续确认 | 高分待确认 | `min(0.95, old_m + sub_score/20 × ef/2.5)` | `keep` |
-| 低分 AND 答对 | 磨合中 | `min(1, old_m + sub_score/30 × ef/2.5)` | `keep` |
+| 高分 AND 答对 | 已击杀 | 1.0 | `kill` |
+| 低分 AND 答对 | 磨合中 | `min(0.95, old_m + sub_score/30 × ef/2.5)` | `keep` |
 | 高分 AND 答错 | 粗心/陷阱 | `old_m × 0.8` | `trap` |
 | 低分 AND 答错 | 真不会 | `old_m × 0.3` | `lock` |
 
-### 高分确认计数
-- `High_Correct_Streak` 记录连续高分答对次数。
-- 高分答对会令计数 `+1`；达到 `kill_streak`（默认 2）次才进入 `已击杀`。
-- 低分答对或任意答错都会将计数重置为 `0`，避免一次偶然高分直接击杀。
+一次高分答对立即击杀；分数与对错缺一不可，默认6分答对、7分答错均不能击杀。非击杀态熟练度上限0.95，低分累积不能绕过击杀判定。
+
+`High_Correct_Streak` 保留连续高分答对计数，仅供调试，不决定击杀或复核排期。低分答对或任意答错清零。
 
 ### 易错因子（EF）更新
 - `attempts < ef_cold_attempts`（默认 3，冷启动期）：不更新 EF。
@@ -53,7 +51,7 @@ decayed = mastery × e^( -days / (mastery×factor + base) )
 - 答错：`EF = max(1.3, EF - ef_down)`（默认 `-0.2`）
 - 低分 AND 答对：EF 不变。
 
-> 上述阈值/增量均可经 `tuning` 覆盖（`high_score_threshold`/`kill_streak`/`ef_cold_attempts`/`ef_up`/`ef_down`），见 §9。
+> 上述阈值/增量均可经 `tuning` 覆盖（`high_score_threshold`/`ef_cold_attempts`/`ef_up`/`ef_down`），见 §9。
 
 ---
 
@@ -113,9 +111,9 @@ EF 越低 = 越不稳定 = 越难 = 权重越高。EF=3.0→难度 1，EF=1.3→
 
 ## 4. 已击杀状态回退规则
 
-已击杀题目答错后，投影器 `projections.py::_apply_single_review()` 会把该题的 `current_tag` 从 `#状态/已击杀` 降级为 `#状态/待攻克`（高分答对并达成击杀条件时置为 `#状态/已击杀`），并反映到 SQL 读模型；按需 CSV 导出保留 `Current_Tag`。
+唯一反馈转换 `transition_review()` 同时处理状态与排期：已击杀题答错回到 `#状态/待攻克`，复核档位归零、周期起始日清空，`repetition=0`，1天后重练。熟练度为 `min(状态机结果, 答错前 mastery × kill_demote_factor)`，默认0.3；取最小值避免低分答错的状态机惩罚再次连乘。
 
-熟练度同步骤降：`mastery = min(状态机结果, 复燃前 mastery × kill_demote_factor)`（默认 0.3）。取 `min` 而非直接连乘，是因为状态机对低分答错本身已降过一档（`old_m × 0.3`），连乘会掉到 0.09，降级幅度随系数平方漂移；取小值保证降级只可能更深，系数调大也不会把熟练度抬回去。间隔一并重置（`repetition = 0`、`interval = 1`），让降级题立刻排进近期复习——否则熟练度停在 1.0，答对一次就会再次击杀，等于没降级。累计击杀次数 `kill_count` **不**重置，下次复燃周期因此更长（§11）。
+已击杀题低分答对也退出击杀，结果显示「磨合中」；熟练度最高0.95，复核档位及周期起始日清零，`repetition=0`，3天后巩固。累计 `kill_count` 均保留。退出后一次高分答对可重新击杀，从第1档7天起步，累计成绩不会拉长新周期。
 
 v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `feedback.py::_writeback_md()` 已随 Ledger 架构移除）：结构化标签的唯一事实源是 Ledger 投影，Markdown YAML 只作为输入——外部人工改动由工作区自检以 `question.metadata_update_external` 记录。因此 Obsidian 中看到的 YAML 标签可能与投影标签不一致，属设计边界（详见 `ledger.md` §3）。
 
@@ -128,13 +126,15 @@ v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `fe
 从 SQL 兼容列行转为统一的题目对象，供 `/api/stats` 和临时调度使用。
 
 - `decayed_mastery`：以当日为基准计算衰减值。
-- `interval`、`due_date`、`repetition`：SM-2 排期字段。
+- `interval`、`due_date`、`repetition`：实际间隔、下次复习日与连续答对次数；普通题用SM-2，击杀题用分档复核。
 - `_source`：推荐来源标记（`due` / `proficiency`），仅在推荐/确认流程中赋值。
 - 日期解析失败时：`days = 0`（列表视图语义：今天刚看过）。
-- `high_correct_streak`：连续高分答对次数，供前端展示和调试确认。
-- `kill_count`：累计击杀次数（来源 `mastery_projection.kill_count`，老 CSV 缺 `Kill_Count` 列按 0 处理）。复燃周期据此分级。
+- `high_correct_streak`：连续高分答对次数，仅供调试。
+- `kill_count`：累计击杀次数（来源 `mastery_projection.kill_count`，老 CSV 缺 `Kill_Count` 列按 0 处理）。仅表示累计成绩，不参与排期。
 - `entry_date` / `created_at`：题目录入日期与 Ledger 首次创建时间，供题库和助手检索排序使用；不参与熟练度或推荐优先级计算。
-- `is_revived` / `dormant_days` / `next_revive_date`：已击杀题是否已休眠够久（§11）。`dormant_days` 只在击杀态下给值，非击杀态为 0；`next_revive_date` 由 `Last_Review + dormant_days` 得出，供界面显示「下次复燃」，非击杀态为空串。
+- `revive_stage` / `revive_anchor_at`：复核档位（普通题0，击杀题1–5）及本周期起始业务日期；提前练习不改起始日。
+- `is_revived` / `dormant_days` / `next_revive_date`：是否已到实际复核日、当前档的配置间隔、实际复核日期。非击杀态间隔为0、日期为空。无可靠日期的旧击杀题 `is_revived=true`、日期为空，表示「待复核」。
+
 
 ---
 
@@ -142,7 +142,7 @@ v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `fe
 
 > 对应源文件：`omrs/common.py`
 
-标准 SM-2 间隔计算，基于 Repetition（连续答对次数）：
+普通题低分答对、答错沿用 SM-2；击杀与降级由§4、§11覆盖排期，不受来源折中系数影响。标准 SM-2 间隔计算，基于 Repetition（连续答对次数）：
 
 | Repetition | 间隔 |
 |---|---|
@@ -173,10 +173,10 @@ v1.1.0 起 Markdown 文件内的 `tags` 不再被反馈流程回写（早期 `fe
 ### 互斥分配逻辑
 
 ```
-1. 遍历所有非已击杀题目
+1. 遍历未停用题；跳过未到复核日的击杀题，到期或无可靠日期的击杀题重新入列
 2. 先按可选筛选项裁剪：科目 `subject`、分类 `category`、知识点 `knowledge_tag`、
    用户标记 `label`（可重复；label_mode=any为任一命中，all为全部命中）
-3. Due_Date ≤ 今天 → 到期列表
+3. Due_Date ≤ 今天（或日期缺失/无效）→ 到期列表
 4. Due_Date > 今天 → 熟练度列表
 ```
 
@@ -234,15 +234,13 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 |---|---|---|
 | `decay_mastery_factor` / `decay_base` | 30 / 5 | 时间衰减常数（§1） |
 | `high_score_threshold` | 7 | 高分阈值（§2） |
-| `kill_streak` | 2 | 连续高分答对几次才击杀（§2） |
+| `revive_intervals_days` | [7,21,60,120,180] | 五档复核间隔，五个严格递增正整数（§11） |
 | `ef_cold_attempts` | 3 | EF 冷启动冻结门槛（§2） |
 | `ef_up` / `ef_down` | 0.15 / 0.2 | EF 增/减量（§2） |
 | `priority_days_divisor` / `priority_days_weight` | 60 / 0.3 | 优先级时间项（§3） |
 | `attack_bonus` / `attack_mastery_threshold` | 0.5 / 0.3 | 待攻克加成（§3） |
 | `proficiency_factor` | 0.7 | 熟练度来源答对的间隔折中系数（§6） |
 | `leech_fail_threshold` / `leech_priority_bonus` | 3 / 0.4 | 连续答错判定与加成（§10） |
-| `revive_decay_threshold` | 0.2 | 已击杀题衰减到该值以下才复燃（§11） |
-| `revive_tier_multiplier` | 1.8 | 每多一次击杀，复燃休眠时长乘该系数（§11） |
 | `revive_priority_bonus` | 0.3 | 复燃题的优先级加成（§11） |
 | `kill_demote_factor` | 0.3 | 复燃后答错的熟练度降级系数（§4） |
 | `label_bonus_cap` | 1.0 | 同一题所有用户标记 `priority_bonus` 的加成上限（§3.2）；默认标记加成仍为 0 |
@@ -252,9 +250,11 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 ```json
 {
   "allow_external": false,
-  "tuning": { "kill_streak": 3, "leech_fail_threshold": 5 }
+  "tuning": { "revive_intervals_days": [7,21,60,120,180], "leech_fail_threshold": 5 }
 }
 ```
+
+旧 `kill_streak`、`revive_decay_threshold`、`revive_tier_multiplier` 兼容读取但不生效，保存时从配置中清理。复核数组必须恰有五个严格递增的正整数，拒绝布尔、浮点、重复、零及负数。
 
 校验：拒绝未知键、布尔冒充数字、NaN/Infinity、错误整数类型、负值与危险分母/系数范围。提交前重放失败时活动配置和学习状态保持旧值；镜像失败时新状态已生效并返回 `mirror_pending:true`。
 
@@ -273,26 +273,23 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 ---
 
-## 11. 已击杀题复燃周期
+## 11. 已击杀题分档复核
 
-> 对应源文件：`omrs/scheduling.py` → `revive_dormant_days()` / `is_revive_eligible()`
+> 对应源文件：`omrs/scheduling.py` → `review_cycle()` / `transition_review()` / `is_revive_eligible()`
 
-击杀不等于从系统里删掉。越熟练的题遗忘得越慢，但也不是永不遗忘——按记忆规律，它应该隔一段更长的间隔回来一次，被召回时若答错就说明「其实没真的记住」，必须降级重练。
+| 事件 | 复核档位 | 下次复习 |
+|---|---|---|
+| 首次或重新高分击杀 | 第1档 | 本次日期加7天 |
+| 第1档到期高分通过 | 第2档 | 本次日期加21天 |
+| 第2档到期高分通过 | 第3档 | 本次日期加60天 |
+| 第3档到期高分通过 | 第4档 | 本次日期加120天 |
+| 第4、5档到期高分通过 | 第5档 | 本次日期加180天 |
+| 提前或同日高分练习 | 保持原档 | 保持原定日期和周期起始日 |
 
-**休眠时长**直接由时间衰减式反解，而不是另设一个到期日字段：解 `time_decay(mastery, d) ≤ revive_decay_threshold` 得
+间隔来自 `revive_intervals_days`。每次到期成功只升一级，逾期很久也不跳档；新周期从实际复核成功日计算。`last_review_at` 可随提前练习更新，`revive_anchor_at` 与 `due_date` 独立保存。累计击杀次数仅在首次／重新击杀及到期高分通过时加1，提前练习不增加；即使到达日期上限，同日起始的周期也不能重复晋级。
 
-```
-dormant_days(n) = (mastery × decay_mastery_factor + decay_base)
-                  × ln(1 / revive_decay_threshold)
-                  × revive_tier_multiplier ^ (n - 1)
-```
+`is_revive_eligible()` 对非击杀态返回False；击杀态比较实际 `due_date` 与业务日期。到期题进入推荐、今日待复习及逾期提醒，获得 `revive_priority_bonus`。休眠题不进入常规推荐，其未来复核日期仍计入到期预测。停用题始终排除。
 
-`n` 是累计击杀次数（`kill_count`，从 1 起）。`mastery = 1.0`、默认参数下基准约 56 天，即 **56 / 101 / 182 / 327 / 591 天**（第 1–5 次击杀后）——分级递增就是「越熟练越长」。`kill_count = 0`（老数据没有该列）与 `1` 同档，按第一次击杀处理，不影响既有题库。
+升级采用 `ledger-v4` 投影，以当前参数重放全部有效反馈，不改写原始Ledger。只有旧导入快照的击杀题从第1档迁移，有效最后复习日加第1档间隔；无可靠日期时保持日期为空，标为「待复核」并纳入队列，首次高分后从第1档起步。周期规范化由 `review_cycle()` / `resolve_review_fields()` 共用；重放失败时旧活动配置和投影整体保留。
 
-**判定**：`is_revive_eligible()` 对非击杀态一律返回 `False`；击杀态则比较 `days_since_review(Last_Review) >= dormant_days`。日期缺失或无法解析时按 0 天处理 → 不复燃，避免「算不出天数」被误当成「已经休眠够久」。
-
-**接入点**：`schedule_questions()` 与 `generate_recommendations()` 原先的 `if is_killed_state(...): continue` 改为 `if is_killed_state(...) and not is_revive_eligible(...): continue`。复燃题的 `Due_Date` 仍是击杀时的旧值（早已逾期），因此自然落进**到期列表**并排在最前；同时 `compute_priority()` 加 `revive_priority_bonus`，保证从熟练度列表被召回时也靠前。
-
-**答错降级**：复燃后答错走 §4 的回退规则——标签回 `#状态/待攻克`、熟练度乘 `kill_demote_factor`、间隔重置，`kill_count` 保留，所以下次复燃会等更久。配合 `attack_bonus`（待攻克且 `mastery < 0.3` 时 +0.5），降级题立刻回到推荐前面。
-
-**暴露位置**：`/api/recommend` 与 `/api/stats` 的题目条目带 `is_revived`、`kill_count`、`dormant_days`、`next_revive_date`；前端在题库列表的状态列、画廊卡的异常标记、推荐列表的选题行与题目详情里以「复燃」chip 显示，并写明「第 N 次击杀后休眠 X 天复燃」。
+题库、题目详情和复习调度共用 `domain/question/review-cycle.js`，统一档位与实际日期；题库和调度的提示还显示间隔及独立的累计击杀成绩。反馈结果显示本次状态、档位及下次复习日期，避免从最后练习日推算排期。

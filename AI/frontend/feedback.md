@@ -63,4 +63,4 @@ Session 列表与当前反馈 Session 归 `domain/sessions.js`。`entries` 是�
 
 `tests/app/feedback.test.mjs` 覆盖同 UID 的已录条目、空 UID 的固定身份与旧计划兼容；`tests/e2e/feedback.py` 用合成 Session 列表验证 40 题中 31 已录、9 待录的真实页面，核对历史只读、题面及判定。浅深色桌面／手机截图保存在独立临时目录，可用 `OMRS_FEEDBACK_SHOTS` 指定位置。
 
-提交结果里的熟练度变化用 `core/format.js` 的 `formatPercent`。关闭题目 Markdown 编辑器走 Esc（对话框不把 Esc 外泄给页面）。
+提交结果显示服务端实际状态、熟练度变化、复核档位（击杀题）和「下次复习 YYYY-MM-DD」。一次高分立即显示「已击杀」；已击杀题低分答对显示「磨合中」、3天后巩固，答错1天后重练；提前高分显示原档位与原日期。熟练度变化用 `core/format.js` 的 `formatPercent`。关闭题目 Markdown 编辑器走 Esc（对话框不把 Esc 外泄给页面）。

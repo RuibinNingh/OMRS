@@ -7,7 +7,7 @@ import datetime
 import os
 import re
 
-from .common import extract_category, extract_images, extract_labels, extract_knowledge_tags, extract_tag, is_suspended_row, load_tuning, parse_date, parse_yaml_frontmatter, resolve_sm2_fields, split_sections
+from .common import extract_category, extract_images, extract_labels, extract_knowledge_tags, extract_tag, is_suspended_row, load_tuning, parse_date, parse_yaml_frontmatter, split_sections
 from .ledger import connect
 from .scheduling import (
     _row_to_item,
@@ -18,6 +18,8 @@ from .scheduling import (
     compute_priority,
     days_since_review,
     is_killed_state,
+    is_revive_eligible,
+    resolve_review_fields,
     is_leech,
     time_decay,
 )
@@ -25,7 +27,8 @@ from .scheduling import (
 
 @storage_read
 def get_stats(vault, subject=None):
-    rows = [resolve_sm2_fields(r) for r in mastery_rows(vault)]
+    tuning = load_tuning(vault)
+    rows = [resolve_review_fields(r, tuning) for r in mastery_rows(vault)]
     history = history_rows(vault)
     with connect(vault) as db:
         projection_rows = db.execute(
@@ -63,7 +66,6 @@ def get_stats(vault, subject=None):
             else log.get("UID", "") in active_uids
         )
     ]
-    tuning = load_tuning(vault)
     from .labels import label_priority_map
     label_bonuses = label_priority_map(vault)
     all_fail_counts = build_fail_counts(history, uid_by_qid)
@@ -161,23 +163,17 @@ def get_stats(vault, subject=None):
         mastery = _safe_float(row.get("Mastery", 0))
         tag = row.get("Current_Tag", "")
         uid = row.get("UID", "")
-        if is_killed_state(mastery, tag):
-            continue
+        row_killed = is_killed_state(mastery, tag)
+        revived = is_revive_eligible(mastery, tag, row.get("Due_Date", ""), today)
 
         days = days_since_review(row.get("Last_Review", ""), today, 30)
         decayed_mastery = time_decay(
             mastery, days, tuning["decay_mastery_factor"], tuning["decay_base"]
         )
-        if decayed_mastery < 0.3 and days > 7:
-            urgent += 1
-        if decayed_mastery < 0.5 and days > 14:
-            warning += 1
-        if days > 30:
-            cold += 1
-        if is_leech(active_wrong_streaks.get(uid, 0), mastery, tag, tuning):
-            leech += 1
         dd = parse_date(row.get("Due_Date", ""))
-        due_delta = None
+        due_delta = 0 if revived and not dd else None
+        if revived and not dd:
+            due_today += 1
         if dd:
             due_delta = (dd - today).days
             if due_delta < 0:
@@ -188,13 +184,23 @@ def get_stats(vault, subject=None):
                 due_next_3_days += 1
             if 1 <= due_delta <= 7:
                 due_next_7_days += 1
+        if row_killed and not revived:
+            continue
+        if decayed_mastery < 0.3 and days > 7:
+            urgent += 1
+        if decayed_mastery < 0.5 and days > 14:
+            warning += 1
+        if days > 30:
+            cold += 1
+        if is_leech(active_wrong_streaks.get(uid, 0), mastery, tag, tuning):
+            leech += 1
         if due_delta is not None and due_delta > 0 and decayed_mastery < 0.5:
             low_mastery_not_due += 1
         priority = compute_priority(
             decayed_mastery, _safe_float(row.get("EF", 2.5), 2.5),
             days, tag, mastery, active_wrong_streaks.get(uid, 0), tuning,
             labels=[label.strip() for label in str(row.get("Labels", "") or "").split("|") if label.strip()],
-            label_bonuses=label_bonuses,
+            label_bonuses=label_bonuses, is_revived=revived,
         )
         if priority > 0.3:
             total_due += 1

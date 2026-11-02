@@ -1,3 +1,4 @@
+import { reviewCycle } from '../../domain/question/review-cycle.js';
 /**
  * 题库页状态：模块单例 + 纯函数（tests/app/questions.test.mjs 全覆盖）。
  * - filters 是页面自己的数据，不读 DOM；toItemFilters() 翻成旧 core.js filterItems() 的条件形状，全站筛选语义不变。
@@ -248,19 +249,15 @@ export function statusOf(item) {
   const tag = String(item.tag || '').replace(/^#/, '').replace(/^状态\//, '');
   return { label: tag || '待攻克', kind: tag.includes('已击杀') ? 'kill' : tag.includes('易错') ? 'trap' : 'attack' };
 }
-/** 复燃：已击杀题休眠够久后重新入列；「这题不是击杀了吗」必须在列表上直接读到。停用题不谈复燃。 */
-export function reviveOf(item) {
-  if (!item || !item.is_revived || item.suspended) return null;
-  const count = num(item.kill_count, 0), dormant = num(item.dormant_days, 0);
-  return { label: `复燃${count > 1 ? ` ×${count}` : ''}`, title: `第 ${count || 1} 次击杀后休眠 ${dormant} 天复燃${item.next_revive_date ? ` · 原定 ${item.next_revive_date}` : ''}` };
-}
+/** 复核档位与日期统一来自后端；停用题不显示周期。 */
+export { reviewCycle as reviveOf } from '../../domain/question/review-cycle.js';
 export const masteryPct = item => Math.round(clamp(num(item.mastery, 0), 0, 1) * 100);
 export const masteryTone = pct => (pct > 80 ? 'success' : pct > 40 ? 'warning' : 'danger');
 /** 画廊卡只在「异常」时亮标：停用 / 复燃 / 逾期 / 今日 / 顽固；显示元数据时另给「N 天后」。 */
 export function galleryFlags(item, days, detail) {
   const flags = [];
   if (item.suspended) flags.push({ text: '停用', tone: 'muted' });
-  else if (item.is_revived) flags.push({ text: '复燃', tone: 'info', title: '已击杀题休眠够久，重新入列' });
+  else if (reviewCycle(item)) { const cycle = reviewCycle(item); flags.push({ text: cycle.label, tone: item.is_revived ? 'info' : 'muted', title: cycle.title }); }
   else if (days != null && days < 0) flags.push({ text: `逾期 ${-days} 天`, tone: 'danger' });
   else if (days === 0) flags.push({ text: '今日', tone: 'warning' });
   else if (detail && days != null) flags.push({ text: `${days} 天后`, tone: 'muted' });

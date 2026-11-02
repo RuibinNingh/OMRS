@@ -66,12 +66,12 @@ test('reload keeps still-eligible selected items (as the new objects) and report
 });
 
 test('reason, revive chip, chips and clearing, smart pick, estimates, empty states, view preference', () => {
-  assert.equal(A.reason({ is_revived: true, dormant_days: 40 }, -30), '复燃 · 已休眠 40 天');
+  assert.equal(A.reason({ is_revived: true, dormant_days: 40 }, -30), '复燃 · 待复核');
   assert.deepEqual([A.reason({ _source: 'proficiency' }, 5), A.reason({ _source: 'proficiency' }, null), A.reason({}, null), A.reason({}, -2), A.reason({}, 0), A.reason({}, 3)],
     ['提前巩固 · 5 天后到期', '提前巩固', '待安排复习', '已逾期 2 天', '今日到期', '3 天后到期']);
-  assert.deepEqual(A.revive({ is_revived: true, kill_count: 2, dormant_days: 31, next_revive_date: '2026-09-01' }), { label: '复燃 ×2', title: '第 2 次击杀后休眠 31 天复燃 · 原定 2026-09-01' });
+  assert.deepEqual(A.revive({ is_revived: true, kill_count: 2, dormant_days: 31, next_revive_date: '2026-09-01' }), { label: '复燃 · 第 1 档', title: '复核第 1 档 · 间隔 31 天 · 下次复核 2026-09-01 · 累计击杀 2 次' });
   assert.equal(A.revive({ is_revived: true, suspended: true }), null);
-  assert.equal(A.revive({ is_revived: true }).label, '复燃');
+  assert.equal(A.revive({ is_revived: true }).label, '复燃 · 第 1 档');
   const f = { ...A.emptyFilters(), mode: 'weak', subject: '物理', due: 'today', diffMin: '3', labels: ['易错'] };
   assert.deepEqual(A.chips(f).map(c => c.label), ['科目 物理', '到期 今日到期', '难度 ≥ 3', '标记 易错']);
   assert.deepEqual(A.clearField(f, 'label:易错').labels, []);

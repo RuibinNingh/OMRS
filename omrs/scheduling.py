@@ -22,39 +22,46 @@ def is_killed_state(mastery: float, tag: str) -> bool:
     return _safe_float(mastery, 0.0) >= 1.0 or "已击杀" in (tag or "")
 
 
-def revive_dormant_days(kill_count, mastery=1.0, tuning=None) -> int:
-    """已击杀题要休眠多少天才复燃。
-
-    复燃依据沿用时间衰减：解 `time_decay(mastery, d) <= revive_decay_threshold`
-    得 `d = (mastery×factor + base) × ln(1/threshold)`。每多击杀一次再乘
-    `revive_tier_multiplier`，因此越熟练的题回来得越晚。
-
-    `kill_count` 是累计击杀次数：第 1 次击杀用基准时长，第 2 次起依次乘系数。
-    mastery=1.0、threshold=0.2、multiplier=1.8 时约为 56 / 101 / 182 / 327 天。
-    """
-    t = tuning or DEFAULT_TUNING
-    threshold = _safe_float(t.get("revive_decay_threshold", 0.2), 0.2)
-    threshold = max(0.01, min(0.95, threshold))
-    multiplier = max(1.0, _safe_float(t.get("revive_tier_multiplier", 1.8), 1.8))
-    mastery = max(0.0, min(1.0, _safe_float(mastery, 1.0)))
-    tier = max(0, _safe_int(kill_count, 1) - 1)
-
-    base_days = (mastery * t["decay_mastery_factor"] + t["decay_base"]) * math.log(1.0 / threshold)
-    maximum = (datetime.date.max - datetime.date.min).days
-    if base_days >= maximum or (multiplier > 1 and tier * math.log(multiplier) >= math.log(maximum / max(base_days, 1))):
-        return maximum
-    return min(maximum, max(1, int(round(base_days * (multiplier ** tier)))))
+def revive_dormant_days(stage, tuning=None) -> int:
+    """当前复核档位的间隔；累计击杀次数不参与计算。"""
+    intervals = (tuning or DEFAULT_TUNING)["revive_intervals_days"]
+    stage = max(1, min(len(intervals), _safe_int(stage, 1)))
+    return intervals[stage - 1]
 
 
-def is_revive_eligible(mastery, tag, last_review, kill_count=0, today=None, tuning=None) -> bool:
-    """已击杀题是否已经休眠够久、可以重新进入调度。
+def is_revive_eligible(mastery, tag, due_date, today=None) -> bool:
+    """已击杀题按实际到期日复燃；无可靠日期的旧题待复核。"""
+    return is_killed_state(mastery, tag) and is_due(due_date, today)
 
-    非击杀态一律返回 False——复燃只针对「已击杀」这一种状态。
-    """
-    if not is_killed_state(mastery, tag):
-        return False
-    dormant = revive_dormant_days(kill_count, mastery, tuning)
-    return days_since_review(last_review, today, default=0) >= dormant
+
+def review_cycle(mastery, tag, tuning=None):
+    """规范化周期，兼容只有旧快照的题；不得从最后练习日重排现有周期。"""
+    if not is_killed_state(mastery.get("mastery", 0), tag):
+        return {"revive_stage": 0, "revive_anchor_at": "",
+                "due_date": mastery.get("due_date", ""), "interval_days": mastery.get("interval_days", 0)}
+    stage = max(0, min(5, _safe_int(mastery.get("revive_stage"), 0)))
+    anchor = parse_date(mastery.get("revive_anchor_at", "") if stage else mastery.get("last_review_at", ""))
+    due = parse_date(mastery.get("due_date", "")) if stage and anchor else None
+    stage = stage or 1
+    interval = revive_dormant_days(stage, tuning)
+    if anchor:
+        due = due or parse_date(_next_revive_date(anchor.isoformat(), interval))
+        interval = max(0, (due - anchor).days)
+    return {"revive_stage": stage, "revive_anchor_at": anchor.isoformat() if anchor else "",
+            "due_date": due.isoformat() if due else "", "interval_days": interval}
+
+
+def resolve_review_fields(row, tuning=None):
+    """统一推荐、统计与导出的排期；旧击杀快照统一从第1档起步。"""
+    row = dict(row)
+    if not is_killed_state(row.get("Mastery", 0), row.get("Current_Tag", "")):
+        return resolve_sm2_fields(row)
+    cycle = review_cycle({"mastery": row.get("Mastery"), "revive_stage": row.get("Revive_Stage"),
+                          "revive_anchor_at": row.get("Revive_Anchor", ""), "due_date": row.get("Due_Date", ""),
+                          "last_review_at": row.get("Last_Review", "")}, row.get("Current_Tag", ""), tuning)
+    row.update(Revive_Stage=cycle["revive_stage"], Revive_Anchor=cycle["revive_anchor_at"],
+               Due_Date=cycle["due_date"], Interval=str(cycle["interval_days"]))
+    return row
 
 
 def ef_to_difficulty(ef) -> float:
@@ -174,14 +181,10 @@ def compute_mastery_update(old_m, ef, sub_score, is_correct, attempts,
 
     if high and is_correct:
         high_correct_streak += 1
-        if high_correct_streak >= t["kill_streak"]:
-            label, new_m, tag_action = "已击杀", 1.0, "kill"
-        else:
-            label, tag_action = "高分待确认", "keep"
-            new_m = min(0.95, old_m + sub_score / 20.0 * (ef / 2.5))
+        label, new_m, tag_action = "已击杀", 1.0, "kill"
     elif (not high) and is_correct:
         label, tag_action = "磨合中", "keep"
-        new_m = min(1.0, old_m + sub_score / 30.0 * (ef / 2.5))
+        new_m = min(0.95, old_m + sub_score / 30.0 * (ef / 2.5))
         high_correct_streak = 0
     elif high and (not is_correct):
         label, new_m, tag_action = "粗心/陷阱", old_m * 0.8, "trap"
@@ -203,8 +206,6 @@ def compute_mastery_update(old_m, ef, sub_score, is_correct, attempts,
         "high_correct_streak": str(high_correct_streak),
         "tag_action": tag_action,
         "label": label,
-        # 击杀次数累加信号；投影器据此递增 kill_count，复燃周期按次数分级
-        "kill_count_delta": 1 if tag_action == "kill" else 0,
     }
 
 
@@ -216,7 +217,9 @@ def transition_review(question, mastery, review, tuning):
     attempts = _safe_int(mastery.get("attempts"), 0) + 1
     update = compute_mastery_update(old_m, mastery.get("ef", 2.5), review.get("sub_score", 0),
                                    correct, attempts, mastery.get("high_correct_streak", 0), tuning)
-    demote = not correct and is_killed_state(old_m, question.get("current_tag", ""))
+    was_killed = is_killed_state(old_m, question.get("current_tag", ""))
+    high_correct = update["tag_action"] == "kill"
+    demote = not correct and was_killed
     new_m = min(update["mastery"], old_m * tuning["kill_demote_factor"]) if demote else update["mastery"]
     repetition = _safe_int(mastery.get("repetition"), 0) + 1 if correct else 0
     interval = calc_sm2_interval(_safe_int(mastery.get("interval_days"), 0), repetition, update["ef"],
@@ -226,13 +229,33 @@ def transition_review(question, mastery, review, tuning):
     if not day:
         raise ValueError("反馈缺少业务日期")
     interval = min(interval, (datetime.date.max - datetime.date.fromisoformat(day)).days)
-    tag = "#状态/已击杀" if update["tag_action"] == "kill" else "#状态/待攻克" if demote else question.get("current_tag", "")
+    stage, anchor, kill_delta = 0, "", 0
+    due = compute_due_date(day, interval)
+    if high_correct:
+        cycle = review_cycle(mastery, question.get("current_tag", ""), tuning)
+        if was_killed and cycle["revive_anchor_at"] and (day < cycle["due_date"] or day <= cycle["revive_anchor_at"]):
+            stage, anchor = cycle["revive_stage"], cycle["revive_anchor_at"]
+            interval, due = cycle["interval_days"], cycle["due_date"]
+        else:
+            stage = min(5, cycle["revive_stage"] + 1) if was_killed and cycle["revive_anchor_at"] and day > cycle["revive_anchor_at"] else 1
+            anchor, kill_delta = day, 1
+            interval = min(revive_dormant_days(stage, tuning), (datetime.date.max - datetime.date.fromisoformat(day)).days)
+            due = compute_due_date(day, interval)
+        tag = "#状态/已击杀"
+    elif was_killed:
+        tag = "#状态/待攻克"
+        repetition = 0
+        interval = min(3 if correct else 1, (datetime.date.max - datetime.date.fromisoformat(day)).days)
+        due = compute_due_date(day, interval)
+    else:
+        tag = question.get("current_tag", "")
     result = {"mastery": round(new_m, 4), "ef": update["ef"], "attempts": attempts,
               "high_correct_streak": _safe_int(update["high_correct_streak"], 0), "repetition": repetition,
-              "interval_days": interval, "due_date": compute_due_date(day, interval), "last_review_at": day,
-              "kill_count": _safe_int(mastery.get("kill_count"), 0) + update["kill_count_delta"]}
+              "interval_days": interval, "due_date": due, "last_review_at": day,
+              "revive_stage": stage, "revive_anchor_at": anchor,
+              "kill_count": _safe_int(mastery.get("kill_count"), 0) + kill_delta}
     display = {"label": update["label"], "old_mastery": old_m, "new_mastery": result["mastery"],
-               "tag": tag, "new_interval": interval, "new_due_date": result["due_date"]}
+               "tag": tag, "new_interval": interval, "new_due_date": result["due_date"], "revive_stage": stage}
     return result, tag, display
 
 
@@ -255,14 +278,13 @@ def schedule_questions(vault, count=10, subject=None, exclude_uids=None):
             continue
         if row.get("UID", "") in excluded:
             continue
-        row = resolve_sm2_fields(row)
+        row = resolve_review_fields(row, tuning)
         mastery = _safe_float(row.get("Mastery", 0))
         tag = row.get("Current_Tag", "")
 
         # 已击杀题默认跳过；休眠够久（复燃周期）的重新入列
         revived = is_revive_eligible(
-            mastery, tag, row.get("Last_Review", ""),
-            _safe_int(row.get("Kill_Count", 0), 0), today, tuning,
+            mastery, tag, row.get("Due_Date", ""), today,
         )
         if is_killed_state(mastery, tag) and not revived:
             continue
@@ -343,15 +365,13 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
             continue
         if uid in excluded:
             continue
-        row = resolve_sm2_fields(row)
+        row = resolve_review_fields(row, tuning)
         mastery = _safe_float(row.get("Mastery", 0))
         tag = row.get("Current_Tag", "")
 
-        # 已击杀题默认跳过；休眠够久的复燃题重新入列（其 Due_Date 早已逾期，
-        # 自然落进到期列表并排在最前）
+        # 已击杀题只在实际复核日到期后重新入列
         if is_killed_state(mastery, tag) and not is_revive_eligible(
-            mastery, tag, row.get("Last_Review", ""),
-            _safe_int(row.get("Kill_Count", 0), 0), today, tuning,
+            mastery, tag, row.get("Due_Date", ""), today,
         ):
             continue
 
@@ -390,8 +410,7 @@ def generate_recommendations(vault, due_count=10, prof_count=10,
             mastery, days, tuning["decay_mastery_factor"], tuning["decay_base"]
         )
         revived = is_revive_eligible(
-            mastery, tag, row.get("Last_Review", ""),
-            _safe_int(row.get("Kill_Count", 0), 0), today, tuning,
+            mastery, tag, row.get("Due_Date", ""), today,
         )
         priority = compute_priority(
             decayed, _safe_float(row.get("EF", 2.5), 2.5),
@@ -479,14 +498,15 @@ def _safe_float(value, default=0.0):
 def _row_to_item(row, today=None, fail_count=0, tuning=None, wrong_streak=0):
     today = today or business_today()
     t = tuning or DEFAULT_TUNING
-    row = resolve_sm2_fields(row)
+    row = resolve_review_fields(row, t)
     mastery = _safe_float(row.get("Mastery", 0))
     tag = row.get("Current_Tag", "")
     days = days_since_review(row.get("Last_Review", ""), today, 0)
     last_review = row.get("Last_Review", "")
     kill_count = _safe_int(row.get("Kill_Count", 0), 0)
-    dormant_days = revive_dormant_days(kill_count, mastery, t)
-    is_revived = is_revive_eligible(mastery, tag, last_review, kill_count, today, t)
+    stage = _safe_int(row.get("Revive_Stage"), 0)
+    dormant_days = revive_dormant_days(stage, t)
+    is_revived = is_revive_eligible(mastery, tag, row.get("Due_Date", ""), today)
     return {
         "question_id": row.get("question_id", ""),
         "uid": row.get("UID", ""),
@@ -514,11 +534,13 @@ def _row_to_item(row, today=None, fail_count=0, tuning=None, wrong_streak=0):
         "fail_count": _safe_int(fail_count, 0),
         "wrong_streak": _safe_int(wrong_streak, 0),
         "is_leech": is_leech(wrong_streak, mastery, tag, t),
-        # 复燃：已击杀题休眠够久后重新入列（见 revive_dormant_days）
+        # 复核档位与累计成绩分离；实际到期日不受提前练习影响
         "kill_count": kill_count,
+        "revive_stage": stage,
+        "revive_anchor_at": row.get("Revive_Anchor", ""),
         "is_revived": is_revived,
         "dormant_days": dormant_days if is_killed_state(mastery, tag) else 0,
-        "next_revive_date": _next_revive_date(last_review, dormant_days)
+        "next_revive_date": row.get("Due_Date", "")
         if is_killed_state(mastery, tag) else "",
     }
 
@@ -539,4 +561,5 @@ def get_items_by_uids(vault, uids):
     if suspended:
         raise RuntimeError("以下 UID 已停用，不能加入复习: " + ", ".join(suspended))
     today = business_today()
-    return [_row_to_item(row_map[uid], today) for uid in clean_uids]
+    tuning = load_tuning(vault)
+    return [_row_to_item(row_map[uid], today, tuning=tuning) for uid in clean_uids]

@@ -52,7 +52,8 @@ def run_tuning(page, results):
         results.append((label, bool(ok), ''))
 
     check('学习参数从服务端有效配置读取', wait(page, "() => !document.querySelector('#st-tuning-save')?.disabled")
-          and page.locator('#st-tuning-card input[type=number]').count() == 19)
+          and page.locator('#st-tuning-card input[type=number]').count() == 16
+          and page.locator('#st-tuning-revive_intervals_days').input_value() == '7,21,60,120,180')
     page.fill('#st-tuning-high_score_threshold', '8')
     pending = []
     page.route('**/api/config', lambda route: pending.append(route) if route.request.method == 'POST' else route.continue_())
@@ -62,7 +63,7 @@ def run_tuning(page, results):
           and page.locator('#st-tuning-high_score_threshold').is_disabled())
     route = pending.pop()
     payload = route.request.post_data_json
-    check('调参提交完整合法参数', len(payload['tuning']) == 19 and payload['tuning']['high_score_threshold'] == 8)
+    check('调参提交完整合法参数', len(payload['tuning']) == 17 and payload['tuning']['revive_intervals_days'] == [7, 21, 60, 120, 180] and payload['tuning']['high_score_threshold'] == 8)
     response = route.fetch()
     data = response.json()
     route.fulfill(response=response)

@@ -27,3 +27,9 @@ test('dueDays survives being passed straight to map / filter (index is not a dat
   assert.ok(days[2] > 0);
   assert.equal(dueDays({ due_date: '2026-09-28' }, new Date('invalid')), dueDays({ due_date: '2026-09-28' }));
 });
+
+test('无可靠日期的复燃题属于今日待复核，不丢失在今日筛选之外', () => {
+  const pending = { uid: 'legacy', is_revived: true, due_date: '', difficulty: 5 };
+  assert.equal(dueDays(pending), 0);
+  assert.deepEqual(filterAll([pending], { dueFilter: 'today' }).map(row => row.uid), ['legacy']);
+});

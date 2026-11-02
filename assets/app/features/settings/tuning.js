@@ -2,7 +2,7 @@
 import { get, post } from '../../core/api.js';
 import { configSavedStatus } from '../../core/config-status.js';
 import { reloadData } from '../../domain/data.js';
-import { TUNING_FIELDS, readTuning, tuningMatches, recalculationText } from './tuning-state.js';
+import { TUNING_FIELDS, readTuning, tuningMatches, recalculationText, validIntervals } from './tuning-state.js';
 
 export function createTuning(root, { read = get, write = post, reload = reloadData } = {}) {
   const el = id => root.querySelector(`#${id}`);
@@ -33,7 +33,7 @@ export function createTuning(root, { read = get, write = post, reload = reloadDa
     if (!alive) return result;
     if (!result.ok) { status(`无法读取学习参数：${result.error?.message || '未知错误'}`, 'danger'); return result; }
     cfg = result.data;
-    ready = TUNING_FIELDS.every(field => typeof cfg?.tuning_effective?.[field.key] === 'number');
+    ready = TUNING_FIELDS.every(field => field.kind === 'intervals' ? validIntervals(cfg?.tuning_effective?.[field.key]) : typeof cfg?.tuning_effective?.[field.key] === 'number');
     if (!ready) { status('学习参数不完整，请核验当前状态后重试', 'danger'); controls(); return result; }
     for (const field of TUNING_FIELDS) if (el(`st-tuning-${field.key}`)) el(`st-tuning-${field.key}`).value = cfg.tuning_effective[field.key];
     if (cfg.recalculation) display(cfg);

@@ -48,12 +48,14 @@ Vault根的`.omrs-maintenance/`保存生命周期锁、世代、恢复预检与j
 | `Mastery` | float(0–1) | 当前熟练度 |
 | `EF` | float(1.3–3.0) | 易错因子（SM-2 变体） |
 | `Attempts` | int | 累计练习次数 |
-| `High_Correct_Streak` | int | 连续高分答对次数，达到 2 次才自动击杀 |
+| `High_Correct_Streak` | int | 连续高分答对次数，仅供调试，不决定击杀 |
 | `Last_Review` | date | 最后复习日期（ISO 格式 YYYY-MM-DD） |
-| `Interval` | int | SM-2 当前间隔（天数），旧数据默认为 0 |
-| `Due_Date` | date | SM-2 下次到期日，旧数据默认为 Last_Review（即立即到期） |
+| `Interval` | int | 实际排期间隔（天数）；普通题用SM-2，击杀题用复核档位 |
+| `Due_Date` | date | 实际下次复习日；击杀题提前练习不推迟该日，无可靠日期的旧击杀题为空并待复核 |
 | `Repetition` | int | SM-2 连续答对次数（n），答错重置为 0 |
-| `Kill_Count` | int | 累计击杀次数；答错降级时不重置，复燃休眠时长据此分级变长（algorithm.md §11） |
+| `Kill_Count` | int | 累计成绩；首次／重新击杀、到期高分通过时加1，提前练习不增加，降级不清零，不参与排期（algorithm.md §11） |
+| `Revive_Stage` | int | 复核档位，普通题0，击杀题1–5 |
+| `Revive_Anchor` | date | 本周期起始业务日期，提前练习不更新；普通题或待复核旧题为空 |
 | `Current_Tag` | string | 状态标签（如 #状态/待攻克） |
 | `Entry_Date` | date | 题目录入日期 |
 | `Knowledge_Tags` | string | 知识点标签，`|` 分隔 |
@@ -61,7 +63,7 @@ Vault根的`.omrs-maintenance/`保存生命周期锁、世代、恢复预检与j
 | `Suspended` | 0/1 | 题目停用标记；`1` 时保留题目行供管理/筛选，但不参与调度、统计、分析、反馈或复习导出；没有该列的旧 CSV 按 `0` 处理 |
 
 **注意：** `Last_Review` 历史数据可能包含 `YYYY/M/D` 格式，`parse_date()` 已做兼容。
-**注意：** SM-2 字段（`Interval`、`Due_Date`、`Repetition`）为 2026-05 新增，旧数据通过 `resolve_sm2_fields()` 自动填充默认值。
+**注意：** 普通题的缺失SM-2字段由 `resolve_sm2_fields()` 填充；击杀题由 `review_cycle()` 规范化。旧快照缺复核字段时从第1档迁移，有效最后复习日加第1档间隔；没有可靠日期则待复核并立即入队，不从旧 `Due_Date` 猜测周期。
 **注意：** 老 CSV 缺 `Kill_Count` 列按 `0` 处理（即「还没击杀过」），重放不会报错，首次击杀即第 1 次。
 **写盘安全：** 该文件经 `save_csv(..., backup=True)` 写入——先写 `.tmp` 并 `fsync`，再 `os.replace` 原子覆盖，避免写一半损坏；覆盖前滚动备份为 `mastery_data.csv.bak.1/2/3`（`.1` 最新，保留 3 份）。仅显式导出/备份生成该兼容文件；普通反馈增量更新SQL，不逐次改写CSV。旧库首次 Ledger 迁移只在原题已有 `页码` 时保留其值；无页码题不补空字段。反馈 `Note`、草稿 note、图片说明及附件有各自语义，迁移页码时不清理。
 
@@ -106,7 +108,7 @@ Vault根的`.omrs-maintenance/`保存生命周期锁、世代、恢复预检与j
 
 复习调度工作台提交 `POST /api/confirm-schedule` 时传 `persist:true`，所以单题选择也写入 Ledger 并生成正式 `EXP-` Session；旧客户端省略该字段时仍按单题 TMP 兼容路径处理。正式 Session 的选择在写入前去重，并拒绝无效身份、非法来源、停用题和 active Session 重复占用。
 
-Session 中的 `source` 贯穿反馈处理：`due` 使用常规 SM-2 间隔，`proficiency` 的答对间隔按 0.7 系数折中；分批反馈只更新已提交题目，`pending_uids` 是权威 `entries` 的兼容派生。条目按稳定身份计算 `feedback_submitted`，移动后用当前 UID 展示；归档保留原绑定，停用不列入待反馈，无法证明旧身份的条目标为 `unresolved`。这类条目须经 `/api/session/bind` 人工指定并追加 `session.items_bind`；禁止从当前 UID 静默推断。有效条目全部提交后状态变为 `completed`。
+Session 中的 `source` 贯穿普通题的SM-2反馈处理：`due` 使用常规间隔，`proficiency` 的答对间隔按0.7系数折中；击杀与降级使用独立分档排期。分批反馈只更新已提交题目，`pending_uids` 是权威 `entries` 的兼容派生。条目按稳定身份计算 `feedback_submitted`，移动后用当前 UID 展示；归档保留原绑定，停用不列入待反馈，无法证明旧身份的条目标为 `unresolved`。这类条目须经 `/api/session/bind` 人工指定并追加 `session.items_bind`；禁止从当前 UID 静默推断。有效条目全部提交后状态变为 `completed`。
 
 ---
 
@@ -118,7 +120,7 @@ Session 中的 `source` 贯穿反馈处理：`due` 使用常规 SM-2 间隔，`p
 
 - `commits`：不可变提交链。
 - `question_projection` / `question_knowledge_points`：题目结构化投影；`question_projection.created_at` 是可空的 Ledger 创建时间。首次 `question.create` / `question.create_external` 写入提交的 UTC 时间；移动、结构化修改、停用与恢复沿用原值；`legacy.bootstrap` 题为空。旧库启动时由 `ledger.init_db()` 自动补列。
-- `mastery_projection`：熟练度、EF、SM-2 排期投影，含 `kill_count` 累计击杀次数（老库缺列时 `ledger.py` 用 `ALTER TABLE ... DEFAULT 0` 补列）。
+- `mastery_projection`：熟练度、EF与实际排期投影，含 `kill_count` 累计成绩、`revive_stage`（默认0）、`revive_anchor_at`（默认空串）。旧库通过 `ALTER TABLE` 补列；`ledger-v4` 重放有效反馈后发布，保留原始Ledger，重算失败不发布部分投影。
 - `session_projection`：Session 稳定绑定条目投影。
 - `history_projection`：有效反馈的 SQL 行，按 `question_id`、Session、业务日期建立索引；保留原 `recorded_at` 和业务 `review_date`。
 - `active_config`：完整活动配置、revision、mirror_hash、mirror_pending 及上次镜像哈希。
@@ -268,7 +270,7 @@ Markdown `# 历史` 不作为算法输入，也不会由反馈流程追加。`/a
 | `draft_train_default` | bool | 新聊天图片的训练开关初值，默认 false；不覆盖已有图 |
 | `draft_force_crop` | bool | 新建有来源图的全文字草稿也生成强制训练任务，默认 false；不影响入库 |
 | `draft_discard_keep_days` | int | 丢弃草稿保留天数，默认 7；清理仍检查共享引用 |
-| `tuning` | object | 算法可调参数覆盖，见 `AI/algorithm.md` §9；拒绝未知键、非有限数字、错误类型及越界值 |
+| `tuning` | object | 算法可调参数覆盖，含五档正整数数组 `revive_intervals_days`；旧连对／复燃计算参数兼容读取但无效，保存时清理；校验见 `AI/algorithm.md` §9 |
 | `ai_base_url` | string | AI 接口基础地址（OpenAI 兼容，如 `https://api.openai.com/v1`） |
 | `ai_api_key` | string | AI 接口密钥（Bearer），仅存本机 |
 | `ai_model` | string | 默认 AI 模型名；需支持图片输入，如 `gpt-4o` |

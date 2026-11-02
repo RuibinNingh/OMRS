@@ -121,9 +121,9 @@ def _upsert_question(db, q):
 
 
 def _upsert_mastery(db, qid, m):
-    columns = ("mastery", "ef", "attempts", "high_correct_streak", "repetition", "interval_days", "due_date", "last_review_at", "kill_count", "updated_seq")
-    db.execute("INSERT INTO mastery_projection(question_id," + ",".join(columns) + ") VALUES(" + ",".join("?" for _ in range(11)) + ") ON CONFLICT(question_id) DO UPDATE SET " + ",".join(f"{name}=excluded.{name}" for name in columns),
-               (qid, *(m.get(name, "" if name in ("due_date", "last_review_at") else 0) for name in columns)))
+    columns = ("mastery", "ef", "attempts", "high_correct_streak", "repetition", "interval_days", "due_date", "last_review_at", "kill_count", "revive_stage", "revive_anchor_at", "updated_seq")
+    db.execute("INSERT INTO mastery_projection(question_id," + ",".join(columns) + ") VALUES(" + ",".join("?" for _ in range(len(columns) + 1)) + ") ON CONFLICT(question_id) DO UPDATE SET " + ",".join(f"{name}=excluded.{name}" for name in columns),
+               (qid, *(m.get(name, "" if name in ("due_date", "last_review_at", "revive_anchor_at") else 0) for name in columns)))
 
 
 def _upsert_session(db, sid, s):

@@ -10,7 +10,7 @@ from .vault_lifecycle import lease, generation, open_sqlite
 
 
 SCHEMA_VERSION = 2
-PROJECTOR_VERSION = "ledger-v3"
+PROJECTOR_VERSION = "ledger-v4"
 
 
 def ledger_path(vault: str) -> str:
@@ -112,6 +112,8 @@ def init_db(db):
             due_date              TEXT,
             last_review_at        TEXT,
             kill_count            INTEGER NOT NULL DEFAULT 0,
+            revive_stage          INTEGER NOT NULL DEFAULT 0,
+            revive_anchor_at      TEXT NOT NULL DEFAULT '',
             updated_seq           INTEGER NOT NULL
         );
 
@@ -237,6 +239,10 @@ def init_db(db):
         db.execute(
             "ALTER TABLE mastery_projection ADD COLUMN kill_count INTEGER NOT NULL DEFAULT 0"
         )
+    for name, declaration in (("revive_stage", "INTEGER NOT NULL DEFAULT 0"),
+                              ("revive_anchor_at", "TEXT NOT NULL DEFAULT ''")):
+        if name not in mastery_columns:
+            db.execute(f"ALTER TABLE mastery_projection ADD COLUMN {name} {declaration}")
     db.execute(
         "INSERT OR IGNORE INTO workspace_scan_status "
         "(id, change_count, conflict_count, conflicts_json) VALUES (1, 0, 0, '[]')"

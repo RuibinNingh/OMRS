@@ -11,6 +11,8 @@
 
 即时练习故障回归由 `tests/app/instant-submission.test.mjs` 与 `tests/e2e/instant.py`覆盖：安全随机轮次身份、同轮重试与新轮分离、持久回执回填原判定和分数，以及推荐全部标记匹配先于截断。浏览器通过真实接口创建合成题目，并在服务器处理反馈后丢弃响应，不用单纯模拟请求失败代替已提交故障。
 
+跨页复核文案集中在 `assets/app/domain/question/review-cycle.js`：题库、题目详情和复习调度共用档位、间隔、实际日期与累计成绩。`domain/items.js` 将缺可靠日期的复燃题视为今日待复核，其余无效日期保持未知。`tests/e2e/review_policy.py` 使用临时Vault与真实反馈接口覆盖一次击杀→到期推荐→升档→提前练习→降级→重新击杀及设置重算。
+
 ## 1. 目录与依赖方向
 
 框选设置由settings内的boxdetect控制器拥有，训练表单仅写训练策略；`/train`与独立服务面板 `/boxdetect/`职责分开。服务面板资产位于services/boxdetect，不引入主站feature依赖；同源入口使用本仓库资产，外部服务仅提供数据。`tests/e2e/boxdetect_panel.py`覆盖设置、Key、检测与历史链路；原settings/create/trainpanel/traincontrol浏览器门禁分别维护页面回归。

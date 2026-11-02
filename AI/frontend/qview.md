@@ -13,6 +13,7 @@
 |---|---|
 | `markdown.js` | `renderMd(text, mode)`（带缓存）、`renderMdUncached`、`renderMdInline`、表格、图片、KaTeX、`mdLineBreakMode()` |
 | `math-text.js` | `normalizeMathDelimiters(text)`：成对 LaTeX 定界符转美元符号，与后端共用回归夹具 |
+| `review-cycle.js` | `reviewCycle(item)`：共用复核档位、间隔、实际日期与累计成绩文案，停用题不显示周期 |
 | `records.js` | `parseQHistory`、`qRecordsFromDetail`、`qHistoryStats`、`qStreakHtml`、`parseDay` |
 | `view.js` | 纯函数：`qvHtml(detail, item, opts)`、`qvChips`、`qvToolsHtml`、`qvRecordHtml`、`qvCreationHtml`、`qvGalleryCard`、`qvGalleryIdHtml`、`QV_DEFAULTS`、`QV_CARD_OPTS` |
 | `mount.js` | `ensureDetail`、`qvRender`、`qvInvalidate(Many)`、`qvRerenderAll`、`qvSetContext`、`bindQuestionDom()`（工具按钮委托、题图降级，并登记弹窗 ←/→） |
@@ -41,7 +42,7 @@
 - `actions`：`edit`、`board`、`labels`、`suspend`（按当前状态显示停用 / 恢复）、`delete`、`open`（关弹窗，经过渡桥 `questionsLoadPreset({'q-search': uid, …})` 切到题库并按 UID 搜索，停用题同时放开停用筛选）。按钮只带 `data-qv-act`，由 `mount.js` 的委托处理器调 `ops.js`（编辑、停用 / 恢复、删除）或旧全局（`boardQuickAdd`、`openLabelPicker`）。
 - `bare:true` + `clamp:N` 给画廊缩略卡：去掉正文边框底色，正文写 `data-clamp="N"`（1–12），由 `qview.css` 的档位规则截断。
 - 详情取不到时 `ensureDetail` 缓存一份带 `_fallback:true` 的降级副本，qview 显示「无法加载题目预览 + 重试」，重试即 `qvInvalidate`。
-- 复燃题在到期 chip 之后追加「复燃 · 已休眠 N 天」：复燃题的 `Due_Date` 是击杀时的旧值，只看「逾期 N 天」会读成没做完的旧账。
+- 击杀题在到期chip后显示「复核第 N 档」，到期显示「复燃 · 第 N 档」；共用 `review-cycle.js`，显示当前档位和实际下次复核日。`due_date` 是实际排期，提前练习不延期；旧击杀题缺可靠日期时显示「待复核」。
 - 画廊缩略卡和即时练习通过 `showCreation:false` / `showHistory:false` 隐藏创建信息；题目详情弹窗保留完整记录和创建信息，即使没有练习记录也显示该区块。
 
 ### 3.1 布局：挂载点是容器

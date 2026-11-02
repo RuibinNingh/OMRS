@@ -98,10 +98,10 @@ def run_numbers(page, base, results):
         results.append((name, bool(ok), str(detail)))
     ev = page.evaluate
     home(page, base)
-    want = ev("""() => { const act = DATA.items.filter(i => !i.suspended && !(Number(i.mastery) >= 1 || String(i.tag || '').includes('已击杀')));
+    want = ev("""() => { const act = DATA.items.filter(i => !i.suspended && (i.is_revived || !(Number(i.mastery) >= 1 || String(i.tag || '').includes('已击杀'))));
       return act.filter(i => { const d = getDueDays(i); return d !== null && d <= 0; }).length; }""")
     got = ev("Number(document.querySelector('.dsh-today__value').textContent)")
-    check("「今天」的待复习数 = 未停用、未击杀、逾期或今日到期的题数（与旧 getDueDays 同口径）", got == want, [got, want])
+    check("「今天」的待复习数 = 未停用且逾期或今日到期的普通题与复燃题数（与旧 getDueDays 同口径）", got == want, [got, want])
     kp = ev("[...document.querySelectorAll('.dsh-kpi__value')].map(e => e.textContent)")
     check("概览五个数字与 /api/stats 一致", kp[:3] == [str(ev("DATA.total")), str(ev("DATA.killed")), str(ev("DATA.attacking"))]
           and kp[4] == str(ev("DATA.suspended || 0")), kp)

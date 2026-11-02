@@ -69,7 +69,7 @@ tags:
 - `workspace_fingerprint`
 - `snapshots`
 
-`projection_runtime.project()` 校验世代、已发布 seq/head hash、policy hash 与 projector version（`ledger-v3`）。普通追加仅更新受影响的题目、熟练度、Session 和新增历史行；不全链重放或全表删除。跨请求保留最多 2 个 Vault 的当前状态缓存，不保留历史反馈载荷。`snapshots` 保存当前状态及策略/链头校验值，保留最近 2 个；修正索引和反馈明细留 SQL，不重复装入快照。缺失、不匹配或世代变化时流式重建。
+`projection_runtime.project()` 校验世代、已发布 seq/head hash、policy hash 与 projector version（`ledger-v4`）。普通追加仅更新受影响的题目、熟练度、Session 和新增历史行；不全链重放或全表删除。跨请求保留最多 2 个 Vault 的当前状态缓存，不保留历史反馈载荷。`snapshots` 保存当前状态及策略/链头校验值，保留最近 2 个；修正索引和反馈明细留 SQL，不重复装入快照。缺失、不匹配或世代变化时流式重建。监听前配置初始化也会检查投影版本和policy hash，即使配置未变仍须完成升级重放；活动配置、投影与检查点在同一事务发布，失败全部回滚。
 
 题目、熟练度或 Session 投影的删除会在同一事务内废止 `projection_meta`。完整重建在最后重新发布检查点；旧代码全量重写 SQL 后，即使链头未变化，再次启动当前代码也必须重建，不能将旧缓存与当前快照混用。此机制只保护再次升级的派生缓存，不赋予旧代码当前身份与配置契约。
 
@@ -131,9 +131,9 @@ SQL 读模型还包含 `history_projection`、`projection_meta`、`active_config
 
 ### 修正投影如何重放
 
-修正 commit 只追加事实，不写逆向熟练度补丁。完整重放先在 `projection_review_corrections` / `projection_session_corrections` 中建立最终有效修正索引，再逐提交应用；反馈明细直接落 SQL。被撤销反馈或 Session 的反馈跳过；恢复采用原记录；替换把 replacement 合并到原记录。算法状态、状态标签、累计击杀次数和正式历史一起重算，修正数量增长不会扩张 Python 全量集合或载荷字典。
+修正 commit 只追加事实，不写逆向熟练度补丁。完整重放先在 `projection_review_corrections` / `projection_session_corrections` 中建立最终有效修正索引，再逐提交应用；反馈明细直接落 SQL。被撤销反馈或 Session 的反馈跳过；恢复采用原记录；替换把 replacement 合并到原记录。算法状态、状态标签、累计击杀次数、复核档位、周期起始日、实际排期和正式历史一起重算，修正数量增长不会扩张 Python 全量集合或载荷字典。
 
-`kill_count` 只在转换结果 `tag_action == "kill"` 时累加，答错降级不重置；旧表缺列自动补 `NOT NULL DEFAULT 0`，旧 CSV 缺列也按 0。元数据变更按前后 Markdown 元数据差量判断：未改的状态字段不会覆盖反馈产生的投影状态。
+`kill_count` 只在首次／重新击杀或到期高分复核通过时累加，提前练习不增加，降级不重置。`mastery_projection.revive_stage`（0或1–5）与 `revive_anchor_at` 独立保存周期，`due_date` 是实际排期；提前练习只更新最后练习日。旧表自动补列；只有旧快照的击杀题从第1档迁移，缺可靠日期时待复核并立即入队。元数据变更按前后 Markdown 元数据差量判断：未改的状态字段不会覆盖反馈产生的投影状态。
 
 `state.restore` 按有效目标前缀及恢复后的后缀组成迭代区间，流式重放，避免递归复制累计全状态。恢复、修正和调参统一采用当前活动参数；旧快照必须匹配 policy hash 才可用。`ledger_retraction_state()` 使用当前 SQL 修正索引供历史接口读取。
 

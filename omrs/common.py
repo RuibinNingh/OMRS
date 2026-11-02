@@ -37,6 +37,8 @@ MASTERY_HEADERS = [
     "Due_Date",
     "Repetition",
     "Kill_Count",
+    "Revive_Stage",
+    "Revive_Anchor",
     "Current_Tag",
     "Entry_Date",
     "Knowledge_Tags",
@@ -396,14 +398,14 @@ SM2_PROFICIENCY_CORRECT_FACTOR = 0.7
 
 # ── 可调参数（algorithm tuning）──
 # 全部可在 错题/.omrs/config.json 的 "tuning" 键下覆盖；缺省时用以下默认值，
-# 默认值与历史硬编码完全一致，不改 config 行为不变。
+# 缺省使用当前算法；旧参数由配置仓库兼容读取并在保存时清理。
 DEFAULT_TUNING = {
     # 时间衰减：decayed = mastery × e^(-days / (mastery×decay_mastery_factor + decay_base))
     "decay_mastery_factor": 30,
     "decay_base": 5,
     # 熟练度状态机
     "high_score_threshold": 7,   # 主观分 ≥ 此值视为「高分/自信」
-    "kill_streak": 2,            # 连续高分答对达到此次数才「已击杀」
+    "revive_intervals_days": [7, 21, 60, 120, 180],  # 到期高分复核后升一档
     # EF 更新
     "ef_cold_attempts": 3,       # 复习次数（含本次）< 此值时冻结 EF（冷启动）
     "ef_up": 0.15,               # 高分答对 EF 增量
@@ -419,9 +421,7 @@ DEFAULT_TUNING = {
     "leech_fail_threshold": 3,   # 最近连续答错次数 ≥ 此值标记为 leech
     "leech_priority_bonus": 0.4,  # leech 在熟练度列表的优先级加成
     "label_bonus_cap": 1.0,       # 用户标记 priority_bonus 的总上限
-    # 已击杀题复燃（见 scheduling.revive_dormant_days）
-    "revive_decay_threshold": 0.2,   # 击杀后衰减到此值以下才复燃（越小休眠越久）
-    "revive_tier_multiplier": 1.8,   # 每多击杀一次，休眠时长乘该系数
+    # 已击杀题到期复核；累计击杀次数不参与排期
     "revive_priority_bonus": 0.3,    # 复燃题在熟练度列表的优先级加成
     "kill_demote_factor": 0.3,       # 复燃后答错时的熟练度降级系数
 }

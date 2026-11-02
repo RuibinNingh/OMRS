@@ -4,7 +4,7 @@ import { createTuning } from '../../assets/app/features/settings/tuning.js';
 import { TUNING_FIELDS, readTuning } from '../../assets/app/features/settings/tuning-state.js';
 
 function harness() {
-  const values = Object.fromEntries(TUNING_FIELDS.map(field => [field.key, field.max === 1 ? 0.5 : Math.max(1, field.min)]));
+  const values = Object.fromEntries(TUNING_FIELDS.map(field => [field.key, field.kind === 'intervals' ? [7, 21, 60, 120, 180] : field.max === 1 ? 0.5 : Math.max(1, field.min)]));
   const cfg = { tuning_effective: values, revision: 4, recalculation: { status: 'unchanged', revision: 4 } };
   const fields = Object.fromEntries([...TUNING_FIELDS.map(field => `st-tuning-${field.key}`), 'st-tuning-status', 'st-tuning-save', 'st-tuning-check', 'st-tuning-card']
     .map(id => [id, { value: '', disabled: true, textContent: '', dataset: {}, setAttribute(name, value) { this[name] = value; } }]));
@@ -26,7 +26,7 @@ test('实际调参控制器冻结完整参数、等待重算且拒绝重复提�
   assert.equal(h.field('high_score_threshold').disabled, true);
   await ctl.save(); assert.equal(writes, 1);
   assert.equal(request.path, '/api/config'); assert.equal(request.options.timeout, 600000);
-  assert.equal(Object.keys(request.body.tuning).length, 19);
+  assert.equal(Object.keys(request.body.tuning).length, TUNING_FIELDS.length);
   assert.equal(request.body.tuning.high_score_threshold, 8);
   release({ ok: true, data: done(request.body.tuning, true) }); await pending;
   assert.match(h.status.textContent, /123 题、456 条反馈，耗时 1.25 秒；配置版本 5/);
@@ -40,12 +40,12 @@ test('参数拒绝与非法输入保留编辑，不刷新为旧配置，也不�
   const h = harness(); let writes = 0;
   const ctl = createTuning(h.root, { read: async () => ({ ok: true, data: h.cfg }),
     write: async () => { writes++; return { ok: false, status: 409, error: { message: '配置已更新' } }; }, reload: async () => assert.fail('不应刷新统计') });
-  await ctl.load(); h.field('kill_streak').value = '1.5'; await ctl.save();
-  assert.equal(writes, 0); assert.match(h.status.textContent, /击杀连对次数必须是整数/);
-  assert.equal(h.field('kill_streak').value, '1.5');
-  h.field('kill_streak').value = '3'; await ctl.save();
+  await ctl.load(); h.field('leech_fail_threshold').value = '1.5'; await ctl.save();
+  assert.equal(writes, 0); assert.match(h.status.textContent, /顽固题连错次数必须是整数/);
+  assert.equal(h.field('leech_fail_threshold').value, '1.5');
+  h.field('leech_fail_threshold').value = '3'; await ctl.save();
   assert.equal(writes, 1); assert.match(h.status.textContent, /参数未保存：配置已更新。输入已保留/);
-  assert.equal(h.field('kill_streak').value, '3');
+  assert.equal(h.field('leech_fail_threshold').value, '3');
   assert.throws(() => readTuning(key => key === 'proficiency_factor' ? '0' : h.cfg.tuning_effective[key]), /必须大于0/);
 });
 
@@ -92,4 +92,24 @@ test('后续配置覆盖与第三方镜像冲突明确显示，仍保留本次�
   assert.match(h.status.textContent, /第三方冲突，两份文件均已保留/);
   assert.equal(h.status.dataset.tone, 'warning');
   assert.equal(h.field('high_score_threshold').value, '8');
+});
+
+test('五档间隔支持中文逗号，拒绝空项和非递增输入，控制器发送数组并核验数组值', async () => {
+  const h = harness(); let sent;
+  const ctl = createTuning(h.root, { read: async () => ({ ok: true, data: h.cfg }),
+    write: async (path, body) => { sent = body.tuning; return { ok: true, data: done({ ...body.tuning, revive_intervals_days: [...body.tuning.revive_intervals_days] }) }; },
+    reload: async () => {} });
+  await ctl.load();
+  for (const value of ['7,21,,120,180', '7,21,60,60,180', '7,21,60,120', '0,21,60,120,180', '7,21,60,120,Infinity']) {
+    h.field('revive_intervals_days').value = value;
+    await ctl.save();
+    assert.equal(sent, undefined);
+    assert.match(h.status.textContent, /五个严格递增的正整数/);
+    assert.equal(h.field('revive_intervals_days').value, value);
+  }
+  h.field('revive_intervals_days').value = '3，10，30，60，120';
+  await ctl.save();
+  assert.deepEqual(sent.revive_intervals_days, [3, 10, 30, 60, 120]);
+  assert.match(h.status.textContent, /历史重算完成/);
+  assert.doesNotMatch(h.status.textContent, /覆盖/);
 });

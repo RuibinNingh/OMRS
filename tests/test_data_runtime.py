@@ -192,9 +192,9 @@ class DataRuntimeTests(unittest.TestCase):
         self.feedback(); self.feedback()
         target = read_commits(self.vault)[-1]["seq"]
         hashes = [c["commit_hash"] for c in read_commits(self.vault)]
-        result = save_config(self.vault, {"tuning": {"kill_streak": 3}, "ai_api_key": "private"})
+        result = save_config(self.vault, {"tuning": {"high_score_threshold": 10}, "ai_api_key": "private"})
         self.assertEqual((result["revision"], result["mirror_pending"]), (2, False))
-        self.assertEqual(result["tuning_effective"]["kill_streak"], 3)
+        self.assertEqual(result["tuning_effective"]["high_score_threshold"], 10)
         self.assertEqual({k: result["recalculation"][k] for k in ("status", "revision", "questions", "feedbacks")},
                          {"status": "complete", "revision": 2, "questions": 1, "feedbacks": 2})
         self.assertGreaterEqual(result["recalculation"]["seconds"], 0)
@@ -216,7 +216,7 @@ class DataRuntimeTests(unittest.TestCase):
         row = mastery_rows(self.vault)[0]
         with patch("omrs.projection_runtime.full_project", side_effect=RuntimeError("故障注入")):
             with self.assertRaises(RuntimeError):
-                save_config(self.vault, {"tuning": {"kill_streak": 3}})
+                save_config(self.vault, {"tuning": {"high_score_threshold": 10}})
         self.assertEqual(load_config(self.vault), previous)
         self.assertEqual(mastery_rows(self.vault)[0], row)
 
@@ -333,20 +333,22 @@ class DataRuntimeTests(unittest.TestCase):
             self.assertFalse(old.is_alive())
             self.assertIsNot(workspace_sync.start_workspace_scanner._thread, old)
 
-    def test_long_correct_streak_preserves_replay_and_representable_due_date(self):
+    def test_same_day_high_scores_preserve_one_cycle_and_replay(self):
         results = process_feedback(self.vault, [{"question_id": "Q1", "is_correct": True, "sub_score": 9} for _ in range(100)])
         row = mastery_rows(self.vault)[0]
         self.assertEqual(row["Attempts"], "100")
-        self.assertEqual(row["Due_Date"], "9999-12-31")
+        self.assertEqual(row["Kill_Count"], "1")
+        self.assertEqual(row["Revive_Stage"], "1")
+        self.assertEqual(int(row["Interval"]), 7)
         self.assertEqual(results[-1]["new_due_date"], row["Due_Date"])
         from omrs.stats import get_stats
-        self.assertEqual(get_stats(self.vault)["items"][0]["next_revive_date"], "9999-12-31")
+        self.assertEqual(get_stats(self.vault)["items"][0]["next_revive_date"], row["Due_Date"])
         rebuild_projection(self.vault, force=True)
         self.assertEqual(mastery_rows(self.vault)[0], row)
 
     def test_tuning_published_snapshot_prevents_replay_on_next_feedback(self):
         initialize(self.vault)
-        save_config(self.vault, {"tuning": {"kill_streak": 3}})
+        save_config(self.vault, {"tuning": {"high_score_threshold": 10}})
         with patch("omrs.projection_runtime.full_project", side_effect=AssertionError("已发布调参不得在普通反馈再次全量重放")):
             self.feedback()
 

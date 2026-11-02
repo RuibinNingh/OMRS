@@ -58,7 +58,7 @@ def iter_mastery_rows(db, include_archived=False, question_ids=None):
     for row in db.execute("SELECT question_id,label FROM question_labels" + identity_filter, identity_args):
         labels.setdefault(row["question_id"], []).append(row["label"])
     rows = db.execute("""SELECT q.*,m.mastery,m.ef,m.attempts,m.high_correct_streak,
-        m.repetition,m.interval_days,m.due_date,m.last_review_at,m.kill_count
+        m.repetition,m.interval_days,m.due_date,m.last_review_at,m.kill_count,m.revive_stage,m.revive_anchor_at
         FROM question_projection q LEFT JOIN mastery_projection m USING(question_id)
         WHERE (? OR q.archived=0)""" + (" AND q.question_id IN (" + ",".join("?" for _ in question_ids) + ")" if question_ids is not None else "") + " ORDER BY q.subject,q.category,q.uid", (int(include_archived), *identity_args))
     for row in rows:
@@ -71,6 +71,7 @@ def iter_mastery_rows(db, include_archived=False, question_ids=None):
             "Repetition": str(row["repetition"] or 0), "Interval": str(row["interval_days"] or 0),
             "Due_Date": row["due_date"] or "", "Last_Review": row["last_review_at"] or "",
             "Kill_Count": str(row["kill_count"] or 0), "Current_Tag": row["current_tag"] or "",
+            "Revive_Stage": str(row["revive_stage"] or 0), "Revive_Anchor": row["revive_anchor_at"] or "",
             "Entry_Date": metadata.get("录入日期", ""), "Created_At": row["created_at"] or "",
             "Knowledge_Tags": "|".join(knowledge.get(row["question_id"], [])),
             "Labels": "|".join(labels.get(row["question_id"], [])), "Suspended": str(row["suspended"]),
