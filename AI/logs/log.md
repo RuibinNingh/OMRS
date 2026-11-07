@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-11-07_export-table-github](2026-11-07_export-table-github.md)：打印表格既有改动提交与 GitHub 推送
 - [2026-11-02_review-algorithm](2026-11-02_review-algorithm.md)：复习算法一次击杀与分档复核
 - [2026-11-02_review-algorithm-deploy](2026-11-02_review-algorithm-deploy.md)：复习算法生产部署与推送
 - [2026-11-02_data-review-progress](2026-11-02_data-review-progress.md)：数据复盘击杀进度与题目明细
@@ -9,6 +10,7 @@
 - [2026-10-29_feedback-session-render](2026-10-29_feedback-session-render.md)：反馈录入同 UID 历史条目导致空白
 - [2026-10-29_feedback-session-render-deploy](2026-10-29_feedback-session-render-deploy.md)：反馈录入空白修复生产发布
 - [2026-10-29_feedback-deploy-docs-check](2026-10-29_feedback-deploy-docs-check.md)：反馈发布文档检查记录纠正
+- [2026-10-29_export-table-widths](2026-10-29_export-table-widths.md)：打印表格列宽与异常行高修复
 - [2026-10-26_mcp-integration-codex-regex](2026-10-26_mcp-integration-codex-regex.md)：MCP 编号正则的 Codex 兼容修复
 - [2026-10-26_mcp-integration-codex-regex-deploy](2026-10-26_mcp-integration-codex-regex-deploy.md)：MCP 编号正则兼容修复生产发布
 - [2026-10-24_review-fixes](2026-10-24_review-fixes.md)：全面审查问题修复与发布

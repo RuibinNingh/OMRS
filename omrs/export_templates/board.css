@@ -56,9 +56,10 @@ body.dragging-cut{cursor:ns-resize;user-select:none;}
 .md-table-wrap{width:100%;padding:3px 0 6px;overflow:hidden}
 .md-table{width:100%;border-collapse:collapse;table-layout:fixed;font-family:var(--sans);font-size:9px;line-height:1.35}
 .md-table th,.md-table td{padding:3px 4px;border:1px solid var(--rule);text-align:left;vertical-align:top;word-break:break-word}.md-table th{background:#f5f1ea;font-weight:700}
-.md-table th:first-child,.md-table td:first-child{width:8%;white-space:nowrap}
-.md-table th:nth-child(2),.md-table td:nth-child(2){width:39%}
-.md-table th:nth-child(3),.md-table td:nth-child(3){width:53%}
+/* 三列表格保留选项与方程式的列宽；其它列数由固定表格布局均分，避免末列被挤成零宽。 */
+.md-table :is(th,td):first-child:nth-last-child(3){width:8%;white-space:nowrap}
+.md-table :is(th,td):nth-child(2):nth-last-child(2){width:39%}
+.md-table :is(th,td):nth-child(3):last-child{width:53%}
 .md-table .math{font-size:.83em;white-space:nowrap}
 .q-text .math,.ans-text .math{font-family:var(--sans);color:inherit;}
 .math.display{display:block;margin:0;padding:3px 0;text-align:center;}

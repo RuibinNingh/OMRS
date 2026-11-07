@@ -6,7 +6,9 @@ import unittest
 
 from playwright.sync_api import sync_playwright
 
-from omrs.exporting import _build_html
+from omrs.boards import create_board
+from omrs.creation import create_question
+from omrs.exporting import _build_html, _text_to_blocks, export_board_html
 from tests.browser_runtime import launch_chromium
 
 
@@ -119,6 +121,59 @@ class A4PrintSmokeTest(unittest.TestCase):
         self.page.set_viewport_size({"width": 780, "height": 900})
         self.page.wait_for_function("old => " + PLACEMENT + " !== old", arg=placement)
         self.assertGreaterEqual(self.assert_complete(), initial)
+
+    def test_tables_keep_every_column_visible_in_screen_and_print(self):
+        """多列表格不能把末列挤成零宽、逐字换行后撑高整表。"""
+        headers = ["时刻", "A 球位移 $s_A$", "B 球净下降位移 $s_B$",
+                   "相对追回距离 $s_A-s_B$", "B 球状态", "说明"]
+        rows = [[f"${n}t$", f"${n*n}h$", "$h$" if n % 2 else "$0$",
+                 f"${n*n-n%2}h$", "落地、反弹" if n % 2 else "最高点", "合成数据"]
+                for n in range(9)]
+        for mode in ("a4-double", "a4-single", "board"):
+            for columns in range(1, 7):
+                with self.subTest(mode=mode, columns=columns):
+                    source = "\n".join("| " + " | ".join(row[:columns]) + " |"
+                                       for row in [headers, ["---"] * len(headers), *rows])
+                    if mode == "board":
+                        with tempfile.TemporaryDirectory(prefix="omrs-table-vault-") as vault:
+                            question = create_question(vault, subject="物理", category="合成测试", difficulty=5,
+                                                       question_text=source, answer_text=source)
+                            board = create_board(vault, "表格回归", [question["uid"]])
+                            html = export_board_html(vault, board["id"], include_answers=True)
+                        path = Path(self.folder.name) / "board.html"
+                        path.write_bytes(html)
+                        self.page.emulate_media(media=None)
+                        self.page.goto(path.as_uri())
+                        self.page.wait_for_function("document.documentElement.dataset.omrsLayoutReady === '1'")
+                        self.assertEqual(self.page.evaluate("window.OMRS_LAYOUT.warnings"), [])
+                    else:
+                        data = fixture(mode == "a4-double")
+                        question = {**data["questions"][0], "blocks": _text_to_blocks(self.folder.name, source)}
+                        data.update(questions=[question], answers=[question])
+                        self.load(data)
+                        self.assertEqual(self.page.evaluate("window.__OMRS_RESULT.errors"), [])
+                    for media in ("screen", "print"):
+                        self.page.emulate_media(media=media)
+                        tables = self.page.evaluate("""() => [...document.querySelectorAll('.md-table')].map(table => {
+                          const wrap = table.parentElement.getBoundingClientRect();
+                          return {height: table.getBoundingClientRect().height,
+                            rows: [...table.rows].map(row => [...row.cells].map(cell => {
+                              const r = cell.getBoundingClientRect();
+                              return {width: r.width, clipped: r.left < wrap.left - 1 || r.right > wrap.right + 1,
+                                overflow: cell.scrollWidth > cell.clientWidth + 1};
+                            }))};
+                        })""")
+                        self.assertEqual(len(tables), 2, media)
+                        for table in tables:
+                            self.assertLess(table["height"], 300, (media, table))
+                            self.assertEqual(len(table["rows"]), 10)
+                            for cells in table["rows"]:
+                                self.assertEqual(len(cells), columns)
+                                for cell in cells:
+                                    self.assertGreater(cell["width"], 20, (media, cell))
+                                    self.assertFalse(cell["clipped"] or cell["overflow"], (media, cell))
+                    self.assertEqual(self.errors, [])
+                    self.assertEqual(self.network, [])
 
     def test_oversized_formula_reports_failure_instead_of_clipping(self):
         data = fixture()
