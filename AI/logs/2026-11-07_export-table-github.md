@@ -2,7 +2,7 @@
 
 > **任务**
 > - 标识：export-table-github
-> - 状态：进行中
+> - 状态：已交付
 
 ## 背景
 
@@ -33,9 +33,11 @@ A4 与展示板只有恰好三列的表格采用 `8% / 39% / 53%`，其它列数
 - `python3 tests/check_ui.py`：五类计数均为零；`python3 tests/check_contrast.py`：58 组通过。
 - `validation.json` 的 JSON 解析通过；`git diff --check` 通过。提交前已复核 `git diff --name-status` 与全部既有差异。
 - `python3 tests/check_docs.py --write-log-index` 已生成索引；`python3 tests/check_docs.py --diff HEAD` 在补日志前后均为157份文档、零问题、3条既有大文件提醒，退出码均为零。
+- `cf9fa76`（v2.9.0，版本未变）：提交打印表格列宽修复、原有维护清单删除及相应测试、文档与日志，共11个文件。
+- `git push -u origin HEAD:refs/heads/codex/data-review-progress` 成功；随后 `git ls-remote --heads origin refs/heads/codex/data-review-progress refs/heads/main` 确认远端当前分支为 `cf9fa768f8a7ae84188fbed09b2fd01449e4eaa1`，与本地HEAD一致，远端main仍为原基线 `b7e1f07`。推送后工作区干净。
 
 ## 未执行验证
 
 全仓后端、Node 与组件全集未重跑：仅提交已实现的打印 CSS 修复，已复验对应导出及真实页面链路。Windows Edge 实机与物理打印机不在当前 Linux 环境中；生产部署、服务重启和真实题库操作未执行。
 
-提交与 GitHub 推送待门禁最终通过后执行，完成结果继续记入本日志。
+本次修复已提交并推送，后续仅补本段推送回执的文档提交并同步同一远端分支；最终分支哈希与工作区状态在交付时再次核对。下一步是按需在GitHub审阅当前分支；本次未创建PR或修改生产部署。
