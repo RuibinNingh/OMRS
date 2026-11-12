@@ -286,7 +286,8 @@ SPECS = [
     ("update_question_section", "confirm", "改一道题的「题目」「答案」或「错因」这一节（替换或追加）。可用diagrams新增或替换静态SVG配图，原图保留供历史恢复。只配图时用mode=append、content为空以保留原文字。配图按90mm双栏设计，白底、文字至少8.5pt、线宽至少0.5pt、高不超过90mm；复杂内容拆图。需要用户审核图意与修改后允许。",
      {"type": "object", "required": ["uid", "section", "content"], "properties": {
          "uid": _UID, "section": {"type": "string", "enum": list(SECTIONS)},
-         "mode": {"type": "string", "enum": ["replace", "append"]}, "content": _S,
+         "mode": {"type": "string", "enum": ["replace", "append"]},
+         "content": {"type": "string", "description": "正文文字；仅mode=append且提供diagrams时可为空，以保留原文字"},
          "diagrams": {"type": "array", "minItems": 1, "maxItems": 3, "items": {
              "type": "object", "required": ["section", "svg"], "additionalProperties": False,
              "properties": {"section": {"type": "string", "enum": ["题目", "答案"]},

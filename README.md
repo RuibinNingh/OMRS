@@ -355,7 +355,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 配图按90mm双栏宽设计，文字至少8.5pt、线宽至少0.5pt；建议高30–70mm，超过90mm拆图。长解释写正文，图内只放短标注；系统检查尺寸并提示密度，图意与标注遮挡仍需核对。打印整图换栏，栏宽不足会明确报错。完整格式与边界见 [SVG规范](AI/question-svg.md)。
 
-AI新增或替换配图走现有改题审核，确认时可看当前图和新图。AI读取SVG时派生PNG，需要可选Playwright及Chromium；安装方式为 `python -m pip install playwright`、`python -m playwright install chromium`。网页与向量HTML导出不需要此转换。
+AI新增或替换配图走现有改题审核，可以只更新配图并保留正文，确认时可看当前图和新图。AI读取SVG时派生PNG，需要可选Playwright及Chromium；安装方式为 `python -m pip install playwright`、`python -m playwright install chromium`。网页与向量HTML导出不需要此转换。
 
 ## 错题导出
 

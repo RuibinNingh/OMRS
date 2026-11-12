@@ -282,10 +282,14 @@ def prepare_agent(vault, tool, args):
             raise ValueError('不支持的题目分节或编辑方式')
         text = args.get('content', '')
         validate_patch({field: text})
-        old = editable_values(content)[field]
-        if args.get('mode') == 'append' and old:
-            text = old + '\n\n' + text.strip()
-        patch = {field: text}
+        if not text.strip() and (args.get('mode') != 'append' or not args.get('diagrams')):
+            raise ValueError('content 不能为空；仅追加 SVG 配图时允许空正文')
+        patch = {}
+        if text.strip():
+            old = editable_values(content)[field]
+            if args.get('mode') == 'append' and old:
+                text = old + '\n\n' + text.strip()
+            patch[field] = text
         if args.get('diagrams'):
             patch['diagrams'] = args['diagrams']
     elif tool == 'set_knowledge_points':
@@ -308,9 +312,9 @@ def apply_agent(vault, row, ctx=None):
     result = apply_update(vault, row)
     preview = row.get('preview') or {}
     if row['tool'] == 'update_question_section':
-        field = next(iter(row['payload']['patch']))
+        field = {'题目': 'question_text', '答案': 'answer_text', '错因': 'cause'}.get(preview.get('section'))
         result = {**result, 'section': preview.get('section'), 'before': preview.get('before', ''),
-                  'after': result['fields'][field]}
+                  'after': result['fields'].get(field, preview.get('after', ''))}
     elif row['tool'] == 'set_knowledge_points':
         after = result['fields']['knowledge_points']
         result = {**result, 'before': preview.get('before', []), 'after': after, 'points': after}

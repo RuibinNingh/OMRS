@@ -89,6 +89,30 @@ class AgentReviewTests(unittest.TestCase):
         self.assertEqual(len(changes), 1)
         self.assertEqual(changes[0]['payload']['_agent']['tool_call_id'], self.call['id'])
 
+    def test_diagram_only_request_passes_schema_and_waits_for_approval(self):
+        from omrs.agent.loop import validate_args
+        from omrs.question_update import editable_values
+        from tests.test_question_svg import diagram
+        args = {'uid': self.question['uid'], 'section': '答案', 'mode': 'append', 'content': '',
+                'diagrams': [{'section': '答案', 'svg': diagram().decode()}]}
+        self.assertEqual(validate_args(self.registry.get('update_question_section').schema, args), '')
+        before = get_question_raw(self.vault, self.question['uid'])['markdown']
+        row = self.start(args=args)
+        self.assertEqual(row['preview']['changes'], [])
+        self.assertEqual(len(row['preview']['diagrams']), 1)
+        self.assertEqual(get_question_raw(self.vault, self.question['uid'])['markdown'], before)
+        self.assertFalse(os.path.exists(os.path.join(self.vault, '错题', '附件')))
+        self.rt.confirm(self.run.id, self.call['id'], self.pc.token, 'allow')
+        self.finish()
+        self.assertEqual(ai_review.get(self.vault, row['operation_id'])['status'], 'applied')
+        after = editable_values(get_question_raw(self.vault, self.question['uid'])['markdown'])
+        self.assertEqual(after['question_text'], editable_values(before)['question_text'])
+        self.assertEqual(after['answer_text'].split('![[', 1)[0].strip(), '原答案')
+        self.assertIn('.svg]]', after['answer_text'])
+        self.assertEqual(self.results[0]['result']['after'], after['answer_text'])
+        self.assertEqual(sum(c['payload'].get('_agent', {}).get('run_id') == self.run.id
+                             for c in read_commits(self.vault)), 1)
+
     def test_center_and_chat_race_publish_one_business_commit(self):
         row = self.start()
         barrier = threading.Barrier(3)

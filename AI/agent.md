@@ -95,6 +95,8 @@ SSE 按 Responses 事件解析文字、拒答、推理摘要与工具参数增�
 
 写入：`create_review_session`、`create_practice_card`、`set_question_labels`（只能用已有标记，单次 ≤50 题，每题一条 `question.metadata_update`）、`update_question_section`（替换或追加；替换时原有图片嵌入保留）、`set_knowledge_points`、`move_question`、`suspend_question`、`resume_question`、`record_feedback`（带 `session_id` 时题目必须在该 Session 的待反馈列表里）。
 
+`update_question_section` 仅更新 SVG 配图时使用 `mode=append`、空 `content` 与非空 `diagrams`；工具参数校验允许该组合，领域校验仍拒绝其它空正文请求。此时有效补丁只有配图，确认详情展示新旧图，不生成未变正文的重复差异；执行结果的 `before/after` 仍为对应分节文字，含最终图片引用。
+
 `get_overview` 指定科目时，题数、停用、逾期、今日到期、顽固、击杀、未练、平均熟练度、薄弱分类、顽固题明细与摘要均使用相同科目范围。未知科目返回零计数与空明细；空科目保持全局。全体平均以未停用题为分母，使用原始熟练度最后舍入；薄弱分类仍只平均已练题。
 
 `create_practice_card` 接受标题与 1–50 个已入库题目的 UID，服务端核对题目未删除、未停用并去重，再把稳定 `question_id`、当时 UID 和来源按题序存成 `schema_version:1` 卡片。卡片归属由运行上下文给出，模型不能指定对话、运行或调用 ID。建卡只写 `agent.db`，计入助手写入预算，不创建正式 Session、不改变练习次数；真实反馈由即时练习页提交。卡片详情、签发 attempt 和进度接口见 `AI/api.md`。

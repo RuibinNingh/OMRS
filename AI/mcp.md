@@ -100,6 +100,8 @@ get_question_image.uid、get_session.session_id、create_review_session.request_
 
 `propose_question_update` 需要 omrs:read + question:propose，参数为 uid、question_id、expected_content_hash、patch、必填非空 reason（1–2000 字符）、request_id。patch 允许 question_text、answer_text、cause、note、knowledge_points、difficulty、labels及diagrams。diagrams以受限静态SVG源码新增或替换配图，具体结构、双栏规范与历史保留见 `AI/question-svg.md`；不开放学习状态、路径或整篇Markdown写入。修改原因使用 reason 参数；详情与安全写入见 `AI/ai-review.md` 与 `AI/ledger.md`。
 
+仅更新配图时，MCP 的 patch 只需 `diagrams`；内置助手的追加模式和空正文也转换成同样的配图补丁。两者共用配图预览和审批执行，未改动的文字不形成重复正文差异。
+
 工具不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在直接正式建题、直接提交/丢弃草稿、反馈、未经审核的题目修改、Session 删除或设置写入、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
 
 每次协议请求和领域调用重新验证 Key；草稿创建在下载及等锁之后、实际写入前复查，URL 快速复用、inline 处理后复用及新建都在结果封装前再次校验 `draft:create`。处理中吊销、到期或权限变化返回 `forbidden`，已有合法提交仍保留。`tools/list` 按当前 Key 的实时 scope 返回上表允许的工具；过滤只作用于当前请求的描述，完整注册表保持，SDK 共享定义缓存不承担授权；直接点名隐藏工具仍拒绝。`错题/.omrs/mcp_keys.json` 仅保存 SHA-256 摘要和非秘密元数据，0600；线程锁和操作系统文件锁共同避免本机 CLI 与 Web 的创建/吊销/最近使用时间互相覆盖。Key 管理响应禁止缓存。

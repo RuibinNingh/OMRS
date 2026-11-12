@@ -155,16 +155,29 @@ finally:
             self.assertFalse((Path(self.vault)/'错题'/'附件').exists())
 
     def test_agent_diagram_only_append_preserves_text_and_images(self):
+        from omrs.agent.loop import validate_args
+        from omrs.agent.tools import build_registry
         q = create_question(self.vault, '物理', '力学', 5, question_text='原题面', answer_text='原答案')
-        prepared = question_update.prepare_agent(self.vault, 'update_question_section', {
+        args = {
             'uid': q['uid'], 'section': '答案', 'mode': 'append', 'content': '',
-            'diagrams': [{'section': '答案', 'svg': diagram().decode()}]})
-        self.assertEqual(prepared['payload']['patch']['answer_text'].strip(), '原答案')
+            'diagrams': [{'section': '答案', 'svg': diagram().decode()}]}
+        tool = build_registry().get('update_question_section')
+        self.assertEqual(validate_args(tool.schema, args), '')
+        prepared = question_update.prepare_agent(self.vault, tool.name, args)
+        self.assertNotIn('answer_text', prepared['payload']['patch'])
+        self.assertEqual(prepared['preview']['changes'], [])
         final = question_update.patch_content((Path(self.vault)/q['file_path']).read_text(), prepared['payload']['patch'])
         self.assertIn('原题面', final)
         self.assertIn('原答案', final)
         self.assertEqual(len(prepared['preview']['diagrams']), 1)
         self.assertFalse((Path(self.vault)/'错题'/'附件').exists())
+
+    def test_agent_empty_text_requires_diagram_only_append(self):
+        q = create_question(self.vault, '物理', '力学', 5, question_text='保留题面')
+        for mode, diagrams in [('append', []), ('replace', []), ('replace', [{'section': '题目', 'svg': diagram().decode()}])]:
+            with self.subTest(mode=mode, diagrams=bool(diagrams)), self.assertRaisesRegex(ValueError, 'content 不能为空'):
+                question_update.prepare_agent(self.vault, 'update_question_section', {
+                    'uid': q['uid'], 'section': '题目', 'mode': mode, 'content': '  ', 'diagrams': diagrams})
 
     def test_changed_replacement_source_conflicts_before_saving(self):
         q = create_question(self.vault, '物理', '力学', 5, question_text='分析受力\n![[manual.svg]]')
