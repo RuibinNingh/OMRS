@@ -6,7 +6,7 @@ import { icon } from '../../ui/icon.js';
 import { labelChips } from '../../domain/labels/index.js';
 
 const IMAGE_FIELDS = [
-  { kind: 'q', title: '题目截图', hint: '拖入、点击，或 Ctrl / ⌘ + V 粘到此', ai: [
+  { kind: 'q', title: '题目截图', hint: '支持截图或静态 SVG 配图；可拖入、选择或粘贴', ai: [
     { action: 'classify', id: 'cr-classify-btn', label: '识别题目信息' },
     { action: 'questionText', id: 'cr-question-text-btn', label: '提取题目文本' },
   ] },
@@ -26,7 +26,7 @@ export function imageThumbs(images, kind) {
 function imageField(field, state) {
   const kind = field.kind;
   const body = html`<div class="crw-shot__body">
-    ${filedrop({ id: `cr-${kind}-file`, title: '拖入、点击或拍照选择图片', hint: field.hint, accept: 'image/*', multiple: true })}
+    ${filedrop({ id: `cr-${kind}-file`, title: '拖入、点击或拍照选择图片', hint: field.hint, accept: 'image/*,.svg', multiple: true })}
     <div class="crw-thumbs" id="cr-${kind}-images"${state.images[kind].length ? '' : html` hidden`}>${imageThumbs(state.images[kind], kind)}</div>
     <div class="crw-shot__actions">
       ${button({ label: `从剪贴板读取到「${kind === 'q' ? '题目' : '答案'}」`, icon: 'copy', action: 'create.readImage', arg: kind })}
@@ -66,7 +66,7 @@ export function quickView(state) {
     <div class="crw-columns">
       <section class="crw-pane crw-pane--shots" aria-label="截图工作区"><h2>截图工作区</h2>
         ${IMAGE_FIELDS.map(field => imageField(field, state))}
-        <p class="crw-help">点击图片区会切换粘贴目标；题目图可提取题面与分类，答案图可提取解析。识别结果仍可手动核对。</p>
+        <p class="crw-help">点击图片区会切换粘贴目标；题目图可提取题面与分类，答案图可提取解析。SVG按90mm双栏检查，文字至少8.5pt、图高不超过90mm；请核对图意和标注位置。</p>
       </section>
       <section class="crw-pane" aria-label="题卡内容"><h2>题卡内容</h2>
         <div class="crw-fields-pair">

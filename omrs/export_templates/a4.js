@@ -93,7 +93,7 @@
     return { keepNext: true, build: () => { const e = el("div", "blk q-head"); e.innerHTML = '<span class="no">第 ' + a.idx + ' 题</span><span class="uid">[' + esc(a.uid) + ']</span>'; return e; } };
   }
   function noteBlock(k, v) { return { build: () => { const e = el("div", "blk q-note"); e.innerHTML = "<b>" + k + "：</b>"; mathText(e, v); return e; } }; }
-  function imgBlock(b, label, firstOfQ) { return { kind: "image", src: b.img.src, imgEl: imgMap.get(b.img.src), label: label, keepNextHeader: !!firstOfQ }; }
+  function imgBlock(b, label, firstOfQ) { return { kind: "image", src: b.img.src, svg: b.img.svg, imgEl: imgMap.get(b.img.src), label: label, keepNextHeader: !!firstOfQ }; }
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
   function buildBlocks() {

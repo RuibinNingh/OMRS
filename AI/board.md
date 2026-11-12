@@ -366,3 +366,7 @@ MCP导出仅生成独立不可变HTML快照，不改变printed、打印历史或
 ## 审计修复契约
 
 展示板有稳定 question_id 时不回退 UID；移动、删除和 UID 复用后仍引用原题，缺失题只读且不参与导出。新的 create/add/remove 请求接受 question_refs，ID与UID同时给出必须一致；摘要返回 question_ids，加题回执返回 added_question_ids，撤销及换板按实际新增身份执行。旧 UID remove 按当前解析结果匹配，纸面记录接受原题的当前 UID。回归为 `tests/test_board_identity.py`；全库生命周期见 `AI/backup.md`。
+
+## 静态 SVG 题图
+
+SVG使用原生题目附件引用，展示板保留向量并整图换页，不沿用截图切片。题栏宽度受右侧留白比例影响，实际字号或线宽不足时明确失败；减小右侧留白比例可恢复可用宽度。失败版面为null，宿主测量与记录不接受该版面。双栏和附件规范见 `AI/question-svg.md`。

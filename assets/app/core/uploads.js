@@ -32,7 +32,7 @@ export async function uploadImage(value, { purpose = 'image', filename, signal, 
   }
   const done = need(await send('/api/uploads/complete', { upload_id: started.upload_id }, opts));
   if (!done.upload_ref || Number(done.bytes) !== blob.size) throw new Error('服务器返回的图片大小不一致');
-  return { upload_ref: done.upload_ref };
+  return { upload_ref: done.upload_ref, ...(done.svg ? { svg: done.svg } : {}) };
 }
 
 /** 旧小图内联兼容；超过 1MiB 的 base64 自动转引用，避免大 JSON 与重复编码。 */

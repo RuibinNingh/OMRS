@@ -13,7 +13,7 @@ from .mcp.common import fingerprint
 from .vault_lifecycle import generation, storage
 
 FIELDS = {'question_text': '题目', 'answer_text': '答案', 'cause': '错因', 'note': '补充备注',
-          'knowledge_points': '知识点', 'difficulty': '难度', 'labels': '标记'}
+          'knowledge_points': '知识点', 'difficulty': '难度', 'labels': '标记', 'diagrams': 'SVG配图'}
 _H1 = re.compile(r'^#\s+([^\r\n]+)(?:\r?\n|$)', re.M)
 _H2 = re.compile(r'^##(?!#)[ \t]*([^\r\n]+)(?:\r?\n|$)', re.M)
 _IMAGES = re.compile(r'!\[\[[^\]\r\n]+\]\]|!\[(?:\\.|[^\]\\\r\n])*\]\((?:\\.|[^()\\\r\n]|\((?:\\.|[^()\\\r\n])*\))*\)')
@@ -96,6 +96,10 @@ def validate_patch(patch):
         raise ValueError('patch 必须是非空的可编辑字段补丁')
     clean = {}
     for key, value in patch.items():
+        if key == 'diagrams':
+            from .question_diagrams import validate
+            clean[key] = validate(value)
+            continue
         if key == 'difficulty':
             if type(value) is not int or not 1 <= value <= 10:
                 raise ValueError('难度必须是 1 到 10 的整数')
@@ -186,6 +190,8 @@ def patch_content(content, patch):
     patch = validate_patch(patch)
     values = editable_values(content)
     for field, value in patch.items():
+        if field == 'diagrams':
+            continue
         if value == values[field]:
             continue
         if field in ('question_text', 'answer_text', 'cause', 'note'):
@@ -194,6 +200,9 @@ def patch_content(content, patch):
             key = {'knowledge_points': '相关知识点', 'labels': '标记', 'difficulty': '难度'}[field]
             saved = [f'[[{v}]]' for v in value] if field == 'knowledge_points' else value
             content = _replace_yaml(content, key, saved)
+    if patch.get('diagrams'):
+        from .question_diagrams import apply
+        content = apply(content, patch['diagrams'])
     return content
 
 
@@ -221,11 +230,14 @@ def prepare_update(vault, uid, question_id, expected_content_hash, patch, reason
     final = patch_content(content, patch)
     before, after = editable_values(content), editable_values(final)
     changes = [{'field': k, 'label': FIELDS[k], 'before': before[k], 'after': after[k],
-                'kind': 'list' if isinstance(after[k], list) else 'number' if k == 'difficulty' else 'text'} for k in patch]
+                'kind': 'list' if isinstance(after[k], list) else 'number' if k == 'difficulty' else 'text'} for k in patch if k != 'diagrams']
     payload = {'uid': row['uid'], 'question_id': question_id, 'expected_content_hash': expected_content_hash, 'patch': patch, 'reason': reason}
     preview = {'title': f"修改题目 {row['uid']}", 'summary': '、'.join(FIELDS[k] for k in patch), 'changes': changes, 'reason': reason}
     snapshot = {'question_id': question_id, 'uid': row['uid'], 'file_path': row['file_path'],
                 'content_hash': expected_content_hash, 'generation': generation(vault)}
+    if patch.get('diagrams'):
+        from .question_diagrams import preview as diagram_preview
+        preview['diagrams'], snapshot['diagram_sources'] = diagram_preview(vault, patch['diagrams'])
     return payload, preview, snapshot
 
 
@@ -274,6 +286,8 @@ def prepare_agent(vault, tool, args):
         if args.get('mode') == 'append' and old:
             text = old + '\n\n' + text.strip()
         patch = {field: text}
+        if args.get('diagrams'):
+            patch['diagrams'] = args['diagrams']
     elif tool == 'set_knowledge_points':
         patch = {'knowledge_points': args.get('points')}
     else:

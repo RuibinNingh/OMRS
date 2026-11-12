@@ -148,3 +148,7 @@ extract 用途先检查模型 finish_reason；length/max_tokens 表示长度截�
 启动先补齐有 Ledger 回执的题卡；预留原图尚未冻结且无创建事实时保留预留，返回 `awaiting_images` 供原内容重传，扫描跳过这些预留身份。身份、正文或已有产物矛盾时停止，禁止猜测和覆盖。旧题卡只保存 UID 而无法证明稳定身份时返回 `identity_unresolved`，不会按可能被复用的 UID 打开另一题，也不会重复创建。
 
 回归命令：`python3 -m unittest tests.test_inbox_atomic_commit tests.test_inbox -q`。并发重试、每个持久化步骤故障、丢响应、提交后进程中断、reset 防护、标记保留与清空均调用真实模块和临时存储。全库一致性与后台世代见 `AI/backup.md`。
+
+## 快速录入的静态配图
+
+快速录入可选择静态SVG并通过create用途暂存检查，保留原件及原生Obsidian引用，规范见 `AI/question-svg.md`。本入口不把SVG送进截图框选、原件裁图或训练数据集；收件箱原件契约保持PNG/JPEG/GIF。独立识别器遇到已验证SVG输入时仅为模型派生PNG，不改正式附件。

@@ -283,10 +283,15 @@ SPECS = [
      {"type": "object", "required": ["uids"], "properties": {"uids": {"type": "array", "minItems": 1, "maxItems": 50, "items": _UID},
                                                           "add": {"type": "array", "items": _S}, "remove": {"type": "array", "items": _S}}},
      set_question_labels, set_question_labels_preview),
-    ("update_question_section", "confirm", "改一道题的「题目」「答案」或「错因」这一节（替换或追加）。需要用户在界面上点允许；原有图片会保留。",
+    ("update_question_section", "confirm", "改一道题的「题目」「答案」或「错因」这一节（替换或追加）。可用diagrams新增或替换静态SVG配图，原图保留供历史恢复。只配图时用mode=append、content为空以保留原文字。配图按90mm双栏设计，白底、文字至少8.5pt、线宽至少0.5pt、高不超过90mm；复杂内容拆图。需要用户审核图意与修改后允许。",
      {"type": "object", "required": ["uid", "section", "content"], "properties": {
          "uid": _UID, "section": {"type": "string", "enum": list(SECTIONS)},
-         "mode": {"type": "string", "enum": ["replace", "append"]}, "content": _S}},
+         "mode": {"type": "string", "enum": ["replace", "append"]}, "content": _S,
+         "diagrams": {"type": "array", "minItems": 1, "maxItems": 3, "items": {
+             "type": "object", "required": ["section", "svg"], "additionalProperties": False,
+             "properties": {"section": {"type": "string", "enum": ["题目", "答案"]},
+                            "svg": {"type": "string", "description": "完整静态SVG源码，须有viewBox、title及首个铺满画布的白底rect；图内只放短标注"},
+                            "replace": {"type": "string", "description": "可选：所属章节已有SVG文件名；省略为新增，不接受路径或截图"}}}}}},
      update_question_section, update_question_section_preview),
     ("set_knowledge_points", "confirm", "把一道题的知识点整体设为给定列表。需要用户允许。",
      {"type": "object", "required": ["uid", "points"], "properties": {"uid": _UID, "points": {"type": "array", "maxItems": 12, "items": _S}}},

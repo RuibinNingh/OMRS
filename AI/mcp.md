@@ -98,7 +98,7 @@ get_question_image.uid、get_session.session_id、create_review_session.request_
 
 原有十个查询工具为：`list_taxonomy`、`search_questions`、`get_question`、`get_question_image`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。七个学习数据查询直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
 
-`propose_question_update` 需要 omrs:read + question:propose，参数为 uid、question_id、expected_content_hash、patch、必填非空 reason（1–2000 字符）、request_id。patch 允许 question_text、answer_text、cause、note、knowledge_points、difficulty、labels；不开放学习状态、路径、整篇 Markdown 或附件修改。修改原因使用 reason 参数；详情与安全写入见 `AI/ai-review.md` 与 `AI/ledger.md`。
+`propose_question_update` 需要 omrs:read + question:propose，参数为 uid、question_id、expected_content_hash、patch、必填非空 reason（1–2000 字符）、request_id。patch 允许 question_text、answer_text、cause、note、knowledge_points、difficulty、labels及diagrams。diagrams以受限静态SVG源码新增或替换配图，具体结构、双栏规范与历史保留见 `AI/question-svg.md`；不开放学习状态、路径或整篇Markdown写入。修改原因使用 reason 参数；详情与安全写入见 `AI/ai-review.md` 与 `AI/ledger.md`。
 
 工具不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在直接正式建题、直接提交/丢弃草稿、反馈、未经审核的题目修改、Session 删除或设置写入、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
 
@@ -110,11 +110,11 @@ get_question_image.uid、get_session.session_id、create_review_session.request_
 
 ### 按需读取题图
 
-get_question_image(uid, image_index) 必须提供非空 UID（去首尾空白、最多 200 字符）和从 0 开始的严格整数下标；布尔值、小数、字符串和额外参数拒绝。先调用共享 get_question 并按其 images[] 当前顺序选图，包含题目与答案图片，不从已截断正文重新提取。每次重新定位，不缓存图片或授权。
+get_question_image(uid, image_index) 必须提供非空 UID（去首尾空白、最多 200 字符）和从 0 开始的严格整数下标；布尔值、小数、字符串和额外参数拒绝。先调用共享 get_question 并按其 images[] 当前顺序选图，包含题目与答案图片，不从已截断正文重新提取。每次重新定位并复查授权；SVG派生PNG可按内容使用进程内有界缓存，缓存不替代附件与权限校验。
 
 get_question 与 get_draft 保持正文、图片引用及元数据输出，不自动附加图片内容。正式题图需单独调用 get_question_image，不能用草稿编号代替 UID；草稿原图由 get_draft_image 单独提供。外部客户端须刷新工具清单并启用新工具；ChatGPT 的应用详情支持刷新工具、描述与服务端 instructions，必要时在提示中明确指定工具名和参数顺序。
 
-工具需要 omrs:read，在线程内完成受限附件读取与完整解码；读取前和返回前复查实时权限。成功仅返回一个原生 ImageContent，MIME 根据实际原件确认为 image/png、image/jpeg 或 image/gif；SDK 只做 Base64 封装，不返回图片 JSON、服务器路径或下载链接。读取允许的文件树、大小和像素保护见下方领域说明。
+工具需要 omrs:read，在线程内完成受限附件读取与完整解码；读取前和返回前复查实时权限。成功仅返回一个原生 ImageContent；PNG/JPEG/GIF保持原件及实际MIME，SVG经规范验证后返回image/png派生图，正式SVG保持不变，转换依赖见 `AI/question-svg.md`。SDK只做Base64封装，不返回图片 JSON、服务器路径或下载链接。读取允许的文件树、大小和像素保护见下方领域说明。
 
 注解为 readOnlyHint=true、destructiveHint=false、idempotentHint=true、openWorldHint=false，显式使用非结构化图片输出。schema/严格参数模型拒绝非法输入时返回 invalid_arguments；题目不存在、无图、越界、缺失、歧义、格式无效和容量超限返回 invalid_request 及可区分中文说明，OS 异常不回显本地路径。该工具只在 MCP 注册，不加入内置助手注册表。
 
@@ -180,7 +180,7 @@ create_draft 成功只表示待审核，返回 draft_id/revision/status/source_i
 
 ### 原字节校验与题图领域读取
 
-完整解码校验集中在 omrs/question_images.py 的 validate_original_image，上传与题图读取共用 PNG/JPEG/GIF、8 MiB、4000 万累计像素及 100 帧边界。Pillow 延迟导入，校验返回原字节；截断或损坏的像素流统一拒绝。
+位图完整解码校验集中在 omrs/question_images.py 的 validate_original_image，上传与题图读取共用 PNG/JPEG/GIF、8 MiB、4000 万累计像素及 100 帧边界。正式SVG附件采用独立静态检查及PNG派生读取，规则见 `AI/question-svg.md`。Pillow 延迟导入，校验返回原字节；截断或损坏的像素流统一拒绝。
 
 read_question_image 按共享 get_question.images 的当前下标读取题目/答案附件，定位仅限错题/附件及普通子目录；拒绝符号链接、重解析点、非普通文件、同名歧义及读取期间文件变化，不解码 URL 或回退到其它路径。目录文件描述符与文件身份核对保护读取边界，最多读取上限加一个字节。
 

@@ -310,7 +310,7 @@ def prepare_import(vault, payload, filename="backup.zip"):
         count = len(build_index(staging))
         preview = {"filename": os.path.basename(filename), "files": len(entries), "bytes": total,
                    "md_files": sum(info.filename.lower().endswith(".md") for info in entries),
-                   "image_files": sum(os.path.splitext(info.filename)[1].lower() in {".png", ".jpg", ".jpeg", ".gif"} for info in entries),
+                   "image_files": sum(os.path.splitext(info.filename)[1].lower() in {".png", ".jpg", ".jpeg", ".gif", ".svg"} for info in entries),
                    "has_attachments": any(info.filename.startswith("错题/附件/") for info in entries),
                    "manifest_verified": has_manifest, "question_count": count}
         durable = _tree_digest(os.path.join(staging, "错题"), sync=True)

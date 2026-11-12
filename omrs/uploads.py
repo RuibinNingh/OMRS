@@ -185,12 +185,19 @@ def complete(vault, upload_id, sha256=None, owner=None):
             actual_mime = ("image/png" if prefix.startswith(b"\x89PNG\r\n\x1a\n") else
                            "image/jpeg" if prefix.startswith(b"\xff\xd8\xff") else
                            "image/gif" if prefix.startswith((b"GIF87a", b"GIF89a")) else None)
+            if actual_mime is None and state['purpose'] == 'create':
+                from .question_svg import inspect, MAX_BYTES
+                with _open_content(target) as source:
+                    info = inspect(source.read(MAX_BYTES + 1))
+                actual_mime = info['mime']
+                state['svg'] = info
             if actual_mime is None:
                 raise ValueError("暂存图只支持 PNG / JPEG / GIF")
             state["mime"] = actual_mime
         state.update(complete=True, sha256=actual)
         _save(directory, state)
         return {"upload_ref": upload_id, "bytes": state["bytes"], "mime": state["mime"],
+                **({'svg': state['svg']} if state.get('svg') else {}),
                 "sha256": actual, "filename": state["filename"], "expires_at": state["expires_at"]}
 
 

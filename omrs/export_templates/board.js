@@ -266,8 +266,21 @@
     }
     function placeImage(b) {
       const im = b.imgEl;
-      if (!im || !im.naturalWidth) { warnings.push("「" + (b.q ? b.q.uid : "?") + "」有一张图片无法解码，已跳过"); return; }
+      if (!im || !im.naturalWidth) {
+        if (b.svg) throw new Error('SVG配图无法解码，请修复后重新导出。');
+        warnings.push("「" + (b.q ? b.q.uid : "?") + "」有一张图片无法解码，已跳过"); return;
+      }
       const naturalW = im.naturalWidth, naturalH = im.naturalHeight;
+      if (b.svg) {
+        const width = Math.min(COL_W, 90 * MM), ratio = width / (90 * MM);
+        if ((b.svg.min_font_pt != null && b.svg.min_font_pt * ratio < 8.499) ||
+            (b.svg.min_stroke_pt != null && b.svg.min_stroke_pt * ratio < .499)) {
+          throw new Error('SVG在当前题栏内文字或线条过小，请减小右侧留白比例或拆图。');
+        }
+        const node = sliceEl(b.src, width, naturalW, 0, naturalH);
+        if (!put(node, b)) { nextCol(); if (!put(node, b)) throw new Error('SVG配图超过整栏，请拆图。'); }
+        return;
+      }
       const dispScale = COL_W / naturalW, dispH = naturalH * dispScale;
       if (dispH <= COL_H - y + 0.5) {
         const node = sliceEl(b.src, COL_W, naturalW, 0, naturalH);
@@ -440,7 +453,7 @@
       return e;
     } };
   }
-  function imgBlock(b, q) { return { kind: "image", q, src: b.img.src, imgEl: imgMap.get(b.img.src) }; }
+  function imgBlock(b, q) { return { kind: "image", q, src: b.img.src, svg: b.img.svg, imgEl: imgMap.get(b.img.src) }; }
   function noteBlock(k, v, q) {
     return { kind: "text", q, build: () => { const e = el("div", "blk q-note"); e.innerHTML = "<b>" + k + "：</b>"; mathText(e, v); return e; } };
   }
@@ -672,10 +685,26 @@
     if (message && message.gaps && typeof message.gaps === "object") GAPS = message.gaps;
     if (MOTION_RUN) clearPageMotion();
     applyPrint(message && message.print);
-    const report = run();
+    let report;
+    try { report = run(); } catch (error) { layoutFailed(error); return null; }
+    const printButton = document.getElementById('btnPrint');
+    if (printButton) printButton.disabled = false;
+    const doneButton = document.getElementById('btnDone');
+    if (doneButton) doneButton.disabled = false;
+    document.documentElement.dataset.omrsLayoutReady = '1';
     applyView();
     notify("omrs-board-layout", report);
     return report;
+  }
+
+  function layoutFailed(error) {
+    const message = error instanceof Error ? error.message : String(error);
+    document.getElementById('stage').replaceChildren(el('p', 'q-text', '排版失败：' + message));
+    document.getElementById('stat').textContent = '排版失败：' + message;
+    ['btnPrint', 'btnDone'].forEach(id => { const button = document.getElementById(id); if (button) button.disabled = true; });
+    window.OMRS_LAYOUT = null;
+    document.documentElement.dataset.omrsLayoutReady = 'error';
+    notify('omrs-board-layout-error', { message });
   }
 
   function waitForTwoFrames() { return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); }
@@ -739,7 +768,7 @@
       if (stat) stat.textContent = hasOpener ? "已通知主程序记录纸面，回到 OMRS 确认即可" : "这个窗口不是从 OMRS 打开的：请回到展示板页点「标记为已打印」";
       done.disabled = true;
     };
-    initialRun();
+    initialRun().catch(layoutFailed);
   });
   window.addEventListener("message", event => {
     const message = event.data;

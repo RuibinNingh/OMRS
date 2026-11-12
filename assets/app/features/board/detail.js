@@ -132,7 +132,8 @@ export function createBoardDetail(initialDeps = {}) {
     if (previewBound || typeof deps.preview.boardPreviewOn !== 'function') return;
     previewBound = true;
     deps.preview.boardPreviewOn({
-      onLayout: () => changed(),                                   // 翻页条页码 / 页数
+      onLayout: layout => { if (layout) st.previewError = ''; changed(); },
+      onError: message => { st.previewError = message; changed(); },
       onSelect: message => { if (message?.uid) { select(message.uid); deps.onPaperSelect?.(message.uid); } },
       onGap: message => applyGapDrag(message.uid, message.lines),
     });

@@ -220,3 +220,7 @@ MCP 确认 hash 在 core/api.js 的401跳转和 PIN 登录 destination 中保留
 ## 共享请求ID与回归入口
 
 core/request-id.js统一练习、训练控制和标记撤销的安全随机请求ID；统一使用getRandomValues生成16字节、32个十六进制字符的ID；练习请求另加PR-前缀。详情失效同时隔离pending请求。测试的草稿／助手真实导航帮助函数放在tests/e2e_navigation.py，不向生产页面注入状态。
+
+## SVG 上传与跨页读取
+
+`core/uploads.js::uploadImage` 在完成响应包含svg时附带服务端检查元数据；普通位图返回形状保持不变。正式题目共享图片入口使用原始SVG，AI接口按需转PNG，导出保持向量，见 `AI/question-svg.md`。`tests/e2e/question_svg.py` 在隔离服务中实际验收各入口及离线PDF，不以单元测试替代页面验收。

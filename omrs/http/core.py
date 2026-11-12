@@ -194,6 +194,9 @@ class CoreRoutes:
                 self.send_response(200)
                 self.send_header('Content-Type', content_type)
                 self.send_header('Content-Length', str(len(data)))
+                self.send_header('X-Content-Type-Options', 'nosniff')
+                if content_type == 'image/svg+xml':
+                    self.send_header('Content-Security-Policy', "sandbox; default-src 'none'; style-src 'unsafe-inline'")
                 remote, _, _ = self._security_context()
                 self.send_header('Cache-Control', 'no-store' if remote else 'max-age=86400')
                 self.end_headers()

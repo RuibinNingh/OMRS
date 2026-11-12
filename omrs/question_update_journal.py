@@ -197,6 +197,10 @@ def apply(vault, review):
             raise RequestError('content_conflict', '题目在批准写入前发生变化')
         commit = None
         if before != after:
+            if payload['patch'].get('diagrams'):
+                from .question_diagrams import save
+                verify_question_write(vault, review)
+                save(vault, row['question_id'], payload['patch']['diagrams'])
             staged, staged_owner = _stage(intent['target'], after)
             intent.update(staged=staged, after_identity=staged_owner, head=_head(db))
             atomic_json(journal, intent)
@@ -224,8 +228,11 @@ def apply(vault, review):
         result = {'uid': row['uid'], 'question_id': row['question_id'], 'content_hash': intent['after_hash'],
                   'before_hash': intent['before_hash'], 'after_hash': intent['after_hash'], 'digest': intent['digest'],
                   'no_op': before == after, 'changed': before != after,
-                  'fields': {k: editable_values(after)[k] for k in payload['patch']},
+                  'fields': {k: editable_values(after)[k] for k in payload['patch'] if k != 'diagrams'},
                   'commits': [{**commit, 'commit_type': kind}] if commit else []}
+        if payload['patch'].get('diagrams'):
+            from .question_svg import name_for
+            result['fields']['diagrams'] = [name_for(row['question_id'], e['svg'].encode('utf-8')) for e in payload['patch']['diagrams']]
         if commit:
             result['commit_id'] = commit['commit_id']
         db.execute('INSERT INTO op_results(op_id,result_json,created_at) VALUES(?,?,datetime(\'now\'))',

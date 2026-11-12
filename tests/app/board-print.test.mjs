@@ -124,3 +124,22 @@ test('exportCurrent 的前置判断：没选板、仅新增却没有新增题', 
   assert.equal(empty.log.toasts[0][0], '没有新增题目需要打印');
   assert.equal(empty.log.posts.length, 0);
 });
+
+test('配图重排失败作废窗口旧版面，恢复成功前不能记录纸面', async () => {
+  const h = harness(), source = {};
+  const job = { boardId: 'B1', mode: 'all', layout: LAYOUT };
+  h.print.markAwaiting('all', job);
+  h.print.windows.set(source, job);
+  const event = { source, data: { type: 'omrs-board-layout-error', boardId: 'B1', mode: 'all', layout: { message: 'SVG字号过小' } } };
+  await h.print.handleMessage({ ...event, source: {} });
+  assert.equal(job.error, undefined);
+  await h.print.handleMessage(event);
+  assert.equal(job.layout, null);
+  await h.print.markPrinted();
+  assert.equal(h.log.posts.length, 0);
+  assert.match(h.log.toasts.at(-1)[0], /SVG字号过小/);
+  await h.print.handleMessage({ source, data: { type: 'omrs-board-layout', boardId: 'B1', mode: 'all', layout: LAYOUT } });
+  assert.equal(job.error, undefined);
+  await h.print.markPrinted();
+  assert.equal(h.log.posts.length, 1);
+});

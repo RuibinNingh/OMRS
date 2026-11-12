@@ -154,8 +154,21 @@
 
     function placeImage(b) {
       const im = b.imgEl;
-      if (!im || !im.naturalWidth) { return; } // 解码失败：跳过(不致命)
+      if (!im || !im.naturalWidth) {
+        if (b.svg) throw new Error('题目 ' + b.label + ' 的SVG无法解码，请修复配图后重新导出。');
+        return;
+      }
       const naturalW = im.naturalWidth, naturalH = im.naturalHeight;
+      if (b.svg) {
+        const width = Math.min(colW, 90 * MM), ratio = width / (90 * MM);
+        if ((b.svg.min_font_pt != null && b.svg.min_font_pt * ratio < 8.499) ||
+            (b.svg.min_stroke_pt != null && b.svg.min_stroke_pt * ratio < .499)) {
+          throw new Error('题目 ' + b.label + ' 的SVG在当前栏宽下过小，请简化或拆图后重新导出。');
+        }
+        const node = sliceEl(b.src, width, naturalW, 0, naturalH);
+        if (!put(node)) { nextCol(); if (!put(node)) throw new Error('SVG配图超过整栏，请拆图。'); }
+        return;
+      }
       const dispScale = colW / naturalW, dispH = naturalH * dispScale;
       if (b.keepNextHeader && colH - y < 64) nextCol();
       if (dispH <= colH - y + tolerance) {

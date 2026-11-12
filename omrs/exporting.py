@@ -241,13 +241,23 @@ def _img_payload(vault, name):
     """查找并把图片读成 {src: data-uri, w, h}；找不到/读失败返回 None。"""
     path = _find_image(vault, name)
     if not path:
+        if name.lower().endswith('.svg'):
+            raise ValueError('SVG配图不存在或附件路径不安全，请修复后导出：' + name)
         return None
     try:
         from .question_images import read_attachment_image
         from .inbox import image_size
         data, content_type = read_attachment_image(vault, name)
+        if content_type == 'image/svg+xml':
+            from .question_svg import inspect
+            info = inspect(data)
+            b64 = base64.b64encode(data).decode('ascii')
+            return {'src': f'data:{content_type};base64,{b64}', 'w': info['width'], 'h': info['height'],
+                    'svg': info}
         _mime, width, height = image_size(data)
     except Exception:
+        if name.lower().endswith('.svg'):
+            raise
         return None
     b64 = base64.b64encode(data).decode("ascii")
     return {"src": f"data:{content_type};base64,{b64}", "w": width, "h": height}

@@ -130,3 +130,7 @@ MCP 标记权限分 `label:write` 和 `label:delete`，默认关闭；合并与�
 网关地址接受合法根地址或安全路径前缀，拒绝穿越／编码／空路径段／查询及凭据。本地只准回环，公网外部默认HTTPS，可信私网须显式允许；元数据／链路本地等地址拒绝。DNS解析后固定核验IP，TLS按原域验证，不走环境代理或重定向。状态／搜题分别128KiB／24MiB，并发及整体超时限制见 `AI/zuoyebang-service.md`。错误和账号摘要使用固定／白名单字段，不暴露Key、Cookie或官方原文。同域反代覆盖XFF，并将独立Secure管理Cookie限制到服务路径。
 
 网关调用Key与管理会话分离，本机亦需调用鉴权；请求历史包含socket来源／客户端及对端IP，可信代理规则由网关维护。OMRS服务切换及Vault恢复使迟到的旧结果失效，网络和渲染失败写回同样复查世代。前端旧观察只保留到同一非敏感配置身份，不能作为新网关的账号有效状态。
+
+## 题目静态配图
+
+题目SVG复用静态元素与属性白名单，并增加 `AI/question-svg.md` 的结构、白底和双栏尺寸限制；直接读取原件前验证全部字节及受管名称哈希。`/api/image` 返回 `image/svg+xml`、`X-Content-Type-Options: nosniff` 与 `Content-Security-Policy: sandbox; default-src 'none'; style-src 'unsafe-inline'`。目录与普通文件身份校验沿用共享读取；SVG最多256KiB，已有位图Web读取保持大图兼容。AI派生PNG在独立进程中以data图片加载、禁网络，并发与超时回收见统一规范。正式新增或替换仅走既有审批和不可覆盖存储。

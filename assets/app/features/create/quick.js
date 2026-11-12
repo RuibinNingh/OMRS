@@ -32,6 +32,7 @@ export function createQuick(root, ctx) {
   const host = root.querySelector('#ib-stage-quick');
   let alive = true;
   let busy = false;
+  const preparing = new Set();
   const aiBusy = { q: false, a: false };
   const dataOptions = () => mergeTaxonomy(suggestions(itemsOf(ctx.store.get().data)));
   void loadTaxonomy();
@@ -79,19 +80,38 @@ export function createQuick(root, ctx) {
   }
 
   async function addFiles(files, kind) {
-    const images = [...(files || [])].filter(file => file?.type?.startsWith('image/'));
+    const images = [...(files || [])].filter(file => file?.type?.startsWith('image/') || /\.svg$/i.test(file?.name || ''));
     if (!images.length) { status(kind, '请选择图片文件', true); return; }
     const targetState = state;
+    const token = { state: targetState };
+    preparing.add(token);
+    const submitButton = host.querySelector('[data-action="create.submit"]');
+    if (submitButton) submitButton.disabled = true;
+    status(kind, '正在检查配图…');
     try {
-      const urls = await Promise.all(images.map(readDataUrl));
+      const prepared = [];
+      for (const file of images) {
+        const svg = /\.svg$/i.test(file.name || '') || file.type === 'image/svg+xml';
+        const checked = svg ? await uploadImage(file, { purpose: 'create' }) : null;
+        const dataUrl = await readDataUrl(file);
+        prepared.push({ dataUrl: svg ? dataUrl.replace(/^data:[^;]+;/, 'data:image/svg+xml;') : dataUrl,
+          file, svg: checked?.svg });
+      }
       if (!alive || state !== targetState) return;
-      urls.forEach((dataUrl, i) => imageList(kind).push({ id: ++state.nextImageId, dataUrl, file: images[i] }));
+      prepared.forEach(image => imageList(kind).push({ id: ++state.nextImageId, ...image }));
       state.candidates = {};
       if (kind === 'a') { state.answerOpen = true; host.querySelector('#cr-a-paste').open = true; }
       paintImages(kind);
       paintCandidate();
-      status(kind, `已添加 ${images.length} 张图片`);
-    } catch (error) { status(kind, error.message || '图片读取失败', true); }
+      const warnings = prepared.flatMap(image => image.svg?.warnings || []);
+      status(kind, `已添加 ${images.length} 张图片${warnings.length ? `；${warnings.join('；')}` : ''}`);
+    } catch (error) {
+      if (state === targetState) status(kind, error.message || '图片读取失败', true);
+    } finally {
+      preparing.delete(token);
+      const control = host.querySelector('[data-action="create.submit"]');
+      if (alive && control) control.disabled = busy || [...preparing].some(entry => entry.state === state);
+    }
   }
 
   function bindImageZones() {
@@ -168,8 +188,10 @@ export function createQuick(root, ctx) {
     const manual = { ...state.manual };
     let question, answer;
     try {
-      question = questionImage ? await uploadImage(questionImage.file || questionImage.dataUrl) : undefined;
-      answer = answerImage ? await uploadImage(answerImage.file || answerImage.dataUrl) : undefined;
+      question = questionImage ? await uploadImage(questionImage.file || questionImage.dataUrl,
+        questionImage.svg ? { purpose: 'create' } : {}) : undefined;
+      answer = answerImage ? await uploadImage(answerImage.file || answerImage.dataUrl,
+        answerImage.svg ? { purpose: 'create' } : {}) : undefined;
     } catch (error) { aiBusy[kind] = false; paintImages(kind); status(kind, error.message, true); return; }
     if (!alive || state !== requestState || sourceKey(state) !== requestSource) { aiBusy[kind] = false; paintImages(kind); return; }
     const payload = mode === 'classify'
@@ -218,6 +240,7 @@ export function createQuick(root, ctx) {
 
   async function submit() {
     if (busy) return;
+    if ([...preparing].some(entry => entry.state === state)) { status('q', '配图仍在检查，请稍候'); return; }
     const payload = createPayload(state);
     if (!payload.ok) { state.result = { error: payload.error }; paintResult(); return; }
     const submittedState = state;

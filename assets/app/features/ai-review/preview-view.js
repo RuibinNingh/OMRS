@@ -24,6 +24,14 @@ export function draftSnapshot(preview) {
 export function relatedPreview(item) {
   const p = item.preview || {}, rows = p.items || [];
   return html`${p.uid ? html`<p>题目：${p.uid}${p.path ? ` · ${p.path}` : ''}</p>` : ''}
+    ${(p.diagrams || []).length ? html`<section class="arv-diagrams" aria-label="SVG配图审核"><h3>SVG配图 · 双栏阅读检查</h3>
+      <p class="arv-muted">按90mm宽检查，整图打印。请核对图意、标注位置和信息密度；修改会保留旧附件。</p>
+      ${p.diagrams.map(diagram => html`<section class="arv-change"><h4>${diagram.section} · ${diagram.title}</h4>
+        <div class="arv-diff">${diagram.before_src ? html`<div><h4>当前配图</h4><img class="md-img" src="${diagram.before_src}" width="340" alt="当前配图"></div>` : ''}
+          <div class="arv-after"><h4>${diagram.replace ? '替换后' : '新增配图'}</h4><img class="md-img" src="${diagram.src}" width="340" alt="${diagram.title}"></div></div>
+        <p>图高 ${diagram.print_height_mm}mm${diagram.min_font_pt != null ? ` · 最小文字 ${diagram.min_font_pt.toFixed(1)}pt` : ''}</p>
+        ${(diagram.warnings || []).map(warning => html`<p class="arv-muted">${warning}</p>`)}</section>`)}
+    </section>` : ''}
     ${p.subject || p.category ? html`<p>科目 / 分类：${p.subject || ''} / ${p.category || ''}</p>` : ''}
     ${p.from || p.to ? html`<div class="arv-diff"><div><h4>当前位置</h4><p>${p.from}</p></div><div class="arv-after"><h4>移至</h4><p>${p.to}</p></div></div>` : ''}
     ${p.reason || item.payload?.reason || item.actor?.reason ? html`<p>原因：${p.reason || item.payload?.reason || item.actor.reason}</p>` : ''}${p.message ? html`<p>${p.message}</p>` : ''}

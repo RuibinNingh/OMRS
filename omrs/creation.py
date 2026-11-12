@@ -75,10 +75,11 @@ _MIME_EXT = {
     "image/jpeg": "jpg",
     "image/jpg": "jpg",
     "image/gif": "gif",
+    "image/svg+xml": "svg",
 }
 
 # 与 /api/image 与导出读取器（_read_image_info）支持的格式保持一致；
-# WebP/BMP/SVG 等即使落盘也无法被图片服务读取，录入时直接拒绝。
+# SVG经独立静态配图规范校验；WebP/BMP仍拒绝。
 _SUPPORTED_IMAGE_MIMES = set(_MIME_EXT)
 
 
@@ -119,7 +120,7 @@ def _save_pasted_images(vault, uid, question_id, images, suffix, strict=False, r
         else:
             mime, b64 = "image/png", data_url
         if (mime or "").strip().lower() not in _SUPPORTED_IMAGE_MIMES:
-            raise ValueError(f"不支持的图片格式 {mime or '未知'}（仅支持 PNG/JPEG/GIF）")
+            raise ValueError(f"不支持的图片格式 {mime or '未知'}（支持 PNG/JPEG/GIF及规范静态SVG）")
         try:
             raw = base64.b64decode(b64, validate=strict)
         except Exception:
@@ -129,6 +130,12 @@ def _save_pasted_images(vault, uid, question_id, images, suffix, strict=False, r
         if not raw:
             if strict:
                 raise ValueError("图片数据为空")
+            continue
+        if mime.strip().lower() == 'image/svg+xml':
+            from .question_svg import save
+            name, _ = save(vault, question_id, raw)
+            names.append(name)
+            paths.append(os.path.join(attach_dir, name))
             continue
         index += 1
         ext = _ext_from_mime(mime)

@@ -1,5 +1,8 @@
 """官方 SDK 与真实隔离 MCP 服务验证改题提案、权限及人工有效补丁。"""
 import asyncio
+import base64
+import io
+from pathlib import Path
 import time
 import unittest
 
@@ -34,6 +37,42 @@ class MCPQuestionUpdateSDKTests(unittest.TestCase):
                     if not visible:
                         result = await session.call_tool('propose_question_update', {})
                         self.assertTrue(result.isError)
+        asyncio.run(run())
+
+    def test_svg_proposal_native_png_read_preserves_original(self):
+        try:
+            from playwright.sync_api import sync_playwright
+        except ImportError:
+            self.skipTest('SVG模型派生测试需要可选Playwright')
+        with sync_playwright() as runtime:
+            if not Path(runtime.chromium.executable_path).is_file():
+                self.skipTest('SVG模型派生测试需要可选Chromium')
+            browser = runtime.chromium.launch()
+            browser.close()
+        from PIL import Image
+        from tests.test_question_svg import diagram
+        q = create_question(self.server.vault, '物理', 'SVG协议', 5, question_text='受力分析')
+        key = create_key(self.server.vault, scopes=['omrs:read', 'question:propose'])
+        raw = diagram()
+        async def run():
+            async with _session(self.server.mcp_port, key['secret']) as session:
+                read = _json_result(await session.call_tool('get_question', {'uid': q['uid']}))
+                request = {'uid': q['uid'], 'question_id': q['question_id'], 'expected_content_hash': read['content_hash'],
+                           'patch': {'diagrams': [{'section': '题目', 'svg': raw.decode()}]},
+                           'request_id': 'svg-protocol', 'reason': '补充受力图'}
+                proposed = _json_result(await session.call_tool('propose_question_update', request))
+                self.assertEqual(proposed['status'], 'pending_confirmation')
+                decided = ai_review.decide(self.server.vault, proposed['operation_id'], 1, 'approve')
+                self.assertEqual(decided['status'], 'applied')
+                image = await session.call_tool('get_question_image', {'uid': q['uid'], 'image_index': 0})
+                self.assertFalse(image.isError)
+                self.assertIsNone(image.structuredContent)
+                self.assertEqual(len(image.content), 1)
+                self.assertEqual(image.content[0].mimeType, 'image/png')
+                self.assertGreaterEqual(Image.open(io.BytesIO(base64.b64decode(image.content[0].data))).width, 1000)
+                current = _json_result(await session.call_tool('get_question', {'uid': q['uid']}))
+                original = Path(self.server.vault)/'错题'/'附件'/current['images'][0]
+                self.assertEqual(original.read_bytes(), raw)
         asyncio.run(run())
 
     def test_sdk_proposal_is_readonly_until_revised_web_approval_and_retry_reuses(self):

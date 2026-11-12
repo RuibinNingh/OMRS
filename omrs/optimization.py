@@ -14,7 +14,7 @@ import uuid
 from .common import ATTACHMENTS_DIR, OMRS_DIR, omrs_data_dir, questions_root
 
 
-IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"}
 _SCANS = {}
 _JOBS = {}
 _BACKUP_TOKENS = {}

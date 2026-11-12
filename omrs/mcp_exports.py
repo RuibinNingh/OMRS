@@ -154,10 +154,16 @@ def create(vault, board_id, mode, request_id, key_id, web_url, authorize=lambda:
                 raise ValueError('导出图片未登记在当前题目中')
             key = (uid, name)
             if key not in cache:
-                raw, _ = read_question_image(vault, uid, names[uid].index(name))
-                checked = validate_original_image(raw)
-                cache[key] = {'src': 'data:'+checked['mime']+';base64,'+base64.b64encode(raw).decode('ascii'),
-                              'w': checked['width'], 'h': checked['height']}
+                raw, image_format = read_question_image(vault, uid, names[uid].index(name), original_svg=True)
+                if image_format == 'svg':
+                    from .question_svg import inspect
+                    info = inspect(raw)
+                    cache[key] = {'src': 'data:image/svg+xml;base64,' + base64.b64encode(raw).decode('ascii'),
+                                  'w': info['width'], 'h': info['height'], 'svg': info}
+                else:
+                    checked = validate_original_image(raw)
+                    cache[key] = {'src': 'data:'+checked['mime']+';base64,'+base64.b64encode(raw).decode('ascii'),
+                                  'w': checked['width'], 'h': checked['height']}
             # 相同图片重复嵌入也占输出大小，按每次引用计数。
             budget += len(cache[key]['src'])
             if budget > MAX_BYTES:

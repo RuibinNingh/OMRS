@@ -26,6 +26,7 @@ let BP_HTML_CACHE = new Map();        // key -> html（只留最近一份，导�
 let BP_ON_LAYOUT = null;              // 宿主回调：拿到新版面
 let BP_ON_SELECT = null;              // 宿主回调：纸面上点了某道题
 let BP_ON_GAP = null;                 // 宿主回调：拖切割线改了某题的题后留白
+let BP_ON_ERROR = null;
 let BP_VISIBLE = true;
 let BP_GENERATION = 0;
 let BP_SWAP = null;                   // {token, animation}：切板时 iframe 的渐隐 / 渐显
@@ -46,6 +47,7 @@ export function boardPreviewOn(handlers) {
   if (handlers?.onLayout) BP_ON_LAYOUT = handlers.onLayout;
   if (handlers?.onSelect) BP_ON_SELECT = handlers.onSelect;
   if (handlers?.onGap) BP_ON_GAP = handlers.onGap;
+  if (handlers?.onError) BP_ON_ERROR = handlers.onError;
 }
 
 function reducedMotion() {
@@ -252,6 +254,15 @@ if (typeof window !== 'undefined') {
     if (event.source !== BP_FRAME.contentWindow) return;         // 打印预览窗口另有链路，别抢
     if (!BP_STATE.token || message.previewToken !== BP_STATE.token) return;
     if (message.boardId !== BP_STATE.boardId || (message.mode && message.mode !== BP_STATE.mode)) return;
+    if (message.type === 'omrs-board-layout-error') {
+      BP_LAYOUT = null;
+      BP_STATE.ready = true; // 模板仍可接收修正版面参数。
+      BP_STATE.loading = false;
+      boardSwapIn(BP_STATE.token);
+      if (BP_ON_ERROR) BP_ON_ERROR(message.layout?.message || '配图无法排版');
+      boardPreviewFlushPending();
+      return;
+    }
     if (message.type === 'omrs-board-layout') {
       BP_LAYOUT = message.layout || null;
       if (!BP_STATE.ready) {

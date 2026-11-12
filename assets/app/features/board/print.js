@@ -39,7 +39,11 @@ export function measureBoardLayout(html, options = {}) {
       frame.remove();
       if (error) reject(error); else resolve(layout);
     };
-    const onMessage = event => { if (event.source === frame.contentWindow && event.data?.type === 'omrs-board-layout') finish(null, event.data.layout); };
+    const onMessage = event => {
+      if (event.source !== frame.contentWindow) return;
+      if (event.data?.type === 'omrs-board-layout') finish(null, event.data.layout);
+      if (event.data?.type === 'omrs-board-layout-error') finish(new Error(event.data.layout?.message || '配图无法排版'));
+    };
     const timer = setTimeout(() => finish(new Error('版面测量超时')), timeout);
     // 取消时立刻拆掉 iframe，别让作废的排版继续占用主线程
     if (options.signal) options.signal.addEventListener('abort', () => finish(new Error('已取消')), { once: true });
@@ -127,6 +131,7 @@ export function createBoardPrint(deps) {
       }
     },
     async recordPrinted(boardId, printMode, layout, job = null) {
+      if (job?.error) throw new Error(job.error);
       if (layout?.board_id && layout.board_id !== boardId) throw new Error('版面所属展示板不匹配');
       if (layout?.mode && layout.mode !== printMode) throw new Error('版面打印范围不匹配');
       if (job && jobs.get(boardId) !== job) throw new Error('这份打印任务已失效，请重新导出');
@@ -148,6 +153,7 @@ export function createBoardPrint(deps) {
       if (job) job.recording = true;
       const printMode = job?.mode || mode();
       try {
+        if (job?.error) throw new Error(job.error);
         const ok = await confirm(printMode === 'new' ? '已经把这次新增题目打印出来了？' : '已经把这次整板打印出来了？', {
           hint: job ? '按刚才导出或下载的那份纸面记录；之后的编辑不会替换这份快照。' : '按当前版面记录纸面。',
           okText: '标记为已打印',
@@ -182,12 +188,20 @@ export function createBoardPrint(deps) {
     /** window 的 message：独立打印窗口只更新它自己的导出快照，不能借用当前选中的展示板。 */
     async handleMessage(event) {
       const type = event.data?.type;
-      if (type !== 'omrs-board-layout' && type !== 'omrs-board-printed') return;
+      if (!['omrs-board-layout', 'omrs-board-printed', 'omrs-board-layout-error'].includes(type)) return;
       const job = windows.get(event.source), layout = event.data.layout;
+      if (type === 'omrs-board-layout-error') {
+        if (!job || job.recorded || jobs.get(job.boardId) !== job || event.data.boardId !== job.boardId || event.data.mode !== job.mode) return;
+        job.layout = null;
+        job.error = layout?.message || '请检查配图';
+        toast(`展示板排版失败：${job.error}`, { kind: 'error' });
+        return;
+      }
       // 切换打印范围、重置纸面或重新导出后，旧窗口仍可能加载完并回传消息；只有当前板仍持有的那份任务可以更新纸面。
       if (!job || jobs.get(job.boardId) !== job || job.recorded || !layout || layout.board_id !== job.boardId || layout.mode !== job.mode) return;
       if (event.data.boardId !== job.boardId || event.data.mode !== job.mode) return;
       job.layout = clone(layout);
+      delete job.error;
       job.html = null; // 已取得实际窗口的版面，不再保留近 1MB 的 HTML
       if (type === 'omrs-board-layout' || job.recording) return;
       job.recording = true;

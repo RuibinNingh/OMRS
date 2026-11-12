@@ -241,3 +241,22 @@ test('真实生成失败保留具体原因，并撤下不能代表当前请求�
     assert.equal(bp.boardPreviewLayout(), null);
   } finally { global.fetch = original; }
 });
+
+test('SVG排版错误清空旧版面并保留几何修正通道，旧令牌不能影响当前板', async () => {
+  const errors = [];
+  bp.boardPreviewOn({ onError: message => errors.push(message) });
+  await bp.boardPreviewSetBoard('B1', 'all', { signature: 'svg-layout-error', force: true });
+  emitLayout(LAYOUT);
+  emit({ type: 'omrs-board-layout-error', previewToken: 'old', layout: { message: '无效旧图' } });
+  assert.deepEqual(errors, []);
+  assert.equal(bp.boardPreviewLayout(), LAYOUT);
+  emit({ type: 'omrs-board-layout-error', layout: { message: 'SVG字号过小' } });
+  assert.equal(bp.boardPreviewLayout(), null);
+  assert.deepEqual(errors, ['SVG字号过小']);
+  POSTED.length = 0;
+  bp.boardPreviewRelayout({ note_ratio: .3 }, {});
+  await sleep(180);
+  assert.equal(POSTED[0].type, 'omrs-board-relayout');
+  emitLayout(LAYOUT);
+  assert.equal(bp.boardPreviewLayout(), LAYOUT);
+});

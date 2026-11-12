@@ -1,6 +1,6 @@
 """AI 自动识别（OpenAI 兼容协议）。
 
-仅依赖标准库（urllib + json + re），与项目「无第三方依赖」约定一致。
+位图识别仅依赖标准库；SVG按需使用可选Playwright与Chromium派生PNG。
 
 快速录入的三种用途（mode）：
 - classify：读题目图片，返回【科目 / 分类 / 难度】，用于自动填充表单（不抄题、不解题）。
@@ -211,6 +211,8 @@ def _call_model(vault: str, user_text: str, image_data_url: str, max_tokens: int
         raise ValueError("尚未配置 AI：请在「设置 → AI 自动识别」中填写 " + "、".join(missing))
     if not image_data_url or not isinstance(image_data_url, str):
         raise ValueError("缺少图片数据，请先粘贴或选择一张图片")
+    from .question_svg import for_model
+    image_data_url = for_model(image_data_url)
 
     # 指令 + 图片都放在 user 消息里（不设 System Message，兼容 Qwen-VL 推荐用法）
     payload = {
@@ -289,9 +291,10 @@ def _call_model_multi_image(vault: str, user_text: str, image_data_urls: list, m
 
     # 构建content数组：先放所有图片，最后放文本
     content_parts = []
+    from .question_svg import for_model
     for img_url in image_data_urls:
         if img_url and isinstance(img_url, str):
-            content_parts.append({"type": "image_url", "image_url": {"url": img_url}})
+            content_parts.append({"type": "image_url", "image_url": {"url": for_model(img_url)}})
     content_parts.append({"type": "text", "text": user_text})
 
     payload = {

@@ -112,7 +112,7 @@
 旧客户端仍传 `note` 时，服务端忽略它并在成功响应中返回 `deprecated_fields:["note"]`；新题不写入 YAML 页码。反馈 `note` 与草稿备注各有独立语义，不受影响。
 
 **响应：** `{ "status":"ok", "uid", "file_path", "images":[全部], "question_images":[...], "answer_images":[...], "message" }`。
-图片存到 `错题/附件/`；文件名含 UID 与 `_omrs_id` 短后缀，避免迁移后附件覆盖。建索引失败会回滚（删除本次 md 与已存图片）。图片服务仅支持 PNG/JPEG/GIF。
+图片存到 `错题/附件/`；位图文件名含 UID 与 `_omrs_id` 短后缀。规范静态SVG以稳定题目身份和完整内容哈希命名，原生引用归入对应节，具体见 `AI/question-svg.md`。Ledger提交失败时保留已写Markdown和附件，作为可能的唯一副本供扫描或原操作恢复，不删除。
 
 ### `POST /api/label/save`
 创建或更新用户标记定义。题目 Markdown 保存的是标记名称，不是定义的内部

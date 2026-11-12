@@ -91,7 +91,7 @@ MIME主类型按大小写无关识别，multipart boundary保持原文。普通�
 2. `POST /api/uploads/chunk?upload_id=...&index=N`：原始二进制，顺序从0开始，每块1字节至16MiB。同块同内容重试返回 `reused:true`；冲突内容拒绝。
 3. `POST /api/uploads/complete`：JSON `{upload_id,sha256?}`；核对完整长度及可选 SHA-256，返回 `{upload_ref,bytes,mime,sha256,filename,expires_at}`。
 
-暂存放在系统临时目录、权限为目录0700/文件0600，有效期1小时；引用绑定 Web 会话（直连免 PIN 时按客户端 IP）、Vault 世代和用途。恢复后旧引用失效。图片完成时识别 PNG/JPEG/GIF，备份用途仅供 ZIP 导入，不得用于图片。文件是普通非链接原件，完成核对分块累计长度、读取校验哈希；启动和每块空间准入均保留64MiB。引用不会写入学习 Ledger，原业务入库才产生事实。
+暂存放在系统临时目录、权限为目录0700/文件0600，有效期1小时；引用绑定 Web 会话（直连免 PIN 时按客户端 IP）、Vault 世代和用途。恢复后旧引用失效。图片完成时识别 PNG/JPEG/GIF；create用途额外接受通过静态配图规范的SVG，完成响应增加svg检查元数据，具体见 `AI/question-svg.md`。备份用途仅供 ZIP 导入，不得用于图片。文件是普通非链接原件，完成核对分块累计长度、读取校验哈希；启动和每块空间准入均保留64MiB。引用不会写入学习 Ledger，原业务入库才产生事实。
 
 zuoyebang 用途单独支持 PNG/JPEG/WebP，完成时验证完整解码、8MiB和4000万像素边界；原始字节与 SHA 不变。其引用不能被 create/inbox 等其它用途消费。搜题及渲染契约见 `AI/zuoyebang.md`，普通用途的格式范围保持上述约定。
 

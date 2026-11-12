@@ -303,3 +303,7 @@ tests/run_gates.py显式包含services组（两服务单测和网关浏览器）
 ## AI 框选服务面板隔离验证
 
 同端口接入、迁移和门禁见 `AI/boxdetect.md`；测试用临时数据，去掉生产控制环境变量。
+
+## SVG 派生与隔离验收
+
+维护环境可用Playwright/Pillow及Chromium151。SVG模型派生PNG需Playwright及Chromium；隔离浏览器、PDF证据目录及未验设备见 `AI/question-svg.md`。

@@ -104,7 +104,7 @@ def _open_image(name, parent=None, expected=None):
 def _read_bytes(descriptor, maximum=MAX_IMAGE_BYTES):
     before = os.fstat(descriptor)
     if maximum is not None and before.st_size > maximum:
-        raise ValueError("题图超过 MCP 单次图片返回限制（8 MiB）")
+        raise ValueError('SVG配图超过256KiB' if maximum == 256 * 1024 else '题图超过 MCP 单次图片返回限制（8 MiB）')
     chunks, size = [], 0
     while maximum is None or size <= maximum:
         chunk = os.read(descriptor, 64 * 1024 if maximum is None else min(64 * 1024, maximum + 1 - size))
@@ -113,7 +113,7 @@ def _read_bytes(descriptor, maximum=MAX_IMAGE_BYTES):
         chunks.append(chunk)
         size += len(chunk)
     if maximum is not None and size > maximum:
-        raise ValueError("题图超过 MCP 单次图片返回限制（8 MiB）")
+        raise ValueError('SVG配图超过256KiB' if maximum == 256 * 1024 else '题图超过 MCP 单次图片返回限制（8 MiB）')
     after = os.fstat(descriptor)
     if (before.st_size, before.st_mtime_ns, before.st_ctime_ns) != (
             after.st_size, after.st_mtime_ns, after.st_ctime_ns):
@@ -246,9 +246,11 @@ def read_attachment_image(vault, name):
     from .inbox import image_size
     parts = _attachment_parts(name)
     base = os.path.abspath(vault)
+    from .question_svg import MAX_BYTES
+    maximum = MAX_BYTES if name.lower().endswith('.svg') else None
     if len(parts) == 1:
-        raw = (_read_from_directory_fds(base, parts[0], None) if _DIRECTORY_FDS
-               else _read_from_paths(base, parts[0], None))
+        raw = (_read_from_directory_fds(base, parts[0], maximum) if _DIRECTORY_FDS
+               else _read_from_paths(base, parts[0], maximum))
     elif _DIRECTORY_FDS:
         from contextlib import ExitStack
         with ExitStack() as stack:
@@ -257,7 +259,7 @@ def read_attachment_image(vault, name):
                 parent = stack.enter_context(_directory(part, parent))
             descriptor = _open_image(parts[-1], parent)
             try:
-                raw = _read_bytes(descriptor, None)
+                raw = _read_bytes(descriptor, maximum)
             finally:
                 os.close(descriptor)
     else:
@@ -269,7 +271,7 @@ def read_attachment_image(vault, name):
         expected = os.lstat(path)
         descriptor = _open_image(path, expected=expected)
         try:
-            raw = _read_bytes(descriptor, None)
+            raw = _read_bytes(descriptor, maximum)
             for directory, identity in identities.items():
                 actual = os.lstat(directory)
                 if _linked(actual) or _identity(actual) != identity:
@@ -279,11 +281,16 @@ def read_attachment_image(vault, name):
                 raise ValueError("附件文件在读取期间发生变化")
         finally:
             os.close(descriptor)
+    from .question_svg import is_svg, inspect, verify_name
+    if is_svg(raw) or name.lower().endswith('.svg'):
+        inspect(raw)
+        verify_name(name, raw)
+        return raw, 'image/svg+xml'
     mime, _width, _height = image_size(raw)
     return raw, mime
 
 
-def read_question_image(vault, uid, image_index):
+def read_question_image(vault, uid, image_index, *, original_svg=False):
     """按共享 get_question.images 的当前顺序返回 (原始字节, 格式)。"""
     from .agent.tools import read as read_tools
 
@@ -310,6 +317,11 @@ def read_question_image(vault, uid, image_index):
         raise ValueError("题目引用的图片不存在") from None
     except OSError:
         raise ValueError("题目引用的图片无法安全读取") from None
+    from .question_svg import is_svg, inspect, verify_name, to_png
+    if is_svg(raw) or name.lower().endswith('.svg'):
+        inspect(raw)
+        verify_name(name, raw)
+        return (raw, 'svg') if original_svg else (to_png(raw), 'png')
     checked = validate_original_image(raw)
     return checked["data"], checked["format"]
 
