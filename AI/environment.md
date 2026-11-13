@@ -15,21 +15,21 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-11-13）：当前v2.9.0，题目静态SVG源码01ec30b81a6987ba5eb55703c08a99ae1c6905e7已推送main。精确归档/root/workspace/apps/releases/omrs-01ec30b的1639个文件逐字节一致。生产Vault为/root/workspace/apps/OMRS，隔离功能测试不能访问真实题库。
+生产环境事实（2026-11-13）：当前v2.10.0，复习导出参数面板与历史柱状图源码a9f567261e79652a7cf32fe376951ad8feb80094已合入并推送main。精确归档/root/workspace/apps/releases/omrs-a9f5672的1650个文件逐字节一致。生产Vault为/root/workspace/apps/OMRS，隔离功能测试不能访问真实题库。
 
-稳定别名/root/workspace/apps/releases/omrs-9b29d49指向omrs-01ec30b。主站、网关、检测真实cwd分别为归档根、services/zuoyebang、services/boxdetect；均active/running、NRestarts0。网关私有数据/var/lib/omrs-zuoyebang；框选/var/lib/omrs-boxdetect为0700，数据库及admin-secret.txt为0600，主站Key在Vault错题/.omrs/boxdetect/service.json（0600），不得输出凭据。
+稳定别名/root/workspace/apps/releases/omrs-9b29d49指向omrs-a9f5672。主站、网关、检测真实cwd分别为归档根、services/zuoyebang、services/boxdetect；均active/running、NRestarts0。网关私有数据/var/lib/omrs-zuoyebang；框选/var/lib/omrs-boxdetect为0700，数据库及admin-secret.txt为0600，主站Key在Vault错题/.omrs/boxdetect/service.json（0600），不得输出凭据。
 
-依赖沿用/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv，实测Python3.13.5、MCP1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；归档SVG门禁实际通过Chromium派生PNG。检测解释器/root/omrs-train/.venv/bin/python；发布验证使用独立Chromium，共享CDP9222仅供可信本机隔离context。
+依赖沿用/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv，Python3.13.5、MCP1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；检测解释器/root/omrs-train/.venv/bin/python。发布验证使用独立Chromium，共享CDP9222仅供可信本机隔离context。
 
 Web8471、回环MCP18472、HTTPS8472及公开URL https://home.ruibin-ningh.top:8472。Nginx的/zuoyebang/代理回环8745，/boxdetect/经主站连接18766。业务API须Key，healthz只检查存活；管理页另须主站PIN及管理员会话，Cookie为Secure/HttpOnly/Strict并限制服务路径。检测unit限制见下文。
 
-当前发布证据在/root/workspace/apps/releases/OMRS-svg-release-a3iidhpq（0700，私有备份0600）。Vault及网关1511文件、9库，框选2文件、1库，均已解包逐字节及SQLite完整性校验。切换前后51张业务表原列原行完全一致，1313个正文/图片/SVG/关键配置哈希保持，网关及框选私有数据、凭据、模型与控制配置不变。切换及核验7.53秒。
+当前发布证据在/root/workspace/apps/releases/OMRS-export-v2100-qbzxnujl（0700，私有备份0600）。Vault及网关1513文件、9库，框选2文件、1库，均已解包逐字节及SQLite完整性校验。切换前后51张业务表原列原行完全一致，1313个正文/图片/SVG/关键配置哈希保持，网关及框选私有数据、凭据、模型与控制配置不变。最终切换及核验5.171秒。
 
-当前397道可见题、0冲突。题目SVG采用Obsidian原生附件引用，快速录入和正式改题审核均可使用；90mm双栏规范、整图换栏和AI按需PNG派生见AI/question-svg.md。本次发布不重算业务数据，数据复盘与复核排期继续使用现有投影。
+当前397道可见题、0冲突。已有计划与全题库导出共用参数面板并记忆上次成功设置；历史可选题目区或反馈区，按答题时间左新右旧，柱高表示分数，颜色与符号表示实际对错，图高约13.5mm。题目SVG、复核排期和现有投影继续使用原契约，不重算业务数据。
 
-归档相关后端、页面、打印与文档检查通过；SVG专项另有实际截图及PDF。线上8个版本化资源与归档一致，immutable及ETag304通过。
+精确归档的后端、页面、打印与文档等10项门禁通过。线上8个版本化资源与归档生成的响应一致，主样式按AssetStore合并后校验，immutable及ETag304通过。
 
-生产只读浏览器覆盖5页×浅深色×320/390/1440px共30档，脚本错误、溢出及业务写请求0；文档来自归档，业务读取和展示板只读POST预览来自生产。公网及鉴权8项通过，状态与框选鉴权各重试一次，错误级日志0。真实PIN、设备及模型未验。
+生产浏览器浅深色×320/390/1440px共6档通过，脚本错误、溢出及业务写请求0；真实导出、离线PDF和参数记忆通过。公网及鉴权8项、直接HTTPS监听入口6项通过，错误级服务日志0。公网偶发TLS断连使用curl有界重试，不调整鉴权；真实PIN与实体设备未验。最终数据核对按Ledger区分正常并行编辑，保留新增正文及历史。
 
 生产部署使用 Git 精确归档，沿用当前依赖，不打包未提交的开发改动。功能验证使用临时 Vault 和随机端口；发布前按改动范围从归档执行相关检查。实际切换前检查运行任务与恢复意图，持训练锁停服保全并校验归档，再原子切换源码别名。上线后至少核对三服务真实目录、版本、资源及就绪；完整验收另核对鉴权、原数据库全部业务列及原正文／配置哈希，快速发布按用户指定范围执行。回退保留最新数据。
 
