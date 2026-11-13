@@ -4,7 +4,7 @@
 > - 职责：A4、屏幕版与展示板的自包含 HTML 导出
 > - 入口：`omrs/exporting.py`、`omrs/export_fonts.py`、`omrs/export_templates/`
 > - 不变量：导出为单文件自包含 HTML；后端只产结构化数据与模板，版面、切片与公式渲染交给浏览器
-> - 必跑测试：`tests/test_board_export.py`、`tests/test_report_export.py`、`tests/test_export_fonts.py`、`tests/smoke_a4_print.py`、`tests/smoke_board_print.py`
+> - 必跑测试：`tests/test_board_export.py`、`tests/test_report_export.py`、`tests/test_export_fonts.py`、`tests/test_schedule_export_history.py`、`tests/smoke_a4_print.py`、`tests/smoke_board_print.py`、`tests/e2e/schedule_export.py`
 > - 相关：`AI/board.md`、`AI/api.md`
 
 错题清单导出为**自包含 HTML**（图片、KaTeX 资源均内联，单文件可拷给任何带浏览器的设备）。三种入口为：**A4 打印版**、**展示板打印版**（左题右空）与**屏幕版**（手机/平板上的全屏卡片复习 App，可判对错、打分、记录进度）。复习调度工作台的已有计划详情可以直接按 Session 导出，并保留原有 A4/屏幕版选择；全题库导出从调度页独立进入。后端只产结构化文字/图片/表格数据与内联模板，**版面、长图切片、公式和表格渲染、作答交互全部交给浏览器**。
@@ -25,10 +25,11 @@ HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打�
 3. **取图**：`_img_payload()` 用 `_find_image()` 定位、`_read_image_info()`（纯 `struct` 解析 PNG/JPEG/GIF 尺寸，无 Pillow）读出宽高，base64 成 data-uri。
 4. **组装**：`_build_export_data()` 产出 `{meta, questions, answers}`。`questions[i].notes` 只带 `关联`，`answers[i].notes` 只带 `错因`——错因会提示解法，不能出现在题面区；`include_answers=false` 时 `answers[i].blocks` 为空数组但 `notes` 照旧，反馈区因此仍能只列错因。`meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联（`_read_katex_bundle()`）。数据 JSON 会做 `</` 转义防提前闭合脚本，A4 另由 `export_fonts.inline_print_fonts()` 按导出文字选择本地中文字体分片并内联，最终仍是单个自包含 HTML。
 
-对外入口 `export_schedule_artifact(vault, uids, session_id, export_format, include_answers, question_gap_lines=0, a4_two_columns=True)`：
+对外入口 `export_schedule_artifact(vault, uids, session_id, export_format, include_answers, question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None)`：
 - `export_format`：`'a4'`（默认）/ `'screen'`；为兼容旧调用，`'docx'`/`'word'`/`'html'`/空 一律按 `a4`。
 - `question_gap_lines`：仅 A4 使用；每两道题之间加入 `lines × 18px` 留白，最后一题后不追加。
 - `a4_two_columns`：仅 A4 使用；默认 `true` 为双栏，`false` 时整份文件使用单栏。
+- `history`：可选 `{position, limit, scores, dates}`，位置为 `none` / `question` / `feedback`，条数默认 8、钳制到 1–16，分数与首尾日期默认显示。省略时关闭，兼容原 API、CLI 与 MCP 调用。网页参数面板默认放反馈区。
 - 返回 `(bytes, session_id, "OMRS-{sid}-{variant}.html", "text/html; charset=utf-8")`。
 
 模板是包内资源，放在 `omrs/export_templates/`，可直接当普通 JS/CSS 文件编辑：
@@ -38,6 +39,7 @@ HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打�
 | `a4.css` / `a4-layout.js` / `a4.js` | A4 样式、分页引擎、题面构造与打印生命周期（按此顺序内联） |
 | `board.css` / `board.js` | 展示板 A4 左题右空样式、分页与答案附页 |
 | `screen.css` / `screen.js` | 屏幕版样式 + 复习 App 逻辑（卡片/判分/进度/持久化） |
+| `history.css` / `history.js` | A4 与屏幕版共用的离线 SVG 历史条；在对应变体前内联脚本 |
 
 导出模板中的 `$...$` / `$$...$$` 由内联 KaTeX 在浏览器端渲染；跨行行间公式在后端块化时保持完整，再交给模板的 `mathText()`。若 KaTeX 资源缺失或单个公式解析失败，会安全降级为原始公式文本。KaTeX 字体在导出时改写为 data URI，因此离线打开 HTML 也不需要访问 `assets/` 目录。
 
@@ -48,15 +50,15 @@ HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打�
 
 ### 调用入口
 
-- Web API：`POST /api/export` 接受 `question_gap_lines` 与 `a4_two_columns`；后端负责归一化，详见 `api.md`。
-- 前端：复习调度「全题库导出」与「已有计划」导出分别用 `#export-question-gap` / `#sch-question-gap` 输入留白行数；`assets/app/features/schedule/exporter.js` 的 `clampGap()` 在发送前做同样的 `0–20` 归一化，请求由 `assets/app/domain/exporting.js` 的 `requestExport()` 发出并下载（v1.25.4 起；屏幕版始终附带答案，A4 先问单 / 双栏）。
+- Web API：`POST /api/export` 接受 `question_gap_lines`、`a4_two_columns` 与 `history`；后端负责归一化，详见 `api.md` 与 `api/boards.md`。
+- 前端：复习调度「全题库导出」与「已有计划」共用 `assets/app/features/schedule/export-dialog.js` 参数面板，选择版式、答案、留白和历史图后确认下载。成功后记住参数；取消不发请求，失败保留面板供重试。屏幕版始终附带答案、禁用纸面参数；详细交互见 `frontend/review.md`。
 - CLI：`python omrs_engine.py export ... --question-gap-lines N`；默认 `0`。
 
 ## A4 排版引擎（`a4-layout.js` / `a4.js`，浏览器端）
 
 默认几何沿用旧 docx 的 A4、上下 0.5in、左右 0.25in、双栏、栏距 0.5in，栏宽约 `348.85px`（9.23cm）。2026-07-14 起页底另扣 `FOOTER_SAFE = 8.5mm`，有效栏高约 `994.39px`（26.31cm），页码底距为 `32px`，避免浏览器或打印机裁切。CSS 是实际几何来源；`a4-layout.js` 在挂载新页后读取 `.col` 的真实宽高，常量仅用于初始测量容器。
 
-1. **选择栏模式**：`meta.a4_two_columns` 默认为 `true`（双栏），设为 `false` 时**整份** A4 导出切为单栏；前端每次导出 A4 都弹出确认，遇到表格或长公式时提示用户选单栏。引擎不会自行检测表格改变栏模式。表格单元格仍使用 `mathText()` 渲染公式；恰好三列时按 `8% / 39% / 53%` 为选项与方程式分配宽度，其它列数由固定表格布局均分栏宽，不向前三列套用三列比例。列宽规则同时用于题面与答案，行高随内容自然增长，不设固定高行。
+1. **选择栏模式**：`meta.a4_two_columns` 默认为 `true`（双栏），设为 `false` 时**整份** A4 导出切为单栏；网页在统一参数面板选择并记忆，遇到表格或长公式时提示用户选单栏。引擎不会自行检测表格改变栏模式。表格单元格仍使用 `mathText()` 渲染公式；恰好三列时按 `8% / 39% / 53%` 为选项与方程式分配宽度，其它列数由固定表格布局均分栏宽，不向前三列套用三列比例。列宽规则同时用于题面与答案，行高随内容自然增长，不设固定高行。
 2. **测真实高度、块级防截断与公式续栏**：每个文字、表格和图片块按当前栏宽 `colW` 塞进离屏测量容器，读 `getBoundingClientRect().height`。排版器不把整道题包成不可拆的大块，也不额外预留整题空白；题头、小问、关联等仍按原有内容块顺序尽量填满当前栏。某个块放不下时只把该块完整移到下一栏/页，避免落入固定栏高的裁剪区。若一段含 `$...$` / `$$...$$` 的文字放不进当前栏，排版器会从靠后的公式边界拆开：前缀留在当前栏，公式及后文从下一栏/下一页顶部继续；无公式文字仍整段换栏。
 3. **稳定字体与打印复核**：A4 正文使用内嵌 `OMRS Print Serif`（Noto Serif SC），元信息使用 `OMRS Print Sans`（Noto Sans SC）；标题、题头、元信息和标签均有显式行高。`omrs/export_fonts.py` 保留上游 Unicode 分片，按数据与固定文案选择所需分片，跳过图片 data URI；资源读缓存按文件时间戳和大小失效，只用标准库，不联网或依赖系统 `local()`。WOFF2 与 SIL OFL 许可随 HTML 内嵌，源文件与 SHA256 分别在 `assets/vendor/fonts/PRINT_SOURCES.json` 和既有 `SOURCES.json`。导出件会变大，大小取决于字符覆盖；新增字体仅用于 A4，屏幕版与展示板沿用既有模板。
 
@@ -78,11 +80,17 @@ HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打�
 正文分两节，错因一律在**反馈区**，不再出现在题面下方（见 `a4.js::buildBlocks()`）：
 
 - **一、题目**：题头 + 题面块 + `关联`（关联是解题线索而非答案，留在题面区）+ 题间留白。
-- **二、反馈区**：每题一块，标题行「第 N 题 [UID]」下面直接跟答案正文，**紧接着**同题的 `错因` 块（`noteBlock`），同属一块、不另起标题——即「答案和错因不分开」。该题既没答案也没错因时不占位；整节没有任何内容时连标题都不输出。
-- 勾选「导出答案」：反馈区的每道题都有答案 + 错因。未勾选：反馈区仍然出现，但只有错因，导语改为「本次未导出答案，只列错因」。题面区在两种情况下都保持干净。
+- **二、反馈区**：每题一块，标题行「第 N 题 [UID]」下面直接跟答案正文，**紧接着**同题的 `错因` 块（`noteBlock`），同属一块、不另起标题。选择反馈区历史时，图表与题头同块排版；无答案、错因和历史的条目不占位，整节无内容时不输出。
+- 勾选「导出答案」：反馈区每题都有答案 + 错因。未勾选时仍可独立导出错因与历史，不以答案开关隐藏历史；导语按实际内容说明。历史图关闭或放题目区时，反馈区只保留原有答案与错因。
 - 导语提示「做完后再翻到末尾的反馈区核对答案与错因」；**早期版本那张「反馈勾选表」已连同 `.fb-row` 样式一并删除**（反馈改在主程序反馈页录入）。
 
 > 实测：同一份 16 题数据，旧 docx 11 页、栏底留白高达 65%/49%/30%；A4 HTML 压到 7 页、各栏留白个位数，长图跨栏切在不可见的白缝处，无截断。
+
+### 练习历史微型图
+
+`_load_export_questions()` 保留 SQL 题目的稳定 `question_id`，`_export_question_history()` 只读取该身份的有效 `history_projection` 记录。按业务作答日期与时间从近到远排序，同刻按记录顺序倒序；补录早期练习不会被放到最左，改名与复用 UID 不会串历史。不解析 Markdown 历史；关闭时不读记录，空历史不产生占位。只内嵌日期、时间、0–10 分与对错，不带历史备注。
+
+`questions[].history` 与 `answers[].history` 只在选定位置携带最近记录。柱高统一按 0–10 分缩放，绿对红错与分数独立，零分保留细条；每柱有 ✓ / ×，首尾日期可关闭，跨年显示年份。历史条高 51px（约 13.5mm），最多 8 次时优先与题头并排，更多记录移到题头下方以保留字宽。整个题头由排版器一起测量、换栏；纸面字体字符覆盖包含固定图表文案。屏幕版共用同一 SVG，反馈位置折在「显示答案」之后。
 
 ## 展示板打印版（`board.css` / `board.js`，v1.14.0）
 

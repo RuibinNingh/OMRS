@@ -33,6 +33,8 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 
 ## 2. 语义 token
 
+复习导出参数面板位于 `features/schedule/export-dialog.css`，由 `styles/index.css` 以 features 层引入。面板复用共享 dialog、segmented、input、disclosure 与语义 token；常用表单和排版示意两栏，≤760px 收为单列表单，隐藏示意，数字框取 text-lg。分段控件的实际可点区域与移动控件高度一致；图表的动态柱高用 data-score 与样式档位表达，不写行内样式。真实打印件采用独立导出模板，固定纸面字体与颜色见 `AI/export.md`。
+
 设置页的日志选择样式位于`features/settings/logs.css`，由样式总入口按features层引入。窗口复用共享dialog，筛选使用ui-input／ui-select，列表整行标签提供勾选目标，滚动保持在列表内部；窄屏日期控件单列并保持16px文字，时间移到第二行，原生控件的color-scheme随主题切换。按钮、选择色、文字和间距均复用既有token。
 
 浅色写在 `:root`，深色写在 `[data-theme="dark"]`，两者名字一致。`data-theme` 与 `data-density` 都挂在 `<html>` 上。

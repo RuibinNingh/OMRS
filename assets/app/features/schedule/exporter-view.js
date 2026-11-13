@@ -1,7 +1,7 @@
 import { questionKey } from '../../domain/question/ref.js';
 /**
  * 复习调度 ·「全题库导出」视图（原 omrs_dashboard.html 的 #export-panel 与 export.js 的渲染）。
- * 保留旧 id（#export-panel、#pick-*、#export-summary、#export-view-*、#export-include-answers、#export-question-gap、#export-status），
+ * 保留选题与状态 id；导出参数统一由 export-dialog.js 展示。
  * 表单值全部来自页面状态。画廊题面挂载点 data-morph="skip"，由 exporter-ctl 懒加载。
  */
 import { html, each, cls } from '../../core/html.js';
@@ -41,9 +41,7 @@ function filters(x, env) {
 function options(x) {
   const st = x.status;
   return html`<div class="schd-xopts" data-key="xopts">
-  <span class="schd-segs" role="group" aria-label="导出版本">${seg('export-variant-a4', x.variant === 'a4', 'schedule.xvariant', 'a4', 'A4 打印版')}${seg('export-variant-screen', x.variant === 'screen', 'schedule.xvariant', 'screen', '屏幕版')}</span>
-  <label class="schd-check"><input type="checkbox" id="export-include-answers" data-change="schedule.xanswers"${x.variant === 'screen' || x.answers ? ' checked' : ''}${x.variant === 'screen' ? ' disabled' : ''}> 附带答案</label>
-  <label class="schd-gap" title="仅影响 A4 打印版；每行约为正文一行的高度">题间留白 <input id="export-question-gap" class="schd-num" type="number" min="0" max="20" step="1" value="${x.gap}" data-input="schedule.xgap"${x.variant === 'screen' ? ' disabled' : ''}> 行</label>
+  <span>设置版式、答案与练习历史，自动记住上次参数。</span>
   ${button({ label: `导出选中（${x.selection.length}）`, variant: 'primary', icon: 'download', action: 'schedule.xexport', loading: x.busy })}
   <span id="export-status" role="status">${st ? status({ tone: st.ok ? 'success' : 'danger', text: st.text }) : ''}</span>
 </div>`;
@@ -52,7 +50,7 @@ function options(x) {
 function selection(x, env) {
   const rows = env.selected;
   return html`<section class="schd-xsel" data-key="xsel" aria-label="已选导出">
-  <p class="schd-xsel__head"><strong>已选导出：${x.selection.length} 题</strong>${x.variant === 'screen' ? html`<span class="schd-meta">屏幕版始终附带答案</span>` : ''}</p>
+  <p class="schd-xsel__head"><strong>已选导出：${x.selection.length} 题</strong></p>
   ${rows.length ? html`<ol class="schd-xlist">${each(rows, it => it.uid, (it, i) => html`<li class="schd-xrow">
     <div class="schd-xrow__main"><strong>${i + 1}. ${it.uid}</strong><span class="schd-meta">${it.subject || ''} · ${it.category || ''} · 难度 ${it.difficulty} · 熟练度 ${pct(it.mastery)}</span><span class="schd-xrow__tags">${labelChips(it.labels || [])}${ktags(it)}</span></div>
     <span class="schd-acts">${button({ label: '预览', size: 'sm', action: 'schedule.xpreview', arg: `export-selection|${it.uid}` })}${button({ label: '移除', size: 'sm', variant: 'ghost', action: 'schedule.xtoggle', arg: questionKey(it) })}</span>

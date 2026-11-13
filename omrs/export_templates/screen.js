@@ -136,6 +136,8 @@
       head.appendChild(tw);
     }
     card.appendChild(head);
+    const questionHistory = window.OMRS_HISTORY(q.history);
+    if (questionHistory) card.appendChild(questionHistory);
 
     /* 题面 */
     const body = el("div", "qbody"); renderBlocks(body, q.blocks); card.appendChild(body);
@@ -150,6 +152,8 @@
     const ans = el("div", "ans");
     ans.appendChild(el("div", "lbl", "答案 / 解析"));
     const a = ansMap[q.uid];
+    const feedbackHistory = window.OMRS_HISTORY(a?.history);
+    if (feedbackHistory) ans.appendChild(feedbackHistory);
     if (!a || !a.blocks || !a.blocks.length) ans.appendChild(el("div", "empty", "（本题未附答案——按你的理解自评即可）"));
     else renderBlocks(ans, a.blocks);
     /* 错因跟在答案后面（折叠在「显示答案」后）：会提示解法，不能提前给 */

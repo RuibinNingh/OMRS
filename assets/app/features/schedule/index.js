@@ -130,7 +130,7 @@ function createController(root, ctx) {
       s.exporting = variant;
       s.exportStatus = null;
       paint();
-      const result = await exp.exportPlan(id, variant, { answers: s.answers, gap: s.gap });
+      const result = await exp.exportPlan(id, variant, detailModel?.total);
       s.exporting = '';
       if (s.selected === id) s.exportStatus = result;
       if (ctl) paint();
@@ -186,10 +186,6 @@ export const page = {
     remove: () => ctl?.remove(),
     bind: ({ arg }) => ctl?.bind(arg),
     preview: ({ arg }) => viewQ(arg, 'schedule-plan'),
-    answers: ({ el }) => { s.answers = !!el.checked; },
-    // <details> 的展开状态存进页面状态：重绘（morph 按模板同步属性）后不会自己收起
-    options: ({ event }) => { event.preventDefault(); s.options = !s.options; ctl?.paint(); },
-    gap: ({ value }) => { s.gap = S.clampGap(value); },
     // ── 安排复习 ──
     reload: () => ctl?.arr.load(),
     field: ({ arg, value, event }) => ctl?.arr.field(arg, value ?? event?.target?.value),
@@ -210,9 +206,6 @@ export const page = {
     xfield: ({ arg, value, event }) => ctl?.exp.field(arg, value ?? event?.target?.value),
     xlabel: ({ arg }) => ctl?.exp.label(arg),
     xview: ({ arg }) => ctl?.exp.view(arg),
-    xvariant: ({ arg }) => ctl?.exp.variant(arg),
-    xanswers: ({ el }) => ctl?.exp.answers(el.checked),
-    xgap: ({ value }) => ctl?.exp.gap(value),
     xtoggle: ({ arg }) => ctl?.exp.toggle(arg),
     xaddFiltered: () => ctl?.exp.addFiltered(),
     xremoveFiltered: () => ctl?.exp.removeFiltered(),

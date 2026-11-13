@@ -26,7 +26,7 @@ from .common import (
     parse_yaml_frontmatter,
 )
 from .sessions import get_session
-from .data_repository import mastery_rows, resolve_question
+from .data_repository import history_rows, mastery_rows, resolve_question
 from .vault_lifecycle import lease
 from .locking import write_lock
 from .export_fonts import inline_print_fonts
@@ -214,6 +214,7 @@ def _load_export_questions(vault, uids=None, session_id="", question_refs=None):
         questions.append(
             {
                 "uid": uid,
+                "question_id": row.get("question_id", ""),
                 "subject": row.get("Subject", ""),
                 "category": row.get("Category", ""),
                 "difficulty": row.get("Difficulty", "?"),
@@ -368,8 +369,52 @@ def _normalize_a4_two_columns(value):
     return bool(value)
 
 
-def _build_export_data(vault, session_id, questions, include_answers, question_gap_lines=0, a4_two_columns=True):
+def _normalize_history_options(value=None):
+    """旧 API 默认关闭；网页显式传入选项，记录数控制纸面密度。"""
+    source = value if isinstance(value, dict) else {}
+    position = source.get("position")
+    try:
+        limit = max(1, min(16, int(source.get("limit", 8))))
+    except (TypeError, ValueError, OverflowError):
+        limit = 8
+    return {"position": position if position in ("question", "feedback") else "none",
+            "limit": limit, "scores": source.get("scores") is not False, "dates": source.get("dates") is not False}
+
+
+def _export_question_history(vault, question, options):
+    """只输出当前有效反馈，按作答业务时间降序；同刻以投影顺序倒序稳定排列。"""
+    identity = question.get("question_id")
+    if not identity or options["position"] == "none":
+        return []
+    rows = history_rows(vault, question_id=identity)
+    records = []
+    for order, row in enumerate(rows):
+        raw_date = str(row.get("Date") or "").strip().replace("T", " ")
+        day = str(row.get("review_date") or raw_date)[:10]
+        try:
+            datetime.date.fromisoformat(day)
+            score = max(0, min(10, int(row.get("Sub_Score", 0))))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        # Date 已按业务时区展开；补录优先作答日期，不按数据库提交先后误排。
+        clock = raw_date[11:] if len(raw_date) > 10 else ""
+        try:
+            moment = datetime.datetime.fromisoformat(str(row.get("recorded_at") or "").replace("Z", "+00:00"))
+            if moment.tzinfo is None:
+                moment = moment.replace(tzinfo=datetime.timezone(datetime.timedelta(hours=8)))
+            recorded_key = moment.timestamp()
+        except (ValueError, OverflowError, OSError):
+            recorded_key = 0
+        records.append((day, clock, recorded_key, order,
+                        {"date": day, "time": clock, "score": score,
+                         "correct": str(row.get("Is_Correct", "")) == "1"}))
+    records.sort(key=lambda item: item[:4], reverse=True)
+    return [item[4] for item in records[:options["limit"]]]
+
+
+def _build_export_data(vault, session_id, questions, include_answers, question_gap_lines=0, a4_two_columns=True, history=None):
     today = datetime.date.today().isoformat()
+    history = _normalize_history_options(history)
     data = {
         "meta": {
             "title": "OMRS 错题复习清单",
@@ -378,6 +423,7 @@ def _build_export_data(vault, session_id, questions, include_answers, question_g
             "session_id": session_id,
             "question_gap_lines": _normalize_question_gap_lines(question_gap_lines),
             "a4_two_columns": _normalize_a4_two_columns(a4_two_columns),
+            "history": history,
         },
         "questions": [],
         "answers": [],
@@ -397,6 +443,7 @@ def _build_export_data(vault, session_id, questions, include_answers, question_g
         notes = _parse_notes_subsections(question.get("notes", "")) or {}
         question_notes = {"关联": notes["关联"]} if notes.get("关联") else {}
         answer_notes = {"错因": notes["错因"]} if notes.get("错因") else {}
+        records = _export_question_history(vault, question, history)
         data["questions"].append(
             {
                 "idx": index,
@@ -408,6 +455,7 @@ def _build_export_data(vault, session_id, questions, include_answers, question_g
                 "labels": _board_label_objects(question.get("labels", []), label_colors),
                 "blocks": _text_to_blocks(vault, question.get("question", "") or "(无题目内容)"),
                 "notes": question_notes,
+                "history": records if history["position"] == "question" else [],
             }
         )
         # 不勾选导出答案时，反馈区只留错因；勾选时错因跟在每道题的答案后面
@@ -418,6 +466,7 @@ def _build_export_data(vault, session_id, questions, include_answers, question_g
                 "blocks": _text_to_blocks(vault, question.get("answer", "").strip())
                 if include_answers else [],
                 "notes": answer_notes,
+                "history": records if history["position"] == "feedback" else [],
             }
         )
     return data
@@ -575,8 +624,8 @@ _SCREEN_BODY = """<div id="bar">
 
 def _build_html(data, variant):
     variant = "screen" if variant == "screen" else "a4"
-    css = _read_template(f"{variant}.css")
-    js = _read_template(f"{variant}.js")
+    css = _read_template(f"{variant}.css") + "\n" + _read_template("history.css")
+    js = _read_template("history.js") + "\n" + _read_template(f"{variant}.js")
     if variant == "a4":
         css = inline_print_fonts(data) + "\n" + css
         js = _read_template("a4-layout.js") + "\n" + js
@@ -607,15 +656,15 @@ def _build_html(data, variant):
 # --------------------------------------------------------------------------
 # 对外入口
 # --------------------------------------------------------------------------
-def export_schedule_html(vault, uids=None, session_id="", include_answers=False, variant="a4", question_gap_lines=0, a4_two_columns=True, question_refs=None):
+def export_schedule_html(vault, uids=None, session_id="", include_answers=False, variant="a4", question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None):
     with lease(vault), write_lock():
         session_id, questions = _load_export_questions(vault, uids, session_id, question_refs)
-        data = _build_export_data(vault, session_id, questions, include_answers, question_gap_lines, a4_two_columns)
+        data = _build_export_data(vault, session_id, questions, include_answers, question_gap_lines, a4_two_columns, history)
     html_text = _build_html(data, variant)
     return html_text.encode("utf-8"), session_id
 
 
-def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True, question_refs=None):
+def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None):
     """导出错题清单为自包含 HTML。
 
     export_format: 'a4'（打印版，默认）/ 'screen'（屏幕阅读版）。
@@ -624,7 +673,7 @@ def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4"
     """
     fmt = (export_format or "a4").strip().lower()
     variant = "screen" if fmt == "screen" else "a4"
-    data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant, question_gap_lines, a4_two_columns, question_refs)
+    data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant, question_gap_lines, a4_two_columns, question_refs, history)
     filename = f"OMRS-{session_id}-{variant}.html"
     return data, session_id, filename, "text/html; charset=utf-8"
 

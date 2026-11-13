@@ -1,0 +1,22 @@
+/* 纸面历史条约 14mm 高；错题与对题同时用符号区分，关闭背景打印也能读。 */
+.review-history{display:flex;align-items:center;gap:8px;margin:2px 0 3px;max-width:294px;height:51px;
+  color:#625d55;font-family:var(--sans,sans-serif);break-inside:avoid;}
+.review-history figcaption{flex:none;font-size:8px;line-height:12px;white-space:nowrap;}
+.review-history figcaption small{display:block;font-size:7px;line-height:11px;}
+.review-history svg{display:block;flex:0 1 auto;min-width:0;max-width:calc(100% - 38px);overflow:visible;height:51px;}
+.history-baseline{stroke:#c6bfb5;stroke-width:.5;}
+.review-history rect{fill:currentColor;stroke:currentColor;stroke-width:.5;print-color-adjust:exact;-webkit-print-color-adjust:exact;}
+.history-right{color:#28714e;}
+.history-wrong{color:#aa4339;}
+.review-history text{fill:currentColor;font-family:var(--sans,sans-serif);font-size:7px;line-height:1;}
+.review-history .history-score{fill:#514b43;font-size:7.5px;}
+.review-history .history-date{fill:#6b6358;font-size:7px;}
+.review-history .history-verdict{font-size:8px;}
+.q-head--history{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.q-head--history .review-history{margin:0;}
+.q-head--history .q-head-line{height:auto;white-space:normal;flex-wrap:wrap;overflow:visible;}
+.q-head-info{min-width:0;}
+.q-head--history .q-head-info{flex:1;}
+.q-head--history .review-history{flex:0 1 190px;}
+.q-head--history-long{display:block;}
+.q-head--history-long .review-history{margin-top:3px;}

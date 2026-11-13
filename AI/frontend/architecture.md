@@ -9,6 +9,8 @@
 
 数据复盘的 `progress.js` 从同一分析响应派生状态、累计成绩与分页列表；明细筛选通过页面动作更新，题目弹窗使用独立 `data-progress` 上下文，保留完整匹配结果的上下题。`tests/app/data-progress.test.mjs` 与 `tests/e2e/data.py` 覆盖停用排除、降级成绩保留、复燃优先、筛选分页、真实详情及失败后旧数据保留。
 
+复习调度的两处导出由 `features/schedule/export-dialog.js` 拥有模态草稿和示意，`export-options.js` 管理归一化及成功后的本地记忆，`exporter-ctl.js` 冻结稳定引用并调 `domain/exporting.js` 下载。页面重绘不重建模态；导出失败在模态内重试。`tests/app/export-options.test.mjs` 验证参数与存储故障，`tests/e2e/schedule_export.py` 使用临时 Vault 验证两入口、刷新、取消、重试、离线 A4/PDF、屏幕版以及浅深主题 320/390/1440px 布局；`OMRS_EXPORT_SHOTS` 指定截图和导出证据目录。
+
 展示板空状态由当前有效打印范围派生，常驻 iframe 留在原舞台，提示为固定同级节点。详情控制器合并同内容的在途同步并校验回调归属，空内容会取消预览及定时任务。`tests/e2e/board.py` 调用同目录 `board_empty.py`，实际验证空板加题／清空、停用／缺失、菜单／快捷键、慢请求取消和真实失败；`OMRS_BOARD_EMPTY_SHOTS` 指定四档状态截图目录。
 
 即时练习故障回归由 `tests/app/instant-submission.test.mjs` 与 `tests/e2e/instant.py`覆盖：安全随机轮次身份、同轮重试与新轮分离、持久回执回填原判定和分数，以及推荐全部标记匹配先于截断。浏览器通过真实接口创建合成题目，并在服务器处理反馈后丢弃响应，不用单纯模拟请求失败代替已提交故障。

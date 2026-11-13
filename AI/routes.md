@@ -83,7 +83,7 @@
 | GET | `/api/drafts/list` | `AI/api/extensions.md`、`AI/drafts.md` |
 | POST | `/api/drafts/update` | `AI/api/extensions.md`、`AI/drafts.md` |
 | GET/POST | `/api/entry-background` | `AI/api/mutations.md`、`AI/api/queries.md` |
-| POST | `/api/export` | `AI/api/boards.md`、`AI/board.md`、`AI/changelog.md`等 |
+| POST | `/api/export` | `AI/api.md`、`AI/api/boards.md`、`AI/board.md`等 |
 | GET | `/api/export-review` | `AI/api.md`、`AI/api/queries.md`、`AI/frontend/records.md` |
 | POST | `/api/feedback` | `AI/algorithm.md`、`AI/api/mutations.md`、`AI/changelog.md`等 |
 | GET | `/api/history` | `AI/api/queries.md`、`AI/frontend/dashboard.md`、`AI/frontend/records.md` |

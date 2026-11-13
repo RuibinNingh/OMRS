@@ -77,20 +77,31 @@
   function headBlock(q) {
     return { keepNext: true, build: () => {
       const e = el("div", "blk q-head");
+      const info = el("div", "q-head-info");
       const l1 = el("div", "q-head-line");
       l1.appendChild(el("span", "no", "第 " + q.idx + " 题"));
       l1.appendChild(el("span", "uid", "[" + q.uid + "]"));
       const labels = el("span", "labels");
       appendLabelChips(labels, q.labels);
       if (labels.childNodes.length) l1.appendChild(labels);
-      e.appendChild(l1);
-      e.appendChild(el("div", "meta", "科目: " + q.subject + "    分类: " + q.category + "    难度: " + q.difficulty + "/10"));
-      if (q.tags) e.appendChild(el("div", "tags", "标签: " + q.tags));
+      info.appendChild(l1);
+      info.appendChild(el("div", "meta", "科目: " + q.subject + "    分类: " + q.category + "    难度: " + q.difficulty + "/10"));
+      if (q.tags) info.appendChild(el("div", "tags", "标签: " + q.tags));
+      e.appendChild(info);
+      const history = window.OMRS_HISTORY(q.history);
+      if (history) { e.classList.add("q-head--history"); if (q.history.length > 8) e.classList.add("q-head--history-long"); e.appendChild(history); }
       return e;
     } };
   }
   function ansHeadBlock(a) {
-    return { keepNext: true, build: () => { const e = el("div", "blk q-head"); e.innerHTML = '<span class="no">第 ' + a.idx + ' 题</span><span class="uid">[' + esc(a.uid) + ']</span>'; return e; } };
+    return { keepNext: !!((a.blocks || []).length || a.notes?.["错因"]), build: () => {
+      const e = el("div", "blk q-head"), info = el("div", "q-head-info");
+      info.appendChild(el("span", "no", "第 " + a.idx + " 题"));
+      info.appendChild(el("span", "uid", "[" + a.uid + "]")); e.appendChild(info);
+      const history = window.OMRS_HISTORY(a.history);
+      if (history) { e.classList.add("q-head--history"); if (a.history.length > 8) e.classList.add("q-head--history-long"); e.appendChild(history); }
+      return e;
+    } };
   }
   function noteBlock(k, v) { return { build: () => { const e = el("div", "blk q-note"); e.innerHTML = "<b>" + k + "：</b>"; mathText(e, v); return e; } }; }
   function imgBlock(b, label, firstOfQ) { return { kind: "image", src: b.img.src, svg: b.img.svg, imgEl: imgMap.get(b.img.src), label: label, keepNextHeader: !!firstOfQ }; }
@@ -118,12 +129,13 @@
     // 反馈区：勾选答案时「第 N 题」下面紧跟答案和错因（不分开）；不勾选时只剩错因。
     // 既没答案又没错因的题不占位，整体无内容时整段不输出。
     const withAnswer = (D.answers || []).some(a => a.blocks && a.blocks.length);
-    const fed = (D.answers || []).filter(a => withAnswer || (a.notes && a.notes["错因"]));
+    const fed = (D.answers || []).filter(a => withAnswer || (a.notes && a.notes["错因"]) || a.history?.length);
     if (fed.length) {
       B.push(txtBlock("section", "二、反馈区", true));
+      const hasHistory = fed.some(a => a.history?.length);
       B.push(txtBlock("doc-note", withAnswer
-        ? "每题下方是答案与错因。"
-        : "本次未导出答案，只列错因。"));
+        ? "每题下方是答案、错因" + (hasHistory ? "与练习历史。" : "。")
+        : "本次未导出答案，只列" + (hasHistory ? "错因与练习历史。" : "错因。")));
       fed.forEach(a => {
         B.push(ansHeadBlock(a));
         let first = true;

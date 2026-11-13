@@ -1,13 +1,14 @@
 import { questionKey } from '../../domain/question/ref.js';
+import { historyOptions } from './export-options.js';
 /**
  * 复习调度 ·「全题库导出」工作区的状态与纯函数（原 assets/export.js 的选题器，规则与文案原样），node 单测全覆盖。
  * 筛选语义与题库共用（旧 getFilterState('pick') + filterItems：默认排除停用题，按熟练度升序）；已选是有序 uid 列表，
- * 题目从题库消失时自动剔除。导出参数：屏幕版始终附带答案；A4 由调用方先问单 / 双栏。
+ * 题目从题库消失时自动剔除。导出参数在共用面板设置，屏幕版始终附带答案。
  */
 export const emptyExportFilters = () => ({ text: '', subject: '', category: '', tag: '', ktag: '', labels: [], labelMode: 'any',
   diffMin: '', diffMax: '', masteryMin: '', masteryMax: '', sort: 'mastery-asc' });
 
-export const exporter = { filters: emptyExportFilters(), selection: [], view: 'flat', variant: 'a4', answers: false, gap: 0, busy: false, status: null };
+export const exporter = { filters: emptyExportFilters(), selection: [], view: 'flat', busy: false, status: null };
 
 export const EXPORT_SORTS = [['mastery-asc', '熟练度 ↑'], ['mastery-desc', '熟练度 ↓'], ['diff-desc', '难度 ↓'], ['diff-asc', '难度 ↑'], ['date-desc', '最近复习优先']];
 
@@ -32,9 +33,10 @@ export function removeFiltered(selection, filtered) { const drop = new Set(filte
 export const summary = (filtered, selection) => `已筛出 ${filtered.length} 题，已选择 ${selection.length} 题。`;
 export const clampGap = v => { const x = Math.trunc(Number(v)); return Number.isFinite(x) ? Math.max(0, Math.min(20, x)) : 0; };
 
-/** 导出请求体：屏幕版一律附带答案；A4 的单双栏由调用方问过后传入。 */
-export function exportPayload({ uids, question_refs, sessionId, variant, answers, gap, twoColumns }) {
+/** 导出请求体：历史图参数独立于答案与留白，旧调用不显式启用历史图。 */
+export function exportPayload({ uids, question_refs, sessionId, variant, answers, gap, twoColumns, ...history }) {
   const body = { format: variant, include_answers: variant === 'screen' ? true : !!answers, question_gap_lines: clampGap(gap), a4_two_columns: variant !== 'a4' || !!twoColumns };
+  if (history.historyPosition) body.history = historyOptions(history);
   if (sessionId) body.session_id = sessionId; else if (question_refs) body.question_refs = question_refs; else body.uids = [...uids];
   return body;
 }

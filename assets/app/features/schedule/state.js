@@ -8,7 +8,7 @@ import { sessionProgress, sessionEntries } from '../../domain/sessions.js';
 export const state = {
   view: 'arrange', exportReturn: 'arrange', filter: 'active', search: '',
   selected: '', detail: null, detailPhase: 'idle', detailError: '', showDetail: false,
-  deleting: new Set(), answers: false, gap: 0, options: false, deleted: false, exporting: '', exportStatus: null,
+  deleting: new Set(), deleted: false, exporting: '', exportStatus: null,
 };
 
 export const VIEWS = ['arrange', 'plans'];

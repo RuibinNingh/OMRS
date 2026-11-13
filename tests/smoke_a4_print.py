@@ -187,6 +187,48 @@ class A4PrintSmokeTest(unittest.TestCase):
         self.page.emulate_media(media="print")
         self.assertTrue(self.page.locator(".layout-error").is_visible())
 
+    def test_history_remains_complete_across_columns_and_print_media(self):
+        records = [{"date": f"2026-11-{28 - i:02}", "score": i % 11, "correct": i % 3 != 0} for i in range(16)]
+        for two_columns, count in ((True, 8), (True, 16), (False, 16)):
+            with self.subTest(two_columns=two_columns, count=count):
+                data = fixture(two_columns)
+                data["meta"]["history"] = {"position": "question", "scores": True, "dates": True}
+                for question in data["questions"]:
+                    question["history"] = records[:count]
+                self.load(data)
+                self.assert_complete()
+                for media in ("screen", "print"):
+                    self.page.emulate_media(media=media)
+                    shapes = self.page.evaluate("""() => [...document.querySelectorAll('#stage .review-history')].map(e => {
+                      const box = e.getBoundingClientRect(), col = e.closest('.col').getBoundingClientRect();
+                      const chart = e.querySelector('svg').getBoundingClientRect();
+                      return { height: box.height, bars: e.querySelectorAll('rect').length,
+                        bottom: box.bottom <= col.bottom + .03, right: chart.right <= col.right + .03,
+                        readable: chart.width >= Number(e.querySelector('svg').getAttribute('width')) - 1 };
+                    })""")
+                    self.assertEqual(len(shapes), 24)
+                    for shape in shapes:
+                        self.assertEqual(shape['bars'], count)
+                        self.assertLessEqual(shape['height'], 56.7)
+                        self.assertTrue(shape['bottom'] and shape['right'] and shape['readable'], shape)
+                pdf = self.page.pdf(prefer_css_page_size=True, print_background=False)
+                self.assertEqual(len(re.findall(rb'/Type /Page\b', pdf)), self.page.evaluate('window.__OMRS_RESULT.pages'))
+                self.assertEqual(self.errors, [])
+                self.assertEqual(self.network, [])
+
+    def test_feedback_history_without_answers_and_hidden_labels(self):
+        data = fixture()
+        data['questions'] = data['questions'][:2]
+        data['meta']['history'] = {'position': 'feedback', 'scores': False, 'dates': False}
+        data['answers'] = [{'idx': 1, 'uid': 'synthetic-1', 'blocks': [], 'notes': {},
+                            'history': [{'date': '2026-11-13', 'score': 0, 'correct': False}]}]
+        self.load(data)
+        self.assertEqual(self.page.evaluate('window.__OMRS_RESULT.errors'), [])
+        self.assertEqual(self.page.locator('#stage .review-history').count(), 1)
+        self.assertIn('二、反馈区', self.page.locator('#stage').inner_text())
+        self.assertEqual(self.page.locator('.history-date,.history-score,.ans-empty').count(), 0)
+        self.assertEqual(self.page.locator('.history-verdict').text_content(), '×')
+
     def test_keyboard_print_while_loading_shows_pending_message(self):
         self.page.add_init_script("window.requestAnimationFrame = callback => window.__resumeFrame = callback")
         path = Path(self.folder.name) / "loading.html"

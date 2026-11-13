@@ -77,7 +77,7 @@ class LearningRoutes:
                 if not uids and not references and (not session_id):
                     self._json({'status': 'error', 'msg': '需要 session_id 或 uids'}, 400)
                     return
-                payload, sid, filename, content_type = self.services.export_schedule_artifact(self.vault_path, uids or None, session_id, export_format, include_answers=include_answers, question_gap_lines=question_gap_lines, a4_two_columns=a4_two_columns, question_refs=references)
+                payload, sid, filename, content_type = self.services.export_schedule_artifact(self.vault_path, uids or None, session_id, export_format, include_answers=include_answers, question_gap_lines=question_gap_lines, a4_two_columns=a4_two_columns, question_refs=references, history=data.get('history'))
                 self._download(payload, filename, content_type)
             except Exception as exc:
                 self._error(exc)

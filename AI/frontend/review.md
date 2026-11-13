@@ -4,7 +4,7 @@
 > - 职责：复习调度工作台、临时调度与常规 Session 的区别（即时练习见 `AI/frontend/instant.md`）
 > - 入口：`assets/app/features/schedule/`（页面与三个工作区）、`assets/app/domain/sessions.js`（Session 列表）、`assets/app/domain/exporting.js`（导出下载）
 > - 不变量：临时调度（TMP-）不建立常规 Session；常规 Session 走 Ledger `session.create`
-> - 必跑测试：`tests/app/schedule.test.mjs`、`tests/app/arrange.test.mjs`、`tests/e2e/schedule.py`
+> - 必跑测试：`tests/app/schedule.test.mjs`、`tests/app/arrange.test.mjs`、`tests/app/export-options.test.mjs`、`tests/e2e/schedule.py`、`tests/e2e/schedule_export.py`
 > - 相关：`AI/frontend.md`（索引）
 
 ## 复习调度工作台（`features/schedule/`）
@@ -34,7 +34,7 @@
 ### 已有计划（本页原生）
 
 - 筛选：计划状态（待完成 / 已完成 / 全部，`#sch-plan-filter`）与编号搜索（`#sch-plan-search`），存在页面状态里。列表每条是按钮：创建时间、状态标签、科目与题量、进度条、「已录入 x / 共 y 题」、编号。桌面左列表右详情；手机先列表，点计划进详情，「返回计划列表」回来。
-- 详情：`GET /api/session?id=`，后发先至时只认最新一次；同一计划重拉（Session 列表刷新后）保留当前内容不闪骨架；失败在详情区给原因与「重试」。内容：标题、时间与编号、进度摘要、「录入结果」（切到反馈录入并选中该计划；已完成或全部录入时禁用）、导出打印版 / 屏幕版（`domain/exporting.js`，选项取打印选项；A4 先问单 / 双栏；结果写在 `#sch-status`，按钮进行中置忙）、「删除调度」、打印选项（展开状态与两个选项都存页面状态，重绘不丢）、题目列表（序号、UID、科目与分类、已录入 / 待录入、「预览」开题目弹窗，上下文 `schedule-plan`）。
+- 详情：`GET /api/session?id=`，后发先至时只认最新一次；同一计划重拉（Session 列表刷新后）保留当前内容不闪骨架；失败在详情区给原因与「重试」。内容：标题、时间与编号、进度摘要、「录入结果」（切到反馈录入并选中该计划；已完成或全部录入时禁用）、导出打印版 / 屏幕版（共用参数面板，所点按钮预选相应格式；成功结果写在 `#sch-status`，按钮进行中置忙）、「删除调度」、题目列表（序号、UID、科目与分类、已录入 / 待录入、「预览」开题目弹窗，上下文 `schedule-plan`）。
 - 删除：确认框说明关联反馈会一并撤销并重算熟练度和复习日期，题目正文保留，历史记录可恢复 Session。确认与请求期间按钮置忙；取消不发请求；业务错误提示「删除失败」并保留计划。成功后清空详情、若反馈页正在录这个计划则清表单与上次结果（bus `feedback:reset` / `feedback:clear-results`），再刷新统计快照、题目缓存、Session 列表与推荐；其中任何一步失败提示「页面刷新失败」。
 - 列表加载中与失败显示在 `#sch-session-status`（失败带「重试」）；没有计划时空状态带「安排新复习」。
 
@@ -70,13 +70,21 @@
 - **筛选**：搜索、科目、分类、状态、知识点、难度与熟练度上下限、排序（默认熟练度升序）、标记匹配与标记按钮；语义与题库共用（默认排除停用题）。
 - **已选**：有序 uid 列表，离开页面再回来还在；题目从题库消失时自动剔除。「选择当前筛选」「移除当前筛选」「清空已选」；每题「加入 / 移除」「预览」（上下文 `export` / `export-selection`）。已选区超过约 22em 内部滚动，不把选题区挤远。
 - **呈现**：平铺式（UID、科目 · 分类 · 难度 · 熟练度 · 上次复习、状态与标记、至多 4 个知识点）或画廊式（卡片带 qview 题面，进入视口才挂，`data-morph="skip"`）。
-- **导出**：A4 打印版（可选附带答案、题间留白 0–20 行）或屏幕版（始终附带答案，这两项禁用）。A4 先问单 / 双栏（关掉对话框按单栏）。`POST /api/export`（`uids`、`format`、`include_answers`、`question_gap_lines`、`a4_two_columns`），下载 `OMRS-Export-<版本>.html`；没选题、成功与失败都写在 `#export-status`。
+- **导出**：选题后打开与已有计划共用的参数面板，初始格式取上次成功设置。确认后 `POST /api/export`（稳定 `question_refs`、`format`、`include_answers`、`question_gap_lines`、`a4_two_columns` 与 `history`）并下载 HTML；没选题与成功结果写在 `#export-status`，请求失败在面板内说明原因、保留参数供重试。
+
+### 导出参数面板
+
+`export-dialog.js` 复用共享 `dialog` 模态，`export-options.js` 维护归一化与本地记忆。常用项包括文件版本、单双栏、附带答案、题间留白 0–20 行；历史图可关闭、放题目区或反馈区，默认反馈区最近 8 次，可设 1–16 次。「图表细节」折叠控制分数与首尾日期。桌面右侧随设置更新排版示意，并明确说明为示例；手机隐藏示意、表单内部滚动，确认按钮始终可达。屏幕版强制附带答案、禁用纸面选项，但不覆盖草稿内的 A4 参数。
+
+两处入口成功下载后共用 `localStorage['omrs-export-options-v1']`，刷新或重新打开同源页面仍保留；取消、关闭、Esc 不发导出请求，也不覆盖上次参数。「恢复默认」只重置当前草稿，待成功导出才记忆。存储不可用时仍可导出，并仅在本次打开期间保留。面板显示期间冻结选题引用；请求期间禁用参数、取消与关闭，避免重复下载，失败后恢复交互。失败信息在面板内呈现，不丢失用户的选择。
+
+历史按作答时间从左新到右旧，柱高使用 0–10 分量尺，绿对红错且附 ✓ / ×，零分保留细条；没有记录不占位。图表内嵌导出文件，可离线显示和打印。题目区与反馈区只显示选定的一处；反馈历史独立于答案开关，屏幕版反馈历史在「显示答案」后出现。纸面固定 51px（约 13.5mm）图高，默认最多 8 次时与题头并排，更多记录另占一行，详细排版见 `AI/export.md`。
 
 打开某个计划的入口只有总线事件 `schedule:open-plan`（控制器方法 `openPlan`），旧的 `schOpenPlan` 全局已不存在。导出页的熟练度百分比用 `core/format.js` 的 `formatPercent`。
 
 ## 稳定身份与不可用条目
 
-安排和全库导出的选择以 `question_id` 保存；刷新后同一身份可显示移动后的 UID，已归档身份被移出选择，复用旧 UID 的新题不会自动补入。新导出发送有序 `question_refs:[{question_id}]`，在 A4 排版确认前冻结引用。
+安排和全库导出的选择以 `question_id` 保存；刷新后同一身份可显示移动后的 UID，已归档身份被移出选择，复用旧 UID 的新题不会自动补入。新导出发送有序 `question_refs:[{question_id}]`，在打开参数面板前冻结引用。
 
 计划详情按 `entries` 展示固定编号与 `availability`：active 可以预览与反馈，archived / suspended 保留位置并说明状态，unresolved 显示「绑定题目」。绑定复用 `domain/question/picker.js`，人工确认后调用 `/api/session/bind`，保留原 Session 历史并追加绑定提交；绑定前禁止反馈或导出。存在不可用条目时导出按钮禁用，仍可反馈其余 active 项。UID-only 导入不会全库解析；身份不确定时必须先绑定。
 
