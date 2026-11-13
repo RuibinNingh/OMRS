@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-11-13_svg-production](2026-11-13_svg-production.md)：SVG功能生产发布与GitHub推送
 - [2026-11-12_svg-questions](2026-11-12_svg-questions.md)：题目静态 SVG 配图
 - [2026-11-12_svg-previews](2026-11-12_svg-previews.md)：SVG功能页面预览与助手入口修复
 - [2026-11-07_export-table-main](2026-11-07_export-table-main.md)：打印表格修复合入 main
