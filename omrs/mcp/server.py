@@ -42,6 +42,7 @@ from ..question_images import read_question_image, validate_original_image
 from .keys import verify_key, key_for_id
 from .common import NONBLANK_PATTERN, RequestError
 from .tool_docs import SERVER_INSTRUCTIONS, TOOL_DESCRIPTIONS, apply_parameter_docs
+from . import problems as problem_tools
 from . import queries, analysis_reports, draft_edit, board_read, board_write, board_export, session_write, question_write, labeling
 
 MAX_IMAGES = 6
@@ -63,6 +64,7 @@ TOOL_SCOPES = {
     "create_draft": "draft:create",
 }
 
+TOOL_SCOPES.update(problem_tools.SCOPES)
 TOOL_SCOPES.update(queries.SCOPES)
 TOOL_SCOPES.update(analysis_reports.SCOPES)
 TOOL_SCOPES.update(draft_edit.SCOPES)
@@ -746,6 +748,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
     session_write.register(server, vault, _require, _threaded, web_url)
     question_write.register(server, vault, _require, _threaded, web_url)
     labeling.register(server, vault, _require, _threaded, web_url)
+    problem_tools.register(server, vault, _require, _threaded, web_url)
     # FastMCP 默认会忽略函数参数模型中的未知字段；MCP 是权限边界，必须
     # 把拼写错误或试图注入的顶层参数显式拒绝。
     for tool in server._tool_manager.list_tools():

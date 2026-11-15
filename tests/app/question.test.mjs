@@ -90,6 +90,18 @@ test('images use a class and width attribute, never an inline style', () => {
   assert.ok(renderMd('![[大图.png|9999]]').includes('width="600"'));   // 上限 600 与旧实现一致
 });
 
+test('备注错因渲染标题、列表、加粗和代码，题面答案继续使用原换行规则', () => {
+  const html = qvHtml({ uid: '备注排版', question: '## 原题文本', answer: '1. 原答案文本',
+    notes: '## 错因\n\n**漏看负号**\n\n- 先看符号\n- 再检查边界\n\n## 关联\n\n`x < 0`' }, {}, {});
+  assert.match(html, /<h2>错因<\/h2>/);
+  assert.match(html, /<strong>漏看负号<\/strong>/);
+  assert.match(html, /<ul><li>先看符号<\/li><li>再检查边界<\/li><\/ul>/);
+  assert.match(html, /<h2>关联<\/h2>/);
+  assert.match(html, /<code>x &lt; 0<\/code>/);
+  assert.match(html, /<p class="md-p">## 原题文本<\/p>/);
+  assert.match(html, /<p class="md-p">1\. 原答案文本<\/p>/);
+});
+
 // ── 练习记录 ──
 const HISTORY = [
   '2026-04-02 主观:3, 错, 备注:辅助角公式方向记反',

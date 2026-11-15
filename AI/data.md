@@ -354,3 +354,7 @@ SQLite `active_config` 是完整运行时事实源，`config.json` 是镜像和�
 ## 题目 SVG 附件
 
 静态配图以原字节保存在附件目录，正文使用 Obsidian 图片引用。受管名称绑定稳定题目身份和完整内容哈希；变化另存新名，读取核对哈希，旧图保留供正文历史恢复。SVG没有独立Ledger二进制blob，须随全库备份保留；容量统计计入图片，位图压缩跳过SVG。规范、入口及派生PNG见 `AI/question-svg.md`。
+
+## 问题领域
+
+`错题/.omrs/problems.db`保存问题、错因、审计、幂等回执和调度默认，`错题/.omrs/problem-assets/`保存内容寻址附件。它们独立于学习Ledger，不被state.restore清除。正式Session的首页提醒字节与摘要原子包含在session.create事实中；详见`AI/problems.md`、`AI/data/storage.md`。

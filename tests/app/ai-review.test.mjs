@@ -10,6 +10,13 @@ import { reviewView } from '../../assets/app/features/ai-review/view.js';
 import { pendingDraftQueue, readDraftQueue, reviewFilters } from '../../assets/app/features/ai-review/queue.js';
 import { operationView } from '../../assets/app/features/ai-review/operation-view.js';
 
+test('问题审核描述按同一附件身份预览，不借用题目图片接口', () => {
+  const name=`PA-${'a'.repeat(64)}.svg`;
+  const markup=String(operationView({item:{id:'op_problem',tool:'update_problem',kind:'operation',status:'pending_confirmation',revision:1,preview:{problem_action:'update_problem',changes:[{field:'description_md',before:'原文',after:`## 观察\n![](${name})`}]},payload:{},actor:{}},original:{},edited:{},error:''}));
+  assert.match(markup,/\/api\/problem-asset\?name=PA-/);
+  assert.match(markup,/<h2>观察<\/h2>/);
+});
+
 const timers = () => ({ setTimeout: () => 1, clearTimeout() {} });
 test('内联批准绑定已展示版本；后台新版本到达时不能代替用户确认', async () => {
   const step = { name: 'set_question_labels', args: {}, operationId: 'op_1' };

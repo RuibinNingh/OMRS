@@ -25,6 +25,7 @@
   const imgMap = new Map();
   function preload() {
     const srcs = new Set();
+    if (D.meta?.schedule_banner) srcs.add(D.meta.schedule_banner.src);
     (D.questions || []).forEach(q => q.blocks.forEach(b => b.t === "img" && srcs.add(b.img.src)));
     (D.answers || []).forEach(a => a.blocks.forEach(b => b.t === "img" && srcs.add(b.img.src)));
     return Promise.all(Array.from(srcs).map(src => new Promise(res => {
@@ -153,7 +154,9 @@
     mount.replaceChildren();
     const t0 = performance.now();
     const blocks = buildBlocks();
-    const res = window.OMRS_A4_LAYOUT(blocks, mount, !(D.meta && D.meta.a4_two_columns !== false));
+    const banner = D.meta?.schedule_banner;
+    if (banner && !imgMap.get(banner.src)?.naturalWidth) throw new Error("首页提醒无法解码，禁止打印");
+    const res = window.OMRS_A4_LAYOUT(blocks, mount, !(D.meta && D.meta.a4_two_columns !== false), banner ? imgMap.get(banner.src) : null);
     const overflow = [...mount.querySelectorAll(".col")].some(column => {
       const bounds = column.getBoundingClientRect();
       return [...column.children].some(child => child.getBoundingClientRect().bottom > bounds.bottom + 0.03);

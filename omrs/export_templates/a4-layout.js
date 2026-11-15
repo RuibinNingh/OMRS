@@ -58,7 +58,7 @@
     wrap.appendChild(im); if (mark) wrap.classList.add(mark); return wrap;
   }
 
-  function layout(blocks, mount, singleColumn) {
+  function layout(blocks, mount, singleColumn, banner) {
     const warnings = [];
     let colW = singleColumn ? PAGE_W - 2 * MARGIN_LR : COL_W;
     let colH = COL_H;
@@ -69,9 +69,20 @@
     let page = null, colIdx = 0, col = null, y = 0;
     function newPage() {
       page = el("div", singleColumn ? "page single" : "page"); const inner = el("div", "page-inner");
+      let bannerHeight = 0;
+      if (!pages.length && banner) {
+        const strip = el("div", "schedule-banner");
+        const image = banner.cloneNode(); image.alt = "作答流程提醒";
+        strip.appendChild(image); page.appendChild(strip); mount.appendChild(page);
+        bannerHeight = strip.getBoundingClientRect().height + 10;
+        if (!banner.naturalWidth || bannerHeight > 28 * MM + 10) throw new Error("首页提醒无法解码或超过高度上限");
+        inner.style.top = (MARGIN_TB + bannerHeight) + "px";
+        inner.style.height = (COL_H - bannerHeight) + "px";
+      }
       const c0 = el("div", "col"); inner.appendChild(c0);
       const cols = [c0];
       if (!singleColumn) { const c1 = el("div", "col"); inner.appendChild(c1); cols.push(c1); }
+      cols.forEach(c => { c.style.height = (COL_H - bannerHeight) + "px"; });
       page.appendChild(inner); page._cols = cols; pages.push(page); mount.appendChild(page); colIdx = 0; col = c0; y = 0;
       colW = col.getBoundingClientRect().width;
       colH = col.getBoundingClientRect().height;

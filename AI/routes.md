@@ -130,6 +130,10 @@
 | GET | `/api/optimize/job` | `AI/api/mutations.md`、`AI/api/queries.md`、`AI/frontend/settings.md` |
 | POST | `/api/optimize/scan` | `AI/api/mutations.md` |
 | GET | `/api/optimize/summary` | `AI/api/queries.md`、`AI/frontend/settings.md` |
+| GET | `/api/problem` | `AI/problems.md` |
+| GET | `/api/problem-asset` | `AI/frontend/problems.md`、`AI/problems.md` |
+| GET | `/api/problems` | `AI/problems.md` |
+| POST | `/api/problems/write` | `AI/problems.md` |
 | GET | `/api/question` | `AI/api.md`、`AI/api/queries.md`、`AI/changelog.md`等 |
 | GET | `/api/question/content/history` | `AI/api/queries.md`、`AI/data.md` |
 | POST | `/api/question/content/restore` | `AI/api/mutations.md`、`AI/data.md`、`AI/ledger.md` |
@@ -143,6 +147,7 @@
 | POST | `/api/question/suspend` | `AI/api/mutations.md`、`AI/frontend/library.md` |
 | POST | `/api/questions/labels` | `AI/api/mutations.md`、`AI/labels.md` |
 | GET | `/api/recommend` | `AI/algorithm.md`、`AI/api/queries.md`、`AI/changelog.md`等 |
+| GET | `/api/reflections` | `AI/problems.md` |
 | POST | `/api/report/create` | `AI/api/boards.md`、`AI/frontend/records.md` |
 | POST | `/api/report/delete` | `AI/api/boards.md`、`AI/frontend/records.md` |
 | GET | `/api/report/view` | `AI/api/queries.md`、`AI/data/storage.md`、`AI/frontend/records.md` |
@@ -152,6 +157,8 @@
 | GET | `/api/runtime/records/detail` | `AI/api/queries.md`、`AI/frontend/records.md` |
 | GET/POST | `/api/scan` | `AI/api/mutations.md`、`AI/api/queries.md`、`AI/security.md` |
 | POST | `/api/schedule` | `AI/api/mutations.md` |
+| GET/POST | `/api/schedule-banner` | `AI/api.md` |
+| POST | `/api/schedule-banner/preview` | `AI/api.md` |
 | GET | `/api/session` | `AI/api/queries.md`、`AI/changelog.md`、`AI/frontend/review.md` |
 | POST | `/api/session/bind` | `AI/api/mutations.md`、`AI/data.md`、`AI/frontend/review.md`等 |
 | POST | `/api/session/delete` | `AI/api/mutations.md`、`AI/ledger.md` |

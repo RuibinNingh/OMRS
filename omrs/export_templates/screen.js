@@ -482,6 +482,11 @@
   }
 
   function build() {
+    if (D.meta?.schedule_banner) {
+      const strip = el("div", "schedule-banner");
+      const image = el("img"); image.src = D.meta.schedule_banner.src; image.alt = "作答流程提醒";
+      strip.appendChild(image); document.getElementById("track").parentNode.before(strip);
+    }
     // 顶栏标题
     const sub = (D.meta && D.meta.sub) || "";
     const mSession = sub.match(/Session:\s*(\S+)/);

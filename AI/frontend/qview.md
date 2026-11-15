@@ -2,9 +2,9 @@
 
 > **速查**
 > - 职责：题目 Markdown / KaTeX 渲染（内容哈希缓存）、练习记录、共享题目视图 qview、题目详情缓存、题目弹窗与翻页、Markdown 编辑器、画廊卡骨架
-> - 入口：`assets/app/domain/question/index.js`（`markdown.js`、`records.js`、`view.js`、`mount.js`、`modal.js`、`editor.js`、`ops.js`、`qview.css`）
+> - 入口：`assets/app/domain/question/index.js`（题面、记录、弹窗、编辑器）；错因交互与模板在同目录 `reflections.js`、`reflections-view.js`，样式在 `reflections.css`
 > - 不变量：题面只经 `renderMd()` 渲染；练习记录只经 `qRecordsFromDetail()` 读取；反馈或历史修正后必须 `qvInvalidateMany()`；挂载点是尺寸容器，页面不再自补容器查询；模板不写 `style=`
-> - 必跑测试：`tests/app/question.test.mjs`、`tests/app/run_browser.py`（对话框底座）、`tests/e2e/questions.py`、`tests/e2e/instant.py`、`tests/e2e/feedback.py`
+> - 必跑测试：`tests/app/question.test.mjs`、`tests/app/rich-markdown.test.mjs`、`tests/app/run_browser.py`（对话框底座）、`tests/e2e/questions.py`、`tests/e2e/instant.py`、`tests/e2e/feedback.py`、`tests/e2e/reflection_layout.py`、`tests/e2e/notes_markdown.py`
 > - 相关：`AI/frontend/architecture.md`（domain 层与过渡桥）、`AI/frontend/library.md`（题库页）
 
 ## 1. 模块
@@ -27,11 +27,15 @@
 
 ## 2. Markdown 渲染与缓存
 
+题面与答案使用`markdown.js`的轻量渲染与缓存。「备注 / 错因」使用`assets/app/domain/rich-markdown.js`的`richMarkdown(text, mode)`：支持标题、平铺有序/无序列表、加粗、斜体、引用、行内与围栏代码、http(s)/锚点链接；表格、图片和公式复用基础渲染。备注沿用`mdLineBreakMode()`偏好，普通HTML转义，代码原样显示，只查看不回写Markdown。问题说明与快捷错因历史也复用该安全子集，附件路由由问题域单独映射。
+
 - 逐行渲染：普通文本默认保留每一处换行（`full`），输出为同一段中的 `<br>`；空行分段为 `<p class="md-p">`（连续空行只算一段），所以 Markdown 段落和 AI 的普通逐行文本都能直接显示。`lean` 是显式兼容选项，把单个换行当软换行接续；行尾两个空格在两种模式下都是硬换行。换行偏好归本模块：`mdLineBreakMode()` / `setMdLineBreakMode()`，存 `localStorage('omrs-qb-md-mode')`（键名沿用旧版；没有旧偏好时迁移到 `full`）；题库页「显示设置」切换后调 `qvRerenderAll()`。题库、录入预览、草稿审核、反馈、即时练习和展示板详情都复用这条渲染路径。
 - 表格：表头 + 分隔行（`:?-{3,}:?`），`\|` 是单元格内竖线，输出 `.md-table-wrap > table.md-table`。
 - 图片：`![[名.png|300]]` 与 `![说明](路径)`，只取文件名，输出 `<img class="md-img" data-omrs-image=… width=…>`；宽度上限 600，不写行内样式。加载失败时由 `bindQuestionDom` 的捕获监听换成 `.md-img-missing` 文件名提示。
 - 公式：渲染前把同一行成对的 `\(...\)` 转为 `$…$`，把可跨行的 `\[...\]` 转为 `$$…$$`，不改变公式命令与正文换行；代码、已有美元公式、转义或未配对的定界符保留。`$…$`、`$$…$$`（可跨行）走 KaTeX；KaTeX 不可用时降级为 `<span class="math">` 源码。普通文本一律先转义，只放行图片、KaTeX 输出和降级公式三类 HTML；兼容渲染不回写旧题目文件。
 - 缓存键是规范化后的「换行模式 | 长度 | FNV-1a 哈希」，上限 600 条，最近使用的留下。KaTeX 还没加载时含公式的结果不进缓存，包括从反斜杠定界符转换的公式，免得降级结果粘住。`mdCacheStats()` 看命中，`clearMdCache()` 清空。`tests/app/math-delimiters.test.mjs` 验证转换、完整答案及延迟加载。
+
+备注块用`.q-notes-md`恢复正常空白折叠，换行由渲染器决定；标题、列表与段落按阅读间距分隔，公式、表格与代码在各自容器内横滚。`tests/e2e/notes_markdown.py`从真实题库行打开合成题，验证格式、受控题图、HTML转义、旧文件字节不变及编辑保存重绘，并截图浅深主题1440/1024/390/320px。
 
 ## 3. qview
 
@@ -73,7 +77,7 @@
 
 ### 4.1 题目弹窗（modal.js）
 
-`<dialog id="modal">` 由 `ui/overlay` 的 `openModal` 打开：进浏览器顶层、背景 inert（焦点陷阱）、Esc 与点遮罩关闭、背景滚动锁定。结构是 `.ui-dialog--xl` 面板 + 头部（`.qv-nav` 翻页条、关闭按钮）+ `#modal-stage` 挂载点（`tabindex=-1`，打开时拿初始焦点）。对话框面板在受限视口内允许收缩，`#modal-stage` 占据头部以下的剩余高度并负责纵向滚动，头部保持固定；题面内部的公式和表格仍在各自块内横滚。只有一题时翻页条隐藏；手机上翻页按钮只留图标（`aria-label` 仍是「上一题 / 下一题」），可点区域 40×40。
+`<dialog id="modal">` 由 `ui/overlay` 的 `openModal` 打开：进浏览器顶层、背景 inert（焦点陷阱）、Esc 与点遮罩关闭、背景滚动锁定。结构是 `.ui-dialog--xl` 面板、头部（`.qv-nav` 翻页条、「＋错因」、关闭按钮）与 `.qv-dialog__body` 正文；正文包含 `#modal-stage` 挂载点（`tabindex=-1`，打开时拿初始焦点）和错因区。面板限制在视口内，正文占据头部以下剩余高度；滚动布局见「快捷错因与草稿」。题面内部公式和表格仍在各自块内横滚。只有一题时翻页条隐藏；手机上翻页按钮只留图标（`aria-label` 仍是「上一题 / 下一题」），可点区域40×40。
 
 关闭后焦点先交给 `returnFocus(当前题)` 返回的元素（题库页把游标移到最后看的那题并交出它的行），没有或已脱离文档时还给打开前的焦点。关闭时立刻去掉 `id`，退场动画期间再打开也不会出现两个 `#modal`。
 
@@ -109,3 +113,17 @@
 ## 在途请求失效
 
 详情失效同时移除该UID的缓存和在途token。旧响应返回后不能回填缓存或覆盖新的挂载，而是等待当前有效详情；旧请求的finally也不能删除新请求。全量失效包含只有在途请求、尚未产生缓存的UID。
+
+## 快捷错因与草稿
+
+弹窗正文先题目、后错因区。面板可用宽度至少1040px时，错因区占右侧340px，题面和答案在左侧上下阅读，两区分别滚动；不足时错因区顺排到题目后面，正文统一滚动，头部保持可见。头部「＋错因」切回录入并把编辑框滚入可视区，重复点击保持录入。翻题立即清除上一题的错因区，迟到的题目读取不能重新挂载旧身份的记录。
+
+错因区默认「记录本次」，另一个页签「历史记录」显示条数，切换只改变面板显隐，复用同一个编辑框并保留草稿、选区与展开状态。正文必填、问题关联可选；「关联问题」「更多信息」按需展开，后者可补发生日期、附件或新建问题。历史先展示正文，再展开时间、来源、版本、发生日期及再次发生、修订和撤回操作；AI假设的待确认提示始终显示。旧Markdown错因在原题答案区单独按上述安全Markdown排版显示。
+
+保存后清空当前草稿、恢复输入焦点并留在当前题连续录入；写入成功但历史刷新失败会明确提示已保存。草稿按稳定question_id存sessionStorage，写入失败和重试保持幂等编号，输入改变才换编号。Ctrl/⌘+Enter在输入法组合期间禁用；翻题、关闭、Esc与遮罩通过保存/放弃/继续编辑保护。
+
+快捷录因切换修订或再次发生前也执行草稿保护；保存中禁用表单，避免在途编辑被清空。修订可修改关联问题和发生日期；用户可为AI错因补充明确确认依据，修订事件继续保留。
+
+错因草稿的幂等编号复用`core/request-id.js`，通过getRandomValues兼容局域网HTTP。`tests/e2e/problems_http.py`验证真实非安全上下文的连续保存、刷新、390px表单无横向溢出，以及取消关闭保护后焦点回到触发关闭的按钮、草稿仍保留。
+
+`tests/e2e/questions.py`同时验证共享弹窗的翻页、焦点陷阱、浮层和编辑器；390×844及320×640的长题用真实滚轮检查正文滚动、背景锁定、创建信息末尾和题后录入框可达性。

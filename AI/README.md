@@ -103,7 +103,7 @@
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v2.10.0 |
+| 当前版本 | v2.11.0 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/app/`（原生 ES Module：设计 token、UI 组件、domain 层及各页面 `features/`）+ `assets/vendor/`（本地字体与 KaTeX）|
@@ -159,3 +159,7 @@
 ## 验证覆盖与资源边界
 
 文档门禁递归纳入AI模块分册、根协作准则以及服务／工具Markdown，计划和变更日志按各自规则检查；file::symbol形式必须存在文件。日志状态和非空章节检查不能证明命令实际执行或结论正确，仍须核对代码、回执与业务回归。第三方来源元数据只记录可核实事实，独立场景来源无法确认时明确保留限制。
+
+## 问题中心索引
+
+问题、独立错因和受审AI写见`AI/problems.md`；页面见`AI/frontend/problems.md`，调度提醒见`AI/export.md`。独立问题存储与学习Ledger分离，维护仍先运行相关红绿测试和真实浏览器。

@@ -305,3 +305,5 @@ body{background:var(--bg);color:var(--fg);font-family:var(--sans);
 @media (prefers-reduced-motion:reduce){
   *{transition-duration:.01ms!important;animation-duration:.01ms!important}
 }
+
+.schedule-banner{max-width:960px;margin:72px auto 0;padding:0 16px}.schedule-banner img{display:block;width:100%;height:auto}

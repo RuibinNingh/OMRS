@@ -159,3 +159,6 @@ html[data-theme="dark"][data-invert-img="1"] .gallery-preview img { filter: inve
   .st-inline .ui-btn, .st-actions .ui-btn { min-height: var(--ctl-lg); }
 }
 @media (prefers-reduced-motion: reduce) { .st-switch::after { transition: none; } }
+
+.st-banner-preview{display:block;width:100%;height:auto;margin-top:var(--sp-4);border:1px solid var(--border-1);border-radius:var(--r-md)}
+#st-banner-editor>label{display:grid;gap:var(--sp-2);margin-block:var(--sp-3)}

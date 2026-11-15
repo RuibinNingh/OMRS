@@ -239,3 +239,30 @@ def apply_parameter_docs(tool):
         props['direction']['description'] = 'asc 升序，desc 降序；省略默认 asc。'
     if tool.name == 'create_draft':
         schema['examples'] = deepcopy(CREATE_DRAFT_EXAMPLES)
+
+# 问题域新增工具不扩展旧Key；每次正式写都需网页审核。
+from ..agent.tools.problems import SPECS as _PROBLEM_SPECS
+TOOL_DESCRIPTIONS.update({spec[0]:spec[2] for spec in _PROBLEM_SPECS})
+_PROBLEM_PARAMETERS = {
+    'query':'标题或描述的搜索文本，空串表示全部；新增前先搜索已有问题。',
+    'status':'问题业务状态：analyzing、working、verifying、resolved、parked；与熟练度独立。',
+    'id':'PRB问题或REF错因的稳定身份，来自相应读取结果，不使用显示UID。',
+    'question_id':'OP前缀的稳定题目身份；不得以可复用UID代替。',
+    'question_ids':'最多100个稳定question_id，作为问题相关材料，不等于确认发生错因。',
+    'title':'问题标题，1至160字符；可先建无关联题的问题。',
+    'description_md':'问题Markdown描述，最多20000字符；图片使用受管附件身份，HTML转义。',
+    'subject':'可选学科显示说明，最多80字符，不改变题目分类。',
+    'expected_revision':'从get_problem或get_reflections取得的当前严格整数revision；冲突须重新读取。',
+    'reason':'状态跳转、重新开启或修订/撤回的非空理由，最多1000字符。',
+    'content_md':'本次独立错因正文，1至20000字符；AI内容保留假设标记，不冒充用户亲述。',
+    'problem_ids':'零至100个PRB稳定问题身份；关联后同事务补齐问题与题目的材料关系。',
+    'recurrence_of':'可选同题REF记录身份，表示再次发生；不创建练习成绩。',
+    'occurred_at':'可选发生日期；未知留空，不把补记时间冒充真实发生时间。',
+    'withdrawn':'可选布尔值；true撤回但保留历史修订与附件。',
+    'data_base64':'完整本地图片或静态SVG的Base64，不含data前缀；图片最多8MiB，SVG最多256KiB，不抓取外链。',
+}
+for _spec in _PROBLEM_SPECS:
+    PARAMETERS[_spec[0]] = {**COMMON_PARAMETERS, **_PROBLEM_PARAMETERS}
+SERVER_INSTRUCTIONS += '问题写必须先查询相关问题与完整记录，使用稳定question_id、revision和request_id；MCP写返回待审核不代表已完成。AI假设与用户确认错因分离，不通过状态变化冒充事实。'
+for _spec in _PROBLEM_SPECS:
+    PARAMETERS[_spec[0]].update({'cursor':'上一页返回的next_cursor；首项留空，不自行猜测。','limit':'每页1至100项，默认50；返回total与next_cursor。'})

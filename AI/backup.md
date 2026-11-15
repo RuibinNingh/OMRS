@@ -56,3 +56,7 @@ CLI 在读取配置、初始化数据库、补齐回执和扫描之前调用目�
 ## SVG 附件
 
 全库快照按完整文件清单保存静态SVG原件及被旧正文引用的历史附件，恢复预览的image_files计数包含SVG。恢复不会重新编码或优化图形；正文恢复后由共享读取器继续核对格式与受管内容哈希。备份恢复字节一致性由 `tests/test_question_svg.py` 验证，规范见 `AI/question-svg.md`。
+
+## 问题、附件与提醒
+
+在线捕获遍历全部普通文件和SQLite，因此包含problems.db、problem-assets与Ledger内的Session提醒快照；问题写遵守同一生命周期屏障。整库恢复替换独立问题事实并增加世代，废止恢复前和备份中的AI待审核许可，不在普通GET中重放业务。问题读取和学习状态恢复彼此独立；回归见`tests/test_problem_store.py`。

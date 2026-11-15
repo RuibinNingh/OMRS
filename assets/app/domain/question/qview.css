@@ -34,6 +34,17 @@
 .qv-a > * + .qv-label { margin-top: var(--sp-4); }
 .qv .q-md { min-width: 0; max-width: 100%; padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-sunken); color: var(--fg-1); font-size: var(--text-lg); line-height: var(--leading-read); white-space: pre-wrap; }
 .qv .q-answer-md { border-color: var(--success-line); background: var(--success-subtle); }
+.qv .q-notes-md { white-space: normal; }
+.qv .q-notes-md > * { margin: 0; }
+.qv .q-notes-md > :not(:first-child) { margin-top: var(--sp-3); }
+.q-notes-md :is(h1, h2, h3, h4, h5, h6) { font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-ui); }
+.q-notes-md h1 { font-size: var(--text-xl); }
+.q-notes-md :is(ul, ol) { padding-left: var(--sp-6); }
+.q-notes-md li + li { margin-top: var(--sp-1); }
+.q-notes-md blockquote { padding-left: var(--sp-3); border-left: 2px solid var(--border-2); color: var(--fg-2); }
+.q-notes-md code { padding: var(--sp-0_5) var(--sp-1); border-radius: var(--r-xs); background: var(--surface-2); font-family: var(--font-mono); font-size: var(--text-sm); }
+.q-notes-md pre { overflow: auto; padding: var(--sp-3); border-radius: var(--r-sm); background: var(--surface-2); white-space: pre; }
+.q-notes-md pre code { padding: 0; }
 .qv:not(.qv-clamp) .q-md { overflow-x: auto; overflow-y: hidden; }
 .qv .q-md .katex-display { max-width: 100%; overflow-x: auto; overflow-y: hidden; padding-block: var(--sp-1); }
 .qv-bare .q-md { padding: 0; border: 0; background: transparent; font-size: var(--text-sm); }

@@ -19,6 +19,7 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 - `styles/ui.css` 汇总共享图片预览、对话框和其余 `ui/` 组件样式；助手的可见视口与输入框实测高度通过挂载期 CSSOM 规则更新，卸载时移除规则，页面节点不带运行时行内样式。
 - `domain` 层：共享题目视图 `domain/question/qview.css`（P5 第 4 轮起是 qview 的全部外观，含题目弹窗与 Markdown 编辑器）与标记 `domain/labels/labels.css`（色板、颜色圆点按 `data-lbl-c` 取色）、选板浮层 `domain/board/picker.css`（popover 进顶层，锚定位置由脚本写 `--bpicker-x` / `--bpicker-y`，是它唯一的行内样式）；标记颜色的运行时规则（`domain/labels/sheet.js`）也插在 `@layer domain` 块里。
 - 内嵌题面用 `--surface-sunken`，答案块用 `--success-subtle` / `--success-line`，战绩带用 `--streak-ok` / `--streak-bad`；标记预设色用 `--lbl-preset-1…10`，实色芯片前景用 `--lbl-fg-dark` / `--lbl-fg-light`。`check_contrast.py` 同时检查 `fg-1` / `fg-2` 在 `surface-sunken` 上的对比度。
+- 题目备注的Markdown块由`domain/question/qview.css`限定排版：标题用`--text-lg`/`--weight-semibold`（一级为`--text-xl`），块间距`--sp-3`，引用使用`--fg-2`与`--border-2`，代码用`--font-mono`和`--surface-2`；公式、表格和代码各自横滚，浅深主题沿用同名token。
 - 层次（core → ui → domain → features）与依赖方向由 `check_ui.py` 的 R7 约束。共享题目、标记与选板样式在 `domain` 层；页面样式由 `styles/index.css` 以 `layer(features)` 引入，实际导入清单以该文件为准。
 - `features` 层包含题库、即时练习、反馈、仪表盘、数据复盘、复习调度、展示板、历史、目录、报告、设置、录入、助手与审核中心页面样式。展示板拆成外框、目录树、题目面板、浮层和对话框；录入页拆成工作区、处理、题卡与训练样式；草稿样式和新的公共队列 / 对照样式均位于 `features/ai-review/`。设置页的 MCP 区域单独放在 `features/settings/mcp-keys.css`，在通用设置样式后以 `layer(features)` 导入；窗口复用共享对话框，按钮、输入和图标沿用现有组件与 token，有效状态使用成功语义色，失效记录使用中性色。审核中心前后对照使用既有 surface / success 语义 token，移动端改上下阅读；各页使用语义色与控件尺度，数据图表用 `data-tone` 映射状态 token。
 - 同一行的控件使用同一档高度（§3 的 `--ctl-*`）。仪表盘的「今天」数字用 `--text-display`；热力格四档颜色由 `color-mix` 基于 `--success` 与 `--surface-1` 派生。
@@ -119,3 +120,11 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 ## 本地资源元数据
 
 KaTeX固定版本的来源、62项哈希与完整MIT见assets/vendor/katex/manifest.json及LICENSE；入口场景内嵌Three的可核实许可独立保留。场景、公式图集和降级图的独立来源／授权未确认部分见assets/vendor/entry-scene.NOTICE.md，不以Three许可推定整体授权，运行资源字节保持。
+
+## 问题中心样式
+
+问题页和原位错因样式分别在features/problems与domain/question，入口按features/domain层加载；使用现有text、leading、surface、状态色与间距token，760px以下单层详情。调度提醒设置使用同一控件和图片预览规范，不引入新框架或颜色常量。
+
+题目弹窗以面板自身的容器宽度决定错因布局：1040px起为题目区加340px侧栏，否则错因在题后。侧栏模式题目与答案上下排列，两区独立滚动；底部模式统一滚动且头部固定。错因页签复用共享`ui/tabs`及键盘规则，录入、历史和辅助详情逐层展开；浅深主题沿用surface、fg与warning语义色，不新增调色板或动效。
+
+760px以下弹窗头部与翻页条使用4px间距，按钮保留40px触控目标；题号计数允许省略，按钮不相互压盖，完整题号文字仍在可访问内容中。

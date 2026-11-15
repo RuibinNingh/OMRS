@@ -231,7 +231,7 @@ class BoardSDKTests(unittest.TestCase):
         async def run():
             async with _session(self.server.mcp_port, self.key['secret']) as session:
                 tools = (await session.list_tools()).tools
-                self.assertEqual(len(tools), 44)
+                self.assertEqual(len(tools), 54)
                 self.assertNotIn('confirm_mcp_operation', [t.name for t in tools])
                 listing = _json_result(await session.call_tool('list_boards', {}))
                 folder = _json_result(await session.call_tool('create_board_folder', {'name': 'SDK目录', 'expected_catalog_revision': listing['catalog_revision'], 'request_id': 'folder'}))
@@ -277,7 +277,10 @@ class BoardSDKTests(unittest.TestCase):
                     'create_board','update_board','duplicate_board','delete_board','add_board_items','remove_board_items',
                     'reorder_board_items','update_board_layout','update_board_item','create_board_folder',
                     'update_board_folder','delete_board_folder','move_board','export_board','get_mcp_operation',
-                    'propose_question_update'}
+                    'propose_question_update',
+                    'search_problems','get_problem','get_reflections','create_problem','update_problem',
+                    'link_problem_questions','unlink_problem_questions','add_reflection_entry',
+                    'revise_reflection_entry','add_problem_asset'}
                 self.assertEqual({tool.name for tool in (await session.list_tools()).tools}, expected | {'list_labels', 'get_labeling_candidates', 'stage_label_plan', 'propose_label_plan'})
                 recommendations = await call('get_recommendations', {'subject': '数学', 'count':20})
                 self.assertIn(uid, [item['uid'] for item in recommendations['selection']])
@@ -331,17 +334,35 @@ class BoardSDKTests(unittest.TestCase):
                 self.assertEqual(urllib.request.urlopen(report['download_url']).read(),payload)
                 self.assertEqual(ledger.read_commits(self.server.vault), learning_before)
                 self.assertEqual(mastery_rows(self.server.vault), mastery_before)
-            for scopes, count in ((['omrs:read'],24), (['draft:create'],1), (['board:write'],0), (['omrs:read','draft:update'],25)):
+            problem_read = {'search_problems', 'get_problem', 'get_reflections'}
+            problem_write = {'create_problem', 'update_problem', 'link_problem_questions',
+                'unlink_problem_questions', 'add_reflection_entry', 'revise_reflection_entry', 'add_problem_asset'}
+            for scopes, count in ((['omrs:read'],24), (['draft:create'],1), (['board:write'],0),
+                    (['omrs:read','draft:update'],25), (['omrs:read','problem:read'],27),
+                    (['problem:read','problem:write'],0), (['omrs:read','problem:write'],24)):
                 key = create_key(self.server.vault, '发现', scopes)
                 async with _session(self.server.mcp_port, key['secret']) as session:
-                    self.assertEqual(len((await session.list_tools()).tools),count)
+                    visible = {tool.name for tool in (await session.list_tools()).tools}
+                    self.assertEqual(len(visible),count)
+                    self.assertEqual(visible & problem_read,
+                        problem_read if {'omrs:read', 'problem:read'} <= set(scopes) else set())
+                    self.assertFalse(visible & problem_write)
+                    denied_problem = await session.call_tool('create_problem', {'title':'越权', 'request_id':'denied-problem'})
+                    self.assertTrue(denied_problem.isError)
+                    self.assertIn('forbidden', denied_problem.content[0].text)
+                    if not {'omrs:read', 'problem:read'} <= set(scopes):
+                        denied_read = await session.call_tool('search_problems', {})
+                        self.assertTrue(denied_read.isError)
+                        self.assertIn('forbidden', denied_read.content[0].text)
                     if 'board:write' not in scopes or 'omrs:read' not in scopes:
                         denied = await session.call_tool('create_board', {'name':'越权', 'expected_catalog_revision':0, 'request_id':'denied'})
                         self.assertTrue(denied.isError)
                         self.assertIn('forbidden', denied.content[0].text)
                     # 同一已建立会话实时编辑权限，不能用旧 token/cache 维持增权。
                     update_scopes(self.server.vault, key['key_id'], list(_SCOPES))
-                    self.assertEqual(len((await session.list_tools()).tools),44)
+                    self.assertEqual({tool.name for tool in (await session.list_tools()).tools},
+                        expected | {'list_labels', 'get_labeling_candidates', 'stage_label_plan', 'propose_label_plan'})
                     update_scopes(self.server.vault, key['key_id'], ['omrs:read'])
                     self.assertEqual(len((await session.list_tools()).tools),24)
+                    self.assertFalse({tool.name for tool in (await session.list_tools()).tools} & (problem_read | problem_write))
         asyncio.run(run())

@@ -82,3 +82,7 @@ type 是 draft/question/session/feedback/board/report/category/practice/label_pl
 正式改题白名单增加 `diagrams`，结构与规范见 `AI/question-svg.md`；预览含新旧图及纸面检查结果，snapshot额外绑定被替换原图的哈希。提案和预览不创建附件；批准后先原子发布不可覆盖附件，再走现有正式改题journal和Ledger事务。拒绝、撤权或冲突不改正文；普通异常与进程恢复不会删除旧图。SVG源码属于私人提案，保存在审核payload，预览包含内联图；这一点有别于草稿来源图只保存摘要的意图。
 
 助手以追加模式提交空正文及配图时，只生成 `diagrams` 补丁；审批详情在配图区域核对新旧图，不将未改动正文列为差异，避免将尚未保存的新附件当成缺图。批准前正文与附件保持原样，批准后才替换或新增图片引用。
+
+## 问题域写入
+
+问题和错因工具在统一库登记problem类型，MCP提案使用独立问题权限，助手使用confirm级原运行许可。批准重查世代、权限和目标revision；领域事务在problems.db同时保存ai_review_receipts，启动收束只读回执，不重执业务。AI内容保持假设标记，状态变更不自动变成用户确认。详见`AI/problems.md`。

@@ -1,6 +1,14 @@
 """唯一 HTTP 注册表；文档与运行分派共用相同方法、路径和领域适配。"""
 
 ROUTES = {
+    ('GET', '/api/problems'): '_problems_get',
+    ('GET', '/api/problem'): '_problems_get',
+    ('GET', '/api/reflections'): '_problems_get',
+    ('GET', '/api/problem-asset'): '_problems_get',
+    ('POST', '/api/problems/write'): '_problems_post',
+    ('GET', '/api/schedule-banner'): '_problems_get',
+    ('POST', '/api/schedule-banner'): '_problems_post',
+    ('POST', '/api/schedule-banner/preview'): '_problems_post',
     ('GET', '/boxdetect'): '_boxdetect_get',
     ('GET', '/api/boxdetect/service'): '_boxdetect_get',
     ('GET', '/api/boxdetect/status'): '_boxdetect_get',

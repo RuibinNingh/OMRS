@@ -6,7 +6,7 @@
 - 题库主路径：搜索（/ 聚焦、Esc 清空）→ 筛选抽屉（F、科目下拉、标记、双滑块键盘拖动、分段按钮）→ 条件 chips 逐条撤销 →
   计数条快捷筛选 → 排序 → 切换视图（V）→ 列设置 → 键盘游标（↑↓ / 空格勾选 / Enter 打开详情）→ 翻页 → 行内「⋯」菜单打标记 →
   批量打标记（当场新建）→ 批量停用 → 视图预设存取 → 旧入口预设（仪表盘跳转、「在题目库打开」）；
-- 题目弹窗（ui/dialog）：点行打开（模态、焦点陷阱、桌面双栏）→ ←/→ 翻页 → Esc 关闭、焦点回到行；挂载点 < 680px 单栏；
+- 题目弹窗（ui/dialog）：点行打开（模态、焦点陷阱、桌面题目与错因并排）→ ←/→ 翻页 → Esc 关闭、焦点回到行；挂载点 < 680px 单栏；
   超宽公式块内横滚；题图缺失降级；弹窗上叠标记选择器 / 选板浮层（进对话框、可操作、Esc / 点外面只关浮层）；
   Markdown 编辑器（第二个模态对话框：未保存时 Esc 不关、Ctrl+Enter 保存写回文件、焦点回到「编辑」）；
 - 画廊缩略卡：截断走 data-clamp、不写行内样式、详情到齐后脚注换成战绩带；
@@ -105,8 +105,9 @@ def run_modal(page, base, results):
     check("初始焦点在题面区，背景拿不到焦点（焦点陷阱）", page.evaluate("""() => { const start = document.activeElement?.id;
       document.getElementById('qlb-search').focus(); return start === 'modal-stage' && document.getElementById('modal').contains(document.activeElement); }"""))
     check("挂载点带 data-qv-mount", page.evaluate("() => document.getElementById('modal-stage').dataset.qvMount === '1'"))
-    cols = page.evaluate(COLS, "#modal-stage .qv-split")
-    check("桌面弹窗：题面 | 答案双栏", cols == 2, f"列数 {cols}")
+    page.locator('#modal .ref-head').wait_for()
+    cols = page.evaluate(COLS, "#modal .qv-dialog__body")
+    check("桌面弹窗：题目与错因并排，题面答案上下阅读", cols == 2 and page.evaluate(COLS, "#modal-stage .qv-split") == 1, f"列数 {cols}")
     check("翻页位置显示", wait(page, "() => /第 1 \\/ \\d+ 题/.test(document.getElementById('qv-nav-pos').textContent)"))
     page.keyboard.press("ArrowRight")
     check("→ 翻到下一题", wait(page, "() => document.getElementById('qv-nav-pos').textContent.startsWith('第 2 /')"))
@@ -185,7 +186,7 @@ def run_mobile(browser, base, uid, results):
 
 
 def run_mobile_question_scroll(browser, base, results, viewport):
-    """长题详情在窄屏中保持面板边界，并把纵向滚动交给题面区。"""
+    """长题详情在窄屏中保持面板边界，题面与底部错因共用正文滚动区。"""
     width, height = viewport
     def check(name, ok, detail=""):
         results.append((name, bool(ok), detail))
@@ -205,33 +206,35 @@ def run_mobile_question_scroll(browser, base, results, viewport):
         page.wait_for_timeout(400)
         metrics = page.evaluate("""() => {
           const panel = document.querySelector('#modal .ui-dialog__panel');
-          const stage = document.getElementById('modal-stage');
+          const body = document.querySelector('#modal .qv-dialog__body');
           const p = panel.getBoundingClientRect();
           return {
             panelTop: p.top, panelBottom: p.bottom,
-            stageClient: stage.clientHeight, stageScroll: stage.scrollHeight,
-            overflowY: getComputedStyle(stage).overflowY,
+            bodyClient: body.clientHeight, bodyScroll: body.scrollHeight,
+            overflowY: getComputedStyle(body).overflowY,
             pageOverflowX: document.documentElement.scrollWidth - innerWidth,
           };
         }""")
         bounded = metrics["panelTop"] >= -1 and metrics["panelBottom"] <= height + 1
-        scrollable = metrics["stageScroll"] > metrics["stageClient"] and metrics["overflowY"] in ("auto", "scroll")
-        check(f"手机 {width}×{height}：面板在视口内、题面区可滚动", bounded and scrollable, json.dumps(metrics))
-        page.locator("#modal-stage").hover()
+        scrollable = metrics["bodyScroll"] > metrics["bodyClient"] and metrics["overflowY"] in ("auto", "scroll")
+        check(f"手机 {width}×{height}：面板在视口内、正文区可滚动", bounded and scrollable, json.dumps(metrics))
+        page.locator("#modal .qv-dialog__body").hover(position={"x": 12, "y": 80})
         page.mouse.wheel(0, max(400, height // 2))
-        moved = wait(page, "() => document.getElementById('modal-stage').scrollTop > 0")
-        check(f"手机 {width}×{height}：滚动题面区不会滚动背景", moved and page.evaluate("() => document.documentElement.scrollTop === 0"))
-        page.evaluate("() => { const s = document.getElementById('modal-stage'); s.scrollTop = s.scrollHeight; }")
+        moved = wait(page, "() => document.querySelector('#modal .qv-dialog__body').scrollTop > 0")
+        check(f"手机 {width}×{height}：滚动正文区不会滚动背景", moved and page.evaluate("() => document.documentElement.scrollTop === 0"))
+        page.locator('#modal-stage .qv-creation').scroll_into_view_if_needed()
         end = page.evaluate("""() => {
-          const stage = document.getElementById('modal-stage');
-          const last = stage.querySelector('.qv-creation');
-          const sr = stage.getBoundingClientRect();
+          const body = document.querySelector('#modal .qv-dialog__body');
+          const last = document.querySelector('#modal-stage .qv-creation');
+          const sr = body.getBoundingClientRect();
           const lr = last?.getBoundingClientRect();
-          return { atEnd: stage.scrollTop + stage.clientHeight >= stage.scrollHeight - 1,
-            lastVisible: !!lr && lr.bottom <= sr.bottom + 1,
+          return { scrolled: body.scrollTop > 0,
+            lastVisible: !!lr && lr.top >= sr.top - 1 && lr.bottom <= sr.bottom + 1,
             pageOverflowX: document.documentElement.scrollWidth - innerWidth };
         }""")
-        check(f"手机 {width}×{height}：长题可滚到创建信息末尾", end["atEnd"] and end["lastVisible"] and end["pageOverflowX"] <= 1, json.dumps(end))
+        check(f"手机 {width}×{height}：长题可滚到创建信息末尾", end["scrolled"] and end["lastVisible"] and end["pageOverflowX"] <= 1, json.dumps(end))
+        page.locator('[data-qv-reflection]').click()
+        check(f"手机 {width}×{height}：头部入口可直达长题后的错因框", page.locator('#modal textarea[data-ref-input="content_md"]').evaluate('(el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }'))
         page.keyboard.press("Escape")
         check(f"手机 {width}×{height}：滚动后仍可关闭弹窗", wait(page, CLOSED))
         check(f"手机 {width}×{height}：页面脚本错误为 0", not errors, "; ".join(errors[:3]))

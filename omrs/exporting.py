@@ -656,15 +656,17 @@ def _build_html(data, variant):
 # --------------------------------------------------------------------------
 # 对外入口
 # --------------------------------------------------------------------------
-def export_schedule_html(vault, uids=None, session_id="", include_answers=False, variant="a4", question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None):
+def export_schedule_html(vault, uids=None, session_id="", include_answers=False, variant="a4", question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None, schedule_banner=None):
     with lease(vault), write_lock():
         session_id, questions = _load_export_questions(vault, uids, session_id, question_refs)
         data = _build_export_data(vault, session_id, questions, include_answers, question_gap_lines, a4_two_columns, history)
+        from .schedule_banner import for_export
+        data["meta"]["schedule_banner"] = for_export(vault, session_id, schedule_banner)
     html_text = _build_html(data, variant)
     return html_text.encode("utf-8"), session_id
 
 
-def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None):
+def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None, schedule_banner=None):
     """导出错题清单为自包含 HTML。
 
     export_format: 'a4'（打印版，默认）/ 'screen'（屏幕阅读版）。
@@ -673,7 +675,7 @@ def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4"
     """
     fmt = (export_format or "a4").strip().lower()
     variant = "screen" if fmt == "screen" else "a4"
-    data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant, question_gap_lines, a4_two_columns, question_refs, history)
+    data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant, question_gap_lines, a4_two_columns, question_refs, history, schedule_banner)
     filename = f"OMRS-{session_id}-{variant}.html"
     return data, session_id, filename, "text/html; charset=utf-8"
 

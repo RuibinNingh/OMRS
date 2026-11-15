@@ -19,6 +19,8 @@ from .common import omrs_data_dir
 from . import locking
 from .vault_lifecycle import storage, open_sqlite, generation
 
+from .problems import ACTIONS as PROBLEM_TOOLS
+
 CHAT_TTL = 600  # 旧聊天许可的缺省等待期限；中心待办不使用。
 ACTIVE = ('running', 'pending_confirmation', 'approved', 'applying')
 TERMINAL = ('applied', 'rejected', 'expired', 'conflict', 'interrupted', 'failed', 'partial', 'unchanged', 'cancelled')
@@ -47,6 +49,10 @@ LABELS = {
     'update_board_folder': '编辑展示板文件夹', 'delete_board_folder': '删除展示板文件夹',
     'move_board': '移动展示板',
 }
+CONFIRM_AGENT.update(PROBLEM_TOOLS)
+WRITE_MCP.update(PROBLEM_TOOLS)
+LABELS.update(dict(zip(PROBLEM_TOOLS, ('创建问题','修改问题','关联问题题目','解除问题关联','追加错因记录','修订错因记录','保存问题附件'))))
+
 _JSON_FIELDS = ('payload', 'actor', 'preview', 'snapshot', 'editable_fields', 'result', 'commits', 'permission')
 _DECIDER = contextvars.ContextVar('ai_review_decider', default={})
 _AUTO_INTENT = contextvars.ContextVar('ai_review_auto_intent', default=None)
@@ -57,6 +63,7 @@ TYPES = {'propose_label_plan': 'label_plan', **{tool: 'board' for tool in BOARD_
          'create_review_session': 'session', 'record_feedback': 'feedback',
          'create_category': 'category', 'create_report': 'report', 'create_practice_card': 'practice'}
 
+TYPES.update({name:'problem' for name in PROBLEM_TOOLS})
 
 class ReviewError(ValueError):
     def __init__(self, code, message, status=400):
@@ -380,6 +387,9 @@ def decide(vault, operation_id, expected_revision, decision, reviewer=None):
             return row
         token = _DECIDER.set(dict(reviewer or {}))
         try:
+            if row['source'] == 'mcp' and row['tool'] in PROBLEM_TOOLS:
+                from .problem_review import decide as problem_decide
+                return problem_decide(vault,row,decision)
             if row['source'] == 'agent':
                 from .agent import runtime
                 return runtime.review_decide(vault, row, decision)
@@ -406,6 +416,12 @@ def update(vault, operation_id, expected_revision, patch):
         if row['source'] == 'agent':
             from .agent import runtime
             return runtime.review_update(vault, row, patch, expected_revision)
+        if row['tool'] in PROBLEM_TOOLS:
+            from .problem_review import snapshot, preview
+            payload={**row['payload'],**patch}
+            if snapshot(vault,row['tool'],payload)!=row['snapshot']:
+                raise ReviewError('revision_conflict','问题内容已变化',409)
+            return revise(vault,operation_id,expected_revision,payload,preview(row['tool'],payload,vault))
         if row['tool'] == 'propose_label_plan':
             from .label_plan_review import prepare_revision
             prepared = prepare_revision(vault, row, patch)
@@ -838,7 +854,7 @@ def _import_mcp(vault):
 def _auto_receipt(vault, row):
     """技术补记只认原领域请求身份；缺回执不能重新执行业务。"""
     tool = row['tool']
-    target = os.path.join(omrs_data_dir(vault), 'mcp_reports.db') if tool == 'create_report' else _draft_path(vault)
+    target = os.path.join(omrs_data_dir(vault), 'problems.db' if tool in PROBLEM_TOOLS else 'mcp_reports.db') if tool in (*PROBLEM_TOOLS,'create_report') else _draft_path(vault)
     if os.path.exists(target):
         with closing(_readonly(vault, target)) as db:
             if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ai_review_receipts'").fetchone():
@@ -875,7 +891,9 @@ def initialize(vault):
             for raw in rows:
                 row = _decode(raw)
                 result = None
-                if row['tool'] == 'propose_label_plan':
+                if row['tool'] in PROBLEM_TOOLS:
+                    result = _auto_receipt(vault,row)
+                elif row['tool'] == 'propose_label_plan':
                     from .label_plan_journal import receipt, public_result
                     saved = receipt(vault, row['operation_id'], row['effective_digest'])
                     result = public_result(saved) if saved else None

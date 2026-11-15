@@ -1,4 +1,5 @@
 /** 设置页「appearance」分区结构。 */
+import { bannerView } from './schedule-banner.js';
 import { html } from '../../core/html.js';
 
 export const appearanceView = () => html`<section class="st-section" id="st-sec-appearance" role="tabpanel" aria-labelledby="st-tab-appearance">
@@ -73,4 +74,4 @@ export const appearanceView = () => html`<section class="st-section" id="st-sec-
             </div>
             <div class="st-actions"><button class="ui-btn ui-btn--primary" type="button" data-action="settings.saveEntryBackground">保存入口背景</button><span class="st-actions-gap"></span><span class="st-status" id="st-entry-background-status" role="status"></span></div>
           </div>
-        </section>`;
+        ${bannerView()}</section>`;

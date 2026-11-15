@@ -179,6 +179,8 @@
 | `assets/app/ui/`、`assets/app/gallery.html`、`tests/app/browser_tests.js` | `AI/frontend/components.md` |
 | `assets/app/features/instant/` | `AI/frontend/instant.md` |
 | `assets/app/features/feedback/` | `AI/frontend/feedback.md`，导入协议同时更新 `AI/omr-import.md` |
+| `omrs/problems.py`、`omrs/problem_store.py`、`omrs/problem_assets.py`、`omrs/problem_review.py`、`omrs/schedule_banner.py` | `AI/problems.md`、`AI/data.md`；接口同时更新 `AI/api.md` |
+| `assets/app/features/problems/` | `AI/frontend/problems.md` |
 | `assets/app/features/questions/` | `AI/frontend/library.md` |
 | `assets/app/features/dashboard/` | `AI/frontend/dashboard.md` |
 | `assets/app/features/catalog/` | `AI/frontend/dashboard.md`（目录）|

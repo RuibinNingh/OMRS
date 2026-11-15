@@ -22,7 +22,7 @@ MCP 只监听 `127.0.0.1`，示例地址是 `http://127.0.0.1:18472/mcp`。外�
 
 ## 2. 工具与权限
 
-完整授权共 44 个工具（24 读、19 业务写、1 技术准备），只读密钥发现 24 个，仅 `draft:create` 发现 1 个。发现与调用共用 `TOOL_SCOPES`，多权限依赖同时满足才开放。草稿创建与报告创建不强制额外授予读权限。
+完整授权共 54 个工具（27 读、26 业务写、1 技术准备），只读密钥发现 24 个，仅 `draft:create` 发现 1 个。发现与调用共用 `TOOL_SCOPES`，多权限依赖同时满足才开放。草稿创建与报告创建不强制额外授予读权限。
 
 对客户端的工具描述、录题规范、逐参数说明与示例集中维护在 `omrs/mcp/tool_docs.py`。注册入口复用同一份描述，先生成既有参数 schema，再补说明元数据；自由对象的字段说明不增加新的校验约束。完整授权的 44 个工具的顶层参数及附件/块等嵌套字段均有中文说明，权限名称从 `TOOL_SCOPES` 附加。新增参数须同时补说明。真实 SDK 验证见 `tests/test_mcp_protocol.py`，校验契约保持见 `tests/test_mcp_tool_docs.py`。
 
@@ -290,3 +290,9 @@ note 管理 `# 备注` 下的 `## 补充备注`，保留旧裸文本、未知子
 ## 标记整理工具
 
 四个工具：`list_labels`、`get_labeling_candidates` 查询；`stage_label_plan` 技术准备；`propose_label_plan` 整批业务待审。准备与提案需 `omrs:read` 加 `label:write`，含合并/删除另需 `label:delete`。实时校验发现、调用与执行；新权限默认关闭，旧密钥不自动授权。
+
+## 问题中心工具
+
+新增search_problems、get_problem、get_reflections和七个正式写工具（名称与动作见`AI/problems.md`），分页返回总数与游标。查询须omrs:read和problem:read，写须额外problem:write；设置页可显式授权，旧Key保持原scope。正式写全部先送统一审核，返回待审operation_id与确认地址，不声称已完成；批准后再次鉴权、CAS校验并保存原生回执。附件接受base64受管内容，不抓取外链。
+
+精确发现回归`tests/test_mcp_board.py`逐名核对全部54个工具，包含问题领域3读7写。旧只读Key仍仅24个工具；显式问题只读授权为27个，缺少omrs:read或problem:read不能写入。实时扩权与降权均重新发现并验证隐藏工具直接调用被拒绝。

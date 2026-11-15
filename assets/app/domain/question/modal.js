@@ -7,8 +7,9 @@
  * - ←/→ 翻页登记在 core/keys 全局作用域（inDialog）；本对话框不在最上层（编辑器、确认框叠在上面）或有客人浮层时让位。
  * - 关闭时立刻去掉 id（退场动画期间再打开也不会出现两个 #modal）。
  */
+import { mountReflections } from './reflections.js';
 import { html } from '../../core/html.js';
-import { toElement } from '../../core/dom.js';
+import { toElement, render } from '../../core/dom.js';
 import { registerKeys } from '../../core/keys.js';
 import { icon } from '../../ui/icon.js';
 import { openModal, topModal, guestOpen } from '../../ui/overlay.js';
@@ -26,9 +27,13 @@ const template = () => html`<dialog class="ui-dialog ui-dialog--xl qv-dialog" id
 <span class="qv-nav__pos" id="qv-nav-pos" aria-live="polite"></span>
 <button type="button" class="ui-btn ui-btn--sm qv-nav__btn" data-qv-nav="next" aria-label="下一题" aria-keyshortcuts="ArrowRight" title="下一题（→）"><span>下一题</span>${icon('chevron-right')}</button>
 </nav>
+<button type="button" class="ui-btn ui-btn--sm" data-qv-reflection>＋错因</button>
 <button type="button" class="ui-btn ui-btn--ghost ui-btn--icon ui-btn--sm ui-dialog__close" data-dialog-cancel aria-label="关闭" title="关闭（Esc）">${icon('x')}</button>
 </header>
+<div class="qv-dialog__body">
 <div class="qv-dialog__stage" id="modal-stage" tabindex="-1"></div>
+<aside class="qv-dialog__reflections" aria-label="错因记录"></aside>
+</div>
 </div></dialog>`;
 
 function navRender() {
@@ -43,10 +48,18 @@ function navRender() {
   current.el.setAttribute('aria-label', `题目 ${nav.list[nav.index] || ''}`.trim());
 }
 
-function show(key) {
+async function show(key) {
   navRender();
   current.stage.scrollTop = 0;
-  return qvRender(current.stage, key, OPTS);
+  const self = current;
+  const version = self.showVersion = (self.showVersion || 0) + 1;
+  self.el.querySelector('.qv-dialog__body').scrollTop = 0;
+  self.reflections?.dispose();
+  self.reflections = null;
+  render(self.el.querySelector('.qv-dialog__reflections'), html``);
+  const detail = await qvRender(self.stage, key, OPTS);
+  if (current === self && self.showVersion === version && detail?.question_id) self.reflections = mountReflections(self.el.querySelector('.qv-dialog__reflections'), detail.question_id);
+  return detail;
 }
 
 function open(returnFocus) {
@@ -55,13 +68,16 @@ function open(returnFocus) {
   el.addEventListener('click', event => {
     const step = event.target.closest?.('[data-qv-nav]');
     if (step) { navGo(step.dataset.qvNav === 'prev' ? -1 : 1); return; }
+    if (event.target.closest?.('[data-qv-reflection]')) self.reflections?.toggle();
     if (event.target.closest?.('[data-dialog-cancel]')) closeModal();
   });
   current = self;
   self.entry = openModal(el, {
     initialFocus: '.qv-dialog__stage',
+    dismissible: () => { closeModal(); return false; },
     returnFocus: () => (typeof self.returnFocus === 'function' ? self.returnFocus(nav.list[nav.index]) : null),
     onClose: () => {
+      self.reflections?.dispose();
       qvUnmount(self.stage);
       el.removeAttribute('id');
       self.stage.removeAttribute('id');
@@ -78,6 +94,7 @@ function open(returnFocus) {
 export async function viewQ(uid, context, options = {}) {
   const key = String(uid || '').trim();
   if (!key) return null;
+  if (current && nav.list[nav.index] !== key && current.reflections && !await current.reflections.canLeave()) return null;
   const list = Array.isArray(context) ? context : (typeof context === 'string' ? qvContext(context) : null);
   if (list && list.length && list.includes(key)) nav = { list: [...list], index: list.indexOf(key) };
   else if (current && nav.list.includes(key)) nav.index = nav.list.indexOf(key);
@@ -87,7 +104,7 @@ export async function viewQ(uid, context, options = {}) {
   return show(key);
 }
 
-export function closeModal() { current?.entry.close(false); }
+export async function closeModal() { const self = current; if (self && (!self.reflections || await self.reflections.canLeave()) && current === self) self.entry.close(false); }
 export const modalOpen = () => !!current;
 /** 当前弹窗里的题（没开时空串）。 */
 export const modalUid = () => (current ? nav.list[nav.index] || '' : '');
@@ -95,6 +112,7 @@ export const modalUid = () => (current ? nav.list[nav.index] || '' : '');
 async function navGo(step) {
   const index = nav.index + step;
   if (!current || index < 0 || index >= nav.list.length) return false;
+  if (current.reflections && !await current.reflections.canLeave()) return false;
   nav.index = index;
   await show(nav.list[index]);
   return true;

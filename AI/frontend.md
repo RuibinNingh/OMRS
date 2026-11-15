@@ -37,3 +37,7 @@
 | [`frontend/records.md`](frontend/records.md) | **历史记录、数据复盘与报告**：学习与变更 / MCP 系统运行时间线、数据复盘页、AI 报告托管页 |
 
 独立训练面板 `/train` 的入口、图表、实验与内容复核见 `AI/frontend/trainpanel.md`。
+
+## 问题页
+
+独立问题页的桌面列表/详情、手机分层、Markdown和附件见`AI/frontend/problems.md`；弹窗快捷录因见`AI/frontend/qview.md`。

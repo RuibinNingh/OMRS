@@ -134,3 +134,7 @@ MCP 标记权限分 `label:write` 和 `label:delete`，默认关闭；合并与�
 ## 题目静态配图
 
 题目SVG复用静态元素与属性白名单，并增加 `AI/question-svg.md` 的结构、白底和双栏尺寸限制；直接读取原件前验证全部字节及受管名称哈希。`/api/image` 返回 `image/svg+xml`、`X-Content-Type-Options: nosniff` 与 `Content-Security-Policy: sandbox; default-src 'none'; style-src 'unsafe-inline'`。目录与普通文件身份校验沿用共享读取；SVG最多256KiB，已有位图Web读取保持大图兼容。AI派生PNG在独立进程中以data图片加载、禁网络，并发与超时回收见统一规范。正式新增或替换仅走既有审批和不可覆盖存储。
+
+## 问题域
+
+问题Web接口沿用登录、同源及写锁，服务端推导操作者。MCP problem:read/problem:write独立授权且默认不授予，批准时使用active_key重新检查撤销和到期状态。Markdown转义HTML，私有附件不接受路径穿越、可执行SVG和外链；GET附件带nosniff与沙箱CSP。问题图与调度横幅仅共享静态安全规则，各自采用页面或纸面几何profile，不放宽题目SVG规范。

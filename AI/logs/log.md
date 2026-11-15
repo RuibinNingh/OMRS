@@ -2,6 +2,10 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-11-15_reflection-layout](2026-11-15_reflection-layout.md)：题目弹窗错因侧栏与底部布局
+- [2026-11-15_problem-release](2026-11-15_problem-release.md)：问题中心与题目弹窗生产发布
+- [2026-11-15_notes-markdown](2026-11-15_notes-markdown.md)：备注错因Markdown显示
+- [2026-11-14_problem-center](2026-11-14_problem-center.md)：问题中心隔离开发候选
 - [2026-11-13_svg-production](2026-11-13_svg-production.md)：SVG功能生产发布与GitHub推送
 - [2026-11-13_schedule-export-release](2026-11-13_schedule-export-release.md)：复习导出 v2.10.0 发布与 GitHub 合入
 - [2026-11-13_schedule-export-history](2026-11-13_schedule-export-history.md)：复习导出参数面板与练习历史微型图

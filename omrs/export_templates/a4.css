@@ -99,3 +99,6 @@ html,body{margin:0;padding:0;background:#f1ede6;color:var(--ink);
   body.debug .slice{outline:none;}
 }
 body.debug .slice{outline:1px solid rgba(192,57,43,.45);}
+
+.schedule-banner{position:absolute;left:var(--mar-lr);right:var(--mar-lr);top:var(--mar-tb)}
+.schedule-banner img{display:block;width:100%;height:auto}

@@ -1,0 +1,23 @@
+/* 问题列表、详情与快捷错因共用的阅读尺度。 */
+.prb-page{display:grid;grid-template-columns:minmax(240px,320px) minmax(0,1fr);gap:var(--sp-6);position:relative;padding-bottom:var(--sp-10)}
+.prb-list,.prb-detail{min-width:0;background:var(--surface-1);border:1px solid var(--border-1);border-radius:var(--r-lg);padding:var(--sp-6)}
+.prb-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap;margin-bottom:var(--sp-4)}
+.prb-head h2,.prb-head h3{margin:0}.prb-head p,.prb-muted{color:var(--fg-2);font-size:var(--text-sm)}
+.prb-page label{display:grid;gap:var(--sp-2);font-size:var(--text-sm);margin-block:var(--sp-3)}
+.prb-items{display:grid;gap:var(--sp-2)}
+.prb-row{display:grid;gap:var(--sp-2);text-align:left;background:var(--surface-1);color:var(--fg-1);border:1px solid var(--border-1);padding:var(--sp-4);border-radius:var(--r-md);cursor:pointer;overflow-wrap:anywhere}
+.prb-row:hover,.prb-row.is-selected{background:var(--accent-soft);border-color:var(--border-2)}
+.prb-row strong{font-size:var(--text-md)}.prb-row small,.prb-event small,.prb-question small{color:var(--fg-2);font-size:var(--text-xs)}
+.prb-status{font-size:var(--text-xs);color:var(--info-fg);background:var(--info-soft);border-radius:var(--r-pill);padding:var(--sp-1) var(--sp-2);width:fit-content}
+.prb-detail h1{font-size:var(--text-2xl);line-height:var(--leading-tight);margin-block:var(--sp-5)}
+.prb-markdown{overflow-wrap:anywhere;min-height:120px}.prb-markdown img,.reflections img{max-width:100%;height:auto}
+.prb-state{display:flex;align-items:end;flex-wrap:wrap;gap:var(--sp-3);padding-block:var(--sp-4)}.prb-state label:nth-child(2){flex:1;min-width:160px}
+.prb-section{border-top:1px solid var(--border-1);padding-top:var(--sp-5);margin-top:var(--sp-5)}
+.prb-question{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border-1);border-radius:var(--r-md);padding:var(--sp-2);margin-block:var(--sp-2)}
+.prb-question button:first-child{display:grid;justify-items:start;white-space:normal;text-align:left;min-width:0;overflow-wrap:anywhere}
+.prb-page .prb-choice{display:flex;align-items:center;gap:var(--sp-2)}.prb-picker{max-height:320px;overflow:auto;padding:var(--sp-3);background:var(--surface-0);border-radius:var(--r-md)}
+.prb-event{border-left:2px solid var(--border-2);padding:var(--sp-2) var(--sp-4);margin-block:var(--sp-3)}
+.prb-empty{padding:var(--sp-10) var(--sp-3);color:var(--fg-2)}.prb-message{grid-column:1/-1;color:var(--fg-2);margin:0}.prb-back{display:none}
+@media(max-width:760px){.prb-page{grid-template-columns:minmax(0,1fr);gap:var(--sp-3)}.prb-list,.prb-detail{padding:var(--sp-4)}.prb-page:not(.has-detail) .prb-detail,.prb-page.has-detail .prb-list{display:none}.prb-back{display:inline-flex}.prb-state{align-items:stretch}.prb-state label{width:100%}}
+
+.prb-markdown{font-size:var(--text-md);line-height:var(--leading-read)}.prb-markdown h2{font-size:var(--text-lg);margin-block:var(--sp-4) var(--sp-2)}.prb-markdown pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:var(--sp-3);background:var(--surface-0);border-radius:var(--r-sm)}

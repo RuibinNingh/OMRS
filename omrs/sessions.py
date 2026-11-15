@@ -152,9 +152,11 @@ def create_session_from_selection(vault, selected_items, subject=None):
     sid = _resolve_session_id(_reserved_session_ids(vault) | {s["Session_ID"] for s in existing}, f"EXP-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}")
     for index, entry in enumerate(clean):
         entry["entry_id"] = f"{sid}:{index}"
+    from .schedule_banner import settings as banner_settings
+    banner_snapshot = banner_settings(vault)["snapshot"]
     append_commit(vault, "api", "session.create", f"创建 Session {sid}", {"session": {
         "session_id": sid, "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-        "subject_filter": subject or "", "count": len(clean), "entries": clean, "items": clean, "status": "active"}})
+        "subject_filter": subject or "", "count": len(clean), "entries": clean, "items": clean, "status": "active", "schedule_banner": banner_snapshot}})
     rebuild_projection(vault)
     result = get_session(vault, sid)
     # 创建响应兼容原小写 items，详情仍保留旧大写字段。

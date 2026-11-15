@@ -191,3 +191,7 @@ MCP导出复用现有只读图片列表和受限原图读取，内置助手不�
 ## 正式题目配图
 
 `update_question_section` 可随文字修改提交 `diagrams`，新增或替换题目／答案节的静态SVG；只配图时用mode=append、content为空以保留原文字。工具描述与schema明确完整源码、分节、原SVG文件名和双栏要求。配图沿用复杂改题详情审核、持久许可与正式正文回执，不提供绕过审批的写文件工具；原图保留，按运行撤销恢复旧正文引用。生成和审核边界见 `AI/question-svg.md`。独立识别器发送SVG data URL前派生PNG；助手聊天上传原图契约保持位图。
+
+## 问题与错因工具
+
+`omrs/agent/tools/problems.py`注册三个read工具和七个confirm写工具；写通过原运行统一审核执行，运行中止、配置停用与世代变化仍受既有权限链保护。快照绑定问题或记录revision，实际写复用`problem_review.apply_review`与同事务回执；模型不自行批准。AI新增和修订保持假设来源，不把模型解释当作用户确认。

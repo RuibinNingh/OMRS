@@ -3,16 +3,17 @@ import { html, raw } from '../../core/html.js';
 import { button } from '../../ui/button.js';
 import { status } from '../../ui/status.js';
 import { renderMd } from '../../domain/question/index.js';
+import { problemMarkdown } from '../../domain/problem-markdown.js';
 import { itemLabel, itemSummary, sourceLabel, reviewStatus, isPending, changesOf, FIELD_LABELS, editInput } from './state.js';
 import { draftSnapshot, relatedPreview } from './preview-view.js';
 import { labelPlanView } from './label-plan-view.js';
 import { isLabelPlan } from './label-plan-state.js';
 import { resultView } from './result-view.js';
 
-const readable = (value, kind) => kind === 'list' || Array.isArray(value)
+const readable = (value, kind, problem = false) => kind === 'list' || Array.isArray(value)
   ? html`<p>${(Array.isArray(value) ? value : []).map(v => typeof v === 'object' ? v.label || v.uid || v.question_id || '关联项目' : v).join('、') || '（空）'}</p>`
   : typeof value === 'number' ? html`<p>${value}</p>`
-    : value ? html`<div class="q-md">${raw(renderMd(String(value)))}</div>` : html`<p class="arv-muted">（空）</p>`;
+    : value ? html`<div class="q-md">${raw((problem ? problemMarkdown : renderMd)(String(value)))}</div>` : html`<p class="arv-muted">（空）</p>`;
 function impactView(preview) {
   const impact = preview?.impact || preview || {};
   return html`${(impact.reasons || []).length ? html`<p>${impact.reasons.join('、')}</p>` : ''}
@@ -56,7 +57,7 @@ export function operationView(s) {
     ${s.error ? status({ tone: 'danger', text: s.error }) : ''}${unread ? button({ label: '重试详情', action: 'ai-review.retry', disabled: s.busy }) : ''}${s.note ? status({ tone: 'success', text: s.note }) : ''}
     ${item.error_code ? status({ tone: 'danger', text: `未应用：${item.error_code}` }) : ''}
     ${isLabelPlan(item) ? labelPlanView(s) : s.editing ? editForm(s) : html`${item.tool === 'commit_draft' ? draftSnapshot(preview) : ''}${relatedPreview(item)}${changes.length ? html`<section class="arv-changes" aria-label="修改前后对照">${changes.map(change => html`<section class="arv-change"><h3>${change.label || FIELD_LABELS[change.field] || change.field}</h3>
-      <div class="arv-diff"><div><h4>当前内容</h4>${readable(change.before, change.kind)}</div><div class="arv-after"><h4>修改后</h4>${readable(change.after, change.kind)}</div></div></section>`)}</section>` : impactView(preview)}
+      <div class="arv-diff"><div><h4>当前内容</h4>${readable(change.before, change.kind, !!preview.problem_action)}</div><div class="arv-after"><h4>修改后</h4>${readable(change.after, change.kind, !!preview.problem_action)}</div></div></section>`)}</section>` : impactView(preview)}
       ${preview.question || preview.answer ? html`<details class="ui-disclosure arv-context"><summary>对照完整题目与答案</summary><h3>题目</h3>${readable(preview.question)}<h3>答案解析</h3>${readable(preview.answer)}</details>` : ''}
       `}
     ${item.original_payload && item.revision > 1 ? html`<details class="arv-context"><summary>查看原始提案</summary><pre>${JSON.stringify(item.original_payload, null, 2)}</pre></details>` : ''}

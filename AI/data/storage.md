@@ -241,3 +241,7 @@ OMRS `错题/.omrs/boxdetect/service.json`保存mode/base_url/api_key/allow_priv
 默认请求保留30天／10000条，原图详情容量256MiB；容量超限仅清较早图片，回执仍按记录期限保留。启动把running请求／模型操作标interrupted。成功模型选择包含current/previous/revision，与操作回执同事务提交；启动从选择加载，不改旧managed/active。SQLite逻辑清理复用空闲页，不承诺立即缩小文件。服务库与模型不随OMRS题库备份，须单独保全完整私有目录和模型。
 
 本机启停继续在登记训练根的managed/operation.lock串行，`managed/service-operations/编号.json`保存发起者、动作、开始／结束和结果，不改模型指针；旧未完成操作阻止保存新版连接。独立连接启用后旧模型控制及启动恢复禁用，避免双控制器。完整边界见 `AI/boxdetect.md`。
+
+## 问题中心独立库
+
+`错题/.omrs/problems.db`使用schema 1，当前对象与链接、追加审计、幂等和审核原生回执同事务。普通读使用只读连接，不初始化或恢复。`problem-assets/`保存PA摘要命名的图片与静态SVG，历史引用不自动清理。调度默认在settings，正式Session快照在学习Ledger的session.create payload中；全库备份同时捕获两者。完整字段见`AI/problems.md`。

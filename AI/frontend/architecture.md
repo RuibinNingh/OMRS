@@ -17,6 +17,8 @@
 
 跨页复核文案集中在 `assets/app/domain/question/review-cycle.js`：题库、题目详情和复习调度共用档位、间隔、实际日期与累计成绩。`domain/items.js` 将缺可靠日期的复燃题视为今日待复核，其余无效日期保持未知。`tests/e2e/review_policy.py` 使用临时Vault与真实反馈接口覆盖一次击杀→到期推荐→升档→提前练习→降级→重新击杀及设置重算。
 
+`domain/rich-markdown.js`拥有备注、问题说明与快捷错因历史共用的安全Markdown子集，依赖`domain/question/markdown.js`的表格、图片与公式基础能力；题面和答案仍直接走基础渲染。`domain/problem-markdown.js`只负责问题域PA附件到受控读取接口的映射，备注题图继续使用题目图片接口。`tests/app/rich-markdown.test.mjs`覆盖格式、换行与附件边界，`tests/e2e/notes_markdown.py`以真实题库详情和编辑保存验证最终DOM及多宽度截图。
+
 ## 1. 目录与依赖方向
 
 框选设置由settings内的boxdetect控制器拥有，训练表单仅写训练策略；`/train`与独立服务面板 `/boxdetect/`职责分开。服务面板资产位于services/boxdetect，不引入主站feature依赖；同源入口使用本仓库资产，外部服务仅提供数据。`tests/e2e/boxdetect_panel.py`覆盖设置、Key、检测与历史链路；原settings/create/trainpanel/traincontrol浏览器门禁分别维护页面回归。
@@ -226,3 +228,13 @@ core/request-id.js统一练习、训练控制和标记撤销的安全随机请�
 ## SVG 上传与跨页读取
 
 `core/uploads.js::uploadImage` 在完成响应包含svg时附带服务端检查元数据；普通位图返回形状保持不变。正式题目共享图片入口使用原始SVG，AI接口按需转PNG，导出保持向量，见 `AI/question-svg.md`。`tests/e2e/question_svg.py` 在隔离服务中实际验收各入口及离线PDF，不以单元测试替代页面验收。
+
+## 问题领域接线
+
+main登记problems页面；domain/problems统一读写API和受管附件，domain/problem-markdown提供安全说明渲染，domain/question/reflections管理弹窗原位录因。它们沿用core/api、html、morph与UI对话框，无额外前端框架。新增浏览器链路在`tests/e2e/problems.py`。
+
+错因控制器与纯模板分别在`domain/question/reflections.js`、`reflections-view.js`，共享页签在首次挂载时绑定，切页签只隐藏面板，输入时不重绘编辑框。弹窗按渲染序号丢弃旧题的错因挂载；卸载后异步读取不回填界面。`tests/e2e/reflection_layout.py`使用合成Vault和随机回环端口，验证侧栏/底部布局、页签草稿与选区、保存焦点、刷新失败、翻题身份隔离和双主题多宽度截图。
+
+## 局域网HTTP请求编号回归
+
+问题接口和错因草稿统一调用`core/request-id.js`，安全随机源为getRandomValues。`tests/e2e/problems_http.py`把`http://omrs-lan.test/**`代理到合成Vault的随机回环服务，保持原Host、Origin、PIN登录与Cookie，不替换浏览器crypto；明确检查非安全上下文、randomUUID不可用及getRandomValues可用。

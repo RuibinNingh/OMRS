@@ -1,0 +1,119 @@
+/* 题目在前、错因在后；以弹窗可用宽度决定是否并排。 */
+.qv-dialog .qv-dialog__panel {
+  container: qv-dialog / inline-size;
+  height: min(960px, calc(100dvh - var(--sp-8)));
+  padding-bottom: 0;
+}
+.qv-dialog__head { flex: none; }
+.qv-dialog__body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: max-content;
+  align-content: start;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+}
+.qv-dialog__body > .qv-dialog__stage {
+  min-width: 0;
+  overflow: visible;
+  padding-bottom: var(--sp-6);
+}
+.qv-dialog__reflections { min-width: 0; }
+.qv-dialog__reflections:empty { display: none; }
+.reflections {
+  min-width: 0;
+  padding: var(--sp-5) var(--sp-6);
+  border-top: 1px solid var(--border-1);
+  background: var(--surface-0);
+}
+.reflections [hidden] { display: none; }
+.ref-head { margin-bottom: var(--sp-3); }
+.ref-head strong { font-size: var(--text-md); }
+.reflections .ui-tabs { margin-bottom: var(--sp-4); }
+.ref-form {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.ref-editor__head, .ref-save, .ref-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.ref-editor__head { justify-content: space-between; }
+.ref-form label { display: grid; gap: var(--sp-2); font-size: var(--text-sm); }
+.ref-editor__head label { font-weight: var(--weight-medium); }
+.ref-editor__head small, .ref-save small, .ref-note, .ref-message, .ref-empty {
+  margin: 0;
+  color: var(--fg-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-ui);
+}
+.ref-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 120px;
+  font-size: var(--text-md);
+  line-height: var(--leading-read);
+}
+.ref-form input { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.ref-disclosure { border-bottom: 1px solid var(--border-1); padding-bottom: var(--sp-3); }
+.ref-disclosure > summary, .ref-entry summary {
+  color: var(--fg-2);
+  font-size: var(--text-xs);
+  line-height: var(--leading-ui);
+  cursor: pointer;
+}
+.ref-disclosure > summary { padding-block: var(--sp-1); }
+.ref-disclosure[open] > :not(summary) { margin-top: var(--sp-3); }
+.ref-choices { display: grid; gap: var(--sp-2); max-height: 180px; overflow: auto; }
+.ref-form .ref-choice { display: flex; align-items: baseline; gap: var(--sp-2); overflow-wrap: anywhere; }
+.ref-save { margin-top: var(--sp-1); }
+.ref-message:not(:empty) { margin-top: var(--sp-3); }
+.ref-timeline { display: grid; gap: var(--sp-4); }
+.ref-entry { min-width: 0; overflow-wrap: anywhere; }
+.ref-entry + .ref-entry { padding-top: var(--sp-4); border-top: 1px solid var(--border-1); }
+.ref-entry .q-md { font-size: var(--text-sm); line-height: var(--leading-read); }
+.ref-entry .q-md > :first-child { margin-top: 0; }
+.ref-entry .q-md > :last-child { margin-bottom: 0; }
+.ref-entry__details { margin-top: var(--sp-2); }
+.ref-entry__details[open] > :not(summary) { margin-top: var(--sp-3); }
+.ref-hypothesis { margin: 0 0 var(--sp-2); color: var(--warning-fg); font-size: var(--text-xs); }
+.ref-entry > .ref-note { margin-bottom: var(--sp-2); }
+.ref-empty { padding-block: var(--sp-3); }
+
+/* 340px 侧栏之外至少给题面约 700px，避免三列挤压阅读区。 */
+@container qv-dialog (min-width: 1040px) {
+  .qv-dialog__body {
+    grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-rows: minmax(0, 1fr);
+    grid-auto-rows: auto;
+    align-content: stretch;
+    overflow: hidden;
+  }
+  .qv-dialog__body:has(> .qv-dialog__reflections:empty) { grid-template-columns: minmax(0, 1fr); }
+  .qv-dialog__body > .qv-dialog__stage, .qv-dialog__reflections {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  .qv-dialog__reflections { border-left: 1px solid var(--border-1); background: var(--surface-0); }
+  .reflections { padding: var(--sp-4) var(--sp-5) var(--sp-6); border-top: 0; }
+  .qv-dialog__body:has(> .qv-dialog__reflections:not(:empty)) .qv-split { grid-template-columns: minmax(0, 1fr); }
+  .qv-dialog__body:has(> .qv-dialog__reflections:not(:empty)) .qv-split > .qv-a { margin-top: var(--sp-4); }
+}
+@media (max-width: 760px) {
+  .qv-dialog .qv-dialog__panel { height: calc(100dvh - var(--sp-6)); padding-bottom: 0; }
+  .qv-dialog__head, .qv-dialog__head .qv-nav { gap: var(--sp-1); }
+  .qv-dialog__head > button, .qv-dialog__head .qv-nav__btn { flex: none; }
+  .qv-dialog__head .qv-nav__pos { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .reflections { padding: var(--sp-4); }
+  .ref-save small { width: 100%; }
+}

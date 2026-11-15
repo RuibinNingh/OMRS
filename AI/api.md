@@ -120,3 +120,7 @@ zuoyebang 用途单独支持 PNG/JPEG/WebP，完成时验证完整解码、8MiB�
 ## 反馈与移动一致性
 
 正式Session反馈的事务回执、重复请求及历史修正边界见AI/api/mutations.md；移动复用分类校验和统一UID预留。请求拒绝不创建目标目录，不改变原题身份。
+
+## 问题与调度提醒
+
+问题HTTP查询、写入动作、附件、CAS与幂等契约见`AI/problems.md`。GET `/api/schedule-banner`读取全局默认与revision；POST `/api/schedule-banner`以enabled/svg/expected_revision保存；POST `/api/schedule-banner/preview`只校验并返回预览，不写设置。POST `/api/export`可带schedule_banner对象：mode为session、off、current、replace，replace附svg；缺省沿用正式Session快照，旧Session不回填，临时/无Session使用当前默认。

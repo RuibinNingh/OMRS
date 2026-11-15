@@ -51,6 +51,9 @@ def _review_snapshot(vault, tool, args):
     from ..content_history import read_question_file
     from ..ledger import connect, blob_hash
     from ..sessions import get_session, active_session_uids
+    if tool in ai_review.PROBLEM_TOOLS:
+        from ..problem_review import snapshot
+        return snapshot(vault,tool,args)
     if tool == 'commit_draft':
         draft = drafts.get_draft(vault, args['draft_id'])
         return {'draft_id': args['draft_id'], 'revision': draft['revision'], 'status': draft['status'],
@@ -465,7 +468,11 @@ class Hooks:
                 try:
                     if tool.level == 'confirm':
                         _review_deadline(row)
-                    if tool.name == 'propose_label_plan':
+                    if tool.name in ai_review.PROBLEM_TOOLS:
+                        from ..problem_review import apply_review
+                        result=apply_review(self.rt.vault,row)
+                        out={'result':result,'summary':'问题域操作已保存','wrote':True}
+                    elif tool.name == 'propose_label_plan':
                         from ..label_plan_review import apply_review
                         result = apply_review(self.rt.vault, row)
                         out = {'result': result, 'summary': f"已整批整理 {result['counts']['changed']} 道题", 'wrote': result['wrote']}

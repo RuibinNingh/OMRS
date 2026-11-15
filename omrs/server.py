@@ -96,6 +96,7 @@ from .workspace_sync import get_scan_status, scan_workspace
 OMRS_INSTANCE_ID = secrets.token_hex(16)
 
 
+from .http.problems import ProblemsRoutes
 from .http.learning import LearningRoutes
 from .http.questions import QuestionsRoutes
 from .http.boards import BoardsRoutes
@@ -112,7 +113,7 @@ from .http.zuoyebang import ZuoyebangRoutes
 from .http.boxdetect import BoxdetectRoutes, public_api as boxdetect_public_api
 
 
-class OMRSHandler(QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, InboxRoutes, TrainingRoutes, DraftsRoutes, AiReviewRoutes, McpRoutes, AuthRoutes, MediaRoutes, HistoryRoutes, ZuoyebangRoutes, BoxdetectRoutes, http.server.SimpleHTTPRequestHandler):
+class OMRSHandler(ProblemsRoutes, QuestionsRoutes, BoardsRoutes, LearningRoutes, CoreRoutes, InboxRoutes, TrainingRoutes, DraftsRoutes, AiReviewRoutes, McpRoutes, AuthRoutes, MediaRoutes, HistoryRoutes, ZuoyebangRoutes, BoxdetectRoutes, http.server.SimpleHTTPRequestHandler):
     @property
     def services(self):
         # 领域层通过此对象复用应用服务，测试替换仍只需修改 omrs.server。

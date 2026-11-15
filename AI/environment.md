@@ -309,3 +309,7 @@ tests/run_gates.py显式包含services组（两服务单测和网关浏览器）
 ## SVG 派生与隔离验收
 
 维护环境可用Playwright/Pillow及Chromium151。SVG模型派生PNG需Playwright及Chromium；隔离浏览器、PDF证据目录及未验设备见 `AI/question-svg.md`。
+
+## 问题中心隔离验证
+
+`tests/e2e/problems.py`使用临时Vault、随机回环端口与真实Chromium，起服务前移除OMRS_SYSTEMD_SERVICE；仅生成合成题目、问题、错因及SVG。证据目录由OMRS_PROBLEM_EVIDENCE指定，包含截图、离线HTML、PDF和JSON断言，不依赖生产题库或付费模型。

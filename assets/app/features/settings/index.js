@@ -1,4 +1,5 @@
 /** 设置页契约：八分区装配、局部导航与页面生命周期。 */
+import { createScheduleBanner } from './schedule-banner.js';
 import { morph } from '../../core/dom.js';
 import { view } from './view.js';
 import { createAppearance } from './appearance.js';
@@ -15,6 +16,7 @@ import { createBoxdetect } from './boxdetect.js';
 import { createZuoyebangService } from './zuoyebang.js';
 import { SECTIONS, SECTION_KEY, sectionOf } from './state.js';
 
+let scheduleBanner = null;
 let root = null;
 let onKeys = null;
 let appearance = null;
@@ -59,6 +61,8 @@ export const page = {
   mount(host, ctx) {
     root = host.querySelector('#st-app') || host;
     morph(root, view());
+    scheduleBanner = createScheduleBanner(root);
+    scheduleBanner.load();
     appearance = createAppearance(root, ctx.bus);
     entryBackground = createEntryBackground(root);
     service = createService(root);
@@ -94,6 +98,7 @@ export const page = {
     zuoyebang.load();
     boxdetect.load();
     return () => {
+      scheduleBanner?.dispose(); scheduleBanner = null;
       root?.removeEventListener('keydown', onKeys);
       boxdetect?.dispose(); boxdetect = null;
       zuoyebang?.dispose(); zuoyebang = null;

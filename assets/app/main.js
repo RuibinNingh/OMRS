@@ -1,3 +1,4 @@
+import { page as problemsPage } from './features/problems/index.js';
 import { page as reviewPage } from './features/ai-review/index.js';
 import { connectReview, connectReviewPanel } from './domain/ai-review.js';
 import { createReviewPanel } from './features/ai-review/detail-panel.js';
@@ -34,7 +35,7 @@ bindTooltips(document);
 bindQuestionDom(document);
 installBoardWindow(window);
 void startActivityTracking(document);
-const pages = [dashboardPage, dataPage, schedulePage, historyPage, catalogPage, reportsPage,
+const pages = [problemsPage, dashboardPage, dataPage, schedulePage, historyPage, catalogPage, reportsPage,
   reviewPage, settingsPage, createPage, zuoyebangPage, boardPage, questionsPage, instantPage, feedbackPage, assistantPage];
 const { router, bus } = startShell(window, pages);
 connectDrafts({ bus, router, document, window });

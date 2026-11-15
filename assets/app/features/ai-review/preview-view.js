@@ -24,6 +24,7 @@ export function draftSnapshot(preview) {
 export function relatedPreview(item) {
   const p = item.preview || {}, rows = p.items || [];
   return html`${p.uid ? html`<p>题目：${p.uid}${p.path ? ` · ${p.path}` : ''}</p>` : ''}
+    ${p.asset ? html`<section class="arv-change"><h3>问题附件预览</h3><img class="md-img" src="${p.asset.src}" alt="待审核问题附件"><p>${p.asset.mime} · ${p.asset.bytes} 字节</p></section>` : ''}
     ${(p.diagrams || []).length ? html`<section class="arv-diagrams" aria-label="SVG配图审核"><h3>SVG配图 · 双栏阅读检查</h3>
       <p class="arv-muted">按90mm宽检查，整图打印。请核对图意、标注位置和信息密度；修改会保留旧附件。</p>
       ${p.diagrams.map(diagram => html`<section class="arv-change"><h4>${diagram.section} · ${diagram.title}</h4>
