@@ -15,6 +15,9 @@ class ProblemsRoutes:
             elif path=='/api/schedule-banner':
                 from ..schedule_banner import settings
                 result=settings(self.vault_path)
+            elif path=='/api/schedule-reminders':
+                from ..schedule_reminders import catalog
+                result=catalog(self.vault_path,True,params.get('session_id',''))
             else:
                 from ..problem_assets import read
                 raw,mime=read(self.vault_path,params.get('name',''))
@@ -42,6 +45,15 @@ class ProblemsRoutes:
             elif path=='/api/schedule-banner':
                 from ..schedule_banner import save_settings
                 result=save_settings(self.vault_path,data)
+            elif path.startswith('/api/schedule-reminders/'):
+                from .. import schedule_reminders as reminders
+                if path.endswith('/generate'):
+                    result=reminders.generate(self.vault_path,data.get('prompt'),data.get('style','steps'))
+                elif path.endswith('/create'):
+                    result=reminders.create(self.vault_path,data.get('name'),data.get('svg'),data.get('request_id'),
+                        source='AI 生成' if data.get('source')=='ai' else '手动导入')
+                else:
+                    result=reminders.delete(self.vault_path,data.get('id'),data.get('expected_revision'))
             else:
                 result=problems.execute(self.vault_path,data.get('action'),data.get('data',{}))
             self._json({'status':'ok',**result})

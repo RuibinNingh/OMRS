@@ -2,24 +2,25 @@
 
 > **速查**
 > - 职责：复习调度工作台、临时调度与常规 Session 的区别（即时练习见 `AI/frontend/instant.md`）
-> - 入口：`assets/app/features/schedule/`（页面与三个工作区）、`assets/app/domain/sessions.js`（Session 列表）、`assets/app/domain/exporting.js`（导出下载）
+> - 入口：`assets/app/features/schedule/`（页面与四个工作区）、`assets/app/domain/sessions.js`（Session 列表）、`assets/app/domain/exporting.js`（导出下载）
 > - 不变量：临时调度（TMP-）不建立常规 Session；常规 Session 走 Ledger `session.create`
-> - 必跑测试：`tests/app/schedule.test.mjs`、`tests/app/arrange.test.mjs`、`tests/app/export-options.test.mjs`、`tests/e2e/schedule.py`、`tests/e2e/schedule_export.py`
+> - 必跑测试：`tests/app/schedule.test.mjs`、`tests/app/arrange.test.mjs`、`tests/app/export-options.test.mjs`、`tests/e2e/schedule.py`、`tests/e2e/schedule_export.py`、`tests/e2e/schedule_reminders.py`
 > - 相关：`AI/frontend.md`（索引）
 
 ## 复习调度工作台（`features/schedule/`）
 
 ### 入口与状态
 
-复习调度是 features 页面（v1.25.2 起）：页面契约在 `assets/app/features/schedule/index.js`，挂载点 `#panel-schedule`，本页只 morph 其中的 `#sch-app`（顶部标签栏、「安排复习」与「已有计划」）。三个工作区：
+复习调度是 features 页面（v1.25.2 起）：页面契约在 `assets/app/features/schedule/index.js`，挂载点 `#panel-schedule`，本页只 morph 其中的 `#sch-app`（顶部标签栏、「安排复习」「已有计划」「提醒素材」）。四个工作区：
 
 | 工作区 | 实现 | 说明 |
 |---|---|---|
 | 安排复习（默认） | 本页原生（v1.25.3 起；`arrange.js` 纯函数、`arrange-ctl.js` 控制器、`arrange-view.js` 模板，保留旧 id `#recommend-panel-v2`、`#rec-*`） | 见下「安排复习」；从别的工作区切回时重拉推荐 |
 | 已有计划 | 本页原生（`#sch-plans`） | 见下「已有计划」 |
+| 提醒素材 | `reminder-library.js`、`reminder-create.js`、`reminder-picker.js` | 管理首页提醒、新计划默认与画廊选用 |
 | 全题库导出 | 本页原生（v1.25.4 起；`exporter.js` 纯函数、`exporter-ctl.js`、`exporter-view.js`，保留 `#export-panel`、`#pick-*` 等旧 id） | 见下「全题库导出」；记住来处，「返回复习调度」回到它（`nextView(…, 'back')`） |
 
-- 进入页面：同时刷新 Session 列表与拉推荐（原 `schEnter` 的做法）。标签页支持点击与 ←/→/Home/End（页面快捷键作用域，焦点跟随）。待完成计数在「已有计划」标签上。
+- 进入页面：同时刷新 Session 列表与拉推荐（原 `schEnter` 的做法）。标签页支持点击与 ←/→/Home/End（页面快捷键作用域，焦点跟随）。待完成计数在「已有计划」标签上。手机顶部标签占整行并允许换行，全题库导出入口另起一行，避免新增素材标签挤出视口。
 - 页面事件 `schedule:view`（仪表盘「开始复习」发）、`schedule:open-plan`（带 Session id，按列表中的当前状态选择筛选后打开该计划；未知状态用「全部」）。没有全局入口；E2E 读的 `SCH_VIEW`、`REC_*` 等名字只在测试适配器 `tests/e2e/p8_test_modules.js` 里。
 - **Session 列表归 `domain/sessions.js`**：`refreshSessions()` 后发先至时只认最新一次，失败保留旧列表并记原因；成功与失败都经 bus 发 `sessions`。生产不注入旧 `SESSIONS` 或 `refreshSessions`，旧断言由测试适配器提供。删除走 `deleteSession(id)`（服务端 `status: ok` 且 `deleted: true` 才算成功），成功后先在本地去掉，并让进行中的旧加载作废。
 
@@ -34,7 +35,7 @@
 ### 已有计划（本页原生）
 
 - 筛选：计划状态（待完成 / 已暂停 / 已完成 / 全部，`#sch-plan-filter`）与编号搜索（`#sch-plan-search`），存在页面状态里。列表每条是按钮：创建时间、状态标签、科目与题量、进度条、「已录入 x / 共 y 题」、编号。桌面左列表右详情；手机先列表，点计划进详情，「返回计划列表」回来。
-- 详情：`GET /api/session?id=`，后发先至时只认最新一次；同一计划重拉（Session 列表刷新后）保留当前内容不闪骨架；失败在详情区给原因与「重试」。内容：标题、时间与编号、进度摘要、「录入结果」（切到反馈录入并选中该计划；已完成或全部录入时禁用）、导出打印版 / 屏幕版（共用参数面板，所点按钮预选相应格式；成功结果写在 `#sch-status`，按钮进行中置忙）、「删除调度」、题目列表（序号、UID、科目与分类、已录入 / 待录入、「预览」开题目弹窗，上下文 `schedule-plan`）。
+- 详情：`GET /api/session?id=`，后发先至时只认最新一次；同一计划重拉（Session 列表刷新后）保留当前内容不闪骨架；失败在详情区给原因与「重试」。内容：标题、时间与编号、进度摘要、「录入结果」（切到反馈录入并选中该计划；已完成或全部录入时禁用）、「导出」（共用参数面板中选择A4或屏幕版，初始格式取上次成功设置；成功结果写在 `#sch-status`，按钮进行中置忙）、「删除调度」、题目列表（序号、UID、科目与分类、已录入 / 待录入、「预览」开题目弹窗，上下文 `schedule-plan`）。
 - 删除：确认框说明关联反馈会一并撤销并重算熟练度和复习日期，题目正文保留，历史记录可恢复 Session。确认与请求期间按钮置忙；取消不发请求；业务错误提示「删除失败」并保留计划。成功后清空详情、若反馈页正在录这个计划则清表单与上次结果（bus `feedback:reset` / `feedback:clear-results`），再刷新统计快照、题目缓存、Session 列表与推荐；其中任何一步失败提示「页面刷新失败」。
 - 列表加载中与失败显示在 `#sch-session-status`（失败带「重试」）；没有计划时空状态带「安排新复习」。
 
@@ -99,4 +100,12 @@
 
 ## 首页提醒覆盖
 
-共用导出面板可沿用计划快照、关闭、选当前全局模板或粘贴本次替换SVG；覆盖只进入本次请求，不回写计划和全局默认。实际布局由自包含导出HTML测量，面板预览仍标为示意。设置位置见`AI/frontend/settings.md`，纸面契约见`AI/export.md`。
+共用导出面板显示当前计划快照，可「更换提醒」打开画廊，选择沿用计划、关闭或素材库中的一张；确认仅影响本次下载，不回写计划或默认。取消画廊保留当前选择，所选素材已删除时导出明确失败并保留面板参数。实际布局由自包含HTML测量，面板预览仍标为示意；本次提醒身份不写浏览器记忆。
+
+「标记缺少错因的题目」默认关闭，成功下载后与其它参数共同记忆。启用后题号旁显示黑白「待补错因」；按导出当时有效Markdown错因判断，撤回记录不算，补写后下次导出自动取消；不改调度、题目标签或学习状态。
+
+## 提醒素材
+
+素材页显示名称、来源、预览和删除入口，提供「导入SVG」「AI生成提醒」。新增面板先校验或生成安全图片预览，用户确认保存后加入素材库；AI使用设置中的助手模型，失败保留名称、要求与源码。可单独勾选同时设为新计划默认；默认保存失败明确说明素材已保存，避免重复新增。
+
+新计划默认可从画廊更换，或通过开关暂停使用；修改仅影响之后创建的正式计划。删除当前默认会关闭新计划提醒，已有计划和已导出文件保留原SVG。旧设置模板作为「原有首页提醒」可继续选择、关闭和删除。设置页直达此标签。安全与纸面规范见`AI/export.md`，存储见`AI/data.md`。

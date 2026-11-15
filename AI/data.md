@@ -378,3 +378,9 @@ SQLite `active_config` 是完整运行时事实源，`config.json` 是镜像和�
 应用保存时三级标题为`### YYYY-MM-DD · REF-…`或`### 日期未知 · REF-…`，标题后紧跟自动生成的`omrs-reflection` JSON注释；正文逐行加`>`，读取还原原始Markdown，避免内部标题变成系统分节。注释保存format=1、稳定编号、发生以外的时间、来源、问题关联、再次发生引用、revision、撤回标记、正文摘要与完整修订事件；修改正文和日期即可，不应自行伪造元数据。应用首次保存会将同题旧裸文本、旧数据库记录一起归入该格式，保留原文与已知来源。
 
 直接改Markdown后按文件读取，数据库entry_ref只保存记录编号及question_id；从文件移除记录不会被身份索引补回。旧库归并在正常serve启动完成，旧数据库审计和回执保留；归档无工作文件的记录保持只读兼容。`错题/.omrs/problems.db`与文件的跨存储写入由Vault根`.omrs-maintenance/reflections/`意图收束，备份前先恢复；协议见`AI/ledger.md`。
+
+## 调度提醒素材
+
+`problems.db`的objects新增kind为schedule_reminder的不可变素材：SR随机身份、name、revision=1、source、UTC created_at及snapshot（svg、src和sha256）。settings.schedule_banner可带reminder_id，同时保留SVG快照；关闭后保留可重新选择的素材，删除默认素材则清空设置并推进revision。旧单模板按内容摘要只读映射为legacy身份，不在查询时迁移写库。
+
+创建回执位于同库receipts，绑定调用方和request_id；相同内容复用结果，不同内容拒绝；回执只存元信息，不复制SVG字节，素材已删除时重试明确失败且不复活。最多64张、SVG总字节4MiB，单张256KiB，事务完整校验后写入。素材不进入学习Ledger，正式Session创建时继续快照SVG，因此素材删除和默认变化不改变历史。素材、默认、回执随全库备份保存。

@@ -144,3 +144,9 @@ MCP 标记权限分 `label:write` 和 `label:delete`，默认关闭；合并与�
 问题Web接口沿用登录、同源及写锁，服务端推导操作者。MCP problem:read/problem:write独立授权且默认不授予，批准时使用active_key重新检查撤销和到期状态。Markdown转义HTML，私有附件不接受路径穿越、可执行SVG和外链；GET附件带nosniff与沙箱CSP。问题图与调度横幅仅共享静态安全规则，各自采用页面或纸面几何profile，不放宽题目SVG规范。
 
 问题批量状态、回收站删除和恢复仅接受网页用户调用manage_problems，不进入MCP或助手工具及审核白名单；领域层再次拒绝非web操作者。单批最多100项，重复身份、过期revision和状态不符会使整批回滚。回收站保留历史事实，禁止编辑和新增材料关联，恢复必须使用当前revision；已有错因修订与引用原记录的再次发生允许保留原关联。
+
+## 提醒素材权限
+
+提醒SVG复用静态安全层和首页纸面profile，禁止脚本、事件、外链、引用、动画等可执行结构；最大256KiB，库最多64张、SVG总量4MiB，页面只通过安全img预览。AI生成只发用户输入的提醒要求，不读取题库正文；模型网络等待不持业务写锁。保存和默认设置分别由网页确认，删除使用明确确认和revision。
+
+MCP的reminder:create只允许幂等新增素材，默认关闭，旧Key不增权；写入或复用前重新鉴权。list_schedule_reminders需omrs:read且只返回元数据。内置助手新增为prepare级，外部新增同属技术准备，不设默认、不删素材，不写学习Ledger。正式计划的快照独立保留；所有Web接口继续拒绝MCP凭据借道。

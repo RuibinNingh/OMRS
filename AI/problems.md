@@ -42,3 +42,5 @@ GET `/api/problem-asset?name=`读取内容寻址附件。上传操作接收data_
 MCP查询需omrs:read与problem:read，写还需problem:write；默认Key不扩权。所有正式MCP写先进入统一审核，批准前重新核验Key、世代和revision，结果以领域同事务回执为准。助手工具为confirm级，走原对话的手动、送审或显式危险模式。AI记录标记ai_hypothesis，业务状态改变不能将假设变成用户确认。
 
 用户明确确认问题或错因时须提供依据，AI修改描述会重新标记假设。新增错因首次补齐材料关系时同步推进问题revision并追加reflection_link审计；既有关联不重复推进。完整修订同时保存在Markdown和不可变审计中，审核影响预览显示当前值与新值。错因审批快照还绑定当前题目正文哈希，审批期间Markdown变化时拒绝执行；附件预览只使用已校验的字节。
+
+调度提醒素材与问题共用私有`problems.db`，素材objects使用独立kind，不进入问题查询、错因或学习状态。首页默认仍由`omrs/schedule_banner.py`以revision保护保存；素材选择、旧模板兼容和历史快照见`AI/export.md`，持久化字段见`AI/data.md`。

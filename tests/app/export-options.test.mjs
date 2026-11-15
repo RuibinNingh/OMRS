@@ -37,3 +37,12 @@ test('两处导出使用相同历史契约，屏幕版强制答案但保留历�
   assert.deepEqual(plan.history, { position: 'question', limit: 12, scores: true, dates: true });
   assert.deepEqual(plan.history, selected.history);
 });
+
+test('缺错因标记独立于答案和历史，素材身份进入本次导出而不写本地偏好', () => {
+  assert.equal(normalizeExportOptions({ markMissingCause: 'true' }).markMissingCause, false);
+  const options = { ...DEFAULT_EXPORT_OPTIONS, markMissingCause: true, bannerMode: 'library', bannerId: 'SR-example' };
+  const payload = exportPayload({ ...options, sessionId: 'EXP-1' });
+  assert.equal(payload.mark_missing_cause, true);
+  assert.deepEqual(payload.schedule_banner, { mode: 'library', id: 'SR-example' });
+  assert.equal(Object.hasOwn(normalizeExportOptions(options), 'bannerId'), false);
+});

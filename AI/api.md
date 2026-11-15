@@ -129,4 +129,12 @@ zuoyebang 用途单独支持 PNG/JPEG/WebP，完成时验证完整解码、8MiB�
 
 正式复习计划支持网页 `POST /api/session/pause` 和 `POST /api/session/resume`；请求、响应、占用冲突和反馈边界见 `AI/api/boards.md`。列表／详情及助手、MCP 的 `list_sessions` 可读取或筛选 `paused` 状态。
 
-问题HTTP查询、写入动作、附件、CAS与幂等契约见`AI/problems.md`。GET `/api/problems`支持服务端排序、回收站筛选及状态计数；POST `/api/problems/write`的网页专用manage_problems按整批CAS修改状态、移入回收站或恢复，每次最多100项，不向AI开放管理动作。GET `/api/schedule-banner`读取全局默认与revision；POST `/api/schedule-banner`以enabled/svg/expected_revision保存；POST `/api/schedule-banner/preview`只校验并返回预览，不写设置。POST `/api/export`可带schedule_banner对象：mode为session、off、current、replace，replace附svg；缺省沿用正式Session快照，旧Session不回填，临时/无Session使用当前默认。
+问题HTTP查询、写入动作、附件、CAS与幂等契约见`AI/problems.md`。GET `/api/problems`支持服务端排序、回收站筛选及状态计数；POST `/api/problems/write`的网页专用manage_problems按整批CAS修改状态、移入回收站或恢复，每次最多100项，不向AI开放管理动作。GET `/api/schedule-banner`读取全局默认与revision；POST `/api/schedule-banner`以enabled/svg/expected_revision保存；POST `/api/schedule-banner/preview`只校验并返回预览，不写设置。POST `/api/export`可带schedule_banner对象：mode为session、off、current、replace、library，replace附svg，library附素材id；缺省沿用正式Session快照，旧Session不回填，临时/无Session使用当前默认。
+
+## 提醒素材接口
+
+GET `/api/schedule-reminders`返回items（id/name/revision/source/created_at/sha256/src）、default（enabled/revision/reminder_id）、default_snapshot和plan_snapshot；可传session_id读取该计划原快照。空库不建库。POST `/api/schedule-reminders/create`接收name/svg/request_id，可选source=ai，保存前执行静态与纸面校验；返回item，重试可带reused=true。POST `/api/schedule-reminders/delete`接收id/expected_revision，删除默认同时关闭新计划提醒，历史快照保留。超限或格式无效400，版本及幂等内容冲突409。
+
+POST `/api/schedule-reminders/generate`接收prompt（1–2000字）和style（steps/minimal/review），调用启用的助手模型，仅返回snapshot预览，不保存；缺配置、模型截断或SVG校验失败400。生成不持业务写锁或生命周期捕获段等待网络。全部接口沿用Web鉴权、同源与MCP凭据隔离。
+
+POST `/api/schedule-banner`可用reminder_id选择素材，并以enabled/expected_revision保存新计划默认；旧svg调用兼容。POST `/api/export`支持严格布尔mark_missing_cause和`schedule_banner:{mode:"library",id}`；缺少错因只影响本次题号标记，所选素材不存在时失败，不改变计划快照。

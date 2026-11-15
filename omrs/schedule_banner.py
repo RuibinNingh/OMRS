@@ -34,10 +34,18 @@ def save_settings(vault,data):
     if type(data.get('enabled')) is not bool:
         raise ValueError('enabled必须为布尔值')
     source=data.get('svg','')
+    reminder_id=data.get('reminder_id')
+    if not isinstance(source,str) or (reminder_id is not None and not isinstance(reminder_id,str)):
+        raise ValueError('SVG和素材编号须为字符串')
+    if reminder_id:
+        from .schedule_reminders import get
+        source=get(vault,reminder_id)['snapshot']['svg']
+        if reminder_id.startswith('legacy-'):
+            reminder_id=None
     value=normalize(source) if source.strip() else None
     if data['enabled'] and not value:
         raise ValueError('启用提醒前请提供SVG')
-    result={'enabled':data['enabled'],'svg':source,'snapshot':value if data['enabled'] else None,'revision':current['revision']+1}
+    result={'enabled':data['enabled'],'svg':source,'snapshot':value if data['enabled'] else None,'revision':current['revision']+1,'reminder_id':reminder_id or None}
     with store.connect(vault,True) as db:
         db.execute("INSERT OR REPLACE INTO settings VALUES('schedule_banner',?)",(store.dumps(result),))
     return result
@@ -46,13 +54,16 @@ def save_settings(vault,data):
 @storage
 def for_export(vault,session_id='',override=None):
     if override is not None:
-        if not isinstance(override,dict) or override.get('mode') not in ('off','current','replace','session'):
+        if not isinstance(override,dict) or override.get('mode') not in ('off','current','replace','session','library'):
             raise ValueError('提醒覆盖模式无效')
         mode=override['mode']
         if mode=='off':
             return None
         if mode=='replace':
             return normalize(override.get('svg',''))
+        if mode=='library':
+            from .schedule_reminders import get
+            return normalize(get(vault,override.get('id'))['snapshot']['svg'])
         if mode=='current':
             return settings(vault)['snapshot']
     if not session_id or session_id.startswith('TMP-'):

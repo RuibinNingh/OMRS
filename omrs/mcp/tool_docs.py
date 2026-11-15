@@ -294,3 +294,13 @@ for _spec in _PROBLEM_SPECS:
 SERVER_INSTRUCTIONS += '问题写必须先查询相关问题与完整记录，使用稳定question_id、revision和request_id；MCP写返回待审核不代表已完成。AI假设与用户确认错因分离，不通过状态变化冒充事实。'
 for _spec in _PROBLEM_SPECS:
     PARAMETERS[_spec[0]].update({'cursor':'上一页返回的next_cursor；首项留空，不自行猜测。','limit':'每页1至100项，默认50；返回total与next_cursor。'})
+REMINDER_RULES = ('新增复习清单第一页的静态SVG提醒素材，不修改全局默认或已有计划。'
+    '画布建议1000×90，按197.3mm通栏宽打印，高度最多28mm，文字至少8.5pt、线宽至少0.5pt。'
+    '须有viewBox、title及首个铺满画布的白底rect；不含外链、脚本、动画、裁剪或引用。'
+    '完成后让用户在复习调度的提醒素材中预览并选用。')
+TOOL_DESCRIPTIONS.update({'list_schedule_reminders': '读取提醒素材名称、身份和默认选择，不返回SVG源码或图片字节。',
+                          'create_schedule_reminder': REMINDER_RULES})
+PARAMETERS['create_schedule_reminder'] = {'name': '素材名称，1至80字。',
+    'svg': '完整静态SVG源码，最多256KiB；' + REMINDER_RULES,
+    'request_id': COMMON_PARAMETERS['request_id']}
+SERVER_INSTRUCTIONS += REMINDER_RULES

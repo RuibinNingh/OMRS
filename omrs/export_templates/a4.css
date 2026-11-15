@@ -102,3 +102,4 @@ body.debug .slice{outline:1px solid rgba(192,57,43,.45);}
 
 .schedule-banner{position:absolute;left:var(--mar-lr);right:var(--mar-lr);top:var(--mar-tb)}
 .schedule-banner img{display:block;width:100%;height:auto}
+.missing-cause { display:inline-block; border:0.25mm solid currentColor; border-radius:0.6mm; padding:0.2mm 1mm; font:9pt/1.4 "OMRS Print Sans",sans-serif; white-space:nowrap; }

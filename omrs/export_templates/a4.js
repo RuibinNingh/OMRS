@@ -81,6 +81,7 @@
       const info = el("div", "q-head-info");
       const l1 = el("div", "q-head-line");
       l1.appendChild(el("span", "no", "第 " + q.idx + " 题"));
+      if (q.missing_cause) l1.appendChild(el("span", "missing-cause", "待补错因"));
       l1.appendChild(el("span", "uid", "[" + q.uid + "]"));
       const labels = el("span", "labels");
       appendLabelChips(labels, q.labels);

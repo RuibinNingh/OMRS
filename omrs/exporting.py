@@ -419,7 +419,9 @@ def _export_question_history(vault, question, options):
     return [item[4] for item in records[:options["limit"]]]
 
 
-def _build_export_data(vault, session_id, questions, include_answers, question_gap_lines=0, a4_two_columns=True, history=None):
+def _build_export_data(vault, session_id, questions, include_answers, question_gap_lines=0, a4_two_columns=True, history=None, mark_missing_cause=False):
+    if type(mark_missing_cause) is not bool:
+        raise ValueError('mark_missing_cause须为布尔值')
     today = datetime.date.today().isoformat()
     history = _normalize_history_options(history)
     data = {
@@ -463,6 +465,7 @@ def _build_export_data(vault, session_id, questions, include_answers, question_g
                 "blocks": _text_to_blocks(vault, question.get("question", "") or "(无题目内容)"),
                 "notes": question_notes,
                 "history": records if history["position"] == "question" else [],
+                "missing_cause": mark_missing_cause and not bool(notes.get("错因", "").strip()),
             }
         )
         # 不勾选导出答案时，反馈区只留错因；勾选时错因跟在每道题的答案后面
@@ -663,17 +666,17 @@ def _build_html(data, variant):
 # --------------------------------------------------------------------------
 # 对外入口
 # --------------------------------------------------------------------------
-def export_schedule_html(vault, uids=None, session_id="", include_answers=False, variant="a4", question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None, schedule_banner=None):
+def export_schedule_html(vault, uids=None, session_id="", include_answers=False, variant="a4", question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None, schedule_banner=None, mark_missing_cause=False):
     with lease(vault), write_lock():
         session_id, questions = _load_export_questions(vault, uids, session_id, question_refs)
-        data = _build_export_data(vault, session_id, questions, include_answers, question_gap_lines, a4_two_columns, history)
+        data = _build_export_data(vault, session_id, questions, include_answers, question_gap_lines, a4_two_columns, history, mark_missing_cause)
         from .schedule_banner import for_export
         data["meta"]["schedule_banner"] = for_export(vault, session_id, schedule_banner)
     html_text = _build_html(data, variant)
     return html_text.encode("utf-8"), session_id
 
 
-def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None, schedule_banner=None):
+def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None, schedule_banner=None, mark_missing_cause=False):
     """导出错题清单为自包含 HTML。
 
     export_format: 'a4'（打印版，默认）/ 'screen'（屏幕阅读版）。
@@ -682,7 +685,7 @@ def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4"
     """
     fmt = (export_format or "a4").strip().lower()
     variant = "screen" if fmt == "screen" else "a4"
-    data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant, question_gap_lines, a4_two_columns, question_refs, history, schedule_banner)
+    data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant, question_gap_lines, a4_two_columns, question_refs, history, schedule_banner, mark_missing_cause)
     filename = f"OMRS-{session_id}-{variant}.html"
     return data, session_id, filename, "text/html; charset=utf-8"
 

@@ -4,6 +4,8 @@ import { morph } from '../../core/dom.js';
 import { dialog } from '../../ui/dialog.js';
 import { segmented } from '../../ui/segmented.js';
 import { DEFAULT_EXPORT_OPTIONS, normalizeExportOptions, loadExportOptions } from './export-options.js';
+import { loadReminders, reminderImage } from './reminder-data.js';
+import { chooseReminder } from './reminder-picker.js';
 
 const choice = (key, title, value, options, disabled = false) => html`<div class="exd-field"><span>${title}</span>${segmented({ name: key, label: title, value, options: options.map(([value, label]) => ({ value, label })), disabled })}</div>`;
 const check = (key, label, checked, disabled = false) => html`<label class="exd-check"><input id="${key}" type="checkbox" data-export-option="${key}"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}>${label}</label>`;
@@ -13,12 +15,13 @@ function previewHistory(o) {
   return html`<div class="exd-history" aria-label="历史图排版示意"><span class="exd-history__cap">近 ${o.historyLimit} 次<small>新 → 旧</small></span><div class="exd-history__chart"><div class="exd-bars">${scores.map((score, i) => html`<div class="exd-bar" data-score="${score}" data-correct="${i % 3 !== 2 ? '1' : '0'}"><span>${o.historyScores ? score : ''}</span><i aria-hidden="true"></i><small>${i % 3 !== 2 ? '✓' : '×'}</small></div>`)}</div>${o.historyDates ? html`<div class="exd-dates"><span>11/13</span><span>10/02</span></div>` : ''}</div></div>`;
 }
 
-function preview(o) {
+function preview(o, bannerSnapshot) {
   const screen = o.variant === 'screen';
   return html`<aside class="exd-preview"><div class="exd-preview__caption"><strong>排版示意</strong><span>${screen ? '屏幕版' : `A4 · ${o.twoColumns ? '双栏' : '单栏'}`}</span></div>
     <div class="exd-paper" data-columns="${!screen && o.twoColumns ? '2' : '1'}">
       <div class="exd-paper__title">错题复习清单</div><div class="exd-paper__rule"></div>
-      <div class="exd-paper__section">一、题目</div><div class="exd-paper__question"><b>第 1 题</b><span>数学 · 函数</span></div>
+      ${bannerSnapshot ? html`<div class="exd-banner-preview">${reminderImage(bannerSnapshot)}</div>` : ''}
+      <div class="exd-paper__section">一、题目</div><div class="exd-paper__question"><b>第 1 题</b>${o.markMissingCause ? html`<span class="exd-missing">待补错因</span>` : ''}<span>数学 · 函数</span></div>
       ${o.historyPosition === 'question' ? previewHistory(o) : ''}
       <p class="exd-paper__text">已知函数 f(x)，求其单调区间。</p><div class="exd-paper__lines" aria-hidden="true"></div>
       <div class="exd-paper__section">${screen ? '显示答案后' : '二、反馈区'}</div><div class="exd-paper__question"><b>第 1 题</b><span>核对与回顾</span></div>
@@ -29,7 +32,7 @@ function preview(o) {
   </aside>`;
 }
 
-export function exportDialogView(o, extra = false, error = '', busy = false, bannerMode = 'session', bannerSvg = '') {
+export function exportDialogView(o, extra = false, error = '', busy = false, bannerMode = 'session', bannerSnapshot = null, bannerName = '') {
   const screen = o.variant === 'screen', off = o.historyPosition === 'none';
   return html`<div class="exd-layout"><div class="exd-form"><fieldset aria-label="导出参数"${busy ? ' disabled' : ''}>
     <section class="exd-section"><h3>导出内容</h3>
@@ -38,41 +41,49 @@ export function exportDialogView(o, extra = false, error = '', busy = false, ban
       <p class="exd-hint">${screen ? '屏幕版始终附带答案，纸面设置保留。' : '长公式、宽表格建议使用单栏。'}</p>
       <div class="exd-row">${check('answers', '附带答案', screen || o.answers, screen)}<label class="exd-gap" for="gap">题间留白 <input class="ui-input" id="gap" data-export-option="gap" type="number" min="0" max="20" step="1" value="${o.gap}"${screen ? ' disabled' : ''}> 行</label></div>
     </section>
-    <section class="exd-section"><h3>首页 SVG 提醒</h3><label>本次导出<select class="ui-select" data-export-banner-mode><option value="session" ${bannerMode === 'session' ? 'selected' : ''}>沿用计划快照（旧计划无提醒）</option><option value="off" ${bannerMode === 'off' ? 'selected' : ''}>本次关闭</option><option value="current" ${bannerMode === 'current' ? 'selected' : ''}>使用当前全局模板</option><option value="replace" ${bannerMode === 'replace' ? 'selected' : ''}>本次替换 SVG</option></select></label>${bannerMode === 'replace' ? html`<label>替换 SVG<textarea class="ui-textarea" rows="4" data-export-banner-svg>${bannerSvg}</textarea></label>` : ''}<p class="exd-hint">仅影响此次下载，保持计划快照和全局默认。</p></section>
+    <section class="exd-section"><label class="exd-check exd-missing-option"><input id="markMissingCause" type="checkbox" data-export-option="markMissingCause" ${o.markMissingCause ? 'checked' : ''}>标记缺少错因的题目</label><p class="exd-hint">题号旁显示「待补错因」，黑白打印可见；补写后下次导出自动取消。</p></section>
+    <section class="exd-section"><h3>首页提醒</h3><div class="exd-banner">${reminderImage(bannerSnapshot)}<div class="exd-row"><span class="exd-hint">${bannerMode === 'session' ? '沿用计划提醒' : bannerName || '本次不显示'}</span><button type="button" class="ui-btn ui-btn--sm" data-export-banner-pick>更换提醒</button></div></div><div class="exd-row"><button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-export-banner-off>本次不显示</button></div><p class="exd-hint">仅影响此次下载；在调度页「提醒素材」中生成、导入或删除。</p></section>
     <section class="exd-section"><h3>练习历史<span>左新右旧</span></h3>
       ${choice('historyPosition', '显示位置', o.historyPosition, [['none', '关闭'], ['question', '题目区'], ['feedback', '反馈区']])}
       <label class="exd-limit" for="historyLimit"><span>最近记录</span><input class="ui-input" id="historyLimit" data-export-option="historyLimit" type="number" min="1" max="16" step="1" value="${o.historyLimit}"${off ? ' disabled' : ''}><span>次</span></label>
       <p class="exd-hint">${screen && o.historyPosition === 'feedback' ? '在「显示答案」后查看历史。' : '每题约占 12–15mm；没有记录时不占位。'}</p>
       <details class="ui-disclosure exd-more"${extra ? ' open' : ''}><summary>图表细节</summary><div class="exd-row">${check('historyScores', '显示分数', o.historyScores, off)}${check('historyDates', '显示首尾日期', o.historyDates, off)}</div><p class="exd-hint">颜色按实际对错区分；✓ / × 便于黑白打印辨认。</p></details>
     </section><div class="exd-bottom"><span>导出后自动记住本次设置</span><button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-export-reset>恢复默认</button></div>
-    </fieldset>${error ? html`<p class="exd-error" role="alert">${error}</p>` : ''}</div>${preview(o)}</div>`;
+    </fieldset>${error ? html`<p class="exd-error" role="alert">${error}</p>` : ''}</div>${preview(o, bannerSnapshot)}</div>`;
 }
 
-export async function openExportDialog({ variant, count, run }) {
+export async function openExportDialog({ variant, count, run, sessionId }) {
   let draft = normalizeExportOptions({ ...loadExportOptions(), ...(variant ? { variant } : {}) });
-  let extra = false, busy = false, result = null, error = '', bannerMode = 'session', bannerSvg = '';
+  let extra = false, busy = false, result = null, error = '', bannerMode = 'session', bannerId = '', bannerSnapshot = null, bannerName = '';
+  const catalog = await loadReminders(sessionId);
+  if (catalog.ok) bannerSnapshot = catalog.data.plan_snapshot;
   const answer = await dialog({
     id: 'schedule-export-dialog', title: '导出复习清单', size: 'lg',
     hint: `${count ? `已选 ${count} 道题 · ` : ''}设置版式与练习历史，生成可离线打开的 HTML 文件。`,
-    body: exportDialogView(draft), okText: '导出文件', dismissible: () => !busy,
+    body: exportDialogView(draft, extra, error, busy, bannerMode, bannerSnapshot, bannerName), okText: '导出文件', dismissible: () => !busy,
     onOpen(el) {
       const body = el.querySelector('.ui-dialog__body');
       const paint = () => {
-        morph(body, exportDialogView(draft, extra, error, busy, bannerMode, bannerSvg));
+        morph(body, exportDialogView(draft, extra, error, busy, bannerMode, bannerSnapshot, bannerName));
         el.querySelectorAll('[data-dialog-cancel]').forEach(button => { button.disabled = busy; });
       };
       el.__exportPaint = paint;
       body.addEventListener('toggle', event => { if (event.target.matches('.exd-more')) extra = event.target.open; }, true);
-      body.addEventListener('input', event => { if (event.target.matches('[data-export-banner-svg]')) bannerSvg = event.target.value; });
       body.addEventListener('change', event => {
-        if (event.target.matches('[data-export-banner-mode]')) { bannerMode = event.target.value; paint(); return; }
         const input = event.target;
         const key = input.dataset.exportOption || input.name;
         if (key === 'columns') draft.twoColumns = input.value === 'two';
         else if (Object.hasOwn(draft, key)) draft[key] = input.type === 'checkbox' ? input.checked : input.value;
         draft = normalizeExportOptions(draft); error = ''; paint();
       });
-      body.addEventListener('click', event => {
+      body.addEventListener('click', async event => {
+        if (event.target.closest('[data-export-banner-off]')) { bannerMode = 'off'; bannerSnapshot = null; bannerName = ''; paint(); }
+        if (event.target.closest('[data-export-banner-pick]')) {
+          const pick = await chooseReminder({ value: bannerMode === 'library' ? bannerId : bannerMode, sessionId });
+          if (pick?.error) error = pick.error;
+          else if (pick) { bannerMode = ['session','off'].includes(pick.value) ? pick.value : 'library'; bannerId = pick.value; bannerSnapshot = pick.snapshot; bannerName = pick.name || ''; }
+          if (el.isConnected) paint();
+        }
         if (event.target.closest('[data-export-reset]')) { draft = { ...DEFAULT_EXPORT_OPTIONS }; error = ''; paint(); }
       });
     },
@@ -80,7 +91,7 @@ export async function openExportDialog({ variant, count, run }) {
       // Enter 确认不会先触发数字框 blur/change；以当前控件值捕获最后一次输入。
       draft = normalizeExportOptions({ ...draft, gap: values.gap, historyLimit: values.historyLimit });
       busy = true; error = ''; el.__exportPaint();
-      try { result = await run({ ...draft, ...(bannerMode !== 'session' ? { bannerMode, bannerSvg } : {}) }); }
+      try { result = await run({ ...draft, ...(bannerMode !== 'session' ? { bannerMode, bannerId } : {}) }); }
       catch (e) { result = { ok: false, text: `导出失败：${e?.message || '未知错误'}` }; }
       busy = false;
       if (!result.ok) { error = result.text; el.__exportPaint(); return false; }

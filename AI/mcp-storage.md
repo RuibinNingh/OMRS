@@ -52,3 +52,7 @@ MCP 技术库、报告及导出文件参与全库生命周期屏障和 SQLite �
 复习计划技术回执复用 ledger.db 的 op_results 表，op_id 使用 mcp:session: 命名空间与密钥、工具、请求编号的摘要；result_json 保存规范化内容摘要和稳定 session_id，不保存密钥明文。回执与 session.create 事实、SQL Session 投影同事务提交，发布失败整体回滚并失效内存投影缓存。该表是技术回执，不是学习 commit；学习撤销或 state.restore 不删除回执，整库备份及恢复沿用 ledger.db 生命周期边界。
 
 重试先读回执再检查 active 占用；相同内容返回原计划当前状态，撤销或状态恢复排除后返回原编号和不可用状态，不复活。新编号同时避开全部历史投影、已有技术回执和不可变创建事实中的编号，防止恢复后误指另一份计划。输入 uid 展示快照不进入稳定身份摘要，题目移动后同请求仍可复用；顺序和 due/proficiency 来源属于请求内容。
+
+## 首页提醒素材
+
+list_schedule_reminders返回素材名称、身份、摘要和默认设置元信息，不带svg/src。create_schedule_reminder接收name（1–80字）、svg（最多256KiB）和request_id（1–200字），校验静态安全与首页打印规范后加入素材库；同Key和请求编号幂等，实际写入或复用前复查权限。该工具属于技术准备，不改默认、不删除素材、不修改正式计划，不产生业务待审或学习Ledger。网页用户在复习调度中预览并选用，已有计划保留快照；配额和接口见`AI/export.md`、`AI/api.md`。

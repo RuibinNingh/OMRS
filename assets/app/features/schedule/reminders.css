@@ -1,0 +1,46 @@
+/* 提醒库、画廊与新增面板，沿用全站控件和调度页密度。 */
+.rem-library { display:flex; flex-direction:column; gap:var(--sp-5); }
+.rem-actions { display:flex; align-items:center; gap:var(--sp-2); flex-wrap:wrap; }
+.rem-default { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:var(--sp-4); padding:var(--sp-4); border:1px solid var(--border-1); border-radius:var(--r-md); background:var(--surface-1); }
+.rem-library h3, .rem-create h3 { margin:0; font-size:var(--text-md); font-weight:var(--weight-medium); }
+.rem-hint { margin:0; color:var(--fg-3); font-size:var(--text-xs); line-height:var(--leading-read); }
+.rem-error { margin:0; color:var(--danger); font-size:var(--text-sm); }
+.rem-section { display:flex; justify-content:space-between; align-items:center; gap:var(--sp-3); font-size:var(--text-sm); color:var(--fg-2); }
+.rem-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--sp-4); }
+.rem-card { min-width:0; border:1px solid var(--border-1); border-radius:var(--r-md); background:var(--surface-1); overflow:hidden; }
+.rem-image { display:block; width:100%; height:auto; min-height:calc(var(--sp-10) * 2); max-height:calc(var(--sp-10) * 4); object-fit:contain; background:var(--surface-1); }
+.rem-card > .rem-image, .rem-pick > .rem-image { height:calc(var(--sp-10) * 3); }
+.rem-card-body { padding:var(--sp-3); border-top:1px solid var(--border-1); }
+.rem-card-body h3 { display:flex; align-items:center; flex-wrap:wrap; gap:var(--sp-2); overflow-wrap:anywhere; }
+.rem-card-foot { margin-top:var(--sp-3); display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:var(--sp-2); }
+.rem-check { display:flex; align-items:center; gap:var(--sp-2); min-height:var(--ctl-md); font-size:var(--text-sm); }
+.rem-check input { accent-color:var(--accent); margin:0; }
+.rem-placeholder { display:flex; align-items:center; justify-content:center; min-height:calc(var(--sp-10) * 2); color:var(--fg-3); background:var(--surface-2); font-size:var(--text-xs); padding:var(--sp-3); }
+.rem-empty { margin:0; padding:var(--sp-10) var(--sp-4); text-align:center; font-size:var(--text-sm); color:var(--fg-3); }
+.rem-picker { display:flex; flex-direction:column; gap:var(--sp-4); }
+.rem-picker-options { display:flex; flex-wrap:wrap; gap:var(--sp-2); }
+.rem-pick { display:block; padding:0; width:100%; min-width:0; text-align:left; border:1px solid var(--border-1); border-radius:var(--r-md); background:var(--surface-1); overflow:hidden; color:var(--fg-1); }
+.rem-pick[aria-pressed="true"] { border-color:var(--accent); background:var(--accent-soft); }
+.rem-pick-label { display:flex; justify-content:space-between; gap:var(--sp-2); align-items:center; padding:var(--sp-3); border-top:1px solid var(--border-1); font-size:var(--text-sm); overflow-wrap:anywhere; }
+.rem-pick-label > span:last-child { flex-shrink:0; color:var(--fg-3); font-size:var(--text-xs); }
+.rem-create { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:var(--sp-5); }
+.rem-create-form, .rem-create-form fieldset { display:flex; flex-direction:column; gap:var(--sp-4); min-width:0; }
+.rem-create-form fieldset { border:0; margin:0; padding:0; }
+.rem-create-form .ui-segmented { width:100%; }
+.rem-create-form .ui-segmented__item { flex:1; }
+.rem-field { display:flex; flex-direction:column; gap:var(--sp-2); font-size:var(--text-sm); }
+.rem-create-preview { display:flex; flex-direction:column; gap:var(--sp-4); min-width:0; padding:var(--sp-4); border-radius:var(--r-md); background:var(--surface-2); align-self:start; }
+.rem-create-preview .rem-placeholder { background:var(--surface-1); }
+.exd-banner { border:1px solid var(--border-1); border-radius:var(--r-sm); overflow:hidden; }
+.exd-banner > .exd-row { padding:var(--sp-2); background:var(--surface-2); }
+.exd-banner > .exd-row .exd-hint { margin:0; }
+.exd-banner-preview { padding:var(--sp-2) 0; border-bottom:1px solid var(--border-1); }
+.exd-banner-preview .rem-image { min-height:0; }
+.exd-paper__question .exd-missing { border:1px solid var(--fg-3); border-radius:var(--r-xs); padding:0 var(--sp-1); color:var(--fg-2); font-size:var(--text-2xs); }
+@media (max-width:1160px) { .rem-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:760px) {
+  .rem-grid { grid-template-columns:minmax(0,1fr); }
+  .rem-create { grid-template-columns:minmax(0,1fr); }
+  .rem-default { align-items:flex-start; }
+  .rem-check { min-height:var(--ctl-lg); }
+}

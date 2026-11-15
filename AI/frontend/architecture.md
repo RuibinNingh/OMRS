@@ -240,3 +240,5 @@ main登记problems页面；domain/problems统一读写API和受管附件，domai
 ## 局域网HTTP请求编号回归
 
 问题接口和错因草稿统一调用`core/request-id.js`，安全随机源为getRandomValues。`tests/e2e/problems_http.py`把`http://omrs-lan.test/**`代理到合成Vault的随机回环服务，保持原Host、Origin、PIN登录与Cookie，不替换浏览器crypto；明确检查非安全上下文、randomUUID不可用及getRandomValues可用。
+
+提醒素材的控制器分工、对话框与浏览器回归见`AI/frontend/review.md`。

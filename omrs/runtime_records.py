@@ -17,6 +17,7 @@ from .errors import RequestError
 
 _LOCK = threading.RLock()
 TITLES = {
+    'list_schedule_reminders': '读取提醒素材', 'create_schedule_reminder': '新增提醒素材',
     'propose_question_update': '提出正式题目修改',
     "list_taxonomy": "读取科目与分类", "search_questions": "搜索题目",
     "get_question": "读取题目", "get_overview": "读取科目概况",

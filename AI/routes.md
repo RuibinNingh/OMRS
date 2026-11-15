@@ -159,6 +159,10 @@
 | POST | `/api/schedule` | `AI/api/mutations.md` |
 | GET/POST | `/api/schedule-banner` | `AI/api.md` |
 | POST | `/api/schedule-banner/preview` | `AI/api.md` |
+| GET | `/api/schedule-reminders` | `AI/api.md` |
+| POST | `/api/schedule-reminders/create` | `AI/api.md` |
+| POST | `/api/schedule-reminders/delete` | `AI/api.md` |
+| POST | `/api/schedule-reminders/generate` | `AI/api.md` |
 | GET | `/api/session` | `AI/api/queries.md`、`AI/changelog.md`、`AI/frontend/review.md` |
 | POST | `/api/session/bind` | `AI/api/mutations.md`、`AI/data.md`、`AI/frontend/review.md`等 |
 | POST | `/api/session/delete` | `AI/api/mutations.md`、`AI/ledger.md` |

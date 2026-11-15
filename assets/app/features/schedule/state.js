@@ -1,6 +1,6 @@
 /**
  * 复习调度：模块状态 + 纯函数（计划列表的筛选与卡片、计划详情、工作区切换、标签页键盘），node 单测全覆盖。
- * 工作区 view：'arrange'（安排复习，旧 recommend_v2.js）| 'plans'（已有计划，本页原生）| 'export'（全题库导出，旧 export.js）。
+ * 工作区 view：'arrange'（安排复习，旧 recommend_v2.js）| 'plans'（已有计划，本页原生）| 'reminders'（提醒素材）| 'export'（全题库导出，旧 export.js）。
  * 进入「全题库导出」时记住来处，「返回」回到它（原 SCH_EXPORT_RETURN）。
  */
 import { sessionProgress, sessionEntries } from '../../domain/sessions.js';
@@ -11,7 +11,7 @@ export const state = {
   deleting: new Set(), changing: new Set(), deleted: false, exporting: '', exportStatus: null,
 };
 
-export const VIEWS = ['arrange', 'plans'];
+export const VIEWS = ['arrange', 'plans', 'reminders'];
 
 /** 切工作区：返回新的 { view, exportReturn }；'back' 从导出回到来处。 */
 export function nextView(s, view) {
@@ -20,11 +20,11 @@ export function nextView(s, view) {
   return { view: VIEWS.includes(view) ? view : 'arrange', exportReturn: s.exportReturn };
 }
 
-/** 标签页上的 ←/→/Home/End（两个标签，自动激活）。不是这几个键时返回 null。 */
+/** 标签页上的 ←/→/Home/End（三个标签，自动激活）。不是这几个键时返回 null。 */
 export function tabKey(view, key) {
   if (key === 'home') return 'arrange';
-  if (key === 'end') return 'plans';
-  if (key === 'arrowleft' || key === 'arrowright') return view === 'arrange' ? 'plans' : 'arrange';
+  if (key === 'end') return 'reminders';
+  if (key === 'arrowleft' || key === 'arrowright') return VIEWS[(Math.max(0, VIEWS.indexOf(view)) + (key === 'arrowright' ? 1 : -1) + VIEWS.length) % VIEWS.length];
   return null;
 }
 

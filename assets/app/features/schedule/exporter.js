@@ -36,7 +36,8 @@ export const clampGap = v => { const x = Math.trunc(Number(v)); return Number.is
 /** 导出请求体：历史图参数独立于答案与留白，旧调用不显式启用历史图。 */
 export function exportPayload({ uids, question_refs, sessionId, variant, answers, gap, twoColumns, ...history }) {
   const body = { format: variant, include_answers: variant === 'screen' ? true : !!answers, question_gap_lines: clampGap(gap), a4_two_columns: variant !== 'a4' || !!twoColumns };
-  if (history.bannerMode) body.schedule_banner = { mode: history.bannerMode, ...(history.bannerMode === 'replace' ? {svg:history.bannerSvg} : {}) };
+  if (history.markMissingCause === true) body.mark_missing_cause = true;
+  if (history.bannerMode) body.schedule_banner = { mode: history.bannerMode, ...(history.bannerMode === 'replace' ? {svg:history.bannerSvg} : {}), ...(history.bannerMode === 'library' ? {id:history.bannerId} : {}) };
   if (history.historyPosition) body.history = historyOptions(history);
   if (sessionId) body.session_id = sessionId; else if (question_refs) body.question_refs = question_refs; else body.uids = [...uids];
   return body;

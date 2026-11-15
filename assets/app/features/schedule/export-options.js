@@ -2,6 +2,7 @@
 export const EXPORT_OPTIONS_KEY = 'omrs-export-options-v1';
 export const DEFAULT_EXPORT_OPTIONS = Object.freeze({
   variant: 'a4', twoColumns: true, answers: false, gap: 0,
+  markMissingCause: false,
   historyPosition: 'feedback', historyLimit: 8, historyScores: true, historyDates: true,
 });
 let remembered = { ...DEFAULT_EXPORT_OPTIONS };
@@ -19,6 +20,7 @@ export function normalizeExportOptions(value = {}) {
     variant: v.variant === 'screen' ? 'screen' : 'a4',
     twoColumns: bool(v.twoColumns, d.twoColumns), answers: bool(v.answers, d.answers),
     gap: integer(v.gap, d.gap, 20),
+    markMissingCause: bool(v.markMissingCause, d.markMissingCause),
     historyPosition: ['none', 'question', 'feedback'].includes(v.historyPosition) ? v.historyPosition : d.historyPosition,
     historyLimit: integer(v.historyLimit, d.historyLimit, 16, 1),
     historyScores: bool(v.historyScores, d.historyScores), historyDates: bool(v.historyDates, d.historyDates),

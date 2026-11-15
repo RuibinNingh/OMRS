@@ -47,3 +47,5 @@ get_question_image 的名称登记为“读取题图”，成功的 ImageContent
 ## 审计修复契约
 
 运行库连接与磁盘入口先取得 Vault 生命周期租约再取模块锁；全库备份采用 SQLite 在线快照，包含仍在 WAL 的已提交调用。MCP 调用持任务世代而不持网络租约，恢复后的旧调用不能写入新运行库。恢复运行库后把遗留 running 标为 interrupted，见 `AI/backup.md`。
+
+提醒素材的list_schedule_reminders与create_schedule_reminder照常登记调用生命周期，标题为中文「读取提醒素材」「新增提醒素材」。摘要继续按既有白名单提取计数与reused，不记录名称、生成要求、SVG、data URL或模型输出正文。

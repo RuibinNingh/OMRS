@@ -45,12 +45,14 @@ export const mcpCreateView = () => html`<div class="st-mcp-form">
 </div>`;
 
 export const MCP_SCOPE_INPUTS = Object.freeze({ 'st-mcp-scope-read': 'omrs:read', 'st-mcp-scope-draft': 'draft:create',
+  'st-mcp-scope-reminder': 'reminder:create',
   'st-mcp-scope-update': 'draft:update', 'st-mcp-scope-question': 'question:propose', 'st-mcp-scope-session': 'session:create', 'st-mcp-scope-report': 'report:create',
   'st-mcp-scope-problem-read': 'problem:read', 'st-mcp-scope-problem-write': 'problem:write',
   'st-mcp-scope-label-write': 'label:write', 'st-mcp-scope-label-delete': 'label:delete',
   'st-mcp-scope-board': 'board:write', 'st-mcp-scope-delete': 'board:delete' });
 
 const advanced = [
+  ['st-mcp-scope-reminder', '创建复习提醒素材', '只新增静态SVG；由你在调度页预览和选用，不自动修改默认'],
   ['st-mcp-scope-problem-read', '查询问题与错因', '需学习数据查询权限；旧密钥不会自动获得'],
   ['st-mcp-scope-problem-write', '提交问题与错因修改', '需查询问题权限；所有正式写入均需审核'],
   ['st-mcp-scope-label-write', '整理标记与题目归类', '需查询；创建、编辑与归类方案统一审核后执行'],
@@ -79,6 +81,7 @@ export const mcpSecretView = secret => html`<div id="st-mcp-secret">
 </div>`;
 
 const scopeLabel = scope => ({ 'omrs:read': '查询', 'draft:create': '创建草稿', 'draft:update': '修订草稿',
+  'reminder:create': '创建提醒素材',
   'problem:read': '问题查询', 'problem:write': '问题写审核', 'label:write': '整理标记', 'label:delete': '合并删除标记', 'question:propose': '题目修改提案', 'session:create': '创建复习计划', 'report:create': '保存报告', 'board:write': '管理展示板', 'board:delete': '删除板' })[scope] || scope;
 const statusLabel = status => ({ active: '有效', revoked: '已吊销', expired: '已到期' })[status];
 

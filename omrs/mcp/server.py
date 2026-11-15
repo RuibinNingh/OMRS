@@ -43,6 +43,7 @@ from .keys import verify_key, key_for_id
 from .common import NONBLANK_PATTERN, RequestError
 from .tool_docs import SERVER_INSTRUCTIONS, TOOL_DESCRIPTIONS, apply_parameter_docs
 from . import problems as problem_tools
+from . import reminders as reminder_tools
 from . import queries, analysis_reports, draft_edit, board_read, board_write, board_export, session_write, question_write, labeling
 
 MAX_IMAGES = 6
@@ -65,6 +66,7 @@ TOOL_SCOPES = {
 }
 
 TOOL_SCOPES.update(problem_tools.SCOPES)
+TOOL_SCOPES.update(reminder_tools.SCOPES)
 TOOL_SCOPES.update(queries.SCOPES)
 TOOL_SCOPES.update(analysis_reports.SCOPES)
 TOOL_SCOPES.update(draft_edit.SCOPES)
@@ -250,7 +252,7 @@ class RestrictedMCP(FastMCP):
         except ValidationError:
             raise ToolError("invalid_arguments: 参数不符合工具 schema") from None
         audit_id = None
-        if tool.annotations and not tool.annotations.readOnlyHint and name != 'export_board' and name not in labeling.PREPARE_TOOLS:
+        if tool.annotations and not tool.annotations.readOnlyHint and name != 'export_board' and name not in (labeling.PREPARE_TOOLS | reminder_tools.PREPARE_TOOLS):
             if ai_review.classify('mcp', name) is None:
                 raise ToolError('unknown_tool: 工具缺少业务写审核分类')
             if name in ai_review.AUTO_MCP:
@@ -792,6 +794,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
     question_write.register(server, vault, _require, _threaded, web_url)
     labeling.register(server, vault, _require, _threaded, web_url)
     problem_tools.register(server, vault, _require, _threaded, web_url)
+    reminder_tools.register(server, vault, _require, _threaded)
     # FastMCP 默认会忽略函数参数模型中的未知字段；MCP 是权限边界，必须
     # 把拼写错误或试图注入的顶层参数显式拒绝。
     for tool in server._tool_manager.list_tools():

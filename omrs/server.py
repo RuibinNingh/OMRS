@@ -300,7 +300,7 @@ class OMRSHandler(ProblemsRoutes, QuestionsRoutes, BoardsRoutes, LearningRoutes,
                     spool.seek(0)
                 protected = not (path.startswith(("/api/agent/", "/api/auth/", "/api/uploads/", "/api/zuoyebang/", "/api/boxdetect/", "/boxdetect/"))
                     or path in ("/api/backup/export", "/api/backup/restore", "/api/backup/import",
-                                "/api/ai-recognize", "/api/trainpanel/try", "/api/entry-background", "/api/restart", "/api/export"))
+                                "/api/ai-recognize", "/api/schedule-reminders/generate", "/api/trainpanel/try", "/api/entry-background", "/api/restart", "/api/export"))
                 with self._response_capture(protected):
                     self._dispatch_post(path)
         except http_io.BodyError as exc:

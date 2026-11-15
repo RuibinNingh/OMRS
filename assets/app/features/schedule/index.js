@@ -3,7 +3,7 @@ import { bindSessionEntry } from '../../domain/sessions.js';
 /**
  * 复习调度页（P6 第 3 轮起的 features 页面；原 assets/schedule.js 的页面部分）。
  * - 契约：page = { id: 'schedule', title, mount(root, ctx) → unmount, actions, keys }；动作命名空间 'schedule'。
- *   挂载点是 #panel-schedule，本页 morph 其中的 #sch-app：标签栏与三个工作区（安排复习、已有计划、全题库导出）都是原生的。
+ *   挂载点是 #panel-schedule，本页 morph 其中的 #sch-app：标签栏与四个工作区（安排复习、已有计划、提醒素材、全题库导出）都是原生的。
  * - 数据：Session 列表归 domain/sessions（bus 'sessions' 重绘）；计划详情 /api/session 后发先至时只认最新一次。
  * - 页面事件：'schedule:view'（仪表盘「开始复习」打开安排复习）；'schedule:open-plan'（带 Session id：切过来后打开该计划）。
  */
@@ -19,6 +19,7 @@ import { arrange as arrangeState } from './arrange.js';
 import { createArrange } from './arrange-ctl.js';
 import * as S from './state.js';
 import { view } from './view.js';
+import { createReminderLibrary, remindersState } from './reminder-library.js';
 
 const s = S.state;
 let ctl = null;
@@ -32,22 +33,25 @@ function createController(root, ctx) {
   let detailModel = null;
   let arr = null;
   let exp = null;
+  let reminders = null;
 
   function env() {
     const list = listSessions();
     const { loading, error } = sessionsState();
-    return { s, view: s.view, active: S.activeCount(list), plans: S.filterPlans(list, s.filter, s.search).map(S.planCard),
+    return { s, reminders: remindersState, view: s.view, active: S.activeCount(list), plans: S.filterPlans(list, s.filter, s.search).map(S.planCard),
       selected: s.selected, detail: detailModel, loading, error, a: arrangeState, arrange: s.view === 'arrange' ? arr.env() : null, x: exporterState, exporter: s.view === 'export' ? exp.env() : null };
   }
   const paint = () => { morph(host, view(env())); if (s.view === 'arrange') arr.hydrate(); if (s.view === 'export') exp.hydrate(); };
   arr = createArrange({ ctx, root: host, paint: () => paint(), openPlan: id => openFromArrange(id) });
   exp = createExporter({ ctx, root: host, paint: () => paint() });
+  reminders = createReminderLibrary(paint);
 
   function show(target, { reload = true } = {}) {
     const prev = s.view;
     Object.assign(s, S.nextView(s, target));
     paint();
     if (s.view === 'arrange' && prev !== 'arrange' && reload) arr.load();
+    if (s.view === 'reminders' && reload) reminders.load();
     if (prev !== s.view) root.scrollIntoView?.({ block: 'start' });
   }
 
@@ -111,7 +115,7 @@ function createController(root, ctx) {
   }
 
   return {
-    paint, show, open, remove, arr, exp,
+    paint, show, open, remove, arr, exp, reminders,
     async togglePause() {
       const id = s.selected;
       if (!id || !detailModel || detailModel.done || s.changing.has(id) || s.deleting.has(id)) return;
@@ -150,7 +154,7 @@ function createController(root, ctx) {
     async exportPlan(variant) {
       const id = s.selected;
       if (!id || s.exporting) return;
-      s.exporting = variant;
+      s.exporting = variant || 'selected';
       s.exportStatus = null;
       paint();
       const result = await exp.exportPlan(id, variant, detailModel?.total);
@@ -160,6 +164,7 @@ function createController(root, ctx) {
     },
     async enter() {
       paint();
+      if (s.view === 'reminders') reminders.load();
       await Promise.all([refreshSessions(), arr.load()]);
     },
     onSessions() {
@@ -177,7 +182,7 @@ function createController(root, ctx) {
       show('plans', { reload: false });
       await open(id);
     },
-    dispose() { detailSeq += 1; arr.dispose(); exp.dispose(); },
+    dispose() { detailSeq += 1; arr.dispose(); exp.dispose(); reminders.dispose(); },
   };
 }
 
@@ -236,6 +241,12 @@ export const page = {
     xclear: () => ctl?.exp.clear(),
     xpreview: ({ arg }) => ctl?.exp.preview(arg),
     xexport: () => ctl?.exp.export(),
+    rload: () => ctl?.reminders.load(),
+    rcreate: ({ arg }) => ctl?.reminders.create(arg),
+    rdelete: ({ arg }) => ctl?.reminders.remove(arg),
+    rset: ({ arg }) => ctl?.reminders.setDefault(arg),
+    rdefault: () => ctl?.reminders.choose(),
+    renabled: ({ event }) => ctl?.reminders.enabled(event.target.checked),
   },
   keys: {
     arrowleft: tabNav, arrowright: tabNav, home: tabNav, end: tabNav,

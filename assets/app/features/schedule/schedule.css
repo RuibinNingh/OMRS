@@ -129,7 +129,9 @@
 .schd-xcard__foot { display: flex; justify-content: flex-end; }
 
 @media (max-width: 760px) {
-  .schd-tabs { gap: var(--sp-4); }
+  .schd-top { flex-wrap: wrap; padding-bottom: var(--sp-2); }
+  .schd-tabs { width: 100%; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-2); }
+  .schd-top > .ui-btn { margin-left: auto; }
   .schd-heading { flex-direction: column; align-items: stretch; }
   .schd-work { grid-template-columns: minmax(0, 1fr); }
   .schd-work[data-detail="1"] .schd-list, .schd-work[data-detail="0"] .schd-detail { display: none; }

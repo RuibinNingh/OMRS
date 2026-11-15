@@ -1,5 +1,5 @@
 """OMRS 工具注册表。权限级别见 omrs/agent/policy.py；不注册的能力模型无从调用。"""
-from . import problems, drafts, read, taxonomy, write, labeling
+from . import problems, drafts, read, taxonomy, write, labeling, reminders
 from .. import practice
 
 
@@ -31,7 +31,7 @@ class Registry:
 
 
 def build_registry(settings=None):
-    specs = problems.SPECS + read.SPECS + drafts.SPECS + taxonomy.SPECS + write.SPECS + practice.SPECS + labeling.SPECS
+    specs = problems.SPECS + read.SPECS + drafts.SPECS + taxonomy.SPECS + write.SPECS + practice.SPECS + labeling.SPECS + reminders.SPECS
     if (settings or {}).get("draft_mode") != "confirm":
         specs = [spec for spec in specs if spec[0] != "commit_draft"]
     tools = [ToolDef(*spec) for spec in specs]

@@ -1,6 +1,6 @@
 /**
  * 复习调度：视图模板（只产出 html``，由 index.js 用 morph 写入 #sch-app）。
- * 三个工作区都在这里渲染：安排复习（arrange-view.js）、已有计划（本文件）、全题库导出（exporter-view.js）。保留旧 id（#sch-tab-*、#sch-plans、#sch-plan-filter、#sch-plan-detail、
+ * 四个工作区都在这里渲染：安排复习（arrange-view.js）、已有计划（本文件）、全题库导出（exporter-view.js）。保留旧 id（#sch-tab-*、#sch-plans、#sch-plan-filter、#sch-plan-detail、
  * #sch-session-status、#sch-status），导出参数共用 export-dialog.js。
  */
 import { html, each, cls } from '../../core/html.js';
@@ -12,11 +12,12 @@ import { status } from '../../ui/status.js';
 import { skeleton } from '../../ui/skeleton.js';
 import { arrangeView } from './arrange-view.js';
 import { exporterView } from './exporter-view.js';
+import { remindersView } from './reminder-library.js';
 
 function tabs(env) {
-  const tab = (id, label, extra) => html`<button type="button" class="schd-tab" id="sch-tab-${id}" role="tab" aria-selected="${env.view === id ? 'true' : 'false'}" aria-controls="${id === 'arrange' ? 'recommend-panel-v2' : 'sch-plans'}" tabindex="${env.view === id ? '0' : '-1'}" data-action="schedule.view" data-arg="${id}">${label}${extra || ''}</button>`;
+  const tab = (id, label, extra) => html`<button type="button" class="schd-tab" id="sch-tab-${id}" role="tab" aria-selected="${env.view === id ? 'true' : 'false'}" aria-controls="${id === 'arrange' ? 'recommend-panel-v2' : id === 'reminders' ? 'sch-reminders' : 'sch-plans'}" tabindex="${env.view === id ? '0' : '-1'}" data-action="schedule.view" data-arg="${id}">${label}${extra || ''}</button>`;
   return html`<div class="schd-top" data-key="top">
-  <div class="schd-tabs" role="tablist" aria-label="复习调度工作区">${tab('arrange', '安排复习')}${tab('plans', '已有计划', html`<span class="schd-count" id="sch-plan-count">待完成 ${env.active}</span>`)}</div>
+  <div class="schd-tabs" role="tablist" aria-label="复习调度工作区">${tab('arrange', '安排复习')}${tab('plans', '已有计划', html`<span class="schd-count" id="sch-plan-count">待完成 ${env.active}</span>`) }${tab('reminders', '提醒素材')}</div>
   ${button({ label: '全题库导出', iconRight: 'external', size: 'sm', variant: 'ghost', action: 'schedule.view', arg: 'export', title: '按条件从整个题库挑题导出' })}
 </div>`;
 }
@@ -44,7 +45,7 @@ function detail(env) {
   return html`<div class="schd-detail" id="sch-plan-detail">${back}
   <div class="schd-detail__head"><div><h3 class="schd-detail__title">${d.title}</h3><p class="schd-meta" data-sid="${d.id}">${d.when} · ${d.id}</p></div>${tag({ label: d.status, tone: d.done ? 'success' : d.paused ? 'neutral' : 'warning' })}</div>
   <p class="schd-detail__sum"><strong>已录入 ${d.recorded} / 共 ${d.total} 题</strong><span class="schd-meta">${d.hint}</span></p>
-  <div class="schd-acts">${button({ label: '录入结果', variant: 'primary', action: 'schedule.feedback', disabled: !d.canFeedback || s.changing.has(d.id) })}${!d.done ? button({ label: d.paused ? '恢复调度' : '暂停调度', icon: d.paused ? 'play' : 'pause', action: 'schedule.pause', loading: s.changing.has(d.id), disabled: s.deleting.has(d.id) }) : ''}${button({ label: '导出打印版', icon: 'print', action: 'schedule.export', arg: 'a4', loading: s.exporting === 'a4', disabled: !d.canExport })}${button({ label: '导出屏幕版', icon: 'download', action: 'schedule.export', arg: 'screen', loading: s.exporting === 'screen', disabled: !d.canExport })}${button({ label: '删除调度', variant: 'danger', icon: 'trash', action: 'schedule.remove', loading: s.deleting.has(d.id), disabled: s.changing.has(d.id) })}</div>
+  <div class="schd-acts">${button({ label: '录入结果', variant: 'primary', action: 'schedule.feedback', disabled: !d.canFeedback || s.changing.has(d.id) })}${!d.done ? button({ label: d.paused ? '恢复调度' : '暂停调度', icon: d.paused ? 'play' : 'pause', action: 'schedule.pause', loading: s.changing.has(d.id), disabled: s.deleting.has(d.id) }) : ''}${button({ label: '导出', icon: 'download', action: 'schedule.export', loading: !!s.exporting, disabled: !d.canExport })}${button({ label: '删除调度', variant: 'danger', icon: 'trash', action: 'schedule.remove', loading: s.deleting.has(d.id), disabled: s.changing.has(d.id) })}</div>
   ${d.paused ? html`<p class="schd-meta">暂停期间不提醒录入，题目可重新安排复习；恢复时会检查是否被其他待完成计划占用。</p>` : ''}
   <p class="schd-meta">导出时可设置版式、答案与练习历史，并记住上次参数。</p>
   <div id="sch-status" role="status">${s.exportStatus ? status({ tone: s.exportStatus.ok ? 'success' : 'danger', text: s.exportStatus.text }) : ''}</div>
@@ -73,5 +74,5 @@ function plans(env) {
 
 /** env = { s, view, active, plans, selected, detail, loading, error } */
 export function view(env) {
-  return html`<div class="schd" data-key="schd">${tabs(env)}${env.view === 'plans' ? plans(env) : ''}${env.view === 'arrange' ? arrangeView(env.a, env.arrange) : ''}${env.view === 'export' ? exporterView(env.x, env.exporter) : ''}</div>`;
+  return html`<div class="schd" data-key="schd">${tabs(env)}${env.view === 'plans' ? plans(env) : ''}${env.view === 'arrange' ? arrangeView(env.a, env.arrange) : ''}${env.view === 'export' ? exporterView(env.x, env.exporter) : ''}${env.view === 'reminders' ? remindersView(env.reminders) : ''}</div>`;
 }

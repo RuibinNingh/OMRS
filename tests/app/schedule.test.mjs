@@ -122,8 +122,9 @@ test('views: switching, export remembers where it came from, tab keys', () => {
   s = { ...s, ...S.nextView(s, 'back') };
   assert.equal(s.view, 'plans');
   assert.equal(S.nextView(s, 'nope').view, 'arrange');
-  assert.deepEqual(['home', 'end', 'arrowleft', 'arrowright', 'x'].map(k => S.tabKey('arrange', k)), ['arrange', 'plans', 'plans', 'plans', null]);
-  assert.equal(S.tabKey('plans', 'arrowright'), 'arrange');
+  assert.deepEqual(['home', 'end', 'arrowleft', 'arrowright', 'x'].map(k => S.tabKey('arrange', k)), ['arrange', 'reminders', 'reminders', 'plans', null]);
+  assert.equal(S.tabKey('plans', 'arrowright'), 'reminders');
+  assert.equal(S.tabKey('reminders', 'arrowright'), 'arrange');
 });
 
 test('plan list, cards, detail model, gap clamp', () => {

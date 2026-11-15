@@ -39,7 +39,7 @@ export function createExporter({ ctx, root, paint }) {
   /** 打开面板前冻结题目引用；取消不发导出请求，失败留在面板内重试。 */
   async function run({ uids, sessionId, variant, count }) {
     const question_refs = sessionId ? undefined : questionRefs(uids);
-    return openExportDialog({ variant, count: count ?? uids?.length, run: async options => {
+    return openExportDialog({ variant, sessionId, count: count ?? uids?.length, run: async options => {
       const res = await requestExport(X.exportPayload({ question_refs, sessionId, ...options }), X.exportFileName({ sessionId, variant: options.variant }));
       if (!res.ok) return { ok: false, text: `导出失败：${res.error}` };
       const saved = saveExportOptions(options);

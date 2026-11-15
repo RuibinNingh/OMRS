@@ -115,6 +115,7 @@
     const dot = el("span", "state-dot"); dot.dataset.dot = i;
     r1.appendChild(dot);
     r1.appendChild(el("span", "no", "第 " + q.idx + " 题"));
+    if (q.missing_cause) r1.appendChild(el("span", "missing-cause", "待补错因"));
     if (q.uid) r1.appendChild(el("span", "uid", q.uid));
     if (q.difficulty != null && q.difficulty !== "") r1.appendChild(el("span", "diff", "难度 " + q.difficulty + "/10"));
     head.appendChild(r1);
