@@ -70,6 +70,8 @@
 .fbw-panel__title { margin: 0; color: var(--fg-1); font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading-tight); }
 .fbw-panel__uid { overflow: hidden; color: var(--fg-3); font-family: var(--font-mono); font-size: var(--text-xs); text-overflow: ellipsis; white-space: nowrap; }
 .fbw-panel__empty { color: var(--fg-3); }
+.fbw-reflections { min-width: 0; }
+.fbw-reflections .reflections { padding: var(--sp-4) 0 0; background: transparent; }
 .fbw-readonly { display: flex; gap: var(--sp-1_5); padding: var(--sp-3); border: 1px solid var(--border-1); border-radius: var(--r-md); background: var(--surface-2); color: var(--fg-2); font-size: var(--text-sm); line-height: var(--leading-read); }
 .fbw-readonly .ui-icon { flex: none; width: 16px; height: 16px; margin-top: var(--sp-0_5); color: var(--fg-3); }
 

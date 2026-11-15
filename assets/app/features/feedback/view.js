@@ -17,6 +17,7 @@ import {
 } from './state.js';
 import { formatPercent } from '../../core/format.js';
 import { sessionEntryKey } from '../../domain/sessions.js';
+import { questionItem } from '../../domain/question/ref.js';
 
 const TONE = { ok: 'success', warn: 'warning', danger: 'danger' };
 
@@ -153,6 +154,14 @@ function submitBar(s, env) {
   </div>`;
 }
 
+function reflections(s, env) {
+  const entry = env.entries[s.cursor];
+  if (!entry?.uid || (entry.availability && entry.availability !== 'active')) return '';
+  const item = questionItem(entry.question_id || entry.uid, env.items);
+  if (!item?.question_id) return '';
+  return html`<aside class="fbw-reflections" data-key="ref:${item.question_id}" data-morph="skip" data-reflections-host data-question-id="${item.question_id}" aria-label="本题错因记录"></aside>`;
+}
+
 function panel(s, env) {
   const entries = env.entries;
   const entry = entries[s.cursor];
@@ -172,7 +181,7 @@ function panel(s, env) {
         ${showUid ? html`<label class="fbw-field" data-key="uid"><span class="fbw-field__label">UID</span><input class="ui-input" list="uid-list" value="${row.uid || ''}" data-change="feedback.uid"${s.submitting ? html` disabled` : ''} placeholder="输入或选择 UID"></label>` : ''}
         <div class="fbw-verdict" role="group" aria-label="判定对错" data-key="verdict">${verdict(true, '对', 'check', '1')}${verdict(false, '错', 'x', '2')}</div>
         <label class="fbw-score" data-key="score"><span class="fbw-score__label">主观分</span><input class="fbw-score__input" type="range" min="0" max="10" step="1" value="${score}" data-input="feedback.score"${s.submitting ? html` disabled` : ''} aria-valuetext="${score} 分"><output class="fbw-score__value">${score}</output></label>
-        <label class="fbw-field" data-key="note"><span class="fbw-field__label">备注</span><input class="ui-input" value="${row.note || ''}" data-input="feedback.note"${s.submitting ? html` disabled` : ''} placeholder="页码 / 错因（可选）"></label>
+        <label class="fbw-field" data-key="note"><span class="fbw-field__label">本次作答备注</span><input class="ui-input" value="${row.note || ''}" data-input="feedback.note"${s.submitting ? html` disabled` : ''} placeholder="页码 / 作答情况（可选）"></label>
         ${labelControls(row, env)}
         <div class="fbw-form__acts" data-key="acts">
           ${row.correct === false && row.uid ? button({ label: '加入展示板', icon: 'bookmark', size: 'sm', action: 'feedback.board' }) : ''}
@@ -184,6 +193,7 @@ function panel(s, env) {
   return html`<div class="fbw-panel" data-key="panel" aria-label="判定 · 统计 · 提交">
     ${head}
     ${bodyBlock}
+    ${reflections(s, env)}
     ${tally(env.rows)}
     ${submitBar(s, env)}
   </div>`;

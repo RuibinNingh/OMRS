@@ -20,7 +20,7 @@
 | `modal.js` | 题目弹窗（`ui/dialog` 外壳）：`viewQ(uid, context?, {returnFocus}?)`、`closeModal`、`modalOpen`、`modalUid`；翻页条与 ←/→（P5 第 3 轮起） |
 | `editor.js` | Markdown 编辑器（`ui/dialog`）：`openEditor(uid)`、`closeEditor`、`editorOpen`（P5 第 3 轮起，原 questions.js 的 `.modal#md-editor`） |
 | `ops.js` | 题目操作：`editQuestion`（打开 `editor.js` 的编辑器）、`suspendQuestion` / `resumeQuestion` / `deleteQuestion` / `moveQuestion`、`batchSuspend`、`exportA4`；确认走 `ui/dialog`，写后清缓存 → `reloadData()` → 失效重绘，并通过 `history:changed` 通知历史页与仪表盘刷新 |
-| `index.js` | 对外出口；另有页面用的 `mountQuestion`（即时练习）、`mountQuestionStage`（反馈录入）、`invalidateQuestions`，并转出 `ops.js` 全部与 `dropDetail`（删除 / 迁移后丢旧详情） |
+| `index.js` | 对外出口；页面用 `mountQuestion`（即时练习）、`mountQuestionStage` 与 `mountReflections`（反馈录入）、`invalidateQuestions`，并转出 `ops.js` 全部与 `dropDetail`（删除 / 迁移后丢旧详情） |
 | `qview.css` | `layer(domain)`：qview 的全部外观（布局与挂载点容器、题头、题面块、Markdown 段落 / 表格 / 题图、记录模块、战绩带、占位、别处容器的覆盖）与题目弹窗、编辑器外观（P5 第 4 轮起旧 `styles.css` 不再有 qview 规则） |
 
 各页从 `index.js` 取。输出都是字符串，页面经 `raw()` 嵌入模板。
@@ -115,6 +115,8 @@
 详情失效同时移除该UID的缓存和在途token。旧响应返回后不能回填缓存或覆盖新的挂载，而是等待当前有效详情；旧请求的finally也不能删除新请求。全量失效包含只有在途请求、尚未产生缓存的UID。
 
 ## 快捷错因与草稿
+
+共享控制器 `mountReflections(host, questionId, {idPrefix}?)` 同时用于题目弹窗与反馈判定栏，返回 `toggle`、`canLeave`、`dispose`；页面通过统一出口调用。默认页签 ID 使用题目身份，反馈页另加前缀，支持同题两处挂载而不重复 ID。每个宿主管理自身重绘与卸载，反馈页由路由和换题动作调用离开守卫。
 
 弹窗正文先题目、后错因区。面板可用宽度至少1040px时，错因区占右侧340px，题面和答案在左侧上下阅读，两区分别滚动；不足时错因区顺排到题目后面，正文统一滚动，头部保持可见。头部「＋错因」切回录入并把编辑框滚入可视区，重复点击保持录入。翻题立即清除上一题的错因区，迟到的题目读取不能重新挂载旧身份的记录。
 

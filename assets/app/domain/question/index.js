@@ -16,6 +16,7 @@ export {
 } from './mount.js';
 export { viewQ, closeModal, modalOpen, modalUid } from './modal.js';
 export { openEditor, closeEditor, editorOpen } from './editor.js';
+export { mountReflections } from './reflections.js';
 
 
 /** 即时练习的题面：题面 | 答案双栏；reveal=false 时只给「显示答案」按钮，点它回调 onReveal。题头由页面自己显示。 */

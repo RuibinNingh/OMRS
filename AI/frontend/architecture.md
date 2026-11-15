@@ -17,7 +17,7 @@
 
 跨页复核文案集中在 `assets/app/domain/question/review-cycle.js`：题库、题目详情和复习调度共用档位、间隔、实际日期与累计成绩。`domain/items.js` 将缺可靠日期的复燃题视为今日待复核，其余无效日期保持未知。`tests/e2e/review_policy.py` 使用临时Vault与真实反馈接口覆盖一次击杀→到期推荐→升档→提前练习→降级→重新击杀及设置重算。
 
-`domain/rich-markdown.js`复用题目基础渲染，供备注、问题说明和错因历史使用；题面、答案仍用基础规则。`domain/problem-markdown.js`映射PA附件，题图沿用原接口。格式测试见`tests/app/rich-markdown.test.mjs`，真实编辑与多宽度截图见`tests/e2e/notes_markdown.py`。
+`domain/rich-markdown.js`为备注、问题说明和错因历史提供安全排版，题面与答案沿用基础规则；`domain/problem-markdown.js`映射PA附件。`domain/question/index.js`统一导出错因控制器，由反馈页与弹窗管理宿主、页签ID及草稿守卫，契约和测试见`AI/frontend/qview.md`。
 
 ## 1. 目录与依赖方向
 

@@ -12,7 +12,7 @@ import { morph } from '../../core/dom.js';
 import { post } from '../../core/api.js';
 import { toast } from '../../ui/toast.js';
 import { dialog } from '../../ui/dialog.js';
-import { editQuestion, invalidateQuestions, mountQuestionStage } from '../../domain/question/index.js';
+import { editQuestion, invalidateQuestions, mountQuestionStage, mountReflections } from '../../domain/question/index.js';
 import { reloadData } from '../../domain/data.js';
 import {
   listSessions, activeSessionId, setActiveSessionId, findSession,
@@ -32,6 +32,9 @@ export function createFeedbackController(root, ctx, services = {}) {
     domItems, refreshSessions, reloadData, invalidateQuestions, openResultsDialog, ...services };
   let alive = true;
   let inflight = null;
+  let reflections = null;
+  let reflectionsHost = null;
+  const offGuard = ctx?.router?.setLeaveGuard?.(() => reflections?.canLeave() ?? true);
   function env() {
     const sessions = io.listSessions();
     const activeId = io.activeSessionId();
@@ -44,6 +47,12 @@ export function createFeedbackController(root, ctx, services = {}) {
   }
 
   function hydrate() {
+    const host = root.querySelector('[data-reflections-host]');
+    if (host !== reflectionsHost) {
+      reflections?.dispose();
+      reflectionsHost = host;
+      reflections = host ? mountReflections(host, host.dataset.questionId, { idPrefix: `fb-ref-${host.dataset.questionId}` }) : null;
+    }
     root.querySelectorAll('[data-qv-host]').forEach(el => {
       if (el.dataset.qvFor === el.dataset.key) return;
       el.dataset.qvFor = el.dataset.key;
@@ -252,7 +261,19 @@ export function createFeedbackController(root, ctx, services = {}) {
       paint();
     },
   };
-  api.dispose = () => { alive = false; };
+  // 换题、换计划或提交前先处理错因草稿，避免反馈操作悄悄带走未保存内容。
+  for (const name of ['selectSession', 'addRow', 'go', 'setUid', 'drop', 'importText', 'resetForm', 'submit']) {
+    const action = api[name];
+    api[name] = (...args) => {
+      if (!reflections) return action(...args);
+      const host = reflectionsHost;
+      return reflections.canLeave().then(ok => {
+        if (ok && alive && reflectionsHost === host) return action(...args);
+        paint();
+      });
+    };
+  }
+  api.dispose = () => { alive = false; reflections?.dispose(); offGuard?.(); };
   return api;
 }
 

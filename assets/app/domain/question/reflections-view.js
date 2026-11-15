@@ -29,7 +29,7 @@ function entryView(entry, state) {
 
 export function reflectionsView(state, draft) {
   const d = draft.value;
-  const prefix = `ref-${d.question_id}`;
+  const prefix = state.idPrefix || `ref-${d.question_id}`;
   return html`<section class="reflections" aria-label="快捷错因与记录">
     <div class="ref-head"><strong>错因记录 · ${state.entries.length} 条</strong></div>
     ${tabs({ label: '错因记录', idPrefix: prefix, value: state.tab, items: [

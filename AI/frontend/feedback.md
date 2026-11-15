@@ -1,10 +1,10 @@
 # 前端：反馈录入工作台
 
 > **速查**
-> - 职责：反馈录入工作台（选 Session、逐题看题面判对错打分、导入答题卡 / 反馈 JSON、分批提交），第二个迁到新架构的页面（P4）
+> - 职责：反馈录入工作台（选 Session、逐题判对错打分、查看和补记错因、导入答题卡 / 反馈 JSON、分批提交）
 > - 入口：`assets/app/features/feedback/`（`index.js` 页面契约）、地址 `#/feedback`
 > - 不变量：rail 显示全部题目；新提交使用 `{question_id, entry_id?, sub_score, is_correct, note}`；判定、打分、写备注不重建题面；数据与操作经领域模块
-> - 必跑测试：`tests/app/feedback.test.mjs`、`tests/e2e/feedback.py`、`tests/check_ui.py`；复习调度联动另见 `tests/e2e/schedule.py`
+> - 必跑测试：`tests/app/feedback.test.mjs`、`tests/e2e/feedback.py`、`tests/e2e/feedback_reflections.py`、`tests/check_ui.py`；复习调度联动另见 `tests/e2e/schedule.py`
 > - 相关：`AI/omr-import.md`（答题卡协议）、`AI/frontend/architecture.md`（页面契约）、`AI/frontend/review.md`（复习调度）、`AI/frontend/qview.md`
 
 ## 页面与文件
@@ -35,6 +35,14 @@ Session 列表与当前反馈 Session 归 `domain/sessions.js`。`entries` 是�
 - rail 显示 Session 全部题目：序号沿用 Session 固定条目顺序；归档、停用和 unresolved 条目保留编号并只读，无法确认的身份需在计划详情显式绑定；已录入的题 `is-done` 只读（判定面板显示只读提示）；不属于本 Session 的导入 / 手动行追加在末尾，面板给出可编辑的 UID 字段。
 - 状态是模块单例：离开页面再回来，Session 选择、判定、导入的行都还在；整页刷新后清空。导入文本框的草稿也记在状态里，重绘不丢。
 - 字号全部来自 token（页面自身 ≤6 种，题面子树不计）；可点目标 ≥28px，手机判定按钮 40px。
+
+## 错因记录
+
+有效题目的判定栏在表单后显示共享错因区，默认「历史记录」，旧裸错因与日期化记录按同一题目 Markdown 读取；「记录本次」可直接补记、关联问题、修订和撤回。已录入作答的题仍可查看和补记错因，归档、停用或身份不明条目不挂载。错因独立保存；「本次作答备注」与原反馈一起提交，用于页码或作答情况。
+
+错因挂载点按稳定 question_id 标识并带 `data-morph="skip"`，判定、打分和标记重绘不重建记录或编辑框。换题释放旧监听，按新身份读取；反馈页与题目弹窗使用不同页签 ID，避免同时打开同题时相互控制。错因格式、分页、草稿与保存协议见 `AI/frontend/qview.md`。
+
+换题、换 Session、改 UID、添加／移除行、导入和提交前，先通过错因保存／放弃／继续编辑守卫；取消保持原题与表单。路由离开使用同一守卫，卸载释放守卫与监听。焦点位于错因区时，Ctrl/⌘+Enter 只保存错因。`tests/e2e/feedback_reflections.py` 使用临时 Vault 验证真实保存、失败重试、身份、作答独立性、离开保护与双主题四档宽度；证据目录由 `OMRS_FEEDBACK_REFLECTION_EVIDENCE` 指定。
 
 ## 版式
 

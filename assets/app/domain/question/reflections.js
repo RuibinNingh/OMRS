@@ -1,4 +1,4 @@
-/** 弹窗内原位录因；页签切换保留编辑框和草稿，记录独立于练习反馈。 */
+/** 原位录因；页签切换保留编辑框和草稿，记录独立于练习反馈。 */
 import { html } from '../../core/html.js';
 import { morph } from '../../core/dom.js';
 import { read, write, upload, requestId } from '../problems.js';
@@ -7,9 +7,10 @@ import { bindTabs } from '../../ui/tabs.js';
 import { ReflectionDraft } from './reflection-state.js';
 import { reflectionsView, draftLabel } from './reflections-view.js';
 
-export function mountReflections(host, questionId) {
+export function mountReflections(host, questionId, { idPrefix = `ref-${questionId}` } = {}) {
   const draft = new ReflectionDraft(questionId);
   const s = {
+    idPrefix,
     entries: [], problems: [], tab: 'history', loading: true, busy: false, message: '',
     composing: false, association: false, more: false, search: '',
     expanded: new Set(), revisions: new Set(), revision: draft.value.editing_entry || null,
