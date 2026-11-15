@@ -4,6 +4,7 @@ import { button } from '../../ui/button.js';
 import { renderMd, hashText } from '../../domain/question/index.js';
 import { labelChips } from '../../domain/labels/index.js';
 import { commitProblem, imageUrl } from './drafts-state.js';
+import { draftSvgView } from './drafts-svg.js';
 
 const fieldInput = (name, label, value, readonly, type = 'text') => html`<label class="drf-field">${label}
   <input class="ui-input" type="${type}" data-input="ai-review.draftField" data-arg="${name}" value="${value ?? ''}"${readonly ? html` readonly` : ''}></label>`;
@@ -53,6 +54,9 @@ function blockView(block, index, value, readonly, editingBlock, busy) {
       ${block.kind === 'text' ? editing
         ? html`<label class="drf-field">内容<textarea class="ui-textarea" rows="5" data-input="ai-review.draftBlockText" data-arg="${key}"${busy ? html` readonly` : ''}>${block.text || ''}</textarea></label>`
         : html`<div class="drf-md q-md" data-hash="${hashText(block.text || '')}">${block.text?.trim() ? raw(renderMd(block.text)) : html`<p class="drf-hint">空文字块，点击编辑补充。</p>`}</div>`
+      : block.kind === 'svg' ? html`${draftSvgView(block)}${editing && !readonly
+        ? html`<label class="drf-field">配图说明<input class="ui-input" data-input="ai-review.draftBlockNote" data-arg="${key}" value="${block.note || ''}"${busy ? html` readonly` : ''}></label>`
+        : block.note ? html`<p class="drf-hint">${block.note}</p>` : ''}`
       : imageView(block, value, readonly, editing, busy)}
     </div>${readonly ? '' : html`<div class="drf-block-actions">
       ${button({ label: editing ? '完成' : '编辑', variant: 'ghost', size: 'sm', action: 'ai-review.draftEditBlock', arg: key, disabled: busy, title: `${block.section}块 ${number}` })}

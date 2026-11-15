@@ -186,9 +186,21 @@ def register(server, vault, require, threaded):
         require(vault, 'omrs:read')
         return question_content(vault, uid.strip(), section, version, offset, limit, expected_hash)
     def get_draft_image(draft_id: Annotated[str, Field(min_length=1, max_length=200)],
-                        image_index: Annotated[int, Field(ge=0, strict=True)]) -> Image:
+                        image_index: Annotated[int, Field(ge=0, strict=True)] | None = None,
+                        block_id: Annotated[str, Field(min_length=1, max_length=200)] | None = None) -> Image:
         require(vault, 'omrs:read')
-        raw, fmt = read_draft_image(vault, draft_id, image_index)
+        if (image_index is None) == (block_id is None):
+            raise ValueError('image_index与block_id必须二选一')
+        if block_id is not None:
+            from ..draft_svg import bytes_of
+            from ..question_svg import to_png
+            draft = drafts.get_draft(vault, draft_id.strip(), readonly=True)
+            block = next((b for b in draft['blocks'] if b['id'] == block_id and b['kind'] == 'svg'), None)
+            if block is None:
+                raise ValueError('该草稿没有这个SVG配图块')
+            raw, fmt = to_png(bytes_of(block)), 'png'
+        else:
+            raw, fmt = read_draft_image(vault, draft_id, image_index)
         require(vault, 'omrs:read')
         return Image(data=raw, format=fmt)
     def get_question_history(uid: Annotated[str, Field(min_length=1, max_length=200)],

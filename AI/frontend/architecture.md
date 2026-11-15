@@ -19,6 +19,8 @@
 
 `domain/rich-markdown.js`为备注、问题说明和错因历史提供安全排版，题面与答案沿用基础规则；`domain/problem-markdown.js`映射PA附件。`domain/question/index.js`统一导出错因控制器，由反馈页与弹窗管理宿主、页签ID及草稿守卫，契约和测试见`AI/frontend/qview.md`。
 
+审核中心草稿SVG由features/ai-review/drafts-svg.js复用安全模板渲染，状态序列化仅发送既有块身份与可编辑说明，不回传源码或将配图当作位图裁框。专项浏览器验证见`AI/frontend/ai-review.md`。
+
 ## 1. 目录与依赖方向
 
 框选设置由settings内的boxdetect控制器拥有，训练表单仅写训练策略；`/train`与独立服务面板 `/boxdetect/`职责分开。服务面板资产位于services/boxdetect，不引入主站feature依赖；同源入口使用本仓库资产，外部服务仅提供数据。`tests/e2e/boxdetect_panel.py`覆盖设置、Key、检测与历史链路；原settings/create/trainpanel/traincontrol浏览器门禁分别维护页面回归。
@@ -113,7 +115,7 @@ assets/app/
 
 设置页的配置读写在 `tests/app/settings.test.mjs` 用替身接口验证；MCP 密钥元数据投影同时覆盖到期边界、吊销优先、本地时间与名称转义。`tests/e2e/settings.py` 用隔离服务和真实浏览器验证「AI 识别」思考开关、助手最大输出 Token 的默认状态、保存与回读，并复核四档页面布局。
 
-`tests/e2e/mcp.py` 在临时 Vault 的同进程 Web + MCP 服务上验证真实密钥创建、一次性明文、复制反馈、窗口关闭及页面卸载清理、吊销确认与取消、到期自动分组、刷新保留展开和读取失败保留列表；创建及吊销失败可原地重试。草稿详情以入库控件出现作为业务就绪条件，不把 `.drf-detail` 加载占位当成正文载入完成；合成截图保存到遵守 `TMPDIR` 的唯一目录，不覆盖共享临时路径。权限仅有 `omrs:read` / `draft:create`，完整密钥不写浏览器存储。脚本先通过官方 SDK 核对题目图片列表及按下标返回的原生图片、MIME 与原字节，再创建草稿、由浏览器查看来源和完整原图，并检查浅深色桌面/手机创建窗口。
+`tests/e2e/mcp.py`在临时Vault同进程Web/MCP验证密钥创建、一次性明文、复制、关闭清理、吊销、到期分组及失败重试；只授予omrs:read/draft:create，密钥不进浏览器存储。SDK核对原生题图与字节后，浏览器验证来源原图和双主题桌面/手机窗口。草稿须等待入库控件就绪，截图保存到TMPDIR唯一目录。
 
 展示板的页面测试分三层：`tests/app/board*.test.mjs` 测视图模型与源码约束（`board-regions.test.mjs` 同时读 `view.js` 与 `view-panel.js`），`tests/app/board-preview.test.mjs` 测预览消息与「适应宽度」公式，`tests/e2e/board.py` 走主路径，含详情层独立滚动、答案折叠、「打开题目」弹窗、宽屏收起左栏后纸面自动重算缩放，以及翻页动效结束后无残留动画和位移。展示板E2E使用共享 `open_app` 进入主应用；另覆盖760、761、1160、1161px断点、中宽和矮浮窗连续缩放、常驻iframe保持、列表与详情滚到底，并核对切到题库或反馈后原有外壳布局恢复。
 
@@ -175,7 +177,6 @@ WebGL场景、公式atlas、原参考图与压缩静态图放在 `assets/vendor/
 
 训练服务控制由 `features/trainpanel/control.js` 独立持有请求身份、服务 revision、选择模型与轮询状态；模型选择不改变实验 store 或在线服务。完成操作后通知父入口刷新 health 顶栏。`tests/app/traincontrol.test.mjs` 验证请求绑定与评测分母文案，`tests/e2e/traincontrol.py` 验证真实 HTTP 异步操作与刷新持久性。
 
-
 助手页面的 Node 与浏览器回归位于 `tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_p3.py` 与 `tests/e2e/assistant_usage.py`；这些测试覆盖运行过程折叠、移动输入和用量显示。
 
 路由单测的窗口替身按 URL 解析历史地址并保留 pathname/search/hash，覆盖锁屏入口查询串与当前页恢复；MCP 草稿/设置浏览器验收使用实际页面导航。
@@ -201,7 +202,6 @@ MCP 确认 hash 在 core/api.js 的401跳转和 PIN 登录 destination 中保留
 `domain/question/ref.js` 是客户端稳定引用入口；新写操作、批量选择和导出以 `question_id` 为准，UID 只展示与兼容。菜单、确认框、Markdown 编辑器和选板浮层均在首个 await 前冻结 ID；qview 挂载及缓存检查对应身份。`domain/sessions.js::sessionEntries` 读取权威固定条目，unresolved 的人工绑定复用共享单题选择器。
 
 即时练习控制器带卸载状态、请求序号、取消信号与轮次版本，反馈控制器保留失败输入并按身份合并；晚到读取不能覆盖新挂载，晚到写入只刷新所属领域。`tests/app/audit-controllers.test.mjs` 直接实例化实际控制器，`tests/app/audit-identity-uploads.test.mjs` 验证 UID 重用、固定条目序号、分块字节、上海午夜与分页归约。
-
 
 ## MCP 调度验收覆盖
 

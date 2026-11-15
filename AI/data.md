@@ -23,6 +23,8 @@ Vault根的`.omrs-maintenance/`保存生命周期锁、世代、恢复预检与j
 
 ---
 
+MCP新题的SVG原字节与SHA-256保存在drafts.db的独立配图块，source_images仍只表示来源位图。批准后保存正式SVG附件及Obsidian引用；草稿迁移与恢复见`AI/drafts.md`，结构见`AI/data/storage.md`。
+
 ## 1. UID 规则
 
 科目与分类保存在 `错题/<科目>/<分类>/` 目录中；`<科目>/<科目>.md` 是科目索引，`<分类>/<分类>.md` 是分类锚点。零题分类也使用这套目录与锚点，不创建假题或平行分类数据库。统一词表将有效锚点与已有题目投影合并，按科目隔离同名分类。
@@ -316,14 +318,11 @@ SQLite `active_config` 是完整运行时事实源，`config.json` 是镜像和�
 
 仅包含**已判定**的题。导入侧（`assets/app/features/feedback/importer.js::planFeedback`，条目转换在 `state.js::fbImportFeedbackRows`）：`is_correct` / `correct` 经 `looseBool` 宽松解析（true/1/"对"…），`sub_score` / `score` 缺省按对→10 / 错→4、钳 0–10 取整；`session_id` 在 SQL Session 中则自动选中关联，否则仍按该 ID 填入待提交反馈（TMP- 临时卷亦可），为空按手动录入。导入只填充前端表单，**不会直接写 `history_log.csv`**；须人工核对后提交，提交才追加 Ledger 并重建投影。若误贴旧题目 JSON，会提示当前只支持反馈 JSON。
 
-
 ---
-
 
 ## 11. 独立存储分册
 
 报告、收件箱、标记定义、展示板、助手、标注、草稿、训练目录与系统记录的现行结构见 `AI/data/storage.md`；这些存储不由学习 Ledger 重放，完整备份和恢复须覆盖全部独立数据库及文件。
-
 
 ## MCP 调度技术回执
 

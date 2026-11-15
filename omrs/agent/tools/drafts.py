@@ -52,6 +52,8 @@ def _blocks_out(draft, conv_id, vault, editable=False):
     refs = drafts.conversation_refs(vault, conv_id) if conv_id else {}
     return [{**({"block_id": b["id"], "box": b.get("box"), "box_origin": b.get("box_origin")} if editable else {}),
              "section": b["section"], "kind": b["kind"], **({"text": b["text"], **({"note": b.get("note") or ""} if editable else {})} if b["kind"] == "text" else
+                                                               {'svg': {k: v for k, v in b['svg'].items() if k != 'src'}, 'note': b.get('note') or ''}
+                                                               if b['kind'] == 'svg' else
                                                                {"image": refs.get(b["image_sha"]), "note": b.get("note") or ""})}
             for b in draft["blocks"]]
 
@@ -201,7 +203,8 @@ def commit_draft_preview(ctx, args):
     draft = _commit_target(ctx, args)
     blocks = [{"section": b["section"], "kind": b["kind"],
                "text": b.get("text") or "", "image_sha": b.get("image_sha") or "",
-               "box": b.get("box"), "note": b.get("note") or ""} for b in draft["blocks"]]
+               "box": b.get("box"), "note": b.get("note") or "",
+               **({'svg': b['svg']} if b['kind'] == 'svg' else {})} for b in draft["blocks"]]
     return {"draft_id": draft["id"], "revision": draft["revision"], "subject": draft["subject"],
             "category": draft["category"], "difficulty": draft["difficulty"],
             "knowledge_points": draft.get("knowledge_points") or [], "labels": draft.get("labels") or [],

@@ -311,7 +311,9 @@ class MCPProtocolTests(unittest.TestCase):
                                  'cause': '移项时漏改符号', 'cause_statement': '我移项时漏改了符号。'})
                 for payload in examples:
                     for attachment in payload.get('images', []):
-                        attachment['data_base64'] = base64.b64encode(raw).decode()
+                        from tests.test_question_svg import diagram
+                        content = diagram() if attachment.get('mime_type') == 'image/svg+xml' else raw
+                        attachment['data_base64'] = base64.b64encode(content).decode()
                     Draft202012Validator(schema).validate(payload)
                     result = await session.call_tool('create_draft', payload)
                     self.assertFalse(result.isError, str(result))
@@ -319,7 +321,8 @@ class MCPProtocolTests(unittest.TestCase):
                     self.assertEqual(created['status'], 'review')
                     self.assertEqual(created['difficulty'], 5)
                     self.assertEqual(created['source_channel'], 'mcp')
-                    self.assertEqual(len(created['source_images']), len(payload.get('images', [])))
+                    self.assertEqual(len(created['source_images']), sum(
+                        a.get('mime_type') != 'image/svg+xml' for a in payload.get('images', [])))
                     self.assertEqual(created['cause_verification'],
                                      'client_asserted' if payload.get('cause') else 'none')
                     detail = _json_result(await session.call_tool('get_draft', {'draft_id': created['draft_id']}))
@@ -328,7 +331,7 @@ class MCPProtocolTests(unittest.TestCase):
                         if block['kind'] == 'image':
                             self.assertEqual(block['box'], {'x': 0.0, 'y': 0.0, 'w': 1.0, 'h': 1.0})
                             self.assertEqual(block['box_origin'], 'original')
-                    if payload.get('images'):
+                    if created['source_images']:
                         image = await session.call_tool('get_draft_image',
                                                         {'draft_id': created['draft_id'], 'image_index': 0})
                         self.assertFalse(image.isError)

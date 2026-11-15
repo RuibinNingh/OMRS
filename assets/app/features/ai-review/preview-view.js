@@ -2,6 +2,7 @@
 import { html, raw } from '../../core/html.js';
 import { button } from '../../ui/button.js';
 import { renderMd } from '../../domain/question/index.js';
+import { draftSvgView } from './drafts-svg.js';
 
 const list = values => (values || []).join('、') || '（无）';
 const text = value => value ? html`<div class="q-md">${raw(renderMd(value))}</div>` : html`<p class="arv-muted">（空）</p>`;
@@ -16,8 +17,8 @@ export function draftSnapshot(preview) {
     <dl class="arv-facts"><div><dt>科目 / 分类</dt><dd>${preview.subject} / ${preview.category}</dd></div><div><dt>难度</dt><dd>${preview.difficulty}</dd></div>
       <div><dt>知识点</dt><dd>${list(preview.knowledge_points)}</dd></div><div><dt>标记</dt><dd>${list(preview.labels)}</dd></div></dl>
     <h4>错因</h4>${text(preview.cause)}<h4>补充备注</h4>${text(preview.note)}
-    <div class="arv-draft-blocks">${(preview.blocks || []).map(block => html`<section class="arv-draft-block"><h4>${block.section} · ${block.kind === 'image' ? '图片' : '文字'}</h4>
-      ${block.kind === 'image' ? snapshotImage(block, preview.source_images || []) : text(block.text)}${block.note ? html`<p class="arv-muted">${block.note}</p>` : ''}</section>`)}</div>
+    <div class="arv-draft-blocks">${(preview.blocks || []).map(block => html`<section class="arv-draft-block"><h4>${block.section} · ${block.kind === 'svg' ? 'SVG配图' : block.kind === 'image' ? '图片' : '文字'}</h4>
+      ${block.kind === 'svg' ? draftSvgView(block) : block.kind === 'image' ? snapshotImage(block, preview.source_images || []) : text(block.text)}${block.note ? html`<p class="arv-muted">${block.note}</p>` : ''}</section>`)}</div>
     <p class="arv-muted">只审批此版本；编辑草稿后须重新发起入库审核。</p>
     ${button({ label: '打开草稿编辑器', action: 'ai-review.openDraft', arg: preview.draft_id })}</section>`;
 }

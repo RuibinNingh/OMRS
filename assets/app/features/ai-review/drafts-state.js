@@ -56,7 +56,7 @@ export function updatePayload(draft, value) {
     const result = { section: block.section, kind: block.kind, note: block.note || '' };
     if (block.id) result.id = block.id;
     if (block.kind === 'text') result.text = block.text || '';
-    else { result.image_sha = block.image_sha; result.box = block.box || null;
+    else if (block.kind === 'image') { result.image_sha = block.image_sha; result.box = block.box || null;
       result.box_origin = block.box_origin || null; result.ai_box = block.ai_box || null; }
     return result;
   });
@@ -73,6 +73,8 @@ export function draftIssue(value, includeBoxes = true) {
   if (!value.blocks.some(block => block.section === '题目')) return { message: '至少需要一个题目块', section: '题目' };
   const text = value.blocks.find(block => block.kind === 'text' && !block.text?.trim());
   if (text) return { message: '文字块不能为空', blockKey: text.id || text._key };
+  const svg = value.blocks.find(block => block.kind === 'svg' && (!block.id || !block.svg?.src || !block.svg?.sha256));
+  if (svg) return { message: 'SVG配图缺失，请重新读取草稿', blockKey: svg.id || svg._key };
   const image = value.blocks.find(block => block.kind === 'image' && (!block.image_sha || !value.source_images.includes(block.image_sha)));
   if (image) return { message: '图片块必须关联一张来源图', source: true };
   const unboxed = includeBoxes && value.blocks.find(block => block.kind === 'image' && !block.box);

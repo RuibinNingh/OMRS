@@ -3,7 +3,7 @@
 > **速查**
 > - 职责：聊天建草稿、独立图片与来源管理、人工更新 / 框选提取 / 一次性入库与训练登记
 > - 入口：`omrs/drafts.py`（存储与公共函数）、`omrs/draft_write.py`（编辑与入库）、`omrs/draft_jobs.py`（异步提取）、`omrs/draft_detect.py`（自动框选）、`omrs/draft_training.py`（训练与清理）、`omrs/server.py`（草稿路由）
-> - 不变量：建草稿、编辑、丢弃不写 Ledger；通过才创建题目；图片按对话编号，AI 工具只用 IMG-n 引用
+> - 不变量：建草稿、编辑、丢弃不写 Ledger；通过才创建题目；来源位图按对话编号，SVG独立存储
 > - 必跑测试：`tests/test_drafts.py`、`tests/test_agent_draft_tools.py`、`tests/test_draft_p3_http.py`、`tests/test_draft_p4_http.py`、`tests/e2e/drafts.py`、`tests/e2e/drafts_p4.py`
 > - 相关：`AI/agent.md`、`AI/data.md`、`AI/api.md`、`AI/frontend/create.md`
 
@@ -19,7 +19,7 @@ MCP 创建与修订草稿时，文字块、块说明及已提交的错因 / 备�
 
 images 以 sha256 去重，保存 mime / width / height / bytes、转述缓存与训练预留字段；conv_images 按 conversation_id + n 将每张图映射为 IMG-n。同一对话重复贴同图沿用编号。图片支持 PNG/JPEG/GIF，单张解码后不超过 8MB；尺寸由现有图片头解析器读取。JPEG 沿标记段跳过 EXIF 与缩略图，主图结尾后的相册数据会清除，扫描数据缺尾时补结束标记；整理后计算 hash 并保存，已有图片在生成 data URL 时临时整理，旧文件不改写。编码像素与其他格式字节保持不变；这不代表能恢复已丢失的像素。
 
-`drafts` 含 id、四态 status、conversation_id/run_id/tool_call_id、科目分类、知识点、难度、标记、错因及原话、备注、入库 uid/question_id、时间和整数 revision；老库增量加列，revision 初始 1。MCP 草稿另有 `source_channel=mcp`、`source_key_id`、`source_request_id`、`cause_verification` 和可选客户端名，来源由服务端写入且不可由普通字段覆盖。旧库仅在真实助手运行、工具调用与对话匹配时标为 agent，其余标为 legacy。`blocks` 含稳定 id、section（题目/答案）、ord、kind（text/image）、text/image_sha、归一化 box、box_origin、ai_box、note。草稿备注和图片说明是独立语义；入库时不会被映射成题目 YAML 的旧页码。
+`drafts` 含 id、四态 status、conversation_id/run_id/tool_call_id、科目分类、知识点、难度、标记、错因及原话、备注、入库 uid/question_id、时间和整数 revision；老库增量加列，revision 初始 1。MCP 草稿另有 `source_channel=mcp`、`source_key_id`、`source_request_id`、`cause_verification` 和可选客户端名，来源由服务端写入且不可由普通字段覆盖。旧库仅在真实助手运行、工具调用与对话匹配时标为 agent，其余标为 legacy。`blocks` 含稳定 id、section（题目/答案）、ord、kind（text/image/svg）、text/image_sha、归一化 box、box_origin、ai_box、note。草稿备注和图片说明是独立语义；入库时不会被映射成题目 YAML 的旧页码。
 
 `draft_images` 保存每份草稿的完整来源图及顺序，全文字草稿也能关联图片。老来源先从图片块恢复，再按准确的对话 / 运行 / 工具调用恢复 images 参数，无法证实的来源标 sources_complete=false；不会把整段对话的所有图猜成一道题。详情另提供 conversation_images，供用户明确补关联。
 
@@ -30,6 +30,12 @@ MCP 图片通过内容哈希原样落盘，普通图片接口也不截除 JPEG �
 外部 MCP 的录题说明、附件下标、单块答案、答案内容取舍、错因原话和审核边界见 `AI/mcp.md`「外部 AI 录题规范」。创建与修订的答案默认只含本题结论及必要解析，额外教学内容须用户明确要求保存；这是调用说明，不触发存量草稿清理。全文字转述仍可通过 images 保留完整来源，不要求再插入整图正文块；MCP 图片块的 note 不产生裁剪。内置助手仍使用 IMG-n 和既有框选规则，不能把这两套图片参数混用。
 
 转述缓存按 sha256 + 模型命中；换模型覆盖旧缓存。创建草稿的来源、内容更新、丢弃和入库均有本模块事件记录，不进 Ledger 不等于没有留痕。
+
+### MCP SVG 配图块
+
+MCP创建支持svg源码块及images中的SVG文件，两种入口统一为独立kind=svg块，最多3个、每张256KiB，按各节阅读顺序保存。blocks通过增量迁移增加svg_data（原字节BLOB）和svg_hash（SHA-256），不写images、draft_images或训练表。每次读取与入库复核字节哈希及正式题目静态规范。网页详情含安全img预览与纸面检查信息，MCP视图只返回元信息，通过get_draft_image的block_id读取PNG派生图。
+
+源码只读；人工暂存仅按本草稿已有稳定块id保留原字节，允许改说明、排序、跨节移动或删除，拒绝新建或改写SVG。配图不要求裁框，不进入OCR或训练；图意、遮挡与密度由用户审核。批准时转入现有有序块创建入口，生成OP身份与内容哈希命名的不可覆盖附件。SQLite配图、草稿和幂等回执同事务保存；入库中断的附件清理按预留题目身份及哈希校验。
 
 ## 2. 状态与人工编辑
 

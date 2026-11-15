@@ -126,11 +126,17 @@ get_question 与 get_draft 保持正文、图片引用及元数据输出，不�
 
 ## 3. 创建契约
 
-必填 `subject`、`category`、`request_id` 和 `blocks`。块沿用 OMRS 的 `section=题目|答案`、`kind=text|image`；文字块提供 `text`，图片块的 `image` 是 `images` 从 0 开始的下标，可带 `note`。相邻答案文字通过 `omrs/draft_prepare.py` 与内置助手共用的规则合并，图片断开文字段。科目、分类、知识点与文字边缘空白规范化后计算幂等摘要。
+必填 `subject`、`category`、`request_id` 和 `blocks`。块沿用 OMRS 的 `section=题目|答案`、`kind=text|image|svg`；文字块提供`text`，图片块的`image`是`images`从0开始的上传附件下标，源码配图块提供完整`svg`字符串，可带`note`。SVG文件统一返回为svg块；相邻答案文字通过`omrs/draft_prepare.py`与内置助手共用规则合并，图片或SVG断开文字。科目、分类、知识点与文字边缘空白规范化后计算幂等摘要。
 
-文件元数据声明 `_meta["openai/fileParams"]=["images"]`。每个文件对象必须有 `download_url` 和 `file_id`，可选 `mime_type`、`file_name`；实际格式取决于收到的图片内容。可发送 HTTPS 下载地址，支持自定义文件传输的外部客户端也可在同一对象提供 `data_base64` 原字节；不接受本地路径。最多 6 张、单张 8 MiB，PNG/JPEG/GIF 每张解码总像素不超过 4000 万、最多 100 帧；校验只解码，不重编码。
+文件元数据声明 `_meta["openai/fileParams"]=["images"]`。每个文件对象必须有 `download_url` 和 `file_id`，可选 `mime_type`、`file_name`；实际格式取决于收到的图片内容。可发送 HTTPS 下载地址，支持自定义文件传输的外部客户端也可在同一对象提供 `data_base64` 原字节；不接受本地路径。最多6个上传附件，支持PNG/JPEG/GIF位图（每张8MiB、解码总像素不超过4000万、最多100帧）和规范静态SVG（每张256KiB）；校验保留原字节。
 
 最多 40 个输入块、8 个知识点；每块文字或说明最多 20000 字符，总文字最多 500000 字符。不能指定草稿状态、难度、正式 UID、来源、SHA、本地路径、坐标或训练设置。错因必须同时带 `cause_statement`，保存为 `client_asserted` 并在页面标明待核对；不冒充已验证的本地用户消息。
+
+### 新题 SVG 配图
+
+题目和答案均可按阅读顺序插图，源码与文件合计最多3个SVG块；上传SVG未被引用时整次拒绝。SVG不替代原始截图，source_images只保留来源位图，配图原始字节与哈希独立存入草稿块。格式沿用`AI/question-svg.md`的白底、静态安全及90mm双栏检查。
+
+get_draft/create_draft返回的svg块含稳定id、标题、哈希、纸面尺寸和提示，不带源码或图片字节。get_draft_image的image_index与block_id二选一：前者读取source_images完整位图，后者按SVG块编号返回PNG派生图。update_draft只能改SVG说明；网页可移动、调序或删除，源码只读，不提供裁图、OCR和训练。人工入库后保存向量附件及原生Obsidian引用。
 
 ### 外部 AI 录题规范
 
@@ -154,7 +160,7 @@ create_draft 成功只表示待审核，返回 draft_id/revision/status/source_i
 
 ### 最小录题示例
 
-以下是原始 MCP 调用格式；下载地址为示例占位符，实际调用使用平台提供的原附件。客户端发现的 create_draft schema 中也携带纯文字、完整原图和图文混排示例。
+以下为原始MCP调用；下载地址仅为占位符，须使用平台原附件。create_draft schema附有文字、原图、图文混排及两种SVG输入示例，均由真实SDK验证。
 
 纯文字题与单块答案：
 
@@ -174,6 +180,8 @@ create_draft 成功只表示待审核，返回 draft_id/revision/status/source_i
 ```
 
 文字转述仍保留来源，把第二例的 images 同时传给第一例即可，不必为了关联原图再加入重复的整图正文块。草稿修订只接受 subject/category/knowledge_points/cause/note 及已有块的 text/note，块新增、调序、图片替换和框选由网页处理。
+
+SVG源码及文件的完整可执行示例随工具schema下发。源码无需平台文件标识；文件仍需download_url/file_id，可声明mime_type为image/svg+xml。
 
 ### 答案内容取舍示例
 
@@ -198,7 +206,7 @@ read_question_image 按共享 get_question.images 的当前下标读取题目/�
 
 草稿固定 `review`、难度 5。正文图片块是固定全幅 `0,0,1,1`、`box_origin=original`，页面显示“完整原图”；这种全幅引用不代表框选或训练标注。原图不裁剪、压缩、标注或重编码，普通草稿图片接口也返回完整字节。创建和普通人工正文编辑不会自动打开训练或创建训练任务；用户明确操作训练功能时才进入既有训练流程。
 
-`(source_key_id, request_id)` 唯一。相同内容重试返回原草稿及 `reused=true`，不同内容拒绝。稳定 `file_id` 的下载附件允许更新短期签名 URL 后重试，无需重新下载已保存原件；带 inline 原字节的重试仍验证内容 SHA。人工已修改或丢弃的草稿只返回当前状态，不复建或覆写。
+`(source_key_id, request_id)` 唯一。相同内容（含SVG源码及附件实际字节）重试返回原草稿及`reused=true`，不同内容拒绝。稳定 `file_id` 的下载附件允许更新短期签名 URL 后重试，无需重新下载已保存原件；带 inline 原字节的重试仍验证内容 SHA。人工已修改或丢弃的草稿只返回当前状态，不复建或覆写。
 
 用户在已有草稿区查看“来源：MCP”和完整来源图片，再编辑、审核、通过或丢弃。正式入库仍由当前人工流程决定；MCP Key 可按 draft:update 修订，不能提交或丢弃。未收到图片的文字草稿同样进入审核队列。
 
@@ -224,7 +232,7 @@ ChatGPT Developer Mode 官方文档列出的认证方式为 OAuth、No Authentic
 
 工具调用通过task传播题库世代，实际存储段才取租约。恢复后旧工具结果返回 `vault_changed`，维护繁忙返回 `vault_busy`；旧世代的运行结束回执不写入新库，也不覆盖原工具错误。`tests/test_mcp_lifecycle.py` 验证该边界。
 
-生产发布目录和地址见 `AI/environment.md`，当前40工具、统一审核与安全改题已部署v2.3.0，发布状态见 `AI/plans/ai-review-center/progress.md`。正式计划先待审，question:propose默认关闭。账户接入状态见 `AI/plans/mcp-integration/progress.md`；本地 SDK 验收不等同于 ChatGPT 账户联调。
+生产发布目录和当前版本见`AI/environment.md`；账户接入状态见`AI/plans/mcp-integration/progress.md`。本地实现和SDK验收不代表生产或客户端工具发现已更新。
 
 官方参考：[Developer Mode](https://developers.openai.com/api/docs/guides/developer-mode)、[Apps SDK 文件参数](https://developers.openai.com/apps-sdk/reference/)、[认证](https://developers.openai.com/apps-sdk/build/auth/)、[Secure MCP Tunnel](https://developers.openai.com/api/docs/guides/secure-mcp-tunnels)。
 

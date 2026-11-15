@@ -171,6 +171,8 @@ hash`（正文指纹）/ `segments[{page,top,height}]`）和 `answer_pages`。`p
 
 ## 7. AI 草稿存储
 
+MCP新题SVG作为独立配图保存在草稿库的blocks.svg_data（BLOB）与svg_hash（SHA-256），与来源位图分离；正式入库后才生成题目附件。字段增量迁移、截图来源及生成配图的边界见`AI/drafts.md`。
+
 `draft_manual_edits` 表按 `(draft_id,target)` 记录人工编辑过的字段或块，供 AI 修订工具在同一版本内保护人工内容；`events.jsonl` 的 `draft.ai_update` 记录 AI 修改的运行来源、旧新 revision 和实际变化。草稿存储不进入题目 Ledger。
 
 `错题/.omrs/drafts/` 的 drafts.db 独立于 Ledger，包含 images、conv_images、drafts、blocks、draft_images、commit_operations、training_tasks、training_boxes、draft_jobs 与 cleanup_candidates；图片按 hash 保存，事件追加到 events.jsonl。JPEG 在计算 hash 前清除主图结束标记后的相册数据，缺尾时补标记，保留编码像素；旧文件只在读取为 data URL 时临时整理，不改写。revision、来源完整性、清理状态与训练任务 manual_override / force_crop 通过增量迁移添加。字段、来源恢复和入库恢复以 `AI/drafts.md` 为准；只有通过产生带 `_draft` 追溯信息的题目创建提交。

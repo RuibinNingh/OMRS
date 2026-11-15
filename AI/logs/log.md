@@ -12,6 +12,7 @@
 - [2026-11-15_problem-workspace-release](2026-11-15_problem-workspace-release.md)：问题工作台生产发布
 - [2026-11-15_problem-release](2026-11-15_problem-release.md)：问题中心与题目弹窗生产发布
 - [2026-11-15_notes-markdown](2026-11-15_notes-markdown.md)：备注错因Markdown显示
+- [2026-11-15_mcp-draft-svg](2026-11-15_mcp-draft-svg.md)：MCP 新题 SVG 配图
 - [2026-11-15_feedback-release](2026-11-15_feedback-release.md)：反馈页错因发布与 GitHub 同步
 - [2026-11-15_feedback-reflections](2026-11-15_feedback-reflections.md)：反馈录入页显示统一错因
 - [2026-11-14_problem-center](2026-11-14_problem-center.md)：问题中心隔离开发候选

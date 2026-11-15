@@ -150,13 +150,14 @@ class MCPFile(BaseModel):
 
 
 class MCPBlock(BaseModel):
-    """沿用题目/答案块结构，图片仅可引用完整附件下标。"""
+    """有序文字、完整附件或SVG源码块；配图与来源位图分别保存。"""
 
     model_config = ConfigDict(extra="forbid")
     section: Literal["题目", "答案"]
-    kind: Literal["text", "image"]
+    kind: Literal["text", "image", "svg"]
     text: str | None = None
     image: int | str | None = None
+    svg: str | None = None
     note: str = ""
 
 
@@ -369,8 +370,13 @@ def _parse_image(value):
         raw = _download(url)
     if not raw or len(raw) > MAX_IMAGE_BYTES:
         raise ValueError("图片为空或超过 8MB 限制")
-    checked = validate_original_image(raw)
-    mime, width, height = checked["mime"], checked["width"], checked["height"]
+    from .. import question_svg
+    if question_svg.is_svg(raw) or value.get('mime_type') == question_svg.MIME or str(value.get('file_name', '')).lower().endswith('.svg'):
+        question_svg.inspect(raw)
+        mime, width, height = question_svg.MIME, None, None
+    else:
+        checked = validate_original_image(raw)
+        mime, width, height = checked["mime"], checked["width"], checked["height"]
     return {"data": raw, "mime": mime, "width": width, "height": height,
             "sha256": hashlib.sha256(raw).hexdigest(),
             "file_id": str(value.get("file_id") or "").strip(),
@@ -504,6 +510,8 @@ def _draft_view(draft):
         if block.get("kind") == "image":
             source = by_sha.get(block.get("image_sha"), {})
             item["image"] = source.get("ref")
+        elif block.get('kind') == 'svg':
+            item['svg'] = {key: value for key, value in block['svg'].items() if key != 'src'}
         item.pop("image_sha", None)
         blocks.append(item)
     return {"draft_id": draft["id"], "status": draft["status"], "revision": draft["revision"],
@@ -652,11 +660,14 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
         for index, block in enumerate(blocks):
             if isinstance(block, MCPBlock):
                 block = block.model_dump(exclude_none=True)
-            if not isinstance(block, dict) or set(block) - {"section", "kind", "text", "image", "note"}:
+            if not isinstance(block, dict) or set(block) - {"section", "kind", "text", "image", "svg", "note"}:
                 raise ValueError(f"第 {index + 1} 块包含不允许的字段")
             section, kind = block.get("section"), block.get("kind")
-            if section not in ("题目", "答案") or kind not in ("text", "image"):
+            if section not in ("题目", "答案") or kind not in ("text", "image", "svg"):
                 raise ValueError(f"第 {index + 1} 块 section/kind 不合法")
+            expected = {'text': 'text', 'image': 'image', 'svg': 'svg'}[kind]
+            if any(block.get(name) is not None for name in {'text', 'image', 'svg'} - {expected}):
+                raise ValueError(f'第 {index + 1} 块只能提供与kind对应的内容')
             if kind == "text":
                 text = _bounded_text(block.get("text") or "", f"第 {index + 1} 个文字块").strip()
                 if not text:
@@ -665,6 +676,15 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
                 total_text_chars += len(text) + len(note)
                 clean_blocks.append({"section": section, "kind": "text", "text": text,
                                      "note": note})
+            elif kind == 'svg':
+                from ..draft_svg import prepare
+                source = block.get('svg')
+                if not isinstance(source, str):
+                    raise ValueError('svg必须是完整源码字符串')
+                prepare(source)
+                note = _bounded_text(block.get('note') or '', f'第 {index + 1} 个说明').strip()
+                total_text_chars += len(note)
+                clean_blocks.append({'section': section, 'kind': 'svg', 'svg': source, 'note': note})
             else:
                 image_index = block.get("image")
                 if isinstance(image_index, str) and image_index.startswith("image-"):
@@ -680,6 +700,8 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
                                      "note": note})
         if total_text_chars > MAX_TOTAL_TEXT_CHARS:
             raise ValueError("草稿文字总量超过限制")
+        if sum(block['kind'] == 'svg' for block in clean_blocks) > 3:
+            raise ValueError('一份草稿最多3个SVG配图块（源码与文件合计）')
         if not any(item["section"] == "题目" for item in clean_blocks):
             raise ValueError("草稿至少要有一个题目块")
         clean_blocks = merge_answer_text_runs(clean_blocks)
@@ -704,9 +726,30 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
         if sum(len(item["data"]) for item in prepared_images) > MAX_TOTAL_IMAGE_BYTES:
             raise ValueError("图片总大小超过 48MiB 限制")
         fingerprint = _fingerprint(payload, prepared_images)
-        # 已验证的附件下标转成现有领域层的图片 SHA。
-        clean_blocks = [{**block, "image_sha": prepared_images[block["image"]]["sha256"]}
-                        if block["kind"] == "image" else block for block in clean_blocks]
+        # 文件SVG与源码统一成为独立配图块，来源位图仍原样关联。
+        from ..draft_svg import MAX_DIAGRAMS
+        from ..question_svg import MIME as SVG_MIME
+        diagram_files = {i for i, image in enumerate(prepared_images) if image['mime'] == SVG_MIME}
+        referenced = set()
+        normalized_blocks = []
+        for block in clean_blocks:
+            item = dict(block)
+            if block['kind'] == 'svg':
+                item['svg_data'] = item.pop('svg').encode('utf-8')
+            elif block['kind'] == 'image':
+                index = item.pop('image')
+                image = prepared_images[index]
+                if index in diagram_files:
+                    referenced.add(index)
+                    item.update(kind='svg', svg_data=image['data'])
+                else:
+                    item['image_sha'] = image['sha256']
+            normalized_blocks.append(item)
+        if diagram_files - referenced:
+            raise ValueError('上传的SVG必须通过图片块引用，不能遗漏配图')
+        if sum(block['kind'] == 'svg' for block in normalized_blocks) > MAX_DIAGRAMS:
+            raise ValueError('一份草稿最多3个SVG配图块（源码与文件合计）')
+        clean_blocks = normalized_blocks
         # 下载已在锁外完成；幂等复查与原子创建共用领域层全局写锁。
         with locking.write_lock():
             _require(vault, "draft:create")
@@ -727,7 +770,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
                  "source_channel": "mcp", "source_key_id": key_id, "source_request_id": request_id,
                  "content_hash": fingerprint, "cause_verification": "client_asserted" if cause else "none",
                  "source_client_name": client_name, "stable_hash": stable_hash},
-                [item["data"] for item in prepared_images])
+                [item["data"] for item in prepared_images if item['mime'] != SVG_MIME])
             return _create_result(vault, draft)
 
     for fn in (list_taxonomy, search_questions, get_question, get_question_image, get_overview,

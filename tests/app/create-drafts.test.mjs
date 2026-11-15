@@ -11,6 +11,26 @@ const sample = () => ({ id: 'DR-1', revision: 3, status: 'cropping', subject: '�
     { id: 'a1', section: '答案', kind: 'text', text: '答案', note: '' },
   ] });
 
+test('SVG独立预览且保存只携带稳定身份，不产生来源、裁框或源码编辑', () => {
+  const draft = sample();
+  draft.blocks = [{ id: 'svg-1', section: '题目', kind: 'svg', note: '待核对',
+    svg: { src: 'data:image/svg+xml;base64,PHN2Zy8+', sha256: 'b'.repeat(64), title: '受力图', print_height_mm: 50,
+      min_font_pt: 10, warnings: ['请核对密度'] } }];
+  draft.source_images = [];
+  const value = editValue(draft);
+  assert.equal(commitProblem(value), '');
+  const payload = updatePayload(draft, value);
+  assert.deepEqual(payload.blocks, [{ id: 'svg-1', section: '题目', kind: 'svg', note: '待核对' }]);
+  const markup = draftsView({ draft, value, list: [draft], listLoaded: true, detailLoaded: true,
+    selectedId: draft.id, filter: 'pending', editingBlock: 'svg-1', workspaceMode: 'review' }).text;
+  assert.match(markup, /data:image\/svg\+xml;base64/);
+  assert.match(markup, /请核对图意/);
+  assert.match(markup, /请核对密度/);
+  assert.doesNotMatch(markup, /data-input="ai-review.draftBlockText"|data-action="ai-review.draftWhole"/);
+  delete value.blocks[0].svg.src;
+  assert.match(commitProblem(value), /SVG配图缺失/);
+});
+
 test('草稿保存携带 revision、有序块和 sha 数组，保留已有块身份', () => {
   const draft = sample();
   const value = editValue(draft);

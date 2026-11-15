@@ -31,9 +31,9 @@ Web8471、回环MCP18472、HTTPS192.168.0.145:8472及公开URL https://home.ruib
 
 启动按稳定身份导入只读审核历史并收束旧进程，不能重放业务。发布预检核对有效未终结任务、恢复意图、训练锁及受管操作；已结束的运行记录须结合关联审批的真实状态判断，MCP 与已送审助手提案、待审草稿长期保留，不能因旧期限或调用线程结束而废止。数据库迁移后仍投影全部原列逐表比较；新增列和生命周期变化单独核对，不忽略审批库差异。存在未完成题目／整批标记写入或恢复意图时停止；回退只恢复源码别名和必要的 unit，保留最新 Vault、受管历史、revision及锁。
 
-A4固定字体与打印门禁为 `python3 -m unittest tests.test_export_fonts tests.smoke_a4_print -q`；统一门禁包含 `print-a4`，下载路径另由 `tests/e2e/schedule.py` 验证。刷新不闪动的隔离门禁为 `python3 tests/e2e/ai_review_refresh.py`。并排录入用 `python3 tests/e2e/ai_review_entry.py`，覆盖缩略图切换、实时框选、暂存／刷新与真实入库；其后台作业回归应逐个运行浏览器脚本，避免其它上下文抢占前台使 document.hidden 暂停轮询。所有测试实例须清除 `OMRS_SYSTEMD_SERVICE` 与 `OMRS_BOXDETECT_CONTROL`，Windows Edge与实体手机须另验。
+A4字体与打印门禁为`python3 -m unittest tests.test_export_fonts tests.smoke_a4_print -q`，统一门禁包含print-a4，下载由`tests/e2e/schedule.py`验证。审核刷新、并排录入和长期待审分别运行`tests/e2e/ai_review_refresh.py`、`tests/e2e/ai_review_entry.py`、`tests/e2e/ai_review.py`；隔离场景与断言见对应前端模块文档。
 
-审核中心长期待审用 `python3 tests/e2e/ai_review.py` 验证：临时 Vault 在实际服务启动前预置一个月前带旧期限的 MCP 提案，浏览器核对队列、详情无有效期、人工修订与批准；服务启动不能按旧期限结束该请求。时钟前移一年的领域回归使用进程内替换时间，不等待真实期限，也不读取生产题库。
+MCP新题配图用`tests/test_mcp_draft_svg.py`和`tests/e2e/mcp_draft_svg.py`验证SDK、事务、浏览器审核入库及向量PDF，OMRS_DRAFT_SVG_SHOTS指定证据目录。所有测试实例清除OMRS_SYSTEMD_SERVICE与OMRS_BOXDETECT_CONTROL，浏览器作业依次运行，避免document.hidden暂停轮询；Windows Edge与实体手机另验。
 
 ## 维护门禁与诊断日志
 

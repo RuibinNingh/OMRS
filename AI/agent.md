@@ -7,6 +7,8 @@
 > - 必跑测试：`tests/test_agent_permissions.py`、`tests/e2e/assistant_permissions.py`、`tests/test_agent_loop.py`、`tests/test_llm_responses.py`、`tests/test_agent_tools.py`、`tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_responses.py`
 > - 相关：`AI/frontend/assistant.md`、`AI/ledger.md`（写入来源、正文入账）、`AI/api.md`（并发与写锁）、`AI/security.md`、`AI/data.md`
 
+共享草稿读取可以返回MCP来源SVG块的标题、哈希与纸面元信息，不把它伪装为缺失IMG来源；入库审批快照保留配图预览和检查信息。内置助手创建参数仍沿用现有文字与位图协议；MCP新题的SVG输入见`AI/mcp.md`。
+
 ## 1. 组成与数据流
 
 只读 `list_sessions` 的状态筛选支持 `active`、`paused`、`completed`，暂停计划仍返回固定条目与真实反馈进度；暂停和恢复操作由网页提供，助手没有新增写工具。暂停计划的反馈会由领域事务拒绝，已有学习结果保留。
@@ -170,7 +172,6 @@ MCP导出复用现有只读图片列表和受限原图读取，内置助手不�
 `GET /api/agent/events?run=&after=0&limit=200&wait=20` 按持久seq返回events/next/has_more/done/status，上限500。next为最后事件seq+1，耗尽且运行完成时done才为true。活动尾缓存按UTF-8序列化大小最多1MiB且最多1000事件；不足一页或尾已淘汰仍从数据库补齐，不删历史。已完成Run回执可靠写入后即从运行时字典移除，尾/统计缓存同时释放。旧events_json在SQLite内迁移为事件行并清兼容数组，不回写Ledger。
 
 模型网络期间仅通过task传播题库世代；短存储段先租约再模块锁，工具写入再取业务写锁。恢复后的旧运行不能写新世代。分页、尾淘汰、1300事件跨完成/重启及1000运行组由 `tests/test_agent_pagination.py` 验证。
-
 
 ## 复习调度共享读取
 

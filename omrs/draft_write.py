@@ -95,6 +95,9 @@ def _blocks(db, row, supplied, source_shas):
         section, kind = raw.get("section"), raw.get("kind")
         if section not in drafts.SECTIONS or kind not in drafts.KINDS:
             raise drafts.DraftError(f"第 {index + 1} 块 section 或 kind 不合法")
+        previous = existing.get(block_id)
+        if previous and previous['kind'] == 'svg' and kind != 'svg':
+            raise drafts.DraftError('SVG块只能编辑说明、移动或删除，不能改写源码')
         note = raw.get("note") or ""
         if not isinstance(note, str):
             raise drafts.DraftError(f"第 {index + 1} 块 note 必须是文字")
@@ -103,6 +106,13 @@ def _blocks(db, row, supplied, source_shas):
             if not isinstance(value, str) or not value.strip():
                 raise drafts.DraftError(f"第 {index + 1} 块没有有效文字")
             prepared.append((block_id, row["id"], section, index, kind, value.strip(), None,
+                             None, None, None, None, None, None, note.strip()))
+        elif kind == 'svg':
+            if not previous or previous['kind'] != 'svg':
+                raise drafts.DraftError('SVG块必须引用本草稿已有的稳定块编号')
+            if any(raw.get(key) is not None for key in ('text', 'image_sha', 'box', 'box_origin', 'ai_box')):
+                raise drafts.DraftError('SVG块不接受文字、来源图或裁框')
+            prepared.append((block_id, row['id'], section, index, kind, None, None,
                              None, None, None, None, None, None, note.strip()))
         else:
             sha = raw.get("image_sha")
@@ -121,7 +131,9 @@ def _blocks(db, row, supplied, source_shas):
                              origin if box else None, json.dumps(ai_box) if ai_box else None, note.strip()))
     if not any(b[2] == "题目" for b in prepared):
         raise drafts.DraftError("草稿至少要有一个题目块")
-    return prepared
+    from .draft_svg import bytes_of
+    return [(*b, bytes_of(existing[b[0]]) if b[4] == 'svg' else None,
+             existing[b[0]]['svg']['sha256'] if b[4] == 'svg' else None) for b in prepared]
 
 
 @storage
@@ -144,8 +156,10 @@ def _prepared_before_change(vault, db, row):
         if not isinstance(relative, str) or not isinstance(expected_hash, str):
             raise drafts.DraftError("暂存文件记录不完整", 409, "operation_pending", row["revision"])
         path = os.path.realpath(os.path.join(vault, relative))
+        svg_name = f"{op['question_id']}-svg-{expected_hash}.svg"
         if os.path.commonpath((root, path)) != root or not (
-            relative == op["file_path"] or os.path.basename(path).startswith(prefix)):
+            relative == op["file_path"] or os.path.basename(path).startswith(prefix) or
+            os.path.basename(path) == svg_name):
             raise drafts.DraftError("暂存文件路径不安全", 409, "operation_pending", row["revision"])
         if os.path.exists(path):
             with open(path, "rb") as file:
@@ -204,7 +218,7 @@ def update_draft(vault, draft_id, revision, fields, blocks, source_images=None):
                         drafts._now(), int(bool(row["sources_complete"]) or
                                            (source_images is not None and sources != old_sources)), draft_id))
             db.execute("DELETE FROM blocks WHERE draft_id=?", (draft_id,))
-            db.executemany("INSERT INTO blocks(id,draft_id,section,ord,kind,text,image_sha,x,y,w,h,box_origin,ai_box,note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", prepared)
+            db.executemany("INSERT INTO blocks(id,draft_id,section,ord,kind,text,image_sha,x,y,w,h,box_origin,ai_box,note,svg_data,svg_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", prepared)
             protected = [f"field:{key}" for key, value in values.items() if old_fields[key] != value]
             for b in prepared:
                 old = old_blocks.get(b[0])
@@ -505,6 +519,13 @@ def _render_blocks(vault, blocks, crops):
     for block in blocks:
         if block["kind"] == "text":
             rendered.append({"section": block["section"], "kind": "text", "text": block["text"]})
+            continue
+        if block['kind'] == 'svg':
+            from .draft_svg import bytes_of
+            import base64
+            raw = bytes_of(block)
+            rendered.append({'section': block['section'], 'kind': 'image', 'mime': 'image/svg+xml',
+                             'data': 'data:image/svg+xml;base64,' + base64.b64encode(raw).decode('ascii')})
             continue
         box = _box(block["box"])
         if box is None:

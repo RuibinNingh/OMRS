@@ -1,4 +1,4 @@
-"""AI 草稿区（drafts）：主 AI 聊天里建的题目草稿，独立管理，不进 Ledger。
+"""AI 草稿区（drafts）：助手与 MCP 的待审核题目，独立管理，审核前不进学习 Ledger。
 
 数据全部放在 `错题/.omrs/drafts/`：
 - drafts.db          SQLite：images / conv_images / drafts / blocks
@@ -8,10 +8,10 @@
 
 图片属于对话，不属于草稿：同一张图（同 sha256）在库里只存一份，`conv_images` 记它在某个对话里
 叫 IMG-几（每个对话从 1 开始连续编号，重复贴同一张图沿用旧编号）。草稿的块（block）按 `ord`
-排序，`section` 为「题目」或「答案」，`kind` 为 `text`（正文）或 `image`（引用某张图，配 `note`
-说明位置；框选 `box` 在 P1 恒为空，由 P3 补）。
+排序，`section` 为「题目」或「答案」，`kind` 为 `text`（正文）、`image`（来源图与裁框）
+或 `svg`（独立存储的静态配图），均可带 `note` 说明。
 
-本模块只实现存储与只读查询（P1-1）；`/api/drafts/*` 的写接口在 P2 加。
+本模块实现存储、创建与查询；人工编辑和入库委托 `draft_write`。
 """
 from .vault_lifecycle import storage, open_sqlite, lease, task, generation
 
@@ -37,7 +37,7 @@ _LOCK = threading.RLock()
 
 STATUSES = ("cropping", "review", "done", "discarded")
 SECTIONS = ("题目", "答案")
-KINDS = ("text", "image")
+KINDS = ("text", "image", "svg")
 _MIME_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/gif": "gif"}
 _DATA_URL_RE = re.compile(r"^data:image/(png|jpeg|gif);base64,(.+)$", re.DOTALL)
 _IMG_REF_RE = re.compile(r"^IMG-(\d+)$")
@@ -163,7 +163,8 @@ CREATE INDEX IF NOT EXISTS drafts_status ON drafts(status);
 CREATE INDEX IF NOT EXISTS drafts_conv ON drafts(conversation_id);
 CREATE TABLE IF NOT EXISTS blocks (
   id TEXT PRIMARY KEY, draft_id TEXT, section TEXT, ord INTEGER, kind TEXT, text TEXT,
-  image_sha TEXT, x REAL, y REAL, w REAL, h REAL, box_origin TEXT, ai_box TEXT, note TEXT
+  image_sha TEXT, x REAL, y REAL, w REAL, h REAL, box_origin TEXT, ai_box TEXT, note TEXT,
+  svg_data BLOB, svg_hash TEXT
 );
 CREATE INDEX IF NOT EXISTS blocks_draft ON blocks(draft_id);
 CREATE TABLE IF NOT EXISTS draft_images (
@@ -271,6 +272,10 @@ def _initialize(vault, db):
     op_cols = {r["name"] for r in db.execute("PRAGMA table_info(commit_operations)")}
     if "artifacts_json" not in op_cols:
         db.execute("ALTER TABLE commit_operations ADD COLUMN artifacts_json TEXT")
+    block_cols = {r['name'] for r in db.execute('PRAGMA table_info(blocks)')}
+    for name, definition in (('svg_data', 'BLOB'), ('svg_hash', 'TEXT')):
+        if name not in block_cols:
+            db.execute(f'ALTER TABLE blocks ADD COLUMN {name} {definition}')
     task_cols = {r["name"] for r in db.execute("PRAGMA table_info(training_tasks)")}
     if "manual_override" not in task_cols:
         db.execute("ALTER TABLE training_tasks ADD COLUMN manual_override INTEGER NOT NULL DEFAULT 0")
@@ -621,11 +626,15 @@ def _row_block(row):
     box = None
     if row["x"] is not None:
         box = {"x": row["x"], "y": row["y"], "w": row["w"], "h": row["h"]}
-    return {
+    result = {
         "id": row["id"], "section": row["section"], "ord": row["ord"], "kind": row["kind"],
         "text": row["text"], "image_sha": row["image_sha"], "box": box,
         "box_origin": row["box_origin"], "ai_box": _loads(row["ai_box"], None), "note": row["note"] or "",
     }
+    if row['kind'] == 'svg':
+        from .draft_svg import view
+        result['svg'] = view(row['svg_data'], row['svg_hash'])
+    return result
 
 
 def _row_draft(row, blocks):
@@ -782,7 +791,7 @@ def create_draft(vault, data, origin=None, _db=None):
                     raise ValueError(f"第 {index + 1} 块的 section 必须是「题目」或「答案」")
                 kind = raw.get("kind")
                 if kind not in KINDS:
-                    raise ValueError(f"第 {index + 1} 块的 kind 必须是 text 或 image")
+                    raise ValueError(f"第 {index + 1} 块的 kind 必须是 text、image 或 svg")
                 note = str(raw.get("note") or "").strip()
                 if kind == "text":
                     text = str(raw.get("text") or "").strip()
@@ -790,6 +799,15 @@ def create_draft(vault, data, origin=None, _db=None):
                         raise ValueError(f"第 {index + 1} 块是文字块但没有文本")
                     blocks.append({"section": section, "ord": index, "kind": kind, "text": text,
                                    "image_sha": None, "note": note})
+                elif kind == 'svg':
+                    from .draft_svg import prepare, MAX_DIAGRAMS
+                    if source_channel != 'mcp':
+                        raise ValueError('SVG草稿块须由MCP创建')
+                    if sum(b['kind'] == 'svg' for b in blocks) >= MAX_DIAGRAMS:
+                        raise ValueError('一份草稿最多3个SVG配图块')
+                    svg_data, svg_hash = prepare(raw.get('svg_data', raw.get('svg')))
+                    blocks.append({'section': section, 'ord': index, 'kind': kind, 'text': None,
+                                   'image_sha': None, 'note': note, 'svg_data': svg_data, 'svg_hash': svg_hash})
                 else:
                     image_sha = str(raw.get("image_sha") or "").strip()
                     if not image_sha:
@@ -867,11 +885,11 @@ def create_draft(vault, data, origin=None, _db=None):
             for block in blocks:
                 db.execute(
                     "INSERT INTO blocks (id, draft_id, section, ord, kind, text, image_sha, x, y, w, h, "
-                    "box_origin, ai_box, note) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    "box_origin, ai_box, note, svg_data, svg_hash) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (f"blk_{uuid.uuid4().hex[:10]}", draft_id, block["section"], block["ord"], block["kind"],
                      block["text"], block["image_sha"],
                      *((block.get("box") or {}).get(key) for key in ("x", "y", "w", "h")),
-                     block.get("box_origin"), None, block["note"]))
+                     block.get("box_origin"), None, block["note"], block.get('svg_data'), block.get('svg_hash')))
             if _db is None:
                 db.commit()
         finally:
@@ -919,6 +937,8 @@ def create_mcp_draft(vault, data, origin, images=None):
         payload = {k: (data or {}).get(k) for k in
                    ("subject", "category", "knowledge_points", "blocks", "cause", "cause_statement")}
         payload["images"] = [entry["sha256"] for entry in entries]
+        payload['blocks'] = [{k: (hashlib.sha256(v).hexdigest() if k == 'svg_data' and isinstance(v, bytes) else v)
+                              for k, v in block.items()} for block in payload.get('blocks') or []]
         origin["content_hash"] = hashlib.sha256(
             json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     origin["content_hash"] = str(origin["content_hash"])

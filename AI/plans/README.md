@@ -127,7 +127,8 @@ AI/plans/<计划名>/
 
 | 计划 | 状态 | 说明 |
 |---|---|---|
-| `svg-questions/` | 本地实现与验证完成 | 静态SVG附件、Obsidian引用、双栏打印、AI派生与改图审核；未部署，执行者Codex完整模式，见progress.md |
+| `mcp-draft-svg/` | 本地实现、验证与提交完成 | 源码及SVG文件随MCP新题进入草稿审核；未部署或推送，见progress.md |
+| `svg-questions/` | 已发布并推送 | 静态SVG附件、Obsidian引用、双栏打印、AI派生与改图审核；发布状态见progress.md |
 | `review-algorithm/` | 已部署并推送main | 一次高分击杀、五档复核及历史重放；执行者Codex，完整模式，见progress.md |
 | `ai-review-columns/` | 本地实现与验证完成 | 题答按正文1000px自适应双栏；执行者Codex，完整模式，未部署，见progress.md |
 | `board-empty-preview/` | 已完成，本地 v2.8.4 | 空板预览、请求归属与空导出 400 全部通过验证；执行者 Codex，完整模式；未部署 |

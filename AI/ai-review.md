@@ -7,6 +7,8 @@
 > - 必跑测试：`tests/test_ai_review.py`、`tests/test_question_update.py`、`tests/test_mcp_question_update.py`、`tests/e2e/ai_review.py`
 > - 相关：`AI/agent.md`、`AI/mcp.md`、`AI/mcp-storage.md`、`AI/drafts.md`、`AI/backup.md`
 
+MCP新题SVG随独立草稿进入人工审核，创建成功不代表正式入库。草稿快照和编辑器按原顺序展示静态配图与纸面检查；审批与入库保持版本校验，源码只读。完整契约见`AI/drafts.md`。
+
 ## 1. 范围与分级
 
 错因记录统一写入原题Markdown。追加或修订记录的审批快照绑定题目当前content_hash和目标revision，批准前文件有变化则冲突；原生业务回执仍保存在problems.db，正文历史由可恢复写入进入Ledger。旧cause补丁只兼容纯文本错因，日期化历史须走记录工具，不能整段覆盖；格式与恢复见`AI/problems.md`。

@@ -11,6 +11,10 @@
 
 `错题/.omrs/mcp_reports.db` 保存请求身份摘要、内容摘要、预留元数据和 applied 状态，权限为 0600。报告仍保存在 `错题/report/`；先预留稳定编号，再原子保存 HTML 并登记 `index.json`，索引登记中断可以重试恢复。同一请求不会生成第二份报告；完成后人工删除的报告不因重试复活。
 
+## 草稿创建配图
+
+创建请求摘要包含SVG源码及文件实际字节摘要；blocks的svg_data/svg_hash与草稿、mcp_requests及自动写回执同SQLite事务提交。失败不留下配图块或草稿关系，已存在的来源位图不删除。入库沿用commit_operations预留身份、附件哈希与Ledger恢复路径，不重复创建题目。
+
 ## 草稿修订回执
 
 草稿库的 `mcp_patch_requests` 保存请求/内容摘要、draft_id、编辑身份、原结果及时间。补丁和回执同事务提交；草稿的 `last_mcp_edit_json` 与原 `source_channel/source_key_id` 独立，修订不改原来源。相同请求返回原结果，人工保护导致的整次未写入也有回执。
