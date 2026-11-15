@@ -157,6 +157,13 @@ def main():
                 page.wait_for_selector('#modal', state='detached')
                 page.locator('[data-prb="question"]').first.click()
                 page.wait_for_function("document.querySelectorAll('#modal .ref-entry').length === 5")
+                # 记录到达不代表入场动画已结束，等待与下面断言相同的最终布局。
+                page.wait_for_function('''() => {
+                    const q = document.querySelector('#modal .qv-q').getBoundingClientRect();
+                    const aside = document.querySelector('#modal .qv-dialog__reflections').getBoundingClientRect();
+                    const stage = document.querySelector('#modal .qv-dialog__stage').getBoundingClientRect();
+                    return q.y < 320 && aside.y >= stage.y + stage.height - 1;
+                }''')
                 check('窄屏重新打开题干在首屏且编辑区在后', q.bounding_box()['y'] < 320
                       and aside.bounding_box()['y'] >= page.locator('#modal .qv-dialog__stage').bounding_box()['y'] + page.locator('#modal .qv-dialog__stage').bounding_box()['height'] - 1)
                 page.screenshot(path=str(evidence / 'bottom-1024.png'), full_page=True, animations='disabled')

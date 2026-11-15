@@ -8,13 +8,14 @@ export function draftLabel(state, draft) {
 }
 
 function entryView(entry, state) {
+  const recorded = entry.created_at ? new Date(entry.created_at * 1000).toLocaleString('zh-CN') : '';
   return html`<article class="ref-entry" data-key="${entry.id}">
-    <p class="ref-note">${entry.occurred_at || '日期未知'}</p>
+    <p class="ref-note">${entry.occurred_at ? `发生日期：${entry.occurred_at}` : recorded ? `记录于 ${recorded}` : '发生日期未知'}</p>
     ${entry.basis === 'ai_hypothesis' ? html`<p class="ref-hypothesis">AI 假设 · 待确认依据</p>` : ''}
     ${entry.recurrence_of ? html`<p class="ref-note">再次发生</p>` : ''}
     <div class="q-md">${entry.withdrawn ? '此记录已撤回，修订痕迹已保留。' : raw(markdown(entry.content_md))}</div>
     <details class="ref-entry__details" data-ref-entry-details="${entry.id}" ${raw(state.expanded.has(entry.id) ? 'open' : '')}>
-      <summary>${entry.created_at ? new Date(entry.created_at * 1000).toLocaleString('zh-CN') : '原有记录'} · 详情与操作</summary>
+      <summary>${recorded ? `记录时间：${recorded}` : '原有记录'} · 详情与操作</summary>
       <p class="ref-note">${entry.basis === 'ai_hypothesis' ? 'AI 假设' : '用户记录'} · 第 ${entry.revision} 版 · 发生日期：${entry.occurred_at || '未知'}</p>
       ${entry.revision > 1 ? html`<details data-ref-revisions="${entry.id}" ${raw(state.revisions.has(entry.id) ? 'open' : '')}><summary>查看修订痕迹</summary>${(entry.revisions || []).map(r => html`<p class="ref-note">第 ${r.value.revision} 版 · ${r.reason || '初次记录'}</p><div class="q-md">${raw(markdown(r.value.content_md))}</div>`)}</details>` : ''}
       ${!entry.withdrawn ? html`<div class="ref-actions">

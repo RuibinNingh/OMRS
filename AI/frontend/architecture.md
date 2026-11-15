@@ -235,7 +235,7 @@ core/request-id.js统一练习、训练控制和标记撤销的安全随机请�
 
 main登记problems页面；domain/problems统一读写API和受管附件，domain/problem-markdown提供安全说明渲染，domain/question/reflections管理弹窗原位录因。它们沿用core/api、html、morph与UI对话框，无额外前端框架。新增浏览器链路在`tests/e2e/problems.py`。
 
-错因控制器与模板为`domain/question/reflections.js`、`reflections-view.js`：默认历史，Markdown统一读取、按游标读全；页签复用编辑框，渲染序号和卸载守卫隔离迟到响应。`notes.js`仅从展示移除错因。编辑器带content_hash保存并派发`omrs:question-markdown`通知，控制器刷新历史、卸载时解绑。布局、草稿、选区、失败与多宽度见`tests/e2e/reflection_layout.py`；旧错因、日期、原位编辑与导出见`tests/e2e/notes_markdown.py`。
+错因控制器与模板为`domain/question/reflections.js`、`reflections-view.js`：默认历史，Markdown读取与分页；页签复用编辑框，序号与卸载守卫隔离迟到响应。`notes.js`仅移除展示中的错因。编辑器带content_hash保存，派发`omrs:question-markdown`刷新历史，卸载解绑。布局、草稿、选区和失败见`tests/e2e/reflection_layout.py`；默认日期与时间区分见`tests/e2e/reflection_dates.py`；旧错因、原位编辑和导出见`tests/e2e/notes_markdown.py`。
 
 ## 局域网HTTP请求编号回归
 

@@ -4,7 +4,7 @@
 > - 职责：题目 Markdown / KaTeX 渲染（内容哈希缓存）、练习记录、共享题目视图 qview、题目详情缓存、题目弹窗与翻页、Markdown 编辑器、画廊卡骨架
 > - 入口：`assets/app/domain/question/index.js`（题面、记录、弹窗、编辑器）；错因交互与模板在同目录 `reflections.js`、`reflections-view.js`，样式在 `reflections.css`
 > - 不变量：题面只经 `renderMd()` 渲染；练习记录只经 `qRecordsFromDetail()` 读取；反馈或历史修正后必须 `qvInvalidateMany()`；挂载点是尺寸容器，页面不再自补容器查询；模板不写 `style=`
-> - 必跑测试：`tests/app/question.test.mjs`、`tests/app/rich-markdown.test.mjs`、`tests/app/run_browser.py`（对话框底座）、`tests/e2e/questions.py`、`tests/e2e/instant.py`、`tests/e2e/feedback.py`、`tests/e2e/reflection_layout.py`、`tests/e2e/notes_markdown.py`
+> - 必跑测试：`tests/app/question.test.mjs`、`tests/app/rich-markdown.test.mjs`、`tests/app/run_browser.py`（对话框底座）、`tests/e2e/questions.py`、`tests/e2e/instant.py`、`tests/e2e/feedback.py`、`tests/e2e/reflection_layout.py`、`tests/e2e/notes_markdown.py`、`tests/e2e/reflection_dates.py`
 > - 相关：`AI/frontend/architecture.md`（domain 层与过渡桥）、`AI/frontend/library.md`（题库页）
 
 ## 1. 模块
@@ -120,7 +120,7 @@
 
 弹窗正文先题目、后错因区。面板可用宽度至少1040px时，错因区占右侧340px，题面和答案在左侧上下阅读，两区分别滚动；不足时错因区顺排到题目后面，正文统一滚动，头部保持可见。头部「＋错因」切回录入并把编辑框滚入可视区，重复点击保持录入。翻题立即清除上一题的错因区，迟到的题目读取不能重新挂载旧身份的记录。
 
-错因区默认「历史记录」，在前的历史页签显示条数，另一页签为「记录本次」。切换只改变面板显隐，复用编辑框并保留草稿、选区与展开状态。正文必填、问题关联可选；「关联问题」「更多信息」按需展开，后者可补发生日期、附件或新建问题。历史显示发生日期或「日期未知」与正文，再展开记录时间、来源、版本及再次发生、修订和撤回操作；AI假设提示始终显示。旧裸错因也纳入历史，不再在备注区重复显示；分页按游标读全。
+错因区默认「历史记录」，在前的历史页签显示条数，另一页签为「记录本次」。切换只改变面板显隐，复用编辑框并保留草稿、选区与展开状态。正文必填、问题关联可选；「关联问题」「更多信息」按需展开，后者可改发生日期、加附件或新建问题。新增与再次发生默认上海业务当天，保存后下一条重新取当天；可主动清空。历史标明「发生日期：…」，发生日期未知但有记录时间时显示「记录于…」，两者均未知显示「发生日期未知」；详情明确标注记录时间及发生日期，再展开来源、版本及再次发生、修订和撤回操作；AI假设提示始终显示。旧裸错因也纳入历史，不再在备注区重复显示；分页按游标读全。
 
 Markdown编辑器携带原文content_hash保存，成功后派发题目身份通知，当前错因面板重新读取历史并保留未保存草稿；记录修订携带原题content_hash，拒绝覆盖期间的外部编辑。数据和Markdown格式见`AI/problems.md`、`AI/data.md`。打印与导出仍保留有效错因。
 
@@ -131,3 +131,5 @@ Markdown编辑器携带原文content_hash保存，成功后派发题目身份通
 错因草稿的幂等编号复用`core/request-id.js`，通过getRandomValues兼容局域网HTTP。`tests/e2e/problems_http.py`验证真实非安全上下文的连续保存、刷新、390px表单无横向溢出，以及取消关闭保护后焦点回到触发关闭的按钮、草稿仍保留。
 
 `tests/e2e/questions.py`同时验证共享弹窗的翻页、焦点陷阱、浮层和编辑器；390×844及320×640的长题用真实滚轮检查正文滚动、背景锁定、创建信息末尾和题后录入框可达性。
+
+新默认值仅用于空白新表单；旧版保存后留下的无正文、无修订、无再次发生引用的空表单采用当天。有正文的旧草稿、补记日期、明确留空及修订历史保留原值；草稿格式标记区分新版主动留空，避免重开时补日期。日期与生产历史不做批量回填，浏览器专项见`tests/e2e/reflection_dates.py`。
