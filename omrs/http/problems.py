@@ -7,7 +7,7 @@ class ProblemsRoutes:
     def _problems_get(self,path,params):
         try:
             if path=='/api/problems':
-                result=problems.search(self.vault_path,**{k:v for k,v in params.items() if k in ('query','status','question_id','limit','cursor')})
+                result=problems.search(self.vault_path,**{k:v for k,v in params.items() if k in ('query','status','question_id','limit','cursor','sort','deleted')})
             elif path=='/api/problem':
                 result={'problem':problems.get(self.vault_path,params.get('id',''))}
             elif path=='/api/reflections':

@@ -263,6 +263,25 @@ def seed_ai_review_fixture(vault, *, draft_sources=True):
     ai_review.set_state(vault, row['operation_id'], 'applied', result={'title': '函数求值练习'})
 
 
+def seed_problems_fixture(vault, count=137):
+    """大量问题浏览使用合成说明、五状态及稳定题目关联。"""
+    from omrs import problems
+    from omrs.data_repository import mastery_rows
+    questions = [q['question_id'] for q in mastery_rows(vault) if not q.get('archived')]
+    titles = ['不等式变形时遗漏符号检查', '解题前没有梳理已知条件', '函数最值忽略区间端点',
+              '几何辅助线缺少推导依据', '计算过程跳步导致符号错误', '阅读题干时遗漏限定条件',
+              '新题无法识别熟悉的模型', '验证答案时只检查一种情况', '复习后仍不能独立复述思路', '应用公式前未检查适用条件']
+    values = []
+    for n in range(count):
+        values.append(problems.execute(vault, 'create_problem', {
+            'title': f'{titles[n % len(titles)]} · {n + 1:03d}',
+            'description_md': '## 具体表现\n练习中反复出现同一类遗漏，核对答案时才发现关键条件。\n\n## 应对办法\n先圈出条件与边界，再写每一步的依据。\n\n## 怎样验证改善\n在新题和隔时复习中独立说明解题过程。',
+            'status': list(problems.STATUSES)[n % 5], 'question_ids': questions[:n % 4],
+            'request_id': f'visual-problem-{n}',
+        })['problem'])
+    return values
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--ref", default="HEAD", help="基线提交（默认 HEAD）")
@@ -297,6 +316,8 @@ def main(argv=None):
         seed_drafts_fixture(fixture)
     if 'ai-review' in args.pages:
         seed_ai_review_fixture(fixture, draft_sources=args.draft_sources == 'image')
+    if 'problems' in args.pages:
+        seed_problems_fixture(fixture)
     sides = [("cur", ROOT)]
     if not args.audit_only:
         sides.insert(0, ("ref", prepare_ref(args.ref, out)))

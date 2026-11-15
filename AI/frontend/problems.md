@@ -1,19 +1,25 @@
 # 前端：问题中心
 
 > **速查**
-> - 职责：独立问题页、Markdown预览、附件、多题关联和记录时间线
-> - 入口：`assets/app/features/problems/index.js`、`assets/app/features/problems/view.js`、`assets/app/domain/problems.js`
+> - 职责：大量问题浏览、批量管理、回收站、Markdown预览与多题关联
+> - 入口：`assets/app/features/problems/index.js`、`assets/app/features/problems/store.js`、`assets/app/features/problems/view-detail.js`
 > - 不变量：原生ES Module与共享UI组件；手机分层；关联只传稳定question_id
-> - 必跑测试：`tests/app/problems.test.mjs`、`tests/app/reflections.test.mjs`、`tests/e2e/problems.py`、`tests/e2e/reflection_layout.py`
+> - 必跑测试：`tests/app/problems.test.mjs`、`tests/e2e/problems_workspace.py`、`tests/e2e/problems.py`、`tests/e2e/reflection_layout.py`
 > - 相关：`AI/problems.md`、`AI/frontend/qview.md`、`AI/frontend/design-system.md`
 
 ## 页面与内容
 
-侧栏「问题」进入#/problems，桌面左列表右详情，760px以下先列表、进入详情后可返回。列表按最近更新排序，提供标题/描述搜索、状态筛选与分页。标题必填，正文支持安全Markdown、公式、表格、标题、列表、引用、代码与受限链接；普通HTML转义。附件可选择文件或粘贴图片，持久化引用PA内容摘要，不保存blob地址。页面浅深主题使用现有token。
+侧栏「问题」进入#/problems。默认宽列表显示标题、说明摘要、五状态、关联题数和更新时间；超过1160px时打开右侧详情，列表与详情各自滚动，其余宽度逐层查看并可返回。表头与分页留在各自阅读区域，长标题及摘要截断，详情提供完整内容。紧凑密度同时压缩行高。浅深主题沿用现有token。
+
+状态导航显示当前搜索范围的全部、五状态及回收站计数。标题与描述搜索延迟220ms，输入法组合结束后查询；支持最近更新、最早更新、标题和关联题数排序，每页25／50／100条，上一页／下一页切换。查询与详情请求按代次接收，读取失败保留上次列表并提供重试。搜索、状态或每页数量变化会回到第一页。
+
+勾选支持本页全选与跨页累计，操作栏明确显示已选数量；搜索及状态筛选变化清空勾选。每批最多100项，可填写依据批量改状态、确认后删除至回收站、单项或批量恢复。回收站详情保留内容、题目与时间线，恢复后继续编辑。删除不删除题目、附件和错因记录。
+
+新建只创建本地表单，首次保存后才写正式问题。编辑草稿与已保存值分离；关闭、换问题、换状态、取消编辑及离页检查未保存内容，状态切换立即提示待保存。保存失败保留输入，同内容重试沿用请求编号；写回执先确认正式身份，详情刷新失败不会重复新建。CAS冲突保留草稿并提示重新读取。快捷键 `/` 聚焦搜索、Esc返回列表、Ctrl／⌘+Enter保存，输入法组合不触发提交。标题必填，正文支持安全Markdown、公式、表格、标题、列表、引用、代码与受限链接，普通HTML转义。附件可选文件、粘贴或拖入，引用PA内容摘要；上传完成前禁用保存。
 
 排版由`assets/app/domain/rich-markdown.js`提供，与题目备注共用；`domain/problem-markdown.js`继续将PA附件映射到`/api/problem-asset`，不改变题目备注的图片读取入口。代码保留Markdown与公式源码，多行展示公式作为完整块渲染；问题说明默认保留普通换行。格式与附件边界回归见`tests/app/rich-markdown.test.mjs`。
 
-详情显示用户确认或AI假设、五状态、变更理由、题目关联和时间线。题目选择器按稳定身份关联，可预览和移除材料；移除材料不删除题目或既有错因。保存失败保留当前编辑内容，重试沿用同请求编号，CAS冲突明确提示重新读取。
+详情显示用户确认或AI假设、五状态、变更依据和题目关联，处理时间线按时间倒序折叠展示。题目选择器按稳定身份关联，排除既有关联，最多选择100题；可预览和移除材料。移除材料不删除题目或既有错因。
 
 ## 题目弹窗
 

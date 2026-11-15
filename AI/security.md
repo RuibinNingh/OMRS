@@ -138,3 +138,5 @@ MCP 标记权限分 `label:write` 和 `label:delete`，默认关闭；合并与�
 ## 问题域
 
 问题Web接口沿用登录、同源及写锁，服务端推导操作者。MCP problem:read/problem:write独立授权且默认不授予，批准时使用active_key重新检查撤销和到期状态。Markdown转义HTML，私有附件不接受路径穿越、可执行SVG和外链；GET附件带nosniff与沙箱CSP。问题图与调度横幅仅共享静态安全规则，各自采用页面或纸面几何profile，不放宽题目SVG规范。
+
+问题批量状态、回收站删除和恢复仅接受网页用户调用manage_problems，不进入MCP或助手工具及审核白名单；领域层再次拒绝非web操作者。单批最多100项，重复身份、过期revision和状态不符会使整批回滚。回收站保留历史事实，禁止编辑和新增材料关联，恢复必须使用当前revision；已有错因修订与引用原记录的再次发生允许保留原关联。

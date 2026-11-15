@@ -11,6 +11,7 @@ from .vault_lifecycle import storage, generation
 
 STATUSES = {'analyzing':'待分析', 'working':'处理中', 'verifying':'待验证', 'resolved':'已解决', 'parked':'搁置'}
 ACTIONS = ('create_problem', 'update_problem', 'link_problem_questions', 'unlink_problem_questions', 'add_reflection_entry', 'revise_reflection_entry', 'add_problem_asset')
+WEB_ACTIONS = ('manage_problems',)
 
 
 class ProblemConflict(ValueError):
@@ -47,8 +48,11 @@ def _link(vault, db, pid, qids):
     return count
 
 
-def _reflection_link(vault,db,pid,qid,actor,now):
+def _reflection_link(vault,db,pid,qid,actor,now,retained=False):
     value=store.load(db,pid,'problem')
+    if value.get('deleted_at') and retained:
+        return
+    _active(value)
     if _link(vault,db,pid,[qid]):
         value.update(revision=value['revision']+1,updated_at=now)
         store.save(db,'problem',value)
@@ -59,6 +63,47 @@ def _reflection_link(vault,db,pid,qid,actor,now):
 def _cas(value, data):
     if type(data.get('expected_revision')) is not int or data['expected_revision'] != value['revision']:
         raise ProblemConflict('内容已变化，请重新读取后再保存；草稿已保留')
+
+
+def _active(value):
+    if value.get('deleted_at'):
+        raise ProblemConflict('问题已移入回收站，请恢复后再编辑或关联')
+
+
+def _manage(vault, db, data, actor, now):
+    """整批核对版本后再修改，回收站保留材料、错因与审计。"""
+    operation = data.get('operation')
+    targets = data.get('items')
+    if operation not in ('trash', 'restore', 'status') or not isinstance(targets, list) or not 1 <= len(targets) <= 100:
+        raise ValueError('批量操作须包含1至100个问题')
+    values, seen = [], set()
+    reason = text(data.get('reason', ''), 1000, operation == 'status')
+    if operation == 'status' and (not isinstance(data.get('status'), str) or data['status'] not in STATUSES):
+        raise ValueError('问题状态无效')
+    for target in targets:
+        if not isinstance(target, dict) or not isinstance(target.get('id'), str) or target['id'] in seen:
+            raise ValueError('问题身份无效或重复')
+        seen.add(target['id'])
+        value = store.load(db, target['id'], 'problem')
+        _cas(value, target)
+        if operation == 'restore':
+            if not value.get('deleted_at'):
+                raise ProblemConflict('问题已恢复，请刷新列表')
+        else:
+            _active(value)
+        values.append(value)
+    for value in values:
+        if operation == 'status':
+            value['status'] = data['status']
+        else:
+            value['deleted_at'] = now if operation == 'trash' else None
+        value.update(revision=value['revision'] + 1, updated_at=now)
+        store.save(db, 'problem', value)
+        event = {'action': {'trash': 'trash_problem', 'restore': 'restore_problem', 'status': 'update_problem'}[operation],
+                 'at': now, 'actor': actor, 'generation': generation(vault),
+                 'reason': reason or ('移入回收站' if operation == 'trash' else '从回收站恢复'), 'value': value}
+        db.execute('INSERT INTO events(object_id,data) VALUES(?,?)', (value['id'], store.dumps(event)))
+    return values
 
 
 def _occurred(value):
@@ -75,16 +120,25 @@ def _page(values, limit=50, cursor=0):
 
 
 @storage
-def search(vault, query='', status='', question_id='', limit=50, cursor=0):
+def search(vault, query='', status='', question_id='', limit=50, cursor=0, sort='updated_desc', deleted=''):
+    if sort not in ('updated_desc', 'updated_asc', 'title', 'questions_desc') or deleted not in ('', 'only'):
+        raise ValueError('排序或回收站筛选无效')
     with store.connect(vault) as db:
         values = [json.loads(r[0]) for r in db.execute("SELECT data FROM objects WHERE kind='problem'")] if db else []
         if question_id and db:
             linked = {r[0] for r in db.execute('SELECT problem_id FROM links WHERE question_id=?',(question_id,))}
             values = [v for v in values if v['id'] in linked]
-        values = [v for v in values if (not status or v['status']==status) and query.casefold() in (v['title']+' '+v['description_md']).casefold()]
+        values = [v for v in values if query.casefold() in (v['title']+' '+v['description_md']).casefold()]
+        counts = {key: sum(not v.get('deleted_at') and v['status'] == key for v in values) for key in STATUSES}
+        counts['all'] = sum(counts.values())
+        counts['trash'] = sum(bool(v.get('deleted_at')) for v in values)
+        values = [v for v in values if bool(v.get('deleted_at')) == (deleted == 'only') and (not status or v['status'] == status)]
+        linked_counts = dict(db.execute('SELECT problem_id, COUNT(*) FROM links GROUP BY problem_id')) if db else {}
         for value in values:
-            value['question_count'] = db.execute('SELECT COUNT(*) FROM links WHERE problem_id=?',(value['id'],)).fetchone()[0]
-        return _page(sorted(values,key=lambda v:v['updated_at'],reverse=True),limit,cursor)
+            value['question_count'] = linked_counts.get(value['id'], 0)
+        key = {'updated_desc': lambda v: (-v['updated_at'], v['id']), 'updated_asc': lambda v: (v['updated_at'], v['id']),
+               'title': lambda v: (v['title'].casefold(), v['id']), 'questions_desc': lambda v: (-v['question_count'], -v['updated_at'], v['id'])}[sort]
+        return {**_page(sorted(values, key=key), limit, cursor), 'counts': counts}
 
 
 @storage
@@ -112,9 +166,11 @@ def reflections(vault, question_id, limit=50, cursor=0):
 
 @storage_write
 def execute(vault, action, data, actor=None, review=None):
-    if action not in ACTIONS or not isinstance(data,dict):
+    if action not in ACTIONS + WEB_ACTIONS or not isinstance(data,dict):
         raise ValueError('不支持的问题操作')
     actor = dict(actor or {'kind':'web'})
+    if action in WEB_ACTIONS and actor.get('kind') != 'web':
+        raise ValueError('批量管理与回收站操作仅支持用户在网页执行')
     request_id = text(data.get('request_id',''),120,True)
     digest = hashlib.sha256(store.dumps([action,data,actor]).encode()).hexdigest()
     with store.connect(vault,True) as db:
@@ -125,7 +181,10 @@ def execute(vault, action, data, actor=None, review=None):
             return {**json.loads(previous['result']), 'reused':True}
         now = time.time()
         ai = actor.get('kind') in ('agent','mcp')
-        if action == 'create_problem':
+        if action == 'manage_problems':
+            value = _manage(vault, db, data, actor, now)
+            kind = 'problems'
+        elif action == 'create_problem':
             value = {'id':'PRB-'+uuid.uuid4().hex, 'title':text(data.get('title',''),160,True),
                      'description_md':text(data.get('description_md','')), 'status':'analyzing',
                      'subject':text(data.get('subject',''),80), 'basis':'ai_hypothesis' if ai else 'user_confirmed',
@@ -138,6 +197,7 @@ def execute(vault, action, data, actor=None, review=None):
         elif action in ('update_problem','link_problem_questions','unlink_problem_questions'):
             value = store.load(db,data.get('id'),'problem')
             _cas(value,data)
+            _active(value)
             if action == 'update_problem':
                 for key,cap in [('title',160),('description_md',20000),('subject',80)]:
                     if key in data:
@@ -168,12 +228,13 @@ def execute(vault, action, data, actor=None, review=None):
             qid = data.get('question_id')
             _question(vault,qid)
             pids = ids(data.get('problem_ids',[]))
-            for pid in pids:
-                _reflection_link(vault,db,pid,qid,actor,now)
-            occurred = _occurred(data.get('occurred_at'))
             recurrence = data.get('recurrence_of','')
-            if recurrence and store.load(db,recurrence,'entry')['question_id'] != qid:
+            previous_entry = store.load(db,recurrence,'entry') if recurrence else {}
+            if recurrence and previous_entry['question_id'] != qid:
                 raise ValueError('再次发生必须引用同一道题的记录')
+            for pid in pids:
+                _reflection_link(vault,db,pid,qid,actor,now,retained=pid in previous_entry.get('problem_ids',[]))
+            occurred = _occurred(data.get('occurred_at'))
             value = {'id':'REF-'+uuid.uuid4().hex,'question_id':qid, 'content_md':text(data.get('content_md',''),20000,True),
                      'problem_ids':pids,'recurrence_of':recurrence, 'occurred_at':occurred,
                      'created_at':now,'updated_at':now,'revision':1,'withdrawn':False,'source':actor,
@@ -188,7 +249,7 @@ def execute(vault, action, data, actor=None, review=None):
             if 'problem_ids' in data:
                 pids=ids(data['problem_ids'])
                 for pid in pids:
-                    _reflection_link(vault,db,pid,value['question_id'],actor,now)
+                    _reflection_link(vault,db,pid,value['question_id'],actor,now,retained=pid in value.get('problem_ids',[]))
                 value['problem_ids']=pids
             if 'withdrawn' in data:
                 if type(data['withdrawn']) is not bool:
@@ -208,9 +269,10 @@ def execute(vault, action, data, actor=None, review=None):
             from .problem_assets import save
             value = save(vault,data)
             kind = 'asset'
-        store.save(db,kind,value)
-        event = {'action':action,'at':now,'actor':actor,'generation':generation(vault), 'reason':data.get('reason',''), 'value':value}
-        db.execute('INSERT INTO events(object_id,data) VALUES(?,?)',(value['id'],store.dumps(event)))
+        if action != 'manage_problems':
+            store.save(db,kind,value)
+            event = {'action':action,'at':now,'actor':actor,'generation':generation(vault), 'reason':data.get('reason',''), 'value':value}
+            db.execute('INSERT INTO events(object_id,data) VALUES(?,?)',(value['id'],store.dumps(event)))
         result = {kind:value,'wrote':True,'request_id':request_id}
         db.execute('INSERT INTO receipts VALUES(?,?,?)',(request_id,digest,store.dumps(result)))
         if review:

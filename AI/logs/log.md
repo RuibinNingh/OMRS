@@ -3,6 +3,8 @@
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
 - [2026-11-15_reflection-layout](2026-11-15_reflection-layout.md)：题目弹窗错因侧栏与底部布局
+- [2026-11-15_problem-workspace](2026-11-15_problem-workspace.md)：问题中心浏览与批量管理
+- [2026-11-15_problem-workspace-release](2026-11-15_problem-workspace-release.md)：问题工作台生产发布
 - [2026-11-15_problem-release](2026-11-15_problem-release.md)：问题中心与题目弹窗生产发布
 - [2026-11-15_notes-markdown](2026-11-15_notes-markdown.md)：备注错因Markdown显示
 - [2026-11-14_problem-center](2026-11-14_problem-center.md)：问题中心隔离开发候选

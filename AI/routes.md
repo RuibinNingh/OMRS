@@ -132,8 +132,8 @@
 | GET | `/api/optimize/summary` | `AI/api/queries.md`、`AI/frontend/settings.md` |
 | GET | `/api/problem` | `AI/problems.md` |
 | GET | `/api/problem-asset` | `AI/frontend/problems.md`、`AI/problems.md` |
-| GET | `/api/problems` | `AI/problems.md` |
-| POST | `/api/problems/write` | `AI/problems.md` |
+| GET | `/api/problems` | `AI/api.md`、`AI/problems.md` |
+| POST | `/api/problems/write` | `AI/api.md`、`AI/problems.md` |
 | GET | `/api/question` | `AI/api.md`、`AI/api/queries.md`、`AI/changelog.md`等 |
 | GET | `/api/question/content/history` | `AI/api/queries.md`、`AI/data.md` |
 | POST | `/api/question/content/restore` | `AI/api/mutations.md`、`AI/data.md`、`AI/ledger.md` |

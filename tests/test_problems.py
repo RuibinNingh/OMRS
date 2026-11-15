@@ -90,3 +90,122 @@ class ProblemTests(unittest.TestCase):
         result=self.write('revise_reflection_entry',id=entry['id'],expected_revision=1,basis='user_confirmed',occurred_at='2026-11-14',reason='核对原题后确认')['entry']
         self.assertEqual(result['basis'],'user_confirmed')
         self.assertEqual(result['occurred_at'],'2026-11-14')
+
+
+class ProblemManagementTests(unittest.TestCase):
+    """批量回收站与状态操作的事务、身份和恢复边界。"""
+    def setUp(self):
+        ProblemTests.setUp(self)
+        self.ids = []
+
+    write = ProblemTests.write
+
+    def manage(self, operation, values, **extra):
+        return self.write('manage_problems', operation=operation,
+            items=[{'id': p['id'], 'expected_revision': p['revision']} for p in values], **extra)
+
+    def test_trash_restore_keeps_materials_reflections_and_learning(self):
+        baseline = copy.deepcopy(mastery_rows(self.vault))
+        p = self.write('create_problem', title='保留材料', question_ids=self.q)['problem']
+        e = self.write('add_reflection_entry', question_id=self.q[0], content_md='保留观察', problem_ids=[p['id']])['entry']
+        deleted = self.manage('trash', [p])['problems'][0]
+        self.assertEqual(problems.search(self.vault)['total'], 0)
+        self.assertEqual(problems.search(self.vault, deleted='only')['items'][0]['id'], p['id'])
+        self.assertEqual(problems.search(self.vault)['counts']['trash'], 1)
+        detail = problems.get(self.vault, p['id'])
+        self.assertEqual(len(detail['questions']), 2)
+        self.assertEqual(detail['entries'][0]['id'], e['id'])
+        self.assertEqual(detail['events'][0]['action'], 'trash_problem')
+        restored = self.manage('restore', [deleted])['problems'][0]
+        self.assertIsNone(restored['deleted_at'])
+        self.assertEqual(problems.search(self.vault)['total'], 1)
+        self.assertEqual(problems.get(self.vault, p['id'])['events'][0]['action'], 'restore_problem')
+        self.assertEqual(mastery_rows(self.vault), baseline)
+
+    def test_batch_cas_rolls_back_every_problem_and_receipt(self):
+        a = self.write('create_problem', title='甲')['problem']
+        b = self.write('create_problem', title='乙')['problem']
+        self.write('update_problem', id=b['id'], expected_revision=1, title='乙已变化')
+        with self.assertRaises(problems.ProblemConflict):
+            self.manage('trash', [a, b], request_id='batch-conflict')
+        self.assertEqual(problems.search(self.vault)['total'], 2)
+        self.assertEqual(problems.get(self.vault, a['id'])['revision'], 1)
+        b = problems.get(self.vault, b['id'])
+        result = self.manage('trash', [a, b], request_id='batch-conflict')
+        self.assertEqual(len(result['problems']), 2)
+
+    def test_receipt_retry_does_not_trash_twice(self):
+        p = self.write('create_problem', title='重试')['problem']
+        first = self.manage('trash', [p], request_id='same-trash')
+        second = self.manage('trash', [p], request_id='same-trash')
+        self.assertTrue(second['reused'])
+        self.assertEqual(first['problems'], second['problems'])
+        self.assertEqual(problems.get(self.vault, p['id'])['revision'], 2)
+        with self.assertRaises(problems.ProblemConflict):
+            self.manage('restore', first['problems'], request_id='same-trash')
+
+    def test_deleted_problem_blocks_existing_writes_and_new_reflection_links(self):
+        p = self.write('create_problem', title='已删除')['problem']
+        p = self.manage('trash', [p])['problems'][0]
+        for action, extra in [('update_problem', {'title': '不能覆盖'}), ('link_problem_questions', {'question_ids': self.q})]:
+            with self.assertRaises(problems.ProblemConflict):
+                self.write(action, id=p['id'], expected_revision=p['revision'], **extra)
+        with self.assertRaises(problems.ProblemConflict):
+            self.write('add_reflection_entry', question_id=self.q[0], content_md='不能关联', problem_ids=[p['id']])
+        self.assertEqual(problems.reflections(self.vault, self.q[0])['total'], 0)
+
+    def test_management_not_exposed_to_ai_or_review(self):
+        from omrs import problem_review
+        for kind in ('agent', 'mcp'):
+            with self.assertRaisesRegex(ValueError, '仅支持用户'):
+                problems.execute(self.vault, 'manage_problems', {'request_id': kind}, actor={'kind': kind})
+        with self.assertRaises(ValueError):
+            problem_review.snapshot(self.vault, 'manage_problems', {})
+        self.assertNotIn('manage_problems', problems.ACTIONS)
+
+    def test_existing_reflection_revision_and_recurrence_survive_trash(self):
+        p = self.write('create_problem', title='独立记录', question_ids=self.q[:1])['problem']
+        e = self.write('add_reflection_entry', question_id=self.q[0], content_md='保留原记录', problem_ids=[p['id']])['entry']
+        deleted = self.manage('trash', [p])['problems'][0]
+        changed = self.write('revise_reflection_entry', id=e['id'], expected_revision=e['revision'],
+            content_md='修订原记录', problem_ids=[p['id']], reason='更正原文')['entry']
+        self.assertEqual(changed['content_md'], '修订原记录')
+        repeated = self.write('add_reflection_entry', question_id=self.q[0], content_md='再次观察',
+            recurrence_of=e['id'], problem_ids=[p['id']])['entry']
+        self.assertEqual(repeated['problem_ids'], [p['id']])
+        self.assertEqual(problems.get(self.vault, p['id'])['revision'], deleted['revision'])
+
+    def test_status_needs_reason_and_invalid_batch_is_atomic(self):
+        p = self.write('create_problem', title='批量状态')['problem']
+        for operation, extra in [('status', {'status': 'resolved'}), ('restore', {}), ('trash', {'items': []})]:
+            if 'items' in extra:
+                with self.assertRaises(ValueError):
+                    self.write('manage_problems', operation=operation, **extra)
+            else:
+                with self.assertRaises(ValueError):
+                    self.manage(operation, [p], **extra)
+        with self.assertRaises(ValueError):
+            self.manage('trash', [p, p])
+        with self.assertRaises(ValueError):
+            self.manage('status', [p], status={}, reason='无效状态')
+        with self.assertRaises(ValueError):
+            self.manage('trash', [p] * 101)
+        self.assertEqual(problems.get(self.vault, p['id'])['revision'], 1)
+        changed = self.manage('status', [p], status='verifying', reason='隔时验证')['problems'][0]
+        self.assertEqual(changed['status'], 'verifying')
+        self.assertEqual(problems.get(self.vault, p['id'])['events'][0]['reason'], '隔时验证')
+
+    def test_search_counts_pagination_sort_and_legacy_objects(self):
+        values = [self.write('create_problem', title=title, status=status)['problem'] for title, status in
+                  [('共同 B', 'working'), ('共同 A', 'resolved'), ('其他', 'analyzing')]]
+        self.manage('trash', values[2:])
+        first = problems.search(self.vault, query='共同', sort='title', limit=1)
+        second = problems.search(self.vault, query='共同', sort='title', limit=1, cursor=first['next_cursor'])
+        self.assertEqual(first['items'][0]['title'], '共同 A')
+        self.assertEqual(second['items'][0]['title'], '共同 B')
+        self.assertEqual(first['counts'], dict(analyzing=0, working=1, verifying=0, resolved=1, parked=0, all=2, trash=0))
+        self.assertEqual(problems.search(self.vault, status='working')['total'], 1)
+        self.assertEqual(problems.search(self.vault, sort='updated_asc')['items'][0]['id'], values[0]['id'])
+        for args in ({'sort': 'unknown'}, {'deleted': 'true'}):
+            with self.assertRaises(ValueError):
+                problems.search(self.vault, **args)

@@ -358,3 +358,5 @@ SQLite `active_config` 是完整运行时事实源，`config.json` 是镜像和�
 ## 问题领域
 
 `错题/.omrs/problems.db`保存问题、错因、审计、幂等回执和调度默认，`错题/.omrs/problem-assets/`保存内容寻址附件。它们独立于学习Ledger，不被state.restore清除。正式Session的首页提醒字节与摘要原子包含在session.create事实中；详见`AI/problems.md`、`AI/data/storage.md`。
+
+问题对象的可选deleted_at标记回收站，缺失或空值表示正常问题，恢复只清空该标记；schema仍为1。批量管理沿用同一SQLite事务、CAS和receipts，逐项事件保存移入回收站、恢复或状态变化。问题、材料links、附件及独立错因均保留，全库备份按原problems.db边界包含回收站；既有错因修订或再次发生可保留历史关联，不重开已删除问题。

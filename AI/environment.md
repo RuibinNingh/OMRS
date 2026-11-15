@@ -313,3 +313,5 @@ tests/run_gates.py显式包含services组（两服务单测和网关浏览器）
 ## 问题中心隔离验证
 
 `tests/e2e/problems.py`使用临时Vault、随机回环端口与真实Chromium，起服务前移除OMRS_SYSTEMD_SERVICE；仅生成合成题目、问题、错因及SVG。证据目录由OMRS_PROBLEM_EVIDENCE指定，包含截图、离线HTML、PDF和JSON断言，不依赖生产题库或付费模型。
+
+`python3 tests/e2e/problems_workspace.py --out /tmp/omrs-problem-workspace`用137个合成问题验证排序、分页、跨页勾选、批量状态、删除恢复、失败草稿、CAS与浅深主题320至1440px布局。`python3 tests/visual/run.py --ref HEAD --pages problems --out /tmp/omrs-problem-visual`为基线和当前树共用同一份大量问题夹具，主列表前后截图之外的详情与回收站操作由工作台E2E覆盖。
