@@ -2,7 +2,7 @@
 
 > **任务**
 > - 标识：problem-workspace-release
-> - 状态：进行中
+> - 状态：已交付
 
 ## 背景
 
@@ -10,20 +10,57 @@
 
 ## 行为变化
 
-发布紧凑问题列表、搜索／排序／分页、跨页选择、批量状态、可恢复回收站、响应式详情与未保存保护。版本同步为v2.11.1。沿用现有依赖、私有配置和业务数据；发布以本地提交的精确归档切换源码，回退保留最新数据。
+v2.11.1已上线：紧凑问题列表、搜索／排序／25／50／100条分页、跨页选择、批量状态、可恢复回收站、响应式详情与未保存保护。单项或批量删除保留题目关联、附件、错因及审计；网页管理不扩展AI与MCP权限。
+
+本地提交6aac4f3c7c8245f729590ee4476115ba63d77f58精确归档至/root/workspace/apps/releases/omrs-6aac4f3。生产稳定别名omrs-9b29d49已原子切换，三服务运行于归档的正确目录。依赖、Nginx、隧道、认证、模型和私有配置沿用当前配置；回退只恢复源码并保留最新数据，本次未触发。未推送GitHub。
 
 ## 影响文件
 
-已核对git status --short和git diff --stat：已有问题域、HTTP、前端、测试及对应文档改动属于本聊天。本次另更新omrs/version.py、omrs_dashboard.html、README.md、AI/README.md及AI/changelog.md的版本；当前生产事实在上线验收后同步AI/environment.md，日志索引由脚本生成。
+已用git status --short、git diff --name-status及暂存区统计复核：功能与发布提交共27个持久文件，问题域、HTTP、前端、测试及对应文档均属于本聊天。版本同步涉及omrs/version.py、omrs_dashboard.html、README.md、AI/README.md和AI/changelog.md。
+
+收尾仅修改AI/environment.md当前生产事实和本发布日志；重新生成AI/logs/log.md后内容保持一致。生产事实压缩重复的验收细节，完整证据留在本日志；不重写已交付的开发日志，也不以纯文档提交替换已验证的生产源码。本次为独立任务，没有进行中的执行计划需续写。
 
 ## 已执行验证
 
-已只读确认三个生产服务active/running、NRestarts=0，使用稳定源码别名；当前398道题、0冲突。发布预检的助手、录入、草稿、审核、网关、检测与受管操作活动数均为0，未完成恢复和写入意图为0，训练锁可获得。
+证据与私有备份目录：`/root/workspace/apps/releases/OMRS-workspace-v2111-m2m4illn`（0700；备份0600）。测试均清除生产控制环境，使用合成临时Vault、随机端口和独立Chromium，不连接生产题库做写入测试。
 
-使用生产同一套Python3.13.5依赖，清除OMRS_SYSTEMD_SERVICE、OMRS_BOXDETECT_CONTROL及共享CDP环境后执行`python -B -m unittest discover -s tests`，1184项全部通过，179.707秒、exit 0。证据目录为`/root/workspace/apps/releases/OMRS-workspace-v2111-m2m4illn`（0700），完整输出在candidate-python.log。文档门禁检查165份文档、0问题，5条既有篇幅提醒；git diff --check通过。
+### 候选和精确归档
 
-UI纪律检查0违规，对比度58组全部通过。前一任务真实执行的Node594项、组件35项及页面验证详见该任务日志；本次从正式提交执行的精确归档与生产结果在实际运行后补入。
+使用生产同一套Python3.13.5依赖，清除OMRS_SYSTEMD_SERVICE、OMRS_BOXDETECT_CONTROL及共享CDP环境后执行`python -B -m unittest discover -s tests`：1184项全部通过，179.707秒、exit 0，完整输出在candidate-python.log。UI纪律0违规、对比度58组通过；文档检查165份、0问题、5条既有篇幅提醒；git diff --check通过。
+
+源码由git archive生成，1694个文件逐字节与归档核对。沿用现有venv，在该归档执行11组检查，gates.json逐项记录实际命令、耗时和退出码，全部为0：
+
+| 归档检查 | 实际结果 |
+|---|---|
+| 问题／审核／权限／MCP／备份／资源后端专项 | 117项通过 |
+| node --test tests/app/*.test.mjs | 594项通过，0跳过 |
+| tests/app/run_browser.py | 35项通过 |
+| tests/e2e/problems_workspace.py | 53项通过；137条合成问题，分页、滚动、跨页选择、批量状态、删除／恢复、冲突与安全重试 |
+| tests/e2e/problems.py | 32项通过，原问题与题目／错因／审核／导出链路 |
+| tests/e2e/problems_http.py | 14项通过，普通HTTP真实PIN／Cookie／Origin与保存刷新 |
+| tests/e2e/reflection_layout.py | 43项通过，原错因布局与输入保护 |
+| UI纪律／对比度 | 0违规／58组通过 |
+| 文档 --diff f2b9d33 | 165份、0问题、5条既有篇幅提醒 |
+| 前后视觉 --ref f2b9d33 --pages problems | 4组通过，无脚本错误、横向溢出及小操作目标；已查看截图 |
+
+视觉报告为archive-visual/report.html。逐项差异：浅色桌面87.206%、深色桌面87.324%，来自宽列表、状态导航、固定表头与分页；浅色手机88.707%、深色手机89.054%，来自紧凑单列、横滚状态导航和固定分页。旧版纵向排出50张卡片，新版内部滚动，整页高度与大部分像素随之变化；侧栏同步v2.11.1。
+
+### 生产切换和数据保全
+
+归档前、切换前和持训练锁停服后均预检：助手、录入、草稿、审核、网关、检测、受管操作活动数全为0，无未完成恢复及题目／标记写入意图。三服务停止后备份Vault、维护目录、网关与框选私有数据；tar compare、解包逐字节及SQLite integrity_check通过：Vault和网关1516文件／10库，框选2文件／1库。
+
+2026-11-15 09:01:11–09:01:17（Asia/Shanghai）完成备份、切换与核验，共6.083秒。57张业务表全部原列原行一致，1315个正文／图片／SVG／关键配置哈希保持；网关和框选私有业务、凭据、模型与控制配置一致。三服务active/running、NRestarts=0，真实cwd与归档一致，Nginx和隧道未重启。398道可见题、0冲突。
+
+### 生产只读验收
+
+独立Chromium完成浅深主题×1440／1024／390／320px共8档：真实问题加载、本页勾选与批量删除入口、每页数量与排序、详情及删除入口、响应式布局、搜索、回收站和取消新建均通过。脚本错误、横向溢出与业务写请求为0。文档取自已核实的同份归档，真实生产资源与业务GET，拦截全部非GET／HEAD／OPTIONS请求；生产没有写入演示数据或执行删除。
+
+首次只读脚本遗漏取消本地新建草稿的「放弃修改」确认步骤，等待详情关闭超时；补齐脚本后8档全部通过，未修改业务源码。初次live-check.log与成功的live-check-verified.log均保留；不把失败计为通过。
+
+公网及回环11项、实际HTTPS监听入口6项检查首次全部通过：首页和healthz为200，未认证业务入口为401。9个版本化资源与归档生成的响应SHA256一致，合并CSS按AssetStore校验，immutable及ETag304通过。错误级服务日志0。上线浏览器及09:05最终审计后再次核对57张业务表、1315个文件、网关和框选私有业务，保持一致；详见final-audit.json。
+
+收尾已按git diff --name-status复核仅有上述两份文档变化。生成日志索引后，check_docs.py --diff HEAD与--diff f2b9d33均为165份文档、0问题，git diff --check通过。
 
 ## 未执行验证
 
-本次发布回归、精确归档验证、停服备份与切换、生产只读验收尚未执行；完成后据实更新。未授权GitHub推送。
+未使用真实付费模型、真实PIN登录、实体手机或打印机做生产验收；写入和删除／恢复主路径已在合成隔离Vault中验证。未在生产故意触发失败回退，旧源码和完整私有备份保留；未执行全仓所有E2E，按问题工作台影响范围执行上述页面回归。未执行GitHub推送（不在授权范围）。无阻塞本次发布的已知遗留。
