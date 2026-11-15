@@ -2,9 +2,9 @@
 
 > **状态**
 > - 目标：U1–U5问题中心、快捷错因与首页提醒
-> - 阶段：U5 统一 Markdown 错因已完成本地实现和验证；v2.11.2 发布进行中
+> - 阶段：U5 统一 Markdown 错因已提交、部署并验收 v2.11.2
 > - 基线：本轮 2fe4fae，工作区初始干净；计划初始基线 f50c6c3
-> - 下一步：Codex 完整模式，按 plan.md「U5 统一错因发布」完成提交、备份、生产切换与只读验收
+> - 下一步：正常使用；本计划无待执行主线，未推送 GitHub
 > - 更新：2026-11-15
 
 ## 分期
@@ -14,7 +14,7 @@
 | 问题、错因、HTTP与UI | 已实现；问题E2E32项和非安全HTTP14项通过 |
 | U5 选定布局 | 已完成；侧栏/底部布局43项、题库106项回归通过，双主题六档宽度无横向溢出且顶部按钮不重叠 |
 | U5 备注显示 | 已完成；备注排版浏览器31项、Node应用587项通过，编辑保存与双主题四档宽度回归完成 |
-| U5 Markdown 统一错因 | 本地完成；后端1197项、Node595项、组件35项、统一错因浏览器34项及布局44项通过；打印导出保留有效错因 |
+| U5 Markdown 统一错因 | 已发布v2.11.2；后端1197项、Node595项、组件35项、统一错因浏览器34项及布局44项通过；生产8档浏览器与17项HTTP验收通过 |
 | AI与MCP统一审核 | 已实现；精确权限集合及AI改写来源、原文审计通过 |
 | 首页SVG与设置快照 | 已实现；单双栏、屏幕版、单次覆盖和损坏资源禁打印通过 |
 | 边界、备份、全量门禁、文档 | 发布候选已复核；生产同一依赖下Python1176项全部通过，Node587项、UI、对比度和文档门禁通过；归档14组检查、生产8档浏览器与17项HTTP检查通过 |
@@ -44,7 +44,7 @@
 
 ## 遗留与下一步
 
-本轮 Markdown 统一任务本地已完成，无待实现主线；真实生产数据尚未迁移，生产服务未变更。本轮未执行实体设备或真实付费模型验证；生产操作不沿用旧任务授权。任务日志为`AI/logs/2026-11-15_reflection-markdown.md`。以下保留先前阶段的交付与发布事实，其验证数不替代本轮结果。
+统一 Markdown 错因已按用户「部署和提交吧」发布 v2.11.2，源码提交 1d84ac2656f89390ca4231abbb5418346bb529ec，归档 omrs-1d84ac2；生产八档浏览器及17项HTTP验证通过，57张业务表与1315个关键文件保持一致。99条旧Markdown直接读取，无旧数据库entry待归并，不改写原题或学习状态。无待实现主线；未做实体设备、真实付费模型、真实PIN及生产失败回退验证，未推送GitHub。本次发布记录见`AI/logs/2026-11-15_reflection-release.md`，本地开发记录保持原文。以下保留先前阶段的交付与发布事实，其验证数不替代本轮结果。
 
 2026-11-14开发隔离环境的两项基线失败已保留原证据；本次在生产同一套依赖下重跑完整Python，1176项全部通过，未修改相关业务或测试来凑绿。
 
@@ -78,6 +78,8 @@
 备注显示证据：`/root/workspace/artifacts/omrs-notes-markdown-20261115/`；`final/`包含修改前后、浅深主题截图及31项结果，`visual-final/report.html`为HEAD对比，`before/`保留本轮拟改文件原文，`before-manifest.json`与`task-changes.json`区分已有候选改动。
 
 本轮 Markdown 统一证据：`/root/workspace/artifacts/omrs-reflection-markdown-20261115/`；最终1197项后端和595项Node日志、notes-complete/及layout-complete/的结果与截图、regressions/的五项回归日志、visual/report.html和modal-compare/的前后弹窗图；失败日志同时保留。
+
+v2.11.2发布证据：`/root/workspace/apps/releases/OMRS-reflection-v2112-hv_gkde0`；candidate-python.log与14组归档门禁、完整私有备份、八档生产截图、live-check-all.log和final-audit.json。源码1700文件精确匹配，备份及首次切换核验5.736秒；浏览器脚本修正与原始失败记录均保留，业务源码未因此变化。
 
 - `core-final/summary.json`与`adjudication.json`：完整命令、真实退出码、计数、基线判定与源码闭包。
 - `supplemental/report.json`：18项补充断言；报告计数与实际条目已核对。

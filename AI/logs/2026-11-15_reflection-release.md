@@ -2,7 +2,7 @@
 
 > **任务**
 > - 标识：reflection-release
-> - 状态：进行中
+> - 状态：已交付
 
 ## 背景
 
@@ -10,11 +10,13 @@
 
 ## 行为变化
 
-发布统一 Markdown 错因：原题保存日期化历史，页面默认历史且备注去重，导出保留有效错因；启动归并旧数据库错因，保留学习状态。本次候选版本已更新，生产尚未切换。
+v2.11.2 已上线：原题保存日期化错因历史，页面默认历史且备注去重，导出保留有效错因；启动兼容旧记录，保留学习状态。源码提交 1d84ac2656f89390ca4231abbb5418346bb529ec 精确归档至 /root/workspace/apps/releases/omrs-1d84ac2，生产稳定别名已切换，三服务从该归档启动。
+
+生产没有旧数据库 entry 待归并；99 条旧 Markdown 错因直接读取、原文不变。原 1 个问题已在回收站，发布保持该状态。生产浏览器、鉴权及公网只读验收已通过，依赖、认证与模型保持现有配置；未推送 GitHub。
 
 ## 影响文件
 
-开工以 git status --short 及 git diff 复核上一轮的 42 个已跟踪修改和 5 个新增文件，均属于统一错因。另同步 omrs/version.py、omrs_dashboard.html、README.md、AI/README.md 和 AI/changelog.md 至 v2.11.2；更新问题中心 plan/progress、本日志及自动日志索引。发布后按实际核验结果更新 AI/environment.md。
+开工以 git status --short 及 git diff 复核上一轮的 42 个已跟踪修改和 5 个新增文件，均属于统一错因。另同步 omrs/version.py、omrs_dashboard.html、README.md、AI/README.md 和 AI/changelog.md 至 v2.11.2；更新问题中心 plan/progress、本日志及自动日志索引。功能提交共 51 个任务文件，提交后工作区干净；收尾更新 AI/environment.md、问题中心 progress.md 和本日志，日志索引由脚本生成。
 
 ## 已执行验证
 
@@ -22,8 +24,30 @@
 
 使用生产现有 Python3.13.5 依赖，清除 OMRS_SYSTEMD_SERVICE、OMRS_BOXDETECT_CONTROL 和共享 CDP 环境后执行 `python -B -m unittest discover -s tests -p 'test_*.py' -q`：1197 项全部通过，180.782 秒、退出 0。另实跑 Node 应用 595 项、组件浏览器 35 项全部通过；UI 0 违规、对比度 58 组通过，文档 165 份、0 问题、3 条既有篇幅提醒，git diff --check 通过。候选测试使用合成临时 Vault 和随机端口。
 
-发布证据目录为 /root/workspace/apps/releases/OMRS-reflection-v2112-hv_gkde0，权限 0700；candidate-python.log、candidate-gates.json 及各项日志保存实际命令、计数和结果。归档与生产验证进行中，完成后补入。
+发布证据目录为 /root/workspace/apps/releases/OMRS-reflection-v2112-hv_gkde0，权限 0700；candidate-python.log、candidate-gates.json 及各项日志保存实际命令、计数和结果。git archive 的 1700 个文件逐字节核对通过，沿用现有 venv；从该精确归档执行以下 14 组检查，gates.json 逐项记录命令、耗时和退出码，全部为 0。
+
+| 归档检查 | 实际结果 |
+|---|---|
+| 错因、问题、MCP、改题、审核、助手、备份和资源后端 | 159 项通过，含 13 项 Markdown／恢复用例 |
+| Node 应用与浏览器组件 | 595 项、35 项通过 |
+| 统一错因与布局 | 34 项、44 项通过 |
+| 问题工作台、原问题及普通 HTTP | 53 项、32 项、14 项通过 |
+| 题库与打印 | 106 项、15 项通过 |
+| UI、对比度与文档 | 0 违规、58 组达标、165 份 0 问题 |
+| 前后视觉 | 题库与问题页共 8 组，无脚本错误或页面横向溢出 |
+
+视觉报告为 archive-visual/report.html。四组手机比较为零差异，四组桌面各 0.001%；已检查差异图，变化全部位于侧栏版本末位，坐标范围 x63–68、y872–879。另查看统一错因最终弹窗，历史默认选中、备注仅保留关联、错因排版与日期正常；上一轮完整弹窗前后比较留在原任务证据目录。
+
+实际切换前再次预检无未终结任务、恢复意图或旧 entry，持训练锁停三服务。Vault、维护目录及网关备份共 1516 文件／10 库，框选备份 2 文件／1 库；tar compare、解包逐字节及 SQLite integrity_check 全部通过。备份、切换与首次数据核对共 5.736 秒。57 张原业务表全部原列原行一致，1315 个正文／图片／SVG／关键配置哈希保持，398 道可见题、0 冲突；三服务 active/running、NRestarts=0，真实 cwd 与归档一致。
+
+生产使用独立 Chromium，浅深主题 × 1440／1024／390／320px 共 8 档全部通过：真实旧错因加载、未知日期、默认历史、新增表单隐藏、备注去重、顶部新增与页签切换、关闭重开、问题空列表与回收站、无横向溢出。取已核实归档 HTML，资源与业务 GET 均访问真实生产；全程拦截非 GET／HEAD／OPTIONS，业务写请求和页面脚本错误为 0。已查看生产桌面浅色和 320px 深色截图。
+
+浏览器验收脚本先后有四次失败：调用已不存在的兼容函数、中文 UID 被 JSON ASCII 转义后用于 CSS 定位、假定已有问题仍在活动列表、用 inner_text 读取手机布局隐藏的版本栏。分别改为真实筛选／搜索控件、保留中文字符、按真实活动／回收站计数核验、使用 text_content；业务源码始终为 1d84ac2。live-check.log、live-check-verified.log、live-check-final.log、live-check-complete.log 和各次脚本均保留；最终 live-check-all.log 为 8 档全部成功的完整记录。
+
+公网／回环 11 项及实际 HTTPS 监听入口 6 项首次全部通过：首页与 healthz 为 200，未认证业务接口为 401；9 个版本化资源与归档 SHA256 一致，immutable 和 ETag304 通过。最终审计再次核对三服务、1700 个源码文件、57 张业务表、1315 个关键文件，以及网关／框选配置和模型，全部保持；错误级服务日志为 0。final-audit.json 保存最终结果，业务数据完整一致。
+
+收尾以 git diff --name-status 复核仅有环境、进度和本发布日志三份文档。已生成日志索引，文档门禁分别以 HEAD 和任务基线 2fe4fae 执行，均为 165 份、0 问题，git diff --check 通过。压缩当前生产摘要，使受影响的环境文档保持在 40KB 以下；其余三条既有篇幅提醒不涉及本次改动范围。
 
 ## 未执行验证
 
-精确归档验证、停服备份、切换及生产只读验收尚未执行。实体设备、真实付费模型及故意触发生产回退不在本次发布验证范围。
+未使用真实付费模型、真实 PIN 登录、实体手机或打印机做生产验收；写入、修订、撤回、导出与崩溃恢复在合成临时 Vault 中验证。未在生产故意触发失败回退，旧源码和完整私有备份保留；回退脚本保留最新数据。未执行全仓所有 E2E，按统一错因影响范围执行上述回归；未执行 GitHub 推送。不遗留阻塞本次发布的已知问题。
