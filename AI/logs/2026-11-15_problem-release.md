@@ -2,26 +2,80 @@
 
 > **任务**
 > - 标识：problem-release
-> - 状态：进行中
+> - 状态：已交付
 
 ## 背景
 
 用户原话：「上线生产吧」。执行者Codex，完整模式；授权发布本聊天已验收的问题中心开发候选，以及宽屏侧栏/窄屏题后布局、备注Markdown显示。此授权取代开发阶段不得提交与部署的限制；不包含GitHub推送。
 
-开工主仓库main为f50c6c3且干净；候选为`/root/workspace/apps/omrs-problem-center-dev-20261114-2042`，同一基线，保留全部已交付开发改动。生产当前为a9f5672精确归档、v2.10.0，三服务active/running、NRestarts=0。发布证据目录`/root/workspace/apps/releases/OMRS-problem-v2110-s4s0qpyb`为0700，保存开工源码哈希、状态与后续私有备份；不将真实数据加入Git。
+开工主仓库main为f50c6c3且干净；候选为`/root/workspace/apps/omrs-problem-center-dev-20261114-2042`，同一基线，全部原有候选改动保留。原生产为a9f5672精确归档、v2.10.0，三服务active/running、NRestarts=0。本次私有证据与备份在`/root/workspace/apps/releases/OMRS-problem-v2110-s4s0qpyb`（0700），包含开工文件哈希与状态；真实数据不进入Git。
 
 ## 行为变化
 
-问题中心、快捷错因与调度首页SVG提醒按计划U1–U5发布；题目优先显示，空间足够用右侧错因栏，空间不足排在题后；答案下方备注按安全Markdown渲染。版本更新至v2.11.0。生产依赖、认证、模型与业务数据沿用当前环境，切换失败回原源码并保留最新数据。
+问题中心、快捷错因与调度首页SVG提醒按计划U1–U5发布。题目在首屏优先显示，空间足够用右侧错因栏，空间不足排在题后；答案下方备注按安全Markdown渲染。录入与历史页签、旧内容和草稿保护沿用已验收契约。
+
+本地提交231ce9534b392742ac44e1ac2fc8a0c87487b400（v2.11.0）已快进合入main。生产稳定别名`omrs-9b29d49`原子切到`omrs-231ce95`，三服务从该归档的正确子目录运行。依赖、认证、Nginx、隧道、模型与业务数据沿用当前配置；回退仅恢复旧源码并保留最新数据。本次未触发回退，未推送GitHub。
 
 ## 影响文件
 
-开工已用`git status --short`、`git diff --name-status`及未跟踪清单复核候选，原候选变化均属于问题中心计划和本聊天两次UI交付。发布新增版本同步涉及`omrs/version.py`、`omrs_dashboard.html`、根`README.md`、`AI/README.md`和`AI/changelog.md`；更新计划及本日志、生成索引。部署完成后同步`AI/environment.md`的实际生产事实。
+已用`git diff --name-status`、未跟踪清单及开工SHA256复核候选：102个持久文件均属于问题中心和本聊天UI任务，本轮仅新增发布版本与记录。功能涉及`omrs/`的问题域、HTTP、MCP、审核与导出，`assets/app/`的问题页、题目弹窗、安全Markdown与设置，以及对应测试和模块文档。
+
+版本同步涉及`omrs/version.py`、`omrs_dashboard.html`、根`README.md`、`AI/README.md`和`AI/changelog.md`；计划与进度登记生产授权。收尾更新`AI/environment.md`当前生产事实、本计划进度与本日志，索引由`check_docs.py --write-log-index`生成；纯文档提交不替换已验证的生产源码。
 
 ## 已执行验证
 
-已核对主仓库、开发候选、计划执行说明、历史发布流程和三服务systemd状态；生产路径及解释器与当前环境文档一致。候选发布验证已实际完成：用生产同一套Python3.13.5依赖，清除生产控制环境后执行`python -B -m unittest discover -s tests`，1176项全部通过（181.287秒，exit 0）；`node --test tests/app/*.test.mjs`587项通过；UI零违规、对比度58组通过；`check_docs.py --diff HEAD`检查165份文档、0问题和4条大小提醒；`git diff --check`通过。日志分别保存在本次证据目录的`python-full-candidate.log`、`node-candidate.log`、`ui-candidate.log`、`contrast-candidate.log`与`docs-candidate.log`。精确归档及生产验证继续进行，结果随实际执行追加。
+### 候选与精确归档
+
+候选使用生产同一套Python3.13.5依赖，清除生产控制环境后执行`python -B -m unittest discover -s tests`：1176项全部通过（181.287秒，exit 0）。Node应用587项、UI零违规、对比度58组、文档165份0问题及`git diff --check`通过。历史开发环境两项基线失败不再在当前依赖下出现，未改相关代码或测试来凑绿。
+
+源码通过`git archive`展开1689文件并逐字节比较，沿用现有venv。归档执行14组检查，命令、退出码及耗时保存在`gates.json`，全部exit 0；隔离服务全部使用合成临时Vault、随机高端口、独立Chromium，并清除生产控制环境。
+
+| 归档检查 | 实际结果 |
+|---|---|
+| 后端问题/审核/权限/MCP/备份/导出/资源专项 | 138项通过 |
+| `node --test tests/app/*.test.mjs` | 587项通过 |
+| `tests/app/run_browser.py` | 35项通过 |
+| `tests/e2e/notes_markdown.py` | 30项通过，本次不包含旧版截图对照的第31项 |
+| `tests/e2e/reflection_layout.py` | 43项通过 |
+| `tests/e2e/problems.py` | 32项通过 |
+| `tests/e2e/problems_http.py` | 14项通过，普通HTTP同源与Cookie写链路 |
+| `tests/e2e/questions.py` | 106项通过 |
+| `tests/e2e/schedule_export.py` | 22项通过 |
+| 字体/A4/展示板打印 | 19项通过 |
+| UI纪律 | 0违规 |
+| 对比度 | 58组通过 |
+| 文档 `--diff f50c6c3` | 165份，0问题、4条既有大小提醒 |
+| `tests/visual/run.py --ref f50c6c3` | 题库、设置、调度共12对，无脚本错误 |
+
+已查看前后截图；视觉报告为`archive-visual/report.html`。题库/调度手机4对相同；有差异的8对逐项如下，均为预期变化。
+
+| 截图 | 差异 | 原因 |
+|---|---|---|
+| 设置浅色桌面 | 26.719% | 新增调度首页SVG设置卡，整页高度增长；侧栏入口与版本更新 |
+| 设置深色桌面 | 26.713% | 同上，深色主题 |
+| 设置深色手机 | 21.307% | 页面底部新增调度提醒设置卡，整页高度增长 |
+| 设置浅色手机 | 21.306% | 同上，浅色主题 |
+| 题库浅色桌面 | 0.334% | 侧栏新增问题入口与版本标识 |
+| 题库深色桌面 | 0.323% | 同上，深色主题 |
+| 调度浅色桌面 | 0.121% | 侧栏新增问题入口与版本标识 |
+| 调度深色桌面 | 0.118% | 同上，深色主题 |
+
+### 发布与数据保全
+
+归档前、切换前及持训练锁停服后均预检，无活跃助手、收件箱、审核执行、作业帮、框选、训练或恢复意图。三服务停止后备份Vault与维护目录、网关和框选私有数据，tar compare、解包逐字节与SQLite integrity_check通过：Vault及网关1515文件/9库，框选2文件/1库，私有归档0600。
+
+2026-11-15 08:14:13–08:14:24（Asia/Shanghai）完成备份、原子切换和检查，共11.33秒。51张业务表全部原列原行一致，1315个正文/图片/SVG/关键配置哈希保持；网关与框选私有业务、凭据、模型和控制配置一致。三服务active/running、NRestarts=0、真实cwd正确；Nginx及隧道未重启。上线只读浏览器及最终审计后再次核对相同数据和归档，无业务变化、398道可见题、0冲突。
+
+### 生产只读验收
+
+独立Chromium验证浅深主题×1440/1024/390/320px共8档：真实已有题目首屏、宽屏侧栏/窄屏题后、原备注两个标题渲染、错因页签及直达入口、问题页和调度提醒设置均通过，脚本错误与横向溢出为0。页面文档取自同份归档，真实生产GET与资源响应；拦截全部非GET/HEAD/OPTIONS请求，实际业务写请求0，不向生产写入合成数据。截图仅保存在私有证据目录。
+
+公网与回环8项检查、问题/错因/调度提醒新增接口3项鉴权、实际HTTPS监听入口6项检查通过。首页及网关healthz为200，未认证业务入口为401。11个版本化资源与归档响应SHA256一致，合并CSS按AssetStore生成后校验；immutable及ETag304通过。错误级服务日志0。
+
+附加HTTPS初次检查将8472误设为127.0.0.1，curl连接失败，保留`final-audit.log`；只读查询监听和Nginx配置后改为实际192.168.0.145，未修改服务器配置。重跑`final-audit-verified.log`9项全部首次通过；`final-audit.json`保存最终服务、资源、业务及时间证据。
+
+收尾已按`git diff --name-status`复核，变化仅为当前生产环境事实、计划进度与本日志。生成索引后，`check_docs.py --diff HEAD`及`--diff f50c6c3`均检查165份文档、0问题、4条既有大小提醒，`git diff --check`通过。
 
 ## 未执行验证
 
-尚未切换生产；需完成精确归档验证、备份完整性、数据库原行与正文/配置哈希比较、生产资源及浏览器只读验收。未使用真实模型或实体设备，不向生产写入合成题目、反馈或审批；未执行GitHub推送。
+未使用真实付费模型、真实PIN登录、实体手机或打印机验收；模型边界用合成响应，登录和写入主路径用隔离普通HTTP及真实Chromium验证。未在生产故意触发失败回退，已保留旧源码、必要配置副本及完整备份。未执行GitHub推送（不在本次授权范围）。
