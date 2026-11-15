@@ -9,6 +9,8 @@
 
 ## 1. 组成与数据流
 
+只读 `list_sessions` 的状态筛选支持 `active`、`paused`、`completed`，暂停计划仍返回固定条目与真实反馈进度；暂停和恢复操作由网页提供，助手没有新增写工具。暂停计划的反馈会由领域事务拒绝，已有学习结果保留。
+
 一条消息的路径：`POST /api/agent/message` → `AgentRuntime.post_message` 建运行（run）、存用户消息、起后台线程并立即返回 `run_id` → 线程里 `AgentLoop.run` 反复请求模型、执行工具 → 每一步经 `Run.emit` 追加事件 → 浏览器用 `GET /api/agent/events?run=&after=N&wait=20` 长轮询取增量。每条事件发出前写入 `agent.db.run_events`，运行结束后落盘回执并移出内存，之后打开对话分页从库里重放；序号在活动、完成与重启之间不改变。
 
 分层：`omrs/llm/` 只管协议（与 OMRS 无关）；`omrs/agent/loop.py` 是通用循环，只依赖「客户端、工具注册表、钩子、事件发射器」四个接口；`omrs/agent/runtime.py` 的 `Hooks` 把 OMRS 的权限、写锁、写入来源接进钩子；`omrs/agent/tools/` 把领域函数包成工具。同一 Vault 一个运行时单例（`get_runtime`），服务启动时把上次遗留的运行标为中断（`reason=interrupted`）。

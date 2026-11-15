@@ -140,7 +140,7 @@ PARAMETERS = {
         'sort': '最多三级排序数组，数组顺序决定优先级；同一字段及其别名不能重复，省略使用既有默认排序。',
     },
     'get_recommendations': {'count': '最多推荐题数，默认 8，范围 1–30；到期优先、熟练度补足，可能少于请求数。', 'label': '单个已有标记名称；空串不筛。'},
-    'list_sessions': {'status': 'active 未完成，completed 已完成；空串不筛。', 'limit': '每页计划数，默认 20，范围 1–100。'},
+    'list_sessions': {'status': 'active 未完成，paused 已暂停，completed 已完成；空串不筛。', 'limit': '每页计划数，默认 20，范围 1–100。'},
     'get_session': {'limit': '每页 entries 条目数，默认 100，范围 1–100；pending/done 不受分页截断。'},
     'list_drafts': {'status': 'pending 联合 cropping/review；也可单选 cropping/review/done/discarded。缺省排除 discarded，但包含 done。', 'source': 'agent 内置助手、mcp 外部 MCP、legacy 旧来源；空串不限来源，不按当前密钥过滤。', 'limit': '最多返回草稿数，默认 50，范围 1–500；total 是返回数量，不是全库总数。'},
     'get_question_image': {'image_index': 'get_question.images 的从 0 开始下标；题目和答案图片均在该列表。'},

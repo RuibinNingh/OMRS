@@ -591,7 +591,7 @@ def build_server(vault, host="127.0.0.1", port=8472, public_url=None, web_url='h
         return _read_call(vault, read_tools.get_recommendations,
                           {"count": count, "subject": subject, "category": category, "label": label})
 
-    def list_sessions(status: Literal["", "active", "completed"] = "",
+    def list_sessions(status: Literal["", "active", "paused", "completed"] = "",
                       offset: Annotated[int, Field(ge=0, strict=True)] = 0,
                       limit: Annotated[int, Field(ge=1, le=100, strict=True)] = 20):
         _validate_read_texts(status=status)

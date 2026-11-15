@@ -129,6 +129,8 @@ SQL 读模型还包含 `history_projection`、`projection_meta`、`active_config
 
 `POST /api/session/delete` 兼容旧前端，但内部语义改为 `session.retract`。
 
+`POST /api/session/pause`／`POST /api/session/resume` 追加 `session.pause`／`session.resume`，只在 `active` 与 `paused` 之间切换。`omrs/session_operations.py` 复用新鲜链头与配置校验的 SQLite 写事务，恢复占用检查、事实追加和增量投影同事务发布，失败整体回滚并失效缓存。全量重放和学习状态恢复沿用同样的暂停事实；不撤销已录入反馈，不改变题目学习状态。已完成、已撤销计划拒绝状态切换，重复请求不重复追加事实。
+
 ### 修正投影如何重放
 
 修正 commit 只追加事实，不写逆向熟练度补丁。完整重放先在 `projection_review_corrections` / `projection_session_corrections` 中建立最终有效修正索引，再逐提交应用；反馈明细直接落 SQL。被撤销反馈或 Session 的反馈跳过；恢复采用原记录；替换把 replacement 合并到原记录。算法状态、状态标签、累计击杀次数、复核档位、周期起始日、实际排期和正式历史一起重算，修正数量增长不会扩张 Python 全量集合或载荷字典。

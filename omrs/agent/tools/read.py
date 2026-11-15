@@ -469,8 +469,8 @@ def _session_details(session):
 def list_sessions_tool(ctx, args):
     offset, limit = _session_page(args, 20)
     status = args.get("status")
-    if status is not None and status not in ("active", "completed"):
-        raise ValueError("status 只能是 active 或 completed")
+    if status is not None and status not in ("active", "paused", "completed"):
+        raise ValueError("status 只能是 active、paused 或 completed")
     rows = list_sessions(ctx["vault"], status, include_unavailable=True)
     rows.sort(key=lambda session: (session["created_at"], session["session_id"]), reverse=True)
     page = rows[offset:offset + limit]
@@ -532,7 +532,7 @@ SPECS = [
      {"type": "object", "properties": {"count": {"type": "integer", "minimum": 1, "maximum": 30},
                                        "subject": _S, "category": _S, "label": _S}}, get_recommendations),
     ("list_sessions", "read", "按创建时间从新到旧分页列出复习 Session，含反馈进度和停用、归档、待绑定条目数量。",
-     {"type": "object", "properties": {"status": {"type": "string", "enum": ["active", "completed"]},
+     {"type": "object", "properties": {"status": {"type": "string", "enum": ["active", "paused", "completed"]},
          "offset": {"type": "integer", "minimum": 0, "default": 0},
          "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 20}}}, list_sessions_tool),
     ("get_session", "read", "查一个 Session：完整计划进度、稳定身份和可用状态；entries 分页，pending/done 始终为完整计划。",

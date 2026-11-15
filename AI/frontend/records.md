@@ -9,6 +9,8 @@
 
 ## 历史记录页
 
+调度的 `session.pause`／`session.resume` 归入 Session 类型，标题显示「暂停复习调度／恢复复习调度」，保留关联计划编号。这两类事实只改变计划状态，不属于反馈撤销或学习修正。
+
 历史页由 `features/history/` 按页面契约挂载到 `#hist-app`，分为「学习与变更」和「系统运行」。两区按设置页的 Ledger 时区分日，列表选中记录后在右侧显示详情；≤760px 在列表与详情之间切换，返回时还焦点到原记录。标签页支持方向键、Home、End。样式沿用共享 token 和控件，深浅主题共用布局。
 
 `index.js` 管理学习加载与原有修正操作，`runtime-controller.js` 管理系统分页、详情与进行中轮询；`state.js` 负责分组、时区日界线和状态，`view.js` 渲染外框，`learning-view.js` / `runtime-view.js` 渲染各区详情。`domain/history-model.js` 持有撤销状态、节点分类、标题和时间投影的纯函数；`domain/history.js` 负责两类读取、修正请求和跨页通知，仪表盘最近动态仍读取 Ledger。

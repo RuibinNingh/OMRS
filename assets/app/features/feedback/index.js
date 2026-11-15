@@ -226,6 +226,7 @@ export function createFeedbackController(root, ctx, services = {}) {
       if (dup) { toast(`UID「${dup.uid || '空白'}」重复或为空，请检查后再提交。`, { kind: 'warn' }); return; }
       const activeId = io.activeSessionId();
       const session = io.findSession(activeId);
+      if (session?.status === 'paused') { io.toast('复习计划已暂停，请到复习调度恢复后继续。', { kind: 'warn' }); return; }
       const submitted = new Set(S.fbRailEntries(session, []).filter(entry => entry.recorded).map(entry => entry.question_id || entry.uid));
       const repeat = ready.find(row => submitted.has(row.question_id || (row.uid || '').trim()));
       if (repeat) { toast(`题目「${repeat.uid}」已经录入过反馈，请不要重复提交。若要修正，请到「历史记录」中操作。`, { kind: 'warn' }); return; }

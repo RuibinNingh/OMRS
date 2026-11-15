@@ -309,6 +309,87 @@ def run_export(page, base, port, results):
     page.click('[data-action="schedule.xremoveFiltered"]')
     check("「移除当前筛选」（未筛选时 = 全部）清空已选", ev("document.querySelectorAll('.schd-xsel .schd-xrow').length") == 0)
 
+def run_pause(page, base, port, results):
+    """真实页面暂停、刷新续存、部分进度、冲突与恢复；截图只写临时目录。"""
+    def check(name, ok):
+        results.append((name, bool(ok), ''))
+    occupied = {uid for session in http(port, '/api/sessions')['sessions'] if session['status'] == 'active'
+                for uid in session['uids']}
+    uids = [q['uid'] for q in http(port, '/api/stats')['items'] if not q.get('suspended') and q['uid'] not in occupied][:2]
+    sid = make_session(port, uids)
+    other = None
+    shots = tempfile.mkdtemp(prefix='omrs-schedule-pause-shots-')
+    print('暂停调度截图：' + shots)
+    try:
+        http(port, '/api/feedback', {'session_id': sid, 'feedbacks': [{'uid': uids[0], 'is_correct': True, 'sub_score': 5}]})
+        open_schedule(page, base)
+        plans(page)
+        page.select_option('#sch-plan-filter', 'active')
+        page.click(f'.schd-plan[data-arg="{sid}"]')
+        page.get_by_role('button', name='暂停调度', exact=True).wait_for()
+        page.screenshot(path=os.path.join(shots, 'active-desktop.png'), full_page=True)
+        page.route('**/api/session/pause', lambda r: r.fulfill(status=503, content_type='application/json', body='{"msg":"暂停测试离线"}'))
+        page.get_by_role('button', name='暂停调度', exact=True).click()
+        check('暂停请求失败保留原计划与进度，按钮恢复', wait(page, "() => document.body.textContent.includes('暂停失败') && !document.querySelector('[data-action=\"schedule.pause\"]').disabled")
+              and http(port, '/api/session?id=' + sid)['status'] == 'active')
+        page.unroute('**/api/session/pause')
+        pending = []
+        page.route('**/api/session/pause', lambda route: pending.append(route))
+        page.get_by_role('button', name='暂停调度', exact=True).click()
+        wait(page, "() => document.querySelector('[data-action=\"schedule.pause\"]').disabled")
+        page.evaluate("document.querySelector('[data-action=\"schedule.pause\"]').click()")
+        check('暂停请求期间按钮置忙，重复点击只提交一次', len(pending) == 1)
+        pending[0].continue_()
+        page.get_by_role('button', name='恢复调度', exact=True).wait_for()
+        page.unroute('**/api/session/pause')
+        check('暂停后移入已暂停筛选，保留部分反馈并禁用录入、允许导出',
+              page.input_value('#sch-plan-filter') == 'paused'
+              and '已录入 1 / 共 2 题' in page.locator('#sch-plan-detail').inner_text()
+              and page.locator('[data-action="schedule.feedback"]').is_disabled()
+              and page.locator('[data-action="schedule.export"]').first.is_enabled())
+        page.screenshot(path=os.path.join(shots, 'paused-desktop.png'), full_page=True)
+        page.reload(wait_until='networkidle')
+        plans(page)
+        page.select_option('#sch-plan-filter', 'paused')
+        page.click(f'.schd-plan[data-arg="{sid}"]')
+        page.get_by_role('button', name='恢复调度', exact=True).wait_for()
+        check('刷新后暂停状态和已录入进度仍保留', '已录入 1 / 共 2 题' in page.locator('#sch-plan-detail').inner_text())
+        other = make_session(port, uids[1:])
+        page.get_by_role('button', name='恢复调度', exact=True).click()
+        check('恢复占用冲突时保留暂停状态并提示关联计划', wait(page, "() => document.body.textContent.includes('恢复失败') && !document.querySelector('[data-action=\"schedule.pause\"]').disabled")
+              and http(port, '/api/session?id=' + sid)['status'] == 'paused')
+        http(port, '/api/session/delete', {'session_id': other})
+        other = None
+        page.get_by_role('button', name='恢复调度', exact=True).click()
+        page.get_by_role('button', name='暂停调度', exact=True).wait_for()
+        wait(page, "() => !document.querySelector('[data-action=\"schedule.pause\"]').disabled && !document.querySelector('[data-action=\"schedule.feedback\"]').disabled")
+        check('恢复后返回待完成并可继续录入，原进度不变', page.input_value('#sch-plan-filter') == 'active'
+              and page.locator('[data-action="schedule.feedback"]').is_enabled()
+              and '已录入 1 / 共 2 题' in page.locator('#sch-plan-detail').inner_text())
+        page.set_viewport_size({'width': 390, 'height': 844})
+        page.get_by_role('button', name='暂停调度', exact=True).click()
+        page.get_by_role('button', name='恢复调度', exact=True).wait_for()
+        page.screenshot(path=os.path.join(shots, 'paused-mobile.png'), full_page=True)
+        check('手机暂停详情及恢复按钮可见，无横向溢出', page.get_by_role('button', name='恢复调度', exact=True).is_visible()
+              and not page.evaluate('document.documentElement.scrollWidth > innerWidth + 1'))
+        page.evaluate("window.__omrs.router.go('feedback')")
+        page.locator('#fb-session-picker').wait_for()
+        page.select_option('#fb-session-picker', sid)
+        check('反馈页识别已暂停计划并显示恢复提示，禁止提交',
+              '计划已暂停' in page.locator('.fbw-bar__info').inner_text()
+              and page.locator('[data-action="feedback.submit"]').is_disabled())
+        page.evaluate("window.__omrs.router.go('schedule')")
+        page.get_by_role('button', name='恢复调度', exact=True).wait_for()
+        page.get_by_role('button', name='恢复调度', exact=True).click()
+        page.get_by_role('button', name='暂停调度', exact=True).wait_for()
+    finally:
+        page.unroute('**/api/session/pause')
+        page.set_viewport_size({'width': 1440, 'height': 900})
+        if other:
+            http(port, '/api/session/delete', {'session_id': other})
+        http(port, '/api/session/delete', {'session_id': sid})
+
+
 def run_mobile(browser, base, results):
     ctx = browser.new_context(viewport={"width": 390, "height": 844})
     ctx.add_init_script(path=os.path.join(ROOT, "tests/e2e/p8_test_modules.js"))
@@ -352,6 +433,7 @@ def main():
             guarded(results, "旧入口", lambda: run_legacy(page, base, port, results))
             guarded(results, "安排复习", lambda: run_arrange(page, base, port, results))
             guarded(results, "全题库导出", lambda: run_export(page, base, port, results))
+            guarded(results, "暂停与恢复", lambda: run_pause(page, base, port, results))
             results.append(("桌面：页面脚本错误为 0", not errors, "; ".join(errors[:3])))
             ctx.close()
             guarded(results, "手机", lambda: run_mobile(browser, base, results))

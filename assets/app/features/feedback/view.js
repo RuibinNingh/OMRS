@@ -31,7 +31,7 @@ function sessionOptions(sessions, active) {
   const opts = [{ value: '', label: '— 手动录入（不关联 Session）—' }];
   sessions.forEach(session => {
     const p = fbSessionProgress(session);
-    opts.push({ value: session.session_id, label: `${session.session_id} · ${session.subject_filter || '全部'} · ${p.feedback_count}/${p.total} 题${p.pending_count ? ` · 待录 ${p.pending_count}` : ' · 已完成'}` });
+    opts.push({ value: session.session_id, label: `${session.session_id} · ${session.subject_filter || '全部'} · ${p.feedback_count}/${p.total} 题${session.status === 'paused' ? ' · 已暂停' : p.pending_count ? ` · 待录 ${p.pending_count}` : ' · 已完成'}` });
   });
   if (active && !sessions.some(s => s.session_id === active)) opts.push({ value: active, label: `${active}（不在列表中）` });
   return opts;
@@ -40,6 +40,7 @@ function sessionOptions(sessions, active) {
 function sessionInfo(session, s, active) {
   if (!session) return active ? html`已导入 <strong>${s.rows.length}</strong> 题（Session ${active} 不在列表中）` : (s.rows.length ? html`已导入 <strong>${s.rows.length}</strong> 条作答（未关联 Session）` : '');
   const p = fbSessionProgress(session);
+  if (session.status === 'paused') return html`<strong>${p.feedback_count}/${p.total}</strong> 已录入 · 计划已暂停，请到复习调度恢复后继续。`;
   return html`<strong>${p.feedback_count}/${p.total}</strong> 已录入 · ${p.pending_count ? html`还剩 <strong>${p.pending_count}</strong> 题待录入` : '本 Session 已全部录入'}`;
 }
 
@@ -148,7 +149,7 @@ function labelControls(row, env) {
 function submitBar(s, env) {
   const c = env.counts;
   return html`<div class="fbw-panel__submit" data-key="submit">
-    ${button({ label: s.submitting ? '正在提交' : (c.ready ? `提交 ${c.ready} 道` : '提交反馈'), variant: 'primary', icon: 'send', action: 'feedback.submit', loading: s.submitting, disabled: !c.ready })}
+    ${button({ label: s.submitting ? '正在提交' : (c.ready ? `提交 ${c.ready} 道` : '提交反馈'), variant: 'primary', icon: 'send', action: 'feedback.submit', loading: s.submitting, disabled: !c.ready || env.session?.status === 'paused' })}
     ${s.status ? status({ tone: TONE[s.status.tone] || 'neutral', text: s.status.text, block: true }) : ''}
     <p class="fbw-panel__keys">${kbd('J')}${kbd('K')} 切题 · ${kbd('1')} 对 ${kbd('2')} 错 · ${kbd('0–9')} 打分 · ${kbd('E')} 编辑 · ${kbd('Ctrl', 'V')} 读答题卡 · ${kbd('Ctrl', 'Enter')} 提交</p>
   </div>`;

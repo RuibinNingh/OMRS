@@ -196,6 +196,8 @@ ROUTES = {
     ('POST', '/api/scan'): '_do_post_routes',
     ('POST', '/api/schedule'): '_learning_post',
     ('POST', '/api/session/bind'): '_learning_post',
+    ('POST', '/api/session/pause'): '_learning_post',
+    ('POST', '/api/session/resume'): '_learning_post',
     ('POST', '/api/session/delete'): '_learning_post',
     ('POST', '/api/trainpanel/control'): '_trainpanel_post',
     ('POST', '/api/trainpanel/review'): '_trainpanel_post',

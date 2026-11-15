@@ -162,6 +162,8 @@
 | GET | `/api/session` | `AI/api/queries.md`、`AI/changelog.md`、`AI/frontend/review.md` |
 | POST | `/api/session/bind` | `AI/api/mutations.md`、`AI/data.md`、`AI/frontend/review.md`等 |
 | POST | `/api/session/delete` | `AI/api/mutations.md`、`AI/ledger.md` |
+| POST | `/api/session/pause` | `AI/api.md`、`AI/api/boards.md`、`AI/ledger.md` |
+| POST | `/api/session/resume` | `AI/api.md`、`AI/api/boards.md`、`AI/ledger.md` |
 | GET | `/api/sessions` | `AI/api/queries.md`、`AI/changelog.md` |
 | GET | `/api/source/export` | `AI/api/extensions.md`、`AI/api/queries.md`、`AI/changelog.md`等 |
 | GET | `/api/stats` | `AI/algorithm.md`、`AI/api/queries.md`、`AI/changelog.md`等 |

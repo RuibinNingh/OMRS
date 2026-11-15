@@ -27,7 +27,7 @@ function planList(env) {
     return html`<div class="schd-list">${empty({ icon: 'calendar', title, hint: env.error ? '检查服务后点上面的「重试」。' : '先在「安排复习」里选题生成计划。', compact: true, action: { label: '安排新复习', action: 'schedule.view', arg: 'arrange', variant: 'default' } })}</div>`;
   }
   return html`<ul class="schd-list" id="sch-plan-list" aria-label="计划列表">${each(env.plans, p => p.id, p => html`<li><button type="button" class="${cls('schd-plan', p.id === env.selected && 'is-active')}" aria-pressed="${p.id === env.selected ? 'true' : 'false'}" data-action="schedule.open" data-arg="${p.id}">
-    <span class="schd-plan__head"><strong>${p.when}</strong>${tag({ label: p.status, tone: p.done ? 'success' : 'warning' })}</span>
+    <span class="schd-plan__head"><strong>${p.when}</strong>${tag({ label: p.status, tone: p.done ? 'success' : p.status === '已暂停' ? 'neutral' : 'warning' })}</span>
     <span class="schd-plan__title">${p.title}</span>
     ${progress({ value: p.recorded, max: Math.max(1, p.total), label: '计划完成进度', size: 'sm', tone: p.done ? 'success' : 'accent' })}
     <span class="schd-plan__meta">已录入 ${p.recorded} / 共 ${p.total} 题</span><span class="schd-plan__id">${p.id}</span>
@@ -42,9 +42,10 @@ function detail(env) {
   if (!env.detail) return html`<div class="schd-detail" id="sch-plan-detail">${back}${skeleton({ lines: 5 })}</div>`;
   const d = env.detail;
   return html`<div class="schd-detail" id="sch-plan-detail">${back}
-  <div class="schd-detail__head"><div><h3 class="schd-detail__title">${d.title}</h3><p class="schd-meta" data-sid="${d.id}">${d.when} · ${d.id}</p></div>${tag({ label: d.status, tone: d.done ? 'success' : 'warning' })}</div>
+  <div class="schd-detail__head"><div><h3 class="schd-detail__title">${d.title}</h3><p class="schd-meta" data-sid="${d.id}">${d.when} · ${d.id}</p></div>${tag({ label: d.status, tone: d.done ? 'success' : d.paused ? 'neutral' : 'warning' })}</div>
   <p class="schd-detail__sum"><strong>已录入 ${d.recorded} / 共 ${d.total} 题</strong><span class="schd-meta">${d.hint}</span></p>
-  <div class="schd-acts">${button({ label: '录入结果', variant: 'primary', action: 'schedule.feedback', disabled: !d.canFeedback })}${button({ label: '导出打印版', icon: 'print', action: 'schedule.export', arg: 'a4', loading: s.exporting === 'a4', disabled: !d.canExport })}${button({ label: '导出屏幕版', icon: 'download', action: 'schedule.export', arg: 'screen', loading: s.exporting === 'screen', disabled: !d.canExport })}${button({ label: '删除调度', variant: 'danger', icon: 'trash', action: 'schedule.remove', loading: s.deleting.has(d.id) })}</div>
+  <div class="schd-acts">${button({ label: '录入结果', variant: 'primary', action: 'schedule.feedback', disabled: !d.canFeedback || s.changing.has(d.id) })}${!d.done ? button({ label: d.paused ? '恢复调度' : '暂停调度', icon: d.paused ? 'play' : 'pause', action: 'schedule.pause', loading: s.changing.has(d.id), disabled: s.deleting.has(d.id) }) : ''}${button({ label: '导出打印版', icon: 'print', action: 'schedule.export', arg: 'a4', loading: s.exporting === 'a4', disabled: !d.canExport })}${button({ label: '导出屏幕版', icon: 'download', action: 'schedule.export', arg: 'screen', loading: s.exporting === 'screen', disabled: !d.canExport })}${button({ label: '删除调度', variant: 'danger', icon: 'trash', action: 'schedule.remove', loading: s.deleting.has(d.id), disabled: s.changing.has(d.id) })}</div>
+  ${d.paused ? html`<p class="schd-meta">暂停期间不提醒录入，题目可重新安排复习；恢复时会检查是否被其他待完成计划占用。</p>` : ''}
   <p class="schd-meta">导出时可设置版式、答案与练习历史，并记住上次参数。</p>
   <div id="sch-status" role="status">${s.exportStatus ? status({ tone: s.exportStatus.ok ? 'success' : 'danger', text: s.exportStatus.text }) : ''}</div>
   <ol class="schd-questions">${each(d.questions, q => `${q.n}:${q.uid}`, q => html`<li class="schd-q">
@@ -62,7 +63,7 @@ function plans(env) {
   return html`<section class="schd-plans" id="sch-plans" role="tabpanel" aria-labelledby="sch-tab-plans" data-key="plans">
   <div class="schd-heading"><div><h2 class="schd-heading__title">每一次复习，都有去处</h2><p class="schd-meta">查看题目、导出练习、录入结果，接着上次的进度继续。</p></div>${button({ label: '刷新计划', icon: 'refresh', size: 'sm', action: 'schedule.refresh' })}</div>
   <div class="schd-filters">
-    <label class="schd-field"><span>计划状态</span><select id="sch-plan-filter" class="schd-input" data-change="schedule.filter">${[['active', '待完成'], ['completed', '已完成'], ['all', '全部']].map(([v, l]) => html`<option value="${v}"${s.filter === v ? ' selected' : ''}>${l}</option>`)}</select></label>
+    <label class="schd-field"><span>计划状态</span><select id="sch-plan-filter" class="schd-input" data-change="schedule.filter">${[['active', '待完成'], ['paused', '已暂停'], ['completed', '已完成'], ['all', '全部']].map(([v, l]) => html`<option value="${v}"${s.filter === v ? ' selected' : ''}>${l}</option>`)}</select></label>
     <label class="schd-field schd-field--grow"><span>查找计划</span><input id="sch-plan-search" class="schd-input" type="search" placeholder="搜索计划编号" value="${s.search}" data-input="schedule.search"></label>
   </div>
   <div id="sch-session-status" class="schd-note" role="status">${note}</div>

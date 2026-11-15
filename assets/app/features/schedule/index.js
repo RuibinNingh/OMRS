@@ -10,7 +10,7 @@ import { bindSessionEntry } from '../../domain/sessions.js';
 import { morph } from '../../core/dom.js';
 import { confirm } from '../../ui/dialog.js';
 import { toast } from '../../ui/toast.js';
-import { listSessions, sessionsState, refreshSessions, fetchSession, deleteSession, activeSessionId } from '../../domain/sessions.js';
+import { listSessions, sessionsState, refreshSessions, fetchSession, deleteSession, setSessionPaused, activeSessionId } from '../../domain/sessions.js';
 import { reloadData } from '../../domain/data.js';
 import { viewQ, qvSetContext, invalidateQuestions } from '../../domain/question/index.js';
 import { exporter as exporterState } from './exporter.js';
@@ -78,7 +78,7 @@ function createController(root, ctx) {
 
   async function remove() {
     const id = s.selected;
-    if (!id || s.deleting.has(id)) return;
+    if (!id || s.deleting.has(id) || s.changing.has(id)) return;
     s.deleting.add(id);
     paint();
     try {
@@ -112,6 +112,29 @@ function createController(root, ctx) {
 
   return {
     paint, show, open, remove, arr, exp,
+    async togglePause() {
+      const id = s.selected;
+      if (!id || !detailModel || detailModel.done || s.changing.has(id) || s.deleting.has(id)) return;
+      const paused = !detailModel.paused;
+      s.changing.add(id);
+      paint();
+      try {
+        const result = await setSessionPaused(id, paused);
+        if (!result.ok) { toast(`${paused ? '暂停' : '恢复'}失败：${result.error}`, { kind: 'error' }); return; }
+        if (s.selected === id) {
+          detailSeq += 1;
+          s.detail = result.data;
+          s.detailPhase = 'ready';
+          detailModel = S.detailModel(result.data);
+          if (s.filter !== 'all') s.filter = result.data.status;
+        }
+        toast(paused ? '调度已暂停，已录入进度保留。' : '调度已恢复，可继续录入结果。', { kind: 'ok' });
+        await arr.load();
+      } finally {
+        s.changing.delete(id);
+        if (ctl) paint();
+      }
+    },
     async bind(entryId) {
       const id = s.selected;
       const entry = s.detail?.entries?.find(entry => entry.entry_id === entryId && entry.availability === 'unresolved');
@@ -149,7 +172,7 @@ function createController(root, ctx) {
       if (!loading && !error && s.selected && s.view === 'plans' && s.detailPhase !== 'loading') open(s.selected, { focus: false });
     },
     async openPlan(id) {
-      s.filter = 'active';
+      s.filter = listSessions().find(session => session.session_id === id)?.status || 'all';
       s.search = '';
       show('plans', { reload: false });
       await open(id);
@@ -184,6 +207,7 @@ export const page = {
     feedback: ({ el }) => { if (!s.selected) return; el?.blur?.(); globalThis.__omrs?.router.go('feedback'); globalThis.__omrs?.emit('feedback:session', s.selected); },
     export: ({ arg }) => ctl?.exportPlan(arg),
     remove: () => ctl?.remove(),
+    pause: () => ctl?.togglePause(),
     bind: ({ arg }) => ctl?.bind(arg),
     preview: ({ arg }) => viewQ(arg, 'schedule-plan'),
     // ── 安排复习 ──

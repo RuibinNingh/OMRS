@@ -1,4 +1,4 @@
-"""MCP 复习计划创建：稳定身份、技术回执与领域投影在同一事务发布。"""
+"""复习计划事务：创建回执、暂停与恢复均在新鲜投影上原子发布。"""
 import contextlib
 import datetime
 import json
@@ -103,12 +103,41 @@ def _session_view(vault, db, receipt, reused):
             "subject_filter": subject, "completed_at": completed_at, "count": count,
             "total_count": len(entries) if row else receipt["count"], "entries": entries,
             "available": available, "reused": reused, **_progress(entries),
-            "actionable_pending_count": sum(e["availability"] == "active" and not e["feedback_submitted"] for e in entries) if available else 0,
+            "actionable_pending_count": sum(e["availability"] == "active" and not e["feedback_submitted"] for e in entries) if available and status == "active" else 0,
             "blocked_count": sum(e["availability"] in ("archived", "unresolved") and not e["feedback_submitted"] for e in entries)}
 
 
 def _now():
     return datetime.datetime.now(datetime.timezone.utc)
+
+
+@storage_write
+def set_session_paused(vault, session_id, paused):
+    """保留题目与反馈；恢复前在同一写事务内检查活动计划占用。"""
+    if not isinstance(session_id, str) or not session_id.strip():
+        raise ValueError("必须提供复习计划编号")
+    if not isinstance(paused, bool):
+        raise ValueError("暂停状态必须为布尔值")
+    target = "paused" if paused else "active"
+    with _session_transaction(vault) as (state, db, tuning):
+        session = db.execute("SELECT * FROM session_projection WHERE session_id=? AND retracted=0", (session_id,)).fetchone()
+        if not session:
+            raise ValueError("复习计划不存在或已撤销")
+        if session["status"] not in {"active", "paused"}:
+            raise ValueError("已完成的复习计划不能暂停或恢复")
+        if session["status"] != target:
+            if not paused:
+                entries = _entries(vault, _saved_session(session))
+                question_ids = {e["question_id"] for e in entries if e["availability"] == "active"}
+                for other in db.execute("SELECT session_id,items_json FROM session_projection WHERE status='active' AND retracted=0"):
+                    if question_ids.intersection(e["question_id"] for e in _decode_session_items(other["items_json"])):
+                        raise ValueError(f"题目已被待完成计划 {other['session_id']} 占用，请先完成或暂停该计划")
+            action = "暂停" if paused else "恢复"
+            info = append_commit_in_db(db, "api", "session.pause" if paused else "session.resume",
+                                       f"{action}复习计划 {session_id}", {"session_id": session_id})
+            apply_incremental(vault, db, state, tuning, info["seq"], info["seq"])
+    from .sessions import get_session
+    return get_session(vault, session_id)
 
 
 @storage_write

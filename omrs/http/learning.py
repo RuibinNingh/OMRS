@@ -11,6 +11,14 @@ class LearningRoutes:
                 self._json({'status': 'ok', 'session_id': session['session_id'], 'created_at': session['created_at'], 'subject_filter': session['subject_filter'], 'count': session['count'], 'session_status': session['status'], 'completed_at': session['completed_at'], 'items': session['items'], 'entries': session.get('entries',[]), 'uids': session.get('uids',[]), 'feedback_uids': session.get('feedback_uids',[])})
             except Exception as exc:
                 self._error(exc)
+        elif path in ('/api/session/pause', '/api/session/resume'):
+            try:
+                from ..session_operations import set_session_paused
+                data = self.services.http_io.json_body(self, body)
+                result = set_session_paused(self.vault_path, data.get('session_id', ''), path == '/api/session/pause')
+                self._json({'status': 'ok', 'session': result})
+            except Exception as exc:
+                self._error(exc)
         elif path == '/api/session/bind':
             try:
                 from ..sessions import bind_session_entry

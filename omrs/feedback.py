@@ -103,6 +103,8 @@ def _process_feedback(vault, feedbacks, session_id="", *, ledger_db, state, atte
     if session_id and ledger_db.execute("SELECT 1 FROM projection_session_corrections WHERE session_id=? AND retracted=1", (session_id,)).fetchone():
         raise ValueError("复习计划已撤销，不能提交反馈")
     session = state["sessions"].get(session_id) if session_id and not attempt_id else None
+    if session and session.get("Status") == "paused":
+        raise ValueError("复习计划已暂停，请先恢复计划再录入结果")
     if session and practice_round_id:
         raise ValueError("正式复习计划不能使用即时练习轮次标识")
     # 授权只需当前事务已校验的绑定快照，不在写事务内调用详情读模型。

@@ -216,6 +216,11 @@ def apply_commit(vault: str, state: dict, commit: dict):
             session["Status"] = "completed"
             session["Completed_At"] = payload.get("completed_at", commit["created_at"])
             session["_updated_seq"] = seq
+    elif ctype in {"session.pause", "session.resume"}:
+        session = state["sessions"].get(payload.get("session_id"))
+        if session and not session.get("_retracted") and session["Status"] != "completed":
+            session["Status"] = "paused" if ctype == "session.pause" else "active"
+            session["_updated_seq"] = seq
     elif ctype == "session.items_bind":
         session = state["sessions"].get(payload.get("session_id"))
         if session:

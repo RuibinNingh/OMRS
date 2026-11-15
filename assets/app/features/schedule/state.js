@@ -8,7 +8,7 @@ import { sessionProgress, sessionEntries } from '../../domain/sessions.js';
 export const state = {
   view: 'arrange', exportReturn: 'arrange', filter: 'active', search: '',
   selected: '', detail: null, detailPhase: 'idle', detailError: '', showDetail: false,
-  deleting: new Set(), deleted: false, exporting: '', exportStatus: null,
+  deleting: new Set(), changing: new Set(), deleted: false, exporting: '', exportStatus: null,
 };
 
 export const VIEWS = ['arrange', 'plans'];
@@ -29,6 +29,7 @@ export function tabKey(view, key) {
 }
 
 const when = text => String(text || '').replace('T', ' ');
+const planStatus = value => ({ active: '待完成', paused: '已暂停', completed: '已完成' })[value] || '待完成';
 
 export function filterPlans(list, filter = 'active', search = '') {
   const q = String(search || '').trim().toLowerCase();
@@ -38,7 +39,7 @@ export function filterPlans(list, filter = 'active', search = '') {
 export function planCard(s) {
   const p = sessionProgress(s);
   const done = (s.status || 'active') === 'completed';
-  return { id: s.session_id, when: when(s.created_at).slice(0, 16), done, status: done ? '已完成' : '待完成',
+  return { id: s.session_id, when: when(s.created_at).slice(0, 16), done, status: planStatus(s.status),
     title: `${s.subject_filter || '多科复习'} · ${p.total} 题`, total: p.total, recorded: p.feedback_count };
 }
 
@@ -60,10 +61,11 @@ export function detailModel(d) {
   });
   const pending = Number(d.pending_count) || 0;
   const done = d.status === 'completed';
+  const paused = d.status === 'paused';
   return {
-    id: d.session_id, title: `${d.subject_filter || '多科'}复习计划`, when: when(d.created_at), done, status: done ? '已完成' : '待完成',
+    id: d.session_id, title: `${d.subject_filter || '多科'}复习计划`, when: when(d.created_at), done, paused, status: planStatus(d.status),
     recorded: Number(d.feedback_count) || 0, total: Number(d.count) || questions.length, pending,
-    hint: pending ? `还有 ${pending} 题待录入` : '本次复习已全部录入', canFeedback: pending > 0 && !done && questions.some(q => !q.missing && !q.recorded),
+    hint: paused ? '进度已保留，恢复计划后可继续录入' : pending ? `还有 ${pending} 题待录入` : '本次复习已全部录入', canFeedback: pending > 0 && !done && !paused && questions.some(q => !q.missing && !q.recorded),
     canExport: questions.length > 0 && questions.every(q => !q.missing),
     questions, previewable: questions.filter(q => !q.missing && q.preview_key).map(q => q.preview_key),
   };

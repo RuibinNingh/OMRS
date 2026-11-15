@@ -125,4 +125,6 @@ zuoyebang 用途单独支持 PNG/JPEG/WebP，完成时验证完整解码、8MiB�
 
 ## 问题与调度提醒
 
+正式复习计划支持网页 `POST /api/session/pause` 和 `POST /api/session/resume`；请求、响应、占用冲突和反馈边界见 `AI/api/boards.md`。列表／详情及助手、MCP 的 `list_sessions` 可读取或筛选 `paused` 状态。
+
 问题HTTP查询、写入动作、附件、CAS与幂等契约见`AI/problems.md`。GET `/api/problems`支持服务端排序、回收站筛选及状态计数；POST `/api/problems/write`的网页专用manage_problems按整批CAS修改状态、移入回收站或恢复，每次最多100项，不向AI开放管理动作。GET `/api/schedule-banner`读取全局默认与revision；POST `/api/schedule-banner`以enabled/svg/expected_revision保存；POST `/api/schedule-banner/preview`只校验并返回预览，不写设置。POST `/api/export`可带schedule_banner对象：mode为session、off、current、replace，replace附svg；缺省沿用正式Session快照，旧Session不回填，临时/无Session使用当前默认。

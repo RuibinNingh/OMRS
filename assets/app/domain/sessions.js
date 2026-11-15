@@ -69,6 +69,22 @@ export async function deleteSession(id) {
   return { ok: true, error: '' };
 }
 
+/** 暂停或恢复；发布新快照前让旧列表请求作废，避免旧状态覆盖写入结果。 */
+export async function setSessionPaused(id, paused) {
+  const res = await post(`/api/session/${paused ? 'pause' : 'resume'}`, { session_id: id }, opts());
+  if (!res.ok) return { ok: false, error: res.error?.message || '未知错误' };
+  const session = res.data?.session;
+  if (res.data?.status !== 'ok' || session?.session_id !== id || session.status !== (paused ? 'paused' : 'active')) {
+    return { ok: false, error: res.data?.msg || '计划状态未更新，请刷新后重试' };
+  }
+  seq += 1;
+  loading = false;
+  error = '';
+  mirror(list.map(value => value.session_id === id ? { ...value, ...session } : value));
+  publish('sessions', list);
+  return { ok: true, data: session };
+}
+
 // ── 进度（纯函数；反馈录入页经 features/feedback/state.js 再导出为 fbSessionProgress）──
 export function sessionEntries(session) {
   if (Array.isArray(session?.entries)) return session.entries;

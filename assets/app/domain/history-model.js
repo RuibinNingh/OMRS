@@ -9,7 +9,7 @@ const number = (value, fallback = 0) => {
 export const isHistoryCorrection = row => corrections.has(row?.commit_type);
 export const historyCommitFamily = type => {
   if (type === 'review.batch_submit') return 'review';
-  if (type === 'session.create' || type === 'session.complete') return 'session';
+  if (['session.create', 'session.complete', 'session.pause', 'session.resume'].includes(type)) return 'session';
   if (type?.startsWith('question.')) return 'question';
   return 'system';
 };
@@ -117,6 +117,8 @@ export function historyNodeTitle(row, rs) {
     return `新建 ${historySessionLabel(sid)}`;
   }
   if (type === 'session.complete') return '完成复习 Session';
+  if (type === 'session.pause') return '暂停复习调度';
+  if (type === 'session.resume') return '恢复复习调度';
   if (type === 'question.create' || type === 'question.create_external') {
     const q = p.question || p;
     return `新增题目 · ${q.uid || q.UID || ''}`;

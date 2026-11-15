@@ -100,10 +100,12 @@ Vault根的`.omrs-maintenance/`保存生命周期锁、世代、恢复预检与j
 | `Subject_Filter` | string | 科目筛选条件（空=全科） |
 | `Count` | int | 题目数量 |
 | `UIDs` | JSON | 题目列表，新格式为 `[{"uid":"...","source":"due|proficiency"}]`，兼容旧格式 `["uid1","uid2"]` |
-| `Status` | string | `active` 或 `completed` |
+| `Status` | string | `active`（待完成）、`paused`（已暂停）或 `completed`（已完成） |
 | `Completed_At` | string | 完成时间（可为空） |
 
 临时调度（`TMP-` 前缀）**不写入**此文件。
+
+正式计划暂停和恢复通过 Ledger `session.pause`／`session.resume` 派生同一 Session 投影的状态，不新增独立存储或改写旧事实。暂停保留条目、来源、创建时间及反馈历史，不改熟练度或复习日期；恢复须检查当前活动计划的稳定身份占用。重复设置同一状态不追加事实；已完成或已撤销计划不接受暂停和恢复。
 **注意：** `UIDs` 是 Session 绑定条目的兼容 JSON；每项含 `entry_id`、`question_id`、`uid_at_creation`、`uid` 和 `source`。`source` 字段标记题目来源（`due`=到期列表，`proficiency`=熟练度列表），用于反馈时区分 SM-2 排期策略。
 
 复习调度工作台提交 `POST /api/confirm-schedule` 时传 `persist:true`，所以单题选择也写入 Ledger 并生成正式 `EXP-` Session；旧客户端省略该字段时仍按单题 TMP 兼容路径处理。正式 Session 的选择在写入前去重，并拒绝无效身份、非法来源、停用题和 active Session 重复占用。

@@ -75,6 +75,44 @@ test('fetchSession and progress helpers', async () => {
   assert.equal(D.sessionProgress({}).complete, false);
 });
 
+test('暂停状态发布后旧列表不能覆盖；失败保留状态和进度', async () => {
+  D.resetSessions();
+  const { fetch, calls } = deferredFetch();
+  D.connectSessions({ fetch });
+  const load = D.refreshSessions();
+  calls[0].resolve(json({ sessions: [{ session_id: 'S', status: 'active', uids: ['a', 'b'], feedback_uids: ['a'] }] }));
+  await load;
+  const stale = D.refreshSessions();
+  const pause = D.setSessionPaused('S', true);
+  assert.equal(calls[2].path, '/api/session/pause');
+  calls[2].resolve(json({ status: 'ok', session: { session_id: 'S', status: 'paused' } }));
+  assert.equal((await pause).ok, true);
+  calls[1].resolve(json({ sessions: [{ session_id: 'S', status: 'active' }] }));
+  assert.equal((await stale).stale, true);
+  assert.equal(D.openSessions().length, 0);
+  assert.equal(D.listSessions()[0].feedback_uids[0], 'a');
+  const resume = D.setSessionPaused('S', false);
+  assert.equal(calls[3].path, '/api/session/resume');
+  calls[3].resolve(json({ status: 'error', msg: '题目被占用' }, 400));
+  assert.equal((await resume).error, '题目被占用');
+  assert.equal(D.listSessions()[0].status, 'paused');
+});
+
+test('已暂停计划可单独筛选，保留进度与导出但不能反馈', () => {
+  const session = { session_id: 'P', status: 'paused', count: 2, pending_count: 1, feedback_count: 1,
+    feedback_uids: ['a'], uids: ['a', 'b'], items: [{ UID: 'a' }, { UID: 'b' }] };
+  assert.equal(S.activeCount([session]), 0);
+  assert.equal(S.filterPlans([session]).length, 0);
+  assert.equal(S.filterPlans([session], 'paused').length, 1);
+  assert.equal(S.planCard(session).status, '已暂停');
+  const model = S.detailModel(session);
+  assert.equal(model.canFeedback, false);
+  assert.equal(model.canExport, true);
+  assert.equal(model.paused, true);
+  assert.equal(model.recorded, 1);
+  assert.match(model.hint, /进度已保留/);
+});
+
 test('views: switching, export remembers where it came from, tab keys', () => {
   let s = { view: 'plans', exportReturn: 'arrange' };
   s = { ...s, ...S.nextView(s, 'export') };
