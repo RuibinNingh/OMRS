@@ -9,6 +9,8 @@
 
 ## 1. 安装与启动
 
+错因读取与写入统一使用题目Markdown：get_reflections包含旧裸文本和日期记录，add_reflection_entry追加、revise_reflection_entry修订或撤回单条，未知发生日期留空。已日期化的记录不能通过propose_question_update的cause补丁整体覆盖；完整权限与审核规则保持问题域边界，审批还核对正文哈希。正文格式和旧库启动归并见`AI/problems.md`、`AI/data.md`。
+
 MCP 使用官方 Python SDK 的 Streamable HTTP。安装可选依赖后与主 Web 服务同进程启动；普通 Web 启动无需这些依赖：
 
 ```bash

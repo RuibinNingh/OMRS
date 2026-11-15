@@ -8,6 +8,7 @@ import { chipsHtml } from '../labels/chips.js';
 import { escape } from '../../core/html.js';
 import { renderMd, mdLineBreakMode } from './markdown.js';
 import { richMarkdown } from '../rich-markdown.js';
+import { notesWithoutCause } from './notes.js';
 import { qRecordsFromDetail, qHistoryStats } from './records.js';
 import { dueDays, itemOf } from '../items.js';
 import { formatLedgerTime, ledgerTimeZone } from '../history.js';
@@ -123,9 +124,10 @@ export function qvHtml(q, item, opts) {
       side.push(`<div class="q-md q-answer-md">${renderMd(detail.answer || '（无答案内容）')}</div>`);
     }
   }
-  if (o.showNotes && o.reveal && String(detail.notes || '').trim()) {
-    side.push('<div class="qv-label">备注 / 错因</div>');
-    side.push(`<div class="q-md q-notes-md">${richMarkdown(detail.notes, mdLineBreakMode())}</div>`);
+  const notes = notesWithoutCause(detail.notes || '');
+  if (o.showNotes && o.reveal && notes) {
+    side.push('<div class="qv-label">备注</div>');
+    side.push(`<div class="q-md q-notes-md">${richMarkdown(notes, mdLineBreakMode())}</div>`);
   }
   const answer = side.length ? `<section class="qv-a">${side.join('')}</section>` : '';
   const record = o.showHistory ? qvRecordHtml(detail, model) : '';

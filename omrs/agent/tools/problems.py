@@ -10,7 +10,7 @@ REQUIRED={'create_problem':['title'],'update_problem':['id','expected_revision']
           'unlink_problem_questions':['id','expected_revision','question_ids'],'add_reflection_entry':['question_id','content_md'],
           'revise_reflection_entry':['id','expected_revision','reason'],'add_problem_asset':['data_base64']}
 LABELS={'create_problem':'创建问题','update_problem':'修改问题描述或状态（变更状态必须给理由）','link_problem_questions':'关联问题材料',
-        'unlink_problem_questions':'解除材料关联','add_reflection_entry':'追加独立错因记录','revise_reflection_entry':'修订或撤回具体错因记录','add_problem_asset':'保存问题图片或静态SVG附件'}
+        'unlink_problem_questions':'解除材料关联','add_reflection_entry':'向题目 Markdown 追加错因记录','revise_reflection_entry':'修订或撤回 Markdown 中的具体错因记录','add_problem_asset':'保存问题图片或静态SVG附件'}
 
 
 def _write(_ctx,_args):

@@ -103,6 +103,9 @@ def replace_section(content, section, text, mode):
     """返回 (新正文, 旧的这一节)。题目 / 答案是一级标题；错因是「# 备注」下的「## 错因」。原有的图片嵌入一律保留。"""
     text = (text or "").strip()
     if section == "错因":
+        from ...reflection_markdown import structured
+        if structured(content):
+            raise ValueError('日期化错因须通过 add_reflection_entry 或 revise_reflection_entry 修改，不能整段覆盖')
         m = re.search(r"^##\s*错因[ \t]*\n(.*?)(?=^##?\s|\Z)", content, re.S | re.M)
         if not m:
             b = re.search(r"^#\s+备注[ \t]*\n", content, re.M)
@@ -283,7 +286,7 @@ SPECS = [
      {"type": "object", "required": ["uids"], "properties": {"uids": {"type": "array", "minItems": 1, "maxItems": 50, "items": _UID},
                                                           "add": {"type": "array", "items": _S}, "remove": {"type": "array", "items": _S}}},
      set_question_labels, set_question_labels_preview),
-    ("update_question_section", "confirm", "改一道题的「题目」「答案」或「错因」这一节（替换或追加）。可用diagrams新增或替换静态SVG配图，原图保留供历史恢复。只配图时用mode=append、content为空以保留原文字。配图按90mm双栏设计，白底、文字至少8.5pt、线宽至少0.5pt、高不超过90mm；复杂内容拆图。需要用户审核图意与修改后允许。",
+    ("update_question_section", "confirm", "改一道题的「题目」「答案」或旧纯文本「错因」这一节（替换或追加）。日期化错因通过add_reflection_entry追加或revise_reflection_entry修订，不整段覆盖历史。可用diagrams新增或替换静态SVG配图，原图保留供历史恢复。只配图时用mode=append、content为空以保留原文字。配图按90mm双栏设计，白底、文字至少8.5pt、线宽至少0.5pt、高不超过90mm；复杂内容拆图。需要用户审核图意与修改后允许。",
      {"type": "object", "required": ["uid", "section", "content"], "properties": {
          "uid": _UID, "section": {"type": "string", "enum": list(SECTIONS)},
          "mode": {"type": "string", "enum": ["replace", "append"]},

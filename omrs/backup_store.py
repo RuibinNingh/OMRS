@@ -171,6 +171,8 @@ def create_backup(vault):
         with exclusive(vault), write_lock():
             from .question_update import recover_pending as recover_question_updates
             recover_question_updates(vault)
+            from .reflection_journal import recover_pending as recover_reflections
+            recover_reflections(vault)
             from .label_plan_journal import recover_pending as recover_label_plans
             recover_label_plans(vault)
             for attempt in range(3):

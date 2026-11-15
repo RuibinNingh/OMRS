@@ -10,19 +10,29 @@ import { reflectionsView, draftLabel } from './reflections-view.js';
 export function mountReflections(host, questionId) {
   const draft = new ReflectionDraft(questionId);
   const s = {
-    entries: [], problems: [], tab: 'new', loading: true, busy: false, message: '',
+    entries: [], problems: [], tab: 'history', loading: true, busy: false, message: '',
     composing: false, association: false, more: false, search: '',
     expanded: new Set(), revisions: new Set(), revision: draft.value.editing_entry || null,
   };
   let alive = true;
   let guard = false;
+  let loadVersion = 0;
   function paint() { if (alive) morph(host, reflectionsView(s, draft)); }
   async function load() {
+    const version = ++loadVersion;
     const [entries, problems] = await Promise.all([
-      read(`/api/reflections?question_id=${encodeURIComponent(questionId)}`), read('/api/problems?limit=100'),
+      read(`/api/reflections?question_id=${encodeURIComponent(questionId)}&limit=100`), read('/api/problems?limit=100'),
     ]);
-    if (!alive) return;
-    s.entries = entries.items;
+    if (!alive || version !== loadVersion) return;
+    const items = [...entries.items];
+    let cursor = entries.next_cursor;
+    while (cursor && alive && version === loadVersion) {
+      const next = await read(`/api/reflections?question_id=${encodeURIComponent(questionId)}&limit=100&cursor=${encodeURIComponent(cursor)}`);
+      items.push(...next.items);
+      cursor = next.next_cursor;
+    }
+    if (!alive || version !== loadVersion) return;
+    s.entries = items;
     s.problems = problems.items;
     s.loading = false;
     paint();
@@ -48,7 +58,7 @@ export function mountReflections(host, questionId) {
     try {
       const data = draft.payload();
       if (s.revision) await write('revise_reflection_entry', {
-        id: s.revision.id, expected_revision: s.revision.revision, content_md: data.content_md,
+        id: s.revision.id, expected_revision: s.revision.revision, expected_content_hash: s.revision.content_hash, content_md: data.content_md,
         problem_ids: data.problem_ids, occurred_at: data.occurred_at,
         reason: '用户修订错因', request_id: data.request_id,
       });
@@ -90,7 +100,7 @@ export function mountReflections(host, questionId) {
       draft.clear();
       draft.update({
         content_md: entry.content_md, problem_ids: entry.problem_ids, occurred_at: entry.occurred_at || '',
-        editing_entry: { id: entry.id, revision: entry.revision },
+        editing_entry: { id: entry.id, revision: entry.revision, content_hash: entry.content_hash },
       });
       s.revision = entry;
       s.message = '';
@@ -101,7 +111,7 @@ export function mountReflections(host, questionId) {
       const entry = s.entries.find(v => v.id === el.dataset.id);
       const reason = await prompt('撤回原因');
       if (reason && alive) {
-        await write('revise_reflection_entry', { id: entry.id, expected_revision: entry.revision, withdrawn: true, reason, request_id: requestId() });
+        await write('revise_reflection_entry', { id: entry.id, expected_revision: entry.revision, expected_content_hash: entry.content_hash, withdrawn: true, reason, request_id: requestId() });
         await load();
       }
     },
@@ -109,7 +119,7 @@ export function mountReflections(host, questionId) {
       const entry = s.entries.find(v => v.id === el.dataset.id);
       const reason = await prompt('确认错因的依据');
       if (reason && alive) {
-        await write('revise_reflection_entry', { id: entry.id, expected_revision: entry.revision, basis: 'user_confirmed', reason, request_id: requestId() });
+        await write('revise_reflection_entry', { id: entry.id, expected_revision: entry.revision, expected_content_hash: entry.content_hash, basis: 'user_confirmed', reason, request_id: requestId() });
         await load();
       }
     },
@@ -170,6 +180,10 @@ export function mountReflections(host, questionId) {
   for (const [name, handler] of Object.entries(listeners)) host.addEventListener(name, handler);
   host.addEventListener('toggle', disclosure, true);
   paint();
+  const markdownChanged = event => {
+    if (event.detail?.question_id === questionId) load().catch(error => { s.message = error.message; paint(); });
+  };
+  window.addEventListener('omrs:question-markdown', markdownChanged);
   bindTabs(host.querySelector('[role="tablist"]'));
   load().catch(error => { s.loading = false; s.message = error.message; paint(); });
   async function canLeave() {
@@ -198,6 +212,7 @@ export function mountReflections(host, questionId) {
     canLeave,
     dispose() {
       alive = false;
+      window.removeEventListener('omrs:question-markdown', markdownChanged);
       for (const [name, handler] of Object.entries(listeners)) host.removeEventListener(name, handler);
       host.removeEventListener('toggle', disclosure, true);
     },

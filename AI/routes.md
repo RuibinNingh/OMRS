@@ -147,7 +147,7 @@
 | POST | `/api/question/suspend` | `AI/api/mutations.md`、`AI/frontend/library.md` |
 | POST | `/api/questions/labels` | `AI/api/mutations.md`、`AI/labels.md` |
 | GET | `/api/recommend` | `AI/algorithm.md`、`AI/api/queries.md`、`AI/changelog.md`等 |
-| GET | `/api/reflections` | `AI/problems.md` |
+| GET | `/api/reflections` | `AI/api.md`、`AI/problems.md` |
 | POST | `/api/report/create` | `AI/api/boards.md`、`AI/frontend/records.md` |
 | POST | `/api/report/delete` | `AI/api/boards.md`、`AI/frontend/records.md` |
 | GET | `/api/report/view` | `AI/api/queries.md`、`AI/data/storage.md`、`AI/frontend/records.md` |

@@ -178,7 +178,7 @@ NESTED_PARAMETERS = {
 
 OBJECT_PARAMETERS = {
     'update_draft': {'subject': '非空科目字符串，最多 200 字符。', 'category': '非空分类字符串，最多 200 字符。', 'knowledge_points': '字符串数组，最多 8 项，每项最多 200 字符；[] 清空。', 'cause': '用户明确表达的错因字符串，最多 20000 字符；空串清空，也必须提供 cause_statement。', 'note': '草稿备注字符串，最多 20000 字符；空串清空。'},
-    'propose_question_update': {'question_text': '题目节完整替换文字，最多 500000 字符；保留全部条件和原图片，不能注入一级系统标题。', 'answer_text': '答案节完整替换文字，最多 500000 字符；保留原图片，不能注入一级系统标题。' + ANSWER_CONTENT_RULES, 'cause': '用户明确表达的错因文字，最多 500000 字符；空串清空，不注入一级或二级系统标题。', 'note': '补充备注文字，最多 500000 字符；空串清空，不包含错因或系统标题。', 'knowledge_points': '最多 64 个非空知识点名称，每项最多 200 字符；[] 清空。', 'difficulty': '1–10 的严格整数难度，不接受布尔值或小数。', 'labels': '最多 64 个已有标记名称，每项最多 200 字符；[] 清空，不创建标记。', 'diagrams': SVG_RULES},
+    'propose_question_update': {'question_text': '题目节完整替换文字，最多 500000 字符；保留全部条件和原图片，不能注入一级系统标题。', 'answer_text': '答案节完整替换文字，最多 500000 字符；保留原图片，不能注入一级系统标题。' + ANSWER_CONTENT_RULES, 'cause': '仅兼容旧纯文本错因，最多 500000 字符；日期化记录须先get_reflections再add_reflection_entry追加或revise_reflection_entry修订，不能整段覆盖或清空历史。', 'note': '补充备注文字，最多 500000 字符；空串清空，不包含错因或系统标题。', 'knowledge_points': '最多 64 个非空知识点名称，每项最多 200 字符；[] 清空。', 'difficulty': '1–10 的严格整数难度，不接受布尔值或小数。', 'labels': '最多 64 个已有标记名称，每项最多 200 字符；[] 清空，不创建标记。', 'diagrams': SVG_RULES},
     'update_board': {'name': '板名字符串，1–120 字符；改名还需 expected_catalog_revision。', 'note': '板备注字符串，最多 20000 字符；空串清空。', 'source_labels': '最多 100 个来源说明字符串，每项最多 200 字符；[] 清空，不改题目标记。'},
     'update_board_folder': {'name': '文件夹名字符串，1–60 字符。', 'order': '从 0 开始的严格整数位置，最大为当前文件夹数减 1。'},
     'update_board_item': {'gap_lines': '严格整数 0–48，或 null 恢复继承全局留白。', 'pin': '布尔值，是否置顶该条目。'},
@@ -254,7 +254,7 @@ _PROBLEM_PARAMETERS = {
     'subject':'可选学科显示说明，最多80字符，不改变题目分类。',
     'expected_revision':'从get_problem或get_reflections取得的当前严格整数revision；冲突须重新读取。',
     'reason':'状态跳转、重新开启或修订/撤回的非空理由，最多1000字符。',
-    'content_md':'本次独立错因正文，1至20000字符；AI内容保留假设标记，不冒充用户亲述。',
+    'content_md':'保存在原题Markdown的本次错因正文，1至20000字符；AI内容保留假设标记，不冒充用户亲述。',
     'problem_ids':'零至100个PRB稳定问题身份；关联后同事务补齐问题与题目的材料关系。',
     'recurrence_of':'可选同题REF记录身份，表示再次发生；不创建练习成绩。',
     'occurred_at':'可选发生日期；未知留空，不把补记时间冒充真实发生时间。',

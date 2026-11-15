@@ -9,11 +9,12 @@ export function draftLabel(state, draft) {
 
 function entryView(entry, state) {
   return html`<article class="ref-entry" data-key="${entry.id}">
+    <p class="ref-note">${entry.occurred_at || '日期未知'}</p>
     ${entry.basis === 'ai_hypothesis' ? html`<p class="ref-hypothesis">AI 假设 · 待确认依据</p>` : ''}
     ${entry.recurrence_of ? html`<p class="ref-note">再次发生</p>` : ''}
     <div class="q-md">${entry.withdrawn ? '此记录已撤回，修订痕迹已保留。' : raw(markdown(entry.content_md))}</div>
     <details class="ref-entry__details" data-ref-entry-details="${entry.id}" ${raw(state.expanded.has(entry.id) ? 'open' : '')}>
-      <summary>${new Date(entry.created_at * 1000).toLocaleString('zh-CN')} · 详情与操作</summary>
+      <summary>${entry.created_at ? new Date(entry.created_at * 1000).toLocaleString('zh-CN') : '原有记录'} · 详情与操作</summary>
       <p class="ref-note">${entry.basis === 'ai_hypothesis' ? 'AI 假设' : '用户记录'} · 第 ${entry.revision} 版 · 发生日期：${entry.occurred_at || '未知'}</p>
       ${entry.revision > 1 ? html`<details data-ref-revisions="${entry.id}" ${raw(state.revisions.has(entry.id) ? 'open' : '')}><summary>查看修订痕迹</summary>${(entry.revisions || []).map(r => html`<p class="ref-note">第 ${r.value.revision} 版 · ${r.reason || '初次记录'}</p><div class="q-md">${raw(markdown(r.value.content_md))}</div>`)}</details>` : ''}
       ${!entry.withdrawn ? html`<div class="ref-actions">
@@ -32,8 +33,8 @@ export function reflectionsView(state, draft) {
   return html`<section class="reflections" aria-label="快捷错因与记录">
     <div class="ref-head"><strong>错因记录 · ${state.entries.length} 条</strong></div>
     ${tabs({ label: '错因记录', idPrefix: prefix, value: state.tab, items: [
-      { id: 'new', label: '记录本次', panel: `${prefix}-editor`, disabled: state.busy },
       { id: 'history', label: '历史记录', badge: state.entries.length, panel: `${prefix}-history-panel`, disabled: state.busy },
+      { id: 'new', label: '记录本次', panel: `${prefix}-editor`, disabled: state.busy },
     ] })}
     <div id="${prefix}-editor" role="tabpanel" aria-labelledby="${prefix}-new" data-ref-panel="new" ${raw(state.tab !== 'new' ? 'hidden' : '')}>
       <fieldset class="ref-form" ${raw(state.busy ? 'disabled' : '')}>

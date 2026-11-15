@@ -60,3 +60,5 @@ CLI 在读取配置、初始化数据库、补齐回执和扫描之前调用目�
 ## 问题、附件与提醒
 
 在线捕获遍历全部普通文件和SQLite，因此包含problems.db、problem-assets与Ledger内的Session提醒快照；问题写遵守同一生命周期屏障。整库恢复替换独立问题事实并增加世代，废止恢复前和备份中的AI待审核许可，不在普通GET中重放业务。问题读取和学习状态恢复彼此独立；回归见`tests/test_problem_store.py`。
+
+错因正文随原题Markdown捕获，身份索引、关联、审计和幂等回执随problems.db捕获；Ledger同时保留正文历史。创建备份先收束`.omrs-maintenance/reflections/`的未完成写入，避免备份文件与回执处于半提交状态；恢复后旧世代意图不写新题库。错因归并与进程中断回归见`tests/test_reflection_markdown.py`。

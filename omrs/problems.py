@@ -1,4 +1,5 @@
-"""问题与多次错因；不触碰题目正文、学习状态或调度进度。"""
+"""问题与多次错因；错因写入题目 Markdown，不改变学习状态。"""
+import copy
 import datetime
 import hashlib
 import json
@@ -8,6 +9,7 @@ import uuid
 from . import problem_store as store
 from .data_repository import storage_write, resolve_question
 from .vault_lifecycle import storage, generation
+from . import reflection_markdown as markdown
 
 STATUSES = {'analyzing':'待分析', 'working':'处理中', 'verifying':'待验证', 'resolved':'已解决', 'parked':'搁置'}
 ACTIONS = ('create_problem', 'update_problem', 'link_problem_questions', 'unlink_problem_questions', 'add_reflection_entry', 'revise_reflection_entry', 'add_problem_asset')
@@ -119,6 +121,57 @@ def _page(values, limit=50, cursor=0):
     return {'items':values[offset:offset+limit], 'total':len(values), 'next_cursor':str(offset+limit) if offset+limit < len(values) else None}
 
 
+def _entries(vault, question_id, db, content=None):
+    from .question_update import _read
+    row = _question(vault, question_id)
+    if content is None:
+        try:
+            content, _ = _read(vault, row)
+        except FileNotFoundError:
+            if not row.get('archived'):
+                raise
+            from .ledger import get_blob
+            content = get_blob(vault, row.get('content_hash', '')) or ''
+    values = markdown.parse(content, question_id)
+    seen = {v['id'] for v in values}
+    if db:
+        for raw in db.execute("SELECT data FROM objects WHERE kind='entry' AND question_id=?", (question_id,)):
+            value = json.loads(raw[0])
+            if value['id'] not in seen:
+                value['revisions'] = [json.loads(r[0]) for r in db.execute(
+                    'SELECT data FROM events WHERE object_id=? ORDER BY seq DESC', (value['id'],))]
+                values.append(value)
+    if not row.get('archived'):
+        from .ledger import blob_hash
+        current_hash = blob_hash(content)
+        for value in values:
+            value['content_hash'] = current_hash
+    return values
+
+
+def load_entry(vault, identity, db=None):
+    if db is None:
+        with store.connect(vault) as own:
+            return load_entry(vault, identity, own) if own else _find_entry(vault, identity)
+    row = db.execute("SELECT question_id FROM objects WHERE id=? AND kind IN ('entry','entry_ref')", (identity,)).fetchone()
+    if row:
+        return next((e for e in _entries(vault, row[0], db) if e['id'] == identity), None) or _missing_entry()
+    return _find_entry(vault, identity, db)
+
+
+def _missing_entry():
+    raise ValueError('错因记录不存在，可能已在 Markdown 中移除')
+
+
+def _find_entry(vault, identity, db=None):
+    from .data_repository import mastery_rows
+    for row in mastery_rows(vault, include_archived=True):
+        found = next((e for e in _entries(vault, row['question_id'], db) if e['id'] == identity), None)
+        if found:
+            return found
+    return _missing_entry()
+
+
 @storage
 def search(vault, query='', status='', question_id='', limit=50, cursor=0, sort='updated_desc', deleted=''):
     if sort not in ('updated_desc', 'updated_asc', 'title', 'questions_desc') or deleted not in ('', 'only'):
@@ -150,22 +203,47 @@ def get(vault, identity):
             row = resolve_question(vault, question_id=link['question_id'], include_archived=True)
             value['questions'].append({'question_id':link['question_id'], 'uid':row['uid'] if row else link['uid'], 'available':bool(row and not row['archived'])})
         value['events'] = [json.loads(r[0]) for r in db.execute('SELECT data FROM events WHERE object_id=? ORDER BY seq DESC LIMIT 100',(identity,))]
-        value['entries'] = [json.loads(r[0]) for r in db.execute("SELECT data FROM objects WHERE kind='entry'") if identity in json.loads(r[0]).get('problem_ids',[])]
+        qids = {q['question_id'] for q in value['questions']}
+        qids.update(r[0] for r in db.execute("SELECT DISTINCT question_id FROM objects WHERE kind IN ('entry','entry_ref')"))
+        value['entries'] = [e for qid in qids for e in _entries(vault, qid, db) if identity in e.get('problem_ids', [])]
         return value
 
 
 @storage
 def reflections(vault, question_id, limit=50, cursor=0):
     with store.connect(vault) as db:
-        values = [json.loads(r[0]) for r in db.execute("SELECT data FROM objects WHERE kind='entry' AND question_id=?",(question_id,))] if db else []
-        page = _page(sorted(values,key=lambda v:v['created_at'],reverse=True),limit,cursor)
-        for value in page['items']:
-            value['revisions']=[json.loads(r[0]) for r in db.execute('SELECT data FROM events WHERE object_id=? ORDER BY seq DESC LIMIT 50',(value['id'],))]
-        return page
+        values = _entries(vault, question_id, db)
+        return _page(sorted(values,key=lambda v:(v.get('created_at') or 0, v['id']),reverse=True),limit,cursor)
+
+
+@storage_write
+def migrate_legacy(vault):
+    """启动将旧数据库记录归入原题；只转换仍有工作文件的题目，重复执行无副作用。"""
+    with store.connect(vault) as db:
+        values = [json.loads(r[0]) for r in db.execute("SELECT data FROM objects WHERE kind='entry'")] if db else []
+    done = set()
+    for value in values:
+        qid = value['question_id']
+        if qid in done or _question(vault, qid).get('archived'):
+            continue
+        execute(vault, 'revise_reflection_entry', {'id':value['id'], 'expected_revision':value['revision'],
+                'reason':'将旧错因记录归入题目 Markdown', 'request_id':'reflection-migration:' + qid}, actor={'kind':'migration'})
+        done.add(qid)
+    return len(done)
 
 
 @storage_write
 def execute(vault, action, data, actor=None, review=None):
+    from .reflection_journal import recover_pending
+    recover_pending(vault)
+    try:
+        return _execute(vault, action, data, actor, review)
+    except Exception:
+        recover_pending(vault)
+        raise
+
+
+def _execute(vault, action, data, actor=None, review=None):
     if action not in ACTIONS + WEB_ACTIONS or not isinstance(data,dict):
         raise ValueError('不支持的问题操作')
     actor = dict(actor or {'kind':'web'})
@@ -229,7 +307,7 @@ def execute(vault, action, data, actor=None, review=None):
             _question(vault,qid)
             pids = ids(data.get('problem_ids',[]))
             recurrence = data.get('recurrence_of','')
-            previous_entry = store.load(db,recurrence,'entry') if recurrence else {}
+            previous_entry = load_entry(vault,recurrence,db) if recurrence else {}
             if recurrence and previous_entry['question_id'] != qid:
                 raise ValueError('再次发生必须引用同一道题的记录')
             for pid in pids:
@@ -241,7 +319,7 @@ def execute(vault, action, data, actor=None, review=None):
                      'basis':'ai_hypothesis' if ai else 'user_confirmed'}
             kind = 'entry'
         elif action == 'revise_reflection_entry':
-            value = store.load(db,data.get('id'),'entry')
+            value = copy.deepcopy(load_entry(vault,data.get('id'),db))
             _cas(value,data)
             text(data.get('reason',''),1000,True)
             if 'content_md' in data:
@@ -269,12 +347,38 @@ def execute(vault, action, data, actor=None, review=None):
             from .problem_assets import save
             value = save(vault,data)
             kind = 'asset'
+        pending = None
         if action != 'manage_problems':
-            store.save(db,kind,value)
-            event = {'action':action,'at':now,'actor':actor,'generation':generation(vault), 'reason':data.get('reason',''), 'value':value}
+            event = {'action':action,'at':now,'actor':actor,'generation':generation(vault), 'reason':data.get('reason',''),
+                     'value':{k:v for k,v in value.items() if k not in ('revisions', 'content_hash')}}
+            if kind == 'entry':
+                from .question_update import _read
+                from .reflection_journal import stage
+                row = _question(vault, value['question_id'])
+                if row.get('archived'):
+                    raise ValueError('题目已归档，不能修改其 Markdown 错因')
+                before, _ = _read(vault, row)
+                from .ledger import blob_hash
+                current_hash = blob_hash(before)
+                if any(expected and expected != current_hash for expected in
+                       (data.get('expected_content_hash'), value.get('content_hash'))):
+                    raise ProblemConflict('题目 Markdown 已变化，请重新读取错因记录；草稿已保留')
+                entries = _entries(vault, value['question_id'], db, content=before)
+                value['revisions'] = [event] + value.get('revisions', [])
+                entries = [e for e in entries if e['id'] != value['id']] + [value]
+                after = markdown.replace(before, entries)
+                pending = stage(vault, row, before, after, request_id, digest, actor)
+                value['content_hash'] = blob_hash(after)
+                for entry in entries:
+                    store.save(db, 'entry_ref', {'id':entry['id'], 'question_id':entry['question_id']})
+            else:
+                store.save(db,kind,value)
             db.execute('INSERT INTO events(object_id,data) VALUES(?,?)',(value['id'],store.dumps(event)))
         result = {kind:value,'wrote':True,'request_id':request_id}
         db.execute('INSERT INTO receipts VALUES(?,?,?)',(request_id,digest,store.dumps(result)))
         if review:
             db.execute('INSERT INTO ai_review_receipts VALUES(?,?,?)',(review['operation_id'],review['effective_digest'],store.dumps(result)))
-        return result
+    if pending:
+        from .reflection_journal import finish
+        finish(vault, *pending)
+    return result

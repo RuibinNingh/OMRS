@@ -1,21 +1,27 @@
 # 问题中心与错因记录
 
 > **速查**
-> - 职责：独立问题、题目材料关联、多次错因、修订审计与原生回执
-> - 入口：`omrs/problems.py`、`omrs/problem_store.py`、`omrs/problem_assets.py`、`omrs/problem_review.py`
+> - 职责：独立问题、题目材料关联、Markdown 多次错因、修订审计与原生回执
+> - 入口：`omrs/problems.py`、`omrs/reflection_markdown.py`、`omrs/reflection_journal.py`、`omrs/problem_store.py`、`omrs/problem_review.py`
 > - 不变量：稳定question_id；不改变熟练度、Attempts、EF、到期或Session进度；普通读不建库
-> - 必跑测试：`tests/test_problems.py`、`tests/test_mcp_problems.py`、`tests/test_schedule_banner.py`、`tests/e2e/problems.py`
+> - 必跑测试：`tests/test_problems.py`、`tests/test_reflection_markdown.py`、`tests/test_mcp_problems.py`、`tests/test_schedule_banner.py`、`tests/e2e/problems.py`
 > - 相关：`AI/frontend/problems.md`、`AI/data.md`、`AI/ai-review.md`、`AI/backup.md`
 
 ## 领域与身份
 
 问题允许无关联题，题目与问题多对多。状态为analyzing（待分析）、working（处理中）、verifying（待验证）、resolved（已解决）、parked（搁置）。状态切换必须提供理由，允许跳转和重新开启，不推导任何学习成绩。
 
-独立错因以REF身份追加，正文必填，可关联多个问题、可引用同题记录表示再次发生。新增记录同事务补齐问题与该题的材料关系；修订/撤回保留事件旧值，不级联删除旧附件。occurred_at为空表示发生时间未知，created_at仅表示记录时间。旧题Markdown错因仍由原题展示，不自动迁移或拼接。
+错因以题目 Markdown 的 `# 备注` / `## 错因` 为唯一正文来源，以REF身份追加，可关联多个问题、可引用同题记录表示再次发生。旧裸文本作为日期未知的历史记录读取，不因查看而改写。日期记录使用三级日期标题，正文以引用块保存，隐藏 JSON 注释保留身份、来源、关联、版本与完整修订；代码围栏内的标题不作为系统分节。格式见 `AI/data.md`。
+
+新增记录补齐问题与该题的材料关系；修订/撤回保留事件旧值，不级联删除旧附件。occurred_at为空表示发生时间未知，created_at仅表示记录时间；旧文本两者均未知。手改正文或日期通过同一读取路径生效，正文和content_hash来自同一次文件读取；网页修订携带该hash，保存时再次核对，冲突保留草稿。结构化记录不能通过旧cause整段替换，须使用追加、修订或显式Markdown编辑。
 
 ## 存储与事务
 
-`错题/.omrs/problems.db` schema 1：objects保存problem、entry和asset当前值，links保存problem_id/question_id与UID展示快照，events只追加修订事实，receipts保存幂等结果，ai_review_receipts保存同事务审核回执，settings保存调度提醒。读取使用只读连接且不初始化架构；不支持的版本或损坏明确报错。写入依次取得生命周期租约、全局写锁和SQLite事务，事件记录当前世代。
+`错题/.omrs/problems.db` schema 1：objects保存problem、asset及entry_ref身份索引，links保存problem_id/question_id与UID展示快照，events只追加修订事实，receipts保存幂等结果，ai_review_receipts保存同事务审核回执，settings保存调度提醒。entry_ref只保存编号与question_id，不保存另一份当前正文；审计与旧回执不用于覆盖Markdown。读取使用只读连接且不初始化架构；不支持的版本或损坏明确报错。
+
+普通读取兼容旧entry对象，并按REF去重。正常serve在扫描后将旧数据库记录幂等归入原题，并转换身份索引；保留原发生日期、来源、编号和旧修订，迁移自身留下一条修订依据。归档无工作文件的旧记录继续兼容读取，不能写入已归档题。只读盘点不迁移。
+
+写入依次取得生命周期租约、全局写锁和SQLite事务，事件记录当前世代。`reflection_journal.py`先保存精确文件意图、再替换Markdown、提交问题回执，最后将前后正文与幂等结果同事务写入Ledger。问题事务未提交时恢复原文件；已提交时补齐正文事实；存在外部改动则保留现场并拒绝自动覆盖。启动及备份先恢复未完成意图，跨世代意图废止；不产生作答或调度事实。
 
 每次写必须提供request_id；同编号同内容重试返回原结果，同编号不同内容409。修改问题、关联、修订记录必须expected_revision匹配。关联查询按原question_id解析当前UID，归档或不可用材料保留原身份，不能跳转到复用UID的新题。
 
@@ -35,4 +41,4 @@ GET `/api/problem-asset?name=`读取内容寻址附件。上传操作接收data_
 
 MCP查询需omrs:read与problem:read，写还需problem:write；默认Key不扩权。所有正式MCP写先进入统一审核，批准前重新核验Key、世代和revision，结果以领域同事务回执为准。助手工具为confirm级，走原对话的手动、送审或显式危险模式。AI记录标记ai_hypothesis，业务状态改变不能将假设变成用户确认。
 
-用户明确确认问题或错因时须提供依据，AI修改描述会重新标记假设。新增错因首次补齐材料关系时同步推进问题revision并追加reflection_link审计；既有关联不重复推进。修订记录保留发生日期及最多50条近期修订事件。审核影响预览显示当前值与新值，附件预览只使用已校验的字节。
+用户明确确认问题或错因时须提供依据，AI修改描述会重新标记假设。新增错因首次补齐材料关系时同步推进问题revision并追加reflection_link审计；既有关联不重复推进。完整修订同时保存在Markdown和不可变审计中，审核影响预览显示当前值与新值。错因审批快照还绑定当前题目正文哈希，审批期间Markdown变化时拒绝执行；附件预览只使用已校验的字节。

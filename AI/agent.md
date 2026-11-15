@@ -195,3 +195,5 @@ MCP导出复用现有只读图片列表和受限原图读取，内置助手不�
 ## 问题与错因工具
 
 `omrs/agent/tools/problems.py`注册三个read工具和七个confirm写工具；写通过原运行统一审核执行，运行中止、配置停用与世代变化仍受既有权限链保护。快照绑定问题或记录revision，实际写复用`problem_review.apply_review`与同事务回执；模型不自行批准。AI新增和修订保持假设来源，不把模型解释当作用户确认。
+
+错因正文统一在题目Markdown；cause_of和读题工具返回有效记录的可读正文，隐藏注释与撤回记录不作为当前错因。日期化历史只允许通过记录工具追加／修订，update_question_section拒绝整段覆盖；问题域审批同时绑定当前正文content_hash。普通备注与题目正文读取不因网页去重而删除源文件内容，格式见`AI/data.md`。

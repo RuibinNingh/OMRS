@@ -54,6 +54,8 @@ def main():
                 page.locator(f'[data-prb="open"][data-id="{problem["id"]}"]').click()
                 page.locator('[data-prb="question"]').first.click()
                 page.locator('#modal .ref-head').wait_for()
+                expect(page.get_by_role('tab', name='历史记录', exact=False)).to_have_attribute('aria-selected', 'true')
+                check('默认展示历史并隐藏新增', page.locator('#modal [data-ref-panel="new"]').is_hidden())
                 page.locator('[data-qv-reflection]').click()
                 editor = page.locator('#modal [data-ref-input="content_md"]')
                 expect(editor).to_be_visible()
@@ -69,7 +71,7 @@ def main():
                 check('宽屏题干与侧栏并排且首屏可见',
                       q.bounding_box()['x'] + q.bounding_box()['width'] <= aside.bounding_box()['x'] + 1
                       and q.bounding_box()['y'] < 320)
-                check('默认录入不展示历史堆栈', page.locator('#modal [data-ref-panel="history"]').is_hidden())
+                check('点击顶部新增后隐藏历史堆栈', page.locator('#modal [data-ref-panel="history"]').is_hidden())
                 top = q.bounding_box()['y']
                 editor.fill('翻页和切换页签仍要保留的草稿')
                 editor.evaluate('(el) => { window.layoutEditor = el; el.setSelectionRange(3, 7); }')

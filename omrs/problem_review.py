@@ -19,7 +19,7 @@ def snapshot(vault,tool,data):
     target={}
     if tool in ('update_problem','link_problem_questions','unlink_problem_questions','revise_reflection_entry'):
         with problem_store.connect(vault) as db:
-            target=problem_store.load(db,data.get('id'))
+            target=problems.load_entry(vault,data.get('id'),db) if tool == 'revise_reflection_entry' else problem_store.load(db,data.get('id'))
         problems._cas(target,data)
     if tool=='create_problem':
         problems.text(data.get('title',''),160,True)
@@ -32,14 +32,20 @@ def snapshot(vault,tool,data):
         if not isinstance(encoded,str) or len(encoded)>11200000:
             raise ValueError('附件过大')
         inspect(base64.b64decode(encoded,validate=True))
-    return {'target_id':target.get('id'),'revision':target.get('revision')}
+    result = {'target_id':target.get('id'),'revision':target.get('revision')}
+    if tool in ('add_reflection_entry', 'revise_reflection_entry'):
+        from .question_update import _read
+        from .ledger import blob_hash
+        row = problems._question(vault, data.get('question_id') or target['question_id'])
+        result['content_hash'] = target.get('content_hash') or blob_hash(_read(vault, row)[0])
+    return result
 
 
 def preview(tool,data,vault=None):
     before={}
     if vault and tool in ('update_problem','link_problem_questions','unlink_problem_questions','revise_reflection_entry'):
         with problem_store.connect(vault) as db:
-            before=problem_store.load(db,data.get('id'))
+            before=problems.load_entry(vault,data.get('id'),db) if tool == 'revise_reflection_entry' else problem_store.load(db,data.get('id'))
             if tool in ('link_problem_questions','unlink_problem_questions'):
                 before['question_ids']=[r[0] for r in db.execute('SELECT question_id FROM links WHERE problem_id=?',(data['id'],))]
     safe={k:v for k,v in data.items() if k not in ('data_base64','request_id')}

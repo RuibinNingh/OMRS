@@ -267,4 +267,6 @@ CLI 在扫描与监听前收束 journal。存在有效原生回执时仅清理�
 
 ## 问题与提醒边界
 
-问题/错因业务事实和审计保存在独立problems.db，不追加虚假作答，不改变学习state.restore语义。session.create的session对象可包含schedule_banner快照（内嵌SVG、摘要），与正式Session同一事实原子保存；导出按创建事实读回，旧事实缺字段表示无提醒。学习状态恢复不删除独立问题记录。
+问题业务事实、错因身份索引和审计保存在独立problems.db；错因当前正文统一保存在题目Markdown，每次正式错因写入追加question.content_update，前后正文随事实保存到blobs，不追加作答，不改变学习state.restore语义。session.create的session对象可包含schedule_banner快照（内嵌SVG、摘要），与正式Session同一事实原子保存；导出按创建事实读回，旧事实缺字段表示无提醒。学习状态恢复不删除问题及错因。
+
+`reflection_journal.py`在生命周期租约与全局写锁内暂存精确的前后正文、inode、题目身份、世代和请求摘要。文件替换先于问题事务提交；事务未提交则按精确所有权回滚文件，已提交则补齐正文事实。Ledger正文事实与`reflection:`前缀op_results同事务，重放不重复提交。启动和全库备份恢复未完成意图，外部编辑导致所有权或哈希不匹配则停止并保留现场；旧世代意图转obsolete。历史摘要只使用有效错因文字，不展示隐藏JSON。真实中断回归见`tests/test_reflection_markdown.py`。

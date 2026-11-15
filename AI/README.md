@@ -103,7 +103,7 @@
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v2.11.1 |
+| 当前版本 | v2.11.2 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/app/`（原生 ES Module：设计 token、UI 组件、domain 层及各页面 `features/`）+ `assets/vendor/`（本地字体与 KaTeX）|
@@ -162,4 +162,4 @@
 
 ## 问题中心索引
 
-问题、独立错因和受审AI写见`AI/problems.md`；页面见`AI/frontend/problems.md`，调度提醒见`AI/export.md`。独立问题存储与学习Ledger分离，维护仍先运行相关红绿测试和真实浏览器。
+问题、统一Markdown错因和受审AI写见`AI/problems.md`；页面见`AI/frontend/problems.md`，日期格式见`AI/data.md`，调度提醒见`AI/export.md`。问题、索引与审计在独立问题库，错因正文在原题Markdown，内容变化进入Ledger；维护仍运行相关回归和真实浏览器。代码文档映射已登记`reflection_markdown.py`与`reflection_journal.py`，维护意图与隔离验证见`AI/environment.md`。

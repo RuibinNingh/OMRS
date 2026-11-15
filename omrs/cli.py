@@ -125,6 +125,8 @@ def main():
     recover_restore(vault, allow_recovery=args.command not in {"content-audit", "content-recover"})
     from .question_update import recover_pending as recover_question_updates
     recover_question_updates(vault, allow_recovery=args.command not in {"content-audit", "content-recover"})
+    from .reflection_journal import recover_pending as recover_reflections
+    recover_reflections(vault, allow_recovery=args.command not in {"content-audit", "content-recover"})
     from .label_plan_journal import recover_pending as recover_label_plans
     recover_label_plans(vault, allow_recovery=args.command not in {"content-audit", "content-recover"})
     if args.command == "content-recover":
@@ -214,6 +216,10 @@ def main():
                 print(f"正文回填跳过 {len(backfill['conflicts'])} 道冲突题，请核对身份与哈希后处理")
         except Exception as exc:  # 回填失败不阻止其他页面启动；下次启动再试
             print(f"正文回填未完成：{exc}")
+        from .problems import migrate_legacy
+        migrated = migrate_legacy(vault)
+        if migrated:
+            print(f"已将 {migrated} 道题的旧错因记录归入 Markdown")
         try:
             from .traincontrol import recover_pending
             recovery = recover_pending(vault)

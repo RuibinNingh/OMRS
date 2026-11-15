@@ -158,6 +158,13 @@ def _parse_notes_subsections(notes_text):
         key = lines[0].strip()
         value = lines[1].strip() if len(lines) > 1 else ""
         result[key] = value
+    from .reflection_markdown import summary
+    result.pop('错因记录', None)
+    cause = normalize_math_delimiters(summary(notes_text))
+    if cause:
+        result['错因'] = cause
+    else:
+        result.pop('错因', None)
     return result
 
 

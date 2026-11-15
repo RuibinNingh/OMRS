@@ -37,6 +37,8 @@ A4固定字体与打印门禁为 `python3 -m unittest tests.test_export_fonts te
 
 ## 维护门禁与诊断日志
 
+错因Markdown协议与隔离测试见`AI/problems.md`，启动与备份先恢复写入意图。
+
 协作底线见`AGENTS.md`，规划模板按需读`AI/plans/README.md`，任务日志状态、正文与逐项文档同步规则见`AI/README.md`。`python3 -m unittest tests.test_docs_gate -q`在临时Git仓库验证新增、续作、历史勘误及删除／改名。诊断容量见`AI/data.md`；`tests/test_logging.py`使用临时Vault验证反馈提交后留痕、故障、轮换和跨进程锁，`tests/test_log_export.py`验证只读导出。目录锁最多等待2秒，不参与导出；存储故障从进程标准日志查看。
 
 ## 2. Claude Code Web 实测能力（2026-09-24）

@@ -89,6 +89,8 @@ MIME主类型按大小写无关识别，multipart boundary保持原文。普通�
 
 题目稳定引用为 `{question_id}`；UID 只作显示和兼容。混传 `question_id`/`uid` 必须一致，否则409；未知 ID 不回退 UID。GET `/api/question`、`/api/question/raw` 与单题写入支持稳定引用。CSV 不参与日常读取，显式导出/备份才生成，启动与扫描不生成。
 
+错因API统一以原题Markdown读取，`GET /api/reflections`包含旧裸错因、日期记录和content_hash，查询不迁移。`add_reflection_entry`／`revise_reflection_entry`写入Markdown并保留原问题回执及审计，网页修订可带expected_content_hash防止覆盖外部编辑。`GET /api/question/raw`返回原文完整content_hash，网页编辑携带该哈希保存；旧cause整体改题只兼容未日期化文本。完整格式、分页、旧库启动归并与恢复规则见`AI/problems.md`。
+
 ## 4. 分块上传
 
 1. `POST /api/uploads/start`：JSON `{filename,mime,total_bytes,purpose}`。purpose 为 image/create/inbox/annotate/draft/assistant/backup/zuoyebang；返回 `{upload_id,chunk_bytes:16777216,expires_at}`。

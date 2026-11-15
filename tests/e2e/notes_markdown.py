@@ -114,20 +114,22 @@ def main():
                     ctx.close()
 
                 ctx, page = open_question(browser, base, question['uid'])
-                notes = page.locator('#modal-stage .q-notes-md')
-                expect(notes.locator('h2')).to_have_text(['错因', '关联'])
-                check('错因与关联渲染为标题', notes.locator('h2').count() == 2)
+                plain_notes = page.locator('#modal-stage .q-notes-md')
+                expect(plain_notes.locator('h2')).to_have_text(['关联'])
+                check('备注区保留关联且不重复显示错因', '漏看负号' not in plain_notes.inner_text()
+                      and page.locator('#modal-stage .qv-a > .qv-label').last.inner_text() == '备注')
+                notes = page.locator('#modal .ref-entry > .q-md').first
+                expect(notes).to_be_visible()
+                check('默认历史展示旧错因与未知日期', page.locator('#modal [data-ref-panel="new"]').is_hidden()
+                      and '日期未知' in page.locator('#modal .ref-entry').first.inner_text())
                 check('加粗与列表真实渲染', notes.locator('strong').inner_text() == '漏看负号' and notes.locator('ul li').count() == 2)
-                check('标题与正文保持阅读间距', notes.locator('h2').first.evaluate('''el => {
-                    return el.nextElementSibling.getBoundingClientRect().top - el.getBoundingClientRect().bottom >= 10;
-                }'''))
                 check('引用与小标题真实渲染', notes.locator('blockquote').inner_text() == '先判断符号，再做变形。'
                       and notes.locator('h3').inner_text() == '复查依据')
                 expect(notes.locator('.katex-display')).to_have_count(1)
                 check('美元与反斜杠公式渲染为KaTeX', notes.locator('.katex').count() == 4)
                 check('表格保留', notes.locator('table.md-table tbody td').count() == 2)
                 expect(notes.locator('img')).to_be_visible()
-                page.wait_for_function("document.querySelector('.q-notes-md img')?.naturalWidth === 160")
+                page.wait_for_function("document.querySelector('.ref-entry .q-md img')?.naturalWidth === 160")
                 check('题图按受控入口解码', '/api/image?name=' in notes.locator('img').get_attribute('src'))
                 check('行内与围栏代码保持源码', notes.locator('p code').inner_text() == '2 - 2x > 0'
                       and notes.locator('pre code').inner_text() == '## 代码保留源码\n\\(x\\)')
@@ -144,7 +146,7 @@ def main():
                     page.evaluate('(theme) => document.documentElement.dataset.theme = theme', theme)
                     for width, height in [(1440, 1000), (1024, 900), (390, 844), (320, 720)]:
                         page.set_viewport_size({'width': width, 'height': height})
-                        notes.locator('h2').first.scroll_into_view_if_needed()
+                        notes.locator('h3').first.scroll_into_view_if_needed()
                         check(f'{theme}-{width}备注可读且页面无横向溢出', notes.evaluate('''el => {
                             const r = el.getBoundingClientRect();
                             return r.width > 0 && r.left >= 0 && r.right <= innerWidth + 1
@@ -165,8 +167,38 @@ def main():
                 editor.fill(editor.input_value().replace('## 关联', '## 关联\n**保存后仍渲染**'))
                 page.locator('#md-editor [data-dialog-ok]').click()
                 expect(page.locator('#md-editor')).to_have_count(0)
-                expect(notes.locator('strong').last).to_have_text('保存后仍渲染')
+                expect(plain_notes.locator('strong').last).to_have_text('保存后仍渲染')
                 check('编辑保存后重新渲染', b'**' in path.read_bytes() and '保存后仍渲染' in path.read_text())
+                page.locator('#modal [data-qv-reflection]').click()
+                record_editor = page.locator('#modal [data-ref-input="content_md"]')
+                record_editor.fill('检查乘除负号\n\n## 核对步骤\n先验端点。')
+                page.locator('#modal [data-ref-disclosure="more"] summary').click()
+                page.locator('#modal [data-ref-input="occurred_at"]').fill('2026-11-15')
+                page.locator('#modal [data-ref="save"]').click()
+                expect(record_editor).to_have_value('')
+                page.get_by_role('tab', name='历史记录', exact=False).click()
+                expect(page.locator('#modal .ref-entry')).to_have_count(2)
+                check('日期和多级标题保存到原题且仅在历史显示', '### 2026-11-15 · REF-' in path.read_text()
+                      and '检查乘除负号' in page.locator('#modal .ref-entry').first.inner_text()
+                      and '检查乘除负号' not in plain_notes.inner_text())
+                page.locator('#modal-stage [data-qv-act="edit"]').click()
+                expect(editor).to_be_visible()
+                editor.fill(editor.input_value().replace('> 检查乘除负号', '> 外部复核之后的新观察'))
+                page.locator('#md-editor [data-dialog-ok]').click()
+                expect(page.locator('#md-editor')).to_have_count(0)
+                expect(page.locator('#modal .ref-entry').first).to_contain_text('外部复核之后的新观察')
+                check('Markdown保存后历史即时刷新且不出现双份', page.locator('#modal .ref-entry').count() == 2)
+                from omrs.exporting import _parse_notes_subsections
+                from omrs.reflection_markdown import notes_of
+                exported = _parse_notes_subsections(notes_of(path.read_text()))['错因']
+                check('导出统一后的有效错因且不泄漏元数据', '外部复核之后的新观察' in exported
+                      and '漏看负号' in exported and 'omrs-reflection' not in exported)
+                page.locator('#modal [data-dialog-cancel]').click()
+                page.wait_for_selector('#modal', state='detached')
+                page.locator(f'tr[data-q-row="{question["uid"]}"] td').nth(1).click()
+                expect(page.get_by_role('tab', name='历史记录', exact=False)).to_have_attribute('aria-selected', 'true')
+                expect(page.locator('#modal .ref-entry')).to_have_count(2)
+                check('重新打开默认历史并保留两条', page.locator('#modal .ref-entry').count() == 2)
                 check('查看和编辑备注不改变学习状态', mastery_rows(vault) == before_mastery)
                 check('全程没有脚本错误', not errors)
                 ctx.close()

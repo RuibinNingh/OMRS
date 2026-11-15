@@ -90,11 +90,12 @@ test('images use a class and width attribute, never an inline style', () => {
   assert.ok(renderMd('![[大图.png|9999]]').includes('width="600"'));   // 上限 600 与旧实现一致
 });
 
-test('备注错因渲染标题、列表、加粗和代码，题面答案继续使用原换行规则', () => {
+test('备注移除错因，保留其它内容的排版，题面答案继续使用原换行规则', () => {
   const html = qvHtml({ uid: '备注排版', question: '## 原题文本', answer: '1. 原答案文本',
-    notes: '## 错因\n\n**漏看负号**\n\n- 先看符号\n- 再检查边界\n\n## 关联\n\n`x < 0`' }, {}, {});
-  assert.match(html, /<h2>错因<\/h2>/);
-  assert.match(html, /<strong>漏看负号<\/strong>/);
+    notes: '## 错因\n\n**漏看负号**\n\n## 补充备注\n\n**核对办法**\n\n- 先看符号\n- 再检查边界\n\n## 关联\n\n`x < 0`' }, {}, {});
+  assert.ok(!html.includes('漏看负号') && !html.includes('备注 / 错因'));
+  assert.match(html, /<h2>补充备注<\/h2>/);
+  assert.match(html, /<strong>核对办法<\/strong>/);
   assert.match(html, /<ul><li>先看符号<\/li><li>再检查边界<\/li><\/ul>/);
   assert.match(html, /<h2>关联<\/h2>/);
   assert.match(html, /<code>x &lt; 0<\/code>/);

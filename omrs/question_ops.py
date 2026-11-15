@@ -19,11 +19,13 @@ def get_question_raw(vault: str, uid: str):
         raise RuntimeError(f"UID 不存在: {uid}")
     path = _question_file_path(vault, row)
     with open(path, "r", encoding="utf-8") as file:
+        markdown = file.read()
         return {
             "uid": uid,
             "question_id": row["question_id"],
             "file_path": row["file_path"],
-            "markdown": file.read(),
+            "markdown": markdown,
+            "content_hash": content_hash(markdown),
         }
 
 

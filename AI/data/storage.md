@@ -244,4 +244,4 @@ OMRS `错题/.omrs/boxdetect/service.json`保存mode/base_url/api_key/allow_priv
 
 ## 问题中心独立库
 
-`错题/.omrs/problems.db`使用schema 1，当前对象与链接、追加审计、幂等和审核原生回执同事务。普通读使用只读连接，不初始化或恢复。`problem-assets/`保存PA摘要命名的图片与静态SVG，历史引用不自动清理。调度默认在settings，正式Session快照在学习Ledger的session.create payload中；全库备份同时捕获两者。完整字段见`AI/problems.md`。
+`错题/.omrs/problems.db`使用schema 1，问题、附件、entry_ref身份索引与链接、追加审计、幂等和审核原生回执同事务。错因当前正文统一在原题Markdown，entry_ref只保存id/question_id；旧entry仅兼容读取并在serve启动归入原题。普通读使用只读连接，不初始化或恢复。`problem-assets/`保存PA摘要命名的图片与静态SVG，历史引用不自动清理。调度默认在settings，正式Session快照在学习Ledger的session.create payload中；全库备份同时捕获两者和题目文件。完整字段见`AI/problems.md`，Markdown格式见`AI/data.md`。

@@ -26,8 +26,8 @@ def mastery_of(item):
 
 
 def cause_of(notes):
-    m = re.search(r"^##\s*错因\s*\n(.*?)(?=^##\s|\Z)", notes or "", re.S | re.M)
-    return (m.group(1).strip() if m else "")
+    from ...reflection_markdown import summary
+    return summary(notes or '')
 
 
 PLACEHOLDER = "（请在 Obsidian 中编辑此题目内容）"

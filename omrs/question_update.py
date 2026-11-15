@@ -62,7 +62,8 @@ def _layout(content):
     notes = next((s for s in sections if s[0] == '备注'), None)
     subs = _spans(content, _H2, notes[1], notes[2]) if notes else []
     for name in ('错因', '关联', '补充备注'):
-        if sum(s[0] == name for s in subs) > 1:
+        names = {'错因', '错因记录'} if name == '错因' else {name}
+        if sum(s[0] in names for s in subs) > 1:
             raise RequestError('content_conflict', '备注有重复系统子节，请先人工整理')
     return sections, subs
 
@@ -80,7 +81,14 @@ def editable_values(content):
     meta = parse_yaml_frontmatter(content)
     values.update(knowledge_points=extract_knowledge_tags(meta), labels=extract_labels(meta),
                   difficulty=int(meta.get('难度', 5)))
+    from .reflection_markdown import summary
+    values['cause'] = summary(notes_of_content(content))
     return values
+
+
+def notes_of_content(content):
+    from .common import split_sections
+    return split_sections(content).get('备注', '')
 
 
 def note_of(content):
@@ -144,7 +152,8 @@ def _keep_images(old, new):
 def _replace_text(content, field, value):
     sections, subs = _layout(content)
     name = FIELDS[field]
-    found = next((s for s in (subs if field in ('cause', 'note') else sections) if s[0] == name), None)
+    names = {'错因', '错因记录'} if field == 'cause' else {name}
+    found = next((s for s in (subs if field in ('cause', 'note') else sections) if s[0] in names), None)
     old = content[found[1]:found[2]].strip() if found else ''
     new = _keep_images(old, value)
     if new == old:
@@ -194,6 +203,10 @@ def patch_content(content, patch):
             continue
         if value == values[field]:
             continue
+        if field == 'cause':
+            from .reflection_markdown import structured
+            if structured(content):
+                raise ValueError('此题使用多次错因记录，请通过错因记录的追加或修订操作修改，不能整段覆盖')
         if field in ('question_text', 'answer_text', 'cause', 'note'):
             content = _replace_text(content, field, value)
         else:

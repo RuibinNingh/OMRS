@@ -63,12 +63,13 @@ export async function openEditor(uid) {
     async onOk(values) {
       if (!dirty) return true;
       say('保存中…');
-      const out = await post('/api/question/markdown', { ...ref, markdown: String(values['md-edit-text'] ?? '') });
+      const out = await post('/api/question/markdown', { ...ref, expected_content_hash: res.data.content_hash, markdown: String(values['md-edit-text'] ?? '') });
       if (!out.ok) { say(`保存失败：${out.error.message}`, 'error'); return false; }
       dirty = false;
       dropDetail(target);
       await reloadData();
       await qvInvalidate(target);
+      window.dispatchEvent(new CustomEvent('omrs:question-markdown', { detail: { question_id: ref.question_id } }));
       toast(`已保存 ${target} 的 Markdown`, { kind: 'ok' });
       return true;
     },

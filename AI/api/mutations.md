@@ -105,7 +105,7 @@
 | `labels` | array | 用户标记名称，写入 YAML `标记`；名称去重，默认空列表 |
 | `question_text` | string | 题目正文，写入 `# 题目`；为空则写占位提示 |
 | `answer_text` | string | 写入 `# 答案` |
-| `cause` | string | 错因（为什么做错），写入 `# 备注` 的 `## 错因` 子标题（导出会带上）；`## 关联` 子标题保留 |
+| `cause` | string | 错因（为什么做错），写入 `# 备注` 的 `## 错因` 子标题，作为日期未知记录进入统一历史，导出会带上；`## 关联` 子标题保留 |
 | `question_images` | array | 题目图：每项 `{data}`，存为 `<uid>-<omrs_id 短后缀>-q-N.<ext>`（如 `力学1-0135-q-1.png`），以 `![[名]]` 追加到 `# 题目` |
 | `answer_images` | array | 答案图：每项 `{data}`，存为 `<uid>-<omrs_id 短后缀>-a-N.<ext>`，以 `![[名]]` 追加到 `# 答案` |
 

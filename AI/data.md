@@ -357,6 +357,23 @@ SQLite `active_config` 是完整运行时事实源，`config.json` 是镜像和�
 
 ## 问题领域
 
-`错题/.omrs/problems.db`保存问题、错因、审计、幂等回执和调度默认，`错题/.omrs/problem-assets/`保存内容寻址附件。它们独立于学习Ledger，不被state.restore清除。正式Session的首页提醒字节与摘要原子包含在session.create事实中；详见`AI/problems.md`、`AI/data/storage.md`。
+`错题/.omrs/problems.db`保存问题、错因身份索引、审计、幂等回执和调度默认，`错题/.omrs/problem-assets/`保存内容寻址附件。错因当前正文统一保存在原题Markdown，不保留第二份可编辑数据库正文；其正文变化进入Ledger的内容历史，不产生作答或改变学习状态。正式Session的首页提醒字节与摘要原子包含在session.create事实中；详见`AI/problems.md`、`AI/data/storage.md`。
 
 问题对象的可选deleted_at标记回收站，缺失或空值表示正常问题，恢复只清空该标记；schema仍为1。批量管理沿用同一SQLite事务、CAS和receipts，逐项事件保存移入回收站、恢复或状态变化。问题、材料links、附件及独立错因均保留，全库备份按原problems.db边界包含回收站；既有错因修订或再次发生可保留历史关联，不重开已删除问题。
+
+## Markdown 错因记录格式
+
+错因节位于`# 备注`下的`## 错因`，兼容`## 错因记录`。没有日期标题的旧裸文本整体作为日期未知记录；普通读取不改文件、不猜发生时间。手写简式可用三级日期标题，正文支持Markdown：
+
+```markdown
+## 错因
+### 2026-11-15
+> 除以负数后漏改不等号方向，下次先检查符号。
+
+### 日期未知
+> 原先记下的错因，发生日期尚未确认。
+```
+
+应用保存时三级标题为`### YYYY-MM-DD · REF-…`或`### 日期未知 · REF-…`，标题后紧跟自动生成的`omrs-reflection` JSON注释；正文逐行加`>`，读取还原原始Markdown，避免内部标题变成系统分节。注释保存format=1、稳定编号、发生以外的时间、来源、问题关联、再次发生引用、revision、撤回标记、正文摘要与完整修订事件；修改正文和日期即可，不应自行伪造元数据。应用首次保存会将同题旧裸文本、旧数据库记录一起归入该格式，保留原文与已知来源。
+
+直接改Markdown后按文件读取，数据库entry_ref只保存记录编号及question_id；从文件移除记录不会被身份索引补回。旧库归并在正常serve启动完成，旧数据库审计和回执保留；归档无工作文件的记录保持只读兼容。`错题/.omrs/problems.db`与文件的跨存储写入由Vault根`.omrs-maintenance/reflections/`意图收束，备份前先恢复；协议见`AI/ledger.md`。

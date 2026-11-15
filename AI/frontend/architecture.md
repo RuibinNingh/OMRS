@@ -17,7 +17,7 @@
 
 跨页复核文案集中在 `assets/app/domain/question/review-cycle.js`：题库、题目详情和复习调度共用档位、间隔、实际日期与累计成绩。`domain/items.js` 将缺可靠日期的复燃题视为今日待复核，其余无效日期保持未知。`tests/e2e/review_policy.py` 使用临时Vault与真实反馈接口覆盖一次击杀→到期推荐→升档→提前练习→降级→重新击杀及设置重算。
 
-`domain/rich-markdown.js`拥有备注、问题说明与快捷错因历史共用的安全Markdown子集，依赖`domain/question/markdown.js`的表格、图片与公式基础能力；题面和答案仍直接走基础渲染。`domain/problem-markdown.js`只负责问题域PA附件到受控读取接口的映射，备注题图继续使用题目图片接口。`tests/app/rich-markdown.test.mjs`覆盖格式、换行与附件边界，`tests/e2e/notes_markdown.py`以真实题库详情和编辑保存验证最终DOM及多宽度截图。
+`domain/rich-markdown.js`复用题目基础渲染，供备注、问题说明和错因历史使用；题面、答案仍用基础规则。`domain/problem-markdown.js`映射PA附件，题图沿用原接口。格式测试见`tests/app/rich-markdown.test.mjs`，真实编辑与多宽度截图见`tests/e2e/notes_markdown.py`。
 
 ## 1. 目录与依赖方向
 
@@ -235,7 +235,7 @@ core/request-id.js统一练习、训练控制和标记撤销的安全随机请�
 
 main登记problems页面；domain/problems统一读写API和受管附件，domain/problem-markdown提供安全说明渲染，domain/question/reflections管理弹窗原位录因。它们沿用core/api、html、morph与UI对话框，无额外前端框架。新增浏览器链路在`tests/e2e/problems.py`。
 
-错因控制器与纯模板分别在`domain/question/reflections.js`、`reflections-view.js`，共享页签在首次挂载时绑定，切页签只隐藏面板，输入时不重绘编辑框。弹窗按渲染序号丢弃旧题的错因挂载；卸载后异步读取不回填界面。`tests/e2e/reflection_layout.py`使用合成Vault和随机回环端口，验证侧栏/底部布局、页签草稿与选区、保存焦点、刷新失败、翻题身份隔离和双主题多宽度截图。
+错因控制器与模板为`domain/question/reflections.js`、`reflections-view.js`：默认历史，Markdown统一读取、按游标读全；页签复用编辑框，渲染序号和卸载守卫隔离迟到响应。`notes.js`仅从展示移除错因。编辑器带content_hash保存并派发`omrs:question-markdown`通知，控制器刷新历史、卸载时解绑。布局、草稿、选区、失败与多宽度见`tests/e2e/reflection_layout.py`；旧错因、日期、原位编辑与导出见`tests/e2e/notes_markdown.py`。
 
 ## 局域网HTTP请求编号回归
 
