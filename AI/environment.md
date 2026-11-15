@@ -15,17 +15,17 @@
 | Codex | 完整 | 同上 | 同上 | — |
 | Claude Code Web | 受限（含规划模式） | 用户上传的 `OMRS-source-sanitized-*.zip` | 本地跑全部单测、隔离实例、无头浏览器端到端、截图；写执行说明 | 联网、Git 远端、systemd、生产服务、读取 `错题/` 真实数据和 `AI/logs/` |
 
-生产环境事实（2026-11-15）：当前v2.11.4，复习暂停源码723acc1e9b1dfa54251a8ed1d96b5497737160e7已发布并推送GitHub main。精确归档/root/workspace/apps/releases/omrs-723acc1的1707个文件逐字节一致。生产Vault为/root/workspace/apps/OMRS，隔离功能测试不能访问真实题库。
+生产环境事实（2026-11-15）：当前v2.12.0，调度提醒素材库源码68fdbe75a77b18d685f80c34c993617fcca8138c已发布并推送GitHub main。精确归档/root/workspace/apps/releases/omrs-68fdbe7的1726个文件逐字节一致。生产Vault为/root/workspace/apps/OMRS，隔离功能测试不能访问真实题库。
 
-稳定别名/root/workspace/apps/releases/omrs-9b29d49指向omrs-723acc1。主站、网关、检测真实cwd分别为归档根、services/zuoyebang、services/boxdetect；均active/running、NRestarts0。网关私有数据/var/lib/omrs-zuoyebang；框选/var/lib/omrs-boxdetect为0700，数据库及admin-secret.txt为0600，主站Key在Vault错题/.omrs/boxdetect/service.json（0600），不得输出凭据。
+稳定别名/root/workspace/apps/releases/omrs-9b29d49指向omrs-68fdbe7。主站、网关、检测真实cwd分别为归档根、services/zuoyebang、services/boxdetect；均active/running、NRestarts0。网关私有数据/var/lib/omrs-zuoyebang；框选/var/lib/omrs-boxdetect为0700，数据库及admin-secret.txt为0600，主站Key在Vault错题/.omrs/boxdetect/service.json（0600），不得输出凭据。
 
 依赖沿用/root/workspace/apps/releases/omrs-zyb-deps-20261011/.venv，Python3.13.5、MCP1.28.1、Pillow12.3.0、Playwright1.62.0、Segno1.6.6；检测解释器/root/omrs-train/.venv/bin/python。发布验证使用独立Chromium，共享CDP9222仅供可信本机隔离context。
 
 Web8471、回环MCP18472、HTTPS192.168.0.145:8472及公开URL https://home.ruibin-ningh.top:8472。Nginx的/zuoyebang/代理回环8745，/boxdetect/经主站连接18766。业务API须Key，healthz只检查存活；管理页另须主站PIN及管理员会话，Cookie为Secure/HttpOnly/Strict并限制服务路径。检测unit限制见下文。
 
-当前发布证据与备份在/root/workspace/apps/releases/OMRS-schedule-pause-tx6phn7e（0700，私有归档0600）。Vault／维护目录／网关1523文件与10库、框选2文件与1库通过逐字节和SQLite完整性校验；切换时57张业务表、1322个正文／图片／SVG／关键配置哈希完全一致。
+当前发布证据与备份在/root/workspace/apps/releases/OMRS-reminders-v2120-0rnkn0bl（0700，私有归档0600）。Vault／维护目录／网关1533文件与10库、框选2文件与1库通过逐字节和SQLite完整性校验；切换时57张业务表原数据、1332个正文／图片／SVG／关键配置哈希完全一致。
 
-当前402道可见题、0冲突。问题页支持搜索、状态计数、分页、批量状态及可恢复回收站；宽屏并排详情，窄屏分层，删除保留题目／错因／附件，管理权限限网页用户。
+验收时407道可见题、0冲突。问题页支持搜索、状态计数、分页、批量状态及可恢复回收站；宽屏并排详情，窄屏分层，删除保留题目／错因／附件，管理权限限网页用户。
 
 生产部署使用 Git 精确归档，沿用当前依赖，不打包未提交的开发改动。功能验证使用临时 Vault 和随机端口；发布前按改动范围从归档执行相关检查。实际切换前检查运行任务与恢复意图，持训练锁停服保全并校验归档，再原子切换源码别名。上线后至少核对三服务真实目录、版本、资源及就绪；完整验收另核对鉴权、原数据库全部业务列及原正文／配置哈希，快速发布按用户指定范围执行。回退保留最新数据。
 
