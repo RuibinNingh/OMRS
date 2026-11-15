@@ -3,6 +3,7 @@
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
 - [2026-11-15_schedule-pause](2026-11-15_schedule-pause.md)：复习调度暂停与恢复
+- [2026-11-15_schedule-pause-release](2026-11-15_schedule-pause-release.md)：复习调度暂停发布与 main 同步
 - [2026-11-15_reflection-release](2026-11-15_reflection-release.md)：统一错因生产发布
 - [2026-11-15_reflection-markdown](2026-11-15_reflection-markdown.md)：统一 Markdown 错因记录
 - [2026-11-15_reflection-layout](2026-11-15_reflection-layout.md)：题目弹窗错因侧栏与底部布局
