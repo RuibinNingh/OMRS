@@ -190,7 +190,7 @@ tags:
 
 ### 历史记录格式（兼容）
 
-新 Ledger 反馈的 payload 可含提交时固定的 `subject`、`question_summary`；新正文更新可含 `change_summary`，新移动事件可含 `from_category`。这些字段只为历史卡摘要服务，不影响投影算法；旧 commit 保持原样，缺值时不从当前题目或熟练度补造。
+新 Ledger 反馈的 payload 可含提交时固定的 `subject`、`question_summary`；新正文更新可含 `change_summary`，新移动事件可含 `from_category`。题面短句在截断前移除成对双星号。它们只为历史卡摘要服务，不影响投影算法；旧 commit 保持原样，缺值时不从当前题目或熟练度补造。
 ```
 YYYY-MM-DD 主观:N, 对/错[, 备注:文字]
 ```

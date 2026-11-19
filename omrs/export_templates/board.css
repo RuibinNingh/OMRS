@@ -130,3 +130,5 @@ body.embedded #notice{margin-top:12px;}
   body.debug .slice{outline:none;}
 }
 body.debug .slice{outline:1px solid rgba(192,57,43,.45);}
+
+.md-strong { font-weight: 600; }

@@ -32,26 +32,6 @@
       const im = new Image(); im.onload = () => { imgMap.set(src, im); res(); }; im.onerror = () => res(); im.src = src;
     })));
   }
-  function mathText(e, text) {
-    const parts = String(text).split(/(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/);
-    for (const p of parts) {
-      if (!p) continue;
-      const disp = p.startsWith("$$") && p.endsWith("$$"), inl = !disp && p.startsWith("$") && p.endsWith("$");
-      if (disp || inl) {
-        const s = el("span", disp ? "math display" : "math");
-        const latex = disp ? p.slice(2, -2) : p.slice(1, -1);
-        if (window.katex && typeof window.katex.render === "function") {
-          try { window.katex.render(latex, s, { displayMode: !!disp, throwOnError: false, strict: "ignore", trust: false, output: "html" }); }
-          catch (error) { s.textContent = latex; }
-        } else {
-          s.textContent = latex;
-        }
-        e.appendChild(s);
-      }
-      else e.appendChild(document.createTextNode(p));
-    }
-    return e;
-  }
   function txtBlock(cls, text, keepNext, withMath) {
     return {
       kind: withMath ? "text" : "",
@@ -60,7 +40,7 @@
       build: value => {
         const e = el("div", "blk " + cls);
         const source = value == null ? text : value;
-        withMath ? mathText(e, source) : (e.textContent = source);
+        withMath ? appendExportText(e, source) : (e.textContent = source);
         return e;
       },
     };
@@ -72,8 +52,8 @@
   } }; }
   function tableBlock(table) { return { kind: "table", build: () => {
     const wrap = el("div", "blk md-table-wrap"), node = el("table", "md-table"), thead = el("thead"), head = el("tr");
-    (table.headers || []).forEach(cell => { const th = el("th"); mathText(th, cell); head.appendChild(th); }); thead.appendChild(head); node.appendChild(thead);
-    const tbody = el("tbody"); (table.rows || []).forEach(row => { const tr = el("tr"); (row || []).forEach(cell => { const td = el("td"); mathText(td, cell); tr.appendChild(td); }); tbody.appendChild(tr); }); node.appendChild(tbody); wrap.appendChild(node); return wrap;
+    (table.headers || []).forEach(cell => { const th = el("th"); appendExportText(th, cell); head.appendChild(th); }); thead.appendChild(head); node.appendChild(thead);
+    const tbody = el("tbody"); (table.rows || []).forEach(row => { const tr = el("tr"); (row || []).forEach(cell => { const td = el("td"); appendExportText(td, cell); tr.appendChild(td); }); tbody.appendChild(tr); }); node.appendChild(tbody); wrap.appendChild(node); return wrap;
   } }; }
   function headBlock(q) {
     return { keepNext: true, build: () => {
@@ -105,7 +85,7 @@
       return e;
     } };
   }
-  function noteBlock(k, v) { return { build: () => { const e = el("div", "blk q-note"); e.innerHTML = "<b>" + k + "：</b>"; mathText(e, v); return e; } }; }
+  function noteBlock(k, v) { return { build: () => { const e = el("div", "blk q-note"); e.innerHTML = "<b>" + k + "：</b>"; appendExportText(e, v); return e; } }; }
   function imgBlock(b, label, firstOfQ) { return { kind: "image", src: b.img.src, svg: b.img.svg, imgEl: imgMap.get(b.img.src), label: label, keepNextHeader: !!firstOfQ }; }
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
@@ -121,7 +101,7 @@
       q.blocks.forEach(b => {
         if (b.t === "img") B.push(imgBlock(b, q.uid, first));
         else if (b.t === "table") B.push(tableBlock(b));
-        else B.push(txtBlock("q-text", b.text, false, true));
+        else B.push(txtBlock("q-text", b.text, false, !b.literal));
         first = false;
       });
       // 题面区只有「关联」；「错因」会提示解法，一律留在末尾反馈区
@@ -141,7 +121,7 @@
       fed.forEach(a => {
         B.push(ansHeadBlock(a));
         let first = true;
-        (a.blocks || []).forEach(b => { if (b.t === "img") B.push(imgBlock(b, a.uid, first)); else if (b.t === "table") B.push(tableBlock(b)); else B.push(txtBlock("ans-text", b.text, false, true)); first = false; });
+        (a.blocks || []).forEach(b => { if (b.t === "img") B.push(imgBlock(b, a.uid, first)); else if (b.t === "table") B.push(tableBlock(b)); else B.push(txtBlock("ans-text", b.text, false, !b.literal)); first = false; });
         if (withAnswer && !(a.blocks || []).length) B.push(txtBlock("ans-empty", "（暂无答案）"));
         if (a.notes && a.notes["错因"]) B.push(noteBlock("错因", a.notes["错因"]));
       });

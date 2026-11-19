@@ -39,6 +39,7 @@ ANSWER_SECTION = "答案"
 
 _TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "export_templates")
 _KATEX_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "vendor", "katex")
+_EMPHASIS_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets", "app", "domain", "question", "markdown-emphasis.js")
 
 _EMBED_WIKI_RE = re.compile(r"!\[\[([^\]|]+?)(?:\|(\d+))?\]\]")
 _EMBED_MD_RE = re.compile(r"!\[([^\]]*)\]\(([^)]+)\)")
@@ -328,7 +329,21 @@ def _text_to_blocks(vault, text, image_loader=None):
     blocks = []
     lines = normalize_math_delimiters(text or "").split("\n")
     index = 0
+    fence = ""
     while index < len(lines):
+        marker = re.match(r"^ {0,3}(`{3,}|~{3,})(.*)$", lines[index])
+        if fence or marker:
+            line = lines[index].rstrip()
+            if line:
+                blocks.append({"t": "txt", "text": line, "literal": True})
+            if marker:
+                token, suffix = marker.groups()
+                if not fence:
+                    fence = token
+                elif token[0] == fence[0] and len(token) >= len(fence) and not suffix.strip():
+                    fence = ""
+            index += 1
+            continue
         if index + 1 < len(lines) and "|" in lines[index] and _is_markdown_table_separator(lines[index + 1]):
             headers = _split_markdown_table_row(lines[index])
             index += 2
@@ -632,6 +647,11 @@ _SCREEN_BODY = """<div id="bar">
 <div id="toast"></div>"""
 
 
+def _inline_markdown_module():
+    with open(_EMPHASIS_PATH, encoding="utf-8") as source:
+        return source.read() + "\n" + _read_template("inline-markdown.js")
+
+
 def _build_html(data, variant):
     variant = "screen" if variant == "screen" else "a4"
     css = _read_template(f"{variant}.css") + "\n" + _read_template("history.css")
@@ -658,7 +678,7 @@ def _build_html(data, variant):
         f"{body}\n"
         f"<script>\n{katex_js}\n</script>\n"
         f"<script>window.OMRS_DATA = {data_json};</script>\n"
-        f"<script>\n{js}\n</script>\n"
+        f'<script type="module">\n{_inline_markdown_module()}\n{js}\n</script>\n'
         "</body>\n</html>\n"
     )
 
@@ -943,7 +963,7 @@ def _build_board_html(data):
         f"{body}\n"
         f"<script>\n{katex_js}\n</script>\n"
         f"<script>window.OMRS_DATA = {data_json};</script>\n"
-        f"<script>\n{js}\n</script>\n"
+        f'<script type="module">\n{_inline_markdown_module()}\n{js}\n</script>\n'
         "</body>\n</html>\n"
     )
 

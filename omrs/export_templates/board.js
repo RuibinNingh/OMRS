@@ -205,25 +205,15 @@
     }
     function measure(node) { measurer.appendChild(node); const h = node.getBoundingClientRect().height; measurer.removeChild(node); return h; }
 
-    function formulaBreakOffsets(text) {
-      const source = String(text || "");
-      const token = /(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/g;
-      const offsets = []; let match;
-      while ((match = token.exec(source))) offsets.push(match.index);
-      return offsets;
-    }
     // 只在整段放不下时才动公式：把「公式之前的文字」留在当前页，公式及后文从下一页继续。
     function splitFormulaText(b, source) {
-      const offsets = formulaBreakOffsets(source);
-      for (let i = offsets.length - 1; i >= 0; i--) {
-        const cut = offsets[i];
-        const prefix = source.slice(0, cut);
+      for (const [prefix, suffix] of exportFormulaBreaks(source)) {
         if (!prefix.trim()) continue;
         const prefixNode = b.build(prefix);
         const prefixH = measure(prefixNode);
         if (y + prefixH > COL_H + 0.5 || !put(prefixNode, b)) continue;
         nextCol();
-        return placeText(b, source.slice(cut));
+        return placeText(b, suffix);
       }
       return false;
     }
@@ -391,26 +381,9 @@
       const im = new Image(); im.onload = () => { imgMap.set(src, im); res(); }; im.onerror = () => res(); im.src = src;
     })));
   }
-  function mathText(e, text) {
-    const parts = String(text).split(/(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/);
-    for (const p of parts) {
-      if (!p) continue;
-      const disp = p.startsWith("$$") && p.endsWith("$$"), inl = !disp && p.startsWith("$") && p.endsWith("$");
-      if (disp || inl) {
-        const s = el("span", disp ? "math display" : "math");
-        const latex = disp ? p.slice(2, -2) : p.slice(1, -1);
-        if (window.katex && typeof window.katex.render === "function") {
-          try { window.katex.render(latex, s, { displayMode: !!disp, throwOnError: false, strict: "ignore", trust: false, output: "html" }); }
-          catch (error) { s.textContent = latex; }
-        } else { s.textContent = latex; }
-        e.appendChild(s);
-      } else e.appendChild(document.createTextNode(p));
-    }
-    return e;
-  }
-  function txtBlock(cls, text, q, keepNext) {
-    return { kind: "text", q, keepNext: !!keepNext, text: String(text || ""),
-      build: value => { const e = el("div", "blk " + cls); mathText(e, value == null ? text : value); return e; } };
+  function txtBlock(cls, text, q, keepNext, literal) {
+    return { kind: literal ? "" : "text", q, keepNext: !!keepNext, text: String(text || ""),
+      build: value => { const e = el("div", "blk " + cls); if (literal) e.textContent = text; else appendExportText(e, value == null ? text : value); return e; } };
   }
   function plainBlock(cls, text, keepNext) {
     return { keepNext: !!keepNext, build: () => el("div", "blk " + cls, text) };
@@ -421,8 +394,8 @@
   function tableBlock(table, q) {
     return { kind: "table", q, build: () => {
       const wrap = el("div", "blk md-table-wrap"), node = el("table", "md-table"), thead = el("thead"), head = el("tr");
-      (table.headers || []).forEach(cell => { const th = el("th"); mathText(th, cell); head.appendChild(th); }); thead.appendChild(head); node.appendChild(thead);
-      const tbody = el("tbody"); (table.rows || []).forEach(row => { const tr = el("tr"); (row || []).forEach(cell => { const td = el("td"); mathText(td, cell); tr.appendChild(td); }); tbody.appendChild(tr); }); node.appendChild(tbody); wrap.appendChild(node); return wrap;
+      (table.headers || []).forEach(cell => { const th = el("th"); appendExportText(th, cell); head.appendChild(th); }); thead.appendChild(head); node.appendChild(thead);
+      const tbody = el("tbody"); (table.rows || []).forEach(row => { const tr = el("tr"); (row || []).forEach(cell => { const td = el("td"); appendExportText(td, cell); tr.appendChild(td); }); tbody.appendChild(tr); }); node.appendChild(tbody); wrap.appendChild(node); return wrap;
     } };
   }
   function headBlock(q) {
@@ -455,7 +428,7 @@
   }
   function imgBlock(b, q) { return { kind: "image", q, src: b.img.src, svg: b.img.svg, imgEl: imgMap.get(b.img.src) }; }
   function noteBlock(k, v, q) {
-    return { kind: "text", q, build: () => { const e = el("div", "blk q-note"); e.innerHTML = "<b>" + k + "：</b>"; mathText(e, v); return e; } };
+    return { kind: "text", q, build: () => { const e = el("div", "blk q-note"); e.innerHTML = "<b>" + k + "：</b>"; appendExportText(e, v); return e; } };
   }
 
   function buildBlocks() {
@@ -466,7 +439,7 @@
       (q.blocks || []).forEach(b => {
         if (b.t === "img") B.push(imgBlock(b, q));
         else if (b.t === "table") B.push(tableBlock(b, q));
-        else B.push(txtBlock("q-text", b.text, q, false));
+        else B.push(txtBlock("q-text", b.text, q, false, b.literal));
       });
       B.push({ kind: "qend", q });
       // 题面栏只放「关联」；「错因」会提示解法，留到答案页（与 A4 / 屏幕版一致）
@@ -480,7 +453,7 @@
       D.answers.forEach(a => {
         B.push({ keepNext: true, build: () => { const e = el("div", "blk ans-head"); e.innerHTML = "第 " + a.idx + " 题 <span>[" + esc(a.uid) + "]</span>"; return e; } });
         if (!(a.blocks || []).length) B.push(plainBlock("ans-empty", "（暂无答案）"));
-        else a.blocks.forEach(b => { if (b.t === "img") B.push(imgBlock(b, null)); else if (b.t === "table") B.push(tableBlock(b, null)); else B.push(txtBlock("ans-text", b.text, null, false)); });
+        else a.blocks.forEach(b => { if (b.t === "img") B.push(imgBlock(b, null)); else if (b.t === "table") B.push(tableBlock(b, null)); else B.push(txtBlock("ans-text", b.text, null, false, b.literal)); });
         // 错因紧跟该题答案之后
         if (a.notes && a.notes["错因"]) B.push(noteBlock("错因", a.notes["错因"], null));
       });

@@ -102,7 +102,7 @@ SQL 读模型还包含 `history_projection`、`projection_meta`、`active_config
 - `occurred_at`
 - `recorded_at`：带原时区的精确时间戳
 - `review_date` / `review_timezone`：业务日期与 `Asia/Shanghai` 日界线
-- `subject` 与 `question_summary`：新反馈提交时从当时的 SQL 题目与安全的 Markdown 路径固定科目、题面短句；读取旧反馈不从当前题目反推这两个字段。
+- `subject` 与 `question_summary`：新反馈提交时从当时的 SQL 题目与安全的 Markdown 路径固定科目、题面短句；题面短句移除成对双星号后取前 80 字。读取旧反馈不从当前题目反推这两个字段。
 
 历史时间转换共用 `common.business_time()`。缺 IANA 数据库时只对上海 1992 年起的时间使用 UTC+08 固定偏移；更早历史或其它缺失时区保留原时间和 `recorded_at`，不补造历史夏令时规则。只有日期的旧记录仍不生成精确时分。
 

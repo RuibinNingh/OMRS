@@ -69,36 +69,15 @@
       parent.appendChild(chip);
     });
   }
-  function renderMath(node, latex, display) {
-    if (window.katex && typeof window.katex.render === "function") {
-      try {
-        window.katex.render(latex, node, { displayMode: !!display, throwOnError: false, strict: "ignore", trust: false, output: "html" });
-        return;
-      } catch (e) { /* fallback below */ }
-    }
-    node.textContent = latex;
-  }
-  function mathText(node, text) {
-    String(text == null ? "" : text).split(/(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/).forEach(p => {
-      if (!p) return;
-      const disp = p.startsWith("$$") && p.endsWith("$$"), inl = !disp && p.startsWith("$") && p.endsWith("$");
-      if (disp || inl) {
-        const s = el("span", disp ? "math display" : "math");
-        renderMath(s, disp ? p.slice(2, -2) : p.slice(1, -1), disp);
-        node.appendChild(s);
-      }
-      else node.appendChild(document.createTextNode(p));
-    });
-  }
   function renderBlocks(container, blocks) {
     (blocks || []).forEach(b => {
       if (b.t === "img") { const im = el("img"); im.src = b.img.src; im.loading = "lazy"; im.alt = ""; container.appendChild(im); }
       else if (b.t === "table") {
         const wrap = el("div", "md-table-wrap"), table = el("table", "md-table"), thead = el("thead"), tr = el("tr");
-        (b.headers || []).forEach(cell => { const th = el("th"); mathText(th, cell); tr.appendChild(th); }); thead.appendChild(tr); table.appendChild(thead);
-        const tbody = el("tbody"); (b.rows || []).forEach(row => { const rowEl = el("tr"); (row || []).forEach(cell => { const td = el("td"); mathText(td, cell); rowEl.appendChild(td); }); tbody.appendChild(rowEl); }); table.appendChild(tbody); wrap.appendChild(table); container.appendChild(wrap);
+        (b.headers || []).forEach(cell => { const th = el("th"); appendExportText(th, cell); tr.appendChild(th); }); thead.appendChild(tr); table.appendChild(thead);
+        const tbody = el("tbody"); (b.rows || []).forEach(row => { const rowEl = el("tr"); (row || []).forEach(cell => { const td = el("td"); appendExportText(td, cell); rowEl.appendChild(td); }); tbody.appendChild(rowEl); }); table.appendChild(tbody); wrap.appendChild(table); container.appendChild(wrap);
       }
-      else { const p = el("p"); mathText(p, b.text); container.appendChild(p); }
+      else { const p = el("p"); if (b.literal) p.textContent = b.text; else appendExportText(p, b.text); container.appendChild(p); }
     });
   }
 
@@ -144,7 +123,7 @@
     const body = el("div", "qbody"); renderBlocks(body, q.blocks); card.appendChild(body);
 
     /* 关联（题面给出即显示——这是复习提示，不算"答案"） */
-    if (q.notes && q.notes["关联"]) { const n = el("div", "note"); n.innerHTML = "<b>关联 </b>"; mathText(n, q.notes["关联"]); card.appendChild(n); }
+    if (q.notes && q.notes["关联"]) { const n = el("div", "note"); n.innerHTML = "<b>关联 </b>"; appendExportText(n, q.notes["关联"]); card.appendChild(n); }
 
     /* 答案区 */
     const sec = el("div", "ans-sec");
@@ -158,7 +137,7 @@
     if (!a || !a.blocks || !a.blocks.length) ans.appendChild(el("div", "empty", "（本题未附答案——按你的理解自评即可）"));
     else renderBlocks(ans, a.blocks);
     /* 错因跟在答案后面（折叠在「显示答案」后）：会提示解法，不能提前给 */
-    if (a && a.notes && a.notes["错因"]) { const n = el("div", "note"); n.innerHTML = "<b>错因 </b>"; mathText(n, a.notes["错因"]); ans.appendChild(n); }
+    if (a && a.notes && a.notes["错因"]) { const n = el("div", "note"); n.innerHTML = "<b>错因 </b>"; appendExportText(n, a.notes["错因"]); ans.appendChild(n); }
 
     /* 评分区 */
     const grade = el("div", "grade locked");

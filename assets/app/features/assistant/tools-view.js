@@ -6,6 +6,7 @@
 import { html, raw } from '../../core/html.js';
 import { icon } from '../../ui/icon.js';
 import { labelChips } from '../../domain/labels/index.js';
+import { plainEmphasis } from '../../domain/question/markdown-emphasis.js';
 import { renderInline } from './md.js';
 import { clamp, hhmm, pct } from './state.js';
 import { detectCardState } from './draft-cards.js';
@@ -154,10 +155,10 @@ const T = {
       const status = current?.error ? '状态读取失败' : current?.loading || !d ? '正在获取当前状态'
         : ({ cropping: '待框选', review: '待审核', done: '已入库', discarded: '已丢弃' }[d.status] || d.status);
       const blocks = d?.blocks || r.blocks || [];
-      const question = d ? (blocks.filter(b => b.section === '题目' && b.kind === 'text').map(b => b.text || '').join('').slice(0, 60) || '（题目是图片）')
-        : r.question_preview || '（题目是图片）';
+      const question = d ? blocks.filter(b => b.section === '题目' && b.kind === 'text').map(b => plainEmphasis(b.text)).join('').slice(0, 60)
+        : plainEmphasis(r.question_preview);
       return html`<div class="ast-draft-card"><div class="ast-draft-card__head"><code>${r.draft_id}</code><span class="ui-tag ui-tag--info">${status}</span></div>
-        <dl class="ast-kv"><dt>科目 / 分类</dt><dd>${d?.subject || r.subject} / ${d?.category || r.category}</dd><dt>题目</dt><dd>${question}</dd></dl>
+        <dl class="ast-kv"><dt>科目 / 分类</dt><dd>${d?.subject || r.subject} / ${d?.category || r.category}</dd><dt>题目</dt><dd>${question || '（题目是图片）'}</dd></dl>
         <div class="ast-draft-card__blocks">${blocks.map(block => html`<span class="ui-tag">${block.section} · ${block.kind === 'image' ? '图片' : '文字'}</span>`)}</div>
         ${current?.error ? html`<p class="ast-note is-error">${current.error}</p><button type="button" class="ui-btn ui-btn--sm" data-action="assistant.retryDraft" data-arg="${r.draft_id}">重试读取</button>` : ''}
         ${detect.phase !== 'idle' ? html`<p class="ast-note${detect.phase === 'retry' ? ' is-error' : ''}">${detect.message}</p>` : ''}

@@ -79,6 +79,7 @@
 
 /* ── Markdown 内容（markdown.js 的输出）：段落、普通换行、表格、题图。旧页面经 renderMdContent 拿到的同一套输出也用这里的规则 ── */
 .md-p { margin: 0; }
+.q-md .md-strong { font-weight: var(--weight-semibold); }
 .md-p + .md-p, .md-p + .md-table-wrap, .md-table-wrap + .md-p { margin-top: var(--sp-2); }
 .qv-bare .q-md .md-p + .md-p { margin-top: var(--sp-1); }
 .md-table-wrap { max-width: 100%; margin: var(--sp-3) 0; overflow-x: auto; border: 1px solid var(--border-1); border-radius: var(--r-sm); }

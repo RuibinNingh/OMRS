@@ -103,28 +103,16 @@
     }
     function measure(node) { measurer.appendChild(node); const h = node.getBoundingClientRect().height; measurer.removeChild(node); return h; }
 
-    function formulaBreakOffsets(text) {
-      const source = String(text || "");
-      const token = /(\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/g;
-      const offsets = [];
-      let match;
-      while ((match = token.exec(source))) offsets.push(match.index);
-      return offsets;
-    }
-
     // 只在整段放不下时才动公式：把“公式之前的文字”留在当前栏，公式及后文从下一栏继续。
     // 从靠后的公式开始试，尽可能少地移动文字；普通文本没有公式边界时仍沿用原来的整段换栏。
     function splitFormulaText(b, source) {
-      const offsets = formulaBreakOffsets(source);
-      for (let i = offsets.length - 1; i >= 0; i--) {
-        const cut = offsets[i];
-        const prefix = source.slice(0, cut);
+      for (const [prefix, suffix] of exportFormulaBreaks(source)) {
         if (!prefix.trim()) continue;
         const prefixNode = b.build(prefix);
         const prefixH = measure(prefixNode);
         if (y + prefixH > colH + tolerance || !put(prefixNode)) continue;
         nextCol();
-        return placeText(b, source.slice(cut));
+        return placeText(b, suffix);
       }
       return false;
     }

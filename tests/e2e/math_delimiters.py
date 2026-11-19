@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT / 'tests'))
 
 from playwright.sync_api import sync_playwright
 from browser_runtime import launch_chromium, open_app
+from tests.e2e.notes_markdown import write_image
 from test_mcp_protocol import MCPServerProcess, _session, _json_result
 from omrs import content_history, drafts, exporting
 from omrs.boards import create_board
@@ -23,6 +24,8 @@ from omrs.mcp.keys import create_key
 
 def main():
     case = json.loads((ROOT / 'tests/fixtures/math_delimiters.json').read_text())[0]
+    extra = '\n\n| **复核** | 结论 |\n| --- | --- |\n| 已验算 | **成立** |\n\n~~~text\n**代码星号**\n~~~'
+    source_answer, normalized_answer = case['source'].rstrip() + extra, case['expected'].rstrip() + extra
     output = Path(tempfile.mkdtemp(prefix='omrs-math-e2e-'))
     server = MCPServerProcess()
     checks = []
@@ -34,8 +37,10 @@ def main():
             raise AssertionError(label)
 
     try:
+        write_image(server.vault)
         legacy_uid = create_question(server.vault, '物理', '旧公式', 5,
-                                     question_text=r'求 \(t\)。', answer_text=case['source'])['uid']
+                                     question_text=r'**求时间** \(t\)。' + '\n![[复查.png|160]]',
+                                     answer_text=source_answer)['uid']
         legacy_row = content_history.projection_row(server.vault, uid=legacy_uid)
         original = content_history.read_question_file(server.vault, legacy_row)
         server.start()
@@ -45,11 +50,11 @@ def main():
             async with _session(server.mcp_port, key['secret']) as session:
                 args = {'subject': '物理', 'category': '公式兼容', 'request_id': 'e2e-math-create',
                         'blocks': [{'section': '题目', 'kind': 'text', 'text': r'求 \(t\)。'},
-                                   {'section': '答案', 'kind': 'text', 'text': case['source']}]}
+                                   {'section': '答案', 'kind': 'text', 'text': source_answer}]}
                 result = _json_result(await session.call_tool('create_draft', args))
                 draft = drafts.get_draft(server.vault, result['draft_id'])
                 check('MCP 写入题目和完整答案时转换美元符号', draft['blocks'][0]['text'] == '求 $t$。'
-                      and draft['blocks'][1]['text'] == case['expected'])
+                      and draft['blocks'][1]['text'] == normalized_answer)
                 retry = _json_result(await session.call_tool('create_draft', args))
                 check('MCP 原请求重试复用同一草稿', retry['draft_id'] == draft['id'] and retry['reused'])
                 update = _json_result(await session.call_tool('update_draft', {
@@ -72,6 +77,10 @@ def main():
             answer = page.locator('.drf-block[aria-label^="答案"] .drf-md')
             check('审核预览呈现全部 16 个公式和 7 个行间公式', answer.locator('.katex').count() == 16
                   and answer.locator('.katex-display').count() == 7 and '故选 AD。' in answer.inner_text())
+            check('审核预览渲染含公式的加粗和表格，保留代码星号',
+                  answer.locator('strong:has(.katex)').count() > 0
+                  and answer.locator('td strong').inner_text() == '成立'
+                  and '**代码星号**' in answer.inner_text())
             for theme in ('light', 'dark'):
                 for width in (1440, 390):
                     page.set_viewport_size({'width': width, 'height': 900 if width == 1440 else 844})
@@ -88,7 +97,7 @@ def main():
                     break
                 time.sleep(.1)
             check('网页批准后正式 Markdown 保存美元公式', committed['status'] == 'done'
-                  and case['expected'] in content_history.read_question_file(server.vault,
+                  and normalized_answer in content_history.read_question_file(server.vault,
                       content_history.projection_row(server.vault, uid=committed['uid'])))
             for name, uid in (('新题', committed['uid']), ('旧题', legacy_uid)):
                 open_app(page, base, 'questions')
@@ -97,6 +106,13 @@ def main():
                 answer = page.locator('#modal .qv-a')
                 check(name + '题库详情显示完整公式', answer.locator('.katex').count() == 16
                       and answer.locator('.katex-display').count() == 7 and '故选 AD。' in answer.inner_text())
+                check(name + '题库详情按半粗字重显示答案',
+                      answer.locator('strong:has(.katex)').count() > 0
+                      and answer.locator('td strong').evaluate('el => getComputedStyle(el).fontWeight') == '600'
+                      and '**代码星号**' in answer.inner_text())
+                if name == '旧题':
+                    page.wait_for_function("document.querySelector('#modal .qv-q img')?.naturalWidth > 0")
+                    check('旧题题面同时保留题图和加粗', page.locator('#modal .qv-q strong').inner_text() == '求时间')
                 page.keyboard.press('Escape')
             check('旧题预览保持原 Markdown 文件', content_history.read_question_file(server.vault, legacy_row) == original)
 
@@ -121,6 +137,11 @@ def main():
                     page.locator('.reveal').click()
                 check(variant + ' 离线导出呈现所有公式', page.locator('.katex').count() >= 17
                       and page.locator('.katex-display').count() >= 7)
+                check(variant + ' 离线导出支持加粗、表格和代码字面量',
+                      page.locator('strong.md-strong:has(.katex)').count() > 0
+                      and page.locator('td strong.md-strong').inner_text() == '成立'
+                      and '**代码星号**' in page.locator('body').inner_text()
+                      and page.get_by_text('求时间', exact=True).evaluate('el => el.tagName') == 'STRONG')
                 page.screenshot(path=str(output / (variant + '.png')), full_page=True)
             check('浏览器页面无脚本错误', not errors)
             context.close()

@@ -13,6 +13,7 @@ import unicodedata
 from ... import drafts
 from ...draft_prepare import merge_answer_text_runs as _merge_answer_text_runs
 from ...ai_assist import describe_image as ask_image
+from ...markdown_text import plain_emphasis
 from ..config import settings
 from ..store import AgentStore
 
@@ -37,7 +38,7 @@ def _user_texts(vault, conv_id):
 
 
 def _preview(draft, n=60):
-    text = "".join(b.get("text") or "" for b in draft["blocks"] if b["section"] == "题目" and b["kind"] == "text")
+    text = "".join(plain_emphasis(b.get("text") or "") for b in draft["blocks"] if b["section"] == "题目" and b["kind"] == "text")
     if not text:
         text = "（题目是图片）"
     return text[:n] + ("…" if len(text) > n else "")

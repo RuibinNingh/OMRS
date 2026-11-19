@@ -23,7 +23,7 @@ HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打�
 
 只做四件事，全部纯标准库：
 1. **读题**：`_load_export_questions()` 从 SQL repository + 题目 `.md` 取题（停用标记为 `1` 的题目在此处跳过）；展示板导出与纸面指纹读取都把文件路径限制在 `错题/` 目录内，越界或损坏路径按缺失处理。
-2. **解析**：`_text_to_blocks()` 把正文转成三种块——非空文字行→`{t:'txt'}`，`![[名]]` / `![](路径)`→`{t:'img'}`，Markdown 表头 + 分隔行 + 数据行→`{t:'table', headers, rows}`。普通换行按文字块顺序保留，模板的题面、答案和备注使用 `white-space: pre-wrap`，不会把 AI 的逐行文本合并；空行不生成无内容块。表格支持 `\|` 转义；对齐冒号会被识别但当前不保留对齐语义，行宽按表头补空或截断。跨行 `$$...$$` 会先合并为单个文字块，不能按行拆散。
+2. **解析**：`_text_to_blocks()` 把正文转成三种块——非空文字行→`{t:'txt'}`，`![[名]]` / `![](路径)`→`{t:'img'}`，Markdown 表头 + 分隔行 + 数据行→`{t:'table', headers, rows}`。普通换行按文字块顺序保留，模板的题面、答案和备注使用 `white-space: pre-wrap`，不会把 AI 的逐行文本合并；空行不生成无内容块。表格支持 `\|` 转义；对齐冒号会被识别但当前不保留对齐语义，行宽按表头补空或截断。跨行 `$$...$$` 会先合并为单个文字块。围栏代码按字面文本成块。
 3. **取图**：`_img_payload()` 用 `_find_image()` 定位、`_read_image_info()`（纯 `struct` 解析 PNG/JPEG/GIF 尺寸，无 Pillow）读出宽高，base64 成 data-uri。
 4. **组装**：`_build_export_data()` 产出 `{meta, questions, answers}`。`questions[i].notes` 只带 `关联`，`answers[i].notes` 只带 `错因`——错因会提示解法，不能出现在题面区；`include_answers=false` 时 `answers[i].blocks` 为空数组但 `notes` 照旧，反馈区因此仍能只列错因。`meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联（`_read_katex_bundle()`）。数据 JSON 会做 `</` 转义防提前闭合脚本，A4 另由 `export_fonts.inline_print_fonts()` 按导出文字选择本地中文字体分片并内联，最终仍是单个自包含 HTML。
 
@@ -43,7 +43,9 @@ HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打�
 | `screen.css` / `screen.js` | 屏幕版样式 + 复习 App 逻辑（卡片/判分/进度/持久化） |
 | `history.css` / `history.js` | A4 与屏幕版共用的离线 SVG 历史条；在对应变体前内联脚本 |
 
-导出模板中的 `$...$` / `$$...$$` 由内联 KaTeX 在浏览器端渲染；跨行行间公式在后端块化时保持完整，再交给模板的 `mathText()`。若 KaTeX 资源缺失或单个公式解析失败，会安全降级为原始公式文本。KaTeX 字体在导出时改写为 data URI，因此离线打开 HTML 也不需要访问 `assets/` 目录。
+三种 HTML 导出内联网页的双星号识别模块。正文和表格单元格的成对标记显示为半粗字，正文颜色沿用模板。A4 与展示板在加粗区间的公式处换栏或分页时，两侧均保留字重。
+
+导出模板中的 `$...$` / `$$...$$` 由内联 KaTeX 在浏览器端渲染；跨行行间公式在后端块化时保持完整，再交给模板的 `appendExportText()`。若 KaTeX 资源缺失或单个公式解析失败，会安全降级为原始公式文本。KaTeX 字体在导出时改写为 data URI，因此离线打开 HTML 也不需要访问 `assets/` 目录。
 
 `_read_katex_bundle()` 改写 `@font-face` 时**每个字体族只内联 woff2**（现代浏览器全部支持，
 其余格式不会被请求），只有某族找不到 woff2 才回退内联它的全部格式；改写结果按 `katex.min.css`

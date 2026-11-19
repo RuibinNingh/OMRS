@@ -35,6 +35,8 @@ A4字体与打印门禁为`python3 -m unittest tests.test_export_fonts tests.smo
 
 MCP新题配图用`tests/test_mcp_draft_svg.py`和`tests/e2e/mcp_draft_svg.py`验证SDK、事务、浏览器审核入库及向量PDF，OMRS_DRAFT_SVG_SHOTS指定证据目录。所有测试实例清除OMRS_SYSTEMD_SERVICE与OMRS_BOXDETECT_CONTROL，浏览器作业依次运行，避免document.hidden暂停轮询；Windows Edge与实体手机另验。
 
+题目加粗与公式共用真实浏览器回归 `tests/e2e/math_delimiters.py`。同一合成题验证 AI 草稿审核、旧题题库详情、表格、题图、代码字面星号，以及三种离线 HTML。双星号边界夹具由 Node 和 Python 共用。
+
 ## 维护门禁与诊断日志
 
 错因Markdown协议与隔离测试见`AI/problems.md`，启动与备份先恢复写入意图。

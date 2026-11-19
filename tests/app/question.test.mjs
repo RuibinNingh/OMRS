@@ -2,6 +2,8 @@
 // 由 tests/test_md_linebreaks.js、test_question_record_ui.js、test_qview_gallery.js 合并迁入（P5），用例只增不减。
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
+import { emphasisParts, emphasisRanges, plainEmphasis } from '../../assets/app/domain/question/markdown-emphasis.js';
 import {
   renderMd, renderMdUncached, mdLineBreakMode, mdCacheStats, clearMdCache, hashText,
   parseQHistory, qRecordsFromDetail, qHistoryStats, qStreakHtml,
@@ -52,6 +54,24 @@ test('the default mode preserves ordinary newlines and still treats blank lines 
 test('empty input renders nothing at all', () => {
   assert.equal(renderMd(''), '');
   assert.equal(renderMd('\n\n\n'), '');
+});
+
+test('网页和摘要遵守双星号夹具，普通 HTML 仍然转义', () => {
+  const fixtures = JSON.parse(readFileSync(new URL('../fixtures/markdown_emphasis.json', import.meta.url)));
+  for (const { source, plain, strong } of fixtures) {
+    assert.equal(plainEmphasis(source), plain, source);
+    assert.deepEqual(emphasisParts(source).filter(part => part.strong).map(part => part.text), strong, source);
+    assert.equal((renderMd(source).match(/class="md-strong"/g) || []).length, strong.length, source);
+  }
+  assert.match(renderMd('**<img src=x>**'), /<strong class="md-strong">&lt;img src=x&gt;<\/strong>/);
+  assert.match(renderMd('| **甲** |\n| --- |\n| **乙** |'), /<td><strong class="md-strong">乙<\/strong><\/td>/);
+});
+
+test('A4 和展示板换栏时保持公式两侧加粗及原有空白', () => {
+  const code = readFileSync(new URL('../../omrs/export_templates/inline-markdown.js', import.meta.url), 'utf8');
+  const split = Function('emphasisRanges', code + '\nreturn exportFormulaBreaks;')(emphasisRanges);
+  assert.deepEqual(split('先 **由 $x>0$ 可知**。'), [['先 **由** ', '**$x>0$ 可知**。']]);
+  assert.deepEqual(split('已知：**$x>0$ 可知**。'), [['已知：', '**$x>0$ 可知**。']]);
 });
 
 // ── Markdown：内容哈希缓存（P5 新增）──

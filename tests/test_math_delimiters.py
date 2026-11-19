@@ -7,12 +7,19 @@ import unittest
 from omrs import drafts, exporting
 from omrs.draft_write import patch_mcp_draft
 from omrs.math_text import normalize_math_delimiters
+from omrs.markdown_text import plain_emphasis
 
 
 CASES = json.loads((Path(__file__).parent / 'fixtures/math_delimiters.json').read_text())
 
 
 class MathDelimiterTests(unittest.TestCase):
+    def test_summary_strips_only_paired_emphasis_before_truncation(self):
+        samples = json.loads((Path(__file__).parent / 'fixtures/markdown_emphasis.json').read_text())
+        for case in samples:
+            with self.subTest(source=case['source']):
+                self.assertEqual(plain_emphasis(case['source']), case['plain'])
+
     def test_shared_cases_and_repeated_conversion(self):
         for case in CASES:
             with self.subTest(case=case['name']):

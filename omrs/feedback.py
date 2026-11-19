@@ -13,6 +13,7 @@ from .data_repository import resolve_question, storage_write
 from .sessions import get_session, mark_session_completed
 from .path_safety import safe_question_path
 from .log_utils import log_feedback
+from .markdown_text import plain_emphasis
 
 
 def _question_summary_at_feedback(vault, row):
@@ -23,7 +24,7 @@ def _question_summary_at_feedback(vault, row):
             question = split_sections(file.read()).get("题目", "")
     except (OSError, ValueError, KeyError):
         return ""
-    plain = re.sub(r"!\[[^]]*\]\([^)]*\)|!\[\[[^]]*\]\]", " ", question)
+    plain = re.sub(r"!\[[^]]*\]\([^)]*\)|!\[\[[^]]*\]\]", " ", plain_emphasis(question))
     plain = re.sub(r"(?m)^\s*#{1,6}\s+", "", plain)
     return " ".join(plain.split())[:80]
 

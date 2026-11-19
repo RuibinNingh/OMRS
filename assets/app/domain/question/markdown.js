@@ -6,6 +6,7 @@
  */
 import { escape } from '../../core/html.js';
 import { normalizeMathDelimiters } from './math-text.js';
+import { emphasisParts } from './markdown-emphasis.js';
 
 const g = globalThis;
 const CACHE_LIMIT = 600;
@@ -71,6 +72,14 @@ export function renderMdInline(text = '') {
 }
 
 function renderMdInlineNormalized(source) {
+  if (!source.includes('**')) return renderInlineContent(source);
+  return emphasisParts(source).map(({ text, strong }) => {
+    const content = renderInlineContent(text);
+    return strong ? `<strong class="md-strong">${content}</strong>` : content;
+  }).join('');
+}
+
+function renderInlineContent(source) {
   const re = new RegExp(TOKEN_RE.source, 'g');
   let out = '';
   let last = 0;
@@ -141,6 +150,7 @@ export function renderMdUncached(text = '', mode) {
   const blocks = [];
   let para = '';
   let pendingSoftJoin = false;
+  let fence = '';
   // 段尾多出来的 <br> 一律削掉，免得「硬换行 / 完整模式 + 紧跟空行」叠出多余空行
   const flush = () => {
     const body = para.replace(/(?:<br>)+$/, '');
@@ -149,7 +159,11 @@ export function renderMdUncached(text = '', mode) {
     pendingSoftJoin = false;
   };
   for (let i = 0; i < lines.length;) {
-    if (i + 1 < lines.length && lines[i].includes('|') && isMdTableSeparator(lines[i + 1])) {
+    const marker = /^ {0,3}(\x60{3,}|~{3,})(.*)$/.exec(lines[i]);
+    const literal = Boolean(fence || marker);
+    if (marker && !fence) fence = marker[1];
+    else if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && !marker[2].trim()) fence = '';
+    if (!literal && i + 1 < lines.length && lines[i].includes('|') && isMdTableSeparator(lines[i + 1])) {
       const header = lines[i];
       const rows = [];
       i += 2;
@@ -166,14 +180,14 @@ export function renderMdUncached(text = '', mode) {
     }
     let source = lines[i];
     let end = i;
-    if (countDisplayMathDelimiters(source) % 2 === 1) {
+    if (!literal && countDisplayMathDelimiters(source) % 2 === 1) {
       const close = findDisplayMathEnd(lines, i);
       if (close >= i) { source = lines.slice(i, close + 1).join('\n'); end = close; }
     }
     const hardBreak = / {2,}$/.test(source);
     if (hardBreak) source = source.replace(/ +$/, '');
     if (pendingSoftJoin) para += ' ';
-    para += renderMdInlineNormalized(source);
+    para += literal ? escape(source) : renderMdInlineNormalized(source);
     pendingSoftJoin = false;
     if (end < lines.length - 1) {
       if (hardBreak || !soft) para += '<br>';

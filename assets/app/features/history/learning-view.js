@@ -1,5 +1,6 @@
 /** 历史记录页模板：只产出转义的 html 结果。 */
 import { html } from '../../core/html.js';
+import { plainEmphasis } from '../../domain/question/markdown-emphasis.js';
 import { button } from '../../ui/button.js';
 import { historyCommitFamily, historyNodeTitle, historyNodeSubtitle, formatLedgerTime,
   historyNodeSessionId, historySourceLabel } from '../../domain/history.js';
@@ -87,7 +88,7 @@ function detailBody(row, s) {
   const full = { ...row, payload: detail.payload, detail };
   const reviews = row.commit_type === 'review.batch_submit' ? detail.payload?.feedbacks || [] : [];
   return html`${reviews.length ? html`<ol class="hvw-review-items">${reviews.map(item => html`<li>
-    ${item.uid_at_that_time || item.uid || ''} · ${item.question_summary || '无可用历史摘要'} · ${item.is_correct ? '答对' : '答错'} · ${item.sub_score == null ? '无分数' : `${item.sub_score} 分`}
+    ${item.uid_at_that_time || item.uid || ''} · ${plainEmphasis(item.question_summary) || '无可用历史摘要'} · ${item.is_correct ? '答对' : '答错'} · ${item.sub_score == null ? '无分数' : `${item.sub_score} 分`}
   </li>`)}</ol>` : ''}
     ${detail.content_change ? html`<p class="hvw-learning">${contentChangeText(full)}</p>` : ''}
     <p class="hvw-meta">${detail.commit_type} · ${detail.commit_id} · seq ${detail.seq}</p>
