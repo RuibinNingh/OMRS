@@ -17,7 +17,7 @@
 
 生产 Vault 为 `/root/workspace/apps/OMRS`。主站 unit 的 `10-release.conf` 选择源码归档，作业帮网关与框选服务各有独立进程，共用源码别名。用 `systemctl show` 与 `readlink /proc/<PID>/cwd` 核对真实运行目录。
 
-2026-11-22 实测主站运行 v2.12.3，源码归档为 `/root/workspace/apps/releases/omrs-782b20b`。作业帮网关和框选的共用别名仍指向 `omrs-819d297`。
+2026-11-22 23:34（上海时间）实测主站运行 v2.13.0，Git 提交 `d2d6268`，源码归档为 `/root/workspace/apps/releases/omrs-d2d6268`。作业帮网关和框选服务继续运行 `/root/workspace/apps/releases/omrs-819d297`；unit 使用的稳定路径 `/root/workspace/apps/releases/omrs-9b29d49` 符号链接指向该目录。
 
 主站和网关沿用归档中的 Python 虚拟环境链接，检测解释器为 `/root/omrs-train/.venv/bin/python`。隔离测试使用独立 Chromium，共享 CDP 9222 仅供可信本机隔离上下文。网关私有数据在 `/var/lib/omrs-zuoyebang`，框选私有数据在 `/var/lib/omrs-boxdetect`。
 
