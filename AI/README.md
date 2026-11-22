@@ -103,7 +103,7 @@
 | 项 | 值 |
 |---|---|
 | 项目名 | OMRS（Obsidian Mistake Reconstruction System）|
-| 当前版本 | v2.12.2 |
+| 当前版本 | v2.12.3 |
 | 类型 | 个人错题本，Markdown + 本地 HTTP 服务 |
 | 后端入口 | `omrs_engine.py` |
 | 前端文件 | `omrs_dashboard.html`（结构）+ `assets/app/`（原生 ES Module：设计 token、UI 组件、domain 层及各页面 `features/`）+ `assets/vendor/`（本地字体与 KaTeX）|
@@ -117,9 +117,11 @@
 | 文件 | 说明 |
 |---|---|
 | `algorithm.md` | 时间衰减、熟练度状态机、统一优先级、SM-2、双列表推荐、Leech 检测、标记加成与 tuning |
+| `features.md` | 面向使用者的功能详览与操作入口 |
 | `ai-review.md` | MCP 与助手业务写分级审核、统一审批库、历史导入与启动收束 |
 | `agent.md` | AI 助手后端：运行时、循环、权限、工具、事件、接口、`agent.db`、按运行撤销 |
 | `mcp.md` | 外部 MCP 的 Streamable HTTP、API Key、工具白名单、正式复习调度、草稿与原图边界、独立调用记录 |
+| `mcp-tools.md` | MCP 工具完整清单、行为与所需权限 |
 | `mcp-storage.md` | MCP 调度/报告/草稿/展示板回执、网页确认与限时导出快照的存储恢复 |
 | `runtime.md` | 独立运行库、MCP 调用生命周期、脱敏白名单与草稿入库关联 |
 | `api.md`、`api/` | 按领域分册的请求体、响应字段、错误语义与限额 |
@@ -138,6 +140,7 @@
 | `frontend/zuoyebang.md` | 独立整卷工作台：原图、题框、逐题候选、预览、刷新与核对入库 |
 | `frontend/annotate.md` | 独立框选标注页 `/annotate`：训练数据批量采集、快捷键、导出（存储见 `data/storage.md` §6） |
 | `labels.md` | 用户标记定义、YAML、投影与可选调度加成 |
+| `problems.md` | 问题中心、题目关联、错因记录与受审写入 |
 | `omr-import.md` | 答题卡扫描 JSON 导入反馈页 |
 | `security.md` | 本机免 PIN、远端会话、来源校验、报告沙箱与安全路径 |
 | `optimization.md` | 技术债、风险边界与已完成优化 |

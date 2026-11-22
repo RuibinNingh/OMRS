@@ -2,8 +2,13 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-11-22_history-order-release](2026-11-22_history-order-release.md)：导出历史顺序与文档发布
 - [2026-11-21_feedback-closeout](2026-11-21_feedback-closeout.md)：反馈录入单题处置与结单
 - [2026-11-19_question-emphasis](2026-11-19_question-emphasis.md)：题面和答案显示 Markdown 加粗
+- [2026-11-17_history-order](2026-11-17_history-order.md)：练习历史统一左旧右新
+- [2026-11-16_documentation-size-split](2026-11-16_documentation-size-split.md)：文档体积与分册维护
+- [2026-11-16_documentation-maintenance](2026-11-16_documentation-maintenance.md)：文档检查与维护
+- [2026-11-16_ai-mcp-question-capabilities](2026-11-16_ai-mcp-question-capabilities.md)：AI 与 MCP 改题能力核对
 - [2026-11-15_schedule-reminders](2026-11-15_schedule-reminders.md)：调度统一导出与提醒素材库
 - [2026-11-15_schedule-pause](2026-11-15_schedule-pause.md)：复习调度暂停与恢复
 - [2026-11-15_schedule-pause-release](2026-11-15_schedule-pause-release.md)：复习调度暂停发布与 main 同步

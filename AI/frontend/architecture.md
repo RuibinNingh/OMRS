@@ -9,7 +9,7 @@
 
 数据复盘的 `progress.js` 从同一分析响应派生状态、累计成绩与分页列表；明细筛选通过页面动作更新，题目弹窗使用独立 `data-progress` 上下文，保留完整匹配结果的上下题。`tests/app/data-progress.test.mjs` 与 `tests/e2e/data.py` 覆盖停用排除、降级成绩保留、复燃优先、筛选分页、真实详情及失败后旧数据保留。
 
-复习调度的两处导出由 `features/schedule/export-dialog.js` 拥有模态草稿和示意，`export-options.js` 管理归一化及成功后的本地记忆，`exporter-ctl.js` 冻结稳定引用并调 `domain/exporting.js` 下载。页面重绘不重建模态；导出失败在模态内重试。`tests/app/export-options.test.mjs` 验证参数与存储故障，`tests/e2e/schedule_export.py` 使用临时 Vault 验证两入口、刷新、取消、重试、离线 A4/PDF、屏幕版以及浅深主题 320/390/1440px 布局；`OMRS_EXPORT_SHOTS` 指定截图和导出证据目录。
+复习调度的导出模态、参数记忆与稳定引用分别由 `export-dialog.js`、`export-options.js` 与 `exporter-ctl.js` 管理，下载走 `domain/exporting.js`。重绘保留草稿，失败可原位重试。`tests/e2e/schedule_export.py` 覆盖两入口、刷新、取消、离线 A4/PDF 与屏幕版，以及历史左旧右新、无障碍顺序和原数组保护。截图位置由 `OMRS_EXPORT_SHOTS` 指定。
 
 展示板空状态由当前有效打印范围派生，常驻 iframe 留在原舞台，提示为固定同级节点。详情控制器合并同内容的在途同步并校验回调归属，空内容会取消预览及定时任务。`tests/e2e/board.py` 调用同目录 `board_empty.py`，实际验证空板加题／清空、停用／缺失、菜单／快捷键、慢请求取消和真实失败；`OMRS_BOARD_EMPTY_SHOTS` 指定四档状态截图目录。
 
@@ -41,7 +41,7 @@ assets/app/
 ├── ui/                无业务组件
 ├── styles/            tokens、index（@layer 总入口）、base、ui、shell、gallery
 ├── domain/            跨页业务模块：data、sessions、drafts、taxonomy、history、items、exporting、scan、question/、labels/、board/
-└── features/          主外壳页面：dashboard/、data/、schedule/、board/、questions/、instant/、feedback/、history/、catalog/、reports/、settings/、create/、assistant/；独立页面：annotate/、trainpanel/
+└── features/          主外壳页面：dashboard/、data/、schedule/、board/、questions/、instant/、feedback/、history/、catalog/、reports/、settings/、create/、assistant/、ai-review/、problems/、zuoyebang/；独立页面：annotate/、trainpanel/
 ```
 
 依赖方向由 `tests/check_ui.py` 的 R7 强制：`core` 只依赖 `core`；`ui` 依赖 `ui`、`core`；`domain` 依赖 `domain`、`ui`、`core`；`features/<页>` 只依赖本页、`domain`、`ui`、`core`，页面之间禁止互相 import，跨页联动走 bus。根目录的 `main.js`、`shell.js` 是装配层，不受 R7 限制，也不放业务逻辑。
@@ -109,7 +109,7 @@ assets/app/
 
 纯逻辑的单测在 `tests/app/core.test.mjs`（node），依赖 DOM 的 morph、事件委托、快捷键在 `tests/app/core_tests.js`（由 `tests/app/run_browser.py` 在浏览器里跑）。浏览器测试（`tests/app/run_browser.py`、`tests/e2e/`）在设了 `OMRS_TEST_CDP_URL` 时连接已开着的 Chromium（本机直接启动会崩溃的环境用），否则自行启动；等待一律等条件成立（`wait_for_function`），不写固定延时。历史、目录、报告的回归脚本覆盖操作区重绘、目录展开状态和删除防重；`tests/e2e/create.py` 覆盖快速录入的图片分区、AI 固定响应、创建后上下文，并在 360px 触摸浏览器核对主按钮尺寸和横向布局。独立框选标注页不挂在外壳上：纯逻辑与数据所有者在 `tests/app/annotate.test.mjs`，`tests/e2e/annotate.py` 直接打开 `/annotate` 走主路径（沿用 `create.py` 的审计脚本）。
 
-反馈录入的同 UID 历史条目回归由 `tests/app/feedback.test.mjs` 和 `tests/e2e/feedback.py` 覆盖。浏览器仅替换合成 Session 列表，真实服务仍提供题面与页面资源；四档主题／屏幕检查原计划 40 题、已录 31、历史只读、9 题待录与唯一渲染身份，并保存截图。
+反馈同 UID 历史条目由 `tests/app/feedback.test.mjs` 和 `tests/e2e/feedback.py` 验证。浏览器替换 Session 列表，真实服务提供题面和页面资源，覆盖 40 题、31 已录、9 待录与四档布局。
 
 录入页的数据所有者在 `tests/app/create-inbox.test.mjs` 用替身接口验证保存队列、字段补丁、revision 冲突、load 与保存交错、旧模板配置兼容及截图重置时旧请求的处理；`tests/app/create-process.test.mjs` 检查框选和批量栏不出现模板与沿用框位入口，并固定录入成功状态块；`tests/e2e/create.py` 用隔离服务和真实浏览器验证提取中重置、旧任务结束后进度保持清空、保存失败不入库、继续画框，以及标记就绪成功反馈留在工作区内而不再弹同文 toast。公式漏转义回归只替换外部模型，真实解析器处理响应后核对框位不变与 KaTeX 渲染。`tests/app/annotate.test.mjs`、`board-locked.test.mjs` 与 `tests/e2e/assistant_race.py` 分别固定标注版本冲突、换板读取失败和迟到对话响应不覆盖当前状态。
 
@@ -172,11 +172,11 @@ WebGL场景、公式atlas、原参考图与压缩静态图放在 `assets/vendor/
 
 ## 9. 独立训练面板
 
-独立训练面板 `/train` 由 `features/trainpanel/store.js` 持有实验快照、选择状态与指标；按块 morph 保留实时测试原图和滚动。纯模型与增量读取测试见 `tests/app/trainpanel.test.mjs`；`tests/e2e/trainpanel.py` 用假实验目录审计四档状态，`tests/e2e/boxdetect.py` 使用外部真实模型和临时 Vault 复核收件箱及面板。
+独立训练面板 `/train` 由 `features/trainpanel/store.js` 持有实验快照、选择状态与指标；按块 morph 更新实验视图并保留未变更的 DOM。纯模型与增量读取测试见 `tests/app/trainpanel.test.mjs`；`tests/e2e/trainpanel.py` 用假实验目录审计四档状态，`tests/e2e/boxdetect.py` 使用外部真实模型和临时 Vault 复核收件箱及面板。
 
 训练评测的audits.js独立持有筛选、分页、选中案例与复核表单；列表轮询不重绘详情。异步详情和历史都校验请求序号；卸载后拒绝更新。Node验证提交绑定案例/revision，trainpanel E2E验证真实HTTP保存与刷新历史，不调用外部模型。
 
-训练服务控制由 `features/trainpanel/control.js` 独立持有请求身份、服务 revision、选择模型与轮询状态；模型选择不改变实验 store 或在线服务。完成操作后通知父入口刷新 health 顶栏。`tests/app/traincontrol.test.mjs` 验证请求绑定与评测分母文案，`tests/e2e/traincontrol.py` 验证真实 HTTP 异步操作与刷新持久性。
+`features/trainpanel/control.js` 和 `try.js` 保留兼容实现，但当前训练页入口不挂载服务控制或实时测试；服务连接和已登记本机进程控制在设置页，模型管理和整图测试在 `/boxdetect/`。`tests/app/traincontrol.test.mjs` 验证兼容模块的请求绑定与评测分母文案，`tests/e2e/traincontrol.py` 验证设置中的固定进程控制。
 
 助手页面的 Node 与浏览器回归位于 `tests/app/assistant.test.mjs`、`tests/e2e/assistant.py`、`tests/e2e/assistant_p3.py` 与 `tests/e2e/assistant_usage.py`；这些测试覆盖运行过程折叠、移动输入和用量显示。
 

@@ -330,9 +330,9 @@ SQLite `active_config` 是完整运行时事实源，`config.json` 是镜像和�
 
 ## 正式题目审核补丁
 
-`omrs/question_update.py` 将题目修改绑定 `uid`、`question_id`、完整 `expected_content_hash` 和 Vault 世代，只允许 `question_text`、`answer_text`、`cause`、`note`、`knowledge_points`、严格整数 1–10 的 `difficulty` 与已存在的 `labels`。人工修订沿用原提案的字段白名单，MCP 与已送审助手提案长期保留、expires_at=null；旧 MCP 待审期限不再限制批准。原 MCP 请求摘要不变，有效补丁另算摘要。身份、科目分类、状态 tags、录入日期和历史正文不能通过该补丁修改。
+`omrs/question_update.py` 将题目修改绑定 `uid`、`question_id`、完整 `expected_content_hash` 和 Vault 世代，只允许 `question_text`、`answer_text`、`cause`、`note`、`knowledge_points`、严格整数 1–10 的 `difficulty`、已存在的 `labels` 和静态 SVG 配图 `diagrams`。配图结构及安全约束见 `AI/question-svg.md`。人工修订沿用原提案的字段白名单，MCP 与已送审助手提案长期保留、expires_at=null；旧 MCP 待审期限不再限制批准。原 MCP 请求摘要不变，有效补丁另算摘要。身份、科目分类、状态 tags、录入日期和历史正文不能通过该补丁修改。
 
-`note` 只读写 `# 备注` 下的 `## 补充备注`；旧裸备注、`## 错因`、`## 关联` 和陌生子节保留。题干、答案拒绝一级标题注入，错因与补充备注同时拒绝一、二级标题注入；已有重复系统节拒绝修改。原 Obsidian 和标准 Markdown 图片的字面引用、重复次数、顺序和所属节保留，省略原图片时自动附回；新增图片、外链、HTML 或 data URL 图片不接受。
+`note` 只读写 `# 备注` 下的 `## 补充备注`；旧裸备注、`## 错因`、`## 关联` 和陌生子节保留。题干、答案拒绝一级标题注入，错因与补充备注同时拒绝一、二级标题注入；已有重复系统节拒绝修改。原 Obsidian 和标准 Markdown 图片的字面引用、重复次数、顺序和所属节保留，省略原图片时自动附回；正文文字补丁不接受新增图片、外链图片、HTML 图片或 data URL 图片，静态 SVG 通过 `diagrams` 新增或替换。
 
 知识点与标记拒绝换行和控制字符，使用 JSON 双引号字符串编码 YAML 列表；受限 frontmatter 解析器解码引号和反斜杠，投影保存真实值。审核库 `错题/.omrs/ai_review.db` 保存待审与已处理操作及助手权限/送审上下文；每对话权限存 agent.db，送审提案长期保留，普通重启不清除，恢复废止未终结许可；全文、来源和修订历史不进入脱敏系统运行库，完整备份覆盖该数据库。实际正文、Ledger 与跨文件 journal 的原子边界见 `AI/ledger.md`。
 

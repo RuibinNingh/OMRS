@@ -13,7 +13,7 @@
 
 ---
 
-## 1. 时间衰减 `time_decay(mastery, days_since, factor=30, base=5)`
+## 1. 时间衰减 `time_decay(mastery, days_since, factor=None, base=None)`
 
 ```
 decayed = mastery × e^( -days / (mastery×factor + base) )
@@ -26,7 +26,7 @@ decayed = mastery × e^( -days / (mastery×factor + base) )
 
 ---
 
-## 2. 熟练度更新 `compute_mastery_update(old_m, ef, sub_score, is_correct, attempts, high_correct_streak)`
+## 2. 熟练度更新 `compute_mastery_update(old_m, ef, sub_score, is_correct, attempts, high_correct_streak=0, tuning=None)`
 
 ### 主观分语义
 - 分值范围：0–10，**越大越熟练**（与前端评分控件一致）。
@@ -55,7 +55,7 @@ decayed = mastery × e^( -days / (mastery×factor + base) )
 
 ---
 
-## 3. 调度优先级 `compute_priority(decayed_mastery, ef, days, tag, mastery, wrong_streak=0, tuning=None, labels=None, label_bonuses=None)`
+## 3. 调度优先级 `compute_priority(decayed_mastery, ef, days, tag, mastery, wrong_streak=0, tuning=None, labels=None, label_bonuses=None, is_revived=False)`
 
 > 统一公式，集中在 `scheduling.py`。此前在 `schedule_questions()`、`generate_recommendations()`、`stats.py` 各写一份，已合并，避免三处逻辑漂移。
 
@@ -72,7 +72,7 @@ priority = (1 - decayed_mastery) × (eff_diff/10) + (days/60) × 0.3
 
 `60`/`0.3` 即 `priority_days_divisor`/`priority_days_weight`，连同上述加成阈值均可经 `tuning` 覆盖，见 §9。
 
-### 3.2 用户标记加成（v1.14.0，可选）
+### 用户标记加成（可选）
 
 题目上的用户标记不改变状态机，也不默认参与调度。只有标记定义的
 `priority_bonus` 设置为正数时，`compute_priority()` 才加入：

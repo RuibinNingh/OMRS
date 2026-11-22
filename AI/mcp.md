@@ -36,7 +36,7 @@ get_question_image.uid、get_session.session_id、create_review_session.request_
 
 | 权限 | 能力 | 默认 |
 | --- | --- | --- |
-| `omrs:read` | 下表全部查询、原图与导出 | 勾选 |
+| `omrs:read` | 工具清单中的查询、原图与导出 | 勾选 |
 | `draft:create` | 创建待审核草稿 | 勾选 |
 | `draft:update` | 修订所有来源待审核草稿，同时需要 `omrs:read` | 关闭 |
 | `report:create` | 新建报告 | 关闭 |
@@ -54,54 +54,7 @@ get_question_image.uid、get_session.session_id、create_review_session.request_
 
 ### 完整工具清单
 
-| 工具 | 行为 | 所需权限 |
-| --- | --- | --- |
-| `list_taxonomy` | 科目、分类与知识点词表 | `omrs:read` |
-| `search_questions` | 筛选、排序和分页检索题目 | `omrs:read` |
-| `get_question` | 稳定 question_id、可编辑字段、正文哈希与图片列表 | `omrs:read` |
-| `get_question_image` | 按题目图片下标取原生完整图片 | `omrs:read` |
-| `get_overview` | 同科目范围的概况 | `omrs:read` |
-| `get_recommendations` | 现有复习推荐 | `omrs:read` |
-| `list_sessions` | 分页练习 Session 列表及进度、可用性计数 | `omrs:read` |
-| `get_session` | 分页稳定题目条目与完整反馈进度 | `omrs:read` |
-| `list_drafts` | 待审核及其它状态草稿列表 | `omrs:read` |
-| `get_draft` | 草稿正文、来源与版本 | `omrs:read` |
-| `list_labels` | 标记定义与引用统计 | `omrs:read` |
-| `get_labeling_candidates` | 分页读取待归类题目与版本指纹 | `omrs:read` |
-| `get_questions` | 最多 20 UID，保留顺序并逐项报缺失 | `omrs:read` |
-| `get_question_content` | 当前或已登记版本的完整分节正文分页 | `omrs:read` |
-| `get_draft_image` | 按来源图片下标取原生完整图片 | `omrs:read` |
-| `get_question_history` | 有效反馈或正文版本历史 | `omrs:read` |
-| `get_learning_history` | 先筛选再按 Ledger 游标读学习/变更时间线 | `omrs:read` |
-| `get_analytics` | 六种详细分析视图 | `omrs:read` |
-| `list_reports` | 报告元数据列表 | `omrs:read` |
-| `get_report` | 报告 HTML 源码分页，不执行脚本 | `omrs:read` |
-| `list_boards` | 分页板列表、完整文件夹与目录版本 | `omrs:read` |
-| `get_board` | 分页题目引用、版式、纸面摘要与版本 | `omrs:read` |
-| `get_mcp_operation` | 本密钥发起的确认操作状态 | `omrs:read` |
-| `export_board` | 全部/仅新增的限时不可变 HTML 快照 | `omrs:read` |
-| `list_schedule_reminders` | 读取提醒素材元信息，不含SVG字节 | `omrs:read` |
-| `create_schedule_reminder` | 幂等新增提醒素材，网页用户选用 | `reminder:create` |
-| `create_draft` | 原图或文字创建待审核草稿 | `draft:create` |
-| `update_draft` | 受人工保护的字段/块修订 | `omrs:read` + `draft:update` |
-| `create_report` | 幂等新建报告，不覆盖旧报告 | `report:create` |
-| `propose_question_update` | 白名单正式题目修改提案，待人工修订/批准 | `omrs:read` + `question:propose` |
-| `stage_label_plan` | 分片准备完整标记方案，不写正式题库 | `omrs:read` + `label:write`；含合并/删除另需 `label:delete` |
-| `propose_label_plan` | 提交整批标记整理审核，由网页一次批准 | `omrs:read` + `label:write`；含合并/删除另需 `label:delete` |
-| `create_review_session` | 按稳定身份幂等创建正式复习计划 | `omrs:read` + `session:create` |
-| `create_board` | 新建板，可带初始题目引用 | `omrs:read` + `board:write` |
-| `update_board` | 局部修改板名、备注、来源标记 | `omrs:read` + `board:write` |
-| `duplicate_board` | 复制引用与版式，不复制纸面记录 | `omrs:read` + `board:write` |
-| `add_board_items` | 完整校验后加题，跳过已有引用 | `omrs:read` + `board:write` |
-| `remove_board_items` | 移除引用，清空非空板需网页确认 | `omrs:read` + `board:write` |
-| `reorder_board_items` | 所有条目引用的完整排列 | `omrs:read` + `board:write` |
-| `update_board_layout` | 严格范围的局部版式补丁 | `omrs:read` + `board:write` |
-| `update_board_item` | 单题留白与置顶 | `omrs:read` + `board:write` |
-| `create_board_folder` | 新建文件夹 | `omrs:read` + `board:write` |
-| `update_board_folder` | 文件夹名称或排序 | `omrs:read` + `board:write` |
-| `move_board` | 移动板或调整组内位置 | `omrs:read` + `board:write` |
-| `delete_board` | 申请删除板，由网页确认 | `omrs:read` + `board:delete` |
-| `delete_board_folder` | 申请删除文件夹，默认保留板 | `omrs:read` + `board:delete` |
+各工具行为与所需权限见 `AI/mcp-tools.md`；工具发现按当前 Key 的权限过滤。
 
 ### 共同授权边界
 
@@ -113,7 +66,7 @@ get_question_image.uid、get_session.session_id、create_review_session.request_
 
 工具不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在直接正式建题、直接提交/丢弃草稿、反馈、未经审核的题目修改、Session 删除或设置写入、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
 
-每次协议请求和领域调用重新验证 Key；草稿创建在下载及等锁之后、实际写入前复查，URL 快速复用、inline 处理后复用及新建都在结果封装前再次校验 `draft:create`。处理中吊销、到期或权限变化返回 `forbidden`，已有合法提交仍保留。`tools/list` 按当前 Key 的实时 scope 返回上表允许的工具；过滤只作用于当前请求的描述，完整注册表保持，SDK 共享定义缓存不承担授权；直接点名隐藏工具仍拒绝。`错题/.omrs/mcp_keys.json` 仅保存 SHA-256 摘要和非秘密元数据，0600；线程锁和操作系统文件锁共同避免本机 CLI 与 Web 的创建/吊销/最近使用时间互相覆盖。Key 管理响应禁止缓存。
+每次协议请求和领域调用重新验证 Key；草稿创建在下载及等锁之后、实际写入前复查，URL 快速复用、inline 处理后复用及新建都在结果封装前再次校验 `draft:create`。处理中吊销、到期或权限变化返回 `forbidden`，已有合法提交仍保留。`tools/list` 按当前 Key 的实时 scope 返回工具清单中允许的工具；过滤只作用于当前请求的描述，完整注册表保持，SDK 共享定义缓存不承担授权；直接点名隐藏工具仍拒绝。`错题/.omrs/mcp_keys.json` 仅保存 SHA-256 摘要和非秘密元数据，0600；线程锁和操作系统文件锁共同避免本机 CLI 与 Web 的创建/吊销/最近使用时间互相覆盖。Key 管理响应禁止缓存。
 
 所有新增写入和 `export_board` 必填 `request_id`；同密钥、工具和编号的相同请求复用结果，内容不同返回 `request_conflict`。板/草稿版本冲突为 `revision_conflict`；草稿已结束为 `state_conflict`；当前正文换版为 `content_conflict`。修复验收状态统一见 `AI/optimization.md`「MCP 修复」。
 
@@ -292,13 +245,15 @@ export_board 需要omrs:read与request_id，支持all/new，可选expected_revis
 
 条目保持 entry_id、question_id、uid_at_creation、当前 uid、source、availability 和 feedback_submitted。active/completed 沿用持久化领域状态，不按时间过期，也不把待反馈为零当作完成；停用、归档与待绑定状态单独显示。创建在等锁后、提交前和返回前复查权限，提交后的吊销不撤回合法事实。技术存储见 AI/mcp-storage.md，协议回归为 tests/test_mcp_review_sessions.py，网页闭环为 tests/e2e/mcp_review_sessions.py。
 
+正式复习计划 create_review_session 先返回 pending_confirmation、operation_id 和中心链接；批准前不创建 Session，不返回新 session_id。成功旧请求重试复用原计划；拒绝或冲突后需重新核对并提交新 request_id，不能复活撤销的计划。待审申请没有时间期限，审批撤权、内容换版、目标移动或题库世代变化均不继续写。
+
 ## 正式题目修改提案
 
-先通过 get_question 或 get_question_content 读取稳定 question_id 与完整 content_hash，提交 propose_question_update 后正式正文保持原样。题干/答案/错因/补充备注/知识点/难度/已有标记可提案，difficulty 是 1–10 严格整数；不能新增标记定义。人工修订仅限原 patch 字段，技术重试复用原操作，不覆盖修订。MCP 查询 get_mcp_operation 可取得真实终态和结果。
+先通过 get_question 或 get_question_content 读取稳定 question_id 与完整 content_hash，提交 propose_question_update 后正式正文保持原样。题干/答案/错因/补充备注/知识点/难度/已有标记和 SVG 配图可提案，difficulty 是 1–10 严格整数；不能新增标记定义。人工修订仅限原 patch 字段，技术重试复用原操作，不覆盖修订。MCP 查询 get_mcp_operation 可取得真实终态和结果。
 
 note 管理 `# 备注` 下的 `## 补充备注`，保留旧裸文本、未知子节、错因和关联；不迁移旧备注。章节编辑拒绝系统章节结构注入，知识点/标记规范编码并拒绝控制字符。Obsidian 与普通 Markdown 图片引用的 token、数量、顺序和所属章节保持；不能经正文补丁新增、移动或移除附件。
 
-正式复习计划 create_review_session 先返回 pending_confirmation、operation_id 和中心链接；批准前不创建 Session，不返回新 session_id。成功旧请求重试复用原计划；拒绝或冲突后需重新核对并提交新 request_id，不能复活撤销的计划。待审申请没有时间期限，审批撤权、内容换版、目标移动或题库世代变化均不继续写。
+`patch.diagrams` 可追加或替换题目／答案章节的静态 SVG，替换限该章节恰好出现一次的已有 Obsidian SVG 引用；预览不写附件，批准后才发布图并提交正文。参数、安全检查与审批快照见 `AI/question-svg.md`。
 
 ## 标记整理审批
 

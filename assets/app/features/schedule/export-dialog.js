@@ -11,8 +11,9 @@ const choice = (key, title, value, options, disabled = false) => html`<div class
 const check = (key, label, checked, disabled = false) => html`<label class="exd-check"><input id="${key}" type="checkbox" data-export-option="${key}"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}>${label}</label>`;
 
 function previewHistory(o) {
-  const scores = [9, 7, 3, 8, 5, 2, 6, 4, 8, 3, 7, 4, 6, 1, 5, 2].slice(0, o.historyLimit);
-  return html`<div class="exd-history" aria-label="历史图排版示意"><span class="exd-history__cap">近 ${o.historyLimit} 次<small>新 → 旧</small></span><div class="exd-history__chart"><div class="exd-bars">${scores.map((score, i) => html`<div class="exd-bar" data-score="${score}" data-correct="${i % 3 !== 2 ? '1' : '0'}"><span>${o.historyScores ? score : ''}</span><i aria-hidden="true"></i><small>${i % 3 !== 2 ? '✓' : '×'}</small></div>`)}</div>${o.historyDates ? html`<div class="exd-dates"><span>11/13</span><span>10/02</span></div>` : ''}</div></div>`;
+  const records = [9, 7, 3, 8, 5, 2, 6, 4, 8, 3, 7, 4, 6, 1, 5, 2]
+    .map((score, i) => ({ score, correct: i % 3 !== 2 })).slice(0, o.historyLimit).reverse();
+  return html`<div class="exd-history" aria-label="历史图排版示意"><span class="exd-history__cap">近 ${o.historyLimit} 次<small>旧 → 新</small></span><div class="exd-history__chart"><div class="exd-bars">${records.map(({ score, correct }) => html`<div class="exd-bar" data-score="${score}" data-correct="${correct ? '1' : '0'}"><span>${o.historyScores ? score : ''}</span><i aria-hidden="true"></i><small>${correct ? '✓' : '×'}</small></div>`)}</div>${o.historyDates ? html`<div class="exd-dates"><span>${o.historyLimit === 1 ? '11/13' : '10/02'}</span>${o.historyLimit > 1 ? html`<span>11/13</span>` : ''}</div>` : ''}</div></div>`;
 }
 
 function preview(o, bannerSnapshot) {
@@ -43,7 +44,7 @@ export function exportDialogView(o, extra = false, error = '', busy = false, ban
     </section>
     <section class="exd-section"><label class="exd-check exd-missing-option"><input id="markMissingCause" type="checkbox" data-export-option="markMissingCause" ${o.markMissingCause ? 'checked' : ''}>标记缺少错因的题目</label><p class="exd-hint">题号旁显示「待补错因」，黑白打印可见；补写后下次导出自动取消。</p></section>
     <section class="exd-section"><h3>首页提醒</h3><div class="exd-banner">${reminderImage(bannerSnapshot)}<div class="exd-row"><span class="exd-hint">${bannerMode === 'session' ? '沿用计划提醒' : bannerName || '本次不显示'}</span><button type="button" class="ui-btn ui-btn--sm" data-export-banner-pick>更换提醒</button></div></div><div class="exd-row"><button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-export-banner-off>本次不显示</button></div><p class="exd-hint">仅影响此次下载；在调度页「提醒素材」中生成、导入或删除。</p></section>
-    <section class="exd-section"><h3>练习历史<span>左新右旧</span></h3>
+    <section class="exd-section"><h3>练习历史<span>左旧右新</span></h3>
       ${choice('historyPosition', '显示位置', o.historyPosition, [['none', '关闭'], ['question', '题目区'], ['feedback', '反馈区']])}
       <label class="exd-limit" for="historyLimit"><span>最近记录</span><input class="ui-input" id="historyLimit" data-export-option="historyLimit" type="number" min="1" max="16" step="1" value="${o.historyLimit}"${off ? ' disabled' : ''}><span>次</span></label>
       <p class="exd-hint">${screen && o.historyPosition === 'feedback' ? '在「显示答案」后查看历史。' : '每题约占 12–15mm；没有记录时不占位。'}</p>

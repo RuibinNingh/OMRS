@@ -28,6 +28,26 @@ def main():
         checks += 1
         print(f'通过：{label}', flush=True)
 
+    def check_history_order(page, records, label):
+        chart = page.locator('.review-history').first
+        audit = chart.evaluate('''el => ({
+            bars: [...el.querySelectorAll('g[data-date]')].map(g => ({
+                date: g.dataset.date, score: +g.dataset.score, correct: g.dataset.correct === '1',
+                x: g.querySelector('rect').getBoundingClientRect().x,
+                title: g.querySelector('title').textContent,
+            })),
+            dates: [...el.querySelectorAll('.history-date')].map(e => e.textContent),
+            direction: el.querySelector('figcaption small').textContent,
+            description: el.querySelector('svg').getAttribute('aria-label'),
+        })''')
+        expected = list(reversed(records))
+        check(label, [{k: bar[k] for k in ('date', 'score', 'correct')} for bar in audit['bars']]
+              == [{k: record[k] for k in ('date', 'score', 'correct')} for record in expected]
+              and all(a['x'] < b['x'] for a, b in zip(audit['bars'], audit['bars'][1:]))
+              and all(record['time'] in bar['title'] for record, bar in zip(expected, audit['bars']))
+              and audit['dates'] == ['10/02', '11/13'] and audit['direction'] == '旧 → 新'
+              and audit['description'] == '；'.join(f"{r['date']} {'对' if r['correct'] else '错'} {r['score']}分" for r in expected))
+
     with tempfile.TemporaryDirectory(prefix='omrs-export-e2e-') as temp:
         vault = Path(temp) / 'vault'
         questions = []
@@ -64,6 +84,26 @@ def main():
                 check('导出先打开参数面板，未提交请求', not requests)
                 check('默认双栏、反馈区、最近8次', panel.locator('[name="columns"][value="two"]').is_checked()
                       and panel.locator('[name="historyPosition"][value="feedback"]').is_checked() and panel.locator('#historyLimit').input_value() == '8')
+                preview = panel.locator('.exd-history')
+                check('预览左旧右新，分数与对错整条反转', preview.locator('.exd-bar').evaluate_all(
+                    "bars => bars.map(e => [+e.dataset.score, e.dataset.correct, e.querySelector('small').textContent])")
+                      == [[4, '1', '✓'], [6, '1', '✓'], [2, '0', '×'], [5, '1', '✓'],
+                          [8, '1', '✓'], [3, '0', '×'], [7, '1', '✓'], [9, '1', '✓']]
+                      and preview.locator('.exd-dates span').all_text_contents() == ['10/02', '11/13']
+                      and preview.locator('.exd-history__cap small').inner_text() == '旧 → 新'
+                      and '左旧右新' in panel.inner_text())
+                panel.locator('#historyLimit').fill('1')
+                panel.locator('#historyLimit').dispatch_event('change')
+                check('单次预览只显示最新一条和一个日期', preview.locator('.exd-bar').count() == 1
+                      and preview.locator('.exd-bar').get_attribute('data-score') == '9'
+                      and preview.locator('.exd-dates span').all_text_contents() == ['11/13'])
+                panel.locator('#historyLimit').fill('16')
+                panel.locator('#historyLimit').dispatch_event('change')
+                check('16次预览仍将最新记录放在最右', preview.locator('.exd-bar').count() == 16
+                      and preview.locator('.exd-bar').first.get_attribute('data-score') == '2'
+                      and preview.locator('.exd-bar').last.get_attribute('data-score') == '9')
+                panel.locator('#historyLimit').fill('8')
+                panel.locator('#historyLimit').dispatch_event('change')
                 panel.locator('.ui-dialog__panel').screenshot(path=str(shots / 'export-dialog-light.png'))
                 page.evaluate("document.documentElement.dataset.theme = 'dark'")
                 panel.locator('.ui-dialog__panel').screenshot(path=str(shots / 'export-dialog-dark.png'))
@@ -84,6 +124,40 @@ def main():
                 records = data['answers'][0]['history']
                 check('按答题时间倒序，保留零分与高分答错', [r['score'] for r in records] == [0, 4, 9, 8, 2, 7, 3, 6]
                       and not records[2]['correct'])
+                check_history_order(printed, records, 'A4反馈区柱子、日期与无障碍说明均为左旧右新')
+                edges = printed.evaluate('''() => {
+                    const one = [{date: '2026-11-13', time: '21:00', score: 0, correct: false}];
+                    const many = Array.from({length: 16}, (_, i) => ({
+                        date: i < 2 ? '2026-01-01' : '2025-12-31', time: i === 0 ? '21:00' : '09:00',
+                        score: i % 11, correct: i % 2 === 0,
+                    }));
+                    const inspect = records => {
+                        const before = JSON.stringify(records);
+                        Object.freeze(records); records.forEach(Object.freeze);
+                        const a = OMRS_HISTORY(records), b = OMRS_HISTORY(records);
+                        return {
+                            stable: before === JSON.stringify(records) && a.outerHTML === b.outerHTML,
+                            dates: [...a.querySelectorAll('.history-date')].map(e => e.textContent),
+                            bars: [...a.querySelectorAll('g[data-date]')].map(g => [+g.dataset.score, g.dataset.correct]),
+                            titles: [...a.querySelectorAll('title')].map(e => e.textContent),
+                        };
+                    };
+                    const full = inspect(many);
+                    OMRS_DATA.meta.history.scores = false;
+                    OMRS_DATA.meta.history.dates = false;
+                    const hidden = OMRS_HISTORY(many);
+                    OMRS_DATA.meta.history.scores = true;
+                    OMRS_DATA.meta.history.dates = true;
+                    return {empty: OMRS_HISTORY([]) === null, one: inspect(one), full,
+                        hidden: !hidden.querySelector('.history-date,.history-score') && hidden.querySelectorAll('g[data-date]').length === 16};
+                }''')
+                check('空历史无图，单条日期和零分保留', edges['empty'] and edges['one']['dates'] == ['11/13']
+                      and edges['one']['bars'] == [[0, '0']] and edges['one']['stable'])
+                check('16条跨年与同日记录保持时间顺序，重复绘图不改原数组', edges['full']['dates'] == ['2025/12/31', '2026/01/01']
+                      and edges['full']['bars'] == [[i % 11, '1' if i % 2 == 0 else '0'] for i in reversed(range(16))]
+                      and '09:00' in edges['full']['titles'][-2] and '21:00' in edges['full']['titles'][-1]
+                      and edges['full']['stable'])
+                check('隐藏日期与分数仍保留16根记录柱', edges['hidden'])
                 check('没有历史的题不占位，历史仅在反馈区', printed.locator('#stage .review-history').count() == 3
                       and all(not q['history'] for q in data['questions']))
                 check('图高不超过15mm，零分细条可见', printed.locator('.review-history').first.evaluate('(e) => e.getBoundingClientRect().height') <= 56.7
@@ -130,6 +204,7 @@ def main():
                 check('切换题目区与单栏后实际导出同步', printed.locator('.page.single').count() > 0
                       and printed.evaluate('OMRS_DATA.questions[0].history.length') == 8
                       and printed.evaluate('OMRS_DATA.answers.every(a => !a.history.length && !a.blocks.length)'))
+                check_history_order(printed, records, 'A4题目区实际显示左旧右新')
                 printed.locator('.page').first.screenshot(path=str(shots / 'export-question-page.png'))
                 printed.close()
                 # 从全库入口打开同一套设置，跨入口记忆，屏幕版不污染纸面答案开关。
@@ -149,6 +224,7 @@ def main():
                 screen = context.new_page()
                 screen.goto(artifact.as_uri())
                 check('屏幕版离线显示同一历史图', screen.locator('.review-history').count() == 3)
+                check_history_order(screen, records, '屏幕版实际显示左旧右新')
                 screen.close()
                 # 手机与深浅主题实际打开面板，审核滚动、触控目标和横向溢出。
                 for width in (320, 390, 1440):

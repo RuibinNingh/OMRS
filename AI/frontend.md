@@ -15,7 +15,7 @@
 
 | 分册 | 内容 |
 |---|---|
-| [`frontend/design-system.md`](frontend/design-system.md) | **设计系统**：设计 token、尺度、旧名别名、对比度规则，以及 `check_ui.py` 的新代码纪律与旧代码棘轮 |
+| [`frontend/design-system.md`](frontend/design-system.md) | **设计系统**：设计 token、尺度、旧名别名、对比度规则，以及 `check_ui.py` 的全仓零容忍纪律 |
 | [`frontend/architecture.md`](frontend/architecture.md) | **架构**：`assets/app/` 的目录与依赖方向、core 底座、页面契约、hash 路由、启动顺序与静态资源缓存 |
 | [`frontend/components.md`](frontend/components.md) | **UI 组件库与 gallery**：`assets/app/ui/` 的组件与图标、`html` 模板渲染约定、全站唯一的 toast 与对话框、组件陈列页与浏览器单测 |
 | [`frontend/shell.md`](frontend/shell.md) | **外壳、布局与主题**：页面外壳：`assets/` 文件划分与加载顺序、整屏工作台布局、主题 token 与深色对比度 |
@@ -35,9 +35,7 @@
 | [`frontend/box-panel.md`](frontend/box-panel.md) | **AI 框选服务面板**：同端口独立管理、Key、整图测试与历史、模型及访问设置 |
 | [`frontend/zyb-panel.md`](frontend/zyb-panel.md) | **作业帮服务面板**：独立网关状态概览、导入与扫码弹窗、一次性调用密钥、请求审计和访问设置 |
 | [`frontend/records.md`](frontend/records.md) | **历史记录、数据复盘与报告**：学习与变更 / MCP 系统运行时间线、数据复盘页、AI 报告托管页 |
+| [`frontend/trainpanel.md`](frontend/trainpanel.md) | **训练面板**：独立 `/train` 的实验进度、图表和内容复核 |
+| [`frontend/problems.md`](frontend/problems.md) | **问题中心**：问题列表与详情、Markdown 和附件 |
 
-独立训练面板 `/train` 的入口、图表、实验与内容复核见 `AI/frontend/trainpanel.md`。
-
-## 问题页
-
-独立问题页的桌面列表/详情、手机分层、Markdown和附件见`AI/frontend/problems.md`；弹窗快捷录因见`AI/frontend/qview.md`。
+题目弹窗的快捷录因见 `AI/frontend/qview.md`。

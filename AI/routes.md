@@ -6,7 +6,7 @@
 | 方法 | 路径 | 说明 |
 |---|---|---|
 | GET | `/` | `AI/api.md`、`AI/README.md`、`AI/agent.md`等 |
-| GET | `/annotate` | `AI/README.md`、`AI/api/extensions.md`、`AI/frontend.md`等 |
+| GET | `/annotate` | `AI/README.md`、`AI/api/extensions.md`、`AI/features.md`等 |
 | POST | `/api/agent/abort` | `AI/agent.md`、`AI/frontend/assistant.md` |
 | POST | `/api/agent/confirm` | `AI/agent.md` |
 | GET | `/api/agent/conversation` | `AI/agent.md` |

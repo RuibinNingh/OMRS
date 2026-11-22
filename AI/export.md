@@ -27,11 +27,12 @@ HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打�
 3. **取图**：`_img_payload()` 用 `_find_image()` 定位、`_read_image_info()`（纯 `struct` 解析 PNG/JPEG/GIF 尺寸，无 Pillow）读出宽高，base64 成 data-uri。
 4. **组装**：`_build_export_data()` 产出 `{meta, questions, answers}`。`questions[i].notes` 只带 `关联`，`answers[i].notes` 只带 `错因`——错因会提示解法，不能出现在题面区；`include_answers=false` 时 `answers[i].blocks` 为空数组但 `notes` 照旧，反馈区因此仍能只列错因。`meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联（`_read_katex_bundle()`）。数据 JSON 会做 `</` 转义防提前闭合脚本，A4 另由 `export_fonts.inline_print_fonts()` 按导出文字选择本地中文字体分片并内联，最终仍是单个自包含 HTML。
 
-对外入口 `export_schedule_artifact(vault, uids, session_id, export_format, include_answers, question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None)`：
+对外入口 `export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None, schedule_banner=None, mark_missing_cause=False)`：
 - `export_format`：`'a4'`（默认）/ `'screen'`；为兼容旧调用，`'docx'`/`'word'`/`'html'`/空 一律按 `a4`。
 - `question_gap_lines`：仅 A4 使用；每两道题之间加入 `lines × 18px` 留白，最后一题后不追加。
 - `a4_two_columns`：仅 A4 使用；默认 `true` 为双栏，`false` 时整份文件使用单栏。
 - `history`：可选 `{position, limit, scores, dates}`，位置为 `none` / `question` / `feedback`，条数默认 8、钳制到 1–16，分数与首尾日期默认显示。省略时关闭，兼容原 API、CLI 与 MCP 调用。网页参数面板默认放反馈区。
+- `schedule_banner`：可选首页提醒快照，保存到新导出的文件；`mark_missing_cause` 控制是否标记缺错因题目，详见下方对应章节。
 - 返回 `(bytes, session_id, "OMRS-{sid}-{variant}.html", "text/html; charset=utf-8")`。
 
 模板是包内资源，放在 `omrs/export_templates/`，可直接当普通 JS/CSS 文件编辑：
@@ -54,7 +55,7 @@ HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打�
 
 ### 调用入口
 
-- Web API：`POST /api/export` 接受 `question_gap_lines`、`a4_two_columns` 与 `history`；后端负责归一化，详见 `api.md` 与 `api/boards.md`。
+- Web API：`POST /api/export` 接受 `question_gap_lines`、`a4_two_columns`、`history`、`schedule_banner` 与 `mark_missing_cause`；详见 `api.md` 与 `api/boards.md`。
 - 前端：复习调度「全题库导出」与「已有计划」共用 `assets/app/features/schedule/export-dialog.js` 参数面板，选择版式、答案、留白和历史图后确认下载。成功后记住参数；取消不发请求，失败保留面板供重试。屏幕版始终附带答案、禁用纸面参数；详细交互见 `frontend/review.md`。
 - CLI：`python omrs_engine.py export ... --question-gap-lines N`；默认 `0`。
 
@@ -92,9 +93,11 @@ HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打�
 
 ### 练习历史微型图
 
-`_load_export_questions()` 保留 SQL 题目的稳定 `question_id`，`_export_question_history()` 只读取该身份的有效 `history_projection` 记录。按业务作答日期与时间从近到远排序，同刻按记录顺序倒序；补录早期练习不会被放到最左，改名与复用 UID 不会串历史。不解析 Markdown 历史；关闭时不读记录，空历史不产生占位。只内嵌日期、时间、0–10 分与对错，不带历史备注。
+`_load_export_questions()` 保留 SQL 题目的稳定 `question_id`，`_export_question_history()` 只读取该身份的有效 `history_projection` 记录。按业务作答日期与时间从近到远排序，同刻按记录顺序倒序，先截取最近 N 次；补录早期练习不会因提交较晚而挤占最新位置，改名与复用 UID 不会串历史。不解析 Markdown 历史；关闭时不读记录，空历史不产生占位。只内嵌日期、时间、0–10 分与对错，不带历史备注。
 
-`questions[].history` 与 `answers[].history` 只在选定位置携带最近记录。柱高统一按 0–10 分缩放，绿对红错与分数独立，零分保留细条；每柱有 ✓ / ×，首尾日期可关闭，跨年显示年份。历史条高 51px（约 13.5mm），最多 8 次时优先与题头并排，更多记录移到题头下方以保留字宽。整个题头由排版器一起测量、换栏；纸面字体字符覆盖包含固定图表文案。屏幕版共用同一 SVG，反馈位置折在「显示答案」之后。
+`questions[].history` 与 `answers[].history` 只在选定位置携带最近记录，数据数组保持新到旧。共用 `history.js` 对副本反转后绘制，柱子和无障碍说明均为左旧右新，左端标最早日期、右端标最新日期；单条只标一个日期，不修改原数组。参数面板示意采用相同方向。
+
+柱高统一按 0–10 分缩放，绿对红错与分数独立，零分保留细条；每柱有 ✓ / ×，首尾日期可关闭，跨年显示年份。历史条高 51px（约 13.5mm），最多 8 次时优先与题头并排，更多记录移到题头下方以保留字宽。整个题头由排版器一起测量、换栏；纸面字体字符覆盖包含固定图表文案。屏幕版共用同一 SVG，反馈位置折在「显示答案」之后。
 
 ## 展示板打印版（`board.css` / `board.js`，v1.14.0）
 

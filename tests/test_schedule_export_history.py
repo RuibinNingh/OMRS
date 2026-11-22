@@ -66,6 +66,24 @@ class ScheduleExportHistoryTests(unittest.TestCase):
         self.assertEqual(data['questions'][0]['history'], [])
         self.assertNotIn('不应导出这段私有备注', source)
 
+    def test_limits_keep_the_latest_records_before_display_reverses_them(self):
+        for day in range(14, 26):
+            append_commit(self.vault, 'test', 'review.batch_submit', '合成超出显示上限的记录', {'feedbacks': [{
+                'question_id': self.qid, 'uid_at_that_time': self.question['uid'], 'source': 'due',
+                'sub_score': 5, 'is_correct': True, 'review_date': f'2026-11-{day:02}',
+                'recorded_at': f'2026-11-{day:02}T20:00:00+08:00',
+            }]})
+        rebuild_projection(self.vault)
+        data, _ = self.data({'position': 'question', 'limit': 16})
+        latest = data['questions'][0]['history']
+        self.assertEqual(len(latest), 16)
+        self.assertEqual(latest[0]['date'], '2026-11-25')
+        self.assertEqual(latest[-1]['date'], '2026-11-11')
+        for limit in (1, 8, 16, 999):
+            with self.subTest(limit=limit):
+                data, _ = self.data({'position': 'question', 'limit': limit})
+                self.assertEqual(data['questions'][0]['history'], latest[:min(limit, 16)])
+
     def test_same_minute_records_compare_instants_with_mixed_timezones(self):
         for recorded_at, score in [('2026-11-13T13:00:59Z', 6), ('2026-11-13T21:00:30+08:00', 7)]:
             append_commit(self.vault, 'test', 'review.batch_submit', '同分钟不同时间表示', {'feedbacks': [{

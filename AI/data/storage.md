@@ -75,7 +75,7 @@
 连累数据。折叠状态属于 UI 状态，存在 `localStorage['omrs-board-folders-collapsed']`，不写进本文件。
 
 板记录包含板元数据、打印设置和 `items[]`。每个条目同时保存
-`question_id` 与 `uid`；读取优先稳定的 `question_id`，UID 只做显示和降级兜底。
+`question_id` 与 `uid`；有稳定 `question_id` 时只按该身份读取，即使找不到也不回退 UID；仅旧条目缺少 `question_id` 时按 UID 查找。
 停用题继续保留在板内但导出跳过；题目删除或无法按稳定身份解析时显示
 `missing`，不会自动从板文件中删除。
 
