@@ -9,6 +9,7 @@ import unittest
 from omrs import ai_review, content_history, ledger
 from omrs.creation import create_question
 from omrs.mcp.keys import create_key, revoke_key
+from tests.test_drafts import data_url, make_png
 from tests.test_mcp_protocol import MCPServerProcess, _session, _json_result
 
 
@@ -73,6 +74,59 @@ class MCPQuestionUpdateSDKTests(unittest.TestCase):
                 current = _json_result(await session.call_tool('get_question', {'uid': q['uid']}))
                 original = Path(self.server.vault)/'错题'/'附件'/current['images'][0]
                 self.assertEqual(original.read_bytes(), raw)
+        asyncio.run(run())
+
+    def test_bitmap_proposal_changes_references_only_after_approval(self):
+        from PIL import Image
+        vault = self.server.vault
+        originals = [make_png(52, 36, (200, 0, 0)), make_png(80, 40), make_png(24, 16)]
+        replacement = make_png(20, 22, (0, 200, 0))
+        question = create_question(vault, '物理', '题图编辑协议', 5, question_text='题干', answer_text='解析',
+                                   question_images=[data_url(raw) for raw in originals[:2]],
+                                   answer_images=[data_url(originals[2])])
+        path = Path(vault, question['file_path'])
+        before = path.read_bytes()
+        attachments = Path(vault, '错题', '附件')
+        a, b, c = question['images']
+        image_edits = [{'section': '题目', 'target': a, 'action': 'replace',
+                        'data_base64': base64.b64encode(replacement).decode()},
+                       {'section': '题目', 'target': b, 'action': 'crop',
+                        'box': {'x': .25, 'y': .25, 'w': .5, 'h': .5}},
+                       {'section': '答案', 'target': c, 'action': 'remove'}]
+        key = create_key(vault, scopes=['omrs:read', 'question:propose'])
+
+        async def run():
+            async with _session(self.server.mcp_port, key['secret']) as session:
+                read = _json_result(await session.call_tool('get_question', {'uid': question['uid']}))
+                tool = next(t for t in (await session.list_tools()).tools if t.name == 'propose_question_update')
+                self.assertIn('image_edits', tool.inputSchema['properties']['patch']['properties'])
+                request = {'uid': read['uid'], 'question_id': read['question_id'],
+                           'expected_content_hash': read['content_hash'], 'request_id': 'bitmap-replace',
+                           'reason': '调整题目配图', 'patch': {'image_edits': image_edits}}
+                proposed = _json_result(await session.call_tool('propose_question_update', request))
+                self.assertEqual(proposed['status'], 'pending_confirmation')
+                self.assertEqual(path.read_bytes(), before)
+                self.assertFalse(list(attachments.glob(question['question_id'] + '-img-*')))
+                self.assertEqual(proposed['editable_fields'], [])
+                self.assertNotIn('data_base64', proposed['payload']['patch']['image_edits'][0])
+                self.assertTrue(proposed['preview']['image_edits'][0]['after_src'].startswith('data:image/jpeg;'))
+                self.assertIsNone(proposed['preview']['image_edits'][2]['after_src'])
+                done = ai_review.decide(vault, proposed['operation_id'], 1, 'approve')
+                self.assertEqual(done['status'], 'applied')
+                fields = done['result']['fields']['image_edits']
+                self.assertEqual((attachments / fields[0]['name']).read_bytes(), replacement)
+                with Image.open(attachments / fields[1]['name']) as image:
+                    self.assertEqual(image.size, (40, 20))
+                self.assertIsNone(fields[2]['name'])
+                self.assertEqual([(attachments / name).read_bytes() for name in (a, b, c)], originals)
+                current = _json_result(await session.call_tool('get_question', {'uid': question['uid']}))
+                self.assertEqual(current['images'], [field['name'] for field in fields[:2]])
+                retry = _json_result(await session.call_tool('propose_question_update', request))
+                self.assertTrue(retry['reused'])
+                content_history.restore_content(vault, question['uid'], read['content_hash'],
+                                                expected_hash=current['content_hash'])
+                self.assertEqual(path.read_bytes(), before)
+
         asyncio.run(run())
 
     def test_sdk_proposal_is_readonly_until_revised_web_approval_and_retry_reuses(self):

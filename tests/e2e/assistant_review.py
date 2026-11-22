@@ -15,6 +15,8 @@ from fixtures.make_vault import free_port
 from omrs.agent.tools.write import set_question_labels
 from omrs.labels import list_label_defs
 from omrs.common import save_config
+from omrs.creation import create_question
+from tests.test_drafts import data_url, make_png
 
 spec = importlib.util.spec_from_file_location('assistant_support', ROOT / 'tests/e2e/assistant.py')
 support = importlib.util.module_from_spec(spec)
@@ -34,6 +36,13 @@ def main():
     set_question_labels({'vault': vault}, {'uids': uids, 'remove': [row['name'] for row in list_label_defs(vault)]})
     set_question_labels({'vault': vault}, {'uids': [uids[0]], 'add': ['考前必看']})
     save_config(vault, {'agent_enabled': True, 'draft_mode': 'silent', 'draft_crop_mode': 'manual'})
+    original = make_png(160, 80, (24, 88, 160))
+    replacement = make_png(96, 72, (176, 88, 24))
+    question = create_question(vault, '数学', '正式题图审核', 5, question_text='请观察截图。', answer_text='解析保留。',
+                               question_images=[data_url(original)], answer_images=[data_url(original)])
+    question_path = Path(vault, question['file_path'])
+    before = question_path.read_text()
+    question_image, answer_image = question['images']
     faux = Path(vault) / 'review-faux.json'
     faux.write_text(json.dumps({'scenarios': [
         {'match': '聊天标记', 'rounds': [
@@ -44,6 +53,15 @@ def main():
                 'blocks': [{'section': '题目', 'kind': 'text', 'text': '求 $x^2$ 的最小值。'},
                            {'section': '答案', 'kind': 'text', 'text': '最小值为 0。'}]}}]},
             {'text': '草稿已创建。'}]},
+        {'match': '聊天修改正式题图', 'rounds': [
+            {'tool_calls': [{'name': 'update_question_section', 'arguments': {
+                'uid': question['uid'], 'section': '题目', 'mode': 'append', 'content': '',
+                'image_edits': [
+                    {'section': '题目', 'target': question_image, 'action': 'crop',
+                     'box': {'x': 0.25, 'y': 0, 'w': 0.5, 'h': 1}},
+                    {'section': '答案', 'target': answer_image, 'action': 'replace', 'image_ref': 'IMG-1'},
+                ]}}]},
+            {'text': '正式题图已更新。'}]},
     ]}, ensure_ascii=False))
     support.FAUX = str(faux)
     proc = support.start(vault, port)
@@ -136,6 +154,31 @@ def main():
                   and draft_id in drawer.locator('.drf-id').inner_text())
             drawer.locator('[data-drawer-close]').click(); drawer.wait_for(state='detached')
             check('完成草稿审核后保持聊天和输入', '#/assistant' in page.url and page.input_value('#ast-input') == '审核草稿时也保留聊天输入')
+            page.set_input_files('#ast-image-picker', {'name': '新答案图.png', 'mimeType': 'image/png', 'buffer': replacement})
+            page.locator('.ast-attachment img').wait_for()
+            page.fill('#ast-input', '聊天修改正式题图')
+            page.click('[data-action="assistant.send"]')
+            pending = page.locator('.ast-op.is-waiting')
+            pending.locator('[data-action="assistant.gate"]').click()
+            drawer = page.locator('.ast-review-panel[open]')
+            images = drawer.get_by_role('region', name='题目图片审核').locator('img')
+            images.nth(3).wait_for()
+            page.wait_for_function("() => [...document.querySelectorAll('.ast-review-panel [aria-label=题目图片审核] img')].every(img => img.naturalWidth > 0)")
+            check('图像审批显示两组新旧预览且尚未写题', images.evaluate_all('imgs => imgs.map(img => img.naturalWidth)') == [160, 80, 160, 96]
+                  and question_path.read_text() == before)
+            for width in (390, 1440):
+                page.set_viewport_size({'width': width, 'height': 900})
+                for theme in ('light', 'dark'):
+                    page.evaluate('theme => document.documentElement.dataset.theme = theme', theme)
+                    page.screenshot(path=str(shots / f'question-images-{width}-{theme}.png'), animations='disabled')
+                    check(f'{width}px/{theme}题图预览可见且无横向溢出',
+                          drawer.evaluate('el => el.scrollWidth <= el.clientWidth'))
+            drawer.get_by_role('button', name='确认执行', exact=True).click()
+            page.wait_for_function("() => !document.querySelector('.ast-turn.is-live')")
+            after = question_path.read_text()
+            check('聊天审批后写入新题图且保留题干、解析和原附件', after.count('-img-') == 2
+                  and '请观察截图。' in after and '解析保留。' in after
+                  and all(Path(vault, '错题', '附件', name).read_bytes() == original for name in question['images']))
             check('所有新路径没有脚本错误', not errors, errors)
             browser.close()
     finally:

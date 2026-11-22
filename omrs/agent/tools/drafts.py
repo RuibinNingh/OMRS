@@ -7,6 +7,7 @@
 
 错因规则写在服务端：带 cause 就必须带 cause_statement，且它必须是本对话某条用户消息里的原话。
 """
+import base64
 import re
 import unicodedata
 
@@ -63,15 +64,29 @@ def _blocks_out(draft, conv_id, vault, editable=False):
 
 # ── read ──
 def describe_image_tool(ctx, args):
-    row = drafts.resolve_image(ctx["vault"], ctx["conversation_id"], args["image"])
+    vault = ctx["vault"]
+    image = args.get("image")
+    if image and ("uid" in args or "image_index" in args):
+        raise ValueError("对话图片和正式题图只能选择一种")
+    if image:
+        row = drafts.resolve_image(vault, ctx["conversation_id"], image)
+        ref = row["ref"]
+        data_url = drafts.image_data_url(vault, row["sha256"])
+    else:
+        from ...question_images import read_question_image
+        uid, index = args.get("uid"), args.get("image_index")
+        raw, fmt = read_question_image(vault, uid, index)
+        ref = f"{uid.strip()} · 图片 {index + 1}"
+        data_url = f"data:image/{fmt};base64," + base64.b64encode(raw).decode("ascii")
+
     def record(usage):
-        ctx["emit_usage"]({"kind": "describe", "ref": row["ref"], "request_id":
+        ctx["emit_usage"]({"kind": "describe", "ref": ref, "request_id":
                            f"{ctx['run_id']}:describe:{ctx['tool_call_id']}", "usage": usage})
     options = {"usage_callback": record} if ctx.get("emit_usage") else {}
-    answer = ask_image(ctx["vault"], drafts.image_data_url(ctx["vault"], row["sha256"]), args["question"].strip(), **options)
+    answer = ask_image(vault, data_url, args["question"].strip(), **options)
     if len(answer) > DESCRIBE_CAP:
         answer = answer[:DESCRIBE_CAP] + "…（已截断）"
-    return {"result": {"image": row["ref"], "answer": answer}, "summary": row["ref"]}
+    return {"result": {"image": ref, "answer": answer}, "summary": ref}
 
 
 def list_drafts_tool(ctx, args):
@@ -242,10 +257,11 @@ _BLOCK = {"type": "object", "required": ["section", "kind"], "properties": {
 
 SPECS = [
     ("describe_image", "read",
-     "针对本对话里的一张图（IMG-n）提一个具体问题，让识图模型再仔细看一次，例如「第 3 步的分母是什么」「图里的几何图形标了哪些点」。"
-     "转述看不清或需要局部细节时用。",
-     {"type": "object", "required": ["image", "question"], "properties": {
-         "image": _IMG, "question": {"type": "string", "minLength": 2, "maxLength": 300}}}, describe_image_tool),
+     "让识图模型回答一张图片的具体问题。对话图传 image=IMG-n；正式题图传 uid 和 get_question.images 从 0 开始的 image_index。"
+     "裁剪正式题图前可让它估计目标范围在正向显示图上的归一化 x、y、w、h。",
+     {"type": "object", "required": ["question"], "properties": {
+         "image": _IMG, "uid": _S, "image_index": {"type": "integer", "minimum": 0},
+         "question": {"type": "string", "minLength": 2, "maxLength": 300}}}, describe_image_tool),
     ("list_drafts", "read", "列出 AI 草稿区里的草稿。默认只列本对话、还没入库也没丢弃的；status 可筛 cropping（待框选）/ review（待审核）/ done / discarded。",
      {"type": "object", "properties": {
          "status": {"type": "string", "enum": list(drafts.STATUSES)}, "all_conversations": {"type": "boolean"}}},

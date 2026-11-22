@@ -158,6 +158,18 @@ class DraftToolsTest(unittest.TestCase):
         self.assertIn("已截断", r["answer"])
         self.assertEqual(fake.call_args[0][2], "分母是多少")
 
+    def test_describe_formal_question_image(self):
+        from omrs.creation import create_question
+        raw = make_png(64, 32)
+        q = create_question(self.vault, '数学', '识图', 5, question_images=[data_url(raw)])
+        args = {"uid": q["uid"], "image_index": 0, "question": "图案在哪一侧"}
+        with mock.patch.object(tools, "ask_image", return_value="在左侧") as ask:
+            result = tools.describe_image_tool(self.ctx, args)["result"]
+        self.assertEqual(result["answer"], "在左侧")
+        self.assertEqual(ask.call_args.args[1], data_url(raw))
+        with self.assertRaisesRegex(ValueError, '只能选择一种'):
+            tools.describe_image_tool(self.ctx, {**args, "image": "IMG-1"})
+
     def test_registry(self):
         levels = build_registry().levels()
         self.assertNotIn("create_text_question", levels)

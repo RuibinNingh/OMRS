@@ -60,9 +60,9 @@ get_question_image.uid、get_session.session_id、create_review_session.request_
 
 原有十个查询工具为：`list_taxonomy`、`search_questions`、`get_question`、`get_question_image`、`get_overview`、`get_recommendations`、`list_sessions`、`get_session`、`list_drafts`、`get_draft`。七个学习数据查询直接复用 `omrs/agent/tools/read.py` 的实现和 schema，继承筛选、排序、分页、正文截断、练习记录和推荐口径。草稿查询使用同一草稿库的只读业务视图，不触发作业恢复、来源关系回填或训练；存储初始化仍执行既有技术 schema 迁移。
 
-`propose_question_update` 需要 omrs:read + question:propose，参数为 uid、question_id、expected_content_hash、patch、必填非空 reason（1–2000 字符）、request_id。patch 允许 question_text、answer_text、cause、note、knowledge_points、difficulty、labels及diagrams。diagrams以受限静态SVG源码新增或替换配图，具体结构、双栏规范与历史保留见 `AI/question-svg.md`；不开放学习状态、路径或整篇Markdown写入。修改原因使用 reason 参数；详情与安全写入见 `AI/ai-review.md` 与 `AI/ledger.md`。
+`propose_question_update` 需要 omrs:read + question:propose，参数为 uid、question_id、expected_content_hash、patch、必填非空 reason（1–2000 字符）、request_id。patch 允许 question_text、answer_text、cause、note、knowledge_points、difficulty、labels、`diagrams` 和 `image_edits`。`diagrams` 以受限静态 SVG 源码新增或替换配图；`image_edits` 每次 1–3 项，可按分节和附件名替换、裁剪或移除 PNG/JPEG/GIF，重复引用须给 occurrence，替换时以 Base64 提交新图。两类图片修改均沿用正式题目审核，批准前不写附件；权限默认仍关闭，不开放学习状态、路径或整篇 Markdown 写入。SVG规范见 `AI/question-svg.md`，审批与安全写入见 `AI/ai-review.md`、`AI/security.md` 与 `AI/ledger.md`。
 
-仅更新配图时，MCP 的 patch 只需 `diagrams`；内置助手的追加模式和空正文也转换成同样的配图补丁。两者共用配图预览和审批执行，未改动的文字不形成重复正文差异。
+仅更新配图时，MCP 的 patch 可只包含 `diagrams` 或 `image_edits`；内置助手的追加模式和空正文也转换成同样的配图补丁。两者共用配图预览和审批执行，未改动的文字不形成重复正文差异。
 
 工具不启动内部模型或 Agent 循环。未知工具、额外参数、非法类型和 scope 不足均由服务端拒绝。不存在直接正式建题、直接提交/丢弃草稿、反馈、未经审核的题目修改、Session 删除或设置写入、任意文件读取或任意 HTTP 转发工具；普通 Web 端口在登录及业务路由之前拒绝 MCP 凭据。
 

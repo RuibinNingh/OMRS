@@ -23,6 +23,12 @@ SVG_RULES = (
     '辅助配图通过patch.diagrams提交1至3项，每项section为题目或答案、svg为完整源码，'
     '可选replace为该节已有SVG文件名，省略则新增；不能替换原截图。' + SVG_PROFILE
 )
+BITMAP_RULES = (
+    '既有题目/答案的 PNG、JPEG、GIF 用 patch.image_edits 提交 1–3 项。'
+    '每项传 section、目标文件名 target、action（replace/crop/remove）。同一分节同名图出现多次时指定从 1 开始的 occurrence。'
+    'replace 传新图的 data_base64（仅 Base64，合计不超过 8 MiB）；crop 对静态图传 box={x,y,w,h}，'
+    '按正向显示的原图归一化为 0–1，x/y 为左上角；remove 仅移除正文引用。新旧图由用户在审核中心核对，旧附件保留。'
+)
 
 DRAFT_SVG_RULES = (
     '创建新题可以随文字提交SVG：blocks用kind=svg、svg为完整源码；'
@@ -87,7 +93,7 @@ TOOL_DESCRIPTIONS = {
     'export_board': '导出不可变、自包含的展示板 HTML 快照，mode=all 全部或 new 仅尚未打印范围。最多 64 MiB、保留 24 小时；返回需主 Web 登录的下载链接，MCP Key 不可替代登录，PDF 用浏览器打印。导出不登记已打印；同 request_id 重试沿用原快照，想导出更新后的板须使用新编号。',
     'create_draft': '仅在用户明确要求录题或保存时，创建来源为 MCP、status=review 的待审核草稿，不正式入库。' + ENTRY_RULES + '先对齐科目和分类名称，知识点最多 8 项；创建难度固定 5，不传 difficulty/labels。最多40块、6个上传附件；位图PNG/JPEG/GIF每张8MiB，SVG每张256KiB；文字或说明每字段最多 20000 字符。附件不可获取或超限时说明缺失，不静默删图重试。' + DRAFT_SVG_RULES + '返回 draft_id/revision/status/source_images；用户在审核中心核对后入库，不能报告已进入正式题库。',
     'update_draft': '修订任意来源待审核草稿，不正式入库。' + ANSWER_CONTENT_RULES + '正文成对公式定界符自动转美元符号，cause_statement 原话不变。先 get_draft 取得 revision 和 blocks[].id，只改 fields 白名单或已有文字/说明；不能新增、删除、调序块或改变图片、框、状态、来源。省略字段保留，知识点 [] 清空；修改或清空 cause 均须用户原话 cause_statement。目标只要有人工保护，整次不写，返回 wrote=false 和 suggestions；不得拆请求绕过保护。版本冲突先重读核对。',
-    'propose_question_update': ANSWER_CONTENT_RULES + '正文成对公式定界符自动转美元符号，保留公式命令并展示于送审预览。用户要求修改已有正式题目时，先 get_question 取得 uid/question_id/content_hash，长正文先完整读取，再提交非空白名单字段替换补丁和 reason。不能从截断正文覆盖全文，文字补丁保留原图片引用、所属分节和顺序，不写学习状态或路径。' + SVG_RULES + '返回待审 operation_id/confirmation_url，批准前不改题；用户处理后用 get_mcp_operation 查 result。',
+    'propose_question_update': ANSWER_CONTENT_RULES + '正文成对公式定界符自动转美元符号，保留公式命令并展示于送审预览。用户要求修改已有正式题目时，先 get_question 取得 uid/question_id/content_hash，长正文先完整读取，再提交非空白名单字段替换补丁和 reason。不能从截断正文覆盖全文，文字补丁保留原图片引用、所属分节和顺序，不写学习状态或路径。' + SVG_RULES + BITMAP_RULES + '返回待审 operation_id/confirmation_url，批准前不改题；用户处理后用 get_mcp_operation 查 result。',
     'create_review_session': '仅在用户要求创建正式复习计划时调用。先 get_recommendations，把 selection 的 1–100 个稳定 question_id/source 传入 items；单题也创建正式计划。先返回待审核 operation_id/confirmation_url，待审核没有 session_id；用户网页批准后用 get_mcp_operation 查 result。已创建请求重试沿用回执，原计划撤销后不会自动重建。',
     'create_board': '按 list_boards 的 catalog_revision 新建展示板，可带最多 100 个当前 UID，folder_id 为空表示未归档。返回 board_id/revision/catalog_revision 和实际加题结果；不创建新题、不复制正文、不改变学习状态。',
     'update_board': '先 get_board，再按板版本局部修改 name/note/source_labels，省略字段保持。改名还须最新 catalog_revision；source_labels 是展示板来源说明，不是给题目标记。返回实际写入或 unchanged 及版本，不修改正式题目。',
@@ -166,7 +172,7 @@ PARAMETERS = {
     'create_report': {'name': '新报告名称，1–200 字符，不是要覆盖的报告 ID。', 'html': '完整 HTML 源码，UTF-8 字节数最多 2 MiB；保存不等于在工具中执行。'},
     'create_draft': {'subject': '必填非空科目，最多 200 字符；有查询权限时先对齐 list_taxonomy，用户明确指定新科目时沿用其名称，不单独创建目录。', 'category': '必填非空分类，最多 200 字符；对齐本题科目下的分类。无法判断时向用户确认，不杜撰精确分类。', 'knowledge_points': '最多 8 个知识点名称，每项最多 200 字符；无可靠依据时省略，不擅自加学习状态或标记。', 'blocks': '本题的 1–40 个有序题目/答案块，至少一个题目块。文字完整、图文按阅读顺序；答案无图片时仅一个文字块。image引用完整上传附件，svg提交完整源码；SVG文件会转为svg块，顺序保留，不传框选坐标。', 'images': '本题上传附件最多6个，支持PNG/JPEG/GIF原图和规范静态SVG；纯文字转述仍关联来源位图。位图每张8MiB，累计解码4000万像素和100帧；SVG每张256KiB且必须被块引用，与源码合计最多3个SVG块。平台文件参数由客户端上传转换为 MCPFile；原始 SDK 提供附件对象，不传本地路径或 IMG-n。', 'cause': '可选用户明确表达的错因，每字段最多 20000 字符；非空须 cause_statement，没有原话就省略。', 'cause_statement': 'cause 非空时必填用户原话，最多 20000 字符；外部来源标为 client_asserted 待核对，不等于已由服务端验证原话。', 'client_name': '可选客户端显示名，最多 80 字符；只描述来源，不携带凭据。'},
     'update_draft': {'fields': '可修改 subject/category/knowledge_points/cause/note；省略保留，知识点 [] 清空。cause 即使清空也须 cause_statement；无 difficulty、labels 或状态字段。', 'block_patches': '最多 40 个已有块的局部补丁，block_id 从 get_draft.blocks[].id 取得且不能重复。文字块 text 必须非空；图片及SVG块只能改note，不能传text、svg、image、box、section或顺序。', 'cause_statement': 'fields 包含 cause（包括清空）时必填用户原话；最多 20000 字符，不推断或伪造。'},
-    'propose_question_update': {'expected_content_hash': 'get_question.content_hash 或完整正文读取的 64 位小写十六进制哈希，绑定本次编辑前正文；不是截断文本的哈希。', 'reason': '必填修改理由，1–2000 字符；说明改什么及依据，不用它伪造用户错因原话。', 'patch': '非空字段补丁，省略保留；先完整读取待改分节，不从截断内容覆盖原文。文字修改保留原图片，新增或替换SVG仅通过diagrams。' + SVG_RULES},
+    'propose_question_update': {'expected_content_hash': 'get_question.content_hash 或完整正文读取的 64 位小写十六进制哈希，绑定本次编辑前正文；不是截断文本的哈希。', 'reason': '必填修改理由，1–2000 字符；说明改什么及依据，不用它伪造用户错因原话。', 'patch': '非空字段补丁，省略保留；先完整读取待改分节，不从截断内容覆盖原文。文字修改保留原图片。' + SVG_RULES + BITMAP_RULES},
     'create_review_session': {'items': '1–100 个推荐 selection 条目，稳定 question_id/source 直接沿用 get_recommendations.selection；不重复同一题。'},
     'create_board': {'name': '新板名，1–120 字符。', 'uids': '可选最多 100 道当前 UID，省略创建空板；服务端完整校验。'},
     'duplicate_board': {'name': '复制后的新板名，1–120 字符。'},
@@ -190,7 +196,7 @@ NESTED_PARAMETERS = {
 
 OBJECT_PARAMETERS = {
     'update_draft': {'subject': '非空科目字符串，最多 200 字符。', 'category': '非空分类字符串，最多 200 字符。', 'knowledge_points': '字符串数组，最多 8 项，每项最多 200 字符；[] 清空。', 'cause': '用户明确表达的错因字符串，最多 20000 字符；空串清空，也必须提供 cause_statement。', 'note': '草稿备注字符串，最多 20000 字符；空串清空。'},
-    'propose_question_update': {'question_text': '题目节完整替换文字，最多 500000 字符；保留全部条件和原图片，不能注入一级系统标题。', 'answer_text': '答案节完整替换文字，最多 500000 字符；保留原图片，不能注入一级系统标题。' + ANSWER_CONTENT_RULES, 'cause': '仅兼容旧纯文本错因，最多 500000 字符；日期化记录须先get_reflections再add_reflection_entry追加或revise_reflection_entry修订，不能整段覆盖或清空历史。', 'note': '补充备注文字，最多 500000 字符；空串清空，不包含错因或系统标题。', 'knowledge_points': '最多 64 个非空知识点名称，每项最多 200 字符；[] 清空。', 'difficulty': '1–10 的严格整数难度，不接受布尔值或小数。', 'labels': '最多 64 个已有标记名称，每项最多 200 字符；[] 清空，不创建标记。', 'diagrams': SVG_RULES},
+    'propose_question_update': {'question_text': '题目节完整替换文字，最多 500000 字符；保留全部条件和原图片，不能注入一级系统标题。', 'answer_text': '答案节完整替换文字，最多 500000 字符；保留原图片，不能注入一级系统标题。' + ANSWER_CONTENT_RULES, 'cause': '仅兼容旧纯文本错因，最多 500000 字符；日期化记录须先get_reflections再add_reflection_entry追加或revise_reflection_entry修订，不能整段覆盖或清空历史。', 'note': '补充备注文字，最多 500000 字符；空串清空，不包含错因或系统标题。', 'knowledge_points': '最多 64 个非空知识点名称，每项最多 200 字符；[] 清空。', 'difficulty': '1–10 的严格整数难度，不接受布尔值或小数。', 'labels': '最多 64 个已有标记名称，每项最多 200 字符；[] 清空，不创建标记。', 'diagrams': SVG_RULES, 'image_edits': BITMAP_RULES},
     'update_board': {'name': '板名字符串，1–120 字符；改名还需 expected_catalog_revision。', 'note': '板备注字符串，最多 20000 字符；空串清空。', 'source_labels': '最多 100 个来源说明字符串，每项最多 200 字符；[] 清空，不改题目标记。'},
     'update_board_folder': {'name': '文件夹名字符串，1–60 字符。', 'order': '从 0 开始的严格整数位置，最大为当前文件夹数减 1。'},
     'update_board_item': {'gap_lines': '严格整数 0–48，或 null 恢复继承全局留白。', 'pin': '布尔值，是否置顶该条目。'},

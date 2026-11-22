@@ -104,6 +104,29 @@ class QuestionUpdateTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             update.patch_content(base, {'answer_text': image})
 
+    def test_bitmap_targets_duplicate_reference_and_rechecks_file_hash(self):
+        from tests.test_drafts import make_png
+        attachments = Path(self.vault, '错题', '附件')
+        attachments.mkdir(exist_ok=True)
+        source = attachments / '截图.png'
+        source.write_bytes(make_png(20, 20))
+        self.path.write_text(self.content().replace('旧题干', '旧题干\n![[截图.png|200]]\n![[截图.png]]'))
+        scan_workspace(self.vault)
+        edit = {'section': '题目', 'target': source.name, 'action': 'remove'}
+        with self.assertRaisesRegex(ValueError, 'occurrence'):
+            self.row({'image_edits': [edit]}, approve=False)
+        patch = {'image_edits': [{**edit, 'occurrence': 2}]}
+        original = self.content()
+        row = self.row(patch, approve=False)
+        source.write_bytes(make_png(22, 20))
+        with self.assertRaisesRegex(Exception, '基线'):
+            update.apply_update(self.vault, self.approved(row))
+        self.assertEqual(self.content(), original)
+        row = self.row(patch)
+        update.apply_update(self.vault, row)
+        self.assertIn('![[截图.png|200]]', self.content())
+        self.assertNotIn('![[截图.png]]', self.content())
+
     def test_headers_and_unsafe_metadata_fail_before_any_write(self):
         for patch in ({'question_text': '正文\n# 历史\n覆盖'}, {'answer_text': '#\u00a0题目\n覆盖'},
                       {'cause': '## 关联\n覆盖'}, {'note': '# 历史\n覆盖'}, {'difficulty': True},

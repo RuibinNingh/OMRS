@@ -23,6 +23,8 @@
 
 草稿GET详情的blocks可包含kind=svg及已校验预览与纸面元信息；POST暂存按已有稳定块id保留SVG原字节，仅允许移动、调序、改说明和删除。通过仍调用现有草稿入库接口，不新增路由；MCP源码、文件输入与PNG读取契约见`AI/mcp.md`，存储见`AI/drafts.md`。
 
+内置助手与MCP正式改题工具接受受限的 `image_edits`，替换、裁剪或移除已有 PNG/JPEG/GIF 附件；它们复用统一审核和题目写入回执，不新增 HTTP 路由。工具参数与权限分别见 `AI/agent.md`、`AI/mcp.md`，审核与存储见 `AI/ai-review.md`、`AI/data.md`。
+
 ## 1. 接口分册
 
 | 范围 | 文档 |

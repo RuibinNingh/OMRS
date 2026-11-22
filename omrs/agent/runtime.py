@@ -358,7 +358,8 @@ class Hooks:
                     editable_fields = EDITABLE
                 elif tool.name in ('update_question_section', 'set_knowledge_points'):
                     from ..question_update import prepare_agent
-                    prepared = prepare_agent(self.rt.vault, tool.name, call['args'])
+                    prepared = prepare_agent(self.rt.vault, tool.name, call['args'],
+                                             conversation_id=self.run.conv_id)
                     payload, preview, snapshot = (prepared[key] for key in ('payload', 'preview', 'snapshot'))
                     editable_fields = prepared['editable_fields']
                 else:

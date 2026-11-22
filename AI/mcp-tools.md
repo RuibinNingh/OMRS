@@ -40,7 +40,7 @@
 | `create_draft` | 原图或文字创建待审核草稿 | `draft:create` |
 | `update_draft` | 受人工保护的字段/块修订 | `omrs:read` + `draft:update` |
 | `create_report` | 幂等新建报告，不覆盖旧报告 | `report:create` |
-| `propose_question_update` | 白名单正式题目修改提案，待人工修订/批准 | `omrs:read` + `question:propose` |
+| `propose_question_update` | 白名单正式题目修改提案；可替换、裁剪或移除已有位图配图，待人工批准 | `omrs:read` + `question:propose` |
 | `stage_label_plan` | 分片准备完整标记方案，不写正式题库 | `omrs:read` + `label:write`；含合并/删除另需 `label:delete` |
 | `propose_label_plan` | 提交整批标记整理审核，由网页一次批准 | `omrs:read` + `label:write`；含合并/删除另需 `label:delete` |
 | `create_review_session` | 按稳定身份幂等创建正式复习计划 | `omrs:read` + `session:create` |

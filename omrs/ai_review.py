@@ -355,6 +355,9 @@ def public(row, web_url=''):
     value = {key: row[key] for key in ('operation_id', 'source', 'tool', 'key_id', 'status', 'revision',
              'payload', 'actor', 'preview', 'editable_fields', 'result', 'error_code', 'commits',
              'history_incomplete', 'history_readonly')}
+    if row['tool'] in ('update_question_section', 'propose_question_update'):
+        from .question_image_edits import public_payload
+        value['payload'] = public_payload(value['payload'])
     value['permission'] = row.get('permission', {})
     value.update(id=row['operation_id'], kind='operation', type=TYPES.get(row['tool'], ''),
                  label=LABELS.get(row['tool'], row['tool']), impact=row['preview'])
@@ -691,6 +694,9 @@ def detail(vault, item_id):
             inverse = reverted_by(vault, item_id)
             if inverse: out['result'] = {**out['result'], 'reverted_by': inverse}
         out['original_payload'] = json.loads(initial[0]) if initial else row['payload']
+        if row['tool'] in ('update_question_section', 'propose_question_update'):
+            from .question_image_edits import public_payload
+            out['original_payload'] = public_payload(out['original_payload'])
         out['decision'] = {**dict(decision), 'actor': json.loads(decision['actor_json'])} if decision else None
         if out['decision']:
             out['decision'].pop('actor_json')

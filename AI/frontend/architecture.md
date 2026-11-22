@@ -150,7 +150,7 @@ WebGL场景、公式atlas、原参考图与压缩静态图放在 `assets/vendor/
 
 ## 8. 审核中心、草稿与录入页状态
 
-`domain/ai-review.js` 持有公共详情 / 修订 / 决定请求、跨页导航、原位详情面板端口与去重待审计数，不保存编辑表单。main.js 连接审核功能的面板工厂，助手只调用领域端口，不跨 feature 导入。原位抽屉在自己的控制器上派发审核动作，卸载时清理监听和守卫。`ai-review:changed {ids}` 刷新公共角标并通知中心和助手卡片，成功读取发 `ai-review:counts`。角标可见时每十秒及聚焦 / 切页重取，失败保留旧值。中心控制器拥有公共筛选、页码与未保存表单，后台轮询和页卸载遵循请求代次保护；详情见 `AI/frontend/ai-review.md`。
+`domain/ai-review.js` 持有公共详情 / 修订 / 决定请求、跨页导航、原位详情面板端口与去重待审计数，不保存编辑表单；正式改题沿用该审核入口。main.js 连接审核功能的面板工厂，助手只调用领域端口，不跨 feature 导入。原位抽屉在自己的控制器上派发审核动作，卸载时清理监听和守卫。`ai-review:changed {ids}` 刷新公共角标并通知中心和助手卡片，成功读取发 `ai-review:counts`。角标可见时每十秒及聚焦 / 切页重取，失败保留旧值。中心控制器拥有公共筛选、页码与未保存表单，后台轮询和页卸载遵循请求代次保护；详情见 `AI/frontend/ai-review.md`。
 
 `domain/drafts.js` 继续拥有草稿 sessionStorage 目标和四态计数；`openDraft(id)` 进入 `ai-review?draft=id`，成功后发 `drafts:open`。`drafts:changed` 同时刷新旧草稿快照并转为 `ai-review:changed`。草稿编辑模块位于 `features/ai-review/`，页面间不直接 import；裁图、坐标和指针画布的实际共用代码放在 `domain/image-crop/`，录入页保留短导出适配器。
 

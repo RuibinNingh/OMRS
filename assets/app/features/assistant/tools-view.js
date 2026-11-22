@@ -10,6 +10,7 @@ import { plainEmphasis } from '../../domain/question/markdown-emphasis.js';
 import { renderInline } from './md.js';
 import { clamp, hhmm, pct } from './state.js';
 import { detectCardState } from './draft-cards.js';
+import { questionImagePreview } from '../../domain/ai-review.js';
 
 let refHtml = uid => `<code>${uid}</code>`;
 /** index.js 注入：知道哪些 UID 在题库里、到期状态如何。 */
@@ -113,10 +114,13 @@ const T = {
       title: `允许助手修改「${a.uid}」的${a.section}？`, ok: '允许并写入',
       hint: '这是需确认的写入。允许后写入 1 条记录，来源标为 AI，可以随这次运行一起撤销；旧版本正文存在 Ledger 里。',
       body: html`<div class="ast-dlg-row">${lvl('confirm')}<code>update_question_section</code><span>${a.uid}，${a.section}，${a.mode === 'append' ? '追加' : '替换'}</span></div>
-        ${diff(p.before, p.after, '现在', '修改后')}${p.images_kept?.length ? note(`原有的 ${p.images_kept.length} 张图片会保留。`) : ''}
+        ${p.image_edits?.length ? questionImagePreview(p.image_edits) : ''}
+        ${!p.image_edits?.length || p.changes?.length ? diff(p.before, p.after, '现在', '修改后') : ''}
+        ${!p.image_edits?.length && p.images_kept?.length ? note(`原有的 ${p.images_kept.length} 张图片会保留。`) : ''}
         <details class="ast-ref-q"><summary>对照题面和答案</summary>${box(p.question)}${box(p.answer, true)}</details>`,
     }),
-    preview: r => html`${diff(r.before, r.after)}${note(html`正文哈希 <code>${(r.before_hash || '').slice(0, 8)}…</code> → <code>${(r.after_hash || '').slice(0, 8)}…</code>，旧版本存在 Ledger 的 blobs 里，可以还原。`)}`,
+    preview: r => html`${r.fields?.image_edits?.length ? note(`已处理 ${r.fields.image_edits.length} 处图片引用，原附件保留。`) : diff(r.before, r.after)}
+      ${note(html`正文哈希 <code>${(r.before_hash || '').slice(0, 8)}…</code> → <code>${(r.after_hash || '').slice(0, 8)}…</code>，旧版本存在 Ledger 的 blobs 里，可以还原。`)}`,
   },
   set_knowledge_points: {
     title: '改知识点', icon: 'tag', level: 'confirm', args: a => `${a.uid}，${(a.points || []).length} 个`,

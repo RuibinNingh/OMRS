@@ -99,7 +99,7 @@ SSE 按 Responses 事件解析文字、拒答、推理摘要与工具参数增�
 
 写入：`create_review_session`、`create_practice_card`、`set_question_labels`（只能用已有标记，单次 ≤50 题，每题一条 `question.metadata_update`）、`update_question_section`（替换或追加；替换时原有图片嵌入保留）、`set_knowledge_points`、`move_question`、`suspend_question`、`resume_question`、`record_feedback`（带 `session_id` 时题目必须在该 Session 的待反馈列表里）。
 
-`update_question_section` 仅更新 SVG 配图时使用 `mode=append`、空 `content` 与非空 `diagrams`；工具参数校验允许该组合，领域校验仍拒绝其它空正文请求。此时有效补丁只有配图，确认详情展示新旧图，不生成未变正文的重复差异；执行结果的 `before/after` 仍为对应分节文字，含最终图片引用。
+`update_question_section` 仅改图时使用 `mode=append`、空 `content`，并提供 `diagrams` 或 `image_edits`。位图修改最多 3 项，绑定「题目」或「答案」分节和原 PNG/JPEG/GIF 文件名；替换引用当前对话的 `IMG-n`，裁剪框使用原图归一化坐标，移除只删除正文引用。同节同名图片重复时须提供从 1 开始的 `occurrence`。助手可先用 `describe_image` 观察已有正式题图。工具参数校验允许只含配图的空正文请求，领域校验仍拒绝其它空正文请求。确认详情展示对应新旧图，不生成未变正文的重复差异；执行结果的 `before/after` 仍为对应分节文字，含最终图片引用。
 
 `get_overview` 指定科目时，题数、停用、逾期、今日到期、顽固、击杀、未练、平均熟练度、薄弱分类、顽固题明细与摘要均使用相同科目范围。未知科目返回零计数与空明细；空科目保持全局。全体平均以未停用题为分母，使用原始熟练度最后舍入；薄弱分类仍只平均已练题。
 
@@ -195,7 +195,7 @@ MCP导出复用现有只读图片列表和受限原图读取，内置助手不�
 
 ## 正式题目配图
 
-`update_question_section` 可随文字修改提交 `diagrams`，新增或替换题目／答案节的静态SVG；只配图时用mode=append、content为空以保留原文字。工具描述与schema明确完整源码、分节、原SVG文件名和双栏要求。配图沿用复杂改题详情审核、持久许可与正式正文回执，不提供绕过审批的写文件工具；原图保留，按运行撤销恢复旧正文引用。生成和审核边界见 `AI/question-svg.md`。独立识别器发送SVG data URL前派生PNG；助手聊天上传原图契约保持位图。
+`update_question_section` 可随文字修改提交 `diagrams`，新增或替换题目／答案节的静态SVG；也可通过 `image_edits` 替换、裁剪或移除现有 PNG/JPEG/GIF 附件。替换图取当前对话上传的 `IMG-n`，不能引用其它对话或任意文件。配图沿用复杂改题详情审核、持久许可与正式正文回执，不提供绕过审批的写文件工具；执行时保留旧附件，按运行撤销恢复旧正文引用。位图裁剪生成 PNG，需 Pillow；动图只支持替换或移除。SVG生成和审核边界见 `AI/question-svg.md`。独立识别器发送SVG data URL前派生PNG。
 
 ## 问题与错因工具
 

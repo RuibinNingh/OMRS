@@ -330,11 +330,11 @@ SQLite `active_config` 是完整运行时事实源，`config.json` 是镜像和�
 
 ## 正式题目审核补丁
 
-`omrs/question_update.py` 将题目修改绑定 `uid`、`question_id`、完整 `expected_content_hash` 和 Vault 世代，只允许 `question_text`、`answer_text`、`cause`、`note`、`knowledge_points`、严格整数 1–10 的 `difficulty`、已存在的 `labels` 和静态 SVG 配图 `diagrams`。配图结构及安全约束见 `AI/question-svg.md`。人工修订沿用原提案的字段白名单，MCP 与已送审助手提案长期保留、expires_at=null；旧 MCP 待审期限不再限制批准。原 MCP 请求摘要不变，有效补丁另算摘要。身份、科目分类、状态 tags、录入日期和历史正文不能通过该补丁修改。
+`omrs/question_update.py` 将题目修改绑定 `uid`、`question_id`、完整 `expected_content_hash` 和 Vault 世代，只允许 `question_text`、`answer_text`、`cause`、`note`、`knowledge_points`、严格整数 1–10 的 `difficulty`、已存在的 `labels`、静态 SVG 配图 `diagrams` 和已有 PNG/JPEG/GIF 引用的位图操作 `image_edits`。配图结构及安全约束见 `AI/question-svg.md`。人工修订沿用原提案的字段白名单，MCP 与已送审助手提案长期保留、expires_at=null；旧 MCP 待审期限不再限制批准。原 MCP 请求摘要不变，有效补丁另算摘要。身份、科目分类、状态 tags、录入日期和历史正文不能通过该补丁修改。
 
-`note` 只读写 `# 备注` 下的 `## 补充备注`；旧裸备注、`## 错因`、`## 关联` 和陌生子节保留。题干、答案拒绝一级标题注入，错因与补充备注同时拒绝一、二级标题注入；已有重复系统节拒绝修改。原 Obsidian 和标准 Markdown 图片的字面引用、重复次数、顺序和所属节保留，省略原图片时自动附回；正文文字补丁不接受新增图片、外链图片、HTML 图片或 data URL 图片，静态 SVG 通过 `diagrams` 新增或替换。
+`note` 只读写 `# 备注` 下的 `## 补充备注`；旧裸备注、`## 错因`、`## 关联` 和陌生子节保留。题干、答案拒绝一级标题注入，错因与补充备注同时拒绝一、二级标题注入；已有重复系统节拒绝修改。原 Obsidian 和标准 Markdown 图片的字面引用、重复次数、顺序和所属节保留，省略原图片时自动附回；正文文字补丁不接受新增图片、外链图片、HTML 图片或 data URL 图片，静态 SVG 通过 `diagrams` 新增或替换，已有 PNG/JPEG/GIF 通过独立 `image_edits` 按引用替换、裁剪或移除。
 
-知识点与标记拒绝换行和控制字符，使用 JSON 双引号字符串编码 YAML 列表；受限 frontmatter 解析器解码引号和反斜杠，投影保存真实值。审核库 `错题/.omrs/ai_review.db` 保存待审与已处理操作及助手权限/送审上下文；每对话权限存 agent.db，送审提案长期保留，普通重启不清除，恢复废止未终结许可；全文、来源和修订历史不进入脱敏系统运行库，完整备份覆盖该数据库。实际正文、Ledger 与跨文件 journal 的原子边界见 `AI/ledger.md`。
+知识点与标记拒绝换行和控制字符，使用 JSON 双引号字符串编码 YAML 列表；受限 frontmatter 解析器解码引号和反斜杠，投影保存真实值。审核库 `错题/.omrs/ai_review.db` 保存待审与已处理操作及助手权限/送审上下文；每对话权限存 agent.db，送审提案长期保留，普通重启不清除，恢复废止未终结许可。位图替换提案的原始 Base64 保存在审核payload以支持批准执行及恢复，详情响应会移除该字段；完整备份覆盖审核库。实际正文、附件、Ledger 与跨文件 journal 的原子边界见 `AI/ledger.md`。
 
 ## 标记整理批次
 
@@ -355,6 +355,8 @@ SQLite `active_config` 是完整运行时事实源，`config.json` 是镜像和�
 ## 题目 SVG 附件
 
 静态配图以原字节保存在附件目录，正文使用 Obsidian 图片引用。受管名称绑定稳定题目身份和完整内容哈希；变化另存新名，读取核对哈希，旧图保留供正文历史恢复。SVG没有独立Ledger二进制blob，须随全库备份保留；容量统计计入图片，位图压缩跳过SVG。规范、入口及派生PNG见 `AI/question-svg.md`。
+
+正式题目位图的审核替换与裁剪同样生成 question_id 和内容哈希绑定的新附件；批准后切换 Markdown 引用，原文件不覆盖或删除。裁剪结果转为 PNG，静态图片可裁剪，动画图片可替换或移除。位图附件不进入 Ledger `blobs`，正文历史恢复依赖原附件仍在；需随附件目录一起备份。实际写入与恢复见 `AI/ledger.md`。
 
 ## 问题领域
 

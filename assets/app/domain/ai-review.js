@@ -1,5 +1,6 @@
 /** 审核中心的跨页导航、当前状态与角标；业务决定以服务端回执为准。 */
 import { get, post } from '../core/api.js';
+import { html } from '../core/html.js';
 
 const result = response => response.ok
   ? { ok: true, item: response.data?.item, operation: response.data?.item, ...response.data }
@@ -96,3 +97,17 @@ export const revertLabelPlan = async (id, inverseDigest, requestId) => {
   if (out.ok) publishReviewChange([id]);
   return out;
 };
+
+const imageActions = { replace: '替换', crop: '裁剪', remove: '移除' };
+
+export function questionImagePreview(edits = []) {
+  return edits.length ? html`<section aria-label="题目图片审核"><h3>题目图片</h3>
+    ${edits.map(edit => html`<section class="arv-change"><h4>${edit.section} · ${imageActions[edit.action]} ${edit.target}${edit.occurrence ? ` · 第 ${edit.occurrence} 处` : ''}</h4>
+      <div class="arv-diff">
+        <div><h4>当前图片</h4><img class="md-img" src="${edit.before_src}" width="340" alt="当前图片"></div>
+        <div class="arv-after"><h4>修改后</h4>${edit.after_src
+          ? html`<img class="md-img" src="${edit.after_src}" width="340" alt="修改后的图片">`
+          : html`<p>从题目正文移除，原附件保留。</p>`}</div>
+      </div></section>`)}
+  </section>` : '';
+}

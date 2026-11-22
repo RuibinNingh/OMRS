@@ -200,103 +200,11 @@ def verify_name(name, raw):
 
 
 def save(vault, question_id, raw):
-    """相同内容复用；有变化生成新名；安全目录描述符下原子发布，绝不覆盖原件。"""
-    from .question_images import _DIRECTORY_FDS, _directory, _open_image, _read_bytes
-    from .common import QUESTIONS_DIR, ATTACHMENTS_DIR
+    from .question_images import publish_attachment
     info = inspect(raw)
     name = name_for(question_id, raw)
-    if not _DIRECTORY_FDS:
-        _save_from_paths(vault, name, raw)
-        return name, info
-    with _directory(os.path.abspath(vault)) as base, _directory(QUESTIONS_DIR, base) as questions:
-        try:
-            os.mkdir(ATTACHMENTS_DIR, dir_fd=questions)
-        except FileExistsError:
-            pass
-        with _directory(ATTACHMENTS_DIR, questions) as attachments:
-            try:
-                descriptor = _open_image(name, attachments)
-            except FileNotFoundError:
-                temp_name = '.svg-' + os.urandom(16).hex()
-                descriptor = os.open(temp_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=attachments)
-                try:
-                    with os.fdopen(descriptor, 'wb') as stream:
-                        stream.write(raw)
-                        stream.flush()
-                        os.fsync(stream.fileno())
-                    try:
-                        os.link(temp_name, name, src_dir_fd=attachments, dst_dir_fd=attachments, follow_symlinks=False)
-                    except FileExistsError:
-                        descriptor = _open_image(name, attachments)
-                        try:
-                            if _read_bytes(descriptor, MAX_BYTES) != raw:
-                                raise ValueError('SVG已有不同内容，不能覆盖')
-                        finally:
-                            os.close(descriptor)
-                    os.fsync(attachments)
-                finally:
-                    os.unlink(temp_name, dir_fd=attachments)
-            else:
-                try:
-                    if _read_bytes(descriptor, MAX_BYTES) != raw:
-                        raise ValueError('SVG已有不同内容，不能覆盖')
-                finally:
-                    os.close(descriptor)
+    publish_attachment(vault, name, raw, MAX_BYTES)
     return name, info
-
-
-def _save_from_paths(vault, name, raw):
-    """无目录FD的平台仍逐层拒绝重解析点，核对身份并以硬链接原子发布。"""
-    import stat
-    from .common import QUESTIONS_DIR, ATTACHMENTS_DIR
-    from .question_images import _linked, _identity, _open_image, _read_bytes
-    base = os.path.abspath(vault)
-    questions = os.path.join(base, QUESTIONS_DIR)
-    attachments = os.path.join(questions, ATTACHMENTS_DIR)
-    directories = {}
-
-    def check(path):
-        info = os.lstat(path)
-        if _linked(info) or not stat.S_ISDIR(info.st_mode):
-            raise ValueError('SVG附件目录不是安全的普通目录')
-        identity = _identity(info)
-        if path in directories and directories[path] != identity:
-            raise ValueError('SVG附件目录在保存期间变化，请重试')
-        directories[path] = identity
-
-    for path in (base, questions):
-        check(path)
-    try:
-        os.mkdir(attachments)
-    except FileExistsError:
-        pass
-    check(attachments)
-    target = os.path.join(attachments, name)
-    temp = os.path.join(attachments, '.svg-' + os.urandom(16).hex())
-    try:
-        with open(temp, 'xb') as stream:
-            stream.write(raw)
-            stream.flush()
-            os.fsync(stream.fileno())
-        for path in directories:
-            check(path)
-        try:
-            os.link(temp, target)
-        except FileExistsError:
-            pass
-        descriptor = _open_image(target)
-        try:
-            if _read_bytes(descriptor, MAX_BYTES) != raw:
-                raise ValueError('SVG已有不同内容，不能覆盖')
-        finally:
-            os.close(descriptor)
-        for path in directories:
-            check(path)
-    finally:
-        # 目录已被替换时不沿新路径删除文件。
-        if all(_identity(os.lstat(path)) == identity and not _linked(os.lstat(path))
-               for path, identity in directories.items()):
-            os.unlink(temp)
 
 
 @lru_cache(maxsize=8)

@@ -42,7 +42,7 @@ def propose(vault, key_id, request_id, uid, question_id, expected_content_hash, 
     row = ai_review.create(vault, 'mcp', 'propose_question_update', identity, payload,
                            actor={'key_id': key_id, 'request_id': request_id.strip(), 'reason': reason},
                            preview=preview, snapshot=snapshot, pending=True, digest=digest,
-                           editable_fields=list(clean))
+                           editable_fields=[key for key in clean if key != 'image_edits'])
     if authorize:
         authorize()
     return {**ai_review.public(row, web_url), 'reused': False}

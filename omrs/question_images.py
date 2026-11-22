@@ -241,13 +241,109 @@ def attachment_path(vault, name):
     return candidates[0]
 
 
-def read_attachment_image(vault, name):
+def publish_attachment(vault, name, raw, maximum):
+    """以不可覆盖的原子操作发布已通过领域校验的题图。"""
+    _attachment_parts(name)
+    if '/' in name or not 0 < len(raw) <= maximum:
+        raise ValueError("附件名称或大小不合法")
+    if not _DIRECTORY_FDS:
+        _save_from_paths(vault, name, raw, maximum)
+        return
+    with _directory(os.path.abspath(vault)) as base, _directory(QUESTIONS_DIR, base) as questions:
+        try:
+            os.mkdir(ATTACHMENTS_DIR, dir_fd=questions)
+        except FileExistsError:
+            pass
+        with _directory(ATTACHMENTS_DIR, questions) as attachments:
+            try:
+                descriptor = _open_image(name, attachments)
+            except FileNotFoundError:
+                temp_name = '.image-' + os.urandom(16).hex()
+                descriptor = os.open(temp_name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=attachments)
+                try:
+                    with os.fdopen(descriptor, 'wb') as stream:
+                        stream.write(raw)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    try:
+                        os.link(temp_name, name, src_dir_fd=attachments, dst_dir_fd=attachments, follow_symlinks=False)
+                    except FileExistsError:
+                        descriptor = _open_image(name, attachments)
+                        try:
+                            if _read_bytes(descriptor, maximum) != raw:
+                                raise ValueError('附件已有不同内容，不能覆盖')
+                        finally:
+                            os.close(descriptor)
+                    os.fsync(attachments)
+                finally:
+                    os.unlink(temp_name, dir_fd=attachments)
+            else:
+                try:
+                    if _read_bytes(descriptor, maximum) != raw:
+                        raise ValueError('附件已有不同内容，不能覆盖')
+                finally:
+                    os.close(descriptor)
+
+
+def _save_from_paths(vault, name, raw, maximum):
+    """无目录FD的平台仍逐层拒绝重解析点，核对身份并以硬链接原子发布。"""
+    base = os.path.abspath(vault)
+    questions = os.path.join(base, QUESTIONS_DIR)
+    attachments = os.path.join(questions, ATTACHMENTS_DIR)
+    directories = {}
+
+    def check(path):
+        info = os.lstat(path)
+        if _linked(info) or not stat.S_ISDIR(info.st_mode):
+            raise ValueError('附件目录不是安全的普通目录')
+        identity = _identity(info)
+        if path in directories and directories[path] != identity:
+            raise ValueError('附件目录在保存期间变化，请重试')
+        directories[path] = identity
+
+    for path in (base, questions):
+        check(path)
+    try:
+        os.mkdir(attachments)
+    except FileExistsError:
+        pass
+    check(attachments)
+    target = os.path.join(attachments, name)
+    temp = os.path.join(attachments, '.image-' + os.urandom(16).hex())
+    try:
+        with open(temp, 'xb') as stream:
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+        for path in directories:
+            check(path)
+        try:
+            os.link(temp, target)
+        except FileExistsError:
+            pass
+        descriptor = _open_image(target)
+        try:
+            if _read_bytes(descriptor, maximum) != raw:
+                raise ValueError('附件已有不同内容，不能覆盖')
+        finally:
+            os.close(descriptor)
+        for path in directories:
+            check(path)
+    finally:
+        # 目录已被替换时不沿新路径删除文件。
+        if all(_identity(os.lstat(path)) == identity and not _linked(os.lstat(path))
+               for path, identity in directories.items()):
+            os.unlink(temp)
+
+
+def read_attachment_image(vault, name, *, maximum=None):
     """Web/报告共用受限读取；保留已有大图，不套 MCP 的 8 MiB 返回限制。"""
     from .inbox import image_size
     parts = _attachment_parts(name)
     base = os.path.abspath(vault)
     from .question_svg import MAX_BYTES
-    maximum = MAX_BYTES if name.lower().endswith('.svg') else None
+    if name.lower().endswith('.svg'):
+        maximum = min(MAX_BYTES, maximum) if maximum is not None else MAX_BYTES
     if len(parts) == 1:
         raw = (_read_from_directory_fds(base, parts[0], maximum) if _DIRECTORY_FDS
                else _read_from_paths(base, parts[0], maximum))

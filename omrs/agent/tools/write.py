@@ -129,6 +129,8 @@ def replace_section(content, section, text, mode):
 
 
 def _section_plan(ctx, args):
+    if 'image_edits' in args:
+        raise ValueError('图片修改须通过助手的正式审核执行')
     row = _row(ctx["vault"], args["uid"])
     content = read_question_file(ctx["vault"], row)
     new, old = replace_section(content, args["section"], args["content"], args.get("mode") or "replace")
@@ -277,6 +279,19 @@ def record_feedback(ctx, args):
 
 _S = {"type": "string", "minLength": 1}
 _UID = {"type": "string", "minLength": 1}
+_IMAGE_EDIT = {
+    "type": "object", "required": ["section", "target", "action"], "additionalProperties": False,
+    "properties": {
+        "section": {"type": "string", "enum": ["题目", "答案"]},
+        "target": {**_S, "description": "原 PNG、JPEG 或 GIF 的文件名，从 get_question 读取"},
+        "action": {"type": "string", "enum": ["replace", "crop", "remove"]},
+        "occurrence": {"type": "integer", "minimum": 1, "description": "同节同名图出现多次时必填，从 1 开始"},
+        "image_ref": {**_S, "description": "仅 replace 使用，本对话中替换图的 IMG-n"},
+        "box": {"type": "object", "required": ["x", "y", "w", "h"], "additionalProperties": False,
+                "description": "仅 crop 使用，按正向显示的原图归一化到 0–1，x/y 为左上角",
+                "properties": {key: {"type": "number", "minimum": 0, "maximum": 1} for key in ("x", "y", "w", "h")}},
+    },
+}
 SPECS = [
     ("create_review_session", "confirm", "按选好的题建一个复习 Session（可撤销），须在聊天或审核中心确认后执行。items 里 source 是 due 或 proficiency，通常直接用 get_recommendations 的 selection。",
      {"type": "object", "required": ["items"], "properties": {"items": {"type": "array", "minItems": 1, "maxItems": 30, "items": {
@@ -286,11 +301,14 @@ SPECS = [
      {"type": "object", "required": ["uids"], "properties": {"uids": {"type": "array", "minItems": 1, "maxItems": 50, "items": _UID},
                                                           "add": {"type": "array", "items": _S}, "remove": {"type": "array", "items": _S}}},
      set_question_labels, set_question_labels_preview),
-    ("update_question_section", "confirm", "改一道题的「题目」「答案」或旧纯文本「错因」这一节（替换或追加）。日期化错因通过add_reflection_entry追加或revise_reflection_entry修订，不整段覆盖历史。可用diagrams新增或替换静态SVG配图，原图保留供历史恢复。只配图时用mode=append、content为空以保留原文字。配图按90mm双栏设计，白底、文字至少8.5pt、线宽至少0.5pt、高不超过90mm；复杂内容拆图。需要用户审核图意与修改后允许。",
+    ("update_question_section", "confirm", "改一道题的「题目」「答案」或旧纯文本「错因」这一节（替换或追加）。日期化错因通过add_reflection_entry追加或revise_reflection_entry修订，不整段覆盖历史。"
+     "通过 image_edits 替换、裁剪或移除题目/答案的原位图引用。先 get_question 找到原文件名，需观察裁剪范围时用 describe_image 看正式题图；替换图用本对话的 IMG-n。"
+     "也可用 diagrams 新增或替换静态SVG配图。只改图时用 mode=append、content 为空以保留原文字。旧图保留供历史恢复。SVG 按90mm双栏设计，白底、文字至少8.5pt、线宽至少0.5pt、高不超过90mm。",
      {"type": "object", "required": ["uid", "section", "content"], "properties": {
          "uid": _UID, "section": {"type": "string", "enum": list(SECTIONS)},
          "mode": {"type": "string", "enum": ["replace", "append"]},
-         "content": {"type": "string", "description": "正文文字；仅mode=append且提供diagrams时可为空，以保留原文字"},
+         "content": {"type": "string", "description": "正文文字；仅 mode=append 且提供 diagrams 或 image_edits 时可为空"},
+         "image_edits": {"type": "array", "minItems": 1, "maxItems": 3, "items": _IMAGE_EDIT},
          "diagrams": {"type": "array", "minItems": 1, "maxItems": 3, "items": {
              "type": "object", "required": ["section", "svg"], "additionalProperties": False,
              "properties": {"section": {"type": "string", "enum": ["题目", "答案"]},

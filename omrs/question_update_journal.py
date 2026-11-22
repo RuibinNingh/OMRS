@@ -14,7 +14,7 @@ from .data_repository import resolve_question, storage_write
 from .errors import RequestError
 from .ledger import append_commit_in_db, blob_hash, connect, canonical_json, ledger_path
 from .mcp.common import fingerprint
-from .question_update import _read, editable_values, prepare_update, patch_content
+from .question_update import ATTACHMENT_FIELDS, _read, editable_values, prepare_update_material
 from .vault_lifecycle import atomic_json, fsync_dir, generation, maintenance_dir, open_sqlite, storage
 
 
@@ -175,12 +175,14 @@ def apply(vault, review):
         return {**existing, 'reused': True}
     verify_question_write(vault, review)
     recover_pending(vault)
-    payload, _, snapshot = prepare_update(vault, **review['payload'])
+    payload, _, snapshot, after, images = prepare_update_material(
+        vault, **review['payload'], show_image_preview=False)
     if snapshot != review.get('snapshot'):
         raise RequestError('content_conflict', '题目基线或题库世代已变化，请重新提交提案')
     row = resolve_question(vault, uid=payload['uid'], question_id=payload['question_id'])
     before, owner = _read(vault, row)
-    after = patch_content(before, payload['patch'])
+    if blob_hash(before) != payload['expected_content_hash']:
+        raise RequestError('content_conflict', '题目在批准写入前发生变化')
     ensure_content_recorded(vault, row, before)
     intent = {'format': 1, 'operation_id': review['operation_id'], 'question_id': row['question_id'],
               'file_path': row['file_path'], 'target': question_file(vault, row), 'generation': generation(vault),
@@ -201,12 +203,19 @@ def apply(vault, review):
                 from .question_diagrams import save
                 verify_question_write(vault, review)
                 save(vault, row['question_id'], payload['patch']['diagrams'])
+            if images:
+                from .question_image_edits import save as save_images
+                verify_question_write(vault, review)
+                save_images(vault, images)
             staged, staged_owner = _stage(intent['target'], after)
             intent.update(staged=staged, after_identity=staged_owner, head=_head(db))
             atomic_json(journal, intent)
             latest, latest_owner = _read(vault, row)
             if latest != before or latest_owner != owner:
                 raise RequestError('content_conflict', '题目在文件替换前发生变化，已保留外部编辑')
+            if images:
+                from .question_image_edits import verify_sources
+                verify_sources(vault, images)
             verify_question_write(vault, review)
             os.replace(staged, intent['target'])
             fsync_dir(os.path.dirname(intent['target']))
@@ -228,11 +237,13 @@ def apply(vault, review):
         result = {'uid': row['uid'], 'question_id': row['question_id'], 'content_hash': intent['after_hash'],
                   'before_hash': intent['before_hash'], 'after_hash': intent['after_hash'], 'digest': intent['digest'],
                   'no_op': before == after, 'changed': before != after,
-                  'fields': {k: editable_values(after)[k] for k in payload['patch'] if k != 'diagrams'},
+                  'fields': {k: editable_values(after)[k] for k in payload['patch'] if k not in ATTACHMENT_FIELDS},
                   'commits': [{**commit, 'commit_type': kind}] if commit else []}
         if payload['patch'].get('diagrams'):
             from .question_svg import name_for
             result['fields']['diagrams'] = [name_for(row['question_id'], e['svg'].encode('utf-8')) for e in payload['patch']['diagrams']]
+        if images:
+            result['fields']['image_edits'] = [edit.receipt() for edit in images]
         if commit:
             result['commit_id'] = commit['commit_id']
         db.execute('INSERT INTO op_results(op_id,result_json,created_at) VALUES(?,?,datetime(\'now\'))',
