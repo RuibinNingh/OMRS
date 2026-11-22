@@ -1,7 +1,8 @@
 import datetime
+import hashlib
 import json
 
-from .data_repository import IdentityConflict, mastery_rows, history_rows, session_rows, session_row, resolve_question, storage_write
+from .data_repository import mastery_rows, session_rows, session_row, resolve_question, storage_write
 from .ledger import append_commit, canonical_json, connect
 from .projections import rebuild_projection
 from .scheduling import schedule_questions
@@ -75,20 +76,114 @@ def _session_feedback_progress(session, history, suspended_uids=None):
             "pending_count": len(pending), "feedback_complete": bool(visible) and not pending}
 
 
+def _submitted_rows(db, session_id=None):
+    # 新反馈以条目为准，迁移历史继续按稳定题目身份匹配。
+    sql = """SELECT h.session_id, h.question_id, h.log_id, COALESCE(
+        json_extract(c.payload_json, '$.feedbacks[' || h.review_index || '].entry_id'),
+        json_extract(c.payload_json, '$.reviews[' || h.review_index || '].entry_id'), '') AS entry_id
+        FROM history_projection h LEFT JOIN commits c ON c.commit_id=h.commit_id"""
+    if session_id is not None:
+        return db.execute(sql + " WHERE h.session_id=?", (session_id,))
+    return db.execute(sql + " JOIN session_projection s ON s.session_id=h.session_id AND s.retracted=0")
+
+
+def _submitted_by_session(rows):
+    sessions = {}
+    for row in rows:
+        entries = sessions.setdefault(row["session_id"], {})
+        entries.setdefault((row["entry_id"], row["question_id"]), []).append(row["log_id"])
+    return sessions
+
+
+def _entry_feedback(submitted, entry):
+    qid = entry.get("question_id")
+    if not qid or not submitted:
+        return []
+    return submitted.get((entry["entry_id"], qid), []) + submitted.get(("", qid), [])
+
+
 def _entries(vault, session, questions=None, submitted=None):
     if submitted is None:
         with connect(vault) as db:
-            submitted = {r[0] for r in db.execute("SELECT DISTINCT question_id FROM history_projection WHERE session_id=?", (session["Session_ID"],))}
+            submitted = _submitted_by_session(_submitted_rows(db, session["Session_ID"])).get(session["Session_ID"], {})
     result = []
     for index, saved in enumerate(_decode_session_items(session.get("UIDs", "[]"))):
         qid = saved.get("question_id") or ""
         row = (questions.get(qid) if questions is not None else resolve_question(vault, question_id=qid, include_archived=True)) if qid else None
         availability = "unresolved" if not qid else "archived" if not row or row["archived"] else "suspended" if row["suspended"] else "active"
-        result.append({"entry_id": saved.get("entry_id") or f"{session['Session_ID']}:{index}",
-                       "question_id": qid, "uid_at_creation": saved.get("uid_at_creation") or saved.get("uid", ""),
-                       "uid": row["uid"] if row else saved.get("uid", ""), "source": saved.get("source", "due"),
-                       "availability": availability, "feedback_submitted": bool(qid and qid in submitted)})
+        entry = {"entry_id": saved.get("entry_id") or f"{session['Session_ID']}:{index}",
+                 "question_id": qid, "uid_at_creation": saved.get("uid_at_creation") or saved.get("uid", ""),
+                 "uid": row["uid"] if row else saved.get("uid", ""), "source": saved.get("source", "due"),
+                 "availability": availability}
+        entry["feedback_submitted"] = bool(_entry_feedback(submitted, entry))
+        result.append(entry)
     return result
+
+
+_FEEDBACK_REASONS = {
+    "recorded": "已提交反馈",
+    "skipped": "仅本次跳过",
+    "suspended": "题目已停用",
+    "archived": "题目已归档",
+    "unresolved": "题目身份待确认",
+}
+
+
+def _feedback_summary(session, entries, questions, submitted, restore_seq):
+    closeout = session.get("_closeout", {})
+    status = session.get("Status", "active")
+    completion = closeout.get("completion") if status == "completed" else None
+    dispositions = {entry["entry_id"]: entry for entry in (completion or {}).get("entries", [])}
+    counts = dict.fromkeys(("recorded", "pending", "unavailable", "skipped", "unresolved"), 0)
+    signature_rows = []
+    for entry in entries:
+        key = entry["entry_id"]
+        availability = entry["availability"]
+        if key in dispositions:
+            kind = dispositions[key]["feedback_state"]
+            reason = dispositions[key].get("feedback_reason", "")
+        else:
+            if entry["feedback_submitted"]:
+                kind = "recorded"
+            elif key in closeout.get("skipped", {}):
+                kind = "skipped"
+            elif availability in ("archived", "suspended"):
+                kind = "unavailable"
+            else:
+                kind = "unresolved" if availability == "unresolved" else "pending"
+            reason = _FEEDBACK_REASONS.get(availability if kind == "unavailable" else kind, "")
+        entry.update(feedback_state=kind, feedback_reason=reason)
+        counts[kind] += 1
+        qid = entry["question_id"]
+        signature_rows.append([key, qid, (questions.get(qid) or {}).get("updated_seq", 0),
+                               kind, availability, sorted(_entry_feedback(submitted, entry))])
+    signature = hashlib.sha256(canonical_json(
+        [session["Session_ID"], status, session.get("_updated_seq", 0), restore_seq, signature_rows]
+    ).encode()).hexdigest()
+    return {"progress": {"total": len(entries), **counts,
+                         "can_finish": status == "active" and bool(entries) and not counts["pending"] and not counts["unresolved"],
+                         "signature": signature},
+            "completion": completion}
+
+
+def _read_session_entries(vault, db, session, *, questions=None, submitted=None, restore_seq=None):
+    sid = session["Session_ID"]
+    if questions is None:
+        qids = dict.fromkeys(item["question_id"] for item in _decode_session_items(session.get("UIDs", "[]"))
+                             if item.get("question_id"))
+        questions = {qid: resolve_question(vault, question_id=qid, include_archived=True, db=db) for qid in qids}
+        questions = {qid: row for qid, row in questions.items() if row}
+    if submitted is None:
+        submitted = _submitted_by_session(_submitted_rows(db, sid)).get(sid, {})
+    if restore_seq is None:
+        restore_seq = _last_state_restore(db)
+    entries = _entries(vault, session, questions, submitted)
+    return {"entries": entries, **_progress(entries),
+            **_feedback_summary(session, entries, questions, submitted, restore_seq)}
+
+
+def _last_state_restore(db):
+    return db.execute("SELECT COALESCE(MAX(seq),0) FROM commits WHERE commit_type='state.restore'").fetchone()[0]
 
 
 def _progress(entries):
@@ -170,13 +265,20 @@ def create_session_from_selection(vault, selected_items, subject=None):
 
 @storage
 def get_session(vault, session_id):
-    match = session_row(vault, session_id)
+    with connect(vault) as db:
+        db.execute("BEGIN")
+        return _session_detail(vault, db, session_id)
+
+
+def _session_detail(vault, db, session_id):
+    match = session_row(vault, session_id, db, closeout=True)
     if not match:
         return None
-    entries = _entries(vault, match)
-    rows = {r.get("question_id"): r for r in mastery_rows(vault, question_ids=[e["question_id"] for e in entries if e["question_id"]])}
+    feedback = _read_session_entries(vault, db, match)
+    rows = {r.get("question_id"): r for r in mastery_rows(
+        vault, question_ids=[e["question_id"] for e in feedback["entries"] if e["question_id"]], db=db)}
     items = []
-    for e in entries:
+    for e in feedback["entries"]:
         if e["availability"] == "suspended":
             continue
         row = rows.get(e["question_id"])
@@ -184,46 +286,36 @@ def get_session(vault, session_id):
                       "entry_id": e["entry_id"], "_source": e["source"], "availability": e["availability"]})
     return {"session_id": match["Session_ID"], "created_at": match.get("Created_At", ""),
             "subject_filter": match.get("Subject_Filter", ""), "count": len(items), "status": match.get("Status", "active"),
-            "completed_at": match.get("Completed_At", ""), "entries": entries, "items": items, **_progress(entries)}
+            "completed_at": match.get("Completed_At", ""), "items": items, **feedback}
 
 
 @storage
 def list_sessions(vault, status=None, include_unavailable=False):
     result = []
     with connect(vault) as db:
-        questions = {r["question_id"]: dict(r) for r in db.execute("SELECT question_id,uid,archived,suspended FROM question_projection")}
-        submitted = {}
-        for row in db.execute("SELECT DISTINCT session_id,question_id FROM history_projection WHERE session_id<>''"):
-            submitted.setdefault(row["session_id"], set()).add(row["question_id"])
-    for session in _load_sessions(vault):
-        if status and session["Status"] != status:
-            continue
-        entries = _entries(vault, session, questions, submitted.get(session["Session_ID"], set()))
-        if not include_unavailable and session["Status"] == "active" and not any(e["availability"] != "suspended" for e in entries):
-            continue
-        value = {"session_id": session["Session_ID"], "created_at": session.get("Created_At", ""),
-                 "subject_filter": session.get("Subject_Filter", ""), "status": session["Status"],
-                 "completed_at": session.get("Completed_At", ""), "entries": entries,
-                 "uids": [e["uid"] for e in entries if e["availability"] != "suspended"], **_progress(entries)}
-        value["count"] = len(value["uids"])
-        result.append(value)
+        db.execute("BEGIN")
+        questions = {r["question_id"]: dict(r) for r in db.execute(
+            "SELECT question_id,uid,archived,suspended,updated_seq FROM question_projection")}
+        submitted = _submitted_by_session(_submitted_rows(db))
+        restore_seq = _last_state_restore(db)
+        for session in session_rows(vault, db, closeout=True):
+            if status and session["Status"] != status:
+                continue
+            sid = session["Session_ID"]
+            feedback = _read_session_entries(vault, db, session, questions=questions,
+                                             submitted=submitted.get(sid, {}), restore_seq=restore_seq)
+            uids = [e["uid"] for e in feedback["entries"] if e["availability"] != "suspended"]
+            if not include_unavailable and session["Status"] == "active" and not uids:
+                continue
+            result.append({"session_id": sid, "created_at": session.get("Created_At", ""),
+                           "subject_filter": session.get("Subject_Filter", ""), "status": session["Status"],
+                           "completed_at": session.get("Completed_At", ""), "uids": uids, "count": len(uids), **feedback})
     return result
 
 
-@storage_write
 def bind_session_entry(vault, session_id, entry_id, question_id):
-    session = get_session(vault, session_id)
-    if not session:
-        raise ValueError("复习计划不存在")
-    entry = next((e for e in session["entries"] if e["entry_id"] == entry_id), None)
-    if not entry or entry["availability"] != "unresolved":
-        raise IdentityConflict("计划条目不存在或已经绑定，请刷新")
-    if not resolve_question(vault, question_id=question_id, include_archived=True):
-        raise ValueError("指定题目不存在")
-    append_commit(vault, "api", "session.items_bind", "人工确认旧复习条目身份", {
-        "session_id": session_id, "entry_id": entry_id, "question_id": question_id, "binding_source": "manual"})
-    rebuild_projection(vault)
-    return get_session(vault, session_id)
+    from .session_operations import bind_entry
+    return bind_entry(vault, session_id, entry_id, question_id)
 
 
 @storage_write

@@ -127,12 +127,13 @@ def _upsert_mastery(db, qid, m):
 
 
 def _upsert_session(db, sid, s):
-    db.execute("""INSERT INTO session_projection(session_id,created_at,subject_filter,count,items_json,status,completed_at,retracted,updated_seq)
-        VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id) DO UPDATE SET created_at=excluded.created_at,
+    db.execute("""INSERT INTO session_projection(session_id,created_at,subject_filter,count,items_json,status,completed_at,retracted,updated_seq,closeout_json)
+        VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id) DO UPDATE SET created_at=excluded.created_at,
         subject_filter=excluded.subject_filter,count=excluded.count,items_json=excluded.items_json,status=excluded.status,
-        completed_at=excluded.completed_at,retracted=excluded.retracted,updated_seq=excluded.updated_seq""",
+        completed_at=excluded.completed_at,retracted=excluded.retracted,updated_seq=excluded.updated_seq,closeout_json=excluded.closeout_json""",
         (sid, s.get("Created_At", ""), s.get("Subject_Filter", ""), int(s.get("Count") or 0), s.get("UIDs", "[]"),
-         s.get("Status", "active"), s.get("Completed_At", ""), int(bool(s.get("_retracted"))), s.get("_updated_seq", 0)))
+         s.get("Status", "active"), s.get("Completed_At", ""), int(bool(s.get("_retracted"))), s.get("_updated_seq", 0),
+         canonical_json(s.get("_closeout", {}))))
 
 
 def full_project(vault, db, tuning, head=None):

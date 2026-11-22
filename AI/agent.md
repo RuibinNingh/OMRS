@@ -11,7 +11,7 @@
 
 ## 1. 组成与数据流
 
-只读 `list_sessions` 的状态筛选支持 `active`、`paused`、`completed`，暂停计划仍返回固定条目与真实反馈进度；暂停和恢复操作由网页提供，助手没有新增写工具。暂停计划的反馈会由领域事务拒绝，已有学习结果保留。
+只读 `list_sessions` 的状态筛选支持 `active`、`paused`、`completed`，暂停计划仍返回固定条目与真实反馈进度；暂停和恢复操作由网页提供，助手没有新增写工具。暂停计划由领域事务拒绝新增反馈，已有回执仍可复用。列表与详情另提供互斥处置计数、可结单标记和结单快照，详见 `AI/api/queries.md`。
 
 一条消息的路径：`POST /api/agent/message` → `AgentRuntime.post_message` 建运行（run）、存用户消息、起后台线程并立即返回 `run_id` → 线程里 `AgentLoop.run` 反复请求模型、执行工具 → 每一步经 `Run.emit` 追加事件 → 浏览器用 `GET /api/agent/events?run=&after=N&wait=20` 长轮询取增量。每条事件发出前写入 `agent.db.run_events`，运行结束后落盘回执并移出内存，之后打开对话分页从库里重放；序号在活动、完成与重启之间不改变。
 

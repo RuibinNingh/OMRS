@@ -94,9 +94,9 @@ def run_desktop(page, base, port, sid, results):
           wait(page, "() => document.querySelector('.fbw-import__status')?.textContent.includes('请先在上面选中')")
           and ev("document.querySelector('.fbw-import__toggle').getAttribute('aria-expanded')") == "true")
     ok = pick(page, sid)
-    check("选中 Session：rail 列出 6 题、题面挂上、进度行 0/6、UID 输入框隐藏",
+    check("选中 Session：rail 列出 6 题、题面挂上、进度行已录、待录与原计划数、UID 输入框隐藏",
           ok and wait(page, QV) and ev("document.querySelectorAll('.fbw-q').length") == 6
-          and "0/6" in ev("document.querySelector('.fbw-bar__info').textContent") and not ev("!!document.querySelector('.fbw-field input[list]')"))
+          and "已录 0 · 待录 6" in ev("document.querySelector('.fbw-bar__info').textContent") and not ev("!!document.querySelector('.fbw-field input[list]')"))
     paste(page, omr_json([{"seq": 1, "page": 1, "result": "C", "level": "9"}, {"seq": 2, "page": 1, "result": "W", "level": "3"},
                           {"seq": 3, "page": 1, "result": "C", "level": "8"}],
                          unresolved=[{"seq": 3, "field": "q3_result", "status": "multi_marked"}], status="needs_review"))
@@ -306,7 +306,7 @@ def run_reused_uids(browser, base, items, results):
             page = ctx.new_page()
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
-            page.route('**/api/sessions', lambda route: route.fulfill(
+            page.route('**/api/sessions?include_unavailable=1', lambda route: route.fulfill(
                 json={"sessions": [session]}))
             tag = f'同 UID · {theme} · {label}'
             try:
@@ -319,7 +319,7 @@ def run_reused_uids(browser, base, items, results):
                     done: document.querySelectorAll('.fbw-q.is-done').length,
                     info: document.querySelector('.fbw-bar__info').textContent})""")
                 results.append((f'{tag}：显示 40 题、31 已录和 9 待录',
-                                loaded and counts['done'] == 31 and '31/40' in counts['info'] and '9' in counts['info'], str(counts)))
+                                loaded and counts['done'] == 31 and '已录 31 · 待录 9' in counts['info'] and '原计划 40 题' in counts['info'], str(counts)))
                 if loaded:
                     page.locator('.fbw-q').nth(6).click()
                     archived = page.locator('.fbw-stage').inner_text()
@@ -330,7 +330,7 @@ def run_reused_uids(browser, base, items, results):
                     page.locator('.fbw-verdict__btn--ok').click()
                     keys = page.locator('.fbw-q-item').evaluate_all('(els) => els.map(el => el.dataset.key)')
                     results.append((f'{tag}：历史只读、待录题面和判定可用、重绘身份唯一',
-                                    '此题暂不可反馈' in archived and '已录入' in readonly and question_loaded
+                                    '题目已归档' in archived and '本题已录' in readonly and question_loaded
                                     and page.locator('.fbw-q.is-ok').count() == 1 and len(set(keys)) == 40, ''))
                 results.append((f'{tag}：页面脚本错误为 0', not errors, '; '.join(errors)))
             finally:

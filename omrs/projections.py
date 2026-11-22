@@ -210,11 +210,26 @@ def apply_commit(vault: str, state: dict, commit: dict):
                 "_updated_seq": seq,
                 "_retracted": False,
             }
+    elif ctype == "session.entry_skip":
+        session = state["sessions"].get(payload.get("session_id"))
+        if session:
+            skipped = session.setdefault("_closeout", {}).setdefault("skipped", {})
+            entry_id = payload["entry_id"]
+            if payload["skipped"]:
+                skipped[entry_id] = True
+            else:
+                skipped.pop(entry_id, None)
+            session["_updated_seq"] = seq
     elif ctype == "session.complete":
         session = state["sessions"].get(payload.get("session_id"))
         if session:
             session["Status"] = "completed"
             session["Completed_At"] = payload.get("completed_at", commit["created_at"])
+            closeout = session.setdefault("_closeout", {})
+            if "completion" in payload:
+                closeout["completion"] = payload["completion"]
+            else:
+                closeout.pop("completion", None)
             session["_updated_seq"] = seq
     elif ctype in {"session.pause", "session.resume"}:
         session = state["sessions"].get(payload.get("session_id"))
@@ -249,6 +264,8 @@ def apply_commit(vault: str, state: dict, commit: dict):
         if session:
             session["_retracted"] = False
             session["Status"] = "active"
+            session["Completed_At"] = ""
+            session.get("_closeout", {}).pop("completion", None)
             session["_updated_seq"] = seq
         if not state.get("_corrections_precomputed"):
             _recompute_mastery_from_history(vault, state, seq)
@@ -572,8 +589,8 @@ def _write_projection_tables(db, state):
             """
             INSERT OR REPLACE INTO session_projection
             (session_id, created_at, subject_filter, count, items_json, status,
-             completed_at, retracted, updated_seq)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             completed_at, retracted, updated_seq, closeout_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 sid,
@@ -585,6 +602,7 @@ def _write_projection_tables(db, state):
                 session.get("Completed_At", ""),
                 1 if session.get("_retracted") else 0,
                 _safe_int(session.get("_updated_seq"), 0),
+                canonical_json(session.get("_closeout", {})),
             ),
         )
 def export_legacy_csv(vault: str, state=None):

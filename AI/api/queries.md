@@ -129,23 +129,24 @@
 ---
 
 ### `/api/sessions?status=active`
-返回常规 Session 列表，可按 `status` 过滤。每个 Session 附带分批反馈进度：
 
-过滤和推荐排除均以持久化字段 `Status` 为准（缺失时兼容按 `active` 处理）；不会按创建时间隐式套用 7 天过期规则。只有反馈完成或显式撤销后，Session 才不再属于 active 集合。
+返回常规 Session 列表。可按 `active`、`paused`、`completed` 筛选。默认兼容视图隐藏全部停用的活动计划，网页传 `include_unavailable=1` 将其列入「待完成」。
 
-| 字段 | 类型 | 说明 |
-|---|---|---|
-| `feedback_uids` | array | 已提交过反馈的 UID，按 Session 原始顺序去重 |
-| `pending_uids` | array | 尚未提交反馈的 UID，按 Session 原始顺序去重 |
-| `feedback_count` / `pending_count` | int | 已录入 / 待录入题数 |
-| `feedback_complete` | bool | 是否所有 Session 题目都已有反馈 |
+旧 `uids`、`count`、`feedback_uids`、`pending_uids`、`feedback_count`、`pending_count`、`feedback_complete` 继续用兼容口径，停用条目不计入。题库占用以活动计划绑定的可用题目为准，手动跳过的活动条目继续占用。
 
 ### `/api/session?id=<session_id>`
 
-权威 `entries` 含 `entry_id`、`question_id`、`uid_at_creation`、当前 `uid`、`source`、`availability`（active/archived/suspended/unresolved）和 `feedback_submitted`。旧 `uids`/`feedback_uids` 是派生兼容字段；不能确定旧条目身份时标为 unresolved，详情允许用户明确绑定。
-返回单个 Session 及其 UIDs 对应的题目详情，并返回与 `/api/sessions` 相同的分批反馈进度字段。
+详情的 `items` 提供题目信息。列表和详情共用以下字段，均在同一 SQL 快照内生成。
 
-复习调度工作台用该端点加载已有计划详情；题目条目保留 Session 中的 `_source`，反馈进度包含 `feedback_count`、`pending_count`、`feedback_uids`。计划不存在或请求失败时前端在详情区域提供重试，不会用过期请求结果覆盖当前计划。
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `entries` | array | 固定原序。每项有 `entry_id`、`question_id`、`uid_at_creation`、当前 `uid`、`source`、`availability`、`feedback_submitted` |
+| `entries[].feedback_state` | string | `recorded` 已录、`pending` 待录、`unavailable` 停用或归档、`skipped` 本次跳过、`unresolved` 身份待确认 |
+| `entries[].feedback_reason` | string | 显示用处置原因。待录为空 |
+| `progress` | object | `total` 是原计划题数。上述五类为互斥计数，相加等于 `total`。活动计划清空待录与待确认后，`can_finish` 为真。`signature` 是显式结单的版本条件 |
+| `completion` | object/null | 有快照的已结束计划返回 `completed_at`、`counts` 和固定原序的 `entries` 处置。其他计划及旧版无快照完成记录返回空 |
+
+开放计划优先展示有效反馈，其次是本次跳过，再按当前题目可用性判定。已结单的新记录沿用结单当时的类别和原因。`availability` 与 `feedback_submitted` 仍反映当前题目的可用性和有效反馈，可识别后续恢复题目或历史修正。只读请求不会结单。
 
 ### `/api/question?question_id=<question_id>`（兼容 `uid=`）
 返回题目的完整内容（题面、答案、备注、正式练习记录、标签、知识点、录入日期与精确创建时间）。

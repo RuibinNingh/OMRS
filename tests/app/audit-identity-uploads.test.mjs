@@ -64,7 +64,10 @@ test('Session按固定条目编号；同UID归档条目不串到新题，unresol
   const rows = fbRowsForSession(session);
   const report = omrApplyToRows(rows, [{ number: 1, correct: true }, { number: 2, correct: false }, { number: 3, correct: true }], session.entries, new Set());
   assert.deepEqual(rows.map(row => row.correct), [null, false, null]);
-  assert.equal(report.filled, 1); assert.equal(report.manual.length, 2);
+  assert.equal(report.filled, 1);
+  assert.deepEqual(report.unavailable, [1]);
+  assert.deepEqual(report.unresolved, [3]);
+  assert.deepEqual(report.manual, []);
   const rail = fbRailEntries(session, rows);
   assert.equal(currentContext(rail, rows, 0), null); assert.equal(currentContext(rail, rows, 2), null);
   assert.equal(currentContext(rail, rows, 1).row.question_id, 'replacement');

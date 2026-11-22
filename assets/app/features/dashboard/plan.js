@@ -84,9 +84,9 @@ export function buildPlan({ items = [], data = {}, sessions = [], dueDays, today
       actions: [{ label: '开始常规复习', primary: true, go: 'review' },
         { label: '查看清单', go: 'questions', preset: { 'q-filter-due': 'today', 'q-sort': 'mastery-asc' } }] });
   }
-  const pending = openSessions(sessions);
+  const pending = openSessions(sessions).filter(session => num(session.progress?.pending ?? session.pending_count, num(session.count)) > 0);
   if (pending.length) {
-    const total = pending.reduce((sum, session) => sum + num(session.count), 0);
+    const total = pending.reduce((sum, session) => sum + num(session.progress?.pending ?? session.pending_count, num(session.count)), 0);
     plan.push({ key: 'pending_feedback', level: 'warn', icon: 'check-circle', metric: String(pending.length), title: `${pending.length} 个 Session 还没录反馈`,
       detail: `共 ${total} 道题。没有反馈就不会更新熟练度和到期日，练了也不算数。`,
       actions: [{ label: '去录反馈', primary: true, go: 'feedback', session: pending[0].session_id || '' }] });

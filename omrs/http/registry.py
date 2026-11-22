@@ -200,6 +200,8 @@ ROUTES = {
     ('POST', '/api/scan'): '_do_post_routes',
     ('POST', '/api/schedule'): '_learning_post',
     ('POST', '/api/session/bind'): '_learning_post',
+    ('POST', '/api/session/entry-skip'): '_learning_post',
+    ('POST', '/api/session/complete'): '_learning_post',
     ('POST', '/api/session/pause'): '_learning_post',
     ('POST', '/api/session/resume'): '_learning_post',
     ('POST', '/api/session/delete'): '_learning_post',

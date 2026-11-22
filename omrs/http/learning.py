@@ -19,6 +19,19 @@ class LearningRoutes:
                 self._json({'status': 'ok', 'session': result})
             except Exception as exc:
                 self._error(exc)
+        elif path in ('/api/session/entry-skip', '/api/session/complete'):
+            try:
+                from ..session_operations import complete_session, set_entry_skipped
+                data = self.services.http_io.json_body(self, body)
+                sid = data.get('session_id', '')
+                if path == '/api/session/entry-skip':
+                    session = set_entry_skipped(self.vault_path, sid, data.get('entry_id', ''),
+                                                data.get('skipped'), data.get('question_id', ''))
+                else:
+                    session = complete_session(self.vault_path, sid, data.get('signature', ''))
+                self._json({'status': 'ok', 'session': session})
+            except Exception as exc:
+                self._error(exc)
         elif path == '/api/session/bind':
             try:
                 from ..sessions import bind_session_entry

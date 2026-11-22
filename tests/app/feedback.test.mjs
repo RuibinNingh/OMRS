@@ -315,3 +315,43 @@ test('判定 / 打分：未手动打分时对 9 错 4，手动打过分后判定
   assert.equal(S.setVerdict(null, true), false);
   assert.deepEqual(S.submitPayload([row, { uid: 'B', correct: null }]), [{ uid: 'A', sub_score: 10, is_correct: true, note: 'n' }]);
 });
+
+test('原题号先查完整清单，OMR 与反馈 JSON 独立报告四种不可导入原因', () => {
+  const kinds = ['recorded', 'skipped', 'unavailable', 'pending', 'unresolved'];
+  const session = {
+    session_id: 'EXP-STABLE',
+    entries: kinds.map((feedback_state, i) => ({ feedback_state, entry_id: `entry-${i}`,
+      question_id: i === 4 ? '' : `question-${i}`, uid: i === 2 || i === 3 ? '同名' : `UID-${i}` })),
+  };
+  const omr = planImportText(JSON.stringify({
+    recognition_id: 1, template_id: 1, mode: 'omrs', status: 'ready', unresolved: [],
+    questions: kinds.map((_, i) => ({ seq: i + 1, result: 'C', level: i + 1 })),
+  }), { session });
+  assert.deepEqual([omr.report.skippedRecorded, omr.report.skipped, omr.report.unavailable, omr.report.unresolved], [1, [2], [3], [5]]);
+  assert.deepEqual(S.submitPayload(omr.rows).map(row => [row.entry_id, row.sub_score]), [['entry-3', 4]]);
+  const json = planImportText(JSON.stringify({
+    type: 'omrs-feedback', session_id: session.session_id,
+    items: [...kinds.map((_, i) => ({ number: i + 1, correct: true, score: i + 1 })),
+      { uid: '同名', correct: false }, { number: 4, question_id: 'question-2', correct: false }],
+  }), { session, findSession: finder(session) });
+  assert.deepEqual(json.report, { recorded: 1, skipped: 1, unavailable: 1, unresolved: 1, unmatched: 2 });
+  assert.deepEqual(json.rows.map(row => [row.number, row.entry_id, row.score]), [[4, 'entry-3', 4]]);
+});
+
+test('跳过与跨端变化保留本地草稿，但下一题和提交只使用当前可录行', () => {
+  const ids = ['a', 'b', 'c', 'd'];
+  const make = values => ({ entries: values.map((feedback_state, i) => ({
+    entry_id: ids[i], question_id: ids[i], uid: ids[i], feedback_state,
+  })) });
+  const original = make(['pending', 'pending', 'pending', 'pending']);
+  const rows = fbRowsForSession(original);
+  Object.assign(rows[0], { correct: false, score: 2, note: '草稿 A' });
+  Object.assign(rows[2], { correct: true, score: 7, note: '草稿 C' });
+  const changed = make(['skipped', 'unavailable', 'pending', 'pending']);
+  const next = S.mergeSessionRows(changed, rows);
+  assert.equal(S.nextOpenIndex(S.fbRailEntries(changed, next), next, 0), 3);
+  assert.deepEqual(S.submitPayload(next).map(row => row.entry_id), ['c']);
+  const restored = S.mergeSessionRows(original, next);
+  assert.equal(restored[0].note, '草稿 A');
+  assert.equal(restored[2].note, '草稿 C');
+});

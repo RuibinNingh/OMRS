@@ -123,7 +123,9 @@ zuoyebang 用途单独支持 PNG/JPEG/WebP，完成时验证完整解码、8MiB�
 
 ## 反馈与移动一致性
 
-正式Session反馈的事务回执、重复请求及历史修正边界见AI/api/mutations.md；移动复用分类校验和统一UID预留。请求拒绝不创建目标目录，不改变原题身份。
+正式 Session 反馈和事务回执见 `AI/api/mutations.md`。网页通过 `POST /api/session/entry-skip` 记录本次跳过或撤销，通过 `POST /api/session/complete` 校验当前摘要后结单。列表和详情共用逐题状态、进度和完成快照，见 `AI/api/queries.md`。
+
+移动复用分类校验和统一 UID 预留。请求拒绝不创建目标目录，原题身份保留。
 
 ## 问题与调度提醒
 

@@ -26,9 +26,10 @@ export function mountQuestion(el, uid, { reveal = false, onReveal, question_id }
 }
 
 /** 反馈录入的题面：完整题头，工具按钮多给「停用」「打开」。 */
-export function mountQuestionStage(el, uid, question_id) {
+export function mountQuestionStage(el, uid, question_id, readOnly = false) {
   if (!el) return Promise.resolve(null);
-  return qvRender(el, uid, { layout: 'split', actions: ['edit', 'board', 'labels', 'suspend', 'open'], question_id });
+  const actions = readOnly ? ['open'] : ['edit', 'board', 'labels', 'suspend', 'open'];
+  return qvRender(el, uid, { layout: 'split', actions, question_id });
 }
 
 /** 反馈 / 练习提交后题目的记录变了：清缓存并重绘挂着它们的视图。 */

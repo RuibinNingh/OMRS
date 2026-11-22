@@ -10,8 +10,9 @@
 .fbw-bar__cap { color: var(--fg-3); font-size: var(--text-xs); font-weight: var(--weight-medium); }
 .fbw-bar__pick .ui-select { width: 100%; }
 .fbw-bar__acts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
-.fbw-bar__info { grid-column: 1 / -1; margin: 0; color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-ui); }
+.fbw-bar__info { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); grid-column: 1 / -1; margin: 0; color: var(--fg-3); font-size: var(--text-xs); line-height: var(--leading-ui); }
 .fbw-bar__err { grid-column: 1 / -1; }
+.fbw-bar__info span:first-child { color: var(--fg-1); font-weight: var(--weight-semibold); }
 .fbw-bar__info strong { color: var(--fg-1); font-family: var(--font-mono); font-weight: var(--weight-semibold); }
 
 /* ── 导入折叠面板 ── */

@@ -10,6 +10,7 @@ import { post } from '../../core/api.js';
 import { toast } from '../../ui/toast.js';
 import { dialog, confirm } from '../../ui/dialog.js';
 import { reloadData } from '../data.js';
+import { refreshSessions } from '../sessions.js';
 import { notifyHistoryChanged } from '../history.js';
 import { qvInvalidate, dropDetail } from './mount.js';
 import { closeModal } from './modal.js';
@@ -21,7 +22,7 @@ const zh = (a, b) => a.localeCompare(b, 'zh-CN');
 const uniq = values => [...new Set(values.filter(Boolean))].sort(zh);
 
 async function afterWrite(uids, { invalidate = true } = {}) {
-  await reloadData();
+  await Promise.all([reloadData(), refreshSessions()]);
   if (invalidate) await Promise.all(uids.map(uid => qvInvalidate(uid)));
   notifyHistoryChanged('question');
 }

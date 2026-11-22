@@ -41,6 +41,16 @@ class SessionQueryTests(unittest.TestCase):
     def result(self, sid, **args):
         return get_session_tool(self.ctx, {"session_id": sid, **args})["result"]
 
+    def test_all_suspended_is_discoverable_without_changing_default_filter(self):
+        self.bootstrap(1)
+        self.fixture_session("ALL", [1])
+        append_commit(self.vault, "test", "question.suspend", "停用夹具", {"question_id": "Q1"})
+        rebuild_projection(self.vault)
+        self.assertEqual(list_sessions(self.vault), [])
+        progress = list_sessions(self.vault, include_unavailable=True)[0]["progress"]
+        self.assertEqual((progress["total"], progress["pending"], progress["unavailable"]), (1, 0, 1))
+        self.assertTrue(progress["can_finish"])
+
     def test_list_pages_beyond_twenty_and_uses_deterministic_tie_order(self):
         self.bootstrap(25)
         for i in range(25):

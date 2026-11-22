@@ -78,10 +78,12 @@ def iter_mastery_rows(db, include_archived=False, question_ids=None):
         }
 
 
-def mastery_rows(vault, include_archived=False, question_ids=None):
-    with connect(vault) as db:
-        if db.execute("SELECT 1 FROM commits LIMIT 1").fetchone():
-            return list(iter_mastery_rows(db, include_archived, question_ids))
+def mastery_rows(vault, include_archived=False, question_ids=None, *, db=None):
+    if db is None:
+        with connect(vault) as own:
+            return mastery_rows(vault, include_archived, question_ids, db=own)
+    if db.execute("SELECT 1 FROM commits LIMIT 1").fetchone():
+        return list(iter_mastery_rows(db, include_archived, question_ids))
     return _legacy(vault, "mastery_data.csv") or []
 
 
@@ -97,10 +99,13 @@ def iter_history_rows(db):
         yield _history_item(row)
 
 
-def _session_item(row):
-    return {"Session_ID": row["session_id"], "Created_At": row["created_at"], "Subject_Filter": row["subject_filter"],
+def _session_item(row, closeout=False):
+    item = {"Session_ID": row["session_id"], "Created_At": row["created_at"], "Subject_Filter": row["subject_filter"],
             "Count": str(row["count"]), "UIDs": row["items_json"], "Status": row["status"],
             "Completed_At": row["completed_at"] or ""}
+    if closeout:
+        item.update(_closeout=json.loads(row["closeout_json"]), _updated_seq=row["updated_seq"])
+    return item
 
 
 def iter_session_rows(db):
@@ -134,20 +139,23 @@ def history_rows(vault, question_id=None, session_id=None, limit=None):
     return list(reversed(rows)) if limit is not None else rows
 
 
-def session_rows(vault):
-    with connect(vault) as db:
-        raw = db.execute("SELECT * FROM session_projection WHERE retracted=0 ORDER BY created_at DESC").fetchall()
-        exists = db.execute("SELECT 1 FROM commits LIMIT 1").fetchone()
-    if not exists:
+def session_rows(vault, db=None, *, closeout=False):
+    if db is None:
+        with connect(vault) as own:
+            return session_rows(vault, own, closeout=closeout)
+    if not db.execute("SELECT 1 FROM commits LIMIT 1").fetchone():
         return _legacy(vault, "sessions.csv") or []
-    return [_session_item(r) for r in raw]
+    return [_session_item(row, closeout=closeout) for row in db.execute(
+        "SELECT * FROM session_projection WHERE retracted=0 ORDER BY created_at DESC")]
 
 
-def session_row(vault, session_id):
-    with connect(vault) as db:
-        row = db.execute("SELECT * FROM session_projection WHERE session_id=? AND retracted=0", (session_id,)).fetchone()
-        if db.execute("SELECT 1 FROM commits LIMIT 1").fetchone():
-            return _session_item(row) if row else None
+def session_row(vault, session_id, db=None, *, closeout=False):
+    if db is None:
+        with connect(vault) as own:
+            return session_row(vault, session_id, own, closeout=closeout)
+    row = db.execute("SELECT * FROM session_projection WHERE session_id=? AND retracted=0", (session_id,)).fetchone()
+    if db.execute("SELECT 1 FROM commits LIMIT 1").fetchone():
+        return _session_item(row, closeout=closeout) if row else None
     return next((r for r in (_legacy(vault, "sessions.csv") or []) if r["Session_ID"] == session_id), None)
 
 

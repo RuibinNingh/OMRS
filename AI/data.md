@@ -124,8 +124,8 @@ Session 中的 `source` 贯穿普通题的SM-2反馈处理：`due` 使用常规�
 
 - `commits`：不可变提交链。
 - `question_projection` / `question_knowledge_points`：题目结构化投影；`question_projection.created_at` 是可空的 Ledger 创建时间。首次 `question.create` / `question.create_external` 写入提交的 UTC 时间；移动、结构化修改、停用与恢复沿用原值；`legacy.bootstrap` 题为空。旧库启动时由 `ledger.init_db()` 自动补列。
-- `mastery_projection`：熟练度、EF与实际排期投影，含 `kill_count` 累计成绩、`revive_stage`（默认0）、`revive_anchor_at`（默认空串）。旧库通过 `ALTER TABLE` 补列；`ledger-v4` 重放有效反馈后发布，保留原始Ledger，重算失败不发布部分投影。
-- `session_projection`：Session 稳定绑定条目投影。
+- `mastery_projection`：熟练度、EF与实际排期投影，含 `kill_count` 累计成绩、`revive_stage`（默认0）、`revive_anchor_at`（默认空串）。旧库通过 `ALTER TABLE` 补列；当前投影重放有效反馈后发布，保留原始Ledger，重算失败不发布部分投影。
+- `session_projection`：Session 稳定绑定条目投影，`closeout_json` 存放当前跳过字典和可选结单快照。启动补列后重放 Ledger。兼容 CSV 仍使用既有列和原条目顺序。
 - `history_projection`：有效反馈的 SQL 行，按 `question_id`、Session、业务日期建立索引；保留原 `recorded_at` 和业务 `review_date`。
 - `active_config`：完整活动配置、revision、mirror_hash、mirror_pending 及上次镜像哈希。
 - `projection_meta`：已发布 seq、head hash、policy hash 和 projector version。

@@ -23,7 +23,7 @@ function clamp(value, min, max, fallback) {
 
 // ── Session 进度与题目顺序（纯函数，test_feedback_ui.js 迁来后仍覆盖）────────────────
 // 实现迁到 domain/sessions.js（P6 第 3 轮，复习调度与反馈录入共用）；这里原名再导出，反馈页与旧 schedule 调用方不变。
-import { sessionUniqueUids, sessionProgress, sessionEntries, sessionEntryKey } from '../../domain/sessions.js';
+import { sessionUniqueUids, sessionProgress, sessionEntries, sessionEntryKey, entryFeedbackState } from '../../domain/sessions.js';
 export { sessionUniqueUids };
 export const fbSessionProgress = sessionProgress;
 
@@ -33,35 +33,42 @@ export function fbSessionPositions(session) {
 
 /** 本 Session 待录入的行；序号沿用 Session 原始顺序。 */
 export function fbRowsForSession(session) {
+  if (session?.status === 'completed') return [];
   return sessionEntries(session).map((entry, index) => ({ ...entry,
     id: Date.now() + index, uid: entry.uid || entry.uid_at_creation || '', number: index + 1,
     score: 5, correct: null, note: '', scoreTouched: false,
-  })).filter(row => !row.feedback_submitted);
+  })).filter(row => entryFeedbackState(row) !== 'recorded');
 }
 
 /** 拆成「已判定（对/错）」与「未判定」两组，供部分提交时保留未判定行。 */
 export function fbRowsForSubmit(rows) {
   const ready = [];
   const pending = [];
-  (rows || []).forEach(row => (row?.correct === true || row?.correct === false) ? ready.push(row) : pending.push(row));
+  (rows || []).forEach(row => {
+    if (entryFeedbackState(row) !== 'pending') return;
+    (row?.correct === true || row?.correct === false) ? ready.push(row) : pending.push(row);
+  });
   return { ready, pending };
 }
 
 /** 只移除明确写入成功的行；失败与缺失回执保留原对象和人工输入。 */
 export function remainingFeedbackRows(rows, results) {
-  const identity = row => row?.question_id || row?.uid;
-  const successes = new Set((results || []).filter(row => row.status === 'ok').map(identity));
-  return (rows || []).filter(row => !successes.has(identity(row)));
+  const successes = (results || []).filter(row => row.status === 'ok');
+  return (rows || []).filter(row => !successes.some(result => {
+    if (result.entry_id) return row.entry_id === result.entry_id;
+    return (result.question_id || result.uid) === (row.question_id || row.uid);
+  }));
 }
 
-/** 成功重读 Session 后复用本地待录入行，不丢失失败题的分数、判定和备注。 */
+/** 复用固定条目上的草稿；身份改变时不把旧稿带到新身份。 */
 export function mergeSessionRows(session, retained) {
-  const identity = row => row?.entry_id || row?.question_id || row?.uid;
-  const previous = new Map((retained || []).map(row => [identity(row), row]));
-  const next = fbRowsForSession(session).map(row => Object.assign(previous.get(identity(row)) || row, { uid: row.uid, question_id: row.question_id, entry_id: row.entry_id, availability: row.availability }));
-  const included = new Set(next.map(identity));
-  const recorded = new Set(sessionEntries(session).filter(entry => entry.feedback_submitted).map(identity));
-  return [...next, ...(retained || []).filter(row => !included.has(identity(row)) && !recorded.has(identity(row)))];
+  const previous = new Map((retained || []).map(row => [sessionEntryKey(row), row]));
+  return fbRowsForSession(session).map(row => {
+    const saved = previous.get(sessionEntryKey(row));
+    if (!saved || saved.question_id !== row.question_id) return row;
+    const { score, correct, note, scoreTouched } = saved;
+    return Object.assign(saved, row, { score, correct, note, scoreTouched });
+  });
 }
 
 /**
@@ -76,7 +83,7 @@ export function fbRailEntries(session, rows) {
   const rowIndex = new Map(list.map((row, index) => [sessionEntryKey(row), index]));
   const identities = new Set(all.map(sessionEntryKey));
   const entries = all.map((entry, index) => ({ ...entry, uid: entry.uid || entry.uid_at_creation || '',
-    number: index + 1, recorded: !!entry.feedback_submitted, index: rowIndex.get(sessionEntryKey(entry)) ?? -1 }));
+    number: index + 1, recorded: entryFeedbackState(entry) === 'recorded', index: rowIndex.get(sessionEntryKey(entry)) ?? -1 }));
   list.forEach((row, index) => {
     if (identities.has(sessionEntryKey(row))) return;
     entries.push({ ...row, uid: String(row?.uid || '').trim(), number: entries.length + 1, recorded: false, index, extra: true });
@@ -92,8 +99,8 @@ export function clampCursor(entries, cursor) {
 
 /** 第一道「未录入、未判定」的条目；没有就退回第一道未录入。 */
 export function firstOpenIndex(entries, rows) {
-  const at = entries.findIndex(entry => !entry.recorded && entry.index >= 0 && rows[entry.index]?.correct == null);
-  return at >= 0 ? at : entries.findIndex(entry => !entry.recorded);
+  const at = entries.findIndex(entry => editableEntry(entry) && rows[entry.index]?.correct == null);
+  return at >= 0 ? at : entries.findIndex(editableEntry);
 }
 
 /** 从 cursor 的下一条起循环找第一道未判定题；没有返回 -1。 */
@@ -102,15 +109,17 @@ export function nextOpenIndex(entries, rows, cursor) {
   for (let step = 1; step <= entries.length; step += 1) {
     const at = (cursor + step) % entries.length;
     const entry = entries[at];
-    if (!entry.recorded && entry.index >= 0 && rows[entry.index]?.correct == null) return at;
+    if (editableEntry(entry) && rows[entry.index]?.correct == null) return at;
   }
   return -1;
 }
 
+const editableEntry = entry => entry && !entry.recorded && entry.index >= 0 && entryFeedbackState(entry) === 'pending';
+
 /** 当前光标处「可编辑」的上下文；已录入 / UID 空 / 行被移除时返回 null。 */
 export function currentContext(entries, rows, cursor) {
   const entry = entries[cursor];
-  if (!entry || entry.recorded || (entry.availability && entry.availability !== 'active') || entry.index < 0) return null;
+  if (!editableEntry(entry)) return null;
   const row = rows[entry.index];
   return row ? { entry, index: entry.index, row } : null;
 }
@@ -211,19 +220,17 @@ export function omrApplyToRows(rows, questions, sessionUids, recordedUids) {
   const recorded = recordedUids instanceof Set ? recordedUids : new Set(recordedUids || []);
   const rowByUid = new Map();
   (rows || []).forEach((row, index) => { const key = sessionEntryKey(row); if (key && !rowByUid.has(key)) rowByUid.set(key, index); });
-  const report = { total: (questions || []).length, filled: 0, correct: 0, wrong: 0, manual: [], skippedRecorded: 0, outOfRange: [], missingRow: [] };
+  const report = { total: (questions || []).length, filled: 0, correct: 0, wrong: 0, manual: [], skippedRecorded: 0, skipped: [], unavailable: [], unresolved: [], outOfRange: [], missingRow: [] };
   (questions || []).forEach(question => {
     const entry = entries[question.number - 1];
     const uid = entry?.uid || entry?.uid_at_creation || '';
     if (!entry) { report.outOfRange.push(question.number); return; }
-    if (entry.feedback_submitted || (!entry.entry_id && !entry.question_id && recorded.has(uid))) { report.skippedRecorded++; return; }
+    const kind = entryFeedbackState(entry);
+    if (kind === 'recorded' || (!entry.entry_id && !entry.question_id && recorded.has(uid))) { report.skippedRecorded++; return; }
+    if (kind !== 'pending') { report[kind].push(question.number); return; }
     const index = rowByUid.get(sessionEntryKey(entry));
     if (index == null) { report.missingRow.push(question.number); return; }
     const row = rows[index];
-    if (row.availability && row.availability !== 'active') {
-      report.manual.push({ number: question.number, uid, reason: '题目不可用，请在计划详情确认身份' });
-      return;
-    }
     if (question.correct == null) {
       report.manual.push({ number: question.number, uid, reason: question.reason || '需要人工判定' });
       row.note = omrMergeNote(row.note, question.reason);
@@ -256,8 +263,12 @@ export function fbImportFeedbackRows(data) {
   rawItems.forEach((it, i) => {
     const uid = it && (it.uid ?? it.UID) != null ? String(it.uid ?? it.UID).trim() : '';
     const correct = looseBool(it?.is_correct ?? it?.correct);
-    if ((!uid && !it?.question_id) || correct === null) { skipped++; return; }
-    rows.push({ id: Date.now() + i, uid, ...(it?.question_id ? { question_id: String(it.question_id) } : {}), score: Math.max(0, Math.min(10, Math.round(num(it.sub_score ?? it.score, correct ? 10 : 4)))), correct, note: String(it?.note ?? '').trim(), scoreTouched: true });
+    const entry_id = typeof it?.entry_id === 'string' ? it.entry_id.trim() : '';
+    const rawNumber = it?.number ?? it?.seq;
+    const number = rawNumber == null || rawNumber === '' ? null : Number(rawNumber);
+    const numbered = Number.isSafeInteger(number) && number > 0;
+    if ((rawNumber != null && !numbered) || (!uid && !it?.question_id && !entry_id && !numbered) || correct === null) { skipped++; return; }
+    rows.push({ id: Date.now() + i, uid, ...(entry_id ? { entry_id } : {}), ...(numbered ? { number } : {}), ...(it?.question_id ? { question_id: String(it.question_id) } : {}), score: Math.max(0, Math.min(10, Math.round(num(it.sub_score ?? it.score, correct ? 10 : 4)))), correct, note: String(it?.note ?? '').trim(), scoreTouched: true });
   });
   return { rows, skipped, sessionId: String(data?.session_id || '').trim() };
 }
@@ -268,13 +279,15 @@ export function fbPayloadKind(data) {
   if (data && Array.isArray(data.questions) && data.questions.some(entry => entry && (entry.uid != null || entry.question != null))) return 'questions';
   if (data && data.type === 'omrs-feedback') return 'feedback';
   const list = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : (Array.isArray(data?.feedbacks) ? data.feedbacks : null));
-  if (Array.isArray(list) && list.some(entry => entry && typeof entry === 'object' && (entry.uid != null || entry.UID != null || entry.question_id != null) && (entry.is_correct !== undefined || entry.correct !== undefined))) return 'feedback';
+  if (Array.isArray(list) && list.some(entry => entry && typeof entry === 'object' && (entry.uid != null || entry.UID != null || entry.question_id != null || entry.entry_id != null || entry.number != null || entry.seq != null) && (entry.is_correct !== undefined || entry.correct !== undefined))) return 'feedback';
   return 'omr';
 }
 
 // ── 模块单例状态 ────────────────────────────────────────────────────────────────
 export function createState() {
   return {
+    sessionSnapshot: null,
+    accepted: [],      // 回执成功但计划尚未重读的条目
     rows: [],          // {id, uid, number, score, correct, note, scoreTouched}
     cursor: 0,         // rail 条目下标
     stageUid: '',      // 舞台上正在显示的 uid，用来避免重复重绘题面

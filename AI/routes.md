@@ -165,7 +165,9 @@
 | POST | `/api/schedule-reminders/generate` | `AI/api.md` |
 | GET | `/api/session` | `AI/api/queries.md`、`AI/changelog.md`、`AI/frontend/review.md` |
 | POST | `/api/session/bind` | `AI/api/mutations.md`、`AI/data.md`、`AI/frontend/review.md`等 |
+| POST | `/api/session/complete` | `AI/api.md`、`AI/api/mutations.md` |
 | POST | `/api/session/delete` | `AI/api/mutations.md`、`AI/ledger.md` |
+| POST | `/api/session/entry-skip` | `AI/api.md`、`AI/api/mutations.md` |
 | POST | `/api/session/pause` | `AI/api.md`、`AI/api/boards.md`、`AI/ledger.md` |
 | POST | `/api/session/resume` | `AI/api.md`、`AI/api/boards.md`、`AI/ledger.md` |
 | GET | `/api/sessions` | `AI/api/queries.md`、`AI/changelog.md` |

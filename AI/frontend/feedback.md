@@ -15,28 +15,25 @@
 
 | 文件 | 职责 |
 |---|---|
-| `index.js` | 页面契约；控制器（选 Session、切题、判定、打分、导入、提交）；动作与快捷键；粘贴监听 |
+| `index.js` / `controller.js` | 页面挂载、动作与快捷键；控制器处理计划、切题、录入、导入、单题处置与结单 |
 | `state.js` | 模块单例状态与纯逻辑：Session 进度、rail 条目、光标、判定与默认分、提交体，以及 OMR / 反馈 JSON 解析器 |
 | `importer.js` | 一段文本 → 导入计划（解析、分流、算出新行与状态报告），纯函数；三个导入入口共用 |
 | `view.js` | `html``` 模板：顶栏、导入折叠面板、rail、题面挂载点、判定面板、状态行、提交结果明细 |
 | `feedback.css` | features 层版式（类名前缀 `fbw-`） |
 
-Session 列表与当前反馈 Session 归 `domain/sessions.js`。`entries` 是权威条目，包含固定 `entry_id`、`question_id`、创建时 UID、当前 UID、来源、可用状态和是否已反馈；旧 UID 数组仅用于兼容显示。
+Session 列表归 `domain/sessions.js`。服务端 `progress` 定义原计划题数与处置计数。题号取 `entries` 原序，交互按固定 `entry_id` 合并。只读条目的 DOM 键回退到稳定题目身份，兼容 UID-only 记录使用原 UID。
 
 ## 流程
 
-1. 进入页面经 `domain/sessions.js::refreshSessions()` 拉最新进度（取代旧 `enter` 钩子）；并发的刷新共用同一个 promise。
-2. 选 Session：建出「待录入」行（`fbRowsForSession`），光标落在第一道未判定题。不选 Session 时是手动录入：「添加行」后填 UID。
-3. 逐题判对 / 错：没手动打过分时对 9、错 4；拖过滑杆或按数字后 `scoreTouched=true`，判定不再改分。备注、标记（快捷标记与「编辑标记」）就地改。
-4. 「提交」（或 `⌘`/`Ctrl`+`Enter`）只发已判定的行；UID 空或重复、本 Session 已录过的题先拦下。结果进 `ui/dialog` 弹窗，随后刷新题目与 Session。仅移除明确成功的条目；失败、缺少回执及未判定行完整保留判定、分数和备注。Session 重读按稳定身份合并，移动后显示新 UID；刷新失败说明进度未知，不宣称全部完成。提交与合并期间表单只读，卸载后旧结果不打开弹窗。
+1. 默认光标落在首个可录且未判定条目。Enter 在原序中找下一道可录的未判定题，可点击任何题号查看处置。手动模式可加行，正式计划使用原条目。
+2. 判定、评分和备注存于页面内存，直到成功回执才算已录。分批提交只发送仍可录且已判定的条目。部分失败或重读失败时保留未成功行，重新读取按固定 `entry_id` 对齐。题目绑定改变时新身份使用新草稿。
+3. 活动计划在当前题的次级操作提供「仅本次跳过」或「撤销本次跳过」。已判题会提示这条反馈本次不提交。撤销复用当前页内存中的判定、分数与备注。待确认的条目还可转到计划详情手动绑定。
+4. 全题录入后自动完成。待录和身份待确认均清空时可显式结束，确认框列出已录、跳过、不可录数量。结束后展示结单时处置，零反馈显示「已结束 · 无反馈」。暂停时需先恢复。
+5. 整页刷新从服务器恢复反馈处置与结单历史。尚未提交的判定与备注随页面内存释放。
 
 ## 渲染与不变量
 
-- 每次状态变化 `morph(#panel-feedback, view(state))`；会出现或消失的块都带 `data-key`。rail 条目的 key 是「行下标 | 只读条目身份」：可编辑行使用行下标，只读条目经 `sessionEntryKey()` 优先取 `entry_id`，其次 `question_id`，旧计划才回退 UID。归档题与新题同 UID 时仍分别显示（`each()` 遇重复 key 直接报错）。
-- 题面挂载点带 `data-morph="skip"`、key 为 `qv:<uid>`：只有换题时换新挂载点；判定、打分、写备注都不碰题面，KaTeX、图片与滚动保留，聚焦的按钮与滑杆保留焦点。题面经 `domain/question/index.js::mountQuestionStage()`，显示完整题头，工具按钮多给「停用」「打开」。
-- rail 显示 Session 全部题目：序号沿用 Session 固定条目顺序；归档、停用和 unresolved 条目保留编号并只读，无法确认的身份需在计划详情显式绑定；已录入的题 `is-done` 只读（判定面板显示只读提示）；不属于本 Session 的导入 / 手动行追加在末尾，面板给出可编辑的 UID 字段。
-- 状态是模块单例：离开页面再回来，Session 选择、判定、导入的行都还在；整页刷新后清空。导入文本框的草稿也记在状态里，重绘不丢。
-- 字号全部来自 token（页面自身 ≤6 种，题面子树不计）；可点目标 ≥28px，手机判定按钮 40px。
+rail 保留原序与全部条目，状态和操作区各有固定键。表单判定、分数和备注变化时复用题面挂载点。结单时已有反馈而当前因历史修正无效的条目，面板显示两者的区别。
 
 ## 错因记录
 
@@ -44,7 +41,7 @@ Session 列表与当前反馈 Session 归 `domain/sessions.js`。`entries` 是�
 
 错因挂载点按稳定 question_id 标识并带 `data-morph="skip"`，判定、打分和标记重绘不重建记录或编辑框。换题释放旧监听，按新身份读取；反馈页与题目弹窗使用不同页签 ID，避免同时打开同题时相互控制。错因格式、分页、草稿与保存协议见 `AI/frontend/qview.md`。
 
-换题、换 Session、改 UID、添加／移除行、导入和提交前，先通过错因保存／放弃／继续编辑守卫；取消保持原题与表单。路由离开使用同一守卫，卸载释放守卫与监听。焦点位于错因区时，Ctrl/⌘+Enter 只保存错因。`tests/e2e/feedback_reflections.py` 使用临时 Vault 验证真实保存、失败重试、身份、作答独立性、离开保护与双主题四档宽度；证据目录由 `OMRS_FEEDBACK_REFLECTION_EVIDENCE` 指定。
+换题、换 Session、改 UID、添加／移除行、导入、提交、刷新、跳过、撤销和结单前，先通过错因保存／放弃／继续编辑守卫；取消保持原题与表单。路由离开使用同一守卫，卸载释放守卫与监听。焦点位于错因区时，Ctrl/⌘+Enter 只保存错因。`tests/e2e/feedback_reflections.py` 使用临时 Vault 验证真实保存、失败重试、身份、作答独立性、离开保护与双主题四档宽度；证据目录由 `OMRS_FEEDBACK_REFLECTION_EVIDENCE` 指定。
 
 ## 版式
 
@@ -61,16 +58,18 @@ Session 列表与当前反馈 Session 归 `domain/sessions.js`。`entries` 是�
 
 ## 导入
 
-三个入口——「读剪贴板填写」按钮、空白处粘贴、导入面板的文本框 +「导入 JSON」——都走 `importer.js::planImportText()`：答题卡 `/result` 协议按 Session entries 的固定序号对号（必须先选 Session），反馈 JSON（屏幕版 / AI）带 `session_id` 且能找到时切过去并跳过已录入的题，题目 JSON 被拦下。报告写进导入面板的状态行，面板自动展开。协议与判定规则见 [`omr-import.md`](../omr-import.md)。
+三个入口——「读剪贴板填写」按钮、空白处粘贴、导入面板的文本框 +「导入 JSON」——都走 `importer.js::planImportText()`：答题卡 `/result` 协议按 Session entries 的固定序号对号（必须先选 Session），反馈 JSON 可用原题号或稳定身份匹配原计划，导入仅填写待录条目，题目 JSON 被拦下。报告写进导入面板的状态行，面板自动展开。协议与判定规则见 [`omr-import.md`](../omr-import.md)。
 
-与旧页面的一处有意差异：反馈 JSON 导入失败（如全部已录入）时不再顺手切换当前 Session，保持原状。
+反馈 JSON 导入失败时保留当前计划与输入。
 
 ## 跨页联动
 
 复习调度先切 `feedback` 路由，再发送 `feedback:session`；反馈页刷新列表后选中计划。列表改变发 `sessions`，删除计划发 `feedback:reset` / `feedback:clear-results`，标记更新发 `feedback:render`。生产不注入旧全局，旧 E2E 兼容断言仅由测试适配器提供。
 
-进度由 `domain/sessions.js::sessionProgress` 按权威条目计算，`state.js` 再导出原名。Session UID-only 导入只在该计划的已绑定条目内解析；多个条目都匹配同一个 UID 时不会猜测。OMR 与同 UID 的归档／新题不会互串，行为回归见 `tests/app/audit-identity-uploads.test.mjs`。
+进度由 `domain/sessions.js::sessionProgress` 适配服务端计数。Session UID-only 导入只在该计划的已绑定条目内解析；多个条目都匹配同一个 UID 时不会猜测。OMR 与同 UID 的归档／新题不会互串，行为回归见 `tests/app/audit-identity-uploads.test.mjs`。
 
 `tests/app/feedback.test.mjs` 覆盖同 UID 的已录条目、空 UID 的固定身份与旧计划兼容；`tests/e2e/feedback.py` 用合成 Session 列表验证 40 题中 31 已录、9 待录的真实页面，核对历史只读、题面及判定。浅深色桌面／手机截图保存在独立临时目录，可用 `OMRS_FEEDBACK_SHOTS` 指定位置。
 
 提交结果显示服务端实际状态、熟练度变化、复核档位（击杀题）和「下次复习 YYYY-MM-DD」。一次高分立即显示「已击杀」；已击杀题低分答对显示「磨合中」、3天后巩固，答错1天后重练；提前高分显示原档位与原日期。熟练度变化用 `core/format.js` 的 `formatPercent`。关闭题目 Markdown 编辑器走 Esc（对话框不把 Esc 外泄给页面）。
+
+`node tests/e2e/feedback_closeout.mjs` 使用本机 Chromium 和随机回环端口覆盖错因守卫、撤销跳过、跨端停用、分批提交、恢复后草稿、按原号导入、结单历史与调度入口。

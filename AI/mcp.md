@@ -317,3 +317,5 @@ note 管理 `# 备注` 下的 `## 补充备注`，保留旧裸文本、未知子
 ## 首页提醒素材
 
 提醒素材契约与快照边界见`AI/mcp-storage.md`。
+
+`list_sessions` 与 `get_session` 的只读结果包含 `progress` 和 `completion`。详情逐条给 `feedback_state` 和原因，兼容统计仍使用已有字段。完整口径见 `AI/api/queries.md`。网页用户从反馈录入或复习调度提交单题决定及结单。

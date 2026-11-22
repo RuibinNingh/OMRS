@@ -29,7 +29,7 @@ export function todaySummary({ items = [], data = {}, sessions = [], dueDays, to
   const overdue = overdueDays.length;
   const dueToday = active.filter(item => due(item) === 0).length;
   const waiting = overdue + dueToday;
-  const pendingQ = openSessions(sessions).reduce((sum, s) => sum + num(s.pending_count, num(s.count)), 0);
+  const pendingQ = openSessions(sessions).reduce((sum, s) => sum + num(s.progress?.pending ?? s.pending_count, num(s.count)), 0);
   const done = num((data?.daily_trend || {})[dayKey(today)]);
   const target = todayTarget({ items, dueDays });
   const worst = overdue ? Math.abs(Math.min(...overdueDays)) : 0;

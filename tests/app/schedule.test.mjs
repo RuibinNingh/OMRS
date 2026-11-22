@@ -147,3 +147,14 @@ test('plan list, cards, detail model, gap clamp', () => {
   assert.deepEqual([done.hint, done.canFeedback, done.status], ['本次复习已全部录入', false, '已完成']);
   assert.deepEqual(['3', '-1', '25', 'x', 2.6].map(S.clampGap), [3, 0, 20, 0, 3]);
 });
+
+test('可结束与无反馈结束都使用服务端处置计数和原计划总数', () => {
+  const progress = { total: 3, recorded: 0, pending: 0, unavailable: 2, skipped: 1, unresolved: 0, can_finish: true };
+  const session = { status: 'active', count: 0, pending_count: 99, entries: [], progress };
+  assert.equal(S.planCard(session).status, '可结束');
+  const open = S.detailModel(session);
+  assert.deepEqual([open.total, open.pending, open.canFinish, open.canFeedback], [3, 0, true, false]);
+  const ended = S.detailModel({ ...session, status: 'completed', progress: { ...progress, can_finish: false } });
+  assert.match(ended.summary, /^已结束 · 无反馈 · 不可录 2 · 本次跳过 1$/);
+  assert.equal(ended.canFinish, false);
+});

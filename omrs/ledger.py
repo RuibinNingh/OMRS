@@ -10,7 +10,7 @@ from .vault_lifecycle import lease, generation, open_sqlite
 
 
 SCHEMA_VERSION = 2
-PROJECTOR_VERSION = "ledger-v4"
+PROJECTOR_VERSION = "ledger-v5"
 
 
 def ledger_path(vault: str) -> str:
@@ -123,6 +123,7 @@ def init_db(db):
             subject_filter TEXT,
             count          INTEGER NOT NULL,
             items_json     TEXT NOT NULL,
+            closeout_json  TEXT NOT NULL DEFAULT '{}',
             status         TEXT NOT NULL,
             completed_at   TEXT,
             retracted      INTEGER NOT NULL DEFAULT 0,
@@ -232,6 +233,14 @@ def init_db(db):
             AFTER DELETE ON {table}
             WHEN EXISTS(SELECT 1 FROM projection_meta WHERE id=1)
             BEGIN DELETE FROM projection_meta WHERE id=1; END""")
+    session_columns = {row["name"] for row in db.execute("PRAGMA table_info(session_projection)")}
+    if "closeout_json" not in session_columns:
+        try:
+            db.execute("ALTER TABLE session_projection ADD COLUMN closeout_json TEXT NOT NULL DEFAULT '{}'")
+        except sqlite3.OperationalError:
+            # 并行启动的另一个进程可能已完成这次加列。
+            if "closeout_json" not in {row["name"] for row in db.execute("PRAGMA table_info(session_projection)")}:
+                raise
     mastery_columns = {
         row["name"] for row in db.execute("PRAGMA table_info(mastery_projection)").fetchall()
     }

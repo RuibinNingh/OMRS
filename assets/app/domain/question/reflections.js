@@ -211,6 +211,7 @@ export function mountReflections(host, questionId, { idPrefix = `ref-${questionI
   return {
     toggle: openEditor,
     canLeave,
+    hasPendingEdit: () => draft.dirty() || s.busy || s.composing || guard,
     dispose() {
       alive = false;
       window.removeEventListener('omrs:question-markdown', markdownChanged);

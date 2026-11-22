@@ -463,7 +463,8 @@ def _session_details(session):
     return {"created_at": session.get("created_at", ""), "completed_at": session.get("completed_at", ""),
             "subject_filter": session.get("subject_filter", ""), "feedback_count": session.get("feedback_count", 0),
             "pending_count": session.get("pending_count", 0), "feedback_complete": session.get("feedback_complete", False),
-            "total_count": len(entries), "availability_counts": availability}
+            "total_count": len(entries), "availability_counts": availability,
+            "progress": session.get("progress"), "completion": session.get("completion")}
 
 
 def list_sessions_tool(ctx, args):

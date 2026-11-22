@@ -2,7 +2,8 @@ import tempfile
 import unittest
 
 from omrs.common import HISTORY_HEADERS, MASTERY_HEADERS, SESSIONS_HEADERS, history_path, mastery_path, save_csv, sessions_path
-from omrs.sessions import get_session, list_sessions
+from omrs.sessions import get_session, list_sessions, create_session_from_selection
+from omrs.feedback import process_feedback
 from omrs.ledger import append_commit
 from omrs.projections import rebuild_projection
 from omrs.common import load_csv
@@ -19,6 +20,31 @@ class SessionFeedbackProgressTests(unittest.TestCase):
         history = [{**row, "Question_ID": "Q" + row["UID"][1:]} for row in load_csv(history_path(vault))]
         append_commit(vault, "test", "legacy.bootstrap", "迁移合法身份夹具", {"questions": questions, "session_rows": sessions, "history_rows": history})
         rebuild_projection(vault)
+
+    def test_exceptions_require_explicit_closeout_in_either_order(self):
+        for event in ("question.suspend", "question.archive"):
+            for first in (True, False):
+                with self.subTest(event=event, lifecycle_first=first), tempfile.TemporaryDirectory() as vault:
+                    self.project_fixture(vault, 2)
+                    session = create_session_from_selection(vault, [
+                        {"question_id": qid, "source": "due"} for qid in ("Q1", "Q2")])
+                    sid = session["session_id"]
+
+                    def change():
+                        append_commit(vault, "test", event, "变更题目", {"question_id": "Q1"})
+                        rebuild_projection(vault)
+
+                    if first:
+                        change()
+                    self.assertEqual(process_feedback(vault, [
+                        {"question_id": "Q2", "is_correct": True, "sub_score": 8}], sid)[0]["status"], "ok")
+                    if not first:
+                        change()
+                    loaded = get_session(vault, sid)
+                    self.assertEqual(loaded["status"], "active")
+                    self.assertEqual([e["feedback_state"] for e in loaded["entries"]], ["unavailable", "recorded"])
+                    self.assertTrue(loaded["progress"]["can_finish"])
+                    self.assertEqual(loaded["progress"], list_sessions(vault)[0]["progress"])
 
     def test_list_sessions_reports_submitted_and_pending_uids_in_session_order(self):
         with tempfile.TemporaryDirectory() as vault:

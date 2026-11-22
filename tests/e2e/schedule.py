@@ -124,7 +124,7 @@ def run_main(page, base, port, sids, results):
     page.click(f'.schd-plan[data-arg="{sids[0]}"]')
     wait(page, "() => document.querySelectorAll('#sch-plan-detail .schd-q').length > 0")
     n = ev("document.querySelectorAll('#sch-plan-detail .schd-q').length")
-    check("详情：题目行数与计划一致，显示「已录入 0 / 共 N 题」", n == 3 and f"已录入 0 / 共 3 题" in ev("document.getElementById('sch-plan-detail').textContent"), n)
+    check("详情：题目行数与计划一致，显示「已录 0 与原计划题数」", n == 3 and "已录 0 · 待录 3" in ev("document.getElementById('sch-plan-detail').textContent"), n)
     page.click('#sch-plan-detail [data-action="schedule.preview"] >> nth=0')
     ok = wait(page, "() => document.querySelector('dialog[open] [data-qv-uid]')")
     ev("closeModal()")
@@ -172,11 +172,11 @@ def run_delete(page, base, port, sids, results):
           gone and ev("!!document.querySelector('#sch-plan-detail .ui-empty')") and sids[1] not in [s["session_id"] for s in http(port, "/api/sessions")["sessions"]],
           ev("[document.querySelectorAll('.schd-plan').length, SESSIONS.map(s => s.session_id), document.getElementById('sch-plan-detail').textContent.slice(0, 60)]"))
     wait(page, "() => !document.querySelector('[data-action=\"schedule.remove\"]')")
-    page.route("**/api/sessions", lambda r: r.fulfill(status=503, content_type="application/json", body='{"msg":"测试离线"}'))
+    page.route("**/api/sessions?include_unavailable=1", lambda r: r.fulfill(status=503, content_type="application/json", body='{"msg":"测试离线"}'))
     page.click('[data-action="schedule.refresh"] >> nth=0')
     failed = wait(page, "() => document.getElementById('sch-session-status').textContent.includes('计划加载失败：测试离线')")
     kept = ev("document.querySelectorAll('.schd-plan').length")
-    page.unroute("**/api/sessions")
+    page.unroute("**/api/sessions?include_unavailable=1")
     page.click('#sch-session-status [data-action="schedule.refresh"]')
     check("刷新失败显示原因与「重试」、列表保留；重试后状态行清空", failed and kept >= 1 and wait(page, "() => !document.getElementById('sch-session-status').textContent.trim()"), kept)
 
@@ -345,7 +345,7 @@ def run_pause(page, base, port, results):
         page.unroute('**/api/session/pause')
         check('暂停后移入已暂停筛选，保留部分反馈并禁用录入、允许导出',
               page.input_value('#sch-plan-filter') == 'paused'
-              and '已录入 1 / 共 2 题' in page.locator('#sch-plan-detail').inner_text()
+              and '已录 1 · 待录 1' in page.locator('#sch-plan-detail').inner_text()
               and page.locator('[data-action="schedule.feedback"]').is_disabled()
               and page.locator('[data-action="schedule.export"]').first.is_enabled())
         page.screenshot(path=os.path.join(shots, 'paused-desktop.png'), full_page=True)
@@ -354,7 +354,7 @@ def run_pause(page, base, port, results):
         page.select_option('#sch-plan-filter', 'paused')
         page.click(f'.schd-plan[data-arg="{sid}"]')
         page.get_by_role('button', name='恢复调度', exact=True).wait_for()
-        check('刷新后暂停状态和已录入进度仍保留', '已录入 1 / 共 2 题' in page.locator('#sch-plan-detail').inner_text())
+        check('刷新后暂停状态和已录入进度仍保留', '已录 1 · 待录 1' in page.locator('#sch-plan-detail').inner_text())
         other = make_session(port, uids[1:])
         page.get_by_role('button', name='恢复调度', exact=True).click()
         check('恢复占用冲突时保留暂停状态并提示关联计划', wait(page, "() => document.body.textContent.includes('恢复失败') && !document.querySelector('[data-action=\"schedule.pause\"]').disabled")
@@ -366,7 +366,7 @@ def run_pause(page, base, port, results):
         wait(page, "() => !document.querySelector('[data-action=\"schedule.pause\"]').disabled && !document.querySelector('[data-action=\"schedule.feedback\"]').disabled")
         check('恢复后返回待完成并可继续录入，原进度不变', page.input_value('#sch-plan-filter') == 'active'
               and page.locator('[data-action="schedule.feedback"]').is_enabled()
-              and '已录入 1 / 共 2 题' in page.locator('#sch-plan-detail').inner_text())
+              and '已录 1 · 待录 1' in page.locator('#sch-plan-detail').inner_text())
         page.set_viewport_size({'width': 390, 'height': 844})
         page.get_by_role('button', name='暂停调度', exact=True).click()
         page.get_by_role('button', name='恢复调度', exact=True).wait_for()

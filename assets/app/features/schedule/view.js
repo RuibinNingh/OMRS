@@ -12,6 +12,7 @@ import { status } from '../../ui/status.js';
 import { skeleton } from '../../ui/skeleton.js';
 import { arrangeView } from './arrange-view.js';
 import { exporterView } from './exporter-view.js';
+import { feedbackStateLabel } from '../../domain/sessions.js';
 import { remindersView } from './reminder-library.js';
 
 function tabs(env) {
@@ -30,8 +31,7 @@ function planList(env) {
   return html`<ul class="schd-list" id="sch-plan-list" aria-label="计划列表">${each(env.plans, p => p.id, p => html`<li><button type="button" class="${cls('schd-plan', p.id === env.selected && 'is-active')}" aria-pressed="${p.id === env.selected ? 'true' : 'false'}" data-action="schedule.open" data-arg="${p.id}">
     <span class="schd-plan__head"><strong>${p.when}</strong>${tag({ label: p.status, tone: p.done ? 'success' : p.status === '已暂停' ? 'neutral' : 'warning' })}</span>
     <span class="schd-plan__title">${p.title}</span>
-    ${progress({ value: p.recorded, max: Math.max(1, p.total), label: '计划完成进度', size: 'sm', tone: p.done ? 'success' : 'accent' })}
-    <span class="schd-plan__meta">已录入 ${p.recorded} / 共 ${p.total} 题</span><span class="schd-plan__id">${p.id}</span>
+    ${p.summary ? html`<span class="schd-plan__meta">${p.summary}</span>` : html`${progress({ value: p.recorded, max: Math.max(1, p.total), label: '录入进度', size: 'sm', tone: p.done ? 'success' : 'accent' })}<span class="schd-plan__meta">已录入 ${p.recorded} / 共 ${p.total} 题</span>`}<span class="schd-plan__id">${p.id}</span>
   </button></li>`)}</ul>`;
 }
 
@@ -44,14 +44,16 @@ function detail(env) {
   const d = env.detail;
   return html`<div class="schd-detail" id="sch-plan-detail">${back}
   <div class="schd-detail__head"><div><h3 class="schd-detail__title">${d.title}</h3><p class="schd-meta" data-sid="${d.id}">${d.when} · ${d.id}</p></div>${tag({ label: d.status, tone: d.done ? 'success' : d.paused ? 'neutral' : 'warning' })}</div>
-  <p class="schd-detail__sum"><strong>已录入 ${d.recorded} / 共 ${d.total} 题</strong><span class="schd-meta">${d.hint}</span></p>
-  <div class="schd-acts">${button({ label: '录入结果', variant: 'primary', action: 'schedule.feedback', disabled: !d.canFeedback || s.changing.has(d.id) })}${!d.done ? button({ label: d.paused ? '恢复调度' : '暂停调度', icon: d.paused ? 'play' : 'pause', action: 'schedule.pause', loading: s.changing.has(d.id), disabled: s.deleting.has(d.id) }) : ''}${button({ label: '导出', icon: 'download', action: 'schedule.export', loading: !!s.exporting, disabled: !d.canExport })}${button({ label: '删除调度', variant: 'danger', icon: 'trash', action: 'schedule.remove', loading: s.deleting.has(d.id), disabled: s.changing.has(d.id) })}</div>
+  <p class="schd-detail__sum"><strong>${d.summary || `已录入 ${d.recorded} / 共 ${d.total} 题`}</strong><span class="schd-meta">${d.summary ? `原计划 ${d.total} 题` : d.hint}</span></p>
+  <div class="schd-acts">${d.canFinish ? button({ label: '结束本次', variant: 'primary', icon: 'check', action: 'schedule.finish',
+    disabled: s.changing.has(d.id) || s.deleting.has(d.id) || s.detailPhase === 'loading' })
+    : button({ label: '录入结果', variant: 'primary', action: 'schedule.feedback', disabled: !d.canFeedback || s.changing.has(d.id) })}${d.canFinish && s.detail?.progress?.skipped ? button({ label: '查看反馈', action: 'schedule.feedback' }) : ''}${!d.done ? button({ label: d.paused ? '恢复调度' : '暂停调度', icon: d.paused ? 'play' : 'pause', action: 'schedule.pause', loading: s.changing.has(d.id), disabled: s.deleting.has(d.id) }) : ''}${button({ label: '导出', icon: 'download', action: 'schedule.export', loading: !!s.exporting, disabled: !d.canExport })}${button({ label: '删除调度', variant: 'danger', icon: 'trash', action: 'schedule.remove', loading: s.deleting.has(d.id), disabled: s.changing.has(d.id) })}</div>
   ${d.paused ? html`<p class="schd-meta">暂停期间不提醒录入，题目可重新安排复习；恢复时会检查是否被其他待完成计划占用。</p>` : ''}
   <p class="schd-meta">导出时可设置版式、答案与练习历史，并记住上次参数。</p>
   <div id="sch-status" role="status">${s.exportStatus ? status({ tone: s.exportStatus.ok ? 'success' : 'danger', text: s.exportStatus.text }) : ''}</div>
-  <ol class="schd-questions">${each(d.questions, q => `${q.n}:${q.uid}`, q => html`<li class="schd-q">
-    <span class="schd-q__n">${q.n}</span><div class="schd-q__main"><strong>${q.uid}</strong><span class="schd-meta">${q.meta}</span></div>
-    ${tag({ label: q.recorded ? '已录入' : '待录入', tone: q.recorded ? 'success' : 'neutral' })}${q.availability === 'unresolved' ? button({ label: '绑定题目', size: 'sm', action: 'schedule.bind', arg: q.entry_id }) : button({ label: '预览', size: 'sm', action: 'schedule.preview', arg: q.preview_key, disabled: q.missing || !q.preview_key })}
+  <ol class="schd-questions">${each(d.questions, q => q.entry_id || `${q.n}:${q.uid}`, q => html`<li class="schd-q">
+    <span class="schd-q__n">${q.n}</span><div class="schd-q__main"><strong>${q.uid}</strong><span class="schd-meta">${q.meta}${q.corrected ? ' · 结单后已修正反馈' : ''}</span></div>
+    ${tag({ label: feedbackStateLabel[q.feedback_state], tone: q.recorded ? 'success' : 'neutral' })}${q.availability === 'unresolved' && !d.done && !d.paused && q.feedback_state === 'unresolved' ? button({ label: '绑定题目', size: 'sm', action: 'schedule.bind', arg: q.entry_id }) : button({ label: '预览', size: 'sm', action: 'schedule.preview', arg: q.preview_key, disabled: q.missing || !q.preview_key })}
   </li>`)}</ol>
 </div>`;
 }

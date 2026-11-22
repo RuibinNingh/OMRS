@@ -69,7 +69,7 @@ tags:
 - `workspace_fingerprint`
 - `snapshots`
 
-`projection_runtime.project()` 校验世代、已发布 seq/head hash、policy hash 与 projector version（`ledger-v4`）。普通追加仅更新受影响的题目、熟练度、Session 和新增历史行；不全链重放或全表删除。跨请求保留最多 2 个 Vault 的当前状态缓存，不保留历史反馈载荷。`snapshots` 保存当前状态及策略/链头校验值，保留最近 2 个；修正索引和反馈明细留 SQL，不重复装入快照。缺失、不匹配或世代变化时流式重建。监听前配置初始化也会检查投影版本和policy hash，即使配置未变仍须完成升级重放；活动配置、投影与检查点在同一事务发布，失败全部回滚。
+`projection_runtime.project()` 校验世代、已发布 seq/head hash、policy hash 与 projector version（`ledger-v5`）。普通追加仅更新受影响的题目、熟练度、Session 和新增历史行；不全链重放或全表删除。跨请求保留最多 2 个 Vault 的当前状态缓存，不保留历史反馈载荷。`snapshots` 保存当前状态及策略/链头校验值，保留最近 2 个；修正索引和反馈明细留 SQL，不重复装入快照。缺失、不匹配或世代变化时流式重建。监听前配置初始化也会检查投影版本和policy hash，即使配置未变仍须完成升级重放；活动配置、投影与检查点在同一事务发布，失败全部回滚。
 
 题目、熟练度或 Session 投影的删除会在同一事务内废止 `projection_meta`。完整重建在最后重新发布检查点；旧代码全量重写 SQL 后，即使链头未变化，再次启动当前代码也必须重建，不能将旧缓存与当前快照混用。此机制只保护再次升级的派生缓存，不赋予旧代码当前身份与配置契约。
 
@@ -90,7 +90,7 @@ SQL 读模型还包含 `history_projection`、`projection_meta`、`active_config
 
 ## 5. 反馈与历史修正
 
-`POST /api/feedback` 在同一 `BEGIN IMMEDIATE` 事务中追加 `review.batch_submit` 并增量发布 SQL 投影。拿到写事务后再次核对链头、检查点与活动算法参数，跨进程更新导致缓存过期时重建后重试；事实或投影发布失败整体回滚，并废止已修改的进程缓存。响应采用实际投影结果，持久化 Session 的完成检查在提交后执行；已撤销计划拒绝新增反馈。每条反馈包含：
+`POST /api/feedback` 在同一 `BEGIN IMMEDIATE` 事务中追加 `review.batch_submit` 并增量发布 SQL 投影。拿到写事务后再次核对链头、检查点与活动算法参数，跨进程更新导致缓存过期时重建后重试；事实或投影发布失败整体回滚，并废止已修改的进程缓存。响应采用实际投影结果。最后一批有效反馈和全题自动完成在同一个写事务发布。已撤销计划拒绝新增反馈。每条反馈包含：
 
 - `question_id`
 - `uid_at_that_time`
@@ -272,3 +272,11 @@ CLI 在扫描与监听前收束 journal。存在有效原生回执时仅清理�
 问题业务事实、错因身份索引和审计保存在独立problems.db；错因当前正文统一保存在题目Markdown，每次正式错因写入追加question.content_update，前后正文随事实保存到blobs，不追加作答，不改变学习state.restore语义。session.create的session对象可包含schedule_banner快照（内嵌SVG、摘要），与正式Session同一事实原子保存；导出按创建事实读回，旧事实缺字段表示无提醒。学习状态恢复不删除问题及错因。
 
 `reflection_journal.py`在生命周期租约与全局写锁内暂存精确的前后正文、inode、题目身份、世代和请求摘要。文件替换先于问题事务提交；事务未提交则按精确所有权回滚文件，已提交则补齐正文事实。Ledger正文事实与`reflection:`前缀op_results同事务，重放不重复提交。启动和全库备份恢复未完成意图，外部编辑导致所有权或哈希不匹配则停止并保留现场；旧世代意图转obsolete。历史摘要只使用有效错因文字，不展示隐藏JSON。真实中断回归见`tests/test_reflection_markdown.py`。
+
+## 复习计划单题处置与结单快照
+
+`session.entry_skip` 按 `session_id` 和 `entry_id` 记录布尔决定，撤销沿用同一种事件。增量与全量投影均将当前跳过决定写入 `session_projection.closeout_json`。跳过没有关联 Review，原计划的活动占用保留至结束。
+
+`session.complete` 可带 `completion`。快照含结束时间、各类别计数和每个原条目的身份、类别及原因。旧无快照完成事件按原状态重放。结单后的题库状态与历史修正仍可改变当前题目可用性和反馈有效性。显式 `session.restore` 清除当前快照与完成时间，保留已发生的结单事件和手动跳过决定。
+
+升级给派生表补列并依照当前投影版本重放。旧代码的投影会忽略活动跳过并省略结单快照，仍能看到传统完成枚举。生产回退须以已有写入范围为准。产生新处置或新结单事实后，保持 Ledger 原链并以支持本契约的代码恢复服务。

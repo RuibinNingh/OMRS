@@ -64,7 +64,9 @@ class CoreRoutes:
                     except FileNotFoundError:
                         pass
         elif path == '/api/sessions':
-            self._json({'sessions': self.services.list_sessions(self.vault_path, params.get('status'))})
+            options = {'include_unavailable': True} if params.get('include_unavailable') == '1' else {}
+            sessions = self.services.list_sessions(self.vault_path, params.get('status'), **options)
+            self._json({'sessions': sessions})
         elif path == '/api/session':
             session_id = params.get('id', '')
             session = self.services.get_session(self.vault_path, session_id)

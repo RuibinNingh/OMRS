@@ -285,12 +285,12 @@ class ConfigPublicationTests(unittest.TestCase):
         self.assertEqual(mastery_rows(self.vault)[0]["Current_Tag"], "#状态/待攻克")
 
     def test_feedback_retries_if_other_process_recalculates_after_state_read(self):
-        from omrs import feedback as feedback_module
+        from omrs import session_operations
         self._seed_feedback(1)
         prefix = read_commits(self.vault)
         writer = self._start("B", "wait-save", 10)
         self._wait("B-ready")
-        original_connect = feedback_module.connect
+        original_connect = session_operations.connect
         called = False
         def after_other_publication(vault):
             nonlocal called
@@ -299,7 +299,7 @@ class ConfigPublicationTests(unittest.TestCase):
                 (self.directory / "B-resume").write_text("1")
                 self._wait("B-done")
             return original_connect(vault)
-        with patch.object(feedback_module, "connect", side_effect=after_other_publication):
+        with patch.object(session_operations, "connect", side_effect=after_other_publication):
             result = process_feedback(self.vault, [{"question_id": "Q1", "sub_score": 9, "is_correct": True}])[0]
         self._result(writer, "B")
         row = mastery_rows(self.vault)[0]

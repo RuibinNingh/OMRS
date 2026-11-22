@@ -10,7 +10,7 @@ import { bindSessionEntry } from '../../domain/sessions.js';
 import { morph } from '../../core/dom.js';
 import { confirm } from '../../ui/dialog.js';
 import { toast } from '../../ui/toast.js';
-import { listSessions, sessionsState, refreshSessions, fetchSession, deleteSession, setSessionPaused, activeSessionId } from '../../domain/sessions.js';
+import { listSessions, sessionsState, refreshSessions, fetchSession, deleteSession, setSessionPaused, activeSessionId, completeSession, completionHint } from '../../domain/sessions.js';
 import { reloadData } from '../../domain/data.js';
 import { viewQ, qvSetContext, invalidateQuestions } from '../../domain/question/index.js';
 import { exporter as exporterState } from './exporter.js';
@@ -139,10 +139,39 @@ function createController(root, ctx) {
         if (ctl) paint();
       }
     },
+    async finish() {
+      const id = s.selected;
+      const progress = s.detail?.progress;
+      if (!id || !progress?.can_finish || s.detailPhase !== 'ready' || s.changing.has(id) || s.deleting.has(id)) return;
+      s.changing.add(id);
+      paint();
+      try {
+        if (!await confirm('结束本次复习？', { hint: completionHint(progress), okText: '结束本次' })) return;
+        const result = await completeSession(id, progress.signature);
+        if (!result.ok) {
+          toast(result.error, { kind: 'error' });
+          await refreshSessions();
+          if (s.selected === id) await open(id, { focus: false });
+          return;
+        }
+        if (s.selected === id) {
+          detailSeq += 1;
+          s.detail = result.data;
+          s.detailPhase = 'ready';
+          detailModel = S.detailModel(result.data);
+          if (s.filter !== 'all') s.filter = 'completed';
+        }
+        toast('本次复习已结束。', { kind: 'ok' });
+        await arr.load();
+      } finally {
+        s.changing.delete(id);
+        paint();
+      }
+    },
     async bind(entryId) {
       const id = s.selected;
       const entry = s.detail?.entries?.find(entry => entry.entry_id === entryId && entry.availability === 'unresolved');
-      if (!id || !entry) return;
+      if (!id || !entry || detailModel?.paused || detailModel?.done) return;
       const ref = await pickQuestion({ title: `绑定第 ${s.detail.entries.indexOf(entry) + 1} 题`, hint: `旧 UID：${entry.uid_at_creation || '未知'}。系统无法证明原身份，请核对题目后明确确认。` });
       if (!ref) return;
       const result = await bindSessionEntry(id, entryId, ref.question_id);
@@ -213,6 +242,7 @@ export const page = {
     export: ({ arg }) => ctl?.exportPlan(arg),
     remove: () => ctl?.remove(),
     pause: () => ctl?.togglePause(),
+    finish: () => ctl?.finish(),
     bind: ({ arg }) => ctl?.bind(arg),
     preview: ({ arg }) => viewQ(arg, 'schedule-plan'),
     // ── 安排复习 ──

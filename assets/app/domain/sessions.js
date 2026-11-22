@@ -38,7 +38,7 @@ export async function refreshSessions() {
   loading = true;
   error = '';
   publish('sessions', list);
-  const res = await get('/api/sessions', opts());
+  const res = await get('/api/sessions?include_unavailable=1', opts());
   if (mine !== seq) return { ok: res.ok, error: res.ok ? '' : res.error?.message || '', stale: true };
   loading = false;
   if (res.ok) mirror(Array.isArray(res.data?.sessions) ? res.data.sessions : []);
@@ -69,12 +69,11 @@ export async function deleteSession(id) {
   return { ok: true, error: '' };
 }
 
-/** 暂停或恢复；发布新快照前让旧列表请求作废，避免旧状态覆盖写入结果。 */
-export async function setSessionPaused(id, paused) {
-  const res = await post(`/api/session/${paused ? 'pause' : 'resume'}`, { session_id: id }, opts());
-  if (!res.ok) return { ok: false, error: res.error?.message || '未知错误' };
+async function writeSession(path, id, body, accepts) {
+  const res = await post(path, { session_id: id, ...body }, opts());
+  if (!res.ok) return { ok: false, status: res.status, error: res.error?.message || '未知错误' };
   const session = res.data?.session;
-  if (res.data?.status !== 'ok' || session?.session_id !== id || session.status !== (paused ? 'paused' : 'active')) {
+  if (res.data?.status !== 'ok' || session?.session_id !== id || !accepts(session)) {
     return { ok: false, error: res.data?.msg || '计划状态未更新，请刷新后重试' };
   }
   seq += 1;
@@ -84,6 +83,13 @@ export async function setSessionPaused(id, paused) {
   publish('sessions', list);
   return { ok: true, data: session };
 }
+
+export const setSessionPaused = (id, paused) => writeSession(
+  `/api/session/${paused ? 'pause' : 'resume'}`, id, {}, session => session.status === (paused ? 'paused' : 'active'));
+export const setEntrySkipped = (id, entry, skipped) => writeSession(
+  '/api/session/entry-skip', id, { entry_id: entry.entry_id, question_id: entry.question_id, skipped }, () => true);
+export const completeSession = (id, signature) => writeSession(
+  '/api/session/complete', id, { signature }, session => session.status === 'completed');
 
 // ── 进度（纯函数；反馈录入页经 features/feedback/state.js 再导出为 fbSessionProgress）──
 export function sessionEntries(session) {
@@ -95,10 +101,44 @@ export function sessionEntries(session) {
 }
 export const sessionEntryKey = entry => entry?.entry_id || entry?.question_id || entry?.uid || '';
 export function sessionUniqueUids(session) { return sessionEntries(session).map(entry => entry.uid || entry.uid_at_creation || ''); }
+export function entryFeedbackState(entry) {
+  return entry?.feedback_state || (entry?.feedback_submitted ? 'recorded'
+    : entry?.availability === 'unresolved' ? 'unresolved'
+    : entry?.availability === 'archived' || entry?.availability === 'suspended' ? 'unavailable' : 'pending');
+}
+
+export const feedbackStateLabel = {
+  recorded: '已录', pending: '待录', unavailable: '不可录', skipped: '本次跳过', unresolved: '身份待确认',
+};
+
+export function progressText(progress, { ended = false, ready = false } = {}) {
+  const parts = [];
+  if (ended) parts.push('已结束');
+  if (ended && !progress.recorded) parts.push('无反馈');
+  else parts.push(`已录 ${progress.recorded}`);
+  if (!ended) parts.push(`待录 ${progress.pending}`);
+  for (const state of ['unavailable', 'skipped', 'unresolved']) {
+    if (progress[state]) parts.push(`${feedbackStateLabel[state]} ${progress[state]}`);
+  }
+  if (ready && progress.can_finish) parts.push('可结束');
+  return parts.join(' · ');
+}
+
+export function completionHint(progress) {
+  return `已录 ${progress.recorded} · 本次跳过 ${progress.skipped} · 不可录 ${progress.unavailable}。结束后只保留这些处置与已提交的反馈。`;
+}
+
 export function sessionProgress(session) {
   const all = sessionEntries(session);
-  const feedback_entries = all.filter(entry => entry.feedback_submitted);
-  const pending_entries = all.filter(entry => !entry.feedback_submitted);
+  const authoritative = session?.progress;
+  const feedback_entries = all.filter(entry => entryFeedbackState(entry) === 'recorded');
+  const pending_entries = all.filter(entry => authoritative ? entryFeedbackState(entry) === 'pending' : !entry.feedback_submitted);
+  if (authoritative) return { ...authoritative, feedback_entries, pending_entries,
+    feedback_uids: feedback_entries.map(entry => entry.uid || entry.uid_at_creation || ''),
+    pending_uids: pending_entries.map(entry => entry.uid || entry.uid_at_creation || ''),
+    feedback_count: authoritative.recorded, pending_count: authoritative.pending,
+    complete: authoritative.total > 0 && authoritative.recorded === authoritative.total };
+
   return { total: all.length, ...(Array.isArray(session?.entries) ? { feedback_entries, pending_entries } : {}),
     feedback_uids: feedback_entries.map(entry => entry.uid || entry.uid_at_creation || ''),
     pending_uids: pending_entries.map(entry => entry.uid || entry.uid_at_creation || ''),

@@ -244,7 +244,7 @@
 
 成功响应：`{"status":"ok","uid":"三角函数4","suspended":false}`。未停用或不存在返回 400。
 
-停用题目会从尚未完成的 Session API 题目列表和待反馈计数中排除；原始 Session 记录仍保留在 Ledger / sessions 投影中以便审计。若一个活动 Session 的题目全部已停用，则不再出现在活动 Session 管理列表。
+停用题目在开放 Session 中仍保留原条目。未录且未跳过时，其处置为不可录。默认兼容列表隐藏全部停用的活动计划，网页用 `include_unavailable=1` 显示。
 
 ### `POST /api/question/delete`
 
@@ -383,7 +383,7 @@ JSON引用元数据使用 `http_json_mib`（默认2MiB），声明超限即413�
 
 ### `POST /api/session/bind`
 
-请求 `{session_id,entry_id,question_id}`，仅给 unresolved 条目追加绑定事实；不修改创建提交。成功返回 `{status:"ok",session}`，已绑定、无效身份或状态冲突返回409。
+请求 `{session_id,entry_id,question_id}`，为活动计划中未绑定的固定条目追加绑定事实。成功返回 `{status:"ok",session}`。状态变化、条目不存在或已经绑定返回 409，目标题目不存在返回 400。
 
 参数更新响应含实际发布版本、完整`tuning_effective`与持久`recalculation`回执；回执status为complete时已完成历史重算。镜像失败返回mirror_pending；第三方冲突另有mirror_conflict并保留两份内容。跨进程后续保存已覆盖本次版本时返回superseded及当前完整状态，不把旧镜像覆盖回新参数。设置页调参请求期限10分钟，断连通过只读配置核验，不凭默认超时宣称失败。
 
@@ -397,3 +397,15 @@ JSON引用元数据使用 `http_json_mib`（默认2MiB），声明超限即413�
 正式Session按服务端绑定的session_id、question_id和entry_id去重。首次反馈、增量投影及完整响应回执在同一SQL事务提交；批内重复、并发或响应丢失重试返回首次结果及reused:true，不再增加Attempts。旧无回执反馈通过历史及修正索引识别；撤销或替换历史不重新开放该条目。独立即时练习仍允许重复作答。
 
 题目移动与创建共用分类校验、业务写锁及UID分配；科目／分类不能以点开头，控制字符和保留符号在落盘前拒绝。新UID跳过草稿、收件箱和作业帮已预留值，失败入库重试不会被移动抢占。
+
+## 正式计划单题处置与结单
+
+### `POST /api/session/entry-skip`
+
+请求 `{session_id,entry_id,skipped,question_id?}`。`skipped` 为布尔值，`question_id` 非空时必须与固定条目的绑定一致。只允许活动计划中待录或身份待确认的条目跳过，已跳过可撤销。相同状态重试不再追加提交。成功返回 `{status:"ok",session}`。身份、可用性或计划状态冲突返回 409。事件只表达本次处置，学习历史、次数、熟练度、EF 和日期保持原值。
+
+### `POST /api/session/complete`
+
+请求 `{session_id,signature}`，使用确认时的 `progress.signature`。同一写事务内检查计划为活动状态、已无待录或待确认条目且签名仍相同，再写入 `session.complete` 及处置快照。成功与已结单重试均返回 `{status:"ok",session}`。旧签名、仍有待办和暂停计划返回 409，可重读后重新确认。
+
+正式反馈尽量传 `entry_id` 与 `question_id`。批次按条目返回 `results[].status`、`entry_id` 和失败原因。有效行独立提交。历史回执优先于题目可用性和计划结束状态。正式计划的全部有效反馈齐备时，最后成功批次和自动完成共用写事务。有跳过或不可录时，活动计划由用户显式结单。
