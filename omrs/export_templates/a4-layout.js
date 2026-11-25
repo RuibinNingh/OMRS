@@ -9,10 +9,8 @@
 (function () {
   "use strict";
   const MM = 3.779528;
-  const PAGE_W = 210 * MM, PAGE_H = 297 * MM;
-  const MARGIN_TB = 12.7 * MM, MARGIN_LR = 6.35 * MM, COL_GAP = 12.7 * MM;
+  const PAGE_H = 297 * MM, MARGIN_TB = 12.7 * MM;
   const FOOTER_SAFE = 8.5 * MM;
-  const COL_W = (PAGE_W - 2 * MARGIN_LR - COL_GAP) / 2;
   const COL_H = PAGE_H - 2 * MARGIN_TB - FOOTER_SAFE;
   const SAFETY = 4, MIN_FILL = 40, MIN_SLICE = 28, WHITE_THR = 245, ORPHAN = 56;
 
@@ -60,13 +58,21 @@
 
   function layout(blocks, mount, singleColumn, banner) {
     const warnings = [];
-    let colW = singleColumn ? PAGE_W - 2 * MARGIN_LR : COL_W;
-    let colH = COL_H;
     const tolerance = 0.02;
-    const measurer = el("div", "measurer"); measurer.style.width = colW + "px";
+    const measurer = el("div", "measurer");
     mount.parentNode.insertBefore(measurer, mount);
     const pages = [];
-    let page = null, colIdx = 0, col = null, y = 0;
+    let page, colIdx, col, colW, colH, y;
+    function selectColumn(index) {
+      colIdx = index;
+      col = page._cols[index];
+      // 栏宽与图片的 mm→px 折算都用布局像素，预览缩放会改变 DOMRect 的尺寸。
+      const style = getComputedStyle(col);
+      colW = parseFloat(style.width);
+      colH = parseFloat(style.height);
+      measurer.style.width = colW + "px";
+      y = 0;
+    }
     function newPage() {
       page = el("div", singleColumn ? "page single" : "page"); const inner = el("div", "page-inner");
       let bannerHeight = 0;
@@ -74,7 +80,7 @@
         const strip = el("div", "schedule-banner");
         const image = banner.cloneNode(); image.alt = "作答流程提醒";
         strip.appendChild(image); page.appendChild(strip); mount.appendChild(page);
-        bannerHeight = strip.getBoundingClientRect().height + 10;
+        bannerHeight = parseFloat(getComputedStyle(strip).height) + 10;
         if (!banner.naturalWidth || bannerHeight > 28 * MM + 10) throw new Error("首页提醒无法解码或超过高度上限");
         inner.style.top = (MARGIN_TB + bannerHeight) + "px";
         inner.style.height = (COL_H - bannerHeight) + "px";
@@ -83,25 +89,35 @@
       const cols = [c0];
       if (!singleColumn) { const c1 = el("div", "col"); inner.appendChild(c1); cols.push(c1); }
       cols.forEach(c => { c.style.height = (COL_H - bannerHeight) + "px"; });
-      page.appendChild(inner); page._cols = cols; pages.push(page); mount.appendChild(page); colIdx = 0; col = c0; y = 0;
-      colW = col.getBoundingClientRect().width;
-      colH = col.getBoundingClientRect().height;
-      measurer.style.width = colW + "px";
+      page.appendChild(inner); page._cols = cols; pages.push(page); mount.appendChild(page);
+      selectColumn(0);
     }
-    function nextCol() { if (!singleColumn && colIdx === 0) { colIdx = 1; col = page._cols[1]; y = 0; } else { newPage(); } }
+    function nextCol() {
+      if (!singleColumn && colIdx === 0) selectColumn(1);
+      else newPage();
+    }
+    function usedHeight(node) {
+      const bounds = col.getBoundingClientRect();
+      return (node.getBoundingClientRect().bottom - bounds.top) * colH / bounds.height;
+    }
     // 先测量只是快速判断；真正落位后再以 DOM 的实际底边为准，避免字体/行距差异把内容塞出栏底。
     function put(node) {
       col.appendChild(node);
-      const used = node.getBoundingClientRect().bottom - col.getBoundingClientRect().top;
+      const used = usedHeight(node);
       if (used > colH + tolerance) { col.removeChild(node); return false; }
       y = used;
       return true;
     }
     function forcePut(node) {
       col.appendChild(node);
-      y = node.getBoundingClientRect().bottom - col.getBoundingClientRect().top;
+      y = usedHeight(node);
     }
-    function measure(node) { measurer.appendChild(node); const h = node.getBoundingClientRect().height; measurer.removeChild(node); return h; }
+    function measure(node) {
+      measurer.appendChild(node);
+      const height = parseFloat(getComputedStyle(node).height);
+      measurer.removeChild(node);
+      return height;
+    }
 
     // 只在整段放不下时才动公式：把“公式之前的文字”留在当前栏，公式及后文从下一栏继续。
     // 从靠后的公式开始试，尽可能少地移动文字；普通文本没有公式边界时仍沿用原来的整段换栏。
@@ -162,7 +178,7 @@
         const width = Math.min(colW, 90 * MM), ratio = width / (90 * MM);
         if ((b.svg.min_font_pt != null && b.svg.min_font_pt * ratio < 8.499) ||
             (b.svg.min_stroke_pt != null && b.svg.min_stroke_pt * ratio < .499)) {
-          throw new Error('题目 ' + b.label + ' 的SVG在当前栏宽下过小，请简化或拆图后重新导出。');
+          throw new Error('题目 ' + b.label + ' 的SVG在当前栏宽下过小，请改用单栏导出，或放大图中文字和线条。');
         }
         const node = sliceEl(b.src, width, naturalW, 0, naturalH);
         if (!put(node)) { nextCol(); if (!put(node)) throw new Error('SVG配图超过整栏，请拆图。'); }

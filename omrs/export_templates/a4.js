@@ -140,7 +140,8 @@
     const res = window.OMRS_A4_LAYOUT(blocks, mount, !(D.meta && D.meta.a4_two_columns !== false), banner ? imgMap.get(banner.src) : null);
     const overflow = [...mount.querySelectorAll(".col")].some(column => {
       const bounds = column.getBoundingClientRect();
-      return [...column.children].some(child => child.getBoundingClientRect().bottom > bounds.bottom + 0.03);
+      const tolerance = 0.03 * bounds.height / parseFloat(getComputedStyle(column).height);
+      return [...column.children].some(child => child.getBoundingClientRect().bottom > bounds.bottom + tolerance);
     });
     if (overflow) throw new Error("有内容超出 A4 栏高，请改用单栏或调整超长公式后重新导出。");
     const ms = (performance.now() - t0).toFixed(0);

@@ -1,5 +1,6 @@
 """A4 导出的真实 Chromium/PDF 回归，仅使用合成题目。"""
 from pathlib import Path
+import base64
 import re
 import tempfile
 import unittest
@@ -9,6 +10,8 @@ from playwright.sync_api import sync_playwright
 from omrs.boards import create_board
 from omrs.creation import create_question
 from omrs.exporting import _build_html, _text_to_blocks, export_board_html
+from omrs.question_svg import inspect
+from tests.test_question_svg import diagram
 from tests.browser_runtime import launch_chromium
 
 
@@ -38,6 +41,14 @@ def fixture(two_columns=True):
         })
     return {"meta": {"title": "A4 打印回归", "a4_two_columns": two_columns, "question_gap_lines": 1},
             "questions": questions, "answers": [], "feedback": []}
+
+
+def svg_fixture():
+    data = fixture()
+    raw = diagram(size=13.5)
+    image = {"src": "data:image/svg+xml;base64," + base64.b64encode(raw).decode(), "svg": inspect(raw)}
+    data["questions"][2]["blocks"].append({"t": "img", "img": image})
+    return data
 
 
 class A4PrintSmokeTest(unittest.TestCase):
@@ -121,6 +132,34 @@ class A4PrintSmokeTest(unittest.TestCase):
         self.page.set_viewport_size({"width": 780, "height": 900})
         self.page.wait_for_function("old => " + PLACEMENT + " !== old", arg=placement)
         self.assertGreaterEqual(self.assert_complete(), initial)
+
+    def test_svg_keeps_its_layout_width_when_print_view_is_scaled(self):
+        self.load(svg_fixture())
+        pages = self.assert_complete()
+        placement = self.page.evaluate(PLACEMENT)
+        image = self.page.locator(".slice img")
+        self.page.add_style_tag(content="@media print { html { zoom: .8; } }")
+        self.page.evaluate("window.__beforePrintLayout = window.__OMRS_RESULT")
+        self.page.emulate_media(media="print")
+        self.page.wait_for_function("window.__OMRS_RESULT !== window.__beforePrintLayout")
+        self.assertEqual(self.assert_complete(), pages)
+        self.assertEqual(self.page.evaluate(PLACEMENT), placement)
+        self.assertEqual(image.count(), 1)
+        self.assertAlmostEqual(image.evaluate("img => parseFloat(getComputedStyle(img).width)"), 90 * 96 / 25.4, delta=.05)
+        self.assertAlmostEqual(image.evaluate("img => img.getBoundingClientRect().width"), .8 * 90 * 96 / 25.4, delta=.05)
+        pdf = self.page.pdf(prefer_css_page_size=True)
+        self.assertEqual(len(re.findall(rb"/Type /Page\b", pdf)), pages)
+        self.page.emulate_media(media="screen")
+        self.assertEqual(self.assert_complete(), pages)
+
+    def test_svg_reports_a_genuinely_narrow_column(self):
+        self.load(svg_fixture())
+        self.page.add_style_tag(content="@media print { .col { width: 260px; } }")
+        self.page.emulate_media(media="print")
+        self.page.wait_for_function("window.__OMRS_RESULT.errors.length")
+        self.assertIn("当前栏宽下过小", self.page.evaluate("window.__OMRS_RESULT.errors[0]"))
+        self.assertTrue(self.page.locator("#btnPrint").is_disabled())
+        self.assertEqual(self.page.locator(".page").count(), 0)
 
     def test_tables_keep_every_column_visible_in_screen_and_print(self):
         """多列表格不能把末列挤成零宽、逐字换行后撑高整表。"""
