@@ -37,7 +37,7 @@ export function exportDialogView(o, extra = false, error = '', busy = false, ban
   const screen = o.variant === 'screen', off = o.historyPosition === 'none';
   return html`<div class="exd-layout"><div class="exd-form"><fieldset aria-label="导出参数"${busy ? ' disabled' : ''}>
     <section class="exd-section"><h3>导出内容</h3>
-      ${choice('variant', '文件版本', o.variant, [['a4', 'A4 打印版'], ['screen', '屏幕版']])}
+      ${choice('variant', '文件格式', o.variant, [['pdf', 'A4 PDF'], ['a4', 'A4 HTML'], ['screen', '屏幕版 HTML']])}
       ${choice('columns', '纸面布局', o.twoColumns ? 'two' : 'one', [['two', '双栏'], ['one', '单栏']], screen)}
       <p class="exd-hint">${screen ? '屏幕版始终附带答案，纸面设置保留。' : '长公式、宽表格建议使用单栏。'}</p>
       <div class="exd-row">${check('answers', '附带答案', screen || o.answers, screen)}<label class="exd-gap" for="gap">题间留白 <input class="ui-input" id="gap" data-export-option="gap" type="number" min="0" max="20" step="1" value="${o.gap}"${screen ? ' disabled' : ''}> 行</label></div>
@@ -60,7 +60,7 @@ export async function openExportDialog({ variant, count, run, sessionId }) {
   if (catalog.ok) bannerSnapshot = catalog.data.plan_snapshot;
   const answer = await dialog({
     id: 'schedule-export-dialog', title: '导出复习清单', size: 'lg',
-    hint: `${count ? `已选 ${count} 道题 · ` : ''}设置版式与练习历史，生成可离线打开的 HTML 文件。`,
+    hint: count ? `已选 ${count} 道题` : '',
     body: exportDialogView(draft, extra, error, busy, bannerMode, bannerSnapshot, bannerName), okText: '导出文件', dismissible: () => !busy,
     onOpen(el) {
       const body = el.querySelector('.ui-dialog__body');

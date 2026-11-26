@@ -1,13 +1,13 @@
-# 导出（HTML）
+# 导出（HTML 与 A4 PDF）
 
 > **速查**
-> - 职责：A4、屏幕版与展示板的自包含 HTML 导出
-> - 入口：`omrs/exporting.py`、`omrs/export_fonts.py`、`omrs/export_templates/`
-> - 不变量：导出为单文件自包含 HTML；后端只产结构化数据与模板，版面、切片与公式渲染交给浏览器
-> - 必跑测试：`tests/test_board_export.py`、`tests/test_report_export.py`、`tests/test_export_fonts.py`、`tests/test_schedule_export_history.py`、`tests/smoke_a4_print.py`、`tests/smoke_board_print.py`、`tests/e2e/schedule_export.py`
+> - 职责：复习清单的服务端 A4 PDF，以及 A4、屏幕版与展示板的自包含 HTML
+> - 入口：`omrs/exporting.py`、`omrs/export_pdf.py`、`omrs/export_templates/`
+> - 不变量：PDF 与 A4 HTML 共用排版模板。服务端固定 PDF 纸页，HTML 在打开文件的设备上排版
+> - 必跑测试：`tests/test_export_pdf.py`、`tests/test_board_export.py`、`tests/test_report_export.py`、`tests/test_export_fonts.py`、`tests/test_schedule_export_history.py`、`tests/smoke_a4_print.py`、`tests/smoke_board_print.py`、`tests/e2e/schedule_export.py`
 > - 相关：`AI/board.md`、`AI/api.md`
 
-错题清单导出为**自包含 HTML**（图片、KaTeX 资源均内联，单文件可拷给任何带浏览器的设备）。三种入口为：**A4 打印版**、**展示板打印版**（左题右空）与**屏幕版**（手机/平板上的全屏卡片复习 App，可判对错、打分、记录进度）。复习调度工作台的已有计划详情可以直接按 Session 导出，并保留原有 A4/屏幕版选择；全题库导出从调度页独立进入。后端只产结构化文字/图片/表格数据与内联模板，**版面、长图切片、公式和表格渲染、作答交互全部交给浏览器**。
+复习调度的已有计划和全题库导出共用菜单，提供 A4 PDF、A4 HTML、屏幕版 HTML。PDF 由服务端按 A4 打印样式生成。HTML 内联图片、KaTeX 和所需字体，打开后可离线排版。屏幕版提供卡片复习、判对错、打分与进度。展示板打印单独导出左题右空的 HTML。
 
 ## 为什么是 HTML（而非 docx）
 
@@ -21,19 +21,19 @@ HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打�
 
 错因从原题Markdown统一记录解析：旧裸文本和日期记录均进入原有错因输出，保留发生日期文字与正文，排除撤回记录、隐藏JSON和审计正文。网页备注去除错因不影响导出；错因仍留在答案／反馈区域，不提前显示在题面。格式与兼容归并见`AI/data.md`、`AI/problems.md`。
 
-只做四件事，全部纯标准库：
+自包含 HTML 组装使用标准库，分为以下步骤。
 1. **读题**：`_load_export_questions()` 从 SQL repository + 题目 `.md` 取题（停用标记为 `1` 的题目在此处跳过）；展示板导出与纸面指纹读取都把文件路径限制在 `错题/` 目录内，越界或损坏路径按缺失处理。
 2. **解析**：`_text_to_blocks()` 把正文转成三种块——非空文字行→`{t:'txt'}`，`![[名]]` / `![](路径)`→`{t:'img'}`，Markdown 表头 + 分隔行 + 数据行→`{t:'table', headers, rows}`。普通换行按文字块顺序保留，模板的题面、答案和备注使用 `white-space: pre-wrap`，不会把 AI 的逐行文本合并；空行不生成无内容块。表格支持 `\|` 转义；对齐冒号会被识别但当前不保留对齐语义，行宽按表头补空或截断。跨行 `$$...$$` 会先合并为单个文字块。围栏代码按字面文本成块。
 3. **取图**：`_img_payload()` 用 `_find_image()` 定位、`_read_image_info()`（纯 `struct` 解析 PNG/JPEG/GIF 尺寸，无 Pillow）读出宽高，base64 成 data-uri。
 4. **组装**：`_build_export_data()` 产出 `{meta, questions, answers}`。`questions[i].notes` 只带 `关联`，`answers[i].notes` 只带 `错因`——错因会提示解法，不能出现在题面区；`include_answers=false` 时 `answers[i].blocks` 为空数组但 `notes` 照旧，反馈区因此仍能只列错因。`meta.question_gap_lines` 经 `_normalize_question_gap_lines()` 钳制到 `0–20`，`meta.a4_two_columns` 经 `_normalize_a4_two_columns()` 归一化；`_build_html()` 读 `export_templates/{variant}.css` 与 `.js`，并把本地 `assets/vendor/katex/` 的 CSS/JS/字体一起内联（`_read_katex_bundle()`）。数据 JSON 会做 `</` 转义防提前闭合脚本，A4 另由 `export_fonts.inline_print_fonts()` 按导出文字选择本地中文字体分片并内联，最终仍是单个自包含 HTML。
 
 对外入口 `export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None, schedule_banner=None, mark_missing_cause=False)`：
-- `export_format`：`'a4'`（默认）/ `'screen'`；为兼容旧调用，`'docx'`/`'word'`/`'html'`/空 一律按 `a4`。
+- `export_format` 可选 `'a4'`（默认）/ `'screen'` / `'pdf'`。兼容值 `'docx'`/`'word'`/`'html'`/空按 `a4` 处理。
 - `question_gap_lines`：仅 A4 使用；每两道题之间加入 `lines × 18px` 留白，最后一题后不追加。
 - `a4_two_columns`：仅 A4 使用；默认 `true` 为双栏，`false` 时整份文件使用单栏。
 - `history`：可选 `{position, limit, scores, dates}`，位置为 `none` / `question` / `feedback`，条数默认 8、钳制到 1–16，分数与首尾日期默认显示。省略时关闭，兼容原 API、CLI 与 MCP 调用。网页参数面板默认放反馈区。
 - `schedule_banner`：可选首页提醒快照，保存到新导出的文件；`mark_missing_cause` 控制是否标记缺错因题目，详见下方对应章节。
-- 返回 `(bytes, session_id, "OMRS-{sid}-{variant}.html", "text/html; charset=utf-8")`。
+- 返回 `(bytes, session_id, filename, content_type)`。PDF 为 `OMRS-{sid}-a4.pdf` 和 `application/pdf`，HTML 为 `OMRS-{sid}-{variant}.html` 和 `text/html; charset=utf-8`。
 
 模板是包内资源，放在 `omrs/export_templates/`，可直接当普通 JS/CSS 文件编辑：
 
@@ -51,13 +51,19 @@ HTML 把这两个问题一起消掉：**浏览器既负责分页、也负责打�
 `_read_katex_bundle()` 改写 `@font-face` 时**每个字体族只内联 woff2**（现代浏览器全部支持，
 其余格式不会被请求），只有某族找不到 woff2 才回退内联它的全部格式；改写结果按 `katex.min.css`
 / `.js` 的修改时间与大小缓存在进程内（`_KATEX_BUNDLE_CACHE`），同一次运行不重复读盘和 base64。
-含公式的导出因此从约 2.0MB 降到约 0.95MB，服务端单次导出稳定在十几毫秒，三种变体同时受益。
+PDF 也使用同一份本地 KaTeX 内联资源。
 
 ### 调用入口
 
-- Web API：`POST /api/export` 接受 `question_gap_lines`、`a4_two_columns`、`history`、`schedule_banner` 与 `mark_missing_cause`；详见 `api.md` 与 `api/boards.md`。
-- 前端：复习调度「全题库导出」与「已有计划」共用 `assets/app/features/schedule/export-dialog.js` 参数面板，选择版式、答案、留白和历史图后确认下载。成功后记住参数；取消不发请求，失败保留面板供重试。屏幕版始终附带答案、禁用纸面参数；详细交互见 `frontend/review.md`。
+- Web API `POST /api/export` 接受 `format`、`question_gap_lines`、`a4_two_columns`、`history`、`schedule_banner` 与 `mark_missing_cause`，详见 `AI/api/boards.md`。
+- 复习调度的共用导出面板默认选 A4 PDF，确认后直接下载。成功后记住格式和参数，失败保留面板供重试。屏幕版始终附带答案并禁用纸面参数，见 `AI/frontend/review.md`。
 - CLI：`python omrs_engine.py export ... --question-gap-lines N`；默认 `0`。
+
+## 服务端 A4 PDF
+
+PDF 获取单并发渲染名额后读取题库快照。写锁与 Vault 租约释放后，`omrs/export_pdf.py` 将内联 A4 文档送入独立 Playwright Chromium 进程。CSP 限定内联脚本、样式与本地 data URI 资源，浏览器同时拒绝网络请求和 Service Worker。进程从打印媒体开始，等模板报告图片、字体和布局就绪后，以 A4、100% 缩放和打印背景生成固定纸页。PDF 输出阶段沿用已核验页面。
+
+渲染期限为 45 秒，超时回收进程树。HTML 下载使用各自的生成路径。PDF 排版、解码或字体失败时给出具体错误，服务不可用或忙碌时支持稍后重试。文件下载禁止缓存，题库和 Session 不写入导出记录。部署依赖见 `AI/environment.md`。
 
 ## A4 排版引擎（`a4-layout.js` / `a4.js`，浏览器端）
 
@@ -282,7 +288,7 @@ export_board 按 all/new 调用现有展示板模板，附件回调绑定当前�
 
 ## 统一导出与缺错因标记
 
-计划详情只有一个「导出」入口；A4和屏幕版在同一参数面板选择。`mark_missing_cause`为严格布尔，默认false；为true时，`questions[].missing_cause`按当前有效错因摘要是否为空计算，撤回记录不计。模板在题号旁显示黑白描边「待补错因」，A4内嵌字体包含所需字形。错因正文仍只进入答案／反馈区域，不回写题目或改变调度。已有历史记录与答案开关不影响该判断。
+计划详情只有一个「导出」入口，A4 PDF、A4 HTML 和屏幕版 HTML 共用参数面板。`mark_missing_cause` 为严格布尔，默认 false。为 true 时，`questions[].missing_cause` 按当前有效错因摘要是否为空计算，撤回记录不计。模板在题号旁显示黑白描边「待补错因」，A4 内嵌字体包含所需字形。错因正文仍只进入答案／反馈区域，题目和调度保持原状态。已有历史记录与答案开关不影响该判断。
 
 提醒库由`omrs/schedule_reminders.py`提供，单素材静态SVG不超过256KiB，共享首页打印校验；最多64张、SVG总量4MiB。素材内容不可覆盖，删除不影响正式Session快照或已下载HTML。导出`schedule_banner.mode=library`附`id`选用素材；素材不存在时明确失败，不静默替换。旧session/off/current/replace模式仍兼容，网页以画廊选用素材，不在导出面板粘贴源码。
 

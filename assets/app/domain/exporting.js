@@ -1,5 +1,5 @@
 /**
- * 导出（P6 第 5 轮起）：POST /api/export 生成自包含 HTML 并存成文件。复习调度的「全题库导出」与「已有计划」的导出都走这里。
+ * POST /api/export 下载 PDF 或自包含 HTML。全题库导出与已有计划共用。
  * 返回 { ok, name, error }，不抛出，不写页面状态（页面自己显示结果）。
  */
 import { downloadResponse } from '../core/download.js';

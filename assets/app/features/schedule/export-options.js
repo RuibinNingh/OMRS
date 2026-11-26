@@ -1,7 +1,7 @@
 /** 两处导出共用的参数契约；只在成功下载后记忆，取消不覆盖上次设置。 */
 export const EXPORT_OPTIONS_KEY = 'omrs-export-options-v1';
 export const DEFAULT_EXPORT_OPTIONS = Object.freeze({
-  variant: 'a4', twoColumns: true, answers: false, gap: 0,
+  variant: 'pdf', twoColumns: true, answers: false, gap: 0,
   markMissingCause: false,
   historyPosition: 'feedback', historyLimit: 8, historyScores: true, historyDates: true,
 });
@@ -17,7 +17,7 @@ export function normalizeExportOptions(value = {}) {
   const v = value && typeof value === 'object' ? value : {};
   const d = DEFAULT_EXPORT_OPTIONS;
   return {
-    variant: v.variant === 'screen' ? 'screen' : 'a4',
+    variant: ['pdf', 'a4', 'screen'].includes(v.variant) ? v.variant : d.variant,
     twoColumns: bool(v.twoColumns, d.twoColumns), answers: bool(v.answers, d.answers),
     gap: integer(v.gap, d.gap, 20),
     markMissingCause: bool(v.markMissingCause, d.markMissingCause),

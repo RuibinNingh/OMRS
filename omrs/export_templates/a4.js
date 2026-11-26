@@ -22,6 +22,7 @@
   // ---------- 应用层：数据 -> 内容块 ----------
 
   const D = window.OMRS_DATA || { questions: [] };
+  const serverPdf = Boolean(document.querySelector('meta[name="omrs-render"][content="pdf"]'));
   const imgMap = new Map();
   function preload() {
     const srcs = new Set();
@@ -86,7 +87,11 @@
     } };
   }
   function noteBlock(k, v) { return { build: () => { const e = el("div", "blk q-note"); e.innerHTML = "<b>" + k + "：</b>"; appendExportText(e, v); return e; } }; }
-  function imgBlock(b, label, firstOfQ) { return { kind: "image", src: b.img.src, svg: b.img.svg, imgEl: imgMap.get(b.img.src), label: label, keepNextHeader: !!firstOfQ }; }
+  function imgBlock(b, label, firstOfQ) {
+    const imgEl = imgMap.get(b.img.src);
+    if (serverPdf && !b.img.svg && !imgEl?.naturalWidth) throw new Error("题目 " + label + " 的配图无法解码，请检查原图。");
+    return { kind: "image", src: b.img.src, svg: b.img.svg, imgEl, label, keepNextHeader: !!firstOfQ };
+  }
   function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 
   function buildBlocks() {
@@ -160,6 +165,7 @@
     document.getElementById("stat").textContent = "排版未完成";
     document.getElementById("btnPrint").disabled = true;
     window.__OMRS_RESULT = { pages: 0, warnings: [], errors: [message] };
+    document.documentElement.dataset.omrsLayoutReady = "error";
   }
   function relayout() {
     if (!ready) return;
@@ -178,14 +184,16 @@
     document.body.classList.remove("print-pending");
     relayout();
   }
-  // 打印媒体已生效时同步重排，不能依赖异步帧回调完成打印准备。
-  window.addEventListener("beforeprint", preparePrint);
-  window.addEventListener("afterprint", finishPrint);
-  window.matchMedia("print").addEventListener("change", event => event.matches ? preparePrint() : finishPrint());
-  window.addEventListener("resize", () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(relayout, 80);
-  });
+  // 服务端从打印媒体开始排版，出 PDF 时沿用已核验的页。HTML 打印仍随媒体变化重排。
+  if (!serverPdf) {
+    window.addEventListener("beforeprint", preparePrint);
+    window.addEventListener("afterprint", finishPrint);
+    window.matchMedia("print").addEventListener("change", event => event.matches ? preparePrint() : finishPrint());
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(relayout, 80);
+    });
+  }
 
   function waitForTwoFrames() {
     return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -201,13 +209,14 @@
     run();
     if (document.fonts && document.fonts.ready) await document.fonts.ready;
     await waitForTwoFrames();
-    const broken = [...document.fonts || []].some(font => font.family.includes("OMRS Print") && font.status === "error");
+    const broken = [...document.fonts || []].some(font => font.status === "error" && (serverPdf || font.family.includes("OMRS Print")));
     if (broken) throw new Error("内嵌字体无法加载，请重新下载导出文件。");
     // 中文和数学字体都稳定后，以当前栏的真实尺寸再测量。
     run();
     ready = true;
     const printButton = document.getElementById("btnPrint");
     if (printButton) printButton.disabled = false;
+    document.documentElement.dataset.omrsLayoutReady = "ready";
   }
 
   document.addEventListener("DOMContentLoaded", () => {

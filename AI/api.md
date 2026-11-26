@@ -9,7 +9,7 @@
 
 默认启动 `python omrs_engine.py --vault <path> serve -p 8471`。普通 Web 使用标准库 HTTP；`OMRSHandler.services` 为领域适配提供服务引用，已有 handler 方法名与服务替换测试接口保持可用。
 
-复习导出 `POST /api/export` 支持可选 `history` 参数，选择练习历史的位置、最近条数与标签；省略保持关闭。正式题目按稳定身份读取有效反馈，参数不写服务端配置；字段与默认值见 `AI/api/boards.md`。
+复习导出 `POST /api/export` 可返回服务端 A4 PDF 或自包含 HTML。二者共用选题及纸面参数。可选 `history` 参数控制练习历史位置、条数与标签，省略时关闭。正式题目按稳定身份读取有效反馈，字段与错误契约见 `AI/api/boards.md`。
 
 复习反馈采用一次高分击杀与五档复核，题目响应带档位及实际排期；`tuning.revive_intervals_days` 保存五个严格递增正整数，具体字段见 `AI/api/queries.md`、`AI/api/mutations.md`。
 

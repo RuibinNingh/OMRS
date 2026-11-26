@@ -1,14 +1,7 @@
-"""错题导出 —— 生成自包含 HTML（A4 打印版 / 屏幕阅读版）。
-
-设计要点：版面与长图切片**全部交给浏览器**完成（浏览器既是排版引擎、又是用户最终查看/
-打印的引擎，所见即所打印，无需在 Python 端预测版面，也没有跨渲染器保真度差）。因此本模块：
-  - 仍负责：从题库读题、解析 Markdown 分节、抽取图片嵌入、把图片读成 base64 内联；
-  - 不再负责：OOXML 生成、OMML 公式、像素级长图切片（这些已下沉到浏览器端模板）。
-
-附带收益：移除了对 Pillow 的依赖，导出回到“纯标准库、零第三方依赖”。
-"""
+"""错题导出：从 Vault 捕获快照，生成自包含 HTML 或服务端 A4 PDF。"""
 
 import base64
+from contextlib import nullcontext
 import datetime
 import json
 import os
@@ -697,15 +690,23 @@ def export_schedule_html(vault, uids=None, session_id="", include_answers=False,
 
 
 def export_schedule_artifact(vault, uids=None, session_id="", export_format="a4", include_answers=False, question_gap_lines=0, a4_two_columns=True, question_refs=None, history=None, schedule_banner=None, mark_missing_cause=False):
-    """导出错题清单为自包含 HTML。
+    """导出错题清单为自包含 HTML 或 A4 PDF。
 
-    export_format: 'a4'（打印版，默认）/ 'screen'（屏幕阅读版）。
+    export_format: 'a4'（打印版，默认）/ 'screen'（屏幕阅读版）/ 'pdf'。
     为兼容旧调用，'docx'/'word'/'html'/空 等一律按 A4 处理。
     返回 (bytes, session_id, filename, content_type)。
     """
+    from . import export_pdf
+
     fmt = (export_format or "a4").strip().lower()
     variant = "screen" if fmt == "screen" else "a4"
-    data, session_id = export_schedule_html(vault, uids, session_id, include_answers, variant, question_gap_lines, a4_two_columns, question_refs, history, schedule_banner, mark_missing_cause)
+    with export_pdf.render_slot() if fmt == "pdf" else nullcontext():
+        data, session_id = export_schedule_html(
+            vault, uids, session_id, include_answers, variant, question_gap_lines,
+            a4_two_columns, question_refs, history, schedule_banner, mark_missing_cause,
+        )
+        if fmt == "pdf":
+            return export_pdf.render(data), session_id, f"OMRS-{session_id}-a4.pdf", "application/pdf"
     filename = f"OMRS-{session_id}-{variant}.html"
     return data, session_id, filename, "text/html; charset=utf-8"
 

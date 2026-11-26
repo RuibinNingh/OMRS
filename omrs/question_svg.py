@@ -11,6 +11,7 @@ import sys
 from threading import BoundedSemaphore
 from xml.etree import ElementTree as ET
 
+from .render_process import stop_renderer
 from .zuoyebang import svg as safety
 
 MIME = 'image/svg+xml'
@@ -220,7 +221,7 @@ def to_png(raw):
             try:
                 output, _ = process.communicate(raw, timeout=30)
             except subprocess.TimeoutExpired as exc:
-                _stop_renderer(process)
+                stop_renderer(process)
                 process.communicate()
                 raise ValueError('SVG转PNG超时，请简化图形或重试') from exc
             if process.returncode or not output.startswith(b'\x89PNG\r\n\x1a\n'):
@@ -228,31 +229,6 @@ def to_png(raw):
             return output
     finally:
         _PNG_SLOTS.release()
-
-
-def _stop_renderer(process):
-    """超时后连同Chromium子进程一起结束，避免只杀Python留下浏览器。"""
-    if os.name == 'nt':
-        try:
-            subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-        except (OSError, subprocess.TimeoutExpired):
-            pass
-        finally:
-            if process.poll() is None:
-                process.kill()
-    else:
-        if process.poll() is None:
-            process.terminate()
-        try:
-            process.communicate(timeout=3)
-            return
-        except subprocess.TimeoutExpired:
-            pass
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
 
 
 def for_model(value):

@@ -1,4 +1,5 @@
 """临时 Vault 的真实导出闭环：参数、记忆、失败重试、纸面历史与浅深/窄屏截图。"""
+import base64
 from pathlib import Path
 import json
 import os
@@ -11,9 +12,12 @@ sys.path.insert(0, str(ROOT))
 from playwright.sync_api import sync_playwright
 from omrs.creation import create_question
 from omrs.data_repository import resolve_question
+from omrs.schedule_banner import save_settings
 from omrs.sessions import create_session_from_selection
 from tests.browser_runtime import launch_chromium, open_app
 from tests.test_schedule_export_history import seed_history
+from tests.test_schedule_banner import SVG
+from tests.smoke_board_print import _tall_figure
 from tests.visual.run import start_server
 
 
@@ -48,21 +52,36 @@ def main():
               and audit['dates'] == ['10/02', '11/13'] and audit['direction'] == '旧 → 新'
               and audit['description'] == '；'.join(f"{r['date']} {'对' if r['correct'] else '错'} {r['score']}分" for r in expected))
 
+    def pdf_pages(payload):
+        assert payload.startswith(b'%PDF-') and payload.rstrip().endswith(b'%%EOF')
+        pages = len(re.findall(rb'/Type /Page\b', payload))
+        boxes = re.findall(rb'/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]', payload)
+        assert pages and len(boxes) == pages and all(
+            abs(float(width) - 595) < 1 and abs(float(height) - 842) < 1 for width, height in boxes)
+        return pages
+
     with tempfile.TemporaryDirectory(prefix='omrs-export-e2e-') as temp:
         vault = Path(temp) / 'vault'
         questions = []
+        images = [
+            'data:image/svg+xml;base64,' + base64.b64encode(SVG.replace('font-size="20"', 'font-size="27"').encode()).decode(),
+            'data:image/png;base64,' + base64.b64encode(_tall_figure()).decode(),
+        ]
         for index, (question, answer) in enumerate([
             (r'已知函数 $f(x)=x^2-4x+3$，求其单调区间与最小值。', r'递减区间为 $(-\infty,2]$，递增区间为 $[2,+\infty)$，最小值为 $-1$。'),
             (r'等差数列 $\{a_n\}$ 满足 $a_1=2$，$a_5=14$，求前十项和。', r'公差 $d=3$，$S_{10}=155$。'),
             (r'在直角三角形中，两条直角边分别为 $3$ 和 $4$，求斜边上的高。', r'斜边长为 $5$，由面积关系得到高为 $\frac{12}{5}$。'),
             ('这是一道尚未练习的题目。', ''),
         ]):
+            table = '\n\n| 项目 | 值 |\n| --- | --- |\n| 已知 | $x=2$ |' if index == 0 else ''
             created = create_question(str(vault), '数学', ['二次函数', '等差数列', '平面几何', '综合'][index], 5,
-                                      question_text=question, answer_text=answer)
+                                      question_text=question + table, answer_text=answer,
+                                      question_images=images[index:index + 1])
             row = resolve_question(str(vault), created['uid'])
             questions.append(row)
             if index < 3:
                 seed_history(str(vault), row['question_id'], row['uid'])
+        save_settings(str(vault), {'enabled': True, 'svg': SVG, 'expected_revision': 0})
         session = create_session_from_selection(str(vault), [{'question_id': q['question_id'], 'source': 'due'} for q in questions])
         proc, port = start_server(str(ROOT), str(vault), str(Path(temp) / 'server.log'))
         base = f'http://127.0.0.1:{port}'
@@ -82,6 +101,8 @@ def main():
                 panel = page.locator('#schedule-export-dialog')
                 panel.wait_for()
                 check('导出先打开参数面板，未提交请求', not requests)
+                check('首次默认 A4 PDF，菜单保留两种 HTML', panel.locator('[name="variant"][value="pdf"]').is_checked()
+                      and panel.locator('[name="variant"]').evaluate_all('el => el.map(input => input.value)') == ['pdf', 'a4', 'screen'])
                 check('默认双栏、反馈区、最近8次', panel.locator('[name="columns"][value="two"]').is_checked()
                       and panel.locator('[name="historyPosition"][value="feedback"]').is_checked() and panel.locator('#historyLimit').input_value() == '8')
                 preview = panel.locator('.exd-history')
@@ -110,6 +131,22 @@ def main():
                 page.evaluate("document.documentElement.dataset.theme = 'light'")
                 panel.locator('#answers').check()
                 panel.locator('#gap').fill('2')
+                with page.expect_response('**/api/export') as exporting, page.expect_download() as pending:
+                    panel.locator('#gap').press('Enter')
+                response = exporting.value
+                pdf_path = shots / 'server-plan-a4.pdf'
+                pending.value.save_as(str(pdf_path))
+                server_pdf = pdf_path.read_bytes()
+                check('已有计划直接下载服务端 A4 PDF', pending.value.suggested_filename == f'OMRS-{session["session_id"]}-a4.pdf'
+                      and response.headers['content-type'] == 'application/pdf'
+                      and response.headers['content-disposition'].startswith('attachment;')
+                      and response.headers['cache-control'] == 'no-store'
+                      and requests[-1]['format'] == 'pdf' and requests[-1]['include_answers'] and pdf_pages(server_pdf) >= 2)
+                page.wait_for_selector('#schedule-export-dialog', state='detached')
+                page.click('[data-action="schedule.export"]')
+                check('成功下载后记住 PDF 格式和回车提交的参数', panel.locator('[name="variant"][value="pdf"]').is_checked()
+                      and panel.locator('#gap').input_value() == '2' and panel.locator('#answers').is_checked())
+                panel.locator('[name="variant"][value="a4"] + span').click()
                 with page.expect_download() as pending:
                     panel.locator('#gap').press('Enter')
                 artifact = shots / 'review-feedback.html'
@@ -118,6 +155,7 @@ def main():
                 check('请求使用计划身份与历史参数，回车保留最后输入', requests[-1]['session_id'] == session['session_id']
                       and requests[-1]['history']['position'] == 'feedback' and requests[-1]['question_gap_lines'] == 2)
                 printed = context.new_page()
+                printed.set_viewport_size({'width': 1440, 'height': 4000})
                 printed.goto(artifact.as_uri())
                 printed.wait_for_function('window.__OMRS_RESULT && !document.getElementById("btnPrint").disabled')
                 data = printed.evaluate('window.OMRS_DATA')
@@ -166,20 +204,24 @@ def main():
                       and printed.locator('.history-right[data-score="4"]').count() == 3
                       and '×' in printed.locator('.history-wrong').first.text_content())
                 printed.locator('.page').first.screenshot(path=str(shots / 'export-feedback-page.png'))
-                printed.wait_for_timeout(200)
-                region = printed.locator('.q-head--history').first.bounding_box()
-                printed.screenshot(path=str(shots / 'export-history-detail.png'), clip=region)
-                pdf = printed.pdf(prefer_css_page_size=True, print_background=False)
+                printed.locator('.q-head--history').first.screenshot(path=str(shots / 'export-history-detail.png'))
+                pdf = printed.pdf(prefer_css_page_size=True, print_background=True)
                 (shots / 'review-feedback.pdf').write_bytes(pdf)
                 check('离线 A4 排版完整、PDF页数一致', not printed.evaluate('window.__OMRS_RESULT.errors.length')
                       and len(re.findall(rb'/Type /Page\b', pdf)) == printed.evaluate('window.__OMRS_RESULT.pages'))
+                check('服务端 PDF 与 HTML 基准打印页数一致，题面和答案保留', pdf_pages(server_pdf) == pdf_pages(pdf)
+                      and printed.locator('img[src^="data:image/svg+xml"]').count() == 2
+                      and printed.locator('img[src^="data:image/png"]').count() >= 2
+                      and printed.locator('.md-table').count() == 1 and printed.locator('.ans-text').count() == 3
+                      and printed.locator('.q-head .no').all_text_contents() == ['第 1 题', '第 2 题', '第 3 题', '第 4 题'] * 2)
                 printed.close()
                 page.reload(wait_until='networkidle')
                 page.wait_for_function('!!window.__omrs')
                 page.click('#sch-tab-plans')
                 page.click(f'.schd-plan[data-arg="{session["session_id"]}"]')
                 page.click('[data-action="schedule.export"]')
-                check('刷新恢复上次成功导出的参数', panel.locator('#answers').is_checked() and panel.locator('#gap').input_value() == '2')
+                check('刷新恢复上次成功导出的 HTML 偏好', panel.locator('[name="variant"][value="a4"]').is_checked()
+                      and panel.locator('#answers').is_checked() and panel.locator('#gap').input_value() == '2')
                 panel.locator('[name="historyPosition"][value="question"] + span').click()
                 panel.locator('[data-dialog-cancel]').first.click()
                 page.wait_for_selector('#schedule-export-dialog', state='detached')
@@ -226,13 +268,43 @@ def main():
                 check('屏幕版离线显示同一历史图', screen.locator('.review-history').count() == 3)
                 check_history_order(screen, records, '屏幕版实际显示左旧右新')
                 screen.close()
+                page.click('[data-action="schedule.xexport"]')
+                panel.locator('[name="variant"][value="pdf"] + span').click()
+                page.route('**/api/export', lambda route: route.fulfill(status=503, json={'msg': '服务端 Chromium 无法启动'}))
+                panel.locator('[data-dialog-ok]').click()
+                panel.locator('[role="alert"]').wait_for()
+                check('PDF 失败保留单栏、选题和上次成功的 HTML 格式', 'Chromium 无法启动' in panel.inner_text()
+                      and panel.locator('[name="columns"][value="one"]').is_checked()
+                      and page.evaluate("JSON.parse(localStorage.getItem('omrs-export-options-v1')).variant") == 'screen')
+                page.unroute('**/api/export')
+                with page.expect_download() as pending:
+                    panel.locator('[data-dialog-ok]').click()
+                all_pdf = shots / 'server-library-a4.pdf'
+                pending.value.save_as(str(all_pdf))
+                panel.wait_for(state='detached')
+                check('全题库导出重试后直接下载单栏 PDF，使用稳定题目身份', pdf_pages(all_pdf.read_bytes())
+                      and pending.value.suggested_filename.endswith('-a4.pdf') and requests[-1]['format'] == 'pdf'
+                      and requests[-1]['a4_two_columns'] is False
+                      and {ref['question_id'] for ref in requests[-1]['question_refs']} == {q['question_id'] for q in questions})
+                page.click('[data-action="schedule.xexport"]')
+                panel.locator('[name="variant"][value="a4"] + span').click()
+                panel.locator('[data-export-reset]').click()
+                check('恢复默认选择 A4 PDF', panel.locator('[name="variant"][value="pdf"]').is_checked()
+                      and panel.locator('[name="columns"][value="two"]').is_checked())
+                panel.locator('[data-dialog-cancel]').first.click()
+                panel.wait_for(state='detached')
+                oversized = create_question(str(vault), '数学', '超高公式', 5, question_text=r'$$\rule{1em}{1300px}$$')
+                response = context.request.post(base + '/api/export', data={'format': 'pdf', 'uids': [oversized['uid']]})
+                check('PDF 排版失败返回具体错误且没有附件', response.status == 422
+                      and response.json()['code'] == 'pdf_layout' and '超出 A4 栏高' in response.json()['msg']
+                      and 'content-disposition' not in response.headers)
                 # 手机与深浅主题实际打开面板，审核滚动、触控目标和横向溢出。
                 for width in (320, 390, 1440):
                     page.set_viewport_size({'width': width, 'height': 844 if width < 760 else 1000})
                     for theme in ('light', 'dark'):
                         page.evaluate('(theme) => { document.documentElement.dataset.theme = theme; }', theme)
                         page.click('[data-action="schedule.xexport"]')
-                        panel.locator('[name="variant"][value="a4"] + span').click()
+                        panel.locator('[name="variant"][value="pdf"] + span').click()
                         panel.locator('summary').click()
                         audit = panel.evaluate('''el => ({
                             overflow: el.querySelector('.ui-dialog__panel').scrollWidth > el.querySelector('.ui-dialog__panel').clientWidth + 1,

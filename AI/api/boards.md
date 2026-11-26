@@ -38,7 +38,7 @@
 恢复在同一写事务中检查题目稳定身份是否已被其它待完成计划占用；冲突返回400并提示关联计划编号，原暂停状态保留。编号缺失、类型非法、计划不存在、已撤销或已完成均返回400。重复暂停或重复恢复返回当前状态，不重复写入 Ledger。网页沿用统一鉴权与来源校验，MCP 和助手仅可读取暂停状态。
 
 ### `POST /api/export`
-导出**自包含 HTML**（图片已 base64 内联，单文件可拷给任何带浏览器的设备）。支持两种选题模式：
+下载服务端 A4 PDF 或自包含 HTML。支持按 Session 或逐题引用选题。
 
 ```json
 { "session_id": "EXP-..." }
@@ -49,17 +49,19 @@
 ```
 
 可选字段：
-- `"format"`：`"a4"`（打印版，默认）或 `"screen"`（屏幕阅读版）。为兼容旧调用，`"docx"`/`"word"`/`"html"`/空 一律按 `a4` 处理。
+- `"format"` 可选 `"pdf"`（服务端 A4 PDF）、`"a4"`（A4 HTML，API 默认）或 `"screen"`（屏幕版 HTML）。兼容值 `"docx"`/`"word"`/`"html"`/空按 `a4` 处理。
 - `"include_answers": true`：在「一、题目」之后追加「二、反馈区」一节，每题的答案下面紧跟该题错因。不勾选时不包含答案正文，反馈区仍可显示错因与显式开启的历史；整节无内容时不输出。
 - `"question_gap_lines": 0`：A4 题目之间预留的空行数，后端钳制到 `0–20`；默认 `0`，屏幕版忽略该留白。
 - `"a4_two_columns": true`：A4 是否使用双栏，默认 `true`；设为 `false` 时整份导出使用单栏。屏幕版忽略该字段。
 - `"history": {"position":"feedback", "limit":8, "scores":true, "dates":true}`：可选练习历史。`position` 为 `none` / `question` / `feedback`，省略或非法值关闭；`limit` 钳制到 1–16，非法值默认 8；`scores` / `dates` 为 `false` 时分别隐藏分数与首尾日期。该选项适用 A4 与屏幕版，展示板模式不使用。
 
-历史来自题目稳定身份对应的有效反馈，按作答业务日期、时间从近到远排序，图表从左向右越来越早。分数决定柱高，实际对错决定颜色，并附 ✓ / ×；零分保留可见细条，没有历史时不占位。反馈区历史独立于 `include_answers`，即使没有答案和错因也可单独输出；历史备注不进入导出件。新选题推荐使用 `question_refs:[{question_id}]`，稳定身份校验规则与 Session 导出保持一致。请求参数仅控制本次导出，不修改服务端配置。
+历史来自题目稳定身份对应的有效反馈，先按作答日期和时间从近到远取最近 N 次，再从左到右按时间由旧到新显示。分数决定柱高，实际对错决定颜色，并附 ✓ / ×。零分保留可见细条，没有历史时不占位。反馈区历史独立于 `include_answers`，历史备注不进入导出件。新选题推荐使用 `question_refs:[{question_id}]`，稳定身份校验规则与 Session 导出一致。请求参数仅控制本次导出。
 
-返回 HTML 文件流（`Content-Type: text/html; charset=utf-8`），文件名 `OMRS-{session}-{a4|screen}.html`（经 `filename*=UTF-8''` 传中文/带后缀名）。临时调度导出的批次号前缀为 `TMP-`，不写入 `sessions.csv`。
+HTML 返回 `text/html; charset=utf-8`，文件名 `OMRS-{session}-{a4|screen}.html`。PDF 返回 `application/pdf`，文件名 `OMRS-{session}-a4.pdf`，带 `Cache-Control: no-store` 和 `X-Content-Type-Options: nosniff`。两者均用 `Content-Disposition: attachment` 下载。临时批次号前缀为 `TMP-`，仅用于本次导出。
 
-**版面与长图切片全部在浏览器端完成**（见 `export.md`）：Python 读题、解析分节，把文字、图片和 Markdown 表格转换为结构化块，图片读成 base64，再将模板 JS/CSS 和本地 KaTeX CSS/JS/字体全部内联。A4 的分页与超长图白缝切片由打开文件的浏览器即时计算；题目与答案走同一条 `_text_to_blocks()` 路径。`$...$` / `$$...$$` 在 A4 与屏幕版均由内联 KaTeX 离线渲染，失败时降级显示原公式。栏模式只由 `a4_two_columns` 决定；前端在统一参数面板选择并记忆，含表格或长公式时可选单栏保留列宽。
+A4 HTML 与 PDF 复用分页、超长图白缝切片、内联字体和 KaTeX。PDF 在服务端的打印媒体下完成排版。HTML 在打开文件的设备上排版。栏模式由 `a4_two_columns` 决定，详情见 `AI/export.md`。
+
+PDF 失败返回 `{status:"error", code, msg}`。排版或已内联图像解码失败返回 422 `pdf_layout`，渲染占用或依赖不可用返回 503 `pdf_busy` / `pdf_unavailable`，超时返回 504 `pdf_timeout`，其他渲染失败返回 500 `pdf_render`。失败响应没有附件头。共同的选题与参数校验仍使用现有错误语义。
 
 题目块显示 UID、科目、分类、难度、状态标签和知识点标签，便于打印后按标签复盘。
 

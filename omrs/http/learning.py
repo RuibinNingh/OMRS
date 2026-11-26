@@ -99,7 +99,12 @@ class LearningRoutes:
                     self._json({'status': 'error', 'msg': '需要 session_id 或 uids'}, 400)
                     return
                 payload, sid, filename, content_type = self.services.export_schedule_artifact(self.vault_path, uids or None, session_id, export_format, include_answers=include_answers, question_gap_lines=question_gap_lines, a4_two_columns=a4_two_columns, question_refs=references, history=data.get('history'), mark_missing_cause=data.get('mark_missing_cause',False), **({'schedule_banner':data['schedule_banner']} if 'schedule_banner' in data else {}))
-                self._download(payload, filename, content_type)
+                if content_type == 'application/pdf':
+                    self._download(payload, filename, content_type, headers={
+                        'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+                    })
+                else:
+                    self._download(payload, filename, content_type)
             except Exception as exc:
                 self._error(exc)
         else:

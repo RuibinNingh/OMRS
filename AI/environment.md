@@ -27,7 +27,9 @@
 
 启动按稳定身份导入只读审核历史并收束旧进程，不能重放业务。发布预检核对有效未终结任务、恢复意图、训练锁及受管操作；已结束的运行记录须结合关联审批的真实状态判断，MCP 与已送审助手提案、待审草稿长期保留，不能因旧期限或调用线程结束而废止。数据库迁移后仍投影全部原列逐表比较；新增列和生命周期变化单独核对，不忽略审批库差异。存在未完成题目／整批标记写入或恢复意图时停止；回退只恢复源码别名和必要的 unit，保留最新 Vault、受管历史、revision及锁。
 
-A4字体与打印门禁为`python3 -m unittest tests.test_export_fonts tests.smoke_a4_print -q`，统一门禁包含print-a4，下载由`tests/e2e/schedule.py`验证。审核刷新、并排录入和长期待审分别运行`tests/e2e/ai_review_refresh.py`、`tests/e2e/ai_review_entry.py`、`tests/e2e/ai_review.py`；隔离场景与断言见对应前端模块文档。
+A4 字体与打印门禁为 `python3 -m unittest tests.test_export_pdf tests.test_export_fonts tests.smoke_a4_print -q`。用 `tests/e2e/schedule_export.py` 从临时 Vault 验证服务端 PDF 和 HTML 下载，生产控制变量须清除。审核刷新、并排录入和长期待审分别运行 `tests/e2e/ai_review_refresh.py`、`tests/e2e/ai_review_entry.py`、`tests/e2e/ai_review.py`，断言见对应前端模块文档。
+
+A4 PDF 使用主站 Python 环境中的 Playwright 和对应 Chromium。独立安装时先运行 `python -m pip install "playwright>=1.52,<2"`，再以服务运行账户在同一环境执行 `python -m playwright install chromium`。候选归档使用部署解释器跑真实 PDF 下载，核对 Chromium 能启动、版式及 MIME 正确。PDF 渲染在主站独立子进程执行，缺少依赖时仍可下载 HTML。
 
 MCP新题配图用`tests/test_mcp_draft_svg.py`和`tests/e2e/mcp_draft_svg.py`验证SDK、事务、浏览器审核入库及向量PDF，OMRS_DRAFT_SVG_SHOTS指定证据目录。所有测试实例清除OMRS_SYSTEMD_SERVICE与OMRS_BOXDETECT_CONTROL，浏览器作业依次运行，避免document.hidden暂停轮询；Windows Edge与实体手机另验。
 

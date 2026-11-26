@@ -9,7 +9,7 @@
 
 数据复盘的 `progress.js` 从同一分析响应派生状态、累计成绩与分页列表；明细筛选通过页面动作更新，题目弹窗使用独立 `data-progress` 上下文，保留完整匹配结果的上下题。`tests/app/data-progress.test.mjs` 与 `tests/e2e/data.py` 覆盖停用排除、降级成绩保留、复燃优先、筛选分页、真实详情及失败后旧数据保留。
 
-复习调度的导出模态、参数记忆与稳定引用分别由 `export-dialog.js`、`export-options.js` 与 `exporter-ctl.js` 管理，下载走 `domain/exporting.js`。重绘保留草稿，失败可原位重试。`tests/e2e/schedule_export.py` 覆盖两入口、刷新、取消、离线 A4/PDF 与屏幕版，以及历史左旧右新、无障碍顺序和原数组保护。截图位置由 `OMRS_EXPORT_SHOTS` 指定。
+复习调度的导出模态、参数记忆与稳定引用分别由 `export-dialog.js`、`export-options.js` 与 `exporter-ctl.js` 管理。`domain/exporting.js` 下载服务端 PDF 或 HTML。失败保留草稿供重试。`tests/e2e/schedule_export.py` 覆盖两处下载、格式记忆、离线文档和历史顺序，截图目录由 `OMRS_EXPORT_SHOTS` 指定。
 
 展示板空状态由当前有效打印范围派生，常驻 iframe 留在原舞台，提示为固定同级节点。详情控制器合并同内容的在途同步并校验回调归属，空内容会取消预览及定时任务。`tests/e2e/board.py` 调用同目录 `board_empty.py`，实际验证空板加题／清空、停用／缺失、菜单／快捷键、慢请求取消和真实失败；`OMRS_BOARD_EMPTY_SHOTS` 指定四档状态截图目录。
 

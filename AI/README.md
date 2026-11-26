@@ -21,7 +21,7 @@
 | 记忆算法、调度、推荐 | `algorithm.md` |
 | 数据格式、Ledger、投影与配置 | `data.md`、`data/storage.md`、`ledger.md` |
 | 全库备份、恢复、生命周期与世代 | `backup.md`、`environment.md` |
-| 导出与展示板打印 | `export.md`、`board.md` |
+| 服务端 A4 PDF、HTML 导出与展示板打印 | `export.md`、`board.md` |
 | 题目 SVG 配图、Obsidian 与双栏可读性 | `question-svg.md` |
 | 收件箱、标记、答题卡导入 | `inbox.md`、`labels.md`、`omr-import.md` |
 | 作业帮独立页、题框、网关连接、后端长图与核对入库 | `zuoyebang-service.md`、`zuoyebang.md`、`frontend/settings.md`、`frontend/zuoyebang.md` |
@@ -129,7 +129,7 @@
 | `data.md`、`data/storage.md` | Markdown、身份、SQL 投影、配置镜像及各独立库格式 |
 | `backup.md` | 全库在线快照、生命周期屏障、恢复 journal 与启动恢复 |
 | `frontend.md` | 前端索引，分册在 `frontend/`：设计系统（token 与门禁）、架构（core、路由、启动顺序）、UI 组件库、外壳与主题、仪表盘与目录、题库与标记、qview、展示板页、复习调度、反馈录入、设置、录入题目、历史 / 复盘 / 报告 |
-| `export.md` | A4、屏幕版与展示板自包含 HTML 导出 |
+| `export.md` | 服务端 A4 PDF，以及 A4、屏幕版与展示板自包含 HTML |
 | `question-svg.md` | 题目静态 SVG、双栏规范、不可覆盖附件、审核与 AI 派生图 |
 | `ledger.md` | 不可变提交链、投影缓存、历史修正与迁移边界 |
 | `board.md` | 展示板引用模型、版面设置、打印与纸面记录 |

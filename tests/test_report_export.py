@@ -134,7 +134,8 @@ def test_a4_export_embeds_formula_boundary_continuation_layout():
         "a4",
     )
 
-    assert "function formulaBreakOffsets" in html
+    assert "function exportFormulaBreaks" in html
+    assert "of exportFormulaBreaks(source)" in html
     assert "function splitFormulaText" in html
     assert "function placeText" in html
     assert "function placeContentBlock" in html
@@ -144,5 +145,5 @@ def test_a4_export_embeds_formula_boundary_continuation_layout():
     assert "mount.replaceChildren()" in html
     assert "await document.fonts.ready" in html
     assert "KaTeX 字体是在 run() 创建数学节点后才会被浏览器请求" in html
-    assert "node.getBoundingClientRect().bottom - col.getBoundingClientRect().top" in html
+    assert "(node.getBoundingClientRect().bottom - bounds.top) * colH / bounds.height" in html
     assert "pages.push(page); mount.appendChild(page);" in html

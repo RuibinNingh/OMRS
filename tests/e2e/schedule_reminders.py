@@ -159,6 +159,7 @@ def main():
                 check('取消画廊选择保留面板状态，服务端无写入', catalog() == before
                       and export.locator('.exd-banner .rem-image').get_attribute('src') == original['src'])
                 export.locator('#markMissingCause').check()
+                export.locator('[name="variant"][value="a4"] + span').click()
                 with page.expect_download() as downloading:
                     export.locator('[data-dialog-ok]').click()
                 a4 = shots/'marked-a4.html'

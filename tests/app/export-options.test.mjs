@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DEFAULT_EXPORT_OPTIONS, EXPORT_OPTIONS_KEY, normalizeExportOptions, loadExportOptions, saveExportOptions } from '../../assets/app/features/schedule/export-options.js';
-import { exportPayload } from '../../assets/app/features/schedule/exporter.js';
+import { exportFileName, exportPayload } from '../../assets/app/features/schedule/exporter.js';
 
 test('参数归一化保留明确关闭，限制留白与历史条数', () => {
   assert.deepEqual(normalizeExportOptions(null), DEFAULT_EXPORT_OPTIONS);
@@ -10,6 +10,19 @@ test('参数归一化保留明确关闭，限制留白与历史条数', () => {
   assert.equal(o.historyPosition, 'none'); assert.equal(o.historyLimit, 16); assert.equal(o.gap, 0);
   assert.equal(o.historyDates, false); assert.equal(o.twoColumns, true);
   assert.equal(normalizeExportOptions({ historyLimit: '' }).historyLimit, 8);
+});
+
+test('默认 PDF，保留旧 HTML 格式，PDF 请求按纸面参数生成独立文件名', () => {
+  assert.equal(normalizeExportOptions({}).variant, 'pdf');
+  assert.equal(normalizeExportOptions({ variant: 'a4' }).variant, 'a4');
+  assert.equal(normalizeExportOptions({ variant: 'screen' }).variant, 'screen');
+  const options = { ...DEFAULT_EXPORT_OPTIONS, twoColumns: false, answers: true, gap: 3 };
+  const payload = exportPayload({ ...options, sessionId: 'EXP-1' });
+  assert.equal(payload.format, 'pdf');
+  assert.equal(payload.a4_two_columns, false);
+  assert.equal(payload.include_answers, true);
+  assert.equal(payload.question_gap_lines, 3);
+  assert.equal(exportFileName({ ...options, sessionId: 'EXP-1' }), 'OMRS-EXP-1-a4.pdf');
 });
 
 test('成功导出后才保存，读取返回副本；损坏与受限存储不阻止导出', () => {
