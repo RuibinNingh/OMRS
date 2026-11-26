@@ -5,6 +5,7 @@
 - [2026-11-26_schedule-e2e-assertions](2026-11-26_schedule-e2e-assertions.md)：修复调度端到端回归断言
 - [2026-11-26_schedule-a4-pdf](2026-11-26_schedule-a4-pdf.md)：复习清单服务端 A4 PDF 下载
 - [2026-11-26_a4-svg-print-zoom](2026-11-26_a4-svg-print-zoom.md)：修复 A4 打印视图缩放时 SVG 排版误报
+- [2026-11-26_a4-pdf-release](2026-11-26_a4-pdf-release.md)：服务端 A4 PDF 发布
 - [2026-11-22_history-order-release](2026-11-22_history-order-release.md)：导出历史顺序与文档发布
 - [2026-11-22_ai-formal-question-image-edits](2026-11-22_ai-formal-question-image-edits.md)：开放 AI 正式题目位图编辑
 - [2026-11-21_feedback-closeout](2026-11-21_feedback-closeout.md)：反馈录入单题处置与结单
