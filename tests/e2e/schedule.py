@@ -86,6 +86,16 @@ def plans(page):
     return wait(page, "() => !document.getElementById('recommend-panel-v2') && document.getElementById('sch-plans')")
 
 
+def wait_for_new_plan(page, session_id, count):
+    return wait(page, """({id, count}) => {
+        const detail = document.getElementById('sch-plan-detail');
+        return document.getElementById('sch-tab-plans')?.getAttribute('aria-selected') === 'true'
+            && document.getElementById('sch-plan-filter')?.value === 'active'
+            && detail?.querySelector('[data-sid]')?.dataset.sid === id
+            && detail.querySelectorAll('.schd-q').length === count;
+    }""", arg={"id": session_id, "count": count}, timeout=10000)
+
+
 def run_main(page, base, port, sids, results):
     def check(name, ok, detail=""):
         results.append((name, bool(ok), str(detail)))
@@ -181,7 +191,7 @@ def run_delete(page, base, port, sids, results):
     check("刷新失败显示原因与「重试」、列表保留；重试后状态行清空", failed and kept >= 1 and wait(page, "() => !document.getElementById('sch-session-status').textContent.trim()"), kept)
 
 
-def run_legacy(page, base, port, results):
+def run_legacy(page, base, results):
     def check(name, ok, detail=""):
         results.append((name, bool(ok), str(detail)))
     ev = page.evaluate
@@ -195,10 +205,10 @@ def run_legacy(page, base, port, results):
     wait(page, "() => !REC_LOADING && REC_DATA_V2 && REC_DATA_V2.length")
     page.fill("#rec-target-count", "1")
     page.click("#rec-suggest")
-    page.click("#rec-confirm")
-    made = wait(page, "() => document.getElementById('sch-tab-plans')?.getAttribute('aria-selected') === 'true' && document.getElementById('sch-plan-filter').value === 'active' && document.getElementById('sch-plan-detail').textContent.includes('共 1 题')", timeout=10000)
-    check("旧入口：安排复习里「生成计划」后切到「已有计划」并打开新计划", made)
-    sid = [s for s in http(port, "/api/sessions")["sessions"]][0]["session_id"]
+    with page.expect_response("**/api/confirm-schedule") as created:
+        page.click("#rec-confirm")
+    sid = created.value.json()["session_id"]
+    check("单题生成正式计划并自动打开正确详情", created.value.ok and sid.startswith("EXP-") and wait_for_new_plan(page, sid, 1), sid)
     ev("window.__omrs.router.go('dashboard')")
     ev(f"window.__omrs.router.go('schedule'); window.__omrs.emit('schedule:open-plan', {json.dumps(sid)})")
     check("schedule:open-plan：从别的页切过来并打开该计划",
@@ -239,9 +249,16 @@ def run_arrange(page, base, port, results):
     posts = []
     page.on("request", lambda r: posts.append(r.url) if "/api/confirm-schedule" in r.url else None)
     before = len(http(port, "/api/sessions")["sessions"])
-    ev("(() => { const b = document.getElementById('rec-confirm'); b.click(); b.click(); })()")
-    made = wait(page, "() => document.getElementById('sch-tab-plans')?.getAttribute('aria-selected') === 'true' && document.getElementById('sch-plan-detail').textContent.includes('共 10 题')", timeout=10000)
-    check("生成计划：重复调用只提交一次，切到「已有计划」打开新计划，已选清空", made and len(posts) == 1 and len(http(port, "/api/sessions")["sessions"]) == before + 1, posts)
+    with page.expect_response("**/api/confirm-schedule") as created:
+        ev("(() => { const b = document.getElementById('rec-confirm'); b.click(); b.click(); })()")
+    sid = created.value.json()["session_id"]
+    made = created.value.ok and wait_for_new_plan(page, sid, 10)
+    page.click("#sch-tab-arrange")
+    cleared = wait(page, """() => document.querySelector('#rec-selected-count-v2')?.textContent === '已选 0 题'
+        && document.querySelector('#rec-confirm')?.disabled""")
+    check("十题生成计划：双击只提交一次，自动打开新计划并清空选题",
+          made and cleared and len(posts) == 1 and len(http(port, "/api/sessions")["sessions"]) == before + 1,
+          {"session_id": sid, "opened": made, "cleared": cleared, "requests": len(posts)})
 
 
 def run_export(page, base, port, results):
@@ -376,9 +393,9 @@ def run_pause(page, base, port, results):
         page.evaluate("window.__omrs.router.go('feedback')")
         page.locator('#fb-session-picker').wait_for()
         page.select_option('#fb-session-picker', sid)
-        check('反馈页识别已暂停计划并显示恢复提示，禁止提交',
-              '计划已暂停' in page.locator('.fbw-bar__info').inner_text()
-              and page.locator('[data-action="feedback.submit"]').is_disabled())
+        check('反馈页显示暂停恢复提示并隐藏提交按钮', wait(page, """() =>
+            document.querySelector('.fbw-bar__info')?.textContent.includes('计划已暂停，恢复后可继续录入')
+            && !document.querySelector('[data-action="feedback.submit"]')"""))
         page.evaluate("window.__omrs.router.go('schedule')")
         page.get_by_role('button', name='恢复调度', exact=True).wait_for()
         page.get_by_role('button', name='恢复调度', exact=True).click()
@@ -431,7 +448,7 @@ def main():
             page.on("pageerror", lambda e: errors.append(str(e)))
             guarded(results, "主路径", lambda: run_main(page, base, port, sids, results))
             guarded(results, "删除与刷新", lambda: run_delete(page, base, port, sids, results))
-            guarded(results, "旧入口", lambda: run_legacy(page, base, port, results))
+            guarded(results, "旧入口", lambda: run_legacy(page, base, results))
             guarded(results, "安排复习", lambda: run_arrange(page, base, port, results))
             guarded(results, "全题库导出", lambda: run_export(page, base, port, results))
             guarded(results, "暂停与恢复", lambda: run_pause(page, base, port, results))
