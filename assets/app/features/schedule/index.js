@@ -248,6 +248,7 @@ export const page = {
     // ── 安排复习 ──
     reload: () => ctl?.arr.load(),
     field: ({ arg, value, event }) => ctl?.arr.field(arg, value ?? event?.target?.value),
+    entryDate: ({ arg, event }) => ctl?.arr.entryDate(arg, event.target.value),
     label: ({ arg }) => ctl?.arr.label(arg),
     clearField: ({ arg }) => ctl?.arr.clearField(arg),
     resetFilters: () => ctl?.arr.resetFilters(),

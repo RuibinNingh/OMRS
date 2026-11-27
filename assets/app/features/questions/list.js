@@ -12,6 +12,7 @@ import { icon } from '../../ui/icon.js';
 import { progress } from '../../ui/progress.js';
 import { empty } from '../../ui/empty.js';
 import { labelChips } from '../../domain/labels/index.js';
+import { entryDateMeta } from '../../domain/entry-date-field.js';
 import { qvGalleryIdHtml, qRecordsFromDetail, qHistoryStats, qStreakHtml } from '../../domain/question/index.js';
 import { COLUMN_LABELS, dueInfo, statusOf, reviveOf, masteryPct, masteryTone, galleryFlags, galleryCardOpts } from './state.js';
 
@@ -33,7 +34,8 @@ const checkBox = (uid, on) => html`<label class="qlb-check" title="选择"><inpu
 
 const CELLS = {
   select: (item, env) => checkBox(questionKey(item), env.selected.has(questionKey(item))),
-  main: item => html`<strong class="qlb-uid">${item.uid}</strong><span class="qlb-meta">${item.subject || ''} · ${item.category || ''}${item.is_leech ? html`<span class="qlb-leech">顽固</span>` : ''}</span>`,
+  main: (item, env) => html`<strong class="qlb-uid">${item.uid}</strong><span class="qlb-meta">${item.subject || ''} · ${item.category || ''}${item.is_leech ? html`<span class="qlb-leech">顽固</span>` : ''}</span>
+    ${env.showEntryDate ? html`<span class="qlb-meta">${entryDateMeta(item)}</span>` : ''}`,
   labels: item => html`<span class="q-label-cell qlb-labels" data-lbl-target="${item.uid}">${labelChips(item.labels || [], { add: true, max: 4 })}</span>`,
   mastery: item => masteryCell(item),
   due: (item, env) => { const due = dueInfo(env.dueDays(item)); return html`<span class="qlb-due" data-tone="${due.tone}">${due.text}</span>`; },
@@ -90,6 +92,7 @@ function galleryCard(item, env) {
   <footer class="qlb-gcard__foot">
     ${masteryPct(item) > 0 || num(item.attempts) > 0 ? masteryCell(item, { short: true }) : html`<span class="qlb-muted">未练习</span>`}
     ${item.difficulty != null && item.difficulty !== '' ? html`<span class="qlb-muted">难度 ${item.difficulty}</span>` : ''}
+    ${env.showEntryDate ? html`<span class="qlb-muted" data-key="entry-date">${entryDateMeta(item)}</span>` : ''}
     ${foot ? html`<span class="qlb-streak">${foot.streak ? raw(foot.streak) : ''}<span class="qlb-muted">${foot.text}</span>${foot.warn ? html`<span class="qlb-warn">${foot.warn}</span>` : ''}</span>` : ''}
     <span class="q-label-cell qlb-labels" data-lbl-target="${item.uid}">${labelChips(item.labels || [], { add: true, max: 3 })}</span>
   </footer>

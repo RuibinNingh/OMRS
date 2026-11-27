@@ -116,6 +116,12 @@ def shoot(side, port, args, out, frozen_ms):
                             page.goto(f"http://127.0.0.1:{port}/?unlocked=1", wait_until="networkidle")
                         page.evaluate("n => window.__omrs.router.go(n)", name)
                     page.wait_for_load_state("networkidle")
+                    if args.filters_open and name == "questions":
+                        page.locator(".qlb-filter-btn").click()
+                        if vp == "desktop":
+                            page.locator('#qlb-drawer [data-arg="due|today"]').evaluate("el => el.scrollIntoView({block:'center', behavior:'instant'})")
+                    if args.filters_open and name == "schedule":
+                        page.locator("#rec-more-filters summary").click()
                     if name == "create" and args.create_stage:
                         if args.create_stage == 'zuoyebang' and page.locator('#panel-zuoyebang').count():
                             page.evaluate("() => window.__omrs.router.go('zuoyebang')")
@@ -291,6 +297,7 @@ def main(argv=None):
     ap.add_argument("--pages", default=",".join(PAGES))
     ap.add_argument("--themes", default="light,dark")
     ap.add_argument("--viewports", default="desktop,mobile")
+    ap.add_argument("--filters-open", action="store_true", help="题库和复习调度截图时展开筛选")
     ap.add_argument("--create-stage", choices=["upload", "process", "create", "train", "quick", "drafts", "zuoyebang"], help="录入页截图时切到指定工作区")
     ap.add_argument("--settings-section", choices=["appearance", "access", "ai", "assistant", "data", "service"], help="设置页截图时切到指定分区")
     ap.add_argument("--settle", type=int, default=500, help="每页切换后额外等待毫秒数")

@@ -2,6 +2,7 @@
 
 > 由 `python3 tests/check_docs.py --write-log-index` 按文件名倒序生成，勿手改。新增任务只需在本目录新建 `YYYY-MM-DD_<topic>.md`。
 
+- [2026-11-27_entry-date-filters](2026-11-27_entry-date-filters.md)：题库与复习调度录入日期筛选
 - [2026-11-26_schedule-e2e-assertions](2026-11-26_schedule-e2e-assertions.md)：修复调度端到端回归断言
 - [2026-11-26_schedule-a4-pdf](2026-11-26_schedule-a4-pdf.md)：复习清单服务端 A4 PDF 下载
 - [2026-11-26_a4-svg-print-zoom](2026-11-26_a4-svg-print-zoom.md)：修复 A4 打印视图缩放时 SVG 排版误报

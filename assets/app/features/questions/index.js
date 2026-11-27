@@ -14,6 +14,7 @@ import { openMenu, closeMenu } from '../../ui/menu.js';
 import { viewQ, qvSetContext, qvRender, qvRerenderAll, cachedDetail, mdLineBreakMode, setMdLineBreakMode } from '../../domain/question/index.js';
 import { editQuestion, suspendQuestion, resumeQuestion, deleteQuestion, moveQuestion, batchSuspend, exportA4 } from '../../domain/question/ops.js';
 import { allItems, filterAll, dueDays, facets, itemOf } from '../../domain/items.js';
+import { editEntryDate, showsEntryDate } from '../../domain/entry-date.js';
 import { listLabels, openLabelPicker, openLabelManager, pickerOpen } from '../../domain/labels/index.js';
 import { boardQuickAdd, boardChooseAndAdd } from '../../domain/board/index.js';
 import * as S from './state.js';
@@ -29,6 +30,7 @@ const FIELD = { 'qlb-f-subject': 'subject', 'qlb-f-category': 'category', 'qlb-f
 /** 过渡桥用：仪表盘「在题库查看」等旧入口的预设（键为旧元素 id），套用前先清空所有条件，只保留视图与列设置。 */
 export function loadPreset(preset) {
   s.filters = S.filtersFromFields(preset || {}, []);
+  s.dateDraft = null;
   s.quick = '';
   s.live = null;
 }
@@ -49,7 +51,7 @@ function createController(root, ctx) {
     return {
       rows, uids, keys: rows.map(questionKey), total: all.length, prefs: s.prefs, columns: S.columnList(s.prefs.columns), selected: s.selected, cursor: s.cursor,
       sel: S.selectionOf(s.selected, rows.map(questionKey)), counts: S.countsOf(all, dueDays), active: S.activeFilters(itemFilters),
-      filterCount: S.filterCount(itemFilters), liveFilters, liveCount, facets: facets(all), labels: listLabels(),
+      filterCount: S.filterCount(itemFilters), liveFilters, liveCount, facets: facets(all), labels: listLabels(), showEntryDate: showsEntryDate(s.filters),
       views: names, viewName: names.length ? S.currentViewName(views, s.filters) : '', mdMode: mdLineBreakMode(),
       dueDays, detailOf: cachedDetail,
     };
@@ -101,11 +103,25 @@ function createController(root, ctx) {
     search: value => setFilters({ ...s.filters, text: String(value || '') }, S.quickAfterEdit(s.quick)),
     sort: value => setFilters({ ...s.filters, sort: value }, S.quickAfterEdit(s.quick)),
     field(id, value) { if (FIELD[id]) setFilters({ ...s.filters, [FIELD[id]]: value || '' }, S.quickAfterEdit(s.quick)); },
+    entryDate(arg, value) {
+      const next = editEntryDate(s.filters, s.dateDraft, arg, value);
+      s.dateDraft = next.draft;
+      if (next.filters !== s.filters) setFilters(next.filters, s.quick);
+      else paint();
+    },
     seg(arg) { const [key, value] = split(arg); if (key in S.FILTER_DEFAULTS) setFilters({ ...s.filters, [key]: value }); },
     label: name => setFilters(S.toggleLabel(s.filters, name)),
-    clear(arg) { const [kind, value] = split(arg); setFilters(S.clearFilter(s.filters, kind, value)); },
-    clearAll: () => setFilters(S.resetFilters(s.filters)),
-    quick(key) { const r = S.applyQuick(s.filters, s.quick, key); setFilters(r.filters, r.quick); },
+    clear(arg) {
+      const [kind, value] = split(arg);
+      if (kind === 'entryDate' || kind === 'all') s.dateDraft = null;
+      setFilters(S.clearFilter(s.filters, kind, value), kind === 'entryDate' ? s.quick : '');
+    },
+    clearAll() { s.dateDraft = null; setFilters(S.resetFilters(s.filters)); },
+    quick(key) {
+      const r = S.applyQuick(s.filters, s.quick, key);
+      s.dateDraft = null;
+      setFilters(r.filters, r.quick);
+    },
     range(arg, value, commit) {
       const [kind, end] = split(arg);
       const r = S.RANGES[kind];
@@ -120,6 +136,7 @@ function createController(root, ctx) {
     toggleView: () => api.view(s.prefs.view === 'table' ? 'gallery' : 'table'),
     drawer(arg) {
       s.drawer = arg === '0' ? false : arg === '1' ? true : !s.drawer;
+      if (!s.drawer) s.dateDraft = null;
       s.menu = false;
       paint();
       if (s.drawer) root.querySelector('#qlb-drawer select')?.focus({ preventScroll: true });
@@ -208,6 +225,7 @@ function createController(root, ctx) {
       const saved = S.readViews(storage())[name];
       if (!saved) return;
       const r = S.applySnapshot(saved, s.prefs);
+      s.dateDraft = null;
       s.prefs = r.prefs; savePrefs();
       if (r.mdMode && r.mdMode !== mdLineBreakMode()) { setMdLineBreakMode(r.mdMode); qvRerenderAll(); }
       setFilters(r.filters);
@@ -268,12 +286,13 @@ export const page = {
       () => document.removeEventListener('click', onDocClick),
     ];
     ctl.paint();
-    return () => { offs.forEach(off => off()); closeMenu(); s.menu = false; ctl = null; };
+    return () => { offs.forEach(off => off()); closeMenu(); s.menu = false; s.dateDraft = null; ctl = null; };
   },
   actions: {
     search: ({ value }) => ctl?.search(value),
     sort: ({ event }) => ctl?.sort(event.target.value),
     field: ({ event }) => ctl?.field(event.target.id, event.target.value),
+    entryDate: ({ arg, event }) => ctl?.entryDate(arg, event.target.value),
     seg: ({ arg }) => ctl?.seg(arg),
     label: ({ arg }) => ctl?.label(arg),
     clear: ({ arg }) => ctl?.clear(arg),

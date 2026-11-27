@@ -60,6 +60,9 @@
 .schd-setup { box-sizing: border-box; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-5); border: 1px solid var(--border-1); border-radius: var(--r-lg); background: var(--surface-1); box-shadow: var(--elev-1); }
 .schd-setup .schd-filters { display: grid; grid-template-columns: minmax(8em, 1fr) minmax(12em, 2fr) minmax(8em, 1fr); }
 .schd-setup .schd-filters--more { grid-template-columns: repeat(auto-fill, minmax(10em, 1fr)); padding-top: var(--sp-3); }
+.schd-filters--more .entry-date-field:has(.entry-date-field__bounds) { grid-column: 1 / -1; max-inline-size: 22rem; }
+.schd-filters--more .entry-date-field__mode .ui-field { gap: var(--sp-1); }
+.schd-filters--more .entry-date-field__mode .ui-field__label { color: var(--fg-3); font-weight: var(--weight-regular); }
 .schd-field .ui-select { width: 100%; }
 .schd-more summary { display: inline-flex; align-items: center; min-height: var(--ctl-sm); color: var(--fg-2); font-size: var(--text-sm); cursor: pointer; }
 .schd-labels { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1_5); grid-column: 1 / -1; }

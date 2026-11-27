@@ -120,6 +120,7 @@
   --text-root:15px;
   --text-2xs:11px; --text-xs:12px; --text-sm:13px; --text-md:14px;
   --text-lg:16px;  --text-xl:20px; --text-2xl:28px; --text-display:40px;
+  --text-touch-input:16px;
   --leading-tight:1.15; --leading-ui:1.45; --leading-read:1.75;
   --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
   --font-sans:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;

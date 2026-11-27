@@ -8,6 +8,7 @@
 @import url("ui.css") layer(ui);
 @import url("shell.css") layer(shell);
 @import url("../domain/question/qview.css") layer(domain);
+@import url("../domain/entry-date.css") layer(domain);
 @import url("../domain/labels/labels.css") layer(domain);
 @import url("../domain/board/picker.css") layer(domain);
 @import url("../features/questions/questions.css") layer(features);

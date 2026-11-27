@@ -4,7 +4,7 @@
 > - 职责：复习调度工作台、临时调度与常规 Session 的区别（即时练习见 `AI/frontend/instant.md`）
 > - 入口：`assets/app/features/schedule/`（页面与四个工作区）、`assets/app/domain/sessions.js`（Session 列表）、`assets/app/domain/exporting.js`（导出下载）
 > - 不变量：临时调度（TMP-）不建立常规 Session；常规 Session 走 Ledger `session.create`
-> - 必跑测试：`tests/app/schedule.test.mjs`、`tests/app/arrange.test.mjs`、`tests/app/export-options.test.mjs`、`tests/e2e/schedule.py`、`tests/e2e/schedule_export.py`、`tests/e2e/schedule_reminders.py`
+> - 必跑测试：`tests/app/schedule.test.mjs`、`tests/app/arrange.test.mjs`、`tests/app/entry-date.test.mjs`、`tests/app/export-options.test.mjs`、`tests/e2e/schedule.py`、`tests/e2e/entry_date_filters.py`、`tests/e2e/schedule_export.py`、`tests/e2e/schedule_reminders.py`
 > - 相关：`AI/frontend.md`（索引）
 
 ## 复习调度工作台（`features/schedule/`）
@@ -28,6 +28,7 @@
 
 - **候选**：`GET /api/recommend?due_count=1000&prof_count=1000`，到期题与熟练度题各带 `_source`；后发先至只认最新一次。重拉时已选题里仍可安排的换成新对象保留，不再可安排的移出并提示数量。加载中与失败显示在 `#rec-status-v2`（失败带「重试」）。
 - **筛选**：科目、搜索、推荐方式在上；「更多筛选」（展开状态存页面状态）里有分类、知识点、状态、到期范围、难度与熟练度上下限、排序、标记匹配与标记按钮（`data-action="schedule.label"`）。语义与题库、导出共用（`domain/items.js` 的 `filterAll`，共享 `filterItems`）；排序为「按推荐方式」时恢复服务端顺序，再按推荐方式排：均衡 = 到期与熟练度两组内各按科目轮选，到期优先 = 先到期，薄弱优先 = 先熟练度来源。难度或熟练度范围不合法时列表为空、状态行说明原因。已生效的条件显示为可单独移除的按钮，另有「清除筛选」（保留推荐方式）。筛选变化不清空已选。
+- **录入日期**：在「更多筛选」中从当前可安排候选按录入日筛选，可与科目、到期、标记等条件叠加。快捷范围、自定义日期验证、排序和缺失日期回退规则与题库共用。筛选或录入日期排序生效时，列表和画廊显示录入日。按建议选择按当前结果及排序取题并替换选择；手动勾选继续保留，底栏提示被筛选隐藏的已选题。日期口径见[题库筛选](library.md#筛选控件filteritems)。
 - **选择**：逐题勾选、「全选当前结果」、「只看已选」、按建议题量「按建议选择」（替换当前选择，题量须为正整数）。底部吸底的选择栏显示已选数、预计用时（每题 max(3, 难度×1.5) 分钟）、被筛选隐藏但仍会加入计划的数量（带「查看全部已选」）、「清空」与「生成计划」。
 - **每行**：勾选、序号、UID（复燃题带「复燃 · 第 N 档」标签，提示显示实际日期与累计成绩，停用题不算）、科目 · 分类 · 难度与标记、理由（复燃 → 「复燃 · 第 N 档复核到期」，无可靠日期 → 「复燃 · 待复核」；熟练度来源 → 「提前巩固 · N 天后到期」；到期来源按到期天数）、熟练度、「预览」（题目弹窗，上下文 `schedule-pick`）。候选为空时：没有可安排的题且有未完成计划 → 「查看已有计划」；其他情况 → 「清除筛选」。
 - **生成计划**：`POST /api/confirm-schedule`（`persist: true`，全部已选的 `question_id` 与来源；只有一个科目时带 `subject`）。进行中按钮显示「正在生成…」并置灰，重复调用不重复提交。成功后清空选择，切到「已有计划」（筛选设回待完成），刷新 Session 列表并打开新计划，再重拉推荐；失败保留选择，状态行说明原因。

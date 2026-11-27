@@ -11,6 +11,7 @@ import { tag } from '../../ui/tag.js';
 import { empty } from '../../ui/empty.js';
 import { status } from '../../ui/status.js';
 import { labelChip, labelChips } from '../../domain/labels/index.js';
+import { entryDateField, entryDateMeta } from '../../domain/entry-date-field.js';
 import { DUE_OPTIONS, SORT_OPTIONS, MODE_OPTIONS, reason, revive } from './arrange.js';
 
 const opts = (values, all) => [{ value: '', label: all }, ...values.map(v => ({ value: v, label: v }))];
@@ -37,6 +38,7 @@ function setup(a, env) {
     ${field('知识点', 'ktag', select({ id: 'rec-filter-ktag-v2', options: opts(ktags, '全部知识点'), value: f.ktag }))}
     ${field('状态', 'tag', select({ id: 'rec-filter-tag-v2', options: opts(['待攻克', '已击杀'], '全部状态'), value: f.tag }))}
     ${field('到期范围', 'due', select({ id: 'rec-filter-due-v2', options: pairs(DUE_OPTIONS), value: f.due }))}
+    ${entryDateField({ id: 'rec-filter-entry-date', action: 'schedule.entryDate', filters: f, draft: a.dateDraft })}
     ${numberField('难度下限', 'diffMin', 'rec-filter-diff-min-v2', f.diffMin, 1, 10, '1')}
     ${numberField('难度上限', 'diffMax', 'rec-filter-diff-max-v2', f.diffMax, 1, 10, '10')}
     ${numberField('熟练度下限 %', 'masteryMin', 'rec-filter-mastery-min-v2', f.masteryMin, 0, 100, '0')}
@@ -57,7 +59,8 @@ function candidate(item, i, a, env) {
   <input type="checkbox" class="schd-cand__check" aria-label="选择 ${item.uid}"${sel ? ' checked' : ''} data-change="schedule.toggle" data-arg="${questionKey(item)}">
   <span class="schd-cand__n">${i + 1}</span>
   <div class="schd-cand__main"><p class="schd-cand__title"><strong class="schd-cand__uid">${item.uid}</strong>${rv ? tag({ label: rv.label, tone: 'warning', title: rv.title }) : ''}</p>
-    <p class="schd-meta">${item.subject} · ${item.category} · 难度 ${item.difficulty}${labelChips(item.labels || [])}</p></div>
+    <p class="schd-meta">${item.subject} · ${item.category} · 难度 ${item.difficulty}${labelChips(item.labels || [])}</p>
+    ${env.showEntryDate ? html`<p class="schd-meta">${entryDateMeta(item)}</p>` : ''}</div>
   ${env.gallery ? html`<div class="schd-cand__preview" data-preview-uid="${item.uid}" data-key="pv-${item.uid}" data-morph="skip"></div>` : ''}
   <div class="schd-cand__info">${tag({ label: reason(item, env.dueDays(item)), tone: item._source === 'due' ? 'warning' : 'neutral' })}<span class="schd-meta">熟练度 ${Math.round((Number(item.mastery) || 0) * 100)}%</span></div>
   ${button({ label: '预览', size: 'sm', action: 'schedule.preview', arg: item.uid })}

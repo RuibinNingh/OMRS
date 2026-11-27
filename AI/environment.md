@@ -211,7 +211,7 @@ AI 草稿的开发与浏览器测试使用独立 Git 工作树，服务仍从临
 
 训练面板浏览器验证：`python3 tests/e2e/trainpanel.py` 用临时 Vault、假实验与假检测服务，覆盖进度／曲线刷新、人工复核、训练与服务分工及四档状态审计。真实模型链路：`python3 tests/e2e/boxdetect.py --dataset /path/to/frozen-dataset --train-dir /path/to/frozen-training-copy --shots /tmp/omrs-box-detect-real`，从外部数据快照取测试图，临时启动回环检测服务与隔离 OMRS，不写真实 Vault。截图不进 Git。
 
-视觉比较可加 `--create-stage train` 切到录入页 AI 训练工作区，例如 `python3 tests/visual/run.py --ref e40e6b8 --pages create --create-stage train --out /tmp/omrs-box-detect-visual`；不传该选项时保持默认工作区。运行测试前仍须去掉 OMRS_SYSTEMD_SERVICE。
+视觉比较可加 `--create-stage train` 切到录入页 AI 训练工作区，例如 `python3 tests/visual/run.py --ref e40e6b8 --pages create --create-stage train --out /tmp/omrs-box-detect-visual`；不传该选项时保持默认工作区。`--filters-open` 展开题库与调度筛选，便于录入日期等控件的前后截图。运行测试前仍须去掉 OMRS_SYSTEMD_SERVICE。
 
 设置页视觉比较可用 `--pages settings --settings-section ai` 定位 AI 识别分区，基线与当前工作区都会先切换到该分区再截图；不传时仍按上次保存的设置分区显示。
 

@@ -4,7 +4,7 @@
 > - 职责：题目库页（表格 / 画廊、筛选抽屉、批量、视图预设）、`filterItems()` 筛选语义、标记组件接入
 > - 入口：`assets/app/features/questions/`（`index.js` 控制器与页面契约、`state.js` 状态与纯函数、`view.js` 外壳模板、`list.js` 表格 / 画廊、`dialogs.js`、`questions.css`）；题目操作 `assets/app/domain/question/ops.js`；筛选语义 `assets/app/domain/items.js` 的 `filterItems()` / `filterAll()`；标记芯片与颜色在 `assets/app/domain/labels/`，选择器浮层和管理对话框分别在 `picker.js`、`manager.js`；录入表单从 `index.js` 的 `openCreateLabelPicker()` 打开共用浮层
 > - 不变量：所有列表共用 `filterItems()`（经 `domain/items.js::filterAll`）；默认隐藏停用题；偏好与视图预设的 localStorage 键名沿用旧版；表格视图不拉题目详情
-> - 必跑测试：`node --test tests/app/questions.test.mjs`、`python3 tests/e2e/questions.py`、`node --test tests/app/labels.test.mjs`、`tests/app/dashboard.test.mjs`
+> - 必跑测试：`node --test tests/app/questions.test.mjs tests/app/entry-date.test.mjs`、`python3 tests/e2e/questions.py`、`python3 tests/e2e/entry_date_filters.py`、`node --test tests/app/labels.test.mjs`、`tests/app/dashboard.test.mjs`
 > - 相关：`AI/frontend.md`（索引）、`AI/frontend/qview.md`（题面渲染与弹窗）、`AI/frontend/architecture.md`（页面契约与模块分层）
 
 ## 题目库页（`assets/app/features/questions/`，P5 第 2 轮起）
@@ -25,7 +25,9 @@
 ≤760 表格降级为卡片列表（D4：每格带 `data-label` 小标题，勾选 / 题目 / `⋯` 占第一行），全部可点目标 ≥40px，批量条铺满底部。
 
 **筛选抽屉**：科目 / 分类 / 知识点下拉、标记芯片（点亮即选，≥2 个时出现「任一 / 全部命中」）、难度与熟练度双滑块
-（`.qlb-dual`：两条 range 叠放，只有滑块本体可点；推一头越过另一头时带着走）、到期 / 状态 / 题目三组分段按钮、视图预设（一键应用、存为视图）。
+（`.qlb-dual`：两条 range 叠放，只有滑块本体可点；推一头越过另一头时带着走）、到期 / 状态 / 题目三组分段按钮、录入日期与视图预设（一键应用、存为视图）。
+
+**录入日期**支持全部、今天、最近 7 天、最近 30 天和自定义。快捷范围按上海业务日计算并包含今天。自定义点击「应用日期」后才更新结果，可只填一端；起止日倒置时提示错误并保留已生效结果。日期条件计入命中数，显示为可单独移除的筛选按钮。日期筛选或录入日期排序生效时，表格与画廊显示录入日。
 
 **表格**：默认列勾选、UID / 科目·分类（顽固题标「顽固」）、标记（芯片 + 「＋」开标记选择器）、熟练度、到期、状态、`⋯`；
 
@@ -55,7 +57,7 @@
 `omrs-qb-streak`（缺省开）、列数 `omrs-qb-gallery-cols`、列 `omrs-qb-columns`；「恢复默认显示」保留视图、其余回默认。命名视图存
 `omrs-question-views`，格式沿用旧版（`fields` 以旧元素 id `q-search`、`q-filter-subj`… 为键 + `labels` + 视图 / 列 / 密度 / 列数 /
 战绩带 / 元数据 / 题面换行），旧版存下的视图照样能用；当前条件与某个视图一致时该视图按钮高亮。题面换行（简略 / 完整）是全站 qview
-共用的偏好，归 `domain/question/markdown.js`（`omrs-qb-md-mode`），在浮层里切换后 `qvRerenderAll()`。
+共用的偏好，归 `domain/question/markdown.js`（`omrs-qb-md-mode`），在浮层里切换后 `qvRerenderAll()`。视图预设也保存录入日期模式或固定端点；相对范围每次按当天展开，旧预设缺少日期字段时等同「全部」。
 
 **页面联动**：题库挂载期间订阅 bus 的 `questions:render` 重绘列表；收到 `questions:preset` 时先清空筛选条件，再应用预设，并保留视图与列设置。仪表盘切页后发送预设；停用筛选不会残留。
 
@@ -93,7 +95,10 @@
 | 知识标签 | `knowledge_tags` |
 | 难度上下限 | `difficulty`；未指定时使用 0–10 |
 | 熟练度上下限 | `mastery` |
+| 录入日期 | `entry_date`；缺失或无效时回退到 `created_at` 对应的上海日期 |
 | 排序 | 多种排序方式 |
+
+录入日期条件与其它条件取交集。日期未知的题在不限制日期时保留；日期排序时置后，同日按 UID 升序。题库原有「创建日期 ↑ / ↓」仍按 Ledger 时间排序。
 
 ### 用户标记筛选
 

@@ -1,6 +1,7 @@
 /** 题库、练习与导出的统一题目筛选与日期语义。 */
 import { itemsNow } from './data.js';
 import { parseDay as parseReviewDate, daysBetween, businessToday } from '../core/date.js';
+import { filterEntryDates } from './entry-date.js';
 export const itemsOf = data => (Array.isArray(data?.items) ? data.items : []);
 function asNumber(value,fallback=0){const n=Number(value);return Number.isFinite(n)?n:fallback}
 function getItems(){return [...itemsNow()]}
@@ -40,8 +41,11 @@ export function filterItems(items,filters){
   if(filters.masteryMin!=null)result=result.filter(item=>asNumber(item.mastery,0)>=filters.masteryMin);
   if(filters.masteryMax!=null)result=result.filter(item=>asNumber(item.mastery,0)<=filters.masteryMax);
   if(filters.dueFilter){result=result.filter(item=>{const dueDays=getDueDays(item);if(dueDays===null)return false;switch(filters.dueFilter){case'overdue':return dueDays<0;case'today':return dueDays===0;case'3days':return dueDays>=0&&dueDays<=3;case'7days':return dueDays>=0&&dueDays<=7;case'future':return dueDays>0;default:return true}})}
+  result = filterEntryDates(result, filters.entryDateRange, filters.sort);
   switch(filters.sort){
     case'none':break;
+    case'entry-asc':
+    case'entry-desc':break;
     case'mastery-desc':result.sort((a,b)=>asNumber(b.mastery,0)-asNumber(a.mastery,0));break;
     case'diff-desc':result.sort((a,b)=>asNumber(b.difficulty,0)-asNumber(a.difficulty,0));break;
     case'diff-asc':result.sort((a,b)=>asNumber(a.difficulty,0)-asNumber(b.difficulty,0));break;

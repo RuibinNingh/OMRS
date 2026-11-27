@@ -1,4 +1,5 @@
 import { reviewCycle } from '../../domain/question/review-cycle.js';
+import { ENTRY_DATE_DEFAULTS, ENTRY_DATE_SORTS, entryDateChip, entryDateRange, normalizeEntryDate } from '../../domain/entry-date.js';
 /**
  * 题库页状态：模块单例 + 纯函数（tests/app/questions.test.mjs 全覆盖）。
  * - filters 是页面自己的数据，不读 DOM；toItemFilters() 翻成旧 core.js filterItems() 的条件形状，全站筛选语义不变。
@@ -10,6 +11,7 @@ import { reviewCycle } from '../../domain/question/review-cycle.js';
 export const FILTER_DEFAULTS = Object.freeze({
   text: '', subject: '', category: '', ktag: '', labels: Object.freeze([]), labelMode: 'any',
   diffMin: 1, diffMax: 10, masteryMin: 0, masteryMax: 100, due: '', tag: '', suspended: '', sort: 'mastery-asc',
+  ...ENTRY_DATE_DEFAULTS,
 });
 export const defaultFilters = () => ({ ...FILTER_DEFAULTS, labels: [] });
 
@@ -18,11 +20,13 @@ export const FIELD_IDS = Object.freeze({
   'q-filter-ktag': 'ktag', 'q-filter-due': 'due', 'q-filter-suspended': 'suspended', 'q-filter-diff-min': 'diffMin',
   'q-filter-diff-max': 'diffMax', 'q-filter-mastery-min': 'masteryMin', 'q-filter-mastery-max': 'masteryMax',
   'q-label-mode': 'labelMode', 'q-sort': 'sort',
+  'q-filter-entry-date': 'entryDateMode', 'q-filter-entry-date-from': 'entryDateFrom', 'q-filter-entry-date-to': 'entryDateTo',
 });
 export const RANGES = Object.freeze({ diff: { lo: 'diffMin', hi: 'diffMax', min: 1, max: 10, step: 1 }, mastery: { lo: 'masteryMin', hi: 'masteryMax', min: 0, max: 100, step: 5 } });
 
 export const SORTS = [['mastery-asc', '熟练度 ↑'], ['mastery-desc', '熟练度 ↓'], ['due-asc', '到期日 ↑'], ['due-desc', '到期日 ↓'],
-  ['diff-desc', '难度 ↓'], ['diff-asc', '难度 ↑'], ['date-desc', '最近复习优先'], ['created-asc', '创建日期 ↑'], ['created-desc', '创建日期 ↓']];
+  ['diff-desc', '难度 ↓'], ['diff-asc', '难度 ↑'], ['date-desc', '最近复习优先'], ['created-asc', '创建日期 ↑'], ['created-desc', '创建日期 ↓'],
+  ...ENTRY_DATE_SORTS];
 export const DUE_OPTIONS = [['', '全部'], ['overdue', '逾期'], ['today', '今日'], ['3days', '3 天'], ['7days', '7 天'], ['future', '未到期']];
 export const TAG_OPTIONS = [['', '全部'], ['待攻克', '待攻克'], ['已击杀', '已击杀'], ['易错', '易错坑']];
 export const SUSPENDED_OPTIONS = [['', '活动'], ['suspended', '仅停用'], ['all', '全部']];
@@ -40,7 +44,7 @@ export const VIEWS_KEY = 'omrs-question-views';
 
 export const defaultPrefs = () => ({ view: 'table', density: 'comfortable', galleryDetail: false, streak: true, galleryCols: 0, columns: null });
 
-export const state = { filters: defaultFilters(), live: null, quick: '', prefs: defaultPrefs(), selected: new Set(), cursor: '', drawer: false, menu: false, loaded: false };
+export const state = { filters: defaultFilters(), dateDraft: null, live: null, quick: '', prefs: defaultPrefs(), selected: new Set(), cursor: '', drawer: false, menu: false, loaded: false };
 
 const num = (value, fallback) => { const n = Number(value); return value === '' || value == null || !Number.isFinite(n) ? fallback : n; };
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -91,7 +95,7 @@ export const stepCols = (cols, step) => clampCols(cols === 0 ? (step > 0 ? 1 : 6
 
 // ── 筛选 ──
 export function withLive(filters, live) { return live ? { ...filters, ...live } : filters; }
-export function toItemFilters(filters) {
+export function toItemFilters(filters, today) {
   const f = filters || FILTER_DEFAULTS;
   return {
     text: String(f.text || '').trim().toLowerCase(), subject: f.subject || '', category: f.category || '', tag: f.tag || '',
@@ -99,6 +103,7 @@ export function toItemFilters(filters) {
     difficultyMin: num(f.diffMin, 1), difficultyMax: num(f.diffMax, 10) || 10,
     masteryMin: num(f.masteryMin, 0) / 100, masteryMax: num(f.masteryMax, 100) / 100,
     dueFilter: f.due || '', suspended: f.suspended || '', sort: f.sort || 'mastery-asc',
+    entryDateRange: entryDateRange(f, today), entryDateLabel: entryDateChip(f),
   };
 }
 /** 「用户设了什么」：入参是 filterItems 形状；滑块在两端、下拉为空都算未设。每项带 kind 供 clearFilter 撤销。 */
@@ -116,6 +121,7 @@ export function activeFilters(filters) {
   const mMin = f.masteryMin == null ? 0 : f.masteryMin, mMax = f.masteryMax == null ? 1 : f.masteryMax;
   if (mMin > 0 || mMax < 1) out.push({ kind: 'mastery', label: `熟练度 ${Math.round(mMin * 100)}–${Math.round(mMax * 100)}%` });
   if (f.dueFilter) out.push({ kind: 'due', label: `到期：${DUE_LABELS[f.dueFilter] || f.dueFilter}` });
+  if (f.entryDateLabel) out.push({ kind: 'entryDate', label: f.entryDateLabel });
   if (f.tag) out.push({ kind: 'tag', label: `状态：${f.tag === '易错' ? '易错坑' : f.tag}` });
   if (f.suspended) out.push({ kind: 'suspended', label: `题目：${SUSPENDED_LABELS[f.suspended] || f.suspended}` });
   return out;
@@ -131,6 +137,7 @@ export function clearFilter(filters, kind, value) {
   if (kind === 'label') next.labels = next.labels.filter(name => name !== value);
   else if (kind === 'diff') { next.diffMin = 1; next.diffMax = 10; }
   else if (kind === 'mastery') { next.masteryMin = 0; next.masteryMax = 100; }
+  else if (kind === 'entryDate') Object.assign(next, ENTRY_DATE_DEFAULTS);
   else if (kind in FILTER_DEFAULTS) next[kind] = FILTER_DEFAULTS[kind];
   return next;
 }
@@ -186,7 +193,7 @@ export function filtersFromFields(fields, labels) {
     else f[key] = String(value ?? '');
   });
   f.labels = [...new Set((labels || []).filter(Boolean).map(String))];
-  return f;
+  return { ...f, ...normalizeEntryDate(f) };
 }
 export const fieldsFromFilters = f => Object.fromEntries(Object.entries(FIELD_IDS).map(([id, key]) => [id, String(f[key] ?? '')]));
 const normalized = f => { const x = filtersFromFields(fieldsFromFilters(f), f.labels); x.labels = [...x.labels].sort(); return JSON.stringify(x); };
@@ -216,7 +223,7 @@ export function writeViews(storage, views) { try { storage?.setItem(VIEWS_KEY, J
 export const currentViewName = (views, filters) => Object.entries(views || {}).find(([, v]) => sameFilters(filtersFromFields(v.fields, v.labels), filters))?.[0] || '';
 export function describeView(view) {
   const f = filtersFromFields(view?.fields, view?.labels);
-  const bits = [f.subject, f.category, f.labels.length ? `标记 ${f.labels.join('/')}` : '', f.due ? (DUE_LABELS[f.due] || f.due) : '', f.tag].filter(Boolean);
+  const bits = [f.subject, f.category, f.labels.length ? `标记 ${f.labels.join('/')}` : '', f.due ? (DUE_LABELS[f.due] || f.due) : '', entryDateChip(f), f.tag].filter(Boolean);
   return bits.join(' · ') || '无筛选条件';
 }
 

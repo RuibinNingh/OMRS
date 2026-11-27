@@ -71,6 +71,8 @@ UI扫描使用`Path.read_text()`读取源码和AGENTS映射，读取后立即关
 
 字号 token 用 px 定义。紧凑密度 `html[data-density="compact"]` 把 `--text-sm/md/lg` 各降 1px，`--ctl-md/lg` 降到 30 / 36。窄屏（≤760px）为保证可点目标不小于 40px，三档控件高度统一为 40，不受密度影响。
 
+录入日期使用共用表单控件。粗指针设备上的日期输入使用 `--text-touch-input`（16px），避免 Safari 聚焦缩放；深色主题下沿用系统日期控件的深色配色。
+
 ## 4. token 维护边界
 
 `tokens.css` 定义浅色与深色语义 token，以及字号、间距、控件高度、圆角、动效和层级等尺度 token；紧凑密度与窄屏覆盖也在该文件。页面专用的派生 token 按用途放在同一文件，其他样式只引用 token。

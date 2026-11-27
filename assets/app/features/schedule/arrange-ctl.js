@@ -6,6 +6,7 @@ import { questionKey, questionRefs } from '../../domain/question/ref.js';
 import { get, post } from '../../core/api.js';
 import { toast } from '../../ui/toast.js';
 import { itemsOf, facets, filterAll, dueDays } from '../../domain/items.js';
+import { editEntryDate, showsEntryDate } from '../../domain/entry-date.js';
 import { listLabels } from '../../domain/labels/index.js';
 import { openSessions } from '../../domain/sessions.js';
 import { qvRender, qvSetContext, QV_CARD_OPTS } from '../../domain/question/index.js';
@@ -27,7 +28,7 @@ export function createArrange({ ctx, root, paint, openPlan }) {
     qvSetContext('schedule-pick', shown.map(i => i.uid));
     const items = itemsOf(ctx.store.get().data).filter(i => !i.suspended);
     return {
-      facets: facets(items), labels: listLabels(), chips: A.chips(a.filters), dueDays, gallery: a.view === 'gallery',
+      facets: facets(items), labels: listLabels(), chips: A.chips(a.filters), dueDays, gallery: a.view === 'gallery', showEntryDate: showsEntryDate(a.filters),
       filtered, shown, problem, hidden: A.hiddenSelected(a.selected, filtered), minutes: A.estimateMinutes([...a.selected.values()]),
       empty: A.emptyState(a, problem, openSessions().length),
       suggestDisabled: a.loading || !!a.error || !!problem || !filtered.length,
@@ -87,14 +88,24 @@ export function createArrange({ ctx, root, paint, openPlan }) {
   }
 
   const set = (fn) => { fn(); paint(); };
+  const resetFilters = () => { a.filters = A.resetFilters(a.filters); a.dateDraft = null; };
   return {
     env, hydrate, load, confirm,
     field: (key, value) => set(() => { a.filters = { ...a.filters, [key]: value ?? '' }; a.notice = ''; }),
+    entryDate: (key, value) => set(() => {
+      const next = editEntryDate(a.filters, a.dateDraft, key, value);
+      a.filters = next.filters;
+      a.dateDraft = next.draft;
+      a.notice = '';
+    }),
     label: name => set(() => { const has = a.filters.labels.includes(name); a.filters = { ...a.filters, labels: has ? a.filters.labels.filter(n => n !== name) : [...a.filters.labels, name] }; }),
-    clearField: key => set(() => { a.filters = A.clearField(a.filters, key); }),
-    resetFilters: () => set(() => { a.filters = A.resetFilters(a.filters); a.onlySelected = false; }),
-    showHidden: () => set(() => { a.filters = A.resetFilters(a.filters); a.onlySelected = true; }),
-    more: () => set(() => { a.more = !a.more; }),
+    clearField: key => set(() => {
+      a.filters = A.clearField(a.filters, key);
+      if (key === 'entryDate') a.dateDraft = null;
+    }),
+    resetFilters: () => set(() => { resetFilters(); a.onlySelected = false; }),
+    showHidden: () => set(() => { resetFilters(); a.onlySelected = true; }),
+    more: () => set(() => { a.more = !a.more; if (!a.more) a.dateDraft = null; }),
     target: value => { a.target = String(value ?? ''); },
     smart: () => set(() => { const picked = A.smartPick(env().filtered, a.target); if (picked) { a.selected = picked; a.onlySelected = false; } }),
     toggle: uid => set(() => { if (a.selected.has(uid)) a.selected.delete(uid); else { const item = (a.data || []).find(i => questionKey(i) === uid); if (item) a.selected.set(uid, item); } }),
@@ -102,6 +113,6 @@ export function createArrange({ ctx, root, paint, openPlan }) {
     clearSelection: () => set(() => { a.selected = new Map(); a.onlySelected = false; }),
     onlySelected: () => set(() => { a.onlySelected = !a.onlySelected; }),
     view: v => set(() => { a.view = v === 'gallery' ? 'gallery' : 'list'; A.writeView(storage(), a.view); }),
-    dispose: () => { observer?.disconnect(); a.seq += 1; a.loading = false; },
+    dispose: () => { observer?.disconnect(); a.seq += 1; a.loading = false; a.dateDraft = null; },
   };
 }

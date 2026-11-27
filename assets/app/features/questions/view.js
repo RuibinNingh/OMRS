@@ -5,6 +5,7 @@
  * 双滑块的填充条位置不写 style=（check_ui R6），由 index.js 在每次 morph 之后设 CSS 变量。
  */
 import { html, each, cls } from '../../core/html.js';
+import { entryDateField } from '../../domain/entry-date-field.js';
 import { icon } from '../../ui/icon.js';
 import { select } from '../../ui/select.js';
 import { badge } from '../../ui/badge.js';
@@ -95,6 +96,7 @@ function drawer(s, env) {
   ${dual('diff', '难度', live, '')}
   ${dual('mastery', '熟练度', live, '%')}
   ${segs('due', '到期', DUE_OPTIONS, f.due)}
+  ${entryDateField({ id: 'qlb-f-entry-date', action: 'questions.entryDate', filters: f, draft: s.dateDraft })}
   ${segs('tag', '状态', TAG_OPTIONS, f.tag)}
   ${segs('suspended', '题目', SUSPENDED_OPTIONS, f.suspended)}
   <div class="qlb-f"><span class="qlb-f__label">视图预设<button type="button" class="ui-btn ui-btn--ghost ui-btn--sm" data-action="questions.saveView">${icon('plus')}存为视图</button></span>

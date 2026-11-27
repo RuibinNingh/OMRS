@@ -40,7 +40,7 @@ assets/app/
 ├── core/              与业务无关的底座：html、dom、events、keys、store、bus、router、api、format
 ├── ui/                无业务组件
 ├── styles/            tokens、index（@layer 总入口）、base、ui、shell、gallery
-├── domain/            跨页业务模块：data、sessions、drafts、taxonomy、history、items、exporting、scan、question/、labels/、board/
+├── domain/            跨页业务模块：data、sessions、drafts、taxonomy、history、items、entry-date、exporting、scan、question/、labels/、board/
 └── features/          主外壳页面：dashboard/、data/、schedule/、board/、questions/、instant/、feedback/、history/、catalog/、reports/、settings/、create/、assistant/、ai-review/、problems/、zuoyebang/；独立页面：annotate/、trainpanel/
 ```
 
@@ -126,7 +126,7 @@ assets/app/
 - `domain/data.js` 是 `/api/stats` 快照的所有者。`reloadData()` 成功后发布 `data`，外壳同步到 `store.data`；失败保留上次快照，首次失败给空快照。并发调用合并为当前请求和至多一次补拉，调用方可从返回值与 `lastError()` 读取结果。
 - 共享题目 Markdown 使用 `domain/question/markdown-emphasis.js` 识别成对双星号；完整正文生成加粗节点，纯文本摘要使用同一识别结果。离线导出内联此模块。
 - `domain/sessions.js` 持有列表、反馈计划、详情、删除、暂停、跳过和结单。列表包含全部停用的活动计划。读取只认最新响应并发布 `sessions`，写回 Session 快照后旧列表请求失效，失败保留快照。规则见 `AI/frontend/review.md`。
-- `domain/labels/` 持有标记定义、芯片、选择器和管理弹层；写入后通过 `labels`、`questions:render`、`schedule:render`、`feedback:render`、`board:reload` 通知已挂载页面。`domain/items.js` 集中题库、练习和导出的筛选语义与到期天数。
+- `domain/labels/` 持有标记定义、芯片、选择器和管理弹层；写入后通过 `labels`、`questions:render`、`schedule:render`、`feedback:render`、`board:reload` 通知已挂载页面。`domain/items.js` 集中题库、练习和导出的筛选语义与到期天数；`domain/entry-date.js` 提供题库和调度共用的录入日期解析、筛选、排序与自定义草稿规则。
 - `domain/question/` 提供 Markdown / KaTeX 渲染、题目详情缓存、共享题目视图、弹窗和编辑器。渲染默认保留普通换行、空行仍按 Markdown 分段，显式「简略」偏好才合并单个换行；题库、录入预览、反馈、即时练习和展示板详情共用这条路径。题目内容或练习记录变化后，由调用方让缓存失效并重绘挂载视图。`domain/board/` 持有板列表与选板浮层，板详情经 `detail-port.js` 连接到 `features/board/runtime.js`，domain 不反向 import feature。
 - `features/create/inbox-store.js` 持有收件箱图片列表、当前图、勾选、保存队列和任务轮询；录入页的网格、处理、题卡与训练工作区共用该状态，变化时发 `inbox:changed`。`domain/drafts.js` 持有跨页草稿导航目标与草稿四态计数，统一审核角标由 `domain/ai-review.js` 持有，不持有草稿编辑表单。
 

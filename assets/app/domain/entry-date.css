@@ -1,0 +1,10 @@
+.entry-date-field { display: grid; gap: var(--sp-2); align-content: start; min-width: 0; }
+.entry-date-field__bounds { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr)); gap: var(--sp-2); }
+.entry-date-field > .ui-btn { justify-self: start; }
+
+/* 原生日期控件超过窄列时允许收缩；触屏上维持 Safari 无需缩放的输入字号。 */
+.entry-date-field input[type="date"] { min-inline-size: 0; }
+[data-theme="dark"] .entry-date-field input[type="date"] { color-scheme: dark; }
+@media (pointer: coarse) {
+  .entry-date-field :is(.ui-select, .ui-input) { font-size: var(--text-touch-input); }
+}

@@ -1,4 +1,5 @@
 import { questionKey } from '../../domain/question/ref.js';
+import { ENTRY_DATE_DEFAULTS, ENTRY_DATE_SORTS, entryDateChip, entryDateRange } from '../../domain/entry-date.js';
 /**
  * 复习调度 ·「安排复习」工作区的状态与纯函数（原 assets/recommend_v2.js，规则与文案原样），node 单测全覆盖。
  * - 候选来自 /api/recommend（到期 due + 熟练度 proficiency，带 _source）；筛选语义与题库、导出共用（domain/items 的 filterAll，
@@ -12,16 +13,16 @@ export const FIELDS = [
 ];
 export const DUE_OPTIONS = [['', '全部到期状态'], ['overdue', '已逾期'], ['today', '今日到期'], ['3days', '3 天内到期'], ['7days', '7 天内到期'], ['future', '未到期']];
 export const SORT_OPTIONS = [['priority', '按推荐方式'], ['mastery-asc', '熟练度从低到高'], ['mastery-desc', '熟练度从高到低'], ['diff-asc', '难度从低到高'],
-  ['diff-desc', '难度从高到低'], ['date-desc', '最近复习优先'], ['due-asc', '到期日从近到远'], ['due-desc', '到期日从远到近']];
+  ['diff-desc', '难度从高到低'], ['date-desc', '最近复习优先'], ['due-asc', '到期日从近到远'], ['due-desc', '到期日从远到近'], ...ENTRY_DATE_SORTS];
 export const MODE_OPTIONS = [['balanced', '均衡复习'], ['due', '到期优先'], ['weak', '薄弱优先']];
 export const VIEW_KEY = 'omrs-schedule-view';
 
 export const emptyFilters = () => ({ subject: '', text: '', mode: 'balanced', category: '', ktag: '', tag: '', due: '', diffMin: '', diffMax: '',
-  masteryMin: '', masteryMax: '', sort: 'priority', labelMode: 'any', labels: [] });
+  masteryMin: '', masteryMax: '', sort: 'priority', labelMode: 'any', labels: [], ...ENTRY_DATE_DEFAULTS });
 
 export const arrange = {
   data: null, selected: new Map(), onlySelected: false, loading: false, error: '', submitting: false, notice: '',
-  view: 'list', filters: emptyFilters(), target: '10', more: false, seq: 0,
+  view: 'list', filters: emptyFilters(), dateDraft: null, target: '10', more: false, seq: 0,
 };
 
 export function readView(storage) { try { return storage?.getItem(VIEW_KEY) === 'gallery' ? 'gallery' : 'list'; } catch (error) { return 'list'; } }
@@ -30,10 +31,11 @@ export function writeView(storage, view) { try { storage?.setItem(VIEW_KEY, view
 const num = (value, fallback) => (value === '' || value == null ? fallback : Number(value));
 
 /** 页面筛选 → 共享 filterItems 的条件（熟练度仍是 0–100 的百分数，filterCandidates 里再换算）。 */
-export function sharedFilters(f) {
+export function sharedFilters(f, today) {
   return { text: String(f.text || '').trim().toLowerCase(), subject: f.subject, category: f.category, tag: f.tag, knowledgeTag: f.ktag,
     labels: [...(f.labels || [])], labelMode: f.labelMode || 'any', difficultyMin: num(f.diffMin, 1), difficultyMax: num(f.diffMax, 10),
-    masteryMin: num(f.masteryMin, null), masteryMax: num(f.masteryMax, null), dueFilter: f.due, suspended: '', sort: f.sort || 'priority' };
+    masteryMin: num(f.masteryMin, null), masteryMax: num(f.masteryMax, null), dueFilter: f.due, suspended: '', sort: f.sort || 'priority',
+    entryDateRange: entryDateRange(f, today) };
 }
 
 export function filterError(sf) {
@@ -64,8 +66,8 @@ export function orderItems(items, mode) {
 }
 
 /** 候选筛选与排序；filterAll 是共享筛选（旧 filterItems）。条件不合法时返回空。 */
-export function filterCandidates(items, f, filterAll) {
-  const sf = sharedFilters(f);
+export function filterCandidates(items, f, filterAll, today) {
+  const sf = sharedFilters(f, today);
   if (filterError(sf)) return [];
   const list = items || [];
   const result = filterAll(list, { ...sf, masteryMin: sf.masteryMin == null ? null : sf.masteryMin / 100, masteryMax: sf.masteryMax == null ? null : sf.masteryMax / 100 });
@@ -102,12 +104,15 @@ export function chips(f) {
   const dueLabel = Object.fromEntries(DUE_OPTIONS);
   const out = FIELDS.filter(([key]) => f[key] !== '' && f[key] != null)
     .map(([key, label]) => ({ key, label: `${label} ${key === 'due' ? dueLabel[f.due] || f.due : f[key]}` }));
+  const date = entryDateChip(f);
+  if (date) out.push({ key: 'entryDate', label: date });
   (f.labels || []).forEach(name => out.push({ key: `label:${name}`, label: `标记 ${name}` }));
   return out;
 }
 
 export function clearField(f, key) {
   if (key.startsWith('label:')) return { ...f, labels: f.labels.filter(n => n !== key.slice(6)) };
+  if (key === 'entryDate') return { ...f, ...ENTRY_DATE_DEFAULTS };
   return { ...f, [key]: '' };
 }
 export const resetFilters = f => ({ ...emptyFilters(), mode: f.mode });
